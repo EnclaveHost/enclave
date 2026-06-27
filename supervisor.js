@@ -18,7 +18,9 @@ import express from "express";
 import cors from "cors";
 import http from "node:http";
 import net from "node:net";
-import { execFileSync } from "node:child_process";
+import { execFileSync, execFile } from "node:child_process";
+import { promisify } from "node:util";
+const pexec = promisify(execFile);
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -43,6 +45,14 @@ const BASE_RPC       = process.env.BASE_RPC || "https://mainnet.base.org";
 const SESSION_TTL    = parseInt(process.env.SESSION_TTL || "43200", 10); // 12h: long enough to cover a deployment's data-path use
 const SSH_USER       = process.env.SSH_USER || "instance"; // login user the supervisor's sshd drops into
 const DEFAULT_IMAGE  = process.env.DEFAULT_IMAGE || "debian:bookworm-slim"; // any stock image; sshd is hosted by the supervisor, not the image
+// --- worker launch (per-tenant container = the only isolation boundary) ------
+const DOCKER_BIN     = process.env.DOCKER_BIN || "docker";              // host runtime, reached via the enclave's docker socket
+const MPS_PIPE_DIR   = process.env.CUDA_MPS_PIPE_DIRECTORY || "/tmp/nvidia-mps";
+const ENABLE_MPS     = !/^(0|false|off)$/i.test(process.env.ENABLE_MPS || "1"); // MPS enforces BOTH the SM cap and the VRAM cap (validated under CC)
+const WORKER_PREFIX  = process.env.WORKER_PREFIX || "nan_";
+const SPAWN_TIMEOUT_MS = parseInt(process.env.SPAWN_TIMEOUT_MS || "180000", 10); // includes image pull
+const WORKER_MEM      = process.env.WORKER_MEM || "16g";                // host-RAM cap per worker (not GPU)
+const WORKER_PIDS     = process.env.WORKER_PIDS || "512";
 // The sandbox sshd host key is GENERATED ONCE AT BOOT inside the enclave and
 // measured into a TDX RTMR (see initSshHostKey) — so its fingerprint is
 // attestation-bound without baking a key into any image, and one fingerprint
@@ -109,10 +119,47 @@ const maxFreeVram    = () => Math.max(0, ...gpuCards.map(c => c.vramFree - CTX_O
 const maxFreeCompute = () => Math.max(0, ...gpuCards.map(c => c.computeFree));
 
 async function initGpu() {
-  // TODO: discover card UUIDs (`nvidia-smi -L`) → gpuCards[i].uuid, so each worker
-  // can be pinned with CUDA_VISIBLE_DEVICES=<uuid>. Optionally read true usable
-  // VRAM (`nvidia-smi --query-gpu=memory.total`) to set CARD_VRAM_GB. With CC on,
-  // each card is one whole device — there are no MIG instances to list.
+  // Discover real card UUIDs so each worker can be pinned to its allocated card
+  // (--gpus device=<uuid>). With CC on, each card is one whole device — no MIG
+  // instances to list. Resilient: on a CPU-only box this no-ops and uuids stay null.
+  try {
+    const { stdout } = await pexec("nvidia-smi",
+      ["--query-gpu=index,uuid,memory.total", "--format=csv,noheader,nounits"], { timeout: 15000 });
+    for (const line of stdout.trim().split("\n")) {
+      const [idx, uuid, memMiB] = line.split(",").map(s => s.trim());
+      const i = parseInt(idx, 10);
+      if (gpuCards[i]) {
+        gpuCards[i].uuid = uuid;
+        const totalGb = parseFloat(memMiB) / 1024;
+        if (totalGb > 0) console.log(`[gpu] card ${i} ${uuid} (${totalGb.toFixed(0)}GB total)`);
+      }
+    }
+    const got = gpuCards.filter(c => c.uuid).length;
+    if (got < GPU_COUNT) console.warn(`[gpu] discovered ${got}/${GPU_COUNT} card UUIDs`);
+  } catch (e) {
+    console.warn("[gpu] nvidia-smi discovery failed (CPU-only dev?):", e.message);
+  }
+}
+
+async function initMps() {
+  // Start the MPS control daemon ONCE at boot. Workers join it as clients (sharing
+  // MPS_PIPE_DIR) and the driver enforces, per client, BOTH the SM cap
+  // (CUDA_MPS_ACTIVE_THREAD_PERCENTAGE) and the VRAM cap (CUDA_MPS_PINNED_DEVICE_MEM_LIMIT)
+  // — confirmed enforced under CC via %smid. Without MPS, compute-share is unenforced
+  // and we fall back to admission control + watchdog (workers still run).
+  if (!ENABLE_MPS) { console.warn("[mps] disabled by env — compute-share will NOT be enforced"); return; }
+  try {
+    execFileSync("mkdir", ["-p", MPS_PIPE_DIR]);
+    // already running? control daemon answers on the pipe dir.
+    try { execFileSync("nvidia-cuda-mps-control", ["get_server_list"],
+            { env: { ...process.env, CUDA_MPS_PIPE_DIRECTORY: MPS_PIPE_DIR }, stdio: "ignore" });
+          console.log("[mps] daemon already running"); return; } catch {}
+    execFileSync("nvidia-cuda-mps-control", ["-d"],
+      { env: { ...process.env, CUDA_MPS_PIPE_DIRECTORY: MPS_PIPE_DIR } });
+    console.log(`[mps] control daemon started (pipe ${MPS_PIPE_DIR})`);
+  } catch (e) {
+    console.warn("[mps] could not start daemon — compute caps unenforced:", e.message);
+  }
 }
 
 async function initSshHostKey() {
@@ -180,31 +227,98 @@ function sshAccessOf(rec) {
 //     `authorizedKey`, and sets a ForceCommand that exec's into THIS sandbox's
 //     namespace. Return its loopback port as sshPort.
 // ============================================================================
+// ============================================================================
+// WORKER LAUNCH — one container per tenant. The process boundary is the ONLY
+// thing giving memory isolation + fault containment + VRAM scrub-on-exit at once
+// (all empirically confirmed). Compute + VRAM are capped by MPS, also confirmed
+// enforced under CC. Never co-locate two tenants in one process.
+//   STILL TODO (separate steps): (#3) extend a TDX RTMR with image.digest before
+//   launch so getMeasurements() is honest; SSH data-plane (returns sshPort 0 here
+//   — the HTTP data path is the real channel; SSH is unwired in this revision).
+// ============================================================================
+const containerName = (id) => WORKER_PREFIX + String(id).replace(/[^a-zA-Z0-9_.-]/g, "");
+// resolve the pinned image ref: prefer name@sha256:digest when a digest is given
+function pinnedRef(image) {
+  const ref = (image?.reference || DEFAULT_IMAGE).trim();
+  const dig = (image?.digest || "").trim();
+  if (ref.includes("@")) return ref;                              // already digest-pinned
+  if (/^sha256:[0-9a-f]{64}$/i.test(dig)) return `${ref.replace(/:[^/:]+$/, "")}@${dig}`;
+  return ref;                                                     // tag-only (pin verification is the attestation step)
+}
+
 async function spawnContainer({ deploymentId, owner, image, command, env, port, gpu, budget, authorizedKey }) {
-  // MOCK mode: no real CVM launch yet — return fake ports so the WHOLE control
-  // plane (auth, pricing, availability, deployment CRUD, billing) works end-to-end
-  // while spawn/stop/measure are still stubs. Set MOCK_SPAWN=1 to enable.
+  // MOCK mode: no real launch — fake ports so the control plane works end-to-end.
   if (/^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) {
     console.log(`[mock] spawn ${deploymentId} image=${image?.reference} gpu=${gpu ? gpu.vramCapGb + "GB@" + gpu.computeShare : "cpu"}`);
     return { internalPort: port || 8080, sshPort: 0 };
   }
-  // TODO: launch image.reference (pinned by image.digest) as this tenant's OWN
-  // worker PROCESS — never shared with another tenant. If gpu != null:
-  //   • pin the card:        CUDA_VISIBLE_DEVICES = gpu.cardUuid
-  //   • cap VRAM:            enforce gpu.vramCapGb in the worker's allocator
-  //                          (reject allocs past the cap; the supervisor already
-  //                          reserved gpu.vramCapGb + overhead against the card)
-  //   • cap compute:         run under MPS with
-  //                          CUDA_MPS_ACTIVE_THREAD_PERCENTAGE = round(gpu.computeShare*100)
-  // Isolation is the process boundary; rotating a tenant = killing this process
-  // (the driver scrubs its VRAM on exit). Then start the loopback sshd:
-  //   -h ${SSH_HOST_KEY_PATH}            (the measured, boot-generated host key)
-  //   authorized_keys = authorizedKey
-  //   ForceCommand = exec into this worker's namespace as ${SSH_USER}
-  // return { internalPort, sshPort };
-  throw new Error("spawnContainer() not implemented — wire to your CVM runtime");
+
+  const name = containerName(deploymentId);
+  const appPort = parseInt(port, 10) || 8080;
+  const args = [
+    "run", "-d", "--name", name,
+    "--restart", "no",
+    "--memory", WORKER_MEM, "--pids-limit", WORKER_PIDS,
+    "--security-opt", "no-new-privileges", "--cap-drop", "ALL",
+    // publish the tenant's app port to an EPHEMERAL host port bound to LOOPBACK
+    // only — reachable solely by this supervisor's /x/:id proxy, never externally.
+    "-p", `127.0.0.1::${appPort}`,
+  ];
+
+  if (gpu && gpu.cardUuid) {
+    const smPct = Math.max(1, Math.min(100, Math.round(gpu.computeShare * 100)));
+    const vramG = Math.max(1, Math.ceil(gpu.vramCapGb));
+    args.push(
+      "--gpus", `device=${gpu.cardUuid}`,                        // pin to the allocated physical card (execFile: no shell, no quotes)
+      "-e", `NVIDIA_VISIBLE_DEVICES=${gpu.cardUuid}`,
+      "-e", `CUDA_VISIBLE_DEVICES=0`,                             // single visible device inside the worker
+    );
+    if (ENABLE_MPS) args.push(
+      "-v", `${MPS_PIPE_DIR}:${MPS_PIPE_DIR}`,                    // join the host MPS daemon
+      "-e", `CUDA_MPS_PIPE_DIRECTORY=${MPS_PIPE_DIR}`,
+      "-e", `CUDA_MPS_ACTIVE_THREAD_PERCENTAGE=${smPct}`,        // SM cap  (enforced under CC)
+      "-e", `CUDA_MPS_PINNED_DEVICE_MEM_LIMIT=0=${vramG}G`,      // VRAM cap (enforced under CC)
+    );
+  } else if (gpu && !gpu.cardUuid) {
+    throw new Error("GPU requested but card UUID unknown (nvidia-smi discovery failed at boot)");
+  }
+
+  // tenant-supplied env, passed as discrete args (execFile = no shell, no injection)
+  for (const [k, v] of Object.entries(env || {})) {
+    if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) args.push("-e", `${k}=${String(v)}`);
+  }
+
+  args.push(pinnedRef(image));
+  if (Array.isArray(command)) for (const c of command) args.push(String(c)); // CMD override
+
+  // launch (pull happens here; bounded by SPAWN_TIMEOUT_MS)
+  let cid;
+  try {
+    const { stdout } = await pexec(DOCKER_BIN, args, { timeout: SPAWN_TIMEOUT_MS });
+    cid = stdout.trim();
+  } catch (e) {
+    await pexec(DOCKER_BIN, ["rm", "-f", name], { timeout: 30000 }).catch(() => {});
+    throw new Error(`worker launch failed: ${(e.stderr || e.message || "").toString().slice(0, 300)}`);
+  }
+
+  // read back the loopback host port docker assigned to the app port
+  let internalPort = 0;
+  try {
+    const { stdout } = await pexec(DOCKER_BIN, ["port", name, `${appPort}/tcp`], { timeout: 15000 });
+    internalPort = parseInt((stdout.trim().split("\n")[0].split(":").pop() || "0"), 10);
+  } catch { /* container may expose no port (batch/headless job) — internalPort stays 0 */ }
+
+  console.log(`[spawn] ${name} cid=${cid.slice(0,12)} card=${gpu?.cardUuid || "cpu"} sm=${gpu ? Math.round(gpu.computeShare*100)+"%" : "-"} vram=${gpu ? Math.ceil(gpu.vramCapGb)+"G" : "-"} -> 127.0.0.1:${internalPort}`);
+  return { internalPort, sshPort: 0 };
 }
-async function stopContainer(rec)  { /* TODO: SIGKILL the worker; its VRAM is scrubbed on exit and the slice is freed in the route */ }
+
+async function stopContainer(rec) {
+  // SIGKILL + remove. The driver scrubs this worker's VRAM on process exit
+  // (confirmed), and releaseGpu() returns the slice to the card in the route.
+  const name = containerName(rec.id);
+  await pexec(DOCKER_BIN, ["rm", "-f", name], { timeout: 30000 }).catch((e) =>
+    console.warn(`[stop] ${name}: ${e.message}`));
+}
 async function getMeasurements(rec) {
   // TODO: return the live TDX quote (+ whole-card NVIDIA CC report) folding in image.digest.
   return {
@@ -481,8 +595,21 @@ app.get("/v1/deployments/:id/attestation", authed, async (req, res) => {
   catch (e) { fail(res, 502, "attestation_error", e.message); }
 });
 
+// Tail the worker's stdout/stderr (owner only). ?tail=N (default 200, max 2000).
+app.get("/v1/deployments/:id/logs", authed, async (req, res) => {
+  const rec = deployments.get(req.params.id);
+  if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
+  if (/^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) return res.type("text/plain").send("[mock] no real worker; logs unavailable\n");
+  const tail = String(Math.min(2000, Math.max(1, parseInt(req.query.tail, 10) || 200)));
+  try {
+    const { stdout, stderr } = await pexec(DOCKER_BIN, ["logs", "--tail", tail, containerName(rec.id)], { timeout: 15000, maxBuffer: 4 * 1024 * 1024 });
+    res.type("text/plain").send((stdout || "") + (stderr || ""));
+  } catch (e) { fail(res, 502, "logs_error", (e.stderr || e.message || "").toString().slice(0, 300)); }
+});
+
 app.use((_req, res) => fail(res, 404, "not_found", "No such route."));
 await initGpu();
+await initMps();
 await initSshHostKey();
 
 // ---------------------------------------------------------------------------
