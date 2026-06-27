@@ -1,0 +1,22 @@
+{
+  "name": "nan-supervisor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "NAN supervisor \u2014 the whole service, running inside the Tinfoil enclave behind the shim. Control + data + per-use container launch. Nothing external touches a prompt.",
+  "main": "supervisor.js",
+  "scripts": {
+    "start": "node supervisor.js",
+    "dev": "node --watch supervisor.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "jose": "^5.9.6",
+    "viem": "^2.21.54",
+    "ws": "^8.18.0"
+  }
+}

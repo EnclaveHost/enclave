@@ -1,0 +1,15 @@
+# Builds the enclave image. Pin the resulting digest in tinfoil-config.yml.
+# Keep deps minimal — this image is measured and published; smaller TCB = easier audit.
+FROM node:20-slim
+# openssh-server provides sshd (the supervisor hosts SSH; sandbox images need none);
+# openssh-client provides ssh-keygen for the boot host key + in-enclave keypair minting.
+RUN apt-get update && apt-get install -y --no-install-recommends openssh-server openssh-client \
+ && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm install --omit=dev
+COPY supervisor.js ./
+# If you add the spawn implementation in its own files, COPY them here too.
+ENV PORT=8080
+EXPOSE 8080
+CMD ["node", "supervisor.js"]
