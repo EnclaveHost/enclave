@@ -1,23 +1,41 @@
-# Tinfoil Container Configuration
-# For updates: edit this file, commit, run the workflow (e.g., v0.0.2)
+# Tinfoil enclave = ONE persistent NAN supervisor. It IS the api.nan.host service
+# (control + data), measured and attested. Per-use sandboxes are spawned by the
+# supervisor in-process at runtime — no external tier, no redeploy per use.
+#
+# This repo BUILDS the image in CI: the `image:` digest below is rewritten by the
+# Tinfoil Release workflow on every tagged release. Leave the :placeholder tag —
+# do NOT hand-edit the @sha256 part. Just edit env/secrets, commit, and run the
+# workflow with a new version.
 cvm-version: 0.7.5
-cpus: 2
-memory: 8192
+cpus: 8           # supervisor + headroom for spawned sandboxes
+memory: 65536     # 64 GiB — raise to fit concurrent per-use containers
+gpus: 1           # the GPU reserved for the month (the supervisor does not touch it yet — initMig is a stub)
 
 containers:
-  - name: "hello-world"
-    image: "ghcr.io/tinfoilsh/tinfoil-containers-hello-world@sha256:c943b1cab16409e2e686ad71deab30364c27421852cdd6b3080df1c7a38331ed"
+  - name: "nan"
+    # Built + pinned by CI (ghcr.io/stevedefacto/nan, lowercase — see the workflow).
+    image: "ghcr.io/stevedefacto/nan:placeholder"
     env:
-      - MESSAGE: "Hello from Tinfoil"
+      - PORT: "8080"
+      # The shim URL Tinfoil assigns this container (or your custom domain once mapped).
+      - PUBLIC_URL: "https://nan.<org>.containers.tinfoil.dev"
+      - SIWE_DOMAIN: "nan.host"
+      - SIWE_URI: "https://nan.host"
+      - CHAIN_ID: "8453"
+      - CORS_ORIGINS: "https://nan.host"
+      - BASE_RPC: "https://mainnet.base.org"
+      - ESCROW_ENABLED: "false"
+      - SESSION_TTL: "43200"
+      - MIG_LAYOUT: "1g.18gb,1g.18gb,1g.18gb,1g.18gb,1g.18gb,1g.18gb,1g.35gb"
+      - SSH_USER: "instance"
+      - DEFAULT_IMAGE: "debian:bookworm-slim"   # any stock image; sshd is hosted by the supervisor
+      # SSH host-key fingerprint is generated at boot in-enclave and measured into an RTMR — not configured here.
     secrets:
-      - GREETING_TOKEN
+      - SECRET            # signs/verifies the session+capability token (add it in Dashboard > Secrets)
 
+# The shim is the single ingress. Control (/v1/*) and data (/x/:id/*) are both
+# served by the supervisor on one port — one origin, one cert for the browser.
 shim:
   upstream-port: 8080
   paths:
     - /*
-gpus: 1
-models:
-  - name: ""
-    repo: ""
-    mpk: ""
