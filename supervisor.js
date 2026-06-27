@@ -46,7 +46,7 @@ const SESSION_TTL    = parseInt(process.env.SESSION_TTL || "43200", 10); // 12h:
 const SSH_USER       = process.env.SSH_USER || "instance"; // login user the supervisor's sshd drops into
 const DEFAULT_IMAGE  = process.env.DEFAULT_IMAGE || "debian:bookworm-slim"; // any stock image; sshd is hosted by the supervisor, not the image
 // --- worker launch (per-tenant container = the only isolation boundary) ------
-const DOCKER_BIN     = process.env.DOCKER_BIN || "docker";              // host runtime, reached via the enclave's docker socket
+const DOCKER_SOCK    = process.env.DOCKER_SOCK || "/var/run/docker.sock";  // Engine API endpoint (mounted into the supervisor)
 const MPS_PIPE_DIR   = process.env.CUDA_MPS_PIPE_DIRECTORY || "/tmp/nvidia-mps";
 const ENABLE_MPS     = !/^(0|false|off)$/i.test(process.env.ENABLE_MPS || "1"); // MPS enforces BOTH the SM cap and the VRAM cap (validated under CC)
 const WORKER_PREFIX  = process.env.WORKER_PREFIX || "nan_";
@@ -119,25 +119,50 @@ const maxFreeVram    = () => Math.max(0, ...gpuCards.map(c => c.vramFree - CTX_O
 const maxFreeCompute = () => Math.max(0, ...gpuCards.map(c => c.computeFree));
 
 async function initGpu() {
-  // Discover real card UUIDs so each worker can be pinned to its allocated card
-  // (--gpus device=<uuid>). With CC on, each card is one whole device — no MIG
-  // instances to list. Resilient: on a CPU-only box this no-ops and uuids stay null.
-  try {
-    const { stdout } = await pexec("nvidia-smi",
-      ["--query-gpu=index,uuid,memory.total", "--format=csv,noheader,nounits"], { timeout: 15000 });
-    for (const line of stdout.trim().split("\n")) {
+  // Discover real card UUIDs so each worker can be pinned (--gpus device=<uuid>).
+  // The supervisor image has no nvidia-smi, so enumerate via a one-shot container
+  // through the Docker API. Fast path: local nvidia-smi if it happens to exist.
+  // Resilient: on a CPU-only / mock box this no-ops and uuids stay null.
+  const apply = (text) => {
+    let got = 0;
+    for (const line of text.trim().split("\n")) {
       const [idx, uuid, memMiB] = line.split(",").map(s => s.trim());
       const i = parseInt(idx, 10);
-      if (gpuCards[i]) {
-        gpuCards[i].uuid = uuid;
+      if (gpuCards[i] && /^GPU-/.test(uuid || "")) {
+        gpuCards[i].uuid = uuid; got++;
         const totalGb = parseFloat(memMiB) / 1024;
-        if (totalGb > 0) console.log(`[gpu] card ${i} ${uuid} (${totalGb.toFixed(0)}GB total)`);
+        if (totalGb > 0) console.log(`[gpu] card ${i} ${uuid} (${totalGb.toFixed(0)}GB)`);
       }
     }
-    const got = gpuCards.filter(c => c.uuid).length;
+    return got;
+  };
+  const QUERY = ["nvidia-smi", "--query-gpu=index,uuid,memory.total", "--format=csv,noheader,nounits"];
+
+  // fast path
+  try { const { stdout } = await pexec("nvidia-smi", QUERY.slice(1), { timeout: 8000 });
+        if (apply(stdout) >= GPU_COUNT) return; } catch {}
+
+  if (/^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) { console.warn("[gpu] MOCK_SPAWN — skipping discovery"); return; }
+
+  // API path: run a throwaway CUDA container that prints the UUIDs
+  const ref = process.env.GPU_SCAN_IMAGE || "nvidia/cuda:12.6.2-base-ubuntu24.04";
+  const name = WORKER_PREFIX + "gpuscan";
+  try {
+    await dockerPull(ref);
+    await dockerReq("DELETE", `/containers/${name}?force=1`).catch(() => {});
+    const created = await dockerJson("POST", `/containers/create?name=${name}`, {
+      Image: ref, Cmd: QUERY,
+      HostConfig: { DeviceRequests: [{ Driver: "nvidia", Count: -1, Capabilities: [["gpu"]] }] },
+    });
+    const cid = created.Id;
+    await dockerJson("POST", `/containers/${cid}/start`);
+    await dockerReq("POST", `/containers/${cid}/wait`, null, 30000);
+    const r = await dockerReq("GET", `/containers/${cid}/logs?stdout=1&stderr=1`);
+    await dockerReq("DELETE", `/containers/${cid}?force=1`).catch(() => {});
+    const got = apply(demuxLogs(r.buf));
     if (got < GPU_COUNT) console.warn(`[gpu] discovered ${got}/${GPU_COUNT} card UUIDs`);
   } catch (e) {
-    console.warn("[gpu] nvidia-smi discovery failed (CPU-only dev?):", e.message);
+    console.warn("[gpu] UUID discovery via docker failed:", e.message);
   }
 }
 
@@ -245,6 +270,54 @@ function pinnedRef(image) {
   if (/^sha256:[0-9a-f]{64}$/i.test(dig)) return `${ref.replace(/:[^/:]+$/, "")}@${dig}`;
   return ref;                                                     // tag-only (pin verification is the attestation step)
 }
+function toBytes(s) {
+  const m = /^(\d+)\s*([gmk]?)b?$/i.exec(String(s).trim());
+  if (!m) return 0;
+  const n = +m[1], u = m[2].toLowerCase();
+  return u === "g" ? n*1073741824 : u === "m" ? n*1048576 : u === "k" ? n*1024 : n;
+}
+// docker multiplexed log stream: [stream:1][000][size:4 BE][payload]…  -> plain text
+function demuxLogs(buf) {
+  let out = "", o = 0;
+  while (o + 8 <= buf.length) {
+    const size = buf.readUInt32BE(o + 4), start = o + 8, end = start + size;
+    if (end > buf.length) break;
+    out += buf.slice(start, end).toString(); o = end;
+  }
+  return o > 0 ? out : buf.toString();   // fallback if the stream wasn't framed
+}
+
+// ---- Docker Engine API client (over the mounted unix socket; no docker CLI) --
+function dockerReq(method, path, body, timeoutMs = 30000) {
+  return new Promise((resolve, reject) => {
+    const data = body != null ? Buffer.from(JSON.stringify(body)) : null;
+    const req = http.request({ socketPath: DOCKER_SOCK, method, path,
+      headers: { "Content-Type": "application/json", ...(data ? { "Content-Length": data.length } : {}) } },
+      (res) => { const chunks = []; res.on("data", c => chunks.push(c));
+                 res.on("end", () => resolve({ status: res.statusCode, buf: Buffer.concat(chunks) })); });
+    req.on("error", reject);
+    req.setTimeout(timeoutMs, () => req.destroy(new Error("docker socket timeout")));
+    if (data) req.write(data); req.end();
+  });
+}
+async function dockerJson(method, path, body, timeoutMs) {
+  const r = await dockerReq(method, path, body, timeoutMs);
+  let j = null; try { j = r.buf.length ? JSON.parse(r.buf.toString()) : null; } catch {}
+  if (r.status >= 400) throw new Error(`docker ${method} ${path.split("?")[0]} -> ${r.status} ${j?.message || r.buf.toString().slice(0,200)}`);
+  return j;
+}
+async function dockerPull(ref) {
+  let fromImage = ref, tag = "latest";
+  const at = ref.indexOf("@");
+  if (at >= 0) { fromImage = ref.slice(0, at); tag = ref.slice(at + 1); }      // repo@sha256:…
+  else { const c = ref.lastIndexOf(":"), s = ref.lastIndexOf("/"); if (c > s) { fromImage = ref.slice(0, c); tag = ref.slice(c + 1); } }
+  const r = await dockerReq("POST", `/images/create?fromImage=${encodeURIComponent(fromImage)}&tag=${encodeURIComponent(tag)}`, null, SPAWN_TIMEOUT_MS);
+  if (r.status >= 400) throw new Error(`pull ${ref} -> ${r.status} ${r.buf.toString().slice(0,200)}`);
+  // the pull stream returns 200 even on failure; the error rides in the body
+  const err = r.buf.toString().split("\n").filter(Boolean)
+    .map(l => { try { return JSON.parse(l); } catch { return null; } }).reverse().find(o => o && o.error);
+  if (err) throw new Error(`pull ${ref}: ${err.error}`);
+}
 
 async function spawnContainer({ deploymentId, owner, image, command, env, port, gpu, budget, authorizedKey }) {
   // MOCK mode: no real launch — fake ports so the control plane works end-to-end.
@@ -255,69 +328,65 @@ async function spawnContainer({ deploymentId, owner, image, command, env, port, 
 
   const name = containerName(deploymentId);
   const appPort = parseInt(port, 10) || 8080;
-  const args = [
-    "run", "-d", "--name", name,
-    "--restart", "no",
-    "--memory", WORKER_MEM, "--pids-limit", WORKER_PIDS,
-    "--security-opt", "no-new-privileges", "--cap-drop", "ALL",
-    // publish the tenant's app port to an EPHEMERAL host port bound to LOOPBACK
-    // only — reachable solely by this supervisor's /x/:id proxy, never externally.
-    "-p", `127.0.0.1::${appPort}`,
-  ];
+  const ref = pinnedRef(image);
+
+  const Env = [];
+  const HostConfig = {
+    Memory: toBytes(WORKER_MEM), PidsLimit: parseInt(WORKER_PIDS, 10),
+    SecurityOpt: ["no-new-privileges"], CapDrop: ["ALL"], RestartPolicy: { Name: "no" },
+    // ephemeral host port, bound to LOOPBACK — only the /x/:id proxy can reach it
+    PortBindings: { [`${appPort}/tcp`]: [{ HostIp: "127.0.0.1", HostPort: "" }] },
+  };
 
   if (gpu && gpu.cardUuid) {
     const smPct = Math.max(1, Math.min(100, Math.round(gpu.computeShare * 100)));
     const vramG = Math.max(1, Math.ceil(gpu.vramCapGb));
-    args.push(
-      "--gpus", `device=${gpu.cardUuid}`,                        // pin to the allocated physical card (execFile: no shell, no quotes)
-      "-e", `NVIDIA_VISIBLE_DEVICES=${gpu.cardUuid}`,
-      "-e", `CUDA_VISIBLE_DEVICES=0`,                             // single visible device inside the worker
-    );
-    if (ENABLE_MPS) args.push(
-      "-v", `${MPS_PIPE_DIR}:${MPS_PIPE_DIR}`,                    // join the host MPS daemon
-      "-e", `CUDA_MPS_PIPE_DIRECTORY=${MPS_PIPE_DIR}`,
-      "-e", `CUDA_MPS_ACTIVE_THREAD_PERCENTAGE=${smPct}`,        // SM cap  (enforced under CC)
-      "-e", `CUDA_MPS_PINNED_DEVICE_MEM_LIMIT=0=${vramG}G`,      // VRAM cap (enforced under CC)
-    );
+    Env.push(`NVIDIA_VISIBLE_DEVICES=${gpu.cardUuid}`, `CUDA_VISIBLE_DEVICES=0`);
+    HostConfig.DeviceRequests = [{ Driver: "nvidia", DeviceIDs: [gpu.cardUuid], Capabilities: [["gpu"]] }]; // == --gpus device=<uuid>
+    if (ENABLE_MPS) {
+      Env.push(`CUDA_MPS_PIPE_DIRECTORY=${MPS_PIPE_DIR}`,
+               `CUDA_MPS_ACTIVE_THREAD_PERCENTAGE=${smPct}`,   // SM cap   (enforced under CC)
+               `CUDA_MPS_PINNED_DEVICE_MEM_LIMIT=0=${vramG}G`); // VRAM cap (enforced under CC)
+      HostConfig.Binds = [`${MPS_PIPE_DIR}:${MPS_PIPE_DIR}`];   // join the host MPS daemon
+    }
   } else if (gpu && !gpu.cardUuid) {
-    throw new Error("GPU requested but card UUID unknown (nvidia-smi discovery failed at boot)");
+    throw new Error("GPU requested but card UUID unknown (GPU discovery failed at boot)");
   }
 
-  // tenant-supplied env, passed as discrete args (execFile = no shell, no injection)
-  for (const [k, v] of Object.entries(env || {})) {
-    if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) args.push("-e", `${k}=${String(v)}`);
-  }
+  for (const [k, v] of Object.entries(env || {}))
+    if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) Env.push(`${k}=${String(v)}`);
 
-  args.push(pinnedRef(image));
-  if (Array.isArray(command)) for (const c of command) args.push(String(c)); // CMD override
+  const body = { Image: ref, Env, ExposedPorts: { [`${appPort}/tcp`]: {} }, HostConfig };
+  if (Array.isArray(command) && command.length) body.Cmd = command.map(String);
 
-  // launch (pull happens here; bounded by SPAWN_TIMEOUT_MS)
+  await dockerPull(ref);                                                   // pull (bounded)
+  await dockerReq("DELETE", `/containers/${name}?force=1`).catch(() => {}); // clear any stale name
   let cid;
   try {
-    const { stdout } = await pexec(DOCKER_BIN, args, { timeout: SPAWN_TIMEOUT_MS });
-    cid = stdout.trim();
+    const created = await dockerJson("POST", `/containers/create?name=${encodeURIComponent(name)}`, body);
+    cid = created.Id;
+    await dockerJson("POST", `/containers/${cid}/start`);
   } catch (e) {
-    await pexec(DOCKER_BIN, ["rm", "-f", name], { timeout: 30000 }).catch(() => {});
-    throw new Error(`worker launch failed: ${(e.stderr || e.message || "").toString().slice(0, 300)}`);
+    await dockerReq("DELETE", `/containers/${name}?force=1`).catch(() => {});
+    throw new Error(`worker launch failed: ${e.message}`);
   }
 
-  // read back the loopback host port docker assigned to the app port
+  // read back the loopback host port docker assigned
   let internalPort = 0;
   try {
-    const { stdout } = await pexec(DOCKER_BIN, ["port", name, `${appPort}/tcp`], { timeout: 15000 });
-    internalPort = parseInt((stdout.trim().split("\n")[0].split(":").pop() || "0"), 10);
-  } catch { /* container may expose no port (batch/headless job) — internalPort stays 0 */ }
+    const insp = await dockerJson("GET", `/containers/${cid}/json`);
+    internalPort = parseInt(insp?.NetworkSettings?.Ports?.[`${appPort}/tcp`]?.[0]?.HostPort || "0", 10);
+  } catch { /* headless/batch worker may expose no port */ }
 
   console.log(`[spawn] ${name} cid=${cid.slice(0,12)} card=${gpu?.cardUuid || "cpu"} sm=${gpu ? Math.round(gpu.computeShare*100)+"%" : "-"} vram=${gpu ? Math.ceil(gpu.vramCapGb)+"G" : "-"} -> 127.0.0.1:${internalPort}`);
   return { internalPort, sshPort: 0 };
 }
 
 async function stopContainer(rec) {
-  // SIGKILL + remove. The driver scrubs this worker's VRAM on process exit
-  // (confirmed), and releaseGpu() returns the slice to the card in the route.
+  // force-remove (SIGKILL + rm). VRAM is scrubbed by the driver on process exit
+  // (confirmed); releaseGpu() returns the slice to the card in the route.
   const name = containerName(rec.id);
-  await pexec(DOCKER_BIN, ["rm", "-f", name], { timeout: 30000 }).catch((e) =>
-    console.warn(`[stop] ${name}: ${e.message}`));
+  await dockerReq("DELETE", `/containers/${name}?force=1`).catch((e) => console.warn(`[stop] ${name}: ${e.message}`));
 }
 async function getMeasurements(rec) {
   // TODO: return the live TDX quote (+ whole-card NVIDIA CC report) folding in image.digest.
@@ -602,9 +671,10 @@ app.get("/v1/deployments/:id/logs", authed, async (req, res) => {
   if (/^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) return res.type("text/plain").send("[mock] no real worker; logs unavailable\n");
   const tail = String(Math.min(2000, Math.max(1, parseInt(req.query.tail, 10) || 200)));
   try {
-    const { stdout, stderr } = await pexec(DOCKER_BIN, ["logs", "--tail", tail, containerName(rec.id)], { timeout: 15000, maxBuffer: 4 * 1024 * 1024 });
-    res.type("text/plain").send((stdout || "") + (stderr || ""));
-  } catch (e) { fail(res, 502, "logs_error", (e.stderr || e.message || "").toString().slice(0, 300)); }
+    const r = await dockerReq("GET", `/containers/${containerName(rec.id)}/logs?stdout=1&stderr=1&tail=${tail}`, null, 15000);
+    if (r.status >= 400) return fail(res, 502, "logs_error", r.buf.toString().slice(0, 200));
+    res.type("text/plain").send(demuxLogs(r.buf));
+  } catch (e) { fail(res, 502, "logs_error", (e.message || "").toString().slice(0, 300)); }
 });
 
 app.use((_req, res) => fail(res, 404, "not_found", "No such route."));
