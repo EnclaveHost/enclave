@@ -73,12 +73,17 @@ const FULL_RATE       = 0.0016667;                                      // USDC/
 const GPU_COUNT       = parseInt(process.env.GPU_COUNT || "1", 10);     // cards in this enclave
 const CARD_VRAM_GB    = parseFloat(process.env.GPU_VRAM_GB || "141");   // usable VRAM per card
 const CTX_OVERHEAD_GB = parseFloat(process.env.CTX_OVERHEAD_GB || "0.5"); // per-worker context cost, reserved on top of the cap
-const MIN_COMPUTE_SHARE = parseFloat(process.env.MIN_COMPUTE_SHARE || "0.1428571"); // default/floor compute share (1/7)
+const SM_TOTAL        = parseInt(process.env.SM_TOTAL || "132", 10);   // SMs per card (H200=132); for reporting granted SMs
+const MIN_COMPUTE_PCT = parseInt(process.env.MIN_COMPUTE_PCT || "1", 10); // floor; CUDA_MPS_ACTIVE_THREAD_PERCENTAGE is an integer 1..100
 const GRANULARITY_GB  = parseFloat(process.env.VRAM_GRANULARITY_GB || "1"); // request rounding; 1 GB ≈ arbitrary
 
 const round1 = (x) => Math.round(x * 10) / 10;
 const round3 = (x) => Math.round(x * 1000) / 1000;
 const memShareOf = (vramGb) => vramGb / CARD_VRAM_GB;
+// compute is dialed by an INTEGER percent (the MPS cap grain) — quantize any
+// requested share to whole percent, floored at MIN_COMPUTE_PCT. This is the true
+// allocatable unit; there is no finer control and no 1/7 floor.
+const quantizePct = (share) => Math.min(100, Math.max(MIN_COMPUTE_PCT, Math.round(share * 100)));
 
 // per-card free pools (vram + compute). With CC on there is exactly one whole
 // device per card — no MIG instances to enumerate.
@@ -89,12 +94,13 @@ function rateFor(vramGb, computeShare) {
   if (!(vramGb > 0)) return CPU_RATE;
   return FULL_RATE * Math.max(memShareOf(vramGb), computeShare);
 }
-// normalize a request: round VRAM up to granularity; default/clamp compute share.
+// normalize a request: round VRAM up to granularity; quantize compute to the
+// integer-percent MPS grain (default it to the memory share if unspecified).
 function normalizeReq(vramGb, computeShare) {
   const v = Math.ceil(vramGb / GRANULARITY_GB) * GRANULARITY_GB;
-  let c = (computeShare == null) ? Math.max(MIN_COMPUTE_SHARE, memShareOf(v)) : computeShare;
-  c = Math.min(1, Math.max(0, c));
-  return { vramGb: v, computeShare: c };
+  const raw = (computeShare == null) ? memShareOf(v) : computeShare;
+  const pct = quantizePct(raw);                 // whole percent, floored at MIN_COMPUTE_PCT
+  return { vramGb: v, computeShare: pct / 100, computePct: pct };
 }
 // reserve an arbitrary slice on a single card (best-fit on VRAM). Overhead is
 // reserved on top of the cap so the sum of live workers never exceeds physical.
@@ -430,7 +436,10 @@ async function getMeasurements(rec) {
 function capacity() {
   return {
     cpu: 64,
-    gpu: gpuCards.map(c => ({ id: c.id, vramFreeGb: round1(c.vramFree), computeFree: round3(c.computeFree) })),
+    gpu: gpuCards.map(c => ({ id: c.id, vramFreeGb: round1(c.vramFree),
+                              computeFree: round3(c.computeFree),
+                              computeFreePct: Math.round(c.computeFree * 100),
+                              smFree: Math.round(c.computeFree * SM_TOTAL) })),
     vramFreeGb: round1(gpuCards.reduce((s, c) => s + c.vramFree, 0)),
     maxVramGb: round1(maxFreeVram()),
     maxComputeShare: round3(maxFreeCompute()),
@@ -493,11 +502,11 @@ app.get("/v1/version", (_req, res) => res.json({ service: "nan-supervisor/0.1.0"
 
 app.get("/v1/pricing", (_req, res) => res.json({
   assets: ["ETH","USDC"],
-  model: "Request any VRAM slice (GB) and an optional compute share (0–1) of a card. Both are software-enforced caps — CC disables MIG, so splits are arbitrary, not fixed profiles. Billed per second by the LARGER of memory share (vramGb / cardVramGb) or compute share, times the whole-card rate.",
-  card: { vramGb: CARD_VRAM_GB, count: GPU_COUNT,
+  model: "Request any VRAM slice (GB) and an optional compute share of a card. Both are hardware-enforced caps via MPS under NVIDIA CC (CC disables MIG, so splits are arbitrary, not fixed profiles). Compute is dialed in whole percent of the card. Billed per second by the LARGER of memory share (vramGb / cardVramGb) or compute share, times the whole-card rate.",
+  card: { vramGb: CARD_VRAM_GB, count: GPU_COUNT, sms: SM_TOTAL,
           wholeCardPerSecondUsdc: FULL_RATE.toFixed(7), wholeCardPerHourUsdc: (FULL_RATE * 3600).toFixed(2) },
   cpu: { ratePerSecondUsdc: CPU_RATE.toFixed(7), ratePerHourUsdc: (CPU_RATE * 3600).toFixed(2) },
-  minComputeShare: round3(MIN_COMPUTE_SHARE),
+  computeGranularity: { unit: "percent", step: 1, minPercent: MIN_COMPUTE_PCT, note: `compute is set by MPS in whole-percent steps (~${round1(SM_TOTAL/100)} SMs each)` },
   vramGranularityGb: GRANULARITY_GB,
   formula: "ratePerSecondUsdc = wholeCardPerSecond × max(vramGb / cardVramGb, computeShare)",
   examples: [18, 35, 70, 141].map(v => {
