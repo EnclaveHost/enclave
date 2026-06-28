@@ -59,7 +59,7 @@ containers:
 
   # --- supervisor: control plane (no GPU), public ingress -----------------------
   - name: "supervisor"
-    image: "ghcr.io/stevedefacto/nan:sha256@73c7951972fe1e16d6a01394d20540fec091addb5a2d09835ebd80475beebb58"
+    image: "ghcr.io/stevedefacto/nan@sha256:f5cdc096e0b98aa3a11cba6a444aadecd6143618913a5ff27ddac56390c81981" # v0.1.9
     restart: always
     env:
       - PORT: "8080"
