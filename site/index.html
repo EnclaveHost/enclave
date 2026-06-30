@@ -2883,7 +2883,7 @@ async function pickWallet(){
   });
 }
 
-async function ensureBaseChain(provider){
+async function ensureBaseChainOnConnect(provider){
   let cid;
   try { cid = await provider.request({ method: "eth_chainId" }); } catch(e){ return; }
   if (parseInt(cid, 16) === BASE_CHAIN) return;
@@ -2907,7 +2907,7 @@ async function connectWallet(){
   const provider = chosen.provider;
   const accounts = await provider.request({ method: "eth_requestAccounts" });
   if (!accounts || !accounts.length) throw new NanError("Wallet returned no accounts.", 0);
-  await ensureBaseChain(provider);
+  await ensureBaseChainOnConnect(provider);
   let cid; try { cid = await provider.request({ method: "eth_chainId" }); } catch(e){}
   Nan.provider = provider; Nan.address = accounts[0]; Nan.chainId = cid ? parseInt(cid, 16) : null;
   if (provider.on){
@@ -2976,7 +2976,7 @@ async function renderWalletPop(){
   pop.hidden = false;
   const c = $("#wpCopy"); if (c) c.addEventListener("click", () => copyText(Nan.address));
   const d = $("#wpDisc"); if (d) d.addEventListener("click", disconnectWallet);
-  const s = $("#wpSwitch"); if (s) s.addEventListener("click", () => Nan.provider && ensureBaseChain(Nan.provider).then(renderWalletPop));
+  const s = $("#wpSwitch"); if (s) s.addEventListener("click", () => Nan.provider && ensureBaseChainOnConnect(Nan.provider).then(renderWalletPop));
   const a = $("#wpAuth"); if (a) a.addEventListener("click", async () => { try { await authenticate(); renderWalletPop(); } catch(e){ showToast(e.message); } });
   if (Nan.authed()){
     try {
