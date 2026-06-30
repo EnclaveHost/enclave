@@ -22,7 +22,7 @@ gpus: 1            # whole H200 attached to the enclave (CC allows 1 or 8)
 containers:
   # --- MPS daemon: makes per-tenant SM%/VRAM caps enforceable in prod -----------
   - name: "mps-control"
-    image: "ghcr.io/stevedefacto/nan-mps:sha256:55faa50b287c243b14f0ff686195eef110618d6828c464c291441d6cbac46168"
+    image: "ghcr.io/stevedefacto/nan-mps:sha256:03e41b7d46578366c60d93068e8328cc46f9296629ce25f4afe3b13937acab7b"
     runtime: nvidia
     gpus: all
     ipc: host
@@ -39,7 +39,7 @@ containers:
 
   # --- GPU worker: forks MPS-capped CUDA processes per tenant, runs submitted jobs
   - name: "worker"
-    image: "ghcr.io/stevedefacto/nan-worker:sha256:e9503c2892a1bcdbc72a90531996638d96f034d6d28dae4504f39b6f4c570905"
+    image: "ghcr.io/stevedefacto/nan-worker:sha256:a12a797128213114c1652be7abc5c38a7c5ca61085e801e8d258ef3c1d7fcfbf"
     runtime: nvidia
     gpus: all
     ipc: host
@@ -59,7 +59,7 @@ containers:
 
   # --- supervisor: control plane (no GPU), public ingress -----------------------
   - name: "supervisor"
-    image: "ghcr.io/stevedefacto/nan:sha256:1c0cae813ef59e0cb1550016c6af42a17a64b90089a4b07ef83deb9b89ac5183"
+    image: "ghcr.io/stevedefacto/nan:sha256:d69abf6fac7e826e47c8bf6ff0e6adab57137ecb2268a5f62870889f6968315b"
     restart: always
     env:
       - PORT: "8080"
@@ -77,7 +77,7 @@ containers:
       # FORWARDER_ADDRESS = deployed NanPay contract. USDC funds go straight to the
       # payout wallet set INSIDE that contract (nan.eth's cold wallet) - never here.
       # NOTE: requires outbound egress from the enclave to BASE_RPC. Confirm with Tinfoil.
-      - FORWARDER_ADDRESS: ""                            # set after deploying NanPay.sol
+      - FORWARDER_ADDRESS: "0x149538Ea6ab1E18530B3964c648A2de7b106c561"                            # set after deploying NanPay.sol
       - USDC_ADDRESS: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"   # USDC on Base
       - PAYMENT_WINDOW_SEC: "600"                        # unpaid deployments release the reservation
       - GRACE_SEC: "90"                                  # grace after expiry before teardown (top-up window)
@@ -113,7 +113,7 @@ containers:
   # this claims no GPU. When that lands, add 'runtime: nvidia', 'gpus: all', 'ipc: host',
   # and the /mnt/ramdisk/nvidia-mps volume.
   - name: "vmmanager"
-    image: "ghcr.io/stevedefacto/nan-vmmanager:sha256:2318f016ce5ba0b59d48c7802fd6ee077cfa231d1dbdbe517e3ada5457e494de"
+    image: "ghcr.io/stevedefacto/nan-vmmanager:sha256:a36ab55503a5f443f3e92e8c720f144b9378165d5d386416f2b6df61153f4a7c"
     restart: always
     # devices:
     #   - /dev/kvm                 # uncomment once Tinfoil exposes it (see prerequisite 2)

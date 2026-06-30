@@ -32,6 +32,7 @@ import fs from "node:fs";
 import path from "node:path";
 import url from "node:url";
 import readline from "node:readline/promises";
+import rlSync from "node:readline";
 import { stdin as input, stdout as output } from "node:process";
 import solc from "solc";
 import {
@@ -62,6 +63,23 @@ const NETWORKS = {
 
 function die(msg) { console.error(`\nERROR: ${msg}\n`); process.exit(1); }
 
+// Prompt for a secret with the typed characters hidden (not echoed, not in history).
+function promptSecret(query) {
+  return new Promise((resolve) => {
+    const rl = rlSync.createInterface({ input, output, terminal: true });
+    rl._writeToOutput = (s) => { if (!rl._muted) output.write(s); };  // mute keystrokes
+    rl.question(query, (ans) => { rl.close(); output.write("\n"); resolve(ans.trim()); });
+    rl._muted = true;                                                  // query already printed
+  });
+}
+// Prompt for a normal (non-secret) value.
+async function promptText(query) {
+  const rl = readline.createInterface({ input, output });
+  const ans = (await rl.question(query)).trim();
+  rl.close();
+  return ans;
+}
+
 function compile() {
   const source = fs.readFileSync(CONTRACT, "utf8");
   const input = {
@@ -79,10 +97,10 @@ function compile() {
   return { abi: c.abi, bytecode: "0x" + c.evm.bytecode.object };
 }
 
-async function resolvePayout() {
-  const explicit = process.env.PAYOUT_ADDRESS;
+async function resolvePayout(explicit) {
+  explicit = explicit || process.env.PAYOUT_ADDRESS;
   if (explicit) {
-    if (!isAddress(explicit)) die(`PAYOUT_ADDRESS is not a valid address: ${explicit}`);
+    if (!isAddress(explicit)) die(`payout is not a valid address: ${explicit}`);
     return getAddress(explicit);
   }
   const name = process.env.PAYOUT_ENS || "nan.eth";
@@ -104,21 +122,46 @@ function writeForwarder(addr) {
   console.log(`Wrote FORWARDER_ADDRESS="${addr}" into ${path.relative(REPO, CONFIG)}`);
 }
 
+// Pick the network: from $NETWORK if set, else an interactive menu (number or name).
+async function chooseNetwork() {
+  let n = process.env.NETWORK;
+  if (!n && !ASSUME_YES && input.isTTY) {
+    const keys = Object.keys(NETWORKS);
+    output.write("\nSelect network:\n");
+    keys.forEach((k, i) => {
+      const tag = k === "base" ? "  (MAINNET - real funds)" : "  (testnet)";
+      output.write(`  ${i + 1}) ${k}${tag}\n`);
+    });
+    const ans = await promptText(`Enter number or name [1=${keys[0]}]: `);
+    if (!ans) n = keys[0];
+    else if (/^\d+$/.test(ans)) n = keys[parseInt(ans, 10) - 1];
+    else n = ans;
+  }
+  return (n || "base-sepolia").toLowerCase();
+}
+
 async function main() {
-  const netName = (process.env.NETWORK || "base-sepolia").toLowerCase();
+  const netName = await chooseNetwork();
   const net = NETWORKS[netName];
-  if (!net) die(`unknown NETWORK "${netName}" (use base-sepolia or base)`);
+  if (!net) die(`unknown network "${netName}" (valid: ${Object.keys(NETWORKS).join(", ")})`);
   const isMainnet = netName === "base";
   const rpc = process.env.RPC_URL || net.rpc;
   const usdc = getAddress(process.env.USDC_ADDRESS || net.usdc);
 
-  const pk0 = process.env.DEPLOYER_PRIVATE_KEY;
-  if (!pk0) die("DEPLOYER_PRIVATE_KEY is required");
+  let pk0 = process.env.DEPLOYER_PRIVATE_KEY;
+  if (!pk0) {
+    if (ASSUME_YES || !input.isTTY) die("DEPLOYER_PRIVATE_KEY is required (set the env var, or run in a terminal to be prompted)");
+    pk0 = await promptSecret("Deployer private key (input hidden, paste and press Enter): ");
+  }
+  if (!pk0) die("no private key provided");
   const pk = pk0.startsWith("0x") ? pk0 : "0x" + pk0;
-  let account; try { account = privateKeyToAccount(pk); } catch { die("DEPLOYER_PRIVATE_KEY is not a valid private key"); }
+  let account; try { account = privateKeyToAccount(pk); } catch { die("that is not a valid private key"); }
 
   const { abi, bytecode } = compile();
-  const payout = await resolvePayout();
+  let payoutIn = process.env.PAYOUT_ADDRESS;
+  if (!payoutIn && !ASSUME_YES && input.isTTY)
+    payoutIn = await promptText("Payout address (where USDC lands; blank to resolve nan.eth): ");
+  const payout = await resolvePayout(payoutIn);
 
   const pub = createPublicClient({ chain: net.chain, transport: http(rpc) });
   const wallet = createWalletClient({ account, chain: net.chain, transport: http(rpc) });
