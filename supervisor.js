@@ -48,6 +48,14 @@ const USDC_ADDRESS       = process.env.USDC_ADDRESS || "0x833589fCD6eDb6E08f4c7C
 const PAYMENT_WINDOW_SEC = parseInt(process.env.PAYMENT_WINDOW_SEC || "600", 10); // unpaid awaiting_payment TTL
 const GRACE_SEC          = parseInt(process.env.GRACE_SEC || "90", 10);           // post-expiry grace before teardown
 const PAY_POLL_SEC       = parseInt(process.env.PAY_POLL_SEC || "12", 10);        // Base log poll interval
+// manual-billing / pilot: boot deployments WITHOUT waiting for an on-chain payment.
+//   AUTO_PROVISION=1            -> every deploy provisions immediately (closed pilot).
+//   ADMIN_TOKEN set            -> operator can provision one deployment on demand via
+//                                 POST /v1/admin/deployments/:id/provision (x-admin-token).
+//   AUTO_PROVISION_HOURS > 0   -> optional safety expiry; 0 = runs until deleted.
+const AUTO_PROVISION       = /^(1|true|on)$/i.test(process.env.AUTO_PROVISION || "");
+const AUTO_PROVISION_HOURS = parseFloat(process.env.AUTO_PROVISION_HOURS || "0");
+const ADMIN_TOKEN          = process.env.ADMIN_TOKEN || "";
 const BASE_RPC       = process.env.BASE_RPC || "https://mainnet.base.org";
 const SESSION_TTL    = parseInt(process.env.SESSION_TTL || "43200", 10); // 12h: long enough to cover a deployment's data-path use
 const SSH_USER       = process.env.SSH_USER || "instance"; // login user the supervisor's sshd drops into
@@ -811,6 +819,14 @@ app.post("/v1/deployments", authed, async (req, res) => {
   }, PAYMENT_WINDOW_SEC * 1000);
   if (rec._payTimer.unref) rec._payTimer.unref();
 
+  // AUTO_PROVISION: boot now without an on-chain payment (manual billing / pilot).
+  if (AUTO_PROVISION) {
+    if (!(await forceProvision(rec)))
+      return fail(res, 502, "provision_failed", rec.error || "provisioning failed");
+    console.log(`[auto-provision] ${id} booted without payment; `
+              + `expiresAt=${rec.expiresAt ? new Date(rec.expiresAt).toISOString() : "never"}`);
+  }
+
   const out = view(rec);                                  // includes payment instructions + ssh
   if (oneTimePrivateKey) out.ssh.privateKey = oneTimePrivateKey; // shown once; never persisted
   res.status(201).json(out);
@@ -831,6 +847,15 @@ async function provisionTenant(rec) {
     console.error(`[provision] ${rec.id} failed: ${e.message}`);
     return false;
   }
+}
+
+// Provision a deployment WITHOUT a payment (auto-provision / admin). Clears the
+// unpaid-reservation timer and sets the optional safety expiry.
+async function forceProvision(rec) {
+  if (rec._payTimer) { clearTimeout(rec._payTimer); rec._payTimer = null; }
+  const ok = await provisionTenant(rec);
+  if (ok) rec.expiresAt = AUTO_PROVISION_HOURS > 0 ? Date.now() + AUTO_PROVISION_HOURS * 3600 * 1000 : null;
+  return ok;
 }
 
 // A Paid event landed: provision on first payment, extend expiry on top-ups.
@@ -899,6 +924,22 @@ app.get("/v1/deployments", authed, (req, res) =>
 app.get("/v1/deployments/:id", authed, (req, res) => {
   const rec = deployments.get(req.params.id);
   if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
+  res.json(view(rec));
+});
+
+// Operator-only: provision an awaiting_payment deployment WITHOUT a payment.
+// Gated by ADMIN_TOKEN (x-admin-token header); returns 404 if the token is unset
+// or wrong, so the endpoint is invisible without it. Use for manually-billed deploys.
+app.post("/v1/admin/deployments/:id/provision", async (req, res) => {
+  if (!ADMIN_TOKEN || req.headers["x-admin-token"] !== ADMIN_TOKEN)
+    return fail(res, 404, "not_found", "Not found.");
+  const rec = deployments.get(req.params.id);
+  if (!rec) return fail(res, 404, "not_found", "No such deployment.");
+  if (rec.status !== "awaiting_payment")
+    return fail(res, 409, "not_provisionable", `Deployment is ${rec.status}.`);
+  if (!(await forceProvision(rec)))
+    return fail(res, 502, "provision_failed", rec.error || "provisioning failed");
+  console.log(`[admin] ${rec.id} provisioned by operator (no payment)`);
   res.json(view(rec));
 });
 
