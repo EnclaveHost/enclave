@@ -22,7 +22,7 @@ gpus: 1            # whole H200 attached to the enclave (CC allows 1 or 8)
 containers:
   # --- MPS daemon: makes per-tenant SM%/VRAM caps enforceable in prod -----------
   - name: "mps-control"
-    image: "ghcr.io/stevedefacto/nan-mps:sha256:03e41b7d46578366c60d93068e8328cc46f9296629ce25f4afe3b13937acab7b"
+    image: "ghcr.io/stevedefacto/nan-mps:sha256:f6fe3aaa4b12102c1a85c36ca70236b03fb7cc870268b2c3be6b8ba5b266adf2"
     runtime: nvidia
     gpus: all
     ipc: host
@@ -39,7 +39,7 @@ containers:
 
   # --- GPU worker: forks MPS-capped CUDA processes per tenant, runs submitted jobs
   - name: "worker"
-    image: "ghcr.io/stevedefacto/nan-worker:sha256:a12a797128213114c1652be7abc5c38a7c5ca61085e801e8d258ef3c1d7fcfbf"
+    image: "ghcr.io/stevedefacto/nan-worker:sha256:1c7f984ef6ddf68cdd7282558e0061be5d2b3e383994db49122734534ae8c07c"
     runtime: nvidia
     gpus: all
     ipc: host
@@ -59,7 +59,7 @@ containers:
 
   # --- supervisor: control plane (no GPU), public ingress -----------------------
   - name: "supervisor"
-    image: "ghcr.io/stevedefacto/nan:sha256:d69abf6fac7e826e47c8bf6ff0e6adab57137ecb2268a5f62870889f6968315b"
+    image: "ghcr.io/stevedefacto/nan:sha256:0f9a1e3cc589ca31716ccc0789f7c642abf302de1173de6428f413582a7877dd"
     restart: always
     env:
       - PORT: "8080"
@@ -113,7 +113,7 @@ containers:
   # this claims no GPU. When that lands, add 'runtime: nvidia', 'gpus: all', 'ipc: host',
   # and the /mnt/ramdisk/nvidia-mps volume.
   - name: "vmmanager"
-    image: "ghcr.io/stevedefacto/nan-vmmanager:sha256:a36ab55503a5f443f3e92e8c720f144b9378165d5d386416f2b6df61153f4a7c"
+    image: "ghcr.io/stevedefacto/nan-vmmanager:sha256:3445b8397a1a78e3c3029ff75b29e3da9a8a470620634ab129b2d97d021096ac"
     restart: always
     # devices:
     #   - /dev/kvm                 # uncomment once Tinfoil exposes it (see prerequisite 2)
