@@ -1,4 +1,4 @@
-// NAN supervisor — the WHOLE service, running INSIDE the Tinfoil enclave behind
+// NAN supervisor - the WHOLE service, running INSIDE the Tinfoil enclave behind
 // the shim (the single ingress). It is the measured/attested image: the same
 // published code that checks a user's signature, gates on escrow, mints the
 // session token, launches the per-use container, and proxies the data path.
@@ -6,7 +6,7 @@
 // There is no external tier. Browser -> shim -> here, for BOTH control and data:
 //   control:  /v1/*        (SIWE login, deployments, account, attestation)
 //   data:     /x/:id/*     (verify session token + ownership, proxy to the
-//                           spawned container; fly.io used to do nothing here —
+//                           spawned container; fly.io used to do nothing here -
 //                           now nothing external touches a prompt at all)
 //
 // One signing SECRET (an enclave secret). One token type: the session JWT the
@@ -66,6 +66,10 @@ const WORKER_PIDS     = process.env.WORKER_PIDS || "512";
 // containers itself (Tinfoil forbids runtime container creation). Reachable over
 // the enclave-local network; default loopback.
 const WORKER_MGR_URL  = (process.env.WORKER_MGR_URL || "http://127.0.0.1:8090").replace(/\/+$/, "");
+// provisioning backend: "worker" = GPU PTX submission (default), "vm" = CPU docker
+// container hosting via the microVM manager (boots the customer's image as a QEMU VM).
+const PROVISION_BACKEND = (process.env.PROVISION_BACKEND || "worker").toLowerCase();
+const VMMGR_URL = (process.env.VMMGR_URL || "http://127.0.0.1:8091").replace(/\/+$/, "");
 function mgrReq(method, path, body, timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
     const u = new URL(WORKER_MGR_URL + path);
@@ -86,6 +90,27 @@ async function mgrHealth(timeoutMs = 3000) {
   return r.body;
 }
 
+// --- microVM manager client (CPU docker container hosting backend) -----------
+function vmReq(method, path, body, timeoutMs = 120000) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(VMMGR_URL + path);
+    const data = body != null ? Buffer.from(JSON.stringify(body)) : null;
+    const r = http.request(
+      { host: u.hostname, port: u.port || 80, path: u.pathname + u.search, method, timeout: timeoutMs,
+        headers: { "Content-Type": "application/json", ...(data ? { "Content-Length": data.length } : {}) } },
+      (res) => { let buf = ""; res.on("data", (c) => (buf += c));
+                 res.on("end", () => { let j; try { j = JSON.parse(buf || "{}"); } catch { j = { raw: buf }; }
+                                       resolve({ status: res.statusCode || 0, body: j }); }); });
+    r.on("error", reject); r.on("timeout", () => r.destroy(new Error("vmmanager timeout")));
+    if (data) r.write(data); r.end();
+  });
+}
+async function vmHealth(timeoutMs = 3000) {
+  const r = await vmReq("GET", "/health", null, timeoutMs);
+  if (r.status !== 200) throw new Error(`vmmanager /health ${r.status}`);
+  return r.body;
+}
+
 // ---- on-chain discovery: self-register in NanRegistry (no trusted gateway) --
 // On boot the enclave publishes itself (endpoint + attestation repo) to the
 // registry contract on Base, then heartbeats. Callers read the registry from
@@ -95,7 +120,7 @@ const REGISTRY_ENABLED  = /^(1|true|on)$/i.test(process.env.REGISTRY_ENABLED || 
 const REGISTRY_ADDRESS  = process.env.REGISTRY_ADDRESS || "";
 const REGISTRY_PK       = process.env.REGISTRY_PRIVATE_KEY || "";        // operator key (enclave secret); needs a little Base ETH for gas
 const ENCLAVE_ENDPOINT  = (process.env.ENCLAVE_ENDPOINT || PUBLIC_URL || "").replace(/\/+$/, "");
-const ENCLAVE_REPO      = process.env.ENCLAVE_REPO || "";                // e.g. "SteveDeFacto/Nan" — what callers attest against
+const ENCLAVE_REPO      = process.env.ENCLAVE_REPO || "";                // e.g. "SteveDeFacto/Nan" - what callers attest against
 const ENCLAVE_MEASUREMENT = process.env.ENCLAVE_MEASUREMENT || ("0x" + "0".repeat(64)); // optional cross-check
 const HEARTBEAT_SEC     = parseInt(process.env.REGISTRY_HEARTBEAT_SEC || "900", 10);
 const REGISTRY_ABI = [
@@ -121,7 +146,7 @@ async function registerOnChain() {
       args: [ENCLAVE_ENDPOINT, ENCLAVE_REPO, ENCLAVE_MEASUREMENT],
     });
     console.log(`[registry] registered ${ENCLAVE_ENDPOINT} repo=${ENCLAVE_REPO} id=${id} tx=${hash}`);
-    // heartbeat loop — refresh liveness so readers don't treat us as down
+    // heartbeat loop - refresh liveness so readers don't treat us as down
     setInterval(async () => {
       try {
         const h = await wallet.writeContract({ address: REGISTRY_ADDRESS, abi: REGISTRY_ABI,
@@ -130,12 +155,12 @@ async function registerOnChain() {
       } catch (e) { console.warn(`[registry] heartbeat failed: ${e.shortMessage || e.message}`); }
     }, Math.max(60, HEARTBEAT_SEC) * 1000).unref();
   } catch (e) {
-    // never fatal — a failed advertisement must not take down the enclave
+    // never fatal - a failed advertisement must not take down the enclave
     console.warn(`[registry] self-registration failed: ${e.shortMessage || e.message}`);
   }
 }
 // The sandbox sshd host key is GENERATED ONCE AT BOOT inside the enclave and
-// measured into a TDX RTMR (see initSshHostKey) — so its fingerprint is
+// measured into a TDX RTMR (see initSshHostKey) - so its fingerprint is
 // attestation-bound without baking a key into any image, and one fingerprint
 // covers every instance. These are set at runtime, never from env.
 let SSH_HOST_KEY_PATH = null;
@@ -161,13 +186,13 @@ const GRANULARITY_GB  = parseFloat(process.env.VRAM_GRANULARITY_GB || "1"); // r
 const round1 = (x) => Math.round(x * 10) / 10;
 const round3 = (x) => Math.round(x * 1000) / 1000;
 const memShareOf = (vramGb) => vramGb / CARD_VRAM_GB;
-// compute is dialed by an INTEGER percent (the MPS cap grain) — quantize any
+// compute is dialed by an INTEGER percent (the MPS cap grain) - quantize any
 // requested share to whole percent, floored at MIN_COMPUTE_PCT. This is the true
 // allocatable unit; there is no finer control and no 1/7 floor.
 const quantizePct = (share) => Math.min(100, Math.max(MIN_COMPUTE_PCT, Math.round(share * 100)));
 
 // per-card free pools (vram + compute). With CC on there is exactly one whole
-// device per card — no MIG instances to enumerate.
+// device per card - no MIG instances to enumerate.
 const gpuCards = Array.from({ length: GPU_COUNT }, (_, i) => ({ id: i, uuid: null, vramFree: CARD_VRAM_GB, computeFree: 1 }));
 
 // price = whole-card rate × the LARGER of memory share or compute share.
@@ -257,7 +282,7 @@ async function discoverGpus() {
   }
 }
 
-// Lazily ensure UUIDs are known before a GPU spawn — covers a boot-time socket
+// Lazily ensure UUIDs are known before a GPU spawn - covers a boot-time socket
 // race where discovery ran before the Docker socket was ready.
 let _gpuDiscovering = null;
 async function ensureGpuUuids() {
@@ -273,16 +298,16 @@ async function initGpu() {
   // still fails, ensureGpuUuids() retries on the first spawn. Never blocks boot.
   await waitForDocker();
   const got = await discoverGpus();
-  if (got < GPU_COUNT) console.warn(`[gpu] boot discovery ${got}/${GPU_COUNT} — will retry on first spawn`);
+  if (got < GPU_COUNT) console.warn(`[gpu] boot discovery ${got}/${GPU_COUNT} - will retry on first spawn`);
 }
 
 async function initMps() {
   // Start the MPS control daemon ONCE at boot. Workers join it as clients (sharing
   // MPS_PIPE_DIR) and the driver enforces, per client, BOTH the SM cap
   // (CUDA_MPS_ACTIVE_THREAD_PERCENTAGE) and the VRAM cap (CUDA_MPS_PINNED_DEVICE_MEM_LIMIT)
-  // — confirmed enforced under CC via %smid. Without MPS, compute-share is unenforced
+  // - confirmed enforced under CC via %smid. Without MPS, compute-share is unenforced
   // and we fall back to admission control + watchdog (workers still run).
-  if (!ENABLE_MPS) { console.warn("[mps] disabled by env — compute-share will NOT be enforced"); return; }
+  if (!ENABLE_MPS) { console.warn("[mps] disabled by env - compute-share will NOT be enforced"); return; }
   try {
     execFileSync("mkdir", ["-p", MPS_PIPE_DIR]);
     // already running? control daemon answers on the pipe dir.
@@ -293,7 +318,7 @@ async function initMps() {
       { env: { ...process.env, CUDA_MPS_PIPE_DIRECTORY: MPS_PIPE_DIR } });
     console.log(`[mps] control daemon started (pipe ${MPS_PIPE_DIR})`);
   } catch (e) {
-    console.warn("[mps] could not start daemon — compute caps unenforced:", e.message);
+    console.warn("[mps] could not start daemon - compute caps unenforced:", e.message);
   }
 }
 
@@ -354,7 +379,7 @@ function sshAccessOf(rec) {
 //     microVM / namespaces). Contract: one ingress port, no sibling reach,
 //     and BEFORE launch extend a TDX RTMR with image.digest so getMeasurements()
 //     is honest. If the CVM can't extend an RTMR from the guest, attestation
-//     covers this supervisor only — say so in /attestation rather than implying
+//     covers this supervisor only - say so in /attestation rather than implying
 //     the user image is measured.
 //     SSH: the sandbox runs ANY stock image and needs NO sshd of its own. The
 //     supervisor hosts sshd (measured host key from initSshHostKey); spawn starts
@@ -363,13 +388,13 @@ function sshAccessOf(rec) {
 //     namespace. Return its loopback port as sshPort.
 // ============================================================================
 // ============================================================================
-// WORKER LAUNCH — one container per tenant. The process boundary is the ONLY
+// WORKER LAUNCH - one container per tenant. The process boundary is the ONLY
 // thing giving memory isolation + fault containment + VRAM scrub-on-exit at once
 // (all empirically confirmed). Compute + VRAM are capped by MPS, also confirmed
 // enforced under CC. Never co-locate two tenants in one process.
 //   STILL TODO (separate steps): (#3) extend a TDX RTMR with image.digest before
 //   launch so getMeasurements() is honest; SSH data-plane (returns sshPort 0 here
-//   — the HTTP data path is the real channel; SSH is unwired in this revision).
+//   - the HTTP data path is the real channel; SSH is unwired in this revision).
 // ============================================================================
 const containerName = (id) => WORKER_PREFIX + String(id).replace(/[^a-zA-Z0-9_.-]/g, "");
 // resolve the pinned image ref: prefer name@sha256:digest when a digest is given
@@ -429,33 +454,53 @@ async function dockerPull(ref) {
   if (err) throw new Error(`pull ${ref}: ${err.error}`);
 }
 
-async function spawnContainer({ deploymentId, gpu }) {
-  // The supervisor no longer creates containers. It asks the worker MANAGER to
-  // fork one MPS-capped child PROCESS for this tenant. One proportional `share`
-  // (matching the frontend's single dial) sets the cap; the manager returns the
-  // SM count the driver granted the child — the hardware-enforced proof.
+async function spawnContainer({ deploymentId, gpu, image, share, appPort }) {
+  // Two backends. "vm": boot the customer's image as a QEMU microVM via the
+  // microVM manager (CPU docker container hosting). "worker": fork an MPS-capped
+  // CUDA child PROCESS (GPU PTX submission). One proportional `share` sets the cap.
   const shareOf = (g) => Math.min(1, Math.max(MIN_COMPUTE_PCT / 100,
                                               g.vramCapGb / CARD_VRAM_GB, g.computeShare));
   if (/^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) {
-    console.log(`[mock] tenant ${deploymentId} share=${gpu ? shareOf(gpu).toFixed(3) : "cpu"}`);
+    console.log(`[mock] ${PROVISION_BACKEND} tenant ${deploymentId}`);
     return { internalPort: 0, sshPort: 0 };
   }
+
+  if (PROVISION_BACKEND === "vm") {
+    const ref = image && image.reference;
+    if (!ref) throw new Error("VM backend requires an image reference.");
+    const s = (share != null) ? share : (gpu ? shareOf(gpu) : 0.1);
+    const r = await vmReq("POST", "/vms",
+      { image: ref, share: s, appPort: appPort || 8080, name: deploymentId }, SPAWN_TIMEOUT_MS);
+    if (r.status !== 201)
+      throw new Error(`vmmanager: ${r.body.error || r.body.message || r.status}`);
+    console.log(`[spawn-vm] ${deploymentId} image=${ref} share=${s} `
+              + `vm=${r.body.id} hostPort=${r.body.hostPort} status=${r.body.status}`);
+    // The VM boots asynchronously; the data path 502s until its server is up.
+    return { internalPort: r.body.hostPort || 0, sshPort: 0, vmId: r.body.id, hostPort: r.body.hostPort };
+  }
+
+  // worker backend (GPU)
   if (!gpu) throw new Error("CPU-only deployments are not supported (a GPU share is required).");
-  const share = shareOf(gpu);
-  const r = await mgrReq("POST", "/tenants", { id: deploymentId, share }, SPAWN_TIMEOUT_MS);
+  const share2 = shareOf(gpu);
+  const r = await mgrReq("POST", "/tenants", { id: deploymentId, share: share2 }, SPAWN_TIMEOUT_MS);
   if (r.status !== 201 || r.body.status !== "running")
     throw new Error(`worker manager: ${r.body.error || r.body.status || r.status} `
                   + `(sm_granted=${r.body.sm_granted ?? "?"})`);
-  console.log(`[spawn] tenant=${deploymentId} share=${share.toFixed(3)} `
+  console.log(`[spawn] tenant=${deploymentId} share=${share2.toFixed(3)} `
             + `sm_granted=${r.body.sm_granted} device=${r.body.device}`);
-  // _port is unused in the submission model (the data path routes by tenant id).
   return { internalPort: 0, sshPort: 0, smGranted: r.body.sm_granted };
 }
 
 async function stopContainer(rec) {
+  if (PROVISION_BACKEND === "vm") {
+    if (rec._vmId)
+      await vmReq("DELETE", `/vms/${encodeURIComponent(rec._vmId)}`)
+        .catch((e) => console.warn(`[stop-vm] ${rec.id}: ${e.message}`));
+    return;
+  }
   // Tear down the tenant's MPS-capped child. The manager terminates the process,
   // which returns its context/VRAM to the driver and releases the share. NOTE:
-  // freed VRAM is not zeroed here — residual-data scrubbing is Layer 4.
+  // freed VRAM is not zeroed here - residual-data scrubbing is Layer 4.
   await mgrReq("DELETE", `/tenants/${encodeURIComponent(rec.id)}`)
     .catch((e) => console.warn(`[stop] ${rec.id}: ${e.message}`));
 }
@@ -502,7 +547,7 @@ async function addrFromAuth(req) {
 }
 
 // ---------------------------------------------------------------------------
-// DATA PATH — registered BEFORE express.json() so the body streams untouched.
+// DATA PATH - registered BEFORE express.json() so the body streams untouched.
 // Same token, same origin as control; supervisor checks ownership, then proxies.
 // ---------------------------------------------------------------------------
 app.use("/x/:id", async (req, res) => {
@@ -513,10 +558,16 @@ app.use("/x/:id", async (req, res) => {
   if (rec.owner !== addr) return fail(res, 403, "forbidden", "Not your deployment.");
   if (rec.status !== "running") return fail(res, 409, "not_running", `Deployment is ${rec.status}.`);
 
-  // Submission model: /x/:id/<sub> -> worker manager /tenants/:id/<sub>
-  // (e.g. POST /x/:id/run carries the PTX job). The tenant id == deployment id.
+  // vm backend: proxy to the customer's container port, forwarded to the VM by
+  // QEMU on shared localhost. worker backend: /x/:id/<sub> -> /tenants/:id/<sub>.
   const sub = req.url.replace(/^\/+/, "");
-  const target = new URL(`${WORKER_MGR_URL}/tenants/${encodeURIComponent(req.params.id)}/${sub}`);
+  let target;
+  if (PROVISION_BACKEND === "vm") {
+    if (!rec._vmHostPort) return fail(res, 502, "vm_not_ready", "The VM has no forwarded port yet.");
+    target = new URL(`http://127.0.0.1:${rec._vmHostPort}/${sub}`);
+  } else {
+    target = new URL(`${WORKER_MGR_URL}/tenants/${encodeURIComponent(req.params.id)}/${sub}`);
+  }
   const headers = { ...req.headers, host: target.host };
   delete headers.authorization; // the NAN token stays at the supervisor; the worker never sees it
   const up = http.request(
@@ -560,15 +611,19 @@ app.get("/v1/pricing", (_req, res) => res.json({
 }));
 
 app.get("/availability", async (_req, res) => {
-  // Live from the worker manager (the real allocator). Emits `share`-model fields
-  // (what the frontend reads); falls back to local accounting if it's unreachable.
+  // Live from the active backend's allocator. In vm mode the manager reports CPU/RAM
+  // capacity; we keep emitting the GPU-flavored fields (synthesized from maxShare) so
+  // the existing frontend stays consistent. Falls back to local accounting if down.
   try {
-    const c = (await mgrHealth()).capacity;
+    const h = PROVISION_BACKEND === "vm" ? await vmHealth() : await mgrHealth();
+    const c = h.capacity;
+    const smFree = (c.smFree != null) ? c.smFree : Math.round(c.maxShare * SM_TOTAL);
+    const vramFreeGb = (c.vramFreeGb != null) ? c.vramFreeGb : round1(c.maxShare * CARD_VRAM_GB);
     return res.json({
       maxShare: c.maxShare, usedShare: c.usedShare,
-      smFree: c.smFree, smTotal: SM_TOTAL,
-      vramFreeGb: c.vramFreeGb, cardVramGb: CARD_VRAM_GB, cards: GPU_COUNT,
-      source: "worker", updatedAt: new Date().toISOString(),
+      smFree, smTotal: SM_TOTAL,
+      vramFreeGb, cardVramGb: CARD_VRAM_GB, cards: GPU_COUNT,
+      source: PROVISION_BACKEND === "vm" ? "vmmanager" : "worker", updatedAt: new Date().toISOString(),
     });
   } catch (e) {
     const c = capacity();
@@ -582,7 +637,7 @@ app.get("/availability", async (_req, res) => {
 });
 
 // External proof that MPS caps are live: each running tenant's granted SM count
-// (sanitized — no tenant ids). A 25% tenant should report ~33 of 132 SMs.
+// (sanitized - no tenant ids). A 25% tenant should report ~33 of 132 SMs.
 app.get("/v1/gpu", async (_req, res) => {
   try {
     const h = await mgrHealth(5000);
@@ -631,9 +686,9 @@ app.post("/v1/auth/login", async (req, res) => {
 });
 
 // ============================================================================
-// payments (pay-per-deploy) — the supervisor WATCHES the NanPay forwarder on
+// payments (pay-per-deploy) - the supervisor WATCHES the NanPay forwarder on
 // Base for Paid events and converts each payment into runtime. No held balance.
-// (outbound Base RPC required — confirm the CVM egress allows BASE_RPC.)
+// (outbound Base RPC required - confirm the CVM egress allows BASE_RPC.)
 // ============================================================================
 const PAY_EVENT = { type: "event", name: "Paid", inputs: [
   { name: "deploymentId", type: "bytes32", indexed: true },
@@ -764,8 +819,10 @@ app.post("/v1/deployments", authed, async (req, res) => {
 // Spawn the tenant's MPS-capped worker process (called once, on first payment).
 async function provisionTenant(rec) {
   try {
-    const { internalPort, sshPort } = await spawnContainer({ deploymentId: rec.id, gpu: rec._gpuSpec });
-    rec._port = internalPort; rec._sshPort = sshPort;
+    const sp = await spawnContainer({ deploymentId: rec.id, gpu: rec._gpuSpec,
+      image: rec.image, share: rec.resources.share, appPort: rec.network.port });
+    rec._port = sp.internalPort; rec._sshPort = sp.sshPort;
+    if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; }
     rec.startedAt = Date.now(); rec.status = "running";
     return true;
   } catch (e) {
@@ -814,7 +871,7 @@ async function pollPayments() {
   } catch (e) { console.warn(`[pay] poll error: ${e.shortMessage || e.message}`); }
 }
 function startPaymentWatcher() {
-  if (!FORWARDER_ADDRESS) { console.warn("[pay] FORWARDER_ADDRESS unset — payments disabled (deployments will sit awaiting_payment)"); return; }
+  if (!FORWARDER_ADDRESS) { console.warn("[pay] FORWARDER_ADDRESS unset - payments disabled (deployments will sit awaiting_payment)"); return; }
   console.log(`[pay] watching ${FORWARDER_ADDRESS} for Paid events every ${PAY_POLL_SEC}s`);
   const t = setInterval(pollPayments, PAY_POLL_SEC * 1000); if (t.unref) t.unref();
   pollPayments();
@@ -893,7 +950,7 @@ await initMps();
 await initSshHostKey();
 
 // ---------------------------------------------------------------------------
-// SSH TUNNEL — ssh rides the one attested origin as a WebSocket at /x/:id/ssh.
+// SSH TUNNEL - ssh rides the one attested origin as a WebSocket at /x/:id/ssh.
 // `websocat -b` carries the raw SSH byte stream; we bridge it to the per-
 // deployment sshd the SUPERVISOR hosts (measured host key from initSshHostKey;
 // the sandbox image needs no sshd). Same gate as the data path: session JWT

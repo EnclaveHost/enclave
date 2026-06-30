@@ -63,8 +63,10 @@ containers:
     restart: always
     env:
       - PORT: "8080"
-      - WORKER_URL: "http://localhost:8090"              # reach the worker over shared localhost
-      # - VMMGR_URL: "http://localhost:8091"            # uncomment with the vmmanager container (BYO-image deploys)
+      - WORKER_URL: "http://localhost:8090"              # GPU worker (PTX submission backend)
+      # CPU docker-container hosting: provision each customer image as a QEMU microVM.
+      - PROVISION_BACKEND: "vm"                          # "vm" = CPU container hosting; "worker" = GPU PTX
+      - VMMGR_URL: "http://localhost:8091"               # the microVM manager (container below)
       - PUBLIC_URL: "https://nan.<org>.containers.tinfoil.dev"
       - SIWE_DOMAIN: "nan.host"
       - SIWE_URI: "https://nan.host"
@@ -91,31 +93,34 @@ containers:
       - SECRET
     command: ["node", "supervisor.js"]
 
-  # --- microVM manager (DORMANT, not built or run by default) --------------------
-  # Boots OCI images as QEMU microVMs (vm/Dockerfile -> ghcr.io/stevedefacto/nan-vmmanager).
-  # Uncomment to enable bring-your-own-image deploys, but ONLY after Tinfoil confirms
-  # the enclave exposes /dev/kvm and permits nested VMs. Without KVM, QEMU falls back
-  # to TCG software emulation and is unusably slow.
-  # As shipped this serves CPU-ONLY microVMs: GPU-in-VM forwarding (gpu_agent vsock)
-  # is still a skeleton, so it claims no GPU and the worker keeps the card. When GPU
-  # forwarding lands, add 'runtime: nvidia', 'gpus: all', 'ipc: host', and the
-  # /mnt/ramdisk/nvidia-mps volume so it can join MPS.
-  # The supervisor reaches it on localhost:8091 and proxies /v1/vms/* to it; that
-  # routing in supervisor.js is the remaining integration step.
-  # - name: "vmmanager"
-  #   image: "ghcr.io/stevedefacto/nan-vmmanager:placeholder"
-  #   restart: always
-  #   env:
-  #     - VMMGR_PORT: "8091"
-  #     - NODE_VCPUS: "16"
-  #     - NODE_RAM_GB: "64"
-  #     - NAN_GPU_FORWARDING: ""     # empty: refuse gpu=true until forwarding is real
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "curl -sf http://localhost:8091/health || exit 1"]
-  #     interval: 15s
-  #     timeout: 5s
-  #     retries: 10
-  #     start_period: 60s
+  # --- microVM manager: CPU docker-container hosting backend --------------------
+  # Boots each customer image as a QEMU microVM (vm/Dockerfile -> ghcr.io/stevedefacto/nan-vmmanager).
+  # The supervisor (PROVISION_BACKEND=vm) provisions deployments here and proxies
+  # the data path /x/:id to the VM's forwarded port on shared localhost.
+  #
+  # BEFORE DEPLOY, two prerequisites:
+  #   1. Build + push nan-vmmanager (add it to the release workflow alongside the others).
+  #   2. Confirm with Tinfoil that the enclave exposes /dev/kvm and permits nested VMs.
+  #      Without KVM, QEMU falls back to TCG software emulation and is unusably slow.
+  # Serves CPU-ONLY microVMs: GPU-in-VM forwarding (gpu_agent) is still a skeleton, so
+  # this claims no GPU. When that lands, add 'runtime: nvidia', 'gpus: all', 'ipc: host',
+  # and the /mnt/ramdisk/nvidia-mps volume.
+  - name: "vmmanager"
+    image: "ghcr.io/stevedefacto/nan-vmmanager:placeholder"
+    restart: always
+    # devices:
+    #   - /dev/kvm                 # uncomment once Tinfoil exposes it (see prerequisite 2)
+    env:
+      - VMMGR_PORT: "8091"
+      - NODE_VCPUS: "16"
+      - NODE_RAM_GB: "64"
+      - NAN_GPU_FORWARDING: ""     # empty: refuse gpu=true until forwarding is real
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8091/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
 
 # Single ingress → supervisor. Only these paths are reachable from outside.
 shim:
