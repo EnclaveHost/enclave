@@ -22,7 +22,7 @@ gpus: 1            # whole H200 attached to the enclave (CC allows 1 or 8)
 containers:
   # --- MPS daemon: makes per-tenant SM%/VRAM caps enforceable in prod -----------
   - name: "mps-control"
-    image: "ghcr.io/stevedefacto/nan-mps@sha256:023f5a07d31f0514c3f8cde20b1a58367f777637af6398cfa791c9f7f8ffe204"
+    image: "ghcr.io/stevedefacto/nan-mps@sha256:8d903246c1f49f0e46b21a640252bb02f0f6a81e04f2134d8008b4bffec7bb7f"
     runtime: nvidia
     gpus: all
     ipc: host
@@ -39,7 +39,7 @@ containers:
 
   # --- GPU worker: forks MPS-capped CUDA processes per tenant, runs submitted jobs
   - name: "worker"
-    image: "ghcr.io/stevedefacto/nan-worker@sha256:c394cb1c075a1cf3a71a721b63a3ce906a64abe41e554513396be912aedd380e"
+    image: "ghcr.io/stevedefacto/nan-worker@sha256:d2ed997f2c79b431362b0e4175533cfe63ec7a1362f6370b992c32c6e65d22e1"
     runtime: nvidia
     gpus: all
     ipc: host
@@ -59,7 +59,7 @@ containers:
 
   # --- supervisor: control plane (no GPU), public ingress -----------------------
   - name: "supervisor"
-    image: "ghcr.io/stevedefacto/nan@sha256:8c6a6533a11a59d59519ddc03df915cb2311e63649abb6aefffab2eab1d59468"
+    image: "ghcr.io/stevedefacto/nan@sha256:78ac528ba231df95e0681e6cb49ef61ee0b91e7460704bed23f6fb41ccb43a31"
     restart: always
     env:
       - PORT: "8080"
@@ -100,28 +100,35 @@ containers:
       - ADMIN_TOKEN              # operator token for POST /v1/admin/deployments/:id/provision
     command: ["node", "supervisor.js"]
 
-  # --- microVM manager: CPU docker-container hosting backend --------------------
-  # Boots each customer image as a QEMU microVM (vm/Dockerfile -> ghcr.io/stevedefacto/nan-vmmanager).
-  # The supervisor (PROVISION_BACKEND=vm) provisions deployments here and proxies
-  # the data path /x/:id to the VM's forwarded port on shared localhost.
+  # --- runsc manager: CPU container hosting via gVisor (systrap) ----------------
+  # Nested virtualization is unavailable in the enclave (no /dev/kvm, confirmed),
+  # so the qemu microVM path is dead. Each tenant container runs under
+  # `runsc --platform=systrap` instead, in its OWN network namespace (veth pair),
+  # so tenants cannot see each other's loopback or traffic. The supervisor
+  # (PROVISION_BACKEND="vm") speaks the SAME HTTP contract to it and proxies the
+  # data path /x/:id to the tenant's forwarded loopback port. systrap was probed
+  # working in the enclave (root + full caps, ptrace + namespaces permitted).
   #
-  # BEFORE DEPLOY, two prerequisites:
-  #   1. Build + push nan-vmmanager (add it to the release workflow alongside the others).
-  #   2. Confirm with Tinfoil that the enclave exposes /dev/kvm and permits nested VMs.
-  #      Without KVM, QEMU falls back to TCG software emulation and is unusably slow.
-  # Serves CPU-ONLY microVMs: GPU-in-VM forwarding (gpu_agent) is still a skeleton, so
-  # this claims no GPU. When that lands, add 'runtime: nvidia', 'gpus: all', 'ipc: host',
-  # and the /mnt/ramdisk/nvidia-mps volume.
-  - name: "vmmanager"
-    image: "ghcr.io/stevedefacto/nan-vmmanager@sha256:796bea368db6a974ee5515b7ac5c95b4913a16b54e22a274c25026a02a7b6ba8"
+  # BEFORE DEPLOY:
+  #   1. Build + push nan-runsc-manager (vm/Dockerfile.runsc) and pin its digest.
+  #      Add it to the release workflow alongside the other images.
+  #   2. This container needs CAP_NET_ADMIN + CAP_SYS_ADMIN (or privileged) to
+  #      create per-tenant netns/veth and for runsc's sandbox setup. Confirm the
+  #      Tinfoil container spec grants them.
+  # CPU-only for now: GPU under gVisor (nvproxy) is the next probe, not wired yet.
+  - name: "runsc-manager"
+    image: "ghcr.io/stevedefacto/nan-runsc-manager:placeholder"
     restart: always
-    # devices:
-    #   - /dev/kvm                 # uncomment once Tinfoil exposes it (see prerequisite 2)
+    privileged: true              # netns/veth creation + runsc sandbox setup (see prerequisite 2)
     env:
-      - VMMGR_PORT: "8091"
+      - RUNSC_MANAGER_PORT: "8091"   # same port the supervisor's VMMGR_URL already targets
+      - RUNSC_PLATFORM: "systrap"
       - NODE_VCPUS: "16"
       - NODE_RAM_GB: "64"
-      - NAN_GPU_FORWARDING: ""     # empty: refuse gpu=true until forwarding is real
+      - RUNSC_NET_BASE: "10.123.0.0/16"   # carved into a /30 per tenant
+      - RUNSC_TENANT_EGRESS: ""           # empty: inbound only (safer default for confidential compute)
+      - RUNSC_APPLY_LIMITS: "1"           # cgroup cpu/memory caps from share; set "" if cgroups unavailable
+      - NAN_GPU_FORWARDING: ""            # empty: refuse gpu=true until nvproxy is wired
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8091/health || exit 1"]
       interval: 15s
@@ -138,4 +145,4 @@ shim:
     - /availability
     - /x/*
     # microVM deploys need NO new shim path: /v1/vms/* falls under /v1/* (the
-    # supervisor proxies it to vmmanager on :8091), and a VM's server is reached via /x/*.
+    # supervisor proxies it to the runsc-manager on :8091), and a container's server is reached via /x/*.

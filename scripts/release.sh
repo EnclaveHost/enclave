@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# release.sh — build + push every NAN container for linux/amd64, read each pushed
+# release.sh - build + push every NAN container for linux/amd64, read each pushed
 # digest, and repin it in tinfoil-config.yml. Pin by DIGEST (what Tinfoil attests),
 # not by tag. Run from anywhere inside the repo.
 #
-#   ./scripts/release.sh                  # all images
-#   ./scripts/release.sh nan vmmanager    # just these
+#   ./scripts/release.sh                        # all images
+#   ./scripts/release.sh nan nan-runsc-manager  # just these
 #   DRY_RUN=1 ./scripts/release.sh        # no docker; repin with a fake digest (test)
 #
 # Auth: set CR_PAT (classic PAT with write:packages) or be logged in to ghcr.io.
@@ -23,14 +23,20 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 CONFIG="$REPO_ROOT/tinfoil-config.yml"
 cd "$REPO_ROOT"
 
-# image short-name -> build context (Dockerfile is <context>/Dockerfile)
+# image short-name -> build context (Dockerfile is <context>/Dockerfile unless
+# overridden in DOCKERFILE below)
 declare -A CONTEXT=(
   [nan-mps]="mps-daemon"
   [nan-worker]="worker"
   [nan]="."
-  [nan-vmmanager]="vm"
+  [nan-runsc-manager]="vm"
 )
-ORDER=(nan-mps nan-worker nan nan-vmmanager)   # deterministic build order
+# per-image Dockerfile override (default: <context>/Dockerfile). The runsc manager
+# shares the vm/ context with the dead qemu image, so it needs an explicit file.
+declare -A DOCKERFILE=(
+  [nan-runsc-manager]="vm/Dockerfile.runsc"
+)
+ORDER=(nan-mps nan-worker nan nan-runsc-manager)   # deterministic build order
 
 # pick the subset (positional args) or all
 TARGETS=("$@"); [ ${#TARGETS[@]} -eq 0 ] && TARGETS=("${ORDER[@]}")
@@ -56,16 +62,17 @@ repin(){ # $1=image name, $2=digest (sha256:...)
 for name in "${TARGETS[@]}"; do
   ctx="${CONTEXT[$name]:-}"
   [ -z "$ctx" ] && { echo "unknown image: $name (known: ${!CONTEXT[*]})"; exit 1; }
+  dockerfile="${DOCKERFILE[$name]:-$ctx/Dockerfile}"
   ref="${REGISTRY}/${ORG}/${name}:${TAG}"
 
   if [ "$DRY_RUN" = "1" ]; then
     digest="sha256:$(printf '%s' "$name-$TAG" | sha256sum | cut -c1-64)"
-    say "DRY_RUN ${name}  (context: ${ctx})  fake digest ${digest}"
+    say "DRY_RUN ${name}  (context: ${ctx}, dockerfile: ${dockerfile})  fake digest ${digest}"
   else
-    say "build+push ${name}  (context: ${ctx})  -> ${ref}"
+    say "build+push ${name}  (context: ${ctx}, dockerfile: ${dockerfile})  -> ${ref}"
     meta="$(mktemp)"
     docker buildx build --platform "$PLATFORM" --push \
-      -t "$ref" --metadata-file "$meta" "$ctx"
+      -f "$dockerfile" -t "$ref" --metadata-file "$meta" "$ctx"
     digest="$(python3 -c "import json;print(json.load(open('$meta'))['containerimage.digest'])")"
     rm -f "$meta"
     say "  pushed digest ${digest}"
