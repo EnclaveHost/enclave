@@ -22,7 +22,7 @@ gpus: 1            # whole H200 attached to the enclave (CC allows 1 or 8)
 containers:
   # --- MPS daemon: makes per-tenant SM%/VRAM caps enforceable in prod -----------
   - name: "mps-control"
-    image: "ghcr.io/stevedefacto/nan-mps:sha256:3bf3a656b2f26bbdb0f51afdb09899cb43e6f2b86882bd5b9b638138783a50e0"
+    image: "ghcr.io/stevedefacto/nan-mps:sha256:55faa50b287c243b14f0ff686195eef110618d6828c464c291441d6cbac46168"
     runtime: nvidia
     gpus: all
     ipc: host
@@ -39,7 +39,7 @@ containers:
 
   # --- GPU worker: forks MPS-capped CUDA processes per tenant, runs submitted jobs
   - name: "worker"
-    image: "ghcr.io/stevedefacto/nan-worker:sha256:0b9a3273393a852e8783d3c0ef7383ed14c745b07334ba793bca23d0f40abf64"
+    image: "ghcr.io/stevedefacto/nan-worker:sha256:e9503c2892a1bcdbc72a90531996638d96f034d6d28dae4504f39b6f4c570905"
     runtime: nvidia
     gpus: all
     ipc: host
@@ -59,7 +59,7 @@ containers:
 
   # --- supervisor: control plane (no GPU), public ingress -----------------------
   - name: "supervisor"
-    image: "ghcr.io/stevedefacto/nan:sha256:a8bc6ad537a7acee8e70cb099efec64f0dca5c26186d3331c3504a6097978c77"
+    image: "ghcr.io/stevedefacto/nan:sha256:1c0cae813ef59e0cb1550016c6af42a17a64b90089a4b07ef83deb9b89ac5183"
     restart: always
     env:
       - PORT: "8080"
@@ -67,7 +67,7 @@ containers:
       # CPU docker-container hosting: provision each customer image as a QEMU microVM.
       - PROVISION_BACKEND: "vm"                          # "vm" = CPU container hosting; "worker" = GPU PTX
       - VMMGR_URL: "http://localhost:8091"               # the microVM manager (container below)
-      - PUBLIC_URL: "https://nan.<org>.containers.tinfoil.dev"
+      - PUBLIC_URL: ""                                  # empty: supervisor derives its origin per-request from the Host header (handles enclave1..N with one config). Verify the returned network.endpoint on first deploy.
       - SIWE_DOMAIN: "nan.host"
       - SIWE_URI: "https://nan.host"
       - CHAIN_ID: "8453"
@@ -89,8 +89,15 @@ containers:
       - MIN_COMPUTE_PCT: "1"
       - VRAM_GRANULARITY_GB: "1"
       - CTX_OVERHEAD_GB: "0.5"
+      # manual-billing / pilot: boot deployments without an on-chain payment.
+      # AUTO_PROVISION="1" provisions EVERY deploy for free (use only for a closed
+      # pilot). Leave "" and use the ADMIN_TOKEN-gated provision endpoint instead to
+      # provision one deployment at a time. AUTO_PROVISION_HOURS=0 means no auto-expiry.
+      - AUTO_PROVISION: ""
+      - AUTO_PROVISION_HOURS: "0"
     secrets:
       - SECRET
+      - ADMIN_TOKEN              # operator token for POST /v1/admin/deployments/:id/provision
     command: ["node", "supervisor.js"]
 
   # --- microVM manager: CPU docker-container hosting backend --------------------
@@ -106,7 +113,7 @@ containers:
   # this claims no GPU. When that lands, add 'runtime: nvidia', 'gpus: all', 'ipc: host',
   # and the /mnt/ramdisk/nvidia-mps volume.
   - name: "vmmanager"
-    image: "ghcr.io/stevedefacto/nan-vmmanager:sha256:eeeca5c2a332b7a0c364d5c876bdf5b8b88df672f7b82a18bdf9db77d3cfe5a1"
+    image: "ghcr.io/stevedefacto/nan-vmmanager:sha256:2318f016ce5ba0b59d48c7802fd6ee077cfa231d1dbdbe517e3ada5457e494de"
     restart: always
     # devices:
     #   - /dev/kvm                 # uncomment once Tinfoil exposes it (see prerequisite 2)
