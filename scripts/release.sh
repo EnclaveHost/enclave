@@ -15,7 +15,7 @@ set -euo pipefail
 
 REGISTRY="ghcr.io"
 ORG="stevedefacto"
-PLATFORM="linux/amd64"          # Cloud Provider enclave is x86; guest kernel/qemu are x86
+PLATFORM="linux/amd64"          # Cloud Provider enclave is x86
 DIGEST_SEP="${DIGEST_SEP:-@}"   # OCI digest pin form: name@sha256:HEX. (':' is invalid and Cloud Provider rejects it.)
 TAG="${TAG:-$(git rev-parse --short HEAD 2>/dev/null || echo dev)}"
 
