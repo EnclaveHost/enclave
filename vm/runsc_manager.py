@@ -110,29 +110,64 @@ def _run(cmd, check=True):
 
 
 def setup_netns(vid: str, idx: int):
-    """Create a netns + veth pair for the tenant. Returns (ns, host_ip, cont_ip, hveth)."""
-    ns = f"nan-{vid}"
-    hveth = f"nh{vid[1:]}"          # 'nh' + 8 hex = 10 chars
+    """Create an UNNAMED net namespace for the tenant, held open by a placeholder
+    process, plus a veth pair. Returns (holder, nspath, host_ip, cont_ip, hveth).
+
+    We avoid `ip netns add` on purpose: it bind-mounts /run/netns and marks it a
+    shared mount, which the enclave's locked mount propagation refuses (EPERM)
+    even though we hold CAP_SYS_ADMIN. `unshare --net` needs no mount setup, so
+    the namespace is referenced by /proc/<pid>/ns/net and configured with nsenter
+    instead of `ip -n <name>`. Uses only CAP_NET_ADMIN + CAP_SYS_ADMIN (setns),
+    both of which the container has."""
+    hveth = f"nh{vid[1:]}"          # 'nh' + 8 hex = 10 chars (< 15 ifname limit)
     cveth = f"nc{vid[1:]}"
     host_ip, cont_ip, prefix = _idx_subnet(idx)
-    _run(["ip", "netns", "add", ns])
+
+    # Placeholder process owning a fresh net namespace (kept alive until teardown).
+    holder = subprocess.Popen(["unshare", "--net", "--", "sleep", "infinity"],
+                              stdin=subprocess.DEVNULL,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    pid = holder.pid
+    nspath = f"/proc/{pid}/ns/net"
+    for _ in range(100):
+        if os.path.exists(nspath):
+            break
+        if holder.poll() is not None:
+            raise RuntimeError("netns placeholder (unshare --net) exited; unshare may be blocked")
+        time.sleep(0.02)
+    # Isolation is the whole point: refuse to proceed if the namespace is not
+    # genuinely separate from the manager's (a silently-shared netns would run
+    # tenants with NO network isolation). Fail the deployment instead.
+    try:
+        if os.readlink(nspath) == os.readlink("/proc/self/ns/net"):
+            holder.kill()
+            raise RuntimeError("tenant netns is not isolated (same inode as manager); "
+                               "unshare --net did not create a new namespace")
+    except OSError as e:
+        holder.kill()
+        raise RuntimeError(f"could not verify tenant netns isolation: {e}")
+
     _run(["ip", "link", "add", hveth, "type", "veth", "peer", "name", cveth])
-    _run(["ip", "link", "set", cveth, "netns", ns])
+    _run(["ip", "link", "set", cveth, "netns", str(pid)])        # move container end into the ns by PID
     _run(["ip", "addr", "add", f"{host_ip}/{prefix}", "dev", hveth])
     _run(["ip", "link", "set", hveth, "up"])
-    _run(["ip", "-n", ns, "addr", "add", f"{cont_ip}/{prefix}", "dev", cveth])
-    _run(["ip", "-n", ns, "link", "set", cveth, "up"])
-    _run(["ip", "-n", ns, "link", "set", "lo", "up"])
+    ns = ["nsenter", "-t", str(pid), "-n"]                       # run `ip` inside the tenant netns
+    _run(ns + ["ip", "addr", "add", f"{cont_ip}/{prefix}", "dev", cveth])
+    _run(ns + ["ip", "link", "set", cveth, "up"])
+    _run(ns + ["ip", "link", "set", "lo", "up"])
     if TENANT_EGRESS:
-        _run(["ip", "-n", ns, "route", "add", "default", "via", host_ip], check=False)
-    return ns, host_ip, cont_ip, hveth
+        _run(ns + ["ip", "route", "add", "default", "via", host_ip], check=False)
+    return holder, nspath, host_ip, cont_ip, hveth
 
 
-def teardown_netns(ns: str, hveth: str):
-    if ns:
-        _run(["ip", "netns", "del", ns], check=False)
+def teardown_netns(holder, hveth: str):
+    if holder is not None:
+        try:
+            holder.kill()          # reaps the netns; the veth pair dies with it
+        except Exception:
+            pass
     if hveth:
-        _run(["ip", "link", "del", hveth], check=False)   # no-op if already gone with the ns
+        _run(["ip", "link", "del", hveth], check=False)          # usually already gone with the ns
 
 
 class Forwarder:
@@ -283,7 +318,7 @@ def _spawn(image: str, share: float, name: str, app_port: int, gpu: bool, ssh_ke
         "hostPort": host_port, "sshHostPort": ssh_host_port,
         "endpoint": f"http://127.0.0.1:{host_port}",
         "status": "provisioning", "createdAt": time.time(), "error": None,
-        "_idx": idx, "_ns": None, "_hveth": None, "_proc": None, "_fwd": [], "_log": log_path,
+        "_idx": idx, "_ns_holder": None, "_hveth": None, "_proc": None, "_fwd": [], "_log": log_path,
         "_stopping": False,
     }
     with _lock:
@@ -308,9 +343,9 @@ def _spawn(image: str, share: float, name: str, app_port: int, gpu: bool, ssh_ke
                 rec["status"] = "stopped"
                 return
 
-            ns, host_ip, cont_ip, hveth = setup_netns(vid, idx)
-            rec["_ns"], rec["_hveth"] = ns, hveth
-            bundle = build_bundle(image, work, ssh_key, f"/var/run/netns/{ns}", res)
+            holder, nspath, host_ip, cont_ip, hveth = setup_netns(vid, idx)
+            rec["_ns_holder"], rec["_hveth"] = holder, hveth
+            bundle = build_bundle(image, work, ssh_key, nspath, res)
             fa = Forwarder(host_port, cont_ip, app_port); fa.start()
             fs = Forwarder(ssh_host_port, cont_ip, 22); fs.start()
             rec["_fwd"] = [fa, fs]
@@ -361,7 +396,7 @@ def _cleanup(rec: dict):
             pass
     if not MOCK:
         _run([RUNSC, f"--root={RUNSC_ROOT}", "delete", "--force", rec["id"]], check=False)
-        teardown_netns(rec.get("_ns"), rec.get("_hveth"))
+        teardown_netns(rec.get("_ns_holder"), rec.get("_hveth"))
     with _lock:
         global _used_share
         _used_share = max(0.0, _used_share - rec["share"])
