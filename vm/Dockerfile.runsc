@@ -12,7 +12,7 @@
 FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      python3 ca-certificates curl iproute2 iptables skopeo \
+      python3 ca-certificates curl iproute2 iptables util-linux skopeo \
       busybox-static git gcc make libc6-dev autoconf \
     && rm -rf /var/lib/apt/lists/*
 
