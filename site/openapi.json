@@ -245,7 +245,7 @@
         ],
         "operationId": "createDeployment",
         "summary": "Create a deployment (awaiting payment)",
-        "description": "Reserves a GPU share and returns a deployment in `awaiting_payment` with a `payment` block. The Wasm app is NOT started yet: approve USDC to the forwarder and call pay(deploymentRef, amount); the enclave sees the payment, launches your app as its own sandboxed, MPS-capped worker process on the confidential GPU, and starts the clock. amount(6dp) / ratePerSecondUsdc = seconds of runtime. Unpaid reservations are released after a window. The share is a software cap (MPS under NVIDIA CC; CC disables MIG, so splits are arbitrary, not fixed profiles).",
+        "description": "Reserves a GPU share and returns a deployment in `awaiting_payment` with a `payment` block. The Wasm app is NOT started yet: sign a USDC payment authorization (EIP-3009 ReceiveWithAuthorization) and submit payWithAuthorization(deploymentRef, ...); the enclave sees the payment, launches your app as its own sandboxed, MPS-capped worker process on the confidential GPU, and starts the clock. amount(6dp) / ratePerSecondUsdc = seconds of runtime. Unpaid reservations are released after a window. The share is a software cap (MPS under NVIDIA CC; CC disables MIG, so splits are arbitrary, not fixed profiles).",
         "requestBody": {
           "required": true,
           "content": {
@@ -407,7 +407,7 @@
         ],
         "operationId": "topupDeployment",
         "summary": "Top-up instructions",
-        "description": "Returns the payment instructions to extend a deployment. A top-up is just another pay(deploymentRef, amount) to the same forwarder; each payment adds amount(6dp)/rate seconds to the expiry. Send it before expiry (a short grace period covers in-flight top-ups).",
+        "description": "Returns the payment instructions to extend a deployment. A top-up is just another payWithAuthorization (with a fresh nonce) to the same forwarder; each payment adds amount(6dp)/rate seconds to the expiry. Send it before expiry (a short grace period covers in-flight top-ups).",
         "parameters": [
           {
             "name": "id",
@@ -752,7 +752,7 @@
           },
           "deploymentRef": {
             "type": "string",
-            "description": "bytes32 to pass as pay()'s deploymentId.",
+            "description": "bytes32 to pass as payWithAuthorization()'s deploymentId (the signed nonce must start with its first 16 bytes).",
             "example": "0x9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
           },
           "ratePerSecondUsdc": {
@@ -761,7 +761,32 @@
           },
           "method": {
             "type": "string",
-            "example": "pay(bytes32 deploymentId, uint256 amount)"
+            "example": "payWithAuthorization(bytes32 deploymentId, address from, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes signature)"
+          },
+          "usdcDomain": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "EIP-712 domain of the USDC token - sign the EIP-3009 ReceiveWithAuthorization against exactly these fields (to = forwarder). null until the enclave's first token read.",
+            "properties": {
+              "name": {
+                "type": "string",
+                "example": "USD Coin"
+              },
+              "version": {
+                "type": "string",
+                "example": "2"
+              },
+              "chainId": {
+                "type": "integer",
+                "example": 8453
+              },
+              "verifyingContract": {
+                "type": "string",
+                "example": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+              }
+            }
           },
           "note": {
             "type": "string"
@@ -780,7 +805,7 @@
           "payEthMethod": {
             "type": "string",
             "example": "payEth(bytes32 deploymentId) payable",
-            "description": "Native-ETH alternative: one payable call, no approve. The enclave watches PaidEth and credits the wei as USDC-equivalent at the live Chainlink ETH/USD rate."
+            "description": "Native-ETH alternative: one payable call, no signature. The enclave watches PaidEth and credits the wei as USDC-equivalent at the live Chainlink ETH/USD rate."
           },
           "ethUsd": {
             "type": [
@@ -1285,7 +1310,7 @@
           },
           "payRef": {
             "type": "string",
-            "description": "bytes32 payment reference (pass to pay())."
+            "description": "bytes32 payment reference (pass to payWithAuthorization())."
           },
           "ratePerSecondUsdc": {
             "type": "string",

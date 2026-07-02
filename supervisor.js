@@ -1059,16 +1059,40 @@ async function onPaidEth(payRefHex, payer, wei) {
   }
 }
 
+// --- USDC EIP-712 domain: payers sign an EIP-3009 ReceiveWithAuthorization ---
+// against the TOKEN's own domain, so instructions must carry its exact fields.
+// name()/version() differ per deployment (mainnet USDC: "USD Coin"; Base Sepolia
+// testnet USDC: "USDC"), so read them from the token once and cache forever.
+const ERC20_META_ABI = [
+  { type: "function", name: "name",    stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
+  { type: "function", name: "version", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
+];
+let _usdcDomain = null;
+async function refreshUsdcDomain() {
+  if (_usdcDomain) return _usdcDomain;
+  const addr = getAddress(USDC_ADDRESS);
+  const [name, version] = await Promise.all([
+    chainClient.readContract({ address: addr, abi: ERC20_META_ABI, functionName: "name" }),
+    chainClient.readContract({ address: addr, abi: ERC20_META_ABI, functionName: "version" }).catch(() => "2"), // FiatTokenV2+ is "2"
+  ]);
+  _usdcDomain = { name, version, chainId: CHAIN_ID, verifyingContract: addr };
+  console.log(`[pay] USDC EIP-712 domain: name="${name}" version="${version}"`);
+  return _usdcDomain;
+}
+
 function paymentInstructions(rec) {
   return {
     chainId: CHAIN_ID, asset: "USDC", assets: ["USDC", "ETH"], usdc: USDC_ADDRESS,
     forwarder: FORWARDER_ADDRESS || null,
-    deploymentRef: rec.payRef,                       // bytes32 to pass to pay() / payEth()
+    deploymentRef: rec.payRef,                       // bytes32 to pass to payWithAuthorization() / payEth()
     ratePerSecondUsdc: (rec.rate || 0).toFixed(7),
-    method: "pay(bytes32 deploymentId, uint256 amount)",
+    method: "payWithAuthorization(bytes32 deploymentId, address from, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes signature)",
     payEthMethod: "payEth(bytes32 deploymentId) payable",
+    usdcDomain: _usdcDomain,                         // EIP-712 domain to sign ReceiveWithAuthorization against; null until the first token read
     ethUsd: _ethUsd.price8 ? (Number(_ethUsd.price8) / 1e8).toFixed(2) : null,   // cached Chainlink read; null until first refresh
-    note: "USDC: approve to the forwarder, then pay(deploymentRef, amount); amount(6dp)/rate = seconds. "
+    note: "USDC (EIP-3009, no approve): sign a USDC ReceiveWithAuthorization (EIP-712, to = forwarder, "
+        + "nonce = first 16 bytes of deploymentRef + 16 random bytes), then anyone submits payWithAuthorization; "
+        + "amount(6dp)/rate = seconds. "
         + "ETH: payEth(deploymentRef) with msg.value; credited as USDC-equivalent at the live Chainlink ETH/USD rate.",
   };
 }
@@ -1184,7 +1208,7 @@ app.post("/v1/deployments", authed, async (req, res) => {
   }
 
   const id = rid("dep_");
-  const payRef = keccak256(stringToBytes(id));          // the bytes32 to pass to NanPay.pay()
+  const payRef = keccak256(stringToBytes(id));          // the bytes32 to pass to NanPay.payWithAuthorization()
   const rec = {
     id, owner: req.address, status: "awaiting_payment", public: isPublic, firewall,
     image, command: b.command || [],
@@ -1293,6 +1317,8 @@ async function pollPayments() {
   if (!FORWARDER_ADDRESS || _polling) return;   // no overlap: catch-up after downtime can outlast one poll interval
   _polling = true;
   try {
+    // instructions need the token's EIP-712 domain; retry here until the first read lands
+    if (!_usdcDomain) refreshUsdcDomain().catch(() => {});
     // retry ETH payments that missed an oracle read (never lose a payment)
     if (_pendingEth.length) {
       const q = _pendingEth.splice(0);
@@ -1339,6 +1365,8 @@ function startPaymentWatcher() {
   console.log(`[pay] watching ${FORWARDER_ADDRESS} for Paid + PaidEth events every ${PAY_POLL_SEC}s (ETH priced via ${ETH_USD_FEED})`);
   const t = setInterval(pollPayments, PAY_POLL_SEC * 1000); if (t.unref) t.unref();
   pollPayments();
+  // prime the USDC EIP-712 domain so payment instructions can carry it (retries in pollPayments)
+  refreshUsdcDomain().catch((e) => console.warn(`[pay] USDC domain read: ${e.shortMessage || e.message}`));
   // prime + keep the ETH/USD cache warm so payment instructions can quote ethUsd
   ethUsdPrice8().catch((e) => console.warn(`[pay] ETH/USD feed: ${e.shortMessage || e.message}`));
   const p = setInterval(() => ethUsdPrice8().catch(() => {}), 300_000); if (p.unref) p.unref();
