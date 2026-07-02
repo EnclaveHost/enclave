@@ -22,7 +22,7 @@ gpus: 1            # whole H200 attached to the enclave (CC allows 1 or 8)
 containers:
   # --- MPS daemon: makes per-tenant SM%/VRAM caps enforceable in prod -----------
   - name: "mps-control"
-    image: "ghcr.io/stevedefacto/nan-mps@sha256:6aafa95be26d38dd3ed045a2bd5ad2654456f442d3e09a40a10d646d0266909c"
+    image: "ghcr.io/stevedefacto/nan-mps@sha256:d1e094d291699ba256085131b5148ab495e3900bc28ac00205068b7be5ed01df"
     runtime: nvidia
     gpus: all
     ipc: host
@@ -39,7 +39,7 @@ containers:
 
   # --- GPU worker: forks MPS-capped CUDA processes per tenant, runs submitted jobs
   - name: "worker"
-    image: "ghcr.io/stevedefacto/nan-worker@sha256:f40446667da10c531296c2e73df04f26e96e4717dfc650f5297934f3cc3e0c62"
+    image: "ghcr.io/stevedefacto/nan-worker@sha256:02935f6650a57f2f20ee24b5c2c51d4c4d69bdaf4a8f1f7e23d15214b7913056"
     runtime: nvidia
     gpus: all
     ipc: host
@@ -59,7 +59,7 @@ containers:
 
   # --- supervisor: control plane (no GPU), public ingress -----------------------
   - name: "supervisor"
-    image: "ghcr.io/stevedefacto/nan@sha256:f24f703bd302130471d47615a1a8afec8d1185f42e1a351d6baf9bf1799ed2dd"
+    image: "ghcr.io/stevedefacto/nan@sha256:b46a0ff358d0d45be18705d37a3dff030f7e919724595095e1c3e5b2b9b33ab9"
     restart: always
     env:
       - PORT: "8080"
@@ -114,7 +114,7 @@ containers:
   # The app catalog is baked into the image (apps/*.wasm + catalog.json), so what
   # runs is exactly what Tinfoil attested. Apps are wasi:http components.
   - name: "wasm-manager"
-    image: "ghcr.io/stevedefacto/nan-wasm-manager@sha256:029d93e30a75263cfd440bf19758ef51b44bcce4887f609ec46cabd97af48480"
+    image: "ghcr.io/stevedefacto/nan-wasm-manager@sha256:66600f500daa195eabcb083843f26b4266f3405da776f9f99d78637989a08f3f"
     restart: always
     env:
       - WASM_MANAGER_PORT: "8091"   # same port the supervisor's VMMGR_URL already targets
