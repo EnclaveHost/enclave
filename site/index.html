@@ -1162,7 +1162,7 @@ const SPEC = {
         ],
         "operationId": "createDeployment",
         "summary": "Create a deployment (awaiting payment)",
-        "description": "Reserves a GPU share and returns a deployment in `awaiting_payment` with a `payment` block. The Wasm app is NOT started yet: approve USDC to the forwarder and call pay(deploymentRef, amount); the enclave sees the payment, launches your app as its own sandboxed, MPS-capped worker process on the confidential GPU, and starts the clock. amount(6dp) / ratePerSecondUsdc = seconds of runtime. Unpaid reservations are released after a window. The share is a software cap (MPS under NVIDIA CC; CC disables MIG, so splits are arbitrary, not fixed profiles).",
+        "description": "Reserves a GPU share and returns a deployment in `awaiting_payment` with a `payment` block. The Wasm app is NOT started yet: sign a USDC payment authorization (EIP-3009 ReceiveWithAuthorization) and submit payWithAuthorization(deploymentRef, ...); the enclave sees the payment, launches your app as its own sandboxed, MPS-capped worker process on the confidential GPU, and starts the clock. amount(6dp) / ratePerSecondUsdc = seconds of runtime. Unpaid reservations are released after a window. The share is a software cap (MPS under NVIDIA CC; CC disables MIG, so splits are arbitrary, not fixed profiles).",
         "requestBody": {
           "required": true,
           "content": {
@@ -1324,7 +1324,7 @@ const SPEC = {
         ],
         "operationId": "topupDeployment",
         "summary": "Top-up instructions",
-        "description": "Returns the payment instructions to extend a deployment. A top-up is just another pay(deploymentRef, amount) to the same forwarder; each payment adds amount(6dp)/rate seconds to the expiry. Send it before expiry (a short grace period covers in-flight top-ups).",
+        "description": "Returns the payment instructions to extend a deployment. A top-up is just another payWithAuthorization (with a fresh nonce) to the same forwarder; each payment adds amount(6dp)/rate seconds to the expiry. Send it before expiry (a short grace period covers in-flight top-ups).",
         "parameters": [
           {
             "name": "id",
@@ -1669,7 +1669,7 @@ const SPEC = {
           },
           "deploymentRef": {
             "type": "string",
-            "description": "bytes32 to pass as pay()'s deploymentId.",
+            "description": "bytes32 to pass as payWithAuthorization()'s deploymentId (the signed nonce must start with its first 16 bytes).",
             "example": "0x9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
           },
           "ratePerSecondUsdc": {
@@ -1678,7 +1678,32 @@ const SPEC = {
           },
           "method": {
             "type": "string",
-            "example": "pay(bytes32 deploymentId, uint256 amount)"
+            "example": "payWithAuthorization(bytes32 deploymentId, address from, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes signature)"
+          },
+          "usdcDomain": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "EIP-712 domain of the USDC token - sign the EIP-3009 ReceiveWithAuthorization against exactly these fields (to = forwarder). null until the enclave's first token read.",
+            "properties": {
+              "name": {
+                "type": "string",
+                "example": "USD Coin"
+              },
+              "version": {
+                "type": "string",
+                "example": "2"
+              },
+              "chainId": {
+                "type": "integer",
+                "example": 8453
+              },
+              "verifyingContract": {
+                "type": "string",
+                "example": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+              }
+            }
           },
           "note": {
             "type": "string"
@@ -1697,7 +1722,7 @@ const SPEC = {
           "payEthMethod": {
             "type": "string",
             "example": "payEth(bytes32 deploymentId) payable",
-            "description": "Native-ETH alternative: one payable call, no approve. The enclave watches PaidEth and credits the wei as USDC-equivalent at the live Chainlink ETH/USD rate."
+            "description": "Native-ETH alternative: one payable call, no signature. The enclave watches PaidEth and credits the wei as USDC-equivalent at the live Chainlink ETH/USD rate."
           },
           "ethUsd": {
             "type": [
@@ -2202,7 +2227,7 @@ const SPEC = {
           },
           "payRef": {
             "type": "string",
-            "description": "bytes32 payment reference (pass to pay())."
+            "description": "bytes32 payment reference (pass to payWithAuthorization())."
           },
           "ratePerSecondUsdc": {
             "type": "string",
@@ -3007,7 +3032,7 @@ function initTicker() {
 const STEPS = [
   { t: "Sign in with your wallet", d: "Prove control of your address, with no email and no password.", method: "POST", path: "/auth/login" },
   { t: "Create a deployment",      d: "Pick a Wasm app and a share of the H200; get back a payment reference.", method: "POST", path: "/deployments" },
-  { t: "Pay for runtime",          d: "Approve USDC and pay the forwarder; the enclave provisions and starts the clock. Pay again to extend.", method: "POST", path: "/deployments/{id}/topup" },
+  { t: "Pay for runtime",          d: "Sign a USDC authorization (EIP-3009) and submit one payWithAuthorization tx; the enclave provisions and starts the clock. Pay again to extend.", method: "POST", path: "/deployments/{id}/topup" },
   { t: "Verify the enclave",       d: "Pull the TDX quote + GPU report and check them yourself.", method: "GET",  path: "/deployments/{id}/attestation" },
   { t: "Stop (or let it expire)",  d: "Tear down and release the share. No held balance to reclaim.", method: "DELETE", path: "/deployments/{id}" }
 ];
@@ -3505,20 +3530,26 @@ function statusCls(st){
 
 let encPoll = null;
 
-/* ---- minimal ABI encoding for USDC approve + NanPay pay (no web3 lib) ---- */
-const SEL_APPROVE = "095ea7b3";   // approve(address,uint256)
-const SEL_PAY     = "d0ee4de0";   // pay(bytes32,uint256)
-const SEL_PAYETH  = "00bd4dee";   // payEth(bytes32) payable — verified vs viem
+/* ---- minimal ABI encoding for NanPay payWithAuthorization + payEth (no web3 lib) ---- */
+const SEL_PAY_AUTH = "7d368d83";  // payWithAuthorization(bytes32,address,uint256,uint256,uint256,bytes32,bytes) — verified vs viem
+const SEL_PAYETH   = "00bd4dee";  // payEth(bytes32) payable — verified vs viem
 const pad32 = (h) => h.replace(/^0x/, "").toLowerCase().padStart(64, "0");
 const encAddr = (a) => pad32(a.replace(/^0x/, ""));
 const encUint = (n) => pad32(BigInt(n).toString(16));
 const encBytes32 = (h) => { const x = h.replace(/^0x/, "").toLowerCase(); if (x.length !== 64) throw new NanError("bad payment reference", 0); return x; };
+// dynamic `bytes` tail: length word, then the data right-padded to a 32-byte boundary
+const encBytesTail = (hex) => { const x = hex.replace(/^0x/, "").toLowerCase(); return encUint(x.length / 2) + x.padEnd(Math.ceil(x.length / 64) * 64, "0"); };
+const randHex = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(16).padStart(2, "0")).join("");
 // USDC has 6 decimals, but we FUND in whole cents (0.01 USDC granularity): a
 // sub-cent amount encodes as a tiny raw value that wallets render as "0 USDC"
 // (and buys no meaningful runtime), so round to cents. NaN-safe (empty field -> 0).
 const usdc6 = (amt) => BigInt(Math.round((parseFloat(amt) || 0) * 100)) * 10000n;
-const dataApprove = (spender, amt6) => "0x" + SEL_APPROVE + encAddr(spender) + encUint(amt6);
-const dataPay = (ref, amt6) => "0x" + SEL_PAY + encBytes32(ref) + encUint(amt6);
+// payWithAuthorization: 7 head words; `signature` is dynamic, so its head slot
+// holds the tail offset (7*32) and the bytes follow as length + padded data.
+const dataPayWithAuth = (ref, from, amt6, validAfter, validBefore, nonce, sig) =>
+  "0x" + SEL_PAY_AUTH + encBytes32(ref) + encAddr(from) + encUint(amt6)
+       + encUint(validAfter) + encUint(validBefore) + encBytes32(nonce)
+       + encUint(7 * 32) + encBytesTail(sig);
 const dataPayEth = (ref) => "0x" + SEL_PAYETH + encBytes32(ref);
 // USD -> wei at the enclave's quoted ETH/USD rate (an ESTIMATE for the tx amount;
 // the enclave credits the actual wei at its own live Chainlink read on arrival)
@@ -3540,7 +3571,9 @@ async function sendTx(to, data, value){
 }
 
 /* pay (or top up) a deployment.
-   USDC: approve to the forwarder, then pay(ref, amount) \u2014 two transactions.
+   USDC: sign an EIP-3009 ReceiveWithAuthorization (EIP-712, a gas-free wallet
+         signature), then ONE payWithAuthorization tx \u2014 no approve, no
+         allowance left behind.
    ETH:  payEth(ref) with msg.value \u2014 ONE transaction; the enclave credits the wei
          as USDC-equivalent at its live Chainlink ETH/USD read when the event lands. */
 async function payForRuntime(term, pay, fundUsdc){
@@ -3548,22 +3581,50 @@ async function payForRuntime(term, pay, fundUsdc){
   await ensureBaseChain();
   const amt6 = usdc6(fundUsdc);                       // cent-rounded 6dp USDC
   if (amt6 <= 0n) throw new NanError("Fund at least $0.01 (USDC).", 0);
-  const usd = (Number(amt6) / 1e6).toFixed(2);        // e.g. "10.00" \u2014 what actually gets approved/paid
+  const usd = (Number(amt6) / 1e6).toFixed(2);        // e.g. "10.00" \u2014 what actually gets signed/paid
   if (dep.asset === "ETH"){
     if (!pay.payEthMethod) throw new NanError("This enclave doesn't accept ETH yet (older release) \u2014 pay in USDC.", 0);
     const wei = usdToWei(Number(amt6) / 1e6, pay.ethUsd);
     const eth = (Number(wei) / 1e18).toFixed(6);
-    termLine(term, "info", "[*] payEth \u2248 " + eth + " ETH (\u2248 $" + usd + " @ $" + pay.ethUsd + "/ETH)\u2026 (wallet \u00b7 one tx, no approve)");
+    termLine(term, "info", "[*] payEth \u2248 " + eth + " ETH (\u2248 $" + usd + " @ $" + pay.ethUsd + "/ETH)\u2026 (wallet \u00b7 one tx)");
     const ph = await sendTx(pay.forwarder, dataPayEth(pay.deploymentRef), "0x" + wei.toString(16));
     termLine(term, "ok", "[\u2713] payment sent " + ph);
     termLine(term, "dimln", "    ETH goes straight to NAN; the enclave credits it at the live Chainlink rate");
     return ph;
   }
-  termLine(term, "info", "[*] approve " + usd + " USDC to the forwarder\u2026 (wallet)");
-  const ah = await sendTx(pay.usdc, dataApprove(pay.forwarder, amt6));
-  termLine(term, "dimln", "    approve tx " + ah);
-  termLine(term, "info", "[*] pay " + usd + " USDC \u2014 buys runtime\u2026 (wallet)");
-  const ph = await sendTx(pay.forwarder, dataPay(pay.deploymentRef, amt6));
+  // EIP-3009: the nonce must start with the deployment ref's first 16 bytes (the
+  // forwarder enforces this, binding the signature to THIS deployment); the other
+  // 16 are random so repeat top-ups from the same wallet never collide.
+  const nonce = "0x" + encBytes32(pay.deploymentRef).slice(0, 32) + randHex(16);
+  const validBefore = Math.floor(Date.now() / 1000) + 3600;   // 1h to get the tx mined
+  // sign against the TOKEN's own EIP-712 domain (enclave reads it from the chain;
+  // fall back to Base-mainnet USDC's well-known fields if it hasn't yet)
+  const dom = pay.usdcDomain || { name: "USD Coin", version: "2", chainId: BASE_CHAIN, verifyingContract: pay.usdc };
+  const typed = {
+    types: {
+      EIP712Domain: [
+        { name: "name", type: "string" }, { name: "version", type: "string" },
+        { name: "chainId", type: "uint256" }, { name: "verifyingContract", type: "address" }],
+      ReceiveWithAuthorization: [
+        { name: "from", type: "address" }, { name: "to", type: "address" },
+        { name: "value", type: "uint256" }, { name: "validAfter", type: "uint256" },
+        { name: "validBefore", type: "uint256" }, { name: "nonce", type: "bytes32" }],
+    },
+    domain: { name: dom.name, version: dom.version, chainId: Number(dom.chainId), verifyingContract: dom.verifyingContract },
+    primaryType: "ReceiveWithAuthorization",
+    message: { from: Nan.address, to: pay.forwarder, value: amt6.toString(),
+               validAfter: "0", validBefore: String(validBefore), nonce: nonce },
+  };
+  termLine(term, "info", "[*] sign a " + usd + " USDC payment authorization (EIP-3009)\u2026 (wallet \u00b7 gas-free signature)");
+  let sig = await Nan.provider.request({ method: "eth_signTypedData_v4", params: [Nan.address, JSON.stringify(typed)] });
+  // some wallets return v as 0/1; USDC's ecrecover wants 27/28 (65-byte ECDSA
+  // sigs only \u2014 longer EIP-1271 smart-wallet blobs pass through untouched)
+  if (sig.replace(/^0x/, "").length === 130) {
+    const v = parseInt(sig.slice(-2), 16);
+    if (v === 0 || v === 1) sig = sig.slice(0, -2) + (v + 27).toString(16);
+  }
+  termLine(term, "info", "[*] pay " + usd + " USDC \u2014 buys runtime\u2026 (wallet \u00b7 one tx, no approve)");
+  const ph = await sendTx(pay.forwarder, dataPayWithAuth(pay.deploymentRef, Nan.address, amt6, 0, validBefore, nonce, sig));
   termLine(term, "ok", "[\u2713] payment sent " + ph);
   termLine(term, "dimln", "    funds go straight to NAN; nothing is custodied");
   return ph;
@@ -3594,7 +3655,7 @@ async function runDeploy(){
     JSON.stringify(body, null, 2).split("\n").forEach(l => termLine(term, "dimln", "  " + l));
     termLine(term, "info", dep.asset === "ETH"
       ? "then: payEth() the forwarder with ≈ $" + fund + " of ETH to fund runtime (one tx)"
-      : "then: approve " + fund + " USDC + pay() the forwarder to fund runtime");
+      : "then: sign a " + fund + " USDC authorization (EIP-3009) + one payWithAuthorization() tx to fund runtime");
     termLine(term, "info", "uncheck \u201cDry run\u201d to deploy for real");
     return;
   }
