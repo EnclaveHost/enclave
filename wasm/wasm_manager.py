@@ -44,7 +44,11 @@ import threading
 import time
 import uuid
 
-import ipfs_fetch   # local module (same dir): fetch + verify a wasm by IPFS CID
+try:
+    import ipfs_fetch   # local module (same dir): fetch + verify a wasm by IPFS CID
+except Exception as _e:   # optional feature — never let a missing module take down the manager
+    ipfs_fetch = None
+    print(f"[wasm-manager] run-by-CID disabled: {_e}", flush=True)
 
 # ---- config ---------------------------------------------------------------- #
 PORT         = int(os.environ.get("WASM_MANAGER_PORT", "8091"))   # same port the supervisor expects
@@ -101,6 +105,8 @@ def _resolve_cid(cid: str) -> pathlib.Path:
     p = (APPS_DIR / f"ipfs-{safe}.wasm").resolve()
     if p.is_file():
         return p                                   # content-addressed cache hit
+    if ipfs_fetch is None:
+        raise ValueError("run-by-CID not available in this build (ipfs_fetch missing)")
     try:
         data = ipfs_fetch.fetch_verified(cid, IPFS_GATEWAY, WASM_MAX_BYTES, IPFS_TIMEOUT)
     except ValueError:
