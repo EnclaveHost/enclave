@@ -5,10 +5,12 @@
 # tinfoil-config.yml, creates the release tag, then dispatches phase 2
 # (tinfoil-release-publish.yml) which measures + attests the pinned image.
 #
-# NOTE: the ghcr path is hardcoded LOWERCASE (ghcr.io/stevedefacto/nan). The repo
-# is SteveDeFacto/Nan; ${{ github.repository }} would emit mixed-case refs and
+# NOTE: the ghcr path is hardcoded LOWERCASE (ghcr.io/stevedefacto/nan) because
 # ghcr / the measurement step want lowercase. Keep this in sync with the
-# `image:` line in tinfoil-config.yml.
+# `image:` line in tinfoil-config.yml. The repo's canonical GitHub name is
+# "SteveDeFacto/nan" (lowercase n) — that exact string lands in the Sigstore
+# cert's GitHubWorkflowRepository claim, so ENCLAVE_REPO and every verifier
+# invocation must use it verbatim; "SteveDeFacto/Nan" fails verification.
 
 name: Tinfoil Release
 
