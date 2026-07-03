@@ -147,10 +147,16 @@ async function vmHealth(timeoutMs = 3000) {
 const REGISTRY_ENABLED  = /^(1|true|on)$/i.test(process.env.REGISTRY_ENABLED || "");
 const REGISTRY_ADDRESS  = process.env.REGISTRY_ADDRESS || "";
 const REGISTRY_PK       = process.env.REGISTRY_PRIVATE_KEY || "";        // operator key (enclave secret); needs a little Base ETH for gas
-const ENCLAVE_ENDPOINT  = (process.env.ENCLAVE_ENDPOINT || PUBLIC_URL || "").replace(/\/+$/, "");
 const ENCLAVE_REPO      = process.env.ENCLAVE_REPO || "";                // e.g. "SteveDeFacto/Nan" - what callers attest against
 const ENCLAVE_MEASUREMENT = process.env.ENCLAVE_MEASUREMENT || ("0x" + "0".repeat(64)); // optional cross-check
 const HEARTBEAT_SEC     = parseInt(process.env.REGISTRY_HEARTBEAT_SEC || "900", 10);
+// The endpoint we advertise is NOT configured — it is derived from the request
+// (originOf: the exact hostname the caller reached us at, which is the attested
+// one and the only thing a verifier can use). Static config is validated once;
+// the endpoint arrives per-request. PUBLIC_URL, if set, pins it (eager register).
+const REGISTRY_READY    = REGISTRY_ENABLED && !!(REGISTRY_ADDRESS && REGISTRY_PK && ENCLAVE_REPO);
+if (REGISTRY_ENABLED && !REGISTRY_READY)
+  console.warn("[registry] REGISTRY_ENABLED but REGISTRY_ADDRESS/REGISTRY_PRIVATE_KEY/ENCLAVE_REPO incomplete — not advertising");
 const REGISTRY_ABI = [
   { type: "function", name: "register", stateMutability: "nonpayable",
     inputs: [{ name: "endpoint", type: "string" }, { name: "repo", type: "string" }, { name: "measurement", type: "bytes32" }],
@@ -159,21 +165,24 @@ const REGISTRY_ABI = [
     inputs: [{ name: "id", type: "bytes32" }], outputs: [] },
 ];
 
-async function registerOnChain() {
-  if (!REGISTRY_ENABLED) return;
-  for (const [k, v] of [["REGISTRY_ADDRESS", REGISTRY_ADDRESS], ["REGISTRY_PRIVATE_KEY", REGISTRY_PK],
-                        ["ENCLAVE_ENDPOINT", ENCLAVE_ENDPOINT], ["ENCLAVE_REPO", ENCLAVE_REPO]]) {
-    if (!v) { console.warn(`[registry] disabled: missing ${k}`); return; }
-  }
+// Register THIS enclave under `endpoint` (the hostname a caller reached us at),
+// then heartbeat. Fires at most once (guarded); a transient failure resets the
+// guard so a later request retries. Never fatal — a failed advertisement must
+// not take down the enclave.
+let _registered = false;
+async function registerOnChain(endpoint) {
+  endpoint = (endpoint || "").replace(/\/+$/, "");
+  if (!REGISTRY_READY || _registered || !endpoint) return;
+  _registered = true;                                       // claim before await so a request burst registers once
   try {
     const account = privateKeyToAccount(REGISTRY_PK.startsWith("0x") ? REGISTRY_PK : `0x${REGISTRY_PK}`);
     const wallet  = createWalletClient({ account, chain: base, transport: viemHttp(BASE_RPC) });
-    const id = keccak256(stringToBytes(ENCLAVE_ENDPOINT));
+    const id = keccak256(stringToBytes(endpoint));
     const hash = await wallet.writeContract({
       address: REGISTRY_ADDRESS, abi: REGISTRY_ABI, functionName: "register",
-      args: [ENCLAVE_ENDPOINT, ENCLAVE_REPO, ENCLAVE_MEASUREMENT],
+      args: [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT],
     });
-    console.log(`[registry] registered ${ENCLAVE_ENDPOINT} repo=${ENCLAVE_REPO} id=${id} tx=${hash}`);
+    console.log(`[registry] registered ${endpoint} repo=${ENCLAVE_REPO} id=${id} tx=${hash}`);
     // heartbeat loop - refresh liveness so readers don't treat us as down
     setInterval(async () => {
       try {
@@ -183,7 +192,7 @@ async function registerOnChain() {
       } catch (e) { console.warn(`[registry] heartbeat failed: ${e.shortMessage || e.message}`); }
     }, Math.max(60, HEARTBEAT_SEC) * 1000).unref();
   } catch (e) {
-    // never fatal - a failed advertisement must not take down the enclave
+    _registered = false;                                    // let a later request retry
     console.warn(`[registry] self-registration failed: ${e.shortMessage || e.message}`);
   }
 }
@@ -742,7 +751,7 @@ async function fetchGpuEvidence(nonceHex, timeoutMs = 30000) {
   return r.body;
 }
 
-async function getMeasurements(rec, { origin = ENCLAVE_ENDPOINT, nonce } = {}) {
+async function getMeasurements(rec, { origin = PUBLIC_URL, nonce } = {}) {
   const out = {
     // ALWAYS false here: verification is the CLIENT's act, on its own connection.
     // A "verified: true" asserted by the machine being verified proves nothing.
@@ -827,6 +836,19 @@ app.use(cors({
 
 const fail = (res, status, code, message) => res.status(status).json({ code, message });
 const originOf = (req) => PUBLIC_URL || `https://${req.headers["x-forwarded-host"] || req.headers.host}`;
+
+// Self-advertise on the first REAL external request: its Host is the hostname a
+// caller actually reached us at — the attested origin the registry must carry —
+// so there's nothing to hand-configure. Fire-and-forget, once (registerOnChain
+// is guarded). Skip local/internal Hosts (health checks) so we never register a
+// loopback origin.
+app.use((req, _res, next) => {
+  if (REGISTRY_READY && !_registered) {
+    const host = req.headers["x-forwarded-host"] || req.headers.host || "";
+    if (host && !/^(localhost|127\.|\[?::1\]?)/i.test(host)) registerOnChain(originOf(req));
+  }
+  next();
+});
 
 async function addrFromAuth(req) {
   const m = (req.headers.authorization || "").match(/^Bearer\s+(.+)$/i);
@@ -1882,7 +1904,9 @@ server.on("upgrade", async (req, socket, head) => {
 server.listen(PORT, () => console.log(`nan supervisor on :${PORT} · ${GPU_COUNT}×GPU @ ${CARD_VRAM_GB}GB (arbitrary split) · ssh host key ${SSH_HOST_KEY_FP}`));
 
 // advertise this enclave on-chain (opt-in, non-blocking, never fatal)
-registerOnChain();
+// If the origin is pinned (PUBLIC_URL), advertise eagerly at boot; otherwise we
+// register lazily on the first external request (middleware above).
+if (PUBLIC_URL) registerOnChain(PUBLIC_URL);
 
 // pay-per-deploy: watch the forwarder for payments + fair-billing ticker (drains
 // funded time only while healthy; freezes through outages; reaps at -grace)
