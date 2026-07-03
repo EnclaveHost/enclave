@@ -34,6 +34,7 @@ import { verifyMessage, createPublicClient, createWalletClient, http as viemHttp
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { SignJWT, jwtVerify } from "jose";
+import { Verifier } from "@tinfoilsh/verifier";
 
 // ----------------------------------------------------------------------------
 // config
@@ -638,9 +639,12 @@ function appMeasurement(rec) {
 // whose report_data[0:32] = sha256(TLS pubkey, SPKI DER), and serves the signed
 // Remote Attestation Document at /.well-known/tinfoil-attestation. We RELAY that
 // document verbatim and PARSE the quote so the registers are inspectable - but
-// we never claim "verified": the party being verified cannot vouch for itself.
-// Clients verify with Tinfoil's verifier (tinfoil-cli's `attestation verify`, or
-// the @tinfoilsh/verifier npm package in Node/browsers) against the Sigstore-
+// we never assert trust on the client's behalf: the party being verified cannot
+// vouch for itself. What we DO publish is verification.selfCheck - this enclave
+// running the same five checks a client would (via @tinfoilsh/verifier) and
+// reporting the outcome as a clearly-labeled diagnostic, so a healthy deployment
+// reads as a wall of passes instead of a bare "verified: false". Clients
+// reproduce it with tinfoil-cli / @tinfoilsh/verifier against the Sigstore-
 // signed measurements on ENCLAVE_REPO's releases, over their OWN connection.
 const RAD_PATH        = "/.well-known/tinfoil-attestation";
 const ATTESTATION_URL = process.env.ATTESTATION_URL || "";                 // explicit RAD URL override
@@ -752,13 +756,68 @@ async function fetchGpuEvidence(nonceHex, timeoutMs = 30000) {
   return r.body;
 }
 
+// ---- SELF-CHECK (diagnostic, not trust) --------------------------------------
+// The enclave runs the exact five-step client verification against ITSELF
+// (@tinfoilsh/verifier: SNP report -> AMD root, Sigstore release provenance,
+// measurement comparison, cert binding) and reports the outcome. Labeled a
+// self-check because self-vouching carries no trust - its value is (a) honest
+// green-by-default optics and (b) catching config drift (wrong repo casing,
+// stale release, broken egress) before a customer's verifier does. Fetches its
+// own PUBLIC origin (hairpin) plus Tinfoil's GitHub/KDS proxies; if any of that
+// is unreachable from inside, it degrades to "unavailable", never an error.
+const SELF_CHECK_TTL_MS  = parseInt(process.env.SELF_CHECK_TTL_MS || "300000", 10); // re-check cadence after a pass (non-pass retries after 30s)
+const SELF_CHECK_WAIT_MS = parseInt(process.env.SELF_CHECK_WAIT_MS || "8000", 10);  // max time one request waits on a fresh run
+const SELF_CHECK_NOTE = "Run by the enclave itself as a diagnostic: it proves this deployment is configured "
+                      + "to verify, not that you should trust it. Reproduce it on your side with `cli`, `npm`, "
+                      + "or `browser` - trust ends at YOUR verifier, never at this field.";
+let _selfCheck = null;                  // { data, at }
+let _selfCheckRun = null;               // in-flight run (shared across concurrent requests)
+async function runSelfCheck(origin) {
+  if (!ENCLAVE_REPO) return { result: "unavailable", error: "ENCLAVE_REPO not configured" };
+  if (!origin)       return { result: "unavailable", error: "public origin not known yet (no external request seen)" };
+  const v = new Verifier({ serverURL: origin, configRepo: ENCLAVE_REPO });
+  let failure = null;
+  try { await v.verify(); } catch (e) { failure = e; }
+  const doc = v.getVerificationDocument();
+  if (!doc) return { result: "unavailable", error: failure?.message || "verifier produced no document" };
+  const word = (s) => !s || s.status === "pending" ? "skipped" : s.status === "success" ? "pass" : "fail";
+  const steps = {};
+  for (const k of ["fetchDigest", "verifyEnclave", "verifyCode", "compareMeasurements", "verifyCertificate"]) {
+    steps[k] = word(doc.steps?.[k]);
+    if (doc.steps?.[k]?.error) steps[k] += `: ${doc.steps[k].error}`;
+  }
+  return { result: doc.securityVerified ? "pass" : "fail",
+           ...(failure ? { error: failure.message } : {}),
+           steps,
+           release: doc.releaseDigest ? `sha256:${doc.releaseDigest}` : null,
+           measurement: doc.enclaveFingerprint || null };
+}
+async function getSelfCheck(origin) {
+  const ttl = _selfCheck?.data?.result === "pass" ? SELF_CHECK_TTL_MS : Math.min(SELF_CHECK_TTL_MS, 30_000);
+  if (_selfCheck && Date.now() - _selfCheck.at < ttl) return _selfCheck.data;
+  if (!_selfCheckRun)
+    _selfCheckRun = runSelfCheck(origin)
+      .catch((e) => ({ result: "unavailable", error: e.message }))
+      .then((r) => { const data = { result: r.result, ...r, checkedAt: new Date().toISOString(), note: SELF_CHECK_NOTE };
+                     _selfCheck = { data, at: Date.now() }; _selfCheckRun = null; return data; });
+  // don't hold the attestation response hostage to a slow first run
+  const done = await Promise.race([_selfCheckRun,
+    new Promise((res) => setTimeout(res, SELF_CHECK_WAIT_MS).unref())]);
+  return done || { result: "pending",
+                   detail: "self-check still running - request this endpoint again in a few seconds",
+                   note: SELF_CHECK_NOTE };
+}
+
 async function getMeasurements(rec, { origin = PUBLIC_URL, nonce } = {}) {
   let enclaveHost = null; try { enclaveHost = origin ? new URL(origin).host : null; } catch {}
   const out = {
-    // ALWAYS false here: verification is the CLIENT's act, on its own connection.
-    // A "verified: true" asserted by the machine being verified proves nothing.
-    verified: false,
-    verify: {
+    // No server-asserted "verified" boolean: the machine being verified cannot
+    // vouch for itself, and a hardcoded `false` reads like an outage. Instead,
+    // selfCheck reports this enclave running the same checks a client would
+    // (labeled diagnostic), and the pointers beside it reproduce the result
+    // client-side in seconds - where it actually carries trust.
+    verification: {
+      selfCheck: await getSelfCheck(origin),
       how: "Fetch " + RAD_PATH + " from this origin over your OWN TLS connection, verify the quote "
          + "against the Intel/AMD root of trust, compare the registers to the Sigstore-signed "
          + "measurements on the release page of `repo` (exact casing - Sigstore compares it verbatim), "
@@ -767,6 +826,7 @@ async function getMeasurements(rec, { origin = PUBLIC_URL, nonce } = {}) {
       cli: enclaveHost && ENCLAVE_REPO
          ? `tinfoil attestation verify -e ${enclaveHost} -r ${ENCLAVE_REPO}` : null,  // github.com/tinfoilsh/tinfoil-cli
       npm: "@tinfoilsh/verifier",  // Node + browsers: await new Verifier({ serverURL, configRepo: repo }).verify()
+      browser: "https://nan.host/#attest",
       repo: ENCLAVE_REPO || null,
       attestationEndpoint: (origin || "") + RAD_PATH,
     },

@@ -1492,7 +1492,7 @@
       },
       "Attestation": {
         "type": "object",
-        "description": "Live attestation material. `verified` is ALWAYS false: verification is performed by the client against the hardware vendors' roots of trust and the repo's published measurements — a server cannot meaningfully vouch for itself.",
+        "description": "Live attestation material. The server never asserts trust on your behalf — `verification.selfCheck` is the enclave running the same five checks a client would, reported as a clearly-labeled diagnostic; reproduce it on your side (cli/npm/browser pointers included) for it to carry trust.",
         "properties": {
           "deploymentId": {
             "type": "string"
@@ -1501,14 +1501,18 @@
             "type": "string",
             "format": "date-time"
           },
-          "verified": {
-            "type": "boolean",
-            "description": "Always false — verify client-side.",
-            "example": false
-          },
-          "verify": {
+          "verification": {
             "type": "object",
-            "description": "How to verify: instructions (`how`), a ready-to-run tinfoil-cli command (`cli`, from github.com/tinfoilsh/tinfoil-cli), the npm verifier package (`npm`, @tinfoilsh/verifier — works in Node and browsers), the enclave repo whose release holds the signed measurements (`repo`, exact GitHub casing), and the well-known attestation endpoint.",
+            "description": "`selfCheck`: the enclave verifying ITSELF with @tinfoilsh/verifier — `result` is `pass`/`fail`/`pending`/`unavailable` with per-step detail (`fetchDigest`, `verifyEnclave`, `verifyCode`, `compareMeasurements`, `verifyCertificate`), the release digest and measurement it matched, and a note explaining that a self-check is a diagnostic, not trust. Alongside it, how to reproduce client-side: instructions (`how`), a ready-to-run tinfoil-cli command (`cli`), the npm verifier package (`npm`, works in Node and browsers), an in-browser verifier (`browser`), the enclave repo whose release holds the signed measurements (`repo`, exact GitHub casing), and the well-known attestation endpoint.",
+            "properties": {
+              "selfCheck": {
+                "type": "object",
+                "properties": {
+                  "result": { "type": "string", "enum": ["pass", "fail", "pending", "unavailable"], "example": "pass" }
+                },
+                "additionalProperties": true
+              }
+            },
             "additionalProperties": true
           },
           "tlsKeyFingerprint": {

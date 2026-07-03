@@ -2501,7 +2501,7 @@ const SPEC = {
       },
       "Attestation": {
         "type": "object",
-        "description": "Live attestation material. `verified` is ALWAYS false: verification is performed by the client against the hardware vendors' roots of trust and the repo's published measurements — a server cannot meaningfully vouch for itself.",
+        "description": "Live attestation material. The server never asserts trust on your behalf — `verification.selfCheck` is the enclave running the same five checks a client would, reported as a clearly-labeled diagnostic; reproduce it on your side (cli/npm/browser pointers included) for it to carry trust.",
         "properties": {
           "deploymentId": {
             "type": "string"
@@ -2510,14 +2510,18 @@ const SPEC = {
             "type": "string",
             "format": "date-time"
           },
-          "verified": {
-            "type": "boolean",
-            "description": "Always false — verify client-side.",
-            "example": false
-          },
-          "verify": {
+          "verification": {
             "type": "object",
-            "description": "How to verify: instructions (`how`), a ready-to-run tinfoil-cli command (`cli`, from github.com/tinfoilsh/tinfoil-cli), the npm verifier package (`npm`, @tinfoilsh/verifier — works in Node and browsers), the enclave repo whose release holds the signed measurements (`repo`, exact GitHub casing), and the well-known attestation endpoint.",
+            "description": "`selfCheck`: the enclave verifying ITSELF with @tinfoilsh/verifier — `result` is `pass`/`fail`/`pending`/`unavailable` with per-step detail (`fetchDigest`, `verifyEnclave`, `verifyCode`, `compareMeasurements`, `verifyCertificate`), the release digest and measurement it matched, and a note explaining that a self-check is a diagnostic, not trust. Alongside it, how to reproduce client-side: instructions (`how`), a ready-to-run tinfoil-cli command (`cli`), the npm verifier package (`npm`, works in Node and browsers), an in-browser verifier (`browser`), the enclave repo whose release holds the signed measurements (`repo`, exact GitHub casing), and the well-known attestation endpoint.",
+            "properties": {
+              "selfCheck": {
+                "type": "object",
+                "properties": {
+                  "result": { "type": "string", "enum": ["pass", "fail", "pending", "unavailable"], "example": "pass" }
+                },
+                "additionalProperties": true
+              }
+            },
             "additionalProperties": true
           },
           "tlsKeyFingerprint": {
@@ -3853,9 +3857,30 @@ function renderEnclaveRows(list, highlight){
 async function encVerify(id, btn){
   const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-att"); if (!box) return;
   if (!box.hidden){ box.hidden = true; box.innerHTML = ""; return; }
-  box.hidden = false; box.innerHTML = '<div class="ap-attbar">attestation \u00b7 ' + esc(id) + '</div><pre class="ap-attpre">fetching\u2026</pre>';
-  try { const att = await Nan.attestation(id); const pre = box.querySelector(".ap-attpre"); if (pre) pre.innerHTML = hlJson(att); }
-  catch(e){ const pre = box.querySelector(".ap-attpre"); if (pre) pre.textContent = e.message; }
+  box.hidden = false;
+  box.innerHTML = '<div class="ap-attbar">attestation \u00b7 ' + esc(id)
+    + '<span class="enc-vbadge">\u23f3 verifying in your browser\u2026</span></div>'
+    + '<pre class="ap-attpre">fetching\u2026</pre>';
+  const badge = box.querySelector(".enc-vbadge");
+  try {
+    const att = await Nan.attestation(id);
+    const pre = box.querySelector(".ap-attpre"); if (pre) pre.innerHTML = hlJson(att);
+    const vspec = vspecOf(att);
+    if (!vspec){ if (badge) badge.textContent = ""; return; }
+    // the badge is computed HERE, in the customer's browser \u2014 the API's
+    // verification.selfCheck is the enclave's own (labeled) diagnostic.
+    try {
+      const r = await verifyEnclaveInBrowser(vspec);
+      if (!badge || box.hidden) return;
+      if (r.ok){
+        badge.className = "enc-vbadge ok"; badge.textContent = "\u2713 verified in your browser";
+        badge.title = "AMD SEV-SNP report \u2192 AMD root, Sigstore release provenance, measurement match and cert binding, checked client-side against " + r.repo + " (enclave " + r.host + ")";
+      } else {
+        badge.className = "enc-vbadge bad"; badge.textContent = "\u2717 not verified \u2014 " + (r.error || "check failed");
+      }
+    } catch(e){ if (badge && !box.hidden){ badge.className = "enc-vbadge bad"; badge.textContent = "\u2717 could not verify \u2014 " + (e.message || e); } }
+  }
+  catch(e){ const pre = box.querySelector(".ap-attpre"); if (pre) pre.textContent = e.message; if (badge) badge.textContent = ""; }
 }
 
 async function encKill(id, btn){
@@ -4050,6 +4075,8 @@ function injectLiveStyles(){
     ".ap-link{background:none;border:0;color:var(--jade-2);font-family:var(--font-mono);font-size:.82rem;cursor:pointer;text-align:left;padding:0;}",
     ".ap-att{border-top:1px solid var(--line);}",
     ".ap-attbar{font-family:var(--font-mono);font-size:.66rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;padding:9px 18px;background:#0b1119;border-bottom:1px solid var(--line-soft);}",
+    ".enc-vbadge{float:right;text-transform:none;letter-spacing:0;font-size:.7rem;}",
+    ".enc-vbadge.ok{color:var(--jade);} .enc-vbadge.bad{color:var(--amber);}",
     ".ap-attpre{margin:0;padding:14px 18px;max-height:320px;overflow:auto;font-family:var(--font-mono);font-size:.76rem;line-height:1.55;white-space:pre-wrap;word-break:break-word;}",
     ".enclaves{margin-top:22px;border:1px solid var(--line);border-radius:var(--radius);background:linear-gradient(180deg,#0c131c,#0a0f17);overflow:hidden;}",
     ".enc-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 18px;border-bottom:1px solid var(--line);}",
@@ -4088,8 +4115,8 @@ const LINKS = [
     d: "The enclave generates its TLS keypair in sealed memory and folds the public-key hash into the quote's report_data. The private key never leaves the boundary, so nobody can sit in the middle.",
     j: { tlsKeyFingerprint: "sha256:4b8c…e2a1", boundTo: "reportData[0:32] = sha256(TLS pubkey SPKI)" } },
   { t: "Your browser verifies", fn: "verify.js",
-    d: "Tinfoil's open-source verifier runs the whole chain client-side: hardware report against the vendor root, Sigstore provenance of the release, measurement comparison, TLS binding. Trust ends in your client, not on our word — the API's verified field is always false by design. Try it live below.",
-    code: "import { Verifier } from '@tinfoilsh/verifier';\n// or from a shell: tinfoil attestation verify -e <enclave-host> -r <repo>\n\nconst att = await (await fetch(`/v1/attestation`)).json(); // public: verify BEFORE login\nawait new Verifier({\n  serverURL:  new URL(att.verify.attestationEndpoint).origin,\n  configRepo: att.verify.repo,       // exact GitHub casing — Sigstore compares verbatim\n}).verify();  // hardware report → vendor root · Sigstore release provenance · measurements match\n\npinTls(att.tlsKeyFingerprint);       // only now: connect" }
+    d: "Tinfoil's open-source verifier runs the whole chain client-side: hardware report against the vendor root, Sigstore provenance of the release, measurement comparison, TLS binding. The API's verification.selfCheck is the enclave running these same steps on itself — a labeled diagnostic, because trust only counts when YOUR client computes it. Try it live below.",
+    code: "import { Verifier } from '@tinfoilsh/verifier';\n// or from a shell: tinfoil attestation verify -e <enclave-host> -r <repo>\n\nconst att = await (await fetch(`/v1/attestation`)).json(); // public: verify BEFORE login\natt.verification.selfCheck;          // enclave's own diagnostic — useful, but not trust\n\nawait new Verifier({\n  serverURL:  new URL(att.verification.attestationEndpoint).origin,\n  configRepo: att.verification.repo, // exact GitHub casing — Sigstore compares verbatim\n}).verify();  // hardware report → vendor root · Sigstore release provenance · measurements match\n\npinTls(att.tlsKeyFingerprint);       // only now: connect" }
 ];
 function showAttest(i) {
   const l = LINKS[i];
@@ -4115,10 +4142,12 @@ function initAttest() {
 }
 
 /* ---- live in-browser enclave verification (@tinfoilsh/verifier) ----
-   Runs the exact client-side check the attestation's `verify` field describes:
-   AMD SEV-SNP report → VCEK → AMD root, Sigstore provenance of the release,
-   measurement comparison, certificate binding. The dead-honest counterpart to
-   the API's always-false `verified` flag. */
+   Shared core for the #attest widget and the per-deployment console badge.
+   Runs the full client-side check — AMD SEV-SNP report → VCEK → AMD root,
+   Sigstore provenance of the release, measurement comparison, certificate
+   binding — in THIS browser, cached per enclave+repo for the session. The
+   API's verification.selfCheck is the enclave running the same steps on
+   itself; this is the version that actually carries trust. */
 const LV_VERIFIER_URL = "https://esm.sh/@tinfoilsh/verifier@1.1.7?bundle";
 const LV_STEP_ORDER = ["fetchDigest", "verifyEnclave", "verifyCode", "compareMeasurements", "verifyCertificate"];
 const LV_LABELS = {
@@ -4128,6 +4157,31 @@ const LV_LABELS = {
   compareMeasurements: "compare signed code measurement to live enclave measurement",
   verifyCertificate:   "bind the served certificate to the attested report",
 };
+// verification pointers: new shape (verification) with fallback to the
+// pre-selfCheck field name (verify) so older enclaves still work.
+const vspecOf = (att) => (att && (att.verification || att.verify)) || null;
+const _encVerifyCache = new Map();     // "host|repo" -> Promise<{ok, doc, repo, host, error}>
+function verifyEnclaveInBrowser(vspec) {
+  let repo = vspec && vspec.repo;
+  const ep = vspec && vspec.attestationEndpoint;
+  if (!repo || !ep) return Promise.reject(new Error("attestation is missing verification.repo / attestationEndpoint"));
+  const host = new URL(ep).host, key = host + "|" + repo;
+  if (!_encVerifyCache.has(key)) _encVerifyCache.set(key, (async () => {
+    // Sigstore compares the repo string verbatim against the signing cert's
+    // GitHubWorkflowRepository claim, so normalize to GitHub's canonical casing.
+    try { const gh = await fetch("https://api.github.com/repos/" + repo); if (gh.ok) repo = (await gh.json()).full_name || repo; } catch (e) {}
+    const mod = await import(LV_VERIFIER_URL);
+    const v = new mod.Verifier({ serverURL: "https://" + host, configRepo: repo });
+    let failure = null;
+    try { await v.verify(); } catch (e) { failure = e; }
+    const doc = v.getVerificationDocument();
+    const res = { ok: !!(doc && doc.securityVerified), doc, repo, host,
+                  error: failure ? (failure.message || String(failure)) : null };
+    if (!res.ok) _encVerifyCache.delete(key);          // don't cache failures: allow retry
+    return res;
+  })().catch((e) => { _encVerifyCache.delete(key); throw e; }));
+  return _encVerifyCache.get(key);
+}
 async function lvVerify(btn) {
   const body = $("#lvBody"), steps = $("#lvSteps"), verdict = $("#lvVerdict"), meta = $("#lvMeta");
   body.hidden = false; btn.disabled = true;
@@ -4136,21 +4190,12 @@ async function lvVerify(btn) {
   try {
     status("fetching " + Nan.base + "/attestation …");
     const att = await Nan._req("GET", "/attestation");
-    let repo = att.verify && att.verify.repo;
-    const ep = att.verify && att.verify.attestationEndpoint;
-    if (!repo || !ep) throw new Error("attestation is missing verify.repo / verify.attestationEndpoint");
-    const enclave = new URL(ep);
-    // Sigstore compares the repo string verbatim against the signing cert's
-    // GitHubWorkflowRepository claim, so normalize to GitHub's canonical casing.
-    try { const gh = await fetch("https://api.github.com/repos/" + repo); if (gh.ok) repo = (await gh.json()).full_name || repo; } catch (e) {}
-    const cliEl = $("#lvCli"); if (cliEl) cliEl.textContent = "tinfoil attestation verify -e " + enclave.host + " -r " + repo;
-    status("loading @tinfoilsh/verifier …");
-    const mod = await import(LV_VERIFIER_URL);
-    status("verifying " + enclave.host + " against " + repo + " … (fetches AMD + Sigstore material, takes a few seconds)");
-    const v = new mod.Verifier({ serverURL: enclave.origin, configRepo: repo });
-    let failure = null;
-    try { await v.verify(); } catch (e) { failure = e; }
-    const doc = v.getVerificationDocument();
+    const vspec = vspecOf(att);
+    if (!vspec) throw new Error("attestation is missing the verification block");
+    status("verifying in your browser … (fetches AMD + Sigstore material, takes a few seconds)");
+    const r = await verifyEnclaveInBrowser(vspec);
+    const cliEl = $("#lvCli"); if (cliEl) cliEl.textContent = "tinfoil attestation verify -e " + r.host + " -r " + r.repo;
+    const doc = r.doc;
     LV_STEP_ORDER.forEach((k) => {
       const st = doc && doc.steps && doc.steps[k];
       const cls = !st || st.status === "pending" ? "" : st.status === "success" ? "ok" : "bad";
@@ -4160,9 +4205,9 @@ async function lvVerify(btn) {
         + esc(LV_LABELS[k]) + (st && st.error ? ' — <span class="err">' + esc(st.error) + "</span>" : "") + "</span>";
       steps.appendChild(li);
     });
-    if (doc && doc.securityVerified) {
+    if (r.ok) {
       verdict.className = "lv-verdict ok";
-      verdict.textContent = "✓ VERIFIED — this enclave is running the exact code signed on " + repo + "'s latest release";
+      verdict.textContent = "✓ VERIFIED — this enclave is running the exact code signed on " + r.repo + "'s latest release";
       const apiFp = String(att.tlsKeyFingerprint || "").replace(/^sha256:/, "");
       meta.innerHTML = [
         "measurement   " + doc.enclaveFingerprint,
@@ -4171,7 +4216,7 @@ async function lvVerify(btn) {
       ].map((x) => "<span>" + esc(x) + "</span>").join("");
     } else {
       verdict.className = "lv-verdict bad";
-      verdict.textContent = "✗ NOT VERIFIED — " + (failure && failure.message ? failure.message : "verification incomplete");
+      verdict.textContent = "✗ NOT VERIFIED — " + (r.error || "verification incomplete");
     }
   } catch (e) {
     verdict.className = "lv-verdict bad";
