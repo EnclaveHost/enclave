@@ -1733,6 +1733,18 @@ app.delete("/v1/deployments/:id", authed, async (req, res) => {
   const rec = deployments.get(req.params.id);
   if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
   if (rec._payTimer) { clearTimeout(rec._payTimer); rec._payTimer = null; }
+  // An unpaid reservation never ran: cancel = REMOVE it, so the deploy page
+  // doesn't show a ghost (nothing ran, nothing paid — no history worth keeping).
+  // A payment broadcast anyway after this lands uncredited at payout, exactly
+  // like paying after the reservation window expires.
+  if (rec.status === "awaiting_payment") {
+    if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
+    deployments.delete(rec.id);
+    if (rec.payRef) payRefIndex.delete(rec.payRef.toLowerCase());
+    saveStateSoon();
+    return res.json({ id: rec.id, status: "canceled",
+                      note: "Reservation released; nothing was charged." });
+  }
   try { await stopContainer(rec); } catch {}
   if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
   rec.status = "stopping";
