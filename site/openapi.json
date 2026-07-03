@@ -9,7 +9,7 @@
   "servers": [
     {
       "url": "https://api.nan.host/v1",
-      "description": "Production (per-enclave base; the live debug enclave is https://enclave1.debug.nan.containers.tinfoil.dev/v1)"
+      "description": "Production API gateway — proxies to the live enclave (attested TLS terminates in the enclave; the gateway sees control-plane traffic). Talk to an enclave directly by using its base, e.g. https://enclave1.nan.containers.tinfoil.dev/v1"
     }
   ],
   "security": [

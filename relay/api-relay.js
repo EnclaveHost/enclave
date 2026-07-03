@@ -35,6 +35,7 @@
 //   STALE_AFTER_SEC    optional    drop enclaves silent on-chain > this (3600)
 
 import http from "node:http";
+import https from "node:https";
 
 const REGISTRY_ADDRESS  = (process.env.REGISTRY_ADDRESS || "").trim();
 const BASE_RPC          = process.env.BASE_RPC || "https://mainnet.base.org";
@@ -118,18 +119,60 @@ function pick(wantShare = 0) {
 }
 
 // --- http ----------------------------------------------------------------------
-const json = (res, code, body) => {
-  res.writeHead(code, { "Content-Type": "application/json",
-                        "Access-Control-Allow-Origin": "*",          // public, read-only data
-                        "Cache-Control": "no-store" });
+// CORS: the browser page (https://nan.host) talks only to this relay, so WE must
+// answer preflight and stamp CORS on every response. Reflect the Origin (so
+// Authorization works without the wildcard-vs-credentials clash) and echo the
+// requested headers on preflight.
+const cors = (req) => ({
+  "Access-Control-Allow-Origin": req.headers.origin || "*",
+  "Vary": "Origin",
+  "Access-Control-Allow-Credentials": "true",
+  "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
+  "Access-Control-Allow-Headers": req.headers["access-control-request-headers"] || "Authorization,Content-Type",
+  "Access-Control-Max-Age": "600",
+});
+const json = (res, code, body, req) => {
+  res.writeHead(code, { "Content-Type": "application/json", "Cache-Control": "no-store",
+                        ...(req ? cors(req) : { "Access-Control-Allow-Origin": "*" }) });
   res.end(JSON.stringify(body));
 };
+
+// Reverse-proxy this request to `origin` (an enclave). Streams method+headers+
+// body through and pipes the response back, swapping the enclave's CORS for
+// ours. This is the API-gateway path: the relay terminates TLS, so it sees the
+// control-plane token/body in plaintext (accepted trade for a single origin).
+// Attestation fetched this way is informational — real verification stays
+// client-side-direct via Tinfoil SecureClient.
+function proxyTo(origin, req, res) {
+  const target = new URL(origin.replace(/\/+$/, "") + req.url);
+  const headers = { ...req.headers, host: target.host };
+  delete headers["accept-encoding"];                          // let the enclave send identity; simpler passthrough
+  const lib = target.protocol === "https:" ? https : http;
+  const up = lib.request(
+    { hostname: target.hostname, port: target.port || (target.protocol === "https:" ? 443 : 80),
+      path: target.pathname + target.search, method: req.method, headers, timeout: 30000 },
+    (upRes) => {
+      const out = {};
+      for (const [k, v] of Object.entries(upRes.headers)) if (!/^access-control-|^connection$|^transfer-encoding$/i.test(k)) out[k] = v;
+      Object.assign(out, cors(req));
+      res.writeHead(upRes.statusCode || 502, out);
+      upRes.pipe(res);
+    });
+  up.on("timeout", () => up.destroy(new Error("upstream timeout")));
+  up.on("error", (e) => { if (!res.headersSent) res.writeHead(502, { "Content-Type": "application/json", ...cors(req) });
+                          res.end(JSON.stringify({ error: "upstream_error", message: e.message })); });
+  req.pipe(up);
+}
+
+const proxied = (p) => p.startsWith("/v1/") || p === "/availability" || p === "/x" || p.startsWith("/x/");
 
 const server = http.createServer((req, res) => {
   const u = new URL(req.url, "http://x");
 
+  if (req.method === "OPTIONS") { res.writeHead(204, cors(req)); return res.end(); }   // preflight for any path
+
   if (u.pathname === "/health")
-    return json(res, 200, { ok: true, enclaves: live.length, of: registry.length, updatedAt });
+    return json(res, 200, { ok: true, enclaves: live.length, of: registry.length, updatedAt }, req);
 
   if (u.pathname === "/enclaves") {
     const agg = {
@@ -137,30 +180,29 @@ const server = http.createServer((req, res) => {
       totalFreeShare: Math.round(live.reduce((s, e) => s + (e.availability.maxShare || 0), 0) * 1000) / 1000,
       totalVramFreeGb: Math.round(live.reduce((s, e) => s + (e.availability.vramFreeGb || 0), 0) * 10) / 10,
     };
-    return json(res, 200, { updatedAt, aggregate: agg, enclaves: live });
+    return json(res, 200, { updatedAt, aggregate: agg, enclaves: live }, req);
   }
 
   if (u.pathname === "/route") {
     const want = parseFloat(u.searchParams.get("share") || "0") || 0;
     const c = pick(want);
-    if (!c) return json(res, 503, { error: "no_capacity", message: `No live enclave has >= ${want} free share.`, updatedAt });
+    if (!c) return json(res, 503, { error: "no_capacity", message: `No live enclave has >= ${want} free share.`, updatedAt }, req);
     return json(res, 200, { endpoint: c.endpoint, repo: c.repo, availability: c.availability, updatedAt,
-                            note: "Verify attestation at the endpoint (Tinfoil SecureClient + repo) before sending anything." });
+                            note: "Verify attestation at the endpoint (Tinfoil SecureClient + repo) before sending anything." }, req);
   }
 
-  // convenience: bounce API calls to the current best enclave. 307 keeps the
-  // method and body; the client lands on the enclave's own attested origin.
-  // Deliberately NOT /x/* — a deployment lives on ONE enclave, and "best
-  // available" is the wrong router for it; use the enclave you deployed to.
-  if (u.pathname.startsWith("/v1/") || u.pathname === "/availability") {
+  // API gateway: proxy control-plane + data-path calls to the live enclave.
+  // Single-enclave today: targets the one live enclave. NOTE: control-plane ops
+  // on a deployment must hit the enclave that OWNS it — with several enclaves,
+  // this needs per-deployment routing (a SIWE token is enclave-specific anyway),
+  // so revisit before adding a second enclave.
+  if (proxied(u.pathname)) {
     const c = pick(0);
-    if (!c) return json(res, 503, { error: "no_capacity", message: "No live enclaves.", updatedAt });
-    res.writeHead(307, { Location: c.endpoint + req.url, "Access-Control-Allow-Origin": "*",
-                         "Cache-Control": "no-store" });
-    return res.end();
+    if (!c) return json(res, 503, { error: "no_capacity", message: "No live enclaves.", updatedAt }, req);
+    return proxyTo(c.endpoint, req, res);
   }
 
-  json(res, 404, { error: "not_found", routes: ["/health", "/enclaves", "/route?share=0.05", "/v1/* (307 to best enclave)"] });
+  json(res, 404, { error: "not_found", routes: ["/health", "/enclaves", "/route?share=0.05", "/v1/* /x/* /availability (proxied to the enclave)"] }, req);
 });
 
 await pollRegistry();
