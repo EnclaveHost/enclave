@@ -3768,18 +3768,18 @@ async function refreshEnclaves(opts){
 }
 
 // The app's reachable URL. Through the gateway each deployment gets its OWN
-// origin — a per-deployment subdomain (dep-<id>.apps.nan.host, hyphen since "_"
-// is invalid in a hostname) — so an app can't touch the frontend's origin or
-// another tenant's. Talking to an enclave directly falls back to the /x/<id>
-// path. The deployment's own network.endpoint (the enclave's hostname) is only
-// used as a last resort; it's the right value for attestation/registry, not for
-// how the user reaches the app here.
-const APP_DOMAIN = "apps.nan.host";
+// origin — a per-deployment subdomain (<id>.app.nan.host, the base36 part of
+// the deployment id; the "dep_" is dropped as redundant in this namespace) — so
+// an app can't touch the frontend's origin or another tenant's. Talking to an
+// enclave directly falls back to the /x/<id> path. The deployment's own
+// network.endpoint (the enclave's hostname) is only a last resort; it's the
+// right value for attestation/registry, not for how the user reaches the app.
+const APP_DOMAIN = "app.nan.host";
 function appEndpoint(d){
   if (!d || !d.id) return (d && d.network && d.network.endpoint) || "";
   const root = Nan.base.replace(/\/v1\/?$/, "");
   if (/(^|\/\/)api\.nan\.host/i.test(root))
-    return "https://" + d.id.replace(/^dep_/, "dep-") + "." + APP_DOMAIN;
+    return "https://" + d.id.replace(/^dep_/, "") + "." + APP_DOMAIN;
   return root + "/x/" + d.id;                              // direct-to-enclave override
 }
 

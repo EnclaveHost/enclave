@@ -178,13 +178,15 @@ function proxyTo(origin, req, res, { path = req.url, setCors = true } = {}) {
 
 const proxied = (p) => p.startsWith("/v1/") || p === "/availability" || p === "/x" || p.startsWith("/x/");
 
-// <dep-id>.<APP_DOMAIN> -> canonical dep_id, or null if the host isn't an app
-// subdomain. "dep-abc123" -> "dep_abc123".
+// <label>.<APP_DOMAIN> -> canonical dep_<label>, or null if not an app subdomain.
+// The subdomain drops the "dep_" (redundant in this namespace): "abc123" ->
+// "dep_abc123". A legacy "dep-abc123" is still accepted.
 function depFromHost(host) {
   if (!APP_DOMAIN) return null;
   host = (host || "").toLowerCase().split(":")[0];
   if (!host.endsWith("." + APP_DOMAIN)) return null;
-  const id = host.slice(0, -(APP_DOMAIN.length + 1)).replace(/^dep-/, "dep_");
+  const label = host.slice(0, -(APP_DOMAIN.length + 1)).replace(/^dep[-_]/, "");   // strip a legacy prefix if present
+  const id = "dep_" + label;
   return /^dep_[a-z0-9]+$/.test(id) ? id : null;
 }
 
