@@ -22,7 +22,7 @@ gpus: 1            # whole H200 attached to the enclave (CC allows 1 or 8)
 containers:
   # --- MPS daemon: makes per-tenant SM%/VRAM caps enforceable in prod -----------
   - name: "mps-control"
-    image: "ghcr.io/stevedefacto/nan-mps@sha256:ff0a29e3a93797b991d75adfa0ce556e4606ec8c4bc2214f47bff451a855594a"
+    image: "ghcr.io/stevedefacto/nan-mps@sha256:118a5e18fda1df76b810cc5653ac1fa78fb7f6e259df7af924c29a9d49c068f6"
     runtime: nvidia
     gpus: all
     ipc: host
@@ -39,7 +39,7 @@ containers:
 
   # --- GPU worker: forks MPS-capped CUDA processes per tenant, runs submitted jobs
   - name: "worker"
-    image: "ghcr.io/stevedefacto/nan-worker@sha256:b4461bf4ec29ac1f22fe4fc689e0f74825ff7ae450bfb44feadae52e0bcf3c61"
+    image: "ghcr.io/stevedefacto/nan-worker@sha256:7f9e61a14671fdec1fc2b478716476d00fde50c4fd26415cbe5f2bd1b4e2fcb4"
     runtime: nvidia
     gpus: all
     ipc: host
@@ -59,7 +59,7 @@ containers:
 
   # --- supervisor: control plane (no GPU), public ingress -----------------------
   - name: "supervisor"
-    image: "ghcr.io/stevedefacto/nan@sha256:004f0101b86570cb7ffe2527027425c50fa0d92e5101a4c19b8bf29af4953d83"
+    image: "ghcr.io/stevedefacto/nan@sha256:959f64a1ed6cb71cdd86b829bfd8e548583a47e682d7a3e390e657df6b136f4a"
     restart: always
     env:
       - PORT: "8080"
@@ -108,6 +108,16 @@ containers:
       - REGISTRY_ENABLED: "1"
       - REGISTRY_ADDRESS: "0xC4C6C7D4D0b9C92ba5326f7903e6f0C300B6994D"                             # set by scripts/deploy-registry.mjs
       # - REGISTRY_HEARTBEAT_SEC: "900"                  # optional, default 15 min
+      # Portable deployments (contracts/DEPLOYMENTS.md): with CLAIM_ENABLED the
+      # enclave polls the NanDeployments ledger and claims funded, unleased
+      # deployments it can serve — including ones whose previous runner died.
+      # Claims sign with REGISTRY_PRIVATE_KEY (the contract gates claims to this
+      # registry entry's operator), so registry advertising above is a hard
+      # prerequisite, as is PROVISION_BACKEND=vm (claims run catalog wasm apps).
+      - CLAIM_ENABLED: "1"
+      - DEPLOYMENTS_ADDRESS: "0x184cD321F12a9A6256AC2CC1E45436f2e4AdF31b"                          # set by scripts/deploy-deployments.mjs
+      # - CLAIM_POLL_SEC: "60"                           # optional: queue sweep / lease audit cadence
+      # - RENEW_MARGIN_SEC: "300"                        # optional: renew when less lease than this remains
       - GPU_COUNT: "1"
       - GPU_VRAM_GB: "141"
       - SM_TOTAL: "132"
@@ -167,7 +177,7 @@ containers:
   # The app catalog is baked into the image (apps/*.wasm + catalog.json), so what
   # runs is exactly what Tinfoil attested. Apps are wasi:http components.
   - name: "wasm-manager"
-    image: "ghcr.io/stevedefacto/nan-wasm-manager@sha256:03437f8cb3449916d87d2bf5f237a48e8ee9984b743414ad9f414728f3ef9088"
+    image: "ghcr.io/stevedefacto/nan-wasm-manager@sha256:309fe9c3c20f099182ac91bbfb1f5cf632bd7b9539736d3ecaf6de265457b41f"
     restart: always
     env:
       - WASM_MANAGER_PORT: "8091"   # same port the supervisor's VMMGR_URL already targets

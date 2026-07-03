@@ -171,24 +171,26 @@ const REGISTRY_ABI = [
 // guard so a later request retries. Never fatal — a failed advertisement must
 // not take down the enclave.
 let _registered = false;
+let _enclaveId = null;            // our NanRegistry id (keccak256 of the advertised endpoint); claim gating needs it
+let _advertisedEndpoint = null;   // the endpoint we registered under; adopted deployments build their URL from it
 async function registerOnChain(endpoint) {
   endpoint = (endpoint || "").replace(/\/+$/, "");
   if (!REGISTRY_READY || _registered || !endpoint) return;
   _registered = true;                                       // claim before await so a request burst registers once
   try {
-    const account = privateKeyToAccount(REGISTRY_PK.startsWith("0x") ? REGISTRY_PK : `0x${REGISTRY_PK}`);
-    const wallet  = createWalletClient({ account, chain: base, transport: viemHttp(BASE_RPC) });
+    // register/heartbeat go through the shared operator-tx queue (sendOperatorTx,
+    // defined with the claim loop): the SAME EOA signs registry and ledger txs,
+    // and public RPCs cap EIP-7702-delegated accounts at one in-flight tx — so
+    // every tx from this key is serialized through confirmation, never raced.
     const id = keccak256(stringToBytes(endpoint));
-    const hash = await wallet.writeContract({
-      address: REGISTRY_ADDRESS, abi: REGISTRY_ABI, functionName: "register",
-      args: [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT],
-    });
+    const hash = await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "register",
+      [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT]);
+    _enclaveId = id; _advertisedEndpoint = endpoint;        // unlocks the claim loop (portable deployments)
     console.log(`[registry] registered ${endpoint} repo=${ENCLAVE_REPO} id=${id} tx=${hash}`);
     // heartbeat loop - refresh liveness so readers don't treat us as down
     setInterval(async () => {
       try {
-        const h = await wallet.writeContract({ address: REGISTRY_ADDRESS, abi: REGISTRY_ABI,
-                                               functionName: "heartbeat", args: [id] });
+        const h = await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "heartbeat", [id]);
         console.log(`[registry] heartbeat tx=${h}`);
       } catch (e) { console.warn(`[registry] heartbeat failed: ${e.shortMessage || e.message}`); }
     }, Math.max(60, HEARTBEAT_SEC) * 1000).unref();
@@ -402,7 +404,7 @@ let _stateDirty = false, _statePersistable = true;
 function serializeState() {
   const recs = [...deployments.values()].map(r => {
     const o = { ...r };
-    for (const k of ["_payTimer", "_respawning"]) delete o[k];   // live handles only
+    for (const k of ["_payTimer", "_respawning", "_renewing"]) delete o[k];   // live handles only
     return o;
   });
   return JSON.stringify({
@@ -431,8 +433,14 @@ function initStatePersistence() {
   }
   const t = setInterval(() => { if (_stateDirty) saveStateNow(); }, 2000);
   if (t.unref) t.unref();
-  // flush on shutdown so savedAt marks the true start of the outage
-  for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, () => { saveStateNow(); process.exit(0); });
+  // flush on shutdown so savedAt marks the true start of the outage. On-chain
+  // leases are released first (bounded wait): a clean shutdown refunds the
+  // unused lease tail and reopens the queue immediately; instant no-op when
+  // this enclave holds no claims.
+  for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, () => {
+    saveStateNow();
+    releaseClaimsOnShutdown().finally(() => process.exit(0));
+  });
 }
 function loadState() {
   if (!_statePersistable || !existsSync(STATE_FILE)) return;
@@ -1265,7 +1273,8 @@ const spentOf = (rec) => (((rec.consumedMs || 0) / 1000) * (rec.rate || 0)).toFi
 const view = (rec) => {
   const o = { ...rec };
   for (const k of ["_port", "_gpu", "_gpuSpec", "rate", "_sshPort", "_sshKeySource", "_authorizedKey", "_payTimer",
-                   "remainingMs", "consumedMs", "_lastTickAt", "_respawnAt", "_respawnBackoffMs", "_respawning"]) delete o[k];
+                   "remainingMs", "consumedMs", "_lastTickAt", "_respawnAt", "_respawnBackoffMs", "_respawning",
+                   "_onchain", "_leaseUntil", "_renewing"]) delete o[k];
   o.ssh = sshAccessOf(rec);
   o.ratePerSecondUsdc = (rec.rate || 0).toFixed(7);
   o.spentUsdc = spentOf(rec);
@@ -1275,7 +1284,10 @@ const view = (rec) => {
   // frozen (paused) deployment has no meaningful wall-clock expiry.
   o.expiresAt = (rec.remainingMs != null && rec.status === "running" && !rec.paused)
     ? new Date(Date.now() + Math.max(0, rec.remainingMs)).toISOString() : null;
-  o.payment = paymentInstructions(rec);
+  o.payment = rec._onchain ? onchainPaymentInstructions(rec) : paymentInstructions(rec);
+  // claimed-from-chain deployments surface their ledger identity + current lease
+  if (rec._onchain) o.onchain = { contract: DEPLOYMENTS_ADDRESS, id: rec.id,
+    leaseUntil: rec._leaseUntil ? new Date(rec._leaseUntil * 1000).toISOString() : null };
   // declared udp ports get a per-deployment IPv6 (via the udp-relay). Surface
   // it so the dashboard can show a ready-to-use endpoint, e.g. [addr]:53.
   const udpPorts = fwUdpPorts(rec);
@@ -1644,6 +1656,27 @@ function startBillingTicker() {
     const watcherOk = !FORWARDER_ADDRESS || (now - _lastPollOkAt) < WATCHER_STALE_SEC * 1000;
     for (const rec of deployments.values()) {
       if (rec.status !== "running") continue;
+      // On-chain (claimed) deployments: the lease is prepaid wall-clock and the
+      // chain doesn't stop while we're unhealthy, so freeze/pause semantics
+      // don't apply. remainingMs mirrors the lease; the claim loop extends it
+      // by renewing, and an unrenewable lease runs out right here through the
+      // normal reaper (the deployment then goes back on the open queue).
+      if (rec._onchain) {
+        if (rec.paused) { rec.paused = false; rec.pauseReason = null; }   // restart recovery: pause is meaningless
+        if (healthy && !(await instanceAlive(rec))) await respawnTenant(rec);
+        const elapsed = Math.min(Math.max(0, now - (rec._lastTickAt || now)), 2 * BILL_TICK_SEC * 1000);
+        rec._lastTickAt = now;
+        rec.consumedMs = (rec.consumedMs || 0) + elapsed;
+        rec.remainingMs = rec._leaseUntil * 1000 - now;
+        saveStateSoon();
+        if (rec.remainingMs < -GRACE_SEC * 1000) {
+          console.log(`[reaper] ${rec.id} lease over (not renewed) -> teardown`);
+          try { await stopContainer(rec); } catch {}
+          if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
+          rec.status = "expired";           // claim sweep may re-adopt it if funded again
+        }
+        continue;
+      }
       if (!healthy)   { pauseRec(rec, "backend_down");  continue; }
       if (!watcherOk) { pauseRec(rec, "watcher_stale"); continue; }
       if (!(await instanceAlive(rec))) {
@@ -1704,6 +1737,19 @@ app.delete("/v1/deployments/:id", authed, async (req, res) => {
   if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
   rec.status = "stopping";
   saveStateSoon();
+  if (rec._onchain) {
+    // hand the lease back (refunds the unused tail to the on-chain balance).
+    // While the deployment stays active+funded on-chain, ANY enclave — this one
+    // included — may legitimately re-claim it; a permanent stop is the owner's
+    // setActive(false) transaction, not a local delete.
+    sendClaimTx("release", [rec.id])
+      .catch(e => console.warn(`[claim] release on delete failed: ${e.shortMessage || e.message}`));
+    return res.json({ id: rec.id, status: "stopping",
+               ranSeconds: Math.round((rec.consumedMs || 0) / 1000),
+               note: "On-chain deployment: lease released (unused lease time refunded to its balance). It stays "
+                   + "claimable by any enclave while active and funded — call setActive(false) on NanDeployments "
+                   + "to stop it for good." });
+  }
   res.json({ id: rec.id, status: "stopping",
              paidUsdc: ((rec.paidUsdc || 0) / 1e6).toFixed(2),
              ranSeconds: Math.round((rec.consumedMs || 0) / 1000),
@@ -2000,6 +2046,290 @@ server.on("upgrade", async (req, socket, head) => {
   wsTcpBridge(req, socket, head, rec._sshPort);
 });
 
+// ============================================================================
+// portable deployments — the NanDeployments claim loop (see contracts/DEPLOYMENTS.md)
+// ============================================================================
+// Deployments created on-chain are work items on a queue: this enclave CLAIMS
+// one (burning a bounded lease from its funded balance), serves it through the
+// exact same provisioning path as HTTP deploys, RENEWs while healthy, and
+// RELEASEs on graceful teardown (refunding the unused tail). If we die
+// silently, the lease expires on its own and any other enclave picks the
+// deployment up — at-most-one-runner is enforced by the contract, not by us.
+// Signing uses REGISTRY_PRIVATE_KEY: claims are gated to the operator of our
+// registry entry, so advertising (registerOnChain) is a hard prerequisite.
+const DEPLOYMENTS_ADDRESS = process.env.DEPLOYMENTS_ADDRESS || "";
+const CLAIM_ENABLED    = /^(1|true|on)$/i.test(process.env.CLAIM_ENABLED || "");
+const CLAIM_POLL_SEC   = parseInt(process.env.CLAIM_POLL_SEC || "60", 10);    // sweep + audit + renew cadence
+const RENEW_MARGIN_SEC = parseInt(process.env.RENEW_MARGIN_SEC || "300", 10); // renew when less lease than this remains
+const CLAIM_PAGE = 100;
+const CLAIM_READY = CLAIM_ENABLED && !!(DEPLOYMENTS_ADDRESS && REGISTRY_READY && PROVISION_BACKEND === "vm");
+
+// mirrors NanDeployments.Deployment (field order must match the struct exactly)
+const DEPLOYMENT_COMPONENTS = [
+  { name: "id", type: "bytes32" }, { name: "owner", type: "address" },
+  { name: "appRef", type: "string" }, { name: "ports", type: "string" },
+  { name: "sshPubKey", type: "string" }, { name: "configCid", type: "string" },
+  { name: "milliShare", type: "uint16" }, { name: "appPort", type: "uint32" },
+  { name: "isPublic", type: "bool" }, { name: "active", type: "bool" },
+  { name: "createdAt", type: "uint64" },
+  { name: "rate", type: "uint256" }, { name: "balance6", type: "uint256" }, { name: "spent6", type: "uint256" },
+  { name: "runner", type: "bytes32" }, { name: "runnerOperator", type: "address" }, { name: "leaseUntil", type: "uint64" },
+];
+const DEPLOYMENTS_ABI = [
+  { type: "function", name: "claim", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }, { name: "enclaveId", type: "bytes32" }], outputs: [] },
+  { type: "function", name: "renew", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }], outputs: [] },
+  { type: "function", name: "release", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }], outputs: [] },
+  { type: "function", name: "claimable", stateMutability: "view",
+    inputs: [{ name: "id", type: "bytes32" }], outputs: [{ type: "bool" }] },
+  { type: "function", name: "get", stateMutability: "view",
+    inputs: [{ name: "id", type: "bytes32" }],
+    outputs: [{ type: "tuple", components: DEPLOYMENT_COMPONENTS }] },
+  { type: "function", name: "getPage", stateMutability: "view",
+    inputs: [{ name: "start", type: "uint256" }, { name: "n", type: "uint256" }],
+    outputs: [{ type: "tuple[]", components: DEPLOYMENT_COMPONENTS }] },
+];
+
+// One shared signer (the registry operator EOA) and ONE queue for every tx it
+// signs — registry register/heartbeat and ledger claim/renew/release alike.
+// The queue serializes through CONFIRMATION, not just send order: public RPCs
+// cap EIP-7702-delegated EOAs at a single in-flight tx ("in-flight transaction
+// limit reached for delegated accounts"), and even a plain EOA avoids account-
+// nonce races this way. A dropped tx can't wedge the queue (receipt wait is
+// bounded and failures are swallowed — the caller still sees its own error).
+let _claimAccount = null, _claimWallet = null, _txChain = Promise.resolve();
+function claimSigner() {
+  if (!_claimWallet) {
+    _claimAccount = privateKeyToAccount(REGISTRY_PK.startsWith("0x") ? REGISTRY_PK : `0x${REGISTRY_PK}`);
+    _claimWallet  = createWalletClient({ account: _claimAccount, chain: base, transport: viemHttp(BASE_RPC) });
+  }
+  return { account: _claimAccount, wallet: _claimWallet };
+}
+function sendOperatorTx(address, abi, functionName, args) {
+  const p = _txChain.then(() => claimSigner().wallet.writeContract({
+    address: getAddress(address), abi, functionName, args }));
+  _txChain = p
+    .then((hash) => chainClient.waitForTransactionReceipt({ hash, timeout: 120_000 }))
+    .then(() => {}, () => {});              // keep the queue alive across failures
+  return p;
+}
+const sendClaimTx = (functionName, args) => sendOperatorTx(DEPLOYMENTS_ADDRESS, DEPLOYMENTS_ABI, functionName, args);
+const readOnchainDeployment = (id) => chainClient.readContract({
+  address: getAddress(DEPLOYMENTS_ADDRESS), abi: DEPLOYMENTS_ABI, functionName: "get", args: [id] });
+
+// local rec states that no longer hold the lease — safe to re-adopt over
+const CLAIM_TERMINAL = new Set(["expired", "failed", "stopping"]);
+
+// Renew every adopted lease that's inside the margin. A failed renew is not
+// fatal: "unfunded" means the balance is empty (the reaper will tear down when
+// the lease runs out — "processed until there is no more time left"), anything
+// else retries next pass (margin >> poll interval).
+async function renewLeases() {
+  for (const rec of deployments.values()) {
+    if (!rec._onchain || rec.status !== "running" || rec._renewing) continue;
+    if (rec._leaseUntil * 1000 - Date.now() > RENEW_MARGIN_SEC * 1000) continue;
+    rec._renewing = true;
+    try {
+      const hash = await sendClaimTx("renew", [rec.id]);
+      await chainClient.waitForTransactionReceipt({ hash });
+      const d = await readOnchainDeployment(rec.id);
+      rec._leaseUntil = Number(d.leaseUntil);
+      rec.remainingMs = rec._leaseUntil * 1000 - Date.now();
+      rec.paidUsdc = Number(d.spent6 + d.balance6);
+      console.log(`[claim] ${rec.id} lease renewed until ${new Date(rec._leaseUntil * 1000).toISOString()}`);
+      saveStateSoon();
+    } catch (e) {
+      console.warn(`[claim] renew ${rec.id} failed (${e.shortMessage || e.message}); `
+                 + `lease expires ${new Date(rec._leaseUntil * 1000).toISOString()}`);
+    } finally { rec._renewing = false; }
+  }
+}
+
+// Split-brain guard + owner-stop watcher + crash recovery. The chain is the
+// source of truth: if we no longer hold the lease, stop serving (the new runner
+// is attested identically and app state is ephemeral by design); if the owner
+// deactivated, tear down AND release so the tail refunds; if we crashed between
+// claim and provision (status "claimed"), finish the job or hand it back.
+async function auditClaims() {
+  const me = claimSigner().account.address.toLowerCase();
+  for (const rec of [...deployments.values()]) {
+    if (!rec._onchain || !["running", "claimed"].includes(rec.status)) continue;
+    let d; try { d = await readOnchainDeployment(rec.id); }
+    catch { continue; }                       // RPC blip: keep serving, the lease is prepaid
+    const mine = (d.runnerOperator || "").toLowerCase() === me
+              && Number(d.leaseUntil) * 1000 > Date.now();
+    if (!d.active) {
+      console.log(`[claim] ${rec.id} stopped by owner on-chain -> teardown + release`);
+      try { await stopContainer(rec); } catch {}
+      if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
+      rec.status = "stopping";
+      if (mine) await sendClaimTx("release", [rec.id])
+        .catch(e => console.warn(`[claim] release failed: ${e.shortMessage || e.message}`));
+      saveStateSoon();
+    } else if (!mine) {
+      console.log(`[claim] ${rec.id} lease lost -> teardown (chain says runner=${d.runnerOperator})`);
+      try { await stopContainer(rec); } catch {}
+      if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
+      rec.status = "expired";                 // sweep may legitimately re-claim it later
+      saveStateSoon();
+    } else if (rec.status === "claimed") {    // crashed after claim, before provision
+      if (!(await provisionTenant(rec))) {
+        deployments.delete(rec.id);           // provisionTenant already released the GPU
+        await sendClaimTx("release", [rec.id]).catch(() => {});
+        saveStateSoon();
+      }
+    }
+  }
+}
+
+// Page the ledger for claimable work this enclave can actually serve: funded,
+// unleased, fits our free capacity, passes the same catalog-approval gate as
+// HTTP deploys (fail closed). Checked BEFORE claiming so we never burn a
+// user's lease on something we can't run.
+async function claimSweep() {
+  if (!(await backendHealthy())) return;      // don't take work we'd immediately fail
+  for (let start = 0n; ; start += BigInt(CLAIM_PAGE)) {
+    const page = await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
+      abi: DEPLOYMENTS_ABI, functionName: "getPage", args: [start, BigInt(CLAIM_PAGE)] });
+    for (const d of page) {
+      const ex = deployments.get(d.id);
+      if (ex && !CLAIM_TERMINAL.has(ex.status)) continue;                 // already ours
+      if (!d.active || Number(d.leaseUntil) * 1000 > Date.now()) continue; // stopped or leased
+      if (d.balance6 < d.rate) continue;                                  // out of funded time
+      let firewall;
+      try { firewall = parseFirewall({ ports: d.ports ? String(d.ports).split(",") : [] }); }
+      catch (e) { continue; }                 // port spec we won't serve (mirrors the HTTP 422)
+      const share = Number(d.milliShare) / 1000;
+      const slice = normalizeReq(share * CARD_VRAM_GB, share);
+      if (slice.vramGb > maxFreeVram() + 1e-9) continue;                  // doesn't fit right now
+      const g = await gateAppReference(d.appRef);
+      if (g.error) continue;                  // unapproved/unlisted CID (or catalog unreachable: fail closed)
+      await tryClaim(d, g.ref, firewall, slice);
+    }
+    if (page.length < CLAIM_PAGE) break;
+  }
+}
+
+// Jitter de-syncs enclaves that saw the same queue state; the claimable()
+// re-check catches a claim that landed during the wait without paying for a
+// reverted tx. Losing the race anyway costs one reverted tx (cents on Base).
+async function tryClaim(d, ref, firewall, slice) {
+  await new Promise(r => setTimeout(r, Math.random() * 5000));
+  const open = await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
+    abi: DEPLOYMENTS_ABI, functionName: "claimable", args: [d.id] });
+  if (!open) return;
+  let hash;
+  try { hash = await sendClaimTx("claim", [d.id, _enclaveId]); }
+  catch (e) { console.log(`[claim] ${d.id} claim tx failed (${e.shortMessage || e.message})`); return; }
+  const rcpt = await chainClient.waitForTransactionReceipt({ hash });
+  if (rcpt.status !== "success") { console.log(`[claim] ${d.id} lost the race`); return; }
+  const fresh = await readOnchainDeployment(d.id);
+  if ((fresh.runnerOperator || "").toLowerCase() !== claimSigner().account.address.toLowerCase()) return;
+  await adopt(fresh, ref, firewall, slice);
+}
+
+// On-chain record -> local rec, then the SAME provisioning path as HTTP deploys.
+// rec.id IS the on-chain id, so the data path (/x/:id, tcp bridge, udp address)
+// and clients resolving id -> runner -> endpoint from chain state need no
+// mapping. rec.owner is the on-chain owner address — SIWE tokens already carry
+// an address, so owner-only routes (status, ssh, delete) work unchanged.
+async function adopt(d, ref, firewall, slice) {
+  if (deployments.has(d.id)) deployments.delete(d.id);      // terminal leftover from an earlier lease
+  const gpu = allocGpu(slice.vramGb, slice.computeShare);
+  if (!gpu) {                                                // capacity vanished since the sweep checked
+    await sendClaimTx("release", [d.id]).catch(() => {});    // hand it back with the lease refunded
+    return;
+  }
+  const rec = {
+    id: d.id, owner: getAddress(d.owner), status: "claimed", public: d.isPublic, firewall,
+    image: { reference: ref }, command: [],
+    resources: { vramGb: slice.vramGb, computeShare: round3(slice.computeShare), share: round3(slice.computeShare), cardId: gpu.cardId },
+    network: { port: Number(d.appPort) || 8080, protocol: "https", endpoint: `${_advertisedEndpoint}/x/${d.id}` },
+    attestation: { available: true, vmTechnology: "intel-tdx", gpuTechnology: "nvidia-cc", href: `/v1/deployments/${d.id}/attestation` },
+    region: "tinfoil", createdAt: new Date(Number(d.createdAt) * 1000).toISOString(), startedAt: null,
+    // the local clock only mirrors the CURRENT lease; the chain holds the rest
+    remainingMs: Number(d.leaseUntil) * 1000 - Date.now(), consumedMs: 0,
+    paused: false, pauseReason: null, _lastTickAt: Date.now(),
+    rate: Number(d.rate) / 1e6, paidUsdc: Number(d.spent6 + d.balance6),
+    _onchain: true, _leaseUntil: Number(d.leaseUntil), _renewing: false,
+    _gpu: gpu, _gpuSpec: { cardId: gpu.cardId, cardUuid: gpuCards[gpu.cardId]?.uuid || null, vramCapGb: gpu.vramGb, computeShare: gpu.computeShare },
+    _port: 0, _sshPort: 0, _sshKeySource: "on-chain", _authorizedKey: (d.sshPubKey || "").trim(), _payTimer: null,
+  };
+  deployments.set(rec.id, rec); saveStateSoon();
+  if (await provisionTenant(rec)) {
+    console.log(`[claim] ${rec.id} adopted: app=${ref} share=${round3(slice.computeShare)} `
+              + `lease until ${new Date(rec._leaseUntil * 1000).toISOString()}`);
+  } else {
+    // launch failed (bad wasm, image too big, ...): hand it back refunded so
+    // another enclave can try — the user paid nothing for our failure
+    deployments.delete(rec.id);                              // provisionTenant released the GPU already
+    await sendClaimTx("release", [rec.id])
+      .catch(e => console.warn(`[claim] release after failed provision: ${e.shortMessage || e.message}`));
+  }
+  saveStateSoon();
+}
+
+// Graceful shutdown: release every held lease (refunds the unused tail and
+// reopens the queue immediately) with a hard 10s cap so a dead RPC can't hang
+// the exit. GPU handles are freed so a restart doesn't re-reserve ghosts.
+let _shutdownReleased = false;
+async function releaseClaimsOnShutdown() {
+  if (_shutdownReleased) return; _shutdownReleased = true;
+  const mine = [...deployments.values()].filter(r => r._onchain && ["running", "claimed"].includes(r.status));
+  if (!mine.length || !CLAIM_READY) return;
+  console.log(`[claim] shutdown: releasing ${mine.length} lease(s)`);
+  await Promise.race([
+    Promise.allSettled(mine.map(async (rec) => {
+      rec.status = "stopping";
+      if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
+      await sendClaimTx("release", [rec.id]);
+    })),
+    new Promise(r => setTimeout(r, 10_000)),
+  ]);
+  saveStateNow();
+}
+
+let _claimBusy = false;
+function startClaimLoop() {
+  if (!CLAIM_ENABLED) return;
+  if (!CLAIM_READY) {
+    console.warn("[claim] CLAIM_ENABLED but not claimable: needs DEPLOYMENTS_ADDRESS, registry advertising "
+               + "(REGISTRY_ENABLED/ADDRESS/PRIVATE_KEY/ENCLAVE_REPO), and PROVISION_BACKEND=vm — not claiming");
+    return;
+  }
+  const t = setInterval(async () => {
+    if (_claimBusy || !_enclaveId) return;   // not advertised yet, or a slow pass is still running
+    _claimBusy = true;
+    try { await renewLeases(); await auditClaims(); await claimSweep(); }
+    catch (e) { console.warn(`[claim] pass failed: ${e.shortMessage || e.message}`); }
+    finally { _claimBusy = false; }
+  }, CLAIM_POLL_SEC * 1000);
+  if (t.unref) t.unref();
+  console.log(`[claim] loop on: ${DEPLOYMENTS_ADDRESS} every ${CLAIM_POLL_SEC}s (renew margin ${RENEW_MARGIN_SEC}s)`);
+}
+
+// Funding instructions for a claimed deployment: top-ups go to the ledger
+// contract (credited on-chain), NOT to NanPay — same EIP-3009 shape, different
+// receiver, and the nonce binds to the on-chain id.
+function onchainPaymentInstructions(rec) {
+  return {
+    chainId: CHAIN_ID, asset: "USDC", assets: ["USDC", "ETH"], usdc: USDC_ADDRESS,
+    contract: DEPLOYMENTS_ADDRESS || null,
+    deploymentRef: rec.id,                    // the bytes32 id to pass to fundWithAuthorization() / fundEth()
+    ratePerSecondUsdc: (rec.rate || 0).toFixed(7),
+    method: "fundWithAuthorization(bytes32 id, address from, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes signature)",
+    payEthMethod: "fundEth(bytes32 id) payable",
+    usdcDomain: _usdcDomain,
+    ethUsd: _ethUsd.price8 ? (Number(_ethUsd.price8) / 1e8).toFixed(2) : null,
+    note: "On-chain deployment: fund NanDeployments directly. USDC (EIP-3009, no approve): sign a USDC "
+        + "ReceiveWithAuthorization (EIP-712, to = the NanDeployments contract, nonce = first 16 bytes of the "
+        + "deployment id + 16 random bytes), then anyone submits fundWithAuthorization; amount(6dp)/rate = seconds. "
+        + "ETH: fundEth(id) with msg.value; credited on-chain at the live Chainlink ETH/USD rate.",
+  };
+}
+
 server.listen(PORT, () => console.log(`nan supervisor on :${PORT} · ${GPU_COUNT}×GPU @ ${CARD_VRAM_GB}GB (arbitrary split) · ssh host key ${SSH_HOST_KEY_FP}`));
 
 // advertise this enclave on-chain (opt-in, non-blocking, never fatal)
@@ -2011,3 +2341,7 @@ if (PUBLIC_URL) registerOnChain(PUBLIC_URL);
 // funded time only while healthy; freezes through outages; reaps at -grace)
 startPaymentWatcher();
 startBillingTicker();
+
+// portable deployments: claim/renew/release on-chain leases (opt-in; see
+// contracts/DEPLOYMENTS.md). Requires registry advertising + DEPLOYMENTS_ADDRESS.
+startClaimLoop();
