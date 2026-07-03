@@ -1,0 +1,375 @@
+# deploy.yml — push-to-main CD for the whole platform. One detect job diffs the
+# push against the last SUCCESSFULLY deployed commit (not event.before, so runs
+# superseded in the concurrency queue are never lost), then each surface deploys
+# only when its files changed:
+#
+#   site/**                                  -> scp to the site box + IPFS publish (site/deploy.sh)
+#   relay/**                                 -> scp to the relay box + systemd restart (relay/deploy.sh)
+#   contracts/<Name>.sol                     -> deploy that contract to Base (scripts/deploy-*.mjs),
+#                                               gated on the `contract-deploy` environment approval,
+#                                               then commit the address wiring back to main
+#   Dockerfile|supervisor.js|package*.json   -> supervisor image  } sidecars are built+repinned here
+#   worker/** | mps-daemon/** | wasm/**      -> sidecar images    } (scripts/release.sh); the supervisor
+#   tinfoil-config*.yml (non-image lines)    -> release only      } is built by tinfoil-release.yml
+#                                            -> then auto-dispatch tinfoil-release[-cpu].yml with the
+#                                               next patch version so the enclave measurement updates
+#
+# Loop safety: commits made here use GITHUB_TOKEN, which never retriggers push
+# workflows, and detect ignores commits authored by github-actions[bot].
+#
+# One-time setup (secrets/vars/environment + host keys): scripts/ci-setup.sh.
+# What stays manual: approving contract deploys (environment gate) and clicking
+# Update in the Tinfoil dashboard after a release publishes.
+
+name: Deploy
+
+run-name: Deploy ${{ github.sha }}
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}   # manual catch-up: redeploys everything changed since the last successful run
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false   # never kill a deploy mid-flight; queued runs are covered by the detect diff
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read     # read this workflow's past runs to find the last deployed sha
+    outputs:
+      site:          ${{ steps.diff.outputs.site }}
+      relay:         ${{ steps.diff.outputs.relay }}
+      registry:      ${{ steps.diff.outputs.registry }}
+      deployments:   ${{ steps.diff.outputs.deployments }}
+      catalog:       ${{ steps.diff.outputs.catalog }}
+      nanpay:        ${{ steps.diff.outputs.nanpay }}
+      contracts_any: ${{ steps.diff.outputs.contracts_any }}
+      worker:        ${{ steps.diff.outputs.worker }}
+      mps:           ${{ steps.diff.outputs.mps }}
+      wasm:          ${{ steps.diff.outputs.wasm }}
+      release:       ${{ steps.diff.outputs.release }}
+      cpu_release:   ${{ steps.diff.outputs.cpu_release }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Diff against the last successfully deployed commit
+        id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EVENT_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          # Base = head of the last successful Deploy run; falls back to the
+          # push's before-sha, then to HEAD^ (first run / force push).
+          BASE="$(gh api "repos/$GH_REPO/actions/workflows/deploy.yml/runs?branch=main&status=success&per_page=1" \
+                    --jq '.workflow_runs[0].head_sha // empty' || true)"
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            BASE="$EVENT_BEFORE"
+          fi
+          case "$BASE" in ""|0000000000000000000000000000000000000000) BASE="";; esac
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            BASE="$(git rev-parse HEAD^ 2>/dev/null || true)"
+          fi
+          echo "diff base: ${BASE:-<none>} -> $GITHUB_SHA"
+
+          # Changed files across HUMAN commits only: wiring/repin commits pushed
+          # by this workflow (author github-actions[bot]) are already deployed
+          # state and must not retrigger anything.
+          HUMAN_COMMITS=""
+          CHANGED=""
+          if [ -n "$BASE" ] && [ "$BASE" != "$GITHUB_SHA" ]; then
+            HUMAN_COMMITS="$(git log --no-merges --format='%H%x09%an' "$BASE..$GITHUB_SHA" \
+                             | awk -F'\t' '$2 != "github-actions[bot]" {print $1}')"
+            [ -n "$HUMAN_COMMITS" ] && CHANGED="$(echo "$HUMAN_COMMITS" \
+                             | xargs -r -n1 git show --name-only --format= | sort -u)"
+          fi
+          printf 'changed files:\n%s\n' "${CHANGED:-<none>}"
+
+          site=false relay=false registry=false deployments=false catalog=false nanpay=false
+          sup=false worker=false mps=false wasm=false config_touched=false
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            case "$f" in
+              site/deploy.sh|relay/deploy.sh) ;;   # deploy tooling runs from a fresh checkout; nothing to redeploy
+              site/*)                  site=true ;;
+              relay/*)                 relay=true ;;
+              contracts/NanRegistry.sol)    registry=true ;;
+              contracts/NanDeployments.sol) deployments=true ;;
+              contracts/NanAppCatalog.sol)  catalog=true ;;
+              contracts/NanPay.sol)         nanpay=true ;;
+              Dockerfile|supervisor.js|package.json|package-lock.json) sup=true ;;
+              worker/*)                worker=true ;;
+              mps-daemon/*)            mps=true ;;
+              wasm/__pycache__/*) ;;
+              wasm/*)                  wasm=true ;;
+              tinfoil-config.yml|tinfoil-config.cpu.yml) config_touched=true ;;
+            esac
+          done <<< "$CHANGED"
+
+          # A config edit needs a new measured release — but image-digest repins
+          # are pinned by the release flow itself, so only non-image lines count.
+          config=false
+          if [ "$config_touched" = true ]; then
+            echo "$HUMAN_COMMITS" | xargs -r -n1 -I{} git show --format= {} -- tinfoil-config.yml tinfoil-config.cpu.yml \
+              | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | grep -vE '^[+-][[:space:]]*-?[[:space:]]*image:' \
+              | grep -q . && config=true
+          fi
+
+          contracts_any=false
+          if [ "$registry" = true ] || [ "$deployments" = true ] || [ "$catalog" = true ] || [ "$nanpay" = true ]; then
+            contracts_any=true
+          fi
+          release=false
+          if [ "$sup" = true ] || [ "$worker" = true ] || [ "$mps" = true ] || [ "$wasm" = true ] || [ "$config" = true ]; then
+            release=true
+          fi
+          # worker + mps images do not ship in the CPU flavor's config
+          cpu_release=false
+          if [ "$sup" = true ] || [ "$wasm" = true ] || [ "$config" = true ]; then
+            cpu_release=true
+          fi
+
+          {
+            echo "site=$site"; echo "relay=$relay"
+            echo "registry=$registry"; echo "deployments=$deployments"
+            echo "catalog=$catalog"; echo "nanpay=$nanpay"
+            echo "contracts_any=$contracts_any"
+            echo "worker=$worker"; echo "mps=$mps"; echo "wasm=$wasm"
+            echo "release=$release"; echo "cpu_release=$cpu_release"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  # Contract deploys are irreversible and rotate on-chain addresses (old
+  # registry entries / deployment balances do NOT migrate), so they wait for a
+  # one-click approval on the `contract-deploy` environment. Rejecting the
+  # review skips the deploy and unblocks the queue.
+  contracts:
+    needs: detect
+    if: needs.detect.outputs.contracts_any == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: contract-deploy
+    permissions:
+      contents: write   # push the address-wiring commit back to main
+    outputs:
+      wired_site:   ${{ steps.wire.outputs.wired_site }}
+      wired_config: ${{ steps.wire.outputs.wired_config }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Deploy changed contracts
+        id: deploy
+        env:
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          NETWORK: ${{ vars.CONTRACTS_NETWORK || 'base' }}
+        run: |
+          set -euo pipefail
+          [ -n "$DEPLOYER_PRIVATE_KEY" ] || { echo "::error::DEPLOYER_PRIVATE_KEY is not set on the contract-deploy environment"; exit 1; }
+          REG='${{ needs.detect.outputs.registry }}'
+          DEP='${{ needs.detect.outputs.deployments }}'
+          CAT='${{ needs.detect.outputs.catalog }}'
+          PAY='${{ needs.detect.outputs.nanpay }}'
+          if [ "$REG" = "true" ]; then
+            node scripts/deploy-registry.mjs --yes
+            DEP=true   # claims are gated to the registry: a new registry needs a new deployments ledger
+          fi
+          if [ "$PAY" = "true" ]; then node scripts/deploy-nanpay.mjs --yes; fi
+          if [ "$DEP" = "true" ]; then node scripts/deploy-deployments.mjs --yes; fi
+          if [ "$CAT" = "true" ]; then node scripts/deploy-app-catalog.mjs --yes; fi
+
+      # Runs even if a later deploy in the sequence failed, so any address that
+      # DID land on-chain is committed rather than stranded in the job log.
+      - name: Commit address wiring back to main
+        id: wire
+        if: always() && steps.deploy.outcome != 'skipped'
+        run: |
+          set -euo pipefail
+          bash scripts/sync-contract-addresses.sh
+          git add contracts/*.abi.json tinfoil-config.yml tinfoil-config.cpu.yml site/index.html scripts/nan-discover.mjs
+          if git diff --cached --quiet; then
+            echo "wired_site=false" >> "$GITHUB_OUTPUT"
+            echo "wired_config=false" >> "$GITHUB_OUTPUT"
+            echo "nothing to wire"; exit 0
+          fi
+          wired_site=false; wired_config=false
+          git diff --cached --name-only | grep -q '^site/' && wired_site=true
+          git diff --cached --name-only | grep -q '^tinfoil-config' && wired_config=true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "CI: wire contract addresses after deploy"
+          git fetch origin main && git rebase origin/main   # works on the detached-HEAD checkout
+          git push origin HEAD:main
+          echo "wired_site=$wired_site" >> "$GITHUB_OUTPUT"
+          echo "wired_config=$wired_config" >> "$GITHUB_OUTPUT"
+
+  site:
+    needs: [detect, contracts]
+    # runs on site changes, or when a contract deploy rewired site/index.html;
+    # !cancelled() lets it run when the contracts job was skipped or rejected
+    if: >-
+      !cancelled() &&
+      (needs.detect.outputs.site == 'true' || needs.contracts.outputs.wired_site == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout main tip (includes any wiring commit)
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Set up SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+          SITE_SSH_HOST: ${{ vars.SITE_SSH_HOST }}
+        run: |
+          set -euo pipefail
+          [ -n "$DEPLOY_SSH_KEY" ] || { echo "::error::DEPLOY_SSH_KEY secret is not set (run scripts/ci-setup.sh)"; exit 1; }
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf 'Host nan\n  HostName %s\n  User root\n' "$SITE_SSH_HOST" > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: Deploy site
+        run: bash site/deploy.sh
+
+  relay:
+    needs: detect
+    if: needs.detect.outputs.relay == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Set up SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+          RELAY_SSH_HOST: ${{ vars.RELAY_SSH_HOST }}
+        run: |
+          set -euo pipefail
+          [ -n "$DEPLOY_SSH_KEY" ] || { echo "::error::DEPLOY_SSH_KEY secret is not set (run scripts/ci-setup.sh)"; exit 1; }
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf 'Host nan-relay\n  HostName %s\n  User root\n' "$RELAY_SSH_HOST" > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: Deploy relay
+        run: bash relay/deploy.sh
+
+  # Builds whichever SIDECAR images changed (worker / mps / wasm-manager) and
+  # repins their digests via scripts/release.sh, then dispatches the existing
+  # tinfoil-release workflows — which build the supervisor image themselves,
+  # pin it, tag, measure, and publish — with the next patch version.
+  release:
+    needs: [detect, contracts]
+    if: >-
+      !cancelled() && needs.contracts.result != 'failure' &&
+      (needs.detect.outputs.release == 'true' || needs.contracts.outputs.wired_config == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write   # push the digest-repin commit
+      packages: write   # push sidecar images to ghcr
+      actions: write    # dispatch tinfoil-release[-cpu].yml
+
+    steps:
+      - name: Checkout main tip (includes any wiring commit)
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Build, push, and repin changed sidecar images
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Optional: a classic PAT with write:packages. GITHUB_TOKEN can only
+          # push ghcr packages that already grant this repo Actions access.
+          CR_PAT: ${{ secrets.CR_PAT }}
+        run: |
+          set -euo pipefail
+          TARGETS=""
+          [ '${{ needs.detect.outputs.mps }}'    = 'true' ] && TARGETS="$TARGETS nan-mps"
+          [ '${{ needs.detect.outputs.worker }}' = 'true' ] && TARGETS="$TARGETS nan-worker"
+          [ '${{ needs.detect.outputs.wasm }}'   = 'true' ] && TARGETS="$TARGETS nan-wasm-manager"
+          if [ -z "$TARGETS" ]; then echo "no sidecar images changed"; exit 0; fi
+
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker buildx create --use
+          python3 -c 'import yaml' 2>/dev/null || pip3 install --quiet pyyaml
+          ./scripts/release.sh $TARGETS
+
+          git add tinfoil-config.yml tinfoil-config.cpu.yml
+          if git diff --cached --quiet; then echo "digests unchanged"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "CI: repin sidecar image digests ($TARGETS )"
+          git fetch origin main && git rebase origin/main
+          git push origin HEAD:main
+
+      - name: Dispatch Tinfoil release(s) and wait for the tags
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          CPU: ${{ needs.detect.outputs.cpu_release == 'true' || needs.contracts.outputs.wired_config == 'true' }}
+        run: |
+          set -euo pipefail
+          LATEST="$(git ls-remote --tags origin 'refs/tags/v*' | awk '{print $2}' | sed 's#refs/tags/##' \
+                    | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)"
+          LATEST="${LATEST:-v0.0.0}"
+          IFS=. read -r MA MI PA <<<"${LATEST#v}"
+          VERSION="v${MA}.${MI}.$((PA + 1))"
+          echo "releasing $VERSION (latest was $LATEST)"
+
+          gh workflow run tinfoil-release.yml -f "version=$VERSION"
+          WAIT_FOR="refs/tags/$VERSION"
+          if [ "$CPU" = "true" ]; then
+            gh workflow run tinfoil-release-cpu.yml -f "version=${VERSION}-cpu"
+            WAIT_FOR="$WAIT_FOR refs/tags/${VERSION}-cpu"
+          fi
+
+          # Wait for phase 1 to create the tag(s): keeps this run "green = released"
+          # and serializes version numbers behind the deploy-main concurrency group.
+          DEADLINE=$((SECONDS + 900))
+          for ref in $WAIT_FOR; do
+            until git ls-remote --exit-code --tags origin "$ref" >/dev/null 2>&1; do
+              if [ $SECONDS -gt $DEADLINE ]; then
+                echo "::error::timed out waiting for $ref — check the Tinfoil Release workflow runs"
+                exit 1
+              fi
+              sleep 20
+            done
+            echo "$ref created"
+          done
+          echo "release(s) tagged; measurement + publish continue in tinfoil-release-publish*.yml." \
+               "Remember: the running enclave updates via the Tinfoil dashboard."

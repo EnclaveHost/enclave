@@ -30,6 +30,42 @@ GREETING_TOKEN: <present if secret exists>
 
 Edit `tinfoil-config.yml`, commit, then release a new version (`gh workflow run tinfoil-release.yml -f version=v0.0.2`, or via the **Actions** tab). Then click **Update** in the dashboard. Each release creates an auditable record in the Sigstore transparency log.
 
+## CI/CD (push-to-main deploys)
+
+Every push to `main` runs `.github/workflows/deploy.yml`, which diffs against the
+last successfully deployed commit and deploys only what changed:
+
+| what changed | what happens |
+|---|---|
+| `site/**` | scp + IPFS publish to the site box (`site/deploy.sh`) |
+| `relay/**` | scp + systemd restart on the relay box (`relay/deploy.sh`) |
+| `contracts/<Name>.sol` | that contract deploys to Base (`scripts/deploy-*.mjs`), **after a one-click approval** on the `contract-deploy` environment; addresses are wired into both tinfoil configs + the site and committed back |
+| `Dockerfile` / `supervisor.js` / `package*.json` | a new Tinfoil release (supervisor is built by `tinfoil-release.yml`) |
+| `worker/**`, `mps-daemon/**`, `wasm/**` | changed sidecar images are built + digest-repinned (`scripts/release.sh`), then a Tinfoil release |
+| `tinfoil-config*.yml` (non-`image:` lines) | a new Tinfoil release (config is part of the measurement) |
+
+Releases are auto-versioned (latest `vX.Y.Z` tag, patch-bumped) and dispatch the
+existing `tinfoil-release.yml` — plus `tinfoil-release-cpu.yml` when the CPU
+flavor is affected (supervisor/wasm-manager/config; worker and mps are GPU-only).
+A registry redeploy automatically cascades into a deployments redeploy (claims
+are gated to the registry).
+
+Deliberately still manual:
+
+- **Approving contract deploys** — redeploys mint fresh addresses and on-chain
+  state (registry entries, deployment balances) does not migrate. Approve or
+  reject under the run's **Review deployments** prompt; rejecting skips the
+  contract jobs and the rest of the pipeline continues on the next push.
+- **Updating the running enclaves** — after a release publishes, click
+  **Update** in the [Tinfoil dashboard](https://dash.tinfoil.sh) (no public API).
+
+One-time setup on a new machine/repo: `scripts/ci-setup.sh` (SSH deploy key,
+repo secrets/vars, the `contract-deploy` environment), then set
+`DEPLOYER_PRIVATE_KEY` on that environment. The local `scripts/hooks/pre-push`
+site-deploy hook predates this pipeline and is now redundant — disable it with
+`git config --unset core.hooksPath` if you don't want pushes deploying the site
+twice.
+
 ## CPU-only enclaves
 
 The repo ships two enclave flavors, and the partition rule between them is strict: **CPU-only enclaves run only CPU deployments; GPU-enabled enclaves run only GPU deployments.**
