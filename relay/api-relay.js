@@ -44,6 +44,11 @@ const PORT              = parseInt(process.env.API_RELAY_PORT || "8100", 10);
 const AVAIL_POLL_SEC    = parseInt(process.env.AVAIL_POLL_SEC || "10", 10);
 const REGISTRY_POLL_SEC = parseInt(process.env.REGISTRY_POLL_SEC || "300", 10);
 const STALE_AFTER_SEC   = parseInt(process.env.STALE_AFTER_SEC || "3600", 10);
+// Per-deployment app subdomains: <dep-id>.<APP_DOMAIN> maps to the enclave's
+// /x/<id> data path, so each app is its OWN origin (isolated from the frontend
+// and from other tenants). Host uses a hyphen ("dep-abc") since "_" is invalid
+// in a hostname; we map it back to the canonical "dep_abc". Empty = disabled.
+const APP_DOMAIN        = (process.env.APP_DOMAIN || "").toLowerCase().replace(/^\.+|\.+$/g, "");
 
 if (!REGISTRY_ADDRESS && !STATIC_ENCLAVES.length) {
   console.error("fatal: set REGISTRY_ADDRESS (on-chain discovery) or ENCLAVES (static list)");
@@ -143,8 +148,11 @@ const json = (res, code, body, req) => {
 // control-plane token/body in plaintext (accepted trade for a single origin).
 // Attestation fetched this way is informational — real verification stays
 // client-side-direct via Tinfoil SecureClient.
-function proxyTo(origin, req, res) {
-  const target = new URL(origin.replace(/\/+$/, "") + req.url);
+// Reverse-proxy `req` to `enclaveOrigin + path`. `setCors`: on the api.nan.host
+// control-plane paths WE own CORS (swap the enclave's for ours); on an app
+// subdomain the app is its own origin, so pass its headers through untouched.
+function proxyTo(origin, req, res, { path = req.url, setCors = true } = {}) {
+  const target = new URL(origin.replace(/\/+$/, "") + path);
   const headers = { ...req.headers, host: target.host };
   delete headers["accept-encoding"];                          // let the enclave send identity; simpler passthrough
   const lib = target.protocol === "https:" ? https : http;
@@ -153,21 +161,73 @@ function proxyTo(origin, req, res) {
       path: target.pathname + target.search, method: req.method, headers, timeout: 30000 },
     (upRes) => {
       const out = {};
-      for (const [k, v] of Object.entries(upRes.headers)) if (!/^access-control-|^connection$|^transfer-encoding$/i.test(k)) out[k] = v;
-      Object.assign(out, cors(req));
+      for (const [k, v] of Object.entries(upRes.headers)) {
+        if (/^connection$|^transfer-encoding$/i.test(k)) continue;
+        if (setCors && /^access-control-/i.test(k)) continue;
+        out[k] = v;
+      }
+      if (setCors) Object.assign(out, cors(req));
       res.writeHead(upRes.statusCode || 502, out);
       upRes.pipe(res);
     });
   up.on("timeout", () => up.destroy(new Error("upstream timeout")));
-  up.on("error", (e) => { if (!res.headersSent) res.writeHead(502, { "Content-Type": "application/json", ...cors(req) });
+  up.on("error", (e) => { if (!res.headersSent) res.writeHead(502, { "Content-Type": "application/json", ...(setCors ? cors(req) : {}) });
                           res.end(JSON.stringify({ error: "upstream_error", message: e.message })); });
   req.pipe(up);
 }
 
 const proxied = (p) => p.startsWith("/v1/") || p === "/availability" || p === "/x" || p.startsWith("/x/");
 
+// <dep-id>.<APP_DOMAIN> -> canonical dep_id, or null if the host isn't an app
+// subdomain. "dep-abc123" -> "dep_abc123".
+function depFromHost(host) {
+  if (!APP_DOMAIN) return null;
+  host = (host || "").toLowerCase().split(":")[0];
+  if (!host.endsWith("." + APP_DOMAIN)) return null;
+  const id = host.slice(0, -(APP_DOMAIN.length + 1)).replace(/^dep-/, "dep_");
+  return /^dep_[a-z0-9]+$/.test(id) ? id : null;
+}
+
+// Does a deployment exist on the fleet? (unauth probe of /x/<id>: 404 = no,
+// anything else = yes/private.) Cached briefly — gates on-demand TLS issuance
+// so nobody can burn the CA rate limit with random <junk>.<APP_DOMAIN> names.
+const _existCache = new Map();                                // id -> { ok, at(ms) }
+async function deploymentExists(id) {
+  const hit = _existCache.get(id);
+  if (hit && (Date.now() - hit.at) < 60_000) return hit.ok;
+  const c = pick(0); if (!c) return false;
+  let ok = false;
+  try {
+    const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 4000);
+    const r = await fetch(`${c.endpoint}/x/${encodeURIComponent(id)}`, { method: "HEAD", signal: ctrl.signal });
+    clearTimeout(t); ok = r.status !== 404;
+  } catch { ok = false; }
+  _existCache.set(id, { ok, at: Date.now() });
+  return ok;
+}
+
 const server = http.createServer((req, res) => {
   const u = new URL(req.url, "http://x");
+
+  // On-demand TLS gate: Caddy asks before minting a cert for <host>. Allow only
+  // real deployment subdomains so random <junk>.<APP_DOMAIN> can't burn the CA
+  // rate limit. (Reached on loopback from Caddy; harmless if hit publicly.)
+  if (u.pathname === "/internal/tls-ask") {
+    const id = depFromHost(u.searchParams.get("domain") || "");
+    if (!id) { res.writeHead(400); return res.end("bad domain"); }
+    return deploymentExists(id).then((ok) => { res.writeHead(ok ? 200 : 404); res.end(); });
+  }
+
+  // App subdomain: <dep-id>.<APP_DOMAIN> is the deployment's OWN origin. Route it
+  // to the enclave's /x/<id> data path, passing the app's own headers through
+  // (it's a distinct origin, so the gateway doesn't impose CORS).
+  const depHost = depFromHost(req.headers["x-forwarded-host"] || req.headers.host);
+  if (depHost) {
+    const c = pick(0);
+    if (!c) return json(res, 503, { error: "no_capacity", message: "No live enclaves.", updatedAt });
+    const rest = req.url === "/" ? "/" : req.url;             // preserve path+query under /x/<id>
+    return proxyTo(c.endpoint, req, res, { path: "/x/" + depHost + rest, setCors: false });
+  }
 
   if (req.method === "OPTIONS") { res.writeHead(204, cors(req)); return res.end(); }   // preflight for any path
 
