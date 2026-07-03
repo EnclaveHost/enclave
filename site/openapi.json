@@ -1475,7 +1475,7 @@
       },
       "EnclaveAttestation": {
         "type": "object",
-        "description": "The Cloud Provider Remote Attestation Document relayed verbatim from /.well-known/Cloud Provider-attestation — feed `attestationDocument` to github.com/Cloud Providersh/verifier. This copy is a convenience: fetch the document over your OWN connection for the binding to mean anything.",
+        "description": "The Cloud Provider Remote Attestation Document relayed verbatim from /.well-known/Cloud Provider-attestation — feed `attestationDocument` to Cloud Provider's verifier (Cloud Provider-cli `attestation verify`, or the @Cloud Providersh/verifier npm package). This copy is a convenience: fetch the document over your OWN connection for the binding to mean anything.",
         "properties": {
           "attestationDocument": {
             "type": "object",
@@ -1508,7 +1508,7 @@
           },
           "verify": {
             "type": "object",
-            "description": "How to verify: instructions, the enclave repo whose release holds the signed measurements, and the well-known attestation endpoint.",
+            "description": "How to verify: instructions (`how`), a ready-to-run Cloud Provider-cli command (`cli`, from github.com/Cloud Providersh/Cloud Provider-cli), the npm verifier package (`npm`, @Cloud Providersh/verifier — works in Node and browsers), the enclave repo whose release holds the signed measurements (`repo`, exact GitHub casing), and the well-known attestation endpoint.",
             "additionalProperties": true
           },
           "tlsKeyFingerprint": {
