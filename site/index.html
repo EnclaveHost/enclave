@@ -3717,7 +3717,7 @@ async function pollDeployment(id, term){
     if (d.status !== last){ last = d.status; termLine(term, statusCls(d.status), "  \u2022 " + d.status); }
     if (done[d.status]){
       if (d.status === "running"){
-        const ep = d.network && d.network.endpoint;
+        const ep = appEndpoint(d);
         termLine(term, "ok", "[\u2713] running" + (ep ? " \u00b7 " + ep : ""));
         if (d.ratePerSecondUsdc) termLine(term, "dimln", "    rate " + d.ratePerSecondUsdc + " USDC/s · " + (d.timeRemainingSec != null ? fmtDur(d.timeRemainingSec) + " funded" : "funded"));
         termLine(term, "warn", "\u2192 verify the attestation before sending data");
@@ -3767,6 +3767,22 @@ async function refreshEnclaves(opts){
   }
 }
 
+// The app's reachable URL. Through the gateway each deployment gets its OWN
+// origin — a per-deployment subdomain (dep-<id>.apps.nan.host, hyphen since "_"
+// is invalid in a hostname) — so an app can't touch the frontend's origin or
+// another tenant's. Talking to an enclave directly falls back to the /x/<id>
+// path. The deployment's own network.endpoint (the enclave's hostname) is only
+// used as a last resort; it's the right value for attestation/registry, not for
+// how the user reaches the app here.
+const APP_DOMAIN = "apps.nan.host";
+function appEndpoint(d){
+  if (!d || !d.id) return (d && d.network && d.network.endpoint) || "";
+  const root = Nan.base.replace(/\/v1\/?$/, "");
+  if (/(^|\/\/)api\.nan\.host/i.test(root))
+    return "https://" + d.id.replace(/^dep_/, "dep-") + "." + APP_DOMAIN;
+  return root + "/x/" + d.id;                              // direct-to-enclave override
+}
+
 function renderEnclaveRows(list, highlight){
   const body = $("#encBody"), count = $("#encCount");
   list = (list || []).slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
@@ -3774,7 +3790,7 @@ function renderEnclaveRows(list, highlight){
   if (count) count.textContent = list.length ? (running + " running \u00b7 " + list.length + " total") : "";
   if (!list.length){ body.innerHTML = '<div class="enc-empty">No enclaves yet \u2014 build one above.</div>'; return; }
   body.innerHTML = list.map(d => {
-    const ep = d.network && d.network.endpoint, st = d.status || "\u2014";
+    const ep = appEndpoint(d), st = d.status || "\u2014";
     const bud = (d.paidUsdc != null)
       ? (esc(d.paidUsdc) + " USDC paid" + (d.timeRemainingSec != null ? " · " + esc(fmtDur(d.timeRemainingSec)) + " left" : "")
          + (d.paused ? " · ⏸ time frozen (" + esc(d.pauseReason || "outage") + ", resumes when service is restored)" : ""))
