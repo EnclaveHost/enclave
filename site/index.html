@@ -3728,6 +3728,21 @@ async function runDeploy(){
       try {
         await payForRuntime(term, created.payment, fund);
       } catch(e){
+        // user said no in the wallet (EIP-1193 4001, or wallets that only set a
+        // message): cancel the reservation right away instead of leaving an
+        // awaiting_payment ghost on the page for the 10-min window.
+        const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
+        if (rejected){
+          termLine(term, "warn", "[x] payment rejected in wallet \u2014 canceling the reservation\u2026");
+          try {
+            await Nan.terminateDeployment(created.id);
+            termLine(term, "ok", "[\u2713] " + created.id + " canceled \u2014 nothing was charged.");
+          } catch(e2){
+            termLine(term, "dimln", "    couldn\u2019t cancel (" + (e2.message || e2) + ") \u2014 the reservation releases itself in ~10 min.");
+          }
+          refreshEnclaves();
+          return;
+        }
         termLine(term, "warn", "[x] payment failed: " + (e.message || e));
         termLine(term, "dimln", "    " + created.id + " stays awaiting_payment \u2014 pay later to start it (Top up).");
         return;
