@@ -5501,6 +5501,7 @@ function appCard(app){
       + (!app.active ? ' disabled title="Delisted: the enclave refuses its CIDs; relist first"'
          : v.approval === APPROVAL.approved ? '' : ' disabled title="Deploys unlock once the catalog owner approves this version"') + '>Use in Deploy →</button>'
     + '<a class="btn btn-sm" href="' + gw + '" target="_blank" rel="noopener">fetch .wasm</a>'
+    + (isPub ? '<button class="btn btn-sm" data-act="newver" type="button" title="Open the publish form pre-filled from this version (new file/CID required)">add version</button>' : '')
     + (isPub && !app.active ? '<button class="btn btn-sm" data-act="relist" type="button">relist</button>' : '')
     + (isPub && app.active ? '<button class="btn btn-sm" data-act="delist" type="button">delist</button>' : '')
     + (isPub && !v.yanked ? '<button class="btn btn-sm" data-act="yank" data-idx="' + i + '" type="button">yank</button>' : '')
@@ -5686,6 +5687,31 @@ function resetPublish(){
   $("#pubVersion").value = "1.0.0"; $("#pubVram").value = "0"; $("#pubGpuT").value = "0";
   $("#pubMem").value = "128"; $("#pubCpuG").value = "1"; pubStatus("");
 }
+// "1.0.0" -> "1.0.1", "v2" -> "v3", "2.1.0-beta" -> "2.1.1-beta": bump the last
+// number in the label; it's a suggestion, the field stays editable.
+function bumpVersion(s){
+  const m = /^(.*?)(\d+)(\D*)$/.exec(s || "");
+  return m ? m[1] + (parseInt(m[2], 10) + 1) + m[3] : (s ? s + ".1" : "1.0.1");
+}
+// "add version": open the publish form pre-filled from an app's current
+// version. Everything carries over EXCEPT the file/CID - a new version needs
+// new bytes (CIDs are claimed forever), so that stays empty on purpose.
+function prefillPublish(app){
+  const v = app.versions[selIdx(app)] || app.versions[app.versions.length - 1] || {};
+  resetPublish();
+  $("#pubSlug").value = app.slug;
+  $("#pubName").value = app.name || "";
+  $("#pubDesc").value = app.description || "";
+  $("#pubVersion").value = bumpVersion(v.version);
+  $("#pubVram").value = String((Number(v.vramMb) || 0) / 1024);
+  $("#pubGpuT").value = String((Number(v.gpuGflops) || 0) / 1000);
+  $("#pubMem").value = String(Number(v.memMb) || 128);
+  $("#pubCpuG").value = String(Math.max(1, Number(v.cpuGflops) || 1));
+  $("#pubPorts").value = v.ports || "";
+  togglePublish(true);
+  pubStatus("pre-filled from " + app.slug + " " + (v.version || "") + " - pick the new .wasm (new bytes = new CID), adjust what changed, publish"
+          + (app.active ? "" : " · publishing relists the app"));
+}
 function togglePublish(show){
   const p = $("#publishPanel"), b = $("#storePublishBtn"); if (!p) return;
   const open = (show === undefined) ? p.hidden : show;
@@ -5728,6 +5754,7 @@ function initStore(){
     else if (act === "deploy") useInDeploy(app, app.versions[selIdx(app)]);
     else if (act === "delist"){ if (confirm("Delist this whole app? It stays on-chain but is hidden from the store - you (and the catalog owner) still see it here, with a relist button.")) setActiveTx(app.slug, false); }
     else if (act === "relist") setActiveTx(app.slug, true);
+    else if (act === "newver") prefillPublish(app);
     else if (act === "yank"){ const idx = parseInt(btn.dataset.idx, 10); if (confirm("Yank version " + app.versions[idx].version + "? It stays on-chain but readers hide it.")) yankTx(app.slug, idx); }
     else if (act === "verify") setVerifiedTx(app.appId, parseInt(btn.dataset.idx, 10), btn.dataset.v === "1");
     else if (act === "approve") setApprovalTx(app.appId, parseInt(btn.dataset.idx, 10), APPROVAL.approved);
