@@ -131,7 +131,7 @@ NN_PROBE_LONG = float(os.environ.get("WASM_NN_PROBE_LONG", "600"))
 WORKER_MGR_URL = os.environ.get("WORKER_MGR_URL", "http://127.0.0.1:8090").rstrip("/")
 _NN_PROBE = {"state": "probing" if (NN_ENABLED and NODE_HAS_GPU and not MOCK) else "off",
              "mode": None, "detail": "", "attempts": 0, "stage": None,
-             "env": {}}   # state: probing|ok|failed|off; mode: full|nopin; stage: what's running RIGHT NOW; env: extra tenant env the probe adopted (e.g. CUDA_MODULE_LOADING)
+             "env": {}, "args": []}   # state: probing|ok|failed|off; mode: full|nopin; stage: what's running RIGHT NOW; env/args: extra tenant env + wasmtime flags the probe adopted
 
 _NN_PROBE_SRC = r"""
 import ctypes, sys
@@ -285,7 +285,7 @@ def _nn_probe_once(env: dict) -> tuple:
     return (False, f"HUNG >{NN_PROBE_TIMEOUT:.0f}s and UNKILLABLE (kernel-stuck GPU ioctl?) - abandoned")
 
 
-def _nn_probe_e2e(env, targets=("cpu", "gpu"), timeout=None) -> tuple:
+def _nn_probe_e2e(env, targets=("cpu", "gpu"), timeout=None, extra_args=()) -> tuple:
     """({target: ok}, detail). The ORT layer, end to end: serve the baked-in
     nn-demo with the real tenant env and run ONE inference per target through
     it. The cuInit probe can pass while ORT's session creation still hangs (it
@@ -297,7 +297,7 @@ def _nn_probe_e2e(env, targets=("cpu", "gpu"), timeout=None) -> tuple:
     if not wasm.is_file():
         return ({t: True for t in targets}, "e2e skipped (nn-demo.wasm not baked in)")
     port = _free_port()
-    cmd = [WASMTIME, "serve", "-Scli", "-Shttp", *P3_FLAGS, "-Snn",
+    cmd = [WASMTIME, "serve", "-Scli", "-Shttp", *P3_FLAGS, "-Snn", *extra_args,
            "--addr", f"{HOST_IP}:{port}", str(wasm)]
     try:
         proc = subprocess.Popen(cmd, env=env, stdin=subprocess.DEVNULL,
@@ -541,22 +541,34 @@ def _nn_probe_run():
     #   patient - not hung, just glacial: CC first-load of cuBLAS/cuDNN kernel
     #             modules through encrypted buffers can take minutes. Adopting
     #             it means tenants work but their FIRST GPU request is slow.
+    NOPOOL = ["-O", "pooling-allocator=n"]
     variants = [
-        ("eager", {**base, "CUDA_MODULE_LOADING": "EAGER"}, NN_PROBE_TIMEOUT,
+        # First: kryptos' v0.5.18 trail (rtapi 12/12 ok in a PLAIN process,
+        # ORT hung inside wasmtime with and without MPS) points at serve's
+        # default pooling allocator - ~6TB of reserved VA across thousands of
+        # mappings, which CUDA init walks; cheap on bare metal (verified ok
+        # locally), pathological under TDX.
+        ("nopool", base, NN_PROBE_TIMEOUT, NOPOOL,
+         lambda: _NN_PROBE.update(args=NOPOOL),
+         "wasmtime's pooling-allocator VA reservations break CUDA init under TDX; nn tenants run with pooling off"),
+        ("eager", {**base, "CUDA_MODULE_LOADING": "EAGER"}, NN_PROBE_TIMEOUT, (),
          lambda: _NN_PROBE.update(env={"CUDA_MODULE_LOADING": "EAGER"}),
          "lazy module loading deadlocks under MPS here; tenants get CUDA_MODULE_LOADING=EAGER"),
         ("nopin-ort", {k: v for k, v in base.items() if k != "CUDA_MPS_PINNED_DEVICE_MEM_LIMIT"},
-         NN_PROBE_TIMEOUT,
+         NN_PROBE_TIMEOUT, (),
          lambda: _NN_PROBE.update(mode="nopin"),
          "the pinned-VRAM limit hangs the ORT arena; tenants run SM-capped only (VRAM stays allocator-accounted)"),
-        ("patient", base, NN_PROBE_LONG,
+        ("nopool-patient", base, NN_PROBE_LONG, NOPOOL,
+         lambda: _NN_PROBE.update(args=NOPOOL),
+         "pooling off AND slow CC first-load: tenants run with pooling off; a deployment's FIRST GPU request is slow"),
+        ("patient", base, NN_PROBE_LONG, (),
          lambda: None,
          "GPU init is slow (CC first-load), not hung; a deployment's FIRST GPU request pays it"),
     ]
-    for name, env, tmo, adopt, meaning in variants:
+    for name, env, tmo, extra, adopt, meaning in variants:
         t0 = time.time()
         _NN_PROBE["stage"] = f"ORT e2e gpu variant '{name}' ({tmo:.0f}s budget)"
-        vres, vdetail = _nn_probe_e2e(env, targets=("gpu",), timeout=tmo)
+        vres, vdetail = _nn_probe_e2e(env, targets=("gpu",), timeout=tmo, extra_args=extra)
         note(f"{name}: {vdetail}")
         print(f"[nn-probe] gpu variant {name}: {vdetail}", flush=True)
         if vres.get("gpu"):
@@ -758,7 +770,10 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     so the guest may run ONNX inference through the host runtime (the MPS caps
     ride in the process env, set by launch(), not here)."""
     fs_args = ["--dir", f"{fsdir}::{FS_GUEST_PATH}"] if fsdir else []
-    nn_args = ["-Snn"] if nn else []
+    # nn tenants also carry whatever wasmtime flags the boot probe adopted
+    # (e.g. -O pooling-allocator=n: serve's default pooling allocator reserves
+    # ~6TB of virtual address space, which CUDA init chokes on under TDX)
+    nn_args = ["-Snn", *(_NN_PROBE.get("args") or [])] if nn else []
     if pspec["serve"]:
         return ([WASMTIME, "serve", "-Scli", "-Shttp", *P3_FLAGS, *nn_args, *fs_args,
                  "-W", f"max-memory-size={mem_bytes}",
