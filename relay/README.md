@@ -24,27 +24,30 @@ ENCLAVES=https://enclave1...,https://enclave2... node api-relay.js
 |---|---|
 | `GET /enclaves` | live fleet table + aggregate free capacity |
 | `GET /route?gpuShare=0.25&cpuShare=0.05` | best enclave with both shares free (gpuShare 0 = CPU-only: CPU enclaves first, GPU leftovers as fallback; derive minimum shares from the app's specs against /availability): `{ endpoint, repo, availability }` |
-| `ANY /v1/*`, `/availability` | `307` redirect to the current best enclave |
+| `POST /v1/deployments` | **placement**: routed by the body's `resources.{gpuShare,cpuShare}` with the `/route` rule, then proxied there |
+| `GET /v1/deployments` | fanned out to every live enclave, lists merged (one wallet, one list) |
+| `/v1/deployments/{id}...`, `/x/{id}...` | proxied to the enclave that **owns** that deployment (probed once, cached) |
+| `GET /availability` | **fleet aggregate**: best single-card slice + best node pool across enclaves, plus `gpuEnclaveCpuShareFree` (a GPU deployment's CPU share must fit the GPU enclave's own node) |
+| `/v1/auth/*`, other `/v1/*` | one sticky enclave (SIWE nonces are per-enclave state; GPU enclave preferred, it serves the full surface) |
 | `GET /health` | poller freshness |
 
-Trust model: same as the TCP relay — it routes, it never terminates. Answers
-are JSON or a `307`, so the client always lands on the enclave's **own
-attested origin** and verifies attestation there (Tinfoil SecureClient with
-the registry's `repo`). A malicious API relay can hand you a suboptimal
-placement, never a fake enclave. It mirrors `scripts/nan-discover.mjs` —
-run that locally if you'd rather not trust anyone's relay at all.
+Trust model: as a **router** it can only misroute, never impersonate —
+clients verify attestation on the enclave's own origin (Tinfoil SecureClient
+with the registry's `repo`), and `/route` exists for clients that want to
+skip the gateway entirely (it mirrors `scripts/nan-discover.mjs`; run that
+locally if you'd rather not trust anyone's relay). The `/v1` gateway path,
+however, terminates TLS here and sees control-plane tokens and bodies in
+plaintext — the accepted trade for giving browsers a single origin.
 
 Notes:
-- Placement steers **new deployments only**. A deployment lives on one
-  enclave; after creating it, talk to that enclave directly (the `307`'s
-  `Location` / `/route`'s `endpoint` tells you which). The relay deliberately
-  does not forward `/x/*` for this reason.
-- `fetch()`/undici strip `Authorization` on cross-origin redirects — authed
-  callers should `GET /route` and hit the enclave directly; the `307` path
-  suits curl (`-L`) and unauthenticated calls.
+- **Set the same `SECRET` on every enclave.** Sessions are stateless JWTs
+  signed with it, so with one shared secret a login on the sticky enclave
+  works fleet-wide — which is what makes create-placement plus
+  per-deployment routing seamless. Different secrets = a token only works on
+  the enclave that issued it.
 - Config: `REGISTRY_ADDRESS` or `ENCLAVES` (required), `BASE_RPC`,
   `API_RELAY_PORT` (8100), `AVAIL_POLL_SEC` (10), `REGISTRY_POLL_SEC` (300),
-  `STALE_AFTER_SEC` (3600).
+  `STALE_AFTER_SEC` (3600), `APP_DOMAIN` (per-deployment app subdomains).
 
 ## UDP relay
 

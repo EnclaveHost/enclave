@@ -1,26 +1,29 @@
-// NAN API relay — discovery + placement front door for the fleet. UNTRUSTED.
-//
-//   client ──GET /route──> api-relay ──> { endpoint, repo }   (JSON answer)
-//   client ──POST /v1/*──> api-relay ──307──> https://<best-enclave>/v1/*
+// NAN API relay — discovery + placement front door for the fleet. UNTRUSTED
+// as a router (it can misroute, not impersonate: enclaves are attested on
+// their own origins), but on the /v1 gateway path it IS a TLS terminator and
+// sees control-plane traffic — accepted trade for giving browsers one origin.
 //
 // It reads NanRegistry on Base for live enclaves (slow-moving truth: who
 // exists), polls each one's public /availability (fast-moving truth: free
-// capacity), and steers new work to the most available enclave that fits.
+// capacity), and routes each request by what it IS. A deployment lives on ONE
+// enclave, sessions are stateless JWTs (HS256 over the enclave SECRET — give
+// every enclave the SAME secret or a login only works on the enclave that
+// issued it), and only CREATION is a placement decision:
 //
-// It stays OUTSIDE the trust boundary the same way the TCP relay does: it
-// never terminates a session and never sees a credential. Routing is by JSON
-// answer or 307 redirect, so the client always lands on the enclave's own
-// attested origin and verifies attestation there (Tinfoil SecureClient with
-// the registry's `repo`). A malicious api-relay can pick you a suboptimal
-// enclave; it cannot impersonate one — same posture as scripts/nan-discover.mjs
-// (whose registry/pick semantics this daemon mirrors), just hosted, so thin
-// clients don't need an RPC connection or viem.
-//
-// Placement only steers NEW deployments. A deployment lives on one enclave:
-// after a 307 lands you on enclave N, keep talking to enclave N for that
-// deployment (the Location header tells you which). NOTE: fetch()/undici strip
-// Authorization on cross-origin redirects — authed callers should GET /route
-// and hit the enclave directly; the 307 path suits curl and browsers.
+//   POST /v1/deployments        -> pick() by the body's resources.{gpuShare,cpuShare}
+//                                  (CPU-only work -> CPU enclaves first; GPU work
+//                                  -> a GPU enclave with both pools free)
+//   GET  /v1/deployments        -> fan out to every live enclave, merge the lists
+//   /v1/deployments/:id*, /x/:id* and app subdomains
+//                               -> the enclave that OWNS the deployment (probed
+//                                  once, cached)
+//   /availability               -> FLEET aggregate (best card slice + best node
+//                                  pool across enclaves; what deploy dials want)
+//   /v1/auth/*, everything else -> one sticky enclave (nonces are per-enclave
+//                                  state; GPU enclave preferred, it serves the
+//                                  full API surface)
+//   GET /route                  -> JSON answer { endpoint, repo } for clients
+//                                  that want to hit the enclave directly
 //
 // Config (env):
 //   REGISTRY_ADDRESS   required*   NanRegistry on Base (chain 8453)
@@ -197,6 +200,151 @@ function proxyTo(origin, req, res, { path = req.url, setCors = true } = {}) {
 
 const proxied = (p) => p.startsWith("/v1/") || p === "/availability" || p === "/x" || p.startsWith("/x/");
 
+// --- fleet-aware gateway helpers ----------------------------------------------
+// Sticky enclave for non-deployment-scoped calls (auth nonces are per-enclave
+// state, so /v1/auth/* must land on one box consistently). A GPU enclave is
+// preferred because it serves the full API surface (/v1/gpu, card pricing).
+const sticky = () =>
+     live.filter((e) => e.availability.gpu).sort((a, b) => a.endpoint.localeCompare(b.endpoint))[0]
+  || live.slice().sort((a, b) => a.endpoint.localeCompare(b.endpoint))[0] || null;
+
+// Which enclave owns a deployment id — probed once, cached. Two probes:
+// /x/:id (unauth; 404 = not here) covers the data path, and the /v1 record
+// itself (with the caller's token; 200 = here) covers control-plane calls even
+// after the instance is gone (a terminated record still exists on its enclave).
+const OWNER = new Map();                                     // dep id -> { endpoint, at }
+const OWNER_TTL_MS = 5 * 60_000;
+const ownerCached = (id) => {
+  const hit = OWNER.get(id);
+  return (hit && Date.now() - hit.at < OWNER_TTL_MS && live.some((e) => e.endpoint === hit.endpoint))
+    ? hit.endpoint : null;
+};
+const ownerLearn = (id, endpoint) => { if (id && endpoint) OWNER.set(id, { endpoint, at: Date.now() }); };
+async function probe(url, init) {
+  const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 4000);
+  try { return await fetch(url, { ...init, signal: ctrl.signal }); }
+  catch { return null; } finally { clearTimeout(t); }
+}
+async function xOwnerOf(id) {                                // data-path probe (no auth needed)
+  const hit = ownerCached(id); if (hit) return hit;
+  const found = await Promise.all(live.map(async (e) =>
+    (r => r && r.status !== 404 ? e.endpoint : null)(await probe(`${e.endpoint}/x/${encodeURIComponent(id)}`, { method: "HEAD" }))));
+  const ep = found.find(Boolean) || null;
+  if (ep) ownerLearn(id, ep);
+  return ep;
+}
+async function v1OwnerOf(id, auth) {                         // control-plane probe (caller's token)
+  const hit = ownerCached(id); if (hit) return hit;
+  const found = await Promise.all(live.map(async (e) => {
+    const r = await probe(`${e.endpoint}/v1/deployments/${encodeURIComponent(id)}`,
+                          { headers: auth ? { Authorization: auth, Accept: "application/json" } : { Accept: "application/json" } });
+    return r && r.status === 200 ? e.endpoint : null;
+  }));
+  const ep = found.find(Boolean) || null;
+  if (ep) ownerLearn(id, ep);
+  return ep || xOwnerOf(id);                                 // fall back to the data-path probe (e.g. expired token)
+}
+
+function readBody(req, max = 262144) {
+  return new Promise((resolve, reject) => {
+    const chunks = []; let n = 0;
+    req.on("data", (ch) => { n += ch.length; if (n > max) { req.destroy(); reject(new Error("body too large")); } else chunks.push(ch); });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+// Buffered forward (vs proxyTo's streaming): used where the relay needs to SEE
+// the body or the response — placement reads the create request's shares, and
+// the create/list responses teach the owner cache.
+async function forward(origin, req, body, path = req.url) {
+  const headers = {};
+  for (const [k, v] of Object.entries(req.headers))
+    if (!/^(host|connection|content-length|transfer-encoding|accept-encoding)$/i.test(k)) headers[k] = v;
+  const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 30000);
+  try {
+    const r = await fetch(origin.replace(/\/+$/, "") + path,
+      { method: req.method, headers, body: body && body.length ? body : undefined, signal: ctrl.signal });
+    return { status: r.status, contentType: r.headers.get("content-type"), text: await r.text() };
+  } finally { clearTimeout(t); }
+}
+function sendForwarded(res, r, req) {
+  res.writeHead(r.status, { "Cache-Control": "no-store", ...(r.contentType ? { "Content-Type": r.contentType } : {}), ...cors(req) });
+  res.end(r.text);
+}
+
+// Fleet /availability: the deploy-dial view. Best single-card slice across GPU
+// enclaves + best node pool across ALL enclaves (they can be different boxes —
+// that is the point of the two-pool model). gpuEnclaveCpuShareFree is the cpu
+// pool on the best GPU enclave: a GPU deployment's cpuShare must fit THERE.
+function aggregateAvailability() {
+  const g = live.filter((e) => e.availability.gpu)
+    .sort((a, b) => gpuFreeOf(b.availability) - gpuFreeOf(a.availability))[0]?.availability || null;
+  const c = live.slice()
+    .sort((a, b) => cpuFreeOf(b.availability) - cpuFreeOf(a.availability))[0]?.availability || null;
+  return {
+    aggregate: true, enclaves: live.length, gpu: !!g, type: g ? "gpu" : "cpu",
+    gpuShareFree: g ? gpuFreeOf(g) : 0, cpuShareFree: c ? cpuFreeOf(c) : 0,
+    gpuEnclaveCpuShareFree: g ? cpuFreeOf(g) : 0,
+    maxShare: g ? gpuFreeOf(g) : (c ? cpuFreeOf(c) : 0),     // deprecated alias, same rule as the enclaves'
+    vramFreeGb: g ? g.vramFreeGb ?? 0 : 0, gpuTflopsFree: g ? g.gpuTflopsFree ?? 0 : 0,
+    smFree: g ? g.smFree ?? 0 : 0, smTotal: g ? g.smTotal ?? 0 : 0,
+    cardVramGb: g ? g.cardVramGb ?? 0 : 0, cardTflops: g ? g.cardTflops ?? 0 : 0, cards: g ? g.cards ?? 0 : 0,
+    vcpusFree: c ? c.vcpusFree ?? 0 : 0, ramGbFree: c ? c.ramGbFree ?? 0 : 0, cpuGflopsFree: c ? c.cpuGflopsFree ?? 0 : 0,
+    nodeVcpus: c ? c.nodeVcpus ?? 0 : 0, nodeRamGb: c ? c.nodeRamGb ?? 0 : 0, nodeGflops: c ? c.nodeGflops ?? 0 : 0,
+    source: "api-relay", updatedAt,
+  };
+}
+
+const DEP_PATH_RE = /^\/v1\/deployments\/([A-Za-z0-9_-]+)(?:\/|$)/;
+const X_PATH_RE   = /^\/x\/([A-Za-z0-9_-]+)(?:\/|$)/;
+
+async function gateway(u, req, res) {
+  if (!live.length) return json(res, 503, { error: "no_capacity", message: "No live enclaves.", updatedAt }, req);
+  const p = u.pathname;
+  if (p === "/availability") return json(res, 200, aggregateAvailability(), req);
+
+  const dep = p.match(DEP_PATH_RE), x = p.match(X_PATH_RE);
+  if (dep || x) {
+    const id = (dep || x)[1];
+    const owner = dep ? await v1OwnerOf(id, req.headers.authorization) : await xOwnerOf(id);
+    if (!owner) return json(res, 404, { error: "not_found", message: `No live enclave has ${id}.`, updatedAt }, req);
+    return proxyTo(owner, req, res);
+  }
+
+  if (p === "/v1/deployments" && req.method === "POST") {    // placement: the ONE routing decision
+    let body; try { body = await readBody(req); } catch (e) { return json(res, 413, { error: "too_large", message: e.message }, req); }
+    let want = {};
+    try { const r = JSON.parse(body.toString() || "{}").resources || {};
+          want = { gpuShare: Number(r.gpuShare) || 0, cpuShare: Number(r.cpuShare) || 0 }; } catch {}
+    const c = pick(want);
+    if (!c) return json(res, 409, { error: "no_capacity",
+      message: `No live enclave has gpuShare >= ${want.gpuShare} and cpuShare >= ${want.cpuShare} free.`, updatedAt }, req);
+    const r = await forward(c.endpoint, req, body).catch((e) => ({ status: 502, contentType: "application/json",
+      text: JSON.stringify({ error: "upstream_error", message: e.message }) }));
+    if (r.status === 201) { try { ownerLearn(JSON.parse(r.text).id, c.endpoint); } catch {} }
+    return sendForwarded(res, r, req);
+  }
+
+  if (p === "/v1/deployments" && req.method === "GET") {     // one wallet, one list: merge the fleet
+    const rs = await Promise.all(live.map((e) =>
+      forward(e.endpoint, req, null).then((r) => ({ e, r })).catch(() => null)));
+    const oks = rs.filter((x) => x && x.r.status === 200);
+    if (!oks.length) {
+      const first = rs.find(Boolean);
+      return first ? sendForwarded(res, first.r, req)
+                   : json(res, 502, { error: "upstream_error", message: "No enclave answered.", updatedAt }, req);
+    }
+    const data = [];
+    for (const { e, r } of oks) {
+      try { for (const it of JSON.parse(r.text).data || []) { data.push(it); ownerLearn(it.id, e.endpoint); } } catch {}
+    }
+    return json(res, 200, { data, cursor: null }, req);
+  }
+
+  const c = sticky();                                        // auth, pricing, version, attestation, ...
+  return proxyTo(c.endpoint, req, res);
+}
+
 // <label>.<APP_DOMAIN> -> canonical dep_<label>, or null if not an app subdomain.
 // The subdomain drops the "dep_" (redundant in this namespace): "abc123" ->
 // "dep_abc123". A legacy "dep-abc123" is still accepted.
@@ -209,23 +357,11 @@ function depFromHost(host) {
   return /^dep_[a-z0-9]+$/.test(id) ? id : null;
 }
 
-// Does a deployment exist on the fleet? (unauth probe of /x/<id>: 404 = no,
-// anything else = yes/private.) Cached briefly — gates on-demand TLS issuance
-// so nobody can burn the CA rate limit with random <junk>.<APP_DOMAIN> names.
-const _existCache = new Map();                                // id -> { ok, at(ms) }
-async function deploymentExists(id) {
-  const hit = _existCache.get(id);
-  if (hit && (Date.now() - hit.at) < 60_000) return hit.ok;
-  const c = pick(); if (!c) return false;
-  let ok = false;
-  try {
-    const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 4000);
-    const r = await fetch(`${c.endpoint}/x/${encodeURIComponent(id)}`, { method: "HEAD", signal: ctrl.signal });
-    clearTimeout(t); ok = r.status !== 404;
-  } catch { ok = false; }
-  _existCache.set(id, { ok, at: Date.now() });
-  return ok;
-}
+// Does a deployment exist on the fleet? (the /x owner probe: some enclave
+// answers non-404 for it.) Gates on-demand TLS issuance so nobody can burn the
+// CA rate limit with random <junk>.<APP_DOMAIN> names; the owner cache keeps
+// repeat lookups cheap.
+const deploymentExists = async (id) => !!(await xOwnerOf(id));
 
 const server = http.createServer((req, res) => {
   const u = new URL(req.url, "http://x");
@@ -240,14 +376,15 @@ const server = http.createServer((req, res) => {
   }
 
   // App subdomain: <dep-id>.<APP_DOMAIN> is the deployment's OWN origin. Route it
-  // to the enclave's /x/<id> data path, passing the app's own headers through
-  // (it's a distinct origin, so the gateway doesn't impose CORS).
+  // to the OWNING enclave's /x/<id> data path, passing the app's own headers
+  // through (it's a distinct origin, so the gateway doesn't impose CORS).
   const depHost = depFromHost(req.headers["x-forwarded-host"] || req.headers.host);
   if (depHost) {
-    const c = pick();
-    if (!c) return json(res, 503, { error: "no_capacity", message: "No live enclaves.", updatedAt });
-    const rest = req.url === "/" ? "/" : req.url;             // preserve path+query under /x/<id>
-    return proxyTo(c.endpoint, req, res, { path: "/x/" + depHost + rest, setCors: false });
+    return xOwnerOf(depHost).then((owner) => {
+      if (!owner) return json(res, 404, { error: "not_found", message: "No live enclave has " + depHost + "." });
+      const rest = req.url === "/" ? "/" : req.url;           // preserve path+query under /x/<id>
+      proxyTo(owner, req, res, { path: "/x/" + depHost + rest, setCors: false });
+    });
   }
 
   if (req.method === "OPTIONS") { res.writeHead(204, cors(req)); return res.end(); }   // preflight for any path
@@ -280,18 +417,14 @@ const server = http.createServer((req, res) => {
                             note: "Verify attestation at the endpoint (Tinfoil SecureClient + repo) before sending anything." }, req);
   }
 
-  // API gateway: proxy control-plane + data-path calls to the live enclave.
-  // Single-enclave today: targets the one live enclave. NOTE: control-plane ops
-  // on a deployment must hit the enclave that OWNS it — with several enclaves,
-  // this needs per-deployment routing (a SIWE token is enclave-specific anyway),
-  // so revisit before adding a second enclave.
-  if (proxied(u.pathname)) {
-    const c = pick();
-    if (!c) return json(res, 503, { error: "no_capacity", message: "No live enclaves.", updatedAt }, req);
-    return proxyTo(c.endpoint, req, res);
-  }
+  // API gateway: fleet-aware routing (see the header) — placement on create,
+  // owner affinity on deployment-scoped calls, fan-out merge on list, fleet
+  // aggregate on /availability, sticky enclave for the rest.
+  if (proxied(u.pathname))
+    return gateway(u, req, res).catch((e) =>
+      json(res, 502, { error: "gateway_error", message: e.message, updatedAt }, req));
 
-  json(res, 404, { error: "not_found", routes: ["/health", "/enclaves", "/route?gpuShare=0.25&cpuShare=0.05", "/v1/* /x/* /availability (proxied to the enclave)"] }, req);
+  json(res, 404, { error: "not_found", routes: ["/health", "/enclaves", "/route?gpuShare=0.25&cpuShare=0.05", "/v1/* /x/* /availability (fleet-routed to the enclaves)"] }, req);
 });
 
 await pollRegistry();
