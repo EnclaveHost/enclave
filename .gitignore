@@ -4,3 +4,7 @@ node_modules/
 node_modules/
 __pycache__/
 *.pyc
+# root tinfoil-config.yml exists only in release-tag commits (generated from
+# enclaves/<flavor>/tinfoil-config.yml by the release workflows); never commit
+# a stray local copy to main
+/tinfoil-config.yml

@@ -80,9 +80,9 @@ need privacy). See `relay/README.md`.
 
 Sandbox defaults (nothing to configure): a private writable `/data` (see below),
 no host environment, no network beyond the served HTTP socket, memory capped per
-deployment at exactly the `memMb` it asked for (the billing CPU share is
-calculated from it: `memMb / node RAM`). Peer isolation = separate Wasm sandbox
-+ separate OS process per app.
+deployment at its CPU share of the node's RAM (`cpuShare × NODE_RAM_GB` — always
+at least the `mem_mb` the app's specs declare, since the specs floor the share).
+Peer isolation = separate Wasm sandbox + separate OS process per app.
 
 **Scratch filesystem (`/data`).** Every deployment is launched with a private,
 writable `/data` preopen (wasi:filesystem via `wasmtime --dir`), so off-the-shelf
@@ -117,17 +117,17 @@ old no-filesystem sandbox). Operators can disable the feature fleet-wide with
 
 - `id`     - what the frontend/user selects; what the supervisor sends as `image`.
 - `file`   - the `.wasm` in this directory.
-- `vram_mb` / `gpu_gflops` / `mem_mb` / `cpu_gflops` - the app's **exact minimum
-             resources** on four axes: memory (MB) and compute (GFLOPS = 1/1000
-             TFLOPS) of a GPU card and of a node (mirrors NanAppCatalog; the
-             allocation shares are calculated from them, each the larger of its
-             memory and compute ask). Either GPU axis > 0 marks a GPU app: it is
-             refused on `NODE_HAS_GPU=0` nodes. A deploy asking for less than
-             any minimum is refused. `mem_mb` is also the guest linear-memory
-             cap (enforced via `wasmtime -W max-memory-size`, floor
-             `WASM_APP_MIN_MEM_MB`=64 — not RLIMIT_AS, which would kill
-             wasmtime's terabyte-scale virtual reservations); deployments may
-             ask for more than the minimums and get exactly what they ask.
+- `vram_mb` / `gpu_gflops` / `mem_mb` / `cpu_gflops` - the app's **exact specs**
+             on four axes: memory (MB) and compute (GFLOPS = 1/1000 TFLOPS) of a
+             GPU card and of a node (mirrors NanAppCatalog). The specs set the
+             MINIMUM shares a deployment must buy: spec / the node's spec, the
+             larger of the memory and compute axes, rounded up to the percent
+             grain. Either GPU axis > 0 marks a GPU app: it is refused on
+             `NODE_HAS_GPU=0` nodes. The guest linear-memory cap is the
+             deployment's `cpuShare × NODE_RAM_GB` (enforced via `wasmtime -W
+             max-memory-size`, floor `WASM_APP_MIN_MEM_MB`=64 — not RLIMIT_AS,
+             which would kill wasmtime's terabyte-scale virtual reservations),
+             so it is always >= `mem_mb`.
 - `storage_mb` - ceiling on the app's `/data` scratch filesystem (see above),
              enforced by the audit sweep. Optional; defaults to
              `WASM_APP_STORAGE_MB` (256). `0` disables `/data` for this app.

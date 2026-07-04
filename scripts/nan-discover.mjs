@@ -58,63 +58,55 @@ export async function fetchAvailability(endpoint, timeoutMs = 4000) {
   } catch { return null; } finally { clearTimeout(t); }
 }
 
-// 3) aggregate + pick. EXACT-resource placement on four axes: vramGb +
-// gpuTflops of one GPU card (both 0 = CPU-only app) and memMb + cpuTflops of a
-// node. Shares are calculated per enclave against ITS OWN specs from
-// /availability, so heterogeneous hardware routes correctly. GPU work only
-// fits GPU enclaves (all axes must fit). CPU-only work prefers CPU-only
-// enclaves; GPU enclaves are the FALLBACK, renting out the cpu pool their GPU
-// tenants left over (e.g. a whole card + 10% of the RAM sold leaves 90% free).
+// 3) aggregate + pick. Deployments buy TWO shares, so placement is by the
+// shares you intend to buy: gpuShare (0..1 of one GPU card; 0 = CPU-only app)
+// and cpuShare (0..1 of a node's vCPU+RAM). Your app's exact specs (catalog)
+// only set the MINIMUM shares — derive them per enclave from /availability's
+// cardVramGb / cardTflops / nodeRamGb / nodeTflops if you're sizing from
+// specs. GPU work only fits GPU enclaves (both pools must fit). CPU-only work
+// prefers CPU-only enclaves; GPU enclaves are the FALLBACK, renting out the
+// cpu pool their GPU tenants left over (e.g. a whole card + 10% of the node
+// sold leaves 90% free).
 const gpuFreeOf = (a) => a.gpuShareFree ?? (a.gpu ? a.maxShare ?? 0 : 0);   // maxShare: pre-two-pool enclaves
 const cpuFreeOf = (a) => a.cpuShareFree ?? (a.gpu ? 0 : a.maxShare ?? 0);
-const vramFreeGbOf    = (a) => gpuFreeOf(a) * (a.cardVramGb || 141);
-const gpuTflopsFreeOf = (a) => gpuFreeOf(a) * (a.cardTflops || 989);
-const ramFreeMbOf     = (a) => cpuFreeOf(a) * (a.nodeRamGb || 64) * 1024;
-const cpuTflopsFreeOf = (a) => cpuFreeOf(a) * (a.nodeTflops || 1);
 export async function pickEnclave(want = {}, address = REGISTRY_ADDRESS) {
-  const { vramGb = 0, gpuTflops = 0, memMb = 0, cpuTflops = 0 } = want;
+  const { gpuShare = 0, cpuShare = 0 } = want;
   const enclaves = await readRegistry(address);
   const rows = await Promise.all(enclaves.map(async (e) => {
     const a = await fetchAvailability(e.endpoint);
     return a ? { endpoint: e.endpoint, repo: e.repo, gpu: !!a.gpu,
-                 vramFreeGb: Math.round(vramFreeGbOf(a) * 10) / 10,
-                 gpuTflopsFree: Math.round(gpuTflopsFreeOf(a) * 10) / 10,
-                 ramFreeMb: Math.round(ramFreeMbOf(a)),
-                 cpuTflopsFree: Math.round(cpuTflopsFreeOf(a) * 1000) / 1000,
-                 smFree: a.smFree ?? 0, avail: a } : null;
+                 gpuShareFree: gpuFreeOf(a), cpuShareFree: cpuFreeOf(a),
+                 smFree: a.smFree ?? 0, vramFreeGb: a.vramFreeGb ?? 0, avail: a } : null;
   }));
   const live = rows.filter(Boolean);
-  const cpuFits = (r) => r.ramFreeMb >= memMb && r.cpuTflopsFree >= cpuTflops;
   let chosen;
-  if (vramGb > 0 || gpuTflops > 0) {
-    chosen = live.filter(r => r.gpu && r.vramFreeGb >= vramGb && r.gpuTflopsFree >= gpuTflops && cpuFits(r))
-                 .sort((a, b) => b.vramFreeGb - a.vramFreeGb)[0] || null;
+  if (gpuShare > 0) {
+    chosen = live.filter(r => r.gpu && r.gpuShareFree >= gpuShare && r.cpuShareFree >= cpuShare)
+                 .sort((a, b) => b.gpuShareFree - a.gpuShareFree)[0] || null;
   } else {
-    const fits = live.filter(cpuFits);
-    const byRamFree = (a, b) => b.ramFreeMb - a.ramFreeMb;
-    chosen = fits.filter(r => !r.gpu).sort(byRamFree)[0]      // CPU-only enclaves first...
-          || fits.filter(r => r.gpu).sort(byRamFree)[0]       // ...then GPU leftovers
+    const fits = live.filter(r => r.cpuShareFree >= cpuShare);
+    const byCpuFree = (a, b) => b.cpuShareFree - a.cpuShareFree;
+    chosen = fits.filter(r => !r.gpu).sort(byCpuFree)[0]      // CPU-only enclaves first...
+          || fits.filter(r => r.gpu).sort(byCpuFree)[0]       // ...then GPU leftovers
           || null;
   }
   return {
     aggregate: { enclaves: live.length,
-                 totalVramFreeGb: Math.round(live.reduce((s, r) => s + r.vramFreeGb, 0) * 10) / 10,
-                 totalGpuTflopsFree: Math.round(live.reduce((s, r) => s + r.gpuTflopsFree, 0) * 10) / 10,
-                 totalRamFreeGb: Math.round(live.reduce((s, r) => s + r.ramFreeMb, 0) / 1024 * 10) / 10,
-                 totalCpuTflopsFree: Math.round(live.reduce((s, r) => s + r.cpuTflopsFree, 0) * 100) / 100,
-                 totalSmFree: live.reduce((s, r) => s + (r.smFree || 0), 0) },
+                 totalGpuShareFree: Math.round(live.reduce((s, r) => s + r.gpuShareFree, 0) * 1000) / 1000,
+                 totalCpuShareFree: Math.round(live.reduce((s, r) => s + r.cpuShareFree, 0) * 1000) / 1000,
+                 totalSmFree: live.reduce((s, r) => s + (r.smFree || 0), 0),
+                 totalVramFreeGb: Math.round(live.reduce((s, r) => s + (r.vramFreeGb || 0), 0) * 10) / 10 },
     chosen,                            // hand chosen.endpoint + chosen.repo to Tinfoil SecureClient
     all: live,
   };
 }
 
-// CLI: `node nan-discover.mjs [vramGb] [memMb] [gpuTflops] [cpuTflops]`
+// CLI: `node nan-discover.mjs [gpuShare] [cpuShare]` (0..1 each)
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const want = { vramGb: parseFloat(process.argv[2] || "0"), memMb: parseFloat(process.argv[3] || "0"),
-                 gpuTflops: parseFloat(process.argv[4] || "0"), cpuTflops: parseFloat(process.argv[5] || "0") };
+  const want = { gpuShare: parseFloat(process.argv[2] || "0"), cpuShare: parseFloat(process.argv[3] || "0") };
   pickEnclave(want).then((r) => {
     console.log(JSON.stringify(r, null, 2));
-    if (!r.chosen) { console.error(`\nNo live enclave fits ${JSON.stringify(want)}.`); process.exit(1); }
+    if (!r.chosen) { console.error(`\nNo live enclave has gpuShare >= ${want.gpuShare} and cpuShare >= ${want.cpuShare} free.`); process.exit(1); }
     console.log(`\n-> connect via Tinfoil SecureClient("${r.chosen.endpoint}", "${r.chosen.repo}")`);
   }).catch((e) => { console.error("discovery failed:", e.message); process.exit(1); });
 }

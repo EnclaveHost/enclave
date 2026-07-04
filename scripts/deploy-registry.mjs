@@ -40,7 +40,7 @@ const REPO = path.resolve(HERE, "..");
 const CONTRACT = path.join(REPO, "contracts", "NanRegistry.sol");
 const ABI_OUT = path.join(REPO, "contracts", "NanRegistry.abi.json");
 const DISCOVER = path.join(REPO, "scripts", "nan-discover.mjs");
-const CONFIG = path.join(REPO, "tinfoil-config.yml");
+const CONFIG = path.join(REPO, "enclaves", "gpu", "tinfoil-config.yml");
 
 const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has("--dry-run");

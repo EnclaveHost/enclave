@@ -26,8 +26,8 @@ if [ -f wasm/apps/catalog.json ]; then
   else bad "catalog.json is not valid JSON"; fi
 fi
 
-sec "tinfoil-config.yml"
-C=tinfoil-config.yml
+sec "enclaves/gpu/tinfoil-config.yml"
+C=enclaves/gpu/tinfoil-config.yml
 if [ -f "$C" ]; then
   grep -q 'name: *"*wasm-manager' "$C" && ok "has wasm-manager container" || bad "no wasm-manager container (config not updated)"
   grep -q 'nan-wasm-manager' "$C"      && ok "references nan-wasm-manager image" || bad "no nan-wasm-manager image ref"
@@ -57,7 +57,7 @@ fi
 
 sec "git / deploy state"
 if git rev-parse --git-dir >/dev/null 2>&1; then
-  dirty=$(git status --porcelain -- wasm tinfoil-config.yml scripts/release.sh 2>/dev/null)
+  dirty=$(git status --porcelain -- wasm enclaves scripts/release.sh 2>/dev/null)
   if [ -n "$dirty" ]; then
     bad "uncommitted changes (Tinfoil only deploys a committed + attested tag):"
     echo "$dirty" | sed 's/^/         /'

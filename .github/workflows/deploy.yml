@@ -10,7 +10,7 @@
 #                                               then commit the address wiring back to main
 #   Dockerfile|supervisor.js|package*.json   -> supervisor image  } sidecars are built+repinned here
 #   worker/** | mps-daemon/** | wasm/**      -> sidecar images    } (scripts/release.sh); the supervisor
-#   tinfoil-config*.yml (non-image lines)    -> release only      } is built by tinfoil-release.yml
+#   enclaves/*/tinfoil-config.yml (non-image) -> release only      } is built by tinfoil-release.yml
 #                                            -> then auto-dispatch tinfoil-release[-cpu].yml with the
 #                                               next patch version so the enclave measurement updates
 #
@@ -114,7 +114,7 @@ jobs:
               mps-daemon/*)            mps=true ;;
               wasm/__pycache__/*) ;;
               wasm/*)                  wasm=true ;;
-              tinfoil-config.yml|tinfoil-config.cpu.yml) config_touched=true ;;
+              enclaves/*)              config_touched=true ;;
             esac
           done <<< "$CHANGED"
 
@@ -122,7 +122,7 @@ jobs:
           # are pinned by the release flow itself, so only non-image lines count.
           config=false
           if [ "$config_touched" = true ]; then
-            echo "$HUMAN_COMMITS" | xargs -r -n1 -I{} git show --format= {} -- tinfoil-config.yml tinfoil-config.cpu.yml \
+            echo "$HUMAN_COMMITS" | xargs -r -n1 -I{} git show --format= {} -- enclaves \
               | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | grep -vE '^[+-][[:space:]]*-?[[:space:]]*image:' \
               | grep -q . && config=true
           fi
@@ -205,7 +205,7 @@ jobs:
         run: |
           set -euo pipefail
           bash scripts/sync-contract-addresses.sh
-          git add contracts/*.abi.json tinfoil-config.yml tinfoil-config.cpu.yml site/index.html scripts/nan-discover.mjs
+          git add contracts/*.abi.json enclaves site/index.html scripts/nan-discover.mjs
           if git diff --cached --quiet; then
             echo "wired_site=false" >> "$GITHUB_OUTPUT"
             echo "wired_config=false" >> "$GITHUB_OUTPUT"
@@ -213,7 +213,7 @@ jobs:
           fi
           wired_site=false; wired_config=false
           git diff --cached --name-only | grep -q '^site/' && wired_site=true
-          git diff --cached --name-only | grep -q '^tinfoil-config' && wired_config=true
+          git diff --cached --name-only | grep -q '^enclaves/' && wired_config=true
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "CI: wire contract addresses after deploy"
@@ -329,7 +329,7 @@ jobs:
           python3 -c 'import yaml' 2>/dev/null || pip3 install --quiet pyyaml
           ./scripts/release.sh $TARGETS
 
-          git add tinfoil-config.yml tinfoil-config.cpu.yml
+          git add enclaves
           if git diff --cached --quiet; then echo "digests unchanged"; exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -371,5 +371,6 @@ jobs:
             done
             echo "$ref created"
           done
-          echo "release(s) tagged; measurement + publish continue in tinfoil-release-publish*.yml." \
+          echo "release(s) tagged; measurement + publish continue in tinfoil-release-publish.yml" \
+               "(both flavors measure the root tinfoil-config.yml generated in each tag)." \
                "Remember: the running enclave updates via the Tinfoil dashboard."

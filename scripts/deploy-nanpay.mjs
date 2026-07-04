@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // deploy-nanpay.mjs - compile + deploy contracts/NanPay.sol to Base, print the
-// address, and (optionally) write it into tinfoil-config.yml as FORWARDER_ADDRESS.
+// address, and (optionally) write it into enclaves/gpu/tinfoil-config.yml as
+// FORWARDER_ADDRESS (scripts/sync-contract-addresses.sh fans it out to the CPU flavor).
 //
 // NanPay is non-custodial: it forwards USDC (payWithAuthorization, EIP-3009 —
 // the payer signs a ReceiveWithAuthorization, no approve) or native ETH (payEth)
@@ -16,7 +17,7 @@
 //   NETWORK=base DEPLOYER_PRIVATE_KEY=0x... PAYOUT_ADDRESS=0x... \
 //     node scripts/deploy-nanpay.mjs                 # -> Base MAINNET
 //
-// On a successful deploy it writes FORWARDER_ADDRESS into tinfoil-config.yml
+// On a successful deploy it writes FORWARDER_ADDRESS into enclaves/gpu/tinfoil-config.yml
 // automatically (pass --no-write-config to skip).
 //
 // Env:
@@ -50,7 +51,7 @@ import { normalize } from "viem/ens";
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
 const CONTRACT = path.join(REPO, "contracts", "NanPay.sol");
-const CONFIG = path.join(REPO, "tinfoil-config.yml");
+const CONFIG = path.join(REPO, "enclaves", "gpu", "tinfoil-config.yml");
 
 const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has("--dry-run");
@@ -211,10 +212,10 @@ async function main() {
   console.log("===============================================================\n");
 
   if (!NO_WRITE_CONFIG) writeForwarder(addr);
-  else console.log("(--no-write-config: skipped tinfoil-config.yml; set FORWARDER_ADDRESS manually)");
+  else console.log("(--no-write-config: skipped enclaves/gpu/tinfoil-config.yml; set FORWARDER_ADDRESS manually)");
 
   console.log("\nNext:");
-  console.log(`  1. Set FORWARDER_ADDRESS in tinfoil-config.yml to ${addr}`);
+  console.log(`  1. Set FORWARDER_ADDRESS in enclaves/*/tinfoil-config.yml to ${addr}`);
   console.log("  2. Rebuild+repin the supervisor:  ./scripts/release.sh nan");
   console.log("  3. Confirm the enclave has outbound egress to BASE_RPC so it can watch this contract.");
   if (!isMainnet) console.log("  4. Test the pay flow on testnet, THEN re-run with NETWORK=base for mainnet.");

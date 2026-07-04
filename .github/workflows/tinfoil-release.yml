@@ -1,14 +1,22 @@
-# Tinfoil Containers release workflow (phase 1 — build + initiate a release).
+# Tinfoil Containers release workflow — GPU flavor (phase 1: build + initiate).
 #
 # Run this from the Actions tab ("Run workflow") with a version like v0.0.1.
-# It builds the supervisor image, pushes it to ghcr.io, rewrites the digest in
-# tinfoil-config.yml, creates the release tag, then dispatches phase 2
+# It builds the supervisor image, pushes it to ghcr.io, GENERATES the root
+# tinfoil-config.yml from enclaves/gpu/tinfoil-config.yml (pinning the fresh
+# supervisor digest), creates the release tag, then dispatches phase 2
 # (tinfoil-release-publish.yml) which measures + attests the pinned image.
+#
+# WHY the copy: the Tinfoil dashboard has no config-file picker — it always
+# reads the DEFAULT path (tinfoil-config.yml at the repo root) from a release
+# tag. So the flavor sources live in enclaves/<flavor>/tinfoil-config.yml on
+# main (no root config there), and each release workflow materializes its
+# flavor at the default path IN THE TAG COMMIT. Point the dashboard at a
+# vX.Y.Z tag and it sees the GPU flavor; at a vX.Y.Z-cpu tag, the CPU flavor.
 #
 # NOTE: the ghcr path is hardcoded LOWERCASE (ghcr.io/stevedefacto/nan). The repo
 # is SteveDeFacto/Nan; ${{ github.repository }} would emit mixed-case refs and
 # ghcr / the measurement step want lowercase. Keep this in sync with the
-# `image:` line in tinfoil-config.yml.
+# `image:` line in enclaves/gpu/tinfoil-config.yml.
 
 name: Tinfoil Release
 
@@ -84,20 +92,36 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      contents: write       # update-container-action pushes the release tag
-      pull-requests: write  # required by update-container-action
+      contents: write       # push the release tag (with the generated root config)
       actions: write        # dispatch tinfoil-release-publish.yml on the new tag
 
     steps:
-      - name: Update tinfoil-config.yml and create the release tag
-        uses: tinfoilsh/update-container-action@5e0a3789316941664cee055706799114e0180565 # v0.6.0
+      - name: Checkout source commit
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
-          version: ${{ inputs.version }}
-          source-sha: ${{ github.sha }}
-          update-config: true
-          image-refs: |
-            ghcr.io/stevedefacto/nan@${{ needs.build.outputs.digest }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.sha }}
+          persist-credentials: true
+
+      - name: Generate root tinfoil-config.yml from the GPU flavor and tag the release
+        env:
+          VERSION: ${{ inputs.version }}
+          DIGEST: ${{ needs.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          # materialize the GPU flavor at the default path the Tinfoil dashboard reads
+          cp enclaves/gpu/tinfoil-config.yml tinfoil-config.yml
+          # `nan[:@]` cannot match nan-wasm-manager / nan-worker / nan-mps (next
+          # char is '-'), so only the supervisor line is repinned; the sidecar
+          # pins stay as committed by scripts/release.sh.
+          sed -i -E "s#(image: \"ghcr\.io/stevedefacto/nan)[:@][^\"]*\"#\1@${DIGEST}\"#" tinfoil-config.yml
+          grep -q "ghcr.io/stevedefacto/nan@${DIGEST}" tinfoil-config.yml \
+            || { echo "::error::failed to pin supervisor digest into tinfoil-config.yml"; exit 1; }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tinfoil-config.yml
+          git commit -m "Release ${VERSION}: root config from enclaves/gpu, supervisor digest pinned"
+          git tag "$VERSION"
+          git push origin "refs/tags/$VERSION"
 
       - name: Dispatch the publish workflow on the new tag
         env:
@@ -105,4 +129,4 @@ jobs:
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ inputs.version }}
         run: |
-          gh workflow run tinfoil-release-publish.yml --ref "$VERSION"
+          gh workflow run tinfoil-release-publish.yml --ref "$VERSION" -f mark-as-latest=true

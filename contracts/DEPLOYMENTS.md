@@ -2,7 +2,7 @@
 
 **Status: implemented. The contract compiles clean; the claim loop is wired
 into `supervisor.js` (search `startClaimLoop`) behind `CLAIM_ENABLED` +
-`DEPLOYMENTS_ADDRESS` in `tinfoil-config.yml`. The code excerpts below are the
+`DEPLOYMENTS_ADDRESS` in `enclaves/*/tinfoil-config.yml`. The code excerpts below are the
 design reference; `supervisor.js` is authoritative where they diverge.**
 
 Today a deployment is one enclave's private state: the spec and the funded-time
@@ -14,7 +14,7 @@ for good, the deployment — including paid, unconsumed runtime — dies with it
 transactions waiting to be processed. The chain holds the three things a
 stranger enclave needs to take over:
 
-1. the **intent** — what to run (`appRef`), the exact resources (VRAM + GPU TFLOPS + RAM + CPU TFLOPS), ports, visibility, ssh key;
+1. the **intent** — what to run (`appRef`), the two shares bought (GPU + CPU), ports, visibility, ssh key;
 2. the **balance** — funded runtime (USDC 6dp), credited by payments, burned by leases;
 3. the **lease** — who is serving it right now, and until when.
 
@@ -53,22 +53,20 @@ via transaction instead of via one enclave's API).
 
 ## Contract summary (`NanDeployments.sol`)
 
-- **`create(appRef, res, appPort, ports, isPublic, sshPubKey, configCid)`**
-  — permissionless; inert until funded. Apps specify EXACT resources on four
-  axes, packed as `res = [vramMb, gpuGflops, memMb, cpuGflops]`: memory and
-  compute of one GPU card (both `0` = a CPU-only deployment) and of a node
-  (compute in GFLOPS = 1/1000 TFLOPS). The contract CALCULATES the two
-  allocation shares from them against its owner-set reference specs
-  (`cardVramMb`/`cardGflops`/`nodeRamMb`/`nodeGflops`, matching the fleet's
-  hardware — H200 141 GB / 989 TFLOPS, node 64 GB / ~1 TFLOPS), each the
-  LARGER of the memory- and compute-derived share, and snapshots them:
-  `gpuMilli = ceil(max(vramMb / cardVramMb, gpuGflops / cardGflops) × 1000)`,
-  `cpuMilli` likewise. It enforces `gpuMilli == 0 || gpuMilli >= cpuMilli` — a
-  GPU app's CPU slice rides on the same node as its card. Both derived shares
-  are paid for:
+- **`create(appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, sshPubKey, configCid)`**
+  — permissionless; inert until funded. A deployment BUYS two shares, both in
+  1/1000ths: `gpuMilli` of one GPU card (VRAM + compute together; `0` = a
+  CPU-only deployment) and `cpuMilli` of a node's vCPU+RAM (1..1000). The
+  contract enforces `gpuMilli == 0 || gpuMilli >= cpuMilli` — a GPU app's CPU
+  slice rides on the same node as its card. The app's exact specs in
+  NanAppCatalog (VRAM, TFLOPS, RAM) set its MINIMUM shares: each RUNNER
+  re-derives them against its own hardware (spec / server spec, the larger of
+  the memory and compute axes, ceil to the percent grain) and skips
+  under-provisioned deployments — the chain stays hardware-agnostic. Both
+  shares are paid for:
   `rate = (pricePerSec6 × gpuMilli + cpuPricePerSec6 × cpuMilli) / 1000`,
-  rounded up, snapshotted at create (price/refSize changes never re-price or
-  resize existing deployments). `id = keccak256(creator, nonce)`.
+  rounded up, snapshotted at create (price changes never re-price existing
+  deployments). `id = keccak256(creator, nonce)`.
   **Routing (enforced by runners at claim time): GPU work (`gpuMilli > 0`) is
   claimed ONLY by GPU-enabled enclaves; CPU-only work is claimed by CPU-only
   enclaves immediately and by GPU enclaves only after `CPU_CLAIM_GRACE_SEC`
@@ -166,14 +164,11 @@ async function claimSweep() {
       if (!d.active || Number(d.leaseUntil) * 1000 > Date.now()) continue;  // stopped or leased
       if (d.balance6 < d.rate) continue;                // out of funded time — queue drops it
       // routing + capacity BEFORE claiming: never burn a user's lease we can't
-      // serve. The deployment records EXACT resources on four axes; shares are
-      // calculated against OUR hardware (each the larger of its memory- and
-      // compute-derived share). GPU work fits a card AND the node's cpu pool;
-      // CPU-only work runs on CPU enclaves immediately, on GPU enclaves only
-      // after a grace window (CPU enclaves get first claim) and only out of
-      // LEFTOVER cpu pool.
-      const gpuShare = gpuShareOf(Number(d.vramMb) / 1024, Number(d.gpuGflops) / 1000);
-      const cpuShare = cpuShareOf(Number(d.memMb), Number(d.cpuGflops) / 1000);
+      // serve. The deployment bought two shares; GPU work fits a card AND the
+      // node's cpu pool; CPU-only work runs on CPU enclaves immediately, on GPU
+      // enclaves only after a grace window (CPU enclaves get first claim) and
+      // only out of LEFTOVER cpu pool.
+      const gpuShare = Number(d.gpuMilli) / 1000, cpuShare = Number(d.cpuMilli) / 1000;
       if (gpuShare > 0) {
         if (!IS_GPU) continue;                          // GPU work never runs on a CPU-only enclave
         if (gpuShare * CARD_VRAM_GB > maxFreeVram() + 1e-9 || cpuShare > maxFreeCpu() + 1e-9) continue;
@@ -181,12 +176,13 @@ async function claimSweep() {
         if (IS_GPU && Date.now() < (Math.max(Number(d.createdAt), Number(d.leaseUntil)) + CPU_CLAIM_GRACE_SEC) * 1000) continue;
         if (cpuShare > maxFreeCpu() + 1e-9) continue;
       }
-      // catalog approval gate, same as the HTTP deploy path (fail closed); also
-      // refuses deployments that asked for less than the app's declared minimums
+      // catalog approval gate, same as the HTTP deploy path (fail closed); the
+      // app's specs also set its minimum shares on OUR hardware — a deployment
+      // that bought less is nobody's work item
       const g = await gateAppReference(d.appRef);
       if (g.error) continue;
-      if (Number(d.vramMb) < g.min.vramMb || Number(d.gpuGflops) < g.min.gpuGflops
-       || Number(d.memMb) < g.min.memMb || Number(d.cpuGflops) < g.min.cpuGflops) continue;
+      const mins = minSharesOf(g.min);       // specs / our hardware -> minimum shares
+      if (gpuShare < mins.gpuShare - 1e-9 || cpuShare < mins.cpuShare - 1e-9) continue;
       await tryClaim(d, g.ref);
     }
     if (page.length < CLAIM_PAGE) break;
@@ -221,9 +217,7 @@ works with zero changes.
 
 ```js
 async function adopt(d, resolvedRef) {
-  const vramGb = Number(d.vramMb) / 1024, memMb = Number(d.memMb);
-  const gpuShare = gpuShareOf(vramGb, Number(d.gpuGflops) / 1000);     // calculated locally,
-  const cpuShare = cpuShareOf(memMb, Number(d.cpuGflops) / 1000);      // max(memory, compute) per pool
+  const gpuShare = Number(d.gpuMilli) / 1000, cpuShare = Number(d.cpuMilli) / 1000;
   // GPU work reserves a card slice AND its cpuShare; CPU-only work just the cpu pool
   const gpu = gpuShare > 0 ? allocGpu(gpuShare * CARD_VRAM_GB, gpuShare, cpuShare) : allocCpu(cpuShare);
   if (!gpu) { await releaseOnChain(d.id); return; }     // capacity vanished; refund the lease
@@ -231,8 +225,7 @@ async function adopt(d, resolvedRef) {
     id: d.id, owner: d.owner.toLowerCase(), status: "claimed",
     public: d.isPublic, firewall: firewallFromPorts(d.ports),  // CSV -> the parseFirewall shape
     image: { reference: resolvedRef }, command: [],
-    resources: gpuShare > 0 ? { vramGb, memMb, gpuShare, cpuShare, cardId: gpu.cardId }
-                            : { vramGb: 0, memMb, gpuShare: 0, cpuShare },
+    resources: gpuShare > 0 ? { gpuShare, cpuShare, cardId: gpu.cardId } : { gpuShare: 0, cpuShare },
     network: { port: Number(d.appPort), protocol: "https", endpoint: null }, // filled from originOf per request
     createdAt: new Date(Number(d.createdAt) * 1000).toISOString(), startedAt: null,
     // the local clock only covers the CURRENT lease; the chain holds the rest
@@ -355,7 +348,7 @@ the new enclave. This is the same no-trusted-gateway shape as discovery today.
 # Base Sepolia dry run (compile + plan, no broadcast; re-emits the ABI):
 DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-deployments.mjs --dry-run --yes
 
-# Base Sepolia (uses REGISTRY_ADDRESS from tinfoil-config.yml; prices are hardcoded
+# Base Sepolia (uses REGISTRY_ADDRESS from enclaves/gpu/tinfoil-config.yml; prices are hardcoded
 # in the contract: ~$6/h full GPU card, ~$2/h whole CPU node — no setter txs sent):
 DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-deployments.mjs
 

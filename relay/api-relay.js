@@ -116,32 +116,26 @@ async function pollAvailability() {
   updatedAt = new Date().toISOString();
 }
 
-// Exact-resource routing — same rule as nan-discover.mjs. Callers name EXACT
-// resources on four axes (vramGb + gpuTflops of a card, memMb + cpuTflops of
-// the node); each enclave's fit is checked against ITS OWN specs from
-// /availability, so heterogeneous hardware routes correctly. GPU work needs a
-// GPU enclave whose free card slice covers BOTH GPU axes and whose cpu pool
-// covers both CPU axes. CPU-only work prefers CPU-only enclaves; GPU enclaves
-// are the FALLBACK, serving it out of leftover cpu pool (a tenant taking a
-// whole card + 10% of the RAM leaves 90% of the node rentable). Availability
-// fields: gpuShareFree / cpuShareFree (+ cardVramGb / cardTflops / nodeRamGb /
-// nodeTflops; maxShare kept as a deprecated fallback for old enclaves).
+// Share-based routing — same rule as nan-discover.mjs. Deployments buy two
+// shares, so callers route on the shares they intend to buy (the app's specs
+// only set the MINIMUM shares — compute those from /availability's
+// cardVramGb/cardTflops/nodeRamGb/nodeTflops if you're sizing from specs).
+// GPU work (gpuShare > 0) needs a GPU enclave whose free card slice AND cpu
+// pool both fit. CPU-only work prefers CPU-only enclaves; GPU enclaves are the
+// FALLBACK, serving it out of leftover cpu pool (a tenant buying a whole card
+// + 10% of the node leaves 90% rentable). maxShare = deprecated fallback for
+// old enclaves.
 const gpuFreeOf = (a) => a.gpuShareFree ?? (a.gpu ? a.maxShare ?? 0 : 0);
 const cpuFreeOf = (a) => a.cpuShareFree ?? (a.gpu ? 0 : a.maxShare ?? 0);
-const vramFreeGbOf    = (a) => gpuFreeOf(a) * (a.cardVramGb || 141);
-const gpuTflopsFreeOf = (a) => gpuFreeOf(a) * (a.cardTflops || 989);
-const ramFreeMbOf     = (a) => cpuFreeOf(a) * (a.nodeRamGb || 64) * 1024;
-const cpuTflopsFreeOf = (a) => cpuFreeOf(a) * (a.nodeTflops || 1);
 function pick(want = {}) {
-  const { vramGb = 0, gpuTflops = 0, memMb = 0, cpuTflops = 0 } = want;
-  const cpuFits = (a) => ramFreeMbOf(a) >= memMb && cpuTflopsFreeOf(a) >= cpuTflops;
-  if (vramGb > 0 || gpuTflops > 0) {
+  const { gpuShare = 0, cpuShare = 0 } = want;
+  if (gpuShare > 0) {
     return live
-      .filter((e) => e.availability.gpu && vramFreeGbOf(e.availability) >= vramGb
-                     && gpuTflopsFreeOf(e.availability) >= gpuTflops && cpuFits(e.availability))
+      .filter((e) => e.availability.gpu && gpuFreeOf(e.availability) >= gpuShare
+                                        && cpuFreeOf(e.availability) >= cpuShare)
       .sort((a, b) => gpuFreeOf(b.availability) - gpuFreeOf(a.availability))[0] || null;
   }
-  const fits = live.filter((e) => cpuFits(e.availability));
+  const fits = live.filter((e) => cpuFreeOf(e.availability) >= cpuShare);
   const byCpuFree = (a, b) => cpuFreeOf(b.availability) - cpuFreeOf(a.availability);
   return fits.filter((e) => !e.availability.gpu).sort(byCpuFree)[0]
       || fits.filter((e) => e.availability.gpu).sort(byCpuFree)[0]
@@ -272,22 +266,16 @@ const server = http.createServer((req, res) => {
   }
 
   if (u.pathname === "/route") {
-    // ?vramGb=&gpuTflops=&memMb=&cpuTflops= — the EXACT resources the
-    // deployment wants on four axes (shares are calculated per enclave). Both
-    // GPU axes 0 = CPU-only (CPU enclaves preferred, GPU leftovers as
-    // fallback). Legacy ?gpuShare=/?share= is read as a fraction of a 141 GB
-    // card, ?cpuShare= as a fraction of a 64 GB node.
+    // ?gpuShare=&cpuShare= — the two shares the deployment intends to buy
+    // (0..1). gpuShare 0 = CPU-only (CPU enclaves preferred, GPU leftovers as
+    // fallback). Legacy ?share= is read as gpuShare.
     const want = {
-      vramGb: parseFloat(u.searchParams.get("vramGb")
-        ?? String((parseFloat(u.searchParams.get("gpuShare") ?? u.searchParams.get("share") ?? "0") || 0) * 141)) || 0,
-      gpuTflops: parseFloat(u.searchParams.get("gpuTflops") || "0") || 0,
-      memMb: parseFloat(u.searchParams.get("memMb")
-        ?? String((parseFloat(u.searchParams.get("cpuShare") || "0") || 0) * 64 * 1024)) || 0,
-      cpuTflops: parseFloat(u.searchParams.get("cpuTflops") || "0") || 0,
+      gpuShare: parseFloat(u.searchParams.get("gpuShare") ?? u.searchParams.get("share") ?? "0") || 0,
+      cpuShare: parseFloat(u.searchParams.get("cpuShare") || "0") || 0,
     };
     const c = pick(want);
     if (!c) return json(res, 503, { error: "no_capacity",
-      message: `No live enclave has ${want.vramGb} GB VRAM / ${want.gpuTflops} GPU TFLOPS and ${Math.round(want.memMb)} MB RAM / ${want.cpuTflops} CPU TFLOPS free.`, updatedAt }, req);
+      message: `No live enclave has gpuShare >= ${want.gpuShare} and cpuShare >= ${want.cpuShare} free.`, updatedAt }, req);
     return json(res, 200, { endpoint: c.endpoint, repo: c.repo, availability: c.availability, updatedAt,
                             note: "Verify attestation at the endpoint (Tinfoil SecureClient + repo) before sending anything." }, req);
   }
@@ -303,7 +291,7 @@ const server = http.createServer((req, res) => {
     return proxyTo(c.endpoint, req, res);
   }
 
-  json(res, 404, { error: "not_found", routes: ["/health", "/enclaves", "/route?vramGb=8&gpuTflops=50&memMb=2048&cpuTflops=0.1", "/v1/* /x/* /availability (proxied to the enclave)"] }, req);
+  json(res, 404, { error: "not_found", routes: ["/health", "/enclaves", "/route?gpuShare=0.25&cpuShare=0.05", "/v1/* /x/* /availability (proxied to the enclave)"] }, req);
 });
 
 await pollRegistry();

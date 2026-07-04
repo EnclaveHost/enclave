@@ -3,15 +3,15 @@
 # file that ships them, so no flavor/config drifts after a redeploy.
 #
 # The deploy scripts each wire their own primary target (deploy-registry /
-# -nanpay / -deployments write tinfoil-config.yml; deploy-app-catalog writes
-# site/index.html) but none of them touch tinfoil-config.cpu.yml, and the
+# -nanpay / -deployments write enclaves/gpu/tinfoil-config.yml; deploy-app-catalog
+# writes site/index.html) but none of them touch the CPU flavor's config, and the
 # catalog address is never copied into the enclave configs. This script reads
 # the authoritative values from those primary targets and rewrites BOTH
 # tinfoil configs. Idempotent; safe to run any time from anywhere in the repo.
 set -euo pipefail
 REPO="$(git rev-parse --show-toplevel)"
-GPU="$REPO/tinfoil-config.yml"
-CPU="$REPO/tinfoil-config.cpu.yml"
+GPU="$REPO/enclaves/gpu/tinfoil-config.yml"
+CPU="$REPO/enclaves/cpu/tinfoil-config.yml"
 SITE="$REPO/site/index.html"
 ADDR='0x[0-9a-fA-F]{40}'
 

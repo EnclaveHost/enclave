@@ -6,15 +6,19 @@
 #   supervisor    - control plane (auth, billing, quota, routing). Public via shim.
 #   wasm-manager  - tenant apps via `wasmtime serve` (all CPU; no GPU interface).
 #
-# GPU_COUNT=0 puts the supervisor in CPU-enclave mode: deployments name the
-# exact RAM they need (memMb; vramGb is refused with a 422) and the CPU share
-# billed at the CPU rate is calculated from it. Routing: GPU work runs only on
-# GPU enclaves; CPU-only work lands here FIRST — GPU enclaves bid on it only
-# after CPU_CLAIM_GRACE_SEC, out of their leftover CPU pool.
+# GPU_COUNT=0 puts the supervisor in CPU-enclave mode: deployments buy a
+# cpuShare of the node (gpuShare is refused with a 422), floored at the
+# minimum the app's catalog specs imply. Routing: GPU work runs only on GPU
+# enclaves; CPU-only work lands here FIRST — GPU enclaves bid on it only after
+# CPU_CLAIM_GRACE_SEC, out of their leftover CPU pool.
 #
 # Released separately from the GPU flavor: tag CPU releases as v<X.Y.Z>-cpu via
-# the "Tinfoil Release (CPU)" workflow, which measures THIS file. Image digests
-# are pinned by scripts/release.sh / the workflow, same as tinfoil-config.yml.
+# the "Tinfoil Release (CPU)" workflow. The Tinfoil dashboard only reads the
+# DEFAULT config path (tinfoil-config.yml at the repo root), so the workflow
+# copies THIS file there in the release-tag commit and the measurement covers
+# that copy - point the dashboard at a -cpu tag to get this flavor. Image
+# digests are pinned by scripts/release.sh / the workflow, same as the GPU
+# flavor (enclaves/gpu/tinfoil-config.yml).
 cvm-version: 0.7.5
 cpus: 16
 memory: 65536      # 64 GiB
@@ -26,9 +30,9 @@ containers:
     restart: always
     env:
       - PORT: "8080"
-      # CPU-enclave mode: no cards. The supervisor refuses vramGb > 0 and
-      # allocates node shares calculated from each deployment's memMb; the
-      # claim loop only adopts on-chain deployments created with vramMb=0.
+      # CPU-enclave mode: no cards. The supervisor refuses gpuShare > 0 and
+      # allocates node shares; the claim loop only adopts on-chain deployments
+      # created with gpuMilli=0.
       - GPU_COUNT: "0"
       - NODE_VCPUS: "16"
       - NODE_RAM_GB: "64"
@@ -92,8 +96,8 @@ containers:
       - NODE_VCPUS: "16"
       - NODE_RAM_GB: "64"
       - NODE_HAS_GPU: "0"           # refuse catalog apps that declare vram_mb > 0
-      # each app's memory cap is exactly the memMb its deployment asked for;
-      # WASM_APP_MIN_MEM_MB (default 64) is the floor
+      # each app's memory cap is its deployment's cpuShare × NODE_RAM_GB
+      # (>= the mem_mb its specs declare); WASM_APP_MIN_MEM_MB (64) is the floor
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8091/health || exit 1"]
       interval: 15s

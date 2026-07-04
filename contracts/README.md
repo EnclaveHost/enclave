@@ -22,7 +22,7 @@ caller --(SecureClient(URL, repo))--> enclave verifies SEV-SNP/TDX + Sigstore, p
 ## 1. Deploy the contract to Base (chain 8453)
 
 No constructor args, no owner — the deployer keeps no special power. A viem+solc
-script mirrors `deploy-app-catalog.mjs` and **wires `tinfoil-config.yml`'s
+script mirrors `deploy-app-catalog.mjs` and **wires `enclaves/gpu/tinfoil-config.yml`'s
 `REGISTRY_ADDRESS` plus `nan-discover.mjs`'s default automatically** on success
 (pass `--no-write-config` to skip):
 
@@ -44,7 +44,7 @@ NETWORK=base DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-registry.mjs
 ## 2. Give each enclave a registry config
 
 The enclave self-registers on boot when `REGISTRY_ENABLED` is set. The supervisor
-container's env in `tinfoil-config.yml` already carries the block — the deploy
+container's env in `enclaves/gpu/tinfoil-config.yml` already carries the block — the deploy
 script fills in the address; the one value you set **per enclave** is its own URL:
 
 ```yaml
@@ -207,7 +207,7 @@ Manager env: `IPFS_GATEWAY` (default `https://ipfs.nan.host`), `WASM_MAX_BYTES`
   a standing "no"; only the owner can rule, enforced by the contract). Approval is
   per CID: a new release of the same app starts Pending again. The supervisor
   resolves deployability in one `cidStatus(cid)` eth_call (listed + app active +
-  not yanked + Approved) against `APP_CATALOG_ADDRESS` from `tinfoil-config.yml`,
+  not yanked + Approved) against `APP_CATALOG_ADDRESS` from the enclave config,
   and **fails closed**: no catalog configured or RPC unreachable ⇒ no catalog-app
   deploys. Baked-in catalog ids (e.g. `hello`) are exempt — they ship inside the
   attested wasm-manager image. The site's Apps tab shows the per-version status
@@ -217,7 +217,7 @@ Manager env: `IPFS_GATEWAY` (default `https://ipfs.nan.host`), `WASM_MAX_BYTES`
 
 No constructor args; the deployer EOA becomes `owner` (approves/rejects versions,
 can flip `verified`, can `transferOwnership`). A viem+solc script mirrors
-`deploy-nanpay.mjs` and **wires the site and `tinfoil-config.yml` automatically**
+`deploy-nanpay.mjs` and **wires the site and `enclaves/gpu/tinfoil-config.yml` automatically**
 on success:
 
 ```bash
@@ -233,7 +233,7 @@ NETWORK=base DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-app-catalog.mjs
 
 On a successful deploy it rewrites `APP_CATALOG_ADDRESS`, `APP_CATALOG_CHAIN`, and
 `APP_CATALOG_RPC` in `site/index.html`, plus `APP_CATALOG_ADDRESS` in
-`tinfoil-config.yml` so the supervisor enforces the approval gate against the same
+the enclave configs so the supervisor enforces the approval gate against the same
 deployment (pass `--no-write-config` to skip both). It also re-emits
 `contracts/NanAppCatalog.abi.json` from source on every run so the checked-in ABI
 can't drift from what's deployed.

@@ -1,5 +1,10 @@
 # DO NOT RUN MANUALLY. This workflow is dispatched automatically by
-# `tinfoil-release.yml` against the newly created release tag.
+# `tinfoil-release.yml` (GPU flavor) or `tinfoil-release-cpu.yml` (CPU flavor)
+# against the newly created release tag. Both flavors measure the SAME default
+# path — tinfoil-config.yml at the repo root — because phase 1 generates that
+# file from enclaves/<flavor>/tinfoil-config.yml in the tag commit (the Tinfoil
+# dashboard reads only the default path, so the flavor is selected by which tag
+# you point it at, never by a filename).
 
 name: Tinfoil Release - Publish (auto-triggered)
 
@@ -7,6 +12,12 @@ run-name: Publish release ${{ github.ref_name }}
 
 on:
   workflow_dispatch:
+    inputs:
+      mark-as-latest:
+        description: 'Mark the GitHub release as latest (phase 1 passes false for -cpu tags: default verification must resolve to the GPU flavor)'
+        required: false
+        default: 'true'
+        type: string
 
 concurrency:
   group: tinfoil-container-release-${{ github.ref_name }}
@@ -26,3 +37,4 @@ jobs:
         with:
           config-file: ${{ github.workspace }}/tinfoil-config.yml
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          mark-as-latest: ${{ inputs.mark-as-latest }}

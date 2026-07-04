@@ -12,7 +12,7 @@ filesystem, no host env, no network beyond the served HTTP socket).
 It speaks the SAME HTTP contract the supervisor already uses for the "vm"
 backend, so the supervisor needs no change:
 
-  POST   /vms   {image, memMb, cpuShare, gpuShare?, name?, appPort?}
+  POST   /vms   {image, cpuShare, gpuShare?, gpuTflops?, cpuTflops?, name?, appPort?}
                  -> 201 {id, status, endpoint, hostPort, sshHostPort, ...}
   DELETE /vms/:id        -> {id, deleted: true}
   GET    /vms/:id | /vms | /health | /capacity | /catalog | /debug/env
@@ -61,15 +61,16 @@ PORT_LO      = int(os.environ.get("WASM_PORT_LO", "20000"))
 PORT_HI      = int(os.environ.get("WASM_PORT_HI", "40000"))
 NODE_VCPUS   = int(os.environ.get("NODE_VCPUS", "16"))
 NODE_RAM_GB  = int(os.environ.get("NODE_RAM_GB", "64"))
-# Does this node have a GPU attached? Catalog apps that declare `gpu: true`
-# need one and are refused at launch on CPU-only nodes (tinfoil-config.cpu.yml
-# sets NODE_HAS_GPU=0). Apps without the flag are CPU-only and run anywhere the
-# partition rule sends them.
+# Does this node have a GPU attached? Catalog apps that declare a GPU need
+# (vram_mb or gpu_gflops > 0) are refused at launch on CPU-only nodes
+# (enclaves/cpu/tinfoil-config.yml sets NODE_HAS_GPU=0). Apps without a GPU
+# need are CPU-only and run anywhere the routing sends them.
 NODE_HAS_GPU = os.environ.get("NODE_HAS_GPU", "0").lower() in ("1", "true", "on")
-# Apps specify EXACT resources: the request's memMb is the guest linear-memory
-# ceiling (wasmtime -W max-memory-size), and the cpuShare admission unit is
-# CALCULATED from it (memMb / node RAM) by the supervisor. When only a share
-# arrives (legacy caller), the cap is derived back from it: share × NODE_RAM_GB.
+# Deployments buy SHARES: cpuShare is this manager's admission unit and sets
+# the guest linear-memory ceiling (wasmtime -W max-memory-size = cpuShare ×
+# NODE_RAM_GB). The app's catalog specs (mem_mb etc.) only set the minimum
+# share, so the cap is always >= what the app declared. Direct callers may
+# still pass an explicit memMb to cap lower.
 MIN_MEM_MB   = int(os.environ.get("WASM_APP_MIN_MEM_MB", "64"))
 READY_SECS   = float(os.environ.get("WASM_READY_TIMEOUT", "20"))
 MOCK         = os.environ.get("WASM_MOCK", "") not in ("", "0", "false")
@@ -358,8 +359,8 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
     pspec = pspec or _parse_ports([])
     if storage_mb is None:
         storage_mb = DEF_STORAGE_MB
-    # the guest memory ceiling is the EXACT memMb asked for; when only a share
-    # arrived, derive the cap back from it (share × node RAM)
+    # the guest memory ceiling is the deployment's slice of the node's RAM
+    # (cpuShare × NODE_RAM_GB); an explicit memMb (direct callers) caps lower
     if not mem_mb or mem_mb <= 0:
         mem_mb = int(cpu_share * NODE_RAM_GB * 1024)
     mem_mb = max(MIN_MEM_MB, int(mem_mb))
@@ -667,11 +668,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         app_ref = b.get("image") or b.get("app")
         if not app_ref:
             return self._json(400, {"error": "missing app reference (image)"})
-        # exact resources in, shares calculated: memMb is the exact guest memory
-        # cap; cpuShare (the admission unit; "share" is the legacy alias) is
-        # derived from it by the supervisor — or here, when only memMb arrives.
-        # gpuShare rides along for GPU catalog apps (the card pool itself is the
-        # supervisor's allocator).
+        # deployments buy shares: cpuShare (the admission unit; "share" is the
+        # legacy alias) sets the memory cap; gpuShare rides along for GPU
+        # catalog apps (the card pool itself is the supervisor's allocator).
+        # The app's catalog specs set minimums, checked below.
         def _share(*keys, default=0.0):
             for k in keys:
                 if b.get(k) is not None:
