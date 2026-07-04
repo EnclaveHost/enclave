@@ -3,15 +3,15 @@
 # file that ships them, so no flavor/config drifts after a redeploy.
 #
 # The deploy scripts each wire their own primary target (deploy-registry /
-# -nanpay / -deployments write Cloud Provider-config.yml; deploy-app-catalog writes
-# site/index.html) but none of them touch Cloud Provider-config.cpu.yml, and the
+# -nanpay / -deployments write enclaves/gpu/Cloud Provider-config.yml; deploy-app-catalog
+# writes site/index.html) but none of them touch the CPU flavor's config, and the
 # catalog address is never copied into the enclave configs. This script reads
 # the authoritative values from those primary targets and rewrites BOTH
 # Cloud Provider configs. Idempotent; safe to run any time from anywhere in the repo.
 set -euo pipefail
 REPO="$(git rev-parse --show-toplevel)"
-GPU="$REPO/Cloud Provider-config.yml"
-CPU="$REPO/Cloud Provider-config.cpu.yml"
+GPU="$REPO/enclaves/gpu/Cloud Provider-config.yml"
+CPU="$REPO/enclaves/cpu/Cloud Provider-config.yml"
 SITE="$REPO/site/index.html"
 ADDR='0x[0-9a-fA-F]{40}'
 

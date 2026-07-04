@@ -538,7 +538,7 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="8.5" y="8.5" width="7" height="7" rx="1"/><path d="M9 4V2M15 4V2M9 22v-2M15 22v-2M4 9H2M4 15H2M22 9h-2M22 15h-2"/></svg></div>
         <span class="tag">h200</span>
         <h3>Real GPUs</h3>
-        <p>Full H200s in NVIDIA confidential-computing mode, exposed to your Wasm app through a GPU interface. The whole GPU is one attested trust domain (CC disables MIG, so there's no hardware sub-slicing). You name the exact VRAM, RAM, and TFLOPS your app needs; the platform calculates matching GPU and CPU shares. Tenants share the card by time, isolated from each other by a Wasm sandbox and a separate process. <a href="#isolation">How that's enforced →</a></p>
+        <p>Full H200s in NVIDIA confidential-computing mode, exposed to your Wasm app through a GPU interface. The whole GPU is one attested trust domain (CC disables MIG, so there's no hardware sub-slicing). Apps declare exact VRAM, RAM, and TFLOPS specs; you deploy by buying a GPU share and a CPU share, floored at the minimums those specs imply. Tenants share the card by time, isolated from each other by a Wasm sandbox and a separate process. <a href="#isolation">How that's enforced →</a></p>
       </div>
     </div>
   </div>
@@ -593,20 +593,12 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
           <div class="dim" id="accessNote" style="margin-top:7px;font-family:var(--font-mono);font-size:.68rem;line-height:1.5;"></div>
         </div>
         <div class="field">
-          <label for="cfgVram">VRAM <span class="dim" id="vramUnit">(GB of one card · 0 = no VRAM ask)</span> <span class="dim" id="vramCap">· checking live capacity…</span></label>
-          <input type="number" id="cfgVram" value="35" min="0" max="141" step="1" />
+          <label for="cfgGpuShare">GPU/VRAM share <span class="dim" id="gpuShareUnit">(% of one card · 0 = CPU-only app)</span> <span class="dim" id="gpuShareCap">· checking live capacity…</span></label>
+          <input type="number" id="cfgGpuShare" value="25" min="0" max="100" step="1" />
         </div>
         <div class="field">
-          <label for="cfgGpuT">GPU compute <span class="dim" id="gpuTUnit">(TFLOPS · 0 = VRAM-driven · both GPU fields 0 = CPU-only app)</span></label>
-          <input type="number" id="cfgGpuT" value="0" min="0" max="989" step="1" />
-        </div>
-        <div class="field">
-          <label for="cfgMem">Memory <span class="dim" id="memUnit">(MB of RAM · the app's memory cap)</span> <span class="dim" id="memCap"></span></label>
-          <input type="number" id="cfgMem" value="2048" min="1" step="1" />
-        </div>
-        <div class="field">
-          <label for="cfgCpuT">CPU compute <span class="dim" id="cpuTUnit">(TFLOPS · 0 = RAM-driven · shares are calculated from the four asks)</span></label>
-          <input type="number" id="cfgCpuT" value="0" min="0" max="1" step="0.05" />
+          <label for="cfgCpuShare">CPU/RAM share <span class="dim" id="cpuShareUnit">(% of the node · ≤ GPU share for GPU apps)</span> <span class="dim" id="cpuShareCap"></span></label>
+          <input type="number" id="cfgCpuShare" value="5" min="1" max="100" step="1" />
           <div class="tier-readout" id="tierOut"></div>
         </div>
         <div class="field">
@@ -876,24 +868,24 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
     <div class="sec-head">
       <span class="eyebrow">Pricing</span>
       <h2>Metered per second. Paid on-chain.</h2>
-      <p>Name your app's <b>exact resources</b> on four axes: the <b>VRAM</b> (GB) and <b>GPU compute</b> (TFLOPS) it needs on one H200 (both 0 = CPU-only app), and the <b>RAM</b> (MB; also the runtime-enforced memory cap) and <b>CPU compute</b> (TFLOPS) it needs on the node. The platform <b>calculates two shares</b> by dividing your spec by the server's spec (141&nbsp;GB / 989 TFLOPS per card; 64&nbsp;GB / ~1 TFLOPS per node), taking the <b>larger</b> of the memory- and compute-derived share per pool and rounding up to the whole percent - so a compute-hungry app pays for the throughput it occupies even if it needs little memory, and vice versa. A GPU app's derived GPU share must be at least its CPU share - its CPU slice rides on the same node as its card - so a tenant taking a whole card plus 10% of the node leaves 90% of that node free for CPU-only apps. Shares are software caps, not hardware MIG partitions (CC disables MIG). Billed per second on the derived shares, additively: GPU share × the full-card rate ($6/hr) + CPU share × the whole-node rate ($2/hr). You pay USDC up front and it buys runtime by the second; the instance runs until that time is used up, and you top up to extend it. No balance is held and nothing is custodied.</p>
+      <p>Deploying is <b>two dials</b>: a <b>GPU/VRAM share</b> (0-100% of one H200 - VRAM and compute move together; 0% = CPU-only app) and a <b>CPU/RAM share</b> (0-100% of the node's vCPU+RAM; your app's memory cap is that slice of the node's RAM). The app's <b>exact specs</b> - the VRAM, TFLOPS, and RAM its publisher declared in the catalog - set the <b>minimums</b> the dials allow: each pool's floor is the spec divided by the server's spec (141&nbsp;GB / 989 TFLOPS per card; 64&nbsp;GB / ~1 TFLOPS per node), taking the larger of the memory and compute axes and rounding up to the whole percent - so a compute-hungry app can't be deployed on a sliver of a card even if it needs little memory. A GPU app's GPU share must be at least its CPU share - its CPU slice rides on the same node as its card - so a tenant buying 100% of the GPU and 10% of the CPU leaves 90% of that node free for CPU-only apps. Shares are software caps, not hardware MIG partitions (CC disables MIG). Billed per second, additively: GPU share × the full-card rate ($6/hr) + CPU share × the whole-node rate ($2/hr). You pay USDC up front and it buys runtime by the second; the instance runs until that time is used up, and you top up to extend it. No balance is held and nothing is custodied.</p>
     </div>
     <div class="mig-table-wrap">
       <div class="mig-scroll">
       <table class="mig-table">
         <thead>
-          <tr><th>Example</th><th>GPU asked (VRAM / TFLOPS)</th><th>CPU asked (RAM / TFLOPS)</th><th>Derived shares</th><th>Per hour</th><th>Per second</th></tr>
+          <tr><th>Example</th><th>GPU share</th><th>CPU share</th><th>What the shares grant</th><th>Per hour</th><th>Per second</th></tr>
         </thead>
         <tbody>
-          <tr class="full"><td>CPU-only</td><td>0 / 0</td><td>6,553 MB / 0</td><td>0% GPU · 10% CPU</td><td>$0.20</td><td>$0.0000556</td></tr>
-          <tr class="full"><td>Slice</td><td>14 GB / 0</td><td>3,276 MB / 0</td><td>10% GPU · 5% CPU</td><td>$0.70</td><td>$0.0001945</td></tr>
-          <tr class="full"><td>Quarter</td><td>35 GB / 0</td><td>3,276 MB / 0</td><td>25% GPU · 5% CPU</td><td>$1.60</td><td>$0.0004445</td></tr>
-          <tr class="full"><td>Compute-bound</td><td>2 GB / 494 TF</td><td>2,048 MB / 0</td><td>50% GPU · 4% CPU</td><td>$3.08</td><td>$0.0008556</td></tr>
-          <tr class="full"><td>Full GPU</td><td>141 GB / 0</td><td>6,553 MB / 0</td><td>100% GPU · 10% CPU</td><td>$6.20</td><td>$0.0017223</td></tr>
+          <tr class="full"><td>CPU-only</td><td>0%</td><td>10%</td><td>no GPU · 6.4 GB RAM / 1.6 vCPU</td><td>$0.20</td><td>$0.0000556</td></tr>
+          <tr class="full"><td>Slice</td><td>10%</td><td>5%</td><td>~14 GB VRAM / ~99 TFLOPS · 3.2 GB RAM</td><td>$0.70</td><td>$0.0001945</td></tr>
+          <tr class="full"><td>Quarter</td><td>25%</td><td>5%</td><td>~35 GB VRAM / ~247 TFLOPS · 3.2 GB RAM</td><td>$1.60</td><td>$0.0004445</td></tr>
+          <tr class="full"><td>Half</td><td>50%</td><td>10%</td><td>~70 GB VRAM / ~495 TFLOPS · 6.4 GB RAM</td><td>$3.20</td><td>$0.0008889</td></tr>
+          <tr class="full"><td>Full GPU</td><td>100%</td><td>10%</td><td>141 GB VRAM / 989 TFLOPS · 6.4 GB RAM</td><td>$6.20</td><td>$0.0017223</td></tr>
         </tbody>
       </table>
       </div>
-      <p class="mig-note">These are example points on a continuous scale, not a fixed menu. The derived shares are software caps dialed in whole-percent steps (each GPU percent is ≈1.4&nbsp;GB of VRAM and ≈9.9 TFLOPS ≈1.3 SMs together; each CPU percent is ≈0.16 vCPU and ≈0.64&nbsp;GB RAM), always rounded UP, so a share is never worth less than the resources you asked for. Each pool's share is the LARGER of its memory and compute ask (see Compute-bound above: 494 TFLOPS costs half the card even though 2&nbsp;GB of VRAM alone would be 2%), so a tenant can't occupy one axis without paying for it - and the two-pool split means unsold CPU on a GPU node is never stranded either - CPU-only apps rent it. A <b>Full GPU</b> deployment (141 GB) is the option to choose when you want no co-tenants on the card at all. It's the only configuration where isolation from other tenants is also hardware-enforced, not just process-level. Tenants on a shared card are isolated from each other at the process level (<a href="#isolation">how →</a>) and always isolated from the operator by confidential computing.</p>
+      <p class="mig-note">These are example points on a continuous scale, not a fixed menu. Shares are software caps dialed in whole-percent steps (each GPU percent is ≈1.4&nbsp;GB of VRAM and ≈9.9 TFLOPS ≈1.3 SMs together; each CPU percent is ≈0.16 vCPU and ≈0.64&nbsp;GB RAM). An app's specs set the dial minimums - e.g. an app declaring 494 TFLOPS can't be deployed below a 50% GPU share even though its 2&nbsp;GB of VRAM alone would only need 2% - so a tenant can't occupy an axis without paying for it, and the two-pool split means unsold CPU on a GPU node is never stranded either - CPU-only apps rent it. A <b>Full GPU</b> deployment (100%) is the option to choose when you want no co-tenants on the card at all. It's the only configuration where isolation from other tenants is also hardware-enforced, not just process-level. Tenants on a shared card are isolated from each other at the process level (<a href="#isolation">how →</a>) and always isolated from the operator by confidential computing.</p>
     </div>
   </div>
 </section>
@@ -974,7 +966,7 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
             <li><b>Filesystem</b>: a single private, writable <code>/data</code> directory (RAM-backed scratch, torn down with the deployment). Nothing else is visible, and paths that escape it (<code>/data/../..</code>) are refused by the runtime. <a href="#docs-data">Chapter 08 →</a></li>
             <li><b>Environment</b>: empty, except <code>NAN_PORTS</code> for service apps. No host env ever leaks in.</li>
             <li><b>Network</b>: none by default beyond the HTTP socket the runtime serves for you. Declaring firewall ports switches the app to service mode with <code>wasi:sockets</code>. <a href="#docs-ports">Chapter 09 →</a></li>
-            <li><b>Memory</b>: the guest's linear memory is capped at exactly the <code>memMb</code> the app asked for, enforced by the runtime. The billing CPU share is calculated from it.</li>
+            <li><b>Memory</b>: the guest's linear memory is capped at the deployment's CPU share of the node's RAM (cpuShare × 64&nbsp;GB), enforced by the runtime - always at least the <code>memMb</code> the app's specs declare, since the specs floor the share.</li>
             <li><b>No host reach</b>: no processes, no exec, no SSH (a Wasm app isn't an OS; there's nothing to SSH into).</li>
           </ul>
           <p>Two kinds of app, one format:</p>
@@ -1061,7 +1053,7 @@ impl wasi::exports::http::incoming_handler::Guest for Component {
           <h4>Step 5: run it locally</h4>
           <div class="code"><div class="codebar"><span class="fn">terminal</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code>wasmtime serve --addr 127.0.0.1:8080 target/wasm32-wasip2/release/hello.wasm
 curl 127.0.0.1:8080/          # → hello from NaN</code></pre></div>
-          <p>Works? Then it works in the enclave. For a full dress rehearsal, add the exact flags the enclave launches with, giving you the same sandbox, memory cap, and <code>/data</code> preopen your deployment will get (the cap is exactly the <code>memMb</code> you publish/deploy with; 128&nbsp;MB shown here):</p>
+          <p>Works? Then it works in the enclave. For a full dress rehearsal, add the exact flags the enclave launches with, giving you the same sandbox, memory cap, and <code>/data</code> preopen your deployment will get (the cap is your deployment's CPU share of the node's RAM - at least your published <code>memMb</code>; the 128&nbsp;MB minimum shown here):</p>
           <div class="code"><div class="codebar"><span class="fn">terminal · enclave parity</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code>mkdir -p scratch
 wasmtime serve -Scli -Shttp -Sp3 \
   --dir scratch::/data \
@@ -1077,7 +1069,7 @@ wasmtime serve -Scli -Shttp -Sp3 \
             <li>Connect your wallet (header button) and hit <b>+ Publish app</b>.</li>
             <li>Pick a <b>slug</b>, your app's stable id, e.g. <code>my-hello</code> (a–z, 0–9, hyphens, ≤ 40 chars). Slugs live in <i>your wallet's namespace</i>: the on-chain app id is <code>keccak256(publisher, slug)</code>, so nobody can squat or write to your lineage. The slug doesn't have to match your crate name.</li>
             <li>Set a <b>version</b> label (e.g. <code>1.0.0</code>) and choose your <code>hello.wasm</code>. The file is validated (component check, ≤ 256 MB), uploaded, pinned to IPFS, and the <b>CID</b> field fills in (or paste a CID you pinned yourself).</li>
-            <li>Set the display name, a description, and the app's <b>exact minimum resources</b> on four axes: the VRAM (GB) and GPU compute (TFLOPS) it needs on one card (both 0 for CPU-only apps, which is most of them), and the RAM (MB - also the runtime-enforced memory cap; the Hello app is fine at 128) and CPU compute (TFLOPS) it needs on the node. The platform calculates the allocation shares from these; deploys asking for less on any axis are refused. Only for service apps, add the <b>firewall ports</b> the version may bind (<a href="#docs-ports">chapter 09</a>). Leave ports empty for a standard web app.</li>
+            <li>Set the display name, a description, and the app's <b>exact minimum resources</b> on four axes: the VRAM (GB) and GPU compute (TFLOPS) it needs on one card (both 0 for CPU-only apps, which is most of them), and the RAM (MB - also the runtime-enforced memory cap; the Hello app is fine at 128) and CPU compute (TFLOPS) it needs on the node. These specs set the MINIMUM shares on the deploy page's two dials (spec ÷ server spec, the larger of the memory and compute axes); deploys below them are refused. Only for service apps, add the <b>firewall ports</b> the version may bind (<a href="#docs-ports">chapter 09</a>). Leave ports empty for a standard web app.</li>
             <li><b>Publish to Base</b>: one transaction, signed by your wallet, attributed on-chain to you.</li>
           </ol>
           <h4>Versioning rules (enforced by the contract)</h4>
@@ -1123,8 +1115,7 @@ const { token }   = await (await fetch(`${API}/auth/login`, {
   headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
   body: JSON.stringify({
     image:     { reference: "ipfs://bafybei…" },   // your published CID, or "hello"
-    resources: { vramGb: 35, gpuTflops: 0,         // exact resources on four axes; shares are calculated
-                 memMb: 2048, cpuTflops: 0 },      // (here: 25% GPU + 4% CPU -> $1.58/hr)
+    resources: { gpuShare: 0.25, cpuShare: 0.05 }, // the two dials; the app's catalog specs set the minimums
     public:    true,                               // anyone may call it (false = owner-token only)
     region:    "auto",
   }),
@@ -1433,12 +1424,12 @@ curl -H "Authorization: Bearer $NAN_TOKEN" \
             <thead><tr><th>limit</th><th>value</th><th>notes</th></tr></thead>
             <tbody>
               <tr><td class="pname">wasm artifact</td><td>≤ 256 MB</td><td>enforced at upload and again at fetch</td></tr>
-              <tr><td class="pname">min resources (vramMb/gpuGflops/memMb/cpuGflops)</td><td>exact MB + GFLOPS, per version</td><td>a deploy asking for less on any axis is refused; shares are calculated from them</td></tr>
+              <tr><td class="pname">app specs (vramMb/gpuGflops/memMb/cpuGflops)</td><td>exact MB + GFLOPS, per version</td><td>set the MINIMUM deploy shares (spec ÷ server spec, larger of memory/compute, ceil to %)</td></tr>
               <tr><td class="pname">memory cap</td><td>= memMb</td><td>exactly what you ask for, runtime-enforced; the CPU share is derived from it</td></tr>
               <tr><td class="pname">/data cap (storage_mb)</td><td>256 MB default · 0 = no /data</td><td>audit sweep kills on breach</td></tr>
               <tr><td class="pname">firewall ports</td><td>≤ 8 entries · labels 1–19999</td><td>8080/8091 reserved · labels &lt; 1024 always remapped</td></tr>
-              <tr><td class="pname">VRAM (vramGb) + GPU compute (gpuTflops)</td><td>0–141 GB · 0–989 TFLOPS of one card</td><td>both 0 = CPU-only · derived GPU share = max of the two axes × $6/hr</td></tr>
-              <tr><td class="pname">RAM (memMb) + CPU compute (cpuTflops)</td><td>1–65536 MB · 0–1 TFLOPS of the node</td><td>derived CPU share = max of the two axes × $2/hr · must not out-share the GPU ask</td></tr>
+              <tr><td class="pname">GPU/VRAM share</td><td>0–100% of one card</td><td>0 = CPU-only · VRAM+compute in proportion · floored at the app's minimum · × $6/hr</td></tr>
+              <tr><td class="pname">CPU/RAM share</td><td>1–100% of the node</td><td>RAM+vCPU in proportion (sets the memory cap) · floored at the app's minimum · ≤ GPU share for GPU apps · × $2/hr</td></tr>
               <tr><td class="pname">readiness window</td><td>~20 s</td><td>first <code>http:</code>/<code>tcp:</code> port must accept, or the deploy fails</td></tr>
               <tr><td class="pname">body writes</td><td>≤ 4096 bytes per call</td><td>chunk larger payloads (<a href="#docs-http">ch. 07</a>)</td></tr>
               <tr><td class="pname">UDP bridge idle</td><td>120 s</td><td>per WebSocket flow</td></tr>
@@ -1460,7 +1451,7 @@ curl -H "Authorization: Bearer $NAN_TOKEN" \
               <tr><td class="pname">502 no_http at /x/{id}</td><td>The app declares only <code>tcp:</code>/<code>udp:</code> ports, so there's no HTTP to proxy. Use the bridge or relay paths (<a href="#docs-tcp">ch. 10</a>–<a href="#docs-udp">11</a>).</td></tr>
               <tr><td class="pname">409 when opening a tcp/udp bridge</td><td>The app hasn't actually bound that port (yet); the bridge refuses until the enclave confirms the bind. Check the deployment logs.</td></tr>
               <tr><td class="pname">state vanishes between requests</td><td>Web apps get a fresh instance per request. Persist in <code>/data</code> (<a href="#docs-data">ch. 08</a>).</td></tr>
-              <tr><td class="pname">runs locally, memory-traps deployed</td><td>Local wasmtime is uncapped unless you pass <code>-W max-memory-size</code>. Test with the parity command (<a href="#docs-hello">ch. 03</a>) at your published <code>memMb</code>.</td></tr>
+              <tr><td class="pname">runs locally, memory-traps deployed</td><td>Local wasmtime is uncapped unless you pass <code>-W max-memory-size</code>. Test with the parity command (<a href="#docs-hello">ch. 03</a>) at your published <code>memMb</code> (the cap at the minimum CPU share).</td></tr>
             </tbody>
           </table></div>
           <h4>Ship checklist</h4>
@@ -1723,7 +1714,7 @@ const SPEC = {
         "operationId": "getPricing",
         "summary": "Rates and billing model",
         "security": [],
-        "description": "The two per-second rates (whole GPU card, whole CPU node) and how exact resources map to a price: the billing shares are calculated from vramGb and memMb, then ratePerSecond = gpuShare x cardRate + cpuShare x nodeRate.",
+        "description": "The two per-second rates (whole GPU card, whole CPU node) and how the two shares a deployment buys map to a price: ratePerSecond = gpuShare x cardRate + cpuShare x nodeRate. The card/node specs let you derive an app's minimum shares from its catalog specs.",
         "responses": {
           "200": {
             "description": "Pricing model.",
@@ -1817,7 +1808,7 @@ const SPEC = {
         ],
         "operationId": "createDeployment",
         "summary": "Create a deployment (awaiting payment)",
-        "description": "Reserves the exact resources asked for (resources.vramGb of one GPU card, resources.memMb of the node's RAM), calculates the two allocation shares from them, and returns a deployment in `awaiting_payment` with a `payment` block. vramGb > 0 needs a GPU enclave, and the derived gpuShare must be >= the derived cpuShare; vramGb 0 (CPU-only) is served by CPU-only enclaves and by GPU enclaves with leftover CPU/RAM. Catalog apps declare exact minimum resources - asking for less is refused (422). The Wasm app is NOT started yet: sign a USDC payment authorization (EIP-3009 ReceiveWithAuthorization) and submit payWithAuthorization(deploymentRef, ...); the enclave sees the payment, launches your app as its own sandboxed worker process (MPS-capped on the confidential GPU when vramGb > 0), and starts the clock. amount(6dp) / ratePerSecondUsdc = seconds of runtime. Unpaid reservations are released after a window. The derived shares are software caps (MPS under NVIDIA CC; CC disables MIG, so splits are arbitrary, not fixed profiles). Catalog apps (ipfs://<cid> references) deploy only after the catalog owner has approved that version on-chain; unapproved or rejected versions return 403 not_approved.",
+        "description": "Reserves the two shares asked for (resources.gpuShare of one GPU card, resources.cpuShare of the node's vCPU+RAM) and returns a deployment in `awaiting_payment` with a `payment` block. The app's exact specs in the catalog set the MINIMUM shares - asking for less is refused (422). gpuShare > 0 needs a GPU enclave and must be >= cpuShare; gpuShare 0 (CPU-only) is served by CPU-only enclaves and by GPU enclaves with leftover CPU/RAM. The Wasm app is NOT started yet: sign a USDC payment authorization (EIP-3009 ReceiveWithAuthorization) and submit payWithAuthorization(deploymentRef, ...); the enclave sees the payment, launches your app as its own sandboxed worker process (MPS-capped on the confidential GPU when gpuShare > 0), and starts the clock. amount(6dp) / ratePerSecondUsdc = seconds of runtime. Unpaid reservations are released after a window. Shares are software caps (MPS under NVIDIA CC; CC disables MIG, so splits are arbitrary, not fixed profiles). Catalog apps (ipfs://<cid> references) deploy only after the catalog owner has approved that version on-chain; unapproved or rejected versions return 403 not_approved.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1860,7 +1851,7 @@ const SPEC = {
             }
           },
           "409": {
-            "description": "No capacity: no single card has that much VRAM free, or the node lacks the RAM.",
+            "description": "No capacity: no single card has that gpuShare free, or the node lacks the cpuShare.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1870,7 +1861,7 @@ const SPEC = {
             }
           },
           "422": {
-            "description": "Invalid spec (e.g. a resource out of range, too much RAM for the VRAM asked (derived gpuShare < cpuShare), less than the app's declared minimum resources, or a share field - shares are calculated, not specified).",
+            "description": "Invalid spec (e.g. a share out of range, below the app's minimum shares, gpuShare < cpuShare, or an exact-resource field - apps declare those in the catalog; deployments buy shares).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2235,7 +2226,7 @@ const SPEC = {
           },
           "message": {
             "type": "string",
-            "example": "resources.memMb must be in [1, 65536]."
+            "example": "resources.cpuShare must be in (0, 1]."
           }
         }
       },
@@ -2464,50 +2455,38 @@ const SPEC = {
       "PricingExample": {
         "type": "object",
         "properties": {
-          "vramGb": {
-            "type": "number",
-            "description": "The exact VRAM asked for in this example (0 = CPU-only).",
-            "example": 35
-          },
-          "memMb": {
-            "type": "integer",
-            "description": "The exact RAM asked for in this example.",
-            "example": 3277
-          },
-          "gpuTflops": {
-            "type": "number",
-            "description": "The exact GPU compute asked for in this example (TFLOPS).",
-            "example": 0
-          },
-          "cpuTflops": {
-            "type": "number",
-            "description": "The exact CPU compute asked for in this example (TFLOPS).",
-            "example": 0
-          },
           "gpuShare": {
             "type": "number",
-            "description": "Calculated: max(vramGb / cardVramGb, gpuTflops / cardTflops), rounded up to a whole percent.",
             "example": 0.25
           },
           "cpuShare": {
             "type": "number",
-            "description": "Calculated: max(memMb / node RAM, cpuTflops / nodeTflops), rounded up to a whole percent.",
             "example": 0.05
           },
-          "vramCapGb": {
+          "vramGb": {
             "type": "number",
-            "description": "The VRAM cap the derived share actually grants (>= vramGb). GPU examples only.",
-            "example": 36
+            "description": "What the GPU share grants on this card (gpuShare x cardVramGb). GPU examples only.",
+            "example": 35.3
           },
-          "tflopsCap": {
+          "gpuTflops": {
             "type": "number",
-            "description": "The GPU compute the derived share actually grants (>= gpuTflops). GPU examples only.",
+            "description": "What the GPU share grants in compute (gpuShare x cardTflops). GPU examples only.",
             "example": 247.3
+          },
+          "ramGb": {
+            "type": "number",
+            "description": "What the CPU share grants in RAM (cpuShare x nodeRamGb).",
+            "example": 3.2
           },
           "vcpus": {
             "type": "number",
-            "description": "Derived vCPUs (cpuShare × node vCPUs).",
+            "description": "What the CPU share grants in vCPUs.",
             "example": 0.8
+          },
+          "cpuTflops": {
+            "type": "number",
+            "description": "What the CPU share grants in compute.",
+            "example": 0.05
           },
           "ratePerSecondUsdc": {
             "type": "string",
@@ -2619,7 +2598,7 @@ const SPEC = {
           },
           "formula": {
             "type": "string",
-            "example": "gpuShare = ceilPct(max(vramGb / cardVramGb, gpuTflops / cardTflops)); cpuShare = ceilPct(max(memMb / (nodeRamGb x 1024), cpuTflops / nodeTflops)); ratePerSecondUsdc = gpuShare x wholeCardPerSecond + cpuShare x wholeNodePerSecond"
+            "example": "ratePerSecondUsdc = gpuShare x wholeCardPerSecond + cpuShare x wholeNodePerSecond; minGpuShare = ceilPct(max(vramGb / cardVramGb, gpuTflops / cardTflops)); minCpuShare = ceilPct(max(memMb / nodeRam, cpuTflops / nodeTflops))"
           },
           "examples": {
             "type": "array",
@@ -2835,31 +2814,21 @@ const SPEC = {
       },
       "ResourceSpec": {
         "type": "object",
-        "description": "EXACT resources on four axes; the two allocation/billing shares are CALCULATED by dividing the app's spec by the server's spec. GPU axes: vramGb (VRAM of ONE card, GB) and gpuTflops (GPU compute, TFLOPS) - both 0 or absent = CPU-only app. CPU axes: memMb (RAM, MB; the wasm guest is capped at exactly memMb) and cpuTflops (CPU compute, TFLOPS). Each share is the LARGER of its memory- and compute-derived share, rounded up to the whole-percent grain: gpuShare = max(vramGb / cardVramGb, gpuTflops / cardTflops), cpuShare = max(memMb / node RAM, cpuTflops / nodeTflops). A GPU app's derived gpuShare must be >= its derived cpuShare (its CPU slice rides on the same node as its card). Routing: a GPU ask needs a GPU enclave; CPU-only apps go to CPU-only enclaves first, and to GPU enclaves with leftover CPU/RAM (a tenant taking a whole card + 10% of the node leaves 90% for CPU-only apps). Share fields (share, gpuShare, cpuShare, computeShare) are refused with 422 - shares are an output, not an input.",
+        "description": "The TWO dials a deployment buys: gpuShare (0 to 1 of ONE GPU card - VRAM and compute move together; 0 = CPU-only app) and cpuShare (0 to 1 of the node's vCPU+RAM; also sets the wasm guest's memory cap: cpuShare x node RAM). The app's exact specs in the catalog (vramMb/gpuGflops/memMb/cpuGflops) set the MINIMUM shares: each pool's minimum is the spec divided by this server's spec (the larger of the memory and compute axes, rounded up to the whole percent; a GPU app's CPU minimum also lifts its GPU minimum). Requests below either minimum are refused (422). A GPU app's gpuShare must be >= its cpuShare. Routing: gpuShare > 0 needs a GPU enclave; CPU-only apps go to CPU-only enclaves first, and to GPU enclaves with leftover CPU/RAM (a tenant buying 100% GPU + 10% CPU leaves 90% of that node for CPU-only apps). Exact-resource fields are refused here - apps declare those in the catalog, deployments buy shares.",
         "properties": {
-          "vramGb": {
+          "gpuShare": {
             "type": "number",
             "minimum": 0,
-            "description": "Exact VRAM of one GPU card, in GB. 0 = no VRAM ask. Defaults to the app's declared requirement (catalog apps) or 0.",
-            "example": 35
+            "maximum": 1,
+            "description": "Share of one GPU card (VRAM + compute), 0 to 1. 0 = CPU-only app. Must be >= the app's minimum and >= cpuShare when > 0. Dialed in whole percent.",
+            "example": 0.25
           },
-          "gpuTflops": {
+          "cpuShare": {
             "type": "number",
-            "minimum": 0,
-            "description": "Exact GPU compute, in TFLOPS (H200 card = 989). 0 = no GPU-compute ask; both GPU axes 0 = CPU-only app. Defaults to the app's declared requirement or 0.",
-            "example": 250
-          },
-          "memMb": {
-            "type": "integer",
-            "minimum": 1,
-            "description": "Exact RAM in MB (also the wasm guest's memory cap). Defaults to the app's declared requirement (catalog apps), else 5% of the node.",
-            "example": 2048
-          },
-          "cpuTflops": {
-            "type": "number",
-            "minimum": 0,
-            "description": "Exact CPU compute, in TFLOPS (16-vCPU node = 1). 0 = RAM-driven. Defaults to the app's declared requirement or 0.",
-            "example": 0.1
+            "minimum": 0.01,
+            "maximum": 1,
+            "description": "Share of the node's vCPU+RAM, 0 to 1. Must be >= the app's minimum. Defaults to the app's minimum (catalog apps) or 0.05. Dialed in whole percent.",
+            "example": 0.05
           }
         }
       },
@@ -2958,10 +2927,8 @@ const SPEC = {
             "reference": "hello"
           },
           "resources": {
-            "vramGb": 35,
-            "gpuTflops": 0,
-            "memMb": 2048,
-            "cpuTflops": 0
+            "gpuShare": 0.25,
+            "cpuShare": 0.05
           },
           "public": true,
           "attestationPolicy": {
@@ -2992,31 +2959,15 @@ const SPEC = {
           },
           "resources": {
             "type": "object",
-            "description": "The exact resources asked for on four axes, plus the shares calculated from them.",
+            "description": "The two shares this deployment bought (its app's catalog specs only set the minimums).",
             "properties": {
-              "vramGb": {
-                "type": "number",
-                "description": "Exact VRAM asked for (GB)."
-              },
-              "gpuTflops": {
-                "type": "number",
-                "description": "Exact GPU compute asked for (TFLOPS). Both GPU axes 0 = CPU-only app."
-              },
-              "memMb": {
-                "type": "integer",
-                "description": "Exact RAM asked for (MB; also the wasm guest's memory cap)."
-              },
-              "cpuTflops": {
-                "type": "number",
-                "description": "Exact CPU compute asked for (TFLOPS)."
-              },
               "gpuShare": {
                 "type": "number",
-                "description": "Derived: the slice of one GPU card this deployment holds - max(vramGb / cardVramGb, gpuTflops / cardTflops), rounded up to a whole percent."
+                "description": "The slice of one GPU card held (0 = CPU-only app)."
               },
               "cpuShare": {
                 "type": "number",
-                "description": "Derived: the slice of the node this deployment holds - max(memMb / node RAM, cpuTflops / nodeTflops), rounded up to a whole percent."
+                "description": "The slice of the node's vCPU+RAM held; the wasm guest's memory cap is cpuShare x node RAM."
               },
               "cardId": {
                 "type": "integer",
@@ -3878,7 +3829,7 @@ function initTicker() {
 
 const STEPS = [
   { t: "Sign in with your wallet", d: "Prove control of your address, with no email and no password.", method: "POST", path: "/auth/login" },
-  { t: "Create a deployment",      d: "Pick a Wasm app and its exact VRAM + GPU TFLOPS + RAM + CPU TFLOPS (GPU axes 0 = CPU-only); shares are calculated. Get back a payment reference.", method: "POST", path: "/deployments" },
+  { t: "Create a deployment",      d: "Pick a Wasm app and two shares - GPU % and CPU % (the app's specs set the minimums). Get back a payment reference.", method: "POST", path: "/deployments" },
   { t: "Pay for runtime",          d: "Sign a USDC authorization (EIP-3009) and submit one payWithAuthorization tx; the enclave provisions and starts the clock. Pay again to extend.", method: "POST", path: "/deployments/{id}/topup" },
   { t: "Verify the enclave",       d: "Pull the TDX quote + GPU report and check them yourself.", method: "GET",  path: "/deployments/{id}/attestation" },
   { t: "Stop (or let it expire)",  d: "Tear down and release the share. No held balance to reclaim.", method: "DELETE", path: "/deployments/{id}" }
@@ -4247,24 +4198,28 @@ const NODE_RAM_GB = 64;             // host RAM GB on the enclave (confirm vs re
 const MIN_COMPUTE_PCT = 1;    // shares are dialed in whole percent (CUDA MPS grain); 1% floor, no fixed 1/7
 const CARD_TFLOPS = 989;      // GPU compute per card (H200 FP16 dense)
 const NODE_TFLOPS = 1;        // CPU compute per node (~16 vCPU)
-// Apps specify EXACT resources on four axes - VRAM (GB) + GPU compute (TFLOPS)
-// of one card (both 0 = CPU-only app), and RAM (MB; also the app's memory cap)
-// + CPU compute (TFLOPS) of the node - and the two billing shares are
-// CALCULATED by dividing the app's spec by the server's spec, each the LARGER
-// of its memory- and compute-derived share, rounded up to the whole percent.
-// Invariant: derived gpuShare >= derived cpuShare for GPU apps (the CPU slice
-// rides on the same node as the card). Rate = gpuShare x card rate + cpuShare
-// x node rate.
-function resRates(vramGb, gpuTflops, memMb, cpuTflops){
-  const pctCeil = (x) => Math.min(100, Math.max(MIN_COMPUTE_PCT, Math.ceil(x * 100 - 1e-9)));
-  const gpct = (vramGb > 0 || gpuTflops > 0) ? pctCeil(Math.max(vramGb / CARD_GB, gpuTflops / CARD_TFLOPS)) : 0;
-  const cpct = pctCeil(Math.max(memMb / (NODE_RAM_GB * 1024), cpuTflops / NODE_TFLOPS));
-  return { rate: (gpct / 100) * FULL_RATE + (cpct / 100) * CPU_NODE_RATE, gpuPct: gpct, cpuPct: cpct,
-           gpuShare: gpct / 100, cpuShare: cpct / 100,
-           vramCapGb: Math.ceil((gpct / 100) * CARD_GB), tflopsCap: Math.round((gpct / 100) * CARD_TFLOPS),
-           vcpus: (cpct / 100) * NODE_VCPUS };
+// The deploy page has exactly TWO dials: a GPU/VRAM share and a CPU/RAM share,
+// 0-100% each. The app's exact specs (VRAM, TFLOPS, RAM in the catalog) only
+// set the MINIMUM shares those dials allow: spec / server spec, the larger of
+// the memory and compute axes per pool, rounded up to the whole percent. A GPU
+// app's CPU minimum also lifts its GPU minimum (a GPU app's gpuShare must be
+// >= its cpuShare). Rate = gpuShare x card rate + cpuShare x node rate.
+const pctCeil = (x) => Math.min(100, Math.max(MIN_COMPUTE_PCT, Math.ceil(x * 100 - 1e-9)));
+function minPctsOf(v){                // v: a catalog version's exact specs (zeros = no minimum)
+  const vramMb = Number(v && v.vramMb || 0), gpuGf = Number(v && v.gpuGflops || 0);
+  const memMb = Number(v && v.memMb || 0), cpuGf = Number(v && v.cpuGflops || 0);
+  const cpu = (memMb > 0 || cpuGf > 0) ? pctCeil(Math.max(memMb / (NODE_RAM_GB * 1024), cpuGf / 1000 / NODE_TFLOPS)) : 1;
+  const gpu0 = (vramMb > 0 || gpuGf > 0) ? pctCeil(Math.max(vramMb / 1024 / CARD_GB, gpuGf / 1000 / CARD_TFLOPS)) : 0;
+  return { gpuPct: gpu0 > 0 ? Math.max(gpu0, cpu) : 0, cpuPct: cpu };
 }
-const dep = { vramGb: 35, gpuTflops: 0, memMb: 2048, cpuTflops: 0, asset: "USDC", public: true, gpuEnclave: true };  // gpuEnclave: from /availability (gpu:false = CPU-only enclave)
+function shareRates(gpuPct, cpuPct){  // what the two dials buy on this server spec
+  const g = Math.min(100, Math.max(0, Math.round(gpuPct)));
+  const c = Math.min(100, Math.max(MIN_COMPUTE_PCT, Math.round(cpuPct)));
+  return { rate: (g / 100) * FULL_RATE + (c / 100) * CPU_NODE_RATE, gpuPct: g, cpuPct: c,
+           vramGb: (g / 100) * CARD_GB, tflops: (g / 100) * CARD_TFLOPS,
+           ramGb: (c / 100) * NODE_RAM_GB, vcpus: (c / 100) * NODE_VCPUS };
+}
+const dep = { gpuPct: 25, cpuPct: 5, minGpuPct: 0, minCpuPct: 1, asset: "USDC", public: true, gpuEnclave: true };  // gpuEnclave: from /availability (gpu:false = CPU-only enclave)
 function renderAccessNote(){
   const el = $("#accessNote"); if (!el) return;
   el.innerHTML = dep.public
@@ -4290,6 +4245,7 @@ function fmtDur(s){
    through. Returns {reference, label?, error?, pending?}. */
 const REF_CACHE = {};    // friendly "slug:version" -> "ipfs://<cid>" (filled by Use-in-Deploy + lookups)
 const PORTS_CACHE = {};  // friendly "slug:version" -> that version's firewall CSV (defaults the deploy)
+const MINS_CACHE = {};   // friendly "slug:version" -> minimum dial positions { gpuPct, cpuPct } from its specs
 function looksFriendly(s){ return s.includes(":") && !s.startsWith("ipfs://"); }
 function resolveAppRef(input){
   input = (input || "").trim();
@@ -4314,7 +4270,16 @@ function resolveAppRef(input){
     return { reference: input, label: input, error: "'" + slug + ":" + version + "' " + (v.approval === APPROVAL.rejected ? "was rejected" : "isn’t approved yet") + " by the catalog owner; the enclave refuses to deploy it." };
   REF_CACHE[input] = "ipfs://" + v.cid;
   PORTS_CACHE[input] = v.ports || "";
-  return { reference: REF_CACHE[input], label: input };
+  MINS_CACHE[input] = minPctsOf(v);   // the version's specs -> the dials' floors
+  return { reference: REF_CACHE[input], label: input, mins: MINS_CACHE[input] };
+}
+// The selected app's minimum shares for the two dials. Friendly slug:version
+// refs resolve to their catalog specs; baked-in ids and raw CIDs we can't see
+// specs for get the open floor (0% GPU / 1% CPU) - the enclave still enforces
+// the real minimums server-side.
+function currentMins(){
+  const input = ($("#cfgImage") ? $("#cfgImage").value : "").trim();
+  return MINS_CACHE[input] || { gpuPct: 0, cpuPct: 1 };
 }
 function deployBody(){
   // `image.reference` is the Wasm app to run: a baked-in attested catalog id, or an
@@ -4325,13 +4290,11 @@ function deployBody(){
   // firewall: ports the app may bind (from the catalog via Use-in-Deploy; editable)
   const fw = ($("#cfgPorts") && $("#cfgPorts").value || "").split(",").map(x => x.trim().toLowerCase()).filter(Boolean);
   if (fw.length && !(fw.length === 1 && fw[0] === "http")) body.firewall = { ports: fw };
-  const vg = dep.gpuEnclave ? Math.min(CARD_GB, Math.max(0, dep.vramGb || 0)) : 0;
-  const gt = dep.gpuEnclave ? Math.min(CARD_TFLOPS, Math.max(0, dep.gpuTflops || 0)) : 0;
-  const mm = Math.max(1, Math.round(dep.memMb || 1));
-  const ct = Math.min(NODE_TFLOPS, Math.max(0, dep.cpuTflops || 0));
-  body.resources = { vramGb: vg, gpuTflops: gt, memMb: mm, cpuTflops: ct };   // exact resources; shares are calculated server-side
+  const gp = dep.gpuEnclave ? Math.min(1, Math.max(0, Math.round(dep.gpuPct) / 100)) : 0;
+  const cp = Math.min(1, Math.max(0.01, Math.round(dep.cpuPct) / 100));
+  body.resources = { gpuShare: gp, cpuShare: cp };   // the two dials; the app's specs set the minimums
   // GPU attestation only exists when the deployment holds a card slice.
-  if ((vg > 0 || gt > 0) && dep.gpuEnclave) body.attestationPolicy = { requireGpuAttestation: true };
+  if (gp > 0 && dep.gpuEnclave) body.attestationPolicy = { requireGpuAttestation: true };
   body.region = "auto";
   return body;
 }
@@ -4360,29 +4323,33 @@ function renderDeploy(){
   $("#outFetch").innerHTML = hlCode(deployFetch(body));
   $("#outCurl").innerHTML = hlCode(deployCurl(body));
   const budget = parseFloat($("#cfgBudget").value) || 0;
-  const vramGb = dep.gpuEnclave ? (dep.vramGb || 0) : 0;
-  const gpuT = dep.gpuEnclave ? (dep.gpuTflops || 0) : 0;
-  const memMb = dep.memMb || 0;
-  const cpuT = dep.cpuTflops || 0;
+  // the app's specs set the dials' floors; reflect them on the inputs live
+  const mins = currentMins();
+  dep.minGpuPct = mins.gpuPct; dep.minCpuPct = mins.cpuPct;
+  const gIn = $("#cfgGpuShare"); if (gIn) gIn.min = String(dep.gpuEnclave ? mins.gpuPct : 0);
+  const cIn = $("#cfgCpuShare"); if (cIn) cIn.min = String(mins.cpuPct);
+  const gpuPct = dep.gpuEnclave ? (dep.gpuPct || 0) : 0;
+  const cpuPct = dep.cpuPct || 0;
   let rate, readout;
-  if (vramGb > CARD_GB || gpuT > CARD_TFLOPS || memMb > NODE_RAM_GB * 1024 || cpuT > NODE_TFLOPS) {
-    rate = 0; readout = "✕ exceeds the whole " + ((vramGb > CARD_GB || gpuT > CARD_TFLOPS)
-      ? "card (" + CARD_GB + " GB / " + CARD_TFLOPS + " TFLOPS)"
-      : "node (" + NODE_RAM_GB * 1024 + " MB / " + NODE_TFLOPS + " TFLOPS)");
+  if (gpuPct > 100 || cpuPct > 100) {
+    rate = 0; readout = "✕ a share exceeds 100% of the " + (gpuPct > 100 ? "card" : "node");
   }
-  else if (memMb < 1) { rate = 0; readout = "✕ memory must be at least 1 MB"; }
+  else if (dep.gpuEnclave && gpuPct < mins.gpuPct) {
+    rate = 0; readout = "✕ this app needs at least a " + mins.gpuPct + "% GPU share (its specs: that much VRAM/compute on a " + CARD_GB + " GB / " + CARD_TFLOPS + " TFLOPS card)";
+  }
+  else if (cpuPct < mins.cpuPct) {
+    rate = 0; readout = "✕ this app needs at least a " + mins.cpuPct + "% CPU share (its specs: that much RAM/compute on a " + NODE_RAM_GB + " GB / " + NODE_TFLOPS + " TFLOPS node)";
+  }
+  else if (gpuPct > 0 && Math.round(cpuPct) > Math.round(gpuPct)) {
+    rate = 0; readout = "✕ CPU share (" + Math.round(cpuPct) + "%) can't exceed GPU share (" + Math.round(gpuPct) + "%) - a GPU app's CPU slice rides on its card's node";
+  }
   else {
-    const g = resRates(vramGb, gpuT, memMb, cpuT); rate = g.rate;
-    if (g.gpuPct > 0 && g.cpuPct > g.gpuPct) {
-      rate = 0; readout = "✕ the CPU ask derives a " + g.cpuPct + "% share, above the GPU ask's "
-        + g.gpuPct + "% (a GPU app's CPU slice rides on its card's node) - ask for less RAM/CPU compute or more GPU";
-    } else {
-      readout = (g.gpuPct > 0
-        ? "→ GPU ask = " + g.gpuPct + "% of card (≈" + g.vramCapGb + " GB / ≈" + g.tflopsCap + " TFLOPS granted) · "
-        : "→ CPU-only · ")
-        + "CPU ask = " + g.cpuPct + "% of node (" + memMb + " MB · ≈" + fmtNum(g.vcpus) + " vCPU) · $"
-        + (rate * 3600).toFixed(2) + "/hr";
-    }
+    const g = shareRates(gpuPct, cpuPct); rate = g.rate;
+    readout = (g.gpuPct > 0
+      ? "→ " + g.gpuPct + "% of card ≈ " + g.vramGb.toFixed(0) + " GB VRAM / " + Math.round(g.tflops) + " TFLOPS · "
+      : "→ CPU-only · ")
+      + g.cpuPct + "% of node ≈ " + fmtNum(g.ramGb) + " GB RAM / " + fmtNum(g.vcpus) + " vCPU · $"
+      + (rate * 3600).toFixed(2) + "/hr";
   }
   const t = $("#tierOut"); if (t) t.textContent = readout;
   $("#estRuntime").textContent = rate > 0 ? fmtDur(budget / rate) : "\u2013";
@@ -4622,11 +4589,9 @@ async function pollDeployment(id, term){
 function shortImg(s){ if (!s) return ""; return s.length > 44 ? s.slice(0, 42) + "\u2026" : s; }
 function encTier(d){
   const r = d.resources || {};
-  const v = r.vramGb || 0, m = r.memMb || 0;
-  if (v > 0) return v + " GB VRAM · " + (m ? m + " MB RAM" : "");
-  if (m) return m + " MB RAM";
-  const c = r.cpuShare != null ? r.cpuShare : (r.share || 0);   // older records: shares only
-  return (r.gpuShare > 0 ? Math.round(r.gpuShare * 100) + "% GPU · " : "") + (c ? Math.round(c * 100) + "% CPU" : "CPU");
+  const g = r.gpuShare || 0, c = r.cpuShare != null ? r.cpuShare : (r.share || 0);
+  if (g > 0) return Math.round(g * 100) + "% GPU · " + Math.round(c * 100) + "% CPU";
+  return c ? (Math.round(c * 100) + "% CPU") : "CPU";
 }
 
 async function refreshEnclaves(opts){
@@ -4758,45 +4723,39 @@ function stopEncPoll(){ if (encPoll){ clearInterval(encPoll); encPoll = null; } 
 
 let availPoll = null;
 async function refreshAvailability(){
-  const vin = $("#cfgVram"), capV = $("#vramCap");
-  const min = $("#cfgMem"), capM = $("#memCap");
-  if (!vin) return;
+  const gIn = $("#cfgGpuShare"), capG = $("#gpuShareCap");
+  const cIn = $("#cfgCpuShare"), capC = $("#cpuShareCap");
+  if (!gIn) return;
   try {
     const a = await Nan.getAvailability();
     dep.gpuEnclave = a.gpu !== false;               // gpu:false = CPU-only enclave (older enclaves omit the field)
-    const unitV = $("#vramUnit");
-    if (unitV) unitV.textContent = dep.gpuEnclave ? "(GB of one card · 0 = CPU-only app)" : "(CPU-only enclave · no GPU here)";
+    const unitG = $("#gpuShareUnit");
+    if (unitG) unitG.textContent = dep.gpuEnclave ? "(% of one card · 0 = CPU-only app)" : "(CPU-only enclave · no GPU here)";
     const cardGb = (a.cardVramGb != null) ? a.cardVramGb : CARD_GB;
+    const cardTf = (a.cardTflops != null) ? a.cardTflops : CARD_TFLOPS;
     const nodeRamGb = (a.nodeRamGb != null) ? a.nodeRamGb : NODE_RAM_GB;
-    // both pools, live, in exact units: free VRAM on the biggest single-card
-    // slice, and free RAM in the node's leftover pool; maxShare = older enclaves
+    // both pools, live: the largest free slice of one card and the node's
+    // leftover vCPU+RAM pool; maxShare = older enclaves
     const gpuFree = (a.gpuShareFree != null ? a.gpuShareFree : (a.gpu !== false ? (a.maxShare || 0) : 0));
     const cpuFree = (a.cpuShareFree != null ? a.cpuShareFree : (a.gpu === false ? (a.maxShare || 0) : 1));
-    const vramFreeGb = Math.floor(gpuFree * cardGb);
-    const ramFreeMb = Math.floor(cpuFree * nodeRamGb * 1024);
-    const gin = $("#cfgGpuT");
-    const cardTf = (a.cardTflops != null) ? a.cardTflops : CARD_TFLOPS;
-    const gpuTfFree = Math.floor(gpuFree * cardTf);
+    const gpuFreePct = Math.floor(gpuFree * 100), cpuFreePct = Math.floor(cpuFree * 100);
     if (dep.gpuEnclave) {
-      vin.max = String(Math.max(0, vramFreeGb));
-      if (gin) gin.max = String(Math.max(0, gpuTfFree));
-      if (capV) capV.textContent = "· " + vramFreeGb + " GB / " + gpuTfFree + " TFLOPS of a card free now (" + Math.round(gpuFree * 100) + "%)";
+      gIn.max = String(Math.max(0, gpuFreePct));
+      if (capG) capG.textContent = "· " + gpuFreePct + "% of a card free now (≈" + Math.round(gpuFree * cardGb) + " GB / " + Math.round(gpuFree * cardTf) + " TFLOPS)";
     } else {
-      vin.max = "0";
-      if (gin) gin.max = "0";
-      if (capV) capV.textContent = "· GPU apps run on GPU enclaves";
-      if (dep.vramGb !== 0 && document.activeElement !== vin){ dep.vramGb = 0; vin.value = "0"; }
-      if (gin && dep.gpuTflops !== 0 && document.activeElement !== gin){ dep.gpuTflops = 0; gin.value = "0"; }
+      gIn.max = "0";
+      if (capG) capG.textContent = "· GPU apps run on GPU enclaves";
+      if (dep.gpuPct !== 0 && document.activeElement !== gIn){ dep.gpuPct = 0; gIn.value = "0"; }
     }
-    if (min) min.max = String(Math.max(1, ramFreeMb));
-    if (capM) capM.textContent = "· " + ramFreeMb + " MB of the node free now (≈"
-      + fmtNum(cpuFree * ((a.nodeVcpus != null) ? a.nodeVcpus : NODE_VCPUS)) + " vCPU)";
+    if (cIn) cIn.max = String(Math.max(1, cpuFreePct));
+    if (capC) capC.textContent = "· " + cpuFreePct + "% of the node free now (≈"
+      + fmtNum(cpuFree * nodeRamGb) + " GB RAM / ≈" + fmtNum(cpuFree * ((a.nodeVcpus != null) ? a.nodeVcpus : NODE_VCPUS)) + " vCPU)";
     // clamp if the current pick now exceeds capacity, but don't yank the field the user is editing
-    if (dep.vramGb > vramFreeGb && dep.gpuEnclave && document.activeElement !== vin){ dep.vramGb = vramFreeGb; vin.value = String(vramFreeGb); }
-    if (min && dep.memMb > ramFreeMb && document.activeElement !== min){ dep.memMb = Math.max(1, ramFreeMb); min.value = String(dep.memMb); }
+    if (dep.gpuPct > gpuFreePct && dep.gpuEnclave && document.activeElement !== gIn){ dep.gpuPct = gpuFreePct; gIn.value = String(gpuFreePct); }
+    if (cIn && dep.cpuPct > cpuFreePct && document.activeElement !== cIn){ dep.cpuPct = Math.max(1, cpuFreePct); cIn.value = String(dep.cpuPct); }
     renderDeploy();
   } catch(e){
-    if (capV) capV.textContent = "· live capacity unavailable, showing whole-card max (" + CARD_GB + " GB)";
+    if (capG) capG.textContent = "· live capacity unavailable, showing whole-card max (100%)";
   }
 }
 function startAvailPoll(){
@@ -4807,10 +4766,8 @@ function startAvailPoll(){
 
 function initDeploy(){
   if (!$("#deploy")) return;
-  $("#cfgVram").addEventListener("input", e => { dep.vramGb = parseFloat(e.target.value) || 0; renderDeploy(); });
-  const gptIn = $("#cfgGpuT"); if (gptIn) gptIn.addEventListener("input", e => { dep.gpuTflops = parseFloat(e.target.value) || 0; renderDeploy(); });
-  const memIn = $("#cfgMem"); if (memIn) memIn.addEventListener("input", e => { dep.memMb = parseFloat(e.target.value) || 0; renderDeploy(); });
-  const cptIn = $("#cfgCpuT"); if (cptIn) cptIn.addEventListener("input", e => { dep.cpuTflops = parseFloat(e.target.value) || 0; renderDeploy(); });
+  $("#cfgGpuShare").addEventListener("input", e => { dep.gpuPct = parseFloat(e.target.value) || 0; renderDeploy(); });
+  const cpuIn = $("#cfgCpuShare"); if (cpuIn) cpuIn.addEventListener("input", e => { dep.cpuPct = parseFloat(e.target.value) || 0; renderDeploy(); });
   $("#cfgAsset").addEventListener("click", e => {
     const b = e.target.closest("button[data-asset]"); if (!b) return;
     dep.asset = b.dataset.asset; $$("#cfgAsset button").forEach(x => x.classList.toggle("on", x === b));
@@ -4829,10 +4786,8 @@ function initDeploy(){
     $("#cfgImage").value = "hello";
     const fp0 = $("#cfgPorts"); if (fp0) fp0.value = "";
     $("#cfgBudget").value = "10";
-    $("#cfgVram").value = "35"; dep.vramGb = 35;
-    const gt0 = $("#cfgGpuT"); if (gt0) gt0.value = "0"; dep.gpuTflops = 0;
-    const mm0 = $("#cfgMem"); if (mm0) mm0.value = "2048"; dep.memMb = 2048;
-    const ct0 = $("#cfgCpuT"); if (ct0) ct0.value = "0"; dep.cpuTflops = 0;
+    $("#cfgGpuShare").value = "25"; dep.gpuPct = 25;
+    const cp0 = $("#cfgCpuShare"); if (cp0) cp0.value = "5"; dep.cpuPct = 5;
     dep.asset = "USDC"; dep.public = true;
     $$("#cfgAsset button").forEach(x => x.classList.toggle("on", x.dataset.asset === "USDC"));
     $$("#cfgAccess button").forEach(x => x.classList.toggle("on", x.dataset.public === "1"));
@@ -5406,11 +5361,13 @@ function appCard(app){
     + '<p class="app-desc">' + (app.description ? esc(app.description) : '<span class="dim">no description</span>') + '</p>'
     + '<div class="app-metaline"><span title="publisher (msg.sender)">' + short(app.publisher) + '</span><span>·</span><span>' + app.versions.length + (app.versions.length === 1 ? ' version' : ' versions') + '</span></div>'
     + '<div class="app-verrow"><span class="vlbl">version</span><select class="ver-select" aria-label="Version">' + opts + '</select>'
-    + '<span title="exact minimum resources this app needs (shares are calculated from them)">'
-      + ((Number(v.vramMb) > 0 || Number(v.gpuGflops) > 0)
-          ? (Math.round(Number(v.vramMb) / 102.4) / 10) + ' GB VRAM' + (Number(v.gpuGflops) > 0 ? ' / ' + (Number(v.gpuGflops) / 1000) + ' TF' : '') + ' · '
-          : 'CPU-only · ')
-      + Number(v.memMb) + ' MB RAM' + (Number(v.cpuGflops) > 0 ? ' / ' + (Number(v.cpuGflops) / 1000) + ' TF' : '') + '</span>'
+    + (function(){ const m = minPctsOf(v);
+        return '<span title="exact specs this app declares (' + ((Number(v.vramMb) > 0 || Number(v.gpuGflops) > 0)
+            ? (Math.round(Number(v.vramMb) / 102.4) / 10) + ' GB VRAM' + (Number(v.gpuGflops) > 0 ? ' / ' + (Number(v.gpuGflops) / 1000) + ' TFLOPS GPU' : '') + ', '
+            : 'CPU-only, ')
+          + Number(v.memMb) + ' MB RAM' + (Number(v.cpuGflops) > 0 ? ' / ' + (Number(v.cpuGflops) / 1000) + ' TFLOPS CPU' : '')
+          + ') set the minimum deploy shares">min '
+          + (m.gpuPct > 0 ? m.gpuPct + '% GPU · ' : 'CPU-only · ') + m.cpuPct + '% CPU</span>'; })()
     + (v.ports ? '<span class="vlbl" title="firewall config: ports this version may bind">⛨ ' + esc(v.ports) + '</span>' : '')
     + (v.yanked ? '<span class="vyank">yanked</span>' : '') + '</div>'
     + '<div class="app-cid" title="IPFS content id"><code>' + esc(v.cid) + '</code><button class="copybtn" data-act="copy" data-cid="' + esc(v.cid) + '" type="button">⧉</button></div>'
@@ -5434,24 +5391,23 @@ function useInDeploy(app, v){
   const friendly = app.slug + ":" + v.version;      // human-friendly; resolves to the CID at deploy
   REF_CACHE[friendly] = "ipfs://" + v.cid;
   PORTS_CACHE[friendly] = v.ports || "";
+  MINS_CACHE[friendly] = minPctsOf(v);
   const inp = $("#cfgImage");
   if (inp){ inp.value = friendly; }
   // default this deployment's firewall from the version's catalog config (editable)
   const fp = $("#cfgPorts");
   if (fp){ fp.value = v.ports || ""; }
-  // default the exact resources from the version's declared minimums (editable upward)
-  const vMin = Math.round(Number(v.vramMb || 0) / 1024 * 10) / 10;
-  const gtMin = Math.round(Number(v.gpuGflops || 0)) / 1000;
-  const mMin = Math.max(1, Number(v.memMb || 0) || 2048);
-  const ctMin = Math.round(Number(v.cpuGflops || 0)) / 1000;
-  dep.vramGb = vMin; dep.gpuTflops = gtMin; dep.memMb = mMin; dep.cpuTflops = ctMin;
-  const vi = $("#cfgVram"); if (vi) vi.value = String(vMin);
-  const gi = $("#cfgGpuT"); if (gi) gi.value = String(gtMin);
-  const mi = $("#cfgMem"); if (mi) mi.value = String(mMin);
-  const ci = $("#cfgCpuT"); if (ci) ci.value = String(ctMin);
+  // start the two dials at the app's MINIMUM shares (its specs / the server
+  // spec); the user can only turn them up from there
+  const mins = MINS_CACHE[friendly];
+  dep.minGpuPct = mins.gpuPct; dep.minCpuPct = mins.cpuPct;
+  dep.gpuPct = mins.gpuPct; dep.cpuPct = mins.cpuPct;
+  const gi = $("#cfgGpuShare"); if (gi){ gi.min = String(mins.gpuPct); gi.value = String(mins.gpuPct); }
+  const ci = $("#cfgCpuShare"); if (ci){ ci.min = String(mins.cpuPct); ci.value = String(mins.cpuPct); }
   if (typeof renderDeploy === "function") renderDeploy();
   setView("deploy");
-  showToast("Deploy set to " + friendly + (v.ports ? "  · firewall " + v.ports : "") + "  (ipfs://" + v.cid.slice(0, 10) + "…)");
+  showToast("Deploy set to " + friendly + " (min " + mins.gpuPct + "% GPU / " + mins.cpuPct + "% CPU)"
+          + (v.ports ? " · firewall " + v.ports : ""));
 }
 
 /* ---- write side: IPFS upload + publish/verify/yank/delist txs ---- */
@@ -5534,9 +5490,6 @@ async function publishApp(){
   if (!(vramMb >= 0 && vramMb <= CAT_MAX.mb)) return pubStatus("VRAM must be 0 or more GB", true);
   if (!(gpuGflops >= 0 && gpuGflops <= CAT_MAX.gflops) || !(cpuGflops >= 0 && cpuGflops <= CAT_MAX.gflops))
     return pubStatus("compute must be 0 or more TFLOPS", true);
-  { const rr = resRates(vramMb / 1024, gpuGflops / 1000, memMb, cpuGflops / 1000);
-    if (rr.gpuPct > 0 && rr.cpuPct > rr.gpuPct)
-      return pubStatus("the CPU ask out-shares the GPU ask (a GPU app's CPU slice rides on its card's node): lower RAM/CPU compute or raise the GPU need", true); }
   if (blen(ports) > 96) return pubStatus("firewall config too long (≤ 96 bytes)", true);
   const pErr = validPortsCsv(ports); if (pErr) return pubStatus(pErr, true);
   const btn = $("#pubSubmit"); btn.disabled = true; const lbl = btn.textContent; btn.textContent = "working…";

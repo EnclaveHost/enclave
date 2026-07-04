@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # release.sh - build + push every NAN container for linux/amd64, read each pushed
-# digest, and repin it in Cloud Provider-config.yml. Pin by DIGEST (what Cloud Provider attests),
+# digest, and repin it in enclaves/*/Cloud Provider-config.yml. Pin by DIGEST (what Cloud Provider attests),
 # not by tag. Run from anywhere inside the repo.
 #
 #   ./scripts/release.sh                        # all images
@@ -20,8 +20,8 @@ DIGEST_SEP="${DIGEST_SEP:-@}"   # OCI digest pin form: name@sha256:HEX. (':' is 
 TAG="${TAG:-$(git rev-parse --short HEAD 2>/dev/null || echo dev)}"
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-CONFIG="$REPO_ROOT/Cloud Provider-config.yml"
-CONFIG_CPU="$REPO_ROOT/Cloud Provider-config.cpu.yml"   # CPU-only flavor; shares the supervisor + wasm-manager images
+CONFIG="$REPO_ROOT/enclaves/gpu/Cloud Provider-config.yml"
+CONFIG_CPU="$REPO_ROOT/enclaves/cpu/Cloud Provider-config.yml"  # CPU-only flavor; shares the supervisor + wasm-manager images
 cd "$REPO_ROOT"
 
 # image short-name -> build context (Dockerfile is <context>/Dockerfile unless

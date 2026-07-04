@@ -187,8 +187,8 @@ containers:
       - NODE_VCPUS: "16"
       - NODE_RAM_GB: "64"
       - NODE_HAS_GPU: "1"           # GPU node: catalog apps with vram_mb > 0 may launch here (CPU flavor sets "0")
-      # each app's memory cap is exactly the memMb its deployment asked for;
-      # WASM_APP_MIN_MEM_MB (default 64) is the floor
+      # each app's memory cap is its deployment's cpuShare × NODE_RAM_GB
+      # (>= the mem_mb its specs declare); WASM_APP_MIN_MEM_MB (64) is the floor
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8091/health || exit 1"]
       interval: 15s

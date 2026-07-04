@@ -71,8 +71,8 @@ const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
 const CONTRACT = path.join(REPO, "contracts", "NanDeployments.sol");
 const ABI_OUT = path.join(REPO, "contracts", "NanDeployments.abi.json");
-const CONFIG = path.join(REPO, "Cloud Provider-config.yml");
-const CONFIG_CPU = path.join(REPO, "Cloud Provider-config.cpu.yml");   // CPU flavor points at the same ledger
+const CONFIG = path.join(REPO, "enclaves", "gpu", "Cloud Provider-config.yml");
+const CONFIG_CPU = path.join(REPO, "enclaves", "cpu", "Cloud Provider-config.yml");  // CPU flavor points at the same ledger
 
 const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has("--dry-run");

@@ -40,7 +40,7 @@ const REPO = path.resolve(HERE, "..");
 const CONTRACT = path.join(REPO, "contracts", "NanAppCatalog.sol");
 const ABI_OUT = path.join(REPO, "contracts", "NanAppCatalog.abi.json");
 const SITE = path.join(REPO, "site", "index.html");
-const CONFIG = path.join(REPO, "Cloud Provider-config.yml");
+const CONFIG = path.join(REPO, "enclaves", "gpu", "Cloud Provider-config.yml");
 
 const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has("--dry-run");
