@@ -123,6 +123,7 @@ jobs:
               worker/*)                worker=true ;;
               mps-daemon/*)            mps=true ;;
               wasm/__pycache__/*) ;;
+              wasm/Dockerfile.wasmtime|wasm/wasmtime-onnx-gpu-strict.patch) ;;   # toolchain-image inputs, built by toolchain.yml, pinned into Dockerfile.wasm by digest
               wasm/*)                  wasm=true ;;
               enclaves/*)              config_touched=true ;;
             esac
