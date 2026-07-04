@@ -44,6 +44,7 @@ import socket
 import subprocess
 import threading
 import time
+import urllib.request
 import uuid
 
 try:
@@ -234,6 +235,9 @@ def _nn_tenant_env(gpu_share: float, pinned: bool) -> dict:
     env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(max(1, round(gpu_share * 100)))
     if pinned:
         env["CUDA_MPS_PINNED_DEVICE_MEM_LIMIT"] = f"0={max(1, int(gpu_share * GPU_VRAM_GB * 1024))}M"
+    # host-side wasi-nn traces into the tenant's log file (owner-readable via
+    # the deployment logs endpoint) - names the backend step a hang died in
+    env.setdefault("WASMTIME_LOG", "wasmtime_wasi_nn=debug")
     return env
 
 
@@ -251,8 +255,65 @@ def _nn_probe_once(env: dict) -> tuple:
         return (False, f"probe spawn failed: {e}")
 
 
+def _nn_probe_e2e(env) -> tuple:
+    """(ok, detail). The ORT layer, end to end: serve the baked-in nn-demo with
+    the real tenant env and run ONE inference per target through it. The cuInit
+    probe can pass while ORT's session creation still hangs (it exercises
+    cudart/cublas/cuDNN and the CC data path, not just the driver attach), so
+    only this stage proves a GPU deployment will actually answer."""
+    wasm = APPS_DIR / "nn-demo.wasm"
+    if not wasm.is_file():
+        return True, "e2e skipped (nn-demo.wasm not baked in)"
+    port = _free_port()
+    cmd = [WASMTIME, "serve", "-Scli", "-Shttp", *P3_FLAGS, "-Snn",
+           "--addr", f"{HOST_IP}:{port}", str(wasm)]
+    try:
+        proc = subprocess.Popen(cmd, env=env, stdin=subprocess.DEVNULL,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                preexec_fn=_preexec)
+    except Exception as e:                                       # noqa: BLE001
+        return False, f"e2e spawn failed: {e}"
+    try:
+        deadline = time.time() + 15
+        while time.time() < deadline and not _port_open(port):
+            if proc.poll() is not None:
+                return False, f"e2e wasmtime exited rc={proc.returncode} before serving"
+            time.sleep(0.2)
+        if not _port_open(port):
+            return False, "e2e serve socket never opened"
+        parts, all_ok = [], True
+        for tgt in ("cpu", "gpu"):
+            t0 = time.time()
+            try:
+                with urllib.request.urlopen(f"http://{HOST_IP}:{port}/?target={tgt}",
+                                            timeout=NN_PROBE_TIMEOUT) as r:
+                    body = json.loads(r.read() or b"{}")
+                ok = bool(body.get("ok"))
+                parts.append(f"{tgt}: {'ok' if ok else body.get('error', 'not ok')} ({time.time() - t0:.1f}s)")
+                all_ok = all_ok and ok
+            except Exception as e:                               # noqa: BLE001
+                parts.append(f"{tgt}: HUNG/failed after {time.time() - t0:.1f}s ({e.__class__.__name__}: {e})")
+                all_ok = False
+        return all_ok, "; ".join(parts)
+    finally:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except Exception:                                        # noqa: BLE001
+            try:
+                proc.kill()
+            except Exception:                                    # noqa: BLE001
+                pass
+
+
 def _nn_probe_loop():
-    """Boot-time GPU readiness bisect. Writes _NN_PROBE; launches gate on it."""
+    """Boot-time GPU readiness bisect. Writes _NN_PROBE; launches gate on it.
+    Layer 1: raw driver (cuInit + primary-ctx retain = the MPS attach point),
+    bisecting the env. Layer 2: ORT end to end through the real runtime.
+    WASM_NN_PROBE=0 skips everything and declares ok (operator escape hatch)."""
+    if os.environ.get("WASM_NN_PROBE", "1").lower() in ("0", "false", "off"):
+        _NN_PROBE.update(state="ok", mode="full", detail="probe skipped (WASM_NN_PROBE=0)")
+        print("[nn-probe] skipped by WASM_NN_PROBE=0 - GPU launches ungated", flush=True)
+        return
     share = 0.01   # smallest grain; the probe only needs A context, not capacity
     steps = [("full",  _nn_tenant_env(share, pinned=True),
               "tenant env (SM cap + pinned VRAM limit)"),
@@ -261,6 +322,7 @@ def _nn_probe_loop():
              ("nomps", {k: v for k, v in os.environ.items() if not k.startswith("CUDA_MPS")},
               "without any MPS env (diagnostic only - tenants NEVER run uncapped)")]
     history = []
+    mode = None
     # up to 3 rounds of the full env first: rides out MPS-daemon boot races the
     # same way worker.py's children retry their CUDA init.
     for attempt in range(3):
@@ -269,28 +331,40 @@ def _nn_probe_loop():
         history.append(f"full#{attempt + 1}: {detail}")
         print(f"[nn-probe] full env attempt {attempt + 1}: {'ok' if ok else detail}", flush=True)
         if ok:
-            _NN_PROBE.update(state="ok", mode="full", detail="; ".join(history))
-            return
+            mode = "full"
+            break
         time.sleep(5)
-    for mode, env, label in steps[1:]:
-        ok, detail = _nn_probe_once(env)
-        history.append(f"{mode}: {detail}")
-        print(f"[nn-probe] {label}: {'ok' if ok else detail}", flush=True)
-        if ok and mode == "nopin":
-            # the pinned-VRAM var is the poison: run tenants SM-capped only
-            # (VRAM stays admission-accounted by the supervisor's allocator).
-            print("[nn-probe] WARNING: CUDA_MPS_PINNED_DEVICE_MEM_LIMIT hangs/fails CUDA init "
-                  "on this node - GPU tenants run with the SM cap only.", flush=True)
-            _NN_PROBE.update(state="ok", mode="nopin", detail="; ".join(history))
+    if mode is None:
+        for m, env, label in steps[1:]:
+            ok, detail = _nn_probe_once(env)
+            history.append(f"{m}: {detail}")
+            print(f"[nn-probe] {label}: {'ok' if ok else detail}", flush=True)
+            if ok and m == "nopin":
+                # the pinned-VRAM var is the poison: run tenants SM-capped only
+                # (VRAM stays admission-accounted by the supervisor's allocator).
+                print("[nn-probe] WARNING: CUDA_MPS_PINNED_DEVICE_MEM_LIMIT hangs/fails CUDA "
+                      "init on this node - GPU tenants run with the SM cap only.", flush=True)
+                mode = "nopin"
+                break
+            if ok and m == "nomps":
+                # CUDA works, MPS attach doesn't: refusing is the honest move -
+                # uncapped tenants would break the share product.
+                _NN_PROBE.update(state="failed", mode=None,
+                                 detail="MPS attach breaks CUDA init in this container (bare CUDA works). "
+                                        + "; ".join(history))
+                return
+        if mode is None:
+            _NN_PROBE.update(state="failed", mode=None, detail="; ".join(history))
             return
-        if ok and mode == "nomps":
-            # CUDA works, MPS attach doesn't: refusing is the honest move -
-            # uncapped tenants would break the share product.
-            _NN_PROBE.update(state="failed", mode=None,
-                             detail="MPS attach breaks CUDA init in this container (bare CUDA works). "
-                                    + "; ".join(history))
-            return
-    _NN_PROBE.update(state="failed", mode=None, detail="; ".join(history))
+    # driver layer passed - now prove the ORT layer with the env tenants get
+    e2e_ok, e2e_detail = _nn_probe_e2e(_nn_tenant_env(share, pinned=(mode == "full")))
+    history.append(f"e2e[{mode}]: {e2e_detail}")
+    print(f"[nn-probe] ORT end-to-end ({mode}): {e2e_detail}", flush=True)
+    if e2e_ok:
+        _NN_PROBE.update(state="ok", mode=mode, detail="; ".join(history))
+    else:
+        _NN_PROBE.update(state="failed", mode=mode,
+                         detail=f"driver layer ok ({mode}) but ORT end-to-end failed - " + "; ".join(history))
 
 
 def _resolve_wasm(ref: str) -> pathlib.Path:
