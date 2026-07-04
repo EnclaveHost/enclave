@@ -769,8 +769,8 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
           <input type="number" id="pubMem" value="128" min="1" step="1" />
         </div>
         <div>
-          <label for="pubCpuG">CPU compute <span class="dim">(min GFLOPS · a whole node ≈ 1000 · 0 = RAM-driven)</span></label>
-          <input type="number" id="pubCpuG" value="0" min="0" step="1" />
+          <label for="pubCpuG">CPU compute <span class="dim">(min GFLOPS · at least 1 - everything computes · a whole node ≈ 1000)</span></label>
+          <input type="number" id="pubCpuG" value="1" min="1" step="1" />
         </div>
         <div class="full">
           <label for="pubPorts">Firewall ports <span class="dim">(optional · e.g. <b>http:8088, tcp:5432, udp:9053</b> · empty = standard web app · can change per version)</span></label>
@@ -1069,7 +1069,7 @@ wasmtime serve -Scli -Shttp -Sp3 \
             <li>Connect your wallet (header button) and hit <b>+ Publish app</b>.</li>
             <li>Pick a <b>slug</b>, your app's stable id, e.g. <code>my-hello</code> (a–z, 0–9, hyphens, ≤ 40 chars). Slugs live in <i>your wallet's namespace</i>: the on-chain app id is <code>keccak256(publisher, slug)</code>, so nobody can squat or write to your lineage. The slug doesn't have to match your crate name.</li>
             <li>Set a <b>version</b> label (e.g. <code>1.0.0</code>) and choose your <code>hello.wasm</code>. The file is validated (component check, ≤ 256 MB), uploaded, pinned to IPFS, and the <b>CID</b> field fills in (or paste a CID you pinned yourself).</li>
-            <li>Set the display name, a description, and the app's <b>exact minimum resources</b> on four axes: the VRAM (GB) and GPU compute (TFLOPS) it needs on one card (both 0 for CPU-only apps, which is most of them), and the RAM (MB - also the runtime-enforced memory cap; the Hello app is fine at 128) and CPU compute (GFLOPS - note the unit: a whole 16-vCPU node is only ≈1000 GFLOPS ≈ 1 TFLOPS, so declaring "1000" claims the entire node and forces a 100% CPU share; most small apps want 0-50) it needs on the node. These specs set the MINIMUM shares on the deploy page's two dials (spec ÷ server spec, the larger of the memory and compute axes); deploys below them are refused. Only for service apps, add the <b>firewall ports</b> the version may bind (<a href="#docs-ports">chapter 09</a>). Leave ports empty for a standard web app.</li>
+            <li>Set the display name, a description, and the app's <b>exact minimum resources</b> on four axes: the VRAM (GB) and GPU compute (TFLOPS) it needs on one card (both 0 for CPU-only apps, which is most of them), and the RAM (MB - also the runtime-enforced memory cap; the Hello app is fine at 128) and CPU compute (GFLOPS, at least 1 - every app computes something - and note the unit: a whole 16-vCPU node is only ≈1000 GFLOPS ≈ 1 TFLOPS, so declaring "1000" claims the entire node and forces a 100% CPU share; most small apps want 1-50) it needs on the node. These specs set the MINIMUM shares on the deploy page's two dials (spec ÷ server spec, the larger of the memory and compute axes); deploys below them are refused. Only for service apps, add the <b>firewall ports</b> the version may bind (<a href="#docs-ports">chapter 09</a>). Leave ports empty for a standard web app.</li>
             <li><b>Publish to Base</b>: one transaction, signed by your wallet, attributed on-chain to you.</li>
           </ol>
           <h4>Versioning rules (enforced by the contract)</h4>
@@ -1150,7 +1150,7 @@ console.log(d.timeRemainingSec);     // funded runtime balance</code></pre></div
           <h4>Keep it alive, or stop it</h4>
           <ul>
             <li><b>Top up</b>: <code>POST /v1/deployments/{id}/topup</code> returns fresh payment instructions; each payment adds <code>amount / rate</code> seconds. Send it before expiry (a short grace period covers in-flight top-ups).</li>
-            <li><b>Terminate</b>: <code>DELETE /v1/deployments/{id}</code> tears the app down immediately.</li>
+            <li><b>Terminate</b>: <code>DELETE /v1/deployments/{id}</code> tears the app down immediately; the deployment finishes as <code>terminated</code> (an unpaid reservation is removed outright instead).</li>
             <li><b>Fair clock</b>: if the platform itself isn't serving, your balance freezes (<code>paused: true</code> with a reason) and resumes automatically; funded time never drains during an outage.</li>
           </ul>
         </article>
@@ -1948,7 +1948,7 @@ const SPEC = {
         ],
         "operationId": "terminateDeployment",
         "summary": "Stop a deployment",
-        "description": "Stops the worker process, tears down the tenant, and releases both shares (GPU and CPU). Pay-per-deploy holds no balance, so any unused funded time is forfeit on early stop.",
+        "description": "Stops the worker process, tears down the tenant, and releases both shares (GPU and CPU); the deployment finishes as `terminated` once teardown completes (the receipt already carries it). An `awaiting_payment` reservation is removed outright instead (`canceled`). Pay-per-deploy holds no balance, so any unused funded time is forfeit on early stop.",
         "parameters": [
           {
             "name": "id",
@@ -2239,10 +2239,12 @@ const SPEC = {
       },
       "DeploymentStatus": {
         "type": "string",
+        "description": "terminated = owner-stopped and torn down (final). stopping is the legacy name older enclaves report for the same state.",
         "enum": [
           "awaiting_payment",
           "running",
           "expired",
+          "terminated",
           "stopping",
           "failed"
         ]
@@ -3096,7 +3098,7 @@ const SPEC = {
           },
           "status": {
             "type": "string",
-            "example": "stopping"
+            "example": "terminated"
           },
           "paidUsdc": {
             "type": "string",
@@ -4367,7 +4369,10 @@ function termLine(term, cls, txt){
   return s;
 }
 function statusCls(st){
-  return (st === "running") ? "ok" : (st === "failed" || st === "error" || st === "stopped") ? "warn" : "info";
+  if (st === "running") return "ok";
+  if (st === "failed" || st === "error") return "warn";
+  if (st === "terminated" || st === "stopping" || st === "stopped" || st === "expired" || st === "canceled") return "";  // neutral gray: a normal end state
+  return "info";
 }
 
 let encPoll = null;
@@ -4707,7 +4712,7 @@ async function encVerify(id, btn){
 
 async function encKill(id, btn){
   if (btn){ btn.disabled = true; btn.textContent = "terminating\u2026"; }
-  try { await Nan.terminateDeployment(id); showToast("terminating " + id); setTimeout(() => refreshEnclaves(), 900); }
+  try { const r = await Nan.terminateDeployment(id); showToast((r && r.status === "terminated" ? "terminated " : "terminating ") + id); setTimeout(() => refreshEnclaves(), 900); }
   catch(e){ showToast(e.message); if (btn){ btn.disabled = false; btn.textContent = "Terminate"; } }
 }
 
@@ -5488,8 +5493,10 @@ async function publishApp(){
   if (blen(desc) > CAT_MAX.desc) return pubStatus("description too long (≤ 500 bytes)", true);
   if (!(memMb > 0 && memMb <= CAT_MAX.mb)) return pubStatus("memory must be at least 1 MB", true);
   if (!(vramMb >= 0 && vramMb <= CAT_MAX.mb)) return pubStatus("VRAM must be 0 or more GB", true);
-  if (!(gpuGflops >= 0 && gpuGflops <= CAT_MAX.gflops) || !(cpuGflops >= 0 && cpuGflops <= CAT_MAX.gflops))
-    return pubStatus("compute must be 0 or more (GPU in TFLOPS, CPU in GFLOPS)", true);
+  if (!(gpuGflops >= 0 && gpuGflops <= CAT_MAX.gflops))
+    return pubStatus("GPU compute must be 0 or more TFLOPS (0 = CPU-only)", true);
+  if (!(cpuGflops >= 1 && cpuGflops <= CAT_MAX.gflops))
+    return pubStatus("CPU compute must be at least 1 GFLOPS - every app computes something", true);
   if (blen(ports) > 96) return pubStatus("firewall config too long (≤ 96 bytes)", true);
   const pErr = validPortsCsv(ports); if (pErr) return pubStatus(pErr, true);
   const btn = $("#pubSubmit"); btn.disabled = true; const lbl = btn.textContent; btn.textContent = "working…";
@@ -5532,7 +5539,7 @@ function resetPublish(){
   ["#pubSlug","#pubCid","#pubName","#pubDesc","#pubPorts"].forEach(s => { const el = $(s); if (el) el.value = ""; });
   const f = $("#pubFile"); if (f) f.value = ""; const h = $("#pubFileHint"); if (h) h.textContent = "";
   $("#pubVersion").value = "1.0.0"; $("#pubVram").value = "0"; $("#pubGpuT").value = "0";
-  $("#pubMem").value = "128"; $("#pubCpuG").value = "0"; pubStatus("");
+  $("#pubMem").value = "128"; $("#pubCpuG").value = "1"; pubStatus("");
 }
 function togglePublish(show){
   const p = $("#publishPanel"), b = $("#storePublishBtn"); if (!p) return;
