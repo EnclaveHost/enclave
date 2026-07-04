@@ -123,6 +123,12 @@ NN_PROBE_TIMEOUT = float(os.environ.get("WASM_NN_PROBE_TIMEOUT", "75"))   # work
 # under CC, first-time cuBLAS/cuDNN kernel loading can legitimately take
 # minutes (encrypted bounce-buffered copies), which only LOOKS like a hang.
 NN_PROBE_LONG = float(os.environ.get("WASM_NN_PROBE_LONG", "600"))
+# Control experiment for the bisect's endgame: the worker container's manager
+# (same box, shared localhost) can spawn ITS validated CUDA path - an
+# MPS-capped cupy child - on request. If that works while ORT hangs, the fault
+# is container/ORT-side; if it hangs too, GPU compute init is broken node-wide
+# under CC and the escalation target is the platform, not this stack.
+WORKER_MGR_URL = os.environ.get("WORKER_MGR_URL", "http://127.0.0.1:8090").rstrip("/")
 _NN_PROBE = {"state": "probing" if (NN_ENABLED and NODE_HAS_GPU and not MOCK) else "off",
              "mode": None, "detail": "", "attempts": 0, "stage": None,
              "env": {}}   # state: probing|ok|failed|off; mode: full|nopin; stage: what's running RIGHT NOW; env: extra tenant env the probe adopted (e.g. CUDA_MODULE_LOADING)
@@ -330,6 +336,32 @@ def _nn_probe_e2e(env, targets=("cpu", "gpu"), timeout=None) -> tuple:
                 pass
 
 
+def _nn_probe_worker_control() -> tuple:
+    """(ok, detail). Ask the worker manager (if present on this box) to spawn
+    one MPS-capped cupy child - the platform's VALIDATED CUDA path - and tear
+    it down. Purely diagnostic: discriminates 'this container/ORT is broken'
+    from 'GPU compute under CC is broken node-wide'."""
+    tid = "nn-probe-control"
+    try:
+        req = urllib.request.Request(f"{WORKER_MGR_URL}/tenants",
+                                     data=json.dumps({"id": tid, "gpuShare": 0.01}).encode(),
+                                     headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=100) as r:
+            body = json.loads(r.read() or b"{}")
+        ok = body.get("status") == "running"
+        detail = (f"ok (sm_granted={body.get('sm_granted')}, device={body.get('device')})" if ok
+                  else f"{body.get('status')}: {body.get('error') or 'no error detail'}")
+    except Exception as e:                                       # noqa: BLE001
+        return (False, f"unreachable/failed ({e.__class__.__name__}: {e})")
+    finally:
+        try:
+            req = urllib.request.Request(f"{WORKER_MGR_URL}/tenants/{tid}", method="DELETE")
+            urllib.request.urlopen(req, timeout=10).read()
+        except Exception:                                        # noqa: BLE001
+            pass
+    return (ok, detail)
+
+
 def _nn_probe_loop():
     """Crash guard: a probe that dies must VERDICT, not stay 'probing' forever
     (every GPU deploy 503s on that state)."""
@@ -449,9 +481,35 @@ def _nn_probe_run():
             print(f"[nn-probe] ADOPTED {name}: {meaning}", flush=True)
             _NN_PROBE.update(state="ok", stage="done", detail="; ".join(history))
             return
+    # Every tenant-shaped variant hung. Endgame diagnostics (adopt NOTHING -
+    # both would compromise the share caps - but name the guilty layer):
+    #   control - the worker container's VALIDATED cupy-under-MPS path
+    #   nomps   - ORT with no MPS env at all
+    _NN_PROBE["stage"] = "control: worker manager cupy-under-MPS tenant"
+    ctl_ok, ctl_detail = _nn_probe_worker_control()
+    note(f"control[worker-cupy]: {ctl_detail}")
+    print(f"[nn-probe] control worker-cupy: {ctl_detail}", flush=True)
+    _NN_PROBE["stage"] = "ORT e2e gpu without MPS (diagnostic only)"
+    nomps_env = {k: v for k, v in base.items() if not k.startswith("CUDA_MPS")}
+    nomps_res, nomps_detail = _nn_probe_e2e(nomps_env, targets=("gpu",))
+    note(f"nomps[diagnostic]: {nomps_detail}")
+    print(f"[nn-probe] gpu without MPS (diagnostic): {nomps_detail}", flush=True)
+    nomps_ok = bool(nomps_res.get("gpu"))
+    if ctl_ok and nomps_ok:
+        verdict = ("the MPS+ORT interaction in THIS container is the fault: cupy-under-MPS works "
+                   "(worker) and ORT works here without MPS, but ORT under MPS hangs")
+    elif ctl_ok:
+        verdict = ("this container's GPU compute path is the fault: the worker's cupy-under-MPS "
+                   "control works, but ORT hangs here with AND without MPS")
+    elif nomps_ok:
+        verdict = ("MPS is broken node-wide for real compute init: even the validated worker path "
+                   "fails, while ORT works without MPS")
+    else:
+        verdict = ("GPU compute init is broken NODE-WIDE under CC (the validated worker cupy path "
+                   "and ORT, with and without MPS, all fail) - escalate to the platform/driver level")
     _NN_PROBE.update(state="failed", mode=mode, stage="done",
-                     detail=f"driver layer ok ({mode}) but the ORT CUDA provider failed every variant - "
-                            + "; ".join(history))
+                     detail=f"driver layer ok ({mode}); ORT CUDA hung in every tenant variant. "
+                            f"VERDICT: {verdict}. Trail: " + "; ".join(history))
 
 
 def _resolve_wasm(ref: str) -> pathlib.Path:
