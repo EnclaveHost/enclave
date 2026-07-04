@@ -189,7 +189,7 @@ containers:
   # are hardware-enforced per process. Tenants without a GPU share never get
   # the wasi-nn import at all.
   - name: "wasm-manager"
-    image: "ghcr.io/stevedefacto/nan-wasm-manager@sha256:ffd46c5356a03fecc7c8ff87714b6b1d5dd6c3f58f494bf27d01b170d479f4d1"
+    image: "ghcr.io/stevedefacto/nan-wasm-manager@sha256:f8ad2d788477437169ddcf8b79cd9ad5e12b1663a4821ba3deaf0d466781b8ea"
     runtime: nvidia
     gpus: all
     ipc: host
