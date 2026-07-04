@@ -518,6 +518,9 @@ function loadState() {
   let running = 0, waiting = 0;
   for (const r of s.deployments || []) {
     r._payTimer = null; r._respawning = false;
+    // legacy terminal status: "stopping" was set AFTER teardown completed and
+    // nothing ever finalized it, so restored records sat "stopping" forever
+    if (r.status === "stopping") r.status = "terminated";
     deployments.set(r.id, r);
     if (r.payRef) payRefIndex.set(r.payRef.toLowerCase(), r.id);
     if (r._gpu) {                       // re-reserve the slices this deployment still holds
@@ -1881,7 +1884,8 @@ app.delete("/v1/deployments/:id", authed, async (req, res) => {
   }
   try { await stopContainer(rec); } catch {}
   if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
-  rec.status = "stopping";
+  // stopContainer was awaited: the instance is gone, so this is the final state
+  rec.status = "terminated";
   saveStateSoon();
   if (rec._onchain) {
     // hand the lease back (refunds the unused tail to the on-chain balance).
@@ -1890,13 +1894,13 @@ app.delete("/v1/deployments/:id", authed, async (req, res) => {
     // setActive(false) transaction, not a local delete.
     sendClaimTx("release", [rec.id])
       .catch(e => console.warn(`[claim] release on delete failed: ${e.shortMessage || e.message}`));
-    return res.json({ id: rec.id, status: "stopping",
+    return res.json({ id: rec.id, status: "terminated",
                ranSeconds: Math.round((rec.consumedMs || 0) / 1000),
                note: "On-chain deployment: lease released (unused lease time refunded to its balance). It stays "
                    + "claimable by any enclave while active and funded — call setActive(false) on NanDeployments "
                    + "to stop it for good." });
   }
-  res.json({ id: rec.id, status: "stopping",
+  res.json({ id: rec.id, status: "terminated",
              paidUsdc: ((rec.paidUsdc || 0) / 1e6).toFixed(2),
              ranSeconds: Math.round((rec.consumedMs || 0) / 1000),
              note: "Pay-per-deploy: no balance is held, so unused funded time is forfeit on early stop." });
@@ -2275,7 +2279,9 @@ const readOnchainDeployment = (id) => chainClient.readContract({
   address: getAddress(DEPLOYMENTS_ADDRESS), abi: DEPLOYMENTS_ABI, functionName: "get", args: [id] });
 
 // local rec states that no longer hold the lease — safe to re-adopt over
-const CLAIM_TERMINAL = new Set(["expired", "failed", "stopping"]);
+// "stopping" is the pre-terminated legacy name, kept so records persisted by an
+// older supervisor still count as terminal after an upgrade.
+const CLAIM_TERMINAL = new Set(["expired", "failed", "terminated", "stopping"]);
 
 // Renew every adopted lease that's inside the margin. A failed renew is not
 // fatal: "unfunded" means the balance is empty (the reaper will tear down when
@@ -2319,7 +2325,7 @@ async function auditClaims() {
       console.log(`[claim] ${rec.id} stopped by owner on-chain -> teardown + release`);
       try { await stopContainer(rec); } catch {}
       if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
-      rec.status = "stopping";
+      rec.status = "terminated";
       if (mine) await sendClaimTx("release", [rec.id])
         .catch(e => console.warn(`[claim] release failed: ${e.shortMessage || e.message}`));
       saveStateSoon();
@@ -2461,7 +2467,7 @@ async function releaseClaimsOnShutdown() {
   console.log(`[claim] shutdown: releasing ${mine.length} lease(s)`);
   await Promise.race([
     Promise.allSettled(mine.map(async (rec) => {
-      rec.status = "stopping";
+      rec.status = "terminated";     // this enclave's instance dies with the CVM; the on-chain deployment stays claimable
       if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
       await sendClaimTx("release", [rec.id]);
     })),
