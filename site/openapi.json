@@ -1122,6 +1122,20 @@
             "description": "Free CPU compute in the node's leftover pool (cpuShareFree × nodeGflops, GFLOPS).",
             "example": 900
           },
+          "aggregate": {
+            "type": "boolean",
+            "description": "Present (true) when served by the api.nan.host gateway: the numbers are a FLEET view - the best single-card slice and the best node pool across live enclaves, which can be different machines. Absent on an enclave's own /availability."
+          },
+          "enclaves": {
+            "type": "integer",
+            "description": "Aggregate only: live enclaves behind the numbers.",
+            "example": 2
+          },
+          "gpuEnclaveCpuShareFree": {
+            "type": "number",
+            "description": "Aggregate only: the free CPU pool on the best GPU enclave itself. A GPU deployment's cpuShare must fit THIS pool (its CPU slice rides the card's node), while cpuShareFree may come from a CPU-only enclave.",
+            "example": 0.9
+          },
           "cardVramGb": {
             "type": "number",
             "example": 141
