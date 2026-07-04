@@ -1079,6 +1079,7 @@ wasmtime serve -Scli -Shttp -Sp3 \
           <h4>Versioning rules (enforced by the contract)</h4>
           <ul>
             <li>Versions are <b>append-only history</b>: you never edit a release, you publish the same slug again with a new version label and CID. <code>editApp</code> changes display metadata; <code>setActive</code> delists the app; <code>yankVersion</code> pulls a bad release (kept for history, hidden from browsing).</li>
+            <li>A release's <b>CID is claimed forever</b>, globally: the same bytes can never be listed twice, by anyone - and yanking or delisting does <b>not</b> free the CID (the enclaves' CID-to-approval lookup must stay unambiguous). Practical consequence: to fix a version's <i>metadata</i> (wrong ports, wrong specs), you must produce new bytes - any rebuild changes the CID - and publish that as a new version. Publishing a new version to a delisted slug automatically relists the app.</li>
             <li>A CID can be listed <b>once across the whole catalog</b>, so a CID maps unambiguously to one app version.</li>
             <li>Each version carries its own firewall config; it can change from release to release.</li>
           </ul>
@@ -5607,6 +5608,25 @@ async function publishApp(){
     return pubStatus("CPU compute must be at least 1 GFLOPS - every app computes something", true);
   if (blen(ports) > 96) return pubStatus("firewall config too long (≤ 96 bytes)", true);
   const pErr = validPortsCsv(ports); if (pErr) return pubStatus(pErr, true);
+  // Pre-flight against the loaded catalog. Both cases REVERT on-chain, which a
+  // wallet surfaces as a gas-estimation hang and the form as a bare timeout -
+  // refuse here with the actual reason instead.
+  // 1) A CID is claimed FOREVER, globally: the same bytes can never be listed
+  //    twice, and yanking or delisting does not free it (the enclaves' CID ->
+  //    approval lookup must stay unambiguous).
+  if (STORE.apps){
+    for (const a of STORE.apps){
+      const hit = (a.versions || []).find(v => v.cid === cid);
+      if (hit) return pubStatus("this exact .wasm is already on-chain as " + a.slug + " " + hit.version
+        + (hit.yanked ? " (yanked)" : "") + (a.active ? "" : " (app delisted)")
+        + " - a CID can only ever be listed once, and yank/delist don't free it. Rebuild the app so the bytes (and CID) change, or "
+        + (a.active ? "deploy the existing version instead." : "relist the app to use the existing version."), true);
+    }
+    // 2) version labels are immutable history within an app (your namespace)
+    const mine = STORE.apps.find(a => a.slug === slug && Nan.address && (a.publisher || "").toLowerCase() === Nan.address.toLowerCase());
+    if (mine && (mine.versions || []).some(v => v.version === version))
+      return pubStatus("version " + version + " of " + slug + " already exists - labels are immutable history; bump it (e.g. 1.0.1).", true);
+  }
   const btn = $("#pubSubmit"); btn.disabled = true; const lbl = btn.textContent; btn.textContent = "working…";
   try {
     if (!Nan.provider) await connectWallet();
@@ -5625,7 +5645,12 @@ async function publishApp(){
     showToast("published " + slug + " " + version);
     await loadCatalog(true);
     togglePublish(false); resetPublish();
-  } catch(e){ pubStatus(e.message || String(e), true); }
+  } catch(e){
+    const m = e.message || String(e);
+    pubStatus(/cid already listed/i.test(m)
+      ? "rejected on-chain: this exact .wasm is already listed and a CID can only ever be listed once (yank/delist don't free it) - rebuild the app so the bytes change, then publish the new CID"
+      : m, true);
+  }
   finally { btn.disabled = false; btn.textContent = lbl; }
 }
 async function catTx(data, verb){
