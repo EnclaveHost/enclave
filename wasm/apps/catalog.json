@@ -14,12 +14,12 @@
       "id": "nn-demo",
       "name": "NN Demo (wasi-nn)",
       "file": "nn-demo.wasm",
-      "description": "wasi-nn smoke test: runs a tiny baked-in ONNX graph through the host's ONNX Runtime. GET / tries the GPU (CUDA) and reports a CPU fallback; ?target=gpu|cpu pins the execution target.",
+      "description": "wasi-nn smoke test and debugger: runs a tiny baked-in ONNX graph through the host's ONNX Runtime. GET / tries the GPU (CUDA) and reports a CPU fallback; ?target=gpu|cpu pins the execution target. /ping answers without touching wasi-nn; /progress dumps per-stage markers (written to /data before every wasi-nn call), so a hung inference names the exact stage it died in.",
       "vram_mb": 1024,
       "gpu_gflops": 10,
       "mem_mb": 128,
       "cpu_gflops": 10,
-      "storage_mb": 0
+      "storage_mb": 64
     }
   ]
 }

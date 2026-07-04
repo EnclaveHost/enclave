@@ -1198,7 +1198,11 @@ app.get("/availability", async (_req, res) => {
     const cpuFree = PROVISION_BACKEND === "vm" ? (c.cpuShareFree ?? c.maxShare ?? maxFreeCpu()) : maxFreeCpu();
     const gpuFree = !IS_GPU ? 0
       : PROVISION_BACKEND === "vm" ? maxFreeGpuShare() : (c.gpuShareFree ?? c.maxShare ?? maxFreeGpuShare());
-    return res.json(shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"));
+    // wasi-nn readiness rides along (vm backend): `nn` says whether GPU
+    // deployments can launch; `nnProbe` carries the boot probe's diagnosis,
+    // making a broken GPU path visible from outside without operator access.
+    const nn = PROVISION_BACKEND === "vm" && h.nn !== undefined ? { nn: h.nn, nnProbe: h.nnProbe } : {};
+    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn });
   } catch (e) {
     return res.json(shape(maxFreeCpu(), maxFreeGpuShare(), "fallback",
       `${PROVISION_BACKEND === "vm" ? "wasm" : "worker"} manager unreachable`));
