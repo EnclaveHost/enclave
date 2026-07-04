@@ -26,7 +26,7 @@ memory: 65536      # 64 GiB
 containers:
   # --- supervisor: control plane (no GPU), public ingress -----------------------
   - name: "supervisor"
-    image: "ghcr.io/stevedefacto/nan@sha256:87510fbbf61c342c603e655b050c3c167314ad98dc8eb5b8f79135ca69016070"
+    image: "ghcr.io/stevedefacto/nan@sha256:57a458ea614935acf1f021409bb34ea24ab6a0c8ddbd95a1c18666dde4df4a52"
     restart: always
     env:
       - PORT: "8080"
@@ -67,7 +67,7 @@ containers:
       # Portable deployments: the claim loop adopts ONLY CPU deployments
       # (NanDeployments records created with gpu=false).
       - CLAIM_ENABLED: "1"
-      - DEPLOYMENTS_ADDRESS: "0xe4CdE61B80C185f7428Eadd05EcF6b76702B5537"
+      - DEPLOYMENTS_ADDRESS: "0x22001e15fb846dfb786f0F2136E89913610a6837"
       # public UDP: set to a CPU relay box's routed /64 if one is attached; empty
       # keeps udp ports in-enclave-only.
       - UDP_ADDR_PREFIX: ""
@@ -89,7 +89,7 @@ containers:
   # Identical to the GPU flavor's wasm-manager except NODE_HAS_GPU=0: catalog
   # apps marked `gpu: true` are refused at launch (a CPU node cannot serve them).
   - name: "wasm-manager"
-    image: "ghcr.io/stevedefacto/nan-wasm-manager@sha256:de85afc015f84b52500518ed04837bd31fe720c50e3e51d69406b2d4565d893d"
+    image: "ghcr.io/stevedefacto/nan-wasm-manager@sha256:6a7c6390ae8c629e87007aace8a1cd86d2af122d68e3ccf3f68f85b41ab5c150"
     restart: always
     env:
       - WASM_MANAGER_PORT: "8091"
