@@ -395,7 +395,7 @@
         ],
         "operationId": "terminateDeployment",
         "summary": "Stop a deployment",
-        "description": "Stops the worker process, tears down the tenant, and releases both shares (GPU and CPU). Pay-per-deploy holds no balance, so any unused funded time is forfeit on early stop.",
+        "description": "Stops the worker process, tears down the tenant, and releases both shares (GPU and CPU); the deployment finishes as `terminated` once teardown completes (the receipt already carries it). An `awaiting_payment` reservation is removed outright instead (`canceled`). Pay-per-deploy holds no balance, so any unused funded time is forfeit on early stop.",
         "parameters": [
           {
             "name": "id",
@@ -686,10 +686,12 @@
       },
       "DeploymentStatus": {
         "type": "string",
+        "description": "terminated = owner-stopped and torn down (final). stopping is the legacy name older enclaves report for the same state.",
         "enum": [
           "awaiting_payment",
           "running",
           "expired",
+          "terminated",
           "stopping",
           "failed"
         ]
@@ -1543,7 +1545,7 @@
           },
           "status": {
             "type": "string",
-            "example": "stopping"
+            "example": "terminated"
           },
           "paidUsdc": {
             "type": "string",
