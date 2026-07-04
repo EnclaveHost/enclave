@@ -601,6 +601,10 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
           <input type="number" id="cfgCpuShare" value="5" min="1" max="100" step="1" />
           <div class="tier-readout" id="tierOut"></div>
         </div>
+        <div class="field" id="fleetField" hidden>
+          <label>Live enclaves <span class="dim">(free capacity per enclave · the shares you pick decide the placement: GPU work needs a GPU enclave, CPU-only work fills CPU enclaves first)</span></label>
+          <div id="fleetList" class="fleet-list"></div>
+        </div>
         <div class="field">
           <label>Pay with</label>
           <div class="seg" id="cfgAsset" role="group" aria-label="Payment asset">
@@ -4777,10 +4781,45 @@ async function refreshAvailability(){
     if (capG) capG.textContent = "· live capacity unavailable, showing whole-card max (100%)";
   }
 }
+// Per-enclave fleet view: the relay's /enclaves table (each box's two free
+// pools), so the dials' aggregate numbers have a "which machine" answer. Only
+// the relay serves it - pointed directly at an enclave, the field stays hidden.
+async function refreshFleet(){
+  const field = $("#fleetField"), list = $("#fleetList");
+  if (!field || !list) return;
+  try {
+    const r = await fetch(Nan.base.replace(/\/v1\/?$/, "") + "/enclaves", { headers: { "Accept": "application/json" } });
+    if (!r.ok) throw new Error("no fleet view");
+    const j = await r.json();
+    const rows = (j.enclaves || []).slice().sort((a, b) =>
+      ((b.availability && b.availability.gpu) === true) - ((a.availability && a.availability.gpu) === true)
+      || String(a.endpoint || "").localeCompare(String(b.endpoint || "")));
+    const meter = (pct) => '<i class="fleet-meter"><b style="width:' + Math.max(0, Math.min(100, pct)) + '%"></b></i>';
+    list.innerHTML = !rows.length
+      ? '<div class="fleet-empty">no live enclaves</div>'
+      : rows.map(e => {
+          const a = e.availability || {};
+          const gpu = a.gpu === true;
+          const gFree = a.gpuShareFree != null ? a.gpuShareFree : (gpu ? a.maxShare || 0 : 0);
+          const cFree = a.cpuShareFree != null ? a.cpuShareFree : (gpu ? 0 : a.maxShare || 0);
+          const gPct = Math.floor(gFree * 100), cPct = Math.floor(cFree * 100);
+          const name = String(e.endpoint || "").replace(/^https?:\/\//, "").split(".")[0] || "enclave";
+          return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
+            + '<span class="ap-badge ' + (gpu ? "info" : "") + '">' + (gpu ? "gpu" : "cpu") + '</span>'
+            + '<span class="fleet-name">' + esc(name) + '</span>'
+            + (gpu ? '<span class="fleet-pool">GPU ' + meter(gPct) + ' ' + gPct + '% free · ≈'
+                   + Math.round(gFree * (a.cardVramGb || CARD_GB)) + ' GB VRAM</span>' : '')
+            + '<span class="fleet-pool">CPU ' + meter(cPct) + ' ' + cPct + '% free · ≈'
+            + fmtNum(cFree * (a.nodeRamGb || NODE_RAM_GB)) + ' GB RAM / ' + fmtNum(cFree * (a.nodeVcpus || NODE_VCPUS)) + ' vCPU</span>'
+            + '</div>';
+        }).join("");
+    field.hidden = false;
+  } catch(e){ field.hidden = true; }
+}
 function startAvailPoll(){
-  refreshAvailability();
+  refreshAvailability(); refreshFleet();
   if (availPoll) return;
-  availPoll = setInterval(() => { if ($("#deploy")) refreshAvailability(); }, 20000);
+  availPoll = setInterval(() => { if ($("#deploy")) { refreshAvailability(); refreshFleet(); } }, 20000);
 }
 
 function initDeploy(){
@@ -4941,6 +4980,14 @@ function injectLiveStyles(){
     ".enc-tools{display:flex;align-items:center;gap:12px;}",
     ".enc-count{font-family:var(--font-mono);font-size:.7rem;color:var(--text-muted);}",
     ".enc-empty{padding:20px 18px;font-family:var(--font-mono);font-size:.8rem;color:var(--text-muted);}",
+    ".fleet-list{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#080c12;}",
+    ".fleet-row{display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);flex-wrap:wrap;}",
+    ".fleet-row:last-child{border-bottom:0;}",
+    ".fleet-name{color:var(--text);font-size:.76rem;}",
+    ".fleet-pool{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;}",
+    ".fleet-meter{display:inline-block;width:56px;height:5px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden;}",
+    ".fleet-meter b{display:block;height:100%;background:linear-gradient(90deg,var(--jade),var(--jade-2));border-radius:3px;}",
+    ".fleet-empty{padding:10px 12px;font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);}",
     ".enc-row{border-bottom:1px solid var(--line-soft);padding:12px 18px;}",
     ".enc-row:last-child{border-bottom:0;}",
     ".enc-row.enc-new{box-shadow:inset 3px 0 0 var(--jade);background:rgba(47,230,168,.04);}",
