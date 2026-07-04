@@ -336,6 +336,84 @@ def _nn_probe_e2e(env, targets=("cpu", "gpu"), timeout=None) -> tuple:
                 pass
 
 
+# Runtime-API bisect: walks the exact CUDA calls ORT's CUDA provider makes at
+# session init, journaling each STEP to a file BEFORE executing it - when one
+# hangs, the journal's last line names the call. The two calls the passing
+# probes never exercised are the prime suspects: cudaHostAlloc (PINNED host
+# memory needs shared/unencrypted pages under TDX) and cuBLAS/cuDNN library
+# init (their kernel-module upload is the heavyweight step).
+_NN_RT_SRC = r"""
+import ctypes, sys
+log = open(sys.argv[1], "w", buffering=1)
+def step(name): log.write("STEP " + name + "\n")
+def ck(name, rc):
+    if rc != 0:
+        log.write(f"FAIL {name} rc={rc}\n"); sys.exit(2)
+step("dlopen libcudart.so.12")
+try:
+    rt = ctypes.CDLL("libcudart.so.12")
+except OSError as e:
+    log.write(f"SKIP no cudart ({e})\n"); sys.exit(3)
+step("cudaSetDevice(0)");         ck("cudaSetDevice", rt.cudaSetDevice(0))
+step("cudaFree(0) [ctx init]");   ck("cudaFree0", rt.cudaFree(None))
+p = ctypes.c_void_p()
+step("cudaMalloc 1MB [device]");  ck("cudaMalloc", rt.cudaMalloc(ctypes.byref(p), 1 << 20))
+h = ctypes.c_void_p()
+step("cudaHostAlloc 1MB [PINNED host - TDX shared pages]")
+ck("cudaHostAlloc", rt.cudaHostAlloc(ctypes.byref(h), 1 << 20, 0))
+step("cudaMemcpy pinned H2D 1MB"); ck("cudaMemcpy", rt.cudaMemcpy(p, h, 1 << 20, 1))
+step("dlopen libcublas.so.12")
+cb = ctypes.CDLL("libcublas.so.12")
+bh = ctypes.c_void_p()
+step("cublasCreate [cublas init]"); ck("cublasCreate", cb.cublasCreate_v2(ctypes.byref(bh)))
+one = ctypes.c_float(1.0); zero = ctypes.c_float(0.0)
+step("cublasSgemm 64x64 [kernel-module load + compute]")
+ck("cublasSgemm", cb.cublasSgemm_v2(bh, 0, 0, 64, 64, 64, ctypes.byref(one),
+                                    p, 64, p, 64, ctypes.byref(zero), p, 64))
+step("cudaDeviceSynchronize");    ck("sync", rt.cudaDeviceSynchronize())
+step("dlopen libcudnn.so.9")
+dn = ctypes.CDLL("libcudnn.so.9")
+dh = ctypes.c_void_p()
+step("cudnnCreate [cudnn init]"); ck("cudnnCreate", dn.cudnnCreate(ctypes.byref(dh)))
+log.write("ok\n")
+"""
+
+
+def _nn_probe_rt(env: dict) -> tuple:
+    """(ok, detail). Runs the runtime-API bisect with a hard deadline; on a
+    hang, reports the exact CUDA call it died in (journal's last STEP)."""
+    jpath = LOG_DIR / f"nn-rt-{uuid.uuid4().hex[:6]}.log"
+    try:
+        proc = subprocess.Popen(["python3", "-c", _NN_RT_SRC, str(jpath)], env=env,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                preexec_fn=_preexec)
+    except Exception as e:                                       # noqa: BLE001
+        return (False, f"rt probe spawn failed: {e}")
+    deadline = time.time() + NN_PROBE_TIMEOUT
+    while time.time() < deadline and proc.poll() is None:
+        time.sleep(0.5)
+    hung = proc.poll() is None
+    if hung:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except Exception:                                        # noqa: BLE001
+            pass
+    try:
+        lines = [l.strip() for l in jpath.read_text().splitlines() if l.strip()]
+    except Exception:                                            # noqa: BLE001
+        lines = []
+    finally:
+        try:
+            jpath.unlink()
+        except Exception:                                        # noqa: BLE001
+            pass
+    if not hung and lines and lines[-1] == "ok":
+        return (True, f"ok ({len(lines) - 1} steps)")
+    last = lines[-1] if lines else "(no journal)"
+    return (False, (f"HUNG at '{last}' after {NN_PROBE_TIMEOUT:.0f}s" if hung
+                    else f"stopped at '{last}' rc={proc.returncode}"))
+
+
 def _nn_probe_worker_control() -> tuple:
     """(ok, detail). Ask the worker manager (if present on this box) to spawn
     one MPS-capped cupy child - the platform's VALIDATED CUDA path - and tear
@@ -434,8 +512,14 @@ def _nn_probe_run():
         if mode is None:
             _NN_PROBE.update(state="failed", mode=None, stage="done", detail="; ".join(history))
             return
-    # driver layer passed - now prove the ORT layer with the env tenants get
+    # driver layer passed - walk the runtime-API calls ORT will make, so a
+    # later e2e hang is pre-attributed to an exact CUDA call (diagnostic; the
+    # e2e stage below remains the launch gate)
     base = _nn_tenant_env(share, pinned=(mode == "full"))
+    _NN_PROBE["stage"] = "runtime-API bisect (cudaMalloc/pinned/cublas/cudnn)"
+    rt_ok, rt_detail = _nn_probe_rt(base)
+    note(f"rtapi: {rt_detail}")
+    print(f"[nn-probe] runtime-API bisect: {rt_detail}", flush=True)
     _NN_PROBE["stage"] = f"ORT e2e base ({mode}): cpu then gpu, {NN_PROBE_TIMEOUT:.0f}s each"
     res, e2e_detail = _nn_probe_e2e(base)
     note(f"e2e[{mode}]: {e2e_detail}")
