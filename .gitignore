@@ -8,3 +8,6 @@ __pycache__/
 # enclaves/<flavor>/tinfoil-config.yml by the release workflows); never commit
 # a stray local copy to main
 /tinfoil-config.yml
+# in-tree wasm app crates: build artifacts + cargo-component's generated bindings
+wasm/apps/*/target/
+wasm/apps/*/src/bindings.rs

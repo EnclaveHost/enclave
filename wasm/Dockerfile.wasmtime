@@ -1,0 +1,55 @@
+# nan-wasmtime: wasmtime CLI built from source with wasi-nn enabled — the
+# GPU interface for tenant apps. The stock release binaries do not compile in
+# wasi-nn, so this toolchain image exists to produce a `wasmtime` that does:
+#
+#   - `wasi-nn`                        host API ( -S nn on serve/run )
+#   - `wasmtime-wasi-nn/onnx`          ONNX Runtime backend (via the `ort` crate)
+#   - `wasmtime-wasi-nn/onnx-cuda`     CUDA execution provider: a guest `load()`
+#                                      with ExecutionTarget::Gpu runs on the card;
+#                                      ::Cpu stays on the CPU EP, so ONE binary
+#                                      serves both enclave flavors.
+#   - `wasmtime-wasi-nn/onnx-download` prebuilt ONNX Runtime binaries pulled at
+#                                      build time (pinned by the ort crate version
+#                                      wasmtime pins; no local ORT compile).
+#
+# This image is NOT rebuilt by CI on every wasm/** change — Dockerfile.wasm
+# COPYs the binary out of it by digest, so wasm-manager rebuilds stay fast
+# (deploy.yml's detect step explicitly ignores this file for the same reason).
+# Rebuild + repush only when bumping WASMTIME_VERSION, via the manual
+# "Wasmtime Toolchain" workflow (.github/workflows/toolchain.yml), then update
+# the WASMTIME_IMAGE digest in Dockerfile.wasm — THAT commit triggers the
+# ordinary wasm-manager rebuild.
+#
+# Keep WASMTIME_VERSION in lockstep with the P3/socket flags wasm_manager.py
+# was verified against (currently wasmtime 45).
+FROM rust:1.93-bookworm AS build
+
+ARG WASMTIME_VERSION=v45.0.0
+RUN git clone --depth 1 --branch "${WASMTIME_VERSION}" \
+      https://github.com/bytecodealliance/wasmtime /src/wasmtime
+WORKDIR /src/wasmtime
+
+# Honest ExecutionTarget::Gpu: ORT registers execution providers non-fatally,
+# so an out-of-the-box "GPU" load silently falls back to the CPU when CUDA
+# can't initialize. Tenants BUY the GPU share — they get the card or an error.
+COPY wasmtime-onnx-gpu-strict.patch /tmp/
+RUN git apply --check /tmp/wasmtime-onnx-gpu-strict.patch \
+ && git apply /tmp/wasmtime-onnx-gpu-strict.patch
+
+# ORT's core is linked statically into the binary; only the execution-provider
+# dylibs are dynamic (dlopened at session creation). copy-dylibs leaves them as
+# SYMLINKS into ort's download cache, so -L dereferences. We ship exactly the
+# two the CUDA EP needs — providers_shared (the dispatcher) + providers_cuda —
+# and deliberately not providers_tensorrt (never requested; would need TensorRT
+# libs). If a future ort changes this shape, fail the build loudly here.
+RUN cargo build --release \
+      --features "wasi-nn,wasmtime-wasi-nn/onnx-cuda,wasmtime-wasi-nn/onnx-download" \
+ && mkdir -p /out/bin /out/lib \
+ && cp -a target/release/wasmtime /out/bin/ \
+ && cp -L target/release/libonnxruntime_providers_shared.so /out/lib/ \
+ && cp -L target/release/libonnxruntime_providers_cuda.so /out/lib/ \
+ && ls -laR /out/
+
+# artifact-only image: /bin/wasmtime + /lib/<ORT dylibs>, nothing else
+FROM scratch
+COPY --from=build /out/ /

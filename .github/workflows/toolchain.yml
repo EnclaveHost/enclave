@@ -1,0 +1,75 @@
+# Builds the nan-wasmtime toolchain image: wasmtime compiled from source with
+# wasi-nn (ONNX Runtime backend + CUDA execution provider) — the GPU interface
+# for tenant Wasm apps. See wasm/Dockerfile.wasmtime for what's inside.
+#
+# MANUAL, on purpose: this image is a build INPUT of nan-wasm-manager, pinned
+# there by digest, not a deployable. Run it only when bumping the wasmtime
+# version (or the feature set), then copy the digest this run prints into
+# Dockerfile.wasm's WASMTIME_IMAGE ARG — that commit triggers the ordinary
+# wasm-manager sidecar rebuild in deploy.yml.
+
+name: Wasmtime Toolchain
+
+run-name: wasmtime ${{ inputs.wasmtime-version }} (wasi-nn)
+
+on:
+  workflow_dispatch:
+    inputs:
+      wasmtime-version:
+        description: 'wasmtime tag to build (e.g. v45.0.0)'
+        required: true
+        default: 'v45.0.0'
+        type: string
+
+concurrency:
+  group: nan-wasmtime-${{ inputs.wasmtime-version }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push toolchain image
+        id: build
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: wasm
+          file: wasm/Dockerfile.wasmtime
+          push: true
+          build-args: |
+            WASMTIME_VERSION=${{ inputs.wasmtime-version }}
+          tags: ghcr.io/stevedefacto/nan-wasmtime:${{ inputs.wasmtime-version }}
+
+      - name: Print the digest to pin in Dockerfile.wasm
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          VERSION: ${{ inputs.wasmtime-version }}
+        run: |
+          {
+            echo "## nan-wasmtime pushed"
+            echo
+            echo "Pin it in \`wasm/Dockerfile.wasm\`:"
+            echo
+            echo '```'
+            echo "ARG WASMTIME_IMAGE=ghcr.io/stevedefacto/nan-wasmtime:${VERSION}@${DIGEST}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "digest=${DIGEST}"

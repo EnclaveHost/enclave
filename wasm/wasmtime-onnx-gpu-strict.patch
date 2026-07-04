@@ -1,0 +1,28 @@
+Honest ExecutionTarget::Gpu: fail load() when the CUDA execution provider
+cannot initialize, instead of ORT's default silent CPU fallback.
+
+Why (NAN): a tenant that bought a GPU share and asked for ::Gpu must get the
+card or an error — never a quiet downgrade to CPU that still looks like a
+successful GPU inference. Silent fallback would also make the demo/verification
+app lie on GPU-less nodes. Applied to the wasmtime source by
+Dockerfile.wasmtime before building the toolchain image.
+
+diff --git a/crates/wasi-nn/src/backend/onnx.rs b/crates/wasi-nn/src/backend/onnx.rs
+index c7cc645..b70dc93 100644
+--- a/crates/wasi-nn/src/backend/onnx.rs
++++ b/crates/wasi-nn/src/backend/onnx.rs
+@@ -67,9 +67,12 @@ fn configure_execution_providers(
+         ExecutionTarget::Gpu => {
+             #[cfg(feature = "onnx-cuda")]
+             {
+-                // Use CUDA execution provider for GPU acceleration
++                // Use CUDA execution provider for GPU acceleration. NAN: fail
++                // the load if the provider can't initialize — ORT's default is
++                // a SILENT fallback to CPU, which would let a "GPU" inference
++                // quietly run on the CPU.
+                 tracing::debug!("Using Nvidia GPU CUDA execution provider");
+-                Ok(vec![CUDAExecutionProvider::default().build()])
++                Ok(vec![CUDAExecutionProvider::default().build().error_on_failure()])
+             }
+             #[cfg(not(feature = "onnx-cuda"))]
+             {
