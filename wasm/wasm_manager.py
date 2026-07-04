@@ -119,8 +119,13 @@ MPS_PIPE_DIR = os.environ.get("CUDA_MPS_PIPE_DIRECTORY", "/tmp/nvidia-mps")
 # the supervisor's allocator), anything else = GPU launches are refused with
 # the probe's diagnosis instead of hanging apps.
 NN_PROBE_TIMEOUT = float(os.environ.get("WASM_NN_PROBE_TIMEOUT", "75"))   # worker.py validated ~60s CC init; match its patience
+# Long-patience budget for the "is it hung or just glacial?" e2e variant:
+# under CC, first-time cuBLAS/cuDNN kernel loading can legitimately take
+# minutes (encrypted bounce-buffered copies), which only LOOKS like a hang.
+NN_PROBE_LONG = float(os.environ.get("WASM_NN_PROBE_LONG", "600"))
 _NN_PROBE = {"state": "probing" if (NN_ENABLED and NODE_HAS_GPU and not MOCK) else "off",
-             "mode": None, "detail": "", "attempts": 0}   # state: probing|ok|failed|off; mode: full|nopin
+             "mode": None, "detail": "", "attempts": 0,
+             "env": {}}   # state: probing|ok|failed|off; mode: full|nopin; env: extra tenant env the probe adopted (e.g. CUDA_MODULE_LOADING)
 
 _NN_PROBE_SRC = r"""
 import ctypes, sys
@@ -238,6 +243,9 @@ def _nn_tenant_env(gpu_share: float, pinned: bool) -> dict:
     # host-side wasi-nn traces into the tenant's log file (owner-readable via
     # the deployment logs endpoint) - names the backend step a hang died in
     env.setdefault("WASMTIME_LOG", "wasmtime_wasi_nn=debug")
+    # whatever the probe's GPU bisect adopted (e.g. CUDA_MODULE_LOADING=EAGER
+    # when lazy loading deadlocks under MPS) applies to every tenant
+    env.update(_NN_PROBE.get("env") or {})
     return env
 
 
@@ -255,15 +263,17 @@ def _nn_probe_once(env: dict) -> tuple:
         return (False, f"probe spawn failed: {e}")
 
 
-def _nn_probe_e2e(env) -> tuple:
-    """(ok, detail). The ORT layer, end to end: serve the baked-in nn-demo with
-    the real tenant env and run ONE inference per target through it. The cuInit
-    probe can pass while ORT's session creation still hangs (it exercises
-    cudart/cublas/cuDNN and the CC data path, not just the driver attach), so
-    only this stage proves a GPU deployment will actually answer."""
+def _nn_probe_e2e(env, targets=("cpu", "gpu"), timeout=None) -> tuple:
+    """({target: ok}, detail). The ORT layer, end to end: serve the baked-in
+    nn-demo with the real tenant env and run ONE inference per target through
+    it. The cuInit probe can pass while ORT's session creation still hangs (it
+    exercises cudart/cublas/cuDNN and the CC data path, not just the driver
+    attach), so only this stage proves a GPU deployment will actually answer.
+    Each call is a FRESH wasmtime process = a fresh CUDA init."""
+    timeout = timeout or NN_PROBE_TIMEOUT
     wasm = APPS_DIR / "nn-demo.wasm"
     if not wasm.is_file():
-        return True, "e2e skipped (nn-demo.wasm not baked in)"
+        return ({t: True for t in targets}, "e2e skipped (nn-demo.wasm not baked in)")
     port = _free_port()
     cmd = [WASMTIME, "serve", "-Scli", "-Shttp", *P3_FLAGS, "-Snn",
            "--addr", f"{HOST_IP}:{port}", str(wasm)]
@@ -272,29 +282,28 @@ def _nn_probe_e2e(env) -> tuple:
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                 preexec_fn=_preexec)
     except Exception as e:                                       # noqa: BLE001
-        return False, f"e2e spawn failed: {e}"
+        return ({t: False for t in targets}, f"e2e spawn failed: {e}")
     try:
         deadline = time.time() + 15
         while time.time() < deadline and not _port_open(port):
             if proc.poll() is not None:
-                return False, f"e2e wasmtime exited rc={proc.returncode} before serving"
+                return ({t: False for t in targets}, f"e2e wasmtime exited rc={proc.returncode} before serving")
             time.sleep(0.2)
         if not _port_open(port):
-            return False, "e2e serve socket never opened"
-        parts, all_ok = [], True
-        for tgt in ("cpu", "gpu"):
+            return ({t: False for t in targets}, "e2e serve socket never opened")
+        parts, results = [], {}
+        for tgt in targets:
             t0 = time.time()
             try:
                 with urllib.request.urlopen(f"http://{HOST_IP}:{port}/?target={tgt}",
-                                            timeout=NN_PROBE_TIMEOUT) as r:
+                                            timeout=timeout) as r:
                     body = json.loads(r.read() or b"{}")
-                ok = bool(body.get("ok"))
-                parts.append(f"{tgt}: {'ok' if ok else body.get('error', 'not ok')} ({time.time() - t0:.1f}s)")
-                all_ok = all_ok and ok
+                results[tgt] = bool(body.get("ok"))
+                parts.append(f"{tgt}: {'ok' if results[tgt] else body.get('error', 'not ok')} ({time.time() - t0:.1f}s)")
             except Exception as e:                               # noqa: BLE001
+                results[tgt] = False
                 parts.append(f"{tgt}: HUNG/failed after {time.time() - t0:.1f}s ({e.__class__.__name__}: {e})")
-                all_ok = False
-        return all_ok, "; ".join(parts)
+        return (results, "; ".join(parts))
     finally:
         try:
             os.killpg(proc.pid, signal.SIGKILL)
@@ -357,14 +366,53 @@ def _nn_probe_loop():
             _NN_PROBE.update(state="failed", mode=None, detail="; ".join(history))
             return
     # driver layer passed - now prove the ORT layer with the env tenants get
-    e2e_ok, e2e_detail = _nn_probe_e2e(_nn_tenant_env(share, pinned=(mode == "full")))
+    base = _nn_tenant_env(share, pinned=(mode == "full"))
+    res, e2e_detail = _nn_probe_e2e(base)
     history.append(f"e2e[{mode}]: {e2e_detail}")
     print(f"[nn-probe] ORT end-to-end ({mode}): {e2e_detail}", flush=True)
-    if e2e_ok:
+    if all(res.values()):
         _NN_PROBE.update(state="ok", mode=mode, detail="; ".join(history))
-    else:
+        return
+    if not res.get("cpu", False):
+        # ORT can't even run the CPU provider here - nothing GPU-specific to bisect
         _NN_PROBE.update(state="failed", mode=mode,
-                         detail=f"driver layer ok ({mode}) but ORT end-to-end failed - " + "; ".join(history))
+                         detail=f"ORT fails on the CPU provider itself - " + "; ".join(history))
+        return
+    # GPU-only failure: bisect the known failure classes, one fresh CUDA init
+    # each. First success is adopted for every tenant launch.
+    #   eager   - CUDA 12 defaults to lazy module loading, a known deadlock
+    #             class under MPS; EAGER loads kernels at init instead.
+    #   nopin   - the per-client VRAM limit only bites when the EP builds its
+    #             arena (the driver-layer bisect can pass while this hangs).
+    #   patient - not hung, just glacial: CC first-load of cuBLAS/cuDNN kernel
+    #             modules through encrypted buffers can take minutes. Adopting
+    #             it means tenants work but their FIRST GPU request is slow.
+    variants = [
+        ("eager", {**base, "CUDA_MODULE_LOADING": "EAGER"}, NN_PROBE_TIMEOUT,
+         lambda: _NN_PROBE.update(env={"CUDA_MODULE_LOADING": "EAGER"}),
+         "lazy module loading deadlocks under MPS here; tenants get CUDA_MODULE_LOADING=EAGER"),
+        ("nopin-ort", {k: v for k, v in base.items() if k != "CUDA_MPS_PINNED_DEVICE_MEM_LIMIT"},
+         NN_PROBE_TIMEOUT,
+         lambda: _NN_PROBE.update(mode="nopin"),
+         "the pinned-VRAM limit hangs the ORT arena; tenants run SM-capped only (VRAM stays allocator-accounted)"),
+        ("patient", base, NN_PROBE_LONG,
+         lambda: None,
+         "GPU init is slow (CC first-load), not hung; a deployment's FIRST GPU request pays it"),
+    ]
+    for name, env, tmo, adopt, meaning in variants:
+        t0 = time.time()
+        vres, vdetail = _nn_probe_e2e(env, targets=("gpu",), timeout=tmo)
+        history.append(f"{name}: {vdetail}")
+        print(f"[nn-probe] gpu variant {name}: {vdetail}", flush=True)
+        if vres.get("gpu"):
+            adopt()
+            history.append(f"ADOPTED {name} ({time.time() - t0:.0f}s): {meaning}")
+            print(f"[nn-probe] ADOPTED {name}: {meaning}", flush=True)
+            _NN_PROBE.update(state="ok", detail="; ".join(history))
+            return
+    _NN_PROBE.update(state="failed", mode=mode,
+                     detail=f"driver layer ok ({mode}) but the ORT CUDA provider failed every variant - "
+                            + "; ".join(history))
 
 
 def _resolve_wasm(ref: str) -> pathlib.Path:
