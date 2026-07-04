@@ -106,6 +106,41 @@ AUDIT_SECS     = float(os.environ.get("WASM_AUDIT_INTERVAL", "10"))
 NN_ENABLED   = os.environ.get("WASM_NN", "1").lower() not in ("0", "false", "no")
 GPU_VRAM_GB  = float(os.environ.get("GPU_VRAM_GB", "141"))
 MPS_PIPE_DIR = os.environ.get("CUDA_MPS_PIPE_DIRECTORY", "/tmp/nvidia-mps")
+# CUDA readiness probe (see _nn_probe_loop): a wasi-nn load() is a SYNCHRONOUS
+# host call, so a CUDA init that HANGS (rather than errors) eats a runtime
+# thread forever - a few retried GPU requests then wedge the whole tenant,
+# including its CPU paths. Launching GPU tenants is therefore gated on a boot
+# probe that does cuInit + primary-context retain (the MPS attach point) in a
+# throwaway subprocess with the exact tenant env and a hard timeout, and
+# bisects which layer breaks: full env -> without the pinned-VRAM limit ->
+# without MPS. Result drives launches: full/nopin = go (nopin drops only the
+# never-validated CUDA_MPS_PINNED_DEVICE_MEM_LIMIT; VRAM stays accounted by
+# the supervisor's allocator), anything else = GPU launches are refused with
+# the probe's diagnosis instead of hanging apps.
+NN_PROBE_TIMEOUT = float(os.environ.get("WASM_NN_PROBE_TIMEOUT", "75"))   # worker.py validated ~60s CC init; match its patience
+_NN_PROBE = {"state": "probing" if (NN_ENABLED and NODE_HAS_GPU and not MOCK) else "off",
+             "mode": None, "detail": "", "attempts": 0}   # state: probing|ok|failed|off; mode: full|nopin
+
+_NN_PROBE_SRC = r"""
+import ctypes, sys
+try:
+    cu = ctypes.CDLL("libcuda.so.1")
+except OSError as e:
+    print(f"libcuda.so.1 unavailable ({e}): nvidia runtime not applied to this container?", flush=True); sys.exit(4)
+def ck(name, rc):
+    if rc != 0:
+        print(f"{name} rc={rc}", flush=True); sys.exit(2)
+ck("cuInit", cu.cuInit(0))
+n = ctypes.c_int(0)
+ck("cuDeviceGetCount", cu.cuDeviceGetCount(ctypes.byref(n)))
+if n.value < 1:
+    print("no CUDA devices visible", flush=True); sys.exit(3)
+dev = ctypes.c_int(0)
+ck("cuDeviceGet", cu.cuDeviceGet(ctypes.byref(dev), 0))
+ctx = ctypes.c_void_p()
+ck("cuDevicePrimaryCtxRetain", cu.cuDevicePrimaryCtxRetain(ctypes.byref(ctx), dev))
+print("ok", flush=True)
+"""
 # WASIp3 (component-model async): wasmtime 45 accepts `-S p3` on both `run`
 # and `serve`, and no longer marks it experimental. The flag widens the API
 # SURFACE only — wasip2 components ignore it, wasip3 components need it to
@@ -188,6 +223,74 @@ def _resolve_cid(cid: str) -> pathlib.Path:
     tmp.write_bytes(data)
     tmp.replace(p)                                  # atomic publish into the cache
     return p
+
+
+def _nn_tenant_env(gpu_share: float, pinned: bool) -> dict:
+    """The MPS cap env a GPU tenant's wasmtime process runs with. `pinned`
+    adds the per-client VRAM limit; dropped when the probe found it poisonous
+    (mode "nopin") - the SM cap is the validated, load-bearing one."""
+    env = dict(os.environ)
+    env["CUDA_MPS_PIPE_DIRECTORY"] = MPS_PIPE_DIR
+    env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(max(1, round(gpu_share * 100)))
+    if pinned:
+        env["CUDA_MPS_PINNED_DEVICE_MEM_LIMIT"] = f"0={max(1, int(gpu_share * GPU_VRAM_GB * 1024))}M"
+    return env
+
+
+def _nn_probe_once(env: dict) -> tuple:
+    """(ok, detail). Runs the cuInit/primary-ctx probe in a subprocess under a
+    hard timeout - a HANG is a result here, not a failure mode."""
+    try:
+        r = subprocess.run(["python3", "-c", _NN_PROBE_SRC], env=env, timeout=NN_PROBE_TIMEOUT,
+                           capture_output=True, text=True)
+        out = (r.stdout or r.stderr or "").strip()
+        return (r.returncode == 0 and out.endswith("ok"), out or f"rc={r.returncode}")
+    except subprocess.TimeoutExpired:
+        return (False, f"HUNG >{NN_PROBE_TIMEOUT:.0f}s (killed)")
+    except Exception as e:                                       # noqa: BLE001
+        return (False, f"probe spawn failed: {e}")
+
+
+def _nn_probe_loop():
+    """Boot-time GPU readiness bisect. Writes _NN_PROBE; launches gate on it."""
+    share = 0.01   # smallest grain; the probe only needs A context, not capacity
+    steps = [("full",  _nn_tenant_env(share, pinned=True),
+              "tenant env (SM cap + pinned VRAM limit)"),
+             ("nopin", _nn_tenant_env(share, pinned=False),
+              "without CUDA_MPS_PINNED_DEVICE_MEM_LIMIT"),
+             ("nomps", {k: v for k, v in os.environ.items() if not k.startswith("CUDA_MPS")},
+              "without any MPS env (diagnostic only - tenants NEVER run uncapped)")]
+    history = []
+    # up to 3 rounds of the full env first: rides out MPS-daemon boot races the
+    # same way worker.py's children retry their CUDA init.
+    for attempt in range(3):
+        _NN_PROBE["attempts"] = attempt + 1
+        ok, detail = _nn_probe_once(steps[0][1])
+        history.append(f"full#{attempt + 1}: {detail}")
+        print(f"[nn-probe] full env attempt {attempt + 1}: {'ok' if ok else detail}", flush=True)
+        if ok:
+            _NN_PROBE.update(state="ok", mode="full", detail="; ".join(history))
+            return
+        time.sleep(5)
+    for mode, env, label in steps[1:]:
+        ok, detail = _nn_probe_once(env)
+        history.append(f"{mode}: {detail}")
+        print(f"[nn-probe] {label}: {'ok' if ok else detail}", flush=True)
+        if ok and mode == "nopin":
+            # the pinned-VRAM var is the poison: run tenants SM-capped only
+            # (VRAM stays admission-accounted by the supervisor's allocator).
+            print("[nn-probe] WARNING: CUDA_MPS_PINNED_DEVICE_MEM_LIMIT hangs/fails CUDA init "
+                  "on this node - GPU tenants run with the SM cap only.", flush=True)
+            _NN_PROBE.update(state="ok", mode="nopin", detail="; ".join(history))
+            return
+        if ok and mode == "nomps":
+            # CUDA works, MPS attach doesn't: refusing is the honest move -
+            # uncapped tenants would break the share product.
+            _NN_PROBE.update(state="failed", mode=None,
+                             detail="MPS attach breaks CUDA init in this container (bare CUDA works). "
+                                    + "; ".join(history))
+            return
+    _NN_PROBE.update(state="failed", mode=None, detail="; ".join(history))
 
 
 def _resolve_wasm(ref: str) -> pathlib.Path:
@@ -455,12 +558,12 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
     # share, VRAM = share × the card (the same budget the deployment priced).
     # The pipe dir joins the mps-control daemon's server; without these vars a
     # CUDA context would run uncapped, so nn tenants never launch without them.
+    # The pinned-VRAM var is dropped when the boot probe found it poisonous
+    # (mode "nopin"); the POST handler refuses GPU launches unless the probe
+    # passed, so `nn` here implies a probe mode exists.
     env = None
     if nn:
-        env = dict(os.environ)
-        env["CUDA_MPS_PIPE_DIRECTORY"] = MPS_PIPE_DIR
-        env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(max(1, round(gpu_share * 100)))
-        env["CUDA_MPS_PINNED_DEVICE_MEM_LIMIT"] = f"0={max(1, int(gpu_share * GPU_VRAM_GB * 1024))}M"
+        env = _nn_tenant_env(gpu_share, pinned=_NN_PROBE.get("mode") != "nopin")
         rec["mpsPct"] = max(1, round(gpu_share * 100))
     logf = open(log_path, "wb")
     try:
@@ -678,7 +781,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == "/health":
             return self._json(200, {"ok": True, "runtime": "wasmtime",
                                     "version": _wasmtime_version(), "mock": MOCK,
-                                    "nn": NN_ENABLED and NODE_HAS_GPU,
+                                    "nn": NN_ENABLED and NODE_HAS_GPU and (MOCK or _NN_PROBE["state"] == "ok"),
+                                    "nnProbe": dict(_NN_PROBE),
                                     "capacity": _capacity()})
         if self.path == "/capacity":
             return self._json(200, _capacity())
@@ -750,6 +854,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if (min_vram > 0 or min_ggf > 0) and (not NODE_HAS_GPU or gpu_share <= 0):
             return self._json(422, {"error": f"app '{app_ref}' requires a GPU ({min_vram} MB VRAM / {min_ggf / 1000} TFLOPS); "
                                              + ("ask for GPU resources" if NODE_HAS_GPU else "this node is CPU-only")})
+        # GPU tenants launch only after the CUDA/MPS probe passed: a hanging
+        # CUDA init inside a tenant eats runtime threads until the whole app
+        # wedges, so failing the deploy loudly here is the honest alternative.
+        if gpu_share > 0 and NN_ENABLED and NODE_HAS_GPU and not MOCK and _NN_PROBE["state"] != "ok":
+            msg = ("GPU interface warming up (CUDA readiness probe still running); retry shortly"
+                   if _NN_PROBE["state"] == "probing"
+                   else f"GPU interface unavailable on this node: {_NN_PROBE['detail'] or 'probe failed'}")
+            return self._json(503, {"error": msg, "nnProbe": dict(_NN_PROBE)})
         if min_mem and (mem_mb or int(cpu_share * NODE_RAM_GB * 1024)) < min_mem:
             return self._json(422, {"error": f"app '{app_ref}' declares a minimum of {min_mem} MB RAM; the request asks for less"})
         # compute minimums: the ask arrives GPU in TFLOPS (gpuTflops) but CPU in
@@ -791,7 +903,8 @@ def _debug_env() -> dict:
     out = {"runtime": "wasmtime", "mock": MOCK, "apps_dir": str(APPS_DIR),
            "catalog": sorted(_load_catalog().keys()), "version": _wasmtime_version(),
            "p3": bool(P3_FLAGS),
-           "nn": NN_ENABLED and NODE_HAS_GPU, "gpu_vram_gb": GPU_VRAM_GB,
+           "nn": NN_ENABLED and NODE_HAS_GPU and (MOCK or _NN_PROBE["state"] == "ok"),
+           "nn_probe": dict(_NN_PROBE), "gpu_vram_gb": GPU_VRAM_GB,
            "mps_pipe": MPS_PIPE_DIR if (NN_ENABLED and NODE_HAS_GPU) else None,
            "fs": FS_ENABLED, "fs_guest": FS_GUEST_PATH if FS_ENABLED else None,
            "default_storage_mb": DEF_STORAGE_MB if FS_ENABLED else 0}
@@ -818,8 +931,10 @@ def main():
                 shutil.rmtree(child, ignore_errors=True)
     httpd = http.server.ThreadingHTTPServer((HOST_IP if HOST_IP else "0.0.0.0", PORT), Handler)
     threading.Thread(target=_audit_sweep, daemon=True).start()   # firewall bind + storage audit
+    if _NN_PROBE["state"] == "probing":
+        threading.Thread(target=_nn_probe_loop, daemon=True).start()   # gates GPU launches
     print(f"wasm-manager on :{PORT} runtime=wasmtime mock={MOCK} apps_dir={APPS_DIR} "
-          f"p3={bool(P3_FLAGS)} fs={FS_ENABLED}", flush=True)
+          f"p3={bool(P3_FLAGS)} fs={FS_ENABLED} nn={_NN_PROBE['state']}", flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
