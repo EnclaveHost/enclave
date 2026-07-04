@@ -22,7 +22,7 @@ memory: 65536      # 64 GiB
 containers:
   # --- supervisor: control plane (no GPU), public ingress -----------------------
   - name: "supervisor"
-    image: "ghcr.io/stevedefacto/nan@sha256:87510fbbf61c342c603e655b050c3c167314ad98dc8eb5b8f79135ca69016070"
+    image: "ghcr.io/stevedefacto/nan@sha256:39f60ebe8e0c93784158aa0c975f927d57daeb244279d4bad29a6e48c305be78"
     restart: always
     env:
       - PORT: "8080"
