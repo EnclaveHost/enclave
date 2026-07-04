@@ -5249,7 +5249,12 @@ function initViews(){
    ============================================================ */
 const APP_CATALOG_ADDRESS = "0x9BDe7CB742a7baC4C67656c2467A7f3da99614a6"; // NanAppCatalog on Base; written automatically by scripts/deploy-app-catalog.mjs
 const APP_CATALOG_CHAIN   = 8453;                        // Base mainnet (kept in sync by the deploy script; 84532 = Base Sepolia)
-const APP_CATALOG_RPC     = "https://mainnet.base.org";  // read-only eth_call endpoint; browsing needs no wallet (CORS-enabled)
+const APP_CATALOG_RPC     = "https://base-rpc.publicnode.com";  // preferred read endpoint (CORS-enabled; browsing needs no wallet)
+// Failover pool: reads are stateless, and every public Base RPC rate-limits by
+// IP - the official mainnet.base.org hard enough that one catalog load can
+// trip "over rate limit". Calls start on the last endpoint that worked and
+// rotate on failure.
+const APP_CATALOG_RPCS    = [APP_CATALOG_RPC, "https://base.drpc.org", "https://1rpc.io/base", "https://mainnet.base.org"];
 const IPFS_UPLOAD_URL      = "https://ipfs.nan.host/add-wasm"; // validating upload gateway (server validates + pins); empty => paste-a-CID only
 const IPFS_GATEWAY        = "https://ipfs.io/ipfs/";      // where the "fetch .wasm" links resolve
 const MAX_WASM_MB         = 256;                          // upload ceiling (also enforced server-side by Caddy request_body max_size)
@@ -5290,13 +5295,36 @@ const hexBig = (h) => (!h || h === "0x") ? 0n : BigInt(h);
 function catConfigured(){ return APP_CATALOG_ADDRESS && !/^0x0+$/i.test(APP_CATALOG_ADDRESS); }
 function catExplorer(){ return APP_CATALOG_CHAIN === 84532 ? "https://sepolia.basescan.org" : "https://basescan.org"; }
 
-/* ---- read side: JSON-RPC eth_call against a public Base RPC ---- */
+/* ---- read side: JSON-RPC against a POOL of public Base RPCs ----
+   Rotates to the next endpoint on transport errors and rate limits; a
+   contract REVERT is deterministic and thrown immediately (retrying it 8x
+   would just burn the pool). One short breather between rounds. */
+let _rpcIdx = 0;
+async function baseRpc(method, params){
+  let lastErr = null;
+  for (let attempt = 0; attempt < APP_CATALOG_RPCS.length * 2; attempt++){
+    const url = APP_CATALOG_RPCS[_rpcIdx % APP_CATALOG_RPCS.length];
+    try {
+      const r = await fetch(url, { method:"POST", headers:{ "content-type":"application/json" },
+        body: JSON.stringify({ jsonrpc:"2.0", id:1, method, params }) });
+      if (!r.ok) throw new NanError("HTTP " + r.status, r.status);
+      const j = await r.json();
+      if (j.error){
+        if (/revert/i.test(j.error.message || "")) throw { fatal: true, err: new NanError(j.error.message, 0) };
+        throw new NanError(j.error.message || "rpc error", 0);
+      }
+      return j.result;                       // null is a valid result (e.g. pending receipt)
+    } catch(e){
+      if (e && e.fatal) throw e.err;
+      lastErr = (e instanceof NanError) ? e : new NanError(e.message || String(e), 0);
+      _rpcIdx++;
+      if (attempt === APP_CATALOG_RPCS.length - 1) await wait(700);
+    }
+  }
+  throw lastErr || new NanError("all Base RPC endpoints failed", 0);
+}
 async function ethCall(data){
-  const r = await fetch(APP_CATALOG_RPC, { method:"POST", headers:{ "content-type":"application/json" },
-    body: JSON.stringify({ jsonrpc:"2.0", id:1, method:"eth_call", params:[{ to:APP_CATALOG_ADDRESS, data }, "latest"] }) });
-  const j = await r.json().catch(() => ({}));
-  if (j.error) throw new NanError(j.error.message || "eth_call failed", 0);
-  return j.result || "0x";
+  return (await baseRpc("eth_call", [{ to: APP_CATALOG_ADDRESS, data }, "latest"])) || "0x";
 }
 
 /* ---- minimal ABI codec (generic encode + struct-array decode), verified vs viem ---- */
@@ -5353,12 +5381,26 @@ async function catGetVersions(appId, count){
 }
 async function catOwner(){ const r = await ethCall("0x" + CAT_SEL.owner); return "0x" + (r || "").replace(/^0x/, "").slice(24).padStart(40, "0"); }
 
+// The last good catalog is cached in localStorage (stale-while-revalidate):
+// paint it instantly, refresh behind it, and a failed refresh keeps the page
+// usable instead of replacing it with an error wall.
+function catCacheGet(){
+  try { const c = JSON.parse(lsGet("nan_catalog_" + APP_CATALOG_ADDRESS) || "null");
+        return (c && Array.isArray(c.apps)) ? c : null; } catch(e){ return null; }
+}
+function catCacheSet(apps){ lsSet("nan_catalog_" + APP_CATALOG_ADDRESS, JSON.stringify({ at: Date.now(), apps })); }
 async function loadCatalog(force){
   const grid = $("#storeGrid"); if (!grid) return;
   if (!catConfigured()){ STORE.loaded = true; renderApps(); return; }
   if (STORE.loading || (STORE.loaded && !force)) return;
   STORE.loading = true;
-  if (!STORE.loaded) grid.innerHTML = '<div class="store-note">reading catalog from Base…</div>';
+  if (!STORE.loaded){
+    const cached = catCacheGet();
+    if (cached){
+      STORE.apps = cached.apps; STORE.byId = {}; cached.apps.forEach(a => STORE.byId[a.appId] = a);
+      STORE.loaded = true; renderApps();
+    } else grid.innerHTML = '<div class="store-note">reading catalog from Base…</div>';
+  }
   try {
     const n = await appCount();
     const apps = []; const PAGE = 50;
@@ -5366,9 +5408,13 @@ async function loadCatalog(force){
     await Promise.all(apps.map(async a => { a.versions = await catGetVersions(a.appId, a.versionCount); }));
     STORE.apps = apps; STORE.byId = {}; apps.forEach(a => STORE.byId[a.appId] = a);
     STORE.loaded = true;
+    catCacheSet(apps);
     catOwner().then(o => { STORE.owner = o.toLowerCase(); renderApps(); }).catch(() => {});
   } catch(e){
-    grid.innerHTML = '<div class="store-note">Couldn’t read the catalog: ' + esc(e.message || String(e)) + '<br><span class="dim">Check APP_CATALOG_RPC / the contract address.</span></div>';
+    if (STORE.apps && STORE.apps.length)          // stale view beats an error wall
+      showToast("catalog refresh failed (" + (e.message || e) + ") · showing the last good read");
+    else
+      grid.innerHTML = '<div class="store-note">Couldn’t read the catalog: ' + esc(e.message || String(e)) + '<br><span class="dim">All public Base RPC endpoints refused - usually a transient rate limit; try Refresh in a moment.</span></div>';
     STORE.loading = false; return;
   }
   STORE.loading = false; renderApps();
@@ -5520,10 +5566,9 @@ async function ensureCatalogChain(){
 async function waitReceipt(hash, tries){
   tries = tries || 45;
   for (let i = 0; i < tries; i++){
-    const r = await fetch(APP_CATALOG_RPC, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc:"2.0", id:1, method:"eth_getTransactionReceipt", params:[hash] }) });
-    const j = await r.json().catch(() => ({}));
-    if (j.result){ if (hexBig(j.result.status) === 0n) throw new NanError("transaction reverted", 0); return j.result; }
+    let rec = null;
+    try { rec = await baseRpc("eth_getTransactionReceipt", [hash]); } catch(e){}
+    if (rec){ if (hexBig(rec.status) === 0n) throw new NanError("transaction reverted", 0); return rec; }
     await new Promise(res => setTimeout(res, 2000));
   }
   throw new NanError("timed out waiting for confirmation (it may still land; hit refresh shortly)", 0);
