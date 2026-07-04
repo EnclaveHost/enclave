@@ -164,9 +164,16 @@ jobs:
   # registry entries / deployment balances do NOT migrate), so they wait for a
   # one-click approval on the `contract-deploy` environment. Rejecting the
   # review skips the deploy and unblocks the queue.
+  #
+  # HAND-DEPLOY MODE (repo variable CONTRACTS_HAND_DEPLOY=1): the deployer key
+  # is a GOVERNANCE root - catalog approvals decide what code attested enclaves
+  # will run - so the operator keeps it off GitHub entirely. This job is then
+  # SKIPPED (green, not failed: a red job would block the release job and
+  # freeze detect's green baseline) and contracts-notice below says what to run
+  # locally instead. Delete the variable to return to gated CI deploys.
   contracts:
     needs: detect
-    if: needs.detect.outputs.contracts_any == 'true'
+    if: needs.detect.outputs.contracts_any == 'true' && vars.CONTRACTS_HAND_DEPLOY != '1'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: contract-deploy
@@ -231,6 +238,18 @@ jobs:
           git push origin HEAD:main
           echo "wired_site=$wired_site" >> "$GITHUB_OUTPUT"
           echo "wired_config=$wired_config" >> "$GITHUB_OUTPUT"
+
+  # Hand-deploy mode's reminder: contract sources changed but CI deliberately
+  # holds no deployer key. Emits the exact local commands; always green.
+  contracts-notice:
+    needs: detect
+    if: needs.detect.outputs.contracts_any == 'true' && vars.CONTRACTS_HAND_DEPLOY == '1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Contract change needs a hand deploy
+        run: |
+          echo "::warning::Contract sources changed (registry=${{ needs.detect.outputs.registry }} deployments=${{ needs.detect.outputs.deployments }} catalog=${{ needs.detect.outputs.catalog }} nanpay=${{ needs.detect.outputs.nanpay }}) but CONTRACTS_HAND_DEPLOY=1: CI holds no deployer key (it is a governance root). Deploy locally with DEPLOYER_PRIVATE_KEY=... node scripts/deploy-<contract>.mjs --yes, then bash scripts/sync-contract-addresses.sh, commit and push - the next run deploys the site and cuts the enclave releases with the new addresses."
 
   site:
     needs: [detect, contracts]
