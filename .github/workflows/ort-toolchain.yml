@@ -29,7 +29,14 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    # ubuntu-22.04 (glibc 2.35) on PURPOSE: the produced libonnxruntime.so must
+    # link into the nan-wasmtime image (rust:1.93-bookworm = glibc 2.36) AND run
+    # in the nan-wasm-manager runtime (ubuntu 24.04 = glibc 2.39). Building on
+    # 24.04 pinned the lib to glibc 2.38 symbols (fmod@GLIBC_2.38,
+    # __isoc23_strtol) which bookworm's linker can't resolve - the toolchain
+    # link failed. 2.35 is <= every downstream glibc, so it links and runs
+    # everywhere (this is why Microsoft's manylinux prebuilt always worked).
+    runs-on: ubuntu-22.04
     timeout-minutes: 350
     permissions:
       contents: write
@@ -46,7 +53,7 @@ jobs:
 
       - name: Install CUDA 12.6 toolkit + cuDNN 9
         run: |
-          wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+          wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
           sudo apt-get update -q
           sudo apt-get install -y -q cuda-toolkit-12-6 libcudnn9-dev-cuda-12 libcudnn9-cuda-12
