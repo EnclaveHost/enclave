@@ -92,12 +92,26 @@ async function chat(text) {
   const div = add("assistant", "");
   div.classList.add("cursor");
   send.disabled = true;
-  let reply = "", meta = null, errored = false;
+  let reply = "", meta = null, errored = false, sawDone = false;
+  // An instance that dies mid-generation leaves the proxied stream OPEN but
+  // silent until an upstream idle timeout minutes later - without a watchdog
+  // the input stays locked and the chat looks frozen. 75s of total silence is
+  // abnormal: status events cover session init and every decoded token sends
+  // bytes; the longest legitimate mute stretch is a big CPU prefill.
+  const ctl = new AbortController();
+  let stallTimer = null;
+  const armStall = () => {
+    clearTimeout(stallTimer);
+    stallTimer = setTimeout(() => ctl.abort(
+      new Error("no data for 75s - the instance may have died mid-response; try again")), 75000);
+  };
   try {
+    armStall();
     const res = await fetch("chat", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ messages, target: targetSel.value }),
+      signal: ctl.signal,
     });
     if (!res.ok || !res.body) {
       let e = "HTTP " + res.status;
@@ -109,6 +123,7 @@ async function chat(text) {
     let buf = "";
     for (;;) {
       const { done, value } = await reader.read();
+      armStall();
       if (done) break;
       buf += dec.decode(value, { stream: true });
       let i;
@@ -132,13 +147,17 @@ async function chat(text) {
             log.insertBefore(n, div);
             reply = ""; div.textContent = "";
           } else if (d.done) {
-            meta = d;
+            meta = d; sawDone = true;
           } else if (d.error) {
             throw new Error(d.error);
           }
         }
       }
     }
+    // a stream that closes without the done event was cut mid-response (the
+    // instance died or restarted) - surface it instead of recording a
+    // truncated reply as if it were complete
+    if (!sawDone) throw new Error("the stream ended before the response finished - the instance likely restarted; try again");
   } catch (e) {
     errored = true;
     div.classList.remove("cursor");
@@ -147,6 +166,7 @@ async function chat(text) {
     div.textContent = (reply ? reply + "\n\n" : "") + "error: " + e.message;
     messages.pop(); // let the user retry the same question
   }
+  clearTimeout(stallTimer);
   div.classList.remove("cursor");
   if (!errored) {
     if (div.classList.contains("statusline")) { div.classList.remove("statusline"); div.textContent = reply; }
