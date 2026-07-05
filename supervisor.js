@@ -1084,8 +1084,9 @@ app.use("/x/:id", async (req, res) => {
   let rec = deployments.get(req.params.id);
   // On-chain ids are bytes32, and a full 64-hex id exceeds DNS's 63-char label
   // limit - app subdomains carry a hex PREFIX of the id instead, resolved here
-  // (unique match only; 16+ chars makes accidental collisions imaginary).
-  if (!rec && /^0x[0-9a-f]{16,64}$/.test(req.params.id)) {
+  // (unique match only; the canonical label is the FIRST 8 CHARS = 32 bits,
+  // any longer prefix works too).
+  if (!rec && /^0x[0-9a-f]{8,64}$/.test(req.params.id)) {
     const hits = [...deployments.keys()].filter(k => k.startsWith(req.params.id));
     if (hits.length === 1) rec = deployments.get(hits[0]);
   }
