@@ -2080,6 +2080,20 @@ app.get("/v1/deployments/:id/logs", authed, async (req, res) => {
   if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
   if (/^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) return res.type("text/plain").send("[mock] no real worker; logs unavailable\n");
   const tail = String(Math.min(2000, Math.max(1, parseInt(req.query.tail, 10) || 200)));
+  // vm backend: the wasm-manager keeps each tenant's stdout+stderr - the
+  // app's stage markers and, crucially, its last words when it dies (panic,
+  // CUDA/ORT abort). Without this, a crashed wasm app is undebuggable by
+  // its owner.
+  if (PROVISION_BACKEND === "vm") {
+    if (!rec._vmId) return fail(res, 409, "no_instance", "No app instance (not provisioned here yet).");
+    try {
+      const r = await vmReq("GET", `/vms/${encodeURIComponent(rec._vmId)}/logs?tail=${tail}`, null, 15000);
+      if (r.status !== 200) return fail(res, 502, "logs_error", (r.body && (r.body.error || r.body.message)) || `HTTP ${r.status}`);
+      const b = r.body || {};
+      const head = `# status=${b.status || rec.status}${b.exited ? ` exited(code=${b.exitCode})` : ""}${b.error ? ` error=${b.error}` : ""}\n`;
+      return res.type("text/plain").send(head + (b.lines || []).join("\n") + "\n");
+    } catch (e) { return fail(res, 502, "logs_error", (e.message || "").toString().slice(0, 300)); }
+  }
   try {
     const r = await dockerReq("GET", `/containers/${containerName(rec.id)}/logs?stdout=1&stderr=1&tail=${tail}`, null, 15000);
     if (r.status >= 400) return fail(res, 502, "logs_error", r.buf.toString().slice(0, 200));
