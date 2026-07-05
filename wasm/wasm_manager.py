@@ -518,12 +518,24 @@ def _nn_probe_gdb(env, extra_args=()) -> str:
             pass
     out = out or ""
     print("[nn-probe] gdb full dump (tail):\n" + out[-20000:], flush=True)
-    frames = [l.strip() for l in out.splitlines()
-              if re.match(r"#\d+ ", l.strip())
-              and re.search(r"cuda|cublas|cudnn|onnx|ort_|wasi|nvcuda", l, re.I)]
+    # Dedupe by symbol (address-stripped): N identical spinner threads must not
+    # crowd out the one interesting stack (v0.5.21's capture was 12 copies of
+    # ORT's WorkerLoop). Wide match incl. rust `ort::`/wasmtime symbols.
+    frames, seen = [], set()
+    for l in out.splitlines():
+        ls = l.strip()
+        if not re.match(r"#\d+ ", ls):
+            continue
+        if not re.search(r"cuda|cublas|cudnn|onnx|ort|wasi|nn_|wasmtime", ls, re.I):
+            continue
+        key = re.sub(r"0x[0-9a-f]+", "", ls).split(" in ", 1)[-1]
+        if key in seen:
+            continue
+        seen.add(key)
+        frames.append(ls)
     if not frames:
         frames = [l.strip() for l in out.splitlines() if re.match(r"#\d+ ", l.strip())][:12]
-    return ("frames: " + " | ".join(frames[:12])[:900]) if frames else \
+    return ("frames: " + " | ".join(frames[:16])[:1100]) if frames else \
         f"no frames captured (gdb said: {out[-220:]})"
 
 
