@@ -585,6 +585,10 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
           <input type="text" id="cfgPorts" value="" placeholder="empty · or http:8088, tcp:5432, udp:9053" spellcheck="false" autocapitalize="off" autocomplete="off" />
         </div>
         <div class="field">
+          <label for="cfgConfig">App config CID <span class="dim">(optional · IPFS CID of a JSON config the enclave verifies and hands the app as NAN_CONFIG · e.g. pick a model or set an API key for llm-chat)</span></label>
+          <input type="text" id="cfgConfig" value="" placeholder="empty · or bafybei… (ipfs add your config.json)" spellcheck="false" autocapitalize="off" autocomplete="off" />
+        </div>
+        <div class="field">
           <label>Access <span class="dim">(who can reach the app)</span></label>
           <div class="seg" id="cfgAccess" role="group" aria-label="Endpoint access">
             <button data-public="1" class="on" type="button">Public</button>
@@ -4377,6 +4381,8 @@ function deployBody(){
   body.resources = { gpuShare: gp, cpuShare: cp };   // the two dials; the app's specs set the minimums
   // GPU attestation only exists when the deployment holds a card slice.
   if (gp > 0 && dep.gpuEnclave) body.attestationPolicy = { requireGpuAttestation: true };
+  const cc = ($("#cfgConfig") && $("#cfgConfig").value || "").trim();
+  if (cc) body.configCid = cc;   // per-deployment config, delivered to the app as NAN_CONFIG
   body.region = "auto";
   return body;
 }
@@ -4385,12 +4391,15 @@ function deployFetch(b){
   const g = Math.round(((b.resources && b.resources.gpuShare) || 0) * 1000);
   const c = Math.round(((b.resources && b.resources.cpuShare) || 0.05) * 1000);
   const fw = (b.firewall && b.firewall.ports || []).join(",");
+  const cc = b.configCid || "";
   return '// Deployments are ON-CHAIN work items (NanDeployments on Base): the ledger\n'
     + '// holds the spec + funded balance, so they survive enclave updates and crashes.\n'
     + '// 1) create() from your wallet - one tx; msg.sender owns the record:\n'
     + '//    create(appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, sshPubKey, configCid)\n'
+    + '//    configCid: optional IPFS CID of a JSON config the enclave verifies and\n'
+    + '//    hands the app as NAN_CONFIG (e.g. choose a model / set an API key).\n'
     + 'const { id } = await createOnChain("' + DEPLOYMENTS_ADDRESS + '",\n'
-    + '  ["' + r + '", ' + g + ', ' + c + ', 8080, "' + fw + '", ' + !!b.public + ', "", ""]);\n'
+    + '  ["' + r + '", ' + g + ', ' + c + ', 8080, "' + fw + '", ' + !!b.public + ', "", "' + cc + '"]);\n'
     + '//    id = topics[1] of the Created event in the receipt\n'
     + '// 2) fund it - credited to the on-chain balance (funds forward to NaN):\n'
     + '//    fundWithAuthorization(id, …EIP-3009 USDC sig…)  or  fundEth(id) payable\n'
@@ -4625,11 +4634,12 @@ async function runDeploy(){
   const portsCsv = (fwCsv.length && !(fwCsv.length === 1 && fwCsv[0] === "http")) ? fwCsv.join(",") : "";
   const httpEntry = fwCsv.find(x => /^http:\d+$/.test(x));
   const appPort = httpEntry ? parseInt(httpEntry.split(":")[1], 10) : 8080;
+  const configCid = ($("#cfgConfig") && $("#cfgConfig").value || "").trim();
 
   if (dry){
     termLine(term, "warn", "// dry run: nothing is sent");
     termLine(term, "p", "1) NanDeployments.create(app, shares, ports) - one wallet tx; you own the record");
-    termLine(term, "dimln", "   create(\"" + rref.reference + "\", " + gpuMilli + ", " + cpuMilli + ", " + appPort + ", \"" + portsCsv + "\", " + dep.public + ", \"\", \"\")");
+    termLine(term, "dimln", "   create(\"" + rref.reference + "\", " + gpuMilli + ", " + cpuMilli + ", " + appPort + ", \"" + portsCsv + "\", " + dep.public + ", \"\", \"" + configCid + "\")");
     termLine(term, "p", dep.asset === "ETH"
       ? "2) fundEth(id) with ≈ $" + fund + " of ETH - one wallet tx; credited on-chain"
       : "2) sign a " + fund + " USDC authorization (EIP-3009) + one fundWithAuthorization(id) tx - credited on-chain");
@@ -4670,7 +4680,7 @@ async function runDeploy(){
     const cdata = encCall(DEP_SEL.create, [
       { t: "str", v: rref.reference }, { t: "uint", v: gpuMilli }, { t: "uint", v: cpuMilli },
       { t: "uint", v: appPort }, { t: "str", v: portsCsv }, { t: "bool", v: dep.public },
-      { t: "str", v: "" }, { t: "str", v: "" },
+      { t: "str", v: "" }, { t: "str", v: configCid },
     ]);
     const chash = await sendTx(DEPLOYMENTS_ADDRESS, cdata);
     termLine(term, "dimln", "  ↳ sent " + chash + " · waiting for confirmation…");
@@ -5011,12 +5021,13 @@ function initDeploy(){
     renderAccessNote(); renderDeploy();
   });
   renderAccessNote();
-  ["#cfgImage", "#cfgBudget", "#cfgPorts"].forEach(s => { const el = $(s); if (el) el.addEventListener("input", renderDeploy); });
+  ["#cfgImage", "#cfgBudget", "#cfgPorts", "#cfgConfig"].forEach(s => { const el = $(s); if (el) el.addEventListener("input", renderDeploy); });
   $$(".console-tabs button").forEach(b => b.addEventListener("click", () => switchPane(b.dataset.pane)));
   $("#deployBtn").addEventListener("click", runDeploy);
   $("#resetBtn").addEventListener("click", () => {
     $("#cfgImage").value = "";
     const fp0 = $("#cfgPorts"); if (fp0) fp0.value = "";
+    const cc0 = $("#cfgConfig"); if (cc0) cc0.value = "";
     $("#cfgBudget").value = "10";
     $("#cfgGpuShare").value = "25"; dep.gpuPct = 25;
     const cp0 = $("#cfgCpuShare"); if (cp0) cp0.value = "5"; dep.cpuPct = 5;
