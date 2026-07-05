@@ -1237,6 +1237,33 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == "/vms":
             with _lock:
                 return self._json(200, {"vms": [_public(r) for r in _apps.values()]})
+        # Tenant log tail: the wasmtime process's stdout+stderr (stage markers,
+        # panics, CUDA/ORT aborts). The supervisor exposes it owner-only at
+        # /v1/deployments/:id/logs - a crashed app's last words are the owner's
+        # ONLY debugging evidence on this backend.
+        m = re.match(r"^/vms/([^/?]+)/logs(?:\?(.*))?$", self.path)
+        if m:
+            vid = m.group(1)
+            q = dict(p.split("=", 1) for p in (m.group(2) or "").split("&") if "=" in p)
+            try:
+                tail = min(2000, max(1, int(q.get("tail") or 200)))
+            except ValueError:
+                tail = 200
+            with _lock:
+                rec = _apps.get(vid)
+            if not rec:
+                return self._json(404, {"error": "not found"})
+            p = pathlib.Path(rec.get("_log") or str(LOG_DIR / f"{vid}.log"))
+            try:
+                lines = p.read_bytes().decode("utf-8", "replace").splitlines()[-tail:]
+            except OSError:
+                lines = []
+            proc = rec.get("_proc")
+            exit_code = proc.poll() if proc is not None else None
+            return self._json(200, {"id": vid, "lines": lines,
+                                    "exited": exit_code is not None,
+                                    "exitCode": exit_code,
+                                    "status": rec.get("status"), "error": rec.get("error")})
         if self.path.startswith("/vms/"):
             vid = self.path[len("/vms/"):]
             with _lock:
