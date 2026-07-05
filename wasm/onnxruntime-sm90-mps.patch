@@ -1,0 +1,78 @@
+diff --git a/onnxruntime/contrib_ops/cuda/bert/flash_attention/flash_api.cc b/onnxruntime/contrib_ops/cuda/bert/flash_attention/flash_api.cc
+index 453dffa..25722cd 100644
+--- a/onnxruntime/contrib_ops/cuda/bert/flash_attention/flash_api.cc
++++ b/onnxruntime/contrib_ops/cuda/bert/flash_attention/flash_api.cc
+@@ -180,6 +180,11 @@ void run_mha_fwd(Flash_fwd_params& params, cudaStream_t stream, bool force_split
+ // of the best efficiency.
+ size_t num_splits_heuristic(size_t batch_size, size_t seqlen_q, size_t seqlen_k, size_t num_heads,
+                             size_t head_size, size_t num_SMs, size_t max_splits) {
++  // NAN: under MPS execution-resource provisioning the client-visible SM
++  // count can be very small (a 2% slice of an H200 reports 2 SMs). The wave
++  // efficiency math below divides by num_SMs and min()s max_splits with it;
++  // clamp so degenerate partitions cannot produce zero splits or FP faults.
++  num_SMs = std::max<size_t>(num_SMs, 1);
+   // This needs to match with run_mha_fwd_splitkv_dispatch
+   const size_t block_n = head_size <= 64 ? 256 : (head_size <= 128 ? 128 : 64);
+   const size_t num_n_blocks = (seqlen_k + block_n - 1) / block_n;
+diff --git a/onnxruntime/contrib_ops/cuda/bert/lean_attention/lean_api.cc b/onnxruntime/contrib_ops/cuda/bert/lean_attention/lean_api.cc
+index 81301eb..f3a4f21 100644
+--- a/onnxruntime/contrib_ops/cuda/bert/lean_attention/lean_api.cc
++++ b/onnxruntime/contrib_ops/cuda/bert/lean_attention/lean_api.cc
+@@ -222,10 +222,18 @@ std::tuple<size_t, size_t, size_t, size_t, size_t, size_t, size_t, size_t> get_n
+     // to account for ceil
+     lean_griddimz = std::min(2 * num_SMs, 32 * num_heads_k * batch_size * num_m_blocks);
+   }
++  // NAN: guard degenerate launch geometry. Under a small MPS partition the
++  // client-visible SM count is tiny (a 2% slice of an H200 reports 2 SMs),
++  // which drives lean_griddimz down until max_tiles_per_tb == 1 - and the
++  // else-branch below then divides by (max_tiles_per_tb - 1) == 0: SIGFPE,
++  // killing the whole process. Clamp and take the safe single-split path.
++  lean_griddimz = std::max<size_t>(lean_griddimz, 1);
+   size_t max_tiles_per_tb = (total_tiles + lean_griddimz - 1) / lean_griddimz;
+   // Find max number of splits
+   size_t num_splits = 0;
+-  if (total_tiles % lean_griddimz == 0) {
++  if (max_tiles_per_tb <= 1) {
++    num_splits = 1;
++  } else if (total_tiles % lean_griddimz == 0) {
+     num_splits = 1 + ((num_n_blocks + max_tiles_per_tb - 2) / (max_tiles_per_tb));
+   } else {
+     num_splits = 1 + ((num_n_blocks + max_tiles_per_tb - 3) / (max_tiles_per_tb - 1));
+diff --git a/onnxruntime/contrib_ops/cuda/quantization/matmul_nbits.cc b/onnxruntime/contrib_ops/cuda/quantization/matmul_nbits.cc
+index 3326574..40fe919 100644
+--- a/onnxruntime/contrib_ops/cuda/quantization/matmul_nbits.cc
++++ b/onnxruntime/contrib_ops/cuda/quantization/matmul_nbits.cc
+@@ -11,12 +11,24 @@
+ #include "contrib_ops/cuda/utils/dump_cuda_tensor.h"
+ #include "matmul_nbits.cuh"
+ #include "dequantize_blockwise.cuh"
++#include "core/platform/env_var_utils.h"
+ 
+ namespace onnxruntime {
+ namespace contrib {
+ namespace cuda {
+ using namespace onnxruntime::cuda;
+ 
++// NAN: kill-switch for the hand-written small-M matmul kernels. On sm_90
++// under an MPS partition the custom fp16 M=1 (GEMV) path misbehaves (decode
++// hangs at tiny shares, computes wrong values at larger ones) while the
++// dequantize + cuBLAS fallback is correct everywhere. Setting
++// ORT_DISABLE_MATMUL4BITS_KERNEL=1 forces the fallback for every call -
++// slower (weights re-dequantized per call) but numerically trustworthy.
++static bool DisableCustomNBitsKernel() {
++  static const bool disabled = ParseEnvironmentVariableWithDefault<bool>("ORT_DISABLE_MATMUL4BITS_KERNEL", false);
++  return disabled;
++}
++
+ template <typename T>
+ Status MatMulNBits<T>::ComputeInternal(OpKernelContext* ctx) const {
+   const Tensor* a = ctx->Input<Tensor>(0);
+@@ -50,7 +62,7 @@ Status MatMulNBits<T>::ComputeInternal(OpKernelContext* ctx) const {
+   if (Y->Shape().Size() == 0)
+     return Status::OK();
+ 
+-  if ((reorder_idx_data == nullptr) && (!zero_points || !zero_points->IsDataType<T>())) {
++  if (!DisableCustomNBitsKernel() && (reorder_idx_data == nullptr) && (!zero_points || !zero_points->IsDataType<T>())) {
+     bool done = (nbits_ == 8) ? TryMatMul8Bits(
+                                     reinterpret_cast<CudaT*>(Y->MutableData<T>()),
+                                     reinterpret_cast<const CudaT*>(a_data),

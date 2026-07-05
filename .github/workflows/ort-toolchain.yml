@@ -1,0 +1,107 @@
+# Builds NaN's patched ONNX Runtime GPU libraries (nan-onnxruntime) and
+# uploads them as a release-asset tarball that Dockerfile.wasmtime consumes
+# instead of Microsoft's prebuilt onnxruntime-linux-x64-gpu tarball.
+#
+# Why we build our own: the prebuilt binaries misbehave on sm_90 (H200) under
+# small MPS partitions - flash-attention split heuristics can SIGFPE, lean
+# attention carries a literal div-by-zero, and the hand-written MatMulNBits
+# small-M fp16 kernels hang or compute garbage. wasm/onnxruntime-sm90-mps.patch
+# guards the division sites and adds ORT_DISABLE_MATMUL4BITS_KERNEL as a
+# runtime kill-switch (forces the dequant+cuBLAS fallback, correct everywhere).
+#
+# Manual workflow: run it after changing the patch; paste the printed sha256
+# into Dockerfile.wasmtime (ORT_URL/ORT_SHA256), and that commit triggers the
+# normal toolchain consumption path.
+#
+# Build shape: CUDA 12.6 (matches the fleet's cudnn-runtime image), gcc-13
+# (ubuntu-24.04 default, nvcc 12.6's supported host compiler), SASS for
+# sm_86 (local dev 3070) + sm_90 (fleet H200), NO PTX - an unknown future
+# arch must fail loudly, not PTX-JIT for minutes inside TDX (learned live).
+name: ORT Toolchain
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag for the lib tarball (created if missing)"
+        required: true
+        default: "nan-onnxruntime-v1.22.0-nan1"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free runner disk (ORT CUDA build needs ~40GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/local/share/boost \
+                      /usr/local/.ghcup /usr/share/swift || true
+          sudo docker system prune -af || true
+          df -h /
+
+      - name: Install CUDA 12.6 toolkit + cuDNN 9
+        run: |
+          wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt-get update -q
+          sudo apt-get install -y -q cuda-toolkit-12-6 libcudnn9-dev-cuda-12 libcudnn9-cuda-12
+          /usr/local/cuda-12.6/bin/nvcc --version | tail -1
+          gcc --version | head -1
+
+      - name: Clone ONNX Runtime v1.22.0
+        run: |
+          git clone --depth 1 --branch v1.22.0 --recursive --shallow-submodules \
+            https://github.com/microsoft/onnxruntime.git /tmp/ort
+          df -h /
+
+      - name: Apply NaN patch
+        run: |
+          cd /tmp/ort
+          git apply --check "$GITHUB_WORKSPACE/wasm/onnxruntime-sm90-mps.patch"
+          git apply "$GITHUB_WORKSPACE/wasm/onnxruntime-sm90-mps.patch"
+
+      - name: Build (Release, CUDA, shared lib, sm_86+sm_90)
+        run: |
+          cd /tmp/ort
+          # --parallel 3 / --nvcc_threads 1: the flash-attention translation
+          # units are nvcc memory hogs; 4-way parallelism OOMs a 16GB runner
+          ./build.sh --config Release --build_shared_lib --skip_tests --parallel 3 --nvcc_threads 1 \
+            --use_cuda --cuda_home /usr/local/cuda-12.6 --cudnn_home /usr \
+            --allow_running_as_root \
+            --cmake_extra_defines \
+              CMAKE_CUDA_ARCHITECTURES="86-real;90-real" \
+              onnxruntime_BUILD_UNIT_TESTS=OFF \
+              CMAKE_POLICY_VERSION_MINIMUM=3.5
+          ls -la /tmp/ort/build/Linux/Release/libonnxruntime* | head
+
+      - name: Package tarball (Microsoft tarball layout)
+        run: |
+          OUT=/tmp/pkg/onnxruntime-linux-x64-gpu-1.22.0
+          mkdir -p "$OUT/lib" "$OUT/include"
+          cd /tmp/ort/build/Linux/Release
+          cp -a libonnxruntime.so* "$OUT/lib/"
+          cp -a libonnxruntime_providers_shared.so libonnxruntime_providers_cuda.so "$OUT/lib/"
+          cp -r /tmp/ort/include/onnxruntime/core/session/*.h "$OUT/include/" || true
+          cd /tmp/pkg
+          tar -czf nan-onnxruntime-linux-x64-gpu-1.22.0.tgz onnxruntime-linux-x64-gpu-1.22.0
+          sha256sum nan-onnxruntime-linux-x64-gpu-1.22.0.tgz
+
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+                 --title "$TAG (ORT lib tarball)" \
+                 --notes "Patched ONNX Runtime 1.22.0 GPU libs (sm_86+sm_90, CUDA 12.6). Patch: wasm/onnxruntime-sm90-mps.patch."
+          gh release upload "$TAG" /tmp/pkg/nan-onnxruntime-linux-x64-gpu-1.22.0.tgz \
+            --repo "$GITHUB_REPOSITORY" --clobber
+          echo "Pin in wasm/Dockerfile.wasmtime:"
+          echo "  ORT_URL=https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/nan-onnxruntime-linux-x64-gpu-1.22.0.tgz"
+          echo "  ORT_SHA256=$(sha256sum /tmp/pkg/nan-onnxruntime-linux-x64-gpu-1.22.0.tgz | cut -d' ' -f1)"
