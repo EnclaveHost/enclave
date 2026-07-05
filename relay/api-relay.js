@@ -173,14 +173,14 @@ const json = (res, code, body, req) => {
 // Reverse-proxy `req` to `enclaveOrigin + path`. `setCors`: on the api.nan.host
 // control-plane paths WE own CORS (swap the enclave's for ours); on an app
 // subdomain the app is its own origin, so pass its headers through untouched.
-function proxyTo(origin, req, res, { path = req.url, setCors = true } = {}) {
+function proxyTo(origin, req, res, { path = req.url, setCors = true, idleMs = 30000 } = {}) {
   const target = new URL(origin.replace(/\/+$/, "") + path);
   const headers = { ...req.headers, host: target.host };
   delete headers["accept-encoding"];                          // let the enclave send identity; simpler passthrough
   const lib = target.protocol === "https:" ? https : http;
   const up = lib.request(
     { hostname: target.hostname, port: target.port || (target.protocol === "https:" ? 443 : 80),
-      path: target.pathname + target.search, method: req.method, headers, timeout: 30000 },
+      path: target.pathname + target.search, method: req.method, headers, timeout: idleMs },
     (upRes) => {
       const out = {};
       for (const [k, v] of Object.entries(upRes.headers)) {
@@ -308,7 +308,11 @@ async function gateway(u, req, res) {
     const id = (dep || x)[1];
     const owner = dep ? await v1OwnerOf(id, req.headers.authorization) : await xOwnerOf(id);
     if (!owner) return json(res, 404, { error: "not_found", message: `No live enclave has ${id}.`, updatedAt }, req);
-    return proxyTo(owner, req, res);
+    // Tenant data path: generous idle window. A model-serving app's first
+    // request can sit silent for the length of a session init (e.g. wasi-nn
+    // loading a 100MB+ model onto the GPU under CC); 30s cut those off and
+    // the abandoned sync load wedged the tenant's runtime threads.
+    return proxyTo(owner, req, res, { idleMs: 180000 });
   }
 
   if (p === "/v1/deployments" && req.method === "POST") {    // placement: the ONE routing decision
@@ -383,7 +387,9 @@ const server = http.createServer((req, res) => {
     return xOwnerOf(depHost).then((owner) => {
       if (!owner) return json(res, 404, { error: "not_found", message: "No live enclave has " + depHost + "." });
       const rest = req.url === "/" ? "/" : req.url;           // preserve path+query under /x/<id>
-      proxyTo(owner, req, res, { path: "/x/" + depHost + rest, setCors: false });
+      // same generous idle window as the /x data path (see gateway()): app
+      // subdomains ARE the data path, and long-silent first bytes are real
+      proxyTo(owner, req, res, { path: "/x/" + depHost + rest, setCors: false, idleMs: 180000 });
     });
   }
 

@@ -181,16 +181,26 @@ struct GenStats {
     decode_ms: u128,
 }
 
-/// Run the full chat completion; `emit` receives text deltas and returns
-/// false when the client is gone (generation stops).
+/// Run the full chat completion; `emit` receives text deltas, `status`
+/// receives progress lines (both return false when the client is gone).
+/// Status events double as keepalive bytes: the platform proxy cuts a
+/// connection idle too long, and a cold-start session init is the one long
+/// silence in this handler (the host caches the session per process, so only
+/// the first request after a node boot pays it).
 fn generate(
     tok: &Tokenizer,
     prompt_ids: &[u32],
     target: ExecutionTarget,
     tname: &str,
     max_new: usize,
-    emit: &mut dyn FnMut(&str) -> bool,
+    emit: &dyn Fn(&str) -> bool,
+    status: &dyn Fn(&str) -> bool,
 ) -> Result<GenStats, String> {
+    if !status(&format!(
+        "loading the model on {tname} - the first request after a node boot initializes the session and can take a while"
+    )) {
+        return Err("client disconnected".into());
+    }
     let t0 = now_ms();
     let graph = load(&[MODEL.to_vec()], GraphEncoding::Onnx, target)
         .map_err(|e| nn_err("load", e))?;
@@ -198,6 +208,12 @@ fn generate(
         .init_execution_context()
         .map_err(|e| nn_err("init", e))?;
     let load_ms = now_ms() - t0;
+    if !status(&format!(
+        "session ready ({load_ms} ms); prefilling {} prompt tokens",
+        prompt_ids.len()
+    )) {
+        return Err("client disconnected".into());
+    }
 
     // -- prefill, in chunks so no single logits tensor gets huge
     let t1 = now_ms();
@@ -426,8 +442,9 @@ fn handle_chat(req: IncomingRequest, out: ResponseOutparam) {
         if i > 0 && !send(serde_json::json!({ "notice": format!("gpu failed ({last_err}); retrying on cpu") })) {
             break;
         }
-        let mut emit = |delta: &str| send(serde_json::json!({ "delta": delta }));
-        match generate(&tok, &prompt_ids, *target, tname, max_new, &mut emit) {
+        let emit = |delta: &str| send(serde_json::json!({ "delta": delta }));
+        let status = |s: &str| send(serde_json::json!({ "status": s }));
+        match generate(&tok, &prompt_ids, *target, tname, max_new, &emit, &status) {
             Ok(s) => {
                 let gen_s = (s.decode_ms as f64) / 1000.0;
                 let tok_per_s = if gen_s > 0.0 { s.tokens as f64 / gen_s } else { 0.0 };

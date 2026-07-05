@@ -27,6 +27,7 @@
   .msg.assistant { background: var(--panel); border: 1px solid var(--border); }
   .msg .meta { display: block; margin-top: 8px; color: var(--dim); font-size: 11.5px; }
   .msg.err { border-color: #7f3541; background: #2a161b; color: #f2b8c0; }
+  .msg.statusline { color: var(--dim); font-style: italic; }
   .notice { max-width: 720px; margin: 0 auto 14px; color: #eab308; font-size: 12.5px; }
   .cursor::after { content: "▍"; color: var(--accent); animation: blink 1s step-end infinite; }
   @keyframes blink { 50% { opacity: 0; } }
@@ -117,8 +118,13 @@ async function chat(text) {
           if (!line.startsWith("data: ")) continue;
           const d = JSON.parse(line.slice(6));
           if (d.delta !== undefined) {
+            div.classList.remove("statusline");
             reply += d.delta;
             div.textContent = reply;
+            log.scrollTop = log.scrollHeight;
+          } else if (d.status) {
+            div.classList.add("statusline");
+            div.textContent = d.status;
             log.scrollTop = log.scrollHeight;
           } else if (d.notice) {
             const n = document.createElement("div");
@@ -136,12 +142,14 @@ async function chat(text) {
   } catch (e) {
     errored = true;
     div.classList.remove("cursor");
+    div.classList.remove("statusline");
     div.classList.add("err");
     div.textContent = (reply ? reply + "\n\n" : "") + "error: " + e.message;
     messages.pop(); // let the user retry the same question
   }
   div.classList.remove("cursor");
   if (!errored) {
+    if (div.classList.contains("statusline")) { div.classList.remove("statusline"); div.textContent = reply; }
     messages.push({ role: "assistant", content: reply });
     if (meta) {
       const m = document.createElement("span");
