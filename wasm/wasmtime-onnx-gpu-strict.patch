@@ -1,5 +1,5 @@
 NAN patches to the wasmtime wasi-nn ONNX backend (applied by
-Dockerfile.wasmtime before building the toolchain image). Four changes:
+Dockerfile.wasmtime before building the toolchain image). Five changes:
 
 1. Honest ExecutionTarget::Gpu - fail load() when the CUDA execution
    provider cannot initialize, instead of ORT's default silent CPU
@@ -34,17 +34,32 @@ Dockerfile.wasmtime before building the toolchain image). Four changes:
    guest. Tenants debug their own models on this platform; give them
    the cause.
 
+5. Process-global session cache - the serve runtime instantiates per
+   REQUEST, so an app embedding its model paid a full ORT session init
+   (weights parsed + uploaded to the GPU) on every request; for a
+   100MB+ model under confidential compute that is tens of seconds,
+   each abandoned sync load() wedged a runtime thread, and the
+   platform proxy timed the requests out (observed live: llm-chat's
+   first deploy 502-wedged on kryptos). Sessions are now cached per
+   (model sha256, target) for the process lifetime - one tenant is one
+   process, so the first request builds the session and the rest reuse
+   it (117MB q4f16 measured: 1208ms cold, 109ms cached). The cache
+   lock is held across creation so concurrent first requests coalesce
+   instead of stampeding N model copies into VRAM. Needs sha2
+   (Cargo.toml hunk; already in wasmtime's lockfile).
+
 diff --git a/crates/wasi-nn/Cargo.toml b/crates/wasi-nn/Cargo.toml
-index 724ea33..5b9e03a 100644
+index 724ea33..98f6a9a 100644
 --- a/crates/wasi-nn/Cargo.toml
 +++ b/crates/wasi-nn/Cargo.toml
-@@ -32,7 +32,9 @@ thiserror = { workspace = true }
+@@ -32,7 +32,10 @@ thiserror = { workspace = true }
  
  ort = { version = "2.0.0-rc.10", default-features = false, features = [
      "copy-dylibs",
 +    "half",
  ], optional = true }
 +half = "2.4"
++sha2 = "0.10"
  tch = { version = "0.17.0", default-features = false, optional = true}
  
  [target.'cfg(target_pointer_width = "64")'.dependencies]
@@ -64,18 +79,59 @@ index 8ea57c1..0bfe7bf 100644
      #[error("Failed while accessing guest module")]
      GuestAccess(#[from] GuestError),
 diff --git a/crates/wasi-nn/src/backend/onnx.rs b/crates/wasi-nn/src/backend/onnx.rs
-index c7cc645..79e7a43 100644
+index c7cc645..a01376e 100644
 --- a/crates/wasi-nn/src/backend/onnx.rs
 +++ b/crates/wasi-nn/src/backend/onnx.rs
-@@ -18,6 +18,7 @@ use ort::{
+@@ -18,8 +18,26 @@ use ort::{
  #[cfg(feature = "onnx-cuda")]
  use ort::execution_providers::CUDAExecutionProvider;
  
 +use half::{bf16, f16};
++use sha2::{Digest, Sha256};
++use std::collections::HashMap;
  use std::path::Path;
- use std::sync::{Arc, Mutex};
+-use std::sync::{Arc, Mutex};
++use std::sync::{Arc, Mutex, OnceLock};
++
++/// NAN: process-global session cache. `wasmtime serve` runs each REQUEST in a
++/// fresh instance, so an app embedding its model pays a full ORT session init
++/// (weights parsed + uploaded to the GPU) per request - for a 100MB+ model
++/// under confidential compute that is tens of seconds, every time, and each
++/// abandoned sync load() wedges a runtime thread. One tenant = one wasmtime
++/// process, so cache sessions per (model sha256, target): the first request
++/// builds the session, every later one reuses it. The map lock is held across
++/// creation ON PURPOSE - concurrent first requests coalesce onto one init
++/// instead of stampeding N copies of the model into VRAM.
++static SESSION_CACHE: OnceLock<Mutex<HashMap<([u8; 32], u8), Arc<Mutex<Session>>>>> =
++    OnceLock::new();
++/// Cache references dropped beyond this many entries (live graphs keep their
++/// own Arc, so eviction never kills a session in use).
++const SESSION_CACHE_MAX: usize = 8;
  
-@@ -42,6 +43,16 @@ impl BackendInner for OnnxBackend {
+ #[derive(Default)]
+ pub struct OnnxBackend();
+@@ -36,16 +54,45 @@ impl BackendInner for OnnxBackend {
+             return Err(BackendError::InvalidNumberOfBuilders(1, builders.len()));
+         }
+ 
++        // NAN: serve one session per (model, target) per process - see
++        // SESSION_CACHE. The digest is the full model bytes, so a collision
++        // means sha256 is broken, not that a tenant gets the wrong model.
++        let key = {
++            let mut h = Sha256::new();
++            h.update(builders[0]);
++            (<[u8; 32]>::from(h.finalize()), target as u8)
++        };
++        let cache = SESSION_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
++        let mut map = cache.lock().unwrap();
++        if let Some(session) = map.get(&key) {
++            let box_: Box<dyn BackendGraph> = Box::new(OnnxGraph(session.clone(), target));
++            return Ok(box_.into());
++        }
++
+         // Configure execution providers based on target
+         let execution_providers = configure_execution_providers(target)?;
+ 
          let session = Session::builder()?
              .with_execution_providers(execution_providers)?
              .with_optimization_level(GraphOptimizationLevel::Level3)?
@@ -91,8 +147,18 @@ index c7cc645..79e7a43 100644
 +            .with_inter_op_spinning(false)?
              .commit_from_memory(builders[0])?;
  
-         let box_: Box<dyn BackendGraph> =
-@@ -67,9 +78,12 @@ fn configure_execution_providers(
+-        let box_: Box<dyn BackendGraph> =
+-            Box::new(OnnxGraph(Arc::new(Mutex::new(session)), target));
++        let session = Arc::new(Mutex::new(session));
++        if map.len() >= SESSION_CACHE_MAX {
++            map.clear();
++        }
++        map.insert(key, session.clone());
++        let box_: Box<dyn BackendGraph> = Box::new(OnnxGraph(session, target));
+         Ok(box_.into())
+     }
+ 
+@@ -67,9 +114,12 @@ fn configure_execution_providers(
          ExecutionTarget::Gpu => {
              #[cfg(feature = "onnx-cuda")]
              {
@@ -107,7 +173,7 @@ index c7cc645..79e7a43 100644
              }
              #[cfg(not(feature = "onnx-cuda"))]
              {
-@@ -183,13 +197,6 @@ impl BackendExecutionContext for OnnxExecutionContext {
+@@ -183,13 +233,6 @@ impl BackendExecutionContext for OnnxExecutionContext {
          &mut self,
          inputs: Option<Vec<NamedTensor>>,
      ) -> Result<Option<Vec<NamedTensor>>, BackendError> {
@@ -121,7 +187,7 @@ index c7cc645..79e7a43 100644
          match inputs {
              // WIT
              Some(inputs) => {
-@@ -238,17 +245,8 @@ impl BackendExecutionContext for OnnxExecutionContext {
+@@ -238,17 +281,8 @@ impl BackendExecutionContext for OnnxExecutionContext {
  
                  let mut output_tensors = Vec::new();
                  for i in 0..self.outputs.len() {
@@ -140,7 +206,7 @@ index c7cc645..79e7a43 100644
                      output.tensor.replace(tensor.clone());
                      output_tensors.push(NamedTensor {
                          name: output.shape.name.clone(),
-@@ -267,17 +265,8 @@ impl BackendExecutionContext for OnnxExecutionContext {
+@@ -267,17 +301,8 @@ impl BackendExecutionContext for OnnxExecutionContext {
                  let mut session = self.session.lock().unwrap();
                  let session_outputs = session.run(session_inputs.as_slice())?;
                  for i in 0..self.outputs.len() {
@@ -160,7 +226,7 @@ index c7cc645..79e7a43 100644
                  }
                  Ok(None)
              }
-@@ -399,6 +388,11 @@ impl TryFrom<TensorElementType> for TensorType {
+@@ -399,6 +424,11 @@ impl TryFrom<TensorElementType> for TensorType {
              TensorElementType::Uint8 => Ok(TensorType::U8),
              TensorElementType::Int32 => Ok(TensorType::I32),
              TensorElementType::Int64 => Ok(TensorType::I64),
@@ -172,7 +238,7 @@ index c7cc645..79e7a43 100644
              _ => Err(BackendError::BackendAccess(wasmtime::format_err!(
                  "unsupported tensor type: {ty:?}"
              ))),
-@@ -408,25 +402,59 @@ impl TryFrom<TensorElementType> for TensorType {
+@@ -408,25 +438,59 @@ impl TryFrom<TensorElementType> for TensorType {
  
  fn to_input_value(slot: &TensorSlot) -> Result<[SessionInputValue<'_>; 1], BackendError> {
      match &slot.tensor {
@@ -249,7 +315,7 @@ index c7cc645..79e7a43 100644
          None => {
              return Err(BackendError::BackendAccess(wasmtime::format_err!(
                  "missing input tensor: {}",
-@@ -436,6 +464,51 @@ fn to_input_value(slot: &TensorSlot) -> Result<[SessionInputValue<'_>; 1], Backe
+@@ -436,6 +500,51 @@ fn to_input_value(slot: &TensorSlot) -> Result<[SessionInputValue<'_>; 1], Backe
      }
  }
  
