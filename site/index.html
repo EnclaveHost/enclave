@@ -4632,11 +4632,19 @@ async function runDeploy(){
       await authenticate();
       termLine(term, "ok", "[✓] signed in as " + short(Nan.address));
     }
+    // a restored session has a token but NO provider - reconnect before any tx
+    if (!Nan.provider){
+      termLine(term, "info", "[*] reconnecting wallet…");
+      await connectWallet();
+      termLine(term, "ok", "[✓] wallet " + short(Nan.address));
+    }
+    termLine(term, "dimln", "    if nothing happens, check your wallet - a popup may be waiting (or queued behind an old one; open the wallet and clear pending requests)");
     await ensureBaseChain();
 
-    // rate estimate straight from the contract (same ceil math as create)
+    // rate estimate straight from the contract (same ceil math as create) -
+    // best-effort with a hard cap so a slow RPC can never stall the deploy
     let rate6 = 0n;
-    try { rate6 = await depRate6(gpuMilli, cpuMilli); } catch(e){}
+    try { rate6 = await Promise.race([depRate6(gpuMilli, cpuMilli), wait(6000).then(() => 0n)]); } catch(e){}
     if (rate6 > 0n){
       const rate = Number(rate6) / 1e6;
       termLine(term, "info", "    " + fund + " USDC ≈ " + fmtDur(fund / rate) + " of runtime at $" + (rate * 3600).toFixed(2) + "/hr");
@@ -4644,6 +4652,7 @@ async function runDeploy(){
 
     // 1) create: one tx from YOUR wallet - msg.sender owns the on-chain record
     termLine(term, "p", "$ NanDeployments.create(…)  (wallet · one tx · you own the record)");
+    termLine(term, "info", "[*] confirm the create transaction in your wallet…");
     const cdata = encCall(DEP_SEL.create, [
       { t: "str", v: rref.reference }, { t: "uint", v: gpuMilli }, { t: "uint", v: cpuMilli },
       { t: "uint", v: appPort }, { t: "str", v: portsCsv }, { t: "bool", v: dep.public },
@@ -4660,7 +4669,7 @@ async function runDeploy(){
 
     // 2) fund: the credit lands in the deployment's on-chain balance
     let pricing = null;
-    try { pricing = await (await fetch(Nan.base + "/pricing")).json(); } catch(e){}
+    try { pricing = await (await fetch(Nan.base + "/pricing", { signal: AbortSignal.timeout(8000) })).json(); } catch(e){}
     try {
       await payForRuntime(term, {
         contract: DEPLOYMENTS_ADDRESS, deploymentRef: id,
@@ -5464,7 +5473,8 @@ async function baseRpc(method, params){
     const url = APP_CATALOG_RPCS[_rpcIdx % APP_CATALOG_RPCS.length];
     try {
       const r = await fetch(url, { method:"POST", headers:{ "content-type":"application/json" },
-        body: JSON.stringify({ jsonrpc:"2.0", id:1, method, params }) });
+        body: JSON.stringify({ jsonrpc:"2.0", id:1, method, params }),
+        signal: AbortSignal.timeout(8000) });   // fail fast and rotate; a hung RPC must not freeze flows
       if (!r.ok) throw new NanError("HTTP " + r.status, r.status);
       const j = await r.json();
       if (j.error){
