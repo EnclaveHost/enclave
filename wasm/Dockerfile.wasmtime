@@ -32,12 +32,19 @@ RUN git clone --depth 1 --branch "${WASMTIME_VERSION}" \
       https://github.com/bytecodealliance/wasmtime /src/wasmtime
 WORKDIR /src/wasmtime
 
-# Official ONNX Runtime GPU distribution (version must match what the ort
-# crate wasmtime pins expects - ort-sys 2.0.0-rc.10 targets 1.22.0).
+# ONNX Runtime GPU: NaN's own PATCHED build (nan-onnxruntime), NOT Microsoft's
+# prebuilt. Version still 1.22.0 (must match ort-sys 2.0.0-rc.10). The patch
+# (wasm/onnxruntime-sm90-mps.patch) guards the sm_90-under-MPS division sites in
+# flash/lean attention and adds ORT_DISABLE_MATMUL4BITS_KERNEL - so the fused
+# attention kernels are safe to re-enable on the H200. Built by ort-toolchain.yml
+# with native sm_86+sm_90 SASS (verified: 8 sm_90 cubins, so no PTX-JIT hang
+# under TDX - the original 2026-07-05 root cause). Same tarball layout as MS's,
+# so ORT_LIB_LOCATION is unchanged. Rebuild flow: run ort-toolchain.yml -> paste
+# ORT_URL/ORT_SHA256 here -> this commit triggers the nan-wasmtime rebuild.
 ARG ORT_VERSION=1.22.0
-ARG ORT_SHA256=2a19dbfa403672ec27378c3d40a68f793ac7a6327712cd0e8240a86be2b10c55
-RUN curl -fsSL -o /tmp/ort.tgz \
-      "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-gpu-${ORT_VERSION}.tgz" \
+ARG ORT_URL=https://github.com/SteveDeFacto/nan/releases/download/nan-onnxruntime-v1.22.0-nan1/nan-onnxruntime-linux-x64-gpu-1.22.0.tgz
+ARG ORT_SHA256=d799d6c69f0d5d718b0e70e100d78bdb6f71ed4e909c94bbf4b38c1a8a85164b
+RUN curl -fsSL -o /tmp/ort.tgz "${ORT_URL}" \
  && echo "${ORT_SHA256}  /tmp/ort.tgz" | sha256sum -c - \
  && tar -xzf /tmp/ort.tgz -C /opt && rm /tmp/ort.tgz
 ENV ORT_LIB_LOCATION=/opt/onnxruntime-linux-x64-gpu-${ORT_VERSION}
