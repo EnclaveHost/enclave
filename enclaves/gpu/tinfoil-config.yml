@@ -127,11 +127,15 @@ containers:
       - MIN_COMPUTE_PCT: "1"
       - VRAM_GRANULARITY_GB: "1"
       - CTX_OVERHEAD_GB: "0.5"
-      # public UDP: the UDP relay box's routed /64. Each deployment declaring a
-      # udp:N port gets its own IPv6 from this prefix (deterministic from the id),
-      # advertised in the deploy response and /v1/udp-map. Empty = udp ports stay
-      # in-enclave-only (no public datagram path). See relay/README.md.
-      - UDP_ADDR_PREFIX: "2a01:4f9:c013:9b52::/64"       # nan-relay's routed /64 (46.62.128.36); MUST match the udp-relay box
+      # dedicated per-deployment IPv6: the relay box's routed /64. Each public
+      # deployment gets its own IPv6 from this prefix (deterministic from the id);
+      # its tcp:N ports are served there by the tcp6-relay and its udp:N ports by
+      # the udp-relay - at the real port, no SNI, no remapping. Advertised in the
+      # deploy response (network.address/tcp/udp) and /v1/net-map + /v1/udp-map.
+      # Empty = dedicated addressing off (ports stay in-enclave-only via /x).
+      # DEP_ADDR_PREFIX is the current name; UDP_ADDR_PREFIX is the accepted
+      # legacy alias. See relay/README.md.
+      - DEP_ADDR_PREFIX: "2a01:4f9:c013:9b52::/64"       # nan-relay's routed /64 (46.62.128.36); MUST match the relay boxes
       # manual-billing / pilot: boot deployments without an on-chain payment.
       # AUTO_PROVISION="1" provisions EVERY deploy for free (use only for a closed
       # pilot). Leave "" and use the ADMIN_TOKEN-gated provision endpoint instead to

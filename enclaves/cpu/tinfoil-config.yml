@@ -68,9 +68,10 @@ containers:
       # (NanDeployments records created with gpu=false).
       - CLAIM_ENABLED: "1"
       - DEPLOYMENTS_ADDRESS: "0x81037A2081bc000F12B8aA771bede0d36742ec4b"
-      # public UDP: set to a CPU relay box's routed /64 if one is attached; empty
-      # keeps udp ports in-enclave-only.
-      - UDP_ADDR_PREFIX: ""
+      # dedicated per-deployment IPv6 (tcp + udp): set to a relay box's routed /64
+      # if one is attached; empty keeps ports in-enclave-only. DEP_ADDR_PREFIX is
+      # the current name (UDP_ADDR_PREFIX still accepted). See relay/README.md.
+      - DEP_ADDR_PREFIX: ""
       # manual-billing / pilot controls, same semantics as the GPU flavor.
       - AUTO_PROVISION: ""
       - AUTO_PROVISION_HOURS: "0"

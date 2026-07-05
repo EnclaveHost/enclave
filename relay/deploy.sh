@@ -14,13 +14,13 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-echo "== nan-relay: tcp + udp relays"
-scp relay.js udp-relay.js package.json nan-relay:/opt/nan-relay/
-scp systemd/nan-tcp-relay.service systemd/nan-udp-relay.service nan-relay:/etc/systemd/system/
+echo "== nan-relay: tcp (SNI) + tcp6 (dedicated-IP) + udp relays"
+scp relay.js tcp6-relay.js udp-relay.js package.json nan-relay:/opt/nan-relay/
+scp systemd/nan-tcp-relay.service systemd/nan-tcp6-relay.service systemd/nan-udp-relay.service nan-relay:/etc/systemd/system/
 ssh nan-relay 'cd /opt/nan-relay && npm install --omit=dev --no-audit --no-fund \
   && systemctl daemon-reload \
-  && systemctl restart nan-tcp-relay nan-udp-relay \
-  && systemctl is-active nan-tcp-relay nan-udp-relay'
+  && systemctl restart nan-tcp-relay nan-tcp6-relay nan-udp-relay \
+  && systemctl is-active nan-tcp-relay nan-tcp6-relay nan-udp-relay'
 
 echo "== nan: api relay"
 scp api-relay.js package.json nan:/opt/nan-relay/
