@@ -707,6 +707,8 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
 .publish-panel input:focus,.publish-panel textarea:focus{outline:none;border-color:var(--jade-dim);}
 #pubFileRow.disabled{opacity:.55;}
 #pubFileRow .hint{font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);margin-top:6px;}
+#pubUpBar{height:4px;background:var(--bg-1);border:1px solid var(--line);border-radius:3px;overflow:hidden;margin-top:8px;}
+#pubUpBar>div{height:100%;width:0%;background:var(--jade-dim);transition:width .2s;}
 .pub-actions{display:flex;align-items:center;gap:12px;margin-top:18px;flex-wrap:wrap;}
 .pub-status{font-family:var(--font-mono);font-size:.74rem;color:var(--text-muted);word-break:break-all;flex:1 1 240px;}
 .pub-status.err{color:var(--danger);}
@@ -754,6 +756,7 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
           <label for="pubFile">Wasm file <span class="dim">(.wasm component · ≤ 256 MB · uploaded &amp; pinned to IPFS)</span></label>
           <input type="file" id="pubFile" accept=".wasm,application/wasm" />
           <div class="hint" id="pubFileHint"></div>
+          <div id="pubUpBar" hidden><div></div></div>
         </div>
         <div class="full">
           <label for="pubCid">IPFS CID <span class="dim">(auto-filled after upload, or paste one you've pinned)</span></label>
@@ -5600,16 +5603,39 @@ async function validateWasm(file){
   if (layer !== 1) throw new NanError("Unrecognized wasm preamble (layer " + layer + "); expected a wasi:http component.", 0);
   return true;
 }
-async function putWasm(file){
-  if (!IPFS_UPLOAD_URL) throw new NanError("Direct upload isn’t configured here; paste a CID you’ve pinned (e.g. `ipfs add app.wasm`).", 0);
-  if (file.size > MAX_WASM_BYTES) throw new NanError("Too large: max " + MAX_WASM_MB + " MB.", 0);
-  // raw bytes to the validating gateway; it re-checks size + wasm component preamble
-  // server-side, pins to IPFS, and returns { cid }. (The browser checks are just UX.)
-  const r = await fetch(IPFS_UPLOAD_URL, { method: "POST", headers: { "content-type": "application/wasm" }, body: file });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new NanError("upload rejected: " + (j.error || ("HTTP " + r.status)), 0);
-  if (!j.cid) throw new NanError("gateway returned no CID", 0);
-  return j.cid;
+// In-flight publish upload (XHR so we get upload progress - fetch can't report
+// it). Tracked module-wide: a new file pick aborts the old upload, and the
+// publish path refuses to run while one is active.
+let pubXhr = null, pubSeq = 0;
+function putWasm(file, onProgress){
+  return new Promise((resolve, reject) => {
+    if (!IPFS_UPLOAD_URL) return reject(new NanError("Direct upload isn’t configured here; paste a CID you’ve pinned (e.g. `ipfs add app.wasm`).", 0));
+    if (file.size > MAX_WASM_BYTES) return reject(new NanError("Too large: max " + MAX_WASM_MB + " MB.", 0));
+    // raw bytes to the validating gateway; it re-checks size + wasm component preamble
+    // server-side, pins to IPFS, and returns { cid }. (The browser checks are just UX.)
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", IPFS_UPLOAD_URL);
+    xhr.setRequestHeader("content-type", "application/wasm");
+    xhr.responseType = "json";
+    xhr.upload.onprogress = (ev) => { if (ev.lengthComputable && onProgress) onProgress(ev.loaded, ev.total); };
+    xhr.onerror = () => reject(new NanError("upload failed: network error", 0));
+    xhr.onabort = () => reject(new NanError("upload canceled", 0));
+    xhr.onload = () => {
+      const j = xhr.response || {};
+      if (xhr.status < 200 || xhr.status >= 300) return reject(new NanError("upload rejected: " + (j.error || ("HTTP " + xhr.status)), 0));
+      if (!j.cid) return reject(new NanError("gateway returned no CID", 0));
+      resolve(j.cid);
+    };
+    pubXhr = xhr;
+    xhr.send(file);
+  });
+}
+// Lock the publish path while bytes are in flight: an enabled button next to a
+// CID field still holding the PREVIOUS upload's CID is how a stale CID lands
+// on-chain.
+function setPubUploading(on){
+  const btn = $("#pubSubmit"); if (btn){ btn.disabled = on; btn.textContent = on ? "uploading…" : "Publish to Base"; }
+  const cidEl = $("#pubCid"); if (cidEl) cidEl.disabled = on;
 }
 async function ensureCatalogChain(){
   if (APP_CATALOG_CHAIN === BASE_CHAIN) return ensureBaseChain();
@@ -5632,14 +5658,43 @@ async function waitReceipt(hash, tries){
 function pubStatus(msg, err){ const el = $("#pubStatus"); if (!el) return; el.textContent = msg || ""; el.className = "pub-status" + (err ? " err" : ""); }
 async function onPubFile(e){
   const f = e.target.files && e.target.files[0]; if (!f) return;
-  $("#pubFileHint").textContent = f.name + " · " + (f.size / 1048576).toFixed(2) + " MB";
+  const seq = ++pubSeq;                                     // supersedes any in-flight upload
+  if (pubXhr){ try { pubXhr.abort(); } catch(_){} pubXhr = null; }
+  $("#pubCid").value = "";                                  // never leave the previous CID publishable
+  const hint = $("#pubFileHint"), bar = $("#pubUpBar");
+  const mb = (f.size / 1048576).toFixed(2);
+  hint.textContent = f.name + " · " + mb + " MB";
   try { await validateWasm(f); }
-  catch(err){ pubStatus(err.message || String(err), true); e.target.value = ""; $("#pubCid").value = ""; return; }
-  pubStatus("valid component · uploading to IPFS…");
-  try { const cid = await putWasm(f); $("#pubCid").value = cid; pubStatus("pinned · CID " + cid); }
-  catch(err){ pubStatus(err.message || String(err), true); }
+  catch(err){ if (seq !== pubSeq) return; pubStatus(err.message || String(err), true); e.target.value = ""; return; }
+  if (seq !== pubSeq) return;
+  setPubUploading(true);
+  if (bar){ bar.hidden = false; bar.firstElementChild.style.width = "0%"; }
+  pubStatus("valid component · uploading to IPFS… 0%");
+  try {
+    const cid = await putWasm(f, (done, total) => {
+      if (seq !== pubSeq || !total) return;
+      const pct = Math.min(100, Math.floor(done / total * 100));
+      if (bar) bar.firstElementChild.style.width = pct + "%";
+      // 100% sent != done: the gateway still validates + pins before answering
+      const label = done >= total ? "upload sent · gateway validating + pinning…"
+                                  : "uploading to IPFS… " + pct + "% (" + (done / 1048576).toFixed(1) + " / " + mb + " MB)";
+      pubStatus(label);
+      hint.textContent = f.name + " · " + mb + " MB · " + (done >= total ? "pinning…" : pct + "%");
+    });
+    if (seq !== pubSeq) return;
+    $("#pubCid").value = cid;
+    hint.textContent = f.name + " · " + mb + " MB · pinned";
+    pubStatus("pinned · CID " + cid);
+  } catch(err){
+    if (seq !== pubSeq) return;
+    hint.textContent = f.name + " · " + mb + " MB · upload failed";
+    pubStatus(err.message || String(err), true);
+  } finally {
+    if (seq === pubSeq){ setPubUploading(false); pubXhr = null; if (bar) bar.hidden = true; }
+  }
 }
 async function publishApp(){
+  if (pubXhr) return pubStatus("the wasm is still uploading - wait for the CID to fill in before publishing", true);
   const slug = $("#pubSlug").value.trim(), version = $("#pubVersion").value.trim();
   const cid = $("#pubCid").value.trim(), name = $("#pubName").value.trim(), desc = $("#pubDesc").value.trim();
   // the app's EXACT minimum resources on four axes, published on-chain in MB /
@@ -5727,6 +5782,10 @@ const setVerifiedTx = (appId, idx, v) => catTx(encCall(CAT_SEL.setVerified, [{t:
 const setApprovalTx = (appId, idx, st) => catTx(encCall(CAT_SEL.setApproval, [{t:"bytes32",v:appId},{t:"uint",v:idx},{t:"uint",v:st}]), st === APPROVAL.approved ? "approving" : "rejecting");
 
 function resetPublish(){
+  pubSeq++;                                                  // orphan any in-flight upload's callbacks
+  if (pubXhr){ try { pubXhr.abort(); } catch(_){} pubXhr = null; }
+  setPubUploading(false);
+  const bar = $("#pubUpBar"); if (bar) bar.hidden = true;
   ["#pubSlug","#pubCid","#pubName","#pubDesc","#pubPorts"].forEach(s => { const el = $(s); if (el) el.value = ""; });
   const f = $("#pubFile"); if (f) f.value = ""; const h = $("#pubFileHint"); if (h) h.textContent = "";
   $("#pubVersion").value = "1.0.0"; $("#pubVram").value = "0"; $("#pubGpuT").value = "0";
