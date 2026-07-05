@@ -374,32 +374,27 @@ def _nn_tenant_env(gpu_share: float, pinned: bool) -> dict:
     # host-side wasi-nn traces into the tenant's log file (owner-readable via
     # the deployment logs endpoint) - names the backend step a hang died in
     env.setdefault("WASMTIME_LOG", "wasmtime_wasi_nn=debug")
-    # ORT's sm_90 FLASH-ATTENTION path (GroupQueryAttention et al) computes
-    # kernel-launch heuristics that integer-divide by the device's SM budget;
-    # under a small MPS partition (e.g. a 2% tenant of an H200) a denominator
-    # floors to zero and the whole process dies with SIGFPE mid-compute
-    # (observed live 2026-07-05: exit -8 on llm-chat's first prefill; the
-    # identical stack on consumer sm_86 is fine - different kernel family).
-    # Disable flash attention for tenants: attention falls back to the
-    # memory-efficient kernels, which don't carry that heuristic.
-    env.setdefault("ORT_DISABLE_FLASH_ATTENTION", "1")
-    # ... and the memory-efficient kernels have their own sm_90-under-MPS
-    # failure (observed live 2026-07-05: Qwen2.5's GQA, 14Q/2KV heads, emits
-    # one decode token then the process dies - ECONNREFUSED mid-stream - on a
-    # 4% H200 slice, while the identical artifact streams fine on sm_86 and
-    # on CPU). With both fused paths off, GroupQueryAttention takes its plain
-    # unfused kernels: slower, but they don't size launches off the
-    # MPS-partitioned SM budget. Revisit if/when upstream ORT fixes the
-    # Hopper attention heuristics for small CUDA_MPS_ACTIVE_THREAD_PERCENTAGE.
-    env.setdefault("ORT_DISABLE_MEMORY_EFFICIENT_ATTENTION", "1")
-    # ... and NEITHER knob is sufficient: these exports carry DECOMPOSED
-    # attention, and ORT's Level3 optimizer re-fuses it at session load into
-    # the same sm_90 kernel family (observed live 2026-07-05: Qwen2.5 decode
-    # hangs at step 2 on a 4% H200 slice with both knobs set, fine on sm_86
-    # under an identical MPS partition). ORT_GRAPH_OPT_LEVEL is OUR knob
-    # (nan-wasmtime patch): "basic" skips contrib-op fusion entirely - a q4
-    # model's heavy lifting is MatMulNBits either way (~7% slower locally).
-    env.setdefault("ORT_GRAPH_OPT_LEVEL", "basic")
+    # FUSED ATTENTION. Background: ORT's sm_90 flash/memory-efficient attention
+    # kernels compute launch heuristics that integer-divide by the device SM
+    # budget; under a small MPS partition (a 2-4% slice of an H200) the
+    # denominator floors to zero -> SIGFPE / decode hang mid-compute (observed
+    # live 2026-07-05; sm_86 is fine - different kernel family). We used to
+    # disable flash + memory-efficient attention AND force ORT_GRAPH_OPT_LEVEL
+    # basic (so Level3 couldn't re-fuse the decomposed attention into those
+    # kernels). Since v0.5.58 nan-onnxruntime PATCHES the division sites
+    # (wasm/onnxruntime-sm90-mps.patch: flash/lean num_SMs clamp), so the fused
+    # kernels are safe again - and much faster on long contexts / big models.
+    # Default is now FUSED ON. Revert WITHOUT a release by setting
+    # NAN_FUSED_ATTENTION=0 on the wasm-manager container (Tinfoil dashboard) -
+    # it re-applies the conservative unfused knobs. ORT_DISABLE_MATMUL4BITS_KERNEL
+    # (also from the patch) is a SEPARATE, unrelated switch for the fp16 M=1
+    # GEMV corruption - production dodges that with fp32-activation models.
+    if os.environ.get("NAN_FUSED_ATTENTION", "1").strip().lower() in ("0", "false", "no", "off"):
+        env.setdefault("ORT_DISABLE_FLASH_ATTENTION", "1")
+        env.setdefault("ORT_DISABLE_MEMORY_EFFICIENT_ATTENTION", "1")
+        env.setdefault("ORT_GRAPH_OPT_LEVEL", "basic")
+    # else: leave the attention knobs unset -> ORT uses its fused kernels
+    # (flash + memory-efficient, Level3 fusion) on the patched runtime.
     # whatever the probe's GPU bisect adopted (e.g. CUDA_MODULE_LOADING=EAGER
     # when lazy loading deadlocks under MPS) applies to every tenant
     env.update(_NN_PROBE.get("env") or {})
