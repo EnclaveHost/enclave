@@ -43,7 +43,7 @@ WORKDIR /src/wasmtime
 # ORT_URL/ORT_SHA256 here -> this commit triggers the nan-wasmtime rebuild.
 ARG ORT_VERSION=1.22.0
 ARG ORT_URL=https://github.com/SteveDeFacto/nan/releases/download/nan-onnxruntime-v1.22.0-nan1/nan-onnxruntime-linux-x64-gpu-1.22.0.tgz
-ARG ORT_SHA256=d799d6c69f0d5d718b0e70e100d78bdb6f71ed4e909c94bbf4b38c1a8a85164b
+ARG ORT_SHA256=3972e1591d6587c76ec54446b07e3af03ea4ffd5fbccb8f1414c0e252d87846b
 RUN curl -fsSL -o /tmp/ort.tgz "${ORT_URL}" \
  && echo "${ORT_SHA256}  /tmp/ort.tgz" | sha256sum -c - \
  && tar -xzf /tmp/ort.tgz -C /opt && rm /tmp/ort.tgz
