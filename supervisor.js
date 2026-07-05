@@ -2515,8 +2515,16 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
   const ex = deployments.get(d.id);
   if (ex && !CLAIM_TERMINAL.has(ex.status)) return "already serving it here (status " + ex.status + ")";
   if (!d.active) return "deployment is deactivated (owner setActive(false))";
-  if (Number(d.leaseUntil) * 1000 > Date.now()) return "another enclave holds a live lease";
-  if (d.balance6 < d.rate) return "out of funded time - fund it and retry";
+  // A live lease held by OUR OWN enclaveId with no local record = a previous
+  // life of this enclave (an update reboot wipes local state and cannot
+  // release on-chain). RESUME it instead of leaving the app dark until the
+  // lease lapses: we already own the lease, so no claim tx is needed (the
+  // contract would refuse one anyway) - adopt + provision directly. This is
+  // what makes enclave updates near-seamless for tenants.
+  const leaseLive = Number(d.leaseUntil) * 1000 > Date.now();
+  const resume = leaseLive && d.runner === _enclaveId;
+  if (leaseLive && !resume) return "another enclave holds a live lease";
+  if (!resume && d.balance6 < d.rate) return "out of funded time - fund it and retry";
   let firewall;
   try { firewall = parseFirewall({ ports: d.ports ? String(d.ports).split(",") : [] }); }
   catch (e) { return "port spec not servable: " + e.message; }  // mirrors the HTTP 422
@@ -2545,7 +2553,7 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
     if (slice.vramGb > maxFreeVram() + 1e-9 || slice.cpuShare > maxFreeCpu() + 1e-9)
       return "no free capacity for those shares here right now";
   } else {
-    if (IS_GPU && !hinted) {
+    if (IS_GPU && !hinted && !resume) {
       const claimableSince = Math.max(Number(d.createdAt), Number(d.leaseUntil));
       if (Date.now() < (claimableSince + CPU_CLAIM_GRACE_SEC) * 1000) return "cpu-first grace";
     }
@@ -2561,19 +2569,19 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
   if (gpuShare < mins.gpuShare - 1e-9 || cpuShare < mins.cpuShare - 1e-9)
     return `below the app's minimum shares on this hardware (needs gpuShare ${round3(mins.gpuShare)} / cpuShare ${round3(mins.cpuShare)})`;
   if (background) {
-    tryClaim(d, g.ref, firewall, slice, { hinted })
+    tryClaim(d, g.ref, firewall, slice, { hinted, resume })
       .catch(e => console.warn(`[claim] hinted claim ${d.id} failed: ${e.shortMessage || e.message}`));
     return null;
   }
-  await tryClaim(d, g.ref, firewall, slice, { hinted });
+  await tryClaim(d, g.ref, firewall, slice, { hinted, resume });
   return null;
 }
 
 // Jitter de-syncs enclaves that saw the same queue state; the claimable()
 // re-check catches a claim that landed during the wait without paying for a
 // reverted tx. Losing the race anyway costs one reverted tx (cents on Base).
-async function tryClaim(d, ref, firewall, slice, { hinted = false } = {}) {
-  if (!hinted) await new Promise(r => setTimeout(r, Math.random() * 5000));
+async function tryClaim(d, ref, firewall, slice, { hinted = false, resume = false } = {}) {
+  if (!hinted && !resume) await new Promise(r => setTimeout(r, Math.random() * 5000));
   // Fetch + verify + cache the app BEFORE burning a lease: the launch's own
   // fetch then hits the manager's local cache instead of racing a 100MB+
   // IPFS transfer against the spawn window, and an unfetchable CID costs the
@@ -2588,6 +2596,14 @@ async function tryClaim(d, ref, firewall, slice, { hinted = false } = {}) {
       console.warn(`[claim] ${d.id} prefetch failed (${e.message}); not claiming, backing off ${Math.round(coolMs / 60000)}min`);
       return;
     }
+  }
+  if (resume) {
+    // we already HOLD this lease (a previous life of this enclave claimed
+    // it; the reboot wiped local state, not the chain) - no claim tx, just
+    // pick the work back up
+    console.log(`[claim] ${d.id} resuming our own live lease after a restart`);
+    await adopt(d, ref, firewall, slice);
+    return;
   }
   const open = await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
     abi: DEPLOYMENTS_ABI, functionName: "claimable", args: [d.id] });
