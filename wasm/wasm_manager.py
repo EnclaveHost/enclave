@@ -1238,6 +1238,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return self._json(404, {"error": "not found"})
 
     def do_POST(self):
+        # Prefetch: resolve + verify + cache an app's bytes WITHOUT launching.
+        # The supervisor calls this before claiming an on-chain deployment so
+        # a lease is never burned racing a 100MB+ IPFS fetch against the spawn
+        # window - after this, the launch's fetch is a local cache hit.
+        if self.path == "/prefetch":
+            b = self._body()
+            ref = str(b.get("image") or b.get("app") or "").strip()
+            if not ref.startswith("ipfs://"):
+                return self._json(400, {"error": "prefetch takes an ipfs://<cid> app reference"})
+            try:
+                t0 = time.time()
+                p = _resolve_wasm(ref)
+                return self._json(200, {"ok": True, "bytes": p.stat().st_size,
+                                        "seconds": round(time.time() - t0, 1)})
+            except ValueError as e:
+                return self._json(422, {"error": str(e)})
+            except Exception as e:
+                return self._json(502, {"error": f"prefetch failed: {e}"})
         if self.path != "/vms":
             return self._json(404, {"error": "not found"})
         b = self._body()

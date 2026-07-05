@@ -85,7 +85,7 @@ const DOCKER_SOCK    = process.env.DOCKER_SOCK || "/var/run/docker.sock";  // En
 const MPS_PIPE_DIR   = process.env.CUDA_MPS_PIPE_DIRECTORY || "/tmp/nvidia-mps";
 const ENABLE_MPS     = !/^(0|false|off)$/i.test(process.env.ENABLE_MPS || "1"); // MPS enforces BOTH the SM cap and the VRAM cap (validated under CC)
 const WORKER_PREFIX  = process.env.WORKER_PREFIX || "nan_";
-const SPAWN_TIMEOUT_MS = parseInt(process.env.SPAWN_TIMEOUT_MS || "180000", 10); // includes image pull
+const SPAWN_TIMEOUT_MS = parseInt(process.env.SPAWN_TIMEOUT_MS || "300000", 10); // includes image pull / wasm fetch (prefetched claims hit the cache, this is headroom)
 const WORKER_MEM      = process.env.WORKER_MEM || "16g";                // host-RAM cap per worker (not GPU)
 const WORKER_PIDS     = process.env.WORKER_PIDS || "512";
 // ---- worker MANAGER (Layer 2/3) --------------------------------------------
@@ -2445,7 +2445,7 @@ async function auditClaims() {
       saveStateSoon();
     } else if (rec.status === "claimed") {    // crashed after claim, before provision
       if (!(await provisionTenant(rec))) {
-        deployments.delete(rec.id);           // provisionTenant already released the GPU
+        // keep the "failed" record as the owner's evidence (see adopt())
         noteProvisionFailure(rec.id);
         releaseLease(rec.id, "provision failed after crash recovery").catch(() => {});
         saveStateSoon();
@@ -2539,6 +2539,21 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
 // reverted tx. Losing the race anyway costs one reverted tx (cents on Base).
 async function tryClaim(d, ref, firewall, slice, { hinted = false } = {}) {
   if (!hinted) await new Promise(r => setTimeout(r, Math.random() * 5000));
+  // Fetch + verify + cache the app BEFORE burning a lease: the launch's own
+  // fetch then hits the manager's local cache instead of racing a 100MB+
+  // IPFS transfer against the spawn window, and an unfetchable CID costs the
+  // user nothing (no claim ever happens).
+  if (PROVISION_BACKEND === "vm" && /^ipfs:\/\//.test(ref)) {
+    try {
+      const r = await vmReq("POST", "/prefetch", { image: ref }, 300_000);
+      if (r.status !== 200) throw new Error((r.body && (r.body.error || r.body.message)) || `HTTP ${r.status}`);
+      if (r.body && r.body.seconds > 1) console.log(`[claim] ${d.id} prefetched ${r.body.bytes} bytes in ${r.body.seconds}s`);
+    } catch (e) {
+      const coolMs = noteProvisionFailure(d.id);
+      console.warn(`[claim] ${d.id} prefetch failed (${e.message}); not claiming, backing off ${Math.round(coolMs / 60000)}min`);
+      return;
+    }
+  }
   const open = await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
     abi: DEPLOYMENTS_ABI, functionName: "claimable", args: [d.id] });
   if (!open) return;
@@ -2587,13 +2602,13 @@ async function adopt(d, ref, firewall, slice) {
     console.log(`[claim] ${rec.id} adopted: app=${ref} gpuShare=${round3(slice.gpuShare || 0)} cpuShare=${round3(slice.cpuShare)} `
               + `lease until ${new Date(rec._leaseUntil * 1000).toISOString()}`);
   } else {
-    // launch failed (bad wasm, image too big, manager 503, ...): hand it back
-    // refunded so another enclave can try — the user paid nothing for our
-    // failure. Cooldown before WE try this id again, and retry the release in
-    // the background (a stranded lease is ~leaseSec of dead air for the user).
-    deployments.delete(rec.id);                              // provisionTenant released the GPU already
+    // launch failed (bad wasm, manager 503, spawn timeout, ...): hand the
+    // lease back refunded and back off this id here. KEEP the failed record -
+    // provisionTenant stamped status "failed" + rec.error, and that record is
+    // the owner's only evidence of WHY (the console polls it). "failed" is in
+    // CLAIM_TERMINAL, so any enclave (this one included) may still re-adopt.
     const coolMs = noteProvisionFailure(rec.id);
-    console.warn(`[claim] provision failed for ${rec.id}; backing off ${Math.round(coolMs / 60000)}min here`);
+    console.warn(`[claim] provision failed for ${rec.id} (${rec.error || "?"}); backing off ${Math.round(coolMs / 60000)}min here`);
     releaseLease(rec.id, "provision failed").catch(() => {});
   }
   saveStateSoon();
