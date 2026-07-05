@@ -30,7 +30,7 @@ import { mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, renameSync
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { WebSocketServer, createWebSocketStream } from "ws";
-import { verifyMessage, createPublicClient, createWalletClient, http as viemHttp, getAddress, keccak256, toHex, stringToBytes } from "viem";
+import { verifyMessage, createPublicClient, createWalletClient, http as viemHttp, getAddress, keccak256, toHex, stringToBytes, parseEventLogs } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { SignJWT, jwtVerify } from "jose";
@@ -449,7 +449,11 @@ async function initSshHostKey() {
   }
 }
 
-const chainClient = createPublicClient({ chain: base, transport: viemHttp(BASE_RPC) });
+// Public RPCs rate-limit per IP and the claim loop's bursts run into it
+// (observed live 2026-07-05: "over rate limit" from mainnet.base.org killed
+// whole claim passes). Longer exponential retry absorbs a burst cap; the
+// per-tick call budget is kept low by deriving post-tx state from receipts.
+const chainClient = createPublicClient({ chain: base, transport: viemHttp(BASE_RPC, { retryCount: 5, retryDelay: 500 }) });
 
 // ----------------------------------------------------------------------------
 // state (in-process; this service is the single enclave instance)
@@ -1218,11 +1222,17 @@ app.post("/v1/claim-hint", async (req, res) => {
     // entry, a lease race - surface HERE with the revert reason, instead of
     // "accepted: true" followed by a silent background failure. This is how
     // the 2026-07-05 wrong-registry-pointer bug should have been caught.
-    try {
-      await chainClient.simulateContract({ address: getAddress(DEPLOYMENTS_ADDRESS), abi: DEPLOYMENTS_ABI,
-        functionName: "claim", args: [id, _enclaveId], account: claimSigner().account });
-    } catch (e) {
-      return res.json({ accepted: false, reason: "claim would revert on-chain: " + (e.shortMessage || e.message) });
+    // SKIP it when we already hold the live lease: no claim tx will be sent
+    // (that's the resume path) and simulating one just reverts "leased",
+    // wedging the only route back to a lease we own but lost the record of.
+    const resuming = Number(d.leaseUntil) * 1000 > Date.now() && d.runner === _enclaveId;
+    if (!resuming) {
+      try {
+        await chainClient.simulateContract({ address: getAddress(DEPLOYMENTS_ADDRESS), abi: DEPLOYMENTS_ABI,
+          functionName: "claim", args: [id, _enclaveId], account: claimSigner().account });
+      } catch (e) {
+        return res.json({ accepted: false, reason: "claim would revert on-chain: " + (e.shortMessage || e.message) });
+      }
     }
     const reason = await considerClaim(d, { hinted: true, background: true });
     if (reason) return res.json({ accepted: false, reason });
@@ -2357,6 +2367,26 @@ const DEPLOYMENTS_ABI = [
     inputs: [{ name: "start", type: "uint256" }, { name: "n", type: "uint256" }],
     outputs: [{ type: "tuple[]", components: DEPLOYMENT_COMPONENTS }] },
 ];
+// Claim/renew receipts carry the post-tx lease in their event - read it from
+// THERE, never from a follow-up eth_call: the public RPC's load balancer can
+// serve pre-tx state for a minute after confirmation (and rate-limit the read
+// outright), and both failure modes made the loop double-renew leases and
+// abandon its own freshly-claimed work (observed live 2026-07-05).
+const DEPLOYMENT_EVENTS = [
+  { type: "event", name: "Claimed", inputs: [
+    { name: "id", type: "bytes32", indexed: true }, { name: "enclaveId", type: "bytes32", indexed: true },
+    { name: "operator", type: "address", indexed: true }, { name: "leaseUntil", type: "uint64" }, { name: "burned6", type: "uint256" }] },
+  { type: "event", name: "Renewed", inputs: [
+    { name: "id", type: "bytes32", indexed: true }, { name: "enclaveId", type: "bytes32", indexed: true },
+    { name: "leaseUntil", type: "uint64" }, { name: "burned6", type: "uint256" }] },
+];
+function leaseFromReceipt(rcpt, eventName, id) {
+  try {
+    const logs = parseEventLogs({ abi: DEPLOYMENT_EVENTS, logs: rcpt.logs, eventName, strict: false });
+    const hit = logs.find(l => (l.args.id || "").toLowerCase() === id.toLowerCase());
+    return hit ? Number(hit.args.leaseUntil) : null;
+  } catch { return null; }
+}
 
 // One shared signer (the registry operator EOA) and ONE queue for every tx it
 // signs — registry register/heartbeat and ledger claim/renew/release alike.
@@ -2369,17 +2399,17 @@ let _claimAccount = null, _claimWallet = null, _txChain = Promise.resolve();
 function claimSigner() {
   if (!_claimWallet) {
     _claimAccount = privateKeyToAccount(REGISTRY_PK.startsWith("0x") ? REGISTRY_PK : `0x${REGISTRY_PK}`);
-    _claimWallet  = createWalletClient({ account: _claimAccount, chain: base, transport: viemHttp(BASE_RPC) });
+    _claimWallet  = createWalletClient({ account: _claimAccount, chain: base, transport: viemHttp(BASE_RPC, { retryCount: 5, retryDelay: 500 }) });
   }
   return { account: _claimAccount, wallet: _claimWallet };
 }
 function sendOperatorTx(address, abi, functionName, args) {
   const p = _txChain.then(() => claimSigner().wallet.writeContract({
     address: getAddress(address), abi, functionName, args }));
-  _txChain = p
-    .then((hash) => chainClient.waitForTransactionReceipt({ hash, timeout: 120_000 }))
-    .then(() => {}, () => {});              // keep the queue alive across failures
-  return p;
+  const rcptP = p.then((hash) => chainClient.waitForTransactionReceipt({ hash, timeout: 120_000 }));
+  _txChain = rcptP.then(() => {}, () => {});   // keep the queue alive across failures
+  p.receipt = rcptP;   // callers that need the outcome share the queue's own
+  return p;            // receipt wait instead of polling for it a second time
 }
 const sendClaimTx = (functionName, args) => sendOperatorTx(DEPLOYMENTS_ADDRESS, DEPLOYMENTS_ABI, functionName, args);
 const readOnchainDeployment = (id) => chainClient.readContract({
@@ -2406,7 +2436,10 @@ function noteProvisionFailure(id) {
 async function releaseLease(id, why) {
   for (let i = 0; i < 4; i++) {
     try {
-      await sendClaimTx("release", [id]);
+      const sent = sendClaimTx("release", [id]);
+      await sent;
+      const rcpt = await sent.receipt;
+      if (rcpt.status !== "success") throw new Error("release tx reverted");
       console.log(`[claim] released ${id} (${why})`);
       return true;
     } catch (e) {
@@ -2428,12 +2461,17 @@ async function renewLeases() {
     if (rec._leaseUntil * 1000 - Date.now() > RENEW_MARGIN_SEC * 1000) continue;
     rec._renewing = true;
     try {
-      const hash = await sendClaimTx("renew", [rec.id]);
-      await chainClient.waitForTransactionReceipt({ hash });
-      const d = await readOnchainDeployment(rec.id);
-      rec._leaseUntil = Number(d.leaseUntil);
+      const sent = sendClaimTx("renew", [rec.id]);
+      await sent;
+      const rcpt = await sent.receipt;
+      if (rcpt.status !== "success") throw new Error("renew tx reverted");
+      // the Renewed event IS the new lease - a follow-up read can be stale or
+      // rate-limited, and a missed update here renews AGAIN next tick, burning
+      // an extra quantum of the user's money every cycle (observed live)
+      const until = leaseFromReceipt(rcpt, "Renewed", rec.id);
+      if (until == null) throw new Error("renew receipt carried no Renewed event");
+      rec._leaseUntil = until;
       rec.remainingMs = rec._leaseUntil * 1000 - Date.now();
-      rec.paidUsdc = Number(d.spent6 + d.balance6);
       console.log(`[claim] ${rec.id} lease renewed until ${new Date(rec._leaseUntil * 1000).toISOString()}`);
       saveStateSoon();
     } catch (e) {
@@ -2448,12 +2486,15 @@ async function renewLeases() {
 // is attested identically and app state is ephemeral by design); if the owner
 // deactivated, tear down AND release so the tail refunds; if we crashed between
 // claim and provision (status "claimed"), finish the job or hand it back.
-async function auditClaims() {
+async function auditClaims(ledgerById) {
   const me = claimSigner().account.address.toLowerCase();
   for (const rec of [...deployments.values()]) {
     if (!rec._onchain || !["running", "claimed"].includes(rec.status)) continue;
-    let d; try { d = await readOnchainDeployment(rec.id); }
-    catch { continue; }                       // RPC blip: keep serving, the lease is prepaid
+    // the tick already paged the whole ledger once - one read serves the audit
+    // AND the sweep (per-record re-reads were what blew the RPC rate budget)
+    const d = ledgerById.get(rec.id.toLowerCase());
+    if (!d) continue;                         // not in the page (RPC anomaly): keep serving, the lease is prepaid
+    rec.paidUsdc = Number(d.spent6 + d.balance6);
     const mine = (d.runnerOperator || "").toLowerCase() === me
               && Number(d.leaseUntil) * 1000 > Date.now();
     if (!d.active) {
@@ -2472,11 +2513,12 @@ async function auditClaims() {
       // helps nobody and burns the user's lease.
       if (opMine && !leaseLive && rec.status === "running") {
         try {
-          const hash = await sendClaimTx("claim", [rec.id, _enclaveId]);
-          await chainClient.waitForTransactionReceipt({ hash });
-          const fresh = await readOnchainDeployment(rec.id);
-          if ((fresh.runnerOperator || "").toLowerCase() === me && Number(fresh.leaseUntil) * 1000 > Date.now()) {
-            rec._leaseUntil = Number(fresh.leaseUntil);
+          const sent = sendClaimTx("claim", [rec.id, _enclaveId]);
+          await sent;
+          const rcpt = await sent.receipt;
+          const until = rcpt.status === "success" ? leaseFromReceipt(rcpt, "Claimed", rec.id) : null;
+          if (until != null) {
+            rec._leaseUntil = until;
             rec.remainingMs = rec._leaseUntil * 1000 - Date.now();
             rec._loseStrikes = 0;
             console.log(`[claim] ${rec.id} re-acquired our lapsed lease in place`);
@@ -2538,17 +2580,40 @@ async function auditClaims() {
   }
 }
 
-// Page the ledger for claimable work this enclave can actually serve: funded,
-// unleased, fits our free capacity, passes the same catalog-approval gate as
-// HTTP deploys (fail closed). Checked BEFORE claiming so we never burn a
-// user's lease on something we can't run.
-async function claimSweep() {
-  if (!(await backendHealthy())) return;      // don't take work we'd immediately fail
+// One paged read of the whole ledger per tick, shared by the audit and the
+// sweep - the per-stage reads it replaces were enough burst to trip the public
+// RPC's per-IP rate limit, which killed the tail of every pass (the sweep)
+// while the head (renewals) kept working: new deployments sat unclaimed for
+// hours with all gauntlet conditions green (observed live 2026-07-05).
+async function fetchLedger() {
+  const all = [];
   for (let start = 0n; ; start += BigInt(CLAIM_PAGE)) {
     const page = await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
       abi: DEPLOYMENTS_ABI, functionName: "getPage", args: [start, BigInt(CLAIM_PAGE)] });
-    for (const d of page) await considerClaim(d);
+    all.push(...page);
     if (page.length < CLAIM_PAGE) break;
+  }
+  return all;
+}
+
+// Sweep the ledger for claimable work this enclave can actually serve: funded,
+// unleased, fits our free capacity, passes the same catalog-approval gate as
+// HTTP deploys (fail closed). Checked BEFORE claiming so we never burn a
+// user's lease on something we can't run. Decline reasons are LOGGED on
+// change: a silent decline loop is indistinguishable from a dead sweep from
+// outside the enclave, and it took chain forensics to tell them apart once.
+const _sweepDeclines = new Map();             // id -> last logged reason
+async function claimSweep(ledger) {
+  if (!(await backendHealthy())) return;      // don't take work we'd immediately fail
+  for (const d of ledger) {
+    let reason;
+    try { reason = await considerClaim(d); }
+    catch (e) { reason = "error: " + (e.shortMessage || e.message); }   // one bad item must not end the pass
+    if (!reason) { _sweepDeclines.delete(d.id); continue; }             // a claim was attempted
+    if (reason !== _sweepDeclines.get(d.id) && !reason.startsWith("already serving")) {
+      console.log(`[claim] sweep skips ${d.id}: ${reason}`);
+      _sweepDeclines.set(d.id, reason);
+    }
   }
 }
 
@@ -2657,14 +2722,24 @@ async function tryClaim(d, ref, firewall, slice, { hinted = false, resume = fals
   const open = await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
     abi: DEPLOYMENTS_ABI, functionName: "claimable", args: [d.id] });
   if (!open) return;
-  let hash;
-  try { hash = await sendClaimTx("claim", [d.id, _enclaveId]); }
-  catch (e) { console.log(`[claim] ${d.id} claim tx failed (${e.shortMessage || e.message})`); return; }
-  const rcpt = await chainClient.waitForTransactionReceipt({ hash });
+  let rcpt;
+  try {
+    const sent = sendClaimTx("claim", [d.id, _enclaveId]);
+    await sent;
+    rcpt = await sent.receipt;
+  } catch (e) { console.log(`[claim] ${d.id} claim tx failed (${e.shortMessage || e.message})`); return; }
   if (rcpt.status !== "success") { console.log(`[claim] ${d.id} lost the race`); return; }
-  const fresh = await readOnchainDeployment(d.id);
-  if ((fresh.runnerOperator || "").toLowerCase() !== claimSigner().account.address.toLowerCase()) return;
-  await adopt(fresh, ref, firewall, slice);
+  // The receipt's Claimed event is the proof we won AND the new lease bounds;
+  // re-reading the ledger here once handed a stale/rate-limited answer and the
+  // loop walked away from its own paid lease (tenant dark for a full quantum).
+  const until = leaseFromReceipt(rcpt, "Claimed", d.id);
+  if (until == null) {   // success receipt without our event: should be impossible - refund rather than strand
+    console.warn(`[claim] ${d.id} claim confirmed but no Claimed event found; releasing`);
+    releaseLease(d.id, "claim receipt unreadable").catch(() => {});
+    return;
+  }
+  await adopt({ ...d, leaseUntil: BigInt(until), runner: _enclaveId,
+                runnerOperator: claimSigner().account.address }, ref, firewall, slice);
 }
 
 // On-chain record -> local rec, then the SAME provisioning path as HTTP deploys.
@@ -2742,12 +2817,28 @@ function startClaimLoop() {
                + "(REGISTRY_ENABLED/ADDRESS/PRIVATE_KEY/ENCLAVE_REPO), and PROVISION_BACKEND=vm — not claiming");
     return;
   }
+  // Each stage runs in its own catch: renewals, the audit and the sweep are
+  // independent duties, and a throw in an early stage starving the later ones
+  // is exactly how the sweep silently died for hours (rate-limited RPC call
+  // in the audit -> shared catch -> claimSweep never ran, renews fine).
+  const stage = async (name, fn) => {
+    try { await fn(); }
+    catch (e) { console.warn(`[claim] ${name} failed: ${e.shortMessage || e.message}`); }
+  };
   const t = setInterval(async () => {
     if (_claimBusy || !_enclaveId) return;   // not advertised yet, or a slow pass is still running
     _claimBusy = true;
-    try { await renewLeases(); await auditClaims(); await claimSweep(); }
-    catch (e) { console.warn(`[claim] pass failed: ${e.shortMessage || e.message}`); }
-    finally { _claimBusy = false; }
+    try {
+      await stage("renew", renewLeases);
+      let ledger = null;
+      try { ledger = await fetchLedger(); }
+      catch (e) { console.warn(`[claim] ledger read failed: ${e.shortMessage || e.message}`); }
+      if (ledger) {
+        const byId = new Map(ledger.map(d => [String(d.id).toLowerCase(), d]));
+        await stage("audit", () => auditClaims(byId));
+        await stage("sweep", () => claimSweep(ledger));
+      }
+    } finally { _claimBusy = false; }
   }, CLAIM_POLL_SEC * 1000);
   if (t.unref) t.unref();
   console.log(`[claim] loop on: ${DEPLOYMENTS_ADDRESS} every ${CLAIM_POLL_SEC}s (renew margin ${RENEW_MARGIN_SEC}s)`);
