@@ -12,7 +12,7 @@ on:
       release_tag:
         description: "Release tag to upload llm_chat.wasm to (created if missing)"
         required: true
-        default: "llm-chat-v0.2.0"
+        default: "llm-chat-v0.2.1"
 
 jobs:
   llm-chat:
@@ -44,13 +44,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.release_tag }}
         run: |
-          sha256sum target/wasm32-wasip2/release/llm_chat.wasm
+          # cargo-component emits its final component under wasm32-wasip1 or
+          # wasm32-wasip2 depending on toolchain vintage - take whichever exists
+          WASM=$(ls target/wasm32-wasip2/release/llm_chat.wasm target/wasm32-wasip1/release/llm_chat.wasm 2>/dev/null | head -1)
+          echo "artifact: $WASM"
+          sha256sum "$WASM"
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
             || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
                  --title "$TAG (app artifact)" \
                  --notes "Prebuilt llm-chat component; see wasm/apps/llm-chat/ for source."
-          gh release upload "$TAG" target/wasm32-wasip2/release/llm_chat.wasm \
+          gh release upload "$TAG" "$WASM" \
             --repo "$GITHUB_REPOSITORY" --clobber
           echo "Pin in wasm/Dockerfile.wasm:"
           echo "  LLM_CHAT_URL=https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/llm_chat.wasm"
-          echo "  LLM_CHAT_SHA256=$(sha256sum target/wasm32-wasip2/release/llm_chat.wasm | cut -d' ' -f1)"
+          echo "  LLM_CHAT_SHA256=$(sha256sum "$WASM" | cut -d' ' -f1)"
