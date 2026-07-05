@@ -78,7 +78,14 @@ NODE_HAS_GPU = os.environ.get("NODE_HAS_GPU", "0").lower() in ("1", "true", "on"
 # share, so the cap is always >= what the app declared. Direct callers may
 # still pass an explicit memMb to cap lower.
 MIN_MEM_MB   = int(os.environ.get("WASM_APP_MIN_MEM_MB", "64"))
-READY_SECS   = float(os.environ.get("WASM_READY_TIMEOUT", "20"))
+# Readiness window for a spawned tenant's port. The loop exits EARLY on
+# port-open or process death, so this only bounds the slowest legitimate case:
+# the FIRST launch of a big component per CVM boot, where wasmtime must
+# cranelift-compile it cold (llm-chat is 123MB; under TDX that can far exceed
+# the old 20s - observed live 2026-07-05 as deterministic "failed" adopts
+# while everything else was healthy). Later launches hit wasmtime's compile
+# cache and open the port in seconds.
+READY_SECS   = float(os.environ.get("WASM_READY_TIMEOUT", "150"))
 MOCK         = os.environ.get("WASM_MOCK", "") not in ("", "0", "false")
 LOG_DIR      = pathlib.Path(os.environ.get("WASM_LOG_DIR", "/tmp/nan-wasm-logs"))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
