@@ -22,7 +22,7 @@ First-party apps to publish (see each directory for source):
 |---|---|---|
 | `hello` | `hello.wasm` (committed) | vram 0 / gpu 0 / mem 128 MB / cpu ~10 GFLOPS |
 | `nn-demo` | `nn-demo.wasm` (committed) | vram 1024 MB / gpu 10 / mem 128 MB / cpu 10 / storage 64 MB |
-| `llm-chat` | release asset `llm-chat-v0.1.0` (123MB, past git's file limit) | vram 1024 MB / gpu 10 / mem 512 MB / cpu 10 / storage 0 |
+| `llm-chat` | release asset `llm-chat-v0.1.1` (123MB, past git's file limit) | vram 1024 MB / gpu 10 / mem 512 MB / cpu 10 / storage 0 |
 
 ## App requirements
 
@@ -151,14 +151,16 @@ by the audit sweep; `0` disables `/data`.
 `llm-chat` bakes a whole model into the component (SmolLM2-135M-Instruct,
 ONNX q4f16 + tokenizer + chat UI = 123MB), which is past git's 100MB file
 limit, so its artifact is not committed: download it from the
-**llm-chat-v0.1.0 GitHub release** (or rebuild from source: `llm-chat/`,
+**llm-chat-v0.1.1 GitHub release** (or rebuild from source: `llm-chat/`,
 `fetch-model.sh` pins the model by HF revision + sha256, then
 `cargo component build --release --target wasm32-wasip2`; the manual
 **Wasm Apps** workflow does the same in CI and re-uploads the asset). Publish
 the artifact to the on-chain catalog like any other app — 123MB is under the
-manager's 256MB fetch cap. It needs the nan-wasmtime toolchain with
-tensor-dtype support (patch parts 3+4, enclave release v0.5.24+): i64 token
-ids, fp16 outputs, zero-size KV bootstrap tensors.
+manager's 256MB fetch cap. It needs the nan-wasmtime toolchain from enclave
+release v0.5.26+: tensor dtypes (i64 token ids, fp16 outputs, zero-size KV
+bootstrap tensors; patch parts 3+4) and the per-process session cache (part
+5 — without it every request re-initializes the 117MB session, which under
+CC is slow enough to trip the proxy and wedge the tenant).
 
 ## Building the sample `hello.wasm`
 
