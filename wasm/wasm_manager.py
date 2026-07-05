@@ -285,13 +285,54 @@ def _nn_probe_once(env: dict) -> tuple:
     return (False, f"HUNG >{NN_PROBE_TIMEOUT:.0f}s and UNKILLABLE (kernel-stuck GPU ioctl?) - abandoned")
 
 
+def _proc_hang_dump(pid) -> str:
+    """Compact thread dump of a HUNG process, readable without root from the
+    same user: per-thread state + kernel wait channel. This is the ground
+    truth the whole bisect exists to reach - a D-state thread's wchan names
+    the kernel/driver function the hang lives in (platform's bug); an S-state
+    futex points back at userspace (ours)."""
+    out = []
+    base = f"/proc/{pid}/task"
+    try:
+        maps_n = sum(1 for _ in open(f"/proc/{pid}/maps"))
+    except Exception:                                            # noqa: BLE001
+        maps_n = -1
+    try:
+        for tid in sorted(os.listdir(base), key=int):
+            try:
+                comm = open(f"{base}/{tid}/comm").read().strip()
+                state = open(f"{base}/{tid}/stat").read().rsplit(") ", 1)[-1].split()[0]
+                try:
+                    wchan = open(f"{base}/{tid}/wchan").read().strip() or "0"
+                except Exception:                                # noqa: BLE001
+                    wchan = "?"
+                out.append((state, f"{comm}:{state}:{wchan}"))
+            except Exception:                                    # noqa: BLE001
+                continue
+    except Exception as e:                                       # noqa: BLE001
+        return f"dump failed: {e}"
+    # D-state threads always shown; the rest deduped by (comm prefix, wchan)
+    ds = [s for st, s in out if st == "D"]
+    others, seen = [], set()
+    for st, s in out:
+        if st == "D":
+            continue
+        key = s.rsplit(":", 1)[-1] + s[:4]
+        if key not in seen:
+            seen.add(key)
+            others.append(s)
+    shown = ds + others[: max(0, 14 - len(ds))]
+    return f"maps={maps_n} threads({len(out)})=[" + ", ".join(shown) + "]"
+
+
 def _nn_probe_e2e(env, targets=("cpu", "gpu"), timeout=None, extra_args=()) -> tuple:
     """({target: ok}, detail). The ORT layer, end to end: serve the baked-in
     nn-demo with the real tenant env and run ONE inference per target through
     it. The cuInit probe can pass while ORT's session creation still hangs (it
     exercises cudart/cublas/cuDNN and the CC data path, not just the driver
     attach), so only this stage proves a GPU deployment will actually answer.
-    Each call is a FRESH wasmtime process = a fresh CUDA init."""
+    Each call is a FRESH wasmtime process = a fresh CUDA init. On a hang, the
+    detail carries a thread dump of the wedged process (state + kernel wchan)."""
     timeout = timeout or NN_PROBE_TIMEOUT
     wasm = APPS_DIR / "nn-demo.wasm"
     if not wasm.is_file():
@@ -324,7 +365,8 @@ def _nn_probe_e2e(env, targets=("cpu", "gpu"), timeout=None, extra_args=()) -> t
                 parts.append(f"{tgt}: {'ok' if results[tgt] else body.get('error', 'not ok')} ({time.time() - t0:.1f}s)")
             except Exception as e:                               # noqa: BLE001
                 results[tgt] = False
-                parts.append(f"{tgt}: HUNG/failed after {time.time() - t0:.1f}s ({e.__class__.__name__}: {e})")
+                dump = _proc_hang_dump(proc.pid) if proc.poll() is None else f"process exited rc={proc.returncode}"
+                parts.append(f"{tgt}: HUNG/failed after {time.time() - t0:.1f}s ({e.__class__.__name__}: {e}) {dump}")
         return (results, "; ".join(parts))
     finally:
         try:
@@ -541,16 +583,30 @@ def _nn_probe_run():
     #   patient - not hung, just glacial: CC first-load of cuBLAS/cuDNN kernel
     #             modules through encrypted buffers can take minutes. Adopting
     #             it means tenants work but their FIRST GPU request is slow.
+    # The wasmtime-process peculiarities a plain python process doesn't have,
+    # each individually killable by a flag (kryptos data: the FULL CUDA stack
+    # works from a plain process in this container; only inside wasmtime does
+    # init hang - so one of these, or their combination, is the poison):
+    #   NOPOOL  - serve's default pooling allocator (~6TB VA reservations)
+    #   NOTRAPS - the SIGSEGV/altstack trap machinery for wasm bounds checks
+    #   NOCOW   - memfd/copy-on-write linear-memory images (madvise churn)
     NOPOOL = ["-O", "pooling-allocator=n"]
+    NOTRAPS = ["-O", "signals-based-traps=n"]
+    NOCOW = ["-O", "memory-init-cow=n"]
+    BARE = NOPOOL + NOTRAPS + NOCOW
     variants = [
-        # First: kryptos' v0.5.18 trail (rtapi 12/12 ok in a PLAIN process,
-        # ORT hung inside wasmtime with and without MPS) points at serve's
-        # default pooling allocator - ~6TB of reserved VA across thousands of
-        # mappings, which CUDA init walks; cheap on bare metal (verified ok
-        # locally), pathological under TDX.
         ("nopool", base, NN_PROBE_TIMEOUT, NOPOOL,
          lambda: _NN_PROBE.update(args=NOPOOL),
          "wasmtime's pooling-allocator VA reservations break CUDA init under TDX; nn tenants run with pooling off"),
+        ("notraps", base, NN_PROBE_TIMEOUT, NOTRAPS,
+         lambda: _NN_PROBE.update(args=NOTRAPS),
+         "wasmtime's signal-based trap machinery breaks CUDA init here; nn tenants use explicit bounds checks"),
+        ("nocow", base, NN_PROBE_TIMEOUT, NOCOW,
+         lambda: _NN_PROBE.update(args=NOCOW),
+         "memfd/CoW memory images break CUDA init here; nn tenants run without CoW init"),
+        ("bare", base, NN_PROBE_TIMEOUT, BARE,
+         lambda: _NN_PROBE.update(args=BARE),
+         "only the combination heals it; nn tenants run with pooling, signal traps, and CoW init all off"),
         ("eager", {**base, "CUDA_MODULE_LOADING": "EAGER"}, NN_PROBE_TIMEOUT, (),
          lambda: _NN_PROBE.update(env={"CUDA_MODULE_LOADING": "EAGER"}),
          "lazy module loading deadlocks under MPS here; tenants get CUDA_MODULE_LOADING=EAGER"),
@@ -558,12 +614,9 @@ def _nn_probe_run():
          NN_PROBE_TIMEOUT, (),
          lambda: _NN_PROBE.update(mode="nopin"),
          "the pinned-VRAM limit hangs the ORT arena; tenants run SM-capped only (VRAM stays allocator-accounted)"),
-        ("nopool-patient", base, NN_PROBE_LONG, NOPOOL,
-         lambda: _NN_PROBE.update(args=NOPOOL),
-         "pooling off AND slow CC first-load: tenants run with pooling off; a deployment's FIRST GPU request is slow"),
-        ("patient", base, NN_PROBE_LONG, (),
-         lambda: None,
-         "GPU init is slow (CC first-load), not hung; a deployment's FIRST GPU request pays it"),
+        ("bare-patient", base, NN_PROBE_LONG, BARE,
+         lambda: _NN_PROBE.update(args=BARE),
+         "bare flags AND long first-init: nn tenants run bare; a deployment's FIRST GPU request is slow"),
     ]
     for name, env, tmo, extra, adopt, meaning in variants:
         t0 = time.time()
