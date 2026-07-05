@@ -1376,9 +1376,13 @@ fn main() {
         let _ = sock.send_to(&amp;buf[..n], from);
     }
 }</code></pre></div>
-          <p>Publish with firewall ports <code>udp:9053</code>. UDP has no SNI to route on, so instead of a shared hostname <b>every public deployment gets its own IPv6 address</b>; it's in the deploy response under <code>network.udp</code> as <code>[address]:port</code>:</p>
-          <div class="code"><div class="codebar"><span class="fn">terminal · clients</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code># 1. direct, via the deployment's own IPv6 (public deployments)
-printf 'ping' | socat -t2 - 'UDP6:[2a01:4f9:c013:bdfd:9c1e:…]:9053'
+          <p><b>Every public deployment gets its own dedicated IPv6 address</b> (deterministic from its id, out of the relay's routed /64). Its declared <code>tcp:N</code> and <code>udp:N</code> ports are reachable at <code>[address]:N</code> - at the real port you declared, routed by destination IP, no SNI and no remapping. The address is in the deploy/status response under <code>network.address</code> (and <code>network.tcp</code> / <code>network.udp</code> per protocol). TCP is raw passthrough (any protocol - your app owns TLS or plaintext); publish with <code>udp:9053</code> or <code>tcp:5432</code>:</p>
+          <div class="code"><div class="codebar"><span class="fn">terminal · clients</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code># 1a. UDP, direct to the deployment's own IPv6 (public deployments)
+printf 'ping' | socat -t2 - 'UDP6:[2a01:4f9:c013:9b52:9c1e:…]:9053'
+
+# 1b. TCP, direct to the SAME address at the real port (any protocol)
+psql 'host=2a01:4f9:c013:9b52:9c1e:… port=5432 …'
+nc 2a01:4f9:c013:9b52:9c1e:… 5432
 
 # 2. the WebSocket bridge on the attested origin (1 message = 1 datagram)
 websocat --binary udp-listen:127.0.0.1:9053 \
@@ -2959,6 +2963,27 @@ const SPEC = {
             "type": "string",
             "description": "Public URL on the enclave's single pinned origin: a path under the shim.",
             "example": "https://enclave1.debug.nan.containers.tinfoil.dev/x/dep_3xK9f2Qa"
+          },
+          "address": {
+            "type": "string",
+            "description": "The deployment's DEDICATED IPv6 (present when it declares tcp/udp ports and the fleet has dedicated addressing on). Deterministic from the id; its declared tcp:N ports are reachable at [address]:N via the tcp6-relay and its udp:N ports at [address]:N via the udp-relay - at the real port the app declared, no SNI, no remapping.",
+            "example": "2a01:4f9:c013:9b52:a1b2:c3d4:e5f6:7890"
+          },
+          "tcp": {
+            "type": "object",
+            "description": "Dedicated-IP TCP endpoint: connect to [address]:port for each declared tcp:N (any protocol - raw passthrough; the app owns TLS/plaintext).",
+            "properties": {
+              "address": { "type": "string", "example": "2a01:4f9:c013:9b52:a1b2:c3d4:e5f6:7890" },
+              "ports": { "type": "array", "items": { "type": "integer" }, "example": [5432, 443] }
+            }
+          },
+          "udp": {
+            "type": "object",
+            "description": "Dedicated-IP UDP endpoint: send to [address]:port for each declared udp:N.",
+            "properties": {
+              "address": { "type": "string", "example": "2a01:4f9:c013:9b52:a1b2:c3d4:e5f6:7890" },
+              "ports": { "type": "array", "items": { "type": "integer" }, "example": [9000] }
+            }
           }
         }
       },

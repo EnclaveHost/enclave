@@ -4,13 +4,25 @@ Two small, **untrusted**, stateless daemons that live outside the enclave —
 on any box with a public IP — and give the fleet a friendly front door
 without ever entering the trust boundary:
 
-- [`relay.js`](relay.js) — **TCP relay**: normal public TCP endpoints for
-  service apps (SNI-routed, TLS terminates in-enclave). Details below.
+- [`relay.js`](relay.js) — **TCP relay (SNI)**: normal public TCP endpoints for
+  service apps on shared ports, demuxed by TLS SNI, TLS terminates in-enclave.
+  Details below.
+- [`tcp6-relay.js`](tcp6-relay.js) — **dedicated-IP TCP relay**: each deployment's
+  `tcp:N` ports served on its OWN IPv6 at the real port, routed by destination
+  address (no SNI, no TLS required — any protocol). Details below.
 - [`api-relay.js`](api-relay.js) — **API relay**: fleet discovery + placement.
   Reads NanRegistry on Base for live enclaves, polls their `/availability`,
   and steers new work to the most available one.
 - [`udp-relay.js`](udp-relay.js) — **UDP relay**: public reach for apps'
   declared `udp:N` ports, one IPv6 per deployment. Details below.
+
+Every deployment gets a **dedicated IPv6** out of the box's routed /64,
+deterministic from its id. The `tcp6-relay` serves its `tcp:N` ports there and
+the `udp-relay` serves its `udp:N` ports there — one stable address per
+deployment, its declared ports at their real numbers (`[addr]:5432`,
+`[addr]:443`). The SNI `relay.js` remains as a shared-port fallback (works
+without a routed /64, and gives in-enclave TLS termination on the platform
+cert).
 
 ## API relay
 
@@ -101,12 +113,65 @@ Clients then reach a deployment at its advertised `[2a01:4f9:c013:bdfd:…]:N`
   (120000), `UDP_MAX_FLOWS` (4096). `UDP_PREFIX` is only read by the systemd
   unit's AnyIP step, not the daemon.
 
-## TCP relay
+## Dedicated-IP TCP relay
+
+Serves each deployment's declared `tcp:N` ports on its **own IPv6**, at the
+real (logical) port — `[2a01:4f9:c013:9b52:…]:5432`, `[…]:443` — routed purely
+by destination address. No SNI, no TLS requirement: **any** TCP protocol works
+(databases, game servers, plaintext, or the app's own TLS), and the port is
+the one the app declared (no remapping). This is the "give me an IP and a
+port" model.
+
+```
+client ──TCP──> [<per-deployment IPv6>]:N ──WSS──> enclave
+                                             /x/<id>/tcp/N ──TCP──> app
+```
+
+Same addressing as the UDP relay: the supervisor derives each deployment's
+IPv6 from its id and publishes `/v1/net-map` (`{id, address, tcp[], udp[]}`);
+this relay polls it, binds each live `[address]:tcpPort`, and splices raw bytes
+to the enclave's `/x/<id>/tcp/N` bridge. A new tenant's `tcp:N` appears within
+one poll — no relay config change.
+
+### Setup
+
+1. **Enclave**: set `DEP_ADDR_PREFIX` (or the legacy `UDP_ADDR_PREFIX`) on the
+   supervisor to this box's routed /64. Unset = dedicated addressing off.
+2. **Box, AnyIP** (once): `ip -6 route add local <prefix>/64 dev lo` — the
+   systemd unit does this in `ExecStartPre` (shared with the udp-relay; same
+   /64, whichever starts first wins and the other no-ops).
+3. **Relay**:
+
+```bash
+ENCLAVE_URL=https://enclave1... node tcp6-relay.js
+```
+
+Clients reach a deployment at its advertised `[<prefix>:…]:N` (shown in the
+deploy response's `network.tcp` / `network.address`). Public deployments only.
+
+### Caveats
+
+- **IPv6 only** (same reason as UDP — one v4 per box). v4-only clients can't
+  reach it; the SNI `relay.js` (below) is the v4-reachable path.
+- **The relay sees whatever the app sends.** Raw passthrough: if the app
+  speaks TLS the relay sees ciphertext; a plaintext app is visible to it (it
+  can drop, not forge — no keys, no state). For platform-terminated TLS on the
+  attested cert instead, use the SNI relay.
+- **Privileged logical ports** (`tcp:80`, `tcp:443`) need
+  `CAP_NET_BIND_SERVICE` — the systemd unit grants it.
+- Config: `ENCLAVE_URL` (required), `NET_POLL_SEC` (5), `TCP6_MAX_CONNS`
+  (4096), `TCP6_HANDSHAKE_MS` (10000). `TCP6_PREFIX` is only read by the
+  systemd unit's AnyIP step, not the daemon.
+
+## TCP relay (SNI, shared-port)
 
 Gives service apps (declared `tcp:N` firewall ports) a **normal public TCP
 endpoint** — `irssi -c dep_abc123.tcp.nan.host -p 6667 --tls`, `psql
 "host=dep_xyz.tcp.nan.host sslmode=require"` — with the enclave's guarantees
-fully intact. No per-user websocat, no app-side TLS code.
+fully intact. No per-user websocat, no app-side TLS code. Multiplexes every
+deployment onto shared public ports, demuxed by the TLS SNI, and terminates
+TLS in-enclave on the platform cert. The dedicated-IP relay above is the newer,
+protocol-agnostic path; this one is the v4-reachable, TLS-terminated fallback.
 
 ## How it stays trustless
 
@@ -208,7 +273,9 @@ TLS on 6697 while the app declares `tcp:6667`) and for colocated testing.
   keeps it trustless. Plaintext protocols keep using the owner-side bridge.
 - Each client connection costs one WSS connection through the shim; size
   `RELAY_MAX_CONNS` with the supervisor in mind.
-- Ready-to-install systemd units for both daemons are in
+- Ready-to-install systemd units for all daemons are in
   [`systemd/`](systemd/) — they read config from
-  `/etc/nan-relay/{tcp-relay,api-relay}.env` and expect the code at
-  `/opt/nan-relay`.
+  `/etc/nan-relay/{tcp-relay,tcp6-relay,udp-relay,api-relay}.env` and expect
+  the code at `/opt/nan-relay`. The `tcp6-relay.env` and `udp-relay.env` carry
+  `ENCLAVE_URL` plus the `TCP6_PREFIX` / `UDP_PREFIX` for the AnyIP route (same
+  /64); `deploy.sh` never touches the env files (host state).

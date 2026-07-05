@@ -1342,6 +1342,27 @@
             "type": "string",
             "description": "Public URL on the enclave's single pinned origin: a path under the shim.",
             "example": "https://enclave1.debug.nan.containers.tinfoil.dev/x/dep_3xK9f2Qa"
+          },
+          "address": {
+            "type": "string",
+            "description": "The deployment's DEDICATED IPv6 (present when it declares tcp/udp ports and the fleet has dedicated addressing on). Deterministic from the id; its declared tcp:N ports are reachable at [address]:N via the tcp6-relay and its udp:N ports at [address]:N via the udp-relay - at the real port the app declared, no SNI, no remapping.",
+            "example": "2a01:4f9:c013:9b52:a1b2:c3d4:e5f6:7890"
+          },
+          "tcp": {
+            "type": "object",
+            "description": "Dedicated-IP TCP endpoint: connect to [address]:port for each declared tcp:N (any protocol - raw passthrough; the app owns TLS/plaintext).",
+            "properties": {
+              "address": { "type": "string", "example": "2a01:4f9:c013:9b52:a1b2:c3d4:e5f6:7890" },
+              "ports": { "type": "array", "items": { "type": "integer" }, "example": [5432, 443] }
+            }
+          },
+          "udp": {
+            "type": "object",
+            "description": "Dedicated-IP UDP endpoint: send to [address]:port for each declared udp:N.",
+            "properties": {
+              "address": { "type": "string", "example": "2a01:4f9:c013:9b52:a1b2:c3d4:e5f6:7890" },
+              "ports": { "type": "array", "items": { "type": "integer" }, "example": [9000] }
+            }
           }
         }
       },

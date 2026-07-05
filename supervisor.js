@@ -1041,15 +1041,18 @@ const fwTcpPorts = (rec) => (rec.firewall || []).filter((x) => x.startsWith("tcp
 const fwUdpPorts = (rec) => (rec.firewall || []).filter((x) => x.startsWith("udp:")).map((x) => +x.slice(4));
 
 // ---------------------------------------------------------------------------
-// UDP addressing — a per-deployment IPv6 out of the relay box's /64.
-// UDP carries no SNI, so a shared public port can't tell tenants apart; instead
-// each deployment gets its OWN address and the relay routes by destination IP.
-// The address is DETERMINISTIC from the deployment id (sha256 → low 64 host
-// bits), so supervisor and relay derive the identical value with no shared
-// state. UDP_ADDR_PREFIX is the relay box's routed /64 (e.g.
-// "2a01:4f9:c013:bdfd::/64"); unset = UDP addressing off (the /udp bridge still
-// works for direct callers, but no address is advertised). See relay/README.md.
-const UDP_ADDR_PREFIX = (process.env.UDP_ADDR_PREFIX || "").trim();
+// Per-deployment addressing — each deployment gets its OWN IPv6 out of the
+// relay box's routed /64, and the relays route by destination IP. This is the
+// deployment's dedicated address: the udp-relay serves its udp:N ports there,
+// and the tcp6-relay serves its tcp:N ports there (at the LOGICAL port, no SNI,
+// no remapping — clients use the port the app declared). The address is
+// DETERMINISTIC from the deployment id (sha256 → low 64 host bits), so the
+// supervisor and every relay derive the identical value with no shared state.
+// DEP_ADDR_PREFIX (or the legacy UDP_ADDR_PREFIX) is the relay box's routed /64
+// (e.g. "2a01:4f9:c013:bdfd::/64"); unset = dedicated addressing off (the
+// /x/:id/(tcp|udp) bridges still work for direct callers, but no address is
+// advertised). See relay/README.md.
+const DEP_ADDR_PREFIX = (process.env.DEP_ADDR_PREFIX || process.env.UDP_ADDR_PREFIX || "").trim();
 function v6ToBig(s) {                                       // parse an IPv6 (incl. "::") to a 128-bit BigInt
   const [head, tail] = s.split("::");
   const hi = head ? head.split(":").filter(Boolean) : [];
@@ -1073,19 +1076,25 @@ function bigToV6(n) {                                       // 128-bit BigInt �
 }
 // Deterministic host part: sha256(id) low 64 bits, kept clear of the low range
 // so it never lands on the box's own ::1 / infrastructure addresses.
-function udpAddrFor(id) {
-  if (!UDP_ADDR_PREFIX) return null;
-  const [prefix] = UDP_ADDR_PREFIX.split("/");
+function depAddrFor(id) {
+  if (!DEP_ADDR_PREFIX) return null;
+  const [prefix] = DEP_ADDR_PREFIX.split("/");
   const net128 = v6ToBig(prefix) & (~0n << 64n);            // zero the low 64 (host) bits
   let host = BigInt("0x" + createHash("sha256").update(id).digest("hex").slice(0, 16)) & ((1n << 64n) - 1n);
   if (host < 0x10000n) host += 0x10000n;                    // reserve the low range for infra
   return bigToV6(net128 | host);
 }
 // public deployments exposing udp ports, with their address + logical ports —
-// the relay reads this to know what to bind and where to route.
+// the udp-relay reads this to know what to bind and where to route.
 const udpMap = () => [...deployments.values()]
   .filter((r) => r.public && r.status === "running" && fwUdpPorts(r).length)
-  .map((r) => ({ id: r.id, address: udpAddrFor(r.id), ports: fwUdpPorts(r) }));
+  .map((r) => ({ id: r.id, address: depAddrFor(r.id), ports: fwUdpPorts(r) }));
+// public deployments with tcp OR udp ports, each with its dedicated address and
+// per-protocol logical ports — the tcp6-relay (tcp) and udp-relay (udp) poll
+// this to bind [address]:port and route into /x/:id/(tcp|udp)/:port.
+const netMap = () => [...deployments.values()]
+  .filter((r) => r.public && r.status === "running" && (fwTcpPorts(r).length || fwUdpPorts(r).length))
+  .map((r) => ({ id: r.id, address: depAddrFor(r.id), tcp: fwTcpPorts(r), udp: fwUdpPorts(r) }));
 
 app.use("/x/:id", async (req, res) => {
   let rec = deployments.get(req.params.id);
@@ -1473,10 +1482,17 @@ const view = (rec) => {
   // claimed-from-chain deployments surface their ledger identity + current lease
   if (rec._onchain) o.onchain = { contract: DEPLOYMENTS_ADDRESS, id: rec.id,
     leaseUntil: rec._leaseUntil ? new Date(rec._leaseUntil * 1000).toISOString() : null };
-  // declared udp ports get a per-deployment IPv6 (via the udp-relay). Surface
-  // it so the dashboard can show a ready-to-use endpoint, e.g. [addr]:53.
-  const udpPorts = fwUdpPorts(rec);
-  if (udpPorts.length) o.network = { ...o.network, udp: { address: udpAddrFor(rec.id), ports: udpPorts } };
+  // Dedicated per-deployment IPv6: declared tcp/udp ports are reachable at
+  // [address]:<logical port> (tcp via the tcp6-relay, udp via the udp-relay).
+  // Surface it so the dashboard/clients get a ready-to-use endpoint at the
+  // real port the app declared, e.g. [addr]:5432, [addr]:443, [addr]:53.
+  const tcpPorts = fwTcpPorts(rec), udpPorts = fwUdpPorts(rec);
+  const depAddr = depAddrFor(rec.id);
+  if (depAddr && (tcpPorts.length || udpPorts.length)) {
+    o.network = { ...o.network, address: depAddr };
+    if (tcpPorts.length) o.network.tcp = { address: depAddr, ports: tcpPorts };
+    if (udpPorts.length) o.network.udp = { address: depAddr, ports: udpPorts };
+  }
   return o;
 };
 
@@ -2092,7 +2108,14 @@ app.get("/v1/tls-bridge", (_req, res) => {
 // /x/:id/udp/:port bridge. Only public+running deployments with udp ports; the
 // addresses are the deterministic ones the relay also derives from the id.
 app.get("/v1/udp-map", (_req, res) =>
-  res.json({ enabled: !!UDP_ADDR_PREFIX, prefix: UDP_ADDR_PREFIX || null, deployments: udpMap() }));
+  res.json({ enabled: !!DEP_ADDR_PREFIX, prefix: DEP_ADDR_PREFIX || null, deployments: udpMap() }));
+
+// Dedicated-IP routing map, PUBLIC: the tcp6-relay (and udp-relay) poll this to
+// learn each public+running deployment's dedicated IPv6 and its per-protocol
+// logical ports, then bind [address]:port and route into /x/:id/(tcp|udp)/:port.
+// Same deterministic addresses the relays also derive from the id.
+app.get("/v1/net-map", (_req, res) =>
+  res.json({ enabled: !!DEP_ADDR_PREFIX, prefix: DEP_ADDR_PREFIX || null, deployments: netMap() }));
 
 // Tail the worker's stdout/stderr (owner only). ?tail=N (default 200, max 2000).
 app.get("/v1/deployments/:id/logs", authed, async (req, res) => {
