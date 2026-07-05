@@ -92,11 +92,15 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 # run-by-CID: fetch an app's bytes from IPFS and verify they hash to the CID.
 IPFS_GATEWAY   = os.environ.get("IPFS_GATEWAY", "https://ipfs.nan.host").rstrip("/")
 # cap on a fetched app: models ride inside the wasm (llm-chat 0.2 embeds a
-# 460MB q4f16 LLM), so the ceiling is set by fetch/compile budgets, not code
-WASM_MAX_BYTES = int(os.environ.get("WASM_MAX_BYTES", str(1024 * 1024 * 1024)))
-# a 500MB CAR at gateway speeds (~3.5MB/s) needs ~150s; match the supervisor's
-# 300s prefetch budget so the fetch is never the thing that times out first
-IPFS_TIMEOUT   = float(os.environ.get("IPFS_FETCH_TIMEOUT", "300"))
+# 460MB q4f16 LLM), so the ceiling is set by fetch/compile budgets, not code.
+# Note wasm32's 4GiB linear memory still bounds what an EMBEDDED model can be:
+# include_bytes + the load() copy means ~1.5-2GB of model is the practical top.
+WASM_MAX_BYTES = int(os.environ.get("WASM_MAX_BYTES", str(2 * 1024 * 1024 * 1024)))
+# a 2GB CAR at gateway speeds (~3.5MB/s) needs ~10min. The supervisor's
+# prefetch call gives up at 300s, but this fetch keeps running and fills the
+# cache - the supervisor's backed-off retry then hits the cache. This budget
+# just has to outlast the whole fetch so the cache actually fills.
+IPFS_TIMEOUT   = float(os.environ.get("IPFS_FETCH_TIMEOUT", "660"))
 # firewall: per-version ports config from the catalog. Logical ports are LABELS
 # (each deployment binds a remapped actual), so classic low numbers are allowed —
 # a DNS app may advertise udp:53. The ceiling keeps labels out of the manager-
