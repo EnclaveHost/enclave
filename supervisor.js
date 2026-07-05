@@ -1974,8 +1974,7 @@ app.delete("/v1/deployments/:id", authed, async (req, res) => {
     // While the deployment stays active+funded on-chain, ANY enclave — this one
     // included — may legitimately re-claim it; a permanent stop is the owner's
     // setActive(false) transaction, not a local delete.
-    sendClaimTx("release", [rec.id])
-      .catch(e => console.warn(`[claim] release on delete failed: ${e.shortMessage || e.message}`));
+    releaseLease(rec.id, "owner delete").catch(() => {});
     return res.json({ id: rec.id, status: "terminated",
                ranSeconds: Math.round((rec.consumedMs || 0) / 1000),
                note: "On-chain deployment: lease released (unused lease time refunded to its balance). It stays "
@@ -2365,6 +2364,34 @@ const readOnchainDeployment = (id) => chainClient.readContract({
 // older supervisor still count as terminal after an upgrade.
 const CLAIM_TERMINAL = new Set(["expired", "failed", "terminated", "stopping"]);
 
+// ids that failed provisioning here — exponential claim cooldown (see
+// considerClaim). In-memory on purpose: a reboot is a fresh chance.
+const _provisionBackoff = new Map();          // id -> { n, until }
+function noteProvisionFailure(id) {
+  const n = (_provisionBackoff.get(id)?.n || 0) + 1;
+  const coolMs = Math.min(60 * 60_000, 5 * 60_000 * 2 ** (n - 1));   // 5m, 10m, 20m … cap 1h
+  _provisionBackoff.set(id, { n, until: Date.now() + coolMs });
+  return coolMs;
+}
+
+// Release with retries, in the background. A failed release strands the lease
+// until it expires (~leaseSec of dead air for the user) — observed live when
+// the release tx right behind a confirmed claim bounced off the public RPC.
+async function releaseLease(id, why) {
+  for (let i = 0; i < 4; i++) {
+    try {
+      await sendClaimTx("release", [id]);
+      console.log(`[claim] released ${id} (${why})`);
+      return true;
+    } catch (e) {
+      console.warn(`[claim] release ${id} (${why}) attempt ${i + 1}/4 failed: ${e.shortMessage || e.message}`);
+      await new Promise(r => setTimeout(r, 15_000 * (i + 1)));
+    }
+  }
+  console.warn(`[claim] release ${id} (${why}) gave up; the lease expires on its own`);
+  return false;
+}
+
 // Renew every adopted lease that's inside the margin. A failed renew is not
 // fatal: "unfunded" means the balance is empty (the reaper will tear down when
 // the lease runs out — "processed until there is no more time left"), anything
@@ -2408,8 +2435,7 @@ async function auditClaims() {
       try { await stopContainer(rec); } catch {}
       if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
       rec.status = "terminated";
-      if (mine) await sendClaimTx("release", [rec.id])
-        .catch(e => console.warn(`[claim] release failed: ${e.shortMessage || e.message}`));
+      if (mine) releaseLease(rec.id, "owner setActive(false)").catch(() => {});
       saveStateSoon();
     } else if (!mine) {
       console.log(`[claim] ${rec.id} lease lost -> teardown (chain says runner=${d.runnerOperator})`);
@@ -2420,7 +2446,8 @@ async function auditClaims() {
     } else if (rec.status === "claimed") {    // crashed after claim, before provision
       if (!(await provisionTenant(rec))) {
         deployments.delete(rec.id);           // provisionTenant already released the GPU
-        await sendClaimTx("release", [rec.id]).catch(() => {});
+        noteProvisionFailure(rec.id);
+        releaseLease(rec.id, "provision failed after crash recovery").catch(() => {});
         saveStateSoon();
       }
     }
@@ -2463,10 +2490,22 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
   // CPU-only work runs on CPU enclaves immediately; a GPU enclave bids on
   // it only after CPU_CLAIM_GRACE_SEC (CPU enclaves get first claim) and
   // only out of LEFTOVER cpu pool.
+  // Back off ids that just failed provisioning HERE: without this a broken
+  // app (or a transient local fault) claims / fails / releases in a loop.
+  const pf = _provisionBackoff.get(d.id);
+  if (pf && Date.now() < pf.until) return "provisioning failed here recently; backing off";
   const gpuShare = Number(d.gpuMilli) / 1000, cpuShare = Number(d.cpuMilli) / 1000;
   let slice;
   if (gpuShare > 0) {
     if (!IS_GPU) return "GPU work on a CPU-only enclave";
+    // Don't claim GPU work the manager would 503: right after a boot the CUDA
+    // readiness probe is still running, and a claim during that window burns
+    // the user's lease on a doomed provision (observed live 2026-07-05:
+    // claim -> 503 warming up -> failed release -> lease stranded 30 min).
+    const h = await vmHealth().catch(() => null);
+    if (!h) return "app manager unreachable";
+    if (h.nnProbe && h.nnProbe.state && h.nnProbe.state !== "ok")
+      return "GPU interface not ready (CUDA readiness probe: " + h.nnProbe.state + ")";
     slice = normalizeGpuReq(gpuShare, cpuShare);
     if (slice.vramGb > maxFreeVram() + 1e-9 || slice.cpuShare > maxFreeCpu() + 1e-9)
       return "no free capacity for those shares here right now";
@@ -2522,7 +2561,7 @@ async function adopt(d, ref, firewall, slice) {
   if (deployments.has(d.id)) deployments.delete(d.id);      // terminal leftover from an earlier lease
   const gpu = slice.cpu ? allocCpu(slice.cpuShare) : allocGpu(slice.vramGb, slice.computeShare, slice.cpuShare);
   if (!gpu) {                                                // capacity vanished since the sweep checked
-    await sendClaimTx("release", [d.id]).catch(() => {});    // hand it back with the lease refunded
+    releaseLease(d.id, "capacity vanished").catch(() => {}); // hand it back with the lease refunded
     return;
   }
   const rec = {
@@ -2548,11 +2587,14 @@ async function adopt(d, ref, firewall, slice) {
     console.log(`[claim] ${rec.id} adopted: app=${ref} gpuShare=${round3(slice.gpuShare || 0)} cpuShare=${round3(slice.cpuShare)} `
               + `lease until ${new Date(rec._leaseUntil * 1000).toISOString()}`);
   } else {
-    // launch failed (bad wasm, image too big, ...): hand it back refunded so
-    // another enclave can try — the user paid nothing for our failure
+    // launch failed (bad wasm, image too big, manager 503, ...): hand it back
+    // refunded so another enclave can try — the user paid nothing for our
+    // failure. Cooldown before WE try this id again, and retry the release in
+    // the background (a stranded lease is ~leaseSec of dead air for the user).
     deployments.delete(rec.id);                              // provisionTenant released the GPU already
-    await sendClaimTx("release", [rec.id])
-      .catch(e => console.warn(`[claim] release after failed provision: ${e.shortMessage || e.message}`));
+    const coolMs = noteProvisionFailure(rec.id);
+    console.warn(`[claim] provision failed for ${rec.id}; backing off ${Math.round(coolMs / 60000)}min here`);
+    releaseLease(rec.id, "provision failed").catch(() => {});
   }
   saveStateSoon();
 }
