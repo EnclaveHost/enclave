@@ -1,4 +1,4 @@
-//! llm-chat: a small LLM (Qwen2.5-0.5B-Instruct, ONNX q4f16) compiled into a
+//! llm-chat: a small LLM (Qwen2.5-0.5B-Instruct, ONNX q4 fp32) compiled into a
 //! wasm component, with a built-in web chat UI, running on NaN's wasi-nn GPU
 //! interface.
 //!
@@ -32,7 +32,7 @@ use bindings::wasi::nn::graph::{load, ExecutionTarget, GraphEncoding};
 use bindings::wasi::nn::inference::GraphExecutionContext;
 use bindings::wasi::nn::tensor::{Tensor, TensorType};
 
-static MODEL: &[u8] = include_bytes!("../assets/model_q4f16.onnx");
+static MODEL: &[u8] = include_bytes!("../assets/model_q4.onnx");
 static TOKENIZER_JSON: &[u8] = include_bytes!("../assets/tokenizer.json");
 static CHAT_HTML: &str = include_str!("chat.html");
 
