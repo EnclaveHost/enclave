@@ -655,7 +655,7 @@ async function dockerPull(ref) {
   if (err) throw new Error(`pull ${ref}: ${err.error}`);
 }
 
-async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort, ports }) {
+async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort, ports, configCid }) {
   // Two backends. "vm": hand the app reference to the app manager on VMMGR_URL
   // (the wasm-manager runs it as a `wasmtime serve` process; cpuShare is its
   // admission unit and sets the guest memory cap — cpuShare × node RAM;
@@ -679,7 +679,10 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort
         gpuTflops: round1(g * CARD_TFLOPS), cpuGflops: Math.round(c * NODE_GFLOPS),
         // cpuTflops: legacy field for managers pinned before the GFLOPS switch
         cpuTflops: round3(c * NODE_GFLOPS / 1000),
-        appPort: appPort || 8080, name: deploymentId, ports: ports || [] }, SPAWN_TIMEOUT_MS);
+        appPort: appPort || 8080, name: deploymentId, ports: ports || [],
+        // per-deployment config CID: the manager fetches + verifies it and
+        // passes the JSON to the tenant as NAN_CONFIG (empty = app defaults)
+        configCid: configCid || "" }, SPAWN_TIMEOUT_MS);
     if (r.status !== 201)
       throw new Error(`vmmanager: ${r.body.error || r.body.message || r.status}`);
     console.log(`[spawn-vm] ${deploymentId} image=${ref} cpuShare=${c} gpuShare=${g} `
@@ -1702,7 +1705,8 @@ async function provisionTenant(rec) {
   try {
     const sp = await spawnContainer({ deploymentId: rec.id,
       gpuShare: rec.resources.gpuShare || 0, cpuShare: rec.resources.cpuShare,
-      image: rec.image, appPort: rec.network.port, ports: rec.firewall });
+      image: rec.image, appPort: rec.network.port, ports: rec.firewall,
+      configCid: rec.configCid || "" });
     rec._port = sp.internalPort; rec._sshPort = sp.sshPort;
     if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; }
     if (sp.portMap) rec.portMap = sp.portMap;   // logical -> actual (public: clients see their mapping)
@@ -1876,7 +1880,8 @@ async function respawnTenant(rec) {
   try {
     const sp = await spawnContainer({ deploymentId: rec.id,
       gpuShare: rec.resources.gpuShare || 0, cpuShare: rec.resources.cpuShare,
-      image: rec.image, appPort: rec.network.port, ports: rec.firewall });
+      image: rec.image, appPort: rec.network.port, ports: rec.firewall,
+      configCid: rec.configCid || "" });
     rec._port = sp.internalPort; rec._sshPort = sp.sshPort;
     if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; }
     if (sp.portMap) rec.portMap = sp.portMap;
@@ -2771,6 +2776,10 @@ async function adopt(d, ref, firewall, slice) {
     _onchain: true, _leaseUntil: Number(d.leaseUntil), _renewing: false,
     _gpu: gpu, _gpuSpec: gpu.cpu ? null : { cardId: gpu.cardId, cardUuid: gpuCards[gpu.cardId]?.uuid || null, vramCapGb: gpu.vramGb, computeShare: gpu.computeShare },
     _port: 0, _sshPort: 0, _sshKeySource: "on-chain", _authorizedKey: (d.sshPubKey || "").trim(), _payTimer: null,
+    // per-deployment config: an IPFS CID of a JSON object the manager fetches,
+    // verifies against the CID, and hands the tenant as NAN_CONFIG. This is
+    // how one published app serves many models/keys (llm-chat reads it).
+    configCid: (d.configCid || "").trim(),
   };
   deployments.set(rec.id, rec); saveStateSoon();
   if (await provisionTenant(rec)) {

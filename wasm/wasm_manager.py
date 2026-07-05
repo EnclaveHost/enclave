@@ -256,6 +256,32 @@ def _resolve_cid(cid: str) -> pathlib.Path:
     return p
 
 
+# Per-deployment config (NAN_CONFIG): a small JSON object addressed by an IPFS
+# CID, fetched and hash-verified the same trustless way as the app wasm, then
+# handed to the guest. Kept tiny (a config, not a payload); the ceiling stops a
+# bad CID from streaming gigabytes. Returns the JSON text (as stored) or raises
+# ValueError - a config that won't fetch/verify/parse fails the launch loudly
+# rather than silently serving app defaults with the wrong shape.
+CONFIG_MAX_BYTES = int(os.environ.get("NAN_CONFIG_MAX_BYTES", str(256 * 1024)))
+
+
+def _resolve_config(cid: str) -> str:
+    if ipfs_fetch is None:
+        raise ValueError("config CID given but run-by-CID is unavailable (ipfs_fetch missing)")
+    try:
+        data = ipfs_fetch.fetch_verified(cid, IPFS_GATEWAY, CONFIG_MAX_BYTES, IPFS_TIMEOUT)
+    except ValueError:
+        raise
+    except Exception as e:
+        raise ValueError(f"config fetch failed for {cid}: {e}")
+    try:
+        text = data.decode("utf-8")
+        json.loads(text)                            # must parse; the app merges it over its defaults
+    except Exception as e:
+        raise ValueError(f"config {cid} is not valid UTF-8 JSON: {e}")
+    return text
+
+
 def _nn_tenant_env(gpu_share: float, pinned: bool) -> dict:
     """The MPS cap env a GPU tenant's wasmtime process runs with. `pinned`
     adds the per-client VRAM limit; dropped when the probe found it poisonous
@@ -903,7 +929,7 @@ def _alloc_ports(pspec) -> dict:
 
 
 def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdir=None,
-               nn=False):
+               nn=False, nan_config=None):
     """The wasmtime invocation for a ports spec. Returns (cmd, host_port, wait_ports).
 
     serve mode: `wasmtime serve` owns the one HTTP listener; no sockets granted.
@@ -932,15 +958,20 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     # (151936 x 4B x 400 tokens = 240MB). 4GiB keeps the guard while clearing
     # any model that passes WASM_MAX_BYTES.
     nn_args = ["-Snn", "-S", "hostcall-fuel=4294967296", *(_NN_PROBE.get("args") or [])] if nn else []
+    # per-deployment config: a wasi --env var the guest reads (the app decides
+    # what to do with it). Value is the verified config JSON; only forwarded to
+    # the GUEST, never to the wasmtime process env (that carries the CUDA/ORT
+    # knobs). Kept out of the log line: a config may hold an API key.
+    cfg_args = ["--env", "NAN_CONFIG=" + nan_config] if nan_config else []
     if pspec["serve"]:
-        return ([WASMTIME, "serve", "-Scli", "-Shttp", *P3_FLAGS, *nn_args, *fs_args,
+        return ([WASMTIME, "serve", "-Scli", "-Shttp", *P3_FLAGS, *nn_args, *fs_args, *cfg_args,
                  "-W", f"max-memory-size={mem_bytes}",
                  "--addr", f"{HOST_IP}:{serve_port}", str(wasm)],
                 serve_port, [serve_port])
     port_map = port_map or {}
     nan_ports = ",".join(f"{e}={port_map[e]}" for e in pspec["norm"])
     cmd = [WASMTIME, "run", "-Scli", *P3_FLAGS, *nn_args, "-Stcp", "-Sudp",
-           "-Sinherit-network", "-Sallow-ip-name-lookup", *fs_args,
+           "-Sinherit-network", "-Sallow-ip-name-lookup", *fs_args, *cfg_args,
            "-W", f"max-memory-size={mem_bytes}",
            "--env", "NAN_PORTS=" + nan_ports, str(wasm)]
     http_entry = f"http:{pspec['http']}" if pspec["http"] else None
@@ -954,7 +985,7 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
 
 
 def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
-           mem_mb: int = 0, pspec=None, storage_mb=None) -> dict:
+           mem_mb: int = 0, pspec=None, storage_mb=None, config_cid="") -> dict:
     pspec = pspec or _parse_ports([])
     if storage_mb is None:
         storage_mb = DEF_STORAGE_MB
@@ -1019,6 +1050,16 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
         rec["status"], rec["error"] = "failed", str(e)
         return rec
 
+    # per-deployment config: fetch + verify before spawning (a bad config CID
+    # should fail the launch cleanly, not crash the tenant on first request)
+    nan_config = None
+    if config_cid:
+        try:
+            nan_config = _resolve_config(config_cid)
+        except ValueError as e:
+            rec["status"], rec["error"] = "failed", str(e)
+            return rec
+
     # Grants are minimal: a private /data preopen only (no host paths), no --env
     # beyond NAN_PORTS, and sockets only when the version's firewall config asks
     # for them. `-W max-memory-size` caps the guest's linear memory (the only RAM
@@ -1026,7 +1067,7 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
     # the runtime rather than by RLIMIT_AS (see _preexec for why RLIMIT_AS is
     # wrong); the /data ramdisk usage is capped separately by the audit sweep.
     mem_bytes = max(mem_mb, 1) * 1024 * 1024
-    cmd, host_port, wait_ports = _build_cmd(pspec, wasm, port, mem_bytes, port_map, fsdir, nn)
+    cmd, host_port, wait_ports = _build_cmd(pspec, wasm, port, mem_bytes, port_map, fsdir, nn, nan_config)
     rec["hostPort"] = host_port
     rec["endpoint"] = f"http://{HOST_IP}:{host_port}" if host_port else None
     # GPU tenants: the wasmtime process itself is the CUDA process (ORT holds
@@ -1415,7 +1456,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if min_ggf and round(_num("gpuTflops") * 1000) < min_ggf:
             return self._json(422, {"error": f"app '{app_ref}' declares a minimum of {min_ggf / 1000} GPU TFLOPS; the request asks for less"})
         storage_mb = int(meta.get("storage_mb", DEF_STORAGE_MB))   # per-app /data cap; 0 opts out
-        rec = launch(app_ref, b.get("name", ""), cpu_share, gpu_share, mem_mb, pspec, storage_mb)
+        config_cid = str(b.get("configCid") or "").strip()         # per-deployment NAN_CONFIG (verified in launch)
+        rec = launch(app_ref, b.get("name", ""), cpu_share, gpu_share, mem_mb, pspec, storage_mb, config_cid)
         code = 201 if rec["status"] in ("starting", "running") else 500
         return self._json(code, _public(rec))
 
