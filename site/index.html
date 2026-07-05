@@ -1150,8 +1150,8 @@ do {
 } while (d.status !== "running");
 
 console.log(d.network.endpoint);     // https://…/x/0x…
-// your app's own origin: the id's first 24 hex chars as a subdomain
-console.log(`https://${id.slice(2, 26)}.app.nan.host`);</code></pre></div>
+// your app's own origin: the id's first 8 hex chars as a subdomain
+console.log(`https://${id.slice(2, 10)}.app.nan.host`);</code></pre></div>
           <h4>Keep it alive, or stop it</h4>
           <ul>
             <li><b>Top up</b>: another <code>fundWithAuthorization</code> / <code>fundEth</code> with a fresh nonce, any time - each payment adds <code>amount / rate</code> seconds to the on-chain balance.</li>
@@ -4398,7 +4398,7 @@ function deployFetch(b){
     + 'await fetch("' + Nan.base + '/claim-hint", { method: "POST",\n'
     + '  headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) });\n'
     + '// 4) NanDeployments.get(id).runner is the serving enclave; your app origin is\n'
-    + '//    https://<first 24 hex chars of id>.' + APP_DOMAIN;
+    + '//    https://<first 8 hex chars of id>.' + APP_DOMAIN;
 }
 function deployCurl(b){
   return "# deployments are created on-chain, not by POST (see the JS tab):\n"
@@ -4718,7 +4718,7 @@ async function runDeploy(){
       refreshEnclaves(); return;
     }
     termLine(term, "ok", "[✓] claimed by enclave operator " + short(claimed.runnerOperator) + " · lease until " + new Date(claimed.leaseUntil * 1000).toLocaleTimeString());
-    const label = id.slice(2, 26);
+    const label = appLabel(id);
     termLine(term, "dimln", "    app origin: https://" + label + "." + APP_DOMAIN + "  (first request may take a moment: the enclave fetches + verifies your wasm from IPFS)");
 
     const final = await pollDeployment(id, term);
@@ -4807,8 +4807,15 @@ function appEndpoint(d){
   if (!d || !d.id) return (d && d.network && d.network.endpoint) || "";
   const root = Nan.base.replace(/\/v1\/?$/, "");
   if (/(^|\/\/)api\.nan\.host/i.test(root))
-    return "https://" + d.id.replace(/^dep_/, "") + "." + APP_DOMAIN;
+    return "https://" + appLabel(d.id) + "." + APP_DOMAIN;
   return root + "/x/" + d.id;                              // direct-to-enclave override
+}
+// Subdomain label for a deployment id. On-chain ids are bytes32: the label is
+// the FIRST 8 HEX CHARS (32 bits - collisions are fantasy at any realistic
+// deployment count; enclaves resolve the prefix to the unique match, and any
+// longer prefix keeps working too). Legacy dep_ ids keep their base36 label.
+function appLabel(id){
+  return /^0x[0-9a-f]{64}$/i.test(id) ? id.slice(2, 10).toLowerCase() : id.replace(/^dep_/, "");
 }
 
 function renderEnclaveRows(list, highlight){

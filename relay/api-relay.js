@@ -378,12 +378,13 @@ function depFromHost(host) {
   if (!host.endsWith("." + APP_DOMAIN)) return null;
   const label = host.slice(0, -(APP_DOMAIN.length + 1)).replace(/^dep[-_]/, "");   // strip a legacy prefix if present
   // On-chain (NanDeployments) ids are bytes32; a full 64-hex id exceeds DNS's
-  // 63-char label limit, so their subdomain is a hex PREFIX of the id (16+
-  // chars). Enclaves resolve the prefix to the unique matching deployment.
-  // Legacy HTTP ids (dep_ + 9 base36 chars) never reach 16 hex chars, so the
-  // two namespaces cannot collide.
+  // 63-char label limit, so their subdomain is a hex PREFIX of the id - the
+  // canonical label is the FIRST 8 CHARS (32 bits; collisions are fantasy),
+  // and any longer prefix keeps working. Enclaves resolve the prefix to the
+  // unique matching deployment. (A retired-era dep_ label that happened to be
+  // pure hex could shadow here; those deployments no longer exist.)
   const hex = label.startsWith("0x") ? label.slice(2) : label;
-  if (/^[0-9a-f]{16,64}$/.test(hex)) return "0x" + hex;
+  if (/^[0-9a-f]{8,64}$/.test(hex)) return "0x" + hex;
   const id = "dep_" + label;
   return /^dep_[a-z0-9]+$/.test(id) ? id : null;
 }
