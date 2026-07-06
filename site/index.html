@@ -672,7 +672,7 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
           <div class="pane" data-pane="run"><div class="term" id="termOut"><span class="ln dimln">// press “Deploy” to provision a confidential enclave…</span></div></div>
         </div>
         <div class="run-row">
-          <button class="btn btn-primary btn-sm" id="deployBtn" type="button">▸ Deploy enclave</button>
+          <button class="btn btn-primary btn-sm" id="deployBtn" type="button">▸ Deploy App</button>
           <button class="btn btn-sm" id="resetBtn" type="button">reset</button>
           <label class="dry"><input type="checkbox" id="dryRun" /> <span>Dry run</span></label>
           <span class="hint" id="runHint">sign in to deploy</span>
@@ -701,7 +701,7 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
 .store-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:22px 0 18px;}
 .store-toolbar .store-count{font-family:var(--font-mono);font-size:.74rem;color:var(--text-dim);margin-right:auto;}
 #storeSearch{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);
-  font-family:var(--font-mono);font-size:.82rem;padding:8px 12px;min-width:200px;}
+  font-family:var(--font-mono);font-size:.82rem;padding:8px 12px;flex:1 1 340px;min-width:260px;max-width:560px;}
 #storeSearch:focus{outline:none;border-color:var(--jade-dim);}
 .store-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;}
 .app-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 18px 16px;
@@ -4728,17 +4728,21 @@ async function renderWalletPop(){
     '<div class="wp-row"><span class="wp-k">' + (Nan.walletEmail ? "Address" : "Wallet") + '</span><button class="wp-addr" id="wpCopy">' + esc(short(Nan.address)) + ' \u29c9</button></div>' +
     '<div class="wp-row"><span class="wp-k">Network</span><span class="wp-v">' + (Nan.chainId === BASE_CHAIN ? "Base" : ("chain " + (Nan.chainId || "\u2013"))) + (offBase ? ' <button class="wp-mini" id="wpSwitch">switch to Base</button>' : "") + '</span></div>' +
     '<div class="wp-row"><span class="wp-k">Session</span><span class="wp-v">' + (Nan.authed() ? '<span class="ok">signed in</span>' : '<button class="wp-mini" id="wpAuth">sign in</button>') + '</span></div>' +
-    '<div class="wp-bal" id="wpBal">' + (Nan.authed() ? "loading balance\u2026" : "sign in to load balance") + '</div>' +
+    '<div class="wp-bal"><div class="bl"><span>USDC balance</span><span id="wpBalUsdc">\u2026</span></div></div>' +
+    '<div class="wp-bal" id="wpBal">' + (Nan.authed() ? "loading deployments\u2026" : "sign in to load deployments") + '</div>' +
     '<div class="wp-fund">' +
       ((Nan.walletRdns === PRIVY_RDNS && PrivyWallet.enabled()) ? '<button class="wp-mini wp-buy" id="wpBuy">Buy USDC \u00b7 card</button>' : "") +
       '<button class="wp-mini" id="wpDep">Deposit</button>' +
     '</div>' +
-    '<button class="wp-disc" id="wpDisc">Disconnect</button>';
+    '<button class="wp-disc" id="wpDisc">Sign out</button>';
   pop.hidden = false;
   const c = $("#wpCopy"); if (c) c.addEventListener("click", () => copyText(Nan.address));
   const d = $("#wpDisc"); if (d) d.addEventListener("click", disconnectWallet);
   const bb = $("#wpBuy"); if (bb) bb.addEventListener("click", () => { pop.hidden = true; openBuyModal(); });
   const dep = $("#wpDep"); if (dep) dep.addEventListener("click", () => { pop.hidden = true; openDepositModal(); });
+  usdcBalanceOf(Nan.address).then(
+    (b) => { const u = $("#wpBalUsdc"); if (u) u.textContent = b.toFixed(2) + " USDC"; },
+    ()  => { const u = $("#wpBalUsdc"); if (u) u.textContent = "unavailable"; });
   const s = $("#wpSwitch"); if (s) s.addEventListener("click", () => Nan.provider && ensureBaseChainOnConnect(Nan.provider).then(renderWalletPop));
   const a = $("#wpAuth"); if (a) a.addEventListener("click", async () => { try { await authenticate(); renderWalletPop(); } catch(e){ showToast(e.message); } });
   if (Nan.authed()){
