@@ -919,6 +919,13 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
 .docs-nav a:hover{background:var(--bg-1);color:var(--text);}
 .docs-nav a.on{color:var(--jade);background:var(--bg-1);}
 .docs-nav a .n{color:var(--text-dim);font-size:.66rem;flex:none;width:1.6em;}
+/* ---------- develop sub-tabs ---------- */
+[id]{scroll-margin-top:78px;}                     /* anchor jumps clear the sticky header */
+#docs,#cli,#api{scroll-margin-top:132px;}         /* pane jumps also keep the sub-tab bar in view */
+.dev-tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-top:12px;}
+.dev-tabs a{font-family:var(--font-mono);font-size:.92rem;color:var(--text-muted);padding:10px 20px;border:1px solid transparent;border-bottom:none;border-radius:9px 9px 0 0;position:relative;top:1px;transition:.15s;}
+.dev-tabs a:hover{color:var(--text);background:var(--surface);}
+.dev-tabs a.on{color:var(--jade);border-color:var(--line);background:var(--bg-1);}
 .docs-main{min-width:0;display:grid;gap:56px;}
 .doc{min-width:0;}
 .doc > h3{font-family:var(--font-mono);font-size:1.25rem;letter-spacing:-.01em;margin:0 0 6px;padding-top:6px;border-top:1px solid var(--line-soft);}
@@ -942,8 +949,20 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
 .doc table.params td.pname{color:var(--text);}
 @media(max-width:960px){.docs-layout{grid-template-columns:1fr;}.docs-side{position:static;max-height:none;}.docs-nav{max-height:260px;}}
 </style>
-<section id="docs" data-view="develop" aria-label="App development guide" hidden>
+<!-- ===================== DEVELOP · sub-tab bar ===================== -->
+<section id="develop-home" data-view="develop" aria-label="Developer documentation" hidden style="padding:44px 0 0;">
   <a id="develop"></a>
+  <div class="wrap">
+    <span class="eyebrow">Develop</span>
+    <nav class="dev-tabs" id="devTabs" aria-label="Developer documentation tabs">
+      <a href="#docs" data-devtab="guide" class="on">Guide</a>
+      <a href="#cli" data-devtab="cli">CLI</a>
+      <a href="#api" data-devtab="api">API reference</a>
+    </nav>
+  </div>
+</section>
+
+<section id="docs" data-view="develop" aria-label="App development guide" hidden>
   <div class="wrap">
     <div class="sec-head">
       <span class="eyebrow">Developer guide · build → publish → deploy</span>
@@ -974,7 +993,6 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
           <a href="#docs-langs"><span class="n">14</span>Other languages</a>
           <a href="#docs-limits"><span class="n">15</span>Limits &amp; sandbox</a>
           <a href="#docs-troubleshoot"><span class="n">16</span>Troubleshooting</a>
-          <a href="#docs-cli"><span class="n">17</span>The enclave CLI</a>
         </nav>
       </aside>
 
@@ -1536,9 +1554,17 @@ curl -H "Authorization: Bearer $NAN_TOKEN" \
           </ol>
         </article>
 
-        <!-- 17 ------------------------------------------------------------ -->
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== CLI (develop · cli tab) ===================== -->
+<section id="cli" data-view="develop" aria-label="The enclave CLI" hidden>
+  <div class="wrap">
+    <div class="docs-main" style="max-width:920px;">
         <article class="doc" id="docs-cli">
-          <h3><span class="n">17</span>The <code>enclave</code> CLI</h3>
+          <h3>The <code>enclave</code> CLI</h3>
           <div class="doc-note warn">
             <span class="nt">Design preview</span>
             <p>This chapter is a <b>specification, not a shipped binary</b>: it documents the terminal workflow we're building toward. Every command maps 1:1 onto the <a href="#api">public API</a> and the on-chain contracts, so everything shown here can already be done today with <code>curl</code> and your wallet - the CLI just holds all the pieces for you.</p>
@@ -1583,8 +1609,6 @@ curl https://3xk9f2qa.app.nan.host/                 # → hello from Enclave
 enclave logs dep_3xk9f2qa -f                        # watch it serve</code></pre></div>
           <p>Everything the console does, nothing it hides: any command run with <code>-x</code> shows the exact API traffic, ready to replay with <code>curl</code>.</p>
         </article>
-
-      </div>
     </div>
   </div>
 </section>
@@ -1596,7 +1620,7 @@ enclave logs dep_3xk9f2qa -f                        # watch it serve</code></pre
       <div class="sec-head" style="margin-bottom:0;">
         <span class="eyebrow">Reference</span>
         <h2>The Enclave API</h2>
-        <p>Everything the service does, fully scoped. Authenticate with an Ethereum signature, pay USDC or ETH per deployment, and orchestrate confidential compute over plain HTTPS. Prefer a terminal? The <a href="#docs-cli">enclave CLI (ch. 17)</a> wraps every operation below.</p>
+        <p>Everything the service does, fully scoped. Authenticate with an Ethereum signature, pay USDC or ETH per deployment, and orchestrate confidential compute over plain HTTPS. Prefer a terminal? The <a href="#docs-cli">enclave CLI</a> wraps every operation below.</p>
       </div>
       <div class="api-meta">
         <span class="chip">OpenAPI <b>3.1</b></span>
@@ -5569,17 +5593,33 @@ function initDocs(){
 }
 
 /* ============================================================
-   Views: Overview · Deploy · Apps · Develop  (guide + API reference share the Develop tab)
+   Views: Overview · Deploy · Apps · Develop  (Develop has sub-tabs: Guide | CLI | API reference)
    ============================================================ */
 let currentView = "overview";
+let devTab = "guide";                                        // develop sub-tab: guide | cli | api
+const DEV_PANES = { guide: "docs", cli: "cli", api: "api" }; // tab -> pane section id
+function devTabOf(id){                                       // which sub-tab holds this element?
+  const el = id && document.getElementById(id); if (!el || !el.closest) return null;
+  if (el.closest("#api")) return "api";
+  if (el.closest("#cli")) return "cli";
+  if (el.closest("#docs")) return "guide";
+  return null;
+}
+function setDevTab(tab){
+  devTab = tab;
+  Object.entries(DEV_PANES).forEach(([t, id]) => { const s = document.getElementById(id); if (s) s.hidden = t !== tab; });
+  $$("#devTabs a").forEach(a => a.classList.toggle("on", a.dataset.devtab === tab));
+}
 function setView(view, anchor){
   currentView = view;
   $$("section[data-view]").forEach(s => { s.hidden = s.dataset.view !== view; });
+  if (view === "develop") setDevTab(devTabOf(anchor) || devTab);
   $$(".nav-links a[data-view]").forEach(t => t.classList.toggle("active", t.dataset.view === view));
   const links = $(".nav-links"); if (links) links.classList.remove("open");
-  if (anchor){ const el = document.getElementById(anchor); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "start" }); }
-  else if (window.scrollTo) { window.scrollTo({ top: 0, behavior: "auto" }); }
-  try { history.replaceState(null, "", view === "overview" ? (anchor ? "#" + anchor : "#top") : "#" + view); } catch(e){}
+  const paneAnchor = view === "develop" && (anchor === "develop" || anchor === "docs" || anchor === "cli" || anchor === "api");
+  if (anchor && !paneAnchor){ const el = document.getElementById(anchor); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "start" }); }
+  else if (window.scrollTo) { window.scrollTo({ top: 0, behavior: "auto" }); }   // pane anchors land at the top, tab bar in view
+  try { history.replaceState(null, "", "#" + (anchor || (view === "overview" ? "top" : view === "develop" ? DEV_PANES[devTab] : view))); } catch(e){}
   if (view === "deploy"){ if (typeof refreshEnclaves === "function") refreshEnclaves(); }
   else if (typeof stopEncPoll === "function"){ stopEncPoll(); }
   if (view === "apps"){ if (typeof loadCatalog === "function") loadCatalog(); }
@@ -5597,6 +5637,16 @@ function initViews(){
     const v = a.dataset.view || viewOf(id);   // a tab declares its own view; fall back to the target's section
     if (!v) return;                            // not a view anchor, leave default
     if (v !== currentView){ e.preventDefault(); setView(v, id === v ? null : id); }
+    else if (v === "develop"){                 // already on Develop: cross-pane links switch the sub-tab
+      const t = devTabOf(id);
+      if (t && t !== devTab){
+        e.preventDefault(); setDevTab(t);
+        const el = DEV_PANES[t] === id ? null : document.getElementById(id);
+        if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        else if (window.scrollTo) window.scrollTo({ top: 0, behavior: "auto" });
+        try { history.replaceState(null, "", "#" + id); } catch(err){}
+      }
+    }
   });
   const id0 = (location.hash || "").slice(1);
   const v0 = viewOf(id0) || "overview";
