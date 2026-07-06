@@ -6759,6 +6759,15 @@ function bumpVersion(s){
   const m = /^(.*?)(\d+)(\D*)$/.exec(s || "");
   return m ? m[1] + (parseInt(m[2], 10) + 1) + m[3] : (s ? s + ".1" : "1.0.1");
 }
+// version labels are unique per app FOREVER (yanked ones stay taken), so the
+// suggested next version must skip every existing label - including yanked
+// versions above the selected one - until it lands on a free label.
+function nextFreeVersion(app, from){
+  const taken = new Set((app.versions || []).map(v => v && v.version));
+  let cand = bumpVersion(from);
+  for (let i = 0; i < 1000 && taken.has(cand); i++) cand = bumpVersion(cand);
+  return cand;
+}
 // "add version": open the publish form pre-filled from an app's current
 // version - INCLUDING its CID. Re-listing your own CID is the metadata-fix
 // path (same bytes, corrected specs/ports); picking a new .wasm replaces it.
@@ -6768,7 +6777,7 @@ function prefillPublish(app){
   $("#pubSlug").value = app.slug;
   $("#pubName").value = app.name || "";
   $("#pubDesc").value = app.description || "";
-  $("#pubVersion").value = bumpVersion(v.version);
+  $("#pubVersion").value = nextFreeVersion(app, v.version);
   $("#pubCid").value = v.cid || "";
   $("#pubVram").value = String((Number(v.vramMb) || 0) / 1024);
   $("#pubGpuT").value = String((Number(v.gpuGflops) || 0) / 1000);
