@@ -4476,60 +4476,15 @@ function openDepositModal(){
   const b = $("#depCopy"); if (b) b.addEventListener("click", () => copyText(Nan.address, b));
 }
 
-async function openBuyModal(){
+// Card purchases run in /buy.html: a same-origin popup that hosts Privy's
+// official React funding modal (Stripe/Link, MoonPay, ... - routed by region
+// and the dashboard's Onramps toggles). It inherits this page's Privy session
+// via localStorage, so it opens straight into checkout.
+function openBuyModal(){
   if (!Nan.address) return;
-  const m = fundModal(
-    '<div class="wp-h">Buy USDC</div>' +
-    '<div class="wp-note">Pay by card in a secure checkout popup. USDC lands in your account on Base, usually within a few minutes.</div>' +
-    '<div class="wp-amts">' + [10, 25, 50, 100].map(a => '<button class="wp-amt' + (a === 25 ? ' on' : '') + '" data-a="' + a + '" type="button">$' + a + '</button>').join("") + '</div>' +
-    '<div class="wp-err" id="buyErr" hidden></div>' +
-    '<button class="wp-item wp-go" id="buyGo" type="button">Continue to checkout</button>' +
-    '<div class="wp-foot">Checkout by MoonPay · brokered by Privy</div>' +
-    '<button class="wp-cancel" type="button">Cancel</button>');
-  if (!m) return;
-  let amt = 25;
-  m.host.querySelectorAll(".wp-amt").forEach(b => b.addEventListener("click", () => {
-    m.host.querySelectorAll(".wp-amt").forEach(x => x.classList.remove("on"));
-    b.classList.add("on"); amt = +b.dataset.a;
-  }));
-  const go = $("#buyGo");
-  go.addEventListener("click", async () => {
-    if (go.disabled) return;
-    go.disabled = true; go.textContent = "Preparing checkout…";
-    const fail = (msg) => { const e = $("#buyErr"); if (e){ e.textContent = msg; e.hidden = false; } go.disabled = false; go.textContent = "Continue to checkout"; };
-    // open the popup synchronously (before any await) so popup blockers allow it
-    const w = window.open("about:blank", "enclaveBuy", "popup,width=470,height=760");
-    try {
-      const url = await buildOnrampUrl(amt);
-      if (!w || w.closed){ fail("Popup blocked - allow popups for this site and try again."); return; }
-      w.location = url;
-      m.close();
-      showToast("Complete your purchase in the checkout window.");
-    } catch(e){
-      if (w && !w.closed) w.close();
-      fail(String(e && (e.message || e)));
-    }
-  });
-}
-
-// Privy brokers the onramp with its own provider keys - no accounts on our side.
-// MoonPay only for now (enabled in the Privy dashboard; Coinbase deliberately not).
-async function buildOnrampUrl(usd){
-  await PrivyWallet.load();
-  const fund = PrivyWallet.privy.funding;
-  try {
-    const base = "https://buy.moonpay.com?currencyCode=usdc_base&walletAddress=" + encodeURIComponent(Nan.address) +
-                 "&baseCurrencyCode=usd&baseCurrencyAmount=" + usd;
-    let r;
-    try { r = await fund.moonpay.sign({ url: base }); }
-    catch(e1){ r = await fund.moonpay.sign(base); }
-    const url = (typeof r === "string" && /^https:/.test(r)) ? r
-      : r && (r.signedUrl || r.url || (r.signature ? base + "&signature=" + encodeURIComponent(r.signature) : null));
-    if (url) return url;
-    throw new NanError("MoonPay returned an unexpected response: " + JSON.stringify(r).slice(0, 120), 0);
-  } catch(e){
-    throw (e instanceof NanError) ? e : new NanError("Card checkout is unavailable right now. MoonPay: " + (e && (e.message || e)), 0);
-  }
+  const w = window.open("/buy.html", "enclaveBuy", "popup,width=480,height=780");
+  if (!w){ showToast("Popup blocked - allow popups for this site and try again."); return; }
+  showToast("Complete your purchase in the checkout window.");
 }
 
 async function pickWallet(){

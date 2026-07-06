@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Buy USDC · Enclave</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 28 9v14L16 30 4 23V9z' fill='none' stroke='%232FE6A8' stroke-width='2'/%3E%3Cpath d='M16 7.333 24 12v8L16 24.667 8 20v-8z' fill='none' stroke='%232FE6A8' stroke-width='1.4' opacity='.55'/%3E%3Ccircle cx='16' cy='12.55' r='2.45' fill='none' stroke='%232FE6A8' stroke-width='2'/%3E%3Cpath d='M16 15v6.6M16 21.6h2M16 19.4h1.5' fill='none' stroke='%232FE6A8' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E"/>
+<style>
+  html,body{margin:0;height:100%;background:#070B10;color:#E8F4EF;font:15px/1.5 system-ui,sans-serif;}
+  #msg{display:flex;height:100%;align-items:center;justify-content:center;text-align:center;padding:24px;color:#8FA6B2;}
+  #msg b{color:#E8F4EF;}
+  a{color:#2FE6A8;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div id="msg">Loading checkout…</div>
+<script type="module">
+/* Buy USDC · runs Privy's official React funding modal (Stripe/Link, MoonPay, …)
+   in a popup. Same origin as the console, so it inherits the Privy session the
+   user already has. The main page stays framework-free; React lives only here. */
+const APP_ID = "cmr8u8m5y00cf0djiqotqm7ag";
+const CLIENT_ID = "client-WY6b9c219SjvhdjLGYDriJ9xjSrbV7c4joihKRQPRm3QN";
+const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const msg = (html) => { document.getElementById("msg").innerHTML = html; };
+try {
+  const [React, ReactDOMClient, RA] = await Promise.all([
+    import("https://esm.sh/react@18.3.1"),
+    import("https://esm.sh/react-dom@18.3.1/client"),
+    import("https://esm.sh/@privy-io/react-auth@3.33.1?deps=react@18.3.1,react-dom@18.3.1")
+  ]);
+  const h = React.createElement;
+  const { PrivyProvider, usePrivy, useFiatOnramp } = RA;
+
+  function embeddedAddressOf(user){
+    const accs = (user && (user.linkedAccounts || user.linked_accounts)) || [];
+    const w = accs.find(a => a && a.type === "wallet"
+      && ((a.walletClientType || a.wallet_client_type) === "privy")
+      && (((a.chainType || a.chain_type) || "ethereum") === "ethereum"));
+    return (w && w.address) || null;
+  }
+
+  function App(){
+    const { ready, authenticated, user } = usePrivy();
+    const { fund } = useFiatOnramp();
+    const started = React.useRef(false);
+    React.useEffect(() => {
+      if (!ready) return;
+      if (!authenticated){
+        msg("You’re not signed in.<br/>Close this window, hit <b>Sign in</b> on the main page, then try again.");
+        return;
+      }
+      const address = embeddedAddressOf(user);
+      if (!address){
+        msg("This sign-in method has no email account wallet.<br/>Card purchase is available for email sign-ins; wallet users can fund directly.");
+        return;
+      }
+      if (started.current) return; started.current = true;
+      msg("");
+      fund({
+        source: { assets: ["usd", "eur"] },
+        destination: { asset: USDC_BASE, chain: "eip155:8453", address }
+      }).then(
+        () => { msg("Purchase flow finished. You can close this window - USDC lands in your account within a few minutes."); },
+        (e) => { msg("Checkout didn’t complete: <b>" + String(e && (e.message || e)).replace(/</g, "&lt;") + "</b><br/>You can close this window and try again."); }
+      );
+    }, [ready, authenticated]);
+    return null;
+  }
+
+  ReactDOMClient.createRoot(document.getElementById("root")).render(
+    h(PrivyProvider, {
+      appId: APP_ID,
+      clientId: CLIENT_ID,
+      config: {
+        appearance: { theme: "dark", accentColor: "#2FE6A8" },
+        embeddedWallets: { createOnLogin: "off" }
+      }
+    }, h(App))
+  );
+} catch (e) {
+  msg("Couldn’t load the checkout: <b>" + String(e && (e.message || e)).replace(/</g, "&lt;") + "</b><br/>Check your connection and try again.");
+}
+</script>
+</body>
+</html>
