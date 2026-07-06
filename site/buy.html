@@ -15,10 +15,30 @@
 <body>
 <div id="root"></div>
 <div id="msg">Loading checkout…</div>
+<div id="diag" hidden style="position:fixed;bottom:0;left:0;right:0;padding:8px 12px;background:#160f0f;color:#ff9a9a;font:11px/1.5 monospace;word-break:break-all;max-height:130px;overflow:auto;"></div>
 <script type="module">
 /* Buy USDC · runs Privy's official React funding modal (Stripe/Link, MoonPay, …)
    in a popup. Same origin as the console, so it inherits the Privy session the
    user already has. The main page stays framework-free; React lives only here. */
+
+/* diagnostic tap: Privy's modal swallows provider errors behind a generic
+   screen; capture failing API calls so the real reason is visible on-page. */
+const apiFails = [];
+const _fetch = window.fetch.bind(window);
+window.fetch = async (input, init) => {
+  const url = String((input && input.url) || input || "");
+  const res = await _fetch(input, init);
+  try {
+    if (!res.ok && /privy\.io|moonpay|stripe|meld|coinbase/i.test(url)){
+      const body = await res.clone().text();
+      const line = res.status + " " + url.replace(/^https:\/\//, "").slice(0, 90) + " :: " + body.slice(0, 220);
+      apiFails.push(line); console.warn("[buy-diag]", line);
+      const d = document.getElementById("diag");
+      if (d){ d.hidden = false; d.textContent = "diagnostics: " + apiFails.slice(-3).join(" || "); }
+    }
+  } catch(_){}
+  return res;
+};
 const APP_ID = "cmr8u8m5y00cf0djiqotqm7ag";
 const CLIENT_ID = "client-WY6b9c219SjvhdjLGYDriJ9xjSrbV7c4joihKRQPRm3QN";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
