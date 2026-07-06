@@ -457,8 +457,7 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
       <a href="#top" data-view="overview" class="active">Overview</a>
       <a href="#deploy" data-view="deploy">Deploy</a>
       <a href="#apps" data-view="apps">Apps</a>
-      <a href="#docs" data-view="docs">Docs</a>
-      <a href="#api" data-view="api">API</a>
+      <a href="#develop" data-view="develop">Develop</a>
     </nav>
     <div class="wallet-mount" id="walletMount">
       <button class="btn btn-primary btn-sm" id="walletBtn" type="button">Connect wallet <span class="arr">→</span></button>
@@ -567,7 +566,7 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
     <div class="sec-head">
       <span class="eyebrow">Deploy · live on Base</span>
       <h2>Build a deployment.</h2>
-      <p>Pick a Wasm app, connect your wallet, and provision a real confidential enclave. This console calls the same public REST API documented below. The request body and browser <span class="mono">fetch()</span> shown here are exactly what gets sent. Use <span class="mono">Dry run</span> to inspect the call before spending anything. Want to deploy your own code? The <a href="#docs" data-view="docs">developer guide</a> walks you through building it.</p>
+      <p>Pick a Wasm app, connect your wallet, and provision a real confidential enclave. This console calls the same public REST API documented below. The request body and browser <span class="mono">fetch()</span> shown here are exactly what gets sent. Use <span class="mono">Dry run</span> to inspect the call before spending anything. Want to deploy your own code? The <a href="#docs" data-view="develop">developer guide</a> walks you through building it.</p>
       <div class="endpoint-row">
         <label for="apiBase">API endpoint</label>
         <input type="text" id="apiBase" spellcheck="false" autocapitalize="off" autocomplete="off" />
@@ -753,7 +752,7 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
 
     <div class="publish-panel" id="publishPanel" hidden>
       <h4>Publish a Wasm app version</h4>
-      <p class="pub-sub">Add a <span class="mono">wasi:http</span> component release to the on-chain catalog. Its bytes go on IPFS; the CID and metadata go on Base. An app is keyed by <b>slug</b> in your wallet's namespace; publish the same slug again to cut a new <b>version</b>. Only you (<span class="mono">msg.sender</span>) can add versions, edit, or delist it. New to building components? The <a href="#docs" data-view="docs">developer guide</a> takes you from an empty directory to a published app.</p>
+      <p class="pub-sub">Add a <span class="mono">wasi:http</span> component release to the on-chain catalog. Its bytes go on IPFS; the CID and metadata go on Base. An app is keyed by <b>slug</b> in your wallet's namespace; publish the same slug again to cut a new <b>version</b>. Only you (<span class="mono">msg.sender</span>) can add versions, edit, or delist it. New to building components? The <a href="#docs" data-view="develop">developer guide</a> takes you from an empty directory to a published app.</p>
       <div class="pub-grid">
         <div>
           <label for="pubSlug">App slug <span class="dim">(stable id · a–z0–9-, ≤ 40)</span></label>
@@ -943,12 +942,13 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
 .doc table.params td.pname{color:var(--text);}
 @media(max-width:960px){.docs-layout{grid-template-columns:1fr;}.docs-side{position:static;max-height:none;}.docs-nav{max-height:260px;}}
 </style>
-<section id="docs" data-view="docs" aria-label="App development guide" hidden>
+<section id="docs" data-view="develop" aria-label="App development guide" hidden>
+  <a id="develop"></a>
   <div class="wrap">
     <div class="sec-head">
       <span class="eyebrow">Developer guide · build → publish → deploy</span>
       <h2>Build your first Wasm app.</h2>
-      <p>This guide takes you from an empty directory to a paid, attested, publicly reachable app: first the <b>Hello</b> walkthrough end to end, then a worked example for every capability the platform gives your code. That covers HTTP handling, the <span class="mono">/data</span> scratch filesystem, raw TCP/UDP service ports, and attestation your users can check themselves. Everything here runs against the same <a href="#api" data-view="api">public API</a> the <a href="#deploy" data-view="deploy">Deploy console</a> uses.</p>
+      <p>This guide takes you from an empty directory to a paid, attested, publicly reachable app: first the <b>Hello</b> walkthrough end to end, then a worked example for every capability the platform gives your code. That covers HTTP handling, the <span class="mono">/data</span> scratch filesystem, raw TCP/UDP service ports, and attestation your users can check themselves. Everything here runs against the same <a href="#api" data-view="develop">public API</a> the <a href="#deploy" data-view="deploy">Deploy console</a> uses.</p>
     </div>
 
     <div class="docs-layout">
@@ -974,6 +974,7 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
           <a href="#docs-langs"><span class="n">14</span>Other languages</a>
           <a href="#docs-limits"><span class="n">15</span>Limits &amp; sandbox</a>
           <a href="#docs-troubleshoot"><span class="n">16</span>Troubleshooting</a>
+          <a href="#docs-cli"><span class="n">17</span>The enclave CLI</a>
         </nav>
       </aside>
 
@@ -1535,19 +1536,67 @@ curl -H "Authorization: Bearer $NAN_TOKEN" \
           </ol>
         </article>
 
+        <!-- 17 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-cli">
+          <h3><span class="n">17</span>The <code>enclave</code> CLI</h3>
+          <div class="doc-note warn">
+            <span class="nt">Design preview</span>
+            <p>This chapter is a <b>specification, not a shipped binary</b>: it documents the terminal workflow we're building toward. Every command maps 1:1 onto the <a href="#api">public API</a> and the on-chain contracts, so everything shown here can already be done today with <code>curl</code> and your wallet - the CLI just holds all the pieces for you.</p>
+          </div>
+          <p>One static binary, wallet-native, no accounts. Point it at a key and every operation on this page becomes a one-liner; state lives in <code>~/.config/enclave/</code> and nothing else touches your machine.</p>
+
+          <h4>Install &amp; identity</h4>
+          <div class="code"><div class="codebar"><span class="fn">terminal</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code># install (single static binary)
+curl -fsSL https://get.enclave.host | sh
+
+# bring a wallet: generate fresh, or import the key you already use
+enclave key new                    # prints the address; fund it with USDC on Base
+enclave key import                 # reads a private key from stdin; or ENCLAVE_KEY env
+enclave whoami                     # address, USDC balance, running deployments</code></pre></div>
+          <p>Auth is SIWE under the hood: commands that need the API sign a one-time challenge (<code>GET /auth/nonce</code> → <code>POST /auth/login</code>) and cache the bearer token until it expires. On-chain commands (create, fund, publish) sign Base transactions with the same key - the CLI never sends your key anywhere.</p>
+
+          <h4>Command reference</h4>
+          <div class="tbl"><table class="params">
+            <thead><tr><th>command</th><th>does</th><th>maps to</th></tr></thead>
+            <tbody>
+              <tr><td class="pname">enclave deploy &lt;app&gt; --gpu 1 --cpu 1 --fund 5</td><td>create + fund + wait until live, one shot; prints the app URL</td><td><code>NanDeployments.create()</code> · <code>fundWithAuthorization</code> · <code>POST /claim-hint</code></td></tr>
+              <tr><td class="pname">enclave ls</td><td>your deployments, state and funded time remaining</td><td><code>GET /deployments</code> · <code>GET /account</code></td></tr>
+              <tr><td class="pname">enclave status &lt;id&gt;</td><td>one deployment: state, runner, lease, balance, URL</td><td><code>GET /deployments/{id}</code></td></tr>
+              <tr><td class="pname">enclave logs &lt;id&gt; [-f]</td><td>your app's stdout/stderr; <code>-f</code> follows</td><td><code>GET /deployments/{id}/logs</code></td></tr>
+              <tr><td class="pname">enclave fund &lt;id&gt; --usdc 5 | --eth 0.002</td><td>top up runtime by the second</td><td><code>fundWithAuthorization</code> / <code>fundEth</code></td></tr>
+              <tr><td class="pname">enclave attest &lt;id&gt;</td><td>fetch the TDX quote + GPU report and verify them locally; prints measurements and the verdict</td><td><code>GET /deployments/{id}/attestation</code></td></tr>
+              <tr><td class="pname">enclave unlock &lt;id&gt; --vol &lt;name&gt;</td><td>verify attestation first, then stream an encrypted-volume passphrase (never from shell history)</td><td><code>POST /deployments/{id}/unlock</code></td></tr>
+              <tr><td class="pname">enclave stop &lt;id&gt;</td><td>terminate; there is no balance to reclaim</td><td><code>DELETE /deployments/{id}</code></td></tr>
+              <tr><td class="pname">enclave publish app.wasm --slug hello</td><td>validate the component, pin to IPFS, cut a catalog version</td><td><code>ipfs.nan.host/add-wasm</code> · <code>NanAppCatalog</code></td></tr>
+              <tr><td class="pname">enclave apps [query]</td><td>browse or search the on-chain catalog</td><td><code>NanAppCatalog</code> reads</td></tr>
+              <tr><td class="pname">enclave pricing · availability · gpu</td><td>rates + live ETH quote · fleet headroom · GPU probe state</td><td><code>GET /pricing</code> · <code>/availability</code> · <code>/gpu</code></td></tr>
+              <tr><td class="pname">enclave account</td><td>address, payment forwarder, totals</td><td><code>GET /account</code></td></tr>
+            </tbody>
+          </table></div>
+          <p>Global flags: <code>--json</code> for machine-readable output, <code>-x</code> to print every REST call and transaction before it is sent (the curl-equivalent escape hatch), <code>--base</code> / <code>ENCLAVE_API_BASE</code> to target an enclave directly instead of the gateway, <code>--rpc</code> for your own Base RPC.</p>
+
+          <h4>The whole lifecycle, in five lines</h4>
+          <div class="code"><div class="codebar"><span class="fn">terminal</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code>enclave publish target/wasm32-wasip2/release/hello.wasm --slug hello
+enclave deploy hello:1 --gpu 0 --cpu 1 --fund 2     # create, fund $2, wait for live
+enclave attest dep_3xk9f2qa                         # verify before you send data
+curl https://3xk9f2qa.app.nan.host/                 # → hello from Enclave
+enclave logs dep_3xk9f2qa -f                        # watch it serve</code></pre></div>
+          <p>Everything the console does, nothing it hides: any command run with <code>-x</code> shows the exact API traffic, ready to replay with <code>curl</code>.</p>
+        </article>
+
       </div>
     </div>
   </div>
 </section>
 
 <!-- ===================== API REFERENCE ===================== -->
-<section class="api" id="api" data-view="api" aria-label="API reference" hidden>
+<section class="api" id="api" data-view="develop" aria-label="API reference" hidden>
   <div class="wrap">
     <div class="api-head">
       <div class="sec-head" style="margin-bottom:0;">
         <span class="eyebrow">Reference</span>
         <h2>The Enclave API</h2>
-        <p>Everything the service does, fully scoped. Authenticate with an Ethereum signature, pay USDC or ETH per deployment, and orchestrate confidential compute over plain HTTPS.</p>
+        <p>Everything the service does, fully scoped. Authenticate with an Ethereum signature, pay USDC or ETH per deployment, and orchestrate confidential compute over plain HTTPS. Prefer a terminal? The <a href="#docs-cli">enclave CLI (ch. 17)</a> wraps every operation below.</p>
       </div>
       <div class="api-meta">
         <span class="chip">OpenAPI <b>3.1</b></span>
@@ -1597,7 +1646,7 @@ curl -H "Authorization: Bearer $NAN_TOKEN" \
       </div>
       <div>
         <h5>Developers</h5>
-        <a href="#docs" data-view="docs">App development guide</a>
+        <a href="#docs" data-view="develop">App development guide</a>
         <a href="#api">API reference</a>
         <a href="#" id="dlSpec2">OpenAPI spec</a>
         <a href="#attest">Attestation guide</a>
@@ -5520,7 +5569,7 @@ function initDocs(){
 }
 
 /* ============================================================
-   Views: Overview · Deploy · API  (deploy + api live on their own tabs)
+   Views: Overview · Deploy · Apps · Develop  (guide + API reference share the Develop tab)
    ============================================================ */
 let currentView = "overview";
 function setView(view, anchor){
@@ -5547,11 +5596,11 @@ function initViews(){
     const id = href.slice(1);
     const v = a.dataset.view || viewOf(id);   // a tab declares its own view; fall back to the target's section
     if (!v) return;                            // not a view anchor, leave default
-    if (v !== currentView){ e.preventDefault(); setView(v, v === "overview" ? id : null); }
+    if (v !== currentView){ e.preventDefault(); setView(v, id === v ? null : id); }
   });
   const id0 = (location.hash || "").slice(1);
   const v0 = viewOf(id0) || "overview";
-  setView(v0, (v0 === "overview" && id0 && id0 !== "top") ? id0 : null);
+  setView(v0, (id0 && id0 !== "top" && id0 !== v0) ? id0 : null);
 }
 
 /* ============================================================
