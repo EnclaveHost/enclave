@@ -486,8 +486,10 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
       <div class="wallet-pop" id="walletPop" hidden></div>
     </div>
   </div>
-  <div class="wallet-pick" id="walletPick" hidden></div>
 </header>
+<!-- fullscreen wallet chooser: must sit OUTSIDE header.nav - its backdrop-filter would
+     otherwise become the containing block for this fixed overlay, pinning it to the bar -->
+<div class="wallet-pick" id="walletPick" hidden></div>
 
 <!-- ===================== HERO ===================== -->
 <a id="top"></a>
@@ -1613,15 +1615,16 @@ curl -H "Authorization: Bearer $NAN_TOKEN" \
     <div class="docs-main" style="max-width:920px;">
         <article class="doc" id="docs-cli">
           <h3>The <code>enclave</code> CLI</h3>
-          <div class="doc-note warn">
-            <span class="nt">Design preview</span>
-            <p>This chapter is a <b>specification, not a shipped binary</b>: it documents the terminal workflow we're building toward. Every command maps 1:1 onto the <a href="#api">public API</a> and the on-chain contracts, so everything shown here can already be done today with <code>curl</code> and your wallet - the CLI just holds all the pieces for you.</p>
+          <div class="doc-note">
+            <span class="nt">Shipped</span>
+            <p>The CLI ships with the platform repo as <code>cli/enclave.mjs</code>; <code>cli/install.sh</code> bundles it (dependencies inlined) into a single ~1&nbsp;MB executable on your PATH. Every command maps 1:1 onto the <a href="#api">public API</a> and the on-chain contracts, so anything it does can be replayed with <code>curl</code> and your wallet — run any command with <code>-x</code> to watch. The <code>get.enclave.host</code> installer goes live with the domain cutover.</p>
           </div>
-          <p>One static binary, wallet-native, no accounts. Point it at a key and every operation on this page becomes a one-liner; state lives in <code>~/.config/enclave/</code> and nothing else touches your machine.</p>
+          <p>One executable file, wallet-native, no accounts. Point it at a key and every operation on this page becomes a one-liner; state lives in <code>~/.config/enclave/</code> and nothing else touches your machine.</p>
 
           <h4>Install &amp; identity</h4>
-          <div class="code"><div class="codebar"><span class="fn">terminal</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code># install (single static binary)
-curl -fsSL https://get.enclave.host | sh
+          <div class="code"><div class="codebar"><span class="fn">terminal</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code># install — one ~1 MB executable on your PATH (needs node ≥ 20)
+git clone https://github.com/SteveDeFacto/nan &amp;&amp; nan/cli/install.sh
+curl -fsSL https://get.enclave.host | sh    # same thing, after the domain cutover
 
 # bring a wallet: generate fresh, or import the key you already use
 enclave key new                    # prints the address; fund it with USDC on Base
@@ -1633,14 +1636,14 @@ enclave whoami                     # address, USDC balance, running deployments<
           <div class="tbl"><table class="params">
             <thead><tr><th>command</th><th>does</th><th>maps to</th></tr></thead>
             <tbody>
-              <tr><td class="pname">enclave deploy &lt;app&gt; --gpu 1 --cpu 1 --fund 5</td><td>create + fund + wait until live, one shot; prints the app URL</td><td><code>NanDeployments.create()</code> · <code>fundWithAuthorization</code> · <code>POST /claim-hint</code></td></tr>
+              <tr><td class="pname">enclave deploy &lt;app&gt; --gpu 0.25 --cpu 0.05 --fund 5</td><td>create + fund + wait until live, one shot; prints the app URL. Shares are fractions of one card / one node; omitted, they default to the app's catalog minimums</td><td><code>NanDeployments.create()</code> · <code>fundWithAuthorization</code> · <code>POST /claim-hint</code></td></tr>
               <tr><td class="pname">enclave ls</td><td>your deployments, state and funded time remaining</td><td><code>GET /deployments</code> · <code>GET /account</code></td></tr>
               <tr><td class="pname">enclave status &lt;id&gt;</td><td>one deployment: state, runner, lease, balance, URL</td><td><code>GET /deployments/{id}</code></td></tr>
               <tr><td class="pname">enclave logs &lt;id&gt; [-f]</td><td>your app's stdout/stderr; <code>-f</code> follows</td><td><code>GET /deployments/{id}/logs</code></td></tr>
               <tr><td class="pname">enclave fund &lt;id&gt; --usdc 5 | --eth 0.002</td><td>top up runtime by the second</td><td><code>fundWithAuthorization</code> / <code>fundEth</code></td></tr>
               <tr><td class="pname">enclave attest &lt;id&gt;</td><td>fetch the TDX quote + GPU report and verify them locally; prints measurements and the verdict</td><td><code>GET /deployments/{id}/attestation</code></td></tr>
               <tr><td class="pname">enclave unlock &lt;id&gt; --vol &lt;name&gt;</td><td>verify attestation first, then stream an encrypted-volume passphrase (never from shell history)</td><td><code>POST /deployments/{id}/unlock</code></td></tr>
-              <tr><td class="pname">enclave stop &lt;id&gt;</td><td>terminate; there is no balance to reclaim</td><td><code>DELETE /deployments/{id}</code></td></tr>
+              <tr><td class="pname">enclave stop &lt;id&gt;</td><td>take the work item off the queue, then terminate; there is no balance to reclaim</td><td><code>NanDeployments.setActive(false)</code> · <code>DELETE /deployments/{id}</code></td></tr>
               <tr><td class="pname">enclave publish app.wasm --slug hello</td><td>validate the component, pin to IPFS, cut a catalog version</td><td><code>ipfs.nan.host/add-wasm</code> · <code>NanAppCatalog</code></td></tr>
               <tr><td class="pname">enclave apps [query]</td><td>browse or search the on-chain catalog</td><td><code>NanAppCatalog</code> reads</td></tr>
               <tr><td class="pname">enclave pricing · availability · gpu</td><td>rates + live ETH quote · fleet headroom · GPU probe state</td><td><code>GET /pricing</code> · <code>/availability</code> · <code>/gpu</code></td></tr>
@@ -1651,10 +1654,10 @@ enclave whoami                     # address, USDC balance, running deployments<
 
           <h4>The whole lifecycle, in five lines</h4>
           <div class="code"><div class="codebar"><span class="fn">terminal</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code>enclave publish target/wasm32-wasip2/release/hello.wasm --slug hello
-enclave deploy hello:1 --gpu 0 --cpu 1 --fund 2     # create, fund $2, wait for live
-enclave attest dep_3xk9f2qa                         # verify before you send data
-curl https://3xk9f2qa.app.nan.host/                 # → hello from Enclave
-enclave logs dep_3xk9f2qa -f                        # watch it serve</code></pre></div>
+enclave deploy hello:1 --fund 2          # create, fund $2, wait for live; shares = app minimums
+enclave attest 0x3f2a9c1b                # verify before you send data (any unique id prefix)
+curl https://3f2a9c1b.app.nan.host/      # → hello from Enclave
+enclave logs 0x3f2a9c1b -f               # watch it serve</code></pre></div>
           <p>Everything the console does, nothing it hides: any command run with <code>-x</code> shows the exact API traffic, ready to replay with <code>curl</code>.</p>
         </article>
     </div>
@@ -4252,6 +4255,157 @@ const Wallet = {
 const BASE_CHAIN = 8453, BASE_CHAIN_HEX = "0x2105";
 const short = (a) => a ? a.slice(0, 6) + "\u2026" + a.slice(-4) : "";
 
+/* ---- Privy embedded wallet: email-login fallback when no extension wallet is available ----
+   Setup (one-time, dashboard.privy.io): create an app, enable Email login and embedded
+   Ethereum wallets (Base), add this site's origins to Allowed origins, paste the App ID
+   below. An empty PRIVY_APP_ID disables the option and the site behaves exactly as before.
+   The SDK (@privy-io/js-sdk-core) is imported on demand - no Privy bytes load until a user
+   actually picks the email option (or returns with a saved Privy session). */
+const PRIVY_APP_ID = "";
+const PRIVY_RDNS = "io.privy.embedded";
+
+const PrivyWallet = {
+  privy: null, provider: null, user: null, _msgWired: false,
+  enabled(){ return !!PRIVY_APP_ID; },
+  entry(provider){ return { info: { uuid: "privy-embedded", name: "Email wallet (Privy)", rdns: PRIVY_RDNS, icon: null }, provider }; },
+  async load(){
+    if (this.privy) return this.privy;
+    if (!this.enabled()) throw new NanError("Privy is not configured on this deployment.", 0);
+    let mod;
+    try { mod = await import("https://esm.sh/@privy-io/js-sdk-core?bundle"); }
+    catch(e){ throw new NanError("Could not load the Privy SDK (network or CDN issue): " + (e.message || e), 0); }
+    const Privy = mod.default || mod.Privy;
+    if (!Privy) throw new NanError("Unexpected Privy SDK shape (no default export).", 0);
+    this.privy = new Privy({ appId: PRIVY_APP_ID });
+    this._mod = mod;
+    // the embedded wallet lives in a hidden Privy iframe; the SDK drives it over postMessage
+    const ew = this.privy.embeddedWallet;
+    const url = ew && (ew.getURL ? ew.getURL() : (ew.getUrl ? ew.getUrl() : null));
+    if (url){
+      const f = document.createElement("iframe");
+      f.id = "privyWalletFrame"; f.src = url; f.setAttribute("aria-hidden", "true");
+      f.style.cssText = "position:fixed;width:0;height:0;border:0;visibility:hidden;";
+      document.body.appendChild(f);
+      await new Promise(r => { f.onload = () => r(); setTimeout(r, 8000); });
+      if (this.privy.setMessagePoster) this.privy.setMessagePoster(f.contentWindow);
+      if (!this._msgWired){
+        this._msgWired = true;
+        window.addEventListener("message", (e) => { try { if (ew.onMessage) ew.onMessage(e.data); } catch(_){} });
+      }
+    }
+    return this.privy;
+  },
+  embeddedOf(user){
+    const accs = (user && (user.linked_accounts || user.linkedAccounts)) || [];
+    return accs.find(a => a && a.type === "wallet"
+      && ((a.wallet_client_type || a.walletClientType) === "privy")
+      && (((a.chain_type || a.chainType) || "ethereum") === "ethereum")) || null;
+  },
+  async currentUser(){
+    try { const r = await this.privy.user.get(); return (r && (r.user || r)) || null; } catch(e){ return null; }
+  },
+  // resolve the embedded wallet (creating it on first login) and hand back its EIP-1193 provider
+  async ensureProvider(user){
+    const ew = this.privy.embeddedWallet;
+    let wallet = this.embeddedOf(user);
+    if (!wallet){
+      const create = ew.create || ew.createEthereumWallet || ew.createWallet;
+      if (!create) throw new NanError("This Privy SDK build exposes no wallet-create call.", 0);
+      const res = await create.call(ew, {});
+      const u2 = (res && (res.user || res)) || user;
+      this.user = u2;
+      wallet = this.embeddedOf(u2) || (res && res.wallet) || null;
+    }
+    if (!wallet) throw new NanError("Privy login succeeded but no embedded wallet came back.", 0);
+    const getProv = ew.getEthereumProvider || ew.getProvider;
+    if (!getProv) throw new NanError("This Privy SDK build exposes no EIP-1193 provider.", 0);
+    let provider;
+    try { provider = await getProv.call(ew, { wallet, chainId: BASE_CHAIN }); }
+    catch(e){ provider = await getProv.call(ew, wallet); }
+    if (!provider || !provider.request) throw new NanError("Privy returned an unusable provider.", 0);
+    try { await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: BASE_CHAIN_HEX }] }); } catch(_){}
+    this.provider = provider;
+    return provider;
+  },
+  // silent page-load reconnect for a returning Privy user (their auth persists in localStorage)
+  async restore(){
+    await this.load();
+    const user = await this.currentUser();
+    if (!user) return null;
+    this.user = user;
+    return this.entry(await this.ensureProvider(user));
+  },
+  async logout(){
+    try { if (this.privy && this.privy.auth && this.privy.auth.logout) await this.privy.auth.logout(); } catch(_){}
+    this.provider = null; this.user = null;
+  }
+};
+
+/* the email \u2192 one-time-code flow, rendered inside the #walletPick modal card */
+function privyCard(host, inner){ host.innerHTML = '<div class="wp-card">' + inner + '</div>'; }
+async function privyPickFlow(host){
+  privyCard(host, '<div class="wp-h">Email wallet</div><div class="wp-note">Loading the Privy SDK\u2026</div>');
+  await PrivyWallet.load();
+  const existing = await PrivyWallet.currentUser();
+  if (existing){
+    privyCard(host, '<div class="wp-h">Email wallet</div><div class="wp-note">Restoring your Privy session\u2026</div>');
+    PrivyWallet.user = existing;
+    return PrivyWallet.entry(await PrivyWallet.ensureProvider(existing));
+  }
+  const email = await new Promise((res, rej) => {
+    privyCard(host,
+      '<div class="wp-h">Email wallet <span class="wp-sub">\u00b7 Privy</span></div>' +
+      '<div class="wp-note">An embedded wallet tied to your email - no extension needed. The key lives in Privy\u2019s isolated frame; this site never sees it.</div>' +
+      '<input class="wp-input" id="pvEmail" type="email" autocomplete="email" spellcheck="false" placeholder="you@example.com" />' +
+      '<div class="wp-err" id="pvErr" hidden></div>' +
+      '<button class="wp-item wp-go" id="pvSend" type="button">Send login code</button>' +
+      '<button class="wp-cancel" type="button">Cancel</button>');
+    const inp = $("#pvEmail"); if (inp) inp.focus();
+    const go = () => {
+      const v = (inp.value || "").trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){ const er = $("#pvErr"); er.textContent = "That doesn\u2019t look like an email address."; er.hidden = false; return; }
+      res(v);
+    };
+    $("#pvSend").onclick = go;
+    inp.onkeydown = (e) => { if (e.key === "Enter") go(); };
+    host.querySelector(".wp-cancel").onclick = () => rej(new NanError("Wallet selection cancelled.", 0));
+  });
+  privyCard(host, '<div class="wp-h">Email wallet</div><div class="wp-note">Sending a login code to <b>' + esc(email) + '</b>\u2026</div>');
+  await PrivyWallet.privy.auth.email.sendCode(email);
+  return await new Promise((res, rej) => {
+    privyCard(host,
+      '<div class="wp-h">Check your email</div>' +
+      '<div class="wp-note">We sent a 6-digit code to <b>' + esc(email) + '</b>.</div>' +
+      '<input class="wp-input" id="pvCode" inputmode="numeric" autocomplete="one-time-code" spellcheck="false" placeholder="123456" maxlength="6" />' +
+      '<div class="wp-err" id="pvErr" hidden></div>' +
+      '<button class="wp-item wp-go" id="pvGo" type="button">Sign in</button>' +
+      '<button class="wp-cancel" type="button">Cancel</button>');
+    const inp = $("#pvCode"); if (inp) inp.focus();
+    let busy = false;
+    const fail = (msg) => { const er = $("#pvErr"); er.textContent = msg; er.hidden = false; busy = false; const b = $("#pvGo"); if (b) b.textContent = "Sign in"; };
+    const submit = async () => {
+      if (busy) return; busy = true;
+      const code = (inp.value || "").trim();
+      if (!/^\d{6}$/.test(code)){ fail("Enter the 6-digit code from the email."); return; }
+      const b = $("#pvGo"); if (b) b.textContent = "Signing in\u2026";
+      try {
+        const r = await PrivyWallet.privy.auth.email.loginWithCode(email, code);
+        const user = (r && (r.user || r)) || null;
+        if (!user) throw new Error("login returned no user");
+        PrivyWallet.user = user;
+        privyCard(host, '<div class="wp-h">Email wallet</div><div class="wp-note">Preparing your wallet\u2026</div>');
+        res(PrivyWallet.entry(await PrivyWallet.ensureProvider(user)));
+      } catch(e){
+        if (host.querySelector("#pvErr")) fail("Sign-in failed: " + (e && (e.message || e)));
+        else rej(new NanError("Privy sign-in failed: " + (e && (e.message || e)), 0));
+      }
+    };
+    $("#pvGo").onclick = submit;
+    inp.onkeydown = (e) => { if (e.key === "Enter") submit(); };
+    host.querySelector(".wp-cancel").onclick = () => rej(new NanError("Wallet selection cancelled.", 0));
+  });
+}
+
 /* ---- assemble a canonical SIWE message only if the server didn't send one ---- */
 function buildSiwe(ch){
   const L = [];
@@ -4281,20 +4435,31 @@ function noWalletReason(){
 async function pickWallet(){
   let wallets = Wallet.list();
   if (!wallets.length) wallets = await Wallet.discover();
-  if (!wallets.length) throw new NanError(noWalletReason(), 0);
-  if (wallets.length === 1) return wallets[0];
+  const privyOk = PrivyWallet.enabled();
+  if (!wallets.length && !privyOk) throw new NanError(noWalletReason(), 0);
+  if (wallets.length === 1) return wallets[0];   // an extension wallet wins outright; Privy is the fallback
   return await new Promise((resolve, reject) => {
-    const host = $("#walletPick"); if (!host){ resolve(wallets[0]); return; }
-    host.innerHTML = '<div class="wp-card"><div class="wp-h">Choose a wallet</div>' +
+    const host = $("#walletPick"); if (!host){ wallets.length ? resolve(wallets[0]) : reject(new NanError(noWalletReason(), 0)); return; }
+    host.innerHTML = '<div class="wp-card"><div class="wp-h">' + (wallets.length ? "Choose a wallet" : "No extension wallet found") + '</div>' +
+      (!wallets.length ? '<div class="wp-note">No EIP-6963 wallet is injected here. Use an email wallet below - or install MetaMask, Rabby, or Coinbase Wallet and reload.</div>' : "") +
       wallets.map((w, i) => '<button class="wp-item" data-i="' + i + '">' +
         (w.info.icon ? '<img src="' + w.info.icon + '" alt=""/>' : '<span class="wp-dot"></span>') +
         esc(w.info.name) + '</button>').join("") +
+      (privyOk ? '<button class="wp-item wp-privy" type="button"><span class="wp-dot wp-dot-iris"></span>Email wallet <span class="wp-sub">· Privy</span></button>' : "") +
       '<button class="wp-cancel">Cancel</button></div>';
     host.hidden = false;
     const close = () => { host.hidden = true; host.innerHTML = ""; };
+    let privyBusy = false;
     host.onclick = (e) => {
+      if (e.target.closest(".wp-privy")){
+        if (privyBusy) return; privyBusy = true;
+        privyPickFlow(host).then((entry) => { close(); resolve(entry); },
+                               (err) => { close(); reject(err instanceof NanError ? err : new NanError("Privy sign-in failed: " + (err && (err.message || err)), 0)); });
+        return;
+      }
       const it = e.target.closest(".wp-item");
-      if (it){ const w = wallets[+it.dataset.i]; close(); resolve(w); return; }
+      if (it && it.dataset.i != null){ const w = wallets[+it.dataset.i]; close(); resolve(w); return; }
+      if (privyBusy) return;   // during the email flow, only its own Cancel button closes
       if (e.target.closest(".wp-cancel") || e.target === host){ close(); reject(new NanError("Wallet selection cancelled.", 0)); }
     };
   });
@@ -4366,6 +4531,7 @@ async function authenticate(){
 }
 
 function disconnectWallet(){
+  if (Nan.walletRdns === PRIVY_RDNS) PrivyWallet.logout();   // fire-and-forget; clears the Privy auth session too
   Nan.token = null; Nan.address = null; Nan.provider = null; Nan.chainId = null; Nan.walletRdns = null;
   clearSession();
   const pop = $("#walletPop"); if (pop){ pop.hidden = true; pop.innerHTML = ""; }
@@ -4397,10 +4563,17 @@ async function restoreSession(){
   let s; try { s = JSON.parse(raw); } catch(e){ clearSession(); return; }
   if (!s || !s.address) return;
   if (s.token){ const exp = jwtExp(s.token); if (exp && exp * 1000 <= Date.now()) s.token = null; }  // drop an expired token
-  let wallets = Wallet.list(); if (!wallets.length) wallets = await Wallet.discover();
-  let chosen = s.rdns ? wallets.find(w => w.info && w.info.rdns === s.rdns) : null;
-  if (!chosen && wallets.length === 1) chosen = wallets[0];
-  if (!chosen) return;                                            // can't reconnect silently; leave it to a manual Connect
+  let chosen = null;
+  if (s.rdns === PRIVY_RDNS){                                     // prior session was a Privy embedded wallet
+    if (!PrivyWallet.enabled()) return;
+    try { chosen = await PrivyWallet.restore(); } catch(e){ return; }
+    if (!chosen) return;                                          // Privy auth expired; leave it to a manual Connect
+  } else {
+    let wallets = Wallet.list(); if (!wallets.length) wallets = await Wallet.discover();
+    chosen = s.rdns ? wallets.find(w => w.info && w.info.rdns === s.rdns) : null;
+    if (!chosen && wallets.length === 1) chosen = wallets[0];
+    if (!chosen) return;                                          // can't reconnect silently; leave it to a manual Connect
+  }
   const provider = chosen.provider;
   let accounts = []; try { accounts = await provider.request({ method: "eth_accounts" }); } catch(e){ return; }
   const addr = accounts && accounts[0];
@@ -5377,6 +5550,13 @@ function injectLiveStyles(){
     ".wp-item:hover{border-color:rgba(47,230,168,.5);} .wp-item img{width:20px;height:20px;border-radius:5px;}",
     ".wp-dot{width:18px;height:18px;border-radius:5px;background:linear-gradient(135deg,var(--jade),var(--iris));}",
     ".wp-cancel{width:100%;background:none;border:1px solid var(--line);color:var(--text-muted);border-radius:8px;padding:.5em;cursor:pointer;font-family:inherit;font-size:.76rem;margin-top:2px;}",
+    ".wp-note{font-size:.72rem;color:var(--text-muted);line-height:1.55;margin:0 0 10px;} .wp-note b{color:var(--text);}",
+    ".wp-sub{color:var(--text-dim);font-size:.72em;}",
+    ".wp-input{width:100%;box-sizing:border-box;background:#080C12;border:1px solid var(--line);color:var(--text);font-family:inherit;font-size:.85rem;padding:.6em .7em;border-radius:8px;margin-bottom:8px;letter-spacing:.03em;}",
+    ".wp-input:focus{border-color:var(--jade);outline:none;box-shadow:0 0 0 3px rgba(47,230,168,.12);}",
+    ".wp-go{justify-content:center;color:var(--jade);border-color:var(--jade-dim);}",
+    ".wp-err{font-size:.72rem;color:#ff8a8a;margin:-2px 0 8px;}",
+    ".wp-dot-iris{background:linear-gradient(135deg,var(--iris),var(--jade));}",
     ".endpoint-row{display:flex;align-items:center;gap:10px;margin-top:16px;flex-wrap:wrap;}",
     ".endpoint-row label{font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);letter-spacing:.02em;}",
     ".endpoint-row input{flex:1;min-width:240px;background:#080C12;border:1px solid var(--line);color:var(--jade-2);font-family:var(--font-mono);font-size:.8rem;padding:.5em .7em;border-radius:8px;}",
