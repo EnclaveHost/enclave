@@ -6484,12 +6484,15 @@ function appCard(app){
     ? '<span class="app-badge rej" title="Rejected by the catalog owner; deploys are refused">✕ rejected</span>'
     : '<span class="app-badge unv" title="Awaiting catalog-owner approval; deploys are refused until then">pending</span>';
   const apLabel = (vv) => vv.approval === APPROVAL.rejected ? ' (rejected)' : vv.approval !== APPROVAL.approved ? ' (pending)' : '';
+  // platform-published apps: publisher wallet == the catalog contract deployer
+  const officialBadge = (STORE.owner && app.publisher.toLowerCase() === STORE.owner)
+    ? '<span class="app-badge" title="Published by the platform (the catalog deployer wallet)">★ official</span>' : "";
   const opts = app.versions.map((vv, idx) =>
     '<option value="' + idx + '"' + (idx === i ? ' selected' : '') + '>' + esc(vv.version) + (vv.verified ? ' ✓' : '') + (vv.yanked ? ' (yanked)' : '') + apLabel(vv) + '</option>').join('');
   const delistBadge = app.active ? ''
     : '<span class="app-badge del" title="Delisted: hidden from the public store; only you (its publisher) and the catalog owner see it. Relist to restore it, or publish a new version to this slug (that relists it automatically).">delisted</span>';
   return '<article class="app-card' + (v.verified ? ' verified' : '') + (app.active ? '' : ' delisted') + '" data-appid="' + app.appId + '">'
-    + '<div class="app-head"><h3>' + esc(app.name) + '</h3>' + badge + apBadge + delistBadge + '</div>'
+    + '<div class="app-head"><h3>' + esc(app.name) + '</h3>' + officialBadge + badge + apBadge + delistBadge + '</div>'
     + '<p class="app-desc">' + (app.description ? esc(app.description) : '<span class="dim">no description</span>') + '</p>'
     + '<div class="app-metaline"><span title="publisher (msg.sender)">' + short(app.publisher) + '</span><span>·</span><span>' + app.versions.length + (app.versions.length === 1 ? ' version' : ' versions') + '</span></div>'
     + '<div class="app-verrow"><span class="vlbl">version</span><select class="ver-select" aria-label="Version">' + opts + '</select>'
