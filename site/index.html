@@ -4263,7 +4263,8 @@ const short = (a) => a ? a.slice(0, 6) + "\u2026" + a.slice(-4) : "";
    below. An empty PRIVY_APP_ID disables the option and the site behaves exactly as before.
    The SDK (@privy-io/js-sdk-core) is imported on demand - no Privy bytes load until a user
    actually picks the email option (or returns with a saved Privy session). */
-const PRIVY_APP_ID = "";
+const PRIVY_APP_ID = "cmr8u8m5y00cf0djiqotqm7ag";
+const PRIVY_CLIENT_ID = "client-WY6b9c219SjvhdjLGYDriJ9xjSrbV7c4joihKRQPRm3QN";   // web app client, registered for enclave.host
 const PRIVY_RDNS = "io.privy.embedded";
 
 const PrivyWallet = {
@@ -4278,7 +4279,7 @@ const PrivyWallet = {
     catch(e){ throw new NanError("Could not load the Privy SDK (network or CDN issue): " + (e.message || e), 0); }
     const Privy = mod.default || mod.Privy;
     if (!Privy) throw new NanError("Unexpected Privy SDK shape (no default export).", 0);
-    this.privy = new Privy({ appId: PRIVY_APP_ID });
+    this.privy = new Privy(PRIVY_CLIENT_ID ? { appId: PRIVY_APP_ID, clientId: PRIVY_CLIENT_ID } : { appId: PRIVY_APP_ID });
     this._mod = mod;
     // the embedded wallet lives in a hidden Privy iframe; the SDK drives it over postMessage
     const ew = this.privy.embeddedWallet;
