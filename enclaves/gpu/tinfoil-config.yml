@@ -143,9 +143,10 @@ containers:
       # legacy alias. See relay/README.md.
       - DEP_ADDR_PREFIX: "2a01:4f9:c013:9b52::/64"       # nan-relay's routed /64 (46.62.128.36); MUST match the relay boxes
       # dedicated-IP EGRESS (outbound half): app outbound leaves FROM its own
-      # IPv6 via NAN_EGRESS. Set EGRESS_RELAY_TOKEN to a shared secret matching
-      # the egress-relay box's env; empty = egress off. See relay/README.md.
-      - EGRESS_RELAY_TOKEN: ""
+      # IPv6 via NAN_EGRESS. EGRESS_RELAY_TOKEN is a shared secret matching the
+      # egress-relay box's env — delivered via `secrets:` below (NOT a plaintext
+      # env, which would pin it empty and shadow the injected secret). Unset =
+      # egress off. See relay/README.md.
       - EGRESS_SOCKS_PORT: "1080"
       # manual-billing / pilot: boot deployments without an on-chain payment.
       # AUTO_PROVISION="1" provisions EVERY deploy for free (use only for a closed
@@ -176,6 +177,7 @@ containers:
       - SECRET
       - ADMIN_TOKEN              # operator token for POST /v1/admin/deployments/:id/provision
       - REGISTRY_PRIVATE_KEY     # NanRegistry operator EOA (owns this enclave's entry, pays heartbeat gas on Base)
+      - EGRESS_RELAY_TOKEN       # shared secret with the egress-relay box; same value fleet-wide (like SECRET). Unset = egress off.
       # NOTE: the TLS-bridge key/cert are NOT secrets — they are minted
       # in-enclave at boot (see TLS_BRIDGE_DOMAIN above), so nothing outside
       # the CVM ever holds the private key.
