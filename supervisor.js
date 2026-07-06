@@ -249,7 +249,7 @@ function need(n){ const v = process.env[n]; if(!v){ console.error("FATAL: missin
 // which GPU enclaves rent to CPU-only apps (CPU-only enclaves get first claim;
 // see the claim loop). CC disables MIG, so a card is ONE trust domain sliced in
 // SOFTWARE: isolation comes from the process boundary, not the slice size.
-const CPU_RATE        = 0.0005556;                                      // USDC/sec, the WHOLE node's vCPU+RAM ($2.00/hr)
+const CPU_RATE        = 0.0002778;                                      // USDC/sec, the WHOLE node's vCPU+RAM ($1.00/hr)
 const FULL_RATE       = 0.0016667;                                      // USDC/sec, a WHOLE card ($6.00/hr)
 const GPU_COUNT       = parseInt(process.env.GPU_COUNT || "1", 10);     // cards in this enclave; 0 = CPU-only enclave
 // GPU work (gpuShare > 0) runs ONLY on GPU-enabled enclaves. CPU-only work runs
