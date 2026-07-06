@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "NaN API",
+    "title": "Enclave API",
     "version": "1.0.0",
     "summary": "Trustless on-demand confidential GPU compute for WebAssembly apps.",
     "description": "Deploy a confidential WebAssembly app into a hardware-isolated enclave with an H200 in NVIDIA confidential-computing mode exposed to it. Each app is a `wasi:http` component that runs sandboxed inside the enclave: no SSH, no host filesystem, no host environment, no ambient authority; just the request/response socket the runtime hands it. Apps are published to the on-chain app catalog (NanAppCatalog on Base) addressed by IPFS CID; the enclave fetches the CID and verifies every byte hashes to it before launch, and the verified CID is folded into the attestation. Authenticate with an Ethereum signature (SIWE), pay USDC or ETH per deployment (no accounts, no held balance), and verify the enclave yourself before you send data. Every endpoint is CORS-enabled so it can be driven directly from browser JavaScript."
@@ -128,7 +128,7 @@
         ],
         "operationId": "getAccount",
         "summary": "Account summary",
-        "description": "Your address, the USDC payment forwarder to pay, and counts of your running and awaiting-payment deployments plus total funded time remaining. No balances are held by NaN.",
+        "description": "Your address, the USDC payment forwarder to pay, and counts of your running and awaiting-payment deployments plus total funded time remaining. No balances are held by Enclave.",
         "responses": {
           "200": {
             "description": "Account summary.",
@@ -255,7 +255,7 @@
         ],
         "operationId": "createDeployment",
         "summary": "Create a deployment (awaiting payment)",
-        "description": "RETIRED on Wasm enclaves - returns 410 `deploy_on_chain` with the on-chain coordinates. Deployments are created on the NanDeployments contract (Base), not through this endpoint: the ledger holds the spec and the funded balance, so a deployment survives enclave updates and crashes (runners serve it under expiring leases; a dead runner's lease lapses and any enclave re-claims the work). Flow: (1) create(appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, sshPubKey, configCid) from YOUR wallet - msg.sender owns the record; the id is the Created event's first topic; shares are 1/1000ths and the app's catalog specs set the minimums runners will accept. (2) Fund it: fundWithAuthorization (EIP-3009 USDC ReceiveWithAuthorization signed to the contract, nonce prefixed with the id's first 16 bytes) or fundEth (credited at the contract's Chainlink ETH/USD read); funds forward to NaN in the same tx, the credit lands in on-chain balance6. (3) Optionally POST /claim-hint {id} so the fleet claims immediately instead of on the ~60s sweep. Runners enforce the same catalog-approval gate (403-equivalent: unapproved CIDs are never claimed) and the same share minimums. GET /pricing carries the contract address, USDC EIP-712 domain, and an ETH/USD quote.",
+        "description": "RETIRED on Wasm enclaves - returns 410 `deploy_on_chain` with the on-chain coordinates. Deployments are created on the NanDeployments contract (Base), not through this endpoint: the ledger holds the spec and the funded balance, so a deployment survives enclave updates and crashes (runners serve it under expiring leases; a dead runner's lease lapses and any enclave re-claims the work). Flow: (1) create(appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, sshPubKey, configCid) from YOUR wallet - msg.sender owns the record; the id is the Created event's first topic; shares are 1/1000ths and the app's catalog specs set the minimums runners will accept. (2) Fund it: fundWithAuthorization (EIP-3009 USDC ReceiveWithAuthorization signed to the contract, nonce prefixed with the id's first 16 bytes) or fundEth (credited at the contract's Chainlink ETH/USD read); funds forward to Enclave in the same tx, the credit lands in on-chain balance6. (3) Optionally POST /claim-hint {id} so the fleet claims immediately instead of on the ~60s sweep. Runners enforce the same catalog-approval gate (403-equivalent: unapproved CIDs are never claimed) and the same share minimums. GET /pricing carries the contract address, USDC EIP-712 domain, and an ETH/USD quote.",
         "requestBody": {
           "required": true,
           "content": {
@@ -778,7 +778,7 @@
       },
       "PaymentInstructions": {
         "type": "object",
-        "description": "How to fund (or top up) a deployment by paying the NanPay forwarder. Funds pass straight through to NaN; nothing is custodied.",
+        "description": "How to fund (or top up) a deployment by paying the NanPay forwarder. Funds pass straight through to Enclave; nothing is custodied.",
         "properties": {
           "chainId": {
             "type": "integer",
