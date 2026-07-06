@@ -20,6 +20,9 @@ without ever entering the trust boundary:
   and steers new work to the most available one.
 - [`net-guard.mjs`](net-guard.mjs) — shared SSRF classifier (symlink to the
   repo-root canonical file; also imported by the enclave's `egress.js`).
+- [`fleet.mjs`](fleet.mjs) — shared fleet discovery for the dedicated-IP
+  relays: `REGISTRY_ADDRESS` (NanRegistry on Base, re-read periodically) or
+  `ENCLAVES` (static list; `ENCLAVE_URL` still accepted as a one-entry alias).
 
 Every deployment gets a **dedicated IPv6** out of the box's routed /64,
 deterministic from its id. The `tcp6-relay` serves its `tcp:N` ports there, the
@@ -29,6 +32,15 @@ directions, its declared ports at their real numbers (`[addr]:5432`,
 `[addr]:443`). The SNI `relay.js` remains as a shared-port fallback (works
 without a routed /64, and gives in-enclave TLS termination on the platform
 cert).
+
+The dedicated-IP relays are **fleet-aware**: point them at the registry (or a
+static list) and they serve *every* live enclave — each poll merges every
+enclave's map, and each binding/control channel remembers its owning enclave.
+Enclaves join and leave without any relay config change. Requirements that
+follow: every enclave that enables dedicated addressing sets `DEP_ADDR_PREFIX`
+to THIS box's routed /64 (all derived addresses are bound here; ids are unique
+fleet-wide so addresses never collide), and every enclave sets the SAME
+`EGRESS_RELAY_TOKEN` (like the shared `SECRET`).
 
 ## API relay
 
@@ -95,7 +107,8 @@ uses. A new tenant's `udp:N` appears within one poll — no relay config change.
 
 ```bash
 UDP_PREFIX=2a01:4f9:c013:bdfd::/64 \
-ENCLAVE_URL=https://enclave1... node udp-relay.js
+REGISTRY_ADDRESS=0x... node udp-relay.js     # on-chain fleet discovery, or:
+ENCLAVES=https://enclave1...,https://enclave2... node udp-relay.js
 ```
 
 Clients then reach a deployment at its advertised `[2a01:4f9:c013:bdfd:…]:N`
@@ -115,9 +128,10 @@ Clients then reach a deployment at its advertised `[2a01:4f9:c013:bdfd:…]:N`
 - **TCP under the hood** means loss becomes head-of-line *delay*, not drop.
   Fine for request/response (DNS-style); realtime/loss-tolerant protocols feel
   it. Datagram boundaries are preserved (1 WS message = 1 datagram).
-- Config: `ENCLAVE_URL` (required), `UDP_POLL_SEC` (5), `UDP_IDLE_MS`
-  (120000), `UDP_MAX_FLOWS` (4096). `UDP_PREFIX` is only read by the systemd
-  unit's AnyIP step, not the daemon.
+- Config: `REGISTRY_ADDRESS` or `ENCLAVES` (required; `ENCLAVE_URL` = legacy
+  one-entry alias), `UDP_POLL_SEC` (5), `UDP_IDLE_MS` (120000),
+  `UDP_MAX_FLOWS` (4096). `UDP_PREFIX` is only read by the systemd unit's
+  AnyIP step, not the daemon.
 
 ## Dedicated-IP TCP relay
 
@@ -149,7 +163,8 @@ one poll — no relay config change.
 3. **Relay**:
 
 ```bash
-ENCLAVE_URL=https://enclave1... node tcp6-relay.js
+REGISTRY_ADDRESS=0x... node tcp6-relay.js    # on-chain fleet discovery, or:
+ENCLAVES=https://enclave1...,https://enclave2... node tcp6-relay.js
 ```
 
 Clients reach a deployment at its advertised `[<prefix>:…]:N` (shown in the
@@ -165,9 +180,10 @@ deploy response's `network.tcp` / `network.address`). Public deployments only.
   attested cert instead, use the SNI relay.
 - **Privileged logical ports** (`tcp:80`, `tcp:443`) need
   `CAP_NET_BIND_SERVICE` — the systemd unit grants it.
-- Config: `ENCLAVE_URL` (required), `NET_POLL_SEC` (5), `TCP6_MAX_CONNS`
-  (4096), `TCP6_HANDSHAKE_MS` (10000). `TCP6_PREFIX` is only read by the
-  systemd unit's AnyIP step, not the daemon.
+- Config: `REGISTRY_ADDRESS` or `ENCLAVES` (required; `ENCLAVE_URL` = legacy
+  one-entry alias), `NET_POLL_SEC` (5), `TCP6_MAX_CONNS` (4096),
+  `TCP6_HANDSHAKE_MS` (10000). `TCP6_PREFIX` is only read by the systemd
+  unit's AnyIP step, not the daemon.
 
 ## Egress relay (dedicated-IP outbound) — `egress-relay.js`
 
@@ -209,8 +225,8 @@ so names resolve and are SSRF-checked where the dial happens.
 3. **Relay** — `/etc/nan-relay/egress-relay.env`:
 
 ```bash
-ENCLAVE_URL=https://enclave1...
-EGRESS_RELAY_TOKEN=<same as the enclave>
+REGISTRY_ADDRESS=0x...              # on-chain fleet discovery (or ENCLAVES=...)
+EGRESS_RELAY_TOKEN=<same on every enclave>
 EGRESS_PREFIX=<same /64>            # systemd AnyIP step only
 # EGRESS_ALLOW_V4=1                 # optional; see caveats
 node egress-relay.js
@@ -245,9 +261,10 @@ exists.
   multicast ranges are refused — once in the enclave for literal IPs, and again
   here after DNS resolution (`net-guard.mjs`, shared with the enclave). This
   protects both the enclave's and this box's own localhost/private services.
-- Config: `ENCLAVE_URL`, `EGRESS_RELAY_TOKEN` (required), `EGRESS_ALLOW_V4`
-  (off), `EGRESS_MAX_CONNS` (4096), `EGRESS_DIAL_MS` (10000). `EGRESS_PREFIX` is
-  the systemd AnyIP step only, not the daemon.
+- Config: `REGISTRY_ADDRESS` or `ENCLAVES` (required; `ENCLAVE_URL` = legacy
+  one-entry alias), `EGRESS_RELAY_TOKEN` (required, same on every enclave),
+  `EGRESS_ALLOW_V4` (off), `EGRESS_MAX_CONNS` (4096), `EGRESS_DIAL_MS` (10000).
+  `EGRESS_PREFIX` is the systemd AnyIP step only, not the daemon.
 
 ## TCP relay (SNI, shared-port)
 

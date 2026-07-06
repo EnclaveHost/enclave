@@ -10,6 +10,10 @@
 // destination ADDRESS. It binds each live deployment's address:port, and tunnels
 // datagrams to the enclave over the same WSS bridge the TCP relay uses.
 //
+// FLEET-AWARE: merges every live enclave's /v1/udp-map (see fleet.mjs); each
+// listener remembers its owning enclave. Enclaves come and go without touching
+// this daemon's config.
+//
 // PREREQUISITE (the box, once): AnyIP so the whole /64 is bind-able without
 // configuring 2^64 addresses —
 //     ip -6 route add local <prefix>/64 dev lo
@@ -21,33 +25,44 @@
 // encryption (e.g. DTLS). Documented in relay/README.md.
 //
 // Config (env):
-//   ENCLAVE_URL        required   enclave origin (https:// -> wss://)
+//   REGISTRY_ADDRESS   required*   NanRegistry on Base: on-chain fleet discovery
+//   ENCLAVES           required*   *instead: static comma list of enclave origins
+//   ENCLAVE_URL        (legacy)    single-enclave pin, folded into ENCLAVES
+//   BASE_RPC / REGISTRY_POLL_SEC / STALE_AFTER_SEC   registry mode knobs (fleet.mjs)
 //   UDP_POLL_SEC       optional   /v1/udp-map poll cadence (default 5)
 //   UDP_IDLE_MS        optional   idle flow teardown (default 120000)
 //   UDP_MAX_FLOWS      optional   concurrent client-flow cap (default 4096)
 
 import dgram from "node:dgram";
 import WebSocket from "ws";
+import { createFleet, fleetConfig, fetchJson } from "./fleet.mjs";
 
-const need = (k) => { const v = (process.env[k] || "").trim(); if (!v) { console.error(`fatal: ${k} is required`); process.exit(1); } return v; };
-const ENCLAVE   = need("ENCLAVE_URL").replace(/\/+$/, "").replace(/^http/, "ws");
-const MAP_URL   = need("ENCLAVE_URL").replace(/\/+$/, "") + "/v1/udp-map";
+const CFG = fleetConfig();
+if (!CFG.registryAddress && !CFG.staticList.length) {
+  console.error("fatal: set REGISTRY_ADDRESS (on-chain discovery) or ENCLAVES (static list)");
+  process.exit(1);
+}
+const fleet     = createFleet(CFG, (m) => console.log("[udp-relay]", m));
 const POLL_MS   = parseInt(process.env.UDP_POLL_SEC || "5", 10) * 1000;
 const IDLE_MS   = parseInt(process.env.UDP_IDLE_MS || "120000", 10);
 const MAX_FLOWS = parseInt(process.env.UDP_MAX_FLOWS || "4096", 10);
 
+const wsOrigin = (origin) => origin.replace(/^http/, "ws");
+
 // one bound listener per (deployment, address, logical port); it fans many
-// client flows, each with its own WS to the enclave so replies route back.
-const listeners = new Map();   // `${id}|${address}|${port}` -> { sock, id, address, port, flows: Map }
+// client flows, each with its own WS to the owning enclave so replies route
+// back. `origin` is refreshed each poll.
+const listeners = new Map();   // `${id}|${address}|${port}` -> { sock, origin, id, address, port, flows: Map }
 let flowCount = 0;
 
 function flowKey(caddr, cport) { return caddr + "|" + cport; }
 
-function openListener(id, address, port) {
+function openListener(origin, id, address, port) {
   const key = `${id}|${address}|${port}`;
-  if (listeners.has(key)) return;
+  const have = listeners.get(key);
+  if (have) { have.origin = origin; return; }
   const sock = dgram.createSocket({ type: "udp6", reuseAddr: true });
-  const L = { sock, id, address, port, flows: new Map() };
+  const L = { sock, origin, id, address, port, flows: new Map() };
   listeners.set(key, L);
 
   sock.on("error", (e) => {
@@ -64,7 +79,7 @@ function openListener(id, address, port) {
       if (flowCount >= MAX_FLOWS) return;                 // shed load rather than sprawl
       f = { ws: null, buf: [], caddr: rinfo.address, cport: rinfo.port, timer: null };
       L.flows.set(fk, f); flowCount++;
-      const ws = new WebSocket(`${ENCLAVE}/x/${encodeURIComponent(id)}/udp/${port}`, { perMessageDeflate: false });
+      const ws = new WebSocket(`${wsOrigin(L.origin)}/x/${encodeURIComponent(id)}/udp/${port}`, { perMessageDeflate: false });
       f.ws = ws;
       ws.on("open", () => { for (const d of f.buf) ws.send(d); f.buf = []; });
       ws.on("message", (d, isBinary) => { if (isBinary || d.length) { try { sock.send(d, f.cport, f.caddr); } catch {} bump(L, fk, f); } });
@@ -75,7 +90,7 @@ function openListener(id, address, port) {
     bump(L, fk, f);
   });
 
-  sock.bind(port, address, () => console.log(`[udp-relay] [${address}]:${port} -> ${ENCLAVE}/x/${id}/udp/${port}`));
+  sock.bind(port, address, () => console.log(`[udp-relay] [${address}]:${port} -> ${L.origin}/x/${id}/udp/${port}`));
 }
 
 function bump(L, fk, f) { clearTimeout(f.timer); f.timer = setTimeout(() => dropFlow(L, fk), IDLE_MS); }
@@ -91,21 +106,35 @@ function closeListener(key) {
 }
 
 async function poll() {
-  let map;
-  try {
-    const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 4000);
-    const r = await fetch(MAP_URL, { signal: ctrl.signal }); clearTimeout(t);
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    map = await r.json();
-  } catch (e) { console.error("[udp-relay] udp-map poll failed:", e.message); return; }
-  if (!map.enabled) { if (listeners.size) console.log("[udp-relay] udp addressing disabled at enclave; unbinding"); for (const k of [...listeners.keys()]) closeListener(k); return; }
+  const origins = fleet.origins();
+  const results = await Promise.all(origins.map(async (origin) =>
+    ({ origin, map: await fetchJson(origin + "/v1/udp-map") })));
 
-  const want = new Set();
-  for (const d of map.deployments || [])
-    for (const port of d.ports || []) { if (!d.address) continue; want.add(`${d.id}|${d.address}|${port}`); openListener(d.id, d.address, port); }
-  for (const k of [...listeners.keys()]) if (!want.has(k)) closeListener(k);   // deployment gone → stop binding
+  const desired = new Map();       // key -> owning origin
+  const failed  = new Set();       // unreachable this round — keep their bindings
+  for (const { origin, map } of results) {
+    if (!map) { failed.add(origin); console.error(`[udp-relay] udp-map poll failed: ${origin}`); continue; }
+    if (!map.enabled) continue;    // udp addressing off there — nothing to bind
+    for (const d of map.deployments || []) {
+      if (!d.address) continue;
+      for (const port of d.ports || []) {
+        const key = `${d.id}|${d.address}|${port}`;
+        if (!desired.has(key)) desired.set(key, origin);
+      }
+    }
+  }
+
+  for (const [key, origin] of desired) {
+    const [id, address, port] = key.split("|");
+    openListener(origin, id, address, parseInt(port, 10));
+  }
+  // deployment gone (or its enclave left the fleet / disabled addressing) →
+  // stop binding; an enclave that merely failed this poll keeps its listeners.
+  for (const [key, L] of [...listeners])
+    if (!desired.has(key) && !failed.has(L.origin)) closeListener(key);
 }
 
+await fleet.start();
 await poll();
 setInterval(poll, POLL_MS);
-console.log(`[udp-relay] polling ${MAP_URL} every ${POLL_MS / 1000}s`);
+console.log(`[udp-relay] polling /v1/udp-map across the fleet every ${POLL_MS / 1000}s`);
