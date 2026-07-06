@@ -46,7 +46,7 @@ const msg = (html) => { document.getElementById("msg").innerHTML = html; };
 try {
   // self-hosted bundle (site/privy/, built by esbuild from @privy-io/react-auth
   // + react) - no CDN at runtime; lazy screens load as local chunks
-  const mod = await import("/privy/entry.js");
+  const mod = await import("/privy/entry.js?v=2");   // ?v busts browser/CDN caches on bundle updates
   const { React, createRoot, PrivyProvider, usePrivy, useFiatOnramp } = mod;
   const h = React.createElement;
 
@@ -77,7 +77,8 @@ try {
       msg("");
       fund({
         source: { assets: ["usd", "eur"] },
-        destination: { asset: USDC_BASE, chain: "eip155:8453", address }
+        destination: { asset: USDC_BASE, chain: "eip155:8453", address },
+        defaultAmount: "25"     // pre-fill; without it Privy's amount screen starts at "0"
       }).then(
         () => { msg("Purchase flow finished. You can close this window - USDC lands in your account within a few minutes."); },
         (e) => { msg("Checkout didn’t complete: <b>" + String(e && (e.message || e)).replace(/</g, "&lt;") + "</b><br/>You can close this window and try again."); }
