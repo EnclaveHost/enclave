@@ -146,7 +146,7 @@ function pick(want = {}) {
 }
 
 // --- http ----------------------------------------------------------------------
-// CORS: the browser page (https://nan.host) talks only to this relay, so WE must
+// CORS: the browser page (https://enclave.host) talks only to this relay, so WE must
 // answer preflight and stamp CORS on every response. Reflect the Origin (so
 // Authorization works without the wildcard-vs-credentials clash) and echo the
 // requested headers on preflight.
@@ -170,7 +170,7 @@ const json = (res, code, body, req) => {
 // control-plane token/body in plaintext (accepted trade for a single origin).
 // Attestation fetched this way is informational — real verification stays
 // client-side-direct via Tinfoil SecureClient.
-// Reverse-proxy `req` to `enclaveOrigin + path`. `setCors`: on the api.nan.host
+// Reverse-proxy `req` to `enclaveOrigin + path`. `setCors`: on the api.enclave.host
 // control-plane paths WE own CORS (swap the enclave's for ours); on an app
 // subdomain the app is its own origin, so pass its headers through untouched.
 function proxyTo(origin, req, res, { path = req.url, setCors = true, idleMs = 30000 } = {}) {

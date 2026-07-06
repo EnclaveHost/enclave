@@ -8,7 +8,7 @@
   },
   "servers": [
     {
-      "url": "https://api.nan.host/v1",
+      "url": "https://api.enclave.host/v1",
       "description": "Production API gateway: proxies to the live enclave (attested TLS terminates in the enclave; the gateway sees control-plane traffic). Talk to an enclave directly by using its base, e.g. https://enclave1.nan.containers.tinfoil.dev/v1"
     }
   ],
@@ -186,7 +186,7 @@
         "security": [],
         "servers": [
           {
-            "url": "https://api.nan.host",
+            "url": "https://api.enclave.host",
             "description": "Root origin (this path is not under /v1)"
           }
         ],
@@ -1143,7 +1143,7 @@
           },
           "aggregate": {
             "type": "boolean",
-            "description": "Present (true) when served by the api.nan.host gateway: the numbers are a FLEET view - the best single-card slice and the best node pool across live enclaves, which can be different machines. Absent on an enclave's own /availability."
+            "description": "Present (true) when served by the api.enclave.host gateway: the numbers are a FLEET view - the best single-card slice and the best node pool across live enclaves, which can be different machines. Absent on an enclave's own /availability."
           },
           "enclaves": {
             "type": "integer",
@@ -1829,7 +1829,7 @@
           },
           "guideUrl": {
             "type": "string",
-            "example": "https://nan.host/#attest"
+            "example": "https://enclave.host/#attest"
           }
         }
       },

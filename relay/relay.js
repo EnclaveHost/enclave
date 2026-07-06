@@ -14,8 +14,8 @@
 // $3 VPS, run several behind round-robin DNS, or let strangers run their own.
 //
 // Config (env):
-//   RELAY_DOMAIN            required  SNI suffix, e.g. "tcp.nan.host"
-//                                     (point *.tcp.nan.host at this box)
+//   RELAY_DOMAIN            required  SNI suffix, e.g. "tcp.enclave.host"
+//                                     (point *.tcp.enclave.host at this box)
 //   ENCLAVE_URL             required  enclave origin, e.g.
 //                                     https://enclave1.nan.containers.tinfoil.dev
 //   RELAY_PORTS             required  comma list of "public[:logical]" ports and

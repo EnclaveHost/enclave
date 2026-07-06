@@ -167,7 +167,7 @@ hash check, so the operator's own gateway is fine to use. The verified CID is fo
 into the attestation (`getMeasurements().app.cid`), so "what ran = this exact CID"
 holds. The store card's **Use in Deploy** sets the friendly `slug:version`.
 
-Manager env: `IPFS_GATEWAY` (default `https://ipfs.nan.host`), `WASM_MAX_BYTES`
+Manager env: `IPFS_GATEWAY` (default `https://ipfs.enclave.host`), `WASM_MAX_BYTES`
 (default 256 MiB), `IPFS_FETCH_TIMEOUT`.
 
 ## Versioning & trust model
@@ -254,7 +254,7 @@ custom RPC. Five constants near the top of the page's script:
 const APP_CATALOG_ADDRESS = "0x…";                    // written by the deploy script
 const APP_CATALOG_CHAIN   = 8453;                     // written by the deploy script (84532 = Base Sepolia)
 const APP_CATALOG_RPC     = "https://mainnet.base.org"; // written by the deploy script (must match the chain)
-const IPFS_UPLOAD_URL     = "https://ipfs.nan.host/add-wasm"; // validating upload gateway; empty => paste-a-CID
+const IPFS_UPLOAD_URL     = "https://ipfs.enclave.host/add-wasm"; // validating upload gateway; empty => paste-a-CID
 const IPFS_GATEWAY        = "https://ipfs.io/ipfs/";    // where "fetch .wasm" links resolve
 ```
 

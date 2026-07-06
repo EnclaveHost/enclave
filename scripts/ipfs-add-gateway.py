@@ -25,7 +25,7 @@
 #   PORT            listen port (default 5051, bound to 127.0.0.1 only)
 #   KUBO_API        Kubo API base (default http://127.0.0.1:5001)
 #   MAX_WASM_BYTES  hard size cap (default 2147483648 = 2 GiB - models ride inside app wasm)
-#   ALLOW_ORIGIN    CORS origin for the browser (default https://nan.host)
+#   ALLOW_ORIGIN    CORS origin for the browser (default https://enclave.host)
 #   WASM_TOOLS      path to a `wasm-tools` binary to enable Tier 2 (default: off)
 
 import json, os, subprocess, tempfile, urllib.request, uuid
@@ -34,7 +34,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 PORT       = int(os.environ.get("PORT", "5051"))
 KUBO_API   = os.environ.get("KUBO_API", "http://127.0.0.1:5001").rstrip("/")
 MAX_BYTES  = int(os.environ.get("MAX_WASM_BYTES", str(2 * 1024 * 1024 * 1024)))
-ORIGIN     = os.environ.get("ALLOW_ORIGIN", "https://nan.host")
+ORIGIN     = os.environ.get("ALLOW_ORIGIN", "https://enclave.host")
 WASM_TOOLS = os.environ.get("WASM_TOOLS", "")
 
 

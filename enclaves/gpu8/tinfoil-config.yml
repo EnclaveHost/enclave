@@ -57,10 +57,10 @@ containers:
       # claim loop. It is a single attested model endpoint.
       - CLAIM_ENABLED: "0"
       - PROVISION_BACKEND: "vm"        # inert here (no VMMGR); kept so shared code paths don't special-case
-      - SIWE_DOMAIN: "nan.host"
-      - SIWE_URI: "https://nan.host"
+      - SIWE_DOMAIN: "enclave.host"
+      - SIWE_URI: "https://enclave.host"
       - CHAIN_ID: "8453"
-      - CORS_ORIGINS: "https://nan.host"
+      - CORS_ORIGINS: "https://enclave.host"
       - BASE_RPC: "https://mainnet.base.org"
       - ENCLAVE_REPO: "SteveDeFacto/nan"
       # --- platform model: proxy the OpenAI surface to the vLLM sidecar --------

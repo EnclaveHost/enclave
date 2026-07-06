@@ -1190,7 +1190,7 @@ wasmtime serve -Scli -Shttp -Sp3 \
           <p>The easy path is the <a href="#deploy" data-view="deploy">Deploy console</a>: your published app's card even has a <b>Use in Deploy</b> button that prefills the reference and firewall. Tick <b>Dry run</b> to inspect every call before spending anything. The console speaks the same public API you can drive yourself:</p>
 
           <h4>Sign in: an Ethereum signature, no account</h4>
-          <div class="code"><div class="codebar"><span class="fn">deploy.js · SIWE handshake</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code>const API = "https://api.nan.host/v1";
+          <div class="code"><div class="codebar"><span class="fn">deploy.js · SIWE handshake</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code>const API = "https://api.enclave.host/v1";
 
 const addr  = (await ethereum.request({ method: "eth_requestAccounts" }))[0];
 const { message } = await (await fetch(`${API}/auth/nonce?address=${addr}`)).json();
@@ -1240,7 +1240,7 @@ do {
 
 console.log(d.network.endpoint);     // https://…/x/0x…
 // your app's own origin: the id's first 8 hex chars as a subdomain
-console.log(`https://${id.slice(2, 10)}.app.nan.host`);</code></pre></div>
+console.log(`https://${id.slice(2, 10)}.app.enclave.host`);</code></pre></div>
           <h4>Keep it alive, or stop it</h4>
           <ul>
             <li><b>Top up</b>: another <code>fundWithAuthorization</code> / <code>fundEth</code> with a fresh nonce, any time - each payment adds <code>amount / rate</code> seconds to the on-chain balance.</li>
@@ -1254,7 +1254,7 @@ console.log(`https://${id.slice(2, 10)}.app.nan.host`);</code></pre></div>
           <h3><span class="n">06</span>Call your app</h3>
           <p>Every deployment serves HTTP on its own path and, through the gateway, its own origin (so one app can never touch another app's cookies or storage, or the site's):</p>
           <div class="code"><div class="codebar"><span class="fn">terminal</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code># public deployment: anyone, no auth
-curl https://3xk9f2qa.app.nan.host/            # per-deployment origin (id without "dep_")
+curl https://3xk9f2qa.app.enclave.host/            # per-deployment origin (id without "dep_")
 curl https://&lt;enclave-host&gt;/x/dep_3xK9f2Qa/    # same app, direct to its enclave
 
 # private deployment (public: false): owner's bearer token only
@@ -1424,12 +1424,12 @@ nc 127.0.0.1 7000                                # → your app, end to end
 
 # 2. Direct public TLS via the relay: stock clients, no websocat. Public deployments
 #    only; hostname = deployment id with its underscore hyphenated (dep_abc123 → dep-abc123)
-psql "host=dep-abc123.tcp.nan.host port=5432 sslmode=require"
-irssi -c dep-abc123.tcp.nan.host -p 6667 --tls</code></pre></div>
+psql "host=dep-abc123.tcp.enclave.host port=5432 sslmode=require"
+irssi -c dep-abc123.tcp.enclave.host -p 6667 --tls</code></pre></div>
           <p>Your app does <b>nothing</b> for the TLS path: keep speaking plain TCP on the assigned port. The platform mints its key + cert <i>inside the enclave</i> at boot; the untrusted relay only routes ciphertext by SNI, and the session terminates in-enclave at <code>/x/{id}/tls/{port}</code>. Verifying clients can bind the session to the attestation by pinning the cert published over the attested origin:</p>
           <div class="code"><div class="codebar"><span class="fn">terminal · pin the bridge cert</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code>curl -s https://&lt;enclave-host&gt;/v1/tls-bridge | jq -r .fingerprint256
-openssl s_client -connect dep-abc123.tcp.nan.host:6667 \
-  -servername dep-abc123.tcp.nan.host &lt;/dev/null 2&gt;/dev/null \
+openssl s_client -connect dep-abc123.tcp.enclave.host:6667 \
+  -servername dep-abc123.tcp.enclave.host &lt;/dev/null 2&gt;/dev/null \
   | openssl x509 -noout -fingerprint -sha256       # must match</code></pre></div>
         </article>
 
@@ -1617,14 +1617,16 @@ curl -H "Authorization: Bearer $NAN_TOKEN" \
           <h3>The <code>enclave</code> CLI</h3>
           <div class="doc-note">
             <span class="nt">Shipped</span>
-            <p>The CLI ships with the platform repo as <code>cli/enclave.mjs</code>; <code>cli/install.sh</code> bundles it (dependencies inlined) into a single ~1&nbsp;MB executable on your PATH. Every command maps 1:1 onto the <a href="#api">public API</a> and the on-chain contracts, so anything it does can be replayed with <code>curl</code> and your wallet — run any command with <code>-x</code> to watch. The <code>get.enclave.host</code> installer goes live with the domain cutover.</p>
+            <p>The CLI ships with the platform repo as <code>cli/enclave.mjs</code>; the installers (<code>install.sh</code> for Linux/macOS, <code>install.ps1</code> for Windows) bundle it, dependencies inlined, into a single ~1&nbsp;MB executable on your PATH. Every command maps 1:1 onto the <a href="#api">public API</a> and the on-chain contracts, so anything it does can be replayed with <code>curl</code> and your wallet — run any command with <code>-x</code> to watch. The <code>get.enclave.host</code> installer goes live with the domain cutover.</p>
           </div>
           <p>One executable file, wallet-native, no accounts. Point it at a key and every operation on this page becomes a one-liner; state lives in <code>~/.config/enclave/</code> and nothing else touches your machine.</p>
 
           <h4>Install &amp; identity</h4>
           <div class="code"><div class="codebar"><span class="fn">terminal</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code># install — one ~1 MB executable on your PATH (needs node ≥ 20)
-git clone https://github.com/SteveDeFacto/nan &amp;&amp; nan/cli/install.sh
-curl -fsSL https://get.enclave.host | sh    # same thing, after the domain cutover
+git clone https://github.com/SteveDeFacto/nan &amp;&amp; nan/cli/install.sh   # Linux/macOS
+git clone https://github.com/SteveDeFacto/nan; .\nan\cli\install.ps1  # Windows PowerShell
+cd nan/cli &amp;&amp; npm i &amp;&amp; npm i -g .           # any OS: npm makes the shims itself
+curl -fsSL https://get.enclave.host | sh    # after the domain cutover
 
 # bring a wallet: generate fresh, or import the key you already use
 enclave key new                    # prints the address; fund it with USDC on Base
@@ -1644,7 +1646,7 @@ enclave whoami                     # address, USDC balance, running deployments<
               <tr><td class="pname">enclave attest &lt;id&gt;</td><td>fetch the TDX quote + GPU report and verify them locally; prints measurements and the verdict</td><td><code>GET /deployments/{id}/attestation</code></td></tr>
               <tr><td class="pname">enclave unlock &lt;id&gt; --vol &lt;name&gt;</td><td>verify attestation first, then stream an encrypted-volume passphrase (never from shell history)</td><td><code>POST /deployments/{id}/unlock</code></td></tr>
               <tr><td class="pname">enclave stop &lt;id&gt;</td><td>take the work item off the queue, then terminate; there is no balance to reclaim</td><td><code>NanDeployments.setActive(false)</code> · <code>DELETE /deployments/{id}</code></td></tr>
-              <tr><td class="pname">enclave publish app.wasm --slug hello</td><td>validate the component, pin to IPFS, cut a catalog version</td><td><code>ipfs.nan.host/add-wasm</code> · <code>NanAppCatalog</code></td></tr>
+              <tr><td class="pname">enclave publish app.wasm --slug hello</td><td>validate the component, pin to IPFS, cut a catalog version</td><td><code>ipfs.enclave.host/add-wasm</code> · <code>NanAppCatalog</code></td></tr>
               <tr><td class="pname">enclave apps [query]</td><td>browse or search the on-chain catalog</td><td><code>NanAppCatalog</code> reads</td></tr>
               <tr><td class="pname">enclave pricing · availability · gpu</td><td>rates + live ETH quote · fleet headroom · GPU probe state</td><td><code>GET /pricing</code> · <code>/availability</code> · <code>/gpu</code></td></tr>
               <tr><td class="pname">enclave account</td><td>address, payment forwarder, totals</td><td><code>GET /account</code></td></tr>
@@ -1656,7 +1658,7 @@ enclave whoami                     # address, USDC balance, running deployments<
           <div class="code"><div class="codebar"><span class="fn">terminal</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code>enclave publish target/wasm32-wasip2/release/hello.wasm --slug hello
 enclave deploy hello:1 --fund 2          # create, fund $2, wait for live; shares = app minimums
 enclave attest 0x3f2a9c1b                # verify before you send data (any unique id prefix)
-curl https://3f2a9c1b.app.nan.host/      # → hello from Enclave
+curl https://3f2a9c1b.app.enclave.host/      # → hello from Enclave
 enclave logs 0x3f2a9c1b -f               # watch it serve</code></pre></div>
           <p>Everything the console does, nothing it hides: any command run with <code>-x</code> shows the exact API traffic, ready to replay with <code>curl</code>.</p>
         </article>
@@ -1675,7 +1677,7 @@ enclave logs 0x3f2a9c1b -f               # watch it serve</code></pre></div>
       </div>
       <div class="api-meta">
         <span class="chip">OpenAPI <b>3.1</b></span>
-        <span class="chip">base <b>https://api.nan.host/v1</b></span>
+        <span class="chip">base <b>https://api.enclave.host/v1</b></span>
         <span class="chip">auth <b>SIWE bearer</b></span>
         <span class="chip" style="cursor:pointer" id="dlSpec">⬇ <b>openapi.json</b></span>
       </div>
@@ -1707,7 +1709,7 @@ enclave logs 0x3f2a9c1b -f               # watch it serve</code></pre></div>
         </a>
         <p>Trustless on-demand confidential compute, paid for exclusively in crypto.</p>
         <div class="foot-meta">
-          <span>front-end: <code>nan.host</code> · static, IPFS-pinnable</span>
+          <span>front-end: <code>enclave.host</code> · static, IPFS-pinnable</span>
           <span>pay: <code>USDC</code> per deploy, no custody (Base)</span>
           <span>chain id: <code>8453</code></span>
         </div>
@@ -1758,7 +1760,7 @@ const SPEC = {
   },
   "servers": [
     {
-      "url": "https://api.nan.host/v1",
+      "url": "https://api.enclave.host/v1",
       "description": "Production API gateway: proxies to the live enclave (attested TLS terminates in the enclave; the gateway sees control-plane traffic). Talk to an enclave directly by using its base, e.g. https://enclave1.nan.containers.tinfoil.dev/v1"
     }
   ],
@@ -1936,7 +1938,7 @@ const SPEC = {
         "security": [],
         "servers": [
           {
-            "url": "https://api.nan.host",
+            "url": "https://api.enclave.host",
             "description": "Root origin (this path is not under /v1)"
           }
         ],
@@ -2893,7 +2895,7 @@ const SPEC = {
           },
           "aggregate": {
             "type": "boolean",
-            "description": "Present (true) when served by the api.nan.host gateway: the numbers are a FLEET view - the best single-card slice and the best node pool across live enclaves, which can be different machines. Absent on an enclave's own /availability."
+            "description": "Present (true) when served by the api.enclave.host gateway: the numbers are a FLEET view - the best single-card slice and the best node pool across live enclaves, which can be different machines. Absent on an enclave's own /availability."
           },
           "enclaves": {
             "type": "integer",
@@ -3579,7 +3581,7 @@ const SPEC = {
           },
           "guideUrl": {
             "type": "string",
-            "example": "https://nan.host/#attest"
+            "example": "https://enclave.host/#attest"
           }
         }
       },
@@ -4425,7 +4427,7 @@ function buildSiwe(ch){
 
 function noWalletReason(){
   if (typeof location !== "undefined" && location.protocol === "file:")
-    return "This page is open as a local file (file://). Wallet extensions don't inject there. Serve it over http(s): run a local server, or open it from your nan.host / IPFS gateway.";
+    return "This page is open as a local file (file://). Wallet extensions don't inject there. Serve it over http(s): run a local server, or open it from your enclave.host / IPFS gateway.";
   let framed = false; try { framed = window.top !== window.self; } catch(e){ framed = true; }
   if (framed)
     return "This page is in a sandboxed preview frame, where wallets can't be injected. Open it in its own browser tab.";
@@ -5187,13 +5189,13 @@ async function refreshEnclaves(opts){
 }
 
 // The app's reachable URL. Through the gateway each deployment gets its OWN
-// origin: a per-deployment subdomain (<id>.app.nan.host, the base36 part of
+// origin: a per-deployment subdomain (<id>.app.enclave.host, the base36 part of
 // the deployment id; the "dep_" is dropped as redundant in this namespace), so
 // an app can't touch the frontend's origin or another tenant's. Talking to an
 // enclave directly falls back to the /x/<id> path. The deployment's own
 // network.endpoint (the enclave's hostname) is only a last resort; it's the
 // right value for attestation/registry, not for how the user reaches the app.
-const APP_DOMAIN = "app.nan.host";
+const APP_DOMAIN = "app.enclave.host";
 function appEndpoint(d){
   if (!d || !d.id) return (d && d.network && d.network.endpoint) || "";
   const root = Nan.base.replace(/\/v1\/?$/, "");
@@ -5912,7 +5914,7 @@ const APP_CATALOG_RPC     = "https://base-rpc.publicnode.com";  // preferred rea
 // trip "over rate limit". Calls start on the last endpoint that worked and
 // rotate on failure.
 const APP_CATALOG_RPCS    = [APP_CATALOG_RPC, "https://base.drpc.org", "https://1rpc.io/base", "https://mainnet.base.org"];
-const IPFS_UPLOAD_URL      = "https://ipfs.nan.host/add-wasm"; // validating upload gateway (server validates + pins); empty => paste-a-CID only
+const IPFS_UPLOAD_URL      = "https://ipfs.enclave.host/add-wasm"; // validating upload gateway (server validates + pins); empty => paste-a-CID only
 const IPFS_GATEWAY        = "https://ipfs.io/ipfs/";      // where the "fetch .wasm" links resolve
 const MAX_WASM_MB         = 2048;                         // upload ceiling (also enforced server-side by Caddy request_body max_size and the add-wasm gateway)
 const MAX_WASM_BYTES      = MAX_WASM_MB * 1024 * 1024;
