@@ -1553,13 +1553,21 @@ app.get("/v1/account", authed, (req, res) => {
 // ============================================================================
 // remainingMs === null means unlimited (auto-provision pilot); otherwise it only
 // drains on healthy billing ticks, so it IS the truth even mid-outage.
-const timeRemainingSec = (rec) => rec.remainingMs == null ? null : Math.max(0, Math.round(rec.remainingMs / 1000));
+// On-chain deployments: remainingMs mirrors only the CURRENT lease (minutes),
+// while the rest of the funded runtime sits in the ledger balance - report
+// lease tail + balance/rate or the console shows "12m left" on a 2-day fund.
+const timeRemainingSec = (rec) => {
+  if (rec.remainingMs == null) return null;
+  const lease = Math.max(0, Math.round(rec.remainingMs / 1000));
+  if (!rec._onchain || !(rec.rate > 0)) return lease;
+  return lease + Math.max(0, Math.round((rec._balance6 || 0) / (rec.rate * 1e6)));
+};
 const spentOf = (rec) => (((rec.consumedMs || 0) / 1000) * (rec.rate || 0)).toFixed(2);
 const view = (rec) => {
   const o = { ...rec };
   for (const k of ["_port", "_gpu", "_gpuSpec", "rate", "_sshPort", "_sshKeySource", "_authorizedKey", "_payTimer",
                    "remainingMs", "consumedMs", "_lastTickAt", "_respawnAt", "_respawnBackoffMs", "_respawning",
-                   "_onchain", "_leaseUntil", "_renewing"]) delete o[k];
+                   "_onchain", "_leaseUntil", "_renewing", "_balance6"]) delete o[k];
   o.ssh = sshAccessOf(rec);
   o.ratePerSecondUsdc = (rec.rate || 0).toFixed(7);
   o.spentUsdc = spentOf(rec);
@@ -1568,7 +1576,7 @@ const view = (rec) => {
   // an ESTIMATE only: the balance drains solely while service is healthy, so a
   // frozen (paused) deployment has no meaningful wall-clock expiry.
   o.expiresAt = (rec.remainingMs != null && rec.status === "running" && !rec.paused)
-    ? new Date(Date.now() + Math.max(0, rec.remainingMs)).toISOString() : null;
+    ? new Date(Date.now() + Math.max(0, timeRemainingSec(rec)) * 1000).toISOString() : null;
   o.payment = rec._onchain ? onchainPaymentInstructions(rec) : paymentInstructions(rec);
   // claimed-from-chain deployments surface their ledger identity + current lease
   if (rec._onchain) o.onchain = { contract: DEPLOYMENTS_ADDRESS, id: rec.id,
@@ -2845,6 +2853,10 @@ async function renewLeases() {
       // an extra quantum of the user's money every cycle (observed live)
       const until = leaseFromReceipt(rcpt, "Renewed", rec.id);
       if (until == null) throw new Error("renew receipt carried no Renewed event");
+      // the renewal moved one quantum from balance into the lease; mirror that
+      // locally so lease+balance (the reported time left) doesn't jump between
+      // audit refreshes
+      rec._balance6 = Math.max(0, (rec._balance6 || 0) - Math.round(Math.max(0, until - rec._leaseUntil) * rec.rate * 1e6));
       rec._leaseUntil = until;
       rec.remainingMs = rec._leaseUntil * 1000 - Date.now();
       console.log(`[claim] ${rec.id} lease renewed until ${new Date(rec._leaseUntil * 1000).toISOString()}`);
@@ -2874,6 +2886,7 @@ async function auditClaims(ledgerById) {
     const d = ledgerById.get(rec.id.toLowerCase());
     if (!d) continue;                         // not in the page (RPC anomaly): keep serving, the lease is prepaid
     rec.paidUsdc = Number(d.spent6 + d.balance6);
+    rec._balance6 = Number(d.balance6);          // funded-runtime display: balance beyond the current lease
     const mine = (d.runnerOperator || "").toLowerCase() === me
               && Number(d.leaseUntil) * 1000 > Date.now();
     if (!d.active) {
@@ -3147,6 +3160,10 @@ async function adopt(d, ref, firewall, slice) {
     remainingMs: Number(d.leaseUntil) * 1000 - Date.now(), consumedMs: 0,
     paused: false, pauseReason: null, _lastTickAt: Date.now(),
     rate: Number(d.rate) / 1e6, paidUsdc: Number(d.spent6 + d.balance6),
+    // on a fresh claim this page read predates the claim tx, so it still counts
+    // the quantum the claim just burned - the next audit pass (~CLAIM_POLL_SEC)
+    // corrects it; the resume path is exact
+    _balance6: Number(d.balance6),
     _onchain: true, _leaseUntil: Number(d.leaseUntil), _renewing: false,
     _gpu: gpu, _gpuSpec: gpu.cpu ? null : { cardId: gpu.cardId, cardUuid: gpuCards[gpu.cardId]?.uuid || null, vramCapGb: gpu.vramGb, computeShare: gpu.computeShare },
     _port: 0, _sshPort: 0, _sshKeySource: "on-chain", _authorizedKey: (d.sshPubKey || "").trim(), _payTimer: null,
