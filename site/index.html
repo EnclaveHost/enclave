@@ -482,7 +482,7 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
       <a href="#develop" data-view="develop">Develop</a>
     </nav>
     <div class="wallet-mount" id="walletMount">
-      <button class="btn btn-primary btn-sm" id="walletBtn" type="button">Connect wallet <span class="arr">→</span></button>
+      <button class="btn btn-primary btn-sm" id="walletBtn" type="button">Sign in <span class="arr">→</span></button>
       <div class="wallet-pop" id="walletPop" hidden></div>
     </div>
   </div>
@@ -674,7 +674,7 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
           <button class="btn btn-primary btn-sm" id="deployBtn" type="button">▸ Deploy enclave</button>
           <button class="btn btn-sm" id="resetBtn" type="button">reset</button>
           <label class="dry"><input type="checkbox" id="dryRun" /> <span>Dry run</span></label>
-          <span class="hint" id="runHint">connect a wallet to deploy</span>
+          <span class="hint" id="runHint">sign in to deploy</span>
         </div>
       </div>
     </div>
@@ -4270,7 +4270,12 @@ const PRIVY_RDNS = "io.privy.embedded";
 const PrivyWallet = {
   privy: null, provider: null, user: null, _msgWired: false,
   enabled(){ return !!PRIVY_APP_ID; },
-  entry(provider){ return { info: { uuid: "privy-embedded", name: "Email (Privy)", rdns: PRIVY_RDNS, icon: null }, provider }; },
+  emailOf(user){
+    const accs = (user && (user.linked_accounts || user.linkedAccounts)) || [];
+    const em = accs.find(a => a && a.type === "email");
+    return (em && (em.address || em.email)) || null;
+  },
+  entry(provider){ return { info: { uuid: "privy-embedded", name: "Email (Privy)", rdns: PRIVY_RDNS, icon: null, email: this.emailOf(this.user) }, provider }; },
   async load(){
     if (this.privy) return this.privy;
     if (!this.enabled()) throw new NanError("Privy is not configured on this deployment.", 0);
@@ -4623,6 +4628,7 @@ async function connectWallet(){
   let cid; try { cid = await provider.request({ method: "eth_chainId" }); } catch(e){}
   Nan.provider = provider; Nan.address = accounts[0]; Nan.chainId = cid ? parseInt(cid, 16) : null;
   Nan.walletRdns = (chosen.info && chosen.info.rdns) || null;
+  Nan.walletEmail = (chosen.info && chosen.info.email) || null;
   wireProviderEvents(provider);
   saveSession();
   refreshWallet();
@@ -4651,7 +4657,7 @@ async function authenticate(){
 
 function disconnectWallet(){
   if (Nan.walletRdns === PRIVY_RDNS) PrivyWallet.logout();   // fire-and-forget; clears the Privy auth session too
-  Nan.token = null; Nan.address = null; Nan.provider = null; Nan.chainId = null; Nan.walletRdns = null;
+  Nan.token = null; Nan.address = null; Nan.provider = null; Nan.chainId = null; Nan.walletRdns = null; Nan.walletEmail = null;
   clearSession();
   const pop = $("#walletPop"); if (pop){ pop.hidden = true; pop.innerHTML = ""; }
   refreshWallet();
@@ -4663,7 +4669,7 @@ function disconnectWallet(){
 /* ---- session persistence: survive a page refresh (localStorage bearer token) ---- */
 function saveSession(){
   if (!Nan.address){ lsSet("nan_session", ""); return; }
-  try { lsSet("nan_session", JSON.stringify({ address: Nan.address, rdns: Nan.walletRdns || null, token: Nan.token || null })); } catch(e){}
+  try { lsSet("nan_session", JSON.stringify({ address: Nan.address, rdns: Nan.walletRdns || null, email: Nan.walletEmail || null, token: Nan.token || null })); } catch(e){}
 }
 function clearSession(){ lsSet("nan_session", ""); }
 // pull the exp (seconds) out of a JWT; null if not a JWT / no exp
@@ -4700,6 +4706,7 @@ async function restoreSession(){
   let cid; try { cid = await provider.request({ method: "eth_chainId" }); } catch(e){}
   Nan.provider = provider; Nan.address = addr; Nan.chainId = cid ? parseInt(cid, 16) : null;
   Nan.walletRdns = (chosen.info && chosen.info.rdns) || null;
+  Nan.walletEmail = (chosen.info && chosen.info.email) || s.email || null;
   Nan.token = s.token || null;
   wireProviderEvents(provider);
   saveSession();                                                  // re-persist (drops any expired token, refreshes rdns)
@@ -4712,13 +4719,14 @@ async function restoreSession(){
 function refreshWallet(){
   const btn = $("#walletBtn"); if (!btn) return;
   if (Nan.address){
+    const who = Nan.walletEmail ? (Nan.walletEmail.length > 24 ? Nan.walletEmail.slice(0, 21) + "\u2026" : Nan.walletEmail) : short(Nan.address);
     btn.classList.add("connected");
-    btn.innerHTML = '<span class="wdot"></span>' + esc(short(Nan.address)) + (Nan.authed() ? "" : ' <span class="lock">unlocked</span>');
+    btn.innerHTML = '<span class="wdot"></span>' + esc(who) + (Nan.authed() ? "" : ' <span class="lock">unlocked</span>');
     const rh = $("#runHint"); if (rh) rh.textContent = Nan.authed() ? "ready to deploy" : "click Deploy to sign in";
   } else {
     btn.classList.remove("connected");
-    btn.innerHTML = 'Connect wallet <span class="arr">\u2192</span>';
-    const rh = $("#runHint"); if (rh) rh.textContent = "connect a wallet to deploy";
+    btn.innerHTML = 'Sign in <span class="arr">\u2192</span>';
+    const rh = $("#runHint"); if (rh) rh.textContent = "sign in to deploy";
   }
 }
 
@@ -4732,7 +4740,8 @@ async function renderWalletPop(){
   const pop = $("#walletPop"); if (!pop || !Nan.address) return;
   const offBase = Nan.chainId && Nan.chainId !== BASE_CHAIN;
   pop.innerHTML =
-    '<div class="wp-row"><span class="wp-k">Wallet</span><button class="wp-addr" id="wpCopy">' + esc(short(Nan.address)) + ' \u29c9</button></div>' +
+    (Nan.walletEmail ? '<div class="wp-row"><span class="wp-k">Account</span><span class="wp-v">' + esc(Nan.walletEmail) + '</span></div>' : "") +
+    '<div class="wp-row"><span class="wp-k">' + (Nan.walletEmail ? "Address" : "Wallet") + '</span><button class="wp-addr" id="wpCopy">' + esc(short(Nan.address)) + ' \u29c9</button></div>' +
     '<div class="wp-row"><span class="wp-k">Network</span><span class="wp-v">' + (Nan.chainId === BASE_CHAIN ? "Base" : ("chain " + (Nan.chainId || "\u2013"))) + (offBase ? ' <button class="wp-mini" id="wpSwitch">switch to Base</button>' : "") + '</span></div>' +
     '<div class="wp-row"><span class="wp-k">Session</span><span class="wp-v">' + (Nan.authed() ? '<span class="ok">signed in</span>' : '<button class="wp-mini" id="wpAuth">sign in</button>') + '</span></div>' +
     '<div class="wp-bal" id="wpBal">' + (Nan.authed() ? "loading balance\u2026" : "sign in to load balance") + '</div>' +
