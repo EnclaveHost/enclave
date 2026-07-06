@@ -106,8 +106,8 @@ header.nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px);
 .brand{display:flex;align-items:center;gap:.7em;font-family:var(--font-mono);font-weight:600;letter-spacing:.04em;}
 .brand svg{width:30px;height:30px;flex:none;}
 header.nav .brand svg{width:40px;height:40px;}
-header.nav .brand .nm{font-size:1.36rem;}
-.brand .nm{font-size:1.02rem;letter-spacing:.12em;}
+header.nav .brand svg.nm{width:auto;height:20px;}
+.brand svg.nm{width:auto;height:12px;display:block;flex:none;}
 .brand .sub{color:var(--text-dim);font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;border-left:1px solid var(--line);padding-left:.7em;margin-left:.2em;}
 .nav-links{display:flex;align-items:center;gap:6px;position:absolute;left:50%;transform:translateX(-50%);}
 .nav-links a{font-family:var(--font-mono);font-size:.82rem;color:var(--text-muted);padding:.5em .7em;border-radius:7px;transition:.15s;}
@@ -451,7 +451,7 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
         <circle cx="16" cy="12.55" r="2.45" stroke="var(--jade)" stroke-width="1.6"/>
         <path d="M16 15v6.6M16 21.6h2M16 19.4h1.5" stroke="var(--jade)" stroke-width="1.6" stroke-linecap="round"/>
       </svg>
-      <span class="nm">ENCLAVE</span>
+      <svg class="nm" viewBox="0 0 148 20" fill="currentColor" aria-hidden="true"><mask id="wmkH"><rect width="148" height="20" fill="#fff"/><rect y="6.4" width="148" height="1.2" fill="#000"/><rect y="12.4" width="148" height="1.2" fill="#000"/></mask><path mask="url(#wmkH)" d="M0 0h16v4h-16zM0 8h12v4h-12zM0 16h16v4h-16zM0 0h4v20h-4zM22 20V0h4.4l7.2 11V0h4.4v20h-4.4l-7.2-11v11zM44 0h16v4h-16zM44 16h16v4h-16zM44 0h4v20h-4zM66 0h4v20h-4zM66 16h16v4h-16zM88 0h16v4h-16zM88 0h4v20h-4zM100 0h4v20h-4zM92 9h8v4h-8zM110 0h4.4l3.6 13.4 3.6-13.4H126l-5.6 20h-4.8zM132 0h16v4h-16zM132 8h12v4h-12zM132 16h16v4h-16zM132 0h4v20h-4z"/></svg>
     </a>
     <nav class="nav-links" aria-label="Primary">
       <a href="#top" data-view="overview" class="active">Overview</a>
@@ -1572,14 +1572,14 @@ curl -H "Authorization: Bearer $NAN_TOKEN" \
   <div class="wrap">
     <div class="foot-grid">
       <div class="foot-brand">
-        <a href="#top" class="brand">
+        <a href="#top" class="brand" aria-label="Enclave home">
           <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
             <path d="M16 2 28 9v14L16 30 4 23V9z" stroke="var(--jade)" stroke-width="1.6"/>
             <path d="M16 7.333 24 12v8L16 24.667 8 20v-8z" stroke="var(--jade)" stroke-width="1.2" opacity=".55"/>
             <circle cx="16" cy="12.55" r="2.45" stroke="var(--jade)" stroke-width="1.6"/>
             <path d="M16 15v6.6M16 21.6h2M16 19.4h1.5" stroke="var(--jade)" stroke-width="1.6" stroke-linecap="round"/>
           </svg>
-          <span class="nm">ENCLAVE</span>
+          <svg class="nm" viewBox="0 0 148 20" fill="currentColor" aria-hidden="true"><mask id="wmkF"><rect width="148" height="20" fill="#fff"/><rect y="6.4" width="148" height="1.2" fill="#000"/><rect y="12.4" width="148" height="1.2" fill="#000"/></mask><path mask="url(#wmkF)" d="M0 0h16v4h-16zM0 8h12v4h-12zM0 16h16v4h-16zM0 0h4v20h-4zM22 20V0h4.4l7.2 11V0h4.4v20h-4.4l-7.2-11v11zM44 0h16v4h-16zM44 16h16v4h-16zM44 0h4v20h-4zM66 0h4v20h-4zM66 16h16v4h-16zM88 0h16v4h-16zM88 0h4v20h-4zM100 0h4v20h-4zM92 9h8v4h-8zM110 0h4.4l3.6 13.4 3.6-13.4H126l-5.6 20h-4.8zM132 0h16v4h-16zM132 8h12v4h-12zM132 16h16v4h-16zM132 0h4v20h-4z"/></svg>
         </a>
         <p>Trustless on-demand confidential compute, paid for exclusively in crypto.</p>
         <div class="foot-meta">
