@@ -958,11 +958,11 @@
           },
           "ratePerSecondUsdc": {
             "type": "string",
-            "example": "0.0004445"
+            "example": "0.0004306"
           },
           "ratePerHourUsdc": {
             "type": "string",
-            "example": "1.60"
+            "example": "1.55"
           }
         }
       },
@@ -1032,11 +1032,11 @@
               },
               "wholeNodePerSecondUsdc": {
                 "type": "string",
-                "example": "0.0005556"
+                "example": "0.0002778"
               },
               "wholeNodePerHourUsdc": {
                 "type": "string",
-                "example": "2.00"
+                "example": "1.00"
               }
             }
           },
