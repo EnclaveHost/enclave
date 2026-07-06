@@ -340,7 +340,7 @@ function kv(pairs) {
 // The app URL rule, same as the console: via the gateway each deployment is its
 // own origin <first-8-hex>.app.enclave.host; direct-to-enclave it's <origin>/x/<id>.
 const appLabel = (id) => isB32(id) ? id.slice(2, 10).toLowerCase() : String(id).replace(/^dep_/, "");
-const appUrl = (id) => /(^|\/\/)api\.nan\.host/i.test(API_BASE)
+const appUrl = (id) => /(^|\/\/)api\.(enclave|nan)\.host/i.test(API_BASE)
   ? `https://${appLabel(id)}.${DEFAULTS.appDomain}` : `${API_BASE}/x/${id}`;
 
 // ---- id + app-ref resolution --------------------------------------------------
