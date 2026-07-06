@@ -14,42 +14,62 @@
 // app owns its port end to end); the relay holds no keys and no state beyond
 // live connections.
 //
+// FLEET-AWARE: serves every enclave the fleet source lists (see fleet.mjs) —
+// each poll merges every live enclave's /v1/net-map, and each listener
+// remembers which enclave owns its deployment. Enclaves come and go without
+// touching this daemon's config. Deployment ids are unique fleet-wide (on-chain
+// bytes32), so derived addresses never collide across enclaves.
+//
 // PREREQUISITE (the box, once): AnyIP so the whole /64 is bind-able without
 // configuring 2^64 addresses —
 //     ip -6 route add local <prefix>/64 dev lo
 // The systemd unit does this in ExecStartPre. CAP_NET_BIND_SERVICE lets it
 // serve privileged logical ports (tcp:443, tcp:80) on the dedicated address.
+// Every enclave with dedicated addressing on must set DEP_ADDR_PREFIX to THIS
+// box's /64 (their derived addresses are all bound here).
 //
 // TRUST: the relay sees ciphertext only if the app speaks TLS; a plaintext app
 // is visible to the relay (it can drop, not usefully forge - no keys, no state).
 // Apps needing confidentiality terminate their own TLS. Documented in README.md.
 //
 // Config (env):
-//   ENCLAVE_URL        required   enclave origin (https:// -> wss://)
+//   REGISTRY_ADDRESS   required*   NanRegistry on Base: on-chain fleet discovery
+//   ENCLAVES           required*   *instead: static comma list of enclave origins
+//   ENCLAVE_URL        (legacy)    single-enclave pin, folded into ENCLAVES
+//   BASE_RPC / REGISTRY_POLL_SEC / STALE_AFTER_SEC   registry mode knobs (fleet.mjs)
 //   NET_POLL_SEC       optional   /v1/net-map poll cadence (default 5)
 //   TCP6_MAX_CONNS     optional   concurrent client-connection cap (default 4096)
 //   TCP6_HANDSHAKE_MS  optional   ms to establish the enclave WS before giving up (10000)
 
 import net from "node:net";
 import WebSocket, { createWebSocketStream } from "ws";
+import { createFleet, fleetConfig, fetchJson } from "./fleet.mjs";
 
-const need = (k) => { const v = (process.env[k] || "").trim(); if (!v) { console.error(`fatal: ${k} is required`); process.exit(1); } return v; };
-const ENCLAVE   = need("ENCLAVE_URL").replace(/\/+$/, "").replace(/^http/, "ws");
-const MAP_URL   = need("ENCLAVE_URL").replace(/\/+$/, "") + "/v1/net-map";
+const CFG = fleetConfig();
+if (!CFG.registryAddress && !CFG.staticList.length) {
+  console.error("fatal: set REGISTRY_ADDRESS (on-chain discovery) or ENCLAVES (static list)");
+  process.exit(1);
+}
+const fleet     = createFleet(CFG, (m) => console.log("[tcp6-relay]", m));
 const POLL_MS   = parseInt(process.env.NET_POLL_SEC || "5", 10) * 1000;
 const MAX_CONNS = parseInt(process.env.TCP6_MAX_CONNS || "4096", 10);
 const HS_MS     = parseInt(process.env.TCP6_HANDSHAKE_MS || "10000", 10);
 
+const wsOrigin = (origin) => origin.replace(/^http/, "ws");
+
 // one listener per (deployment, address, logical port); each accepts many client
-// connections, each getting its own WS to the enclave so streams stay separate.
-const listeners = new Map();   // `${id}|${address}|${port}` -> { srv, id, address, port }
+// connections, each getting its own WS to the owning enclave so streams stay
+// separate. `origin` is refreshed each poll (a deployment stays keyed the same
+// even if it reappears on another enclave).
+const listeners = new Map();   // `${id}|${address}|${port}` -> { srv, origin, id, address, port }
 let connCount = 0;
 
-function openListener(id, address, port) {
+function openListener(origin, id, address, port) {
   const key = `${id}|${address}|${port}`;
-  if (listeners.has(key)) return;
-  const srv = net.createServer((client) => splice(client, id, port));
-  const L = { srv, id, address, port };
+  const have = listeners.get(key);
+  if (have) { have.origin = origin; return; }
+  const srv = net.createServer((client) => splice(client, L));
+  const L = { srv, origin, id, address, port };
   listeners.set(key, L);
   srv.on("error", (e) => {
     if (e.code === "EADDRNOTAVAIL")
@@ -60,22 +80,22 @@ function openListener(id, address, port) {
       console.error(`[tcp6-relay] [${address}]:${port}: ${e.message}`);
     try { srv.close(); } catch {} listeners.delete(key);
   });
-  srv.listen(port, address, () => console.log(`[tcp6-relay] [${address}]:${port} -> ${ENCLAVE}/x/${id}/tcp/${port}`));
+  srv.listen(port, address, () => console.log(`[tcp6-relay] [${address}]:${port} -> ${L.origin}/x/${id}/tcp/${port}`));
 }
 
-function splice(client, id, port) {
+function splice(client, L) {
   if (connCount >= MAX_CONNS) { client.destroy(); return; }
   connCount++;
   client.once("close", () => connCount--);
   client.on("error", () => client.destroy());
   client.pause();
 
-  const ws = new WebSocket(`${ENCLAVE}/x/${encodeURIComponent(id)}/tcp/${port}`, { perMessageDeflate: false });
+  const ws = new WebSocket(`${wsOrigin(L.origin)}/x/${encodeURIComponent(L.id)}/tcp/${L.port}`, { perMessageDeflate: false });
   const wsStream = createWebSocketStream(ws);
   const hsTimer = setTimeout(() => { try { ws.terminate(); } catch {} client.destroy(); }, HS_MS);
   const close = () => { clearTimeout(hsTimer); client.destroy(); try { ws.terminate(); } catch {} };
   ws.on("unexpected-response", (_req, res) => {
-    console.log(`[tcp6-relay] ${id} tcp:${port} refused by enclave (HTTP ${res.statusCode})`);
+    console.log(`[tcp6-relay] ${L.id} tcp:${L.port} refused by enclave (HTTP ${res.statusCode})`);
     close();
   });
   client.on("close", close);
@@ -94,26 +114,35 @@ function closeListener(key) {
 }
 
 async function poll() {
-  let map;
-  try {
-    const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 4000);
-    const r = await fetch(MAP_URL, { signal: ctrl.signal }); clearTimeout(t);
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    map = await r.json();
-  } catch (e) { console.error("[tcp6-relay] net-map poll failed:", e.message); return; }
-  if (!map.enabled) {
-    if (listeners.size) console.log("[tcp6-relay] dedicated addressing disabled at enclave; unbinding");
-    for (const k of [...listeners.keys()]) closeListener(k);
-    return;
+  const origins = fleet.origins();
+  const results = await Promise.all(origins.map(async (origin) =>
+    ({ origin, map: await fetchJson(origin + "/v1/net-map") })));
+
+  const desired = new Map();       // key -> owning origin
+  const failed  = new Set();       // unreachable this round — keep their bindings
+  for (const { origin, map } of results) {
+    if (!map) { failed.add(origin); console.error(`[tcp6-relay] net-map poll failed: ${origin}`); continue; }
+    if (!map.enabled) continue;    // dedicated addressing off there — nothing to bind
+    for (const d of map.deployments || []) {
+      if (!d.address) continue;
+      for (const port of d.tcp || []) {
+        const key = `${d.id}|${d.address}|${port}`;
+        if (!desired.has(key)) desired.set(key, origin);
+      }
+    }
   }
-  const want = new Set();
-  for (const d of map.deployments || []) {
-    if (!d.address) continue;
-    for (const port of d.tcp || []) { want.add(`${d.id}|${d.address}|${port}`); openListener(d.id, d.address, port); }
+
+  for (const [key, origin] of desired) {
+    const [id, address, port] = key.split("|");
+    openListener(origin, id, address, parseInt(port, 10));
   }
-  for (const k of [...listeners.keys()]) if (!want.has(k)) closeListener(k);   // deployment gone → stop binding
+  // deployment gone (or its enclave left the fleet / disabled addressing) →
+  // stop binding; an enclave that merely failed this poll keeps its listeners.
+  for (const [key, L] of [...listeners])
+    if (!desired.has(key) && !failed.has(L.origin)) closeListener(key);
 }
 
+await fleet.start();
 await poll();
 setInterval(poll, POLL_MS);
-console.log(`[tcp6-relay] polling ${MAP_URL} every ${POLL_MS / 1000}s`);
+console.log(`[tcp6-relay] polling /v1/net-map across the fleet every ${POLL_MS / 1000}s`);

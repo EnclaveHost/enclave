@@ -9,9 +9,13 @@
 // The enclave front (egress.js) authenticates the guest and derives `source`
 // (the deployment's own IPv6) from the AUTHENTICATED id — this daemon never
 // picks the source, it just binds what it's told. So a deployment can only ever
-// egress as its own address. We hold ONE control WS to the enclave (relay-
-// initiated, so the shim stays the only ingress); each OPEN gets its own dial +
-// data WS, exactly like an inbound connection in reverse.
+// egress as its own address.
+//
+// FLEET-AWARE: one relay-initiated control WS PER LIVE ENCLAVE (see fleet.mjs —
+// the shim stays each enclave's only ingress); each OPEN gets its own dial +
+// data WS back to the enclave that asked, exactly like an inbound connection in
+// reverse. Enclaves come and go without touching this daemon's config; set the
+// SAME EGRESS_RELAY_TOKEN on every enclave (like the shared SECRET).
 //
 // PREREQUISITE (the box, once): the same AnyIP /64 the tcp6/udp relays use, so
 // `localAddress = <a /64 address>` binds. The systemd unit sets it (shared).
@@ -23,8 +27,11 @@
 // SOCKS failure. This protects the relay box's OWN localhost + private services.
 //
 // Config (env):
-//   ENCLAVE_URL         required   enclave origin (https:// -> wss://)
-//   EGRESS_RELAY_TOKEN  required   shared secret; must match the enclave's
+//   REGISTRY_ADDRESS    required*  NanRegistry on Base: on-chain fleet discovery
+//   ENCLAVES            required*  *instead: static comma list of enclave origins
+//   ENCLAVE_URL         (legacy)   single-enclave pin, folded into ENCLAVES
+//   BASE_RPC / REGISTRY_POLL_SEC / STALE_AFTER_SEC   registry mode knobs (fleet.mjs)
+//   EGRESS_RELAY_TOKEN  required   shared secret; must match EVERY enclave's
 //   EGRESS_PREFIX       optional   the routed /64 (systemd AnyIP only; unused here)
 //   EGRESS_ALLOW_V4     optional   "1" to also proxy to v4 destinations from the
 //                                  box's shared v4 (NO dedicated source there);
@@ -36,15 +43,23 @@ import net from "node:net";
 import dns from "node:dns/promises";
 import WebSocket, { createWebSocketStream } from "ws";
 import { isBlockedHost, parseIp } from "./net-guard.mjs";
+import { createFleet, fleetConfig } from "./fleet.mjs";
 
 const need = (k) => { const v = (process.env[k] || "").trim(); if (!v) { console.error(`fatal: ${k} is required`); process.exit(1); } return v; };
-const ORIGIN    = need("ENCLAVE_URL").replace(/\/+$/, "");
-const ENCLAVE   = ORIGIN.replace(/^http/, "ws");
+const CFG = fleetConfig();
+if (!CFG.registryAddress && !CFG.staticList.length) {
+  console.error("fatal: set REGISTRY_ADDRESS (on-chain discovery) or ENCLAVES (static list)");
+  process.exit(1);
+}
+const fleet     = createFleet(CFG, (m) => console.log("[egress-relay]", m));
 const TOKEN     = need("EGRESS_RELAY_TOKEN");
 const ALLOW_V4  = /^(1|true|on)$/i.test(process.env.EGRESS_ALLOW_V4 || "");
 const MAX_CONNS = parseInt(process.env.EGRESS_MAX_CONNS || "4096", 10);
 const DIAL_MS   = parseInt(process.env.EGRESS_DIAL_MS || "10000", 10);
 const AUTH      = { Authorization: `Bearer ${TOKEN}` };
+const RECONCILE_MS = 5000;
+
+const wsOrigin = (origin) => origin.replace(/^http/, "ws");
 
 let connCount = 0;
 
@@ -67,7 +82,7 @@ async function pickTarget(host) {
   throw new Error("denied");
 }
 
-function handleOpen(control, { cid, host, port, source }) {
+function handleOpen(control, origin, { cid, host, port, source }) {
   if (!cid || !host || !port || !source) return;
   if (connCount >= MAX_CONNS) { control.send(JSON.stringify({ type: "close", cid, reason: "error" })); return; }
 
@@ -93,7 +108,7 @@ function handleOpen(control, { cid, host, port, source }) {
     dst.once("connect", () => {
       if (settled) return; settled = true; clearTimeout(dialTimer);
       dst.pause();                                    // hold banner bytes until the tunnel is spliced
-      const ws = new WebSocket(`${ENCLAVE}/x/egress/${cid}`, { headers: AUTH, perMessageDeflate: false });
+      const ws = new WebSocket(`${wsOrigin(origin)}/x/egress/${cid}`, { headers: AUTH, perMessageDeflate: false });
       const wsStream = createWebSocketStream(ws);
       const hs = setTimeout(() => { try { ws.terminate(); } catch {} }, DIAL_MS);
       const close = () => { clearTimeout(hs); try { dst.destroy(); } catch {} try { ws.terminate(); } catch {} };
@@ -107,19 +122,51 @@ function handleOpen(control, { cid, host, port, source }) {
   }).catch(() => fail("denied"));
 }
 
-// The single control channel to the enclave. Relay-initiated (shim stays the
-// only ingress); on any drop we back off and reconnect.
-function connectControl() {
-  const ws = new WebSocket(`${ENCLAVE}/v1/egress-control`, { headers: AUTH, perMessageDeflate: false });
-  ws.on("open", () => console.log(`[egress-relay] control channel up -> ${ENCLAVE}`));
-  ws.on("message", (raw) => {
-    let m; try { m = JSON.parse(raw.toString()); } catch { return; }
-    if (m && m.type === "open") handleOpen(ws, m);
-  });
-  ws.on("unexpected-response", (_q, res) => console.error(`[egress-relay] control refused (HTTP ${res.statusCode}); check EGRESS_RELAY_TOKEN`));
-  const retry = () => { console.error("[egress-relay] control channel down; reconnecting in 2s"); setTimeout(connectControl, 2000); };
-  ws.on("close", retry); ws.on("error", (e) => console.error("[egress-relay]", e.message));
+// One control channel per enclave, relay-initiated (the shim stays each
+// enclave's only ingress). Reconnects with backoff while the enclave is in the
+// fleet; torn down (and its retry stopped) when the enclave leaves it.
+const controls = new Map();   // origin -> { ws, timer, stopped }
+
+function ensureControl(origin) {
+  if (controls.has(origin)) return;
+  const slot = { ws: null, timer: null, stopped: false };
+  controls.set(origin, slot);
+  const connect = () => {
+    if (slot.stopped) return;
+    const ws = new WebSocket(`${wsOrigin(origin)}/v1/egress-control`, { headers: AUTH, perMessageDeflate: false });
+    slot.ws = ws;
+    ws.on("open", () => console.log(`[egress-relay] control channel up -> ${origin}`));
+    ws.on("message", (raw) => {
+      let m; try { m = JSON.parse(raw.toString()); } catch { return; }
+      if (m && m.type === "open") handleOpen(ws, origin, m);
+    });
+    ws.on("unexpected-response", (_q, res) => console.error(`[egress-relay] control refused by ${origin} (HTTP ${res.statusCode}); check EGRESS_RELAY_TOKEN`));
+    ws.on("close", () => {
+      if (slot.stopped) return;
+      console.error(`[egress-relay] control channel down (${origin}); reconnecting in 2s`);
+      slot.timer = setTimeout(connect, 2000);
+    });
+    ws.on("error", (e) => console.error(`[egress-relay] ${origin}:`, e.message));
+  };
+  connect();
 }
 
-console.log(`[egress-relay] dedicated-IP egress relay -> ${ENCLAVE} (v4 ${ALLOW_V4 ? "allowed (shared source)" : "off"})`);
-connectControl();
+function dropControl(origin) {
+  const slot = controls.get(origin); if (!slot) return;
+  slot.stopped = true;
+  clearTimeout(slot.timer);
+  try { slot.ws && slot.ws.close(); } catch {}
+  controls.delete(origin);
+  console.log(`[egress-relay] enclave left the fleet: ${origin}`);
+}
+
+function reconcile() {
+  const want = new Set(fleet.origins());
+  for (const origin of want) ensureControl(origin);
+  for (const origin of [...controls.keys()]) if (!want.has(origin)) dropControl(origin);
+}
+
+console.log(`[egress-relay] dedicated-IP egress relay (v4 ${ALLOW_V4 ? "allowed (shared source)" : "off"})`);
+await fleet.start();
+reconcile();
+setInterval(reconcile, RECONCILE_MS);
