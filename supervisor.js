@@ -132,13 +132,19 @@ async function mgrHealth(timeoutMs = 3000) {
 }
 
 // --- app manager client ("vm" backend on VMMGR_URL; the wasm-manager) --------
+// The manager's control API is loopback-reachable by TENANTS too (guests hold
+// outbound HTTP), so it enforces a shared control token when configured: both
+// containers get the same SECRET and the manager rejects control calls without
+// it. VMMGR_TOKEN overrides if the two ever need to differ.
+const VMMGR_TOKEN = process.env.VMMGR_TOKEN || process.env.SECRET || "";
 function vmReq(method, path, body, timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
     const u = new URL(VMMGR_URL + path);
     const data = body != null ? Buffer.from(JSON.stringify(body)) : null;
     const r = http.request(
       { host: u.hostname, port: u.port || 80, path: u.pathname + u.search, method, timeout: timeoutMs,
-        headers: { "Content-Type": "application/json", ...(data ? { "Content-Length": data.length } : {}) } },
+        headers: { "Content-Type": "application/json", ...(VMMGR_TOKEN ? { "X-Vmmgr-Token": VMMGR_TOKEN } : {}),
+                   ...(data ? { "Content-Length": data.length } : {}) } },
       (res) => { let buf = ""; res.on("data", (c) => (buf += c));
                  res.on("end", () => { let j; try { j = JSON.parse(buf || "{}"); } catch { j = { raw: buf }; }
                                        resolve({ status: res.statusCode || 0, body: j }); }); });
