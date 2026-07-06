@@ -1,7 +1,7 @@
 # ipfs_fetch.py — fetch a wasm by IPFS CID and VERIFY the bytes match the CID.
 #
 # Why verify: the enclave fetches from an IPFS gateway it does not trust (it may be
-# operator-run, e.g. ipfs.nan.host). Content-addressing only helps if we re-check it:
+# operator-run, e.g. ipfs.enclave.host). Content-addressing only helps if we re-check it:
 # we pull the whole DAG as a CAR (trustless gateway format), confirm every block
 # hashes to its own CID, then reassemble the file from the block referenced by the
 # CID the caller asked for. A gateway that swaps or corrupts bytes fails the hash
