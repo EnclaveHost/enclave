@@ -51,7 +51,10 @@ const STALE_AFTER_SEC   = parseInt(process.env.STALE_AFTER_SEC || "3600", 10);
 // /x/<id> data path, so each app is its OWN origin (isolated from the frontend
 // and from other tenants). Host uses a hyphen ("dep-abc") since "_" is invalid
 // in a hostname; we map it back to the canonical "dep_abc". Empty = disabled.
-const APP_DOMAIN        = (process.env.APP_DOMAIN || "").toLowerCase().replace(/^\.+|\.+$/g, "");
+// Comma-separated: during a domain cutover both the new and the old suffix
+// route (e.g. "app.enclave.host,app.nan.host"); the first entry is primary.
+const APP_DOMAINS       = (process.env.APP_DOMAIN || "").toLowerCase().split(",")
+  .map(s => s.trim().replace(/^\.+|\.+$/g, "")).filter(Boolean);
 
 if (!REGISTRY_ADDRESS && !STATIC_ENCLAVES.length) {
   console.error("fatal: set REGISTRY_ADDRESS (on-chain discovery) or ENCLAVES (static list)");
@@ -394,10 +397,10 @@ async function gateway(u, req, res) {
 // The subdomain drops the "dep_" (redundant in this namespace): "abc123" ->
 // "dep_abc123". A legacy "dep-abc123" is still accepted.
 function depFromHost(host) {
-  if (!APP_DOMAIN) return null;
   host = (host || "").toLowerCase().split(":")[0];
-  if (!host.endsWith("." + APP_DOMAIN)) return null;
-  const label = host.slice(0, -(APP_DOMAIN.length + 1)).replace(/^dep[-_]/, "");   // strip a legacy prefix if present
+  const dom = APP_DOMAINS.find(d => host.endsWith("." + d));
+  if (!dom) return null;
+  const label = host.slice(0, -(dom.length + 1)).replace(/^dep[-_]/, "");   // strip a legacy prefix if present
   // On-chain (NanDeployments) ids are bytes32; a full 64-hex id exceeds DNS's
   // 63-char label limit, so their subdomain is a hex PREFIX of the id - the
   // canonical label is the FIRST 8 CHARS (32 bits; collisions are fantasy),

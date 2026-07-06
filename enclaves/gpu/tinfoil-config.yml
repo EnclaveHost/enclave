@@ -68,10 +68,10 @@ containers:
       - PROVISION_BACKEND: "vm"                          # "vm" = wasm app hosting (wasm-manager); "worker" = GPU PTX
       - VMMGR_URL: "http://localhost:8091"               # the wasm-manager (container below); "vm"/VMMGR names are legacy
       - PUBLIC_URL: ""                                  # empty: supervisor derives its origin per-request from the Host header (handles enclave1..N with one config). Verify the returned network.endpoint on first deploy.
-      - SIWE_DOMAIN: "nan.host"
-      - SIWE_URI: "https://nan.host"
+      - SIWE_DOMAIN: "enclave.host"
+      - SIWE_URI: "https://enclave.host"
       - CHAIN_ID: "8453"
-      - CORS_ORIGINS: "https://nan.host"
+      - CORS_ORIGINS: "https://enclave.host"
       - BASE_RPC: "https://mainnet.base.org"
       # pay-per-deploy (no custody): supervisor WATCHES this forwarder for payments.
       # FORWARDER_ADDRESS = deployed NanPay contract. USDC funds go straight to the
@@ -158,7 +158,7 @@ containers:
       # origin so clients can pin the relay-path session to the enclave; being
       # plain (measured) config, the domain itself is attested too. Empty =
       # the /tls/ bridge is disabled.
-      - TLS_BRIDGE_DOMAIN: "tcp.nan.host"
+      - TLS_BRIDGE_DOMAIN: "tcp.enclave.host"
     # fair-billing state (deployments, funded-time balances, payment-scan cursor).
     # Persisting it means a supervisor restart FREEZES every deployment's clock and
     # payment watching resumes where it stopped, instead of forfeiting paid time.

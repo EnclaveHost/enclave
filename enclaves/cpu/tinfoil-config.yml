@@ -41,10 +41,10 @@ containers:
       - PROVISION_BACKEND: "vm"                          # required on a CPU enclave (no GPU worker exists)
       - VMMGR_URL: "http://localhost:8091"               # the wasm-manager (container below)
       - PUBLIC_URL: ""                                  # empty: supervisor derives its origin per-request from the Host header
-      - SIWE_DOMAIN: "nan.host"
-      - SIWE_URI: "https://nan.host"
+      - SIWE_DOMAIN: "enclave.host"
+      - SIWE_URI: "https://enclave.host"
       - CHAIN_ID: "8453"
-      - CORS_ORIGINS: "https://nan.host"
+      - CORS_ORIGINS: "https://enclave.host"
       - BASE_RPC: "https://mainnet.base.org"
       # pay-per-deploy (no custody): same NanPay forwarder as the GPU flavor.
       - FORWARDER_ADDRESS: "0xaA943DfDF4e9F9F33C04e35D31E2645C69C7D8D9"
