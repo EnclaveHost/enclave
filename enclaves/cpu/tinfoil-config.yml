@@ -86,9 +86,11 @@ containers:
       # manual-billing / pilot controls, same semantics as the GPU flavor.
       - AUTO_PROVISION: ""
       - AUTO_PROVISION_HOURS: "0"
-      # public-TCP relay support; empty disables the /tls/ bridge on this flavor
-      # until a relay domain is routed to it.
-      - TLS_BRIDGE_DOMAIN: ""
+      # public-TCP relay support: mints the in-enclave platform cert for the
+      # SNI relay's /x/:id/tls/:port bridge. Same suffix as the GPU flavor so the
+      # (fleet-aware) SNI relay routes stock-TLS clients to whichever enclave
+      # owns the deployment. Empty disables the /tls/ bridge on this flavor.
+      - TLS_BRIDGE_DOMAIN: "tcp.enclave.host"
     volumes:
       - /mnt/ramdisk/nan-state:/var/lib/nan
     secrets:
