@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>NaN · Trustless Confidential Compute</title>
+<title>Enclave · Trustless Confidential Compute</title>
 <meta name="description" content="Trustless on-demand confidential GPU compute. Deploy a WebAssembly app onto a confidential H200 from your browser, pay in ETH or USDC, and verify the enclave yourself. CORS-friendly API." />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 28 9v14L16 30 4 23V9z' fill='none' stroke='%232FE6A8' stroke-width='2'/%3E%3Cpath d='M16 10v12M11 13l5-3 5 3' fill='none' stroke='%232FE6A8' stroke-width='2'/%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M11.5 13V9.5a4.5 4.5 0 0 1 9 0V13' fill='none' stroke='%232FE6A8' stroke-width='2'/%3E%3Cpath d='M9.5 13h13L26 19.75 22.5 26.5h-13L6 19.75z' fill='none' stroke='%232FE6A8' stroke-width='2'/%3E%3Ccircle cx='16' cy='18.7' r='2' fill='%232FE6A8'/%3E%3Cpath d='M16 20.7v3.2' stroke='%232FE6A8' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
 <style>
 /* ============================================================
-   NaN design tokens
+   Enclave design tokens
    mono = product voice · jade = verified · amber = compute
    ============================================================ */
 :root{
@@ -442,13 +442,14 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
 <!-- ===================== NAV ===================== -->
 <header class="nav">
   <div class="wrap nav-inner">
-    <a href="#top" class="brand" aria-label="NaN home">
+    <a href="#top" class="brand" aria-label="Enclave home">
       <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
-        <path d="M16 2 28 9v14L16 30 4 23V9z" stroke="var(--jade)" stroke-width="1.6"/>
-        <path d="M16 9.5 22 13v6l-6 3.5L10 19v-6z" stroke="var(--jade)" stroke-width="1.2" opacity=".55"/>
-        <path d="M16 13.2v5.6M13.4 14.6 16 13l2.6 1.6" stroke="var(--jade)" stroke-width="1.4"/>
+        <path d="M11.5 13V9.5a4.5 4.5 0 0 1 9 0V13" stroke="var(--jade)" stroke-width="1.6"/>
+        <path d="M9.5 13h13L26 19.75 22.5 26.5h-13L6 19.75z" stroke="var(--jade)" stroke-width="1.6"/>
+        <circle cx="16" cy="18.7" r="2.1" stroke="var(--jade)" stroke-width="1.4"/>
+        <path d="M16 20.8v2.9" stroke="var(--jade)" stroke-width="1.4" stroke-linecap="round"/>
       </svg>
-      <span class="nm">NaN</span>
+      <span class="nm">Enclave</span>
     </a>
     <nav class="nav-links" aria-label="Primary">
       <a href="#top" data-view="overview" class="active">Overview</a>
@@ -513,7 +514,7 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
     <div class="sec-head">
       <span class="eyebrow">The model</span>
       <h2>Don't trust the operator. Measure it.</h2>
-      <p>NaN runs your WebAssembly app inside a hardware-isolated, attested enclave with a confidential H200 GPU wired into it, so the operator can't read your memory, your keys, or your traffic, and you don't have to take our word for it. Every claim on this page is something you can check on-chain or in a signed attestation. We're equally explicit about the part that <i>isn't</i> hardware-enforced: how tenants are kept apart from each other on a shared GPU. <a href="#isolation">See exactly how isolation works ↓</a></p>
+      <p>Enclave runs your WebAssembly app inside a hardware-isolated, attested enclave with a confidential H200 GPU wired into it, so the operator can't read your memory, your keys, or your traffic, and you don't have to take our word for it. Every claim on this page is something you can check on-chain or in a signed attestation. We're equally explicit about the part that <i>isn't</i> hardware-enforced: how tenants are kept apart from each other on a shared GPU. <a href="#isolation">See exactly how isolation works ↓</a></p>
     </div>
     <div class="cards">
       <div class="card jade">
@@ -526,7 +527,7 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h4a1.8 1.8 0 010 3.6H10a1.8 1.8 0 000 3.6h4.5"/></svg></div>
         <span class="tag">no accounts</span>
         <h3>Crypto-native</h3>
-        <p>No accounts, no deposits, no custody. You pay USDC or ETH per deployment straight through to NaN; each payment buys runtime by the second, and you top up to keep an instance alive. We never hold your balance.</p>
+        <p>No accounts, no deposits, no custody. You pay USDC or ETH per deployment straight through to Enclave; each payment buys runtime by the second, and you top up to keep an instance alive. We never hold your balance.</p>
       </div>
       <div class="card jade">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg></div>
@@ -846,14 +847,14 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
     <div class="sec-head">
       <span class="eyebrow">How isolation is achieved</span>
       <h2>Two boundaries. One is hardware. One is not. We tell you which.</h2>
-      <p>Most "confidential GPU" pitches blur these together. NaN keeps them separate because they're enforced by different things and carry different guarantees. Here is precisely what protects you, and from whom.</p>
+      <p>Most "confidential GPU" pitches blur these together. Enclave keeps them separate because they're enforced by different things and carry different guarantees. Here is precisely what protects you, and from whom.</p>
     </div>
 
     <div class="cards">
       <div class="card jade">
         <span class="tag">hardware · attested</span>
         <h3>You vs. the operator</h3>
-        <p>Your enclave runs in a CPU TEE (Intel TDX) with the H200 in NVIDIA confidential-computing mode. The CPU↔GPU link is encrypted and the GPU is walled off from the host. NaN, the operator, cannot read your VRAM, RAM, keys, or traffic. This is enforced by hardware and proven by an attestation you verify in your browser <b>before</b> sending data. This is the strong guarantee, and it's the one you can check cryptographically.</p>
+        <p>Your enclave runs in a CPU TEE (Intel TDX) with the H200 in NVIDIA confidential-computing mode. The CPU↔GPU link is encrypted and the GPU is walled off from the host. Enclave, the operator, cannot read your VRAM, RAM, keys, or traffic. This is enforced by hardware and proven by an attestation you verify in your browser <b>before</b> sending data. This is the strong guarantee, and it's the one you can check cryptographically.</p>
       </div>
       <div class="card amber">
         <span class="tag">software · Wasm sandbox + process</span>
@@ -979,7 +980,7 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
         <!-- 01 ------------------------------------------------------------ -->
         <article class="doc" id="docs-model">
           <h3><span class="n">01</span>The app model</h3>
-          <p>A NaN app is a <b>WebAssembly component</b> that targets <code>wasi:http</code>, the format <code>wasmtime serve</code> runs. It exports one interface, <code>wasi:http/incoming-handler</code>: the runtime hands your code an HTTP request, your code returns a response. Like a serverless function, except it runs inside a hardware-attested confidential enclave, and anyone can verify that.</p>
+          <p>An Enclave app is a <b>WebAssembly component</b> that targets <code>wasi:http</code>, the format <code>wasmtime serve</code> runs. It exports one interface, <code>wasi:http/incoming-handler</code>: the runtime hands your code an HTTP request, your code returns a response. Like a serverless function, except it runs inside a hardware-attested confidential enclave, and anyone can verify that.</p>
           <p>Inside the enclave your app runs in a strict capability sandbox, in its own OS process, launched by the exact same <code>wasmtime</code> command you can run locally:</p>
           <ul>
             <li><b>Filesystem</b>: a single private, writable <code>/data</code> directory (RAM-backed scratch, torn down with the deployment). Nothing else is visible, and paths that escape it (<code>/data/../..</code>) are refused by the runtime. <a href="#docs-data">Chapter 08 →</a></li>
@@ -1027,8 +1028,8 @@ wasmtime --version</code></pre></div>
 cargo add wasi        # WASI 0.2 bindings</code></pre></div>
 
           <h4>Step 2: declare the world</h4>
-          <p>The world tells the toolchain what your component imports and exports. A NaN web app exports exactly one thing:</p>
-          <div class="code"><div class="codebar"><span class="fn">wit/world.wit</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code>package nan:hello;
+          <p>The world tells the toolchain what your component imports and exports. An Enclave web app exports exactly one thing:</p>
+          <div class="code"><div class="codebar"><span class="fn">wit/world.wit</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code>package enclave:hello;
 
 world hello {
   export wasi:http/incoming-handler@0.2.0;
@@ -1052,7 +1053,7 @@ impl wasi::exports::http::incoming_handler::Guest for Component {
         // 2. hand the response to the host FIRST, then stream the body
         ResponseOutparam::set(out, Ok(resp));
         let stream = body.write().unwrap();
-        stream.blocking_write_and_flush(b"hello from NaN\n").unwrap();
+        stream.blocking_write_and_flush(b"hello from Enclave\n").unwrap();
         drop(stream);
 
         // 3. finishing the body is what completes the response
@@ -1071,7 +1072,7 @@ impl wasi::exports::http::incoming_handler::Guest for Component {
 
           <h4>Step 5: run it locally</h4>
           <div class="code"><div class="codebar"><span class="fn">terminal</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code>wasmtime serve --addr 127.0.0.1:8080 target/wasm32-wasip2/release/hello.wasm
-curl 127.0.0.1:8080/          # → hello from NaN</code></pre></div>
+curl 127.0.0.1:8080/          # → hello from Enclave</code></pre></div>
           <p>Works? Then it works in the enclave. For a full dress rehearsal, add the exact flags the enclave launches with, giving you the same sandbox, memory cap, and <code>/data</code> preopen your deployment will get (the cap is your deployment's CPU share of the node's RAM - at least your published <code>memMb</code>; the 128&nbsp;MB minimum shown here):</p>
           <div class="code"><div class="codebar"><span class="fn">terminal · enclave parity</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code>mkdir -p scratch
 wasmtime serve -Scli -Shttp -Sp3 \
@@ -1145,7 +1146,7 @@ create("ipfs://bafybei…", 250, 50, 8080, "", true, "", "")
 // GET /availability lists the volumes the fleet carries (name, bytes, which enclaves).</code></pre></div>
 
           <h4>Fund it: pay-per-second, credited on-chain, no custody</h4>
-          <p>Funding lands in the deployment's on-chain <code>balance6</code> (the USDC itself forwards to NaN in the same transaction - the contract holds nothing). Your rate is snapshotted at create: <code>gpuShare × $6/hr + cpuShare × $2/hr</code>. Pay either way:</p>
+          <p>Funding lands in the deployment's on-chain <code>balance6</code> (the USDC itself forwards to Enclave in the same transaction - the contract holds nothing). Your rate is snapshotted at create: <code>gpuShare × $6/hr + cpuShare × $2/hr</code>. Pay either way:</p>
           <div class="code"><div class="codebar"><span class="fn">NanDeployments · two ways to fund</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code>// USDC: sign an EIP-3009 ReceiveWithAuthorization (gas-free wallet signature,
 // to = the NanDeployments contract, nonce prefixed with the id's first 16 bytes), then ONE tx:
 fundWithAuthorization(bytes32 id, address from, uint256 value,
@@ -1429,7 +1430,7 @@ let out   = ctx.compute(vec![("X".into(), x)])?;                     // named te
           <p><b>Getting the model in.</b> Embed it (<code>include_bytes!</code>) for anything small - it ships inside your published CID, so it's attested with your code. The practical ceilings: the wasm artifact is ≤&nbsp;2&nbsp;GB and <code>load()</code> passes the bytes through your linear memory (≤&nbsp;4&nbsp;GiB). Larger models: fetch them at startup over outbound HTTP into memory, and check the hash yourself before loading - the platform verifies your <i>code</i> by CID, a fetched model is your responsibility.</p>
           <div class="doc-note">
             <span class="nt">Local testing</span>
-            <p>Stock <code>wasmtime</code> release binaries don't compile wasi-nn in - and the platform's runtime carries patches you'll want locally too (strict GPU target, the full tensor-dtype set, zero-size tensors; unpatched wasmtime rejects everything but fp32). Build the same runtime the enclave uses: in a wasmtime 45 checkout, <code>git apply wasm/wasmtime-onnx-gpu-strict.patch</code> from the NaN repo, point <code>ORT_LIB_LOCATION</code> at the official Microsoft <code>onnxruntime-linux-x64-gpu</code> distribution, and <code>cargo build --release --features "wasi-nn,wasmtime-wasi-nn/onnx-cuda"</code>; then <code>wasmtime serve -S nn app.wasm</code>. (Avoid the <code>onnx-download</code> feature: it pulls a prebuilt ONNX Runtime with precompiled kernels for consumer GPUs only - it works on a desktop card but JIT-hangs on datacenter parts. The MS build is exactly how the platform's own runtime is built - see <code>wasm/Dockerfile.wasmtime</code> in the repo.) Without CUDA libraries installed, target <code>gpu</code> fails (by design); test with <code>cpu</code> locally and <code>gpu</code> on the enclave.</p>
+            <p>Stock <code>wasmtime</code> release binaries don't compile wasi-nn in - and the platform's runtime carries patches you'll want locally too (strict GPU target, the full tensor-dtype set, zero-size tensors; unpatched wasmtime rejects everything but fp32). Build the same runtime the enclave uses: in a wasmtime 45 checkout, <code>git apply wasm/wasmtime-onnx-gpu-strict.patch</code> from the Enclave repo, point <code>ORT_LIB_LOCATION</code> at the official Microsoft <code>onnxruntime-linux-x64-gpu</code> distribution, and <code>cargo build --release --features "wasi-nn,wasmtime-wasi-nn/onnx-cuda"</code>; then <code>wasmtime serve -S nn app.wasm</code>. (Avoid the <code>onnx-download</code> feature: it pulls a prebuilt ONNX Runtime with precompiled kernels for consumer GPUs only - it works on a desktop card but JIT-hangs on datacenter parts. The MS build is exactly how the platform's own runtime is built - see <code>wasm/Dockerfile.wasmtime</code> in the repo.) Without CUDA libraries installed, target <code>gpu</code> fails (by design); test with <code>cpu</code> locally and <code>gpu</code> on the enclave.</p>
           </div>
         </article>
 
@@ -1543,7 +1544,7 @@ curl -H "Authorization: Bearer $NAN_TOKEN" \
     <div class="api-head">
       <div class="sec-head" style="margin-bottom:0;">
         <span class="eyebrow">Reference</span>
-        <h2>The NaN API</h2>
+        <h2>The Enclave API</h2>
         <p>Everything the service does, fully scoped. Authenticate with an Ethereum signature, pay USDC or ETH per deployment, and orchestrate confidential compute over plain HTTPS.</p>
       </div>
       <div class="api-meta">
@@ -1571,10 +1572,12 @@ curl -H "Authorization: Bearer $NAN_TOKEN" \
       <div class="foot-brand">
         <a href="#top" class="brand">
           <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
-            <path d="M16 2 28 9v14L16 30 4 23V9z" stroke="var(--jade)" stroke-width="1.6"/>
-            <path d="M16 13.2v5.6M13.4 14.6 16 13l2.6 1.6" stroke="var(--jade)" stroke-width="1.4"/>
+            <path d="M11.5 13V9.5a4.5 4.5 0 0 1 9 0V13" stroke="var(--jade)" stroke-width="1.6"/>
+            <path d="M9.5 13h13L26 19.75 22.5 26.5h-13L6 19.75z" stroke="var(--jade)" stroke-width="1.6"/>
+            <circle cx="16" cy="18.7" r="2.1" stroke="var(--jade)" stroke-width="1.4"/>
+            <path d="M16 20.8v2.9" stroke="var(--jade)" stroke-width="1.4" stroke-linecap="round"/>
           </svg>
-          <span class="nm">NaN</span>
+          <span class="nm">Enclave</span>
         </a>
         <p>Trustless on-demand confidential compute, paid for exclusively in crypto.</p>
         <div class="foot-meta">
@@ -1607,7 +1610,7 @@ curl -H "Authorization: Bearer $NAN_TOKEN" \
       </div>
     </div>
     <div class="foot-bottom">
-      <span>© 2026 NaN · served from IPFS</span>
+      <span>© 2026 Enclave · served from IPFS</span>
       <span>built for the open, verifiable web</span>
     </div>
   </div>
@@ -1617,12 +1620,12 @@ curl -H "Authorization: Bearer $NAN_TOKEN" \
 <script>
 "use strict";
 /* ============================================================
-   NaN API · OpenAPI 3.1 specification (source of truth)
+   Enclave API · OpenAPI 3.1 specification (source of truth)
    ============================================================ */
 const SPEC = {
   "openapi": "3.1.0",
   "info": {
-    "title": "NaN API",
+    "title": "Enclave API",
     "version": "1.0.0",
     "summary": "Trustless on-demand confidential GPU compute for WebAssembly apps.",
     "description": "Deploy a confidential WebAssembly app into a hardware-isolated enclave with an H200 in NVIDIA confidential-computing mode exposed to it. Each app is a `wasi:http` component that runs sandboxed inside the enclave: no SSH, no host filesystem, no host environment, no ambient authority; just the request/response socket the runtime hands it. Apps are published to the on-chain app catalog (NanAppCatalog on Base) addressed by IPFS CID; the enclave fetches the CID and verifies every byte hashes to it before launch, and the verified CID is folded into the attestation. Authenticate with an Ethereum signature (SIWE), pay USDC or ETH per deployment (no accounts, no held balance), and verify the enclave yourself before you send data. Every endpoint is CORS-enabled so it can be driven directly from browser JavaScript."
@@ -1749,7 +1752,7 @@ const SPEC = {
         ],
         "operationId": "getAccount",
         "summary": "Account summary",
-        "description": "Your address, the USDC payment forwarder to pay, and counts of your running and awaiting-payment deployments plus total funded time remaining. No balances are held by NaN.",
+        "description": "Your address, the USDC payment forwarder to pay, and counts of your running and awaiting-payment deployments plus total funded time remaining. No balances are held by Enclave.",
         "responses": {
           "200": {
             "description": "Account summary.",
@@ -1876,7 +1879,7 @@ const SPEC = {
         ],
         "operationId": "createDeployment",
         "summary": "Create a deployment (awaiting payment)",
-        "description": "RETIRED on Wasm enclaves - returns 410 `deploy_on_chain` with the on-chain coordinates. Deployments are created on the NanDeployments contract (Base), not through this endpoint: the ledger holds the spec and the funded balance, so a deployment survives enclave updates and crashes (runners serve it under expiring leases; a dead runner's lease lapses and any enclave re-claims the work). Flow: (1) create(appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, sshPubKey, configCid) from YOUR wallet - msg.sender owns the record; the id is the Created event's first topic; shares are 1/1000ths and the app's catalog specs set the minimums runners will accept. (2) Fund it: fundWithAuthorization (EIP-3009 USDC ReceiveWithAuthorization signed to the contract, nonce prefixed with the id's first 16 bytes) or fundEth (credited at the contract's Chainlink ETH/USD read); funds forward to NaN in the same tx, the credit lands in on-chain balance6. (3) Optionally POST /claim-hint {id} so the fleet claims immediately instead of on the ~60s sweep. Runners enforce the same catalog-approval gate (403-equivalent: unapproved CIDs are never claimed) and the same share minimums. GET /pricing carries the contract address, USDC EIP-712 domain, and an ETH/USD quote.",
+        "description": "RETIRED on Wasm enclaves - returns 410 `deploy_on_chain` with the on-chain coordinates. Deployments are created on the NanDeployments contract (Base), not through this endpoint: the ledger holds the spec and the funded balance, so a deployment survives enclave updates and crashes (runners serve it under expiring leases; a dead runner's lease lapses and any enclave re-claims the work). Flow: (1) create(appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, sshPubKey, configCid) from YOUR wallet - msg.sender owns the record; the id is the Created event's first topic; shares are 1/1000ths and the app's catalog specs set the minimums runners will accept. (2) Fund it: fundWithAuthorization (EIP-3009 USDC ReceiveWithAuthorization signed to the contract, nonce prefixed with the id's first 16 bytes) or fundEth (credited at the contract's Chainlink ETH/USD read); funds forward to Enclave in the same tx, the credit lands in on-chain balance6. (3) Optionally POST /claim-hint {id} so the fleet claims immediately instead of on the ~60s sweep. Runners enforce the same catalog-approval gate (403-equivalent: unapproved CIDs are never claimed) and the same share minimums. GET /pricing carries the contract address, USDC EIP-712 domain, and an ETH/USD quote.",
         "requestBody": {
           "required": true,
           "content": {
@@ -2399,7 +2402,7 @@ const SPEC = {
       },
       "PaymentInstructions": {
         "type": "object",
-        "description": "How to fund (or top up) a deployment by paying the NanPay forwarder. Funds pass straight through to NaN; nothing is custodied.",
+        "description": "How to fund (or top up) a deployment by paying the NanPay forwarder. Funds pass straight through to Enclave; nothing is custodied.",
         "properties": {
           "chainId": {
             "type": "integer",
@@ -3489,7 +3492,7 @@ const SPEC = {
 };
 
 /* ============================================================
-   NaN runtime · helpers, highlighters, schema tools
+   Enclave runtime · helpers, highlighters, schema tools
    ============================================================ */
 const $  = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
@@ -4453,7 +4456,7 @@ function deployFetch(b){
     + 'const { id } = await createOnChain("' + DEPLOYMENTS_ADDRESS + '",\n'
     + '  ["' + r + '", ' + g + ', ' + c + ', 8080, "' + fw + '", ' + !!b.public + ', "", "' + cc + '"]);\n'
     + '//    id = topics[1] of the Created event in the receipt\n'
-    + '// 2) fund it - credited to the on-chain balance (funds forward to NaN):\n'
+    + '// 2) fund it - credited to the on-chain balance (funds forward to Enclave):\n'
     + '//    fundWithAuthorization(id, …EIP-3009 USDC sig…)  or  fundEth(id) payable\n'
     + '// 3) nudge the fleet (optional; the sweep claims funded work within ~1 min):\n'
     + 'await fetch("' + Nan.base + '/claim-hint", { method: "POST",\n'
@@ -4615,8 +4618,8 @@ async function payForRuntime(term, pay, fundUsdc){
     const ph = await sendTx(to, (ledger ? dataFundEth : dataPayEth)(pay.deploymentRef), "0x" + wei.toString(16));
     termLine(term, "ok", "[\u2713] payment sent " + ph);
     termLine(term, "dimln", ledger
-      ? "    credited to the deployment's on-chain balance at the contract's live Chainlink rate; funds forward to NaN"
-      : "    ETH goes straight to NaN; the enclave credits it at the live Chainlink rate");
+      ? "    credited to the deployment's on-chain balance at the contract's live Chainlink rate; funds forward to Enclave"
+      : "    ETH goes straight to Enclave; the enclave credits it at the live Chainlink rate");
     return ph;
   }
   // EIP-3009: the nonce must start with the deployment ref's first 16 bytes (the
@@ -4654,8 +4657,8 @@ async function payForRuntime(term, pay, fundUsdc){
   const ph = await sendTx(to, (ledger ? dataFundWithAuth : dataPayWithAuth)(pay.deploymentRef, Nan.address, amt6, 0, validBefore, nonce, sig));
   termLine(term, "ok", "[\u2713] payment sent " + ph);
   termLine(term, "dimln", ledger
-    ? "    credited to the deployment's on-chain balance; funds forward to NaN - nothing is custodied"
-    : "    funds go straight to NaN; nothing is custodied");
+    ? "    credited to the deployment's on-chain balance; funds forward to Enclave - nothing is custodied"
+    : "    funds go straight to Enclave; nothing is custodied");
   return ph;
 }
 
@@ -5307,7 +5310,7 @@ function injectLiveStyles(){
 let attestRaw = "";
 const LINKS = [
   { t: "Hardware root of trust", fn: "policy.json",
-    d: "Intel TDX and the NVIDIA GPU hold keys fused at manufacture. NaN can't extract or forge them. The silicon vendor is the root of trust, not the operator.",
+    d: "Intel TDX and the NVIDIA GPU hold keys fused at manufacture. Enclave can't extract or forge them. The silicon vendor is the root of trust, not the operator.",
     j: { tdx: { mrtd: "0x5a3c…91ef", minTcb: "2026.05" }, gpu: { approvedDrivers: ["565.57.01"], approvedVbios: ["96.00.AE.00.01"] } } },
   { t: "The VM measures itself", fn: "vm.json",
     d: "On boot the CPU emits a DCAP quote over MRTD + RTMR0–3, binding the firmware, the kernel, and the exact enclave image, including the Wasm app catalog baked into it. Change one byte and the quote changes.",
@@ -5881,7 +5884,7 @@ function useInDeploy(app, v){
 // /add endpoint is public, so Caddy's request_body max_size is the real ceiling,
 // and the attested wasm-manager is the authoritative "is it a runnable component"
 // gate at deploy. WebAssembly.validate() can't help: it only validates core
-// modules, and NaN apps are components, so we check the binary preamble by hand.
+// modules, and Enclave apps are components, so we check the binary preamble by hand.
 async function validateWasm(file){
   if (!/\.wasm$/i.test(file.name || "")) throw new NanError("Pick a .wasm file.", 0);
   if (file.size < 8) throw new NanError("That file is too small to be a WebAssembly module.", 0);
@@ -5892,7 +5895,7 @@ async function validateWasm(file){
   // Preamble after the magic is version:u16 + layer:u16. Key on the layer, which is
   // stable across component-version bumps: 0 = core module, 1 = component.
   const layer = h[6] | (h[7] << 8);
-  if (layer === 0) throw new NanError("This is a core wasm module, but NaN runs wasi:http *components*. Rebuild with cargo-component (target wasm32-wasip2).", 0);
+  if (layer === 0) throw new NanError("This is a core wasm module, but Enclave runs wasi:http *components*. Rebuild with cargo-component (target wasm32-wasip2).", 0);
   if (layer !== 1) throw new NanError("Unrecognized wasm preamble (layer " + layer + "); expected a wasi:http component.", 0);
   return true;
 }
