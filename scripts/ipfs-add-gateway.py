@@ -25,7 +25,10 @@
 #   PORT            listen port (default 5051, bound to 127.0.0.1 only)
 #   KUBO_API        Kubo API base (default http://127.0.0.1:5001)
 #   MAX_WASM_BYTES  hard size cap (default 2147483648 = 2 GiB - models ride inside app wasm)
-#   ALLOW_ORIGIN    CORS origin for the browser (default https://enclave.host)
+#   ALLOW_ORIGIN    CORS origin(s) for the browser, comma-separated — the
+#                   matching request Origin is echoed back (default
+#                   "https://enclave.host,https://nan.host": both work during
+#                   a domain transition; trim to one when the old dies)
 #   WASM_TOOLS      path to a `wasm-tools` binary to enable Tier 2 (default: off)
 
 import json, os, subprocess, tempfile, urllib.request, uuid
@@ -34,7 +37,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 PORT       = int(os.environ.get("PORT", "5051"))
 KUBO_API   = os.environ.get("KUBO_API", "http://127.0.0.1:5001").rstrip("/")
 MAX_BYTES  = int(os.environ.get("MAX_WASM_BYTES", str(2 * 1024 * 1024 * 1024)))
-ORIGIN     = os.environ.get("ALLOW_ORIGIN", "https://enclave.host")
+ORIGINS    = [o.strip().rstrip("/") for o in
+              os.environ.get("ALLOW_ORIGIN", "https://enclave.host,https://nan.host").split(",")
+              if o.strip()]
 WASM_TOOLS = os.environ.get("WASM_TOOLS", "")
 
 
@@ -89,7 +94,12 @@ def kubo_add(data: bytes, filename="app.wasm"):
 
 class Handler(BaseHTTPRequestHandler):
     def _cors(self):
-        self.send_header("Access-Control-Allow-Origin", ORIGIN)
+        # echo the request Origin when it's on the allowlist (a response can
+        # carry only ONE allow-origin value); Vary so caches keep them apart
+        origin = (self.headers.get("Origin") or "").rstrip("/")
+        self.send_header("Access-Control-Allow-Origin",
+                         origin if origin in ORIGINS else ORIGINS[0])
+        self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "content-type")
 
