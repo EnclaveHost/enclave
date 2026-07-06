@@ -16,8 +16,15 @@
 // Config (env):
 //   RELAY_DOMAIN            required  SNI suffix, e.g. "tcp.enclave.host"
 //                                     (point *.tcp.enclave.host at this box)
-//   ENCLAVE_URL             required  enclave origin, e.g.
-//                                     https://enclave1.nan.containers.tinfoil.dev
+//   REGISTRY_ADDRESS        required* NanRegistry on Base: FLEET discovery — the
+//                                     relay routes each SNI'd deployment to the
+//                                     enclave that OWNS it (learned from every
+//                                     enclave's /v1/net-map), so it follows an
+//                                     arbitrary, changing set of enclaves.
+//   ENCLAVES                required* *instead: static comma list of enclave
+//                                     origins (ENCLAVE_URL = legacy one-entry alias)
+//   BASE_RPC / REGISTRY_POLL_SEC / STALE_AFTER_SEC   registry-mode knobs (fleet.mjs)
+//   NET_POLL_SEC            optional  /v1/net-map poll cadence (default 5)
 //   RELAY_PORTS             required  comma list of "public[:logical]" ports and
 //                                     "lo-hi" ranges (range = pass-through, public
 //                                     == logical). "1-19999" serves every logical
@@ -44,6 +51,7 @@
 
 import net from "node:net";
 import WebSocket, { createWebSocketStream } from "ws";
+import { createFleet, fleetConfig, fetchJson } from "./fleet.mjs";
 
 const need = (k) => {
   const v = (process.env[k] || "").trim();
@@ -56,7 +64,17 @@ const need = (k) => {
 const DOMAINS   = need("RELAY_DOMAIN").toLowerCase().split(",")
   .map(s => s.trim().replace(/^\.+|\.+$/g, "")).filter(Boolean);
 const DOMAIN    = DOMAINS[0];
-const ENCLAVE   = need("ENCLAVE_URL").replace(/\/+$/, "").replace(/^http/, "ws"); // http(s):// -> ws(s)://
+// FLEET discovery (REGISTRY_ADDRESS / ENCLAVES / legacy ENCLAVE_URL): the relay
+// learns which enclave owns each deployment from their /v1/net-map, so one box
+// serves the whole fleet and follows enclaves as they come and go.
+const CFG = fleetConfig();
+if (!CFG.registryAddress && !CFG.staticList.length) {
+  console.error("fatal: set REGISTRY_ADDRESS (on-chain discovery) or ENCLAVES (static list)");
+  process.exit(1);
+}
+const fleet    = createFleet(CFG, (m) => console.log("[relay]", m));
+const POLL_MS  = parseInt(process.env.NET_POLL_SEC || "5", 10) * 1000;
+const wsOrigin = (o) => o.replace(/^http/, "ws");
 const MAX_CONNS = parseInt(process.env.RELAY_MAX_CONNS || "1024", 10);
 const HELLO_MS  = parseInt(process.env.RELAY_HELLO_TIMEOUT_MS || "10000", 10);
 const EXCLUDE = new Set((process.env.RELAY_EXCLUDE || "22").split(",").map((s) => +s.trim()).filter(Boolean));
@@ -115,6 +133,46 @@ function sniFromClientHello(buf) {
   } catch { return false; }                            // truncated/garbled -> reject
 }
 
+// --- fleet index: which enclave OWNS each deployment --------------------------
+// Poll every live enclave's /v1/net-map (the public tcp/udp deployments each
+// serves) and remember origin -> {full ids}. A SNI label (which for on-chain
+// ids is a hex PREFIX, or a legacy "dep_<base36>") resolves to the owning
+// origin + the canonical full id. An enclave that fails a poll keeps its last
+// set (a flaky RPC/enclave must not drop live routes); one that leaves the
+// fleet is dropped.
+const originDeps = new Map();          // origin -> Set<full deployment id>
+
+async function poll() {
+  const origins = fleet.origins();
+  const live = new Set(origins);
+  const results = await Promise.all(origins.map(async (o) =>
+    ({ o, map: await fetchJson(o + "/v1/net-map") })));
+  for (const { o, map } of results) {
+    if (!map) continue;                                    // unreachable -> keep last-known
+    if (!map.enabled) { originDeps.set(o, new Set()); continue; }
+    originDeps.set(o, new Set((map.deployments || []).map((d) => d.id)));
+  }
+  for (const o of [...originDeps.keys()]) if (!live.has(o)) originDeps.delete(o);
+}
+
+// Resolve a SNI label to { origin, id }. Matches an exact id, or (for on-chain
+// bytes32 ids) a unique hex prefix; ambiguous prefixes are refused.
+function resolve(label) {
+  const l = label.toLowerCase().replace(/^dep[_-]/, "").replace(/^0x/, "");
+  let hit = null;
+  for (const [origin, deps] of originDeps) {
+    for (const id of deps) {
+      const n = id.toLowerCase().replace(/^0x/, "");
+      if (id.toLowerCase() === label.toLowerCase() || n === l || ("dep_" + l) === id.toLowerCase()
+          || (l.length >= 6 && n.startsWith(l))) {
+        if (hit && hit.id !== id) return null;             // ambiguous -> refuse
+        hit = { origin, id };
+      }
+    }
+  }
+  return hit;
+}
+
 let conns = 0;
 
 function handle(client, logicalPort) {
@@ -137,16 +195,19 @@ function handle(client, logicalPort) {
     // char - OpenSSL refuses to wildcard-match it, so strict clients (psql,
     // python) would reject the cert. The advertised hostname therefore spells
     // it "dep-<base36>"; map that back to the canonical id here.
-    const dep = sni.slice(0, -(dom.length + 1)).replace(/^dep-/, "dep_");
-    if (!/^[a-z0-9_-]{1,64}$/.test(dep)) return client.destroy();
+    const label = sni.slice(0, -(dom.length + 1)).replace(/^dep-/, "dep_");
+    if (!/^[a-z0-9_-]{1,64}$/.test(label)) return client.destroy();
+    // route to the enclave that owns this deployment (learned from net-map)
+    const r = resolve(label);
+    if (!r) return client.destroy();                       // unknown / not-public / ambiguous
     client.pause();
-    splice(client, dep, logicalPort, buf);
+    splice(client, r.origin, r.id, logicalPort, buf);
   };
   client.on("data", onData);
 }
 
-function splice(client, dep, port, hello) {
-  const ws = new WebSocket(`${ENCLAVE}/x/${encodeURIComponent(dep)}/tls/${port}`,
+function splice(client, origin, dep, port, hello) {
+  const ws = new WebSocket(`${wsOrigin(origin)}/x/${encodeURIComponent(dep)}/tls/${port}`,
                            { perMessageDeflate: false });
   const wsStream = createWebSocketStream(ws);
   const close = () => { client.destroy(); try { ws.terminate(); } catch {} };
@@ -162,13 +223,19 @@ function splice(client, dep, port, hello) {
   });
 }
 
+// Learn the fleet + the dep->enclave index BEFORE accepting, so the first
+// connections can route; then keep both fresh.
+await fleet.start();
+await poll();
+setInterval(poll, POLL_MS);
+
 // Range entries skip ports that are busy or privileged-and-denied (a box that
 // also runs sshd etc. keeps working); explicitly listed ports stay fatal so a
 // typo'd config can't silently serve nothing.
 let bound = 0, skipped = 0, pending = PORTS.length * LISTEN_ON.length;
 const on = BIND_ADDRS.length ? ` on ${BIND_ADDRS.join(", ")}` : "";
 const summary = () => console.log(
-  `[relay] listening on ${bound} socket(s)${on} (${skipped} skipped) -> ${ENCLAVE}/x/<sni>.${DOMAIN}/tls/<port>`);
+  `[relay] listening on ${bound} socket(s)${on} (${skipped} skipped); routing <sni>.${DOMAIN}/tls/<port> to the owning enclave (${originDeps.size} live)`);
 for (const p of PORTS) {
   for (const addr of LISTEN_ON) {
     const at = addr ? `[${addr}]:${p.public}` : `:${p.public}`;
@@ -178,7 +245,7 @@ for (const p of PORTS) {
       skipped++; if (--pending === 0) summary();
     });
     const cb = () => {
-      if (!p.quiet) console.log(`[relay] ${at} -> ${ENCLAVE}/x/<sni>.${DOMAIN}/tls/${p.logical}`);
+      if (!p.quiet) console.log(`[relay] ${at} -> <sni>.${DOMAIN}/tls/${p.logical}`);
       bound++; if (--pending === 0) summary();
     };
     if (addr) srv.listen(p.public, addr, cb); else srv.listen(p.public, cb);

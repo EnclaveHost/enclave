@@ -164,3 +164,84 @@ test("egress-relay: opens an authenticated control channel to every enclave in t
   assert.deepEqual([...attached].sort(), ["A", "B"],
     `expected control channels to both enclaves (logs: ${logs.join("")})`);
 });
+
+// ---------- e2e: SNI relay routes each deployment to its OWNING enclave -------
+
+const u16 = (n) => Buffer.from([(n >> 8) & 0xff, n & 0xff]);
+// A minimal TLS ClientHello carrying `sni` — enough for relay.js's SNI parser.
+function clientHello(sni) {
+  const name = Buffer.from(sni, "ascii");
+  const sniList = Buffer.concat([Buffer.from([0x00]), u16(name.length), name]);
+  const sniExtBody = Buffer.concat([u16(sniList.length), sniList]);
+  const sniExt = Buffer.concat([u16(0x0000), u16(sniExtBody.length), sniExtBody]);
+  const extBlock = Buffer.concat([u16(sniExt.length), sniExt]);
+  const body = Buffer.concat([
+    Buffer.from([0x01]), Buffer.from([0, 0, 0]),   // ClientHello + handshake len (ignored)
+    Buffer.from([0x03, 0x03]), Buffer.alloc(32),   // legacy_version + random
+    Buffer.from([0x00]),                            // session id len 0
+    u16(2), Buffer.from([0x00, 0x2f]),             // cipher suites (len 2, one suite)
+    Buffer.from([0x01, 0x00]),                      // compression (len 1, null)
+    extBlock,
+  ]);
+  return Buffer.concat([Buffer.from([0x16, 0x03, 0x01]), u16(body.length), body]);
+}
+
+// A fake enclave: /v1/net-map advertises `id` with a tls-able tcp port, and its
+// /x/<id>/tls/<port> WS bridge echoes bytes tagged so the test sees which
+// enclave served the splice.
+async function fakeEnclaveTls({ id, logicalPort, tag }) {
+  const srv = http.createServer((req, res) => {
+    if (req.url === "/v1/net-map") {
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ enabled: true, deployments: [{ id, address: "::1", tcp: [logicalPort], udp: [] }] }));
+    } else { res.statusCode = 404; res.end(); }
+  });
+  const wss = new WebSocketServer({ noServer: true });
+  srv.on("upgrade", (req, sock, head) => {
+    if (req.url !== `/x/${encodeURIComponent(id)}/tls/${logicalPort}`) { sock.destroy(); return; }
+    wss.handleUpgrade(req, sock, head, (ws) => {
+      // ignore the buffered ClientHello (first message); reply tagged to app bytes
+      let first = true;
+      ws.on("message", (d) => { if (first) { first = false; return; } ws.send(Buffer.concat([Buffer.from(tag + ":"), d])); });
+    });
+  });
+  srv.listen(0, "127.0.0.1"); await once(srv, "listening");
+  return { origin: `http://127.0.0.1:${srv.address().port}`, close: () => srv.close() };
+}
+
+// Open a raw TCP conn to the relay, send the ClientHello for `sni` then a probe,
+// return the (tagged) reply.
+function sniExchange(port, sni, probe) {
+  return new Promise((resolve, reject) => {
+    const c = net.connect(port, "127.0.0.1");
+    // send the ClientHello, then the app probe as a SEPARATE chunk once the
+    // relay has parsed the SNI + established the splice (so the enclave sees
+    // hello and probe as distinct messages, like a real TLS handshake).
+    c.on("connect", () => { c.write(clientHello(sni)); setTimeout(() => c.write(probe), 250); });
+    c.on("data", (d) => { clearTimeout(t); c.destroy(); resolve(d.toString()); });   // the tagged echo
+    c.on("error", (e) => { clearTimeout(t); reject(e); });
+    const t = setTimeout(() => { c.destroy(); reject(new Error("no echo (route failed)")); }, 5000);
+  });
+}
+
+test("relay (SNI): routes each deployment to its owning enclave; legacy id + bytes32 prefix", async (t) => {
+  const bytes32 = "0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+  const encA = await fakeEnclaveTls({ id: "dep_alpha", logicalPort: 6667, tag: "A" });
+  const encB = await fakeEnclaveTls({ id: bytes32, logicalPort: 6667, tag: "B" });
+  const pub = await freePort();
+  const { p, logs } = spawnRelay("relay.js", {
+    RELAY_DOMAIN: "tcp.test", RELAY_PORTS: `${pub}:6667`, RELAY_BIND: "127.0.0.1",
+    NET_POLL_SEC: "1", ENCLAVES: `${encA.origin},${encB.origin}` });
+  t.after(() => { p.kill(); encA.close(); encB.close(); });
+
+  // wait until the relay bound the port (its index is populated before listen)
+  for (let i = 0; i < 40 && !logs.join("").includes("listening on"); i++) await delay(250);
+
+  // legacy id: dep-alpha.tcp.test  -> enclave A (dep- maps back to dep_)
+  const ra = await sniExchange(pub, "dep-alpha.tcp.test", "ping-a");
+  assert.equal(ra, "A:ping-a", `legacy-id route wrong (logs: ${logs.join("")})`);
+
+  // bytes32 by hex PREFIX: abcdef01.tcp.test -> enclave B (unique prefix)
+  const rb = await sniExchange(pub, "abcdef0123456789.tcp.test", "ping-b");
+  assert.equal(rb, "B:ping-b", `bytes32-prefix route wrong (logs: ${logs.join("")})`);
+});
