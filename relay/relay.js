@@ -39,7 +39,11 @@ const need = (k) => {
   return v;
 };
 
-const DOMAIN    = need("RELAY_DOMAIN").toLowerCase().replace(/^\.+|\.+$/g, "");
+// Comma-separated: during a domain cutover both the new and the old SNI suffix
+// route (e.g. "tcp.enclave.host,tcp.nan.host"); the first entry is primary.
+const DOMAINS   = need("RELAY_DOMAIN").toLowerCase().split(",")
+  .map(s => s.trim().replace(/^\.+|\.+$/g, "")).filter(Boolean);
+const DOMAIN    = DOMAINS[0];
 const ENCLAVE   = need("ENCLAVE_URL").replace(/\/+$/, "").replace(/^http/, "ws"); // http(s):// -> ws(s)://
 const MAX_CONNS = parseInt(process.env.RELAY_MAX_CONNS || "1024", 10);
 const HELLO_MS  = parseInt(process.env.RELAY_HELLO_TIMEOUT_MS || "10000", 10);
@@ -109,12 +113,13 @@ function handle(client, logicalPort) {
     const sni = sniFromClientHello(buf);
     if (sni === null) { if (buf.length > 20000) { clearTimeout(timer); client.destroy(); } return; }
     client.off("data", onData); clearTimeout(timer);
-    if (sni === false || !sni.endsWith("." + DOMAIN)) return client.destroy();
+    const dom = (sni !== false) && DOMAINS.find(d => sni.endsWith("." + d));
+    if (!dom) return client.destroy();
     // Deployment ids are "dep_<base36>", but "_" is not a valid hostname label
     // char - OpenSSL refuses to wildcard-match it, so strict clients (psql,
     // python) would reject the cert. The advertised hostname therefore spells
     // it "dep-<base36>"; map that back to the canonical id here.
-    const dep = sni.slice(0, -(DOMAIN.length + 1)).replace(/^dep-/, "dep_");
+    const dep = sni.slice(0, -(dom.length + 1)).replace(/^dep-/, "dep_");
     if (!/^[a-z0-9_-]{1,64}$/.test(dep)) return client.destroy();
     client.pause();
     splice(client, dep, logicalPort, buf);
