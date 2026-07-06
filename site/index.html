@@ -4270,7 +4270,7 @@ const PRIVY_RDNS = "io.privy.embedded";
 const PrivyWallet = {
   privy: null, provider: null, user: null, _msgWired: false,
   enabled(){ return !!PRIVY_APP_ID; },
-  entry(provider){ return { info: { uuid: "privy-embedded", name: "Email wallet (Privy)", rdns: PRIVY_RDNS, icon: null }, provider }; },
+  entry(provider){ return { info: { uuid: "privy-embedded", name: "Email (Privy)", rdns: PRIVY_RDNS, icon: null }, provider }; },
   async load(){
     if (this.privy) return this.privy;
     if (!this.enabled()) throw new NanError("Privy is not configured on this deployment.", 0);
@@ -4356,22 +4356,23 @@ const PrivyWallet = {
 /* the email \u2192 one-time-code flow, rendered inside the #walletPick modal card */
 function privyCard(host, inner){ host.innerHTML = '<div class="wp-card">' + inner + '</div>'; }
 async function privyPickFlow(host){
-  privyCard(host, '<div class="wp-h">Email wallet</div><div class="wp-note">Loading the Privy SDK\u2026</div>');
+  privyCard(host, '<div class="wp-h">Sign in</div><div class="wp-note">Loading\u2026</div>');
   await PrivyWallet.load();
   const existing = await PrivyWallet.currentUser();
   if (existing){
-    privyCard(host, '<div class="wp-h">Email wallet</div><div class="wp-note">Restoring your Privy session\u2026</div>');
+    privyCard(host, '<div class="wp-h">Sign in</div><div class="wp-note">Restoring your session\u2026</div>');
     PrivyWallet.user = existing;
     return PrivyWallet.entry(await PrivyWallet.ensureProvider(existing));
   }
   const email = await new Promise((res, rej) => {
     privyCard(host,
-      '<div class="wp-h">Email wallet <span class="wp-sub">\u00b7 Privy</span></div>' +
-      '<div class="wp-note">An embedded wallet tied to your email - no extension needed. The key lives in Privy\u2019s isolated frame; this site never sees it.</div>' +
+      '<div class="wp-h">Sign in with email</div>' +
+      '<div class="wp-note">We\u2019ll email you a one-time code. No password needed.</div>' +
       '<input class="wp-input" id="pvEmail" type="email" autocomplete="email" spellcheck="false" placeholder="you@example.com" />' +
       '<div class="wp-err" id="pvErr" hidden></div>' +
-      '<button class="wp-item wp-go" id="pvSend" type="button">Send login code</button>' +
-      '<button class="wp-cancel" type="button">Cancel</button>');
+      '<button class="wp-item wp-go" id="pvSend" type="button">Continue</button>' +
+      '<button class="wp-cancel" type="button">Cancel</button>' +
+      '<div class="wp-foot">Protected by Privy</div>');
     const inp = $("#pvEmail"); if (inp) inp.focus();
     const go = () => {
       const v = (inp.value || "").trim();
@@ -4382,7 +4383,7 @@ async function privyPickFlow(host){
     inp.onkeydown = (e) => { if (e.key === "Enter") go(); };
     host.querySelector(".wp-cancel").onclick = () => rej(new NanError("Wallet selection cancelled.", 0));
   });
-  privyCard(host, '<div class="wp-h">Email wallet</div><div class="wp-note">Sending a login code to <b>' + esc(email) + '</b>\u2026</div>');
+  privyCard(host, '<div class="wp-h">Sign in with email</div><div class="wp-note">Sending a login code to <b>' + esc(email) + '</b>\u2026</div>');
   await PrivyWallet.privy.auth.email.sendCode(email);
   return await new Promise((res, rej) => {
     privyCard(host,
@@ -4405,7 +4406,7 @@ async function privyPickFlow(host){
         const user = (r && (r.user || r)) || null;
         if (!user) throw new Error("login returned no user");
         PrivyWallet.user = user;
-        privyCard(host, '<div class="wp-h">Email wallet</div><div class="wp-note">Preparing your wallet\u2026</div>');
+        privyCard(host, '<div class="wp-h">Almost there</div><div class="wp-note">Setting up your account\u2026</div>');
         res(PrivyWallet.entry(await PrivyWallet.ensureProvider(user)));
       } catch(e){
         if (host.querySelector("#pvErr")) fail("Sign-in failed: " + (e && (e.message || e)));
@@ -4450,14 +4451,22 @@ async function pickWallet(){
   const privyOk = PrivyWallet.enabled();
   if (!wallets.length && !privyOk) throw new NanError(noWalletReason(), 0);
   if (wallets.length === 1) return wallets[0];   // an extension wallet wins outright; Privy is the fallback
+  if (!wallets.length){
+    // no extension wallet: a plain email sign-in form, no wallet vocabulary -
+    // the embedded wallet is created behind the scenes
+    const host = $("#walletPick"); if (!host) throw new NanError(noWalletReason(), 0);
+    host.hidden = false;
+    const close = () => { host.hidden = true; host.innerHTML = ""; };
+    try { const entry = await privyPickFlow(host); close(); return entry; }
+    catch(err){ close(); throw (err instanceof NanError ? err : new NanError("Sign-in failed: " + (err && (err.message || err)), 0)); }
+  }
   return await new Promise((resolve, reject) => {
-    const host = $("#walletPick"); if (!host){ wallets.length ? resolve(wallets[0]) : reject(new NanError(noWalletReason(), 0)); return; }
-    host.innerHTML = '<div class="wp-card"><div class="wp-h">' + (wallets.length ? "Choose a wallet" : "No extension wallet found") + '</div>' +
-      (!wallets.length ? '<div class="wp-note">No EIP-6963 wallet is injected here. Use an email wallet below - or install MetaMask, Rabby, or Coinbase Wallet and reload.</div>' : "") +
+    const host = $("#walletPick"); if (!host){ resolve(wallets[0]); return; }
+    host.innerHTML = '<div class="wp-card"><div class="wp-h">Choose a wallet</div>' +
       wallets.map((w, i) => '<button class="wp-item" data-i="' + i + '">' +
         (w.info.icon ? '<img src="' + w.info.icon + '" alt=""/>' : '<span class="wp-dot"></span>') +
         esc(w.info.name) + '</button>').join("") +
-      (privyOk ? '<button class="wp-item wp-privy" type="button"><span class="wp-dot wp-dot-iris"></span>Email wallet <span class="wp-sub">· Privy</span></button>' : "") +
+      (privyOk ? '<button class="wp-item wp-privy" type="button"><span class="wp-dot wp-dot-iris"></span>Continue with email</button>' : "") +
       '<button class="wp-cancel">Cancel</button></div>';
     host.hidden = false;
     const close = () => { host.hidden = true; host.innerHTML = ""; };
@@ -5568,6 +5577,7 @@ function injectLiveStyles(){
     ".wp-input:focus{border-color:var(--jade);outline:none;box-shadow:0 0 0 3px rgba(47,230,168,.12);}",
     ".wp-go{justify-content:center;color:var(--jade);border-color:var(--jade-dim);}",
     ".wp-err{font-size:.72rem;color:#ff8a8a;margin:-2px 0 8px;}",
+    ".wp-foot{font-size:.64rem;color:var(--text-dim);text-align:center;margin-top:10px;letter-spacing:.04em;}",
     ".wp-dot-iris{background:linear-gradient(135deg,var(--iris),var(--jade));}",
     ".endpoint-row{display:flex;align-items:center;gap:10px;margin-top:16px;flex-wrap:wrap;}",
     ".endpoint-row label{font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);letter-spacing:.02em;}",
