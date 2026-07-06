@@ -275,11 +275,12 @@ section{padding:84px 0;position:relative;}
 .console-body{flex:1;min-height:300px;position:relative;overflow:auto;}
 .console-body .pane{display:none;height:100%;}
 .console-body .pane.on{display:block;}
+.console-body .pane[data-pane="run"].on{display:flex;flex-direction:column;}   /* term-bar fixed, .term fills the rest */
 .run-row{display:flex;align-items:center;gap:12px;padding:13px 16px;border-top:1px solid var(--line);background:var(--bg-1);}
 .run-row .hint{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);margin-left:auto;}
 
 /* terminal sim */
-.term{font-family:var(--font-mono);font-size:.8rem;padding:16px;line-height:1.7;color:#B9C6D6;min-height:300px;max-height:min(480px,60vh);overflow-y:auto;}
+.term{font-family:var(--font-mono);font-size:.8rem;padding:16px;line-height:1.7;color:#B9C6D6;min-height:300px;flex:1;overflow-y:auto;}
 .term-bar{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--line-soft);background:var(--bg-1);}
 .term-bar .tb-k{font-family:var(--font-mono);font-size:.64rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);}
 .term-bar select{background:var(--surface);border:1px solid var(--line);color:var(--text);font-family:var(--font-mono);font-size:.74rem;padding:4px 8px;border-radius:7px;max-width:340px;}
