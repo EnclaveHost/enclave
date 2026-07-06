@@ -47,10 +47,10 @@ import { createEgress } from "./egress.js";
 const PORT           = parseInt(process.env.PORT || "8080", 10);
 const SECRET         = new TextEncoder().encode(need("SECRET")); // signs + verifies the session/capability token
 const PUBLIC_URL     = (process.env.PUBLIC_URL || "").replace(/\/+$/, ""); // own shim URL; else derived per-request
-const SIWE_DOMAIN    = process.env.SIWE_DOMAIN || "nan.host";
-const SIWE_URI       = process.env.SIWE_URI || "https://nan.host";
+const SIWE_DOMAIN    = process.env.SIWE_DOMAIN || "enclave.host";
+const SIWE_URI       = process.env.SIWE_URI || "https://enclave.host";
 const CHAIN_ID       = parseInt(process.env.CHAIN_ID || "8453", 10);
-const CORS_ORIGINS   = (process.env.CORS_ORIGINS || "https://nan.host").split(",").map(s => s.trim()).filter(Boolean);
+const CORS_ORIGINS   = (process.env.CORS_ORIGINS || "https://enclave.host").split(",").map(s => s.trim()).filter(Boolean);
 // --- pay-per-deploy (no custody): users pay the NanPay forwarder; the supervisor
 //     WATCHES it for Paid events and converts each payment to runtime. No held
 //     balance, no escrow contract, no key in the enclave that can move funds.
@@ -953,7 +953,7 @@ async function getMeasurements(rec, { origin = PUBLIC_URL, nonce } = {}) {
       cli: enclaveHost && ENCLAVE_REPO
          ? `tinfoil attestation verify -e ${enclaveHost} -r ${ENCLAVE_REPO}` : null,  // github.com/tinfoilsh/tinfoil-cli
       npm: "@tinfoilsh/verifier",  // Node + browsers: await new Verifier({ serverURL, configRepo: repo }).verify()
-      browser: "https://nan.host/#attest",
+      browser: "https://enclave.host/#attest",
       repo: ENCLAVE_REPO || null,
       attestationEndpoint: (origin || "") + RAD_PATH,
     },
@@ -2396,7 +2396,7 @@ app.get("/v1/deployments/:id/attestation", authed, async (req, res) => {
   const nonce = attestNonce(req, res); if (nonce == null) return;
   try { res.json({ deploymentId: rec.id, generatedAt: new Date().toISOString(),
                    ...(await getMeasurements(rec, { origin: originOf(req), nonce })),
-                   guideUrl: "https://nan.host/#attest" }); }
+                   guideUrl: "https://enclave.host/#attest" }); }
   catch (e) { fail(res, 502, "attestation_error", e.message); }
 });
 
@@ -2408,7 +2408,7 @@ let _gpuEvCache = null;                       // { ev?, err?, at } - failures ca
 app.get("/v1/attestation", async (req, res) => {
   const out = await getMeasurements(null, { origin: originOf(req) });
   if (!IS_GPU)                                 // CPU-only enclave: no card, no NVML evidence to fetch
-    return res.json({ generatedAt: new Date().toISOString(), ...out, guideUrl: "https://nan.host/#attest" });
+    return res.json({ generatedAt: new Date().toISOString(), ...out, guideUrl: "https://enclave.host/#attest" });
   try {
     const ttl = _gpuEvCache?.err ? 10_000 : 60_000;
     if (!_gpuEvCache || Date.now() - _gpuEvCache.at > ttl) {
@@ -2422,7 +2422,7 @@ app.get("/v1/attestation", async (req, res) => {
                 report: ev.gpus?.[0]?.attestationReport_b64 ?? null,
                 certChain: ev.gpus?.[0]?.attestationCertChain_b64 ?? null, gpus: ev.gpus || [] };
   } catch (e) { out.gpu = { technology: "nvidia-cc", available: false, error: e.message }; }
-  res.json({ generatedAt: new Date().toISOString(), ...out, guideUrl: "https://nan.host/#attest" });
+  res.json({ generatedAt: new Date().toISOString(), ...out, guideUrl: "https://enclave.host/#attest" });
 });
 
 // TLS-bridge cert binding, PUBLIC: closes the attestation gap on the relay
