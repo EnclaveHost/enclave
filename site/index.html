@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Enclave · Trustless Confidential Compute</title>
 <meta name="description" content="Trustless on-demand confidential GPU compute. Deploy a WebAssembly app onto a confidential H200 from your browser, pay in ETH or USDC, and verify the enclave yourself. CORS-friendly API." />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M11.5 13V9.5a4.5 4.5 0 0 1 9 0V13' fill='none' stroke='%232FE6A8' stroke-width='2'/%3E%3Cpath d='M9.5 13h13L26 19.75 22.5 26.5h-13L6 19.75z' fill='none' stroke='%232FE6A8' stroke-width='2'/%3E%3Ccircle cx='16' cy='18.7' r='2' fill='%232FE6A8'/%3E%3Cpath d='M16 20.7v3.2' stroke='%232FE6A8' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M6 11V6h5M21 6h5v5M26 21v5h-5M11 26H6v-5' fill='none' stroke='%232FE6A8' stroke-width='2'/%3E%3Cpath d='M16 10.6a3.4 3.4 0 0 1 1.5 6.45L18.6 22.6h-5.2l1.1-5.55A3.4 3.4 0 0 1 16 10.6z' fill='%232FE6A8'/%3E%3C/svg%3E" />
 <style>
 /* ============================================================
    Enclave design tokens
@@ -105,7 +105,7 @@ header.nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px);
 .nav-inner{display:flex;align-items:center;justify-content:space-between;height:64px;position:relative;}
 .brand{display:flex;align-items:center;gap:.7em;font-family:var(--font-mono);font-weight:600;letter-spacing:.04em;}
 .brand svg{width:26px;height:26px;flex:none;}
-.brand .nm{font-size:1.02rem;}
+.brand .nm{font-size:1.02rem;letter-spacing:.12em;}
 .brand .sub{color:var(--text-dim);font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;border-left:1px solid var(--line);padding-left:.7em;margin-left:.2em;}
 .nav-links{display:flex;align-items:center;gap:6px;position:absolute;left:50%;transform:translateX(-50%);}
 .nav-links a{font-family:var(--font-mono);font-size:.82rem;color:var(--text-muted);padding:.5em .7em;border-radius:7px;transition:.15s;}
@@ -444,12 +444,10 @@ footer{border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px
   <div class="wrap nav-inner">
     <a href="#top" class="brand" aria-label="Enclave home">
       <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
-        <path d="M11.5 13V9.5a4.5 4.5 0 0 1 9 0V13" stroke="var(--jade)" stroke-width="1.6"/>
-        <path d="M9.5 13h13L26 19.75 22.5 26.5h-13L6 19.75z" stroke="var(--jade)" stroke-width="1.6"/>
-        <circle cx="16" cy="18.7" r="2.1" stroke="var(--jade)" stroke-width="1.4"/>
-        <path d="M16 20.8v2.9" stroke="var(--jade)" stroke-width="1.4" stroke-linecap="round"/>
+        <path d="M6 11V6h5M21 6h5v5M26 21v5h-5M11 26H6v-5" stroke="var(--jade)" stroke-width="1.6"/>
+        <path d="M16 10.6a3.4 3.4 0 0 1 1.5 6.45L18.6 22.6h-5.2l1.1-5.55A3.4 3.4 0 0 1 16 10.6z" fill="var(--jade)"/>
       </svg>
-      <span class="nm">Enclave</span>
+      <span class="nm">ENCLAVE</span>
     </a>
     <nav class="nav-links" aria-label="Primary">
       <a href="#top" data-view="overview" class="active">Overview</a>
@@ -1572,12 +1570,10 @@ curl -H "Authorization: Bearer $NAN_TOKEN" \
       <div class="foot-brand">
         <a href="#top" class="brand">
           <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
-            <path d="M11.5 13V9.5a4.5 4.5 0 0 1 9 0V13" stroke="var(--jade)" stroke-width="1.6"/>
-            <path d="M9.5 13h13L26 19.75 22.5 26.5h-13L6 19.75z" stroke="var(--jade)" stroke-width="1.6"/>
-            <circle cx="16" cy="18.7" r="2.1" stroke="var(--jade)" stroke-width="1.4"/>
-            <path d="M16 20.8v2.9" stroke="var(--jade)" stroke-width="1.4" stroke-linecap="round"/>
+            <path d="M6 11V6h5M21 6h5v5M26 21v5h-5M11 26H6v-5" stroke="var(--jade)" stroke-width="1.6"/>
+            <path d="M16 10.6a3.4 3.4 0 0 1 1.5 6.45L18.6 22.6h-5.2l1.1-5.55A3.4 3.4 0 0 1 16 10.6z" fill="var(--jade)"/>
           </svg>
-          <span class="nm">Enclave</span>
+          <span class="nm">ENCLAVE</span>
         </a>
         <p>Trustless on-demand confidential compute, paid for exclusively in crypto.</p>
         <div class="foot-meta">
