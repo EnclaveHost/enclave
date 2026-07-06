@@ -5234,6 +5234,28 @@ async function runDeploy(){
   if (rref.pending){ termLine(term, "warn", "[!] couldn’t reach the catalog to resolve " + raw + "; open the Apps tab, or paste ipfs://<cid>."); return; }
   const fwErr = validPortsCsv($("#cfgPorts") ? $("#cfgPorts").value : "");
   if (fwErr){ termLine(term, "warn", "[!] firewall: " + fwErr); return; }
+  // pre-flight the catalog gate BEFORE any wallet action: enclaves refuse
+  // yanked / unapproved / unlisted versions deterministically, so paying for
+  // one just parks USDC on an unclaimable deployment.
+  try {
+    if (!STORE.loaded){ try { await loadCatalog(); } catch(e){} }
+    const cid = String(rref.reference || "").replace(/^ipfs:\/\//, "");
+    let hit = null;
+    for (const a of (STORE.apps || [])) for (const v of (a.versions || [])) if (v && v.cid === cid){ hit = { a, v }; }
+    if (hit && hit.v.yanked){
+      termLine(term, "warn", "[!] " + hit.a.slug + ":" + hit.v.version + " is YANKED by its publisher - enclaves will never claim it.");
+      termLine(term, "dimln", "    pick another version, or republish this CID as a new version (the catalog follows the newest listing), then deploy.");
+      return;
+    }
+    if (hit && hit.v.approval !== APPROVAL.approved){
+      termLine(term, "warn", "[!] " + hit.a.slug + ":" + hit.v.version + " is " + (hit.v.approval === APPROVAL.rejected ? "REJECTED" : "still PENDING approval") + " - enclaves only claim approved versions.");
+      return;
+    }
+    if (!hit && STORE.loaded && STORE.apps.length){
+      termLine(term, "warn", "[!] this CID isn't listed in the on-chain catalog - enclaves refuse unlisted apps. Publish it on the Apps tab first.");
+      return;
+    }
+  } catch(e){}
   const fund = parseFloat($("#cfgBudget").value) || 0;
   const dry = $("#dryRun") && $("#dryRun").checked;
 
@@ -5346,12 +5368,27 @@ async function runDeploy(){
     } catch(e){ termLine(term, "dimln", "    hint failed (" + (e.message || e) + "); the sweep claims funded work within ~1 min"); }
 
     // 4) watch the ledger for a runner, then the runner for "running"
-    let claimed = null;
+    let claimed = null, lastReason = "";
     for (let i = 0; i < 90 && !claimed; i++){
       await wait(2000);
       let d = null; try { d = await depGet(id); } catch(e){}
       if (d && d.runner && !/^0x0+$/.test(d.runner) && d.leaseUntil * 1000 > Date.now()) claimed = d;
       else if (i === 1) termLine(term, "info", "[*] waiting for an enclave to claim (the lease appears on-chain)…");
+      else if (i > 1 && i % 15 === 0){
+        // don't wait in silence: ask the fleet WHY it isn't claiming
+        try {
+          const h = await (await fetch(Nan.base + "/claim-hint", { method: "POST",
+            headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) })).json();
+          if (h && h.accepted === false && h.reason && h.reason !== lastReason){
+            lastReason = h.reason;
+            termLine(term, "warn", "[!] fleet declines to claim: " + h.reason);
+            if (/yanked|not.approved|rejected|delisted|unlisted|below|minimum/i.test(h.reason)){
+              termLine(term, "dimln", "    this won't resolve by waiting - fix the app version in the catalog. The deployment stays funded and is claimed automatically once deployable.");
+              break;
+            }
+          }
+        } catch(e){}
+      }
     }
     if (!claimed){
       termLine(term, "warn", "[!] no enclave has claimed yet - the deployment stays on the queue (funded work is claimed as capacity frees up). Check back on the dashboard.");
