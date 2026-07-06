@@ -4279,7 +4279,16 @@ const PrivyWallet = {
     catch(e){ throw new NanError("Could not load the Privy SDK (network or CDN issue): " + (e.message || e), 0); }
     const Privy = mod.default || mod.Privy;
     if (!Privy) throw new NanError("Unexpected Privy SDK shape (no default export).", 0);
-    this.privy = new Privy(PRIVY_CLIENT_ID ? { appId: PRIVY_APP_ID, clientId: PRIVY_CLIENT_ID } : { appId: PRIVY_APP_ID });
+    // js-sdk-core requires an explicit storage adapter (the React SDK bundles one)
+    const store = mod.LocalStorage ? new mod.LocalStorage() : {
+      get(k){ try { const v = localStorage.getItem(k); if (v == null) return undefined; try { return JSON.parse(v); } catch(_){ return v; } } catch(e){ return undefined; } },
+      put(k, v){ try { v === undefined ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch(e){} },
+      del(k){ try { localStorage.removeItem(k); } catch(e){} },
+      getKeys(){ try { return Object.keys(localStorage); } catch(e){ return []; } }
+    };
+    const cfg = { appId: PRIVY_APP_ID, storage: store };
+    if (PRIVY_CLIENT_ID) cfg.clientId = PRIVY_CLIENT_ID;
+    this.privy = new Privy(cfg);
     this._mod = mod;
     // the embedded wallet lives in a hidden Privy iframe; the SDK drives it over postMessage
     const ew = this.privy.embeddedWallet;
