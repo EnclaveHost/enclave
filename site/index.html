@@ -1264,7 +1264,7 @@ curl https://3xk9f2qa.app.enclave.host/            # per-deployment origin (id w
 curl https://&lt;enclave-host&gt;/x/dep_3xK9f2Qa/    # same app, direct to its enclave
 
 # private deployment (public: false): owner's bearer token only
-curl -H "Authorization: Bearer $NAN_TOKEN" https://&lt;enclave-host&gt;/x/dep_3xK9f2Qa/</code></pre></div>
+curl -H "Authorization: Bearer $LOGIN_TOKEN" https://&lt;enclave-host&gt;/x/dep_3xK9f2Qa/</code></pre></div>
           <ul>
             <li>Any method, any subpath, headers and body pass through to your handler. The one exception: the <code>Authorization</code> header authenticates at the platform and is <b>stripped before your app sees the request</b>; the token never reaches tenant code.</li>
             <li><code>public</code> only governs who may <i>send requests</i>. Confidentiality is unaffected either way; the operator can't see inside the enclave regardless.</li>
@@ -1526,7 +1526,7 @@ tinfoil attestation verify -e &lt;enclave-host&gt; -r SteveDeFacto/nan
 
 # the enclave's attestation (public), and your deployment's view of it (owner):
 curl https://&lt;enclave-host&gt;/v1/attestation
-curl -H "Authorization: Bearer $NAN_TOKEN" \
+curl -H "Authorization: Bearer $LOGIN_TOKEN" \
   https://&lt;enclave-host&gt;/v1/deployments/dep_3xK9f2Qa/attestation</code></pre></div>
           <p>Point your users at the <a href="#attest">attestation walkthrough</a> for what each link in the chain proves, or embed the check in your own client as above. For raw-TCP services, add the <a href="#docs-tcp">bridge-cert pin</a> so even the TLS session is bound to the measured enclave.</p>
         </article>
@@ -1624,13 +1624,12 @@ curl -H "Authorization: Bearer $NAN_TOKEN" \
           <p>One executable file, wallet-native, no accounts. Point it at a key and every operation on this page becomes a one-liner; state lives in <code>~/.config/enclave/</code> and nothing else touches your machine.</p>
 
           <h4>Install &amp; authenticate</h4>
-          <div class="code"><div class="codebar"><span class="fn">terminal</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code># install — one ~1 MB executable on your PATH (needs node ≥ 20)
-git clone https://github.com/SteveDeFacto/nan &amp;&amp; nan/cli/install.sh   # Linux/macOS
-git clone https://github.com/SteveDeFacto/nan; .\nan\cli\install.ps1  # Windows PowerShell
-cd nan/cli &amp;&amp; npm i &amp;&amp; npm i -g .           # any OS: npm makes the shims itself
-curl -fsSL https://get.enclave.host | sh    # after the domain cutover
-
-# bring a wallet: generate fresh, or import the key you already use
+          <div class="code"><div class="codebar"><span class="fn">macOS / Linux</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code># one ~1 MB executable on your PATH (needs node ≥ 20)
+git clone https://github.com/SteveDeFacto/nan &amp;&amp; nan/cli/install.sh
+curl -fsSL https://get.enclave.host | sh    # same thing, after the domain cutover</code></pre></div>
+          <div class="code"><div class="codebar"><span class="fn">Windows · PowerShell</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code>git clone https://github.com/SteveDeFacto/nan; .\nan\cli\install.ps1
+cd nan/cli; npm i; npm i -g .               # alternative on any OS: npm makes the shims</code></pre></div>
+          <div class="code"><div class="codebar"><span class="fn">bring a wallet</span><button class="copybtn" type="button">⧉ copy</button></div><pre><code># generate fresh, or import the key you already use
 enclave key new                    # prints the address; fund it with USDC on Base
 enclave key import                 # reads a private key from stdin; or ENCLAVE_KEY env
 enclave whoami                     # address, USDC balance, running deployments</code></pre></div>
@@ -3800,15 +3799,28 @@ function bodySchema(op) {
   const rb = op.requestBody; if (!rb) return null;
   return rb.content && rb.content["application/json"] && rb.content["application/json"].schema;
 }
+// samples embed the CONNECTED wallet's address so they run as-is; a full-length
+// (still fake) address stands in until someone signs in - never an elided "0x…".
+const EX_ADDR_FULL = "0x4E5A101112131415161718191a1B1C1D1E1Fb9c1";
+function sampFill(s){ return s.replace(/0x4E5A\.\.\.b9c1/g, Nan.address || EX_ADDR_FULL); }
+function refreshApiSamples(){
+  document.querySelectorAll("[data-sbox]").forEach(box => {
+    const oi = box.dataset.sbox;
+    if (!SAMP[oi]) return;
+    const wrap = document.querySelector('.sampletoggle[data-sid="' + oi + '"]');
+    const mode = (wrap && wrap.querySelector("button.on").dataset.mode) || "fetch";
+    box.innerHTML = hlCode(sampFill(SAMP[oi][mode]));
+  });
+}
 function buildCurl(method, path, op) {
   const url = buildUrl(path, op), body = bodyExample(op), L = ["curl -X " + method + " " + url];
-  if (!opPublic(op)) L.push('  -H "Authorization: Bearer $NAN_TOKEN"');
+  if (!opPublic(op)) L.push('  -H "Authorization: Bearer $LOGIN_TOKEN"');
   if (body) { L.push('  -H "Content-Type: application/json"'); L.push("  -d '" + JSON.stringify(body, null, 2) + "'"); }
   return L.join(" \\\n");
 }
 function buildFetch(method, path, op) {
   const url = buildUrl(path, op), body = bodyExample(op), H = [];
-  if (!opPublic(op)) H.push('    "Authorization": `Bearer ${NAN_TOKEN}`');
+  if (!opPublic(op)) H.push('    "Authorization": `Bearer ${LOGIN_TOKEN}`');
   if (body) H.push('    "Content-Type": "application/json"');
   let o = '  method: "' + method + '"';
   if (H.length) o += ",\n  headers: {\n" + H.join(",\n") + "\n  }";
@@ -3915,16 +3927,18 @@ function renderApi() {
         }
       });
 
-      // code samples (cURL | fetch)
+      // code samples (fetch | cURL) - fetch is the default; ▶ run evals it live
       const curl = buildCurl(method, path, op), fetchS = buildFetch(method, path, op);
-      SAMP[oi] = { curl, fetch: fetchS };
+      SAMP[oi] = { curl, fetch: fetchS, auth: !opPublic(op) };
       body += '<div class="block-lbl">Code</div>'
         + '<div class="samples sampletoggle" data-sid="' + oi + '">'
-        + '<button class="on" data-mode="curl">cURL</button>'
-        + '<button data-mode="fetch">fetch()</button></div>'
-        + '<div class="code"><div class="codebar"><span class="fn" data-sfn="' + oi + '">terminal</span>'
+        + '<button class="on" data-mode="fetch">fetch()</button>'
+        + '<button data-mode="curl">cURL</button></div>'
+        + '<div class="code"><div class="codebar"><span class="fn" data-sfn="' + oi + '">request.js</span>'
+        + '<button class="runbtn" data-runsamp="' + oi + '" type="button">▶ run</button>'
         + '<button class="copybtn" data-copysamp="' + oi + '">⧉ copy</button></div>'
-        + '<pre><code data-sbox="' + oi + '">' + hlCode(curl) + "</code></pre></div>";
+        + '<pre><code data-sbox="' + oi + '">' + hlCode(sampFill(fetchS)) + "</code></pre></div>"
+        + '<div data-srun="' + oi + '"></div>';
 
       body += "</div>"; // op-body
 
@@ -3945,6 +3959,30 @@ function renderApi() {
   wireApi();
 }
 
+// ▶ run: evaluate the operation's fetch() sample as real JavaScript against the
+// live API (address + bearer token substituted from the session) and render the
+// response inline. It's literally the displayed snippet - what you see is what runs.
+async function runApiSample(oi, btn){
+  const s = SAMP[oi]; if (!s) return;
+  const out = document.querySelector('[data-srun="' + oi + '"]'); if (!out) return;
+  if (s.auth && !Nan.token){
+    out.innerHTML = '<div class="wp-err" style="margin-top:8px">This endpoint needs auth - hit Sign in first, then run again.</div>';
+    return;
+  }
+  const code = sampFill(s.fetch);
+  const t0 = btn.textContent; btn.disabled = true; btn.textContent = "running…";
+  try {
+    const fn = new Function("LOGIN_TOKEN", '"use strict"; return (async () => {\n' + code + '\nreturn { status: res.status, ok: res.ok, data };\n})();');
+    const r = await fn(Nan.token || "");
+    out.innerHTML = '<div class="code" style="margin-top:8px"><div class="codebar"><span class="fn">' +
+      (r.ok ? "" : "⚠ ") + esc(String(r.status)) + ' response</span></div>' +
+      '<pre style="margin:0;padding:13px 16px;max-height:280px;overflow:auto"><code>' + hlJson(r.data) + "</code></pre></div>";
+  } catch(err){
+    out.innerHTML = '<div class="wp-err" style="margin-top:8px">run failed: ' + esc(String(err && (err.message || err))) + "</div>";
+  }
+  btn.disabled = false; btn.textContent = t0;
+}
+
 function wireApi() {
   const main = $("#apiMain");
   main.addEventListener("click", (e) => {
@@ -3955,7 +3993,7 @@ function wireApi() {
         const oi = copy.dataset.copysamp;
         const box = main.querySelector('.sampletoggle[data-sid="' + oi + '"]');
         const mode = box.querySelector("button.on").dataset.mode;
-        copyText(SAMP[oi][mode], copy);
+        copyText(sampFill(SAMP[oi][mode]), copy);
       } else if (copy.dataset.rawid !== undefined) {
         copyText(RAW[+copy.dataset.rawid], copy);
       }
@@ -3967,8 +4005,14 @@ function wireApi() {
       $$("button", wrap).forEach(b => b.classList.remove("on"));
       sampBtn.classList.add("on");
       const mode = sampBtn.dataset.mode;
-      main.querySelector('[data-sbox="' + oi + '"]').innerHTML = hlCode(SAMP[oi][mode]);
+      main.querySelector('[data-sbox="' + oi + '"]').innerHTML = hlCode(sampFill(SAMP[oi][mode]));
       main.querySelector('[data-sfn="' + oi + '"]').textContent = mode === "curl" ? "terminal" : "request.js";
+      return;
+    }
+    const run = e.target.closest(".runbtn");
+    if (run){
+      e.stopPropagation();
+      runApiSample(run.dataset.runsamp, run);
       return;
     }
     const bodyBtn = e.target.closest(".bodytoggle button");
@@ -4717,6 +4761,7 @@ function refreshWallet(){
     const rh = $("#runHint"); if (rh) rh.textContent = "sign in to deploy";
   }
   updatePayAssetUI();
+  refreshApiSamples();   // samples embed the connected address + token var; keep them current
 }
 
 function toggleWalletPop(){
@@ -5739,6 +5784,8 @@ function injectLiveStyles(){
     ".pay-bal .pb-v{font-family:var(--font-mono);font-size:.95rem;color:var(--jade-2);}",
     ".pay-bal .pb-buy{font-family:var(--font-mono);font-size:.72rem;color:var(--jade);border:1px solid var(--jade-dim);background:var(--jade-deep);border-radius:8px;padding:.45em .8em;cursor:pointer;transition:.15s;flex:none;}",
     ".pay-bal .pb-buy:hover{background:rgba(47,230,168,.16);border-color:var(--jade);}",
+    ".runbtn{font-family:var(--font-mono);font-size:.7rem;color:var(--jade);border:1px solid var(--jade-dim);background:var(--jade-deep);padding:.32em .6em;border-radius:6px;cursor:pointer;transition:.15s;margin-right:6px;}",
+    ".runbtn:hover{border-color:var(--jade);background:rgba(47,230,168,.16);} .runbtn:disabled{opacity:.5;cursor:default;}",
     ".wp-dot-iris{background:linear-gradient(135deg,var(--iris),var(--jade));}",
     ".endpoint-row{display:flex;align-items:center;gap:10px;margin-top:16px;flex-wrap:wrap;}",
     ".endpoint-row label{font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);letter-spacing:.02em;}",
