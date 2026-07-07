@@ -66,7 +66,11 @@ jobs:
             -DCMAKE_CUDA_ARCHITECTURES="86-real;90-real" \
             -DGGML_NATIVE=OFF \
             -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=OFF
-          cmake --build build -j"$(nproc)"
+          # ONLY the library target: the tools/app executables are broken at
+          # this pin with SERVER/TOOLS off (llama-app links -lllama-server-impl
+          # unconditionally), and a lib tarball needs no executables anyway.
+          # `llama` pulls in every libggml* backend it links (incl. ggml-cuda).
+          cmake --build build -j"$(nproc)" --target llama
           ls -la build/bin/lib*.so* | head
 
       - name: Compile the enclave_llama shim against the pinned build
