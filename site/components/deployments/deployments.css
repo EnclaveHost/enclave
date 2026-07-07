@@ -9,6 +9,11 @@ c-deployments{display:contents;}
 .enc-tools{display:flex;align-items:center;gap:12px;}
 .enc-count{font-family:var(--font-mono);font-size:.7rem;color:var(--text-muted);}
 .enc-empty{padding:20px 18px;font-family:var(--font-mono);font-size:.8rem;color:var(--text-muted);}
+.enc-filters{display:flex;flex-wrap:wrap;gap:16px;padding:9px 18px;border-bottom:1px solid var(--line-soft);background:var(--bg-1);}
+.enc-filters label{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);cursor:pointer;user-select:none;}
+.enc-filters label:has(input:checked){color:var(--text);}
+.enc-filters input{accent-color:var(--jade);width:13px;height:13px;cursor:pointer;margin:0;}
+.enc-filters b{color:var(--text-dim);font-weight:400;}
 .enc-err{margin-top:8px;padding:.5em .7em;border:1px solid var(--amber-dim);border-radius:8px;background:rgba(255,145,77,.06);color:var(--amber);font-family:var(--font-mono);font-size:.72rem;line-height:1.5;word-break:break-word;}
 .enc-row{border-bottom:1px solid var(--line-soft);padding:12px 18px;}
 .enc-row:last-child{border-bottom:0;}

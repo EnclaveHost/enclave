@@ -6,7 +6,7 @@
    Polls while authed; repaints on `enclave:auth` sign-in/out edges.
    ============================================================ */
 import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
-import { $$, esc, hlJson, fmtDur, statusCls, copyText, showToast } from "../../js/core/util.js";
+import { $$, esc, hlJson, fmtDur, statusCls, copyText, showToast, lsGet, lsSet } from "../../js/core/util.js";
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { pad32, encUint, DEP_SEL, waitReceipt } from "../../js/core/chain.js";
@@ -38,6 +38,17 @@ export function appLabel(id){
 }
 
 function shortImg(s){ if (!s) return ""; return s.length > 44 ? s.slice(0, 42) + "…" : s; }
+// Status buckets for the filter bar: coarse groups beat ten raw statuses.
+// Unknown/new statuses land in "ended" rather than vanishing.
+const FILTER_KEY = "enclave_dash_filters";
+const BUCKETS = ["running", "starting", "ended", "failed"];
+function bucketOf(st){
+  st = String(st || "").toLowerCase();
+  if (st === "running") return "running";
+  if (["provisioning", "queued", "pending", "claiming", "starting", "created"].indexOf(st) !== -1) return "starting";
+  if (["failed", "error"].indexOf(st) !== -1) return "failed";
+  return "ended";   // stopped, stopping, terminated, expired, …
+}
 function encTier(d){
   const r = d.resources || {};
   const g = r.gpuShare || 0, c = r.cpuShare != null ? r.cpuShare : (r.share || 0);
@@ -66,6 +77,17 @@ class Deployments extends EnclaveElement {
     this._wired = true;
     this._logPolls = {};                       // open Output panels' log timers, by id
     this.querySelector(".enc-refresh").addEventListener("click", () => this.refresh({ spinner: true }));
+    // status filter: persisted set of enabled buckets (default: all on)
+    let saved = null; try { saved = JSON.parse(lsGet(FILTER_KEY) || "null"); } catch (e) {}
+    this._filters = new Set(Array.isArray(saved) ? saved.filter(b => BUCKETS.indexOf(b) !== -1) : BUCKETS);
+    $$(".enc-filters input[data-bucket]", this).forEach(i => {
+      i.checked = this._filters.has(i.dataset.bucket);
+      i.addEventListener("change", () => {
+        if (i.checked) this._filters.add(i.dataset.bucket); else this._filters.delete(i.dataset.bucket);
+        lsSet(FILTER_KEY, JSON.stringify([...this._filters]));
+        this._renderRows(this._list || []);
+      });
+    });
     // document-level listeners must be removable: the soft-nav router mounts a
     // fresh instance per visit, and detached ones must not keep refreshing
     this._onAuth = (e) => this.refresh({ spinner: !!(e.detail && e.detail.spinner) });
@@ -124,12 +146,13 @@ class Deployments extends EnclaveElement {
     const body = this.querySelector(".enc-body"), count = this.querySelector(".enc-count");
     if (!body) return;
     const setCount = t => { if (count) count.textContent = t || ""; };
+    const hideBar = () => { const fb = this.querySelector(".enc-filters"); if (fb) fb.hidden = true; };
     if (!Enclave.address){
-      setCount(""); this._stopPoll();
+      setCount(""); this._stopPoll(); hideBar();
       body.innerHTML = '<div class="enc-empty">Connect your wallet (above) to see your enclaves.</div>'; return;
     }
     if (!Enclave.authed()){
-      setCount(""); this._stopPoll();
+      setCount(""); this._stopPoll(); hideBar();
       body.innerHTML = '<div class="enc-empty">Sign in with your wallet to load your enclaves: <button class="wp-mini enc-signin" type="button">sign in</button></div>';
       const b = body.querySelector(".enc-signin"); if (b) b.addEventListener("click", async () => { try { await authenticate(); } catch(e){ showToast(e.message); } });
       return;
@@ -141,7 +164,7 @@ class Deployments extends EnclaveElement {
       this._renderRows(list, opts.highlight);
       this._startPoll();
     } catch(e){
-      if (e.status === 401){ Enclave.token = null; saveSession(); refreshWallet(); this._stopPoll();
+      if (e.status === 401){ Enclave.token = null; saveSession(); refreshWallet(); this._stopPoll(); hideBar();
         body.innerHTML = '<div class="enc-empty">session expired: <button class="wp-mini enc-signin" type="button">sign in</button></div>';
         const b = body.querySelector(".enc-signin"); if (b) b.addEventListener("click", async () => { try { await authenticate(); } catch(_){} });
         return;
@@ -153,10 +176,21 @@ class Deployments extends EnclaveElement {
   _renderRows(list, highlight) {
     const body = this.querySelector(".enc-body"), count = this.querySelector(".enc-count");
     list = (list || []).slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
-    const running = list.filter(d => d.status === "running").length;
-    if (count) count.textContent = list.length ? (running + " running · " + list.length + " total") : "";
+    this._list = list;
+    const counts = { running: 0, starting: 0, ended: 0, failed: 0 };
+    list.forEach(d => { counts[bucketOf(d.status)]++; });
+    const bar = this.querySelector(".enc-filters");
+    if (bar) {
+      bar.hidden = !list.length;
+      $$("input[data-bucket]", bar).forEach(i => { const b = i.closest("label").querySelector("b"); if (b) b.textContent = String(counts[i.dataset.bucket] || 0); });
+    }
+    const shown = list.filter(d => this._filters.has(bucketOf(d.status)));
+    if (count) count.textContent = list.length
+      ? (counts.running + " running · " + list.length + " total" + (shown.length !== list.length ? " · " + shown.length + " shown" : ""))
+      : "";
     if (!list.length){ body.innerHTML = '<div class="enc-empty">No enclaves yet. <a href="apps.html#deploy">Deploy one →</a></div>'; return; }
-    body.innerHTML = list.map(d => {
+    if (!shown.length){ body.innerHTML = '<div class="enc-empty">Nothing matches the status filter — tick more boxes above.</div>'; return; }
+    body.innerHTML = shown.map(d => {
       const ep = appEndpoint(d), st = d.status || "–";
       const bud = (d.paidUsdc != null)
         ? (esc(d.paidUsdc) + " USDC paid" + (d.timeRemainingSec != null ? " · " + esc(fmtDur(d.timeRemainingSec)) + " left" : "")
