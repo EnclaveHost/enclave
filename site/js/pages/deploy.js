@@ -14,12 +14,13 @@ import "../../components/fleet-list/fleet-list.js";
 import "../../components/volume-picker/volume-picker.js";
 import { appLabel, appEndpoint } from "../../components/deployments/deployments.js";
 import { runlog } from "../core/runlog.js";
+import { payForRuntime } from "../core/fund.js";
 import { navigate } from "../boot.js";
 import { $, $$, esc, short, wait, fmtNum, fmtDur, hlJson, hlCode, copyText, showToast, statusCls, on } from "../core/util.js";
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS, IPFS_UPLOAD_URL, BASE_CHAIN, PRIVY_RDNS } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
 import { CARD_GB, NODE_VCPUS, NODE_RAM_GB, CARD_TFLOPS, NODE_GFLOPS, shareRates } from "../core/pricing.js";
-import { encUint, encAddr, encBytes32, encBytesTail, randHex, usdc6, encCall, DEP_SEL, DEP_CREATED_TOPIC, APPROVAL, depGet, depRate6, waitReceipt } from "../core/chain.js";
+import { encCall, DEP_SEL, DEP_CREATED_TOPIC, APPROVAL, depGet, depRate6, waitReceipt } from "../core/chain.js";
 import { authenticate, connectWallet, refreshWallet, ensureBaseChain, sendTx, usdcBalanceOf, ethBalanceOf, openBuyModal } from "../core/wallet.js";
 import { STORE, loadCatalog, REF_CACHE, PORTS_CACHE, MINS_CACHE, looksFriendly, resolveAppRef, validPortsCsv } from "../core/catalog.js";
 
@@ -147,105 +148,6 @@ function note(lines){
   const el = $("#deployNote"); if (!el) return;
   el.hidden = !lines.length;
   el.innerHTML = lines.map(l => '<span class="ln ' + l[0] + '">' + esc(l[1]) + '</span>').join("");
-}
-
-/* ============================================================
-   Payments — minimal ABI encoding for EnclavePay payWithAuthorization
-   + payEth and the EnclaveDeployments funding pair (no web3 lib)
-   ============================================================ */
-const SEL_PAY_AUTH = "7d368d83";  // payWithAuthorization(bytes32,address,uint256,uint256,uint256,bytes32,bytes); verified vs viem
-const SEL_PAYETH   = "00bd4dee";  // payEth(bytes32) payable; verified vs viem
-// payWithAuthorization: 7 head words; `signature` is dynamic, so its head slot
-// holds the tail offset (7*32) and the bytes follow as length + padded data.
-const dataPayWithAuth = (ref, from, amt6, validAfter, validBefore, nonce, sig) =>
-  "0x" + SEL_PAY_AUTH + encBytes32(ref) + encAddr(from) + encUint(amt6)
-       + encUint(validAfter) + encUint(validBefore) + encBytes32(nonce)
-       + encUint(7 * 32) + encBytesTail(sig);
-const dataPayEth = (ref) => "0x" + SEL_PAYETH + encBytes32(ref);
-// EnclaveDeployments funding: byte-identical parameter shape to EnclavePay's pair, but
-// the credit lands in the deployment's ON-CHAIN balance6 (funds still forward
-// to the payout in the same tx - nothing is custodied by the contract).
-const dataFundWithAuth = (ref, from, amt6, validAfter, validBefore, nonce, sig) =>
-  "0x" + DEP_SEL.fundAuth + encBytes32(ref) + encAddr(from) + encUint(amt6)
-       + encUint(validAfter) + encUint(validBefore) + encBytes32(nonce)
-       + encUint(7 * 32) + encBytesTail(sig);
-const dataFundEth = (ref) => "0x" + DEP_SEL.fundEth + encBytes32(ref);
-// USD -> wei at the enclave's quoted ETH/USD rate (an ESTIMATE for the tx amount;
-// the enclave credits the actual wei at its own live Chainlink read on arrival)
-function usdToWei(usd, ethUsd){
-  const price = parseFloat(ethUsd);
-  if (!(price > 0)) throw new EnclaveError("No live ETH/USD rate from the enclave; pay in USDC, or retry shortly.", 0);
-  return BigInt(Math.round((usd / price) * 1e9)) * 1000000000n;   // 9dp of ETH precision
-}
-
-/* pay (or top up) a deployment.
-   USDC: sign an EIP-3009 ReceiveWithAuthorization (EIP-712, a gas-free wallet
-         signature), then ONE payWithAuthorization tx; no approve, no
-         allowance left behind.
-   ETH:  payEth(ref) with msg.value: ONE transaction; the enclave credits the wei
-         as USDC-equivalent at its live Chainlink ETH/USD read when the event lands. */
-async function payForRuntime(pay, fundUsdc, asset){
-  // Two receivers, one shape: the EnclavePay forwarder (legacy container flavor,
-  // off-chain clock) or the EnclaveDeployments ledger (pay.contract - the credit
-  // lands in the deployment's on-chain balance6, so ANY enclave can serve it).
-  const ledger = !(pay && pay.forwarder);
-  const to = pay && (pay.forwarder || pay.contract);
-  if (!to) throw new EnclaveError("No payment instructions (neither a forwarder nor the deployments contract was returned).", 0);
-  await ensureBaseChain();
-  const amt6 = usdc6(fundUsdc);                       // cent-rounded 6dp USDC
-  if (amt6 <= 0n) throw new EnclaveError("Fund at least $0.01 (USDC).", 0);
-  const usd = (Number(amt6) / 1e6).toFixed(2);        // e.g. "10.00", what actually gets signed/paid
-  if (asset === "ETH"){
-    if (!ledger && !pay.payEthMethod) throw new EnclaveError("This enclave doesn't accept ETH yet (older release); pay in USDC.", 0);
-    if (!pay.ethUsd) throw new EnclaveError("No ETH/USD quote available right now; fund in USDC instead.", 0);
-    const wei = usdToWei(Number(amt6) / 1e6, pay.ethUsd);
-    const eth = (Number(wei) / 1e18).toFixed(6);
-    runlog.line("info", "[*] " + (ledger ? "fundEth" : "payEth") + " ≈ " + eth + " ETH (≈ $" + usd + " @ $" + pay.ethUsd + "/ETH)… (wallet · one tx)");
-    const ph = await sendTx(to, (ledger ? dataFundEth : dataPayEth)(pay.deploymentRef), "0x" + wei.toString(16));
-    runlog.line("ok", "[✓] payment sent " + ph);
-    runlog.line("dimln", ledger
-      ? "    credited to the deployment's on-chain balance at the contract's live Chainlink rate; funds forward to Enclave"
-      : "    ETH goes straight to Enclave; the enclave credits it at the live Chainlink rate");
-    return ph;
-  }
-  // EIP-3009: the nonce must start with the deployment ref's first 16 bytes (the
-  // receiving contract enforces this, binding the signature to THIS deployment);
-  // the other 16 are random so repeat top-ups from the same wallet never collide.
-  const nonce = "0x" + encBytes32(pay.deploymentRef).slice(0, 32) + randHex(16);
-  const validBefore = Math.floor(Date.now() / 1000) + 3600;   // 1h to get the tx mined
-  // sign against the TOKEN's own EIP-712 domain (enclave reads it from the chain;
-  // fall back to Base-mainnet USDC's well-known fields if it hasn't yet)
-  const dom = pay.usdcDomain || { name: "USD Coin", version: "2", chainId: BASE_CHAIN, verifyingContract: pay.usdc };
-  const typed = {
-    types: {
-      EIP712Domain: [
-        { name: "name", type: "string" }, { name: "version", type: "string" },
-        { name: "chainId", type: "uint256" }, { name: "verifyingContract", type: "address" }],
-      ReceiveWithAuthorization: [
-        { name: "from", type: "address" }, { name: "to", type: "address" },
-        { name: "value", type: "uint256" }, { name: "validAfter", type: "uint256" },
-        { name: "validBefore", type: "uint256" }, { name: "nonce", type: "bytes32" }],
-    },
-    domain: { name: dom.name, version: dom.version, chainId: Number(dom.chainId), verifyingContract: dom.verifyingContract },
-    primaryType: "ReceiveWithAuthorization",
-    message: { from: Enclave.address, to: to, value: amt6.toString(),
-               validAfter: "0", validBefore: String(validBefore), nonce: nonce },
-  };
-  runlog.line("info", "[*] sign a " + usd + " USDC payment authorization (EIP-3009)… (wallet · gas-free signature)");
-  let sig = await Enclave.provider.request({ method: "eth_signTypedData_v4", params: [Enclave.address, JSON.stringify(typed)] });
-  // some wallets return v as 0/1; USDC's ecrecover wants 27/28 (65-byte ECDSA
-  // sigs only; longer EIP-1271 smart-wallet blobs pass through untouched)
-  if (sig.replace(/^0x/, "").length === 130) {
-    const v = parseInt(sig.slice(-2), 16);
-    if (v === 0 || v === 1) sig = sig.slice(0, -2) + (v + 27).toString(16);
-  }
-  runlog.line("info", "[*] pay " + usd + " USDC · buys runtime… (wallet · one tx, no approve)");
-  const ph = await sendTx(to, (ledger ? dataFundWithAuth : dataPayWithAuth)(pay.deploymentRef, Enclave.address, amt6, 0, validBefore, nonce, sig));
-  runlog.line("ok", "[✓] payment sent " + ph);
-  runlog.line("dimln", ledger
-    ? "    credited to the deployment's on-chain balance; funds forward to Enclave - nothing is custodied"
-    : "    funds go straight to Enclave; nothing is custodied");
-  return ph;
 }
 
 /* ---- real deploy: create -> pay -> provisioned, all from the browser ---- */
