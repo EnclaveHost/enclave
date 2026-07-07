@@ -64,15 +64,55 @@ class AdminConsole extends EnclaveElement {
   renderedCallback() {
     if (this._wired) return;
     this._wired = true;
+    this._root = this.querySelector("#acRoot");
+    on("enclave:wallet", () => this._evaluate());
+    this._evaluate();
+  }
+
+  /* The page renders NOTHING unless the connected wallet is the address
+     book's owner — read live, fail closed (RPC trouble = locked; the next
+     wallet event retries). This is presentation only: the real gate is every
+     contract's own owner check, which the chain enforces on each write. */
+  async _evaluate() {
+    const me = lc(Enclave.address);
+    const seq = this._evSeq = (this._evSeq || 0) + 1;
+    if (!me || !ADDRESS_BOOK_ADDRESS) return this._lock();
+    if (!this._bookOwner) {
+      try { this._bookOwner = await rdAddr(ADDRESS_BOOK_ADDRESS, CONTRACTS.EnclaveAddressBook.sel.owner); }
+      catch (e) { return this._lock(); }
+      if (seq !== this._evSeq) return;                 // superseded by a newer wallet event
+    }
+    if (isZero(this._bookOwner) || lc(this._bookOwner) !== me) return this._lock();
+    this._unlock();
+  }
+
+  _lock() {
+    this._unlocked = false;
+    this._root.innerHTML = "";
+    this._body = this._note = null;
+  }
+
+  _unlock() {
+    if (this._unlocked) { this._paintSigner(); this._gate(); return; }
+    this._unlocked = true;
+    this._root.innerHTML = `
+      <div class="sec-head">
+        <span class="eyebrow">Operator console</span>
+        <h2>Platform governance, signed by your wallet.</h2>
+        <p>Every owner transaction the contract scripts run from a terminal — deploys, address-book updates, prices, payout and operator rotation — sent from this wallet instead of a pasted private key. Each contract's owner is checked live; the chain enforces it again on every write.</p>
+      </div>
+      <div class="ac-signer" id="acSigner"></div>
+      <div class="ac-note" id="acNote">reading the platform contracts…</div>
+      <div id="acBody" hidden></div>`;
     this._body = this.querySelector("#acBody");
     this._note = this.querySelector("#acNote");
     this._body.addEventListener("click", (e) => this._onClick(e));
     this._body.addEventListener("input", (e) => this._onInput(e));
-    on("enclave:wallet", () => { this._paintSigner(); this._gate(); });
     this.refresh();
   }
 
   async refresh() {
+    if (!this._unlocked) return;
     this._paintSigner();
     try {
       const S = this.S = { book: { addr: ADDRESS_BOOK_ADDRESS, owner: null, entries: {} } };
@@ -109,13 +149,7 @@ class AdminConsole extends EnclaveElement {
   _paintSigner() {
     const el = this.querySelector("#acSigner");
     const me = lc(Enclave.address);
-    if (!me) {
-      el.innerHTML = `<span class="ac-who dim">no wallet connected — reads work, writes need the governance wallet</span>
-        <button class="btn btn-primary btn-sm" data-connect>Connect wallet</button>`;
-      const b = el.querySelector("[data-connect]");
-      if (b) b.addEventListener("click", async () => { try { await connectWallet(); } catch (e) { showToast(friendly(e)); } });
-      return;
-    }
+    if (!el || !me) return;                        // locked (or mid-lock repaint): nothing to paint
     const chips = [];
     const chip = (label, ownerAddr) => {
       if (!ownerAddr) return;
