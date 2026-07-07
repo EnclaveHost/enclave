@@ -123,8 +123,8 @@
      the store content; deliberately not a header tab -->
 <section id="deploy" data-view="deploy" aria-label="Deploy console" hidden>
   <div class="wrap">
-    <c-section-head eyebrow="Deploy · live on Base" heading="Build a deployment.">
-      <p>Pick a Wasm app, connect your wallet, and provision a real confidential enclave. This console calls the same public REST API documented below. The request body and browser <span class="mono">fetch()</span> shown here are exactly what gets sent. Use <span class="mono">Dry run</span> to inspect the call before spending anything. Want to deploy your own code? The <a href="develop.html#docs">developer guide</a> walks you through building it.</p>
+    <c-section-head eyebrow="Deploy · live on Base" heading="Deploy an app.">
+      <p>Deploying is deliberately simple: pick an app from the <a href="apps.html">store</a>, set two dials — a GPU share and a CPU share — and fund it from your wallet. Hit <span class="mono">Deploy</span> and a confidential enclave claims the work, boots your app, and hands back its URL in seconds. No account, no servers, no lock-in: it's one call to the public REST API, shown here exactly as it goes out, and <span class="mono">Dry run</span> lets you inspect everything before spending anything. Building your own app? The <a href="develop.html#docs">developer guide</a> walks you through it.</p>
       <div class="endpoint-row">
         <label for="apiBase">API endpoint</label>
         <input type="text" id="apiBase" spellcheck="false" autocapitalize="off" autocomplete="off" readonly />
