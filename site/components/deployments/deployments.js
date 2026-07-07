@@ -10,10 +10,12 @@ import { $$, esc, hlJson, fmtDur, statusCls, copyText, showToast, lsGet, lsSet }
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { pad32, encUint, DEP_SEL, waitReceipt } from "../../js/core/chain.js";
-import { authenticate, refreshWallet, saveSession, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
+import { authenticate, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
 import { slugOfRef } from "../../js/core/catalog.js";
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine } from "../../js/core/runlog.js";
+import { payForRuntime } from "../../js/core/fund.js";
+import { shareRates } from "../../js/core/pricing.js";
 
 // The app's reachable URL. Through the gateway each deployment gets its OWN
 // origin: a per-deployment subdomain (<id>.app.enclave.host, the base36 part of
@@ -207,6 +209,7 @@ class Deployments extends EnclaveElement {
           '<span class="enc-spend">' + bud + '</span>' +
           '<span class="enc-acts">' +
             '<button class="btn btn-sm enc-outbtn" data-id="' + esc(d.id) + '">Output</button>' +
+            (live ? '<button class="btn btn-sm enc-fundbtn" data-id="' + esc(d.id) + '" title="Add runtime — a gas-free USDC signature credits the deployment’s on-chain balance">Top up</button>' : '') +
             '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '">Verify</button>' +
             (live ? '<button class="btn btn-sm danger enc-kill" data-id="' + esc(d.id) + '">Terminate</button>' : '') +
           '</span>' +
@@ -215,6 +218,7 @@ class Deployments extends EnclaveElement {
         (ep ? '<button class="enc-ep" data-ep="' + esc(ep) + '">' + esc(ep) + ' ⧉</button>'
               + (d.public && st === "running" ? '<a class="enc-open" href="' + esc(ep) + '/" target="_blank" rel="noopener">open ↗</a>' : '') : '') +
         depIp6Row(d) +
+        '<div class="enc-fund" hidden></div>' +
         '<div class="enc-out" data-id="' + esc(d.id) + '" hidden></div>' +
         '<div class="enc-att" hidden></div>' +
       '</div>';
@@ -222,6 +226,7 @@ class Deployments extends EnclaveElement {
     $$(".enc-id", body).forEach(b => b.addEventListener("click", () => copyText(b.dataset.copy)));
     $$(".enc-ep", body).forEach(b => b.addEventListener("click", () => copyText(b.dataset.ep)));
     $$(".enc-outbtn", body).forEach(b => b.addEventListener("click", () => this._output(b.dataset.id, b)));
+    $$(".enc-fundbtn", body).forEach(b => b.addEventListener("click", () => this._fund(b.dataset.id, b)));
     $$(".enc-verify", body).forEach(b => b.addEventListener("click", () => this._verify(b.dataset.id, b)));
     $$(".enc-kill", body).forEach(b => b.addEventListener("click", () => this._kill(b.dataset.id, b)));
     // a just-deployed row opens its Output panel so the narrative continues in place
@@ -229,6 +234,60 @@ class Deployments extends EnclaveElement {
       const b = body.querySelector('.enc-outbtn[data-id="' + highlight + '"]');
       if (b && runlog.runFor(highlight)) this._output(highlight, b);
     }
+  }
+
+  /* ---- per-row Top up: extend a deployment's runtime in place. One amount,
+     the runtime it adds at this deployment's own rate, one gas-free USDC
+     signature (EIP-3009 -> fundWithAuthorization; same flow as deploying). ---- */
+  _fund(id, btn) {
+    const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-fund"); if (!box) return;
+    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; return; }
+    const d = (this._list || []).find(x => x.id === id) || {};
+    const r = d.resources || {};
+    // the deployment's own burn rate: the API's live number when present,
+    // else priced from its shares
+    const rate = parseFloat(d.ratePerSecondUsdc)
+      || shareRates(Math.round((r.gpuShare || 0) * 100), Math.round((r.cpuShare != null ? r.cpuShare : (r.share || 0)) * 100)).rate;
+    box.hidden = false;
+    box.innerHTML = '<div class="ap-attbar">top up · ' + esc(id) + '</div>'
+      + '<div class="enc-fund-body">'
+      +   '<label for="efAmt">Add runtime (USDC)</label>'
+      +   '<input class="ef-amt" id="efAmt" type="number" value="5" min="0.01" step="any" inputmode="decimal" />'
+      +   '<span class="ef-est"></span>'
+      +   '<button class="btn btn-sm btn-primary ef-go" type="button">Sign &amp; pay</button>'
+      + '</div>'
+      + '<div class="term enc-fund-status"></div>';
+    const amt = box.querySelector(".ef-amt"), est = box.querySelector(".ef-est");
+    const go = box.querySelector(".ef-go"), st = box.querySelector(".enc-fund-status");
+    const paint = (cls, txt) => paintLine(st, cls, txt);
+    const upd = () => {
+      const usd = parseFloat(amt.value) || 0;
+      est.textContent = (rate > 0 && usd > 0) ? "adds ≈ " + fmtDur(usd / rate) : "";
+      go.disabled = !(usd >= 0.01);
+    };
+    amt.addEventListener("input", upd); upd();
+    go.addEventListener("click", async () => {
+      const usd = parseFloat(amt.value) || 0; if (!(usd >= 0.01)) return;
+      go.disabled = true; st.innerHTML = "";
+      try {
+        if (!Enclave.token){ paint("info", "[*] connecting wallet + signing in…"); await authenticate(); }
+        if (!Enclave.provider){ paint("info", "[*] reconnecting wallet…"); await connectWallet(); }
+        await ensureBaseChain();
+        let pricing = null;
+        try { pricing = await (await fetch(Enclave.base + "/pricing", { signal: AbortSignal.timeout(8000) })).json(); } catch(e){}
+        await payForRuntime({
+          contract: DEPLOYMENTS_ADDRESS, deploymentRef: id,
+          usdcDomain: pricing && pricing.usdcDomain, usdc: (pricing && pricing.usdc) || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          ethUsd: pricing && pricing.ethUsd,
+        }, usd, "USDC", paint);
+        paint("ok", "[✓] topped up" + (rate > 0 ? " — +" + fmtDur(usd / rate) + " of runtime" : "") + " · the enclave picks up the new balance within a minute");
+        showToast("topped up " + id.slice(0, 10) + "… with $" + usd.toFixed(2));
+        setTimeout(() => { if (box.isConnected && !box.hidden){ box.hidden = true; box.innerHTML = ""; } this.refresh(); }, 3500);
+      } catch(e){
+        const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
+        paint("warn", rejected ? "[x] rejected in wallet — nothing was paid" : "[x] " + (e.message || String(e)));
+      } finally { go.disabled = false; refreshWallet(); }
+    });
   }
 
   /* ---- per-row Output panel: recorded deploy narrative + live app logs ---- */
@@ -355,7 +414,7 @@ class Deployments extends EnclaveElement {
     if (this._poll) return;
     this._poll = setInterval(() => {
       if (!Enclave.authed()){ this._stopPoll(); return; }
-      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden])")) return;   // don't clobber an open attestation/output view
+      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden])")) return;   // don't clobber an open attestation/output/top-up view
       this.refresh();
     }, 10000);
   }

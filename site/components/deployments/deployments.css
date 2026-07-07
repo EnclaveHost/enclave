@@ -49,6 +49,16 @@ c-deployments{display:contents;}
 .enc-live-x:hover{color:var(--text);}
 .enc-live-out{max-height:300px;}
 
+/* per-row Top up (amount -> runtime -> one signature) */
+.enc-fund{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:#080c12;}
+.enc-fund-body{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;}
+.enc-fund-body label{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);}
+.ef-amt{width:110px;background:var(--bg-1);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:.84rem;padding:.4em .6em;}
+.ef-amt:focus{outline:none;border-color:var(--jade-dim);}
+.ef-est{font-family:var(--font-mono);font-size:.76rem;color:var(--jade);}
+.enc-fund-status{padding:0 18px 10px;min-height:0;}
+.enc-fund-status:empty{display:none;}
+
 /* per-row Output panel (narrative + app logs) */
 .enc-out{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:#080c12;}
 .enc-out-term{max-height:360px;}
