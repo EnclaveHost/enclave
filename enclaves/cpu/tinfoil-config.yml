@@ -47,10 +47,10 @@ containers:
       - CORS_ORIGINS: "https://enclave.host"
       - BASE_RPC: "https://mainnet.base.org"
       # pay-per-deploy (no custody): same EnclavePay forwarder as the GPU flavor.
-      - FORWARDER_ADDRESS: "0xaA943DfDF4e9F9F33C04e35D31E2645C69C7D8D9"
+      - FORWARDER_ADDRESS: "0x9487322262F4ED763C1a0880ECD5E996094fb81C"
       - USDC_ADDRESS: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"   # USDC on Base
       # app approval gate: same EnclaveAppCatalog as the GPU flavor.
-      - APP_CATALOG_ADDRESS: "0x17071414BD19fDFdA8E58559d2CcFb99b2c8d0FC"
+      - APP_CATALOG_ADDRESS: "0x21F2798A51F5970dD43A5D8fAdA48b1b8D59cc67"
       - PAYMENT_WINDOW_SEC: "600"
       - GRACE_SEC: "90"
       - PAY_POLL_SEC: "12"
@@ -63,7 +63,7 @@ containers:
       # on-chain discovery: same registry; a CPU enclave advertises like any
       # other and callers learn it is CPU-only from its /availability.
       - REGISTRY_ENABLED: "1"
-      - REGISTRY_ADDRESS: "0x13deE63b80353a15C6E03D54240EE463B420353F"
+      - REGISTRY_ADDRESS: "0xCB65f487eba6564D57FfB860cF9aE701584cB4a2"
       # Portable deployments: the claim loop adopts ONLY CPU deployments
       # (EnclaveDeployments records created with gpu=false).
       - CLAIM_ENABLED: "1"
