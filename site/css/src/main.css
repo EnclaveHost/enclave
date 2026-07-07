@@ -59,6 +59,7 @@
 @import "./deploy.css" layer(components);
 @import "./apps.css" layer(components);
 @import "./develop.css" layer(components);
+@import "./dashboard.css" layer(components);
 @import "./responsive.css" layer(components);
 @import "../../components/header/header.css" layer(components);
 @import "../../components/wallet-button/wallet-button.css" layer(components);
