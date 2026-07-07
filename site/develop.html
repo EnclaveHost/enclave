@@ -203,14 +203,14 @@ wasmtime serve -Scli -Shttp -Sp3 \
         <!-- 05 ------------------------------------------------------------ -->
         <article class="doc" id="docs-deploy">
           <h3><span class="n">05</span>Deploy it</h3>
-          <p>A deployment names an app, a slice of the card, and who may reach it. The app reference takes two forms:</p>
+          <p>A deployment names an app, a slice of the card, and who may reach it. The app reference is always a <b>catalog listing</b>:</p>
           <div class="tbl"><table class="params">
             <thead><tr><th>reference</th><th>meaning</th></tr></thead>
             <tbody>
-              <tr><td class="pname">my-hello:1.0.0</td><td>A store app by slug and version (or <code>&lt;publisher&gt;/my-hello:1.0.0</code> to disambiguate). The <i>browser</i> resolves this against the on-chain catalog to the version's CID; the API itself takes the resolved form below.</td></tr>
-              <tr><td class="pname">ipfs://&lt;cid&gt;</td><td>An exact wasm by CID. The enclave fetches it, verifies every block hashes to the CID (a tampering gateway fails the check), confirms it's a component, and runs it. The verified CID is folded into the attestation.</td></tr>
+              <tr><td class="pname">my-hello:1.0.0</td><td>A store app by slug and version (or <code>&lt;publisher&gt;/my-hello:1.0.0</code> to disambiguate). It resolves against the on-chain catalog to that version's exact <code>ipfs://&lt;cid&gt;</code>; the enclave fetches those bytes, verifies every block hashes to the CID (a tampering gateway fails the check), confirms it's a component, and runs it. The verified CID is folded into the attestation.</td></tr>
             </tbody>
           </table></div>
+          <p>Unlisted CIDs can't deploy: the catalog listing carries everything a deploy needs on-chain — the resource specs that floor the dials, the firewall ports, and the owner's approval of that exact CID. Built something new? Publish it first (<a href="#docs-publish">chapter 04</a>), then deploy the slug.</p>
           <p>The easy path is the <a href="apps.html#deploy">Deploy console</a>: your published app's card even has a <b>Use in Deploy</b> button that prefills the reference and firewall. Tick <b>Dry run</b> to inspect every call before spending anything. The console speaks the same public API you can drive yourself:</p>
 
           <h4>Sign in: an Ethereum signature, no account</h4>

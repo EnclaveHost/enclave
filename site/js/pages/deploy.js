@@ -44,9 +44,9 @@ function currentMins(){
   return MINS_CACHE[input] || { gpuPct: 0, cpuPct: 1 };
 }
 function deployBody(){
-  // `image.reference` is the Wasm app to run: a baked-in attested catalog id, or an
-  // ipfs://<cid> (fetched + verified against the CID by the enclave), resolved from
-  // a friendly slug:version by resolveAppRef().
+  // `image.reference` is the Wasm app to run: a catalog slug:version resolved to
+  // its ipfs://<cid> by resolveAppRef() (the enclave fetches + verifies those
+  // bytes against the CID). Raw CID input is refused — deploys need the listing.
   const body = { image: { reference: resolveAppRef($("#cfgImage").value).reference } };
   body.public = dep.public;   // public endpoint (anyone) vs private (owner token only)
   // firewall: ports the app may bind (from the catalog via Use-in-Deploy; editable)
@@ -247,7 +247,7 @@ async function runDeploy(){
   }
   const rref = resolveAppRef(raw);
   if (rref.error){ term.line("warn", "[!] " + rref.error); return; }
-  if (rref.pending){ term.line("warn", "[!] couldn’t reach the catalog to resolve " + raw + "; open the Apps page, or paste ipfs://<cid>."); return; }
+  if (rref.pending){ term.line("warn", "[!] couldn’t reach the catalog to resolve " + raw + " — deploys need the on-chain listing; try again in a moment."); return; }
   const fwErr = validPortsCsv($("#cfgPorts") ? $("#cfgPorts").value : "");
   if (fwErr){ term.line("warn", "[!] firewall: " + fwErr); return; }
   // pre-flight the catalog gate BEFORE any wallet action: enclaves refuse
