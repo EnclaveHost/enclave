@@ -283,6 +283,11 @@ jobs:
           printf 'Host nan\n  HostName %s\n  User root\n' "$SITE_SSH_HOST" > ~/.ssh/config
           chmod 600 ~/.ssh/config
 
+      # the site bundler (scripts/build-site.mjs, run by deploy.sh) needs
+      # esbuild + @tailwindcss/cli from devDependencies
+      - name: Install build dependencies
+        run: npm ci
+
       - name: Deploy site
         run: bash site/deploy.sh
 
