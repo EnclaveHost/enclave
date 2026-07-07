@@ -94,6 +94,7 @@ for (const n of fs.readdirSync(path.join(SITE, "components"))) {
    hydration + the wallet round-trip (~300ms with MetaMask) restores it. */
 const WALLET_PAINT = `<script>(function(){try{
 var s=JSON.parse(localStorage.getItem("enclave_session")||"null");if(!s||!s.address)return;
+var dt=document.querySelector('.nav-links a[data-view="dashboard"]');if(dt)dt.hidden=false;
 var t=s.token||null;
 if(t){try{var b64=t.split(".")[1].replace(/-/g,"+").replace(/_/g,"/");b64+="=".repeat((4-b64.length%4)%4);
 var p=JSON.parse(atob(b64));if(typeof p.exp==="number"&&p.exp*1000<=Date.now())t=null;}catch(e){t=null;}}
@@ -151,7 +152,7 @@ const chunksOf = (outFile, seen = new Set()) => {
   return seen;
 };
 const bootOut = Object.keys(outs).find(f => outs[f].entryPoint && outs[f].entryPoint.endsWith("js/boot.js"));
-const PAGE_HTML = { overview: "index.html", apps: "apps.html", develop: "develop.html" };   // deploy.html is a redirect stub now
+const PAGE_HTML = { overview: "index.html", apps: "apps.html", develop: "develop.html", dashboard: "dashboard.html" };   // deploy.html is a redirect stub now
 const preloads = {};
 for (const [outFile, o] of Object.entries(outs)) {
   const page = o.entryPoint && /js[\\/]pages[\\/](\w+)\.js$/.exec(o.entryPoint)?.[1];
@@ -161,7 +162,7 @@ for (const [outFile, o] of Object.entries(outs)) {
   preloads[PAGE_HTML[page]] = [...files]
     .map(c => `<link rel="modulepreload" href="${path.relative(DIST, path.resolve(ROOT, c)).replace(/\\/g, "/")}" />`).join("\n");
 }
-for (const f of ["index.html", "deploy.html", "apps.html", "develop.html", "buy.html", "openapi.json"]) {
+for (const f of ["index.html", "deploy.html", "apps.html", "develop.html", "dashboard.html", "buy.html", "openapi.json"]) {
   let s = fs.readFileSync(path.join(SITE, f), "utf8");
   if (f.endsWith(".html") && f !== "buy.html") {
     s = bake(s);

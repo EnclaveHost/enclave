@@ -18,9 +18,10 @@
    ============================================================ */
 
 const PAGES = {
-  overview: () => import("./pages/overview.js"),
-  apps:     () => import("./pages/apps.js"),      // also hosts #publish and #deploy (deploy.js is its lazy chunk)
-  develop:  () => import("./pages/develop.js"),
+  overview:  () => import("./pages/overview.js"),
+  apps:      () => import("./pages/apps.js"),      // also hosts #publish and #deploy (deploy.js is its lazy chunk)
+  develop:   () => import("./pages/develop.js"),
+  dashboard: () => import("./pages/dashboard.js"), // signed-in view: run log + My Apps
 };
 const pageOf = (pathname) => {
   const base = pathname.split("/").pop() || "index.html";

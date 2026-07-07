@@ -124,7 +124,7 @@
 <section id="deploy" data-view="deploy" aria-label="Deploy console" hidden>
   <div class="wrap">
     <c-section-head eyebrow="Deploy · live on Base" heading="Deploy an app.">
-      <p>Deploying is deliberately simple: pick an app from the <a href="apps.html">store</a>, set two dials — a GPU share and a CPU share — and fund it from your wallet. Hit <span class="mono">Deploy</span> and a confidential enclave claims the work, boots your app, and hands back its URL in seconds. No account, no servers, no lock-in: it's one call to the public REST API, shown here exactly as it goes out, and <span class="mono">Dry run</span> lets you inspect everything before spending anything. Building your own app? The <a href="develop.html#docs">developer guide</a> walks you through it.</p>
+      <p>Deploying is deliberately simple: pick an app from the <a href="apps.html">store</a>, set two dials — a GPU share and a CPU share — and fund it from your wallet. Hit <span class="mono">Deploy</span> and a confidential enclave claims the work, boots your app, and hands back its URL in seconds — the provisioning output and your running apps live on your <a href="dashboard.html">Dashboard</a>. No account, no servers, no lock-in: it's one call to the public REST API, shown here exactly as it goes out, and <span class="mono">Dry run</span> lets you inspect everything before spending anything. Building your own app? The <a href="develop.html#docs">developer guide</a> walks you through it.</p>
       <div class="endpoint-row">
         <label for="apiBase">API endpoint</label>
         <input type="text" id="apiBase" spellcheck="false" autocapitalize="off" autocomplete="off" readonly />
@@ -198,13 +198,11 @@
           <button class="on" data-pane="req" type="button" role="tab">Request body</button>
           <button data-pane="fetch" type="button" role="tab">fetch()</button>
           <button data-pane="curl" type="button" role="tab">cURL</button>
-          <button data-pane="run" type="button" role="tab">Output</button>
         </div>
         <div class="console-body">
           <div class="pane on" data-pane="req"><div class="code" style="border:0;border-radius:0;height:100%"><div class="codebar"><span class="fn">POST /v1/deployments</span><button class="copybtn" data-copy="req">⧉ copy</button></div><pre><code id="outReq"></code></pre></div></div>
           <div class="pane" data-pane="fetch"><div class="code" style="border:0;border-radius:0;height:100%"><div class="codebar"><span class="fn">deploy.js</span><button class="runbtn" id="fetchRunBtn" type="button" title="Run this deployment (same as the Deploy button; respects Dry run)">run</button><button class="copybtn" data-copy="fetch">⧉ copy</button></div><pre><code id="outFetch"></code></pre></div></div>
           <div class="pane" data-pane="curl"><div class="code" style="border:0;border-radius:0;height:100%"><div class="codebar"><span class="fn">terminal</span><button class="copybtn" data-copy="curl">⧉ copy</button></div><pre><code id="outCurl"></code></pre></div></div>
-          <div class="pane" data-pane="run"><c-terminal></c-terminal></div>
         </div>
         <div class="run-row">
           <button class="btn btn-primary btn-sm" id="deployBtn" type="button">▸ Deploy App</button>
@@ -212,9 +210,9 @@
           <label class="dry"><input type="checkbox" id="dryRun" /> <span>Dry run</span></label>
           <span class="hint" id="runHint">sign in to deploy</span>
         </div>
+        <div class="deploy-note" id="deployNote" hidden></div>
       </div>
     </div>
-    <c-deployments></c-deployments>
   </div>
 </section>
 </main>

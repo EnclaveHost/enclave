@@ -1,18 +1,20 @@
 /* ============================================================
    Deploy page — the console form (two dials, request preview)
-   and the on-chain create+fund flow. Everything data-driven
-   around it is a component: <c-terminal> (output),
-   <c-fleet-list> / <c-volume-picker> (live capacity),
-   <c-deployments> (the My Apps panel).
+   and the on-chain create+fund flow. Validation and dry runs
+   render inline; a REAL deploy soft-navigates to the dashboard
+   and streams its narrative into the run log there (js/core/
+   runlog — the <c-terminal> on dashboard.html follows it live).
+   <c-fleet-list> / <c-volume-picker> show live capacity.
    ============================================================ */
 import "../../components/header/header.js";
 import "../../components/footer/footer.js";
 import "../../components/toast/toast.js";
 import "../../components/section-head/section-head.js";
-import "../../components/terminal/terminal.js";
 import "../../components/fleet-list/fleet-list.js";
 import "../../components/volume-picker/volume-picker.js";
 import { appLabel, appEndpoint } from "../../components/deployments/deployments.js";
+import { runlog } from "../core/runlog.js";
+import { navigate } from "../boot.js";
 import { $, $$, esc, short, wait, fmtNum, fmtDur, hlJson, hlCode, copyText, showToast, statusCls, on } from "../core/util.js";
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS, IPFS_UPLOAD_URL, BASE_CHAIN, PRIVY_RDNS } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
@@ -22,7 +24,10 @@ import { authenticate, connectWallet, refreshWallet, ensureBaseChain, sendTx, us
 import { STORE, loadCatalog, REF_CACHE, PORTS_CACHE, MINS_CACHE, looksFriendly, resolveAppRef, validPortsCsv } from "../core/catalog.js";
 
 /* component handles (assigned in initDeploy) */
-let term = null, deps = null, fleetList = null, volPicker = null;
+let fleetList = null, volPicker = null;
+/* the My Apps panel lives on the dashboard now; resolve it at call time
+   (present after the deploy flow navigates there, absent otherwise) */
+const depsPanel = () => document.querySelector("c-deployments");
 
 /* ============================================================
    Console state + request rendering
@@ -135,6 +140,14 @@ function switchPane(name){
   $$(".console-tabs button").forEach(b => b.classList.toggle("on", b.dataset.pane === name));
   $$(".console-body .pane").forEach(p => p.classList.toggle("on", p.dataset.pane === name));
 }
+/* pre-flight feedback (validation, dry runs) renders inline under the run
+   row — the full output console lives on the dashboard, where a real deploy
+   navigates before its first wallet step. lines: [cls, text][] */
+function note(lines){
+  const el = $("#deployNote"); if (!el) return;
+  el.hidden = !lines.length;
+  el.innerHTML = lines.map(l => '<span class="ln ' + l[0] + '">' + esc(l[1]) + '</span>').join("");
+}
 
 /* ============================================================
    Payments — minimal ABI encoding for EnclavePay payWithAuthorization
@@ -171,7 +184,7 @@ function usdToWei(usd, ethUsd){
          allowance left behind.
    ETH:  payEth(ref) with msg.value: ONE transaction; the enclave credits the wei
          as USDC-equivalent at its live Chainlink ETH/USD read when the event lands. */
-async function payForRuntime(term, pay, fundUsdc){
+async function payForRuntime(pay, fundUsdc){
   // Two receivers, one shape: the EnclavePay forwarder (legacy container flavor,
   // off-chain clock) or the EnclaveDeployments ledger (pay.contract - the credit
   // lands in the deployment's on-chain balance6, so ANY enclave can serve it).
@@ -187,10 +200,10 @@ async function payForRuntime(term, pay, fundUsdc){
     if (!pay.ethUsd) throw new EnclaveError("No ETH/USD quote available right now; fund in USDC instead.", 0);
     const wei = usdToWei(Number(amt6) / 1e6, pay.ethUsd);
     const eth = (Number(wei) / 1e18).toFixed(6);
-    term.line("info", "[*] " + (ledger ? "fundEth" : "payEth") + " ≈ " + eth + " ETH (≈ $" + usd + " @ $" + pay.ethUsd + "/ETH)… (wallet · one tx)");
+    runlog.line("info", "[*] " + (ledger ? "fundEth" : "payEth") + " ≈ " + eth + " ETH (≈ $" + usd + " @ $" + pay.ethUsd + "/ETH)… (wallet · one tx)");
     const ph = await sendTx(to, (ledger ? dataFundEth : dataPayEth)(pay.deploymentRef), "0x" + wei.toString(16));
-    term.line("ok", "[✓] payment sent " + ph);
-    term.line("dimln", ledger
+    runlog.line("ok", "[✓] payment sent " + ph);
+    runlog.line("dimln", ledger
       ? "    credited to the deployment's on-chain balance at the contract's live Chainlink rate; funds forward to Enclave"
       : "    ETH goes straight to Enclave; the enclave credits it at the live Chainlink rate");
     return ph;
@@ -218,7 +231,7 @@ async function payForRuntime(term, pay, fundUsdc){
     message: { from: Enclave.address, to: to, value: amt6.toString(),
                validAfter: "0", validBefore: String(validBefore), nonce: nonce },
   };
-  term.line("info", "[*] sign a " + usd + " USDC payment authorization (EIP-3009)… (wallet · gas-free signature)");
+  runlog.line("info", "[*] sign a " + usd + " USDC payment authorization (EIP-3009)… (wallet · gas-free signature)");
   let sig = await Enclave.provider.request({ method: "eth_signTypedData_v4", params: [Enclave.address, JSON.stringify(typed)] });
   // some wallets return v as 0/1; USDC's ecrecover wants 27/28 (65-byte ECDSA
   // sigs only; longer EIP-1271 smart-wallet blobs pass through untouched)
@@ -226,10 +239,10 @@ async function payForRuntime(term, pay, fundUsdc){
     const v = parseInt(sig.slice(-2), 16);
     if (v === 0 || v === 1) sig = sig.slice(0, -2) + (v + 27).toString(16);
   }
-  term.line("info", "[*] pay " + usd + " USDC · buys runtime… (wallet · one tx, no approve)");
+  runlog.line("info", "[*] pay " + usd + " USDC · buys runtime… (wallet · one tx, no approve)");
   const ph = await sendTx(to, (ledger ? dataFundWithAuth : dataPayWithAuth)(pay.deploymentRef, Enclave.address, amt6, 0, validBefore, nonce, sig));
-  term.line("ok", "[✓] payment sent " + ph);
-  term.line("dimln", ledger
+  runlog.line("ok", "[✓] payment sent " + ph);
+  runlog.line("dimln", ledger
     ? "    credited to the deployment's on-chain balance; funds forward to Enclave - nothing is custodied"
     : "    funds go straight to Enclave; nothing is custodied");
   return ph;
@@ -238,18 +251,18 @@ async function payForRuntime(term, pay, fundUsdc){
 /* ---- real deploy: create -> pay -> provisioned, all from the browser ---- */
 async function runDeploy(){
   const btn = $("#deployBtn"); if (btn.disabled) return;
-  switchPane("run"); term.startRun();
+  note([]);
   // resolve a friendly slug:version -> ipfs://<cid> (may need to read the catalog first)
   const raw = $("#cfgImage").value.trim();
   if (looksFriendly(raw) && !REF_CACHE[raw] && !STORE.loaded){
-    term.line("info", "[*] resolving " + raw + " from the catalog…");
+    note([["info", "[*] resolving " + raw + " from the catalog…"]]);
     try { await loadCatalog(); } catch(e){}
   }
   const rref = resolveAppRef(raw);
-  if (rref.error){ term.line("warn", "[!] " + rref.error); return; }
-  if (rref.pending){ term.line("warn", "[!] couldn’t reach the catalog to resolve " + raw + " — deploys need the on-chain listing; try again in a moment."); return; }
+  if (rref.error) return note([["warn", "[!] " + rref.error]]);
+  if (rref.pending) return note([["warn", "[!] couldn’t reach the catalog to resolve " + raw + " — deploys need the on-chain listing; try again in a moment."]]);
   const fwErr = validPortsCsv($("#cfgPorts") ? $("#cfgPorts").value : "");
-  if (fwErr){ term.line("warn", "[!] firewall: " + fwErr); return; }
+  if (fwErr) return note([["warn", "[!] firewall: " + fwErr]]);
   // pre-flight the catalog gate BEFORE any wallet action: enclaves refuse
   // yanked / unapproved / unlisted versions deterministically, so paying for
   // one just parks USDC on an unclaimable deployment.
@@ -258,19 +271,13 @@ async function runDeploy(){
     const cid = String(rref.reference || "").replace(/^ipfs:\/\//, "");
     let hit = null;
     for (const a of (STORE.apps || [])) for (const v of (a.versions || [])) if (v && v.cid === cid){ hit = { a, v }; }
-    if (hit && hit.v.yanked){
-      term.line("warn", "[!] " + hit.a.slug + ":" + hit.v.version + " is YANKED by its publisher - enclaves will never claim it.");
-      term.line("dimln", "    pick another version, or republish this CID as a new version (the catalog follows the newest listing), then deploy.");
-      return;
-    }
-    if (hit && hit.v.approval !== APPROVAL.approved){
-      term.line("warn", "[!] " + hit.a.slug + ":" + hit.v.version + " is " + (hit.v.approval === APPROVAL.rejected ? "REJECTED" : "still PENDING approval") + " - enclaves only claim approved versions.");
-      return;
-    }
-    if (!hit && STORE.loaded && STORE.apps.length){
-      term.line("warn", "[!] this CID isn't listed in the on-chain catalog - enclaves refuse unlisted apps. Publish it on the Apps page first.");
-      return;
-    }
+    if (hit && hit.v.yanked)
+      return note([["warn", "[!] " + hit.a.slug + ":" + hit.v.version + " is YANKED by its publisher - enclaves will never claim it."],
+                   ["dimln", "    pick another version, or republish this CID as a new version (the catalog follows the newest listing), then deploy."]]);
+    if (hit && hit.v.approval !== APPROVAL.approved)
+      return note([["warn", "[!] " + hit.a.slug + ":" + hit.v.version + " is " + (hit.v.approval === APPROVAL.rejected ? "REJECTED" : "still PENDING approval") + " - enclaves only claim approved versions."]]);
+    if (!hit && STORE.loaded && STORE.apps.length)
+      return note([["warn", "[!] this CID isn't listed in the on-chain catalog - enclaves refuse unlisted apps. Publish it on the Apps page first."]]);
   } catch(e){}
   const fund = parseFloat($("#cfgBudget").value) || 0;
   const dry = $("#dryRun") && $("#dryRun").checked;
@@ -288,33 +295,38 @@ async function runDeploy(){
   const volNames = [...dep.volumes];
 
   if (dry){
-    term.line("warn", "// dry run: nothing is sent");
-    if (volNames.length) term.line("info", "0) volumes " + JSON.stringify(volNames) + " -> the console pins {\"volumes\":[…]} to IPFS and passes its CID as configCid");
-    term.line("p", "1) EnclaveDeployments.create(app, shares, ports) - one wallet tx; you own the record");
-    term.line("dimln", "   create(\"" + rref.reference + "\", " + gpuMilli + ", " + cpuMilli + ", " + appPort + ", \"" + portsCsv + "\", " + dep.public + ", \"\", \"" + (volNames.length ? "<pinned config CID>" : configCid) + "\")");
-    term.line("p", dep.asset === "ETH"
-      ? "2) fundEth(id) with ≈ $" + fund + " of ETH - one wallet tx; credited on-chain"
-      : "2) sign a " + fund + " USDC authorization (EIP-3009) + one fundWithAuthorization(id) tx - credited on-chain");
-    term.line("p", "3) POST /v1/claim-hint - an enclave claims the work and serves it");
-    term.line("dimln", "   the balance and spec live on Base: any enclave can take over if the runner dies");
-    term.line("info", "uncheck “Dry run” to deploy for real");
-    return;
+    const plan = [["warn", "// dry run: nothing is sent"]];
+    if (volNames.length) plan.push(["info", "0) volumes " + JSON.stringify(volNames) + " -> the console pins {\"volumes\":[…]} to IPFS and passes its CID as configCid"]);
+    plan.push(["p", "1) EnclaveDeployments.create(app, shares, ports) - one wallet tx; you own the record"],
+      ["dimln", "   create(\"" + rref.reference + "\", " + gpuMilli + ", " + cpuMilli + ", " + appPort + ", \"" + portsCsv + "\", " + dep.public + ", \"\", \"" + (volNames.length ? "<pinned config CID>" : configCid) + "\")"],
+      ["p", dep.asset === "ETH"
+        ? "2) fundEth(id) with ≈ $" + fund + " of ETH - one wallet tx; credited on-chain"
+        : "2) sign a " + fund + " USDC authorization (EIP-3009) + one fundWithAuthorization(id) tx - credited on-chain"],
+      ["p", "3) POST /v1/claim-hint - an enclave claims the work and serves it"],
+      ["dimln", "   the balance and spec live on Base: any enclave can take over if the runner dies"],
+      ["info", "uncheck “Dry run” to deploy for real"]);
+    return note(plan);
   }
 
   btn.disabled = true; const lbl = btn.textContent; btn.textContent = "working…";
   try {
+    // the run log lives on the dashboard: get there BEFORE the first wallet
+    // step so the whole narrative streams where the user is looking (the
+    // document never unloads — this async flow survives the soft navigation)
+    await navigate("dashboard.html");
+    runlog.startRun();
     if (!Enclave.token){
-      term.line("info", "[*] connecting wallet + signing in (SIWE)…");
+      runlog.line("info", "[*] connecting wallet + signing in (SIWE)…");
       await authenticate();
-      term.line("ok", "[✓] signed in as " + short(Enclave.address));
+      runlog.line("ok", "[✓] signed in as " + short(Enclave.address));
     }
     // a restored session has a token but NO provider - reconnect before any tx
     if (!Enclave.provider){
-      term.line("info", "[*] reconnecting wallet…");
+      runlog.line("info", "[*] reconnecting wallet…");
       await connectWallet();
-      term.line("ok", "[✓] wallet " + short(Enclave.address));
+      runlog.line("ok", "[✓] wallet " + short(Enclave.address));
     }
-    term.line("dimln", "    if nothing happens, check your wallet - a popup may be waiting (or queued behind an old one; open the wallet and clear pending requests)");
+    runlog.line("dimln", "    if nothing happens, check your wallet - a popup may be waiting (or queued behind an old one; open the wallet and clear pending requests)");
     await ensureBaseChain();
 
     // rate estimate straight from the contract (same ceil math as create) -
@@ -323,15 +335,15 @@ async function runDeploy(){
     try { rate6 = await Promise.race([depRate6(gpuMilli, cpuMilli), wait(6000).then(() => 0n)]); } catch(e){}
     if (rate6 > 0n){
       const rate = Number(rate6) / 1e6;
-      term.line("info", "    " + fund + " USDC ≈ " + fmtDur(fund / rate) + " of runtime at $" + (rate * 3600).toFixed(2) + "/hr");
+      runlog.line("info", "    " + fund + " USDC ≈ " + fmtDur(fund / rate) + " of runtime at $" + (rate * 3600).toFixed(2) + "/hr");
     }
 
     // 0) attached volumes: build + pin a config the enclave mounts. If the
     // user also typed a config CID, the volume picker takes precedence (the
     // two can't be merged client-side - a CID is opaque).
     if (volNames.length){
-      term.line("p", "$ pin app config  (volumes -> IPFS -> configCid)");
-      if (configCid) term.line("warn", "    (ignoring the pasted config CID - the volume picker builds the config; put volumes in your own config to combine)");
+      runlog.line("p", "$ pin app config  (volumes -> IPFS -> configCid)");
+      if (configCid) runlog.line("warn", "    (ignoring the pasted config CID - the volume picker builds the config; put volumes in your own config to combine)");
       const jsonUrl = (IPFS_UPLOAD_URL || "").replace(/\/add-wasm$/, "/add-json");
       if (!jsonUrl) throw new EnclaveError("volume attach needs the upload gateway; not configured here. Pin {\"volumes\":[…]} yourself and paste its CID.", 0);
       const cfgObj = { volumes: volNames };
@@ -339,49 +351,49 @@ async function runDeploy(){
       const pj = await pr.json().catch(() => ({}));
       if (!pr.ok || !pj.cid) throw new EnclaveError("config pin failed: " + (pj.error || ("HTTP " + pr.status)), 0);
       configCid = pj.cid;
-      term.line("ok", "[✓] config pinned " + configCid + "  (mounts: " + volNames.join(", ") + " -> /models/…)");
+      runlog.line("ok", "[✓] config pinned " + configCid + "  (mounts: " + volNames.join(", ") + " -> /models/…)");
     }
 
     // 1) create: one tx from YOUR wallet - msg.sender owns the on-chain record
-    term.line("p", "$ EnclaveDeployments.create(…)  (wallet · one tx · you own the record)");
-    term.line("info", "[*] confirm the create transaction in your wallet…");
+    runlog.line("p", "$ EnclaveDeployments.create(…)  (wallet · one tx · you own the record)");
+    runlog.line("info", "[*] confirm the create transaction in your wallet…");
     const cdata = encCall(DEP_SEL.create, [
       { t: "str", v: rref.reference }, { t: "uint", v: gpuMilli }, { t: "uint", v: cpuMilli },
       { t: "uint", v: appPort }, { t: "str", v: portsCsv }, { t: "bool", v: dep.public },
       { t: "str", v: "" }, { t: "str", v: configCid },
     ]);
     const chash = await sendTx(DEPLOYMENTS_ADDRESS, cdata);
-    term.line("dimln", "  ↳ sent " + chash + " · waiting for confirmation…");
+    runlog.line("dimln", "  ↳ sent " + chash + " · waiting for confirmation…");
     const rcpt = await waitReceipt(chash);
     const clog = (rcpt.logs || []).find(l => (l.topics || [])[0] === DEP_CREATED_TOPIC
       && (l.address || "").toLowerCase() === DEPLOYMENTS_ADDRESS.toLowerCase());
     if (!clog) throw new EnclaveError("create() confirmed but no Created event found in the receipt", 0);
     const id = clog.topics[1];
-    term.line("ok", "[✓] created " + id);
+    runlog.line("ok", "[✓] created " + id);
 
     // 2) fund: the credit lands in the deployment's on-chain balance
     let pricing = null;
     try { pricing = await (await fetch(Enclave.base + "/pricing", { signal: AbortSignal.timeout(8000) })).json(); } catch(e){}
     try {
-      await payForRuntime(term, {
+      await payForRuntime({
         contract: DEPLOYMENTS_ADDRESS, deploymentRef: id,
         usdcDomain: pricing && pricing.usdcDomain, usdc: (pricing && pricing.usdc) || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         ethUsd: pricing && pricing.ethUsd,
       }, fund);
     } catch(e){
       const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
-      term.line("warn", rejected ? "[x] funding rejected in wallet." : "[x] funding failed: " + (e.message || e));
-      term.line("dimln", "    " + id + " exists on-chain but is unfunded (inert, costs nothing). Fund it any time - it starts once it has balance.");
+      runlog.line("warn", rejected ? "[x] funding rejected in wallet." : "[x] funding failed: " + (e.message || e));
+      runlog.line("dimln", "    " + id + " exists on-chain but is unfunded (inert, costs nothing). Fund it any time - it starts once it has balance.");
       return;
     }
 
     // 3) nudge the fleet - otherwise the next sweep (<=60s) picks it up
-    term.line("info", "[*] hinting enclaves to claim…");
+    runlog.line("info", "[*] hinting enclaves to claim…");
     try {
       const h = await (await fetch(Enclave.base + "/claim-hint", { method: "POST",
         headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) })).json();
-      if (h && h.accepted === false && h.reason) term.line("dimln", "    hint declined: " + h.reason + " (the sweep may still claim it)");
-    } catch(e){ term.line("dimln", "    hint failed (" + (e.message || e) + "); the sweep claims funded work within ~1 min"); }
+      if (h && h.accepted === false && h.reason) runlog.line("dimln", "    hint declined: " + h.reason + " (the sweep may still claim it)");
+    } catch(e){ runlog.line("dimln", "    hint failed (" + (e.message || e) + "); the sweep claims funded work within ~1 min"); }
 
     // 4) watch the ledger for a runner, then the runner for "running"
     let claimed = null, lastReason = "";
@@ -389,7 +401,7 @@ async function runDeploy(){
       await wait(2000);
       let d = null; try { d = await depGet(id); } catch(e){}
       if (d && d.runner && !/^0x0+$/.test(d.runner) && d.leaseUntil * 1000 > Date.now()) claimed = d;
-      else if (i === 1) term.line("info", "[*] waiting for an enclave to claim (the lease appears on-chain)…");
+      else if (i === 1) runlog.line("info", "[*] waiting for an enclave to claim (the lease appears on-chain)…");
       else if (i > 1 && i % 15 === 0){
         // don't wait in silence: ask the fleet WHY it isn't claiming
         try {
@@ -397,9 +409,9 @@ async function runDeploy(){
             headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) })).json();
           if (h && h.accepted === false && h.reason && h.reason !== lastReason){
             lastReason = h.reason;
-            term.line("warn", "[!] fleet declines to claim: " + h.reason);
+            runlog.line("warn", "[!] fleet declines to claim: " + h.reason);
             if (/yanked|not.approved|rejected|delisted|unlisted|below|minimum/i.test(h.reason)){
-              term.line("dimln", "    this won't resolve by waiting - fix the app version in the catalog. The deployment stays funded and is claimed automatically once deployable.");
+              runlog.line("dimln", "    this won't resolve by waiting - fix the app version in the catalog. The deployment stays funded and is claimed automatically once deployable.");
               break;
             }
           }
@@ -407,18 +419,18 @@ async function runDeploy(){
       }
     }
     if (!claimed){
-      term.line("warn", "[!] no enclave has claimed yet - the deployment stays on the queue (funded work is claimed as capacity frees up). Check back on the dashboard.");
-      deps.refresh(); return;
+      runlog.line("warn", "[!] no enclave has claimed yet - the deployment stays on the queue (funded work is claimed as capacity frees up). It appears below the moment one does.");
+      const dp0 = depsPanel(); if (dp0) dp0.refresh(); return;
     }
-    term.line("ok", "[✓] claimed by enclave operator " + short(claimed.runnerOperator) + " · lease until " + new Date(claimed.leaseUntil * 1000).toLocaleTimeString());
+    runlog.line("ok", "[✓] claimed by enclave operator " + short(claimed.runnerOperator) + " · lease until " + new Date(claimed.leaseUntil * 1000).toLocaleTimeString());
     const label = appLabel(id);
-    term.line("dimln", "    app origin: https://" + label + "." + APP_DOMAIN + "  (first request may take a moment: the enclave fetches + verifies your wasm from IPFS)");
+    runlog.line("dimln", "    app origin: https://" + label + "." + APP_DOMAIN + "  (first request may take a moment: the enclave fetches + verifies your wasm from IPFS)");
 
     const final = await pollDeployment(id);
-    deps.refresh({ highlight: (final && final.id) || id });
+    const dp = depsPanel(); if (dp) dp.refresh({ highlight: (final && final.id) || id });
   } catch(e){
-    term.line("warn", "[x] " + (e.message || String(e)));
-    if (e.status === 0) term.line("dimln", "    set a reachable endpoint above, then retry.");
+    runlog.line("warn", "[x] " + (e.message || String(e)));
+    if (e.status === 0) runlog.line("dimln", "    set a reachable API endpoint on the deploy console, then retry.");
   } finally {
     btn.disabled = false; btn.textContent = lbl;
     refreshWallet();
@@ -429,22 +441,22 @@ async function pollDeployment(id){
   let last = null, d = null;
   for (let i = 0; i < 180; i++){
     try { d = await Enclave.getDeployment(id); }
-    catch(e){ term.line("dimln", "  … " + e.message); await wait(2500); continue; }
-    if (d.status !== last){ last = d.status; term.line(statusCls(d.status), "  • " + d.status); }
+    catch(e){ runlog.line("dimln", "  … " + e.message); await wait(2500); continue; }
+    if (d.status !== last){ last = d.status; runlog.line(statusCls(d.status), "  • " + d.status); }
     if (done[d.status]){
       if (d.status === "running"){
         const ep = appEndpoint(d);
-        term.line("ok", "[✓] running" + (ep ? " · " + ep : ""));
-        if (d.ratePerSecondUsdc) term.line("dimln", "    rate " + d.ratePerSecondUsdc + " USDC/s · " + (d.timeRemainingSec != null ? fmtDur(d.timeRemainingSec) + " funded" : "funded"));
-        term.line("warn", "→ verify the attestation before sending data");
+        runlog.line("ok", "[✓] running" + (ep ? " · " + ep : ""));
+        if (d.ratePerSecondUsdc) runlog.line("dimln", "    rate " + d.ratePerSecondUsdc + " USDC/s · " + (d.timeRemainingSec != null ? fmtDur(d.timeRemainingSec) + " funded" : "funded"));
+        runlog.line("warn", "→ verify the attestation before sending data");
       } else {
-        term.line("warn", "  ‹ ended: " + d.status + (d.error ? " · " + d.error : "") + " ›");
+        runlog.line("warn", "  ‹ ended: " + d.status + (d.error ? " · " + d.error : "") + " ›");
       }
       return d;
     }
     await wait(2500);
   }
-  term.line("dimln", "  (still provisioning; track it in the panel below)");
+  runlog.line("dimln", "  (still provisioning; track it in the panel below)");
   return d;
 }
 
@@ -620,8 +632,6 @@ function applyUseInDeploy(){
    ============================================================ */
 function initDeploy(){
   if (!$("#deploy")) return;
-  term = $("c-terminal");
-  deps = $("c-deployments");
   fleetList = $("c-fleet-list");
   volPicker = $("c-volume-picker");
 
@@ -656,7 +666,7 @@ function initDeploy(){
     $$("#cfgAsset button").forEach(x => x.classList.toggle("on", x.dataset.asset === "USDC"));
     $$("#cfgAccess button").forEach(x => x.classList.toggle("on", x.dataset.public === "1"));
     renderAccessNote();
-    term.clear();
+    note([]);
     switchPane("req"); renderDeploy(); refreshAvailability();
   });
 

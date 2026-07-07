@@ -113,7 +113,7 @@ class Deployments extends EnclaveElement {
     list = (list || []).slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
     const running = list.filter(d => d.status === "running").length;
     if (count) count.textContent = list.length ? (running + " running · " + list.length + " total") : "";
-    if (!list.length){ body.innerHTML = '<div class="enc-empty">No enclaves yet. Build one above.</div>'; return; }
+    if (!list.length){ body.innerHTML = '<div class="enc-empty">No enclaves yet. <a href="apps.html#deploy">Deploy one →</a></div>'; return; }
     body.innerHTML = list.map(d => {
       const ep = appEndpoint(d), st = d.status || "–";
       const bud = (d.paidUsdc != null)
