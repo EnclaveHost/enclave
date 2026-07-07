@@ -6,6 +6,12 @@
       <button class="btn btn-sm enc-refresh" type="button">↻ refresh</button>
     </div>
   </div>
+  <div class="enc-filters" role="group" aria-label="Filter deployments by status" hidden>
+    <label><input type="checkbox" data-bucket="running" checked /> running <b></b></label>
+    <label><input type="checkbox" data-bucket="starting" checked /> starting <b></b></label>
+    <label><input type="checkbox" data-bucket="ended" checked /> ended <b></b></label>
+    <label><input type="checkbox" data-bucket="failed" checked /> failed <b></b></label>
+  </div>
   <!-- shows only while a deploy is streaming and its row doesn't exist yet -->
   <div class="enc-live" hidden>
     <div class="enc-live-bar"><span class="elb-k">deploying</span><span class="enc-live-lbl"></span><button class="enc-live-x" type="button" title="dismiss">✕</button></div>
