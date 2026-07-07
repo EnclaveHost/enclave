@@ -22,6 +22,7 @@ class VolumePicker extends EnclaveElement {
         + '<input type="checkbox" data-vol="' + esc(v.name) + '"' + (on ? " checked" : "") + ' />'
         + '<span class="vol-name">' + esc(v.name) + '</span>'
         + (v.onnx ? '<span class="ap-badge info">onnx</span>' : "")
+        + (v.gguf ? '<span class="ap-badge info">gguf</span>' : "")
         + (gb ? '<span class="vol-size dim">' + gb + '</span>' : "")
         + '<span class="vol-where dim">' + v.count + (v.count === 1 ? " enclave" : " enclaves") + '</span>'
         + '</label>';
