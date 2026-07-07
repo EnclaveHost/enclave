@@ -1737,10 +1737,6 @@ def _spawn_and_wait(rec, ctx):
         if parsed:
             egress_transparent = parsed["endpoint"]
             egress_env["ENCLAVE_EGRESS_CRED"] = parsed["cred"]
-            # TRANSITION (drop after the enclave-wasmtime toolchain is rebuilt
-            # with the renamed patches and repinned): older toolchains read the
-            # pre-rename env name. Host-process only, guest-invisible.
-            egress_env["NAN_EGRESS_CRED"] = parsed["cred"]
     enc_mounts = {s["name"]: s["plain_dir"] for s in rec.get("_encVolumes", []) if s.get("plain_dir")}
     # Large-tier (nanvol2) volumes, two delivery modes: with the enclave-vault
     # WASI-fs shim in the toolchain, each mounts TRANSPARENTLY at /enc/<name>
@@ -1753,9 +1749,6 @@ def _spawn_and_wait(rec, ctx):
             continue
         if s.get("skel_dir") and _vault_fs_supported():
             vault_env[f"ENCLAVE_VAULT_KEY_{len(vault_names)}"] = s["_reader"]["vek"].hex()
-            # TRANSITION (drop after the toolchain repin): pre-rename name for
-            # older enclave-wasmtime builds. Host-process only.
-            vault_env[f"NAN_VAULT_KEY_{len(vault_names)}"] = s["_reader"]["vek"].hex()
             vault_flags += ["-S", f"vault={ENC_GUEST_ROOT}/{s['name']}::{s['skel_dir']}::{s['cipher_dir']}"]
             vault_names.append(s["name"])
         else:
