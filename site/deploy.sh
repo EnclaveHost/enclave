@@ -5,8 +5,9 @@ cd "$(dirname "$0")"    # paths below are relative to site/, however this script
 # bundle the site (tailwind + esbuild + inlined component templates) -> dist/
 (cd .. && npm run -s build:site)
 
-# ship the bundle: one tree, deletions included, so the IPFS pin never
-# accumulates stale files from earlier layouts
-rsync -az --delete --exclude 'cm-*' dist/ nan:/opt/nan-site/
+# ship the bundle: replace the whole tree (tar over ssh; no rsync needed),
+# so the IPFS pin never accumulates stale files from earlier layouts
+ssh nan 'rm -rf /opt/nan-site && mkdir -p /opt/nan-site'
+tar -C dist -czf - . | ssh nan 'tar -C /opt/nan-site -xzf -'
 ssh nan 'chown -R ipfs:ipfs /opt/nan-site && \
   sudo -u ipfs IPFS_PATH=/var/lib/ipfs /usr/local/bin/nan-deploy.sh /opt/nan-site'
