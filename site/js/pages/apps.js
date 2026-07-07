@@ -229,7 +229,7 @@ async function publishApp(){
     pubStatus("live on-chain ✓ " + hash);
     showToast("published " + slug + " " + version);
     await loadCatalog(true);
-    togglePublish(false); resetPublish();
+    closePublish(); resetPublish();
   } catch(e){
     const m = e.message || String(e);
     pubStatus(/cid (already listed|listed by another app)/i.test(m)
