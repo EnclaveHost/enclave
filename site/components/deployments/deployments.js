@@ -238,10 +238,26 @@ class Deployments extends EnclaveElement {
     box.hidden = false;
     box.innerHTML = '<div class="ap-attbar">output · ' + esc(id) + '</div>'
       + '<div class="term enc-out-term">'
+      +   '<div class="enc-out-info"></div>'
       +   '<div class="enc-out-nar"></div>'
       +   '<div class="enc-out-logs"><span class="ln dimln">// fetching app logs…</span></div>'
       + '</div>';
     const nar = box.querySelector(".enc-out-nar"), scroller = box.querySelector(".enc-out-term");
+    // lead with the OUTSIDE view — the app's reachable endpoints — because the
+    // logs below speak in enclave-internal bind ports that match nothing out here
+    const info = box.querySelector(".enc-out-info");
+    const d = (this._list || []).find(x => x.id === id);
+    if (info && d){
+      const ep = appEndpoint(d);
+      if (ep) paintLine(info, "ok", "→ reachable at " + ep + (d.public ? "" : "   (private · owner token required)"), scroller);
+      const net = d.network || {};
+      const tcp = (net.tcp && net.tcp.ports) || [], udp = (net.udp && net.udp.ports) || [];
+      if (net.address)
+        paintLine(info, "info", "→ dedicated IPv6 [" + net.address + "]"
+          + (tcp.length ? " · tcp " + tcp.join(",") : "") + (udp.length ? " · udp " + udp.join(",") : "")
+          + "   (served at these real port numbers)", scroller);
+      paintLine(info, "dimln", "// any 127.0.0.1:<port> below is the app's internal bind inside the enclave — from outside, use the endpoints above", scroller);
+    }
     const run = runlog.runFor(id);
     if (run) {
       paintLine(nar, "dimln", "// deploy narrative · " + run.label + " (recorded in this browser)", scroller);
@@ -269,7 +285,12 @@ class Deployments extends EnclaveElement {
       const keep = scroller.scrollTop;
       el.innerHTML = '<span class="ln dimln">// app logs (stdout/stderr from the enclave · tail 200 · refreshes while open)</span>';
       if (!lines.length) el.insertAdjacentHTML("beforeend", '<span class="ln dimln">// (no output yet)</span>');
-      for (const ln of lines) { const s = document.createElement("span"); s.className = "ln logln"; s.textContent = ln; el.appendChild(s); }
+      for (const ln of lines) {
+        const s = document.createElement("span");
+        // enclave-internal noise (loopback/wildcard binds) reads dim; real app output full-strength
+        s.className = "ln " + (/127\.0\.0\.1|0\.0\.0\.0/.test(ln) ? "dimln" : "logln");
+        s.textContent = ln; el.appendChild(s);
+      }
       scroller.scrollTop = follow ? scroller.scrollHeight : keep;
     } catch (e) {
       if (el.isConnected && !box.hidden)

@@ -53,6 +53,7 @@ c-deployments{display:contents;}
 .enc-out{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:#080c12;}
 .enc-out-term{max-height:360px;}
 .enc-out-nar:not(:empty){padding-bottom:8px;margin-bottom:8px;border-bottom:1px dashed var(--line-soft);}
+.enc-out-info:not(:empty){padding-bottom:8px;margin-bottom:8px;border-bottom:1px dashed var(--line-soft);}
 .enc-open{margin-left:8px;font-family:var(--font-mono);font-size:.7rem;color:var(--jade);border:1px solid var(--jade-dim);border-radius:6px;padding:.15em .5em;}
 .enc-open:hover{background:var(--jade-deep);}
 .enc-vbadge{float:right;text-transform:none;letter-spacing:0;font-size:.7rem;}
