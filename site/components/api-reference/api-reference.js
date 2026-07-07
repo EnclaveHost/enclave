@@ -176,7 +176,7 @@ class ApiReference extends NanElement {
           + '<button class="on" data-mode="fetch">fetch()</button>'
           + '<button data-mode="curl">cURL</button></div>'
           + '<div class="code"><div class="codebar"><span class="fn" data-sfn="' + oi + '">request.js</span>'
-          + '<button class="runbtn" data-runsamp="' + oi + '" type="button">▶ run</button>'
+          + '<button class="runbtn" data-runsamp="' + oi + '" type="button">run</button>'
           + '<button class="copybtn" data-copysamp="' + oi + '">⧉ copy</button></div>'
           + '<pre><code data-sbox="' + oi + '">' + hlCode(sampFill(fetchS)) + "</code></pre></div>"
           + '<div data-srun="' + oi + '"></div>';
