@@ -83,20 +83,21 @@ export const appOfficial = (app) => !!(STORE.owner && app.publisher.toLowerCase(
 export const appVerified = (app) => { const i = defaultIdx(app); return i >= 0 && (app.versions[i].verified || appOfficial(app)); };
 
 /* Resolve what the user typed into an `image.reference` the enclave understands.
-   Humans can type "[publisher/]slug:version"; we look it up in the on-chain catalog
+   Humans type "[publisher/]slug:version"; we look it up in the on-chain catalog
    and hand the enclave the app's `ipfs://<cid>` (unique because version labels are
-   unique per app). Baked-in ids ("hello"), bare CIDs and explicit ipfs://<cid> pass
-   through. Returns {reference, label?, error?, pending?}. */
+   unique per app). Raw CIDs are NOT accepted as input — deploys need the app's
+   on-chain metadata (specs, ports, approval), so unlisted bytes must be published
+   first. Returns {reference, label?, error?, pending?}. */
 export const REF_CACHE = {};    // friendly "slug:version" -> "ipfs://<cid>" (filled by Use-in-Deploy + lookups)
 export const PORTS_CACHE = {};  // friendly "slug:version" -> that version's firewall CSV (defaults the deploy)
 export const MINS_CACHE = {};   // friendly "slug:version" -> minimum dial positions { gpuPct, cpuPct } from its specs
 export function looksFriendly(s){ return s.includes(":") && !s.startsWith("ipfs://"); }
 export function resolveAppRef(input){
   input = (input || "").trim();
-  if (!input) return { reference: "", error: "Pick an app: slug:version from the Apps catalog, or ipfs://<cid>." };
-  if (input.startsWith("ipfs://")) return { reference: input };
-  if (/^(baf[a-z0-9]{10,}|Qm[1-9A-HJ-NP-Za-km-z]{20,})$/.test(input)) return { reference: "ipfs://" + input };  // bare CID
-  if (!looksFriendly(input)) return { reference: input, error: "Not a CID or slug:version. The enclave only deploys approved catalog CIDs." };
+  if (!input) return { reference: "", error: "Pick an app: slug:version from the Apps catalog." };
+  if (input.startsWith("ipfs://") || /^(baf[a-z0-9]{10,}|Qm[1-9A-HJ-NP-Za-km-z]{20,})$/.test(input))
+    return { reference: input, error: "Raw CIDs can’t deploy — the enclave needs the app’s on-chain specs and approval. Publish it to the catalog first, then deploy its slug:version." };
+  if (!looksFriendly(input)) return { reference: input, error: "Not a slug:version reference. Deploys come from the on-chain catalog — pick an app on the Apps page." };
   if (REF_CACHE[input]) return { reference: REF_CACHE[input], label: input };
   let pub = null, rest = input;
   const slash = input.indexOf("/");
