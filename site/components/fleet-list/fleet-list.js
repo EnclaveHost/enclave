@@ -27,8 +27,10 @@ class FleetList extends EnclaveElement {
           const gPct = Math.floor(gFree * 100), cPct = Math.floor(cFree * 100);
           const name = String(e.endpoint || "").replace(/^https?:\/\//, "").split(".")[0] || "enclave";
           return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
+            + '<span class="fleet-head">'
             + '<span class="ap-badge ' + (gpu ? "info" : "") + '">' + (gpu ? "gpu" : "cpu") + '</span>'
             + '<span class="fleet-name">' + esc(name) + '</span>'
+            + '</span>'
             + (gpu ? '<span class="fleet-pool">GPU ' + meter(gPct) + ' ' + gPct + '% free · ≈'
                    + Math.round(gFree * (a.cardVramGb || CARD_GB)) + ' GB VRAM</span>' : '')
             + '<span class="fleet-pool">CPU ' + meter(cPct) + ' ' + cPct + '% free · ≈'
