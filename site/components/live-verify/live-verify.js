@@ -11,7 +11,7 @@ import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 const LV_STEP_ORDER = ["fetchDigest", "verifyEnclave", "verifyCode", "compareMeasurements", "verifyCertificate"];
 const LV_LABELS = {
   fetchDigest:         "fetch attestation, signed release digest + Sigstore bundle",
-  verifyEnclave:       "verify AMD SEV-SNP report (VCEK chain → AMD root of trust)",
+  verifyEnclave:       "verify Intel TDX quote (DCAP chain → Intel root of trust)",
   verifyCode:          "verify release provenance (Sigstore: Fulcio + Rekor)",
   compareMeasurements: "compare signed code measurement to live enclave measurement",
   verifyCertificate:   "bind the served certificate to the attested report",
@@ -36,7 +36,7 @@ class LiveVerify extends EnclaveElement {
       const att = await Enclave._req("GET", "/attestation");
       const vspec = vspecOf(att);
       if (!vspec) throw new Error("attestation is missing the verification block");
-      status("verifying in your browser … (fetches AMD + Sigstore material, takes a few seconds)");
+      status("verifying in your browser … (fetches Intel + Sigstore material, takes a few seconds)");
       const r = await verifyEnclaveInBrowser(vspec);
       const cliEl = this.querySelector(".lv-cli"); if (cliEl) cliEl.textContent = "tinfoil attestation verify -e " + r.host + " -r " + r.repo;
       const doc = r.doc;

@@ -2,10 +2,11 @@
    Live in-browser enclave verification (@tinfoilsh/verifier).
    Shared core for the Overview attest widget and the Deploy
    page's per-deployment console badge. Runs the full client-side
-   check: AMD SEV-SNP report → VCEK → AMD root, Sigstore
-   provenance of the release, measurement comparison, certificate
-   binding, in THIS browser, cached per enclave+repo for the
-   session. The API's verification.selfCheck is the enclave
+   check: Intel TDX quote → DCAP chain → Intel root of trust,
+   Sigstore provenance of the release, measurement comparison,
+   certificate binding, in THIS browser, cached per enclave+repo
+   for the session. (The verifier follows whatever quote the
+   enclave presents; this fleet runs Intel TDX + NVIDIA CC.) The API's verification.selfCheck is the enclave
    running the same steps on itself; this is the version that
    actually carries trust.
    ============================================================ */

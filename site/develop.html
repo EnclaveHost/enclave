@@ -536,7 +536,7 @@ let out   = ctx.compute(vec![("X".into(), x)])?;                     // named te
           <c-code fn="verify.js · attested client"><pre><code>import { SecureClient } from "tinfoil";
 
 const c = new SecureClient({ baseURL: "https://&lt;enclave-host&gt;" });
-await c.ready();          // verifies the CPU TEE quote (SEV-SNP/TDX) + Sigstore
+await c.ready();          // verifies the CPU TEE quote (Intel TDX on this fleet) + Sigstore
                           // code provenance, compares measurements, pins TLS
 const res = await c.fetch("/x/dep_3xK9f2Qa/");   // provably served by attested code</code></pre></c-code>
           <c-code fn="terminal · independent paths"><pre><code># fully independent check with tinfoil-cli:
