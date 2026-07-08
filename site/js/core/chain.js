@@ -43,8 +43,7 @@ export const CAT_SEL = {
   appCount:"b55ca2c3", getAppsPage:"a0483de1", getVersionsPage:"2eb7c1f0", owner:"8da5cb5b",
   publishVersion:"ffd9de8f",   // publishVersion(...,uint32[4] res,string ports,string config) - res = [vramMb, gpuGflops, memMb, cpuGflops]
   publishVersionV2:"adbf439a", // rev-2 catalogs: same without the config arg (kept until the v3 cutover)
-  editApp:"19b09138",          // editApp(slug,name,description,config) - metadata + default config, no new version
-  catalogSchema:"18cccf57",    // struct-schema revision marker (3 = App carries config; missing = 2)
+  catalogSchema:"18cccf57",    // struct-schema revision marker (3 = Version carries config; missing = 2)
   setActive:"9e4b5d56", yankVersion:"345c52dc", setVerified:"4ca171e5",
   setApproval:"a67613fa",
 };
@@ -54,10 +53,10 @@ export const CAT_MAX = { slug:40, name:80, desc:500, version:32, cid:100, mb:104
 export const APP_SCHEMA = [
   {k:"appId",t:"bytes32"},{k:"publisher",t:"addr"},{k:"slug",t:"str"},{k:"name",t:"str"},
   {k:"description",t:"str"},{k:"versionCount",t:"uint"},{k:"createdAt",t:"uint"},{k:"updatedAt",t:"uint"},{k:"active",t:"bool"},
-  {k:"config",t:"str"},   // default/template ENCLAVE_CONFIG JSON (schema rev 3; appended last)
 ];
 export const VER_SCHEMA = [
   {k:"cid",t:"str"},{k:"version",t:"str"},{k:"vramMb",t:"uint"},{k:"gpuGflops",t:"uint"},{k:"memMb",t:"uint"},{k:"cpuGflops",t:"uint"},{k:"createdAt",t:"uint"},{k:"verified",t:"bool"},{k:"yanked",t:"bool"},{k:"ports",t:"str"},{k:"approval",t:"uint"},
+  {k:"config",t:"str"},   // default/template ENCLAVE_CONFIG JSON - IMMUTABLE, covered by the version's approval (schema rev 3; appended last)
 ];
 
 export function catConfigured(){ return APP_CATALOG_ADDRESS && !/^0x0+$/i.test(APP_CATALOG_ADDRESS); }
@@ -181,11 +180,11 @@ export function decodeStructArray(hex, schema){
 
 /* ---- catalog reads ---- */
 export async function appCount(){ return Number(hexBig(await ethCall("0x" + CAT_SEL.appCount))); }
-/* Catalog struct-schema revision: rev 3 App tuples carry `config`; a catalog
-   without the marker getter (reverts) is rev 2. Sniffed once per page load so
-   the site reads BOTH the pre-config catalog and its successor - the schema
-   bump ships before the contract cutover. */
-export const APP_SCHEMA_V2 = APP_SCHEMA.filter(f => f.k !== "config");
+/* Catalog struct-schema revision: rev 3 Version tuples carry `config`; a
+   catalog without the marker getter (reverts) is rev 2. Sniffed once per page
+   load so the site reads BOTH the pre-config catalog and its successor - the
+   schema bump ships before the contract cutover. */
+export const VER_SCHEMA_V2 = VER_SCHEMA.filter(f => f.k !== "config");
 let _catRev = null;
 export async function catSchemaRev(){
   if (_catRev) return _catRev;
@@ -194,15 +193,15 @@ export async function catSchemaRev(){
   return _catRev;
 }
 export async function catGetAppsPage(start, n){
-  const rev = await catSchemaRev();
-  const apps = decodeStructArray(await ethCall(encCall(CAT_SEL.getAppsPage, [{t:"uint",v:start},{t:"uint",v:n}])), rev >= 3 ? APP_SCHEMA : APP_SCHEMA_V2);
-  if (rev < 3) for (const a of apps) a.config = "";
-  return apps;
+  return decodeStructArray(await ethCall(encCall(CAT_SEL.getAppsPage, [{t:"uint",v:start},{t:"uint",v:n}])), APP_SCHEMA);
 }
 export async function catGetVersions(appId, count){
+  const rev = await catSchemaRev();
+  const schema = rev >= 3 ? VER_SCHEMA : VER_SCHEMA_V2;
   const vs = []; const PAGE = 50;
   for (let s = 0; s < count; s += PAGE)
-    vs.push(...decodeStructArray(await ethCall(encCall(CAT_SEL.getVersionsPage, [{t:"bytes32",v:appId},{t:"uint",v:s},{t:"uint",v:PAGE}])), VER_SCHEMA));
+    vs.push(...decodeStructArray(await ethCall(encCall(CAT_SEL.getVersionsPage, [{t:"bytes32",v:appId},{t:"uint",v:s},{t:"uint",v:PAGE}])), schema));
+  if (rev < 3) for (const v of vs) v.config = "";
   return vs;
 }
 export async function catOwner(){ const r = await ethCall("0x" + CAT_SEL.owner); return "0x" + (r || "").replace(/^0x/, "").slice(24).padStart(40, "0"); }

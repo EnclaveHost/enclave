@@ -105,9 +105,9 @@ const APP_TUPLE = [
   { name: "createdAt", type: "uint64" }, { name: "updatedAt", type: "uint64" },
   { name: "active", type: "bool" },
 ];
-// catalog schema rev 3: App carries `config` (default/template ENCLAVE_CONFIG
-// JSON, appended last). Rev is sniffed via catalogSchema() - absent = rev 2.
-const APP_TUPLE_V3 = [...APP_TUPLE, { name: "config", type: "string" }];
+// catalog schema rev 3: VERSION carries `config` (default/template
+// ENCLAVE_CONFIG JSON, appended last; immutable + approval-covered).
+// Rev is sniffed via catalogSchema() - absent = rev 2.
 const VERSION_TUPLE = [
   { name: "cid", type: "string" }, { name: "version", type: "string" },
   { name: "vramMb", type: "uint32" }, { name: "gpuGflops", type: "uint32" },
@@ -116,6 +116,7 @@ const VERSION_TUPLE = [
   { name: "yanked", type: "bool" }, { name: "ports", type: "string" },
   { name: "approval", type: "uint8" },
 ];
+const VERSION_TUPLE_V3 = [...VERSION_TUPLE, { name: "config", type: "string" }];
 const CATALOG_ABI = [
   { type: "function", name: "appCount", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "getAppsPage", stateMutability: "view",
@@ -141,7 +142,7 @@ const CATALOG_ABI = [
              { name: "cid", type: "string" }, { name: "res", type: "uint32[4]" },
              { name: "ports", type: "string" }],
     outputs: [{ type: "bytes32" }, { type: "uint256" }] },
-  // rev-3 overload (viem resolves by arg count) + the schema marker + editApp
+  // rev-3 overload (viem resolves by arg count) + the schema marker
   { type: "function", name: "publishVersion", stateMutability: "nonpayable",
     inputs: [{ name: "slug", type: "string" }, { name: "name", type: "string" },
              { name: "description", type: "string" }, { name: "version", type: "string" },
@@ -149,20 +150,23 @@ const CATALOG_ABI = [
              { name: "ports", type: "string" }, { name: "config", type: "string" }],
     outputs: [{ type: "bytes32" }, { type: "uint256" }] },
   { type: "function", name: "catalogSchema", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
-  { type: "function", name: "editApp", stateMutability: "nonpayable",
-    inputs: [{ name: "slug", type: "string" }, { name: "name", type: "string" },
-             { name: "description", type: "string" }, { name: "config", type: "string" }],
-    outputs: [] },
 ];
-// getAppsPage can't overload by outputs, so rev-3 reads swap the tuple shape
+// getVersionsPage can't overload by outputs, so rev-3 reads swap the tuple shape
 const CATALOG_ABI_V3 = CATALOG_ABI.map((f) =>
-  f.name === "getAppsPage" ? { ...f, outputs: [{ type: "tuple[]", components: APP_TUPLE_V3 }] } : f);
+  f.name === "getVersionsPage" ? { ...f, outputs: [{ type: "tuple[]", components: VERSION_TUPLE_V3 }] } : f);
 let _catRev = null;
 async function catRev() {
   if (_catRev) return _catRev;
   try { _catRev = Number(await read(DEFAULTS.APP_CATALOG_ADDRESS, CATALOG_ABI, "catalogSchema", [])) || 2; }
   catch (e) { _catRev = 2; }
   return _catRev;
+}
+// one versions read for both revisions: rev-2 tuples get config defaulted
+async function readVersions(appId, count) {
+  const abi = (await catRev()) >= 3 ? CATALOG_ABI_V3 : CATALOG_ABI;
+  const versions = await read(DEFAULTS.APP_CATALOG_ADDRESS, abi, "getVersionsPage",
+                              [appId, 0n, BigInt(Math.max(1, Number(count)))]);
+  return versions.map((v) => ({ config: "", ...v }));
 }
 const ERC20_ABI = [
   { type: "function", name: "balanceOf", stateMutability: "view",
@@ -420,8 +424,7 @@ async function resolveAppRef(input) {
   if (apps.length > 1 && !pubFilter)
     throw new Error(`slug "${slug}" is published by ${apps.length} publishers — disambiguate as <publisher>/${slug}`);
   const app = apps[0];
-  const versions = await read(DEFAULTS.APP_CATALOG_ADDRESS, CATALOG_ABI, "getVersionsPage",
-                              [app.appId, 0n, BigInt(Math.max(1, Number(app.versionCount)))]);
+  const versions = await readVersions(app.appId, app.versionCount);
   let ver;
   if (verLabel !== undefined) {
     ver = versions.find((v) => v.version === verLabel && !v.yanked);
@@ -437,11 +440,10 @@ async function resolveAppRef(input) {
 let _appsCache = null;
 async function catalogApps() {
   if (_appsCache) return _appsCache;
-  const abi = (await catRev()) >= 3 ? CATALOG_ABI_V3 : CATALOG_ABI;
   _appsCache = [];
   for (let start = 0; ; start += 50) {
-    const page = await read(DEFAULTS.APP_CATALOG_ADDRESS, abi, "getAppsPage", [BigInt(start), 50n]);
-    _appsCache.push(...page.map((a) => ({ config: "", ...a })));   // rev-2 apps: default the config field
+    const page = await read(DEFAULTS.APP_CATALOG_ADDRESS, CATALOG_ABI, "getAppsPage", [BigInt(start), 50n]);
+    _appsCache.push(...page);
     if (page.length < 50) break;
   }
   return _appsCache;
@@ -723,7 +725,7 @@ async function cmdDeploy(rest) {
     bool: ["--private", "--public", "--no-wait"],
   });
   if (!f._[0]) throw new Error("usage: enclave deploy <app> [--gpu 0..1] [--cpu 0..1] --fund <usd> [flags]");
-  const { ref, ver, app } = await resolveAppRef(f._[0]);
+  const { ref, ver } = await resolveAppRef(f._[0]);
 
   // shares: fractions of one GPU card / one node (1 = the whole thing). When
   // omitted, use the app's minimum on the fleet's hardware (same formula the
@@ -746,16 +748,17 @@ async function cmdDeploy(rest) {
   const isPublic = f.private ? false : true;
   const sshPubKey = f["ssh-key"] ? fs.readFileSync(f["ssh-key"], "utf8").trim() : "";
   let configCid = f["config-cid"] || "";
-  // the app's on-chain default config applies unless overridden with --config-cid
-  // (same behavior as the deploy console, which pre-fills its App config box)
-  if (!configCid && app && app.config){
+  // the version's on-chain default config applies unless overridden with
+  // --config-cid (it was approved WITH the version - owner-vetted behavior;
+  // same as the deploy console pre-filling its App config box)
+  if (!configCid && ver && ver.config){
     try {
       const jr = await fetch(DEFAULTS.ipfsUpload.replace(/\/add-wasm$/, "/add-json"),
-        { method: "POST", headers: { "content-type": "application/json" }, body: app.config });
+        { method: "POST", headers: { "content-type": "application/json" }, body: ver.config });
       const jj = await jr.json();
       if (jr.ok && jj.cid){
         configCid = jj.cid;
-        say(`applying the app's default config (pinned ${configCid}) — override with --config-cid`);
+        say(`applying the version's default config (pinned ${configCid}) — override with --config-cid`);
       }
     } catch (e) { /* best-effort: a deploy without the template still works */ }
   }
@@ -893,9 +896,7 @@ async function cmdApps(rest) {
   if (q) apps = apps.filter((a) => (a.slug + " " + a.name + " " + a.description).toLowerCase().includes(q));
   const rows = [];
   for (const a of apps.slice(0, 50)) {
-    const versions = a.versionCount
-      ? await read(DEFAULTS.APP_CATALOG_ADDRESS, CATALOG_ABI, "getVersionsPage", [a.appId, 0n, BigInt(Number(a.versionCount))])
-      : [];
+    const versions = a.versionCount ? await readVersions(a.appId, a.versionCount) : [];
     const latest = [...versions].reverse().find((v) => !v.yanked);
     rows.push({ slug: a.slug, name: a.name, publisher: a.publisher.slice(0, 10) + "…",
                 version: latest ? latest.version : "—",
