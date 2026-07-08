@@ -150,8 +150,8 @@
           <c-volume-picker></c-volume-picker>
         </div>
         <div class="field">
-          <label for="cfgConfig">App config CID <span class="dim">(optional · IPFS CID of a JSON config the enclave verifies and hands the app as ENCLAVE_CONFIG · e.g. pick a model or set an API key for llm-chat · leave empty when using the volume picker above)</span></label>
-          <input type="text" id="cfgConfig" value="" placeholder="empty · or bafybei… (ipfs add your config.json)" spellcheck="false" autocapitalize="off" autocomplete="off" />
+          <label for="cfgConfig">App config <span class="dim">(optional · JSON the app receives as ENCLAVE_CONFIG · the console pins it to IPFS at deploy and its CID rides the on-chain record · volumes picked above merge in · e.g. an API key, or a model for llm-chat)</span></label>
+          <textarea id="cfgConfig" rows="3" placeholder='empty · or JSON, e.g. {"backend":"ggml","model_volume":"qwen2.5-0.5b"} — pinned to IPFS for you at deploy' spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
         </div>
         <div class="field">
           <label>Access <span class="dim">(who can reach the app)</span></label>

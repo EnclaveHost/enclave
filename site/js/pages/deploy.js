@@ -50,6 +50,29 @@ function currentMins(){
   const input = ($("#cfgImage") ? $("#cfgImage").value : "").trim();
   return MINS_CACHE[input] || { gpuPct: 0, cpuPct: 1 };
 }
+/* The "App config" textarea: JSON the app receives as ENCLAVE_CONFIG. The
+   console pins it to IPFS at deploy and passes the CID as create()'s
+   configCid - users type config, never CIDs. Volumes picked in the volume
+   picker merge into the same object (its `volumes` key). Returns
+   { obj } (null = empty) or { err } (malformed / not a JSON object). */
+function readCfgConfig(){
+  const raw = ($("#cfgConfig") && $("#cfgConfig").value || "").trim();
+  if (!raw) return { obj: null };
+  try {
+    const o = JSON.parse(raw);
+    if (!o || Array.isArray(o) || typeof o !== "object") return { err: "app config must be a JSON object, e.g. {\"api_key\":\"…\"}" };
+    return { obj: o };
+  } catch(e){ return { err: "app config isn't valid JSON (" + e.message + ")" }; }
+}
+/* the typed config + picked volumes, merged the way deploy will pin it */
+function mergedCfg(cfgObj, volNames){
+  const merged = { ...(cfgObj || {}) };
+  if (volNames && volNames.length){
+    const own = Array.isArray(merged.volumes) ? merged.volumes : [];
+    merged.volumes = [...new Set([...own, ...volNames])];
+  }
+  return merged;
+}
 function deployBody(){
   // `image.reference` is the Wasm app to run: a catalog slug:version resolved to
   // its ipfs://<cid> by resolveAppRef() (the enclave fetches + verifies those
@@ -64,9 +87,14 @@ function deployBody(){
   body.resources = { gpuShare: gp, cpuShare: cp };   // the two dials; the app's specs set the minimums
   // GPU attestation only exists when the deployment holds a card slice.
   if (gp > 0 && dep.gpuEnclave) body.attestationPolicy = { requireGpuAttestation: true };
-  const cc = ($("#cfgConfig") && $("#cfgConfig").value || "").trim();
-  if (dep.volumes.size) body.volumes = [...dep.volumes];   // attached model volumes (built into configCid at deploy)
-  else if (cc) body.configCid = cc;                        // per-deployment config, delivered to the app as ENCLAVE_CONFIG
+  // app config + picked volumes: ONE JSON, pinned to IPFS at deploy - its CID
+  // becomes the on-chain configCid, delivered to the app as ENCLAVE_CONFIG
+  const cfg = readCfgConfig();
+  if (cfg.err) body.config = "⚠ " + cfg.err;
+  else {
+    const merged = mergedCfg(cfg.obj, [...dep.volumes]);
+    if (Object.keys(merged).length) body.config = merged;
+  }
   body.region = "auto";
   return body;
 }
@@ -75,7 +103,9 @@ function deployFetch(b){
   const g = Math.round(((b.resources && b.resources.gpuShare) || 0) * 1000);
   const c = Math.round(((b.resources && b.resources.cpuShare) || 0.05) * 1000);
   const fw = (b.firewall && b.firewall.ports || []).join(",");
-  const cc = b.configCid || "";
+  // the console pins the App config JSON to IPFS at deploy; by hand it's
+  // `ipfs add config.json` (or POST /add-json) and the CID goes here
+  const cc = b.config ? "<CID of your config JSON - ipfs add config.json>" : "";
   return '// Deployments are ON-CHAIN work items (EnclaveDeployments on Base): the ledger\n'
     + '// holds the spec + funded balance, so they survive enclave updates and crashes.\n'
     + '// 1) create() from your wallet - one tx; msg.sender owns the record:\n'
@@ -195,14 +225,18 @@ async function runDeploy(){
   const cpuMilli = Math.round(Math.max(1, Math.min(100, dep.cpuPct))) * 10;
   const ports = ($("#cfgPorts") && $("#cfgPorts").value || "");
   const { portsCsv, appPort } = portsSpec(ports);
-  let configCid = ($("#cfgConfig") && $("#cfgConfig").value || "").trim();
+  // the App config textarea: JSON only, refused loudly BEFORE any wallet step
+  const cfg = readCfgConfig();
+  if (cfg.err) return note([["warn", "[!] " + cfg.err]]);
   const volNames = [...dep.volumes];
+  const cfgObj = mergedCfg(cfg.obj, volNames);
+  const hasCfg = Object.keys(cfgObj).length > 0;
 
   if (dry){
     const plan = [["warn", "// dry run: nothing is sent"]];
-    if (volNames.length) plan.push(["info", "0) volumes " + JSON.stringify(volNames) + " -> the console pins {\"volumes\":[…]} to IPFS and passes its CID as configCid"]);
+    if (hasCfg) plan.push(["info", "0) app config " + JSON.stringify(cfgObj) + " -> the console pins it to IPFS and passes its CID as configCid"]);
     plan.push(["p", "1) EnclaveDeployments.create(app, shares, ports) - one wallet tx; you own the record"],
-      ["dimln", "   create(\"" + rref.reference + "\", " + gpuMilli + ", " + cpuMilli + ", " + appPort + ", \"" + portsCsv + "\", " + dep.public + ", \"\", \"" + (volNames.length ? "<pinned config CID>" : configCid) + "\")"],
+      ["dimln", "   create(\"" + rref.reference + "\", " + gpuMilli + ", " + cpuMilli + ", " + appPort + ", \"" + portsCsv + "\", " + dep.public + ", \"\", \"" + (hasCfg ? "<pinned config CID>" : "") + "\")"],
       ["p", dep.asset === "ETH"
         ? "2) fundEth(id) with ≈ $" + fund + " of ETH - one wallet tx; credited on-chain"
         : "2) sign a " + fund + " USDC authorization (EIP-3009) + one fundWithAuthorization(id) tx - credited on-chain"],
@@ -215,7 +249,7 @@ async function runDeploy(){
   btn.disabled = true; const lbl = btn.textContent; btn.textContent = "working…";
   try {
     await deployOnChain({ reference: rref.reference, gpuMilli, cpuMilli, ports,
-      isPublic: dep.public, configCid, volumes: volNames, fundUsd: fund, asset: dep.asset });
+      isPublic: dep.public, config: cfg.obj, volumes: volNames, fundUsd: fund, asset: dep.asset });
   } finally {
     btn.disabled = false; btn.textContent = lbl;
   }
@@ -233,7 +267,9 @@ function portsSpec(raw){
    quick-deploy modal (apps.js imports this): soft-navigate to the dashboard,
    then create -> fund -> claim-hint -> watch, narrating into the run log the
    whole way. spec: { reference, gpuMilli, cpuMilli, ports (csv), isPublic,
-   configCid, volumes, fundUsd, asset } */
+   config (JSON object - pinned to IPFS here, volumes merge in) OR
+   configCid (a pre-pinned CID, programmatic callers), volumes, fundUsd,
+   asset } */
 export async function deployOnChain(spec){
   const fund = spec.fundUsd;
   const volNames = spec.volumes || [];
@@ -269,20 +305,24 @@ export async function deployOnChain(spec){
       runlog.line("info", "    " + fund + " USDC ≈ " + fmtDur(fund / rate) + " of runtime at $" + (rate * 3600).toFixed(2) + "/hr");
     }
 
-    // 0) attached volumes: build + pin a config the enclave mounts. If the
-    // user also typed a config CID, the volume picker takes precedence (the
-    // two can't be merged client-side - a CID is opaque).
-    if (volNames.length){
-      runlog.line("p", "$ pin app config  (volumes -> IPFS -> configCid)");
-      if (configCid) runlog.line("warn", "    (ignoring the pasted config CID - the volume picker builds the config; put volumes in your own config to combine)");
+    // 0) app config: the typed JSON + picked volumes merge into ONE object,
+    // pinned to IPFS here - its CID rides create() and the enclave verifies
+    // the bytes before handing them to the app as ENCLAVE_CONFIG. A
+    // pre-pinned spec.configCid (programmatic callers) passes through when
+    // there's nothing to pin; typed config wins if both arrive (a CID is
+    // opaque - it can't be merged client-side).
+    const cfgObj = mergedCfg(spec.config, volNames);
+    if (Object.keys(cfgObj).length){
+      runlog.line("p", "$ pin app config  (JSON -> IPFS -> configCid)");
+      if (configCid) runlog.line("warn", "    (a pre-pinned config CID was also passed - the config object wins; pin the merge yourself to combine)");
       const jsonUrl = (IPFS_UPLOAD_URL || "").replace(/\/add-wasm$/, "/add-json");
-      if (!jsonUrl) throw new EnclaveError("volume attach needs the upload gateway; not configured here. Pin {\"volumes\":[…]} yourself and paste its CID.", 0);
-      const cfgObj = { volumes: volNames };
+      if (!jsonUrl) throw new EnclaveError("app config needs the upload gateway; not configured here. Pin the JSON yourself (ipfs add config.json) and deploy with its CID via the API or CLI (--config-cid).", 0);
       const pr = await fetch(jsonUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(cfgObj) });
       const pj = await pr.json().catch(() => ({}));
       if (!pr.ok || !pj.cid) throw new EnclaveError("config pin failed: " + (pj.error || ("HTTP " + pr.status)), 0);
       configCid = pj.cid;
-      runlog.line("ok", "[✓] config pinned " + configCid + "  (mounts: " + volNames.join(", ") + " -> /models/…)");
+      const vols = Array.isArray(cfgObj.volumes) ? cfgObj.volumes : [];
+      runlog.line("ok", "[✓] config pinned " + configCid + (vols.length ? "  (mounts: " + vols.join(", ") + " -> /models/…)" : ""));
     }
 
     // 1) create: one tx from YOUR wallet - msg.sender owns the on-chain record
