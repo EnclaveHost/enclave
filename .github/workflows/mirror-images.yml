@@ -11,6 +11,8 @@ name: Mirror pinned images to enclavehost
 
 on:
   workflow_dispatch: {}
+  push:
+    branches: [mirror-images]   # dispatch needs the file on the default branch; a branch push does not
 
 permissions:
   packages: write
