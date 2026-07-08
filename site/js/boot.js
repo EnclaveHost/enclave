@@ -168,7 +168,15 @@ document.addEventListener("click", (e) => {
   const a = e.target.closest("a[href]");
   if (!a || a.target || a.hasAttribute("download")) return;
   const href = a.getAttribute("href");
-  if (!href || href.startsWith("#")) return;               // in-page anchors (the develop page handles its own)
+  if (!href) return;
+  if (href.startsWith("#")) {
+    // in-page anchor: the pinned <base> would otherwise resolve "#x" to
+    // "<site root>#x" and the browser would LEAVE the page (/develop#x
+    // became /#x). Keep it on the current pathname ourselves.
+    e.preventDefault();
+    location.hash = href;
+    return;
+  }
   const url = new URL(a.href);                             // the PROPERTY is <base>-resolved
   if (url.origin !== location.origin || !pageOf(url.pathname)) return;
   e.preventDefault();
