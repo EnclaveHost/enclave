@@ -450,7 +450,7 @@ class Deployments extends EnclaveElement {
         if (!badge || box.hidden) return;
         if (r.ok){
           badge.className = "enc-vbadge ok"; badge.textContent = "✓ verified in your browser";
-          badge.title = "AMD SEV-SNP report → AMD root, Sigstore release provenance, measurement match and cert binding, checked client-side against " + r.repo + " (enclave " + r.host + ")";
+          badge.title = "Intel TDX quote → Intel root of trust (DCAP), Sigstore release provenance, measurement match and cert binding, checked client-side against " + r.repo + " (enclave " + r.host + ")";
         } else {
           badge.className = "enc-vbadge bad"; badge.textContent = "✗ not verified: " + (r.error || "check failed");
         }
