@@ -66,10 +66,21 @@ export const Enclave = {
       return r.json();
     });
   },
-  /* Deployments */
+  /* Deployments. List/get are PUBLIC ledger reads: a session token gives the
+     enclaves' live view (status/network/ssh), but a connected wallet alone is
+     enough - the relay scopes by ?owner= (on-chain records are public data;
+     SIWE stays for what's actually private: logs, attestation, private apps). */
   createDeployment(body){ return this._req("POST", "/deployments", { auth: true, body }); },
-  listDeployments(query){ return this._req("GET", "/deployments", { auth: true, query }); },
-  getDeployment(id){ return this._req("GET", "/deployments/" + encodeURIComponent(id), { auth: true }); },
+  listDeployments(query){
+    if (this.token) return this._req("GET", "/deployments", { auth: true, query });
+    if (!this.address) throw new EnclaveError("Connect your wallet first.", 401);
+    return this._req("GET", "/deployments", { query: { ...(query || {}), owner: this.address } });
+  },
+  getDeployment(id){
+    const path = "/deployments/" + encodeURIComponent(id);
+    if (this.token) return this._req("GET", path, { auth: true });
+    return this._req("GET", path, { query: this.address ? { owner: this.address } : {} });
+  },
   terminateDeployment(id){ return this._req("DELETE", "/deployments/" + encodeURIComponent(id), { auth: true }); },
   logs(id, query){ return this._req("GET", "/deployments/" + encodeURIComponent(id) + "/logs", { auth: true, query }); },
   attestation(id){ return this._req("GET", "/deployments/" + encodeURIComponent(id) + "/attestation", { auth: true }); },

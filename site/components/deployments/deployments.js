@@ -94,8 +94,14 @@ class Deployments extends EnclaveElement {
       });
     });
     // document-level listeners must be removable: the soft-nav router mounts a
-    // fresh instance per visit, and detached ones must not keep refreshing
-    this._onAuth = (e) => this.refresh({ spinner: !!(e.detail && e.detail.spinner) });
+    // fresh instance per visit, and detached ones must not keep refreshing.
+    // A sign-in mid-view (the lazy log/attestation unlock) must NOT clobber
+    // the open panel the user just unlocked - skip the repaint, the poll
+    // catches up once the panel closes.
+    this._onAuth = (e) => {
+      if (Enclave.address && this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden])")) return;
+      this.refresh({ spinner: !!(e.detail && e.detail.spinner) });
+    };
     document.addEventListener("enclave:auth", this._onAuth);
     this._onLog = (e) => this._onRunlog(e.detail || {});
     document.addEventListener("enclave:runlog", this._onLog);
@@ -175,12 +181,9 @@ class Deployments extends EnclaveElement {
       setCount(""); this._stopPoll(); hideBar();
       body.innerHTML = '<div class="enc-empty">Connect your wallet (above) to see your enclaves.</div>'; return;
     }
-    if (!Enclave.authed()){
-      setCount(""); this._stopPoll(); hideBar();
-      body.innerHTML = '<div class="enc-empty">Sign in with your wallet to load your enclaves: <button class="wp-mini enc-signin" type="button">sign in</button></div>';
-      const b = body.querySelector(".enc-signin"); if (b) b.addEventListener("click", async () => { try { await authenticate(); } catch(e){ showToast(e.message); } });
-      return;
-    }
+    // NO sign-in wall: a connected wallet is enough - the list is public
+    // ledger data, scoped by address (api.js adds ?owner= when tokenless);
+    // a session only enriches rows with the enclaves' live view
     if (!body.querySelector(".enc-row") || opts.spinner) body.innerHTML = '<div class="enc-empty">loading your enclaves…</div>';
     try {
       const res = await Enclave.listDeployments();
@@ -188,11 +191,9 @@ class Deployments extends EnclaveElement {
       this._renderRows(list, opts.highlight);
       this._startPoll();
     } catch(e){
-      if (e.status === 401){ Enclave.token = null; saveSession(); refreshWallet(); this._stopPoll(); hideBar();
-        body.innerHTML = '<div class="enc-empty">session expired: <button class="wp-mini enc-signin" type="button">sign in</button></div>';
-        const b = body.querySelector(".enc-signin"); if (b) b.addEventListener("click", async () => { try { await authenticate(); } catch(_){} });
-        return;
-      }
+      // an expired/refused session isn't a wall anymore: drop the token and
+      // re-list scoped by the connected address (the public ledger view)
+      if (e.status === 401 && Enclave.token){ Enclave.token = null; saveSession(); refreshWallet(); return this.refresh(opts); }
       body.innerHTML = '<div class="enc-empty">couldn’t load enclaves: ' + esc(e.message || String(e)) + '</div>';
     }
   }
@@ -299,8 +300,8 @@ class Deployments extends EnclaveElement {
       const usd = parseFloat(amt.value) || 0; if (!(usd >= 0.01)) return;
       go.disabled = true; st.innerHTML = "";
       try {
-        if (!Enclave.token){ paint("info", "[*] connecting wallet + signing in…"); await authenticate(); }
-        if (!Enclave.provider){ paint("info", "[*] reconnecting wallet…"); await connectWallet(); }
+        // no SIWE: the EIP-3009 authorization IS the proof of key ownership
+        if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
         await ensureBaseChain();
         let pricing = null;
         try { pricing = await (await fetch(Enclave.base + "/pricing", { signal: AbortSignal.timeout(8000) })).json(); } catch(e){}
@@ -351,11 +352,28 @@ class Deployments extends EnclaveElement {
       paintLine(nar, "dimln", "// deploy narrative · " + run.label + " (recorded in this browser)", scroller);
       run.lines.forEach(l => paintLine(nar, l[0], l[1], scroller));
     }
+    if (Enclave.authed()) this._startLogs(id, box);
+    else this._lockedLogs(id, box);
+  }
+  _startLogs(id, box) {
     this._fetchLogs(id, box);
+    this._stopLogPoll(id);
     this._logPolls[id] = setInterval(() => {
       if (box.hidden || !box.isConnected) { this._stopLogPoll(id); return; }
       this._fetchLogs(id, box);
     }, 5000);
+  }
+  /* logs are the one genuinely PRIVATE read on this panel (an app's stdout
+     routinely carries secrets), so this is where the lazy SIWE lives: prove
+     key ownership once - a gas-free signature - right where it's needed */
+  _lockedLogs(id, box) {
+    const el = box.querySelector(".enc-out-logs"); if (!el) return;
+    el.innerHTML = '<span class="ln dimln">// app logs are owner-private — one gas-free signature proves this wallet owns this deployment (lasts a week)</span>'
+      + '<button class="wp-mini enc-unlock" type="button">unlock logs</button>';
+    el.querySelector(".enc-unlock").addEventListener("click", async () => {
+      try { await authenticate(); if (!box.hidden && box.isConnected) this._startLogs(id, box); }
+      catch(e){ showToast(e.message || String(e)); }
+    });
   }
   _stopLogPoll(id) {
     if (this._logPolls && this._logPolls[id]) { clearInterval(this._logPolls[id]); delete this._logPolls[id]; }
@@ -390,6 +408,20 @@ class Deployments extends EnclaveElement {
     const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-att"); if (!box) return;
     if (!box.hidden){ box.hidden = true; box.innerHTML = ""; return; }
     box.hidden = false;
+    if (!Enclave.authed()){
+      // the attestation read rides the owner session; unlock it in place
+      box.innerHTML = '<div class="ap-attbar">attestation · ' + esc(id) + '</div>'
+        + '<div class="term"><span class="ln dimln">// attestation reads ride the owner session — one gas-free signature unlocks them (lasts a week)</span>'
+        + '<button class="wp-mini enc-unlock" type="button">unlock &amp; verify</button></div>';
+      box.querySelector(".enc-unlock").addEventListener("click", async () => {
+        try { await authenticate(); if (!box.hidden && box.isConnected) this._attest(id, box); }
+        catch(e){ showToast(e.message || String(e)); }
+      });
+      return;
+    }
+    this._attest(id, box);
+  }
+  async _attest(id, box) {
     box.innerHTML = '<div class="ap-attbar">attestation · ' + esc(id)
       + '<span class="enc-vbadge">⏳ verifying in your browser…</span></div>'
       + '<pre class="ap-attpre">fetching…</pre>';
@@ -442,7 +474,7 @@ class Deployments extends EnclaveElement {
   _startPoll() {
     if (this._poll) return;
     this._poll = setInterval(() => {
-      if (!Enclave.authed()){ this._stopPoll(); return; }
+      if (!Enclave.address){ this._stopPoll(); return; }
       if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden])")) return;   // don't clobber an open attestation/output/top-up view
       this.refresh();
     }, 10000);
