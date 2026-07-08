@@ -226,6 +226,43 @@ async function registerOnChain(endpoint) {
     console.warn(`[registry] self-registration failed: ${e.shortMessage || e.message}`);
   }
 }
+
+// Boot-time hostname discovery: the shim terminates TLS inside this CVM, and
+// its certificate names this enclave's public ingress (<name>.containers.
+// tinfoil.dev) in the SANs — the same cert whose key the attestation quote
+// binds, so it is stronger provenance for our own endpoint than the Host
+// header of whoever happens to call first. Reading it over loopback lets a
+// fresh enclave advertise without config and without waiting for external
+// traffic — which may never come: discovery needs the registry entry, and the
+// entry needed traffic (the lazy middleware alone deadlocks on this).
+function shimCertHostname(port = 443, timeoutMs = 5000) {
+  return new Promise((resolve, reject) => {
+    const s = tls.connect({ host: "127.0.0.1", port, rejectUnauthorized: false }, () => {
+      try {
+        const sans = (s.getPeerX509Certificate()?.subjectAltName || "")
+          .split(",").map((e) => e.trim()).filter((e) => e.startsWith("DNS:")).map((e) => e.slice(4));
+        // the public ingress name; *.hpke/*.hatt.tinfoil.sh SANs are Tinfoil-internal
+        resolve(sans.find((n) => /\.containers\.tinfoil\.dev$/i.test(n)) || null);
+      } catch (e) { reject(e); } finally { s.destroy(); }
+    });
+    s.setTimeout(timeoutMs, () => s.destroy(new Error("shim cert read timeout")));
+    s.on("error", reject);
+  });
+}
+// Register eagerly from the shim cert, retrying with backoff: early in boot the
+// shim may present a placeholder cert with no public SAN (ACME still running),
+// and a register tx can fail transiently. The lazy per-request path stays live
+// throughout and ends the loop the moment either side wins (_registered).
+async function advertiseFromShimCert() {
+  for (let delaySec = 5; REGISTRY_READY && !_registered; delaySec = Math.min(delaySec * 2, 300)) {
+    try {
+      const name = await shimCertHostname();
+      if (name) await registerOnChain("https://" + name);
+      else console.log("[registry] shim cert has no public SAN yet — retrying");
+    } catch (e) { console.warn(`[registry] shim cert read failed (${e.message}) — retrying`); }
+    if (!_registered) await new Promise((r) => setTimeout(r, delaySec * 1000).unref());
+  }
+}
 // The sandbox sshd host key is GENERATED ONCE AT BOOT inside the enclave and
 // measured into a TDX RTMR (see initSshHostKey) - so its fingerprint is
 // attestation-bound without baking a key into any image, and one fingerprint
@@ -3016,9 +3053,11 @@ server.listen(PORT, () => console.log(`enclave supervisor on :${PORT} · ${IS_GP
 if (egress) { egress.start(); console.log(`[egress] dedicated-IP egress on (SOCKS 127.0.0.1:${EGRESS_SOCKS_PORT}); awaiting relay control channel`); }
 
 // advertise this enclave on-chain (opt-in, non-blocking, never fatal)
-// If the origin is pinned (PUBLIC_URL), advertise eagerly at boot; otherwise we
-// register lazily on the first external request (middleware above).
+// If the origin is pinned (PUBLIC_URL), advertise eagerly at boot; otherwise
+// discover our public hostname from the shim's loopback TLS cert and register
+// eagerly, with the first-external-request middleware above as the fallback.
 if (PUBLIC_URL) registerOnChain(PUBLIC_URL);
+else if (REGISTRY_READY) advertiseFromShimCert();
 
 // pay-per-deploy: watch the forwarder for payments + fair-billing ticker (drains
 // funded time only while healthy; freezes through outages; reaps at -grace)
