@@ -10,6 +10,7 @@ import "../../components/footer/footer.js";
 import "../../components/toast/toast.js";
 import "../../components/section-head/section-head.js";
 import "../../components/deployments/deployments.js";
+import "../../components/fleet-list/fleet-list.js";
 import { $, short, lsGet, on } from "../core/util.js";
 import { DEPLOYMENTS_ADDRESS, BASE_CHAIN } from "../core/config.js";
 import { catExplorer } from "../core/chain.js";
@@ -30,7 +31,26 @@ function gate(){
 }
 on("enclave:wallet", gate);   // module-load-once: restore-settle and sign-out edges
 
+/* the fleet capacity panel: the relay's /enclaves table, same sort as the
+   deploy console; polled only while this page's <main> is mounted */
+let _fleetPoll = null;
+async function refreshFleet(){
+  const fl = document.querySelector(".dash-fleet c-fleet-list"); if (!fl) return;
+  try {
+    const r = await fetch(Enclave.base.replace(/\/v1\/?$/, "") + "/enclaves", { headers: { "Accept": "application/json" } });
+    if (!r.ok) throw new Error("no fleet view");
+    const j = await r.json();
+    fl.rows = (j.enclaves || []).slice().sort((a, b) =>
+      ((b.availability && b.availability.gpu) === true) - ((a.availability && a.availability.gpu) === true)
+      || String(a.endpoint || "").localeCompare(String(b.endpoint || "")));
+  } catch(e){ fl.rows = []; }   // the component's empty state reads "no live enclaves"
+}
+
 export function boot() {
+  refreshFleet();
+  if (!_fleetPoll) _fleetPoll = setInterval(() => {
+    if (document.querySelector('section[data-view="dashboard"]')) refreshFleet();
+  }, 20000);
   // the ledger's chips, mirroring the store head: which contract, which chain
   const link = $("#depAddrLink"), sh = $("#depAddrShort"), ch = $("#depChain");
   if (ch) ch.textContent = "Base · " + BASE_CHAIN;

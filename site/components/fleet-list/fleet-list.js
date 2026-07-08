@@ -6,6 +6,8 @@
 import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { esc, fmtNum } from "../../js/core/util.js";
 import { CARD_GB, NODE_RAM_GB, NODE_VCPUS } from "../../js/core/pricing.js";
+import { REGISTRY_ADDRESS } from "../../js/core/config.js";
+import { catExplorer } from "../../js/core/chain.js";
 
 class FleetList extends EnclaveElement {
   static properties = { rows: null };
@@ -15,7 +17,12 @@ class FleetList extends EnclaveElement {
     const list = this.querySelector(".fleet-list"); if (!list) return;
     const rows = this.rows || [];
     const meter = (pct) => '<i class="fleet-meter"><b style="width:' + Math.max(0, Math.min(100, pct)) + '%"></b></i>';
-    list.innerHTML = !rows.length
+    // the on-chain registry this table mirrors - link it once the address
+    // book has resolved (enclaves register there; the relay reads it)
+    const reg = /^0x[0-9a-fA-F]{40}$/.test(REGISTRY_ADDRESS || "")
+      ? '<a class="fleet-reg" href="' + catExplorer() + '/address/' + REGISTRY_ADDRESS + '" target="_blank" rel="noopener" title="EnclaveRegistry - the on-chain fleet membership this table mirrors">view registry contract ↗</a>'
+      : "";
+    list.innerHTML = (!rows.length
       ? '<div class="fleet-empty">no live enclaves</div>'
       : rows.map(e => {
           const a = e.availability || {};
@@ -32,7 +39,7 @@ class FleetList extends EnclaveElement {
             + '<span class="fleet-pool">CPU ' + meter(cPct) + ' ' + cPct + '% free · ≈'
             + fmtNum(cFree * (a.nodeRamGb || NODE_RAM_GB)) + ' GB RAM / ' + fmtNum(cFree * (a.nodeVcpus || NODE_VCPUS)) + ' vCPU</span>'
             + '</div>';
-        }).join("");
+        }).join("")) + reg;
   }
 }
 register("c-fleet-list", FleetList);

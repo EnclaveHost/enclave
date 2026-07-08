@@ -11,3 +11,7 @@ c-fleet-list{display:contents;}
 .fleet-meter{display:inline-block;width:56px;height:5px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden;}
 .fleet-meter b{display:block;height:100%;background:linear-gradient(90deg,var(--jade),var(--jade-2));border-radius:3px;}
 .fleet-empty{padding:10px 12px;font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);}
+
+/* the on-chain registry link under the table */
+.fleet-reg{display:inline-block;margin-top:9px;font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);}
+.fleet-reg:hover{color:var(--jade);}
