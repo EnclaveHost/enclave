@@ -105,9 +105,10 @@ const APP_TUPLE = [
   { name: "createdAt", type: "uint64" }, { name: "updatedAt", type: "uint64" },
   { name: "active", type: "bool" },
 ];
-// catalog schema rev 3: VERSION carries `config` (default/template
+// catalog schema rev 4: VERSION carries `config` (default/template
 // ENCLAVE_CONFIG JSON, appended last; immutable + approval-covered).
-// Rev is sniffed via catalogSchema() - absent = rev 2.
+// Rev sniffed via catalogSchema(): absent = rev 2; rev 3 = the retired
+// app-level-config layout whose versions are config-LESS.
 const VERSION_TUPLE = [
   { name: "cid", type: "string" }, { name: "version", type: "string" },
   { name: "vramMb", type: "uint32" }, { name: "gpuGflops", type: "uint32" },
@@ -161,9 +162,10 @@ async function catRev() {
   catch (e) { _catRev = 2; }
   return _catRev;
 }
-// one versions read for both revisions: rev-2 tuples get config defaulted
+// one versions read for all revisions: only rev-4 versions carry config
+// (rev 3 = the retired app-level layout; its versions decode as rev 2)
 async function readVersions(appId, count) {
-  const abi = (await catRev()) >= 3 ? CATALOG_ABI_V3 : CATALOG_ABI;
+  const abi = (await catRev()) >= 4 ? CATALOG_ABI_V3 : CATALOG_ABI;
   const versions = await read(DEFAULTS.APP_CATALOG_ADDRESS, abi, "getVersionsPage",
                               [appId, 0n, BigInt(Math.max(1, Number(count)))]);
   return versions.map((v) => ({ config: "", ...v }));
@@ -877,11 +879,11 @@ async function cmdPublish(rest) {
   say(`pinned ipfs://${cid}`);
 
   // 2. cut the catalog version (publisher = your address; appId = keccak(publisher, slug))
-  // --config rides rev-3 catalogs as the app's default/template ENCLAVE_CONFIG
+  // --config rides rev-4 catalogs as the version's default/template ENCLAVE_CONFIG
   const rev = await catRev();
-  if (f.config && rev < 3) throw new Error("--config needs the rev-3 catalog (this one predates app configs)");
+  if (f.config && rev < 4) throw new Error("--config needs the rev-4 catalog (this one doesn't store per-version configs)");
   const args = [f.slug, f.name || f.slug, f.desc || "", version, cid, res, f.ports || ""];
-  if (rev >= 3) args.push(f.config || "");
+  if (rev >= 3) args.push(f.config || "");   // rev 3+ take the 8-arg form (rev 3 stores it app-level; we always pass "")
   const rcpt = await sendTx(account, { address: DEFAULTS.APP_CATALOG_ADDRESS, abi: CATALOG_ABI,
     functionName: "publishVersion", args });
   if (opt.json) return jout({ slug: f.slug, version, cid, appId, tx: rcpt.transactionHash, approval: "pending" });

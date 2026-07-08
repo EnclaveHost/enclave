@@ -307,10 +307,12 @@ async function publishApp(){
     if (!Enclave.provider) await connectWallet();
     await ensureCatalogChain();
     // the live catalog's struct revision decides the publish encoding (the
-    // site ships ahead of the contract cutover; both must keep working)
+    // site ships ahead of the contract cutover; all revisions must keep
+    // working). Version-level config needs rev 4 - rev 3 (the retired
+    // app-level layout) would silently store it where nothing reads it.
     const rev = await catSchemaRev();
-    if (rev < 3 && cfg.val){
-      pubStatus("this catalog revision doesn't store app configs yet - clear the App config box (or publish after the catalog upgrade)", true);
+    if (rev < 4 && cfg.val){
+      pubStatus("this catalog revision doesn't store per-version configs - clear the App config box (or publish after the rev-4 catalog cutover)", true);
       btn.disabled = false; btn.textContent = lbl; return;
     }
     pubStatus("confirm the transaction in your wallet…");
