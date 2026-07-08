@@ -3,5 +3,5 @@
    ============================================================ */
 c-toast{display:contents;}
 
-#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface-3);border:1px solid var(--jade-dim);color:var(--text);font-family:var(--font-mono);font-size:.8rem;padding:.7em 1.1em;border-radius:9px;opacity:0;pointer-events:none;transition:.25s var(--ease);z-index:100;box-shadow:0 20px 50px -20px rgba(0,0,0,.8);}
-#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface-3);border:1px solid var(--jade-dim);color:var(--text);font-family:var(--font-mono);font-size:.8rem;padding:.7em 1.1em;border-radius:9px;opacity:0;pointer-events:none;transition:.25s var(--ease);z-index:100;box-shadow:0 20px 50px -20px rgba(0,0,0,.8);max-width:min(640px,calc(100vw - 32px));cursor:pointer;}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}   /* hover pauses the clock; click dismisses */
