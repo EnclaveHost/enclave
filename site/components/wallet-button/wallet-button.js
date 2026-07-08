@@ -12,7 +12,8 @@
    ============================================================ */
 import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { Enclave } from "../../js/core/api.js";
-import { Wallet, connectWallet, authenticate, refreshWallet, restoreSession, toggleWalletPop } from "../../js/core/wallet.js";
+import { Wallet, connectWallet, refreshWallet, restoreSession, toggleWalletPop } from "../../js/core/wallet.js";
+import { navigate } from "../../js/boot.js";
 import { $, showToast } from "../../js/core/util.js";
 
 class WalletButton extends EnclaveElement {
@@ -33,7 +34,10 @@ class WalletButton extends EnclaveElement {
     wb.addEventListener("click", async () => {
       if (Enclave.address){ toggleWalletPop(); return; }
       const o = wb.innerHTML; wb.disabled = true; wb.innerHTML = "connecting…";
-      try { await connectWallet(); await authenticate(); }
+      try {
+        await connectWallet();   // connecting IS signing in (SIWE stays lazy, at the private reads)
+        navigate("dashboard", { push: true });   // land where their apps live
+      }
       catch(e){ showToast(e.message); }
       finally { wb.disabled = false; if (!Enclave.address) wb.innerHTML = o; }
     });
