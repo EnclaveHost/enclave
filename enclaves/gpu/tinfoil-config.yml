@@ -223,7 +223,7 @@ containers:
       # (name:path:file.gguf) picks WHICH gguf preloads as the wasi-nn graph
       # when the repo ships several quantizations - the manager stages the
       # pick as a symlink dir, so the mpk-<hash> mount name never matters.
-      - MODEL_VOLUMES: "qwen2.5-0.5b:/tinfoil/mpk/mpk-e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4,qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-REPLACE_WITH_ROOT_HASH_FROM_MODELS_TAB:qwen2.5-0.5b-instruct-q4_k_m.gguf"
+      - MODEL_VOLUMES: "qwen2.5-0.5b:/tinfoil/mpk/mpk-e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4,qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-d02f1afc0eee60adc4da2a541c8e095c9cff347b4f3996c2950ff84c676c1c70:qwen2.5-0.5b-instruct-q4_k_m.gguf"
     # SECRET doubles as the manager's control-plane token (VMMGR_TOKEN): tenants
     # hold outbound HTTP to loopback, so the control API on :8091 must reject
     # calls that don't carry it (the supervisor sends X-Vmmgr-Token). The tenant
@@ -259,7 +259,7 @@ models:
   # deployments using this volume should attach BOTH.
   - name: "qwen2.5-0.5b-gguf"
     repo: "Qwen/Qwen2.5-0.5B-Instruct-GGUF@9217f5db79a29953eb74d5343926648285ec7e67"
-    mpk: "REPLACE_WITH_HASH_FROM_MODELS_TAB"
+    mpk: "d02f1afc0eee60adc4da2a541c8e095c9cff347b4f3996c2950ff84c676c1c70_5372555264_5600f8a0-1cd0-5dc9-a32c-7a110e14da28"
 
 # Single ingress → supervisor. Only these paths are reachable from outside.
 shim:
