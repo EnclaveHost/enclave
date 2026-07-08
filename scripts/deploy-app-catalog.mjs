@@ -74,8 +74,9 @@ function compile() {
   const input = {
     language: "Solidity",
     sources: { "EnclaveAppCatalog.sol": { content: source } },
-    // viaIR: publishVersion's 7 params (6 dynamic) overflow the legacy codegen's
-    // calldata decoder ("stack too deep"); the IR pipeline spills to memory.
+    // viaIR: publishVersion's 8 params (7 dynamic) overflow the legacy codegen's
+    // calldata decoder ("stack too deep"); the IR pipeline spills to memory
+    // (multicall's assembly is annotated memory-safe for the same reason).
     settings: { optimizer: { enabled: true, runs: 200 }, viaIR: true, outputSelection: { "*": { "*": ["abi", "evm.bytecode.object"] } } },
   };
   const out = JSON.parse(solc.compile(JSON.stringify(input)));

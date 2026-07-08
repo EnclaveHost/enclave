@@ -22,7 +22,7 @@ import { Enclave, EnclaveError } from "../core/api.js";
 import { CARD_GB, NODE_VCPUS, NODE_RAM_GB, CARD_TFLOPS, NODE_GFLOPS, shareRates } from "../core/pricing.js";
 import { encCall, DEP_SEL, DEP_CREATED_TOPIC, APPROVAL, depGet, depRate6, depPrices6, rate6Of, waitReceipt } from "../core/chain.js";
 import { authenticate, connectWallet, refreshWallet, ensureBaseChain, sendTx, usdcBalanceOf, ethBalanceOf, openBuyModal } from "../core/wallet.js";
-import { STORE, loadCatalog, REF_CACHE, PORTS_CACHE, MINS_CACHE, looksFriendly, resolveAppRef, validPortsCsv } from "../core/catalog.js";
+import { STORE, loadCatalog, REF_CACHE, PORTS_CACHE, MINS_CACHE, CONFIG_CACHE, looksFriendly, resolveAppRef, validPortsCsv } from "../core/catalog.js";
 
 /* component handles (assigned in initDeploy) */
 let fleetList = null, volPicker = null;
@@ -573,26 +573,33 @@ function applyUseInDeploy(){
   inp.value = friendly;
   let stash = null;
   try { stash = JSON.parse(sessionStorage.getItem("enclave_use_in_deploy") || "null"); } catch(e){}
-  const applyMins = (mins, ports) => {
+  const applyMins = (mins, ports, config) => {
     dep.minGpuPct = mins.gpuPct; dep.minCpuPct = mins.cpuPct;
     dep.gpuPct = mins.gpuPct; dep.cpuPct = mins.cpuPct;
     const gi = $("#cfgGpuShare"); if (gi){ gi.min = String(mins.gpuPct); gi.value = String(mins.gpuPct); }
     const ci = $("#cfgCpuShare"); if (ci){ ci.min = String(mins.cpuPct); ci.value = String(mins.cpuPct); }
     const fp = $("#cfgPorts"); if (fp) fp.value = ports || "";
+    // the app's default config template pre-fills the App config box
+    // (pretty-printed when it parses); the deployer edits, deploy pins the result
+    if (config){
+      const ta = $("#cfgConfig");
+      if (ta){ try { ta.value = JSON.stringify(JSON.parse(config), null, 2); } catch(e){ ta.value = config; } }
+    }
     renderDeploy();
     showToast("Deploy set to " + friendly + " (min " + mins.gpuPct + "% GPU / " + mins.cpuPct + "% CPU)"
-            + (ports ? " · open ports " + ports : ""));
+            + (ports ? " · open ports " + ports : "") + (config ? " · config template applied" : ""));
   };
   if (stash && stash.friendly === friendly && stash.cid){
     REF_CACHE[friendly] = "ipfs://" + stash.cid;
     PORTS_CACHE[friendly] = stash.ports || "";
     MINS_CACHE[friendly] = stash.mins;
-    applyMins(stash.mins, stash.ports);
+    CONFIG_CACHE[friendly] = stash.config || "";
+    applyMins(stash.mins, stash.ports, stash.config);
   } else {
     // shared / bookmarked link: resolve the ref from the catalog
     loadCatalog().then(() => {
       const r = resolveAppRef(friendly);
-      if (r.mins) applyMins(r.mins, PORTS_CACHE[friendly]);
+      if (r.mins) applyMins(r.mins, PORTS_CACHE[friendly], CONFIG_CACHE[friendly]);
       else renderDeploy();
     }).catch(() => {});
   }

@@ -107,9 +107,14 @@
           <label for="pubDesc">Description <span class="dim">(≤ 500 chars)</span></label>
           <textarea id="pubDesc" maxlength="500" placeholder="What does it do?"></textarea>
         </div>
+        <div class="full">
+          <label for="pubConfig">App config <span class="dim">(optional · default/template JSON for deployments — the deploy console pre-fills its App config box with it; deployers edit before deploying · ≤ 4096 chars)</span></label>
+          <textarea id="pubConfig" maxlength="4096" placeholder='empty · or JSON, e.g. {"backend":"ggml","model_volume":"qwen2.5-0.5b"}' spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+        </div>
       </div>
       <div class="pub-actions">
         <button class="btn btn-primary btn-sm" id="pubSubmit" type="button">Publish to Base</button>
+        <button class="btn btn-sm" id="pubEditOnly" type="button" title="editApp(): refresh name, description and App config for an app you already published — no new version, no new CID">Update metadata only</button>
         <button class="btn btn-sm" id="pubCancel" type="button">← back to apps</button>
         <span class="pub-status" id="pubStatus"></span>
       </div>

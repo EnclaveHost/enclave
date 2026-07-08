@@ -294,6 +294,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "catalogSchema",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "string",
@@ -358,6 +371,11 @@
         "internalType": "string",
         "name": "description",
         "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "config",
+        "type": "string"
       }
     ],
     "name": "editApp",
@@ -421,6 +439,11 @@
             "internalType": "bool",
             "name": "active",
             "type": "bool"
+          },
+          {
+            "internalType": "string",
+            "name": "config",
+            "type": "string"
           }
         ],
         "internalType": "struct EnclaveAppCatalog.App",
@@ -492,6 +515,11 @@
             "internalType": "bool",
             "name": "active",
             "type": "bool"
+          },
+          {
+            "internalType": "string",
+            "name": "config",
+            "type": "string"
           }
         ],
         "internalType": "struct EnclaveAppCatalog.App[]",
@@ -717,6 +745,11 @@
             "internalType": "bool",
             "name": "active",
             "type": "bool"
+          },
+          {
+            "internalType": "string",
+            "name": "config",
+            "type": "string"
           }
         ],
         "internalType": "struct EnclaveAppCatalog.App[]",
@@ -903,6 +936,11 @@
       {
         "internalType": "string",
         "name": "ports",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "config",
         "type": "string"
       }
     ],

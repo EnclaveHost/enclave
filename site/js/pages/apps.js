@@ -12,9 +12,9 @@ import "../../components/app-card/app-card.js";
 import { $, $$, esc, short, blen, fmtDur, showToast, on } from "../core/util.js";
 import { APP_CATALOG_ADDRESS, APP_CATALOG_CHAIN, IPFS_UPLOAD_URL, MAX_WASM_MB, MAX_WASM_BYTES, BASE_CHAIN, PRIVY_RDNS } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
-import { catConfigured, catExplorer, encCall, CAT_SEL, CAT_MAX, APPROVAL, depPrices6, rate6Of, waitReceipt } from "../core/chain.js";
+import { catConfigured, catExplorer, encCall, CAT_SEL, CAT_MAX, APPROVAL, depPrices6, rate6Of, waitReceipt, catSchemaRev } from "../core/chain.js";
 import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf, openBuyModal } from "../core/wallet.js";
-import { STORE, loadCatalog, selIdx, appVerified, validPortsCsv, REF_CACHE, PORTS_CACHE, MINS_CACHE } from "../core/catalog.js";
+import { STORE, loadCatalog, selIdx, appVerified, validPortsCsv, REF_CACHE, PORTS_CACHE, MINS_CACHE, CONFIG_CACHE } from "../core/catalog.js";
 import { minPctsOf, shareRates } from "../core/pricing.js";
 import { navigate } from "../boot.js";
 
@@ -56,9 +56,10 @@ function useInDeploy(app, v){
   REF_CACHE[friendly] = "ipfs://" + v.cid;
   PORTS_CACHE[friendly] = v.ports || "";
   MINS_CACHE[friendly] = minPctsOf(v);
+  CONFIG_CACHE[friendly] = app.config || "";        // app-level default config -> deploy form template
   try {
     sessionStorage.setItem("enclave_use_in_deploy", JSON.stringify({
-      friendly, cid: v.cid, ports: v.ports || "", mins: MINS_CACHE[friendly] }));
+      friendly, cid: v.cid, ports: v.ports || "", mins: MINS_CACHE[friendly], config: app.config || "" }));
   } catch(e){}
   // same page, new search: the router re-fetches + swaps <main>, and boot()'s
   // applyView lands on the deploy view with ?app= in place
@@ -143,8 +144,11 @@ function quickDeploy(app, v){
     // the flow lives in the deploy chunk; it navigates to the dashboard and
     // narrates into the run log (deployOnChain never throws)
     const m = await import("./deploy.js");
+    // the app's default config template rides quick deploys as-is (deployOnChain
+    // pins it); a template carrying {"volumes":[…]} thus attaches them too
+    let cfg = null; try { cfg = app.config ? JSON.parse(app.config) : null; } catch(e){}
     m.deployOnChain({ reference: "ipfs://" + v.cid, gpuMilli: mins.gpuPct * 10, cpuMilli: mins.cpuPct * 10,
-      ports: v.ports || "", isPublic: true, configCid: "", volumes: [], fundUsd: usd, asset: "USDC" });
+      ports: v.ports || "", isPublic: true, config: cfg, volumes: [], fundUsd: usd, asset: "USDC" });
   });
   est(); loadBal();
 }
@@ -274,6 +278,7 @@ async function publishApp(){
     return pubStatus("CPU compute must be at least 1 GFLOPS - every app computes something", true);
   if (blen(ports) > 96) return pubStatus("open-ports config too long (≤ 96 bytes)", true);
   const pErr = validPortsCsv(ports); if (pErr) return pubStatus(pErr, true);
+  const cfg = readPubConfig(); if (cfg.err) return pubStatus(cfg.err, true);
   // Pre-flight against the loaded catalog. Both cases REVERT on-chain, which a
   // wallet surfaces as a gas-estimation hang and the form as a bare timeout -
   // refuse here with the actual reason instead.
@@ -300,13 +305,23 @@ async function publishApp(){
   try {
     if (!Enclave.provider) await connectWallet();
     await ensureCatalogChain();
+    // the live catalog's struct revision decides the publish encoding (the
+    // site ships ahead of the contract cutover; both must keep working)
+    const rev = await catSchemaRev();
+    if (rev < 3 && cfg.val){
+      pubStatus("this catalog revision doesn't store app configs yet - clear the App config box (or publish after the catalog upgrade)", true);
+      btn.disabled = false; btn.textContent = lbl; return;
+    }
     pubStatus("confirm the transaction in your wallet…");
     // uint32[4] is a STATIC array: it ABI-encodes as four inline words, exactly
     // like four consecutive uint params, so the hand-rolled encoder just takes them in order
-    const data = encCall(CAT_SEL.publishVersion, [
+    const args = [
       {t:"str",v:slug},{t:"str",v:name},{t:"str",v:desc},{t:"str",v:version},{t:"str",v:cid},
       {t:"uint",v:vramMb},{t:"uint",v:gpuGflops},{t:"uint",v:memMb},{t:"uint",v:cpuGflops},{t:"str",v:ports},
-    ]);
+    ];
+    const data = rev >= 3
+      ? encCall(CAT_SEL.publishVersion, [...args, {t:"str",v:cfg.val}])
+      : encCall(CAT_SEL.publishVersionV2, args);
     const hash = await sendTx(APP_CATALOG_ADDRESS, data);
     pubStatus("sent · " + hash + " · waiting for confirmation…");
     await waitReceipt(hash);
@@ -322,6 +337,53 @@ async function publishApp(){
   }
   finally { btn.disabled = false; btn.textContent = lbl; }
 }
+/* the App config box: a default/template ENCLAVE_CONFIG JSON stored on the
+   app's catalog entry (the deploy console pre-fills from it). Empty is fine;
+   otherwise it must be a JSON object within the on-chain size cap. */
+function readPubConfig(){
+  const raw = ($("#pubConfig") && $("#pubConfig").value || "").trim();
+  if (!raw) return { val: "" };
+  if (blen(raw) > CAT_MAX.config) return { err: "app config too long (≤ " + CAT_MAX.config + " bytes)" };
+  try {
+    const o = JSON.parse(raw);
+    if (!o || Array.isArray(o) || typeof o !== "object") return { err: "app config must be a JSON object, e.g. {\"api_key\":\"…\"}" };
+  } catch(e){ return { err: "app config isn't valid JSON (" + e.message + ")" }; }
+  return { val: raw };
+}
+
+/* editApp(): refresh name/description/config for an app you already publish -
+   no new version, no new CID. The config-attach path for live apps. */
+async function editAppOnly(){
+  const slug = $("#pubSlug").value.trim(), name = $("#pubName").value.trim(), desc = $("#pubDesc").value.trim();
+  if (!catConfigured()) return pubStatus("catalog contract address isn’t set on this site yet", true);
+  if (!slug || blen(slug) > CAT_MAX.slug) return pubStatus("app slug is required (≤ 40 bytes)", true);
+  if (!name || blen(name) > CAT_MAX.name) return pubStatus("name is required (≤ 80 bytes)", true);
+  if (blen(desc) > CAT_MAX.desc) return pubStatus("description too long (≤ 500 bytes)", true);
+  const cfg = readPubConfig(); if (cfg.err) return pubStatus(cfg.err, true);
+  const mine = (STORE.apps || []).find(a => a.slug === slug
+    && Enclave.address && (a.publisher || "").toLowerCase() === Enclave.address.toLowerCase());
+  if (Enclave.address && STORE.loaded && !mine)
+    return pubStatus("no app '" + slug + "' published by this wallet - metadata edits need the publisher key; use Publish for a first release", true);
+  const btn = $("#pubEditOnly"); btn.disabled = true; const lbl = btn.textContent; btn.textContent = "working…";
+  try {
+    if (!Enclave.provider) await connectWallet();
+    await ensureCatalogChain();
+    if (await catSchemaRev() < 3){
+      pubStatus("this catalog revision has no metadata-only edit with config - wait for the catalog upgrade", true);
+      return;
+    }
+    pubStatus("confirm the transaction in your wallet…");
+    const data = encCall(CAT_SEL.editApp, [{t:"str",v:slug},{t:"str",v:name},{t:"str",v:desc},{t:"str",v:cfg.val}]);
+    const hash = await sendTx(APP_CATALOG_ADDRESS, data);
+    pubStatus("sent · " + hash + " · waiting for confirmation…");
+    await waitReceipt(hash);
+    pubStatus("metadata updated ✓ " + hash);
+    showToast("updated " + slug);
+    await loadCatalog(true);
+  } catch(e){ pubStatus(e.message || String(e), true); }
+  finally { btn.disabled = false; btn.textContent = lbl; }
+}
+
 async function catTx(data, verb){
   try {
     if (!Enclave.provider) await connectWallet();
@@ -342,7 +404,7 @@ function resetPublish(){
   if (pubXhr){ try { pubXhr.abort(); } catch(_){} pubXhr = null; }
   setPubUploading(false);
   const bar = $("#pubUpBar"); if (bar) bar.hidden = true;
-  ["#pubSlug","#pubCid","#pubName","#pubDesc","#pubPorts"].forEach(s => { const el = $(s); if (el) el.value = ""; });
+  ["#pubSlug","#pubCid","#pubName","#pubDesc","#pubPorts","#pubConfig"].forEach(s => { const el = $(s); if (el) el.value = ""; });
   const f = $("#pubFile"); if (f) f.value = ""; const h = $("#pubFileHint"); if (h) h.textContent = "";
   $("#pubVersion").value = "1.0.0"; $("#pubVram").value = "0"; $("#pubGpuT").value = "0";
   $("#pubMem").value = "128"; $("#pubCpuG").value = "1"; pubStatus("");
@@ -378,6 +440,7 @@ function prefillPublish(app){
   $("#pubMem").value = String(Number(v.memMb) || 128);
   $("#pubCpuG").value = String(Math.max(1, Number(v.cpuGflops) || 1));
   $("#pubPorts").value = v.ports || "";
+  const pc = $("#pubConfig"); if (pc) pc.value = app.config || "";
   openPublish();
   pubStatus("pre-filled from " + app.slug + " " + (v.version || "") + " - fix specs/ports and publish (same bytes), or pick a new .wasm if the code changed"
           + (app.active ? "" : " · publishing relists the app"));
@@ -442,6 +505,7 @@ function initStore(){
   const rf = $("#storeRefresh"); if (rf) rf.addEventListener("click", () => loadCatalog(true));
   $("#pubCancel").addEventListener("click", closePublish);   // (+ Publish app is a plain <a href="#publish">)
   $("#pubSubmit").addEventListener("click", publishApp);
+  const pe = $("#pubEditOnly"); if (pe) pe.addEventListener("click", editAppOnly);
   const pf = $("#pubFile"); if (pf) pf.addEventListener("change", onPubFile);
   const row = $("#pubFileRow");
   if (row && !IPFS_UPLOAD_URL){ row.classList.add("disabled"); $("#pubFileHint").textContent = "upload disabled here; paste a CID below"; }
