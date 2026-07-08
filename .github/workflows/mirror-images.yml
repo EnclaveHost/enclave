@@ -1,0 +1,47 @@
+# mirror-images.yml — one-off after the SteveDeFacto -> EnclaveHost repo
+# transfer: ghcr packages do not follow a repo transfer, so every digest the
+# flavor configs pin must exist under ghcr.io/enclavehost before the configs
+# can point there. crane copies are byte-identical, so the digests — and
+# therefore the Tinfoil measurements — do not change.
+#
+# Brand-new packages created here are PRIVATE until publicized once in the
+# EnclaveHost package settings (Settings -> Change visibility -> Public);
+# Tinfoil pulls anonymously, so publicize before updating any enclave.
+name: Mirror pinned images to enclavehost
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  packages: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Install crane
+        run: |
+          curl -sSL https://github.com/google/go-containerregistry/releases/download/v0.20.2/go-containerregistry_Linux_x86_64.tar.gz \
+            | sudo tar -xz -C /usr/local/bin crane
+
+      - name: Copy pinned digests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          crane auth login ghcr.io -u "$GITHUB_ACTOR" -p "$GH_TOKEN"
+          copy() { # $1=image $2=digest $3=dest tag
+            src="ghcr.io/stevedefacto/$1@$2"
+            dst="ghcr.io/enclavehost/$1:$3"
+            echo "::group::$src -> $dst"
+            crane copy "$src" "$dst"
+            got="$(crane digest "$dst")"
+            [ "$got" = "$2" ] || { echo "::error::digest changed for $1: $got != $2"; exit 1; }
+            echo "::endgroup::"
+          }
+          copy enclave-wasmtime     sha256:80148c928c0a0b0e231310e72034512e7b8ad8459cada72154c516ecaa125360 v45.0.0
+          copy enclave-wasm-manager sha256:ee6b95c61794fecfa278e59e5bc5246eec873c0aaafa7f58a05e1b6a5a5f5f6a mirror-ee6b95c6
+          copy enclave-mps          sha256:e7c28466c299913e4319bb913cd15223fa96b74454de0b7f938283906d648049 mirror-e7c28466
+          copy enclave-worker       sha256:67879963d2057244a30ff82096ca671fb80ba04938fdbce0c9894b5066b93016 mirror-67879963
+          echo "done — publicize the new packages in the EnclaveHost UI before any Tinfoil update"
