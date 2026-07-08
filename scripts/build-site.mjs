@@ -192,6 +192,10 @@ const appsNested = fs.readFileSync(path.join(DIST, "apps.html"), "utf8")
   .replace("<head>", '<head>\n<base href="../" />');
 for (const v of ["deploy", "publish"])
   fs.writeFileSync(path.join(DIST, "apps", v + ".html"), appsNested);
+// the apps/ DIRECTORY now exists in the DAG, which SHADOWS the /apps ->
+// /apps.html rewrite (_redirects only fires for absent paths): give the
+// directory an index so /apps resolves to the store, not a gateway listing
+fs.writeFileSync(path.join(DIST, "apps", "index.html"), appsNested);
 
 /* size report */
 const out = Object.entries(result.metafile.outputs)
