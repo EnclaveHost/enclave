@@ -124,10 +124,24 @@ test("api-relay: zero live enclaves — list returns every on-chain deployment t
   assert.equal(by[ID("22")].paidUsdc, "1.50", "paid = balance + spent");
   assert.ok(by[ID("33")].onchain.leaseUntil, "live lease surfaces its expiry");
 
-  // no token -> 401 (nothing to scope the list by)
+  // TOKENLESS listing: a connected wallet's address is enough (?owner= scopes
+  // the public ledger rows - no SIWE popup needed just to see your fleet)
+  const noTok = await getJson(origin, "/v1/deployments?owner=" + OWNER);
+  assert.equal(noTok.status, 200);
+  assert.equal(noTok.body.data.length, 4, "owner param scopes the same 4 rows without any token");
+  assert.ok(noTok.body.data.every((r) => r.ledger === true));
+  // scoping is NOT authentication: ledger rows are public on-chain data
+  const foreign = await getJson(origin, "/v1/deployments?owner=" + OTHER);
+  assert.equal(foreign.body.data.length, 1, "any address's public rows are listable");
+  // neither token nor owner -> 401 (nothing to scope the list by)
   assert.equal((await getJson(origin, "/v1/deployments")).status, 401);
-  // expired token -> 401 too
+  // expired token and no owner -> 401 too
   assert.equal((await getJson(origin, "/v1/deployments", jwt(OWNER, 1))).status, 401);
+  // tokenless bare read: ?owner= scopes, and even unscoped reads resolve
+  // (records are public); prefixes disambiguate within the scope
+  const noTokOne = await getJson(origin, "/v1/deployments/" + ID("11") + "?owner=" + OWNER);
+  assert.equal(noTokOne.status, 200);
+  assert.equal(noTokOne.body.status, "queued");
 
   // bare record read: full id and unique prefix both resolve from the ledger
   const one = await getJson(origin, "/v1/deployments/" + ID("11"), jwt(OWNER));
@@ -165,6 +179,13 @@ test("api-relay: live enclave rows merge with ledger-only rows, deduped by id", 
   assert.equal(by[ID("33")].ledger, undefined);
   assert.equal(by[ID("11")].status, "queued");
   assert.ok(by[ID("11")].ledger, "unhosted work still comes from the ledger");
+
+  // a TOKENLESS bare read of a HOSTED id must not proxy (the enclave would
+  // 401 it) - the ledger view answers instead
+  const bare = await getJson(origin, "/v1/deployments/" + ID("33"));
+  assert.equal(bare.status, 200);
+  assert.equal(bare.body.status, "claimed", "tokenless hosted read serves the ledger view, not a proxied 401");
+  assert.ok(bare.body.ledger);
 });
 
 // ---------- fleet refuses the token: surface the 401, don't mask it ----------

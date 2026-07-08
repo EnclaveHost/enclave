@@ -89,7 +89,7 @@ const AUTO_PROVISION       = /^(1|true|on)$/i.test(process.env.AUTO_PROVISION ||
 const AUTO_PROVISION_HOURS = parseFloat(process.env.AUTO_PROVISION_HOURS || "0");
 const ADMIN_TOKEN          = process.env.ADMIN_TOKEN || "";
 const BASE_RPC       = process.env.BASE_RPC || "https://mainnet.base.org";
-const SESSION_TTL    = parseInt(process.env.SESSION_TTL || "43200", 10); // 12h: long enough to cover a deployment's data-path use
+const SESSION_TTL    = parseInt(process.env.SESSION_TTL || "604800", 10); // 7d: SIWE is lazy now (only logs/attestation/private data need it) - make the one signature rare
 const SSH_USER       = process.env.SSH_USER || "instance"; // login user the supervisor's sshd drops into
 // --- platform model (vLLM tier) ---------------------------------------------
 // On a big-model flavor (e.g. 8xH200 serving GLM-5.2), a vLLM sidecar loads an

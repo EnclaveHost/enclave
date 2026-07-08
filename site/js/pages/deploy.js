@@ -22,7 +22,7 @@ import { APP_DOMAIN, DEPLOYMENTS_ADDRESS, IPFS_UPLOAD_URL, BASE_CHAIN, PRIVY_RDN
 import { Enclave, EnclaveError } from "../core/api.js";
 import { CARD_GB, NODE_VCPUS, NODE_RAM_GB, CARD_TFLOPS, NODE_GFLOPS, shareRates } from "../core/pricing.js";
 import { encCall, DEP_SEL, DEP_CREATED_TOPIC, APPROVAL, depGet, depRate6, depPrices6, rate6Of, waitReceipt } from "../core/chain.js";
-import { authenticate, connectWallet, refreshWallet, ensureBaseChain, sendTx, usdcBalanceOf, ethBalanceOf, openBuyModal } from "../core/wallet.js";
+import { connectWallet, refreshWallet, ensureBaseChain, sendTx, usdcBalanceOf, ethBalanceOf, openBuyModal } from "../core/wallet.js";
 import { STORE, loadCatalog, REF_CACHE, PORTS_CACHE, MINS_CACHE, CONFIG_CACHE, looksFriendly, resolveAppRef, validPortsCsv } from "../core/catalog.js";
 
 /* component handles (assigned in initDeploy) */
@@ -287,14 +287,10 @@ export async function deployOnChain(spec){
     // document never unloads — this async flow survives the soft navigation)
     await navigate("dashboard");
     w = runlog.startRun();
-    if (!Enclave.token){
-      w.line("info", "[*] connecting wallet + signing in (SIWE)…");
-      await authenticate();
-      w.line("ok", "[✓] signed in as " + short(Enclave.address));
-    }
-    // a restored session has a token but NO provider - reconnect before any tx
+    // NO SIWE sign-in here: the create tx and the funding signature ARE the
+    // proof of key ownership - a connected wallet is all the flow needs
     if (!Enclave.provider){
-      w.line("info", "[*] reconnecting wallet…");
+      w.line("info", "[*] connecting wallet…");
       await connectWallet();
       w.line("ok", "[✓] wallet " + short(Enclave.address));
     }
@@ -431,9 +427,10 @@ async function watchClaimAndRun(id, dPre, w){
   const label = appLabel(id);
   w.line("dimln", "    app origin: https://" + label + "." + APP_DOMAIN + "  (first request may take a moment: the enclave fetches + verifies your wasm from IPFS)");
   if (!Enclave.authed()){
-    // a resumed watch can outlive the session: the claim is on-chain (shown
-    // above), but the runner's live status comes from the authed API
-    w.line("dimln", "    sign in above to follow the runner's live status; the panel below fills in once you do.");
+    // tokenless flows read the LEDGER (create/fund/claim all show), but the
+    // runner's live status stream is an owner-session read - the app itself
+    // is already booting and reachable at the origin above
+    w.line("dimln", "    claimed and funded — the app boots now. Open the app origin above, or unlock live status/logs on the row below (one gas-free signature).");
     const dp1 = depsPanel(); if (dp1) dp1.refresh(); return;
   }
   const final = await pollDeployment(id, w);
@@ -767,9 +764,9 @@ function initDeploy(){
 // wallet/session signals from the shared chrome (<c-deployments> handles its
 // own). Subscribed once at module load; every callee null-guards its elements,
 // so it's inert while another page's <main> is mounted.
-on("enclave:wallet", ({ authed }) => {
+on("enclave:wallet", () => {
   const rh = $("#runHint");
-  if (rh) rh.textContent = Enclave.address ? (authed ? "ready to deploy" : "click Deploy to sign in") : "sign in to deploy";
+  if (rh) rh.textContent = Enclave.address ? "ready to deploy" : "connect your wallet to deploy";
   updatePayAssetUI();
 });
 

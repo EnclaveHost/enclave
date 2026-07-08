@@ -449,9 +449,9 @@ async function gateway(u, req, res) {
   // Ledger-backed reads FIRST: the wallet's list and bare record reads answer
   // from EnclaveDeployments even with zero live enclaves - on-chain work is
   // real whether or not anything currently hosts it.
-  if (p === "/v1/deployments" && req.method === "GET") return listDeployments(req, res);
+  if (p === "/v1/deployments" && req.method === "GET") return listDeployments(u, req, res);
   const bare = p.match(/^\/v1\/deployments\/([A-Za-z0-9_-]+)$/);
-  if (bare && req.method === "GET") return getDeployment(bare[1], req, res);
+  if (bare && req.method === "GET") return getDeployment(bare[1], u, req, res);
 
   if (!live.length) return json(res, 503, { error: "no_capacity", message: "No live enclaves.", updatedAt }, req);
   if (p === "/availability") return json(res, 200, aggregateAvailability(), req);
@@ -506,21 +506,32 @@ async function gateway(u, req, res) {
   return proxyTo(c.endpoint, req, res);
 }
 
+// The address to scope PUBLIC ledger reads by: a session token's sub when one
+// rides the request, else an explicit ?owner= (connected-wallet-only clients -
+// everything a ledger row carries is public on-chain data, so naming an owner
+// is scoping, not authentication; enclaves still verify tokens for their part).
+const ownerScope = (u, req) =>
+  tokenAddress(req.headers.authorization)
+  || ((o) => /^0x[0-9a-fA-F]{40}$/.test(o) ? o.toLowerCase() : null)(u.searchParams.get("owner") || "");
+
 // One wallet, one list: fan out to the live fleet (hosted rows carry live
-// status/network/ssh), then merge in the LEDGER's rows for the wallet - every
-// on-chain deployment appears whether or not an enclave hosts it right now.
-async function listDeployments(req, res) {
-  const addr = tokenAddress(req.headers.authorization);
-  const rs = await Promise.all(live.map((e) =>
-    forward(e.endpoint, req, null).then((r) => ({ e, r })).catch(() => null)));
+// status/network/ssh - only for token holders; enclaves verify), then merge
+// in the LEDGER's rows for the wallet - every on-chain deployment appears
+// whether or not an enclave hosts it right now.
+async function listDeployments(u, req, res) {
+  const auth = req.headers.authorization;
+  const addr = ownerScope(u, req);
+  // no token = no enclave view (they'd all 401); the ledger alone answers
+  const rs = auth ? await Promise.all(live.map((e) =>
+    forward(e.endpoint, req, null).then((r) => ({ e, r })).catch(() => null))) : [];
   const answered = rs.filter(Boolean);
   const oks = answered.filter((x) => x.r.status === 200);
-  // the fleet REFUSING the token is real (expired/garbage session): surface it
-  // rather than mask it with public ledger rows
-  if (answered.length && !oks.length && answered.every((x) => x.r.status === 401))
+  // the fleet REFUSING a presented token is real (expired/garbage session):
+  // surface it rather than mask it with public ledger rows
+  if (auth && answered.length && !oks.length && answered.every((x) => x.r.status === 401))
     return sendForwarded(res, answered[0].r, req);
   if (!addr && !oks.length)
-    return json(res, 401, { error: "unauthorized", message: "Sign in first (the session token names whose deployments to list)." }, req);
+    return json(res, 401, { error: "unauthorized", message: "Pass ?owner=0x… (or a session token) to say whose deployments to list." }, req);
   const data = [], seen = new Set();
   for (const { e, r } of oks) {
     try { for (const it of JSON.parse(r.text).data || []) { data.push(it); seen.add(String(it.id).toLowerCase()); ownerLearn(it.id, e.endpoint); } } catch {}
@@ -536,27 +547,29 @@ async function listDeployments(req, res) {
   return json(res, 200, { data, cursor: null }, req);
 }
 
-// Bare record read: the owning enclave has the live view (status transitions,
-// network, ssh) - prefer it; otherwise the ledger record answers, so watchers
-// keep working across enclave restarts and for still-queued work.
-async function getDeployment(id, req, res) {
-  if (live.length) {
-    const owner = await v1OwnerOf(id, req.headers.authorization);
+// Bare record read: for token holders the owning enclave has the live view
+// (status transitions, network, ssh) - prefer it; tokenless reads (and any id
+// no live enclave hosts) answer from the ledger, so watchers keep working
+// across enclave restarts, for still-queued work, and with no session at all.
+async function getDeployment(id, u, req, res) {
+  const auth = req.headers.authorization;
+  if (live.length && auth) {
+    const owner = await v1OwnerOf(id, auth);
     if (owner) return proxyTo(owner, req, res, { idleMs: 180000 });
   }
-  const addr = tokenAddress(req.headers.authorization);
-  if (!addr) return json(res, 401, { error: "unauthorized", message: "Sign in first." }, req);
+  const addr = ownerScope(u, req);
   let rows;
   try { rows = await ledgerRows(); }
   catch (e) { return json(res, 502, { error: "ledger_error", message: e.message, updatedAt }, req); }
   const want = id.toLowerCase();
-  // full ids and unique prefixes both resolve (the CLI passes prefixes)
-  const mine = rows.filter((d) => d.owner.toLowerCase() === addr && d.id.toLowerCase().startsWith(want));
-  if (mine.length !== 1)
+  // full ids and unique prefixes both resolve (the CLI passes prefixes); an
+  // ?owner=/token scope disambiguates, but isn't required - records are public
+  const hits = rows.filter((d) => (!addr || d.owner.toLowerCase() === addr) && d.id.toLowerCase().startsWith(want));
+  if (hits.length !== 1)
     return json(res, 404, { error: "not_found",
-      message: mine.length ? `${id} is ambiguous (${mine.length} of your deployments match).`
-                           : `No live enclave has ${id}, and the ledger has no deployment of yours under it.`, updatedAt }, req);
-  return json(res, 200, ledgerView(mine[0]), req);
+      message: hits.length ? `${id} is ambiguous (${hits.length} deployments match).`
+                           : `No live enclave has ${id}, and the ledger has no deployment under it.`, updatedAt }, req);
+  return json(res, 200, ledgerView(hits[0]), req);
 }
 
 // <label>.<APP_DOMAIN> -> canonical dep_<label>, or null if not an app subdomain.
