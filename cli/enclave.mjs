@@ -105,6 +105,9 @@ const APP_TUPLE = [
   { name: "createdAt", type: "uint64" }, { name: "updatedAt", type: "uint64" },
   { name: "active", type: "bool" },
 ];
+// catalog schema rev 3: App carries `config` (default/template ENCLAVE_CONFIG
+// JSON, appended last). Rev is sniffed via catalogSchema() - absent = rev 2.
+const APP_TUPLE_V3 = [...APP_TUPLE, { name: "config", type: "string" }];
 const VERSION_TUPLE = [
   { name: "cid", type: "string" }, { name: "version", type: "string" },
   { name: "vramMb", type: "uint32" }, { name: "gpuGflops", type: "uint32" },
@@ -138,7 +141,29 @@ const CATALOG_ABI = [
              { name: "cid", type: "string" }, { name: "res", type: "uint32[4]" },
              { name: "ports", type: "string" }],
     outputs: [{ type: "bytes32" }, { type: "uint256" }] },
+  // rev-3 overload (viem resolves by arg count) + the schema marker + editApp
+  { type: "function", name: "publishVersion", stateMutability: "nonpayable",
+    inputs: [{ name: "slug", type: "string" }, { name: "name", type: "string" },
+             { name: "description", type: "string" }, { name: "version", type: "string" },
+             { name: "cid", type: "string" }, { name: "res", type: "uint32[4]" },
+             { name: "ports", type: "string" }, { name: "config", type: "string" }],
+    outputs: [{ type: "bytes32" }, { type: "uint256" }] },
+  { type: "function", name: "catalogSchema", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "editApp", stateMutability: "nonpayable",
+    inputs: [{ name: "slug", type: "string" }, { name: "name", type: "string" },
+             { name: "description", type: "string" }, { name: "config", type: "string" }],
+    outputs: [] },
 ];
+// getAppsPage can't overload by outputs, so rev-3 reads swap the tuple shape
+const CATALOG_ABI_V3 = CATALOG_ABI.map((f) =>
+  f.name === "getAppsPage" ? { ...f, outputs: [{ type: "tuple[]", components: APP_TUPLE_V3 }] } : f);
+let _catRev = null;
+async function catRev() {
+  if (_catRev) return _catRev;
+  try { _catRev = Number(await read(DEFAULTS.APP_CATALOG_ADDRESS, CATALOG_ABI, "catalogSchema", [])) || 2; }
+  catch (e) { _catRev = 2; }
+  return _catRev;
+}
 const ERC20_ABI = [
   { type: "function", name: "balanceOf", stateMutability: "view",
     inputs: [{ name: "a", type: "address" }], outputs: [{ type: "uint256" }] },
@@ -412,10 +437,11 @@ async function resolveAppRef(input) {
 let _appsCache = null;
 async function catalogApps() {
   if (_appsCache) return _appsCache;
+  const abi = (await catRev()) >= 3 ? CATALOG_ABI_V3 : CATALOG_ABI;
   _appsCache = [];
   for (let start = 0; ; start += 50) {
-    const page = await read(DEFAULTS.APP_CATALOG_ADDRESS, CATALOG_ABI, "getAppsPage", [BigInt(start), 50n]);
-    _appsCache.push(...page);
+    const page = await read(DEFAULTS.APP_CATALOG_ADDRESS, abi, "getAppsPage", [BigInt(start), 50n]);
+    _appsCache.push(...page.map((a) => ({ config: "", ...a })));   // rev-2 apps: default the config field
     if (page.length < 50) break;
   }
   return _appsCache;
@@ -697,7 +723,7 @@ async function cmdDeploy(rest) {
     bool: ["--private", "--public", "--no-wait"],
   });
   if (!f._[0]) throw new Error("usage: enclave deploy <app> [--gpu 0..1] [--cpu 0..1] --fund <usd> [flags]");
-  const { ref, ver } = await resolveAppRef(f._[0]);
+  const { ref, ver, app } = await resolveAppRef(f._[0]);
 
   // shares: fractions of one GPU card / one node (1 = the whole thing). When
   // omitted, use the app's minimum on the fleet's hardware (same formula the
@@ -719,7 +745,20 @@ async function cmdDeploy(rest) {
     : httpEntry ? parseInt(httpEntry.split(":")[1], 10) : 8080;
   const isPublic = f.private ? false : true;
   const sshPubKey = f["ssh-key"] ? fs.readFileSync(f["ssh-key"], "utf8").trim() : "";
-  const configCid = f["config-cid"] || "";
+  let configCid = f["config-cid"] || "";
+  // the app's on-chain default config applies unless overridden with --config-cid
+  // (same behavior as the deploy console, which pre-fills its App config box)
+  if (!configCid && app && app.config){
+    try {
+      const jr = await fetch(DEFAULTS.ipfsUpload.replace(/\/add-wasm$/, "/add-json"),
+        { method: "POST", headers: { "content-type": "application/json" }, body: app.config });
+      const jj = await jr.json();
+      if (jr.ok && jj.cid){
+        configCid = jj.cid;
+        say(`applying the app's default config (pinned ${configCid}) — override with --config-cid`);
+      }
+    } catch (e) { /* best-effort: a deploy without the template still works */ }
+  }
 
   // price it before asking for money (same snapshot formula create() applies)
   const [pricePerSec6, cpuPricePerSec6] = await Promise.all([
@@ -796,10 +835,16 @@ async function cmdDeploy(rest) {
 async function cmdPublish(rest) {
   const account = loadKey();
   const f = flags(rest, { val: ["--slug", "--name", "--desc", "--version", "--mem", "--cpu-gflops",
-                                "--vram", "--gpu-gflops", "--ports"] });
+                                "--vram", "--gpu-gflops", "--ports", "--config"] });
   const file = f._[0];
-  if (!file || !f.slug) throw new Error("usage: enclave publish <app.wasm> --slug <slug> [--name --desc --version --mem MB --cpu-gflops N --vram MB --gpu-gflops N --ports CSV]");
+  if (!file || !f.slug) throw new Error("usage: enclave publish <app.wasm> --slug <slug> [--name --desc --version --mem MB --cpu-gflops N --vram MB --gpu-gflops N --ports CSV --config JSON]");
   if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(f.slug)) throw new Error("slug: lowercase letters, digits, hyphens (max 40)");
+  // --config = the app's default/template ENCLAVE_CONFIG (deploy consoles pre-fill from it)
+  if (f.config){
+    if (Buffer.byteLength(f.config) > 4096) throw new Error("--config too long (≤ 4096 bytes)");
+    let o; try { o = JSON.parse(f.config); } catch (e) { throw new Error("--config isn't valid JSON: " + e.message); }
+    if (!o || Array.isArray(o) || typeof o !== "object") throw new Error("--config must be a JSON object");
+  }
   const bytes = fs.readFileSync(file);
   // same gate the IPFS gateway and runners apply: a wasi:http *component*
   if (bytes.length < 8 || bytes.readUInt32LE(0) !== 0x6d736100)
@@ -829,9 +874,13 @@ async function cmdPublish(rest) {
   say(`pinned ipfs://${cid}`);
 
   // 2. cut the catalog version (publisher = your address; appId = keccak(publisher, slug))
+  // --config rides rev-3 catalogs as the app's default/template ENCLAVE_CONFIG
+  const rev = await catRev();
+  if (f.config && rev < 3) throw new Error("--config needs the rev-3 catalog (this one predates app configs)");
+  const args = [f.slug, f.name || f.slug, f.desc || "", version, cid, res, f.ports || ""];
+  if (rev >= 3) args.push(f.config || "");
   const rcpt = await sendTx(account, { address: DEFAULTS.APP_CATALOG_ADDRESS, abi: CATALOG_ABI,
-    functionName: "publishVersion",
-    args: [f.slug, f.name || f.slug, f.desc || "", version, cid, res, f.ports || ""] });
+    functionName: "publishVersion", args });
   if (opt.json) return jout({ slug: f.slug, version, cid, appId, tx: rcpt.transactionHash, approval: "pending" });
   say(`published ${f.slug}:${version} (tx ${rcpt.transactionHash})`);
   say(`approval is pending — runners only claim approved versions; deploy once approved:`);
@@ -947,7 +996,7 @@ deployments
   stop <id>                  setActive(false) on-chain + DELETE the instance
 
 catalog
-  publish <app.wasm> --slug S [--version V --name N --desc D]
+  publish <app.wasm> --slug S [--version V --name N --desc D --config JSON]
           [--mem MB --cpu-gflops N --vram MB --gpu-gflops N --ports CSV]
   apps [query]               browse/search the on-chain catalog
 

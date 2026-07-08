@@ -91,6 +91,7 @@ export const appVerified = (app) => { const i = defaultIdx(app); return i >= 0 &
 export const REF_CACHE = {};    // friendly "slug:version" -> "ipfs://<cid>" (filled by Use-in-Deploy + lookups)
 export const PORTS_CACHE = {};  // friendly "slug:version" -> that version's firewall CSV (defaults the deploy)
 export const MINS_CACHE = {};   // friendly "slug:version" -> minimum dial positions { gpuPct, cpuPct } from its specs
+export const CONFIG_CACHE = {}; // friendly "slug:version" -> the APP's default/template config JSON (pre-fills the deploy form)
 export function looksFriendly(s){ return s.includes(":") && !s.startsWith("ipfs://"); }
 export function resolveAppRef(input){
   input = (input || "").trim();
@@ -116,6 +117,7 @@ export function resolveAppRef(input){
   REF_CACHE[input] = "ipfs://" + v.cid;
   PORTS_CACHE[input] = v.ports || "";
   MINS_CACHE[input] = minPctsOf(v);   // the version's specs -> the dials' floors
+  CONFIG_CACHE[input] = apps[0].config || "";   // app-level default config template
   return { reference: REF_CACHE[input], label: input, mins: MINS_CACHE[input] };
 }
 
