@@ -340,6 +340,7 @@ export async function deployOnChain(spec){
       && (l.address || "").toLowerCase() === DEPLOYMENTS_ADDRESS.toLowerCase());
     if (!clog) throw new EnclaveError("create() confirmed but no Created event found in the receipt", 0);
     const id = clog.topics[1];
+    runlog.setId(id);   // name the run explicitly: bytes32 ids read exactly like the tx hashes already in the log
     runlog.line("ok", "[✓] created " + id);
 
     // 2) fund: the credit lands in the deployment's on-chain balance
@@ -358,47 +359,8 @@ export async function deployOnChain(spec){
       return;
     }
 
-    // 3) nudge the fleet - otherwise the next sweep (<=60s) picks it up
-    runlog.line("info", "[*] hinting enclaves to claim…");
-    try {
-      const h = await (await fetch(Enclave.base + "/claim-hint", { method: "POST",
-        headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) })).json();
-      if (h && h.accepted === false && h.reason) runlog.line("dimln", "    hint declined: " + h.reason + " (the sweep may still claim it)");
-    } catch(e){ runlog.line("dimln", "    hint failed (" + (e.message || e) + "); the sweep claims funded work within ~1 min"); }
-
-    // 4) watch the ledger for a runner, then the runner for "running"
-    let claimed = null, lastReason = "";
-    for (let i = 0; i < 90 && !claimed; i++){
-      await wait(2000);
-      let d = null; try { d = await depGet(id); } catch(e){}
-      if (d && d.runner && !/^0x0+$/.test(d.runner) && d.leaseUntil * 1000 > Date.now()) claimed = d;
-      else if (i === 1) runlog.line("info", "[*] waiting for an enclave to claim (the lease appears on-chain)…");
-      else if (i > 1 && i % 15 === 0){
-        // don't wait in silence: ask the fleet WHY it isn't claiming
-        try {
-          const h = await (await fetch(Enclave.base + "/claim-hint", { method: "POST",
-            headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) })).json();
-          if (h && h.accepted === false && h.reason && h.reason !== lastReason){
-            lastReason = h.reason;
-            runlog.line("warn", "[!] fleet declines to claim: " + h.reason);
-            if (/yanked|not.approved|rejected|delisted|unlisted|below|minimum/i.test(h.reason)){
-              runlog.line("dimln", "    this won't resolve by waiting - fix the app version in the catalog. The deployment stays funded and is claimed automatically once deployable.");
-              break;
-            }
-          }
-        } catch(e){}
-      }
-    }
-    if (!claimed){
-      runlog.line("warn", "[!] no enclave has claimed yet - the deployment stays on the queue (funded work is claimed as capacity frees up). It appears below the moment one does.");
-      const dp0 = depsPanel(); if (dp0) dp0.refresh(); return;
-    }
-    runlog.line("ok", "[✓] claimed by enclave operator " + short(claimed.runnerOperator) + " · lease until " + new Date(claimed.leaseUntil * 1000).toLocaleTimeString());
-    const label = appLabel(id);
-    runlog.line("dimln", "    app origin: https://" + label + "." + APP_DOMAIN + "  (first request may take a moment: the enclave fetches + verifies your wasm from IPFS)");
-
-    const final = await pollDeployment(id);
-    const dp = depsPanel(); if (dp) dp.refresh({ highlight: (final && final.id) || id });
+    // 3+4) nudge the fleet, then watch the claim and the runner's status
+    await watchClaimAndRun(id);
   } catch(e){
     runlog.line("warn", "[x] " + (e.message || String(e)));
     if (e.status === 0) runlog.line("dimln", "    set a reachable API endpoint on the deploy console, then retry.");
@@ -407,28 +369,150 @@ export async function deployOnChain(spec){
     refreshWallet();
   }
 }
-async function pollDeployment(id){
+
+/* Steps 3+4 of every deploy story - shared by the live flow above and a
+   resumed watch (resumeDeployWatch): nudge the fleet, watch the ledger for a
+   lease, follow the runner to "running", and land the row in the My Apps
+   panel. `dPre` (a fresh depGet) skips the claim wait when the ledger already
+   shows a live lease; `w` is the narrative sink - the runlog itself, or a
+   resumed run's bound writer (whose dead() aborts us if a new deploy takes
+   the log over). */
+async function watchClaimAndRun(id, dPre, w){
+  w = w || runlog;
+  const leased = (d) => d && d.runner && !/^0x0+$/.test(d.runner) && d.leaseUntil * 1000 > Date.now();
+  let claimed = leased(dPre) ? dPre : null;
+  if (!claimed){
+    // nudge the fleet - otherwise the next sweep (<=60s) picks it up
+    w.line("info", "[*] hinting enclaves to claim…");
+    try {
+      const h = await (await fetch(Enclave.base + "/claim-hint", { method: "POST",
+        headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) })).json();
+      if (h && h.accepted === false && h.reason) w.line("dimln", "    hint declined: " + h.reason + " (the sweep may still claim it)");
+    } catch(e){ w.line("dimln", "    hint failed (" + (e.message || e) + "); the sweep claims funded work within ~1 min"); }
+
+    let lastReason = "";
+    for (let i = 0; i < 90 && !claimed; i++){
+      if (w.dead && w.dead()) return;
+      await wait(2000);
+      let d = null; try { d = await depGet(id); } catch(e){}
+      if (leased(d)) claimed = d;
+      else if (i === 1) w.line("info", "[*] waiting for an enclave to claim (the lease appears on-chain)…");
+      else if (i > 1 && i % 15 === 0){
+        // don't wait in silence: ask the fleet WHY it isn't claiming
+        try {
+          const h = await (await fetch(Enclave.base + "/claim-hint", { method: "POST",
+            headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) })).json();
+          if (h && h.accepted === false && h.reason && h.reason !== lastReason){
+            lastReason = h.reason;
+            w.line("warn", "[!] fleet declines to claim: " + h.reason);
+            if (/yanked|not.approved|rejected|delisted|unlisted|below|minimum/i.test(h.reason)){
+              w.line("dimln", "    this won't resolve by waiting - fix the app version in the catalog. The deployment stays funded and is claimed automatically once deployable.");
+              break;
+            }
+          }
+        } catch(e){}
+      }
+    }
+    if (!claimed){
+      w.line("warn", "[!] no enclave has claimed yet - the deployment stays on the queue (funded work is claimed as capacity frees up). It appears below the moment one does.");
+      const dp0 = depsPanel(); if (dp0) dp0.refresh(); return;
+    }
+  }
+  w.line("ok", "[✓] claimed by enclave operator " + short(claimed.runnerOperator) + " · lease until " + new Date(claimed.leaseUntil * 1000).toLocaleTimeString());
+  const label = appLabel(id);
+  w.line("dimln", "    app origin: https://" + label + "." + APP_DOMAIN + "  (first request may take a moment: the enclave fetches + verifies your wasm from IPFS)");
+  if (!Enclave.authed()){
+    // a resumed watch can outlive the session: the claim is on-chain (shown
+    // above), but the runner's live status comes from the authed API
+    w.line("dimln", "    sign in above to follow the runner's live status; the panel below fills in once you do.");
+    const dp1 = depsPanel(); if (dp1) dp1.refresh(); return;
+  }
+  const final = await pollDeployment(id, w);
+  const dp = depsPanel(); if (dp) dp.refresh({ highlight: (final && final.id) || id });
+}
+async function pollDeployment(id, w){
+  w = w || runlog;
   const done = { running: 1, failed: 1, stopped: 1, error: 1 };
   let last = null, d = null;
   for (let i = 0; i < 180; i++){
+    if (w.dead && w.dead()) return d;
     try { d = await Enclave.getDeployment(id); }
-    catch(e){ runlog.line("dimln", "  … " + e.message); await wait(2500); continue; }
-    if (d.status !== last){ last = d.status; runlog.line(statusCls(d.status), "  • " + d.status); }
+    catch(e){ w.line("dimln", "  … " + e.message); await wait(2500); continue; }
+    if (d.status !== last){ last = d.status; w.line(statusCls(d.status), "  • " + d.status); }
     if (done[d.status]){
       if (d.status === "running"){
         const ep = appEndpoint(d);
-        runlog.line("ok", "[✓] running" + (ep ? " · " + ep : ""));
-        if (d.ratePerSecondUsdc) runlog.line("dimln", "    rate " + d.ratePerSecondUsdc + " USDC/s · " + (d.timeRemainingSec != null ? fmtDur(d.timeRemainingSec) + " funded" : "funded"));
-        runlog.line("warn", "→ verify the attestation before sending data");
+        w.line("ok", "[✓] running" + (ep ? " · " + ep : ""));
+        if (d.ratePerSecondUsdc) w.line("dimln", "    rate " + d.ratePerSecondUsdc + " USDC/s · " + (d.timeRemainingSec != null ? fmtDur(d.timeRemainingSec) + " funded" : "funded"));
+        w.line("warn", "→ verify the attestation before sending data");
       } else {
-        runlog.line("warn", "  ‹ ended: " + d.status + (d.error ? " · " + d.error : "") + " ›");
+        w.line("warn", "  ‹ ended: " + d.status + (d.error ? " · " + d.error : "") + " ›");
       }
       return d;
     }
     await wait(2500);
   }
-  runlog.line("dimln", "  (still provisioning; track it in the panel below)");
+  w.line("dimln", "  (still provisioning; track it in the panel below)");
   return d;
+}
+
+/* Resume the WATCH half of a deploy that a page unload cut off (a refresh
+   mid-deploy): the async flow died with the old document, but the ledger
+   didn't. Recover the deployment id - the run record's, or the create tx's
+   receipt when the reload beat the "created" line - re-read the on-chain
+   state, and keep narrating into the SAME recorded run. Reads only: no
+   wallet step ever re-runs here. The dashboard's <c-deployments> calls this
+   when it mounts and finds an interrupted run. */
+export async function resumeDeployWatch(run){
+  const w = runlog.resume(run);
+  if (!w) return;                                       // a live deploy owns the log
+  try {
+    w.line("dimln", "// resumed after a reload - re-reading the ledger (nothing is re-sent or re-signed)");
+    let id = /^0x[0-9a-f]{64}$/i.test(run.id || "") ? run.id.toLowerCase() : null;
+    let d = null;
+    if (id){ try { d = await depGet(id); } catch(e){} }
+    if (!d){
+      // no readable record under run.id: the reload may have hit before the
+      // "created" line (no id recorded), or an older log stored the create TX
+      // HASH as the id (bytes32 ids and tx hashes look identical). Either
+      // way, the create tx's receipt names the real id.
+      const sent = [...run.lines].reverse().map(l => /↳ sent (0x[0-9a-f]{64})/i.exec(l[1])).find(Boolean);
+      const tx = (sent && sent[1]) || id;
+      id = null;
+      if (tx){
+        try {
+          const rcpt = await waitReceipt(tx, 5);
+          const clog = (rcpt.logs || []).find(l => (l.topics || [])[0] === DEP_CREATED_TOPIC
+            && (l.address || "").toLowerCase() === DEPLOYMENTS_ADDRESS.toLowerCase());
+          if (clog) id = clog.topics[1];
+        } catch(e){}
+      }
+      if (id){ try { d = await depGet(id); } catch(e){} }
+    }
+    if (!id){
+      w.line("warn", "[!] this run was cut off before a create transaction confirmed - nothing reached the ledger. If your wallet shows a sent create(), refresh here in a minute; otherwise just deploy again (nothing was paid).");
+      return;
+    }
+    w.setId(id);
+    if (!d){
+      w.line("warn", "[x] couldn't read " + id + " from the ledger right now - refresh in a moment.");
+      return;
+    }
+    if (!d.active){
+      w.line("warn", "  ‹ this deployment is stopped on the ledger (setActive(false) / terminated) ›");
+      return;
+    }
+    if (!(d.balance6 > 0 || d.spent6 > 0)){
+      w.line("warn", "[!] created, but no funding has landed on-chain - the reload likely hit before (or during) the funding step.");
+      w.line("dimln", "    " + id + " sits inert (costs nothing). Fund it any time - enclaves claim it the moment it has balance.");
+      return;
+    }
+    await watchClaimAndRun(id, d, w);
+  } catch(e){
+    w.line("warn", "[x] " + (e.message || String(e)));
+  } finally {
+    w.end();
+  }
 }
 
 /* ============================================================

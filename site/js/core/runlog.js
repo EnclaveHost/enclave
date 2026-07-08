@@ -8,6 +8,9 @@
    the deploy flow starts on apps.html#deploy, the router swaps
    <main> to the dashboard, and the same run keeps streaming into
    the panels there (<c-deployments>' live strip + row panels).
+   A HARD reload kills the writer but not the record: the run
+   restores flagged `interrupted`, and the dashboard resumes its
+   watch (deploy.js resumeDeployWatch) via resume().
    ============================================================ */
 import { emit, lsGet, lsSet } from "./util.js";
 
@@ -15,7 +18,9 @@ const KEY = "enclave_term_logs";
 
 let runs = [];
 try { runs = JSON.parse(lsGet(KEY) || "[]") || []; } catch (e) { runs = []; }
-runs.forEach(r => { r.done = true; });   // restored runs have no live writer
+// restored runs have no live writer; one stored un-done was cut off by the
+// unload (a refresh mid-deploy) - flag it so the dashboard can resume its watch
+runs.forEach(r => { r.interrupted = !r.done; r.done = true; });
 let cur = null;                          // the live (recording) run, if a deploy is in flight
 let saveT = 0;
 
@@ -37,6 +42,11 @@ export const runlog = {
       if ((runs[i].id || "").toLowerCase() === want) return runs[i];
     return null;
   },
+  /* the newest run a page unload cut off mid-deploy (this browser only) */
+  interrupted() {
+    for (let i = runs.length - 1; i >= 0; i--) if (runs[i].interrupted) return runs[i];
+    return null;
+  },
 
   startRun() {
     if (cur && !cur.done) runlog.endRun();
@@ -52,10 +62,40 @@ export const runlog = {
   line(cls, txt) {
     if (!cur || cur.done) runlog.startRun();
     cur.lines.push([cls, txt]);
-    // name the run after its deployment id the moment one appears in the text
-    if (!cur.id) { const m = /\b(dep_[a-z0-9]+|0x[0-9a-f]{64})\b/i.exec(txt); if (m) { cur.id = m[1]; emit("enclave:runlog", { type: "id", run: cur }); } }
+    // name the run after its deployment id the moment one appears in the text.
+    // bytes32 ids read exactly like tx hashes (and the "↳ sent 0x…" line comes
+    // FIRST), so 0x…64 only counts right after "created"; the deploy flow also
+    // names the run explicitly via setId().
+    if (!cur.id) { const m = /\b(dep_[a-z0-9]+)\b/.exec(txt) || /\bcreated (0x[0-9a-f]{64})\b/i.exec(txt); if (m) runlog.setId(m[1]); }
     save();
     emit("enclave:runlog", { type: "line", run: cur, cls: cls, txt: txt });
+  },
+
+  /* name the live run after its deployment id (the deploy flow calls this the
+     moment create()'s receipt yields one) */
+  setId(id) {
+    if (!cur || cur.done || !id || cur.id === id) return;
+    cur.id = id;
+    save();
+    emit("enclave:runlog", { type: "id", run: cur });
+  },
+
+  /* reopen an interrupted run so a resumed watcher can keep appending to the
+     same record. Returns a writer BOUND to that run - it goes quiet if a new
+     deploy's startRun() takes the log over - or null when a live run already
+     owns the log. */
+  resume(run) {
+    if (cur && !cur.done) return null;
+    run.interrupted = false; run.done = false; cur = run;
+    save();
+    emit("enclave:runlog", { type: "start", run: run });
+    const dead = () => cur !== run || run.done;
+    return {
+      dead,
+      line(cls, txt) { if (!dead()) runlog.line(cls, txt); },
+      setId(id) { if (!dead()) runlog.setId(id); },
+      end() { if (!dead()) runlog.endRun(); },
+    };
   },
 
   endRun() {
