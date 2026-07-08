@@ -118,7 +118,8 @@ function rpcServer() {
     leaseUntil: S.claimed ? BigInt(Math.floor(Date.now() / 1000) + 1800) : 0n,
   });
   const version = { cid: CID, version: "1", vramMb: 0, gpuGflops: 0, memMb: 256, cpuGflops: 10,
-                    createdAt: 1n, verified: true, yanked: false, ports: "http:8088", approval: 1 };
+                    createdAt: 1n, verified: true, yanked: false, ports: "http:8088", approval: 1,
+                    config: "" };   // rev-3 Version tuple carries the default config
   function call(to, data) {
     const abi = to === DEPLOYMENTS ? DEP_ABI : to === CATALOG ? CAT_ABI
       : [{ type: "function", name: "balanceOf", stateMutability: "view",
@@ -135,8 +136,7 @@ function rpcServer() {
       appCount: () => [1n],
       catalogSchema: () => [3n],   // the stub chain plays the current (rev-3) catalog
       getAppsPage: () => [Number(args[0]) === 0 ? [{ appId: APP_ID, publisher: OWNER, slug: "hello-world",
-        name: "Hello World", description: "first app", versionCount: 1, createdAt: 1n, updatedAt: 1n, active: true,
-        config: "" }] : []],
+        name: "Hello World", description: "first app", versionCount: 1, createdAt: 1n, updatedAt: 1n, active: true }] : []],
       getVersionsPage: () => [Number(args[1]) === 0 ? [version] : []],
       numVersions: () => [S.numVersions],
       appIdOf: () => [APP_ID],

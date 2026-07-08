@@ -112,11 +112,12 @@ const depCmp = (a, b) => DEP_SCHEMA.every((f) => ["runner", "runnerOperator", "l
   || String(a[f.k]).toLowerCase() === String(b[f.k]).toLowerCase());
 
 /* -- catalog -- */
-// Struct-schema revision sniff: rev-3 catalogs expose catalogSchema() and their
-// App tuples carry `config`; a source without the getter (call reverts) is
-// rev 2 - decode it WITHOUT config and default the field, so a v2 -> v3
-// migration reads clean and the import encodes the full rev-3 tuple.
-const APP_SCHEMA_V2 = APP_SCHEMA.filter((f) => f.k !== "config");
+// Struct-schema revision sniff: rev-3 catalogs expose catalogSchema() and
+// their VERSION tuples carry `config`; a source without the getter (call
+// reverts) is rev 2 - decode its versions WITHOUT config and default the
+// field, so a v2 -> v3 migration reads clean and the import encodes the
+// full rev-3 tuple.
+const VER_SCHEMA_V2 = VER_SCHEMA.filter((f) => f.k !== "config");
 async function catalogRevOf(addr) {
   const sel = CONTRACTS.EnclaveAppCatalog.sel;
   try { return wNum(await call(addr, "0x" + sel.catalogSchema), 2) || 2; }
@@ -125,15 +126,16 @@ async function catalogRevOf(addr) {
 async function readCatalog(source) {
   const sel = CONTRACTS.EnclaveAppCatalog.sel;
   const rev = await catalogRevOf(source);
+  const verSchema = rev >= 3 ? VER_SCHEMA : VER_SCHEMA_V2;
   const total = wNum(await call(source, "0x" + sel.appCount), 0);
   const apps = [];
   for (let s = 0; s < total; s += PAGE)
-    apps.push(...decodeStructArray(await call(source, encCallX(sel.getAppsPage, [{ t: "uint", v: s }, { t: "uint", v: PAGE }])), rev >= 3 ? APP_SCHEMA : APP_SCHEMA_V2));
-  if (rev < 3) for (const a of apps) a.config = "";
+    apps.push(...decodeStructArray(await call(source, encCallX(sel.getAppsPage, [{ t: "uint", v: s }, { t: "uint", v: PAGE }])), APP_SCHEMA));
   for (const a of apps) {
     a.versions = [];
     for (let s = 0; s < a.versionCount; s += PAGE)
-      a.versions.push(...decodeStructArray(await call(source, encCallX(sel.getVersionsPage, [{ t: "bytes32", v: a.appId }, { t: "uint", v: s }, { t: "uint", v: PAGE }])), VER_SCHEMA));
+      a.versions.push(...decodeStructArray(await call(source, encCallX(sel.getVersionsPage, [{ t: "bytes32", v: a.appId }, { t: "uint", v: s }, { t: "uint", v: PAGE }])), verSchema));
+    if (rev < 3) for (const v of a.versions) v.config = "";
   }
   return apps;
 }

@@ -53,11 +53,6 @@ contract EnclaveAppCatalog {
         uint64  createdAt;
         uint64  updatedAt;    // last version add or metadata edit
         bool    active;       // publisher can delist the whole app (kept for history)
-        string  config;       // default/template app config (JSON): the deploy console
-                              // pre-fills its App config box with this; deployers edit it
-                              // and the RESULT is what gets pinned + delivered as
-                              // ENCLAVE_CONFIG. Advisory only - nothing enforces it.
-                              // APPENDED LAST so v2 App tuples are a strict prefix.
     }
     struct Version {
         string  cid;          // IPFS CID of this release's .wasm (wasi:http component)
@@ -75,6 +70,13 @@ contract EnclaveAppCatalog {
                               // else CSV of "http:N" / "tcp:N" / "udp:N" the app may bind
                               // (per version — a release can change its port needs)
         uint8   approval;     // deploy gate, owner-ruled: 0 Pending, 1 Approved, 2 Rejected
+        string  config;       // default/template deployment config (JSON): deploy consoles
+                              // pre-fill from it; deployers edit and the RESULT is pinned
+                              // + delivered as ENCLAVE_CONFIG. IMMUTABLE once published and
+                              // covered by this version's approval - behavior can never be
+                              // changed after the owner's ruling (a new config = a new
+                              // version = Pending again, same as ports/specs). APPENDED
+                              // LAST so rev-2 Version tuples are a strict prefix.
     }
     /// @dev CID -> owning version, for `cidStatus`. index1 is the version index + 1
     ///      so the zero value doubles as "CID not listed" (also enforces the global
@@ -85,9 +87,9 @@ contract EnclaveAppCatalog {
     uint8 public constant APPROVAL_APPROVED = 1;
     uint8 public constant APPROVAL_REJECTED = 2;
 
-    /// @notice Struct-schema revision, for migration readers: 3 = App carries
-    ///         `config`. A source catalog without this getter is revision 2
-    ///         (the admin console's migration reader sniffs it).
+    /// @notice Struct-schema revision, for migration readers: 3 = Version
+    ///         carries `config`. A source catalog without this getter is
+    ///         revision 2 (the admin console's migration reader sniffs it).
     uint256 public constant catalogSchema = 3;
 
     uint256 private constant MAX_SLUG = 40;
@@ -151,8 +153,9 @@ contract EnclaveAppCatalog {
         require(res[2] > 0 && res[2] <= MAX_MB, "memMb range");
         require(res[3] <= MAX_GFLOPS, "cpuGflops range");
         require(bytes(ports).length <= MAX_PORTS, "ports length");
+        require(bytes(config).length <= MAX_CONFIG, "config length");
 
-        appId = _touchApp(slug, name, description, config);
+        appId = _touchApp(slug, name, description);
         bytes32 cidKey = _reserveCid(cid, appId);
 
         // version labels are unique within an app, so `slug:version` resolves to
@@ -176,6 +179,7 @@ contract EnclaveAppCatalog {
         v.createdAt = uint64(block.timestamp);
         v.ports = ports;
         v.approval = APPROVAL_PENDING;
+        v.config = config;
         index = vs.length - 1;
         _cidRefs[cidKey] = CidRef({ appId: appId, index1: uint32(index + 1) });
 
@@ -199,14 +203,13 @@ contract EnclaveAppCatalog {
     }
 
     /// @dev Create the app on first use, then refresh its display metadata. Returns appId.
-    function _touchApp(string calldata slug, string calldata name, string calldata description, string calldata config)
+    function _touchApp(string calldata slug, string calldata name, string calldata description)
         private
         returns (bytes32 appId)
     {
         require(bytes(slug).length > 0 && bytes(slug).length <= MAX_SLUG, "slug length");
         require(bytes(name).length > 0 && bytes(name).length <= MAX_NAME, "name length");
         require(bytes(description).length <= MAX_DESC, "desc length");
-        require(bytes(config).length <= MAX_CONFIG, "config length");
         appId = keccak256(abi.encodePacked(msg.sender, slug));
         App storage a = _apps[appId];
         if (!_exists[appId]) {
@@ -221,21 +224,20 @@ contract EnclaveAppCatalog {
         // the latest publish refreshes display metadata (the form pre-fills current values)
         a.name = name;
         a.description = description;
-        a.config = config;
     }
 
-    /// @notice Edit your app's display metadata + default config without cutting
-    ///         a new version (the config-attach path for already-published apps).
-    function editApp(string calldata slug, string calldata name, string calldata description, string calldata config) external {
+    /// @notice Edit your app's DISPLAY metadata without cutting a new version.
+    ///         Deliberately display-only (name/description): anything that
+    ///         affects deployment behavior - bytes, specs, ports, config -
+    ///         is per-version, immutable, and covered by the owner's approval.
+    function editApp(string calldata slug, string calldata name, string calldata description) external {
         require(bytes(name).length > 0 && bytes(name).length <= MAX_NAME, "name length");
         require(bytes(description).length <= MAX_DESC, "desc length");
-        require(bytes(config).length <= MAX_CONFIG, "config length");
         bytes32 appId = keccak256(abi.encodePacked(msg.sender, slug));
         require(_exists[appId], "unknown app");
         App storage a = _apps[appId];
         a.name = name;
         a.description = description;
-        a.config = config;
         a.updatedAt = uint64(block.timestamp);
         emit AppEdited(appId, name, description);
     }
