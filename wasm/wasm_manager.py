@@ -330,12 +330,47 @@ def _dir_bytes(path: pathlib.Path) -> int:
         return 0
 
 
+def _vol_gguf_selection() -> dict:
+    """name -> gguf filename explicitly selected in MODEL_VOLUMES via the
+    optional third field ("name:/path:file.gguf"). This is how a multi-quant
+    HF repo volume (e.g. Qwen/Qwen2.5-0.5B-Instruct-GGUF ships NINE *.gguf)
+    names the one file that preloads; single-gguf volumes need none."""
+    sel = {}
+    for pair in _MODEL_VOLUMES_ENV.split(","):
+        pair = pair.strip()
+        if not pair or ":" not in pair:
+            continue
+        name, _, rest = pair.partition(":")
+        _, _, file = rest.partition(":")
+        if file.strip():
+            sel[name.strip()] = file.strip()
+    return sel
+
+
+def _gguf_path(name: str, host_path):
+    """The concrete GGUF a volume preloads: the MODEL_VOLUMES-selected file
+    when given, else model.gguf, else the single *.gguf. None = not a
+    (preloadable) gguf volume - including multi-quant repos with no selection,
+    where any pick would be a guess."""
+    p = pathlib.Path(host_path)
+    sel = _vol_gguf_selection().get(name)
+    if sel:
+        f = p / sel
+        return f if f.is_file() else None
+    preferred = p / "model.gguf"
+    if preferred.is_file():
+        return preferred
+    ggufs = [x for x in p.glob("*.gguf") if x.is_file()]
+    return ggufs[0] if len(ggufs) == 1 else None
+
+
 def _model_volumes() -> dict:
     """Discover attached model volumes. Two sources, env wins (friendly names):
       1. scan MODEL_VOLUME_ROOT for `mpk-*` mounts (Tinfoil Modelwrap); the
          mount's dir name IS the volume name (e.g. mpk-0900ca6b...).
-      2. MODEL_VOLUMES="name:/path,name2:/path2" - explicit name->path, for
-         friendly aliases of the mpk mounts and for local dev.
+      2. MODEL_VOLUMES="name:/path[:file.gguf],name2:/path2" - explicit
+         name->path, for friendly aliases of the mpk mounts and for local dev;
+         the optional third field picks the gguf out of a multi-quant repo.
     Returns {name: {"name", "path", "bytes", "onnx": bool, "files": [top-level]}}.
     Only existing directories with a servable name are returned."""
     out = {}
@@ -350,8 +385,8 @@ def _model_volumes() -> dict:
             top = []
         onnx = any(x.endswith(".onnx") for x in top) or (p / "model.onnx").exists()
         # a GGUF volume doubles as a host-preloaded wasi-nn graph (the ggml
-        # backend); the contract is model.gguf or exactly one *.gguf
-        gguf = (p / "model.gguf").exists() or sum(1 for x in top if x.endswith(".gguf")) == 1
+        # backend) when one unambiguous file exists or MODEL_VOLUMES picks it
+        gguf = _gguf_path(name, p) is not None
         out[name] = {"name": name, "path": str(p), "bytes": _dir_bytes(p),
                      "onnx": onnx, "gguf": gguf, "files": top}
     if MODEL_VOLUME_ROOT.is_dir():
@@ -365,7 +400,8 @@ def _model_volumes() -> dict:
         pair = pair.strip()
         if not pair or ":" not in pair:
             continue
-        name, _, path = pair.partition(":")
+        name, _, rest = pair.partition(":")
+        path, _, _ = rest.partition(":")
         add(name, path)
     return out
 
@@ -373,6 +409,30 @@ def _model_volumes() -> dict:
 # guest mount point for an attached volume: /models/<name> (read-only; the
 # underlying dm-verity/EROFS mount is physically read-only anyway)
 VOL_GUEST_ROOT = os.environ.get("VOL_GUEST_ROOT", "/models")
+
+
+def _stage_nn_graph(name: str, gguf):
+    """wasmtime's -S nn-graph loads a DIRECTORY, registers the graph under the
+    dir BASENAME, and wants model.gguf (or a single *.gguf) inside. Modelwrap
+    mounts are named mpk-<root_hash> and multi-quant HF repos carry many
+    *.gguf, so neither is directly loadable: stage a symlink dir named after
+    the VOLUME - <FS_DIR>/nn-graph/<name>/model.gguf -> the chosen file - and
+    hand wasmtime that. The staging dir holds no bytes; reads resolve inside
+    the dm-verity mount. Re-linked atomically on every launch so a changed
+    MODEL_VOLUMES selection takes effect and concurrent launches never see a
+    missing file."""
+    d = FS_DIR / "nn-graph" / name
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+        tmp = d / f".model.gguf.{os.getpid()}"
+        if tmp.is_symlink() or tmp.exists():
+            tmp.unlink()
+        tmp.symlink_to(gguf)
+        os.replace(tmp, d / "model.gguf")
+        return d
+    except OSError as e:
+        print(f"[nn-graph] staging volume '{name}' failed: {e}", flush=True)
+        return None
 
 
 
@@ -1144,22 +1204,19 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     # process start, registered under the dir BASENAME; the guest load_by_name()s
     # it and the weights never enter guest linear memory - model size is bounded
     # by the tenant's share, not wasm32's 4 GiB. Gated on `nn` like the
-    # interface itself (no GPU share, no wasi-nn). The registered name must
-    # equal the advertised volume name: true for mpk-* scans (name IS the dir
-    # name) and for MODEL_VOLUMES aliases whose mount basename matches; a
-    # mismatched alias is skipped loudly rather than registered as a surprise.
+    # interface itself (no GPU share, no wasi-nn). wasmtime wants the dir named
+    # after the graph with one unambiguous .gguf inside - true for neither
+    # Modelwrap mounts (dir = mpk-<root_hash>) nor multi-quant HF repos - so
+    # every volume preloads through a STAGED symlink dir named after the
+    # volume (_stage_nn_graph); MODEL_VOLUMES' third field picks the file.
     if nn:
         for name, host_path in vol_mounts.items():
-            hp = pathlib.Path(host_path)
-            has_gguf = (hp / "model.gguf").is_file() or \
-                sum(1 for x in hp.glob("*.gguf") if x.is_file()) == 1
-            if not has_gguf:
+            gguf = _gguf_path(name, host_path)
+            if not gguf:
                 continue
-            if hp.name != name:
-                print(f"[nn-graph] volume '{name}' mount basename '{hp.name}' differs - "
-                      f"skipping ggml preload (alias the mount so basename == name)", flush=True)
-                continue
-            vol_args += ["-S", f"nn-graph=ggml::{host_path}"]
+            stage = _stage_nn_graph(name, gguf)
+            if stage:
+                vol_args += ["-S", f"nn-graph=ggml::{stage}"]
     # enclave transparent egress (phase 2): `-S egress=<host>:<port>` makes the
     # patched wasmtime funnel ALL guest outbound through the loopback SOCKS front
     # (credential in $ENCLAVE_EGRESS_CRED, set host-side by _spawn_and_wait), so an

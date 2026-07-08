@@ -219,8 +219,11 @@ containers:
       # `models:` entry into every container at /tinfoil/mpk/mpk-<root_hash>
       # (NO volumes: bind - the source path doesn't exist on the CVM host).
       # The manager advertises these in /availability; llm-chat loads from
-      # /models/qwen2.5-0.5b inside the guest.
-      - MODEL_VOLUMES: "qwen2.5-0.5b:/tinfoil/mpk/mpk-e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4"
+      # /models/<name> inside the guest. An optional third field
+      # (name:path:file.gguf) picks WHICH gguf preloads as the wasi-nn graph
+      # when the repo ships several quantizations - the manager stages the
+      # pick as a symlink dir, so the mpk-<hash> mount name never matters.
+      - MODEL_VOLUMES: "qwen2.5-0.5b:/tinfoil/mpk/mpk-e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4,qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-REPLACE_WITH_ROOT_HASH_FROM_MODELS_TAB:qwen2.5-0.5b-instruct-q4_k_m.gguf"
     # SECRET doubles as the manager's control-plane token (VMMGR_TOKEN): tenants
     # hold outbound HTTP to loopback, so the control API on :8091 must reject
     # calls that don't carry it (the supervisor sends X-Vmmgr-Token). The tenant
@@ -249,6 +252,14 @@ models:
   - name: "qwen2.5-0.5b"
     repo: "onnx-community/Qwen2.5-0.5B-Instruct@cc5cc01a65cc3ff17bdb73a7de33d879f62599b0"
     mpk: "e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4_6571900928_4f334276-d275-54dc-9abe-d458e80adf97"
+  # Official Qwen GGUF repo (the ggml/llama.cpp wasi-nn path). The repo ships
+  # NINE quantizations - MODEL_VOLUMES above picks q4_k_m (sha256 74a4da8c...,
+  # verified 2026-07-08) as the preloaded graph - and NO tokenizer.json, so
+  # llm-chat's catalog reads the tokenizer cross-volume from qwen2.5-0.5b:
+  # deployments using this volume should attach BOTH.
+  - name: "qwen2.5-0.5b-gguf"
+    repo: "Qwen/Qwen2.5-0.5B-Instruct-GGUF@9217f5db79a29953eb74d5343926648285ec7e67"
+    mpk: "REPLACE_WITH_HASH_FROM_MODELS_TAB"
 
 # Single ingress → supervisor. Only these paths are reachable from outside.
 shim:
