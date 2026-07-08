@@ -112,11 +112,14 @@ const depCmp = (a, b) => DEP_SCHEMA.every((f) => ["runner", "runnerOperator", "l
   || String(a[f.k]).toLowerCase() === String(b[f.k]).toLowerCase());
 
 /* -- catalog -- */
-// Struct-schema revision sniff: rev-3 catalogs expose catalogSchema() and
-// their VERSION tuples carry `config`; a source without the getter (call
-// reverts) is rev 2 - decode its versions WITHOUT config and default the
-// field, so a v2 -> v3 migration reads clean and the import encodes the
-// full rev-3 tuple.
+// Struct-schema revision sniff: rev-4 catalogs' VERSION tuples carry
+// `config`; a source without the marker getter (call reverts) is rev 2;
+// rev 3 (the retired app-level-config layout, 0xa036d5e8…) has config-LESS
+// versions - decode both pre-4 shapes WITHOUT config and default the field,
+// so the migration reads clean and the import encodes the full rev-4 tuple.
+// (Rev-3 App tuples carry a trailing app-level config; decoding them with
+// the 9-field APP_SCHEMA is a safe prefix read - that field is dropped,
+// deliberately: nothing in rev 4 stores app-level config.)
 const VER_SCHEMA_V2 = VER_SCHEMA.filter((f) => f.k !== "config");
 async function catalogRevOf(addr) {
   const sel = CONTRACTS.EnclaveAppCatalog.sel;
@@ -126,7 +129,7 @@ async function catalogRevOf(addr) {
 async function readCatalog(source) {
   const sel = CONTRACTS.EnclaveAppCatalog.sel;
   const rev = await catalogRevOf(source);
-  const verSchema = rev >= 3 ? VER_SCHEMA : VER_SCHEMA_V2;
+  const verSchema = rev >= 4 ? VER_SCHEMA : VER_SCHEMA_V2;
   const total = wNum(await call(source, "0x" + sel.appCount), 0);
   const apps = [];
   for (let s = 0; s < total; s += PAGE)
@@ -135,7 +138,7 @@ async function readCatalog(source) {
     a.versions = [];
     for (let s = 0; s < a.versionCount; s += PAGE)
       a.versions.push(...decodeStructArray(await call(source, encCallX(sel.getVersionsPage, [{ t: "bytes32", v: a.appId }, { t: "uint", v: s }, { t: "uint", v: PAGE }])), verSchema));
-    if (rev < 3) for (const v of a.versions) v.config = "";
+    if (rev < 4) for (const v of a.versions) v.config = "";
   }
   return apps;
 }

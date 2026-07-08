@@ -134,7 +134,7 @@ function rpcServer() {
       count: () => [1n],
       secondsFundable: () => [333333n],
       appCount: () => [1n],
-      catalogSchema: () => [3n],   // the stub chain plays the current (rev-3) catalog
+      catalogSchema: () => [4n],   // the stub chain plays the current (rev-4) catalog
       getAppsPage: () => [Number(args[0]) === 0 ? [{ appId: APP_ID, publisher: OWNER, slug: "hello-world",
         name: "Hello World", description: "first app", versionCount: 1, createdAt: 1n, updatedAt: 1n, active: true }] : []],
       getVersionsPage: () => [Number(args[1]) === 0 ? [version] : []],

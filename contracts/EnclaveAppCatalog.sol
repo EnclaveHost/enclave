@@ -87,10 +87,13 @@ contract EnclaveAppCatalog {
     uint8 public constant APPROVAL_APPROVED = 1;
     uint8 public constant APPROVAL_REJECTED = 2;
 
-    /// @notice Struct-schema revision, for migration readers: 3 = Version
-    ///         carries `config`. A source catalog without this getter is
-    ///         revision 2 (the admin console's migration reader sniffs it).
-    uint256 public constant catalogSchema = 3;
+    /// @notice Struct-schema revision, for migration readers: 4 = Version
+    ///         carries `config` (this layout). A source without this getter
+    ///         is revision 2. Revision 3 was a short-lived APP-level-config
+    ///         layout (deployed 2026-07-08 at 0xa036d5e8…, same marker
+    ///         selector): its Version tuples have NO config — readers must
+    ///         treat rev 3 versions as config-less or they mis-decode.
+    uint256 public constant catalogSchema = 4;
 
     uint256 private constant MAX_SLUG = 40;
     uint256 private constant MAX_NAME = 80;

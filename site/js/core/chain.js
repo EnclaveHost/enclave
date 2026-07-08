@@ -42,8 +42,9 @@ export const DEP_SCHEMA = [   // mirrors EnclaveDeployments.Deployment field ord
 export const CAT_SEL = {
   appCount:"b55ca2c3", getAppsPage:"a0483de1", getVersionsPage:"2eb7c1f0", owner:"8da5cb5b",
   publishVersion:"ffd9de8f",   // publishVersion(...,uint32[4] res,string ports,string config) - res = [vramMb, gpuGflops, memMb, cpuGflops]
-  publishVersionV2:"adbf439a", // rev-2 catalogs: same without the config arg (kept until the v3 cutover)
-  catalogSchema:"18cccf57",    // struct-schema revision marker (3 = Version carries config; missing = 2)
+  publishVersionV2:"adbf439a", // rev-2 catalogs: same without the config arg (kept until the cutover)
+  catalogSchema:"18cccf57",    // struct-schema revision marker: 4 = Version carries config; 3 = the
+                               // short-lived app-level-config layout (versions config-LESS); missing = 2
   setActive:"9e4b5d56", yankVersion:"345c52dc", setVerified:"4ca171e5",
   setApproval:"a67613fa",
 };
@@ -180,10 +181,11 @@ export function decodeStructArray(hex, schema){
 
 /* ---- catalog reads ---- */
 export async function appCount(){ return Number(hexBig(await ethCall("0x" + CAT_SEL.appCount))); }
-/* Catalog struct-schema revision: rev 3 Version tuples carry `config`; a
-   catalog without the marker getter (reverts) is rev 2. Sniffed once per page
-   load so the site reads BOTH the pre-config catalog and its successor - the
-   schema bump ships before the contract cutover. */
+/* Catalog struct-schema revision: rev 4 Version tuples carry `config`; a
+   catalog without the marker getter (reverts) is rev 2; rev 3 (the retired
+   app-level-config layout, live at 0xa036d5e8… on 2026-07-08) has config-LESS
+   versions - decoding them with the rev-4 schema reads past the tuple and
+   yields garbage "config" strings (seen live). Sniffed once per page load. */
 export const VER_SCHEMA_V2 = VER_SCHEMA.filter(f => f.k !== "config");
 let _catRev = null;
 export async function catSchemaRev(){
@@ -197,11 +199,11 @@ export async function catGetAppsPage(start, n){
 }
 export async function catGetVersions(appId, count){
   const rev = await catSchemaRev();
-  const schema = rev >= 3 ? VER_SCHEMA : VER_SCHEMA_V2;
+  const schema = rev >= 4 ? VER_SCHEMA : VER_SCHEMA_V2;
   const vs = []; const PAGE = 50;
   for (let s = 0; s < count; s += PAGE)
     vs.push(...decodeStructArray(await ethCall(encCall(CAT_SEL.getVersionsPage, [{t:"bytes32",v:appId},{t:"uint",v:s},{t:"uint",v:PAGE}])), schema));
-  if (rev < 3) for (const v of vs) v.config = "";
+  if (rev < 4) for (const v of vs) v.config = "";
   return vs;
 }
 export async function catOwner(){ const r = await ethCall("0x" + CAT_SEL.owner); return "0x" + (r || "").replace(/^0x/, "").slice(24).padStart(40, "0"); }
