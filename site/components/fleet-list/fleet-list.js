@@ -17,13 +17,8 @@ class FleetList extends EnclaveElement {
     const list = this.querySelector(".fleet-list"); if (!list) return;
     const rows = this.rows || [];
     const meter = (pct) => '<i class="fleet-meter"><b style="width:' + Math.max(0, Math.min(100, pct)) + '%"></b></i>';
-    // the on-chain registry this table mirrors - link it once the address
-    // book has resolved (enclaves register there; the relay reads it)
-    const reg = /^0x[0-9a-fA-F]{40}$/.test(REGISTRY_ADDRESS || "")
-      ? '<a class="fleet-reg" href="' + catExplorer() + '/address/' + REGISTRY_ADDRESS + '" target="_blank" rel="noopener" title="EnclaveRegistry - the on-chain fleet membership this table mirrors">view registry contract ↗</a>'
-      : "";
     list.innerHTML = (!rows.length
-      ? '<div class="fleet-empty">no live enclaves</div>'
+      ? '<div class="fleet-empty">no live enclaves right now</div>'
       : rows.map(e => {
           const a = e.availability || {};
           const gpu = a.gpu === true;
@@ -39,7 +34,13 @@ class FleetList extends EnclaveElement {
             + '<span class="fleet-pool">CPU ' + meter(cPct) + ' ' + cPct + '% free · ≈'
             + fmtNum(cFree * (a.nodeRamGb || NODE_RAM_GB)) + ' GB RAM / ' + fmtNum(cFree * (a.nodeVcpus || NODE_VCPUS)) + ' vCPU</span>'
             + '</div>';
-        }).join("")) + reg;
+        }).join(""));
+    // the on-chain registry this table mirrors, in its own footer row -
+    // linked once the address book has resolved (enclaves register there)
+    const foot = this.querySelector(".fleet-foot");
+    if (foot) foot.innerHTML = /^0x[0-9a-fA-F]{40}$/.test(REGISTRY_ADDRESS || "")
+      ? '<a class="fleet-reg" href="' + catExplorer() + '/address/' + REGISTRY_ADDRESS + '" target="_blank" rel="noopener" title="EnclaveRegistry - the on-chain fleet membership this table mirrors">view registry contract ↗</a>'
+      : "";
   }
 }
 register("c-fleet-list", FleetList);
