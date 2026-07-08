@@ -50,7 +50,7 @@ export function __applyAddresses(map){
 if (ADDRESS_BOOK_ADDRESS){
   try { __applyAddresses(JSON.parse(sessionStorage.getItem("enclave_addrbook") || "null")); } catch(e){}
 }
-export const APP_CATALOG_RPC     = "https://mainnet.base.org";  // preferred read endpoint (CORS-enabled; browsing needs no wallet)
+export const APP_CATALOG_RPC     = "https://base-rpc.publicnode.com";  // preferred read endpoint (CORS-enabled; browsing needs no wallet). NOTE: deploy-app-catalog.mjs rewrites this to mainnet.base.org on every catalog deploy - restore publicnode after (it rate-limits hard enough to trip one catalog load; kept in the pool as last resort)
 /* Failover pool: reads are stateless, and every public Base RPC rate-limits by
    IP - the official mainnet.base.org hard enough that one catalog load can
    trip "over rate limit". Calls start on the last endpoint that worked and
