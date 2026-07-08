@@ -25,18 +25,25 @@ function renderApps(){
     grid.innerHTML = '<div class="store-note">The on-chain catalog isn’t wired up on this deployment yet.<br><span class="dim">Deploy <code>EnclaveAppCatalog</code> with <code>scripts/deploy-app-catalog.mjs</code>; it writes the address in for you.</span></div>';
     if (count) count.textContent = ""; return;
   }
-  if (!STORE.loaded){ grid.innerHTML = '<div class="store-note">reading catalog from Base…</div>'; return; }
+  if (!STORE.loaded){ grid.innerHTML = '<div class="loading" role="status">reading catalog from Base…</div>'; return; }
   const q = ($("#storeSearch") && $("#storeSearch").value || "").trim().toLowerCase();
   // Delisted apps are hidden from the public store, but their PUBLISHER (and
   // the catalog owner) still see them - that's the only path back: relist, or
   // publish a new version to the slug (which auto-relists).
   const me = (Enclave.address || "").toLowerCase();
   const canSeeDelisted = (a) => me && (a.publisher.toLowerCase() === me || (STORE.owner && me === STORE.owner));
-  let apps = STORE.apps.filter(a => a.versions.length && (a.active || canSeeDelisted(a)));
-  if (STORE.filter === "verified") apps = apps.filter(appVerified);
+  syncDelistedTab(me);
+  let apps;
+  if (STORE.filter === "delisted"){
+    // the catalog owner's moderation view: EVERY delisted app, any publisher
+    apps = STORE.apps.filter(a => a.versions.length && !a.active);
+  } else {
+    apps = STORE.apps.filter(a => a.versions.length && (a.active || canSeeDelisted(a)));
+    if (STORE.filter === "verified") apps = apps.filter(appVerified);
+  }
   if (q) apps = apps.filter(a => (a.name + " " + a.description + " " + a.slug + " " + a.publisher + " " + a.versions.map(v => v.cid + " " + v.version).join(" ")).toLowerCase().includes(q));
   apps.sort((x, y) => (Number(appVerified(y)) - Number(appVerified(x))) || (y.updatedAt - x.updatedAt));
-  if (count) count.textContent = apps.length + (apps.length === 1 ? " app" : " apps") + (STORE.filter === "verified" ? " · verified" : "");
+  if (count) count.textContent = apps.length + (apps.length === 1 ? " app" : " apps") + (STORE.filter === "verified" ? " · verified" : STORE.filter === "delisted" ? " · delisted" : "");
   if (!apps.length){
     grid.innerHTML = '<div class="store-note">' + (STORE.apps.length ? "No apps match your filter." : "No apps published yet. Be the first with <b>+ Publish app</b>.") + '</div>';
     return;
@@ -46,6 +53,19 @@ function renderApps(){
     el.app = a;
     return el;
   }));
+}
+
+/* The Delisted tab is the CONTRACT DEPLOYER's moderation surface (the
+   catalog owner wallet); everyone else never sees it. Publishers still find
+   their own delisted apps inline in the store - their path back to relist. */
+function syncDelistedTab(me){
+  const b = document.querySelector('#storeFilter button[data-filter="delisted"]'); if (!b) return;
+  const isOwner = !!(STORE.owner && me && me === STORE.owner);
+  b.hidden = !isOwner;
+  if (!isOwner && STORE.filter === "delisted"){
+    STORE.filter = "all";
+    $$("#storeFilter button").forEach(x => x.classList.toggle("on", x.dataset.filter === "all"));
+  }
 }
 
 // Hand the picked version to the deploy view: stash everything it needs
