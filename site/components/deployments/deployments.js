@@ -97,10 +97,17 @@ class Deployments extends EnclaveElement {
     this._onLog = (e) => this._onRunlog(e.detail || {});
     document.addEventListener("enclave:runlog", this._onLog);
     const x = this.querySelector(".enc-live-x");
-    if (x) x.addEventListener("click", () => { const s = this.querySelector(".enc-live"); if (s) s.hidden = true; });
-    // arriving mid-deploy (soft-nav away and back): replay the live run
+    if (x) x.addEventListener("click", () => { const s = this.querySelector(".enc-live"); if (s) s.hidden = true; this._liveRun = null; });
+    // arriving mid-deploy (soft-nav away and back): rejoin the live run.
+    // After a HARD reload no run is live - but one may sit interrupted in the
+    // persisted log (the refresh killed its deploy flow mid-stream); hand it
+    // to deploy.js to re-read the ledger and keep narrating into the same run.
     const live = runlog.current();
-    if (live) { this._showLive(live); live.lines.forEach(l => paintLine(this.querySelector(".enc-live-out"), l[0], l[1])); }
+    if (live) this._showLive(live);
+    else {
+      const cut = runlog.interrupted();
+      if (cut) import("../../js/pages/deploy.js").then(m => m.resumeDeployWatch(cut)).catch(() => {});
+    }
     this.refresh();
   }
   disconnectedCallback() {
@@ -119,6 +126,7 @@ class Deployments extends EnclaveElement {
     if (!s) return;
     s.hidden = false; if (out) out.innerHTML = "";
     if (lbl) lbl.textContent = run.id || run.label || "";
+    if (out) run.lines.forEach(l => paintLine(out, l[0], l[1]));   // rejoined/resumed runs replay their history
   }
   _onRunlog(d) {
     const s = this.querySelector(".enc-live");
@@ -132,9 +140,11 @@ class Deployments extends EnclaveElement {
       if (d.run.id) { const nar = this._openNar(d.run.id); if (nar) paintLine(nar.box, d.cls, d.txt, nar.scroller); }
     }
     else if (d.type === "end") {
-      // the row (with its Output panel) carries the history from here; keep
-      // the strip only for runs that died before an id existed
-      if (d.run.id && s) { s.hidden = true; this._liveRun = null; }
+      // the row (with its Output panel) carries the history from here - but
+      // only when a row EXISTS: an unclaimed deployment has none (rows come
+      // from the enclave API), so its strip is all the user can see of it.
+      // _renderRows retires the strip the moment a matching row renders.
+      if (d.run.id && s && this.querySelector('.enc-outbtn[data-id="' + d.run.id + '"]')) { s.hidden = true; this._liveRun = null; }
     }
   }
   _openNar(id) {
@@ -229,6 +239,12 @@ class Deployments extends EnclaveElement {
     $$(".enc-fundbtn", body).forEach(b => b.addEventListener("click", () => this._fund(b.dataset.id, b)));
     $$(".enc-verify", body).forEach(b => b.addEventListener("click", () => this._verify(b.dataset.id, b)));
     $$(".enc-kill", body).forEach(b => b.addEventListener("click", () => this._kill(b.dataset.id, b)));
+    // a finished run's strip yields to its row the moment one renders
+    if (this._liveRun && this._liveRun.done && this._liveRun.id
+        && body.querySelector('.enc-outbtn[data-id="' + this._liveRun.id + '"]')) {
+      const s = this.querySelector(".enc-live"); if (s) s.hidden = true;
+      this._liveRun = null;
+    }
     // a just-deployed row opens its Output panel so the narrative continues in place
     if (highlight) {
       const b = body.querySelector('.enc-outbtn[data-id="' + highlight + '"]');
