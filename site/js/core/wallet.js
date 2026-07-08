@@ -10,6 +10,7 @@
 import { BASE_CHAIN, BASE_CHAIN_HEX, USDC_BASE, PRIVY_APP_ID, PRIVY_CLIENT_ID, PRIVY_RDNS } from "./config.js";
 import { Enclave, EnclaveError } from "./api.js";
 import { $, $$, esc, short, lsGet, lsSet, fmtDur, copyText, showToast, emit } from "./util.js";
+import { qrSvg } from "../lib/qr.js";
 
 /* ---- wallet discovery: EIP-6963 multi-wallet, EIP-1193 fallback ---- */
 export const Wallet = {
@@ -251,6 +252,7 @@ export function openDepositModal(){
   const m = fundModal(
     '<div class="wp-h">Deposit</div>' +
     '<div class="wp-note">Send <b>USDC on the Base network</b> to your address below - from Coinbase, Kraken, Binance, or any wallet. It shows up here once the transfer confirms, usually under a minute.</div>' +
+    '<div class="wp-qr" aria-label="deposit address as a QR code">' + qrSvg(Enclave.address) + '</div>' +
     '<div class="wp-addr-full">' + esc(Enclave.address) + '</div>' +
     '<button class="wp-item wp-go" id="depCopy" type="button">Copy address</button>' +
     '<div class="wp-err">Base network only - transfers sent on other networks are lost.</div>' +
