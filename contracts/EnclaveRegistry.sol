@@ -24,8 +24,8 @@ pragma solidity ^0.8.20;
 ///     is what gates trust.
 contract EnclaveRegistry {
     struct Enclave {
-        string  endpoint;     // e.g. "https://enclave1.nan.containers.tinfoil.dev"
-        string  repo;         // attestation source, e.g. "SteveDeFacto/enclave" (Sigstore-measured; exact casing)
+        string  endpoint;     // e.g. "https://svalbard.enclave.containers.tinfoil.dev"
+        string  repo;         // attestation source, e.g. "EnclaveHost/enclave" (Sigstore-measured; exact casing)
         bytes32 measurement;  // optional cross-check digest (0x0 if unset); the live quote is authoritative
         address operator;     // controls this entry
         uint64  registeredAt;
