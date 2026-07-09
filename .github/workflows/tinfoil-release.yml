@@ -65,7 +65,11 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          # CR_PAT (classic PAT, write:packages on the org) so the FIRST push of
+          # a package the org doesn't yet have actually persists — GITHUB_TOKEN
+          # cannot create new org packages (it silently no-ops after the org
+          # move). Falls back to GITHUB_TOKEN when CR_PAT is unset.
+          password: ${{ secrets.CR_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata for Docker
         id: meta
