@@ -14,8 +14,11 @@ c-fleet-list{display:contents;}
 .fleet-empty{display:flex;align-items:center;justify-content:center;gap:8px;padding:18px 12px;font-family:var(--font-mono);font-size:.74rem;color:var(--text-dim);}
 .fleet-empty::before{content:"○";font-size:.8em;}
 
-/* footer row: the on-chain registry link, right-aligned OUTSIDE the box */
-.fleet-foot{display:flex;justify-content:flex-end;margin-top:8px;}
+/* footer row: refresh + the on-chain registry link, right-aligned OUTSIDE the box */
+.fleet-foot{display:flex;justify-content:flex-end;gap:14px;margin-top:8px;}
 .fleet-foot:empty{display:none;}
 .fleet-reg{font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);}
 .fleet-reg:hover{color:var(--jade);}
+.fleet-refresh{font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);background:none;border:0;padding:0;cursor:pointer;}
+.fleet-refresh:hover{color:var(--jade);}
+.fleet-refresh:disabled{opacity:.45;cursor:wait;}

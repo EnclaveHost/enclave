@@ -39,12 +39,23 @@ class FleetList extends EnclaveElement {
             + fmtNum(cFree * (a.nodeRamGb || NODE_RAM_GB)) + ' GB RAM / ' + fmtNum(cFree * (a.nodeVcpus || NODE_VCPUS)) + ' vCPU</span>'
             + '</div>';
         }).join(""));
-    // the on-chain registry this table mirrors, in its own footer row -
-    // linked once the address book has resolved (enclaves register there)
+    // footer row: a manual refresh (dispatches `refresh`; the HOST owns the
+    // fetch and re-assigns .rows, which re-renders and re-arms the button) +
+    // the on-chain registry this table mirrors, linked once the address book
+    // has resolved (enclaves register there)
     const foot = this.querySelector(".fleet-foot");
-    if (foot) foot.innerHTML = /^0x[0-9a-fA-F]{40}$/.test(REGISTRY_ADDRESS || "")
-      ? '<a class="fleet-reg" href="' + catExplorer() + '/address/' + REGISTRY_ADDRESS + '" target="_blank" rel="noopener" title="EnclaveRegistry - the on-chain fleet membership this table mirrors">view registry contract ↗</a>'
-      : "";
+    if (foot) {
+      foot.innerHTML = '<button class="fleet-refresh" type="button" title="re-fetch the live fleet view">↻ refresh</button>'
+        + (/^0x[0-9a-fA-F]{40}$/.test(REGISTRY_ADDRESS || "")
+          ? '<a class="fleet-reg" href="' + catExplorer() + '/address/' + REGISTRY_ADDRESS + '" target="_blank" rel="noopener" title="EnclaveRegistry - the on-chain fleet membership this table mirrors">view registry contract ↗</a>'
+          : "");
+      const btn = foot.querySelector(".fleet-refresh");
+      btn.addEventListener("click", () => {
+        btn.disabled = true;
+        this.dispatch("refresh");
+        setTimeout(() => { btn.disabled = false; }, 4000);   // safety net if no host listener re-assigns .rows
+      });
+    }
   }
 }
 register("c-fleet-list", FleetList);
