@@ -223,14 +223,21 @@ containers:
       - CUDA_MPS_PIPE_DIRECTORY: "/tmp/nvidia-mps"
       # ggml (GGUF) context window for EVERY GPU tenant on this node (the manager
       # inherits this into each -S nn-graph wasmtime process; there is no
-      # per-deployment override). 131072 = 128K tokens. The KV cache is f16 and
-      # allocated up front for the full window, so it scales with the model:
-      # ~13 GB for the 122B (48 layers × 2 KV heads × 256 head-dim) on top of its
-      # ~60 GB weights - a 122B deployment MUST buy a >=56% GPU share or context
-      # allocation fails loudly ("n_ctx too large for the share"). Small models
-      # (qwen2.5-0.5b) pay only ~1.6 GB, harmless. Lower this if the node should
-      # not carry the big-context cost by default.
-      - ENCLAVE_GGML_N_CTX: "131072"
+      # per-deployment override). 262144 = 256K tokens = Qwen3.5-122B's NATIVE
+      # context (max_position_embeddings); going past it needs static YaRN, which
+      # Qwen warns degrades shorter requests, so we hold at native. The KV cache
+      # is allocated up front for the full window, so it scales with the model -
+      # but Qwen3.5 is a HYBRID linear-attention MoE: only 12 of its 48 layers are
+      # full-attention (the other 36 carry a constant-size linear/recurrent state
+      # that does NOT grow with context). So KV = 12 layers x 2 KV heads x 256
+      # head-dim x (K+V) x 2 bytes = 24 KB/token: 256K f16 = ~6.4 GB on top of the
+      # ~60 GB weights (~67 GB total), so a 122B deployment MUST buy a >=~50% GPU
+      # share or context allocation fails loudly ("n_ctx too large for the share").
+      # (A q8_0 KV cache - see ENCLAVE_GGML_KV_CACHE_TYPE, once the toolchain
+      # carries it - halves the KV to ~3.2 GB, dropping the floor to ~48%.) Small
+      # models (qwen2.5-0.5b) pay only a few hundred MB. Lower this if the node
+      # should not carry the big-context cost by default.
+      - ENCLAVE_GGML_N_CTX: "262144"
       # each app's memory cap is its deployment's cpuShare × NODE_RAM_GB
       # (>= the mem_mb its specs declare); WASM_APP_MIN_MEM_MB (64) is the floor
       # friendly name -> the model's auto-mount path. Tinfoil mounts each
