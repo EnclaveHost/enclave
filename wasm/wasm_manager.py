@@ -96,6 +96,9 @@ MIN_MEM_MB   = int(os.environ.get("WASM_APP_MIN_MEM_MB", "64"))
 # while everything else was healthy). Later launches hit wasmtime's compile
 # cache and open the port in seconds.
 READY_SECS   = float(os.environ.get("WASM_READY_TIMEOUT", "150"))
+# boot warmup (app-config `warmup` key): how long the background GET may take.
+# Generous on purpose - its whole job is pulling big weights into VRAM.
+WARMUP_SECS  = float(os.environ.get("WASM_WARMUP_TIMEOUT", "600"))
 MOCK         = os.environ.get("WASM_MOCK", "") not in ("", "0", "false")
 LOG_DIR      = pathlib.Path(os.environ.get("WASM_LOG_DIR", "/tmp/enclave-wasm-logs"))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -1359,6 +1362,44 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
     return _spawn_and_wait(rec, ctx)
 
 
+def _warmup_path(enclave_config) -> str:
+    """The app config's optional `warmup` key: a path the manager GETs ONCE,
+    in the background, the moment the app's port opens - so a model-serving
+    app pulls its weights into device memory at DEPLOYMENT BOOT instead of on
+    the first visitor (llm-chat ships "warmup": "/warmup"). Serve-mode apps
+    only (it is an HTTP request). Absent/malformed = no poke."""
+    if not enclave_config:
+        return ""
+    try:
+        p = json.loads(enclave_config).get("warmup")
+    except Exception:
+        return ""
+    if isinstance(p, str) and p.startswith("/") and len(p) <= 128:
+        return p
+    return ""
+
+
+def _fire_warmup(host_port: int, path: str, log_path):
+    """Fire-and-forget GET from a daemon thread, long timeout (WARMUP_SECS) -
+    a cold model load is legitimately slow and holding the launch for it would
+    blow the adopt deadline. The outcome lands in the tenant's own log."""
+    def run():
+        url = f"http://{HOST_IP}:{host_port}{path}"
+        try:
+            req = urllib.request.Request(url, headers={"user-agent": "wasm-manager-warmup"})
+            with urllib.request.urlopen(req, timeout=WARMUP_SECS) as resp:
+                body = resp.read(512)
+                msg = f"[warmup] GET {path} -> {resp.status} {body[:200]!r}"
+        except Exception as e:                                       # noqa: BLE001
+            msg = f"[warmup] GET {path} failed: {e}"
+        try:
+            with open(log_path, "ab") as f:
+                f.write(msg.encode() + b"\n")
+        except OSError:
+            print(msg, flush=True)
+    threading.Thread(target=run, daemon=True, name="warmup").start()
+
+
 def _spawn_and_wait(rec, ctx):
     """Build the wasmtime command from a prepared context and spawn it, waiting
     for readiness. Shared by launch() (no encrypted volumes) and unlock() (after
@@ -1420,6 +1461,9 @@ def _spawn_and_wait(rec, ctx):
         if wait_ports and _port_open(wait_ports[0]):
             rec["status"] = "running"
             _audit_rec(rec)          # populate boundPorts right away (the bridge checks it)
+            wp = _warmup_path(enclave_config)
+            if wp and pspec["serve"]:
+                _fire_warmup(host_port, wp, log_path)
             return rec
         time.sleep(0.1)
     if wait_ports:
@@ -1432,6 +1476,9 @@ def _spawn_and_wait(rec, ctx):
         _kill(rec)
     else:
         _audit_rec(rec)
+        wp = _warmup_path(enclave_config)
+        if wp and pspec["serve"]:
+            _fire_warmup(host_port, wp, log_path)
     return rec
 
 
