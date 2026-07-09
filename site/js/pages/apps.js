@@ -14,7 +14,7 @@ import { APP_CATALOG_ADDRESS, APP_CATALOG_CHAIN, IPFS_UPLOAD_URL, MAX_WASM_MB, M
 import { Enclave, EnclaveError } from "../core/api.js";
 import { catConfigured, catExplorer, encCall, CAT_SEL, CAT_MAX, APPROVAL, depPrices6, rate6Of, waitReceipt, catSchemaRev } from "../core/chain.js";
 import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf, openBuyModal } from "../core/wallet.js";
-import { STORE, loadCatalog, selIdx, appVerified, validPortsCsv, REF_CACHE, PORTS_CACHE, MINS_CACHE, CONFIG_CACHE } from "../core/catalog.js";
+import { STORE, loadCatalog, selIdx, appVerified, validPortsCsv, REF_CACHE, PORTS_CACHE, MINS_CACHE, CONFIG_CACHE, catalogRef } from "../core/catalog.js";
 import { minPctsOf, shareRates } from "../core/pricing.js";
 import { navigate } from "../boot.js";
 
@@ -71,15 +71,15 @@ function syncDelistedTab(me){
 // Hand the picked version to the deploy view: stash everything it needs
 // (sessionStorage survives the navigation; the ?app= param makes the link
 // shareable - a fresh visitor's deploy console re-resolves it from the catalog).
-function useInDeploy(app, v){
-  const friendly = app.slug + ":" + v.version;      // human-friendly; resolves to the CID at deploy
-  REF_CACHE[friendly] = "ipfs://" + v.cid;
+function useInDeploy(app, v, idx){
+  const friendly = app.slug + ":" + v.version;      // human-friendly; resolves to the version RECORD at deploy
+  REF_CACHE[friendly] = catalogRef(app.appId, idx);
   PORTS_CACHE[friendly] = v.ports || "";
   MINS_CACHE[friendly] = minPctsOf(v);
-  CONFIG_CACHE[friendly] = v.config || "";          // the VERSION's default config -> deploy form template
+  CONFIG_CACHE[friendly] = v.config || "";          // the VERSION's config -> shown read-only on the deploy form
   try {
     sessionStorage.setItem("enclave_use_in_deploy", JSON.stringify({
-      friendly, cid: v.cid, ports: v.ports || "", mins: MINS_CACHE[friendly], config: v.config || "" }));
+      friendly, appId: app.appId, index: idx, ports: v.ports || "", mins: MINS_CACHE[friendly], config: v.config || "" }));
   } catch(e){}
   // the console's own URL, share-friendly: /deploy?app=hello-world_1.0.0
   // (the "_" form keeps the query un-percent-encoded; deploy.js normalizes it
@@ -97,7 +97,7 @@ function closeQuick(){
   const host = $("#quickDeploy"); if (host) host.remove();
   if (qdEsc){ document.removeEventListener("keydown", qdEsc); qdEsc = null; }
 }
-function quickDeploy(app, v){
+function quickDeploy(app, v, idx){
   closeQuick();
   const mins = minPctsOf(v);
   // constants first paint; the CONTRACT's live prices (incl. its ceil-to-a-
@@ -159,19 +159,17 @@ function quickDeploy(app, v){
   });
   if (buy) buy.addEventListener("click", () => openBuyModal());
   host.querySelector(".qd-cancel").addEventListener("click", closeQuick);
-  host.querySelector(".qd-adv").addEventListener("click", () => { closeQuick(); useInDeploy(app, v); });
+  host.querySelector(".qd-adv").addEventListener("click", () => { closeQuick(); useInDeploy(app, v, idx); });
   go.addEventListener("click", async () => {
     const usd = parseFloat(amt.value) || 0; if (!(usd >= 0.01)) return;
     closeQuick();
     // the flow lives in the deploy chunk; it navigates to the dashboard and
     // narrates into the run log (deployOnChain never throws)
     const m = await import("./deploy.js");
-    // the version's default config rides quick deploys as-is (deployOnChain
-    // pins it); a template carrying {"volumes":[…]} thus attaches them too.
-    // It was approved WITH the version, so this is owner-vetted behavior.
-    let cfg = null; try { cfg = v.config ? JSON.parse(v.config) : null; } catch(e){}
-    m.deployOnChain({ reference: "ipfs://" + v.cid, gpuMilli: mins.gpuPct * 10, cpuMilli: mins.cpuPct * 10,
-      ports: v.ports || "", isPublic: true, config: cfg, fundUsd: usd, asset: "USDC" });
+    // the appRef IS the version record: the enclave applies its config,
+    // volumes and ports from the chain - nothing rides the deployment
+    m.deployOnChain({ reference: catalogRef(app.appId, idx), gpuMilli: mins.gpuPct * 10, cpuMilli: mins.cpuPct * 10,
+      ports: v.ports || "", isPublic: true, fundUsd: usd, asset: "USDC" });
   });
   est(); loadBal();
 }
@@ -307,8 +305,9 @@ async function publishApp(){
   // refuse here with the actual reason instead.
   // 1) A CID belongs to the app that FIRST listed it: no other app can ever
   //    list the same bytes. The owning app re-listing its own CID is the
-  //    metadata-fix path (same bytes, corrected specs/ports) and is allowed;
-  //    the deploy gate then follows the newest listing.
+  //    metadata-fix path (same bytes, new config/specs/ports) and is allowed;
+  //    each version is its own deployable record (deploys reference it as
+  //    catalog://appId/index, so shared bytes never make versions ambiguous).
   if (STORE.apps){
     const me = (Enclave.address || "").toLowerCase();
     for (const a of STORE.apps){
@@ -513,7 +512,7 @@ function initStore(){
   // wallet-tx / navigation actions the cards bubble up (data down, events up)
   grid.addEventListener("card-action", (e) => {
     const { app, act, idx, verified } = e.detail;
-    if (act === "deploy") quickDeploy(app, app.versions[idx]);
+    if (act === "deploy") quickDeploy(app, app.versions[idx], idx);
     else if (act === "delist"){ if (confirm("Delist this whole app? It stays on-chain but is hidden from the store - you (and the catalog owner) still see it here, with a relist button.")) setActiveTx(app.slug, false); }
     else if (act === "relist") setActiveTx(app.slug, true);
     else if (act === "newver") prefillPublish(app);

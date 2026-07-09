@@ -54,7 +54,13 @@ via transaction instead of via one enclave's API).
 ## Contract summary (`EnclaveDeployments.sol`)
 
 - **`create(appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, sshPubKey, configCid)`**
-  — permissionless; inert until funded. A deployment BUYS two shares, both in
+  — permissionless; inert until funded. `appRef` is `catalog://<appId>/<versionIndex>`,
+  the on-chain record of the catalog VERSION to run (2026-07-09; CID refs are refused
+  by runners — a CID names bytes, not a version). The record supplies the wasm,
+  config (ENCLAVE_CONFIG + volumes) and ports the catalog owner approved;
+  `ports`/`appPort` ride along untrusted and `configCid` must be `""` (retired —
+  runners refuse deployments that set one, so a deployer can never attach
+  behavior the owner didn't review). A deployment BUYS two shares, both in
   1/1000ths: `gpuMilli` of one GPU card (VRAM + compute together; `0` = a
   CPU-only deployment) and `cpuMilli` of a node's vCPU+RAM (1..1000). The
   contract enforces `gpuMilli == 0 || gpuMilli >= cpuMilli` — a GPU app's CPU
@@ -323,11 +329,12 @@ the new enclave. This is the same no-trusted-gateway shape as discovery today.
 
 ## Open problems (known, deferred)
 
-- **Secrets.** `configCid` contents are public unless encrypted, and there is
-  no portable decryption key yet. v1: public config only. Candidates: a fleet
-  key negotiated over attested enclave-to-enclave channels (same measurement ⇒
-  mutual trust); or the owner re-posts secrets to the new runner via a
-  SIWE-authed endpoint after each failover (trustless but manual).
+- **Secrets.** App config is the version's on-chain record — public by
+  construction (and deployer-supplied config is retired entirely, so there is
+  no per-deployment secret channel at all). Candidates: a fleet key negotiated
+  over attested enclave-to-enclave channels (same measurement ⇒ mutual trust);
+  or the owner posts secrets to the runner via a SIWE-authed endpoint after
+  each claim (trustless but manual).
 - **SSH host keys.** Each enclave generates its sandbox host key at boot
   (RTMR-measured), so a failover changes the fingerprint; clients must re-pin.
   Only user keys (`sshPubKey`) are portable — enclave-minted user keys are

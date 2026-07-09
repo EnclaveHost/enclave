@@ -245,7 +245,7 @@ class Deployments extends EnclaveElement {
           '<span class="ap-badge ' + (d.public ? 'ep-public' : 'ep-private') + '" title="' + (d.public ? 'anyone can reach the app endpoint' : 'only your wallet token can reach the app') + '">' + (d.public ? 'public' : 'private') + '</span>' +
           '<button class="enc-id" data-copy="' + esc(d.id) + '">' + esc(d.id) + ' ⧉</button>' +
           '<span class="enc-br" aria-hidden="true"></span>' +
-          '<span class="enc-meta">' + esc(encTier(d)) + ((d.image && d.image.reference) ? ' · <span class="dim">' + esc(slugOfRef(d.image.reference) || shortImg(d.image.reference)) + '</span>' : '') + '</span>' +
+          '<span class="enc-meta">' + esc(encTier(d)) + ((d.app || (d.image && d.image.reference)) ? ' · <span class="dim">' + esc((d.app && d.app.slug ? d.app.slug + ":" + d.app.version : null) || slugOfRef(d.image.reference) || shortImg(d.image.reference)) + '</span>' : '') + '</span>' +
           '<span class="enc-spend">' + bud + '</span>' +
           '<span class="enc-acts">' +
             '<button class="btn btn-sm enc-outbtn" data-id="' + esc(d.id) + '">Output</button>' +

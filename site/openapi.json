@@ -255,7 +255,7 @@
         ],
         "operationId": "createDeployment",
         "summary": "Create a deployment (awaiting payment)",
-        "description": "RETIRED on Wasm enclaves - returns 410 `deploy_on_chain` with the on-chain coordinates. Deployments are created on the EnclaveDeployments contract (Base), not through this endpoint: the ledger holds the spec and the funded balance, so a deployment survives enclave updates and crashes (runners serve it under expiring leases; a dead runner's lease lapses and any enclave re-claims the work). Flow: (1) create(appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, sshPubKey, configCid) from YOUR wallet - msg.sender owns the record; the id is the Created event's first topic; shares are 1/1000ths and the app's catalog specs set the minimums runners will accept. (2) Fund it: fundWithAuthorization (EIP-3009 USDC ReceiveWithAuthorization signed to the contract, nonce prefixed with the id's first 16 bytes) or fundEth (credited at the contract's Chainlink ETH/USD read); funds forward to Enclave in the same tx, the credit lands in on-chain balance6. (3) Optionally POST /claim-hint {id} so the fleet claims immediately instead of on the ~60s sweep. Runners enforce the same catalog-approval gate (403-equivalent: unapproved CIDs are never claimed) and the same share minimums. GET /pricing carries the contract address, USDC EIP-712 domain, and an ETH/USD quote.",
+        "description": "RETIRED on Wasm enclaves - returns 410 `deploy_on_chain` with the on-chain coordinates. Deployments are created on the EnclaveDeployments contract (Base), not through this endpoint: the ledger holds the spec and the funded balance, so a deployment survives enclave updates and crashes (runners serve it under expiring leases; a dead runner's lease lapses and any enclave re-claims the work). Flow: (1) create(appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, sshPubKey, configCid) from YOUR wallet - appRef is catalog://<appId>/<versionIndex>, the on-chain record of the version to run (runners refuse CID refs: a CID names bytes, not a version); the version's record supplies the config, volumes and ports the owner approved, so leave configCid EMPTY (runners refuse deployments that set one) and ports/appPort ride along untrusted. msg.sender owns the record; the id is the Created event's first topic; shares are 1/1000ths and the app's catalog specs set the minimums runners will accept. (2) Fund it: fundWithAuthorization (EIP-3009 USDC ReceiveWithAuthorization signed to the contract, nonce prefixed with the id's first 16 bytes) or fundEth (credited at the contract's Chainlink ETH/USD read); funds forward to Enclave in the same tx, the credit lands in on-chain balance6. (3) Optionally POST /claim-hint {id} so the fleet claims immediately instead of on the ~60s sweep. Runners enforce the same catalog-approval gate (403-equivalent: unapproved CIDs are never claimed) and the same share minimums. GET /pricing carries the contract address, USDC EIP-712 domain, and an ETH/USD quote.",
         "requestBody": {
           "required": true,
           "content": {
@@ -288,7 +288,7 @@
             }
           },
           "403": {
-            "description": "App not approved (`not_approved`): the referenced catalog app version has not been approved by the catalog owner (or was rejected, yanked, or delisted). Only the EnclaveAppCatalog deployer can approve a version, by signing a setApproval transaction; until then its ipfs:// CID cannot be deployed.",
+            "description": "App not approved (`not_approved`): the referenced catalog app version has not been approved by the catalog owner (or was rejected, yanked, or delisted). Only the EnclaveAppCatalog deployer can approve a version, by signing a setApproval transaction; until then its record cannot be deployed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1176,7 +1176,7 @@
           },
           "volumes": {
             "type": "array",
-            "description": "Attested read-only model volumes this enclave carries (Tinfoil Modelwrap). A deployment attaches one or more by name (via its configCid JSON `volumes` field, or the console's volume picker); the runner mounts each read-only at /models/<name> inside the guest, so large model weights reach a tenant without riding the app wasm. On the fleet /availability, each entry also carries `endpoints`: which enclaves can mount it (a volume only lives where its enclave declares it).",
+            "description": "Attested read-only model volumes this enclave carries (Tinfoil Modelwrap). A version attaches one or more by name (the `volumes` key of its immutable, approval-covered config); the runner mounts each read-only at /models/<name> inside the guest, so large model weights reach a tenant without riding the app wasm. On the fleet /availability, each entry also carries `endpoints`: which enclaves can mount it (a volume only lives where its enclave declares it).",
             "items": {
               "type": "object",
               "properties": {
@@ -1303,8 +1303,8 @@
         "properties": {
           "reference": {
             "type": "string",
-            "description": "`ipfs://<cid>` (or a bare CID) of a wasi:http component whose version the catalog owner has APPROVED in the on-chain app catalog. Nothing else deploys: the enclave image ships no deployable apps, and unapproved or non-CID references are refused. No arbitrary registry pull.",
-            "example": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
+            "description": "`catalog://<appId>/<versionIndex>` - the on-chain record of a wasi:http component version the catalog owner has APPROVED in the app catalog. Nothing else deploys: the enclave image ships no deployable apps, CID references are refused (a CID names bytes, not a version - versions sharing bytes can differ in approved config), and the record supplies the wasm, config and ports. No arbitrary registry pull.",
+            "example": "catalog://0x06a4ac8d5440fcfc3c9a6a028d1704c8f878d53555ed12016d3c81de062ecc13/5"
           },
           "digest": {
             "type": "string",
@@ -1446,7 +1446,7 @@
         },
         "example": {
           "image": {
-            "reference": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
+            "reference": "catalog://0x06a4ac8d5440fcfc3c9a6a028d1704c8f878d53555ed12016d3c81de062ecc13/5"
           },
           "resources": {
             "gpuShare": 0.25,

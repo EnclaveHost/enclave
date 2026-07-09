@@ -281,29 +281,22 @@ def _resolve_cid(cid: str) -> pathlib.Path:
     return p
 
 
-# Per-deployment config (ENCLAVE_CONFIG): a small JSON object addressed by an IPFS
-# CID, fetched and hash-verified the same trustless way as the app wasm, then
-# handed to the guest. Kept tiny (a config, not a payload); the ceiling stops a
-# bad CID from streaming gigabytes. Returns the JSON text (as stored) or raises
-# ValueError - a config that won't fetch/verify/parse fails the launch loudly
-# rather than silently serving app defaults with the wrong shape.
+# Per-deployment config (ENCLAVE_CONFIG): the approved catalog version's config
+# JSON, sent inline on /vms by the supervisor (the chain record is the source —
+# the old configCid IPFS indirection is retired: a deployer-pinned CID could
+# carry ANY config, which defeated per-version approval). Must parse as JSON and
+# fit the ceiling, or the launch fails loudly rather than silently serving app
+# defaults with the wrong shape.
 CONFIG_MAX_BYTES = int(os.environ.get("ENCLAVE_CONFIG_MAX_BYTES", str(256 * 1024)))
 
 
-def _resolve_config(cid: str) -> str:
-    if ipfs_fetch is None:
-        raise ValueError("config CID given but run-by-CID is unavailable (ipfs_fetch missing)")
+def _validate_config(text: str) -> str:
+    if len(text.encode("utf-8")) > CONFIG_MAX_BYTES:
+        raise ValueError(f"config exceeds {CONFIG_MAX_BYTES} bytes")
     try:
-        data = ipfs_fetch.fetch_verified(cid, IPFS_GATEWAY, CONFIG_MAX_BYTES, IPFS_TIMEOUT)
-    except ValueError:
-        raise
-    except Exception as e:
-        raise ValueError(f"config fetch failed for {cid}: {e}")
-    try:
-        text = data.decode("utf-8")
         json.loads(text)                            # must parse; the app merges it over its defaults
     except Exception as e:
-        raise ValueError(f"config {cid} is not valid UTF-8 JSON: {e}")
+        raise ValueError(f"config is not valid JSON: {e}")
     return text
 
 
@@ -1252,7 +1245,7 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
 
 
 def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
-           mem_mb: int = 0, pspec=None, storage_mb=None, config_cid="", volumes=None,
+           mem_mb: int = 0, pspec=None, storage_mb=None, config="", volumes=None,
            egress="") -> dict:
     pspec = pspec or _parse_ports([])
     if storage_mb is None:
@@ -1318,23 +1311,25 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
         rec["status"], rec["error"] = "failed", str(e)
         return rec
 
-    # per-deployment config: fetch + verify before spawning (a bad config CID
-    # should fail the launch cleanly, not crash the tenant on first request)
+    # per-deployment config: the approved catalog version's config JSON, passed
+    # INLINE by the supervisor (it read the record straight off the chain — no
+    # IPFS hop, nothing deployer-controlled). Re-validated here so a malformed
+    # record fails the launch cleanly, not the tenant on first request.
     enclave_config = None
-    if config_cid:
+    if config:
         try:
-            enclave_config = _resolve_config(config_cid)
+            enclave_config = _validate_config(config)
         except ValueError as e:
             rec["status"], rec["error"] = "failed", str(e)
             return rec
 
     # attached model volumes: the request may name them two ways - an explicit
     # /vms `volumes` list (direct callers) and/or a `volumes` array in the
-    # verified config JSON (the deployment's configCid; how the console/API
-    # attach them without a contract change). Union both. A deployment asking
-    # for a volume this enclave doesn't carry fails the launch with a clear
-    # reason (the supervisor backs off; the claim gate keeps it from landing
-    # here when enclaves advertise their volumes).
+    # version's config JSON (owner-approved with the version; how catalog apps
+    # attach volumes). Union both. A deployment asking for a volume this
+    # enclave doesn't carry fails the launch with a clear reason (the
+    # supervisor backs off; the claim gate keeps it from landing here when
+    # enclaves advertise their volumes).
     want = list(volumes or [])
     if enclave_config:
         try:
@@ -1802,12 +1797,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if min_ggf and round(_num("gpuTflops") * 1000) < min_ggf:
             return self._json(422, {"error": f"app '{app_ref}' declares a minimum of {min_ggf / 1000} GPU TFLOPS; the request asks for less"})
         storage_mb = int(meta.get("storage_mb", DEF_STORAGE_MB))   # per-app /data cap; 0 opts out
-        config_cid = str(b.get("configCid") or "").strip()         # per-deployment ENCLAVE_CONFIG (verified in launch)
+        config = str(b.get("config") or "").strip()                # per-deployment ENCLAVE_CONFIG (the version's config, inline; validated in launch)
         egress = str(b.get("egress") or "").strip()                # per-deployment ENCLAVE_EGRESS (opaque SOCKS URL, forwarded verbatim)
         req_vols = b.get("volumes") or []                          # attached model volumes by name
         if not isinstance(req_vols, list):
             return self._json(400, {"error": "volumes must be a list of volume names"})
-        rec = launch(app_ref, b.get("name", ""), cpu_share, gpu_share, mem_mb, pspec, storage_mb, config_cid, req_vols, egress)
+        rec = launch(app_ref, b.get("name", ""), cpu_share, gpu_share, mem_mb, pspec, storage_mb, config, req_vols, egress)
         code = 201 if rec["status"] in ("starting", "running") else 500
         return self._json(code, _public(rec))
 

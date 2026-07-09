@@ -109,7 +109,7 @@ function apiServer() {
 // ABIs, and accepts real signed transactions (decoded + recorded for asserts)
 function rpcServer() {
   const depRecord = () => ({
-    id: ID, owner: OWNER, appRef: "ipfs://" + CID, ports: "http:8088", sshPubKey: "", configCid: "",
+    id: ID, owner: OWNER, appRef: "catalog://" + "0x" + "cd".repeat(32) + "/0", ports: "http:8088", sshPubKey: "", configCid: "",
     gpuMilli: 0, cpuMilli: 10, appPort: 8088, isPublic: true, active: true,
     createdAt: BigInt(Math.floor(Date.now() / 1000) - 60), rate: 6n,
     balance6: 2_000000n, spent6: 0n,
@@ -263,12 +263,12 @@ test("ls: merges the API view with on-chain queue items", async () => {
   assert.equal(rows.length, 1);                             // chain-only (unclaimed) row
   assert.equal(rows[0].id, ID);
   assert.equal(rows[0].status, "queued");
-  assert.match(rows[0].app, /^ipfs:\/\//);
+  assert.match(rows[0].app, /^catalog:\/\/0x[0-9a-f]{64}\/0$/);
 });
 
 test("deploy: create tx -> Created id, EIP-3009 fund bound to id, claim-hint, wait, URL", async () => {
   S.claimed = false; S.txs.length = 0;
-  S.apiDeployment = { id: ID, status: "running", image: { reference: "ipfs://" + CID },
+  S.apiDeployment = { id: ID, status: "running", image: { reference: `catalog://${APP_ID}/0` },
                       resources: { gpuShare: 0, cpuShare: 0.01 }, timeRemainingSec: 3600, public: true };
   const r = await run(["deploy", "hello-world:1", "--fund", "2"]);
   assert.equal(r.code, 0, r.err);
@@ -276,7 +276,7 @@ test("deploy: create tx -> Created id, EIP-3009 fund bound to id, claim-hint, wa
   const create = S.txs.find((t) => t.functionName === "create");
   assert.ok(create, "create tx sent");
   const [appRef, gpuMilli, cpuMilli, appPort, ports, isPublic] = create.args;
-  assert.equal(appRef, "ipfs://" + CID);                    // slug:version resolved via catalog
+  assert.equal(appRef, `catalog://${APP_ID}/0`);            // slug:version -> its on-chain version RECORD
   assert.equal(gpuMilli, 0);
   assert.equal(cpuMilli, 50);                               // app minimum: max(256MB/32GB, 10Gf/200Gf) -> 5%
   assert.equal(appPort, 8088);                              // from the version's http:8088

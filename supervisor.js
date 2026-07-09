@@ -719,7 +719,7 @@ async function dockerPull(ref) {
   if (err) throw new Error(`pull ${ref}: ${err.error}`);
 }
 
-async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort, ports, configCid }) {
+async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort, ports, config }) {
   // Two backends. "vm": hand the app reference to the app manager on VMMGR_URL
   // (the wasm-manager runs it as a `wasmtime serve` process; cpuShare is its
   // admission unit and sets the guest memory cap — cpuShare × node RAM;
@@ -744,9 +744,10 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort
         // cpuTflops: legacy field for managers pinned before the GFLOPS switch
         cpuTflops: round3(c * NODE_GFLOPS / 1000),
         appPort: appPort || 8080, name: deploymentId, ports: ports || [],
-        // per-deployment config CID: the manager fetches + verifies it and
-        // passes the JSON to the tenant as ENCLAVE_CONFIG (empty = app defaults)
-        configCid: configCid || "",
+        // the approved version's config JSON, verbatim from the catalog record
+        // (already validated by the publish path; the manager re-parses and
+        // passes it to the tenant as ENCLAVE_CONFIG; empty = app defaults)
+        config: config || "",
         // dedicated-IP egress: a per-deployment SOCKS URL the manager forwards
         // verbatim as the guest's ENCLAVE_EGRESS (empty when egress is off). The
         // token in it is minted from the enclave SECRET, so the manager never
@@ -1651,58 +1652,89 @@ function armPayTimer(rec) {
 }
 
 // ---- app approval (vm backend): catalog-gated deploys -----------------------
-// One eth_call resolves a CID to its listing + deployability flags.
-const CATALOG_ABI = [{ type: "function", name: "cidStatus", stateMutability: "view",
-  inputs: [{ name: "cid", type: "string" }],
-  outputs: [
-    { name: "listed",    type: "bool"    },
-    { name: "appId",     type: "bytes32" },
-    { name: "index",     type: "uint256" },
-    { name: "approval",  type: "uint8"   },   // 0 pending | 1 approved | 2 rejected
-    { name: "yanked",    type: "bool"    },
-    { name: "appActive", type: "bool"    },
-    // the version's exact minimum resources [vramMb, gpuGflops, memMb, cpuGflops]:
-    // a deploy asking for less on any axis is refused
-    { name: "res",       type: "uint32[4]" },
-  ] }];
-const BARE_CID_RE = /^(baf[a-z0-9]{10,}|Qm[1-9A-HJ-NP-Za-km-z]{20,})$/;
-// Gate a vm-backend app reference on catalog approval. Returns { ref, min }
-// (the reference to run, bare CIDs normalized to ipfs://, plus the version's
-// exact declared minimums { vramMb, gpuGflops, memMb, cpuGflops }) or
-// { error }. An RPC failure REJECTS the deploy (fail closed): this is the
+// A deployment references the CATALOG RECORD of the version it runs:
+//   catalog://<appId>/<versionIndex>
+// (Steven, 2026-07-09.) The wasm CID is a content address, NOT an app identity:
+// two versions may share bytes and differ entirely in approved config, and the
+// config alone changes behavior. So the record — never the deployer — is the
+// authority for everything the owner's approval covered: the wasm CID (now
+// just a fetch address), the config (ENCLAVE_CONFIG + volume mounts), the
+// ports, and the resource minimums. Version rows are append-only and
+// immutable, so the reference resolves to the same artifact forever; only the
+// deployability flags (approval / yanked / app active) are live, and they are
+// exactly what gets re-checked here on every claim, respawn and resume.
+const CATALOG_ABI = [
+  { type: "function", name: "getApp", stateMutability: "view",
+    inputs: [{ name: "appId", type: "bytes32" }],
+    outputs: [{ type: "tuple", components: [
+      { name: "appId", type: "bytes32" }, { name: "publisher", type: "address" },
+      { name: "slug", type: "string" }, { name: "name", type: "string" },
+      { name: "description", type: "string" }, { name: "versionCount", type: "uint32" },
+      { name: "createdAt", type: "uint64" }, { name: "updatedAt", type: "uint64" },
+      { name: "active", type: "bool" },
+    ] }] },
+  { type: "function", name: "getVersion", stateMutability: "view",
+    inputs: [{ name: "appId", type: "bytes32" }, { name: "index", type: "uint256" }],
+    outputs: [{ type: "tuple", components: [
+      { name: "cid", type: "string" }, { name: "version", type: "string" },
+      { name: "vramMb", type: "uint32" }, { name: "gpuGflops", type: "uint32" },
+      { name: "memMb", type: "uint32" }, { name: "cpuGflops", type: "uint32" },
+      { name: "createdAt", type: "uint64" }, { name: "verified", type: "bool" },
+      { name: "yanked", type: "bool" }, { name: "ports", type: "string" },
+      { name: "approval", type: "uint8" },  // 0 pending | 1 approved | 2 rejected
+      { name: "config", type: "string" },
+    ] }] },
+];
+const CATALOG_REF_RE = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/;
+const ZERO32 = "0x" + "0".repeat(64);
+// Gate a vm-backend app reference on catalog approval. Returns
+// { ref, wasmRef, config, ports, app: {appId,index,slug,version,publisher}, min }
+// or { error }. An RPC failure REJECTS the deploy (fail closed): this is the
 // enforcement point, so an outage must not waive it. The image ships NO
 // deployable apps (nn-demo.wasm inside it is solely the boot probe's fixture,
-// launched by the manager itself, never through this API), so approved store
-// CIDs are the only deploy surface — anything else is refused here, which
+// launched by the manager itself, never through this API), so approved catalog
+// records are the only deploy surface — anything else is refused here, which
 // also keeps bare paths under the manager's APPS_DIR (e.g. a cached
 // ipfs-<cid>.wasm) from dodging the approval check.
 const NO_MIN = { vramMb: 0, gpuGflops: 0, memMb: 0, cpuGflops: 0 };
 async function gateAppReference(reference) {
   const deny = (status, code, msg) => ({ error: { status, code, msg } });
-  let ref = String(reference || "").trim();
-  if (BARE_CID_RE.test(ref)) ref = "ipfs://" + ref;
-  const m = /^ipfs:\/\/([^/?#]+)/.exec(ref);
+  const ref = String(reference || "").trim();
+  const m = CATALOG_REF_RE.exec(ref);
   if (!m) {
-    return deny(422, "invalid_spec", "image.reference must be an ipfs://<cid> (or bare CID) listed in the app catalog.");
+    // ipfs:// and bare-CID references are RETIRED: a CID can belong to several
+    // versions with different approved configs, so it cannot name what to run.
+    return deny(422, "invalid_spec", "image.reference must be catalog://<appId>/<versionIndex> — the on-chain record of a catalog version. CID references are retired (a CID names bytes, not a version); redeploy from the console or CLI.");
   }
   if (!APP_CATALOG_ADDRESS)
     return deny(503, "approval_unavailable", "Catalog apps are disabled on this enclave: APP_CATALOG_ADDRESS is not configured, so approval cannot be verified.");
-  let st;
-  try {
-    st = await chainClient.readContract({ address: getAddress(APP_CATALOG_ADDRESS),
-      abi: CATALOG_ABI, functionName: "cidStatus", args: [m[1]] });
-  } catch (e) {
-    console.warn(`[approval] cidStatus(${m[1]}) failed: ${e.shortMessage || e.message}`);
+  const [appId, index] = [m[1], Number(m[2])];
+  const [ar, vr] = await Promise.allSettled([
+    chainClient.readContract({ address: getAddress(APP_CATALOG_ADDRESS),
+      abi: CATALOG_ABI, functionName: "getApp", args: [appId] }),
+    chainClient.readContract({ address: getAddress(APP_CATALOG_ADDRESS),
+      abi: CATALOG_ABI, functionName: "getVersion", args: [appId, BigInt(index)] }),
+  ]);
+  if (ar.status === "rejected") {
+    console.warn(`[approval] getApp(${appId}) failed: ${ar.reason?.shortMessage || ar.reason?.message}`);
     return deny(503, "catalog_unreachable", "Could not verify this app's approval against the on-chain catalog; try again shortly.");
   }
-  const [listed, , , approval, yanked, appActive, res] = st;
-  if (!listed)               return deny(403, "not_approved", "This CID is not listed in the app catalog. Publish it, then ask the catalog owner to approve it.");
-  if (!appActive)            return deny(403, "not_approved", "This app is delisted from the catalog.");
-  if (yanked)                return deny(403, "not_approved", "This version was yanked by its publisher.");
-  if (Number(approval) === 2) return deny(403, "not_approved", "This version was rejected by the catalog owner.");
-  if (Number(approval) !== 1) return deny(403, "not_approved", "This version is awaiting catalog-owner approval; it cannot be deployed yet.");
-  const [vramMb, gpuGflops, memMb, cpuGflops] = (res || []).map(Number);
-  return { ref, min: { vramMb: vramMb || 0, gpuGflops: gpuGflops || 0, memMb: memMb || 0, cpuGflops: cpuGflops || 0 } };
+  const a = ar.value;
+  if (!a || a.appId === ZERO32) return deny(403, "not_approved", "This appId is not in the app catalog.");
+  if (index >= Number(a.versionCount)) return deny(403, "not_approved", `App '${a.slug}' has no version index ${index} (it has ${a.versionCount}).`);
+  if (vr.status === "rejected") {   // index exists, so this is RPC trouble, not a bad ref
+    console.warn(`[approval] getVersion(${appId}, ${index}) failed: ${vr.reason?.shortMessage || vr.reason?.message}`);
+    return deny(503, "catalog_unreachable", "Could not verify this app's approval against the on-chain catalog; try again shortly.");
+  }
+  const v = vr.value;
+  if (!a.active)                 return deny(403, "not_approved", "This app is delisted from the catalog.");
+  if (v.yanked)                  return deny(403, "not_approved", `${a.slug}:${v.version} was yanked by its publisher.`);
+  if (Number(v.approval) === 2)  return deny(403, "not_approved", `${a.slug}:${v.version} was rejected by the catalog owner.`);
+  if (Number(v.approval) !== 1)  return deny(403, "not_approved", `${a.slug}:${v.version} is awaiting catalog-owner approval; it cannot be deployed yet.`);
+  return { ref, wasmRef: "ipfs://" + v.cid, config: v.config || "", ports: v.ports || "",
+           app: { appId, index, slug: a.slug, version: v.version, publisher: a.publisher },
+           min: { vramMb: Number(v.vramMb) || 0, gpuGflops: Number(v.gpuGflops) || 0,
+                  memMb: Number(v.memMb) || 0, cpuGflops: Number(v.cpuGflops) || 0 } };
 }
 
 app.post("/v1/deployments", authed, async (req, res) => {
@@ -1725,7 +1757,7 @@ app.post("/v1/deployments", authed, async (req, res) => {
              + "ledger holds the spec and balance, and runners hold expiring leases.",
       onchain: {
         contract: DEPLOYMENTS_ADDRESS || null, chainId: CHAIN_ID, usdc: USDC_ADDRESS,
-        createMethod: "create(string appRef, uint16 gpuMilli, uint16 cpuMilli, uint32 appPort, string ports, bool isPublic, string sshPubKey, string configCid) returns (bytes32 id)",
+        createMethod: "create(string appRef, uint16 gpuMilli, uint16 cpuMilli, uint32 appPort, string ports, bool isPublic, string sshPubKey, string configCid) returns (bytes32 id) — appRef is catalog://<appId>/<versionIndex> (runners refuse CID refs: a CID names bytes, not a version); leave configCid EMPTY and ports/appPort informational (the version's approved record decides all three)",
         fundMethod: "fundWithAuthorization(bytes32 id, address from, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes signature)",
         fundEthMethod: "fundEth(bytes32 id) payable",
         hint: "POST /v1/claim-hint {\"id\": \"0x…\"}",
@@ -1733,8 +1765,8 @@ app.post("/v1/deployments", authed, async (req, res) => {
     });
   }
   let image = (b.image && b.image.reference) ? b.image : { reference: DEFAULT_IMAGE };
-  // Approval gate (vm backend runs catalog apps): only ipfs:// CIDs whose
-  // version the catalog owner APPROVED may deploy. Checked before any
+  // Approval gate (vm backend runs catalog apps): only catalog://<appId>/<idx>
+  // records the catalog owner APPROVED may deploy. Checked before any
   // reservation so a refused app never holds capacity or a payment window. The
   // gate also returns the version's exact declared resources — they become the
   // request defaults and the floor a request may not undercut.
@@ -1857,8 +1889,9 @@ async function provisionTenant(rec) {
   try {
     const sp = await spawnContainer({ deploymentId: rec.id,
       gpuShare: rec.resources.gpuShare || 0, cpuShare: rec.resources.cpuShare,
-      image: rec.image, appPort: rec.network.port, ports: rec.firewall,
-      configCid: rec.configCid || "" });
+      image: { reference: rec.appWasm || (rec.image && rec.image.reference) },
+      appPort: rec.network.port, ports: rec.firewall,
+      config: rec.config || "" });
     rec._port = sp.internalPort; rec._sshPort = sp.sshPort;
     if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; }
     if (sp.portMap) rec.portMap = sp.portMap;   // logical -> actual (public: clients see their mapping)
@@ -2032,8 +2065,9 @@ async function respawnTenant(rec) {
   try {
     const sp = await spawnContainer({ deploymentId: rec.id,
       gpuShare: rec.resources.gpuShare || 0, cpuShare: rec.resources.cpuShare,
-      image: rec.image, appPort: rec.network.port, ports: rec.firewall,
-      configCid: rec.configCid || "" });
+      image: { reference: rec.appWasm || (rec.image && rec.image.reference) },
+      appPort: rec.network.port, ports: rec.firewall,
+      config: rec.config || "" });
     rec._port = sp.internalPort; rec._sshPort = sp.sshPort;
     if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; }
     if (sp.portMap) rec.portMap = sp.portMap;
@@ -2814,9 +2848,11 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
   const resume = leaseLive && d.runner === _enclaveId;
   if (leaseLive && !resume) return "another enclave holds a live lease";
   if (!resume && d.balance6 < d.rate) return "out of funded time - fund it and retry";
-  let firewall;
-  try { firewall = parseFirewall({ ports: d.ports ? String(d.ports).split(",") : [] }); }
-  catch (e) { return "port spec not servable: " + e.message; }  // mirrors the HTTP 422
+  // configCid is RETIRED: ENCLAVE_CONFIG comes from the approved version's own
+  // record (the deploy gate below). A deployment that carries one is refused —
+  // silently ignoring it would run something other than what its owner thinks.
+  if ((d.configCid || "").trim())
+    return "configCid is retired: the app's config comes from the approved catalog version itself — recreate the deployment without a configCid";
   // Routing: the deployment bought two shares. GPU work (gpuMilli > 0)
   // runs ONLY on GPU enclaves and must fit a card AND the node's cpu pool.
   // CPU-only work runs on CPU enclaves immediately; a GPU enclave bids on
@@ -2850,34 +2886,40 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
     if (slice.cpuShare > maxFreeCpu() + 1e-9) return "no free CPU capacity here right now";
   }
   const g = await gateAppReference(d.appRef);
-  if (g.error) return "app not deployable: " + g.error.msg;   // unapproved/unlisted CID (or catalog unreachable: fail closed)
+  if (g.error) return "app not deployable: " + g.error.msg;   // unapproved/unknown record (or catalog unreachable: fail closed)
   // the app's catalog specs set its MINIMUM shares on our hardware, gating
   // claims exactly like HTTP deploys: a deployment that bought less than
   // the app needs is nobody's work item
   const mins = minSharesOf(g.min);
   if (gpuShare < mins.gpuShare - 1e-9 || cpuShare < mins.cpuShare - 1e-9)
     return `below the app's minimum shares on this hardware (needs gpuShare ${round3(mins.gpuShare)} / cpuShare ${round3(mins.cpuShare)})`;
+  // The firewall is the VERSION's declared ports — part of what approval
+  // covered. The deployment's own ports field is ignored (create() still
+  // carries it for the ledger's benefit; the record is the authority).
+  let firewall;
+  try { firewall = parseFirewall({ ports: g.ports ? String(g.ports).split(",") : [] }); }
+  catch (e) { return "the version's port spec is not servable here: " + e.message; }
   if (background) {
-    tryClaim(d, g.ref, firewall, slice, { hinted, resume })
+    tryClaim(d, g, firewall, slice, { hinted, resume })
       .catch(e => console.warn(`[claim] hinted claim ${d.id} failed: ${e.shortMessage || e.message}`));
     return null;
   }
-  await tryClaim(d, g.ref, firewall, slice, { hinted, resume });
+  await tryClaim(d, g, firewall, slice, { hinted, resume });
   return null;
 }
 
 // Jitter de-syncs enclaves that saw the same queue state; the claimable()
 // re-check catches a claim that landed during the wait without paying for a
 // reverted tx. Losing the race anyway costs one reverted tx (cents on Base).
-async function tryClaim(d, ref, firewall, slice, { hinted = false, resume = false } = {}) {
+async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false } = {}) {
   if (!hinted && !resume) await new Promise(r => setTimeout(r, Math.random() * 5000));
   // Fetch + verify + cache the app BEFORE burning a lease: the launch's own
   // fetch then hits the manager's local cache instead of racing a 100MB+
   // IPFS transfer against the spawn window, and an unfetchable CID costs the
   // user nothing (no claim ever happens).
-  if (PROVISION_BACKEND === "vm" && /^ipfs:\/\//.test(ref)) {
+  if (PROVISION_BACKEND === "vm" && /^ipfs:\/\//.test(g.wasmRef)) {
     try {
-      const r = await vmReq("POST", "/prefetch", { image: ref }, 300_000);
+      const r = await vmReq("POST", "/prefetch", { image: g.wasmRef }, 300_000);
       if (r.status !== 200) throw new Error((r.body && (r.body.error || r.body.message)) || `HTTP ${r.status}`);
       if (r.body && r.body.seconds > 1) console.log(`[claim] ${d.id} prefetched ${r.body.bytes} bytes in ${r.body.seconds}s`);
     } catch (e) {
@@ -2891,7 +2933,7 @@ async function tryClaim(d, ref, firewall, slice, { hinted = false, resume = fals
     // it; the reboot wiped local state, not the chain) - no claim tx, just
     // pick the work back up
     console.log(`[claim] ${d.id} resuming our own live lease after a restart`);
-    await adopt(d, ref, firewall, slice);
+    await adopt(d, g, firewall, slice);
     return;
   }
   const open = await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
@@ -2914,7 +2956,7 @@ async function tryClaim(d, ref, firewall, slice, { hinted = false, resume = fals
     return;
   }
   await adopt({ ...d, leaseUntil: BigInt(until), runner: _enclaveId,
-                runnerOperator: claimSigner().account.address }, ref, firewall, slice);
+                runnerOperator: claimSigner().account.address }, g, firewall, slice);
 }
 
 // On-chain record -> local rec, then the SAME provisioning path as HTTP deploys.
@@ -2922,21 +2964,29 @@ async function tryClaim(d, ref, firewall, slice, { hinted = false, resume = fals
 // and clients resolving id -> runner -> endpoint from chain state need no
 // mapping. rec.owner is the on-chain owner address — SIWE tokens already carry
 // an address, so owner-only routes (status, ssh, delete) work unchanged.
-async function adopt(d, ref, firewall, slice) {
+async function adopt(d, g, firewall, slice) {
   if (deployments.has(d.id)) deployments.delete(d.id);      // terminal leftover from an earlier lease
   const gpu = slice.cpu ? allocCpu(slice.cpuShare) : allocGpu(slice.vramGb, slice.computeShare, slice.cpuShare);
   if (!gpu) {                                                // capacity vanished since the sweep checked
     releaseLease(d.id, "capacity vanished").catch(() => {}); // hand it back with the lease refunded
     return;
   }
+  // the version's declared http:N entry is the app port; the record decides
+  // (create()'s appPort field, like its ports field, is not consulted)
+  const httpFw = firewall.find((x) => x.startsWith("http:"));
+  const appPort = httpFw ? +httpFw.slice(5) : 8080;
   const rec = {
     id: d.id, owner: getAddress(d.owner), status: "claimed", public: d.isPublic, firewall,
-    image: { reference: ref }, command: [],
+    // image.reference is the CATALOG RECORD (the deployment's identity — the
+    // dashboard shows app.slug:app.version from it); the wasm CID in appWasm
+    // is only the manager's fetch address
+    image: { reference: g.ref }, command: [],
+    app: g.app, appWasm: g.wasmRef, config: g.config || "",
     // the two shares the deployment bought on-chain
     resources: slice.cpu
       ? { gpuShare: 0, cpuShare: slice.cpuShare }
       : { gpuShare: slice.gpuShare, cpuShare: slice.cpuShare, cardId: gpu.cardId },
-    network: { port: Number(d.appPort) || 8080, protocol: "https", endpoint: `${_advertisedEndpoint}/x/${d.id}` },
+    network: { port: appPort, protocol: "https", endpoint: `${_advertisedEndpoint}/x/${d.id}` },
     attestation: { available: true, vmTechnology: "intel-tdx", gpuTechnology: IS_GPU ? "nvidia-cc" : null, href: `/v1/deployments/${d.id}/attestation` },
     region: "tinfoil", createdAt: new Date(Number(d.createdAt) * 1000).toISOString(), startedAt: null,
     // the local clock only mirrors the CURRENT lease; the chain holds the rest
@@ -2950,14 +3000,10 @@ async function adopt(d, ref, firewall, slice) {
     _onchain: true, _leaseUntil: Number(d.leaseUntil), _renewing: false,
     _gpu: gpu, _gpuSpec: gpu.cpu ? null : { cardId: gpu.cardId, cardUuid: gpuCards[gpu.cardId]?.uuid || null, vramCapGb: gpu.vramGb, computeShare: gpu.computeShare },
     _port: 0, _sshPort: 0, _sshKeySource: "on-chain", _authorizedKey: (d.sshPubKey || "").trim(), _payTimer: null,
-    // per-deployment config: an IPFS CID of a JSON object the manager fetches,
-    // verifies against the CID, and hands the tenant as ENCLAVE_CONFIG. This is
-    // how one published app serves many models/keys (llm-chat reads it).
-    configCid: (d.configCid || "").trim(),
   };
   deployments.set(rec.id, rec); saveStateSoon();
   if (await provisionTenant(rec)) {
-    console.log(`[claim] ${rec.id} adopted: app=${ref} gpuShare=${round3(slice.gpuShare || 0)} cpuShare=${round3(slice.cpuShare)} `
+    console.log(`[claim] ${rec.id} adopted: app=${g.app.slug}:${g.app.version} (${g.ref}) gpuShare=${round3(slice.gpuShare || 0)} cpuShare=${round3(slice.cpuShare)} `
               + `lease until ${new Date(rec._leaseUntil * 1000).toISOString()}`);
   } else {
     // launch failed (bad wasm, manager 503, spawn timeout, ...): hand the
