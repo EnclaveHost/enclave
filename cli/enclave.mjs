@@ -403,22 +403,17 @@ async function chainDeployments(owner) { // owner=null -> all
   return owner ? _pageCache.filter((d) => d.owner.toLowerCase() === owner.toLowerCase()) : _pageCache;
 }
 
-// [publisher/]slug[:version] | bare CID | ipfs://… -> { ref, ver? } with the
-// same client-side resolution + approval gate the console applies (runners
-// re-check on their side; this just fails fast with a readable reason).
+// [publisher/]slug[:version] -> { ref: catalog://<appId>/<idx>, ver, app } with
+// the same resolution + approval gate the console applies (runners re-check on
+// their side; this just fails fast with a readable reason). The ref names the
+// on-chain VERSION RECORD — the authority for the wasm, config, and ports the
+// catalog owner approved. CIDs are refused: a CID names bytes, not a version
+// (several versions can share bytes and differ entirely in approved config).
 async function resolveAppRef(input) {
-  if (/^ipfs:\/\//i.test(input) || /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z0-9]{20,})$/.test(input)) {
-    const cid = input.replace(/^ipfs:\/\//i, "");
-    const [listed, , , approval, yanked, appActive, res] =
-      await read(DEFAULTS.APP_CATALOG_ADDRESS, CATALOG_ABI, "cidStatus", [cid]);
-    if (!listed) throw new Error(`CID ${cid} is not in the catalog — publish it first (enclave publish)`);
-    if (yanked) throw new Error(`CID ${cid} is yanked`);
-    if (!appActive) throw new Error(`the app owning CID ${cid} is deactivated`);
-    if (Number(approval) !== 1) throw new Error(`CID ${cid} is ${APPROVAL_WORD[Number(approval)] || "unapproved"} — runners only claim approved versions`);
-    return { ref: "ipfs://" + cid, ver: { vramMb: res[0], gpuGflops: res[1], memMb: res[2], cpuGflops: res[3], ports: "" } };
-  }
+  if (/^ipfs:\/\//i.test(input) || /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z0-9]{20,})$/.test(input))
+    throw new Error(`CIDs can't deploy — a CID names bytes, not a version. Deploy a [publisher/]slug:version from the catalog (enclave apps)`);
   const m = input.match(/^(?:([0-9a-zA-Z.]+|0x[0-9a-fA-F]{40})\/)?([a-z0-9][a-z0-9-]*)(?::(.+))?$/);
-  if (!m) throw new Error(`"${input}" is not an app reference ([publisher/]slug[:version], a CID, or ipfs://…)`);
+  if (!m) throw new Error(`"${input}" is not an app reference ([publisher/]slug[:version])`);
   const [, pubFilter, slug, verLabel] = m;
   let apps = (await catalogApps()).filter((a) => a.slug === slug && a.active);
   if (pubFilter) apps = apps.filter((a) => a.publisher.toLowerCase() === pubFilter.toLowerCase());
@@ -427,17 +422,18 @@ async function resolveAppRef(input) {
     throw new Error(`slug "${slug}" is published by ${apps.length} publishers — disambiguate as <publisher>/${slug}`);
   const app = apps[0];
   const versions = await readVersions(app.appId, app.versionCount);
-  let ver;
+  let vi;
   if (verLabel !== undefined) {
-    ver = versions.find((v) => v.version === verLabel && !v.yanked);
-    if (!ver) throw new Error(`app "${slug}" has no (un-yanked) version labeled "${verLabel}"`);
+    vi = versions.findIndex((v) => v.version === verLabel && !v.yanked);
+    if (vi < 0) throw new Error(`app "${slug}" has no (un-yanked) version labeled "${verLabel}"`);
   } else {
-    ver = [...versions].reverse().find((v) => !v.yanked && Number(v.approval) === 1);
-    if (!ver) throw new Error(`app "${slug}" has no approved version yet`);
+    vi = versions.findLastIndex((v) => !v.yanked && Number(v.approval) === 1);
+    if (vi < 0) throw new Error(`app "${slug}" has no approved version yet`);
   }
+  const ver = versions[vi];
   if (Number(ver.approval) !== 1)
     throw new Error(`${slug}:${ver.version} is ${APPROVAL_WORD[Number(ver.approval)]} — runners only claim approved versions`);
-  return { ref: "ipfs://" + ver.cid, ver, app };
+  return { ref: `catalog://${app.appId}/${vi}`, ver, app };
 }
 let _appsCache = null;
 async function catalogApps() {
@@ -749,21 +745,12 @@ async function cmdDeploy(rest) {
     : httpEntry ? parseInt(httpEntry.split(":")[1], 10) : 8080;
   const isPublic = f.private ? false : true;
   const sshPubKey = f["ssh-key"] ? fs.readFileSync(f["ssh-key"], "utf8").trim() : "";
-  let configCid = f["config-cid"] || "";
-  // the version's on-chain default config applies unless overridden with
-  // --config-cid (it was approved WITH the version - owner-vetted behavior;
-  // same as the deploy console pre-filling its App config box)
-  if (!configCid && ver && ver.config){
-    try {
-      const jr = await fetch(DEFAULTS.ipfsUpload.replace(/\/add-wasm$/, "/add-json"),
-        { method: "POST", headers: { "content-type": "application/json" }, body: ver.config });
-      const jj = await jr.json();
-      if (jr.ok && jj.cid){
-        configCid = jj.cid;
-        say(`applying the version's default config (pinned ${configCid}) — override with --config-cid`);
-      }
-    } catch (e) { /* best-effort: a deploy without the template still works */ }
-  }
+  // configCid is RETIRED: the appRef names the catalog version RECORD and the
+  // enclave applies that version's config (approved with it) straight from the
+  // chain. Runners refuse deployments that set a configCid.
+  if (f["config-cid"])
+    throw new Error("--config-cid is retired: the version's approved config applies automatically (it rides the catalog record). A different config = publish a new version.");
+  if (ver && ver.config) say("the version's approved config applies (from its on-chain record)");
 
   // price it before asking for money (same snapshot formula create() applies)
   const [pricePerSec6, cpuPricePerSec6] = await Promise.all([
@@ -788,7 +775,7 @@ async function cmdDeploy(rest) {
   // 1. create — the id is minted on-chain, read back from the Created event
   const rcpt = await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi: DEPLOYMENTS_ABI,
     functionName: "create",
-    args: [ref, gpuMilli, cpuMilli, appPort, portsCsv, isPublic, sshPubKey, configCid] });
+    args: [ref, gpuMilli, cpuMilli, appPort, portsCsv, isPublic, sshPubKey, ""] });
   const log = (rcpt.logs || []).find((l) => l.topics?.[0] === DEP_CREATED_TOPIC
     && l.address.toLowerCase() === DEFAULTS.DEPLOYMENTS_ADDRESS.toLowerCase());
   if (!log) throw new Error("create succeeded but no Created event in the receipt — inspect tx " + rcpt.transactionHash);
@@ -990,7 +977,7 @@ deployments
   deploy <app> --fund <usd>  create + fund + wait until live; prints the URL
          [--gpu 0..1] [--cpu 0..1]      shares of one card / one node (default: app minimums)
          [--fund-eth <eth>] [--private] [--port N] [--ports CSV]
-         [--ssh-key FILE] [--config-cid CID] [--no-wait]
+         [--ssh-key FILE] [--no-wait]
   ls                         your deployments — live, queued and unfunded
   status <id>                one deployment: state, lease, balance, URL
   logs <id> [-f] [--tail N]  the app's stdout/stderr (-f polls)
@@ -1006,7 +993,8 @@ catalog
 platform
   pricing | availability | gpu | account
 
-<app>  is  [publisher/]slug[:version], a bare CID, or ipfs://<cid>
+<app>  is  [publisher/]slug[:version] from the on-chain catalog (CIDs can't
+       deploy: a CID names bytes, not a version — config differs per version)
 <id>   is  the bytes32 deployment id (0x…), any unique 0x-prefix of it, or a legacy dep_… id
 
 Global: --json machine output · -x print every REST call + transaction ·

@@ -18,12 +18,12 @@ import { runlog } from "../core/runlog.js";
 import { payForRuntime } from "../core/fund.js";
 import { navigate } from "../boot.js";
 import { $, $$, esc, short, wait, fmtNum, fmtDur, hlJson, hlCode, copyText, showToast, statusCls, on } from "../core/util.js";
-import { APP_DOMAIN, DEPLOYMENTS_ADDRESS, IPFS_UPLOAD_URL, BASE_CHAIN, PRIVY_RDNS } from "../core/config.js";
+import { APP_DOMAIN, DEPLOYMENTS_ADDRESS, BASE_CHAIN, PRIVY_RDNS } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
 import { CARD_GB, NODE_VCPUS, NODE_RAM_GB, CARD_TFLOPS, NODE_GFLOPS, shareRates } from "../core/pricing.js";
 import { encCall, DEP_SEL, DEP_CREATED_TOPIC, APPROVAL, depGet, depRate6, depPrices6, rate6Of, waitReceipt } from "../core/chain.js";
 import { connectWallet, refreshWallet, ensureBaseChain, sendTx, usdcBalanceOf, ethBalanceOf, openBuyModal } from "../core/wallet.js";
-import { STORE, loadCatalog, REF_CACHE, PORTS_CACHE, MINS_CACHE, CONFIG_CACHE, looksFriendly, resolveAppRef, validPortsCsv } from "../core/catalog.js";
+import { STORE, loadCatalog, REF_CACHE, PORTS_CACHE, MINS_CACHE, CONFIG_CACHE, looksFriendly, resolveAppRef, catalogRef } from "../core/catalog.js";
 
 /* component handles (assigned in initDeploy) */
 let fleetList = null, volPicker = null;
@@ -51,13 +51,11 @@ function currentMins(){
   const input = ($("#cfgImage") ? $("#cfgImage").value : "").trim();
   return MINS_CACHE[input] || { gpuPct: 0, cpuPct: 1 };
 }
-/* The "App config" textarea: JSON the app receives as ENCLAVE_CONFIG. The
-   console pins it to IPFS at deploy and passes the CID as create()'s
-   configCid - users type config, never CIDs. This one object is the ONLY
-   carrier of the deployment's config: its `volumes` key names the model
-   volumes to mount, and the volume picker is just a form control that
-   edits that key in place. Returns { obj } (null = empty) or { err }
-   (malformed / not a JSON object). */
+/* The "App config" box shows the picked VERSION's config - the JSON the app
+   receives as ENCLAVE_CONFIG, straight from the on-chain record the owner
+   approved. Read-only: it rides the version, not the deployment (its
+   `volumes` key names the model volumes to mount; the picker mirrors it).
+   Returns { obj } (null = empty) or { err } (malformed record). */
 function readCfgConfig(){
   const raw = ($("#cfgConfig") && $("#cfgConfig").value || "").trim();
   if (!raw) return { obj: null };
@@ -67,24 +65,7 @@ function readCfgConfig(){
     return { obj: o };
   } catch(e){ return { err: "app config isn't valid JSON (" + e.message + ")" }; }
 }
-/* picker -> textarea: rewrite the config JSON's `volumes` key from the
-   ticks. False = the textarea holds something unparseable, nothing was
-   written (the caller undoes the tick). */
-let lastVols = [];   // the volumes the textarea last agreed to (undo state)
-function writeVolumesToCfg(){
-  const ta = $("#cfgConfig"); if (!ta) return true;
-  const raw = ta.value.trim();
-  let obj = {};
-  if (raw){
-    try { obj = JSON.parse(raw); } catch(e){ return false; }
-    if (!obj || Array.isArray(obj) || typeof obj !== "object") return false;
-  }
-  if (dep.volumes.size) obj.volumes = [...dep.volumes];
-  else delete obj.volumes;
-  ta.value = Object.keys(obj).length ? JSON.stringify(obj, null, 2) : "";
-  lastVols = [...dep.volumes];
-  return true;
-}
+let lastVols = [];   // the volumes of the picked version's config (the ticks mirror these)
 /* textarea -> picker: the ticks mirror the config JSON's `volumes` key
    (typed edits, applied templates, reset). Invalid JSON keeps the last
    agreed ticks - there's nothing readable to mirror yet. */
@@ -98,44 +79,32 @@ function syncVolsFromCfg(){
   if (volPicker) volPicker.requestRender();
 }
 function deployBody(){
-  // `image.reference` is the Wasm app to run: a catalog slug:version resolved to
-  // its ipfs://<cid> by resolveAppRef() (the enclave fetches + verifies those
-  // bytes against the CID). Raw CID input is refused - deploys need the listing.
+  // `image.reference` is the app to run: a catalog slug:version resolved to
+  // its catalog://<appId>/<idx> RECORD by resolveAppRef(). The record carries
+  // everything approval covered (wasm CID, config, ports); CIDs are refused.
   const body = { image: { reference: resolveAppRef($("#cfgImage").value).reference } };
   body.public = dep.public;   // public endpoint (anyone) vs private (owner token only)
-  // firewall: ports the app may bind (from the catalog via Use-in-Deploy; editable)
-  const fw = ($("#cfgPorts") && $("#cfgPorts").value || "").split(",").map(x => x.trim().toLowerCase()).filter(Boolean);
-  if (fw.length && !(fw.length === 1 && fw[0] === "http")) body.firewall = { ports: fw };
   const gp = dep.gpuEnclave ? Math.min(1, Math.max(0, Math.round(dep.gpuPct) / 100)) : 0;
   const cp = Math.min(1, Math.max(0.01, Math.round(dep.cpuPct) / 100));
   body.resources = { gpuShare: gp, cpuShare: cp };   // the two dials; the app's specs set the minimums
   // GPU attestation only exists when the deployment holds a card slice.
   if (gp > 0 && dep.gpuEnclave) body.attestationPolicy = { requireGpuAttestation: true };
-  // app config: ONE JSON (volume ticks already live in its `volumes` key),
-  // pinned to IPFS at deploy - its CID becomes the on-chain configCid,
-  // delivered to the app as ENCLAVE_CONFIG
-  const cfg = readCfgConfig();
-  if (cfg.err) body.config = "⚠ " + cfg.err;
-  else if (cfg.obj && Object.keys(cfg.obj).length) body.config = cfg.obj;
   body.region = "auto";
   return body;
 }
 function deployFetch(b){
-  const r = (b.image && b.image.reference) || "ipfs://…";
+  const r = (b.image && b.image.reference) || "catalog://<appId>/<versionIndex>";
   const g = Math.round(((b.resources && b.resources.gpuShare) || 0) * 1000);
   const c = Math.round(((b.resources && b.resources.cpuShare) || 0.05) * 1000);
-  const fw = (b.firewall && b.firewall.ports || []).join(",");
-  // the console pins the App config JSON to IPFS at deploy; by hand it's
-  // `ipfs add config.json` (or POST /add-json) and the CID goes here
-  const cc = b.config ? "<CID of your config JSON - ipfs add config.json>" : "";
   return '// Deployments are ON-CHAIN work items (EnclaveDeployments on Base): the ledger\n'
     + '// holds the spec + funded balance, so they survive enclave updates and crashes.\n'
     + '// 1) create() from your wallet - one tx; msg.sender owns the record:\n'
     + '//    create(appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, sshPubKey, configCid)\n'
-    + '//    configCid: optional IPFS CID of a JSON config the enclave verifies and\n'
-    + '//    hands the app as ENCLAVE_CONFIG (e.g. choose a model / set an API key).\n'
+    + '//    appRef names the on-chain catalog VERSION record - it carries the wasm,\n'
+    + '//    config (ENCLAVE_CONFIG + volumes) and ports the owner approved; CID refs\n'
+    + '//    are refused, ports/appPort ride along untrusted, configCid must be "".\n'
     + 'const { id } = await createOnChain("' + DEPLOYMENTS_ADDRESS + '",\n'
-    + '  ["' + r + '", ' + g + ', ' + c + ', 8080, "' + fw + '", ' + !!b.public + ', "", "' + cc + '"]);\n'
+    + '  ["' + r + '", ' + g + ', ' + c + ', 8080, "", ' + !!b.public + ', "", ""]);\n'
     + '//    id = topics[1] of the Created event in the receipt\n'
     + '// 2) fund it - credited to the on-chain balance (funds forward to Enclave):\n'
     + '//    fundWithAuthorization(id, …EIP-3009 USDC sig…)  or  fundEth(id) payable\n'
@@ -210,33 +179,18 @@ function note(lines){
 async function runDeploy(){
   const btn = $("#deployBtn"); if (btn.disabled) return;
   note([]);
-  // resolve a friendly slug:version -> ipfs://<cid> (may need to read the catalog first)
+  // resolve a friendly slug:version -> its catalog://<appId>/<idx> record (may need the catalog first)
   const raw = $("#cfgImage").value.trim();
   if (looksFriendly(raw) && !REF_CACHE[raw] && !STORE.loaded){
     note([["info", "[*] resolving " + raw + " from the catalog…"]]);
     try { await loadCatalog(); } catch(e){}
   }
   const rref = resolveAppRef(raw);
+  // resolveAppRef IS the pre-flight: it refuses unknown apps, yanked and
+  // unapproved versions (and CID input) with the same rules the enclave's
+  // claim gate applies to the catalog record - nothing else to re-scan.
   if (rref.error) return note([["warn", "[!] " + rref.error]]);
   if (rref.pending) return note([["warn", "[!] couldn’t reach the catalog to resolve " + raw + " - deploys need the on-chain listing; try again in a moment."]]);
-  const fwErr = validPortsCsv($("#cfgPorts") ? $("#cfgPorts").value : "");
-  if (fwErr) return note([["warn", "[!] open ports: " + fwErr]]);
-  // pre-flight the catalog gate BEFORE any wallet action: enclaves refuse
-  // yanked / unapproved / unlisted versions deterministically, so paying for
-  // one just parks USDC on an unclaimable deployment.
-  try {
-    if (!STORE.loaded){ try { await loadCatalog(); } catch(e){} }
-    const cid = String(rref.reference || "").replace(/^ipfs:\/\//, "");
-    let hit = null;
-    for (const a of (STORE.apps || [])) for (const v of (a.versions || [])) if (v && v.cid === cid){ hit = { a, v }; }
-    if (hit && hit.v.yanked)
-      return note([["warn", "[!] " + hit.a.slug + ":" + hit.v.version + " is YANKED by its publisher - enclaves will never claim it."],
-                   ["dimln", "    pick another version, or republish this CID as a new version (the catalog follows the newest listing), then deploy."]]);
-    if (hit && hit.v.approval !== APPROVAL.approved)
-      return note([["warn", "[!] " + hit.a.slug + ":" + hit.v.version + " is " + (hit.v.approval === APPROVAL.rejected ? "REJECTED" : "still PENDING approval") + " - enclaves only claim approved versions."]]);
-    if (!hit && STORE.loaded && STORE.apps.length)
-      return note([["warn", "[!] this CID isn't listed in the on-chain catalog - enclaves refuse unlisted apps. Publish it on the Apps page first."]]);
-  } catch(e){}
   const fund = parseFloat($("#cfgBudget").value) || 0;
   const dry = $("#dryRun") && $("#dryRun").checked;
 
@@ -247,17 +201,12 @@ async function runDeploy(){
   const cpuMilli = Math.round(Math.max(1, Math.min(100, dep.cpuPct))) * 10;
   const ports = ($("#cfgPorts") && $("#cfgPorts").value || "");
   const { portsCsv, appPort } = portsSpec(ports);
-  // the App config textarea: JSON only, refused loudly BEFORE any wallet step
-  const cfg = readCfgConfig();
-  if (cfg.err) return note([["warn", "[!] " + cfg.err]]);
-  const cfgObj = cfg.obj || {};
-  const hasCfg = Object.keys(cfgObj).length > 0;
 
   if (dry){
     const plan = [["warn", "// dry run: nothing is sent"]];
-    if (hasCfg) plan.push(["info", "0) app config " + JSON.stringify(cfgObj) + " -> the console pins it to IPFS and passes its CID as configCid"]);
-    plan.push(["p", "1) EnclaveDeployments.create(app, shares, ports) - one wallet tx; you own the record"],
-      ["dimln", "   create(\"" + rref.reference + "\", " + gpuMilli + ", " + cpuMilli + ", " + appPort + ", \"" + portsCsv + "\", " + dep.public + ", \"\", \"" + (hasCfg ? "<pinned config CID>" : "") + "\")"],
+    plan.push(["info", "0) config + volumes + ports ride the version's on-chain record (approved with it) - nothing is pinned or passed at deploy"]);
+    plan.push(["p", "1) EnclaveDeployments.create(app, shares) - one wallet tx; you own the record"],
+      ["dimln", "   create(\"" + rref.reference + "\", " + gpuMilli + ", " + cpuMilli + ", " + appPort + ", \"" + portsCsv + "\", " + dep.public + ", \"\", \"\")"],
       ["p", dep.asset === "ETH"
         ? "2) fundEth(id) with ≈ $" + fund + " of ETH - one wallet tx; credited on-chain"
         : "2) sign a " + fund + " USDC authorization (EIP-3009) + one fundWithAuthorization(id) tx - credited on-chain"],
@@ -270,7 +219,7 @@ async function runDeploy(){
   btn.disabled = true; const lbl = btn.textContent; btn.textContent = "working…";
   try {
     await deployOnChain({ reference: rref.reference, gpuMilli, cpuMilli, ports,
-      isPublic: dep.public, config: cfg.obj, fundUsd: fund, asset: dep.asset });
+      isPublic: dep.public, fundUsd: fund, asset: dep.asset });
   } finally {
     btn.disabled = false; btn.textContent = lbl;
   }
@@ -290,13 +239,13 @@ function portsSpec(raw){
    (concurrent-safe: every call gets its own runlog writer, so a fleet of
    deploys stream side by side). Resolves once funding lands - the claim/
    status watch continues detached, freeing the caller for the next deploy.
-   spec: { reference, gpuMilli, cpuMilli, ports (csv), isPublic,
-   config (JSON object - pinned to IPFS here; its `volumes` key names the
-   model volumes to mount) OR configCid (a pre-pinned CID, programmatic
-   callers), fundUsd, asset } */
+   spec: { reference (catalog://<appId>/<idx>), gpuMilli, cpuMilli,
+   ports (csv, informational - the version's record is what enclaves apply),
+   isPublic, fundUsd, asset }. Config/volumes ride the version's on-chain
+   record; deploys carry NO config (configCid is retired - enclaves refuse
+   deployments that set one). */
 export async function deployOnChain(spec){
   const fund = spec.fundUsd;
-  let configCid = spec.configCid || "";
   const { portsCsv, appPort } = portsSpec(spec.ports);
   const asset = spec.asset || "USDC";
   let w = null, detached = false;
@@ -325,33 +274,16 @@ export async function deployOnChain(spec){
       w.line("info", "    " + fund + " USDC ≈ " + fmtDur(fund / rate) + " of runtime at $" + (rate * 3600).toFixed(2) + "/hr");
     }
 
-    // 0) app config: ONE object (any picked volumes already sit in its
-    // `volumes` key), pinned to IPFS here - its CID rides create() and the
-    // enclave verifies the bytes before handing them to the app as
-    // ENCLAVE_CONFIG. A pre-pinned spec.configCid (programmatic callers)
-    // passes through when there's nothing to pin; typed config wins if both
-    // arrive (a CID is opaque - it can't be merged client-side).
-    const cfgObj = spec.config || {};
-    if (Object.keys(cfgObj).length){
-      w.line("p", "$ pin app config  (JSON -> IPFS -> configCid)");
-      if (configCid) w.line("warn", "    (a pre-pinned config CID was also passed - the config object wins; pin the merge yourself to combine)");
-      const jsonUrl = (IPFS_UPLOAD_URL || "").replace(/\/add-wasm$/, "/add-json");
-      if (!jsonUrl) throw new EnclaveError("app config needs the upload gateway; not configured here. Pin the JSON yourself (ipfs add config.json) and deploy with its CID via the API or CLI (--config-cid).", 0);
-      const pr = await fetch(jsonUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(cfgObj) });
-      const pj = await pr.json().catch(() => ({}));
-      if (!pr.ok || !pj.cid) throw new EnclaveError("config pin failed: " + (pj.error || ("HTTP " + pr.status)), 0);
-      configCid = pj.cid;
-      const vols = Array.isArray(cfgObj.volumes) ? cfgObj.volumes : [];
-      w.line("ok", "[✓] config pinned " + configCid + (vols.length ? "  (mounts: " + vols.join(", ") + " -> /models/…)" : ""));
-    }
-
-    // 1) create: one tx from YOUR wallet - msg.sender owns the on-chain record
+    // 1) create: one tx from YOUR wallet - msg.sender owns the on-chain record.
+    // No config step: the appRef names the catalog version RECORD, and the
+    // enclave takes config/volumes/ports straight from it (approval covered
+    // them; configCid stays empty - enclaves refuse deployments that set one).
     w.line("p", "$ EnclaveDeployments.create(…)  (wallet · one tx · you own the record)");
     w.line("info", "[*] confirm the create transaction in your wallet…");
     const cdata = encCall(DEP_SEL.create, [
       { t: "str", v: spec.reference }, { t: "uint", v: spec.gpuMilli }, { t: "uint", v: spec.cpuMilli },
       { t: "uint", v: appPort }, { t: "str", v: portsCsv }, { t: "bool", v: !!spec.isPublic },
-      { t: "str", v: "" }, { t: "str", v: configCid },
+      { t: "str", v: "" }, { t: "str", v: "" },
     ]);
     const chash = await sendTx(DEPLOYMENTS_ADDRESS, cdata);
     w.line("dimln", "  ↳ sent " + chash + " · waiting for confirmation…");
@@ -709,8 +641,8 @@ function applyUseInDeploy(){
     showToast("Deploy set to " + friendly + " (min " + mins.gpuPct + "% GPU / " + mins.cpuPct + "% CPU)"
             + (ports ? " · open ports " + ports : "") + (config ? " · config template applied" : ""));
   };
-  if (stash && stash.friendly === friendly && stash.cid){
-    REF_CACHE[friendly] = "ipfs://" + stash.cid;
+  if (stash && stash.friendly === friendly && stash.appId != null && stash.index != null){
+    REF_CACHE[friendly] = catalogRef(stash.appId, stash.index);
     PORTS_CACHE[friendly] = stash.ports || "";
     MINS_CACHE[friendly] = stash.mins;
     CONFIG_CACHE[friendly] = stash.config || "";
@@ -747,16 +679,14 @@ function initDeploy(){
   });
   renderAccessNote();
   ["#cfgImage", "#cfgBudget", "#cfgPorts"].forEach(s => { const el = $(s); if (el) el.addEventListener("input", renderDeploy); });
-  // the config textarea is the single carrier: typed edits drive the ticks…
+  // the config box mirrors the picked VERSION's config (read-only): its
+  // `volumes` key drives the ticks, and neither is deployer-editable — a
+  // different config/volume set means publishing (and approving) a new version
   const cc = $("#cfgConfig"); if (cc) cc.addEventListener("input", () => { syncVolsFromCfg(); renderDeploy(); });
-  // …and a tick edits the textarea (its `volumes` key). Malformed JSON can't
-  // be edited - undo the tick and say why, loudly, before any wallet step.
   if (volPicker) volPicker.addEventListener("change", () => {
-    if (!writeVolumesToCfg()){
-      dep.volumes.clear(); lastVols.forEach(n => dep.volumes.add(n));
-      volPicker.requestRender();
-      showToast("App config isn't valid JSON - fix it, then pick volumes");
-    }
+    dep.volumes.clear(); lastVols.forEach(n => dep.volumes.add(n));
+    volPicker.requestRender();
+    showToast("Volumes are set by the version's config (covered by its approval) - pick a version that attaches what you need, or publish a new one");
     renderDeploy();
   });
   $$(".console-tabs button").forEach(b => b.addEventListener("click", () => switchPane(b.dataset.pane)));

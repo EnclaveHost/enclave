@@ -147,16 +147,16 @@
           <input type="text" id="cfgImage" value="" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="my-app:1.0.0" />
         </div>
         <div class="field">
-          <label for="cfgPorts">Open ports <span class="dim">(the ports the app may bind · defaulted from the catalog by “Use in Deploy” · empty = standard web app)</span></label>
-          <input type="text" id="cfgPorts" value="" placeholder="empty · or http:8088, tcp:5432, udp:9053" spellcheck="false" autocapitalize="off" autocomplete="off" />
+          <label for="cfgPorts">Open ports <span class="dim">(declared by the version and covered by its approval · the enclave applies them from the on-chain record · empty = standard web app)</span></label>
+          <input type="text" id="cfgPorts" value="" placeholder="empty · set by the picked version" spellcheck="false" autocapitalize="off" autocomplete="off" readonly />
         </div>
         <div class="field" id="volField" hidden>
-          <label>Model volumes <span class="dim">(attested read-only weights the enclave carries · mounted at /models/&lt;name&gt; · a tick writes the App config's <code>volumes</code> key below - the config is the only carrier)</span></label>
+          <label>Model volumes <span class="dim">(attested read-only weights the enclave carries · mounted at /models/&lt;name&gt; · named by the version config's <code>volumes</code> key - fixed at publish, covered by approval)</span></label>
           <c-volume-picker></c-volume-picker>
         </div>
         <div class="field">
-          <label for="cfgConfig">App config <span class="dim">(optional · JSON the app receives as ENCLAVE_CONFIG · its <code>volumes</code> key names the model volumes to mount (the picker above edits it) · the console pins it to IPFS at deploy and its CID rides the on-chain record · e.g. an API key, or a model for llm-chat)</span></label>
-          <textarea id="cfgConfig" rows="3" placeholder='empty · or JSON, e.g. {"backend":"ggml","model_volume":"qwen2.5-0.5b"} - pinned to IPFS for you at deploy' spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+          <label for="cfgConfig">App config <span class="dim">(the version's config, shown for review · JSON the app receives as ENCLAVE_CONFIG · immutable once published and covered by the owner's approval - the enclave applies it straight from the on-chain record · different config = publish a new version)</span></label>
+          <textarea id="cfgConfig" rows="3" placeholder="empty · set by the picked version" spellcheck="false" autocapitalize="off" autocomplete="off" readonly></textarea>
         </div>
         <div class="field">
           <label>Access <span class="dim">(who can reach the app)</span></label>

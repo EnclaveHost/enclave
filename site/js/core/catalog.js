@@ -84,11 +84,17 @@ export const appVerified = (app) => { const i = defaultIdx(app); return i >= 0 &
 
 /* Resolve what the user typed into an `image.reference` the enclave understands.
    Humans type "[publisher/]slug:version"; we look it up in the on-chain catalog
-   and hand the enclave the app's `ipfs://<cid>` (unique because version labels are
-   unique per app). Raw CIDs are NOT accepted as input - deploys need the app's
-   on-chain metadata (specs, ports, approval), so unlisted bytes must be published
-   first. Returns {reference, label?, error?, pending?}. */
-export const REF_CACHE = {};    // friendly "slug:version" -> "ipfs://<cid>" (filled by Use-in-Deploy + lookups)
+   and hand the enclave `catalog://<appId>/<versionIndex>` — the on-chain RECORD
+   of that version. The record (not the deployer) carries everything approval
+   covered: wasm CID, config, ports, specs. CIDs are NOT app references - a CID
+   names bytes, and several versions (with different approved configs) can share
+   bytes. Returns {reference, label?, error?, pending?}. */
+export const catalogRef = (appId, index) => "catalog://" + appId + "/" + index;
+export const parseCatalogRef = (ref) => {
+  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(String(ref || "").trim());
+  return m ? { appId: m[1], index: +m[2] } : null;
+};
+export const REF_CACHE = {};    // friendly "slug:version" -> "catalog://<appId>/<idx>" (filled by Use-in-Deploy + lookups)
 export const PORTS_CACHE = {};  // friendly "slug:version" -> that version's firewall CSV (defaults the deploy)
 export const MINS_CACHE = {};   // friendly "slug:version" -> minimum dial positions { gpuPct, cpuPct } from its specs
 export const CONFIG_CACHE = {}; // friendly "slug:version" -> that VERSION's default/template config JSON (pre-fills the deploy form)
@@ -97,7 +103,7 @@ export function resolveAppRef(input){
   input = (input || "").trim();
   if (!input) return { reference: "", error: "Pick an app: slug:version from the Apps catalog." };
   if (input.startsWith("ipfs://") || /^(baf[a-z0-9]{10,}|Qm[1-9A-HJ-NP-Za-km-z]{20,})$/.test(input))
-    return { reference: input, error: "Raw CIDs can’t deploy - the enclave needs the app’s on-chain specs and approval. Publish it to the catalog first, then deploy its slug:version." };
+    return { reference: input, error: "CIDs can’t deploy - a CID names bytes, not a version (several versions can share bytes and differ in approved config). Deploy a slug:version from the Apps catalog." };
   if (!looksFriendly(input)) return { reference: input, error: "Not a slug:version reference. Deploys come from the on-chain catalog - pick an app on the Apps page." };
   if (REF_CACHE[input]) return { reference: REF_CACHE[input], label: input };
   let pub = null, rest = input;
@@ -110,23 +116,26 @@ export function resolveAppRef(input){
   if (pub) apps = apps.filter(a => a.publisher.toLowerCase() === pub);
   if (!apps.length) return { reference: input, label: input, error: "No catalog app '" + slug + "'" + (pub ? " by " + pub : "") + "." };
   if (apps.length > 1) return { reference: input, label: input, error: "Several publishers have '" + slug + "'; qualify it: <publisher>/" + slug + ":" + version };
-  const v = apps[0].versions.find(x => x.version === version && !x.yanked);
+  const vi = apps[0].versions.findIndex(x => x.version === version && !x.yanked);
+  const v = vi >= 0 ? apps[0].versions[vi] : null;
   if (!v) return { reference: input, label: input, error: "'" + slug + "' has no live version '" + version + "'." };
   if (v.approval !== APPROVAL.approved)
     return { reference: input, label: input, error: "'" + slug + ":" + version + "' " + (v.approval === APPROVAL.rejected ? "was rejected" : "isn’t approved yet") + " by the catalog owner; the enclave refuses to deploy it." };
-  REF_CACHE[input] = "ipfs://" + v.cid;
+  REF_CACHE[input] = catalogRef(apps[0].appId, vi);
   PORTS_CACHE[input] = v.ports || "";
   MINS_CACHE[input] = minPctsOf(v);   // the version's specs -> the dials' floors
   CONFIG_CACHE[input] = v.config || "";   // the version's default config template
   return { reference: REF_CACHE[input], label: input, mins: MINS_CACHE[input] };
 }
 
-// deployment rows show the human app name (slug:version) when the catalog can
-// resolve the CID - from the live STORE or the localStorage catalog cache -
-// falling back to the truncated ipfs:// reference.
+// deployment rows show the human app name (slug:version) resolved EXACTLY from
+// the row's catalog://<appId>/<idx> reference - from the live STORE or the
+// localStorage catalog cache. Legacy ipfs:// rows return null (the caller
+// falls back to the truncated reference): a CID can belong to several versions
+// with different approved configs, so naming one would be a guess.
 export function slugOfRef(ref){
-  const cid = String(ref || "").replace(/^ipfs:\/\//, "").trim();
-  if (!cid) return null;
+  const cr = parseCatalogRef(ref);
+  if (!cr) return null;
   const lists = [];
   if (Array.isArray(STORE.apps) && STORE.apps.length) lists.push(STORE.apps);
   try {
@@ -134,8 +143,9 @@ export function slugOfRef(ref){
     if (raw){ const j = JSON.parse(raw); if (j && Array.isArray(j.apps)) lists.push(j.apps); }
   } catch(e){}
   for (const apps of lists) for (const a of apps){
-    const vs = (a && a.versions) || [];
-    for (const v of vs) if (v && v.cid === cid) return a.slug + (v.version != null ? ":" + v.version : "");
+    if (!a || a.appId !== cr.appId) continue;
+    const v = (a.versions || [])[cr.index];
+    return a.slug + (v && v.version != null ? ":" + v.version : "#" + cr.index);
   }
   return null;
 }

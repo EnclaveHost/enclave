@@ -26,8 +26,10 @@ pragma solidity ^0.8.20;
 ///   - CID ownership: a wasm artifact belongs to the app that FIRST listed it —
 ///     no other app (any publisher, any slug) can ever list the same CID, so a
 ///     CID unambiguously maps into one lineage. The owning app MAY re-list its
-///     CID in a later version: that is the metadata fix (same bytes, corrected
-///     specs/ports), and the `cidStatus` deploy gate follows the NEWEST listing.
+///     CID in a later version: that is the metadata fix (same bytes, new
+///     config/specs/ports). A CID is NOT a version identity — versions sharing
+///     bytes can differ entirely in approved config — which is why deployments
+///     reference the version RECORD (appId + index), never a CID.
 ///
 /// Trust model (mirrors EnclaveRegistry: claims on-chain, verification off-chain):
 ///   - `verified` is an OPTIONAL owner-curated signal, set PER VERSION (you verify
@@ -35,13 +37,20 @@ pragma solidity ^0.8.20;
 ///     It does not gate execution; the CID does. The site can filter to verified.
 ///   - `approval` DOES gate deploys, set PER VERSION by the owner (the address
 ///     that deployed this catalog). Publishing stays permissionless, but a
-///     version starts Pending and runners refuse to deploy its CID until the
-///     owner signs a setApproval(..., Approved) transaction; Rejected is a
-///     standing "no". A new release starts Pending again — approval is of a
-///     specific CID, never of a lineage.
-///   - The phased "run-by-CID" deploy path references a chosen version as
-///     `image.reference = ipfs://<cid>`; runners resolve deployability in one
-///     call via `cidStatus(cid)`.
+///     version starts Pending and runners refuse to deploy it until the owner
+///     signs a setApproval(..., Approved) transaction; Rejected is a standing
+///     "no". A new release starts Pending again — approval is of a specific
+///     VERSION (its bytes, config, and ports together), never of a lineage.
+///   - Deployments reference a chosen version as its on-chain RECORD:
+///     `appRef = catalog://<appId>/<versionIndex>`. Runners resolve it with
+///     `getApp` + `getVersion` and take EVERYTHING approval covered from the
+///     record — the wasm CID (a fetch address, nothing more), the config
+///     (delivered verbatim as ENCLAVE_CONFIG; its `volumes` key mounts model
+///     volumes), and the ports. Version rows are append-only and immutable,
+///     so a record means the same artifact forever; only the deployability
+///     flags (approval / yanked / app active) are live, and runners re-check
+///     them on every claim. `cidStatus` remains as the publish-time
+///     CID-ownership pre-flight, not a deploy gate.
 contract EnclaveAppCatalog {
     struct App {
         bytes32 appId;        // keccak256(publisher, slug); stable identity across versions
@@ -70,13 +79,15 @@ contract EnclaveAppCatalog {
                               // else CSV of "http:N" / "tcp:N" / "udp:N" the app may bind
                               // (per version — a release can change its port needs)
         uint8   approval;     // deploy gate, owner-ruled: 0 Pending, 1 Approved, 2 Rejected
-        string  config;       // default/template deployment config (JSON): deploy consoles
-                              // pre-fill from it; deployers edit and the RESULT is pinned
-                              // + delivered as ENCLAVE_CONFIG. IMMUTABLE once published and
-                              // covered by this version's approval - behavior can never be
-                              // changed after the owner's ruling (a new config = a new
-                              // version = Pending again, same as ports/specs). APPENDED
-                              // LAST so rev-2 Version tuples are a strict prefix.
+        string  config;       // THE deployment config (JSON): runners deliver it verbatim
+                              // to the app as ENCLAVE_CONFIG, straight from this record
+                              // (its `volumes` key mounts model volumes). Not deployer
+                              // input - deploys carry no config of their own. IMMUTABLE
+                              // once published and covered by this version's approval -
+                              // behavior can never be changed after the owner's ruling
+                              // (a new config = a new version = Pending again, same as
+                              // ports/specs). APPENDED LAST so rev-2 Version tuples are
+                              // a strict prefix.
     }
     /// @dev CID -> owning version, for `cidStatus`. index1 is the version index + 1
     ///      so the zero value doubles as "CID not listed" (also enforces the global
@@ -98,8 +109,9 @@ contract EnclaveAppCatalog {
     uint256 private constant MAX_SLUG = 40;
     uint256 private constant MAX_NAME = 80;
     uint256 private constant MAX_DESC = 500;
-    uint256 private constant MAX_CONFIG = 4096;  // default-config JSON (a template, not the
-                                                 // deployment's config - that rides configCid)
+    uint256 private constant MAX_CONFIG = 4096;  // the version's ENCLAVE_CONFIG JSON (runners
+                                                 // apply it from this record; nothing rides the
+                                                 // deployment)
     uint256 private constant MAX_VER  = 32;
     uint256 private constant MAX_CID  = 100;
     uint32  private constant MAX_MB   = 1048576;   // 1 TB sanity bound on vramMb/memMb (the catalog
@@ -196,7 +208,7 @@ contract EnclaveAppCatalog {
     /// @dev A CID belongs to the app that FIRST listed it, forever: no other app
     ///      can ever list the same artifact, so a CID always maps into exactly
     ///      one lineage. The owning app may list it AGAIN in a later version —
-    ///      how metadata (specs, ports) gets fixed without touching the bytes —
+    ///      how metadata (config/specs/ports) gets fixed without touching the bytes —
     ///      and the reverse-lookup entry is then overwritten so `cidStatus`
     ///      follows the newest listing (the superseded version stays as history).
     function _reserveCid(string calldata cid, bytes32 appId) private view returns (bytes32 cidKey) {
@@ -271,11 +283,14 @@ contract EnclaveAppCatalog {
         emit VersionVerified(appId, index, v);
     }
 
-    /// @notice Owner ruling on a specific version: Approved unlocks API deploys of
-    ///         its CID, Rejected is a standing "no", Pending re-opens review.
+    /// @notice Owner ruling on a specific version: Approved unlocks deploys of
+    ///         its record, Rejected is a standing "no", Pending re-opens review.
     /// @dev Unlike `verified` (a curation signal), THIS gates deploys: runners
-    ///      refuse any CID whose version isn't Approved. Approval is per CID —
-    ///      a new release of the same app starts Pending and must be re-approved.
+    ///      refuse any version record that isn't Approved. Approval is per
+    ///      VERSION — the ruling covers its bytes, config, and ports together,
+    ///      and a new release of the same app starts Pending and must be
+    ///      re-approved (even a re-list of the same bytes: config changes
+    ///      behavior, so it is re-reviewed like any release).
     function setApproval(bytes32 appId, uint256 index, uint8 status) external {
         require(msg.sender == owner, "!owner");
         require(_exists[appId], "unknown app");
@@ -378,15 +393,15 @@ contract EnclaveAppCatalog {
     function numVersions(bytes32 appId) external view returns (uint256) { return _versions[appId].length; }
     function getVersion(bytes32 appId, uint256 index) external view returns (Version memory) { return _versions[appId][index]; }
 
-    /// @notice One-call deploy gate for runners: resolve a CID to its listing and
-    ///         the flags that decide deployability (deployable iff `listed`,
-    ///         `appActive`, not `yanked`, and approval == APPROVAL_APPROVED).
-    ///         Also returns the version's exact minimum resources — `res` =
-    ///         [vramMb, gpuGflops, memMb, cpuGflops] — so runners can refuse a
-    ///         deployment that asked for less than the app declares it needs.
-    ///         A CID its own app re-listed resolves to the NEWEST listing (each
-    ///         re-list starts approval at Pending again — a metadata change is
-    ///         re-reviewed like any release).
+    /// @notice Publish-time CID resolver: which lineage owns these bytes, and the
+    ///         newest listing's flags. Publishers pre-flight "is this CID already
+    ///         listed, and by whom" before a publishVersion tx (which would revert
+    ///         on another app's CID). NOT the deploy gate: deployments reference a
+    ///         version RECORD (appId + index) and runners gate on getVersion/getApp
+    ///         directly — a CID names bytes, and versions sharing bytes can differ
+    ///         entirely in approved config. A CID its own app re-listed resolves to
+    ///         the NEWEST listing (each re-list starts approval at Pending again —
+    ///         a metadata change is re-reviewed like any release).
     function cidStatus(string calldata cid) external view returns (
         bool listed, bytes32 appId, uint256 index, uint8 approval, bool yanked, bool appActive,
         uint32[4] memory res
