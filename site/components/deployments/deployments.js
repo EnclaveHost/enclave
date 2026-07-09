@@ -228,7 +228,7 @@ class Deployments extends EnclaveElement {
     if (count) count.textContent = list.length
       ? (counts.running + " running · " + list.length + " total" + (shown.length !== list.length ? " · " + shown.length + " shown" : ""))
       : "";
-    if (!list.length){ body.innerHTML = '<div class="enc-empty">No apps yet. <a href="apps/deploy">Deploy one →</a></div>'; return; }
+    if (!list.length){ body.innerHTML = '<div class="enc-empty">No apps yet. <a href="apps">Deploy one →</a></div>'; return; }
     if (!shown.length){ body.innerHTML = '<div class="enc-empty">Nothing here - pick another status tab or clear the search.</div>'; return; }
     body.innerHTML = shown.map(d => {
       const ep = appEndpoint(d), st = d.status || "–";
