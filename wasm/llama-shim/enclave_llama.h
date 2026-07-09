@@ -32,9 +32,30 @@ void *ell_load_model(const char *path, int32_t n_gpu_layers);
 void ell_free_model(void *model);
 int32_t ell_n_vocab(void *model);
 
+/* KV-cache element type for ell_new_context's type_k/type_v. Our OWN stable
+ * codes, mapped to ggml_type inside the shim (which owns the ggml.h include),
+ * so the Rust<->shim scalar ABI never tracks ggml's internal enum numbering. */
+enum ell_kv_type {
+    ELL_KV_F16  = 0,   /* default - matches llama_context_default_params() */
+    ELL_KV_Q8_0 = 1,   /* 8-bit; V-quant REQUIRES flash attention (see below) */
+    ELL_KV_Q4_0 = 2,   /* 4-bit; V-quant REQUIRES flash attention */
+    ELL_KV_F32  = 3,   /* full precision */
+};
+
+/* Flash Attention selector for ell_new_context's flash_attn. A quantized V
+ * cache (type_v != F16/F32) is only valid with FA ENABLED; llama.cpp aborts
+ * context creation otherwise. AUTO lets llama.cpp decide per model/backend. */
+enum ell_flash_attn {
+    ELL_FA_AUTO     = 0,   /* default */
+    ELL_FA_DISABLED = 1,
+    ELL_FA_ENABLED  = 2,
+};
+
 /* n_ctx 0 = the model's training context; n_batch = max tokens per ell_decode
- * call. NULL on failure. */
-void *ell_new_context(void *model, uint32_t n_ctx, uint32_t n_batch);
+ * call. type_k/type_v are ell_kv_type codes (0 = F16 default); flash_attn is an
+ * ell_flash_attn code (0 = AUTO). NULL on failure. */
+void *ell_new_context(void *model, uint32_t n_ctx, uint32_t n_batch,
+                      int32_t type_k, int32_t type_v, int32_t flash_attn);
 void ell_free_context(void *ctx);
 
 /* wipe the KV cache: next ell_decode starts a fresh sequence */

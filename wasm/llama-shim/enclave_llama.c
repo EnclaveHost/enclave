@@ -13,6 +13,7 @@
  */
 #include "enclave_llama.h"
 #include "llama.h"
+#include "ggml.h"
 #include "ggml-backend.h"
 
 #include <stdlib.h>
@@ -52,10 +53,30 @@ int32_t ell_n_vocab(void *model) {
     return llama_vocab_n_tokens(llama_model_get_vocab((const struct llama_model *)model));
 }
 
-void *ell_new_context(void *model, uint32_t n_ctx, uint32_t n_batch) {
+/* ell_kv_type code -> ggml_type; unknown falls back to F16 (the llama default). */
+static enum ggml_type ell_ggml_kv_type(int32_t t) {
+    switch (t) {
+        case ELL_KV_Q8_0: return GGML_TYPE_Q8_0;
+        case ELL_KV_Q4_0: return GGML_TYPE_Q4_0;
+        case ELL_KV_F32:  return GGML_TYPE_F32;
+        case ELL_KV_F16:
+        default:          return GGML_TYPE_F16;
+    }
+}
+
+void *ell_new_context(void *model, uint32_t n_ctx, uint32_t n_batch,
+                      int32_t type_k, int32_t type_v, int32_t flash_attn) {
     struct llama_context_params p = llama_context_default_params();
     p.n_ctx = n_ctx;
     if (n_batch) { p.n_batch = n_batch; }
+    p.type_k = ell_ggml_kv_type(type_k);
+    p.type_v = ell_ggml_kv_type(type_v);
+    switch (flash_attn) {
+        case ELL_FA_ENABLED:  p.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_ENABLED;  break;
+        case ELL_FA_DISABLED: p.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED; break;
+        case ELL_FA_AUTO:
+        default:              p.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_AUTO;     break;
+    }
     return llama_init_from_model((struct llama_model *)model, p);
 }
 
