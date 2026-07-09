@@ -219,7 +219,7 @@ class Deployments extends EnclaveElement {
     const body = this.querySelector(".enc-body"), count = this.querySelector(".enc-count");
     list = (list || []).slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
     this._list = list;
-    const counts = { all: list.length, running: 0, starting: 0, ended: 0, failed: 0 };
+    const counts = { all: list.length, running: 0, queued: 0, ended: 0, failed: 0 };
     list.forEach(d => { counts[bucketOf(d.status)]++; });
     $$(".enc-segs button", this).forEach(b => { const n = b.querySelector("b"); if (n) n.textContent = String(counts[b.dataset.bucket] || 0); });
     let shown = this._filter === "all" ? list.slice() : list.filter(d => bucketOf(d.status) === this._filter);
