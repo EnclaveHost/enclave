@@ -664,6 +664,12 @@ function initDeploy(){
   if (!$("#deploy")) return;
   fleetList = $("c-fleet-list");
   volPicker = $("c-volume-picker");
+  if (fleetList) {
+    // the component's ↻ button: the dials' caps and the fleet table show the
+    // same capacity, so refresh both (named refs = idempotent re-init)
+    fleetList.addEventListener("refresh", refreshAvailability);
+    fleetList.addEventListener("refresh", refreshFleet);
+  }
 
   $("#cfgGpuShare").addEventListener("input", e => { dep.gpuPct = parseFloat(e.target.value) || 0; renderDeploy(); });
   const cpuIn = $("#cfgCpuShare"); if (cpuIn) cpuIn.addEventListener("input", e => { dep.cpuPct = parseFloat(e.target.value) || 0; renderDeploy(); });

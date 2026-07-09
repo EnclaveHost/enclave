@@ -48,6 +48,9 @@ async function refreshFleet(){
 
 export function boot() {
   refreshFleet();
+  // the component's ↻ button: re-fetch on demand (named ref = idempotent re-boot)
+  const fl = document.querySelector(".dash-fleet c-fleet-list");
+  if (fl) fl.addEventListener("refresh", refreshFleet);
   if (!_fleetPoll) _fleetPoll = setInterval(() => {
     if (document.querySelector('section[data-view="dashboard"]')) refreshFleet();
   }, 20000);
