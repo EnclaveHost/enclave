@@ -221,6 +221,16 @@ containers:
       - NODE_HAS_GPU: "1"           # GPU node: catalog apps with vram_mb > 0 may launch here (CPU flavor sets "0")
       - GPU_VRAM_GB: "141"          # VRAM budget base: a tenant's MPS mem limit = gpuShare × this
       - CUDA_MPS_PIPE_DIRECTORY: "/tmp/nvidia-mps"
+      # ggml (GGUF) context window for EVERY GPU tenant on this node (the manager
+      # inherits this into each -S nn-graph wasmtime process; there is no
+      # per-deployment override). 131072 = 128K tokens. The KV cache is f16 and
+      # allocated up front for the full window, so it scales with the model:
+      # ~13 GB for the 122B (48 layers × 2 KV heads × 256 head-dim) on top of its
+      # ~60 GB weights - a 122B deployment MUST buy a >=56% GPU share or context
+      # allocation fails loudly ("n_ctx too large for the share"). Small models
+      # (qwen2.5-0.5b) pay only ~1.6 GB, harmless. Lower this if the node should
+      # not carry the big-context cost by default.
+      - ENCLAVE_GGML_N_CTX: "131072"
       # each app's memory cap is its deployment's cpuShare × NODE_RAM_GB
       # (>= the mem_mb its specs declare); WASM_APP_MIN_MEM_MB (64) is the floor
       # friendly name -> the model's auto-mount path. Tinfoil mounts each
