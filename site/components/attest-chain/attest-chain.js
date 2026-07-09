@@ -10,15 +10,16 @@ import { hlJson, hlCode, copyText } from "../../js/core/util.js";
    titles/descriptions live in the TEMPLATE so the build can prerender them) */
 const LINKS = [
   { fn: "policy.json",
-    j: { tdx: { mrtd: "0x5a3c…91ef", minTcb: "2026.05" }, gpu: { approvedDrivers: ["565.57.01"], approvedVbios: ["96.00.AE.00.01"] } } },
+    j: { sevSnp: { measurement: "1260788e…f879d384", minTcb: "2026.05" }, gpu: { approvedDrivers: ["580.126.20"], approvedVbios: ["96.00.D0.00.03"] } } },
   { fn: "vm.json",
-    j: { technology: "intel-tdx", quote: "BAACAIEAAAAA…", measurements: { mrTd: "5a3c…91ef", rtmr0: "83d5…44aa", rtmr1: "12fc…09b3", rtmr2: "0000…0000", rtmr3: "9f86…0a08" }, reportData: "4b8c…e2a1" } },
+    j: { technology: "amd-sev-snp", quote: "AwAAAAAAAAAA…", measurements: { measurement: "1260788e…f879d384" }, reportData: "beff22c9…e2978a4a",
+         app: { kind: "ipfs", cid: "bafybeib…q2d4", verifiedAgainstCid: true, coverage: "bytes hash-verified in-enclave against this CID; the CID itself is not in a hardware register" } } },
   { fn: "gpu.json",
     j: { technology: "nvidia-cc", ccMode: "on", driverVersion: "565.57.01", nonce: "e37b…52c9", report: "SFVMQ…", certChain: "LS0tL…" } },
   { fn: "tls.json",
     j: { tlsKeyFingerprint: "sha256:4b8c…e2a1", boundTo: "reportData[0:32] = sha256(TLS pubkey SPKI)" } },
   { fn: "verify.js",
-    code: "import { Verifier } from '@tinfoilsh/verifier';\n// or from a shell: tinfoil attestation verify -e <enclave-host> -r <repo>\n\nconst att = await (await fetch(`/v1/attestation`)).json(); // public: verify BEFORE login\natt.verification.selfCheck;          // enclave's own diagnostic: useful, but not trust\n\nawait new Verifier({\n  serverURL:  new URL(att.verification.attestationEndpoint).origin,\n  configRepo: att.verification.repo, // exact GitHub casing; Sigstore compares verbatim\n}).verify();  // hardware report → vendor root · Sigstore release provenance · measurements match\n\npinTls(att.tlsKeyFingerprint);       // only now: connect" }
+    code: "import { Verifier } from '@tinfoilsh/verifier';\n// or from a shell: tinfoil attestation verify -e <enclave-host> -r EnclaveHost/enclave\n\nconst att = await (await fetch(`/v1/attestation`)).json(); // public: verify BEFORE login\natt.verification.selfCheck;          // enclave's own diagnostic: useful, but not trust\n\nawait new Verifier({\n  serverURL:  new URL(att.verification.attestationEndpoint).origin,\n  configRepo: att.verification.repo, // exact GitHub casing; Sigstore compares verbatim\n}).verify();  // hardware report → vendor root · Sigstore release provenance · measurements match\n\npinTls(att.tlsKeyFingerprint);       // only now: connect" }
 ];
 
 class AttestChain extends EnclaveElement {

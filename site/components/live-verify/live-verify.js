@@ -11,10 +11,18 @@ import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 const LV_STEP_ORDER = ["fetchDigest", "verifyEnclave", "verifyCode", "compareMeasurements", "verifyCertificate"];
 const LV_LABELS = {
   fetchDigest:         "fetch attestation, signed release digest + Sigstore bundle",
-  verifyEnclave:       "verify Intel TDX quote (DCAP chain → Intel root of trust)",
+  verifyEnclave:       "verify hardware report (chain to the silicon vendor's root of trust)",
   verifyCode:          "verify release provenance (Sigstore: Fulcio + Rekor)",
   compareMeasurements: "compare signed code measurement to live enclave measurement",
   verifyCertificate:   "bind the served certificate to the attested report",
+};
+/* name the technology the enclave ACTUALLY presented - the label must never
+   describe a different vendor's chain than the one the verifier walked */
+const verifyEnclaveLabel = (att) => {
+  const t = att && att.vm && att.vm.technology;
+  return t === "amd-sev-snp" ? "verify AMD SEV-SNP report (VCEK chain → AMD root of trust)"
+       : t === "intel-tdx"   ? "verify Intel TDX quote (DCAP chain → Intel root of trust)"
+       : LV_LABELS.verifyEnclave;
 };
 
 class LiveVerify extends EnclaveElement {
@@ -36,7 +44,8 @@ class LiveVerify extends EnclaveElement {
       const att = await Enclave._req("GET", "/attestation");
       const vspec = vspecOf(att);
       if (!vspec) throw new Error("attestation is missing the verification block");
-      status("verifying in your browser … (fetches Intel + Sigstore material, takes a few seconds)");
+      status("verifying in your browser … (fetches vendor + Sigstore material, takes a few seconds)");
+      const labels = { ...LV_LABELS, verifyEnclave: verifyEnclaveLabel(att) };
       const r = await verifyEnclaveInBrowser(vspec);
       const cliEl = this.querySelector(".lv-cli"); if (cliEl) cliEl.textContent = "tinfoil attestation verify -e " + r.host + " -r " + r.repo;
       const doc = r.doc;
@@ -46,7 +55,7 @@ class LiveVerify extends EnclaveElement {
         const li = document.createElement("li");
         li.className = cls;
         li.innerHTML = '<span class="st">' + (cls === "ok" ? "✓" : cls === "bad" ? "✗" : "·") + '</span><span>'
-          + esc(LV_LABELS[k]) + (st && st.error ? ': <span class="err">' + esc(st.error) + "</span>" : "") + "</span>";
+          + esc(labels[k]) + (st && st.error ? ': <span class="err">' + esc(st.error) + "</span>" : "") + "</span>";
         steps.appendChild(li);
       });
       if (r.ok) {

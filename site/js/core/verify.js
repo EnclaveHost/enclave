@@ -2,13 +2,15 @@
    Live in-browser enclave verification (@tinfoilsh/verifier).
    Shared core for the Overview attest widget and the Deploy
    page's per-deployment console badge. Runs the full client-side
-   check: Intel TDX quote → DCAP chain → Intel root of trust,
-   Sigstore provenance of the release, measurement comparison,
-   certificate binding, in THIS browser, cached per enclave+repo
-   for the session. (The verifier follows whatever quote the
-   enclave presents; this fleet runs Intel TDX + NVIDIA CC.) The API's verification.selfCheck is the enclave
-   running the same steps on itself; this is the version that
-   actually carries trust.
+   check: hardware report → vendor cert chain → silicon root of
+   trust, Sigstore provenance of the release, measurement
+   comparison, certificate binding, in THIS browser, cached per
+   enclave+repo for the session. (The verifier follows whatever
+   report the enclave presents; today's fleet presents AMD
+   SEV-SNP + NVIDIA CC, and Intel TDX quotes verify the same
+   way should a host land on Intel silicon.) The API's
+   verification.selfCheck is the enclave running the same steps
+   on itself; this is the version that actually carries trust.
    ============================================================ */
 export const LV_VERIFIER_URL = "https://esm.sh/@tinfoilsh/verifier@1.1.7?bundle";
 

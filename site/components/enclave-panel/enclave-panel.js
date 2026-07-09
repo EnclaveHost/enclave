@@ -1,13 +1,19 @@
 /* ============================================================
    <c-enclave-panel> - the hero's sealed-enclave visual: a
    particle canvas inside a dashed boundary, periodically swept
-   by a "measurement" that rolls the fake rtmr3 hash.
+   by a "measurement". The hash shown is the REAL launch
+   measurement fetched from the live fleet's /attestation (a page
+   about published measurements must not display an invented one);
+   the sweep re-affirms it, because re-measuring a sealed enclave
+   yields the same digest.
    ============================================================ */
 import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
+import { Enclave } from "../../js/core/api.js";
 
-const HEXC = "0123456789abcdef";
-const hex = (n) => { let s = ""; for (let i = 0; i < n; i++) s += HEXC[(Math.random() * 16) | 0]; return s; };
-const fmtHash = () => "0x" + hex(4) + "…" + hex(4);
+const shortHash = (h) => {
+  h = String(h || "").replace(/^0x/, "");
+  return /^[0-9a-f]{16,}$/i.test(h) ? h.slice(0, 6) + "…" + h.slice(-6) : null;
+};
 
 class EnclavePanel extends EnclaveElement {
   static templateUrl = new URL("./enclave-panel.html", import.meta.url);
@@ -65,7 +71,7 @@ class EnclavePanel extends EnclaveElement {
         ctx.fillStyle = g; ctx.fillRect(PAD, y - 16, W - 2 * PAD, 32);
         ctx.strokeStyle = "rgba(143,162,255,.85)"; ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W - PAD, y); ctx.stroke();
         sweep += 0.02;
-        if (sweep > 1) { sweep = -1; $("#measureHash").textContent = fmtHash();
+        if (sweep > 1) { sweep = -1; if (liveHash) $("#measureHash").textContent = liveHash;
           const st = $("#enclaveState"); if (st) st.textContent = "sealed"; }
       }
       if (!reduce) requestAnimationFrame(frame);
@@ -79,7 +85,19 @@ class EnclavePanel extends EnclaveElement {
       if (seedW !== W || seedH !== H) seed();
       if (reduce) frame();
     }
-    size(); seed(); $("#measureHash").textContent = fmtHash();
+    // the real fleet measurement (SEV-SNP launch digest; rtmr3/mrTd on a TDX
+    // host). No invented fallback: if the API is unreachable we say so.
+    let liveHash = null;
+    Enclave._req("GET", "/attestation").then((att) => {
+      const m = (att && att.vm && att.vm.measurements) || {};
+      liveHash = shortHash(m.measurement || m.rtmr3 || m.mrTd);
+      const el = $("#measureHash");
+      if (!el) return;
+      if (liveHash) { el.textContent = liveHash; el.title = "live from " + Enclave.base + "/attestation - run the full check in the Root of trust section"; }
+      else el.textContent = "unavailable";
+    }).catch(() => { const el = $("#measureHash"); if (el) el.textContent = "api unreachable"; });
+
+    size(); seed();
     if (reduce) { frame(); }
     else { requestAnimationFrame(frame); setTimeout(tick, 1600); }
     let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(revive, 150); });

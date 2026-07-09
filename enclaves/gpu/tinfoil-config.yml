@@ -82,7 +82,8 @@ containers:
       # app approval gate: EnclaveAppCatalog (read-only, written by scripts/deploy-app-catalog.mjs).
       # ipfs:// app deploys are REFUSED unless the catalog owner has Approved that
       # version (setApproval tx signed by the catalog's deployer key). Empty =
-      # catalog apps can't deploy at all; baked-in ids still can (attested image).
+      # nothing can deploy (the image ships no deployable apps; the one baked
+      # .wasm is the boot probe's fixture, not reachable through the API).
       - APP_CATALOG_ADDRESS: "0x21F2798A51F5970dD43A5D8fAdA48b1b8D59cc67"                          # set after deploying EnclaveAppCatalog.sol (must be on CHAIN_ID's chain, read via BASE_RPC)
       - PAYMENT_WINDOW_SEC: "600"                        # unpaid deployments release the reservation
       - GRACE_SEC: "90"                                  # grace after expiry before teardown (top-up window)
@@ -189,8 +190,10 @@ containers:
   # (PROVISION_BACKEND="vm") speaks the SAME /vms contract and proxies /x/:id to
   # the app's loopback port. No privileged, no netns, no cgroups.
   #
-  # The app catalog is baked into the image (apps/*.wasm + catalog.json), so what
-  # runs is exactly what Tinfoil attested. Apps are wasi:http components.
+  # NO deployable apps ship in the image (the one baked .wasm is the boot
+  # probe's fixture): tenant apps arrive as ipfs://<cid>, fetched and
+  # hash-verified against the CID in-enclave by this manager, gated by the
+  # on-chain catalog approval. Apps are wasi:http components.
   # wasi-nn GPU interface: this container holds the card because tenant
   # wasmtime processes ARE the CUDA processes — a deployment that buys a GPU
   # share is launched with `-S nn` and runs ONNX inference through the host's
@@ -223,7 +226,7 @@ containers:
       # (name:path:file.gguf) picks WHICH gguf preloads as the wasi-nn graph
       # when the repo ships several quantizations - the manager stages the
       # pick as a symlink dir, so the mpk-<hash> mount name never matters.
-      - MODEL_VOLUMES: "qwen2.5-0.5b:/tinfoil/mpk/mpk-e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4,qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-d02f1afc0eee60adc4da2a541c8e095c9cff347b4f3996c2950ff84c676c1c70:qwen2.5-0.5b-instruct-q4_k_m.gguf"
+      - MODEL_VOLUMES: "qwen2.5-0.5b:/tinfoil/mpk/mpk-e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4,qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-d02f1afc0eee60adc4da2a541c8e095c9cff347b4f3996c2950ff84c676c1c70:qwen2.5-0.5b-instruct-q4_k_m.gguf,qwen3.5-122b-gptq:/tinfoil/mpk/mpk-bf4170f5b6cca9be54bd809d0d8eecfaa9dfc91406a29321ba4f575aeb152b14"
     # SECRET doubles as the manager's control-plane token (VMMGR_TOKEN): tenants
     # hold outbound HTTP to loopback, so the control API on :8091 must reject
     # calls that don't carry it (the supervisor sends X-Vmmgr-Token). The tenant
@@ -260,6 +263,14 @@ models:
   - name: "qwen2.5-0.5b-gguf"
     repo: "Qwen/Qwen2.5-0.5B-Instruct-GGUF@9217f5db79a29953eb74d5343926648285ec7e67"
     mpk: "d02f1afc0eee60adc4da2a541c8e095c9cff347b4f3996c2950ff84c676c1c70_5372555264_5600f8a0-1cd0-5dc9-a32c-7a110e14da28"
+  # Official Qwen3.5-122B-A10B GPTQ-Int4 repo: safetensors shards (~79 GB, fits
+  # a single H200 at ~56% VRAM), ships its own tokenizer.json. NO *.gguf in the
+  # repo, so the manager mounts + advertises it but preloads no wasi-nn graph -
+  # the ggml (llama.cpp) path needs a GGUF quant, and the ONNX path can't read
+  # GPTQ either. Until a GGUF volume exists, nothing in this flavor can run it.
+  - name: "qwen3.5-122b-gptq"
+    repo: "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4@30cd92cba9707a9aba09d1e490ed4b66b78e9606"
+    mpk: "bf4170f5b6cca9be54bd809d0d8eecfaa9dfc91406a29321ba4f575aeb152b14_78905511936_33368d45-e87a-5b1e-b939-a7710858f087"
 
 # Single ingress → supervisor. Only these paths are reachable from outside.
 shim:

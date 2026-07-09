@@ -2,7 +2,7 @@
   <div class="lv-h">
     <div class="lv-txt">
       <h4>Don't take this page's word for it: run the check now</h4>
-      <p>Your browser loads Tinfoil's open-source verifier (<code>@tinfoilsh/verifier</code>), fetches the enclave's attestation over your own connection, validates the Intel TDX quote up to Intel's root of trust, verifies the release's Sigstore code provenance, and compares the two measurements. Exactly what the API's <code>verify</code> field tells every client to do.</p>
+      <p>Your browser loads Tinfoil's open-source verifier (<code>@tinfoilsh/verifier</code>), fetches the enclave's attestation over your own connection, validates the hardware report up to the silicon vendor's root of trust (AMD SEV-SNP on today's fleet; the steps below name the technology the enclave actually presented), verifies the release's Sigstore code provenance against the public <a href="https://github.com/EnclaveHost/enclave" target="_blank" rel="noopener">EnclaveHost/enclave</a> repo, and compares the two measurements. Exactly what the API's <code>verify</code> field tells every client to do.</p>
     </div>
     <button class="btn btn-primary lv-run" type="button">Verify enclave <span class="arr">→</span></button>
   </div>
@@ -11,5 +11,5 @@
     <div class="lv-verdict"></div>
     <div class="lv-meta"></div>
   </div>
-  <p class="lv-note">The verifier module loads from esm.sh; Sigstore bundles and Intel's DCAP collateral come through Tinfoil's CORS proxies. Fully independent path: <code class="lv-cli">tinfoil attestation verify -e &lt;enclave-host&gt; -r &lt;repo&gt;</code>, via <a href="https://github.com/tinfoilsh/tinfoil-cli" target="_blank" rel="noopener">tinfoil-cli</a>.</p>
+  <p class="lv-note">The verifier module loads from esm.sh; Sigstore bundles and the silicon vendor's certificate collateral (AMD KDS, or Intel DCAP on TDX hosts) come through Tinfoil's CORS proxies. Fully independent path: <code class="lv-cli">tinfoil attestation verify -e &lt;enclave-host&gt; -r EnclaveHost/enclave</code>, via <a href="https://github.com/tinfoilsh/tinfoil-cli" target="_blank" rel="noopener">tinfoil-cli</a>.</p>
 </div>
