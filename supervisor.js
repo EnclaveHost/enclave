@@ -34,7 +34,7 @@ import { verifyMessage, createPublicClient, createWalletClient, http as viemHttp
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { SignJWT, jwtVerify } from "jose";
-import { Verifier } from "@tinfoilsh/verifier";
+import { Verifier, assembleAttestationBundle } from "@tinfoilsh/verifier";
 // dedicated-IP egress: the outbound half of the per-deployment address (see egress.js)
 import { createEgress } from "./egress.js";
 // contract addresses: LIVE BINDINGS owned by addressbook.js — seeded from the
@@ -937,15 +937,53 @@ const SELF_CHECK_WAIT_MS = parseInt(process.env.SELF_CHECK_WAIT_MS || "8000", 10
 const SELF_CHECK_NOTE = "Run by the enclave itself as a diagnostic: it proves this deployment is configured "
                       + "to verify, not that you should trust it. Reproduce it on your side with `cli`, `npm`, "
                       + "or `browser` - trust ends at YOUR verifier, never at this field.";
+// Flavor-aware verification. The stock Verifier compares an enclave against the
+// repo's single "latest" GitHub release, which carries our GPU flavor — a CPU
+// (or gpu8) enclave measures differently and would always fail
+// compareMeasurements. So: fast-path latest, and ONLY on a mismatch probe the
+// same version's sibling-flavor tags (vX.Y.Z-cpu / -gpu8), verifying against
+// whichever release the enclave's own measurement matches. Security is
+// unchanged — every candidate's provenance is still Sigstore-verified inside
+// verifyBundle; we only widen WHICH signed release is the reference. The
+// github-proxy the enclave reaches whitelists only /releases/latest,
+// /releases/download/<tag>/tinfoil.hash and /attestations/<digest>, so we probe
+// known tags rather than enumerate releases. Mirrored in site/js/core/verify.js.
+const GITHUB_PROXY = "https://github-proxy.tinfoil.sh";
+async function verifyMatchingRelease(host, repo) {
+  const base = await assembleAttestationBundle(host, repo);   // enclave attestation + latest's digest/sigstore
+  const attempt = async (digest, sigstoreBundle) => {
+    const v = new Verifier({ configRepo: repo });
+    try { await v.verifyBundle({ ...base, digest, sigstoreBundle }); } catch { /* step failure recorded on the doc */ }
+    return v.getVerificationDocument();
+  };
+  const latest = await attempt(base.digest, base.sigstoreBundle);
+  if (latest?.securityVerified) return latest;                // the common case: this node runs the latest (GPU) release
+  let latestTag;
+  try { latestTag = (await (await fetch(`${GITHUB_PROXY}/repos/${repo}/releases/latest`)).json())?.tag_name; } catch { /* offline */ }
+  for (const suffix of (latestTag ? ["-cpu", "-gpu8"] : [])) {
+    const tag = latestTag + suffix;
+    let digest, sigstoreBundle;
+    try {
+      const hr = await fetch(`${GITHUB_PROXY}/${repo}/releases/download/${tag}/tinfoil.hash`);
+      if (!hr.ok) continue;
+      digest = (await hr.text()).trim();
+      sigstoreBundle = (await (await fetch(`${GITHUB_PROXY}/repos/${repo}/attestations/sha256:${digest}`)).json())?.attestations?.[0]?.bundle;
+    } catch { continue; }
+    if (!digest || !sigstoreBundle) continue;
+    const doc = await attempt(digest, sigstoreBundle);
+    if (doc?.securityVerified) return doc;                    // matched this flavor's signed release
+  }
+  return latest;   // nothing matched: the latest-comparison doc carries the mismatch detail
+}
+
 let _selfCheck = null;                  // { data, at }
 let _selfCheckRun = null;               // in-flight run (shared across concurrent requests)
 async function runSelfCheck(origin) {
   if (!ENCLAVE_REPO) return { result: "unavailable", error: "ENCLAVE_REPO not configured" };
   if (!origin)       return { result: "unavailable", error: "public origin not known yet (no external request seen)" };
-  const v = new Verifier({ serverURL: origin, configRepo: ENCLAVE_REPO });
-  let failure = null;
-  try { await v.verify(); } catch (e) { failure = e; }
-  const doc = v.getVerificationDocument();
+  let doc, failure = null;
+  try { doc = await verifyMatchingRelease(new URL(origin).hostname, ENCLAVE_REPO); }
+  catch (e) { failure = e; }
   if (!doc) return { result: "unavailable", error: failure?.message || "verifier produced no document" };
   const word = (s) => !s || s.status === "pending" ? "skipped" : s.status === "success" ? "pass" : "fail";
   const steps = {};

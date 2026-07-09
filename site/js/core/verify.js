@@ -18,6 +18,45 @@ export const LV_VERIFIER_URL = "https://esm.sh/@tinfoilsh/verifier@1.1.7?bundle"
 // pre-selfCheck field name (verify) so older enclaves still work.
 export const vspecOf = (att) => (att && (att.verification || att.verify)) || null;
 
+// Flavor-aware verification. The stock Verifier compares against the repo's
+// single "latest" GitHub release (our GPU flavor carries that tag); a CPU or
+// gpu8 enclave measures differently and would always fail compareMeasurements.
+// Fast-path latest, then - only on a mismatch - probe the SAME version's
+// sibling-flavor tags (vX.Y.Z-cpu / -gpu8) and verify against whichever signed
+// release the enclave's own measurement matches. Security is unchanged: every
+// candidate's provenance is still Sigstore-verified inside verifyBundle. The
+// github-proxy whitelists only /releases/latest, the tinfoil.hash download and
+// /attestations, so we probe known tags rather than enumerate. This MIRRORS
+// verifyMatchingRelease in supervisor.js (the enclave's own self-check).
+const GITHUB_PROXY = "https://github-proxy.tinfoil.sh";
+async function verifyMatchingRelease(mod, host, repo) {
+  const base = await mod.assembleAttestationBundle(host, repo);
+  const attempt = async (digest, sigstoreBundle) => {
+    const v = new mod.Verifier({ configRepo: repo });
+    try { await v.verifyBundle({ ...base, digest, sigstoreBundle }); } catch (e) { /* recorded on the doc */ }
+    return v.getVerificationDocument();
+  };
+  const latest = await attempt(base.digest, base.sigstoreBundle);
+  if (latest && latest.securityVerified) return latest;
+  let latestTag;
+  try { latestTag = (await (await fetch(`${GITHUB_PROXY}/repos/${repo}/releases/latest`)).json()).tag_name; } catch (e) {}
+  for (const suffix of (latestTag ? ["-cpu", "-gpu8"] : [])) {
+    const tag = latestTag + suffix;
+    let digest, sigstoreBundle;
+    try {
+      const hr = await fetch(`${GITHUB_PROXY}/${repo}/releases/download/${tag}/tinfoil.hash`);
+      if (!hr.ok) continue;
+      digest = (await hr.text()).trim();
+      const at = await (await fetch(`${GITHUB_PROXY}/repos/${repo}/attestations/sha256:${digest}`)).json();
+      sigstoreBundle = at && at.attestations && at.attestations[0] && at.attestations[0].bundle;
+    } catch (e) { continue; }
+    if (!digest || !sigstoreBundle) continue;
+    const doc = await attempt(digest, sigstoreBundle);
+    if (doc && doc.securityVerified) return doc;
+  }
+  return latest;
+}
+
 const _encVerifyCache = new Map();     // "host|repo" -> Promise<{ok, doc, repo, host, error}>
 export function verifyEnclaveInBrowser(vspec) {
   let repo = vspec && vspec.repo;
@@ -29,12 +68,12 @@ export function verifyEnclaveInBrowser(vspec) {
     // GitHubWorkflowRepository claim, so normalize to GitHub's canonical casing.
     try { const gh = await fetch("https://api.github.com/repos/" + repo); if (gh.ok) repo = (await gh.json()).full_name || repo; } catch (e) {}
     const mod = await import(LV_VERIFIER_URL);
-    const v = new mod.Verifier({ serverURL: "https://" + host, configRepo: repo });
-    let failure = null;
-    try { await v.verify(); } catch (e) { failure = e; }
-    const doc = v.getVerificationDocument();
-    const res = { ok: !!(doc && doc.securityVerified), doc, repo, host,
-                  error: failure ? (failure.message || String(failure)) : null };
+    let doc = null, failure = null;
+    try { doc = await verifyMatchingRelease(mod, host, repo); } catch (e) { failure = e; }
+    const err = (doc && doc.securityVerified) ? null
+              : (doc && doc.steps && doc.steps.compareMeasurements && doc.steps.compareMeasurements.error)
+              || (failure && (failure.message || String(failure))) || "verification failed";
+    const res = { ok: !!(doc && doc.securityVerified), doc, repo, host, error: err };
     if (!res.ok) _encVerifyCache.delete(key);          // don't cache failures: allow retry
     return res;
   })().catch((e) => { _encVerifyCache.delete(key); throw e; }));
