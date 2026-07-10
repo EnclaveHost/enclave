@@ -52,11 +52,9 @@
 .qd-est b{color:var(--jade);}
 .qd-note{font-family:var(--font-mono);font-size:.74rem;color:var(--amber);margin-top:8px;}
 .qd-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
-/* the contract link (provenance mark): styled exactly like the fleet list's
-   refresh button - bare mono text with a mini document glyph, no chip box */
-.store-meta .contract-link{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);text-decoration:none;}
-.store-meta .contract-link:hover{color:var(--jade);}
-.store-meta .contract-link svg{width:11px;height:11px;display:block;}
+/* the contract link: a btn-sm twin of the store's ↻ refresh button - mini
+   document glyph beside the word, glyph sized by the button's own font */
+.contract-link svg{width:1em;height:1em;display:block;}
 /* the contract link parks bottom-right of the block it vouches for (same
    grammar as the fleet list's footer) */
 .contract-foot{display:flex;justify-content:flex-end;margin-top:8px;}
