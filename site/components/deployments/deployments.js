@@ -65,15 +65,19 @@ function encTier(d){
 // A deployment's DEDICATED IPv6 (per-deployment addressing): declared tcp/udp
 // ports are served at [address]:<logical port> via the relays, and outbound
 // connections (dedicated-IP egress) leave from the same address. Rendered as
-// its own copyable row when the API surfaces network.address.
+// its own copyable row when the API surfaces network.address - which it also
+// does for port-less deployments when egress is on (outbound-only address).
 function depIp6Row(d){
   const net = d.network || {};
   if (!net.address) return "";
   const tcp = (net.tcp && net.tcp.ports) || [];
   const udp = (net.udp && net.udp.ports) || [];
   const ports = (tcp.length ? " · tcp " + tcp.join(",") : "") + (udp.length ? " · udp " + udp.join(",") : "");
-  return '<button class="enc-ep" data-ep="' + esc(net.address) + '" title="dedicated IPv6 - this deployment\'s own address: tcp/udp ports are served on it at their real port numbers, and its outbound traffic egresses from it">'
-    + 'ip6 [' + esc(net.address) + ']' + esc(ports) + ' ⧉</button>';
+  const title = (tcp.length || udp.length)
+    ? "dedicated IPv6 - this deployment's own address: tcp/udp ports are served on it at their real port numbers" + (net.egress ? ", and its outbound traffic egresses from it" : "")
+    : "dedicated IPv6 - this deployment's own address: its outbound traffic egresses from it (no inbound tcp/udp ports declared)";
+  return '<button class="enc-ep" data-ep="' + esc(net.address) + '" title="' + esc(title) + '">'
+    + 'ip6 [' + esc(net.address) + ']' + esc(ports) + ((tcp.length || udp.length) ? '' : ' · egress only') + ' ⧉</button>';
 }
 
 class Deployments extends EnclaveElement {
@@ -361,7 +365,7 @@ class Deployments extends EnclaveElement {
       if (net.address)
         paintLine(info, "info", "→ dedicated IPv6 [" + net.address + "]"
           + (tcp.length ? " · tcp " + tcp.join(",") : "") + (udp.length ? " · udp " + udp.join(",") : "")
-          + "   (served at these real port numbers)", scroller);
+          + ((tcp.length || udp.length) ? "   (served at these real port numbers)" : "   (outbound egress address - no inbound ports declared)"), scroller);
       paintLine(info, "dimln", "// any 127.0.0.1:<port> below is the app's internal bind inside the enclave - from outside, use the endpoints above", scroller);
     }
     const run = runlog.runFor(id);

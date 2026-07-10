@@ -1688,10 +1688,14 @@ const view = (rec) => {
   // [address]:<logical port> (tcp via the tcp6-relay, udp via the udp-relay).
   // Surface it so the dashboard/clients get a ready-to-use endpoint at the
   // real port the app declared, e.g. [addr]:5432, [addr]:443, [addr]:53.
+  // With dedicated-IP egress on, the SAME address is also every deployment's
+  // outbound identity - so it's surfaced even with no inbound ports declared
+  // (network.egress marks the outbound half so clients can label it).
   const tcpPorts = fwTcpPorts(rec), udpPorts = fwUdpPorts(rec);
   const depAddr = depAddrFor(rec.id);
-  if (depAddr && (tcpPorts.length || udpPorts.length)) {
+  if (depAddr && (tcpPorts.length || udpPorts.length || egress)) {
     o.network = { ...o.network, address: depAddr };
+    if (egress) o.network.egress = true;
     if (tcpPorts.length) o.network.tcp = { address: depAddr, ports: tcpPorts };
     if (udpPorts.length) o.network.udp = { address: depAddr, ports: udpPorts };
   }
