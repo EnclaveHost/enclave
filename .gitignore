@@ -18,3 +18,5 @@ wasm/apps/*/assets/
 cli/dist/
 # site: bundled output (built by scripts/build-site.mjs; deploy.sh ships it)
 site/dist/
+# privy bundle build workspace (scripts/build-privy.mjs; its output site/privy/ IS committed)
+scripts/.privy-build/
