@@ -59,7 +59,7 @@ execFileSync("npm", ["install", "--no-audit", "--no-fund", "--loglevel=error"],
 
 /* exactly the surface buy.html destructures */
 fs.writeFileSync(path.join(WORK, "entry.js"), `
-export { PrivyProvider, usePrivy, useFundWallet, useFiatOnramp, getAccessToken } from "@privy-io/react-auth";
+export { PrivyProvider, usePrivy, useFundWallet, useFiatOnramp, useWallets, getAccessToken } from "@privy-io/react-auth";
 export * as React from "react";
 export { createRoot } from "react-dom/client";
 `);
