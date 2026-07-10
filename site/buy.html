@@ -133,8 +133,8 @@ const msg = (html) => { document.getElementById("msg").innerHTML = html; };
 try {
   // self-hosted bundle (site/privy/, built by esbuild from @privy-io/react-auth
   // + react) - no CDN at runtime; lazy screens load as local chunks
-  const mod = await import("/privy/entry.js?v=5");   // ?v busts browser/CDN caches on bundle updates
-  const { React, createRoot, PrivyProvider, usePrivy, useFundWallet, useFiatOnramp } = mod;
+  const mod = await import("/privy/entry.js?v=6");   // ?v busts browser/CDN caches on bundle updates
+  const { React, createRoot, PrivyProvider, usePrivy, useFundWallet, useFiatOnramp, getAccessToken } = mod;
   const h = React.createElement;
 
   /* Privy's amount screens (fiat onramp AND the fallback funding modal)
@@ -253,7 +253,27 @@ try {
          Base straight to the embedded wallet. Resolves 'confirmed' (done) or
          'submitted' (user left with the purchase in flight) - both mean money
          is on the way. Rejects on cancel AND on real errors, so triage below. */
-      const startCheckout = () => {
+      /* Token freshness: the middle of checkout runs entirely in the
+         provider's UI, so MINUTES pass with no Privy API call - the final
+         submit (POST /api/v1/onramp/stripe/checkout/:id) is often the first
+         one in a long while, and a stale or rotated access token surfaces
+         there as a 401 "User is not authenticated" with the purchase fully
+         entered. (The console shares this session from a DIFFERENT Privy SDK
+         - js-sdk-core - so cross-window refresh races are real.) Force a
+         fresh token before the flow starts, and nudge it every 2 minutes
+         while the window lives; getAccessToken() only hits the network when
+         the token is actually near expiry. */
+      const freshToken = () => getAccessToken().then(
+        (t) => { if (!t) console.warn("[buy-diag] getAccessToken returned null"); return t; },
+        (e) => { console.warn("[buy-diag] token refresh failed:", e); return null; }
+      );
+      setInterval(freshToken, 120000);
+
+      const startCheckout = async () => {
+        if (!await freshToken()){
+          msg("Your session has expired.<br/>Close this window, sign in again on the main page, then retry.");
+          return;
+        }
         const startedAt = Date.now();
         fund({
           source: { defaultAsset: "usd" },
