@@ -23,6 +23,11 @@ find "$ARCHIVE" -type f -mmin +2880 -delete
 cp -pn "$ARCHIVE/js/chunks/"* dist/js/chunks/ 2>/dev/null || true
 cp -pn "$ARCHIVE/privy/"*     dist/privy/     2>/dev/null || true
 echo "[deploy] chunk union: $(ls dist/js/chunks | wc -l) js chunks, $(ls dist/privy | wc -l) privy files (48h archive)"
+# the union failing is silent breakage for every tab holding older HTML
+# (observed 2026-07-10: a deploy shipped only the fresh generation, 404ing a
+# prior build's chunks) - refuse to ship a tree smaller than the archive
+[ "$(ls dist/js/chunks | wc -l)" -ge "$(ls "$ARCHIVE/js/chunks" | wc -l)" ] || {
+  echo "[deploy] ERROR: chunk union did not take (dist has fewer chunks than the archive)"; exit 1; }
 
 # ship the bundle: replace the whole tree (tar over ssh; no rsync needed),
 # so the IPFS pin never accumulates stale files from earlier layouts.
