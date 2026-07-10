@@ -121,13 +121,22 @@ let lastBackdropClick = 0;
 ["pointerdown", "mousedown", "mouseup", "click"].forEach(t =>
   window.addEventListener(t, (e) => {
     if (e.target.closest && e.target.closest("#toasts")) return;   // keep toasts dismissible
-    const dlg = document.querySelector('[role="dialog"]');
+    const dlg = document.querySelector('dialog:modal, dialog[open], [role="dialog"]');
+    const interactive = e.target.closest &&
+      e.target.closest("button,a,input,select,textarea,iframe,[role=button],[role=option],[role=listbox],[role=menuitem]");
     if (dlg){
-      if (!dlg.contains(e.target)){
+      /* Backdrop signatures, BOTH swallowed so the click does nothing:
+         - target outside the dialog (portal-wrapper markup), or
+         - target IS the dialog node itself (native/full-bleed dialogs: the
+           visible content is descendants, so a click that lands on the bare
+           dialog element is the dark area - this was the miss that let
+           Privy dismiss the flow). Interactive elements are never swallowed,
+           even outside the dialog (dropdown portals etc). */
+      if ((e.target === dlg || !dlg.contains(e.target)) && !interactive){
         lastBackdropClick = Date.now();
         e.stopPropagation(); e.preventDefault();
       }
-    } else if (!(e.target.closest && e.target.closest("button,a,input,select,textarea,iframe,[role=button]"))){
+    } else if (!interactive){
       // no dialog we recognize: don't swallow (unknown UI), but remember
       // inert-area clicks so a dismiss right after reads as accidental
       lastBackdropClick = Date.now();
