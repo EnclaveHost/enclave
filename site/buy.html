@@ -152,28 +152,24 @@ let lastBackdropClick = 0;
     }
   }, true));
 
-/* Blocked-frame detector (added 2026-07-10 after the controller-403 hunt).
-   PROVEN by out-of-band testing: the app is fully provisioned (Privy mints a
-   live pk_live onramp session) and enclave.host is an accepted Stripe origin
-   (the js.stripe.com controller loads clean from a real-origin headless
-   browser - no 403). The failure only appears in a browser that BLOCKS
-   Stripe: an ad/privacy extension or third-party-storage lockdown stops the
-   cross-origin controller iframe, so Stripe's outer script falls back to an
-   inline same-origin controller that then requests its OWN chunks relative to
-   enclave.host - producing GET enclave.host/crypto-onramp/v1/*.js 404s and a
-   postMessage origin mismatch. That 404 pattern is an unambiguous fingerprint
-   of the blocked frame. Catch it (resource errors + our own-origin 404s) and
-   tell the user exactly how to unblock, instead of dead-ending silently. */
+/* Broken-controller detector (2026-07-10). PROVEN universal, NOT the user's
+   browser: a clean profile on a plain connection with NO ad blocker still
+   hits it. Stripe's crypto-onramp controller loads as a SAME-ORIGIN frame on
+   enclave.host instead of js.stripe.com, so it 404s on its own chunks (GET
+   enclave.host/crypto-onramp/v1/*.js) and the postMessage handshake fails.
+   Root cause is in the Privy-bundled @stripe/crypto (1.1.1) loader vs Stripe's
+   current CDN onramp scripts - it worked 2026-07-06 (same popup, same loader),
+   so Stripe changed their served scripts underneath the pinned loader (exactly
+   what Stripe's docs warn bundling can cause). Nothing the user can do; catch
+   the fingerprint and say so honestly instead of blaming them or dead-ending. */
 let blockedFrameShown = false;
 function blockedFrameHelp(){
   if (blockedFrameShown) return; blockedFrameShown = true;
-  console.warn("[buy-diag] BLOCKED-FRAME signature seen - Stripe's controller iframe was blocked client-side");
-  errToast("Your browser is blocking Stripe’s secure checkout window.");
-  msg("Your browser is blocking Stripe’s secure checkout.<br/><br/>" +
-      "This is almost always an <b>ad or privacy blocker</b>, or blocked third-party cookies. To finish your purchase:<br/><br/>" +
-      "• turn off ad/privacy blockers for <b>enclave.host</b> and <b>stripe.com</b>, <b>or</b><br/>" +
-      "• open this page in a normal (non-private) window with a clean profile,<br/>" +
-      "then click Buy again.");
+  console.warn("[buy-diag] BROKEN-CONTROLLER signature - Stripe's onramp controller loaded same-origin (enclave.host), a known Privy/Stripe embedded-onramp issue");
+  errToast("Card checkout is temporarily unavailable (payment-provider issue).");
+  msg("Card checkout is temporarily unavailable.<br/><br/>" +
+      "This is a known issue on the payment provider’s side, not your browser or your account - we’re on it.<br/><br/>" +
+      "Please try again later, or reach out and we’ll help you top up another way.");
 }
 window.addEventListener("error", (e) => {
   const t = e && e.target;
