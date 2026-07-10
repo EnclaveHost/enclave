@@ -12,6 +12,20 @@
   #msg{display:flex;height:100%;align-items:center;justify-content:center;text-align:center;padding:24px;color:#8FA6B2;}
   #msg b{color:#E8F4EF;}
   a{color:#2FE6A8;}
+  /* The popup IS the checkout: Privy styles its dialog as a floating card
+     sized for overlaying a full page, so in this small window it overflows
+     and crops top/bottom. Stretch the card to the viewport, scroll inside,
+     and drop the card chrome (there's no page behind it). The centering
+     wrapper loses its padding too, or the card can't reach the edges. */
+  [role="dialog"]{
+    width:100% !important; max-width:100% !important;
+    max-height:100dvh !important;
+    margin:0 !important;
+    border-radius:0 !important;
+    box-shadow:none !important;
+    overflow-y:auto !important;
+  }
+  *:has(> [role="dialog"]){ padding:0 !important; }
 </style>
 </head>
 <body>
