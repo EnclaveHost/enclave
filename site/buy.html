@@ -19,12 +19,17 @@
 <div id="msg">Loading checkout…</div>
 <div id="toasts" style="position:fixed;top:10px;left:10px;right:10px;z-index:2147483647;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
 <script type="module">
-/* Buy USDC · runs Privy's FUNDING flow (useFundWallet - card via MoonPay et al,
-   per the dashboard's funding config) in a popup. Same origin as the console, so
-   it inherits the Privy session the user already has. The main page stays
-   framework-free; React lives only here. NOTE: the legacy useFiatOnramp surface
-   is DISABLED server-side for this app (fiat_on_ramp_enabled=false) - calling it
-   yields Privy's generic error screen and can drop the session. */
+/* Buy USDC · runs Privy's FIAT ONRAMP (useFiatOnramp - the Stripe Crypto
+   Onramp surface Privy launched 2026-07-07: Stripe/Link checkout in the
+   US+EU, Privy's aggregator elsewhere; needs react-auth >=3.33.1 with
+   @stripe/crypto in the bundle - see scripts/build-privy.mjs) in a popup.
+   Same origin as the console, so it inherits the Privy session the user
+   already has. The main page stays framework-free; React lives only here.
+   If the onramp rejects before showing UI (region/provider outage), we fall
+   back to the useFundWallet modal (Meld/MoonPay/Coinbase toggles in the
+   dashboard) so the Buy button never dead-ends. (Privy's LEGACY fiat onramp
+   - the pre-July-2026 fiat_on_ramp_enabled surface - stays retired; this is
+   its replacement, not a revival.) */
 
 /* Readable error surfacing: Privy's modal swallows provider errors behind a
    generic screen. Tap failing API calls, extract the human message from the
@@ -84,8 +89,8 @@ const msg = (html) => { document.getElementById("msg").innerHTML = html; };
 try {
   // self-hosted bundle (site/privy/, built by esbuild from @privy-io/react-auth
   // + react) - no CDN at runtime; lazy screens load as local chunks
-  const mod = await import("/privy/entry.js?v=4");   // ?v busts browser/CDN caches on bundle updates
-  const { React, createRoot, PrivyProvider, usePrivy, useFundWallet } = mod;
+  const mod = await import("/privy/entry.js?v=5");   // ?v busts browser/CDN caches on bundle updates
+  const { React, createRoot, PrivyProvider, usePrivy, useFundWallet, useFiatOnramp } = mod;
   const h = React.createElement;
 
   /* Privy's amount screen doesn't enforce a minimum (a $0 continues to the
@@ -126,6 +131,7 @@ try {
 
   function App(){
     const { ready, authenticated, user } = usePrivy();
+    const { fund } = useFiatOnramp();
     const { fundWallet } = useFundWallet();
     const started = React.useRef(false);
     React.useEffect(() => {
@@ -142,35 +148,70 @@ try {
       }
       if (started.current) return; started.current = true;
       msg("");
-      startMinimumGuard();
-      fundWallet({
-        address,
-        options: {
-          chain: { id: 8453, name: "Base",
-                   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-                   rpcUrls: { default: { http: ["https://mainnet.base.org"] } },
-                   blockExplorers: { default: { name: "Basescan", url: "https://basescan.org" } } },
-          amount: "25",                              // pre-fill; the amount screen starts here
-          asset: "USDC"
-          // NO card.preferredProvider: the Privy dashboard's Onramps toggles
-          // decide the processors (Privy's funding supports Meld / MoonPay /
-          // Coinbase; the old Stripe/Link ride was the RETIRED legacy onramp -
-          // Privy discontinued it, it cannot come back). Enabling Coinbase
-          // Onramp in the dashboard changes the checkout with no code change.
-        }
+      const finish = () => {
+        msg("Done - USDC lands in your account within a few minutes.");
+        setTimeout(() => window.close(), 2500);
+      };
+      const failed = (s) => {
+        errToast("Checkout didn’t complete: " + s);
+        msg("Checkout didn’t complete. This window closes in a moment - you can try again from the console.");
+        setTimeout(() => window.close(), 8000);
+      };
+      const isCancel = (s) => /clos|cancel|exit|abort|dismiss/i.test(s);
+
+      /* Fallback: Privy's funding modal (processors = the dashboard's Onramps
+         toggles: Meld / MoonPay / Coinbase). Runs only when the fiat onramp
+         rejects before showing UI, so a card path always remains. */
+      const fallback = () => {
+        startMinimumGuard();   // Privy's amount screen lets $0 continue; hold the button under $5
+        return fundWallet({
+          address,
+          options: {
+            chain: { id: 8453, name: "Base",
+                     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+                     rpcUrls: { default: { http: ["https://mainnet.base.org"] } },
+                     blockExplorers: { default: { name: "Basescan", url: "https://basescan.org" } } },
+            amount: "25",                              // pre-fill; the amount screen starts here
+            asset: "USDC"
+          }
+        }).then(
+          (res) => {   // the funding flow RESOLVES on cancel too (status says which)
+            if (res && res.status === "cancelled"){ window.close(); return; }
+            finish();
+          },
+          (e) => {
+            const s = String(e && (e.message || e));
+            console.warn("[buy-diag] fundWallet rejected:", e);
+            if (isCancel(s)){ window.close(); return; }   // user closed Privy's modal
+            failed(s);
+          }
+        );
+      };
+
+      /* Primary: the fiat onramp - Stripe/Link card + Apple/Google Pay + ACH
+         checkout in the US+EU, Privy's provider aggregator elsewhere. USDC on
+         Base straight to the embedded wallet. Resolves 'confirmed' (done) or
+         'submitted' (user left with the purchase in flight) - both mean money
+         is on the way. Rejects on cancel AND on real errors, so triage below. */
+      const startedAt = Date.now();
+      fund({
+        source: { defaultAsset: "usd" },
+        defaultAmount: "25",
+        environment: "production",
+        destination: { asset: USDC_BASE, chain: "eip155:8453", address }
       }).then(
-        (res) => {   // the funding flow RESOLVES on cancel too (status says which)
-          if (res && res.status === "cancelled"){ window.close(); return; }
-          msg("Done - USDC lands in your account within a few minutes.");
-          setTimeout(() => window.close(), 2500);
-        },
+        () => finish(),
         (e) => {
           const s = String(e && (e.message || e));
-          console.warn("[buy-diag] fundWallet rejected:", e);
-          if (/clos|cancel|exit|abort|dismiss/i.test(s)){ window.close(); return; }   // user closed Privy's modal
-          errToast("Checkout didn’t complete: " + s);
-          msg("Checkout didn’t complete. This window closes in a moment - you can try again from the console.");
-          setTimeout(() => window.close(), 8000);
+          console.warn("[buy-diag] fiat onramp rejected:", e);
+          if (isCancel(s)){ window.close(); return; }
+          if (Date.now() - startedAt < 8000){
+            // died before the user could have done anything (region gate,
+            // provider outage, app not enabled) -> the old funding modal
+            console.warn("[buy-diag] fiat onramp unavailable, falling back to funding modal");
+            return fallback();
+          }
+          failed(s);
         }
       );
     }, [ready, authenticated]);

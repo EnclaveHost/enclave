@@ -285,12 +285,13 @@ export async function ethBalanceOf(addr){
 }
 
 // Card purchases run in /buy.html: a same-origin popup that hosts Privy's
-// official React funding modal (Stripe/Link, MoonPay, ... - routed by region
-// and the dashboard's Onramps toggles). It inherits this page's Privy session
-// via localStorage, so it opens straight into checkout.
+// fiat onramp (Stripe/Link checkout in the US+EU, Privy's aggregator
+// elsewhere; falls back to the funding modal if the onramp is unavailable).
+// It inherits this page's Privy session via localStorage, so it opens
+// straight into checkout.
 export function openBuyModal(){
   if (!Enclave.address) return;
-  const w = window.open("/buy.html?v=5", "enclaveBuy", "popup,width=480,height=780");
+  const w = window.open("/buy.html?v=6", "enclaveBuy", "popup,width=480,height=780");
   if (!w){ showToast("Popup blocked - allow popups for this site and try again."); return; }
   showToast("Complete your purchase in the checkout window.");
 }
