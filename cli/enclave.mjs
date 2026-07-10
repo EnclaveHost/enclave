@@ -627,6 +627,10 @@ async function cmdStatus(rest) {
     rec?.timeRemainingSec != null ? ["remaining", dur(rec.timeRemainingSec)] : null,
     leased ? ["lease", `until ${new Date(Number(chainRec.leaseUntil) * 1000).toISOString()} (runner ${short(chainRec.runner)}, operator ${chainRec.runnerOperator})`] : null,
     ["url", appUrl(id)],
+    // the deployment's dedicated IPv6: declared tcp/udp ports served on it at
+    // their real port numbers; with egress on it's the outbound address too
+    rec?.network?.address ? ["ip6", rec.network.address
+      + (rec.network.tcp || rec.network.udp ? "" : rec.network.egress ? " (egress only)" : "")] : null,
     rec?.network?.tcp ? ["tcp", JSON.stringify(rec.network.tcp)] : null,
     rec?.network?.udp ? ["udp", JSON.stringify(rec.network.udp)] : null,
   ]);
