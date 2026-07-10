@@ -3,6 +3,14 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<!-- OVERRIDES the edge's blanket `referrer-policy: no-referrer` for THIS
+     document (meta beats header). Stripe's onramp controller iframe is
+     session-bound and verifies the embedding origin via the Referer; with
+     no-referrer the request carries neither Referer nor Origin and
+     js.stripe.com 403s the controller - the checkout then dies at submit
+     with Stripe's "User is not authenticated". strict-origin-when-cross-origin
+     (the browser default) sends exactly the origin, nothing more. -->
+<meta name="referrer" content="strict-origin-when-cross-origin"/>
 <title>Buy USDC · Enclave</title>
 <link rel="icon" href="favicon.ico" sizes="48x48 32x32 16x16" />
 <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
