@@ -324,7 +324,11 @@ try {
         fund({
           source: { defaultAsset: "usd" },
           defaultAmount: "25",
-          environment: "production",
+          // NO environment override: Privy matches the provider environment
+          // to the app's provisioning. Forcing "production" can pair a
+          // production Stripe controller with a session minted for the other
+          // mode - the controller iframe then 403s and the checkout dies at
+          // submit with Stripe's "User is not authenticated".
           destination: { asset: USDC_BASE, chain: "eip155:8453", address }
         }).then(
           () => finish(),
