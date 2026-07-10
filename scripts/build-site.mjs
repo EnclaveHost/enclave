@@ -31,7 +31,7 @@ const DIST = path.join(SITE, "dist");
    served raw): deployed commit + build date, starred if the tree had
    uncommitted changes, so the page itself says which deploy it came from */
 const gitOut = (args) => execFileSync("git", args, { cwd: ROOT }).toString().trim();
-const BUILD_STAMP = gitOut(["rev-parse", "--short", "HEAD"])
+const BUILD_STAMP = gitOut(["rev-parse", "--short=8", "HEAD"])   // fixed width: bare --short wobbles 7/8 as the repo grows
   + (gitOut(["status", "--porcelain"]) ? "*" : "")
   + " · " + new Date().toISOString().slice(0, 10);
 
