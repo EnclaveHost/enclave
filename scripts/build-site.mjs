@@ -27,6 +27,14 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..")
 const SITE = path.join(ROOT, "site");
 const DIST = path.join(SITE, "dist");
 
+/* build stamp baked into the footer (<span data-build> - "dev" when site/ is
+   served raw): deployed commit + build date, starred if the tree had
+   uncommitted changes, so the page itself says which deploy it came from */
+const gitOut = (args) => execFileSync("git", args, { cwd: ROOT }).toString().trim();
+const BUILD_STAMP = gitOut(["rev-parse", "--short", "HEAD"])
+  + (gitOut(["status", "--porcelain"]) ? "*" : "")
+  + " · " + new Date().toISOString().slice(0, 10);
+
 /* inline each component's .html template into its js: the source keeps the
    LWC-style `static templateUrl = new URL("./x.html", import.meta.url)`
    pairing (fetched at runtime in dev); the bundle replaces it with the
@@ -189,6 +197,7 @@ for (const f of ["index.html", "deploy.html", "apps.html", "develop.html", "dash
   let s = fs.readFileSync(path.join(SITE, f), "utf8");
   if (f.endsWith(".html") && f !== "buy.html") {
     s = bake(s);
+    s = s.replace(/(<span data-build>)[^<]*(<\/span>)/, "$1" + BUILD_STAMP + "$2");
     // components are prerendered, so first paint is already the final layout:
     // rendering must NOT wait for the script (that wait was visible on cold,
     // slow fetches — a header-less page until JS arrived)
