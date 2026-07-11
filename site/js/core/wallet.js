@@ -544,6 +544,46 @@ export async function renderWalletPop(){
   }
 }
 
+/* ---- Privy native gas sponsorship ----
+   Embedded-wallet (email) users hold only card-bought USDC - with 0 ETH every
+   send dies at broadcast ("insufficient funds for gas"). Privy can front the
+   gas itself (dashboard: Gas sponsorship -> App pays + Base + "Allow
+   transactions from the client"): the wallet API accepts eth_sendTransaction
+   with sponsor:true for wallets on their TEE stack (linked account carries a
+   wallet id + recovery_method "privy-v2"), executes it via an EIP-7702
+   delegation and bills the app - the tx still comes FROM the user's address,
+   so on-chain ownership (create()'s msg.sender) is untouched.
+   Returns the tx hash, or null when the sponsored path isn't available
+   (old-stack wallet, sponsorship not configured, no credit) - the caller
+   falls back to the normal self-paid send. */
+let _sponsorReason = "";   // why the last sponsored attempt fell through (folded into gas errors)
+async function privySponsoredSend(tx){
+  const mod = PrivyWallet._mod, privy = PrivyWallet.privy;
+  if (!mod || !privy || !mod.rpc || !mod.isUnifiedWallet || !mod.toWalletApiUnsignedEthTransaction
+      || !privy.embeddedWallet || !privy.embeddedWallet.signWithUserSigner){
+    _sponsorReason = "no live Privy SDK session"; return null;
+  }
+  const acct = PrivyWallet.embeddedOf(PrivyWallet.user);
+  if (!acct || !mod.isUnifiedWallet(acct)){
+    _sponsorReason = "this wallet predates Privy's TEE stack"; return null;
+  }
+  try {
+    const transaction = mod.toWalletApiUnsignedEthTransaction({
+      from: tx.from, to: tx.to, data: tx.data, value: tx.value, chainId: BASE_CHAIN });
+    const r = await mod.rpc(privy, (m) => privy.embeddedWallet.signWithUserSigner(m), {
+      wallet_id: acct.id, chain_type: "ethereum", method: "eth_sendTransaction",
+      caip2: "eip155:" + BASE_CHAIN, sponsor: true, params: { transaction } });
+    const hash = r && r.data && r.data.hash;
+    if (!hash) throw new Error("no tx hash in the sponsored-send response");
+    _sponsorReason = "";
+    return hash;
+  } catch(e){
+    _sponsorReason = String((e && (e.message || e)) || "sponsored send failed").slice(0, 200);
+    console.warn("[wallet] sponsored send unavailable, falling back to self-paid gas:", _sponsorReason);
+    return null;
+  }
+}
+
 /* ---- on-chain tx helpers used by both the deploy console and the store ---- */
 export async function ensureBaseChain(){
   let cur;
@@ -555,6 +595,13 @@ export async function ensureBaseChain(){
 export async function sendTx(to, data, value){
   const tx = { from: Enclave.address, data, value: value || "0x0" };
   if (to) tx.to = to; // omitted = contract creation
+  // Embedded-wallet users pay gas from a wallet that never holds ETH: try
+  // Privy's sponsored send first (app pays; same from-address). Null means
+  // "unavailable", never "failed to send" - falling through is safe.
+  if (Enclave.walletRdns === PRIVY_RDNS){
+    const sponsored = await privySponsoredSend(tx);
+    if (sponsored) return sponsored;
+  }
   // Privy's embedded signer signs the request verbatim - without an explicit
   // gas field it produces a gas-0 tx every node rejects ("intrinsic gas too
   // low"). Injected wallets accept a provided limit too, so estimate for both:
@@ -573,5 +620,15 @@ export async function sendTx(to, data, value){
   // for the embedded wallet it is a guaranteed gas-0 failure - say so instead
   else if (Enclave.walletRdns === PRIVY_RDNS)
     throw new EnclaveError("Could not estimate gas for this transaction - it may revert (check your balance and inputs), or the RPC is unreachable. Nothing was sent.", 0);
-  return Enclave.provider.request({ method: "eth_sendTransaction", params: [tx] });
+  try {
+    return await Enclave.provider.request({ method: "eth_sendTransaction", params: [tx] });
+  } catch(e){
+    // a 0-ETH embedded wallet dies exactly here, at broadcast - name the real
+    // problem (gas) instead of surfacing the RPC's wall of hex
+    if (Enclave.walletRdns === PRIVY_RDNS && /insufficient funds/i.test((e && e.message) || ""))
+      throw new EnclaveError("Your wallet has no ETH on Base to cover this transaction's network fee (a fraction of a cent)"
+        + (_sponsorReason ? "; gas sponsorship didn't cover it (" + _sponsorReason + ")" : "")
+        + ". Send a little ETH on Base to " + Enclave.address + " and retry.", 0);
+    throw e;
+  }
 }
