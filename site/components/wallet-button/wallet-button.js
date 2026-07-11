@@ -42,7 +42,9 @@ class WalletButton extends EnclaveElement {
       finally { wb.disabled = false; if (!Enclave.address) wb.innerHTML = o; }
     });
 
-    document.addEventListener("click", (e) => {
+    // pointerDOWN, not click: selecting text in the popover and releasing
+    // outside must not dismiss it (the click would land on the ancestor)
+    document.addEventListener("pointerdown", (e) => {
       const pop = this.querySelector("#walletPop"); if (!pop || pop.hidden) return;
       if (e.target.closest("#walletPop") || e.target.closest("#walletBtn")) return;
       pop.hidden = true; pop.innerHTML = "";

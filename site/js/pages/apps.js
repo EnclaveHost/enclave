@@ -125,7 +125,9 @@ function quickDeploy(app, v, idx){
   document.body.appendChild(host);
   qdEsc = (e) => { if (e.key === "Escape") closeQuick(); };
   document.addEventListener("keydown", qdEsc);
-  host.addEventListener("click", (e) => { if (e.target === host) closeQuick(); });
+  // pointerDOWN, not click: a text selection that starts inside the card and
+  // releases over the backdrop registers as a backdrop click and would dismiss
+  host.addEventListener("pointerdown", (e) => { if (e.target === host) closeQuick(); });
   const amt = host.querySelector(".qd-amt"), estv = host.querySelector(".qd-estv"), note = host.querySelector(".qd-note");
   const go = host.querySelector(".qd-go"), balv = host.querySelector(".qd-balv");
   const buy = host.querySelector(".qd-buy"), conn = host.querySelector(".qd-connect");
