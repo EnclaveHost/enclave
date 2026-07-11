@@ -45,6 +45,7 @@
 
 import http from "node:http";
 import https from "node:https";
+import { createHash } from "node:crypto";
 
 let   REGISTRY_ADDRESS  = (process.env.REGISTRY_ADDRESS || "").trim();   // env fallback; the address book (below) overrides
 let   DEPLOYMENTS_ADDRESS = (process.env.DEPLOYMENTS_ADDRESS || "").trim(); // EnclaveDeployments ledger; book overrides too
@@ -214,6 +215,59 @@ function ledgerStatus(d) {
     return runnerIsLive(d.runner) ? "running" : "claimed";
   return d.balance6 >= d.rate ? "queued" : "unfunded";
 }
+// Dedicated per-deployment IPv6, synthesized from PUBLIC data (mirrors the
+// supervisor's depAddrFor exactly: sha256(id) low 64 host bits into the routed
+// /64, low range reserved for infra). The tokenless dashboard reads ledger
+// rows, so without this no signed-out view ever shows a deployment's address.
+// Only rows the inbound relays actually serve get one here: public + running +
+// declared tcp/udp ports (the tcp6/udp relays' own netMap gate). Egress-only
+// addresses stay the enclave view's call - it alone knows egress is enabled.
+// DEP_ADDR_PREFIX = the relay box's routed /64 (same env as the supervisor).
+const DEP_ADDR_PREFIX = (process.env.DEP_ADDR_PREFIX || "").trim();
+function v6ToBig(s) {
+  const [head, tail] = s.split("::");
+  const hi = head ? head.split(":").filter(Boolean) : [];
+  const lo = tail ? tail.split(":").filter(Boolean) : [];
+  const mid = Array(8 - hi.length - lo.length).fill("0");
+  const groups = s.includes("::") ? [...hi, ...mid, ...lo] : s.split(":");
+  if (groups.length !== 8) throw new Error(`bad IPv6 "${s}"`);
+  return groups.reduce((a, g) => (a << 16n) | BigInt(parseInt(g || "0", 16)), 0n);
+}
+function bigToV6(n) {
+  const g = [];
+  for (let i = 0; i < 8; i++) g[i] = Number((n >> BigInt((7 - i) * 16)) & 0xffffn);
+  let best = { i: -1, len: 0 }, cur = { i: -1, len: 0 };
+  g.forEach((v, i) => {
+    if (v === 0) { if (cur.i < 0) cur = { i, len: 0 }; cur.len++; if (cur.len > best.len) best = { ...cur }; }
+    else cur = { i: -1, len: 0 };
+  });
+  const hex = g.map((v) => v.toString(16));
+  if (best.len > 1) { hex.splice(best.i, best.len, ""); if (best.i === 0) hex.unshift(""); if (best.i + best.len === 8) hex.push(""); }
+  return hex.join(":").replace(/:{3,}/, "::");
+}
+function depAddrFor(id) {
+  if (!DEP_ADDR_PREFIX) return null;
+  const [prefix] = DEP_ADDR_PREFIX.split("/");
+  const net128 = v6ToBig(prefix) & (~0n << 64n);
+  let host = BigInt("0x" + createHash("sha256").update(id).digest("hex").slice(0, 16)) & ((1n << 64n) - 1n);
+  if (host < 0x10000n) host += 0x10000n;
+  return bigToV6(net128 | host);
+}
+// the ledger row's declared ports ("http:8000,tcp:7777,udp:53"): only tcp:/udp:
+// entries live on the dedicated address (http rides the gateway origin)
+const rowPorts = (d, proto) => String(d.ports || "").split(",")
+  .map((s) => s.trim()).filter((s) => s.startsWith(proto + ":"))
+  .map((s) => +s.slice(proto.length + 1)).filter((p) => Number.isInteger(p) && p > 0);
+function ledgerNetwork(d, status) {
+  if (status !== "running" || !d.isPublic) return null;
+  const address = depAddrFor(d.id); if (!address) return null;
+  const tcp = rowPorts(d, "tcp"), udp = rowPorts(d, "udp");
+  if (!tcp.length && !udp.length) return null;
+  const net = { address };
+  if (tcp.length) net.tcp = { address, ports: tcp };
+  if (udp.length) net.udp = { address, ports: udp };
+  return net;
+}
 // Shape a ledger record like the enclaves' own rows (supervisor view()), so
 // dashboards/CLIs treat both alike. `ledger: true` marks the synthesis - logs,
 // ssh and attestation exist only once a runner hosts it.
@@ -223,8 +277,11 @@ function ledgerView(d) {
   // buys (mirrors the supervisor's own view()). Balance alone reads ~0 the
   // moment a renew burns it into the lease - the owner still has minutes left.
   const leaseTail = Math.max(0, Number(d.leaseUntil) - Math.floor(Date.now() / 1000));
+  const status = ledgerStatus(d);
+  const network = ledgerNetwork(d, status);
   return {
-    id: d.id, owner: d.owner.toLowerCase(), status: ledgerStatus(d), public: d.isPublic,
+    id: d.id, owner: d.owner.toLowerCase(), status, public: d.isPublic,
+    ...(network ? { network } : {}),
     image: { reference: d.appRef },
     resources: { gpuShare: Number(d.gpuMilli) / 1000, cpuShare: Number(d.cpuMilli) / 1000 },
     createdAt: new Date(Number(d.createdAt) * 1000).toISOString(),
