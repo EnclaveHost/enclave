@@ -243,8 +243,11 @@ function fundModal(inner){
   const host = $("#walletPick"); if (!host) return null;
   host.innerHTML = '<div class="wp-card">' + inner + '</div>';
   host.hidden = false;
-  const close = () => { host.hidden = true; host.innerHTML = ""; host.onclick = null; };
-  host.onclick = (e) => { if (e.target === host || e.target.closest(".wp-cancel")) close(); };
+  const close = () => { host.hidden = true; host.innerHTML = ""; host.onclick = null; host.onpointerdown = null; };
+  // backdrop closes on pointerDOWN so a text selection started inside the
+  // card and released over the backdrop doesn't dismiss; buttons stay on click
+  host.onpointerdown = (e) => { if (e.target === host) close(); };
+  host.onclick = (e) => { if (e.target.closest(".wp-cancel")) close(); };
   return { host, close };
 }
 
@@ -323,6 +326,12 @@ async function pickWallet(){
     host.hidden = false;
     const close = () => { host.hidden = true; host.innerHTML = ""; };
     let privyBusy = false;
+    // backdrop dismissal on pointerDOWN (see fundModal): selection drags out
+    // of the card must not cancel the wallet pick
+    host.onpointerdown = (e) => {
+      if (privyBusy) return;
+      if (e.target === host){ close(); reject(new EnclaveError("Wallet selection cancelled.", 0)); }
+    };
     host.onclick = (e) => {
       if (e.target.closest(".wp-privy")){
         if (privyBusy) return; privyBusy = true;
@@ -333,7 +342,7 @@ async function pickWallet(){
       const it = e.target.closest(".wp-item");
       if (it && it.dataset.i != null){ const w = wallets[+it.dataset.i]; close(); resolve(w); return; }
       if (privyBusy) return;   // during the email flow, only its own Cancel button closes
-      if (e.target.closest(".wp-cancel") || e.target === host){ close(); reject(new EnclaveError("Wallet selection cancelled.", 0)); }
+      if (e.target.closest(".wp-cancel")){ close(); reject(new EnclaveError("Wallet selection cancelled.", 0)); }
     };
   });
 }
