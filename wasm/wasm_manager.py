@@ -47,6 +47,7 @@ Notes:
 import collections
 import hmac
 import http.server
+import ipaddress
 import json
 import os
 import pathlib
@@ -77,6 +78,15 @@ PORT         = int(os.environ.get("WASM_MANAGER_PORT", "8091"))   # same port th
 # demands it; /health and the tenant data plane (/enc/*, its own per-deployment
 # tokens) stay open. Unset = legacy-open (local dev).
 VMMGR_TOKEN  = os.environ.get("VMMGR_TOKEN") or os.environ.get("SECRET") or ""
+# /health is intentionally OPEN (no control token) for the supervisor's liveness
+# probe, but its FULL body leaks capacity, model-volume names/listings, GPU
+# specs and the verbose GPU-probe diagnostics to any loopback-reaching caller
+# (a tenant can reach loopback). WASM_HEALTH_MINIMAL=1 trims the UNAUTHENTICATED
+# /health to a bare liveness subset (full detail still returned to callers that
+# present the control token). OFF by default so the supervisor's current
+# /health consumers are untouched; enable once the supervisor is confirmed to
+# either authenticate to /health or not need the detailed fields.
+HEALTH_MINIMAL = os.environ.get("WASM_HEALTH_MINIMAL", "0").lower() in ("1", "true", "on")
 WASMTIME     = os.environ.get("WASMTIME_BIN", "wasmtime")
 APPS_DIR     = pathlib.Path(os.environ.get("WASM_APPS_DIR", "/opt/enclave/apps"))
 CATALOG_PATH = pathlib.Path(os.environ.get("WASM_CATALOG", str(APPS_DIR / "catalog.json")))
@@ -259,6 +269,18 @@ FS_ENABLED     = os.environ.get("WASM_FS", "1").lower() not in ("0", "false", "n
 FS_DIR         = pathlib.Path(os.environ.get("WASM_FS_DIR", "/tmp/enclave-wasm-fs"))  # base for per-deployment scratch dirs (ramdisk)
 FS_GUEST_PATH  = os.environ.get("WASM_FS_GUEST", "/data")                          # where it shows up inside the guest
 DEF_STORAGE_MB = int(os.environ.get("WASM_APP_STORAGE_MB", "256"))                 # per-app /data ceiling; catalog can override
+# Storage is measure-and-kill on the 10s audit poll (a sized tmpfs isn't
+# available — the enclave blocks mounts), so between sweeps a tenant can write
+# past its /data + /enc caps and, since those scratch dirs live in the CVM's
+# RAM (encrypted ramdisk), OOM the whole CVM. The real fix is a cgroup
+# memory.max on the tenant group + a sized mount (orchestration outside this
+# file). What we CAN add here is admission-time accounting: charge each app's
+# guest linear memory + /data cap + encrypted-volume caps against the node's
+# RAM and refuse a deployment whose SUM would oversubscribe it. It's OPT-IN and
+# OFF by default because it tightens admission and could 429 a deployment that
+# fits under the pure cpuShare dial today — enable per node once sized.
+ACCOUNT_STORAGE_RAM = os.environ.get("WASM_ACCOUNT_STORAGE_RAM", "0").lower() in ("1", "true", "on")
+RAM_ACCT_HEADROOM   = float(os.environ.get("WASM_RAM_HEADROOM", "0.9"))   # fraction of node RAM tenants may reserve
 if FS_ENABLED:
     FS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -288,6 +310,16 @@ RCLONE_BIN     = os.environ.get("RCLONE_BIN", "rclone")
 # instead of S3 so the whole pipeline runs without a bucket. NEVER set in the
 # enclave configs - a local source would read the manager's own filesystem.
 ENC_ALLOW_LOCAL = os.environ.get("WASM_ENC_LOCAL_SRC", "").lower() in ("1", "true", "on")
+# SSRF guard for the encVolumes S3 endpoint. The endpoint host rides the
+# (public, approved) version config and is dialled by the rclone child, so an
+# endpoint like http://127.0.0.1:8090 (worker), http://169.254.169.254 (cloud
+# metadata) or any RFC1918 host would let a deployment pivot rclone into the
+# CVM's own loopback/private services. We HARD-REJECT non-public endpoint hosts
+# by default (see _is_blocked_host). A genuinely in-CVM/private S3 endpoint is
+# not how this feature is meant to be used (ciphertext lives on an EXTERNAL
+# bucket), but an operator who deliberately runs a private/in-cluster bucket can
+# opt back in with WASM_ENC_ALLOW_PRIVATE_ENDPOINT=1 (warns, does not block).
+ENC_ALLOW_PRIVATE_EP = os.environ.get("WASM_ENC_ALLOW_PRIVATE_ENDPOINT", "").lower() in ("1", "true", "on")
 if ENC_ENABLED:
     ENC_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -365,6 +397,68 @@ def _validate_config(text: str) -> str:
     return text
 
 
+# --- SSRF host classifier (mirror of net-guard.mjs; DO NOT import it — it's JS) #
+# Kept in sync BY HAND with net-guard.mjs's blockedV4/blockedV6. Policy: allow
+# only globally-routable unicast; refuse loopback, private (RFC1918/CGNAT),
+# link-local, unique-local, documentation/benchmark, multicast and reserved —
+# the ranges an app could use to pivot into the CVM's own loopback/private-
+# network services. v4-mapped/-compat and NAT64 IPv6 are unwrapped so
+# `::ffff:127.0.0.1` can't sneak loopback past the v6 path.
+_BLOCKED_V4 = [ipaddress.ip_network(c) for c in (
+    "0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16",
+    "172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24", "192.88.99.0/24",
+    "192.168.0.0/16", "198.18.0.0/15", "198.51.100.0/24", "203.0.113.0/24",
+    "224.0.0.0/4", "240.0.0.0/4")]
+_BLOCKED_V6 = [ipaddress.ip_network(c) for c in (
+    "100::/64", "2001:db8::/32", "fc00::/7", "fe80::/10", "ff00::/8")]
+
+
+def _ip_blocked(ip_str: str) -> bool:
+    """True if the IP literal `ip_str` is non-global (raises ValueError if it
+    isn't an IP at all)."""
+    ip = ipaddress.ip_address(ip_str)
+    if isinstance(ip, ipaddress.IPv4Address):
+        return any(ip in net for net in _BLOCKED_V4)
+    n = int(ip)
+    if n < (1 << 96):                                    # ::, ::1, v4-compat + v4-mapped (all non-global)
+        return True
+    if (0x64ff9b << 64) <= n < (0x64ff9b << 64) + (1 << 32):   # 64:ff9b::/96 NAT64 — judge embedded v4
+        return _ip_blocked(str(ipaddress.IPv4Address(n & 0xffffffff)))
+    return any(ip in net for net in _BLOCKED_V6)
+
+
+def _is_blocked_host(host: str) -> bool:
+    """True if `host` (an IP literal or a domain) is a destination we must not
+    let the encVolumes rclone child dial. Literal private/loopback/link-local
+    IPs and localhost names are blocked outright. Unlike net-guard.mjs (which
+    defers a domain to a post-DNS re-check on the relay), THIS path has no
+    downstream re-check, so we also resolve a domain here and block it if ANY
+    resolved address is non-global. A domain that fails to resolve is allowed
+    through — rclone will fail on its own, and a transient DNS miss must not
+    fail an otherwise-legit deploy (residual DNS-rebinding risk noted)."""
+    if not host:
+        return True
+    h = host.strip().lower().rstrip(".")
+    if h == "localhost" or h.endswith(".localhost"):
+        return True
+    lit = h[1:-1] if h.startswith("[") and h.endswith("]") else h   # unwrap [v6]
+    try:
+        return _ip_blocked(lit)
+    except ValueError:
+        pass                                             # not an IP literal -> a domain name
+    try:
+        infos = socket.getaddrinfo(h, None)
+    except OSError:
+        return False                                     # unresolvable now: defer to rclone
+    for info in infos:
+        try:
+            if _ip_blocked(info[4][0].split("%", 1)[0]):   # drop any IPv6 zone id
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 # --- encrypted volumes (rclone crypt over S3) -------------------------------- #
 _ENC_BUCKET_RE   = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$")
 _ENC_FILENAME_ENC = ("standard", "off", "obfuscate")
@@ -400,6 +494,20 @@ def _parse_enc_volumes(cfg: dict) -> list:
                 raise ValueError(f"encVolumes '{name}': local: endpoints are a test hook (WASM_ENC_LOCAL_SRC), not deployable")
         elif not (endpoint.startswith("https://") or endpoint.startswith("http://")):
             raise ValueError(f"encVolumes '{name}': endpoint must be an http(s) S3 endpoint URL")
+        else:
+            # SSRF guard: the rclone child dials this endpoint, so a private/
+            # loopback/link-local host would pivot into the CVM's own services
+            # (worker:8090, supervisor:8080, cloud metadata, RFC1918). Hard-
+            # reject unless explicitly opted in (see WASM_ENC_ALLOW_PRIVATE_ENDPOINT).
+            _ep_host = urllib.parse.urlparse(endpoint).hostname or ""
+            if _is_blocked_host(_ep_host):
+                if not ENC_ALLOW_PRIVATE_EP:
+                    raise ValueError(f"encVolumes '{name}': endpoint host '{_ep_host}' is a private/"
+                                     f"loopback/link-local address (SSRF-blocked). Set "
+                                     f"WASM_ENC_ALLOW_PRIVATE_ENDPOINT=1 only if this node's S3 endpoint "
+                                     f"is deliberately in-CVM/private.")
+                print(f"[enc] WARNING: '{name}' endpoint host '{_ep_host}' is private/loopback "
+                      f"(WASM_ENC_ALLOW_PRIVATE_ENDPOINT=1 permits it) — SSRF risk", flush=True)
         bucket = str(e.get("bucket") or "").strip().strip("/")
         if not _ENC_BUCKET_RE.match(bucket):
             raise ValueError(f"encVolumes '{name}': bad bucket name")
@@ -1339,6 +1447,19 @@ def _used_cpu_share() -> float:
     return round(sum(r["cpuShare"] for r in _apps.values() if r["status"] in ("starting", "running")), 4)
 
 
+def _rec_ram_mb(rec) -> int:
+    """Worst-case CVM RAM a running tenant can pin: guest linear memory + its
+    ramdisk caps (/data + each encrypted volume's plaintext ceiling). All three
+    live in the CVM's RAM, so the SUM across tenants oversubscribing node RAM is
+    the OOM the storage audit only catches AFTER the fact. Used only when
+    WASM_ACCOUNT_STORAGE_RAM is on."""
+    mb = int(rec.get("mem_mb") or 0) + int(rec.get("storageMb") or 0)
+    enc = rec.get("_enc")
+    if enc:
+        mb += sum(int(v["spec"].get("maxMb") or 0) for v in enc["vols"].values())
+    return mb
+
+
 def _volumes_public() -> list:
     """Attached model volumes for advertisement (no host paths leaked)."""
     return [{"name": v["name"], "bytes": v["bytes"], "onnx": v["onnx"], "gguf": v["gguf"],
@@ -1354,6 +1475,106 @@ def _capacity() -> dict:
             "vcpusFree": round(NODE_VCPUS * free, 2),
             "ramGbFree": round(NODE_RAM_GB * free, 2),
             "apps": len(_apps)}
+
+
+# CPU noisy-neighbour control (cgroup v2), OPT-IN, default OFF. Today tenants
+# share the node's CPU freely and a bursty app relies on grabbing idle cores; a
+# mis-sized HARD cap would throttle a legitimate long-running/bursty app, so we
+# apply NOTHING unless an operator sets one of these:
+#   WASM_CPU_WEIGHT=<1..10000>  per-tenant cgroup cpu.weight (fair-share). Does
+#                               NOT cap — it only divides CONTENDED CPU
+#                               proportionally between tenants, so a tenant still
+#                               bursts to all idle cores. The recommended knob.
+#   WASM_CPU_MAX_PCT=<1..100>   HARD ceiling: at most this % of the whole node's
+#                               vCPUs (cgroup cpu.max). Can throttle bursty apps
+#                               — use deliberately.
+# Both need a cpu-enabled, delegated cgroup-v2 subtree. Point WASM_CGROUP_PARENT
+# at one the CVM's init delegated to the manager (its cgroup.subtree_control
+# must already list `cpu`); without it we best-effort create a child of the
+# manager's own cgroup, which only works if the manager isn't a leaf holding
+# processes (the cgroup-v2 "no internal processes" rule — usually it IS, so
+# real deployments should set WASM_CGROUP_PARENT). If placement fails for ANY
+# reason we WARN and leave the tenant uncapped — never fail a launch over it.
+_CPU_WEIGHT        = os.environ.get("WASM_CPU_WEIGHT", "").strip()
+_CPU_MAX_PCT       = os.environ.get("WASM_CPU_MAX_PCT", "").strip()
+_CGROUP_PARENT_ENV = os.environ.get("WASM_CGROUP_PARENT", "").strip()
+_CPU_CGROUP_ON     = bool(_CPU_WEIGHT or _CPU_MAX_PCT)
+_cpu_cgroup_parent = None      # resolved lazily on first launch; False once known-unavailable
+
+
+def _cpu_cgroup_base():
+    """Resolve (once) a writable, cpu-enabled cgroup-v2 parent to nest tenants
+    under. Returns a pathlib.Path or None. Never raises."""
+    global _cpu_cgroup_parent
+    if _cpu_cgroup_parent is not None:
+        return _cpu_cgroup_parent or None
+    _cpu_cgroup_parent = False
+    try:
+        if _CGROUP_PARENT_ENV:
+            base = pathlib.Path(_CGROUP_PARENT_ENV)
+            if base.is_dir():
+                _cpu_cgroup_parent = base
+            else:
+                print(f"[cpu] WASM_CGROUP_PARENT {base} is not a directory — CPU limits off", flush=True)
+            return _cpu_cgroup_parent or None
+        rel = ""
+        for l in pathlib.Path("/proc/self/cgroup").read_text().splitlines():
+            if l.startswith("0::"):                      # cgroup v2 line: "0::/path"
+                rel = l[3:]
+                break
+        mgr = pathlib.Path("/sys/fs/cgroup") / rel.lstrip("/")
+        if not (mgr / "cgroup.controllers").exists():
+            print("[cpu] cgroup v2 not found under the manager's cgroup — CPU limits off", flush=True)
+            return None
+        base = mgr / "enclave-tenants"
+        base.mkdir(exist_ok=True)
+        try:
+            (mgr / "cgroup.subtree_control").write_text("+cpu")   # so children get cpu.* files
+        except OSError as e:
+            print(f"[cpu] could not enable cpu controller ({e}); delegate a cpu-enabled cgroup via "
+                  f"WASM_CGROUP_PARENT — CPU limits off", flush=True)
+            return None
+        _cpu_cgroup_parent = base
+    except Exception as e:                                        # noqa: BLE001
+        print(f"[cpu] cgroup setup failed ({e}) — CPU limits off", flush=True)
+        _cpu_cgroup_parent = False
+    return _cpu_cgroup_parent or None
+
+
+def _apply_cpu_cgroup(vid: str, pid: int):
+    """Best-effort: move `pid` (a setsid group leader) into a per-tenant cgroup
+    and set cpu.weight / cpu.max from the operator knobs. No-op unless a knob is
+    set; never raises. Returns the cgroup dir (for teardown) or None."""
+    if not _CPU_CGROUP_ON:
+        return None
+    base = _cpu_cgroup_base()
+    if base is None:
+        return None
+    cg = base / vid
+    try:
+        cg.mkdir(exist_ok=True)
+        if _CPU_WEIGHT:
+            try:
+                (cg / "cpu.weight").write_text(str(max(1, min(10000, int(_CPU_WEIGHT)))))
+            except (ValueError, OSError) as e:
+                print(f"[cpu] {vid}: cpu.weight not applied: {e}", flush=True)
+        if _CPU_MAX_PCT:
+            try:
+                pct = max(1, min(100, int(_CPU_MAX_PCT)))
+                period = 100000
+                quota = max(1000, int(period * NODE_VCPUS * pct / 100))
+                (cg / "cpu.max").write_text(f"{quota} {period}")
+            except (ValueError, OSError) as e:
+                print(f"[cpu] {vid}: cpu.max not applied: {e}", flush=True)
+        (cg / "cgroup.procs").write_text(str(pid))   # moves the whole process group
+        return cg
+    except OSError as e:
+        print(f"[cpu] {vid}: cgroup placement failed ({e}) — tenant runs uncapped", flush=True)
+        try:
+            cg.rmdir()
+        except OSError:
+            pass
+        return None
 
 
 def _preexec():
@@ -1550,6 +1771,37 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     # permit them: `-Sinherit-network` allows all, while `-S egress` installs a
     # check that permits TCP bind/connect + UDP bind but DENIES raw UDP egress.
     # So we grant EXACTLY ONE of them — inherit-network (no egress) OR egress.
+    #
+    # SECURITY (known, accepted here — defense in depth is elsewhere): when a
+    # port-serving app does NOT buy transparent egress, `-Sinherit-network`
+    # hands the guest the CVM's shared loopback namespace. A malicious tenant
+    # can then reach the enclave's own loopback services — supervisor:8080,
+    # worker:8090, vLLM/PLATFORM_MODEL:8000, this manager:8091 — bypassing the
+    # egress net-guard AND per-request billing (an SSRF-to-localhost). We
+    # deliberately do NOT try to fix this by dropping the flag, because with the
+    # STOCK wasmtime CLI there is no middle ground: the WASI socket-address
+    # check is all-or-nothing — `-Sinherit-network` sets it to allow-all, and
+    # its ABSENCE defaults it to DENY-all (bind included). `-Stcp`/`-Sudp` only
+    # gate whether a socket may be created; they do not permit any address. So
+    # dropping `-Sinherit-network` without a replacement check would make the
+    # guest's bind() to its OWN assigned loopback port fail, breaking EVERY
+    # port-serving app (minecraft/IRC/DNS/…). A `WASM_NO_INHERIT_NET` opt-in
+    # would therefore be a footgun that silently kills those apps when enabled,
+    # not a safe toggle, so it is intentionally NOT added.
+    # The ONLY correct fix is a per-address socket_addr_check that permits bind
+    # to the deployment's assigned loopback actual(s) and DENIES connect to the
+    # internal service ports / private ranges. wasmtime's CLI cannot express
+    # that; it requires EITHER extending the existing `-S egress` patch
+    # (wasmtime-egress.patch) with a "local-bind-only, deny-arbitrary-egress"
+    # mode usable WITHOUT a live SOCKS backend, OR driving wasmtime through its
+    # embedder API (WasiCtxBuilder::socket_addr_check) instead of the CLI, OR a
+    # per-tenant network namespace (delicate; must still expose the assigned
+    # loopback port to the bridge). Until then, the billing/SSRF exposure is
+    # closed at the SERVICES: the worker binds loopback + optional token, the
+    # supervisor endpoints are token-gated, and vLLM must run with
+    # PLATFORM_MODEL_KEY set (config, not this file) to fully close the
+    # billing-bypass. See also the bind audit (_audit_rec), which still kills a
+    # guest that binds an unassigned policed port.
     net_args = egress_args if egress_transparent else ["-Sinherit-network"]
     cmd = [WASMTIME, "run", "-Scli", *P3_FLAGS, *nn_args, "-Stcp", "-Sudp",
            *net_args, "-Sallow-ip-name-lookup", *fs_args, *cfg_args, *vol_args,
@@ -1710,6 +1962,27 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
             enc = ({name: v["dir"] for name, v in vols.items()},
                    f"http://{HOST_IP}:{PORT}/encvol/{vid}", rec["_enc"]["token"])
 
+    # OPT-IN RAM-budget accounting (default off — no admission change). Charge
+    # this deployment's linear memory + /data cap + encrypted-volume caps
+    # against node RAM and refuse if the fleet SUM would oversubscribe it. This
+    # bounds the tmpfs-OOM window at admission WITHOUT the measure-and-kill
+    # audit ever having to kill a legitimate app mid-write.
+    if ACCOUNT_STORAGE_RAM:
+        new_mb = _rec_ram_mb(rec)
+        with _lock:
+            committed = sum(_rec_ram_mb(r) for r in _apps.values()
+                            if r["id"] != vid and r["status"] in ("starting", "running"))
+        budget_mb = int(NODE_RAM_GB * 1024 * RAM_ACCT_HEADROOM)
+        if committed + new_mb > budget_mb:
+            rec["status"], rec["error"] = "failed", (
+                f"insufficient RAM budget: this deployment reserves {new_mb} MB (linear memory + "
+                f"/data + encrypted-volume caps); {committed} MB of a {budget_mb} MB ceiling is already "
+                f"committed (WASM_ACCOUNT_STORAGE_RAM)")
+            _rm_fsdir(rec)
+            with _lock:
+                _apps.pop(vid, None)
+            return rec
+
     ctx = {"pspec": pspec, "wasm": wasm, "port": port, "port_map": port_map, "fsdir": fsdir,
            "nn": nn, "enclave_config": enclave_config, "vol_mounts": vol_mounts, "gpu_share": gpu_share,
            "log_path": log_path, "egress": egress, "enc": enc}
@@ -1803,6 +2076,10 @@ def _spawn_and_wait(rec, ctx):
         logf.close()
         return rec
     rec["_proc"] = proc
+    # OPT-IN CPU fair-share / cap (default off = no-op; see _apply_cpu_cgroup).
+    cg = _apply_cpu_cgroup(rec["id"], proc.pid)
+    if cg:
+        rec["_cgroup"] = str(cg)
 
     # readiness: a waitable port accepts, or the process dies first.
     # (udp-only apps have no waitable port: a short grace, then alive == running.)
@@ -2006,6 +2283,14 @@ def _rm_fsdir(rec):
         for vol in enc["vols"].values():
             vol["env"] = None
         shutil.rmtree(enc["dir"], ignore_errors=True)
+    cg = rec.get("_cgroup")
+    if cg:
+        # per-tenant cgroup dir (opt-in CPU limits); removable only once empty,
+        # i.e. after _kill reaped the process group.
+        try:
+            pathlib.Path(cg).rmdir()
+        except OSError:
+            pass
 
 
 
@@ -2151,8 +2436,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/health":
-            return self._json(200, {"ok": True, "runtime": "wasmtime",
-                                    "version": _wasmtime_version(), "mock": MOCK,
+            # Bare liveness is always open (supervisor probe). The detailed
+            # fields below disclose capacity/models/GPU/probe internals; when
+            # WASM_HEALTH_MINIMAL is on they are withheld from unauthenticated
+            # callers (a tenant can reach loopback). Default off = unchanged.
+            live = {"ok": True, "runtime": "wasmtime",
+                    "version": _wasmtime_version(), "mock": MOCK}
+            if HEALTH_MINIMAL and not self._ctrl_authed():
+                return self._json(200, live)
+            return self._json(200, {**live,
                                     "nn": NN_ENABLED and NODE_HAS_GPU and (MOCK or _NN_PROBE["state"] == "ok"),
                                     "nnProbe": dict(_NN_PROBE),
                                     **({"gpuVramGb": GPU_VRAM_GB, "gpuVramSource": GPU_VRAM_SRC}
