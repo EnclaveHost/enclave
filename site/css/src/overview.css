@@ -107,6 +107,7 @@
 .about-cards .card p{font-size:.92rem;line-height:1.62;}
 .founder-id{display:flex;align-items:center;gap:14px;margin:2px 0 12px;}
 .founder-id h3{margin:0 0 .15em;}
-.f-ava{flex:none;width:52px;height:52px;border-radius:12px;border:1px solid rgba(143,162,255,.4);background:var(--bg-1);display:grid;place-items:center;font-family:var(--font-mono);font-weight:600;font-size:1.02rem;color:var(--iris);letter-spacing:.04em;}
+/* the photo carries its own baked-in radial fade - no frame, let it melt into the card */
+.f-ava{flex:none;width:56px;height:56px;border-radius:12px;object-fit:cover;}
 .f-role{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);}
 .about-links{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;}
