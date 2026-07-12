@@ -63,6 +63,10 @@ export const APP_CATALOG_RPCS    = [APP_CATALOG_RPC, "https://base.drpc.org", "h
 
 /* ---- IPFS ---- */
 export const IPFS_UPLOAD_URL = "https://ipfs.enclave.host/add-wasm"; // validating upload gateway (server validates + pins); empty => paste-a-CID only
+export const IPFS_IMAGE_UPLOAD_URL = "https://ipfs.enclave.host/add-image"; // validating image pin (app thumbnail/banner); empty => image upload off
 export const IPFS_GATEWAY    = "https://ipfs.io/ipfs/";      // where the "fetch .wasm" links resolve
+export const IPFS_IMG_GATEWAY = "https://ipfs.enclave.host/ipfs/"; // app media (thumbnail/banner) - served from our own gateway for speed/reliability
 export const MAX_WASM_MB     = 2048;                         // upload ceiling (also enforced server-side by Caddy request_body max_size and the add-wasm gateway)
 export const MAX_WASM_BYTES  = MAX_WASM_MB * 1024 * 1024;
+export const MAX_IMAGE_MB    = 4;                            // thumbnail/banner ceiling (also enforced by the add-image gateway)
+export const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024;
