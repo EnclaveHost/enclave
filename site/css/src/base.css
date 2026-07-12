@@ -39,6 +39,24 @@ html.soft-enter main{animation:vt-enter .28s var(--ease) both;}
   ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none !important;}
   html.soft-enter main{animation:none !important;}
 }
+
+/* ---------- scroll reveal ----------
+   Below-the-fold sections fade + rise in as they scroll into view.
+   The hidden state (.rv) is ONLY ever applied from JS (overview.js
+   initReveal) - with no JS nothing is hidden, so content can never be
+   stranded invisible. Cards inside a revealed section trail it on a
+   per-card delay (--rv-i). The classes are stripped once the entrance
+   finishes so resting styles (card hover lifts) return untouched. */
+.rv{opacity:0;transform:translateY(26px);}
+.rv .rv-kid{opacity:0;transform:translateY(16px);}
+/* the transition lives on the REVEALED state only: applying .rv snaps to
+   hidden (a fade-out here would let a fast scroller catch content mid-
+   disappear right after load), while .rv-in animates the way back in */
+.rv.rv-in{opacity:1;transform:none;transition:opacity .65s var(--ease),transform .65s var(--ease);}
+.rv.rv-in .rv-kid{opacity:1;transform:none;transition:opacity .5s var(--ease),transform .5s var(--ease);transition-delay:calc(.12s + var(--rv-i,0)*.08s);}
+@media (prefers-reduced-motion:reduce){
+  .rv,.rv .rv-kid{opacity:1 !important;transform:none !important;transition:none !important;}
+}
 body{
   margin:0;background:var(--bg);color:var(--text);
   font-family:var(--font-sans);font-size:16px;line-height:1.6;
