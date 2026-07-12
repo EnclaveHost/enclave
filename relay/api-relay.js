@@ -61,7 +61,7 @@ import http from "node:http";
 import https from "node:https";
 import net from "node:net";
 import tls from "node:tls";
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { readCappedText } from "./fleet.mjs";
 
 let   REGISTRY_ADDRESS  = (process.env.REGISTRY_ADDRESS || "").trim();   // env fallback; the address book (below) overrides
@@ -138,6 +138,12 @@ function makeRateLimiter({ capacity, refillPerSec }) {
 }
 const rlMiss = makeRateLimiter({ capacity: 60, refillPerSec: 10 });   // /x + app-subdomain owner misses
 const rlHint = makeRateLimiter({ capacity: 20, refillPerSec: 2 });    // /v1/claim-hint fan-out
+// Signed-upload authorization (/v1/apps/upload-token): per-wallet token-mint cap.
+// Generous burst, ~30/hr steady — the gateway enforces the real BYTE budget.
+const rlUpload = makeRateLimiter({ capacity: 30, refillPerSec: 30 / 3600 });
+// Dedicated secret shared ONLY with the wasm add-gateway on this box (NOT the
+// fleet SECRET). Empty = signed uploads unavailable (503). See ipfs-add-gateway.py.
+const UPLOAD_KEY = process.env.UPLOAD_KEY || "";
 // Global cap on concurrent upstream fan-out requests (fix 2): bounds the
 // amplification of one inbound request into N enclave requests.
 const FANOUT_MAX = parseInt(process.env.FANOUT_MAX_INFLIGHT || "256", 10);
@@ -701,6 +707,31 @@ async function gateway(u, req, res) {
     // loading a 100MB+ model onto the GPU under CC); 30s cut those off and
     // the abandoned sync load wedged the tenant's runtime threads.
     return proxyTo(owner, req, res, { idleMs: 180000 });
+  }
+
+  if (p === "/v1/apps/upload-token" && req.method === "POST") {
+    // Authorize a wasm pin: the publisher signs `enclave-upload:<sha256hex>:<expiry>`
+    // with their wallet; we recover the address (viem), rate-limit per wallet, and
+    // mint an HMAC token the add-gateway verifies before it pins (the gateway does
+    // NO EC crypto and never sees the fleet secret). Closes the open-pin storage DoS.
+    if (!UPLOAD_KEY) return json(res, 503, { error: "upload_disabled", message: "Signed uploads are not configured here." }, req);
+    let raw; try { raw = await readBody(req, 8192); } catch (e) { return json(res, 413, { error: "too_large", message: e.message }, req); }
+    let b; try { b = JSON.parse(raw.toString() || "{}"); } catch { return json(res, 400, { error: "bad_json", message: "Body must be JSON." }, req); }
+    const hash = String(b.hash || "").toLowerCase().replace(/^0x/, "");
+    const expiry = parseInt(b.expiry, 10);
+    const signature = String(b.signature || "");
+    const now = Math.floor(Date.now() / 1000);
+    if (!/^[0-9a-f]{64}$/.test(hash)) return json(res, 422, { error: "bad_hash", message: "hash must be the 32-byte sha256 hex of the upload." }, req);
+    if (!Number.isFinite(expiry) || expiry < now || expiry > now + 600) return json(res, 422, { error: "bad_expiry", message: "expiry must be a unix time within the next 10 minutes." }, req);
+    if (!/^0x[0-9a-fA-F]{130}$/.test(signature)) return json(res, 422, { error: "bad_sig", message: "signature must be a 65-byte personal_sign hex." }, req);
+    let address;
+    try {
+      const { recoverMessageAddress } = await import("viem");
+      address = (await recoverMessageAddress({ message: `enclave-upload:${hash}:${expiry}`, signature })).toLowerCase();
+    } catch (e) { return json(res, 400, { error: "bad_sig", message: "Could not recover the signer: " + (e.shortMessage || e.message) }, req); }
+    if (!rlUpload(address)) return json(res, 429, { error: "rate_limited", message: "Too many upload authorizations from this wallet; retry later." }, req);
+    const token = createHmac("sha256", UPLOAD_KEY).update(`${address}:${hash}:${expiry}`).digest("hex");
+    return json(res, 200, { token, address, expiry }, req);
   }
 
   if (p === "/v1/claim-hint" && req.method === "POST") {
