@@ -40,7 +40,7 @@ containers:
       # tenant-app hosting: the wasm-manager runs each app as a `wasmtime serve` process.
       - PROVISION_BACKEND: "vm"                          # required on a CPU enclave (no GPU worker exists)
       - VMMGR_URL: "http://localhost:8091"               # the wasm-manager (container below)
-      - PUBLIC_URL: ""                                  # empty: supervisor derives its origin per-request from the Host header
+      - PUBLIC_URL: ""                                  # empty: supervisor advertises its own attested shim-cert SAN (Host header not trusted for identity)
       - SIWE_DOMAIN: "enclave.host"
       - SIWE_URI: "https://enclave.host"
       - CHAIN_ID: "8453"

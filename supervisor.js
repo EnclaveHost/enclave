@@ -72,17 +72,9 @@ const SIWE_DOMAIN    = process.env.SIWE_DOMAIN || "enclave.host";
 const SIWE_URI       = process.env.SIWE_URI || "https://enclave.host";
 const CHAIN_ID       = parseInt(process.env.CHAIN_ID || "8453", 10);
 const CORS_ORIGINS   = (process.env.CORS_ORIGINS || "https://enclave.host").split(",").map(s => s.trim()).filter(Boolean);
-// OPT-IN Host allow-listing. originOf() and the lazy on-chain self-registration
-// trust the (shim-provided) Host / x-forwarded-host to derive this enclave's
-// advertised origin. When EXPECTED_HOST_SUFFIXES is set (comma-separated, e.g.
-// ".containers.tinfoil.dev,app.enclave.host,enclave.host"), a request whose Host
-// matches none of them will NOT trigger registration and is refused attestation,
-// so a spoofed Host can't make the enclave advertise a bogus origin or emit an
-// attestation bound to one. Unset = current behavior (warned once at boot).
-const EXPECTED_HOST_SUFFIXES = (process.env.EXPECTED_HOST_SUFFIXES || "")
-  .split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
-if (!EXPECTED_HOST_SUFFIXES.length)
-  console.warn("[host] EXPECTED_HOST_SUFFIXES unset: trusting the request Host/x-forwarded-host for origin derivation + on-chain self-registration + attestation origin. Set it (e.g. \".containers.tinfoil.dev,app.enclave.host,enclave.host\") to reject spoofed Hosts.");
+// This enclave's on-chain identity is bound to its OWN attested shim-cert SAN
+// (see registerFromShimCert), never to the request Host/x-forwarded-host header —
+// a spoofable value — so no caller can make the enclave advertise a bogus origin.
 // --- pay-per-deploy (no custody): users pay the EnclavePay forwarder; the supervisor
 //     WATCHES it for Paid events and converts each payment to runtime. No held
 //     balance, no escrow contract, no key in the enclave that can move funds.
@@ -237,6 +229,7 @@ const REGISTRY_ABI = [
 let _registered = false;
 let _enclaveId = null;            // our EnclaveRegistry id (keccak256 of the advertised endpoint); claim gating needs it
 let _advertisedEndpoint = null;   // the endpoint we registered under; adopted deployments build their URL from it
+let _certSan = null;              // our own attested shim-cert SAN hostname — the ONLY name we self-register / advertise
 async function registerOnChain(endpoint) {
   endpoint = (endpoint || "").replace(/\/+$/, "");
   if (!REGISTRY_READY || _registered || !endpoint) return;
@@ -286,16 +279,22 @@ function shimCertHostname(port = 443, timeoutMs = 5000) {
     s.on("error", reject);
   });
 }
+// Self-register ONLY our own attested shim-cert SAN — never the request Host.
+// Caches the SAN once discovered so originOf() and the lazy trigger reuse it.
+async function registerFromShimCert() {
+  if (!REGISTRY_READY || _registered) return;
+  const name = _certSan || (_certSan = await shimCertHostname());
+  if (name) await registerOnChain("https://" + name);
+}
 // Register eagerly from the shim cert, retrying with backoff: early in boot the
 // shim may present a placeholder cert with no public SAN (ACME still running),
-// and a register tx can fail transiently. The lazy per-request path stays live
-// throughout and ends the loop the moment either side wins (_registered).
+// and a register tx can fail transiently. The lazy per-request path (below) also
+// kicks this, and the loop ends the moment either wins (_registered).
 async function advertiseFromShimCert() {
   for (let delaySec = 5; REGISTRY_READY && !_registered; delaySec = Math.min(delaySec * 2, 300)) {
     try {
-      const name = await shimCertHostname();
-      if (name) await registerOnChain("https://" + name);
-      else console.log("[registry] shim cert has no public SAN yet — retrying");
+      await registerFromShimCert();
+      if (!_registered && !_certSan) console.log("[registry] shim cert has no public SAN yet — retrying");
     } catch (e) { console.warn(`[registry] shim cert read failed (${e.message}) — retrying`); }
     if (!_registered) await new Promise((r) => setTimeout(r, delaySec * 1000).unref());
   }
@@ -1343,41 +1342,16 @@ app.use(cors({
 }));
 
 const fail = (res, status, code, message) => res.status(status).json({ code, message });
-const originOf = (req) => PUBLIC_URL || `https://${req.headers["x-forwarded-host"] || req.headers.host}`;
+// Prefer our attested SAN once known; fall back to the request Host only during
+// early boot before the shim cert is read (client verifies attestation over its
+// own TLS, so a reflected Host there is not trusted for identity).
+const originOf = (req) => PUBLIC_URL || (_certSan ? `https://${_certSan}` : `https://${req.headers["x-forwarded-host"] || req.headers.host}`);
 
-// --- OPT-IN Host allow-listing (EXPECTED_HOST_SUFFIXES) ----------------------
-// The Host header is attacker-controllable; we use it to derive the advertised
-// origin (registration) and the attestation origin. When the operator pins the
-// expected suffix set, a mismatching Host neither registers nor gets attestation.
-const _hostOf = (req) => String(req.headers["x-forwarded-host"] || req.headers.host || "").toLowerCase().replace(/:\d+$/, "");
-const _hostMatchesSuffix = (h, suf) => (suf.startsWith(".") ? h.endsWith(suf) : (h === suf || h.endsWith("." + suf)));
-function hostAllowed(req) {
-  if (!EXPECTED_HOST_SUFFIXES.length) return true;   // unset = trust the Host (warned once at boot)
-  const h = _hostOf(req);
-  return !!h && EXPECTED_HOST_SUFFIXES.some((suf) => _hostMatchesSuffix(h, suf));
-}
-// Attestation host gate: returns false (and answers 421) when a pinned suffix set
-// is configured and this request's Host isn't in it. No-op when unset.
-function attestHostOk(req, res) {
-  if (EXPECTED_HOST_SUFFIXES.length && !hostAllowed(req)) {
-    fail(res, 421, "bad_host", "This request's Host is not an expected origin for this enclave; attestation is bound to the enclave's real origin.");
-    return false;
-  }
-  return true;
-}
-
-// Self-advertise on the first REAL external request: its Host is the hostname a
-// caller actually reached us at — the attested origin the registry must carry —
-// so there's nothing to hand-configure. Fire-and-forget, once (registerOnChain
-// is guarded). Skip local/internal Hosts (health checks) so we never register a
-// loopback origin.
+// Kick self-registration on any request in case the boot loop is mid-backoff. We
+// register ONLY our attested shim-cert SAN (registerFromShimCert), never the
+// request Host, so a spoofed Host can never make us advertise a bogus origin.
 app.use((req, _res, next) => {
-  if (REGISTRY_READY && !_registered) {
-    const host = req.headers["x-forwarded-host"] || req.headers.host || "";
-    // Skip local/internal Hosts (health checks) AND, when a suffix set is pinned,
-    // any Host not in it — so a spoofed Host can't make us advertise a bogus origin.
-    if (host && !/^(localhost|127\.|\[?::1\]?)/i.test(host) && hostAllowed(req)) registerOnChain(originOf(req));
-  }
+  if (REGISTRY_READY && !_registered) registerFromShimCert().catch(() => {});
   next();
 });
 
@@ -2632,7 +2606,6 @@ function attestNonce(req, res) {
   return n.toLowerCase();
 }
 app.get("/v1/deployments/:id/attestation", authed, async (req, res) => {
-  if (!attestHostOk(req, res)) return;          // opt-in: refuse attestation for a non-expected Host
   const rec = deployments.get(req.params.id);
   if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
   const nonce = attestNonce(req, res); if (nonce == null) return;
@@ -2648,7 +2621,6 @@ app.get("/v1/deployments/:id/attestation", authed, async (req, res) => {
 // generation; pass a nonce on the per-deployment endpoint for a fresh challenge.
 let _gpuEvCache = null;                       // { ev?, err?, at } - failures cached briefly too
 app.get("/v1/attestation", async (req, res) => {
-  if (!attestHostOk(req, res)) return;          // opt-in: refuse attestation for a non-expected Host
   const out = await getMeasurements(null, { origin: originOf(req) });
   if (!IS_GPU)                                 // CPU-only enclave: no card, no NVML evidence to fetch
     return res.json({ generatedAt: new Date().toISOString(), ...out, guideUrl: "https://enclave.host/#attest" });
