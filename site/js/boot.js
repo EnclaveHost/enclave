@@ -25,6 +25,7 @@ const PAGES = {
   develop:   () => import("./pages/develop.js"),
   dashboard: () => import("./pages/dashboard.js"), // signed-in view: run log + My Apps
   admin:     () => import("./pages/admin.js"),     // operator console - deliberately absent from the nav
+  terms:     () => import("./pages/terms.js"),     // Terms of Service - linked from the deploy gates + footer
 };
 // URL aliases: pathnames that render ANOTHER page's document. /apps/deploy
 // and /apps/publish are the canonical console/form URLs (share links read
@@ -194,7 +195,7 @@ const initial = pageOf(location.pathname) || "overview";
 bootPage(initial);
 setTimeout(() => {
   for (const p of Object.keys(PAGES)) {
-    if (p === "admin") continue;                 // nobody navigates there by accident - don't warm it
+    if (p === "admin" || p === "terms") continue;   // nobody navigates to either by accident - don't warm them
     if (initial !== p) fetchPage(p).catch(() => {});
   }
 }, 1500);

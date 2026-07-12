@@ -9,7 +9,7 @@ import "../../components/footer/footer.js";
 import "../../components/toast/toast.js";
 import "../../components/section-head/section-head.js";
 import "../../components/app-card/app-card.js";
-import { $, $$, esc, short, blen, fmtDur, showToast, on } from "../core/util.js";
+import { $, $$, esc, short, blen, fmtDur, showToast, on, tosAccepted, setTosAccepted } from "../core/util.js";
 import { APP_CATALOG_ADDRESS, APP_CATALOG_CHAIN, IPFS_UPLOAD_URL, MAX_WASM_MB, MAX_WASM_BYTES, BASE_CHAIN, PRIVY_RDNS } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
 import { catConfigured, catExplorer, encCall, CAT_SEL, CAT_MAX, APPROVAL, depPrices6, rate6Of, waitReceipt, catSchemaRev } from "../core/chain.js";
@@ -116,6 +116,10 @@ function quickDeploy(app, v, idx){
       '<input class="qd-amt" id="qdAmt" type="number" value="5" min="0.01" step="any" inputmode="decimal" />' +
       '<div class="qd-est">buys ≈ <b class="qd-estv"></b> of runtime</div>' +
       '<div class="qd-note" hidden></div>' +
+      // the ToS gate: assent persists per terms version (core/util TOS_VERSION),
+      // so returning deployers find it pre-checked. target=_blank keeps the
+      // modal (and its amount) alive while the terms are read.
+      '<label class="qd-tos"><input type="checkbox" class="qd-tosck"' + (tosAccepted() ? " checked" : "") + ' /> <span>I have read and agree to the <a href="terms" target="_blank" rel="noopener">Terms of Service</a> - payments are crypto-only, non-custodial and final, and uptime isn’t guaranteed.</span></label>' +
       '<div class="qd-actions">' +
         '<button class="btn btn-primary qd-go" type="button">▸ Deploy</button>' +
         '<button class="btn qd-adv" type="button" title="Pick shares, open ports, app config, and payment options on the full console">Advanced settings →</button>' +
@@ -131,6 +135,7 @@ function quickDeploy(app, v, idx){
   const amt = host.querySelector(".qd-amt"), estv = host.querySelector(".qd-estv"), note = host.querySelector(".qd-note");
   const go = host.querySelector(".qd-go"), balv = host.querySelector(".qd-balv");
   const buy = host.querySelector(".qd-buy"), conn = host.querySelector(".qd-connect");
+  const tos = host.querySelector(".qd-tosck");
   let bal = null;
   const est = () => {
     const usd = parseFloat(amt.value) || 0;
@@ -138,9 +143,11 @@ function quickDeploy(app, v, idx){
     const shortOnFunds = bal != null && usd > bal;
     note.hidden = !shortOnFunds;
     if (shortOnFunds) note.textContent = "That’s more than your wallet holds ($" + bal.toFixed(2) + " USDC).";
-    go.disabled = !(usd >= 0.01) || shortOnFunds;
+    go.disabled = !(usd >= 0.01) || shortOnFunds || !tos.checked;
+    go.title = tos.checked ? "" : "Agree to the Terms of Service above to deploy";
   };
   amt.addEventListener("input", est);
+  tos.addEventListener("change", () => { setTosAccepted(tos.checked); est(); });
   depPrices6().then(pr => {
     rate = Number(rate6Of(pr, mins.gpuPct * 10, mins.cpuPct * 10)) / 1e6;
     const rEl = host.querySelector(".qd-rate"); if (rEl) rEl.textContent = "$" + (rate * 3600).toFixed(2) + "/hr";

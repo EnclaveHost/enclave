@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#070A0F" />
+<title>Terms of Service · Enclave</title>
+<meta name="description" content="The Enclave terms of service: crypto-only, non-custodial, final payments; no uptime guarantee; the service is provided as-is." />
+<link rel="icon" href="favicon.ico" sizes="48x48 32x32 16x16" />
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+<script>
+/* Cross-document view transitions are skipped by Chromium when extensions
+   inject content scripts (MetaMask et al): the old page sees pageswap with
+   no viewTransition. Flag it, and the NEXT page (this script runs pre-paint)
+   plays the same settle-in itself (html.soft-enter, see base.css) - content
+   only, the static header stays put. */
+(function(){
+  try { if (sessionStorage.getItem("enclave_novt")) { sessionStorage.removeItem("enclave_novt"); document.documentElement.classList.add("soft-enter"); } } catch(e){}
+  addEventListener("pageswap", function(e){
+    try { if (!e.viewTransition && e.activation) sessionStorage.setItem("enclave_novt", "1"); } catch(e){}
+  });
+})();
+</script>
+<link rel="stylesheet" href="css/site.css" />
+<script type="module" blocking="render" src="js/boot.js"></script>
+</head>
+<body>
+<c-header current="terms"></c-header>
+<main>
+<section id="terms" data-view="terms" aria-label="Terms of Service" style="padding:84px 0 0;">
+  <div class="wrap">
+    <c-section-head eyebrow="Legal" heading="Terms of Service.">
+      <p>These are the terms you agree to when you deploy an app on Enclave. They are written to be read: short, plain, and honest about what this platform is - and what it is not. If you do not agree with them, do not deploy.</p>
+    </c-section-head>
+
+    <div class="terms-doc">
+      <p class="terms-updated">Last updated: July 12, 2026 · applies to <code>enclave.host</code> and the Enclave public API</p>
+
+      <h3>1 · The service</h3>
+      <p>Enclave (operated by Enclave Host, Inc., &ldquo;we&rdquo;) lets you deploy WebAssembly apps to confidential-computing hardware, paid for per unit of runtime. Deployments are records on public smart contracts on the Base network; independent enclave machines claim and run them. By creating, funding, or operating a deployment - from this site, the CLI, or the API - you agree to these terms.</p>
+
+      <h3>2 · Payments are crypto-only</h3>
+      <p>All payments for runtime are made <b>exclusively in cryptocurrency</b>: USDC or ETH on the Base network, sent from a wallet you control. We do not accept fiat payment for deployments, and there are no invoices, subscriptions, or stored payment methods. Where the site offers a way to purchase USDC with a card, that purchase is a separate service provided by a third-party on-ramp under its own terms - it is not a payment to us.</p>
+
+      <h3>3 · Payments are non-custodial</h3>
+      <p>You pay directly from your own wallet by signing on-chain transactions. <b>We never hold your funds and never have access to your keys.</b> Funding a deployment forwards your payment in the same transaction; nothing is escrowed or held on your behalf. The &ldquo;balance&rdquo; a deployment shows is prepaid runtime - an accounting number on a public smart contract - not money in an account.</p>
+
+      <h3>4 · Payments are final</h3>
+      <p>Blockchain transactions are irreversible, and so are payments here: <b>all payments are final</b>. There are no refunds, chargebacks, or reversals, and prepaid runtime cannot be converted back into funds. Runtime you have paid for is consumed as your deployment runs; if a runner fails mid-lease, up to one lease interval of prepaid time can be lost. Double-check the app, the shares, and the amount before you sign - the chain will not give it back.</p>
+
+      <h3>5 · No guarantee of uptime or availability</h3>
+      <p>The service is provided <b>&ldquo;as is&rdquo; and &ldquo;as available&rdquo;, with no guarantee of uptime, availability, or performance and no service-level agreement</b>. Enclave hardware can fail, restart, or be withdrawn; the platform, its APIs, and this site can be interrupted, degraded, or discontinued at any time. The failover design lets another enclave take over a funded deployment, but we do not promise that one will be available, that takeover will be timely, or that your app will run continuously. Do not run anything here whose downtime you cannot tolerate, and keep your own copies of anything you cannot afford to lose.</p>
+
+      <h3>6 · Your apps and your use</h3>
+      <p>You are responsible for what you deploy and for the traffic it serves. Do not use the platform for anything unlawful, for attacking others, or for content or workloads you do not have the rights to run. Apps in the catalog are published by third parties: a catalog listing (or approval) means the record is well-formed, not that we endorse the app or vouch for what it does - attestation lets you verify <em>what code runs</em>, and that is the guarantee on offer. We may refuse, suspend, or stop serving deployments that break these terms or threaten the platform.</p>
+
+      <h3>7 · Disclaimers and liability</h3>
+      <p>To the maximum extent permitted by law, we disclaim all warranties, express or implied, including merchantability, fitness for a particular purpose, and non-infringement; and our total liability to you for any claim arising out of the service is limited to the amount you paid for the deployment giving rise to the claim in the thirty days before it arose. Nothing here limits liability that cannot lawfully be limited. You use public blockchains, cryptocurrency, and confidential-computing hardware at your own risk.</p>
+
+      <h3>8 · Changes and contact</h3>
+      <p>We may update these terms; the date above changes when we do, and deploy surfaces will ask for your agreement again. Continuing to deploy after a change means you accept it. Questions: <a href="mailto:support@enclave.host">support@enclave.host</a>.</p>
+    </div>
+  </div>
+</section>
+</main>
+<c-footer></c-footer>
+<c-toast></c-toast>
+</body>
+</html>
