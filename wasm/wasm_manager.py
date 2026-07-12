@@ -415,7 +415,20 @@ def _parse_enc_volumes(cfg: dict) -> list:
             raise ValueError(f"encVolumes '{name}': maxMb must be an integer")
         if not 1 <= max_mb <= ENC_MAX_MB:
             raise ValueError(f"encVolumes '{name}': maxMb must be 1..{ENC_MAX_MB}")
+        # unlock + keyId are UI METADATA, passed through to the app untouched:
+        # the manager only ever takes an opaque password, however the app
+        # produced it. "wallet" tells the UI to lead with signature-derived
+        # keys (see the encrypted-volumes app); keyId is the stable label the
+        # wallet signs over, so renaming a volume doesn't silently derive a
+        # different key (default: the volume name).
+        unlock = str(e.get("unlock") or "password").strip()
+        if unlock not in ("password", "wallet"):
+            raise ValueError(f"encVolumes '{name}': unlock must be 'password' or 'wallet'")
+        key_id = str(e.get("keyId") or name).strip()
+        if not _VOL_NAME_RE.match(key_id):
+            raise ValueError(f"encVolumes '{name}': bad keyId (want {_VOL_NAME_RE.pattern})")
         specs.append({"name": name, "endpoint": endpoint, "bucket": bucket, "path": path,
+                      "unlock": unlock, "keyId": key_id,
                       "provider": str(e.get("provider") or "Other").strip() or "Other",
                       "region": str(e.get("region") or "").strip(),
                       "filenameEncryption": fenc,
@@ -1686,7 +1699,8 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
                         "pub": {"name": spec["name"], "status": "locked", "error": None,
                                 "bytes": 0, "maxMb": spec["maxMb"], "readOnly": spec["readOnly"],
                                 "endpoint": spec["endpoint"], "bucket": spec["bucket"],
-                                "path": spec["path"]}}
+                                "path": spec["path"], "unlock": spec["unlock"],
+                                "keyId": spec["keyId"]}}
             except OSError as e:
                 rec["status"], rec["error"] = "failed", f"encrypted volume staging failed: {e}"
                 shutil.rmtree(base, ignore_errors=True)

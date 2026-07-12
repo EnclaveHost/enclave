@@ -18,6 +18,7 @@ Needs: wasmtime (serve-capable), rclone >= 1.57 (stage 2 wants >= 1.65 for
 in the sibling checkout (cargo component build --release --target
 wasm32-wasip2 in enclave-apps/encrypted-volumes). Overrides: RCLONE_BIN,
 ENCVOL_APP_WASM."""
+import hashlib
 import json
 import os
 import pathlib
@@ -259,6 +260,55 @@ try:
         v = wait_settled(app2 + "/api/status")
         check("unlock over real S3 + sigv4", v["status"] == "unlocked", json.dumps(v))
         check("plaintext through the app", req(app2 + "/f/cloud/hello.txt") == b"top secret payload\n")
+
+        # ---- stage 3: wallet-derived keys ------------------------------------ #
+        # The backend never sees a wallet - it takes an opaque password. What
+        # must hold is the DERIVATION CONTRACT shared by the app's JS and
+        # scripts/enclave-encvol.sh: password/salt = sha256(lowercase 0x-sig
+        # + "\n" + domain label), over the pinned canonical message. A fixed
+        # signature vector stands in for the wallet.
+        print("stage 3: wallet-derived keys (signature vector, script <-> reference <-> unlock)")
+        script = str(REPO / "scripts/enclave-encvol.sh")
+        sig = "0x" + "ab" * 65
+        expect_pw = hashlib.sha256((sig + "\nenclave-encvol-v1:password").encode()).hexdigest()
+        expect_salt = hashlib.sha256((sig + "\nenclave-encvol-v1:salt").encode()).hexdigest()
+        out = subprocess.run([script, "derive", "--sig", sig],
+                             capture_output=True, text=True, check=True).stdout
+        check("script derive matches the reference derivation", expect_pw in out and expect_salt in out)
+        msg = subprocess.run([script, "message", "wvol"], capture_output=True, text=True, check=True).stdout
+        check("canonical sign-message is pinned", msg ==
+              "Enclave encrypted volume key v1\nvolume: wvol\n\n"
+              "Signing derives this volume's encryption key. "
+              "Only sign in apps you trust with its contents.\n")
+
+        wplain = WORK / "wplain"; wplain.mkdir()
+        (wplain / "wallet.txt").write_text("wallet-gated data\n")
+        script_env = dict(os.environ, ENCVOL_WALLET_SIG=sig,
+                          AWS_ACCESS_KEY_ID=key, AWS_SECRET_ACCESS_KEY=sec,
+                          PATH=str(pathlib.Path(shutil.which(RCLONE)).parent) + os.pathsep + os.environ["PATH"])
+        r = subprocess.run([script, "push", str(wplain), "--endpoint", endpoint,
+                            "--bucket", "bkt", "--path", "wvol", "--name", "wvol"],
+                           env=script_env, capture_output=True, text=True)
+        check("script push in wallet mode", r.returncode == 0, r.stderr[-300:])
+        check("push snippet advertises wallet unlock", '"unlock": "wallet"' in r.stderr)
+
+        wcfg = {"encVolumes": [{"name": "wvol", "endpoint": endpoint, "bucket": "bkt",
+                                "path": "wvol", "unlock": "wallet", "maxMb": 64}]}
+        vm = req(base2 + "/vms", body={"image": app_wasm2, "cpuShare": 0.05,
+                                       "config": json.dumps(wcfg)}, ok=(201,))
+        check("wallet volume launches", vm["status"] == "running", str(vm.get("error")))
+        check("record carries the UI hints", vm["encVolumes"][0]["unlock"] == "wallet"
+              and vm["encVolumes"][0]["keyId"] == "wvol")
+        bad = {"encVolumes": [{"name": "x", "endpoint": endpoint, "bucket": "b", "unlock": "retina-scan"}]}
+        vm2 = req(base2 + "/vms", body={"image": app_wasm2, "cpuShare": 0.05,
+                                        "config": json.dumps(bad)}, ok=(500,))
+        check("refused: bad unlock mode", "unlock" in vm2["error"])
+        app3 = f"http://127.0.0.1:{vm['hostPort']}"
+        req(app3 + "/api/unlock", body={"name": "wvol", "password": expect_pw, "salt": expect_salt,
+                                        "accessKeyId": key, "secretAccessKey": sec}, ok=(202,))
+        v = wait_settled(app3 + "/api/status")
+        check("wallet-derived unlock succeeds", v["status"] == "unlocked", json.dumps(v))
+        check("wallet-gated plaintext through the app", req(app3 + "/f/wvol/wallet.txt") == b"wallet-gated data\n")
 
     print("\nALL ENCVOL E2E CHECKS PASSED")
 except AssertionError as e:
