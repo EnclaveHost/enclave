@@ -37,7 +37,7 @@ RUN curl -fsSL -o /tmp/rclone.zip \
     && python3 -c "import zipfile; zipfile.ZipFile('/tmp/rclone.zip').extract('rclone-${RCLONE_VERSION}-linux-amd64/rclone', '/tmp')" \
     && install -m 0755 "/tmp/rclone-${RCLONE_VERSION}-linux-amd64/rclone" /usr/local/bin/rclone \
     && rm -rf /tmp/rclone.zip "/tmp/rclone-${RCLONE_VERSION}-linux-amd64" \
-    && rclone version
+    && env -u RCLONE_VERSION rclone version   # ARG leaks into RUN env; rclone reads RCLONE_* as flags (RCLONE_VERSION -> --version bool), so clear it just for this check
 
 # wasmtime CLI with wasi-nn (ONNX Runtime backend, CUDA EP) + the ORT dylibs it
 # links. ldconfig registers /usr/local/lib so the dynamic linker finds them; the
