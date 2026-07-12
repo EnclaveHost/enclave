@@ -9,12 +9,13 @@ import "../../components/footer/footer.js";
 import "../../components/toast/toast.js";
 import "../../components/section-head/section-head.js";
 import "../../components/app-card/app-card.js";
+import "../../components/app-detail/app-detail.js";
 import { $, $$, esc, short, blen, fmtDur, showToast, on, tosAccepted, setTosAccepted } from "../core/util.js";
-import { APP_CATALOG_ADDRESS, APP_CATALOG_CHAIN, IPFS_UPLOAD_URL, MAX_WASM_MB, MAX_WASM_BYTES, BASE_CHAIN, PRIVY_RDNS } from "../core/config.js";
+import { APP_CATALOG_ADDRESS, APP_CATALOG_CHAIN, IPFS_UPLOAD_URL, IPFS_IMAGE_UPLOAD_URL, IPFS_IMG_GATEWAY, MAX_WASM_MB, MAX_WASM_BYTES, MAX_IMAGE_MB, MAX_IMAGE_BYTES, BASE_CHAIN, PRIVY_RDNS } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
 import { catConfigured, catExplorer, encCall, CAT_SEL, CAT_MAX, APPROVAL, depPrices6, rate6Of, waitReceipt, catSchemaRev } from "../core/chain.js";
 import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf, openBuyModal } from "../core/wallet.js";
-import { STORE, loadCatalog, selIdx, appVerified, validPortsCsv, REF_CACHE, PORTS_CACHE, MINS_CACHE, CONFIG_CACHE, catalogRef } from "../core/catalog.js";
+import { STORE, loadCatalog, selIdx, defaultIdx, appVerified, validPortsCsv, REF_CACHE, PORTS_CACHE, MINS_CACHE, CONFIG_CACHE, catalogRef, mediaOf, appMedia, stripMedia, withMedia } from "../core/catalog.js";
 import { minPctsOf, shareRates } from "../core/pricing.js";
 import { navigate } from "../boot.js";
 
@@ -87,10 +88,11 @@ function useInDeploy(app, v, idx){
   REF_CACHE[friendly] = catalogRef(app.appId, idx);
   PORTS_CACHE[friendly] = v.ports || "";
   MINS_CACHE[friendly] = minPctsOf(v);
-  CONFIG_CACHE[friendly] = v.config || "";          // the VERSION's config -> shown read-only on the deploy form
+  const cfgPreview = stripMedia(v.config || "");    // hide the _media block from the deploy config preview
+  CONFIG_CACHE[friendly] = cfgPreview;               // the VERSION's config -> shown read-only on the deploy form
   try {
     sessionStorage.setItem("enclave_use_in_deploy", JSON.stringify({
-      friendly, appId: app.appId, index: idx, ports: v.ports || "", mins: MINS_CACHE[friendly], config: v.config || "" }));
+      friendly, appId: app.appId, index: idx, ports: v.ports || "", mins: MINS_CACHE[friendly], config: cfgPreview }));
   } catch(e){}
   // the console's own URL, share-friendly: /deploy?app=hello-world_1.0.0
   // (the "_" form keeps the query un-percent-encoded; deploy.js normalizes it
@@ -221,30 +223,13 @@ let pubXhr = null, pubSeq = 0;
 async function putWasm(file, onProgress){
   if (!IPFS_UPLOAD_URL) throw new EnclaveError("Direct upload isn’t configured here; paste a CID you’ve pinned (e.g. `ipfs add app.wasm`).", 0);
   if (file.size > MAX_WASM_BYTES) throw new EnclaveError("Too large: max " + MAX_WASM_MB + " MB.", 0);
-  // The pin is now WALLET-AUTHORIZED (closes the open-pin storage DoS): sign
-  // enclave-upload:<sha256>:<expiry>, trade it at the API for a one-time token,
-  // and hand the token to the gateway. Publishing needs a wallet anyway, so
-  // connect now if there isn't one.
-  if (!Enclave.address){ try { await connectWallet(); } catch(_){} }
-  if (!Enclave.address || !Enclave.provider) throw new EnclaveError("Connect your wallet to upload — your signature authorizes the pin.", 0);
-  let hash;
-  try {
-    const buf = await file.arrayBuffer();
-    hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", buf))].map(b => b.toString(16).padStart(2, "0")).join("");
-  } catch(_){ throw new EnclaveError("Couldn’t read this file to sign it" + (file.size > 500*1048576 ? " (very large files: publish with the CLI instead)." : "."), 0); }
-  const expiry = Math.floor(Date.now() / 1000) + 300;
-  let token, upAddr;
-  try {
-    const signature = await Enclave.provider.request({ method: "personal_sign", params: [`enclave-upload:${hash}:${expiry}`, Enclave.address] });
-    const r = await fetch(Enclave.base + "/apps/upload-token", { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ hash, expiry, signature }) });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.token) throw new EnclaveError("upload authorization failed: " + (j.message || j.error || ("HTTP " + r.status)), 0);
-    token = j.token; upAddr = j.address;
-  } catch(err){
-    if (err && (err.code === 4001 || /reject|denied|declin|cancell/i.test(err.message || ""))) throw new EnclaveError("upload canceled: you declined the wallet signature.", 0);
-    throw (err instanceof EnclaveError) ? err : new EnclaveError("upload authorization failed: " + (err.message || err), 0);
-  }
+  // The pin is WALLET-AUTHORIZED (closes the open-pin storage DoS): read the
+  // bytes, get a one-time token bound to them (signedUploadToken), hand it to
+  // the gateway. Publishing needs a wallet anyway.
+  let buf;
+  try { buf = await file.arrayBuffer(); }
+  catch(_){ throw new EnclaveError("Couldn’t read this file to sign it" + (file.size > 500*1048576 ? " (very large files: publish with the CLI instead)." : "."), 0); }
+  const { token, address: upAddr, expiry } = await signedUploadToken(buf);
   return await new Promise((resolve, reject) => {
     // raw bytes to the validating gateway; it re-checks the wasm preamble, verifies
     // the upload token authorizes exactly these bytes, pins, and returns { cid }.
@@ -267,6 +252,46 @@ async function putWasm(file, onProgress){
     pubXhr = xhr;
     xhr.send(file);
   });
+}
+
+/* Wallet-authorize a pin: sign enclave-upload:<sha256(bytes)>:<expiry>, trade it
+   at the API for a one-time HMAC token bound to exactly these bytes. Shared by
+   the wasm upload and the image (thumbnail/banner) uploads. */
+async function signedUploadToken(bytes){
+  if (!Enclave.address){ try { await connectWallet(); } catch(_){} }
+  if (!Enclave.address || !Enclave.provider) throw new EnclaveError("Connect your wallet to upload — your signature authorizes the pin.", 0);
+  const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(b => b.toString(16).padStart(2, "0")).join("");
+  const expiry = Math.floor(Date.now() / 1000) + 300;
+  try {
+    const signature = await Enclave.provider.request({ method: "personal_sign", params: [`enclave-upload:${hash}:${expiry}`, Enclave.address] });
+    const r = await fetch(Enclave.base + "/apps/upload-token", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ hash, expiry, signature }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.token) throw new EnclaveError("upload authorization failed: " + (j.message || j.error || ("HTTP " + r.status)), 0);
+    return { token: j.token, address: j.address, expiry };
+  } catch(err){
+    if (err && (err.code === 4001 || /reject|denied|declin|cancell/i.test(err.message || ""))) throw new EnclaveError("upload canceled: you declined the wallet signature.", 0);
+    throw (err instanceof EnclaveError) ? err : new EnclaveError("upload authorization failed: " + (err.message || err), 0);
+  }
+}
+
+/* Upload an app image (thumbnail/banner) to the validating gateway; returns its
+   CID. Small + wallet-signed like the wasm; the gateway re-checks the raster
+   magic bytes and pins. */
+async function putImage(file){
+  if (!IPFS_IMAGE_UPLOAD_URL) throw new EnclaveError("Image upload isn’t configured here.", 0);
+  if (!/\.(png|jpe?g|webp|gif)$/i.test(file.name || "") && !/^image\/(png|jpeg|webp|gif)$/i.test(file.type || ""))
+    throw new EnclaveError("Pick a PNG, JPEG, WebP, or GIF image.", 0);
+  if (file.size > MAX_IMAGE_BYTES) throw new EnclaveError("Image too large: max " + MAX_IMAGE_MB + " MB (this is " + (file.size / 1048576).toFixed(1) + " MB).", 0);
+  let buf; try { buf = await file.arrayBuffer(); } catch(_){ throw new EnclaveError("Couldn’t read this image to sign it.", 0); }
+  const { token, address, expiry } = await signedUploadToken(buf);
+  const r = await fetch(IPFS_IMAGE_UPLOAD_URL, { method: "POST", headers: {
+    "content-type": file.type || "application/octet-stream",
+    "x-upload-address": address, "x-upload-expiry": String(expiry), "x-upload-token": token,
+  }, body: buf });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.cid) throw new EnclaveError("image upload rejected: " + (j.error || ("HTTP " + r.status)), 0);
+  return j.cid;
 }
 // Lock the publish path while bytes are in flight: an enabled button next to a
 // CID field still holding the PREVIOUS upload's CID is how a stale CID lands
@@ -347,6 +372,13 @@ async function publishApp(){
   if (blen(ports) > 96) return pubStatus("open-ports config too long (≤ 96 bytes)", true);
   const pErr = validPortsCsv(ports); if (pErr) return pubStatus(pErr, true);
   const cfg = readPubConfig(); if (cfg.err) return pubStatus(cfg.err, true);
+  // fold the (already-uploaded) thumbnail/banner CIDs into the version config
+  // under _media - they ride in the config since the catalog contract has no
+  // media field. Re-check the ceiling: media adds ~150 bytes over the app config.
+  const thumbCid = ($("#pubThumbCid") && $("#pubThumbCid").value || "").trim();
+  const bannerCid = ($("#pubBannerCid") && $("#pubBannerCid").value || "").trim();
+  const finalConfig = withMedia(cfg.val, thumbCid, bannerCid);
+  if (blen(finalConfig) > CAT_MAX.config) return pubStatus("app config + image references exceed " + CAT_MAX.config + " bytes - shorten the config", true);
   // Pre-flight against the loaded catalog. Both cases REVERT on-chain, which a
   // wallet surfaces as a gas-estimation hang and the form as a bare timeout -
   // refuse here with the actual reason instead.
@@ -379,8 +411,8 @@ async function publishApp(){
     // working). Version-level config needs rev 4 - rev 3 (the retired
     // app-level layout) would silently store it where nothing reads it.
     const rev = await catSchemaRev();
-    if (rev < 4 && cfg.val){
-      pubStatus("this catalog revision doesn't store per-version configs - clear the App config box (or publish after the rev-4 catalog cutover)", true);
+    if (rev < 4 && finalConfig){
+      pubStatus("this catalog revision doesn't store per-version configs - clear the App config box and images (or publish after the rev-4 catalog cutover)", true);
       btn.disabled = false; btn.textContent = lbl; return;
     }
     pubStatus("confirm the transaction in your wallet…");
@@ -391,7 +423,7 @@ async function publishApp(){
       {t:"uint",v:vramMb},{t:"uint",v:gpuGflops},{t:"uint",v:memMb},{t:"uint",v:cpuGflops},{t:"str",v:ports},
     ];
     const data = rev >= 3
-      ? encCall(CAT_SEL.publishVersion, [...args, {t:"str",v:cfg.val}])
+      ? encCall(CAT_SEL.publishVersion, [...args, {t:"str",v:finalConfig}])
       : encCall(CAT_SEL.publishVersionV2, args);
     const hash = await sendTx(APP_CATALOG_ADDRESS, data);
     pubStatus("sent · " + hash + " · waiting for confirmation…");
@@ -412,6 +444,46 @@ async function publishApp(){
    the version (immutable, covered by the version's approval - publishers can
    never change an approved release's behavior; a new config = a new version =
    Pending again). Empty is fine; otherwise a JSON object within the cap. */
+/* ---- publish-form image pickers (thumbnail + banner) ----
+   Each picker uploads on select (putImage -> CID, wallet-signed), shows a live
+   preview, and parks the CID in a hidden input; publishApp folds both into the
+   version config under _media. `kind` is "Thumb" | "Banner" (the id fragment). */
+const IMG_KIND = { thumb: "Thumb", banner: "Banner" };
+async function onPubImage(e, kind){
+  const K = IMG_KIND[kind]; const f = e.target.files && e.target.files[0]; if (!f) return;
+  const cidEl = $("#pub" + K + "Cid"), prev = $("#pub" + K + "Prev"), hint = $("#pub" + K + "Hint"), clr = $("#pub" + K + "Clear");
+  let objUrl = ""; try { objUrl = URL.createObjectURL(f); prev.classList.add("has"); prev.style.backgroundImage = "url('" + objUrl + "')"; } catch(_){}
+  if (hint) hint.textContent = "uploading…";
+  try {
+    const cid = await putImage(f);
+    if (cidEl) cidEl.value = cid;
+    prev.classList.add("has");
+    prev.style.backgroundImage = "url('" + IPFS_IMG_GATEWAY + encodeURIComponent(cid) + "')";
+    if (hint){ hint.textContent = "pinned"; hint.className = "hint ok"; }
+    if (clr) clr.hidden = false;
+  } catch(err){
+    if (cidEl) cidEl.value = "";
+    prev.classList.remove("has"); prev.style.backgroundImage = "";
+    if (hint){ hint.textContent = err.message || String(err); hint.className = "hint err"; }
+    e.target.value = "";
+  } finally { if (objUrl) try { URL.revokeObjectURL(objUrl); } catch(_){} }
+}
+function clearPubImage(kind){
+  const K = IMG_KIND[kind];
+  const cidEl = $("#pub"+K+"Cid"); if (cidEl) cidEl.value = "";
+  const prev = $("#pub"+K+"Prev"); if (prev){ prev.classList.remove("has"); prev.style.backgroundImage = ""; }
+  const f = $("#pub"+K+"File"); if (f) f.value = "";
+  const hint = $("#pub"+K+"Hint"); if (hint){ hint.textContent = ""; hint.className = "hint"; }
+  const clr = $("#pub"+K+"Clear"); if (clr) clr.hidden = true;
+}
+// prefill a picker from an existing CID (add-version keeps the current media)
+function setPubImage(kind, cid){
+  const K = IMG_KIND[kind];
+  const cidEl = $("#pub"+K+"Cid"); if (cidEl) cidEl.value = cid || "";
+  const prev = $("#pub"+K+"Prev");
+  if (prev){ prev.classList.toggle("has", !!cid); prev.style.backgroundImage = cid ? "url('" + IPFS_IMG_GATEWAY + encodeURIComponent(cid) + "')" : ""; }
+  const clr = $("#pub"+K+"Clear"); if (clr) clr.hidden = !cid;
+}
 function readPubConfig(){
   const raw = ($("#pubConfig") && $("#pubConfig").value || "").trim();
   if (!raw) return { val: "" };
@@ -445,6 +517,7 @@ function resetPublish(){
   const bar = $("#pubUpBar"); if (bar) bar.hidden = true;
   ["#pubSlug","#pubCid","#pubName","#pubDesc","#pubPorts","#pubConfig"].forEach(s => { const el = $(s); if (el) el.value = ""; });
   const f = $("#pubFile"); if (f) f.value = ""; const h = $("#pubFileHint"); if (h) h.textContent = "";
+  clearPubImage("thumb"); clearPubImage("banner");
   $("#pubVersion").value = "1.0.0"; $("#pubVram").value = "0"; $("#pubGpuT").value = "0";
   $("#pubMem").value = "128"; $("#pubCpuG").value = "1"; pubStatus("");
 }
@@ -468,21 +541,38 @@ function nextFreeVersion(app, from){
 // path (same bytes, corrected specs/ports); picking a new .wasm replaces it.
 function prefillPublish(app){
   const v = app.versions[selIdx(app)] || app.versions[app.versions.length - 1] || {};
+  const media = mediaOf(v);
+  // stash, then navigate: "add version" fires from the app's own page
+  // (apps?app=…), whose URL search differs from /apps/publish, so the router
+  // SWAPS <main> - a form filled before the swap would be wiped. Persist the
+  // prefill and let the publish view apply it after it mounts (like useInDeploy).
+  const stash = {
+    slug: app.slug, name: app.name || "", desc: app.description || "",
+    version: nextFreeVersion(app, v.version), cid: v.cid || "",
+    vram: String((Number(v.vramMb) || 0) / 1024), gpuT: String((Number(v.gpuGflops) || 0) / 1000),
+    mem: String(Number(v.memMb) || 128), cpuG: String(Math.max(1, Number(v.cpuGflops) || 1)),
+    ports: v.ports || "", config: stripMedia(v.config || ""),
+    thumb: media.thumbnail || "", banner: media.banner || "",
+    note: "pre-filled from " + app.slug + " " + (v.version || "") + " - fix specs/ports and publish (same bytes), or pick a new .wasm if the code changed"
+          + (app.active ? "" : " · publishing relists the app"),
+  };
+  try { sessionStorage.setItem("enclave_prefill_publish", JSON.stringify(stash)); } catch(e){}
+  openPublish();   // applyView applies the stash once the publish view is active (swap or fast-path)
+}
+// apply a stashed "add version" prefill onto the publish form (once), whenever
+// the publish view becomes active - covers both the swap and fast-path routes.
+function applyPrefillPublish(){
+  let s; try { s = JSON.parse(sessionStorage.getItem("enclave_prefill_publish") || "null"); } catch(e){}
+  if (!s || !$("#pubSlug")) return;
+  sessionStorage.removeItem("enclave_prefill_publish");
   resetPublish();
-  $("#pubSlug").value = app.slug;
-  $("#pubName").value = app.name || "";
-  $("#pubDesc").value = app.description || "";
-  $("#pubVersion").value = nextFreeVersion(app, v.version);
-  $("#pubCid").value = v.cid || "";
-  $("#pubVram").value = String((Number(v.vramMb) || 0) / 1024);
-  $("#pubGpuT").value = String((Number(v.gpuGflops) || 0) / 1000);
-  $("#pubMem").value = String(Number(v.memMb) || 128);
-  $("#pubCpuG").value = String(Math.max(1, Number(v.cpuGflops) || 1));
-  $("#pubPorts").value = v.ports || "";
-  const pc = $("#pubConfig"); if (pc) pc.value = v.config || "";
-  openPublish();
-  pubStatus("pre-filled from " + app.slug + " " + (v.version || "") + " - fix specs/ports and publish (same bytes), or pick a new .wasm if the code changed"
-          + (app.active ? "" : " · publishing relists the app"));
+  $("#pubSlug").value = s.slug || ""; $("#pubName").value = s.name || ""; $("#pubDesc").value = s.desc || "";
+  $("#pubVersion").value = s.version || "1.0.0"; $("#pubCid").value = s.cid || "";
+  $("#pubVram").value = s.vram || "0"; $("#pubGpuT").value = s.gpuT || "0";
+  $("#pubMem").value = s.mem || "128"; $("#pubCpuG").value = s.cpuG || "1"; $("#pubPorts").value = s.ports || "";
+  const pc = $("#pubConfig"); if (pc) pc.value = s.config || "";
+  setPubImage("thumb", s.thumb || ""); setPubImage("banner", s.banner || "");
+  pubStatus(s.note || "");
 }
 /* ============================================================
    Hash-routed sub-pages that replace the store content
@@ -495,7 +585,7 @@ function prefillPublish(app){
    hrefs, so there's no double handling.
    ============================================================ */
 function applyView(){
-  const store = $("#storeView"), pub = $("#publishView"), dep = document.getElementById("deploy");
+  const store = $("#storeView"), pub = $("#publishView"), dep = document.getElementById("deploy"), det = $("#appDetailView");
   if (!store || !pub || !dep) return;
   // the PATHNAME names the view now (/apps/deploy and /apps/publish are
   // router aliases of this page); the legacy #deploy/#publish hashes stay
@@ -506,13 +596,42 @@ function applyView(){
              : sub === "publish" || location.hash === "#publish" ? "publish" : "store";
   if (sub !== view && (location.hash === "#deploy" || location.hash === "#publish"))
     history.replaceState(history.state, "", new URL(".", document.baseURI).pathname + "apps/" + view + location.search);
+  // the base Apps view splits into the grid and a single app's page: apps?app=<appId>
+  const appId = view === "store" ? new URLSearchParams(location.search).get("app") : null;
+  const detail = !!appId;
   store.closest("section").hidden = view === "deploy";
   dep.hidden = view !== "deploy";
-  store.hidden = view !== "store";
+  store.hidden = view !== "store" || detail;
+  if (det) det.hidden = !detail;
   pub.hidden = view !== "publish";
   document.title = view === "publish" ? "Publish · Enclave" : view === "deploy" ? "Deploy · Enclave" : "Apps · Enclave";
   if (view === "deploy") ensureDeployBooted();
+  else if (view === "publish") applyPrefillPublish();   // apply a stashed "add version" prefill, if any
+  else if (detail) renderDetail(appId);
   scrollTo(0, 0);
+}
+/* one app's full page (apps?app=<appId>) - renders <c-app-detail> into the
+   detail wrap; re-run on catalog/wallet edges like the grid (renderActiveView) */
+function renderDetail(appId){
+  const host = $("#appDetailView"); if (!host) return;
+  appId = appId || new URLSearchParams(location.search).get("app");
+  if (!appId){ navigate("apps", { push: false }); return; }
+  if (!catConfigured()){ host.innerHTML = '<div class="store-note">The on-chain catalog isn’t wired up on this deployment yet.</div>'; return; }
+  if (!STORE.loaded){ host.innerHTML = '<div class="loading" role="status">reading catalog from Base…</div>'; return; }
+  const app = STORE.byId[appId] || (STORE.apps || []).find(a => a.appId === appId);
+  if (!app){ host.innerHTML = '<div class="store-note">That app isn’t in the catalog. <a href="apps">← all apps</a></div>'; document.title = "Apps · Enclave"; return; }
+  document.title = app.name + " · Enclave";
+  let el = host.querySelector("c-app-detail");
+  if (!el){ host.innerHTML = ""; el = document.createElement("c-app-detail"); host.appendChild(el); }
+  el.app = app;
+}
+/* pick the renderer for whichever view is live (grid vs a single app's page),
+   so catalog/wallet refreshes repaint the right one */
+function renderActiveView(){
+  const sub = location.pathname.split("/").pop();
+  const onStore = sub !== "deploy" && sub !== "publish";
+  const appId = onStore ? new URLSearchParams(location.search).get("app") : null;
+  if (appId) renderDetail(appId); else renderApps();
 }
 /* the console's logic lives in the code-split deploy module; boot it the
    first time the view opens on each <main> mount (fresh DOM per swap) */
@@ -556,19 +675,28 @@ function initStore(){
   const pf = $("#pubFile"); if (pf) pf.addEventListener("change", onPubFile);
   const row = $("#pubFileRow");
   if (row && !IPFS_UPLOAD_URL){ row.classList.add("disabled"); $("#pubFileHint").textContent = "upload disabled here; paste a CID below"; }
+  const tf = $("#pubThumbFile"); if (tf) tf.addEventListener("change", (e) => onPubImage(e, "thumb"));
+  const bf = $("#pubBannerFile"); if (bf) bf.addEventListener("change", (e) => onPubImage(e, "banner"));
+  const tc = $("#pubThumbClear"); if (tc) tc.addEventListener("click", () => clearPubImage("thumb"));
+  const bc = $("#pubBannerClear"); if (bc) bc.addEventListener("click", () => clearPubImage("banner"));
+  const pm = $(".pub-media"); if (pm && !IPFS_IMAGE_UPLOAD_URL) pm.hidden = true;   // no image gateway here
 
-  // wallet-tx / navigation actions the cards bubble up (data down, events up)
-  grid.addEventListener("card-action", (e) => {
-    const { app, act, idx, verified } = e.detail;
-    if (act === "deploy") quickDeploy(app, app.versions[idx], idx);
-    else if (act === "delist"){ if (confirm("Delist this whole app? It stays on-chain but is hidden from the store - you (and the catalog owner) still see it here, with a relist button.")) setActiveTx(app.slug, false); }
-    else if (act === "relist") setActiveTx(app.slug, true);
-    else if (act === "newver") prefillPublish(app);
-    else if (act === "yank"){ if (confirm("Yank version " + app.versions[idx].version + "? It stays on-chain but readers hide it.")) yankTx(app.slug, idx); }
-    else if (act === "verify") setVerifiedTx(app.appId, idx, verified);
-    else if (act === "approve") setApprovalTx(app.appId, idx, APPROVAL.approved);
-    else if (act === "reject"){ if (confirm("Reject version " + app.versions[idx].version + "? The enclave will refuse to deploy it until you approve it.")) setApprovalTx(app.appId, idx, APPROVAL.rejected); }
-  });
+  // wallet-tx / navigation actions the cards + detail page bubble up (data
+  // down, events up) - the grid tile opens the page, the page carries the rest
+  grid.addEventListener("card-action", onCardAction);
+  const det = $("#appDetailView"); if (det) det.addEventListener("card-action", onCardAction);
+}
+function onCardAction(e){
+  const { app, act, idx, verified } = e.detail;
+  if (act === "open"){ navigate("apps?app=" + encodeURIComponent(app.appId), { push: true }); return; }
+  if (act === "deploy") quickDeploy(app, app.versions[idx], idx);
+  else if (act === "delist"){ if (confirm("Delist this whole app? It stays on-chain but is hidden from the store - you (and the catalog owner) still see it here, with a relist button.")) setActiveTx(app.slug, false); }
+  else if (act === "relist") setActiveTx(app.slug, true);
+  else if (act === "newver") prefillPublish(app);
+  else if (act === "yank"){ if (confirm("Yank version " + app.versions[idx].version + "? It stays on-chain but readers hide it.")) yankTx(app.slug, idx); }
+  else if (act === "verify") setVerifiedTx(app.appId, idx, verified);
+  else if (act === "approve") setApprovalTx(app.appId, idx, APPROVAL.approved);
+  else if (act === "reject"){ if (confirm("Reject version " + app.versions[idx].version + "? The enclave will refuse to deploy it until you approve it.")) setApprovalTx(app.appId, idx, APPROVAL.rejected); }
 }
 
 /* ============================================================
@@ -585,9 +713,9 @@ on("enclave:catalog", (d) => {
     }
     return;
   }
-  renderApps();
+  renderActiveView();
 });
-on("enclave:wallet", () => { if (STORE.loaded) renderApps(); });   // publisher/owner buttons follow the connected wallet
+on("enclave:wallet", () => { if (STORE.loaded) renderActiveView(); });   // publisher/owner buttons follow the connected wallet
 // (both subscriptions are module-load-once; renderApps null-guards #storeGrid,
 // so they're inert while another page's <main> is mounted)
 
@@ -595,6 +723,6 @@ on("enclave:wallet", () => { if (STORE.loaded) renderApps(); });   // publisher/
 export function boot() {
   initStore();
   applyView();          // direct entries and soft-navs to apps.html#publish land on the publish view
-  renderApps();
+  renderActiveView();   // grid, or a single app's page when apps?app=<appId>
   loadCatalog();
 }

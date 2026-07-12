@@ -54,6 +54,9 @@
     <div class="contract-foot"><a class="contract-link" id="catAddrLink" target="_blank" rel="noopener" aria-label="View the EnclaveAppCatalog contract on Basescan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg> contract</a></div>
   </div>
 
+  <!-- one app's full page (apps?app=appId); apps.js renders the app-detail component here -->
+  <div class="wrap" id="appDetailView" hidden></div>
+
   <div class="wrap" id="publishView" hidden>
     <c-section-head eyebrow="App store · publish" heading="Publish a Wasm app version.">
       <p>Add a <span class="mono">wasi:http</span> component release to the on-chain catalog. Its bytes go on IPFS; the CID and metadata go on Base. An app is keyed by <b>slug</b> in your wallet's namespace; publish the same slug again to cut a new <b>version</b>. Only you (<span class="mono">msg.sender</span>) can add versions, edit, or delist it. New to building components? The <a href="develop#docs">developer guide</a> takes you from an empty directory to a published app.</p>
@@ -106,6 +109,25 @@
         <div class="full">
           <label for="pubDesc">Description <span class="dim">(≤ 500 chars)</span></label>
           <textarea id="pubDesc" maxlength="500" placeholder="What does it do?"></textarea>
+        </div>
+        <div class="full pub-media">
+          <label>App images <span class="dim">(optional · PNG/JPEG/WebP/GIF · ≤ 4 MB · pinned to IPFS &amp; stored with this version)</span></label>
+          <div class="pub-media-row">
+            <div class="pub-img">
+              <div class="pub-img-top">Thumbnail <span class="dim">catalog tile · ~16:9</span></div>
+              <label class="pub-img-prev" id="pubThumbPrev" for="pubThumbFile"><span class="pub-img-ph">＋ add image</span></label>
+              <input type="file" id="pubThumbFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+              <input type="hidden" id="pubThumbCid" />
+              <div class="pub-img-foot"><span class="hint" id="pubThumbHint"></span><button type="button" class="btn btn-sm pub-img-clear" id="pubThumbClear" hidden>clear</button></div>
+            </div>
+            <div class="pub-img">
+              <div class="pub-img-top">Banner <span class="dim">app page hero · ~4:1</span></div>
+              <label class="pub-img-prev banner" id="pubBannerPrev" for="pubBannerFile"><span class="pub-img-ph">＋ add image</span></label>
+              <input type="file" id="pubBannerFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+              <input type="hidden" id="pubBannerCid" />
+              <div class="pub-img-foot"><span class="hint" id="pubBannerHint"></span><button type="button" class="btn btn-sm pub-img-clear" id="pubBannerClear" hidden>clear</button></div>
+            </div>
+          </div>
         </div>
         <div class="full">
           <label for="pubConfig">App config <span class="dim">(optional · default/template JSON for deployments of THIS version - the deploy console pre-fills from it · immutable once published and covered by the version's approval, like ports · ≤ 4096 chars)</span></label>
