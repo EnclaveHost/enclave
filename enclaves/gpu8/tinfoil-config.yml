@@ -142,7 +142,7 @@ containers:
       # 120s was pure Queued time on every CPU deploy. The /v1/claim-hint fast path
       # (console deploys) skips this grace entirely — this only bounds the slower
       # sweep backstop. Raise it back toward 120 once a CPU enclave rejoins the fleet.
-      - CPU_CLAIM_GRACE_SEC: "30"
+      - CPU_CLAIM_GRACE_SEC: "60"
       - GPU_COUNT: "8"
       - GPU_VRAM_GB: "141"                               # FALLBACK until probed: the supervisor adopts the wasm-manager's nvidia-smi total via /health (this container has no GPU), so a share's VRAM cap tracks the real card
       - GPU_TFLOPS: "989"                                # GPU compute per card (H200 FP16 dense); exact gpuTflops asks divide by this
