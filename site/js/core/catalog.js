@@ -12,7 +12,7 @@
    ============================================================ */
 import { APP_CATALOG_ADDRESS } from "./config.js";
 import { catConfigured, appCount, catGetAppsPage, catGetVersions, catOwner, APPROVAL } from "./chain.js";
-import { lsGet, lsSet, emit } from "./util.js";
+import { lsGet, lsSet, emit, on } from "./util.js";
 import { minPctsOf } from "./pricing.js";
 
 export const STORE = { apps:[], byId:{}, sel:{}, owner:null, filter:"all", loaded:false, loading:false };
@@ -127,6 +127,18 @@ export function resolveAppRef(input){
   CONFIG_CACHE[input] = v.config || "";   // the version's default config template
   return { reference: REF_CACHE[input], label: input, mins: MINS_CACHE[input] };
 }
+
+// A mid-session address-book change (js/core/addressbook.js emits
+// `enclave:addresses` when APP_CATALOG_ADDRESS et al. are repointed on-chain)
+// leaves our loaded catalog reading the OLD contract. Re-read against the new
+// address so pages repaint - loadCatalog emits `enclave:catalog` on completion,
+// which is exactly the repaint signal the Apps/Deploy pages already listen for.
+on("enclave:addresses", ({ changed }) => {
+  if (changed && changed.indexOf("APP_CATALOG_ADDRESS") !== -1){
+    STORE.loaded = false; STORE.loading = false; STORE.owner = null;
+    loadCatalog(true);
+  }
+});
 
 // deployment rows show the human app name (slug:version) resolved EXACTLY from
 // the row's catalog://<appId>/<idx> reference - from the live STORE or the

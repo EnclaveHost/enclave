@@ -18,6 +18,12 @@ without ever entering the trust boundary:
 - [`api-relay.js`](api-relay.js) — **API relay**: fleet discovery + placement.
   Reads EnclaveRegistry on Base for live enclaves, polls their `/availability`,
   and steers new work to the most available one.
+- [`dns-relay.js`](dns-relay.js) — **authoritative DNS**: serves the `ip.` and
+  `app.` (and optional `tcp.`) zones from live fleet state, plus a
+  `_acme-challenge` TXT push API the enclaves authenticate with **`DNS_TXT_KEY`**
+  — the DERIVED key `HMAC(fleet SECRET,'enclave dns-txt v1')` (hex), **not** the
+  raw fleet secret (the old `SECRET` env is a deprecated fallback; a non-hex
+  value fails closed).
 - [`net-guard.mjs`](net-guard.mjs) — shared SSRF classifier (symlink to the
   repo-root canonical file; also imported by the enclave's `egress.js`).
 - [`fleet.mjs`](fleet.mjs) — shared fleet discovery for the dedicated-IP
@@ -78,6 +84,27 @@ Notes:
 - Config: `REGISTRY_ADDRESS` or `ENCLAVES` (required), `BASE_RPC`,
   `API_RELAY_PORT` (8100), `AVAIL_POLL_SEC` (10), `REGISTRY_POLL_SEC` (300),
   `STALE_AFTER_SEC` (3600), `APP_DOMAIN` (per-deployment app subdomains).
+- **Hardening (all opt-in; defaults preserve today's behavior):**
+  - **`TRUSTED_OPERATORS`** — comma-separated, lowercased `EnclaveRegistry`
+    operator addresses. The registry is *permissionless* (anyone can register an
+    endpoint), so when this is **set**, on-chain discovery is filtered to these
+    operators — session tokens and `/x` data-path traffic only ever reach vetted
+    enclaves. **Unset = follow every registered endpoint (today's behavior) + a
+    loud one-time warning.** Discovered endpoints are always required to be
+    `https:` (a real enclave is; a non-https row is dropped). Shared by
+    `api-relay`, `egress-relay`, and the `fleet.mjs` dedicated-IP relays.
+  - **`API_RELAY_BIND=127.0.0.1`** — bind loopback only when a local Caddy fronts
+    `:8100` (the production `nan` box does). Default stays all-interfaces so a
+    directly-exposed relay isn't broken; **set this whenever something fronts it.**
+  - **`TRUSTED_PROXY`** — `1`/on (default) trusts Caddy's `x-forwarded-host` /
+    `x-forwarded-for`; set `0`/`off`/`none` when the relay is directly
+    internet-exposed so a client can't spoof routing/source via those headers.
+  - **`CORS_ORIGINS`** — allowlist of browser origins that get CORS +
+    credentials (default `https://enclave.host,https://www.enclave.host`).
+    Replaces Origin reflection, so a hostile page can't ride a signed-in session.
+  - **`FANOUT_MAX_INFLIGHT`** (256) — global cap on concurrent upstream fan-out;
+    with per-source rate limits it bounds `/v1/claim-hint` and `/x`-miss
+    amplification. `/x` owner misses are also negatively cached briefly.
 
 ## UDP relay
 
@@ -227,7 +254,7 @@ so names resolve and are SSRF-checked where the dial happens.
 ```bash
 REGISTRY_ADDRESS=0x...              # on-chain fleet discovery (or ENCLAVES=...)
 EGRESS_RELAY_TOKEN=<same on every enclave>
-EGRESS_PREFIX=<same /64>            # systemd AnyIP step only
+EGRESS_PREFIX=<same /64>            # systemd AnyIP step + (when set) source guard
 # EGRESS_ALLOW_V4=1                 # optional; see caveats
 node egress-relay.js
 ```
@@ -264,7 +291,10 @@ exists.
 - Config: `REGISTRY_ADDRESS` or `ENCLAVES` (required; `ENCLAVE_URL` = legacy
   one-entry alias), `EGRESS_RELAY_TOKEN` (required, same on every enclave),
   `EGRESS_ALLOW_V4` (off), `EGRESS_MAX_CONNS` (4096), `EGRESS_DIAL_MS` (10000).
-  `EGRESS_PREFIX` is the systemd AnyIP step only, not the daemon.
+  `EGRESS_PREFIX` drives the systemd AnyIP step **and**, when set, constrains the
+  outbound source: an `OPEN` whose `source` falls outside this /64 is refused
+  before dialing (a rogue control peer can't source-spoof off-prefix). Unset =
+  source unconstrained (today's behavior) + a one-time warning.
 
 ## TCP relay (SNI, shared-port)
 
@@ -387,7 +417,12 @@ TLS on 6697 while the app declares `tcp:6667`) and for colocated testing.
   `RELAY_MAX_CONNS` with the supervisor in mind.
 - Ready-to-install systemd units for all daemons are in
   [`systemd/`](systemd/) — they read config from
-  `/etc/nan-relay/{tcp-relay,tcp6-relay,udp-relay,api-relay}.env` and expect
-  the code at `/opt/nan-relay`. The `tcp6-relay.env` and `udp-relay.env` carry
-  `ENCLAVE_URL` plus the `TCP6_PREFIX` / `UDP_PREFIX` for the AnyIP route (same
-  /64); `deploy.sh` never touches the env files (host state).
+  `/etc/nan-relay/{tcp-relay,tcp6-relay,udp-relay,egress-relay,dns,api-relay}.env`
+  and expect the code at `/opt/nan-relay`. The `tcp6-relay.env` and
+  `udp-relay.env` carry `ENCLAVE_URL` plus the `TCP6_PREFIX` / `UDP_PREFIX` for
+  the AnyIP route (same /64); `egress-relay.env` carries `EGRESS_RELAY_TOKEN` +
+  `EGRESS_PREFIX`; `dns.env` carries `IP_ZONE` / `APP_ZONE` / `NS_NAME` +
+  `DNS_TXT_KEY` (the DERIVED TXT-push HMAC key — see the DNS note below);
+  `deploy.sh` never touches the env files (host state). Each unit sets
+  `MemoryMax` / `TasksMax` and `StartLimitIntervalSec=0` (a crash-loop must not
+  permanently stop a shared relay).

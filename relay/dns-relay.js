@@ -36,8 +36,11 @@
 //   DNS_PORT          optional   DNS udp+tcp port (default 53)
 //   DNS_API_PORT      optional   challenge-push HTTP API port (default 8153)
 //   DNS_API_BIND      optional   API bind address (default all)
-//   SECRET            optional   the fleet's shared secret; HMAC auth for the
-//                                API (unset -> API answers 503)
+//   DNS_TXT_KEY       optional   the DERIVED key the enclave signs TXT pushes
+//                                with: HMAC-SHA256(fleet SECRET,'enclave dns-txt
+//                                v1') as hex (NOT the raw fleet SECRET). HMAC auth
+//                                for the API (unset -> API answers 503). The old
+//                                `SECRET` env is a deprecated fallback.
 //   TXT_TTL_SEC       optional   challenge lifetime cap, seconds (default 600)
 //   REGISTRY_ADDRESS  required*  EnclaveRegistry on Base: on-chain fleet discovery
 //   ENCLAVES          required*  *instead: static comma list of enclave origins
@@ -71,8 +74,41 @@ const RNAME     = "hostmaster." + (NS_NAME.includes(".") ? NS_NAME.slice(NS_NAME
 const DNS_PORT  = parseInt(process.env.DNS_PORT || "53", 10);
 const API_PORT  = parseInt(process.env.DNS_API_PORT || "8153", 10);
 const API_BIND  = process.env.DNS_API_BIND || undefined;
-const SECRET    = (process.env.SECRET || "").trim();
+// The enclave signs TXT pushes with a DERIVED key, NOT the raw fleet SECRET:
+//   DNS_TXT_KEY = HMAC-SHA256(fleet SECRET, "enclave dns-txt v1")  (hex, 64 chars)
+// (see supervisor.js's DNS_TXT_KEY). Set DNS_TXT_KEY to that derived hex.
+// `SECRET` stays as a DEPRECATED fallback (it was mislabeled "the fleet secret"
+// but always had to hold the derived key for a push to verify).
+let TXT_KEY = (process.env.DNS_TXT_KEY || "").trim();
+if (!TXT_KEY && (process.env.SECRET || "").trim()) {
+  TXT_KEY = process.env.SECRET.trim();
+  console.error("[dns-relay] SECRET is DEPRECATED — rename it to DNS_TXT_KEY. Its value must be the DERIVED key HMAC(fleet SECRET,'enclave dns-txt v1') hex, never the raw fleet SECRET.");
+}
+if (TXT_KEY && !/^[0-9a-f]{64}$/i.test(TXT_KEY)) {
+  // A raw fleet SECRET (the JWT signing secret) would never verify a push — the
+  // enclave signs with the 64-hex derived key — so fail CLOSED rather than 401
+  // every push and look like an auth bug.
+  console.error("[dns-relay] DNS_TXT_KEY is not a 64-hex derived key (looks like a raw fleet secret) — DISABLING the challenge-push API. Set DNS_TXT_KEY = HMAC(SECRET,'enclave dns-txt v1') hex.");
+  TXT_KEY = "";
+}
 const TXT_TTL_S = parseInt(process.env.TXT_TTL_SEC || "600", 10);
+// Per-source DNS response rate limit (fix 11): an authoritative server is a
+// reflection/amplification vector, so cap responses per client IP. Generous —
+// real resolvers burst but stay well under this.
+const DNS_RL_CAP = parseInt(process.env.DNS_RL_CAP || "200", 10);
+const DNS_RL_PER_SEC = parseInt(process.env.DNS_RL_PER_SEC || "50", 10);
+function makeRateLimiter(cap, perSec) {
+  const buckets = new Map();
+  setInterval(() => { const now = Date.now(); for (const [k, b] of buckets) if (now - b.at > 300_000) buckets.delete(k); }, 60_000).unref?.();
+  return (key) => {
+    const now = Date.now();
+    let b = buckets.get(key);
+    if (!b) { b = { tokens: cap, at: now }; buckets.set(key, b); }
+    b.tokens = Math.min(cap, b.tokens + ((now - b.at) / 1000) * perSec); b.at = now;
+    if (b.tokens < 1) return false; b.tokens -= 1; return true;
+  };
+}
+const dnsRate = makeRateLimiter(DNS_RL_CAP, DNS_RL_PER_SEC);
 const POLL_MS   = parseInt(process.env.NET_POLL_SEC || "15", 10) * 1000;
 const SERIAL    = Math.floor(Date.now() / 1000);   // SOA serial: process start
 const NEG_TTL   = 60;      // SOA MINIMUM = negative-cache TTL (RFC 2308)
@@ -353,6 +389,7 @@ const udp = dgram.createSocket({ type: "udp6", ipv6Only: false });   // dual-sta
 let udpUp = false;
 udp.on("error", (e) => { console.error("[dns-relay] udp:", e.message); if (!udpUp) process.exit(1); });
 udp.on("message", (msg, rinfo) => {
+  if (!dnsRate(rinfo.address)) return;                 // per-source RL (fix 11): drop, don't reflect
   const out = handle(msg, UDP_MAX);
   if (out) udp.send(out, rinfo.port, rinfo.address, () => {});
 });
@@ -361,6 +398,7 @@ udp.bind(DNS_PORT, () => { udpUp = true; console.log(`[dns-relay] udp+tcp :${DNS
 const tcp = net.createServer((sock) => {
   sock.setTimeout(15_000, () => sock.destroy());
   sock.on("error", () => sock.destroy());
+  const peer = sock.remoteAddress || "unknown";
   let buf = Buffer.alloc(0);
   sock.on("data", (d) => {
     buf = buf.length ? Buffer.concat([buf, d]) : d;
@@ -368,8 +406,10 @@ const tcp = net.createServer((sock) => {
       if (buf.length < 2) return;
       const len = buf.readUInt16BE(0);
       if (buf.length < 2 + len) return;
-      const out = handle(buf.subarray(2, 2 + len), 0);
+      const query = buf.subarray(2, 2 + len);
       buf = buf.subarray(2 + len);
+      if (!dnsRate(peer)) continue;                   // per-source RL (fix 11)
+      const out = handle(query, 0);
       if (out) sock.write(Buffer.concat([u16(out.length), out]));
     }
   });
@@ -379,12 +419,13 @@ tcp.listen(DNS_PORT);
 
 // ---- challenge-push HTTP API --------------------------------------------------
 
-if (!SECRET) console.error("[dns-relay] SECRET unset — the challenge-push API will answer 503");
+if (!TXT_KEY) console.error("[dns-relay] DNS_TXT_KEY unset — the challenge-push API will answer 503");
 
-// hex HMAC-SHA256 over the RAW body with the fleet's shared SECRET, constant-time
+// hex HMAC-SHA256 over the RAW body with the DERIVED DNS_TXT_KEY (NOT the raw
+// fleet SECRET — the enclave derives HMAC(SECRET,'enclave dns-txt v1')), constant-time
 function checkSig(sig, raw) {
   if (typeof sig !== "string" || !/^[0-9a-fA-F]{64}$/.test(sig)) return false;
-  const want = createHmac("sha256", SECRET).update(raw).digest();
+  const want = createHmac("sha256", TXT_KEY).update(raw).digest();
   const got = Buffer.from(sig, "hex");
   return got.length === want.length && timingSafeEqual(want, got);
 }
@@ -401,7 +442,8 @@ const api = http.createServer((req, res) => {
   }
   if (u.pathname !== "/v1/txt" || (req.method !== "POST" && req.method !== "DELETE"))
     return json(404, { error: "not_found", routes: ["GET /health", "POST /v1/txt", "DELETE /v1/txt"] });
-  if (!SECRET) return json(503, { error: "no_secret", message: "SECRET is not configured on this relay." });
+  if (!dnsRate(req.socket?.remoteAddress || "unknown")) return json(429, { error: "rate_limited" });   // fix 11
+  if (!TXT_KEY) return json(503, { error: "no_key", message: "DNS_TXT_KEY is not configured on this relay." });
 
   const chunks = []; let size = 0;
   req.on("data", (d) => { size += d.length; if (size > 65536) req.destroy(); else chunks.push(d); });
@@ -410,6 +452,14 @@ const api = http.createServer((req, res) => {
     const raw = Buffer.concat(chunks);
     if (!checkSig(req.headers["x-relay-sig"], raw)) return json(401, { error: "bad_signature" });
     let body; try { body = JSON.parse(raw.toString("utf8")); } catch { return json(400, { error: "bad_json" }); }
+    // replay protection (fix 11): if the SIGNED payload carries a timestamp,
+    // reject stale/future pushes. Backward-compatible — pushes without `ts` are
+    // still accepted (the supervisor must add `ts` to the signed body to enable).
+    if (body && body.ts != null) {
+      const ts = Number(body.ts);
+      if (!Number.isFinite(ts) || Math.abs(Date.now() / 1000 - ts) > 300)
+        return json(401, { error: "stale", message: "push timestamp outside the ±300s window" });
+    }
     const name = typeof body?.name === "string" ? fqdn(body.name) : "";
     const value = typeof body?.value === "string" ? body.value : "";
     const zoneOk = name.endsWith("." + APP_ZONE) || (TCP_ZONE && name.endsWith("." + TCP_ZONE));

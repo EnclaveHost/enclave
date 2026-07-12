@@ -32,6 +32,10 @@ cd cli && npm install && npm install -g .   # any OS: npm makes the platform shi
 (npm symlinks a local-directory global install, so the deps have to exist in
 `cli/node_modules` — hence the `npm install` first.)
 
+Dependencies are pinned in `cli/package-lock.json`; the installers use `npm ci`
+(exact locked versions) rather than resolving the caret ranges fresh — this is a
+key-holding binary, so its supply chain is locked, not floated.
+
 or run it straight from a checkout (`node cli/enclave.mjs …` — deps resolve
 from the repo's `node_modules`). Both installers share `cli/build.mjs` for the
 esbuild bundling step.

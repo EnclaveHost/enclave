@@ -5,7 +5,8 @@
 export const $  = (s, r) => (r || document).querySelector(s);
 export const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
 export const esc = (s) => String(s)
-  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;").replace(/'/g, "&#39;");   // also safe inside quoted attributes
 
 /* ---- persisted settings (guarded; degrades if storage is blocked) ---- */
 export function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }

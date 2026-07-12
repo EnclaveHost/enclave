@@ -40,6 +40,16 @@ export function appEndpoint(d){
 export function appLabel(id){
   return /^0x[0-9a-f]{64}$/i.test(id) ? id.slice(2, 10).toLowerCase() : id.replace(/^dep_/, "");
 }
+// appEndpoint can derive from server-supplied fields (network.endpoint), so an
+// endpoint may only become a navigable href if it is https: or a relative URL;
+// anything else (javascript:, data:, …) is dropped so a hostile API can't smuggle
+// a scheme into the "open ↗" link. "" means "not safe to link" (caller omits it).
+function safeHref(u){
+  const s = String(u || "");
+  if (/^https:\/\//i.test(s)) return s;                 // absolute enclave/app origin
+  if (/^\/(?!\/)/.test(s) || /^\.{1,2}\//.test(s)) return s;   // root- or dot-relative path
+  return "";
+}
 
 function shortImg(s){ if (!s) return ""; return s.length > 44 ? s.slice(0, 42) + "…" : s; }
 // Status buckets for the filter bar: coarse groups beat ten raw statuses.
@@ -262,7 +272,7 @@ class Deployments extends EnclaveElement {
         '</div>' +
         ((st === "failed" || st === "expired") && d.error ? '<div class="enc-err" title="why this deployment ' + esc(st) + '">⚠ ' + esc(d.error) + '</div>' : '') +
         (ep ? '<button class="enc-ep" data-ep="' + esc(ep) + '">' + esc(ep) + ' ⧉</button>'
-              + (d.public && st === "running" ? '<a class="enc-open" href="' + esc(ep) + '/" target="_blank" rel="noopener">open ↗</a>' : '') : '') +
+              + (d.public && st === "running" && safeHref(ep) ? '<a class="enc-open" href="' + esc(safeHref(ep)) + '/" target="_blank" rel="noopener">open ↗</a>' : '') : '') +
         depIp6Row(d) +
         '<div class="enc-fund" hidden></div>' +
         '<div class="enc-out" data-id="' + esc(d.id) + '" hidden></div>' +

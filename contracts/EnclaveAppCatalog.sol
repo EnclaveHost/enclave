@@ -127,6 +127,7 @@ contract EnclaveAppCatalog {
     mapping(bytes32 => Version[]) private _versions;  // appId -> release history
     mapping(bytes32 => CidRef) private _cidRefs;      // keccak256(cid) -> owning version (index1=0 -> unlisted)
     mapping(bytes32 => bool) private _verUsed;        // keccak256(appId, version) -> label taken (per-app uniqueness)
+    mapping(bytes32 => bytes32) private _cidGrant;    // keccak256(cid) -> appId the owner authorized to override a squatted reservation (0 = none)
 
     event AppCreated(bytes32 indexed appId, address indexed publisher, string slug, string name);
     event AppEdited(bytes32 indexed appId, string name, string description);
@@ -135,6 +136,7 @@ contract EnclaveAppCatalog {
     event VersionApprovalSet(bytes32 indexed appId, uint256 indexed index, uint8 status);
     event VersionYanked(bytes32 indexed appId, uint256 indexed index);
     event AppActiveSet(bytes32 indexed appId, bool active);
+    event CidGranted(bytes32 indexed cidKey, bytes32 indexed appId);
     event OwnerChanged(address indexed owner);
 
     constructor() { owner = msg.sender; emit OwnerChanged(msg.sender); }
@@ -214,7 +216,10 @@ contract EnclaveAppCatalog {
     function _reserveCid(string calldata cid, bytes32 appId) private view returns (bytes32 cidKey) {
         cidKey = keccak256(bytes(cid));
         CidRef storage r = _cidRefs[cidKey];
-        require(r.index1 == 0 || r.appId == appId, "cid listed by another app");
+        // ...unless the owner has granted THIS app override rights (anti-squat
+        // remedy, see grantCid). appId is never 0, so an unset grant never matches.
+        require(r.index1 == 0 || r.appId == appId || _cidGrant[cidKey] == appId,
+                "cid listed by another app");
     }
 
     /// @dev Create the app on first use, then refresh its display metadata. Returns appId.
@@ -300,6 +305,25 @@ contract EnclaveAppCatalog {
         emit VersionApprovalSet(appId, index, status);
     }
 
+    /// @notice Anti-squat remedy (owner-only). A CID belongs to the FIRST app to
+    ///         list it, so an attacker could list an honest publisher's CID first
+    ///         and permanently block them from ever publishing it. This authorizes
+    ///         one specific app — `appIdOf(publisher, slug)`, computable before the
+    ///         app even exists — to override a squatted reservation on its NEXT
+    ///         publishVersion. Race-free: only the granted appId may use the grant,
+    ///         and once it publishes, the reverse-lookup (`cidStatus`) points at the
+    ///         honest lineage; the squatter's row stays as dead history (a squatted
+    ///         version sits at Pending forever and can never deploy). Purely
+    ///         additive — touches no version bytes, approval, or struct layout, and
+    ///         changes nothing for CIDs no one has squatted.
+    function grantCid(string calldata cid, bytes32 appId) external {
+        require(msg.sender == owner, "!owner");
+        require(appId != bytes32(0), "appId=0");
+        bytes32 cidKey = keccak256(bytes(cid));
+        _cidGrant[cidKey] = appId;
+        emit CidGranted(cidKey, appId);
+    }
+
     function transferOwnership(address o) external {
         require(msg.sender == owner, "!owner");
         require(o != address(0), "zero addr");
@@ -354,8 +378,17 @@ contract EnclaveAppCatalog {
             CidRef storage r = _cidRefs[cidKey];
             require(r.index1 == 0 || r.appId == appId, "cid listed by another app");
             vs.push(items[i]);
+            uint256 idx = vs.length - 1;
             _cidRefs[cidKey] = CidRef({ appId: appId, index1: uint32(vs.length) });
-            emit VersionPublished(appId, vs.length - 1, items[i].version, items[i].cid);
+            emit VersionPublished(appId, idx, items[i].version, items[i].cid);
+            // re-emit the per-version state so a LOG-ONLY indexer doesn't show an
+            // imported Approved/Rejected/verified/yanked version as a fresh Pending
+            // one: publishVersion starts every version Pending+unverified+unyanked,
+            // and import carries the source flags verbatim in storage but was
+            // otherwise silent about them.
+            if (items[i].approval != APPROVAL_PENDING) emit VersionApprovalSet(appId, idx, items[i].approval);
+            if (items[i].verified) emit VersionVerified(appId, idx, true);
+            if (items[i].yanked) emit VersionYanked(appId, idx);
         }
         _apps[appId].versionCount = uint32(vs.length);   // keep the counter honest across chunks
     }

@@ -2,6 +2,8 @@
 Description=Enclave dedicated-IP EGRESS relay (per-deployment IPv6 source; app outbound tunneled from the enclave)
 After=network-online.target
 Wants=network-online.target
+# never let a crash-loop permanently stop a shared relay (fix 10)
+StartLimitIntervalSec=0
 
 [Service]
 EnvironmentFile=/etc/nan-relay/egress-relay.env
@@ -23,6 +25,9 @@ ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
 LimitNOFILE=65536
+# resource caps (fix 10)
+MemoryMax=512M
+TasksMax=512
 
 [Install]
 WantedBy=multi-user.target

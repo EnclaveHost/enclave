@@ -26,6 +26,10 @@
 //   --no-seed             deploy empty (seed later with update-address-book.mjs)
 //   --yes                 skip the interactive confirmation (CI)
 //   --dry-run             compile + show the plan, do NOT broadcast
+//   --replace             on mainnet, allow re-deploying even though the current
+//                         ADDRESS_BOOK_ADDRESS already has code (the book is the
+//                         ONE stable root — replacing it is a release train).
+//                         Refused by default.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -52,6 +56,7 @@ const DRY_RUN = args.has("--dry-run");
 const NO_WRITE_CONFIG = args.has("--no-write-config");
 const NO_SEED = args.has("--no-seed");
 const ASSUME_YES = args.has("--yes");
+const REPLACE = args.has("--replace");                 // override the live-contract guard on mainnet
 
 const NETWORKS = {
   "base-sepolia": { chain: baseSepolia, rpc: "https://sepolia.base.org", explorer: "https://sepolia.basescan.org" },
@@ -175,6 +180,21 @@ async function main() {
 
   if (DRY_RUN) { console.log("--dry-run: compiled and validated; not broadcasting."); return; }
   if (bal === 0n) die("deployer has 0 ETH on this chain; fund it for gas first.");
+
+  // Guard: on mainnet, refuse to silently replace the live address book. It is
+  // the ONE stable root every component boots from; re-deploying rewrites the
+  // configs/site/cli to a new root (a full release train), so make it explicit.
+  if (isMainnet && !REPLACE) {
+    const m = fs.readFileSync(CONFIG_GPU, "utf8").match(/-\s*ADDRESS_BOOK_ADDRESS:\s*"(0x[0-9a-fA-F]{40})"/);
+    if (m) {
+      const existing = getAddress(m[1]);
+      const code = await pub.getCode({ address: existing }).catch(() => null);
+      if (code && code !== "0x")
+        die(`ADDRESS_BOOK_ADDRESS already points at ${existing}, which HAS CODE on ${netName}.\n`
+          + `  The book is the stable platform root; re-deploying rewrites configs/site/cli to a new one.\n`
+          + `  Pass --replace to proceed, or --dry-run to inspect.`);
+    }
+  }
 
   if (!ASSUME_YES) {
     const rl = readline.createInterface({ input, output });
