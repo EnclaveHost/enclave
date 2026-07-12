@@ -207,15 +207,42 @@ async function validateWasm(file){
 // it). Tracked module-wide: a new file pick aborts the old upload, and the
 // publish path refuses to run while one is active.
 let pubXhr = null, pubSeq = 0;
-function putWasm(file, onProgress){
-  return new Promise((resolve, reject) => {
-    if (!IPFS_UPLOAD_URL) return reject(new EnclaveError("Direct upload isn’t configured here; paste a CID you’ve pinned (e.g. `ipfs add app.wasm`).", 0));
-    if (file.size > MAX_WASM_BYTES) return reject(new EnclaveError("Too large: max " + MAX_WASM_MB + " MB.", 0));
-    // raw bytes to the validating gateway; it re-checks size + wasm component preamble
-    // server-side, pins to IPFS, and returns { cid }. (The browser checks are just UX.)
+async function putWasm(file, onProgress){
+  if (!IPFS_UPLOAD_URL) throw new EnclaveError("Direct upload isn’t configured here; paste a CID you’ve pinned (e.g. `ipfs add app.wasm`).", 0);
+  if (file.size > MAX_WASM_BYTES) throw new EnclaveError("Too large: max " + MAX_WASM_MB + " MB.", 0);
+  // The pin is now WALLET-AUTHORIZED (closes the open-pin storage DoS): sign
+  // enclave-upload:<sha256>:<expiry>, trade it at the API for a one-time token,
+  // and hand the token to the gateway. Publishing needs a wallet anyway, so
+  // connect now if there isn't one.
+  if (!Enclave.address){ try { await connectWallet(); } catch(_){} }
+  if (!Enclave.address || !Enclave.provider) throw new EnclaveError("Connect your wallet to upload — your signature authorizes the pin.", 0);
+  let hash;
+  try {
+    const buf = await file.arrayBuffer();
+    hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", buf))].map(b => b.toString(16).padStart(2, "0")).join("");
+  } catch(_){ throw new EnclaveError("Couldn’t read this file to sign it" + (file.size > 500*1048576 ? " (very large files: publish with the CLI instead)." : "."), 0); }
+  const expiry = Math.floor(Date.now() / 1000) + 300;
+  let token, upAddr;
+  try {
+    const signature = await Enclave.provider.request({ method: "personal_sign", params: [`enclave-upload:${hash}:${expiry}`, Enclave.address] });
+    const r = await fetch(Enclave.base + "/apps/upload-token", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ hash, expiry, signature }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.token) throw new EnclaveError("upload authorization failed: " + (j.message || j.error || ("HTTP " + r.status)), 0);
+    token = j.token; upAddr = j.address;
+  } catch(err){
+    if (err && (err.code === 4001 || /reject|denied|declin|cancell/i.test(err.message || ""))) throw new EnclaveError("upload canceled: you declined the wallet signature.", 0);
+    throw (err instanceof EnclaveError) ? err : new EnclaveError("upload authorization failed: " + (err.message || err), 0);
+  }
+  return await new Promise((resolve, reject) => {
+    // raw bytes to the validating gateway; it re-checks the wasm preamble, verifies
+    // the upload token authorizes exactly these bytes, pins, and returns { cid }.
     const xhr = new XMLHttpRequest();
     xhr.open("POST", IPFS_UPLOAD_URL);
     xhr.setRequestHeader("content-type", "application/wasm");
+    xhr.setRequestHeader("x-upload-address", upAddr);
+    xhr.setRequestHeader("x-upload-expiry", String(expiry));
+    xhr.setRequestHeader("x-upload-token", token);
     xhr.responseType = "json";
     xhr.upload.onprogress = (ev) => { if (ev.lengthComputable && onProgress) onProgress(ev.loaded, ev.total); };
     xhr.onerror = () => reject(new EnclaveError("upload failed: network error", 0));

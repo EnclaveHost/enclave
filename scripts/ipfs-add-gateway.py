@@ -31,7 +31,7 @@
 #                   a domain transition; trim to one when the old dies)
 #   WASM_TOOLS      path to a `wasm-tools` binary to enable Tier 2 (default: off)
 
-import json, os, subprocess, tempfile, urllib.request, uuid
+import json, os, subprocess, tempfile, urllib.request, uuid, hashlib, hmac, time, re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT       = int(os.environ.get("PORT", "5051"))
@@ -41,6 +41,19 @@ ORIGINS    = [o.strip().rstrip("/") for o in
               os.environ.get("ALLOW_ORIGIN", "https://enclave.host,https://nan.host").split(",")
               if o.strip()]
 WASM_TOOLS = os.environ.get("WASM_TOOLS", "")
+
+# --- signed-upload auth (closes the open-pin storage-DoS) -------------------
+# Every pin used to be free: anyone could POST 2 GB to /add-wasm and pin it
+# forever (no auth, no cleanup). Now the browser/CLI signs the upload with the
+# publisher's WALLET; the api-relay (which has viem) verifies the signature and
+# mints an HMAC token bound to (wallet, sha256(bytes), expiry). THIS gateway
+# only checks the HMAC (stdlib) + rate-limits by wallet — no EC crypto here, no
+# fleet secret. UPLOAD_KEY is a dedicated shared secret with the api-relay (NOT
+# the fleet SECRET). Empty UPLOAD_KEY = auth disabled (dev / pre-rollout).
+UPLOAD_KEY      = os.environ.get("UPLOAD_KEY", "")
+PER_ADDR_DAILY  = int(os.environ.get("UPLOAD_PER_ADDR_DAILY_BYTES", str(512 * 1024 * 1024)))  # 512 MB / wallet / day
+GLOBAL_DAILY    = int(os.environ.get("UPLOAD_GLOBAL_DAILY_BYTES", str(8 * 1024 * 1024 * 1024)))  # 8 GB / day fleet-wide
+JSON_RL_PER_HR  = int(os.environ.get("ADDJSON_PER_IP_HOURLY", "60"))  # /add-json interim per-IP cap (256 KB each)
 
 
 def preamble_error(b: bytes):
@@ -92,7 +105,78 @@ def kubo_add(data: bytes, filename="app.wasm"):
     return last.get("Hash") or last.get("Cid") or last.get("cid")
 
 
+# In-memory daily byte counters (reset at UTC midnight). A process restart
+# resets them, which only an operator can trigger — not an attacker — so this is
+# an adequate abuse bound without a datastore.
+_usage = {"day": None, "global": 0, "addr": {}}
+
+
+def _reserve_bytes(address, nbytes):
+    """Reserve nbytes against the per-wallet + global daily caps. (ok, reason)."""
+    day = time.strftime("%Y-%m-%d", time.gmtime())
+    if _usage["day"] != day:
+        _usage.update(day=day, **{"global": 0}); _usage["addr"] = {}
+    if _usage["global"] + nbytes > GLOBAL_DAILY:
+        return False, "fleet daily upload limit reached; retry tomorrow"
+    used = _usage["addr"].get(address, 0)
+    if used + nbytes > PER_ADDR_DAILY:
+        return False, "this wallet's daily upload limit reached; retry tomorrow"
+    _usage["global"] += nbytes
+    _usage["addr"][address] = used + nbytes
+    return True, None
+
+
+def upload_auth_error(headers, data):
+    """/add-wasm gate: verify the wallet-signed HMAC token the api-relay minted,
+    bound to sha256(data). Returns (code, msg) on failure, or None when OK (or
+    when UPLOAD_KEY is unset = auth disabled). Reserves the bytes on success."""
+    if not UPLOAD_KEY:
+        return None
+    address = (headers.get("X-Upload-Address") or "").strip().lower()
+    expiry  = (headers.get("X-Upload-Expiry") or "").strip()
+    token   = (headers.get("X-Upload-Token") or "").strip().lower()
+    if not (address and expiry and token):
+        return (401, "signed upload required: connect your wallet and retry (the console/CLI signs the upload)")
+    if not re.match(r"^0x[0-9a-f]{40}$", address):
+        return (401, "bad upload address")
+    try:
+        exp = int(expiry)
+    except ValueError:
+        return (401, "bad upload expiry")
+    now = int(time.time())
+    if exp < now:
+        return (401, "upload authorization expired; retry")
+    if exp > now + 900:
+        return (401, "upload authorization expiry too far in the future")
+    h = hashlib.sha256(data).hexdigest()
+    expected = hmac.new(UPLOAD_KEY.encode(), ("%s:%s:%d" % (address, h, exp)).encode(),
+                        hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, token):
+        return (403, "upload authorization does not cover these bytes")
+    ok, why = _reserve_bytes(address, len(data))
+    if not ok:
+        return (429, why)
+    return None
+
+
+_json_rl = {}   # ip -> (tokens, last_ts): interim per-IP bucket for the (small) /add-json path
+
+
+def json_pin_rate_ok(ip):
+    now = time.time()
+    cap = float(JSON_RL_PER_HR); refill = JSON_RL_PER_HR / 3600.0
+    tok, last = _json_rl.get(ip, (cap, now))
+    tok = min(cap, tok + (now - last) * refill)
+    if tok < 1:
+        _json_rl[ip] = (tok, now); return False
+    _json_rl[ip] = (tok - 1, now); return True
+
+
 class Handler(BaseHTTPRequestHandler):
+    def _client_ip(self):
+        xff = (self.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+        return xff or self.client_address[0]
+
     def _cors(self):
         # echo the request Origin when it's on the allowlist (a response can
         # carry only ONE allow-origin value); Vary so caches keep them apart
@@ -101,7 +185,8 @@ class Handler(BaseHTTPRequestHandler):
                          origin if origin in ORIGINS else ORIGINS[0])
         self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "content-type")
+        self.send_header("Access-Control-Allow-Headers",
+                         "content-type, x-upload-address, x-upload-expiry, x-upload-token")
 
     def _json(self, code, obj):
         body = json.dumps(obj).encode()
@@ -137,6 +222,8 @@ class Handler(BaseHTTPRequestHandler):
         # enclave re-fetches + hash-verifies it, so this is UX/availability,
         # not trust - but validate the shape so a bad pin fails here.
         if route == "/add-json":
+            if not json_pin_rate_ok(self._client_ip()):
+                return self._json(429, {"error": "too many config pins from your network; retry shortly"})
             try:
                 obj = json.loads(data.decode("utf-8"))
             except Exception as e:
@@ -149,6 +236,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(502, {"error": "ipfs add failed: %s" % e})
             return self._json(200, {"cid": cid}) if cid else self._json(502, {"error": "ipfs returned no CID"})
 
+        # signed-upload gate (see upload_auth_error): wallet-authorized + rate-limited
+        auth = upload_auth_error(self.headers, data)
+        if auth:
+            return self._json(auth[0], {"error": auth[1]})
         err = preamble_error(data) or wasm_tools_error(data)
         if err:
             return self._json(415, {"error": err})

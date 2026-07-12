@@ -901,10 +901,18 @@ async function cmdPublish(rest) {
   if (!(await confirm(`publish ${file} (${(bytes.length / 1048576).toFixed(1)} MB) as ${f.slug}:${version} `
                     + `res=[vram ${res[0]}MB, gpu ${res[1]}Gf, mem ${res[2]}MB, cpu ${res[3]}Gf]?`))) return say("aborted");
 
-  // 1. pin to IPFS (the gateway re-validates the component preamble)
+  // 1. pin to IPFS. The gateway requires a WALLET-AUTHORIZED token (closes the
+  //    open-pin storage DoS): sign enclave-upload:<sha256>:<expiry>, trade it at
+  //    the API for a one-time token, then upload the bytes carrying it.
   const upUrl = DEFAULTS.ipfsUpload;
-  trace(`curl -sX POST ${upUrl} -H 'content-type: application/wasm' --data-binary @${file}`);
-  const up = await fetch(upUrl, { method: "POST", headers: { "content-type": "application/wasm" }, body: bytes });
+  const hash = crypto.createHash("sha256").update(bytes).digest("hex");
+  const expiry = Math.floor(Date.now() / 1000) + 300;
+  const signature = await account.signMessage({ message: `enclave-upload:${hash}:${expiry}` });
+  const tok = await api("POST", "/v1/apps/upload-token", { body: { hash, expiry, signature } });
+  if (!tok || !tok.token) throw new Error("upload authorization failed");
+  trace(`curl -sX POST ${upUrl} -H 'content-type: application/wasm' -H 'x-upload-token: …' --data-binary @${file}`);
+  const up = await fetch(upUrl, { method: "POST", body: bytes, headers: { "content-type": "application/wasm",
+    "x-upload-address": tok.address, "x-upload-expiry": String(expiry), "x-upload-token": tok.token } });
   const upBody = await up.text();
   if (!up.ok) throw new Error(`IPFS upload failed (${up.status}): ${upBody.slice(0, 200)}`);
   const cid = JSON.parse(upBody).cid;
