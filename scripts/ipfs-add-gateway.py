@@ -51,8 +51,11 @@ WASM_TOOLS = os.environ.get("WASM_TOOLS", "")
 # fleet secret. UPLOAD_KEY is a dedicated shared secret with the api-relay (NOT
 # the fleet SECRET). Empty UPLOAD_KEY = auth disabled (dev / pre-rollout).
 UPLOAD_KEY      = os.environ.get("UPLOAD_KEY", "")
-PER_ADDR_DAILY  = int(os.environ.get("UPLOAD_PER_ADDR_DAILY_BYTES", str(512 * 1024 * 1024)))  # 512 MB / wallet / day
-GLOBAL_DAILY    = int(os.environ.get("UPLOAD_GLOBAL_DAILY_BYTES", str(8 * 1024 * 1024 * 1024)))  # 8 GB / day fleet-wide
+# The per-wallet daily cap must exceed the 2 GB single-upload cap (MAX_BYTES) or a
+# legitimate max-size app can never be pinned. 4 GB/wallet allows a full 2 GB app
+# plus a retry; 16 GB/day is the fleet-wide backstop.
+PER_ADDR_DAILY  = int(os.environ.get("UPLOAD_PER_ADDR_DAILY_BYTES", str(4 * 1024 * 1024 * 1024)))   # 4 GB / wallet / day
+GLOBAL_DAILY    = int(os.environ.get("UPLOAD_GLOBAL_DAILY_BYTES", str(16 * 1024 * 1024 * 1024)))    # 16 GB / day fleet-wide
 JSON_RL_PER_HR  = int(os.environ.get("ADDJSON_PER_IP_HOURLY", "60"))  # /add-json interim per-IP cap (256 KB each)
 
 
