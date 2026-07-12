@@ -1,0 +1,114 @@
+/* ============================================================
+   <c-app-detail> - one app's full page: banner, name, badges,
+   publisher/version meta, description, version picker with the
+   exact specs + ports, the wasm CID, and every action (deploy +
+   the publisher/owner controls). Data flows IN through the `app`
+   property; actions bubble OUT as the SAME `card-action`
+   {app, act, idx, verified} events the compact tile used, so the
+   Apps page handles them with one wallet-transaction router.
+   The compact <c-app-card> tile carries only name/badges/desc and
+   opens this page.
+   ============================================================ */
+import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
+import { esc, short, copyText } from "../../js/core/util.js";
+import { IPFS_GATEWAY, IPFS_IMG_GATEWAY } from "../../js/core/config.js";
+import { Enclave } from "../../js/core/api.js";
+import { APPROVAL } from "../../js/core/chain.js";
+import { STORE, selIdx, appOfficial, mediaOf } from "../../js/core/catalog.js";
+import { minPctsOf } from "../../js/core/pricing.js";
+
+class AppDetail extends EnclaveElement {
+  static properties = { app: null };
+  static templateUrl = new URL("./app-detail.html", import.meta.url);
+
+  renderedCallback() {
+    const app = this.app; if (!app) return;
+    const i = selIdx(app);
+    const v = app.versions[i] || { cid:"", version:"–", vramMb:0, gpuGflops:0, memMb:0, cpuGflops:0, verified:false, yanked:false, approval:APPROVAL.pending };
+    const me = (Enclave.address || "").toLowerCase();
+    const isPub = me && app.publisher.toLowerCase() === me;
+    const isOwner = me && STORE.owner && me === STORE.owner;
+    const gw = IPFS_GATEWAY.replace(/\/+$/, "") + "/" + encodeURIComponent(v.cid);
+    const isOfficial = appOfficial(app);
+
+    const root = this.querySelector(".appd");
+    root.className = "appd" + (v.verified ? " verified" : "") + (app.active ? "" : " delisted");
+
+    // banner (selected version's media) - optional hero
+    const media = mediaOf(v), banner = this.querySelector(".appd-banner");
+    if (media.banner){
+      banner.hidden = false;
+      banner.style.backgroundImage = "url('" + IPFS_IMG_GATEWAY + encodeURIComponent(media.banner) + "')";
+    } else { banner.hidden = true; banner.style.backgroundImage = ""; }
+
+    this.querySelector("h1").textContent = app.name;
+
+    const badge = v.verified
+      ? '<span class="app-badge" title="This version is marked verified by the catalog owner">✓ verified</span>'
+      : (!STORE.owner || isOfficial) ? ''
+      : '<span class="app-badge comm" title="Community-published; not owner-verified">community</span>';
+    const apBadge = v.approval === APPROVAL.approved
+      ? (isOfficial ? '' : '<span class="app-badge" title="Approved by the catalog owner; deployable">✓ approved</span>')
+      : v.approval === APPROVAL.rejected
+      ? '<span class="app-badge rej" title="Rejected by the catalog owner; deploys are refused">✕ rejected</span>'
+      : '<span class="app-badge unv" title="Awaiting catalog-owner approval; deploys are refused until then">pending</span>';
+    const officialBadge = isOfficial
+      ? '<span class="app-badge" title="Published by the platform (the catalog deployer wallet)">★ official</span>' : "";
+    const delistBadge = app.active ? ''
+      : '<span class="app-badge del" title="Delisted: hidden from the public store; only you (its publisher) and the catalog owner see it. Relist to restore it, or publish a new version to this slug (that relists it automatically).">delisted</span>';
+    this.querySelector(".app-badges").innerHTML = officialBadge + badge + apBadge + delistBadge;
+
+    this.querySelector(".appd-meta").innerHTML =
+      '<span title="slug (stable id in the publisher’s namespace)">' + esc(app.slug) + '</span><span>·</span>'
+      + '<span title="publisher (msg.sender)">' + short(app.publisher) + '</span><span>·</span>'
+      + '<span>' + app.versions.length + (app.versions.length === 1 ? ' version' : ' versions') + '</span>';
+
+    this.querySelector(".appd-desc").innerHTML = app.description ? esc(app.description) : '<span class="dim">no description</span>';
+
+    const apLabel = (vv) => vv.approval === APPROVAL.rejected ? ' (rejected)' : vv.approval !== APPROVAL.approved ? ' (pending)' : '';
+    const opts = app.versions.map((vv, idx) =>
+      '<option value="' + idx + '"' + (idx === i ? ' selected' : '') + '>' + esc(vv.version) + (vv.verified ? ' ✓' : '') + (vv.yanked ? ' (yanked)' : '') + apLabel(vv) + '</option>').join('');
+    const m = minPctsOf(v);
+    this.querySelector(".app-verrow").innerHTML =
+      '<span class="vlbl">version</span><select class="ver-select" aria-label="Version">' + opts + '</select>'
+      + '<span title="exact specs this app declares (' + ((Number(v.vramMb) > 0 || Number(v.gpuGflops) > 0)
+          ? (Math.round(Number(v.vramMb) / 102.4) / 10) + ' GB VRAM' + (Number(v.gpuGflops) > 0 ? ' / ' + (Number(v.gpuGflops) / 1000) + ' TFLOPS GPU' : '') + ', '
+          : 'CPU-only, ')
+        + Number(v.memMb) + ' MB RAM' + (Number(v.cpuGflops) > 0 ? ' / ' + Number(v.cpuGflops) + ' GFLOPS CPU' : '')
+        + ') set the minimum deploy shares">min '
+        + (m.gpuPct > 0 ? m.gpuPct + '% GPU · ' : 'CPU-only · ') + m.cpuPct + '% CPU</span>'
+      + (v.ports ? '<span class="vlbl" title="open ports: ports this version may bind">⛨ ' + esc(v.ports) + '</span>' : '')
+      + (v.yanked ? '<span class="vyank">yanked</span>' : '');
+
+    this.querySelector(".app-cid code").textContent = v.cid;
+
+    this.querySelector(".app-actions").innerHTML =
+      '<button class="btn btn-primary btn-sm" data-act="deploy" type="button"'
+        + (!app.active ? ' disabled title="Delisted: the enclave refuses its CIDs; relist first"'
+           : v.approval === APPROVAL.approved ? '' : ' disabled title="Deploys unlock once the catalog owner approves this version"') + '>Deploy →</button>'
+      + '<a class="btn btn-sm" href="' + gw + '" target="_blank" rel="noopener">fetch .wasm</a>'
+      + (isPub ? '<button class="btn btn-sm" data-act="newver" type="button" title="Open the publish form pre-filled from this version (new file/CID required)">add version</button>' : '')
+      + (isPub && !app.active ? '<button class="btn btn-sm" data-act="relist" type="button">relist</button>' : '')
+      + (isPub && app.active ? '<button class="btn btn-sm" data-act="delist" type="button">delist</button>' : '')
+      + (isPub && !v.yanked ? '<button class="btn btn-sm" data-act="yank" type="button">yank</button>' : '')
+      + (isOwner ? '<button class="btn btn-sm" data-act="verify" data-v="' + (v.verified ? 0 : 1) + '" type="button">' + (v.verified ? 'unverify' : 'verify') + '</button>' : '')
+      + (isOwner && v.approval !== APPROVAL.approved ? '<button class="btn btn-sm" data-act="approve" type="button">approve</button>' : '')
+      + (isOwner && v.approval !== APPROVAL.rejected ? '<button class="btn btn-sm" data-act="reject" type="button">reject</button>' : '');
+
+    if (!this._wired) {
+      this._wired = true;
+      this.addEventListener("change", (e) => {
+        const sel = e.target.closest(".ver-select"); if (!sel) return;
+        STORE.sel[this.app.appId] = parseInt(sel.value, 10);
+        this.requestRender();
+      });
+      this.addEventListener("click", (e) => {
+        const cp = e.target.closest(".app-cid .copybtn");
+        if (cp){ const vv = this.app.versions[selIdx(this.app)]; copyText(vv ? vv.cid : "", cp); return; }
+        const btn = e.target.closest("[data-act]"); if (!btn || btn.disabled) return;
+        this.dispatch("card-action", { app: this.app, act: btn.dataset.act, idx: selIdx(this.app), verified: btn.dataset.v === "1" });
+      });
+    }
+  }
+}
+register("c-app-detail", AppDetail);

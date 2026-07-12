@@ -1,0 +1,34 @@
+/* ============================================================
+   <c-app-detail> - one app's full page (banner + everything)
+   Shared bits (.app-badge*, .app-verrow, .app-cid, .app-actions)
+   come from app-card.css; this styles the detail-only wrappers.
+   ============================================================ */
+c-app-detail{display:block;}
+
+.appd{display:flex;flex-direction:column;gap:16px;max-width:860px;}
+.appd-back{align-self:flex-start;font-family:var(--font-mono);font-size:.78rem;color:var(--text-muted);
+  padding:6px 10px;border:1px solid var(--line);border-radius:var(--radius-sm);transition:.15s var(--ease);}
+.appd-back:hover{color:var(--text);border-color:var(--jade-dim);}
+
+.appd-banner{width:100%;aspect-ratio:4/1;min-height:120px;border-radius:var(--radius);
+  background:var(--bg-1) center/cover no-repeat;border:1px solid var(--line);}
+
+.appd-head{display:flex;flex-direction:column;gap:10px;}
+.appd-titlerow{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;}
+.appd-titlerow h1{margin:0;font-size:1.7rem;line-height:1.2;word-break:break-word;}
+.appd-titlerow .app-badges{justify-content:flex-end;margin-top:4px;}
+.appd-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-family:var(--font-mono);font-size:.74rem;color:var(--text-dim);}
+.appd-desc{margin:0;font-size:.98rem;color:var(--text-muted);line-height:1.6;}
+
+.appd-panel{display:flex;flex-direction:column;gap:14px;background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--radius);padding:18px;}
+.appd-panel .app-verrow{gap:10px;}
+.appd-panel .app-actions{margin-top:2px;}
+
+.appd.delisted{opacity:.85;}
+.appd.delisted .appd-banner{filter:grayscale(.4);}
+
+@media (max-width:560px){
+  .appd-titlerow h1{font-size:1.35rem;}
+  .appd-banner{aspect-ratio:3/1;}
+}
