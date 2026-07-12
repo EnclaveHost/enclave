@@ -46,6 +46,15 @@ c-wallet-button{display:contents;}
 .wp-amts{display:flex;gap:6px;margin:10px 0;}
 .wp-amt{flex:1;background:#0a0f17;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:.5em 0;cursor:pointer;font-family:inherit;font-size:.82rem;}
 .wp-amt.on{border-color:var(--jade);color:var(--jade);}
+/* send-USDC form (openSendModal) */
+.wp-input{width:100%;background:#080C12;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:.6em .7em;margin-bottom:8px;font-family:var(--font-mono);font-size:.74rem;}
+.wp-input::placeholder{color:var(--text-muted);}
+.wp-input:focus{outline:none;border-color:var(--jade);}
+.wp-sendrow{display:flex;gap:8px;align-items:stretch;}
+.wp-sendrow .wp-input{flex:1;margin-bottom:0;}
+.wp-sendrow .wp-mini{white-space:nowrap;}
+.wp-status{font-size:.72rem;line-height:1.5;margin:8px 0;word-break:break-word;}
+.wp-status.err{color:#ff8a8a;} .wp-status.ok{color:var(--jade);} .wp-status.pend{color:var(--text-muted);}
 .wp-dot-iris{background:linear-gradient(135deg,var(--iris),var(--jade));}
 @media(max-width:760px){.wallet-pop{left:0;right:auto;width:min(300px,84vw);}}
 /* mobile header: the account button spans the bar (see header.css for the

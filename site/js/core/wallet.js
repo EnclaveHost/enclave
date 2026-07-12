@@ -9,7 +9,7 @@
    ============================================================ */
 import { BASE_CHAIN, BASE_CHAIN_HEX, USDC_BASE, PRIVY_APP_ID, PRIVY_CLIENT_ID, PRIVY_RDNS } from "./config.js";
 import { Enclave, EnclaveError } from "./api.js";
-import { baseRpc } from "./chain.js";
+import { baseRpc, encCall, waitReceipt } from "./chain.js";
 import { $, $$, esc, short, lsGet, lsSet, fmtDur, copyText, showToast, emit } from "./util.js";
 import { qrSvg } from "../lib/qr.js";
 
@@ -263,6 +263,62 @@ export function openDepositModal(){
     '<button class="wp-cancel" type="button">Close</button>');
   if (!m) return;
   const b = $("#depCopy"); if (b) b.addEventListener("click", () => copyText(Enclave.address, b));
+}
+
+// Send USDC out to any address. This is the ONLY way an embedded-wallet (email)
+// user gets funds back off the platform: their wallet is self-custodial but has
+// no send UI of its own, so a bought-but-unspent balance would otherwise be
+// stranded. Reuses sendTx (Privy gas sponsorship + gas-0 handling), so it works
+// for injected wallets too. USDC.transfer(to, amount) on Base.
+export function openSendModal(){
+  if (!Enclave.address) return;
+  const m = fundModal(
+    '<div class="wp-h">Send USDC</div>' +
+    '<div class="wp-note">Move <b>USDC on Base</b> from your wallet to any address. This leaves Enclave and is <b>final</b> - double-check the address, and send only on the Base network.</div>' +
+    '<input class="wp-input" id="sendTo" placeholder="0x… recipient address" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" />' +
+    '<div class="wp-sendrow">' +
+      '<input class="wp-input" id="sendAmt" inputmode="decimal" placeholder="0.00" autocomplete="off" />' +
+      '<button class="wp-mini" id="sendMax" type="button">Max</button>' +
+    '</div>' +
+    '<div class="wp-note">Balance: <span id="sendBal">…</span> USDC</div>' +
+    '<div class="wp-status" id="sendStatus" hidden></div>' +
+    '<button class="wp-item wp-go" id="sendGo" type="button">Send USDC</button>' +
+    '<button class="wp-cancel" type="button">Close</button>');
+  if (!m) return;
+  let bal = 0;
+  const balEl = $("#sendBal"), status = $("#sendStatus"), go = $("#sendGo");
+  const setStatus = (cls, msg) => { if (!status) return; status.hidden = false; status.className = "wp-status " + cls; status.textContent = msg; };
+  usdcBalanceOf(Enclave.address).then(
+    (v) => { bal = v; if (balEl) balEl.textContent = v.toFixed(2); },
+    ()  => { if (balEl) balEl.textContent = "unavailable"; });
+  const maxB = $("#sendMax"); if (maxB) maxB.addEventListener("click", () => { const a = $("#sendAmt"); if (a) a.value = String(bal); });
+  if (go) go.addEventListener("click", async () => {
+    const to = ($("#sendTo").value || "").trim();
+    const amt = Number(($("#sendAmt").value || "").trim());
+    if (!/^0x[0-9a-fA-F]{40}$/.test(to)) return setStatus("err", "Enter a valid recipient address (0x + 40 hex characters).");
+    if (!(amt > 0)) return setStatus("err", "Enter an amount greater than zero.");
+    if (amt > bal + 1e-9) return setStatus("err", "That's more than your balance (" + bal.toFixed(2) + " USDC).");
+    const amt6 = BigInt(Math.round(amt * 1e6));
+    if (amt6 <= 0n) return setStatus("err", "Amount is too small to send.");
+    if (Enclave.chainId && Enclave.chainId !== BASE_CHAIN){
+      setStatus("pend", "Switching your wallet to Base…");
+      try { await ensureBaseChainOnConnect(Enclave.provider); } catch(_){}
+      if (Enclave.chainId !== BASE_CHAIN) return setStatus("err", "Switch your wallet to the Base network, then retry.");
+    }
+    go.disabled = true;
+    setStatus("pend", "Confirm the transfer in your wallet…");
+    try {
+      const data = encCall("a9059cbb", [{ t: "addr", v: to }, { t: "uint", v: amt6 }]);   // transfer(address,uint256)
+      const hash = await sendTx(USDC_BASE, data);
+      setStatus("pend", "Sent " + short(hash) + " · waiting for confirmation…");
+      try { await waitReceipt(hash); } catch(_){}
+      setStatus("ok", "✓ Sent " + amt.toFixed(2) + " USDC to " + short(to) + ".");
+      refreshWallet();
+      usdcBalanceOf(Enclave.address).then((v) => { bal = v; if (balEl) balEl.textContent = v.toFixed(2); }, () => {});
+    } catch(e){
+      setStatus("err", (e && e.message) || String(e));
+    } finally { go.disabled = false; }
+  });
 }
 
 export async function usdcBalanceOf(addr){
@@ -520,6 +576,7 @@ export async function renderWalletPop(){
     '<div class="wp-fund">' +
       ((Enclave.walletRdns === PRIVY_RDNS && PrivyWallet.enabled()) ? '<button class="wp-mini wp-buy" id="wpBuy">Buy USDC · card</button>' : "") +
       '<button class="wp-mini" id="wpDep">Deposit</button>' +
+      '<button class="wp-mini" id="wpSend">Send</button>' +
     '</div>' +
     '<button class="wp-disc" id="wpDisc">Sign out</button>';
   pop.hidden = false;
@@ -527,6 +584,7 @@ export async function renderWalletPop(){
   const d = $("#wpDisc"); if (d) d.addEventListener("click", disconnectWallet);
   const bb = $("#wpBuy"); if (bb) bb.addEventListener("click", () => { pop.hidden = true; openBuyModal(); });
   const dep = $("#wpDep"); if (dep) dep.addEventListener("click", () => { pop.hidden = true; openDepositModal(); });
+  const snd = $("#wpSend"); if (snd) snd.addEventListener("click", () => { pop.hidden = true; openSendModal(); });
   usdcBalanceOf(Enclave.address).then(
     (b) => { const u = $("#wpBalUsdc"); if (u) u.textContent = b.toFixed(2) + " USDC"; },
     ()  => { const u = $("#wpBalUsdc"); if (u) u.textContent = "unavailable"; });
