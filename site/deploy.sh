@@ -29,6 +29,18 @@ echo "[deploy] chunk union: $(ls dist/js/chunks | wc -l) js chunks, $(ls dist/pr
 [ "$(ls dist/js/chunks | wc -l)" -ge "$(ls "$ARCHIVE/js/chunks" | wc -l)" ] || {
   echo "[deploy] ERROR: chunk union did not take (dist has fewer chunks than the archive)"; exit 1; }
 
+# ---- server-side chunk archive: the local archive above is EMPTY on CI
+# (fresh checkout every run), so a CI deploy ships no prior generation
+# (observed 2026-07-12: a CI deploy dropped every older chunk; cached tabs
+# 404'd their imports). The site box always holds the PREVIOUS tree, so it
+# keeps its own archive: harvest the live tree's hashed artifacts before the
+# swap, union them back in after - correct no matter which machine deploys.
+# mtimes are tar-preserved build times, so 48h retention is by build age.
+ssh nan 'mkdir -p /opt/nan-chunk-archive/js/chunks /opt/nan-chunk-archive/privy && \
+  { cp -p /opt/nan-site/js/chunks/* /opt/nan-chunk-archive/js/chunks/ 2>/dev/null; \
+    cp -p /opt/nan-site/privy/*     /opt/nan-chunk-archive/privy/     2>/dev/null; \
+    find /opt/nan-chunk-archive -type f -mmin +2880 -delete; true; }'
+
 # ship the bundle: replace the whole tree (tar over ssh; no rsync needed),
 # so the IPFS pin never accumulates stale files from earlier layouts.
 # NOTE: /opt/nan-site is wholly owned by this script — never park anything
@@ -36,5 +48,13 @@ echo "[deploy] chunk union: $(ls dist/js/chunks | wc -l) js chunks, $(ls dist/pr
 # this reason; see scripts/deploy-ipfs-gateway.sh.)
 ssh nan 'rm -rf /opt/nan-site && mkdir -p /opt/nan-site'
 tar -C dist -czf - . | ssh nan 'tar -C /opt/nan-site -xzf -'
+
+# union the box's archive into the fresh tree (cp -n: the new build's own
+# files always win; hashed names are content-addressed so collisions are
+# identical bytes - and stable-named privy/entry.js is protected by -n)
+ssh nan '{ cp -pn /opt/nan-chunk-archive/js/chunks/* /opt/nan-site/js/chunks/ 2>/dev/null; \
+  cp -pn /opt/nan-chunk-archive/privy/* /opt/nan-site/privy/ 2>/dev/null; true; }; \
+  echo "[deploy] server chunk union: $(ls /opt/nan-site/js/chunks | wc -l) js chunks, $(ls /opt/nan-site/privy | wc -l) privy files"'
+
 ssh nan 'chown -R ipfs:ipfs /opt/nan-site && \
   sudo -u ipfs IPFS_PATH=/var/lib/ipfs /usr/local/bin/nan-deploy.sh /opt/nan-site'
