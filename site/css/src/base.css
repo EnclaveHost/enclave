@@ -52,8 +52,8 @@ html.soft-enter main{animation:vt-enter .28s var(--ease) both;}
 /* the transition lives on the REVEALED state only: applying .rv snaps to
    hidden (a fade-out here would let a fast scroller catch content mid-
    disappear right after load), while .rv-in animates the way back in */
-.rv.rv-in{opacity:1;transform:none;transition:opacity .65s var(--ease),transform .65s var(--ease);}
-.rv.rv-in .rv-kid{opacity:1;transform:none;transition:opacity .5s var(--ease),transform .5s var(--ease);transition-delay:calc(.12s + var(--rv-i,0)*.08s);}
+.rv.rv-in{opacity:1;transform:none;transition:opacity 1s var(--ease),transform 1s var(--ease);}
+.rv.rv-in .rv-kid{opacity:1;transform:none;transition:opacity .75s var(--ease),transform .75s var(--ease);transition-delay:calc(.18s + var(--rv-i,0)*.12s);}
 @media (prefers-reduced-motion:reduce){
   .rv,.rv .rv-kid{opacity:1 !important;transform:none !important;transition:none !important;}
 }

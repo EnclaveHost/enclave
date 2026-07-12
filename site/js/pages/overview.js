@@ -36,7 +36,7 @@ function initReveal() {
       if (!e.isIntersecting) continue;
       revealObs.unobserve(e.target);
       e.target.classList.add("rv-in");
-      setTimeout(strip, 1100, e.target);   // > the longest transition + stagger
+      setTimeout(strip, 1700, e.target);   // > the longest transition + stagger
     }
   }, { rootMargin: "0px 0px -12% 0px" });
   for (const s of document.querySelectorAll('main section[data-view="overview"]:not(.hero)')) {
