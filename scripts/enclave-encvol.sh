@@ -6,22 +6,38 @@
 # S3-compatible bucket. The enclave-side manager later pulls + decrypts it
 # into the deployment's /enc/<name> when the owner unlocks from the app UI
 # (see enclave-apps/encrypted-volumes). The bucket, the network, and the
-# operator's host only ever see ciphertext; the password never leaves this
+# operator's host only ever see ciphertext; the key never leaves this
 # machine except over the deployment's attested, in-enclave-terminated TLS
 # at unlock time.
 #
 #   enclave-encvol.sh push <dir>  --endpoint URL --bucket B [--path P]   encrypt + upload <dir>
 #   enclave-encvol.sh pull <dir>  --endpoint URL --bucket B [--path P]   download + decrypt into <dir>
 #   enclave-encvol.sh ls          --endpoint URL --bucket B [--path P]   list the volume's decrypted names
+#   enclave-encvol.sh message <keyId>                                    print the exact message a wallet signs
+#   enclave-encvol.sh derive  --sig 0x…                                  print the password/salt a signature derives
+#
+# WALLET MODE (the encrypted-volumes app's primary flow): the key is DERIVED
+# from a deterministic ECDSA personal_sign of the canonical message (printed
+# by `message`), so only the wallet holder can reproduce it - no password to
+# keep. Byte-exact derivation, identical here and in the app:
+#     sig      = lowercase 65-byte signature hex, 0x-prefixed
+#     password = sha256_hex( sig + "\n" + "enclave-encvol-v1:password" )
+#     salt     = sha256_hex( sig + "\n" + "enclave-encvol-v1:salt" )
+# Sign in the deployed app (its "push credentials" panel shows all of this),
+# or anywhere else, e.g.:  cast wallet sign "$(enclave-encvol.sh message myvol)"
+# Wallets must sign deterministically (RFC 6979 - MetaMask, Ledger, EOAs
+# generally do); if two signatures of the same message differ, use a password.
 #
 # Options / environment:
 #   --endpoint URL      S3 endpoint (https://s3.eu-central-1.amazonaws.com, any S3-compatible)
 #   --bucket B          bucket name
 #   --path P            key prefix inside the bucket (default: none)
 #   --name N            volume name used in the printed App Config snippet (default: basename of <dir>)
+#   --sig 0x…           wallet mode: derive password+salt from this personal_sign signature
 #   --filename-encryption standard|off|obfuscate   (default standard; must match at unlock)
 #   --no-dir-encryption keep directory names in the clear
-#   ENCVOL_PASSWORD     crypt password  (prompted if unset)
+#   ENCVOL_WALLET_SIG   same as --sig
+#   ENCVOL_PASSWORD     crypt password  (prompted if unset and no signature given)
 #   ENCVOL_SALT         crypt salt / password2 (optional but recommended; prompted, empty = none)
 #   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN
 #                       bucket credentials (omit for a public bucket)
@@ -32,38 +48,71 @@
 set -euo pipefail
 
 die() { echo "enclave-encvol: $*" >&2; exit 1; }
-command -v rclone >/dev/null || die "rclone not found (https://rclone.org/install/)"
+_sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum | cut -d' ' -f1; else shasum -a 256 | cut -d' ' -f1; fi; }
 
-CMD="${1:-}"; case "$CMD" in push|pull|ls) shift ;; *) die "usage: enclave-encvol.sh <push|pull|ls> [dir] --endpoint URL --bucket B [--path P]" ;; esac
+# The canonical wallet message. BYTE-EXACT contract with the app's UI (and
+# any other signer): change it and every derived key changes.
+_message() { printf 'Enclave encrypted volume key v1\nvolume: %s\n\nSigning derives this volume'"'"'s encryption key. Only sign in apps you trust with its contents.' "$1"; }
+
+_derive() {  # $1 = signature; sets ENCVOL_PASSWORD / ENCVOL_SALT
+  local sig
+  sig="$(printf '%s' "$1" | tr -d '[:space:]' | tr 'A-Z' 'a-z')"
+  [[ "$sig" =~ ^0x[0-9a-f]{130}$ ]] || die "signature must be 65-byte ECDSA hex (0x + 130 hex chars); got ${#sig} chars"
+  ENCVOL_PASSWORD="$(printf '%s\n%s' "$sig" "enclave-encvol-v1:password" | _sha256)"
+  ENCVOL_SALT="$(printf '%s\n%s' "$sig" "enclave-encvol-v1:salt" | _sha256)"
+}
+
+CMD="${1:-}"; case "$CMD" in push|pull|ls|message|derive) shift ;; *) die "usage: enclave-encvol.sh <push|pull|ls|message|derive> …" ;; esac
+
+if [[ "$CMD" == "message" ]]; then
+  KEYID="${1:-}"; [[ -n "$KEYID" ]] || die "usage: enclave-encvol.sh message <keyId>"
+  _message "$KEYID"; echo
+  exit 0
+fi
+
 DIR=""
-if [[ "$CMD" != "ls" ]]; then DIR="${1:-}"; [[ -n "$DIR" && "$DIR" != --* ]] || die "$CMD needs a local directory"; shift; fi
+if [[ "$CMD" == "push" || "$CMD" == "pull" ]]; then DIR="${1:-}"; [[ -n "$DIR" && "$DIR" != --* ]] || die "$CMD needs a local directory"; shift; fi
 
-ENDPOINT="" BUCKET="" VPATH="" NAME="" FENC="standard" DENC="true"
+ENDPOINT="" BUCKET="" VPATH="" NAME="" FENC="standard" DENC="true" SIG="${ENCVOL_WALLET_SIG:-}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --endpoint) ENDPOINT="${2:-}"; shift 2 ;;
     --bucket)   BUCKET="${2:-}";   shift 2 ;;
     --path)     VPATH="${2:-}";    shift 2 ;;
     --name)     NAME="${2:-}";     shift 2 ;;
+    --sig)      SIG="${2:-}";      shift 2 ;;
     --filename-encryption) FENC="${2:-}"; shift 2 ;;
     --no-dir-encryption) DENC="false"; shift ;;
     *) die "unknown option: $1" ;;
   esac
 done
+
+if [[ "$CMD" == "derive" ]]; then
+  [[ -n "$SIG" ]] || die "derive needs --sig 0x… (or ENCVOL_WALLET_SIG)"
+  _derive "$SIG"
+  echo "export ENCVOL_PASSWORD=$ENCVOL_PASSWORD"
+  echo "export ENCVOL_SALT=$ENCVOL_SALT"
+  exit 0
+fi
+
 [[ -n "$ENDPOINT" && -n "$BUCKET" ]] || die "--endpoint and --bucket are required"
 case "$FENC" in standard|off|obfuscate) ;; *) die "--filename-encryption must be standard|off|obfuscate" ;; esac
 [[ "$CMD" != "push" || -d "$DIR" ]] || die "no such directory: $DIR"
 
-if [[ -z "${ENCVOL_PASSWORD:-}" ]]; then
-  read -rs -p "crypt password: " ENCVOL_PASSWORD; echo >&2
-  [[ -n "$ENCVOL_PASSWORD" ]] || die "empty password"
-  if [[ "$CMD" == "push" ]]; then
-    read -rs -p "confirm password: " P2; echo >&2
-    [[ "$ENCVOL_PASSWORD" == "$P2" ]] || die "passwords do not match"
+if [[ -n "$SIG" ]]; then
+  _derive "$SIG"      # wallet mode: password+salt come from the signature
+else
+  if [[ -z "${ENCVOL_PASSWORD:-}" ]]; then
+    read -rs -p "crypt password: " ENCVOL_PASSWORD; echo >&2
+    [[ -n "$ENCVOL_PASSWORD" ]] || die "empty password"
+    if [[ "$CMD" == "push" ]]; then
+      read -rs -p "confirm password: " P2; echo >&2
+      [[ "$ENCVOL_PASSWORD" == "$P2" ]] || die "passwords do not match"
+    fi
   fi
-fi
-if [[ -z "${ENCVOL_SALT+x}" ]]; then
-  read -rs -p "salt / password2 (empty for none): " ENCVOL_SALT; echo >&2
+  if [[ -z "${ENCVOL_SALT+x}" ]]; then
+    read -rs -p "salt / password2 (empty for none): " ENCVOL_SALT; echo >&2
+  fi
 fi
 
 # env-only rclone config: encsrc = the S3 backend, encvol = crypt on top.
@@ -81,6 +130,7 @@ fi
 REMOTE="encsrc:${BUCKET}${VPATH:+/$VPATH}"
 export RCLONE_CONFIG_ENCVOL_TYPE=crypt RCLONE_CONFIG_ENCVOL_REMOTE="$REMOTE"
 export RCLONE_CONFIG_ENCVOL_FILENAME_ENCRYPTION="$FENC" RCLONE_CONFIG_ENCVOL_DIRECTORY_NAME_ENCRYPTION="$DENC"
+command -v rclone >/dev/null || die "rclone not found (https://rclone.org/install/)"
 RCLONE_CONFIG_ENCVOL_PASSWORD="$(printf '%s' "$ENCVOL_PASSWORD" | rclone obscure -)"
 export RCLONE_CONFIG_ENCVOL_PASSWORD
 if [[ -n "$ENCVOL_SALT" ]]; then
@@ -100,10 +150,10 @@ box, or \`enclave publish --config\`) and unlock from the app after deploying:
   { "encVolumes": [ {
       "name": "$NAME",
       "endpoint": "$ENDPOINT",
-      "bucket": "$BUCKET"$( [[ -n "$VPATH" ]] && printf ',\n      "path": "%s"' "$VPATH" )$( [[ "$FENC" != standard ]] && printf ',\n      "filenameEncryption": "%s"' "$FENC" )$( [[ "$DENC" == false ]] && printf ',\n      "directoryNameEncryption": false' )
+      "bucket": "$BUCKET"$( [[ -n "$VPATH" ]] && printf ',\n      "path": "%s"' "$VPATH" )$( [[ -n "$SIG" ]] && printf ',\n      "unlock": "wallet"' )$( [[ "$FENC" != standard ]] && printf ',\n      "filenameEncryption": "%s"' "$FENC" )$( [[ "$DENC" == false ]] && printf ',\n      "directoryNameEncryption": false' )
   } ] }
 
-(maxMb defaults to 1024; readOnly: true drops push-back credentials at unlock.)
+(maxMb defaults to 1024; readOnly: true drops push-back credentials at unlock.$( [[ -n "$SIG" ]] && printf '\nWallet mode: if the keyId you signed differs from "%s", add "keyId" too.' "$NAME" ))
 EOF
     ;;
   pull) rclone sync encvol: "$DIR" --progress ;;
