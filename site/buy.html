@@ -11,26 +11,21 @@
      with Stripe's "User is not authenticated". strict-origin-when-cross-origin
      (the browser default) sends exactly the origin, nothing more. -->
 <meta name="referrer" content="strict-origin-when-cross-origin"/>
-<!-- THE FIX (2026-07-10): load Stripe's CURRENT onramp loader from their CDN
-     before Privy's SDK runs. Root cause of the universal checkout failure:
-     Privy bundles @stripe/crypto 1.1.1 (the newest npm release), whose loader
-     is STALE against Stripe's current CDN scripts - it injects crypto-onramp.js
-     as an ES module whose controller then loads SAME-ORIGIN (enclave.host)
-     instead of js.stripe.com, 404ing on its own chunks. Proven not-browser
-     (clean profile, no blocker, plain connection all fail identically) and not
-     our code (worked 2026-07-06; Stripe changed their CDN under the pinned
-     loader - exactly what Stripe's docs warn bundling causes). Stripe's
-     crypto-onramp-outer.js sets window.StripeOnramp to the CURRENT, working
-     constructor; Privy's bundled loadStripeOnramp explicitly reuses an existing
-     window.StripeOnramp (`if(window.StripeOnramp) return it`) instead of
-     injecting its own broken module - VERIFIED: with this tag the loader reuses
-     the CDN version (same constructor) and makes ZERO same-origin requests.
-     Must load from Stripe's domain (never bundled/self-hosted) per PCI + so it
-     stays in sync with Stripe's controller. If it fails to load, the flow just
-     falls back to Privy's (broken) path - strictly no worse than before.
-     Stripe.js (v3) MUST load alongside it - the onramp SDK requires window.Stripe
-     ("Please include StripeJS alongside Stripe Crypto Onramp"); both are reused
-     by Privy's loader via window.Stripe / window.StripeOnramp presence checks. -->
+<!-- Load Stripe's current onramp loader from their CDN BEFORE Privy's SDK runs.
+     Privy bundles @stripe/crypto, whose loader can go stale against Stripe's
+     current CDN scripts: the bundled loader injects a crypto-onramp module whose
+     controller then loads SAME-ORIGIN (enclave.host) instead of js.stripe.com and
+     404s on its own chunks. Stripe's crypto-onramp-outer.js sets
+     window.StripeOnramp to the current, working constructor; Privy's bundled
+     loadStripeOnramp reuses an existing window.StripeOnramp
+     (`if(window.StripeOnramp) return it`) instead of injecting its own module, so
+     with this tag the loader reuses the CDN version and makes zero same-origin
+     requests. Must load from Stripe's domain (never bundled/self-hosted) per PCI
+     and to stay in sync with Stripe's controller. If it fails to load, the flow
+     falls back to Privy's path. Stripe.js (v3) MUST load alongside it - the onramp
+     SDK requires window.Stripe ("Please include StripeJS alongside Stripe Crypto
+     Onramp"); both are reused by Privy's loader via window.Stripe /
+     window.StripeOnramp presence checks. -->
 <script src="https://js.stripe.com/v3/"></script>
 <script src="https://crypto-js.stripe.com/crypto-onramp-outer.js"></script>
 <title>Buy USDC · Enclave</title>
@@ -70,16 +65,14 @@
 <div id="toasts" popover="manual" style="position:fixed;top:10px;left:10px;right:10px;bottom:auto;margin:0;border:0;padding:0;width:auto;height:auto;background:transparent;overflow:visible;z-index:2147483647;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
 <script type="module">
 /* Buy USDC · runs Privy's FIAT ONRAMP (useFiatOnramp - the Stripe Crypto
-   Onramp surface Privy launched 2026-07-07: Stripe/Link checkout in the
-   US+EU, Privy's aggregator elsewhere; needs react-auth >=3.33.1 with
-   @stripe/crypto in the bundle - see scripts/build-privy.mjs) in a popup.
-   Same origin as the console, so it inherits the Privy session the user
-   already has. The main page stays framework-free; React lives only here.
-   The Stripe onramp is the ONLY checkout (Steven's ruling, 2026-07-10):
-   no useFundWallet fallback, no Coinbase/MoonPay, no deposit-address
-   screen - a failure surfaces its error and stops. (Privy's LEGACY fiat
-   onramp - the pre-July-2026 fiat_on_ramp_enabled surface - stays retired;
-   this is its replacement, not a revival.) */
+   Onramp surface: Stripe/Link checkout in the US+EU, Privy's aggregator
+   elsewhere; needs react-auth >=3.33.1 with @stripe/crypto in the bundle -
+   see scripts/build-privy.mjs) in a popup. Same origin as the console, so it
+   inherits the Privy session the user already has. The main page stays
+   framework-free; React lives only here. The Stripe onramp is the ONLY
+   checkout: no useFundWallet fallback, no Coinbase/MoonPay, no deposit-address
+   screen - a failure surfaces its error and stops. (Privy's legacy fiat onramp
+   stays retired; this is its replacement, not a revival.) */
 
 /* Readable error surfacing: Privy's modal swallows provider errors behind a
    generic screen. Tap failing API calls, extract the human message from the
@@ -174,16 +167,13 @@ let lastBackdropClick = 0;
     }
   }, true));
 
-/* Broken-controller detector (2026-07-10). PROVEN universal, NOT the user's
-   browser: a clean profile on a plain connection with NO ad blocker still
-   hits it. Stripe's crypto-onramp controller loads as a SAME-ORIGIN frame on
-   enclave.host instead of js.stripe.com, so it 404s on its own chunks (GET
-   enclave.host/crypto-onramp/v1/*.js) and the postMessage handshake fails.
-   Root cause is in the Privy-bundled @stripe/crypto (1.1.1) loader vs Stripe's
-   current CDN onramp scripts - it worked 2026-07-06 (same popup, same loader),
-   so Stripe changed their served scripts underneath the pinned loader (exactly
-   what Stripe's docs warn bundling can cause). Nothing the user can do; catch
-   the fingerprint and say so honestly instead of blaming them or dead-ending. */
+/* Broken-controller detector. If Stripe's crypto-onramp controller loads as a
+   SAME-ORIGIN frame on enclave.host instead of js.stripe.com, it 404s on its
+   own chunks (GET enclave.host/crypto-onramp/v1/*.js) and the postMessage
+   handshake fails. Root cause is the Privy-bundled @stripe/crypto loader going
+   out of sync with Stripe's current CDN onramp scripts (what Stripe's docs warn
+   bundling can cause) - nothing the user can do. Catch the fingerprint and say
+   so honestly instead of blaming them or dead-ending. */
 let blockedFrameShown = false;
 function blockedFrameHelp(){
   if (blockedFrameShown) return; blockedFrameShown = true;
@@ -304,12 +294,12 @@ try {
       };
       const isCancel = (s) => /clos|cancel|exit|abort|dismiss/i.test(s);
       /* Cancel NEVER closes the window. The backdrop heuristics kept losing
-         (Privy's [role=dialog] can BE the full-screen wrapper, making
-         backdrop clicks land "inside" it), and every miss cost Steven the
-         window mid-focus-click. Deterministic instead: a dismissed flow
-         parks on a restart screen; only the user (or a finished purchase)
-         closes the window. A dismiss within 1.5s of a click we saw hit the
-         backdrop still reopens by itself (capped, so nothing can loop). */
+         (Privy's [role=dialog] can BE the full-screen wrapper, making backdrop
+         clicks land "inside" it), and every miss closed the window mid-focus-
+         click. Deterministic instead: a dismissed flow parks on a restart
+         screen; only the user (or a finished purchase) closes the window. A
+         dismiss within 1.5s of a click we saw hit the backdrop still reopens
+         by itself (capped, so nothing can loop). */
       let reopens = 0;
       const accidentalDismiss = () =>
         Date.now() - lastBackdropClick < 1500 && reopens++ < 3;
@@ -342,14 +332,13 @@ try {
       );
       setInterval(freshToken, 120000);
 
-      /* The wallet signature, restored (Steven's call: the old working flow
-         signed right before its last screen). Stripe verifies OWNERSHIP of
-         self-custody destination wallets; an embedded wallet that can't sign
-         in this popup fails the transaction at the very end with a generic
-         "couldn't complete". Signing up front proves the wallet is
-         operational BEFORE money is on the line, and [buy-diag] records the
-         outcome either way. Not a hard gate: if signing fails we continue,
-         so the provider's own error still surfaces. */
+      /* Wallet ownership signature. Stripe verifies OWNERSHIP of self-custody
+         destination wallets; an embedded wallet that can't sign in this popup
+         fails the transaction at the very end with a generic "couldn't
+         complete". Signing up front proves the wallet is operational BEFORE
+         money is on the line, and [buy-diag] records the outcome either way.
+         Not a hard gate: if signing fails we continue, so the provider's own
+         error still surfaces. */
       const signOwnership = async () => {
         let w = null;
         for (let i = 0; i < 30 && !w; i++){   // wallets hydrate async after auth

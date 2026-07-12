@@ -23,6 +23,9 @@
 //   --no-write-config     do NOT touch tinfoil-config.yml / enclave-discover.mjs
 //   --yes                 skip the interactive confirmation (CI)
 //   --dry-run             compile + show the plan, do NOT broadcast
+//   --replace             on mainnet, allow re-deploying even though the current
+//                         REGISTRY_ADDRESS already has code (orphans registered
+//                         enclaves). Refused by default.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -46,6 +49,7 @@ const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has("--dry-run");
 const NO_WRITE_CONFIG = args.has("--no-write-config"); // config is written by default on a successful deploy
 const ASSUME_YES = args.has("--yes");
+const REPLACE = args.has("--replace");                 // override the live-contract guard on mainnet
 
 const NETWORKS = {
   "base-sepolia": { chain: baseSepolia, rpc: "https://sepolia.base.org", explorer: "https://sepolia.basescan.org" },
@@ -154,6 +158,22 @@ async function main() {
 
   if (DRY_RUN) { console.log("--dry-run: compiled and validated; not broadcasting."); return; }
   if (bal === 0n) die("deployer has 0 ETH on this chain; fund it for gas first.");
+
+  // Guard: on mainnet, refuse to orphan a live registry. If the config already
+  // names a EnclaveRegistry that HAS CODE on this chain, a fresh deploy rewrites
+  // every config to a new one, stranding registered operators. Testnet/first
+  // deploy unaffected.
+  if (isMainnet && !REPLACE) {
+    const m = fs.readFileSync(CONFIG, "utf8").match(/-\s*REGISTRY_ADDRESS:\s*"(0x[0-9a-fA-F]{40})"/);
+    if (m) {
+      const existing = getAddress(m[1]);
+      const code = await pub.getCode({ address: existing }).catch(() => null);
+      if (code && code !== "0x")
+        die(`REGISTRY_ADDRESS already points at ${existing}, which HAS CODE on ${netName}.\n`
+          + `  Re-deploying rewrites every config to a new registry, orphaning registered enclaves.\n`
+          + `  Pass --replace to proceed, or --dry-run to inspect.`);
+    }
+  }
 
   if (!ASSUME_YES) {
     const rl = readline.createInterface({ input, output });

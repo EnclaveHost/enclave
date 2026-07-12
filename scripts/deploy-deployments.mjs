@@ -21,9 +21,14 @@
 //
 // Env:
 //   DEPLOYER_PRIVATE_KEY  required. Pays gas, becomes contract owner.
-//   PAYOUT_ADDRESS        cold wallet that receives funds. If unset, resolves
-//                         PAYOUT_ENS (default nan.eth) via ETH_RPC (L1 mainnet).
-//   PAYOUT_ENS            ENS name to resolve when PAYOUT_ADDRESS is unset.
+//   PAYOUT_ADDRESS        cold wallet that receives funds. REQUIRED on mainnet
+//                         (NETWORK=base): the script refuses to silently default
+//                         to the legacy nan.eth ENS name for real funds. On
+//                         testnet, if unset it resolves PAYOUT_ENS (default
+//                         nan.eth) via ETH_RPC (L1 mainnet).
+//   PAYOUT_ENS            ENS name to resolve when PAYOUT_ADDRESS is unset
+//                         (testnet default nan.eth; set it explicitly to opt into
+//                         ENS resolution on mainnet instead of a raw address).
 //   REGISTRY_ADDRESS      EnclaveRegistry to gate claims against. If unset, read from
 //                         tinfoil-config.yml's REGISTRY_ADDRESS line.
 //   ETH_USD_FEED          Chainlink ETH/USD aggregator; defaults per network;
@@ -46,6 +51,9 @@
 //   --no-write-config     do NOT touch tinfoil-config.yml (default is to write it)
 //   --yes                 skip the interactive confirmation (CI)
 //   --dry-run             compile + show the plan, do NOT broadcast
+//   --replace             on mainnet, allow re-deploying even though the current
+//                         DEPLOYMENTS_ADDRESS already has code (orphans all live
+//                         deployments/balances/leases). Refused by default.
 //   --finish              recovery: skip the deploy; announce an ALREADY-deployed
 //                         contract, write the config, and set the price if unset.
 //                         Point it at the contract with DEPLOYED_ADDRESS=0x... or
@@ -79,6 +87,7 @@ const DRY_RUN = args.has("--dry-run");
 const NO_WRITE_CONFIG = args.has("--no-write-config"); // config is written by default on a successful deploy
 const ASSUME_YES = args.has("--yes");
 const FINISH = args.has("--finish");
+const REPLACE = args.has("--replace");                 // override the live-contract guard on mainnet
 
 const NETWORKS = {
   "base-sepolia": { chain: baseSepolia, rpc: "https://sepolia.base.org",
@@ -129,12 +138,16 @@ function compile() {
   return { abi: c.abi, bytecode: "0x" + c.evm.bytecode.object };
 }
 
-async function resolvePayout(explicit) {
+async function resolvePayout(explicit, isMainnet) {
   explicit = explicit || process.env.PAYOUT_ADDRESS;
   if (explicit) {
     if (!isAddress(explicit)) die(`payout is not a valid address: ${explicit}`);
     return getAddress(explicit);
   }
+  // On mainnet, never silently default to the legacy nan.eth ENS name for real
+  // funds — demand an explicit PAYOUT_ADDRESS (or a deliberately-set PAYOUT_ENS).
+  if (isMainnet && !process.env.PAYOUT_ENS)
+    die("PAYOUT_ADDRESS is required on mainnet — set it explicitly (refusing to default to the legacy nan.eth ENS name for real funds; set PAYOUT_ENS to deliberately opt into ENS resolution).");
   const name = process.env.PAYOUT_ENS || "nan.eth";
   const ethRpc = process.env.ETH_RPC || "https://cloudflare-eth.com";
   console.log(`PAYOUT_ADDRESS unset; resolving ${name} via L1 (${ethRpc})...`);
@@ -343,8 +356,10 @@ async function main() {
 
   let payoutIn = process.env.PAYOUT_ADDRESS;
   if (!payoutIn && !ASSUME_YES && input.isTTY)
-    payoutIn = await promptText("Payout address (where funds land; blank to resolve nan.eth): ");
-  const payout = await resolvePayout(payoutIn);
+    payoutIn = await promptText(isMainnet
+      ? "Payout address (where REAL funds land; required on mainnet): "
+      : "Payout address (where funds land; blank to resolve nan.eth): ");
+  const payout = await resolvePayout(payoutIn, isMainnet);
   const registry = resolveRegistry();
 
   const bal = await readWithRetry("getBalance", () => pub.getBalance({ address: account.address })).catch(() => 0n);
@@ -365,6 +380,22 @@ async function main() {
 
   if (bal === 0n) die("deployer has 0 ETH on this chain; fund it for gas first.");
   if (DRY_RUN) { console.log("--dry-run: compiled and validated; not broadcasting."); return; }
+
+  // Guard: on mainnet, refuse to orphan the live ledger. If the config already
+  // names a EnclaveDeployments that HAS CODE on this chain, a fresh deploy mints
+  // a new one and rewrites every config to it — stranding all live deployments,
+  // balances and leases on the old contract. First deploy / testnet unaffected.
+  if (isMainnet && !REPLACE) {
+    const m = fs.readFileSync(CONFIG, "utf8").match(/-\s*DEPLOYMENTS_ADDRESS:\s*"(0x[0-9a-fA-F]{40})"/);
+    if (m) {
+      const existing = getAddress(m[1]);
+      const code = await readWithRetry("getCode", () => pub.getCode({ address: existing })).catch(() => null);
+      if (code && code !== "0x")
+        die(`DEPLOYMENTS_ADDRESS already points at ${existing}, which HAS CODE on ${netName}.\n`
+          + `  Re-deploying mints a NEW ledger and rewrites every config to it, orphaning all live\n`
+          + `  deployments, balances and leases on the old contract. Pass --replace to proceed, or --dry-run to inspect.`);
+    }
+  }
 
   if (!ASSUME_YES) {
     const rl = readline.createInterface({ input, output });

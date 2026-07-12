@@ -61,6 +61,10 @@
 //                                     box's own main v6 to also serve v6 SNI.
 //   RELAY_MAX_CONNS         optional  concurrent client connection cap (1024)
 //   RELAY_HELLO_TIMEOUT_MS  optional  ms to wait for a full ClientHello (10000)
+//   RELAY_HANDSHAKE_MS      optional  ms to open the enclave WS after routing
+//                                     before tearing the connection down (10000)
+//   RELAY_IDLE_MS           optional  idle timeout on a spliced connection so a
+//                                     silent client can't hold a slot (180000)
 
 import net from "node:net";
 import WebSocket, { createWebSocketStream } from "ws";
@@ -93,6 +97,8 @@ const POLL_MS  = parseInt(process.env.NET_POLL_SEC || "5", 10) * 1000;
 const wsOrigin = (o) => o.replace(/^http/, "ws");
 const MAX_CONNS = parseInt(process.env.RELAY_MAX_CONNS || "1024", 10);
 const HELLO_MS  = parseInt(process.env.RELAY_HELLO_TIMEOUT_MS || "10000", 10);
+const HS_MS     = parseInt(process.env.RELAY_HANDSHAKE_MS || "10000", 10);   // enclave WS-open timeout (fix 4)
+const IDLE_MS   = parseInt(process.env.RELAY_IDLE_MS || "180000", 10);       // spliced-connection idle timeout (fix 4)
 const EXCLUDE = new Set((process.env.RELAY_EXCLUDE || "22").split(",").map((s) => +s.trim()).filter(Boolean));
 // Local addresses to listen on. Empty (default) -> one wildcard/dual-stack
 // listener per port (all interfaces). A list -> one listener per (address,
@@ -262,6 +268,13 @@ const APP_OWNER_TTL_MS = 5 * 60_000;
 async function appOwnerOf(label) {
   const hit = APP_OWNER.get(label);
   if (hit && Date.now() - hit.at < APP_OWNER_TTL_MS && fleet.origins().includes(hit.origin)) return hit.origin;
+  // SECURITY (fix 1c / B3): prefer the deployment's ON-CHAIN runner over "first
+  // enclave answering non-404", so a hostile enclave can't hijack another
+  // tenant's app-subdomain by answering for its id. Only used when the fleet
+  // exposes a deployments source (ADDRESS_BOOK/DEPLOYMENTS_ADDRESS); otherwise
+  // null -> the probe below (unchanged behavior).
+  const byRunner = await (fleet.runnerEndpointFor?.(label) ?? Promise.resolve(null)).catch(() => null);
+  if (byRunner) { APP_OWNER.set(label, { origin: byRunner, at: Date.now() }); return byRunner; }
   const found = await Promise.all(fleet.origins().map(async (o) => {
     try {
       const r = await fetch(`${o}/x/${encodeURIComponent(label)}`,
@@ -277,7 +290,10 @@ async function appOwnerOf(label) {
 function splice(client, origin, dep, path, hello) {
   const ws = new WebSocket(wsOrigin(origin) + path, { perMessageDeflate: false });
   const wsStream = createWebSocketStream(ws);
-  const close = () => { client.destroy(); try { ws.terminate(); } catch {} };
+  // WS-open handshake timeout: a slow/never-opening enclave bridge must not pin
+  // the client slot (MAX_CONNS) forever (fix 4; mirrors tcp6-relay's hsTimer).
+  const hsTimer = setTimeout(() => { try { ws.terminate(); } catch {} client.destroy(); }, HS_MS);
+  const close = () => { clearTimeout(hsTimer); client.destroy(); try { ws.terminate(); } catch {} };
   ws.on("unexpected-response", (_req, res) => {
     console.log(`[relay] ${dep} ${path} refused by enclave (HTTP ${res.statusCode})`);
     close();
@@ -285,6 +301,10 @@ function splice(client, origin, dep, path, hello) {
   client.on("error", close); client.on("close", close);
   wsStream.on("error", close); wsStream.on("close", close);
   ws.on("open", () => {
+    clearTimeout(hsTimer);
+    // idle timeout on the spliced connection: after a valid ClientHello a silent
+    // client (or a stalled enclave side) must not hold a slot indefinitely (fix 4).
+    client.setTimeout(IDLE_MS, close);
     wsStream.write(hello);                       // the buffered ClientHello goes first
     client.pipe(wsStream); wsStream.pipe(client);
   });

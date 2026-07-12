@@ -26,7 +26,7 @@ ISOLATION — what Layer 2 gives and what it does NOT (no faking):
     Layer 4 (fence_ptx stub + the adversarial probe). Until then children run
     ONLY trusted PTX (REQUIRE_FENCE gate). <-- do not weaken this lightly.
 """
-import os, sys, json, time, base64, threading, subprocess, urllib.request, urllib.error, urllib.parse
+import os, sys, json, time, base64, hmac, threading, subprocess, urllib.request, urllib.error, urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # -------- shared config (both roles) ----------------------------------------
@@ -57,11 +57,53 @@ CHILD_BASE  = int(os.environ.get("CHILD_PORT_BASE", "8100"))
 CUDA_ATTR_MULTIPROCESSOR_COUNT = 16   # cudaDevAttrMultiProcessorCount — reflects the MPS cap
 REQUIRE_FENCE = os.environ.get("REQUIRE_FENCE", "1") not in ("0", "false", "off")
 
+# -------- control-plane hardening (both roles) ------------------------------
+# The manager (and each child) are loopback-reachable by TENANTS too — guests
+# hold outbound HTTP and can hit 127.0.0.1 services in the enclave. So: bind
+# loopback by default (the supervisor reaches us on localhost) and require a
+# shared bearer token on EVERY endpoint. The token is a worker-specific env,
+# NOT the fleet-wide SECRET: SECRET is already set on many deployments and the
+# supervisor does not yet forward any token to the worker, so keying off SECRET
+# would instantly lock the supervisor out. Empty WORKER_TOKEN => auth DISABLED
+# (loud boot warning) so a not-yet-wired deploy keeps working; setting it (and
+# wiring the supervisor to send it) closes the control plane AND the "trusted
+# PTX" bypass in one shot.
+BIND  = os.environ.get("WORKER_BIND", "127.0.0.1")
+TOKEN = os.environ.get("WORKER_TOKEN", "")
 
-def _http_json(method, url, payload=None, timeout=5):
+
+def _bearer(headers) -> str:
+    parts = headers.get("Authorization", "").split(None, 1)
+    return parts[1].strip() if len(parts) == 2 and parts[0].lower() == "bearer" else ""
+
+
+def _authorized(headers) -> bool:
+    """Gate for every endpoint. No token configured => allowed (see boot warning);
+    otherwise the request must carry the shared token (constant-time compare)."""
+    return True if not TOKEN else hmac.compare_digest(_bearer(headers), TOKEN)
+
+
+def _trusted(headers) -> bool:
+    """Server-side trust proof used to SKIP PTX fencing. Unlike _authorized, an
+    UNSET token is NEVER trusted: with no secret there is no way to authorize
+    unfenced PTX, so it stays fenced. Trust is NEVER read from the request body."""
+    return bool(TOKEN) and hmac.compare_digest(_bearer(headers), TOKEN)
+
+
+def _auth_warning(role: str):
+    if not TOKEN:
+        print(f"[{role}] WARNING: WORKER_TOKEN unset — control plane is UNAUTHENTICATED; "
+              f"any process that can reach this port can create/kill tenants and submit "
+              f"jobs. Set WORKER_TOKEN (and have the supervisor send it) to close this.",
+              flush=True)
+
+
+def _http_json(method, url, payload=None, timeout=5, token=None):
     data = json.dumps(payload).encode() if payload is not None else None
-    req = urllib.request.Request(url, data=data, method=method,
-                                 headers={"Content-Type": "application/json"})
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = "Bearer " + token
+    req = urllib.request.Request(url, data=data, method=method, headers=headers)
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.status, json.loads(r.read() or b"{}")
 
@@ -107,9 +149,12 @@ def run_child():
         masked to the tenant's own allocation before running. Until real, refuse."""
         raise NotImplementedError("PTX bounds-fencing not implemented (Layer 4)")
 
-    def run_ptx(job: dict) -> dict:
+    def run_ptx(job: dict, trusted: bool) -> dict:
+        # `trusted` is a SERVER-SIDE decision (valid WORKER_TOKEN on the request),
+        # computed by the handler — never taken from the request body. With the
+        # fence gate on and no server-side trust, arbitrary PTX is refused.
         ptx = base64.b64decode(job["ptx_b64"])
-        if REQUIRE_FENCE and not job.get("trusted"):
+        if REQUIRE_FENCE and not trusted:
             ptx = fence_ptx(ptx)                     # raises until Layer 4
         entry     = job["entry"]
         grid      = tuple(job.get("grid",  [1, 1, 1]))
@@ -129,16 +174,21 @@ def run_child():
             self.send_response(code); self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
         def do_GET(self):
+            if not _authorized(self.headers):
+                return self._send(401, {"ok": False, "error": "unauthorized"})
             if self.path in ("/health", "/healthz"):
                 self._send(200 if state["ready"] else 503, {
                     "ok": state["ready"], "device": state["device"],
                     "mps_cap_pct": mps_cap, "sm_granted": state["sm_granted"], "vram_gb": VRAM_GB})
             else: self._send(404, {"error": "not_found"})
         def do_POST(self):
+            if not _authorized(self.headers):
+                return self._send(401, {"ok": False, "error": "unauthorized"})
             if self.path != "/run": return self._send(404, {"error": "not_found"})
             try:
                 n = int(self.headers.get("Content-Length", "0"))
-                self._send(200, run_ptx(json.loads(self.rfile.read(n) or b"{}")))
+                trusted = _trusted(self.headers)     # server-side, from the token — not the body
+                self._send(200, run_ptx(json.loads(self.rfile.read(n) or b"{}"), trusted))
             except NotImplementedError as e:
                 self._send(403, {"ok": False, "error": "unfenced_ptx_refused", "detail": str(e)})
             except Exception as e:                   # noqa: BLE001
@@ -146,6 +196,8 @@ def run_child():
 
     if not init_cuda():
         raise SystemExit("child: no CUDA context (MPS sidecar up? GPU attached?)")
+    _auth_warning(f"child:{cport}")
+    # Child is an internal manager<->child channel: ALWAYS loopback, never BIND.
     print(f"[child:{cport}] listening", flush=True)
     ThreadingHTTPServer(("127.0.0.1", cport), CH).serve_forever()
 
@@ -192,7 +244,7 @@ def _spawn_tenant(tid: str, share: float) -> dict:
             with _lock: _used_share = max(0.0, _used_share - share)
             return rec
         try:
-            code, h = _http_json("GET", f"http://127.0.0.1:{port}/health", timeout=2)
+            code, h = _http_json("GET", f"http://127.0.0.1:{port}/health", timeout=2, token=TOKEN)
             if code == 200 and h.get("ok"):
                 rec.update(status="running", sm_granted=h.get("sm_granted"), device=h.get("device"))
                 return rec
@@ -303,6 +355,8 @@ class MGR(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
 
     def do_GET(self):
+        if not _authorized(self.headers):
+            return self._send(401, {"ok": False, "error": "unauthorized"})
         if self.path in ("/health", "/healthz"):
             return self._send(200, {"ok": True, "role": "manager",
                                     "mps_pipe": os.environ.get("CUDA_MPS_PIPE_DIRECTORY"),
@@ -323,13 +377,15 @@ class MGR(BaseHTTPRequestHandler):
             # live child health (fresh sm_granted) if running
             if rec.get("_proc") and rec["_proc"].poll() is None:
                 try:
-                    _, h = _http_json("GET", f"http://127.0.0.1:{rec['port']}/health", timeout=2)
+                    _, h = _http_json("GET", f"http://127.0.0.1:{rec['port']}/health", timeout=2, token=TOKEN)
                     rec.update(sm_granted=h.get("sm_granted"), device=h.get("device"))
                 except Exception: pass               # noqa: BLE001
             return self._send(200, _pub(rec))
         return self._send(404, {"error": "not_found"})
 
     def do_POST(self):
+        if not _authorized(self.headers):
+            return self._send(401, {"error": "unauthorized"})
         # create a capped tenant worker
         if self.path == "/tenants":
             try:
@@ -357,7 +413,11 @@ class MGR(BaseHTTPRequestHandler):
             try:
                 n = int(self.headers.get("Content-Length", "0"))
                 job = json.loads(self.rfile.read(n) or b"{}")
-                code, out = _http_json("POST", f"http://127.0.0.1:{rec['port']}/run", job, timeout=120)
+                # Forward trust to the child ONLY when the caller proved it with a
+                # valid token. Untrusted submissions reach the child tokenless and
+                # stay fenced. Trust is never taken from the request body.
+                fwd = TOKEN if _trusted(self.headers) else None
+                code, out = _http_json("POST", f"http://127.0.0.1:{rec['port']}/run", job, timeout=120, token=fwd)
                 return self._send(code, out)
             except urllib.error.HTTPError as e:
                 return self._send(e.code, json.loads(e.read() or b"{}"))
@@ -366,6 +426,8 @@ class MGR(BaseHTTPRequestHandler):
         return self._send(404, {"error": "not_found"})
 
     def do_DELETE(self):
+        if not _authorized(self.headers):
+            return self._send(401, {"error": "unauthorized"})
         if self.path.startswith("/tenants/"):
             tid = self.path.split("/", 2)[2]
             return self._send(200, {"id": tid, "status": "stopped"}) if _kill_tenant(tid) \
@@ -374,9 +436,11 @@ class MGR(BaseHTTPRequestHandler):
 
 
 def run_manager():
-    print(f"[manager] listening on :{PORT} | child ports from {CHILD_BASE} "
+    _auth_warning("manager")
+    print(f"[manager] listening on {BIND}:{PORT} | child ports from {CHILD_BASE} "
+          f"| auth={'on' if TOKEN else 'OFF'} "
           f"| MPS pipe={os.environ.get('CUDA_MPS_PIPE_DIRECTORY')}", flush=True)
-    ThreadingHTTPServer(("0.0.0.0", PORT), MGR).serve_forever()
+    ThreadingHTTPServer((BIND, PORT), MGR).serve_forever()
 
 
 if __name__ == "__main__":

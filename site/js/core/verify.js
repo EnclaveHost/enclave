@@ -57,15 +57,30 @@ async function verifyMatchingRelease(mod, host, repo) {
   return latest;
 }
 
+// The ONLY repo a green "verified" result may attest to. The attestation JSON
+// is server-supplied, so its verification.repo is UNTRUSTED input: we verify
+// against this build-time constant, never against whatever the endpoint claims.
+// (Sigstore provenance is anchored here too - see verifyMatchingRelease.)
+const EXPECTED_REPO = "EnclaveHost/enclave";
+
 const _encVerifyCache = new Map();     // "host|repo" -> Promise<{ok, doc, repo, host, error}>
 export function verifyEnclaveInBrowser(vspec) {
-  let repo = vspec && vspec.repo;
+  const claimed = vspec && vspec.repo;
   const ep = vspec && vspec.attestationEndpoint;
-  if (!repo || !ep) return Promise.reject(new Error("attestation is missing verification.repo / attestationEndpoint"));
-  const host = new URL(ep).host, key = host + "|" + repo;
+  if (!claimed || !ep) return Promise.reject(new Error("attestation is missing verification.repo / attestationEndpoint"));
+  const host = new URL(ep).host;
+  // Verify against our own constant, not the enclave's claimed repo.
+  let repo = EXPECTED_REPO;
+  const key = host + "|" + repo;
+  // If the enclave attests to some OTHER repo, refuse a green result outright -
+  // whatever its self-attestation says, that isn't the code we ship.
+  if (String(claimed).toLowerCase() !== EXPECTED_REPO.toLowerCase())
+    return Promise.resolve({ ok: false, doc: null, repo: EXPECTED_REPO, host,
+      error: "enclave attests to an unexpected repo (" + claimed + "); expected " + EXPECTED_REPO });
   if (!_encVerifyCache.has(key)) _encVerifyCache.set(key, (async () => {
     // Sigstore compares the repo string verbatim against the signing cert's
-    // GitHubWorkflowRepository claim, so normalize to GitHub's canonical casing.
+    // GitHubWorkflowRepository claim, so normalize EXPECTED_REPO to GitHub's
+    // canonical casing (anchored to our constant, not the server's value).
     try { const gh = await fetch("https://api.github.com/repos/" + repo); if (gh.ok) repo = (await gh.json()).full_name || repo; } catch (e) {}
     const mod = await import(LV_VERIFIER_URL);
     let doc = null, failure = null;

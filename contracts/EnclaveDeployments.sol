@@ -35,7 +35,8 @@ pragma solidity ^0.8.20;
 ///     EnclaveAppCatalog (one cidStatus eth_call, fail closed). The ledger doesn't parse
 ///     appRefs; the enclave that would run the code is the one that checks it.
 ///   - Pricing: two global per-second prices, hardcoded at deploy (~$6.00/hour
-///     for a full GPU card, ~$2.00/hour for a full CPU node) and owner-adjustable
+///     for a full GPU card, ~$1.00/hour for a full CPU node — cpuPricePerSec6=278)
+///     and owner-adjustable
 ///     later; each deployment SNAPSHOTS its rate at create (price changes never
 ///     re-price existing deployments). A deployment BUYS two shares — gpuMilli
 ///     of a card's GPU+VRAM and cpuMilli of a node's vCPU+RAM, in 1/1000ths —
@@ -90,7 +91,7 @@ contract EnclaveDeployments {
     struct Deployment {
         bytes32 id;
         address owner;          // the user: controls config + active, receives nothing (non-custodial)
-        string  appRef;         // "ipfs://<cid>" or a baked-in catalog id (e.g. "hello")
+        string  appRef;         // "catalog://<appId>/<versionIndex>" (raw "ipfs://<cid>" refs are refused by runners)
         string  ports;          // firewall CSV, same grammar as EnclaveAppCatalog Version.ports ("" = plain wasi:http)
         string  sshPubKey;      // optional OpenSSH public key every runner installs ("" = ssh disabled;
                                 // enclave-minted keys are NOT portable — the private key would die with the runner)
@@ -288,14 +289,15 @@ contract EnclaveDeployments {
         Deployment storage d = _requireActive(id);
         require(msg.value > 0, "value=0");
         require(address(ethUsdFeed) != address(0), "eth funding disabled");
-        (, int256 answer,, uint256 updatedAt,) = ethUsdFeed.latestRoundData();
+        (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) = ethUsdFeed.latestRoundData();
         require(answer > 0 && block.timestamp - updatedAt <= FEED_MAX_AGE, "stale price");
+        require(answeredInRound >= roundId, "incomplete round");   // reject an answer carried over from an earlier (unfinalized) round
         // wei(1e18) * price(1e8) -> USDC 6dp: divide by 1e20
         uint256 credited = (msg.value * uint256(answer)) / 1e20;
         require(credited > 0, "dust");
+        d.balance6 += credited;                                    // effects before interaction (CEI): a contract payout can't reenter mid-credit
         (bool ok, ) = payout.call{value: msg.value}("");
         require(ok, "ETH transfer failed");
-        d.balance6 += credited;
         emit FundedEth(id, msg.sender, msg.value, credited);
     }
 
@@ -408,6 +410,12 @@ contract EnclaveDeployments {
             d.runnerOperator = address(0);
             d.leaseUntil = 0;
             emit Created(id, d.owner, d.appRef, d.gpuMilli, d.cpuMilli, d.rate);
+            // re-emit the funded credit so a LOG-ONLY indexer rebuilds balance6:
+            // import copies balance6 straight into storage, and without a Funded
+            // log a log-following indexer would show the migrated deployment at
+            // zero credit. Non-custodial, so this is payer attribution only (the
+            // original payer isn't recoverable — owner stands in as the payer).
+            if (d.balance6 > 0) emit Funded(id, d.owner, d.balance6);
         }
     }
 

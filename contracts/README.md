@@ -51,7 +51,7 @@ script fills in the address; the one value you set **per enclave** is its own UR
 env:
   REGISTRY_ENABLED: "1"
   REGISTRY_ADDRESS: ""       # written by scripts/deploy-registry.mjs
-  ENCLAVE_ENDPOINT: ""       # per enclave, e.g. "https://enclave1.nan.containers.tinfoil.dev"; empty = don't advertise
+  ENCLAVE_ENDPOINT: ""       # per enclave, e.g. "https://enclave1.enclave.host"; empty = don't advertise
   ENCLAVE_REPO: "EnclaveHost/enclave"          # what callers attest against (Sigstore-measured; exact GitHub casing — Sigstore compares it verbatim)
   # REGISTRY_HEARTBEAT_SEC: "900"           # optional, default 15 min
 ```
@@ -107,7 +107,7 @@ resp, _ := tc.Get("/availability", nil)
   sits in the request path. Picking the wrong enclave costs placement, not safety.
 - **Trust is gated by attestation at connect**, done by the caller's SecureClient
   — not by registration. A malicious operator can register an enclave, but its
-  live quote won't match a Enclave-good `repo`/measurement, so callers reject it.
+  live quote won't match an Enclave-good `repo`/measurement, so callers reject it.
 - **Liveness is advisory**: heartbeats set `lastSeen`; readers drop entries
   staler than their window (the helper uses 1h).
 - **Open registration for now.** Sybil resistance via stake-to-register +
@@ -134,7 +134,7 @@ the **Apps** tab on the site.
 
 ```
 browser --(eth_call getAppsPage)------> EnclaveAppCatalog   apps: {appId,slug,name,desc,publisher,versionCount,active}
-browser --(eth_call getVersionsPage)--> EnclaveAppCatalog   per app: {cid,version,vramMb,gpuGflops,memMb,cpuGflops,verified,yanked}
+browser --(eth_call getVersionsPage)--> EnclaveAppCatalog   per app: {cid,version,vramMb,gpuGflops,memMb,cpuGflops,createdAt,verified,yanked,ports,approval,config}
 browser --(fetch CID)-----------------> any IPFS peer   the .wasm bytes (hash == CID, verify yourself)
 browser --(publishVersion tx)---------> EnclaveAppCatalog   one Base tx; publisher = msg.sender
 ```
@@ -150,25 +150,29 @@ browser --(publishVersion tx)---------> EnclaveAppCatalog   one Base tx; publish
   hash of the exact wasm), never the bytes, so a caller fetches from any IPFS peer
   and verifies the bytes match the CID independently.
 
-**Run-by-CID (implemented).** Uploaded apps deploy, not just browse — once the
-catalog owner **approves** the version (see the trust model below; unapproved CIDs
-get `403 not_approved` from the API). `image.reference` accepts:
-- a baked-in catalog id (`hello-world`),
-- `ipfs://<cid>`, or
-- a human-friendly `slug:version` (or `<publisher>/slug:version` to disambiguate) —
-  the **browser** resolves that against the on-chain catalog to the app's CID (unique
-  because version labels are unique per app) and sends `ipfs://<cid>`.
+**Deploy a catalog version (implemented).** Listed apps deploy, not just browse —
+once the catalog owner **approves** the version (see the trust model below;
+unapproved versions get `403 not_approved`). Deployments are created **on-chain**
+through `EnclaveDeployments` (see `DEPLOYMENTS.md`), and the deployment's `appRef`
+is a **catalog reference**, `catalog://<appId>/<versionIndex>` — a pointer to the
+approved catalog VERSION, not to raw bytes. **Raw CID references (`ipfs://<cid>`)
+are refused by runners**: a CID names bytes, not a reviewed version, so a deployer
+can never attach code or config the owner didn't approve. The store card's
+**Use in Deploy** carries the friendly `slug:version`, which the browser resolves
+against the on-chain catalog (unique because version labels are unique per app) to
+the `catalog://<appId>/<versionIndex>` ref it records on-chain. Baked-in catalog ids
+(`hello-world`) still deploy by id — they ship inside the attested wasm-manager image.
 
-The enclave's wasm-manager then fetches the CID from `IPFS_GATEWAY` as a **CAR**,
-verifies every block hashes to its CID and reassembles the file rooted at the
-requested CID (`wasm/ipfs_fetch.py`), rejects anything that isn't a wasi:http
-component, caches it under `APPS_DIR`, and runs it. A tampering gateway fails the
-hash check, so the operator's own gateway is fine to use. The verified CID is folded
-into the attestation (`getMeasurements().app.cid`), so "what ran = this exact CID"
-holds. The store card's **Use in Deploy** sets the friendly `slug:version`.
+To run a version, the enclave's wasm-manager resolves it to the version's CID,
+fetches that CID from `IPFS_GATEWAY` as a **CAR**, verifies every block hashes to
+its CID and reassembles the file rooted at the requested CID (`wasm/ipfs_fetch.py`),
+rejects anything that isn't a wasi:http component, caches it under `APPS_DIR`, and
+runs it. A tampering gateway fails the hash check, so the operator's own gateway is
+fine to use. The verified CID is folded into the attestation
+(`getMeasurements().app.cid`), so "what ran = this exact CID" holds.
 
 Manager env: `IPFS_GATEWAY` (default `https://ipfs.enclave.host`), `WASM_MAX_BYTES`
-(default 256 MiB), `IPFS_FETCH_TIMEOUT`.
+(default 2 GiB), `IPFS_FETCH_TIMEOUT`.
 
 ## Versioning & trust model
 - An **app** is `appId = keccak256(publisher, slug)` — a slug in the publisher's own
@@ -271,9 +275,9 @@ size + the wasm/component preamble server-side, optionally runs `wasm-tools vali
 `IPFS_UPLOAD_URL` to that gateway (empty => users paste a CID they pinned themselves).
 
 **Defense in depth, by layer:**
-- Browser (`validateWasm`): extension, size (`MAX_WASM_MB`, default 256), magic `\0asm`
+- Browser (`validateWasm`): extension, size (`MAX_WASM_MB`, default 2048), magic `\0asm`
   + component layer field. UX only — fast feedback, catches honest mistakes.
-- Caddy `request_body { max_size 257MiB }` on `/add-wasm`: the enforceable size ceiling.
+- Caddy `request_body { max_size 2049MiB }` on `/add-wasm`: the enforceable size ceiling.
 - Gateway: the enforceable **content** gate for what gets pinned to *your node*.
 - wasm-manager at deploy (`wasmtime serve`): the authoritative "is it a runnable
   wasi:http component" check.

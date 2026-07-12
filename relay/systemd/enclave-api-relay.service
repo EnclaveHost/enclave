@@ -2,6 +2,8 @@
 Description=Enclave API relay (fleet discovery + placement)
 After=network-online.target
 Wants=network-online.target
+# never let a crash-loop permanently stop a shared relay (fix 10)
+StartLimitIntervalSec=0
 
 [Service]
 EnvironmentFile=/etc/nan-relay/api-relay.env
@@ -14,6 +16,10 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
+# resource caps (fix 10)
+MemoryMax=768M
+TasksMax=512
+LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target

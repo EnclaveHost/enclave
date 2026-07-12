@@ -21,7 +21,7 @@ import https from "node:https";
 import net from "node:net";
 import tls from "node:tls";
 import dgram from "node:dgram";
-import { createHash, createHmac, randomBytes, generateKeyPairSync, sign as cryptoSign, verify as cryptoVerify, X509Certificate } from "node:crypto";
+import { createHash, createHmac, randomBytes, generateKeyPairSync, sign as cryptoSign, verify as cryptoVerify, timingSafeEqual, X509Certificate } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { execFileSync, execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -44,6 +44,20 @@ import { createEgress } from "./egress.js";
 import { initAddressBook, REGISTRY_ADDRESS, DEPLOYMENTS_ADDRESS, APP_CATALOG_ADDRESS,
          FORWARDER_ADDRESS } from "./addressbook.js";
 
+// Process-wide crash guards. This is Express 4: a rejected async route (or any
+// stray background rejection) would otherwise take the whole process down —
+// killing EVERY tenant app hosted on this CVM, not just the one request. Log in
+// the house style and KEEP RUNNING; per-request failures are already answered by
+// the wrap() adapter + error middleware (see the app below). We deliberately do
+// NOT exit: a single bad request or a transient library throw must never evict
+// the fleet of apps this supervisor is fronting.
+process.on("unhandledRejection", (reason) => {
+  console.error(`[fatal-guard] unhandledRejection (kept running): ${reason && (reason.stack || reason.message || reason)}`);
+});
+process.on("uncaughtException", (err) => {
+  console.error(`[fatal-guard] uncaughtException (kept running): ${err && (err.stack || err.message || err)}`);
+});
+
 // Resolve the book BEFORE anything below derives state from the addresses
 // (top-level await; a no-op without ADDRESS_BOOK_ADDRESS, baked env on failure).
 await initAddressBook();
@@ -58,6 +72,17 @@ const SIWE_DOMAIN    = process.env.SIWE_DOMAIN || "enclave.host";
 const SIWE_URI       = process.env.SIWE_URI || "https://enclave.host";
 const CHAIN_ID       = parseInt(process.env.CHAIN_ID || "8453", 10);
 const CORS_ORIGINS   = (process.env.CORS_ORIGINS || "https://enclave.host").split(",").map(s => s.trim()).filter(Boolean);
+// OPT-IN Host allow-listing. originOf() and the lazy on-chain self-registration
+// trust the (shim-provided) Host / x-forwarded-host to derive this enclave's
+// advertised origin. When EXPECTED_HOST_SUFFIXES is set (comma-separated, e.g.
+// ".containers.tinfoil.dev,app.enclave.host,enclave.host"), a request whose Host
+// matches none of them will NOT trigger registration and is refused attestation,
+// so a spoofed Host can't make the enclave advertise a bogus origin or emit an
+// attestation bound to one. Unset = current behavior (warned once at boot).
+const EXPECTED_HOST_SUFFIXES = (process.env.EXPECTED_HOST_SUFFIXES || "")
+  .split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+if (!EXPECTED_HOST_SUFFIXES.length)
+  console.warn("[host] EXPECTED_HOST_SUFFIXES unset: trusting the request Host/x-forwarded-host for origin derivation + on-chain self-registration + attestation origin. Set it (e.g. \".containers.tinfoil.dev,app.enclave.host,enclave.host\") to reject spoofed Hosts.");
 // --- pay-per-deploy (no custody): users pay the EnclavePay forwarder; the supervisor
 //     WATCHES it for Paid events and converts each payment to runtime. No held
 //     balance, no escrow contract, no key in the enclave that can move funds.
@@ -70,6 +95,11 @@ const USDC_ADDRESS       = process.env.USDC_ADDRESS || "0x833589fCD6eDb6E08f4c7C
 //     version is Approved. Empty = nothing can deploy at all (fail closed).
 //     (APP_CATALOG_ADDRESS is a live binding from ./addressbook.js)
 const PAYMENT_WINDOW_SEC = parseInt(process.env.PAYMENT_WINDOW_SEC || "600", 10); // unpaid awaiting_payment TTL
+// Cap concurrent UNPAID (awaiting_payment) reservations per owner. Each one holds
+// hardware for the whole PAYMENT_WINDOW_SEC before any money lands, so without a
+// bound one wallet could reserve the node's capacity for free. Paid/running
+// deployments are never counted. 0 disables the cap (previous behavior).
+const MAX_UNPAID_PER_OWNER = parseInt(process.env.MAX_UNPAID_PER_OWNER || "3", 10);
 const GRACE_SEC          = parseInt(process.env.GRACE_SEC || "90", 10);           // post-expiry grace before teardown
 const PAY_POLL_SEC       = parseInt(process.env.PAY_POLL_SEC || "12", 10);        // Base log poll interval
 // --- fair billing: funded runtime is a BALANCE, not a wall-clock deadline -----
@@ -115,6 +145,10 @@ const WORKER_PIDS     = process.env.WORKER_PIDS || "512";
 // containers itself (Tinfoil forbids runtime container creation). Reachable over
 // the enclave-local network; default loopback.
 const WORKER_MGR_URL  = (process.env.WORKER_MGR_URL || "http://127.0.0.1:8090").replace(/\/+$/, "");
+// Opt-in bearer for the GPU worker manager's control plane (worker/worker.py
+// WORKER_TOKEN). Unset = no header (worker runs its loopback-only, tokenless
+// default); set the SAME value in both envs to require auth on /tenants,/run,etc.
+const WORKER_TOKEN    = process.env.WORKER_TOKEN || "";
 // provisioning backend: "worker" = GPU PTX submission (default), "vm" = tenant-app
 // hosting via the app manager on VMMGR_URL (the wasm-manager runs each app as a
 // `wasmtime serve` process). The "vm"/VMMGR_URL names are legacy, kept for config compat.
@@ -126,7 +160,8 @@ function mgrReq(method, path, body, timeoutMs = 120000) {
     const data = body != null ? Buffer.from(JSON.stringify(body)) : null;
     const r = http.request(
       { host: u.hostname, port: u.port || 80, path: u.pathname + u.search, method, timeout: timeoutMs,
-        headers: { "Content-Type": "application/json", ...(data ? { "Content-Length": data.length } : {}) } },
+        headers: { "Content-Type": "application/json", ...(data ? { "Content-Length": data.length } : {}),
+                   ...(WORKER_TOKEN ? { "Authorization": `Bearer ${WORKER_TOKEN}` } : {}) } },
       (res) => { let buf = ""; res.on("data", (c) => (buf += c));
                  res.on("end", () => { let j; try { j = JSON.parse(buf || "{}"); } catch { j = { raw: buf }; }
                                        resolve({ status: res.statusCode || 0, body: j }); }); });
@@ -763,9 +798,16 @@ const chainClient = createPublicClient({ chain: base, transport: viemHttp(BASE_R
 // state (in-process; this service is the single enclave instance)
 // ----------------------------------------------------------------------------
 const nonces     = new Map(); // nonce -> { address, exp }
+const NONCE_MAX  = parseInt(process.env.NONCE_MAX || "10000", 10);   // hard cap (LRU/FIFO evict) alongside the TTL sweep, so a flood of /v1/auth/nonce can't grow this map unbounded between sweeps
 const deployments = new Map(); // id -> record (incl. local container handle)
 setInterval(() => { const t = Date.now(); for (const [n,v] of nonces) if (v.exp < t) nonces.delete(n); }, 60_000).unref?.();
 const rid = (p) => p + Math.random().toString(36).slice(2, 10);
+// Constant-time string compare for secret/token checks (guards length first, as
+// timingSafeEqual throws on unequal-length buffers).
+function safeEqStr(a, b) {
+  const ba = Buffer.from(String(a ?? ""), "utf8"), bb = Buffer.from(String(b ?? ""), "utf8");
+  return ba.length === bb.length && timingSafeEqual(ba, bb);
+}
 
 // ---- state persistence (fair billing across restarts) -----------------------
 // Everything billing-critical (deployments, payment cursor, dedup set) is written
@@ -1090,11 +1132,16 @@ let _radInflight = null;
 async function fetchEnclaveRad(origin) {
   if (_radCache && Date.now() - _radCache.at < RAD_CACHE_MS) return _radCache;
   if (_radInflight) return _radInflight;
-  // the shim terminates TLS inside this CVM, so loopback is tried first; the
-  // public origin (hairpin through ingress) is the fallback.
+  // The shim terminates TLS inside this CVM, so loopback is the trusted source.
+  // We deliberately DO NOT fall back to the public origin (origin + RAD_PATH): that
+  // hairpin leaves the CVM and re-enters through the untrusted ingress with
+  // rejectUnauthorized off, so a MITM on that path could answer it. Loopback (the
+  // shim, in-CVM) is ALWAYS available here, so there is genuinely no case with "no
+  // loopback option" — we fail closed rather than trust the hairpin. ATTESTATION_URL
+  // remains the explicit override for a shim that binds elsewhere.
+  void origin;
   const candidates = ATTESTATION_URL ? [ATTESTATION_URL]
-    : ["https://127.0.0.1" + RAD_PATH, "http://127.0.0.1" + RAD_PATH,
-       ...(origin ? [origin + RAD_PATH] : [])];
+    : ["https://127.0.0.1" + RAD_PATH, "http://127.0.0.1" + RAD_PATH];
   _radInflight = (async () => {
     let lastErr = null;
     for (const url of candidates) {
@@ -1347,6 +1394,20 @@ async function getMeasurements(rec, { origin = PUBLIC_URL, nonce } = {}) {
 // ============================================================================
 
 const app = express();
+// Express 4 does not catch a REJECTED async route handler — it becomes an
+// unhandledRejection (the process-level guard above logs it, but the request
+// would hang and, pre-guard, the process died). Forward async rejections to the
+// error middleware (registered after the routes) instead. We install it once, as
+// a thin shim over the route-registration methods, so EVERY route handler
+// (present and future) is covered and none can be forgotten. Only real handlers
+// are wrapped (arity < 4); 4-arg error middleware is passed through untouched.
+// app.use() is intentionally NOT shimmed — the streaming proxies mounted with it
+// (/x/:id, the platform-model proxy) manage their own lifecycle.
+const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+for (const m of ["get", "post", "patch", "put", "delete"]) {
+  const orig = app[m].bind(app);
+  app[m] = (path, ...handlers) => orig(path, ...handlers.map((h) => (typeof h === "function" && h.length < 4 ? wrap(h) : h)));
+}
 app.use(cors({
   origin: CORS_ORIGINS.includes("*") ? true : CORS_ORIGINS,
   methods: ["GET","POST","PATCH","DELETE","OPTIONS"],
@@ -1357,6 +1418,27 @@ app.use(cors({
 const fail = (res, status, code, message) => res.status(status).json({ code, message });
 const originOf = (req) => PUBLIC_URL || `https://${req.headers["x-forwarded-host"] || req.headers.host}`;
 
+// --- OPT-IN Host allow-listing (EXPECTED_HOST_SUFFIXES) ----------------------
+// The Host header is attacker-controllable; we use it to derive the advertised
+// origin (registration) and the attestation origin. When the operator pins the
+// expected suffix set, a mismatching Host neither registers nor gets attestation.
+const _hostOf = (req) => String(req.headers["x-forwarded-host"] || req.headers.host || "").toLowerCase().replace(/:\d+$/, "");
+const _hostMatchesSuffix = (h, suf) => (suf.startsWith(".") ? h.endsWith(suf) : (h === suf || h.endsWith("." + suf)));
+function hostAllowed(req) {
+  if (!EXPECTED_HOST_SUFFIXES.length) return true;   // unset = trust the Host (warned once at boot)
+  const h = _hostOf(req);
+  return !!h && EXPECTED_HOST_SUFFIXES.some((suf) => _hostMatchesSuffix(h, suf));
+}
+// Attestation host gate: returns false (and answers 421) when a pinned suffix set
+// is configured and this request's Host isn't in it. No-op when unset.
+function attestHostOk(req, res) {
+  if (EXPECTED_HOST_SUFFIXES.length && !hostAllowed(req)) {
+    fail(res, 421, "bad_host", "This request's Host is not an expected origin for this enclave; attestation is bound to the enclave's real origin.");
+    return false;
+  }
+  return true;
+}
+
 // Self-advertise on the first REAL external request: its Host is the hostname a
 // caller actually reached us at — the attested origin the registry must carry —
 // so there's nothing to hand-configure. Fire-and-forget, once (registerOnChain
@@ -1365,7 +1447,9 @@ const originOf = (req) => PUBLIC_URL || `https://${req.headers["x-forwarded-host
 app.use((req, _res, next) => {
   if (REGISTRY_READY && !_registered) {
     const host = req.headers["x-forwarded-host"] || req.headers.host || "";
-    if (host && !/^(localhost|127\.|\[?::1\]?)/i.test(host)) registerOnChain(originOf(req));
+    // Skip local/internal Hosts (health checks) AND, when a suffix set is pinned,
+    // any Host not in it — so a spoofed Host can't make us advertise a bogus origin.
+    if (host && !/^(localhost|127\.|\[?::1\]?)/i.test(host) && hostAllowed(req)) registerOnChain(originOf(req));
   }
   next();
 });
@@ -1385,7 +1469,7 @@ async function addrFromAuth(req) {
 // fast at create (422) instead of at provision: entries are "http" (default serve
 // mode) | "http:N" | "tcp:N" | "udp:N"; N in 1..19999 (logical labels; <1024 always remapped), excluding infra ports
 // (8080 supervisor, 8091 manager) and the manager-assigned serve range (20000+).
-const FW_MIN = 1, FW_MAX = 19999, FW_RESERVED = new Set([8080, 8091]);   // logical labels; <1024 is always remapped to an unprivileged actual by the manager
+const FW_MIN = 1, FW_MAX = 19999, FW_RESERVED = new Set([1080, 8080, 8090, 8091]);   // infra ports: 1080 egress SOCKS, 8080 supervisor, 8090 GPU worker, 8091 wasm-manager (logical labels; <1024 is always remapped to an unprivileged actual by the manager)
 function parseFirewall(fw) {
   const raw = (fw && Array.isArray(fw.ports)) ? fw.ports : [];
   if (raw.length > 8) throw new Error("firewall.ports: at most 8 entries.");
@@ -1552,7 +1636,7 @@ if (PLATFORM_MODEL_URL) {
     if (PLATFORM_MODEL_KEY) {
       const h = String(req.headers.authorization || "");
       const tok = h.startsWith("Bearer ") ? h.slice(7).trim() : "";
-      if (tok !== PLATFORM_MODEL_KEY) return fail(res, 401, "unauthorized", "Missing or invalid API key for the platform model.");
+      if (!safeEqStr(tok, PLATFORM_MODEL_KEY)) return fail(res, 401, "unauthorized", "Missing or invalid API key for the platform model.");
     }
     // req.baseUrl is the matched mount (e.g. /v1/chat/completions); req.url is
     // the remainder (usually "/"). Reconstruct the OpenAI path for vLLM.
@@ -1648,6 +1732,33 @@ app.get("/v1/pricing", async (_req, res) => {
 // fact is re-read from the chain and the claim tx is gated exactly like the
 // sweep, so the worst a bogus hint costs is a few RPC reads.
 const _hintBusy = new Set();
+// Per-source-IP token bucket for the (deliberately unauthenticated) claim-hint:
+// a hint for an id we don't already track triggers on-chain reads against the
+// shared RPC, so we bound how fast one source can drive those. Cheap local-cache
+// hits (already-serving/evaluating ids) never consume a token — only hints that
+// would reach the chain do. A rate-limited hint is non-fatal: the deployment is
+// already on-chain, so the normal claim sweep still picks it up within
+// CLAIM_POLL_SEC. Keyed on x-forwarded-for (the shim's client IP) when present,
+// else on the socket peer — behind a shim that doesn't forward the client IP this
+// degrades to ONE shared bucket, which still bounds RPC amplification (just not
+// per-IP). CLAIM_HINT_BURST=0 disables the limit; tune the pair for your traffic.
+const CLAIM_HINT_BURST = parseInt(process.env.CLAIM_HINT_BURST || "20", 10);   // bucket size (allowed burst)
+const CLAIM_HINT_RPS   = parseFloat(process.env.CLAIM_HINT_RPS || "2");        // sustained refill (tokens/sec)
+const _hintBuckets = new Map();   // ip -> { tokens, at }
+setInterval(() => { const cut = Date.now() - 600_000; for (const [ip, b] of _hintBuckets) if (b.at < cut) _hintBuckets.delete(ip); }, 300_000).unref?.();
+function hintRateOk(req) {
+  if (CLAIM_HINT_BURST <= 0) return true;
+  const ip = (String(req.headers["x-forwarded-for"] || "").split(",")[0].trim())
+           || req.socket?.remoteAddress || "?";
+  const now = Date.now();
+  let b = _hintBuckets.get(ip);
+  if (!b) { b = { tokens: CLAIM_HINT_BURST, at: now }; _hintBuckets.set(ip, b); }
+  b.tokens = Math.min(CLAIM_HINT_BURST, b.tokens + ((now - b.at) / 1000) * CLAIM_HINT_RPS);
+  b.at = now;
+  if (b.tokens < 1) return false;
+  b.tokens -= 1;
+  return true;
+}
 app.post("/v1/claim-hint", async (req, res) => {
   const id = String((req.body && req.body.id) || "").toLowerCase().trim();
   if (!/^0x[0-9a-f]{64}$/.test(id))
@@ -1657,6 +1768,8 @@ app.post("/v1/claim-hint", async (req, res) => {
   const ex = deployments.get(id);
   if (ex && !CLAIM_TERMINAL.has(ex.status)) return res.json({ accepted: true, status: ex.status });
   if (_hintBusy.has(id)) return res.json({ accepted: true, status: "evaluating" });
+  // Beyond here every path does on-chain reads — rate-limit the source first.
+  if (!hintRateOk(req)) return fail(res, 429, "rate_limited", "Too many new-id claim hints from your source; retry shortly.");
   _hintBusy.add(id);
   try {
     const d = await readOnchainDeployment(id);
@@ -1755,6 +1868,10 @@ app.get("/v1/auth/nonce", (req, res) => {
   const nonce = rid("");
   const issuedAt = new Date(), expirationTime = new Date(issuedAt.getTime() + 10 * 60_000);
   nonces.set(nonce, { address, exp: expirationTime.getTime() });
+  // Bound the map: the TTL sweep runs every 60s, but a burst of nonce requests
+  // between sweeps could grow it without limit. Map keeps insertion order, so the
+  // oldest entries evict first (FIFO ≈ LRU; they'd expire soonest anyway).
+  while (nonces.size > NONCE_MAX) { const k = nonces.keys().next().value; if (k === undefined) break; nonces.delete(k); }
   const statement = "Sign in to Enclave. This signature is free and will not move funds.";
   const message =
     `${SIWE_DOMAIN} wants you to sign in with your Ethereum account:\n${address}\n\n${statement}\n\n` +
@@ -1769,6 +1886,22 @@ app.post("/v1/auth/login", async (req, res) => {
   if (!message || !signature) return fail(res, 422, "invalid_request", "message and signature are required.");
   const nm = message.match(/\nNonce: (\S+)\n/), am = message.match(/^(0x[0-9a-fA-F]{40})$/m);
   if (!nm || !am) return fail(res, 422, "invalid_message", "Malformed SIWE message.");
+  // Bind the signed message to THIS enclave's SIWE parameters. /v1/auth/nonce
+  // issues the exact message (domain/uri/chainId/expiration all ours) and the
+  // client signs it verbatim (site/js/core/wallet.js: it uses the server's
+  // `message` as-is; its buildSiwe fallback also resolves to these same values on
+  // enclave.host). So a signature over a message that names a DIFFERENT domain/uri/
+  // chain — or is already past its Expiration Time — is not a login here. We assert
+  // ONLY fields the message actually carries (absent field => not asserted), so a
+  // legitimate login is never locked out on a format we didn't emit.
+  const dmatch = message.match(/^(.+?) wants you to sign in with your Ethereum account:/);
+  const umatch = message.match(/^URI: (\S+)$/m);
+  const cmatch = message.match(/^Chain ID: (\d+)$/m);
+  const ematch = message.match(/^Expiration Time: (\S+)$/m);
+  if (dmatch && dmatch[1] !== SIWE_DOMAIN) return fail(res, 401, "bad_domain", "SIWE message domain does not match this enclave.");
+  if (umatch && umatch[1] !== SIWE_URI)    return fail(res, 401, "bad_uri", "SIWE message URI does not match this enclave.");
+  if (cmatch && Number(cmatch[1]) !== CHAIN_ID) return fail(res, 401, "bad_chain", "SIWE message chain does not match this enclave.");
+  if (ematch) { const t = Date.parse(ematch[1]); if (Number.isFinite(t) && t <= Date.now()) return fail(res, 401, "expired", "SIWE message has expired."); }
   const nonce = nm[1], claimed = getAddress(am[1]), rec = nonces.get(nonce);
   if (!rec || rec.exp < Date.now()) { nonces.delete(nonce); return fail(res, 401, "bad_nonce", "Unknown or expired nonce."); }
   if (getAddress(rec.address) !== claimed) return fail(res, 401, "address_mismatch", "Address does not match nonce.");
@@ -1905,11 +2038,19 @@ const timeRemainingSec = (rec) => {
   return lease + Math.max(0, Math.round((rec._balance6 || 0) / (rec.rate * 1e6)));
 };
 const spentOf = (rec) => (((rec.consumedMs || 0) / 1000) * (rec.rate || 0)).toFixed(2);
+// EXPLICIT allowlist of record fields exposed to the owner (was a delete-denylist).
+// Allowlist-shaped so a NEW internal field added to a record never leaks by
+// default — it has to be added here on purpose. This is the exact set the
+// denylist previously let through (creation + claim + provision + failure paths);
+// the computed fields below (ssh, rate/spent/paid/time/expires, payment, onchain,
+// network) are layered on top just as before.
+const VIEW_FIELDS = ["id", "owner", "status", "public", "firewall", "image", "command",
+  "app", "appWasm", "config", "resources", "network", "attestation", "region",
+  "createdAt", "startedAt", "paused", "pauseReason", "payDeadline", "digest",
+  "payRef", "paidUsdc", "portMap", "error"];
 const view = (rec) => {
-  const o = { ...rec };
-  for (const k of ["_port", "_gpu", "_gpuSpec", "rate", "_sshPort", "_sshKeySource", "_authorizedKey", "_payTimer",
-                   "remainingMs", "consumedMs", "_lastTickAt", "_respawnAt", "_respawnBackoffMs", "_respawning",
-                   "_onchain", "_leaseUntil", "_renewing", "_balance6"]) delete o[k];
+  const o = {};
+  for (const k of VIEW_FIELDS) if (k in rec) o[k] = rec[k];
   // vmTechnology reflects what this enclave's OWN attestation document says
   // today, not what the record stored at create time (records persisted by
   // older builds carry a hardcoded guess; detection self-heals them).
@@ -2078,6 +2219,16 @@ app.post("/v1/deployments", authed, async (req, res) => {
         hint: "POST /v1/claim-hint {\"id\": \"0x…\"}",
       },
     });
+  }
+  // Per-owner cap on UNPAID reservations: an awaiting_payment deployment holds
+  // hardware for the whole PAYMENT_WINDOW_SEC before any payment lands, so an
+  // unbounded caller could reserve the node's capacity for free. Paid/running
+  // deployments are never counted; MAX_UNPAID_PER_OWNER=0 disables the cap.
+  if (MAX_UNPAID_PER_OWNER > 0) {
+    const unpaid = [...deployments.values()].filter((d) => d.owner === req.address && d.status === "awaiting_payment").length;
+    if (unpaid >= MAX_UNPAID_PER_OWNER)
+      return fail(res, 429, "too_many_unpaid",
+        `You have ${unpaid} reservation(s) awaiting payment (max ${MAX_UNPAID_PER_OWNER}). Pay for or cancel one before reserving more.`);
   }
   let image = (b.image && b.image.reference) ? b.image : { reference: DEFAULT_IMAGE };
   // Approval gate (vm backend runs catalog apps): only catalog://<appId>/<idx>
@@ -2465,7 +2616,7 @@ app.get("/v1/deployments/:id", authed, (req, res) => {
 // Gated by ADMIN_TOKEN (x-admin-token header); returns 404 if the token is unset
 // or wrong, so the endpoint is invisible without it. Use for manually-billed deploys.
 app.post("/v1/admin/deployments/:id/provision", async (req, res) => {
-  if (!ADMIN_TOKEN || req.headers["x-admin-token"] !== ADMIN_TOKEN)
+  if (!ADMIN_TOKEN || !safeEqStr(req.headers["x-admin-token"], ADMIN_TOKEN))
     return fail(res, 404, "not_found", "Not found.");
   const rec = deployments.get(req.params.id);
   if (!rec) return fail(res, 404, "not_found", "No such deployment.");
@@ -2554,6 +2705,7 @@ function attestNonce(req, res) {
   return n.toLowerCase();
 }
 app.get("/v1/deployments/:id/attestation", authed, async (req, res) => {
+  if (!attestHostOk(req, res)) return;          // opt-in: refuse attestation for a non-expected Host
   const rec = deployments.get(req.params.id);
   if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
   const nonce = attestNonce(req, res); if (nonce == null) return;
@@ -2569,6 +2721,7 @@ app.get("/v1/deployments/:id/attestation", authed, async (req, res) => {
 // generation; pass a nonce on the per-deployment endpoint for a fresh challenge.
 let _gpuEvCache = null;                       // { ev?, err?, at } - failures cached briefly too
 app.get("/v1/attestation", async (req, res) => {
+  if (!attestHostOk(req, res)) return;          // opt-in: refuse attestation for a non-expected Host
   const out = await getMeasurements(null, { origin: originOf(req) });
   if (!IS_GPU)                                 // CPU-only enclave: no card, no NVML evidence to fetch
     return res.json({ generatedAt: new Date().toISOString(), ...out, guideUrl: "https://enclave.host/#attest" });
@@ -2647,6 +2800,14 @@ app.get("/v1/deployments/:id/logs", authed, async (req, res) => {
 });
 
 app.use((_req, res) => fail(res, 404, "not_found", "No such route."));
+// Final error middleware (4-arg): a rejected async handler was forwarded here by
+// wrap() (installed at the top of the app). Never crash — log and return a clean
+// 500, and never double-send if the handler already began a response.
+app.use((err, req, res, _next) => {
+  console.error(`[error] ${req.method} ${req.originalUrl}: ${err && (err.stack || err.message || err)}`);
+  if (res.headersSent) { try { res.end(); } catch {} return; }
+  fail(res, 500, "internal_error", "Internal error.");
+});
 if (IS_GPU) { await initGpu(); await initMps(); }        // CPU-only enclave: no cards to discover, no MPS
 else if (PROVISION_BACKEND !== "vm")
   console.warn("[cpu] GPU_COUNT=0 but PROVISION_BACKEND!=vm — a CPU enclave has no GPU worker; deploys will fail");
@@ -2687,18 +2848,33 @@ async function authUpgrade(req) {
 // /v1/tls-bridge (CA validation never proved enclave residency anyway — see
 // relay/README.md). Stock clients that don't validate certs (psql
 // sslmode=require, irssi --tls) connect unchanged; validating clients pin or
-// use the published PEM as their trust root. The pair persists in the state
-// dir (ramdisk), so the fingerprint is stable across supervisor restarts
-// within one CVM boot; a full relaunch mints a fresh key — re-read the pin
-// from the attested origin. TLS_BRIDGE_DOMAIN unset = the /tls/ path answers
-// 503; /tcp/ is unchanged.
+// use the published PEM as their trust root. The pair persists in the TLS-bridge
+// dir (tmpfs, see tlsBridgeDir), so the fingerprint is stable across supervisor
+// restarts within one CVM boot; a full relaunch (tmpfs wiped) mints a fresh key —
+// re-read the pin from the attested origin. TLS_BRIDGE_DOMAIN unset = the /tls/
+// path answers 503; /tcp/ is unchanged.
 const TLS_BRIDGE_DOMAIN = (process.env.TLS_BRIDGE_DOMAIN || "").trim().replace(/^\*\./, "").replace(/\.$/, "");
 let TLS_BRIDGE_CTX = null, TLS_BRIDGE_INFO = null;
+// The TLS-bridge PRIVATE KEY is minted in-enclave and MUST live on memory-backed
+// storage (tmpfs) — it must never touch host-persisted disk. STATE_FILE, by
+// contrast, MAY be pointed at a host-backed volume for billing persistence (see
+// its comment), so we keep the TLS key on its OWN path, independent of STATE_FILE.
+// TLS_BRIDGE_DIR overrides; otherwise use the ramdisk the gpu/cpu configs mount,
+// falling back (with a loud warning) to the STATE_FILE dir only when no ramdisk is
+// present. Per-boot rotation is preserved: a fresh CVM boot has an empty tmpfs.
+function tlsBridgeDir() {
+  const explicit = (process.env.TLS_BRIDGE_DIR || "").trim();
+  if (explicit) return explicit;
+  if (existsSync("/mnt/ramdisk")) return "/mnt/ramdisk/enclave-tls";
+  const fallback = join(dirname(STATE_FILE), "tls-bridge");
+  console.warn(`[tls-bridge] no /mnt/ramdisk and TLS_BRIDGE_DIR unset — minting the in-enclave TLS key under ${fallback} (the STATE_FILE dir). This dir MUST be memory-backed (tmpfs): if STATE_FILE is on host-backed storage the private key would leak to the host. Set TLS_BRIDGE_DIR to a tmpfs path.`);
+  return fallback;
+}
 function initTlsBridge() {
   if (!TLS_BRIDGE_DOMAIN) return;
   if (!/^[a-z0-9][a-z0-9.-]*$/i.test(TLS_BRIDGE_DOMAIN))
     return console.error(`[tls-bridge] TLS_BRIDGE_DOMAIN ${JSON.stringify(TLS_BRIDGE_DOMAIN)} is not a hostname - /tls/ bridge disabled`);
-  const dir = join(dirname(STATE_FILE), "tls-bridge");
+  const dir = tlsBridgeDir();                    // OWN tmpfs path, independent of STATE_FILE (the key must never hit host disk)
   const certPath = join(dir, "cert.pem"), keyPath = join(dir, "key.pem");
   try {
     let certPem = null, keyPem = null;
@@ -3384,7 +3560,14 @@ async function auditClaims(ledgerById) {
     if (!d) continue;                         // not in the page (RPC anomaly): keep serving, the lease is prepaid
     rec.paidUsdc = Number(d.spent6 + d.balance6);
     rec._balance6 = Number(d.balance6);          // funded-runtime display: balance beyond the current lease
-    const mine = (d.runnerOperator || "").toLowerCase() === me
+    // OWNERSHIP is keyed on the ENCLAVE ID (d.runner === _enclaveId), matching the
+    // sweep (considerClaim) and the resume path — NOT on runnerOperator. On a
+    // SHARED gas key several enclaves sign as the same operator EOA but have
+    // distinct enclave ids; keying on the operator made each of them think it owned
+    // the OTHER's live-leased deployments (split-brain double-serve/double-renew).
+    // runnerOperator stays available below only as a lagging-RPC fallback signal,
+    // never as the sole ownership test.
+    const mine = d.runner === _enclaveId
               && Number(d.leaseUntil) * 1000 > Date.now();
     if (!d.active) {
       console.log(`[claim] ${rec.id} stopped by owner on-chain -> teardown + release`);
@@ -3394,7 +3577,12 @@ async function auditClaims(ledgerById) {
       if (mine) releaseLease(rec.id, "owner setActive(false)").catch(() => {});
       saveStateSoon();
     } else if (!mine) {
-      const opMine = (d.runnerOperator || "").toLowerCase() === me;
+      // Re-acquire-in-place gate for a LAPSED lease: prefer our own enclave id
+      // (matches `mine`); keep the shared-operator match ONLY as an additional
+      // fallback for a lagging RPC node that hasn't yet surfaced our fresh claim.
+      // This is safe because the branch below is further gated on !leaseLive AND a
+      // locally-running tenant, so it can't double-serve another enclave's LIVE lease.
+      const opMine = d.runner === _enclaveId || (!!_enclaveId && (d.runnerOperator || "").toLowerCase() === me);
       const leaseLive = Number(d.leaseUntil) * 1000 > Date.now();
       // OUR lease that lapsed (a missed renew, or our own fresh claim not yet
       // visible on a lagging node) around a still-healthy tenant: re-acquire

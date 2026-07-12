@@ -10,6 +10,7 @@
 /buy        /buy.html        200
 /admin      /admin.html      200
 /terms      /terms.html      200
+/privacy    /privacy.html    200
 # /apps/deploy and /apps/publish are VIEWS of the Apps page (router aliases):
 # a hard load serves the nested apps document (a build-time copy carrying
 # <base href="../">) and apps.js picks the view from the pathname. The flat

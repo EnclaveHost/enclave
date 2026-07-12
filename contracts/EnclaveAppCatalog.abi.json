@@ -81,6 +81,25 @@
   },
   {
     "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "cidKey",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "appId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "CidGranted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
     "inputs": [],
     "name": "ImportsSealed",
     "type": "event"
@@ -690,6 +709,24 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "cid",
+        "type": "string"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "appId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "grantCid",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

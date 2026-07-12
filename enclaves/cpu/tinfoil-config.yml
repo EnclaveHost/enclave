@@ -96,6 +96,11 @@ containers:
       # activates only when the ACME_EAB_* secrets below are ALSO set.
       - APP_CERT_DOMAIN: "app.enclave.host"
       - DNS_API: "http://46.62.128.36:8153"              # dns-relay TXT push API (nan-relay box)
+    # STATE_FILE (/var/lib/enclave/state.json) MAY be pointed at host-backed
+    # storage for billing persistence. The in-enclave TLS-bridge PRIVATE KEY must
+    # never touch host-backed disk, so it is minted on its OWN tmpfs path
+    # (TLS_BRIDGE_DIR, default /mnt/ramdisk/enclave-tls), independent of STATE_FILE.
+    # Keep that TLS key dir memory-backed even if STATE_FILE moves to a host volume.
     volumes:
       - /mnt/ramdisk/enclave-state:/var/lib/enclave
     secrets:

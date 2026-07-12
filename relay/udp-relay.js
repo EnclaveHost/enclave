@@ -32,6 +32,10 @@
 //   UDP_POLL_SEC       optional   /v1/udp-map poll cadence (default 5)
 //   UDP_IDLE_MS        optional   idle flow teardown (default 120000)
 //   UDP_MAX_FLOWS      optional   concurrent client-flow cap (default 4096)
+//   UDP_HANDSHAKE_MS   optional   ms to open the enclave WS before tearing the
+//                                 flow down (default 10000)
+//   UDP_BUF_MAX_BYTES  optional   pre-open datagram buffer byte cap (default 262144)
+//   UDP_BUF_MAX_PKTS   optional   pre-open datagram buffer packet cap (default 256)
 
 import dgram from "node:dgram";
 import WebSocket from "ws";
@@ -46,6 +50,9 @@ const fleet     = createFleet(CFG, (m) => console.log("[udp-relay]", m));
 const POLL_MS   = parseInt(process.env.UDP_POLL_SEC || "5", 10) * 1000;
 const IDLE_MS   = parseInt(process.env.UDP_IDLE_MS || "120000", 10);
 const MAX_FLOWS = parseInt(process.env.UDP_MAX_FLOWS || "4096", 10);
+const HANDSHAKE_MS = parseInt(process.env.UDP_HANDSHAKE_MS || "10000", 10);
+const BUF_MAX_BYTES = parseInt(process.env.UDP_BUF_MAX_BYTES || "262144", 10);
+const BUF_MAX_PKTS  = parseInt(process.env.UDP_BUF_MAX_PKTS || "256", 10);
 
 const wsOrigin = (origin) => origin.replace(/^http/, "ws");
 
@@ -77,16 +84,24 @@ function openListener(origin, id, address, port) {
     let f = L.flows.get(fk);
     if (!f) {
       if (flowCount >= MAX_FLOWS) return;                 // shed load rather than sprawl
-      f = { ws: null, buf: [], caddr: rinfo.address, cport: rinfo.port, timer: null };
+      f = { ws: null, buf: [], bufBytes: 0, caddr: rinfo.address, cport: rinfo.port, timer: null, hsTimer: null };
       L.flows.set(fk, f); flowCount++;
       const ws = new WebSocket(`${wsOrigin(L.origin)}/x/${encodeURIComponent(id)}/udp/${port}`, { perMessageDeflate: false });
       f.ws = ws;
-      ws.on("open", () => { for (const d of f.buf) ws.send(d); f.buf = []; });
+      // WS-open handshake timeout (mirror tcp6-relay): a never-completing bridge
+      // must tear the flow down. Without it, bump() reset the idle timer on every
+      // inbound datagram, so a stuck handshake would live forever.
+      f.hsTimer = setTimeout(() => dropFlow(L, fk), HANDSHAKE_MS);
+      ws.on("open", () => { clearTimeout(f.hsTimer); f.hsTimer = null; for (const d of f.buf) ws.send(d); f.buf = []; f.bufBytes = 0; });
       ws.on("message", (d, isBinary) => { if (isBinary || d.length) { try { sock.send(d, f.cport, f.caddr); } catch {} bump(L, fk, f); } });
       ws.on("close", () => dropFlow(L, fk));
       ws.on("error", () => dropFlow(L, fk));
     }
-    if (f.ws.readyState === WebSocket.OPEN) f.ws.send(data); else f.buf.push(data);
+    if (f.ws.readyState === WebSocket.OPEN) f.ws.send(data);
+    else {                                                // pre-open: cap the buffer, drop OLDEST past it
+      f.buf.push(data); f.bufBytes += data.length;
+      while (f.buf.length > BUF_MAX_PKTS || f.bufBytes > BUF_MAX_BYTES) { const old = f.buf.shift(); if (!old) break; f.bufBytes -= old.length; }
+    }
     bump(L, fk, f);
   });
 
@@ -96,7 +111,7 @@ function openListener(origin, id, address, port) {
 function bump(L, fk, f) { clearTimeout(f.timer); f.timer = setTimeout(() => dropFlow(L, fk), IDLE_MS); }
 function dropFlow(L, fk) {
   const f = L.flows.get(fk); if (!f) return;
-  clearTimeout(f.timer); try { f.ws && f.ws.terminate(); } catch {}
+  clearTimeout(f.timer); clearTimeout(f.hsTimer); try { f.ws && f.ws.terminate(); } catch {}
   L.flows.delete(fk); flowCount--;
 }
 function closeListener(key) {

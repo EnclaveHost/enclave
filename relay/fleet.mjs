@@ -36,9 +36,21 @@ export function fleetConfig(env = process.env) {
     staticList,
     registryAddress: (env.REGISTRY_ADDRESS || "").trim(),
     addressBook: (env.ADDRESS_BOOK_ADDRESS || "").trim(),
+    // EnclaveDeployments ledger (env fallback; the address book overrides). Only
+    // read on demand by the runner resolver (relay.js's app-subdomain fallback);
+    // the origin-following daemons never touch it.
+    deploymentsAddress: (env.DEPLOYMENTS_ADDRESS || "").trim(),
     baseRpc: env.BASE_RPC || DEFAULTS.baseRpc,
     registryPollSec: parseInt(env.REGISTRY_POLL_SEC || "", 10) || DEFAULTS.registryPollSec,
     staleAfterSec: parseInt(env.STALE_AFTER_SEC || "", 10) || DEFAULTS.staleAfterSec,
+    // Operator allowlist (OPT-IN hardening). Comma-separated, lowercased Enclave-
+    // Registry operator addresses. When set, on-chain discovery is filtered to
+    // endpoints whose registry `operator` is in the list, so tokens / the egress
+    // token / data-path traffic only ever reach vetted operators (closes the
+    // permissionless-registry trust gap). Unset = today's behavior (any
+    // registered endpoint is followed) plus a loud one-time warning.
+    trustedOperators: (env.TRUSTED_OPERATORS || "").toLowerCase()
+      .split(",").map((s) => s.trim()).filter(Boolean),
   };
 }
 
@@ -61,6 +73,43 @@ const ABI = [
       { name: "active", type: "bool" }] }] },
 ];
 
+// EnclaveDeployments — only the fields the runner resolver needs; the full tuple
+// shape is required so viem can decode getPage()'s ABI-packed pages.
+const DEP_ABI = [
+  { type: "function", name: "count", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "getPage", stateMutability: "view",
+    inputs: [{ name: "start", type: "uint256" }, { name: "n", type: "uint256" }],
+    outputs: [{ type: "tuple[]", components: [
+      { name: "id", type: "bytes32" }, { name: "owner", type: "address" },
+      { name: "appRef", type: "string" }, { name: "ports", type: "string" },
+      { name: "sshPubKey", type: "string" }, { name: "configCid", type: "string" },
+      { name: "gpuMilli", type: "uint16" }, { name: "cpuMilli", type: "uint16" },
+      { name: "appPort", type: "uint32" }, { name: "isPublic", type: "bool" },
+      { name: "active", type: "bool" }, { name: "createdAt", type: "uint64" },
+      { name: "rate", type: "uint256" }, { name: "balance6", type: "uint256" },
+      { name: "spent6", type: "uint256" }, { name: "runner", type: "bytes32" },
+      { name: "runnerOperator", type: "address" }, { name: "leaseUntil", type: "uint64" },
+    ] }] },
+];
+const BOOK_KEY_DEPLOYMENTS = "0x6465706c6f796d656e7473" + "0".repeat(42); // "deployments" ascii, right-padded
+const ZERO32 = /^0x0+$/;
+
+// SECURITY (B1/B2/B3): anyone can register an endpoint on the permissionless
+// registry, so the relay must not blindly follow every row. `endpoint` must be
+// https: (enclaves are https — a non-https discovered endpoint is a downgrade/
+// impersonation attempt, never a real enclave) and, when TRUSTED_OPERATORS is
+// set, its `operator` must be allowlisted.
+const isHttpsEndpoint = (ep) => { try { return new URL(ep).protocol === "https:"; } catch { return false; } };
+let _warnedUnauth = false;
+function warnIfUnauthenticated(cfg, log) {
+  if (cfg.trustedOperators.length || _warnedUnauth) return;
+  _warnedUnauth = true;
+  log("WARNING: TRUSTED_OPERATORS is unset — this relay follows EVERY endpoint in the permissionless " +
+      "EnclaveRegistry with no operator allowlist. Session tokens / the egress token / data-path traffic " +
+      "may be routed to attacker-registered endpoints. Set TRUSTED_OPERATORS=<comma-separated operator " +
+      "addresses> to restrict the fleet to vetted operators.");
+}
+
 // createFleet(cfg, log) -> { origins(), start() }
 //   origins()  the current enclave https origins (static list, or the last
 //              successful registry read — kept on read failure, never cleared)
@@ -69,8 +118,76 @@ const ABI = [
 //              re-reads. No-op in static mode.
 export function createFleet(cfg, log = () => {}) {
   let origins = cfg.staticList;
+
+  // Shared on-chain runner resolver (used by relay.js's app-subdomain fallback,
+  // fix 1c). Reads EnclaveDeployments lazily + cached; maps a deployment id (full
+  // bytes32 or a unique hex prefix) to the endpoint whose keccak256(endpoint)
+  // equals its on-chain `runner`, but ONLY if that endpoint is in the current
+  // (already https-/operator-filtered) fleet. Returns null on any uncertainty so
+  // the caller safely falls back to probing — a valid deployment never 404s from
+  // this alone.
+  let _runnerClient = null, _deploymentsAddress = cfg.deploymentsAddress;
+  let _hashEndpoint = null;
+  const _endpointIdCache = new Map();
+  let _ledger = { rows: [], at: 0 };
+  async function runnerClient() {
+    if (!_runnerClient) {
+      const { createPublicClient, http } = await import("viem");
+      const { base } = await import("viem/chains");
+      _runnerClient = createPublicClient({ chain: base, transport: http(cfg.baseRpc) });
+    }
+    return _runnerClient;
+  }
+  async function endpointId(ep) {
+    if (_endpointIdCache.has(ep)) return _endpointIdCache.get(ep);
+    if (!_hashEndpoint) {
+      const { keccak256, stringToBytes } = await import("viem");
+      _hashEndpoint = (s) => keccak256(stringToBytes(s));
+    }
+    const id = _hashEndpoint(ep).toLowerCase();
+    _endpointIdCache.set(ep, id);
+    return id;
+  }
+  async function deploymentsAddress(c) {
+    if (cfg.addressBook) {
+      try {
+        const a = await c.readContract({ address: cfg.addressBook, abi: BOOK_ABI,
+          functionName: "addr", args: [BOOK_KEY_DEPLOYMENTS] });
+        if (a && !/^0x0{40}$/i.test(a)) _deploymentsAddress = a;
+      } catch { /* keep last known */ }
+    }
+    return _deploymentsAddress;
+  }
+  async function ledgerRows() {
+    if (Date.now() - _ledger.at < 10_000) return _ledger.rows;
+    const c = await runnerClient();
+    const addr = await deploymentsAddress(c);
+    if (!addr) return [];
+    const total = Number(await c.readContract({ address: addr, abi: DEP_ABI, functionName: "count" }));
+    const rows = [];
+    for (let start = 0; start < total; start += 50)
+      rows.push(...await c.readContract({ address: addr, abi: DEP_ABI,
+        functionName: "getPage", args: [BigInt(start), 50n] }));
+    _ledger = { rows, at: Date.now() };
+    return rows;
+  }
+  async function runnerEndpointFor(id) {
+    const h = String(id).toLowerCase();
+    if (!/^0x[0-9a-f]{8,64}$/.test(h)) return null;   // dep_ / non-onchain ids: probe path
+    if (!cfg.addressBook && !cfg.deploymentsAddress) return null;
+    let rows;
+    try { rows = await ledgerRows(); } catch { return null; }
+    const hits = rows.filter((d) => String(d.id).toLowerCase().startsWith(h));
+    if (hits.length !== 1) return null;               // unknown/ambiguous -> fall back
+    const d = hits[0];
+    if (ZERO32.test(String(d.runner)) || Number(d.leaseUntil) * 1000 <= Date.now()) return null;
+    const runner = String(d.runner).toLowerCase();
+    for (const ep of origins) if ((await endpointId(ep)) === runner) return ep;   // known + in-fleet
+    return null;
+  }
+
   if (cfg.staticList.length) {
-    return { origins: () => origins,
+    return { origins: () => origins, runnerEndpointFor,
              async start() { log(`static fleet: ${origins.join(", ")}`); } };
   }
 
@@ -104,9 +221,15 @@ export function createFleet(cfg, log = () => {}) {
       rows.push(...await client.readContract({ address: registryAddress, abi: ABI,
         functionName: "getPage", args: [BigInt(start), 50n] }));
     const now = Math.floor(Date.now() / 1000);
+    warnIfUnauthenticated(cfg, log);
+    const ops = cfg.trustedOperators;
     return rows
       .filter((e) => e.active && now - Number(e.lastSeen) <= cfg.staleAfterSec)
-      .map((e) => e.endpoint.replace(/\/+$/, ""));
+      // B2: only vetted operators when the allowlist is configured
+      .filter((e) => !ops.length || ops.includes(String(e.operator || "").toLowerCase()))
+      .map((e) => e.endpoint.replace(/\/+$/, ""))
+      // B1/B3: never dial a non-https discovered endpoint (enclaves are https)
+      .filter((ep) => { const ok = isHttpsEndpoint(ep); if (!ok) log(`skipping non-https registry endpoint: ${ep}`); return ok; });
   }
 
   async function refresh() {
@@ -123,20 +246,43 @@ export function createFleet(cfg, log = () => {}) {
 
   return {
     origins: () => origins,
+    runnerEndpointFor,
     async start() {
-      log(`on-chain fleet: ${cfg.addressBook ? "EnclaveAddressBook " + cfg.addressBook + " -> registry" : "EnclaveRegistry " + cfg.registryAddress}`);
+      log(`on-chain fleet: ${cfg.addressBook ? "EnclaveAddressBook " + cfg.addressBook + " -> registry" : "EnclaveRegistry " + cfg.registryAddress}`
+          + (cfg.trustedOperators.length ? ` · trusted operators: ${cfg.trustedOperators.length}` : " · UNAUTHENTICATED (no TRUSTED_OPERATORS)"));
       await refresh();
       setInterval(refresh, cfg.registryPollSec * 1000);
     },
   };
 }
 
+// Read a fetch Response body as text but abort past `max` bytes — discovered
+// endpoints are untrusted, so an unbounded /availability or /net-map must not
+// be able to OOM a relay (fix 8). Default 8 MiB covers the largest legitimate
+// fleet map with wide margin.
+export const MAX_BODY_BYTES = 8 * 1024 * 1024;
+export async function readCappedText(r, max = MAX_BODY_BYTES) {
+  if (!r.body) return await r.text();
+  const reader = r.body.getReader();
+  const chunks = []; let n = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    n += value.length;
+    if (n > max) { try { await reader.cancel(); } catch {} throw new Error("response body too large"); }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 // Small shared helper: GET url, JSON on 2xx, null on anything else (timeout,
-// refused, non-2xx) — per-origin poll failures are data, not exceptions.
+// refused, non-2xx, oversize) — per-origin poll failures are data, not exceptions.
 export async function fetchJson(url, timeoutMs = 4000) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
-  try { const r = await fetch(url, { signal: ctrl.signal }); return r.ok ? await r.json() : null; }
-  catch { return null; }
+  try {
+    const r = await fetch(url, { signal: ctrl.signal });
+    return r.ok ? JSON.parse(await readCappedText(r)) : null;
+  } catch { return null; }
   finally { clearTimeout(t); }
 }

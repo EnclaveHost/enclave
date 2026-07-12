@@ -14,5 +14,15 @@ RUN pip3 install --break-system-packages --no-cache-dir cupy-cuda12x nvidia-ml-p
 
 COPY worker.py /worker.py
 ENV WORKER_PORT=8090
+# Control-plane hardening. The manager binds loopback by default (the supervisor
+# reaches it on localhost); override WORKER_BIND only if the manager must listen
+# off-host. WORKER_TOKEN is the shared bearer secret required on every endpoint —
+# leave it unset and the manager runs UNAUTHENTICATED with a loud boot warning
+# (so nothing breaks before the supervisor is wired to send it); set it (in the
+# runtime env, never baked into the image) to close the control plane and the
+# trusted-PTX path. Do NOT reuse the fleet SECRET here — the supervisor doesn't
+# forward a token to the worker yet, so keying off SECRET would lock it out.
+ENV WORKER_BIND=127.0.0.1
+# EXPOSE is metadata only; with the default loopback bind nothing is published.
 EXPOSE 8090
 CMD ["python3", "/worker.py"]

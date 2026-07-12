@@ -22,9 +22,12 @@
 //
 // Env:
 //   DEPLOYER_PRIVATE_KEY  required. Pays gas, becomes contract owner.
-//   PAYOUT_ADDRESS        cold wallet that receives USDC. If unset, resolves
-//                         PAYOUT_ENS (default nan.eth) via ETH_RPC (L1 mainnet).
-//   PAYOUT_ENS            ENS name to resolve when PAYOUT_ADDRESS is unset.
+//   PAYOUT_ADDRESS        cold wallet that receives USDC. REQUIRED on mainnet
+//                         (NETWORK=base): the script refuses to silently default
+//                         to the legacy nan.eth ENS name for real funds. On
+//                         testnet, if unset it resolves PAYOUT_ENS (default nan.eth).
+//   PAYOUT_ENS            ENS name to resolve when PAYOUT_ADDRESS is unset
+//                         (set it explicitly to opt into ENS resolution on mainnet).
 //   NETWORK               base-sepolia (default) | base
 //   RPC_URL               override the chain RPC.
 //   USDC_ADDRESS          override the USDC token address for the network.
@@ -33,6 +36,8 @@
 //   --no-write-config     do NOT touch tinfoil-config.yml (default is to write it)
 //   --yes                 skip the interactive confirmation (CI)
 //   --dry-run             compile + show the plan, do NOT broadcast
+//   --replace             on mainnet, allow re-deploying even though the current
+//                         FORWARDER_ADDRESS already has code. Refused by default.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -57,6 +62,7 @@ const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has("--dry-run");
 const NO_WRITE_CONFIG = args.has("--no-write-config"); // config is written by default on a successful deploy
 const ASSUME_YES = args.has("--yes");
+const REPLACE = args.has("--replace");                 // override the live-contract guard on mainnet
 
 const NETWORKS = {
   "base-sepolia": { chain: baseSepolia, rpc: "https://sepolia.base.org",
@@ -103,12 +109,16 @@ function compile() {
   return { abi: c.abi, bytecode: "0x" + c.evm.bytecode.object };
 }
 
-async function resolvePayout(explicit) {
+async function resolvePayout(explicit, isMainnet) {
   explicit = explicit || process.env.PAYOUT_ADDRESS;
   if (explicit) {
     if (!isAddress(explicit)) die(`payout is not a valid address: ${explicit}`);
     return getAddress(explicit);
   }
+  // On mainnet, never silently default to the legacy nan.eth ENS name for real
+  // funds — demand an explicit PAYOUT_ADDRESS (or a deliberately-set PAYOUT_ENS).
+  if (isMainnet && !process.env.PAYOUT_ENS)
+    die("PAYOUT_ADDRESS is required on mainnet — set it explicitly (refusing to default to the legacy nan.eth ENS name for real funds; set PAYOUT_ENS to deliberately opt into ENS resolution).");
   const name = process.env.PAYOUT_ENS || "nan.eth";
   const ethRpc = process.env.ETH_RPC || "https://cloudflare-eth.com";
   console.log(`PAYOUT_ADDRESS unset; resolving ${name} via L1 (${ethRpc})...`);
@@ -166,8 +176,10 @@ async function main() {
   const { abi, bytecode } = compile();
   let payoutIn = process.env.PAYOUT_ADDRESS;
   if (!payoutIn && !ASSUME_YES && input.isTTY)
-    payoutIn = await promptText("Payout address (where USDC lands; blank to resolve nan.eth): ");
-  const payout = await resolvePayout(payoutIn);
+    payoutIn = await promptText(isMainnet
+      ? "Payout address (where REAL USDC lands; required on mainnet): "
+      : "Payout address (where USDC lands; blank to resolve nan.eth): ");
+  const payout = await resolvePayout(payoutIn, isMainnet);
 
   const pub = createPublicClient({ chain: net.chain, transport: http(rpc) });
   const wallet = createWalletClient({ account, chain: net.chain, transport: http(rpc) });
@@ -186,6 +198,20 @@ async function main() {
 
   if (bal === 0n) die("deployer has 0 ETH on this chain; fund it for gas first.");
   if (DRY_RUN) { console.log("--dry-run: compiled and validated; not broadcasting."); return; }
+
+  // Guard: on mainnet, refuse to orphan a live forwarder. If the config already
+  // names a EnclavePay that HAS CODE on this chain, a fresh deploy rewrites the
+  // config to a new address. First deploy / testnet unaffected.
+  if (isMainnet && !REPLACE) {
+    const m = fs.readFileSync(CONFIG, "utf8").match(/-\s*FORWARDER_ADDRESS:\s*"(0x[0-9a-fA-F]{40})"/);
+    if (m) {
+      const existing = getAddress(m[1]);
+      const code = await pub.getCode({ address: existing }).catch(() => null);
+      if (code && code !== "0x")
+        die(`FORWARDER_ADDRESS already points at ${existing}, which HAS CODE on ${netName}.\n`
+          + `  Re-deploying rewrites every config to a new forwarder. Pass --replace to proceed, or --dry-run to inspect.`);
+    }
+  }
 
   if (!ASSUME_YES) {
     const rl = readline.createInterface({ input, output });

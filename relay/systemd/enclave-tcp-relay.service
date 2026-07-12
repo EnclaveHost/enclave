@@ -2,6 +2,8 @@
 Description=Enclave TCP relay (SNI router; TLS terminates in-enclave)
 After=network-online.target
 Wants=network-online.target
+# never let a crash-loop permanently stop a shared relay (fix 10)
+StartLimitIntervalSec=0
 
 [Service]
 EnvironmentFile=/etc/nan-relay/tcp-relay.env
@@ -19,6 +21,9 @@ LimitNOFILE=65536
 # lets the range include ports below 1024
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+# resource caps (fix 10); higher memory headroom for the ~20k listen sockets
+MemoryMax=1G
+TasksMax=512
 
 [Install]
 WantedBy=multi-user.target

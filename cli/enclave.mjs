@@ -34,6 +34,12 @@ import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 
 const VERSION = "0.1.0";
 
+// The ONLY enclave source repo this CLI will verify against. Attestation targets
+// are pinned to this constant, never taken from the API response — a malicious
+// gateway/enclave could otherwise point the verifier at an attacker-controlled
+// repo that passes. Compared case-insensitively against the API-returned repo.
+const EXPECTED_REPO = "EnclaveHost/enclave";
+
 // ---- platform constants -----------------------------------------------------
 // Addresses are Base mainnet (chain 8453), kept in lockstep with
 // enclaves/*/tinfoil-config.yml and site/index.html by
@@ -242,6 +248,10 @@ function loadKey({ required = true } = {}) {
 function saveKey(pk) {
   fs.mkdirSync(CONF_DIR, { recursive: true, mode: 0o700 });
   fs.writeFileSync(KEY_FILE, pk + "\n", { mode: 0o600 });
+  // writeFileSync's mode is ignored when the file already exists, so an
+  // overwrite (e.g. key new --force over a loose-permissioned file) would keep
+  // the old perms — chmod explicitly to re-tighten to 0600 every time.
+  try { fs.chmodSync(KEY_FILE, 0o600); } catch {}
 }
 // hidden prompt (mirrors scripts/login.mjs) — keys and passphrases never echo
 function promptSecret(query) {
@@ -260,7 +270,12 @@ function promptSecret(query) {
   });
 }
 async function confirm(what) {
-  if (opt.yes || !stdin.isTTY || !stdout.isTTY) return true;
+  if (opt.yes) return true;
+  // Non-interactive (piped/cron) WITHOUT --yes: refuse rather than auto-proceed.
+  // These prompts guard spending/teardown; silently answering "yes" for a pipe
+  // is how a cron job drains a wallet. --yes is the explicit opt-in.
+  if (!stdin.isTTY || !stdout.isTTY)
+    throw new Error(`refusing to proceed without a confirmation in a non-interactive session — re-run with --yes to approve (${what})`);
   const rl = rlSync.createInterface({ input: stdin, output: stdout });
   const ans = await new Promise((r) => rl.question(what + " [y/N] ", (a) => { rl.close(); r(a.trim()); }));
   return /^y(es)?$/i.test(ans);
@@ -463,14 +478,21 @@ function minShares(ver, pricing) {
 
 // ---- funding (EIP-3009 receiveWithAuthorization -> EnclaveDeployments) ---------------
 async function fundUsdc(account, id, amountUsd) {
-  const value = BigInt(Math.round(amountUsd * 100)) * 10000n;   // whole cents -> 6dp
+  // Funding is billed in whole cents (contract balances are 6dp USDC). Reject
+  // sub-cent amounts rather than silently rounding them to nothing / to a cent.
+  const cents = amountUsd * 100;
+  if (amountUsd > 0 && amountUsd < 0.01)
+    throw new Error(`minimum USDC funding is $0.01 (got $${amountUsd}); amounts are billed in whole cents`);
+  if (amountUsd > 0 && Math.abs(cents - Math.round(cents)) > 1e-9)
+    throw new Error(`USDC funding is billed in whole cents — $${amountUsd} isn't a whole number of cents (nearest is $${(Math.round(cents) / 100).toFixed(2)})`);
+  const value = BigInt(Math.round(cents)) * 10000n;             // whole cents -> 6dp
   const bal = await read(DEFAULTS.USDC_ADDRESS, ERC20_ABI, "balanceOf", [account.address]);
   if (bal < value) throw new Error(`wallet holds ${usd6(bal)} USDC on Base, needs ${usd6(value)} — fund ${account.address}`);
-  let dom = null;
-  try { dom = (await api("GET", "/v1/pricing")).usdcDomain; } catch {}
-  const domain = dom
-    ? { name: dom.name, version: dom.version, chainId: Number(dom.chainId), verifyingContract: dom.verifyingContract }
-    : { name: "USD Coin", version: "2", chainId: DEFAULTS.chainId, verifyingContract: DEFAULTS.USDC_ADDRESS };
+  // The EIP-712 domain is PINNED, never taken from the API: a forged domain
+  // could coax a valid ReceiveWithAuthorization signature over a different
+  // token/chain/contract. Base USDC (Circle native) domain = {"USD Coin","2"}.
+  const domain = { name: "USD Coin", version: "2", chainId: DEFAULTS.chainId,
+                   verifyingContract: DEFAULTS.USDC_ADDRESS };
   // authorization nonce: first 16 bytes = the deployment id's first 16 bytes
   // (the contract requires it), last 16 random so top-ups never collide
   const nonce = id.slice(0, 34) + crypto.randomBytes(16).toString("hex");
@@ -516,15 +538,22 @@ function printVerdict(r, origin, repo) {
   kv([["enclave", origin], ["repo", repo],
       ...Object.entries(r.steps).map(([k, v]) => ["  " + k, v]),
       ["release", r.release], ["measurement", r.measurement]]);
-  say(r.pass ? "verdict     PASS — measurements match the signed release; TLS terminates inside this enclave"
+  say(r.pass ? `verdict     PASS — this enclave's quote matches the signed ${EXPECTED_REPO} release and TLS terminates inside it (trust rests on the pinned repo + the verifier's vendor/Sigstore roots)`
              : `verdict     FAIL — do not send data${r.error ? ` (${r.error})` : ""}`);
+}
+// The verification target repo is PINNED to EXPECTED_REPO, never the API's own
+// claim. If the API names a different repo we refuse — a gateway that could pick
+// the repo could pick one whose (attacker-controlled) release the quote matches.
+function pinnedRepo(apiRepo) {
+  if (apiRepo && String(apiRepo).toLowerCase() !== EXPECTED_REPO.toLowerCase())
+    throw new Error(`attestation names repo "${apiRepo}", but this CLI only verifies against ${EXPECTED_REPO} — refusing (a chosen repo can carry a chosen release the quote would match)`);
+  return EXPECTED_REPO;
 }
 async function attestDeployment(account, id) {
   const nonce = crypto.randomBytes(32).toString("hex");
   const att = await api("GET", `/v1/deployments/${id}/attestation?nonce=${nonce}`, { auth: account });
   const origin = new URL(att.verification.attestationEndpoint).origin;
-  const repo = att.verification.repo;
-  if (!repo) throw new Error("attestation response carries no enclave repo — cannot verify");
+  const repo = pinnedRepo(att.verification.repo);
   return { att, nonce, origin, repo, result: await verifyEnclaveOrigin(origin, repo) };
 }
 
@@ -685,20 +714,27 @@ async function cmdAttest(rest) {
     // no id: verify the enclave serving this API base (the enclave-level report)
     const att = await api("GET", "/v1/attestation");
     const origin = new URL(att.verification.attestationEndpoint).origin;
-    const r = await verifyEnclaveOrigin(origin, att.verification.repo);
-    if (opt.json) return jout({ origin, repo: att.verification.repo, ...r });
-    printVerdict(r, origin, att.verification.repo);
+    const repo = pinnedRepo(att.verification.repo);   // pinned, not API-chosen
+    const r = await verifyEnclaveOrigin(origin, repo);
+    if (opt.json) return jout({ origin, repo, ...r });
+    printVerdict(r, origin, repo);
     if (!r.pass) exit(1);
     return;
   }
   const account = loadKey();      // per-deployment attestation is owner-gated
   const id = await resolveId(rest[0], account);
-  const { att, origin, repo, result } = await attestDeployment(account, id);
-  if (opt.json) return jout({ id, origin, repo, ...result, vm: att.vm ? { technology: att.vm.technology, measurements: att.vm.measurements } : null, gpu: att.gpu ? { ccMode: att.gpu.ccMode, nonce: att.gpu.nonce } : null });
+  const { att, nonce, origin, repo, result } = await attestDeployment(account, id);
+  // The GPU CC report must be signed over the SAME nonce we sent, or its
+  // freshness is unproven (a replayed report would still "have a nonce").
+  const gpuNonce = att.gpu ? String(att.gpu.nonce || "").toLowerCase().replace(/^0x/, "") : "";
+  const gpuNonceOk = !!gpuNonce && gpuNonce === nonce.toLowerCase();
+  if (opt.json) return jout({ id, origin, repo, ...result, vm: att.vm ? { technology: att.vm.technology, measurements: att.vm.measurements } : null, gpu: att.gpu ? { ccMode: att.gpu.ccMode, nonce: att.gpu.nonce, nonceVerified: gpuNonceOk } : null });
   kv([["deployment", id], att.app?.digest ? ["app digest", att.app.digest] : null]);
   printVerdict(result, origin, repo);
   if (att.vm?.technology) say(`vm          ${att.vm.technology} quote present (registers in --json)`);
-  if (att.gpu) say(`gpu         CC report ${att.gpu.report ? "present" : "absent"}${att.gpu.ccMode ? `, ccMode=${att.gpu.ccMode}` : ""}${att.gpu.nonce ? `, signed over our nonce` : ""}`);
+  if (att.gpu) say(`gpu         CC report ${att.gpu.report ? "present" : "absent"}${att.gpu.ccMode ? `, ccMode=${att.gpu.ccMode}` : ""}`
+    + (gpuNonceOk ? `, fresh (signed over our nonce)`
+                  : `, freshness NOT verified (${att.gpu.nonce ? "nonce mismatch" : "no nonce returned"})`));
   if (!result.pass) exit(1);
 }
 
@@ -795,7 +831,9 @@ async function cmdDeploy(rest) {
     else await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi: DEPLOYMENTS_ABI,
       functionName: "fundEth", args: [id], value: parseEther(String(fundEth)) });
   } catch (e) {
-    throw new Error(`created but NOT funded (${e.message}) — top up later: enclave fund ${id} --usdc ${fundUsd || 5}`);
+    // Echo back the asset the user actually chose (don't flip ETH -> USDC).
+    const hint = fundUsd ? `--usdc ${fundUsd}` : `--eth ${fundEth}`;
+    throw new Error(`created but NOT funded (${e.message}) — top up later: enclave fund ${id} ${hint}`);
   }
   say(`funded ${fundUsd ? "$" + fundUsd.toFixed(2) : fundEth + " ETH"}`);
 
@@ -1042,8 +1080,11 @@ const cmd = args.shift();
 if (!cmd || cmd === "help" || cmd === "--help" || cmd === "-h") { say(HELP); exit(0); }
 if (cmd === "version" || cmd === "--version") { say(VERSION); exit(0); }
 if (!COMMANDS[cmd]) die(`unknown command "${cmd}" — run: enclave help`);
+// `key new`/`key import` are purely local (no chain, no API), so skip the
+// address-book resolve — no reason to make offline key setup wait on an RPC.
+const OFFLINE = cmd === "key";
 try {
-  await resolveAddressBook();
+  if (!OFFLINE) await resolveAddressBook();
   await COMMANDS[cmd](args);
 } catch (e) {
   die(e?.message || String(e));

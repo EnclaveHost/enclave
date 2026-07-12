@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#070A0F" />
+<title>Privacy Policy · Enclave</title>
+<meta name="description" content="The Enclave privacy policy: crypto-native and non-custodial. We collect as little as the service allows, never sell data, and confidential compute keeps your workload's contents hidden even from us." />
+<link rel="icon" href="favicon.ico" sizes="48x48 32x32 16x16" />
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+<script>
+/* Cross-document view transitions are skipped by Chromium when extensions
+   inject content scripts (MetaMask et al): the old page sees pageswap with
+   no viewTransition. Flag it, and the NEXT page (this script runs pre-paint)
+   plays the same settle-in itself (html.soft-enter, see base.css) - content
+   only, the static header stays put. */
+(function(){
+  try { if (sessionStorage.getItem("enclave_novt")) { sessionStorage.removeItem("enclave_novt"); document.documentElement.classList.add("soft-enter"); } } catch(e){}
+  addEventListener("pageswap", function(e){
+    try { if (!e.viewTransition && e.activation) sessionStorage.setItem("enclave_novt", "1"); } catch(e){}
+  });
+})();
+</script>
+<link rel="stylesheet" href="css/site.css" />
+<script type="module" blocking="render" src="js/boot.js"></script>
+</head>
+<body>
+<c-header current="privacy"></c-header>
+<main>
+<section id="privacy" data-view="privacy" aria-label="Privacy Policy" style="padding:84px 0 0;">
+  <div class="wrap">
+    <c-section-head eyebrow="Legal" heading="Privacy Policy.">
+      <p>Enclave is crypto-native and non-custodial, so there is very little about you for us to hold. This policy is written to be read: it says plainly what we collect, who else touches it, and what confidential computing keeps even us from seeing. If you do not agree with it, do not deploy.</p>
+    </c-section-head>
+
+    <div class="terms-doc">
+      <p class="terms-updated">Last updated: July 12, 2026 · applies to <code>enclave.host</code> and the Enclave public API</p>
+
+      <h3>1 · Who we are</h3>
+      <p>Enclave is operated by Enclave Host, Inc. (&ldquo;we&rdquo;). You reach us at <a href="mailto:support@enclave.host">support@enclave.host</a>, and for security matters at <a href="mailto:security@enclave.host">security@enclave.host</a>. This policy covers the website, the CLI, and the public API. It sits alongside our <a href="terms">Terms of Service</a>.</p>
+
+      <h3>2 · The short version</h3>
+      <p>There are <b>no accounts</b>. You use Enclave with a crypto wallet, and paying is an on-chain transaction. We do not run ad trackers, we do not build advertising profiles, and <b>we never sell your data</b>. Most of what the service touches is either already public on a blockchain or kept in your own browser. The parts a third party handles - card payments, sign-in wallets, bot checks - are described below by name.</p>
+
+      <h3>3 · What we collect</h3>
+      <p>We collect only what running the service needs.</p>
+      <p><b>Wallet addresses and public on-chain data.</b> Deployments, payments, and app listings are records on public smart contracts on the Base network. Your wallet address and those transactions are public by the nature of a blockchain - anyone can read them, including us. This is inherent to a non-custodial, on-chain service, not something we choose to store about you.</p>
+      <p><b>Email and one-time codes - only if you choose email sign-in.</b> If you sign in with a wallet you already control, we never see an email. If instead you use the optional email sign-in (provided by Privy), you give an email address and a one-time login code to complete it. That flow is handled by Privy under its own privacy policy; we use it solely to authenticate you and to send the code, never for marketing.</p>
+      <p><b>Card details - handled entirely by Stripe, never by us.</b> If you buy USDC with a card, that purchase runs through Stripe's third-party crypto on-ramp inside a Stripe-hosted surface. Your card number and payment details go to Stripe, not to Enclave; we never receive, see, or store them. It is a payment to the on-ramp, not to us.</p>
+      <p><b>Bot-check signals.</b> To keep automated abuse off the platform we use hCaptcha on some actions. hCaptcha may process technical signals from your browser to tell humans from bots, under its own privacy policy.</p>
+      <p><b>Kept in your own browser.</b> A session token (proving you signed a wallet challenge) and your deploy narratives - the running log of what you deployed and its output - live in your browser's <code>localStorage</code> on your device. They are not uploaded to us as a profile; they stay client-side and you can clear them at any time.</p>
+      <p><b>Ordinary server logs.</b> Like any web service, our infrastructure and the IPFS gateway/relay may briefly log request metadata (such as IP address and timestamps) to serve traffic, defend against abuse, and keep the system healthy. We keep these short and do not use them to build a profile of you.</p>
+
+      <h3>4 · What we don't collect</h3>
+      <p>We don't ask for your name, we don't run KYC on deployers, and we don't require an account to use the service. We don't hold your funds or your keys (see the <a href="terms">Terms</a>), and we don't sell, rent, or trade any data about you to anyone.</p>
+
+      <h3>5 · Your workload's contents are not visible to us</h3>
+      <p>Enclave runs your app on <b>confidential-computing hardware</b>. The app's memory and the data it processes are encrypted and isolated from the machine's operator - that is the point of the platform, and attestation lets you verify it. So the <em>contents</em> of what your app does (the data it handles, the requests it serves) are not visible to us as the operator, by design. What is public is the on-chain record that a deployment exists and what code it runs, and the metadata needed to route and bill it.</p>
+
+      <h3>6 · Sub-processors</h3>
+      <p>A few third parties process limited data on our behalf so the service can work, each under its own privacy policy: <b>Privy</b> for optional email/wallet sign-in (email address and one-time login code, only if you use it); <b>Stripe</b> for the third-party crypto on-ramp when you buy USDC with a card (all card and payment data); <b>hCaptcha</b> for bot detection on some actions (technical browser signals); and the <b>IPFS gateway and relay infrastructure</b> that serves the content-addressed site and app bytes and routes deployment traffic (ordinary request metadata as above).</p>
+      <p>Public blockchain networks (Base) and the RPC endpoints used to read and write chain state are not our sub-processors - they are public infrastructure your wallet talks to directly.</p>
+
+      <h3>7 · How we use what we collect</h3>
+      <p>We use the little we have only to <b>run the service</b>: authenticate you, place and bill deployments, process the payments you initiate, keep abuse off the platform, and answer your support requests. We do not use it for advertising or profiling, and we do not sell it.</p>
+
+      <h3>8 · Retention</h3>
+      <p>On-chain data is permanent and public - it lives on the blockchain, not on our servers, and cannot be deleted by us or anyone. Browser-side data (your session token and deploy narratives) stays until you clear it or it expires. Server and gateway logs are kept only as long as needed to operate and secure the service, then discarded. Payment and sign-in data held by Stripe and Privy is retained under their own policies.</p>
+
+      <h3>9 · Your choices</h3>
+      <p>You can use a fresh wallet, sign in without email, decline the card on-ramp (pay from a wallet instead), and clear your browser storage at any time to remove the client-side session and narratives. Because the service is non-custodial and account-free, there is little personal data for us to hold in the first place. For any privacy question or request, write to <a href="mailto:support@enclave.host">support@enclave.host</a> and we will help.</p>
+
+      <h3>10 · Changes and contact</h3>
+      <p>We may update this policy; the date above changes when we do. Continuing to use Enclave after a change means you accept it. Questions or requests: <a href="mailto:support@enclave.host">support@enclave.host</a>.</p>
+    </div>
+  </div>
+</section>
+</main>
+<c-footer></c-footer>
+<c-toast></c-toast>
+</body>
+</html>

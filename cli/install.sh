@@ -4,6 +4,13 @@
 # bundle, this script installs from a checkout: it bundles cli/enclave.mjs
 # (deps inlined, ~1 MB) into a single executable file and drops it on your
 # PATH. Needs node >= 20; nothing else touches your machine.
+#
+# FUTURE (hosted `curl | sh`): before piping a downloaded bundle into node,
+# verify it against a pinned digest/signature, e.g.
+#   EXPECTED_SHA256=<pin the release hash here>
+#   echo "$EXPECTED_SHA256  enclave.mjs" | sha256sum -c -   # (or minisign/cosign)
+# so a compromised CDN can't ship a key-stealing binary. (No download URL is
+# wired yet — this is a placeholder, not a live check.)
 # Windows: use cli/install.ps1 (or `npm install -g ./cli`, which works anywhere).
 #
 #   ./cli/install.sh              -> ~/.local/bin/enclave
@@ -23,7 +30,16 @@ OUT="$BIN_DIR/enclave"
 if [ ! -d "$CLI_DIR/../node_modules/viem" ] && [ ! -d "$CLI_DIR/node_modules/viem" ]; then
   need npm
   echo "installing bundle dependencies (viem, @tinfoilsh/verifier, esbuild)…"
-  npm --prefix "$CLI_DIR" install --no-fund --no-audit
+  # Prefer `npm ci` — it installs the EXACT versions from the checked-in
+  # package-lock.json (this is a key-holding signing binary; floating caret
+  # ranges have no place in it). Fall back to `npm install` only if the lockfile
+  # is missing (e.g. an old checkout).
+  if [ -f "$CLI_DIR/package-lock.json" ]; then
+    npm --prefix "$CLI_DIR" ci --no-fund --no-audit
+  else
+    echo "note: no package-lock.json found — falling back to 'npm install' (unpinned)" >&2
+    npm --prefix "$CLI_DIR" install --no-fund --no-audit
+  fi
 fi
 
 mkdir -p "$BIN_DIR"

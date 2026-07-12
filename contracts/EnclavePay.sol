@@ -47,6 +47,18 @@ contract EnclavePay {
     address public owner;             // can update payout / hand off ownership
     address public payout;            // where USDC lands (the Enclave cold wallet)
     IERC20Auth public immutable usdc; // USDC token (Base: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
+    uint256 private _entered = 1;      // reentrancy guard (1 = free, 2 = inside a value-moving call)
+
+    /// @dev Cheap non-reentrancy lock (1/2 pattern avoids the cold-slot SSTORE
+    ///      penalty). Guards the payout.call in payEth so, if `payout` is ever a
+    ///      contract, it can't reenter — behavior is identical for the normal EOA
+    ///      payout, which never calls back.
+    modifier nonReentrant() {
+        require(_entered == 1, "reentrant");
+        _entered = 2;
+        _;
+        _entered = 1;
+    }
 
     event Paid(bytes32 indexed deploymentId, address indexed payer, uint256 amount);
     event PaidEth(bytes32 indexed deploymentId, address indexed payer, uint256 amountWei);
@@ -99,7 +111,7 @@ contract EnclavePay {
     ///         in the same tx (never held here). The supervisor prices the wei at the
     ///         Chainlink ETH/USD rate when the PaidEth event lands.
     /// @param deploymentId the supervisor's payment reference (keccak256 of its id)
-    function payEth(bytes32 deploymentId) external payable {
+    function payEth(bytes32 deploymentId) external payable nonReentrant {
         require(msg.value > 0, "value=0");
         (bool ok, ) = payout.call{value: msg.value}("");
         require(ok, "ETH transfer failed");

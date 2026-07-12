@@ -8,6 +8,13 @@
 #
 # No-script alternative that works on every OS: npm install -g .\cli
 # (npm generates the .cmd shim itself; the CLI is plain node either way).
+#
+# FUTURE (hosted `irm ... | iex`): before running a downloaded bundle, verify it
+# against a pinned digest/signature, e.g.
+#   $ExpectedSha256 = "<pin the release hash here>"
+#   if ((Get-FileHash enclave.mjs -Algorithm SHA256).Hash -ne $ExpectedSha256) { Fail "bundle hash mismatch" }
+# so a compromised CDN can't ship a key-stealing binary. (No download URL is
+# wired yet — this is a placeholder, not a live check.)
 $ErrorActionPreference = "Stop"
 
 function Fail($msg) { Write-Host "error: $msg" -ForegroundColor Red; exit 1 }
@@ -28,7 +35,15 @@ $haveRoot = Test-Path (Join-Path $cliDir "..\node_modules\viem")
 $haveCli  = Test-Path (Join-Path $cliDir "node_modules\viem")
 if (-not $haveRoot -and -not $haveCli) {
   Write-Host "installing bundle dependencies (viem, @tinfoilsh/verifier, esbuild)..."
-  npm --prefix $cliDir install --no-fund --no-audit
+  # Prefer `npm ci` — exact versions from the checked-in package-lock.json (this
+  # is a key-holding signing binary; no floating caret ranges). Fall back to
+  # `npm install` only if the lockfile is missing (e.g. an old checkout).
+  if (Test-Path (Join-Path $cliDir "package-lock.json")) {
+    npm --prefix $cliDir ci --no-fund --no-audit
+  } else {
+    Write-Host "note: no package-lock.json found - falling back to 'npm install' (unpinned)"
+    npm --prefix $cliDir install --no-fund --no-audit
+  }
   if ($LASTEXITCODE -ne 0) { Fail "npm install failed" }
 }
 

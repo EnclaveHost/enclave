@@ -68,9 +68,11 @@ via transaction instead of via one enclave's API).
   the on-chain record of the catalog VERSION to run (2026-07-09; CID refs are refused
   by runners — a CID names bytes, not a version). The record supplies the wasm,
   config (ENCLAVE_CONFIG + volumes) and ports the catalog owner approved;
-  `ports`/`appPort` ride along untrusted and `configCid` must be `""` (retired —
-  runners refuse deployments that set one, so a deployer can never attach
-  behavior the owner didn't review). A deployment BUYS two shares, both in
+  `ports`/`appPort` ride along untrusted, and `configCid` is **retired**: the
+  contract still accepts and stores the field (length-bounded only), but every
+  runner refuses a deployment whose `configCid` is non-empty (fail-closed), so in
+  practice it must be `""` — a deployer can never attach behavior the owner didn't
+  review. A deployment BUYS two shares, both in
   1/1000ths: `gpuMilli` of one GPU card (VRAM + compute together; `0` = a
   CPU-only deployment) and `cpuMilli` of a node's vCPU+RAM (1..1000). The
   contract enforces `gpuMilli == 0 || gpuMilli >= cpuMilli` — a GPU app's CPU
@@ -366,12 +368,18 @@ the new enclave. This is the same no-trusted-gateway shape as discovery today.
 DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-deployments.mjs --dry-run --yes
 
 # Base Sepolia (uses REGISTRY_ADDRESS from enclaves/gpu/tinfoil-config.yml; prices are hardcoded
-# in the contract: ~$6/h full GPU card, ~$2/h whole CPU node — no setter txs sent):
+# in the contract: ~$6/h full GPU card, ~$1/h whole CPU node — no setter txs sent):
 DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-deployments.mjs
 
 # Base MAINNET:
 NETWORK=base DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-deployments.mjs
 ```
+
+> **CPU price — confirm intended value.** The deployed contract's default CPU rate
+> is `cpuPricePerSec6 = 278` µUSDC/s ≈ **$1.00/hour** for a full node, which is what
+> the site advertises. An older `~$2/hour` figure survives in the contract's file
+> header comment (`EnclaveDeployments.sol`); it does not match the deployed code and
+> should be reconciled (confirm the intended CPU price, then fix the header).
 
 The script writes `DEPLOYMENTS_ADDRESS` into `tinfoil-config.yml` when the line
 exists (add it under the supervisor `env:` alongside `FORWARDER_ADDRESS`), and

@@ -37,8 +37,22 @@
 //   ENCLAVES           required*   *instead of the registry: static comma list
 //                                  of enclave origins (pilot / local dev)
 //   API_RELAY_PORT     optional    listen port (default 8100)
-//   API_RELAY_BIND     optional    bind address (default all interfaces; set
-//                                  127.0.0.1 when fronted by a local reverse proxy)
+//   API_RELAY_BIND     optional    bind address. DEFAULT = all interfaces (kept
+//                                  so a directly-exposed relay isn't broken); set
+//                                  API_RELAY_BIND=127.0.0.1 whenever a local Caddy
+//                                  fronts :8100 (the production `nan` box does) so
+//                                  the port is never reachable except via the proxy.
+//   TRUSTED_PROXY      optional    "1"/on (default) trusts Caddy's x-forwarded-host
+//                                  /x-forwarded-for; set 0/off/none when the relay
+//                                  is directly internet-exposed so clients can't
+//                                  spoof routing/source via those headers.
+//   TRUSTED_OPERATORS  optional    comma-separated lowercased EnclaveRegistry
+//                                  operator addresses; when set, on-chain discovery
+//                                  is filtered to these (closes B1/B2/B3). Unset =
+//                                  follow every registered enclave (+ loud warning).
+//   CORS_ORIGINS       optional    comma-separated allowed browser origins
+//                                  (default https://enclave.host,https://www.enclave.host)
+//   FANOUT_MAX_INFLIGHT optional   global cap on concurrent upstream fan-out (256)
 //   AVAIL_POLL_SEC     optional    availability poll cadence (default 10)
 //   REGISTRY_POLL_SEC  optional    registry re-read cadence (default 300)
 //   STALE_AFTER_SEC    optional    drop enclaves silent on-chain > this (3600)
@@ -48,6 +62,7 @@ import https from "node:https";
 import net from "node:net";
 import tls from "node:tls";
 import { createHash } from "node:crypto";
+import { readCappedText } from "./fleet.mjs";
 
 let   REGISTRY_ADDRESS  = (process.env.REGISTRY_ADDRESS || "").trim();   // env fallback; the address book (below) overrides
 let   DEPLOYMENTS_ADDRESS = (process.env.DEPLOYMENTS_ADDRESS || "").trim(); // EnclaveDeployments ledger; book overrides too
@@ -71,6 +86,64 @@ if (!REGISTRY_ADDRESS && !ADDRESS_BOOK && !STATIC_ENCLAVES.length) {
   console.error("fatal: set ADDRESS_BOOK_ADDRESS or REGISTRY_ADDRESS (on-chain discovery) or ENCLAVES (static list)");
   process.exit(1);
 }
+
+// --- hardening config (all OPT-IN; defaults preserve today's behavior) --------
+// SECURITY (B1/B2/B3): the on-chain registry is permissionless — anyone can
+// register an endpoint. TRUSTED_OPERATORS (comma-separated, lowercased Enclave-
+// Registry operator addresses) restricts on-chain discovery to vetted operators,
+// so session tokens and /x data-path traffic only ever reach them. Unset = keep
+// following every registered endpoint (today's behavior) + a loud one-time warn.
+const TRUSTED_OPERATORS = (process.env.TRUSTED_OPERATORS || "").toLowerCase()
+  .split(",").map((s) => s.trim()).filter(Boolean);
+const isHttpsEndpoint = (ep) => { try { return new URL(ep).protocol === "https:"; } catch { return false; } };
+let _warnedUnauth = false;
+function warnIfUnauthenticated() {
+  if (STATIC_ENCLAVES.length || TRUSTED_OPERATORS.length || _warnedUnauth) return;
+  _warnedUnauth = true;
+  console.error("[api-relay] WARNING: TRUSTED_OPERATORS unset — routing tokens/traffic to EVERY endpoint in the " +
+    "permissionless EnclaveRegistry (no operator allowlist). Set TRUSTED_OPERATORS=<addr,addr> to restrict to vetted operators.");
+}
+// CORS (fix 5): allowlist instead of reflecting any Origin with credentials.
+const CORS_ORIGINS = (process.env.CORS_ORIGINS || "https://enclave.host,https://www.enclave.host")
+  .split(",").map((s) => s.trim()).filter(Boolean);
+// Trusted-proxy switch (fix 6): Caddy fronts the relay in production and sets
+// x-forwarded-host / x-forwarded-for. Default trusts those (current behavior).
+// Set TRUSTED_PROXY to an off value (0/false/off/no/none) when the relay is
+// directly internet-exposed, so a client can't spoof routing via x-forwarded-*.
+const TRUSTED_PROXY = !/^(0|false|off|no|none)$/i.test((process.env.TRUSTED_PROXY ?? "1").trim());
+const routingHost = (req) =>
+  (TRUSTED_PROXY && req.headers["x-forwarded-host"]) || req.headers.host;
+const clientIp = (req) => {
+  if (TRUSTED_PROXY) { const xff = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim(); if (xff) return xff; }
+  return req.socket?.remoteAddress || "unknown";
+};
+const isLoopback = (req) => {
+  const a = req.socket?.remoteAddress || "";
+  return /^127\./.test(a) || a === "::1" || a === "::ffff:127.0.0.1" || a.startsWith("::ffff:127.");
+};
+// In-memory token-bucket rate limiter (fix 2), per source key. Generous by
+// design — it only sheds the abusive miss/fan-out traffic, not normal browsing.
+function makeRateLimiter({ capacity, refillPerSec }) {
+  const buckets = new Map();
+  setInterval(() => { const now = Date.now(); for (const [k, b] of buckets) if (now - b.at > 300_000) buckets.delete(k); }, 60_000).unref?.();
+  return (key) => {
+    const now = Date.now();
+    let b = buckets.get(key);
+    if (!b) { b = { tokens: capacity, at: now }; buckets.set(key, b); }
+    b.tokens = Math.min(capacity, b.tokens + ((now - b.at) / 1000) * refillPerSec);
+    b.at = now;
+    if (b.tokens < 1) return false;
+    b.tokens -= 1; return true;
+  };
+}
+const rlMiss = makeRateLimiter({ capacity: 60, refillPerSec: 10 });   // /x + app-subdomain owner misses
+const rlHint = makeRateLimiter({ capacity: 20, refillPerSec: 2 });    // /v1/claim-hint fan-out
+// Global cap on concurrent upstream fan-out requests (fix 2): bounds the
+// amplification of one inbound request into N enclave requests.
+const FANOUT_MAX = parseInt(process.env.FANOUT_MAX_INFLIGHT || "256", 10);
+let fanoutInflight = 0;
+const fanoutReserve = (n) => { if (fanoutInflight + n > FANOUT_MAX) return false; fanoutInflight += n; return true; };
+const fanoutRelease = (n) => { fanoutInflight = Math.max(0, fanoutInflight - n); };
 
 // --- registry read (mirrors scripts/enclave-discover.mjs) ------------------------
 const ABI = [
@@ -132,12 +205,16 @@ async function readRegistry() {
     out.push(...await c.readContract({ address: REGISTRY_ADDRESS, abi: ABI,
       functionName: "getPage", args: [BigInt(start), 50n] }));
   const now = Math.floor(Date.now() / 1000);
+  warnIfUnauthenticated();
   return Promise.all(out
     .filter((e) => e.active && now - Number(e.lastSeen) <= STALE_AFTER_SEC)
-    .map(async (e) => {
-      const endpoint = e.endpoint.replace(/\/+$/, "");
-      return { endpoint, id: await endpointId(endpoint), repo: e.repo, lastSeen: Number(e.lastSeen) };
-    }));
+    // B2: only vetted operators when the allowlist is configured
+    .filter((e) => !TRUSTED_OPERATORS.length || TRUSTED_OPERATORS.includes(String(e.operator || "").toLowerCase()))
+    .map((e) => ({ e, endpoint: e.endpoint.replace(/\/+$/, "") }))
+    // B1/B3: never route to a non-https discovered endpoint (real enclaves are https)
+    .filter(({ endpoint }) => { const ok = isHttpsEndpoint(endpoint); if (!ok) console.error(`[api-relay] skipping non-https registry endpoint: ${endpoint}`); return ok; })
+    .map(async ({ e, endpoint }) =>
+      ({ endpoint, id: await endpointId(endpoint), repo: e.repo, lastSeen: Number(e.lastSeen) })));
 }
 
 // --- EnclaveDeployments ledger (the source of truth for a wallet's work) --------
@@ -302,6 +379,11 @@ function ledgerView(d) {
 // public on-chain data; the token only picks WHICH owner's public records to
 // return. Enclaves keep verifying it for everything they serve.
 function tokenAddress(auth) {
+  // SECURITY INVARIANT (fix 11): this decodes the JWT WITHOUT verifying its
+  // HS256 signature (the relay deliberately doesn't hold the enclave SECRET), so
+  // the returned address is UNTRUSTED. It may ONLY be used to scope which
+  // wallet's PUBLIC on-chain ledger rows to return — never to authorize an
+  // action or release private data. Anything sensitive stays enclave-verified.
   const m = /^Bearer\s+(.+)$/.exec(auth || ""); if (!m) return null;
   try {
     const p = JSON.parse(Buffer.from(m[1].split(".")[1], "base64url").toString());
@@ -314,7 +396,7 @@ function tokenAddress(auth) {
 async function fetchJson(url, timeoutMs = 4000) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
-  try { const r = await fetch(url, { signal: ctrl.signal }); return r.ok ? await r.json() : null; }
+  try { const r = await fetch(url, { signal: ctrl.signal }); return r.ok ? JSON.parse(await readCappedText(r)) : null; }
   catch { return null; } finally { clearTimeout(t); }
 }
 
@@ -362,18 +444,29 @@ function pick(want = {}) {
 }
 
 // --- http ----------------------------------------------------------------------
-// CORS: the browser page (https://enclave.host) talks only to this relay, so WE must
-// answer preflight and stamp CORS on every response. Reflect the Origin (so
-// Authorization works without the wildcard-vs-credentials clash) and echo the
-// requested headers on preflight.
-const cors = (req) => ({
-  "Access-Control-Allow-Origin": req.headers.origin || "*",
-  "Vary": "Origin",
-  "Access-Control-Allow-Credentials": "true",
-  "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": req.headers["access-control-request-headers"] || "Authorization,Content-Type",
-  "Access-Control-Max-Age": "600",
-});
+// CORS (fix 5): the browser page (https://enclave.host) talks only to this relay,
+// so WE answer preflight and stamp CORS on every response. Origin is matched
+// against an ALLOWLIST (CORS_ORIGINS env, else enclave.host + www) rather than
+// reflected — credentials (Authorization) are only granted to allowlisted
+// origins, so a hostile page can't ride a signed-in user's session. "*" in the
+// list serves the wildcard (without credentials, which browsers forbid anyway).
+const corsAllowed = (origin) => !!origin && (CORS_ORIGINS.includes("*") || CORS_ORIGINS.includes(origin));
+const cors = (req) => {
+  const origin = req.headers.origin;
+  const h = {
+    "Vary": "Origin",
+    "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
+    "Access-Control-Allow-Headers": req.headers["access-control-request-headers"] || "Authorization,Content-Type",
+    "Access-Control-Max-Age": "600",
+  };
+  if (corsAllowed(origin)) {
+    h["Access-Control-Allow-Origin"] = origin;
+    h["Access-Control-Allow-Credentials"] = "true";
+  } else if (CORS_ORIGINS.includes("*")) {
+    h["Access-Control-Allow-Origin"] = "*";                    // wildcard, no credentials
+  }
+  return h;
+};
 const json = (res, code, body, req) => {
   res.writeHead(code, { "Content-Type": "application/json", "Cache-Control": "no-store",
                         ...(req ? cors(req) : { "Access-Control-Allow-Origin": "*" }) });
@@ -430,33 +523,68 @@ const sticky = () =>
 // after the instance is gone (a terminated record still exists on its enclave).
 const OWNER = new Map();                                     // dep id -> { endpoint, at }
 const OWNER_TTL_MS = 5 * 60_000;
+const OWNER_NEG = new Map();                                 // dep id -> at (miss, short-lived; fix 2)
+const OWNER_NEG_TTL_MS = 10_000;
 const ownerCached = (id) => {
   const hit = OWNER.get(id);
   return (hit && Date.now() - hit.at < OWNER_TTL_MS && live.some((e) => e.endpoint === hit.endpoint))
     ? hit.endpoint : null;
 };
-const ownerLearn = (id, endpoint) => { if (id && endpoint) OWNER.set(id, { endpoint, at: Date.now() }); };
+const ownerNegRecent = (id) => { const at = OWNER_NEG.get(id); return at != null && Date.now() - at < OWNER_NEG_TTL_MS; };
+const ownerLearn = (id, endpoint) => { if (id && endpoint) { OWNER.set(id, { endpoint, at: Date.now() }); OWNER_NEG.delete(id); } };
 async function probe(url, init) {
   const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 4000);
   try { return await fetch(url, { ...init, signal: ctrl.signal }); }
   catch { return null; } finally { clearTimeout(t); }
 }
-async function xOwnerOf(id) {                                // data-path probe (no auth needed)
+// SECURITY (fix 1c / B3): prefer the deployment's ON-CHAIN runner (the enclave
+// that actually claimed the lease) over "first endpoint answering non-404", so
+// a hostile enclave can't hijack another tenant's /x traffic by answering for
+// its id. Returns the runner's endpoint only when it's a known, in-fleet enclave
+// (which is already https-/operator-filtered); null (=> probe fallback) on any
+// uncertainty, so a valid deployment never becomes unroutable.
+async function runnerEndpointOf(id) {
+  const h = String(id).toLowerCase();
+  if (!/^0x[0-9a-f]{8,64}$/.test(h)) return null;           // dep_/non-onchain ids: probe path
+  let rows; try { rows = await ledgerRows(); } catch { return null; }
+  const hits = rows.filter((d) => String(d.id).toLowerCase().startsWith(h));
+  if (hits.length !== 1) return null;                       // unknown/ambiguous -> fall back
+  const d = hits[0];
+  if (ZERO32.test(String(d.runner)) || Number(d.leaseUntil) * 1000 <= Date.now()) return null;
+  const runner = String(d.runner).toLowerCase();
+  const e = live.find((x) => x.id && x.id.toLowerCase() === runner);
+  return e ? e.endpoint : null;
+}
+async function xOwnerOf(id) {                                // data-path resolve (no auth needed)
   const hit = ownerCached(id); if (hit) return hit;
-  const found = await Promise.all(live.map(async (e) =>
-    (r => r && r.status !== 404 ? e.endpoint : null)(await probe(`${e.endpoint}/x/${encodeURIComponent(id)}`, { method: "HEAD" }))));
-  const ep = found.find(Boolean) || null;
-  if (ep) ownerLearn(id, ep);
+  const byRunner = await runnerEndpointOf(id);              // fix 1c: on-chain claimer wins
+  if (byRunner) { ownerLearn(id, byRunner); return byRunner; }
+  if (ownerNegRecent(id)) return null;                      // recent miss: don't re-fan-out (fix 2)
+  if (!fanoutReserve(live.length)) return null;             // global fan-out cap (fix 2)
+  let ep = null;
+  try {
+    const found = await Promise.all(live.map(async (e) =>
+      (r => r && r.status !== 404 ? e.endpoint : null)(await probe(`${e.endpoint}/x/${encodeURIComponent(id)}`, { method: "HEAD" }))));
+    ep = found.find(Boolean) || null;
+  } finally { fanoutRelease(live.length); }
+  if (ep) ownerLearn(id, ep); else OWNER_NEG.set(id, Date.now());
   return ep;
 }
 async function v1OwnerOf(id, auth) {                         // control-plane probe (caller's token)
   const hit = ownerCached(id); if (hit) return hit;
-  const found = await Promise.all(live.map(async (e) => {
-    const r = await probe(`${e.endpoint}/v1/deployments/${encodeURIComponent(id)}`,
-                          { headers: auth ? { Authorization: auth, Accept: "application/json" } : { Accept: "application/json" } });
-    return r && r.status === 200 ? e.endpoint : null;
-  }));
-  const ep = found.find(Boolean) || null;
+  const byRunner = await runnerEndpointOf(id);              // fix 1c: on-chain claimer wins
+  if (byRunner) { ownerLearn(id, byRunner); return byRunner; }
+  let ep = null;
+  if (fanoutReserve(live.length)) {
+    try {
+      const found = await Promise.all(live.map(async (e) => {
+        const r = await probe(`${e.endpoint}/v1/deployments/${encodeURIComponent(id)}`,
+                              { headers: auth ? { Authorization: auth, Accept: "application/json" } : { Accept: "application/json" } });
+        return r && r.status === 200 ? e.endpoint : null;
+      }));
+      ep = found.find(Boolean) || null;
+    } finally { fanoutRelease(live.length); }
+  }
   if (ep) ownerLearn(id, ep);
   return ep || xOwnerOf(id);                                 // fall back to the data-path probe (e.g. expired token)
 }
@@ -480,7 +608,7 @@ async function forward(origin, req, body, path = req.url) {
   try {
     const r = await fetch(origin.replace(/\/+$/, "") + path,
       { method: req.method, headers, body: body && body.length ? body : undefined, signal: ctrl.signal });
-    return { status: r.status, contentType: r.headers.get("content-type"), text: await r.text() };
+    return { status: r.status, contentType: r.headers.get("content-type"), text: await readCappedText(r) };
   } finally { clearTimeout(t); }
 }
 function sendForwarded(res, r, req) {
@@ -517,10 +645,12 @@ function aggregateAvailability() {
 
 // Union of every live enclave's advertised model volumes, keyed by name, each
 // annotated with the endpoints that carry it.
+const MAX_VOLUMES_PER_ENCLAVE = 256;                        // guard a hostile /availability (fix 8)
 function fleetVolumes() {
   const byName = new Map();
   for (const e of live) {
-    for (const v of (e.availability?.volumes || [])) {
+    const vols = e.availability?.volumes;
+    for (const v of (Array.isArray(vols) ? vols.slice(0, MAX_VOLUMES_PER_ENCLAVE) : [])) {
       if (!v || !v.name) continue;
       const cur = byName.get(v.name) || { name: v.name, bytes: v.bytes || 0, onnx: !!v.onnx, endpoints: [] };
       cur.bytes = Math.max(cur.bytes, v.bytes || 0);
@@ -561,6 +691,9 @@ async function gateway(u, req, res) {
   const dep = p.match(DEP_PATH_RE), x = p.match(X_PATH_RE);
   if (dep || x) {
     const id = (dep || x)[1];
+    // rate-limit only the misses (the fan-out probe); cached routes stay fast (fix 2)
+    if (!ownerCached(id) && !rlMiss(clientIp(req)))
+      return json(res, 429, { error: "rate_limited", message: "Too many deployment lookups; retry shortly.", updatedAt }, req);
     const owner = dep ? await v1OwnerOf(id, req.headers.authorization) : await xOwnerOf(id);
     if (!owner) return json(res, 404, { error: "not_found", message: `No live enclave has ${id}.`, updatedAt }, req);
     // Tenant data path: generous idle window. A model-serving app's first
@@ -576,15 +709,24 @@ async function gateway(u, req, res) {
     // the EnclaveDeployments contract referees any race (the loser's claim tx
     // reverts; gas is cents). Enclaves answer fast - the actual claim runs in
     // their background; deployers watch the ledger for the runner.
+    // unauthenticated fan-out amplifier: per-source rate limit + global in-flight
+    // cap (fix 2), and the response body from each enclave is size-capped (fix 8).
+    if (!rlHint(clientIp(req)))
+      return json(res, 429, { error: "rate_limited", message: "Too many claim hints; retry shortly." }, req);
     let body; try { body = await readBody(req); } catch (e) { return json(res, 413, { error: "too_large", message: e.message }, req); }
-    const results = await Promise.all(live.map(async (e) => {
-      try {
-        const r = await fetch(e.endpoint + "/v1/claim-hint",
-          { method: "POST", headers: { "content-type": "application/json" },
-            body, signal: AbortSignal.timeout(15_000) });
-        return await r.json();
-      } catch { return null; }
-    }));
+    if (!fanoutReserve(live.length))
+      return json(res, 503, { accepted: false, reason: "Relay busy (fan-out cap); the sweep will still pick the deployment up." }, req);
+    let results;
+    try {
+      results = await Promise.all(live.map(async (e) => {
+        try {
+          const r = await fetch(e.endpoint + "/v1/claim-hint",
+            { method: "POST", headers: { "content-type": "application/json" },
+              body, signal: AbortSignal.timeout(15_000) });
+          return JSON.parse(await readCappedText(r));
+        } catch { return null; }
+      }));
+    } finally { fanoutRelease(live.length); }
     const best = results.find(r => r && r.accepted) || results.find(Boolean)
               || { accepted: false, reason: "No live enclave answered the hint; the sweep will still pick the deployment up." };
     return json(res, 200, best, req);
@@ -705,18 +847,22 @@ const server = http.createServer((req, res) => {
 
   // On-demand TLS gate: Caddy asks before minting a cert for <host>. Allow only
   // real deployment subdomains so random <junk>.<APP_DOMAIN> can't burn the CA
-  // rate limit. (Reached on loopback from Caddy; harmless if hit publicly.)
+  // rate limit. Reached on loopback from Caddy — restricted to loopback (fix 11)
+  // and rate-limited on the miss (fix 2) so it can't be driven as a fan-out probe.
   if (u.pathname === "/internal/tls-ask") {
+    if (!isLoopback(req)) { res.writeHead(403); return res.end("forbidden"); }
     const id = depFromHost(u.searchParams.get("domain") || "");
     if (!id) { res.writeHead(400); return res.end("bad domain"); }
+    if (!ownerCached(id) && !rlMiss(clientIp(req))) { res.writeHead(429); return res.end("rate limited"); }
     return deploymentExists(id).then((ok) => { res.writeHead(ok ? 200 : 404); res.end(); });
   }
 
   // App subdomain: <dep-id>.<APP_DOMAIN> is the deployment's OWN origin. Route it
   // to the OWNING enclave's /x/<id> data path, passing the app's own headers
   // through (it's a distinct origin, so the gateway doesn't impose CORS).
-  const depHost = depFromHost(req.headers["x-forwarded-host"] || req.headers.host);
+  const depHost = depFromHost(routingHost(req));            // x-forwarded-host only when TRUSTED_PROXY (fix 6)
   if (depHost) {
+    if (!ownerCached(depHost) && !rlMiss(clientIp(req))) return json(res, 429, { error: "rate_limited", message: "Too many lookups; retry shortly." });
     return xOwnerOf(depHost).then((owner) => {
       if (!owner) return json(res, 404, { error: "not_found", message: "No live enclave has " + depHost + "." });
       const rest = req.url === "/" ? "/" : req.url;           // preserve path+query under /x/<id>
@@ -792,7 +938,7 @@ server.on("upgrade", async (req, socket, head) => {
   socket.on("error", () => socket.destroy());               // dead client mid-handshake must not throw
   const refuse = (code, text) => { try { socket.write(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`); } catch {} socket.destroy(); };
   try {
-    const depHost = depFromHost(req.headers["x-forwarded-host"] || req.headers.host);
+    const depHost = depFromHost(routingHost(req));           // x-forwarded-host only when TRUSTED_PROXY (fix 6)
     const x = depHost ? null : (req.url || "").match(X_PATH_RE);
     if (!depHost && !x) return refuse(404, "Not Found");
     const id = await fullDepId(depHost || x[1]);
@@ -826,5 +972,8 @@ setInterval(pollRegistry, REGISTRY_POLL_SEC * 1000);
 setInterval(resolveDeployments, REGISTRY_POLL_SEC * 1000);
 setInterval(pollAvailability, AVAIL_POLL_SEC * 1000);
 
-server.listen(PORT, process.env.API_RELAY_BIND || undefined, () => console.log(
-  `[api-relay] :${PORT} · ${STATIC_ENCLAVES.length ? `static list (${STATIC_ENCLAVES.length})` : `EnclaveRegistry ${REGISTRY_ADDRESS}`} · ${live.length}/${registry.length} live`));
+const BIND = process.env.API_RELAY_BIND || undefined;
+if (!BIND) console.error("[api-relay] NOTE: binding ALL interfaces (no API_RELAY_BIND). If a local Caddy fronts this relay, set API_RELAY_BIND=127.0.0.1 so :" + PORT + " isn't reachable directly.");
+server.listen(PORT, BIND, () => console.log(
+  `[api-relay] :${PORT}${BIND ? " (" + BIND + ")" : ""} · ${STATIC_ENCLAVES.length ? `static list (${STATIC_ENCLAVES.length})` : `EnclaveRegistry ${REGISTRY_ADDRESS}`} · ${live.length}/${registry.length} live`
+  + (STATIC_ENCLAVES.length || TRUSTED_OPERATORS.length ? "" : " · UNAUTHENTICATED fleet (no TRUSTED_OPERATORS)")));

@@ -37,8 +37,13 @@ function inV6(n, prefixBig, bits) {
 function blockedV6(n) {
   if (n === 0n || n === 1n) return true;                    // :: and ::1
   if (n < (1n << 96n)) return true;                         // ::/96 (v4-compat, deprecated + non-global)
-  // v4-mapped ::ffff:a.b.c.d and NAT64 64:ff9b::/96 — judge by the embedded v4
-  if (inV6(n, 0xffffn << 32n, 96)) return blockedV4(Number(n & 0xffffffffn));
+  // NOTE (dead-code removal): a v4-mapped `::ffff:a.b.c.d` branch used to sit here
+  // (`if (inV6(n, 0xffffn<<32n, 96)) return blockedV4(...)`). It was UNREACHABLE:
+  // every v4-mapped address (`::ffff:0:0/96`) is < 2^96, so the `n < 2^96` guard
+  // above already returns true for all of them. Removing it changes nothing —
+  // v4-mapped addresses stay blocked wholesale (a deliberate, harmless over-block;
+  // `::ffff:127.0.0.1` still can't reach loopback). Do NOT re-add a per-embedded-v4
+  // check; it would never run. The NAT64 line below is left exactly as-is.
   if (inV6(n, 0x0064ff9bn << 64n, 96)) return blockedV4(Number(n & 0xffffffffn));
   if (inV6(n, 0x0100n << 112n, 64)) return true;            // 100::/64 discard-only
   if (inV6(n, 0x20010db8n << 96n, 32)) return true;         // 2001:db8::/32 documentation
