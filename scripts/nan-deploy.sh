@@ -22,6 +22,12 @@ if ! ipfs key list -l | awk '{print $2}' | grep -qx "$KEY"; then
 fi
 IPNS_NAME="$(ipfs key list -l | awk -v k="$KEY" '$2==k {print $1}')"
 
+# The CURRENTLY published root, captured BEFORE we publish the new one. The prune
+# at the end keeps it pinned for ONE more generation: after the IPNS switch a
+# gateway can still serve this old CID from its namesys cache (~30s TTL), so its
+# blocks must stay available or those requests 500 until the cache rolls over.
+PREV_CID="$(ipfs name resolve --nocache "/ipns/$IPNS_NAME" 2>/dev/null | sed 's#^/ipfs/##' || true)"
+
 echo "[deploy] adding $SITE ..."
 CID="$(ipfs add -r --hidden -Q --cid-version 1 "$SITE")"        # CIDv1/base32 for DNSLink + ENS
 ipfs pin add "$CID" >/dev/null
@@ -57,7 +63,13 @@ echo "[deploy] verified: /ipns/$IPNS_NAME -> /ipfs/$CID"
 # THIS root, so they remain pinned; only >48h-unique blocks are reclaimed.
 if [ -x /usr/local/bin/nan-prune-site-roots.py ]; then
   echo "[deploy] pruning superseded site roots ..."
-  SITE_IPNS="$IPNS_NAME" python3 /usr/local/bin/nan-prune-site-roots.py --keep "$CID" --gc \
+  # Keep BOTH this root and the previous one: the previous may still be served
+  # from a gateway's IPNS cache for a few seconds after the switch, so GC'ing it
+  # now would 500 those requests (its blocks would be gone). One extra generation
+  # pinned covers that window; the next deploy reclaims it.
+  KEEP=(--keep "$CID")
+  [ -n "${PREV_CID:-}" ] && [ "$PREV_CID" != "$CID" ] && KEEP+=(--keep "$PREV_CID")
+  SITE_IPNS="$IPNS_NAME" python3 /usr/local/bin/nan-prune-site-roots.py "${KEEP[@]}" --gc \
     || echo "[deploy] WARN site-root prune failed (non-fatal)"
 fi
 
