@@ -140,8 +140,30 @@ def parse_car(car):
 def reconstruct(cid_bytes, blocks, max_bytes):
     """Reassemble the file rooted at cid_bytes from the verified block map."""
     out = bytearray()
+    # Work budget against a crafted "diamond" DAG. Every block here already
+    # hashes to its CID, but a hash-valid DAG can still have many parents link
+    # the SAME child: re-walking that shared subtree on every path makes a
+    # depth-N diamond cost O(2^N) walks and hang this fetch thread — and it does
+    # so producing ZERO output bytes (empty-data dag-pb nodes), so the size cap
+    # below never trips. Content-addressed DAGs are ACYCLIC by construction (a
+    # cycle needs a block whose hash names itself), so we don't need cycle
+    # detection; we need to bound total work. We deliberately do NOT use a
+    # visited-set that SKIPS repeats: a legitimately de-duplicated file (two
+    # identical chunks stored as one block, referenced twice) must emit its
+    # bytes BOTH times, and skipping would silently corrupt it. Instead we cap
+    # total node visits, generously: a real kubo DAG for an S-byte file has
+    # ~S/262144 leaves plus a thin internal tree, so even a pathological-but-
+    # honest 4 KiB-chunked file stays far under this, while a diamond blowup
+    # crosses it in microseconds.
+    budget = 16 * len(blocks) + max_bytes // 4096 + 4096
+    visits = 0
 
     def walk(c):
+        nonlocal visits
+        visits += 1
+        if visits > budget:
+            raise ValueError("DAG walk exceeded node-visit budget (%d) — "
+                             "possible fan-out/diamond expansion attack" % budget)
         if c not in blocks:
             raise ValueError("CAR is missing block %s" % c.hex())
         _, info, _ = _cid_info(c, 0)
