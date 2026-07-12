@@ -91,6 +91,24 @@ def wasm_tools_error(data: bytes):
 # can't be abused to pin large blobs.
 MAX_JSON_BYTES = int(os.environ.get("MAX_CONFIG_BYTES", str(256 * 1024)))
 
+# Cap for /add-image pins (app thumbnail + detail banner). Small, wallet-signed
+# like /add-wasm; raster only.
+MAX_IMAGE_BYTES = int(os.environ.get("MAX_IMAGE_BYTES", str(4 * 1024 * 1024)))
+
+
+def image_error(b: bytes):
+    """Return an error string unless the bytes are a supported RASTER image.
+    SVG is deliberately refused: an SVG can carry <script>, and it would run on
+    the gateway origin when opened - a stored-XSS vector. Magic-byte sniffing
+    (not the filename/content-type) is authoritative."""
+    if len(b) < 12:
+        return "too small to be an image"
+    if b[0:8] == b"\x89PNG\r\n\x1a\n":              return None   # PNG
+    if b[0:3] == b"\xff\xd8\xff":                   return None   # JPEG
+    if b[0:6] in (b"GIF87a", b"GIF89a"):            return None   # GIF
+    if b[0:4] == b"RIFF" and b[8:12] == b"WEBP":    return None   # WebP
+    return "unsupported image type - use PNG, JPEG, WebP, or GIF (SVG is not allowed)"
+
 
 def kubo_add(data: bytes, filename="app.wasm"):
     """Add+pin to the local Kubo node with fixed params; return the CID."""
@@ -209,12 +227,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = self.path.split("?")[0]
-        if route not in ("/add-wasm", "/add-json"):
+        if route not in ("/add-wasm", "/add-json", "/add-image"):
             return self._json(404, {"error": "not found"})
         length = int(self.headers.get("Content-Length") or 0)
         if length <= 0:
             return self._json(411, {"error": "Content-Length required"})
-        cap = MAX_JSON_BYTES if route == "/add-json" else MAX_BYTES
+        cap = MAX_JSON_BYTES if route == "/add-json" else MAX_IMAGE_BYTES if route == "/add-image" else MAX_BYTES
         if length > cap:
             return self._json(413, {"error": "too large (max %d bytes)" % cap})
         data = self.rfile.read(length)
@@ -235,6 +253,21 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(415, {"error": "config must be a JSON object"})
             try:
                 cid = kubo_add(data, filename="config.json")
+            except Exception as e:  # noqa: BLE001
+                return self._json(502, {"error": "ipfs add failed: %s" % e})
+            return self._json(200, {"cid": cid}) if cid else self._json(502, {"error": "ipfs returned no CID"})
+
+        # /add-image: app thumbnail/banner. Wallet-signed like /add-wasm (same
+        # token, same per-wallet daily byte cap), raster-only (no SVG).
+        if route == "/add-image":
+            auth = upload_auth_error(self.headers, data)
+            if auth:
+                return self._json(auth[0], {"error": auth[1]})
+            err = image_error(data)
+            if err:
+                return self._json(415, {"error": err})
+            try:
+                cid = kubo_add(data, filename="image")
             except Exception as e:  # noqa: BLE001
                 return self._json(502, {"error": "ipfs add failed: %s" % e})
             return self._json(200, {"cid": cid}) if cid else self._json(502, {"error": "ipfs returned no CID"})

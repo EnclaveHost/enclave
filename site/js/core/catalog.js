@@ -82,6 +82,48 @@ export const appOfficial = (app) => !!(STORE.owner && app.publisher.toLowerCase(
 // (owner-published is implicit endorsement - none of the platform apps carry the flag)
 export const appVerified = (app) => { const i = defaultIdx(app); return i >= 0 && (app.versions[i].verified || appOfficial(app)); };
 
+/* ---- app media (tile thumbnail + detail-page banner) ----
+   Media CIDs ride inside the version's config JSON under a reserved `_media`
+   key ({ thumbnail, banner }). This keeps the EnclaveAppCatalog contract
+   unchanged - the trade-off (accepted) is that media is per-version, immutable,
+   and re-reviewed on change, exactly like the rest of a version's config. The
+   runner delivers the whole config as ENCLAVE_CONFIG, so an app just sees an
+   extra `_media` key it ignores; the deploy console strips it from its preview. */
+export const MEDIA_KEY = "_media";
+const cleanCid = (c) => (typeof c === "string" && /^[a-zA-Z0-9]{10,100}$/.test(c.trim())) ? c.trim() : "";
+export function mediaOf(version){
+  if (!version || !version.config) return {};
+  try {
+    const m = JSON.parse(version.config)[MEDIA_KEY];
+    if (m && typeof m === "object" && !Array.isArray(m))
+      return { thumbnail: cleanCid(m.thumbnail), banner: cleanCid(m.banner) };
+  } catch(e){}
+  return {};
+}
+// media of an app's DEFAULT (displayed) version - what the tile + detail show
+export function appMedia(app){ const i = app && app.versions ? defaultIdx(app) : -1; return i >= 0 ? mediaOf(app.versions[i]) : {}; }
+// drop the reserved `_media` key from a config string (for the deploy preview /
+// the publish "add version" prefill - media is edited via its own pickers)
+export function stripMedia(configStr){
+  if (!configStr) return "";
+  try {
+    const o = JSON.parse(configStr);
+    if (o && typeof o === "object" && MEDIA_KEY in o){ delete o[MEDIA_KEY]; return Object.keys(o).length ? JSON.stringify(o) : ""; }
+  } catch(e){}
+  return configStr;
+}
+// fold thumbnail/banner CIDs into a config string for publishing (JSON string,
+// or "" when there's neither config nor media)
+export function withMedia(configStr, thumbnail, banner){
+  let o = {};
+  if (configStr){ try { const p = JSON.parse(configStr); if (p && typeof p === "object" && !Array.isArray(p)) o = p; } catch(e){} }
+  const m = {};
+  if (cleanCid(thumbnail)) m.thumbnail = thumbnail.trim();
+  if (cleanCid(banner)) m.banner = banner.trim();
+  if (Object.keys(m).length) o[MEDIA_KEY] = m; else delete o[MEDIA_KEY];
+  return Object.keys(o).length ? JSON.stringify(o) : "";
+}
+
 /* Resolve what the user typed into an `image.reference` the enclave understands.
    Humans type "[publisher/]slug:version"; we look it up in the on-chain catalog
    and hand the enclave `catalog://<appId>/<versionIndex>` — the on-chain RECORD
