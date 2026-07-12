@@ -131,11 +131,9 @@ const PLATFORM_MODEL_URL  = (process.env.PLATFORM_MODEL_URL || "").replace(/\/+$
 const PLATFORM_MODEL_NAME = process.env.PLATFORM_MODEL_NAME || "";      // advertised id (informational)
 const PLATFORM_MODEL_KEY  = process.env.PLATFORM_MODEL_KEY || "";       // optional Bearer gate on the model API
 const DEFAULT_IMAGE  = process.env.DEFAULT_IMAGE || "debian:bookworm-slim"; // any stock image; sshd is hosted by the supervisor, not the image
-// --- worker launch (per-tenant container = the only isolation boundary) ------
-const DOCKER_SOCK    = process.env.DOCKER_SOCK || "/var/run/docker.sock";  // Engine API endpoint (mounted into the supervisor)
+// --- worker launch: tenants run as the manager's wasmtime/CUDA processes ------
 const MPS_PIPE_DIR   = process.env.CUDA_MPS_PIPE_DIRECTORY || "/tmp/nvidia-mps";
 const ENABLE_MPS     = !/^(0|false|off)$/i.test(process.env.ENABLE_MPS || "1"); // MPS enforces BOTH the SM cap and the VRAM cap (validated under CC)
-const WORKER_PREFIX  = process.env.WORKER_PREFIX || "enclave_";
 const SPAWN_TIMEOUT_MS = parseInt(process.env.SPAWN_TIMEOUT_MS || "300000", 10); // includes image pull / wasm fetch (prefetched claims hit the cache, this is headroom)
 const WORKER_MEM      = process.env.WORKER_MEM || "16g";                // host-RAM cap per worker (not GPU)
 const WORKER_PIDS     = process.env.WORKER_PIDS || "512";
@@ -594,8 +592,8 @@ const gpuCards = Array.from({ length: GPU_COUNT }, (_, i) => ({ id: i, uuid: nul
 
 // The card outranks config: GPU_VRAM_GB is only the boot fallback. The real
 // memory.total arrives from whichever probe can reach the card - our own
-// nvidia-smi discovery where this process has the GPU or a docker socket, or
-// the manager's boot probe via /health on Tinfoil (this container has neither).
+// nvidia-smi discovery where this process can see the GPU, or the manager's
+// boot probe via /health on Tinfoil (the supervisor container has neither).
 // Rebase the free pools by the delta so reservations made before adoption
 // (loadState restores, early claims) stay accounted.
 function adoptCardVram(gb, source) {
@@ -674,15 +672,6 @@ const maxFreeCompute = () => Math.max(0, ...gpuCards.map(c => c.computeFree));
 const maxFreeGpuShare = () => !IS_GPU ? 0 : Math.max(0, ...gpuCards.map(c =>
   Math.min(c.computeFree, (c.vramFree - CTX_OVERHEAD_GB) / CARD_VRAM_GB)));
 
-// wait until the Docker Engine socket answers (it may not be ready at boot).
-async function waitForDocker(tries = 20, gapMs = 500) {
-  for (let i = 0; i < tries; i++) {
-    try { const r = await dockerReq("GET", "/version", null, 3000); if (r.status < 400) return true; } catch {}
-    await new Promise(r => setTimeout(r, gapMs));
-  }
-  return false;
-}
-
 const _applyGpu = (text) => {
   let got = 0; const totals = [];
   for (const line of text.trim().split("\n")) {
@@ -699,49 +688,31 @@ const _applyGpu = (text) => {
 };
 const GPU_QUERY = ["nvidia-smi", "--query-gpu=index,uuid,memory.total", "--format=csv,noheader,nounits"];
 
-// Discover card UUIDs (so workers can be pinned). Supervisor image has no
-// nvidia-smi, so enumerate via a one-shot CUDA container over the Docker API.
+// Discover card UUIDs (so GPU shares can be pinned) via local nvidia-smi when
+// this process can see the card. The supervisor container has no nvidia-smi and
+// the card lives in the worker/wasm-manager container, so on the CVM this is a
+// best-effort no-op — card VRAM/UUIDs arrive from the manager's /health probe.
 async function discoverGpus() {
   if (/^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) return 0;
-  // fast path: local nvidia-smi if present
   try { const { stdout } = await pexec("nvidia-smi", GPU_QUERY.slice(1), { timeout: 8000 });
-        const n = _applyGpu(stdout); if (n >= GPU_COUNT) return n; } catch {}
-  const ref = process.env.GPU_SCAN_IMAGE || "nvidia/cuda:12.6.2-base-ubuntu24.04";
-  const name = WORKER_PREFIX + "gpuscan";
-  try {
-    await dockerPull(ref);
-    await dockerReq("DELETE", `/containers/${name}?force=1`).catch(() => {});
-    const created = await dockerJson("POST", `/containers/create?name=${name}`, {
-      Image: ref, Cmd: GPU_QUERY,
-      HostConfig: { DeviceRequests: [{ Driver: "nvidia", Count: -1, Capabilities: [["gpu"]] }] },
-    });
-    const cid = created.Id;
-    await dockerJson("POST", `/containers/${cid}/start`);
-    await dockerReq("POST", `/containers/${cid}/wait`, null, 30000);
-    const r = await dockerReq("GET", `/containers/${cid}/logs?stdout=1&stderr=1`);
-    await dockerReq("DELETE", `/containers/${cid}?force=1`).catch(() => {});
-    return _applyGpu(demuxLogs(r.buf));
-  } catch (e) {
-    console.warn("[gpu] UUID discovery via docker failed:", e.message);
-    return 0;
-  }
+        return _applyGpu(stdout); } catch { return 0; }
 }
 
-// Lazily ensure UUIDs are known before a GPU spawn - covers a boot-time socket
-// race where discovery ran before the Docker socket was ready.
+// Lazily ensure UUIDs are known before a GPU spawn - covers a boot where the
+// card wasn't visible to nvidia-smi yet (discovery re-runs on first spawn).
 let _gpuDiscovering = null;
 async function ensureGpuUuids() {
   if (gpuCards.every(c => c.uuid)) return true;
-  if (!_gpuDiscovering) _gpuDiscovering = (async () => { await waitForDocker(); return discoverGpus(); })()
+  if (!_gpuDiscovering) _gpuDiscovering = discoverGpus()
     .finally(() => { _gpuDiscovering = null; });
   await _gpuDiscovering;
   return gpuCards.some(c => c.uuid);
 }
 
 async function initGpu() {
-  // Best-effort at boot; the socket may not be up yet, so wait briefly. If it
-  // still fails, ensureGpuUuids() retries on the first spawn. Never blocks boot.
-  await waitForDocker();
+  // Best-effort at boot; if nvidia-smi can't see the card here, card VRAM/UUIDs
+  // arrive from the manager's /health probe and ensureGpuUuids() retries on the
+  // first spawn. Never blocks boot.
   const got = await discoverGpus();
   if (got < GPU_COUNT) console.warn(`[gpu] boot discovery ${got}/${GPU_COUNT} - will retry on first spawn`);
 }
@@ -943,7 +914,6 @@ function sshAccessOf(rec) {
 //   Image digests are NOT RTMR-extended (no guest extend interface) - the
 //   attestation endpoint reports that coverage gap explicitly, never fakes it.
 // ============================================================================
-const containerName = (id) => WORKER_PREFIX + String(id).replace(/[^a-zA-Z0-9_.-]/g, "");
 // resolve the pinned image ref: prefer name@sha256:digest when a digest is given
 function pinnedRef(image) {
   const ref = (image?.reference || DEFAULT_IMAGE).trim();
@@ -958,49 +928,6 @@ function toBytes(s) {
   const n = +m[1], u = m[2].toLowerCase();
   return u === "g" ? n*1073741824 : u === "m" ? n*1048576 : u === "k" ? n*1024 : n;
 }
-// docker multiplexed log stream: [stream:1][000][size:4 BE][payload]…  -> plain text
-function demuxLogs(buf) {
-  let out = "", o = 0;
-  while (o + 8 <= buf.length) {
-    const size = buf.readUInt32BE(o + 4), start = o + 8, end = start + size;
-    if (end > buf.length) break;
-    out += buf.slice(start, end).toString(); o = end;
-  }
-  return o > 0 ? out : buf.toString();   // fallback if the stream wasn't framed
-}
-
-// ---- Docker Engine API client (over the mounted unix socket; no docker CLI) --
-function dockerReq(method, path, body, timeoutMs = 30000) {
-  return new Promise((resolve, reject) => {
-    const data = body != null ? Buffer.from(JSON.stringify(body)) : null;
-    const req = http.request({ socketPath: DOCKER_SOCK, method, path,
-      headers: { "Content-Type": "application/json", ...(data ? { "Content-Length": data.length } : {}) } },
-      (res) => { const chunks = []; res.on("data", c => chunks.push(c));
-                 res.on("end", () => resolve({ status: res.statusCode, buf: Buffer.concat(chunks) })); });
-    req.on("error", reject);
-    req.setTimeout(timeoutMs, () => req.destroy(new Error("docker socket timeout")));
-    if (data) req.write(data); req.end();
-  });
-}
-async function dockerJson(method, path, body, timeoutMs) {
-  const r = await dockerReq(method, path, body, timeoutMs);
-  let j = null; try { j = r.buf.length ? JSON.parse(r.buf.toString()) : null; } catch {}
-  if (r.status >= 400) throw new Error(`docker ${method} ${path.split("?")[0]} -> ${r.status} ${j?.message || r.buf.toString().slice(0,200)}`);
-  return j;
-}
-async function dockerPull(ref) {
-  let fromImage = ref, tag = "latest";
-  const at = ref.indexOf("@");
-  if (at >= 0) { fromImage = ref.slice(0, at); tag = ref.slice(at + 1); }      // repo@sha256:…
-  else { const c = ref.lastIndexOf(":"), s = ref.lastIndexOf("/"); if (c > s) { fromImage = ref.slice(0, c); tag = ref.slice(c + 1); } }
-  const r = await dockerReq("POST", `/images/create?fromImage=${encodeURIComponent(fromImage)}&tag=${encodeURIComponent(tag)}`, null, SPAWN_TIMEOUT_MS);
-  if (r.status >= 400) throw new Error(`pull ${ref} -> ${r.status} ${r.buf.toString().slice(0,200)}`);
-  // the pull stream returns 200 even on failure; the error rides in the body
-  const err = r.buf.toString().split("\n").filter(Boolean)
-    .map(l => { try { return JSON.parse(l); } catch { return null; } }).reverse().find(o => o && o.error);
-  if (err) throw new Error(`pull ${ref}: ${err.error}`);
-}
-
 async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort, ports, config }) {
   // Two backends. "vm": hand the app reference to the app manager on VMMGR_URL
   // (the wasm-manager runs it as a `wasmtime serve` process; cpuShare is its
@@ -2792,11 +2719,8 @@ app.get("/v1/deployments/:id/logs", authed, async (req, res) => {
       return res.type("text/plain").send(head + (b.lines || []).join("\n") + "\n");
     } catch (e) { return fail(res, 502, "logs_error", (e.message || "").toString().slice(0, 300)); }
   }
-  try {
-    const r = await dockerReq("GET", `/containers/${containerName(rec.id)}/logs?stdout=1&stderr=1&tail=${tail}`, null, 15000);
-    if (r.status >= 400) return fail(res, 502, "logs_error", r.buf.toString().slice(0, 200));
-    res.type("text/plain").send(demuxLogs(r.buf));
-  } catch (e) { fail(res, 502, "logs_error", (e.message || "").toString().slice(0, 300)); }
+  // worker (GPU PTX) backend: jobs are request/response, no per-tenant log stream.
+  return fail(res, 501, "logs_unavailable", "Log retrieval is only available for wasm (vm) deployments.");
 });
 
 app.use((_req, res) => fail(res, 404, "not_found", "No such route."));
