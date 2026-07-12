@@ -5,7 +5,7 @@
    ============================================================ */
 c-app-detail{display:block;}
 
-.appd{display:flex;flex-direction:column;gap:16px;max-width:860px;}
+.appd{display:flex;flex-direction:column;gap:16px;}
 .appd-back{align-self:flex-start;font-family:var(--font-mono);font-size:.78rem;color:var(--text-muted);
   padding:6px 10px;border:1px solid var(--line);border-radius:var(--radius-sm);transition:.15s var(--ease);}
 .appd-back:hover{color:var(--text);border-color:var(--jade-dim);}
@@ -20,10 +20,8 @@ c-app-detail{display:block;}
 .appd-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-family:var(--font-mono);font-size:.74rem;color:var(--text-dim);}
 .appd-desc{margin:0;font-size:.98rem;color:var(--text-muted);line-height:1.6;}
 
-.appd-panel{display:flex;flex-direction:column;gap:14px;background:var(--surface);
-  border:1px solid var(--line);border-radius:var(--radius);padding:18px;}
-.appd-panel .app-verrow{gap:10px;}
-.appd-panel .app-actions{margin-top:2px;}
+.appd .app-verrow{gap:10px;}
+.appd .app-actions{margin-top:2px;}
 
 .appd.delisted{opacity:.85;}
 .appd.delisted .appd-banner{filter:grayscale(.4);}
