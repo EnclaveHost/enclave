@@ -17,7 +17,7 @@ import { appLabel, appEndpoint } from "../../components/deployments/deployments.
 import { runlog } from "../core/runlog.js";
 import { payForRuntime } from "../core/fund.js";
 import { navigate } from "../boot.js";
-import { $, $$, esc, short, wait, fmtNum, fmtDur, hlJson, hlCode, copyText, showToast, statusCls, on } from "../core/util.js";
+import { $, $$, esc, short, wait, fmtNum, fmtDur, hlJson, hlCode, copyText, showToast, statusCls, on, tosAccepted, setTosAccepted } from "../core/util.js";
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS, BASE_CHAIN, PRIVY_RDNS } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
 import { CARD_GB, NODE_VCPUS, NODE_RAM_GB, CARD_TFLOPS, NODE_GFLOPS, shareRates } from "../core/pricing.js";
@@ -215,6 +215,12 @@ async function runDeploy(){
       ["info", "uncheck “Dry run” to deploy for real"]);
     return note(plan);
   }
+
+  // the ToS gate (dry runs stay open - they send nothing). Both entry points
+  // funnel through here: the Deploy button and the fetch pane's `run`.
+  const tos = $("#tosAgree");
+  if (!(tos && tos.checked))
+    return note([["warn", "[!] real deploys need the Terms of Service box ticked (payments are crypto-only, non-custodial and final; uptime isn’t guaranteed)"]]);
 
   btn.disabled = true; const lbl = btn.textContent; btn.textContent = "working…";
   try {
@@ -696,6 +702,13 @@ function initDeploy(){
     renderDeploy();
   });
   $$(".console-tabs button").forEach(b => b.addEventListener("click", () => switchPane(b.dataset.pane)));
+  // ToS assent is shared with the store's quick-deploy modal (same
+  // localStorage key, per terms version) - accepted once = pre-checked here
+  const tos = $("#tosAgree");
+  if (tos){
+    tos.checked = tosAccepted();
+    tos.addEventListener("change", () => { setTosAccepted(tos.checked); if (tos.checked) note([]); });
+  }
   $("#deployBtn").addEventListener("click", runDeploy);
   const frb = $("#fetchRunBtn"); if (frb) frb.addEventListener("click", runDeploy);   // the snippet IS the deploy flow
   $("#resetBtn").addEventListener("click", () => {

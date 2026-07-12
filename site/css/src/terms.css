@@ -1,0 +1,10 @@
+/* ============================================================
+   Terms of Service page - a plain legal document
+   ============================================================ */
+
+.terms-doc{max-width:72ch;padding-bottom:96px;}
+.terms-updated{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);margin:0 0 34px;}
+.terms-doc h3{font-family:var(--font-mono);font-weight:600;font-size:1.02rem;color:var(--text);margin:38px 0 10px;}
+.terms-doc p{color:var(--text-muted);font-size:.95rem;line-height:1.75;margin:0 0 14px;}
+.terms-doc p b{color:var(--text);}
+.terms-doc a{color:var(--jade);}

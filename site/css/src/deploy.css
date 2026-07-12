@@ -45,8 +45,10 @@
 .endpoint-row input{flex:1;min-width:240px;background:#080C12;border:1px solid var(--line);color:var(--jade-2);font-family:var(--font-mono);font-size:.8rem;padding:.5em .7em;border-radius:8px;}
 .endpoint-row input:focus{border-color:var(--jade);outline:none;box-shadow:0 0 0 3px rgba(47,230,168,.12);}
 .ep-state{font-family:var(--font-mono);font-size:.7rem;color:var(--text-muted);} .ep-state.ok{color:var(--jade);} .ep-state.down{color:var(--amber);}
+.run-row{flex-wrap:wrap;}   /* the ToS label must never push the hint off-row on narrow screens */
 .run-row .dry{display:inline-flex;align-items:center;gap:.45em;font-family:var(--font-mono);font-size:.74rem;color:var(--text-muted);cursor:pointer;user-select:none;}
 .run-row .dry input{accent-color:var(--jade);width:14px;height:14px;cursor:pointer;}
+.run-row .tos a{color:var(--jade);}
 .ap-actions{margin-left:auto;display:flex;gap:8px;}
 .ap-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1px;background:var(--line);}
 .ap-cell{background:#0a0f17;padding:13px 18px;display:flex;flex-direction:column;gap:5px;}

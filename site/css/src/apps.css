@@ -51,6 +51,9 @@
 .qd-est{font-family:var(--font-mono);font-size:.78rem;color:var(--text-muted);margin-top:9px;}
 .qd-est b{color:var(--jade);}
 .qd-note{font-family:var(--font-mono);font-size:.74rem;color:var(--amber);margin-top:8px;}
+.qd-tos{display:flex;align-items:flex-start;gap:.6em;margin-top:14px;font-family:var(--font-mono);font-size:.72rem;line-height:1.55;color:var(--text-muted);cursor:pointer;user-select:none;}
+.qd-tos input{accent-color:var(--jade);width:14px;height:14px;flex:none;margin-top:.15em;cursor:pointer;}
+.qd-tos a{color:var(--jade);}
 .qd-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
 /* the contract link: a ghost twin of the fleet list's ↻ refresh - bare dim
    mono text that greens on hover, mini document glyph sized by the font */
