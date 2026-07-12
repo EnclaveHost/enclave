@@ -359,8 +359,14 @@ async function watchClaimAndRun(id, dPre, w){
       let d = null; try { d = await depGet(id); } catch(e){}
       if (leased(d)) claimed = d;
       else if (i === 1) w.line("info", "[*] waiting for an enclave to claim (the lease appears on-chain)…");
-      else if (i > 1 && i % 15 === 0){
-        // don't wait in silence: ask the fleet WHY it isn't claiming
+      else if (i > 1 && i % 3 === 0){
+        // Re-hint every ~6s until an enclave claims (was every 30s). The FIRST
+        // hint usually races ahead of the funding tx being visible to the
+        // fleet's (load-balanced) RPC node and is declined; a slow re-hint would
+        // strand a funded deploy on the sweep path, where a GPU enclave sits out
+        // the 120s CPU-first grace before it will take CPU work. Cheap + idempotent
+        // (a claiming enclave just answers "evaluating"); we surface the decline
+        // reason only when it CHANGES, so this stays quiet in the log.
         try {
           const h = await (await fetch(Enclave.base + "/claim-hint", { method: "POST",
             headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) })).json();
