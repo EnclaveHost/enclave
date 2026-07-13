@@ -82,4 +82,4 @@ c-deployments{display:contents;}
 .ap-attbar{font-family:var(--font-mono);font-size:.66rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;padding:9px 18px;background:#0b1119;border-bottom:1px solid var(--line-soft);}
 .ap-attpre{margin:0;padding:14px 18px;max-height:320px;overflow:auto;font-family:var(--font-mono);font-size:.76rem;line-height:1.55;white-space:pre-wrap;word-break:break-word;}
 .btn.danger{border-color:#3a2230;color:#ff8a8a;} .btn.danger:hover{border-color:#ff6b6b;background:rgba(255,107,107,.08);}
-@media(max-width:560px){.enc-spend{width:100%;order:5;}.enc-acts{margin-left:0;}}
+@media(max-width:560px){.enc-spend{width:100%;order:5;}.enc-acts{margin-left:0;width:100%;flex-direction:column;align-items:stretch;}}
