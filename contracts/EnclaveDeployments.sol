@@ -53,6 +53,7 @@ pragma solidity ^0.8.20;
 ///   - two enclaves may race to claim; the loser's tx reverts (gas, cents on Base).
 interface IERC20Auth {
     function transfer(address to, uint256 amount) external returns (bool);
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
     /// EIP-3009 (FiatTokenV2_2 bytes-signature variant: ECDSA or EIP-1271, so
     /// smart-contract wallets can pay too). Reverts unless to == msg.sender.
     function receiveWithAuthorization(
@@ -279,6 +280,23 @@ contract EnclaveDeployments {
         require(usdc.transfer(payout, value), "USDC transfer failed");
         d.balance6 += value;
         emit Funded(id, from, value);
+    }
+
+    /// @notice Fund/top-up from a prior USDC allowance: approve(this, value) then
+    ///         fund(id, value), both plain transactions authorized by msg.sender —
+    ///         no signature for the token to reinterpret. This is the funding path
+    ///         for payers whose address carries code (smart-contract wallets, and
+    ///         EIP-7702-delegated EOAs such as gas-sponsored embedded wallets):
+    ///         USDC validates EIP-3009 signatures from code-bearing addresses via
+    ///         ERC-1271 instead of ecrecover, which typical account implementations
+    ///         reject for raw digests, so fundWithAuthorization can never serve
+    ///         them. Same non-custodial forward, payer -> payout in one transfer.
+    function fund(bytes32 id, uint256 value) external {
+        Deployment storage d = _requireActive(id);
+        require(value > 0, "amount=0");
+        require(usdc.transferFrom(msg.sender, payout, value), "USDC transferFrom failed");
+        d.balance6 += value;
+        emit Funded(id, msg.sender, value);
     }
 
     /// @notice Fund/top-up with native ETH, credited as USDC-equivalent at the live
