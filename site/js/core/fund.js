@@ -6,7 +6,7 @@
    ============================================================ */
 import { Enclave, EnclaveError } from "./api.js";
 import { BASE_CHAIN } from "./config.js";
-import { encUint, encAddr, encBytes32, encBytesTail, randHex, usdc6, DEP_SEL } from "./chain.js";
+import { encUint, encAddr, encBytes32, encBytesTail, randHex, usdc6, DEP_SEL, baseRpc, waitReceipt } from "./chain.js";
 import { ensureBaseChain, sendTx } from "./wallet.js";
 import { runlog } from "./runlog.js";
 
@@ -27,6 +27,31 @@ const dataFundWithAuth = (ref, from, amt6, validAfter, validBefore, nonce, sig) 
        + encUint(validAfter) + encUint(validBefore) + encBytes32(nonce)
        + encUint(7 * 32) + encBytesTail(sig);
 const dataFundEth = (ref) => "0x" + DEP_SEL.fundEth + encBytes32(ref);
+// The allowance pair (approve on the token, then EnclaveDeployments.fund):
+// two plain msg.sender-authorized txs, nothing for USDC's signature checker
+// to reinterpret - the funding path for payers whose ADDRESS CARRIES CODE.
+const SEL_APPROVE = "095ea7b3";  // ERC-20 approve(address,uint256); verified vs viem in test/admin-console.test.mjs
+const dataApprove = (spender, amt6) => "0x" + SEL_APPROVE + encAddr(spender) + encUint(amt6);
+const dataFund = (ref, amt6) => "0x" + DEP_SEL.fund + encBytes32(ref) + encUint(amt6);
+
+/* USDC only ecrecovers EIP-3009 signatures from CODE-FREE addresses; a payer
+   with code (a Safe or other smart-contract wallet, or an EOA carrying an
+   EIP-7702 delegation - e.g. a gas-sponsored Privy embedded wallet, which
+   gains Kernel delegate code on its FIRST sponsored send) is routed to
+   ERC-1271, which account implementations reject for raw digests
+   ("FiatTokenV2: invalid signature", surfacing as a gas-estimation failure
+   before anything is sent). Those payers must fund via the allowance pair.
+   Unknown (all RPCs down) = assume bare EOA: 3009 was the status quo, and
+   the estimate-and-send path will name the problem if we guessed wrong. */
+async function payerHasCode(){
+  const params = [Enclave.address, "latest"];
+  try {
+    const code = await Enclave.provider.request({ method: "eth_getCode", params });
+    if (code != null) return code !== "0x";
+  } catch(_){}
+  try { return (await baseRpc("eth_getCode", params)) !== "0x"; }
+  catch(_){ return false; }
+}
 // USD -> wei at the enclave's quoted ETH/USD rate (an ESTIMATE for the tx amount;
 // the enclave credits the actual wei at its own live Chainlink read on arrival)
 function usdToWei(usd, ethUsd){
@@ -38,7 +63,8 @@ function usdToWei(usd, ethUsd){
 /* pay for (or top up) a deployment.
    USDC: sign an EIP-3009 ReceiveWithAuthorization (EIP-712, a gas-free wallet
          signature), then ONE payWithAuthorization tx; no approve, no
-         allowance left behind.
+         allowance left behind. EXCEPT when the payer's address carries code
+         (see payerHasCode): then approve + fund(), two plain transactions.
    ETH:  payEth(ref) with msg.value: ONE transaction; the enclave credits the wei
          as USDC-equivalent at its live Chainlink ETH/USD read when the event lands.
    `log(cls, txt)` narrates progress - defaults to the run log (the deploy
@@ -66,6 +92,23 @@ export async function payForRuntime(pay, fundUsdc, asset, log){
     log("dimln", ledger
       ? "    credited to the deployment's on-chain balance at the contract's live Chainlink rate; funds forward to Enclave"
       : "    ETH goes straight to Enclave; the enclave credits it at the live Chainlink rate");
+    return ph;
+  }
+  // Code-bearing payers can't 3009 (see payerHasCode); fund from an allowance
+  // instead. Ledger only: the legacy EnclavePay forwarder has no fund(). The
+  // exact-amount approve leaves nothing dangling on success, and a leftover
+  // allowance from a fund() that never landed is spendable only by this same
+  // payer calling fund() - it can't move money anywhere but payout.
+  if (ledger && await payerHasCode()){
+    log("info", "[*] this wallet is a smart account (code at its address), so a signed USDC authorization can't verify - funding via allowance instead");
+    log("info", "[*] approve " + usd + " USDC… (wallet · tx 1 of 2)");
+    const ah = await sendTx(pay.usdc, dataApprove(to, amt6));
+    log("dimln", "  ↳ sent " + ah + " · waiting for confirmation…");
+    await waitReceipt(ah);   // fund()'s transferFrom pulls the allowance, so it must be mined first
+    log("info", "[*] fund " + usd + " USDC · buys runtime… (wallet · tx 2 of 2)");
+    const ph = await sendTx(to, dataFund(pay.deploymentRef, amt6));
+    log("ok", "[✓] payment sent " + ph);
+    log("dimln", "    credited to the deployment's on-chain balance; funds forward to Enclave - nothing is custodied");
     return ph;
   }
   // EIP-3009: the nonce must start with the deployment ref's first 16 bytes (the

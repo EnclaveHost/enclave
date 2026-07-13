@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { encodeFunctionData, encodeDeployData, encodeAbiParameters, stringToHex, toFunctionSelector } from "viem";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const { encCall, encAddr, decodeStructArray, DEP_SCHEMA, APP_SCHEMA, VER_SCHEMA } = await import(path.join(REPO, "site/js/core/chain.js"));
+const { encCall, encAddr, decodeStructArray, DEP_SCHEMA, APP_SCHEMA, VER_SCHEMA, DEP_SEL } = await import(path.join(REPO, "site/js/core/chain.js"));
 const { CONTRACTS } = await import(path.join(REPO, "site/js/gen/contract-artifacts.js"));
 const { encCallX } = await import(path.join(REPO, "site/components/admin-console/migrate.js"));
 const ABI = (name) => JSON.parse(fs.readFileSync(path.join(REPO, "contracts", name + ".abi.json"), "utf8"));
@@ -73,6 +73,20 @@ test("owner calls encode like viem", () => {
   ];
   for (const [name, fn, mine, viems] of cases)
     eq(encCall(S(name)[fn], mine), encodeFunctionData({ abi: ABI(name), functionName: fn, args: viems }));
+});
+
+test("allowance funding pair (fund.js) encodes like viem", () => {
+  // the code-bearing-payer path in site/js/core/fund.js: approve on the token,
+  // then EnclaveDeployments.fund — pin both calldatas and the hand-pinned
+  // approve selector it hardcodes (SEL_APPROVE)
+  const id = "0x" + "1f".repeat(32), amt6 = 34000000n;
+  const encUintLocal = (n) => BigInt(n).toString(16).padStart(64, "0");
+  eq("0x" + DEP_SEL.fund + id.slice(2) + encUintLocal(amt6),
+    encodeFunctionData({ abi: ABI("EnclaveDeployments"), functionName: "fund", args: [id, amt6] }));
+  eq("0x095ea7b3" + encAddr(A1) + encUintLocal(amt6),
+    encodeFunctionData({ abi: [{ type: "function", name: "approve", stateMutability: "nonpayable",
+      inputs: [{ type: "address" }, { type: "uint256" }], outputs: [{ type: "bool" }] }],
+      functionName: "approve", args: [A1, amt6] }));
 });
 
 test("creation tx data (bytecode + ctor args) encodes like viem encodeDeployData", () => {

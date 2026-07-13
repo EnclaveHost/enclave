@@ -27,7 +27,7 @@ export const hexBig = (h) => (!h || h === "0x") ? 0n : BigInt(h);
    (EIP-3009 USDC or ETH), and enclaves claim + serve it under expiring
    leases - so a deployment outlives any single enclave, its update, or
    its crash. */
-export const DEP_SEL = { create:"1a8e502a", fundAuth:"209c0069", fundEth:"9f33dca0", get:"8eaa6ac0",
+export const DEP_SEL = { create:"1a8e502a", fund:"e46bbc9e", fundAuth:"209c0069", fundEth:"9f33dca0", get:"8eaa6ac0",
                          price:"1e897c58", cpuPrice:"3f6195cc", setActive:"6485d678" };
 export const DEP_CREATED_TOPIC = "0x3b201eb11e77934b296f908775fc0a82679683fd83a1232579f1014bcf7d3239"; // Created(bytes32,address,string,uint16,uint16,uint256)
 export const DEP_SCHEMA = [   // mirrors EnclaveDeployments.Deployment field order exactly
