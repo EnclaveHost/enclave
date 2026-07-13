@@ -1685,7 +1685,7 @@ app.post("/v1/claim-hint", async (req, res) => {
     const resuming = Number(d.leaseUntil) * 1000 > Date.now() && d.runner === _enclaveId;
     if (!resuming) {
       try {
-        await chainClient.simulateContract({ address: getAddress(DEPLOYMENTS_ADDRESS), abi: DEPLOYMENTS_ABI,
+        await chainClient.simulateContract({ address: getAddress(DEPLOYMENTS_ADDRESS), abi: CLAIM_TX_ABI,
           functionName: "claim", args: [id, _enclaveId], account: claimSigner().account });
       } catch (e) {
         return res.json({ accepted: false, reason: "claim would revert on-chain: " + (e.shortMessage || e.message) });
@@ -2112,7 +2112,7 @@ app.post("/v1/deployments", authed, async (req, res) => {
       onchain: {
         contract: DEPLOYMENTS_ADDRESS || null, chainId: CHAIN_ID, usdc: USDC_ADDRESS,
         createMethod: "create(string appRef, uint16 gpuMilli, uint16 cpuMilli, uint32 appPort, string ports, bool isPublic, "
-                    + (_depSchemaRev >= 2 ? "" : "string sshPubKey, ")
+                    + ((await depsAbi()).rev >= 2 ? "" : "string sshPubKey, ")
                     + "string configCid) returns (bytes32 id) — appRef is catalog://<appId>/<versionIndex> (runners refuse CID refs: a CID names bytes, not a version); leave configCid EMPTY and ports/appPort informational (the version's approved record decides all three)",
         fundMethod: "fundWithAuthorization(bytes32 id, address from, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes signature)",
         fundEthMethod: "fundEth(bytes32 id) payable",
@@ -3316,31 +3316,35 @@ const depsAbiFor = (components) => [
     inputs: [{ name: "start", type: "uint256" }, { name: "n", type: "uint256" }],
     outputs: [{ type: "tuple[]", components }] },
 ];
-// Which struct shape the live ledger speaks. Default to rev 1 (today's
-// deployed contract) so claims work even before the sniff resolves; the
-// background sniff flips to rev 2 the moment the ledger reports it (revert =
-// definitively rev 1, transport errors retry). One eth_call, then settled.
-let DEPLOYMENTS_ABI = depsAbiFor(DEPLOYMENT_COMPONENTS_V1);
-let _depSchemaRev = 1;
-(async function sniffDeploymentsSchema() {
-  for (;;) {
-    try {
-      const rev = await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
-        abi: [{ type: "function", name: "deploymentsSchema", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }],
-        functionName: "deploymentsSchema" });
-      if (Number(rev) >= 2) { DEPLOYMENTS_ABI = depsAbiFor(DEPLOYMENT_COMPONENTS); _depSchemaRev = Number(rev); }
-      console.log(`[claim] ledger struct schema rev ${_depSchemaRev}`);
-      return;
-    } catch (e) {
-      if (/revert|returned no data|zero data|0x$/i.test(e.shortMessage || e.message || "")) {
-        console.log("[claim] ledger struct schema rev 1 (pre-deploymentsSchema contract)");
-        return;                                        // rev-1 default already in place
-      }
-      console.warn("[claim] deploymentsSchema sniff failed, retrying:", e.shortMessage || e.message);
-      await new Promise((r) => setTimeout(r, 30_000).unref());
+// Which struct shape the ledger at DEPLOYMENTS_ADDRESS speaks. The address is
+// a LIVE binding (the address-book poll repoints it mid-flight on a contract
+// migration), so the sniff is cached PER ADDRESS and re-runs whenever the
+// address changes. A boot-once sniff kept the rev-1 ABI after a live repoint
+// to a rev-2 ledger (observed 2026-07-13, minutes after the migration cutover:
+// every get/getPage misdecoded and claim-hints 502'd). Only get/getPage decode
+// depends on the shape - claim/renew/release/claimable use CLAIM_TX_ABI below.
+let _depShape = { addr: null, rev: 1, abi: depsAbiFor(DEPLOYMENT_COMPONENTS_V1) };
+async function depsAbi() {
+  if (!DEPLOYMENTS_ADDRESS || _depShape.addr === DEPLOYMENTS_ADDRESS) return _depShape;
+  try {
+    const rev = Number(await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
+      abi: [{ type: "function", name: "deploymentsSchema", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }],
+      functionName: "deploymentsSchema" }));
+    _depShape = { addr: DEPLOYMENTS_ADDRESS, rev,
+                  abi: depsAbiFor(rev >= 2 ? DEPLOYMENT_COMPONENTS : DEPLOYMENT_COMPONENTS_V1) };
+    console.log(`[claim] ledger ${DEPLOYMENTS_ADDRESS} struct schema rev ${rev}`);
+  } catch (e) {
+    if (/revert|returned no data|zero data/i.test(e.shortMessage || e.message || "")) {
+      _depShape = { addr: DEPLOYMENTS_ADDRESS, rev: 1, abi: depsAbiFor(DEPLOYMENT_COMPONENTS_V1) };
+      console.log(`[claim] ledger ${DEPLOYMENTS_ADDRESS} struct schema rev 1 (pre-deploymentsSchema contract)`);
     }
+    // transport trouble: don't cache - serve the last known shape this round
+    // and re-sniff on the next call
   }
-})();
+  return _depShape;
+}
+// tx surface (inputs only, never decodes a Deployment tuple) - shape-independent
+const CLAIM_TX_ABI = depsAbiFor(DEPLOYMENT_COMPONENTS);
 // Claim/renew receipts carry the post-tx lease in their event - read it from
 // THERE, never from a follow-up eth_call: the public RPC's load balancer can
 // serve pre-tx state for a minute after confirmation (and rate-limit the read
@@ -3385,9 +3389,9 @@ function sendOperatorTx(address, abi, functionName, args) {
   p.receipt = rcptP;   // callers that need the outcome share the queue's own
   return p;            // receipt wait instead of polling for it a second time
 }
-const sendClaimTx = (functionName, args) => sendOperatorTx(DEPLOYMENTS_ADDRESS, DEPLOYMENTS_ABI, functionName, args);
-const readOnchainDeployment = (id) => chainClient.readContract({
-  address: getAddress(DEPLOYMENTS_ADDRESS), abi: DEPLOYMENTS_ABI, functionName: "get", args: [id] });
+const sendClaimTx = (functionName, args) => sendOperatorTx(DEPLOYMENTS_ADDRESS, CLAIM_TX_ABI, functionName, args);
+const readOnchainDeployment = async (id) => chainClient.readContract({
+  address: getAddress(DEPLOYMENTS_ADDRESS), abi: (await depsAbi()).abi, functionName: "get", args: [id] });
 
 // local rec states that no longer hold the lease — safe to re-adopt over
 // "stopping" is the pre-terminated legacy name, kept so records persisted by an
@@ -3585,7 +3589,7 @@ async function fetchLedger() {
   const all = [];
   for (let start = 0n; ; start += BigInt(CLAIM_PAGE)) {
     const page = await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
-      abi: DEPLOYMENTS_ABI, functionName: "getPage", args: [start, BigInt(CLAIM_PAGE)] });
+      abi: (await depsAbi()).abi, functionName: "getPage", args: [start, BigInt(CLAIM_PAGE)] });
     all.push(...page);
     if (page.length < CLAIM_PAGE) break;
   }
@@ -3727,7 +3731,7 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false 
     return;
   }
   const open = await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
-    abi: DEPLOYMENTS_ABI, functionName: "claimable", args: [d.id] });
+    abi: CLAIM_TX_ABI, functionName: "claimable", args: [d.id] });
   if (!open) return;
   let rcpt;
   try {
