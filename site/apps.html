@@ -67,7 +67,6 @@
         <button data-filter="delisted" type="button" hidden>Delisted</button>
       </div>
       <input type="text" id="storeSearch" placeholder="search name, CID, publisher…" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Search apps" />
-      <span class="store-count" id="storeCount"></span>
       <button class="btn btn-sm" id="storeRefresh" type="button">↻ refresh</button>
       <a class="btn btn-primary btn-sm" id="storePublishBtn" href="#publish">+ Publish app</a>
     </div>
@@ -219,7 +218,7 @@
           <div class="tier-readout" id="tierOut"></div>
         </div>
         <div class="field" id="fleetField" hidden>
-          <label>Live enclaves <span class="dim">(free capacity per enclave · the shares you pick decide the placement: GPU work needs a GPU enclave, CPU-only work fills CPU enclaves first)</span></label>
+          <label>Live enclaves <span class="dim">(the shares you pick decide the placement: GPU work needs a GPU enclave, CPU-only work fills CPU enclaves first)</span></label>
           <c-fleet-list></c-fleet-list>
         </div>
         <div class="field">
@@ -257,7 +256,6 @@
           <button class="btn btn-sm" id="resetBtn" type="button">reset</button>
           <label class="dry"><input type="checkbox" id="dryRun" /> <span>Dry run</span></label>
           <label class="dry tos"><input type="checkbox" id="tosAgree" /> <span>I agree to the <a href="terms" target="_blank" rel="noopener">Terms of Service</a> and <a href="privacy" target="_blank" rel="noopener">Privacy Policy</a></span></label>
-          <span class="hint" id="runHint">sign in to deploy</span>
         </div>
         <div class="deploy-note" id="deployNote" hidden></div>
       </div>

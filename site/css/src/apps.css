@@ -7,9 +7,8 @@
 .store-meta .chip b{color:var(--text);}
 .store-meta a.chip[href]:hover{border-color:var(--jade-dim);color:var(--text);}
 .store-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:22px 0 18px;}
-.store-toolbar .store-count{font-family:var(--font-mono);font-size:.74rem;color:var(--text-dim);margin-right:auto;}
 #storeSearch{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);
-  font-family:var(--font-mono);font-size:.82rem;padding:8px 12px;flex:1 1 340px;min-width:260px;max-width:560px;}
+  font-family:var(--font-mono);font-size:.82rem;padding:8px 12px;flex:1 1 340px;min-width:260px;max-width:560px;margin-right:auto;}
 #storeSearch:focus{outline:none;border-color:var(--jade-dim);}
 .store-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;}
 .store-note{grid-column:1/-1;text-align:center;color:var(--text-muted);padding:44px 16px;border:1px dashed var(--line);border-radius:var(--radius);background:var(--bg-1);}
