@@ -13,8 +13,8 @@
 // capability on the data path. It is ES256-signed by a key MINTED IN-ENCLAVE at
 // boot (see initSessionKey) — the operator, who provisions the fleet SECRET,
 // cannot forge one because the private half never leaves this CVM. SECRET now
-// only backs the manager control-token and the DNS-push HMAC, plus (during the
-// migration window) legacy HS256 session tokens accepted until SESSION_ACCEPT_LEGACY=0.
+// only backs the manager control-token and the DNS-push HMAC — it never signs
+// or verifies a session token.
 //
 // >>> The ONLY thing left to implement for your CVM is spawn/stop/measure below.
 
@@ -91,12 +91,6 @@ const CORS_ORIGINS   = (process.env.CORS_ORIGINS || "https://enclave.host").spli
 // within a CVM boot keeps sessions valid; a full relaunch mints a fresh key, at
 // which point clients re-attest + re-login anyway (the shim TLS pin also rotates).
 const SESSION_KEY_DIR = process.env.SESSION_KEY_DIR || "/mnt/ramdisk/enclave-session";
-// Accept legacy HS256(SECRET) tokens during the fleet migration so tokens minted
-// before this release keep working through their TTL. Set SESSION_ACCEPT_LEGACY=0
-// fleet-wide once every enclave serves ES256 — THAT is what finally closes the
-// operator-forgeability gap. Left ON by default so deploying this code alone
-// changes nothing operationally.
-const SESSION_ACCEPT_LEGACY = (process.env.SESSION_ACCEPT_LEGACY ?? "1") !== "0";
 let SESSION_PRIV = null, SESSION_PUB = null, SESSION_JWK = null, SESSION_KID = "";
 
 function initSessionKey() {
@@ -127,31 +121,21 @@ async function mintSession(subject, expiresAt) {
     .setExpirationTime(expiresAt.getTime() / 1000 | 0).sign(SESSION_PRIV);
 }
 
-// Verify a session token -> checksummed address, or null. Dispatches on the
-// header alg and pins `algorithms` per branch, so an attacker cannot get an
-// HS256 token verified against the EC public key (alg-confusion) or vice versa.
-//   • ES256 + our kid  -> verify with our in-enclave PUBLIC key (operator can't mint).
-//   • ES256 + other kid-> fail closed: it was minted by a DIFFERENT enclave and
-//                         we don't (yet) trust foreign keys, so the client must
-//                         re-run SIWE against whichever enclave serves it. On a
-//                         single-enclave fleet this never triggers. (Transparent
-//                         fleet roaming via attestation-anchored peer JWKS is the
-//                         documented follow-on — see SECURITY note in the repo.)
-//   • HS256            -> legacy path, only while SESSION_ACCEPT_LEGACY is set.
+// Verify a session token -> checksummed address, or null. ES256 ONLY, verified
+// against our in-enclave PUBLIC key, with `algorithms` pinned so no other alg
+// (e.g. an HS256 token an attacker tries to have verified against the EC key as
+// an HMAC secret — the classic alg-confusion) is ever accepted. A token whose
+// kid is a DIFFERENT enclave's fails closed here → the client re-runs SIWE
+// against whichever enclave serves it (pin-to-issuer). On the current
+// single-enclave fleet that never triggers. (Transparent fleet roaming via
+// attestation-anchored peer JWKS is the documented follow-on — see docs/session-auth.md.)
 async function verifySessionToken(token) {
-  if (!token || typeof token !== "string") return null;
+  if (!token || typeof token !== "string" || !SESSION_PUB) return null;
   let hdr;
   try { hdr = JSON.parse(Buffer.from(token.split(".")[0] || "", "base64url").toString("utf8")); } catch { return null; }
-  if (hdr && hdr.alg === "ES256") {
-    if (!SESSION_PUB || hdr.kid !== SESSION_KID) return null;
-    try { const { payload } = await jwtVerify(token, SESSION_PUB, { algorithms: ["ES256"], issuer: SESSION_KID }); return getAddress(payload.sub); }
-    catch { return null; }
-  }
-  if (hdr && hdr.alg === "HS256" && SESSION_ACCEPT_LEGACY) {
-    try { const { payload } = await jwtVerify(token, SECRET, { algorithms: ["HS256"] }); return getAddress(payload.sub); }
-    catch { return null; }
-  }
-  return null;
+  if (!hdr || hdr.alg !== "ES256" || hdr.kid !== SESSION_KID) return null;
+  try { const { payload } = await jwtVerify(token, SESSION_PUB, { algorithms: ["ES256"], issuer: SESSION_KID }); return getAddress(payload.sub); }
+  catch { return null; }
 }
 // This enclave's on-chain identity is bound to its OWN attested shim-cert SAN
 // (see registerFromShimCert), never to the request Host/x-forwarded-host header —

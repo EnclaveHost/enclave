@@ -56,26 +56,23 @@ published through that same attested channel.
 
 ### Alg-confusion is handled
 
-`verifySessionToken` dispatches on the header `alg` and pins `algorithms` per
-branch (`['ES256']` against the EC public key, `['HS256']` against `SECRET`), so
-an attacker cannot get an HS256 token verified against the EC public key or vice
-versa. See `test` proof in the change that introduced this.
+`verifySessionToken` accepts **only** `ES256` verified against the EC public key,
+with `algorithms: ['ES256']` pinned, so an attacker cannot get a token of any
+other `alg` (e.g. an `HS256` token they hope will be verified against the EC
+public key as an HMAC secret — the classic alg-confusion) accepted. There is no
+`HS256`/`SECRET` verification path at all.
 
-## Migration (safe by default)
+## No legacy path
 
-`SESSION_ACCEPT_LEGACY` (default `"1"`) keeps accepting the old HS256(`SECRET`)
-tokens so sessions minted before this release survive their TTL, and deploying
-the code alone changes nothing operationally.
-
-**Rollout order:**
-1. Ship this release to every enclave (all now mint ES256; legacy still accepted).
-2. Let the old tokens age out (≤ `SESSION_TTL`).
-3. Set `SESSION_ACCEPT_LEGACY=0` fleet-wide. **This is the step that actually
-   closes the operator-forgeability gap** — until then the operator can still
-   mint a legacy HS256 token.
+There was never a live session to migrate, so this shipped as a hard cut: the old
+`HS256(SECRET)` mint/verify path was removed outright, not flagged off. The
+operator-forgeability gap is closed the moment this release is live — there is no
+`SESSION_ACCEPT_LEGACY` switch and no window in which a `SECRET`-signed token is
+honored.
 
 `SECRET` stays required: it still backs the manager control-token
-(`VMMGR_TOKEN`) and the DNS-push HMAC seed. It just no longer signs sessions.
+(`VMMGR_TOKEN`) and the DNS-push HMAC seed. It just never signs or verifies a
+session token.
 
 ## Cross-enclave sessions
 

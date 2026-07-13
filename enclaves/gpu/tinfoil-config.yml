@@ -105,11 +105,8 @@ containers:
       # to /mnt/ramdisk/enclave-session tmpfs, never host disk), so the operator —
       # who provisions the fleet SECRET below — CANNOT forge a session token. The
       # public half is published at /v1/session-jwks and inside /v1/attestation.
-      # SESSION_ACCEPT_LEGACY (default "1") keeps accepting the OLD HS256(SECRET)
-      # tokens so sessions minted before this release survive their TTL. Flip it to
-      # "0" fleet-wide once every enclave serves ES256 — that is what finally closes
-      # the operator-forgeability gap. Leave it unset until the whole fleet is upgraded.
-      # - SESSION_ACCEPT_LEGACY: "0"
+      # There is NO HS256/SECRET fallback: a token that isn't ES256 over this key
+      # is rejected, so nothing the operator holds can mint or verify a session.
       # attestation: /v1/attestation relays the shim's Remote Attestation Document
       # (fetched from /.well-known/tinfoil-attestation on loopback; ATTESTATION_URL
       # overrides discovery if the shim binds elsewhere). ENCLAVE_REPO is the repo
