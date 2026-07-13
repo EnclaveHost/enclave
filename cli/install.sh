@@ -1,7 +1,7 @@
 #!/bin/sh
 # enclave CLI installer (Linux/macOS). Two ways in, same artifact out:
 #
-#   curl -fsSL https://enclave.host/install.sh | sh    # hosted one-liner (also: get.enclave.host)
+#   curl -fsSL https://get.enclave.host | sh          # hosted one-liner (also: enclave.host/install.sh)
 #   ./cli/install.sh                                   # from a checkout
 #   PREFIX=/usr/local ./cli/install.sh
 #
@@ -14,7 +14,7 @@
 # BEFORE shipping it: this is a key-holding signing binary.)
 #
 # Needs node >= 20 and npm; hosted mode also needs tar and curl or wget.
-# Windows: irm https://enclave.host/install.ps1 | iex  (or npm install -g ./cli)
+# Windows: irm https://get.enclave.host/install.ps1 | iex  (or npm install -g ./cli)
 set -eu
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "error: $1 is required" >&2; exit 1; }; }
