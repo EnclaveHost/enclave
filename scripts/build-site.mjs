@@ -226,7 +226,7 @@ const LASTMOD = (() => {
 fs.writeFileSync(path.join(DIST, "sitemap.xml"),
   '<?xml version="1.0" encoding="UTF-8"?>\n' +
   '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
-  ["", "apps", "apps/deploy", "apps/publish", "develop", "terms", "privacy"]
+  ["", "apps/", "apps/deploy", "apps/publish", "develop", "terms", "privacy"]
     .map(u => `  <url><loc>https://enclave.host/${u}</loc><lastmod>${LASTMOD}</lastmod></url>`).join("\n") +
   "\n</urlset>\n");
 // Google's favicon crawler needs a fetchable file, and legacy fetchers ask
@@ -269,7 +269,7 @@ const retitle = (html, v) => html
       "@context": "https://schema.org", "@type": "BreadcrumbList",
       "itemListElement": [
         { "@type": "ListItem", "position": 1, "name": "Enclave", "item": "https://enclave.host/" },
-        { "@type": "ListItem", "position": 2, "name": "Apps", "item": "https://enclave.host/apps" },
+        { "@type": "ListItem", "position": 2, "name": "Apps", "item": "https://enclave.host/apps/" },
         { "@type": "ListItem", "position": 3, "name": v.crumb, "item": v.url },
       ],
     }) + "\n</script>");
