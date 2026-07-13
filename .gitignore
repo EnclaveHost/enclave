@@ -14,6 +14,9 @@ wasm/apps/*/src/bindings.rs
 wasm/apps/*/assets/
 # but keep the small embedded config (source, not a fetched artifact)
 !wasm/apps/*/assets/app-config.json
+# wasi-nn host shims: sources are tracked, the .so is built into the
+# Wasmtime Toolchain image (never committed)
+wasm/*-shim/*.so
 # enclave CLI: bundled single-file build (cli/install.sh or npm run build)
 cli/dist/
 # site: bundled output (built by scripts/build-site.mjs; deploy.sh ships it)

@@ -37,7 +37,9 @@ Notes:
 - Apps must be wasi:http components (what `wasmtime serve` runs). A WASIX/wasmer
   socket-server launcher can be added behind the same LAUNCHER seam later.
 - Attached model volumes (MODEL_VOLUMES) that carry a GGUF are preloaded as
-  host wasi-nn graphs for GPU tenants (see _gguf_path / _stage_nn_graph). A
+  host wasi-nn graphs for GPU tenants (see _gguf_path / _stage_nn_graph);
+  volumes named in MODEL_VOLUMES_SD preload through the stable-diffusion.cpp
+  backend instead (image checkpoints - see _sd_checkpoint_path). A
   volume may ship a single *.gguf OR a llama.cpp split family
   ("<prefix>-NNNNN-of-MMMMM.gguf"); the whole family is staged together so
   models larger than HF's 50GB per-file cap load as one graph.
@@ -204,6 +206,14 @@ MPS_PIPE_DIR = os.environ.get("CUDA_MPS_PIPE_DIRECTORY", "/tmp/nvidia-mps")
 # local dev without a real Modelwrap mount). Names must be [a-z0-9-]+.
 MODEL_VOLUME_ROOT = pathlib.Path(os.environ.get("MODEL_VOLUME_ROOT", "/tinfoil/mpk"))
 _MODEL_VOLUMES_ENV = os.environ.get("MODEL_VOLUMES", "").strip()
+# Volumes that preload through the stable-diffusion.cpp backend
+# (-S nn-graph=sd::<dir>) instead of ggml/llama.cpp: comma-separated volume
+# names. EXPLICIT by design - an image-diffusion GGUF (FLUX quant) is
+# indistinguishable from an LLM GGUF by extension, and preloading a 13 GB
+# checkpoint into the wrong backend fails only at load time. MODEL_VOLUMES'
+# optional third field still picks the file within the volume.
+_SD_VOLUMES_ENV = os.environ.get("MODEL_VOLUMES_SD", "").strip()
+_SD_VOLUMES = {v.strip() for v in _SD_VOLUMES_ENV.split(",") if v.strip()}
 _VOL_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 
 NN_PROBE_TIMEOUT = float(os.environ.get("WASM_NN_PROBE_TIMEOUT", "75"))   # worker.py validated ~60s CC init; match its patience
@@ -731,6 +741,28 @@ def _split_family(gguf):
     return parts if count >= 1 and all(x.is_file() for x in parts) else None
 
 
+def _sd_checkpoint_path(name: str, host_path):
+    """The image checkpoint an MODEL_VOLUMES_SD volume preloads through the
+    sdcpp backend: the MODEL_VOLUMES-selected file when given, else
+    model.safetensors / model.gguf, else the single top-level
+    *.safetensors/*.gguf/*.ckpt in the dir. None = nothing unambiguous (the
+    sdcpp backend would refuse the same way; failing here keeps the launch
+    args honest)."""
+    p = pathlib.Path(host_path)
+    sel = _vol_gguf_selection().get(name)
+    if sel:
+        f = p / sel
+        return f if f.is_file() else None
+    for preferred in ("model.safetensors", "model.gguf"):
+        f = p / preferred
+        if f.is_file():
+            return f
+    ckpts = [x for x in p.glob("*.safetensors") if x.is_file()]
+    ckpts += [x for x in p.glob("*.gguf") if x.is_file()]
+    ckpts += [x for x in p.glob("*.ckpt") if x.is_file()]
+    return ckpts[0] if len(ckpts) == 1 else None
+
+
 def _gguf_path(name: str, host_path):
     """The concrete GGUF a volume preloads: the MODEL_VOLUMES-selected file
     when given, else model.gguf, else the single *.gguf, else part 00001 of
@@ -780,10 +812,12 @@ def _model_volumes() -> dict:
             top = []
         onnx = any(x.endswith(".onnx") for x in top) or (p / "model.onnx").exists()
         # a GGUF volume doubles as a host-preloaded wasi-nn graph (the ggml
-        # backend) when one unambiguous file exists or MODEL_VOLUMES picks it
-        gguf = _gguf_path(name, p) is not None
+        # backend) when one unambiguous file exists or MODEL_VOLUMES picks it;
+        # MODEL_VOLUMES_SD volumes preload through sdcpp instead
+        sd = name in _SD_VOLUMES and _sd_checkpoint_path(name, p) is not None
+        gguf = not sd and _gguf_path(name, p) is not None
         out[name] = {"name": name, "path": str(p), "bytes": _dir_bytes(p),
-                     "onnx": onnx, "gguf": gguf, "files": top}
+                     "onnx": onnx, "gguf": gguf, "sd": sd, "files": top}
     if MODEL_VOLUME_ROOT.is_dir():
         try:
             for child in MODEL_VOLUME_ROOT.iterdir():
@@ -821,12 +855,16 @@ def _stage_nn_graph(name: str, gguf):
     effect and concurrent launches never see a missing or ambiguous file."""
     d = FS_DIR / "nn-graph" / name
     fam = _split_family(gguf)
-    targets = {x.name: x for x in fam} if fam else {"model.gguf": gguf}
+    # sd checkpoints stage under model.<their real suffix> (the sdcpp backend
+    # accepts model.safetensors / model.gguf / a single file); LLM ggufs keep
+    # the model.gguf / split-family contract.
+    targets = {x.name: x for x in fam} if fam else {f"model{gguf.suffix}": gguf}
     try:
         d.mkdir(parents=True, exist_ok=True)
-        for stale in d.glob("*.gguf"):
-            if stale.name not in targets:
-                stale.unlink()
+        for pat in ("*.gguf", "*.safetensors", "*.ckpt"):
+            for stale in d.glob(pat):
+                if stale.name not in targets:
+                    stale.unlink()
         for link_name, src in targets.items():
             tmp = d / f".{link_name}.{os.getpid()}"
             if tmp.is_symlink() or tmp.exists():
@@ -1744,6 +1782,18 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     # of a split family selects the whole family).
     if nn:
         for name, host_path in vol_mounts.items():
+            # MODEL_VOLUMES_SD volumes preload through the sdcpp backend
+            # (image txt2img pipelines: safetensors/ckpt checkpoints, FLUX
+            # gguf quants); everything else with a GGUF is an LLM for ggml.
+            if name in _SD_VOLUMES:
+                ckpt = _sd_checkpoint_path(name, host_path)
+                if not ckpt:
+                    print(f"[nn-graph] sd volume '{name}': no unambiguous checkpoint", flush=True)
+                    continue
+                stage = _stage_nn_graph(name, ckpt)
+                if stage:
+                    vol_args += ["-S", f"nn-graph=sd::{stage}"]
+                continue
             gguf = _gguf_path(name, host_path)
             if not gguf:
                 continue
