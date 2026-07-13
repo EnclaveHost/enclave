@@ -63,7 +63,10 @@ containers:
     volumes:
       - /mnt/ramdisk/nvidia-mps:/tmp/nvidia-mps          # join the MPS daemon
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8090/health || exit 1"]
+      # /health is token-gated like every worker endpoint, so the probe must
+      # present the bearer ($WORKER_TOKEN is injected into the container env;
+      # unset expands empty and the worker's auth-off fallback still answers).
+      test: ["CMD-SHELL", 'curl -sf -H "Authorization: Bearer $WORKER_TOKEN" http://localhost:8090/health || exit 1']
       interval: 15s
       timeout: 5s
       retries: 10
