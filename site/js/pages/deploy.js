@@ -761,8 +761,6 @@ function initDeploy(){
 // own). Subscribed once at module load; every callee null-guards its elements,
 // so it's inert while another page's <main> is mounted.
 on("enclave:wallet", () => {
-  const rh = $("#runHint");
-  if (rh) rh.textContent = Enclave.address ? "ready to deploy" : "connect your wallet to deploy";
   updatePayAssetUI();
 });
 
