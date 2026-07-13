@@ -9,8 +9,12 @@
 //                           spawned container; fly.io used to do nothing here -
 //                           now nothing external touches a prompt at all)
 //
-// One signing SECRET (an enclave secret). One token type: the session JWT the
-// browser gets at login is reused as the capability on the data path.
+// One token type: the session JWT the browser gets at login is reused as the
+// capability on the data path. It is ES256-signed by a key MINTED IN-ENCLAVE at
+// boot (see initSessionKey) — the operator, who provisions the fleet SECRET,
+// cannot forge one because the private half never leaves this CVM. SECRET now
+// only backs the manager control-token and the DNS-push HMAC, plus (during the
+// migration window) legacy HS256 session tokens accepted until SESSION_ACCEPT_LEGACY=0.
 //
 // >>> The ONLY thing left to implement for your CVM is spawn/stop/measure below.
 
@@ -21,7 +25,7 @@ import https from "node:https";
 import net from "node:net";
 import tls from "node:tls";
 import dgram from "node:dgram";
-import { createHash, createHmac, randomBytes, generateKeyPairSync, sign as cryptoSign, verify as cryptoVerify, timingSafeEqual, X509Certificate } from "node:crypto";
+import { createHash, createHmac, randomBytes, generateKeyPairSync, createPublicKey, createPrivateKey, sign as cryptoSign, verify as cryptoVerify, timingSafeEqual, X509Certificate } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { execFileSync, execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -72,6 +76,83 @@ const SIWE_DOMAIN    = process.env.SIWE_DOMAIN || "enclave.host";
 const SIWE_URI       = process.env.SIWE_URI || "https://enclave.host";
 const CHAIN_ID       = parseInt(process.env.CHAIN_ID || "8453", 10);
 const CORS_ORIGINS   = (process.env.CORS_ORIGINS || "https://enclave.host").split(",").map(s => s.trim()).filter(Boolean);
+
+// ---- session signing key (in-enclave, asymmetric) --------------------------
+// The session JWT proves "you hold wallet X" for private deployments, logs, and
+// owner-only endpoints. It USED to be HS256 over the fleet-wide SECRET — but that
+// makes the MINTING key equal to the VERIFYING key equal to a value the operator
+// provisions, so the operator could mint a token for ANY wallet and skip the
+// signature check that login enforces. Now the token is ES256, signed by an
+// EC P-256 private key MINTED IN-ENCLAVE at boot (like the TLS-bridge key): the
+// operator never sees the private half, so they cannot forge a session. The
+// public half is published (/v1/session-jwks, and inside /v1/attestation) so
+// anyone can verify a token — and confirm the operator did not mint it — holding
+// no secret. Persisted to its OWN tmpfs (never host disk) so a container restart
+// within a CVM boot keeps sessions valid; a full relaunch mints a fresh key, at
+// which point clients re-attest + re-login anyway (the shim TLS pin also rotates).
+const SESSION_KEY_DIR = process.env.SESSION_KEY_DIR || "/mnt/ramdisk/enclave-session";
+// Accept legacy HS256(SECRET) tokens during the fleet migration so tokens minted
+// before this release keep working through their TTL. Set SESSION_ACCEPT_LEGACY=0
+// fleet-wide once every enclave serves ES256 — THAT is what finally closes the
+// operator-forgeability gap. Left ON by default so deploying this code alone
+// changes nothing operationally.
+const SESSION_ACCEPT_LEGACY = (process.env.SESSION_ACCEPT_LEGACY ?? "1") !== "0";
+let SESSION_PRIV = null, SESSION_PUB = null, SESSION_JWK = null, SESSION_KID = "";
+
+function initSessionKey() {
+  const keyPath = join(SESSION_KEY_DIR, "session-ec-p256.pkcs8.pem");
+  let privObj = null;
+  try { privObj = createPrivateKey(readFileSync(keyPath, "utf8")); } catch {}   // reuse across a container restart
+  if (!privObj) {
+    const { privateKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
+    privObj = privateKey;
+    try {
+      mkdirSync(SESSION_KEY_DIR, { recursive: true });
+      writeFileSync(keyPath, privateKey.export({ type: "pkcs8", format: "pem" }), { mode: 0o600 });
+    } catch (e) { console.error("[session] tmpfs persist failed — key is in-memory only this boot:", e.message); }
+    console.log("[session] minted in-enclave ES256 session-signing key");
+  }
+  SESSION_PRIV = privObj;
+  SESSION_PUB  = createPublicKey(privObj);
+  const j = SESSION_PUB.export({ format: "jwk" });                 // { kty:'EC', crv:'P-256', x, y }
+  SESSION_KID = jwkThumbprint(j);                                  // RFC 7638; stable per key, unique per enclave
+  SESSION_JWK = { kty: j.kty, crv: j.crv, x: j.x, y: j.y, kid: SESSION_KID, alg: "ES256", use: "sig" };
+}
+
+// Mint the session token: ES256 over the in-enclave key. `iss`/`kid` = our key
+// thumbprint, so a verifier can tell OUR tokens from another enclave's.
+async function mintSession(subject, expiresAt) {
+  return new SignJWT({}).setProtectedHeader({ alg: "ES256", kid: SESSION_KID })
+    .setIssuer(SESSION_KID).setSubject(subject)
+    .setExpirationTime(expiresAt.getTime() / 1000 | 0).sign(SESSION_PRIV);
+}
+
+// Verify a session token -> checksummed address, or null. Dispatches on the
+// header alg and pins `algorithms` per branch, so an attacker cannot get an
+// HS256 token verified against the EC public key (alg-confusion) or vice versa.
+//   • ES256 + our kid  -> verify with our in-enclave PUBLIC key (operator can't mint).
+//   • ES256 + other kid-> fail closed: it was minted by a DIFFERENT enclave and
+//                         we don't (yet) trust foreign keys, so the client must
+//                         re-run SIWE against whichever enclave serves it. On a
+//                         single-enclave fleet this never triggers. (Transparent
+//                         fleet roaming via attestation-anchored peer JWKS is the
+//                         documented follow-on — see SECURITY note in the repo.)
+//   • HS256            -> legacy path, only while SESSION_ACCEPT_LEGACY is set.
+async function verifySessionToken(token) {
+  if (!token || typeof token !== "string") return null;
+  let hdr;
+  try { hdr = JSON.parse(Buffer.from(token.split(".")[0] || "", "base64url").toString("utf8")); } catch { return null; }
+  if (hdr && hdr.alg === "ES256") {
+    if (!SESSION_PUB || hdr.kid !== SESSION_KID) return null;
+    try { const { payload } = await jwtVerify(token, SESSION_PUB, { algorithms: ["ES256"], issuer: SESSION_KID }); return getAddress(payload.sub); }
+    catch { return null; }
+  }
+  if (hdr && hdr.alg === "HS256" && SESSION_ACCEPT_LEGACY) {
+    try { const { payload } = await jwtVerify(token, SECRET, { algorithms: ["HS256"] }); return getAddress(payload.sub); }
+    catch { return null; }
+  }
+  return null;
+}
 // This enclave's on-chain identity is bound to its OWN attested shim-cert SAN
 // (see registerFromShimCert), never to the request Host/x-forwarded-host header —
 // a spoofable value — so no caller can make the enclave advertise a bogus origin.
@@ -1357,9 +1438,7 @@ app.use((req, _res, next) => {
 
 async function addrFromAuth(req) {
   const m = (req.headers.authorization || "").match(/^Bearer\s+(.+)$/i);
-  if (!m) return null;
-  try { const { payload } = await jwtVerify(m[1], SECRET); return getAddress(payload.sub); }
-  catch { return null; }
+  return m ? verifySessionToken(m[1]) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -1810,8 +1889,7 @@ app.post("/v1/auth/login", async (req, res) => {
   if (!ok) return fail(res, 401, "bad_signature", "Signature verification failed.");
   nonces.delete(nonce);
   const expiresAt = new Date(Date.now() + SESSION_TTL * 1000);
-  const token = await new SignJWT({}).setProtectedHeader({ alg: "HS256" }).setSubject(claimed)
-    .setExpirationTime(expiresAt.getTime() / 1000 | 0).sign(SECRET);
+  const token = await mintSession(claimed, expiresAt);
   res.json({ token, tokenType: "Bearer", address: claimed, expiresAt: expiresAt.toISOString() });
 });
 
@@ -2622,6 +2700,13 @@ app.get("/v1/deployments/:id/attestation", authed, async (req, res) => {
 let _gpuEvCache = null;                       // { ev?, err?, at } - failures cached briefly too
 app.get("/v1/attestation", async (req, res) => {
   const out = await getMeasurements(null, { origin: originOf(req) });
+  // Bind the session-verification key to the attestation: a client that trusts
+  // this document can trust this key, and thus verify that a session token was
+  // ES256-signed in-enclave (not HMAC-minted by the operator). Full key at /v1/session-jwks.
+  out.sessionKey = SESSION_JWK
+    ? { kid: SESSION_KID, alg: "ES256", jwks: "/v1/session-jwks", keySource: "in-enclave",
+        note: "Session JWTs are ES256-signed by this in-enclave key; the operator cannot mint one." }
+    : null;
   if (!IS_GPU)                                 // CPU-only enclave: no card, no NVML evidence to fetch
     return res.json({ generatedAt: new Date().toISOString(), ...out, guideUrl: "https://enclave.host/#attest" });
   try {
@@ -2655,6 +2740,16 @@ app.get("/v1/tls-bridge", (_req, res) => {
              verify: "Verify this origin's /v1/attestation first; then require the served cert on "
                    + "<dep-id>.tcp.<domain> connections to match fingerprint256 (or pin spkiPinSha256, "
                    + "or use `certificate` as your sole trust root - it is self-signed, minted in-enclave)." });
+});
+
+// PUBLIC session-verification key set (JWKS, RFC 7517). The session JWT is
+// ES256-signed by a key minted in-enclave at boot; this is its PUBLIC half,
+// served over the attested origin. A client/relay/peer enclave can verify a
+// token — and confirm the operator did NOT mint it — while holding no secret.
+// The private key never left this CVM.
+app.get("/v1/session-jwks", (_req, res) => {
+  res.set("cache-control", "public, max-age=300");
+  res.json({ keys: SESSION_JWK ? [SESSION_JWK] : [] });
 });
 
 // UDP routing map, PUBLIC: the udp-relay (relay/udp-relay.js) polls this to learn
@@ -2730,7 +2825,7 @@ async function authUpgrade(req) {
   if (h) token = h[1];
   else { try { token = new URL(req.url, "http://x").searchParams.get("token"); } catch {} }
   if (!token) return null;
-  try { const { payload } = await jwtVerify(token, SECRET); return getAddress(payload.sub); } catch { return null; }
+  return verifySessionToken(token);
 }
 
 // --- platform-terminated TLS for app TCP ports (/x/:id/tls/:port) -----------
@@ -2805,6 +2900,7 @@ function initTlsBridge() {
     };
   } catch (e) { console.error("[tls-bridge] in-enclave cert mint failed (openssl missing?) - /tls/ bridge disabled:", e.message); }
 }
+initSessionKey();
 initTlsBridge();
 if (TLS_BRIDGE_CTX) console.log(`[tls-bridge] in-enclave TLS termination enabled (/x/:id/tls/:port) · ${TLS_BRIDGE_INFO.fingerprint256}`);
 

@@ -6,9 +6,9 @@
 // It reads EnclaveRegistry on Base for live enclaves (slow-moving truth: who
 // exists), polls each one's public /availability (fast-moving truth: free
 // capacity), and routes each request by what it IS. A deployment lives on ONE
-// enclave, sessions are stateless JWTs (HS256 over the enclave SECRET — give
-// every enclave the SAME secret or a login only works on the enclave that
-// issued it), and only CREATION is a placement decision:
+// enclave, sessions are stateless JWTs (ES256, signed by each enclave's
+// in-enclave key — a login is currently pinned to the enclave that issued it;
+// see docs/session-auth.md), and only CREATION is a placement decision:
 //
 //   POST /v1/deployments        -> pick() by the body's resources.{gpuShare,cpuShare}
 //                                  (CPU-only work -> CPU enclaves first; GPU work
@@ -386,8 +386,9 @@ function ledgerView(d) {
 // return. Enclaves keep verifying it for everything they serve.
 function tokenAddress(auth) {
   // SECURITY INVARIANT (fix 11): this decodes the JWT WITHOUT verifying its
-  // HS256 signature (the relay deliberately doesn't hold the enclave SECRET), so
-  // the returned address is UNTRUSTED. It may ONLY be used to scope which
+  // signature (the relay holds no key — it can't verify an ES256 token and
+  // deliberately never held the old HS256 SECRET either), so the returned
+  // address is UNTRUSTED. It may ONLY be used to scope which
   // wallet's PUBLIC on-chain ledger rows to return — never to authorize an
   // action or release private data. Anything sensitive stays enclave-verified.
   const m = /^Bearer\s+(.+)$/.exec(auth || ""); if (!m) return null;
