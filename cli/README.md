@@ -18,11 +18,11 @@ enclave logs 0x3xk9… -f
 Needs node ≥ 20 on every platform.
 
 ```sh
-curl -fsSL https://enclave.host/install.sh | sh   # Linux/macOS, no checkout needed
+curl -fsSL https://get.enclave.host | sh          # Linux/macOS, no checkout needed
 ```
 
 ```powershell
-irm https://enclave.host/install.ps1 | iex        # Windows, no checkout needed
+irm https://get.enclave.host/install.ps1 | iex    # Windows, no checkout needed
 ```
 
 The hosted one-liners fetch the source tarball of this repo from GitHub and

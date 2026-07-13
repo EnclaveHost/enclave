@@ -1,7 +1,7 @@
 # enclave CLI installer (Windows) — PowerShell counterpart of install.sh.
 # Two ways in, same artifact out:
 #
-#   irm https://enclave.host/install.ps1 | iex          # hosted one-liner (also: get.enclave.host/install.ps1)
+#   irm https://get.enclave.host/install.ps1 | iex      # hosted one-liner (also: enclave.host/install.ps1)
 #   .\cli\install.ps1                                   # from a checkout
 #     (or: powershell -ExecutionPolicy Bypass -File cli\install.ps1)
 #
