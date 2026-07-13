@@ -1,0 +1,560 @@
+diff --git a/crates/wasi-nn/Cargo.toml b/crates/wasi-nn/Cargo.toml
+index 618b7c0..6ad3216 100644
+--- a/crates/wasi-nn/Cargo.toml
++++ b/crates/wasi-nn/Cargo.toml
+@@ -74,6 +74,10 @@ onnx = ["dep:ort"]
+ # ggml/llama.cpp backend: pure FFI against the system-linked enclave_llama
+ # shim (ELL_LIB_LOCATION at build time) - no cargo dependencies at all.
+ ggml = []
++# stable-diffusion.cpp backend: pure FFI against the system-linked enclave_sd
++# shim (ESD_LIB_LOCATION at build time) - no cargo dependencies at all.
++# Preload-only ("-S nn-graph=sd::<dir>" + load_by_name).
++sdcpp = []
+ # Use prebuilt ONNX Runtime binaries from ort.
+ onnx-download = ["onnx", "ort/download-binaries"]
+ # CUDA execution provider for NVIDIA GPU support (requires CUDA toolkit)
+diff --git a/crates/wasi-nn/build.rs b/crates/wasi-nn/build.rs
+index af89d10..cac6b1e 100644
+--- a/crates/wasi-nn/build.rs
++++ b/crates/wasi-nn/build.rs
+@@ -12,6 +12,17 @@ fn main() {
+         println!("cargo:rustc-link-lib=dylib=llama");
+     }
+ 
++    // sdcpp backend links the enclave_sd shim (and transitively
++    // libstable-diffusion) from ESD_LIB_LOCATION - same pattern.
++    if std::env::var("CARGO_FEATURE_SDCPP").is_ok() {
++        println!("cargo:rerun-if-env-changed=ESD_LIB_LOCATION");
++        if let Ok(dir) = std::env::var("ESD_LIB_LOCATION") {
++            println!("cargo:rustc-link-search=native={dir}");
++        }
++        println!("cargo:rustc-link-lib=dylib=enclave_sd");
++        println!("cargo:rustc-link-lib=dylib=stable-diffusion");
++    }
++
+     let cwd = std::env::current_dir().unwrap();
+     let wasi_root = cwd.join("witx");
+ 
+diff --git a/crates/wasi-nn/src/backend/mod.rs b/crates/wasi-nn/src/backend/mod.rs
+index b8d8710..05697c5 100644
+--- a/crates/wasi-nn/src/backend/mod.rs
++++ b/crates/wasi-nn/src/backend/mod.rs
+@@ -6,6 +6,8 @@
+ pub mod ggml;
+ #[cfg(feature = "onnx")]
+ pub mod onnx;
++#[cfg(feature = "sdcpp")]
++pub mod sdcpp;
+ #[cfg(all(feature = "openvino", target_pointer_width = "64"))]
+ pub mod openvino;
+ #[cfg(feature = "pytorch")]
+@@ -17,6 +19,8 @@ pub mod winml;
+ use self::ggml::GgmlBackend;
+ #[cfg(feature = "onnx")]
+ use self::onnx::OnnxBackend;
++#[cfg(feature = "sdcpp")]
++use self::sdcpp::SdCppBackend;
+ #[cfg(all(feature = "openvino", target_pointer_width = "64"))]
+ use self::openvino::OpenvinoBackend;
+ #[cfg(feature = "pytorch")]
+@@ -52,6 +56,10 @@ pub fn list() -> Vec<Backend> {
+     {
+         backends.push(Backend::from(GgmlBackend::default()));
+     }
++    #[cfg(feature = "sdcpp")]
++    {
++        backends.push(Backend::from(SdCppBackend::default()));
++    }
+     #[cfg(feature = "pytorch")]
+     {
+         backends.push(Backend::from(PytorchBackend::default()));
+@@ -62,6 +70,14 @@ pub fn list() -> Vec<Backend> {
+ /// A [Backend] contains the necessary state to load [Graph]s.
+ pub trait BackendInner: Send + Sync {
+     fn encoding(&self) -> GraphEncoding;
++    /// Enclave: the `-S nn-graph=<kind>::<dir>` kind string this backend
++    /// answers to, for PRELOAD-ONLY backends whose kind is not a
++    /// guest-visible GraphEncoding case (adding enum cases would change the
++    /// component-level type and break instantiation of every published
++    /// app). Backends reachable through an encoding leave this empty.
++    fn preload_kind(&self) -> &'static str {
++        ""
++    }
+     fn load(&mut self, builders: &[&[u8]], target: ExecutionTarget) -> Result<Graph, BackendError>;
+     fn as_dir_loadable<'a>(&'a mut self) -> Option<&'a mut dyn BackendFromDir>;
+ }
+diff --git a/crates/wasi-nn/src/backend/sdcpp.rs b/crates/wasi-nn/src/backend/sdcpp.rs
+new file mode 100644
+index 0000000..b16f5f8
+--- /dev/null
++++ b/crates/wasi-nn/src/backend/sdcpp.rs
+@@ -0,0 +1,436 @@
++//! A stable-diffusion.cpp backend for wasi-nn — image generation models
++//! (safetensors/GGUF checkpoints) behind the standard `wasi:nn` interface.
++//!
++//! The heavy lifting happens in the system-linked `enclave_sd` shim (a flat
++//! pointer/scalar C ABI over stable-diffusion.cpp, shipped next to
++//! libstable-diffusion in the toolchain artifact — see wasm/sd-shim in the
++//! platform repo). Same discipline as the ggml/llama backend: std + FFI
++//! only, no new crates.
++//!
++//! Model delivery is `load_by_name()` via the CLI preload registry
++//! (`-S nn-graph=sd::<dir>`): the HOST opens the checkpoint straight off the
++//! (read-only, attested) model volume at server startup, so weights never
++//! transit the guest's 32-bit linear memory — image checkpoints (SD-Turbo
++//! fp32 5.2 GB, SDXL, FLUX quants) routinely exceed both the guest's 4 GiB
++//! address space and the per-request hostcall-fuel copy budget, which is the
++//! point of this backend. `load()` from guest bytes is deliberately
++//! unsupported. The backend is preload-only and never claims a guest-visible
++//! GraphEncoding case (adding one would change the component-level enum type
++//! and break instantiation of every already-published app; `encoding()`
++//! returns the otherwise-unused Autodetect variant).
++//!
++//! Inference contract (WIT named tensors) — one whole txt2img pipeline per
++//! `compute()`, blocking until the image is ready:
++//!   input  "prompt"           U8   [1, len]  utf-8 (required)
++//!   input  "negative_prompt"  U8   [1, len]  utf-8 (optional)
++//!   input  "steps"            I32  [1]       (default 20)
++//!   input  "seed"             I64  [1]       (default 42)
++//!   input  "width"/"height"   I32  [1]       (default 512, multiples of 64)
++//!   input  "cfg"              Fp32 [1]       (default 7.0; 1.0 = off, the
++//!                                             turbo/distilled setting)
++//!   input  "sample_method"    U8   [1, len]  sd.cpp name ("euler_a", ...;
++//!                                             default: the model's default)
++//!   input  "scheduler"        U8   [1, len]  sd.cpp name ("discrete", ...)
++//!   output "image"            U8   [1, h, w, 3]  RGB row-major
++//!
++//! Tuning env (host process only, set per tenant by the wasm-manager):
++//!   ENCLAVE_SD_USE_GPU     1 (default) = weights on the GPU, and a missing
++//!                          GPU device is a LOUD preload failure (tenants buy
++//!                          the share - same discipline as ggml/ONNX-strict);
++//!                          0 = pure CPU (dev boxes)
++//!   ENCLAVE_SD_WTYPE       weight type conversion on load ("" = keep source;
++//!                          "f16" halves an f32 checkpoint; quant names work)
++//!   ENCLAVE_SD_N_THREADS   CPU threads (default: all physical cores)
++//!   ENCLAVE_SD_FLASH_ATTN  1 = enable flash attention on the diffusion model
++//!   ENCLAVE_SD_MODEL_FILE  checkpoint inside the volume dir, for dirs where
++//!                          the single-file convention below is ambiguous
++//!   ENCLAVE_SD_DIFFUSION_FILE / _CLIP_L_FILE / _CLIP_G_FILE / _T5XXL_FILE /
++//!   _VAE_FILE              component-file mode (FLUX-style split models),
++//!                          all relative to the volume dir
++//!
++//! Single-file convention (no env): model.gguf, else model.safetensors, else
++//! exactly one top-level *.safetensors or *.gguf in the dir.
++
++use super::{
++    BackendError, BackendExecutionContext, BackendFromDir, BackendGraph, BackendInner, Id,
++    NamedTensor,
++};
++use crate::wit::types::{ExecutionTarget, GraphEncoding, Tensor, TensorType};
++use crate::{ExecutionContext, Graph};
++use std::ffi::{c_char, c_void, CStr, CString};
++use std::path::{Path, PathBuf};
++use std::sync::{Arc, Mutex, Once};
++
++unsafe extern "C" {
++    fn esd_init();
++    fn esd_gpu_devices() -> i32;
++    fn esd_load_model(
++        model_path: *const c_char,
++        diffusion_path: *const c_char,
++        clip_l_path: *const c_char,
++        clip_g_path: *const c_char,
++        t5xxl_path: *const c_char,
++        vae_path: *const c_char,
++        n_threads: i32,
++        wtype: *const c_char,
++        use_gpu: i32,
++        flash_attn: i32,
++    ) -> *mut c_void;
++    fn esd_free_model(handle: *mut c_void);
++    fn esd_txt2img(
++        handle: *mut c_void,
++        prompt: *const c_char,
++        negative_prompt: *const c_char,
++        width: i32,
++        height: i32,
++        steps: i32,
++        cfg: f32,
++        seed: i64,
++        sample_method: *const c_char,
++        scheduler: *const c_char,
++        rgb_out: *mut u8,
++    ) -> i32;
++    fn esd_last_error() -> *const c_char;
++}
++
++static INIT: Once = Once::new();
++
++fn err(msg: impl Into<String>) -> BackendError {
++    BackendError::BackendAccess(wasmtime::format_err!("{}", msg.into()))
++}
++
++fn last_error() -> String {
++    let s = unsafe { esd_last_error() };
++    if s.is_null() {
++        return String::new();
++    }
++    unsafe { CStr::from_ptr(s) }.to_string_lossy().into_owned()
++}
++
++fn env_flag(name: &str, default: bool) -> bool {
++    match std::env::var(name) {
++        Ok(v) => !matches!(v.trim(), "0" | "false" | "off" | ""),
++        Err(_) => default,
++    }
++}
++
++/// A file named by env `var`, resolved inside `dir` (absolute paths and `..`
++/// are refused - the volume is the trust boundary).
++fn env_file(dir: &Path, var: &str) -> Result<Option<PathBuf>, BackendError> {
++    let Ok(rel) = std::env::var(var) else { return Ok(None) };
++    let rel = rel.trim();
++    if rel.is_empty() {
++        return Ok(None);
++    }
++    if rel.starts_with('/') || rel.split('/').any(|c| c == "..") {
++        return Err(err(format!("{var} must be a relative path inside the volume, got '{rel}'")));
++    }
++    let p = dir.join(rel);
++    if !p.is_file() {
++        return Err(err(format!("{var}={rel} does not exist in {}", dir.display())));
++    }
++    Ok(Some(p))
++}
++
++/// The single-file checkpoint in `dir` per the convention in the module doc.
++fn pick_checkpoint(dir: &Path) -> Result<PathBuf, BackendError> {
++    for name in ["model.gguf", "model.safetensors"] {
++        let p = dir.join(name);
++        if p.is_file() {
++            return Ok(p);
++        }
++    }
++    let mut candidates: Vec<PathBuf> = std::fs::read_dir(dir)
++        .map_err(|e| err(format!("reading {}: {e}", dir.display())))?
++        .filter_map(|e| e.ok().map(|e| e.path()))
++        .filter(|p| {
++            p.is_file()
++                && p.extension()
++                    .map(|x| x == "safetensors" || x == "gguf" || x == "ckpt")
++                    .unwrap_or(false)
++        })
++        .collect();
++    match (candidates.len(), candidates.pop()) {
++        (1, Some(p)) => Ok(p),
++        (n, _) => Err(err(format!(
++            "expected model.gguf, model.safetensors, or exactly one top-level \
++             *.safetensors/*.gguf in {} (found {n}); set ENCLAVE_SD_MODEL_FILE \
++             or the ENCLAVE_SD_*_FILE component vars to disambiguate",
++            dir.display()
++        ))),
++    }
++}
++
++fn cstring(p: &Path) -> Result<CString, BackendError> {
++    CString::new(p.to_string_lossy().as_bytes()).map_err(|_| err("path contains NUL"))
++}
++
++fn opt_ptr(c: &Option<CString>) -> *const c_char {
++    c.as_ref().map_or(std::ptr::null(), |s| s.as_ptr())
++}
++
++#[derive(Default)]
++pub struct SdCppBackend();
++unsafe impl Send for SdCppBackend {}
++unsafe impl Sync for SdCppBackend {}
++
++impl BackendInner for SdCppBackend {
++    fn encoding(&self) -> GraphEncoding {
++        // Preload-only backend: reachable via `-S nn-graph=sd::<dir>` +
++        // load_by_name. Autodetect is unclaimed by real backends, so guest
++        // load() calls can never accidentally land here with model bytes.
++        GraphEncoding::Autodetect
++    }
++
++    fn preload_kind(&self) -> &'static str {
++        "sd"
++    }
++
++    fn load(&mut self, _builders: &[&[u8]], _target: ExecutionTarget) -> Result<Graph, BackendError> {
++        Err(err(
++            "the sd backend does not load from guest bytes - image checkpoints exceed \
++             guest memory; attach the model volume and use load_by_name",
++        ))
++    }
++
++    fn as_dir_loadable<'a>(&'a mut self) -> Option<&'a mut dyn BackendFromDir> {
++        Some(self)
++    }
++}
++
++impl BackendFromDir for SdCppBackend {
++    fn load_from_dir(&mut self, dir: &Path, _target: ExecutionTarget) -> Result<Graph, BackendError> {
++        INIT.call_once(|| unsafe { esd_init() });
++
++        // Registry preloads arrive with ExecutionTarget::Cpu; the env decides
++        // real placement (same pattern as the ggml backend). Strict GPU: the
++        // CUDA path missing is a loud startup failure, never a silent CPU
++        // fallback at tenant speed.
++        let use_gpu = env_flag("ENCLAVE_SD_USE_GPU", true);
++        if use_gpu && unsafe { esd_gpu_devices() } == 0 {
++            return Err(err(
++                "sd: GPU requested (ENCLAVE_SD_USE_GPU != 0) but no ggml GPU device is \
++                 available - CUDA backend module or driver missing",
++            ));
++        }
++
++        let diffusion = env_file(dir, "ENCLAVE_SD_DIFFUSION_FILE")?;
++        let (model, components) = if diffusion.is_some() {
++            (
++                None,
++                (
++                    diffusion,
++                    env_file(dir, "ENCLAVE_SD_CLIP_L_FILE")?,
++                    env_file(dir, "ENCLAVE_SD_CLIP_G_FILE")?,
++                    env_file(dir, "ENCLAVE_SD_T5XXL_FILE")?,
++                    env_file(dir, "ENCLAVE_SD_VAE_FILE")?,
++                ),
++            )
++        } else {
++            let model = match env_file(dir, "ENCLAVE_SD_MODEL_FILE")? {
++                Some(p) => p,
++                None => pick_checkpoint(dir)?,
++            };
++            (Some(model), (None, None, None, None, None))
++        };
++        let (diffusion, clip_l, clip_g, t5xxl, vae) = components;
++
++        let model_c = model.as_deref().map(cstring).transpose()?;
++        let diffusion_c = diffusion.as_deref().map(cstring).transpose()?;
++        let clip_l_c = clip_l.as_deref().map(cstring).transpose()?;
++        let clip_g_c = clip_g.as_deref().map(cstring).transpose()?;
++        let t5xxl_c = t5xxl.as_deref().map(cstring).transpose()?;
++        let vae_c = vae.as_deref().map(cstring).transpose()?;
++        let wtype = CString::new(std::env::var("ENCLAVE_SD_WTYPE").unwrap_or_default())
++            .map_err(|_| err("ENCLAVE_SD_WTYPE contains NUL"))?;
++        let n_threads: i32 = std::env::var("ENCLAVE_SD_N_THREADS")
++            .ok()
++            .and_then(|v| v.parse().ok())
++            .unwrap_or(0);
++
++        let handle = unsafe {
++            esd_load_model(
++                opt_ptr(&model_c),
++                opt_ptr(&diffusion_c),
++                opt_ptr(&clip_l_c),
++                opt_ptr(&clip_g_c),
++                opt_ptr(&t5xxl_c),
++                opt_ptr(&vae_c),
++                n_threads,
++                wtype.as_ptr(),
++                use_gpu as i32,
++                env_flag("ENCLAVE_SD_FLASH_ATTN", false) as i32,
++            )
++        };
++        if handle.is_null() {
++            return Err(err(format!(
++                "stable-diffusion.cpp failed to load {}: {}",
++                model.or(diffusion).unwrap_or_else(|| dir.to_path_buf()).display(),
++                last_error()
++            )));
++        }
++        let graph: Box<dyn BackendGraph> = Box::new(SdGraph(Arc::new(SdModel {
++            raw: Mutex::new(handle as usize),
++        })));
++        Ok(graph.into())
++    }
++}
++
++/// The loaded sd_ctx. generate_image is not documented thread-safe, so the
++/// raw handle lives behind a Mutex - one generation at a time per model
++/// (requests queue; an image is seconds, not minutes, on the GPU).
++struct SdModel {
++    raw: Mutex<usize>,
++}
++impl Drop for SdModel {
++    fn drop(&mut self) {
++        let raw = *self.raw.lock().unwrap();
++        unsafe { esd_free_model(raw as *mut c_void) };
++    }
++}
++
++struct SdGraph(Arc<SdModel>);
++
++impl BackendGraph for SdGraph {
++    fn init_execution_context(&self) -> Result<ExecutionContext, BackendError> {
++        let ctx: Box<dyn BackendExecutionContext> = Box::new(SdExecutionContext {
++            model: self.0.clone(),
++            image: None,
++        });
++        Ok(ctx.into())
++    }
++}
++
++struct SdExecutionContext {
++    model: Arc<SdModel>,
++    image: Option<Tensor>, // last compute's output for get_output
++}
++
++fn utf8_input(nt: &NamedTensor) -> Result<String, BackendError> {
++    if nt.tensor.ty != TensorType::U8 {
++        return Err(BackendError::UnsupportedTensorType(format!(
++            "{:?} (input \"{}\" wants U8 utf-8 bytes)",
++            nt.tensor.ty, nt.name
++        )));
++    }
++    String::from_utf8(nt.tensor.data.clone())
++        .map_err(|_| err(format!("input \"{}\" is not valid utf-8", nt.name)))
++}
++
++fn scalar_i64(nt: &NamedTensor) -> Result<i64, BackendError> {
++    let d = &nt.tensor.data;
++    match (nt.tensor.ty, d.len()) {
++        (TensorType::I32, 4) => Ok(i32::from_le_bytes([d[0], d[1], d[2], d[3]]) as i64),
++        (TensorType::I64, 8) => Ok(i64::from_le_bytes(d[..8].try_into().unwrap())),
++        _ => Err(err(format!(
++            "input \"{}\" wants a single I32/I64 scalar, got {:?} x{} bytes",
++            nt.name, nt.tensor.ty, d.len()
++        ))),
++    }
++}
++
++fn scalar_f32(nt: &NamedTensor) -> Result<f32, BackendError> {
++    let d = &nt.tensor.data;
++    match (nt.tensor.ty, d.len()) {
++        (TensorType::Fp32, 4) => Ok(f32::from_le_bytes([d[0], d[1], d[2], d[3]])),
++        _ => Err(err(format!(
++            "input \"{}\" wants a single Fp32 scalar, got {:?} x{} bytes",
++            nt.name, nt.tensor.ty, d.len()
++        ))),
++    }
++}
++
++impl SdExecutionContext {
++    fn generate(&mut self, inputs: &[NamedTensor]) -> Result<Tensor, BackendError> {
++        let mut prompt = None;
++        let mut negative = String::new();
++        let mut sample_method = String::new();
++        let mut scheduler = String::new();
++        let (mut steps, mut seed) = (20i64, 42i64);
++        let (mut width, mut height) = (512i64, 512i64);
++        let mut cfg = 7.0f32;
++        for nt in inputs {
++            match nt.name.as_str() {
++                "prompt" => prompt = Some(utf8_input(nt)?),
++                "negative_prompt" => negative = utf8_input(nt)?,
++                "sample_method" => sample_method = utf8_input(nt)?,
++                "scheduler" => scheduler = utf8_input(nt)?,
++                "steps" => steps = scalar_i64(nt)?,
++                "seed" => seed = scalar_i64(nt)?,
++                "width" => width = scalar_i64(nt)?,
++                "height" => height = scalar_i64(nt)?,
++                "cfg" => cfg = scalar_f32(nt)?,
++                other => return Err(err(format!("unknown input \"{other}\""))),
++            }
++        }
++        let prompt = prompt.ok_or_else(|| err("missing \"prompt\" input"))?;
++        if !(1..=200).contains(&steps) {
++            return Err(err(format!("steps {steps} out of range 1..=200")));
++        }
++        if !(64..=4096).contains(&width) || !(64..=4096).contains(&height) {
++            return Err(err(format!("size {width}x{height} out of range 64..=4096")));
++        }
++
++        let prompt_c = CString::new(prompt).map_err(|_| err("prompt contains NUL"))?;
++        let negative_c = CString::new(negative).map_err(|_| err("negative_prompt contains NUL"))?;
++        let method_c = CString::new(sample_method).map_err(|_| err("sample_method contains NUL"))?;
++        let scheduler_c = CString::new(scheduler).map_err(|_| err("scheduler contains NUL"))?;
++
++        let mut rgb = vec![0u8; (width * height * 3) as usize];
++        let rc = {
++            let raw = self.model.raw.lock().unwrap();
++            unsafe {
++                esd_txt2img(
++                    *raw as *mut c_void,
++                    prompt_c.as_ptr(),
++                    negative_c.as_ptr(),
++                    width as i32,
++                    height as i32,
++                    steps as i32,
++                    cfg,
++                    seed,
++                    method_c.as_ptr(),
++                    scheduler_c.as_ptr(),
++                    rgb.as_mut_ptr(),
++                )
++            }
++        };
++        if rc != 0 {
++            return Err(err(format!("txt2img failed (rc {rc}): {}", last_error())));
++        }
++        Ok(Tensor {
++            dimensions: vec![1, height as u32, width as u32, 3],
++            ty: TensorType::U8,
++            data: rgb,
++        })
++    }
++}
++
++impl BackendExecutionContext for SdExecutionContext {
++    fn set_input(&mut self, _id: Id, _tensor: &Tensor) -> Result<(), BackendError> {
++        Err(err("the sd backend is WIT-only: pass named tensors to compute()"))
++    }
++
++    fn compute(
++        &mut self,
++        inputs: Option<Vec<NamedTensor>>,
++    ) -> Result<Option<Vec<NamedTensor>>, BackendError> {
++        let Some(inputs) = inputs else {
++            return Err(err("the sd backend is WIT-only: pass named tensors to compute()"));
++        };
++        let image = self.generate(&inputs)?;
++        self.image = Some(image.clone());
++        Ok(Some(vec![NamedTensor { name: "image".to_string(), tensor: image }]))
++    }
++
++    fn get_output(&mut self, id: Id) -> Result<Tensor, BackendError> {
++        match id {
++            Id::Index(0) => {}
++            Id::Name(ref n) if n == "image" => {}
++            other => return Err(err(format!("unknown output {other:?} (expected \"image\")"))),
++        }
++        self.image
++            .clone()
++            .ok_or_else(|| err("no image available (has `compute` been called?)"))
++    }
++}
+diff --git a/crates/wasi-nn/src/lib.rs b/crates/wasi-nn/src/lib.rs
+index efb8fd6..175e2bb 100644
+--- a/crates/wasi-nn/src/lib.rs
++++ b/crates/wasi-nn/src/lib.rs
+@@ -30,11 +30,23 @@ pub fn preload_registry(preload_graphs: &[(String, String)]) -> wasmtime::Result
+     let mut backends = backend::list();
+     let mut registry = InMemoryRegistry::new();
+     for (kind, path) in preload_graphs {
+-        let kind_ = kind.parse()?;
+-        let backend = backends
+-            .iter_mut()
+-            .find(|b| b.encoding() == kind_)
+-            .ok_or(format_err!("unsupported backend: {kind}"))?
++        // Enclave: preload-only backends (kinds with no guest-visible
++        // GraphEncoding case, e.g. "sd") match by their kind string first;
++        // everything else resolves through the encoding as before.
++        let idx = match backends
++            .iter()
++            .position(|b| !b.preload_kind().is_empty() && b.preload_kind().eq_ignore_ascii_case(kind))
++        {
++            Some(i) => i,
++            None => {
++                let kind_ = kind.parse()?;
++                backends
++                    .iter()
++                    .position(|b| b.encoding() == kind_)
++                    .ok_or(format_err!("unsupported backend: {kind}"))?
++            }
++        };
++        let backend = backends[idx]
+             .as_dir_loadable()
+             .ok_or(format_err!("{kind} does not support directory loading"))?;
+         registry.load(backend, Path::new(path))?;
