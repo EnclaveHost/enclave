@@ -17,6 +17,19 @@ class FleetList extends EnclaveElement {
     const list = this.querySelector(".fleet-list"); if (!list) return;
     const rows = this.rows || [];
     const meter = (pct) => '<i class="fleet-meter"><b style="width:' + Math.max(0, Math.min(100, pct)) + '%"></b></i>';
+    // one stat cell: bright free amount, then the "≈"/"/ total" context and the
+    // label in dim ink so the number is what the eye lands on
+    const stat = (free, total, unit, label) =>
+      '<span class="fleet-stat"><b><i>≈</i>' + free + '<i> / ' + total + '</i>' + (unit ? " " + unit : "") + '</b>'
+      + '<small>' + label + '</small></span>';
+    // one pool = a [label | meter | pct] header line, stat cells underneath
+    const pool = (label, pct, stats) =>
+      '<div class="fleet-pool">'
+      + '<span class="fleet-pool-label">' + label + '</span>'
+      + meter(pct)
+      + '<span class="fleet-pool-pct"><b>' + pct + '%</b> free</span>'
+      + '<span class="fleet-stats">' + stats + '</span>'
+      + '</div>';
     list.innerHTML = (!rows.length
       ? '<div class="fleet-empty">no live enclaves right now</div>'
       : rows.map(e => {
@@ -26,17 +39,19 @@ class FleetList extends EnclaveElement {
           const cFree = a.cpuShareFree != null ? a.cpuShareFree : (gpu ? 0 : a.maxShare || 0);
           const gPct = Math.floor(gFree * 100), cPct = Math.floor(cFree * 100);
           const name = String(e.endpoint || "").replace(/^https?:\/\//, "").split(".")[0] || "enclave";
+          const vramGb = a.cardVramGb || CARD_GB, tflops = a.cardTflops || CARD_TFLOPS;
+          const ramGb = a.nodeRamGb || NODE_RAM_GB, vcpus = a.nodeVcpus || NODE_VCPUS;
           return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
             + '<span class="fleet-head">'
             + '<span class="ap-badge ' + (gpu ? "info" : "") + '">' + (gpu ? "gpu" : "cpu") + '</span>'
             + '<span class="fleet-name">' + esc(name) + '</span>'
             + '</span>'
-            + (gpu ? '<span class="fleet-pool">GPU ' + meter(gPct) + ' ' + gPct + '% free · ≈'
-                   + fmtNum(a.vramFreeGb != null ? a.vramFreeGb : gFree * (a.cardVramGb || CARD_GB)) + ' / '
-                   + fmtNum(a.cardVramGb || CARD_GB) + ' GB VRAM / '
-                   + Math.round(gFree * (a.cardTflops || CARD_TFLOPS)) + ' TFLOPS</span>' : '')
-            + '<span class="fleet-pool">CPU ' + meter(cPct) + ' ' + cPct + '% free · ≈'
-            + fmtNum(cFree * (a.nodeRamGb || NODE_RAM_GB)) + ' GB RAM / ' + fmtNum(cFree * (a.nodeVcpus || NODE_VCPUS)) + ' vCPU</span>'
+            + (gpu ? pool("GPU", gPct,
+                stat(fmtNum(a.vramFreeGb != null ? a.vramFreeGb : gFree * vramGb), fmtNum(vramGb), "GB", "vram free")
+                + stat(Math.round(gFree * tflops), Math.round(tflops), "", "tflops free")) : "")
+            + pool("CPU", cPct,
+                stat(fmtNum(cFree * ramGb), fmtNum(ramGb), "GB", "ram free")
+                + stat(fmtNum(cFree * vcpus), fmtNum(vcpus), "", "vcpu free"))
             + '</div>';
         }).join(""));
     // footer row: a manual refresh (dispatches `refresh`; the HOST owns the
