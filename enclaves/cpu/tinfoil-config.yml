@@ -55,6 +55,15 @@ containers:
       - GRACE_SEC: "90"
       - PAY_POLL_SEC: "12"
       - SESSION_TTL: "43200"
+      # Session JWTs are ES256-signed by a key MINTED IN-ENCLAVE at boot (persisted
+      # to /mnt/ramdisk/enclave-session tmpfs, never host disk), so the operator —
+      # who provisions the fleet SECRET below — CANNOT forge a session token. The
+      # public half is published at /v1/session-jwks and inside /v1/attestation.
+      # SESSION_ACCEPT_LEGACY (default "1") keeps accepting the OLD HS256(SECRET)
+      # tokens so sessions minted before this release survive their TTL. Flip it to
+      # "0" fleet-wide once every enclave serves ES256 — that is what finally closes
+      # the operator-forgeability gap. Leave it unset until the whole fleet is upgraded.
+      # - SESSION_ACCEPT_LEGACY: "0"
       # attestation: CPU releases are measured from THIS config under -cpu tags
       # on the same repo. NOTE: verifiers that fetch the repo's LATEST release
       # (tinfoil-cli default) will see the GPU flavor's measurement — point them
@@ -104,7 +113,7 @@ containers:
     volumes:
       - /mnt/ramdisk/enclave-state:/var/lib/enclave
     secrets:
-      - SECRET
+      - SECRET                   # manager control-token (VMMGR_TOKEN) + DNS-push HMAC seed; NO LONGER signs session JWTs (those use the in-enclave ES256 key). Fleet-wide.
       - ADMIN_TOKEN              # operator token for POST /v1/admin/deployments/:id/provision
       - REGISTRY_PRIVATE_KEY     # EnclaveRegistry operator EOA (owns this enclave's entry, pays heartbeat gas on Base)
       - EGRESS_RELAY_TOKEN       # shared secret with the egress-relay box; same value fleet-wide (like SECRET). Unset = egress off.
