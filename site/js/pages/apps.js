@@ -525,12 +525,22 @@ function setPubImage(kind, cid){
 function readPubConfig(){
   const raw = ($("#pubConfig") && $("#pubConfig").value || "").trim();
   if (!raw) return { val: "" };
-  if (blen(raw) > CAT_MAX.config) return { err: "app config too long (≤ " + CAT_MAX.config + " bytes)" };
+  let o;
   try {
-    const o = JSON.parse(raw);
+    o = JSON.parse(raw);
     if (!o || Array.isArray(o) || typeof o !== "object") return { err: "app config must be a JSON object, e.g. {\"api_key\":\"…\"}" };
   } catch(e){ return { err: "app config isn't valid JSON (" + e.message + ")" }; }
-  return { val: raw };
+  // measure the minified form - withMedia re-serializes before publishing, so
+  // pretty-printed whitespace in the editor never counts against the ceiling
+  const val = JSON.stringify(o);
+  if (blen(val) > CAT_MAX.config) return { err: "app config too long (≤ " + CAT_MAX.config + " bytes)" };
+  return { val };
+}
+// pretty-print a config JSON string for the editor (on-chain configs are
+// minified); non-JSON passes through untouched
+function prettyConfig(s){
+  if (!s) return "";
+  try { return JSON.stringify(JSON.parse(s), null, 2); } catch(e){ return s; }
 }
 
 async function catTx(data, verb){
@@ -589,7 +599,7 @@ function prefillPublish(app){
     version: nextFreeVersion(app, v.version), cid: v.cid || "",
     vram: String((Number(v.vramMb) || 0) / 1024), gpuT: String((Number(v.gpuGflops) || 0) / 1000),
     mem: String(Number(v.memMb) || 128), cpuG: String(Math.max(1, Number(v.cpuGflops) || 1)),
-    ports: v.ports || "", config: stripMedia(v.config || ""),
+    ports: v.ports || "", config: prettyConfig(stripMedia(v.config || "")),
     thumb: media.thumbnail || "", banner: media.banner || "",
     note: "pre-filled from " + app.slug + " " + (v.version || "") + " - fix specs/ports and publish (same bytes), or pick a new .wasm if the code changed"
           + (app.active ? "" : " · publishing relists the app"),
