@@ -142,7 +142,11 @@ jobs:
           git clone https://github.com/leejet/stable-diffusion.cpp /tmp/sd.cpp
           cd /tmp/sd.cpp
           git checkout "$SD_COMMIT"
+          # the clone leaves an EMPTY ggml/ dir for the uninitialized
+          # submodule - remove it or the symlink lands inside it
+          rm -rf ggml
           ln -s /tmp/llama.cpp/ggml ggml
+          ls -la ggml/src/ggml-impl.h
 
       - name: Build sd.cpp against the llama tree's ggml (shared, no CUDA compile)
         run: |
