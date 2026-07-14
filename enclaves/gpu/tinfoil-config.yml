@@ -324,6 +324,13 @@ containers:
       # mosaic instead of the engine default's 7x7 (32-latent tiles put a
       # visible seam grid in FLUX-AE outputs - seen live on z-image).
       - ENCLAVE_SD_VAE_TILING: "64:0.25"
+      # flash attention on the diffusion model (the Z-Image reference
+      # invocation's --diffusion-fa). REQUIRED for big resolutions: without
+      # it attention materializes seq x seq matrices - at 2048px that is
+      # 16384^2 per head, tens of GB of compute buffer, and sampling dies
+      # at graph allocation ("sampling for image 1/1 failed" in <1s, seen
+      # live). With FA the 2048px diffusion buffer is a few GB.
+      - ENCLAVE_SD_FLASH_ATTN: "1"
     # SECRET doubles as the manager's control-plane token (VMMGR_TOKEN): tenants
     # hold outbound HTTP to loopback, so the control API on :8091 must reject
     # calls that don't carry it (the supervisor sends X-Vmmgr-Token). The tenant
