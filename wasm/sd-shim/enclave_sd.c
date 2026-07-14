@@ -1,17 +1,24 @@
-/* enclave_sd.c - see enclave_sd.h for the contract. Built against the PINNED
- * stable-diffusion.cpp checkout (and by hand for local smokes):
+/* enclave_sd.c - see enclave_sd.h for the contract. Production builds ride
+ * llamacpp-toolchain.yml: sd.cpp compiled with SD_USE_SYSTEM_GGML against
+ * the SAME ggml as llama.cpp (one ggml per process - two vendored copies
+ * alias the same SONAMEs and the dynamic linker binds both engines to
+ * whichever loaded first) and GGML_MAX_NAME=128 tree-wide (it sizes a field
+ * inside struct ggml_tensor; SD tensor names overflow the default 64). By
+ * hand for local smokes:
  *
- *   cc -shared -fPIC -Wl,-soname,libenclave_sd.so \
- *      -I<sd.cpp>/include enclave_sd.c \
- *      -L<sd.cpp>/build/bin -lstable-diffusion \
+ *   cc -shared -fPIC -Wl,-soname,libenclave_sd.so -DGGML_MAX_NAME=128 \
+ *      -I<sd.cpp>/include -I<ggml prefix>/include enclave_sd.c \
+ *      -L<sd.cpp>/build/bin -L<ggml libs> -lstable-diffusion -lggml -lggml-base \
  *      -o libenclave_sd.so
  *
- * The -soname is load-bearing: the wasmtime binary NEEDs "libenclave_sd.so"
- * by that bare name, resolved by ldconfig from /usr/local/lib in the manager
- * image (same as libenclave_llama).
+ * (a vendored-ggml sd.cpp build re-exports ggml symbols, so the ggml -I/-l
+ * pieces are optional there). The -soname is load-bearing: the wasmtime
+ * binary NEEDs "libenclave_sd.so" by that bare name, resolved by ldconfig
+ * from /usr/local/lib in the manager image (same as libenclave_llama).
  */
 #include "enclave_sd.h"
 #include "stable-diffusion.h"
+#include "ggml-backend.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,6 +46,16 @@ static void esd_log_cb(enum sd_log_level_t level, const char *text, void *data) 
 
 void esd_init(void) {
     sd_set_log_callback(esd_log_cb, NULL);
+    /* GGML_BACKEND_DL stacks (production: sd.cpp built with
+     * SD_USE_SYSTEM_GGML against the same ggml as llama.cpp) ship the
+     * compute backends as dlopened modules - load them so sd_list_devices/
+     * new_sd_ctx see any GPU. Guarded like ell_init: whichever shim
+     * initializes first in this process loads the modules; a vendored-ggml
+     * local build registers its backends statically and dev_count is
+     * already nonzero. */
+    if (ggml_backend_dev_count() == 0) {
+        ggml_backend_load_all_from_path(getenv("ENCLAVE_GGML_BACKEND_DIR"));
+    }
 }
 
 int32_t esd_gpu_devices(void) {
