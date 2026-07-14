@@ -156,6 +156,9 @@ async function privyPickFlow(host){
     PrivyWallet.user = existing;
     return PrivyWallet.entry(await PrivyWallet.ensureProvider(existing));
   }
+  // self-custody nudge for users with no extension wallet (they never saw the
+  // chooser's recommendation); chooser arrivals already read it there
+  const noExt = !Wallet.list().length;
   const email = await new Promise((res, rej) => {
     privyCard(host,
       '<div class="wp-h">Sign in with email</div>' +
@@ -164,6 +167,7 @@ async function privyPickFlow(host){
       '<div class="wp-err" id="pvErr" hidden></div>' +
       '<button class="wp-item wp-go" id="pvSend" type="button">Continue</button>' +
       '<button class="wp-cancel" type="button">Cancel</button>' +
+      (noExt ? '<div class="wp-rec wp-rec-foot">Prefer to hold your own keys? We <b>recommend a browser wallet</b> (MetaMask, Rabby, Coinbase…) — install one, reload, and sign in with it instead.</div>' : "") +
       '<div class="wp-foot">Protected by Privy</div>');
     const inp = $("#pvEmail"); if (inp) inp.focus();
     const go = () => {
@@ -374,10 +378,13 @@ async function pickWallet(){
   return await new Promise((resolve, reject) => {
     const host = $("#walletPick"); if (!host){ resolve(wallets[0]); return; }
     host.innerHTML = '<div class="wp-card"><div class="wp-h">Choose a wallet</div>' +
+      (privyOk ? '<div class="wp-rec"><b>Recommended</b> — with a browser wallet, your keys stay on your device and only you control them.</div>' : "") +
       wallets.map((w, i) => '<button class="wp-item" data-i="' + i + '">' +
         (w.info.icon ? '<img src="' + w.info.icon + '" alt=""/>' : '<span class="wp-dot"></span>') +
         esc(w.info.name) + '</button>').join("") +
-      (privyOk ? '<button class="wp-item wp-privy" type="button"><span class="wp-dot wp-dot-iris"></span>Continue with email</button>' : "") +
+      (privyOk ? '<div class="wp-or"><span>or</span></div>' +
+        '<button class="wp-item wp-privy" type="button"><span class="wp-dot wp-dot-iris"></span>Continue with email</button>' +
+        '<div class="wp-hint">Easiest start — creates a wallet whose keys are held for you by Privy.</div>' : "") +
       '<button class="wp-cancel">Cancel</button></div>';
     host.hidden = false;
     const close = () => { host.hidden = true; host.innerHTML = ""; };
