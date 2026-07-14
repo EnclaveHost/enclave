@@ -58,8 +58,12 @@ ESD_LIB_LOCATION=<dir with both .so> cargo build --release -p wasmtime-cli \
 - Tuning env (per node / per tenant): `ENCLAVE_SD_USE_GPU` (default 1,
   strict — no silent CPU fallback), `ENCLAVE_SD_WTYPE` (e.g. `f16` to halve
   an f32 checkpoint on load), `ENCLAVE_SD_N_THREADS`, `ENCLAVE_SD_FLASH_ATTN`,
-  `ENCLAVE_SD_VAE_TILING` (1 = tiled VAE decode: the ~6 GB decode spike at
-  1024px becomes <1 GB, at tile-seam risk — the big-resolution knob), and
+  `ENCLAVE_SD_VAE_TILING` (tiled VAE decode — the big-resolution knob: the
+  ~6 GB decode spike at 1024px becomes ~1.5 GB. Value tunes it: `1` =
+  engine default 32-latent/256px tiles (visible seam grid on FLUX-AE,
+  seen live), `N` or `N:overlap` = N-latent tiles; **use `64:0.25`** —
+  ≤512px decodes single-tile (byte-identical to untiled, verified) and
+  1024px is a 3×3 instead of a 7×7 mosaic), and
   `ENCLAVE_SD_{MODEL,DIFFUSION,CLIP_L,CLIP_G,T5XXL,LLM,VAE}_FILE` for
   volumes where the single-checkpoint convention is ambiguous (FLUX-style
   split components; `LLM` is the Qwen-class text encoder the 2025+ DiT
