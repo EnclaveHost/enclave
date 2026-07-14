@@ -2319,6 +2319,31 @@ def _spawn_and_wait(rec, ctx):
     if nn:
         env = _nn_tenant_env(gpu_share, pinned=_NN_PROBE.get("mode") != "nopin")
         rec["mpsPct"] = max(1, round(gpu_share * 100))
+        # Fused-attention quarantine, PER VOLUME: ENCLAVE_ONNX_UNFUSED_VOLUMES
+        # names model volumes whose ONNX sessions must not use ORT's fused
+        # attention family - flash, memory-efficient AND the TRT fused/cross/
+        # flash kernels (one step beyond ENCLAVE_FUSED_ATTENTION=0, which
+        # leaves TRT on) - falling back to the unfused MATH path. The switches
+        # are process-wide ORT envs, but each deployment is its own wasmtime
+        # process and a quarantined volume's graphs are that process's ONNX
+        # sessions, so scoping by ATTACHED VOLUME is per-model in practice;
+        # every other deployment keeps the fused kernels. First user:
+        # sd-turbo (Olive fp16 export: UNet epsilon 100% NaN -> black images
+        # under MPS on sm_90 with the defaults, seen live 2026-07-14).
+        quarantined = {v.strip()
+                       for v in os.environ.get("ENCLAVE_ONNX_UNFUSED_VOLUMES", "").split(",")
+                       if v.strip()}
+        if quarantined & set((vol_mounts or {}).keys()):
+            for k in ("ORT_DISABLE_FLASH_ATTENTION",
+                      "ORT_DISABLE_MEMORY_EFFICIENT_ATTENTION",
+                      "ORT_DISABLE_FUSED_ATTENTION",
+                      "ORT_DISABLE_FUSED_CROSS_ATTENTION",
+                      "ORT_DISABLE_TRT_FLASH_ATTENTION"):
+                env.setdefault(k, "1")
+            # basic keeps Level3 from re-fusing decomposed patterns into the
+            # kernels we just disabled (moot for pre-fused Olive graphs,
+            # load-bearing for plain exports)
+            env.setdefault("ORT_GRAPH_OPT_LEVEL", "basic")
     if egress_env:
         # SOCKS credential for transparent egress: wasmtime PROCESS env only
         # (guest-invisible — no -Sinherit-env,

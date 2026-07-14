@@ -331,6 +331,13 @@ containers:
       # at graph allocation ("sampling for image 1/1 failed" in <1s, seen
       # live). With FA the 2048px diffusion buffer is a few GB.
       - ENCLAVE_SD_FLASH_ATTN: "1"
+      # Fused-attention quarantine (ORT/onnx volumes only - sdcpp/ggml
+      # tenants are untouched): deployments attaching a listed volume get
+      # the ORT_DISABLE_* attention envs in THEIR wasmtime process (unfused
+      # MATH path); everything else keeps the fast fused kernels. sd-turbo:
+      # the Olive fp16 UNet returns 100% NaN epsilon (black images) under
+      # MPS on sm_90 with the fused defaults - seen live 2026-07-14.
+      - ENCLAVE_ONNX_UNFUSED_VOLUMES: "sd-turbo"
     # SECRET doubles as the manager's control-plane token (VMMGR_TOKEN): tenants
     # hold outbound HTTP to loopback, so the control API on :8091 must reject
     # calls that don't carry it (the supervisor sends X-Vmmgr-Token). The tenant
