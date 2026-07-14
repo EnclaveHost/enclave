@@ -318,8 +318,12 @@ containers:
       - ENCLAVE_SD_DIFFUSION_FILE: "z_image_turbo-Q8_0.gguf"
       - ENCLAVE_SD_LLM_FILE: "Qwen3-4B-Instruct-2507-Q8_0.gguf"
       - ENCLAVE_SD_VAE_FILE: "ae.safetensors"
-      # tiled VAE decode: the 1024px decode spike drops ~6 GB -> <1 GB
-      - ENCLAVE_SD_VAE_TILING: "1"
+      # tiled VAE decode: caps the 1024px decode spike (~6 GB -> ~1.5 GB).
+      # 64:0.25 = 64-latent (512px) tiles, 0.25 overlap: <=512px decodes
+      # SINGLE-TILE (byte-identical to untiled - verified), 1024px is a 3x3
+      # mosaic instead of the engine default's 7x7 (32-latent tiles put a
+      # visible seam grid in FLUX-AE outputs - seen live on z-image).
+      - ENCLAVE_SD_VAE_TILING: "64:0.25"
     # SECRET doubles as the manager's control-plane token (VMMGR_TOKEN): tenants
     # hold outbound HTTP to loopback, so the control API on :8091 must reject
     # calls that don't carry it (the supervisor sends X-Vmmgr-Token). The tenant
