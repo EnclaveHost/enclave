@@ -85,7 +85,31 @@ int32_t esd_gpu_devices(void) {
 typedef struct {
     sd_ctx_t *ctx;
     int32_t   vae_tiling;
+    int32_t   tile_size;    /* LATENT px per tile; 0 = engine default (32) */
+    float     tile_overlap; /* 0..0.5 fraction */
 } esd_model_t;
+
+/* Tile tuning rides the ENCLAVE_SD_VAE_TILING env VALUE (the i32 param
+ * only gates): "1"/"true" = engine defaults, "N" = N-latent tiles,
+ * "N:F" = N-latent tiles with overlap F. The engine's 32-latent default
+ * means 256px tiles - a 512px image decodes as a 3x3 blend mosaic and
+ * seams read as a faint grid (seen live on Z-Image/FLUX-AE); 64-latent
+ * tiles make <=512px single-tile and 1024px a 3x3 instead of 7x7. */
+static void esd_parse_tiling(esd_model_t *m) {
+    m->tile_size    = 0;
+    m->tile_overlap = 0.5f;
+    const char *tv = getenv("ENCLAVE_SD_VAE_TILING");
+    if (tv && tv[0]) {
+        int ts = 0;
+        float ov = -1.0f;
+        if (sscanf(tv, "%d:%f", &ts, &ov) >= 1 && ts >= 4) {
+            m->tile_size = ts;
+            if (ov >= 0.0f) {
+                m->tile_overlap = ov;
+            }
+        }
+    }
+}
 
 void *esd_load_model(const char *model_path,
                      const char *diffusion_path,
@@ -133,6 +157,7 @@ void *esd_load_model(const char *model_path,
     }
     m->ctx        = ctx;
     m->vae_tiling = vae_tiling;
+    esd_parse_tiling(m);
     return m;
 }
 
@@ -161,10 +186,10 @@ int32_t esd_txt2img(void *handle,
     sd_img_gen_params_t p;
     sd_img_gen_params_init(&p);
     if (m->vae_tiling) {
-        /* auto tile size (0 = sd.cpp picks), 0.5 overlap - mirrors the
-         * engine's own defaults for --vae-tiling */
         p.vae_tiling_params.enabled        = true;
-        p.vae_tiling_params.target_overlap = 0.5f;
+        p.vae_tiling_params.tile_size_x    = m->tile_size;
+        p.vae_tiling_params.tile_size_y    = m->tile_size;
+        p.vae_tiling_params.target_overlap = m->tile_overlap;
     }
     p.prompt          = prompt;
     p.negative_prompt = negative_prompt ? negative_prompt : "";
