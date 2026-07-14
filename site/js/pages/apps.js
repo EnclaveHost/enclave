@@ -42,7 +42,9 @@ function renderApps(){
     apps = STORE.apps.filter(a => a.versions.length && !a.active && (isOwner || myApp(a)));
   } else if (STORE.filter === "unverified"){
     // owner-only queue: active apps not yet endorsed, waiting to be verified.
-    apps = STORE.apps.filter(a => a.versions.length && a.active && !appVerified(a));
+    // An app whose latest release was rejected already has its verdict - it
+    // lives in the Rejected tab, not the to-review queue.
+    apps = STORE.apps.filter(a => a.versions.length && a.active && !appVerified(a) && !appRejected(a));
   } else if (STORE.filter === "rejected"){
     // moderation view: apps whose latest release was rejected (appRejected).
     // The owner sees every one (their rejection record); a publisher sees only
