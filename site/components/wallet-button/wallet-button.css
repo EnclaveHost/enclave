@@ -56,6 +56,13 @@ c-wallet-button{display:contents;}
 .wp-status{font-size:.72rem;line-height:1.5;margin:8px 0;word-break:break-word;}
 .wp-status.err{color:#ff8a8a;} .wp-status.ok{color:var(--jade);} .wp-status.pend{color:var(--text-muted);}
 .wp-dot-iris{background:linear-gradient(135deg,var(--iris),var(--jade));}
+/* self-custody nudge in the sign-in chooser: browser wallet = your keys */
+.wp-rec{font-size:.68rem;line-height:1.55;color:var(--text-muted);border-left:2px solid var(--jade);padding:.05em 0 .05em .7em;margin:0 0 12px;}
+.wp-rec b{color:var(--jade);font-weight:600;}
+.wp-rec-foot{margin:14px 0 0;}
+.wp-or{display:flex;align-items:center;gap:10px;margin:2px 0 10px;color:var(--text-dim);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;}
+.wp-or::before,.wp-or::after{content:"";flex:1;height:1px;background:var(--line-soft);}
+.wp-hint{font-size:.66rem;line-height:1.5;color:var(--text-dim);margin:-4px 2px 10px;}
 @media(max-width:760px){.wallet-pop{left:0;right:auto;width:min(300px,84vw);}}
 /* mobile header: the account button spans the bar (see header.css for the
    centered brand row); the popover centers under it */
