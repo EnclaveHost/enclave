@@ -43,6 +43,13 @@ function renderApps(){
   } else if (STORE.filter === "unverified"){
     // owner-only queue: active apps not yet endorsed, waiting to be verified.
     apps = STORE.apps.filter(a => a.versions.length && a.active && !appVerified(a));
+  } else if (STORE.filter === "rejected"){
+    // moderation view: apps carrying a rejected release (rejection is
+    // per-version). The owner sees every one (their rejection record); a
+    // publisher sees only their own - the cue to yank the release or publish
+    // a fixed version. Listing state doesn't matter here: a delisted app's
+    // rejected version still shows.
+    apps = STORE.apps.filter(a => appRejected(a) && (isOwner || myApp(a)));
   } else {
     // public tabs (All / Verified): delisted apps are hidden from everyone here,
     // and an app whose every version is yanked/rejected has nothing to show a
@@ -68,17 +75,24 @@ function renderApps(){
   }));
 }
 
-/* The Unverified and Delisted tabs are the catalog owner's moderation surface.
-   Unverified (the queue of active-but-unendorsed apps) is owner-only. Delisted is
-   owner-visible always, and ALSO shown to a publisher who has delisted an app of
-   their own - only their own appears there, their path back to relist. Everyone
-   else never sees either; a tab that just became hidden falls back to All. */
+// an app with at least one rejected release - the Rejected tab's membership
+const appRejected = (a) => (a.versions || []).some(v => v.approval === APPROVAL.rejected);
+
+/* The Unverified, Rejected and Delisted tabs are the catalog owner's moderation
+   surface. Unverified (the queue of active-but-unendorsed apps) is owner-only.
+   Rejected and Delisted are owner-visible always, and ALSO shown to a publisher
+   with an app in that state - only their own appear there (rejected = fix or
+   yank the release; delisted = their path back to relist). Everyone else never
+   sees any of them; a tab that just became hidden falls back to All. */
 function syncModTabs(me, isOwner){
   const delisted = document.querySelector('#storeFilter button[data-filter="delisted"]');
   const unverified = document.querySelector('#storeFilter button[data-filter="unverified"]');
+  const rejected = document.querySelector('#storeFilter button[data-filter="rejected"]');
   const hasOwnDelisted = !!me && STORE.apps.some(a => a.versions.length && !a.active && a.publisher.toLowerCase() === me);
+  const hasOwnRejected = !!me && STORE.apps.some(a => appRejected(a) && a.publisher.toLowerCase() === me);
   if (delisted) delisted.hidden = !(isOwner || hasOwnDelisted);
   if (unverified) unverified.hidden = !isOwner;
+  if (rejected) rejected.hidden = !(isOwner || hasOwnRejected);
   const cur = document.querySelector('#storeFilter button[data-filter="' + STORE.filter + '"]');
   if (cur && cur.hidden){
     STORE.filter = "all";
