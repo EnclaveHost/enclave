@@ -14,14 +14,33 @@ patch).
 
 ## Build
 
+**Production** rides `llamacpp-toolchain.yml`, which builds the whole ggml
+stack into ONE tarball: llama.cpp's ggml (CUDA sm_86+sm_90,
+`GGML_BACKEND_DL`, `GGML_MAX_NAME=128` tree-wide), sd.cpp compiled with
+`SD_USE_SYSTEM_GGML` against that same ggml, and both shims. One ggml per
+process is load-bearing - two vendored copies alias the same SONAMEs and
+the dynamic linker binds both engines to whichever loaded first.
+`GGML_MAX_NAME=128` is ABI (it sizes a field inside `struct ggml_tensor`,
+so every ggml consumer in the process must agree) and REQUIRED by sd.cpp:
+SD UNet tensor names overflow ggml's default 64 and truncated names
+collide. sd.cpp needs no CUDA compile of its own - GPU work flows through
+the dlopened `ggml-cuda` module, which `esd_init()` loads from
+`ENCLAVE_GGML_BACKEND_DIR` (guarded: whichever shim initializes first in
+the process wins). Ship flow: run the workflow → paste the printed
+ELL_URL/ELL_SHA256 into Dockerfile.wasmtime → dispatch the Wasmtime
+Toolchain → repin WASMTIME_IMAGE in Dockerfile.wasm.
+
+**Local smoke** (vendored ggml, CPU; backends register statically so the
+esd_init guard skips module loading):
+
 ```bash
 git clone --recursive https://github.com/leejet/stable-diffusion.cpp && cd stable-diffusion.cpp
 git checkout b5d812008eb7082a238fc589444544b3278187ae
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DSD_BUILD_SHARED_LIBS=ON   # + -DSD_CUDA=ON for GPU nodes
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DSD_BUILD_SHARED_LIBS=ON
 cmake --build build -j
 
 cc -shared -fPIC -Wl,-soname,libenclave_sd.so \
-   -I<sd.cpp>/include enclave_sd.c \
+   -I<sd.cpp>/include -I<sd.cpp>/ggml/include enclave_sd.c \
    -L<sd.cpp>/build/bin -lstable-diffusion \
    -o libenclave_sd.so
 
@@ -29,12 +48,6 @@ cc -shared -fPIC -Wl,-soname,libenclave_sd.so \
 ESD_LIB_LOCATION=<dir with both .so> cargo build --release -p wasmtime-cli \
   --features wasmtime-wasi-nn/onnx-download,wasmtime-wasi-nn/sdcpp
 ```
-
-For production, mirror the enclave-llamacpp toolchain workflow: pinned
-checkout, CUDA build (`-DSD_CUDA=ON`; use `GGML_BACKEND_DL` if the wasmtime
-binary must start on driverless nodes), ship libstable-diffusion.so +
-libenclave_sd.so to /usr/local/lib in the manager image, repin
-WASMTIME_IMAGE.
 
 ## Wiring (host side)
 

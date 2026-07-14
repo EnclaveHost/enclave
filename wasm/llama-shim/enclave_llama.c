@@ -26,8 +26,14 @@ void ell_init(void) {
      * nvidia container runtime - and never on CPU-flavor nodes). Load them
      * from ENCLAVE_GGML_BACKEND_DIR (NULL = executable dir + cwd). A module
      * whose own deps are unresolvable is skipped silently in release builds;
-     * ell_gpu_devices() is how callers check that a GPU actually arrived. */
-    ggml_backend_load_all_from_path(getenv("ENCLAVE_GGML_BACKEND_DIR"));
+     * ell_gpu_devices() is how callers check that a GPU actually arrived.
+     *
+     * Guarded: the sd shim (enclave_sd) shares this process AND this ggml -
+     * whichever init runs first loads the modules; loading again would
+     * register duplicate devices in ggml's registry. */
+    if (ggml_backend_dev_count() == 0) {
+        ggml_backend_load_all_from_path(getenv("ENCLAVE_GGML_BACKEND_DIR"));
+    }
     llama_backend_init();
 }
 

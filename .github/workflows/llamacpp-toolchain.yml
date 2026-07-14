@@ -1,14 +1,29 @@
-# Builds the enclave-llamacpp library tarball - llama.cpp (CUDA, sm_86+sm_90)
-# plus the enclave_llama shim (wasm/llama-shim/) - and uploads it as a release
-# asset that Dockerfile.wasmtime consumes (ELL_URL/ELL_SHA256), the same
-# prebuild pattern as ort-toolchain.yml.
+# Builds the enclave ggml-stack library tarball - llama.cpp (CUDA,
+# sm_86+sm_90) AND stable-diffusion.cpp sharing ONE ggml, plus the
+# enclave_llama (wasm/llama-shim/) and enclave_sd (wasm/sd-shim/) shims -
+# uploaded as a release asset that Dockerfile.wasmtime consumes
+# (ELL_URL/ELL_SHA256), the same prebuild pattern as ort-toolchain.yml.
 #
-# Why a shim rides the tarball: llama.h passes structs BY VALUE, whose layout
+# Why shims ride the tarball: llama.h passes structs BY VALUE, whose layout
 # shifts between llama.cpp releases; the shim pins the wasmtime<->llama
 # boundary to pointers and scalars (8 functions), compiled HERE against the
 # exact pinned llama.cpp, so the Rust FFI in wasm/wasmtime-nn-ggml.patch can
-# never layout-drift. Bumping llama.cpp = change LLAMA_COMMIT below, run this,
-# paste the printed sha into Dockerfile.wasmtime, dispatch the toolchain.
+# never layout-drift. Same story for enclave_sd over sd.cpp
+# (wasm/wasmtime-nn-sdcpp.patch). Bumping an engine = change its commit
+# below, run this, paste the printed sha into Dockerfile.wasmtime, dispatch
+# the toolchain.
+#
+# ONE ggml, deliberately: sd.cpp builds with SD_USE_SYSTEM_GGML against the
+# ggml from the LLAMA checkout (identical commit to the shipped libs). Two
+# vendored ggml copies in one process would alias the same SONAMEs and the
+# dynamic linker would bind BOTH engines to whichever loaded first - silent
+# ABI roulette. The whole tree compiles with GGML_MAX_NAME=128 (C/CXX/CUDA
+# alike - it sizes a field INSIDE struct ggml_tensor, so every ggml consumer
+# in the process must agree): sd.cpp requires it (SD UNet tensor names blow
+# past ggml's default 64, and truncated names collide), llama.cpp is
+# indifferent (short names) but must match the ABI. sd.cpp itself needs NO
+# CUDA compile - its GPU work flows through the dlopened ggml-cuda module
+# built from the llama tree.
 #
 # Build shape mirrors ort-toolchain.yml: ubuntu-22.04 (glibc 2.35 links into
 # rust:bookworm AND runs on the ubuntu-24.04 manager runtime), CUDA 12.6
@@ -24,13 +39,17 @@ on:
       release_tag:
         description: "Release tag for the lib tarball (created if missing)"
         required: true
-        default: "enclave-llamacpp-bec4772f"
+        default: "enclave-llamacpp-bec4772f-sd1"
 
 env:
   # pinned llama.cpp revision - the one the shim + backend were validated
   # against (2026-07-07). Bump deliberately; re-verify the batch-by-value
   # cast note in wasm/llama-shim/enclave_llama.c when you do.
   LLAMA_COMMIT: bec4772f6a2527d371557b5d2032641e5ff7619c
+  # pinned stable-diffusion.cpp revision (see wasm/sd-shim/README.md),
+  # validated against the LLAMA_COMMIT ggml on 2026-07-13 (local CPU e2e:
+  # identical output to the vendored-ggml build).
+  SD_COMMIT: b5d812008eb7082a238fc589444544b3278187ae
 
 jobs:
   build:
@@ -76,7 +95,12 @@ jobs:
             -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.6/bin/nvcc \
             -DCMAKE_CUDA_ARCHITECTURES="86-real;90-real" \
             -DGGML_NATIVE=OFF \
-            -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=OFF
+            -DCMAKE_C_FLAGS="-DGGML_MAX_NAME=128" \
+            -DCMAKE_CXX_FLAGS="-DGGML_MAX_NAME=128" \
+            -DCMAKE_CUDA_FLAGS="-DGGML_MAX_NAME=128" \
+            -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=OFF \
+            -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_APP=OFF -DLLAMA_BUILD_COMMON=OFF \
+            -DCMAKE_INSTALL_PREFIX=/tmp/ggml-prefix
           # Library targets only: the tools/app executables are broken at
           # this pin with SERVER/TOOLS off (llama-app links -lllama-server-impl
           # unconditionally), and a lib tarball needs no executables anyway.
@@ -84,11 +108,16 @@ jobs:
           # closure - build them explicitly.
           cmake --build build -j"$(nproc)" --target llama ggml-cpu ggml-cuda
           ls -la build/bin/lib*.so* | head -20
+          # Install ggml (headers + libs + ggml-config.cmake) so sd.cpp's
+          # SD_USE_SYSTEM_GGML find_package(ggml) resolves. TOOLS/APP/COMMON
+          # are off above precisely so this install set is libs-only.
+          cmake --install build
 
       - name: Compile the enclave_llama shim against the pinned build
         run: |
           cc -shared -fPIC \
             -Wl,-soname,libenclave_llama.so \
+            -DGGML_MAX_NAME=128 \
             -I /tmp/llama.cpp/include -I /tmp/llama.cpp/ggml/include \
             "$GITHUB_WORKSPACE/wasm/llama-shim/enclave_llama.c" \
             -L /tmp/llama.cpp/build/bin -lllama -lggml \
@@ -101,6 +130,49 @@ jobs:
             echo "FATAL: libcuda leaked into the DT_NEEDED closure"; exit 1
           fi
 
+      - name: Clone stable-diffusion.cpp (pinned)
+        run: |
+          # NOT --recursive: the ggml submodule is replaced by the system
+          # ggml above, examples/webp/webm submodules are built OFF.
+          git clone https://github.com/leejet/stable-diffusion.cpp /tmp/sd.cpp
+          cd /tmp/sd.cpp
+          git checkout "$SD_COMMIT"
+
+      - name: Build sd.cpp against the llama tree's ggml (shared, no CUDA compile)
+        run: |
+          cd /tmp/sd.cpp
+          # -I in the flags: the installed ggml::ggml imported target carries
+          # no INTERFACE_INCLUDE_DIRECTORIES at this ggml version (upstream
+          # config quirk), so the include path rides the compiler flags next
+          # to the MANDATORY GGML_MAX_NAME=128 (ABI - see header comment).
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSD_BUILD_SHARED_LIBS=ON \
+            -DSD_USE_SYSTEM_GGML=ON \
+            -DSD_BUILD_EXAMPLES=OFF -DSD_WEBP=OFF -DSD_WEBM=OFF \
+            -DCMAKE_PREFIX_PATH=/tmp/ggml-prefix \
+            -DCMAKE_C_FLAGS="-DGGML_MAX_NAME=128 -I/tmp/ggml-prefix/include" \
+            -DCMAKE_CXX_FLAGS="-DGGML_MAX_NAME=128 -I/tmp/ggml-prefix/include"
+          cmake --build build -j"$(nproc)"
+          objdump -p build/bin/libstable-diffusion.so | grep NEEDED
+
+      - name: Compile the enclave_sd shim against the pinned build
+        run: |
+          cc -shared -fPIC \
+            -Wl,-soname,libenclave_sd.so \
+            -DGGML_MAX_NAME=128 \
+            -I /tmp/sd.cpp/include -I /tmp/ggml-prefix/include \
+            "$GITHUB_WORKSPACE/wasm/sd-shim/enclave_sd.c" \
+            -L /tmp/sd.cpp/build/bin -L /tmp/llama.cpp/build/bin \
+            -lstable-diffusion -lggml -lggml-base \
+            -o /tmp/libenclave_sd.so
+          # same libcuda invariant as the llama shim
+          for so in /tmp/libenclave_sd.so /tmp/sd.cpp/build/bin/libstable-diffusion.so; do
+            if LD_LIBRARY_PATH=/tmp/llama.cpp/build/bin:/tmp/sd.cpp/build/bin ldd "$so" | grep -q libcuda; then
+              echo "FATAL: libcuda leaked into $so"; exit 1
+            fi
+          done
+
       - name: Package tarball (lib/ with SONAME links, ORT-tarball style)
         env:
           TAG: ${{ inputs.release_tag }}
@@ -111,6 +183,8 @@ jobs:
           cp -a /tmp/llama.cpp/build/bin/libllama.so* "$OUT/lib/"
           cp -a /tmp/llama.cpp/build/bin/libggml*.so* "$OUT/lib/"
           cp -a /tmp/libenclave_llama.so "$OUT/lib/"
+          cp -a /tmp/sd.cpp/build/bin/libstable-diffusion.so "$OUT/lib/"
+          cp -a /tmp/libenclave_sd.so "$OUT/lib/"
           ls -la "$OUT/lib/"
           cd /tmp/pkg
           tar -czf "$TAG.tgz" enclave-llamacpp-linux-x64-gpu
@@ -132,8 +206,8 @@ jobs:
           # retro-flagged prerelease.)
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
             || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease \
-                 --title "$TAG (llama.cpp lib tarball)" \
-                 --notes "llama.cpp $LLAMA_COMMIT CUDA libs (sm_86+sm_90, CUDA 12.6, GGML_NATIVE=OFF, GGML_BACKEND_DL: cpu/cuda are dlopened modules) + the enclave_llama shim (wasm/llama-shim/). Consumed by Dockerfile.wasmtime (ELL_URL/ELL_SHA256) for the ggml wasi-nn backend (wasm/wasmtime-nn-ggml.patch)."
+                 --title "$TAG (ggml-stack lib tarball)" \
+                 --notes "llama.cpp $LLAMA_COMMIT CUDA libs (sm_86+sm_90, CUDA 12.6, GGML_NATIVE=OFF, GGML_MAX_NAME=128, GGML_BACKEND_DL: cpu/cuda are dlopened modules) + stable-diffusion.cpp $SD_COMMIT built against the SAME ggml (SD_USE_SYSTEM_GGML) + the enclave_llama (wasm/llama-shim/) and enclave_sd (wasm/sd-shim/) shims. Consumed by Dockerfile.wasmtime (ELL_URL/ELL_SHA256) for the ggml and sdcpp wasi-nn backends (wasm/wasmtime-nn-ggml.patch, wasm/wasmtime-nn-sdcpp.patch)."
           gh release upload "$TAG" "/tmp/pkg/$TAG.tgz" \
             --repo "$GITHUB_REPOSITORY" --clobber
           echo "Pin in wasm/Dockerfile.wasmtime:"
