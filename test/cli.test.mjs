@@ -48,6 +48,7 @@ const dep32 = (x) => "0x" + x.replace(/^0x/, "").padStart(64, "0");
 const S = {
   logins: 0, apiCalls: [], txs: [],            // recorded traffic
   claimed: false,                              // get(ID) shows a live lease?
+  active: true,                                // get(ID).active (false = suspended)
   apiDeployment: null,                         // GET /v1/deployments/:id answer
   numVersions: 0n,
 };
@@ -118,7 +119,7 @@ function apiServer() {
 function rpcServer() {
   const depRecord = () => ({
     id: ID, owner: OWNER, appRef: "catalog://" + "0x" + "cd".repeat(32) + "/0", ports: "http:8088", configCid: "",
-    gpuMilli: 0, cpuMilli: 10, appPort: 8088, isPublic: true, active: true,
+    gpuMilli: 0, cpuMilli: 10, appPort: 8088, isPublic: true, active: S.active,
     createdAt: BigInt(Math.floor(Date.now() / 1000) - 60), rate: 6n,
     balance6: 2_000000n, spent6: 0n,
     runner: S.claimed ? "0x" + "ee".repeat(32) : "0x" + "0".repeat(64),
@@ -346,6 +347,27 @@ test("stop: setActive(false) on-chain, then DELETE", async () => {
   const del = S.apiCalls.findLast((c) => c.path === `/v1/deployments/${ID}` && c.method === "DELETE");
   assert.ok(del, "DELETE sent");
   assert.match(r.out, /terminated/);
+});
+
+test("resume: setActive(true) on-chain + claim-hint nudge", async () => {
+  S.txs.length = 0; S.active = false;                       // the ledger shows a suspended record
+  const r = await run(["resume", ID]);
+  assert.equal(r.code, 0, r.err);
+  const sa = S.txs.find((t) => t.functionName === "setActive");
+  assert.deepEqual(sa.args, [ID, true]);
+  const hint = S.apiCalls.findLast((c) => c.path === "/v1/claim-hint" && c.method === "POST");
+  assert.ok(hint, "claim-hint posted");
+  assert.equal(JSON.parse(hint.body).id, ID);
+  assert.match(r.out, /re-queued/);
+  S.active = true;
+});
+
+test("resume of an already-active deployment sends no tx", async () => {
+  S.txs.length = 0;
+  const r = await run(["resume", ID]);
+  assert.equal(r.code, 0, r.err);
+  assert.ok(!S.txs.some((t) => t.functionName === "setActive"), "no setActive tx");
+  assert.match(r.out, /already active/);
 });
 
 test("publish: validates the component, pins, cuts a catalog version", async () => {

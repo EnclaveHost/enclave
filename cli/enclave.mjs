@@ -762,7 +762,7 @@ async function cmdStop(rest) {
   const account = loadKey();
   if (!rest[0]) throw new Error("usage: enclave stop <id>");
   const id = await resolveId(rest[0], account);
-  if (!(await confirm(`stop ${short(id)}? (terminates the app; on-chain balance is spent, not refunded)`))) return say("aborted");
+  if (!(await confirm(`stop ${short(id)}? (suspends the app and takes it off the queue; the remaining balance stays on the deployment - \`enclave resume\` re-queues it)`))) return say("aborted");
   if (isB32(id)) {
     // take the work item off the queue first so no enclave re-claims it…
     const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "get", [id]).catch(() => null);
@@ -776,6 +776,33 @@ async function cmdStop(rest) {
   if (opt.json) return jout(r || { id, status: "stopped", note: "ledger item deactivated; no live enclave record" });
   say(r ? `${r.status}${r.ranSeconds ? ` after ${dur(r.ranSeconds)}` : ""}${r.note ? ` (${r.note})` : ""}`
         : "deactivated on-chain; no enclave was serving it");
+}
+
+// The other half of stop: setActive(true) re-queues the work item (its balance
+// never left the record), then one claim-hint nudges the fleet so the relaunch
+// doesn't wait for the next sweep. The app relaunches FRESH from its published
+// version - suspend/resume preserves money, not memory.
+async function cmdResume(rest) {
+  const account = loadKey();
+  if (!rest[0]) throw new Error("usage: enclave resume <id>");
+  const id = await resolveId(rest[0], account);
+  if (!isB32(id)) throw new Error("only on-chain deployments (bytes32 ids) can be resumed");
+  const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "get", [id]);
+  if (!d || d.owner === "0x0000000000000000000000000000000000000000") throw new Error(`no deployment ${short(id)} on the ledger`);
+  if (d.owner.toLowerCase() !== account.address.toLowerCase()) throw new Error(`${short(id)} is owned by ${d.owner}, not this key`);
+  const fundable = d.rate > 0n ? Number(d.balance6 / d.rate) : 0;
+  if (!(await confirm(`resume ${short(id)}? (re-queues it; the remaining ${usd6(d.balance6)} buys ${dur(fundable)} at ${usd6(d.rate * 3600n)}/h once it runs)`))) return say("aborted");
+  if (d.active) say("already active on the ledger; nudging the fleet");
+  else await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi: (await depAbi()).abi,
+    functionName: "setActive", args: [id, true] });
+  const h = await api("POST", "/v1/claim-hint", { body: { id } }).catch(() => null);
+  if (opt.json) return jout({ id, active: true, fundableSec: fundable, hint: h });
+  if (fundable < 1)
+    say(`re-queued, but UNFUNDED: ${usd6(d.balance6)} buys under a second at ${usd6(d.rate * 3600n)}/h - \`enclave fund ${short(id)} --usdc 5\` un-sticks it`);
+  else if (h && h.accepted === false && h.reason)
+    say(`re-queued; claim-hint declined: ${h.reason} (the sweep may still claim it)`);
+  else
+    say(`re-queued with ${dur(fundable)} of runtime - an enclave claims it shortly (watch: enclave status ${short(id)})`);
 }
 
 async function cmdDeploy(rest) {
@@ -1055,7 +1082,10 @@ deployments
   logs <id> [-f] [--tail N]  the app's stdout/stderr (-f polls)
   fund <id> --usdc 5|--eth 0.002   top up runtime by the second
   attest [<id>]              fetch attestation + verify it LOCALLY; nonzero exit on FAIL
-  stop <id>                  setActive(false) on-chain + DELETE the instance
+  stop <id>                  suspend: setActive(false) on-chain + DELETE the instance
+                             (the remaining balance stays on the deployment)
+  resume <id>                setActive(true): re-queue a stopped deployment; it
+                             relaunches from its remaining balance
 
 catalog
   publish <app.wasm> --slug S [--version V --name N --desc D --config JSON]
@@ -1076,7 +1106,7 @@ ENCLAVE_KEY overrides the key file. Auth is SIWE; keys never leave this machine.
 const COMMANDS = {
   key: cmdKey, whoami: cmdWhoami, deploy: cmdDeploy, ls: cmdLs, list: cmdLs,
   status: cmdStatus, logs: cmdLogs, fund: cmdFund, attest: cmdAttest,
-  stop: cmdStop, publish: cmdPublish, apps: cmdApps,
+  stop: cmdStop, suspend: cmdStop, resume: cmdResume, publish: cmdPublish, apps: cmdApps,
   pricing: cmdPricing, availability: cmdAvailability, gpu: cmdGpu, account: cmdAccount,
 };
 

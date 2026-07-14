@@ -2,7 +2,9 @@
    <c-deployments> - the "My Apps" panel: the signed-in
    wallet's deployments, each with status, spend, its app origin,
    its dedicated IPv6 (when the deployment declares tcp/udp
-   ports), in-browser attestation verification, and terminate.
+   ports), in-browser attestation verification, and suspend/resume
+   (on-chain rows; the balance stays on the record across a
+   suspend - legacy dep_ rows terminate instead).
    Polls while a wallet is connected; follows `enclave:wallet`
    address edges (async session restore, account switches) and
    `enclave:auth` sign-in edges.
@@ -279,6 +281,15 @@ class Deployments extends EnclaveElement {
       // work can be topped up, and awaiting_payment/unfunded are Top up's
       // whole point (unfunded = drained; a top-up is what un-sticks it)
       const live = ["running", "provisioning", "queued", "pending", "claiming", "claimed", "awaiting_payment", "unfunded"].indexOf(st) !== -1;
+      // on-chain rows are WORK ITEMS: setActive(false) suspends (the remaining
+      // balance stays on the record) and setActive(true) re-queues it, so a
+      // stopped/terminated on-chain row is resumable, not gone. "stopped" is
+      // the ledger's word for it; "terminated" is the ex-runner's own record
+      // of the same suspend (it shadows the ledger row while signed in).
+      // Legacy dep_ instances have no ledger record to reactivate: theirs
+      // stays Terminate, and ended legacy rows offer nothing.
+      const onchain = /^0x[0-9a-f]{64}$/i.test(d.id || "");
+      const resumable = onchain && (st === "stopped" || st === "terminated");
       // the row's app identity, shared by the cover-art chip and the meta line
       const appLbl = (d.app && d.app.slug ? d.app.slug + ":" + d.app.version : null)
         || (d.image && d.image.reference ? slugOfRef(d.image.reference) || shortImg(d.image.reference) : null);
@@ -296,7 +307,10 @@ class Deployments extends EnclaveElement {
             '<button class="btn btn-sm enc-outbtn" data-id="' + esc(d.id) + '">Output</button>' +
             (live ? '<button class="btn btn-sm enc-fundbtn" data-id="' + esc(d.id) + '" title="Add runtime - a gas-free USDC signature credits the deployment’s on-chain balance">Top up</button>' : '') +
             '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '">Verify</button>' +
-            (live ? '<button class="btn btn-sm danger enc-kill" data-id="' + esc(d.id) + '">Terminate</button>' : '') +
+            (resumable ? '<button class="btn btn-sm enc-resume" data-id="' + esc(d.id) + '" title="Put it back on the queue - an enclave re-claims it and the app relaunches fresh from its published version, spending the remaining balance">Resume</button>' : '') +
+            (live ? (onchain
+              ? '<button class="btn btn-sm danger enc-kill" data-id="' + esc(d.id) + '" title="Stop the app and take it off the queue. The remaining balance stays on the deployment - Resume restarts it any time">Suspend</button>'
+              : '<button class="btn btn-sm danger enc-kill" data-id="' + esc(d.id) + '">Terminate</button>') : '') +
           '</span>' +
         '</div>' +
         ((st === "failed" || st === "expired") && d.error ? '<div class="enc-err" title="why this deployment ' + esc(st) + '">⚠ ' + esc(d.error) + '</div>' : '') +
@@ -315,6 +329,7 @@ class Deployments extends EnclaveElement {
     $$(".enc-fundbtn", body).forEach(b => b.addEventListener("click", () => this._fund(b.dataset.id, b)));
     $$(".enc-verify", body).forEach(b => b.addEventListener("click", () => this._verify(b.dataset.id, b)));
     $$(".enc-kill", body).forEach(b => b.addEventListener("click", () => this._kill(b.dataset.id, b)));
+    $$(".enc-resume", body).forEach(b => b.addEventListener("click", () => this._resume(b.dataset.id, b)));
     this._fillWhy();               // cached decline reasons repaint instantly with the rows
     this._probeWhy(pageRows);      // then refresh them (throttled per row)
     this._renderPager(pages, shown.length, PER_PAGE);
@@ -333,7 +348,7 @@ class Deployments extends EnclaveElement {
      decline reason, so the row can distinguish "waiting on capacity" from
      TERMINAL states (below the app's minimum shares, unapproved version,
      retired configCid) where no amount of waiting ever starts the app and
-     the only exit is terminate + redeploy (created shares are immutable).
+     the only exit is suspend + redeploy (created shares are immutable).
      Without this, a permanently unclaimable deployment is indistinguishable
      from a patient one - it took chain forensics to tell them apart once
      (2026-07-14, 0xf3d976a0…). Probes are throttled hard: current page only,
@@ -366,7 +381,7 @@ class Deployments extends EnclaveElement {
       el.classList.toggle("enc-err", !!c.terminal);
       el.innerHTML = c.terminal
         ? "⚠ won’t start by waiting - the fleet refuses this work: " + esc(c.reason)
-          + " (a deployment’s shares are immutable: terminate it and redeploy at the app’s current minimums)"
+          + " (a deployment’s shares are immutable: suspend it and redeploy at the app’s current minimums)"
         : '<span class="dim">fleet: ' + esc(c.reason) + " - retrying automatically</span>";
       el.hidden = false;
     });
@@ -575,27 +590,54 @@ class Deployments extends EnclaveElement {
   }
 
   async _kill(id, btn) {
-    if (btn){ btn.disabled = true; btn.textContent = "terminating…"; }
+    const onchain = /^0x[0-9a-f]{64}$/i.test(id);
+    if (btn){ btn.disabled = true; btn.textContent = onchain ? "suspending…" : "terminating…"; }
     try {
       // On-chain deployments (bytes32 ids) are WORK ITEMS: the enclave DELETE
       // only releases the current lease - any enclave would re-claim while the
       // record stays active and funded. A real stop is the owner's
       // setActive(false) on the ledger (one wallet tx), then the enclave release.
-      if (/^0x[0-9a-f]{64}$/i.test(id)){
-        showToast("confirm setActive(false) in your wallet - this takes it off the queue");
+      // The remaining balance stays on the record and setActive(true) re-queues
+      // it, so for on-chain rows this is a SUSPEND, not an end.
+      if (onchain){
+        showToast("confirm setActive(false) in your wallet - this suspends the app and takes it off the queue");
         await ensureBaseChain();
         const th = await sendTx(DEPLOYMENTS_ADDRESS, "0x" + DEP_SEL.setActive + pad32(id.replace(/^0x/, "")) + encUint(0));
         await waitReceipt(th);
       }
       const r = await Enclave.terminateDeployment(id).catch(e => {
         // the enclave's owner-stop watcher may already have torn it down
-        if (/^0x[0-9a-f]{64}$/i.test(id)) return null;
+        if (onchain) return null;
         throw e;
       });
-      showToast((r && r.status === "terminated" ? "terminated " : "terminating ") + id);
+      showToast(onchain
+        ? "suspended " + id.slice(0, 10) + "… - the remaining balance stays on it; Resume restarts it any time"
+        : (r && r.status === "terminated" ? "terminated " : "terminating ") + id);
       setTimeout(() => this.refresh(), 900);
     }
-    catch(e){ showToast(e.message); if (btn){ btn.disabled = false; btn.textContent = "Terminate"; } }
+    catch(e){ showToast(e.message); if (btn){ btn.disabled = false; btn.textContent = onchain ? "Suspend" : "Terminate"; } }
+  }
+
+  /* ---- resume a suspended on-chain deployment: setActive(true) re-queues
+     the work item (the balance never left it), then one claim-hint nudges the
+     fleet so the relaunch doesn't wait for the next sweep - the ex-runner
+     itself may re-adopt (terminated is CLAIM_TERMINAL). The app relaunches
+     FRESH from its published version: suspend/resume preserves money, not
+     memory (app state is ephemeral by design). ---- */
+  async _resume(id, btn) {
+    if (btn){ btn.disabled = true; btn.textContent = "resuming…"; }
+    try {
+      showToast("confirm setActive(true) in your wallet - this re-queues the app; billing resumes once it runs");
+      await ensureBaseChain();
+      const th = await sendTx(DEPLOYMENTS_ADDRESS, "0x" + DEP_SEL.setActive + pad32(id.replace(/^0x/, "")) + encUint(1));
+      await waitReceipt(th);
+      if (this._why) this._why.delete(id);   // a pre-suspend decline reason must not outlive the resume
+      fetch(Enclave.base + "/claim-hint", { method: "POST",
+        headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) }).catch(() => {});
+      showToast("resumed " + id.slice(0, 10) + "… - re-queued; an enclave picks it up shortly");
+      setTimeout(() => this.refresh(), 900);
+    }
+    catch(e){ showToast(e.message); if (btn){ btn.disabled = false; btn.textContent = "Resume"; } }
   }
 
   _startPoll() {
