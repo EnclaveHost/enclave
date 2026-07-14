@@ -104,6 +104,12 @@ via transaction instead of via one enclave's API).
 - **`renew(id)`** — current runner only, before expiry only; extends **from**
   `leaseUntil` (that time is already paid). After expiry even the same runner
   must re-`claim` — the job is back on the open queue.
+- **`setActive(id, bool)`** — the owner's suspend/resume switch. `false` takes
+  the record off the claim queue; a well-behaved runner sees `ActiveSet`, tears
+  down and releases (refunding the lease tail), and the balance STAYS on the
+  record. `true` re-queues it — the app relaunches fresh from its published
+  version, spending what's left. The dashboard's Suspend/Resume buttons and the
+  CLI's `stop`/`resume` are exactly this toggle.
 - **`release(id)`** — graceful hand-back; refunds the unused lease tail to
   `balance6`. Called on clean shutdown, after the owner `setActive(false)`,
   or when provisioning fails right after a claim.
