@@ -317,7 +317,7 @@ containers:
       # (name:path:file.gguf) picks WHICH gguf preloads as the wasi-nn graph
       # when the repo ships several quantizations - the manager stages the
       # pick as a symlink dir, so the mpk-<hash> mount name never matters.
-      - MODEL_VOLUMES: "qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-bb5cace1df1795f9dde1b6da38b2b9edfaaa56f4574a5d6270c1295b192c81c1,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,sd-turbo:/tinfoil/mpk/mpk-df0919ea85c829fb62c61029ac130f7e4a98bc6a57fe52dfb777a7426d5b36fc,sd-turbo-full:/tinfoil/mpk/mpk-e787b81d664922c08ac69bb0952b436404bbb150f6f7b71971431d0c3ff4ef60,z-image-turbo:/tinfoil/mpk/mpk-9282c2c36539935081b45ca64a8c33765b5b3215318e73f702524a11007ad4f5"
+      - MODEL_VOLUMES: "qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-bb5cace1df1795f9dde1b6da38b2b9edfaaa56f4574a5d6270c1295b192c81c1,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,sd-turbo:/tinfoil/mpk/mpk-df0919ea85c829fb62c61029ac130f7e4a98bc6a57fe52dfb777a7426d5b36fc,sd-turbo-full:/tinfoil/mpk/mpk-e787b81d664922c08ac69bb0952b436404bbb150f6f7b71971431d0c3ff4ef60,z-image-turbo:/tinfoil/mpk/mpk-9282c2c36539935081b45ca64a8c33765b5b3215318e73f702524a11007ad4f5,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2"
       # Volumes preloaded through the stable-diffusion.cpp wasi-nn backend
       # (image txt2img: the guest load_by_name()s the volume and one
       # compute() runs the whole pipeline host-side; weights never enter
@@ -437,6 +437,20 @@ models:
   - name: "z-image-turbo"
     repo: "EnclaveHost/z-image-turbo-sd@07cb261e0093aedc442472faeab729508a2384f5"
     mpk: "9282c2c36539935081b45ca64a8c33765b5b3215318e73f702524a11007ad4f5_11193159680_31dc54ae-4be7-5dd7-83a4-c9220cb45974"
+  # Qwen-Image-2512 (Apache-2.0) with the lightx2v Lightning 8-step LoRA
+  # MERGED into the Q8_0 transformer, curated for the sdcpp backend
+  # (provenance + per-file sha256 in the repo README). Components carry the
+  # GENERIC names diffusion.gguf / llm.gguf (Qwen2.5-VL-7B text encoder) /
+  # vae.safetensors, built so the node-global ENCLAVE_SD_*_FILE envs can one
+  # day name every SD volume at once. NOT in MODEL_VOLUMES_SD yet: those envs
+  # still pin z-image-turbo's filenames and the preload validates them against
+  # EVERY listed SD volume, so flipping the preload here is a separate cutover
+  # (mount-only until then - two ggufs and no selection means no accidental
+  # LLM preload either). Serving: 8 steps, cfg 1.0, ~34 GB peak VRAM at
+  # 1024px with VAE tiling.
+  - name: "qwen-image-2512-sd"
+    repo: "EnclaveHost/qwen-image-2512-sd@a82dcb53ef8ff3c675dd0b636788ebb332fa973f"
+    mpk: "f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2_30075547648_8c18a205-f8c1-5a49-82d7-f0c367f603a1"
 
 # Single ingress → supervisor. Only these paths are reachable from outside.
 # PROBE-PATH NOTE: this shim exposes "/health", but the supervisor serves its

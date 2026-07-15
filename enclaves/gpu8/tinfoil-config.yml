@@ -311,7 +311,7 @@ containers:
       # (name:path:file.gguf) picks WHICH gguf preloads as the wasi-nn graph
       # when the repo ships several quantizations - the manager stages the
       # pick as a symlink dir, so the mpk-<hash> mount name never matters.
-      - MODEL_VOLUMES: "qwen2.5-0.5b:/tinfoil/mpk/mpk-e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4,qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-d02f1afc0eee60adc4da2a541c8e095c9cff347b4f3996c2950ff84c676c1c70:qwen2.5-0.5b-instruct-q4_k_m.gguf,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c"
+      - MODEL_VOLUMES: "qwen2.5-0.5b:/tinfoil/mpk/mpk-e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4,qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-d02f1afc0eee60adc4da2a541c8e095c9cff347b4f3996c2950ff84c676c1c70:qwen2.5-0.5b-instruct-q4_k_m.gguf,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2"
     # SECRET doubles as the manager's control-plane token (VMMGR_TOKEN): tenants
     # hold outbound HTTP to loopback, so the control API on :8091 must reject
     # calls that don't carry it (the supervisor sends X-Vmmgr-Token). The tenant
@@ -360,6 +360,13 @@ models:
   - name: "qwen3.5-122b-gguf"
     repo: "EnclaveHost/qwen3.5-122b-gguf@8beb6427d807c9d2cf185ea22c149f8c63668815"
     mpk: "1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c_60242325504_b8673ecf-afc3-5051-8093-f2bf785fe93a"
+  # Qwen-Image-2512 + Lightning 8-step merge (Q8_0), curated for the sdcpp
+  # backend - see the gpu flavor's entry for component/serving notes. This
+  # flavor has no MODEL_VOLUMES_SD preload, so the volume is mount-only for
+  # guests here (two ggufs and no selection = no accidental LLM preload).
+  - name: "qwen-image-2512-sd"
+    repo: "EnclaveHost/qwen-image-2512-sd@a82dcb53ef8ff3c675dd0b636788ebb332fa973f"
+    mpk: "f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2_30075547648_8c18a205-f8c1-5a49-82d7-f0c367f603a1"
 
 # Single ingress → supervisor. Only these paths are reachable from outside.
 # PROBE-PATH NOTE: this shim exposes "/health", but the supervisor serves its
