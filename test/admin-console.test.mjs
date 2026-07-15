@@ -51,7 +51,7 @@ test("artifact selectors match the checked-in ABIs", () => {
 });
 
 test("book keys encode like viem stringToHex(size:32)", () => {
-  for (const k of ["registry", "deployments", "appCatalog", "enclavePay", "volumeAccess", "custom-key_1"])
+  for (const k of ["registry", "deployments", "appCatalog", "enclavePay", "custom-key_1"])
     eq(encKey(k), stringToHex(k, { size: 32 }));
 });
 
@@ -67,8 +67,6 @@ test("owner calls encode like viem", () => {
     ["EnclaveDeployments", "setOwner", [{ t: "addr", v: A1 }], [A1]],
     ["EnclavePay", "setPayout", [{ t: "addr", v: A2 }], [A2]],
     ["EnclavePay", "setOwner", [{ t: "addr", v: A2 }], [A2]],
-    ["EnclaveVolumeAccess", "setOperator", [{ t: "addr", v: A1 }], [A1]],
-    ["EnclaveVolumeAccess", "transferAdmin", [{ t: "addr", v: A1 }], [A1]],
     ["EnclaveAppCatalog", "transferOwnership", [{ t: "addr", v: A2 }], [A2]],
   ];
   for (const [name, fn, mine, viems] of cases)
@@ -101,7 +99,6 @@ test("creation tx data (bytecode + ctor args) encodes like viem encodeDeployData
   dep("EnclaveAppCatalog", []);
   dep("EnclavePay", [USDC, A1]);
   dep("EnclaveDeployments", [USDC, A1, REG, FEED]);
-  dep("EnclaveVolumeAccess", [A2]);
 });
 
 test("decodeBook round-trips a viem-encoded all() result (skipping retired keys)", () => {
@@ -149,19 +146,6 @@ test("import calls (tuple[] args) encode like viem", () => {
       args: [APP_ROW.appId, [asTuple(VER_SCHEMA, VER_ROW), asTuple(VER_SCHEMA, { ...VER_ROW, version: "1.0.1", cid: "bafyOther" })]] }));
 });
 
-test("volume import calls (primitive + bytes[] arrays) encode like viem", () => {
-  const volAbi = ABI("EnclaveVolumeAccess");
-  const volId = "0x" + "11".repeat(32), pub = "0x" + "22".repeat(32);
-  const sealed = "0x" + "ab".repeat(104);
-  eq(encCallX(S("EnclaveVolumeAccess").importVolumes, [
-      { t: "bytes32[]", v: [volId] }, { t: "addr[]", v: [A1] }, { t: "uint[]", v: [1751000000] }]),
-    encodeFunctionData({ abi: volAbi, functionName: "importVolumes", args: [[volId], [A1], [1751000000n]] }));
-  eq(encCallX(S("EnclaveVolumeAccess").importMembers, [
-      { t: "bytes32", v: volId }, { t: "addr[]", v: [A1, A2] }, { t: "bytes32[]", v: [pub, pub] },
-      { t: "uint[]", v: [2, 1] }, { t: "uint[]", v: [1751000001, 1751000002] }, { t: "bytes[]", v: [sealed, "0x"] }]),
-    encodeFunctionData({ abi: volAbi, functionName: "importMembers",
-      args: [volId, [A1, A2], [pub, pub], [2, 1], [1751000001n, 1751000002n], [sealed, "0x"]] }));
-});
 
 test("multicall wrapping encodes like viem", () => {
   const catAbi = ABI("EnclaveAppCatalog");
@@ -213,15 +197,15 @@ test("artifacts stay in sync with contracts/*.sol (regenerate check)", () => {
   // cheap staleness guard: every contract source is older-or-equal than the
   // generated module, or the build regenerates it anyway (build-site.mjs runs
   // the artifact builder first). Here we just assert the module carries all
-  // six contracts with bytecode + the five book keys.
+  // five contracts with bytecode + the four book keys.
   assert.deepEqual(Object.keys(CONTRACTS).sort(), [
     "EnclaveAddressBook", "EnclaveAppCatalog", "EnclaveDeployments",
-    "EnclavePay", "EnclaveRegistry", "EnclaveVolumeAccess"]);
+    "EnclavePay", "EnclaveRegistry"]);
   for (const [name, c] of Object.entries(CONTRACTS)) {
     assert.match(c.bytecode, /^0x[0-9a-f]{100,}$/i, name + " bytecode");
     for (const a of c.ctor) assert.equal(a.type, "address", name + " ctor args are all addresses (the console's deploy encoder assumes this)");
   }
   assert.deepEqual(
     Object.values(CONTRACTS).map((c) => c.bookKey).filter(Boolean).sort(),
-    ["appCatalog", "deployments", "enclavePay", "registry", "volumeAccess"]);
+    ["appCatalog", "deployments", "enclavePay", "registry"]);
 });

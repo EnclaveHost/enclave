@@ -37,7 +37,6 @@ const DEFS = [
   { name: "EnclaveAppCatalog",   bookKey: "appCatalog", viaIR: true },
   { name: "EnclavePay",          bookKey: "enclavePay" },
   { name: "EnclaveDeployments",  bookKey: "deployments" },
-  { name: "EnclaveVolumeAccess", bookKey: "volumeAccess" },
 ];
 
 function compile(name, viaIR) {

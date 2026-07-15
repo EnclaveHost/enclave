@@ -30,7 +30,7 @@ const ZERO = "0x" + "0".repeat(40);
 const KEY_RE = /^[A-Za-z0-9_-]{1,31}$/;
 
 /* the book panel's row order; other (custom) keys found on-chain follow */
-const BOOK_KEYS = ["registry", "deployments", "appCatalog", "enclavePay", "volumeAccess"];
+const BOOK_KEYS = ["registry", "deployments", "appCatalog", "enclavePay"];
 
 const lc = (a) => (a || "").toLowerCase();
 const isZero = (a) => !a || /^0x0{40}$/i.test(a);
@@ -43,7 +43,7 @@ const call = (to, data) => baseRpc("eth_call", [{ to, data }, "latest"]);
 const rdAddr = async (to, sel) => { const r = await call(to, "0x" + sel); return "0x" + (r || "").replace(/^0x/, "").slice(-40).padStart(40, "0"); };
 const rdUint = async (to, sel) => hexBig((await call(to, "0x" + sel)) || "0x0");
 // Soft address read: a selector the DEPLOYED bytecode may not implement yet
-// (e.g. pendingOwner/pendingAdmin on a contract still on its pre-two-step
+// (e.g. pendingOwner on a contract still on its pre-two-step
 // revision — which is every contract until it is redeployed) reverts. Treat
 // that as "unset" (ZERO) instead of rejecting and blanking the whole console.
 const rdAddrSoft = async (to, sel) => { try { return await rdAddr(to, sel); } catch { return ZERO; } };
@@ -131,17 +131,15 @@ class AdminConsole extends EnclaveElement {
       S.book.entries = decodeBook(allHex);
       const E = S.book.entries;
 
-      const dep = E.deployments, cat = E.appCatalog, pay = E.enclavePay, vol = E.volumeAccess;
-      const dSel = CONTRACTS.EnclaveDeployments.sel, pSel = CONTRACTS.EnclavePay.sel, vSel = CONTRACTS.EnclaveVolumeAccess.sel;
-      [S.dep, S.cat, S.pay, S.vol] = await Promise.all([
+      const dep = E.deployments, cat = E.appCatalog, pay = E.enclavePay;
+      const dSel = CONTRACTS.EnclaveDeployments.sel, pSel = CONTRACTS.EnclavePay.sel;
+      [S.dep, S.cat, S.pay] = await Promise.all([
         dep ? Promise.all([rdAddr(dep, dSel.owner), rdAddr(dep, dSel.payout), rdUint(dep, dSel.pricePerSec6), rdUint(dep, dSel.cpuPricePerSec6), rdUint(dep, dSel.leaseSec), rdAddr(dep, dSel.ethUsdFeed), rdAddrSoft(dep, dSel.pendingOwner)])
               .then(([owner, payout, gpu, cpu, lease, feed, pending]) => ({ addr: dep, owner, payout, gpu, cpu, lease, feed, pending })) : null,
         cat ? Promise.all([rdAddr(cat, CONTRACTS.EnclaveAppCatalog.sel.owner), rdAddrSoft(cat, CONTRACTS.EnclaveAppCatalog.sel.pendingOwner)])
               .then(([owner, pending]) => ({ addr: cat, owner, pending })) : null,
         pay ? Promise.all([rdAddr(pay, pSel.owner), rdAddr(pay, pSel.payout), rdAddr(pay, pSel.usdc), rdAddrSoft(pay, pSel.pendingOwner)])
               .then(([owner, payout, usdc, pending]) => ({ addr: pay, owner, payout, usdc, pending })) : null,
-        vol ? Promise.all([rdAddr(vol, vSel.admin), rdAddr(vol, vSel.operator), rdAddrSoft(vol, vSel.pendingAdmin)])
-              .then(([admin, operator, pending]) => ({ addr: vol, admin, operator, pending })) : null,
       ]);
       this._note.hidden = true;
       this._paint();
@@ -170,7 +168,6 @@ class AdminConsole extends EnclaveElement {
     chip("deployments", S.dep && S.dep.owner);
     chip("catalog", S.cat && S.cat.owner);
     chip("pay", S.pay && S.pay.owner);
-    chip("volumes", S.vol && S.vol.admin);
     el.innerHTML = `<span class="ac-who">signing as <b class="ac-addr">${esc(Enclave.address)}</b></span>${chips.join("")}
       <button class="btn btn-sm ac-refresh" data-refresh>↻ Refresh</button>`;
     const r = el.querySelector("[data-refresh]");
@@ -237,12 +234,6 @@ class AdminConsole extends EnclaveElement {
         this._row("Payout <code>setPayout</code>", mono(S.pay.payout), "pay-payout", { owner: S.pay.owner })));
     }
 
-    /* -- volume access -- */
-    if (S.vol) {
-      parts.push(sec(`EnclaveVolumeAccess · ${link(S.vol.addr)}`,
-        `Admin ${mono(S.vol.admin)}. The operator is the enclave runner key that gets granted on volumes (rotate it if the runner key rotates). Per-volume grant/revoke stays in the vault client - it needs sealed keys, not just a signature.`,
-        this._row("Operator <code>setOperator</code>", mono(S.vol.operator), "vol-op", { owner: S.vol.admin })));
-    }
 
     /* -- catalog pointer -- */
     if (S.cat) {
@@ -255,13 +246,11 @@ class AdminConsole extends EnclaveElement {
       const pre = {
         EnclavePay: { usdc: USDC_BASE, payout: S.pay && S.pay.payout },
         EnclaveDeployments: { usdc: USDC_BASE, payout: (S.dep && S.dep.payout) || (S.pay && S.pay.payout), registry: S.book.entries.registry, ethUsdFeed: S.dep && S.dep.feed },
-        EnclaveVolumeAccess: { operator: S.vol && S.vol.operator },
       };
       const notes = {
         EnclaveAddressBook: `<span class="warn">redeploying the book replaces the ONE address baked into every component</span> - that path needs the config/site/CLI rebake + a release + a dashboard update. Use <code>scripts/deploy-address-book.mjs</code> instead unless you know exactly why.`,
         EnclaveRegistry: `EnclaveDeployments pins the registry it trusts at construction - after a registry redeploy, redeploy EnclaveDeployments too (pointed at the new registry), then update both book keys.`,
         EnclaveDeployments: `deploys with the source-default prices - adjust in the panel above after pointing the book. Existing deployments live on in the OLD contract; users top up there until they redeploy.`,
-        EnclaveVolumeAccess: `grants live per-volume inside the contract instance - a redeploy starts with no volumes and no grants.`,
       };
       const cards = Object.keys(CONTRACTS).map((name) => {
         const c = CONTRACTS[name];
@@ -271,7 +260,7 @@ class AdminConsole extends EnclaveElement {
         return `<div class="ac-card" data-card="${esc(name)}">
           <h4>${esc(name)}<span class="ac-hint">${(c.bytecode.length / 2 - 1).toLocaleString()} bytes${c.bookKey ? ` · book key <code>${esc(c.bookKey)}</code>` : " · not a book entry"}</span></h4>
           ${notes[name] ? `<p class="ac-sub">${notes[name]}</p>` : ""}
-          ${inputs || `<p class="ac-sub dim">no constructor arguments - the deployer becomes ${name === "EnclaveVolumeAccess" ? "admin" : name === "EnclaveRegistry" ? "(no owner - open registration)" : "owner"}.</p>`}
+          ${inputs || `<p class="ac-sub dim">no constructor arguments - the deployer becomes ${name === "EnclaveRegistry" ? "(no owner - open registration)" : "owner"}.</p>`}
           <button class="btn btn-primary btn-sm" data-act="deploy:${esc(name)}">Deploy ${esc(name)}</button>
           <div class="ac-deploy-out" hidden></div>
           <div class="ac-status" hidden></div>
@@ -304,13 +293,12 @@ class AdminConsole extends EnclaveElement {
     /* -- danger zone -- */
     {
       const bSel = CONTRACTS.EnclaveAddressBook.sel, cSel = CONTRACTS.EnclaveAppCatalog.sel;
-      const dSel = CONTRACTS.EnclaveDeployments.sel, pSel = CONTRACTS.EnclavePay.sel, vSel = CONTRACTS.EnclaveVolumeAccess.sel;
+      const dSel = CONTRACTS.EnclaveDeployments.sel, pSel = CONTRACTS.EnclavePay.sel;
       const rows = [
         S.book && { label: "Address book", fn: "setOwner", to: S.book.addr, cur: S.book.owner, pending: S.book.pending, sel: bSel.setOwner, accSel: bSel.acceptOwnership, act: "own-book" },
         S.dep && { label: "EnclaveDeployments", fn: "setOwner", to: S.dep.addr, cur: S.dep.owner, pending: S.dep.pending, sel: dSel.setOwner, accSel: dSel.acceptOwnership, act: "own-dep" },
         S.cat && { label: "EnclaveAppCatalog", fn: "transferOwnership", to: S.cat.addr, cur: S.cat.owner, pending: S.cat.pending, sel: cSel.transferOwnership, accSel: cSel.acceptOwnership, act: "own-cat" },
         S.pay && { label: "EnclavePay", fn: "setOwner", to: S.pay.addr, cur: S.pay.owner, pending: S.pay.pending, sel: pSel.setOwner, accSel: pSel.acceptOwnership, act: "own-pay" },
-        S.vol && { label: "EnclaveVolumeAccess", fn: "transferAdmin", to: S.vol.addr, cur: S.vol.admin, pending: S.vol.pending, sel: vSel.transferAdmin, accSel: vSel.acceptAdmin, act: "own-vol" },
       ].filter(Boolean);
       this._ownRows = Object.fromEntries(rows.map((r) => [r.act, r]));
       const inner = rows.map((r) => {
@@ -432,7 +420,7 @@ class AdminConsole extends EnclaveElement {
         if (!need(/^\d+$/.test(v) && +v >= 60 && +v <= 86400, "lease must be 60…86400 seconds")) return;
         return void this._tx(S.dep.addr, encCall(dSel.setLeaseSec, [{ t: "uint", v }]), `setLeaseSec(${v})`, panelStatus, true);
       }
-      if (act === "dep-feed" || act === "dep-payout" || act === "pay-payout" || act === "vol-op") {
+      if (act === "dep-feed" || act === "dep-payout" || act === "pay-payout") {
         const v = inputFor(act);
         if (!need(ADDR_RE.test(v), "enter a 0x… address (40 hex)")) return;
         if (act !== "dep-feed" && !need(!isZero(v), "the zero address is rejected by the contract")) return;
@@ -440,7 +428,6 @@ class AdminConsole extends EnclaveElement {
           "dep-feed":   [S.dep.addr, dSel.setEthUsdFeed, "setEthUsdFeed"],
           "dep-payout": [S.dep.addr, dSel.setPayout, "setPayout"],
           "pay-payout": [S.pay.addr, CONTRACTS.EnclavePay.sel.setPayout, "setPayout"],
-          "vol-op":     [S.vol.addr, CONTRACTS.EnclaveVolumeAccess.sel.setOperator, "setOperator"],
         };
         const [to, sel, fn] = map[act];
         return void this._tx(to, encCall(sel, [{ t: "addr", v }]), `${fn}(${short(v)})`, panelStatus, true);

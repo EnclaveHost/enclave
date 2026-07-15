@@ -19,7 +19,7 @@ pragma solidity ^0.8.20;
 ///     contracts it talks to" is governed by this key; the measurement pins
 ///     the code and THIS book's address, not the addresses inside it.
 ///   - Keys are short ascii labels right-padded to bytes32 ("registry",
-///     "deployments", "appCatalog", "enclavePay", "volumeAccess"); new keys
+///     "deployments", "appCatalog", "enclavePay"); new keys
 ///     can be added later without redeploying the book. Setting a key to
 ///     address(0) retires it (readers treat zero as unset and keep their
 ///     baked fallback).

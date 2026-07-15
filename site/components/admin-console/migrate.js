@@ -95,7 +95,7 @@ export async function importState(target, contractName) {
                 verify(data, target) -> {total, ok, bad: [labels]} } */
 
 const PAGE = 50;
-const CHUNK = { deployments: 12, apps: 20, versions: 25, volumes: 30, members: 15 };
+const CHUNK = { deployments: 12, apps: 20, versions: 25 };
 
 /* -- deployments -- */
 // Struct-schema revision sniff (same idea as the catalog's): rev-1 sources
@@ -159,64 +159,6 @@ async function readCatalog(source) {
 }
 const appCmp = (a, b) => APP_SCHEMA.every((f) => String(a[f.k]).toLowerCase() === String(b[f.k]).toLowerCase());
 const verCmp = (a, b) => VER_SCHEMA.every((f) => String(a[f.k]).toLowerCase() === String(b[f.k]).toLowerCase());
-
-/* -- volumes -- */
-async function volCreationBlock(source) {
-  // binary-search the deployment block via eth_getCode (the first revision has
-  // no enumeration, so discovery is a VolumeCreated log scan from creation)
-  let lo = 0n, hi = hexBig(await baseRpc("eth_blockNumber", []));
-  const codeAt = async (b) => (await baseRpc("eth_getCode", [source, "0x" + b.toString(16)])) !== "0x";
-  if (!(await codeAt(hi))) throw new Error("no code at source address");
-  while (lo < hi) {
-    const mid = (lo + hi) / 2n;
-    if (await codeAt(mid)) hi = mid; else lo = mid + 1n;
-  }
-  return lo;
-}
-async function readVolumes(source) {
-  const sel = CONTRACTS.EnclaveVolumeAccess.sel;
-  let volIds = [];
-  try {   // import-capable revisions enumerate; the first revision needs the log scan
-    const r = await call(source, "0x" + sel.volCount);
-    if (!r || r === "0x") throw new Error("no enumeration");
-    const n = wNum(r, 0);
-    for (let i = 0; i < n; i++) volIds.push(wB32(await call(source, encCallX(sel.volIdAt, [{ t: "uint", v: i }])), 0));
-  } catch (e) {
-    const from = await volCreationBlock(source);
-    const latest = hexBig(await baseRpc("eth_blockNumber", []));
-    const topic = CONTRACTS.EnclaveVolumeAccess.evt.VolumeCreated;
-    for (let b = from; b <= latest; b += 45000n) {
-      const to = (b + 44999n) > latest ? latest : (b + 44999n);
-      const logs = await baseRpc("eth_getLogs", [{ address: source, topics: [topic],
-        fromBlock: "0x" + b.toString(16), toBlock: "0x" + to.toString(16) }]);
-      for (const l of logs || []) volIds.push(l.topics[1]);
-    }
-    volIds = [...new Set(volIds)];
-  }
-  const vols = [];
-  for (const id of volIds) {
-    const v = await call(source, encCallX(sel.getVolume, [{ t: "bytes32", v: id }]));
-    if (hexBig("0x" + word(v, 1)) === 0n) continue;                    // !exists (retired id)
-    const vol = { volId: id, owner: wAddr(v, 0), createdAt: wNum(v, 2), members: [] };
-    const n = wNum(v, 3);
-    for (let i = 0; i < n; i++) {
-      const addr = wAddr(await call(source, encCallX(sel.memberAt, [{ t: "bytes32", v: id }, { t: "uint", v: i }])), 0);
-      vol.members.push({ addr, ...(await readMember(source, id, addr)) });
-    }
-    vols.push(vol);
-  }
-  return vols;
-}
-async function readMember(source, volId, addr) {
-  // getMember -> (uint8 role, bytes32 pubkey, bool registered, bytes sealedVEK, uint64 updatedAt)
-  const sel = CONTRACTS.EnclaveVolumeAccess.sel;
-  const r = await call(source, encCallX(sel.getMember, [{ t: "bytes32", v: volId }, { t: "addr", v: addr }]));
-  const off = wNum(r, 3), len = Number(hexBig("0x" + (r.replace(/^0x/, "").slice(off * 2, off * 2 + 64) || "0")));
-  const sealedVEK = "0x" + r.replace(/^0x/, "").slice(off * 2 + 64, off * 2 + 64 + len * 2);
-  return { role: wNum(r, 0), pubkey: wB32(r, 1), registered: hexBig("0x" + word(r, 2)) !== 0n, sealedVEK, updatedAt: wNum(r, 4) };
-}
-const memCmp = (a, b) => a.role === b.role && a.pubkey.toLowerCase() === b.pubkey.toLowerCase()
-  && a.updatedAt === b.updatedAt && a.sealedVEK.toLowerCase() === b.sealedVEK.toLowerCase();
 
 const chunked = (arr, n) => { const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; };
 
@@ -300,53 +242,6 @@ export const MIG_KINDS = {
         if (!t || !appCmp(a, t)) { bad.push(a.slug); continue; }
         if (a.versions.length !== t.versions.length || !a.versions.every((v, i) => verCmp(v, t.versions[i])))
           bad.push(a.slug + " (versions)");
-      }
-      return { total: data.length, ok: data.length - bad.length, bad };
-    },
-  },
-  volumes: {
-    label: "Volume access", contractName: "EnclaveVolumeAccess", bookKey: "volumeAccess",
-    read: readVolumes,
-    counts: (d) => `${d.length} volume${d.length === 1 ? "" : "s"}, ${d.reduce((n, v) => n + v.members.length, 0)} members`,
-    plan(data, after) {
-      const sel = CONTRACTS.EnclaveVolumeAccess.sel;
-      const have = Object.fromEntries(after.map((v) => [v.volId.toLowerCase(), v]));
-      const newVols = data.filter((v) => !have[v.volId.toLowerCase()]);
-      const txs = chunked(newVols, CHUNK.volumes).map((c, i) => ({
-        label: `importVolumes · batch ${i + 1} (${c.length})`,
-        gas: 80_000 + 100_000 * c.length,
-        dataHex: encCallX(sel.importVolumes, [
-          { t: "bytes32[]", v: c.map((v) => v.volId) },
-          { t: "addr[]", v: c.map((v) => v.owner) },
-          { t: "uint[]", v: c.map((v) => v.createdAt) }]),
-      }));
-      for (const v of data) {
-        const done = have[v.volId.toLowerCase()];
-        const doneAddrs = new Set(done ? done.members.map((m) => m.addr.toLowerCase()) : []);
-        const todo = v.members.filter((m) => !doneAddrs.has(m.addr.toLowerCase()));
-        for (const [i, c] of chunked(todo, CHUNK.members).entries())
-          txs.push({ label: `importMembers · ${v.volId.slice(0, 10)}… (${c.length}${i ? ", cont." : ""})`,
-            gas: 80_000 + 180_000 * c.length,
-            dataHex: encCallX(sel.importMembers, [
-              { t: "bytes32", v: v.volId },
-              { t: "addr[]", v: c.map((m) => m.addr) },
-              { t: "bytes32[]", v: c.map((m) => m.pubkey) },
-              { t: "uint[]", v: c.map((m) => m.role) },
-              { t: "uint[]", v: c.map((m) => m.updatedAt) },
-              { t: "bytes[]", v: c.map((m) => m.sealedVEK) }]) });
-      }
-      return packPlan("EnclaveVolumeAccess", txs);
-    },
-    async verify(data, target) {
-      const after = await readVolumes(target);
-      const byId = Object.fromEntries(after.map((v) => [v.volId.toLowerCase(), v]));
-      const bad = [];
-      for (const v of data) {
-        const t = byId[v.volId.toLowerCase()];
-        if (!t || t.owner.toLowerCase() !== v.owner.toLowerCase() || t.createdAt !== v.createdAt) { bad.push(v.volId.slice(0, 10) + "…"); continue; }
-        const tm = Object.fromEntries(t.members.map((m) => [m.addr.toLowerCase(), m]));
-        if (!v.members.every((m) => tm[m.addr.toLowerCase()] && memCmp(m, tm[m.addr.toLowerCase()])))
-          bad.push(v.volId.slice(0, 10) + "… (members)");
       }
       return { total: data.length, ok: data.length - bad.length, bad };
     },
