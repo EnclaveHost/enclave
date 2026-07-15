@@ -187,8 +187,12 @@ const chunkBySize = (arr, maxBytes, sizeOf) => {
    rough per-call gas estimates against a per-tx budget (well under Base's
    block limit; the wallet still estimates the real number before signing).
    Inner auth is untouched - multicall delegatecalls self, msg.sender holds. */
-const GAS_BUDGET  = 5_000_000;    // per packed tx - stays under RPC estimateGas caps
-const DATA_BUDGET = 12 * 1024;    // per packed tx (sum of inner calls) - multicall wrapper adds a little on top; bigger txs get dropped at broadcast
+// The binding limit is GAS, not size: public Base RPCs cap eth_estimateGas at
+// ~11M gas (measured), and if the estimate errors the wallet never gets a gas
+// limit and the tx silently fails to broadcast. Keep each packed tx a safe
+// margin under that (~9M), with a generous byte cap as a secondary guard.
+const GAS_BUDGET  = 9_000_000;    // per packed tx - stays under the ~11M RPC estimateGas ceiling
+const DATA_BUDGET = 24 * 1024;    // per packed tx (sum of inner calls) - secondary guard
 function packPlan(contractName, txs) {
   if (txs.length <= 1) return txs;
   const sel = CONTRACTS[contractName].sel;
