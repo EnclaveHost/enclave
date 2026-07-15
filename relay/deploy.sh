@@ -34,7 +34,11 @@ ssh nan-relay 'for u in nan-tcp-relay nan-tcp6-relay nan-udp-relay nan-egress-re
   && systemctl daemon-reload \
   && systemctl enable enclave-tcp-relay enclave-tcp6-relay enclave-udp-relay \
   && systemctl restart enclave-tcp-relay enclave-tcp6-relay enclave-udp-relay \
-  && systemctl is-active enclave-tcp-relay enclave-tcp6-relay enclave-udp-relay \
+  && sleep 4 \
+  && if systemctl is-active --quiet enclave-tcp-relay enclave-tcp6-relay enclave-udp-relay; then echo "tcp/tcp6/udp relays: active"; \
+     else echo "a data-plane relay FAILED to stay up after restart (crash loop?):"; \
+          systemctl is-active enclave-tcp-relay enclave-tcp6-relay enclave-udp-relay || true; \
+          journalctl -u enclave-tcp-relay -u enclave-tcp6-relay -u enclave-udp-relay -n 25 --no-pager; exit 1; fi \
   && if [ -f /etc/nan-relay/egress-relay.env ]; then \
        systemctl enable --now enclave-egress-relay && systemctl restart enclave-egress-relay \
        && systemctl is-active enclave-egress-relay; \
@@ -57,4 +61,7 @@ ssh nan 'if [ -f /etc/systemd/system/nan-api-relay.service ]; then \
   && systemctl daemon-reload \
   && systemctl enable enclave-api-relay \
   && systemctl restart enclave-api-relay \
-  && systemctl is-active enclave-api-relay'
+  && sleep 4 \
+  && if systemctl is-active --quiet enclave-api-relay; then echo "enclave-api-relay: active"; \
+     else echo "enclave-api-relay FAILED to stay up after restart (crash loop?) — last logs:"; \
+          journalctl -u enclave-api-relay -n 25 --no-pager; exit 1; fi'
