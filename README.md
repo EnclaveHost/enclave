@@ -16,23 +16,22 @@ Your wallet is your account: an Ethereum wallet is the identity, and paying is a
 3. **Enclaves claim the work.** Each enclave self-registers in `EnclaveRegistry`, polls for funded work it can serve, claims it, and runs the app in a wasmtime sandbox: per-tenant process isolation, a private RAM-backed `/data`, no network beyond the served HTTP socket unless the app declares firewall ports.
 4. **Every layer attests.** Tinfoil measures the container image (with a Sigstore transparency-log record tying it to this repo's release), the enclave proves the measurement in its attestation quote, and TLS keys never leave it. The site and CLI verify the full chain client-side before connecting.
 
-Beyond plain web apps: GPU inference via `wasi-nn` (ONNX, plus GGUF through a bundled llama.cpp backend, on an MPS-capped slice of an H200), attested read-only **model volumes** mounted at `/models` (Tinfoil Modelwrap; the attestation commits to the exact weight bytes), raw TCP/UDP services behind an SNI relay, per-deployment dedicated IPv6 (inbound and outbound), and a **platform model tier**, an 8×GPU vLLM flavor serving large models over an attested OpenAI-compatible API.
+Beyond plain web apps: GPU inference via `wasi-nn` (ONNX, plus GGUF through a bundled llama.cpp backend, on an MPS-capped slice of an H200), attested read-only **model volumes** mounted at `/models` (Tinfoil Modelwrap; the attestation commits to the exact weight bytes), raw TCP/UDP services behind an SNI relay, and per-deployment dedicated IPv6 (inbound and outbound).
 
 ## Repository layout
 
 | path | what it is |
 |---|---|
-| `supervisor.js` | the in-enclave service: REST API, deployment lifecycle, metering, attestation endpoints, platform-model proxy |
+| `supervisor.js` | the in-enclave service: REST API, deployment lifecycle, metering, attestation endpoints |
 | `wasm/` | wasm-manager sidecar: the wasmtime sandbox that runs tenant apps, incl. `wasi-nn` inference (ONNX Runtime + llama.cpp/GGUF) on MPS-capped GPU slices |
 | `worker/` | GPU worker: per-tenant MPS-capped GPU processes for raw PTX submission |
 | `mps-daemon/` | NVIDIA MPS control daemon (fractional GPU shares) |
-| `vllm/` | the 8×GPU platform-model image (vLLM) |
 | `contracts/` | Solidity on Base: `EnclaveRegistry`, `EnclaveAppCatalog`, `EnclaveDeployments` |
 | `relay/` | SNI relay + dedicated-IP relay (TLS passthrough to enclaves, IPv6 ingress/egress) |
 | `egress.js` / `net-guard.mjs` | outbound egress shim and network guard |
 | `site/` | the enclave.host static site, published to IPFS (LWC-style web components, soft-nav router; `npm run build:site`) |
 | `cli/` | the `enclave` CLI (deploy, fund, attest-verify from a terminal) |
-| `enclaves/` | Tinfoil config flavors: `gpu/`, `cpu/`, `gpu8/` (platform model) |
+| `enclaves/` | Tinfoil config flavors: `gpu/`, `cpu/`, `gpu8/` (8×GPU tenant compute) |
 | `scripts/` | build, release, and CI setup |
 | `test/` | `npm test` (node --test) |
 
@@ -57,7 +56,7 @@ The service runs as a [Tinfoil container](https://docs.tinfoil.sh/containers/ove
 
 - `enclaves/gpu/tinfoil-config.yml`: GPU flavor (supervisor + MPS daemon + GPU worker + wasm-manager). Serves GPU deployments, plus CPU-only deployments out of leftover CPU/RAM. Released as `vX.Y.Z` via `gh workflow run tinfoil-release.yml -f version=vX.Y.Z`.
 - `enclaves/cpu/tinfoil-config.yml`: CPU flavor (supervisor + wasm-manager only, `GPU_COUNT=0`). Serves CPU-only deployments (GPU asks are refused with a 422). Released as `vX.Y.Z-cpu` via `tinfoil-release-cpu.yml`.
-- `enclaves/gpu8/tinfoil-config.yml`: the 8×GPU platform-model flavor (vLLM serving a large model over the supervisor's attested proxy). Released via `tinfoil-release-gpu8.yml`.
+- `enclaves/gpu8/tinfoil-config.yml`: the 8×GPU tenant-compute flavor (the same four containers as the GPU flavor, scaled to 8 H200s). Released via `tinfoil-release-gpu8.yml`.
 
 To spin up a CPU enclave:
 

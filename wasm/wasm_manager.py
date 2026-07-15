@@ -2040,7 +2040,7 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     # port-serving app does NOT buy transparent egress, `-Sinherit-network`
     # hands the guest the CVM's shared loopback namespace. A malicious tenant
     # can then reach the enclave's own loopback services — supervisor:8080,
-    # worker:8090, vLLM/PLATFORM_MODEL:8000, this manager:8091 — bypassing the
+    # worker:8090, this manager:8091 — bypassing the
     # egress net-guard AND per-request billing (an SSRF-to-localhost). We
     # deliberately do NOT try to fix this by dropping the flag, because with the
     # STOCK wasmtime CLI there is no middle ground: the WASI socket-address
@@ -2061,11 +2061,9 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     # embedder API (WasiCtxBuilder::socket_addr_check) instead of the CLI, OR a
     # per-tenant network namespace (delicate; must still expose the assigned
     # loopback port to the bridge). Until then, the billing/SSRF exposure is
-    # closed at the SERVICES: the worker binds loopback + optional token, the
-    # supervisor endpoints are token-gated, and vLLM must run with
-    # PLATFORM_MODEL_KEY set (config, not this file) to fully close the
-    # billing-bypass. See also the bind audit (_audit_rec), which still kills a
-    # guest that binds an unassigned policed port.
+    # closed at the SERVICES: the worker binds loopback + optional token and the
+    # supervisor endpoints are token-gated. See also the bind audit (_audit_rec),
+    # which still kills a guest that binds an unassigned policed port.
     net_args = egress_args if egress_transparent else ["-Sinherit-network"]
     cmd = [WASMTIME, "run", "-Scli", *P3_FLAGS, *nn_args, "-Stcp", "-Sudp",
            *net_args, "-Sallow-ip-name-lookup", *fs_args, *cfg_args, *vol_args,
