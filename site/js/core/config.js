@@ -30,8 +30,8 @@ export const PRIVY_RDNS = "io.privy.embedded";
    and applied synchronously below, so repeat visits never paint stale
    addresses even for a frame. */
 export const ADDRESS_BOOK_ADDRESS = "0xab214342d5A490150A4A977063A2f88E21F80907"; // EnclaveAddressBook on Base; written by scripts/deploy-address-book.mjs ("" = baked addresses only)
-export let APP_CATALOG_ADDRESS = "0x21F2798A51F5970dD43A5D8fAdA48b1b8D59cc67"; // EnclaveAppCatalog on Base; written automatically by scripts/deploy-app-catalog.mjs
-export let DEPLOYMENTS_ADDRESS = "0x267f7F792CA84482698b2f6774B028522247B6CD"; // EnclaveDeployments on Base; written automatically by scripts/deploy-deployments.mjs
+export let APP_CATALOG_ADDRESS = "0x11e91fae8864a690A7636C9095d9C3CfcC672F2b"; // EnclaveAppCatalog on Base; written automatically by scripts/deploy-app-catalog.mjs
+export let DEPLOYMENTS_ADDRESS = "0xd52214CeB7103175497419F5147EAE6f6B683044"; // EnclaveDeployments on Base; written automatically by scripts/deploy-deployments.mjs
 export let REGISTRY_ADDRESS    = "";                            // EnclaveRegistry (fleet membership); resolved from the address book only
 export const APP_CATALOG_CHAIN   = 8453;                        // Base mainnet (kept in sync by the deploy script; 84532 = Base Sepolia)
 

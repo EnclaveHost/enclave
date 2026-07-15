@@ -96,7 +96,7 @@ containers:
       # version (setApproval tx signed by the catalog's deployer key). Empty =
       # nothing can deploy (the image ships no deployable apps; the one baked
       # .wasm is the boot probe's fixture, not reachable through the API).
-      - APP_CATALOG_ADDRESS: "0x21F2798A51F5970dD43A5D8fAdA48b1b8D59cc67"                          # set after deploying EnclaveAppCatalog.sol (must be on CHAIN_ID's chain, read via BASE_RPC)
+      - APP_CATALOG_ADDRESS: "0x11e91fae8864a690A7636C9095d9C3CfcC672F2b"                          # set after deploying EnclaveAppCatalog.sol (must be on CHAIN_ID's chain, read via BASE_RPC)
       - PAYMENT_WINDOW_SEC: "600"                        # unpaid deployments release the reservation
       - GRACE_SEC: "90"                                  # grace after expiry before teardown (top-up window)
       - PAY_POLL_SEC: "12"
@@ -135,7 +135,7 @@ containers:
       # registry entry's operator), so registry advertising above is a hard
       # prerequisite, as is PROVISION_BACKEND=vm (claims run catalog wasm apps).
       - CLAIM_ENABLED: "1"
-      - DEPLOYMENTS_ADDRESS: "0x267f7F792CA84482698b2f6774B028522247B6CD"                          # set by scripts/deploy-deployments.mjs
+      - DEPLOYMENTS_ADDRESS: "0xd52214CeB7103175497419F5147EAE6f6B683044"                          # set by scripts/deploy-deployments.mjs
       # - CLAIM_POLL_SEC: "60"                           # optional: queue sweep / lease audit cadence
       # - RENEW_MARGIN_SEC: "300"                        # optional: renew when less lease than this remains
       # CPU-only work waits this long for a CPU enclave before a GPU enclave bids on
