@@ -46,9 +46,10 @@ ssh nan-relay 'for u in nan-tcp-relay nan-tcp6-relay nan-udp-relay nan-egress-re
 
 echo "== api relay (site box)"
 # api-relay.js imports ./fleet.mjs (shared discovery: registry read + TRUSTED_OPERATORS
-# filter + on-chain runner routing) — it MUST ship alongside or the service crash-loops
-# with ERR_MODULE_NOT_FOUND. fleet.mjs is self-contained (no local-file deps).
-scp api-relay.js fleet.mjs package.json nan:/opt/nan-relay/
+# filter + on-chain runner routing) AND ./net-guard.mjs (SSRF classifier for discovered
+# origins); fleet.mjs imports ./net-guard.mjs too. ALL of them MUST ship alongside or the
+# service crash-loops with ERR_MODULE_NOT_FOUND.
+scp api-relay.js fleet.mjs net-guard.mjs package.json nan:/opt/nan-relay/
 scp systemd/enclave-api-relay.service nan:/etc/systemd/system/
 ssh nan 'if [ -f /etc/systemd/system/nan-api-relay.service ]; then \
     systemctl disable --now nan-api-relay || true; rm /etc/systemd/system/nan-api-relay.service; fi \
