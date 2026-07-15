@@ -380,7 +380,7 @@ async function pickWallet(){
     host.innerHTML = '<div class="wp-card"><div class="wp-h">Choose a wallet</div>' +
       (privyOk ? '<div class="wp-rec"><b>Recommended</b> — with a browser wallet, your keys stay on your device and only you control them.</div>' : "") +
       wallets.map((w, i) => '<button class="wp-item" data-i="' + i + '">' +
-        (w.info.icon ? '<img src="' + w.info.icon + '" alt=""/>' : '<span class="wp-dot"></span>') +
+        (w.info.icon ? '<img src="' + esc(w.info.icon) + '" alt=""/>' : '<span class="wp-dot"></span>') +
         esc(w.info.name) + '</button>').join("") +
       (privyOk ? '<div class="wp-or"><span>or</span></div>' +
         '<button class="wp-item wp-privy" type="button"><span class="wp-dot wp-dot-iris"></span>Continue with email</button>' +
