@@ -42,6 +42,11 @@ const friendly = (e) => (e && (e.code === 4001 || /reject|denied|declin|cancell/
 const call = (to, data) => baseRpc("eth_call", [{ to, data }, "latest"]);
 const rdAddr = async (to, sel) => { const r = await call(to, "0x" + sel); return "0x" + (r || "").replace(/^0x/, "").slice(-40).padStart(40, "0"); };
 const rdUint = async (to, sel) => hexBig((await call(to, "0x" + sel)) || "0x0");
+// Soft address read: a selector the DEPLOYED bytecode may not implement yet
+// (e.g. pendingOwner/pendingAdmin on a contract still on its pre-two-step
+// revision — which is every contract until it is redeployed) reverts. Treat
+// that as "unset" (ZERO) instead of rejecting and blanking the whole console.
+const rdAddrSoft = async (to, sel) => { try { return await rdAddr(to, sel); } catch { return ZERO; } };
 
 /* decode all() -> { key: address } (skips zero/retired entries) */
 function decodeBook(hex) {
@@ -120,7 +125,7 @@ class AdminConsole extends EnclaveElement {
       const S = this.S = { book: { addr: ADDRESS_BOOK_ADDRESS, owner: null, entries: {} } };
       if (!S.book.addr) { this._note.textContent = "no ADDRESS_BOOK_ADDRESS is configured - deploy the book first (scripts/deploy-address-book.mjs)."; return; }
       const bookSel = CONTRACTS.EnclaveAddressBook.sel;
-      const [allHex, bookOwner, bookPending] = await Promise.all([call(S.book.addr, "0x" + bookSel.all), rdAddr(S.book.addr, bookSel.owner), rdAddr(S.book.addr, bookSel.pendingOwner)]);
+      const [allHex, bookOwner, bookPending] = await Promise.all([call(S.book.addr, "0x" + bookSel.all), rdAddr(S.book.addr, bookSel.owner), rdAddrSoft(S.book.addr, bookSel.pendingOwner)]);
       S.book.owner = bookOwner;
       S.book.pending = bookPending;
       S.book.entries = decodeBook(allHex);
@@ -129,13 +134,13 @@ class AdminConsole extends EnclaveElement {
       const dep = E.deployments, cat = E.appCatalog, pay = E.enclavePay, vol = E.volumeAccess;
       const dSel = CONTRACTS.EnclaveDeployments.sel, pSel = CONTRACTS.EnclavePay.sel, vSel = CONTRACTS.EnclaveVolumeAccess.sel;
       [S.dep, S.cat, S.pay, S.vol] = await Promise.all([
-        dep ? Promise.all([rdAddr(dep, dSel.owner), rdAddr(dep, dSel.payout), rdUint(dep, dSel.pricePerSec6), rdUint(dep, dSel.cpuPricePerSec6), rdUint(dep, dSel.leaseSec), rdAddr(dep, dSel.ethUsdFeed), rdAddr(dep, dSel.pendingOwner)])
+        dep ? Promise.all([rdAddr(dep, dSel.owner), rdAddr(dep, dSel.payout), rdUint(dep, dSel.pricePerSec6), rdUint(dep, dSel.cpuPricePerSec6), rdUint(dep, dSel.leaseSec), rdAddr(dep, dSel.ethUsdFeed), rdAddrSoft(dep, dSel.pendingOwner)])
               .then(([owner, payout, gpu, cpu, lease, feed, pending]) => ({ addr: dep, owner, payout, gpu, cpu, lease, feed, pending })) : null,
-        cat ? Promise.all([rdAddr(cat, CONTRACTS.EnclaveAppCatalog.sel.owner), rdAddr(cat, CONTRACTS.EnclaveAppCatalog.sel.pendingOwner)])
+        cat ? Promise.all([rdAddr(cat, CONTRACTS.EnclaveAppCatalog.sel.owner), rdAddrSoft(cat, CONTRACTS.EnclaveAppCatalog.sel.pendingOwner)])
               .then(([owner, pending]) => ({ addr: cat, owner, pending })) : null,
-        pay ? Promise.all([rdAddr(pay, pSel.owner), rdAddr(pay, pSel.payout), rdAddr(pay, pSel.usdc), rdAddr(pay, pSel.pendingOwner)])
+        pay ? Promise.all([rdAddr(pay, pSel.owner), rdAddr(pay, pSel.payout), rdAddr(pay, pSel.usdc), rdAddrSoft(pay, pSel.pendingOwner)])
               .then(([owner, payout, usdc, pending]) => ({ addr: pay, owner, payout, usdc, pending })) : null,
-        vol ? Promise.all([rdAddr(vol, vSel.admin), rdAddr(vol, vSel.operator), rdAddr(vol, vSel.pendingAdmin)])
+        vol ? Promise.all([rdAddr(vol, vSel.admin), rdAddr(vol, vSel.operator), rdAddrSoft(vol, vSel.pendingAdmin)])
               .then(([admin, operator, pending]) => ({ addr: vol, admin, operator, pending })) : null,
       ]);
       this._note.hidden = true;
