@@ -6,7 +6,7 @@
 // the CLI's defaults.
 //
 // The book is the ONE address that must stay stable: everything else
-// (registry, deployments, appCatalog, enclavePay, volumeAccess) is resolved
+// (registry, deployments, appCatalog, enclavePay) is resolved
 // from it at start and re-polled, so future contract redeploys are a single
 // owner tx (scripts/update-address-book.mjs) instead of a release train.
 //
