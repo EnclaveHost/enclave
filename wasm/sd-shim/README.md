@@ -55,10 +55,23 @@ ESD_LIB_LOCATION=<dir with both .so> cargo build --release -p wasmtime-cli \
   `-S nn-graph=sd::<staged dir>` instead of ggml (`_sd_checkpoint_path`;
   MODEL_VOLUMES' third field still picks the file). Set it in the enclave's
   tinfoil-config next to MODEL_VOLUMES.
+- **Flash attention is diffusion-only.** `ENCLAVE_SD_FLASH_ATTN=1` enables FA
+  on the DIFFUSION model (needed so big-resolution attention doesn't
+  materialize seq² score matrices) but the shim no longer forces it globally:
+  ggml's fp16 flash path also routes the VAE decode through fp16, which on a
+  fp32-range (bf16) VAE — Qwen-Image's — overflows into a crystalline-speckle
+  artifact (seen live 2026-07-15). The shim sets `diffusion_flash_attn` only.
+- **VAE decodes in f32.** The curated VAEs ship bf16; an fp16 GPU decode
+  overflows (same speckle). The shim pins the first-stage (VAE) tensors to f32
+  via `tensor_type_rules` (default `^vae\.=f32,^first_stage_model\.=f32`) — the
+  decode stays on the GPU and the quantized diffusion model is untouched.
+  Override with `ENCLAVE_SD_TENSOR_TYPE_RULES` for a VAE whose tensors use a
+  different prefix, or to relax/widen the pin, without a shim rebuild.
 - Tuning env (per node / per tenant): `ENCLAVE_SD_USE_GPU` (default 1,
   strict — no silent CPU fallback), `ENCLAVE_SD_WTYPE` (e.g. `f16` to halve
-  an f32 checkpoint on load), `ENCLAVE_SD_N_THREADS`, `ENCLAVE_SD_FLASH_ATTN`,
-  `ENCLAVE_SD_VAE_TILING` (tiled VAE decode — the big-resolution knob: the
+  an f32 checkpoint on load), `ENCLAVE_SD_N_THREADS`, `ENCLAVE_SD_FLASH_ATTN`
+  (diffusion FA; see above), `ENCLAVE_SD_TENSOR_TYPE_RULES` (VAE precision pin;
+  see above), `ENCLAVE_SD_VAE_TILING` (tiled VAE decode — the big-resolution knob: the
   ~6 GB decode spike at 1024px becomes ~1.5 GB. Value tunes it: `1` =
   engine default 32-latent/256px tiles (visible seam grid on FLUX-AE,
   seen live), `N` or `N:overlap` = N-latent tiles; **use `64:0.25`** —

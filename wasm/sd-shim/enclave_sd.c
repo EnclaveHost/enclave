@@ -143,8 +143,23 @@ void *esd_load_model(const char *model_path,
     if (!use_gpu) {
         p.backend = "CPU"; /* device assignment spec: everything on the CPU */
     }
-    p.flash_attn           = flash_attn != 0;
+    /* Flash attention is a DIFFUSION-model need: big-resolution attention would
+     * otherwise materialize seq^2 score matrices (2048px = 16384^2 per head).
+     * Do NOT force it GLOBALLY - ggml's fp16 flash path also routes the VAE
+     * decode through fp16, and with fp32-range (bf16) VAEs like Qwen-Image's it
+     * saturates on high-activation regions into a crystalline-speckle overflow.
+     * Keep FA on the diffusion model only. */
+    p.flash_attn           = 0;
     p.diffusion_flash_attn = flash_attn != 0;
+    /* VAE decode precision. The curated VAEs ship bf16 (fp32-range exponents);
+     * decoded in fp16 on the GPU they overflow -> the same crystalline speckle
+     * over an otherwise-correct image. Pin the first-stage (VAE) tensors to f32
+     * so the decode keeps fp32 range; it stays on the GPU and the quantized
+     * diffusion model is untouched (the rule only matches the VAE prefixes).
+     * Node-tunable via ENCLAVE_SD_TENSOR_TYPE_RULES for a VAE that names its
+     * tensors differently, or to widen/relax the pin without a rebuild. */
+    const char *ttr = getenv("ENCLAVE_SD_TENSOR_TYPE_RULES");
+    p.tensor_type_rules = (ttr && ttr[0]) ? ttr : "^vae\\.=f32,^first_stage_model\\.=f32";
     sd_ctx_t *ctx = new_sd_ctx(&p);
     if (!ctx) {
         return NULL;
