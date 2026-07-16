@@ -368,15 +368,14 @@ containers:
       # accumulation f32 and it PERSISTED, which proves the overflow is at the
       # fp16 INPUT conversion, not the sum.
       #
-      # Fix: pin the diffusion weights to bf16. bf16 src0 takes a DIFFERENT
-      # cublas branch (:1663) that converts the activation to bf16 (full f32
-      # exponent range - no inf) and accumulates in f32. Config-only, no
-      # rebuild. Cost: diffusion grows Q8_0 ~21GB -> bf16 ~40GB VRAM (fits the
-      # 140GB H200; watch the app's MPS cap). VAE stays f32 (its default rule);
-      # the whole rule REPLACES the shim default so both are listed here.
-      - ENCLAVE_SD_TENSOR_TYPE_RULES: '^model\.diffusion_model\.=bf16,^vae\.=f32,^first_stage_model\.=f32'
-      # Kept from v0.5.153: forces f32 accumulation on any remaining fp16 cublas
-      # GEMM (e.g. the Q8_0 text encoder) - strictly more correct, ~free on Hopper.
+      # Fix attempt REVERTED (v0.5.154): pinning ^model.diffusion_model.=bf16
+      # produced TOTAL NOISE for qwen and a 502 crash for z-image - the runtime
+      # Q8_0->bf16 conversion (or the bf16 GEMM path) is broken in this ggml, so
+      # the config-only precision pin is a dead end here (f32 would OOM at 80GB).
+      # The real fix is a toolchain rebuild forcing the integer MMQ path
+      # (GGML_CUDA_FORCE_MMQ) so the Q8_0 matmuls never cast activations to fp16
+      # - keeps Q8_0, memory-neutral. Left GGML_CUDA_FORCE_CUBLAS_COMPUTE_32F on
+      # (harmless, f32-accumulate) while that lands.
       - GGML_CUDA_FORCE_CUBLAS_COMPUTE_32F: "1"
       # Fused-attention quarantine (ORT/onnx volumes only - sdcpp/ggml
       # tenants are untouched): deployments attaching a listed volume get
