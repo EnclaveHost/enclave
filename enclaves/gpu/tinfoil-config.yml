@@ -353,39 +353,36 @@ containers:
       # 16384^2 per head, tens of GB of compute buffer, and sampling dies
       # at graph allocation ("sampling for image 1/1 failed" in <1s, seen
       # live). With FA the 2048px diffusion buffer is a few GB.
-      # DIAGNOSTIC (v0.5.158, 2026-07-16): VAE-on-CPU (v0.5.157) proved the
-      # speckle is the DIFFUSION model, not the VAE (22s CPU decode, still
-      # speckled). Biases load F32 (Linear init_params), so there is NO bf16 in
-      # the diffusion compute - the ONLY fp16 left is the flash-attention K/V
-      # cast (qwen passes kv_scale=1/128 to survive it; clean z-image uses 1.0).
-      # FA off -> manual attention, no fp16 K/V cast, F32 scores. If this clears
-      # the speckle it's the flash path; if not, fp16 is exonerated entirely.
-      # (FA off materializes seq^2 scores - fine <=1024px, OOMs at 2048px; test
-      # at 512px.)
-      - ENCLAVE_SD_FLASH_ATTN: "0"
-      # THE qwen-image-2512 crystalline-speckle FIX (2026-07-15). Root cause,
-      # confirmed live + against ggml-cuda.cu: the 20B Qwen-Image MMDiT's Q8_0
-      # weight matmuls take ggml-cuda's fp16 cublas path (use_fp16 is true for
-      # quantized src0, ggml-cuda.cu:1658). That path converts the ACTIVATION
-      # to fp16 INPUT before the GEMM (:1691) - and this model's activations
-      # exceed fp16's max (65504), so they saturate to inf. The inf shows up as
-      # sparse bright green/magenta latent spikes the (innocent) VAE decodes as
-      # crystalline glitter. CPU is f32 = clean; smaller z-image stays under
-      # 65504; NOT flash attention (v0.5.152 ran FA off, persisted); NOT the
-      # VAE (decode clean in fp16 to |latent|~272, verified on a 3070); NOT
-      # mere accumulation - v0.5.153's GGML_CUDA_FORCE_CUBLAS_COMPUTE_32F made
-      # accumulation f32 and it PERSISTED, which proves the overflow is at the
-      # fp16 INPUT conversion, not the sum.
+      - ENCLAVE_SD_FLASH_ATTN: "1"
+      # qwen-image-2512 crystalline-speckle ROOT CAUSE + FIX (2026-07-16),
+      # isolated decisively on hardware: the fleet's OWN nvcc lib renders
+      # pixel-clean when its sm_86 SASS executes on an Ampere card (RTX 3070) and
+      # speckles ONLY when its sm_90 SASS executes on the H200 - identical binary,
+      # identical weights, identical seed. The split is therefore NOT numeric
+      # (VAE-on-CPU, FA off, fp16, bf16, and nvcc-vs-clang were each ruled out by
+      # experiment); it is ggml-cuda's Programmatic Dependent Launch (PDL). PDL
+      # overlaps consecutive kernels on Hopper, resynchronizing via
+      # cudaGridDependencySynchronize / cudaTriggerProgrammaticLaunchCompletion,
+      # and is emitted ONLY for __CUDA_ARCH__>=900 / ptxVersion>=90
+      # (common.cuh:124,130,1611) - so it is LIVE on the H200 and DEAD on every
+      # pre-Hopper card. That is exactly the observed sm_86-clean/sm_90-speckle
+      # boundary. The PDL launcher (ggml_cuda_kernel_launch) wraps the diffusion
+      # glue kernels - norm, rope, cpy, binbcast (bias adds), quantize
+      # (activation->Q8_0 before each MMQ), unary, scale - and a read-before-write
+      # across a PDL boundary corrupts intermediate activations into the
+      # green/magenta crystalline glitter.
       #
-      # Fix attempt REVERTED (v0.5.154): pinning ^model.diffusion_model.=bf16
-      # produced TOTAL NOISE for qwen and a 502 crash for z-image - the runtime
-      # Q8_0->bf16 conversion (or the bf16 GEMM path) is broken in this ggml, so
-      # the config-only precision pin is a dead end here (f32 would OOM at 80GB).
-      # The real fix is a toolchain rebuild forcing the integer MMQ path
-      # (GGML_CUDA_FORCE_MMQ) so the Q8_0 matmuls never cast activations to fp16
-      # - keeps Q8_0, memory-neutral. Left GGML_CUDA_FORCE_CUBLAS_COMPUTE_32F on
-      # (harmless, f32-accumulate) while that lands.
-      - GGML_CUDA_FORCE_CUBLAS_COMPUTE_32F: "1"
+      # FIX: PDL is default-ON with a runtime kill switch (getenv in
+      # common.cuh:1630). Setting it to 0 falls back to standard sequential
+      # kernel launches (common.cuh:1642). Config-only, no toolchain/image
+      # rebuild, zero numeric risk. FA restored to 1 (the v0.5.158 FA=0 was a
+      # diagnostic, now unnecessary). The prior fp16-cublas-overflow theory was
+      # WRONG: Q8_0 matmuls already take the integer MMQ path on BOTH archs
+      # (turing_mma_available true for sm_86 AND sm_90, mmq.cu:307), and
+      # GGML_CUDA_FORCE_CUBLAS_COMPUTE_32F was never a real ggml env var (the
+      # actual knob is GGML_CUDA_CUBLAS_COMPUTE_TYPE) - dropped as a confirmed
+      # no-op.
+      - GGML_CUDA_PDL: "0"
       # Fused-attention quarantine (ORT/onnx volumes only - sdcpp/ggml
       # tenants are untouched): deployments attaching a listed volume get
       # the ORT_DISABLE_* attention envs in THEIR wasmtime process (unfused
