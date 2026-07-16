@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="color-scheme" content="dark" />
 <meta name="theme-color" content="#070A0F" />
-<title>Enclave · Confidential GPU Compute for the People (H200)</title>
-<meta name="description" content="Confidential compute, for the people. Deploy a WebAssembly app onto a verifiable, attested enclave equipped with an H200 GPU, straight from your browser: pay in ETH or USDC, and verify the enclave yourself. No sales calls, no gatekeepers. Built and operated by Enclave Host, Inc." />
+<title>Enclave · Confidential GPU Compute for the People</title>
+<meta name="description" content="Confidential compute, for the people. Deploy a WebAssembly app onto a verifiable, attested enclave equipped with a flagship NVIDIA GPU, straight from your browser: pay in ETH or USDC, and verify the enclave yourself. No sales calls, no gatekeepers. Built and operated by Enclave Host, Inc." />
 <link rel="canonical" href="https://enclave.host/" />
 <meta name="robots" content="index,follow,max-image-preview:large" />
 <meta property="og:site_name" content="Enclave" />
@@ -14,11 +14,11 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://enclave.host/" />
 <meta property="og:title" content="Enclave · Confidential Compute, for the People" />
-<meta property="og:description" content="Attested H200 enclaves for everyone, not just the Fortune 500. Deploy a WebAssembly app straight from your browser, pay per second in ETH or USDC, and verify the enclave yourself before sending a byte." />
+<meta property="og:description" content="Attested GPU enclaves for everyone, not just the Fortune 500. Deploy a WebAssembly app straight from your browser, pay per second in ETH or USDC, and verify the enclave yourself before sending a byte." />
 <meta property="og:image" content="https://enclave.host/assets/og.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
-<meta property="og:image:alt" content="Enclave: confidential compute for the people, on attested H200 enclaves" />
+<meta property="og:image:alt" content="Enclave: confidential compute for the people, on attested GPU enclaves" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:image" content="https://enclave.host/assets/og.png" />
 <link rel="icon" href="favicon.ico" sizes="48x48 32x32 16x16" />
@@ -80,7 +80,7 @@
       "@id": "https://enclave.host/#website",
       "url": "https://enclave.host/",
       "name": "Enclave",
-      "description": "Confidential compute, for the people: deploy WebAssembly apps onto verifiable, attested enclaves with H200 GPUs, paid per second in ETH or USDC.",
+      "description": "Confidential compute, for the people: deploy WebAssembly apps onto verifiable, attested enclaves with flagship NVIDIA GPUs, paid per second in ETH or USDC.",
       "publisher": { "@id": "https://enclave.host/#org" }
     },
     {
@@ -91,12 +91,12 @@
       "provider": { "@id": "https://enclave.host/#org" },
       "url": "https://enclave.host/",
       "areaServed": "Worldwide",
-      "description": "On-demand attested enclaves (AMD SEV-SNP + NVIDIA confidential computing) running WebAssembly apps with H200 GPU shares, metered per second and paid on-chain in ETH or USDC.",
+      "description": "On-demand attested enclaves with CPU and GPU confidential computing, running WebAssembly apps with GPU shares metered per second and paid on-chain in ETH or USDC.",
       "offers": [
         {
           "@type": "Offer",
           "name": "GPU / VRAM share",
-          "priceSpecification": { "@type": "UnitPriceSpecification", "price": 6, "priceCurrency": "USD", "unitText": "hour, per full H200 GPU" }
+          "priceSpecification": { "@type": "UnitPriceSpecification", "price": 6, "priceCurrency": "USD", "unitText": "hour, per full GPU card" }
         },
         {
           "@type": "Offer",
@@ -119,13 +119,13 @@
     <div class="hero-copy">
       <span class="eyebrow">Trustless, attested enclaves · API v1</span>
       <h1>Confidential compute,<br>for the&nbsp;<span class="hl">people</span>.</h1>
-      <p class="lede">The hardware that used to hide behind enterprise sales calls is now one click away: deploy a <b>WebAssembly app</b> onto a confidential enclave equipped with an <b>H200 GPU</b>, straight from your browser. Pay per second in <b>ETH or USDC</b>. Your wallet is your account. Then check the cryptographic attestation <b>yourself</b> before you send a single byte of data.</p>
+      <p class="lede">The hardware that used to hide behind enterprise sales calls is now one click away: deploy a <b>WebAssembly app</b> onto a confidential enclave equipped with a <b>flagship NVIDIA GPU</b>, straight from your browser. Pay per second in <b>ETH or USDC</b>. Your wallet is your account. Then check the cryptographic attestation <b>yourself</b> before you send a single byte of data.</p>
       <div class="hero-cta">
         <a href="apps" class="btn btn-primary">Deploy an app <span class="arr">→</span></a>
         <a href="develop#api" class="btn btn-ghost">Read the API</a>
       </div>
       <div class="hero-foot">
-        <span>H200 · confidential (SEV-SNP + NVIDIA&nbsp;CC)</span>
+        <span>flagship NVIDIA GPUs · confidential CPU&nbsp;+&nbsp;GPU</span>
         <span>per-tenant Wasm sandbox + process isolation</span>
         <span>VRAM zeroed before reuse</span>
         <span>CORS-friendly</span>
@@ -143,7 +143,7 @@
 <section id="why" data-view="overview" aria-label="Principles">
   <div class="wrap">
     <c-section-head eyebrow="The model" heading="Don't trust the operator. Measure it.">
-      <p>Enclave runs your WebAssembly app inside a hardware-isolated, attested enclave with a confidential H200 GPU wired into it, so the operator can't read your memory, your keys, or your traffic, and you don't have to take our word for it. Every claim on this page is something you can check on-chain or in a signed attestation. We're equally explicit about the part that <i>isn't</i> hardware-enforced: how tenants are kept apart from each other on a shared GPU. <a href="#isolation">See exactly how isolation works ↓</a></p>
+      <p>Enclave runs your WebAssembly app inside a hardware-isolated, attested enclave with a confidential GPU wired into it, so the operator can't read your memory, your keys, or your traffic, and you don't have to take our word for it. Every claim on this page is something you can check on-chain or in a signed attestation. We're equally explicit about the part that <i>isn't</i> hardware-enforced: how tenants are kept apart from each other on a shared GPU. <a href="#isolation">See exactly how isolation works ↓</a></p>
     </c-section-head>
     <div class="cards">
       <div class="card jade">
@@ -166,9 +166,9 @@
       </div>
       <div class="card amber">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="8.5" y="8.5" width="7" height="7" rx="1"/><path d="M9 4V2M15 4V2M9 22v-2M15 22v-2M4 9H2M4 15H2M22 9h-2M22 15h-2"/></svg></div>
-        <span class="tag">h200</span>
+        <span class="tag">gpu</span>
         <h3>Real GPUs</h3>
-        <p>Full H200s in NVIDIA confidential-computing mode, wired into your Wasm app through a GPU interface. Deploying is two dials - a GPU share and a CPU share - floored at the minimums the app's declared specs imply. <a href="#isolation">How tenants share a card →</a></p>
+        <p>Whole flagship NVIDIA GPUs in confidential-computing mode, wired into your Wasm app through a GPU interface. Deploying is two dials - a GPU share and a CPU share - floored at the minimums the app's declared specs imply. <a href="#isolation">How tenants share a card →</a></p>
       </div>
     </div>
   </div>
@@ -241,7 +241,7 @@
       <div class="price-card">
         <span class="pc-t">GPU / VRAM dial</span>
         <span class="pc-rate">× $<span data-live-price="unit-hr" data-gpu="100">6</span>/hr per full card</span>
-        <p>0-100% of one H200. VRAM and compute move together: each percent buys ≈1.4&nbsp;GB VRAM and ≈9.9 TFLOPS (≈1.3 SMs). <b>0% = a CPU-only app.</b></p>
+        <p>0-100% of one GPU card. VRAM and compute move together: each percent buys ≈1.4&nbsp;GB VRAM and ≈9.9 TFLOPS (≈1.3 SMs). <b>0% = a CPU-only app.</b></p>
       </div>
       <div class="price-card">
         <span class="pc-t">CPU / RAM dial</span>
