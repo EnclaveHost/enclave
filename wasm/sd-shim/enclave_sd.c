@@ -142,6 +142,23 @@ void *esd_load_model(const char *model_path,
     }
     if (!use_gpu) {
         p.backend = "CPU"; /* device assignment spec: everything on the CPU */
+    } else {
+        /* WanVAE (Qwen-Image et al.) conv weights are hardcoded F16 in sd.cpp
+         * (CausalConv3d/Conv2d init_params). On the GPU ggml's im2col casts the
+         * decoder activations to F16 (im2col dst type follows the weight type),
+         * and the WanVAE decoder's high-activation regions exceed the F16 max
+         * (65504) -> inf -> the crystalline-speckle overflow over an otherwise-
+         * correct image. This survives BOTH the f32 storage pin (the graph conv
+         * param is allocated F16 regardless of the stored/override type) AND
+         * GGML_CUDA_FORCE_CUBLAS_COMPUTE_32F (the F16 *cast*, not the matmul
+         * accumulation, is what saturates). The z-image AutoEncoderKL is
+         * unaffected, which is why only Qwen-Image speckled. Decode the VAE on
+         * the CPU (f32 throughout) while diffusion/TE stay on the GPU.
+         * Node-tunable: ENCLAVE_SD_VAE_ON_CPU=0 forces it back onto the GPU. */
+        const char *vc = getenv("ENCLAVE_SD_VAE_ON_CPU");
+        if (!vc || (vc[0] != '0' && vc[0] != 'f' && vc[0] != 'F' && vc[0] != 'n' && vc[0] != 'N')) {
+            p.backend = "vae=cpu";
+        }
     }
     /* Flash attention is a DIFFUSION-model need: big-resolution attention would
      * otherwise materialize seq^2 score matrices (2048px = 16384^2 per head).
