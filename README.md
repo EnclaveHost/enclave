@@ -109,6 +109,12 @@ Deliberately still manual:
   as before. Caveats: creating/deleting enclaves stays manual, and a release
   that introduces a **new secret name** still needs a manual bind + relaunch
   (Tinfoil binds secret names at container creation, not on update).
+- **Fleet scaling** is demand-driven: `autoscale.yml` (cron) reads funded,
+  unservable deployments from the chain and starts/creates standby `auto-*`
+  enclave containers — approval-gated on the `fleet-scale` environment by
+  default, idle boxes stopped automatically, griefing bounded by
+  non-refundable funding thresholds and hard caps. Design + threat model:
+  [docs/autoscale.md](docs/autoscale.md).
 
 One-time setup on a new machine/repo: `scripts/ci-setup.sh` (SSH deploy key,
 repo secrets/vars, the `contract-deploy` environment), then set

@@ -15,6 +15,7 @@
 #   - DEPLOYER_PRIVATE_KEY: your funded Base EOA, set it yourself on the environment
 #   - ghcr Actions access for the sidecar packages (web UI only), or a CR_PAT secret
 #   - TINFOIL_API_KEY: Tinfoil admin key so publishes auto-update the running fleet
+#     (the same key powers autoscale.yml; see docs/autoscale.md)
 set -euo pipefail
 say() { printf '\033[1;36m[ci-setup]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[ci-setup] WARNING:\033[0m %s\n' "$*" >&2; }
@@ -55,13 +56,15 @@ KNOWN="$(ssh-keyscan -t ed25519 "$SITE_HOST" "$RELAY_HOST" 2>/dev/null)"
 gh variable set DEPLOY_KNOWN_HOSTS -R "$REPO_SLUG" -b "$KNOWN"
 say "set vars SITE_SSH_HOST=$SITE_HOST RELAY_SSH_HOST=$RELAY_HOST CONTRACTS_NETWORK=${CONTRACTS_NETWORK:-base} DEPLOY_KNOWN_HOSTS"
 
-# 4) contract-deploy environment, gated on the repo owner's review
+# 4) review-gated environments: contract deploys and fleet scale-ups
 UID_JSON="$(gh api "users/${REPO_SLUG%%/*}" --jq .id)"
-gh api -X PUT "repos/$REPO_SLUG/environments/contract-deploy" \
-  --input - >/dev/null <<EOF
+for envname in contract-deploy fleet-scale; do
+  gh api -X PUT "repos/$REPO_SLUG/environments/$envname" \
+    --input - >/dev/null <<EOF
 {"reviewers":[{"type":"User","id":$UID_JSON}]}
 EOF
-say "environment contract-deploy created (required reviewer: ${REPO_SLUG%%/*})"
+  say "environment $envname created (required reviewer: ${REPO_SLUG%%/*})"
+done
 
 say "still manual:"
 say "  1. gh secret set DEPLOYER_PRIVATE_KEY -R $REPO_SLUG --env contract-deploy   # funded Base EOA for contract deploys"

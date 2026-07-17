@@ -1,0 +1,114 @@
+# autoscale.yml — demand-driven fleet scaling (design + threat model:
+# docs/autoscale.md). Every half hour, `plan` reads queued funded work from the
+# chain, live capacity from the relay, and fleet state from the Tinfoil
+# controlplane, and proposes start/create/stop actions for auto-* enclave
+# containers. `apply` executes a plan.
+#
+# Safety posture:
+#   - plan is read-only; it runs on every tick and writes its verdict to the
+#     job summary.
+#   - apply is gated on the `fleet-scale` environment (required reviewer) by
+#     default: a scale action happens only after a human approves that run.
+#     Setting the repo variable AUTOSCALE_MODE=auto switches to unattended
+#     apply — the script's own caps/cooldowns/thresholds still bound it.
+#   - workflow-level concurrency: while one run waits for approval, newer cron
+#     runs queue behind it and only the freshest pending run survives. apply
+#     re-verifies container state before each action, so approving an older
+#     plan is safe (stale actions self-skip).
+#   - no TINFOIL_API_KEY secret -> plan no-ops with a notice.
+name: Autoscale
+
+run-name: Autoscale ${{ github.run_id }}
+
+on:
+  schedule:
+    - cron: "17,47 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: autoscale
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      has_actions: ${{ steps.plan.outputs.has_actions }}
+      plan_b64: ${{ steps.plan.outputs.plan_b64 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Install dependencies
+        run: npm ci --silent
+
+      - name: Plan
+        id: plan
+        env:
+          TINFOIL_API_KEY: ${{ secrets.TINFOIL_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [ -z "$TINFOIL_API_KEY" ]; then
+            echo "::notice::TINFOIL_API_KEY secret not set — autoscale is inert (docs/autoscale.md)"
+            echo "has_actions=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          ./scripts/ensure-tinfoil-cli.sh
+          export PATH="$HOME/.local/bin:$PATH"
+          node scripts/autoscale.mjs plan --out plan.json | tee plan.log
+          {
+            echo '## Autoscale plan'
+            echo '```'
+            cat plan.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          n=$(node -e 'console.log(JSON.parse(require("fs").readFileSync("plan.json","utf8")).actions.length)')
+          echo "has_actions=$([ "$n" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "plan_b64=$(base64 -w0 plan.json)" >> "$GITHUB_OUTPUT"
+
+  # human-approved path (default): the fleet-scale environment requires review
+  apply:
+    needs: plan
+    if: needs.plan.outputs.has_actions == 'true' && vars.AUTOSCALE_MODE != 'auto'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: fleet-scale
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Install dependencies
+        run: npm ci --silent
+      - name: Apply reviewed plan
+        env:
+          TINFOIL_API_KEY: ${{ secrets.TINFOIL_API_KEY }}
+        run: |
+          ./scripts/ensure-tinfoil-cli.sh
+          export PATH="$HOME/.local/bin:$PATH"
+          echo '${{ needs.plan.outputs.plan_b64 }}' | base64 -d > plan.json
+          node scripts/autoscale.mjs apply plan.json | tee apply.log
+          { echo '## Autoscale apply'; echo '```'; cat apply.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  # unattended path: only when the repo variable AUTOSCALE_MODE=auto is set
+  apply-auto:
+    needs: plan
+    if: needs.plan.outputs.has_actions == 'true' && vars.AUTOSCALE_MODE == 'auto'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Install dependencies
+        run: npm ci --silent
+      - name: Apply plan (AUTOSCALE_MODE=auto)
+        env:
+          TINFOIL_API_KEY: ${{ secrets.TINFOIL_API_KEY }}
+        run: |
+          ./scripts/ensure-tinfoil-cli.sh
+          export PATH="$HOME/.local/bin:$PATH"
+          echo '${{ needs.plan.outputs.plan_b64 }}' | base64 -d > plan.json
+          node scripts/autoscale.mjs apply plan.json | tee apply.log
+          { echo '## Autoscale apply (auto)'; echo '```'; cat apply.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
