@@ -15,7 +15,7 @@
 # The wasmtime binary comes from the enclave-wasmtime toolchain image (built from
 # source with wasi-nn + onnx-cuda; see Dockerfile.wasmtime). Bump = rebuild that
 # image via the "Wasmtime Toolchain" workflow, then repin WASMTIME_IMAGE here.
-ARG WASMTIME_IMAGE=ghcr.io/enclavehost/enclave-wasmtime:v45.0.0@sha256:046dd5ae0d17293a7346fe438d5e70f64557789712ac5b68555763709718c41f
+ARG WASMTIME_IMAGE=ghcr.io/enclavehost/enclave-wasmtime:v45.0.0@sha256:abee7f296449365d857a5a22e46f65f015f4eac9e4bf8dcfa17ccb1e647b2d31
 FROM ${WASMTIME_IMAGE} AS wasmtime
 
 FROM nvidia/cuda:12.6.2-cudnn-runtime-ubuntu24.04
