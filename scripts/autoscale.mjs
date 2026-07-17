@@ -36,7 +36,7 @@ import { promisify } from "node:util";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { createPublicClient, http, fallback, stringToHex } from "viem";
+import { createPublicClient, http, fallback, stringToHex, keccak256, stringToBytes } from "viem";
 import { base } from "viem/chains";
 
 const execFileP = promisify(execFile);
@@ -103,7 +103,7 @@ const STRUCTURAL_RE = /below the app's minimum|deactivated|configCid is retired|
 // pure planner — all scaling policy lives here (unit-tested in test/)
 // ---------------------------------------------------------------------------
 export function decide(snap, cfg = CFG) {
-  const { candidates, enclaves, containers, health, relayDomains, relayOk = true } = snap;
+  const { candidates, enclaves, containers, health, relayDomains, relayOk = true, leases = [], lastActionAgo = {}, now = 0 } = snap;
   const warnings = [];
   const actions = [];
   // a relay outage looks identical to "no capacity anywhere" — refuse to act on it.
@@ -139,12 +139,16 @@ export function decide(snap, cfg = CFG) {
     const d = demand[f];
     const mine = autoOf(f);
     const running = mine.filter(isRunning);
-    const cooling = mine.find((c) => c.updatedAgoSec < cfg.cooldownSec);
+    // cooldown clock: age of our LAST lifecycle action on this flavor (repo
+    // variable written by apply), or the youngest auto container's age when
+    // the variable is missing — never Tinfoil's self-refreshing updated_at
+    const coolAge = Math.min(lastActionAgo[f] ?? Infinity, ...mine.map((c) => c.createdAgoSec));
+    const cooling = coolAge < cfg.cooldownSec;
 
     const wantUp = relayOk && d.unmetShare >= cfg.minUnmetShare[f] && d.committedUsd >= cfg.minCommittedUsd[f];
     if (wantUp) {
       if (cooling) {
-        warnings.push(`${f}: demand present but ${cooling.name} changed state ${Math.round(cooling.updatedAgoSec / 60)}m ago (cooldown)`);
+        warnings.push(`${f}: demand present but last ${f} lifecycle action was ${Math.round(coolAge / 60)}m ago (cooldown ${Math.round(cfg.cooldownSec / 60)}m)`);
       } else if (running.length >= cfg.maxAuto[f]) {
         warnings.push(`${f}: demand present but auto-capacity cap reached (${running.length}/${cfg.maxAuto[f]}) — raise AUTOSCALE_MAX_${f.toUpperCase()} or investigate why the running auto box isn't absorbing it`);
       } else {
@@ -170,9 +174,14 @@ export function decide(snap, cfg = CFG) {
     if (relayOk && !wantUp && d.count === 0 && relayDomains.length > 0 && !cooling) {
       for (const c of running) {
         const h = health[c.name];
-        if (h && h.deployments === 0 && c.updatedAgoSec >= cfg.idleStopSec) {
+        // idle-since is measured ON-CHAIN: the newest lease this box ever
+        // held must have expired idleStopSec ago (never-claimed boxes fall
+        // back to creation age) — stateless and immune to clock games
+        const lastLease = Math.max(0, ...leases.filter((l) => l.runner === c.runnerId).map((l) => l.leaseUntil));
+        const idleAge = lastLease > 0 ? now - lastLease : c.createdAgoSec;
+        if (h && h.deployments === 0 && idleAge >= cfg.idleStopSec) {
           actions.push({ type: "stop", name: c.name, flavor: f,
-            reason: `idle (0 deployments, last lifecycle change ${Math.round(c.updatedAgoSec / 60)}m ago), no queued ${f} demand` });
+            reason: `idle (0 deployments, last on-chain lease ended ${Math.round(idleAge / 60)}m ago), no queued ${f} demand` });
         }
       }
     }
@@ -304,7 +313,11 @@ function toContainer(c, now) {
     staging: !!c.staging, gpus: c.gpus || 0,
     flavor: auto ? c.name.split("-")[1] : flavorOfTag(c.current_tag),
     auto,
-    updatedAgoSec: c.updated_at ? Math.max(0, now - Math.floor(Date.parse(c.updated_at) / 1000)) : Infinity,
+    // Tinfoil's updated_at refreshes on ANY controlplane row touch (observed
+    // live 2026-07-17: perpetually ~0s old), so it is useless as a clock.
+    // created_at is stable; the registry id links the box to its leases.
+    createdAgoSec: c.created_at ? Math.max(0, now - Math.floor(Date.parse(c.created_at) / 1000)) : Infinity,
+    runnerId: c.domain ? keccak256(stringToBytes(`https://${c.domain}`)).toLowerCase() : null,
     variables: c.variables, secrets: c.secrets || [],
   };
 }
@@ -365,7 +378,14 @@ async function buildSnapshot(log) {
     health[c.name] = await enclaveHealth(c.domain);
   }
 
-  return { now, candidates, enclaves, containers, health, relayDomains, relayOk };
+  const leases = rows.map((d) => ({ runner: String(d.runner).toLowerCase(), leaseUntil: Number(d.leaseUntil) }));
+  const lastActionAgo = {};
+  for (const f of ["gpu", "cpu"]) {
+    const at = Number(env[`AUTOSCALE_LAST_ACTION_${f.toUpperCase()}`] || 0);
+    lastActionAgo[f] = at > 0 ? Math.max(0, now - at) : Infinity;
+  }
+
+  return { now, candidates, enclaves, containers, health, relayDomains, relayOk, leases, lastActionAgo };
 }
 
 async function verifyTagExists(tag) {
@@ -493,7 +513,7 @@ async function apply(planPath) {
   const list = await tinfoilJson(["container", "list"]);
   const containers = list.filter((c) => (c.repo || "").toLowerCase() === CFG.repo.toLowerCase())
     .map((c) => toContainer(c, now));
-  const failures = [];
+  const failures = [], quotaBlocked = [];
 
   for (const a of doc.actions) {
     const cur = containers.find((c) => c.name === a.name);
@@ -526,16 +546,38 @@ async function apply(planPath) {
         await waitRelayTrust(a.name, domain, log);
       }
     } catch (e) {
+      const quota = /quota reached[^\n]*/i.exec(e.message || "");
+      if (quota && a.type === "create") {
+        log(`  QUOTA-BLOCKED: ${quota[0]}`);
+        log(`  This is the Tinfoil ACCOUNT ceiling, not fleet capacity — raise it with Tinfoil`);
+        log(`  (contact@tinfoil.sh / dashboard). Demand stays queued and is served as leases drain.`);
+        quotaBlocked.push(`${a.name}: ${quota[0]}`);
+        continue;
+      }
       log(`  FAILED: ${e.message}`);
       failures.push(`${a.type} ${a.name}: ${e.message}`);
     }
   }
 
+  // stamp the flavor cooldown clock for the NEXT plan (repo variable; the
+  // fallback is the youngest auto container's created_at, so failure here
+  // only weakens start/stop cooldowns, never create cooldowns)
+  const acted = [...new Set(doc.actions.filter((a) => !failures.some((f) => f.startsWith(`${a.type} ${a.name}`))).map((a) => a.flavor))];
+  for (const f of acted) {
+    try {
+      await execFileP("gh", ["variable", "set", `AUTOSCALE_LAST_ACTION_${f.toUpperCase()}`,
+        "-R", CFG.repo, "-b", String(Math.floor(Date.now() / 1000))]);
+      log(`stamped AUTOSCALE_LAST_ACTION_${f.toUpperCase()}`);
+    } catch (e) { log(`cooldown stamp failed (non-fatal): ${e.message}`); }
+  }
+
+  if (quotaBlocked.length)
+    log(`\nQUOTA: ${quotaBlocked.join("; ")} — scale-up impossible until the Tinfoil account limit is raised`);
   if (failures.length) {
     console.error(`\n${failures.length} action(s) failed:\n- ${failures.join("\n- ")}`);
     process.exit(1);
   }
-  log("\nall actions applied");
+  log(quotaBlocked.length ? "\ndone (quota-blocked, see above)" : "\nall actions applied");
 }
 
 // ---------------------------------------------------------------------------

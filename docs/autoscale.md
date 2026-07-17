@@ -45,7 +45,13 @@ economic gates:
 and the structural caps allow it:
 
 - at most `AUTOSCALE_MAX_{GPU,CPU}` (1 / 1) auto containers per flavor, inside
-  Tinfoil's 10-container org quota;
+  Tinfoil's 10-container org quota — and note the REAL GPU ceiling learned
+  live 2026-07-17: the account allows **2 active 1-GPU containers total**
+  ("paid 1 + 1 spare for debug / zero-downtime updates"), so one auto GPU box
+  next to the baseline is the maximum until the Tinfoil account is upgraded
+  (a create beyond it 403s and apply reports it as QUOTA-BLOCKED, not red).
+  Caveat: while the auto box occupies the spare slot, blue-green fleet
+  updates may lose their zero-downtime slot — coordinate with Tinfoil;
 - no lifecycle change on that flavor's auto containers within
   `AUTOSCALE_COOLDOWN_SEC` (30 min);
 - one action per flavor per run (runs are 30 min apart).

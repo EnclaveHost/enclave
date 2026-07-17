@@ -28,18 +28,21 @@ const cpuAsk = (over = {}) => ({
 });
 
 const gpuBox = (over = {}) => ({ gpu: true, gpuShareFree: 0, cpuShareFree: 0.2, ...over });
+const NOWS = 1700000000;                       // decide()'s on-chain clock
+const RUNNER = "0x" + "ab".repeat(32);
 const baseline = (over = {}) => ({
   name: "enclave1", status: "running", currentTag: "v0.5.150", domain: "enclave1.nan.containers.tinfoil.dev",
-  staging: false, gpus: 1, flavor: "gpu", auto: false, updatedAgoSec: 999999, ...over,
+  staging: false, gpus: 1, flavor: "gpu", auto: false, createdAgoSec: 999999, runnerId: "0x" + "cd".repeat(32), ...over,
 });
 const autoBox = (over = {}) => ({
   name: "auto-gpu-1", status: "stopped", currentTag: "v0.5.149", domain: "auto-gpu-1.nan.containers.tinfoil.dev",
-  staging: false, gpus: 1, flavor: "gpu", auto: true, updatedAgoSec: 999999, ...over,
+  staging: false, gpus: 1, flavor: "gpu", auto: true, createdAgoSec: 999999, runnerId: RUNNER, ...over,
 });
 
 const snap = (over = {}) => ({
-  candidates: [], enclaves: [gpuBox()], containers: [baseline()],
-  health: {}, relayDomains: ["https://enclave1.nan.containers.tinfoil.dev"], relayOk: true, ...over,
+  now: NOWS, candidates: [], enclaves: [gpuBox()], containers: [baseline()],
+  health: {}, relayDomains: ["https://enclave1.nan.containers.tinfoil.dev"], relayOk: true,
+  leases: [], lastActionAgo: {}, ...over,
 });
 
 test("funded unservable GPU demand starts the stopped standby at the fleet tag", () => {
@@ -91,10 +94,20 @@ test("cap: a running auto box blocks further scale-up at maxAuto", () => {
   assert.ok(r.warnings.some((w) => w.includes("cap reached")));
 });
 
-test("cooldown: recent lifecycle change on the flavor blocks any action", () => {
+test("cooldown: a recent flavor action (stamped var) blocks any action", () => {
   const r = decide(snap({
     candidates: [gpuAsk()],
-    containers: [baseline(), autoBox({ updatedAgoSec: 300 })],
+    containers: [baseline(), autoBox()],
+    lastActionAgo: { gpu: 300 },
+  }), cfg);
+  assert.equal(r.actions.length, 0);
+  assert.ok(r.warnings.some((w) => w.includes("cooldown")));
+});
+
+test("cooldown fallback: a freshly created auto box blocks even without the stamp", () => {
+  const r = decide(snap({
+    candidates: [gpuAsk()],
+    containers: [baseline(), autoBox({ status: "running", createdAgoSec: 300 })],
   }), cfg);
   assert.equal(r.actions.length, 0);
   assert.ok(r.warnings.some((w) => w.includes("cooldown")));
@@ -124,30 +137,36 @@ test("cold fleet (relay ok, zero enclaves) does scale up", () => {
   assert.equal(r.actions[0].type, "create");
 });
 
-test("idle auto box stops only with zero demand, past idleStopSec, health-confirmed", () => {
-  const idle = autoBox({ status: "running", updatedAgoSec: 3000 });
-  const ok = decide(snap({ containers: [baseline(), idle], health: { "auto-gpu-1": { deployments: 0 } } }), cfg);
+test("idle auto box stops only with zero demand, on-chain-idle past idleStopSec, health-confirmed", () => {
+  const idle = autoBox({ status: "running" });
+  const oldLease = [{ runner: RUNNER, leaseUntil: NOWS - 3000 }];   // last lease ended 50m ago
+  const ok = decide(snap({ containers: [baseline(), idle], leases: oldLease,
+    health: { "auto-gpu-1": { deployments: 0 } } }), cfg);
   assert.deepEqual(ok.actions.map((a) => a.type), ["stop"]);
 
   // busy box never stops
-  const busy = decide(snap({ containers: [baseline(), idle], health: { "auto-gpu-1": { deployments: 2 } } }), cfg);
+  const busy = decide(snap({ containers: [baseline(), idle], leases: oldLease,
+    health: { "auto-gpu-1": { deployments: 2 } } }), cfg);
   assert.equal(busy.actions.length, 0);
   // unknown health never stops
-  const unknown = decide(snap({ containers: [baseline(), idle], health: {} }), cfg);
+  const unknown = decide(snap({ containers: [baseline(), idle], leases: oldLease, health: {} }), cfg);
   assert.equal(unknown.actions.length, 0);
-  // too-recent lifecycle change never stops
-  const recent = decide(snap({ containers: [baseline(), autoBox({ status: "running", updatedAgoSec: 600 })],
+  // a lease that ended recently keeps the box up (hysteresis)
+  const recent = decide(snap({ containers: [baseline(), idle], leases: [{ runner: RUNNER, leaseUntil: NOWS - 600 }],
     health: { "auto-gpu-1": { deployments: 0 } } }), cfg);
   assert.equal(recent.actions.length, 0);
+  // a never-claimed box falls back to creation age
+  const fresh = decide(snap({ containers: [baseline(), autoBox({ status: "running", createdAgoSec: 600 })],
+    health: { "auto-gpu-1": { deployments: 0 } } }), cfg);
+  assert.equal(fresh.actions.length, 0);
   // demand for the flavor blocks the stop (box is about to be needed)
-  const demand = decide(snap({ candidates: [gpuAsk()], containers: [baseline(), idle],
+  const demand = decide(snap({ candidates: [gpuAsk()], containers: [baseline(), idle], leases: oldLease,
     health: { "auto-gpu-1": { deployments: 0 } } }), cfg);
   assert.ok(!demand.actions.some((a) => a.type === "stop"));
 });
 
 test("baseline fleet is never stopped, only auto-*", () => {
-  const idleBaseline = baseline({ updatedAgoSec: 99999 });
-  const r = decide(snap({ containers: [idleBaseline], health: { enclave1: { deployments: 0 } } }), cfg);
+  const r = decide(snap({ containers: [baseline()], health: { enclave1: { deployments: 0 } } }), cfg);
   assert.equal(r.actions.length, 0);
 });
 
