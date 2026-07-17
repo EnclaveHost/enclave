@@ -347,11 +347,6 @@ containers:
       # mosaic instead of the engine default's 7x7 (32-latent tiles put a
       # visible seam grid in FLUX-AE outputs - seen live on z-image).
       - ENCLAVE_SD_VAE_TILING: "64:0.25"
-      # VAE decodes on GPU. The v0.5.157 vae-on-cpu shim default was a workaround
-      # for the speckle, but the VAE was never the cause (vae-on-cpu still speckled;
-      # FORCE_CUBLAS fixed the real MMQ bug). GPU decode is ~8x faster than CPU
-      # (0.99s vs ~8s, measured on sm_86) and clean under FORCE_CUBLAS.
-      - ENCLAVE_SD_VAE_ON_CPU: "0"
       # flash attention on the diffusion model (the Z-Image reference
       # invocation's --diffusion-fa). REQUIRED for big resolutions: without
       # it attention materializes seq x seq matrices - at 2048px that is
@@ -359,28 +354,29 @@ containers:
       # at graph allocation ("sampling for image 1/1 failed" in <1s, seen
       # live). With FA the 2048px diffusion buffer is a few GB.
       - ENCLAVE_SD_FLASH_ATTN: "1"
-      # qwen-image-2512 crystalline-speckle: SOLVED (v0.5.163). Root cause is a bug
-      # in ggml-cuda's hand-written MMQ int8 matmul kernels on the H200 sm_90 path.
-      # FORCE_CUBLAS (ELL sd8, -DGGML_CUDA_FORCE_CUBLAS=ON; see llamacpp-toolchain.yml)
-      # bypasses MMQ, routing all matmuls through NVIDIA cuBLAS -> clean on the live
-      # fleet (v0.5.163: chroma 0.000% vs speckled 0.023%). Confirmed IN the kernels,
-      # NOT below ggml: cuBLAS cured it, so it is not CC-mode/driver. The speckle
-      # survived every ggml kernel-SELECTION change (VAE-on-cpu v0.5.157, flash off
-      # v0.5.158, PDL off v0.5.160, stream-k off v0.5.161, graphs+fusion off
-      # v0.5.162) precisely because the fault is INSIDE the int8 kernels. sm_90-only:
-      # the fleet's own lib is pixel-clean on a 3070's sm_86, even under MPS SM caps.
+      # qwen-image-2512 crystalline-speckle - CURRENT fix attempt: bypass ggml's
+      # MMQ int8 kernels entirely via NVIDIA cuBLAS (ELL sd8, built with
+      # -DGGML_CUDA_FORCE_CUBLAS=ON; see llamacpp-toolchain.yml). The env below
+      # forces full-precision F32 accumulation in that cuBLAS path.
       #
-      # Compute type = bf16: the cuBLAS dequant path runs on bf16 tensor cores
-      # (~2x f32 throughput) with F32 accumulation, and bf16 has f32's exponent
-      # range so there is NO overflow - verified pixel-identical to f32 on sm_86.
-      # (f16 was tried and produced all-NaN white images: qwen activations exceed
-      # f16's 65504 range.) Perf note: cuBLAS still dequantizes Q8_0 each pass, so
-      # it is slower than native MMQ; restoring native-MMQ speed needs the sm_90
-      # kernel bug fixed upstream (newer ggml) or a newer ptxas.
+      # The speckle survives EVERY ggml execution-path change tried on the fleet:
+      # VAE-on-cpu (v0.5.157), flash-attn off (v0.5.158), PDL off (v0.5.160),
+      # MMQ stream-k off (v0.5.161), CUDA graphs+fusion off (v0.5.162). It appears
+      # ONLY on the H200's sm_90 path - the fleet's own lib renders pixel-clean on
+      # a 46-SM RTX 3070's sm_86 (even under MPS SM caps to ~2 SMs), same binary/
+      # weights/seed. Surviving all kernel-SELECTION changes points either at the
+      # matmul kernels themselves on sm_90 or BELOW ggml (H200 confidential-
+      # computing memory path / driver). FORCE_CUBLAS is the discriminator: routes
+      # all matmuls through NVIDIA's tested GEMM. If the speckle clears -> it was
+      # ggml's MMQ kernels; if it persists -> it is below ggml (platform-level).
+      # Verified locally: FORCE_CUBLAS+f32 builds and renders pixel-identical on
+      # sm_86 (no regression, no OOM). Costs H200 matmul throughput.
       #
-      # GGML_CUDA_PDL=0 kept as cheap Hopper hardening (not the speckle fix).
+      # GGML_CUDA_PDL=0 kept as cheap conservative Hopper hardening (documented
+      # race-prone launch path; not the speckle fix). DISABLE_GRAPHS/DISABLE_FUSION
+      # from v0.5.162 REMOVED - they didn't clear the speckle and cost throughput.
       - GGML_CUDA_PDL: "0"
-      - GGML_CUDA_CUBLAS_COMPUTE_TYPE: "bf16"
+      - GGML_CUDA_CUBLAS_COMPUTE_TYPE: "f32"
       # Fused-attention quarantine (ORT/onnx volumes only - sdcpp/ggml
       # tenants are untouched): deployments attaching a listed volume get
       # the ORT_DISABLE_* attention envs in THEIR wasmtime process (unfused
