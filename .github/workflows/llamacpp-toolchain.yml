@@ -94,19 +94,9 @@ jobs:
             -DGGML_CUDA=ON \
             -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.6/bin/nvcc \
             -DCMAKE_CUDA_ARCHITECTURES="86-real;90-real" \
-            `# qwen-image-2512 speckle: GGML_CUDA_FORCE_CUBLAS routes ALL matmuls` \
-            `# (incl. Q8_0) through NVIDIA cuBLAS instead of ggml's hand-written` \
-            `# MMQ int8 kernels (mmq.cu #ifdef -> should_use_mmq returns false).` \
-            `# The speckle survived every ggml execution-path change (VAE, flash,` \
-            `# PDL, stream-k, CUDA graphs, fusion) and only ever appears on the` \
-            `# H200's sm_90 path (the fleet's own lib is pixel-clean on a 3070's` \
-            `# sm_86, even under MPS SM caps). This bypasses the MMQ kernels` \
-            `# entirely: if it clears the speckle the bug was in those kernels; if` \
-            `# not, it is below ggml (H200 CC-mode / driver). cuBLAS is NVIDIA's` \
-            `# tested GEMM; pair with GGML_CUDA_CUBLAS_COMPUTE_TYPE=f32 in config` \
-            `# for full-precision accumulation. Verified locally: builds + renders` \
-            `# pixel-identical on sm_86 (57s, no OOM). Costs H200 matmul throughput.` \
-            -DGGML_CUDA_FORCE_CUBLAS=ON \
+            `# Native MMQ (no FORCE_CUBLAS): qwen runs Q6_K weights (config` \
+            `# ENCLAVE_SD_WTYPE=q6_K) whose MMA kernel dodges the Q8_0 sm_90` \
+            `# write-back-epilogue bug that FORCE_CUBLAS (sd8) had to bypass.` \
             -DGGML_NATIVE=OFF \
             -DCMAKE_C_FLAGS="-DGGML_MAX_NAME=128" \
             -DCMAKE_CXX_FLAGS="-DGGML_MAX_NAME=128" \
