@@ -56,14 +56,19 @@ KNOWN="$(ssh-keyscan -t ed25519 "$SITE_HOST" "$RELAY_HOST" 2>/dev/null)"
 gh variable set DEPLOY_KNOWN_HOSTS -R "$REPO_SLUG" -b "$KNOWN"
 say "set vars SITE_SSH_HOST=$SITE_HOST RELAY_SSH_HOST=$RELAY_HOST CONTRACTS_NETWORK=${CONTRACTS_NETWORK:-base} DEPLOY_KNOWN_HOSTS"
 
-# 4) review-gated environments: contract deploys and fleet scale-ups
-UID_JSON="$(gh api "users/${REPO_SLUG%%/*}" --jq .id)"
+# 4) review-gated environments: contract deploys and fleet scale-ups.
+# Reviewer = the AUTHENTICATED USER, not the repo owner: when the repo lives
+# in an org, users/<owner> resolves to the ORG id and GitHub silently stores
+# an empty reviewer list — runs then wait on an approval nobody can give
+# (bit us live 2026-07-17: the first fleet-scale apply deadlocked "waiting").
+REVIEWER_ID="$(gh api user --jq .id)"
+REVIEWER_LOGIN="$(gh api user --jq .login)"
 for envname in contract-deploy fleet-scale; do
   gh api -X PUT "repos/$REPO_SLUG/environments/$envname" \
     --input - >/dev/null <<EOF
-{"reviewers":[{"type":"User","id":$UID_JSON}]}
+{"reviewers":[{"type":"User","id":$REVIEWER_ID}]}
 EOF
-  say "environment $envname created (required reviewer: ${REPO_SLUG%%/*})"
+  say "environment $envname created (required reviewer: $REVIEWER_LOGIN)"
 done
 
 say "still manual:"
