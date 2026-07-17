@@ -98,8 +98,17 @@ Deliberately still manual:
   state (registry entries, deployment balances) does not migrate. Approve or
   reject under the run's **Review deployments** prompt; rejecting skips the
   contract jobs and the rest of the pipeline continues on the next push.
-- **Updating the running enclaves:** after a release publishes, click
-  **Update** in the [Tinfoil dashboard](https://dash.tinfoil.sh) (no public API).
+- **Updating the running enclaves** is automated: after a release publishes,
+  the `update-fleet` job in `tinfoil-release-publish.yml` runs
+  `scripts/tinfoil-update-fleet.sh`, which repoints every running instance of
+  that tag's flavor (plain = GPU, `-cpu`, `-gpu8`) at the new tag through the
+  Tinfoil controlplane (pinned [tinfoil-cli](https://docs.tinfoil.sh/containers/cli);
+  blue-green with auto-promotion, then a `/v1/health` probe). Requires the
+  `TINFOIL_API_KEY` repo secret (Tinfoil admin key); until it's set the job
+  no-ops and updates happen in the [Tinfoil dashboard](https://dash.tinfoil.sh)
+  as before. Caveats: creating/deleting enclaves stays manual, and a release
+  that introduces a **new secret name** still needs a manual bind + relaunch
+  (Tinfoil binds secret names at container creation, not on update).
 
 One-time setup on a new machine/repo: `scripts/ci-setup.sh` (SSH deploy key,
 repo secrets/vars, the `contract-deploy` environment), then set

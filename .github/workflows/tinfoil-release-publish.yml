@@ -5,6 +5,13 @@
 # file from enclaves/<flavor>/tinfoil-config.yml in the tag commit (the Tinfoil
 # dashboard reads only the default path, so the flavor is selected by which tag
 # you point it at, never by a filename).
+#
+# After the release publishes, update-fleet repoints the RUNNING enclaves of
+# this tag's flavor at it via the Tinfoil controlplane API (blue-green, auto-
+# promoted) — closing the window where the verifier's /releases/latest check
+# breaks attestation against still-old enclaves. Needs the TINFOIL_API_KEY
+# repo secret (a Tinfoil admin key); without it the job no-ops and the fleet
+# updates via the dashboard as before.
 
 name: Tinfoil Release - Publish (auto-triggered)
 
@@ -38,3 +45,29 @@ jobs:
           config-file: ${{ github.workspace }}/tinfoil-config.yml
           github-token: ${{ secrets.GITHUB_TOKEN }}
           mark-as-latest: ${{ inputs.mark-as-latest }}
+
+  update-fleet:
+    needs: measure-and-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Update running enclaves to ${{ github.ref_name }}
+        env:
+          TINFOIL_API_KEY: ${{ secrets.TINFOIL_API_KEY }}
+        run: |
+          if [ -z "$TINFOIL_API_KEY" ]; then
+            echo "::notice::TINFOIL_API_KEY secret not set — update the running enclaves in the Tinfoil dashboard (https://dash.tinfoil.sh)"
+            exit 0
+          fi
+          # re-published old tags may predate the script
+          if [ ! -x scripts/tinfoil-update-fleet.sh ]; then
+            echo "::notice::scripts/tinfoil-update-fleet.sh not in this tag — update via the Tinfoil dashboard"
+            exit 0
+          fi
+          ./scripts/tinfoil-update-fleet.sh "$GITHUB_REF_NAME"

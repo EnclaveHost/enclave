@@ -14,6 +14,7 @@
 # What it can NOT do for you (prints reminders):
 #   - DEPLOYER_PRIVATE_KEY: your funded Base EOA, set it yourself on the environment
 #   - ghcr Actions access for the sidecar packages (web UI only), or a CR_PAT secret
+#   - TINFOIL_API_KEY: Tinfoil admin key so publishes auto-update the running fleet
 set -euo pipefail
 say() { printf '\033[1;36m[ci-setup]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[ci-setup] WARNING:\033[0m %s\n' "$*" >&2; }
@@ -66,3 +67,5 @@ say "still manual:"
 say "  1. gh secret set DEPLOYER_PRIVATE_KEY -R $REPO_SLUG --env contract-deploy   # funded Base EOA for contract deploys"
 say "  2. ghcr package settings for enclave-worker / enclave-mps / enclave-wasm-manager: grant this repo"
 say "     'Actions access: write' (or set a classic PAT: gh secret set CR_PAT -R $REPO_SLUG)"
+say "  3. gh secret set TINFOIL_API_KEY -R $REPO_SLUG   # Tinfoil admin key (dash.tinfoil.sh) —"
+say "     lets tinfoil-release-publish.yml auto-update the running enclaves after each release"

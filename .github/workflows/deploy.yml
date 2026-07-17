@@ -19,8 +19,10 @@
 # workflows, and detect ignores commits authored by github-actions[bot].
 #
 # One-time setup (secrets/vars/environment + host keys): scripts/ci-setup.sh.
-# What stays manual: approving contract deploys (environment gate) and clicking
-# Update in the Tinfoil dashboard after a release publishes.
+# What stays manual: approving contract deploys (environment gate). Running
+# enclaves auto-update after each release publishes (update-fleet job in
+# tinfoil-release-publish.yml; needs the TINFOIL_API_KEY secret, else it
+# no-ops and you click Update in the Tinfoil dashboard).
 
 name: Deploy
 
@@ -413,5 +415,6 @@ jobs:
             echo "$ref created"
           done
           echo "release(s) tagged; measurement + publish continue in tinfoil-release-publish.yml" \
-               "(both flavors measure the root tinfoil-config.yml generated in each tag)." \
-               "Remember: the running enclave updates via the Tinfoil dashboard."
+               "(both flavors measure the root tinfoil-config.yml generated in each tag)," \
+               "then its update-fleet job repoints the running enclaves" \
+               "(no-op without the TINFOIL_API_KEY secret — then use the Tinfoil dashboard)."
