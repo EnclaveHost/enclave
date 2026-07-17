@@ -60,50 +60,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install CUDA 12.6 toolkit + clang
+      - name: Install CUDA 12.4 toolkit
         run: |
+          # CUDA 12.4 (OLDER ptxas than the fleet's 12.6, but backward-compatible:
+          # 12.4-built code runs fine on the fleet's 12.6 runtime). The sm_90 MMQ
+          # speckle (#24399) survives every frontend (nvcc AND clang) and ptxas
+          # -O0, so the bad codegen is in the ptxas BACKEND (shared by both
+          # frontends at 12.6). This tests whether a DIFFERENT ptxas version emits
+          # a correct shared-tile store. (Bug confirmed on 12.6 here and 13.3 in
+          # #24399; 12.4 untested.)
           wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
           sudo apt-get update -q
-          sudo apt-get install -y -q cuda-toolkit-12-6
-          /usr/local/cuda-12.6/bin/nvcc --version | tail -1
-          # Ubuntu 22.04's cmake 3.22 MIS-DETECTS clang-as-CUDA-compiler as NVIDIA
-          # and injects nvcc-only -extended-lambda -> clang errors. A modern cmake
-          # (matches the local clang-clean build's cmake 4.x) detects clang and
-          # uses -ffast-math instead. Install via pip so `cmake` (/usr/local/bin)
-          # shadows the apt one.
-          sudo python3 -m pip install --upgrade "cmake<5"
-          cmake --version | head -1
-          # clang as an ALTERNATE CUDA frontend: nvcc miscompiles the sm_90 MMQ
-          # int8 shared-tile STORE -> speckle (#24399), and it survives ptxas -O0,
-          # so the bad codegen is in the FRONTEND PTX. clang's NVPTX backend emits
-          # different PTX; still CUDA 12.6 ptxas + runtime libs (same fleet ABI).
-          # This mirrors the LOCAL sm_86-clean builds, which all use clang.
-          wget -q https://apt.llvm.org/llvm.sh
-          chmod +x llvm.sh
-          sudo ./llvm.sh 19
-          clang++-19 --version | head -1
+          sudo apt-get install -y -q cuda-toolkit-12-4 cmake
+          /usr/local/cuda-12.4/bin/nvcc --version | tail -1
 
       - name: Clone llama.cpp (pinned)
         run: |
           git clone https://github.com/ggml-org/llama.cpp /tmp/llama.cpp
           cd /tmp/llama.cpp
           git checkout "$LLAMA_COMMIT"
-
-      - name: Patch ggml CMake for clang-as-CUDA compiler
-        run: |
-          cd /tmp/llama.cpp
-          # Pristine ggml sets CUDA_FLAGS = -use_fast_math -extended-lambda
-          # UNCONDITIONALLY; both are nvcc-only spellings that clang rejects
-          # ("unknown argument: -extended-lambda"). Gate them on the NVIDIA
-          # compiler id and give clang the equivalents (-ffast-math; host flags
-          # passed directly, not via -Xcompiler). Same patch the local clang
-          # build carries. No-op / not applied for nvcc builds don't need it -
-          # this branch always builds with clang.
-          git apply "$GITHUB_WORKSPACE/wasm/patches/ggml-clang-cmake.patch"
-          grep -q 'CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA"' ggml/src/ggml-cuda/CMakeLists.txt \
-            || { echo "ERROR: ggml clang CMake patch did not apply"; exit 1; }
-          echo "ggml CMake patched for clang"
 
       - name: Build (Release, CUDA, shared libs, sm_86+sm_90, portable CPU)
         run: |
@@ -123,21 +99,17 @@ jobs:
             -DBUILD_SHARED_LIBS=ON \
             -DGGML_BACKEND_DL=ON \
             -DGGML_CUDA=ON \
-            -DCMAKE_CUDA_COMPILER=clang++-19 \
-            -DCMAKE_CUDA_HOST_COMPILER=clang++-19 \
+            -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.4/bin/nvcc \
             -DCMAKE_CUDA_ARCHITECTURES="86-real;90-real" \
-            `# CLANG CUDA frontend instead of nvcc: nvcc miscompiles the sm_90 MMQ` \
-            `# int8 shared-tile STORE -> speckle (#24399), robust to ptxas -O2/-O0` \
-            `# and to the mma instruction (decomposition) - so it is a codegen bug` \
-            `# in emitting that store, not the mma. clang's NVPTX backend emits` \
-            `# different PTX; it still uses CUDA 12.6 ptxas + runtime libs (same` \
-            `# fleet ABI). This is exactly how the LOCAL sm_86-clean builds compile.` \
+            `# NATIVE int8 MMQ Q8_0 built with CUDA 12.4 nvcc/ptxas (older than the` \
+            `# fleet's 12.6). The sm_90 MMQ shared-store speckle survives nvcc AND` \
+            `# clang frontends and ptxas -O0, so it is in the ptxas BACKEND; this` \
+            `# tests a DIFFERENT ptxas version. Runtime-safe: 12.4 code runs on the` \
+            `# fleet's 12.6 runtime (CUDA backward compat).` \
             -DGGML_NATIVE=OFF \
-            -DCMAKE_C_COMPILER=clang-19 -DCMAKE_CXX_COMPILER=clang++-19 \
             -DCMAKE_C_FLAGS="-DGGML_MAX_NAME=128" \
             -DCMAKE_CXX_FLAGS="-DGGML_MAX_NAME=128" \
-            -DCMAKE_CUDA_FLAGS="-DGGML_MAX_NAME=128 --cuda-path=/usr/local/cuda-12.6 --no-cuda-version-check" \
-            -DCMAKE_CUDA_STANDARD_LIBRARIES="-L/usr/local/cuda-12.6/lib64 -lcudart -lcublas -ldl -lrt -lpthread" \
+            -DCMAKE_CUDA_FLAGS="-DGGML_MAX_NAME=128" \
             -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=OFF \
             -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_APP=OFF -DLLAMA_BUILD_COMMON=OFF \
             -DCMAKE_INSTALL_PREFIX=/tmp/ggml-prefix
