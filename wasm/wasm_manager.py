@@ -221,6 +221,11 @@ _MODEL_VOLUMES_ENV = os.environ.get("MODEL_VOLUMES", "").strip()
 # optional third field still picks the file within the volume.
 _SD_VOLUMES_ENV = os.environ.get("MODEL_VOLUMES_SD", "").strip()
 _SD_VOLUMES = {v.strip() for v in _SD_VOLUMES_ENV.split(",") if v.strip()}
+# Working-set allowance for the te-on-cpu AUTO rule below (launch()): what a
+# 1024px sdcpp pipeline needs on the GPU beyond resident weights - attention/
+# compute buffers with FA plus the tiled-VAE decode. Measured live: z-image
+# (10.4 GB weights) peaks ~13 GB at 1024px => ~2.6 GB; rounded up.
+SD_TE_AUTO_HEADROOM = 3 << 30  # 3 GiB
 _VOL_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 
 NN_PROBE_TIMEOUT = float(os.environ.get("WASM_NN_PROBE_TIMEOUT", "75"))   # worker.py validated ~60s CC init; match its patience
@@ -2413,6 +2418,35 @@ def _spawn_and_wait(rec, ctx):
     if nn:
         env = _nn_tenant_env(gpu_share, pinned=_NN_PROBE.get("mode") != "nopin")
         rec["mpsPct"] = max(1, round(gpu_share * 100))
+        # sdcpp text-encoder placement (wasm/sd-shim, ENCLAVE_SD_TE_ON_CPU):
+        # an explicit deployment-config `sdTeOnCpu` wins; else AUTO - when the
+        # attached SD volumes' resident weights plus the ~3 GB 1024px working
+        # set exceed the share, run the text encoder on the CPU. Conditioning
+        # happens ONCE per prompt (a few seconds of CPU prefill on the
+        # Qwen3-4B / Qwen2.5-VL encoders), and the alternative on a too-small
+        # share is an sd.cpp CUDA OOM mid-pipeline, which ABORTS the tenant -
+        # measured live 2026-07-18: z-image on a 12 GB share crashed the
+        # deployment on every 512px+ request. Weights SUM because every
+        # preloaded SD volume is resident; a node-level env is inherited
+        # untouched when neither the config flag nor the auto rule applies.
+        sd_bytes = sum(_staged_bytes(pathlib.Path(hp))
+                       for n, hp in (vol_mounts or {}).items() if n in _SD_VOLUMES)
+        te_flag = None
+        if enclave_config:
+            try:
+                te_flag = json.loads(enclave_config).get("sdTeOnCpu")
+            except (ValueError, AttributeError):
+                te_flag = None
+        if te_flag is None and sd_bytes and gpu_share > 0:
+            vram = gpu_share * GPU_VRAM_GB * (1 << 30)
+            if sd_bytes + SD_TE_AUTO_HEADROOM > vram:
+                te_flag = True
+                print(f"[sd] '{name}': te-on-cpu AUTO - {sd_bytes / 2**30:.1f} GB of SD "
+                      f"weights + ~{SD_TE_AUTO_HEADROOM / 2**30:.0f} GB working set exceed "
+                      f"the {vram / 2**30:.1f} GB share; text encoder runs on the CPU",
+                      flush=True)
+        if te_flag is not None:
+            env["ENCLAVE_SD_TE_ON_CPU"] = "1" if te_flag else "0"
         # Fused-attention quarantine, PER VOLUME: ENCLAVE_ONNX_UNFUSED_VOLUMES
         # names model volumes whose ONNX sessions must not use ORT's fused
         # attention family - flash, memory-efficient AND the TRT fused/cross/

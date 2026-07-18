@@ -156,8 +156,25 @@ void *esd_load_model(const char *model_path,
          * the CPU (f32 throughout) while diffusion/TE stay on the GPU.
          * Node-tunable: ENCLAVE_SD_VAE_ON_CPU=0 forces it back onto the GPU. */
         const char *vc = getenv("ENCLAVE_SD_VAE_ON_CPU");
-        if (!vc || (vc[0] != '0' && vc[0] != 'f' && vc[0] != 'F' && vc[0] != 'n' && vc[0] != 'N')) {
+        int vae_cpu = !vc || (vc[0] != '0' && vc[0] != 'f' && vc[0] != 'F' && vc[0] != 'n' && vc[0] != 'N');
+        /* Text encoder on the CPU (sd.cpp module key "te" - covers t5xxl AND
+         * the LLM conditioner, per docs/backend.md): conditioning runs ONCE
+         * per prompt, so trading the TE's VRAM (Qwen3-4B ~4.3 GB on z-image,
+         * Qwen2.5-VL-7B ~8 GB on qwen-image) for a few seconds of CPU
+         * prefill lets a share hold the diffusion weights + activations it
+         * otherwise could not - and an sd.cpp CUDA OOM mid-pipeline ABORTS
+         * the process, so the alternative is not "slower", it is "down".
+         * OPT-IN: ENCLAVE_SD_TE_ON_CPU=1 - set per tenant by the
+         * wasm-manager (deployment config sdTeOnCpu, or automatically when
+         * the share cannot hold the full weights plus working set). */
+        const char *tc = getenv("ENCLAVE_SD_TE_ON_CPU");
+        int te_cpu = tc && (tc[0] == '1' || tc[0] == 't' || tc[0] == 'T' || tc[0] == 'y' || tc[0] == 'Y');
+        if (vae_cpu && te_cpu) {
+            p.backend = "vae=cpu,te=cpu";
+        } else if (vae_cpu) {
             p.backend = "vae=cpu";
+        } else if (te_cpu) {
+            p.backend = "te=cpu";
         }
     }
     /* Flash attention is a DIFFUSION-model need: big-resolution attention would
