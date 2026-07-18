@@ -279,6 +279,11 @@ try:
         out = subprocess.run([script, "derive", "--sig", sig],
                              capture_output=True, text=True, check=True).stdout
         check("script derive matches the reference derivation", expect_pw in out and expect_salt in out)
+        r_cli = subprocess.run(["node", str(REPO / "cli/enclave.mjs"), "encvol", "derive", "--sig", sig],
+                               capture_output=True, text=True)
+        check("cli encvol derive matches the reference derivation",
+              r_cli.returncode == 0 and expect_pw in r_cli.stdout and expect_salt in r_cli.stdout,
+              (r_cli.stderr or "")[-200:])
         msg = subprocess.run([script, "message", "wvol"], capture_output=True, text=True, check=True).stdout
         check("canonical sign-message is pinned", msg ==
               "Enclave encrypted volume key v1\nvolume: wvol\n\n"
@@ -310,6 +315,12 @@ try:
                                input=ivct[16:], capture_output=True)
             check("envelope decrypts to the sealed credentials",
                   json.loads(d.stdout or b"{}") == {"accessKeyId": key, "secretAccessKey": sec})
+            r2 = subprocess.run(["node", str(REPO / "cli/enclave.mjs"), "encvol", "seal-creds", "--sig", sig],
+                                env=dict(os.environ, AWS_ACCESS_KEY_ID=key, AWS_SECRET_ACCESS_KEY=sec,
+                                         ENCVOL_SEAL_IV=iv_hex),
+                                capture_output=True, text=True)
+            check("cli encvol seal-creds matches the script byte-exact",
+                  r2.returncode == 0 and r2.stdout.strip() == envelope, (r2.stderr or "")[-200:])
         else:
             print("  (openssl not found - envelope pin checks skipped)")
 
