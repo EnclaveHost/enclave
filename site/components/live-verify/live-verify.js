@@ -60,9 +60,13 @@ class LiveVerify extends EnclaveElement {
       });
       if (r.ok) {
         verdict.className = "lv-verdict ok";
-        verdict.textContent = "✓ VERIFIED: this enclave is running the exact code signed on " + r.repo + "'s latest release";
+        // name the host: the proof was fetched from and verified against THAT
+        // enclave - one live enclave the fleet's gateway nominated, not the
+        // whole fleet (and not necessarily the one a deployment lands on)
+        verdict.textContent = "✓ VERIFIED: " + r.host + " is running the exact code signed on " + r.repo + "'s latest release";
         const apiFp = String(att.tlsKeyFingerprint || "").replace(/^sha256:/, "");
         meta.innerHTML = [
+          "enclave       " + r.host,
           "measurement   " + doc.enclaveFingerprint,
           "release       sha256:" + doc.releaseDigest,
           "tls key       sha256:" + doc.tlsPublicKey + (apiFp ? (apiFp === doc.tlsPublicKey ? "  (matches the API's copy)" : "  ⚠ API reported sha256:" + apiFp) : ""),
