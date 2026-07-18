@@ -28,7 +28,7 @@ export const hexBig = (h) => (!h || h === "0x") ? 0n : BigInt(h);
    leases - so a deployment outlives any single enclave, its update, or
    its crash. */
 export const DEP_SEL = { create:"11835efe", createV1:"1a8e502a", fund:"e46bbc9e", fundAuth:"209c0069", fundEth:"9f33dca0", get:"8eaa6ac0",
-                         price:"1e897c58", cpuPrice:"3f6195cc", setActive:"6485d678",
+                         price:"1e897c58", cpuPrice:"3f6195cc", setActive:"6485d678", maxGpuMilli:"4c8c5963",
                          deploymentsSchema:"5d1b72b6" };  // shape-revision marker (reverts on rev-1 contracts)
 export const DEP_CREATED_TOPIC = "0x3b201eb11e77934b296f908775fc0a82679683fd83a1232579f1014bcf7d3239"; // Created(bytes32,address,string,uint16,uint16,uint256)
 export const DEP_SCHEMA = [   // mirrors EnclaveDeployments.Deployment field order exactly (schema rev 2)
@@ -142,6 +142,18 @@ export async function depPrices6(){
     depCall("0x" + DEP_SEL.price), depCall("0x" + DEP_SEL.cpuPrice)]);
   _prices6 = { gpu: BigInt(p || "0x0"), cpu: BigInt(c || "0x0") };
   return _prices6;
+}
+// The operator-set per-deployment GPU-share cap (milli of one card), read once
+// and cached like the prices. create() refuses gpuMilli above it, so every
+// deploy path checks BEFORE the wallet signature. Contracts predating the cap
+// have no getter (the call reverts / returns empty) -> 1000 = a whole card,
+// i.e. uncapped. NOTE: 0 is a real value (GPU creates paused), hence != null.
+let _maxGpu = null;
+export async function depMaxGpuMilli(){
+  if (_maxGpu != null) return _maxGpu;
+  try { const r = await depCall("0x" + DEP_SEL.maxGpuMilli); _maxGpu = (!r || r === "0x") ? 1000 : Number(hexBig(r)); }
+  catch { _maxGpu = 1000; }
+  return _maxGpu;
 }
 // The contract's exact per-second rate (6dp USDC) for two share dials in
 // 1/1000ths - mirrors create()'s ceil math so estimates match on-chain.

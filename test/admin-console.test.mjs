@@ -62,6 +62,7 @@ test("owner calls encode like viem", () => {
     ["EnclaveDeployments", "setPrice", [{ t: "uint", v: "1667" }], [1667n]],
     ["EnclaveDeployments", "setCpuPrice", [{ t: "uint", v: "278" }], [278n]],
     ["EnclaveDeployments", "setLeaseSec", [{ t: "uint", v: "300" }], [300n]],
+    ["EnclaveDeployments", "setMaxGpuMilli", [{ t: "uint", v: "500" }], [500]],
     ["EnclaveDeployments", "setEthUsdFeed", [{ t: "addr", v: ZERO }], [ZERO]],
     ["EnclaveDeployments", "setPayout", [{ t: "addr", v: A1 }], [A1]],
     ["EnclaveDeployments", "setOwner", [{ t: "addr", v: A1 }], [A1]],
@@ -71,6 +72,12 @@ test("owner calls encode like viem", () => {
   ];
   for (const [name, fn, mine, viems] of cases)
     eq(encCall(S(name)[fn], mine), encodeFunctionData({ abi: ABI(name), functionName: fn, args: viems }));
+});
+
+test("chain.js DEP_SEL hand-pins match the ABI (the cap getter every deploy path gates on)", () => {
+  eq("0x" + DEP_SEL.maxGpuMilli, toFunctionSelector("function maxGpuMilli() view returns (uint16)"));
+  eq("0x" + CONTRACTS.EnclaveDeployments.sel.maxGpuMilli, "0x" + DEP_SEL.maxGpuMilli);
+  eq("0x" + CONTRACTS.EnclaveDeployments.sel.setMaxGpuMilli, toFunctionSelector("function setMaxGpuMilli(uint16)"));
 });
 
 test("allowance funding pair (fund.js) encodes like viem", () => {

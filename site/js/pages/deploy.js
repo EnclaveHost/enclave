@@ -21,7 +21,7 @@ import { $, $$, esc, short, wait, fmtNum, fmtDur, hlJson, hlCode, copyText, show
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS, BASE_CHAIN, PRIVY_RDNS } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
 import { minPctsOf, serverSpec, shareRates } from "../core/pricing.js";
-import { encCall, DEP_SEL, DEP_CREATED_TOPIC, APPROVAL, depGet, depRate6, depPrices6, depSchemaRev, rate6Of, waitReceipt } from "../core/chain.js";
+import { encCall, DEP_SEL, DEP_CREATED_TOPIC, APPROVAL, depGet, depRate6, depPrices6, depSchemaRev, depMaxGpuMilli, rate6Of, waitReceipt } from "../core/chain.js";
 
 // create()'s shape on the live contract (rev 1 carried a removed sshPubKey
 // string): sniffed once at init; the samples and the real encode both use it.
@@ -266,6 +266,16 @@ async function runDeploy(){
   if (fmins && cpuMilli < fmins.cpuPct * 10)
     return note([["warn", "[!] " + raw + " needs at least a " + fmins.cpuPct + "% CPU share on this fleet's hardware - " + (cpuMilli / 10) + "% would never be claimed. Raise the CPU dial."]]);
 
+  // HARD ceiling, the floors' mirror: create() refuses gpuMilli above the
+  // operator-set on-chain cap (pre-cap contracts read as 1000 = uncapped).
+  // Publishing an app whose specs exceed the cap stays legal - only DEPLOYS
+  // are gated - so say which of the two the user actually hit.
+  const capMilli = await depMaxGpuMilli();
+  if (gpuMilli > capMilli)
+    return note([["warn", fmins && fmins.gpuPct * 10 > capMilli
+      ? "[!] " + raw + " needs at least a " + fmins.gpuPct + "% GPU share, but the platform caps deployments at " + (capMilli / 10) + "% of a card - this app can be published, it just can't be deployed until the cap is raised."
+      : "[!] the platform caps GPU deployments at " + (capMilli / 10) + "% of a card - lower the GPU dial (asked: " + (gpuMilli / 10) + "%)."]]);
+
   if (dry){
     const wafDry = wafSpec();
     const envDry = wafDry ? JSON.stringify(JSON.stringify({ waf: wafDry })) : "\"\"";
@@ -343,6 +353,15 @@ export async function deployOnChain(spec){
     }
     w.line("dimln", "    if nothing happens, check your wallet - a popup may be waiting (or queued behind an old one; open the wallet and clear pending requests)");
     await ensureBaseChain();
+
+    // on-chain share-cap gate BEFORE the first signature (create() would
+    // revert anyway - refuse with words instead of a wallet error). This is
+    // the one choke point both entries share: the console form re-checks at
+    // its dials, but the store's quick-deploy modal reaches here directly.
+    const capMilli = await depMaxGpuMilli();
+    if (spec.gpuMilli > capMilli)
+      throw new EnclaveError("the platform caps GPU deployments at " + (capMilli / 10) + "% of a card and this deploy asks for "
+        + (spec.gpuMilli / 10) + "%. Apps needing more stay publishable - deploying them waits until the cap is raised.", 400);
 
     // capacity heads-up BEFORE the first signature (fresh read: the store's
     // quick-deploy modal reaches here without the console's 20s poll). Not a
@@ -665,8 +684,13 @@ async function refreshAvailability(){
     // frees (renderDeploy warns) - only the structural spec floors gate.
     const { gpuFree, cpuFree } = adoptFreePct(a);
     if (dep.gpuEnclave) {
-      gIn.max = "100";
-      if (capG) capG.textContent = "· " + freePct.gpu + "% of a card free now (≈" + Math.round(gpuFree * cardGb) + " GB / " + Math.round(gpuFree * cardTf) + " TFLOPS)";
+      // the dial's hard top is the ON-CHAIN per-deployment cap, not what's
+      // free (a pick above free capacity queues; a pick above the cap is
+      // refused by create() itself)
+      const capPct = Math.min(100, Math.floor((await depMaxGpuMilli()) / 10));
+      gIn.max = String(capPct);
+      if (capG) capG.textContent = "· " + freePct.gpu + "% of a card free now (≈" + Math.round(gpuFree * cardGb) + " GB / " + Math.round(gpuFree * cardTf) + " TFLOPS)"
+        + (capPct < 100 ? " · platform cap: " + capPct + "% per deployment" : "");
     } else {
       gIn.max = "0";
       if (capG) capG.textContent = "· GPU apps run on GPU enclaves";
