@@ -2,6 +2,7 @@
   "name": "enclave-supervisor",
   "version": "0.1.0",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "description": "Enclave supervisor — the whole service, running inside the Tinfoil enclave behind the shim. Control + data + per-use container launch. Nothing external touches a prompt.",
   "main": "supervisor.js",

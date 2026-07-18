@@ -2,6 +2,7 @@
   "name": "nan-relay",
   "version": "0.1.0",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "description": "Untrusted public TCP relay for Enclave enclaves — SNI-routes client TLS to the enclave's /x/:id/tls/:port bridge. Holds no keys, sees only ciphertext.",
   "main": "relay.js",

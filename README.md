@@ -133,3 +133,13 @@ twice.
 
 - App developers: the guide and API reference live on the site at https://enclave.host/develop
 - The underlying confidential-container platform is [Tinfoil](https://docs.tinfoil.sh) ([contact@tinfoil.sh](mailto:contact@tinfoil.sh))
+
+## License
+
+Enclave is commercial, proprietary software. The source is published so anyone
+can audit it and verify that the running enclave images match this repo — see
+[LICENSE](LICENSE) for exactly what that permits (reading, auditing, local
+verification builds, and using the CLI against the hosted service) and what it
+doesn't (production use, redistribution, or running your own service from it).
+Third-party components (`site/vendor/`, upstream patches, build-time
+dependencies) remain under their own licenses.
