@@ -177,9 +177,9 @@ class AdminConsole extends EnclaveElement {
   _row(label, current, act, opts = {}) {
     const id = act.replace(/[^a-z0-9]/gi, "");
     return `<div class="ac-row">
-      <div class="ac-lbl">${label}${opts.hint ? `<span class="ac-hint">${opts.hint}</span>` : ""}</div>
+      <div class="ac-lbl" id="lbl-${id}">${label}${opts.hint ? `<span class="ac-hint">${opts.hint}</span>` : ""}</div>
       <div class="ac-cur">${current}</div>
-      <input class="ac-in" id="in-${id}" data-for="${act}" type="text" placeholder="${esc(opts.placeholder || "0x…")}" spellcheck="false" autocomplete="off" />
+      <input class="ac-in" id="in-${id}" data-for="${act}" aria-labelledby="lbl-${id}" type="text" placeholder="${esc(opts.placeholder || "0x…")}" spellcheck="false" autocomplete="off" />
       <span class="ac-live" id="live-${id}"></span>
       <button class="btn btn-sm ac-apply" data-act="${act}" data-owner="${esc(opts.owner || "")}">${esc(opts.verb || "Set")}</button>
     </div>`;
@@ -190,7 +190,7 @@ class AdminConsole extends EnclaveElement {
     const me = lc(Enclave.address);   // connected wallet — used by the danger-zone Accept affordance
     const sec = (title, sub, inner) => `<section class="ac-panel">
       <h3>${title}</h3>${sub ? `<p class="ac-sub">${sub}</p>` : ""}${inner}
-      <div class="ac-status" hidden></div>
+      <div class="ac-status" role="status" aria-live="polite" hidden></div>
     </section>`;
     const link = (a) => `<a href="${EXPLORER}/address/${esc(a)}" target="_blank" rel="noopener">${esc(short(a))}</a>`;
     const parts = [];
@@ -204,9 +204,9 @@ class AdminConsole extends EnclaveElement {
         E[k] ? mono(E[k]) : `<span class="dim">(unset)</span>`,
         "book-set:" + k, { owner: S.book.owner, verb: "Set" })).join("");
       const custom = `<div class="ac-row ac-row-new">
-        <input class="ac-in ac-in-key" id="newBookKey" type="text" placeholder="new key (ascii, ≤31)" spellcheck="false" />
+        <input class="ac-in ac-in-key" id="newBookKey" aria-label="New address-book key" type="text" placeholder="new key (ascii, ≤31)" spellcheck="false" />
         <span></span>
-        <input class="ac-in" id="newBookVal" type="text" placeholder="0x…" spellcheck="false" />
+        <input class="ac-in" id="newBookVal" aria-label="Value" type="text" placeholder="0x…" spellcheck="false" />
         <span></span>
         <button class="btn btn-sm" data-act="book-set-new" data-owner="${esc(S.book.owner)}">Add key</button>
       </div>`;
@@ -263,12 +263,12 @@ class AdminConsole extends EnclaveElement {
           ${inputs || `<p class="ac-sub dim">no constructor arguments - the deployer becomes ${name === "EnclaveRegistry" ? "(no owner - open registration)" : "owner"}.</p>`}
           <button class="btn btn-primary btn-sm" data-act="deploy:${esc(name)}">Deploy ${esc(name)}</button>
           <div class="ac-deploy-out" hidden></div>
-          <div class="ac-status" hidden></div>
+          <div class="ac-status" role="status" aria-live="polite" hidden></div>
         </div>`;
       }).join("");
       parts.push(`<section class="ac-panel"><h3>Deploy a contract</h3>
         <p class="ac-sub">Compiled from <code>contracts/*.sol</code> at site build time with the deploy scripts' exact solc settings; the deploy is a raw creation transaction from your wallet. After it confirms, point the address book at the new contract in one click - the whole platform follows within a poll. Then refresh the repo's baked fallbacks when convenient: paste the new address into <code>enclaves/gpu/tinfoil-config.yml</code> (catalog: <code>site/js/core/config.js</code>), run <code>scripts/sync-contract-addresses.sh</code>, commit.</p>
-        <div class="ac-cards">${cards}</div><div class="ac-status" hidden></div></section>`);
+        <div class="ac-cards">${cards}</div><div class="ac-status" role="status" aria-live="polite" hidden></div></section>`);
     }
 
     /* -- migrate -- */
@@ -276,9 +276,9 @@ class AdminConsole extends EnclaveElement {
       parts.push(`<section class="ac-panel"><h3>Migrate data</h3>
         <p class="ac-sub">Move a contract's ENTIRE state into a freshly deployed import-capable revision: read the source, replay everything through the target's owner-gated import functions - packed via <code>multicall</code>, so the whole migration is typically <b>one wallet confirmation</b> - verify the copy field-by-field, then permanently seal the imports. The plan is a delta: re-clicking Migrate resumes an interrupted run and picks up records created on the source since the last pass (do one last pass right before pointing the book, then seal). Targets deployed before 2026-07-07 have no import surface and are rejected.</p>
         <div class="ac-mig-ctl">
-          <select class="ac-in ac-in-key" id="migKind">${Object.entries(MIG_KINDS).map(([k, m]) => `<option value="${k}">${esc(m.label)}</option>`).join("")}</select>
-          <input class="ac-in" id="migSource" placeholder="source 0x…" spellcheck="false" autocomplete="off" />
-          <input class="ac-in" id="migTarget" placeholder="target 0x… (the new deploy)" spellcheck="false" autocomplete="off" />
+          <select class="ac-in ac-in-key" id="migKind" aria-label="Migration kind">${Object.entries(MIG_KINDS).map(([k, m]) => `<option value="${k}">${esc(m.label)}</option>`).join("")}</select>
+          <input class="ac-in" id="migSource" aria-label="Source contract address" placeholder="source 0x…" spellcheck="false" autocomplete="off" />
+          <input class="ac-in" id="migTarget" aria-label="Target contract address" placeholder="target 0x… (the new deploy)" spellcheck="false" autocomplete="off" />
         </div>
         <div class="ac-mig-actions">
           <button class="btn btn-sm" data-act="mig-read">Read source</button>
@@ -286,8 +286,8 @@ class AdminConsole extends EnclaveElement {
           <button class="btn btn-sm" data-act="mig-verify" disabled>Verify</button>
           <button class="btn btn-sm ac-danger-btn" data-act="mig-seal" disabled>Seal target imports</button>
         </div>
-        <div class="ac-mig-log" id="migLog" hidden></div>
-        <div class="ac-status" hidden></div></section>`);
+        <div class="ac-mig-log" id="migLog" role="log" aria-label="Migration log" hidden></div>
+        <div class="ac-status" role="status" aria-live="polite" hidden></div></section>`);
     }
 
     /* -- danger zone -- */
@@ -312,8 +312,8 @@ class AdminConsole extends EnclaveElement {
         return `<div class="ac-row">
         <div class="ac-lbl">${esc(r.label)} <code>${esc(r.fn)}</code></div>
         <div class="ac-cur">${mono(r.cur)}</div>
-        <input class="ac-in" id="in-${r.act}" type="text" placeholder="new owner 0x…" spellcheck="false" />
-        <input class="ac-in ac-in-key" id="cf-${r.act}" type="text" placeholder='type "TRANSFER"' spellcheck="false" />
+        <input class="ac-in" id="in-${r.act}" aria-label="New owner address" type="text" placeholder="new owner 0x…" spellcheck="false" />
+        <input class="ac-in ac-in-key" id="cf-${r.act}" aria-label="Type TRANSFER to confirm" type="text" placeholder='type "TRANSFER"' spellcheck="false" />
         <button class="btn btn-sm ac-danger-btn" data-act="${r.act}" data-owner="${esc(r.cur)}">Nominate</button>
         ${pendingHtml}
       </div>`;

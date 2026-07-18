@@ -13,7 +13,7 @@ c-deployments{display:contents;}
 .enc-segs button.on b{color:var(--jade-dim);}
 /* with the count gone, the search fills the gap between the seg and refresh/CTA */
 .enc-search{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:.78rem;padding:.55em .8em;flex:1 1 auto;min-width:210px;}
-.enc-search:focus{outline:none;border-color:var(--jade-dim);}
+.enc-search:focus{border-color:var(--jade-dim);}
 
 /* pager: 5 deployments per page */
 .enc-pager{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:14px;}
@@ -37,7 +37,7 @@ c-deployments{display:contents;}
 .enc-main{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
 .enc-thumb{flex:none;width:48px;aspect-ratio:16/9;border-radius:var(--radius-sm);border:1px solid var(--line-soft);background:var(--bg-1) center/cover no-repeat;}   /* the app's cover art (store thumbnail or generated stand-in) */
 .enc-br{flex-basis:100%;height:0;}   /* hard wrap after the instance id: tier/app/spend start the next line */
-.enc-id{background:none;border:0;color:var(--jade-2);font-family:var(--font-mono);font-size:.84rem;cursor:pointer;padding:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}   /* a bytes32 id outgrows a phone; the copy button holds the full value */
+.enc-id{background:none;border:0;color:var(--jade-2);font-family:var(--font-mono);font-size:.84rem;cursor:pointer;padding:0;min-width:24px;min-height:24px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}   /* min 24px hit target; stays inline-block so the ellipsis keeps working */   /* a bytes32 id outgrows a phone; the copy button holds the full value */
 .enc-meta{font-family:var(--font-mono);font-size:.76rem;color:var(--text);overflow-wrap:anywhere;} .enc-meta .dim{color:var(--text-muted);}
 .enc-spend{font-family:var(--font-mono);font-size:.76rem;color:var(--text-muted);}
 .enc-acts{margin-left:auto;display:flex;gap:8px;}
@@ -64,7 +64,7 @@ c-deployments{display:contents;}
 .enc-live-bar .elb-k::before{content:"●";margin-right:6px;animation:encpulse 1.2s ease-in-out infinite;}
 @keyframes encpulse{50%{opacity:.25;}}
 .enc-live-lbl{font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
-.enc-live-x{background:none;border:0;color:var(--text-dim);cursor:pointer;font-size:.8rem;padding:0 2px;}
+.enc-live-x{background:none;border:0;color:var(--text-dim);cursor:pointer;font-size:.8rem;padding:0 2px;min-width:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center;}
 .enc-live-x:hover{color:var(--text);}
 .enc-live-out{max-height:300px;}
 
@@ -73,7 +73,7 @@ c-deployments{display:contents;}
 .enc-fund-body{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;}
 .enc-fund-body label{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);}
 .ef-amt{width:110px;background:var(--bg-1);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:.84rem;padding:.4em .6em;}
-.ef-amt:focus{outline:none;border-color:var(--jade-dim);}
+.ef-amt:focus{border-color:var(--jade-dim);}
 .ef-est{font-family:var(--font-mono);font-size:.76rem;color:var(--jade);}
 .enc-fund-status{padding:0 18px 10px;min-height:0;}
 .enc-fund-status:empty{display:none;}

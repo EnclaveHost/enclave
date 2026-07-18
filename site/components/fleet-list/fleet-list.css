@@ -30,6 +30,6 @@ c-fleet-list{display:contents;}
 /* footer row: refresh + the on-chain registry link, right-aligned OUTSIDE the box */
 .fleet-foot{display:flex;justify-content:flex-end;gap:14px;margin-top:8px;}
 .fleet-foot:empty{display:none;}
-.fleet-refresh{font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);background:none;border:0;padding:0;cursor:pointer;}
+.fleet-refresh{font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);background:none;border:0;padding:0;min-width:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}
 .fleet-refresh:hover{color:var(--jade);}
 .fleet-refresh:disabled{opacity:.45;cursor:wait;}

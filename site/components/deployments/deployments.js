@@ -111,10 +111,11 @@ class Deployments extends EnclaveElement {
     this._filter = (typeof saved === "string" && ("all" === saved || BUCKETS.indexOf(saved) !== -1)) ? saved : "all";
     $$(".enc-segs button", this).forEach(b => {
       b.classList.toggle("on", b.dataset.bucket === this._filter);
+      b.setAttribute("aria-pressed", String(b.dataset.bucket === this._filter));
       b.addEventListener("click", () => {
         this._filter = b.dataset.bucket;
         lsSet(FILTER_KEY, JSON.stringify(this._filter));
-        $$(".enc-segs button", this).forEach(x => x.classList.toggle("on", x === b));
+        $$(".enc-segs button", this).forEach(x => { x.classList.toggle("on", x === b); x.setAttribute("aria-pressed", String(x === b)); });
         this._page = 0;                        // a new filter starts at the first page
         this._renderRows(this._list || []);
       });
@@ -180,8 +181,8 @@ class Deployments extends EnclaveElement {
     const wrap = this.querySelector(".enc-lives"); if (!wrap) return null;
     s = document.createElement("div");
     s.className = "enc-live";
-    s.innerHTML = '<div class="enc-live-bar"><span class="elb-k">deploying</span><span class="enc-live-lbl"></span><button class="enc-live-x" type="button" title="dismiss">✕</button></div>'
-      + '<div class="term enc-live-out"></div>';
+    s.innerHTML = '<div class="enc-live-bar"><span class="elb-k">deploying</span><span class="enc-live-lbl"></span><button class="enc-live-x" type="button" title="dismiss" aria-label="Dismiss">✕</button></div>'
+      + '<div class="term enc-live-out" role="status" aria-live="polite"></div>';
     s.querySelector(".enc-live-lbl").textContent = run.id || run.label || "";
     s.querySelector(".enc-live-x").addEventListener("click", () => { this._strips.delete(run); s.remove(); });
     const out = s.querySelector(".enc-live-out");
@@ -308,9 +309,9 @@ class Deployments extends EnclaveElement {
           '<span class="enc-meta">' + esc(encTier(d)) + (appLbl ? ' · <span class="dim">' + esc(appLbl) + '</span>' : '') + '</span>' +
           '<span class="enc-spend">' + bud + '</span>' +
           '<span class="enc-acts">' +
-            '<button class="btn btn-sm enc-outbtn" data-id="' + esc(d.id) + '">Output</button>' +
-            (live ? '<button class="btn btn-sm enc-fundbtn" data-id="' + esc(d.id) + '" title="Add runtime - a gas-free USDC signature credits the deployment’s on-chain balance">Top up</button>' : '') +
-            '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '">Verify</button>' +
+            '<button class="btn btn-sm enc-outbtn" data-id="' + esc(d.id) + '" aria-expanded="false">Output</button>' +
+            (live ? '<button class="btn btn-sm enc-fundbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Add runtime - a gas-free USDC signature credits the deployment’s on-chain balance">Top up</button>' : '') +
+            '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '" aria-expanded="false">Verify</button>' +
             (resumable ? '<button class="btn btn-sm enc-resume" data-id="' + esc(d.id) + '" title="Put it back on the queue - an enclave re-claims it and the app relaunches fresh from its published version, spending the remaining balance">Resume</button>' : '') +
             (live ? (onchain
               ? '<button class="btn btn-sm danger enc-kill" data-id="' + esc(d.id) + '" title="Stop the app and take it off the queue. The remaining balance stays on the deployment - Resume restarts it any time">Suspend</button>'
@@ -318,7 +319,7 @@ class Deployments extends EnclaveElement {
           '</span>' +
         '</div>' +
         ((st === "failed" || st === "expired") && d.error ? '<div class="enc-err" title="why this deployment ' + esc(st) + '">⚠ ' + esc(d.error) + '</div>' : '') +
-        (st === "queued" ? '<div class="enc-why" data-why="' + esc(d.id) + '" hidden></div>' : '') +
+        (st === "queued" ? '<div class="enc-why" data-why="' + esc(d.id) + '" role="status" aria-live="polite" hidden></div>' : '') +
         (ep ? '<button class="enc-ep" data-ep="' + esc(ep) + '">' + esc(ep) + ' ⧉</button>'
               + (d.public && st === "running" && safeHref(ep) ? '<a class="enc-open" href="' + esc(safeHref(ep)) + '/" target="_blank" rel="noopener">open ↗</a>' : '') : '') +
         depIp6Row(d) +
@@ -414,7 +415,8 @@ class Deployments extends EnclaveElement {
      signature (EIP-3009 -> fundWithAuthorization; same flow as deploying). ---- */
   _fund(id, btn) {
     const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-fund"); if (!box) return;
-    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; return; }
+    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
+    btn.setAttribute("aria-expanded", "true");
     const d = (this._list || []).find(x => x.id === id) || {};
     const r = d.resources || {};
     const gpuPct = Math.round((r.gpuShare || 0) * 100), cpuPct = Math.round((r.cpuShare != null ? r.cpuShare : (r.share || 0)) * 100);
@@ -432,7 +434,7 @@ class Deployments extends EnclaveElement {
       +   '<span class="ef-est"></span>'
       +   '<button class="btn btn-sm btn-primary ef-go" type="button">Sign &amp; pay</button>'
       + '</div>'
-      + '<div class="term enc-fund-status"></div>';
+      + '<div class="term enc-fund-status" role="status" aria-live="polite"></div>';
     const amt = box.querySelector(".ef-amt"), est = box.querySelector(".ef-est");
     const go = box.querySelector(".ef-go"), st = box.querySelector(".enc-fund-status");
     const paint = (cls, txt) => paintLine(st, cls, txt);
@@ -469,13 +471,15 @@ class Deployments extends EnclaveElement {
   /* ---- per-row Output panel: recorded deploy narrative + live app logs ---- */
   _output(id, btn) {
     const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-out"); if (!box) return;
-    if (!box.hidden) { box.hidden = true; box.innerHTML = ""; this._stopLogPoll(id); return; }
+    if (!box.hidden) { box.hidden = true; box.innerHTML = ""; this._stopLogPoll(id); btn.setAttribute("aria-expanded", "false"); return; }
     box.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+    // logs are NOT a live region: each poll replaces them wholesale (a live region would re-announce all 200 lines every 5s)
     box.innerHTML = '<div class="ap-attbar">output · ' + esc(id) + '</div>'
       + '<div class="term enc-out-term">'
       +   '<div class="enc-out-info"></div>'
       +   '<div class="enc-out-nar"></div>'
-      +   '<div class="enc-out-logs"><span class="ln dimln">// fetching app logs…</span></div>'
+      +   '<div class="enc-out-logs" role="log" aria-live="off" aria-label="Deployment logs" tabindex="0"><span class="ln dimln">// fetching app logs…</span></div>'
       + '</div>';
     const nar = box.querySelector(".enc-out-nar"), scroller = box.querySelector(".enc-out-term");
     // lead with the OUTSIDE view - the app's reachable endpoints - because the
@@ -552,8 +556,9 @@ class Deployments extends EnclaveElement {
 
   async _verify(id, btn) {
     const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-att"); if (!box) return;
-    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; return; }
+    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
     box.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
     if (!Enclave.authed()){
       // the attestation read rides the owner session; unlock it in place
       box.innerHTML = '<div class="ap-attbar">attestation · ' + esc(id) + '</div>'

@@ -48,7 +48,7 @@
   border: 1px solid var(--line); background: var(--bg-1); color: var(--text);
   font-family: var(--font-mono); font-size: 12px;
 }
-.ac-in:focus { outline: none; border-color: var(--jade-dim); }
+.ac-in:focus { border-color: var(--jade-dim); }
 .ac-in-key { max-width: 200px; }
 .ac-row-new { grid-template-columns: minmax(150px, 0.9fr) 0 minmax(160px, 1fr) minmax(70px, auto) auto; }
 
