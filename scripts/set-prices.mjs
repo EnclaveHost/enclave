@@ -8,10 +8,10 @@
 //
 //   node scripts/set-prices.mjs                                # prompts
 //   NETWORK=base DEPLOYER_PRIVATE_KEY=0x... \
-//     node scripts/set-prices.mjs --cpu 278 --yes              # no prompts
+//     node scripts/set-prices.mjs --cpu 834 --yes              # no prompts
 //
 // Units: USDC 6dp per second for the FULL card (--gpu) / FULL node (--cpu).
-//   278 ≈ $1.00/hr  ·  556 ≈ $2.00/hr  ·  1667 ≈ $6.00/hr
+//   278 ≈ $1.00/hr  ·  834 ≈ $3.00/hr  ·  1667 ≈ $6.00/hr
 //
 // Env (all optional in a terminal):
 //   DEPLOYER_PRIVATE_KEY  the contract owner key (prompted, hidden, if unset)
@@ -112,7 +112,7 @@ async function main() {
   output.write(`  current: full card ${g0} (${perHr(g0)}) · full CPU node ${c0} (${perHr(c0)})\n\n`);
 
   const gpu = await choosePrice("FULL-CARD (GPU)", g0, flagVal("gpu"), "");
-  const cpu = await choosePrice("FULL-CPU-NODE", c0, flagVal("cpu"), " (278 ≈ $1.00/hr)");
+  const cpu = await choosePrice("FULL-CPU-NODE", c0, flagVal("cpu"), " (834 ≈ $3.00/hr)");
   const todo = [["setPrice", gpu, g0], ["setCpuPrice", cpu, c0]]
     .filter(([, v, cur]) => v != null && v !== cur);
   if (!todo.length) { output.write("nothing to change.\n"); return; }

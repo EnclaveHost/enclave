@@ -35,7 +35,7 @@ pragma solidity ^0.8.20;
 ///     EnclaveAppCatalog (one cidStatus eth_call, fail closed). The ledger doesn't parse
 ///     appRefs; the enclave that would run the code is the one that checks it.
 ///   - Pricing: two global per-second prices, hardcoded at deploy (~$6.00/hour
-///     for a full GPU card, ~$1.00/hour for a full CPU node — cpuPricePerSec6=278)
+///     for a full GPU card, ~$3.00/hour for a full CPU node — cpuPricePerSec6=834)
 ///     and owner-adjustable
 ///     later; each deployment SNAPSHOTS its rate at create (price changes never
 ///     re-price existing deployments). A deployment BUYS two shares — gpuMilli
@@ -136,7 +136,7 @@ contract EnclaveDeployments {
     // public RPC caps delegated EOAs at one in-flight tx, so follow-up sends
     // right after the deploy bounce). Owner setters remain for later changes.
     uint256 public pricePerSec6 = 1667;    // USDC 6dp per second, FULL card (gpuMilli = 1000): ~$6.00/hour
-    uint256 public cpuPricePerSec6 = 278;  // USDC 6dp per second, FULL CPU node (cpuMilli = 1000): ~$1.00/hour
+    uint256 public cpuPricePerSec6 = 834;  // USDC 6dp per second, FULL CPU node (cpuMilli = 1000): ~$3.00/hour
     uint64  public leaseSec = 1800;        // lease quantum: max claim/renew burn, max time lost to a dead runner
     uint16  public maxGpuMilli = 1000;     // per-deployment GPU-share cap, enforced at create() only — the
                                            // catalog still lists apps whose specs exceed it (publishable,
