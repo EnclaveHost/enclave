@@ -385,11 +385,13 @@ DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-deployments.mjs
 NETWORK=base DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-deployments.mjs
 ```
 
-> **CPU price — confirm intended value.** The deployed contract's default CPU rate
-> is `cpuPricePerSec6 = 278` µUSDC/s ≈ **$1.00/hour** for a full node, which is what
-> the site advertises. An older `~$2/hour` figure survives in the contract's file
-> header comment (`EnclaveDeployments.sol`); it does not match the deployed code and
-> should be reconciled (confirm the intended CPU price, then fix the header).
+> **CPU price.** The contract's hardcoded default CPU rate is
+> `cpuPricePerSec6 = 834` µUSDC/s ≈ **$3.00/hour** for a full node — the same
+> figure the site fallback (`pricing.js CPU_NODE_RATE`) and the fleet's
+> `/v1/pricing` (`supervisor.js CPU_RATE`) advertise, so a fresh deploy needs
+> no follow-up `setCpuPrice` tx. (The pre-2026-07-18 default was 278 ≈
+> $1.00/hour, which had drifted below the advertised price — a redeploy back
+> then would have silently reverted the live rate.)
 
 The script writes `DEPLOYMENTS_ADDRESS` into `tinfoil-config.yml` when the line
 exists (add it under the supervisor `env:` alongside `FORWARDER_ADDRESS`), and
