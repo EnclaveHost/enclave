@@ -318,7 +318,7 @@ containers:
       # (name:path:file.gguf) picks WHICH gguf preloads as the wasi-nn graph
       # when the repo ships several quantizations - the manager stages the
       # pick as a symlink dir, so the mpk-<hash> mount name never matters.
-      - MODEL_VOLUMES: "qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-bb5cace1df1795f9dde1b6da38b2b9edfaaa56f4574a5d6270c1295b192c81c1,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,sd-turbo:/tinfoil/mpk/mpk-df0919ea85c829fb62c61029ac130f7e4a98bc6a57fe52dfb777a7426d5b36fc,sd-turbo-full:/tinfoil/mpk/mpk-e787b81d664922c08ac69bb0952b436404bbb150f6f7b71971431d0c3ff4ef60,z-image-turbo-sd:/tinfoil/mpk/mpk-2b646ec9773d4dba7227656826627de606a86d98790b0e806a62e548b6c581f5,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2"
+      - MODEL_VOLUMES: "qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-bb5cace1df1795f9dde1b6da38b2b9edfaaa56f4574a5d6270c1295b192c81c1,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.5-9b-gguf:/tinfoil/mpk/mpk-b70cb1b66baaf59542b5d478f952fcb4085dfb681deedf9e0420452e2fe6e6be,sd-turbo:/tinfoil/mpk/mpk-df0919ea85c829fb62c61029ac130f7e4a98bc6a57fe52dfb777a7426d5b36fc,sd-turbo-full:/tinfoil/mpk/mpk-e787b81d664922c08ac69bb0952b436404bbb150f6f7b71971431d0c3ff4ef60,z-image-turbo-sd:/tinfoil/mpk/mpk-2b646ec9773d4dba7227656826627de606a86d98790b0e806a62e548b6c581f5,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2"
       # Volumes preloaded through the stable-diffusion.cpp wasi-nn backend
       # (image txt2img: the guest load_by_name()s the volume and one
       # compute() runs the whole pipeline host-side; weights never enter
@@ -437,6 +437,23 @@ models:
   - name: "qwen3.5-122b-gguf"
     repo: "EnclaveHost/qwen3.5-122b-gguf@8beb6427d807c9d2cf185ea22c149f8c63668815"
     mpk: "1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c_60242325504_b8673ecf-afc3-5051-8093-f2bf785fe93a"
+  # Qwen3.5-9B (dense hybrid-SSM, GGUF arch qwen35) at unsloth Dynamic Q4_K_XL
+  # (~6 GB) - the small Qwen3.5 tenant option (~8 GB VRAM + KV). Slim curated
+  # re-wrap of unsloth/Qwen3.5-9B-GGUF (which ships 22 quants + BF16 + vision
+  # mmproj, ~160 GB, and NO tokenizer): ONLY the served gguf (sha256
+  # 6f5d3066..., verified 2026-07-18) PLUS the official Qwen3.5 tokenizer.json
+  # (byte-identical to qwen3.5-122b-gguf's), so it's self-contained -
+  # provenance + per-file sha256 in the repo README. SINGLE-file gguf: no
+  # MODEL_VOLUMES third field and, unlike the 122b split family, no toolchain
+  # dependency - arch qwen35 is in the pinned LLAMA_COMMIT bec4772f (= the
+  # live ELL enclave-llamacpp-bec4772f-sd19; CPU e2e smoke-tested on that
+  # exact commit 2026-07-18). llm-chat catalog entry: the app repo's
+  # deploy-config.template.json (chatml, eos [248046, 248044]).
+  # mpk generated in the Tinfoil Models tab 2026-07-18 (5978923008 bytes ≈
+  # the ~6 GB above).
+  - name: "qwen3.5-9b-gguf"
+    repo: "EnclaveHost/qwen3.5-9b-gguf@b42dbc5ad0fa4c9e23d466b8e7138c2cbf5397cf"
+    mpk: "b70cb1b66baaf59542b5d478f952fcb4085dfb681deedf9e0420452e2fe6e6be_5978923008_a7a7944b-b900-52c6-a03e-dfb907fe623d"
   # SD-Turbo (distilled Stable Diffusion 2.1, 512x512 txt2img in 1-4 steps),
   # the Olive fp16 ONNX export by the onnxruntime team, fused for the CUDA EP
   # (com.microsoft ops - GPU-only, the CPU EP has no kernels for it). Serves
