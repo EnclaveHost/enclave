@@ -611,6 +611,108 @@ if (process.env.SWEEP_SELFTEST) {
   process.exit(0);
 }
 
+// ---- deployment options envelope (create()'s configCid field, repurposed) ---
+// App CONFIG stays per-version and approval-gated: ENCLAVE_CONFIG comes ONLY
+// from the catalog record, and a deployer-supplied config CID stays refused.
+// But the create() field itself is the one deploy-time string a deployment
+// carries on-chain, so it now carries PLATFORM options the deployer may set —
+// inline JSON interpreted by the supervisor, never shown to the app. Strictly
+// whitelisted, fail-closed: an option this build doesn't recognize REFUSES the
+// claim rather than shrugging — silently ignoring one would serve traffic the
+// owner believes is filtered. On-chain (not local state) so it survives the
+// update reboots that wipe local records: every claim AND resume re-parses it.
+//
+// v1 carries one namespace: `waf` — an in-enclave HTTP guard applied at the
+// /x/:id proxy (the single chokepoint both the relay path and the in-enclave
+// TLS bridge flow through). Deliberately no content inspection: everything
+// here is enforceable without buffering bodies, so streaming and WebSockets
+// keep working.
+const DEP_OPTIONS_MAX_BYTES = 4096;
+const WAF_KEYS = ["rps", "burst", "maxConcurrent", "maxBodyMb", "methods", "pathBlock", "blockScanners", "uaBlock"];
+// blockScanners preset: root-anchored prefixes of the paths bulk scanners
+// probe on every host they meet. Prefix-matched on the DECODED, lowercased
+// path so %2e%65nv doesn't slip past; deliberately short and boring — an app
+// that legitimately serves one of these opts out by not ticking the preset.
+const WAF_SCANNER_PATHS = [
+  "/.env", "/.git", "/.svn", "/.aws", "/.ssh", "/.htaccess", "/.htpasswd",
+  "/.ds_store", "/.vscode", "/.idea", "/wp-admin", "/wp-login.php", "/wp-includes",
+  "/wp-content", "/xmlrpc.php", "/phpmyadmin", "/phpinfo", "/cgi-bin",
+  "/vendor/phpunit", "/server-status", "/actuator", "/web.config", "/appsettings.json",
+  "/id_rsa", "/backup.sql", "/dump.sql", "/config.php",
+];
+function parseDepOptions(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return {};
+  if (s.length > DEP_OPTIONS_MAX_BYTES) throw new Error(`options exceed ${DEP_OPTIONS_MAX_BYTES} bytes`);
+  if (!s.startsWith("{") && !s.startsWith("["))
+    throw new Error("configCid is retired: the app's config comes from the approved catalog version itself — this field may only carry a deployment-options JSON envelope like {\"waf\":{…}}; recreate the deployment without a config reference");
+  let o; try { o = JSON.parse(s); } catch (e) { throw new Error("options envelope is not valid JSON: " + e.message); }
+  if (!o || Array.isArray(o) || typeof o !== "object") throw new Error("options envelope must be a JSON object");
+  const unknown = Object.keys(o).filter((k) => k !== "waf");
+  if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: waf)`);
+  if (!("waf" in o)) return {};
+  const w = o.waf;
+  if (!w || Array.isArray(w) || typeof w !== "object") throw new Error("waf must be a JSON object");
+  const bad = Object.keys(w).filter((k) => !WAF_KEYS.includes(k));
+  if (bad.length) throw new Error(`unknown waf option ${JSON.stringify(bad[0])} (this runner knows: ${WAF_KEYS.join(", ")})`);
+  const out = {};
+  const num = (k, min, max, int) => {
+    if (w[k] == null) return null;
+    const v = Number(w[k]);
+    if (!Number.isFinite(v) || v < min || v > max || (int && !Number.isInteger(v)))
+      throw new Error(`waf.${k} must be ${int ? "an integer" : "a number"} in [${min}, ${max}]`);
+    return v;
+  };
+  const rps = num("rps", 0.1, 10000);           if (rps != null) out.rps = rps;
+  const burst = num("burst", 1, 100000, true);
+  if (burst != null) { if (rps == null) throw new Error("waf.burst needs waf.rps"); out.burst = burst; }
+  else if (rps != null) out.burst = Math.max(5, Math.ceil(rps * 4));   // default: ~4s of headroom
+  const conc = num("maxConcurrent", 1, 10000, true); if (conc != null) out.maxConcurrent = conc;
+  const body = num("maxBodyMb", 0.001, 1024);        if (body != null) out.maxBodyMb = body;
+  const strs = (k, max, maxLen, check, what) => {
+    if (w[k] == null) return null;
+    if (!Array.isArray(w[k]) || w[k].length < 1 || w[k].length > max) throw new Error(`waf.${k} must be an array of 1..${max} ${what}`);
+    return w[k].map((x) => {
+      if (typeof x !== "string" || !x.trim() || x.length > maxLen || !check(x.trim())) throw new Error(`waf.${k} entry ${JSON.stringify(x)} is not ${what}`);
+      return x.trim();
+    });
+  };
+  const methods = strs("methods", 10, 10, (x) => /^[A-Za-z]{3,10}$/.test(x), "an HTTP method name");
+  if (methods) out.methods = [...new Set(methods.map((m) => m.toUpperCase()))];
+  const paths = strs("pathBlock", 64, 200, (x) => x.startsWith("/"), "a path prefix starting with /");
+  if (paths) out.pathBlock = [...new Set(paths.map((p) => p.toLowerCase()))];
+  // a 1-2 char UA needle would match nearly every agent string — refuse it
+  const uas = strs("uaBlock", 32, 100, (x) => x.length >= 3, "a User-Agent substring of 3+ chars");
+  if (uas) out.uaBlock = [...new Set(uas.map((u) => u.toLowerCase()))];
+  if (w.blockScanners != null) {
+    if (typeof w.blockScanners !== "boolean") throw new Error("waf.blockScanners must be a boolean");
+    if (w.blockScanners) out.blockScanners = true;
+  }
+  if (!Object.keys(out).length) throw new Error("waf enables nothing: set at least one of " + WAF_KEYS.join(", "));
+  return { waf: out };
+}
+// Is this app-relative URL blocked by the deployment's path rules? Decoded
+// (percent-encoding must not dodge a prefix), lowercased, query stripped.
+function wafPathBlocked(w, url) {
+  let p = String(url || "/").split("?")[0];
+  try { p = decodeURIComponent(p); } catch {}                 // undecodable %-junk: match the raw bytes
+  p = ("/" + p.replace(/^\/+/, "")).toLowerCase();
+  if (w.blockScanners && WAF_SCANNER_PATHS.some((x) => p.startsWith(x))) return true;
+  return (w.pathBlock || []).some((x) => p.startsWith(x));
+}
+
+// WAF_SELFTEST='{"parse":["…", …],"paths":[{"waf":{…},"url":"…"}, …]}' prints
+// each helper mapped over its inputs as one JSON line and exits — same
+// contract as the seams above (test/waf.test.mjs drives it).
+if (process.env.WAF_SELFTEST) {
+  const c = JSON.parse(process.env.WAF_SELFTEST);
+  console.log(JSON.stringify({
+    parse: (c.parse || []).map((raw) => { try { return { ok: parseDepOptions(raw) }; } catch (e) { return { err: e.message }; } }),
+    paths: (c.paths || []).map((x) => wafPathBlocked(x.waf, x.url)),
+  }));
+  process.exit(0);
+}
+
 // The pure half of the ledger schema-sniff machinery (depsAbi below). A REAL
 // pre-deploymentsSchema ledger has code at its address, so probing the unknown
 // selector REVERTS; "returned no data"/"0x" means the RPC saw NO CODE there —
@@ -1533,6 +1635,94 @@ const egress = (DEP_ADDR_PREFIX && EGRESS_RELAY_TOKEN)
 // limit - app subdomains carry a hex PREFIX of the id instead, resolved here
 // (unique match only; the canonical label is the FIRST 8 CHARS = 32 bits,
 // any longer prefix works too). Shared by the HTTP data path and the
+// The requester's IP as this enclave can best know it. Behind the relay/Caddy
+// the first x-forwarded-for hop is the client (same trust call hintRateOk
+// already makes); on the /x/:id/https bridge the inner requests ride a
+// decrypted stream with no socket address, so the upgrade handler stamps the
+// IP it saw onto the socket. A direct caller can forge the header — per-IP
+// limiting is abuse damping, not a security boundary (a forger degrades
+// himself into someone else's bucket, or into the shared one).
+function clientIpOf(req) {
+  if (req.socket && req.socket._clientIp) return req.socket._clientIp;
+  return (String(req.headers["x-forwarded-for"] || "").split(",")[0].trim())
+      || req.socket?.remoteAddress || "?";
+}
+
+// ---- per-deployment WAF (the options envelope's `waf` namespace) ------------
+// Enforced HERE, at the one proxy every HTTP request to a tenant crosses —
+// in-enclave, so it holds on the relay path, the in-enclave TLS bridge, and
+// direct-to-origin callers alike, and no operator box has to see app traffic
+// to provide it. State is per-deployment and in-memory only: buckets refill
+// from wall clock, so a reboot merely forgives a burst.
+const _wafStates = new Map();   // dep id -> { buckets: Map(ip -> {tokens, at}), active: Map(ip -> n) }
+setInterval(() => {
+  const cut = Date.now() - 600_000;
+  for (const [id, st] of _wafStates) {
+    if (!deployments.has(id)) { _wafStates.delete(id); continue; }
+    for (const [ip, b] of st.buckets) if (b.at < cut) st.buckets.delete(ip);
+  }
+}, 300_000).unref?.();
+// Run rec.waf against this request. True = proceed; false = the response has
+// been written. Order: cheap static rules first, counters last (a blocked
+// path must not consume rate tokens - the point of pathBlock is that junk
+// stays free).
+function wafGate(rec, req, res) {
+  const w = rec.waf;
+  if (!w) return true;
+  if (w.methods && !w.methods.includes(req.method)) {
+    fail(res, 405, "waf_method", `This deployment's protection rules allow only: ${w.methods.join(", ")}.`);
+    return false;
+  }
+  if ((w.blockScanners || w.pathBlock) && wafPathBlocked(w, req.url)) {
+    fail(res, 403, "waf_path", "Blocked by this deployment's protection rules.");
+    return false;
+  }
+  if (w.uaBlock) {
+    const ua = String(req.headers["user-agent"] || "").toLowerCase();
+    if (w.uaBlock.some((s) => ua.includes(s))) {
+      fail(res, 403, "waf_agent", "Blocked by this deployment's protection rules.");
+      return false;
+    }
+  }
+  // Content-Length fast reject; chunked/lying bodies are caught by the
+  // counted stream at the proxy pipe (the other half of maxBodyMb).
+  const cl = Number(req.headers["content-length"]);
+  if (w.maxBodyMb && Number.isFinite(cl) && cl > w.maxBodyMb * 1048576) {
+    fail(res, 413, "waf_body", `Request body exceeds this deployment's ${w.maxBodyMb} MB limit.`);
+    return false;
+  }
+  const ip = clientIpOf(req);
+  let st = _wafStates.get(rec.id);
+  if (!st) { st = { buckets: new Map(), active: new Map() }; _wafStates.set(rec.id, st); }
+  if (w.maxConcurrent) {
+    const n = st.active.get(ip) || 0;
+    if (n >= w.maxConcurrent) {
+      res.setHeader("Retry-After", "1");
+      fail(res, 429, "waf_busy", `Too many concurrent requests from your address (limit ${w.maxConcurrent}).`);
+      return false;
+    }
+    st.active.set(ip, n + 1);
+    res.once("close", () => {
+      const m = (st.active.get(ip) || 1) - 1;
+      m > 0 ? st.active.set(ip, m) : st.active.delete(ip);
+    });
+  }
+  if (w.rps) {   // same token-bucket math as hintRateOk, dialed by the deployer
+    const now = Date.now();
+    let b = st.buckets.get(ip);
+    if (!b) { b = { tokens: w.burst, at: now }; st.buckets.set(ip, b); }
+    b.tokens = Math.min(w.burst, b.tokens + ((now - b.at) / 1000) * w.rps);
+    b.at = now;
+    if (b.tokens < 1) {
+      res.setHeader("Retry-After", String(Math.max(1, Math.ceil((1 - b.tokens) / w.rps))));
+      fail(res, 429, "waf_rate_limited", `Rate limit: this deployment allows ${w.rps} requests/sec per address (burst ${w.burst}).`);
+      return false;
+    }
+    b.tokens -= 1;
+  }
+  return true;
+}
+
 // /x/:id/https upgrade path (browser TLS terminated in-enclave).
 function depByIdOrPrefix(id) {
   let rec = deployments.get(id);
@@ -1555,6 +1745,11 @@ app.use("/x/:id", async (req, res) => {
   if (req.method === "HEAD" && (req.url === "/" || req.url === "")) {
     res.writeHead(204); return res.end();
   }
+  // Deployer-enabled WAF (the options envelope): before auth so a flood on a
+  // private deployment can't grind token verification either. The relay's
+  // bare-root HEAD probe above stays exempt - that's infrastructure, not
+  // app traffic.
+  if (!wafGate(rec, req, res)) return;
   // Public deployments serve anyone (websites/APIs). Private ones require the owner's
   // token (checked before status so a private deployment's state isn't leaked).
   if (!rec.public) {
@@ -1585,6 +1780,19 @@ app.use("/x/:id", async (req, res) => {
       path: target.pathname + target.search, headers },
     (upRes) => { res.writeHead(upRes.statusCode || 502, upRes.headers); upRes.pipe(res); });
   up.on("error", (e) => { if (!res.headersSent) res.writeHead(502); res.end("upstream error: " + e.message); });
+  // maxBodyMb, the counted half: Content-Length was checked in wafGate, but a
+  // chunked (or lying) body only shows its size on the wire. Counting rides
+  // alongside pipe's own data listener; on overflow kill both directions.
+  if (rec.waf && rec.waf.maxBodyMb) {
+    const cap = rec.waf.maxBodyMb * 1048576;
+    let seen = 0;
+    req.on("data", (c) => {
+      if ((seen += c.length) <= cap) return;
+      up.destroy();
+      if (!res.headersSent) fail(res, 413, "waf_body", `Request body exceeds this deployment's ${rec.waf.maxBodyMb} MB limit.`);
+      req.destroy();
+    });
+  }
   req.pipe(up);
 });
 
@@ -1675,8 +1883,7 @@ const _hintBuckets = new Map();   // ip -> { tokens, at }
 setInterval(() => { const cut = Date.now() - 600_000; for (const [ip, b] of _hintBuckets) if (b.at < cut) _hintBuckets.delete(ip); }, 300_000).unref?.();
 function hintRateOk(req) {
   if (CLAIM_HINT_BURST <= 0) return true;
-  const ip = (String(req.headers["x-forwarded-for"] || "").split(",")[0].trim())
-           || req.socket?.remoteAddress || "?";
+  const ip = clientIpOf(req);
   const now = Date.now();
   let b = _hintBuckets.get(ip);
   if (!b) { b = { tokens: CLAIM_HINT_BURST, at: now }; _hintBuckets.set(ip, b); }
@@ -1749,6 +1956,7 @@ app.get("/availability", async (_req, res) => {
     gpuTflopsFree: IS_GPU ? round1(gpuFree * CARD_TFLOPS) : 0,
     cardVramGb: IS_GPU ? CARD_VRAM_GB : 0, cardTflops: IS_GPU ? CARD_TFLOPS : 0, cards: GPU_COUNT,
     ...(IS_GPU ? { cardVramSource: CARD_VRAM_SRC } : {}),   // "nvidia-smi"/"manager"/"worker" = probed hardware; "env"/"default" = config fallback
+    waf: true,   // this build accepts + enforces the deployment-options envelope (waf); the relay ANDs this across the fleet and the console shows the Protection controls only then
     source, ...(note ? { note } : {}), updatedAt: new Date().toISOString(),
   });
   try {
@@ -1973,7 +2181,7 @@ const spentOf = (rec) => (((rec.consumedMs || 0) / 1000) * (rec.rate || 0)).toFi
 const VIEW_FIELDS = ["id", "owner", "status", "public", "firewall", "image", "command",
   "app", "appWasm", "config", "resources", "network", "attestation", "region",
   "createdAt", "startedAt", "paused", "pauseReason", "payDeadline", "digest",
-  "payRef", "paidUsdc", "portMap", "error"];
+  "payRef", "paidUsdc", "portMap", "error", "waf"];
 const view = (rec) => {
   const o = {};
   for (const k of VIEW_FIELDS) if (k in rec) o[k] = rec[k];
@@ -2140,7 +2348,7 @@ app.post("/v1/deployments", authed, async (req, res) => {
         contract: DEPLOYMENTS_ADDRESS || null, chainId: CHAIN_ID, usdc: USDC_ADDRESS,
         createMethod: "create(string appRef, uint16 gpuMilli, uint16 cpuMilli, uint32 appPort, string ports, bool isPublic, "
                     + ((await depsAbi()).rev >= 2 ? "" : "string sshPubKey, ")
-                    + "string configCid) returns (bytes32 id) — appRef is catalog://<appId>/<versionIndex> (runners refuse CID refs: a CID names bytes, not a version); leave configCid EMPTY and ports/appPort informational (the version's approved record decides all three)",
+                    + "string configCid) returns (bytes32 id) — appRef is catalog://<appId>/<versionIndex> (runners refuse CID refs: a CID names bytes, not a version); configCid carries either \"\" or the deployment-options envelope {\"waf\":{…}} (app config always comes from the version's approved record, as do ports/appPort — the create fields ride along informational)",
         fundMethod: "fundWithAuthorization(bytes32 id, address from, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes signature)",
         fundEthMethod: "fundEth(bytes32 id) payable",
         hint: "POST /v1/claim-hint {\"id\": \"0x…\"}",
@@ -3115,6 +3323,10 @@ function wsHttpsBridge(req, socket, head, fullId) {
     const wsStream = createWebSocketStream(ws);
     const tlsSock  = new tls.TLSSocket(wsStream, { isServer: true, secureContext: TLS_BRIDGE_CTX || undefined, SNICallback: sniSelect });
     tlsSock._appDepId = fullId;                               // the internal server reads this to pin req.url
+    // inner requests ride the decrypted stream (no socket address, and the
+    // client's headers are TLS-sealed past the relay) — carry the client IP
+    // the UPGRADE saw so the WAF's per-IP buckets keep working on this path
+    tlsSock._clientIp  = clientIpOf(req);
     const close = () => { try { ws.close(); } catch {} try { tlsSock.destroy(); } catch {} };
     wsStream.on("error", close); wsStream.on("close", close); tlsSock.on("error", close);
     internalAppServer.emit("connection", tlsSock);            // Node parses HTTP off the decrypted stream
@@ -3728,11 +3940,13 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
   const resume = leaseLive && d.runner === _enclaveId;
   if (leaseLive && !resume) return "another enclave holds a live lease";
   if (!resume && d.balance6 < d.rate) return "out of funded time - fund it and retry";
-  // configCid is RETIRED: ENCLAVE_CONFIG comes from the approved version's own
-  // record (the deploy gate below). A deployment that carries one is refused —
-  // silently ignoring it would run something other than what its owner thinks.
-  if ((d.configCid || "").trim())
-    return "configCid is retired: the app's config comes from the approved catalog version itself — recreate the deployment without a configCid";
+  // configCid as CONFIG is retired: ENCLAVE_CONFIG comes from the approved
+  // version's own record (the deploy gate below). The field now carries only
+  // the deployment-options envelope (waf, …) — parsed strictly; anything this
+  // build doesn't recognize is refused, never ignored: silently dropping an
+  // option would serve traffic the owner believes is filtered.
+  try { parseDepOptions(d.configCid); }
+  catch (e) { return "deployment options refused: " + e.message; }
   // Routing: the deployment bought two shares. GPU work (gpuMilli > 0)
   // runs ONLY on GPU enclaves and must fit a card AND the node's cpu pool.
   // CPU-only work runs on CPU enclaves immediately; a GPU enclave bids on
@@ -3864,6 +4078,10 @@ async function adopt(d, g, firewall, slice) {
     // is only the manager's fetch address
     image: { reference: g.ref }, command: [],
     app: g.app, appWasm: g.wasmRef, config: g.config || "",
+    // deployer's platform options: considerClaim validated this exact string
+    // before any adopt path (claim or resume), so the catch is unreachable —
+    // kept so a hypothetical stale record degrades to "no waf", not a crash
+    ...(() => { try { const w = parseDepOptions(d.configCid).waf; return w ? { waf: w } : {}; } catch { return {}; } })(),
     // the two shares the deployment bought on-chain
     resources: slice.cpu
       ? { gpuShare: 0, cpuShare: slice.cpuShare }

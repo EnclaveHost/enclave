@@ -39,7 +39,26 @@ const depsPanel = () => document.querySelector("c-deployments");
 /* ============================================================
    Console state + request rendering
    ============================================================ */
-const dep = { gpuPct: 25, cpuPct: 5, minGpuPct: 0, minCpuPct: 1, asset: "USDC", public: true, gpuEnclave: true, volumes: new Set() };  // gpuEnclave: from /availability (gpu:false = CPU-only enclave); volumes: the picker's ticks - a MIRROR of the App config JSON's `volumes` key, never a second source
+const dep = { gpuPct: 25, cpuPct: 5, minGpuPct: 0, minCpuPct: 1, asset: "USDC", public: true, gpuEnclave: true, volumes: new Set(), waf: false, wafAvail: false };  // gpuEnclave: from /availability (gpu:false = CPU-only enclave); volumes: the picker's ticks - a MIRROR of the App config JSON's `volumes` key, never a second source; wafAvail: fleet aggregate advertises the options envelope (waf:true = every live runner enforces it - the Protection field only shows then)
+
+/* The Protection controls -> the create() options envelope's `waf` object
+   (null = off/unavailable). Mirrors the runner's parse rules (supervisor
+   parseDepOptions): rps + burst always ride together, maxBodyMb and the
+   scanner preset only when set - so what the user sees here is exactly what
+   the claim gate will accept. */
+function wafSpec(){
+  if (!dep.waf || !dep.wafAvail) return null;
+  const num = (sel, min, max, dflt) => {
+    const v = parseFloat(($(sel) && $(sel).value) || "");
+    return Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : dflt;
+  };
+  const w = { rps: num("#wafRps", 0.1, 10000, 10) };
+  w.burst = Math.round(num("#wafBurst", 1, 100000, Math.max(5, Math.ceil(w.rps * 4))));
+  const body = num("#wafBody", 0.001, 1024, 0);
+  if (body > 0) w.maxBodyMb = body;
+  if ($("#wafScan") && $("#wafScan").checked) w.blockScanners = true;
+  return w;
+}
 function renderAccessNote(){
   const el = $("#accessNote"); if (!el) return;
   el.innerHTML = dep.public
@@ -95,21 +114,26 @@ function deployBody(){
   // GPU attestation only exists when the deployment holds a card slice.
   if (gp > 0 && dep.gpuEnclave) body.attestationPolicy = { requireGpuAttestation: true };
   body.region = "auto";
+  const w = wafSpec();
+  if (w) body.waf = w;   // deployer protection: rides create()'s options envelope, enforced at the enclave's /x proxy
   return body;
 }
 function deployFetch(b){
   const r = (b.image && b.image.reference) || "catalog://<appId>/<versionIndex>";
   const g = Math.round(((b.resources && b.resources.gpuShare) || 0) * 1000);
   const c = Math.round(((b.resources && b.resources.cpuShare) || 0.05) * 1000);
+  const env = b.waf ? JSON.stringify(JSON.stringify({ waf: b.waf })) : '""';   // the options envelope, as a JS string literal
   return '// Deployments are ON-CHAIN work items (EnclaveDeployments on Base): the ledger\n'
     + '// holds the spec + funded balance, so they survive enclave updates and crashes.\n'
     + '// 1) create() from your wallet - one tx; msg.sender owns the record:\n'
     + '//    create(appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, ' + (depRev >= 2 ? "" : "sshPubKey, ") + 'configCid)\n'
     + '//    appRef names the on-chain catalog VERSION record - it carries the wasm,\n'
     + '//    config (ENCLAVE_CONFIG + volumes) and ports the owner approved; CID refs\n'
-    + '//    are refused, ports/appPort ride along untrusted, configCid must be "".\n'
+    + '//    are refused and ports/appPort ride along untrusted. The last field carries\n'
+    + '//    "" or a deployment-options envelope like {"waf":{…}} (per-IP rate limit +\n'
+    + '//    request filter, enforced by the enclave before traffic reaches the app).\n'
     + 'const { id } = await createOnChain("' + DEPLOYMENTS_ADDRESS + '",\n'
-    + '  ["' + r + '", ' + g + ', ' + c + ', 8080, "", ' + !!b.public + ', ' + (depRev >= 2 ? '""' : '"", ""') + ']);\n'
+    + '  ["' + r + '", ' + g + ', ' + c + ', 8080, "", ' + !!b.public + ', ' + (depRev >= 2 ? env : '"", ' + env) + ']);\n'
     + '//    id = topics[1] of the Created event in the receipt\n'
     + '// 2) fund it - credited to the on-chain balance (funds forward to Enclave):\n'
     + '//    fundWithAuthorization(id, …EIP-3009 USDC sig…)  or  fundEth(id) payable\n'
@@ -235,10 +259,13 @@ async function runDeploy(){
     return note([["warn", "[!] " + raw + " needs at least a " + fmins.cpuPct + "% CPU share on this fleet's hardware - " + (cpuMilli / 10) + "% would never be claimed. Raise the CPU dial."]]);
 
   if (dry){
+    const wafDry = wafSpec();
+    const envDry = wafDry ? JSON.stringify(JSON.stringify({ waf: wafDry })) : "\"\"";
     const plan = [["warn", "// dry run: nothing is sent"]];
     plan.push(["info", "0) config + volumes + ports ride the version's on-chain record (approved with it) - nothing is pinned or passed at deploy"]);
+    if (wafDry) plan.push(["info", "0b) protection rides the create() options envelope - the enclave's proxy enforces it per requester IP, the app never sees blocked traffic"]);
     plan.push(["p", "1) EnclaveDeployments.create(app, shares) - one wallet tx; you own the record"],
-      ["dimln", "   create(\"" + rref.reference + "\", " + gpuMilli + ", " + cpuMilli + ", " + appPort + ", \"" + portsCsv + "\", " + dep.public + (depRev >= 2 ? ", \"\")" : ", \"\", \"\")")],
+      ["dimln", "   create(\"" + rref.reference + "\", " + gpuMilli + ", " + cpuMilli + ", " + appPort + ", \"" + portsCsv + "\", " + dep.public + (depRev >= 2 ? ", " + envDry + ")" : ", \"\", " + envDry + ")")],
       ["p", dep.asset === "ETH"
         ? "2) fundEth(id) with ≈ $" + fund + " of ETH - one wallet tx; credited on-chain"
         : "2) sign a " + fund + " USDC authorization (EIP-3009) + one fundWithAuthorization(id) tx - credited on-chain"],
@@ -261,7 +288,7 @@ async function runDeploy(){
   btn.disabled = true; const lbl = btn.textContent; btn.textContent = "working…";
   try {
     await deployOnChain({ reference: rref.reference, gpuMilli, cpuMilli, ports,
-      isPublic: dep.public, fundUsd: fund, asset: dep.asset });
+      isPublic: dep.public, fundUsd: fund, asset: dep.asset, waf: wafSpec() });
   } finally {
     btn.disabled = false; btn.textContent = lbl;
   }
@@ -283,9 +310,11 @@ function portsSpec(raw){
    status watch continues detached, freeing the caller for the next deploy.
    spec: { reference (catalog://<appId>/<idx>), gpuMilli, cpuMilli,
    ports (csv, informational - the version's record is what enclaves apply),
-   isPublic, fundUsd, asset }. Config/volumes ride the version's on-chain
-   record; deploys carry NO config (configCid is retired - enclaves refuse
-   deployments that set one). */
+   isPublic, fundUsd, asset, waf }. Config/volumes ride the version's on-chain
+   record; deploys carry NO app config (a config CID stays refused). The one
+   deploy-time field is the options ENVELOPE: spec.waf (per-IP rate limit +
+   request filter) rides create()'s last string as {"waf":{…}}, interpreted by
+   the enclave's proxy and never shown to the app. */
 export async function deployOnChain(spec){
   const fund = spec.fundUsd;
   const { portsCsv, appPort } = portsSpec(spec.ports);
@@ -329,7 +358,11 @@ export async function deployOnChain(spec){
     // 1) create: one tx from YOUR wallet - msg.sender owns the on-chain record.
     // No config step: the appRef names the catalog version RECORD, and the
     // enclave takes config/volumes/ports straight from it (approval covered
-    // them; configCid stays empty - enclaves refuse deployments that set one).
+    // them; a config CID stays refused). The last string carries "" or the
+    // deployment-options envelope - platform settings like the per-IP WAF,
+    // interpreted by the runner's proxy, never handed to the app.
+    const envelope = spec.waf ? JSON.stringify({ waf: spec.waf }) : "";
+    if (envelope) w.line("info", "    protection on: " + envelope + " (enforced per requester IP by the enclave's proxy)");
     w.line("p", "$ EnclaveDeployments.create(…)  (wallet · one tx · you own the record)");
     w.line("info", "[*] confirm the create transaction in your wallet…");
     // rev-1 contracts take a now-removed sshPubKey string before configCid;
@@ -338,7 +371,7 @@ export async function deployOnChain(spec){
     const cdata = encCall(rev2 ? DEP_SEL.create : DEP_SEL.createV1, [
       { t: "str", v: spec.reference }, { t: "uint", v: spec.gpuMilli }, { t: "uint", v: spec.cpuMilli },
       { t: "uint", v: appPort }, { t: "str", v: portsCsv }, { t: "bool", v: !!spec.isPublic },
-      ...(rev2 ? [] : [{ t: "str", v: "" }]), { t: "str", v: "" },
+      ...(rev2 ? [] : [{ t: "str", v: "" }]), { t: "str", v: envelope },
     ]);
     const chash = await sendTx(DEPLOYMENTS_ADDRESS, cdata);
     w.line("dimln", "  ↳ sent " + chash + " · waiting for confirmation…");
@@ -606,6 +639,12 @@ async function refreshAvailability(){
   try {
     const a = await Enclave.getAvailability();
     dep.gpuEnclave = a.gpu !== false;               // gpu:false = CPU-only enclave (older enclaves omit the field)
+    // Protection (options envelope): only offered when the aggregate says the
+    // WHOLE fleet enforces it - a runner that predates the envelope refuses
+    // the deployment at claim, so a mixed fleet must not sell the option.
+    dep.wafAvail = a.waf === true;
+    const wf = $("#wafField");
+    if (wf){ wf.hidden = !dep.wafAvail; if (!dep.wafAvail) dep.waf = false; }
     const unitG = $("#gpuShareUnit");
     if (unitG) unitG.textContent = dep.gpuEnclave ? "(% of one card · 0 = CPU-only app)" : "(CPU-only enclave · no GPU here)";
     // getAvailability() adopted this payload into the share math already;
@@ -810,6 +849,17 @@ function initDeploy(){
     renderAccessNote(); renderDeploy();
   });
   renderAccessNote();
+  const cfgWaf = $("#cfgWaf");
+  if (cfgWaf){
+    cfgWaf.addEventListener("click", e => {
+      const b = e.target.closest("button[data-waf]"); if (!b) return;
+      dep.waf = b.dataset.waf === "1"; $$("#cfgWaf button").forEach(x => x.classList.toggle("on", x === b));
+      const opts = $("#wafOpts"); if (opts) opts.hidden = !dep.waf;
+      renderDeploy();
+    });
+    ["#wafRps", "#wafBurst", "#wafBody"].forEach(s => { const el = $(s); if (el) el.addEventListener("input", renderDeploy); });
+    const ws = $("#wafScan"); if (ws) ws.addEventListener("change", renderDeploy);
+  }
   ["#cfgImage", "#cfgBudget", "#cfgPorts"].forEach(s => { const el = $(s); if (el) el.addEventListener("input", renderDeploy); });
   // the config box mirrors the picked VERSION's config (read-only): its
   // `volumes` key drives the ticks, and neither is deployer-editable — a
@@ -842,6 +892,13 @@ function initDeploy(){
     dep.asset = "USDC"; dep.public = true;
     $$("#cfgAsset button").forEach(x => x.classList.toggle("on", x.dataset.asset === "USDC"));
     $$("#cfgAccess button").forEach(x => x.classList.toggle("on", x.dataset.public === "1"));
+    dep.waf = false;
+    $$("#cfgWaf button").forEach(x => x.classList.toggle("on", x.dataset.waf === "0"));
+    const wo = $("#wafOpts"); if (wo) wo.hidden = true;
+    const wr = $("#wafRps"); if (wr) wr.value = "10";
+    const wb = $("#wafBurst"); if (wb) wb.value = "40";
+    const wm = $("#wafBody"); if (wm) wm.value = "";
+    const ws0 = $("#wafScan"); if (ws0) ws0.checked = true;
     renderAccessNote();
     note([]);
     switchPane("req"); renderDeploy(); refreshAvailability();

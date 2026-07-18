@@ -208,6 +208,22 @@
           </div>
           <div class="dim" id="accessNote" style="margin-top:7px;font-family:var(--font-mono);font-size:.68rem;line-height:1.5;"></div>
         </div>
+        <div class="field" id="wafField" hidden>
+          <label>Protection <span class="dim">(optional per-IP rate limit + request filter · enforced inside the enclave, before traffic reaches the app · rides the on-chain record, fixed at create)</span></label>
+          <div class="seg" id="cfgWaf" role="group" aria-label="Protection">
+            <button data-waf="0" class="on" type="button">Off</button>
+            <button data-waf="1" type="button">On</button>
+          </div>
+          <div id="wafOpts" hidden>
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:7px;">
+              <div><span class="dim" style="display:block;font-family:var(--font-mono);font-size:.68rem;margin-bottom:4px;">req/s per IP</span><input type="number" id="wafRps" value="10" min="0.1" step="any" inputmode="decimal" /></div>
+              <div><span class="dim" style="display:block;font-family:var(--font-mono);font-size:.68rem;margin-bottom:4px;">burst</span><input type="number" id="wafBurst" value="40" min="1" step="1" /></div>
+              <div><span class="dim" style="display:block;font-family:var(--font-mono);font-size:.68rem;margin-bottom:4px;">max body MB</span><input type="number" id="wafBody" value="" min="0.001" step="any" placeholder="off" inputmode="decimal" /></div>
+            </div>
+            <label class="dry" style="margin-top:7px;display:flex;gap:.5em;align-items:baseline;"><input type="checkbox" id="wafScan" checked /> <span>block common scanner paths (/wp-admin, /.env, /.git, …)</span></label>
+            <div class="dim" style="margin-top:7px;font-family:var(--font-mono);font-size:.68rem;line-height:1.5;">per requester IP, enforced by the enclave's attested proxy - blocked and over-limit requests are answered 403/429 and never reach your app. Part of the create() record: changing it later means a new deployment.</div>
+          </div>
+        </div>
         <div class="field">
           <label for="cfgGpuShare">GPU/VRAM share <span class="dim" id="gpuShareUnit">(% of one card · 0 = CPU-only app)</span> <span class="dim" id="gpuShareCap">· checking live capacity…</span></label>
           <input type="number" id="cfgGpuShare" value="25" min="0" max="100" step="1" />

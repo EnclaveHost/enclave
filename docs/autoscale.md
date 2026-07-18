@@ -24,7 +24,8 @@ auto-managed enclaves that sit idle. Built so that triggering it is always
      VARIABLES of the same names (see autoscale.yml `env`).
 2. **Structural filter.** Each candidate is checked against the fleet's own
    claim logic (`POST /v1/claim-hint`): reasons like *below the app's minimum
-   shares*, *deactivated*, *configCid retired*, *app not deployable* mark the
+   shares*, *deactivated*, *configCid retired*, *deployment options refused*,
+   *app not deployable* mark the
    record permanently unclaimable — more capacity would not help, so it is
    **not** demand (this also covers the stranded-funding class of records).
    `accepted: true` means an enclave is already claiming it — also not demand.
