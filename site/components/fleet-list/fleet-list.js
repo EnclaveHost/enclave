@@ -16,7 +16,7 @@ class FleetList extends EnclaveElement {
   renderedCallback() {
     const list = this.querySelector(".fleet-list"); if (!list) return;
     const rows = this.rows || [];
-    const meter = (pct) => '<i class="fleet-meter"><b style="width:' + Math.max(0, Math.min(100, pct)) + '%"></b></i>';
+    const meter = (pct) => '<i class="fleet-meter" aria-hidden="true"><b style="width:' + Math.max(0, Math.min(100, pct)) + '%"></b></i>';
     // one stat cell: bright free amount, then the "≈"/"/ total" context and the
     // label in dim ink so the number is what the eye lands on
     const stat = (free, total, unit, label) =>

@@ -38,7 +38,11 @@ class AppCard extends EnclaveElement {
       ? "url('" + IPFS_IMG_GATEWAY + encodeURIComponent(media.thumbnail) + "')"
       : placeholderArt(app.appId || app.slug, app.name || app.slug);
 
-    this.querySelector("h3").textContent = app.name;
+    // the title is a real link (the heading survives in the a11y tree; Enter
+    // works natively) - the card-wide click handler below still opens for pointers
+    const link = this.querySelector("h3 a");
+    link.textContent = app.name;
+    link.href = "apps?app=" + encodeURIComponent(app.appId);
 
     const badge = v.verified
       ? '<span class="app-badge" title="This version is marked verified by the catalog owner">✓ verified</span>'
@@ -59,9 +63,8 @@ class AppCard extends EnclaveElement {
 
     if (!this._wired) {
       this._wired = true;
-      const open = () => this.dispatch("card-action", { app: this.app, act: "open" });
-      this.addEventListener("click", open);
-      this.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); open(); } });
+      // preventDefault keeps the link's soft-nav (apps.js routes card-action)
+      this.addEventListener("click", (e) => { e.preventDefault(); this.dispatch("card-action", { app: this.app, act: "open" }); });
     }
   }
 }
