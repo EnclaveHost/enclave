@@ -358,29 +358,27 @@ containers:
       # at graph allocation ("sampling for image 1/1 failed" in <1s, seen
       # live). With FA the 2048px diffusion buffer is a few GB.
       - ENCLAVE_SD_FLASH_ATTN: "1"
-      # VAE decode on the GPU (the SPEED fix). The shim defaults the VAE to the
-      # CPU (backend "vae=cpu") to dodge qwen-image's WanVAE F16-overflow
-      # speckle - but a CPU f32 VAE decode is MAGNITUDES slower and scales
-      # badly with resolution (it dominated z-image 1024: 512 ~18s, 1024 ~156s).
-      # z-image's AutoEncoderKL is GPU-safe (does NOT overflow), so on the GPU
-      # it is fast AND clean. qwen's WanVAE speckles on the GPU, but qwen already
-      # speckles on native MMQ (secondary), so no loss. Node-global; flip to "1"
-      # (or unset) if a qwen-clean cuBLAS build is ever led with again.
+      # VAE decode on the GPU (fast). The shim defaults the VAE to the CPU
+      # (backend "vae=cpu") to dodge qwen-image's WanVAE F16-overflow speckle,
+      # but a CPU f32 VAE decode is MAGNITUDES slower and scales badly with
+      # resolution (it dominated 1024: z-image 512 ~18s -> 1024 ~156s). ELL sd19
+      # patches the WanVAE CausalConv3d weight F16->F32, so the WanVAE decodes in
+      # f32 range ON the GPU (fast + clean) - so BOTH models' VAEs are now
+      # GPU-clean, and this stays "0".
       - ENCLAVE_SD_VAE_ON_CPU: "0"
-      # NATIVE Q8_0 MMQ (ELL sd17) - the FAST path, chosen to lead with
-      # z-image-turbo. The sm_90 (H200) int8 MMQ speckle (open llama.cpp #24399)
-      # bites qwen-image-2512's 20B shapes but NOT z-image-turbo's 6B shapes:
-      # z-image renders pixel-clean on native MMQ (verified) and fast (no
-      # per-pass dequant). qwen-image-2512 still speckles on this build and is
-      # therefore the SECONDARY model until an upstream ggml/NVIDIA fix.
-      # Why not cuBLAS: FORCE_CUBLAS (sd18) is clean for BOTH models but
-      # re-dequantizes every pass, so it is too slow at the DEFAULT 1024 size
-      # (512 ~34s, 768 ~102s, 1024 >180s -> gateway idle-timeout -> "network
-      # error"). GGML_CUDA_CUBLAS_COMPUTE_TYPE=bf16 was tried to speed that up
-      # and FAILED both ways: no speedup (the bottleneck is dequant, not the
-      # GEMM compute type) AND it reintroduced speckle on both models (bf16's
-      # 7-bit mantissa is too coarse for these activations). Precision ladder:
-      # f16 -> NaN (range), bf16 -> speckle (mantissa), f32 -> clean but slow.
+      # ELL sd19 = FORCE_CUBLAS + TF32 + WanVAE-f32 = qwen fast AND clean.
+      # - FORCE_CUBLAS bypasses the int8 MMQ path whose sm_90 bug (#24399)
+      #   speckles qwen's 20B shapes; cuBLAS is clean for both models.
+      # - COMPUTE_TYPE=f32 selects the F32 GEMM traits, which sd19 patched to
+      #   CUBLAS_COMPUTE_32F_FAST_TF32 -> TF32 tensor cores (~7x FP32 cores).
+      #   REQUIRED: the Q8_0 default on H200 is F16, which overflows qwen
+      #   activations (>65504) -> NaN white. TF32 keeps f32's exponent range (no
+      #   NaN) with a 10-bit mantissa - proven clean (the old f32 build already
+      #   ran TF32 on the cublasSgemm path via common.cuh's math mode).
+      # Precision ladder (why not the others): f16 -> NaN (range), bf16 ->
+      # speckle (7-bit mantissa), strict-f32 -> clean but slow (FP32 cores),
+      # TF32 -> clean AND fast. Native MMQ -> fast but speckles qwen (sd17).
+      - GGML_CUDA_CUBLAS_COMPUTE_TYPE: "f32"
       # GGML_CUDA_PDL=0 kept as cheap Hopper hardening (not the fix).
       - GGML_CUDA_PDL: "0"
       # Fused-attention quarantine (ORT/onnx volumes only - sdcpp/ggml
