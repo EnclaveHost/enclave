@@ -216,6 +216,7 @@
           <label for="cfgCpuShare">CPU/RAM share <span class="dim" id="cpuShareUnit">(% of the node · ≤ GPU share for GPU apps)</span> <span class="dim" id="cpuShareCap"></span></label>
           <input type="number" id="cfgCpuShare" value="5" min="1" max="100" step="1" />
           <div class="tier-readout" id="tierOut"></div>
+          <div class="cap-warn" id="capWarn" hidden></div>
         </div>
         <div class="field" id="fleetField" hidden>
           <label>Live enclaves <span class="dim">(the shares you pick decide the placement: GPU work needs a GPU enclave, CPU-only work fills CPU enclaves first)</span></label>
