@@ -54,7 +54,11 @@ bundled browser vendor libraries (site/vendor/), patches applied to upstream
 projects (wasm/*.patch), and dependencies fetched at build time — which
 remain under their own licenses. This license applies only to the original
 Enclave code in this repository, and nothing in it limits rights you hold in
-those components under their respective licenses.
+those components under their respective licenses. See THIRD-PARTY-NOTICES.md
+for the components distributed with Enclave's built artifacts and their
+notices. To the extent a third-party component's license so requires (for
+example the LGPL), section 2 does not prohibit modifying that component, or
+reverse engineering the combined work to debug such modifications.
 
 4. CONTRIBUTIONS
 
