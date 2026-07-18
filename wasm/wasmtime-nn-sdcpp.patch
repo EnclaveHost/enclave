@@ -574,4 +574,4 @@ index efb8fd6..175e2bb 100644
 +        let backend = backends[idx]
              .as_dir_loadable()
              .ok_or(format_err!("{kind} does not support directory loading"))?;
-         registry.load(backend, Path::new(path))?;
+         // Enclave: a graph that fails to load (typically CUDA OOM - the

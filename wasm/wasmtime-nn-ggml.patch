@@ -28,8 +28,14 @@
 # the listener binds (weights hit VRAM the moment the deployment is up;
 # connections arriving during the load queue in the listen backlog) and
 # shares the graphs with every store through Arc'd registry clones
-# (InMemoryRegistry gains Clone, lib.rs gains preload_registry()). A preload
-# failure kills the server at boot, loudly, instead of failing per request.
+# (InMemoryRegistry gains Clone, lib.rs gains preload_registry()). A graph
+# that fails to preload (typically CUDA OOM: the share cannot hold it) is
+# SKIPPED loudly instead of killing the server: the deployment serves the
+# graphs that did fit, and a guest load_by_name() of a skipped graph errors
+# per-model. The wasm-manager emits ggml graphs SMALLEST-FIRST, so what fits
+# is deterministic (residency is first-come-first-served within the share)
+# and one published app scales with the deployment's resources - llm-chat's
+# smallest-first warmup ladder + unfit-model reporting ride on this.
 # Per-request cost is llama-context allocation only. Contract:
 # input "tokens" I32 [1,n] -> output "logits" Fp32 [1,n_vocab]; the KV cache
 # lives in the execution context (stateful across compute() calls). GGUF
@@ -614,9 +620,18 @@ index b826f6a..efb8fd6 100644
      let mut backends = backend::list();
      let mut registry = InMemoryRegistry::new();
      for (kind, path) in preload_graphs {
-@@ -28,7 +39,7 @@ pub fn preload(preload_graphs: &[(String, String)]) -> wasmtime::Result<(Vec<Bac
+@@ -28,7 +39,15 @@ pub fn preload(preload_graphs: &[(String, String)]) -> wasmtime::Result<(Vec<Bac
              .ok_or(format_err!("{kind} does not support directory loading"))?;
-         registry.load(backend, Path::new(path))?;
+-        registry.load(backend, Path::new(path))?;
++        // Enclave: a graph that fails to load (typically CUDA OOM - the
++        // deployment's share cannot hold this model) is SKIPPED loudly, not
++        // fatal: the registry simply lacks it, a guest load_by_name() of it
++        // errors per-model, and the deployment keeps serving the models that
++        // DID fit. Pairs with the wasm-manager emitting ggml graphs
++        // smallest-first and llm-chat's smallest-first warmup ladder.
++        if let Err(e) = registry.load(backend, Path::new(path)) {
++            eprintln!("wasi-nn: preload of {kind}::{path} FAILED ({e}); graph skipped");
++        }
      }
 -    Ok((backends, Registry::from(registry)))
 +    Ok(registry)
@@ -706,8 +721,8 @@ index 6b491c7..177ac30 100644
 +        // ggml GGUF hits VRAM the moment the server is up instead of on
 +        // (every!) request. Deliberately after bind: connections arriving
 +        // during a long model load queue in the listen backlog, and port
-+        // probes see the server as up. A load failure kills the server here,
-+        // loudly, rather than failing each request.
++        // probes see the server as up. A graph that fails to load is skipped
++        // loudly (per-graph, in preload_registry), not fatal - see lib.rs.
 +        if self.run.common.wasi.nn == Some(true) {
 +            #[cfg(feature = "wasi-nn")]
 +            {
