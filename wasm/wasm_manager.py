@@ -1934,7 +1934,7 @@ def _alloc_ports(pspec) -> dict:
 
 def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdir=None,
                nn=False, enclave_config=None, vol_mounts=None, egress=None, egress_transparent=None,
-               enc=None):
+               enc=None, gpu_share: float = 0.0):
     """The wasmtime invocation for a ports spec. Returns (cmd, host_port, wait_ports).
 
     serve mode: `wasmtime serve` owns the one HTTP listener; no sockets granted.
@@ -2015,15 +2015,34 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
         # walk aborts the tenant at startup, and manager/toolchain images
         # roll independently. ggml predates the probe and stays ungated.
         support = _preload_support()
-        # ggml graphs collect here and emit AFTER the loop, SMALLEST-FIRST:
-        # wasmtime preloads -S nn-graph flags in order at boot, and residency
-        # within the share is first-come-first-served, so smallest-first puts
-        # the models most likely to fit in VRAM before a big one claims - or
-        # fails to claim - the rest. Pairs with llm-chat's smallest-first
-        # boot-warmup ladder and the preload's per-graph skip-on-failure
-        # (wasmtime-nn-ggml.patch): a small deployment serves its small
-        # models and reports the big ones unfit instead of dying at boot.
-        ggml_stages = []  # (bytes, name, stage)
+        # ggml AND sd graphs collect here and emit AFTER the loop,
+        # SMALLEST-FIRST across both kinds: wasmtime preloads -S nn-graph
+        # flags in order at boot, both backends load weights into the same
+        # VRAM share, and residency is first-come-first-served - so
+        # smallest-first puts the models most likely to fit in VRAM before a
+        # big one claims - or fails to claim - the rest. Pairs with the
+        # apps' smallest-first boot-warmup ladders (llm-chat 0.7.0,
+        # image-generator 0.2.0) and the preload's per-graph
+        # skip-on-failure (wasmtime-nn-ggml.patch): a small deployment
+        # serves its small models and reports the big ones unfit instead of
+        # dying at boot. onnx preloads stay inline: they register on the CPU
+        # (sessions build per request) and hold no VRAM at boot.
+        #
+        # The emission below additionally STOPS at the tenant's VRAM budget
+        # (gpu_share x card VRAM - the same number launch() puts in the MPS
+        # cap): preloading weights that cannot fit is a guaranteed slow OOM,
+        # so over-budget volumes are never emitted at all. They stay mounted
+        # (and in ENCLAVE_MODELS), so a guest load_by_name() fails INSTANTLY
+        # and the apps report "unfit" without a doomed multi-GB load.
+        # ENCLAVE_VRAM_BYTES hands the guest the same budget so its warmup
+        # ladder can skip the probe entirely. Weights-only accounting on
+        # purpose: contexts/compute come and go per request - the budget
+        # gate only refuses CERTAIN failures, borderline models still get
+        # the honest probe.
+        vram_bytes = int(gpu_share * GPU_VRAM_GB * (1 << 30)) if gpu_share > 0 else 0
+        if vram_bytes:
+            vol_args += ["--env", f"ENCLAVE_VRAM_BYTES={vram_bytes}"]
+        vram_stages = []  # (bytes, name, kind, stage)
         for name, host_path in vol_mounts.items():
             # MODEL_VOLUMES_SD volumes preload through the sdcpp backend
             # (image txt2img pipelines: safetensors/ckpt checkpoints, FLUX
@@ -2039,7 +2058,7 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
                     # files inside it - same one-symlink shape as onnx
                     stage = _stage_onnx_dir(name, host_path)
                     if stage:
-                        vol_args += ["-S", f"nn-graph=sd::{stage}"]
+                        vram_stages.append((_staged_bytes(stage), name, "sd", stage))
                     continue
                 if not ckpt:
                     print(f"[nn-graph] sd volume '{name}': no unambiguous checkpoint "
@@ -2047,13 +2066,13 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
                     continue
                 stage = _stage_nn_graph(name, ckpt)
                 if stage:
-                    vol_args += ["-S", f"nn-graph=sd::{stage}"]
+                    vram_stages.append((_staged_bytes(stage), name, "sd", stage))
                 continue
             gguf = _gguf_path(name, host_path)
             if gguf:
                 stage = _stage_nn_graph(name, gguf)
                 if stage:
-                    ggml_stages.append((_staged_bytes(stage), name, stage))
+                    vram_stages.append((_staged_bytes(stage), name, "ggml", stage))
                 continue
             # ONNX volumes preload too (every *.onnx registers as
             # "<volume>/<component>"; guests load_by_name and skip the
@@ -2067,8 +2086,15 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
                 stage = _stage_onnx_dir(name, host_path)
                 if stage:
                     vol_args += ["-S", f"nn-graph=onnx::{stage}"]
-        for _bytes, _name, stage in sorted(ggml_stages):
-            vol_args += ["-S", f"nn-graph=ggml::{stage}"]
+        resident = 0
+        for _bytes, _name, kind, stage in sorted(vram_stages):
+            if vram_bytes and resident + _bytes > vram_bytes:
+                print(f"[nn-graph] volume '{_name}' ({_bytes / 2**30:.1f} GB weights) skipped: "
+                      f"{resident / 2**30:.1f} GB already claimed of the deployment's "
+                      f"{vram_bytes / 2**30:.1f} GB VRAM budget - mounting only", flush=True)
+                continue
+            resident += _bytes
+            vol_args += ["-S", f"nn-graph={kind}::{stage}"]
     # enclave transparent egress (phase 2): `-S egress=<host>:<port>` makes the
     # patched wasmtime funnel ALL guest outbound through the loopback SOCKS front
     # (credential in $ENCLAVE_EGRESS_CRED, set host-side by _spawn_and_wait), so an
@@ -2367,7 +2393,7 @@ def _spawn_and_wait(rec, ctx):
     mem_bytes = max(rec["mem_mb"], 1) * 1024 * 1024
     cmd, host_port, wait_ports = _build_cmd(pspec, wasm, port, mem_bytes, port_map, fsdir, nn,
                                             enclave_config, vol_mounts, egress, egress_transparent,
-                                            ctx.get("enc"))
+                                            ctx.get("enc"), gpu_share=gpu_share)
     rec["hostPort"] = host_port
     rec["endpoint"] = f"http://{HOST_IP}:{host_port}" if host_port else None
     # GPU tenants: the wasmtime process itself is the CUDA process (ORT holds the
