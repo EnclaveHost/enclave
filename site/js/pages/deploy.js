@@ -167,6 +167,17 @@ function renderDeploy(){
       + (rate * 3600).toFixed(2) + "/hr";
   }
   const t = $("#tierOut"); if (t) t.textContent = readout;
+  // capacity is a WAIT, not an error: a pick above what's free right now is
+  // still worth creating (it queues on-chain; queued demand is also what the
+  // fleet scales on) - but say so clearly before any wallet step
+  const capW = $("#capWarn");
+  if (capW){
+    const q = rate > 0 ? queuedVerdict(gpuPct, cpuPct) : null;
+    capW.hidden = !q;
+    if (q) capW.textContent = "⚠ this size isn't free right now ("
+      + (gpuPct > 0 ? freePct.gpu + "% of a card · " + q.cpuFreeHere + "% of its node free" : freePct.cpuAny + "% of the node free")
+      + ") - you can still deploy: the app is created on-chain, waits as Queued, and starts automatically the moment capacity frees up. Queued time is never billed; the balance only burns while the app runs.";
+  }
   $("#estRuntime").textContent = rate > 0 ? fmtDur(budget / rate) : "–";
 }
 function switchPane(name){
@@ -292,6 +303,16 @@ export async function deployOnChain(spec){
     w.line("dimln", "    if nothing happens, check your wallet - a popup may be waiting (or queued behind an old one; open the wallet and clear pending requests)");
     await ensureBaseChain();
 
+    // capacity heads-up BEFORE the first signature (fresh read: the store's
+    // quick-deploy modal reaches here without the console's 20s poll). Not a
+    // gate - the create is still right - but nobody should sign expecting an
+    // instant boot when the fleet is full for this size.
+    try {
+      adoptFreePct(await Enclave.getAvailability());
+      if (queuedVerdict(spec.gpuMilli / 10, spec.cpuMilli / 10))
+        w.line("warn", "[!] the fleet is full for this size right now - after funding, the deployment waits as Queued and starts automatically the moment capacity frees up (queued time is never billed; the balance only burns while the app runs)");
+    } catch(e){}
+
     // rate estimate straight from the contract (same ceil math as create) -
     // best-effort with a hard cap so a slow RPC can never stall the deploy
     let rate6 = 0n;
@@ -406,7 +427,7 @@ async function watchClaimAndRun(id, dPre, w){
       }
     }
     if (!claimed){
-      w.line("warn", "[!] no enclave has claimed yet - the deployment stays on the queue (funded work is claimed as capacity frees up). It appears below the moment one does.");
+      w.line("warn", "[!] no enclave has claimed yet - the deployment stays on the queue (funded work is claimed as capacity frees up, and queued time is never billed). It appears below the moment one does.");
       const dp0 = depsPanel(); if (dp0) dp0.refresh(); return;
     }
   }
@@ -511,6 +532,29 @@ export async function resumeDeployWatch(run){
    Live capacity: the dials' caps + the fleet / volume components
    ============================================================ */
 let availPoll = null;
+// Last-seen free capacity in whole percent (null = no availability read yet /
+// fetch failed, so nobody warns on unknown). A pick ABOVE these is legal - the
+// record queues on-chain and the autoscaler reads queued funded demand as its
+// scale signal - but the user must know they're buying a queue slot, not an
+// instant boot: renderDeploy shows #capWarn and deployOnChain narrates it.
+// A GPU app's CPU slice rides its card's node, so it checks cpuOnGpuNode.
+const freePct = { gpu: null, cpuAny: null, cpuOnGpuNode: null };
+function adoptFreePct(a){
+  const gpuFree = (a.gpuShareFree != null ? a.gpuShareFree : (a.gpu !== false ? (a.maxShare || 0) : 0));
+  const cpuFree = (a.cpuShareFree != null ? a.cpuShareFree : (a.gpu === false ? (a.maxShare || 0) : 1));
+  freePct.gpu = Math.floor(gpuFree * 100);
+  freePct.cpuAny = Math.floor(cpuFree * 100);
+  freePct.cpuOnGpuNode = a.gpuEnclaveCpuShareFree != null ? Math.floor(a.gpuEnclaveCpuShareFree * 100) : freePct.cpuAny;
+  return { gpuFree, cpuFree };
+}
+// null when capacity is unknown; otherwise the queue-wait verdict for a pick
+function queuedVerdict(gpuPct, cpuPct){
+  if (freePct.gpu == null) return null;
+  const overG = gpuPct > 0 && gpuPct > freePct.gpu;
+  const cpuFreeHere = gpuPct > 0 ? freePct.cpuOnGpuNode : freePct.cpuAny;
+  const overC = cpuPct > cpuFreeHere;
+  return (overG || overC) ? { overG, overC, cpuFreeHere } : null;
+}
 async function refreshAvailability(){
   const gIn = $("#cfgGpuShare"), capG = $("#gpuShareCap");
   const cIn = $("#cfgCpuShare"), capC = $("#cpuShareCap");
@@ -525,24 +569,21 @@ async function refreshAvailability(){
     const spec = serverSpec();
     const cardGb = spec.cardVramGb, cardTf = spec.cardTflops, nodeRamGb = spec.nodeRamGb;
     // both pools, live: the largest free slice of one card and the node's
-    // leftover vCPU+RAM pool; maxShare = older enclaves
-    const gpuFree = (a.gpuShareFree != null ? a.gpuShareFree : (a.gpu !== false ? (a.maxShare || 0) : 0));
-    const cpuFree = (a.cpuShareFree != null ? a.cpuShareFree : (a.gpu === false ? (a.maxShare || 0) : 1));
-    const gpuFreePct = Math.floor(gpuFree * 100), cpuFreePct = Math.floor(cpuFree * 100);
+    // leftover vCPU+RAM pool; maxShare = older enclaves. The dials are NOT
+    // capped at what's free - a bigger pick queues on-chain until capacity
+    // frees (renderDeploy warns) - only the structural spec floors gate.
+    const { gpuFree, cpuFree } = adoptFreePct(a);
     if (dep.gpuEnclave) {
-      gIn.max = String(Math.max(0, gpuFreePct));
-      if (capG) capG.textContent = "· " + gpuFreePct + "% of a card free now (≈" + Math.round(gpuFree * cardGb) + " GB / " + Math.round(gpuFree * cardTf) + " TFLOPS)";
+      gIn.max = "100";
+      if (capG) capG.textContent = "· " + freePct.gpu + "% of a card free now (≈" + Math.round(gpuFree * cardGb) + " GB / " + Math.round(gpuFree * cardTf) + " TFLOPS)";
     } else {
       gIn.max = "0";
       if (capG) capG.textContent = "· GPU apps run on GPU enclaves";
       if (dep.gpuPct !== 0 && document.activeElement !== gIn){ dep.gpuPct = 0; gIn.value = "0"; }
     }
-    if (cIn) cIn.max = String(Math.max(1, cpuFreePct));
-    if (capC) capC.textContent = "· " + cpuFreePct + "% of the node free now (≈"
+    if (cIn) cIn.max = "100";
+    if (capC) capC.textContent = "· " + freePct.cpuAny + "% of the node free now (≈"
       + fmtNum(cpuFree * nodeRamGb) + " GB RAM / ≈" + fmtNum(cpuFree * spec.nodeVcpus) + " vCPU)";
-    // clamp if the current pick now exceeds capacity, but don't yank the field the user is editing
-    if (dep.gpuPct > gpuFreePct && dep.gpuEnclave && document.activeElement !== gIn){ dep.gpuPct = gpuFreePct; gIn.value = String(gpuFreePct); }
-    if (cIn && dep.cpuPct > cpuFreePct && document.activeElement !== cIn){ dep.cpuPct = Math.max(1, cpuFreePct); cIn.value = String(dep.cpuPct); }
     renderDeploy();
   } catch(e){
     if (capG) capG.textContent = "· live capacity unavailable, showing whole-card max (100%)";
