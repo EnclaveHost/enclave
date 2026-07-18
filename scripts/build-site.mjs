@@ -218,6 +218,9 @@ for (const d of ["assets", "privy", "vendor", ".well-known"])
 // pretty URLs: the gateway's rewrite rules ride the pin itself
 fs.copyFileSync(path.join(SITE, "_redirects"), path.join(DIST, "_redirects"));
 fs.copyFileSync(path.join(SITE, "robots.txt"), path.join(DIST, "robots.txt"));
+// third-party attribution travels with the distributed bundles it covers
+// (LGPL/Reown-community licenses require notices to accompany the product)
+fs.copyFileSync(path.join(ROOT, "THIRD-PARTY-NOTICES.md"), path.join(DIST, "THIRD-PARTY-NOTICES.md"));
 /* sitemap: the canonical pretty URLs only (noindex pages excluded); lastmod =
    the last commit that touched site/, so a rebuild doesn't fake freshness */
 const LASTMOD = (() => {

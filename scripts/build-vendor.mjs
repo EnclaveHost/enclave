@@ -45,7 +45,7 @@ const OUT = path.join(ROOT, "site", "vendor");
 // Pinned. verifier MUST match the version site/js/core/verify.js expects; the
 // Privy pin closes the old version-UNPINNED esm.sh import in wallet.js.
 const DEPS = {
-  "@tinfoilsh/verifier": "1.1.7",
+  "@tinfoilsh/verifier": "1.1.10",   // 1.1.9+ is Apache-2.0 (≤1.1.8 was AGPL — a license conflict with ours; keep ≥1.1.9)
   "@privy-io/js-sdk-core": "0.68.2",
   "fflate": "0.8.2",           // browser gunzipSync shim for the verifier's zlib use
 };
