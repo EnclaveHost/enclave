@@ -138,6 +138,9 @@ contract EnclaveDeployments {
     uint256 public pricePerSec6 = 1667;    // USDC 6dp per second, FULL card (gpuMilli = 1000): ~$6.00/hour
     uint256 public cpuPricePerSec6 = 278;  // USDC 6dp per second, FULL CPU node (cpuMilli = 1000): ~$1.00/hour
     uint64  public leaseSec = 1800;        // lease quantum: max claim/renew burn, max time lost to a dead runner
+    uint16  public maxGpuMilli = 1000;     // per-deployment GPU-share cap, enforced at create() only — the
+                                           // catalog still lists apps whose specs exceed it (publishable,
+                                           // just not deployable until the cap is raised)
 
     // Struct-shape revision, sniffed by consumers (site/CLI/relay/runners) the
     // way catalogSchema is: rev 1 (no getter — the call reverts there) carried
@@ -160,6 +163,7 @@ contract EnclaveDeployments {
     event PriceSet(uint256 pricePerSec6);
     event CpuPriceSet(uint256 cpuPricePerSec6);
     event LeaseSecSet(uint64 leaseSec);
+    event MaxGpuMilliSet(uint16 maxGpuMilli);
     event PayoutChanged(address indexed payout);
     event OwnerChanged(address indexed owner);
     event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
@@ -176,6 +180,7 @@ contract EnclaveDeployments {
         emit OwnerChanged(msg.sender);
         emit PriceSet(pricePerSec6);               // prices are live from deploy (hardcoded defaults)
         emit CpuPriceSet(cpuPricePerSec6);
+        emit MaxGpuMilliSet(maxGpuMilli);
     }
 
     // ========================================================================
@@ -191,7 +196,8 @@ contract EnclaveDeployments {
     ///      by CPU-only enclaves first, then by GPU enclaves with spare CPU/RAM.
     ///      A GPU deployment's CPU share may never exceed its GPU share. The
     ///      shares must also cover the app's minimum (derived by runners from
-    ///      its EnclaveAppCatalog specs) or no enclave will claim the deployment.
+    ///      its EnclaveAppCatalog specs) or no enclave will claim the deployment,
+    ///      and gpuMilli may not exceed the operator-set maxGpuMilli cap.
     function create(
         string calldata appRef,
         uint16 gpuMilli,
@@ -230,6 +236,7 @@ contract EnclaveDeployments {
     function _initScalars(Deployment storage d, string calldata appRef, uint16 gpuMilli,
                           uint16 cpuMilli, uint32 appPort, bool isPublic) private {
         require(cpuPricePerSec6 > 0 && (gpuMilli == 0 || pricePerSec6 > 0), "price unset");
+        require(gpuMilli <= maxGpuMilli, "gpuShare > max");   // create-only cap; imports bypass (grandfathered)
         d.gpuMilli = gpuMilli;
         d.cpuMilli = cpuMilli;
         d.appPort = appPort;
@@ -484,6 +491,19 @@ contract EnclaveDeployments {
         require(_cpuPricePerSec6 > 0, "price=0");
         cpuPricePerSec6 = _cpuPricePerSec6;   // affects FUTURE creates only (rate is snapshotted)
         emit CpuPriceSet(_cpuPricePerSec6);
+    }
+
+    /// @notice Cap the GPU share (1/1000ths of one card) any single NEW
+    ///         deployment may buy. Enforced at create() only: existing records
+    ///         and owner imports are untouched, and the catalog keeps listing
+    ///         apps whose specs exceed it — publishable, not deployable until
+    ///         the cap covers their minimum. 0 pauses GPU creates entirely
+    ///         (CPU-only deployments are never affected).
+    function setMaxGpuMilli(uint16 _maxGpuMilli) external {
+        require(msg.sender == owner, "!owner");
+        require(_maxGpuMilli <= 1000, "max range");
+        maxGpuMilli = _maxGpuMilli;                // affects FUTURE creates only
+        emit MaxGpuMilliSet(_maxGpuMilli);
     }
 
     function setLeaseSec(uint64 _leaseSec) external {

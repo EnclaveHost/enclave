@@ -47,6 +47,9 @@ const rdUint = async (to, sel) => hexBig((await call(to, "0x" + sel)) || "0x0");
 // revision — which is every contract until it is redeployed) reverts. Treat
 // that as "unset" (ZERO) instead of rejecting and blanking the whole console.
 const rdAddrSoft = async (to, sel) => { try { return await rdAddr(to, sel); } catch { return ZERO; } };
+// null = the getter isn't in the deployed contract (a pre-cap rev): the row
+// paints as unsupported instead of the whole panel dying on one revert
+const rdUintSoft = async (to, sel) => { try { const r = await call(to, "0x" + sel); return (!r || r === "0x") ? null : hexBig(r); } catch { return null; } };
 
 /* decode all() -> { key: address } (skips zero/retired entries) */
 function decodeBook(hex) {
@@ -134,8 +137,8 @@ class AdminConsole extends EnclaveElement {
       const dep = E.deployments, cat = E.appCatalog, pay = E.enclavePay;
       const dSel = CONTRACTS.EnclaveDeployments.sel, pSel = CONTRACTS.EnclavePay.sel;
       [S.dep, S.cat, S.pay] = await Promise.all([
-        dep ? Promise.all([rdAddr(dep, dSel.owner), rdAddr(dep, dSel.payout), rdUint(dep, dSel.pricePerSec6), rdUint(dep, dSel.cpuPricePerSec6), rdUint(dep, dSel.leaseSec), rdAddr(dep, dSel.ethUsdFeed), rdAddrSoft(dep, dSel.pendingOwner)])
-              .then(([owner, payout, gpu, cpu, lease, feed, pending]) => ({ addr: dep, owner, payout, gpu, cpu, lease, feed, pending })) : null,
+        dep ? Promise.all([rdAddr(dep, dSel.owner), rdAddr(dep, dSel.payout), rdUint(dep, dSel.pricePerSec6), rdUint(dep, dSel.cpuPricePerSec6), rdUint(dep, dSel.leaseSec), rdAddr(dep, dSel.ethUsdFeed), rdAddrSoft(dep, dSel.pendingOwner), rdUintSoft(dep, dSel.maxGpuMilli)])
+              .then(([owner, payout, gpu, cpu, lease, feed, pending, maxGpu]) => ({ addr: dep, owner, payout, gpu, cpu, lease, feed, pending, maxGpu })) : null,
         cat ? Promise.all([rdAddr(cat, CONTRACTS.EnclaveAppCatalog.sel.owner), rdAddrSoft(cat, CONTRACTS.EnclaveAppCatalog.sel.pendingOwner)])
               .then(([owner, pending]) => ({ addr: cat, owner, pending })) : null,
         pay ? Promise.all([rdAddr(pay, pSel.owner), rdAddr(pay, pSel.payout), rdAddr(pay, pSel.usdc), rdAddrSoft(pay, pSel.pendingOwner)])
@@ -222,6 +225,9 @@ class AdminConsole extends EnclaveElement {
         `Prices are µUSDC per second for a FULL card / node; existing deployments keep the rate they were created at. Owner ${mono(d.owner)}.`,
         this._row("GPU price <code>setPrice</code>", `${d.gpu} <span class="dim">(≈ ${perHr(d.gpu)})</span>`, "dep-gpu", { owner: d.owner, placeholder: String(d.gpu), hint: "µUSDC/s" }) +
         this._row("CPU price <code>setCpuPrice</code>", `${d.cpu} <span class="dim">(≈ ${perHr(d.cpu)})</span>`, "dep-cpu", { owner: d.owner, placeholder: String(d.cpu), hint: "µUSDC/s" }) +
+        (d.maxGpu == null
+          ? `<div class="ac-row"><div class="ac-lbl">GPU share cap <code>setMaxGpuMilli</code></div><div class="ac-cur"><span class="dim">not in this contract rev — redeploy EnclaveDeployments to enable the cap</span></div><span></span><span></span><span></span></div>`
+          : this._row("GPU share cap <code>setMaxGpuMilli</code>", `${d.maxGpu} <span class="dim">(${Number(d.maxGpu) / 10}% of a card max per NEW deployment; existing records untouched)</span>`, "dep-maxgpu", { owner: d.owner, placeholder: String(d.maxGpu), hint: "0…1000 milli" })) +
         this._row("Lease <code>setLeaseSec</code>", `${d.lease}s`, "dep-lease", { owner: d.owner, placeholder: String(d.lease), hint: "60…86400 s" }) +
         this._row("ETH/USD feed <code>setEthUsdFeed</code>", isZero(d.feed) ? `<span class="dim">disabled (0x0)</span>` : mono(d.feed), "dep-feed", { owner: d.owner, hint: "0x0 disables ETH funding" }) +
         this._row("Payout <code>setPayout</code>", mono(d.payout), "dep-payout", { owner: d.owner })));
@@ -414,6 +420,12 @@ class AdminConsole extends EnclaveElement {
         if (!need(/^\d+$/.test(v) && BigInt(v) > 0n, "price is a positive integer in µUSDC per second (278 ≈ $1.00/hr)")) return;
         return void this._tx(S.dep.addr, encCall(act === "dep-gpu" ? dSel.setPrice : dSel.setCpuPrice, [{ t: "uint", v }]),
           `${act === "dep-gpu" ? "setPrice" : "setCpuPrice"}(${v}) ≈ ${perHr(BigInt(v))}`, panelStatus, true);
+      }
+      if (act === "dep-maxgpu") {
+        const v = inputFor(act);
+        if (!need(/^\d+$/.test(v) && +v <= 1000, "cap is 0…1000 milli of one card (1000 = whole card / uncapped, 0 pauses GPU creates)")) return;
+        return void this._tx(S.dep.addr, encCall(dSel.setMaxGpuMilli, [{ t: "uint", v }]),
+          `setMaxGpuMilli(${v}) — ${+v / 10}% of a card max per deployment`, panelStatus, true);
       }
       if (act === "dep-lease") {
         const v = inputFor(act);

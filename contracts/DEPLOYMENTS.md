@@ -82,7 +82,14 @@ via transaction instead of via one enclave's API).
   EnclaveAppCatalog (vramMb, gpuGflops, memMb, cpuGflops) set its MINIMUM shares: each RUNNER
   re-derives them against its own hardware (spec / server spec, the larger of
   the memory and compute axes, ceil to the percent grain) and skips
-  under-provisioned deployments — the chain stays hardware-agnostic. Both
+  under-provisioned deployments — the chain stays hardware-agnostic. The GPU
+  share is also capped from above: `create` refuses `gpuMilli > maxGpuMilli`,
+  an owner-set on-chain parameter (`setMaxGpuMilli`, 0..1000, default 1000 =
+  uncapped; 0 pauses GPU creates). The cap gates **deploys only** — the catalog
+  keeps listing apps whose specs exceed it (publishable, just not deployable
+  until the cap covers their minimum), existing records and owner imports are
+  untouched, and every client (console dials, quick-deploy, CLI) re-checks it
+  before the wallet signature so nobody signs a doomed create. Both
   shares are paid for:
   `rate = (pricePerSec6 × gpuMilli + cpuPricePerSec6 × cpuMilli) / 1000`,
   rounded up, snapshotted at create (price changes never re-price existing

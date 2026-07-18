@@ -855,14 +855,26 @@ async function cmdDeploy(rest) {
   }
 
   // price it before asking for money (same snapshot formula create() applies)
-  const [pricePerSec6, cpuPricePerSec6] = await Promise.all([
+  const [pricePerSec6, cpuPricePerSec6, maxGpuMilli] = await Promise.all([
     read(DEFAULTS.DEPLOYMENTS_ADDRESS,
          [{ type: "function", name: "pricePerSec6", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }],
          "pricePerSec6"),
     read(DEFAULTS.DEPLOYMENTS_ADDRESS,
          [{ type: "function", name: "cpuPricePerSec6", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }],
          "cpuPricePerSec6"),
+    // operator-set per-deployment GPU-share cap; contracts predating it have
+    // no getter (the read reverts) -> 1000 = a whole card, i.e. uncapped
+    read(DEFAULTS.DEPLOYMENTS_ADDRESS,
+         [{ type: "function", name: "maxGpuMilli", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] }],
+         "maxGpuMilli").then(Number).catch(() => 1000),
   ]);
+  // create() refuses gpuMilli over the cap - fail with words, not a revert.
+  // An app whose MINIMUM exceeds the cap stays publishable; deploying it
+  // waits until the operator raises the cap.
+  if (gpuMilli > maxGpuMilli)
+    throw new Error(mins.gpuMilli > maxGpuMilli
+      ? `${f._[0]} needs at least a ${mins.gpuMilli / 10}% GPU share, but the platform caps deployments at ${maxGpuMilli / 10}% of a card - the app stays published, deploying it waits until the cap is raised`
+      : `--gpu ${gpuMilli / 10}% is over the platform's per-deployment GPU cap of ${maxGpuMilli / 10}% of a card - lower --gpu`);
   const rate = (pricePerSec6 * BigInt(gpuMilli) + cpuPricePerSec6 * BigInt(cpuMilli) + 999n) / 1000n;
   const fundUsd = f.fund !== undefined ? numFlag(f.fund, "--fund") : 0;
   const fundEth = f["fund-eth"] !== undefined ? numFlag(f["fund-eth"], "--fund-eth") : 0;
