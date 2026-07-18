@@ -808,7 +808,7 @@ async function cmdResume(rest) {
 async function cmdDeploy(rest) {
   const account = loadKey();
   const f = flags(rest, {
-    val: ["--gpu", "--cpu", "--fund", "--fund-eth", "--port", "--ports", "--config-cid"],
+    val: ["--gpu", "--cpu", "--fund", "--fund-eth", "--port", "--ports", "--config-cid", "--waf"],
     bool: ["--private", "--public", "--no-wait"],
   });
   if (!f._[0]) throw new Error("usage: enclave deploy <app> [--gpu 0..1] [--cpu 0..1] --fund <usd> [flags]");
@@ -833,12 +833,26 @@ async function cmdDeploy(rest) {
   const appPort = f.port !== undefined ? parseInt(f.port, 10)
     : httpEntry ? parseInt(httpEntry.split(":")[1], 10) : 8080;
   const isPublic = f.private ? false : true;
-  // configCid is RETIRED: the appRef names the catalog version RECORD and the
-  // enclave applies that version's config (approved with it) straight from the
-  // chain. Runners refuse deployments that set a configCid.
+  // configCid as CONFIG is RETIRED: the appRef names the catalog version
+  // RECORD and the enclave applies that version's config (approved with it)
+  // straight from the chain. The create() field now carries only the
+  // deployment-options ENVELOPE ({"waf":{…}} — per-IP rate limit + request
+  // filter, enforced by the runner's in-enclave proxy, never handed to the
+  // app); anything else is refused at claim.
   if (f["config-cid"])
-    throw new Error("--config-cid is retired: the version's approved config applies automatically (it rides the catalog record). A different config = publish a new version.");
+    throw new Error("--config-cid is retired: the version's approved config applies automatically (it rides the catalog record). A different config = publish a new version. (For the per-IP rate limit / request filter, use --waf.)");
   if (ver && ver.config) say("the version's approved config applies (from its on-chain record)");
+  // --waf '{"rps":10,"burst":40,"maxBodyMb":10,"blockScanners":true,…}' — the
+  // waf OBJECT (the envelope wrapper is added here). Shape-checked locally;
+  // the runner's claim gate is the real validator and refuses unknown keys.
+  let envelope = "";
+  if (f.waf !== undefined) {
+    let w; try { w = JSON.parse(f.waf); } catch (e) { throw new Error("--waf must be a JSON object, e.g. --waf '{\"rps\":10}': " + e.message); }
+    if (!w || Array.isArray(w) || typeof w !== "object" || !Object.keys(w).length)
+      throw new Error("--waf must be a non-empty JSON object, e.g. --waf '{\"rps\":10,\"blockScanners\":true}'");
+    envelope = JSON.stringify({ waf: w });
+    say(`protection: ${envelope} (per requester IP, enforced by the enclave's proxy; needs a fleet that supports the options envelope)`);
+  }
 
   // price it before asking for money (same snapshot formula create() applies)
   const [pricePerSec6, cpuPricePerSec6] = await Promise.all([
@@ -865,7 +879,7 @@ async function cmdDeploy(rest) {
   const { rev: depRev, abi: depsAbi } = await depAbi();
   const rcpt = await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi: depsAbi,
     functionName: "create",
-    args: [ref, gpuMilli, cpuMilli, appPort, portsCsv, isPublic, ...(depRev >= 2 ? [] : [""]), ""] });
+    args: [ref, gpuMilli, cpuMilli, appPort, portsCsv, isPublic, ...(depRev >= 2 ? [] : [""]), envelope] });
   const log = (rcpt.logs || []).find((l) => l.topics?.[0] === DEP_CREATED_TOPIC
     && l.address.toLowerCase() === DEFAULTS.DEPLOYMENTS_ADDRESS.toLowerCase());
   if (!log) throw new Error("create succeeded but no Created event in the receipt; inspect tx " + rcpt.transactionHash);
@@ -1077,6 +1091,8 @@ deployments
   deploy <app> --fund <usd>  create + fund + wait until live; prints the URL
          [--gpu 0..1] [--cpu 0..1]      shares of one card / one node (default: app minimums)
          [--fund-eth <eth>] [--private] [--port N] [--ports CSV] [--no-wait]
+         [--waf '{"rps":10,"burst":40,"maxBodyMb":10,"blockScanners":true}']
+                                        per-IP rate limit + request filter, enforced in-enclave
   ls                         your deployments: live, queued and unfunded
   status <id>                one deployment: state, lease, balance, URL
   logs <id> [-f] [--tail N]  the app's stdout/stderr (-f polls)

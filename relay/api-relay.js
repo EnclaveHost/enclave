@@ -723,6 +723,11 @@ function aggregateAvailability() {
     nodeVcpus: c ? c.nodeVcpus ?? 0 : 0, nodeRamGb: c ? c.nodeRamGb ?? 0 : 0, nodeGflops: c ? c.nodeGflops ?? 0 : 0,
     specCardVramGb: minOf(gpus, "cardVramGb"), specCardTflops: minOf(gpus, "cardTflops"),
     specNodeVcpus: minOf(live, "nodeVcpus"), specNodeRamGb: minOf(live, "nodeRamGb"), specNodeGflops: minOf(live, "nodeGflops"),
+    // deployment-options capability (per-IP rate limit / WAF): true only when
+    // EVERY live enclave enforces the envelope — any runner may claim any
+    // deployment, so a mixed fleet would strand protected deploys on old
+    // runners ("configCid retired" refusal). Same fleet-minimum rule as spec*.
+    waf: live.length > 0 && live.every((e) => e.availability?.waf === true),
     // attached model volumes across the fleet (Modelwrap), deduped by name -
     // each carries `enclaves`: which endpoints can mount it (placement matters,
     // a volume only lives where its enclave declares it)
