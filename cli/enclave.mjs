@@ -1089,6 +1089,83 @@ async function cmdAccount() {
       ["funded time", dur(a.deployments?.totalTimeRemainingSec || 0)]]);
 }
 
+// ---- encrypted volumes: wallet key derivation + credentials envelope ----------
+// BYTE-EXACT contract shared with scripts/enclave-encvol.sh and the
+// encrypted-volumes app's JS, pinned by test/encvol-e2e.py stage 3:
+//   password/salt = sha256_hex( sig + "\n" + "enclave-encvol-v1:password"/":salt" )
+//   envelope      = "encv1:" + base64( iv[16] || AES-256-CTR(encKey, iv, credsJSON) || HMAC-SHA256(macKey, iv||ct)[32] )
+//   encKey/macKey = sha256( sig + "\n" + "enclave-encvol-v1:creds-enc"/":creds-mac" )
+// The envelope rides the PUBLIC App Config as "credsEnvelope"; it is exactly
+// as sensitive as the volume itself (the same wallet guards both).
+const encvolMessage = (keyId) =>
+  `Enclave encrypted volume key v1\nvolume: ${keyId}\n\nSigning derives this volume's encryption key. Only sign in apps you trust with its contents.`;
+const encvolSha = (s) => crypto.createHash("sha256").update(s).digest();
+
+// --sig passes a personal_sign from any wallet through; otherwise the CLI
+// wallet signs the canonical message itself (viem signs deterministically -
+// RFC 6979 - so the same key always derives the same volume key).
+async function encvolSig(f) {
+  let sig = (f.sig || env.ENCVOL_WALLET_SIG || "").trim().toLowerCase();
+  if (!sig) {
+    const keyId = f["key-id"];
+    if (!keyId) throw new Error("need --key-id <keyId> (sign with the CLI wallet) or --sig 0x… (a personal_sign made anywhere else)");
+    sig = (await loadKey().signMessage({ message: encvolMessage(keyId) })).toLowerCase();
+  }
+  if (!/^0x[0-9a-f]{130}$/.test(sig)) throw new Error("signature must be 65-byte ECDSA hex (0x + 130 hex chars)");
+  return sig;
+}
+
+async function cmdEncvol(rest) {
+  const sub = rest.shift();
+  const f = flags(rest, { val: ["--key-id", "--sig", "--access-key", "--secret-key", "--session-token"] });
+  if (sub === "message") {
+    const keyId = f["key-id"] || f._[0];
+    if (!keyId) throw new Error("usage: enclave encvol message <keyId>");
+    return say(encvolMessage(keyId));
+  }
+  if (sub === "derive") {
+    const sig = await encvolSig(f);
+    const password = encvolSha(sig + "\nenclave-encvol-v1:password").toString("hex");
+    const salt = encvolSha(sig + "\nenclave-encvol-v1:salt").toString("hex");
+    if (opt.json) return jout({ sig, password, salt });
+    say(`export ENCVOL_PASSWORD=${password}`);
+    say(`export ENCVOL_SALT=${salt}`);
+    stderr.write("These decrypt the volume - treat them like the data itself.\n");
+    return;
+  }
+  if (sub === "seal-creds") {
+    const sig = await encvolSig(f);
+    const accessKeyId = f["access-key"] || env.AWS_ACCESS_KEY_ID;
+    const secretAccessKey = f["secret-key"] || env.AWS_SECRET_ACCESS_KEY;
+    const sessionToken = f["session-token"] || env.AWS_SESSION_TOKEN;
+    if (!accessKeyId || !secretAccessKey)
+      throw new Error("seal-creds needs --access-key + --secret-key (or AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY in the environment)");
+    // ENCVOL_SEAL_IV: test hook so the pinned e2e vector is reproducible.
+    const ivHex = (env.ENCVOL_SEAL_IV || "").trim();
+    if (ivHex && !/^[0-9a-f]{32}$/.test(ivHex)) throw new Error("ENCVOL_SEAL_IV must be 32 lowercase hex chars");
+    const iv = ivHex ? Buffer.from(ivHex, "hex") : crypto.randomBytes(16);
+    const pt = JSON.stringify(sessionToken
+      ? { accessKeyId, secretAccessKey, sessionToken }
+      : { accessKeyId, secretAccessKey });
+    const cipher = crypto.createCipheriv("aes-256-ctr", encvolSha(sig + "\nenclave-encvol-v1:creds-enc"), iv);
+    const ivct = Buffer.concat([iv, cipher.update(pt, "utf8"), cipher.final()]);
+    const tag = crypto.createHmac("sha256", encvolSha(sig + "\nenclave-encvol-v1:creds-mac")).update(ivct).digest();
+    const envelope = "encv1:" + Buffer.concat([ivct, tag]).toString("base64");
+    if (opt.json) return jout({ envelope });
+    say(envelope);
+    stderr.write(`\nSealed. Add "credsEnvelope" to the volume's encVolumes entry in the (public)
+App Config - it is ciphertext under the SAME wallet that guards the volume:
+
+      "unlock": "wallet",
+      "credsEnvelope": "${envelope}"
+
+One signature in the app then derives the crypt key AND opens these
+credentials - no S3 fields to enter, after any restart.\n`);
+    return;
+  }
+  throw new Error("usage: enclave encvol <message|derive|seal-creds> [--key-id K | --sig 0x…] …");
+}
+
 // ---- help + dispatch ---------------------------------------------------------------
 const HELP = `enclave ${VERSION} · confidential compute from your terminal (https://enclave.host)
 
@@ -1120,6 +1197,15 @@ catalog
           [--mem MB --cpu-gflops N --vram MB --gpu-gflops N --ports CSV]
   apps [query]               browse/search the on-chain catalog
 
+encrypted volumes (rclone-crypt over S3; push data with scripts/enclave-encvol.sh)
+  encvol message <keyId>     print the canonical message a wallet signs for a volume key
+  encvol derive     --key-id K | --sig 0x…   volume password/salt, signed by the CLI
+                             wallet (deterministic) or derived from a given signature
+  encvol seal-creds --key-id K | --sig 0x…  [--access-key A --secret-key S]
+                             encrypt S3 credentials (default: AWS_* env) under the wallet
+                             key -> a "credsEnvelope" for the PUBLIC App Config; the app
+                             then unlocks with one signature, nothing typed
+
 platform
   pricing | availability | gpu | account
 
@@ -1136,6 +1222,7 @@ const COMMANDS = {
   status: cmdStatus, logs: cmdLogs, fund: cmdFund, attest: cmdAttest,
   stop: cmdStop, suspend: cmdStop, resume: cmdResume, publish: cmdPublish, apps: cmdApps,
   pricing: cmdPricing, availability: cmdAvailability, gpu: cmdGpu, account: cmdAccount,
+  encvol: cmdEncvol,
 };
 
 // Resolve the platform's contract addresses from the on-chain address book
