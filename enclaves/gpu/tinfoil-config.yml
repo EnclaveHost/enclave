@@ -367,6 +367,12 @@ containers:
       # f32 range ON the GPU (fast + clean) - so BOTH models' VAEs are now
       # GPU-clean, and this stays "0".
       - ENCLAVE_SD_VAE_ON_CPU: "0"
+      # NO node-wide ENCLAVE_SD_TE_ON_CPU: text-encoder placement is decided
+      # PER TENANT by the wasm-manager - deployment config `sdTeOnCpu`, or
+      # automatically when the share cannot hold the SD weights + ~3 GB
+      # working set (small shares then pay a few seconds of CPU conditioning
+      # per prompt instead of dying by CUDA OOM mid-pipeline). Needs the
+      # sd-shim rebuild that added the env (wasm/sd-shim/enclave_sd.c).
       # ELL sd19 = FORCE_CUBLAS + TF32 + WanVAE-f32 = qwen fast AND clean.
       # - FORCE_CUBLAS bypasses the int8 MMQ path whose sm_90 bug (#24399)
       #   speckles qwen's 20B shapes; cuBLAS is clean for both models.
