@@ -901,6 +901,21 @@ def _model_volumes() -> dict:
 VOL_GUEST_ROOT = os.environ.get("VOL_GUEST_ROOT", "/models")
 
 
+def _staged_bytes(stage) -> int:
+    """Weights bytes of a staged nn-graph dir: the sum of its (symlinked)
+    model files, split families included - the ggml preload-order sort key.
+    stat() follows the links into the dm-verity mount; a vanished file counts
+    0 rather than failing the launch (the preload will say so loudly)."""
+    total = 0
+    for pat in ("*.gguf", "*.safetensors", "*.ckpt"):
+        for p in stage.glob(pat):
+            try:
+                total += p.stat().st_size
+            except OSError:
+                pass
+    return total
+
+
 def _stage_nn_graph(name: str, gguf):
     """wasmtime's -S nn-graph loads a DIRECTORY, registers the graph under the
     dir BASENAME, and wants model.gguf (or a single *.gguf, or one complete
@@ -2000,6 +2015,15 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
         # walk aborts the tenant at startup, and manager/toolchain images
         # roll independently. ggml predates the probe and stays ungated.
         support = _preload_support()
+        # ggml graphs collect here and emit AFTER the loop, SMALLEST-FIRST:
+        # wasmtime preloads -S nn-graph flags in order at boot, and residency
+        # within the share is first-come-first-served, so smallest-first puts
+        # the models most likely to fit in VRAM before a big one claims - or
+        # fails to claim - the rest. Pairs with llm-chat's smallest-first
+        # boot-warmup ladder and the preload's per-graph skip-on-failure
+        # (wasmtime-nn-ggml.patch): a small deployment serves its small
+        # models and reports the big ones unfit instead of dying at boot.
+        ggml_stages = []  # (bytes, name, stage)
         for name, host_path in vol_mounts.items():
             # MODEL_VOLUMES_SD volumes preload through the sdcpp backend
             # (image txt2img pipelines: safetensors/ckpt checkpoints, FLUX
@@ -2029,7 +2053,7 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
             if gguf:
                 stage = _stage_nn_graph(name, gguf)
                 if stage:
-                    vol_args += ["-S", f"nn-graph=ggml::{stage}"]
+                    ggml_stages.append((_staged_bytes(stage), name, stage))
                 continue
             # ONNX volumes preload too (every *.onnx registers as
             # "<volume>/<component>"; guests load_by_name and skip the
@@ -2043,6 +2067,8 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
                 stage = _stage_onnx_dir(name, host_path)
                 if stage:
                     vol_args += ["-S", f"nn-graph=onnx::{stage}"]
+        for _bytes, _name, stage in sorted(ggml_stages):
+            vol_args += ["-S", f"nn-graph=ggml::{stage}"]
     # enclave transparent egress (phase 2): `-S egress=<host>:<port>` makes the
     # patched wasmtime funnel ALL guest outbound through the loopback SOCKS front
     # (credential in $ENCLAVE_EGRESS_CRED, set host-side by _spawn_and_wait), so an
