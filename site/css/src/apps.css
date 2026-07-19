@@ -10,7 +10,13 @@
 #storeSearch{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);
   font-family:var(--font-mono);font-size:.82rem;padding:8px 12px;flex:1 1 340px;min-width:260px;max-width:560px;margin-right:auto;}
 #storeSearch:focus{border-color:var(--jade-dim);}
+/* refresh: the button IS the progress indicator - its glyph spins while the
+   catalog re-reads and the grid stays up (dimmed) behind it, so a refresh
+   never throws away the last good paint */
+#storeRefresh .rf-icon{display:inline-block;}
+#storeRefresh.busy .rf-icon{animation:encspin .8s linear infinite;}
 .store-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:16px;}
+.store-grid[aria-busy="true"]{opacity:.5;transition:opacity .15s var(--ease);}
 .store-note{grid-column:1/-1;text-align:center;color:var(--text-muted);padding:44px 16px;border:1px dashed var(--line);border-radius:var(--radius);background:var(--bg-1);}
 
 /* ---- pager: the grid shows at most 4 rows per page ---- */

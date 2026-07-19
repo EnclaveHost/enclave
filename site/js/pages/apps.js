@@ -28,6 +28,7 @@ import { navigate } from "../boot.js";
 // column count (same arithmetic as the grid's auto-fill: 300px min + 16px gap).
 const MAX_ROWS = 4;
 let storePage = 0;
+let forceTallies = false;   // set by the ↻ handler: the next paint re-reads ratings too
 const gridCols = (grid) => Math.max(1, Math.floor((grid.clientWidth + 16) / (300 + 16)));
 function renderPager(total, pages){
   const pager = $("#storePager"); if (!pager) return;
@@ -102,7 +103,8 @@ function renderApps(){
   }));
   // ratings for exactly the tiles on screen - one eth_call for the page
   // (`enclave:reviews` repaints them when it lands)
-  loadTallies(page.map(a => a.appId));
+  loadTallies(page.map(a => a.appId), forceTallies);
+  forceTallies = false;
 }
 // the page size tracks the responsive column count - a resize that changes it
 // re-slices the current page (module-load-once; inert off the store view)
@@ -1019,6 +1021,38 @@ function renderActiveView(){
   const appId = onStore ? new URLSearchParams(location.search).get("app") : null;
   if (appId) renderDetail(appId); else { renderApps(); renderFeatured(); }
 }
+/* the toolbar's ↻ - a real re-read of the catalog (past the 2-minute freshness
+   window), with the BUTTON as the progress indicator: its glyph spins and the
+   grid stays up, dimmed, behind it. The last good paint is never traded for a
+   skeleton, so a slow or rate-limited RPC round can't cost the visitor the apps
+   they were looking at - and the repaint lands in whichever tab is selected,
+   since renderActiveView re-runs the current filter over the fresh read. */
+let refreshing = false;
+async function refreshStore(){
+  const btn = $("#storeRefresh"); if (!btn || refreshing) return;
+  refreshing = true;
+  btn.classList.add("busy"); btn.disabled = true;
+  const grid = $("#storeGrid"); if (grid) grid.setAttribute("aria-busy", "true");
+  try {
+    // a read already in flight (the boot one) is the same read this click wants;
+    // loadCatalog() would return instantly on its guard, so ride that one instead
+    const cat = STORE.loading ? nextEvent("enclave:catalog") : loadCatalog(true);
+    await Promise.all([cat, loadCampaigns(true)]);   // the featured slot rides the same refresh
+  } finally {
+    refreshing = false;
+    btn.classList.remove("busy"); btn.disabled = false;
+    if (grid) grid.removeAttribute("aria-busy");
+    forceTallies = true;    // ratings are their own read - re-read them for the repainted page
+    renderActiveView();
+  }
+}
+// resolve on the next `name` event, or after ms - a read that never lands (or
+// dies before it emits) must not leave the spinner turning forever
+const nextEvent = (name, ms = 20000) => new Promise(resolve => {
+  const done = () => { clearTimeout(t); document.removeEventListener(name, done); resolve(); };
+  const t = setTimeout(done, ms);
+  document.addEventListener(name, done);
+});
 /* the console's logic lives in the code-split deploy module; boot it the
    first time the view opens on each <main> mount (fresh DOM per swap) */
 let deployMount = null;
@@ -1062,7 +1096,7 @@ function initStore(){
   const s = $("#storeSearch"); if (s) s.addEventListener("input", () => { storePage = 0; renderApps(); });
   const pp = $("#pagePrev"); if (pp) pp.addEventListener("click", () => { storePage--; renderApps(); });
   const pn = $("#pageNext"); if (pn) pn.addEventListener("click", () => { storePage++; renderApps(); });
-  const rf = $("#storeRefresh"); if (rf) rf.addEventListener("click", () => loadCatalog(true));
+  const rf = $("#storeRefresh"); if (rf) rf.addEventListener("click", refreshStore);
   $("#pubCancel").addEventListener("click", closePublish);   // (+ Publish app is a plain <a href="#publish">)
   $("#pubSubmit").addEventListener("click", publishApp);
   const pf = $("#pubFile"); if (pf) pf.addEventListener("change", onPubFile);
