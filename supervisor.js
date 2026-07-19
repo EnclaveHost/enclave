@@ -3958,7 +3958,18 @@ async function releaseLease(id, why) {
 // Renew every adopted lease that's inside the margin. A failed renew is not
 // fatal: "unfunded" means the balance is empty (the reaper will tear down when
 // the lease runs out — "processed until there is no more time left"), anything
-// else retries next pass (margin >> poll interval).
+// else retries after a per-record backoff.
+//
+// A lease that ALREADY LAPSED while the app kept serving is a different verb:
+// the contract's renew() requires a live lease ("lease expired" revert), and
+// the sweep refuses such records too ("already serving it here") — so without
+// this branch a lapsed-but-running app live-locks as on-chain QUEUED forever,
+// serving unbilled, while its reverting renew burns a queue slot every pass
+// (observed fleet-wide 2026-07-19 after the renewal-starvation cascade:
+// Running 27→16 while Queued grew). RE-CLAIM it instead — claim(id,
+// enclaveId) re-acquires the lease in place, no re-provisioning, the app
+// never blips. If another enclave won it meanwhile, the claim reverts and the
+// audit's displacement handling takes over.
 async function renewLeases() {
   // Unreachable: let stragglers lapse instead of paying to extend them. (A
   // hint-claim provisioning in the background when the watchdog tripped can
@@ -3968,28 +3979,33 @@ async function renewLeases() {
   for (const rec of deployments.values()) {
     if (!rec._onchain || rec.status !== "running" || rec._renewing) continue;
     if (rec._leaseUntil * 1000 - Date.now() > RENEW_MARGIN_SEC * 1000) continue;
+    if ((rec._renewBackoffUntil || 0) > Date.now()) continue;   // a reverting tx must not re-fire every pass
+    const lapsed = rec._leaseUntil * 1000 <= Date.now();
     rec._renewing = true;
     try {
-      const sent = sendClaimTx("renew", [rec.id]);
+      const sent = lapsed ? sendClaimTx("claim", [rec.id, _enclaveId]) : sendClaimTx("renew", [rec.id]);
       await sent;
       const rcpt = await sent.receipt;
-      if (rcpt.status !== "success") throw new Error("renew tx reverted");
-      // the Renewed event IS the new lease - a follow-up read can be stale or
-      // rate-limited, and a missed update here renews AGAIN next tick, burning
-      // an extra quantum of the user's money every cycle (observed live)
-      const until = leaseFromReceipt(rcpt, "Renewed", rec.id);
-      if (until == null) throw new Error("renew receipt carried no Renewed event");
+      if (rcpt.status !== "success") throw new Error(`${lapsed ? "re-claim" : "renew"} tx reverted`);
+      // the Renewed/Claimed event IS the new lease - a follow-up read can be
+      // stale or rate-limited, and a missed update here renews AGAIN next
+      // tick, burning an extra quantum of the user's money every cycle
+      // (observed live)
+      const until = leaseFromReceipt(rcpt, lapsed ? "Claimed" : "Renewed", rec.id);
+      if (until == null) throw new Error(`${lapsed ? "re-claim" : "renew"} receipt carried no lease event`);
       // the renewal moved one quantum from balance into the lease; mirror that
       // locally so lease+balance (the reported time left) doesn't jump between
       // audit refreshes
       rec._balance6 = Math.max(0, (rec._balance6 || 0) - Math.round(Math.max(0, until - rec._leaseUntil) * rec.rate * 1e6));
       rec._leaseUntil = until;
       rec.remainingMs = rec._leaseUntil * 1000 - Date.now();
-      console.log(`[claim] ${rec.id} lease renewed until ${new Date(rec._leaseUntil * 1000).toISOString()}`);
+      rec._renewBackoffUntil = 0;
+      console.log(`[claim] ${rec.id} lease ${lapsed ? "RE-CLAIMED (had lapsed)" : "renewed"} until ${new Date(rec._leaseUntil * 1000).toISOString()}`);
       saveStateSoon();
     } catch (e) {
-      console.warn(`[claim] renew ${rec.id} failed (${e.shortMessage || e.message}); `
-                 + `lease expires ${new Date(rec._leaseUntil * 1000).toISOString()}`);
+      rec._renewBackoffUntil = Date.now() + 300_000;
+      console.warn(`[claim] ${lapsed ? "re-claim" : "renew"} ${rec.id} failed (${e.shortMessage || e.message}); `
+                 + `lease ${lapsed ? "lapsed" : "expires"} ${new Date(rec._leaseUntil * 1000).toISOString()}; backing off 5m`);
     } finally { rec._renewing = false; }
   }
 }
