@@ -135,8 +135,10 @@ the **Apps** tab on the site.
 ```
 browser --(eth_call getAppsPage)------> EnclaveAppCatalog   apps: {appId,slug,name,desc,publisher,versionCount,active}
 browser --(eth_call getVersionsPage)--> EnclaveAppCatalog   per app: {cid,version,vramMb,gpuGflops,memMb,cpuGflops,createdAt,verified,yanked,ports,approval,config}
+browser --(eth_call versionFee)-------> EnclaveAppCatalog   the version's publisher fee (rev 5; side mapping, 0 = free)
 browser --(fetch CID)-----------------> any IPFS peer   the .wasm bytes (hash == CID, verify yourself)
-browser --(publishVersion tx)---------> EnclaveAppCatalog   one Base tx; publisher = msg.sender
+browser --(publishVersion tx)---------> EnclaveAppCatalog   one Base tx; publisher = msg.sender (an optional hourly
+                                                            fee rides the version and pays that publisher wallet)
 ```
 
 ## Two catalogs, on purpose

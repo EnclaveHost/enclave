@@ -8,7 +8,11 @@ or `enclave help`.
 ```
 enclave key new                      # bring a wallet; fund it with USDC on Base
 enclave publish app.wasm --slug hello-world
+                                     # add --fee <$/hr> to charge deployers an hourly
+                                     # publisher fee, paid straight to your wallet
+                                     # (capped on-chain; immutable per version)
 enclave deploy hello-world:1 --fund 2  # create + fund $2 + wait for live; prints the URL
+                                       # (a paid app's publisher fee shows in the rate)
 enclave attest 0x3xk9…               # verify the enclave locally BEFORE sending data
 enclave logs 0x3xk9… -f
 ```

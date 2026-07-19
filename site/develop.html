@@ -273,11 +273,16 @@ const { token }   = await (await fetch(`${API}/auth/login`, {
 
           <h4>Create the deployment: one transaction, you own the record</h4>
           <p>A deployment is an <b>on-chain work item</b>, not one enclave's private state. <code>create()</code> on the <code>EnclaveDeployments</code> contract records the intent - the app's <b>catalog version record</b> (<code>catalog://&lt;appId&gt;/&lt;versionIndex&gt;</code>), the two shares (in 1/1000ths), visibility - under <i>your</i> address, and mints the id (<code>keccak256(sender, nonce)</code>, the <code>Created</code> event's first topic). The reference names a <b>version</b>, never bytes: runners take the wasm, config and ports from that immutable record - exactly what the catalog owner approved. (CID references are refused: a CID names bytes, and several versions with different approved configs can share bytes.) Because the ledger holds the spec and the balance, the deployment <b>survives enclave updates and crashes</b>: runners serve it under expiring leases, and when a runner dies, any other enclave picks the work up. Nothing to sign in besides your wallet.</p>
-          <c-code fn="deploy.js · EnclaveDeployments.create()"><pre><code>// create(appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, configCid)
+          <c-code fn="deploy.js · EnclaveDeployments.create()"><pre><code>// create(appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, configCid,
+//        feeRecipient, feePerSec6)
 // appRef = catalog://&lt;appId&gt;/&lt;versionIndex&gt; - the on-chain version record
 // shares are 1/1000ths: gpuShare 0.25 -&gt; 250; a GPU app needs gpuMilli &gt;= cpuMilli
 // appPort/ports ride along untrusted (the record decides); configCid must be ""
-create("catalog://0x06a4…c13/5", 250, 50, 8080, "", true, "")
+// feeRecipient/feePerSec6 copy the version's publisher fee (its publisher's
+// wallet + the per-second fee; 0x0/0 for a free app) - snapshotted like the
+// rate, and runners refuse a record that under-declares it (the consoles and
+// the CLI fill this in for you)
+create("catalog://0x06a4…c13/5", 250, 50, 8080, "", true, "", "0x0…0", 0)
 // -&gt; the receipt's Created event: topics[1] is your deployment id (bytes32)</code></pre></c-code>
 
           <h4>Attach model volumes: big weights, attested, not in the wasm</h4>
@@ -289,7 +294,7 @@ create("catalog://0x06a4…c13/5", 250, 50, 8080, "", true, "")
 // GET /availability lists the volumes the fleet carries (name, bytes, which enclaves).</code></pre></c-code>
 
           <h4>Fund it: pay-per-second, credited on-chain, no custody</h4>
-          <p>Funding lands in the deployment's on-chain <code>balance6</code> (the USDC itself forwards to Enclave in the same transaction - the contract holds nothing, and payments are final). Your rate is snapshotted at create: <code>gpuShare × $<span data-live-price="unit-hr" data-gpu="100">6</span>/hr + cpuShare × $<span data-live-price="unit-hr" data-cpu="100">3</span>/hr</code>. Pay either way:</p>
+          <p>Funding lands in the deployment's on-chain <code>balance6</code> (the money itself forwards in the same transaction - the contract holds nothing, and payments are final). Your rate is snapshotted at create: <code>gpuShare × $<span data-live-price="unit-hr" data-gpu="100">6</span>/hr + cpuShare × $<span data-live-price="unit-hr" data-cpu="100">3</span>/hr</code>, plus the app's hourly publisher fee if it charges one. On a paid app every funding is split in that same transaction: the publisher's share (their fee's fraction of the rate) goes straight to their wallet, the rest to Enclave - still nothing custodied. Pay either way:</p>
           <c-code fn="EnclaveDeployments · two ways to fund"><pre><code>// USDC: sign an EIP-3009 ReceiveWithAuthorization (gas-free wallet signature,
 // to = the EnclaveDeployments contract, nonce prefixed with the id's first 16 bytes), then ONE tx:
 fundWithAuthorization(bytes32 id, address from, uint256 value,
@@ -316,7 +321,7 @@ console.log(`https://${id.slice(2, 10)}.app.enclave.host`);</code></pre></c-code
           <h4>Keep it alive, or stop it</h4>
           <ul>
             <li><b>Top up</b>: another <code>fundWithAuthorization</code> / <code>fundEth</code> with a fresh nonce, any time - each payment adds <code>amount / rate</code> seconds to the on-chain balance.</li>
-            <li><b>Upgrade</b>: <code>setAppRef(id, "catalog://&lt;appId&gt;/&lt;newIndex&gt;")</code> (owner-only) repoints the deployment at another approved version of the app - paid time, shares and the live lease all stay on the record, and the runner restarts the app in place on the new version within about a minute (new wasm fetched before the old instance stops). No second buy-in to pick up a new release; the dashboard's <b>Version</b> control and <code>enclave upgrade</code> are exactly this call. Shares bought at <code>create()</code> are immutable, so a version whose minimums exceed them can't be switched to - deploy that one fresh.</li>
+            <li><b>Upgrade</b>: <code>setAppRef(id, "catalog://&lt;appId&gt;/&lt;newIndex&gt;")</code> (owner-only) repoints the deployment at another approved version of the app - paid time, shares and the live lease all stay on the record, and the runner restarts the app in place on the new version within about a minute (new wasm fetched before the old instance stops). No second buy-in to pick up a new release; the dashboard's <b>Version</b> control and <code>enclave upgrade</code> are exactly this call. Shares bought at <code>create()</code> are immutable - and so is the publisher-fee snapshot - so a version whose minimums exceed the shares, or whose publisher fee exceeds the snapshot, can't be switched to - deploy that one fresh.</li>
             <li><b>Stop</b>: <code>setActive(false)</code> on the contract (owner-only) takes the work off the queue - the current runner's watcher tears it down and releases the lease, refunding the unused tail to your deployment's balance. That balance stays on the record: <code>setActive(true)</code> later resumes from what's left, but it can never be withdrawn to your wallet - payments are final, so fund in small top-ups. <code>DELETE /v1/deployments/{id}</code> alone only stops the CURRENT run; an active, funded deployment gets re-claimed.</li>
             <li><b>Fairness</b>: the quantum of trust is the lease (30 min). A runner that dies mid-lease has burned that lease - that is the worst case; clean shutdowns and enclave updates <code>release()</code> and lose you nothing, and another enclave resumes your app from its CID.</li>
           </ul>
@@ -801,7 +806,7 @@ enclave whoami                     # address, USDC balance, running deployments<
               <tr><th scope="row" class="pname">enclave restart &lt;id&gt;</th><td>stop + relaunch the app in place: same version, endpoint and balance (app state is ephemeral) - the fix for a wedged instance, no wallet tx</td><td><code>POST /deployments/{id}/restart</code></td></tr>
               <tr><th scope="row" class="pname">enclave stop &lt;id&gt;</th><td>take the work item off the queue, then terminate; unspent balance stays on the record for a later reactivation (payments are final - nothing is withdrawable)</td><td><code>EnclaveDeployments.setActive(false)</code> · <code>DELETE /deployments/{id}</code></td></tr>
               <tr><th scope="row" class="pname">enclave upgrade &lt;id&gt; [&lt;version&gt;]</th><td>switch a deployment to another approved version of its app (default: the latest); paid time carries over - the runner restarts the app in place on the new version</td><td><code>EnclaveDeployments.setAppRef()</code> · <code>POST /claim-hint</code></td></tr>
-              <tr><th scope="row" class="pname">enclave publish app.wasm --slug hello</th><td>validate the component, pin to IPFS, cut a catalog version</td><td><code>ipfs.enclave.host/add-wasm</code> · <code>EnclaveAppCatalog</code></td></tr>
+              <tr><th scope="row" class="pname">enclave publish app.wasm --slug hello</th><td>validate the component, pin to IPFS, cut a catalog version; add <code>--fee $/hr</code> to charge deployers an hourly fee, paid straight to your wallet (capped on-chain, immutable per version)</td><td><code>ipfs.enclave.host/add-wasm</code> · <code>EnclaveAppCatalog</code></td></tr>
               <tr><th scope="row" class="pname">enclave apps [query]</th><td>browse or search the on-chain catalog</td><td><code>EnclaveAppCatalog</code> reads</td></tr>
               <tr><th scope="row" class="pname">enclave encvol message &lt;keyId&gt;</th><td>print the canonical message a wallet signs for a volume key (<a href="#docs-encvol">ch. 13</a>)</td><td>local only - nothing sent anywhere</td></tr>
               <tr><th scope="row" class="pname">enclave encvol derive --key-id K | --sig 0x…</th><td>an encrypted volume's password + salt: the CLI wallet signs the canonical message itself (deterministic, RFC 6979), or derive from a signature made in any other wallet</td><td>local only - nothing sent anywhere</td></tr>

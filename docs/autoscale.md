@@ -25,7 +25,8 @@ auto-managed enclaves that sit idle. Built so that triggering it is always
 2. **Structural filter.** Each candidate is checked against the fleet's own
    claim logic (`POST /v1/claim-hint`): reasons like *below the app's minimum
    shares*, *deactivated*, *configCid retired*, *deployment options refused*,
-   *app not deployable* mark the
+   *app not deployable*, *under-declares the app's publisher fee* (or a paid
+   app on a path that can't pay its publisher) mark the
    record permanently unclaimable — more capacity would not help, so it is
    **not** demand (this also covers the stranded-funding class of records).
    `accepted: true` means an enclave is already claiming it — also not demand.
