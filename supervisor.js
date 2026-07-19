@@ -3407,8 +3407,11 @@ async function acmeAccount(ca) {
   const j = publicKey.export({ format: "jwk" });
   ca.account = { key: privateKey, jwk: { crv: j.crv, kty: j.kty, x: j.x, y: j.y }, thumbprint: jwkThumbprint(j), kid: null };
   try {
-    const eab = ca.eabKid ? { kid: ca.eabKid, hmac: ca.eabHmac }
-              : ca.eabProvision ? await gtsMintEab(ca) : null;
+    // the provisioner outranks a static pair: minted pairs are always fresh,
+    // while a static one may be stale or already consumed (Google single-use)
+    // - a leftover KID/HMAC secret must never wedge a provisioned slot
+    const eab = ca.eabProvision ? await gtsMintEab(ca)
+              : ca.eabKid ? { kid: ca.eabKid, hmac: ca.eabHmac } : null;
     const r = await acmePost(ca, dir.newAccount,
       { termsOfServiceAgreed: true,
         ...(ACME_CONTACT ? { contact: [ACME_CONTACT] } : {}),
