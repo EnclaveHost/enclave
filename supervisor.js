@@ -3884,10 +3884,27 @@ function claimSigner() {
   }
   return { account: _claimAccount, wallet: _claimWallet };
 }
+// Bare-metal receipt wait: poll eth_getTransactionReceipt every 2s. viem's
+// waitForTransactionReceipt spent the FULL 120s timeout on every tx here even
+// though each one mined within seconds — the whole night of 2026-07-19 the
+// operator queue ticked at exactly one tx per ~122s on BOTH the public pool
+// and a dedicated Alchemy endpoint (metronomic Claimed/Renewed spacing in the
+// ledger), which capped fleet tx throughput below ~30 apps' renewal demand.
+// Whatever its block-subscription/replacement machinery was doing, the
+// simplest primitive can't do it: a mined receipt returns on the next poll.
+async function awaitReceipt(hash, timeoutMs = 90_000) {
+  const t0 = Date.now();
+  for (;;) {
+    const r = await chainClient.getTransactionReceipt({ hash }).catch(() => null);
+    if (r) return r;
+    if (Date.now() - t0 > timeoutMs) throw new Error(`no receipt for ${hash} after ${Math.round(timeoutMs / 1000)}s`);
+    await sleepMs(2000);
+  }
+}
 function sendOperatorTx(address, abi, functionName, args) {
   const p = _txChain.then(() => claimSigner().wallet.writeContract({
     address: getAddress(address), abi, functionName, args }));
-  const rcptP = p.then((hash) => chainClient.waitForTransactionReceipt({ hash, timeout: 120_000 }));
+  const rcptP = p.then((hash) => awaitReceipt(hash));
   _txChain = rcptP.then(() => {}, () => {});   // keep the queue alive across failures
   p.receipt = rcptP;   // callers that need the outcome share the queue's own
   return p;            // receipt wait instead of polling for it a second time
