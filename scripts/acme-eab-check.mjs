@@ -83,12 +83,15 @@ async function main() {
   const jwk = { crv: j.crv, kty: j.kty, x: j.x, y: j.y };
   const nonce = (await fetch(dir.newNonce, { method: "HEAD" })).headers.get("replay-nonce");
   if (!nonce) { console.error("newNonce returned no replay-nonce"); process.exit(1); }
-  // GTS rejects contactless accounts; --contact overrides, no CA verifies it
+  // GTS rejects contactless accounts; --contact overrides, no CA verifies it.
+  // --no-contact deliberately triggers that rejection - it lets you prove a
+  // FAILED registration does (or doesn't) consume the pair.
   const contactRaw = arg("contact") || "hostmaster@enclave.host";
   const contact    = contactRaw.includes(":") ? contactRaw : `mailto:${contactRaw}`;
+  const noContact  = process.argv.includes("--no-contact");
   const r = await fetch(dir.newAccount, { method: "POST", headers: { "content-type": "application/jose+json" },
     body: JSON.stringify(jwsSignEs256({ alg: "ES256", nonce, url: dir.newAccount, jwk },
-      { termsOfServiceAgreed: true, contact: [contact],
+      { termsOfServiceAgreed: true, ...(noContact ? {} : { contact: [contact] }),
         externalAccountBinding: eabJws(kid, hmac, jwk, dir.newAccount) }, privateKey)) });
   const body = await r.json().catch(() => ({}));
   if (r.status === 201) {
