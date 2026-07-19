@@ -110,6 +110,14 @@ containers:
       # secrets are set the slot cannot register (GTS demands EAB) and just
       # cools off between tries; setting them activates it, no config change.
       - ACME_DIRECTORY_2: "https://dv.acme-v02.api.pki.goog/directory"
+      # EMERGENCY CA (slot 3): Let's Encrypt, EAB-less - needs no credentials,
+      # so it works the moment this config ships. Deliberately LAST: LE's
+      # 5-duplicate-certs/week per exact name vs our re-mint-per-restart model
+      # makes it an outage stopgap, not a daily driver. (It matters because
+      # GTS EAB secrets are SINGLE-USE - one ACME account each, and we
+      # register per boot - so slot 2 covers one boot per EAB pair until the
+      # supervisor can self-provision EAB keys.)
+      - ACME_DIRECTORY_3: "https://acme-v02.api.letsencrypt.org/directory"
     # STATE_FILE (/var/lib/enclave/state.json) MAY be pointed at host-backed
     # storage for billing persistence. The in-enclave TLS-bridge PRIVATE KEY must
     # never touch host-backed disk, so it is minted on its OWN tmpfs path
