@@ -1727,14 +1727,45 @@ def _volumes_public() -> list:
             for v in sorted(_model_volumes().values(), key=lambda x: x["name"])]
 
 
+def _ram_budget() -> dict | None:
+    """The RAM-reservation ledger (WASM_ACCOUNT_STORAGE_RAM): worst-case MB
+    committed by starting/running tenants vs the node ceiling - the SAME sum
+    the admission check at provision time enforces. None when the accounting
+    is off."""
+    if not ACCOUNT_STORAGE_RAM:
+        return None
+    committed = sum(_rec_ram_mb(r) for r in _apps.values()
+                    if r["status"] in ("starting", "running"))
+    budget = int(NODE_RAM_GB * 1024 * RAM_ACCT_HEADROOM)
+    return {"ramBudgetMb": budget, "ramCommittedMb": committed,
+            "ramFreeMb": max(0, budget - committed)}
+
+
 def _capacity() -> dict:
     used = _used_cpu_share()
     free = round(max(0.0, 1.0 - used), 4)
-    return {"cpuShareFree": free, "usedCpuShare": used,
-            "maxShare": free, "usedShare": used,   # deprecated aliases (one release)
-            "vcpusFree": round(NODE_VCPUS * free, 2),
-            "ramGbFree": round(NODE_RAM_GB * free, 2),
-            "apps": len(_apps)}
+    cap = {"cpuShareFree": free, "usedCpuShare": used,
+           "maxShare": free, "usedShare": used,   # deprecated aliases (one release)
+           "vcpusFree": round(NODE_VCPUS * free, 2),
+           "ramGbFree": round(NODE_RAM_GB * free, 2),
+           "apps": len(_apps)}
+    # Two ledgers govern admission: the cpuShare pool AND (when accounting is
+    # on) the RAM-reservation budget. ADVERTISE whichever is tighter, each as
+    # a fraction of its own pool - otherwise the dashboard/availability/claim
+    # routing read 30%+ share free while the next 911 MB app is refused
+    # (2026-07-19: 60-app fleet hit the RAM ceiling at cpuShareFree 0.34).
+    # The raw share ledger stays visible as sharePoolFree.
+    ram = _ram_budget()
+    if ram:
+        ram_free_frac = round(ram["ramFreeMb"] / ram["ramBudgetMb"], 4) if ram["ramBudgetMb"] else 0.0
+        eff = min(free, ram_free_frac)
+        cap.update(ram)
+        cap["sharePoolFree"] = free
+        cap["cpuShareFree"] = cap["maxShare"] = eff
+        cap["usedCpuShare"] = cap["usedShare"] = round(1.0 - eff, 4)
+        cap["vcpusFree"] = round(NODE_VCPUS * eff, 2)
+        cap["ramGbFree"] = round(NODE_RAM_GB * eff, 2)
+    return cap
 
 
 # CPU noisy-neighbour control (cgroup v2), OPT-IN, default OFF. Today tenants
