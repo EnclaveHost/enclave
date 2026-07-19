@@ -64,7 +64,8 @@ import http from "node:http";
 import https from "node:https";
 import net from "node:net";
 import tls from "node:tls";
-import { createHash, createHmac } from "node:crypto";
+import fs from "node:fs";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 import { readCappedText, installProcessGuards } from "./fleet.mjs";
 import { isBlockedHost } from "./net-guard.mjs";
 import { isMcpHost, handleMcp } from "./mcp.js";
@@ -133,6 +134,34 @@ const routingHost = (req) =>
 const clientIp = (req) => {
   if (TRUSTED_PROXY) { const xff = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim(); if (xff) return xff; }
   return req.socket?.remoteAddress || "unknown";
+};
+
+// --- featured-slot view metering ------------------------------------------------
+// The site beacons one POST /v1/featured-view {app} per paid featured
+// impression; we count at most ONE view per client per app per UTC day (marks
+// are salted hashes, reset daily - no IP ever persists). Lifetime totals are
+// MONOTONIC and snapshot to FEATURED_VIEWS_FILE every minute, so a relay
+// restart can only ever UNDER-count (the EnclaveFeatured contract's stated
+// bias: the meter may under-charge an advertiser, never over-charge). The
+// admin console reads GET /v1/featured-views and settles the delta vs the
+// CampaignSettled event sum on-chain.
+const FEAT_FILE = process.env.FEATURED_VIEWS_FILE || "featured-views.json";
+const FEAT_MAX_APPS = 500, FEAT_MAX_MARKS = 200000;       // memory bounds, not billing limits
+const featViews = (() => { try { return JSON.parse(fs.readFileSync(FEAT_FILE, "utf8")) || {}; } catch { return {}; } })();
+let featDirty = false, featDay = "", featMarks = new Set();
+const featSalt = randomBytes(16).toString("hex");         // per-boot; a restart forgives the day's dedup, never the totals
+setInterval(() => { if (featDirty) { featDirty = false; fs.writeFile(FEAT_FILE, JSON.stringify(featViews), () => {}); } }, 60000).unref();
+function featCount(req, app) {
+  if (!/^0x[0-9a-f]{64}$/.test(app)) return false;
+  const day = new Date().toISOString().slice(0, 10);
+  if (day !== featDay) { featDay = day; featMarks = new Set(); }
+  const mark = createHash("sha256").update(featSalt + "|" + day + "|" + clientIp(req) + "|" + app).digest("base64");
+  if (featMarks.has(mark) || featMarks.size >= FEAT_MAX_MARKS) return false;
+  if (featViews[app] == null && Object.keys(featViews).length >= FEAT_MAX_APPS) return false;
+  featMarks.add(mark);
+  featViews[app] = (featViews[app] || 0) + 1;
+  featDirty = true;
+  return true;
 };
 const isLoopback = (req) => {
   const a = req.socket?.remoteAddress || "";
@@ -1052,6 +1081,23 @@ const server = http.createServer((req, res) => {
     return json(res, 200, { endpoint: c.endpoint, repo: c.repo, availability: c.availability, updatedAt,
                             note: "Verify attestation at the endpoint (Tinfoil SecureClient + repo) before sending anything." }, req);
   }
+
+  // Featured-slot view metering (owned by the relay, never proxied): the
+  // beacon POST counts a deduped impression; the GET serves lifetime totals.
+  if (u.pathname === "/v1/featured-view" && req.method === "POST") {
+    let body = "";
+    req.on("data", (c) => { body += c; if (body.length > 512) req.destroy(); });
+    req.on("end", () => {
+      let app = "";
+      try { app = String(JSON.parse(body).app || "").toLowerCase(); } catch {}
+      if (!/^0x[0-9a-f]{64}$/.test(app)) return json(res, 400, { error: "bad_app", message: "body must be {app:<bytes32 appId>}" }, req);
+      featCount(req, app);                     // dedup result deliberately unreadable from outside
+      json(res, 200, { ok: true }, req);
+    });
+    return;
+  }
+  if (u.pathname === "/v1/featured-views")
+    return json(res, 200, { updatedAt, views: featViews }, req);
 
   // API gateway: fleet-aware routing (see the header) — placement on create,
   // owner affinity on deployment-scoped calls, fan-out merge on list, fleet

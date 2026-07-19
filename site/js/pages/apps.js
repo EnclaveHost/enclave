@@ -11,15 +11,30 @@ import "../../components/section-head/section-head.js";
 import "../../components/app-card/app-card.js";
 import "../../components/app-detail/app-detail.js";
 import { $, $$, esc, short, blen, fmtDur, showToast, on, tosAccepted, setTosAccepted } from "../core/util.js";
-import { APP_CATALOG_ADDRESS, APP_CATALOG_CHAIN, IPFS_UPLOAD_URL, IPFS_IMAGE_UPLOAD_URL, IPFS_IMG_GATEWAY, MAX_WASM_MB, MAX_WASM_BYTES, MAX_IMAGE_MB, MAX_IMAGE_BYTES, BASE_CHAIN, PRIVY_RDNS } from "../core/config.js";
+import { APP_CATALOG_ADDRESS, APP_CATALOG_CHAIN, FEATURED_ADDRESS, USDC_BASE, IPFS_UPLOAD_URL, IPFS_IMAGE_UPLOAD_URL, IPFS_IMG_GATEWAY, MAX_WASM_MB, MAX_WASM_BYTES, MAX_IMAGE_MB, MAX_IMAGE_BYTES, BASE_CHAIN, PRIVY_RDNS } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
-import { catConfigured, catExplorer, encCall, CAT_SEL, CAT_MAX, APPROVAL, depPrices6, depMaxGpuMilli, rate6Of, waitReceipt, catSchemaRev, catMaxFeePerSec6, catVersionFee } from "../core/chain.js";
+import { catConfigured, catExplorer, encCall, CAT_SEL, CAT_MAX, APPROVAL, depPrices6, depMaxGpuMilli, rate6Of, waitReceipt, catSchemaRev, catMaxFeePerSec6, catVersionFee, featConfigured, featMaxBid, FEAT_SEL } from "../core/chain.js";
+import { FEATURED, loadCampaigns, pickFeatured, beaconView } from "../core/featured.js";
+import { payForRuntime } from "../core/fund.js";
 import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf, openBuyModal } from "../core/wallet.js";
 import { STORE, loadCatalog, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, REF_CACHE, PORTS_CACHE, SPECS_CACHE, specOf, CONFIG_CACHE, catalogRef, mediaOf, appMedia, stripMedia, withMedia } from "../core/catalog.js";
 import { minPctsOf, shareRates } from "../core/pricing.js";
 import { navigate } from "../boot.js";
 
 /* ---- render: filter + sort the catalog into <c-app-card>s ---- */
+// The grid caps at 4 rows per page; the page size follows the responsive
+// column count (same arithmetic as the grid's auto-fill: 300px min + 16px gap).
+const MAX_ROWS = 4;
+let storePage = 0;
+const gridCols = (grid) => Math.max(1, Math.floor((grid.clientWidth + 16) / (300 + 16)));
+function renderPager(total, pages){
+  const pager = $("#storePager"); if (!pager) return;
+  pager.hidden = pages <= 1;
+  if (pager.hidden) return;
+  $("#pageStatus").textContent = "page " + (storePage + 1) + " / " + pages + " · " + total + " apps";
+  $("#pagePrev").disabled = storePage <= 0;
+  $("#pageNext").disabled = storePage >= pages - 1;
+}
 function renderApps(){
   const grid = $("#storeGrid"); if (!grid) return;
   if (!catConfigured()){
@@ -69,14 +84,200 @@ function renderApps(){
   if (q) apps = apps.filter(a => (a.name + " " + a.description + " " + a.slug + " " + a.publisher + " " + visibleVerIdxs(a).map(i => a.versions[i].cid + " " + a.versions[i].version).join(" ")).toLowerCase().includes(q));
   apps.sort((x, y) => (Number(appVerified(y)) - Number(appVerified(x))) || (y.updatedAt - x.updatedAt));
   if (!apps.length){
+    renderPager(0, 1);
     grid.innerHTML = '<div class="store-note">' + (STORE.apps.length ? "No apps match your filter." : "No apps published yet. Be the first with <b>+ Publish app</b>.") + '</div>';
     return;
   }
-  grid.replaceChildren(...apps.map(a => {
+  const pageSize = gridCols(grid) * MAX_ROWS;
+  const pages = Math.max(1, Math.ceil(apps.length / pageSize));
+  storePage = Math.min(Math.max(storePage, 0), pages - 1);
+  renderPager(apps.length, pages);
+  grid.replaceChildren(...apps.slice(storePage * pageSize, (storePage + 1) * pageSize).map(a => {
     const el = document.createElement("c-app-card");
     el.app = a;
     return el;
   }));
+}
+// the page size tracks the responsive column count - a resize that changes it
+// re-slices the current page (module-load-once; inert off the store view)
+let _resizeT;
+addEventListener("resize", () => {
+  clearTimeout(_resizeT);
+  _resizeT = setTimeout(() => { if (document.getElementById("storeGrid")) renderApps(); }, 200);
+});
+
+/* ---- featured slot (top-right of the section head) ----
+   The occupant comes from core/featured.js: the highest standing per-view
+   bid (EnclaveFeatured), or the editorial pick until the contract exists.
+   Paid occupants beacon a metered view; the editorial pick bills nobody. */
+function renderFeatured(){
+  const slot = $("#featuredSlot"); if (!slot) return;
+  const pick = pickFeatured();
+  if (!pick){ slot.hidden = true; delete slot.dataset.appid; return; }
+  slot.hidden = false;
+  const paid = !!pick.campaign;
+  if (slot.dataset.appid !== pick.app.appId || slot.dataset.paid !== String(paid)){
+    slot.dataset.appid = pick.app.appId; slot.dataset.paid = String(paid);
+    slot.textContent = "";
+    const tag = document.createElement("div");
+    tag.className = "featured-tag";
+    tag.innerHTML = "★ Featured" + (paid ? ' <span class="dim">· promoted</span>' : "");
+    slot.appendChild(tag);
+    const card = document.createElement("c-app-card");
+    card.app = pick.app;
+    slot.appendChild(card);
+    const foot = document.createElement("div");
+    foot.className = "featured-foot";
+    foot.innerHTML = '<span class="hint">' + (paid ? "promoted per view by its publisher" : "editorial pick") + '</span>'
+      + (featConfigured() ? '<button class="featured-promote" type="button">Promote your app →</button>' : "");
+    slot.appendChild(foot);
+    const pb = foot.querySelector(".featured-promote");
+    if (pb) pb.addEventListener("click", openPromote);
+  } else {
+    const card = slot.querySelector("c-app-card");
+    if (card) card.app = pick.app;   // same occupant, fresher record (badges follow wallet/catalog)
+  }
+  if (paid) beaconView(pick.app.appId);
+}
+
+/* ---- promote modal: place a per-view bid + escrow a budget ---- */
+let prHost = null, prEsc = null;
+function closePromote(){
+  if (!prHost) return;
+  prHost.remove(); prHost = null;
+  document.removeEventListener("keydown", prEsc);
+}
+async function featTx(data, verb){
+  if (!Enclave.provider) await connectWallet();
+  await ensureBaseChain();
+  const hash = await sendTx(FEATURED_ADDRESS, data);
+  showToast(verb + " · " + hash.slice(0, 12) + "…");
+  await waitReceipt(hash);
+  return hash;
+}
+function openPromote(){
+  if (!featConfigured()) return;
+  closePromote();
+  const host = document.createElement("div");
+  prHost = host;
+  host.className = "qd-overlay";
+  const standing = FEATURED.campaigns
+    .filter(c => c.active && c.bidPerView6 > 0 && c.balance6 >= c.bidPerView6)
+    .sort((x, y) => y.bidPerView6 - x.bidPerView6);
+  const topPerK = standing.length ? (standing[0].bidPerView6 * 1000) / 1e6 : 0;
+  host.innerHTML =
+    '<div class="qd-card" role="dialog" aria-modal="true" aria-label="Promote your app">' +
+      '<div class="qd-h">Promote <b>your app</b> in the featured slot</div>' +
+      '<p class="qd-sub">Name a price per <b>1,000 views</b> and escrow a budget (USDC). The highest funded bid holds the slot; views are metered by the gateway (deduped per visitor per day) and drawn from your escrow at your bid. <b>Withdraw the unspent balance anytime.</b></p>' +
+      '<p class="qd-sub">' + (topPerK > 0
+        ? "Top standing bid right now: <b>$" + topPerK.toFixed(2) + " / 1k views</b> - bid above it to take the slot."
+        : "The slot is <b>open</b> - any funded bid takes it.") + '</p>' +
+      '<label class="qd-lbl" for="prApp">Your app</label>' +
+      '<select class="qd-amt" id="prApp"></select>' +
+      '<label class="qd-lbl" for="prBid">Bid ($ per 1,000 views)</label>' +
+      '<input class="qd-amt" id="prBid" type="number" value="' + (topPerK > 0 ? (topPerK + 0.5).toFixed(2) : "1.00") + '" min="0.01" step="0.01" inputmode="decimal" />' +
+      '<label class="qd-lbl" for="prDep">Budget to escrow now (USDC)</label>' +
+      '<input class="qd-amt" id="prDep" type="number" value="10" min="0" step="any" inputmode="decimal" />' +
+      '<div class="qd-est" id="prEst"></div>' +
+      '<div class="qd-note" id="prNote" hidden></div>' +
+      '<div class="pr-log" aria-live="polite"></div>' +
+      '<div class="qd-actions">' +
+        '<button class="btn btn-primary" id="prGo" type="button">▸ Place bid &amp; fund</button>' +
+        '<button class="btn" id="prWithdraw" type="button" hidden>Withdraw balance</button>' +
+        '<button class="btn qd-cancel" type="button">Cancel</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(host);
+  prEsc = (e) => { if (e.key === "Escape") closePromote(); };
+  document.addEventListener("keydown", prEsc);
+  host.addEventListener("pointerdown", (e) => { if (e.target === host) closePromote(); });
+  host.querySelector(".qd-cancel").addEventListener("click", closePromote);
+
+  const sel = host.querySelector("#prApp"), bid = host.querySelector("#prBid"), dep = host.querySelector("#prDep");
+  const estEl = host.querySelector("#prEst"), note = host.querySelector("#prNote"), go = host.querySelector("#prGo");
+  const wd = host.querySelector("#prWithdraw"), logEl = host.querySelector(".pr-log");
+  const plog = (cls, txt) => { const d = document.createElement("div"); d.className = "pr-line " + cls; d.textContent = txt; logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight; };
+
+  const me = () => (Enclave.address || "").toLowerCase();
+  const myApps = () => STORE.apps.filter(a => me() && a.publisher.toLowerCase() === me() && a.versions.length && a.active);
+  const fillApps = () => {
+    const apps = myApps();
+    sel.innerHTML = apps.length
+      ? apps.map(a => '<option value="' + esc(a.appId) + '">' + esc(a.name || a.slug) + '</option>').join("")
+      : '<option value="">' + (me() ? "you haven’t published an app yet" : "connect a wallet to pick your app") + '</option>';
+    refresh();
+  };
+  const campaignOf = (appId) => FEATURED.campaigns.find(c => c.appId === appId);
+  let maxBid6 = 10000;   // contract default; refreshed below
+  featMaxBid().then(m => { maxBid6 = Number(m) || maxBid6; refresh(); }).catch(() => {});
+
+  function refresh(){
+    const appId = sel.value;
+    const c = appId ? campaignOf(appId) : null;
+    const mineC = c && c.advertiser.toLowerCase() === me();
+    wd.hidden = !(mineC && c.balance6 > 0);
+    if (mineC) wd.textContent = "Withdraw $" + (c.balance6 / 1e6).toFixed(2);
+    const bid6 = Math.round((parseFloat(bid.value) || 0) * 1000);   // $/1k -> per-view 6dp
+    const dep6 = Math.round((parseFloat(dep.value) || 0) * 100) * 10000;
+    const capPerK = (maxBid6 * 1000) / 1e6;
+    let err = null;
+    if (!appId) err = "Pick one of your published apps (approved apps win the slot; pending ones queue until approved).";
+    else if (c && !mineC) err = "This app already has a campaign placed by another wallet.";
+    else if (!(bid6 > 0)) err = "Bid at least $0.01 per 1k views.";
+    else if (bid6 > maxBid6) err = "The bid cap is $" + capPerK.toFixed(2) + " per 1k views.";
+    else if (!c && !(dep6 > 0)) err = "Escrow at least $0.01 to put the bid in play.";
+    note.hidden = !err; if (err) note.textContent = err;
+    go.disabled = !!err;
+    const total6 = (c ? c.balance6 : 0) + dep6;
+    estEl.innerHTML = (bid6 > 0 && total6 > 0)
+      ? "budget covers ≈ <b>" + Math.floor(total6 / bid6).toLocaleString() + " views</b> at this bid"
+      : "";
+  }
+  sel.addEventListener("change", refresh);
+  bid.addEventListener("input", refresh);
+  dep.addEventListener("input", refresh);
+  fillApps();
+  if (!me()) connectWallet().then(fillApps).catch(() => {});
+
+  go.addEventListener("click", async () => {
+    const appId = sel.value; if (!appId) return;
+    const bid6 = Math.round((parseFloat(bid.value) || 0) * 1000);
+    const depUsd = parseFloat(dep.value) || 0;
+    go.disabled = true; wd.disabled = true;
+    try {
+      const c = campaignOf(appId);
+      if (!c || c.bidPerView6 !== bid6){
+        plog("info", "[*] place bid: $" + ((bid6 * 1000) / 1e6).toFixed(2) + " / 1k views… (wallet)");
+        await featTx(encCall(FEAT_SEL.place, [{ t: "bytes32", v: appId }, { t: "uint", v: bid6 }]), "placing bid");
+        plog("ok", "[✓] bid placed");
+      }
+      if (depUsd > 0){
+        await payForRuntime({
+          contract: FEATURED_ADDRESS, deploymentRef: appId, usdc: USDC_BASE,
+          buys: "escrows your promotion budget",
+          creditLine: "    escrowed in your campaign - views draw it down at your bid; withdraw the rest anytime",
+        }, depUsd, "USDC", plog);
+      }
+      await loadCampaigns(true);
+      renderFeatured();
+      plog("ok", "[✓] campaign live - the slot follows the highest funded bid");
+    } catch(e){ plog("err", "[✗] " + (e && e.message || e)); }
+    go.disabled = false; wd.disabled = false;
+    refresh();
+  });
+  wd.addEventListener("click", async () => {
+    const appId = sel.value; if (!appId) return;
+    go.disabled = true; wd.disabled = true;
+    try {
+      plog("info", "[*] withdraw the unspent balance… (wallet)");
+      await featTx(encCall(FEAT_SEL.withdraw, [{ t: "bytes32", v: appId }, { t: "uint", v: 0 }]), "withdrawing");
+      plog("ok", "[✓] balance returned to your wallet");
+      await loadCampaigns(true);
+      renderFeatured();
+    } catch(e){ plog("err", "[✗] " + (e && e.message || e)); }
+    go.disabled = false; wd.disabled = false;
+    refresh();
+  });
 }
 
 // Tab membership keys off the owner's per-version APPROVAL verdict (the
@@ -721,6 +922,7 @@ function applyView(){
   if (view === "deploy") ensureDeployBooted();
   else if (view === "publish") applyPrefillPublish();   // apply a stashed "add version" prefill, if any
   else if (detail) renderDetail(appId);
+  else renderApps();   // the page size depends on the grid's real width - re-slice now that the store view is visible
   scrollTo(0, 0);
 }
 /* one app's full page (apps?app=<appId>) - renders <c-app-detail> into the
@@ -748,7 +950,7 @@ function renderActiveView(){
   const sub = location.pathname.split("/").pop();
   const onStore = sub !== "deploy" && sub !== "publish";
   const appId = onStore ? new URLSearchParams(location.search).get("app") : null;
-  if (appId) renderDetail(appId); else renderApps();
+  if (appId) renderDetail(appId); else { renderApps(); renderFeatured(); }
 }
 /* the console's logic lives in the code-split deploy module; boot it the
    first time the view opens on each <main> mount (fresh DOM per swap) */
@@ -783,9 +985,11 @@ function initStore(){
   }
   $$("#storeFilter button").forEach(b => b.addEventListener("click", () => {
     $$("#storeFilter button").forEach(x => { x.classList.toggle("on", x === b); x.setAttribute("aria-pressed", String(x === b)); });
-    STORE.filter = b.dataset.filter; renderApps();
+    STORE.filter = b.dataset.filter; storePage = 0; renderApps();
   }));
-  const s = $("#storeSearch"); if (s) s.addEventListener("input", renderApps);
+  const s = $("#storeSearch"); if (s) s.addEventListener("input", () => { storePage = 0; renderApps(); });
+  const pp = $("#pagePrev"); if (pp) pp.addEventListener("click", () => { storePage--; renderApps(); });
+  const pn = $("#pageNext"); if (pn) pn.addEventListener("click", () => { storePage++; renderApps(); });
   const rf = $("#storeRefresh"); if (rf) rf.addEventListener("click", () => loadCatalog(true));
   $("#pubCancel").addEventListener("click", closePublish);   // (+ Publish app is a plain <a href="#publish">)
   $("#pubSubmit").addEventListener("click", publishApp);
@@ -802,6 +1006,7 @@ function initStore(){
   // down, events up) - the grid tile opens the page, the page carries the rest
   grid.addEventListener("card-action", onCardAction);
   const det = $("#appDetailView"); if (det) det.addEventListener("card-action", onCardAction);
+  const feat = $("#featuredSlot"); if (feat) feat.addEventListener("card-action", onCardAction);
 }
 function onCardAction(e){
   const { app, act, idx, verified } = e.detail;
@@ -833,8 +1038,9 @@ on("enclave:catalog", (d) => {
   renderActiveView();
 });
 on("enclave:wallet", () => { if (STORE.loaded) renderActiveView(); });   // publisher/owner buttons follow the connected wallet
-// (both subscriptions are module-load-once; renderApps null-guards #storeGrid,
-// so they're inert while another page's <main> is mounted)
+on("enclave:featured", () => { if (STORE.loaded) renderFeatured(); });   // campaign reads land after the catalog
+// (the subscriptions are module-load-once; renderApps/renderFeatured null-guard
+// their mounts, so they're inert while another page's <main> is mounted)
 
 /* called by the router every time this page's <main> is swapped in */
 export function boot() {
@@ -842,6 +1048,7 @@ export function boot() {
   applyView();          // direct entries and soft-navs to apps.html#publish land on the publish view
   renderActiveView();   // grid, or a single app's page when apps?app=<appId>
   loadCatalog();
+  loadCampaigns();      // featured-slot bids (no-op until the contract is in the address book)
   // adopt the fleet's real hardware into the share math before anyone opens
   // quick-deploy - minimum dials divide by these numbers (see core/pricing.js)
   Enclave.getAvailability().catch(() => {});
