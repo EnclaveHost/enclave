@@ -987,6 +987,11 @@ function initStore(){
     $$("#storeFilter button").forEach(x => { x.classList.toggle("on", x === b); x.setAttribute("aria-pressed", String(x === b)); });
     STORE.filter = b.dataset.filter; storePage = 0; renderApps();
   }));
+  // the swapped-in <main> ships Approved pre-lit, but the FILTER is module
+  // state that survives soft navigations - stamp the buttons from it, or an
+  // owner who left on Pending comes back to the pending QUEUE rendered under
+  // a lit Approved tab (an "empty apps page" whenever the queue is empty)
+  $$("#storeFilter button").forEach(x => { const sel = x.dataset.filter === STORE.filter; x.classList.toggle("on", sel); x.setAttribute("aria-pressed", String(sel)); });
   const s = $("#storeSearch"); if (s) s.addEventListener("input", () => { storePage = 0; renderApps(); });
   const pp = $("#pagePrev"); if (pp) pp.addEventListener("click", () => { storePage--; renderApps(); });
   const pn = $("#pageNext"); if (pn) pn.addEventListener("click", () => { storePage++; renderApps(); });

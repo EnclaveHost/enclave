@@ -48,10 +48,13 @@ export function catCacheSet(apps){ lsSet("enclave_catalog_" + APP_CATALOG_ADDRES
 const FRESH_MS = 120000;
 export async function loadCatalog(force){
   if (!catConfigured()){ STORE.loaded = true; emit("enclave:catalog", { type: "loaded" }); return; }
+  // the owner read rides every boot until it lands - ABOVE the freshness
+  // early-return, so one rate-limited miss can't leave badges/official
+  // fallbacks ownerless for as long as the catalog stays fresh
+  if (STORE.owner === null)
+    catOwner().then(o => { STORE.owner = o.toLowerCase(); emit("enclave:catalog", { type: "loaded" }); }).catch(() => {});
   if (STORE.loading || (STORE.loaded && !force && Date.now() - STORE.at < FRESH_MS)) return;
   STORE.loading = true;
-  if (STORE.owner === null)   // fetch alongside the catalog read, not after it: badges need it
-    catOwner().then(o => { STORE.owner = o.toLowerCase(); emit("enclave:catalog", { type: "loaded" }); }).catch(() => {});
   if (!STORE.loaded){
     const cached = catCacheGet();
     if (cached){
