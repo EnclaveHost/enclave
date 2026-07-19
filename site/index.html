@@ -156,7 +156,7 @@
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h4a1.8 1.8 0 010 3.6H10a1.8 1.8 0 000 3.6h4.5"/></svg></div>
         <span class="tag">wallet-native</span>
         <h3>Crypto-native</h3>
-        <p>Your wallet is your account and nothing is custodied: every payment forwards straight to Enclave; the contract never holds funds. It buys prepaid runtime, burned per second while your deployment runs. Payments are final: unspent time survives a stop but can't be withdrawn, so fund small and top up as you go.</p>
+        <p>Your wallet is your account and nothing is custodied: every payment forwards in the same transaction - to Enclave, and for paid apps the publisher's share straight to their wallet; the contract never holds funds. It buys prepaid runtime, burned per second while your deployment runs. Payments are final: unspent time survives a stop but can't be withdrawn, so fund small and top up as you go.</p>
       </div>
       <div class="card jade">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg></div>
@@ -234,7 +234,7 @@
 <section id="pricing" data-view="overview" style="background:var(--bg-1);border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);" aria-label="Pricing">
   <div class="wrap">
     <c-section-head eyebrow="Pricing" heading="Metered per second. Paid on-chain.">
-      <p>Deploying is <b>two dials</b> - what you rent - and <b>two rates</b> - what you pay. USDC or ETH up front buys runtime by the second; the instance runs until that time is used up, and you top up to extend it. Nothing is custodied - payments forward straight to Enclave and are final. Unspent time stays on the deployment's on-chain record (stop now, resume later) but isn't withdrawable, so fund in small top-ups.</p>
+      <p>Deploying is <b>two dials</b> - what you rent - and <b>two rates</b> - what you pay. USDC or ETH up front buys runtime by the second; the instance runs until that time is used up, and you top up to extend it. Nothing is custodied - payments forward in the same transaction, to Enclave and, for apps that charge a publisher fee, that share straight to the publisher's wallet - and are final. Unspent time stays on the deployment's on-chain record (stop now, resume later) but isn't withdrawable, so fund in small top-ups.</p>
     </c-section-head>
 
     <div class="price-grid">
@@ -262,7 +262,7 @@
     <div class="contract-foot"><a class="contract-link" id="priceAddrLink" target="_blank" rel="noopener" aria-label="View the EnclaveDeployments contract on Basescan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg> contract</a></div>
 
     <div class="price-formula"><code>price = GPU% × $<span data-live-price="unit-hr" data-gpu="100">6</span>/hr &nbsp;+&nbsp; CPU% × $<span data-live-price="unit-hr" data-cpu="100">3</span>/hr &nbsp;·&nbsp; metered per second</code></div>
-    <p class="mig-note" style="margin-top:10px;">One honest rounding note: the per-second rate is settled in whole millionths of a USDC, rounded up - so the very smallest slices meter a hair above the formula (a 1%-CPU app runs at $<span data-live-price="hr4" data-cpu="1">0.0324</span>/hr rather than $<span data-live-price="lin-hr4" data-cpu="1">0.0300</span>). Every estimate shown on the deploy pages already includes this.</p>
+    <p class="mig-note" style="margin-top:10px;">One honest rounding note: the per-second rate is settled in whole millionths of a USDC, rounded up - so the very smallest slices meter a hair above the formula (a 1%-CPU app runs at $<span data-live-price="hr4" data-cpu="1">0.0324</span>/hr rather than $<span data-live-price="lin-hr4" data-cpu="1">0.0300</span>). Every estimate shown on the deploy pages already includes this. Some store apps also charge a small hourly <b>publisher fee</b> - capped on-chain, shown in the rate before you sign, and paid straight to the app publisher's wallet.</p>
 
     <div class="mig-table-wrap">
       <div class="mig-scroll">

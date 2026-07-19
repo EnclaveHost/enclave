@@ -90,7 +90,7 @@ export async function payForRuntime(pay, fundUsdc, asset, log){
     const ph = await sendTx(to, (ledger ? dataFundEth : dataPayEth)(pay.deploymentRef), "0x" + wei.toString(16));
     log("ok", "[✓] payment sent " + ph);
     log("dimln", ledger
-      ? "    credited to the deployment's on-chain balance at the contract's live Chainlink rate; funds forward to Enclave"
+      ? "    credited to the deployment's on-chain balance at the contract's live Chainlink rate; funds forward in the same tx (a paid app's publisher cut goes straight to their wallet)"
       : "    ETH goes straight to Enclave; the enclave credits it at the live Chainlink rate");
     return ph;
   }
@@ -146,7 +146,7 @@ export async function payForRuntime(pay, fundUsdc, asset, log){
   const ph = await sendTx(to, (ledger ? dataFundWithAuth : dataPayWithAuth)(pay.deploymentRef, Enclave.address, amt6, 0, validBefore, nonce, sig));
   log("ok", "[✓] payment sent " + ph);
   log("dimln", ledger
-    ? "    credited to the deployment's on-chain balance; funds forward to Enclave - nothing is custodied"
+    ? "    credited to the deployment's on-chain balance; funds forward in the same tx (a paid app's publisher cut goes straight to their wallet) - nothing is custodied"
     : "    funds go straight to Enclave; nothing is custodied");
   return ph;
 }

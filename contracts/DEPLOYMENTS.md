@@ -20,7 +20,8 @@ stranger enclave needs to take over:
 
 ```
 user    --(create tx)------------> EnclaveDeployments   intent recorded, id minted
-user    --(fundWithAuthorization)> EnclaveDeployments   USDC -> payout (same tx), balance += value
+user    --(fundWithAuthorization)> EnclaveDeployments   USDC -> payout (same tx; a paid app's publisher
+                                                    cut splits off to their wallet), balance += value
 enclave --(poll getPage)---------> EnclaveDeployments   "anything claimable I can fit?"
 enclave --(claim tx)-------------> EnclaveDeployments   lease taken, min(leaseSec, balance/rate) burned
 enclave --(wasm-manager launch)--> runs the app     same provisioning path as today
@@ -251,6 +252,10 @@ async function claimSweep() {
       if (g.error) continue;
       const mins = minSharesOf(g.min);       // specs / our hardware -> minimum shares
       if (gpuShare < mins.gpuShare - 1e-9 || cpuShare < mins.cpuShare - 1e-9) continue;
+      // publisher-fee gate (rev-4 ledgers + rev-5 catalogs): a paid app's fee
+      // must be snapshotted on the record (feeOf >= versionFee, right payee)
+      // or the publisher never sees a cent — refuse, fail closed, like approval
+      if (await feeGate(d.id, g)) continue;
       await tryClaim(d, g.ref);
     }
     if (page.length < CLAIM_PAGE) break;
@@ -405,9 +410,11 @@ the new enclave. This is the same no-trusted-gateway shape as discovery today.
   survive failover, but the /64 prefix is per relay box; a takeover by an
   enclave behind a different relay changes the address. Client re-resolution
   covers it, long-lived UDP flows don't.
-- **No on-chain refunds to the payer.** Funding is forwarded to `payout`
-  immediately (non-custodial by design); `balance6` is accounting. Refunding a
-  stopped deployment's remainder stays a payout-wallet action, exactly as today.
+- **No on-chain refunds to the payer.** Funding is forwarded immediately — to
+  `payout`, less the publisher's fee cut on a paid app (non-custodial by
+  design); `balance6` is accounting. Refunding a stopped deployment's
+  remainder stays a payout-wallet action, exactly as today (and a publisher's
+  already-forwarded cut is theirs — the split follows the money, not the burn).
 - **Consumed-time attestation** (future note in the .sol): runners posting
   signed usage checkpoints would shrink the dead-runner loss below `leaseSec`.
 
@@ -417,8 +424,8 @@ the new enclave. This is the same no-trusted-gateway shape as discovery today.
 # Base Sepolia dry run (compile + plan, no broadcast; re-emits the ABI):
 DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-deployments.mjs --dry-run --yes
 
-# Base Sepolia (uses REGISTRY_ADDRESS from enclaves/gpu/tinfoil-config.yml; prices are hardcoded
-# in the contract: ~$6/h full GPU card, ~$1/h whole CPU node — no setter txs sent):
+# Base Sepolia (uses REGISTRY_ADDRESS from enclaves/gpu/tinfoil-config.yml; prices and the
+# publisher-fee cap are hardcoded in the contract, owner-adjustable later — no setter txs sent):
 DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-deployments.mjs
 
 # Base MAINNET:
