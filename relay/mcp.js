@@ -911,7 +911,7 @@ export async function handleMcp(req, res, _u) {
       { res.writeHead(405, { Allow: "POST", ...MCP_CORS }); return res.end(); }
     return send(res, 200, { name: SERVER_INFO.name, protocol: "Model Context Protocol (Streamable HTTP)",
       endpoint: "POST JSON-RPC here", tools: TOOLS.length,
-      connect: { "claude code": "claude mcp add --transport http enclave https://mcp.enclave.host/mcp",
+      connect: { "claude code": "claude mcp add --transport http enclave https://mcp.enclave.host",
                  generic: "POST initialize/tools/list/tools/call as JSON-RPC 2.0" },
       docs: "https://enclave.host/develop" });
   }
