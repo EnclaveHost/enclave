@@ -132,7 +132,7 @@ twice.
 ## Documentation & support
 
 - App developers: the guide and API reference live on the site at https://enclave.host/develop
-- Coding agents: MCP server at `https://mcp.enclave.host/mcp` (Streamable HTTP) exposing the full platform surface as tools; state changes come back as unsigned Base transactions, keys stay with the agent (`claude mcp add --transport http enclave https://mcp.enclave.host/mcp`)
+- Coding agents: MCP server at `https://mcp.enclave.host` (Streamable HTTP) exposing the full platform surface as tools; state changes come back as unsigned Base transactions, keys stay with the agent (`claude mcp add --transport http enclave https://mcp.enclave.host`)
 - The underlying confidential-container platform is [Tinfoil](https://docs.tinfoil.sh) ([contact@tinfoil.sh](mailto:contact@tinfoil.sh))
 
 ## License

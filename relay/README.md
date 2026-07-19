@@ -130,10 +130,12 @@ branch runs first, so a tenant app's own `/mcp` path is never shadowed.
 - Read tools self-loop through this relay's own gateway (loopback), so they
   return exactly what external clients see; catalog/ledger reads use
   `BASE_RPC` behind the same address-book repointing as everything else.
-- Serving `mcp.enclave.host` needs a Caddy site block on the fronting box
-  (`reverse_proxy 127.0.0.1:8100`, same as the API host) and a DNS record
-  pointing at it; `/mcp` on the API host works with no extra config.
-- Connect: `claude mcp add --transport http enclave https://mcp.enclave.host/mcp`
+- The canonical endpoint is the bare host: `https://mcp.enclave.host` (any
+  path on that Host serves MCP). Serving it needs a Caddy site block on the
+  fronting box (`reverse_proxy 127.0.0.1:8100`, same as the API host) and a
+  DNS record pointing at it; `/mcp` on the API host is a path-dispatched
+  alias that works with no extra config.
+- Connect: `claude mcp add --transport http enclave https://mcp.enclave.host`
 
 ## UDP relay
 
