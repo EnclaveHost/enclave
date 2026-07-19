@@ -41,10 +41,12 @@ function renderApps(){
     // sees only their own - their one path back (relist, or republish the slug).
     apps = STORE.apps.filter(a => a.versions.length && !a.active && (isOwner || myApp(a)));
   } else if (STORE.filter === "pending"){
-    // the to-review queue: active apps not yet endorsed, with no verdict on
-    // their latest release. The owner sees every one; a publisher sees only
-    // their own - where their app waits while the owner reviews it.
-    apps = STORE.apps.filter(a => a.versions.length && a.active && !appVerified(a) && !appRejected(a)
+    // the to-review queue: active apps whose latest release awaits the owner's
+    // approval verdict. The owner sees every one; a publisher sees only their
+    // own - where their release waits while the owner reviews it. An app with
+    // an older approved version stays in the store meanwhile; this queue
+    // tracks the release, not the listing.
+    apps = STORE.apps.filter(a => a.versions.length && a.active && appPending(a)
                                && (isOwner || myApp(a)));
   } else if (STORE.filter === "rejected"){
     // moderation view: apps whose latest release was rejected (appRejected).
@@ -53,12 +55,14 @@ function renderApps(){
     // Listing state doesn't matter here: a delisted app still shows.
     apps = STORE.apps.filter(a => appRejected(a) && (isOwner || myApp(a)));
   } else {
-    // Approved - the public store and the default tab: active, owner-endorsed
-    // apps with something visible (an app whose every version is yanked/
-    // rejected has nothing to show a normal browser). Everything else lives in
-    // the moderation tabs above, each scoped to the owner + the affected
-    // publisher.
-    apps = STORE.apps.filter(a => a.versions.length && a.active && visibleVerIdxs(a).length && appVerified(a));
+    // Approved - the public store and the default tab: active apps with a
+    // release the owner approved (setApproval - the deploy gate), plus owner-
+    // endorsed/official ones, with something visible (an app whose every
+    // version is yanked/rejected has nothing to show a normal browser).
+    // `verified` stays a curation badge and the sort key below, not the
+    // membership test. Everything else lives in the moderation tabs above,
+    // each scoped to the owner + the affected publisher.
+    apps = STORE.apps.filter(a => a.versions.length && a.active && visibleVerIdxs(a).length && (appApproved(a) || appVerified(a)));
   }
   // search matches only what the viewer can see - a yanked version's CID must
   // not surface an app to someone who'd then find no trace of that version
@@ -75,16 +79,25 @@ function renderApps(){
   }));
 }
 
-// the Rejected tab's membership: the app's LATEST release was rejected.
-// Latest = newest non-yanked entry, so both cleanup paths clear the app from
-// the tab: publish a fixed version (a newer latest, pending) or yank the
-// rejected one. Older rejected versions under a newer release are history,
-// not the app's current state.
-const appRejected = (a) => {
+// Tab membership keys off the owner's per-version APPROVAL verdict (the
+// deploy gate set by the approve/reject buttons) - NOT the separate
+// `verified` endorsement badge. The app's current state is its LATEST
+// release (newest non-yanked entry).
+const latestApproval = (a) => {
   const vs = a.versions || [];
-  for (let i = vs.length - 1; i >= 0; i--) if (!vs[i].yanked) return vs[i].approval === APPROVAL.rejected;
-  return false;
+  for (let i = vs.length - 1; i >= 0; i--) if (!vs[i].yanked) return vs[i].approval;
+  return -1;                                   // every version yanked - no release
 };
+// Rejected tab: the latest release was rejected. Both cleanup paths clear the
+// app from the tab: publish a fixed version (a newer latest, pending) or yank
+// the rejected one. Older rejected versions under a newer release are
+// history, not the app's current state.
+const appRejected = (a) => latestApproval(a) === APPROVAL.rejected;
+// Pending queue: the latest release still awaits a verdict.
+const appPending = (a) => latestApproval(a) === APPROVAL.pending;
+// Store membership: some deployable release - non-yanked and approved (a
+// newer pending version must not un-list the app while it's under review).
+const appApproved = (a) => a.versions.some(v => !v.yanked && v.approval === APPROVAL.approved);
 
 /* The Pending, Rejected and Delisted tabs are the catalog owner's moderation
    surface - always visible to them - and each is ALSO shown to a publisher
@@ -98,7 +111,7 @@ function syncModTabs(me, isOwner){
   const rejected = document.querySelector('#storeFilter button[data-filter="rejected"]');
   const mine = (a) => !!me && a.publisher.toLowerCase() === me;
   const hasOwnDelisted = STORE.apps.some(a => a.versions.length && !a.active && mine(a));
-  const hasOwnPending = STORE.apps.some(a => a.versions.length && a.active && !appVerified(a) && !appRejected(a) && mine(a));
+  const hasOwnPending = STORE.apps.some(a => a.versions.length && a.active && appPending(a) && mine(a));
   const hasOwnRejected = STORE.apps.some(a => appRejected(a) && mine(a));
   if (delisted) delisted.hidden = !(isOwner || hasOwnDelisted);
   if (pending) pending.hidden = !(isOwner || hasOwnPending);
@@ -720,10 +733,10 @@ function renderDetail(appId){
   if (!STORE.loaded){ host.innerHTML = '<div class="loading" role="status">reading catalog from Base…</div>'; return; }
   const app = STORE.byId[appId] || (STORE.apps || []).find(a => a.appId === appId);
   // a direct link to an app with nothing the viewer may see (every version
-  // yanked/rejected, or the app is unverified and the viewer is neither its
-  // publisher nor the catalog owner) reads as absent, same as the grid - not
-  // as an empty page
-  if (!app || !visibleVerIdxs(app).length || !(appVerified(app) || appPrivileged(app))){ host.innerHTML = '<div class="store-note">That app isn’t in the catalog. <a href="apps">← all apps</a></div>'; document.title = "Apps · Enclave"; return; }
+  // yanked/rejected, or nothing approved/endorsed and the viewer is neither
+  // its publisher nor the catalog owner) reads as absent, same as the grid -
+  // not as an empty page
+  if (!app || !visibleVerIdxs(app).length || !(appApproved(app) || appVerified(app) || appPrivileged(app))){ host.innerHTML = '<div class="store-note">That app isn’t in the catalog. <a href="apps">← all apps</a></div>'; document.title = "Apps · Enclave"; return; }
   document.title = app.name + " · Enclave";
   let el = host.querySelector("c-app-detail");
   if (!el){ host.innerHTML = ""; el = document.createElement("c-app-detail"); host.appendChild(el); }
