@@ -1,6 +1,6 @@
 # Enclave
 
-**Confidential compute, for the people.** Enclave is a trustless compute platform you can actually verify: publish a WebAssembly app to an on-chain catalog, fund a deployment straight from your wallet, and it runs inside a hardware-attested enclave (AMD SEV-SNP CPUs + NVIDIA confidential computing on H200 nodes today; Intel TDX quotes verify through the same pipeline) that neither the operator nor the host can see into. TLS terminates inside the enclave, billing is per-second on Base, and the whole chain of trust, from the CPU's attestation quote down to the exact commit of this repo that built the running image, can be verified from a browser before you send the service a byte.
+**Confidential compute, for the people.** Enclave is a trustless compute platform you can actually verify: publish a WebAssembly app to an on-chain catalog, fund a deployment straight from your wallet, and it runs inside a hardware-attested enclave (AMD SEV-SNP CPUs + NVIDIA confidential computing on today's fleet) that neither the operator nor the host can see into. TLS terminates inside the enclave, billing is per-second on Base, and the whole chain of trust, from the CPU's attestation quote down to the exact commit of this repo that built the running image, can be verified from a browser before you send the service a byte.
 
 - **Site / deploy console / app store:** https://enclave.host
 - **Developer guide + API reference:** https://enclave.host/develop (OpenAPI spec: [site/openapi.json](site/openapi.json))
@@ -16,7 +16,7 @@ Your wallet is your account: an Ethereum wallet is the identity, and paying is a
 3. **Enclaves claim the work.** Each enclave self-registers in `EnclaveRegistry`, polls for funded work it can serve, claims it, and runs the app in a wasmtime sandbox: per-tenant process isolation, a private RAM-backed `/data`, no network beyond the served HTTP socket unless the app declares firewall ports.
 4. **Every layer attests.** Tinfoil measures the container image (with a Sigstore transparency-log record tying it to this repo's release), the enclave proves the measurement in its attestation quote, and TLS keys never leave it. The site and CLI verify the full chain client-side before connecting.
 
-Beyond plain web apps: GPU inference via `wasi-nn` (ONNX, GGUF through a bundled llama.cpp backend, and image diffusion through a stable-diffusion.cpp backend, on an MPS-capped slice of an H200), attested read-only **model volumes** mounted at `/models` (Tinfoil Modelwrap; the attestation commits to the exact weight bytes), raw TCP/UDP services behind an SNI relay, and per-deployment dedicated IPv6 (inbound and outbound).
+Beyond plain web apps: GPU inference via `wasi-nn` (ONNX, GGUF through a bundled llama.cpp backend, and image diffusion through a stable-diffusion.cpp backend, on an MPS-capped GPU slice), attested read-only **model volumes** mounted at `/models` (Tinfoil Modelwrap; the attestation commits to the exact weight bytes), raw TCP/UDP services behind an SNI relay, and per-deployment dedicated IPv6 (inbound and outbound).
 
 ## Repository layout
 
@@ -44,7 +44,7 @@ Beyond plain web apps: GPU inference via `wasi-nn` (ONNX, GGUF through a bundled
 - **`gpuShare`** (0–100%): a slice of ONE GPU card. VRAM and compute move together: the same fraction caps both (MPS compute % + VRAM cap). 0 = CPU-only app.
 - **`cpuShare`** (1–100%): a slice of the node's vCPU+RAM. The wasm guest's memory cap is that slice of the node's RAM.
 
-The app's specs set the **minimum shares**: each pool's floor is the spec divided by the server's spec, taking the **larger** of the memory and compute axes, rounded up to the whole percent. Server specs: H200 = 141 GB / 989 TFLOPS (VRAM is probed from the card at boot via `nvidia-smi memory.total`, `GPU_VRAM_GB` is only the fallback; compute via `GPU_TFLOPS`); node = 64 GB / ~1000 GFLOPS (`NODE_RAM_GB`/`NODE_GFLOPS`; CPU compute is denominated in GFLOPS because a whole node is only ~1/1000 of a card). A GPU app's CPU minimum also lifts its GPU minimum, because of the invariant: **`gpuShare >= cpuShare` whenever `gpuShare > 0`** (a GPU app's CPU slice rides on the same node as its card). Runners enforce the minimums at deploy and claim time; the site's deploy page floors its two dials at them.
+The app's specs set the **minimum shares**: each pool's floor is the spec divided by the server's spec, taking the **larger** of the memory and compute axes, rounded up to the whole percent. Server specs on today's fleet: card = 141 GB / 989 TFLOPS (VRAM is probed from the card at boot via `nvidia-smi memory.total`, `GPU_VRAM_GB` is only the fallback; compute via `GPU_TFLOPS`); node = 64 GB / ~1000 GFLOPS (`NODE_RAM_GB`/`NODE_GFLOPS`; CPU compute is denominated in GFLOPS because a whole node is only ~1/1000 of a card). A GPU app's CPU minimum also lifts its GPU minimum, because of the invariant: **`gpuShare >= cpuShare` whenever `gpuShare > 0`** (a GPU app's CPU slice rides on the same node as its card). Runners enforce the minimums at deploy and claim time; the site's deploy page floors its two dials at them.
 
 The leftovers are the point: a tenant buying 100% GPU + 10% CPU leaves 90% of that node's CPU/RAM rentable by CPU-only apps. Pricing is additive: `rate = gpuShare × cardRate + cpuShare × nodeRate`, per second. The current rates live on-chain in `EnclaveDeployments` and are shown live on [enclave.host](https://enclave.host).
 
@@ -56,7 +56,7 @@ The service runs as a [Tinfoil container](https://docs.tinfoil.sh/containers/ove
 
 - `enclaves/gpu/tinfoil-config.yml`: GPU flavor (supervisor + MPS daemon + GPU worker + wasm-manager). Serves GPU deployments, plus CPU-only deployments out of leftover CPU/RAM. Released as `vX.Y.Z` via `gh workflow run tinfoil-release.yml -f version=vX.Y.Z`.
 - `enclaves/cpu/tinfoil-config.yml`: CPU flavor (supervisor + wasm-manager only, `GPU_COUNT=0`). Serves CPU-only deployments (GPU asks are refused with a 422). Released as `vX.Y.Z-cpu` via `tinfoil-release-cpu.yml`.
-- `enclaves/gpu8/tinfoil-config.yml`: the 8×GPU tenant-compute flavor (the same four containers as the GPU flavor, scaled to 8 H200s). Released via `tinfoil-release-gpu8.yml`.
+- `enclaves/gpu8/tinfoil-config.yml`: the 8×GPU tenant-compute flavor (the same four containers as the GPU flavor, scaled to 8 cards). Released via `tinfoil-release-gpu8.yml`.
 
 To spin up a CPU enclave:
 
