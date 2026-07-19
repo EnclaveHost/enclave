@@ -402,6 +402,13 @@ function need(n){ const v = process.env[n]; if(!v){ console.error("FATAL: missin
 // slots that fail at the infrastructure level.
 const APP_CERT_DOMAIN = (process.env.APP_CERT_DOMAIN || "").trim().replace(/^\*?\./, "").replace(/\.$/, "").toLowerCase(); // e.g. "app.enclave.host"
 const DNS_API         = (process.env.DNS_API || "").trim().replace(/\/+$/, "");  // platform DNS daemon's TXT push API
+// Account contact, sent on every newAccount when set. Google Trust Services
+// REJECTS contactless registrations ("Accounts must have at least one
+// contact", found 2026-07-19 by scripts/acme-eab-check.mjs); ZeroSSL and
+// Let's Encrypt accept-and-ignore a contact, so sending it everywhere is
+// safe. A bare address gets the mailto: prefix; no CA email-verifies it.
+const _contactRaw  = (process.env.ACME_CONTACT || "").trim();
+const ACME_CONTACT = _contactRaw && (_contactRaw.includes(":") ? _contactRaw : `mailto:${_contactRaw}`);
 // A slot may carry a PROVISIONER instead of (or beside) a static EAB pair:
 // ACME_EAB_PROVISION<suf> = a GCP service-account key (the JSON, or base64 of
 // it) holding roles/publicca.externalAccountKeyCreator. Google's EAB secrets
@@ -3404,6 +3411,7 @@ async function acmeAccount(ca) {
               : ca.eabProvision ? await gtsMintEab(ca) : null;
     const r = await acmePost(ca, dir.newAccount,
       { termsOfServiceAgreed: true,
+        ...(ACME_CONTACT ? { contact: [ACME_CONTACT] } : {}),
         ...(eab ? { externalAccountBinding: eabJws(eab.kid, eab.hmac, ca.account.jwk, dir.newAccount) } : {}) },
       { useJwk: true });
     ca.account.kid = r.headers.get("location");

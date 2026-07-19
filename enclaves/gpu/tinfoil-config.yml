@@ -192,6 +192,10 @@ containers:
       # activates only when the ACME_EAB_* secrets below are ALSO set.
       - APP_CERT_DOMAIN: "app.enclave.host"
       - DNS_API: "http://46.62.128.36:8153"              # dns-relay TXT push API (nan-relay box)
+      # ACME account contact: REQUIRED by Google Trust Services (contactless
+      # registrations are rejected); ZeroSSL/LE accept and ignore it. Never
+      # email-verified by any CA.
+      - ACME_CONTACT: "mailto:admin@enclave.host"
       # FALLBACK CA (slot 2): tried whenever the primary (ACME_DIRECTORY,
       # default ZeroSSL) is failing - added after the 2026-07-18 blackout when
       # ZeroSSL/Sectigo's whole ACME plane became a maintenance page. Google
