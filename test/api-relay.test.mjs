@@ -13,6 +13,7 @@ import { once } from "node:events";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import os from "node:os";
 
 const RELAY_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "relay");
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -91,7 +92,8 @@ async function startRelay(t, { enclaves, ledger }) {
   const port = await freePort();
   const child = spawn(process.execPath, [path.join(RELAY_DIR, "api-relay.js")], {
     env: { ...process.env, ENCLAVES: enclaves, API_RELAY_PORT: String(port), API_RELAY_BIND: "127.0.0.1",
-           BASE_RPC: `http://127.0.0.1:${rpc.address().port}`, DEPLOYMENTS_ADDRESS: "0x" + "12".repeat(20) },
+           BASE_RPC: `http://127.0.0.1:${rpc.address().port}`, DEPLOYMENTS_ADDRESS: "0x" + "12".repeat(20),
+           FEATURED_VIEWS_FILE: path.join(os.tmpdir(), `feat-views-${port}.json`) },
     stdio: ["ignore", "pipe", "pipe"],
   });
   child.stderr.on("data", (d) => process.stderr.write("[relay] " + d));
@@ -302,4 +304,23 @@ test("api-relay: a leased id missing from its live runner's own list downgrades 
   const anonBy = Object.fromEntries(anon.body.data.map((r) => [r.id, r]));
   assert.equal(anonBy[ID("99")].status, "running");
   assert.equal(anonBy[ID("99")].stranded, undefined);
+});
+
+// ---------- featured-slot view metering --------------------------------------
+test("api-relay: featured-view metering — counts once per client per day, serves lifetime totals", async (t) => {
+  const origin = await startRelay(t, { enclaves: "http://127.0.0.1:1" });
+  const app = "0x" + "ab".repeat(32);
+  const post = (body) => fetch(origin + "/v1/featured-view", { method: "POST", body });
+
+  assert.equal((await post(JSON.stringify({ app }))).status, 200);
+  assert.equal((await post(JSON.stringify({ app }))).status, 200);   // same client+app+day: accepted, not re-counted
+
+  const { views } = await (await fetch(origin + "/v1/featured-views")).json();
+  assert.equal(views[app], 1, "the second beacon from the same client deduped");
+
+  assert.equal((await post("{}")).status, 400, "missing app refused");
+  assert.equal((await post(JSON.stringify({ app: "not-an-id" }))).status, 400, "malformed app refused");
+
+  const after = await (await fetch(origin + "/v1/featured-views")).json();
+  assert.equal(after.views[app], 1, "refused beacons count nothing");
 });

@@ -18,8 +18,8 @@
 import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { Enclave } from "../../js/core/api.js";
 import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
-import { baseRpc, waitReceipt, encCall, encAddr, hexBig } from "../../js/core/chain.js";
-import { ADDRESS_BOOK_ADDRESS, USDC_BASE } from "../../js/core/config.js";
+import { baseRpc, waitReceipt, encCall, encAddr, hexBig, decodeStructArray, CAMPAIGN_SCHEMA } from "../../js/core/chain.js";
+import { ADDRESS_BOOK_ADDRESS, USDC_BASE, DEFAULT_API_BASE } from "../../js/core/config.js";
 import { esc, on, short, showToast } from "../../js/core/util.js";
 import { CONTRACTS } from "../../js/gen/contract-artifacts.js";
 import { MIG_KINDS, importState, sealTx } from "./migrate.js";
@@ -30,7 +30,7 @@ const ZERO = "0x" + "0".repeat(40);
 const KEY_RE = /^[A-Za-z0-9_-]{1,31}$/;
 
 /* the book panel's row order; other (custom) keys found on-chain follow */
-const BOOK_KEYS = ["registry", "deployments", "appCatalog", "enclavePay"];
+const BOOK_KEYS = ["registry", "deployments", "appCatalog", "enclavePay", "featured"];
 
 const lc = (a) => (a || "").toLowerCase();
 const isZero = (a) => !a || /^0x0{40}$/i.test(a);
@@ -134,15 +134,28 @@ class AdminConsole extends EnclaveElement {
       S.book.entries = decodeBook(allHex);
       const E = S.book.entries;
 
-      const dep = E.deployments, cat = E.appCatalog, pay = E.enclavePay;
-      const dSel = CONTRACTS.EnclaveDeployments.sel, pSel = CONTRACTS.EnclavePay.sel;
-      [S.dep, S.cat, S.pay] = await Promise.all([
+      const dep = E.deployments, cat = E.appCatalog, pay = E.enclavePay, feat = E.featured;
+      const dSel = CONTRACTS.EnclaveDeployments.sel, pSel = CONTRACTS.EnclavePay.sel, fSel = CONTRACTS.EnclaveFeatured.sel;
+      // the featured campaign list + the gateway's view counter (both soft:
+      // a fresh deploy has no campaigns, the relay may not be updated yet)
+      const readCampaigns = async () => {
+        const n = Number(await rdUint(feat, fSel.campaignCount));
+        const out = [];
+        for (let s = 0; s < n; s += 100)
+          out.push(...decodeStructArray(await call(feat, encCall(fSel.getCampaignsPage, [{ t: "uint", v: s }, { t: "uint", v: 100 }])), CAMPAIGN_SCHEMA));
+        return out;
+      };
+      [S.dep, S.cat, S.pay, S.feat] = await Promise.all([
         dep ? Promise.all([rdAddr(dep, dSel.owner), rdAddr(dep, dSel.payout), rdUint(dep, dSel.pricePerSec6), rdUint(dep, dSel.cpuPricePerSec6), rdUint(dep, dSel.leaseSec), rdAddr(dep, dSel.ethUsdFeed), rdAddrSoft(dep, dSel.pendingOwner), rdUintSoft(dep, dSel.maxGpuMilli), rdUintSoft(dep, dSel.maxFeePerSec6)])
               .then(([owner, payout, gpu, cpu, lease, feed, pending, maxGpu, maxFee]) => ({ addr: dep, owner, payout, gpu, cpu, lease, feed, pending, maxGpu, maxFee })) : null,
         cat ? Promise.all([rdAddr(cat, CONTRACTS.EnclaveAppCatalog.sel.owner), rdAddrSoft(cat, CONTRACTS.EnclaveAppCatalog.sel.pendingOwner), rdUintSoft(cat, CONTRACTS.EnclaveAppCatalog.sel.maxFeePerSec6)])
               .then(([owner, pending, maxFee]) => ({ addr: cat, owner, pending, maxFee })) : null,
         pay ? Promise.all([rdAddr(pay, pSel.owner), rdAddr(pay, pSel.payout), rdAddr(pay, pSel.usdc), rdAddrSoft(pay, pSel.pendingOwner)])
               .then(([owner, payout, usdc, pending]) => ({ addr: pay, owner, payout, usdc, pending })) : null,
+        feat ? Promise.all([rdAddr(feat, fSel.owner), rdAddr(feat, fSel.payout), rdUint(feat, fSel.maxBidPerView6), rdAddrSoft(feat, fSel.pendingOwner),
+                            readCampaigns().catch(() => []),
+                            fetch(DEFAULT_API_BASE + "/featured-views").then((r) => r.json()).then((j) => j.views || {}).catch(() => null)])
+              .then(([owner, payout, maxBid, pending, campaigns, views]) => ({ addr: feat, owner, payout, maxBid, pending, campaigns, views })) : null,
       ]);
       this._note.hidden = true;
       this._paint();
@@ -171,6 +184,7 @@ class AdminConsole extends EnclaveElement {
     chip("deployments", S.dep && S.dep.owner);
     chip("catalog", S.cat && S.cat.owner);
     chip("pay", S.pay && S.pay.owner);
+    chip("featured", S.feat && S.feat.owner);
     el.innerHTML = `<span class="ac-who">signing as <b class="ac-addr">${esc(Enclave.address)}</b></span>${chips.join("")}
       <button class="btn btn-sm ac-refresh" data-refresh>↻ Refresh</button>`;
     const r = el.querySelector("[data-refresh]");
@@ -244,6 +258,32 @@ class AdminConsole extends EnclaveElement {
     }
 
 
+    /* -- featured slot -- */
+    if (S.feat) {
+      const f = S.feat;
+      const perK = (b) => "$" + (Number(b) * 1000 / 1e6).toFixed(2);
+      const usd = (b) => "$" + (Number(b) / 1e6).toFixed(2);
+      const rows = (f.campaigns || []).map((c) => {
+        const views = f.views ? (f.views[c.appId] || 0) : null;
+        const settledEst = c.bidPerView6 > 0 ? Math.floor(Number(c.spent6) / Number(c.bidPerView6)) : 0;
+        const suggest = views == null ? "" : Math.max(0, views - settledEst);
+        const id = "featsettle" + c.appId.slice(2, 10);
+        return `<div class="ac-row">
+          <div class="ac-lbl" id="lbl-${id}"><code title="${esc(c.appId)}">${esc(short(c.appId))}</code> by ${esc(short(c.advertiser))}
+            <span class="ac-hint">${c.active ? "active" : "PAUSED"} · <button class="btn btn-sm" data-act="feat-active:${esc(c.appId)}:${c.active ? 0 : 1}" data-owner="${esc(f.owner)}">${c.active ? "pause" : "resume"}</button></span></div>
+          <div class="ac-cur">${perK(c.bidPerView6)}/1k · bal ${usd(c.balance6)} · spent ${usd(c.spent6)}${views == null ? "" : ` · <b>${views}</b> lifetime views (≈${settledEst} settled)`}</div>
+          <input class="ac-in" id="in-${id}" data-for="feat-settle:${esc(c.appId)}" aria-labelledby="lbl-${id}" type="text" placeholder="views to settle" value="${suggest}" spellcheck="false" autocomplete="off" />
+          <span class="ac-live" id="live-${id}"></span>
+          <button class="btn btn-sm ac-apply" data-act="feat-settle:${esc(c.appId)}" data-owner="${esc(f.owner)}">Settle</button>
+        </div>`;
+      }).join("");
+      parts.push(sec(`EnclaveFeatured · ${link(f.addr)}`,
+        `The store's featured slot: per-view campaigns escrow USDC; settle a metered view count to draw bid × views to the payout (capped at the escrow - the meter can only ever under-charge). Lifetime views come from the gateway (${esc(DEFAULT_API_BASE)}/featured-views); "≈ settled" assumes the bid hasn't changed. Owner ${mono(f.owner)}.`,
+        this._row("Bid cap <code>setMaxBid</code>", `${f.maxBid} <span class="dim">(µUSDC per view · ${perK(f.maxBid)}/1k max)</span>`, "feat-maxbid", { owner: f.owner, placeholder: String(f.maxBid), hint: "µUSDC/view" }) +
+        this._row("Payout <code>setPayout</code>", mono(f.payout), "feat-payout", { owner: f.owner }) +
+        (rows || `<div class="ac-row"><div class="ac-lbl">Campaigns</div><div class="ac-cur"><span class="dim">none yet - publishers open them from the Apps page ("Promote your app")</span></div><span></span><span></span><span></span></div>`)));
+    }
+
     /* -- catalog pointer -- */
     if (S.cat) {
       parts.push(sec(`EnclaveAppCatalog · ${link(S.cat.addr)}`,
@@ -311,6 +351,7 @@ class AdminConsole extends EnclaveElement {
         S.dep && { label: "EnclaveDeployments", fn: "setOwner", to: S.dep.addr, cur: S.dep.owner, pending: S.dep.pending, sel: dSel.setOwner, accSel: dSel.acceptOwnership, act: "own-dep" },
         S.cat && { label: "EnclaveAppCatalog", fn: "transferOwnership", to: S.cat.addr, cur: S.cat.owner, pending: S.cat.pending, sel: cSel.transferOwnership, accSel: cSel.acceptOwnership, act: "own-cat" },
         S.pay && { label: "EnclavePay", fn: "setOwner", to: S.pay.addr, cur: S.pay.owner, pending: S.pay.pending, sel: pSel.setOwner, accSel: pSel.acceptOwnership, act: "own-pay" },
+        S.feat && { label: "EnclaveFeatured", fn: "transferOwnership", to: S.feat.addr, cur: S.feat.owner, pending: S.feat.pending, sel: CONTRACTS.EnclaveFeatured.sel.transferOwnership, accSel: CONTRACTS.EnclaveFeatured.sel.acceptOwnership, act: "own-feat" },
       ].filter(Boolean);
       this._ownRows = Object.fromEntries(rows.map((r) => [r.act, r]));
       const inner = rows.map((r) => {
@@ -447,7 +488,7 @@ class AdminConsole extends EnclaveElement {
         if (!need(/^\d+$/.test(v) && +v >= 60 && +v <= 86400, "lease must be 60…86400 seconds")) return;
         return void this._tx(S.dep.addr, encCall(dSel.setLeaseSec, [{ t: "uint", v }]), `setLeaseSec(${v})`, panelStatus, true);
       }
-      if (act === "dep-feed" || act === "dep-payout" || act === "pay-payout") {
+      if (act === "dep-feed" || act === "dep-payout" || act === "pay-payout" || act === "feat-payout") {
         const v = inputFor(act);
         if (!need(ADDR_RE.test(v), "enter a 0x… address (40 hex)")) return;
         if (act !== "dep-feed" && !need(!isZero(v), "the zero address is rejected by the contract")) return;
@@ -455,9 +496,30 @@ class AdminConsole extends EnclaveElement {
           "dep-feed":   [S.dep.addr, dSel.setEthUsdFeed, "setEthUsdFeed"],
           "dep-payout": [S.dep.addr, dSel.setPayout, "setPayout"],
           "pay-payout": [S.pay.addr, CONTRACTS.EnclavePay.sel.setPayout, "setPayout"],
+          "feat-payout": [S.feat && S.feat.addr, CONTRACTS.EnclaveFeatured.sel.setPayout, "setPayout"],
         };
         const [to, sel, fn] = map[act];
         return void this._tx(to, encCall(sel, [{ t: "addr", v }]), `${fn}(${short(v)})`, panelStatus, true);
+      }
+
+      /* featured slot */
+      const fSel = CONTRACTS.EnclaveFeatured.sel;
+      if (act === "feat-maxbid") {
+        const v = inputFor(act);
+        if (!need(/^\d+$/.test(v) && BigInt(v) > 0n, "cap is a positive integer in µUSDC per view (10000 = $10.00 per 1k views)")) return;
+        return void this._tx(S.feat.addr, encCall(fSel.setMaxBid, [{ t: "uint", v }]),
+          `setMaxBid(${v}) — $${(Number(v) * 1000 / 1e6).toFixed(2)}/1k cap`, panelStatus, true);
+      }
+      if (act.startsWith("feat-settle:")) {
+        const appId = act.slice(12), v = inputFor(act);
+        if (!need(/^\d+$/.test(v) && BigInt(v) > 0n, "enter the number of metered views to settle (a positive integer)")) return;
+        return void this._tx(S.feat.addr, encCall(fSel.settle, [{ t: "bytes32", v: appId }, { t: "uint", v }]),
+          `settle(${short(appId)}, ${v} views)`, panelStatus, true);
+      }
+      if (act.startsWith("feat-active:")) {
+        const [, appId, on2] = act.split(":");
+        return void this._tx(S.feat.addr, encCall(fSel.setActive, [{ t: "bytes32", v: appId }, { t: "bool", v: on2 === "1" }]),
+          `setActive(${short(appId)}, ${on2 === "1"})`, panelStatus, true);
       }
 
       /* ownership handoffs (step 1: nominate) */

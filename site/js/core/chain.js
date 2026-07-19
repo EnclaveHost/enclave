@@ -4,7 +4,7 @@
    EnclaveDeployments / EnclaveAppCatalog contract surface.
    No web3 library loads on the site.
    ============================================================ */
-import { APP_CATALOG_ADDRESS, DEPLOYMENTS_ADDRESS, APP_CATALOG_CHAIN, APP_CATALOG_RPCS } from "./config.js";
+import { APP_CATALOG_ADDRESS, DEPLOYMENTS_ADDRESS, FEATURED_ADDRESS, APP_CATALOG_CHAIN, APP_CATALOG_RPCS } from "./config.js";
 import { EnclaveError } from "./api.js";
 import { wait } from "./util.js";
 
@@ -85,6 +85,34 @@ export const VER_SCHEMA = [
 
 export function catConfigured(){ return APP_CATALOG_ADDRESS && !/^0x0+$/i.test(APP_CATALOG_ADDRESS); }
 export function catExplorer(){ return APP_CATALOG_CHAIN === 84532 ? "https://sepolia.basescan.org" : "https://basescan.org"; }
+
+/* ---- EnclaveFeatured: the store's featured slot, sold by per-view bid ----
+   Campaigns escrow USDC per appId; readers rank the standing bids (highest
+   funded bid whose app is approved + listed wins - the RANKING lives here on
+   the read side by design, see the contract header). Selectors from
+   site/js/gen/contract-artifacts.js (viem-derived). */
+export const FEAT_SEL = {
+  campaignCount:"7274e30d", getCampaignsPage:"8f5825d8", getCampaign:"cabe0452",
+  featuredSchema:"ac580698", maxBidPerView6:"37ab19a0",
+  place:"22525b0e", fund:"e46bbc9e", fundAuth:"209c0069",   // fund/fundAuth are signature-identical to the deployments pair
+  withdraw:"040cf020", setActive:"6485d678", settle:"79f48d4c",
+};
+export const CAMPAIGN_SCHEMA = [   // mirrors EnclaveFeatured.Campaign field order exactly (featuredSchema 1)
+  {k:"appId",t:"bytes32"},{k:"advertiser",t:"addr"},{k:"bidPerView6",t:"uint"},
+  {k:"balance6",t:"uint"},{k:"spent6",t:"uint"},{k:"createdAt",t:"uint"},{k:"active",t:"bool"},
+];
+export function featConfigured(){ return FEATURED_ADDRESS && !/^0x0+$/i.test(FEATURED_ADDRESS); }
+export async function featCall(data){
+  return (await baseRpc("eth_call", [{ to: FEATURED_ADDRESS, data }, "latest"], { emptyRetry: true })) || "0x";
+}
+export async function featGetCampaigns(){
+  const n = Number(hexBig(await featCall("0x" + FEAT_SEL.campaignCount)));
+  const out = []; const PAGE = 100;
+  for (let s = 0; s < n; s += PAGE)
+    out.push(...decodeStructArray(await featCall(encCall(FEAT_SEL.getCampaignsPage, [{t:"uint",v:s},{t:"uint",v:PAGE}])), CAMPAIGN_SCHEMA));
+  return out;
+}
+export async function featMaxBid(){ return hexBig(await featCall("0x" + FEAT_SEL.maxBidPerView6)); }
 
 /* ---- read side: JSON-RPC against a POOL of public Base RPCs ----
    Rotates to the next endpoint on transport errors and rate limits; a
@@ -220,8 +248,12 @@ export function decodeStructArray(hex, schema){
   const rb32 = (o) => "0x" + buf.slice(o * 2, o * 2 + 64);
   const rstr = (o) => { const len = Number(ru(o)); const s = (o + 32) * 2; return hexToUtf8(buf.slice(s, s + len * 2)); };
   const arrOff = Number(ru(0)), len = Number(ru(arrOff)), elems = arrOff + 32, out = [];
+  // a struct with no dynamic members (no strings) encodes its array elements
+  // INLINE - no per-element offset table (EnclaveFeatured.Campaign); dynamic
+  // structs (catalog App/Version, Deployment) go through the offset words
+  const isStatic = !schema.some(f => f.t === "str");
   for (let k = 0; k < len; k++){
-    const ts = elems + Number(ru(elems + k * 32)), obj = {};
+    const ts = isStatic ? elems + k * schema.length * 32 : elems + Number(ru(elems + k * 32)), obj = {};
     schema.forEach((f, fi) => {
       const w = ts + fi * 32;
       if (f.t === "str") obj[f.k] = rstr(ts + Number(ru(w)));

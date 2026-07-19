@@ -77,6 +77,11 @@ export async function payForRuntime(pay, fundUsdc, asset, log){
   const ledger = !(pay && pay.forwarder);
   const to = pay && (pay.forwarder || pay.contract);
   if (!to) throw new EnclaveError("No payment instructions (neither a forwarder nor the deployments contract was returned).", 0);
+  // The EnclaveFeatured campaign escrow shares the deployments pair's exact
+  // calldata shape, so it funds through here too - with its own narration
+  // (escrowed, withdrawable) instead of the deployment copy (forwarded).
+  const buys = (pay && pay.buys) || "buys runtime";
+  const creditLine = (pay && pay.creditLine) || null;
   await ensureBaseChain();
   const amt6 = usdc6(fundUsdc);                       // cent-rounded 6dp USDC
   if (amt6 <= 0n) throw new EnclaveError("Fund at least $0.01 (USDC).", 0);
@@ -105,10 +110,10 @@ export async function payForRuntime(pay, fundUsdc, asset, log){
     const ah = await sendTx(pay.usdc, dataApprove(to, amt6));
     log("dimln", "  ↳ sent " + ah + " · waiting for confirmation…");
     await waitReceipt(ah);   // fund()'s transferFrom pulls the allowance, so it must be mined first
-    log("info", "[*] fund " + usd + " USDC · buys runtime… (wallet · tx 2 of 2)");
+    log("info", "[*] fund " + usd + " USDC · " + buys + "… (wallet · tx 2 of 2)");
     const ph = await sendTx(to, dataFund(pay.deploymentRef, amt6));
     log("ok", "[✓] payment sent " + ph);
-    log("dimln", "    credited to the deployment's on-chain balance; funds forward to Enclave - nothing is custodied");
+    log("dimln", creditLine || "    credited to the deployment's on-chain balance; funds forward to Enclave - nothing is custodied");
     return ph;
   }
   // EIP-3009: the nonce must start with the deployment ref's first 16 bytes (the
@@ -142,11 +147,11 @@ export async function payForRuntime(pay, fundUsdc, asset, log){
     const v = parseInt(sig.slice(-2), 16);
     if (v === 0 || v === 1) sig = sig.slice(0, -2) + (v + 27).toString(16);
   }
-  log("info", "[*] pay " + usd + " USDC · buys runtime… (wallet · one tx, no approve)");
+  log("info", "[*] pay " + usd + " USDC · " + buys + "… (wallet · one tx, no approve)");
   const ph = await sendTx(to, (ledger ? dataFundWithAuth : dataPayWithAuth)(pay.deploymentRef, Enclave.address, amt6, 0, validBefore, nonce, sig));
   log("ok", "[✓] payment sent " + ph);
-  log("dimln", ledger
+  log("dimln", creditLine || (ledger
     ? "    credited to the deployment's on-chain balance; funds forward in the same tx (a paid app's publisher cut goes straight to their wallet) - nothing is custodied"
-    : "    funds go straight to Enclave; nothing is custodied");
+    : "    funds go straight to Enclave; nothing is custodied"));
   return ph;
 }

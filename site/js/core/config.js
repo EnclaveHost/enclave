@@ -33,6 +33,7 @@ export const ADDRESS_BOOK_ADDRESS = "0xab214342d5A490150A4A977063A2f88E21F80907"
 export let APP_CATALOG_ADDRESS = "0xaB0462E55c18E295A221e4Eaa8738F25eB0696D7"; // EnclaveAppCatalog on Base; written automatically by scripts/deploy-app-catalog.mjs
 export let DEPLOYMENTS_ADDRESS = "0x0A7dE5D205c10B812AbaF0b89f3A243466bCEe01"; // EnclaveDeployments on Base; written automatically by scripts/deploy-deployments.mjs
 export let REGISTRY_ADDRESS    = "";                            // EnclaveRegistry (fleet membership); resolved from the address book only
+export let FEATURED_ADDRESS    = "";                            // EnclaveFeatured (featured-slot view bids); resolved from the address book only - "" = editorial featured pick, no bidding UI
 export const APP_CATALOG_CHAIN   = 8453;                        // Base mainnet (kept in sync by the deploy script; 84532 = Base Sepolia)
 
 /* apply an address-book map ({appCatalog, deployments}) onto the live
@@ -48,6 +49,9 @@ export function __applyAddresses(map){
   }
   if (map && ok(map.registry) && map.registry.toLowerCase() !== REGISTRY_ADDRESS.toLowerCase()){
     REGISTRY_ADDRESS = map.registry; changed.push("REGISTRY_ADDRESS");
+  }
+  if (map && ok(map.featured) && map.featured.toLowerCase() !== FEATURED_ADDRESS.toLowerCase()){
+    FEATURED_ADDRESS = map.featured; changed.push("FEATURED_ADDRESS");
   }
   return changed;
 }
