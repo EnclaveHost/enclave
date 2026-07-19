@@ -120,6 +120,14 @@ MIN_MEM_MB   = int(os.environ.get("WASM_APP_MIN_MEM_MB", "64"))
 # while everything else was healthy). Later launches hit wasmtime's compile
 # cache and open the port in seconds.
 READY_SECS   = float(os.environ.get("WASM_READY_TIMEOUT", "150"))
+# how long launch() waits for a wanted model volume to finish mounting before
+# failing the launch (node boot races the Modelwrap dm-verity mounts). Sized
+# so VOL_READY_SECS + READY_SECS stays under the supervisor's 300s spawn
+# budget - beyond it, fail fast and let the supervisor's backoff retry.
+VOL_READY_SECS = float(os.environ.get("WASM_VOL_READY_TIMEOUT", "90"))
+# how long the boot preload may take before the tenant is declared broken
+# (_watch_preloads). Generous: a split 60GB family lifts EROFS -> VRAM.
+NN_PRELOAD_VERIFY_SECS = float(os.environ.get("WASM_NN_PRELOAD_VERIFY_TIMEOUT", "900"))
 # boot warmup (app-config `warmup` key): how long the background GET may take.
 # Generous on purpose - its whole job is pulling big weights into VRAM.
 WARMUP_SECS  = float(os.environ.get("WASM_WARMUP_TIMEOUT", "600"))
@@ -865,7 +873,12 @@ def _model_volumes() -> dict:
          the optional third field picks the gguf out of a multi-quant repo.
     Returns {name: {"name", "path", "bytes", "onnx": bool, "gguf": bool,
     "sd": bool, "files": [top-level]}}.
-    Only existing directories with a servable name are returned."""
+    Only existing NON-EMPTY directories with a servable name are returned: an
+    empty dir is a mount point whose dm-verity image hasn't mounted yet (the
+    Modelwrap fetch at enclave boot), not an attached volume. Advertising or
+    launching against one bakes a no-preload tenant that stays broken for its
+    whole life - load_by_name() can never find a graph the boot preload never
+    registered (seen live 2026-07-18: qwen3.5-9b NotFound on a healthy mount)."""
     out = {}
     def add(name, path):
         name = str(name).strip()
@@ -876,6 +889,8 @@ def _model_volumes() -> dict:
             top = sorted(x.name for x in p.iterdir())[:32]
         except OSError:
             top = []
+        if not top:
+            return   # bare mount point: the volume image isn't mounted (yet)
         onnx = _onnx_volume(p)
         # a GGUF volume doubles as a host-preloaded wasi-nn graph (the ggml
         # backend) when one unambiguous file exists or MODEL_VOLUMES picks it;
@@ -1939,8 +1954,12 @@ def _alloc_ports(pspec) -> dict:
 
 def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdir=None,
                nn=False, enclave_config=None, vol_mounts=None, egress=None, egress_transparent=None,
-               enc=None, gpu_share: float = 0.0):
+               enc=None, gpu_share: float = 0.0, nn_report=None):
     """The wasmtime invocation for a ports spec. Returns (cmd, host_port, wait_ports).
+    `nn_report`, when a dict, is filled with the wasi-nn preload plan:
+    {"emitted": [vol...], "skipped": {vol: why}, "stages": {vol: "kind::dir"}}
+    - what launch() records on the tenant so the preload watchdog and the log
+    verifier can hold the boot to it.
 
     serve mode: `wasmtime serve` owns the one HTTP listener; no sockets granted.
     run mode:   `wasmtime run` with wasi:sockets granted (-Stcp/-Sudp/
@@ -2059,12 +2078,16 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
             if os.environ.get(k, "").strip():
                 vol_args += ["--env", f"{k}={os.environ[k].strip()}"]
         vram_stages = []  # (bytes, name, kind, stage)
+        emitted = []      # volume names whose graphs went on the cmdline, in order
+        skipped = {}      # volume -> why it did NOT preload
+        stages = {}       # volume -> "kind::stagedir" as the -S flag spells it
         for name, host_path in vol_mounts.items():
             # MODEL_VOLUMES_SD volumes preload through the sdcpp backend
             # (image txt2img pipelines: safetensors/ckpt checkpoints, FLUX
             # gguf quants); everything else with a GGUF is an LLM for ggml.
             if name in _SD_VOLUMES:
                 if not support["sd"]:
+                    skipped[name] = "toolchain lacks sd preload"
                     print(f"[nn-graph] sd volume '{name}': toolchain lacks sd preload - mounting only", flush=True)
                     continue
                 mode, ckpt = _sd_layout(name, host_path)
@@ -2075,20 +2098,27 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
                     stage = _stage_onnx_dir(name, host_path)
                     if stage:
                         vram_stages.append((_staged_bytes(stage), name, "sd", stage))
+                    else:
+                        skipped[name] = "staging failed"
                     continue
                 if not ckpt:
+                    skipped[name] = "no unambiguous checkpoint"
                     print(f"[nn-graph] sd volume '{name}': no unambiguous checkpoint "
                           f"and the ENCLAVE_SD_*_FILE envs don't resolve here - mounting only", flush=True)
                     continue
                 stage = _stage_nn_graph(name, ckpt)
                 if stage:
                     vram_stages.append((_staged_bytes(stage), name, "sd", stage))
+                else:
+                    skipped[name] = "staging failed"
                 continue
             gguf = _gguf_path(name, host_path)
             if gguf:
                 stage = _stage_nn_graph(name, gguf)
                 if stage:
                     vram_stages.append((_staged_bytes(stage), name, "ggml", stage))
+                else:
+                    skipped[name] = "staging failed"
                 continue
             # ONNX volumes preload too (every *.onnx registers as
             # "<volume>/<component>"; guests load_by_name and skip the
@@ -2097,20 +2127,46 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
             # apps built against the old contract keep working unchanged.
             if _onnx_volume(host_path):
                 if not support["onnx"]:
+                    skipped[name] = "toolchain lacks onnx preload"
                     print(f"[nn-graph] onnx volume '{name}': toolchain lacks onnx preload - mounting only", flush=True)
                     continue
                 stage = _stage_onnx_dir(name, host_path)
                 if stage:
                     vol_args += ["-S", f"nn-graph=onnx::{stage}"]
+                    emitted.append(name)
+                else:
+                    skipped[name] = "staging failed"
+                continue
+            # mounted, but nothing to preload: a data volume, or a layout no
+            # picker resolves. Recorded so the plan covers EVERY mounted
+            # volume - the heal sweep keys off this being exhaustive.
+            skipped[name] = "no preloadable model file (data volume or ambiguous layout)"
         resident = 0
         for _bytes, _name, kind, stage in sorted(vram_stages):
             if vram_bytes and resident + _bytes > vram_bytes:
+                skipped[_name] = (f"exceeds the VRAM budget ({_bytes / 2**30:.1f} GB weights, "
+                                  f"{resident / 2**30:.1f}/{vram_bytes / 2**30:.1f} GB already claimed)")
                 print(f"[nn-graph] volume '{_name}' ({_bytes / 2**30:.1f} GB weights) skipped: "
                       f"{resident / 2**30:.1f} GB already claimed of the deployment's "
                       f"{vram_bytes / 2**30:.1f} GB VRAM budget - mounting only", flush=True)
                 continue
             resident += _bytes
             vol_args += ["-S", f"nn-graph={kind}::{stage}"]
+            emitted.append(_name)
+            stages[_name] = f"{kind}::{stage}"
+        # The guest can't see wasmtime's graph registry, so tell it what the
+        # host PRELOADED: the volume names whose graphs went on the cmdline.
+        # A load_by_name() NotFound then has an honest reading app-side -
+        # name listed = the boot preload was attempted (and failed, loudly,
+        # in this tenant's log); name missing = the host never tried (the
+        # skip reason - over budget / no unambiguous file - is in nnSkipped
+        # on the manager record). Set only under nn, like ENCLAVE_VRAM_BYTES:
+        # apps treat an absent env as "older manager, no signal".
+        vol_args += ["--env", "ENCLAVE_NN_PRELOADS=" + ",".join(emitted)]
+        if isinstance(nn_report, dict):
+            nn_report["emitted"] = list(emitted)
+            nn_report["skipped"] = dict(skipped)
+            nn_report["stages"] = dict(stages)
     # enclave transparent egress (phase 2): `-S egress=<host>:<port>` makes the
     # patched wasmtime funnel ALL guest outbound through the loopback SOCKS front
     # (credential in $ENCLAVE_EGRESS_CRED, set host-side by _spawn_and_wait), so an
@@ -2256,10 +2312,15 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
     # attached model volumes: the request may name them two ways - an explicit
     # /vms `volumes` list (direct callers) and/or a `volumes` array in the
     # version's config JSON (owner-approved with the version; how catalog apps
-    # attach volumes). Union both. A deployment asking for a volume this
-    # enclave doesn't carry fails the launch with a clear reason (the
-    # supervisor backs off; the claim gate keeps it from landing here when
-    # enclaves advertise their volumes).
+    # attach volumes). Union both. A wanted volume that isn't attached (or is
+    # still a bare mount point - _model_volumes refuses those) gets a BOUNDED
+    # WAIT first: at node boot the supervisor resumes leased deployments while
+    # the Modelwrap dm-verity mounts are still landing, and launching in that
+    # window would bake a tenant whose model can never load (the wasmtime
+    # graph registry is sealed at process boot). Beyond the wait the launch
+    # fails with a clear reason - the supervisor backs off and retries, so a
+    # slow mount delays the deployment instead of breaking it. Stays well
+    # inside the supervisor's SPAWN_TIMEOUT_MS (300s) minus READY_SECS.
     want = list(volumes or [])
     if enclave_config:
         try:
@@ -2270,17 +2331,29 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
             pass
     vol_mounts = {}
     if want:
+        wanted = []
+        for vname in want:
+            vname = str(vname).strip()
+            if vname and vname not in wanted:
+                wanted.append(vname)
         have = _model_volumes()
-        for name in want:
-            name = str(name).strip()
-            if not name or name in vol_mounts:
-                continue
-            if name not in have:
-                rec["status"], rec["error"] = "failed", (
-                    f"volume '{name}' not attached to this enclave "
-                    f"(available: {', '.join(sorted(have)) or 'none'})")
-                return rec
-            vol_mounts[name] = have[name]["path"]
+        missing = [v for v in wanted if v not in have]
+        if missing:
+            print(f"[vol] {vid} waiting up to {VOL_READY_SECS:.0f}s for volume(s) "
+                  f"{', '.join(missing)} to finish mounting", flush=True)
+            deadline = time.time() + VOL_READY_SECS
+            while missing and time.time() < deadline:
+                time.sleep(2)
+                have = _model_volumes()
+                missing = [v for v in wanted if v not in have]
+        if missing:
+            rec["status"], rec["error"] = "failed", (
+                f"volume(s) {', '.join(missing)} not attached to this enclave after "
+                f"{VOL_READY_SECS:.0f}s (available: {', '.join(sorted(have)) or 'none'}) - "
+                f"still mounting, or not in this enclave's tinfoil-config")
+            return rec
+        for vname in wanted:
+            vol_mounts[vname] = have[vname]["path"]
     rec["volumes"] = list(vol_mounts.keys())
 
     # encrypted volumes (rclone crypt over S3): stage an EMPTY dir per volume
@@ -2384,6 +2457,72 @@ def _fire_warmup(host_port: int, path: str, log_path):
     threading.Thread(target=run, daemon=True, name="warmup").start()
 
 
+_NN_FAIL_RE = re.compile(r"wasi-nn: preload of (\S+) FAILED \((.*)\); graph skipped")
+
+
+def _watch_preloads(rec, log_path):
+    """Hold a serving tenant's boot to its preload plan (rec._nnStages). The
+    patched wasmtime preloads -S nn-graph AFTER binding the port, so 'running'
+    flips while the graphs are still lifting into VRAM - and a graph that
+    fails loads NEVER (skip-on-failure keeps the process up, the guest gets
+    load_by_name NotFound forever). This watcher tails the tenant log for the
+    preload markers: per-graph FAILED lines land in rec.nnFailed (apps and the
+    console read it), and when EVERY expected graph failed - or the preload
+    never finishes - the tenant is a zombie that can only hand out NotFound,
+    so it is killed and failed for the supervisor's bounded relaunch (3
+    deaths, then the lease is handed back with the reason on the record).
+    Bails out quietly when the toolchain predates the preload markers."""
+    stages = rec.get("_nnStages") or {}
+    if not stages or MOCK:
+        return
+    proc, log_p = rec.get("_proc"), pathlib.Path(log_path)
+    def run():
+        pos = 0
+        seen_marker = False
+        failed = {}                          # "kind::stagedir" -> error text
+        t0 = time.time()
+        while True:
+            time.sleep(2)
+            if proc is None or proc.poll() is not None:
+                return                       # died: the crash paths own it
+            if rec.get("_proc") is not proc or rec["status"] != "running":
+                return                       # superseded or already failed
+            try:
+                with open(log_p, "rb") as f:
+                    f.seek(pos)
+                    chunk = f.read()
+                    pos = f.tell()
+            except OSError:
+                chunk = b""
+            for line in chunk.decode(errors="replace").splitlines():
+                if "wasi-nn graph(s)..." in line:
+                    seen_marker = True
+                m = _NN_FAIL_RE.search(line)
+                if m:
+                    failed[m.group(1)] = m.group(2)
+                if "wasi-nn graph preload done" in line:
+                    bad = {n: failed[s] for n, s in stages.items() if s in failed}
+                    if bad:
+                        rec["nnFailed"] = bad
+                        print(f"[nn-graph] {rec['id']} preload FAILED for "
+                              f"{', '.join(sorted(bad))}", flush=True)
+                    if bad and set(bad) >= set(stages):
+                        rec["status"] = "failed"
+                        rec["error"] = ("wasi-nn boot preload failed for every model: "
+                                        + "; ".join(f"{n}: {e}" for n, e in sorted(bad.items())))
+                        _kill(rec)
+                    return
+            if not seen_marker and time.time() - t0 > 30:
+                return                       # toolchain predates the markers
+            if time.time() - t0 > NN_PRELOAD_VERIFY_SECS:
+                rec["status"] = "failed"
+                rec["error"] = (f"wasi-nn boot preload did not finish within "
+                                f"{NN_PRELOAD_VERIFY_SECS:.0f}s (expected: {', '.join(sorted(stages))})")
+                _kill(rec)
+                return
+    threading.Thread(target=run, daemon=True, name="nn-preload-watch").start()
+
+
 def _spawn_and_wait(rec, ctx):
     """Build the wasmtime command from a prepared context and spawn it, waiting
     for readiness."""
@@ -2407,9 +2546,17 @@ def _spawn_and_wait(rec, ctx):
     # `-W max-memory-size` caps the guest's linear memory (the only RAM a tenant
     # can grow) - the real per-app memory ceiling, enforced by the runtime.
     mem_bytes = max(rec["mem_mb"], 1) * 1024 * 1024
+    nn_report = {}
     cmd, host_port, wait_ports = _build_cmd(pspec, wasm, port, mem_bytes, port_map, fsdir, nn,
                                             enclave_config, vol_mounts, egress, egress_transparent,
-                                            ctx.get("enc"), gpu_share=gpu_share)
+                                            ctx.get("enc"), gpu_share=gpu_share, nn_report=nn_report)
+    # the preload plan, public on the record: what the boot preload will
+    # attempt (nnPreloads) and why the rest won't (nnSkipped). The watchdog
+    # sweep compares this against what a launch would emit NOW; the log
+    # verifier holds the actual boot to it.
+    rec["nnPreloads"] = nn_report.get("emitted", [])
+    rec["nnSkipped"] = nn_report.get("skipped", {})
+    rec["_nnStages"] = nn_report.get("stages", {})
     rec["hostPort"] = host_port
     rec["endpoint"] = f"http://{HOST_IP}:{host_port}" if host_port else None
     # GPU tenants: the wasmtime process itself is the CUDA process (ORT holds the
@@ -2503,6 +2650,7 @@ def _spawn_and_wait(rec, ctx):
         if wait_ports and _port_open(wait_ports[0]):
             rec["status"] = "running"
             _audit_rec(rec)          # populate boundPorts right away (the bridge checks it)
+            _watch_preloads(rec, log_path)
             wp = _warmup_path(enclave_config)
             if wp and pspec["serve"]:
                 _fire_warmup(host_port, wp, log_path)
@@ -2518,6 +2666,7 @@ def _spawn_and_wait(rec, ctx):
         _kill(rec)
     else:
         _audit_rec(rec)
+        _watch_preloads(rec, log_path)
         wp = _warmup_path(enclave_config)
         if wp and pspec["serve"]:
             _fire_warmup(host_port, wp, log_path)
@@ -2631,11 +2780,64 @@ def _audit_enc(rec):
             return
 
 
+# skip reasons that stay true for the tenant's lifetime - never heal-restart
+# for these (a budget or toolchain skip is a decision, not a race).
+_NN_SKIP_TERMINAL = ("exceeds the VRAM budget", "toolchain lacks")
+
+
+def _heal_candidates(rec) -> list:
+    """Wanted volumes this tenant did NOT preload for a reason that could
+    have been a race (not on the cmdline, not a terminal skip, not a boot
+    preload failure). Cheap - record lookups only, no filesystem."""
+    if not rec.get("nn") or rec["status"] != "running" or MOCK:
+        return []
+    if time.time() - rec.get("createdAt", 0) < 60:
+        return []              # boot grace: _watch_preloads owns early failures
+    emitted = set(rec.get("nnPreloads") or [])
+    skipped = rec.get("nnSkipped") or {}
+    failed = rec.get("nnFailed") or {}
+    return [v for v in (rec.get("volumes") or [])
+            if v not in emitted and v not in failed
+            and not str(skipped.get(v, "")).startswith(_NN_SKIP_TERMINAL)]
+
+
+def _heal_preloads(rec, cands, vols):
+    """The frozen-preload self-heal: wasmtime registers -S nn-graph ONLY at
+    process start, so a tenant that booted while its model volume was still
+    mounting can never serve that model - load_by_name() NotFound for its
+    whole life (seen live 2026-07-18, qwen3.5-9b). launch() now refuses to
+    boot into that state; this sweep is the backstop for any race that still
+    slips through: when a wanted volume is preloadable NOW but wasn't in this
+    tenant's boot plan, kill + fail the tenant - the supervisor's bounded
+    relaunch (3 deaths) sends it back through the fixed launch path, which
+    preloads properly or fails with the reason on the record."""
+    ready = [v for v in cands
+             if v in vols and (vols[v]["sd"] if v in _SD_VOLUMES
+                               else (vols[v]["gguf"] or vols[v]["onnx"]))]
+    if not ready:
+        return
+    print(f"[nn-graph] {rec['id']} volume(s) {', '.join(ready)} became preloadable "
+          f"after boot; restarting the tenant to preload them", flush=True)
+    rec["status"] = "failed"
+    rec["error"] = (f"model volume(s) {', '.join(ready)} became ready after this tenant "
+                    f"booted, and wasmtime preloads graphs only at process start - "
+                    f"killed for relaunch so the model actually loads")
+    _kill(rec)
+
+
 def _audit_sweep():
     while True:
         time.sleep(AUDIT_SECS)
         with _lock:
             recs = [r for r in _apps.values() if r["status"] == "running"]
+        heal = [(r, c) for r in recs if (c := _heal_candidates(r))]
+        if heal:
+            try:
+                vols = _model_volumes()      # one scan serves every tenant
+                for r, c in heal:
+                    _heal_preloads(r, c, vols)
+            except Exception:
+                pass
         for r in recs:
             try:
                 _audit_rec(r)
