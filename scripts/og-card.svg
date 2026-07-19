@@ -38,8 +38,8 @@
   </g>
 
   <!-- headline -->
-  <text x="72" y="308" font-family="DejaVu Sans" font-size="58" font-weight="bold" fill="#E8F4EF">Confidential compute,</text>
-  <text x="72" y="384" font-family="DejaVu Sans" font-size="58" font-weight="bold" fill="#E8F4EF">for the <tspan fill="#2FE6A8">people</tspan>.</text>
+  <text x="72" y="308" font-family="DejaVu Sans" font-size="58" font-weight="bold" fill="#E8F4EF">If it can <tspan fill="#2FE6A8">sign</tspan>,</text>
+  <text x="72" y="384" font-family="DejaVu Sans" font-size="58" font-weight="bold" fill="#E8F4EF">it can compute.</text>
 
   <!-- subline -->
   <text x="72" y="448" font-family="DejaVu Sans" font-size="25" fill="#93A8B8">Deploy WebAssembly on attested GPU enclaves</text>
