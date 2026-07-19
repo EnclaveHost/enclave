@@ -244,7 +244,7 @@ containers:
       - EGRESS_RELAY_TOKEN       # shared secret with the egress-relay box; same value fleet-wide (like SECRET). Unset = egress off.
       - ACME_EAB_KID             # ZeroSSL External Account Binding pair (ZeroSSL Developer page).
       - ACME_EAB_HMAC            # Fleet-wide like SECRET; unset = in-enclave app TLS stays off.
-      - ACME_EAB_KID_2           # Google Trust Services STATIC EAB pair - single-use (covers ONE boot), mostly for tests; the provisioner below is the real arming.
+      - ACME_EAB_KID_2           # Google Trust Services STATIC EAB pair - single-use (covers ONE boot), mostly for tests; the provisioner below OUTRANKS it when both are set.
       - ACME_EAB_HMAC_2          # NEW secret names: Tinfoil binds secrets at container CREATION - set values BEFORE the first relaunch that declares them.
       - ACME_EAB_PROVISION_2     # GCP service-account key JSON (or base64 of it) w/ roles/publicca.externalAccountKeyCreator: the supervisor mints a fresh single-use EAB per boot, making GTS a durable fallback. Same creation-binding rule as above.
       # NOTE: the TLS-bridge key/cert are NOT secrets — they are minted
