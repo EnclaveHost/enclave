@@ -2139,7 +2139,14 @@ app.get("/availability", async (_req, res) => {
     // attached model volumes this enclave carries (Modelwrap): the console and
     // clients read this to know which volumes a deployment here can mount.
     const vols = PROVISION_BACKEND === "vm" && Array.isArray(h.volumes) ? { volumes: h.volumes } : {};
-    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn, ...vols });
+    // RAM-reservation ledger passthrough (vm backend with accounting on): the
+    // binding constraint behind cpuShareFree when it is tighter than the share
+    // pool - lets consumers show/gate on exact MB headroom, not just the folded
+    // fraction. sharePoolFree is the raw share ledger for comparison.
+    const ram = PROVISION_BACKEND === "vm" && c.ramBudgetMb
+      ? { ramBudgetMb: c.ramBudgetMb, ramCommittedMb: c.ramCommittedMb, ramFreeMb: c.ramFreeMb,
+          ...(c.sharePoolFree !== undefined ? { sharePoolFree: c.sharePoolFree } : {}) } : {};
+    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn, ...vols, ...ram });
   } catch (e) {
     return res.json(shape(maxFreeCpu(), maxFreeGpuShare(), "fallback",
       `${PROVISION_BACKEND === "vm" ? "wasm" : "worker"} manager unreachable`));
