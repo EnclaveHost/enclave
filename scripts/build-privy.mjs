@@ -29,7 +29,11 @@ const WORK = path.join(ROOT, "scripts", ".privy-build");
 const OUT = path.join(ROOT, "site", "privy");
 
 const DEPS = {
-  "@privy-io/react-auth": "3.34.0",   // >=3.33.1 for the Stripe fiat onramp
+  "@privy-io/react-auth": "3.35.1",   // >=3.33.1 for the Stripe fiat onramp;
+                                      // 3.35.0 fixed Stripe L2 KYC routing (L1 steps were
+                                      // skipped -> EU identity verification span forever and
+                                      // timed out), 3.35.1 fixed checkout retries when the
+                                      // quote expires during payment - both hit live 2026-07-20
   "react": "18.3.1",
   "react-dom": "18.3.1",
   "@stripe/crypto": "1.1.1",

@@ -341,6 +341,10 @@ window.fetch = async (input, init) => {
       console.warn("[buy-diag]", res.status, url, body.slice(0, 400));   // EVERY failing call logs
       if (/\/crypto-onramp\/v1\//.test(url) && url.indexOf(location.origin) === 0){ blockedFrameHelp(); }
       else if (/privy\.io|moonpay|stripe|meld|coinbase/i.test(url)){
+        // "Identity verification is required" is a HANDLED 400: the SDK
+        // routes into its KYC screens right after - a "Payment error" toast
+        // over the identity form reads as a failure that isn't one
+        if (/identity verification is required/i.test(body)) return res;
         // the endpoint IS the diagnosis (which provider, which step) - a
         // screenshot of this toast must be enough to debug from
         let at = ""; try { at = " @ " + new URL(url).pathname.replace(/\/(cae|sess|txn)?[a-z0-9_-]{16,}/gi, "/…"); } catch(_){}
