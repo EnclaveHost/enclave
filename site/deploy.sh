@@ -56,6 +56,44 @@ ssh nan '{ cp -pn /opt/nan-chunk-archive/js/chunks/* /opt/nan-site/js/chunks/ 2>
   cp -pn /opt/nan-chunk-archive/privy/* /opt/nan-site/privy/ 2>/dev/null; true; }; \
   echo "[deploy] server chunk union: $(ls /opt/nan-site/js/chunks | wc -l) js chunks, $(ls /opt/nan-site/privy | wc -l) privy files"'
 
+# ---- CSP script-src sync: the Caddy vhosts pin the sha256 of every executable
+# inline <script> (build-site.mjs emits them into dist/csp-script-src.txt). An
+# edit to an inline script changes its hash, and a stale header silently BLOCKS
+# the whole script - buy.html shipped exactly that on 2026-07-18 and the card
+# checkout froze at "Loading checkout" for two days. Sync the directive into
+# /etc/caddy/Caddyfile on every deploy, BEFORE the IPNS publish so the header
+# never lags the content. Cached HTML outlives its deploy (4h gateway TTL, 48h
+# chunk archive), so a plain overwrite would break every cached page whose
+# script changed - keep a 48h touchfile archive of hashes (mirroring the chunk
+# archive; base64's / becomes _ in filenames) and serve the union: old cached
+# pages keep executing until their chunks age out with them.
+ssh nan bash -s <<'CSPEOF'
+set -euo pipefail
+set -f   # tokens like https://*.hcaptcha.com must never glob
+export LC_ALL=C
+MAN=/opt/nan-site/csp-script-src.txt
+CF=/etc/caddy/Caddyfile
+LINE="$(grep -m1 '^script-src ' "$MAN" | sed 's/;[[:space:]]*$//')" || true
+[ -n "$LINE" ] || { echo "[deploy] WARN: no script-src line in $MAN; CSP left untouched"; exit 0; }
+ARC=/opt/nan-csp-archive; mkdir -p "$ARC"
+for tok in $LINE; do
+  case "$tok" in "'sha256-"*) touch "$ARC/$(printf %s "$tok" | tr -d \' | tr / _)";; esac
+done
+find "$ARC" -type f -mmin +2880 -delete
+PREFIX="$(printf '%s' "$LINE" | sed "s/ 'sha256-.*//")"
+HASHES="$(ls "$ARC" | tr _ / | sed "s/^/'/;s/\$/'/" | tr '\n' ' ')"
+NEW="$(printf '%s' "$PREFIX $HASHES" | sed 's/ *$//')"
+BAK="$CF.bak-csp-$(date -u +%Y%m%d-%H%M%S)"
+cp -a "$CF" "$BAK"
+sed -i "s#script-src [^;\"]*#$NEW#g" "$CF"
+if cmp -s "$CF" "$BAK"; then rm -f "$BAK"; echo "[deploy] CSP script-src already in sync"; exit 0; fi
+caddy validate --config "$CF" >/dev/null 2>&1 || {
+  echo "[deploy] ERROR: patched Caddyfile failed validate - restored, deploy aborted" >&2
+  cp -a "$BAK" "$CF"; exit 1; }
+systemctl reload caddy
+echo "[deploy] CSP script-src synced: $(ls "$ARC" | wc -l) hashes (48h union), caddy reloaded"
+CSPEOF
+
 ssh nan 'chown -R ipfs:ipfs /opt/nan-site && \
   sudo -u ipfs IPFS_PATH=/var/lib/ipfs /usr/local/bin/nan-deploy.sh /opt/nan-site'
 
