@@ -1,0 +1,14 @@
+{
+  "name": "enclave-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Playwright end-to-end suite: passkey + SIWE auth and the hybrid checkout (hosted Stripe stub + USDC through the PaymentRouter on anvil). Deliberately its OWN package: root package.json edits cut a supervisor release (deploy.yml), and Playwright must never ride an enclave image.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "viem": "^2.53.1"
+  }
+}

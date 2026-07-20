@@ -45,6 +45,7 @@ const ADMIN_TOKEN = (process.env.BILLING_ADMIN_TOKEN || "").trim();
 const ALERT_URL = (process.env.ALERT_WEBHOOK_URL || "").trim();
 
 const ORDER_TTL_SEC = parseInt(process.env.ORDER_TTL_SEC || "86400", 10);
+const ORDER_SWEEP_SEC = parseInt(process.env.ORDER_SWEEP_SEC || "60", 10);   // expiry sweep cadence (tests shorten it)
 const MIN_SECONDS = parseInt(process.env.ORDER_MIN_SECONDS || "3600", 10);
 const MAX_SECONDS = parseInt(process.env.ORDER_MAX_SECONDS || "7776000", 10);   // 90 days
 // tolerance policy (see docs/billing-runbook.md): dust underpayment provisions,
@@ -107,7 +108,7 @@ export async function initBilling(ctx) {
   });
   recoverProvisioning();
 
-  setInterval(expirySweep, 60_000).unref?.();
+  setInterval(expirySweep, ORDER_SWEEP_SEC * 1000).unref?.();
   // prune settled stripe events after 30 days (idempotency only needs recency)
   setInterval(() => {
     const cutoff = Date.now() - 30 * 86400_000;

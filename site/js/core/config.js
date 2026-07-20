@@ -30,7 +30,10 @@ export const ACCOUNTS_ENABLED = _acct != null ? _acct === "1" : false;
    the site without a rebuild. The last resolve is cached in sessionStorage
    and applied synchronously below, so repeat visits never paint stale
    addresses even for a frame. */
-export const ADDRESS_BOOK_ADDRESS = "0xab214342d5A490150A4A977063A2f88E21F80907"; // EnclaveAddressBook on Base; written by scripts/deploy-address-book.mjs ("" = baked addresses only)
+/* localStorage "enclave_addressbook" override (absent in production; the e2e
+   suite points it at a local chain's book) - same guarded read as enclave_rpc */
+let _book = null; try { _book = localStorage.getItem("enclave_addressbook"); } catch(e){}
+export const ADDRESS_BOOK_ADDRESS = _book || "0xab214342d5A490150A4A977063A2f88E21F80907"; // EnclaveAddressBook on Base; written by scripts/deploy-address-book.mjs ("" = baked addresses only)
 export let APP_CATALOG_ADDRESS = "0xaB0462E55c18E295A221e4Eaa8738F25eB0696D7"; // EnclaveAppCatalog on Base; written automatically by scripts/deploy-app-catalog.mjs
 export let DEPLOYMENTS_ADDRESS = "0x0A7dE5D205c10B812AbaF0b89f3A243466bCEe01"; // EnclaveDeployments on Base; written automatically by scripts/deploy-deployments.mjs
 export let REGISTRY_ADDRESS    = "";                            // EnclaveRegistry (fleet membership); resolved from the address book only

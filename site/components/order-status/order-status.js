@@ -53,13 +53,15 @@ class OrderStatus extends EnclaveElement {
       if (e && e.status === 401){ el.innerHTML = '<div class="os-head err">Signed out</div><p class="os-body">Sign in again to see this order.</p>'; clearInterval(this._poll); }
       return;   // transient fetch errors: keep the last good paint, keep polling
     }
-    this.render(order);
+    this.paint(order);
     if (TERMINAL.includes(order.state)){
       clearInterval(this._poll);
       this.dispatch("settled", { status: order.state, order });
     }
   }
-  render(order){
+  // NOT render(): that name is EnclaveElement's template hook (called with
+  // no args for the template string) - shadowing it left the card empty
+  paint(order){
     const el = this.querySelector(".os-card"); if (!el) return;
     const c = COPY[order.state] || COPY.awaiting_payment;
     const changed = this._last !== order.state; this._last = order.state;
