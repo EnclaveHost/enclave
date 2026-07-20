@@ -243,6 +243,16 @@ async function versionFee6(appId, index) {
   const { appCatalog } = await addresses();
   return await read(appCatalog, catAbiFor(5), "versionFee", [appId, BigInt(index)]);
 }
+// Publisher fee (6dp USDC/sec) for a DEPLOYABLE appRef. Only pinned catalog
+// version refs (catalog://<appId>/<index>, what create() records) can carry a
+// fee; ipfs:// and anything else has none. billing.js refuses fee-bearing
+// orders: the provisioner's company wallet must never forward a fee cut to a
+// third-party publisher without an explicit business decision.
+export async function publisherFee6(appRef) {
+  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d+)$/.exec(String(appRef || ""));
+  if (!m) return 0n;
+  return await versionFee6(m[1], Number(m[2]));
+}
 
 // [publisher/]slug[:version] -> the on-chain version RECORD (same resolution +
 // approval gate as the CLI: runners re-check on their side, this fails fast

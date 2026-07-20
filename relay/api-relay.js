@@ -69,6 +69,8 @@ import { createHash, createHmac, randomBytes } from "node:crypto";
 import { readCappedText, installProcessGuards } from "./fleet.mjs";
 import { isBlockedHost } from "./net-guard.mjs";
 import { isMcpHost, handleMcp } from "./mcp.js";
+import { handleAccount, initAccounts } from "./auth.js";
+import { handleBilling, initBilling } from "./billing.js";
 installProcessGuards("api-relay");
 
 let   REGISTRY_ADDRESS  = (process.env.REGISTRY_ADDRESS || "").trim();   // env fallback; the address book (below) overrides
@@ -1014,6 +1016,13 @@ function depFromHost(host) {
 // repeat lookups cheap.
 const deploymentExists = async (id) => !!(await xOwnerOf(id));
 
+// Shared helpers handed to the account/billing modules (auth.js, billing.js):
+// they reuse the relay's CORS, raw-body reader and cached ledger reader
+// without circular imports. deploymentsAddress is a thunk because the address
+// book live-updates the binding.
+const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView,
+                   deploymentsAddress: () => DEPLOYMENTS_ADDRESS };
+
 const server = http.createServer((req, res) => {
   const u = new URL(req.url, "http://x");
 
@@ -1099,6 +1108,18 @@ const server = http.createServer((req, res) => {
   if (u.pathname === "/v1/featured-views")
     return json(res, 200, { updatedAt, views: featViews }, req);
 
+  // Relay-owned account + billing endpoints (auth.js / billing.js): passkey +
+  // SIWE account sessions, orders, Stripe webhook, USDC payment status. They
+  // answer with ZERO live enclaves (billing must not depend on the fleet) and
+  // are never proxied. /v1/auth/* below stays enclave-proxied - the enclave
+  // session system is a separate trust domain and is untouched.
+  if (u.pathname === "/v1/account" || u.pathname.startsWith("/v1/account/"))
+    return handleAccount(req, res, u, relayCtx).catch((e) =>
+      json(res, 500, { error: "account_error", message: e.message }, req));
+  if (u.pathname === "/v1/billing" || u.pathname.startsWith("/v1/billing/"))
+    return handleBilling(req, res, u, relayCtx).catch((e) =>
+      json(res, 500, { error: "billing_error", message: e.message }, req));
+
   // API gateway: fleet-aware routing (see the header) — placement on create,
   // owner affinity on deployment-scoped calls, fan-out merge on list, fleet
   // aggregate on /availability, sticky enclave for the rest.
@@ -1165,6 +1186,8 @@ server.on("upgrade", async (req, socket, head) => {
 await pollRegistry();
 await resolveDeployments();
 await pollAvailability();
+await initAccounts();          // no data dir/deps => disabled with one log line
+await initBilling(relayCtx);   // needs accounts; degrades the same way
 setInterval(pollRegistry, REGISTRY_POLL_SEC * 1000);
 setInterval(resolveDeployments, REGISTRY_POLL_SEC * 1000);
 setInterval(pollAvailability, AVAIL_POLL_SEC * 1000);
