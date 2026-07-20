@@ -13,6 +13,13 @@
 #   enclave-encvol.sh push <dir>  --endpoint URL --bucket B [--path P]   encrypt + upload <dir>
 #   enclave-encvol.sh pull <dir>  --endpoint URL --bucket B [--path P]   download + decrypt into <dir>
 #   enclave-encvol.sh ls          --endpoint URL --bucket B [--path P]   list the volume's decrypted names
+#
+# PLAIN MODE (--plain on push/pull/ls): no crypt layer at all - the bucket
+# holds the bytes verbatim, for data that isn't secret (public datasets,
+# app-served assets). The printed App Config snippet then carries
+# "encrypted": false, and the in-enclave unlock takes S3 credentials only
+# (none at all for a public-read bucket). Plain rclone/aws-cli pushes work
+# just as well - this script only adds the matching snippet.
 #   enclave-encvol.sh message <keyId>                                    print the exact message a wallet signs
 #   enclave-encvol.sh derive  --sig 0x…                                  print the password/salt a signature derives
 #   enclave-encvol.sh seal-creds --sig 0x…                               encrypt AWS_* creds under the wallet key -> a
@@ -49,6 +56,7 @@
 #   --bucket B          bucket name
 #   --path P            key prefix inside the bucket (default: none)
 #   --name N            volume name used in the printed App Config snippet (default: basename of <dir>)
+#   --plain             no crypt layer: sync the bytes verbatim ("encrypted": false volume)
 #   --sig 0x…           wallet mode: derive password+salt from this personal_sign signature
 #   --filename-encryption standard|off|obfuscate   (default standard; must match at unlock)
 #   --no-dir-encryption keep directory names in the clear
@@ -89,7 +97,7 @@ fi
 DIR=""
 if [[ "$CMD" == "push" || "$CMD" == "pull" ]]; then DIR="${1:-}"; [[ -n "$DIR" && "$DIR" != --* ]] || die "$CMD needs a local directory"; shift; fi
 
-ENDPOINT="" BUCKET="" VPATH="" NAME="" FENC="standard" DENC="true" SIG="${ENCVOL_WALLET_SIG:-}"
+ENDPOINT="" BUCKET="" VPATH="" NAME="" FENC="standard" DENC="true" SIG="${ENCVOL_WALLET_SIG:-}" PLAIN=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --endpoint) ENDPOINT="${2:-}"; shift 2 ;;
@@ -97,11 +105,14 @@ while [[ $# -gt 0 ]]; do
     --path)     VPATH="${2:-}";    shift 2 ;;
     --name)     NAME="${2:-}";     shift 2 ;;
     --sig)      SIG="${2:-}";      shift 2 ;;
-    --filename-encryption) FENC="${2:-}"; shift 2 ;;
-    --no-dir-encryption) DENC="false"; shift ;;
+    --plain)    PLAIN=1;           shift ;;
+    --filename-encryption) FENC="${2:-}"; FENC_SET=1; shift 2 ;;
+    --no-dir-encryption) DENC="false"; DENC_SET=1; shift ;;
     *) die "unknown option: $1" ;;
   esac
 done
+[[ -z "$PLAIN" || ( -z "$SIG" && -z "${FENC_SET:-}" && -z "${DENC_SET:-}" ) ]] \
+  || die "--plain is a no-crypt mount: drop --sig/--filename-encryption/--no-dir-encryption"
 
 if [[ "$CMD" == "derive" ]]; then
   [[ -n "$SIG" ]] || die "derive needs --sig 0x… (or ENCVOL_WALLET_SIG)"
@@ -152,7 +163,9 @@ fi
 case "$FENC" in standard|off|obfuscate) ;; *) die "--filename-encryption must be standard|off|obfuscate" ;; esac
 [[ "$CMD" != "push" || -d "$DIR" ]] || die "no such directory: $DIR"
 
-if [[ -n "$SIG" ]]; then
+if [[ -n "$PLAIN" ]]; then
+  :                   # plain mode: no key material at all
+elif [[ -n "$SIG" ]]; then
   _derive "$SIG"      # wallet mode: password+salt come from the signature
 else
   if [[ -z "${ENCVOL_PASSWORD:-}" ]]; then
@@ -181,19 +194,24 @@ else
   export RCLONE_CONFIG_ENCSRC_ENV_AUTH=false
 fi
 REMOTE="encsrc:${BUCKET}${VPATH:+/$VPATH}"
-export RCLONE_CONFIG_ENCVOL_TYPE=crypt RCLONE_CONFIG_ENCVOL_REMOTE="$REMOTE"
-export RCLONE_CONFIG_ENCVOL_FILENAME_ENCRYPTION="$FENC" RCLONE_CONFIG_ENCVOL_DIRECTORY_NAME_ENCRYPTION="$DENC"
 command -v rclone >/dev/null || die "rclone not found (https://rclone.org/install/)"
-RCLONE_CONFIG_ENCVOL_PASSWORD="$(printf '%s' "$ENCVOL_PASSWORD" | rclone obscure -)"
-export RCLONE_CONFIG_ENCVOL_PASSWORD
-if [[ -n "$ENCVOL_SALT" ]]; then
-  RCLONE_CONFIG_ENCVOL_PASSWORD2="$(printf '%s' "$ENCVOL_SALT" | rclone obscure -)"
-  export RCLONE_CONFIG_ENCVOL_PASSWORD2
+if [[ -n "$PLAIN" ]]; then
+  TARGET="$REMOTE"    # no crypt layer: sync the S3 backend directly
+else
+  TARGET="encvol:"
+  export RCLONE_CONFIG_ENCVOL_TYPE=crypt RCLONE_CONFIG_ENCVOL_REMOTE="$REMOTE"
+  export RCLONE_CONFIG_ENCVOL_FILENAME_ENCRYPTION="$FENC" RCLONE_CONFIG_ENCVOL_DIRECTORY_NAME_ENCRYPTION="$DENC"
+  RCLONE_CONFIG_ENCVOL_PASSWORD="$(printf '%s' "$ENCVOL_PASSWORD" | rclone obscure -)"
+  export RCLONE_CONFIG_ENCVOL_PASSWORD
+  if [[ -n "${ENCVOL_SALT:-}" ]]; then
+    RCLONE_CONFIG_ENCVOL_PASSWORD2="$(printf '%s' "$ENCVOL_SALT" | rclone obscure -)"
+    export RCLONE_CONFIG_ENCVOL_PASSWORD2
+  fi
 fi
 
 case "$CMD" in
   push)
-    rclone sync "$DIR" encvol: --progress
+    rclone sync "$DIR" "$TARGET" --progress
     NAME="${NAME:-$(basename "$(realpath "$DIR")")}"
     cat >&2 <<EOF
 
@@ -203,12 +221,12 @@ box, or \`enclave publish --config\`) and unlock from the app after deploying:
   { "encVolumes": [ {
       "name": "$NAME",
       "endpoint": "$ENDPOINT",
-      "bucket": "$BUCKET"$( [[ -n "$VPATH" ]] && printf ',\n      "path": "%s"' "$VPATH" )$( [[ -n "$SIG" ]] && printf ',\n      "unlock": "wallet"' )$( [[ "$FENC" != standard ]] && printf ',\n      "filenameEncryption": "%s"' "$FENC" )$( [[ "$DENC" == false ]] && printf ',\n      "directoryNameEncryption": false' )
+      "bucket": "$BUCKET"$( [[ -n "$VPATH" ]] && printf ',\n      "path": "%s"' "$VPATH" )$( [[ -n "$PLAIN" ]] && printf ',\n      "encrypted": false' )$( [[ -n "$SIG" ]] && printf ',\n      "unlock": "wallet"' )$( [[ "$FENC" != standard ]] && printf ',\n      "filenameEncryption": "%s"' "$FENC" )$( [[ "$DENC" == false ]] && printf ',\n      "directoryNameEncryption": false' )
   } ] }
 
-(maxMb defaults to 1024; readOnly: true drops push-back credentials at unlock.$( [[ -n "$SIG" ]] && printf '\nWallet mode: if the keyId you signed differs from "%s", add "keyId" too.\nTip: `seal-creds` prints a "credsEnvelope" field so wallet unlocks need no S3 fields.' "$NAME" ))
+(maxMb defaults to 1024; readOnly: true drops push-back credentials at unlock.$( [[ -n "$PLAIN" ]] && printf '\nPlain volume: unlock takes S3 credentials only - none at all if the bucket is\npublic-read. The bucket holds these bytes VERBATIM; do not put secrets in it.' )$( [[ -n "$SIG" ]] && printf '\nWallet mode: if the keyId you signed differs from "%s", add "keyId" too.\nTip: `seal-creds` prints a "credsEnvelope" field so wallet unlocks need no S3 fields.' "$NAME" ))
 EOF
     ;;
-  pull) rclone sync encvol: "$DIR" --progress ;;
-  ls)   rclone ls encvol: ;;
+  pull) rclone sync "$TARGET" "$DIR" --progress ;;
+  ls)   rclone ls "$TARGET" ;;
 esac

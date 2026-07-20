@@ -632,6 +632,7 @@ ENCVOL_PASSWORD=… ENCVOL_SALT=… \
               <tr><th scope="row" class="pname">readOnly</th><td>drop the S3 credentials right after the pull; disables push-back</td></tr>
               <tr><th scope="row" class="pname">unlock · keyId</th><td>UI hints: lead with wallet or password; <code>keyId</code> is the stable label the wallet signs, so renaming a volume doesn't change its key</td></tr>
               <tr><th scope="row" class="pname">credsEnvelope</th><td>S3 credentials, sealed under the owner's wallet key - safe to publish (below)</td></tr>
+              <tr><th scope="row" class="pname">encrypted</th><td>default <code>true</code>; <code>false</code> mounts the bucket verbatim, no crypt layer (below)</td></tr>
             </tbody>
           </table></div>
 
@@ -655,6 +656,9 @@ salt     = sha256_hex( sig + "\n" + "enclave-encvol-v1:salt" )</code></pre></c-c
           <c-code fn="the credentials envelope (v1)"><pre><code>encKey / macKey = sha256( sig + "\n" + "enclave-encvol-v1:creds-enc" / ":creds-mac" )
 envelope        = "encv1:" + base64( iv[16] || AES-256-CTR(encKey, iv, credsJSON)
                                             || HMAC-SHA256(macKey, iv || ct)[32] )</code></pre></c-code>
+
+          <h4>Plain volumes: skip the crypt layer</h4>
+          <p>Not everything is secret. <code>"encrypted": false</code> mounts the bucket <b>verbatim</b> - same live <code>/enc/&lt;name&gt;</code> preopen, same unlock/sync/lock lifecycle and caps, no crypt anywhere. Think public datasets, published model weights, assets your app serves. Unlock then takes S3 credentials only - an empty body suffices for a public-read bucket - and refuses a password outright; <code>filenameEncryption</code> / <code>directoryNameEncryption</code> don't apply. Push data with any S3 client, or <code>enclave-encvol.sh push --plain</code> to get the matching config snippet. The bucket host sees every byte of a plain volume: keep anything confidential in an encrypted one.</p>
 
           <h4>Restarts, locking, write-back</h4>
           <p>Nothing survives a restart, <b>by design</b>: an unlocked volume is plaintext in enclave RAM plus credentials in the manager's memory, and a re-claim, update, or crash returns the volume to <code>locked</code> - someone holding the key must unlock again. Wallet mode makes that a ten-second signature rather than a secret to retrieve; <b>Lock</b> is the same wipe on demand. Push-back (<code>sync</code>) re-encrypts local edits to the bucket with the same key - it needs write-capable credentials at unlock and a volume not marked <code>readOnly</code>.</p>

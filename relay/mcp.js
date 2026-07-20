@@ -440,7 +440,9 @@ ${SIGNING_NOTE}`,
 
   volumes: `Two kinds of volumes:
 1. Model volumes (read-only weights, e.g. GGUF): availability lists them under "volumes" with the enclaves that carry them. Apps mount them at /models/<name>. Deploy on an enclave that carries the volume (placement follows your claim).
-2. Encrypted volumes (tenant data over S3-compatible storage, rclone crypt): the encryption key derives from a wallet signature CLIENT-SIDE ONLY. Use the enclave CLI: "enclave encvol message <keyId>" prints the message to sign; "enclave encvol derive/seal-creds" derive the password/salt and seal S3 credentials. NEVER send that signature to any server or tool, including this one; anyone holding it can derive the volume key. The sealed envelope and derived password go in your app's config; decryption happens inside the enclave.`,
+2. S3 volumes (tenant data over S3-compatible storage, an "encVolumes" entry in the app config), encrypted by default:
+   - Encrypted (rclone crypt): the encryption key derives from a wallet signature CLIENT-SIDE ONLY. Use the enclave CLI: "enclave encvol message <keyId>" prints the message to sign; "enclave encvol derive/seal-creds" derive the password/salt and seal S3 credentials. NEVER send that signature to any server or tool, including this one; anyone holding it can derive the volume key. The sealed envelope and derived password go in your app's config; decryption happens inside the enclave.
+   - Plain ("encrypted": false in the entry): the bucket is mounted verbatim - for public datasets, model weights, non-secret assets. Unlock takes S3 credentials only (nothing at all for a public-read bucket) and refuses a password. The bucket host sees every byte; never put secrets in a plain volume.`,
 
   networking: `Ports and reachability:
 - ports CSV on a version/deployment: "http:8080,tcp:25565,udp:53". The http entry (or appPort) serves at the deployment's own origin https://<first-8-hex-of-id>.${APP_DOMAIN} (TLS terminates inside enclaves for app traffic; websockets pass through).

@@ -326,6 +326,13 @@ if FS_ENABLED:
 # pushes local edits back (creds held in RAM from unlock; readOnly opts out),
 # /lock wipes. Caps: --max-transfer on the pull, then the storage audit
 # polices post-unlock growth per volume (same kill policy as /data).
+#
+# An entry may also opt OUT of the crypt layer ("encrypted": false): a plain
+# S3 mount for data that isn't secret (public datasets, published models,
+# app-served assets). Same preopen, token plane, unlock/sync/lock lifecycle
+# and caps - the unlock just takes S3 credentials only (none at all for a
+# public-read bucket) and syncs the bucket bytes verbatim. The bucket host
+# sees everything, so this is a convenience mount, not confidential storage.
 ENC_ENABLED    = os.environ.get("WASM_ENC", "1").lower() not in ("0", "false", "no")
 ENC_DIR        = pathlib.Path(os.environ.get("WASM_ENC_DIR", "/tmp/enclave-wasm-enc"))  # per-deployment staging (ramdisk)
 ENC_GUEST_ROOT = os.environ.get("WASM_ENC_GUEST", "/enc")                # /enc/<name> inside the guest
@@ -496,7 +503,9 @@ def _parse_enc_volumes(cfg: dict) -> list:
     """Validate the config's encVolumes into internal specs. Every field here is
     NON-SECRET (it rides the approved, public version config): where the
     ciphertext lives and how it was packed. The crypt password and any S3
-    credentials only ever arrive at unlock time, straight into RAM."""
+    credentials only ever arrive at unlock time, straight into RAM.
+    "encrypted": false marks a PLAIN volume - same shape minus the crypt
+    fields; the bucket then holds the bytes verbatim."""
     entries = cfg.get("encVolumes")
     if not entries:
         return []
@@ -542,6 +551,10 @@ def _parse_enc_volumes(cfg: dict) -> list:
         path = str(e.get("path") or "").strip().strip("/")
         if path and any(seg in ("", ".", "..") for seg in path.split("/")):
             raise ValueError(f"encVolumes '{name}': bad path prefix")
+        encrypted = bool(e.get("encrypted", True))
+        if not encrypted and ("filenameEncryption" in e or "directoryNameEncryption" in e):
+            raise ValueError(f"encVolumes '{name}': filenameEncryption/directoryNameEncryption apply to the "
+                             f"crypt layer, which \"encrypted\": false turns off - drop them")
         fenc = str(e.get("filenameEncryption") or "standard").strip()
         if fenc not in _ENC_FILENAME_ENC:
             raise ValueError(f"encVolumes '{name}': filenameEncryption must be one of {_ENC_FILENAME_ENC}")
@@ -564,7 +577,7 @@ def _parse_enc_volumes(cfg: dict) -> list:
         if not _VOL_NAME_RE.match(key_id):
             raise ValueError(f"encVolumes '{name}': bad keyId (want {_VOL_NAME_RE.pattern})")
         specs.append({"name": name, "endpoint": endpoint, "bucket": bucket, "path": path,
-                      "unlock": unlock, "keyId": key_id,
+                      "unlock": unlock, "keyId": key_id, "encrypted": encrypted,
                       "provider": str(e.get("provider") or "Other").strip() or "Other",
                       "region": str(e.get("region") or "").strip(),
                       "filenameEncryption": fenc,
@@ -583,16 +596,35 @@ def _rclone_obscure(secret: str) -> str:
     return r.stdout.decode().strip()
 
 
+def _enc_src_remote(spec: dict) -> str:
+    """The encsrc-remote path (bucket, plus any key prefix) a volume syncs
+    against - the crypt remote's REMOTE= target, and, for a plain
+    ("encrypted": false) volume, the sync target itself."""
+    if spec["endpoint"].startswith("local:"):        # test hook (ENC_ALLOW_LOCAL)
+        remote = f"encsrc:{spec['endpoint'][len('local:'):]}/{spec['bucket']}"
+    else:
+        remote = f"encsrc:{spec['bucket']}"
+    if spec["path"]:
+        remote += "/" + spec["path"]
+    return remote
+
+
+def _enc_remote(spec: dict) -> str:
+    """What rclone actually syncs: the crypt remote, or - plain volume - the
+    S3 backend directly."""
+    return "encvol:" if spec["encrypted"] else _enc_src_remote(spec)
+
+
 def _enc_rclone_env(spec: dict, creds: dict) -> dict:
-    """The rclone process environment for one volume: two env-defined remotes
-    (encsrc = the S3 backend, encvol = crypt layered on it). Everything secret
-    rides the ENVIRONMENT of the child, nothing in argv, nothing on disk
-    (RCLONE_CONFIG=/dev/null keeps rclone from reading or writing a config)."""
+    """The rclone process environment for one volume: an env-defined S3 remote
+    (encsrc), and - unless the volume is plain - a crypt remote (encvol)
+    layered on it. Everything secret rides the ENVIRONMENT of the child,
+    nothing in argv, nothing on disk (RCLONE_CONFIG=/dev/null keeps rclone
+    from reading or writing a config)."""
     env = dict(os.environ)
     env["RCLONE_CONFIG"] = "/dev/null"
     if spec["endpoint"].startswith("local:"):        # test hook (ENC_ALLOW_LOCAL)
         env["RCLONE_CONFIG_ENCSRC_TYPE"] = "local"
-        remote = f"encsrc:{spec['endpoint'][len('local:'):]}/{spec['bucket']}"
     else:
         env["RCLONE_CONFIG_ENCSRC_TYPE"] = "s3"
         env["RCLONE_CONFIG_ENCSRC_PROVIDER"] = spec["provider"]
@@ -606,11 +638,10 @@ def _enc_rclone_env(spec: dict, creds: dict) -> dict:
                 env["RCLONE_CONFIG_ENCSRC_SESSION_TOKEN"] = str(creds["sessionToken"])
         else:
             env["RCLONE_CONFIG_ENCSRC_ENV_AUTH"] = "false"   # anonymous: public-read bucket
-        remote = f"encsrc:{spec['bucket']}"
-    if spec["path"]:
-        remote += "/" + spec["path"]
+    if not spec["encrypted"]:
+        return env
     env["RCLONE_CONFIG_ENCVOL_TYPE"] = "crypt"
-    env["RCLONE_CONFIG_ENCVOL_REMOTE"] = remote
+    env["RCLONE_CONFIG_ENCVOL_REMOTE"] = _enc_src_remote(spec)
     env["RCLONE_CONFIG_ENCVOL_PASSWORD"] = _rclone_obscure(str(creds["password"]))
     if creds.get("salt"):
         env["RCLONE_CONFIG_ENCVOL_PASSWORD2"] = _rclone_obscure(str(creds["salt"]))
@@ -619,13 +650,13 @@ def _enc_rclone_env(spec: dict, creds: dict) -> dict:
     return env
 
 
-def _enc_rclone_sync(src: str, dst: str, env: dict, max_mb: int = 0) -> tuple:
+def _enc_rclone_sync(src: str, dst: str, env: dict, max_mb: int = 0, crypt: bool = True) -> tuple:
     """One rclone sync. Returns (ok, error_message). Two failure shapes:
-    a nonzero exit (network, auth, content MAC mismatch), and - crucially -
-    exit 0 with 'Skipping undecryptable' NOTICEs: under encrypted file names a
-    WRONG PASSWORD decrypts nothing and rclone happily syncs an empty set, so
-    undecryptable names must fail the unlock, not silently produce an empty
-    volume."""
+    a nonzero exit (network, auth, content MAC mismatch), and - crucially,
+    crypt only - exit 0 with 'Skipping undecryptable' NOTICEs: under encrypted
+    file names a WRONG PASSWORD decrypts nothing and rclone happily syncs an
+    empty set, so undecryptable names must fail the unlock, not silently
+    produce an empty volume."""
     cmd = [RCLONE_BIN, "sync", src, dst, "--transfers", "8", "--checkers", "8",
            "--retries", "2", "--contimeout", "15s"]
     if max_mb:
@@ -636,7 +667,7 @@ def _enc_rclone_sync(src: str, dst: str, env: dict, max_mb: int = 0) -> tuple:
     except subprocess.TimeoutExpired:
         return False, f"rclone sync timed out after {int(ENC_SYNC_SECS)}s"
     err = (r.stderr or b"").decode("utf-8", "replace")
-    if "undecryptable" in err.lower():
+    if crypt and "undecryptable" in err.lower():
         return False, "volume did not decrypt (wrong password/salt, or filenameEncryption doesn't match how it was pushed)"
     if r.returncode != 0:
         tail = err.strip()[-800:] or f"rclone exited {r.returncode}"
@@ -668,9 +699,10 @@ def _enc_wipe_dir(vol: dict):
 
 
 def _enc_unlock_worker(rec: dict, vol: dict, creds: dict):
-    """Background pull: rclone fetches the ciphertext from the bucket and
-    decrypts into the volume's preopened dir. On ANY failure the dir is wiped -
-    a partial plaintext tree that LOOKS unlocked is worse than an empty one."""
+    """Background pull: rclone fetches the bucket contents - decrypting through
+    the crypt remote, or verbatim for a plain volume - into the volume's
+    preopened dir. On ANY failure the dir is wiped - a partial tree that LOOKS
+    unlocked is worse than an empty one."""
     spec = vol["spec"]
     try:
         env = _enc_rclone_env(spec, creds)
@@ -678,7 +710,8 @@ def _enc_unlock_worker(rec: dict, vol: dict, creds: dict):
         with _lock:
             vol["pub"]["status"], vol["pub"]["error"] = "locked", str(e)
         return
-    ok, err = _enc_rclone_sync("encvol:", vol["dir"], env, spec["maxMb"])
+    ok, err = _enc_rclone_sync(_enc_remote(spec), vol["dir"], env, spec["maxMb"],
+                               crypt=spec["encrypted"])
     with _lock:
         if ok:
             vol["pub"]["status"], vol["pub"]["error"] = "unlocked", None
@@ -692,9 +725,10 @@ def _enc_unlock_worker(rec: dict, vol: dict, creds: dict):
 
 
 def _enc_push_worker(rec: dict, vol: dict):
-    """Background push: sync the (possibly app-edited) plaintext back to the
-    bucket through the same crypt remote. Local data stays intact either way."""
-    ok, err = _enc_rclone_sync(vol["dir"], "encvol:", vol["env"])
+    """Background push: sync the (possibly app-edited) local tree back to the
+    bucket through the same remote. Local data stays intact either way."""
+    ok, err = _enc_rclone_sync(vol["dir"], _enc_remote(vol["spec"]), vol["env"],
+                               crypt=vol["spec"]["encrypted"])
     with _lock:
         vol["pub"]["status"] = "unlocked"
         vol["pub"]["error"] = None if ok else err
@@ -2387,12 +2421,12 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
             vol_mounts[vname] = have[vname]["path"]
     rec["volumes"] = list(vol_mounts.keys())
 
-    # encrypted volumes (rclone crypt over S3): stage an EMPTY dir per volume
-    # and spawn right away - the app itself (or anything holding the
-    # per-deployment token) unlocks over loopback and the plaintext appears
-    # under the already-preopened /enc/<name>. Unlike /data, a failure to
-    # stage is a failed LAUNCH: an app deployed around an encrypted volume
-    # must not silently run without the mount.
+    # S3-backed volumes (rclone over S3, crypt-layered unless "encrypted":
+    # false): stage an EMPTY dir per volume and spawn right away - the app
+    # itself (or anything holding the per-deployment token) unlocks over
+    # loopback and the contents appear under the already-preopened
+    # /enc/<name>. Unlike /data, a failure to stage is a failed LAUNCH: an
+    # app deployed around a volume must not silently run without the mount.
     enc = None
     if enclave_config:
         try:
@@ -2413,7 +2447,7 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
                                 "bytes": 0, "maxMb": spec["maxMb"], "readOnly": spec["readOnly"],
                                 "endpoint": spec["endpoint"], "bucket": spec["bucket"],
                                 "path": spec["path"], "unlock": spec["unlock"],
-                                "keyId": spec["keyId"]}}
+                                "keyId": spec["keyId"], "encrypted": spec["encrypted"]}}
             except OSError as e:
                 rec["status"], rec["error"] = "failed", f"encrypted volume staging failed: {e}"
                 shutil.rmtree(base, ignore_errors=True)
@@ -2804,7 +2838,7 @@ def _audit_enc(rec):
         vol["pub"]["bytes"] = used
         if used > vol["spec"]["maxMb"] * 1024 * 1024:
             rec["status"] = "failed"
-            rec["error"] = (f"storage: encrypted volume '{name}' holds {used // (1024*1024)}MiB, over its "
+            rec["error"] = (f"storage: volume '{name}' holds {used // (1024*1024)}MiB, over its "
                             f"{vol['spec']['maxMb']}MiB cap (encVolumes maxMb); app killed.")
             print(f"[audit] {rec['id']} killed: enc volume {name} {used} bytes > {vol['spec']['maxMb']}MiB", flush=True)
             _kill(rec)
@@ -3046,8 +3080,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         pub = vol["pub"]
         if action == "unlock":
             password = b.get("password")
-            if not isinstance(password, str) or not password:
-                return self._json(400, {"error": "password required"})
+            if vol["spec"]["encrypted"]:
+                if not isinstance(password, str) or not password:
+                    return self._json(400, {"error": "password required"})
+            elif password or b.get("salt"):
+                # a password on a plaintext store is a misconfiguration, not a
+                # convenience: whoever sent it believes something is encrypted.
+                return self._json(400, {"error": f"volume '{name}' is plain (\"encrypted\": false): "
+                                                 f"it takes S3 credentials only, no password/salt"})
             creds = {"password": password, "salt": b.get("salt"),
                      "accessKeyId": b.get("accessKeyId"),
                      "secretAccessKey": b.get("secretAccessKey"),
