@@ -46,11 +46,16 @@ if (-not $cliDir -or -not (Test-Path (Join-Path $cliDir "enclave.mjs"))) {
     Expand-Archive -Path $zip -DestinationPath $tmp
   } else {
     # pinned + checksum-verified release. ENCLAVE_CLI_VERSION pins an exact tag;
-    # unset resolves the latest cli-* release.
+    # unset resolves the latest cli-* release. Resolution uses the tag-prefix
+    # refs API, NOT /releases: that endpoint only returns the newest page of
+    # releases, and enclave (non-CLI) releases land many per day, so the
+    # latest cli-* release is quickly buried pages deep.
     $ver = $env:ENCLAVE_CLI_VERSION
     if (-not $ver) {
-      $rels = Invoke-RestMethod -Uri "$api/releases" -UseBasicParsing
-      $ver = ($rels | Where-Object { $_.tag_name -like "cli-*" } | Select-Object -First 1).tag_name
+      $refs = Invoke-RestMethod -Uri "$api/git/matching-refs/tags/cli-v" -UseBasicParsing
+      $ver = @($refs) | ForEach-Object { $_.ref -replace '^refs/tags/', '' } |
+        Where-Object { $_ -match '^cli-v\d+\.\d+\.\d+$' } |
+        Sort-Object { [version]($_ -replace '^cli-v', '') } | Select-Object -Last 1
       if (-not $ver) { Fail "no cli-* release found (and ENCLAVE_CLI_VERSION unset). Set `$env:ENCLAVE_CLI_VERSION='cli-vX.Y.Z', or `$env:ENCLAVE_CLI_CHANNEL='edge' for an unverified dev build." }
     }
     $base = "$gh/releases/download/$ver"

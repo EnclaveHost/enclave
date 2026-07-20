@@ -64,12 +64,16 @@ main() {
       fetch "$GH/archive/refs/heads/main.tar.gz" | tar -xzf - -C "$TMP"
     else
       # pinned + checksum-verified release. ENCLAVE_CLI_VERSION pins an exact tag;
-      # unset resolves the latest cli-* release.
+      # unset resolves the latest cli-* release. Resolution uses the tag-prefix
+      # refs API, NOT /releases: that endpoint only returns the newest page of
+      # releases, and enclave (non-CLI) releases land many per day, so the
+      # latest cli-* release is quickly buried pages deep.
       ver="${ENCLAVE_CLI_VERSION:-}"
       if [ -z "$ver" ]; then
-        ver="$(fetch "$API/releases" 2>/dev/null \
-          | grep '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/' \
-          | grep '^cli-' | head -1 || true)"
+        ver="$(fetch "$API/git/matching-refs/tags/cli-v" 2>/dev/null \
+          | grep -o '"refs/tags/cli-v[0-9][^"]*"' \
+          | sed -nE 's|^"refs/tags/cli-v([0-9]+)\.([0-9]+)\.([0-9]+)"$|\1 \2 \3 cli-v\1.\2.\3|p' \
+          | sort -k1,1n -k2,2n -k3,3n | awk 'END{print $4}' || true)"
         [ -n "$ver" ] || { echo "error: no cli-* release found (and ENCLAVE_CLI_VERSION unset). Set ENCLAVE_CLI_VERSION=cli-vX.Y.Z, or ENCLAVE_CLI_CHANNEL=edge for an unverified dev build." >&2; exit 1; }
       fi
       base="$GH/releases/download/$ver"
