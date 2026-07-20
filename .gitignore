@@ -32,3 +32,9 @@ scripts/.vendor-build/
 # rolling archive of hashed site chunks (deploy.sh ships the union so cached
 # entries keep resolving their chunks across deploys)
 site/.chunk-archive/
+# playwright artifacts + per-run stack state
+e2e/node_modules/
+e2e/.data/
+e2e/.stack.json
+e2e/test-results/
+e2e/playwright-report/
