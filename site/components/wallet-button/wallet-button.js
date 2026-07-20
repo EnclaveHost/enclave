@@ -13,8 +13,6 @@
 import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { Enclave } from "../../js/core/api.js";
 import { Wallet, connectWallet, refreshWallet, restoreSession, toggleWalletPop } from "../../js/core/wallet.js";
-import { restoreAccountSession, openAuthModal } from "../../js/core/account.js";
-import { ACCOUNTS_ENABLED } from "../../js/core/config.js";
 import { navigate } from "../../js/boot.js";
 import { $, showToast } from "../../js/core/util.js";
 
@@ -34,13 +32,7 @@ class WalletButton extends EnclaveElement {
 
     const wb = this.querySelector("#walletBtn");
     wb.addEventListener("click", async () => {
-      if (Enclave.address || Enclave.accountAuthed()){ toggleWalletPop(); return; }
-      if (ACCOUNTS_ENABLED){
-        // account sign-in chooser: passkey primary, wallet secondary
-        try { await openAuthModal(); navigate("dashboard", { push: true }); }
-        catch(e){ /* cancelled or already toasted by the modal */ }
-        return;
-      }
+      if (Enclave.address){ toggleWalletPop(); return; }
       const o = wb.innerHTML; wb.disabled = true; wb.innerHTML = "connecting…";
       try {
         await connectWallet();   // connecting IS signing in (SIWE stays lazy, at the private reads)
@@ -69,8 +61,7 @@ class WalletButton extends EnclaveElement {
 
     Wallet.init();
     refreshWallet();
-    restoreSession();          // silently restore a prior wallet + sign-in across refreshes
-    restoreAccountSession();   // and the relay account session (separate trust domain)
+    restoreSession();   // silently restore a prior wallet + sign-in across refreshes
   }
 }
 register("c-wallet-button", WalletButton);
