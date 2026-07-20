@@ -388,7 +388,7 @@ const SIGNING_NOTE = `Signing and sending transactions: every build_* tool retur
   or use the enclave CLI, which wraps these flows end to end: curl -fsSL https://get.enclave.host | sh`;
 
 const GUIDES = {
-  "getting-started": `Enclave (enclave.host) runs apps inside hardware TEEs (confidential VMs) on flagship NVIDIA GPUs and CPU nodes. If it can sign, it can compute: the only identity is a wallet on Base (chainId ${CHAIN_ID}); there are no accounts.
+  "getting-started": `Enclave (enclave.host) runs apps inside hardware TEEs (confidential VMs) on flagship NVIDIA GPUs and CPU nodes; neither the platform nor the host can see tenant data. The only identity is a wallet on Base (chainId ${CHAIN_ID}); there are no accounts.
 
 What you need:
 1. A wallet on Base with a little ETH for gas.
