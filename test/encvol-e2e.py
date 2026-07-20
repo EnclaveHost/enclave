@@ -213,10 +213,43 @@ try:
     for bad, why in [({"encVolumes": [{"name": "UPPER", "endpoint": "https://x", "bucket": "b"}]}, "bad name"),
                      ({"encVolumes": [{"name": "a", "endpoint": "ftp://x", "bucket": "b"}]}, "bad endpoint"),
                      ({"encVolumes": [{"name": "a", "endpoint": "https://10.0.0.1", "bucket": "b"}]}, "SSRF private endpoint"),
-                     ({"encVolumes": [{"name": "a", "endpoint": "https://x", "bucket": "b", "maxMb": 999999}]}, "maxMb over ceiling")]:
+                     ({"encVolumes": [{"name": "a", "endpoint": "https://x", "bucket": "b", "maxMb": 999999}]}, "maxMb over ceiling"),
+                     ({"encVolumes": [{"name": "a", "endpoint": "https://x", "bucket": "b",
+                                       "encrypted": False, "filenameEncryption": "off"}]}, "crypt fields on a plain volume")]:
         vm = req(base + "/vms", body={"image": app_wasm, "cpuShare": 0.05,
                                       "config": json.dumps(bad)}, headers=CTRL, ok=(500,))
         check(f"refused: {why}", vm["status"] == "failed" and "encVolumes" in vm["error"])
+
+    # ---- stage 1b: plain volume ("encrypted": false) - no crypt layer -------- #
+    # Same preopen/token/lifecycle, but the bucket holds the bytes verbatim and
+    # unlock carries no password (and, on a public bucket, nothing at all).
+    print('stage 1b: plain volume ("encrypted": false)')
+    praw = remote / "bucket" / "pubvol"; (praw / "sub").mkdir(parents=True)
+    (praw / "readme.txt").write_text("plain payload\n")
+    (praw / "sub" / "extra.txt").write_text("nested plain\n")
+    pcfg = {"encVolumes": [{"name": "pub", "endpoint": f"local:{remote}", "bucket": "bucket",
+                            "path": "pubvol", "encrypted": False, "maxMb": 64}]}
+    vm = req(base + "/vms", body={"image": app_wasm, "cpuShare": 0.05,
+                                  "config": json.dumps(pcfg)}, headers=CTRL, ok=(201,))
+    pvid = vm["id"]
+    check("plain volume launches locked", vm["status"] == "running"
+          and vm["encVolumes"][0]["status"] == "locked", str(vm.get("error")))
+    check("record marks it unencrypted", vm["encVolumes"][0]["encrypted"] is False)
+    papp = f"http://127.0.0.1:{vm['hostPort']}"
+    r = req(papp + "/api/unlock", body={"name": "pub", "password": "oops"}, ok=(400,))
+    check("password on a plain volume refused", "plain" in json.dumps(r))
+    req(papp + "/api/unlock", body={"name": "pub"}, ok=(202,))
+    v = wait_settled(papp + "/api/status")
+    check("credential-less unlock succeeds", v["status"] == "unlocked", json.dumps(v))
+    check("verbatim bytes through the app", req(papp + "/f/pub/readme.txt") == b"plain payload\n")
+    check("nested file too", req(papp + "/f/pub/sub/extra.txt") == b"nested plain\n")
+    (WORK / "s1/enc" / pvid / "pub" / "from-enclave.txt").write_text("plain push-back\n")
+    req(papp + "/api/sync", body={"name": "pub"}, ok=(202,))
+    v = wait_settled(papp + "/api/status")
+    check("plain push completed", v["status"] == "unlocked" and not v["error"], json.dumps(v))
+    check("pushed file lands in the bucket verbatim - no crypt in between",
+          (praw / "from-enclave.txt").read_text() == "plain push-back\n")
+    req(base + f"/vms/{pvid}", method="DELETE", headers=CTRL)
 
     # ---- stage 2: the real S3 protocol (sigv4) over `rclone serve s3` -------- #
     helps = subprocess.run([RCLONE, "serve", "s3", "--help"], capture_output=True)
@@ -357,6 +390,34 @@ try:
         v = wait_settled(app3 + "/api/status")
         check("wallet-derived unlock succeeds", v["status"] == "unlocked", json.dumps(v))
         check("wallet-gated plaintext through the app", req(app3 + "/f/wvol/wallet.txt") == b"wallet-gated data\n")
+
+        # ---- stage 4: plain volume over the real S3 protocol ------------------ #
+        print("stage 4: plain volume over real S3 (--plain push, creds-only unlock)")
+        pdir = WORK / "ps3"; pdir.mkdir()
+        (pdir / "asset.txt").write_text("verbatim asset\n")
+        penv = dict(script_env); penv.pop("ENCVOL_WALLET_SIG", None)
+        r = subprocess.run([script, "push", str(pdir), "--endpoint", endpoint,
+                            "--bucket", "bkt", "--path", "pubs3", "--name", "pub", "--plain"],
+                           env=penv, capture_output=True, text=True)
+        check("script push --plain", r.returncode == 0, r.stderr[-300:])
+        check("push snippet advertises encrypted: false", '"encrypted": false' in r.stderr)
+        check("bucket holds the bytes verbatim",
+              (s3root / "bkt" / "pubs3" / "asset.txt").read_text() == "verbatim asset\n")
+        r = subprocess.run([script, "push", str(pdir), "--endpoint", endpoint,
+                            "--bucket", "bkt", "--plain", "--sig", sig],
+                           env=penv, capture_output=True, text=True)
+        check("script refuses --plain + --sig", r.returncode != 0)
+        pcfg2 = {"encVolumes": [{"name": "pub", "endpoint": endpoint, "bucket": "bkt",
+                                 "path": "pubs3", "encrypted": False, "maxMb": 64}]}
+        vm = req(base2 + "/vms", body={"image": app_wasm2, "cpuShare": 0.05,
+                                       "config": json.dumps(pcfg2)}, headers=CTRL, ok=(201,))
+        check("plain volume launches over real S3", vm["status"] == "running", str(vm.get("error")))
+        app4 = f"http://127.0.0.1:{vm['hostPort']}"
+        req(app4 + "/api/unlock", body={"name": "pub", "accessKeyId": key,
+                                        "secretAccessKey": sec}, ok=(202,))
+        v = wait_settled(app4 + "/api/status")
+        check("creds-only unlock over real S3", v["status"] == "unlocked", json.dumps(v))
+        check("verbatim bytes through the app", req(app4 + "/f/pub/asset.txt") == b"verbatim asset\n")
 
     print("\nALL ENCVOL E2E CHECKS PASSED")
 except AssertionError as e:
