@@ -14,6 +14,12 @@ RestartSec=2
 DynamicUser=yes
 NoNewPrivileges=yes
 ProtectSystem=strict
+# Writable state for the account/billing modules (accounts.json, orders.json,
+# indexer cursor, OFAC cache, ES256 session key). systemd creates
+# /var/lib/enclave-relay owned by the dynamic user and exports
+# $STATE_DIRECTORY, which store.js picks up; without it (or AUTH_DATA_DIR)
+# accounts + billing stay disabled and the relay is a pure router as before.
+StateDirectory=enclave-relay
 ProtectHome=yes
 PrivateTmp=yes
 # resource caps (fix 10)

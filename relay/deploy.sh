@@ -54,7 +54,11 @@ echo "== api relay (site box)"
 # origins) AND ./mcp.js (the MCP coding-agent endpoint, mcp.enclave.host);
 # fleet.mjs imports ./net-guard.mjs too. ALL of them MUST ship alongside or the
 # service crash-loops with ERR_MODULE_NOT_FOUND.
-scp api-relay.js mcp.js fleet.mjs net-guard.mjs package.json nan:/opt/nan-relay/
+# auth/billing modules (account sessions, orders, Stripe webhook, PaymentRouter
+# indexer, OFAC screen, provisioner) ship alongside; they self-disable without
+# StateDirectory/env, so shipping them is always safe. npm install below pulls
+# their deps (@simplewebauthn/server, jose) from the updated package.json.
+scp api-relay.js mcp.js auth.js billing.js indexer.js ofac.js provisioner.js store.js fleet.mjs net-guard.mjs package.json nan:/opt/nan-relay/
 scp systemd/enclave-api-relay.service nan:/etc/systemd/system/
 ssh nan 'if [ -f /etc/systemd/system/nan-api-relay.service ]; then \
     systemctl disable --now nan-api-relay || true; rm /etc/systemd/system/nan-api-relay.service; fi \
