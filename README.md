@@ -147,3 +147,4 @@ dependencies) remain under their own licenses — attribution and license
 copies for everything distributed with the built artifacts live in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) (regenerate with
 `node scripts/build-notices.mjs` after dependency changes).
+Portions © 2025 Reown, Inc. All Rights Reserved.

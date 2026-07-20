@@ -1,32 +1,35 @@
 #!/usr/bin/env node
 /* ============================================================
-   Same-origin vendor bundles — vendors the third-party ESM deps
-   that the site would otherwise hot-load from a CDN at RUNTIME
-   into self-hosted, integrity-controlled bundles under
+   Same-origin vendor bundles — vendors the two third-party
+   ESM deps that the site used to hot-load from esm.sh at
+   RUNTIME into self-hosted, integrity-controlled bundles under
    site/vendor/. No CDN at runtime.
 
    Why this matters (trust product): the attestation verifier is
    the "✓ verify it yourself in your browser" claim — the whole
    product rests on it. Loaded from esm.sh with no SRI, a
    compromised (or coerced) CDN could return code that reports
-   verified:true for anything. Same policy for the WebAuthn
-   client: a passkey ceremony must never execute unpinned
-   third-party bytes. Bundling them same-origin removes the
-   un-SRI'd CDN from the TCB; the bytes are covered by the
-   site's own IPFS pin + Caddy TLS, and pinned by version here.
+   verified:true for anything. Same story for the Privy SDK
+   (an unpinned esm.sh import in the wallet path). Bundling them
+   same-origin removes the un-SRI'd third-party CDN from the TCB;
+   the bytes are now covered by the site's own IPFS pin +
+   Caddy TLS, and pinned by version here.
 
-     • site/vendor/verifier.js -> @tinfoilsh/verifier (used by
+     • site/vendor/verifier.js   -> @tinfoilsh/verifier (used by
        site/js/core/verify.js). Its one Node-builtin use,
        `await import('zlib')` for gunzipSync, is aliased to the
        pure-JS synchronous fflate implementation for the browser.
-     • site/vendor/webauthn.js -> @simplewebauthn/browser (used
-       by site/js/core/account.js for passkey sign-in/creation;
-       lazy-imported, so no WebAuthn bytes load until a user
-       actually picks the passkey option).
+     • site/vendor/privy-core.js -> @privy-io/js-sdk-core (used by
+       site/js/core/wallet.js, the email-wallet fallback).
+
+   buy.html's Privy REACT bundle is a SEPARATE artifact
+   (scripts/build-privy.mjs -> site/privy/); this is the smaller
+   js-sdk-core used by the main wallet path, kept apart so the
+   two never entangle.
 
    Deps install into scripts/.vendor-build/ (gitignored), pinned
    below; bump the pins and re-run to upgrade. The output
-   site/vendor/ IS committed.
+   site/vendor/ IS committed (same policy as site/privy/).
 
      node scripts/build-vendor.mjs
    ============================================================ */
@@ -39,11 +42,16 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..")
 const WORK = path.join(ROOT, "scripts", ".vendor-build");
 const OUT = path.join(ROOT, "site", "vendor");
 
-// Pinned. verifier MUST match the version site/js/core/verify.js expects.
+// Pinned. verifier MUST match the version site/js/core/verify.js expects; the
+// Privy pin closes the old version-UNPINNED esm.sh import in wallet.js.
 const DEPS = {
   "@tinfoilsh/verifier": "1.1.10",   // 1.1.9+ is Apache-2.0 (≤1.1.8 was AGPL — a license conflict with ours; keep ≥1.1.9)
-  "@simplewebauthn/browser": "13.1.0",   // MIT; passkey client (startRegistration/startAuthentication)
+  "@privy-io/js-sdk-core": "0.68.2",
   "fflate": "0.8.2",           // browser gunzipSync shim for the verifier's zlib use
+  "jsqr": "1.4.0",             // QR decode fallback for the Send-USDC camera scan
+                               // (wallet.js lazy-imports /vendor/jsqr.js when the
+                               // browser's BarcodeDetector can't do qr_code, e.g.
+                               // desktop Linux and Firefox). Apache-2.0.
 };
 
 fs.mkdirSync(WORK, { recursive: true });
@@ -78,18 +86,30 @@ await build({
   alias: { zlib: nm("fflate/esm/browser.js") },
 });
 
-console.log("[vendor] esbuild @simplewebauthn/browser -> site/vendor/webauthn.js");
+console.log("[vendor] esbuild @privy-io/js-sdk-core -> site/vendor/privy-core.js");
 await build({
   ...shared,
-  entryPoints: [nm("@simplewebauthn/browser")],
-  outfile: path.join(OUT, "webauthn.js"),
+  entryPoints: [nm("@privy-io/js-sdk-core")],
+  outfile: path.join(OUT, "privy-core.js"),
+});
+
+console.log("[vendor] esbuild jsqr -> site/vendor/jsqr.js");
+// jsqr ships CJS; the wrapper pins the ESM shape to a default export so the
+// caller's `(await import("/vendor/jsqr.js")).default` can never drift
+fs.writeFileSync(path.join(WORK, "jsqr-entry.js"),
+  'import jsQR from "jsqr";\nexport default jsQR;\n');
+await build({
+  ...shared,
+  entryPoints: [path.join(WORK, "jsqr-entry.js")],
+  outfile: path.join(OUT, "jsqr.js"),
 });
 
 // Fail loud if an upgrade ever drops an export the callers destructure, so a
-// broken bundle can never ship silently to the verify/auth paths.
+// broken bundle can never ship silently to the verify/wallet paths.
 const must = [
   ["verifier.js", ["Verifier", "assembleAttestationBundle"]],
-  ["webauthn.js", ["startRegistration", "startAuthentication"]],
+  ["privy-core.js", ["LocalStorage", "default"]],
+  ["jsqr.js", ["default"]],
 ];
 for (const [file, names] of must) {
   const src = fs.readFileSync(path.join(OUT, file), "utf8");
