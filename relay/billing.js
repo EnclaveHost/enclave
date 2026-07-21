@@ -30,10 +30,11 @@
 // signature is an HMAC we verify on the RAW body. Idempotent by event id.
 
 import { JsonStore, dataDir, dataFile, makeRateLimiter, rid, rpcPool } from "./store.js";
-import { verifyAccountSession, accountsEnabled } from "./auth.js";
+import { verifyAccountSession, accountsEnabled, vaultKeyOf } from "./auth.js";
 import { initOfac, screenAddress } from "./ofac.js";
 import { startIndexer } from "./indexer.js";
 import { initProvisioner, enqueueProvision, recoverProvisioning } from "./provisioner.js";
+import { initVault, vaultEnabled, vaultInfo, ensureVault, depositToVault, opDigest, buildCreateCall, submitOp, vaultAddressFor } from "./vaultsvc.js";
 import { publisherFee6 } from "./mcp.js";
 import { createHmac, timingSafeEqual, randomBytes } from "node:crypto";
 
@@ -66,6 +67,11 @@ const CHAIN_ID = NETWORK === "base-sepolia" ? 84532 : 8453;
 const BOOK = (process.env.ADDRESS_BOOK_ADDRESS || "").trim();
 // "paymentRouter" ascii right-padded to bytes32 (the book's key convention)
 const BOOK_KEY_ROUTER = "0x" + Buffer.from("paymentRouter").toString("hex").padEnd(64, "0");
+
+// credit-vault policy: closed-loop prepaid access stays under the $2,000
+// balance boundary (docs/billing-runbook.md); top-ups are card-only dollars
+const VAULT_CAP_6 = BigInt(process.env.VAULT_CAP_6 || "2000000000");   // $2,000
+const TOPUP_MIN_6 = BigInt(process.env.TOPUP_MIN_6 || "5000000");      // $5
 
 let enabled = false;
 let orders = null;        // JsonStore { orders, byRef }
@@ -107,6 +113,9 @@ export async function initBilling(ctx) {
     alert,
   });
   recoverProvisioning();
+
+  await initVault({ usdc: USDC, addressBook: BOOK, chainId: CHAIN_ID });
+  setInterval(retryCrediting, ORDER_SWEEP_SEC * 1000).unref?.();
 
   setInterval(expirySweep, ORDER_SWEEP_SEC * 1000).unref?.();
   // prune settled stripe events after 30 days (idempotency only needs recency)
@@ -248,6 +257,40 @@ async function handlePendingPayment({ orderRef }) {
     setOrderState(order, "pending_confirmations", "indexer");   // display-only
 }
 
+// ---- top-up settlement: card money became revenue; company USDC becomes the
+// customer's closed-loop vault credit. Write-ahead step guards double-deposits:
+// a crash AFTER the deposit tx was sent but BEFORE its hash was recorded goes
+// to human review instead of a blind (double-crediting) retry.
+async function settleTopup(orderId) {
+  const order = orders.data.orders[orderId];
+  if (!order || order.state !== "crediting") return;
+  const key = vaultKeyOf(order.accountId);
+  if (!key) { openReview(order, "topup_no_vault_key", { accountId: order.accountId }); return; }
+  if (order.vault?.step === "depositing" && !order.vault.txHash) {
+    openReview(order, "topup_uncertain", { note: "deposit attempt interrupted; verify on-chain before re-crediting" });
+    return;
+  }
+  order.vault = { step: "depositing", address: null, txHash: null };
+  orders.flush();
+  try {
+    const { vault, txHash } = await depositToVault(key, order.quote.amount6);
+    order.vault = { step: "done", address: vault, txHash };
+    setOrderState(order, "complete", "vault_deposit", txHash);
+  } catch (e) {
+    order.vault = { step: "failed", error: String(e.message || e).slice(0, 300) };
+    orders.saveSoon();
+    alert("topup_deposit_failed", { orderId, error: order.vault.error });   // retryCrediting keeps trying
+  }
+}
+function retryCrediting() {
+  if (!vaultEnabled()) return;
+  for (const o of Object.values(orders.data.orders))
+    if (o.kind === "topup" && o.state === "crediting" && o.vault?.step === "failed") {
+      o.vault = null; orders.saveSoon();
+      settleTopup(o.id);
+    }
+}
+
 function expirySweep() {
   const now = Date.now();
   for (const order of Object.values(orders.data.orders)) {
@@ -321,9 +364,53 @@ export function verifyStripeSignature(rawBody, header, secret, nowMs = Date.now(
 }
 
 // --- order views ----------------------------------------------------------------
+// spec + duration validation shared by the legacy order flow and vault
+// prepare: mirrors the ledger's own create() gates so nothing paid-for can
+// ever be unconvertible, and refuses publisher-fee apps (the company wallet
+// never forwards a fee cut to a third party - business/legal decision pending).
+// Returns { spec, seconds, rate6, amount6 } or answers the response itself.
+async function validateDeploySpec(b, ctx, res, req) {
+  const raw = b.spec || {};
+  let seconds = Math.round(Number(b.seconds ?? Number(b.hours) * 3600));
+  const gpuMilli = Math.round(Number(raw.gpuShare != null ? Number(raw.gpuShare) * 1000 : raw.gpuMilli) || 0);
+  const cpuMilli = Math.round(Number(raw.cpuShare != null ? Number(raw.cpuShare) * 1000 : raw.cpuMilli) || 0);
+  const appRef = String(raw.appRef || "");
+  const appPort = Math.round(Number(raw.appPort)) || 8080;
+  const ports = String(raw.ports || "");
+  const configCid = String(raw.configCid || "");
+  let rates;
+  try { rates = await ledgerRates(); } catch (e) { err(ctx, res, req, 503, "quote_unavailable", `Cannot quote right now: ${e.message}`); return null; }
+  if (!appRef || appRef.length > 100) { err(ctx, res, req, 422, "bad_app_ref", "spec.appRef is required (catalog://... or ipfs://...), max 100 chars."); return null; }
+  if (!(cpuMilli >= 1 && cpuMilli <= 1000)) { err(ctx, res, req, 422, "bad_cpu", "cpuShare must be within (0, 1]."); return null; }
+  if (!(gpuMilli >= 0 && gpuMilli <= rates.maxGpuMilli)) { err(ctx, res, req, 422, "bad_gpu", `gpuShare must be within [0, ${rates.maxGpuMilli / 1000}].`); return null; }
+  if (gpuMilli > 0 && gpuMilli < cpuMilli) { err(ctx, res, req, 422, "bad_shares", "gpuShare must be at least cpuShare (ledger rule)."); return null; }
+  if (!(appPort > 0 && appPort < 65536)) { err(ctx, res, req, 422, "bad_port", "appPort must be a valid port."); return null; }
+  if (ports.length > 96 || configCid.length > 100) { err(ctx, res, req, 422, "bad_spec", "ports/configCid exceed the ledger's limits."); return null; }
+  // the deploy console thinks in a DOLLAR budget: convert through the live rate
+  if (!Number.isFinite(seconds) && Number.isFinite(Number(b.fundUsd))) {
+    const cents = Math.round(Number(b.fundUsd) * 100);
+    if (cents > 0) seconds = Number((BigInt(cents) * 10000n) / rate6For(rates, gpuMilli, cpuMilli));
+  }
+  if (!Number.isFinite(seconds) || seconds < MIN_SECONDS || seconds > MAX_SECONDS) {
+    err(ctx, res, req, 422, "bad_duration", `The budget buys ${Number.isFinite(seconds) ? seconds : 0}s of runtime; it must cover ${MIN_SECONDS}s to ${MAX_SECONDS}s.`); return null;
+  }
+  let fee6 = 0n;
+  try { fee6 = await publisherFee6(appRef); } catch { /* catalog unreadable: fee unknown */ }
+  if (fee6 > 0n) {
+    err(ctx, res, req, 422, "publisher_fee_unsupported",
+      "This app charges a publisher fee, which credit checkout does not support yet. Deploy it directly from your wallet instead.");
+    return null;
+  }
+  const rate6 = rate6For(rates, gpuMilli, cpuMilli);
+  return { spec: { appRef, gpuMilli, cpuMilli, appPort, ports, isPublic: raw.isPublic !== false, configCid },
+           seconds, rate6, amount6: rate6 * BigInt(seconds) };
+}
+
 function orderView(order) {
   return {
     id: order.id, ref: order.ref, state: order.state, flags: order.flags,
+    kind: order.kind || "spec",
+    ...(order.vault?.address ? { vault: order.vault.address } : {}),
     createdAt: order.createdAt, expiresAt: order.expiresAt,
     spec: order.spec, seconds: order.seconds,
     amountUsd: (Number(order.quote.amount6) / 1e6).toFixed(2),
@@ -363,8 +450,13 @@ export async function handleBilling(req, res, u, ctx) {
           paymentIntentId: sess.payment_intent || null, lastEventId: evt.id };
         stripeEvents.data.events[evt.id].orderId = order.id;
         stripeEvents.saveSoon();
-        setOrderState(order, "confirmed_provisioning", "stripe_webhook");
-        enqueueProvision(order.id);
+        if (order.kind === "topup") {
+          setOrderState(order, "crediting", "stripe_webhook");
+          settleTopup(order.id);
+        } else {
+          setOrderState(order, "confirmed_provisioning", "stripe_webhook");
+          enqueueProvision(order.id);
+        }
       } else if (!order) {
         alert("stripe_unmatched_event", { eventId: evt.id, sessionId: sess.id });
       }
@@ -412,38 +504,14 @@ export async function handleBilling(req, res, u, ctx) {
   if (!sess) return err(ctx, res, req, 401, "unauthorized", "Sign in first.");
 
   if (p === "/v1/billing/orders" && req.method === "POST") {
+    // LEGACY spec-order flow: the site's checkout no longer creates these
+    // (credit-vault deploys replaced it) but the machinery stays live and
+    // tested as the rollback path and for in-flight orders.
     if (!rlOrders(sess.accountId)) return err(ctx, res, req, 429, "rate_limited", "Too many orders; retry later.");
     let b; try { b = JSON.parse((await ctx.readBody(req, 65536)).toString() || "{}"); } catch { return err(ctx, res, req, 400, "bad_json", "Body must be JSON."); }
-    const spec = b.spec || {};
-    const seconds = Math.round(Number(b.seconds ?? Number(b.hours) * 3600));
-    const gpuMilli = Math.round(Number(spec.gpuShare != null ? Number(spec.gpuShare) * 1000 : spec.gpuMilli) || 0);
-    const cpuMilli = Math.round(Number(spec.cpuShare != null ? Number(spec.cpuShare) * 1000 : spec.cpuMilli) || 0);
-    const appRef = String(spec.appRef || "");
-    const appPort = Math.round(Number(spec.appPort)) || 8080;
-    const ports = String(spec.ports || "");
-    const configCid = String(spec.configCid || "");
-    // mirror the ledger's own create() gates so a paid order can never be
-    // unconvertible (EnclaveDeployments.sol create requires)
-    let rates;
-    try { rates = await ledgerRates(); } catch (e) { return err(ctx, res, req, 503, "quote_unavailable", `Cannot quote right now: ${e.message}`); }
-    if (!appRef || appRef.length > 100) return err(ctx, res, req, 422, "bad_app_ref", "spec.appRef is required (catalog://... or ipfs://...), max 100 chars.");
-    if (!(cpuMilli >= 1 && cpuMilli <= 1000)) return err(ctx, res, req, 422, "bad_cpu", "cpuShare must be within (0, 1].");
-    if (!(gpuMilli >= 0 && gpuMilli <= rates.maxGpuMilli)) return err(ctx, res, req, 422, "bad_gpu", `gpuShare must be within [0, ${rates.maxGpuMilli / 1000}].`);
-    if (gpuMilli > 0 && gpuMilli < cpuMilli) return err(ctx, res, req, 422, "bad_shares", "gpuShare must be at least cpuShare (ledger rule).");
-    if (!(appPort > 0 && appPort < 65536)) return err(ctx, res, req, 422, "bad_port", "appPort must be a valid port.");
-    if (ports.length > 96 || configCid.length > 100) return err(ctx, res, req, 422, "bad_spec", "ports/configCid exceed the ledger's limits.");
-    if (!Number.isFinite(seconds) || seconds < MIN_SECONDS || seconds > MAX_SECONDS)
-      return err(ctx, res, req, 422, "bad_duration", `seconds must be within [${MIN_SECONDS}, ${MAX_SECONDS}].`);
-    // publisher-fee gate: the provisioner's company wallet never forwards a
-    // fee cut to a third-party publisher (business/legal decision pending)
-    let fee6 = 0n;
-    try { fee6 = await publisherFee6(appRef); } catch { /* catalog unreadable: fee unknown */ }
-    if (fee6 > 0n)
-      return err(ctx, res, req, 422, "publisher_fee_unsupported",
-        "This app charges a publisher fee, which order-based checkout does not support yet. Deploy it directly from your wallet instead.");
-
-    const rate6 = rate6For(rates, gpuMilli, cpuMilli);
-    const amount6 = rate6 * BigInt(seconds);
+    const v = await validateDeploySpec(b, ctx, res, req);
+    if (!v) return;
+    const { spec, seconds, rate6, amount6 } = v;
     const now = new Date();
     const order = {
       id: rid("ord_"), ref: "0x" + randomBytes(32).toString("hex"),
@@ -451,7 +519,7 @@ export async function handleBilling(req, res, u, ctx) {
       createdAt: now.toISOString(),
       expiresAt: new Date(now.getTime() + ORDER_TTL_SEC * 1000).toISOString(),
       state: "awaiting_payment", flags: [],
-      spec: { appRef, gpuMilli, cpuMilli, appPort, ports, isPublic: spec.isPublic !== false, configCid },
+      spec,
       seconds,
       quote: { rate6: rate6.toString(), amount6: amount6.toString(), quotedAt: now.toISOString() },
       stripe: null,
@@ -525,6 +593,136 @@ export async function handleBilling(req, res, u, ctx) {
     }, req);
   }
 
+  // ---- credit vault (closed-loop, passkey-gated, on-chain) ---------------------
+  if (p === "/v1/billing/vault" && req.method === "GET") {
+    if (!vaultEnabled()) return err(ctx, res, req, 503, "vault_disabled", "Credit vaults are not configured on this relay.");
+    const key = vaultKeyOf(sess.accountId);
+    if (!key) return err(ctx, res, req, 409, "no_vault_key", "This account has no P-256 passkey; add a passkey to use credit.");
+    let info;
+    try { info = await vaultInfo(key); }
+    catch (e) { return err(ctx, res, req, 502, "vault_error", e.message); }
+    return ctx.json(res, 200, { ...info, balanceUsd: (Number(info.balance6) / 1e6).toFixed(2),
+      credId: key.credId, x: key.x, y: key.y, capUsd: (Number(VAULT_CAP_6) / 1e6).toFixed(0) }, req);
+  }
+
+  if (p === "/v1/billing/topup" && req.method === "POST") {
+    if (!rlOrders(sess.accountId)) return err(ctx, res, req, 429, "rate_limited", "Too many orders; retry later.");
+    if (!STRIPE_KEY) return err(ctx, res, req, 503, "stripe_disabled", "Card top-ups are not configured.");
+    if (!vaultEnabled()) return err(ctx, res, req, 503, "vault_disabled", "Credit vaults are not configured on this relay.");
+    const key = vaultKeyOf(sess.accountId);
+    if (!key) return err(ctx, res, req, 409, "no_vault_key", "This account has no P-256 passkey; add a passkey to use credit.");
+    let b; try { b = JSON.parse((await ctx.readBody(req, 65536)).toString() || "{}"); } catch { return err(ctx, res, req, 400, "bad_json", "Body must be JSON."); }
+    const cents = Math.round(Number(b.amountUsd) * 100);
+    if (!Number.isFinite(cents) || cents <= 0) return err(ctx, res, req, 422, "bad_amount", "amountUsd must be a positive dollar amount.");
+    const amount6 = BigInt(cents) * 10000n;
+    if (amount6 < TOPUP_MIN_6) return err(ctx, res, req, 422, "below_minimum", `Minimum top-up is $${Number(TOPUP_MIN_6) / 1e6}.`);
+    let info;
+    try { info = await vaultInfo(key); }
+    catch (e) { return err(ctx, res, req, 502, "vault_error", e.message); }
+    if (BigInt(info.balance6) + amount6 > VAULT_CAP_6)
+      return err(ctx, res, req, 422, "over_cap", `Credit is capped at $${Number(VAULT_CAP_6) / 1e6} per account.`);
+    const now = new Date();
+    const order = {
+      id: rid("ord_"), ref: "0x" + randomBytes(32).toString("hex"), kind: "topup",
+      accountId: sess.accountId, createdAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + ORDER_TTL_SEC * 1000).toISOString(),
+      state: "awaiting_payment", flags: [], spec: null, seconds: 0,
+      quote: { rate6: "0", amount6: amount6.toString(), quotedAt: now.toISOString() },
+      stripe: null, usdc: { payments: [], total6: "0" }, screening: {}, provision: null, vault: null, review: null, history: [],
+    };
+    orders.data.orders[order.id] = order;
+    orders.data.byRef[order.ref.toLowerCase()] = order.id;
+    orders.saveSoon();
+    let sessData;
+    try {
+      sessData = await stripeApi("/v1/checkout/sessions", {
+        mode: "payment",
+        client_reference_id: order.id,
+        "metadata[order_id]": order.id,
+        "line_items[0][quantity]": 1,
+        "line_items[0][price_data][currency]": "usd",
+        "line_items[0][price_data][unit_amount]": cents,
+        "line_items[0][price_data][product_data][name]": "Enclave credit",
+        success_url: `${SITE_ORIGIN}/checkout?order=${order.id}`,
+        cancel_url: `${SITE_ORIGIN}/checkout?order=${order.id}&cancelled=1`,
+        expires_at: Math.min(Math.floor(Date.parse(order.expiresAt) / 1000), Math.floor(Date.now() / 1000) + 86400),
+      }, order.id);
+    } catch (e) { return err(ctx, res, req, 502, "stripe_error", e.message); }
+    order.stripe = { sessionId: sessData.id };
+    orders.saveSoon();
+    return ctx.json(res, 201, { order: orderView(order), url: sessData.url }, req);
+  }
+
+  if (p === "/v1/billing/vault/prepare" && req.method === "POST") {
+    if (!vaultEnabled()) return err(ctx, res, req, 503, "vault_disabled", "Credit vaults are not configured on this relay.");
+    const key = vaultKeyOf(sess.accountId);
+    if (!key) return err(ctx, res, req, 409, "no_vault_key", "This account has no P-256 passkey.");
+    let b; try { b = JSON.parse((await ctx.readBody(req, 65536)).toString() || "{}"); } catch { return err(ctx, res, req, 400, "bad_json", "Body must be JSON."); }
+    let info;
+    try { info = await vaultInfo(key); }
+    catch (e) { return err(ctx, res, req, 502, "vault_error", e.message); }
+    const deadline = Math.floor(Date.now() / 1000) + 300;
+    const balance6 = BigInt(info.balance6);
+
+    if (b.op === "deploy") {
+      const v = await validateDeploySpec(b, ctx, res, req);
+      if (!v) return;   // validateDeploySpec answered
+      if (v.amount6 > balance6)
+        return err(ctx, res, req, 422, "insufficient_credit",
+          `This deployment needs $${(Number(v.amount6) / 1e6).toFixed(2)} of credit; you have $${(Number(balance6) / 1e6).toFixed(2)}. Add credit first.`);
+      let createCall;
+      try { createCall = await buildCreateCall(ctxRef.deploymentsAddress(), v.spec); }
+      catch (e) { return err(ctx, res, req, 502, "encode_failed", e.message); }
+      const digest = opDigest("deploy", info.address, CHAIN_ID, info.nonce, { createCall, fund6: v.amount6 }, deadline);
+      return ctx.json(res, 200, { op: "deploy", vault: info.address, chainId: CHAIN_ID, nonce: info.nonce,
+        deadline, digest, createCall, fund6: v.amount6.toString(),
+        amountUsd: (Number(v.amount6) / 1e6).toFixed(2), credId: key.credId }, req);
+    }
+    if (b.op === "fund") {
+      const cents = Math.round(Number(b.amountUsd) * 100);
+      if (!/^0x[0-9a-f]{64}$/i.test(String(b.id || "")) || !Number.isFinite(cents) || cents <= 0)
+        return err(ctx, res, req, 422, "bad_params", "fund needs a deployment id and a positive amountUsd.");
+      const fund6 = BigInt(cents) * 10000n;
+      if (fund6 > balance6) return err(ctx, res, req, 422, "insufficient_credit", "Not enough credit; add credit first.");
+      const digest = opDigest("fund", info.address, CHAIN_ID, info.nonce, { id: b.id, fund6 }, deadline);
+      return ctx.json(res, 200, { op: "fund", vault: info.address, chainId: CHAIN_ID, nonce: info.nonce,
+        deadline, digest, id: b.id, fund6: fund6.toString(), credId: key.credId }, req);
+    }
+    if (b.op === "refund") {
+      const cents = Math.round(Number(b.amountUsd) * 100);
+      if (!Number.isFinite(cents) || cents <= 0) return err(ctx, res, req, 422, "bad_params", "refund needs a positive amountUsd.");
+      const amount6 = BigInt(cents) * 10000n;
+      if (amount6 > balance6) return err(ctx, res, req, 422, "insufficient_credit", "Refund exceeds your credit balance.");
+      const digest = opDigest("refund", info.address, CHAIN_ID, info.nonce, { amount6 }, deadline);
+      return ctx.json(res, 200, { op: "refund", vault: info.address, chainId: CHAIN_ID, nonce: info.nonce,
+        deadline, digest, amount6: amount6.toString(), credId: key.credId }, req);
+    }
+    return err(ctx, res, req, 422, "bad_op", 'op must be "deploy", "fund", or "refund".');
+  }
+
+  if (p === "/v1/billing/vault/exec" && req.method === "POST") {
+    if (!vaultEnabled()) return err(ctx, res, req, 503, "vault_disabled", "Credit vaults are not configured on this relay.");
+    const key = vaultKeyOf(sess.accountId);
+    if (!key) return err(ctx, res, req, 409, "no_vault_key", "This account has no P-256 passkey.");
+    let b; try { b = JSON.parse((await ctx.readBody(req, 262144)).toString() || "{}"); } catch { return err(ctx, res, req, 400, "bad_json", "Body must be JSON."); }
+    const a = b.assertion || {};
+    if (a.credId !== key.credId)
+      return err(ctx, res, req, 422, "wrong_credential", "Vault operations must be signed by the account's vault passkey.");
+    if (!["deploy", "fund", "refund", "control"].includes(b.op))
+      return err(ctx, res, req, 422, "bad_op", "Unknown vault op.");
+    let vaultAddr;
+    try { vaultAddr = await ensureVault(key); }
+    catch (e) { return err(ctx, res, req, 502, "vault_error", e.message); }
+    try {
+      const out = await submitOp(b.op, vaultAddr, b.args || {}, b.deadline, { ...a, x: key.x, y: key.y });
+      return ctx.json(res, 200, { ok: true, ...out }, req);
+    } catch (e) {
+      // the CONTRACT is the verifier of record: a revert here means bad
+      // signature / replay / expiry / insufficient funds, never relay policy
+      return err(ctx, res, req, 409, "op_rejected", String(e.shortMessage || e.message || e).slice(0, 300));
+    }
+  }
+
   if (p === "/v1/billing/deployments" && req.method === "GET") {
     // account-scoped visibility: join the account's provisioned orders onto
     // the public on-chain ledger rows (zero new chain code - ctx.ledgerRows
@@ -535,11 +733,27 @@ export async function handleBilling(req, res, u, ctx) {
     try { rows = await ctxRef.ledgerRows(); }
     catch (e) { console.error("[billing] ledger read failed for the deployments join:", (e && (e.shortMessage || e.message)) || e); }
     const byId = new Map(rows.map((r) => [String(r.id).toLowerCase(), r]));
-    return ctx.json(res, 200, { deployments: mine.map((o) => {
+    const out = mine.map((o) => {
       const row = byId.get(String(o.provision.deploymentId).toLowerCase());
       return { orderId: o.id, deploymentId: o.provision.deploymentId,
                ...(row ? ctxRef.ledgerView(row) : { status: "unknown" }) };
-    }) }, req);
+    });
+    // vault-era deployments: rows the account's CREDIT VAULT owns on-chain
+    const seen = new Set(out.map((d) => String(d.deploymentId).toLowerCase()));
+    if (vaultEnabled()) {
+      const key = vaultKeyOf(sess.accountId);
+      if (key) {
+        try {
+          const vaultAddr = (await vaultAddressFor(key)).toLowerCase();
+          for (const r of rows) {
+            if (String(r.owner).toLowerCase() !== vaultAddr) continue;
+            if (seen.has(String(r.id).toLowerCase())) continue;
+            out.push({ deploymentId: r.id, viaVault: true, ...ctxRef.ledgerView(r) });
+          }
+        } catch { /* factory unset or RPC down: order-joined rows still serve */ }
+      }
+    }
+    return ctx.json(res, 200, { deployments: out }, req);
   }
 
   return err(ctx, res, req, 404, "not_found", "No such billing endpoint.");

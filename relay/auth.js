@@ -150,9 +150,12 @@ function newAccount(userHandle) {
 // stored per passkey: PUBLIC key + credId + counter + transports. Nothing else.
 function addPasskey(acct, info, transports, label) {
   const cred = info.credential;
+  let xy = null;
+  try { xy = coseToXY(Buffer.from(cred.publicKey)); } catch { /* non-P256 (e.g. Ed25519 key): no vault for this credential */ }
   acct.passkeys.push({
     credId: cred.id,
     publicKey: Buffer.from(cred.publicKey).toString("base64url"),
+    ...(xy ? { pubX: xy.x, pubY: xy.y } : {}),   // P-256 coordinates: what the on-chain credit vault verifies against
     counter: cred.counter || 0,
     transports: transports || cred.transports || [],
     aaguid: info.aaguid || "",
@@ -162,6 +165,47 @@ function addPasskey(acct, info, transports, label) {
   });
   accounts.data.byCredential[cred.id] = acct.id;
   accounts.saveSoon();
+}
+
+// COSE_Key (EC2 / P-256 / ES256) -> {x, y} 0x-hex. A deliberately minimal CBOR
+// reader for the ONE shape @simplewebauthn stores: map { 1:2, 3:-7, -1:1,
+// -2:bstr32, -3:bstr32 }. Anything else throws and the passkey simply carries
+// no vault coordinates.
+export function coseToXY(u8) {
+  let i = 0;
+  const head = () => { const b = u8[i++]; return [b >> 5, b & 0x1f]; };
+  const uintVal = (info) => {
+    if (info < 24) return info;
+    if (info === 24) return u8[i++];
+    if (info === 25) { const v = (u8[i] << 8) | u8[i + 1]; i += 2; return v; }
+    throw new Error("cbor: length form");
+  };
+  const readItem = () => {
+    const [maj, info] = head();
+    if (maj === 0) return uintVal(info);                                        // uint
+    if (maj === 1) return -1 - uintVal(info);                                   // negint
+    if (maj === 2) { const n = uintVal(info); const v = u8.subarray(i, i + n); i += n; return v; }  // bytes
+    if (maj === 3) { const n = uintVal(info); i += n; return null; }            // text: skip
+    throw new Error("cbor: unsupported major " + maj);
+  };
+  const [maj, info] = head();
+  if (maj !== 5) throw new Error("not a COSE map");
+  const n = uintVal(info);
+  const out = {};
+  for (let k = 0; k < n; k++) { const key = readItem(); out[key] = readItem(); }
+  const x = out[-2], y = out[-3];
+  if (!(out[1] === 2 && out[3] === -7 && x && x.length === 32 && y && y.length === 32))
+    throw new Error("not a P-256 COSE key");
+  return { x: "0x" + Buffer.from(x).toString("hex"), y: "0x" + Buffer.from(y).toString("hex") };
+}
+
+// the account's vault key: the FIRST P-256 passkey. The vault's CREATE2 salt
+// binds to it; vault ops must be signed by it (the site pins allowCredentials).
+export function vaultKeyOf(accountId) {
+  const acct = enabled ? accounts.data.accounts[accountId] : null;
+  if (!acct) return null;
+  const k = acct.passkeys.find((c) => c.pubX && c.pubY);
+  return k ? { credId: k.credId, x: k.pubX, y: k.pubY } : null;
 }
 
 // --- http helpers ---------------------------------------------------------------
@@ -244,6 +288,11 @@ export async function handleAccount(req, res, u, ctx) {
       userID: Buffer.from(userHandle, "base64url"),
       userName: "enclave user",                    // username-less: never shown as an identifier
       attestationType: "none",
+      // ES256 ONLY (the library's default prefers Ed25519): the credit vault
+      // verifies P-256 on-chain, so every credential must be vault-capable.
+      // ES256 is WebAuthn's mandatory-to-implement algorithm - nothing real
+      // supports EdDSA but not it.
+      supportedAlgorithmIDs: [-7],
       authenticatorSelection: { residentKey: "required", userVerification: "preferred" },
       excludeCredentials: (acct ? acct.passkeys : []).map((c) => ({ id: c.credId, transports: c.transports })),
     });

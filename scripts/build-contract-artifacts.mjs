@@ -40,10 +40,13 @@ const DEFS = [
   { name: "EnclaveFeatured",     bookKey: "featured" },
   { name: "EnclaveReviews",      bookKey: "reviews" },
   { name: "PaymentRouter",       bookKey: "paymentRouter" },
+  // the credit-vault FACTORY is the deployable; clones come from it on-chain.
+  // `file` names the .sol (which also holds the vault implementation).
+  { name: "EnclaveCreditVaultFactory", file: "EnclaveCreditVault", bookKey: "vaultFactory" },
 ];
 
-function compile(name, viaIR) {
-  const file = name + ".sol";
+function compile(name, viaIR, fileBase) {
+  const file = (fileBase || name) + ".sol";
   const source = fs.readFileSync(path.join(REPO, "contracts", file), "utf8");
   const input = {
     language: "Solidity",
@@ -64,7 +67,7 @@ function compile(name, viaIR) {
 
 const artifacts = {};
 for (const def of DEFS) {
-  const { abi, bytecode } = compile(def.name, def.viaIR);
+  const { abi, bytecode } = compile(def.name, def.viaIR, def.file);
   fs.writeFileSync(path.join(REPO, "contracts", def.name + ".abi.json"),
     JSON.stringify(abi, null, 2) + "\n");
   const sel = {};

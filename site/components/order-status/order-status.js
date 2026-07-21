@@ -30,6 +30,17 @@ const COPY = {
     body: "This payment could not be accepted. If funds left your wallet, contact support@enclave.host - refunds are handled by a person." },
 };
 const TERMINAL = ["complete", "expired", "rejected"];
+// top-up orders (credit purchases) narrate differently: no deployment involved
+const TOPUP_COPY = {
+  awaiting_payment:       { cls: "pend", head: "Waiting for payment",
+    body: "Complete the card payment to add your credit. This page updates by itself." },
+  crediting:              { cls: "pend", head: "Payment received",
+    body: "Adding the credit to your account. Usually well under a minute." },
+  complete:               { cls: "ok", head: "Credit added",
+    body: "Your balance is ready to spend on any deployment.", link: true },
+  expired:                { cls: "err", head: "Order expired",
+    body: "This order expired before payment arrived. No funds were taken. Start again when you are ready." },
+};
 
 class OrderStatus extends EnclaveElement {
   static properties = { "order-id": "" };
@@ -63,7 +74,8 @@ class OrderStatus extends EnclaveElement {
   // no args for the template string) - shadowing it left the card empty
   paint(order){
     const el = this.querySelector(".os-card"); if (!el) return;
-    const c = COPY[order.state] || COPY.awaiting_payment;
+    const map = order.kind === "topup" ? { ...COPY, ...TOPUP_COPY } : COPY;
+    const c = map[order.state] || map.awaiting_payment;
     const changed = this._last !== order.state; this._last = order.state;
     el.innerHTML =
       '<div class="os-head ' + c.cls + '">' + (TERMINAL.includes(order.state) ? "" : '<span class="os-spin" aria-hidden="true"></span>') + esc(c.head) + '</div>' +

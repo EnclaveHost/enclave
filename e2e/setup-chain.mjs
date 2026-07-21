@@ -73,7 +73,34 @@ export async function setupChain(rpc) {
   await mint(privateKeyToAccount(KEYS.provisioner).address, "10000");
   await mint(privateKeyToAccount(KEYS.sanctioned).address, "10000");
 
-  return { usdc, router, registry, deployments, treasury: TREASURY,
+  // credit-vault chain: a REAL address book (the vault resolves the ledger
+  // through it at exec time) + the vault factory + the P-256 verifier etched
+  // at the RIP-7212 address (anvil lacks the precompile Base has natively)
+  const book = await deploy([], art("EnclaveAddressBook").bytecode);
+  const setKey = async (key, addr) => {
+    const k = "0x" + Buffer.from(key).toString("hex").padEnd(64, "0");
+    const h = await wallet.writeContract({ address: book, abi:
+      [{ type: "function", name: "set", stateMutability: "nonpayable",
+         inputs: [{ type: "bytes32" }, { type: "address" }], outputs: [] }],
+      functionName: "set", args: [k, addr] });
+    await pub.waitForTransactionReceipt({ hash: h });
+  };
+  await setKey("deployments", deployments);
+  await setKey("registry", registry);
+  const factoryData = encodeDeployData({
+    abi: [{ type: "constructor", stateMutability: "nonpayable", inputs: [
+      { type: "address" }, { type: "address" }, { type: "address" }] }],
+    bytecode: art("EnclaveCreditVaultFactory").bytecode,
+    args: [usdc, book, TREASURY],
+  });
+  const factoryHash = await wallet.sendTransaction({ data: factoryData });
+  const vaultFactory = getAddress((await pub.waitForTransactionReceipt({ hash: factoryHash })).contractAddress);
+  const p256 = fs.readFileSync(path.join(REPO, "contracts", "foundry", "test", "fixtures", "p256-verifier.hex"), "utf8").trim();
+  await fetch(rpc, { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "anvil_setCode",
+      params: ["0x0000000000000000000000000000000000000100", p256] }) });
+
+  return { usdc, router, registry, deployments, book, vaultFactory, treasury: TREASURY,
            payer: account.address, provisioner: privateKeyToAccount(KEYS.provisioner).address,
            sanctioned: privateKeyToAccount(KEYS.sanctioned).address };
 }

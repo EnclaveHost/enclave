@@ -130,3 +130,38 @@ reversal rather than a transfer service. Do not relax it for convenience.
 | Light up the site checkout | flip `ACCOUNTS_ENABLED` default to `true` in `site/js/core/config.js` (one line; revert = rollback) |
 | Review queue | `GET /v1/billing/review` / `POST /v1/billing/review/:id/resolve` with `x-admin-token` |
 | Provisioner top-up | send USDC + a little ETH from the treasury to the provisioner address; the 60s sweep resumes held orders automatically |
+
+## 6. Credit vaults (closed-loop prepaid credit, on-chain)
+
+Customer "credit" is USDC held in a per-customer EnclaveCreditVault on Base -
+a contract with NO exit: funds move only on the customer's passkey signature,
+and only toward the platform (EnclaveDeployments funding, or the treasury for
+the manual refund flow). Customers see dollars everywhere; nothing in the UI
+names the token. Legally this is structured as closed-loop prepaid service
+credit; the no-exit property is what keeps the company outside money
+transmission. Have counsel sanity-check this structure before/soon after
+launch (CVC-denominated closed loops are newer ground than fiat gift cards).
+
+Operational rules:
+
+- **The $2,000 balance cap is a legal boundary, not a growth lever**
+  (closed-loop prepaid exemption). VAULT_CAP_6 lowers it; never raise it
+  above $2,000 without counsel.
+- **Top-up settlement is company USDC**: card revenue arrives at Stripe, the
+  relayer wallet (PROVISIONER_PRIVATE_KEY) deposits matching USDC into the
+  customer's vault. Keep the relayer's USDC float ahead of expected top-ups
+  (same petty-cash sizing as §2); a shortfall alerts and retries - orders
+  wait in "crediting", nothing is lost.
+- **Refunds are dual-authorized**: the customer signs refundToTreasury with
+  their passkey (support walks them through it), THEN finance refunds the
+  card via Stripe. Never refund the card first. Crypto never goes to the
+  customer, same as ever.
+- **Lost passkeys strand vault balances permanently** (no admin recovery
+  exists ON PURPOSE - an admin path would be custody). Support answer:
+  add a second passkey while you still have the first. Stranded balances
+  stay at the vault address forever; account for them as unredeemed
+  prepaid credit (escheatment rules may eventually apply - counsel item).
+- **Factory rotation**: deploy a new EnclaveCreditVaultFactory (admin
+  console) and repoint the book key `vaultFactory` + relay env
+  VAULT_FACTORY_ADDRESS. Existing vaults keep working forever (they carry
+  their own book reference for the ledger); only NEW vault addresses change.

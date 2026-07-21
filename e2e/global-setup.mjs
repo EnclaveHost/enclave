@@ -95,6 +95,8 @@ export default async function globalSetup() {
       SIWE_DOMAIN: `localhost:${SITE_PORT}`, SIWE_URI: SITE,
       BASE_RPC: RPC,
       RPC_FALLBACKS: "0",       // hermetic: never fall back from anvil to real Base
+      VAULT_FACTORY_ADDRESS: chain.vaultFactory,
+      ADDRESS_BOOK_ADDRESS: chain.book,
       DEPLOYMENTS_ADDRESS: chain.deployments,
       PAYMENT_ROUTER_ADDRESS: chain.router,
       USDC_ADDRESS: chain.usdc,
