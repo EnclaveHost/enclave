@@ -189,6 +189,9 @@ test("relay auth: device flow - approve on the phone signs the desktop in; codes
   assert.equal(start.status, 200);
   assert.match(start.body.code, /^[A-HJ-NP-Z2-9]{8}$/);
   assert.match(start.body.secret, /^[0-9a-f]{24}$/);
+  // the approve link rides the answer so non-browser initiators (`enclave
+  // login`) print the right site origin; it carries the code, never the secret
+  assert.equal(start.body.link, `https://enclave.host/link?code=${start.body.code}`);
 
   // phone reads request context before approving
   const info = await api(origin, "GET", `/v1/account/device/info?code=${start.body.code}`);

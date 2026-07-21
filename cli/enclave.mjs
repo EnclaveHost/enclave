@@ -8,6 +8,7 @@
 // the exact API traffic and transactions, ready to replay with curl.
 //
 //   enclave key new | import         bring a wallet (or ENCLAVE_KEY env)
+//   enclave login                    or sign in with your Enclave account (passkey)
 //   enclave deploy hello-world:1 --fund 2  create + fund + wait until live
 //   enclave ls | status | logs -f    watch it run
 //   enclave attest <id>              verify the enclave BEFORE you send data
@@ -17,6 +18,12 @@
 // Nothing else touches your machine; the key never leaves it — API calls sign
 // a one-time SIWE challenge, transactions are signed locally and broadcast to
 // your own --rpc.
+//
+// Passkey accounts (no wallet): `enclave login` runs the platform's device
+// flow — approve the shown link from any browser where your passkey works,
+// and this terminal holds an account session. That session reads your
+// account-provisioned/credit deployments and balances (ls, whoami, account);
+// it cannot sign transactions or wallet-gated reads, which stay key-only.
 //
 // Env:  ENCLAVE_KEY       hex private key (overrides the key file)
 //       ENCLAVE_API_BASE  gateway or a specific enclave origin (--base)
@@ -32,7 +39,7 @@ import { createPublicClient, createWalletClient, http as viemHttp, fallback,
 import { base } from "viem/chains";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 
-const VERSION = "1.0.2";
+const VERSION = "1.1.0";
 
 // The ONLY enclave source repo this CLI will verify against. Attestation targets
 // are pinned to this constant, never taken from the API response — a malicious
@@ -286,7 +293,10 @@ function loadKey({ required = true } = {}) {
   let pk = (env.ENCLAVE_KEY || "").trim();
   if (!pk && fs.existsSync(KEY_FILE)) pk = fs.readFileSync(KEY_FILE, "utf8").trim();
   if (!pk) {
-    if (required) throw new Error("no wallet key. Run `enclave key new` (or `enclave key import`, or set ENCLAVE_KEY)");
+    if (required) throw new Error("no wallet key. Run `enclave key new` (or `enclave key import`, or set ENCLAVE_KEY)"
+      + (accountToken({ required: false })
+         ? " — your `enclave login` account session can't sign transactions or wallet-gated reads"
+         : ""));
     return null;
   }
   if (!pk.startsWith("0x")) pk = "0x" + pk;
@@ -366,6 +376,24 @@ const jwtExp = (tok) => { // exp claim if the token parses as a JWT; 0 = unknown
   try { return (JSON.parse(Buffer.from(tok.split(".")[1], "base64url").toString()).exp || 0) * 1000; }
   catch { return 0; }
 };
+const jwtClaims = (tok) => { try { return JSON.parse(Buffer.from(tok.split(".")[1], "base64url").toString()); } catch { return {}; } };
+
+// ---- account sessions (`enclave login`) -----------------------------------------
+// The platform's OTHER auth domain: relay-minted acct_* session JWTs from a
+// passkey (or SIWE) Enclave ACCOUNT. They gate /v1/account/* and /v1/billing/*
+// (profile, orders, credit, the account-deployments join) and are obtained by
+// approving a device-flow link in a browser — this terminal never runs
+// WebAuthn itself. They can't sign transactions or enclave-private reads;
+// those stay wallet-key-only by trust-domain design.
+const ACCT_TOKEN_KEY = () => `${API_BASE}|account`;
+function accountToken({ required = true } = {}) {
+  const t = tokenCache()[ACCT_TOKEN_KEY()];
+  if (t && jwtExp(t) - Date.now() > 60_000) return t;
+  if (!required) return null;
+  throw new Error(t ? "your account session has expired; sign in again: enclave login"
+                    : "not signed in; run `enclave login` (Enclave account/passkey) or set up a wallet key (enclave key new)");
+}
+
 async function bearer(account) {
   const key = `${API_BASE}|${account.address.toLowerCase()}`;
   const hit = tokenCache()[key];
@@ -383,16 +411,24 @@ async function bearer(account) {
   tokenPut(key, login.token);
   return login.token;
 }
-// api("GET", "/v1/deployments", { auth: account }) -> parsed JSON; throws on HTTP error
+// api("GET", "/v1/deployments", { auth: account }) -> parsed JSON; throws on HTTP
+// error. auth: a wallet account object (SIWE session, auto-minted) or the
+// string "account" (the stored `enclave login` session token).
 async function api(method, p, { body, auth, ok404, text } = {}) {
   const url = API_BASE + p;
   const headers = {};
   if (body !== undefined) headers["content-type"] = "application/json";
-  if (auth) headers.authorization = "Bearer " + await bearer(auth);
+  if (auth === "account") headers.authorization = "Bearer " + accountToken();
+  else if (auth) headers.authorization = "Bearer " + await bearer(auth);
   trace(`curl -s${method === "GET" ? "" : "X " + method} '${url}'`
         + (auth ? " -H 'authorization: Bearer …'" : "")
         + (body !== undefined ? ` -d '${JSON.stringify(body)}'` : ""));
   let r = await fetch(url, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
+  if (r.status === 401 && auth === "account") {
+    // account sessions can't be re-minted without a fresh browser approval
+    tokenPut(ACCT_TOKEN_KEY(), "");
+    throw new Error("the API rejected your account session; sign in again: enclave login");
+  }
   if (r.status === 401 && auth) { // stale cached token: re-login once
     tokenPut(`${API_BASE}|${auth.address.toLowerCase()}`, "");
     headers.authorization = "Bearer " + await bearer(auth);
@@ -617,6 +653,59 @@ async function attestDeployment(account, id) {
 }
 
 // ---- commands ---------------------------------------------------------------------
+// `enclave login`: sign in with an Enclave ACCOUNT (passkey/SIWE) through the
+// platform's device flow — the same /v1/account/device/* endpoints behind the
+// site's "Use your phone" sign-in. This terminal starts a request and shows a
+// link + code; the user approves it in any browser where their passkey works.
+// The link/QR carries only the CODE — claiming the session additionally needs
+// the SECRET, which never leaves this process, so a shoulder-surfed code can
+// never hand this terminal's session to someone else (worst case a stranger
+// signs US into THEIR account; the approve page carries warning copy).
+async function cmdLogin(rest) {
+  const f = flags(rest, { bool: ["--print"] });
+  const cur = accountToken({ required: false });
+  if (cur) say(`already signed in as ${jwtClaims(cur).sub || "?"}; approving again replaces that session`);
+  const start = await api("POST", "/v1/account/device/start", { body: {} });
+  if (!start.code || !start.secret) throw new Error(`device flow unavailable: ${JSON.stringify(start).slice(0, 200)}`);
+  const link = start.link || `https://enclave.host/link?code=${start.code}`;
+  const pretty = start.code.length === 8 ? start.code.slice(0, 4) + "-" + start.code.slice(4) : start.code;
+  say(`Open this link on your phone or in any browser where you can sign in to Enclave:`);
+  say(``);
+  say(`    ${link}`);
+  say(``);
+  say(`(or open ${link.split("?")[0]} and enter the code ${pretty})`);
+  say(`Only approve a request you started yourself. Waiting for approval…`);
+  const deadline = Date.parse(start.expiresAt) || Date.now() + 3 * 60_000;
+  for (;;) {
+    await sleep(Math.max(250, (Number(start.interval) || 3) * 1000));
+    if (Date.now() > deadline) throw new Error("the sign-in request expired before it was approved; run `enclave login` again");
+    // 404 = the code is gone (expired/claimed elsewhere); other errors are
+    // transient network blips — keep polling until the deadline says stop
+    const r = await api("POST", "/v1/account/device/claim",
+      { body: { code: start.code, secret: start.secret }, ok404: true }).catch(() => undefined);
+    if (r === null) throw new Error("the sign-in request expired; run `enclave login` again");
+    if (r === undefined || r.status === "pending") continue;
+    if (r.status === "denied") throw new Error("the request was denied from the approving device");
+    if (r.status === "ok" && r.token) {
+      tokenPut(ACCT_TOKEN_KEY(), r.token);
+      if (opt.json) return jout({ accountId: r.accountId, method: r.method, expiresAt: r.expiresAt,
+                                  ...(f.print ? { token: r.token } : {}) });
+      say(`signed in as ${r.accountId} (session until ${r.expiresAt})`);
+      say(`try: enclave whoami · enclave ls · enclave account`);
+      if (f.print) say(r.token);   // --print: the raw bearer, for curl/scripts against /v1/account/* + /v1/billing/*
+      return;
+    }
+    throw new Error(`unexpected claim answer: ${JSON.stringify(r).slice(0, 200)}`);
+  }
+}
+
+async function cmdLogout() {
+  const had = !!tokenCache()[ACCT_TOKEN_KEY()];
+  tokenPut(ACCT_TOKEN_KEY(), "");
+  say(had ? "signed out (the local session token is discarded; the session also expires server-side on its own)"
+          : "no account session to discard");
+}
+
 async function cmdKey(rest) {
   const sub = rest[0];
   if (sub === "new") {
@@ -643,29 +732,56 @@ async function cmdKey(rest) {
 }
 
 async function cmdWhoami() {
-  const account = loadKey();
-  const [eth, usdc] = await Promise.all([
-    pub().getBalance({ address: account.address }),
-    read(DEFAULTS.USDC_ADDRESS, ERC20_ABI, "balanceOf", [account.address]),
-  ]);
-  let running = null;
-  try {
-    const ls = await api("GET", "/v1/deployments", { auth: account });
-    running = (ls.data || []).filter((d) => d.status === "running").length;
-  } catch {} // API being down shouldn't hide your own balances
-  if (opt.json) return jout({ address: account.address, ethWei: eth, usdc6: usdc, running, keyFile: env.ENCLAVE_KEY ? "(env)" : KEY_FILE });
-  kv([["address", account.address],
+  const account = loadKey({ required: false });
+  const acctTok = accountToken({ required: false });
+  if (!account && !acctTok)
+    throw new Error("no wallet key and no account session. Run `enclave key new` (wallet) or `enclave login` (Enclave account/passkey)");
+  const out = {}, rows = [];
+  if (account) {
+    const [eth, usdc] = await Promise.all([
+      pub().getBalance({ address: account.address }),
+      read(DEFAULTS.USDC_ADDRESS, ERC20_ABI, "balanceOf", [account.address]),
+    ]);
+    let running = null;
+    try {
+      const ls = await api("GET", "/v1/deployments", { auth: account });
+      running = (ls.data || []).filter((d) => d.status === "running").length;
+    } catch {} // API being down shouldn't hide your own balances
+    Object.assign(out, { address: account.address, ethWei: eth, usdc6: usdc, running, keyFile: env.ENCLAVE_KEY ? "(env)" : KEY_FILE });
+    rows.push(["address", account.address],
       ["usdc", usd6(usdc) + " (Base)"],
       ["eth", formatUnits(eth, 18).replace(/(\.\d{6})\d+$/, "$1") + " (gas)"],
       ["running", running === null ? "(api unreachable)" : String(running)],
-      ["key", env.ENCLAVE_KEY ? "ENCLAVE_KEY env" : KEY_FILE]]);
+      ["key", env.ENCLAVE_KEY ? "ENCLAVE_KEY env" : KEY_FILE]);
+  }
+  if (acctTok) {
+    const c = jwtClaims(acctTok);
+    const until = c.exp ? new Date(c.exp * 1000).toISOString() : null;
+    out.account = { accountId: c.sub, method: c.amr, expiresAt: until };
+    rows.push(["account", `${c.sub} (${c.amr || "?"} session${until ? ` until ${until.slice(0, 10)}` : ""})`]);
+    // credit balance is a nicety: no vault key / vaults dark / API down must
+    // not break whoami
+    try {
+      const v = await api("GET", "/v1/billing/vault", { auth: "account" });
+      out.account.creditUsd = v.balanceUsd;
+      rows.push(["credit", `$${v.balanceUsd} (account credit)`]);
+    } catch {}
+  }
+  if (opt.json) return jout(out);
+  kv(rows);
 }
 
 async function cmdLs() {
-  const account = loadKey();
-  const [apiList, mine] = await Promise.all([
-    api("GET", "/v1/deployments", { auth: account }).then((r) => r.data || []).catch(() => []),
-    chainDeployments(account.address).catch(() => []),
+  const account = loadKey({ required: false });
+  const acctTok = accountToken({ required: false });
+  if (!account && !acctTok)
+    throw new Error("no wallet key and no account session. Run `enclave key new` (wallet) or `enclave login` (Enclave account/passkey)");
+  const [apiList, mine, acctList] = await Promise.all([
+    account ? api("GET", "/v1/deployments", { auth: account }).then((r) => r.data || []).catch(() => []) : [],
+    account ? chainDeployments(account.address).catch(() => []) : [],
+    // the account join: order-provisioned + credit-vault-owned deployments,
+    // served in the same view shape as the enclave rows
+    acctTok ? api("GET", "/v1/billing/deployments", { auth: "account" }).then((r) => r.deployments || []).catch(() => []) : [],
   ]);
   const seen = new Set(apiList.map((d) => String(d.id).toLowerCase()));
   const rows = apiList.map((d) => ({
@@ -674,6 +790,16 @@ async function cmdLs() {
     left: d.timeRemainingSec != null ? dur(d.timeRemainingSec) : "",
     url: d.status === "running" ? appUrl(d.id) : "",
   }));
+  for (const d of acctList) {
+    const id = d.deploymentId || d.id;
+    if (!id || seen.has(String(id).toLowerCase())) continue;
+    seen.add(String(id).toLowerCase());
+    rows.push({ id, app: d.image?.reference || "", status: d.status || "unknown",
+      shares: `${d.resources?.gpuShare ? Math.round(d.resources.gpuShare * 100) + "% gpu " : ""}${Math.round((d.resources?.cpuShare || 0) * 100)}% cpu`,
+      left: d.timeRemainingSec != null ? dur(d.timeRemainingSec) : "",
+      url: d.status === "running" ? appUrl(id) : "",
+      via: d.viaVault ? "credit" : "order" });
+  }
   // queue items the fleet hasn't picked up (or that ran dry) exist only on-chain
   for (const d of mine) {
     if (seen.has(d.id.toLowerCase())) continue;
@@ -691,10 +817,15 @@ async function cmdLs() {
 }
 
 async function cmdStatus(rest) {
-  const account = loadKey();
+  // keyless works: the ledger row is public, and public deployments answer the
+  // API read unauthenticated (account-session users get their status this way
+  // too — enclave-private reads stay wallet-gated by trust-domain design)
+  const account = loadKey({ required: false });
   if (!rest[0]) throw new Error("usage: enclave status <id>");
   const id = await resolveId(rest[0], account);
-  const rec = await api("GET", `/v1/deployments/${id}`, { auth: account, ok404: true });
+  const rec = account
+    ? await api("GET", `/v1/deployments/${id}`, { auth: account, ok404: true })
+    : await api("GET", `/v1/deployments/${id}`, { ok404: true }).catch(() => null);
   let chainRec = null;
   if (isB32(id)) try { chainRec = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "get", [id]); } catch {}
   if (!rec && !chainRec) throw new Error(`no deployment ${rest[0]} (not on any live enclave, not on the ledger)`);
@@ -1236,15 +1367,44 @@ async function cmdGpu() {
 }
 
 async function cmdAccount() {
-  const account = loadKey();
-  const a = await api("GET", "/v1/account", { auth: account });
-  if (opt.json) return jout(a);
-  kv([["address", a.address], ["chain", String(a.chainId)],
+  const account = loadKey({ required: false });
+  const acctTok = accountToken({ required: false });
+  if (!account && !acctTok)
+    throw new Error("no wallet key and no account session. Run `enclave key new` (wallet) or `enclave login` (Enclave account/passkey)");
+  const out = {}, rows = [];
+  if (account) {
+    const a = await api("GET", "/v1/account", { auth: account });
+    out.wallet = a;
+    rows.push(["address", a.address], ["chain", String(a.chainId)],
       ["forwarder", a.payment?.forwarder], ["usdc", a.payment?.usdc],
       ["assets", (a.payment?.assets || []).join(", ")],
       ["running", String(a.deployments?.running ?? 0)],
       ["total", String(a.deployments?.total ?? 0)],
-      ["funded time", dur(a.deployments?.totalTimeRemainingSec || 0)]]);
+      ["funded time", dur(a.deployments?.totalTimeRemainingSec || 0)]);
+  }
+  if (acctTok) {
+    const me = await api("GET", "/v1/account/me", { auth: "account" });
+    out.account = me;
+    rows.push(["account", me.accountId],
+      ["sign-in", `${me.passkeys?.length || 0} passkey(s)`
+        + (me.wallets?.length ? `, wallets ${me.wallets.join(", ")}` : "")],
+      ["since", me.createdAt]);
+    // credit + the account's deployments ride along when the relay serves them
+    try {
+      const v = await api("GET", "/v1/billing/vault", { auth: "account" });
+      out.account.credit = { balanceUsd: v.balanceUsd, capUsd: v.capUsd, vault: v.address };
+      rows.push(["credit", `$${v.balanceUsd} of $${v.capUsd} (vault ${v.address})`]);
+    } catch (e) {
+      if (/no_vault_key|409/.test(e.message)) rows.push(["credit", "none (add a passkey on enclave.host to use credit)"]);
+    }
+    try {
+      const d = await api("GET", "/v1/billing/deployments", { auth: "account" });
+      out.account.deployments = (d.deployments || []).length;
+      rows.push(["deployments", String((d.deployments || []).length) + " via this account (enclave ls)"]);
+    } catch {}
+  }
+  if (opt.json) return jout(out.wallet && !out.account ? out.wallet : out);
+  kv(rows);
 }
 
 // ---- encrypted volumes: wallet key derivation + credentials envelope ----------
@@ -1332,7 +1492,11 @@ usage: enclave <command> [args]  [--json] [-x] [-y|--yes] [--base URL] [--rpc UR
 identity
   key new [--force]          generate a wallet key -> ${KEY_FILE}
   key import                 import a private key (hidden prompt / stdin pipe)
-  whoami                     address, USDC + gas balances, running count
+  login [--print]            sign in with your Enclave account (passkey) instead:
+                             approve a link from your phone or any signed-in
+                             browser; --print echoes the API bearer for scripts
+  logout                     discard the account session token
+  whoami                     wallet balances and/or account session + credit
 
 deployments
   deploy <app> --fund <usd>  create + fund + wait until live; prints the URL
@@ -1382,10 +1546,14 @@ platform
 
 Global: --json machine output · -x print every REST call + transaction ·
 --base/--rpc (ENCLAVE_API_BASE/ENCLAVE_RPC) target an enclave or your own RPC ·
-ENCLAVE_KEY overrides the key file. Auth is SIWE; keys never leave this machine.`;
+ENCLAVE_KEY overrides the key file. Auth is SIWE (wallet) or an Enclave account
+session (enclave login); keys never leave this machine. Account sessions read
+account-provisioned/credit deployments (ls, whoami, account) but can't sign
+transactions - deploying and funding by credit stays on enclave.host for now.`;
 
 const COMMANDS = {
-  key: cmdKey, whoami: cmdWhoami, deploy: cmdDeploy, ls: cmdLs, list: cmdLs,
+  key: cmdKey, login: cmdLogin, logout: cmdLogout,
+  whoami: cmdWhoami, deploy: cmdDeploy, ls: cmdLs, list: cmdLs,
   status: cmdStatus, logs: cmdLogs, fund: cmdFund, attest: cmdAttest,
   restart: cmdRestart, stop: cmdStop, suspend: cmdStop, resume: cmdResume,
   upgrade: cmdUpgrade, "set-version": cmdUpgrade,
@@ -1421,9 +1589,9 @@ const cmd = args.shift();
 if (!cmd || cmd === "help" || cmd === "--help" || cmd === "-h") { say(HELP); exit(0); }
 if (cmd === "version" || cmd === "--version") { say(VERSION); exit(0); }
 if (!COMMANDS[cmd]) die(`unknown command "${cmd}"; run: enclave help`);
-// `key new`/`key import` are purely local (no chain, no API), so skip the
-// address-book resolve — no reason to make offline key setup wait on an RPC.
-const OFFLINE = cmd === "key";
+// `key new`/`key import` are purely local and `login`/`logout` touch only the
+// API, so skip the address-book resolve — no reason to make them wait on an RPC.
+const OFFLINE = cmd === "key" || cmd === "login" || cmd === "logout";
 try {
   if (!OFFLINE) await resolveAddressBook();
   await COMMANDS[cmd](args);

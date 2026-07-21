@@ -7,6 +7,9 @@ or `enclave help`.
 
 ```
 enclave key new                      # bring a wallet; fund it with USDC on Base
+enclave login                        # …or sign in with your Enclave account (passkey):
+                                     # approve a link from your phone/browser; then ls,
+                                     # whoami and account read your credit deployments
 enclave publish app.wasm --slug hello-world
                                      # add --fee <$/hr> to charge deployers an hourly
                                      # publisher fee, paid straight to your wallet
@@ -65,6 +68,11 @@ NTFS the file is only as private as your user profile.
 - **Key** (`~/.config/enclave/key`, 0600, or `ENCLAVE_KEY`): never leaves the
   machine. API auth signs a one-time SIWE challenge; create/fund/publish sign
   Base transactions locally and broadcast to `--rpc`.
+- **Account sessions** (`enclave login`, passkey users): the platform's device
+  flow — the printed link/QR carries only a short-lived code; the claim secret
+  stays in this process, and approval happens in your own signed-in browser.
+  The resulting token reads your account's deployments and credit; it can never
+  sign transactions (that stays with the key), and `enclave logout` discards it.
 - **Payment**: `fundWithAuthorization` is an EIP-3009 `ReceiveWithAuthorization`
   signature over USDC, its nonce bound to the deployment id's first 16 bytes, so
   the money can land on that deployment's balance and nowhere else.

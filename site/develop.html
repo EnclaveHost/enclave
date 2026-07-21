@@ -797,6 +797,7 @@ enclave key new                    # prints the address; fund it with USDC on Ba
 enclave key import                 # reads a private key from stdin; or ENCLAVE_KEY env
 enclave whoami                     # address, USDC balance, running deployments</code></pre></c-code>
           <p>Auth is SIWE under the hood: commands that need the API sign a one-time challenge (<code>GET /auth/nonce</code> → <code>POST /auth/login</code>) and cache the bearer token until it expires. On-chain commands (create, fund, publish) sign Base transactions with the same key - the CLI never sends your key anywhere.</p>
+          <p>No wallet? Sign in with your Enclave account instead: <code>enclave login</code> prints a link you approve from your phone or any browser where your passkey works, and the terminal holds an account session. That session reads the deployments and credit that belong to your account (<code>ls</code>, <code>whoami</code>, <code>account</code>); deploying and adding credit stay on the site, where your passkey can sign.</p>
 
           <h4>Command reference</h4>
           <div class="tbl"><table class="params cmds">
@@ -817,7 +818,8 @@ enclave whoami                     # address, USDC balance, running deployments<
               <tr><th scope="row" class="pname">enclave encvol derive --key-id K | --sig 0x…</th><td>an encrypted volume's password + salt: the CLI wallet signs the canonical message itself (deterministic, RFC 6979), or derive from a signature made in any other wallet</td><td>local only - nothing sent anywhere</td></tr>
               <tr><th scope="row" class="pname">enclave encvol seal-creds --key-id K</th><td>encrypt S3 credentials (<code>AWS_*</code> env, or <code>--access-key</code>/<code>--secret-key</code>) under the wallet key → a <code>credsEnvelope</code> value for the public App Config; the app then unlocks with one signature, nothing typed</td><td>local only - nothing sent anywhere</td></tr>
               <tr><th scope="row" class="pname">enclave pricing · availability · gpu</th><td>rates + live ETH quote · fleet headroom · GPU probe state</td><td><code>GET /pricing</code> · <code>/availability</code> · <code>/gpu</code></td></tr>
-              <tr><th scope="row" class="pname">enclave account</th><td>address, payment forwarder, totals</td><td><code>GET /account</code></td></tr>
+              <tr><th scope="row" class="pname">enclave account</th><td>address, payment forwarder, totals; signed in with an account: profile, credit balance, account deployments</td><td><code>GET /account</code> · <code>GET /account/me</code> · <code>GET /billing/vault</code></td></tr>
+              <tr><th scope="row" class="pname">enclave login · logout</th><td>sign in with your Enclave account (passkey): approve a link from your phone or any signed-in browser; the session reads your account's deployments and credit, and never signs transactions</td><td><code>POST /account/device/start</code> · <code>/claim</code></td></tr>
             </tbody>
           </table></div>
           <p>Global flags: <code>--json</code> for machine-readable output, <code>-x</code> to print every REST call and transaction before it is sent (the curl-equivalent escape hatch), <code>--base</code> / <code>ENCLAVE_API_BASE</code> to target an enclave directly instead of the gateway, <code>--rpc</code> for your own Base RPC.</p>
