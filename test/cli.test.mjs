@@ -59,6 +59,10 @@ const APP_ID = "0x" + "cd".repeat(32);
 const b64u = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const jwt = (addr) => `${b64u({ alg: "HS256" })}.${b64u({ sub: addr, exp: Math.floor(Date.now() / 1000) + 43200 })}.stub`;
 const dep32 = (x) => "0x" + x.replace(/^0x/, "").padStart(64, "0");
+// relay ACCOUNT sessions (`enclave login`): acct_* subs, never 0x addresses
+const ACCT_ID = "acct_" + "ab".repeat(12);
+const acctJwt = () => `${b64u({ alg: "ES256", kid: "k1" })}.${b64u({ sub: ACCT_ID, amr: "phone", exp: Math.floor(Date.now() / 1000) + 604800 })}.stub`;
+const VAULT_DEP_ID = "0x" + "f1".repeat(32);   // a deployment the account's credit vault owns
 
 // ---- the platform double -----------------------------------------------------
 // state the tests poke at between runs
@@ -71,6 +75,7 @@ const S = {
   versionCount: 1,                             // catalog versions the stub app lists
   v2: null,                                    // overrides for the second version (upgrade tests)
   depRev: 3n,                                  // deploymentsSchema the stub plays (3 = the live pre-fee ledger)
+  device: null,                                // the in-flight device-flow login (`enclave login`)
   catRev: 4n,                                  // catalogSchema the stub plays (4 = the live pre-fee catalog)
   verFee: 0n,                                  // versionFee(appId, *) on the rev-5 catalog (µUSDC/s)
 };
@@ -124,6 +129,39 @@ function apiServer() {
       return authed ? json(200, { address: OWNER, chainId: 8453,
         payment: { forwarder: "0x" + "aa".repeat(20), usdc: USDC, assets: ["USDC", "ETH"] },
         deployments: { running: 1, awaitingPayment: 0, total: 1, totalTimeRemainingSec: 3600 } }) : json(401, { error: "auth" });
+    // relay account surface: the device-flow login and what its session unlocks
+    // (mirrors relay/auth.js + billing.js answers; acct_* sub = account bearer)
+    const bearerSub = (() => {
+      try { return JSON.parse(Buffer.from((req.headers.authorization || "").split(" ")[1].split(".")[1], "base64url").toString()).sub || ""; }
+      catch { return ""; }
+    })();
+    const acctAuthed = /^acct_/.test(bearerSub);
+    if (u.pathname === "/v1/account/device/start" && req.method === "POST") {
+      S.device = { code: "ABCD2345", secret: "cafe".repeat(6), polls: 0 };
+      return json(200, { code: S.device.code, secret: S.device.secret,
+        link: `https://site.example/link?code=${S.device.code}`,
+        expiresAt: new Date(Date.now() + 180_000).toISOString(), interval: 0.3 });
+    }
+    if (u.pathname === "/v1/account/device/claim" && req.method === "POST") {
+      const { code, secret } = JSON.parse(body);
+      if (!S.device || code !== S.device.code || secret !== S.device.secret) return json(404, { error: "unknown_code" });
+      if (++S.device.polls < 2) return json(200, { status: "pending" });   // first poll pending: the CLI must keep polling
+      return json(200, { status: "ok", token: acctJwt(), tokenType: "Bearer", accountId: ACCT_ID,
+        method: "phone", expiresAt: new Date(Date.now() + 604_800_000).toISOString() });
+    }
+    if (u.pathname === "/v1/account/me")
+      return acctAuthed ? json(200, { accountId: ACCT_ID, createdAt: "2026-07-20T00:00:00.000Z", amr: "phone", wallets: [],
+        passkeys: [{ credId: "cred1", transports: ["internal"], createdAt: "2026-07-20T00:00:00.000Z", lastUsedAt: null, label: "" }] })
+        : json(401, { error: "unauthorized" });
+    if (u.pathname === "/v1/billing/vault")
+      return acctAuthed ? json(200, { address: "0x" + "77".repeat(20), balance6: "12500000", balanceUsd: "12.50",
+        nonce: "0", credId: "cred1", x: "0x" + "1".repeat(64), y: "0x" + "2".repeat(64), capUsd: "2000" })
+        : json(401, { error: "unauthorized" });
+    if (u.pathname === "/v1/billing/deployments")
+      return acctAuthed ? json(200, { deployments: [{ deploymentId: VAULT_DEP_ID, viaVault: true, id: VAULT_DEP_ID,
+        status: "running", public: true, image: { reference: "catalog://" + APP_ID + "/0" },
+        resources: { gpuShare: 0, cpuShare: 0.05 }, timeRemainingSec: 5400, ledger: true }] })
+        : json(401, { error: "unauthorized" });
     const dep = u.pathname.match(/^\/v1\/deployments\/([^/]+)(\/.*)?$/);
     if (dep) {
       if (!authed) return json(401, { error: "auth" });
@@ -253,7 +291,7 @@ test.before(async () => {
 });
 test.after(() => servers.forEach((s) => s.close()));
 
-function run(cliArgs, { input } = {}) {
+function run(cliArgs, { input, env } = {}) {
   return new Promise((resolve) => {
     const p = spawn(process.execPath, [CLI, ...cliArgs, "--yes"], {
       env: { ...process.env, ENCLAVE_KEY: PK,
@@ -261,7 +299,8 @@ function run(cliArgs, { input } = {}) {
              ENCLAVE_RPC: `http://127.0.0.1:${rpcPort}`,
              ENCLAVE_IPFS_UPLOAD: `http://127.0.0.1:${ipfsPort}/add-wasm`,
              ENCLAVE_ADDRESS_BOOK: "",   // opt out of the on-chain address book: the double must stay offline (and the 4s resolve cap × every invocation would blow the suite timeout)
-             XDG_CONFIG_HOME: confDir },
+             XDG_CONFIG_HOME: confDir,
+             ...env },                   // per-test overrides (ENCLAVE_KEY: "" = the passkey-only, wallet-less user)
     });
     let out = "", err = "";
     p.stdout.on("data", (d) => out += d); p.stderr.on("data", (d) => err += d);
@@ -521,4 +560,66 @@ test("availability + pricing render the fleet numbers", async () => {
   const p = await run(["pricing"]);
   assert.match(p.out, /cpu node/);
   assert.match(p.out, new RegExp(DEPLOYMENTS, "i"));
+});
+
+// ---- account sessions (`enclave login`): passkey users have no wallet key --------
+// These stay LAST: login caches an account token in the shared confDir, which
+// would otherwise leak account rows into the wallet-only assertions above.
+
+test("login: the device flow signs a wallet-less CLI into an account", async () => {
+  const r = await run(["login"], { env: { ENCLAVE_KEY: "" } });
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /site\.example\/link\?code=ABCD2345/);   // relay-provided link printed verbatim
+  assert.match(r.out, /ABCD-2345/);                            // typable form of the code
+  assert.match(r.out, new RegExp(`signed in as ${ACCT_ID}`));
+  assert.ok(S.device.polls >= 2, "kept polling through the pending answer");
+  assert.ok(!r.out.includes("cafe".repeat(6)), "the claim secret is never printed");
+});
+
+test("passkey-only ls/whoami/account ride the stored account session", async () => {
+  const noKey = { env: { ENCLAVE_KEY: "" } };
+  const ls = await run(["ls", "--json"], noKey);
+  assert.equal(ls.code, 0, ls.err);
+  const rows = JSON.parse(ls.out).deployments;
+  assert.equal(rows.length, 1);                                // the vault-owned row, via the billing join
+  assert.equal(rows[0].id, VAULT_DEP_ID);
+  assert.equal(rows[0].via, "credit");
+  assert.match(S.apiCalls.findLast((c) => c.path === "/v1/billing/deployments").auth, /^Bearer /);
+
+  const who = await run(["whoami", "--json"], noKey);
+  assert.equal(who.code, 0, who.err);
+  const j = JSON.parse(who.out);
+  assert.equal(j.account.accountId, ACCT_ID);
+  assert.equal(j.account.creditUsd, "12.50");
+  assert.equal(j.address, undefined);                          // no wallet section without a key
+
+  const acct = await run(["account", "--json"], noKey);
+  assert.equal(acct.code, 0, acct.err);
+  const a = JSON.parse(acct.out);
+  assert.equal(a.account.accountId, ACCT_ID);
+  assert.equal(a.account.credit.balanceUsd, "12.50");
+});
+
+test("a wallet CLI shows the account session alongside the key", async () => {
+  const who = await run(["whoami", "--json"]);
+  assert.equal(who.code, 0, who.err);
+  const j = JSON.parse(who.out);
+  assert.equal(j.address, OWNER);
+  assert.equal(j.account.accountId, ACCT_ID);
+});
+
+test("wallet-only commands name the gap for passkey-only users", async () => {
+  const r = await run(["logs", ID], { env: { ENCLAVE_KEY: "" } });
+  assert.equal(r.code, 1);
+  assert.match(r.err, /no wallet key/);
+  assert.match(r.err, /can't sign transactions/);
+});
+
+test("logout discards the session; commands then say how to sign in", async () => {
+  const lo = await run(["logout"], { env: { ENCLAVE_KEY: "" } });
+  assert.equal(lo.code, 0, lo.err);
+  assert.match(lo.out, /signed out/);
+  const ls = await run(["ls"], { env: { ENCLAVE_KEY: "" } });
+  assert.equal(ls.code, 1);
+  assert.match(ls.err, /enclave login/);
 });

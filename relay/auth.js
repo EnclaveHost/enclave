@@ -24,6 +24,10 @@
 //   GET  /v1/account/siwe/nonce?address=0x..     full SIWE message to sign
 //   POST /v1/account/siwe/verify                 {message, signature}
 //   POST /v1/account/link/siwe                   {message, signature} (Bearer)
+//   POST /v1/account/device/start                {} -> {code, secret, link, interval}
+//   GET  /v1/account/device/info?code=..         requester context for the approve screen
+//   POST /v1/account/device/approve              {code, approve} (Bearer)
+//   POST /v1/account/device/claim                {code, secret} -> poll; session when approved
 //   GET  /v1/account/me                          profile (never key bytes)
 //   DELETE /v1/account/passkey/:credId           (Bearer; 409 on last method)
 //
@@ -43,6 +47,9 @@ const ORIGINS = (process.env.PASSKEY_ORIGINS || process.env.CORS_ORIGINS || "htt
   .split(",").map((s) => s.trim()).filter(Boolean);
 const SIWE_DOMAIN = process.env.SIWE_DOMAIN || "enclave.host";
 const SIWE_URI = process.env.SIWE_URI || "https://enclave.host";
+// where the approve page lives (site /link); rides the device/start answer so
+// non-browser initiators (the CLI) print the right origin on any deployment
+const SITE_ORIGIN = (process.env.SITE_ORIGIN || "https://enclave.host").replace(/\/+$/, "");
 const CHAIN_ID = parseInt(process.env.CHAIN_ID || "8453", 10);
 
 const CHALLENGE_TTL_MS = 5 * 60_000, NONCE_TTL_MS = 10 * 60_000, STORE_MAX = 10_000;
@@ -435,7 +442,8 @@ export async function handleAccount(req, res, u, ctx) {
       ip, createdAt: Date.now(), exp: Date.now() + DEVICE_TTL_MS, state: "pending", accountId: null });
     bound(deviceReqs);
     const r = deviceReqs.get(code);
-    return ctx.json(res, 200, { code, secret: r.secret, expiresAt: new Date(r.exp).toISOString(), interval: 3 }, req);
+    return ctx.json(res, 200, { code, secret: r.secret, link: `${SITE_ORIGIN}/link?code=${code}`,
+      expiresAt: new Date(r.exp).toISOString(), interval: 3 }, req);
   }
 
   if (p === "/v1/account/device/info" && req.method === "GET") {

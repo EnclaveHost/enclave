@@ -1112,8 +1112,10 @@ const server = http.createServer((req, res) => {
   // SIWE account sessions, orders, Stripe webhook, USDC payment status. They
   // answer with ZERO live enclaves (billing must not depend on the fleet) and
   // are never proxied. /v1/auth/* below stays enclave-proxied - the enclave
-  // session system is a separate trust domain and is untouched.
-  if (u.pathname === "/v1/account" || u.pathname.startsWith("/v1/account/"))
+  // session system is a separate trust domain and is untouched. The BARE
+  // /v1/account path is NOT ours: that is the supervisor's wallet-scoped
+  // summary (enclave session), and matching it here 404'd `enclave account`.
+  if (u.pathname.startsWith("/v1/account/"))
     return handleAccount(req, res, u, relayCtx).catch((e) =>
       json(res, 500, { error: "account_error", message: e.message }, req));
   if (u.pathname === "/v1/billing" || u.pathname.startsWith("/v1/billing/"))
