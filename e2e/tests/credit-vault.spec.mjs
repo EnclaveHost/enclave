@@ -1,8 +1,9 @@
 // The credit era, end to end: a passkey user adds credit by card (Stripe stub
 // + signed webhook), the relay deposits into their on-chain vault (created on
 // first use), and ONE passkey tap signs a vault op that creates + funds a
-// deployment the vault owns. The dashboard shows the balance and the row;
-// Extend funds more runtime from credit. The virtual authenticator answers
+// deployment the vault owns. The dashboard shows the balance and the row in
+// the SAME <c-deployments> panel wallet users get; its Top up control funds
+// more runtime from credit (passkey-signed). The virtual authenticator answers
 // every WebAuthn ceremony; the P-256 verifier at 0x100 checks them on anvil
 // exactly as Base's native precompile does in prod.
 import { test, expect } from "@playwright/test";
@@ -41,18 +42,22 @@ test("credit: card top-up lands on-chain; one passkey tap deploys from it; dashb
   });
   expect(out.deploymentId).toMatch(/^0x[0-9a-f]{64}$/);
 
-  // dashboard: balance card + the vault-owned row, with Extend
+  // dashboard: balance card + the vault-owned row in the shared panel
   await page.goto("/dashboard");
   await expect(page.locator("#acctBalV")).toContainText("$20.00");
-  await expect(page.locator("#acctDeps .acct-row")).toContainText("bafyvaultapp");
-  await expect(page.locator("#acctDeps .acct-st")).toContainText("queued");   // no live enclave claims in e2e
+  const row = page.locator("c-deployments .enc-row", { hasText: "bafyvaultapp" });
+  // relay ledger cache (10s TTL) + the panel's 10s poll: allow a full cycle.
+  // "queued": funded on-chain, no live enclave claims in e2e
+  await expect(row).toContainText("queued", { timeout: 30_000 });
 
-  page.on("dialog", (d) => d.accept("3"));
   // dispatchEvent, not click(): headless Chromium freezes frame production on
   // this page (stuck cross-document view transition), so Playwright's
-  // rAF-based stability gate never settles - the button itself is visible,
-  // uncovered, and fine in real browsers (elementFromPoint probed = self)
-  await page.locator("[data-extend]").dispatchEvent("click");
+  // rAF-based stability gate never settles - the buttons are visible,
+  // uncovered, and fine in real browsers (elementFromPoint probed = self).
+  // fill() skips the stability gate, so it works as-is.
+  await row.locator(".enc-fundbtn").dispatchEvent("click");
+  await row.locator(".ef-amt").fill("3");
+  await row.locator(".ef-go").dispatchEvent("click");
   await expect(page.locator("#acctBalV")).toContainText("$17.00", { timeout: 20_000 });
 });
 

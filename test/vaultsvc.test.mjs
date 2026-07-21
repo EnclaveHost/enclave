@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync, createSign, createHash } from "node:crypto";
 import { coseToXY } from "../relay/auth.js";
-import { derToRS } from "../relay/vaultsvc.js";
+import { derToRS, buildControlCall } from "../relay/vaultsvc.js";
 
 function coseP256(x, y) {
   // map(5) { 1:2, 3:-7, -1:1, -2:bstr32(x), -3:bstr32(y) } - canonical CBOR
@@ -32,6 +32,24 @@ test("coseToXY refuses an Ed25519 COSE key (no vault coordinates)", () => {
     Buffer.alloc(32, 7),
   ]);
   assert.throws(() => coseToXY(ed), /P-256/);
+});
+
+test("buildControlCall encodes the vault's two allowlisted ledger calls, pinned vs viem", async () => {
+  const { toFunctionSelector, decodeFunctionData } = await import("viem");
+  const id = "0x" + "ab".repeat(32);
+  const suspend = await buildControlCall(id, "suspend");
+  const resume = await buildControlCall(id, "resume");
+  const version = await buildControlCall(id, "version", "catalog://3/1");
+  // the SELECTORS are what EnclaveCreditVault.controlDeployment allowlists
+  assert.equal(suspend.slice(0, 10), toFunctionSelector("setActive(bytes32,bool)"));
+  assert.equal(resume.slice(0, 10), toFunctionSelector("setActive(bytes32,bool)"));
+  assert.equal(version.slice(0, 10), toFunctionSelector("setAppRef(bytes32,string)"));
+  const activeAbi = [{ type: "function", name: "setActive", inputs: [{ type: "bytes32" }, { type: "bool" }], outputs: [] }];
+  assert.deepEqual(decodeFunctionData({ abi: activeAbi, data: suspend }).args, [id, false]);
+  assert.deepEqual(decodeFunctionData({ abi: activeAbi, data: resume }).args, [id, true]);
+  const refAbi = [{ type: "function", name: "setAppRef", inputs: [{ type: "bytes32" }, { type: "string" }], outputs: [] }];
+  assert.deepEqual(decodeFunctionData({ abi: refAbi, data: version }).args, [id, "catalog://3/1"]);
+  await assert.rejects(buildControlCall(id, "terminate"), /unknown control action/);
 });
 
 test("derToRS round-trips real ECDSA signatures incl. leading-zero trims", () => {

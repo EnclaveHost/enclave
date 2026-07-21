@@ -34,7 +34,7 @@ import { verifyAccountSession, accountsEnabled, vaultKeyOf } from "./auth.js";
 import { initOfac, screenAddress } from "./ofac.js";
 import { startIndexer } from "./indexer.js";
 import { initProvisioner, enqueueProvision, recoverProvisioning } from "./provisioner.js";
-import { initVault, vaultEnabled, vaultInfo, ensureVault, depositToVault, opDigest, buildCreateCall, submitOp, vaultAddressFor } from "./vaultsvc.js";
+import { initVault, vaultEnabled, vaultInfo, ensureVault, depositToVault, opDigest, buildCreateCall, buildControlCall, submitOp, vaultAddressFor } from "./vaultsvc.js";
 import { publisherFee6 } from "./mcp.js";
 import { createHmac, timingSafeEqual, randomBytes } from "node:crypto";
 
@@ -688,6 +688,24 @@ export async function handleBilling(req, res, u, ctx) {
       return ctx.json(res, 200, { op: "fund", vault: info.address, chainId: CHAIN_ID, nonce: info.nonce,
         deadline, digest, id: b.id, fund6: fund6.toString(), credId: key.credId }, req);
     }
+    if (b.op === "control") {
+      // suspend/resume/version for a VAULT-OWNED deployment: the ledger
+      // owner-gates setActive/setAppRef, so a control call for anything the
+      // vault doesn't own simply reverts on-chain - no relay policy needed
+      const id = String(b.id || "");
+      const action = String(b.action || "");
+      if (!/^0x[0-9a-f]{64}$/i.test(id)) return err(ctx, res, req, 422, "bad_params", "control needs a deployment id.");
+      if (!["suspend", "resume", "version"].includes(action))
+        return err(ctx, res, req, 422, "bad_params", 'control action must be "suspend", "resume", or "version".');
+      if (action === "version" && !(typeof b.ref === "string" && b.ref.length > 0 && b.ref.length <= 100))
+        return err(ctx, res, req, 422, "bad_params", "version needs a catalog ref (max 100 chars).");
+      let callData;
+      try { callData = await buildControlCall(id, action, b.ref); }
+      catch (e) { return err(ctx, res, req, 502, "encode_failed", e.message); }
+      const digest = opDigest("control", info.address, CHAIN_ID, info.nonce, { callData }, deadline);
+      return ctx.json(res, 200, { op: "control", vault: info.address, chainId: CHAIN_ID, nonce: info.nonce,
+        deadline, digest, callData, action, id, credId: key.credId }, req);
+    }
     if (b.op === "refund") {
       const cents = Math.round(Number(b.amountUsd) * 100);
       if (!Number.isFinite(cents) || cents <= 0) return err(ctx, res, req, 422, "bad_params", "refund needs a positive amountUsd.");
@@ -697,7 +715,7 @@ export async function handleBilling(req, res, u, ctx) {
       return ctx.json(res, 200, { op: "refund", vault: info.address, chainId: CHAIN_ID, nonce: info.nonce,
         deadline, digest, amount6: amount6.toString(), credId: key.credId }, req);
     }
-    return err(ctx, res, req, 422, "bad_op", 'op must be "deploy", "fund", or "refund".');
+    return err(ctx, res, req, 422, "bad_op", 'op must be "deploy", "fund", "control", or "refund".');
   }
 
   if (p === "/v1/billing/vault/exec" && req.method === "POST") {
@@ -736,7 +754,7 @@ export async function handleBilling(req, res, u, ctx) {
     const out = mine.map((o) => {
       const row = byId.get(String(o.provision.deploymentId).toLowerCase());
       return { orderId: o.id, deploymentId: o.provision.deploymentId,
-               ...(row ? ctxRef.ledgerView(row) : { status: "unknown" }) };
+               ...(row ? ctxRef.ledgerView(row) : { id: o.provision.deploymentId, status: "unknown" }) };
     });
     // vault-era deployments: rows the account's CREDIT VAULT owns on-chain
     const seen = new Set(out.map((d) => String(d.deploymentId).toLowerCase()));
