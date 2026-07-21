@@ -132,8 +132,8 @@ export function openAuthModal(){
             '<div class="wp-hint">Signs you in - or creates your account if you\'re new. Uses your device\'s screen lock; no password, no email.</div>' +
             '<div class="wp-or"><span>or</span></div>'
           : '<div class="wp-note">This browser does not support passkeys, so wallet sign-in it is.</div>') +
-      '<button class="wp-item" id="authWallet" type="button"><span class="wp-dot"></span>Connect a wallet</button>' +
-      '<button class="wp-item" id="authPhone" type="button">Use your phone</button>' +
+      '<button class="wp-item wp-center" id="authWallet" type="button">Connect a wallet</button>' +
+      '<button class="wp-item wp-center" id="authPhone" type="button">Use your phone</button>' +
       '<div class="wp-err" id="authErr" role="alert" hidden></div>' +
       '<button class="wp-cancel" type="button">Cancel</button></div>';
     host.hidden = false;

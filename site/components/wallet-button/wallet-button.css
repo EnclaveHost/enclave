@@ -29,6 +29,7 @@ c-wallet-button{display:contents;}
 .wp-item{display:flex;align-items:center;gap:10px;width:100%;background:#0a0f17;border:1px solid var(--line);border-radius:9px;padding:.7em;margin-bottom:8px;cursor:pointer;color:var(--text);font-family:inherit;font-size:.82rem;}
 .wp-item:hover{border-color:rgba(47,230,168,.5);} .wp-item img{width:20px;height:20px;border-radius:5px;}
 .wp-dot{width:18px;height:18px;border-radius:5px;background:linear-gradient(135deg,var(--jade),var(--iris));}
+.wp-center{justify-content:center;}   /* auth-modal secondaries: centered text, no icon */
 .wp-cancel{width:100%;background:none;border:1px solid var(--line);color:var(--text-muted);border-radius:8px;padding:.5em;cursor:pointer;font-family:inherit;font-size:.76rem;margin-top:2px;}
 .wp-note{font-size:.72rem;color:var(--text-muted);line-height:1.55;margin:0 0 10px;} .wp-note b{color:var(--text);}
 .wp-sub{color:var(--text-dim);font-size:.72em;}
