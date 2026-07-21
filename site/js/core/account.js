@@ -116,8 +116,14 @@ export async function signInWalletAccount(){
    ones toast and keep the modal up so the other option remains. */
 export function openAuthModal(){
   if (!ACCOUNTS_ENABLED) return Promise.reject(new EnclaveError("Accounts are not enabled yet.", 0));
-  const host = $("#walletPick");
-  if (!host) return Promise.reject(new EnclaveError("No overlay host on this page.", 0));
+  let host = $("#walletPick");
+  if (!host){
+    // same portal wallet-button.js creates on wire-up; making it here too
+    // means the modal never races component connection (auto-open on /link)
+    host = document.createElement("div");
+    host.className = "wallet-pick"; host.id = "walletPick"; host.hidden = true;
+    document.body.appendChild(host);
+  }
   const pk = passkeySupported();
   return new Promise((resolve, reject) => {
     host.innerHTML = '<div class="wp-card"><div class="wp-h">Sign in to Enclave</div>' +
