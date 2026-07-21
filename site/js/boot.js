@@ -28,6 +28,7 @@ const PAGES = {
   terms:     () => import("./pages/terms.js"),     // Terms of Service - linked from the deploy gates + footer
   privacy:   () => import("./pages/privacy.js"),   // Privacy Policy - linked from the footer + deploy gates
   checkout:  () => import("./pages/checkout.js"),  // order checkout: card (hosted Stripe) or USDC (PaymentRouter)
+  link:      () => import("./pages/link.js"),      // device-flow approval: the phone side of "Use your phone"
 };
 // URL aliases: pathnames that render ANOTHER page's document. /apps/deploy
 // and /apps/publish are the canonical console/form URLs (share links read
@@ -221,7 +222,7 @@ const initial = pageOf(location.pathname) || "overview";
 bootPage(initial);
 setTimeout(() => {
   for (const p of Object.keys(PAGES)) {
-    if (p === "admin" || p === "terms" || p === "privacy" || p === "checkout") continue;   // nobody navigates to these by accident - don't warm them
+    if (p === "admin" || p === "terms" || p === "privacy" || p === "checkout" || p === "link") continue;   // nobody navigates to these by accident - don't warm them
     if (initial !== p) fetchPage(p).catch(() => {});
   }
 }, 1500);

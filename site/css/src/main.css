@@ -61,6 +61,7 @@
 @import "./develop.css" layer(components);
 @import "./dashboard.css" layer(components);
 @import "./checkout.css" layer(components);
+@import "./link.css" layer(components);
 @import "./terms.css" layer(components);
 @import "./responsive.css" layer(components);
 @import "../../components/header/header.css" layer(components);

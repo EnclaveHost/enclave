@@ -1,0 +1,12 @@
+/* Device-link approval page (link.html / js/pages/link.js) */
+#link .co-body{margin-top:26px;max-width:560px;}
+#link .lk-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px 22px;}
+#link .lk-facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0 0 14px;font-size:.78rem;}
+#link .lk-facts div{display:contents;}
+#link .lk-facts dt{color:var(--text-dim);letter-spacing:.06em;text-transform:uppercase;font-size:.68rem;align-self:center;}
+#link .lk-facts dd{margin:0;color:var(--text);}
+#link .lk-facts code{font-family:var(--font-mono);color:var(--text-muted);word-break:break-all;}
+#link .lk-row{display:flex;gap:12px;margin-top:14px;flex-wrap:wrap;}
+#link .lk-row .ac-in{flex:1;min-width:160px;background:var(--panel-2,var(--panel));border:1px solid var(--line);border-radius:8px;color:var(--text);padding:10px 12px;font-family:var(--font-mono);letter-spacing:.12em;text-transform:uppercase;}
+#link .co-note{font-size:.74rem;line-height:1.6;color:var(--text-dim);margin:10px 0 0;}
+#link .co-note b{color:var(--text);}

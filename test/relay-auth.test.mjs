@@ -179,3 +179,62 @@ test("relay auth: a wallet linked to one account cannot be linked to another", a
   assert.equal(link.status, 409);
   assert.equal(link.body.error, "wallet_linked_elsewhere");
 });
+
+test("relay auth: device flow - approve on the phone signs the desktop in; codes are single-use and secret-gated", async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "relay-auth-"));
+  const { origin } = await startRelay(t, { dataDir: dir });
+
+  // desktop starts; the QR carries the code, the secret stays with the desktop
+  const start = await api(origin, "POST", "/v1/account/device/start", { body: {} });
+  assert.equal(start.status, 200);
+  assert.match(start.body.code, /^[A-HJ-NP-Z2-9]{8}$/);
+  assert.match(start.body.secret, /^[0-9a-f]{24}$/);
+
+  // phone reads request context before approving
+  const info = await api(origin, "GET", `/v1/account/device/info?code=${start.body.code}`);
+  assert.equal(info.status, 200);
+  assert.equal(info.body.state, "pending");
+
+  // pending until answered; the secret is required to poll at all
+  const early = await api(origin, "POST", "/v1/account/device/claim",
+    { body: { code: start.body.code, secret: start.body.secret } });
+  assert.equal(early.status, 200);
+  assert.equal(early.body.status, "pending");
+  const forged = await api(origin, "POST", "/v1/account/device/claim",
+    { body: { code: start.body.code, secret: "0".repeat(24) } });
+  assert.equal(forged.status, 401);
+
+  // approve is authenticated; anonymous approval must be impossible
+  const anon = await api(origin, "POST", "/v1/account/device/approve",
+    { body: { code: start.body.code, approve: true } });
+  assert.equal(anon.status, 401);
+  const phone = await siweLogin(origin, signer);
+  const ok = await api(origin, "POST", "/v1/account/device/approve",
+    { body: { code: start.body.code, approve: true }, token: phone.body.token });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.body.state, "approved");
+
+  // desktop claims a full session for the SAME account, amr "phone"
+  const claim = await api(origin, "POST", "/v1/account/device/claim",
+    { body: { code: start.body.code, secret: start.body.secret } });
+  assert.equal(claim.status, 200);
+  assert.equal(claim.body.status, "ok");
+  assert.equal(claim.body.accountId, phone.body.accountId);
+  assert.equal(claim.body.method, "phone");
+  const me = await api(origin, "GET", "/v1/account/me", { token: claim.body.token });
+  assert.equal(me.status, 200);
+
+  // single use: the record is gone after the claim
+  const again = await api(origin, "POST", "/v1/account/device/claim",
+    { body: { code: start.body.code, secret: start.body.secret } });
+  assert.equal(again.status, 404);
+
+  // a denied request never converts and also burns the code
+  const d = await api(origin, "POST", "/v1/account/device/start", { body: {} });
+  await api(origin, "POST", "/v1/account/device/approve",
+    { body: { code: d.body.code, approve: false }, token: phone.body.token });
+  const denied = await api(origin, "POST", "/v1/account/device/claim",
+    { body: { code: d.body.code, secret: d.body.secret } });
+  assert.equal(denied.body.status, "denied");
+  assert.equal((await api(origin, "GET", "/v1/account/device/info?code=" + d.body.code)).status, 404);
+});

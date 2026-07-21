@@ -184,7 +184,7 @@ const chunksOf = (outFile, seen = new Set()) => {
   return seen;
 };
 const bootOut = Object.keys(outs).find(f => outs[f].entryPoint && outs[f].entryPoint.endsWith("js/boot.js"));
-const PAGE_HTML = { overview: "index.html", apps: "apps.html", develop: "develop.html", dashboard: "dashboard.html", admin: "admin.html", terms: "terms.html", checkout: "checkout.html" };   // deploy.html is a redirect stub now
+const PAGE_HTML = { overview: "index.html", apps: "apps.html", develop: "develop.html", dashboard: "dashboard.html", admin: "admin.html", terms: "terms.html", checkout: "checkout.html", link: "link.html" };   // deploy.html is a redirect stub now
 const preloads = {};
 for (const [outFile, o] of Object.entries(outs)) {
   const page = o.entryPoint && /js[\\/]pages[\\/](\w+)\.js$/.exec(o.entryPoint)?.[1];
@@ -194,7 +194,7 @@ for (const [outFile, o] of Object.entries(outs)) {
   preloads[PAGE_HTML[page]] = [...files]
     .map(c => `<link rel="modulepreload" href="${path.relative(DIST, path.resolve(ROOT, c)).replace(/\\/g, "/")}" />`).join("\n");
 }
-for (const f of ["index.html", "deploy.html", "apps.html", "develop.html", "dashboard.html", "admin.html", "terms.html", "privacy.html", "checkout.html", "404.html", "openapi.json"]) {
+for (const f of ["index.html", "deploy.html", "apps.html", "develop.html", "dashboard.html", "admin.html", "terms.html", "privacy.html", "checkout.html", "link.html", "404.html", "openapi.json"]) {
   let s = fs.readFileSync(path.join(SITE, f), "utf8");
   if (f.endsWith(".html")) {
     s = bake(s);

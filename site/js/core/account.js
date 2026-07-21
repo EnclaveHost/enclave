@@ -24,6 +24,7 @@ import { ACCOUNTS_ENABLED } from "./config.js";
 import { Enclave, EnclaveError } from "./api.js";
 import { modalize, buildSiwe, jwtExp, connectWallet, refreshWallet } from "./wallet.js";
 import { $, esc, lsGet, lsSet, showToast, emit } from "./util.js";
+import { qrSvg } from "../lib/qr.js";
 
 export function passkeySupported(){
   return typeof window !== "undefined" && !!window.PublicKeyCredential;
@@ -127,11 +128,12 @@ export function openAuthModal(){
             '<div class="wp-or"><span>or</span></div>'
           : '<div class="wp-note">This browser does not support passkeys, so wallet sign-in it is.</div>') +
       '<button class="wp-item" id="authWallet" type="button"><span class="wp-dot"></span>Connect a wallet</button>' +
+      '<button class="wp-item" id="authPhone" type="button">Use your phone</button>' +
       '<div class="wp-err" id="authErr" role="alert" hidden></div>' +
       '<button class="wp-cancel" type="button">Cancel</button></div>';
     host.hidden = false;
-    let done = false;
-    const close = () => { unmodal(); host.hidden = true; host.innerHTML = ""; host.onclick = null; host.onpointerdown = null; };
+    let done = false, stopPhone = null;
+    const close = () => { if (stopPhone) stopPhone(); unmodal(); host.hidden = true; host.innerHTML = ""; host.onclick = null; host.onpointerdown = null; };
     const cancel = () => { if (done) return; done = true; close(); reject(new EnclaveError("Sign-in cancelled.", 0)); };
     const unmodal = modalize(host, cancel);
     host.onpointerdown = (e) => { if (e.target === host) cancel(); };
@@ -150,9 +152,49 @@ export function openAuthModal(){
         done = true; close(); resolve(sess);
       } catch(e){ if (!done) fail(e); }
     };
+    // "Use your phone": the self-hosted device flow for browsers with no
+    // passkey path (Linux Firefox, no Bluetooth). The QR carries only the
+    // one-time code; the claim secret never leaves this browser. Polls until
+    // the phone approves on /link, then adopts the session like any other.
+    const phoneView = async () => {
+      if (done) return;
+      const card = host.querySelector(".wp-card"); if (!card) return;
+      let dead = false, timer = 0;
+      stopPhone = () => { dead = true; clearTimeout(timer); stopPhone = null; };
+      card.innerHTML = '<div class="wp-h">Sign in with your phone</div><div class="wp-note">Starting…</div>';
+      let d;
+      try { d = await Enclave.accountDeviceStart(); }
+      catch(e){ if (!dead){ stopPhone(); fail(e); } return; }
+      if (dead) return;
+      const url = location.origin + "/link?code=" + encodeURIComponent(d.code);
+      card.innerHTML =
+        '<div class="wp-h">Sign in with your phone</div>' +
+        '<div class="wp-note">Scan with your phone camera, then approve there. Only approve a code you started yourself.</div>' +
+        '<div class="wp-qr" aria-label="sign-in link as a QR code">' + qrSvg(url) + '</div>' +
+        '<div class="wp-note">or open <b>enclave.host/link</b> on your phone and enter <code class="wp-code">' +
+          esc(d.code.slice(0, 4) + "-" + d.code.slice(4)) + '</code></div>' +
+        '<div class="wp-err" id="authErr" role="alert" hidden></div>' +
+        '<button class="wp-cancel" type="button">Cancel</button>';
+      const poll = async () => {
+        if (dead || done) return;
+        try {
+          const r = await Enclave.accountDeviceClaim(d.code, d.secret);
+          if (dead || done) return;
+          if (r.status === "ok"){ done = true; close(); resolve(adoptAccountSession(r)); return; }
+          if (r.status === "denied"){ stopPhone(); fail(new EnclaveError("The request was denied on your phone.", 0)); return; }
+        } catch(e){
+          if (dead || done) return;
+          if (e && e.status === 404){ stopPhone(); fail(new EnclaveError("The code expired. Try again.", 0)); return; }
+          // transient network errors: keep polling
+        }
+        timer = setTimeout(poll, (d.interval || 3) * 1000);
+      };
+      timer = setTimeout(poll, (d.interval || 3) * 1000);
+    };
     host.onclick = (e) => {
       if (e.target.closest("#authPasskey")) return attempt(signInWithPasskey)();
       if (e.target.closest("#authPasskeyNew")) return attempt(registerPasskey)();
+      if (e.target.closest("#authPhone")) return void phoneView();
       if (e.target.closest("#authWallet")){
         // connectWallet's own chooser needs the #walletPick host - hand it
         // over, then finish the relay SIWE and settle this modal's promise
