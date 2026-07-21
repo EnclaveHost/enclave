@@ -162,6 +162,21 @@ export async function buildCreateCall(depAddress, spec) {
   return encodeFunctionData({ abi: [{ type: "function", name: "create", stateMutability: "nonpayable", inputs, outputs: [{ type: "bytes32" }] }], args, functionName: "create" });
 }
 
+// setActive/setAppRef calldata for controlDeployment - the vault contract
+// allowlists exactly these two selectors (they move no funds)
+export async function buildControlCall(id, action, ref) {
+  const { encodeFunctionData } = viem || (viem = await import("viem"));
+  if (action === "suspend" || action === "resume")
+    return encodeFunctionData({ abi: [{ type: "function", name: "setActive", stateMutability: "nonpayable",
+      inputs: [{ type: "bytes32" }, { type: "bool" }], outputs: [] }],
+      functionName: "setActive", args: [id, action === "resume"] });
+  if (action === "version")
+    return encodeFunctionData({ abi: [{ type: "function", name: "setAppRef", stateMutability: "nonpayable",
+      inputs: [{ type: "bytes32" }, { type: "string" }], outputs: [] }],
+      functionName: "setAppRef", args: [id, String(ref)] });
+  throw new Error("unknown control action");
+}
+
 // DER ECDSA -> {r, s} bigints (the precompile takes raw values, any s)
 export function derToRS(der) {
   const u8 = Buffer.from(der);

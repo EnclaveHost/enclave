@@ -1,13 +1,18 @@
 /* ============================================================
    <c-deployments> - the "My Apps" panel: the signed-in
-   wallet's deployments, each with status, spend, its app origin,
+   customer's deployments, each with status, spend, its app origin,
    its dedicated IPv6 (when the deployment declares tcp/udp
    ports), in-browser attestation verification, and suspend/resume
    (on-chain rows; the balance stays on the record across a
    suspend - legacy dep_ rows terminate instead).
-   Polls while a wallet is connected; follows `enclave:wallet`
-   address edges (async session restore, account switches) and
-   `enclave:auth` sign-in edges.
+   ONE panel for both kinds of customer: wallet rows come from the
+   ledger/enclave list and act via wallet txs; passkey/card account
+   rows come from the relay's account-scoped join (their credit
+   vault owns them on-chain) and money/control ops are passkey-
+   signed vault operations instead - same rows, same controls.
+   Polls while signed in; follows `enclave:wallet` address edges
+   (async session restore, account switches), `enclave:account`
+   sign-in/out edges and `enclave:auth` sign-in edges.
    ============================================================ */
 import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { $$, esc, hlJson, fmtDur, statusCls, copyText, showToast, lsGet, lsSet } from "../../js/core/util.js";
@@ -87,10 +92,17 @@ function bucketOf(st){
   // the "queued" bucket matches the ledger's own vocabulary: everything on
   // its way (queued/claimed/provisioning/awaiting_payment/...) but not over —
   // unfunded (drained; resumes on top-up) waits here too, it just isn't "queued"
-  if (["provisioning", "queued", "pending", "claiming", "claimed", "starting", "created", "awaiting_payment", "unfunded"].indexOf(st) !== -1) return "queued";
+  // "unknown" = an account row the relay's ledger cache hasn't caught up to
+  // yet (fresh deploy) - it's on its way, not over
+  if (["provisioning", "queued", "pending", "claiming", "claimed", "starting", "created", "awaiting_payment", "unfunded", "unknown"].indexOf(st) !== -1) return "queued";
   if (["failed", "error"].indexOf(st) !== -1) return "failed";
   return "ended";   // stopped, stopping, terminated, expired, …
 }
+// Who can act on a row: "wallet" rows are owned by the connected wallet
+// (on-chain txs + enclave-session reads); "vault" rows are owned by the
+// account's credit vault (money/control ops are passkey-signed through the
+// relay); "order" rows are legacy provisioner-owned (read-only here).
+function ctlOf(d){ return d && d.viaVault ? "vault" : (d && d.orderId ? "order" : "wallet"); }
 function encTier(d){
   const r = d.resources || {};
   const g = r.gpuShare || 0, c = r.cpuShare != null ? r.cpuShare : (r.share || 0);
@@ -160,6 +172,9 @@ class Deployments extends EnclaveElement {
     // connect, account switch, disconnect), re-list.
     this._onWallet = () => { if (Enclave.address !== this._paintedFor) this.refresh(); };
     document.addEventListener("enclave:wallet", this._onWallet);
+    // passkey/card sign-in and sign-out edges: the same rule as the wallet edge
+    this._onAcct = () => { if (Enclave.accountAuthed() !== this._paintedAcct) this.refresh(); };
+    document.addEventListener("enclave:account", this._onAcct);
     this._onLog = (e) => this._onRunlog(e.detail || {});
     document.addEventListener("enclave:runlog", this._onLog);
     // deploys in flight (soft-nav away and back): rejoin every live run.
@@ -189,9 +204,10 @@ class Deployments extends EnclaveElement {
     Object.keys(this._logPolls || {}).forEach(id => this._stopLogPoll(id));
     if (this._onAuth) document.removeEventListener("enclave:auth", this._onAuth);
     if (this._onWallet) document.removeEventListener("enclave:wallet", this._onWallet);
+    if (this._onAcct) document.removeEventListener("enclave:account", this._onAcct);
     if (this._onLog) document.removeEventListener("enclave:runlog", this._onLog);
     if (this._onCat) document.removeEventListener("enclave:catalog", this._onCat);
-    this._wired = false; this._onAuth = null; this._onWallet = null; this._onLog = null; this._onCat = null;
+    this._wired = false; this._onAuth = null; this._onWallet = null; this._onAcct = null; this._onLog = null; this._onCat = null;
   }
 
   /* ---- live-deploy strips: one per run streaming with no row to live in ---- */
@@ -248,20 +264,36 @@ class Deployments extends EnclaveElement {
     opts = opts || {};
     const body = this.querySelector(".enc-body");
     if (!body) return;
-    this._paintedFor = Enclave.address;   // what this paint reflects (see _onWallet)
+    this._paintedFor = Enclave.address;             // what this paint reflects (see _onWallet)
+    this._paintedAcct = Enclave.accountAuthed();    // …and the account edge (_onAcct)
     const hideBar = () => { const tb = this.querySelector(".enc-toolbar"); if (tb) tb.hidden = true; };
-    if (!Enclave.address){
+    if (!Enclave.address && !this._paintedAcct){
       this._stopPoll(); hideBar();
       const pager = this.querySelector(".enc-pager"); if (pager){ pager.hidden = true; pager.innerHTML = ""; }
-      body.innerHTML = '<div class="enc-empty">Connect your wallet (above) to see your enclaves.</div>'; return;
+      body.innerHTML = '<div class="enc-empty">Sign in (above) to see your enclaves.</div>'; return;
     }
     // NO sign-in wall: a connected wallet is enough - the list is public
     // ledger data, scoped by address (api.js adds ?owner= when tokenless);
     // a session only enriches rows with the enclaves' live view
     if (!body.querySelector(".enc-row") || opts.spinner) body.innerHTML = '<div class="loading" role="status">loading your enclaves…</div>';
     try {
-      const res = await Enclave.listDeployments();
-      const list = Array.isArray(res) ? res : ((res && (res.deployments || res.items || res.data)) || []);
+      const list = [];
+      if (Enclave.address){
+        const res = await Enclave.listDeployments();
+        list.push(...(Array.isArray(res) ? res : ((res && (res.deployments || res.items || res.data)) || [])));
+      }
+      // passkey/card accounts: rows owned by the account's credit vault (plus
+      // legacy provisioned orders) via the relay's account-scoped ledger join -
+      // the SAME row shape, so both kinds of customer share this panel
+      if (this._paintedAcct){
+        try {
+          const seen = new Set(list.map((d) => String(d.id).toLowerCase()));
+          for (const d of (await Enclave.accountDeployments()).deployments || []){
+            if (!d.id) d.id = d.deploymentId;
+            if (d.id && !seen.has(String(d.id).toLowerCase())) list.push(d);
+          }
+        } catch(e){ if (!Enclave.address) throw e; }   // wallet rows still serve
+      }
       const tb = this.querySelector(".enc-toolbar"); if (tb) tb.hidden = false;   // refresh + Deploy CTA live here now
       this._renderRows(list, opts.highlight);
       this._startPoll();
@@ -298,8 +330,12 @@ class Deployments extends EnclaveElement {
     const pageRows = shown.slice(this._page * PER_PAGE, this._page * PER_PAGE + PER_PAGE);
     body.innerHTML = pageRows.map(d => {
       const ep = appEndpoint(d), st = d.status || "–";
+      // vault rows speak in dollars (account customers never see token names);
+      // wallet rows keep the explicit USDC wording
+      const ctl = ctlOf(d);
       const bud = (d.paidUsdc != null)
-        ? (esc(d.paidUsdc) + " USDC paid" + (d.timeRemainingSec > 0 ? " · " + esc(fmtDur(d.timeRemainingSec)) + " left" : "")
+        ? ((ctl === "wallet" ? esc(d.paidUsdc) + " USDC paid" : "$" + esc(d.paidUsdc) + " paid")
+           + (d.timeRemainingSec > 0 ? " · " + esc(fmtDur(d.timeRemainingSec)) + " left" : "")
            + (d.paused ? " · ⏸ time frozen (" + esc(d.pauseReason || "outage") + ", resumes when service is restored)" : ""))
         : "–";
       // on-chain rows without a live runner stay actionable: queued/claimed
@@ -330,12 +366,12 @@ class Deployments extends EnclaveElement {
           '<span class="enc-spend">' + bud + '</span>' +
           '<span class="enc-acts">' +
             '<button class="btn btn-sm enc-outbtn" data-id="' + esc(d.id) + '" aria-expanded="false">Output</button>' +
-            (live ? '<button class="btn btn-sm enc-fundbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Add runtime - a gas-free USDC signature credits the deployment’s on-chain balance">Top up</button>' : '') +
-            (onchain && (live || resumable) ? '<button class="btn btn-sm enc-upgbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Switch to another approved version of this app - paid time carries over; the app restarts in place on the new version">Version</button>' : '') +
-            (st === "running" ? '<button class="btn btn-sm enc-restart" data-id="' + esc(d.id) + '" title="Stop and relaunch the app in place - same version, endpoint and balance; app state is ephemeral. The fix for a wedged instance (e.g. a model that never loaded at boot)">Restart</button>' : '') +
+            (live && ctl !== "order" ? '<button class="btn btn-sm enc-fundbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="' + (ctl === "vault" ? 'Add runtime from your credit balance - one passkey tap' : 'Add runtime - a gas-free USDC signature credits the deployment’s on-chain balance') + '">Top up</button>' : '') +
+            (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-upgbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Switch to another approved version of this app - paid time carries over; the app restarts in place on the new version">Version</button>' : '') +
+            (st === "running" && ctl === "wallet" ? '<button class="btn btn-sm enc-restart" data-id="' + esc(d.id) + '" title="Stop and relaunch the app in place - same version, endpoint and balance; app state is ephemeral. The fix for a wedged instance (e.g. a model that never loaded at boot)">Restart</button>' : '') +
             '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '" aria-expanded="false">Verify</button>' +
-            (resumable ? '<button class="btn btn-sm enc-resume" data-id="' + esc(d.id) + '" title="Put it back on the queue - an enclave re-claims it and the app relaunches fresh from its published version, spending the remaining balance">Resume</button>' : '') +
-            (live ? (onchain
+            (resumable && ctl !== "order" ? '<button class="btn btn-sm enc-resume" data-id="' + esc(d.id) + '" title="Put it back on the queue - an enclave re-claims it and the app relaunches fresh from its published version, spending the remaining balance">Resume</button>' : '') +
+            (live && ctl !== "order" ? (onchain
               ? '<button class="btn btn-sm danger enc-kill" data-id="' + esc(d.id) + '" title="Stop the app and take it off the queue. The remaining balance stays on the deployment - Resume restarts it any time">Suspend</button>'
               : '<button class="btn btn-sm danger enc-kill" data-id="' + esc(d.id) + '">Terminate</button>') : '') +
           '</span>' +
@@ -491,6 +527,7 @@ class Deployments extends EnclaveElement {
     if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
     btn.setAttribute("aria-expanded", "true");
     const d = (this._list || []).find(x => x.id === id) || {};
+    const via = ctlOf(d) === "vault";   // credit-vault row: passkey-signed, spends account credit
     const r = d.resources || {};
     const gpuPct = Math.round((r.gpuShare || 0) * 100), cpuPct = Math.round((r.cpuShare != null ? r.cpuShare : (r.share || 0)) * 100);
     // the deployment's own burn rate: the API's live number (the on-chain
@@ -502,10 +539,10 @@ class Deployments extends EnclaveElement {
     box.hidden = false;
     box.innerHTML = '<div class="ap-attbar">top up · ' + esc(id) + '</div>'
       + '<div class="enc-fund-body">'
-      +   '<label for="efAmt">Add runtime (USDC)</label>'
+      +   '<label for="efAmt">Add runtime (' + (via ? 'USD' : 'USDC') + ')</label>'
       +   '<input class="ef-amt" id="efAmt" type="number" value="5" min="0.01" step="any" inputmode="decimal" />'
       +   '<span class="ef-est"></span>'
-      +   '<button class="btn btn-sm btn-primary ef-go" type="button">Sign &amp; pay</button>'
+      +   '<button class="btn btn-sm btn-primary ef-go" type="button">' + (via ? 'Confirm with passkey' : 'Sign &amp; pay') + '</button>'
       + '</div>'
       + '<div class="term enc-fund-status" role="status" aria-live="polite"></div>';
     const amt = box.querySelector(".ef-amt"), est = box.querySelector(".ef-est");
@@ -520,6 +557,21 @@ class Deployments extends EnclaveElement {
     go.addEventListener("click", async () => {
       const usd = parseFloat(amt.value) || 0; if (!(usd >= 0.01)) return;
       go.disabled = true; st.innerHTML = "";
+      if (via){
+        // credit path: the vault owns this deployment on-chain; one passkey
+        // tap signs fundDeployment and the balance moves credit -> deployment
+        try {
+          paint("info", "[*] confirm with your passkey…");
+          const { vaultOp } = await import("../../js/core/vault.js");
+          await vaultOp("fund", { id, amountUsd: usd });
+          paint("ok", "[✓] topped up from your credit" + (rate > 0 ? " - +" + fmtDur(usd / rate) + " of runtime" : "") + " · the enclave picks up the new balance within a minute");
+          showToast("topped up " + id.slice(0, 10) + "… with $" + usd.toFixed(2));
+          document.dispatchEvent(new CustomEvent("enclave:credit"));   // the dashboard's credit card refreshes
+          setTimeout(() => { if (box.isConnected && !box.hidden){ box.hidden = true; box.innerHTML = ""; } this.refresh(); }, 3500);
+        } catch(e){ paint("warn", "[x] " + (e.message || String(e))); }
+        finally { go.disabled = false; }
+        return;
+      }
       try {
         // no SIWE: the EIP-3009 authorization IS the proof of key ownership
         if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
@@ -633,15 +685,24 @@ class Deployments extends EnclaveElement {
       const r = rows.find(x => String(x.i) === sel.value);
       if (!r || r.i === cr.index || !r.fits) return;
       go.disabled = true;
+      const via = ctlOf((this._list || []).find(x => x.id === id)) === "vault";
       try {
-        // no SIWE: the setAppRef tx is owner-gated on-chain - a connected wallet is all this needs
-        if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
-        await ensureBaseChain();
-        paint("info", "[*] confirm the version-change transaction in your wallet…");
-        const th = await sendTx(DEPLOYMENTS_ADDRESS, encCall(DEP_SEL.setAppRef,
-          [{ t: "bytes32", v: id }, { t: "str", v: catalogRef(cr.appId, r.i) }]));
-        paint("dimln", "  ↳ sent " + th + " · waiting for confirmation…");
-        await waitReceipt(th);
+        if (via){
+          // credit-vault row: the vault owns the deployment on-chain, so the
+          // switch is a passkey-signed controlDeployment(setAppRef) via the relay
+          paint("info", "[*] confirm the version change with your passkey…");
+          const { vaultOp } = await import("../../js/core/vault.js");
+          await vaultOp("control", { id, action: "version", ref: catalogRef(cr.appId, r.i) });
+        } else {
+          // no SIWE: the setAppRef tx is owner-gated on-chain - a connected wallet is all this needs
+          if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
+          await ensureBaseChain();
+          paint("info", "[*] confirm the version-change transaction in your wallet…");
+          const th = await sendTx(DEPLOYMENTS_ADDRESS, encCall(DEP_SEL.setAppRef,
+            [{ t: "bytes32", v: id }, { t: "str", v: catalogRef(cr.appId, r.i) }]));
+          paint("dimln", "  ↳ sent " + th + " · waiting for confirmation…");
+          await waitReceipt(th);
+        }
         if (this._why) this._why.delete(id);   // a pre-change decline reason must not outlive the switch
         // nudge the fleet: makes queued/suspended rows relaunch promptly (a
         // running one is restarted by its own runner's next ledger pass)
@@ -652,9 +713,9 @@ class Deployments extends EnclaveElement {
         setTimeout(() => { if (box.isConnected && !box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); } this.refresh(); }, 3500);
       } catch(e){
         const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
-        paint("warn", rejected ? "[x] rejected in wallet - nothing changed" : "[x] " + (e.message || String(e)));
+        paint("warn", rejected ? (via ? "[x] cancelled - nothing changed" : "[x] rejected in wallet - nothing changed") : "[x] " + (e.message || String(e)));
         go.disabled = false;
-      } finally { refreshWallet(); }
+      } finally { if (!via) refreshWallet(); }
     });
   }
 
@@ -692,8 +753,17 @@ class Deployments extends EnclaveElement {
       paintLine(nar, "dimln", "// deploy narrative · " + run.label + " (recorded in this browser)", scroller);
       run.lines.forEach(l => paintLine(nar, l[0], l[1], scroller));
     }
-    if (Enclave.authed()) this._startLogs(id, box);
+    if (ctlOf(d) !== "wallet") this._noteLogs(box);
+    else if (Enclave.authed()) this._startLogs(id, box);
     else this._lockedLogs(id, box);
+  }
+  /* vault-owned rows: the enclaves' log read rides the in-enclave WALLET
+     session (the credit vault is the on-chain owner, and only IT could prove
+     ownership - ERC-1271 session support is tracked follow-up work). Honest
+     note instead of an unlock that could never succeed. */
+  _noteLogs(box) {
+    const el = box.querySelector(".enc-out-logs"); if (!el) return;
+    el.innerHTML = '<span class="ln dimln">// app logs for credit-run deployments are coming soon - today the log channel rides an in-enclave wallet session. The endpoints above are live now.</span>';
   }
   _startLogs(id, box) {
     this._fetchLogs(id, box);
@@ -749,6 +819,14 @@ class Deployments extends EnclaveElement {
     if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
     box.hidden = false;
     btn.setAttribute("aria-expanded", "true");
+    if (ctlOf((this._list || []).find(x => x.id === id)) !== "wallet"){
+      // vault/order rows: the per-deployment attestation read rides an
+      // in-enclave wallet session the account doesn't hold - honest note
+      // (ERC-1271 passkey sessions are the tracked follow-up)
+      box.innerHTML = '<div class="ap-attbar">attestation · ' + esc(id) + '</div>'
+        + '<div class="term"><span class="ln dimln">// in-browser attestation verification for credit-run deployments is coming soon - today the attestation read rides an in-enclave wallet session. The same hardware guarantees protect this deployment; verification just can’t be shown here yet.</span></div>';
+      return;
+    }
     if (!Enclave.authed()){
       // the attestation read rides the owner session; unlock it in place
       box.innerHTML = '<div class="ap-attbar">attestation · ' + esc(id) + '</div>'
@@ -791,6 +869,18 @@ class Deployments extends EnclaveElement {
   async _kill(id, btn) {
     const onchain = /^0x[0-9a-f]{64}$/i.test(id);
     if (btn){ btn.disabled = true; btn.textContent = onchain ? "suspending…" : "terminating…"; }
+    if (ctlOf((this._list || []).find(x => x.id === id)) === "vault"){
+      // vault-owned row: setActive(false) goes through the vault contract,
+      // passkey-signed - the runner's owner-stop watcher sees the ledger flip
+      // and tears the app down within a minute (same suspend semantics)
+      try {
+        const { vaultOp } = await import("../../js/core/vault.js");
+        await vaultOp("control", { id, action: "suspend" });
+        showToast("suspended " + id.slice(0, 10) + "… - the remaining balance stays on it; Resume restarts it any time");
+        setTimeout(() => this.refresh(), 900);
+      } catch(e){ showToast(e.message || String(e)); if (btn){ btn.disabled = false; btn.textContent = "Suspend"; } }
+      return;
+    }
     try {
       // On-chain deployments (bytes32 ids) are WORK ITEMS: the enclave DELETE
       // only releases the current lease - any enclave would re-claim while the
@@ -845,11 +935,18 @@ class Deployments extends EnclaveElement {
      memory (app state is ephemeral by design). ---- */
   async _resume(id, btn) {
     if (btn){ btn.disabled = true; btn.textContent = "resuming…"; }
+    const via = ctlOf((this._list || []).find(x => x.id === id)) === "vault";
     try {
-      showToast("confirm setActive(true) in your wallet - this re-queues the app; billing resumes once it runs");
-      await ensureBaseChain();
-      const th = await sendTx(DEPLOYMENTS_ADDRESS, "0x" + DEP_SEL.setActive + pad32(id.replace(/^0x/, "")) + encUint(1));
-      await waitReceipt(th);
+      if (via){
+        // vault-owned row: setActive(true) through the vault, passkey-signed
+        const { vaultOp } = await import("../../js/core/vault.js");
+        await vaultOp("control", { id, action: "resume" });
+      } else {
+        showToast("confirm setActive(true) in your wallet - this re-queues the app; billing resumes once it runs");
+        await ensureBaseChain();
+        const th = await sendTx(DEPLOYMENTS_ADDRESS, "0x" + DEP_SEL.setActive + pad32(id.replace(/^0x/, "")) + encUint(1));
+        await waitReceipt(th);
+      }
       if (this._why) this._why.delete(id);   // a pre-suspend decline reason must not outlive the resume
       fetch(Enclave.base + "/claim-hint", { method: "POST",
         headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) }).catch(() => {});
@@ -862,7 +959,7 @@ class Deployments extends EnclaveElement {
   _startPoll() {
     if (this._poll) return;
     this._poll = setInterval(() => {
-      if (!Enclave.address){ this._stopPoll(); return; }
+      if (!Enclave.address && !Enclave.accountAuthed()){ this._stopPoll(); return; }
       if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden])")) return;   // don't clobber an open attestation/output/top-up view
       this.refresh();
     }, 10000);
