@@ -11,7 +11,7 @@ const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; ch
   ".wasm": "application/wasm", ".map": "application/json" };
 const PRETTY = { "/apps": "/apps.html", "/develop": "/develop.html", "/dashboard": "/dashboard.html",
   "/checkout": "/checkout.html", "/admin": "/admin.html", "/terms": "/terms.html", "/privacy": "/privacy.html",
-  "/apps/deploy": "/apps.html", "/apps/publish": "/apps.html" };
+  "/link": "/link.html", "/apps/deploy": "/apps.html", "/apps/publish": "/apps.html" };
 
 export function serveSite(root, port) {
   const server = http.createServer((req, res) => {

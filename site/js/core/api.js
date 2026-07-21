@@ -126,6 +126,11 @@ export const Enclave = {
   accountSiweVerify(message, signature){ return this._req("POST", "/account/siwe/verify", { body: { message, signature } }); },
   accountLinkSiwe(message, signature){ return this._req("POST", "/account/link/siwe", { body: { message, signature }, accountAuth: true }); },
   accountMe(){ return this._req("GET", "/account/me", { accountAuth: true }); },
+  // device flow: a passkey-less browser signs in via a phone (QR -> /link)
+  accountDeviceStart(){ return this._req("POST", "/account/device/start", { body: {} }); },
+  accountDeviceInfo(code){ return this._req("GET", "/account/device/info", { query: { code } }); },
+  accountDeviceApprove(code, approve){ return this._req("POST", "/account/device/approve", { body: { code, approve }, accountAuth: true }); },
+  accountDeviceClaim(code, secret){ return this._req("POST", "/account/device/claim", { body: { code, secret } }); },
   /* Orders + checkout (relay/billing.js) */
   createOrder(body){ return this._req("POST", "/billing/orders", { body, accountAuth: true }); },
   listOrders(){ return this._req("GET", "/billing/orders", { accountAuth: true }); },

@@ -33,7 +33,7 @@
 // CHAIN_ID (8453).
 
 import fs from "node:fs";
-import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, randomBytes } from "node:crypto";
+import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, randomBytes, timingSafeEqual } from "node:crypto";
 import { JsonStore, dataDir, dataFile, makeRateLimiter, rid, rpcPool } from "./store.js";
 
 const SESSION_TTL = parseInt(process.env.SESSION_TTL || "604800", 10);
@@ -45,6 +45,17 @@ const SIWE_URI = process.env.SIWE_URI || "https://enclave.host";
 const CHAIN_ID = parseInt(process.env.CHAIN_ID || "8453", 10);
 
 const CHALLENGE_TTL_MS = 5 * 60_000, NONCE_TTL_MS = 10 * 60_000, STORE_MAX = 10_000;
+const DEVICE_TTL_MS = 3 * 60_000;
+
+// 8 chars from an unambiguous alphabet (no 0/O/1/I/L): typable for the future
+// CLI device flow, dense enough (31^8 ≈ 8e11) that online guessing dies at the rate limit
+const DEVICE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+function deviceCode() {
+  const b = randomBytes(8);
+  let s = "";
+  for (let i = 0; i < 8; i++) s += DEVICE_ALPHABET[b[i] % DEVICE_ALPHABET.length];
+  return s;
+}
 
 let enabled = false;
 let accounts = null;          // JsonStore: { accounts, byCredential, byWallet }
@@ -54,10 +65,12 @@ let jose = null, webauthn = null;
 // single-use stores, TTL + FIFO cap (supervisor.js nonces pattern)
 const challenges = new Map(); // id -> { challenge, kind, accountId|null, userHandle|null, exp }
 const siweNonces = new Map(); // nonce -> { address, exp }
+const deviceReqs = new Map(); // code -> { secret, ua, ip, createdAt, exp, state, accountId }
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of challenges) if (v.exp < now) challenges.delete(k);
   for (const [k, v] of siweNonces) if (v.exp < now) siweNonces.delete(k);
+  for (const [k, v] of deviceReqs) if (v.exp < now) deviceReqs.delete(k);
 }, 60_000).unref?.();
 const bound = (map) => { while (map.size > STORE_MAX) { const k = map.keys().next().value; if (k === undefined) break; map.delete(k); } };
 
@@ -354,6 +367,60 @@ export async function handleAccount(req, res, u, ctx) {
     accounts.data.byWallet[key] = acct.id;
     accounts.saveSoon();
     return ctx.json(res, 200, { ok: true, wallets: acct.wallets }, req);
+  }
+
+  // -- device flow: sign this browser in with a phone ----------------------------
+  // A desktop with no usable passkey path (Linux Firefox, no Bluetooth) shows a
+  // QR; the phone opens /link?code=…, authenticates however it likes, and
+  // approves. The QR carries only the CODE - claiming the session additionally
+  // needs the SECRET, which never leaves the initiating browser. There is no
+  // proximity proof (unlike the browser-native hybrid flow), so the approve
+  // screen shows requester context and warning copy; codes are short-lived and
+  // single-use, and a leaked QR at worst lets a stranger sign the desktop into
+  // the STRANGER's account - it can never hand the desktop's session away.
+  if (p === "/v1/account/device/start" && req.method === "POST") {
+    if (!rlMint(ip)) return err(ctx, res, req, 429, "rate_limited", "Too many attempts; retry shortly.");
+    let code; do { code = deviceCode(); } while (deviceReqs.has(code));
+    deviceReqs.set(code, { secret: rid(""), ua: String(req.headers["user-agent"] || "").slice(0, 200),
+      ip, createdAt: Date.now(), exp: Date.now() + DEVICE_TTL_MS, state: "pending", accountId: null });
+    bound(deviceReqs);
+    const r = deviceReqs.get(code);
+    return ctx.json(res, 200, { code, secret: r.secret, expiresAt: new Date(r.exp).toISOString(), interval: 3 }, req);
+  }
+
+  if (p === "/v1/account/device/info" && req.method === "GET") {
+    if (!rlMint(ip)) return err(ctx, res, req, 429, "rate_limited", "Too many attempts; retry shortly.");
+    const r = deviceReqs.get(String(u.searchParams.get("code") || "").toUpperCase());
+    if (!r || r.exp < Date.now()) return err(ctx, res, req, 404, "unknown_code", "This code is expired or unknown. Start again on your other screen.");
+    return ctx.json(res, 200, { ua: r.ua, ip: r.ip, createdAt: new Date(r.createdAt).toISOString(), state: r.state }, req);
+  }
+
+  if (p === "/v1/account/device/approve" && req.method === "POST") {
+    const sess = await verifyAccountSession(req.headers.authorization);
+    if (!sess) return err(ctx, res, req, 401, "unauthorized", "Sign in first.");
+    if (!rlVerify(ip)) return err(ctx, res, req, 429, "rate_limited", "Too many attempts; retry shortly.");
+    const b = await bodyJson(req, ctx); if (!b) return err(ctx, res, req, 400, "bad_json", "Body must be JSON.");
+    const r = deviceReqs.get(String(b.code || "").toUpperCase());
+    if (!r || r.exp < Date.now()) return err(ctx, res, req, 404, "unknown_code", "This code is expired or unknown. Start again on your other screen.");
+    if (r.state !== "pending") return err(ctx, res, req, 409, "already_answered", "This request was already answered.");
+    if (b.approve === true) { r.state = "approved"; r.accountId = sess.accountId; }
+    else r.state = "denied";
+    return ctx.json(res, 200, { ok: true, state: r.state }, req);
+  }
+
+  if (p === "/v1/account/device/claim" && req.method === "POST") {
+    if (!rlMint(ip)) return err(ctx, res, req, 429, "rate_limited", "Too many attempts; retry shortly.");
+    const b = await bodyJson(req, ctx); if (!b) return err(ctx, res, req, 400, "bad_json", "Body must be JSON.");
+    const code = String(b.code || "").toUpperCase();
+    const r = deviceReqs.get(code);
+    if (!r || r.exp < Date.now()) return err(ctx, res, req, 404, "unknown_code", "This code is expired or unknown.");
+    const got = Buffer.from(String(b.secret || "")), want = Buffer.from(r.secret);
+    if (got.length !== want.length || !timingSafeEqual(got, want))
+      return err(ctx, res, req, 401, "bad_secret", "This claim does not match the request.");
+    if (r.state === "pending") return ctx.json(res, 200, { status: "pending" }, req);
+    if (r.state === "denied") { deviceReqs.delete(code); return ctx.json(res, 200, { status: "denied" }, req); }
+    deviceReqs.delete(code);                              // single use
+    return ctx.json(res, 200, { status: "ok", ...(await mintAccountSession(r.accountId, "phone")) }, req);
   }
 
   // -- profile / credential management ------------------------------------------
