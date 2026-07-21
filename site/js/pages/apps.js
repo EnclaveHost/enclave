@@ -424,8 +424,8 @@ function quickDeploy(app, v, idx){
     // adjustable short-on-funds note and pins the Deploy button off
     note.hidden = !shortOnFunds && !capMsg;
     if (capMsg) note.textContent = capMsg;
-    else if (shortOnFunds) note.textContent = acct
-      ? "That’s more than your credit balance ($" + bal.toFixed(2) + "). Add credit first."
+    else if (shortOnFunds) note.innerHTML = acct
+      ? 'That’s more than your credit balance ($' + bal.toFixed(2) + '). <a href="checkout">Add credit</a> first.'
       : "That’s more than your wallet holds ($" + bal.toFixed(2) + " USDC).";
     go.disabled = !(usd >= 0.01) || shortOnFunds || !tos.checked || !!capMsg;
     go.title = capMsg ? "" : tos.checked ? "" : "Agree to the Terms of Service above to deploy";
@@ -440,6 +440,12 @@ function quickDeploy(app, v, idx){
       est();
     }
   }).catch(() => {});
+  // the short-on-funds "Add credit" link: boot's interceptor does the SPA
+  // navigation, the modal just has to get out of the way first (modified
+  // clicks open a new tab - this one should stay put, amount intact)
+  note.addEventListener("click", (e) => {
+    if (e.target.closest("a") && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) closeQuick();
+  });
   amt.addEventListener("input", est);
   tos.addEventListener("change", () => { setTosAccepted(tos.checked); est(); });
   const paintRate = () => {
