@@ -20,6 +20,7 @@ import { navigate } from "../boot.js";
 import { $, $$, esc, short, wait, fmtNum, fmtDur, hlJson, hlCode, copyText, showToast, statusCls, on, tosAccepted, setTosAccepted } from "../core/util.js";
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS, BASE_CHAIN, ACCOUNTS_ENABLED } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
+import { vaultOp, getVault } from "../core/vault.js";
 import { minPctsOf, serverSpec, shareRates } from "../core/pricing.js";
 import { encCall, DEP_SEL, DEP_CREATED_TOPIC, APPROVAL, depGet, depRate6, depPrices6, depSchemaRev, depMaxGpuMilli, rate6Of, waitReceipt, catVersionFee } from "../core/chain.js";
 
@@ -323,6 +324,27 @@ async function runDeploy(){
   // capacity gate: a size the fleet can't start right now proceeds only
   // through the queue-confirm modal's explicit checkbox
   if (!(await confirmQueuedDeploy(gpuMilli / 10, cpuMilli / 10))) return;
+
+  // account/credit path: no wallet in the browser but a signed-in account -
+  // the passkey signs a vault operation and the deployment (owned on-chain by
+  // the customer's credit vault) funds from their balance. One tap.
+  if (!Enclave.address && ACCOUNTS_ENABLED && Enclave.accountAuthed()){
+    if (dry) return note([["warn", "[!] dry runs use the wallet path - credit deploys are always real"]]);
+    if (wafSpec()) return note([["warn", "[!] WAF options need a wallet deploy for now - credit deploys don't carry a config envelope yet"]]);
+    if (!(fund > 0)) return note([["warn", "[!] set a budget - it buys runtime at the live per-second rate"]]);
+    btn.disabled = true; const lbl0 = btn.textContent; btn.textContent = "confirm with your passkey…";
+    try {
+      const out = await vaultOp("deploy", {
+        spec: { appRef: rref.reference, gpuMilli, cpuMilli, appPort, ports: portsCsv, isPublic: dep.public },
+        fundUsd: fund,
+      });
+      note([["ok", "[✓] deployed from credit - " + String(out.deploymentId || "").slice(0, 12) + "… is funding on-chain; watch it on your dashboard"]]);
+      navigate("dashboard", { push: true });
+    } catch(e){
+      note([["warn", "[!] " + ((e && e.message) || e)]]);
+    } finally { btn.disabled = false; btn.textContent = lbl0; }
+    return;
+  }
 
   btn.disabled = true; const lbl = btn.textContent; btn.textContent = "working…";
   try {
@@ -808,7 +830,21 @@ function startAvailPoll(){
 let _balSeq = 0;
 async function updateUsdcBalance(){
   const el = $("#payBal"); if (!el) return;
-  if (!Enclave.address || !Enclave.provider){ el.hidden = true; return; }
+  if (!Enclave.address || !Enclave.provider){
+    // account users see their CREDIT here; the Deploy button spends it
+    if (ACCOUNTS_ENABLED && Enclave.accountAuthed()){
+      const seq0 = ++_balSeq;
+      const v = await getVault();
+      if (seq0 !== _balSeq) return;
+      el.innerHTML = '<div><span class="pb-k">Credit</span><span class="pb-v">' + esc(v ? "$" + v.balanceUsd : "–") + '</span></div>' +
+        '<button class="pb-buy" id="payBuyRuntime" type="button">Add credit →</button>';
+      el.hidden = false;
+      const br = $("#payBuyRuntime");
+      if (br) br.onclick = () => navigate("checkout", { push: true });
+      return;
+    }
+    el.hidden = true; return;
+  }
   const seq = ++_balSeq;
   try {
     // the card follows the selected pay asset: USDC by default, ETH when the
@@ -818,22 +854,8 @@ async function updateUsdcBalance(){
     const val = wantEth ? (await ethBalanceOf(Enclave.address)).toFixed(4) + " ETH"
                         : (await usdcBalanceOf(Enclave.address)).toFixed(2) + " USDC";
     if (seq !== _balSeq) return;
-    el.innerHTML = '<div><span class="pb-k">' + label + '</span><span class="pb-v">' + esc(val) + '</span></div>' +
-      (ACCOUNTS_ENABLED ? '<button class="pb-buy" id="payBuyRuntime" type="button">Buy runtime →</button>' : "");
+    el.innerHTML = '<div><span class="pb-k">' + label + '</span><span class="pb-v">' + esc(val) + '</span></div>';
     el.hidden = false;
-    const br = $("#payBuyRuntime");
-    if (br) br.onclick = () => {
-      try {
-        const raw = ($("#cfgImage") && $("#cfgImage").value || "").trim();
-        sessionStorage.setItem("enclave_checkout_spec", JSON.stringify({
-          appRef: raw ? resolveAppRef(raw).reference : "",
-          gpuShare: (dep.gpuEnclave ? Math.round(dep.gpuPct) : 0) / 100,
-          cpuShare: Math.max(1, Math.round(dep.cpuPct)) / 100,
-          appPort: 8080, isPublic: dep.public !== false,
-        }));
-      } catch(e){}
-      navigate("checkout", { push: true });
-    };
   } catch(e){ if (seq === _balSeq) el.hidden = true; }
 }
 
@@ -1031,6 +1053,9 @@ function initDeploy(){
 // so it's inert while another page's <main> is mounted.
 on("enclave:wallet", () => {
   updateUsdcBalance();
+});
+on("enclave:account", () => {
+  updateUsdcBalance();     // the credit panel appears/disappears on account edges
 });
 
 /* called by apps.js the first time the #deploy view opens on each <main>

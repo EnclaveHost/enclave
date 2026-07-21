@@ -125,6 +125,7 @@ jobs:
               contracts/EnclaveAppCatalog.sol)  catalog=true ;;
               contracts/EnclavePay.sol)         enclavepay=true ;;
               contracts/PaymentRouter.sol)      paymentrouter=true ;;
+              contracts/EnclaveCreditVault.sol) ;;   # vault factory deploys from the admin console (browser wallet), never CI
               contracts/foundry/*|foundry.toml) ;;   # Foundry test toolchain only - deploys stay solc-via-JS
               Dockerfile|supervisor.js|package.json|package-lock.json) sup=true ;;
               worker/*)                worker=true ;;

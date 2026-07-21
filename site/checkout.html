@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="color-scheme" content="dark" />
 <meta name="theme-color" content="#070A0F" />
-<title>Checkout · Enclave</title>
+<title>Credit · Enclave</title>
 <!-- account-gated purchase flow: nothing indexable renders signed out -->
 <meta name="robots" content="noindex" />
-<meta name="description" content="Buy Enclave runtime: pay by card on a Stripe-hosted page, or pay USDC on Base from your own wallet." />
+<meta name="description" content="Add credit to your Enclave account: pick a dollar amount and pay by card on a Stripe-hosted page." />
 <link rel="icon" href="favicon.ico" sizes="48x48 32x32 16x16" />
 <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
@@ -31,11 +31,11 @@
 <body>
 <c-header current=""></c-header>
 <main id="main" tabindex="-1">
-<h1 class="sr-only">Buy Enclave runtime</h1>
+<h1 class="sr-only">Add credit</h1>
 <section id="checkout" data-view="checkout" aria-label="Checkout">
   <div class="wrap">
-    <c-section-head eyebrow="Checkout" heading="Buy runtime">
-      <p>Pick how long your deployment should run and pay by card or in USDC. Card payments happen on a Stripe-hosted page and never touch crypto; USDC goes from your own wallet straight to the treasury on Base, and either way your order provisions on-chain the moment payment settles.</p>
+    <c-section-head eyebrow="Checkout" heading="Add credit">
+      <p>Add dollars to your account and spend them on runtime anywhere on Enclave. Payment happens on a Stripe-hosted page; every later spend is confirmed with your passkey, and your deployments run from the balance until it is used up.</p>
     </c-section-head>
     <div id="coBody" class="co-body">
       <p class="co-note" id="coGate" hidden>Checkout isn't available yet.</p>

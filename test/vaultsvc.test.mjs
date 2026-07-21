@@ -1,0 +1,53 @@
+// Pure-function coverage for the vault bridge: COSE -> P-256 coordinates
+// (registration-time extraction), DER -> raw r/s (assertion signatures).
+// The digest encoding itself is pinned by the Foundry suite AND the e2e,
+// which drive the real contract with relay-computed digests.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { generateKeyPairSync, createSign, createHash } from "node:crypto";
+import { coseToXY } from "../relay/auth.js";
+import { derToRS } from "../relay/vaultsvc.js";
+
+function coseP256(x, y) {
+  // map(5) { 1:2, 3:-7, -1:1, -2:bstr32(x), -3:bstr32(y) } - canonical CBOR
+  return Buffer.concat([
+    Buffer.from([0xa5, 0x01, 0x02, 0x03, 0x26, 0x20, 0x01, 0x21, 0x58, 0x20]), x,
+    Buffer.from([0x22, 0x58, 0x20]), y,
+  ]);
+}
+
+test("coseToXY extracts P-256 coordinates from a canonical COSE key", () => {
+  const jwk = generateKeyPairSync("ec", { namedCurve: "prime256v1" }).publicKey.export({ format: "jwk" });
+  const x = Buffer.from(jwk.x, "base64url"), y = Buffer.from(jwk.y, "base64url");
+  const out = coseToXY(coseP256(x, y));
+  assert.equal(out.x, "0x" + x.toString("hex"));
+  assert.equal(out.y, "0x" + y.toString("hex"));
+});
+
+test("coseToXY refuses an Ed25519 COSE key (no vault coordinates)", () => {
+  // the shape the CDP virtual authenticator produced before ES256 was pinned:
+  // map(4) { 1:1(OKP), 3:-8(EdDSA), -1:6(Ed25519), -2:bstr32 }
+  const ed = Buffer.concat([
+    Buffer.from([0xa4, 0x01, 0x01, 0x03, 0x27, 0x20, 0x06, 0x21, 0x58, 0x20]),
+    Buffer.alloc(32, 7),
+  ]);
+  assert.throws(() => coseToXY(ed), /P-256/);
+});
+
+test("derToRS round-trips real ECDSA signatures incl. leading-zero trims", () => {
+  for (let i = 0; i < 20; i++) {
+    const { privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+    const msg = createHash("sha256").update("m" + i).digest();
+    const der = createSign("sha256").update("m" + i).sign(privateKey);
+    const { r, s } = derToRS(der);
+    assert.ok(r > 0n && r < 2n ** 256n && s > 0n && s < 2n ** 256n);
+    // parity: node's own verifier accepts what we parsed (re-encode minimal DER)
+    const enc = (v) => { let h = v.toString(16); if (h.length % 2) h = "0" + h;
+      let b = Buffer.from(h, "hex"); if (b[0] & 0x80) b = Buffer.concat([Buffer.alloc(1), b]);
+      return Buffer.concat([Buffer.from([0x02, b.length]), b]); };
+    const rebuilt = (() => { const ri = enc(r), si = enc(s);
+      return Buffer.concat([Buffer.from([0x30, ri.length + si.length]), ri, si]); })();
+    assert.deepEqual([...rebuilt], [...der], "canonical DER round-trip " + i);
+    void msg;
+  }
+});

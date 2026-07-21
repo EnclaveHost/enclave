@@ -137,5 +137,10 @@ export const Enclave = {
   getOrder(id){ return this._req("GET", "/billing/orders/" + encodeURIComponent(id), { accountAuth: true }); },
   orderCheckout(id){ return this._req("POST", "/billing/orders/" + encodeURIComponent(id) + "/checkout", { body: {}, accountAuth: true }); },
   orderUsdc(id){ return this._req("GET", "/billing/orders/" + encodeURIComponent(id) + "/usdc", { accountAuth: true }); },
-  accountDeployments(){ return this._req("GET", "/billing/deployments", { accountAuth: true }); }
+  accountDeployments(){ return this._req("GET", "/billing/deployments", { accountAuth: true }); },
+  // credit vault: dollars in, runtime out - the passkey signs every spend
+  billingVault(){ return this._req("GET", "/billing/vault", { accountAuth: true }); },
+  billingTopup(amountUsd){ return this._req("POST", "/billing/topup", { body: { amountUsd }, accountAuth: true }); },
+  vaultPrepare(body){ return this._req("POST", "/billing/vault/prepare", { body, accountAuth: true }); },
+  vaultExec(body){ return this._req("POST", "/billing/vault/exec", { body, accountAuth: true }); }
 };

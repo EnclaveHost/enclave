@@ -11,7 +11,7 @@ import "../../components/toast/toast.js";
 import "../../components/section-head/section-head.js";
 import "../../components/deployments/deployments.js";
 import "../../components/fleet-list/fleet-list.js";
-import { $, esc, fmtDur, lsGet, on } from "../core/util.js";
+import { $, esc, fmtDur, lsGet, on, showToast } from "../core/util.js";
 import { DEPLOYMENTS_ADDRESS } from "../core/config.js";
 import { catExplorer } from "../core/chain.js";
 import { Enclave } from "../core/api.js";
@@ -47,37 +47,72 @@ function mountAccountView(){
   const cd = document.querySelector("c-deployments"); if (!cd) return;
   if (!$("#acctDeps")){
     cd.hidden = true;
+    const bal = document.createElement("div");
+    bal.id = "acctBal"; bal.className = "acct-row";
+    bal.innerHTML = '<div class="acct-app"><b>Credit</b></div><div class="acct-meta"><span id="acctBalV">…</span>' +
+      '<a class="btn btn-sm" href="checkout">Add credit</a></div>';
     const div = document.createElement("div");
     div.id = "acctDeps"; div.className = "acct-deps";
     div.innerHTML = '<p class="acct-note">Loading your deployments…</p>';
+    cd.parentNode.insertBefore(bal, cd);
     cd.parentNode.insertBefore(div, cd);
+    div.addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-extend]"); if (!b) return;
+      const amt = prompt("How many dollars of credit to add to this deployment?", "10");
+      if (!(parseFloat(amt) > 0)) return;
+      b.disabled = true;
+      try {
+        const { vaultOp } = await import("../core/vault.js");
+        await vaultOp("fund", { id: b.dataset.extend, amountUsd: parseFloat(amt) });
+        showToast("Runtime extended.");
+        refreshAccountBal(); refreshAccountDeps();
+      } catch(err){ showToast((err && err.message) || String(err)); }
+      finally { b.disabled = false; }
+    });
   }
+  refreshAccountBal();
   refreshAccountDeps();
 }
-let _acctRetry = 0;
+async function refreshAccountBal(){
+  const el = $("#acctBalV"); if (!el) return;
+  try {
+    const { getVault } = await import("../core/vault.js");
+    const v = await getVault();
+    el.textContent = v ? "$" + v.balanceUsd : "unavailable";
+  } catch(e){ el.textContent = "unavailable"; }
+}
+let _acctRetry = 0, _acctMounted = 0;
 async function refreshAccountDeps(){
   const el = $("#acctDeps"); if (!el) return;
+  if (!_acctMounted) _acctMounted = Date.now();
   let rows;
   try { rows = (await Enclave.accountDeployments()).deployments || []; }
   catch(e){ el.innerHTML = '<p class="acct-note">' + esc((e && e.message) || String(e)) + '</p>'; return; }
-  // a just-provisioned row can outrun the relay's ledger cache (~10s TTL) and
-  // read "unknown" for a beat - retry briskly until the join fills in
+  // a just-created row can outrun the relay's ledger cache (~10s TTL): retry
+  // briskly while a row reads "unknown", and while the list is EMPTY during
+  // the first half-minute after mount (a fresh deploy landing on the ledger)
   clearTimeout(_acctRetry);
-  if (rows.some((d) => !d.status || d.status === "unknown"))
+  if (rows.some((d) => !d.status || d.status === "unknown")
+      || (!rows.length && Date.now() - _acctMounted < 30_000))
     _acctRetry = setTimeout(() => { if ($("#acctDeps")) refreshAccountDeps(); }, 4000);
+  // repaint ONLY on change: identical rewrites flicker and yank elements out
+  // from under an in-flight tap
+  const paint = (html) => { if (el._last !== html){ el._last = html; el.innerHTML = html; } };
   if (!rows.length){
-    el.innerHTML = '<p class="acct-note">Nothing running yet. <a href="checkout">Buy runtime</a> to launch your first app.</p>';
+    paint('<p class="acct-note">Nothing running yet. <a href="apps">Deploy an app</a> - it runs on your credit.</p>');
     return;
   }
-  el.innerHTML = rows.map((d) => {
+  paint(rows.map((d) => {
     const app = (d.image && d.image.reference) || "app";
     const left = d.timeRemainingSec != null ? fmtDur(d.timeRemainingSec) + " left" : "";
     return '<div class="acct-row">' +
       '<div class="acct-app"><b>' + esc(app) + '</b> <code>' + esc(String(d.deploymentId).slice(0, 10)) + '…</code></div>' +
       '<div class="acct-meta"><span class="acct-st st-' + esc(d.status || "unknown") + '">' + esc(d.status || "unknown") + '</span>' +
       (left ? '<span>' + esc(left) + '</span>' : "") +
-      '<span>$' + esc(d.spentUsdc || "0.00") + ' spent</span></div></div>';
-  }).join("");
+      '<span>$' + esc(d.spentUsdc || "0.00") + ' spent</span>' +
+      (d.viaVault ? '<button class="btn btn-sm" data-extend="' + esc(d.deploymentId) + '" type="button">Extend</button>' : "") +
+      '</div></div>';
+  }).join(""));
 }
 
 /* the fleet capacity panel: the relay's /enclaves table, same sort as the
