@@ -18,7 +18,7 @@ import "../../components/section-head/section-head.js";
 import { ACCOUNTS_ENABLED } from "../core/config.js";
 import { Enclave } from "../core/api.js";
 import { $, esc, showToast } from "../core/util.js";
-import { openAuthModal, passkeySupported, signInWithPasskey } from "../core/account.js";
+import { openAuthModal, passkeySupported, registerPasskey, signInWithPasskey } from "../core/account.js";
 
 const normalize = (s) => String(s || "").toUpperCase().replace(/[^A-HJ-NP-Z2-9]/g, "").slice(0, 8);
 let autoOpened = false;   // auto-open the sign-in chooser only once per load
@@ -84,13 +84,19 @@ async function showRequest(body, code){
       catch(e){ if (!/cancelled/i.test((e && e.message) || "")) showToast((e && e.message) || String(e)); }
     };
     $("#lkAuth").addEventListener("click", gate);
-    // returning users: straight into the passkey ceremony itself. Chromium
-    // allows get() without user activation; where it's refused (iOS Safari)
-    // or there is no passkey yet, fall back to the chooser - whose passkey
-    // button then has the real tap Safari demands. Once per load either way.
+    // straight into the passkey ceremony itself: sign in, and when that
+    // fails, REGISTER - a QR scan is unambiguous sign-in intent, and WebAuthn
+    // deliberately hides whether "no passkey" or "user dismissed" happened,
+    // so the chain is the only way to serve first-timers without a tap.
+    // A user with an account elsewhere cancels the create sheet and lands in
+    // the chooser (wallet et al); iOS Safari refuses activation-less WebAuthn
+    // entirely and goes straight there, where buttons carry the real tap.
     if (!autoOpened){
       autoOpened = true;
-      if (passkeySupported()) signInWithPasskey().then(() => showRequest(body, code)).catch(() => gate());
+      if (passkeySupported())
+        signInWithPasskey().then(() => showRequest(body, code))
+          .catch(() => registerPasskey().then(() => showRequest(body, code))
+            .catch(() => gate()));
       else gate();
     }
     return;
