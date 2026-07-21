@@ -23,9 +23,9 @@ test("device flow: passkey-less desktop signs in via phone approval", async ({ p
   await addVirtualAuthenticator(phoneCtx, phone);
   await phone.goto("/link?code=" + code);
 
-  // requester context renders before any auth; signing in is the gate
+  // requester context renders, and the sign-in chooser auto-opens - the
+  // phone user's FIRST tap is already "create/continue with passkey"
   await expect(phone.locator(".lk-facts")).toContainText("Chrome");
-  await phone.click("#lkAuth");
   await phone.click("#authPasskeyNew");                        // create the account on the phone
   await expect(phone.locator("#lkApprove")).toBeVisible();
   await expect(phone.locator("#lkBody")).toContainText("Only approve if you just started this yourself");

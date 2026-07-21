@@ -21,6 +21,7 @@ import { $, esc, showToast } from "../core/util.js";
 import { openAuthModal } from "../core/account.js";
 
 const normalize = (s) => String(s || "").toUpperCase().replace(/[^A-HJ-NP-Z2-9]/g, "").slice(0, 8);
+let autoOpened = false;   // auto-open the sign-in chooser only once per load
 
 // coarse, honest UA summary - display only, never trusted
 function uaSummary(ua){
@@ -78,10 +79,15 @@ async function showRequest(body, code){
     body.innerHTML = '<div class="lk-card">' + facts +
       '<p class="co-note">Sign in to answer this request.</p>' +
       '<button class="btn btn-primary" id="lkAuth" type="button">Sign in</button></div>';
-    $("#lkAuth").addEventListener("click", async () => {
+    const gate = async () => {
       try { await openAuthModal(); showRequest(body, code); }
       catch(e){ if (!/cancelled/i.test((e && e.message) || "")) showToast((e && e.message) || String(e)); }
-    });
+    };
+    $("#lkAuth").addEventListener("click", gate);
+    // straight into the sign-in chooser - the passkey button needs a real tap
+    // (iOS Safari gates WebAuthn on user activation), but the chooser doesn't.
+    // Once per load: a deliberate cancel leaves the button, not a modal loop.
+    if (!autoOpened){ autoOpened = true; gate(); }
     return;
   }
 
