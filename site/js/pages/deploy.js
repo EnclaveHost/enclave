@@ -326,10 +326,20 @@ async function runDeploy(){
   const co = cfgOverride();
   if (co && co.err) return note([["warn", "[!] " + co.err]]);
   if (co && !dep.cfgAvail)
-    return note([["warn", "[!] the App config box differs from the version's config, but the live fleet doesn't support per-deployment overrides - no runner would claim this deployment. Reset the box to the version's config, or retry once the fleet updates."]]);
+    return note([["warn", depRev < 5
+      ? "[!] the App config box differs from the version's config, but the live ledger predates per-deployment overrides (deploymentsSchema < 5): its create() caps the options field at 100 bytes and reverts on more. Reset the box, or retry after the rev-5 ledger upgrade."
+      : "[!] the App config box differs from the version's config, but the live fleet doesn't support per-deployment overrides - no runner would claim this deployment. Reset the box to the version's config, or retry once the fleet updates."]]);
+  // the LEDGER's own bound on create()'s options field: rev <= 4 contracts are
+  // CID-sized (100 bytes) and revert "configCid length" over it - the wallet's
+  // simulation fails and the tx never lands (observed live 2026-07-22), so
+  // refuse HERE, before any wallet popup. Rev 5 widened the field to match the
+  // runners' 4096-byte envelope cap.
   const envBytes = new TextEncoder().encode(envelopeOf({ waf: wafSpec(), config: co && co.obj })).length;
-  if (envBytes > 4096)
-    return note([["warn", "[!] the deployment options (config override + protection) are " + envBytes + " bytes; runners refuse envelopes over 4096 bytes - trim the config"]]);
+  const envCap = depRev >= 5 ? 4096 : 100;
+  if (envBytes > envCap)
+    return note([["warn", depRev >= 5
+      ? "[!] the deployment options (config override + protection) are " + envBytes + " bytes; runners refuse envelopes over 4096 bytes - trim the config"
+      : "[!] the deployment options are " + envBytes + " bytes, but the live ledger caps create()'s options field at 100 bytes (CID-sized; its create() reverts \"configCid length\") - " + (co ? "config overrides need the rev-5 ledger upgrade" : "trim the protection rules")]]);
 
   // ---- ON-CHAIN deploy (EnclaveDeployments): the ledger, not any one enclave,
   // holds the spec and the funded balance, so the deployment survives enclave
@@ -547,6 +557,22 @@ export async function deployOnChain(spec){
     // proxy, never handed to the app) and/or the deployer's inline config
     // override (replacing the version's config for this deployment only).
     const envelope = envelopeOf(spec);
+    if (envelope){
+      // the ledger's own bound on create()'s options field, re-checked in the
+      // shared path (quick-deploy and races skip the console's gate): rev <= 4
+      // contracts revert "configCid length" over 100 bytes - the wallet's
+      // simulation fails and the signed tx never lands (observed live
+      // 2026-07-22, a config override on the rev-4 ledger). Refuse before any
+      // wallet popup so nobody signs a create that cannot mine.
+      const cap = (await depSchemaRev()) >= 5 ? 4096 : 100;
+      const bytes = new TextEncoder().encode(envelope).length;
+      if (bytes > cap){
+        w.line("warn", "[x] the deployment options envelope is " + bytes + " bytes but this ledger caps the field at " + cap + " bytes"
+          + (cap === 100 ? " (CID-sized; create() reverts \"configCid length\")" : "")
+          + " - " + (spec.config ? "config overrides need the rev-5 ledger upgrade" : "trim the options") + "; nothing was sent");
+        return;
+      }
+    }
     if (spec.waf) w.line("info", "    protection on: " + JSON.stringify({ waf: spec.waf }) + " (enforced per requester IP by the enclave's proxy)");
     if (spec.config) w.line("info", "    config override on: this deployment runs on YOUR config (the version's config stays the default for everyone else)");
     w.line("p", "$ EnclaveDeployments.create(…)  (wallet · one tx · you own the record)");
@@ -853,9 +879,13 @@ async function refreshAvailability(){
     if (wf){ wf.hidden = !dep.wafAvail; if (!dep.wafAvail) dep.waf = false; }
     // App config override (envelope `config` namespace): the box unlocks only
     // when EVERY live runner honors it - on a mixed/older fleet an overridden
-    // deployment would be refused at claim and sit Queued forever, so the box
-    // stays the read-only version mirror it always was.
-    dep.cfgAvail = a.configOverride === true;
+    // deployment would be refused at claim and sit Queued forever - AND the
+    // ledger is rev 5+: earlier contracts cap create()'s options field at 100
+    // bytes (CID-sized) and revert on a real override, so the wallet would
+    // simulate a failure and the tx never lands. Fail closed on both.
+    let cfgOk = a.configOverride === true;
+    if (cfgOk){ try { cfgOk = (await depSchemaRev()) >= 5; } catch(e){ cfgOk = false; } }
+    dep.cfgAvail = cfgOk;
     const ccTa = $("#cfgConfig");
     if (ccTa) ccTa.readOnly = !dep.cfgAvail;
     const hRO = $("#cfgHintRO"), hRW = $("#cfgHintRW");
