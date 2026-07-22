@@ -38,17 +38,17 @@
   </g>
 
   <!-- headline -->
-  <text x="72" y="308" font-family="DejaVu Sans" font-size="58" font-weight="bold" fill="#E8F4EF">Compute that <tspan fill="#2FE6A8">can't</tspan></text>
+  <text x="72" y="308" font-family="DejaVu Sans" font-size="58" font-weight="bold" fill="#E8F4EF">Compute that <tspan fill="#2FE6A8">cannot</tspan></text>
   <text x="72" y="384" font-family="DejaVu Sans" font-size="58" font-weight="bold" fill="#E8F4EF">see your data.</text>
 
   <!-- subline -->
   <text x="72" y="448" font-family="DejaVu Sans" font-size="25" fill="#93A8B8">Deploy WebAssembly on attested GPU enclaves</text>
-  <text x="72" y="486" font-family="DejaVu Sans" font-size="25" fill="#93A8B8">from your browser. Pay per second in ETH or USDC.</text>
+  <text x="72" y="486" font-family="DejaVu Sans" font-size="25" fill="#93A8B8">from your browser. Pay per second, only for what you use.</text>
 
   <!-- footer: url -->
   <circle cx="79" cy="556" r="5" fill="#2FE6A8"/>
   <text x="96" y="564" font-family="DejaVu Sans Mono" font-size="24" fill="#2FE6A8">enclave.host</text>
-  <text x="278" y="564" font-family="DejaVu Sans Mono" font-size="24" fill="#5E7284">· your wallet is your account</text>
+  <text x="278" y="564" font-family="DejaVu Sans Mono" font-size="24" fill="#5E7284">· no sales calls, no gatekeepers</text>
 
   <!-- big mark, right -->
   <g transform="translate(880,180) scale(8.4)" fill="none" stroke="#2FE6A8" opacity="0.9">
