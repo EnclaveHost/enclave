@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark" />
 <meta name="theme-color" content="#070A0F" />
 <title>Enclave · Confidential GPU Compute That Cannot See Your Data</title>
-<meta name="description" content="Compute that cannot see your data. Deploy a WebAssembly app onto a verifiable, attested enclave equipped with a flagship NVIDIA GPU, straight from your browser: pay in ETH or USDC, and verify the enclave yourself. No sales calls, no gatekeepers. Built and operated by Enclave Host, Inc." />
+<meta name="description" content="Compute that cannot see your data. Deploy a WebAssembly app onto a verifiable, attested enclave equipped with a flagship NVIDIA GPU, straight from your browser: pay per second, only for what you use, and verify the enclave yourself. No sales calls, no gatekeepers. Built and operated by Enclave Host, Inc." />
 <link rel="canonical" href="https://enclave.host/" />
 <meta name="robots" content="index,follow,max-image-preview:large" />
 <meta property="og:site_name" content="Enclave" />
@@ -14,7 +14,7 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://enclave.host/" />
 <meta property="og:title" content="Enclave · Compute That Cannot See Your Data" />
-<meta property="og:description" content="Attested GPU enclaves for everyone, not just the Fortune 500. Deploy a WebAssembly app straight from your browser, pay per second in ETH or USDC, and verify the enclave yourself before sending a byte." />
+<meta property="og:description" content="Attested GPU enclaves for everyone, not just the Fortune 500. Deploy a WebAssembly app straight from your browser, pay per second for exactly what you use, and verify the enclave yourself before sending a byte." />
 <meta property="og:image" content="https://enclave.host/assets/og.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
@@ -80,7 +80,7 @@
       "@id": "https://enclave.host/#website",
       "url": "https://enclave.host/",
       "name": "Enclave",
-      "description": "Compute that cannot see your data: deploy WebAssembly apps onto verifiable, attested confidential enclaves with flagship NVIDIA GPUs, paid per second in ETH or USDC.",
+      "description": "Compute that cannot see your data: deploy WebAssembly apps onto verifiable, attested confidential enclaves with flagship NVIDIA GPUs, paid per second.",
       "publisher": { "@id": "https://enclave.host/#org" }
     },
     {
@@ -91,7 +91,7 @@
       "provider": { "@id": "https://enclave.host/#org" },
       "url": "https://enclave.host/",
       "areaServed": "Worldwide",
-      "description": "On-demand attested enclaves with CPU and GPU confidential computing, running WebAssembly apps with GPU shares metered per second and paid on-chain in ETH or USDC.",
+      "description": "On-demand attested enclaves with CPU and GPU confidential computing, running WebAssembly apps with GPU shares metered and paid per second.",
       "offers": [
         {
           "@type": "Offer",
@@ -119,7 +119,7 @@
     <div class="hero-copy">
       <span class="eyebrow">Trustless, attested enclaves · API v1</span>
       <h1>Compute that <span class="hl">cannot</span><br>see your&nbsp;data.</h1>
-      <p class="lede">The hardware that used to hide behind enterprise sales calls is now one click away: deploy a <b>WebAssembly app</b> onto a confidential enclave equipped with a <b>flagship NVIDIA GPU</b>, straight from your browser. Pay per second in <b>ETH or USDC</b>. Your wallet is your account. Then check the cryptographic attestation <b>yourself</b> before you send a single byte of data.</p>
+      <p class="lede">The hardware that used to hide behind enterprise sales calls is now one click away: deploy a <b>WebAssembly app</b> onto a confidential enclave equipped with a <b>flagship NVIDIA GPU</b>, straight from your browser. Pay <b>per second</b>, only while it runs: no subscription, no minimums. Then check the cryptographic attestation <b>yourself</b> before you send a single byte of data.</p>
       <div class="hero-cta">
         <a href="apps" class="btn btn-primary">Deploy an app <span class="arr" aria-hidden="true">→</span></a>
         <a href="develop#api" class="btn btn-ghost">Read the API</a>
@@ -143,7 +143,7 @@
 <section id="why" data-view="overview" aria-label="Principles">
   <div class="wrap">
     <c-section-head eyebrow="The model" heading="Don't trust the operator. Measure it.">
-      <p>Enclave runs your WebAssembly app inside a hardware-isolated, attested enclave with a confidential GPU wired into it, so the operator can't read your memory, your keys, or your traffic, and you don't have to take our word for it. Every claim on this page is something you can check on-chain or in a signed attestation. We're equally explicit about the part that <i>isn't</i> hardware-enforced: how tenants are kept apart from each other on a shared GPU. <a href="#isolation">See exactly how isolation works ↓</a></p>
+      <p>Enclave runs your WebAssembly app inside a hardware-isolated, attested enclave with a confidential GPU wired into it, so the operator can't read your memory, your keys, or your traffic, and you don't have to take our word for it. Every claim on this page is something you can check yourself, in a signed attestation or a public record. We're equally explicit about the part that <i>isn't</i> hardware-enforced: how tenants are kept apart from each other on a shared GPU. <a href="#isolation">See exactly how isolation works ↓</a></p>
     </c-section-head>
     <div class="cards">
       <div class="card jade">
@@ -154,9 +154,9 @@
       </div>
       <div class="card iris">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h4a1.8 1.8 0 010 3.6H10a1.8 1.8 0 000 3.6h4.5"/></svg></div>
-        <span class="tag">wallet-native</span>
-        <h3>Crypto-native</h3>
-        <p>Your wallet is your account and nothing is custodied: every payment forwards in the same transaction - to Enclave, and for paid apps the publisher's share straight to their wallet; the contract never holds funds. It buys prepaid runtime, burned per second while your deployment runs. Payments are final: unspent time survives a stop but can't be withdrawn, so fund small and top up as you go.</p>
+        <span class="tag">pay-per-second</span>
+        <h3>Pay-as-you-go</h3>
+        <p>No subscription, no seats, no sales call: sign in with a passkey and add credit, or bring your own keys and pay directly. Either way a payment buys prepaid runtime, burned per second while your deployment runs, and for paid apps the publisher's share is delivered the same instant. Payments are final: unspent time survives a stop but can't be withdrawn, so fund small and top up as you go.</p>
       </div>
       <div class="card jade">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg></div>
@@ -177,7 +177,7 @@
 <section id="how" data-view="overview" style="background:var(--bg-1);border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);" aria-label="How it works">
   <div class="wrap">
     <c-section-head eyebrow="Lifecycle" heading="Five calls, start to finish.">
-      <p>The path from an empty wallet to a verified GPU endpoint. Click a step to see exactly what crosses the wire.</p>
+      <p>The path from zero to a verified GPU endpoint. Click a step to see exactly what crosses the wire.</p>
     </c-section-head>
     <c-flow></c-flow>
   </div>
@@ -233,8 +233,8 @@
 <!-- ===================== PRICING ===================== -->
 <section id="pricing" data-view="overview" style="background:var(--bg-1);border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);" aria-label="Pricing">
   <div class="wrap">
-    <c-section-head eyebrow="Pricing" heading="Metered per second. Paid on-chain.">
-      <p>Deploying is <b>two dials</b> - what you rent - and <b>two rates</b> - what you pay. USDC or ETH up front buys runtime by the second; the instance runs until that time is used up, and you top up to extend it. Nothing is custodied - payments forward in the same transaction, to Enclave and, for apps that charge a publisher fee, that share straight to the publisher's wallet - and are final. Unspent time stays on the deployment's on-chain record (stop now, resume later) but isn't withdrawable, so fund in small top-ups.</p>
+    <c-section-head eyebrow="Pricing" heading="Metered per second. Pay as you go.">
+      <p>Deploying is <b>two dials</b> - what you rent - and <b>two rates</b> - what you pay. Prepaying buys runtime by the second; the instance runs until that time is used up, and you top up to extend it. Payments convert straight into runtime - for apps that charge a publisher fee, that share goes straight to the publisher - and are final. Unspent time stays on the deployment's public record (stop now, resume later) but isn't withdrawable, so fund in small top-ups.</p>
     </c-section-head>
 
     <div class="price-grid">
@@ -262,7 +262,7 @@
     <div class="contract-foot"><a class="contract-link" id="priceAddrLink" target="_blank" rel="noopener" aria-label="View the EnclaveDeployments contract on Basescan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg> contract</a></div>
 
     <div class="price-formula"><code>price = GPU% × $<span data-live-price="unit-hr" data-gpu="100">6</span>/hr &nbsp;+&nbsp; CPU% × $<span data-live-price="unit-hr" data-cpu="100">3</span>/hr &nbsp;·&nbsp; metered per second</code></div>
-    <p class="mig-note" style="margin-top:10px;">One honest rounding note: the per-second rate is settled in whole millionths of a USDC, rounded up - so the very smallest slices meter a hair above the formula (a 1%-CPU app runs at $<span data-live-price="hr4" data-cpu="1">0.0324</span>/hr rather than $<span data-live-price="lin-hr4" data-cpu="1">0.0300</span>). Every estimate shown on the deploy pages already includes this. Some store apps also charge a small hourly <b>publisher fee</b> - capped on-chain, shown in the rate before you sign, and paid straight to the app publisher's wallet.</p>
+    <p class="mig-note" style="margin-top:10px;">One honest rounding note: the per-second rate is settled in whole millionths of a dollar, rounded up - so the very smallest slices meter a hair above the formula (a 1%-CPU app runs at $<span data-live-price="hr4" data-cpu="1">0.0324</span>/hr rather than $<span data-live-price="lin-hr4" data-cpu="1">0.0300</span>). Every estimate shown on the deploy pages already includes this. Some store apps also charge a small hourly <b>publisher fee</b> - capped by the platform, shown in the rate before you pay, and paid straight to the app's publisher.</p>
 
     <div class="mig-table-wrap">
       <div class="mig-scroll">
@@ -294,7 +294,7 @@
       <div class="card jade">
         <span class="tag">the operator</span>
         <h3>Enclave Host, Inc.</h3>
-        <p>The company behind Enclave. Payments forward to it on-chain in the open, and its enclaves prove what they're running before you send them a byte - the whole point is that "trust us" never has to enter the conversation.</p>
+        <p>The company behind Enclave. Payments to it settle in the open on a public record, and its enclaves prove what they're running before you send them a byte - the whole point is that "trust us" never has to enter the conversation.</p>
         <div class="about-links">
           <a class="btn btn-ghost" href="https://github.com/EnclaveHost/enclave" target="_blank" rel="noopener">Source on GitHub <span class="arr" aria-hidden="true">↗</span></a>
           <a class="btn btn-ghost" href="mailto:support@enclave.host">support@enclave.host</a>
@@ -309,7 +309,7 @@
             <span class="f-role">Founder &amp; CEO</span>
           </div>
         </div>
-        <p>Steven is a certified application architect focused on serverless architecture, with an extensive consulting background serving large enterprise clients and a passion for decentralized systems. He designs and builds Enclave hands-on: the attested enclave stack, the on-chain contracts, and the site you're reading. Based in Arizona.</p>
+        <p>Steven is a certified application architect focused on serverless architecture, with an extensive consulting background serving large enterprise clients and a passion for decentralized systems. He designs and builds Enclave hands-on: the attested enclave stack, the settlement contracts, and the site you're reading. Based in Arizona.</p>
         <div class="about-links">
           <a class="btn btn-ghost" href="https://www.linkedin.com/in/steven-batchelor-50791627/" target="_blank" rel="noopener">LinkedIn <span class="arr" aria-hidden="true">↗</span></a>
         </div>
