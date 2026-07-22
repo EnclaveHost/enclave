@@ -763,6 +763,10 @@ function aggregateAvailability() {
     // deployment, so a mixed fleet would strand protected deploys on old
     // runners ("configCid retired" refusal). Same fleet-minimum rule as spec*.
     waf: live.length > 0 && live.every((e) => e.availability?.waf === true),
+    // envelope `config` namespace (per-deployment app-config override): same
+    // fleet-AND — a mixed fleet would strand an overridden deploy on a runner
+    // that refuses the namespace, so the console only unlocks the box on true
+    configOverride: live.length > 0 && live.every((e) => e.availability?.configOverride === true),
     // attached model volumes across the fleet (Modelwrap), deduped by name -
     // each carries `enclaves`: which endpoints can mount it (placement matters,
     // a volume only lives where its enclave declares it)

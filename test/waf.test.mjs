@@ -61,6 +61,35 @@ test("unknown namespaces and unknown waf keys refuse (never ignored)", async () 
   assert.match(burstAlone.err, /waf\.burst needs waf\.rps/);
 });
 
+test("config namespace: a per-deployment app-config override parses", async () => {
+  const [plain, withVols, empty, combo] = await parse(
+    JSON.stringify({ config: { api_key: "k" } }),
+    JSON.stringify({ config: { model: "/models/qwen", volumes: ["qwen3-4b"] } }),
+    JSON.stringify({ config: {} }),                     // explicitly empty config
+    JSON.stringify({ config: { a: 1 }, waf: { rps: 5 } }));
+  assert.deepEqual(plain.ok, { config: { api_key: "k" } });
+  assert.deepEqual(withVols.ok.config, { model: "/models/qwen", volumes: ["qwen3-4b"] });
+  assert.deepEqual(empty.ok, { config: {} });
+  assert.deepEqual(combo.ok, { config: { a: 1 }, waf: { rps: 5, burst: 20 } });
+});
+
+test("config namespace: non-objects and the reserved _media key refuse", async () => {
+  const [arr, str, nul, media] = await parse(
+    JSON.stringify({ config: ["a"] }),
+    JSON.stringify({ config: "ipfs://bafy…" }),
+    JSON.stringify({ config: null }),
+    JSON.stringify({ config: { _media: { thumbnail: "bafy…" } } }));
+  assert.match(arr.err, /config must be a JSON object/);
+  assert.match(str.err, /config must be a JSON object/);
+  assert.match(nul.err, /config must be a JSON object/);
+  assert.match(media.err, /config\._media is reserved/);
+});
+
+test("the envelope's total size cap covers a config override too", async () => {
+  const [big] = await parse(JSON.stringify({ config: { blob: "x".repeat(5000) } }));
+  assert.match(big.err, /options exceed 4096 bytes/);
+});
+
 test("bad types and out-of-range values refuse", async () => {
   const [arr, badRps, badUa, badPath] = await parse(
     JSON.stringify([1, 2]),

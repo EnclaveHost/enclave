@@ -1069,7 +1069,7 @@ async function cmdUpgrade(rest) {
 async function cmdDeploy(rest) {
   const account = loadKey();
   const f = flags(rest, {
-    val: ["--gpu", "--cpu", "--fund", "--fund-eth", "--port", "--ports", "--config-cid", "--waf"],
+    val: ["--gpu", "--cpu", "--fund", "--fund-eth", "--port", "--ports", "--config-cid", "--waf", "--config"],
     bool: ["--private", "--public", "--no-wait"],
   });
   if (!f._[0]) throw new Error("usage: enclave deploy <app> [--gpu 0..1] [--cpu 0..1] --fund <usd> [flags]");
@@ -1094,26 +1094,49 @@ async function cmdDeploy(rest) {
   const appPort = f.port !== undefined ? parseInt(f.port, 10)
     : httpEntry ? parseInt(httpEntry.split(":")[1], 10) : 8080;
   const isPublic = f.private ? false : true;
-  // configCid as CONFIG is RETIRED: the appRef names the catalog version
-  // RECORD and the enclave applies that version's config (approved with it)
-  // straight from the chain. The create() field now carries only the
-  // deployment-options ENVELOPE ({"waf":{…}} — per-IP rate limit + request
-  // filter, enforced by the runner's in-enclave proxy, never handed to the
-  // app); anything else is refused at claim.
+  // configCid as a CID is RETIRED: the appRef names the catalog version RECORD
+  // and the enclave applies that version's config (approved with it) straight
+  // from the chain. The create() field carries only the deployment-options
+  // ENVELOPE — {"waf":{…}} (per-IP rate limit + request filter) and
+  // {"config":{…}} (an inline app-config override for THIS deployment);
+  // anything else is refused at claim.
   if (f["config-cid"])
-    throw new Error("--config-cid is retired: the version's approved config applies automatically (it rides the catalog record). A different config = publish a new version. (For the per-IP rate limit / request filter, use --waf.)");
-  if (ver && ver.config) say("the version's approved config applies (from its on-chain record)");
+    throw new Error("--config-cid is retired: a CID names bytes nobody validated. The version's approved config applies automatically; to run THIS deployment on a different config pass it inline: --config '{\"key\":\"value\"}'. (For the per-IP rate limit / request filter, use --waf.)");
   // --waf '{"rps":10,"burst":40,"maxBodyMb":10,"blockScanners":true,…}' — the
-  // waf OBJECT (the envelope wrapper is added here). Shape-checked locally;
-  // the runner's claim gate is the real validator and refuses unknown keys.
-  let envelope = "";
+  // waf OBJECT; --config '{…}' — the app-config override OBJECT (the envelope
+  // wrapper is added here). Shape-checked locally; the runner's claim gate is
+  // the real validator and refuses unknown keys.
+  const envParts = {};
   if (f.waf !== undefined) {
     let w; try { w = JSON.parse(f.waf); } catch (e) { throw new Error("--waf must be a JSON object, e.g. --waf '{\"rps\":10}': " + e.message); }
     if (!w || Array.isArray(w) || typeof w !== "object" || !Object.keys(w).length)
       throw new Error("--waf must be a non-empty JSON object, e.g. --waf '{\"rps\":10,\"blockScanners\":true}'");
-    envelope = JSON.stringify({ waf: w });
-    say(`protection: ${envelope} (per requester IP, enforced by the enclave's proxy; needs a fleet that supports the options envelope)`);
+    envParts.waf = w;
+    say(`protection: ${JSON.stringify({ waf: w })} (per requester IP, enforced by the enclave's proxy; needs a fleet that supports the options envelope)`);
   }
+  if (f.config !== undefined) {
+    let c; try { c = JSON.parse(f.config); } catch (e) { throw new Error("--config must be a JSON object, e.g. --config '{\"api_key\":\"…\"}': " + e.message); }
+    if (!c || Array.isArray(c) || typeof c !== "object")
+      throw new Error("--config must be a JSON object — it replaces the version's config as this deployment's ENCLAVE_CONFIG (--config '{}' = explicitly empty)");
+    envParts.config = c;
+    // Fail closed while the tx is still unsent: a runner that predates the
+    // `config` namespace refuses the claim, and a created record's envelope is
+    // immutable — the deployment would sit Queued forever, its funding
+    // unrecoverable. Only an unreachable aggregate falls through (same
+    // information the --waf path has always had), with a loud warning.
+    try {
+      const av = await api("GET", "/availability");
+      if (av && av.aggregate && av.configOverride !== true)
+        throw new Error("the live fleet doesn't support per-deployment config overrides yet (availability.configOverride is not true) — a deployment carrying one would never be claimed. Drop --config or retry after the fleet updates.");
+    } catch (e) {
+      if (/doesn't support per-deployment config/.test(e.message)) throw e;
+      say("! couldn't read fleet availability to confirm config-override support; if a runner predates it, this deployment will sit Queued unclaimed");
+    }
+    say("config override: this deployment runs on YOUR config (the version's config stays the default for every other deployment)");
+  } else if (ver && ver.config) say("the version's approved config applies (from its on-chain record; override with --config '{…}')");
+  const envelope = Object.keys(envParts).length ? JSON.stringify(envParts) : "";
+  if (Buffer.byteLength(envelope) > 4096)
+    throw new Error(`the options envelope (waf + config) is ${Buffer.byteLength(envelope)} bytes; runners refuse envelopes over 4096 bytes — trim the config override`);
 
   // price it before asking for money (same snapshot formula create() applies)
   const [pricePerSec6, cpuPricePerSec6, maxGpuMilli] = await Promise.all([
@@ -1504,6 +1527,9 @@ deployments
          [--fund-eth <eth>] [--private] [--port N] [--ports CSV] [--no-wait]
          [--waf '{"rps":10,"burst":40,"maxBodyMb":10,"blockScanners":true}']
                                         per-IP rate limit + request filter, enforced in-enclave
+         [--config '{"api_key":"…"}']   app-config override for THIS deployment: replaces the
+                                        version's config as its ENCLAVE_CONFIG ('{}' = empty;
+                                        the catalog default and other deployments are untouched)
   ls                         your deployments: live, queued and unfunded
   status <id>                one deployment: state, lease, balance, URL
   logs <id> [-f] [--tail N]  the app's stdout/stderr (-f polls)

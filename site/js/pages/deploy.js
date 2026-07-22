@@ -40,7 +40,7 @@ const depsPanel = () => document.querySelector("c-deployments");
 /* ============================================================
    Console state + request rendering
    ============================================================ */
-const dep = { gpuPct: 25, cpuPct: 5, minGpuPct: 0, minCpuPct: 1, asset: "USDC", public: true, gpuEnclave: true, volumes: new Set(), waf: false, wafAvail: false };  // gpuEnclave: from /availability (gpu:false = CPU-only enclave); volumes: the picker's ticks - a MIRROR of the App config JSON's `volumes` key, never a second source; wafAvail: fleet aggregate advertises the options envelope (waf:true = every live runner enforces it - the Protection field only shows then)
+const dep = { gpuPct: 25, cpuPct: 5, minGpuPct: 0, minCpuPct: 1, asset: "USDC", public: true, gpuEnclave: true, volumes: new Set(), waf: false, wafAvail: false, cfgAvail: false };  // gpuEnclave: from /availability (gpu:false = CPU-only enclave); volumes: the picker's ticks - a MIRROR of the App config JSON's `volumes` key, never a second source; wafAvail: fleet aggregate advertises the options envelope (waf:true = every live runner enforces it - the Protection field only shows then); cfgAvail: the aggregate's configOverride flag (true = every live runner honors the envelope's `config` namespace - only then is the App config box editable)
 
 /* The Protection controls -> the create() options envelope's `waf` object
    (null = off/unavailable). Mirrors the runner's parse rules (supervisor
@@ -76,11 +76,16 @@ function currentMins(){
   const spec = SPECS_CACHE[input];
   return spec ? minPctsOf(spec) : { gpuPct: 0, cpuPct: 1 };   // computed NOW, against the adopted fleet hardware
 }
-/* The "App config" box shows the picked VERSION's config - the JSON the app
-   receives as ENCLAVE_CONFIG, straight from the on-chain record the owner
-   approved. Read-only: it rides the version, not the deployment (its
-   `volumes` key names the model volumes to mount; the picker mirrors it).
-   Returns { obj } (null = empty) or { err } (malformed record). */
+/* The "App config" box: pre-filled with the picked VERSION's config - the
+   JSON the app receives as ENCLAVE_CONFIG, straight from the on-chain record
+   the owner approved (its `volumes` key names the model volumes to mount; the
+   picker mirrors it). When the whole fleet honors the envelope's `config`
+   namespace (dep.cfgAvail) the box is EDITABLE: an edited box becomes a
+   per-deployment override riding create()'s options envelope - it replaces
+   the version's config for THIS deployment only; the catalog default and
+   every other deployment stay untouched. On an older fleet it stays
+   read-only, exactly as before.
+   Returns { obj } (null = empty) or { err } (malformed JSON). */
 function readCfgConfig(){
   const raw = ($("#cfgConfig") && $("#cfgConfig").value || "").trim();
   if (!raw) return { obj: null };
@@ -89,6 +94,41 @@ function readCfgConfig(){
     if (!o || Array.isArray(o) || typeof o !== "object") return { err: "app config must be a JSON object, e.g. {\"api_key\":\"…\"}" };
     return { obj: o };
   } catch(e){ return { err: "app config isn't valid JSON (" + e.message + ")" }; }
+}
+/* Pre-fill the box from the picked version whenever the RESOLVED ref changes
+   (typed refs, catalog resolution landing, Use-in-Deploy handoff - the last
+   sets cfgFilledFor itself). A version CHANGE overwrites edits by design (the
+   box shows the new version's template, the deployer re-edits from there) -
+   but content typed into a never-filled box before the catalog resolved is
+   kept: cfgDirty marks hand edits, and a dirty box only yields to an actual
+   version switch. */
+let cfgFilledFor = null, cfgDirty = false;
+function syncCfgFromVersion(){
+  const raw = ($("#cfgImage") && $("#cfgImage").value || "").trim();
+  const ref = REF_CACHE[raw]; if (!ref || cfgFilledFor === ref) return;
+  const ta = $("#cfgConfig"); if (!ta) return;
+  if (cfgFilledFor === null && cfgDirty && ta.value.trim()){ cfgFilledFor = ref; return; }   // first resolution meets a hand-typed box: theirs wins (it reads as an override)
+  cfgFilledFor = ref; cfgDirty = false;
+  const c = CONFIG_CACHE[raw] || "";
+  try { ta.value = c ? JSON.stringify(JSON.parse(c), null, 2) : ""; } catch(e){ ta.value = c; }
+  syncVolsFromCfg();
+}
+/* The box vs the version's record: null = no override (empty box, or content
+   that matches the version's config - reformatting is not an override), { err }
+   = unparsable JSON, { obj } = the override object ({} = explicitly empty
+   config). Computed regardless of dep.cfgAvail; runDeploy gates on the flag so
+   an edit made while the fleet degraded refuses loudly instead of silently
+   deploying the version's config. */
+function cfgOverride(){
+  const r = readCfgConfig();
+  if (r.err) return r;
+  const raw = ($("#cfgImage") && $("#cfgImage").value || "").trim();
+  const base = CONFIG_CACHE[raw] || "";
+  let baseC = ""; try { baseC = base ? JSON.stringify(JSON.parse(base)) : ""; } catch(e){ baseC = base.trim(); }
+  const mine = r.obj ? JSON.stringify(r.obj) : "";
+  if (!mine || mine === baseC) return null;
+  if ("_media" in r.obj) return { err: "config `_media` is reserved for the catalog's store media and never reaches an app - remove it from the override (runners refuse it)" };
+  return { obj: r.obj };
 }
 let lastVols = [];   // the volumes of the picked version's config (the ticks mirror these)
 /* textarea -> picker: the ticks mirror the config JSON's `volumes` key
@@ -117,13 +157,21 @@ function deployBody(){
   body.region = "auto";
   const w = wafSpec();
   if (w) body.waf = w;   // deployer protection: rides create()'s options envelope, enforced at the enclave's /x proxy
+  const co = cfgOverride();
+  if (co && co.obj) body.config = co.obj;   // per-deployment app-config override: rides the same envelope, replaces the version's config as THIS deployment's ENCLAVE_CONFIG
   return body;
+}
+// the create() options envelope for a spec ({waf, config}) - "" when neither rides
+function envelopeOf(spec){
+  const parts = { ...(spec.waf ? { waf: spec.waf } : {}), ...(spec.config ? { config: spec.config } : {}) };
+  return Object.keys(parts).length ? JSON.stringify(parts) : "";
 }
 function deployFetch(b){
   const r = (b.image && b.image.reference) || "catalog://<appId>/<versionIndex>";
   const g = Math.round(((b.resources && b.resources.gpuShare) || 0) * 1000);
   const c = Math.round(((b.resources && b.resources.cpuShare) || 0.05) * 1000);
-  const env = b.waf ? JSON.stringify(JSON.stringify({ waf: b.waf })) : '""';   // the options envelope, as a JS string literal
+  const envStr = envelopeOf(b);
+  const env = envStr ? JSON.stringify(envStr) : '""';   // the options envelope, as a JS string literal
   return '// Deployments are ON-CHAIN work items (EnclaveDeployments on Base): the ledger\n'
     + '// holds the spec + funded balance, so they survive enclave updates and crashes.\n'
     + '// 1) create() from your wallet - one tx; msg.sender owns the record:\n'
@@ -131,8 +179,10 @@ function deployFetch(b){
     + '//    appRef names the on-chain catalog VERSION record - it carries the wasm,\n'
     + '//    config (ENCLAVE_CONFIG + volumes) and ports the owner approved; CID refs\n'
     + '//    are refused and ports/appPort ride along untrusted. The last field carries\n'
-    + '//    "" or a deployment-options envelope like {"waf":{…}} (per-IP rate limit +\n'
-    + '//    request filter, enforced by the enclave before traffic reaches the app).\n'
+    + '//    "" or a deployment-options envelope like {"waf":{…},"config":{…}} - waf:\n'
+    + '//    per-IP rate limit + request filter, enforced by the enclave before traffic\n'
+    + '//    reaches the app; config: replaces the version\'s config as THIS\n'
+    + '//    deployment\'s ENCLAVE_CONFIG (the catalog default stays untouched).\n'
     + 'const { id } = await createOnChain("' + DEPLOYMENTS_ADDRESS + '",\n'
     + '  ["' + r + '", ' + g + ', ' + c + ', 8080, "", ' + !!b.public + ', ' + (depRev >= 2 ? env : '"", ' + env) + ']);\n'
     + '//    id = topics[1] of the Created event in the receipt\n'
@@ -172,6 +222,7 @@ function currentFee6(){
 }
 
 function renderDeploy(){
+  syncCfgFromVersion();   // the box follows the picked version's template (no-op until the ref resolves or when it hasn't changed)
   const body = deployBody();
   $("#outReq").innerHTML = hlJson(body);
   $("#outFetch").innerHTML = hlCode(deployFetch(body));
@@ -267,6 +318,19 @@ async function runDeploy(){
   const fund = parseFloat($("#cfgBudget").value) || 0;
   const dry = $("#dryRun") && $("#dryRun").checked;
 
+  // App config override: unparsable JSON refuses here (never signed away),
+  // and an override on a fleet that doesn't enforce the `config` namespace
+  // refuses HARD - old runners reject the claim, so the deployment would sit
+  // Queued forever with its funding unrecoverable. The box is read-only on
+  // such a fleet; this catches the availability flipping under an open edit.
+  const co = cfgOverride();
+  if (co && co.err) return note([["warn", "[!] " + co.err]]);
+  if (co && !dep.cfgAvail)
+    return note([["warn", "[!] the App config box differs from the version's config, but the live fleet doesn't support per-deployment overrides - no runner would claim this deployment. Reset the box to the version's config, or retry once the fleet updates."]]);
+  const envBytes = new TextEncoder().encode(envelopeOf({ waf: wafSpec(), config: co && co.obj })).length;
+  if (envBytes > 4096)
+    return note([["warn", "[!] the deployment options (config override + protection) are " + envBytes + " bytes; runners refuse envelopes over 4096 bytes - trim the config"]]);
+
   // ---- ON-CHAIN deploy (EnclaveDeployments): the ledger, not any one enclave,
   // holds the spec and the funded balance, so the deployment survives enclave
   // updates and crashes - runners hold expiring leases and re-claim work.
@@ -298,9 +362,12 @@ async function runDeploy(){
 
   if (dry){
     const wafDry = wafSpec();
-    const envDry = wafDry ? JSON.stringify(JSON.stringify({ waf: wafDry })) : "\"\"";
+    const envDryStr = envelopeOf({ waf: wafDry, config: co && co.obj });
+    const envDry = envDryStr ? JSON.stringify(envDryStr) : "\"\"";
     const plan = [["warn", "// dry run: nothing is sent"]];
-    plan.push(["info", "0) config + volumes + ports ride the version's on-chain record (approved with it) - nothing is pinned or passed at deploy"]);
+    plan.push(["info", co
+      ? "0) YOUR edited config rides the create() options envelope and replaces the version's config as this deployment's ENCLAVE_CONFIG (volumes included) - the catalog default and every other deployment stay untouched"
+      : "0) config + volumes + ports ride the version's on-chain record (approved with it) - nothing is pinned or passed at deploy"]);
     if (wafDry) plan.push(["info", "0b) protection rides the create() options envelope - the enclave's proxy enforces it per requester IP, the app never sees blocked traffic"]);
     const dryFee = currentFee6();
     if (dryFee > 0) plan.push(["info", "0c) this app charges a publisher fee of $" + (dryFee * 3600 / 1e6).toFixed(2) + "/hr - create() snapshots it and every funding pays the publisher's cut straight to their wallet"]);
@@ -330,14 +397,15 @@ async function runDeploy(){
   // refusals belong HERE, in the console form, before any navigation
   if (!Enclave.address && ACCOUNTS_ENABLED && Enclave.accountAuthed()){
     if (dry) return note([["warn", "[!] dry runs use the wallet path - credit deploys are always real"]]);
-    if (wafSpec()) return note([["warn", "[!] WAF options need a wallet deploy for now - credit deploys don't carry a config envelope yet"]]);
+    if (wafSpec()) return note([["warn", "[!] WAF options need a wallet deploy for now - credit deploys don't carry an options envelope yet"]]);
+    if (co) return note([["warn", "[!] a config override needs a wallet deploy for now - credit deploys don't carry an options envelope yet"]]);
     if (!(fund > 0)) return note([["warn", "[!] set a budget - it buys runtime at the live per-second rate"]]);
   }
 
   btn.disabled = true; const lbl = btn.textContent; btn.textContent = "working…";
   try {
     await deployOnChain({ reference: rref.reference, gpuMilli, cpuMilli, ports,
-      isPublic: dep.public, fundUsd: fund, asset: dep.asset, waf: wafSpec() });
+      isPublic: dep.public, fundUsd: fund, asset: dep.asset, waf: wafSpec(), config: co && co.obj });
   } finally {
     btn.disabled = false; btn.textContent = lbl;
   }
@@ -359,11 +427,13 @@ function portsSpec(raw){
    status watch continues detached, freeing the caller for the next deploy.
    spec: { reference (catalog://<appId>/<idx>), gpuMilli, cpuMilli,
    ports (csv, informational - the version's record is what enclaves apply),
-   isPublic, fundUsd, asset, waf }. Config/volumes ride the version's on-chain
-   record; deploys carry NO app config (a config CID stays refused). The one
-   deploy-time field is the options ENVELOPE: spec.waf (per-IP rate limit +
-   request filter) rides create()'s last string as {"waf":{…}}, interpreted by
-   the enclave's proxy and never shown to the app. */
+   isPublic, fundUsd, asset, waf, config }. Config/volumes ride the version's
+   on-chain record (a config CID stays refused); the one deploy-time field is
+   the options ENVELOPE riding create()'s last string: spec.waf (per-IP rate
+   limit + request filter, interpreted by the enclave's proxy, never shown to
+   the app) and spec.config (a per-deployment app-config override - it
+   replaces the version's config as THIS deployment's ENCLAVE_CONFIG; callers
+   must gate it on the fleet aggregate's configOverride flag). */
 export async function deployOnChain(spec){
   // the on-chain share-cap gate runs BEFORE the dashboard redirect: a deploy
   // create() would refuse must be refused where the user is standing (the
@@ -404,7 +474,8 @@ export async function deployOnChain(spec){
     // Same run, same narrative, same claim watch as a wallet deploy. Every
     // caller lands here (console form AND the store's quick-deploy modal).
     if (!Enclave.address && ACCOUNTS_ENABLED && Enclave.accountAuthed()){
-      if (spec.waf){ w.line("warn", "[!] WAF options need a wallet deploy for now - credit deploys don't carry a config envelope yet"); return; }
+      if (spec.waf){ w.line("warn", "[!] WAF options need a wallet deploy for now - credit deploys don't carry an options envelope yet"); return; }
+      if (spec.config){ w.line("warn", "[!] a config override needs a wallet deploy for now - credit deploys don't carry an options envelope yet"); return; }
       if (fee6 > 0n){ w.line("warn", "[!] this app charges a publisher fee, which credit deploys don't support yet - deploy it from a wallet instead"); return; }
       if (!(fund > 0)){ w.line("warn", "[!] set a budget - it buys runtime at the live per-second rate"); return; }
       try {
@@ -469,13 +540,15 @@ export async function deployOnChain(spec){
     }
 
     // 1) create: one tx from YOUR wallet - msg.sender owns the on-chain record.
-    // No config step: the appRef names the catalog version RECORD, and the
+    // No config PIN step: the appRef names the catalog version RECORD, and the
     // enclave takes config/volumes/ports straight from it (approval covered
     // them; a config CID stays refused). The last string carries "" or the
-    // deployment-options envelope - platform settings like the per-IP WAF,
-    // interpreted by the runner's proxy, never handed to the app.
-    const envelope = spec.waf ? JSON.stringify({ waf: spec.waf }) : "";
-    if (envelope) w.line("info", "    protection on: " + envelope + " (enforced per requester IP by the enclave's proxy)");
+    // deployment-options envelope: the per-IP WAF (interpreted by the runner's
+    // proxy, never handed to the app) and/or the deployer's inline config
+    // override (replacing the version's config for this deployment only).
+    const envelope = envelopeOf(spec);
+    if (spec.waf) w.line("info", "    protection on: " + JSON.stringify({ waf: spec.waf }) + " (enforced per requester IP by the enclave's proxy)");
+    if (spec.config) w.line("info", "    config override on: this deployment runs on YOUR config (the version's config stays the default for everyone else)");
     w.line("p", "$ EnclaveDeployments.create(…)  (wallet · one tx · you own the record)");
     w.line("info", "[*] confirm the create transaction in your wallet…");
     // encode whichever create() shape the live contract speaks (depSchemaRev
@@ -778,6 +851,19 @@ async function refreshAvailability(){
     dep.wafAvail = a.waf === true;
     const wf = $("#wafField");
     if (wf){ wf.hidden = !dep.wafAvail; if (!dep.wafAvail) dep.waf = false; }
+    // App config override (envelope `config` namespace): the box unlocks only
+    // when EVERY live runner honors it - on a mixed/older fleet an overridden
+    // deployment would be refused at claim and sit Queued forever, so the box
+    // stays the read-only version mirror it always was.
+    dep.cfgAvail = a.configOverride === true;
+    const ccTa = $("#cfgConfig");
+    if (ccTa) ccTa.readOnly = !dep.cfgAvail;
+    const hRO = $("#cfgHintRO"), hRW = $("#cfgHintRW");
+    if (hRO) hRO.hidden = dep.cfgAvail;
+    if (hRW) hRW.hidden = !dep.cfgAvail;
+    const vRO = $("#volHintRO"), vRW = $("#volHintRW");
+    if (vRO) vRO.hidden = dep.cfgAvail;
+    if (vRW) vRW.hidden = !dep.cfgAvail;
     const unitG = $("#gpuShareUnit");
     if (unitG) unitG.textContent = dep.gpuEnclave ? "(% of one card · 0 = CPU-only app)" : "(CPU-only enclave · no GPU here)";
     // getAvailability() adopted this payload into the share math already;
@@ -935,6 +1021,7 @@ function applyUseInDeploy(){
     if (config){
       const ta = $("#cfgConfig");
       if (ta){ try { ta.value = JSON.stringify(JSON.parse(config), null, 2); } catch(e){ ta.value = config; } }
+      cfgFilledFor = REF_CACHE[friendly] || null; cfgDirty = false;   // the handoff filled the box for THIS ref; don't refill over it
       syncVolsFromCfg();   // a template carrying {"volumes":[…]} ticks the picker
     }
     renderDeploy();
@@ -1000,14 +1087,37 @@ function initDeploy(){
     const ws = $("#wafScan"); if (ws) ws.addEventListener("change", renderDeploy);
   }
   ["#cfgImage", "#cfgBudget", "#cfgPorts"].forEach(s => { const el = $(s); if (el) el.addEventListener("input", renderDeploy); });
-  // the config box mirrors the picked VERSION's config (read-only): its
-  // `volumes` key drives the ticks, and neither is deployer-editable — a
-  // different config/volume set means publishing (and approving) a new version
-  const cc = $("#cfgConfig"); if (cc) cc.addEventListener("input", () => { syncVolsFromCfg(); renderDeploy(); });
+  // the config box pre-fills with the picked VERSION's config; its `volumes`
+  // key drives the ticks. On a fleet that honors the envelope's `config`
+  // namespace both are deployer-EDITABLE (the edit rides the deploy as a
+  // per-deployment override); on an older fleet both stay read-only mirrors.
+  const cc = $("#cfgConfig"); if (cc) cc.addEventListener("input", () => { cfgDirty = true; syncVolsFromCfg(); renderDeploy(); });
   if (volPicker) volPicker.addEventListener("change", () => {
-    dep.volumes.clear(); lastVols.forEach(n => dep.volumes.add(n));
-    volPicker.requestRender();
-    showToast("Volumes are set by the version's config (covered by its approval) - pick a version that attaches what you need, or publish a new one");
+    if (!dep.cfgAvail){
+      // read-only fleet: revert the tick to the config's volumes (the mirror)
+      dep.volumes.clear(); lastVols.forEach(n => dep.volumes.add(n));
+      volPicker.requestRender();
+      showToast("Volumes are set by the version's config (covered by its approval) - pick a version that attaches what you need, or publish a new one");
+      renderDeploy();
+      return;
+    }
+    // editable fleet: the picker is a form control for the config JSON's
+    // `volumes` key - write the ticks into the box (the config object stays
+    // the only carrier; syncVolsFromCfg keeps the Set honest from there)
+    const r = readCfgConfig();
+    if (r.err){
+      dep.volumes.clear(); lastVols.forEach(n => dep.volumes.add(n));
+      volPicker.requestRender();
+      showToast("Fix the App config JSON first - the volume ticks live in its `volumes` key");
+      return;
+    }
+    const o = r.obj || {};
+    const names = [...dep.volumes];
+    if (names.length) o.volumes = names; else delete o.volumes;
+    const ta = $("#cfgConfig");
+    if (ta) ta.value = Object.keys(o).length ? JSON.stringify(o, null, 2) : "";
+    cfgDirty = true;   // a tick IS a hand edit (programmatic .value= fires no input event)
+    syncVolsFromCfg();
     renderDeploy();
   });
   $$(".console-tabs button").forEach(b => b.addEventListener("click", () => switchPane(b.dataset.pane)));
@@ -1034,6 +1144,7 @@ function initDeploy(){
     $("#cfgImage").value = "";
     const fp0 = $("#cfgPorts"); if (fp0) fp0.value = "";
     const cc0 = $("#cfgConfig"); if (cc0) cc0.value = "";
+    cfgFilledFor = null; cfgDirty = false;   // next picked ref pre-fills the box afresh
     syncVolsFromCfg();   // empty config = no volumes; the ticks follow
     $("#cfgBudget").value = "10";
     $("#cfgGpuShare").value = "25"; dep.gpuPct = 25;
