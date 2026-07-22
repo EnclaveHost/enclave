@@ -65,21 +65,27 @@ via transaction instead of via one enclave's API).
 ## Contract summary (`EnclaveDeployments.sol`)
 
 - **`create(appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, configCid, feeRecipient, feePerSec6)`**
-  (schema rev 4 — rev-1 contracts carried an extra `sshPubKey` string here and in
+  (schema rev 5 — rev-1 contracts carried an extra `sshPubKey` string here and in
   the `Deployment` struct; consumers sniff `deploymentsSchema()` to pick the shape.
   Rev 3 keeps the rev-2 shapes byte-for-byte and only marks the `setAppRef`
   surface; rev 4 again keeps the struct byte-for-byte (the fee snapshot lives in
-  a side mapping behind `feeOf(id)`) and adds the two fee args — so struct
-  decodes gate on `>= 2`, version changes on `>= 3`, publisher fees on `>= 4`)
+  a side mapping behind `feeOf(id)`) and adds the two fee args; rev 5 keeps every
+  signature and only widens the `configCid` length bound from CID-sized (100
+  bytes) to envelope-sized (4096) — so struct decodes gate on `>= 2`, version
+  changes on `>= 3`, publisher fees on `>= 4`, and any options envelope over 100
+  bytes on `>= 5`: a rev-4 `create` reverts `"configCid length"` on one)
   — permissionless; inert until funded. `appRef` is `catalog://<appId>/<versionIndex>`,
   the on-chain record of the catalog VERSION to run (2026-07-09; CID refs are refused
   by runners — a CID names bytes, not a version). The record supplies the wasm,
   config (ENCLAVE_CONFIG + volumes) and ports the catalog owner approved;
-  `ports`/`appPort` ride along untrusted, and `configCid` is **retired**: the
-  contract still accepts and stores the field (length-bounded only), but every
-  runner refuses a deployment whose `configCid` is non-empty (fail-closed), so in
-  practice it must be `""` — a deployer can never attach behavior the owner didn't
-  review. A deployment BUYS two shares, both in
+  `ports`/`appPort` ride along untrusted, and `configCid` as a **CID is retired**
+  (fail-closed: runners refuse one). The field instead carries `""` or the
+  **deployment-options envelope** — inline JSON, strictly whitelisted by
+  runners: `{"waf":{…}}` (per-IP rate limit + request filter, enforced at the
+  enclave's proxy) and `{"config":{…}}` (a per-deployment app-config override
+  that replaces the version's config as that deployment's `ENCLAVE_CONFIG`; the
+  catalog default and every other deployment are untouched). The whole string is
+  public on-chain — no secrets. A deployment BUYS two shares, both in
   1/1000ths: `gpuMilli` of one GPU card (VRAM + compute together; `0` = a
   CPU-only deployment) and `cpuMilli` of a node's vCPU+RAM (1..1000). The
   contract enforces `gpuMilli == 0 || gpuMilli >= cpuMilli` — a GPU app's CPU

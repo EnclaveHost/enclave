@@ -104,8 +104,10 @@ contract EnclaveDeployments {
         address owner;          // the user: controls config + active, receives nothing (non-custodial)
         string  appRef;         // "catalog://<appId>/<versionIndex>" (raw "ipfs://<cid>" refs are refused by runners)
         string  ports;          // firewall CSV, same grammar as EnclaveAppCatalog Version.ports ("" = plain wasi:http)
-        string  configCid;      // optional IPFS CID of a config blob ("" = none). NOTE: whatever it
-                                // points at is PUBLIC unless encrypted; see DEPLOYMENTS.md "secrets".
+        string  configCid;      // "" or the deployment-options envelope {"waf":{…},"config":{…}}
+                                // (inline JSON interpreted by runners; raw CIDs are refused by them —
+                                // the field name survives from the retired CID design). NOTE: the
+                                // whole string is PUBLIC on-chain; see DEPLOYMENTS.md "secrets".
         uint16  gpuMilli;       // GPU/VRAM share bought, in 1/1000ths of a card (0 = CPU-only
                                 // deployment). GPU deployments (gpuMilli > 0) are claimable by GPU
                                 // enclaves ONLY; CPU-only ones by CPU-only enclaves first, and by GPU
@@ -132,7 +134,7 @@ contract EnclaveDeployments {
 
     uint256 private constant MAX_APPREF = 100;   // ipfs://<cid> fits
     uint256 private constant MAX_PORTS  = 96;    // mirrors EnclaveAppCatalog
-    uint256 private constant MAX_CFG    = 100;   // a CID
+    uint256 private constant MAX_CFG    = 4096; // the deployment-options envelope ({"waf":{…},"config":{…}}); mirrors the runners' DEP_OPTIONS_MAX_BYTES (rev <= 4 capped at 100 — CID-sized)
     uint256 private constant FEED_MAX_AGE = 2 hours; // reject stale ETH/USD answers
 
     address public owner;                  // sets price/leaseSec/payout; NOT a custodian
@@ -164,8 +166,13 @@ contract EnclaveDeployments {
     // the version-change feature gates on >= 3. Rev 4 again keeps the struct
     // byte-for-byte (the publisher-fee snapshot lives in a side mapping) and
     // marks the fee surface: create() grew (feeRecipient, feePerSec6) and
-    // feeOf/maxFeePerSec6 exist; the fee feature gates on >= 4.
-    uint256 public constant deploymentsSchema = 4;
+    // feeOf/maxFeePerSec6 exist; the fee feature gates on >= 4. Rev 5 keeps
+    // every signature and only widens MAX_CFG from CID-sized (100) to
+    // envelope-sized (4096) so configCid can carry the deployment-options
+    // envelope's `config` namespace (a per-deployment app-config override);
+    // senders gate envelopes over 100 bytes on >= 5 — the rev-4 create()
+    // reverts "configCid length" on them.
+    uint256 public constant deploymentsSchema = 5;
 
     /// @dev Publisher-fee snapshot, taken at create from the catalog version
     ///      the deployment references (recipient = the app's publisher wallet).

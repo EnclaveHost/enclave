@@ -459,7 +459,7 @@ ${SIGNING_NOTE}`,
 - Declared tcp:/udp: ports are served on a dedicated per-deployment public IPv6 (get_deployment's network field once running). IPv4-only clients can bridge with websocat via the app origin.
 - public: true (default) lists the deployment and serves it to anyone; private deployments still get their origin but are for the owner's use.
 - waf option at create: {"rps":N,"burst":N,"maxBodyMb":N,"blockScanners":true} enforced per requester IP by the enclave's own proxy (availability shows whether the live fleet supports it: "waf": true).
-- config option at create: a JSON object replacing the version's config as THAT deployment's ENCLAVE_CONFIG (volumes key included) - the catalog default is untouched and other deployments are unaffected. Availability gates it the same way: "configOverride": true means every live runner honors it; on a fleet without it the claim is refused, so don't send one.
+- config option at create: a JSON object replacing the version's config as THAT deployment's ENCLAVE_CONFIG (volumes key included) - the catalog default is untouched and other deployments are unaffected. Two gates, both required: availability "configOverride": true (every live runner honors it; without it the claim is refused) and deploymentsSchema() >= 5 (earlier ledgers cap create()'s options field at 100 bytes and revert on a real override).
 - Outbound: deployments can get dedicated-IP egress (per-deployment IPv6) on supported fleets.`,
 
   fees: `Publisher fees: a catalog version may carry feePerSec6 (set via build_publish's feeUsdPerHour, capped by the platform's maxFeePerSec6). Deploying such a version snapshots {publisher, fee} immutably into the deployment record; every funding pays the publisher pro-rata, straight to their wallet, no platform custody. get_app shows each version's fee. An upgrade (build_upgrade) can only move to a version whose fee fits the deployment's original snapshot; otherwise deploy fresh.`,
@@ -698,7 +698,7 @@ const TOOLS = [
       ports: { type: "string", description: "CSV overriding the version's ports, e.g. \"http:8080,tcp:7777\"" },
       public: { type: "boolean", description: "Listed and open to anyone (default true)" },
       waf: { type: "object", description: "Per-IP protection envelope, e.g. {\"rps\":10,\"burst\":40,\"blockScanners\":true}", additionalProperties: true },
-      config: { type: "object", description: "Per-deployment app-config override: replaces the picked version's config as this deployment's ENCLAVE_CONFIG ({} = explicitly empty; the catalog default and other deployments are untouched). Needs a fleet whose availability advertises configOverride:true - old runners refuse the claim.", additionalProperties: true },
+      config: { type: "object", description: "Per-deployment app-config override: replaces the picked version's config as this deployment's ENCLAVE_CONFIG ({} = explicitly empty; the catalog default and other deployments are untouched). Needs a fleet whose availability advertises configOverride:true (old runners refuse the claim) AND a deploymentsSchema() >= 5 ledger (earlier ones cap the field at 100 bytes and revert).", additionalProperties: true },
       fundUsd: { type: "number", description: "Planned USDC funding (used to estimate runtime; funding itself is build_fund after create)" },
     }, ["app"]),
     handler: async (a) => {
@@ -747,6 +747,14 @@ const TOOLS = [
       const rev = await depRev();
       if (fee6 > 0n && rev < 4)
         throw new Error(`${a.app} charges a publisher fee, which the live ledger contract predates; it can't be deployed until the ledger upgrade`);
+      // the ledger's bound on create()'s options field: rev <= 4 caps it at
+      // 100 bytes (CID-sized) and reverts "configCid length" on more - the tx
+      // would never mine, so refuse in the plan instead
+      if (a.config !== undefined && rev < 5)
+        throw new Error("the live EnclaveDeployments contract predates per-deployment config overrides (deploymentsSchema < 5): its create() caps the options field at 100 bytes - drop config until the rev-5 ledger upgrade");
+      const envCap = rev >= 5 ? 4096 : 100;
+      if (envelope.length > envCap)
+        throw new Error(`the options envelope is ${envelope.length} bytes but this ledger caps the field at ${envCap} bytes (create() reverts "configCid length")`);
       const rate = (pricePerSec6 * BigInt(gpuMilli) + cpuPricePerSec6 * BigInt(cpuMilli) + 999n) / 1000n + fee6;
       const create = encodeCreateTx({ rev, deployments, appRef: ref, gpuMilli, cpuMilli, appPort,
         ports: portsCsv, isPublic: a.public !== false, envelope,

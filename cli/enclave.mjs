@@ -1168,6 +1168,14 @@ async function cmdDeploy(rest) {
   const { rev: depRev, abi: depsAbi } = await depAbi();
   if (fee6 > 0n && depRev < 4)
     throw new Error(`${f._[0]} charges a publisher fee, which the live EnclaveDeployments contract predates (deploymentsSchema < 4) - it can't be deployed until the ledger upgrade`);
+  // the ledger's own bound on create()'s options field: rev <= 4 contracts cap
+  // it at 100 bytes (CID-sized) and revert "configCid length" on more - the tx
+  // would never mine, so refuse with words before any signature
+  if (envParts.config && depRev < 5)
+    throw new Error("the live EnclaveDeployments contract predates per-deployment config overrides (deploymentsSchema < 5): its create() caps the options field at 100 bytes - drop --config until the rev-5 ledger upgrade");
+  const envCap = depRev >= 5 ? 4096 : 100;
+  if (Buffer.byteLength(envelope) > envCap)
+    throw new Error(`the options envelope is ${Buffer.byteLength(envelope)} bytes but this ledger caps the field at ${envCap} bytes (create() reverts "configCid length") - trim the ${envParts.config ? "config override" : "protection rules"}`);
   const rate = (pricePerSec6 * BigInt(gpuMilli) + cpuPricePerSec6 * BigInt(cpuMilli) + 999n) / 1000n + fee6;
   if (fee6 > 0n)
     say(`publisher fee: ${usd6(fee6 * 3600n)}/h, paid straight to ${app.publisher} out of each funding (included in the rate below)`);
