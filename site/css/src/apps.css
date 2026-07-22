@@ -74,9 +74,11 @@
 .pub-img{display:flex;flex-direction:column;gap:6px;min-width:0;}
 .pub-img-top{font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);}
 .pub-img-top .dim{color:var(--text-dim);}
+/* thumbnail preview = contain, banner = cover: each mirrors its real render
+   surface (the store tile letterboxes art whole; the detail hero fills) */
 .pub-img-prev{display:flex;align-items:center;justify-content:center;aspect-ratio:16/9;border:1px dashed var(--line);
-  border-radius:var(--radius-sm);background:var(--bg-1) center/cover no-repeat;cursor:pointer;transition:border-color .15s var(--ease);overflow:hidden;}
-.pub-img-prev.banner{aspect-ratio:4/1;}
+  border-radius:var(--radius-sm);background:var(--bg-1) center/contain no-repeat;cursor:pointer;transition:border-color .15s var(--ease);overflow:hidden;}
+.pub-img-prev.banner{aspect-ratio:4/1;background-size:cover;}
 .pub-img-prev:hover{border-color:var(--jade-dim);}
 /* the file inputs are .sr-only (focusable, visually hidden): surface their keyboard focus on the preview label */
 .pub-img:has(input:focus-visible) .pub-img-prev{outline:2px solid var(--jade);outline-offset:2px;}
