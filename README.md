@@ -1,6 +1,6 @@
 # Enclave
 
-**Compute that can't see your data.** Enclave is a trustless compute platform you can actually verify: publish a WebAssembly app to an on-chain catalog, fund a deployment straight from your wallet, and it runs inside a hardware-attested enclave (AMD SEV-SNP CPUs + NVIDIA confidential computing on today's fleet) that neither the operator nor the host can see into. TLS terminates inside the enclave, billing is per-second on Base, and the whole chain of trust, from the CPU's attestation quote down to the exact commit of this repo that built the running image, can be verified from a browser before you send the service a byte.
+**Compute that cannot see your data.** Enclave is a trustless compute platform you can actually verify: publish a WebAssembly app to an on-chain catalog, fund a deployment straight from your wallet, and it runs inside a hardware-attested enclave (AMD SEV-SNP CPUs + NVIDIA confidential computing on today's fleet) that neither the operator nor the host can see into. TLS terminates inside the enclave, billing is per-second on Base, and the whole chain of trust, from the CPU's attestation quote down to the exact commit of this repo that built the running image, can be verified from a browser before you send the service a byte.
 
 - **Site / deploy console / app store:** https://enclave.host
 - **Developer guide + API reference:** https://enclave.host/develop (OpenAPI spec: [site/openapi.json](site/openapi.json))
