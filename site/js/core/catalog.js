@@ -207,7 +207,7 @@ export function resolveAppRef(input){
   REF_CACHE[input] = catalogRef(apps[0].appId, vi);
   PORTS_CACHE[input] = v.ports || "";
   SPECS_CACHE[input] = specOf(v);         // raw specs; floors are computed at read time
-  CONFIG_CACHE[input] = v.config || "";   // the version's default config template
+  CONFIG_CACHE[input] = stripMedia(v.config || "");   // the version's default config template (store media stripped: _media never reaches an app, and an override built from this prefill must not carry it)
   return { reference: REF_CACHE[input], label: input, mins: minPctsOf(SPECS_CACHE[input]) };
 }
 

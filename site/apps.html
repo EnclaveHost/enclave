@@ -207,11 +207,17 @@
           <input type="text" id="cfgPorts" value="" placeholder="empty · set by the picked version" spellcheck="false" autocapitalize="off" autocomplete="off" readonly />
         </div>
         <div class="field" id="volField" hidden>
-          <span class="lbl">Model volumes <span class="dim">(attested read-only weights the enclave carries · mounted at /models/&lt;name&gt; · named by the version config's <code>volumes</code> key - fixed at publish, covered by approval)</span></span>
+          <span class="lbl">Model volumes
+            <span class="dim" id="volHintRO">(attested read-only weights the enclave carries · mounted at /models/&lt;name&gt; · named by the version config's <code>volumes</code> key - fixed at publish, covered by approval)</span>
+            <span class="dim" id="volHintRW" hidden>(attested read-only weights the enclave carries · mounted at /models/&lt;name&gt; · the ticks edit the App config's <code>volumes</code> key for THIS deployment - the version's own volume set is the pre-filled default)</span>
+          </span>
           <c-volume-picker></c-volume-picker>
         </div>
         <div class="field">
-          <label for="cfgConfig">App config <span class="dim">(the version's config, shown for review · JSON the app receives as ENCLAVE_CONFIG · immutable once published and covered by the owner's approval - the enclave applies it straight from the on-chain record · different config = publish a new version)</span></label>
+          <label for="cfgConfig">App config
+            <span class="dim" id="cfgHintRO">(the version's config, shown for review · JSON the app receives as ENCLAVE_CONFIG · immutable once published and covered by the owner's approval - the enclave applies it straight from the on-chain record · different config = publish a new version)</span>
+            <span class="dim" id="cfgHintRW" hidden>(JSON the app receives as ENCLAVE_CONFIG · pre-filled from the picked version; edit it to override for THIS deployment only - the catalog and everyone else's deployments are untouched · empty box = the version's config · {} = explicitly no config · fixed at create, rides the on-chain record)</span>
+          </label>
           <textarea id="cfgConfig" rows="3" placeholder="empty · set by the picked version" spellcheck="false" autocapitalize="off" autocomplete="off" readonly></textarea>
         </div>
         <div class="field">

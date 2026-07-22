@@ -721,21 +721,29 @@ if (process.env.SWITCH_SELFTEST) {
 }
 
 // ---- deployment options envelope (create()'s configCid field, repurposed) ---
-// App CONFIG stays per-version and approval-gated: ENCLAVE_CONFIG comes ONLY
-// from the catalog record, and a deployer-supplied config CID stays refused.
-// But the create() field itself is the one deploy-time string a deployment
-// carries on-chain, so it now carries PLATFORM options the deployer may set —
-// inline JSON interpreted by the supervisor, never shown to the app. Strictly
-// whitelisted, fail-closed: an option this build doesn't recognize REFUSES the
-// claim rather than shrugging — silently ignoring one would serve traffic the
-// owner believes is filtered. On-chain (not local state) so it survives the
-// update reboots that wipe local records: every claim AND resume re-parses it.
+// A deployer-supplied config CID stays refused (a CID names bytes nobody
+// reviewed), but the create() field itself is the one deploy-time string a
+// deployment carries on-chain, so it carries a strict JSON envelope of
+// PER-DEPLOYMENT settings — interpreted by the supervisor, whitelisted,
+// fail-closed: an option this build doesn't recognize REFUSES the claim rather
+// than shrugging — silently ignoring one would serve traffic the owner
+// believes is filtered (or run an app on a config the owner believes was
+// replaced). On-chain (not local state) so it survives the update reboots
+// that wipe local records: every claim AND resume re-parses it.
 //
-// v1 carries one namespace: `waf` — an in-enclave HTTP guard applied at the
-// /x/:id proxy (the single chokepoint both the relay path and the in-enclave
-// TLS bridge flow through). Deliberately no content inspection: everything
-// here is enforceable without buffering bodies, so streaming and WebSockets
-// keep working.
+// Two namespaces:
+//   `waf` — an in-enclave HTTP guard applied at the /x/:id proxy (the single
+//   chokepoint both the relay path and the in-enclave TLS bridge flow
+//   through). Deliberately no content inspection: everything here is
+//   enforceable without buffering bodies, so streaming and WebSockets keep
+//   working.
+//   `config` — the deployer's app-config override: an inline JSON OBJECT that
+//   replaces the picked version's config as THIS deployment's ENCLAVE_CONFIG
+//   (volumes key included). The catalog version's config stays the
+//   approval-covered default every other deployment gets; the override rides
+//   the deployment record only, and a version switch (setAppRef) keeps it.
+//   Inline (not a CID) so the claim gate validates the exact bytes it will
+//   serve, with no second fetch to trust.
 const DEP_OPTIONS_MAX_BYTES = 4096;
 const WAF_KEYS = ["rps", "burst", "maxConcurrent", "maxBodyMb", "methods", "pathBlock", "blockScanners", "uaBlock"];
 // blockScanners preset: root-anchored prefixes of the paths bulk scanners
@@ -754,12 +762,24 @@ function parseDepOptions(raw) {
   if (!s) return {};
   if (s.length > DEP_OPTIONS_MAX_BYTES) throw new Error(`options exceed ${DEP_OPTIONS_MAX_BYTES} bytes`);
   if (!s.startsWith("{") && !s.startsWith("["))
-    throw new Error("configCid is retired: the app's config comes from the approved catalog version itself — this field may only carry a deployment-options JSON envelope like {\"waf\":{…}}; recreate the deployment without a config reference");
+    throw new Error("configCid is retired: a CID names bytes nobody validated — this field may only carry a deployment-options JSON envelope like {\"waf\":{…},\"config\":{…}} (config = an inline app-config override for this deployment); recreate the deployment without a config reference");
   let o; try { o = JSON.parse(s); } catch (e) { throw new Error("options envelope is not valid JSON: " + e.message); }
   if (!o || Array.isArray(o) || typeof o !== "object") throw new Error("options envelope must be a JSON object");
-  const unknown = Object.keys(o).filter((k) => k !== "waf");
-  if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: waf)`);
-  if (!("waf" in o)) return {};
+  const unknown = Object.keys(o).filter((k) => k !== "waf" && k !== "config");
+  if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: waf, config)`);
+  const opts = {};
+  if ("config" in o) {
+    // the app-config override: shape-checked only (object, no reserved keys) —
+    // the CONTENT is the app's own contract with its deployer, exactly like a
+    // version's config is the app's contract with its publisher
+    const c = o.config;
+    if (!c || Array.isArray(c) || typeof c !== "object")
+      throw new Error("config must be a JSON object — it replaces the version's config as this deployment's ENCLAVE_CONFIG (use {} for an explicitly empty config)");
+    if ("_media" in c)
+      throw new Error("config._media is reserved for the catalog's store media and never reaches an app — remove it from the override");
+    opts.config = c;
+  }
+  if (!("waf" in o)) return opts;
   const w = o.waf;
   if (!w || Array.isArray(w) || typeof w !== "object") throw new Error("waf must be a JSON object");
   const bad = Object.keys(w).filter((k) => !WAF_KEYS.includes(k));
@@ -798,7 +818,8 @@ function parseDepOptions(raw) {
     if (w.blockScanners) out.blockScanners = true;
   }
   if (!Object.keys(out).length) throw new Error("waf enables nothing: set at least one of " + WAF_KEYS.join(", "));
-  return { waf: out };
+  opts.waf = out;
+  return opts;
 }
 // Is this app-relative URL blocked by the deployment's path rules? Decoded
 // (percent-encoding must not dodge a prefix), lowercased, query stripped.
@@ -2163,6 +2184,7 @@ app.get("/availability", async (_req, res) => {
     cardVramGb: IS_GPU ? CARD_VRAM_GB : 0, cardTflops: IS_GPU ? CARD_TFLOPS : 0, cards: GPU_COUNT,
     ...(IS_GPU ? { cardVramSource: CARD_VRAM_SRC } : {}),   // "nvidia-smi"/"manager"/"worker" = probed hardware; "env"/"default" = config fallback
     waf: true,   // this build accepts + enforces the deployment-options envelope (waf); the relay ANDs this across the fleet and the console shows the Protection controls only then
+    configOverride: true,   // this build accepts the envelope's `config` namespace (per-deployment app-config override); same fleet-AND rule — the console unlocks the App config box only when every live runner honors it
     source, ...(note ? { note } : {}), updatedAt: new Date().toISOString(),
   });
   try {
@@ -2394,7 +2416,7 @@ const spentOf = (rec) => (((rec.consumedMs || 0) / 1000) * (rec.rate || 0)).toFi
 const VIEW_FIELDS = ["id", "owner", "status", "public", "firewall", "image", "command",
   "app", "appWasm", "config", "resources", "network", "attestation", "region",
   "createdAt", "startedAt", "paused", "pauseReason", "payDeadline", "digest",
-  "payRef", "paidUsdc", "portMap", "error", "waf", "versionChange"];
+  "payRef", "paidUsdc", "portMap", "error", "waf", "configOverride", "versionChange"];
 const view = (rec) => {
   const o = {};
   for (const k of VIEW_FIELDS) if (k in rec) o[k] = rec[k];
@@ -2640,7 +2662,7 @@ app.post("/v1/deployments", authed, async (req, res) => {
         contract: DEPLOYMENTS_ADDRESS || null, chainId: CHAIN_ID, usdc: USDC_ADDRESS,
         createMethod: "create(string appRef, uint16 gpuMilli, uint16 cpuMilli, uint32 appPort, string ports, bool isPublic, "
                     + ((await depsAbi()).rev >= 2 ? "" : "string sshPubKey, ")
-                    + "string configCid) returns (bytes32 id) — appRef is catalog://<appId>/<versionIndex> (runners refuse CID refs: a CID names bytes, not a version); configCid carries either \"\" or the deployment-options envelope {\"waf\":{…}} (app config always comes from the version's approved record, as do ports/appPort — the create fields ride along informational)",
+                    + "string configCid) returns (bytes32 id) — appRef is catalog://<appId>/<versionIndex> (runners refuse CID refs: a CID names bytes, not a version); configCid carries either \"\" or the deployment-options envelope {\"waf\":{…},\"config\":{…}} (waf = per-IP request filter; config = an app-config override replacing the version's config as THIS deployment's ENCLAVE_CONFIG — without it the version's approved record applies; ports/appPort ride along informational)",
         fundMethod: "fundWithAuthorization(bytes32 id, address from, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes signature)",
         fundEthMethod: "fundEth(bytes32 id) payable",
         setAppRefMethod: "setAppRef(bytes32 id, string appRef) — owner-only version change (ledgers with deploymentsSchema() >= 3): "
@@ -4251,7 +4273,16 @@ async function switchTenantVersion(rec, d) {
   try { await stopContainer(rec); } catch {}
   const httpFw = firewall.find((x) => x.startsWith("http:"));
   rec.image = { reference: g.ref };
-  rec.app = g.app; rec.appWasm = g.wasmRef; rec.config = g.config || "";
+  rec.app = g.app; rec.appWasm = g.wasmRef;
+  // the deployer's config override rides the DEPLOYMENT (the on-chain
+  // envelope), not the version — a version switch keeps it; only an
+  // override-free deployment follows the new version's config. The envelope
+  // was validated at claim; a stale-unparsable one degrades like adopt's.
+  try {
+    const o = parseDepOptions(d.configCid);
+    rec.config = "config" in o ? JSON.stringify(o.config) : (g.config || "");
+    if ("config" in o) rec.configOverride = true; else delete rec.configOverride;
+  } catch { rec.config = g.config || ""; }
   rec.firewall = firewall;
   rec.network.port = httpFw ? +httpFw.slice(5) : 8080;
   delete rec.portMap;              // the new version's spawn recomputes its own mapping
@@ -4526,11 +4557,11 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
   const resume = leaseLive && d.runner === _enclaveId;
   if (leaseLive && !resume) return "another enclave holds a live lease";
   if (!resume && d.balance6 < d.rate) return "out of funded time - fund it and retry";
-  // configCid as CONFIG is retired: ENCLAVE_CONFIG comes from the approved
-  // version's own record (the deploy gate below). The field now carries only
-  // the deployment-options envelope (waf, …) — parsed strictly; anything this
-  // build doesn't recognize is refused, never ignored: silently dropping an
-  // option would serve traffic the owner believes is filtered.
+  // configCid as a CID is retired: the field carries only the deployment-
+  // options envelope (waf, config, …) — parsed strictly; anything this build
+  // doesn't recognize is refused, never ignored: silently dropping an option
+  // would serve traffic the owner believes is filtered, or run the app on a
+  // config the owner believes was overridden.
   try { parseDepOptions(d.configCid); }
   catch (e) { return "deployment options refused: " + e.message; }
   // Routing: the deployment bought two shares. GPU work (gpuMilli > 0)
@@ -4674,10 +4705,17 @@ async function adopt(d, g, firewall, slice) {
     // is only the manager's fetch address
     image: { reference: g.ref }, command: [],
     app: g.app, appWasm: g.wasmRef, config: g.config || "",
-    // deployer's platform options: considerClaim validated this exact string
+    // deployer's envelope options: considerClaim validated this exact string
     // before any adopt path (claim or resume), so the catch is unreachable —
-    // kept so a hypothetical stale record degrades to "no waf", not a crash
-    ...(() => { try { const w = parseDepOptions(d.configCid).waf; return w ? { waf: w } : {}; } catch { return {}; } })(),
+    // kept so a hypothetical stale record degrades to the version's config and
+    // no waf, not a crash. A `config` override REPLACES the version's config
+    // (the spread lands after config: above on purpose); configOverride marks
+    // the record so the owner can see their override is what's serving.
+    ...(() => { try {
+      const o = parseDepOptions(d.configCid);
+      return { ...(o.waf ? { waf: o.waf } : {}),
+               ...("config" in o ? { config: JSON.stringify(o.config), configOverride: true } : {}) };
+    } catch { return {}; } })(),
     // the two shares the deployment bought on-chain
     resources: slice.cpu
       ? { gpuShare: 0, cpuShare: slice.cpuShare }
