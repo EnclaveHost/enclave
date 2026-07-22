@@ -943,17 +943,13 @@ function nextFreeVersion(app, from){
   for (let i = 0; i < 1000 && taken.has(cand); i++) cand = bumpVersion(cand);
   return cand;
 }
-// "add version": open the publish form pre-filled from an app's current
-// version - INCLUDING its CID. Re-listing your own CID is the metadata-fix
-// path (same bytes, corrected specs/ports); picking a new .wasm replaces it.
-function prefillPublish(app){
-  const v = app.versions[selIdx(app)] || app.versions[app.versions.length - 1] || {};
+// The "add version" prefill for one of an app's versions, as a plain object -
+// built both by the button (which stashes it) and by a refresh of
+// /apps/publish?app=… (which re-derives it from the catalog).
+function publishPrefillOf(app, vi){
+  const v = app.versions[vi] || app.versions[app.versions.length - 1] || {};
   const media = mediaOf(v);
-  // stash, then navigate: "add version" fires from the app's own page
-  // (apps?app=…), whose URL search differs from /apps/publish, so the router
-  // SWAPS <main> - a form filled before the swap would be wiped. Persist the
-  // prefill and let the publish view apply it after it mounts (like useInDeploy).
-  const stash = {
+  return {
     slug: app.slug, name: app.name || "", desc: app.description || "",
     version: nextFreeVersion(app, v.version), cid: v.cid || "",
     vram: String((Number(v.vramMb) || 0) / 1024), gpuT: String((Number(v.gpuGflops) || 0) / 1000),
@@ -964,15 +960,44 @@ function prefillPublish(app){
     note: "pre-filled from " + app.slug + " " + (v.version || "") + " - fix specs/ports and publish (same bytes), or pick a new .wasm if the code changed"
           + (app.active ? "" : " · publishing relists the app"),
   };
-  try { sessionStorage.setItem("enclave_prefill_publish", JSON.stringify(stash)); } catch(e){}
-  openPublish();   // applyView applies the stash once the publish view is active (swap or fast-path)
 }
-// apply a stashed "add version" prefill onto the publish form (once), whenever
-// the publish view becomes active - covers both the swap and fast-path routes.
+// "add version": open the publish form pre-filled from an app's current
+// version - INCLUDING its CID. Re-listing your own CID is the metadata-fix
+// path (same bytes, corrected specs/ports); picking a new .wasm replaces it.
+function prefillPublish(app){
+  const vi = selIdx(app);
+  // stash, then navigate: "add version" fires from the app's own page
+  // (apps?app=…), whose URL search differs from /apps/publish, so the router
+  // SWAPS <main> - a form filled before the swap would be wiped. Persist the
+  // prefill and let the publish view apply it after it mounts (like useInDeploy).
+  // The app + picked version ALSO ride the URL (?app=<appId>&v=<idx>): the
+  // stash is single-use, so a refresh/back/shared link rebuilds the same
+  // prefill from the catalog off the URL instead.
+  try { sessionStorage.setItem("enclave_prefill_publish", JSON.stringify(publishPrefillOf(app, vi))); } catch(e){}
+  openPublish(app.appId, vi);
+}
+// Fill the form from a prefill: the stashed one when "add version" just
+// navigated here, else one re-derived from ?app=<appId>[&v=<idx>] (refresh,
+// back/forward, shared link). Applied once per publish-view ENTRY - catalog/
+// wallet repaints while the view is up must never wipe what the user typed.
+let appliedPubKey = null;   // the ?app|v this entry already applied (cleared on leave)
 function applyPrefillPublish(){
+  if (!$("#pubSlug")) return;
   let s; try { s = JSON.parse(sessionStorage.getItem("enclave_prefill_publish") || "null"); } catch(e){}
-  if (!s || !$("#pubSlug")) return;
-  sessionStorage.removeItem("enclave_prefill_publish");
+  const q = new URLSearchParams(location.search);
+  const key = q.get("app") ? q.get("app") + "|" + (q.get("v") || "") : null;
+  if (s){
+    sessionStorage.removeItem("enclave_prefill_publish");
+  } else {
+    if (!key || key === appliedPubKey || !STORE.loaded) return;   // nothing to do, done already, or the catalog read is still in flight (renderActiveView retries on enclave:catalog)
+    const appId = q.get("app");
+    const app = STORE.byId[appId] || (STORE.apps || []).find(a => a.appId === appId);
+    if (!app){ appliedPubKey = key; return; }   // unknown app: keep the blank form, stop retrying
+    let vi = parseInt(q.get("v") ?? "", 10);
+    if (!(Number.isInteger(vi) && vi >= 0 && vi < app.versions.length)) vi = selIdx(app);
+    s = publishPrefillOf(app, vi);
+  }
+  appliedPubKey = key;
   resetPublish();
   $("#pubSlug").value = s.slug || ""; $("#pubName").value = s.name || ""; $("#pubDesc").value = s.desc || "";
   $("#pubVersion").value = s.version || "1.0.0"; $("#pubCid").value = s.cid || "";
@@ -1003,7 +1028,11 @@ function applyView(){
   const view = sub === "deploy" || location.hash === "#deploy" ? "deploy"
              : sub === "publish" || location.hash === "#publish" ? "publish" : "store";
   if (sub !== view && (location.hash === "#deploy" || location.hash === "#publish"))
-    history.replaceState(history.state, "", new URL(".", document.baseURI).pathname + "apps/" + view + location.search);
+    // a bare #publish (the toolbar link) must NOT inherit the detail page's
+    // ?app - on /apps/publish that param means "prefill this app", which only
+    // the Add version button intends; #deploy keeps its ?app=slug_ver contract
+    history.replaceState(history.state, "", new URL(".", document.baseURI).pathname + "apps/" + view
+      + (view === "publish" ? "" : location.search));
   // the base Apps view splits into the grid and a single app's page: apps?app=<appId>
   const appId = view === "store" ? new URLSearchParams(location.search).get("app") : null;
   const detail = !!appId;
@@ -1013,8 +1042,9 @@ function applyView(){
   if (det) det.hidden = !detail;
   pub.hidden = view !== "publish";
   document.title = view === "publish" ? "Publish · Enclave" : view === "deploy" ? "Deploy · Enclave" : "Apps · Enclave";
+  if (view !== "publish") appliedPubKey = null;         // next publish entry applies its prefill fresh
   if (view === "deploy") ensureDeployBooted();
-  else if (view === "publish") applyPrefillPublish();   // apply a stashed "add version" prefill, if any
+  else if (view === "publish") applyPrefillPublish();   // stashed "add version" prefill, or one rebuilt from ?app=<appId>&v=<idx>
   else if (detail) renderDetail(appId);
   else renderApps();   // the page size depends on the grid's real width - re-slice now that the store view is visible
   scrollTo(0, 0);
@@ -1049,7 +1079,10 @@ function renderDetail(appId){
    so catalog/wallet refreshes repaint the right one */
 function renderActiveView(){
   const sub = location.pathname.split("/").pop();
-  const onStore = sub !== "deploy" && sub !== "publish";
+  // publish entered by URL (refresh/shared link): the ?app prefill may have
+  // been waiting on this catalog read - idempotent via appliedPubKey
+  if (sub === "publish") return applyPrefillPublish();
+  const onStore = sub !== "deploy";
   const appId = onStore ? new URLSearchParams(location.search).get("app") : null;
   if (appId) renderDetail(appId); else { renderApps(); renderFeatured(); }
 }
@@ -1097,10 +1130,13 @@ function ensureDeployBooted(){
     else deployMount = null;                      // mount swapped mid-import; boot on next entry
   }).catch(e => console.warn("[apps] deploy console failed to boot:", e));
 }
-function openPublish(){
+function openPublish(appId, vi){
   // same-document pathname flip: the router pushes /publish and re-signals
-  // the view (no fetch, no <main> swap - apps/deploy/publish share one)
-  navigate("publish", { push: true });
+  // the view (no fetch, no <main> swap - apps/deploy/publish share one).
+  // ?app=<appId>[&v=<idx>] makes the prefill survive a refresh: the URL is
+  // the durable copy of what the single-use stash carries.
+  navigate("publish" + (appId ? "?app=" + encodeURIComponent(appId) + (vi != null && vi >= 0 ? "&v=" + vi : "") : ""),
+           { push: true });
 }
 function closePublish(){
   navigate("apps", { push: true });
