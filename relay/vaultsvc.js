@@ -171,18 +171,29 @@ export async function buildCreateCall(depAddress, spec) {
   return encodeFunctionData({ abi: [{ type: "function", name: "create", stateMutability: "nonpayable", inputs, outputs: [{ type: "bytes32" }] }], args, functionName: "create" });
 }
 
-// setActive/setAppRef calldata for controlDeployment - the vault contract
-// allowlists exactly these two selectors (they move no funds)
-export async function buildControlCall(id, action, ref) {
+// setActive/setAppRef/setShares calldata for controlDeployment - the vault
+// contract allowlists exactly these selectors (they move no funds), plus a
+// multicall composed solely of them (a version change + share resize ride one
+// passkey signature; the vault checks every inner selector)
+export async function buildControlCall(id, action, ref, shares) {
   const { encodeFunctionData } = viem || (viem = await import("viem"));
+  const setAppRefCall = () => encodeFunctionData({ abi: [{ type: "function", name: "setAppRef", stateMutability: "nonpayable",
+    inputs: [{ type: "bytes32" }, { type: "string" }], outputs: [] }],
+    functionName: "setAppRef", args: [id, String(ref)] });
   if (action === "suspend" || action === "resume")
     return encodeFunctionData({ abi: [{ type: "function", name: "setActive", stateMutability: "nonpayable",
       inputs: [{ type: "bytes32" }, { type: "bool" }], outputs: [] }],
       functionName: "setActive", args: [id, action === "resume"] });
-  if (action === "version")
-    return encodeFunctionData({ abi: [{ type: "function", name: "setAppRef", stateMutability: "nonpayable",
-      inputs: [{ type: "bytes32" }, { type: "string" }], outputs: [] }],
-      functionName: "setAppRef", args: [id, String(ref)] });
+  if (action === "version") return setAppRefCall();
+  if (action === "resize") {
+    const sharesCall = encodeFunctionData({ abi: [{ type: "function", name: "setShares", stateMutability: "nonpayable",
+      inputs: [{ type: "bytes32" }, { type: "uint16" }, { type: "uint16" }], outputs: [] }],
+      functionName: "setShares", args: [id, Number(shares.gpuMilli), Number(shares.cpuMilli)] });
+    if (ref === undefined || ref === null || ref === "") return sharesCall;
+    return encodeFunctionData({ abi: [{ type: "function", name: "multicall", stateMutability: "nonpayable",
+      inputs: [{ type: "bytes[]" }], outputs: [{ type: "bytes[]" }] }],
+      functionName: "multicall", args: [[setAppRefCall(), sharesCall]] });
+  }
   throw new Error("unknown control action");
 }
 

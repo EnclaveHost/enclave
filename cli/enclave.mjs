@@ -35,7 +35,7 @@ import crypto from "node:crypto";
 import rlSync from "node:readline";
 import { stdin, stdout, stderr, argv, env, exit } from "node:process";
 import { createPublicClient, createWalletClient, http as viemHttp, fallback,
-         parseEther, formatUnits } from "viem";
+         parseEther, formatUnits, encodeFunctionData } from "viem";
 import { base } from "viem/chains";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 
@@ -111,6 +111,14 @@ const depsAbiFor = (tuple, rev) => [
   // rev-3 ledgers only (deploymentsSchema >= 3): the owner's version change
   { type: "function", name: "setAppRef", stateMutability: "nonpayable",
     inputs: [{ name: "id", type: "bytes32" }, { name: "appRef", type: "string" }], outputs: [] },
+  // rev-6 ledgers only (deploymentsSchema >= 6): the owner's share resize —
+  // re-buys the two shares in place, rate recalculated at current list prices
+  { type: "function", name: "setShares", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }, { name: "gpuMilli", type: "uint16" },
+             { name: "cpuMilli", type: "uint16" }], outputs: [] },
+  // self-delegatecall batcher: setAppRef + setShares ride one signature
+  { type: "function", name: "multicall", stateMutability: "nonpayable",
+    inputs: [{ name: "calls", type: "bytes[]" }], outputs: [{ type: "bytes[]" }] },
   // the owner's envelope rewrite (all revs; rev < 5 caps the field at 100 bytes)
   { type: "function", name: "setConfig", stateMutability: "nonpayable",
     inputs: [{ name: "id", type: "bytes32" }, { name: "configCid", type: "string" }], outputs: [] },
@@ -999,24 +1007,39 @@ async function cmdResume(rest) {
 }
 
 // Switch a deployment to another approved version of ITS app (setAppRef) —
-// the upgrade path: paid time, shares and any live lease stay on the record,
-// so a new release never costs a second buy-in; the current runner restarts
-// the app in place on the new version. The same pre-flight gates as deploy
-// run BEFORE the wallet signature: catalog approval, and the new version's
-// minimum shares against the deployment's immutable bought shares (a version
-// no runner accepts would leave the app dark on a still-billing lease).
-async function cmdUpgrade(rest) {
+// the upgrade path: paid time and any live lease stay on the record, so a new
+// release never costs a second buy-in; the current runner restarts the app in
+// place on the new version. On a rev-6 ledger --gpu/--cpu additionally RE-BUY
+// the deployment's shares in place (setShares, batched with the version
+// change into ONE multicall transaction): the rate is recalculated at the
+// current list prices — a resize is a new purchase decision, exactly like
+// create — and a live lease's unserved tail settles at the old rate before
+// re-burning at the new one, so nothing is ever re-priced retroactively.
+// `enclave resize` is the version-less spelling of the same flow. The same
+// pre-flight gates as deploy run BEFORE the wallet signature: catalog
+// approval, and the new version's minimum shares against the shares the
+// record will carry (a record no runner accepts would leave the app dark on
+// a still-billing lease).
+async function cmdUpgrade(rest, { resize = false } = {}) {
+  const f = flags(rest, { val: ["--gpu", "--cpu"] });
+  rest = f._;
   const account = loadKey();
-  if (!rest[0]) throw new Error("usage: enclave upgrade <id> [<version>]  (default: the app's latest approved version)");
+  if (!rest[0]) throw new Error(resize
+    ? "usage: enclave resize <id> [--gpu 0..1] [--cpu 0..1]  (fractions of one card/node; the rate is recalculated at current prices)"
+    : "usage: enclave upgrade <id> [<version>] [--gpu 0..1] [--cpu 0..1]  (default: the app's latest approved version)");
   const id = await resolveId(rest[0], account);
-  if (!isB32(id)) throw new Error("only on-chain deployments (bytes32 ids) can change versions");
+  if (!isB32(id)) throw new Error("only on-chain deployments (bytes32 ids) can change versions or shares");
   const { rev, abi } = await depAbi();
   if (rev < 3) throw new Error("the live EnclaveDeployments contract predates version changes (deploymentsSchema < 3); until the ledger upgrade, deploy the new version fresh and stop the old one");
+  const wantShares = f.gpu !== undefined || f.cpu !== undefined;
+  if (resize && !wantShares) throw new Error("nothing to change: pass --gpu and/or --cpu (fractions of one card/node, e.g. --gpu 0.5)");
+  if (wantShares && rev < 6)
+    throw new Error("the live EnclaveDeployments contract predates share resizes (deploymentsSchema < 6); until the ledger upgrade, deploy at the new dials fresh and stop this one");
   const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "get", [id]);
   if (!d || d.owner === "0x0000000000000000000000000000000000000000") throw new Error(`no deployment ${short(id)} on the ledger`);
   if (d.owner.toLowerCase() !== account.address.toLowerCase()) throw new Error(`${short(id)} is owned by ${d.owner}, not this key`);
   const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(d.appRef || "");
-  if (!m) throw new Error(`${short(id)} references "${d.appRef}" - only catalog-versioned deployments can switch versions`);
+  if (!m) throw new Error(`${short(id)} references "${d.appRef}" - only catalog-versioned deployments can switch versions or shares`);
   const appId = m[1], curIdx = Number(m[2]);
   const app = (await catalogApps()).find((a) => a.appId.toLowerCase() === appId.toLowerCase());
   if (!app) throw new Error(`the catalog has no app ${appId} (delisted?)`);
@@ -1025,25 +1048,42 @@ async function cmdUpgrade(rest) {
   if (rest[1] !== undefined) {
     vi = versions.findIndex((v) => v.version === rest[1] && !v.yanked);
     if (vi < 0) throw new Error(`app "${app.slug}" has no (un-yanked) version labeled "${rest[1]}"`);
+  } else if (resize) {
+    vi = curIdx;   // a pure resize stays on the version the record already runs
+    if (!versions[vi]) throw new Error(`${short(id)} references version index ${vi}, which the catalog doesn't list`);
   } else {
     vi = versions.findLastIndex((v) => !v.yanked && Number(v.approval) === 1);
     if (vi < 0) throw new Error(`app "${app.slug}" has no approved version`);
   }
   const ver = versions[vi];
-  if (vi === curIdx) return say(`${short(id)} already runs ${app.slug}:${ver.version} (version index ${vi}); nothing to do`);
+  if (vi === curIdx && !wantShares) return say(`${short(id)} already runs ${app.slug}:${ver.version} (version index ${vi}); nothing to do`);
   if (Number(ver.approval) !== 1)
     throw new Error(`${app.slug}:${ver.version} is ${APPROVAL_WORD[Number(ver.approval)]}; runners only serve approved versions`);
-  // the deployment's bought shares are immutable — the new version must fit them
+  // the record's shares (bought at create, or re-bought here) must cover the
+  // version's minimums on the fleet's hardware — a record no runner accepts
+  // would leave the app dark on a still-billing lease
   let pricing = null;
   try { pricing = await api("GET", "/v1/pricing"); } catch {}
   const mins = minShares(ver, pricing);
-  if (Number(d.gpuMilli) < mins.gpuMilli || Number(d.cpuMilli) < mins.cpuMilli)
+  let gpuMilli = f.gpu !== undefined ? Math.round(numFlag(f.gpu, "--gpu") * 1000) : Number(d.gpuMilli);
+  let cpuMilli = f.cpu !== undefined ? Math.round(numFlag(f.cpu, "--cpu") * 1000) : Number(d.cpuMilli);
+  if (gpuMilli > 1000 || cpuMilli > 1000) throw new Error("--gpu/--cpu are fractions of one card/node (0..1)");
+  if (cpuMilli < 1) cpuMilli = 10;
+  if (gpuMilli > 0 && gpuMilli < cpuMilli) gpuMilli = cpuMilli;    // contract: gpuMilli >= cpuMilli
+  if (gpuMilli < mins.gpuMilli || cpuMilli < mins.cpuMilli) {
+    const dial = `--gpu ${mins.gpuMilli / 1000} --cpu ${mins.cpuMilli / 1000}`;
+    if (wantShares)
+      throw new Error(`those dials are below ${app.slug}:${ver.version}'s minimums on the fleet's hardware - it needs at least ${dial}`);
     throw new Error(`${app.slug}:${ver.version} needs at least gpu ${mins.gpuMilli / 10}% / cpu ${mins.cpuMilli / 10}% on the fleet's hardware, `
-                  + `but ${short(id)} bought gpu ${Number(d.gpuMilli) / 10}% / cpu ${Number(d.cpuMilli) / 10}% and shares are immutable - `
-                  + `deploy it fresh instead: enclave deploy ${app.slug}:${ver.version} --fund 5`);
-  // the publisher-fee snapshot is as immutable as the shares: a version asking
-  // MORE than the deployment snapshotted at create could never pay its
-  // publisher, so every runner refuses the switch - fail here with words
+                  + `but ${short(id)} bought gpu ${Number(d.gpuMilli) / 10}% / cpu ${Number(d.cpuMilli) / 10}% - `
+                  + (rev >= 6
+                     ? `resize it in place (the rate is recalculated at current prices): enclave upgrade ${rest[0]}${rest[1] !== undefined ? " " + rest[1] : ""} ${dial}`
+                     : `this ledger's shares are immutable - deploy it fresh instead: enclave deploy ${app.slug}:${ver.version} --fund 5`));
+  }
+  const resized = wantShares && (gpuMilli !== Number(d.gpuMilli) || cpuMilli !== Number(d.cpuMilli));
+  // the publisher-fee snapshot IS still immutable: a version asking MORE than
+  // the deployment snapshotted at create could never pay its publisher, so
+  // every runner refuses the switch - fail here with words
   const newFee = await versionFee6(app.appId, vi);
   if (newFee > 0n) {
     const [snapTo, snapFee] = rev >= 4
@@ -1051,22 +1091,80 @@ async function cmdUpgrade(rest) {
       : ["0x0000000000000000000000000000000000000000", 0n];
     if (snapFee < newFee || snapTo.toLowerCase() !== app.publisher.toLowerCase())
       throw new Error(`${app.slug}:${ver.version} charges a ${usd6(newFee * 3600n)}/h publisher fee, above the ${usd6(snapFee * 3600n)}/h `
-                    + `this deployment snapshotted at create - the fee snapshot is immutable, like the shares; `
+                    + `this deployment snapshotted at create - the fee snapshot is immutable; `
                     + `deploy it fresh instead: enclave deploy ${app.slug}:${ver.version} --fund 5`);
   }
   const from = versions[curIdx] ? `${app.slug}:${versions[curIdx].version}` : d.appRef;
   const leased = Number(d.leaseUntil) * 1000 > Date.now();
-  if (!(await confirm(`switch ${short(id)} from ${from} to ${app.slug}:${ver.version}? (paid time carries over`
+  let newRate = d.rate, shareNote = "";
+  if (resized) {
+    // price the new dials exactly as create() will (current list prices plus
+    // the record's immutable fee snapshot), and enforce the platform's cap
+    const [pricePerSec6, cpuPricePerSec6, maxGpu] = await Promise.all([
+      read(DEFAULTS.DEPLOYMENTS_ADDRESS,
+           [{ type: "function", name: "pricePerSec6", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }],
+           "pricePerSec6"),
+      read(DEFAULTS.DEPLOYMENTS_ADDRESS,
+           [{ type: "function", name: "cpuPricePerSec6", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }],
+           "cpuPricePerSec6"),
+      read(DEFAULTS.DEPLOYMENTS_ADDRESS,
+           [{ type: "function", name: "maxGpuMilli", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] }],
+           "maxGpuMilli").then(Number).catch(() => 1000),
+    ]);
+    if (gpuMilli > maxGpu)
+      throw new Error(`--gpu ${gpuMilli / 10}% is over the platform's per-deployment GPU cap of ${maxGpu / 10}% of a card - lower --gpu`);
+    const snapFee6 = rev >= 4 ? (await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "feeOf", [id]))[1] : 0n;
+    newRate = (pricePerSec6 * BigInt(gpuMilli) + cpuPricePerSec6 * BigInt(cpuMilli) + 999n) / 1000n + snapFee6;
+    // Fail closed while the tx is still unsent: a runner that predates the
+    // audit's share watch would keep serving the OLD slice while the ledger
+    // bills the NEW rate — refuse unless every live runner re-slices. Only an
+    // unreachable aggregate falls through, with a loud warning (the --config
+    // rule).
+    try {
+      const av = await api("GET", "/availability");
+      if (av && av.aggregate && av.shareResize !== true)
+        throw new Error("the live fleet doesn't apply share resizes to running deployments yet (availability.shareResize is not true) - the billing would change while the served slice didn't. Retry after the fleet updates.");
+    } catch (e) {
+      if (/doesn't apply share resizes/.test(e.message)) throw e;
+      say("! couldn't read fleet availability to confirm resize support; if a runner predates it, the new rate applies but the slice only changes at the next re-claim");
+    }
+    // a resize mid-lease settles the lease tail at the old rate and re-burns
+    // it at the new one; the contract refuses ("unfunded at the new rate") if
+    // that can't buy even one second - fail with words before the signature
+    if (leased) {
+      const tail = BigInt(Math.max(0, Number(d.leaseUntil) - Math.floor(Date.now() / 1000)));
+      if (d.balance6 + tail * d.rate < newRate)
+        throw new Error(`the remaining balance can't fund even one second at the new rate (${usd6(newRate * 3600n)}/h) - top it up first, then resize`);
+    }
+    shareNote = ` at gpu ${Number(d.gpuMilli) / 10}%->${gpuMilli / 10}% / cpu ${Number(d.cpuMilli) / 10}%->${cpuMilli / 10}% `
+              + `(rate ${usd6(d.rate * 3600n)}/h -> ${usd6(newRate * 3600n)}/h, balance buys ≈ ${dur(Number(d.balance6) / Number(newRate))})`;
+  }
+  const doing = vi !== curIdx
+    ? `switch ${short(id)} from ${from} to ${app.slug}:${ver.version}${shareNote}`
+    : `resize ${short(id)} (${app.slug}:${ver.version})${shareNote}`;
+  if (!(await confirm(`${doing}? (paid time carries over`
                     + `${leased ? "; the runner restarts the app in place within ~a minute" : ""})`))) return say("aborted");
-  await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi,
-    functionName: "setAppRef", args: [id, `catalog://${app.appId}/${vi}`] });
+  const appRef = `catalog://${app.appId}/${vi}`;
+  if (vi !== curIdx && resized) {
+    // one signature: the contract's self-delegatecall batcher applies both
+    await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi, functionName: "multicall",
+      args: [[encodeFunctionData({ abi, functionName: "setAppRef", args: [id, appRef] }),
+              encodeFunctionData({ abi, functionName: "setShares", args: [id, gpuMilli, cpuMilli] })]] });
+  } else if (resized) {
+    await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi,
+      functionName: "setShares", args: [id, gpuMilli, cpuMilli] });
+  } else {
+    await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi,
+      functionName: "setAppRef", args: [id, appRef] });
+  }
   // nudge the fleet: relaunches queued/suspended work promptly (a running
   // instance is restarted by its own runner's next ledger pass)
   const h = await api("POST", "/v1/claim-hint", { body: { id } }).catch(() => null);
-  if (opt.json) return jout({ id, appRef: `catalog://${app.appId}/${vi}`, version: ver.version, hint: h });
-  say(`switched to ${app.slug}:${ver.version}${leased
+  if (opt.json) return jout({ id, appRef, version: ver.version,
+    ...(resized ? { gpuMilli, cpuMilli, ratePerSec6: newRate.toString() } : {}), hint: h });
+  say(`${vi !== curIdx ? `switched to ${app.slug}:${ver.version}` : "resized"}${resized ? ` at gpu ${gpuMilli / 10}% / cpu ${cpuMilli / 10}% (${usd6(newRate * 3600n)}/h)` : ""}${leased
     ? " - the runner restarts the app in place within a minute (paid time and the endpoint carry over)"
-    : " - it launches on the new version when claimed"}; watch: enclave status ${short(id)}`);
+    : " - it launches when claimed"}; watch: enclave status ${short(id)}`);
 }
 
 async function cmdDeploy(rest) {
@@ -1813,9 +1911,16 @@ deployments
                              (the remaining balance stays on the deployment)
   resume <id>                setActive(true): re-queue a stopped deployment; it
                              relaunches from its remaining balance
-  upgrade <id> [<version>]   switch to another approved version of the same app
+  upgrade <id> [<version>] [--gpu 0..1] [--cpu 0..1]
+                             switch to another approved version of the same app
                              (default: its latest); paid time carries over - the
-                             runner restarts the app in place on the new version
+                             runner restarts the app in place on the new version.
+                             --gpu/--cpu re-buy the shares in the same transaction
+                             (rate recalculated at current prices; rev-6 ledgers)
+  resize <id> --gpu 0..1 --cpu 0..1
+                             re-buy the shares without changing versions; the
+                             rate is recalculated and a live lease settles at
+                             the old rate before re-burning at the new one
 
 catalog
   publish <app.wasm> --slug S [--version V --name N --desc D --config JSON]
@@ -1854,6 +1959,7 @@ const COMMANDS = {
   status: cmdStatus, logs: cmdLogs, fund: cmdFund, attest: cmdAttest,
   restart: cmdRestart, stop: cmdStop, suspend: cmdStop, resume: cmdResume,
   upgrade: cmdUpgrade, "set-version": cmdUpgrade,
+  resize: (rest) => cmdUpgrade(rest, { resize: true }),
   secrets: cmdSecrets, config: cmdConfig,
   publish: cmdPublish, apps: cmdApps,
   pricing: cmdPricing, availability: cmdAvailability, gpu: cmdGpu, account: cmdAccount,

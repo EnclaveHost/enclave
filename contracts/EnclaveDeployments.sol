@@ -172,7 +172,13 @@ contract EnclaveDeployments {
     // envelope's `config` namespace (a per-deployment app-config override);
     // senders gate envelopes over 100 bytes on >= 5 — the rev-4 create()
     // reverts "configCid length" on them.
-    uint256 public constant deploymentsSchema = 5;
+    // Rev 6 again keeps the struct byte-for-byte and marks the setShares
+    // surface (owner share resizes with rate recalculation): the shares are
+    // no longer immutable — an owner may re-buy gpuMilli/cpuMilli in place,
+    // re-priced at the CURRENT list prices (a resize is a new purchase
+    // decision, exactly like create; non-resizing deployments keep their
+    // snapshots untouched). The share-resize feature gates on >= 6.
+    uint256 public constant deploymentsSchema = 6;
 
     /// @dev Publisher-fee snapshot, taken at create from the catalog version
     ///      the deployment references (recipient = the app's publisher wallet).
@@ -189,6 +195,7 @@ contract EnclaveDeployments {
     event Created(bytes32 indexed id, address indexed owner, string appRef, uint16 gpuMilli, uint16 cpuMilli, uint256 rate);
     event FeeSet(bytes32 indexed id, address indexed recipient, uint256 feePerSec6);
     event AppRefSet(bytes32 indexed id, string appRef);
+    event SharesSet(bytes32 indexed id, uint16 gpuMilli, uint16 cpuMilli, uint256 rate);
     event ConfigSet(bytes32 indexed id, string configCid);
     event ActiveSet(bytes32 indexed id, bool active);
     event Funded(bytes32 indexed id, address indexed payer, uint256 amount6);
@@ -317,15 +324,70 @@ contract EnclaveDeployments {
     ///         unclaimed deployment simply launches the new version when
     ///         claimed. The ledger doesn't parse appRefs (same trust model as
     ///         create) — runners re-gate the new record on catalog approval
-    ///         and on the app's minimum shares. The shares bought at create
-    ///         are immutable, so a version needing more than they cover is
-    ///         refused by every runner; clients pre-check before the
-    ///         signature, exactly as they do for create.
+    ///         and on the app's minimum shares. A version needing more than
+    ///         the bought shares cover is refused by every runner; clients
+    ///         pre-check before the signature, exactly as they do for create,
+    ///         and offer a share resize (setShares, batched with this call
+    ///         via multicall) when the new version needs different resources.
     function setAppRef(bytes32 id, string calldata appRef) external {
         Deployment storage d = _requireOwned(id);
         require(bytes(appRef).length > 0 && bytes(appRef).length <= MAX_APPREF, "appRef length");
         d.appRef = appRef;
         emit AppRefSet(id, appRef);
+    }
+
+    /// @notice Re-buy the deployment's two shares in place (grow OR shrink) —
+    ///         the owner's RESIZE path, typically batched with setAppRef via
+    ///         multicall() when a new version needs different resources. The
+    ///         rate is RECALCULATED at the current list prices plus the
+    ///         deployment's immutable publisher-fee snapshot: a resize is a
+    ///         new purchase decision, exactly like create (deployments that
+    ///         never resize keep their original snapshot — price changes stay
+    ///         non-retroactive for them). Same bounds as create, including
+    ///         the operator's maxGpuMilli cap.
+    ///
+    ///         A LIVE lease is settled, never re-priced retroactively: the
+    ///         unserved tail is refunded at the OLD rate (the rate it was
+    ///         burned at — the same arithmetic as release(), so spent6 can
+    ///         never underflow), then re-burned at the NEW rate for as many
+    ///         of those same seconds as the balance affords. leaseUntil never
+    ///         extends; a grow the balance can't fully cover shrinks it, and
+    ///         the runner just renews (or lapses) sooner. A resize that could
+    ///         not fund even one second reverts "unfunded at the new rate" —
+    ///         top up first; a resize never silently kills a running app.
+    ///
+    ///         The serving runner sees the changed shares on its next ledger
+    ///         pass and re-gates them like a claim (app minimums, local
+    ///         capacity, fail closed): it restarts the app in place on a
+    ///         resized slice, or releases the lease (tail refunded) so an
+    ///         enclave that CAN fit the new size claims the work. Clients
+    ///         pre-check fleet capacity and app minimums before the
+    ///         signature, exactly as they do for create.
+    function setShares(bytes32 id, uint16 gpuMilli, uint16 cpuMilli) external {
+        Deployment storage d = _requireOwned(id);
+        require(cpuMilli > 0 && cpuMilli <= 1000, "cpuMilli range");
+        require(gpuMilli <= 1000, "gpuMilli range");
+        require(gpuMilli == 0 || gpuMilli >= cpuMilli, "gpuShare < cpuShare");
+        require(gpuMilli <= maxGpuMilli, "gpuShare > max");
+        require(cpuPricePerSec6 > 0 && (gpuMilli == 0 || pricePerSec6 > 0), "price unset");
+        uint256 newRate = (pricePerSec6 * gpuMilli + cpuPricePerSec6 * cpuMilli + 999) / 1000 + _fees[id].rate6;
+        if (d.leaseUntil > block.timestamp) {
+            uint256 tail = d.leaseUntil - block.timestamp;
+            uint256 refund = tail * d.rate;          // settle the unserved tail at the rate it was burned at
+            d.balance6 += refund;
+            d.spent6 -= refund;
+            uint256 secs = d.balance6 / newRate;     // re-burn the same window at the new rate
+            if (secs > tail) secs = tail;            // a lease never EXTENDS from a resize
+            require(secs > 0, "unfunded at the new rate");
+            uint256 burned = secs * newRate;
+            d.balance6 -= burned;
+            d.spent6 += burned;
+            d.leaseUntil = uint64(block.timestamp) + uint64(secs);
+        }
+        d.gpuMilli = gpuMilli;
+        d.cpuMilli = cpuMilli;
+        d.rate = newRate;
+        emit SharesSet(id, gpuMilli, cpuMilli, newRate);
     }
 
     /// @notice Update the portable config; runners apply it on the next (re)launch.

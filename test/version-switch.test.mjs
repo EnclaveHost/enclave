@@ -9,6 +9,11 @@
 //   provisionBackoffHolds — a provision-failure cooldown binds to the appRef
 //                           that failed: the owner switching versions is a
 //                           fresh chance, not the same doomed item on a timer.
+//   shareResizeVerdict    — does the audit re-slice a serving record whose
+//                           ledger row carries different bought shares
+//                           (setShares, ledger rev 6)? Pre-resize-release
+//                           records stamp what they serve first; non-running
+//                           states ride the normal claim paths.
 //
 //   run: node --test test/version-switch.test.mjs
 
@@ -58,4 +63,19 @@ test("a provision-failure cooldown binds to the appRef that failed", async () =>
     { entry: null, nowMs: NOW, appRef: V1 },                            // no failure recorded
   ] });
   assert.deepEqual(r.backoff, [true, false, false, true, false]);
+});
+
+test("only a RUNNING record whose ledger row carries different shares re-slices", async () => {
+  const held = { gpuMilli: 500, cpuMilli: 250 };
+  const r = await selftest({ resize: [
+    { status: "running", localShares: held, gpuMilli: 500, cpuMilli: 250 },  // unchanged
+    { status: "running", localShares: held, gpuMilli: 800, cpuMilli: 400 },  // grow: resize
+    { status: "running", localShares: held, gpuMilli: 200, cpuMilli: 100 },  // shrink: resize
+    { status: "running", localShares: held, gpuMilli: 0,   cpuMilli: 250 },  // gpu -> cpu-only: resize
+    { status: "running", localShares: held, gpuMilli: "500", cpuMilli: "250" }, // BigInt/string ledger decode: unchanged
+    { status: "running", gpuMilli: 800, cpuMilli: 400 },                     // pre-resize-release record: stamp first
+    { status: "claimed", localShares: held, gpuMilli: 800, cpuMilli: 400 },  // mid-provision: next pass catches it
+    { status: "failed",  localShares: held, gpuMilli: 800, cpuMilli: 400 },  // terminal: the sweep re-claims at the new size
+  ] });
+  assert.deepEqual(r.resize, ["skip", "resize", "resize", "resize", "skip", "stamp", "skip", "skip"]);
 });

@@ -85,6 +85,10 @@ c-deployments{display:contents;}
 .enc-upg-body label{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);}
 .eu-sel{max-width:100%;background:var(--bg-1);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:.84rem;padding:.4em .6em;}
 .eu-sel:focus{border-color:var(--jade-dim);}
+/* share dials (rev-6 ledger + a fleet that re-slices): re-buy gpu/cpu in the same tx */
+.eu-dials{display:flex;align-items:center;gap:8px;}
+.eu-dials input{width:5.5em;background:var(--bg-1);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:.84rem;padding:.4em .6em;}
+.eu-dials input:focus{border-color:var(--jade-dim);outline:none;}
 .enc-upg-status{padding:0 18px 10px;min-height:0;}
 .enc-upg-status:empty{display:none;}
 

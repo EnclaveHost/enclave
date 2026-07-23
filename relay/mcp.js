@@ -124,6 +124,13 @@ const depsAbiFor = (rev) => [
     inputs: [{ name: "id", type: "bytes32" }, { name: "active", type: "bool" }], outputs: [] },
   { type: "function", name: "setAppRef", stateMutability: "nonpayable",
     inputs: [{ name: "id", type: "bytes32" }, { name: "appRef", type: "string" }], outputs: [] },
+  // rev >= 6: the owner's share resize (rate recalculated at current list
+  // prices) and the batcher that lets it ride one tx with setAppRef
+  { type: "function", name: "setShares", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }, { name: "gpuMilli", type: "uint16" },
+             { name: "cpuMilli", type: "uint16" }], outputs: [] },
+  { type: "function", name: "multicall", stateMutability: "nonpayable",
+    inputs: [{ name: "calls", type: "bytes[]" }], outputs: [{ type: "bytes[]" }] },
   { type: "function", name: "setConfig", stateMutability: "nonpayable",
     inputs: [{ name: "id", type: "bytes32" }, { name: "configCid", type: "string" }], outputs: [] },
   { type: "function", name: "feeOf", stateMutability: "view", inputs: [{ name: "id", type: "bytes32" }],
@@ -349,6 +356,22 @@ export function encodeSetAppRefTx({ deployments, id, appRef }) {
   return tx(deployments, encodeFunctionData({ abi: depsAbiFor(3), functionName: "setAppRef", args: [id, appRef] }), 0n,
     `EnclaveDeployments.setAppRef(${id.slice(0, 10)}…, ${appRef})`);
 }
+export function encodeSetSharesTx({ deployments, id, gpuMilli, cpuMilli }) {
+  return tx(deployments, encodeFunctionData({ abi: depsAbiFor(6), functionName: "setShares", args: [id, gpuMilli, cpuMilli] }), 0n,
+    `EnclaveDeployments.setShares(${id.slice(0, 10)}…, gpu ${gpuMilli / 10}% / cpu ${cpuMilli / 10}%)`);
+}
+// version change + share resize in ONE transaction (the ledger's multicall):
+// appRef optional - without it this is a pure resize and setShares goes alone
+export function encodeResizeTx({ deployments, id, appRef, gpuMilli, cpuMilli }) {
+  if (!appRef) return encodeSetSharesTx({ deployments, id, gpuMilli, cpuMilli });
+  const abi = depsAbiFor(6);
+  const calls = [
+    encodeFunctionData({ abi, functionName: "setAppRef", args: [id, appRef] }),
+    encodeFunctionData({ abi, functionName: "setShares", args: [id, gpuMilli, cpuMilli] }),
+  ];
+  return tx(deployments, encodeFunctionData({ abi, functionName: "multicall", args: [calls] }), 0n,
+    `EnclaveDeployments.multicall(setAppRef(${appRef}) + setShares(gpu ${gpuMilli / 10}% / cpu ${cpuMilli / 10}%))`);
+}
 export function encodeSetConfigTx({ deployments, id, envelope }) {
   return tx(deployments, encodeFunctionData({ abi: depsAbiFor(2), functionName: "setConfig", args: [id, envelope] }), 0n,
     `EnclaveDeployments.setConfig(${id.slice(0, 10)}…, ${envelope ? envelope.length + "-byte envelope" : "empty envelope"})`);
@@ -397,6 +420,101 @@ async function resolveFullId(input) {
   return String(v.id).toLowerCase();
 }
 
+// ---- upgrade / resize (build_upgrade + build_resize share one flow) -----------
+// Mirrors cli/enclave.mjs cmdUpgrade: catalog approval, minimum-share fit
+// against the shares the record WILL carry, the platform GPU cap, the
+// immutable publisher-fee snapshot, the can-it-fund-one-second settle check,
+// and the fleet-AND shareResize capability - all validated before any
+// transaction is handed back.
+async function upgradeOrResize(a, resizeOnly) {
+  const rev = await depRev();
+  if (rev < 3) throw new Error("the live EnclaveDeployments contract predates version changes (deploymentsSchema < 3)");
+  const wantShares = a.gpuShare !== undefined || a.cpuShare !== undefined;
+  if (resizeOnly && !wantShares) throw new Error("pass gpuShare and/or cpuShare (fractions of one card/node, 0..1)");
+  if (wantShares && rev < 6)
+    throw new Error("the live EnclaveDeployments contract predates share resizes (deploymentsSchema < 6); until the ledger upgrade, deploy at the new dials fresh and stop this one");
+  const full = await resolveFullId(a.id);
+  const d = await depGet(full);
+  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(d.appRef || "");
+  if (!m) throw new Error(`${full.slice(0, 10)}… references "${d.appRef}"; only catalog-versioned deployments can switch versions or shares`);
+  const app = (await catalogApps()).find((x) => x.appId.toLowerCase() === m[1].toLowerCase());
+  if (!app) throw new Error(`the catalog has no app ${m[1]} (delisted?)`);
+  const versions = await readVersions(app.appId, app.versionCount);
+  const curIdx = Number(m[2]);
+  let vi;
+  if (a.version !== undefined) {
+    vi = versions.findIndex((v) => v.version === a.version && !v.yanked);
+    if (vi < 0) throw new Error(`app "${app.slug}" has no (un-yanked) version labeled "${a.version}"`);
+  } else if (resizeOnly) {
+    vi = curIdx;   // a pure resize stays on the version the record already runs
+    if (!versions[vi]) throw new Error(`${full.slice(0, 10)}… references version index ${vi}, which the catalog doesn't list`);
+  } else {
+    vi = versions.findLastIndex((v) => !v.yanked && Number(v.approval) === 1);
+    if (vi < 0) throw new Error(`app "${app.slug}" has no approved version`);
+  }
+  const ver = versions[vi];
+  if (vi === curIdx && !wantShares)
+    return { id: full, note: `already runs ${app.slug}:${ver.version} (index ${vi}); nothing to do`, transactions: [] };
+  if (Number(ver.approval) !== 1)
+    throw new Error(`${app.slug}:${ver.version} is ${APPROVAL_WORD[Number(ver.approval)]}; runners only serve approved versions`);
+  const pricing = await self("GET", "/v1/pricing").catch(() => null);
+  const mins = minShares(ver, pricing);
+  let gpuMilli = a.gpuShare !== undefined ? Math.round(Number(a.gpuShare) * 1000) : Number(d.gpuMilli);
+  let cpuMilli = a.cpuShare !== undefined ? Math.round(Number(a.cpuShare) * 1000) : Number(d.cpuMilli);
+  if (!(gpuMilli >= 0 && gpuMilli <= 1000) || !(cpuMilli >= 1 && cpuMilli <= 1000))
+    throw new Error("gpuShare/cpuShare are fractions of one card/node (0..1)");
+  if (gpuMilli > 0 && gpuMilli < cpuMilli) gpuMilli = cpuMilli;      // contract: gpuMilli >= cpuMilli
+  if (gpuMilli < mins.gpuMilli || cpuMilli < mins.cpuMilli) {
+    const dial = `gpuShare ${mins.gpuMilli / 1000} / cpuShare ${mins.cpuMilli / 1000}`;
+    if (wantShares)
+      throw new Error(`those dials are below ${app.slug}:${ver.version}'s minimums on the fleet's hardware (needs at least ${dial})`);
+    throw new Error(`${app.slug}:${ver.version} needs gpu ${mins.gpuMilli / 10}% / cpu ${mins.cpuMilli / 10}% but this deployment bought `
+      + `gpu ${Number(d.gpuMilli) / 10}% / cpu ${Number(d.cpuMilli) / 10}%; `
+      + (rev >= 6 ? `pass ${dial} to resize it in place (the rate is recalculated at the current list prices)`
+                  : "shares are immutable on this ledger; deploy it fresh instead"));
+  }
+  const resized = wantShares && (gpuMilli !== Number(d.gpuMilli) || cpuMilli !== Number(d.cpuMilli));
+  const { deployments } = await addresses();
+  // the publisher-fee snapshot IS still immutable, resize or not
+  const newFee = await versionFee6(app.appId, vi);
+  const snap = rev >= 4 ? await read(deployments, depsAbiFor(rev), "feeOf", [full])
+                        : ["0x0000000000000000000000000000000000000000", 0n];
+  if (newFee > 0n && (snap[1] < newFee || String(snap[0]).toLowerCase() !== app.publisher.toLowerCase()))
+    throw new Error(`${app.slug}:${ver.version} charges ${usdHr(newFee)} publisher fee, above this deployment's immutable create-time snapshot (${usdHr(snap[1])}); deploy it fresh instead`);
+  let rateInfo = {};
+  if (resized) {
+    const [p6, c6, maxGpu] = await Promise.all([
+      read(deployments, U256_VIEW("pricePerSec6"), "pricePerSec6"),
+      read(deployments, U256_VIEW("cpuPricePerSec6"), "cpuPricePerSec6"),
+      read(deployments, [{ type: "function", name: "maxGpuMilli", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] }],
+        "maxGpuMilli").then(Number).catch(() => 1000),
+    ]);
+    if (gpuMilli > maxGpu)
+      throw new Error(`gpuShare ${gpuMilli / 1000} is over the platform's per-deployment GPU cap of ${maxGpu / 1000} of a card`);
+    const newRate = (BigInt(p6) * BigInt(gpuMilli) + BigInt(c6) * BigInt(cpuMilli) + 999n) / 1000n + BigInt(snap[1]);
+    // a resize mid-lease settles the tail at the old rate and re-burns it at
+    // the new one; the contract refuses if that can't buy one second
+    const now = Math.floor(Date.now() / 1000);
+    if (Number(d.leaseUntil) > now
+        && BigInt(d.balance6) + BigInt(Number(d.leaseUntil) - now) * BigInt(d.rate) < newRate)
+      throw new Error(`the remaining balance can't fund even one second at the new rate (${usdHr(newRate)}); top it up first (build_fund), then resize`);
+    // fail closed on a fleet that doesn't re-slice live deployments: the
+    // billing would change while the served slice silently didn't
+    const av = await self("GET", "/availability").catch(() => null);
+    if (av && av.aggregate && av.shareResize !== true)
+      throw new Error("the live fleet doesn't apply share resizes to running deployments yet (availability.shareResize is not true) - retry after the fleet updates");
+    rateInfo = { oldRatePerHour: usdHr(d.rate), newRatePerHour: usdHr(newRate),
+      ...(av && av.aggregate ? {} : { warning: "couldn't read fleet availability to confirm resize support; if a runner predates it, the new rate applies but the slice only changes at the next re-claim" }) };
+  }
+  const appRef = `catalog://${app.appId}/${vi}`;
+  const txs = vi !== curIdx && resized ? [encodeResizeTx({ deployments, id: full, appRef, gpuMilli, cpuMilli })]
+            : resized                  ? [encodeSetSharesTx({ deployments, id: full, gpuMilli, cpuMilli })]
+                                       : [encodeSetAppRefTx({ deployments, id: full, appRef })];
+  return { id: full, owner: d.owner, from: d.appRef, to: appRef, version: ver.version,
+    ...(resized ? { gpuMilli, cpuMilli } : {}), ...rateInfo, transactions: txs,
+    next: `sign+send with the owner wallet (${d.owner}), then claim_hint { id: "${full}" }` };
+}
+
 // ---- guides -------------------------------------------------------------------
 const SIGNING_NOTE = `Signing and sending transactions: every build_* tool returns unsigned Base (chainId ${CHAIN_ID}) transactions {chainId, to, data, value}. Sign and send them IN ORDER with the wallet that owns (or should own) the deployment. Keys never leave your machine. Examples:
   cast send <to> --value <value> <data-as-calldata> --private-key $KEY --rpc-url https://mainnet.base.org   (foundry: cast send <to> <data> ...)
@@ -429,7 +547,7 @@ Reads (pricing, availability, catalog, deployment status) need no auth. Owner-on
 5. build_fund { id, usd: 5 } (whole cents) or { id, eth: 0.002 }; sign and send. Runners skip unfunded work.
 6. claim_hint { id }, then poll get_deployment { id }: awaiting_payment -> queued -> claimed -> running. Queued-over-capacity work starts by itself when capacity frees.
 7. The app URL is https://<first-8-hex-of-id>.${APP_DOMAIN} (its own origin). Websockets work. Declared tcp:/udp: ports get a dedicated public IPv6 (in the deployment record's network field).
-Notes: shares are immutable after create; a deployment that under-provisions its app's minimums is never claimed. Stop/resume/upgrade are build_stop / build_resume / build_upgrade.
+Notes: a deployment that under-provisions its app's minimums is never claimed. On rev-6 ledgers the shares can be re-bought later (build_resize, or build_upgrade with gpuShare/cpuShare) with the rate recalculated at the then-current list prices; on older ledgers they are immutable after create. Stop/resume/upgrade are build_stop / build_resume / build_upgrade.
 After it runs, the mutable knobs are: get_config/build_set_config (the app-config override + waf envelope, one owner tx; the runner re-applies it in place) and get_secrets/set_secrets (private env vars on the relay; restart_deployment applies them now). ${SIGNING_NOTE}`,
 
   publish: `Publishing an app to the catalog (wasm component -> IPFS -> on-chain version, then an approval gate):
@@ -839,47 +957,19 @@ const TOOLS = [
   },
   {
     name: "build_upgrade",
-    description: "Unsigned setAppRef transaction switching a deployment to another version of its app (paid time and the endpoint carry over; the runner restarts it in place). Validates approval, the immutable share fit, and the publisher-fee snapshot, like the CLI. Default: the app's latest approved version.",
-    inputSchema: S({ id: P.id, version: { type: "string", description: "Target version label (default: latest approved)" } }, ["id"]),
-    handler: async ({ id, version }) => {
-      const rev = await depRev();
-      if (rev < 3) throw new Error("the live EnclaveDeployments contract predates version changes (deploymentsSchema < 3)");
-      const full = await resolveFullId(id);
-      const d = await depGet(full);
-      const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(d.appRef || "");
-      if (!m) throw new Error(`${full.slice(0, 10)}… references "${d.appRef}"; only catalog-versioned deployments can switch versions`);
-      const app = (await catalogApps()).find((x) => x.appId.toLowerCase() === m[1].toLowerCase());
-      if (!app) throw new Error(`the catalog has no app ${m[1]} (delisted?)`);
-      const versions = await readVersions(app.appId, app.versionCount);
-      let vi;
-      if (version !== undefined) {
-        vi = versions.findIndex((v) => v.version === version && !v.yanked);
-        if (vi < 0) throw new Error(`app "${app.slug}" has no (un-yanked) version labeled "${version}"`);
-      } else {
-        vi = versions.findLastIndex((v) => !v.yanked && Number(v.approval) === 1);
-        if (vi < 0) throw new Error(`app "${app.slug}" has no approved version`);
-      }
-      const ver = versions[vi];
-      if (vi === Number(m[2])) return { id: full, note: `already runs ${app.slug}:${ver.version} (index ${vi}); nothing to do`, transactions: [] };
-      if (Number(ver.approval) !== 1)
-        throw new Error(`${app.slug}:${ver.version} is ${APPROVAL_WORD[Number(ver.approval)]}; runners only serve approved versions`);
-      const pricing = await self("GET", "/v1/pricing").catch(() => null);
-      const mins = minShares(ver, pricing);
-      if (Number(d.gpuMilli) < mins.gpuMilli || Number(d.cpuMilli) < mins.cpuMilli)
-        throw new Error(`${app.slug}:${ver.version} needs gpu ${mins.gpuMilli / 10}% / cpu ${mins.cpuMilli / 10}% but this deployment bought gpu ${Number(d.gpuMilli) / 10}% / cpu ${Number(d.cpuMilli) / 10}% and shares are immutable; deploy it fresh instead`);
-      const newFee = await versionFee6(app.appId, vi);
-      if (newFee > 0n) {
-        const { deployments } = await addresses();
-        const [snapTo, snapFee] = rev >= 4 ? await read(deployments, depsAbiFor(rev), "feeOf", [full])
-                                           : ["0x0000000000000000000000000000000000000000", 0n];
-        if (snapFee < newFee || String(snapTo).toLowerCase() !== app.publisher.toLowerCase())
-          throw new Error(`${app.slug}:${ver.version} charges ${usdHr(newFee)} publisher fee, above this deployment's immutable create-time snapshot (${usdHr(snapFee)}); deploy it fresh instead`);
-      }
-      const { deployments } = await addresses();
-      return { id: full, owner: d.owner, from: d.appRef, to: `catalog://${app.appId}/${vi}`, version: ver.version,
-        transactions: [encodeSetAppRefTx({ deployments, id: full, appRef: `catalog://${app.appId}/${vi}` })],
-        next: `sign+send with the owner wallet (${d.owner}), then claim_hint { id: "${full}" }` };
-    },
+    description: "Unsigned transaction(s) switching a deployment to another version of its app (paid time and the endpoint carry over; the runner restarts it in place). Optional gpuShare/cpuShare RE-BUY the deployment's shares in the same transaction (rev-6 ledgers: the rate is recalculated at the current list prices, and a live lease settles at the old rate before re-burning at the new one) - version change + resize ride ONE multicall. Validates approval, share fit, the platform GPU cap, and the publisher-fee snapshot, like the CLI. Default: the app's latest approved version.",
+    inputSchema: S({ id: P.id, version: { type: "string", description: "Target version label (default: latest approved)" },
+      gpuShare: { type: "number", description: "New GPU share, fraction of one card 0..1 (omit to keep the bought share)" },
+      cpuShare: { type: "number", description: "New CPU share, fraction of one node 0..1 (omit to keep the bought share)" } }, ["id"]),
+    handler: (a) => upgradeOrResize(a, false),
+  },
+  {
+    name: "build_resize",
+    description: "Unsigned setShares transaction re-buying a deployment's gpu/cpu shares WITHOUT changing versions (rev-6 ledgers): the rate is recalculated at the current list prices; a live lease's unserved tail settles at the old rate before re-burning at the new one, and the holding runner re-slices the app in place within ~a minute (or releases the lease, tail refunded, so an enclave that fits the new size claims it). Refuses dials below the running version's minimums, and fleets that don't re-slice live deployments.",
+    inputSchema: S({ id: P.id,
+      gpuShare: { type: "number", description: "New GPU share, fraction of one card 0..1" },
+      cpuShare: { type: "number", description: "New CPU share, fraction of one node 0..1" } }, ["id"]),
+    handler: (a) => upgradeOrResize(a, true),
   },
   {
     name: "get_config",

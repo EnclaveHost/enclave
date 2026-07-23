@@ -116,6 +116,18 @@ test("setAppRef (the dashboard's Version control) pins + encodes like viem", () 
     encodeFunctionData({ abi: ABI("EnclaveDeployments"), functionName: "setAppRef", args: [id, ref] }));
 });
 
+test("setShares + multicall (the dashboard's resize control) pin + encode like viem", () => {
+  eq("0x" + DEP_SEL.setShares, toFunctionSelector("function setShares(bytes32 id, uint16 gpuMilli, uint16 cpuMilli)"));
+  eq("0x" + DEP_SEL.multicall, toFunctionSelector("function multicall(bytes[] calls)"));
+  const id = "0x" + "ab".repeat(32), ref = "catalog://0x" + "cd".repeat(32) + "/7";
+  const shares = encCall(DEP_SEL.setShares, [{ t: "bytes32", v: id }, { t: "uint", v: 800 }, { t: "uint", v: 400 }]);
+  eq(shares, encodeFunctionData({ abi: ABI("EnclaveDeployments"), functionName: "setShares", args: [id, 800, 400] }));
+  // the combined upgrade+resize tx: two inner calls of different dynamic sizes
+  const inner = [encCall(DEP_SEL.setAppRef, [{ t: "bytes32", v: id }, { t: "str", v: ref }]), shares];
+  eq(encCall(DEP_SEL.multicall, [{ t: "bytes[]", v: inner }]),
+    encodeFunctionData({ abi: ABI("EnclaveDeployments"), functionName: "multicall", args: [inner] }));
+});
+
 test("allowance funding pair (fund.js) encodes like viem", () => {
   // the code-bearing-payer path in site/js/core/fund.js: approve on the token,
   // then EnclaveDeployments.fund — pin both calldatas and the hand-pinned

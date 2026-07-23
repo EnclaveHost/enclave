@@ -65,15 +65,17 @@ via transaction instead of via one enclave's API).
 ## Contract summary (`EnclaveDeployments.sol`)
 
 - **`create(appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, configCid, feeRecipient, feePerSec6)`**
-  (schema rev 5 — rev-1 contracts carried an extra `sshPubKey` string here and in
+  (schema rev 6 — rev-1 contracts carried an extra `sshPubKey` string here and in
   the `Deployment` struct; consumers sniff `deploymentsSchema()` to pick the shape.
   Rev 3 keeps the rev-2 shapes byte-for-byte and only marks the `setAppRef`
   surface; rev 4 again keeps the struct byte-for-byte (the fee snapshot lives in
   a side mapping behind `feeOf(id)`) and adds the two fee args; rev 5 keeps every
   signature and only widens the `configCid` length bound from CID-sized (100
-  bytes) to envelope-sized (4096) — so struct decodes gate on `>= 2`, version
-  changes on `>= 3`, publisher fees on `>= 4`, and any options envelope over 100
-  bytes on `>= 5`: a rev-4 `create` reverts `"configCid length"` on one)
+  bytes) to envelope-sized (4096); rev 6 again keeps the struct byte-for-byte
+  and only marks the `setShares` surface (owner share resizes) — so struct
+  decodes gate on `>= 2`, version changes on `>= 3`, publisher fees on `>= 4`,
+  any options envelope over 100 bytes on `>= 5`: a rev-4 `create` reverts
+  `"configCid length"` on one, and share resizes on `>= 6`)
   — permissionless; inert until funded. `appRef` is `catalog://<appId>/<versionIndex>`,
   the on-chain record of the catalog VERSION to run (2026-07-09; CID refs are refused
   by runners — a CID names bytes, not a version). The record supplies the wasm,
@@ -108,8 +110,8 @@ via transaction instead of via one enclave's API).
   **Publisher fee (rev 4)**: a catalog version may declare a per-second
   publisher fee (`EnclaveAppCatalog.versionFee`, capped at publish). Clients
   copy it into `create` as `(feeRecipient = the app's publisher wallet,
-  feePerSec6)`; the pair is snapshotted (immutable, like the shares — read it
-  back with `feeOf(id)`), folded into `rate`, and capped by the owner-set
+  feePerSec6)`; the pair is snapshotted (immutable for the deployment's life,
+  resizes included — read it back with `feeOf(id)`), folded into `rate`, and capped by the owner-set
   `maxFeePerSec6` (`setMaxFee`, create-only like the GPU cap). The ledger
   still never parses appRefs: RUNNERS refuse to claim a deployment whose
   snapshot under-declares the referenced version's fee or names the wrong
@@ -154,11 +156,37 @@ via transaction instead of via one enclave's API).
   place on its next audit pass — new wasm prefetched before the old instance
   stops, so the gap is ≈ one relaunch — and an unclaimed deployment simply
   launches the new version when claimed. A change the runner can't apply
-  (unapproved target, minimums over the immutable bought shares, catalog
+  (unapproved target, minimums over the bought shares, catalog
   unreachable) keeps the OLD version serving and surfaces why on the record
   (`versionChange` in the status API), retrying every pass. The dashboard's
   Version control and the CLI's `upgrade` are this call, both pre-checking
   approval and share fit before the wallet signature.
+- **`setShares(id, gpuMilli, cpuMilli)`** (rev 6+; `deploymentsSchema() >= 6`
+  is the feature probe) — the owner's SHARE RESIZE, grow or shrink, typically
+  batched with `setAppRef` via `multicall` when a new version needs different
+  resources (one wallet signature for both). Same bounds as `create`,
+  `maxGpuMilli` cap included, and the **rate is recalculated at the CURRENT
+  list prices** plus the immutable fee snapshot: a resize is a new purchase
+  decision, exactly like create — deployments that never resize keep their
+  original snapshot, so price changes stay non-retroactive for them. A LIVE
+  lease is settled, never re-priced retroactively: the unserved tail refunds
+  at the OLD rate (the rate it was burned at — `release()`'s own arithmetic,
+  so `spent6` can't underflow), then re-burns at the NEW rate for as many of
+  those seconds as the balance affords; `leaseUntil` never extends, a grow the
+  balance can't fully cover just shrinks it (the runner renews or lapses
+  sooner), and a resize that couldn't fund one second reverts `"unfunded at
+  the new rate"` — top up first, a resize never silently kills a running app.
+  The serving runner sees the changed shares on its next audit pass and
+  re-gates them like a claim (app minimums, local capacity, fail closed): it
+  restarts the app in place on a re-sliced allocation, or — when the new size
+  doesn't fit its box, or the shares dropped below the version's minimums —
+  stops and RELEASES the lease (tail refunded) so an enclave that fits the new
+  record claims the work. Clients gate on the fleet-AND `shareResize`
+  availability flag before the signature: against a fleet whose runners
+  predate the share watch, the tx would change the billing while the served
+  slice silently didn't. The dashboard's Version-panel dials, the CLI's
+  `upgrade --gpu/--cpu` and `resize`, and MCP's `build_upgrade`/`build_resize`
+  are this call.
 - **`release(id)`** — graceful hand-back; refunds the unused lease tail to
   `balance6`. Called on clean shutdown, after the owner `setActive(false)`,
   or when provisioning fails right after a claim.
@@ -374,9 +402,12 @@ takeover) is harmless: the new runner is attested identically, app state is
 ephemeral by design, and both instances are the same measured CID.
 
 The same audit pass is where owner **version changes** land: a healthy record
-whose ledger row carries a different `appRef` (the owner sent `setAppRef`) is
-re-gated like a fresh claim and restarted in place onto the new version — see
-`switchTenantVersion` in `supervisor.js`.
+whose ledger row carries a different `appRef` (the owner sent `setAppRef`) or
+different bought shares (`setShares`, rev 6) is re-gated like a fresh claim and
+restarted in place onto the new record — the held slice is swapped for one at
+the new size, and a size this box can't fit (or shares below the version's
+minimums) stops the app and releases the lease so a fitting enclave claims
+it — see `switchTenantVersion` in `supervisor.js`.
 
 ### Graceful shutdown and restart
 

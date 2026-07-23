@@ -18,7 +18,7 @@ import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { $$, esc, hlJson, fmtDur, statusCls, copyText, showToast, lsGet, lsSet } from "../../js/core/util.js";
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
-import { pad32, encUint, encCall, DEP_SEL, APPROVAL, depPrices6, rate6Of, depGet, depSchemaRev, depFeeOf, catVersionFee, waitReceipt } from "../../js/core/chain.js";
+import { pad32, encUint, encCall, DEP_SEL, APPROVAL, depPrices6, rate6Of, depMaxGpuMilli, depGet, depSchemaRev, depFeeOf, catVersionFee, waitReceipt } from "../../js/core/chain.js";
 import { authenticate, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
 import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, STORE } from "../../js/core/catalog.js";
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
@@ -656,14 +656,14 @@ class Deployments extends EnclaveElement {
     box.hidden = false;
     box.innerHTML = '<div class="ap-attbar">change version · ' + esc(id) + '</div>'
       + '<div class="term enc-upg-status" role="status" aria-live="polite"><span class="ln dimln">// reading the ledger + catalog…</span></div>';
-    let d = null, rev = 1;
+    let d = null, rev = 1, avail = null;
     try {
       [rev, d] = await Promise.all([depSchemaRev(), depGet(id)]);
       await loadCatalog();
       // adopt the fleet's live hardware for the minimum-share floors (the
       // deploy dials' rule: a stale spec must over-ask, never under-sell an
       // unclaimable switch); the pre-fetch fallback constants already over-ask
-      try { adoptServerSpec(await Enclave.getAvailability()); } catch(e){}
+      try { avail = await Enclave.getAvailability(); adoptServerSpec(avail); } catch(e){}
     } catch(e){ d = null; }
     if (box.hidden || !box.isConnected) return;             // closed while loading
     const fail = (msg) => { box.querySelector(".enc-upg-status").innerHTML = ""; paintLine(box.querySelector(".enc-upg-status"), "warn", msg); };
@@ -687,9 +687,20 @@ class Deployments extends EnclaveElement {
         verFees[i] = (!v.yanked && v.approval === APPROVAL.approved) ? await catVersionFee(cr.appId, i) : 0n;
       }));
     } catch(e){ return fail("[x] couldn’t read the publisher fees involved - try again shortly"); }
+    // Resizable = a rev-6 ledger AND a fleet whose every live runner
+    // re-slices on setShares (fleet-AND flag: against an older fleet the tx
+    // would change the BILLING while the served slice silently didn't) AND
+    // readable list prices to preview the recalculated rate with. When it
+    // holds, share-misfit versions become selectable - the dials re-buy the
+    // shares in the same transaction (the contract's multicall).
+    let resizable = rev >= 6 && avail?.shareResize === true, prices = null, maxGpu = 1000;
+    if (resizable){
+      try { [prices, maxGpu] = await Promise.all([depPrices6(), depMaxGpuMilli()]); }
+      catch(e){ resizable = false; }
+    }
     // every approved, un-yanked version, newest first; the current one and the
-    // ones this deployment's immutable shares (or fee snapshot) can't cover
-    // render disabled
+    // ones the shares (or the immutable fee snapshot) can't cover render
+    // disabled - unless a resize can cover the share side
     const bought = { gpuMilli: Number(d.gpuMilli) || 0, cpuMilli: Number(d.cpuMilli) || 0 };
     const rows = app.versions
       .map((v, i) => ({ v, i, mins: minPctsOf(specOf(v)) }))
@@ -697,55 +708,120 @@ class Deployments extends EnclaveElement {
       .map(r => ({ ...r,
         shareFit: r.mins.gpuPct * 10 <= bought.gpuMilli && r.mins.cpuPct * 10 <= bought.cpuMilli,
         feeFit: (verFees[r.i] || 0n) <= snapFee }))
-      .map(r => ({ ...r, fits: r.shareFit && r.feeFit }))
+      .map(r => ({ ...r, fits: (r.shareFit || resizable) && r.feeFit }))
       .reverse();
     const others = rows.filter(r => r.i !== cr.index);
-    const pick = others.find(r => r.fits);                  // newest fitting release = the natural upgrade
-    if (!others.length)
+    const pick = others.find(r => r.fits);                  // newest servable release = the natural upgrade
+    if (!others.length && !resizable)
       return fail("// " + app.slug + " has no other approved version yet - new releases appear here once the catalog owner approves them");
     const selId = "euSel" + appLabel(id);
     box.innerHTML = '<div class="ap-attbar">change version · ' + esc(id) + '</div>'
       + '<div class="enc-upg-body">'
       +   '<label for="' + selId + '">Switch ' + esc(app.slug) + ' to</label>'
       +   '<select class="eu-sel" id="' + selId + '">'
-      +     rows.map(r => '<option value="' + r.i + '"' + ((r.i === cr.index || !r.fits) ? " disabled" : "") + (pick && r.i === pick.i ? " selected" : "") + '>'
+      +     rows.map(r => '<option value="' + r.i + '"' + (((r.i === cr.index && !resizable) || !r.fits) ? " disabled" : "") + (pick && r.i === pick.i ? " selected" : (!pick && r.i === cr.index ? " selected" : "")) + '>'
       +       esc(app.slug + ":" + r.v.version)
       +       (r.i === cr.index ? " · current" : "")
       +       (!r.shareFit && r.i !== cr.index ? " · needs ≥ " + (r.mins.gpuPct ? r.mins.gpuPct + "% GPU / " : "") + r.mins.cpuPct + "% CPU" : "")
       +       (r.shareFit && !r.feeFit && r.i !== cr.index ? " · charges $" + (Number(verFees[r.i]) * 3600 / 1e6).toFixed(2) + "/hr publisher fee (above this deployment’s snapshot)" : "")
       +     '</option>').join("")
       +   '</select>'
+      +   (resizable
+         ? '<div class="eu-dials">'
+         +   '<label for="' + selId + 'g">GPU %</label><input id="' + selId + 'g" class="eu-gpu" type="number" min="0" max="' + (maxGpu / 10) + '" step="1" value="' + (bought.gpuMilli / 10) + '">'
+         +   '<label for="' + selId + 'c">CPU %</label><input id="' + selId + 'c" class="eu-cpu" type="number" min="1" max="100" step="1" value="' + (bought.cpuMilli / 10) + '">'
+         + '</div>'
+         : '')
       +   '<button class="btn btn-sm btn-primary eu-go" type="button">Change version</button>'
       + '</div>'
       + '<div class="term enc-upg-status" role="status" aria-live="polite"></div>';
     const sel = box.querySelector(".eu-sel"), go = box.querySelector(".eu-go"), st = box.querySelector(".enc-upg-status");
+    const gIn = box.querySelector(".eu-gpu"), cIn = box.querySelector(".eu-cpu");
     const paint = (cls, txt) => paintLine(st, cls, txt);
-    paint("info", "// paid time carries over: the runner restarts the app in place on the chosen version (~a minute); the endpoint and balance don’t change, app state is ephemeral");
-    if (others.some(r => !r.shareFit))
-      paint("dimln", "// disabled entries need more than this deployment’s " + (bought.gpuMilli ? (bought.gpuMilli / 10) + "% GPU / " : "") + (bought.cpuMilli / 10) + "% CPU - shares are immutable, those need a fresh deploy");
-    if (others.some(r => r.shareFit && !r.feeFit))
-      paint("dimln", "// entries charging a higher publisher fee than this deployment snapshotted at create need a fresh deploy - the fee snapshot is immutable, like the shares");
-    const upd = () => { const r = rows.find(x => String(x.i) === sel.value); go.disabled = !r || r.i === cr.index || !r.fits; };
-    sel.addEventListener("change", upd); upd();
+    const intro = () => {
+      paint("info", "// paid time carries over: the runner restarts the app in place (~a minute); the endpoint and balance don’t change, app state is ephemeral");
+      if (resizable)
+        paint("dimln", "// the dials re-buy this deployment’s shares in the same transaction - the hourly rate is recalculated at the CURRENT list prices, and a live lease settles at the old rate first");
+      if (others.some(r => !r.shareFit) && !resizable)
+        paint("dimln", "// disabled entries need more than this deployment’s " + (bought.gpuMilli ? (bought.gpuMilli / 10) + "% GPU / " : "") + (bought.cpuMilli / 10) + "% CPU - " + (rev >= 6 ? "the fleet doesn’t re-slice live deployments yet" : "this ledger’s shares are immutable") + ", those need a fresh deploy");
+      if (others.some(r => r.shareFit && !r.feeFit))
+        paint("dimln", "// entries charging a higher publisher fee than this deployment snapshotted at create need a fresh deploy - the fee snapshot is immutable");
+    };
+    // target shares off the dials (milli, percent grain), floored per selection
+    const dials = () => ({
+      gpuMilli: gIn ? Math.max(0, Math.min(1000, Math.round(Number(gIn.value || 0)) * 10)) : bought.gpuMilli,
+      cpuMilli: cIn ? Math.max(10, Math.min(1000, Math.round(Number(cIn.value || 0)) * 10)) : bought.cpuMilli,
+    });
+    const upd = () => {
+      const r = rows.find(x => String(x.i) === sel.value);
+      st.innerHTML = ""; intro();
+      if (!r || !r.fits){ go.disabled = true; return; }
+      if (resizable && gIn && cIn){
+        // raising the floors to the selected version's minimums beats a dead
+        // Apply button: the deploy form's rule, applied to the switch
+        if (Math.round(Number(gIn.value || 0)) < r.mins.gpuPct) gIn.value = r.mins.gpuPct;
+        if (Math.round(Number(cIn.value || 0)) < Math.max(1, r.mins.cpuPct)) cIn.value = Math.max(1, r.mins.cpuPct);
+        gIn.min = r.mins.gpuPct; cIn.min = Math.max(1, r.mins.cpuPct);
+        const t = dials();
+        if (t.gpuMilli > 0 && t.gpuMilli < t.cpuMilli) { gIn.value = t.cpuMilli / 10; t.gpuMilli = t.cpuMilli; } // contract: gpuMilli >= cpuMilli
+        const resized = t.gpuMilli !== bought.gpuMilli || t.cpuMilli !== bought.cpuMilli;
+        const verChange = r.i !== cr.index;
+        go.textContent = verChange && resized ? "Change version + resize" : resized ? "Resize" : "Change version";
+        go.disabled = !verChange && !resized;
+        if (t.gpuMilli > maxGpu){ paint("warn", "// GPU over the platform’s per-deployment cap of " + (maxGpu / 10) + "%"); go.disabled = true; return; }
+        if (resized){
+          const newRate = rate6Of(prices, t.gpuMilli, t.cpuMilli) + snapFee;
+          const oldRate = BigInt(Math.round(Number(d.rate) || 0));
+          const bal = Number(d.balance6 || 0);
+          paint("dimln", "// rate $" + (Number(oldRate) * 3600 / 1e6).toFixed(2) + "/h -> $" + (Number(newRate) * 3600 / 1e6).toFixed(2) + "/h"
+            + (bal > 0 && Number(newRate) > 0 ? " · remaining balance buys ≈ " + fmtDur(bal / Number(newRate)) : ""));
+          if (Number(d.leaseUntil) * 1000 > Date.now()){
+            const tail = Math.max(0, Number(d.leaseUntil) - Math.floor(Date.now() / 1000));
+            if (BigInt(bal) + BigInt(tail) * oldRate < newRate){
+              paint("warn", "// the remaining balance can’t fund even one second at the new rate - top it up first");
+              go.disabled = true;
+            }
+          }
+        }
+      } else {
+        go.disabled = r.i === cr.index || !r.fits;
+      }
+    };
+    sel.addEventListener("change", upd);
+    if (gIn) gIn.addEventListener("input", upd);
+    if (cIn) cIn.addEventListener("input", upd);
+    upd();
     go.addEventListener("click", async () => {
       const r = rows.find(x => String(x.i) === sel.value);
-      if (!r || r.i === cr.index || !r.fits) return;
+      if (!r || !r.fits) return;
+      const t = dials();
+      const resized = resizable && (t.gpuMilli !== bought.gpuMilli || t.cpuMilli !== bought.cpuMilli);
+      const verChange = r.i !== cr.index;
+      if (!verChange && !resized) return;
       go.disabled = true;
       const via = ctlOf((this._list || []).find(x => x.id === id)) === "vault";
+      const doneWord = verChange ? "switched to " + app.slug + ":" + r.v.version + (resized ? " at " + (t.gpuMilli / 10) + "% GPU / " + (t.cpuMilli / 10) + "% CPU" : "")
+                                 : "resized to " + (t.gpuMilli / 10) + "% GPU / " + (t.cpuMilli / 10) + "% CPU";
       try {
         if (via){
           // credit-vault row: the vault owns the deployment on-chain, so the
-          // switch is a passkey-signed controlDeployment(setAppRef) via the relay
-          paint("info", "[*] confirm the version change with your passkey…");
+          // change is a passkey-signed controlDeployment op via the relay
+          paint("info", "[*] confirm the change with your passkey…");
           const { vaultOp } = await import("../../js/core/vault.js");
-          await vaultOp("control", { id, action: "version", ref: catalogRef(cr.appId, r.i) });
+          await vaultOp("control", resized
+            ? { id, action: "resize", gpuMilli: t.gpuMilli, cpuMilli: t.cpuMilli, ...(verChange ? { ref: catalogRef(cr.appId, r.i) } : {}) }
+            : { id, action: "version", ref: catalogRef(cr.appId, r.i) });
         } else {
-          // no SIWE: the setAppRef tx is owner-gated on-chain - a connected wallet is all this needs
+          // no SIWE: setAppRef/setShares are owner-gated on-chain - a connected
+          // wallet is all this needs; both changes ride ONE multicall signature
           if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
           await ensureBaseChain();
-          paint("info", "[*] confirm the version-change transaction in your wallet…");
-          const th = await sendTx(DEPLOYMENTS_ADDRESS, encCall(DEP_SEL.setAppRef,
-            [{ t: "bytes32", v: id }, { t: "str", v: catalogRef(cr.appId, r.i) }]));
+          paint("info", "[*] confirm the transaction in your wallet…");
+          const calls = [];
+          if (verChange) calls.push(encCall(DEP_SEL.setAppRef, [{ t: "bytes32", v: id }, { t: "str", v: catalogRef(cr.appId, r.i) }]));
+          if (resized) calls.push(encCall(DEP_SEL.setShares, [{ t: "bytes32", v: id }, { t: "uint", v: t.gpuMilli }, { t: "uint", v: t.cpuMilli }]));
+          const th = await sendTx(DEPLOYMENTS_ADDRESS,
+            calls.length > 1 ? encCall(DEP_SEL.multicall, [{ t: "bytes[]", v: calls }]) : calls[0]);
           paint("dimln", "  ↳ sent " + th + " · waiting for confirmation…");
           await waitReceipt(th);
         }
@@ -754,8 +830,8 @@ class Deployments extends EnclaveElement {
         // running one is restarted by its own runner's next ledger pass)
         fetch(Enclave.base + "/claim-hint", { method: "POST",
           headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) }).catch(() => {});
-        paint("ok", "[✓] switched to " + app.slug + ":" + r.v.version + " - the runner applies it within a minute; paid time and the endpoint carry over");
-        showToast("switched " + id.slice(0, 10) + "… to " + app.slug + ":" + r.v.version);
+        paint("ok", "[✓] " + doneWord + " - the runner applies it within a minute; paid time and the endpoint carry over");
+        showToast(doneWord.replace(/^switched/, "switched " + id.slice(0, 10) + "…").replace(/^resized/, "resized " + id.slice(0, 10) + "…"));
         setTimeout(() => { if (box.isConnected && !box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); } this.refresh(); }, 3500);
       } catch(e){
         const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
