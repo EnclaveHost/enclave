@@ -33,9 +33,12 @@ export const DEP_SEL = { create:"e99c6ae0",   // rev >= 4: (..., configCid, feeR
                          fund:"e46bbc9e", fundAuth:"209c0069", fundEth:"9f33dca0", get:"8eaa6ac0",
                          price:"1e897c58", cpuPrice:"3f6195cc", setActive:"6485d678", setAppRef:"4d506615", maxGpuMilli:"4c8c5963",
                          feeOf:"430062bd", maxFeePerSec6:"95b957d7",
+                         setShares:"00bc2be4",  // rev >= 6: owner share resize, rate recalculated at current prices
+                         multicall:"ac9650d8", // self-delegatecall batcher: setAppRef + setShares ride one signature
                          deploymentsSchema:"5d1b72b6" };  // shape-revision marker (reverts on rev-1 contracts;
                                                          // rev 3 = rev-2 struct + setAppRef version changes;
-                                                         // rev 4 = same struct + the publisher-fee surface)
+                                                         // rev 4 = same struct + the publisher-fee surface;
+                                                         // rev 6 = same struct + the setShares resize surface)
 export const DEP_CREATED_TOPIC = "0x3b201eb11e77934b296f908775fc0a82679683fd83a1232579f1014bcf7d3239"; // Created(bytes32,address,string,uint16,uint16,uint256)
 export const DEP_SCHEMA = [   // mirrors EnclaveDeployments.Deployment field order exactly (schema rev 2)
   {k:"id",t:"bytes32"},{k:"owner",t:"addr"},{k:"appRef",t:"str"},{k:"ports",t:"str"},
@@ -273,7 +276,7 @@ export function encStr(s){
   for (const x of b) h += x.toString(16).padStart(2, "0");
   return { body: encUint(b.length) + h.padEnd(Math.ceil(h.length / 64) * 64, "0"), words: 1 + Math.ceil(b.length / 32) };
 }
-// args: [{t:'str'|'uint'|'bool'|'addr'|'bytes32'|'bytes32[]', v}]; head (offsets/inline) then dynamic tails.
+// args: [{t:'str'|'uint'|'bool'|'addr'|'bytes32'|'bytes32[]'|'bytes[]', v}]; head (offsets/inline) then dynamic tails.
 export function encCall(selector, args){
   let off = args.length * 32; const heads = [], bodies = [];
   for (const a of args){
@@ -282,6 +285,17 @@ export function encCall(selector, args){
       const items = a.v.map(x => pad32(String(x).replace(/^0x/, "")));
       heads.push(encUint(off)); off += (1 + items.length) * 32;
       bodies.push(encUint(items.length) + items.join(""));
+    }
+    else if (a.t === "bytes[]"){
+      // dynamic array of dynamic bytes (multicall's calldata list): length,
+      // then per-item offsets relative to the array body, then each item as
+      // len + right-padded data - verified against viem in test/
+      const items = a.v.map(x => { const h = String(x).replace(/^0x/, "");
+        return encUint(h.length / 2) + h.padEnd(Math.ceil(h.length / 64) * 64, "0"); });
+      let ioff = items.length * 32; const iheads = [];
+      for (const it of items){ iheads.push(encUint(ioff)); ioff += it.length / 2; }
+      heads.push(encUint(off)); off += 32 + ioff;
+      bodies.push(encUint(items.length) + iheads.join("") + items.join(""));
     }
     else if (a.t === "uint") heads.push(encUint(a.v));
     else if (a.t === "bool") heads.push(encUint(a.v ? 1 : 0));

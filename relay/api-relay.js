@@ -772,6 +772,11 @@ function aggregateAvailability() {
     // place, a config change restarts the app on the new value): fleet-AND -
     // on false an edit still lands on-chain but only applies at re-claim
     configEdit: live.length > 0 && live.every((e) => e.availability?.configEdit === true),
+    // setShares reaches LIVE deployments (audit share watch: re-slice +
+    // restart in place, or hand the lease to a box that fits): fleet-AND —
+    // on false a resize tx would change the BILLING while the served slice
+    // silently didn't, so clients refuse to send it against an older fleet
+    shareResize: live.length > 0 && live.every((e) => e.availability?.shareResize === true),
     // per-deployment secrets (relay-stored, injected as guest env by the lease
     // holder): needs BOTH this relay configured (SECRETS_KEY + data dir) and a
     // fleet-AND of runners that fetch+inject — a mixed fleet would run the same

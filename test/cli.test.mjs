@@ -78,6 +78,7 @@ const S = {
   device: null,                                // the in-flight device-flow login (`enclave login`)
   catRev: 4n,                                  // catalogSchema the stub plays (4 = the live pre-fee catalog)
   verFee: 0n,                                  // versionFee(appId, *) on the rev-5 catalog (µUSDC/s)
+  fleetResize: true,                           // availability.shareResize (fleet-AND; resize tests flip it)
 };
 
 function apiServer() {
@@ -115,7 +116,8 @@ function apiServer() {
         billingIncrementSeconds: 1,
       });
     if (u.pathname === "/availability")
-      return json(200, { aggregate: true, enclaves: 2, gpuShareFree: 0.5, cpuShareFree: 0.9 });
+      return json(200, { aggregate: true, enclaves: 2, gpuShareFree: 0.5, cpuShareFree: 0.9,
+                         shareResize: S.fleetResize });
     if (u.pathname === "/v1/claim-hint") { S.claimed = true; return json(200, { accepted: true, status: "sweeping" }); }
     if (u.pathname === "/v1/apps/upload-token" && req.method === "POST") {
       // wallet-signed upload authorization: recover the signer from the
@@ -469,6 +471,63 @@ test("upgrade to the version already running is a no-op", async () => {
   assert.ok(!S.txs.length, "no tx sent");
   assert.match(r.out, /already runs hello-world:1/);
   S.versionCount = 1; S.v2 = null;
+});
+
+test("upgrade --cpu on a rev-6 ledger: setAppRef + setShares ride one multicall", async () => {
+  S.txs.length = 0; S.claimed = true; S.versionCount = 2; S.v2 = { memMb: 64, cpuGflops: 2 }; S.depRev = 6n;
+  const r = await run(["upgrade", ID, "--cpu", "0.2"]);
+  assert.equal(r.code, 0, r.err);
+  const tx = S.txs.find((t) => t.functionName === "multicall");
+  assert.ok(tx, "multicall tx sent (one signature for both)");
+  const inner = tx.args[0].map((data) => decodeFunctionData({ abi: DEP_ABI, data }));
+  assert.equal(inner[0].functionName, "setAppRef");
+  assert.equal(inner[0].args[1], `catalog://${APP_ID}/1`);
+  assert.equal(inner[1].functionName, "setShares");
+  assert.equal(inner[1].args[1], 0);                        // gpu untouched
+  assert.equal(inner[1].args[2], 200);                      // --cpu 0.2 = 200 milli
+  assert.match(r.out, /switched to hello-world:2 at gpu 0% \/ cpu 20%/);
+  S.versionCount = 1; S.v2 = null; S.claimed = false; S.depRev = 3n;
+});
+
+test("resize: setShares alone, staying on the current version", async () => {
+  S.txs.length = 0; S.depRev = 6n;
+  const r = await run(["resize", ID, "--cpu", "0.5"]);
+  assert.equal(r.code, 0, r.err);
+  const tx = S.txs.find((t) => t.functionName === "setShares");
+  assert.ok(tx, "setShares tx sent");
+  assert.equal(tx.args[0].toLowerCase(), ID.toLowerCase());
+  assert.equal(tx.args[1], 0);
+  assert.equal(tx.args[2], 500);
+  assert.ok(!S.txs.some((t) => t.functionName === "setAppRef"), "no version change");
+  assert.match(r.out, /resized at gpu 0% \/ cpu 50%/);
+  S.depRev = 3n;
+});
+
+test("resize refuses a fleet that doesn't re-slice live deployments (fail closed)", async () => {
+  S.txs.length = 0; S.depRev = 6n; S.fleetResize = false;
+  const r = await run(["resize", ID, "--cpu", "0.5"]);
+  assert.notEqual(r.code, 0, "must refuse");
+  assert.ok(!S.txs.length, "no tx sent");
+  assert.match(r.err, /doesn't apply share resizes/);
+  S.depRev = 3n; S.fleetResize = true;
+});
+
+test("resize on a pre-rev-6 ledger fails with words, before any signature", async () => {
+  S.txs.length = 0;                                         // depRev 3: the live pre-resize ledger
+  const r = await run(["resize", ID, "--cpu", "0.5"]);
+  assert.notEqual(r.code, 0, "must refuse");
+  assert.ok(!S.txs.length, "no tx sent");
+  assert.match(r.err, /predates share resizes/);
+});
+
+test("upgrade suggests the in-place resize dials when the version outgrows the shares (rev 6)", async () => {
+  S.txs.length = 0; S.versionCount = 2; S.v2 = { memMb: 51200 }; S.depRev = 6n;
+  const r = await run(["upgrade", ID, "2"]);
+  assert.notEqual(r.code, 0, "must refuse before any signature");
+  assert.ok(!S.txs.length, "no tx sent");
+  assert.match(r.err, /resize it in place/);
+  assert.match(r.err, /--cpu 1\b/);                         // the exact dial that would fit
+  S.versionCount = 1; S.v2 = null; S.depRev = 3n;
 });
 
 test("publish: validates the component, pins, cuts a catalog version", async () => {

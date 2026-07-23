@@ -25,8 +25,8 @@ import { createHash, createHmac } from "node:crypto";
 import { decodeFunctionData } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-import { encodeCreateTx, encodeFundTxs, encodeSetActiveTx, encodeSetAppRefTx, encodeSetConfigTx, encodePublishTx }
-  from "../relay/mcp.js";
+import { encodeCreateTx, encodeFundTxs, encodeSetActiveTx, encodeSetAppRefTx, encodeSetSharesTx, encodeResizeTx,
+  encodeSetConfigTx, encodePublishTx } from "../relay/mcp.js";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const RELAY_DIR = path.join(ROOT, "relay");
@@ -92,6 +92,24 @@ test("mcp encoders: setActive / setAppRef decode against the ledger ABI", () => 
   const up = decodeFunctionData({ abi: DEPS_ABI, data: encodeSetAppRefTx({ deployments: D, id: ID, appRef: "catalog://" + ID + "/3" }).data });
   assert.equal(up.functionName, "setAppRef");
   assert.deepEqual(up.args, [ID, "catalog://" + ID + "/3"]);
+});
+
+test("mcp encoders: setShares / resize multicall decode against the ledger ABI", () => {
+  const rs = decodeFunctionData({ abi: DEPS_ABI, data: encodeSetSharesTx({ deployments: D, id: ID, gpuMilli: 800, cpuMilli: 400 }).data });
+  assert.equal(rs.functionName, "setShares");
+  assert.deepEqual(rs.args, [ID, 800, 400]);
+  // a pure resize (no appRef) is setShares alone
+  const pure = decodeFunctionData({ abi: DEPS_ABI, data: encodeResizeTx({ deployments: D, id: ID, gpuMilli: 100, cpuMilli: 100 }).data });
+  assert.equal(pure.functionName, "setShares");
+  // version change + resize ride one multicall whose inner calls decode too
+  const ref = "catalog://" + ID + "/3";
+  const mc = decodeFunctionData({ abi: DEPS_ABI, data: encodeResizeTx({ deployments: D, id: ID, appRef: ref, gpuMilli: 800, cpuMilli: 400 }).data });
+  assert.equal(mc.functionName, "multicall");
+  const inner = mc.args[0].map((data) => decodeFunctionData({ abi: DEPS_ABI, data }));
+  assert.equal(inner[0].functionName, "setAppRef");
+  assert.deepEqual(inner[0].args, [ID, ref]);
+  assert.equal(inner[1].functionName, "setShares");
+  assert.deepEqual(inner[1].args, [ID, 800, 400]);
 });
 
 test("mcp encoders: setConfig decodes against the ledger ABI (envelope and empty)", () => {

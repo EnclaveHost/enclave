@@ -52,6 +52,24 @@ test("buildControlCall encodes the vault's two allowlisted ledger calls, pinned 
   await assert.rejects(buildControlCall(id, "terminate"), /unknown control action/);
 });
 
+test("buildControlCall resize: setShares alone, or a multicall with a version change", async () => {
+  const { toFunctionSelector, decodeFunctionData } = await import("viem");
+  const id = "0x" + "ab".repeat(32);
+  const sharesAbi = [{ type: "function", name: "setShares", inputs: [{ type: "bytes32" }, { type: "uint16" }, { type: "uint16" }], outputs: [] }];
+  const pure = await buildControlCall(id, "resize", undefined, { gpuMilli: 800, cpuMilli: 400 });
+  assert.equal(pure.slice(0, 10), toFunctionSelector("setShares(bytes32,uint16,uint16)"));
+  assert.deepEqual(decodeFunctionData({ abi: sharesAbi, data: pure }).args, [id, 800, 400]);
+  // with a ref the two calls ride one multicall - every inner selector is one
+  // the vault contract allowlists
+  const both = await buildControlCall(id, "resize", "catalog://3/2", { gpuMilli: 500, cpuMilli: 250 });
+  assert.equal(both.slice(0, 10), toFunctionSelector("multicall(bytes[])"));
+  const mcAbi = [{ type: "function", name: "multicall", inputs: [{ type: "bytes[]" }], outputs: [{ type: "bytes[]" }] }];
+  const inner = decodeFunctionData({ abi: mcAbi, data: both }).args[0];
+  assert.equal(inner[0].slice(0, 10), toFunctionSelector("setAppRef(bytes32,string)"));
+  assert.equal(inner[1].slice(0, 10), toFunctionSelector("setShares(bytes32,uint16,uint16)"));
+  assert.deepEqual(decodeFunctionData({ abi: sharesAbi, data: inner[1] }).args, [id, 500, 250]);
+});
+
 test("floatSweepAmount: hysteresis band, sweep-to-target above the ceiling", () => {
   const T = 200_000000n, C = 400_000000n;          // $200 target, $400 ceiling
   assert.equal(floatSweepAmount(0n, T, C), 0n);                       // empty float: nothing to sweep

@@ -205,6 +205,57 @@ contract EnclaveCreditVaultTest is Test {
         vault.controlDeployment(evil, deadline, w2);
     }
 
+    function _controlDigest(bytes memory callData, uint256 deadline) internal view returns (bytes32) {
+        return keccak256(abi.encode(keccak256("EnclaveVault.controlDeployment.v1"), address(vault),
+            block.chainid, vault.nonce(), keccak256(callData), deadline));
+    }
+
+    function test_controlSetShares() public {
+        bytes memory cc = _createCall();
+        uint256 deadline = block.timestamp + 300;
+        bytes32 id = vault.deployAndFund(cc, 10e6, deadline, _sig(PK1, _deployDigest(cc, 10e6, deadline)));
+
+        bytes memory resize = abi.encodeWithSignature("setShares(bytes32,uint16,uint16)", id, uint16(800), uint16(400));
+        vault.controlDeployment(resize, deadline, _sig(PK1, _controlDigest(resize, deadline)));
+        assertEq(dep.gpuMilliOf(id), 800);
+        assertEq(dep.cpuMilliOf(id), 400);
+    }
+
+    function test_controlMulticall_versionPlusResize_oneSignature() public {
+        bytes memory cc = _createCall();
+        uint256 deadline = block.timestamp + 300;
+        bytes32 id = vault.deployAndFund(cc, 10e6, deadline, _sig(PK1, _deployDigest(cc, 10e6, deadline)));
+
+        bytes[] memory calls = new bytes[](2);
+        calls[0] = abi.encodeWithSignature("setAppRef(bytes32,string)", id, "catalog://app/2");
+        calls[1] = abi.encodeWithSignature("setShares(bytes32,uint16,uint16)", id, uint16(500), uint16(250));
+        bytes memory mc = abi.encodeWithSignature("multicall(bytes[])", calls);
+        vault.controlDeployment(mc, deadline, _sig(PK1, _controlDigest(mc, deadline)));
+        assertEq(dep.appRefOf(id), "catalog://app/2");
+        assertEq(dep.gpuMilliOf(id), 500);
+    }
+
+    function test_controlMulticall_innerFundRejected() public {
+        bytes memory cc = _createCall();
+        uint256 deadline = block.timestamp + 300;
+        bytes32 id = vault.deployAndFund(cc, 10e6, deadline, _sig(PK1, _deployDigest(cc, 10e6, deadline)));
+
+        // an allowed head must not smuggle a fund-moving inner call through
+        bytes[] memory calls = new bytes[](2);
+        calls[0] = abi.encodeWithSignature("setAppRef(bytes32,string)", id, "catalog://app/2");
+        calls[1] = abi.encodeWithSignature("fund(bytes32,uint256)", id, 1);
+        bytes memory mc = abi.encodeWithSignature("multicall(bytes[])", calls);
+        EnclaveCreditVault.WebAuthnSig memory w = _sig(PK1, _controlDigest(mc, deadline));
+        vm.expectRevert(bytes("inner selector not allowed"));
+        vault.controlDeployment(mc, deadline, w);
+
+        // and an empty batch is refused rather than silently passing
+        bytes memory empty = abi.encodeWithSignature("multicall(bytes[])", new bytes[](0));
+        EnclaveCreditVault.WebAuthnSig memory w2 = _sig(PK1, _controlDigest(empty, deadline));
+        vm.expectRevert(bytes("empty multicall"));
+        vault.controlDeployment(empty, deadline, w2);
+    }
+
     // ---- refund + keys ----------------------------------------------------------
 
     function test_refundGoesOnlyToTreasury() public {

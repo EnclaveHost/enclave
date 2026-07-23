@@ -707,7 +707,26 @@ function needsVersionSwitch(status, localRef, chainRef) {
   return status === "running" && !!chainRef && !!localRef && chainRef !== localRef;
 }
 
-// SWITCH_SELFTEST='{"switch":[{status,localRef,chainRef}],"backoff":[{entry,nowMs,appRef}]}'
+// ---- owner share resize (setShares, ledger rev 6): does the record re-slice? -
+// Pure core of the audit's in-place resize: a RUNNING record whose ledger row
+// carries different bought shares must re-gate and restart on a re-sliced
+// allocation — the rate already changed on-chain, so serving the old size
+// would bill the user for capacity they don't get (or the platform for
+// capacity it doesn't sell). "stamp" = a record persisted by a pre-resize
+// release with no _shares field: adopt what it is CURRENTLY serving
+// (reconstructed from its quantized resources) without a restart; the next
+// pass compares that stamp against the ledger, so a resize landing in the
+// rollout window is still caught one pass later. Non-running states leave the
+// new shares to the normal claim paths, exactly like needsVersionSwitch.
+function shareResizeVerdict(status, localShares, chainGpuMilli, chainCpuMilli) {
+  if (status !== "running") return "skip";
+  if (!localShares) return "stamp";
+  return Number(localShares.gpuMilli) === Number(chainGpuMilli)
+      && Number(localShares.cpuMilli) === Number(chainCpuMilli) ? "skip" : "resize";
+}
+
+// SWITCH_SELFTEST='{"switch":[{status,localRef,chainRef}],"backoff":[{entry,nowMs,appRef}],
+//                   "resize":[{status,localShares,gpuMilli,cpuMilli}]}'
 // prints each helper mapped over its inputs as one JSON line and exits — same
 // contract as the seams above (test/version-switch.test.mjs drives it).
 // (Function declarations hoist, so provisionBackoffHolds resolves from here.)
@@ -716,6 +735,7 @@ if (process.env.SWITCH_SELFTEST) {
   console.log(JSON.stringify({
     switch: (c.switch || []).map((x) => needsVersionSwitch(x.status, x.localRef, x.chainRef)),
     backoff: (c.backoff || []).map((x) => provisionBackoffHolds(x.entry, x.nowMs, x.appRef)),
+    resize: (c.resize || []).map((x) => shareResizeVerdict(x.status, x.localShares, x.gpuMilli, x.cpuMilli)),
   }));
   process.exit(0);
 }
@@ -2226,6 +2246,7 @@ app.get("/availability", async (_req, res) => {
     waf: true,   // this build accepts + enforces the deployment-options envelope (waf); the relay ANDs this across the fleet and the console shows the Protection controls only then
     configOverride: true,   // this build accepts the envelope's `config` namespace (per-deployment app-config override); same fleet-AND rule — the console unlocks the App config box only when every live runner honors it
     configEdit: true,   // this build's audit re-applies an owner's setConfig to LIVE deployments (waf live-swapped, config = restart in place); without it an edit only lands at the next re-claim — same fleet-AND rule
+    shareResize: true,   // this build's audit re-slices a LIVE deployment on an owner's setShares (rev-6 ledgers); without it the billing would change while the served slice silently didn't — same fleet-AND rule, clients refuse the tx against an older fleet
     secrets: true,   // this build pulls relay-staged per-deployment secrets into the guest env at every launch; fleet-AND'd with the relay's own secretsEnabled() before clients see it
     secretsInConfig: true,   // this build also resolves $NAME/${NAME} placeholders in config STRING values from those secrets at launch (wasm-manager _subst_secrets); same fleet-AND rule
     source, ...(note ? { note } : {}), updatedAt: new Date().toISOString(),
@@ -4323,28 +4344,53 @@ async function renewLeases() {
   }
 }
 
-// Owner repointed a SERVING deployment at another catalog version (setAppRef):
-// upgrade IN PLACE. Same lease, same slice, same balance — only the artifact
-// changes: re-gate the new record exactly like a claim (catalog approval +
-// minimum shares, fail closed), prefetch the new wasm BEFORE stopping the old
-// instance (downtime ≈ one relaunch), then relaunch through the normal
-// provisioning path. A refused or unreachable gate keeps the OLD version
-// serving — an upgrade tx racing an approval flip must never leave the user
-// dark; the refusal is logged on change, surfaced on the record
-// (rec.versionChange, the console polls it), and retried every audit pass.
+// Owner repointed a SERVING deployment at another catalog version (setAppRef)
+// and/or re-bought its shares (setShares, ledger rev 6 — the two ride one
+// multicall when a new version needs different resources): upgrade IN PLACE.
+// Same lease, same balance — the artifact and/or the slice change: re-gate the
+// new record exactly like a claim (catalog approval + minimum shares against
+// the row's CURRENT shares, fail closed), prefetch the new wasm BEFORE
+// stopping the old instance (downtime ≈ one relaunch), swap the held slice
+// when the shares changed, then relaunch through the normal provisioning
+// path. A refused or unreachable gate keeps the OLD version serving — an
+// upgrade tx racing an approval flip must never leave the user dark; the
+// refusal is logged on change, surfaced on the record (rec.versionChange, the
+// console polls it), and retried every audit pass. EXCEPT when the shares
+// changed and the refusal is structural (not transient): the billing already
+// moved on-chain, so serving the old size would charge the user for capacity
+// they don't get (or serve capacity the platform no longer sells) — evict
+// instead: stop, release the slice AND the lease (tail refunded), and let an
+// enclave that fits the new record claim it. Same eviction when the resized
+// slice cannot be allocated here.
 async function switchTenantVersion(rec, d) {
   const to = d.appRef;
+  const resize = shareResizeVerdict(rec.status, rec._shares, d.gpuMilli, d.cpuMilli) === "resize";
+  const evict = async (why) => {
+    console.warn(`[claim] ${rec.id} resized shares cannot be served here: ${why}; releasing so a fitting enclave claims it`);
+    try { await stopContainer(rec); } catch {}
+    if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
+    rec.status = "expired";          // CLAIM_TERMINAL: any enclave (this one included) may re-adopt at the new size
+    rec.error = "share resize: " + why;
+    delete rec.versionChange;
+    releaseLease(rec.id, "share resize: " + why).catch(() => {});
+    saveStateSoon();
+  };
   const refuse = (why, transient) => {
+    if (resize && !transient) return evict(why);
     if (rec.versionChange?.error !== why)
       console.warn(`[claim] ${rec.id} version change to ${to} ${transient ? "deferred" : "refused"}: ${why}`);
     rec.versionChange = { to, error: why };
     saveStateSoon();
   };
+  // a resize to GPU work can never be served by a CPU-only enclave, whatever
+  // the catalog says — no point consulting it
+  if (resize && Number(d.gpuMilli) > 0 && !IS_GPU) return evict("GPU work on a CPU-only enclave");
   let g;
   try { g = await gateAppReference(to); }
   catch (e) { g = { error: { status: 503, msg: e.shortMessage || e.message } }; }
   if (g.error) return refuse(g.error.msg, g.error.status === 503);
-  // the deployment's bought shares are immutable — the new version must fit them
+  // the version must fit the shares the row NOW carries (bought at create, or
+  // re-bought by the owner's latest resize)
   const mins = minSharesOf(g.min);
   const gpuShare = Number(d.gpuMilli) / 1000, cpuShare = Number(d.cpuMilli) / 1000;
   if (gpuShare < mins.gpuShare - 1e-9 || cpuShare < mins.cpuShare - 1e-9)
@@ -4365,9 +4411,30 @@ async function switchTenantVersion(rec, d) {
       if (r.status !== 200) throw new Error((r.body && (r.body.error || r.body.message)) || `HTTP ${r.status}`);
     } catch (e) { return refuse("could not fetch the new version's wasm: " + e.message, true); }
   }
-  console.log(`[claim] ${rec.id} owner changed version: ${rec.image && rec.image.reference} -> ${to} `
-            + `(${g.app.slug}:${g.app.version}); restarting in place`);
+  const versionChanged = (rec.image && rec.image.reference) !== g.ref;
+  console.log(`[claim] ${rec.id} owner changed ${versionChanged && resize ? "version + shares" : resize ? "shares" : "version"}: `
+            + `${rec.image && rec.image.reference} -> ${to} (${g.app.slug}:${g.app.version})`
+            + `${resize ? ` gpuMilli ${rec._shares?.gpuMilli ?? "?"} -> ${Number(d.gpuMilli)}, cpuMilli ${rec._shares?.cpuMilli ?? "?"} -> ${Number(d.cpuMilli)}` : ""}; restarting in place`);
   try { await stopContainer(rec); } catch {}
+  if (resize) {
+    // swap the held slice for one at the row's new size. Synchronous release +
+    // realloc (no await between): the freed capacity of the OLD slice counts
+    // toward fitting the new one, which is what lets in-place grows work at
+    // all. If the new size doesn't fit this box, evict — the lease hands back
+    // refunded and a box with room (or a fresh capacity window here) claims it.
+    const slice = gpuShare > 0 ? normalizeGpuReq(gpuShare, cpuShare) : normalizeCpuReq(cpuShare);
+    if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
+    const next = slice.cpu ? allocCpu(slice.cpuShare) : allocGpu(slice.vramGb, slice.computeShare, slice.cpuShare);
+    if (!next) return evict(`no free capacity for gpuShare ${round3(slice.gpuShare || 0)} / cpuShare ${round3(slice.cpuShare)} here right now`);
+    rec._gpu = next;
+    rec.resources = slice.cpu
+      ? { gpuShare: 0, cpuShare: slice.cpuShare }
+      : { gpuShare: slice.gpuShare, cpuShare: slice.cpuShare, cardId: next.cardId };
+    rec._gpuSpec = slice.cpu ? null : { cardId: next.cardId, cardUuid: gpuCards[next.cardId]?.uuid || null,
+                                        vramCapGb: next.vramGb, computeShare: next.computeShare };
+    rec._shares = { gpuMilli: Number(d.gpuMilli), cpuMilli: Number(d.cpuMilli) };
+    rec.rate = Number(d.rate) / 1e6;   // the resize recalculated it on-chain
+  }
   const httpFw = firewall.find((x) => x.startsWith("http:"));
   rec.image = { reference: g.ref };
   rec.app = g.app; rec.appWasm = g.wasmRef;
@@ -4507,6 +4574,7 @@ async function auditClaims(ledgerById) {
     if (!d) continue;                         // not in the page (RPC anomaly): keep serving, the lease is prepaid
     rec.paidUsdc = Number(d.spent6 + d.balance6);
     rec._balance6 = Number(d.balance6);          // funded-runtime display: balance beyond the current lease
+    rec.rate = Number(d.rate) / 1e6;             // a setShares resize recalculates it on-chain; keep the mirror honest
     // OWNERSHIP is keyed on the ENCLAVE ID (d.runner === _enclaveId), matching the
     // sweep (considerClaim) and the resume path — NOT on runnerOperator. On a
     // SHARED gas key several enclaves sign as the same operator EOA but have
@@ -4576,9 +4644,18 @@ async function auditClaims(ledgerById) {
       }
     } else {
       rec._loseStrikes = 0;                   // healthy pass: chain agrees the lease is ours
-      // Owner repointed the deployment at another catalog version (setAppRef):
-      // restart it in place onto the new record — lease and balance carry.
-      if (needsVersionSwitch(rec.status, rec.image && rec.image.reference, d.appRef)) {
+      // Owner repointed the deployment at another catalog version (setAppRef)
+      // and/or re-bought its shares (setShares): restart it in place onto the
+      // new record — lease and balance carry. A pre-resize-release record
+      // first stamps what it is serving (from its quantized resources), so
+      // the NEXT pass can tell an owner resize from the missing field.
+      const sv = shareResizeVerdict(rec.status, rec._shares, d.gpuMilli, d.cpuMilli);
+      if (sv === "stamp") {
+        rec._shares = { gpuMilli: Math.round((rec.resources?.gpuShare || 0) * 1000),
+                        cpuMilli: Math.round((rec.resources?.cpuShare || 0) * 1000) };
+        saveStateSoon();
+      }
+      if (needsVersionSwitch(rec.status, rec.image && rec.image.reference, d.appRef) || sv === "resize") {
         await switchTenantVersion(rec, d);
         continue;
       }
@@ -4881,10 +4958,13 @@ async function adopt(d, g, firewall, slice) {
       return { ...(o.waf ? { waf: o.waf } : {}),
                ...("config" in o ? { config: JSON.stringify(o.config), configOverride: true } : {}) };
     } catch { return {}; } })(),
-    // the two shares the deployment bought on-chain
+    // the two shares the deployment bought on-chain — _shares keeps the exact
+    // ledger millis so the audit can tell an owner resize (setShares) from
+    // the quantized slice actually held
     resources: slice.cpu
       ? { gpuShare: 0, cpuShare: slice.cpuShare }
       : { gpuShare: slice.gpuShare, cpuShare: slice.cpuShare, cardId: gpu.cardId },
+    _shares: { gpuMilli: Number(d.gpuMilli), cpuMilli: Number(d.cpuMilli) },
     network: { port: appPort, protocol: "https", endpoint: `${_advertisedEndpoint}/x/${d.id}` },
     attestation: { available: true, vmTechnology: vmTech(), gpuTechnology: IS_GPU ? "nvidia-cc" : null, href: `/v1/deployments/${d.id}/attestation` },
     region: "tinfoil", createdAt: new Date(Number(d.createdAt) * 1000).toISOString(), startedAt: null,

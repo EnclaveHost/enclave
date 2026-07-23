@@ -26,6 +26,8 @@ contract MockDeployments {
     mapping(bytes32 => uint256) public funded6;
     mapping(bytes32 => string) public appRefOf;
     mapping(bytes32 => bool) public activeOf;
+    mapping(bytes32 => uint256) public gpuMilliOf;
+    mapping(bytes32 => uint256) public cpuMilliOf;
 
     constructor(IERC20 _usdc, address _payout) { usdc = _usdc; payout = _payout; }
 
@@ -53,5 +55,20 @@ contract MockDeployments {
     function setActive(bytes32 id, bool active) external {
         require(msg.sender == ownerOf[id], "not owner");
         activeOf[id] = active;
+    }
+    function setShares(bytes32 id, uint16 gpuMilli, uint16 cpuMilli) external {
+        require(msg.sender == ownerOf[id], "not owner");
+        gpuMilliOf[id] = gpuMilli;
+        cpuMilliOf[id] = cpuMilli;
+    }
+    /// self-delegatecall batcher, the real ledger's shape: inner calls keep
+    /// msg.sender, so the vault's owner gating carries through.
+    function multicall(bytes[] calldata calls) external returns (bytes[] memory results) {
+        results = new bytes[](calls.length);
+        for (uint256 i = 0; i < calls.length; i++) {
+            (bool ok, bytes memory ret) = address(this).delegatecall(calls[i]);
+            require(ok, "multicall failed");
+            results[i] = ret;
+        }
     }
 }

@@ -797,18 +797,31 @@ export async function handleBilling(req, res, u, ctx) {
         deadline, digest, id: b.id, fund6: fund6.toString(), credId: key.credId }, req);
     }
     if (b.op === "control") {
-      // suspend/resume/version for a VAULT-OWNED deployment: the ledger
-      // owner-gates setActive/setAppRef, so a control call for anything the
-      // vault doesn't own simply reverts on-chain - no relay policy needed
+      // suspend/resume/version/resize for a VAULT-OWNED deployment: the
+      // ledger owner-gates setActive/setAppRef/setShares, so a control call
+      // for anything the vault doesn't own simply reverts on-chain - no
+      // relay policy needed
       const id = String(b.id || "");
       const action = String(b.action || "");
       if (!/^0x[0-9a-f]{64}$/i.test(id)) return err(ctx, res, req, 422, "bad_params", "control needs a deployment id.");
-      if (!["suspend", "resume", "version"].includes(action))
-        return err(ctx, res, req, 422, "bad_params", 'control action must be "suspend", "resume", or "version".');
+      if (!["suspend", "resume", "version", "resize"].includes(action))
+        return err(ctx, res, req, 422, "bad_params", 'control action must be "suspend", "resume", "version", or "resize".');
       if (action === "version" && !(typeof b.ref === "string" && b.ref.length > 0 && b.ref.length <= 100))
         return err(ctx, res, req, 422, "bad_params", "version needs a catalog ref (max 100 chars).");
+      let shares = null;
+      if (action === "resize") {
+        // create()'s own bounds, checked with words (the contract would
+        // revert anyway); ref is optional - present = version change + resize
+        // in one multicall, one passkey signature
+        const g = Number(b.gpuMilli), c = Number(b.cpuMilli);
+        if (!Number.isInteger(g) || !Number.isInteger(c) || g < 0 || g > 1000 || c < 1 || c > 1000 || (g > 0 && g < c))
+          return err(ctx, res, req, 422, "bad_params", "resize needs integer share millis: gpuMilli 0..1000, cpuMilli 1..1000, gpuMilli >= cpuMilli when set.");
+        if (b.ref !== undefined && !(typeof b.ref === "string" && b.ref.length > 0 && b.ref.length <= 100))
+          return err(ctx, res, req, 422, "bad_params", "ref must be a catalog ref (max 100 chars).");
+        shares = { gpuMilli: g, cpuMilli: c };
+      }
       let callData;
-      try { callData = await buildControlCall(id, action, b.ref); }
+      try { callData = await buildControlCall(id, action, b.ref, shares); }
       catch (e) { return err(ctx, res, req, 502, "encode_failed", e.message); }
       const digest = opDigest("control", info.address, CHAIN_ID, info.nonce, { callData }, deadline);
       return ctx.json(res, 200, { op: "control", vault: info.address, chainId: CHAIN_ID, nonce: info.nonce,

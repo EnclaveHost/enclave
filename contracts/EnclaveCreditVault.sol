@@ -57,6 +57,11 @@ contract EnclaveCreditVault {
     // deployment CONTROL selectors the vault will proxy (move no funds):
     bytes4 private constant SEL_SET_APP_REF = bytes4(keccak256("setAppRef(bytes32,string)"));
     bytes4 private constant SEL_SET_ACTIVE  = bytes4(keccak256("setActive(bytes32,bool)"));
+    bytes4 private constant SEL_SET_SHARES  = bytes4(keccak256("setShares(bytes32,uint16,uint16)"));
+    // multicall is allowed ONLY when every inner call is itself an allowed
+    // control selector (checked below) - a version change + share resize ride
+    // one passkey signature without widening what a signature can move
+    bytes4 private constant SEL_MULTICALL   = bytes4(keccak256("multicall(bytes[])"));
 
     // op type tags inside the signed digest (never reuse a value)
     bytes32 private constant OP_DEPLOY  = keccak256("EnclaveVault.deployAndFund.v1");
@@ -129,11 +134,29 @@ contract EnclaveCreditVault {
     }
 
     /// owner-only ledger control calls for deployments this vault owns
-    /// (setAppRef / setActive) - these move no funds.
+    /// (setAppRef / setActive / setShares, or a multicall composed solely of
+    /// them) - these move no funds. setShares re-prices the record at the
+    /// ledger's current list prices; the balance it re-burns is the
+    /// deployment's own prepaid accounting number, never vault USDC.
     function controlDeployment(bytes calldata callData, uint256 deadline, WebAuthnSig calldata sig) external {
         _auth(keccak256(abi.encode(OP_CONTROL, address(this), block.chainid, nonce, keccak256(callData), deadline)), deadline, sig);
         bytes4 sel = bytes4(callData[:4]);
-        require(sel == SEL_SET_APP_REF || sel == SEL_SET_ACTIVE, "selector not allowed");
+        if (sel == SEL_MULTICALL) {
+            // the batcher passes ONLY when every inner call is an allowed
+            // control selector - decode the bytes[] and check each head
+            bytes[] memory calls = abi.decode(callData[4:], (bytes[]));
+            require(calls.length > 0, "empty multicall");
+            for (uint256 i = 0; i < calls.length; i++) {
+                bytes memory c = calls[i];
+                require(c.length >= 4, "short inner call");
+                bytes4 inner;
+                assembly { inner := mload(add(c, 32)) }
+                require(inner == SEL_SET_APP_REF || inner == SEL_SET_ACTIVE || inner == SEL_SET_SHARES,
+                        "inner selector not allowed");
+            }
+        } else {
+            require(sel == SEL_SET_APP_REF || sel == SEL_SET_ACTIVE || sel == SEL_SET_SHARES, "selector not allowed");
+        }
         (bool ok, ) = _deployments().call(callData);
         require(ok, "control failed");
     }
