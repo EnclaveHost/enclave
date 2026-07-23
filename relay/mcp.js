@@ -688,6 +688,29 @@ const TOOLS = [
     },
   },
   {
+    name: "set_secrets",
+    description: "Store/update a deployment's PRIVATE env vars (S3 keys, API tokens) on the relay — never on the public chain; the enclave holding the lease injects them into the app at every start (restart_deployment applies changes now). payload is a JSON STRING like '{\"set\":{\"NAME\":\"value\"},\"del\":[\"NAME\"],\"clear\":false}' — sign EXACTLY `enclave-secrets:put:<id>:<expiry>:<sha256hex(payload)>` (personal_sign, the deployment's OWNER wallet, expiry = unix seconds within +600s; single-use). Names are env-var-shaped, ENCLAVE_* reserved, ≤64 keys / 4KB per value / 16KB total.",
+    inputSchema: S({
+      id: P.id,
+      payload: { type: "string", description: "The EXACT JSON string that was hashed into the signed message: {set?, del?, clear?}" },
+      expiry: { type: "number", description: "Unix seconds; must match the signed string, within the next 600s" },
+      signature: { type: "string", description: "personal_sign of enclave-secrets:put:<id>:<expiry>:<sha256hex(payload)>" },
+    }, ["id", "payload", "expiry", "signature"]),
+    handler: async ({ id, payload, expiry, signature }) =>
+      self("POST", `/v1/secrets/${encodeURIComponent(id)}`, { body: { payload, expiry, signature } }),
+  },
+  {
+    name: "get_secrets",
+    description: "Read back a deployment's relay-stored secrets (names AND values — owner only). Sign EXACTLY `enclave-secrets:get:<id>:<expiry>` (personal_sign, the owner wallet, expiry = unix seconds within +600s; single-use).",
+    inputSchema: S({
+      id: P.id,
+      expiry: { type: "number", description: "Unix seconds; must match the signed string, within the next 600s" },
+      signature: { type: "string", description: "personal_sign of enclave-secrets:get:<id>:<expiry>" },
+    }, ["id", "expiry", "signature"]),
+    handler: async ({ id, expiry, signature }) =>
+      self("POST", `/v1/secrets/${encodeURIComponent(id)}/get`, { body: { expiry, signature } }),
+  },
+  {
     name: "plan_deploy",
     description: "Validate and price a deployment of a catalog app, returning the unsigned create transaction. Runs the same gates the CLI does: approval, share minimums on the fleet's hardware, the platform GPU cap, and the publisher-fee snapshot. After the create tx mines, the id is topics[1] of the Created event; then build_fund and claim_hint.",
     inputSchema: S({

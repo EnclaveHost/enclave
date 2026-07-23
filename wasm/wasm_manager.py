@@ -432,6 +432,41 @@ def _validate_config(text: str) -> str:
     return text
 
 
+# Per-deployment secrets (relay-staged owner env vars, fetched by the
+# supervisor at provision; relay/secrets.js owns the trust model). MIRRORS the
+# relay's wire contract — the relay is the authority, this re-check just makes
+# a malformed hand-off fail the launch loudly instead of baking a bad guest
+# env. Values are guest-only --env vars, same handling class as ENCLAVE_CONFIG:
+# never the process env, never a log line. ENCLAVE_* names are refused so a
+# secret can't shadow a platform channel (ENCLAVE_CONFIG, ENCLAVE_ENC_TOKEN, …).
+SECRETS_MAX_KEYS, SECRETS_MAX_VALUE, SECRETS_MAX_TOTAL = 64, 4096, 16384
+_SECRET_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+
+
+def _validate_secrets(d) -> dict:
+    if not isinstance(d, dict):
+        raise ValueError("secrets must be an object of NAME: value")
+    if len(d) > SECRETS_MAX_KEYS:
+        raise ValueError(f"too many secrets (max {SECRETS_MAX_KEYS})")
+    total = 0
+    for k, v in d.items():
+        if not isinstance(k, str) or not _SECRET_KEY_RE.match(k):
+            raise ValueError(f"secret name {k!r} is not an env-var name")
+        if k.upper().startswith("ENCLAVE_"):
+            raise ValueError(f"secret name {k!r}: the ENCLAVE_ prefix is reserved")
+        if not isinstance(v, str):
+            raise ValueError(f"secret {k!r} must be a string value")
+        if "\0" in v or "\n" in v or "\r" in v:
+            raise ValueError(f"secret {k!r} contains a NUL or newline")
+        vb = len(v.encode("utf-8"))
+        if vb > SECRETS_MAX_VALUE:
+            raise ValueError(f"secret {k!r} is {vb} bytes (max {SECRETS_MAX_VALUE})")
+        total += len(k.encode("utf-8")) + vb
+    if total > SECRETS_MAX_TOTAL:
+        raise ValueError(f"secrets total {total} bytes (max {SECRETS_MAX_TOTAL})")
+    return dict(d)
+
+
 # --- SSRF host classifier (mirror of net-guard.mjs; DO NOT import it — it's JS) #
 # Kept in sync BY HAND with net-guard.mjs's blockedV4/blockedV6. Policy: allow
 # only globally-routable unicast; refuse loopback, private (RFC1918/CGNAT),
@@ -2019,7 +2054,7 @@ def _alloc_ports(pspec) -> dict:
 
 def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdir=None,
                nn=False, enclave_config=None, vol_mounts=None, egress=None, egress_transparent=None,
-               enc=None, gpu_share: float = 0.0, nn_report=None):
+               enc=None, gpu_share: float = 0.0, nn_report=None, secrets=None):
     """The wasmtime invocation for a ports spec. Returns (cmd, host_port, wait_ports).
     `nn_report`, when a dict, is filled with the wasi-nn preload plan:
     {"emitted": [vol...], "skipped": {vol: why}, "stages": {vol: "kind::dir"}}
@@ -2057,6 +2092,13 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     # the GUEST, never to the wasmtime process env (that carries the CUDA/ORT
     # knobs). Kept out of the log line: a config may hold an API key.
     cfg_args = ["--env", "ENCLAVE_CONFIG=" + enclave_config] if enclave_config else []
+    # per-deployment secrets: owner-staged env vars (_validate_secrets), one
+    # guest --env each, sorted for a deterministic cmdline. Same discipline as
+    # ENCLAVE_CONFIG: guest-only, never the process env, never a log line (the
+    # cmd is never printed; /proc argv is host-side only — no other tenant can
+    # read it, wasm guests hold no host fs).
+    for _sk in sorted(secrets or {}):
+        cfg_args += ["--env", f"{_sk}={secrets[_sk]}"]
     # dedicated-IP egress: a per-deployment SOCKS URL minted by the supervisor
     # (see egress.js). Forwarded verbatim to the GUEST only; it carries a bearer
     # token, so — like ENCLAVE_CONFIG — it never reaches the wasmtime process env or
@@ -2297,7 +2339,7 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
 
 def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
            mem_mb: int = 0, pspec=None, storage_mb=None, config="", volumes=None,
-           egress="") -> dict:
+           egress="", secrets=None) -> dict:
     pspec = pspec or _parse_ports([])
     if storage_mb is None:
         storage_mb = DEF_STORAGE_MB
@@ -2373,6 +2415,19 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
         except ValueError as e:
             rec["status"], rec["error"] = "failed", str(e)
             return rec
+
+    # per-deployment secrets: relay-staged owner env vars, handed over by the
+    # supervisor. Values live only in this call chain and the guest env — the
+    # record keeps a COUNT for the owner view, never a name or value.
+    if secrets:
+        try:
+            secrets = _validate_secrets(secrets)
+        except ValueError as e:
+            rec["status"], rec["error"] = "failed", str(e)
+            return rec
+        rec["secretsCount"] = len(secrets)
+    else:
+        secrets = None
 
     # attached model volumes: the request may name them two ways - an explicit
     # /vms `volumes` list (direct callers) and/or a `volumes` array in the
@@ -2480,7 +2535,7 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
 
     ctx = {"pspec": pspec, "wasm": wasm, "port": port, "port_map": port_map, "fsdir": fsdir,
            "nn": nn, "enclave_config": enclave_config, "vol_mounts": vol_mounts, "gpu_share": gpu_share,
-           "log_path": log_path, "egress": egress, "enc": enc}
+           "log_path": log_path, "egress": egress, "enc": enc, "secrets": secrets}
     return _spawn_and_wait(rec, ctx)
 
 
@@ -2614,7 +2669,8 @@ def _spawn_and_wait(rec, ctx):
     nn_report = {}
     cmd, host_port, wait_ports = _build_cmd(pspec, wasm, port, mem_bytes, port_map, fsdir, nn,
                                             enclave_config, vol_mounts, egress, egress_transparent,
-                                            ctx.get("enc"), gpu_share=gpu_share, nn_report=nn_report)
+                                            ctx.get("enc"), gpu_share=gpu_share, nn_report=nn_report,
+                                            secrets=ctx.get("secrets"))
     # the preload plan, public on the record: what the boot preload will
     # attempt (nnPreloads) and why the rest won't (nnSkipped). The watchdog
     # sweep compares this against what a launch would emit NOW; the log
@@ -3299,10 +3355,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         storage_mb = int(meta.get("storage_mb", DEF_STORAGE_MB))   # per-app /data cap; 0 opts out
         config = str(b.get("config") or "").strip()                # per-deployment ENCLAVE_CONFIG (the version's config, inline; validated in launch)
         egress = str(b.get("egress") or "").strip()                # per-deployment ENCLAVE_EGRESS (opaque SOCKS URL, forwarded verbatim)
+        secrets = b.get("secrets") or None                         # relay-staged owner secrets (guest --env; validated in launch, never logged)
         req_vols = b.get("volumes") or []                          # attached model volumes by name
         if not isinstance(req_vols, list):
             return self._json(400, {"error": "volumes must be a list of volume names"})
-        rec = launch(app_ref, b.get("name", ""), cpu_share, gpu_share, mem_mb, pspec, storage_mb, config, req_vols, egress)
+        rec = launch(app_ref, b.get("name", ""), cpu_share, gpu_share, mem_mb, pspec, storage_mb, config, req_vols, egress, secrets)
         code = 201 if rec["status"] in ("starting", "running") else 500
         return self._json(code, _public(rec))
 

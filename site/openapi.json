@@ -580,6 +580,233 @@
         }
       }
     },
+    "/secrets/{id}": {
+      "post": {
+        "tags": [
+          "Deployments"
+        ],
+        "operationId": "setSecrets",
+        "summary": "Store/update a deployment's private env vars (owner-signed; never on-chain)",
+        "description": "Per-deployment secrets: env-var-shaped private values (S3 keys, API tokens) stored on the relay - encrypted at rest, never on the public chain - and injected into the app as environment variables by the enclave holding the deployment's live lease, at every app start (restart to apply changes to a running app). No session: authorization is one single-use personal_sign by the deployment's ON-CHAIN owner wallet over the canonical string `enclave-secrets:put:<id>:<expiry>:<sha256hex(payload)>`, where `payload` is the EXACT JSON string sent in the body: {\"set\":{NAME:value}, \"del\":[NAME], \"clear\":bool} - set merges over what is stored, clear:true starts from empty. Names follow the env-var convention ([A-Za-z_][A-Za-z0-9_]*, max 64 chars; ENCLAVE_* reserved); limits: 64 keys, 4 KB per value, 16 KB total, single-line values. Plainly stated trust model: the relay operator can technically read stored values (that is what lets an unattended restart re-inject them); for credentials even the operator must never see, use encrypted volumes (wallet-derived client-side sealing).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{64}$"
+            },
+            "description": "The bytes32 deployment id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "payload",
+                  "expiry",
+                  "signature"
+                ],
+                "properties": {
+                  "payload": {
+                    "type": "string",
+                    "description": "The EXACT JSON string hashed into the signed message: {set?, del?, clear?}.",
+                    "example": "{\"set\":{\"S3_SECRET_ACCESS_KEY\":\"…\"}}"
+                  },
+                  "expiry": {
+                    "type": "integer",
+                    "description": "Unix seconds; must match the signed string, within the next 600s."
+                  },
+                  "signature": {
+                    "type": "string",
+                    "description": "65-byte personal_sign hex of enclave-secrets:put:<id>:<expiry>:<sha256hex(payload)>."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stored. rev increments per change; names lists what is now set. A running app applies the new set on its next start.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "rev": {
+                      "type": "integer"
+                    },
+                    "names": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "note": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signer is not the deployment's on-chain owner.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Signature already used (single-use; sign a fresh request).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failure: bad expiry/signature shape, or the secrets break a name/size limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Secrets are not configured on this relay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/secrets/{id}/get": {
+      "post": {
+        "tags": [
+          "Deployments"
+        ],
+        "operationId": "getSecrets",
+        "summary": "Read back a deployment's stored secrets (owner-signed)",
+        "description": "Returns names AND values to the deployment's owner. Authorization is one single-use personal_sign by the on-chain owner wallet over `enclave-secrets:get:<id>:<expiry>`. POST (not GET) so signatures never ride URLs or logs.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{64}$"
+            },
+            "description": "The bytes32 deployment id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "expiry",
+                  "signature"
+                ],
+                "properties": {
+                  "expiry": {
+                    "type": "integer",
+                    "description": "Unix seconds; must match the signed string, within the next 600s."
+                  },
+                  "signature": {
+                    "type": "string",
+                    "description": "65-byte personal_sign hex of enclave-secrets:get:<id>:<expiry>."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored set (empty env + rev 0 when nothing is stored).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "rev": {
+                      "type": "integer"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "names": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "env": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signer is not the deployment's on-chain owner.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Secrets are not configured on this relay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/deployments/{id}/logs": {
       "get": {
         "tags": [

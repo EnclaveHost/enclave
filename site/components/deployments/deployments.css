@@ -88,6 +88,17 @@ c-deployments{display:contents;}
 .enc-upg-status{padding:0 18px 10px;min-height:0;}
 .enc-upg-status:empty{display:none;}
 
+/* per-row Secrets (private env vars: relay-stored, unlock-first editor) */
+.enc-sec{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:#080c12;}
+.enc-sec-body{display:flex;flex-direction:column;gap:10px;padding:12px 18px;}
+.enc-sec-body label{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);}
+.es-ta{width:100%;background:var(--bg-1);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:.8rem;padding:.5em .7em;resize:vertical;}
+.es-ta:focus{border-color:var(--jade-dim);}
+.es-ta[disabled]{opacity:.55;}
+.enc-sec-acts{display:flex;gap:10px;flex-wrap:wrap;}
+.enc-sec-status{padding:0 18px 10px;min-height:0;}
+.enc-sec-status:empty{display:none;}
+
 /* per-row Output panel (narrative + app logs) */
 .enc-out{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:#080c12;}
 .enc-out-term{max-height:360px;}

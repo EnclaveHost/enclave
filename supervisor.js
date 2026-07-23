@@ -1313,7 +1313,7 @@ function toBytes(s) {
   const n = +m[1], u = m[2].toLowerCase();
   return u === "g" ? n*1073741824 : u === "m" ? n*1048576 : u === "k" ? n*1024 : n;
 }
-async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort, ports, config }) {
+async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort, ports, config, secrets }) {
   // Two backends. "vm": hand the app reference to the app manager on VMMGR_URL
   // (the wasm-manager runs it as a `wasmtime serve` process; cpuShare is its
   // admission unit and sets the guest memory cap — cpuShare × node RAM;
@@ -1346,7 +1346,10 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort
         // verbatim as the guest's ENCLAVE_EGRESS (empty when egress is off). The
         // token in it is minted from the enclave SECRET, so the manager never
         // needs the secret and the value never touches a log line.
-        egress: egress ? egress.envFor(deploymentId) : "" }, SPAWN_TIMEOUT_MS);
+        egress: egress ? egress.envFor(deploymentId) : "",
+        // relay-staged owner secrets (fetchDepSecrets): guest-only --env vars,
+        // validated by the manager; like config/egress, never in a log line
+        ...(secrets ? { secrets } : {}) }, SPAWN_TIMEOUT_MS);
     if (r.status !== 201)
       throw new Error(`vmmanager: ${r.body.error || r.body.message || r.status}`);
     console.log(`[spawn-vm] ${deploymentId} image=${ref} cpuShare=${c} gpuShare=${g} `
@@ -2185,6 +2188,7 @@ app.get("/availability", async (_req, res) => {
     ...(IS_GPU ? { cardVramSource: CARD_VRAM_SRC } : {}),   // "nvidia-smi"/"manager"/"worker" = probed hardware; "env"/"default" = config fallback
     waf: true,   // this build accepts + enforces the deployment-options envelope (waf); the relay ANDs this across the fleet and the console shows the Protection controls only then
     configOverride: true,   // this build accepts the envelope's `config` namespace (per-deployment app-config override); same fleet-AND rule — the console unlocks the App config box only when every live runner honors it
+    secrets: true,   // this build pulls relay-staged per-deployment secrets into the guest env at every launch; fleet-AND'd with the relay's own secretsEnabled() before clients see it
     source, ...(note ? { note } : {}), updatedAt: new Date().toISOString(),
   });
   try {
@@ -2416,7 +2420,8 @@ const spentOf = (rec) => (((rec.consumedMs || 0) / 1000) * (rec.rate || 0)).toFi
 const VIEW_FIELDS = ["id", "owner", "status", "public", "firewall", "image", "command",
   "app", "appWasm", "config", "resources", "network", "attestation", "region",
   "createdAt", "startedAt", "paused", "pauseReason", "payDeadline", "digest",
-  "payRef", "paidUsdc", "portMap", "error", "waf", "configOverride", "versionChange"];
+  "payRef", "paidUsdc", "portMap", "error", "waf", "configOverride", "versionChange",
+  "secretsRev"];   // which relay secrets snapshot the running instance was launched with (names/values never leave the guest)
 const view = (rec) => {
   const o = {};
   for (const k of VIEW_FIELDS) if (k in rec) o[k] = rec[k];
@@ -2796,14 +2801,66 @@ app.post("/v1/deployments", authed, async (req, res) => {
   res.status(201).json(out);
 });
 
+// ---- per-deployment secrets (relay-stored, guest-env injected) ---------------
+// The owner stages env-var-shaped private values (S3 keys, API tokens) on the
+// api-relay — POST /v1/secrets/:id, relay/secrets.js documents the whole trust
+// model — and every provision pulls the current snapshot here to hand the
+// manager as guest --env vars. The fetch authenticates with a key DERIVED from
+// the fleet SECRET (the dns-txt pattern: the relay env holds only the derived
+// key) and names our endpoint; the relay releases a deployment's secrets only
+// to its live on-chain lease holder. Failures never block a launch: the app
+// starts on the last snapshot this process fetched, else without secrets, and
+// the log says which — a relay outage must not take provisioning down with it.
+// SECRETS_API="" disables the pull (values themselves never touch STATE_FILE).
+const SECRETS_API = (process.env.SECRETS_API ?? "https://api.enclave.host").trim().replace(/\/+$/, "");
+const SECRETS_FETCH_KEY = createHmac("sha256", SECRET).update("enclave secrets v1").digest("hex");
+const _secretsCache = new Map();                 // dep id -> { rev, env } (RAM only)
+async function fetchDepSecrets(id) {
+  if (!SECRETS_API || !_advertisedEndpoint || /^(1|true|on)$/i.test(process.env.MOCK_SPAWN || ""))
+    return _secretsCache.get(id) || null;
+  const idL = String(id).toLowerCase();
+  let last = "";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt) await sleepMs(attempt === 1 ? 1000 : 3000);
+    try {
+      const ts = Math.floor(Date.now() / 1000);
+      const sig = createHmac("sha256",
+          createHmac("sha256", Buffer.from(SECRETS_FETCH_KEY, "hex")).update("fetch-auth v1").digest())
+        .update(`${idL}:${_advertisedEndpoint}:${ts}`).digest("hex");
+      const r = await fetch(`${SECRETS_API}/v1/secrets/fetch`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: idL, endpoint: _advertisedEndpoint, ts, sig }),
+        signal: AbortSignal.timeout(5000) });
+      if (r.ok) {
+        const b = await r.json();
+        const out = { rev: Number(b.rev) || 0, env: b.env && typeof b.env === "object" ? b.env : {} };
+        _secretsCache.set(id, out);
+        return out;
+      }
+      // 503 = relay without the feature, 404 = record not on its ledger view:
+      // authoritative "nothing to inject", not worth retrying this launch
+      if (r.status === 503 || r.status === 404) return _secretsCache.get(id) || null;
+      last = `HTTP ${r.status}`;                 // 409 right after our claim tx = ledger lag; retry
+    } catch (e) { last = e.message; }
+  }
+  const cached = _secretsCache.get(id);
+  console.warn(`[secrets] ${idL} fetch failed (${last}); launching ${cached ? `on the cached rev ${cached.rev} snapshot` : "without secrets"}`);
+  return cached || null;
+}
+
 // Spawn the tenant's MPS-capped worker process (called once, on first payment).
 async function provisionTenant(rec) {
   try {
+    // relay-staged owner secrets ride into the guest env on every (re)launch,
+    // so `enclave restart` after a secrets change applies it
+    const sec = PROVISION_BACKEND === "vm" && rec._onchain ? await fetchDepSecrets(rec.id) : null;
+    if (sec) { if (sec.rev > 0) rec.secretsRev = sec.rev; else delete rec.secretsRev; }
     const sp = await spawnContainer({ deploymentId: rec.id,
       gpuShare: rec.resources.gpuShare || 0, cpuShare: rec.resources.cpuShare,
       image: { reference: rec.appWasm || (rec.image && rec.image.reference) },
       appPort: rec.network.port, ports: rec.firewall,
-      config: rec.config || "" });
+      config: rec.config || "",
+      secrets: sec && Object.keys(sec.env).length ? sec.env : null });
     rec._port = sp.internalPort;
     if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; }
     if (sp.portMap) rec.portMap = sp.portMap;   // logical -> actual (public: clients see their mapping)

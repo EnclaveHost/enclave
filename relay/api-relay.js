@@ -71,6 +71,7 @@ import { isBlockedHost } from "./net-guard.mjs";
 import { isMcpHost, handleMcp } from "./mcp.js";
 import { handleAccount, initAccounts } from "./auth.js";
 import { handleBilling, initBilling } from "./billing.js";
+import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep } from "./secrets.js";
 installProcessGuards("api-relay");
 
 let   REGISTRY_ADDRESS  = (process.env.REGISTRY_ADDRESS || "").trim();   // env fallback; the address book (below) overrides
@@ -767,6 +768,11 @@ function aggregateAvailability() {
     // fleet-AND — a mixed fleet would strand an overridden deploy on a runner
     // that refuses the namespace, so the console only unlocks the box on true
     configOverride: live.length > 0 && live.every((e) => e.availability?.configOverride === true),
+    // per-deployment secrets (relay-stored, injected as guest env by the lease
+    // holder): needs BOTH this relay configured (SECRETS_KEY + data dir) and a
+    // fleet-AND of runners that fetch+inject — a mixed fleet would run the same
+    // app with secrets on one runner and without them after a lease migration
+    secrets: secretsEnabled() && live.length > 0 && live.every((e) => e.availability?.secrets === true),
     // attached model volumes across the fleet (Modelwrap), deduped by name -
     // each carries `enclaves`: which endpoints can mount it (placement matters,
     // a volume only lives where its enclave declares it)
@@ -1025,7 +1031,11 @@ const deploymentExists = async (id) => !!(await xOwnerOf(id));
 // without circular imports. deploymentsAddress is a thunk because the address
 // book live-updates the binding.
 const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView,
-                   deploymentsAddress: () => DEPLOYMENTS_ADDRESS };
+                   deploymentsAddress: () => DEPLOYMENTS_ADDRESS,
+                   // secrets.js: match a fetch's claimed endpoint to a lease's
+                   // on-chain runner id, and drop the ledger cache when a row
+                   // must be newer than the 10s TTL (just-claimed/just-created)
+                   endpointIdOf: endpointId, ledgerExpire: () => { _ledger.at = 0; } };
 
 const server = http.createServer((req, res) => {
   const u = new URL(req.url, "http://x");
@@ -1125,6 +1135,13 @@ const server = http.createServer((req, res) => {
   if (u.pathname === "/v1/billing" || u.pathname.startsWith("/v1/billing/"))
     return handleBilling(req, res, u, relayCtx).catch((e) =>
       json(res, 500, { error: "billing_error", message: e.message }, req));
+  // Per-deployment secrets (secrets.js): relay-OWNED state like accounts/
+  // billing — never proxied, answers with zero live enclaves (owners stage
+  // secrets between create and the first claim; the fleet being down must not
+  // block that).
+  if (u.pathname === "/v1/secrets" || u.pathname.startsWith("/v1/secrets/"))
+    return handleSecrets(req, res, u, relayCtx).catch((e) =>
+      json(res, 500, { error: "secrets_error", message: e.message }, req));
 
   // API gateway: fleet-aware routing (see the header) — placement on create,
   // owner affinity on deployment-scoped calls, fan-out merge on list, fleet
@@ -1194,6 +1211,8 @@ await resolveDeployments();
 await pollAvailability();
 await initAccounts();          // no data dir/deps => disabled with one log line
 await initBilling(relayCtx);   // needs accounts; degrades the same way
+await initSecrets();           // needs SECRETS_KEY + the same data dir; degrades the same way
+startSecretsSweep(relayCtx);   // hourly off-ledger purge (no-op while disabled)
 setInterval(pollRegistry, REGISTRY_POLL_SEC * 1000);
 setInterval(resolveDeployments, REGISTRY_POLL_SEC * 1000);
 setInterval(pollAvailability, AVAIL_POLL_SEC * 1000);
