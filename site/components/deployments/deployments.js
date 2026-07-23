@@ -363,19 +363,28 @@ class Deployments extends EnclaveElement {
            + (d.timeRemainingSec > 0 ? " · " + esc(fmtDur(d.timeRemainingSec)) + " left" : "")
            + (d.paused ? " · ⏸ time frozen (" + esc(d.pauseReason || "outage") + ", resumes when service is restored)" : ""))
         : "–";
+      const onchain = /^0x[0-9a-f]{64}$/i.test(d.id || "");
       // on-chain rows without a live runner stay actionable: queued/claimed
       // work can be topped up, and awaiting_payment/unfunded are Top up's
-      // whole point (unfunded = drained; a top-up is what un-sticks it)
-      const live = ["running", "provisioning", "queued", "pending", "claiming", "claimed", "awaiting_payment", "unfunded"].indexOf(st) !== -1;
+      // whole point (unfunded = drained; a top-up is what un-sticks it).
+      // "expired" is the ex-runner's word for that same drained state (its
+      // record shadows the ledger's "unfunded" while signed in): the record
+      // is still active on the ledger, so it takes top-ups and the claim
+      // sweep re-adopts it the moment the balance covers the rate again.
+      const live = ["running", "provisioning", "queued", "pending", "claiming", "claimed", "awaiting_payment", "unfunded"].indexOf(st) !== -1
+        || (onchain && st === "expired");
       // on-chain rows are WORK ITEMS: setActive(false) suspends (the remaining
       // balance stays on the record) and setActive(true) re-queues it, so a
       // stopped/terminated on-chain row is resumable, not gone. "stopped" is
       // the ledger's word for it; "terminated" is the ex-runner's own record
       // of the same suspend (it shadows the ledger row while signed in).
+      // "expired" resumes too - watchdog/consolidation expiries keep a spendable
+      // balance and only need the re-queue nudge (_resume skips the setActive
+      // tx when the ledger record never went inactive; a drained one gets told
+      // to Top up instead of a relaunch promise that can't happen).
       // Legacy dep_ instances have no ledger record to reactivate: theirs
       // stays Terminate, and ended legacy rows offer nothing.
-      const onchain = /^0x[0-9a-f]{64}$/i.test(d.id || "");
-      const resumable = onchain && (st === "stopped" || st === "terminated");
+      const resumable = onchain && (st === "stopped" || st === "terminated" || st === "expired");
       // the row's app identity, shared by the cover-art chip and the meta line
       const appLbl = (d.app && d.app.slug ? d.app.slug + ":" + d.app.version : null)
         || (d.image && d.image.reference ? slugOfRef(d.image.reference) || shortImg(d.image.reference) : null);
@@ -576,6 +585,14 @@ class Deployments extends EnclaveElement {
     const amt = box.querySelector(".ef-amt"), est = box.querySelector(".ef-est");
     const go = box.querySelector(".ef-go"), st = box.querySelector(".enc-fund-status");
     const paint = (cls, txt) => paintLine(st, cls, txt);
+    // a drained row (expired on the runner's record, unfunded on the ledger's)
+    // has no runner watching its balance: funding is what re-queues it, and one
+    // claim-hint makes the fleet's re-claim prompt instead of next-sweep
+    const revive = ["expired", "unfunded"].indexOf(d.status || "") !== -1;
+    const nudge = () => { if (revive) fetch(Enclave.base + "/claim-hint", { method: "POST",
+      headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) }).catch(() => {}); };
+    const okTail = revive ? " · re-queued: the fleet re-claims it and the app relaunches within a minute"
+                          : " · the enclave picks up the new balance within a minute";
     const upd = () => {
       const usd = parseFloat(amt.value) || 0;
       est.textContent = (rate > 0 && usd > 0) ? "adds ≈ " + fmtDur(usd / rate) : "";
@@ -592,7 +609,8 @@ class Deployments extends EnclaveElement {
           paint("info", "[*] confirm with your passkey…");
           const { vaultOp } = await import("../../js/core/vault.js");
           await vaultOp("fund", { id, amountUsd: usd });
-          paint("ok", "[✓] topped up from your credit" + (rate > 0 ? " - +" + fmtDur(usd / rate) + " of runtime" : "") + " · the enclave picks up the new balance within a minute");
+          nudge();
+          paint("ok", "[✓] topped up from your credit" + (rate > 0 ? " - +" + fmtDur(usd / rate) + " of runtime" : "") + okTail);
           showToast("topped up " + id.slice(0, 10) + "… with $" + usd.toFixed(2));
           setTimeout(() => { if (box.isConnected && !box.hidden){ box.hidden = true; box.innerHTML = ""; } this.refresh(); }, 3500);
         } catch(e){ paint("warn", "[x] " + (e.message || String(e))); }
@@ -610,7 +628,8 @@ class Deployments extends EnclaveElement {
           usdcDomain: pricing && pricing.usdcDomain, usdc: (pricing && pricing.usdc) || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
           ethUsd: pricing && pricing.ethUsd,
         }, usd, "USDC", paint);
-        paint("ok", "[✓] topped up" + (rate > 0 ? " - +" + fmtDur(usd / rate) + " of runtime" : "") + " · the enclave picks up the new balance within a minute");
+        nudge();
+        paint("ok", "[✓] topped up" + (rate > 0 ? " - +" + fmtDur(usd / rate) + " of runtime" : "") + okTail);
         showToast("topped up " + id.slice(0, 10) + "… with $" + usd.toFixed(2));
         setTimeout(() => { if (box.isConnected && !box.hidden){ box.hidden = true; box.innerHTML = ""; } this.refresh(); }, 3500);
       } catch(e){
@@ -1081,25 +1100,39 @@ class Deployments extends EnclaveElement {
      fleet so the relaunch doesn't wait for the next sweep - the ex-runner
      itself may re-adopt (terminated is CLAIM_TERMINAL). The app relaunches
      FRESH from its published version: suspend/resume preserves money, not
-     memory (app state is ephemeral by design). ---- */
+     memory (app state is ephemeral by design). An "expired" row's record
+     usually never went inactive (expiry is the runner's word for a spent
+     lease, not a ledger flip), so the ledger read below skips the no-op
+     signature and the nudge alone re-queues it. ---- */
   async _resume(id, btn) {
     if (btn){ btn.disabled = true; btn.textContent = "resuming…"; }
     const via = ctlOf((this._list || []).find(x => x.id === id)) === "vault";
     try {
-      if (via){
-        // vault-owned row: setActive(true) through the vault, passkey-signed
-        const { vaultOp } = await import("../../js/core/vault.js");
-        await vaultOp("control", { id, action: "resume" });
-      } else {
-        showToast("confirm setActive(true) in your wallet - this re-queues the app; billing resumes once it runs");
-        await ensureBaseChain();
-        const th = await sendTx(DEPLOYMENTS_ADDRESS, "0x" + DEP_SEL.setActive + pad32(id.replace(/^0x/, "")) + encUint(1));
-        await waitReceipt(th);
+      // the same read that decides whether setActive is needed also carries
+      // the balance, so the toast can send a drained owner to Top up instead
+      // of promising a relaunch no enclave would claim
+      let dep = null;
+      try { dep = await depGet(id); } catch(e){}
+      if (!dep || !dep.active){
+        if (via){
+          // vault-owned row: setActive(true) through the vault, passkey-signed
+          const { vaultOp } = await import("../../js/core/vault.js");
+          await vaultOp("control", { id, action: "resume" });
+        } else {
+          showToast("confirm setActive(true) in your wallet - this re-queues the app; billing resumes once it runs");
+          await ensureBaseChain();
+          const th = await sendTx(DEPLOYMENTS_ADDRESS, "0x" + DEP_SEL.setActive + pad32(id.replace(/^0x/, "")) + encUint(1));
+          await waitReceipt(th);
+        }
       }
       if (this._why) this._why.delete(id);   // a pre-suspend decline reason must not outlive the resume
       fetch(Enclave.base + "/claim-hint", { method: "POST",
         headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) }).catch(() => {});
-      showToast("resumed " + id.slice(0, 10) + "… - re-queued; an enclave picks it up shortly");
+      // the contract's claimable() boundary: below it no enclave ever claims
+      const drained = dep && !(dep.balance6 >= dep.rate);
+      showToast(drained
+        ? "re-queued " + id.slice(0, 10) + "… - but its balance is spent, so no enclave will claim it: Top up to relaunch"
+        : "resumed " + id.slice(0, 10) + "… - re-queued; an enclave picks it up shortly");
       setTimeout(() => this.refresh(), 900);
     }
     catch(e){ showToast(e.message); if (btn){ btn.disabled = false; btn.textContent = "Resume"; } }
