@@ -738,19 +738,25 @@ class Deployments extends EnclaveElement {
     if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
     btn.setAttribute("aria-expanded", "true");
     box.hidden = false;
-    const taId = "esTa" + appLabel(id);
-    box.innerHTML = '<div class="ap-attbar">secrets · ' + esc(id) + '</div>'
-      + '<div class="enc-sec-body">'
+    // Locked-first: the panel opens as just the bar with an Unlock control -
+    // the body (editor + Save) doesn't exist on screen until one signature
+    // reveals what's stored. Lock wipes the values and collapses back to the bar.
+    const taId = "esTa" + appLabel(id), bodyId = "esBody" + appLabel(id);
+    box.innerHTML = '<div class="ap-attbar">'
+      +   '<button class="btn btn-sm btn-primary es-toggle" type="button" aria-controls="' + bodyId + '" aria-expanded="false" title="One wallet signature reveals this deployment’s stored secrets for editing">Unlock ↓</button>'
+      +   'secrets · ' + esc(id)
+      + '</div>'
+      + '<div class="enc-sec-body" id="' + bodyId + '" hidden>'
       +   '<label for="' + taId + '">Private env vars, one KEY=value per line - stored on the relay, never on-chain; the enclave injects them when the app starts</label>'
-      +   '<textarea class="es-ta" id="' + taId + '" rows="5" spellcheck="false" autocomplete="off" placeholder="S3_ACCESS_KEY_ID=…&#10;S3_SECRET_ACCESS_KEY=…" disabled></textarea>'
+      +   '<textarea class="es-ta" id="' + taId + '" rows="5" spellcheck="false" autocomplete="off" placeholder="S3_ACCESS_KEY_ID=…&#10;S3_SECRET_ACCESS_KEY=…"></textarea>'
       +   '<span class="enc-sec-acts">'
-      +     '<button class="btn btn-sm btn-primary es-unlock" type="button" title="One wallet signature reveals what’s stored so you can edit it">Unlock ↓</button>'
-      +     '<button class="btn btn-sm es-save" type="button" disabled title="One wallet signature stores the textarea as this deployment’s complete secret set">Save</button>'
+      +     '<button class="btn btn-sm es-save" type="button" title="One wallet signature stores the textarea as this deployment’s complete secret set">Save</button>'
       +   '</span>'
       + '</div>'
       + '<div class="term enc-sec-status" role="status" aria-live="polite"></div>';
-    const ta = box.querySelector(".es-ta"), unlock = box.querySelector(".es-unlock"),
-          save = box.querySelector(".es-save"), st = box.querySelector(".enc-sec-status");
+    const ta = box.querySelector(".es-ta"), toggle = box.querySelector(".es-toggle"),
+          body_ = box.querySelector(".enc-sec-body"), save = box.querySelector(".es-save"),
+          st = box.querySelector(".enc-sec-status");
     const paint = (cls, txt) => paintLine(st, cls, txt);
     // fleet advisory only - the relay stores regardless; injection needs the fleet
     try {
@@ -773,17 +779,22 @@ class Deployments extends EnclaveElement {
       return j;
     };
     let hadKeys = 0, armedClear = false;
-    // Unlock is a one-way reveal, so after it succeeds the same control turns
-    // into Lock: wipe the values and tear the panel down (close = innerHTML
-    // cleared, so revealed secrets leave the DOM entirely - nothing is sent).
-    unlock.addEventListener("click", async () => {
-      if (unlock.dataset.open) {
+    // One control, two states. Unlock: sign the get, fill the editor, show the
+    // body. Lock: wipe the values and collapse back to the bare bar (what's
+    // stored is untouched; nothing is sent).
+    toggle.addEventListener("click", async () => {
+      if (toggle.dataset.open) {
         ta.value = "";
-        box.hidden = true; box.innerHTML = "";
-        btn.setAttribute("aria-expanded", "false");
+        body_.hidden = true;
+        delete toggle.dataset.open;
+        toggle.textContent = "Unlock ↓";
+        toggle.title = "One wallet signature reveals this deployment’s stored secrets for editing";
+        toggle.setAttribute("aria-expanded", "false");
+        armedClear = false; save.textContent = "Save";
+        st.innerHTML = "";
         return;
       }
-      unlock.disabled = true;
+      toggle.disabled = true;
       try {
         paint("info", "[*] one signature reveals this deployment’s stored secrets…");
         const expiry = Math.floor(Date.now() / 1000) + 300;
@@ -791,17 +802,19 @@ class Deployments extends EnclaveElement {
         const r = await call("/secrets/" + id + "/get", { expiry, signature });
         hadKeys = r.names.length;
         ta.value = r.names.map(n => n + "=" + r.env[n]).join("\n");
-        ta.disabled = false; save.disabled = false;
-        unlock.dataset.open = "1";
-        unlock.textContent = "Lock";
-        unlock.title = "Hide the revealed values and close this panel (what’s stored is untouched)";
-        unlock.disabled = false;
+        body_.hidden = false;
+        toggle.dataset.open = "1";
+        toggle.textContent = "Lock";
+        toggle.title = "Hide the revealed values (what’s stored is untouched)";
+        toggle.setAttribute("aria-expanded", "true");
+        toggle.disabled = false;
+        ta.focus();
         paint("ok", r.names.length
           ? "[✓] rev " + r.rev + " · " + r.names.length + " secret" + (r.names.length === 1 ? "" : "s") + " - edit below, then Save (replaces the whole set)"
           : "[✓] nothing stored yet - add KEY=value lines below, then Save");
       } catch(e){
         paint("warn", "[x] " + (e.message || String(e)));
-        unlock.disabled = false;
+        toggle.disabled = false;
       }
     });
     save.addEventListener("click", async () => {
