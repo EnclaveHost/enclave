@@ -370,6 +370,7 @@ class Deployments extends EnclaveElement {
             '<button class="btn btn-sm enc-outbtn" data-id="' + esc(d.id) + '" aria-expanded="false">Output</button>' +
             (live && ctl !== "order" ? '<button class="btn btn-sm enc-fundbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="' + (ctl === "vault" ? 'Add runtime from your credit balance - one passkey tap' : 'Add runtime - a gas-free USDC signature credits the deployment’s on-chain balance') + '">Top up</button>' : '') +
             (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-upgbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Switch to another approved version of this app - paid time carries over; the app restarts in place on the new version">Version</button>' : '') +
+            (onchain && (live || resumable) && ctl === "wallet" ? '<button class="btn btn-sm enc-secbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Private env vars for this app (S3 keys, API tokens): stored on the relay - never on the public chain - and injected into the app at start by the enclave holding its lease">Secrets</button>' : '') +
             (st === "running" && ctl === "wallet" ? '<button class="btn btn-sm enc-restart" data-id="' + esc(d.id) + '" title="Stop and relaunch the app in place - same version, endpoint and balance; app state is ephemeral. The fix for a wedged instance (e.g. a model that never loaded at boot)">Restart</button>' : '') +
             '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '" aria-expanded="false">Verify</button>' +
             (resumable && ctl !== "order" ? '<button class="btn btn-sm enc-resume" data-id="' + esc(d.id) + '" title="Put it back on the queue - an enclave re-claims it and the app relaunches fresh from its published version, spending the remaining balance">Resume</button>' : '') +
@@ -388,6 +389,7 @@ class Deployments extends EnclaveElement {
         depIp6Row(d) +
         '<div class="enc-fund" hidden></div>' +
         '<div class="enc-upg" hidden></div>' +
+        '<div class="enc-sec" hidden></div>' +
         '<div class="enc-out" data-id="' + esc(d.id) + '" hidden></div>' +
         '<div class="enc-att" hidden></div>' +
       '</div>';
@@ -397,6 +399,7 @@ class Deployments extends EnclaveElement {
     $$(".enc-outbtn", body).forEach(b => b.addEventListener("click", () => this._output(b.dataset.id, b)));
     $$(".enc-fundbtn", body).forEach(b => b.addEventListener("click", () => this._fund(b.dataset.id, b)));
     $$(".enc-upgbtn", body).forEach(b => b.addEventListener("click", () => this._upgrade(b.dataset.id, b)));
+    $$(".enc-secbtn", body).forEach(b => b.addEventListener("click", () => this._secrets(b.dataset.id, b)));
     $$(".enc-verify", body).forEach(b => b.addEventListener("click", () => this._verify(b.dataset.id, b)));
     $$(".enc-kill", body).forEach(b => b.addEventListener("click", () => this._kill(b.dataset.id, b)));
     $$(".enc-resume", body).forEach(b => b.addEventListener("click", () => this._resume(b.dataset.id, b)));
@@ -717,6 +720,109 @@ class Deployments extends EnclaveElement {
         paint("warn", rejected ? (via ? "[x] cancelled - nothing changed" : "[x] rejected in wallet - nothing changed") : "[x] " + (e.message || String(e)));
         go.disabled = false;
       } finally { if (!via) refreshWallet(); }
+    });
+  }
+
+  /* ---- per-row Secrets panel: private env vars, relay-stored ----
+     S3 keys and API tokens live on the RELAY (encrypted at rest), never on the
+     public chain; the enclave holding the lease injects them as env vars at
+     every app start. No session: each owner op is one single-use personal_sign
+     over a canonical string the relay checks against the on-chain owner -
+       get:  enclave-secrets:get:<id>:<expiry>
+       put:  enclave-secrets:put:<id>:<expiry>:<sha256hex(payload)>
+     The editor is deliberately unlock-first: Save REPLACES the whole set, so
+     it stays disabled until one reveal signature has shown what's stored -
+     saving blind over unseen keys is how secrets get wiped by accident. ---- */
+  async _secrets(id, btn) {
+    const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-sec"); if (!box) return;
+    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
+    btn.setAttribute("aria-expanded", "true");
+    box.hidden = false;
+    const taId = "esTa" + appLabel(id);
+    box.innerHTML = '<div class="ap-attbar">secrets · ' + esc(id) + '</div>'
+      + '<div class="enc-sec-body">'
+      +   '<label for="' + taId + '">Private env vars, one KEY=value per line - stored on the relay, never on-chain; the enclave injects them when the app starts</label>'
+      +   '<textarea class="es-ta" id="' + taId + '" rows="5" spellcheck="false" autocomplete="off" placeholder="S3_ACCESS_KEY_ID=…&#10;S3_SECRET_ACCESS_KEY=…" disabled></textarea>'
+      +   '<span class="enc-sec-acts">'
+      +     '<button class="btn btn-sm btn-primary es-unlock" type="button" title="One wallet signature reveals what’s stored so you can edit it">Unlock ↓</button>'
+      +     '<button class="btn btn-sm es-save" type="button" disabled title="One wallet signature stores the textarea as this deployment’s complete secret set">Save</button>'
+      +   '</span>'
+      + '</div>'
+      + '<div class="term enc-sec-status" role="status" aria-live="polite"></div>';
+    const ta = box.querySelector(".es-ta"), unlock = box.querySelector(".es-unlock"),
+          save = box.querySelector(".es-save"), st = box.querySelector(".enc-sec-status");
+    const paint = (cls, txt) => paintLine(st, cls, txt);
+    // fleet advisory only - the relay stores regardless; injection needs the fleet
+    try {
+      const a = await Enclave.getAvailability();
+      if (a && a.aggregate && a.secrets !== true)
+        paint("dimln", "// heads-up: the live fleet doesn’t inject secrets yet - values you store apply once it updates");
+    } catch(e){}
+    if (box.hidden || !box.isConnected) return;
+    const sha256hex = async (s) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))]
+      .map(b => b.toString(16).padStart(2, "0")).join("");
+    const sign = async (message) => {
+      if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
+      return Enclave.provider.request({ method: "personal_sign", params: [message, Enclave.address] });
+    };
+    const call = async (path, body) => {
+      const r = await fetch(Enclave.base + path, { method: "POST",
+        headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.message || j.error || ("HTTP " + r.status));
+      return j;
+    };
+    let hadKeys = 0, armedClear = false;
+    unlock.addEventListener("click", async () => {
+      unlock.disabled = true;
+      try {
+        paint("info", "[*] one signature reveals this deployment’s stored secrets…");
+        const expiry = Math.floor(Date.now() / 1000) + 300;
+        const signature = await sign("enclave-secrets:get:" + id + ":" + expiry);
+        const r = await call("/secrets/" + id + "/get", { expiry, signature });
+        hadKeys = r.names.length;
+        ta.value = r.names.map(n => n + "=" + r.env[n]).join("\n");
+        ta.disabled = false; save.disabled = false;
+        paint("ok", r.names.length
+          ? "[✓] rev " + r.rev + " · " + r.names.length + " secret" + (r.names.length === 1 ? "" : "s") + " - edit below, then Save (replaces the whole set)"
+          : "[✓] nothing stored yet - add KEY=value lines below, then Save");
+      } catch(e){
+        paint("warn", "[x] " + (e.message || String(e)));
+        unlock.disabled = false;
+      }
+    });
+    save.addEventListener("click", async () => {
+      const set = {};
+      try {
+        for (let line of ta.value.split("\n")) {
+          line = line.trim();
+          if (!line || line.startsWith("#")) continue;
+          const m = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(line);
+          if (!m) throw new Error('"' + (line.length > 40 ? line.slice(0, 37) + "…" : line) + '" is not KEY=value');
+          if (/^ENCLAVE_/i.test(m[1])) throw new Error(m[1] + ": the ENCLAVE_ prefix is reserved for platform variables");
+          set[m[1]] = m[2];
+        }
+      } catch(e){ return paint("warn", "[x] " + e.message); }
+      if (!Object.keys(set).length && hadKeys && !armedClear) {
+        armedClear = true; save.textContent = "Really clear all?";
+        return paint("warn", "[!] the textarea is empty - Save again to remove all " + hadKeys + " stored secret" + (hadKeys === 1 ? "" : "s"));
+      }
+      save.disabled = true;
+      try {
+        paint("info", "[*] one signature stores the set…");
+        const payload = JSON.stringify({ clear: true, ...(Object.keys(set).length ? { set } : {}) });
+        const expiry = Math.floor(Date.now() / 1000) + 300;
+        const signature = await sign("enclave-secrets:put:" + id + ":" + expiry + ":" + await sha256hex(payload));
+        const r = await call("/secrets/" + id, { payload, expiry, signature });
+        hadKeys = r.names.length; armedClear = false; save.textContent = "Save";
+        const running = ((this._list || []).find(x => x.id === id) || {}).status === "running";
+        paint("ok", "[✓] stored rev " + r.rev + (r.names.length ? " · " + r.names.join(", ") : " · empty")
+          + (running ? " - Restart applies it to the running app" : " - the app picks it up when it starts"));
+        showToast("secrets updated for " + id.slice(0, 10) + "…");
+      } catch(e){
+        const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
+        paint("warn", rejected ? "[x] rejected in wallet - nothing changed" : "[x] " + (e.message || String(e)));
+      } finally { save.disabled = false; }
     });
   }
 

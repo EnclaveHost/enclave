@@ -1069,7 +1069,8 @@ async function cmdUpgrade(rest) {
 async function cmdDeploy(rest) {
   const account = loadKey();
   const f = flags(rest, {
-    val: ["--gpu", "--cpu", "--fund", "--fund-eth", "--port", "--ports", "--config-cid", "--waf", "--config"],
+    val: ["--gpu", "--cpu", "--fund", "--fund-eth", "--port", "--ports", "--config-cid", "--waf", "--config",
+          "--secrets", "--secrets-file"],
     bool: ["--private", "--public", "--no-wait"],
   });
   if (!f._[0]) throw new Error("usage: enclave deploy <app> [--gpu 0..1] [--cpu 0..1] --fund <usd> [flags]");
@@ -1137,6 +1138,23 @@ async function cmdDeploy(rest) {
   const envelope = Object.keys(envParts).length ? JSON.stringify(envParts) : "";
   if (Buffer.byteLength(envelope) > 4096)
     throw new Error(`the options envelope (waf + config) is ${Buffer.byteLength(envelope)} bytes; runners refuse envelopes over 4096 bytes — trim the config override`);
+  // --secrets '{"K":"V"}' / --secrets-file .env: PRIVATE env vars, staged on the
+  // relay between create and the first claim so the app has them at first boot.
+  // Deliberately NOT part of the on-chain envelope — the whole point is that
+  // they never touch the public ledger. Parsed (and any file read) BEFORE any
+  // transaction so a typo dies with $0 spent.
+  let secretsSet = null;
+  if (f.secrets !== undefined || f["secrets-file"] !== undefined) {
+    let fromJson = {};
+    if (f.secrets !== undefined) {
+      try { fromJson = JSON.parse(f.secrets); } catch (e) { throw new Error("--secrets must be a JSON object of NAME: value: " + e.message); }
+      if (!fromJson || Array.isArray(fromJson) || typeof fromJson !== "object" || Object.values(fromJson).some((v) => typeof v !== "string"))
+        throw new Error('--secrets must be a JSON object of string values, e.g. --secrets \'{"S3_SECRET_KEY":"…"}\'');
+    }
+    secretsSet = { ...secretsKv([], f["secrets-file"]), ...fromJson };
+    if (!Object.keys(secretsSet).length) throw new Error("--secrets/--secrets-file named no secrets");
+    say(`secrets: ${Object.keys(secretsSet).length} value${Object.keys(secretsSet).length === 1 ? "" : "s"} will be staged on the relay (private; injected as env vars by the enclave, never on-chain)`);
+  }
 
   // price it before asking for money (same snapshot formula create() applies)
   const [pricePerSec6, cpuPricePerSec6, maxGpuMilli] = await Promise.all([
@@ -1201,6 +1219,20 @@ async function cmdDeploy(rest) {
   if (!log) throw new Error("create succeeded but no Created event in the receipt; inspect tx " + rcpt.transactionHash);
   const id = log.topics[1];
   say(`created ${id}`);
+
+  // 1b. stage secrets BEFORE funding: claims only chase funded work, so the
+  // values are on the relay before any runner can launch the app. A store
+  // failure must not strand the created record — warn and keep going (the
+  // owner re-runs `enclave secrets set` and restarts).
+  if (secretsSet) {
+    try {
+      const r = await secretsCall(account, id, JSON.stringify({ set: secretsSet }));
+      say(`secrets staged (rev ${r.rev}): ${r.names.join(", ")}`);
+      await secretsFleetWarn();
+    } catch (e) {
+      say(`! secrets NOT stored (${e.message}) — the app launches without them; retry with: enclave secrets set ${id} … --restart`);
+    }
+  }
 
   // 2. fund (separate tx — the deployment already exists; if this fails it's inert, not lost)
   try {
@@ -1438,6 +1470,103 @@ async function cmdAccount() {
   kv(rows);
 }
 
+// ---- per-deployment secrets ---------------------------------------------------
+// Env-var-shaped private values (S3 keys, API tokens) stored on the API RELAY,
+// never on the public chain: the enclave holding the deployment's lease pulls
+// the current set at every app start and injects each entry as a guest env
+// var (same visibility class as ENCLAVE_CONFIG — the app can read them, and
+// an app that prints them puts them in its own owner-readable log). Owner ops
+// are single-use personal_sign signatures over canonical strings (no session;
+// the relay checks the signer against the deployment's ON-CHAIN owner):
+//   put: enclave-secrets:put:<id>:<expiry>:<sha256hex(payload)>
+//        payload = the EXACT JSON string sent as body.payload ({set?,del?,clear?})
+//   get: enclave-secrets:get:<id>:<expiry>
+// A running app picks changes up on its next start; --restart applies now.
+const secretsPutMsg = (id, expiry, payload) =>
+  `enclave-secrets:put:${id}:${expiry}:${crypto.createHash("sha256").update(payload, "utf8").digest("hex")}`;
+const secretsGetMsg = (id, expiry) => `enclave-secrets:get:${id}:${expiry}`;
+async function secretsCall(account, id, payload) {           // payload null = read-back
+  const expiry = Math.floor(Date.now() / 1000) + 300;
+  const message = payload == null ? secretsGetMsg(id, expiry) : secretsPutMsg(id, expiry, payload);
+  const signature = await account.signMessage({ message });
+  return api("POST", `/v1/secrets/${id}${payload == null ? "/get" : ""}`,
+             { body: payload == null ? { expiry, signature } : { payload, expiry, signature } });
+}
+// KEY=VALUE args + optional .env file (# comments, blank lines, `export ` prefix)
+function secretsKv(pairs, file) {
+  const set = {};
+  const add = (line, from) => {
+    const m = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(line);
+    if (!m) throw new Error(`${from}: "${line.length > 40 ? line.slice(0, 37) + "…" : line}" is not KEY=VALUE`);
+    set[m[1]] = m[2];
+  };
+  for (const p of pairs) add(p, "argument");
+  if (file) {
+    for (let line of fs.readFileSync(file, "utf8").split("\n")) {
+      line = line.trim().replace(/^export\s+/, "");
+      if (!line || line.startsWith("#")) continue;
+      add(line, file);
+    }
+  }
+  return set;
+}
+// after a successful store, one advisory availability probe: the relay accepted
+// the secrets, but only an up-to-date FLEET injects them (fleet-AND flag)
+async function secretsFleetWarn() {
+  try {
+    const av = await api("GET", "/availability");
+    if (av && av.aggregate && av.secrets !== true)
+      say("! stored on the relay, but the live fleet doesn't inject secrets yet (availability.secrets is not true) — they apply once the fleet updates");
+  } catch {}
+}
+async function cmdSecrets(rest) {
+  const sub = rest.shift();
+  const usage = "usage: enclave secrets set <id> KEY=VALUE… [--file .env] [--restart]\n"
+              + "     | enclave secrets ls <id> [--show]\n"
+              + "     | enclave secrets rm <id> KEY… [--restart]\n"
+              + "     | enclave secrets clear <id> [--restart]";
+  if (!["set", "ls", "list", "rm", "clear"].includes(sub || "")) throw new Error(usage);
+  const f = flags(rest, { bool: ["--show", "--restart"], val: ["--file"] });
+  if (!f._[0]) throw new Error(usage);
+  const account = loadKey();
+  const id = await resolveId(f._[0], account);
+  if (!isB32(id)) throw new Error("secrets need an on-chain deployment (bytes32 id)");
+  const kvArgs = f._.slice(1);
+
+  let r;
+  if (sub === "set") {
+    const set = secretsKv(kvArgs, f.file);
+    if (!Object.keys(set).length) throw new Error("nothing to set: pass KEY=VALUE arguments and/or --file .env");
+    r = await secretsCall(account, id, JSON.stringify({ set }));
+    say(`stored ${Object.keys(set).length} secret${Object.keys(set).length === 1 ? "" : "s"} (rev ${r.rev}): ${r.names.join(", ")}`);
+    await secretsFleetWarn();
+  } else if (sub === "rm") {
+    if (!kvArgs.length) throw new Error("usage: enclave secrets rm <id> KEY [KEY…]");
+    r = await secretsCall(account, id, JSON.stringify({ del: kvArgs }));
+    say(r.names.length ? `removed; ${r.names.length} left (rev ${r.rev}): ${r.names.join(", ")}` : "removed; no secrets left");
+  } else if (sub === "clear") {
+    if (!(await confirm(`clear ALL secrets on ${short(id)}?`))) return say("aborted");
+    r = await secretsCall(account, id, JSON.stringify({ clear: true }));
+    say("cleared");
+  } else {                                                   // ls
+    r = await secretsCall(account, id, null);
+    if (opt.json) return jout(f.show ? r : { ...r, env: undefined });
+    if (!r.names.length) return say(`no secrets stored for ${short(id)} (set some: enclave secrets set ${short(id)} KEY=VALUE)`);
+    say(`rev ${r.rev} · ${r.updatedAt || ""}`.trim());
+    for (const n of r.names) say(f.show ? `${n}=${r.env[n]}` : `${n}  (${Buffer.byteLength(r.env[n], "utf8")} bytes; --show to reveal)`);
+    return;
+  }
+  if (opt.json) return jout(r);
+  if (f.restart) {
+    const rr = await api("POST", `/v1/deployments/${id}/restart`, { auth: account })
+      .catch((e) => ({ error: e.message }));
+    say(rr.error ? `restart failed: ${rr.error} (a queued/stopped app applies them when it next starts)`
+                 : "restarted — the app now runs with the new secrets");
+  } else if (sub !== "clear") {
+    say("a running app applies them on its next start: enclave restart " + short(id));
+  }
+}
+
 // ---- encrypted volumes: wallet key derivation + credentials envelope ----------
 // BYTE-EXACT contract shared with scripts/enclave-encvol.sh and the
 // encrypted-volumes app's JS, pinned by test/encvol-e2e.py stage 3:
@@ -1538,6 +1667,17 @@ deployments
          [--config '{"api_key":"…"}']   app-config override for THIS deployment: replaces the
                                         version's config as its ENCLAVE_CONFIG ('{}' = empty;
                                         the catalog default and other deployments are untouched)
+         [--secrets '{"NAME":"value"}'] [--secrets-file .env]
+                                        PRIVATE env vars staged on the relay (never on-chain):
+                                        the enclave injects them into the app at every start
+  secrets set <id> KEY=VALUE… [--file .env] [--restart]
+                             store/update private env vars for a deployment (S3
+                             keys etc): relay-stored, encrypted at rest, injected
+                             by the lease-holding enclave; a wallet signature per
+                             change, checked against the on-chain owner
+  secrets ls <id> [--show]   list them (values masked without --show)
+  secrets rm <id> KEY…       remove some; "secrets clear <id>" removes all
+                             (--restart on any of these applies changes now)
   ls                         your deployments: live, queued and unfunded
   status <id>                one deployment: state, lease, balance, URL
   logs <id> [-f] [--tail N]  the app's stdout/stderr (-f polls)
@@ -1591,6 +1731,7 @@ const COMMANDS = {
   status: cmdStatus, logs: cmdLogs, fund: cmdFund, attest: cmdAttest,
   restart: cmdRestart, stop: cmdStop, suspend: cmdStop, resume: cmdResume,
   upgrade: cmdUpgrade, "set-version": cmdUpgrade,
+  secrets: cmdSecrets,
   publish: cmdPublish, apps: cmdApps,
   pricing: cmdPricing, availability: cmdAvailability, gpu: cmdGpu, account: cmdAccount,
   encvol: cmdEncvol,
