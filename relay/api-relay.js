@@ -773,6 +773,9 @@ function aggregateAvailability() {
     // fleet-AND of runners that fetch+inject — a mixed fleet would run the same
     // app with secrets on one runner and without them after a lease migration
     secrets: secretsEnabled() && live.length > 0 && live.every((e) => e.availability?.secrets === true),
+    // $NAME placeholders in config strings resolving from those secrets at
+    // launch — a build refinement on top of `secrets`, same fleet-AND
+    secretsInConfig: secretsEnabled() && live.length > 0 && live.every((e) => e.availability?.secretsInConfig === true),
     // attached model volumes across the fleet (Modelwrap), deduped by name -
     // each carries `enclaves`: which endpoints can mount it (placement matters,
     // a volume only lives where its enclave declares it)
