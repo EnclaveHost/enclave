@@ -303,6 +303,10 @@ enclave deploy encrypted-volumes:1.2 --fund 5 --secrets-file .env
 enclave secrets set 0x9c41…88d1 S3_SECRET_ACCESS_KEY=… --restart
 enclave secrets ls  0x9c41…88d1          # names only; --show reveals
 enclave secrets rm  0x9c41…88d1 OLD_KEY  # "clear" removes all</code></pre></c-code>
+          <p>Secrets also reach apps that only read <code>ENCLAVE_CONFIG</code>: a <code>$NAME</code> (or <code>${NAME}</code>) inside any config <em>string</em> resolves to the secret of that name when the enclave launches the app - so the on-chain config carries a harmless placeholder and the private value is spliced in at start, inside the enclave. Only names actually stored as secrets substitute (any other <code>$</code> stays literal; <code>$$</code> escapes one before a real name), and the deployment record keeps showing the placeholder - the resolved value exists only in the app's environment.</p>
+          <c-code fn="App config · secret placeholders"><pre><code>{ "endpoint": "https://s3.eu-central-1.wasabisys.com", "bucket": "my-bucket",
+  "credentials": { "accessKeyId": "$S3_ACCESS_KEY_ID",
+                   "secretAccessKey": "$S3_SECRET_ACCESS_KEY" } }</code></pre></c-code>
 
           <h4>Fund it: pay-per-second, credited on-chain, no custody</h4>
           <p>Funding lands in the deployment's on-chain <code>balance6</code> (the money itself forwards in the same transaction - the contract holds nothing, and payments are final). Your rate is snapshotted at create: <code>gpuShare × $<span data-live-price="unit-hr" data-gpu="100">6</span>/hr + cpuShare × $<span data-live-price="unit-hr" data-cpu="100">3</span>/hr</code>, plus the app's hourly publisher fee if it charges one. On a paid app every funding is split in that same transaction: the publisher's share (their fee's fraction of the rate) goes straight to their wallet, the rest to Enclave - still nothing custodied. Pay either way:</p>

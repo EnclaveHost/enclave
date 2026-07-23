@@ -443,6 +443,43 @@ SECRETS_MAX_KEYS, SECRETS_MAX_VALUE, SECRETS_MAX_TOTAL = 64, 4096, 16384
 _SECRET_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 
 
+# Config placeholders: $NAME / ${NAME} inside any STRING value of the config
+# JSON resolves to the deployment's secret of that name at launch, so a PUBLIC
+# on-chain config can reference private values ("credentials": {"secretAccessKey":
+# "$S3_SECRET_ACCESS_KEY"}) without any app changes. Substitution walks the
+# PARSED JSON and replaces within string values only - a secret holding quotes
+# or backslashes is re-serialized safely, never spliced into raw JSON text.
+# Only names actually stored as secrets substitute; anything else keeps its
+# literal $ (configs may legitimately contain dollar signs), and $$ escapes a
+# literal $ before a real secret name. The supervisor passes config RAW, so
+# the owner-visible record keeps the placeholder - values exist only in the
+# guest env, same exposure class as the secrets themselves.
+_SECRET_REF_RE = re.compile(r"\$(\$)|\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def _subst_secrets(text: str, secrets: dict) -> str:
+    if not secrets or "$" not in text:
+        return text
+
+    def rep(m):
+        if m.group(1):
+            return "$"                              # $$ -> literal $
+        name = m.group(2) or m.group(3)
+        v = secrets.get(name)
+        return v if v is not None else m.group(0)   # unknown name: keep literal
+
+    def walk(x):
+        if isinstance(x, str):
+            return _SECRET_REF_RE.sub(rep, x)
+        if isinstance(x, list):
+            return [walk(i) for i in x]
+        if isinstance(x, dict):
+            return {k: walk(v) for k, v in x.items()}
+        return x
+
+    return json.dumps(walk(json.loads(text)), separators=(",", ":"))
+
+
 def _validate_secrets(d) -> dict:
     if not isinstance(d, dict):
         raise ValueError("secrets must be an object of NAME: value")
@@ -2428,6 +2465,12 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
         rec["secretsCount"] = len(secrets)
     else:
         secrets = None
+
+    # $NAME config placeholders resolve BEFORE any config consumer runs, so
+    # substitution reaches everything the config feeds: the guest's
+    # ENCLAVE_CONFIG, encVolumes creds fields, warmup, volume lists.
+    if enclave_config and secrets:
+        enclave_config = _subst_secrets(enclave_config, secrets)
 
     # attached model volumes: the request may name them two ways - an explicit
     # /vms `volumes` list (direct callers) and/or a `volumes` array in the

@@ -2189,6 +2189,7 @@ app.get("/availability", async (_req, res) => {
     waf: true,   // this build accepts + enforces the deployment-options envelope (waf); the relay ANDs this across the fleet and the console shows the Protection controls only then
     configOverride: true,   // this build accepts the envelope's `config` namespace (per-deployment app-config override); same fleet-AND rule — the console unlocks the App config box only when every live runner honors it
     secrets: true,   // this build pulls relay-staged per-deployment secrets into the guest env at every launch; fleet-AND'd with the relay's own secretsEnabled() before clients see it
+    secretsInConfig: true,   // this build also resolves $NAME/${NAME} placeholders in config STRING values from those secrets at launch (wasm-manager _subst_secrets); same fleet-AND rule
     source, ...(note ? { note } : {}), updatedAt: new Date().toISOString(),
   });
   try {

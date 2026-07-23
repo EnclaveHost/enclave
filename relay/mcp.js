@@ -689,7 +689,7 @@ const TOOLS = [
   },
   {
     name: "set_secrets",
-    description: "Store/update a deployment's PRIVATE env vars (S3 keys, API tokens) on the relay — never on the public chain; the enclave holding the lease injects them into the app at every start (restart_deployment applies changes now). payload is a JSON STRING like '{\"set\":{\"NAME\":\"value\"},\"del\":[\"NAME\"],\"clear\":false}' — sign EXACTLY `enclave-secrets:put:<id>:<expiry>:<sha256hex(payload)>` (personal_sign, the deployment's OWNER wallet, expiry = unix seconds within +600s; single-use). Names are env-var-shaped, ENCLAVE_* reserved, ≤64 keys / 4KB per value / 16KB total.",
+    description: "Store/update a deployment's PRIVATE env vars (S3 keys, API tokens) on the relay — never on the public chain; the enclave holding the lease injects them into the app at every start (restart_deployment applies changes now), and $NAME/${NAME} placeholders inside the deployment's App config STRING values resolve from them at launch (so a public config can reference private values). payload is a JSON STRING like '{\"set\":{\"NAME\":\"value\"},\"del\":[\"NAME\"],\"clear\":false}' — sign EXACTLY `enclave-secrets:put:<id>:<expiry>:<sha256hex(payload)>` (personal_sign, the deployment's OWNER wallet, expiry = unix seconds within +600s; single-use). Names are env-var-shaped, ENCLAVE_* reserved, ≤64 keys / 4KB per value / 16KB total.",
     inputSchema: S({
       id: P.id,
       payload: { type: "string", description: "The EXACT JSON string that was hashed into the signed message: {set?, del?, clear?}" },
