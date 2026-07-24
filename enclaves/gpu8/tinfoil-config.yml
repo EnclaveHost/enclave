@@ -332,7 +332,7 @@ containers:
       # (name:path:file.gguf) picks WHICH gguf preloads as the wasi-nn graph
       # when the repo ships several quantizations - the manager stages the
       # pick as a symlink dir, so the mpk-<hash> mount name never matters.
-      - MODEL_VOLUMES: "qwen2.5-0.5b:/tinfoil/mpk/mpk-e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4,qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-d02f1afc0eee60adc4da2a541c8e095c9cff347b4f3996c2950ff84c676c1c70:qwen2.5-0.5b-instruct-q4_k_m.gguf,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2"
+      - MODEL_VOLUMES: "qwen2.5-0.5b:/tinfoil/mpk/mpk-e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4,qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-d02f1afc0eee60adc4da2a541c8e095c9cff347b4f3996c2950ff84c676c1c70:qwen2.5-0.5b-instruct-q4_k_m.gguf,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2"
     # SECRET doubles as the manager's control-plane token (VMMGR_TOKEN): tenants
     # hold outbound HTTP to loopback, so the control API on :8091 must reject
     # calls that don't carry it (the supervisor sends X-Vmmgr-Token). The tenant
@@ -387,13 +387,9 @@ models:
   # serving notes on the gpu flavor's entry (GGUF arch is qwen35, the pinned
   # LLAMA_COMMIT bec4772f serves it unchanged; no MODEL_VOLUMES third field
   # needed - single gguf, no toolchain dependency).
-  # TODO(steven): generate the mpk in the Tinfoil console Models tab from the
-  # pinned repo (per-repo value - the SAME string goes in the gpu flavor's
-  # entry), paste it below, and add
-  # qwen3.6-27b-gguf:/tinfoil/mpk/mpk-<root_hash> to MODEL_VOLUMES above.
   - name: "qwen3.6-27b-gguf"
     repo: "EnclaveHost/qwen3.6-27b-gguf@ee09d0591e3b961ae5c42fd337f91c1262d6ea0d"
-    mpk: "TODO_PASTE_FROM_TINFOIL_CONSOLE_MODELS_TAB"
+    mpk: "fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081_17625395200_623660fa-869e-5ce6-90d1-a6ed9b313653"
   # Qwen-Image-2512 + Lightning 8-step merge (Q8_0), curated for the sdcpp
   # backend - see the gpu flavor's entry for component/serving notes. This
   # flavor has no MODEL_VOLUMES_SD preload, so the volume is mount-only for

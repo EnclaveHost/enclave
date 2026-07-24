@@ -338,7 +338,7 @@ containers:
       # (name:path:file.gguf) picks WHICH gguf preloads as the wasi-nn graph
       # when the repo ships several quantizations - the manager stages the
       # pick as a symlink dir, so the mpk-<hash> mount name never matters.
-      - MODEL_VOLUMES: "qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-bb5cace1df1795f9dde1b6da38b2b9edfaaa56f4574a5d6270c1295b192c81c1,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.5-9b-gguf:/tinfoil/mpk/mpk-b70cb1b66baaf59542b5d478f952fcb4085dfb681deedf9e0420452e2fe6e6be,sd-turbo:/tinfoil/mpk/mpk-df0919ea85c829fb62c61029ac130f7e4a98bc6a57fe52dfb777a7426d5b36fc,sd-turbo-full:/tinfoil/mpk/mpk-e787b81d664922c08ac69bb0952b436404bbb150f6f7b71971431d0c3ff4ef60,z-image-turbo-sd:/tinfoil/mpk/mpk-2b646ec9773d4dba7227656826627de606a86d98790b0e806a62e548b6c581f5,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2"
+      - MODEL_VOLUMES: "qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-bb5cace1df1795f9dde1b6da38b2b9edfaaa56f4574a5d6270c1295b192c81c1,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.5-9b-gguf:/tinfoil/mpk/mpk-b70cb1b66baaf59542b5d478f952fcb4085dfb681deedf9e0420452e2fe6e6be,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,sd-turbo:/tinfoil/mpk/mpk-df0919ea85c829fb62c61029ac130f7e4a98bc6a57fe52dfb777a7426d5b36fc,sd-turbo-full:/tinfoil/mpk/mpk-e787b81d664922c08ac69bb0952b436404bbb150f6f7b71971431d0c3ff4ef60,z-image-turbo-sd:/tinfoil/mpk/mpk-2b646ec9773d4dba7227656826627de606a86d98790b0e806a62e548b6c581f5,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2"
       # Volumes preloaded through the stable-diffusion.cpp wasi-nn backend
       # (image txt2img: the guest load_by_name()s the volume and one
       # compute() runs the whole pipeline host-side; weights never enter
@@ -494,14 +494,9 @@ models:
   # MODEL_VOLUMES third field, no toolchain dependency. llm-chat catalog
   # entry: the app repo's deploy-config.template.json (chatml,
   # eos [248046, 248044]).
-  # TODO(steven): generate the mpk in the Tinfoil console Models tab from the
-  # pinned repo, paste it below, and add
-  # qwen3.6-27b-gguf:/tinfoil/mpk/mpk-<root_hash> to MODEL_VOLUMES above.
-  # The mpk is per-repo: the SAME string also goes in enclaves/gpu8's entry
-  # (and its MODEL_VOLUMES) - update both files together.
   - name: "qwen3.6-27b-gguf"
     repo: "EnclaveHost/qwen3.6-27b-gguf@ee09d0591e3b961ae5c42fd337f91c1262d6ea0d"
-    mpk: "TODO_PASTE_FROM_TINFOIL_CONSOLE_MODELS_TAB"
+    mpk: "fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081_17625395200_623660fa-869e-5ce6-90d1-a6ed9b313653"
   # SD-Turbo (distilled Stable Diffusion 2.1, 512x512 txt2img in 1-4 steps),
   # the Olive fp16 ONNX export by the onnxruntime team, fused for the CUDA EP
   # (com.microsoft ops - GPU-only, the CPU EP has no kernels for it). Serves
