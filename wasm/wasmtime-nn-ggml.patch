@@ -138,7 +138,7 @@ new file mode 100644
 index 0000000..140bfcd
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,676 @@
+@@ -0,0 +1,693 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -232,6 +232,7 @@ index 0000000..140bfcd
 +    fn ell_free_model(model: *mut c_void);
 +    fn ell_n_vocab(model: *mut c_void) -> i32;
 +    fn ell_free_context(ctx: *mut c_void);
++    fn ell_reset(ctx: *mut c_void);
 +    fn ell_new_server(
 +        model: *mut c_void,
 +        n_ctx: u32,
@@ -717,14 +718,30 @@ index 0000000..140bfcd
 +    fn drop(&mut self) {
 +        // seq removal mutates the llama context: wait out any in-flight
 +        // batch (bounded — one llama_decode), remove under the queue lock so
-+        // no leader starts meanwhile, then free the slot.
++        // no leader starts meanwhile, then free the slot. The slot lock is
++        // held through the idle check below: all slots free means no handle
++        // exists to submit, and init_execution_context can't mint one while
++        // we hold it — the reset can never race a live sequence.
 +        let mut q = self.server.q.lock().unwrap();
 +        while q.decoding {
 +            q = self.server.cv.wait(q).unwrap();
 +        }
 +        unsafe { ell_seq_remove(self.server.raw, self.seq_id) };
++        let mut slots = self.server.slots.lock().unwrap();
++        slots.push(self.seq_id);
++        // IDLE RESET: a unified pool FRAGMENTS under churn — used cells
++        // scatter upward and every decode step's attention then spans the
++        // high-water mark, which decayed live decode ~20 -> ~7 tok/s over a
++        // few hours of traffic (2026-07-24; defrag_thold is deprecated at
++        // our llama.cpp pin, nothing heals it). Sessions are transient and
++        // the pool holds NOTHING between them, so the moment the last one
++        // ends, clear the memory outright — fragmentation can only build
++        // within one continuous busy burst, and any quiet moment heals it.
++        if slots.len() == self.server.n_seq_max as usize {
++            unsafe { ell_reset(self.server.raw) };
++        }
++        drop(slots);
 +        drop(q);
-+        self.server.slots.lock().unwrap().push(self.seq_id);
 +    }
 +}
 +
