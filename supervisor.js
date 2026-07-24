@@ -1941,7 +1941,14 @@ const egress = (DEP_ADDR_PREFIX && EGRESS_RELAY_TOKEN)
   ? createEgress({
       secret: SECRET, socksPort: EGRESS_SOCKS_PORT, relayToken: EGRESS_RELAY_TOKEN,
       sourceAddrFor: depAddrFor,
-      isKnown: (id) => { const r = deployments.get(id); return !!r && r.status === "running"; },
+      // "claimed" is mid-provision on THIS enclave: the app process starts
+      // (and may dial out — its very first S3 fetch) fractionally before the
+      // provision path flips the record to "running", and the egress token in
+      // its env is enclave-minted either way. Excluding claimed made every
+      // boot-time connect lose the race and get "credential rejected" with no
+      // retry (risc-box fetches its kernel at exec and died on it; lazy
+      // dialers like net-probe never noticed).
+      isKnown: (id) => { const r = deployments.get(id); return !!r && (r.status === "running" || r.status === "claimed"); },
       log: (m) => console.log(m),
     })
   : null;
