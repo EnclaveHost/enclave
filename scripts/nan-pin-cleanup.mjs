@@ -10,7 +10,13 @@
 //
 // What counts as "no longer wanted" (mirrors the runner deploy gate):
 //   A catalog CID is KEPT iff SOME version referencing it is deployable —
-//   app.active && approval == Approved(1) && !yanked. Otherwise it is UNPINNED.
+//   app.active && approval == Approved(1) && !yanked — OR still Pending and
+//   younger than PENDING_GRACE_DAYS. Otherwise it is UNPINNED. Pending gets a
+//   grace window because publish -> approval is asynchronous and the wasm must
+//   still be fetchable when approval lands: the 04:17 timer once swept a CID
+//   pinned+published at 04:16:59 and approved a minute later, leaving that
+//   version permanently unprovisionable (http-probe@0.1.1, 2026-07-24). Only a
+//   Pending version old enough to be abandoned is storage junk.
 //   The keep test is a UNION over every version that lists the CID: a CID that a
 //   later Approved version re-listed stays pinned even if an earlier version of
 //   the same bytes is Pending/yanked (versions can share bytes but differ in
@@ -32,6 +38,7 @@
 //   RELAY_DIR              dir whose node_modules has viem (default /opt/nan-relay)
 //   PIN_CLEANUP_GC         "0" to skip the post-unpin repo GC (default: GC on)
 //   PIN_CLEANUP_DRY_RUN    "1"/CLI --dry-run: report only, unpin nothing
+//   PIN_CLEANUP_PENDING_GRACE_DAYS  keep Pending versions' pins this long (default 30)
 //
 // Exit codes: 0 ok (incl. nothing to do), 1 aborted on a read/RPC error.
 
@@ -48,7 +55,9 @@ const BOOK    = process.env.ADDRESS_BOOK_ADDRESS || "0xab214342d5A490150A4A97706
 const KUBO    = (process.env.KUBO_API || "http://127.0.0.1:5001").replace(/\/+$/, "");
 const DRY_RUN = process.env.PIN_CLEANUP_DRY_RUN === "1" || process.argv.includes("--dry-run");
 const DO_GC   = process.env.PIN_CLEANUP_GC !== "0";
+const APPROVAL_PENDING  = 0;
 const APPROVAL_APPROVED = 1;
+const PENDING_GRACE_SEC = (Number(process.env.PIN_CLEANUP_PENDING_GRACE_DAYS) || 30) * 86400;
 
 const BOOK_ABI = [{ type: "function", name: "all", stateMutability: "view", inputs: [],
   outputs: [{ name: "keys_", type: "bytes32[]" }, { name: "values", type: "address[]" }] }];
@@ -136,11 +145,14 @@ async function main() {
       const cid = v.cid.trim().toLowerCase();
       if (!cid) continue;
       listed.add(cid);
-      const deployable = a.active && Number(v.approval) === APPROVAL_APPROVED && !v.yanked;
-      if (deployable) { keep.add(cid); }
+      const st = Number(v.approval);
+      const deployable = a.active && st === APPROVAL_APPROVED && !v.yanked;
+      const pendingFresh = a.active && st === APPROVAL_PENDING && !v.yanked
+        && Date.now() / 1000 - Number(v.createdAt) < PENDING_GRACE_SEC;
+      if (deployable || pendingFresh) { keep.add(cid); }
       else {
         const why = !a.active ? "app-delisted" : v.yanked ? "yanked"
-          : Number(v.approval) === 2 ? "rejected" : "pending-approval";
+          : st === 2 ? "rejected" : "pending-stale";
         const set = reasons.get(cid) || new Set(); set.add(`${a.slug}@${v.version}:${why}`); reasons.set(cid, set);
       }
     }
