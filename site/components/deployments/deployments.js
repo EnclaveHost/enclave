@@ -394,6 +394,7 @@ class Deployments extends EnclaveElement {
           '<span class="enc-thumb" style="background-image:' + art + '" aria-hidden="true"></span>' +
           '<span class="ap-badge ' + statusCls(st) + '">' + esc(st) + '</span>' +
           '<span class="ap-badge ' + (d.public ? 'ep-public' : 'ep-private') + '" title="' + (d.public ? 'anyone can reach the app endpoint' : 'only your wallet token can reach the app') + '">' + (d.public ? 'public' : 'private') + '</span>' +
+          '<span class="ap-badge info ep-waf" data-wafb="' + esc(d.id) + '" hidden>protected</span>' +
           '<button class="enc-id" data-copy="' + esc(d.id) + '">' + esc(d.id) + ' ⧉</button>' +
           '<span class="enc-br" aria-hidden="true"></span>' +
           '<span class="enc-meta">' + esc(encTier(d)) + (appLbl ? ' · <span class="dim">' + esc(appLbl) + '</span>' : '') + '</span>' +
@@ -442,6 +443,7 @@ class Deployments extends EnclaveElement {
     this._fillWhy();               // cached decline reasons repaint instantly with the rows
     this._probeWhy(pageRows);      // then refresh them (throttled per row)
     this._probeTls(pageRows);      // TLS-gate the Open controls (throttled per row)
+    this._probeWaf(pageRows);      // "protected" badges off the options envelope (cached per row)
     this._renderPager(pages, shown.length, PER_PAGE);
     // finished runs' strips yield to their rows the moment those render
     [...this._strips.keys()].forEach(r => this._retireStrip(r));
@@ -507,6 +509,50 @@ class Deployments extends EnclaveElement {
      Throttle: pending rows retry each ~10s poll; a green row re-verifies
      every 5 min (an enclave release re-mints every cert, so green can regress)
      and only flips back on an actual failed probe - never while in flight. ---- */
+  /* ---- per-row "protected" badge: does the options envelope carry a waf?
+     The list rows (supervisor live view / relay ledger view) don't carry the
+     envelope, so visible on-chain rows get ONE cached ledger read each - an
+     envelope only changes via an owner tx, so the cache lives until the
+     Protect panel itself rewrites it (which flips the badge in place). ---- */
+  async _probeWaf(rows) {
+    this._env = this._env || new Map();
+    for (const d of rows) {
+      const id = d.id;
+      if (!/^0x[0-9a-f]{64}$/i.test(id || "")) continue;
+      const c = this._env.get(id);
+      if (c) { this._wafPaint(id); continue; }
+      this._env.set(id, { waf: false, summary: "" });   // stamp before the await: overlapping polls must not double-read
+      try {
+        const dd = await depGet(id);
+        this._wafLearn(id, dd && dd.configCid);
+      } catch (e) { this._env.delete(id); }             // unread: a later repaint retries
+    }
+  }
+  /* parse an envelope string into the cache + repaint that row's badge -
+     shared by the probe, the Protect panel's open (fresh read) and its apply
+     (optimistic), so the badge always says what the ledger says */
+  _wafLearn(id, envelope) {
+    this._env = this._env || new Map();
+    let w = null;
+    const raw = String(envelope || "").trim();
+    if (raw.startsWith("{")) { try { const o = JSON.parse(raw); if (o && o.waf && typeof o.waf === "object" && !Array.isArray(o.waf)) w = o.waf; } catch (e) {} }
+    const summary = w ? [
+      w.rps != null ? w.rps + " r/s per IP" : null,
+      w.burst != null ? "burst " + w.burst : null,
+      w.maxBodyMb != null ? "max body " + w.maxBodyMb + " MB" : null,
+      w.blockScanners ? "scanner paths blocked" : null,
+    ].filter(Boolean).join(" \u00b7 ") : "";
+    this._env.set(id, { waf: !!w, summary });
+    this._wafPaint(id);
+  }
+  _wafPaint(id) {
+    const c = this._env && this._env.get(id);
+    const b = this.querySelector('.ep-waf[data-wafb="' + id + '"]');
+    if (!b || !c) return;
+    b.hidden = !c.waf;
+    if (c.waf) b.title = "Protection is on: " + c.summary + " - the Protect button tunes or removes it";
+  }
+
   async _probeTls(rows) {
     this._tls = this._tls || new Map();
     for (const d of rows) {
@@ -870,6 +916,7 @@ class Deployments extends EnclaveElement {
     // the current envelope: waf + config namespaces; anything unparseable
     // reads as empty (setConfig replaces it wholesale, which also heals it)
     const raw = String(d.configCid || "").trim();
+    this._wafLearn(id, raw);                       // freshest ledger truth: sync the row badge
     let cur = {};
     if (raw.startsWith("{")) { try { cur = JSON.parse(raw); } catch(e){} }
     if (!cur || Array.isArray(cur) || typeof cur !== "object") cur = {};
@@ -951,6 +998,7 @@ class Deployments extends EnclaveElement {
         }
         paint("ok", "[✓] " + doneWord + " - " + applyWord);
         showToast(doneWord + " on " + id.slice(0, 10) + "…");
+        this._wafLearn(id, envelope);          // the row badge reflects the new envelope immediately
         setTimeout(() => { if (box.isConnected && !box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); } }, 3500);
       } catch(e){
         const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
