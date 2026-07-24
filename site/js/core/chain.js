@@ -34,6 +34,7 @@ export const DEP_SEL = { create:"e99c6ae0",   // rev >= 4: (..., configCid, feeR
                          price:"1e897c58", cpuPrice:"3f6195cc", setActive:"6485d678", setAppRef:"4d506615", maxGpuMilli:"4c8c5963",
                          feeOf:"430062bd", maxFeePerSec6:"95b957d7",
                          setShares:"00bc2be4",  // rev >= 6: owner share resize, rate recalculated at current prices
+                         setConfig:"df6e40ba",  // owner rewrite of the options envelope (waf + config namespaces)
                          multicall:"ac9650d8", // self-delegatecall batcher: setAppRef + setShares ride one signature
                          deploymentsSchema:"5d1b72b6" };  // shape-revision marker (reverts on rev-1 contracts;
                                                          // rev 3 = rev-2 struct + setAppRef version changes;

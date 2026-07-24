@@ -92,6 +92,18 @@ c-deployments{display:contents;}
 .enc-upg-status{padding:0 18px 10px;min-height:0;}
 .enc-upg-status:empty{display:none;}
 
+/* per-row Protect (the options envelope's waf namespace; setConfig) */
+.enc-waf{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:#080c12;}
+.enc-waf-body{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;}
+.enc-waf-body label{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);}
+.enc-waf-body abbr{cursor:help;text-decoration:underline dotted;}
+.enc-waf-body input[type="number"]{width:6em;background:var(--bg-1);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:.84rem;padding:.4em .6em;}
+.enc-waf-body input[type="number"]:focus{border-color:var(--jade-dim);outline:none;}
+.enc-waf-body input[type="number"]:disabled{opacity:.45;}
+.ew-on,.ew-scanlbl{display:inline-flex;align-items:center;gap:6px;}
+.enc-waf-status{padding:0 18px 10px;min-height:0;}
+.enc-waf-status:empty{display:none;}
+
 /* per-row Secrets (private env vars: relay-stored, locked-first editor - the
    bar carries the Unlock/Lock control; the body exists only while unlocked) */
 .enc-sec{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:#080c12;}

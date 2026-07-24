@@ -402,6 +402,7 @@ class Deployments extends EnclaveElement {
             '<button class="btn btn-sm enc-outbtn" data-id="' + esc(d.id) + '" aria-expanded="false">Output</button>' +
             (live && ctl !== "order" ? '<button class="btn btn-sm enc-fundbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="' + (ctl === "vault" ? 'Add runtime from your credit balance - one passkey tap' : 'Add runtime - a gas-free USDC signature credits the deployment’s on-chain balance') + '">Top up</button>' : '') +
             (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-upgbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Switch to another approved version of this app - paid time carries over; the app restarts in place on the new version">Version</button>' : '') +
+            (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-wafbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Per-IP rate limit + request filter, enforced inside the enclave at the app’s front door - add, tune or remove it any time; a running app picks the change up live">Protect</button>' : '') +
 
             (st === "running" && ctl === "wallet" ? '<button class="btn btn-sm enc-restart" data-id="' + esc(d.id) + '" title="Stop and relaunch the app in place - same version, endpoint and balance; app state is ephemeral. The fix for a wedged instance (e.g. a model that never loaded at boot)">Restart</button>' : '') +
             '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '" aria-expanded="false">Verify</button>' +
@@ -421,6 +422,7 @@ class Deployments extends EnclaveElement {
         depIp6Row(d) +
         '<div class="enc-fund" hidden></div>' +
         '<div class="enc-upg" hidden></div>' +
+        '<div class="enc-waf" hidden></div>' +
         (onchain && (live || resumable) && ctl === "wallet" ? secretsSection(d.id) : '') +
         '<div class="enc-out" data-id="' + esc(d.id) + '" hidden></div>' +
         '<div class="enc-att" hidden></div>' +
@@ -431,6 +433,7 @@ class Deployments extends EnclaveElement {
     $$(".enc-outbtn", body).forEach(b => b.addEventListener("click", () => this._output(b.dataset.id, b)));
     $$(".enc-fundbtn", body).forEach(b => b.addEventListener("click", () => this._fund(b.dataset.id, b)));
     $$(".enc-upgbtn", body).forEach(b => b.addEventListener("click", () => this._upgrade(b.dataset.id, b)));
+    $$(".enc-wafbtn", body).forEach(b => b.addEventListener("click", () => this._waf(b.dataset.id, b)));
     $$(".enc-sec[data-id]", body).forEach(el => this._secretsWire(el));
     $$(".enc-verify", body).forEach(b => b.addEventListener("click", () => this._verify(b.dataset.id, b)));
     $$(".enc-kill", body).forEach(b => b.addEventListener("click", () => this._kill(b.dataset.id, b)));
@@ -833,6 +836,122 @@ class Deployments extends EnclaveElement {
         paint("ok", "[✓] " + doneWord + " - the runner applies it within a minute; paid time and the endpoint carry over");
         showToast(doneWord.replace(/^switched/, "switched " + id.slice(0, 10) + "…").replace(/^resized/, "resized " + id.slice(0, 10) + "…"));
         setTimeout(() => { if (box.isConnected && !box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); } this.refresh(); }, 3500);
+      } catch(e){
+        const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
+        paint("warn", rejected ? (via ? "[x] cancelled - nothing changed" : "[x] rejected in wallet - nothing changed") : "[x] " + (e.message || String(e)));
+        go.disabled = false;
+      } finally { if (!via) refreshWallet(); }
+    });
+  }
+
+  /* ---- per-row Protect: the deployment's options envelope, WAF namespace.
+     Deployments that skipped Protection at create gain it here - one owner
+     setConfig tx rewrites the envelope (the `config` namespace, if any, is
+     PRESERVED verbatim), and a fleet advertising configEdit swaps the waf on
+     the LIVE app within ~a minute, no restart. Fails closed like the deploy
+     form: the editor only arms when every live runner enforces the envelope
+     (aggregate waf:true) - a mixed fleet would strand the deployment on a
+     runner that refuses it at its next claim. ---- */
+  async _waf(id, btn) {
+    const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-waf"); if (!box) return;
+    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
+    btn.setAttribute("aria-expanded", "true");
+    box.hidden = false;
+    box.innerHTML = '<div class="ap-attbar">protection · ' + esc(id) + '</div>'
+      + '<div class="term enc-waf-status" role="status" aria-live="polite"><span class="ln dimln">// reading the ledger + fleet…</span></div>';
+    let d = null, rev = 1, avail = null;
+    try { [rev, d] = await Promise.all([depSchemaRev(), depGet(id)]); } catch(e){ d = null; }
+    try { avail = await Enclave.getAvailability(); } catch(e){}
+    if (box.hidden || !box.isConnected) return;              // closed while loading
+    const fail = (msg) => { box.querySelector(".enc-waf-status").innerHTML = ""; paintLine(box.querySelector(".enc-waf-status"), "warn", msg); };
+    if (!d) return fail("[x] couldn’t read this deployment from the ledger - try again shortly");
+    if (avail && avail.waf !== true)
+      return fail("[!] the live fleet doesn’t enforce the protection envelope yet - enabling it now could strand this deployment on its next claim; try again after the fleet updates");
+    // the current envelope: waf + config namespaces; anything unparseable
+    // reads as empty (setConfig replaces it wholesale, which also heals it)
+    const raw = String(d.configCid || "").trim();
+    let cur = {};
+    if (raw.startsWith("{")) { try { cur = JSON.parse(raw); } catch(e){} }
+    if (!cur || Array.isArray(cur) || typeof cur !== "object") cur = {};
+    const w0 = (cur.waf && typeof cur.waf === "object" && !Array.isArray(cur.waf)) ? cur.waf : null;
+    const fid = "ew" + appLabel(id);
+    box.innerHTML = '<div class="ap-attbar">protection · ' + esc(id) + '</div>'
+      + '<div class="enc-waf-body">'
+      +   '<label class="ew-on"><input type="checkbox" class="ew-en" id="' + fid + 'e"' + (w0 ? " checked" : "") + '> Protection on</label>'
+      +   '<label for="' + fid + 'r">Rate/IP <abbr title="sustained requests per second each client IP may make; steadier traffic above it is dropped at the enclave’s front door with 429">?</abbr></label>'
+      +   '<input id="' + fid + 'r" class="ew-rps" type="number" min="0.1" max="10000" step="0.1" value="' + esc(String(w0 && w0.rps != null ? w0.rps : 10)) + '"> r/s'
+      +   '<label for="' + fid + 'b">Burst</label>'
+      +   '<input id="' + fid + 'b" class="ew-burst" type="number" min="1" max="100000" step="1" value="' + esc(String(w0 && w0.burst != null ? w0.burst : "")) + '" placeholder="auto">'
+      +   '<label for="' + fid + 'm">Max body</label>'
+      +   '<input id="' + fid + 'm" class="ew-body" type="number" min="0" max="1024" step="0.1" value="' + esc(String(w0 && w0.maxBodyMb != null ? w0.maxBodyMb : "")) + '" placeholder="off"> MB'
+      +   '<label class="ew-scanlbl"><input type="checkbox" class="ew-scan"' + (w0 && w0.blockScanners ? " checked" : "") + '> Block scanner paths <abbr title="drop obvious probe paths (/wp-admin, /.env, .php…) before they reach the app">?</abbr></label>'
+      +   '<button class="btn btn-sm btn-primary ew-go" type="button">Apply</button>'
+      + '</div>'
+      + '<div class="term enc-waf-status" role="status" aria-live="polite"></div>';
+    const st = box.querySelector(".enc-waf-status"), go = box.querySelector(".ew-go");
+    const en = box.querySelector(".ew-en"), rIn = box.querySelector(".ew-rps"),
+          bIn = box.querySelector(".ew-burst"), mIn = box.querySelector(".ew-body"), sc = box.querySelector(".ew-scan");
+    const paint = (cls, txt) => paintLine(st, cls, txt);
+    const liveEdit = !!(avail && avail.configEdit === true);
+    const applyWord = liveEdit ? "a running app picks it up live within ~a minute (no restart)"
+                               : "it applies at the app’s next relaunch or claim";
+    const intro = () => {
+      st.innerHTML = "";
+      paint("info", w0 ? "// tuning the existing protection - " + applyWord
+                       : "// this deployment launched without protection; enabling it needs one owner signature - " + applyWord);
+      if ("config" in cur) paint("dimln", "// the deployment’s app-config override is preserved untouched");
+    };
+    // mirror the deploy form's clamps; burst empty = auto (4s of the rate)
+    const spec = () => {
+      const num = (el, lo, hi, dflt) => { const v = parseFloat(el && el.value); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt; };
+      const w = { rps: num(rIn, 0.1, 10000, 10) };
+      const burst = parseFloat(bIn && bIn.value);
+      w.burst = Number.isFinite(burst) ? Math.round(Math.min(100000, Math.max(1, burst))) : Math.max(5, Math.ceil(w.rps * 4));
+      const body = num(mIn, 0, 1024, 0);
+      if (body > 0) w.maxBodyMb = body;
+      if (sc && sc.checked) w.blockScanners = true;
+      return w;
+    };
+    const sync = () => { const on = en.checked; [rIn, bIn, mIn, sc].forEach(el => { if (el) el.disabled = !on; });
+      const next = { ...cur }; if (en.checked) next.waf = spec(); else delete next.waf;
+      const env = Object.keys(next).length ? JSON.stringify(next) : "";
+      go.disabled = env === raw;
+      go.textContent = !en.checked && w0 ? "Remove protection" : w0 ? "Apply changes" : "Enable protection";
+    };
+    [en, rIn, bIn, mIn, sc].forEach(el => el && el.addEventListener("input", sync));
+    intro(); sync();
+    go.addEventListener("click", async () => {
+      const next = { ...cur };
+      if (en.checked) next.waf = spec(); else delete next.waf;
+      const envelope = Object.keys(next).length ? JSON.stringify(next) : "";
+      if (envelope === raw) return;
+      const cap = rev >= 5 ? 4096 : 100;
+      if (new TextEncoder().encode(envelope).length > cap)
+        return paint("warn", "[x] the options envelope (protection + config override) is over this ledger’s " + cap + "-byte cap - trim the config override first");
+      go.disabled = true;
+      const via = ctlOf((this._list || []).find(x => x.id === id)) === "vault";
+      const doneWord = en.checked ? (w0 ? "protection updated" : "protection enabled") : "protection removed";
+      try {
+        if (via){
+          // credit-vault row: the vault owns the deployment - one
+          // passkey-signed controlDeployment(setConfig) op via the relay
+          paint("info", "[*] confirm with your passkey…");
+          const { vaultOp } = await import("../../js/core/vault.js");
+          await vaultOp("control", { id, action: "options", envelope });
+        } else {
+          // setConfig is owner-gated on-chain - a connected wallet is all
+          // this needs; the envelope rides one transaction
+          if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
+          await ensureBaseChain();
+          paint("info", "[*] confirm the transaction in your wallet…");
+          const th = await sendTx(DEPLOYMENTS_ADDRESS,
+            encCall(DEP_SEL.setConfig, [{ t: "bytes32", v: id }, { t: "str", v: envelope }]));
+          paint("dimln", "  ↳ sent " + th + " · waiting for confirmation…");
+          await waitReceipt(th);
+        }
+        paint("ok", "[✓] " + doneWord + " - " + applyWord);
+        showToast(doneWord + " on " + id.slice(0, 10) + "…");
+        setTimeout(() => { if (box.isConnected && !box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); } }, 3500);
       } catch(e){
         const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
         paint("warn", rejected ? (via ? "[x] cancelled - nothing changed" : "[x] rejected in wallet - nothing changed") : "[x] " + (e.message || String(e)));
