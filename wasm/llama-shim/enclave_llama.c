@@ -111,3 +111,80 @@ int32_t ell_decode(void *ctx, void *model, const int32_t *tokens, int32_t n, flo
     memcpy(logits_out, logits, (size_t)ell_n_vocab(model) * sizeof(float));
     return 0;
 }
+
+void *ell_new_server(void *model, uint32_t n_ctx, uint32_t n_batch, uint32_t n_seq_max,
+                     int32_t type_k, int32_t type_v, int32_t flash_attn) {
+    struct llama_context_params p = llama_context_default_params();
+    p.n_ctx = n_ctx;
+    if (n_batch) { p.n_batch = n_batch; }
+    if (n_seq_max) { p.n_seq_max = n_seq_max; }
+    /* ONE pool of n_ctx tokens shared by every sequence (vs. the split
+     * per-stream layout): a long conversation and several short ones coexist
+     * without pre-partitioning, which is the sizing model the platform's
+     * capacity gates price. */
+    p.kv_unified = true;
+    p.type_k = ell_ggml_kv_type(type_k);
+    p.type_v = ell_ggml_kv_type(type_v);
+    switch (flash_attn) {
+        case ELL_FA_ENABLED:  p.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_ENABLED;  break;
+        case ELL_FA_DISABLED: p.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED; break;
+        case ELL_FA_AUTO:
+        default:              p.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_AUTO;     break;
+    }
+    return llama_init_from_model((struct llama_model *)model, p);
+}
+
+int32_t ell_decode_batch(void *ctx, void *model, int32_t n_items,
+                         const int32_t *seq_ids, const int32_t *counts,
+                         const int32_t *positions, const int32_t *tokens_flat,
+                         float *logits_flat) {
+    struct llama_context *lctx = (struct llama_context *)ctx;
+    if (n_items <= 0) {
+        return -1;
+    }
+    int32_t total = 0;
+    for (int32_t i = 0; i < n_items; i++) {
+        if (counts[i] <= 0 || positions[i] < 0) {
+            return -1;
+        }
+        total += counts[i];
+    }
+    if ((uint32_t)total > llama_n_batch(lctx)) {
+        return -1;
+    }
+    struct llama_batch batch = llama_batch_init(total, 0, 1);
+    int32_t cursor = 0;
+    for (int32_t i = 0; i < n_items; i++) {
+        for (int32_t t = 0; t < counts[i]; t++) {
+            batch.token[cursor]     = tokens_flat[cursor];
+            batch.pos[cursor]       = positions[i] + t;
+            batch.n_seq_id[cursor]  = 1;
+            batch.seq_id[cursor][0] = seq_ids[i];
+            batch.logits[cursor]    = (int8_t)(t == counts[i] - 1);
+            cursor++;
+        }
+    }
+    batch.n_tokens = total;
+    int32_t rc = llama_decode(lctx, batch);
+    if (rc != 0) {
+        llama_batch_free(batch);
+        return rc;
+    }
+    const size_t row = (size_t)ell_n_vocab(model);
+    cursor = 0;
+    for (int32_t i = 0; i < n_items; i++) {
+        cursor += counts[i];
+        const float *logits = llama_get_logits_ith(lctx, cursor - 1);
+        if (!logits) {
+            llama_batch_free(batch);
+            return -2;
+        }
+        memcpy(logits_flat + (size_t)i * row, logits, row * sizeof(float));
+    }
+    llama_batch_free(batch);
+    return 0;
+}
+
+void ell_seq_remove(void *ctx, int32_t seq_id) {
+    llama_memory_seq_rm(llama_get_memory((struct llama_context *)ctx), seq_id, -1, -1);
+}

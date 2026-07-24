@@ -66,6 +66,41 @@ void ell_reset(void *ctx);
  * (context overflow, backend failure). */
 int32_t ell_decode(void *ctx, void *model, const int32_t *tokens, int32_t n, float *logits_out);
 
+/* ---- multi-sequence serving (continuous batching) ----------------------
+ *
+ * ell_new_server: a context that serves up to n_seq_max CONCURRENT sequences
+ * out of ONE unified KV pool of n_ctx tokens TOTAL (kv_unified: any sequence
+ * may grow into whatever the pool has free - the pool is sized once, not per
+ * sequence, which is the whole memory win over one ell_new_context per
+ * request). Same type_k/type_v/flash_attn contract as ell_new_context; free
+ * with ell_free_context. n_seq_max 1 behaves like ell_new_context.
+ *
+ * ell_decode_batch: decode n_items sequences' pending tokens in ONE
+ * llama_decode call - under load, concurrent requests' decode steps merge
+ * into one pass over the weights instead of n_items passes. Flat arrays,
+ * item i owning counts[i] tokens:
+ *   seq_ids[i]     the sequence the tokens extend (0..n_seq_max-1)
+ *   counts[i]      how many tokens item i feeds (>= 1)
+ *   positions[i]   the position of item i's FIRST token in its sequence
+ *                  (= tokens already decoded into that sequence)
+ *   tokens_flat    all items' tokens back to back (sum(counts) <= n_batch)
+ * On success writes item i's LAST-token logits (n_vocab floats) to
+ * logits_flat + i*n_vocab and returns 0. 1 = the KV pool cannot hold the
+ * batch right now (llama restores state - retryable after other sequences
+ * finish); other nonzero = decode error. A caller must not have two items
+ * for the SAME sequence in one call.
+ *
+ * ell_seq_remove: drop one finished sequence's tokens from the pool (the
+ * slot is reusable immediately). Callers serialize all three calls per
+ * context - the shim adds no locking. */
+void *ell_new_server(void *model, uint32_t n_ctx, uint32_t n_batch, uint32_t n_seq_max,
+                     int32_t type_k, int32_t type_v, int32_t flash_attn);
+int32_t ell_decode_batch(void *ctx, void *model, int32_t n_items,
+                         const int32_t *seq_ids, const int32_t *counts,
+                         const int32_t *positions, const int32_t *tokens_flat,
+                         float *logits_flat);
+void ell_seq_remove(void *ctx, int32_t seq_id);
+
 #ifdef __cplusplus
 }
 #endif

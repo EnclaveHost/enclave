@@ -36,10 +36,13 @@
 # is deterministic (residency is first-come-first-served within the share)
 # and one published app scales with the deployment's resources - llm-chat's
 # smallest-first warmup ladder + unfit-model reporting ride on this.
-# Per-request cost is llama-context allocation only. Contract:
-# input "tokens" I32 [1,n] -> output "logits" Fp32 [1,n_vocab]; the KV cache
-# lives in the execution context (stateful across compute() calls). GGUF
-# volumes must also carry tokenizer.json (guest-side tokenization).
+# Contract: input "tokens" I32 [1,n] -> output "logits" Fp32 [1,n_vocab].
+# CONTINUOUS BATCHING: each graph has ONE shared llama context (created on
+# first use) with a unified KV pool of N_CTX tokens total; a wasi-nn
+# execution context is a SEQUENCE HANDLE into it (per-request cost = a seq
+# slot, not a context allocation), and concurrent requests' decode steps
+# merge into single llama_decode calls (leader protocol in GgmlServer).
+# GGUF volumes must also carry tokenizer.json (guest-side tokenization).
 #
 # GPU: the llama.cpp libs are GGML_BACKEND_DL builds - the cpu/cuda compute
 # backends are dlopened MODULES, loaded by the shim's ell_init() from
@@ -51,12 +54,13 @@
 # registry hardcodes ExecutionTarget::Cpu, so the env is ALSO what turns
 # offload on for preloaded graphs (the wasm-manager sets -1 per GPU tenant).
 #
-# Tuning env (host process only): ENCLAVE_GGML_N_CTX (default 8192),
+# Tuning env (host process only): ENCLAVE_GGML_N_CTX (default 8192 - the
+# SHARED pool size in tokens, not a per-request window),
 # ENCLAVE_GGML_N_BATCH (512), ENCLAVE_GGML_N_GPU_LAYERS (-1 = offload all),
-# ENCLAVE_GGML_MAX_SESSIONS (default 1 - live contexts per process; every
-# context pre-allocates the FULL n_ctx KV window, so concurrency multiplies
-# the window's VRAM cost; over-cap requests fail fast with [sessions_busy]
-# for guests to wait-and-retry on),
+# ENCLAVE_GGML_MAX_SESSIONS (default 1 - concurrent sequences per graph;
+# slots share the ONE pool so raising it costs no extra pre-allocated VRAM;
+# no free slot = fail-fast [sessions_busy] for guests to wait-and-retry on,
+# pool pressure at decode = retryable [kv_pool_full]),
 # ENCLAVE_GGML_BACKEND_DIR (backend-module dir; unset = exe dir + cwd).
 #
 # Build: cargo build --release --features "wasi-nn,wasmtime-wasi-nn/ggml"
@@ -134,7 +138,7 @@ new file mode 100644
 index 0000000..140bfcd
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,469 @@
+@@ -0,0 +1,676 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -164,28 +168,49 @@ index 0000000..140bfcd
 +//! Inference contract (WIT named tensors):
 +//!   input  "tokens"  I32  dims [1, n] (n <= n_batch)   token ids
 +//!   output "logits"  Fp32 dims [1, n_vocab]            last-token logits
-+//! The execution context owns a llama context; its KV cache persists across
-+//! `compute()` calls, so a generate loop feeds the sampled token back one at
-+//! a time. A fresh wasi-nn execution context = a fresh sequence.
++//!
++//! SERVING MODEL (continuous batching): an execution context is a SEQUENCE
++//! HANDLE into its graph's shared server context. llama.cpp serves up to
++//! ENCLAVE_GGML_MAX_SESSIONS concurrent sequences out of ONE unified KV pool
++//! of n_ctx tokens TOTAL — a slot costs no pre-allocated VRAM of its own,
++//! each chat consumes only the pool space its actual tokens need. Concurrent
++//! requests' decode steps MERGE into single batched llama_decode calls (the
++//! leader protocol in GgmlServer::submit): decode is memory-bandwidth-bound,
++//! one pass over the weights serves every active chat, so aggregate
++//! throughput scales with concurrency instead of dividing by it. A fresh
++//! wasi-nn execution context = a fresh sequence; dropping it frees its
++//! tokens back to the pool. NOTE: batched and serial decodes may differ in
++//! floating-point reduction order — greedy token streams are deterministic
++//! only for a fixed batch composition (compare like with like).
++//!
++//! Isolation: one server per GRAPH per tenant PROCESS. Cross-app isolation
++//! is the process boundary (each tenant is its own `wasmtime serve` with its
++//! own MPS partition) — batching only ever merges requests of the same
++//! deployment, and sequences are kept apart by llama.cpp's seq_id-keyed KV
++//! masking (the llama-server production mechanism).
 +//!
 +//! Tuning env (host process only, set per tenant by the wasm-manager):
-+//!   ENCLAVE_GGML_N_CTX          context window (default 8192; 0 = model max)
-+//!   ENCLAVE_GGML_N_BATCH        max tokens per compute (default 512)
++//!   ENCLAVE_GGML_N_CTX          KV pool size in TOKENS, shared by all of a
++//!                               graph's concurrent sequences (default 8192;
++//!                               0 = model max)
++//!   ENCLAVE_GGML_N_BATCH        max tokens per llama_decode (default 512)
 +//!   ENCLAVE_GGML_N_GPU_LAYERS   -1 = offload all (default when built with
 +//!                               CUDA-enabled libllama), 0 = pure CPU
 +//!   ENCLAVE_GGML_KV_CACHE_TYPE  KV-cache element type: f16 (default) | q8_0 |
 +//!                               q4_0 | f32. q8_0 ~halves / q4_0 ~quarters the
-+//!                               VRAM the context window costs up front.
++//!                               VRAM the pool costs up front.
 +//!                               ..._K / ..._V override one side only.
 +//!   ENCLAVE_GGML_FLASH_ATTN     auto (default) | on | off. A quantized V cache
 +//!                               requires Flash Attention, so a q8_0/q4_0 V is
 +//!                               auto-promoted to on unless explicitly off.
-+//!   ENCLAVE_GGML_MAX_SESSIONS   live inference contexts per process (default
-+//!                               1). Every context pre-allocates the FULL
-+//!                               n_ctx KV window, so concurrency multiplies
-+//!                               the window's VRAM cost; over-cap requests
-+//!                               fail fast with [sessions_busy] for guests to
-+//!                               wait-and-retry on.
++//!   ENCLAVE_GGML_MAX_SESSIONS   concurrent sequences per graph (default 1).
++//!                               Slots into the SHARED pool — raising it costs
++//!                               no extra pre-allocated VRAM (the pool is
++//!                               sized once by N_CTX). No free slot = fail
++//!                               fast with [sessions_busy] for guests to
++//!                               wait-and-retry on; pool pressure at decode
++//!                               time surfaces as [kv_pool_full] (retryable —
++//!                               llama restores state on that failure).
 +//!   ENCLAVE_GGML_BACKEND_DIR    dir holding the dlopened libggml-* backend
 +//!                               modules (unset = exe dir + cwd)
 +
@@ -195,10 +220,10 @@ index 0000000..140bfcd
 +};
 +use crate::wit::types::{ExecutionTarget, GraphEncoding, Tensor, TensorType};
 +use crate::{ExecutionContext, Graph};
++use std::collections::{HashMap, VecDeque};
 +use std::ffi::{c_char, c_void, CString};
 +use std::path::Path;
-+use std::sync::atomic::{AtomicUsize, Ordering};
-+use std::sync::{Arc, Once};
++use std::sync::{Arc, Condvar, Mutex, Once};
 +
 +unsafe extern "C" {
 +    fn ell_init();
@@ -206,39 +231,30 @@ index 0000000..140bfcd
 +    fn ell_load_model(path: *const c_char, n_gpu_layers: i32) -> *mut c_void;
 +    fn ell_free_model(model: *mut c_void);
 +    fn ell_n_vocab(model: *mut c_void) -> i32;
-+    fn ell_new_context(
++    fn ell_free_context(ctx: *mut c_void);
++    fn ell_new_server(
 +        model: *mut c_void,
 +        n_ctx: u32,
 +        n_batch: u32,
++        n_seq_max: u32,
 +        type_k: i32,
 +        type_v: i32,
 +        flash_attn: i32,
 +    ) -> *mut c_void;
-+    fn ell_free_context(ctx: *mut c_void);
-+    #[allow(dead_code)]
-+    fn ell_reset(ctx: *mut c_void);
-+    fn ell_decode(
++    fn ell_decode_batch(
 +        ctx: *mut c_void,
 +        model: *mut c_void,
-+        tokens: *const i32,
-+        n: i32,
-+        logits_out: *mut f32,
++        n_items: i32,
++        seq_ids: *const i32,
++        counts: *const i32,
++        positions: *const i32,
++        tokens_flat: *const i32,
++        logits_flat: *mut f32,
 +    ) -> i32;
++    fn ell_seq_remove(ctx: *mut c_void, seq_id: i32);
 +}
 +
 +static INIT: Once = Once::new();
-+
-+/// Live llama contexts in this process (created minus dropped). Every context
-+/// pre-allocates the FULL n_ctx KV window (llama.cpp does not grow it lazily),
-+/// so N overlapping requests cost N windows — the VRAM exhaustion that took
-+/// llm-chat down under ~30 concurrent chats (2026-07-24; every capacity gate
-+/// above this line assumes a single active session). The gate FAILS FAST
-+/// instead of blocking: a waiter would pin an executor thread inside a sync
-+/// host call, and enough waiters starve the permit holder — a deadlock, not a
-+/// queue. Guests turn the [sessions_busy]-tagged error into their own
-+/// wait-and-retry (llm-chat sleeps on a monotonic-clock pollable, which
-+/// yields the thread properly).
-+static LIVE_SESSIONS: AtomicUsize = AtomicUsize::new(0);
 +
 +fn err(msg: impl Into<String>) -> BackendError {
 +    BackendError::BackendAccess(wasmtime::format_err!("{}", msg.into()))
@@ -308,10 +324,13 @@ index 0000000..140bfcd
 +            unsafe { ell_free_model(model) };
 +            return Err(err("model reports no vocabulary"));
 +        }
-+        let graph: Box<dyn BackendGraph> = Box::new(GgmlGraph(Arc::new(GgmlModel {
-+            raw: model,
-+            n_vocab: n_vocab as u32,
-+        })));
++        let graph: Box<dyn BackendGraph> = Box::new(GgmlGraph {
++            model: Arc::new(GgmlModel {
++                raw: model,
++                n_vocab: n_vocab as u32,
++            }),
++            server: Mutex::new(None),
++        });
 +        Ok(graph.into())
 +    }
 +}
@@ -424,18 +443,66 @@ index 0000000..140bfcd
 +    }
 +}
 +
-+struct GgmlGraph(Arc<GgmlModel>);
-+unsafe impl Send for GgmlGraph {}
-+unsafe impl Sync for GgmlGraph {}
++/// One decode request from one sequence, queued for the next merged batch.
++struct PendingItem {
++    ticket: u64,
++    seq_id: i32,
++    pos0: i32,
++    tokens: Vec<i32>,
++}
 +
-+impl BackendGraph for GgmlGraph {
-+    fn init_execution_context(&self) -> Result<ExecutionContext, BackendError> {
++struct DecodeQueue {
++    next_ticket: u64,
++    pending: VecDeque<PendingItem>,
++    results: HashMap<u64, Result<Vec<f32>, String>>,
++    /// a leader is inside ell_decode_batch — exactly one at a time, and
++    /// seq removal (Drop) must also wait on this
++    decoding: bool,
++}
++
++/// The shared serving context for one graph: one llama context whose unified
++/// KV pool holds every concurrent sequence. All shim calls on `raw` are
++/// serialized by the leader protocol (submit) + the `decoding` flag (Drop);
++/// the shim itself adds no locking.
++struct GgmlServer {
++    raw: *mut c_void,
++    model: Arc<GgmlModel>,
++    n_batch: u32,
++    n_seq_max: u32,
++    n_vocab: usize,
++    slots: Mutex<Vec<i32>>,
++    q: Mutex<DecodeQueue>,
++    cv: Condvar,
++}
++unsafe impl Send for GgmlServer {}
++unsafe impl Sync for GgmlServer {}
++impl Drop for GgmlServer {
++    fn drop(&mut self) {
++        unsafe { ell_free_context(self.raw) };
++    }
++}
++
++/// llama_decode rc -> caller-facing message. rc 1 = the pool momentarily
++/// cannot hold the step; llama RESTORES state on it, so it is retryable.
++fn decode_err(rc: i32) -> String {
++    if rc == 1 {
++        "[kv_pool_full] the shared KV pool cannot hold this step right now — too many (or too \
++         long) concurrent chats; retry shortly, or redeploy with a larger share"
++            .to_string()
++    } else {
++        format!("llama_decode failed (rc {rc}; context window exhausted?)")
++    }
++}
++
++impl GgmlServer {
++    fn new(model: &Arc<GgmlModel>) -> Result<Arc<GgmlServer>, BackendError> {
 +        let n_ctx = env_u32("ENCLAVE_GGML_N_CTX", 8192);
 +        let n_batch = env_u32("ENCLAVE_GGML_N_BATCH", 512);
++        let n_seq_max = env_u32("ENCLAVE_GGML_MAX_SESSIONS", 1).max(1);
 +        // KV-cache quantization: ENCLAVE_GGML_KV_CACHE_TYPE sets both sides
 +        // (f16|q8_0|q4_0|f32); ..._K / ..._V override per side. A quantized KV
 +        // cache roughly halves (q8_0) or quarters (q4_0) the up-front VRAM the
-+        // window costs. Default f16 = unchanged behavior.
++        // pool costs. Default f16 = unchanged behavior.
 +        let kv_both = std::env::var("ENCLAVE_GGML_KV_CACHE_TYPE").unwrap_or_default();
 +        let type_k = kv_type_code(
 +            &std::env::var("ENCLAVE_GGML_KV_CACHE_TYPE_K").unwrap_or_else(|_| kv_both.clone()),
@@ -452,29 +519,183 @@ index 0000000..140bfcd
 +        if matches!(type_v, 1 | 2) && flash_attn == 0 {
 +            flash_attn = 2;
 +        }
-+        // Session gate: RESERVE a slot before allocating, so two racing
-+        // requests cannot both see a free slot and overflow the share.
-+        let max_sessions = env_u32("ENCLAVE_GGML_MAX_SESSIONS", 1).max(1) as usize;
-+        if LIVE_SESSIONS.fetch_add(1, Ordering::SeqCst) >= max_sessions {
-+            LIVE_SESSIONS.fetch_sub(1, Ordering::SeqCst);
-+            return Err(err(format!(
-+                "[sessions_busy] all {max_sessions} inference session(s) are in use — each one \
-+                 holds the full context window's KV cache in the share's VRAM; retry shortly"
-+            )));
-+        }
-+        let raw = unsafe { ell_new_context(self.0.raw, n_ctx, n_batch, type_k, type_v, flash_attn) };
++        let raw = unsafe {
++            ell_new_server(model.raw, n_ctx, n_batch, n_seq_max, type_k, type_v, flash_attn)
++        };
 +        if raw.is_null() {
-+            LIVE_SESSIONS.fetch_sub(1, Ordering::SeqCst);
 +            return Err(err(
-+                "llama.cpp context allocation failed — the n_ctx window's KV cache does not fit \
-+                 the share's free VRAM (lower ENCLAVE_GGML_N_CTX or buy a larger share; if \
-+                 ENCLAVE_GGML_MAX_SESSIONS was raised, concurrent sessions hold the rest)",
++                "llama.cpp context allocation failed — the n_ctx KV pool does not fit the \
++                 share's free VRAM (lower ENCLAVE_GGML_N_CTX or buy a larger share)",
 +            ));
 +        }
-+        let ctx: Box<dyn BackendExecutionContext> = Box::new(GgmlExecutionContext {
-+            model: self.0.clone(),
++        Ok(Arc::new(GgmlServer {
 +            raw,
++            model: model.clone(),
 +            n_batch,
++            n_seq_max,
++            n_vocab: model.n_vocab as usize,
++            slots: Mutex::new((0..n_seq_max as i32).collect()),
++            q: Mutex::new(DecodeQueue {
++                next_ticket: 0,
++                pending: VecDeque::new(),
++                results: HashMap::new(),
++                decoding: false,
++            }),
++            cv: Condvar::new(),
++        }))
++    }
++
++    /// Decode `tokens` as the next step of `seq_id` (whose first new token
++    /// sits at position `pos0`) and return the last token's logits row.
++    /// Concurrent callers MERGE: whoever finds the queue idle becomes the
++    /// leader, drains everything that fits one llama batch, runs the single
++    /// FFI decode, posts every item's result, and wakes the rest —
++    /// continuous batching by natural queueing, no artificial delay window
++    /// (requests that arrive while a batch is on the GPU merge into the
++    /// next one).
++    fn submit(&self, seq_id: i32, pos0: i32, tokens: Vec<i32>) -> Result<Vec<f32>, String> {
++        if tokens.is_empty() {
++            return Err("empty token batch".into());
++        }
++        if tokens.len() > self.n_batch as usize {
++            return Err(format!(
++                "batch of {} tokens exceeds n_batch {} (chunk your prefill)",
++                tokens.len(),
++                self.n_batch
++            ));
++        }
++        let ticket = {
++            let mut q = self.q.lock().unwrap();
++            let t = q.next_ticket;
++            q.next_ticket += 1;
++            q.pending.push_back(PendingItem { ticket: t, seq_id, pos0, tokens });
++            t
++        };
++        let mut q = self.q.lock().unwrap();
++        loop {
++            if let Some(r) = q.results.remove(&ticket) {
++                return r;
++            }
++            if !q.decoding && !q.pending.is_empty() {
++                // become the leader: take from the front while it fits the
++                // batch, one item per sequence (positions within one call
++                // are per-item contiguous)
++                let mut items: Vec<PendingItem> = Vec::new();
++                let mut total = 0usize;
++                while let Some(it) = q.pending.front() {
++                    if total + it.tokens.len() > self.n_batch as usize && !items.is_empty() {
++                        break;
++                    }
++                    if items.iter().any(|p| p.seq_id == it.seq_id) {
++                        break;
++                    }
++                    let it = q.pending.pop_front().unwrap();
++                    total += it.tokens.len();
++                    items.push(it);
++                }
++                q.decoding = true;
++                drop(q);
++                let results = self.decode_items(&items);
++                q = self.q.lock().unwrap();
++                for (it, res) in items.into_iter().zip(results) {
++                    q.results.insert(it.ticket, res);
++                }
++                q.decoding = false;
++                self.cv.notify_all();
++                continue; // our own result may be among them
++            }
++            q = self.cv.wait(q).unwrap();
++        }
++    }
++
++    /// One merged decode over `items` (results in item order). On a
++    /// pool-full rc 1 with several items, fall back to per-item decodes so
++    /// one over-long request cannot fail its batchmates (llama restores
++    /// state on rc 1, so the retry is sound).
++    fn decode_items(&self, items: &[PendingItem]) -> Vec<Result<Vec<f32>, String>> {
++        match self.decode_raw(items) {
++            Ok(rows) => rows.into_iter().map(Ok).collect(),
++            Err(1) if items.len() > 1 => items
++                .iter()
++                .map(|it| match self.decode_raw(std::slice::from_ref(it)) {
++                    Ok(mut rows) => Ok(rows.pop().expect("one row per item")),
++                    Err(rc) => Err(decode_err(rc)),
++                })
++                .collect(),
++            Err(rc) => items.iter().map(|_| Err(decode_err(rc))).collect(),
++        }
++    }
++
++    /// The FFI call itself; Err carries the raw llama_decode rc.
++    fn decode_raw(&self, items: &[PendingItem]) -> Result<Vec<Vec<f32>>, i32> {
++        let n = items.len();
++        let seq_ids: Vec<i32> = items.iter().map(|i| i.seq_id).collect();
++        let counts: Vec<i32> = items.iter().map(|i| i.tokens.len() as i32).collect();
++        let positions: Vec<i32> = items.iter().map(|i| i.pos0).collect();
++        let flat: Vec<i32> = items.iter().flat_map(|i| i.tokens.iter().copied()).collect();
++        let mut logits = vec![0f32; n * self.n_vocab];
++        let rc = unsafe {
++            ell_decode_batch(
++                self.raw,
++                self.model.raw,
++                n as i32,
++                seq_ids.as_ptr(),
++                counts.as_ptr(),
++                positions.as_ptr(),
++                flat.as_ptr(),
++                logits.as_mut_ptr(),
++            )
++        };
++        if rc != 0 {
++            return Err(rc);
++        }
++        Ok(logits.chunks_exact(self.n_vocab).map(|c| c.to_vec()).collect())
++    }
++}
++
++struct GgmlGraph {
++    model: Arc<GgmlModel>,
++    /// the shared server, created on FIRST use (that is when the KV pool
++    /// claims its VRAM) and kept for the graph's lifetime. Creation failure
++    /// is NOT cached — a later request retries (VRAM may have freed).
++    server: Mutex<Option<Arc<GgmlServer>>>,
++}
++unsafe impl Send for GgmlGraph {}
++unsafe impl Sync for GgmlGraph {}
++
++impl BackendGraph for GgmlGraph {
++    fn init_execution_context(&self) -> Result<ExecutionContext, BackendError> {
++        let server = {
++            let mut s = self.server.lock().unwrap();
++            match &*s {
++                Some(srv) => srv.clone(),
++                None => {
++                    let srv = GgmlServer::new(&self.model)?;
++                    *s = Some(srv.clone());
++                    srv
++                }
++            }
++        };
++        // Slot gate: a free seq id or an immediate, marker-tagged refusal.
++        // FAIL FAST, not a blocking wait — a waiter would pin an executor
++        // thread inside a sync host call, and enough waiters starve the
++        // slot holders into a deadlock. Guests turn this into their own
++        // wait-and-retry (llm-chat sleeps on a monotonic-clock pollable).
++        let seq_id = match server.slots.lock().unwrap().pop() {
++            Some(id) => id,
++            None => {
++                return Err(err(format!(
++                    "[sessions_busy] all {} inference session slot(s) are in use; retry \
++                     shortly (ENCLAVE_GGML_MAX_SESSIONS caps concurrent sequences in the \
++                     shared KV pool)",
++                    server.n_seq_max
++                )));
++            }
++        };
++        let ctx: Box<dyn BackendExecutionContext> = Box::new(GgmlExecutionContext {
++            server,
++            seq_id,
++            n_past: 0,
 +            pending: None,
 +            logits: None,
 +        });
@@ -482,10 +703,11 @@ index 0000000..140bfcd
 +    }
 +}
 +
++/// A sequence handle: one chat's stateful cursor into the shared server.
 +struct GgmlExecutionContext {
-+    model: Arc<GgmlModel>,
-+    raw: *mut c_void,
-+    n_batch: u32,
++    server: Arc<GgmlServer>,
++    seq_id: i32,
++    n_past: i32,
 +    pending: Option<Vec<i32>>,  // WITX-style set_input staging
 +    logits: Option<Tensor>,     // last compute's output for get_output
 +}
@@ -493,8 +715,16 @@ index 0000000..140bfcd
 +unsafe impl Sync for GgmlExecutionContext {}
 +impl Drop for GgmlExecutionContext {
 +    fn drop(&mut self) {
-+        unsafe { ell_free_context(self.raw) };
-+        LIVE_SESSIONS.fetch_sub(1, Ordering::SeqCst);
++        // seq removal mutates the llama context: wait out any in-flight
++        // batch (bounded — one llama_decode), remove under the queue lock so
++        // no leader starts meanwhile, then free the slot.
++        let mut q = self.server.q.lock().unwrap();
++        while q.decoding {
++            q = self.server.cv.wait(q).unwrap();
++        }
++        unsafe { ell_seq_remove(self.server.raw, self.seq_id) };
++        drop(q);
++        self.server.slots.lock().unwrap().push(self.seq_id);
 +    }
 +}
 +
@@ -515,36 +745,17 @@ index 0000000..140bfcd
 +
 +impl GgmlExecutionContext {
 +    fn decode(&mut self, tokens: &[i32]) -> Result<Tensor, BackendError> {
-+        if tokens.is_empty() {
-+            return Err(err("empty token batch"));
-+        }
-+        if tokens.len() > self.n_batch as usize {
-+            return Err(err(format!(
-+                "batch of {} tokens exceeds n_batch {} (chunk your prefill)",
-+                tokens.len(),
-+                self.n_batch
-+            )));
-+        }
-+        let n_vocab = self.model.n_vocab as usize;
-+        let mut logits = vec![0f32; n_vocab];
-+        let rc = unsafe {
-+            ell_decode(
-+                self.raw,
-+                self.model.raw,
-+                tokens.as_ptr(),
-+                tokens.len() as i32,
-+                logits.as_mut_ptr(),
-+            )
-+        };
-+        if rc != 0 {
-+            return Err(err(format!("llama_decode failed (rc {rc}; context window exhausted?)")));
-+        }
-+        let mut data = Vec::with_capacity(n_vocab * 4);
-+        for v in logits {
++        let row = self
++            .server
++            .submit(self.seq_id, self.n_past, tokens.to_vec())
++            .map_err(err)?;
++        self.n_past += tokens.len() as i32;
++        let mut data = Vec::with_capacity(row.len() * 4);
++        for v in row {
 +            data.extend_from_slice(&v.to_le_bytes());
 +        }
 +        Ok(Tensor {
-+            dimensions: vec![1, self.model.n_vocab],
++            dimensions: vec![1, self.server.model.n_vocab],
 +            ty: TensorType::Fp32,
 +            data,
 +        })
