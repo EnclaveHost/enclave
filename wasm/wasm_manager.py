@@ -2223,6 +2223,12 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
                   "ENCLAVE_GGML_KV_CACHE_TYPE_V", "ENCLAVE_GGML_MAX_SESSIONS"):
             if os.environ.get(k, "").strip():
                 vol_args += ["--env", f"{k}={os.environ[k].strip()}"]
+        # The batched (pooled) ggml toolchain serves all of a model's
+        # concurrent sessions from ONE shared KV pool. This manager ships in
+        # the SAME image as that wasmtime, so the flag is a build-time truth,
+        # not a node option: guests price one persistent pool per model
+        # (accumulating across models) instead of per-session windows.
+        vol_args += ["--env", "ENCLAVE_GGML_POOLED=1"]
         vram_stages = []  # (bytes, name, kind, stage)
         emitted = []      # volume names whose graphs went on the cmdline, in order
         skipped = {}      # volume -> why it did NOT preload
