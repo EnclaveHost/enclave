@@ -58,6 +58,7 @@ contract EnclaveCreditVault {
     bytes4 private constant SEL_SET_APP_REF = bytes4(keccak256("setAppRef(bytes32,string)"));
     bytes4 private constant SEL_SET_ACTIVE  = bytes4(keccak256("setActive(bytes32,bool)"));
     bytes4 private constant SEL_SET_SHARES  = bytes4(keccak256("setShares(bytes32,uint16,uint16)"));
+    bytes4 private constant SEL_SET_CONFIG  = bytes4(keccak256("setConfig(bytes32,string)"));
     // multicall is allowed ONLY when every inner call is itself an allowed
     // control selector (checked below) - a version change + share resize ride
     // one passkey signature without widening what a signature can move
@@ -134,10 +135,12 @@ contract EnclaveCreditVault {
     }
 
     /// owner-only ledger control calls for deployments this vault owns
-    /// (setAppRef / setActive / setShares, or a multicall composed solely of
-    /// them) - these move no funds. setShares re-prices the record at the
-    /// ledger's current list prices; the balance it re-burns is the
+    /// (setAppRef / setActive / setShares / setConfig, or a multicall composed
+    /// solely of them) - these move no funds. setShares re-prices the record
+    /// at the ledger's current list prices; the balance it re-burns is the
     /// deployment's own prepaid accounting number, never vault USDC.
+    /// setConfig rewrites the options envelope (waf/config namespaces), so a
+    /// vault deployment gains rate limiting or a config override post-create.
     function controlDeployment(bytes calldata callData, uint256 deadline, WebAuthnSig calldata sig) external {
         _auth(keccak256(abi.encode(OP_CONTROL, address(this), block.chainid, nonce, keccak256(callData), deadline)), deadline, sig);
         bytes4 sel = bytes4(callData[:4]);
@@ -151,11 +154,12 @@ contract EnclaveCreditVault {
                 require(c.length >= 4, "short inner call");
                 bytes4 inner;
                 assembly { inner := mload(add(c, 32)) }
-                require(inner == SEL_SET_APP_REF || inner == SEL_SET_ACTIVE || inner == SEL_SET_SHARES,
-                        "inner selector not allowed");
+                require(inner == SEL_SET_APP_REF || inner == SEL_SET_ACTIVE || inner == SEL_SET_SHARES
+                        || inner == SEL_SET_CONFIG, "inner selector not allowed");
             }
         } else {
-            require(sel == SEL_SET_APP_REF || sel == SEL_SET_ACTIVE || sel == SEL_SET_SHARES, "selector not allowed");
+            require(sel == SEL_SET_APP_REF || sel == SEL_SET_ACTIVE || sel == SEL_SET_SHARES
+                 || sel == SEL_SET_CONFIG, "selector not allowed");
         }
         (bool ok, ) = _deployments().call(callData);
         require(ok, "control failed");

@@ -804,10 +804,24 @@ export async function handleBilling(req, res, u, ctx) {
       const id = String(b.id || "");
       const action = String(b.action || "");
       if (!/^0x[0-9a-f]{64}$/i.test(id)) return err(ctx, res, req, 422, "bad_params", "control needs a deployment id.");
-      if (!["suspend", "resume", "version", "resize"].includes(action))
-        return err(ctx, res, req, 422, "bad_params", 'control action must be "suspend", "resume", "version", or "resize".');
+      if (!["suspend", "resume", "version", "resize", "options"].includes(action))
+        return err(ctx, res, req, 422, "bad_params", 'control action must be "suspend", "resume", "version", "resize", or "options".');
       if (action === "version" && !(typeof b.ref === "string" && b.ref.length > 0 && b.ref.length <= 100))
         return err(ctx, res, req, 422, "bad_params", "version needs a catalog ref (max 100 chars).");
+      let envelope = null;
+      if (action === "options") {
+        // the options envelope (waf/config namespaces): "" clears it; a
+        // non-empty value must be a JSON object and fit the ledger cap. The
+        // contract stores it opaquely - this check only saves a doomed op.
+        envelope = String(b.envelope ?? "");
+        if (Buffer.byteLength(envelope) > 4096)
+          return err(ctx, res, req, 422, "bad_params", "the options envelope caps at 4096 bytes.");
+        if (envelope) {
+          let o; try { o = JSON.parse(envelope); } catch { o = null; }
+          if (!o || Array.isArray(o) || typeof o !== "object")
+            return err(ctx, res, req, 422, "bad_params", 'the options envelope must be a JSON object like {"waf":{"rps":10}} (or "" to clear).');
+        }
+      }
       let shares = null;
       if (action === "resize") {
         // create()'s own bounds, checked with words (the contract would
@@ -821,7 +835,7 @@ export async function handleBilling(req, res, u, ctx) {
         shares = { gpuMilli: g, cpuMilli: c };
       }
       let callData;
-      try { callData = await buildControlCall(id, action, b.ref, shares); }
+      try { callData = await buildControlCall(id, action, b.ref, shares, envelope); }
       catch (e) { return err(ctx, res, req, 502, "encode_failed", e.message); }
       const digest = opDigest("control", info.address, CHAIN_ID, info.nonce, { callData }, deadline);
       return ctx.json(res, 200, { op: "control", vault: info.address, chainId: CHAIN_ID, nonce: info.nonce,

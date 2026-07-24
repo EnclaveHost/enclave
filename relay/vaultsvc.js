@@ -171,11 +171,14 @@ export async function buildCreateCall(depAddress, spec) {
   return encodeFunctionData({ abi: [{ type: "function", name: "create", stateMutability: "nonpayable", inputs, outputs: [{ type: "bytes32" }] }], args, functionName: "create" });
 }
 
-// setActive/setAppRef/setShares calldata for controlDeployment - the vault
-// contract allowlists exactly these selectors (they move no funds), plus a
-// multicall composed solely of them (a version change + share resize ride one
-// passkey signature; the vault checks every inner selector)
-export async function buildControlCall(id, action, ref, shares) {
+// setActive/setAppRef/setShares/setConfig calldata for controlDeployment -
+// the vault contract allowlists exactly these selectors (they move no funds),
+// plus a multicall composed solely of them (a version change + share resize
+// ride one passkey signature; the vault checks every inner selector).
+// "options" (setConfig) rewrites the deployment's options envelope - the
+// waf/config namespaces - so vault deployments can gain rate limiting after
+// create, same as wallet ones.
+export async function buildControlCall(id, action, ref, shares, envelope) {
   const { encodeFunctionData } = viem || (viem = await import("viem"));
   const setAppRefCall = () => encodeFunctionData({ abi: [{ type: "function", name: "setAppRef", stateMutability: "nonpayable",
     inputs: [{ type: "bytes32" }, { type: "string" }], outputs: [] }],
@@ -185,6 +188,10 @@ export async function buildControlCall(id, action, ref, shares) {
       inputs: [{ type: "bytes32" }, { type: "bool" }], outputs: [] }],
       functionName: "setActive", args: [id, action === "resume"] });
   if (action === "version") return setAppRefCall();
+  if (action === "options")
+    return encodeFunctionData({ abi: [{ type: "function", name: "setConfig", stateMutability: "nonpayable",
+      inputs: [{ type: "bytes32" }, { type: "string" }], outputs: [] }],
+      functionName: "setConfig", args: [id, String(envelope ?? "")] });
   if (action === "resize") {
     const sharesCall = encodeFunctionData({ abi: [{ type: "function", name: "setShares", stateMutability: "nonpayable",
       inputs: [{ type: "bytes32" }, { type: "uint16" }, { type: "uint16" }], outputs: [] }],

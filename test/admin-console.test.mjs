@@ -76,6 +76,19 @@ test("owner calls encode like viem", () => {
     eq(encCall(S(name)[fn], mine), encodeFunctionData({ abi: ABI(name), functionName: fn, args: viems }));
 });
 
+test("the dashboard's setConfig envelope call encodes like viem", () => {
+  // the Protect editor's tx: setConfig(bytes32,string) with the options
+  // envelope - empty (clear), waf-only, and waf+config (override preserved)
+  const id = "0x" + "cc".repeat(32);
+  const abi = [{ type: "function", name: "setConfig", stateMutability: "nonpayable",
+    inputs: [{ type: "bytes32" }, { type: "string" }], outputs: [] }];
+  for (const env of ["", '{"waf":{"rps":10,"burst":40}}',
+                     '{"waf":{"rps":2.5,"burst":10,"maxBodyMb":1,"blockScanners":true},"config":{"api_key":"k"}}'])
+    eq(encCall(DEP_SEL.setConfig, [{ t: "bytes32", v: id }, { t: "str", v: env }]),
+       encodeFunctionData({ abi, functionName: "setConfig", args: [id, env] }));
+  eq("0x" + DEP_SEL.setConfig, toFunctionSelector("function setConfig(bytes32 id, string configCid)"));
+});
+
 test("chain.js DEP_SEL hand-pins match the ABI (the cap getter every deploy path gates on)", () => {
   eq("0x" + DEP_SEL.maxGpuMilli, toFunctionSelector("function maxGpuMilli() view returns (uint16)"));
   eq("0x" + CONTRACTS.EnclaveDeployments.sel.maxGpuMilli, "0x" + DEP_SEL.maxGpuMilli);
