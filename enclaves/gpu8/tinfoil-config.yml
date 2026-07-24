@@ -322,6 +322,18 @@ containers:
       # (K-quant needs no FA) - a config-only re-measure, no toolchain rebuild.
       - ENCLAVE_GGML_KV_CACHE_TYPE: "q8_0"
       - ENCLAVE_GGML_FLASH_ATTN: "on"
+      # Concurrent llama contexts per tenant process (needs the session-gate
+      # wasmtime toolchain; older toolchains ignore it). EVERY context
+      # pre-allocates the full 256K window's KV up front (qwen3.6-27b: ~8.5 GB
+      # per session at q8), so N overlapping chat requests cost N windows -
+      # unbounded concurrency is the VRAM exhaustion that broke llm-chat under
+      # ~30 users (2026-07-24: every "cpu: llama.cpp context allocation failed
+      # (n_ctx too large for the share?)" error). Over-cap requests fail fast
+      # with [sessions_busy]; llm-chat waits and retries, so users queue
+      # instead of erroring. Raise ONLY with the VRAM to hold another full
+      # window per increment; the manager forwards this to guests so their
+      # serve pricing multiplies by it.
+      - ENCLAVE_GGML_MAX_SESSIONS: "1"
       # each app's memory cap is its deployment's cpuShare × NODE_RAM_GB
       # (>= the mem_mb its specs declare); WASM_APP_MIN_MEM_MB (64) is the floor
       # friendly name -> the model's auto-mount path. Tinfoil mounts each
