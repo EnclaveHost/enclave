@@ -53,6 +53,10 @@
 #
 # Tuning env (host process only): ENCLAVE_GGML_N_CTX (default 8192),
 # ENCLAVE_GGML_N_BATCH (512), ENCLAVE_GGML_N_GPU_LAYERS (-1 = offload all),
+# ENCLAVE_GGML_MAX_SESSIONS (default 1 - live contexts per process; every
+# context pre-allocates the FULL n_ctx KV window, so concurrency multiplies
+# the window's VRAM cost; over-cap requests fail fast with [sessions_busy]
+# for guests to wait-and-retry on),
 # ENCLAVE_GGML_BACKEND_DIR (backend-module dir; unset = exe dir + cwd).
 #
 # Build: cargo build --release --features "wasi-nn,wasmtime-wasi-nn/ggml"
@@ -130,7 +134,7 @@ new file mode 100644
 index 0000000..140bfcd
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,434 @@
+@@ -0,0 +1,469 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -176,6 +180,12 @@ index 0000000..140bfcd
 +//!   ENCLAVE_GGML_FLASH_ATTN     auto (default) | on | off. A quantized V cache
 +//!                               requires Flash Attention, so a q8_0/q4_0 V is
 +//!                               auto-promoted to on unless explicitly off.
++//!   ENCLAVE_GGML_MAX_SESSIONS   live inference contexts per process (default
++//!                               1). Every context pre-allocates the FULL
++//!                               n_ctx KV window, so concurrency multiplies
++//!                               the window's VRAM cost; over-cap requests
++//!                               fail fast with [sessions_busy] for guests to
++//!                               wait-and-retry on.
 +//!   ENCLAVE_GGML_BACKEND_DIR    dir holding the dlopened libggml-* backend
 +//!                               modules (unset = exe dir + cwd)
 +
@@ -187,6 +197,7 @@ index 0000000..140bfcd
 +use crate::{ExecutionContext, Graph};
 +use std::ffi::{c_char, c_void, CString};
 +use std::path::Path;
++use std::sync::atomic::{AtomicUsize, Ordering};
 +use std::sync::{Arc, Once};
 +
 +unsafe extern "C" {
@@ -216,6 +227,18 @@ index 0000000..140bfcd
 +}
 +
 +static INIT: Once = Once::new();
++
++/// Live llama contexts in this process (created minus dropped). Every context
++/// pre-allocates the FULL n_ctx KV window (llama.cpp does not grow it lazily),
++/// so N overlapping requests cost N windows — the VRAM exhaustion that took
++/// llm-chat down under ~30 concurrent chats (2026-07-24; every capacity gate
++/// above this line assumes a single active session). The gate FAILS FAST
++/// instead of blocking: a waiter would pin an executor thread inside a sync
++/// host call, and enough waiters starve the permit holder — a deadlock, not a
++/// queue. Guests turn the [sessions_busy]-tagged error into their own
++/// wait-and-retry (llm-chat sleeps on a monotonic-clock pollable, which
++/// yields the thread properly).
++static LIVE_SESSIONS: AtomicUsize = AtomicUsize::new(0);
 +
 +fn err(msg: impl Into<String>) -> BackendError {
 +    BackendError::BackendAccess(wasmtime::format_err!("{}", msg.into()))
@@ -429,9 +452,24 @@ index 0000000..140bfcd
 +        if matches!(type_v, 1 | 2) && flash_attn == 0 {
 +            flash_attn = 2;
 +        }
++        // Session gate: RESERVE a slot before allocating, so two racing
++        // requests cannot both see a free slot and overflow the share.
++        let max_sessions = env_u32("ENCLAVE_GGML_MAX_SESSIONS", 1).max(1) as usize;
++        if LIVE_SESSIONS.fetch_add(1, Ordering::SeqCst) >= max_sessions {
++            LIVE_SESSIONS.fetch_sub(1, Ordering::SeqCst);
++            return Err(err(format!(
++                "[sessions_busy] all {max_sessions} inference session(s) are in use — each one \
++                 holds the full context window's KV cache in the share's VRAM; retry shortly"
++            )));
++        }
 +        let raw = unsafe { ell_new_context(self.0.raw, n_ctx, n_batch, type_k, type_v, flash_attn) };
 +        if raw.is_null() {
-+            return Err(err("llama.cpp context allocation failed (n_ctx too large for the share?)"));
++            LIVE_SESSIONS.fetch_sub(1, Ordering::SeqCst);
++            return Err(err(
++                "llama.cpp context allocation failed — the n_ctx window's KV cache does not fit \
++                 the share's free VRAM (lower ENCLAVE_GGML_N_CTX or buy a larger share; if \
++                 ENCLAVE_GGML_MAX_SESSIONS was raised, concurrent sessions hold the rest)",
++            ));
 +        }
 +        let ctx: Box<dyn BackendExecutionContext> = Box::new(GgmlExecutionContext {
 +            model: self.0.clone(),
@@ -456,6 +494,7 @@ index 0000000..140bfcd
 +impl Drop for GgmlExecutionContext {
 +    fn drop(&mut self) {
 +        unsafe { ell_free_context(self.raw) };
++        LIVE_SESSIONS.fetch_sub(1, Ordering::SeqCst);
 +    }
 +}
 +

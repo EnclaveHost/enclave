@@ -2217,8 +2217,10 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
         # matters because a CUDA OOM inside compute ABORTS the wasmtime
         # process (ggml_abort - no error ever reaches the guest), so a
         # "let's try it" probe of a too-big model kills the whole tenant.
+        # MAX_SESSIONS rides along so the app's serve pricing can multiply
+        # the per-session cost by the host's concurrent-context cap.
         for k in ("ENCLAVE_GGML_N_CTX", "ENCLAVE_GGML_KV_CACHE_TYPE",
-                  "ENCLAVE_GGML_KV_CACHE_TYPE_V"):
+                  "ENCLAVE_GGML_KV_CACHE_TYPE_V", "ENCLAVE_GGML_MAX_SESSIONS"):
             if os.environ.get(k, "").strip():
                 vol_args += ["--env", f"{k}={os.environ[k].strip()}"]
         vram_stages = []  # (bytes, name, kind, stage)
