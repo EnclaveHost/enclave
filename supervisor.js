@@ -697,6 +697,34 @@ if (process.env.LEDGER_MOVE_SELFTEST) {
   process.exit(0);
 }
 
+// ---- approval verdict: the deployability decision for a catalog version ----
+// PURE (the chain reads live in gateAppReference below; this is the decision
+// they feed). Returns null (deployable) or the refusal message. `forPrivate`
+// — the deployment this reference runs under is PRIVATE (owner-token-gated
+// data path) — is the publisher dev-mode loop ("devDeploy" in /availability):
+// it relaxes ONLY the pending state, so a version awaiting approval can be
+// tested on the real fleet off the public data path. The STANDING refusals
+// (rejected / yanked / app delisted) hold regardless of visibility. Default
+// is the strict gate (fail closed): a caller that doesn't know the
+// deployment's visibility gets approved-only.
+function approvalVerdict({ active, yanked, approval, slug, version }, forPrivate) {
+  if (!active)                  return "This app is delisted from the catalog.";
+  if (yanked)                   return `${slug}:${version} was yanked by its publisher.`;
+  if (Number(approval) === 2)   return `${slug}:${version} was rejected by the catalog owner.`;
+  if (Number(approval) !== 1 && forPrivate !== true)
+    return `${slug}:${version} is awaiting catalog-owner approval; until then it can only be deployed PRIVATE (owner-only data path) for testing.`;
+  return null;
+}
+
+// APPROVAL_SELFTEST='{"cases":[{active,yanked,approval,slug,version,forPrivate},…]}'
+// prints each case's verdict (null = deployable) as one JSON line and exits —
+// same contract as the seams above (test/approval-gate.test.mjs drives it).
+if (process.env.APPROVAL_SELFTEST) {
+  const c = JSON.parse(process.env.APPROVAL_SELFTEST);
+  console.log(JSON.stringify((c.cases || []).map((x) => approvalVerdict(x, x.forPrivate))));
+  process.exit(0);
+}
+
 // ---- owner version change (setAppRef): does the serving record switch? ------
 // Pure core of the audit's in-place upgrade: a RUNNING record whose ledger row
 // carries a different appRef restarts onto the new record (the lease and the
@@ -2249,6 +2277,7 @@ app.get("/availability", async (_req, res) => {
     shareResize: true,   // this build's audit re-slices a LIVE deployment on an owner's setShares (rev-6 ledgers); without it the billing would change while the served slice silently didn't — same fleet-AND rule, clients refuse the tx against an older fleet
     secrets: true,   // this build pulls relay-staged per-deployment secrets into the guest env at every launch; fleet-AND'd with the relay's own secretsEnabled() before clients see it
     secretsInConfig: true,   // this build also resolves $NAME/${NAME} placeholders in config STRING values from those secrets at launch (wasm-manager _subst_secrets); same fleet-AND rule
+    devDeploy: true,   // this build's approval gate admits PENDING catalog versions for PRIVATE deployments (publisher dev-mode testing); public deploys of pending versions stay refused — same fleet-AND rule, clients only offer the option when every live runner honors it
     source, ...(note ? { note } : {}), updatedAt: new Date().toISOString(),
   });
   try {
@@ -2617,7 +2646,7 @@ const ZERO32 = "0x" + "0".repeat(64);
 // also keeps bare paths under the manager's APPS_DIR (e.g. a cached
 // ipfs-<cid>.wasm) from dodging the approval check.
 const NO_MIN = { vramMb: 0, gpuGflops: 0, memMb: 0, cpuGflops: 0 };
-async function gateAppReference(reference) {
+async function gateAppReference(reference, opts = {}) {
   const deny = (status, code, msg) => ({ error: { status, code, msg } });
   const ref = String(reference || "").trim();
   const m = CATALOG_REF_RE.exec(ref);
@@ -2647,10 +2676,9 @@ async function gateAppReference(reference) {
     return deny(503, "catalog_unreachable", "Could not verify this app's approval against the on-chain catalog; try again shortly.");
   }
   const v = vr.value;
-  if (!a.active)                 return deny(403, "not_approved", "This app is delisted from the catalog.");
-  if (v.yanked)                  return deny(403, "not_approved", `${a.slug}:${v.version} was yanked by its publisher.`);
-  if (Number(v.approval) === 2)  return deny(403, "not_approved", `${a.slug}:${v.version} was rejected by the catalog owner.`);
-  if (Number(v.approval) !== 1)  return deny(403, "not_approved", `${a.slug}:${v.version} is awaiting catalog-owner approval; it cannot be deployed yet.`);
+  const verdict = approvalVerdict({ active: a.active, yanked: v.yanked, approval: v.approval,
+                                    slug: a.slug, version: v.version }, opts.forPrivate);
+  if (verdict) return deny(403, "not_approved", verdict);
   // The version's publisher fee is part of what approval covered (like config
   // and ports). Resolved here so every consumer of the gate carries it; the
   // fee-vs-ledger comparison lives in feeGate (claim/resume/upgrade paths).
@@ -2670,6 +2698,7 @@ async function gateAppReference(reference) {
     }
   }
   return { ref, wasmRef: "ipfs://" + v.cid, config: v.config || "", ports: v.ports || "", feePerSec6,
+           pending: Number(v.approval) !== 1,   // true only on the forPrivate dev-mode path
            app: { appId, index, slug: a.slug, version: v.version, publisher: a.publisher },
            min: { vramMb: Number(v.vramMb) || 0, gpuGflops: Number(v.gpuGflops) || 0,
                   memMb: Number(v.memMb) || 0, cpuGflops: Number(v.cpuGflops) || 0 } };
@@ -2755,8 +2784,14 @@ app.post("/v1/deployments", authed, async (req, res) => {
   // gate also returns the version's exact declared resources — they become the
   // request defaults and the floor a request may not undercut.
   let appMin = { ...NO_MIN };
+  // Public endpoint: anyone can reach the app's data path (hosting a website/API).
+  // Private (default): only the owner's SIWE token can. Management stays owner-only
+  // either way. Confidentiality is unchanged — the TEE still hides the app from the
+  // operator; "public" only governs who may send it requests. Computed BEFORE the
+  // approval gate: a private deployment may run a still-pending version (dev mode).
+  const isPublic = b.public === true || b.public === "true";
   if (PROVISION_BACKEND === "vm") {
-    const g = await gateAppReference(image.reference);
+    const g = await gateAppReference(image.reference, { forPrivate: !isPublic });
     if (g.error) return fail(res, g.error.status, g.error.code, g.error.msg);
     // A paid app can only run as an on-chain deployment: the publisher's cut
     // is carved out of ledger fundings, and this direct path has none.
@@ -2767,11 +2802,6 @@ app.post("/v1/deployments", authed, async (req, res) => {
     appMin = g.min;
   }
   const appPort = Number(b.port) || 8080;
-  // Public endpoint: anyone can reach the app's data path (hosting a website/API).
-  // Private (default): only the owner's SIWE token can. Management stays owner-only
-  // either way. Confidentiality is unchanged — the TEE still hides the app from the
-  // operator; "public" only governs who may send it requests.
-  const isPublic = b.public === true || b.public === "true";
   // Firewall: the app's per-version ports config from the catalog ("http" | "http:N"
   // | "tcp:N" | "udp:N"). The wasm-manager grants wasi:sockets and enforces that the
   // app binds ONLY these (bind audit kills violators). Declared TCP ports are reached
@@ -4386,7 +4416,7 @@ async function switchTenantVersion(rec, d) {
   // the catalog says — no point consulting it
   if (resize && Number(d.gpuMilli) > 0 && !IS_GPU) return evict("GPU work on a CPU-only enclave");
   let g;
-  try { g = await gateAppReference(to); }
+  try { g = await gateAppReference(to, { forPrivate: !d.isPublic }); }
   catch (e) { g = { error: { status: 503, msg: e.shortMessage || e.message } }; }
   if (g.error) return refuse(g.error.msg, g.error.status === 503);
   // the version must fit the shares the row NOW carries (bought at create, or
@@ -4503,7 +4533,7 @@ async function applyEnvelopeEdit(rec, d, verdict) {
   else {
     // override removed: back to the version's own config
     let g;
-    try { g = await gateAppReference(d.appRef); }
+    try { g = await gateAppReference(d.appRef, { forPrivate: !d.isPublic }); }
     catch (e) { g = { error: { msg: e.shortMessage || e.message } }; }
     if (g.error) return refuse("couldn't resolve the version's config to fall back to: " + g.error.msg);
     cfg = g.config || "";
@@ -4840,7 +4870,7 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
     slice = normalizeCpuReq(cpuShare);
     if (slice.cpuShare > maxFreeCpu() + 1e-9) return "no free CPU capacity here right now";
   }
-  const g = await gateAppReference(d.appRef);
+  const g = await gateAppReference(d.appRef, { forPrivate: !d.isPublic });
   if (g.error) return "app not deployable: " + g.error.msg;   // unapproved/unknown record (or catalog unreachable: fail closed)
   // the app's catalog specs set its MINIMUM shares on our hardware, gating
   // claims exactly like HTTP deploys: a deployment that bought less than

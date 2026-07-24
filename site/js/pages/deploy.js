@@ -40,7 +40,7 @@ const depsPanel = () => document.querySelector("c-deployments");
 /* ============================================================
    Console state + request rendering
    ============================================================ */
-const dep = { gpuPct: 25, cpuPct: 5, minGpuPct: 0, minCpuPct: 1, asset: "USDC", public: true, gpuEnclave: true, volumes: new Set(), waf: false, wafAvail: false, cfgAvail: false };  // gpuEnclave: from /availability (gpu:false = CPU-only enclave); volumes: the picker's ticks - a MIRROR of the App config JSON's `volumes` key, never a second source; wafAvail: fleet aggregate advertises the options envelope (waf:true = every live runner enforces it - the Protection field only shows then); cfgAvail: the aggregate's configOverride flag (true = every live runner honors the envelope's `config` namespace - only then is the App config box editable)
+const dep = { gpuPct: 25, cpuPct: 5, minGpuPct: 0, minCpuPct: 1, asset: "USDC", public: true, gpuEnclave: true, volumes: new Set(), waf: false, wafAvail: false, cfgAvail: false, devAvail: false };  // gpuEnclave: from /availability (gpu:false = CPU-only enclave); volumes: the picker's ticks - a MIRROR of the App config JSON's `volumes` key, never a second source; wafAvail: fleet aggregate advertises the options envelope (waf:true = every live runner enforces it - the Protection field only shows then); cfgAvail: the aggregate's configOverride flag (true = every live runner honors the envelope's `config` namespace - only then is the App config box editable)
 
 /* The Protection controls -> the create() options envelope's `waf` object
    (null = off/unavailable). Mirrors the runner's parse rules (supervisor
@@ -147,7 +147,7 @@ function deployBody(){
   // `image.reference` is the app to run: a catalog slug:version resolved to
   // its catalog://<appId>/<idx> RECORD by resolveAppRef(). The record carries
   // everything approval covered (wasm CID, config, ports); CIDs are refused.
-  const body = { image: { reference: resolveAppRef($("#cfgImage").value).reference } };
+  const body = { image: { reference: resolveAppRef($("#cfgImage").value, { allowPending: !dep.public && dep.devAvail }).reference } };
   body.public = dep.public;   // public endpoint (anyone) vs private (owner token only)
   const gp = dep.gpuEnclave ? Math.min(1, Math.max(0, Math.round(dep.gpuPct) / 100)) : 0;
   const cp = Math.min(1, Math.max(0.01, Math.round(dep.cpuPct) / 100));
@@ -309,12 +309,16 @@ async function runDeploy(){
     note([["info", "[*] resolving " + raw + " from the catalog…"]]);
     try { await loadCatalog(); } catch(e){}
   }
-  const rref = resolveAppRef(raw);
+  const rref = resolveAppRef(raw, { allowPending: !dep.public && dep.devAvail });
   // resolveAppRef IS the pre-flight: it refuses unknown apps, yanked and
   // unapproved versions (and CID input) with the same rules the enclave's
-  // claim gate applies to the catalog record - nothing else to re-scan.
+  // claim gate applies to the catalog record - nothing else to re-scan. The
+  // one relaxation is dev mode: a PRIVATE deployment may run a still-pending
+  // version when the whole fleet advertises devDeploy (allowPending above).
   if (rref.error) return note([["warn", "[!] " + rref.error]]);
   if (rref.pending) return note([["warn", "[!] couldn’t reach the catalog to resolve " + raw + " - deploys need the on-chain listing; try again in a moment."]]);
+  if (rref.awaitingApproval)
+    note([["info", "[*] " + raw + " is awaiting catalog approval - deploying PRIVATE (dev mode): owner-only access, unlisted; it goes public only after approval + a public redeploy."]]);
   const fund = parseFloat($("#cfgBudget").value) || 0;
   const dry = $("#dryRun") && $("#dryRun").checked;
 
@@ -877,6 +881,10 @@ async function refreshAvailability(){
     dep.wafAvail = a.waf === true;
     const wf = $("#wafField");
     if (wf){ wf.hidden = !dep.wafAvail; if (!dep.wafAvail) dep.waf = false; }
+    // dev-mode deploys (a PRIVATE deployment may run a version still awaiting
+    // approval): only when EVERY live runner admits them - otherwise the
+    // create would sit Queued forever on an old runner. Same fleet-AND rule.
+    dep.devAvail = a.devDeploy === true;
     // App config override (envelope `config` namespace): the box unlocks only
     // when EVERY live runner honors it - on a mixed/older fleet an overridden
     // deployment would be refused at claim and sit Queued forever - AND the
@@ -1073,9 +1081,11 @@ function applyUseInDeploy(){
     CONFIG_CACHE[friendly] = stash.config || "";
     applyMins(minPctsOf(stash.spec), stash.ports, stash.config);
   } else {
-    // shared / bookmarked link: resolve the ref from the catalog
+    // shared / bookmarked link: resolve the ref from the catalog. allowPending
+    // here only PREFILLS the form (dial floors, ports, config) for a pending
+    // version - runDeploy re-applies the real gate against the Access toggle.
     loadCatalog().then(() => {
-      const r = resolveAppRef(friendly);
+      const r = resolveAppRef(friendly, { allowPending: true });
       if (r.mins) applyMins(r.mins, PORTS_CACHE[friendly], CONFIG_CACHE[friendly]);
       else renderDeploy();
     }).catch(() => {});

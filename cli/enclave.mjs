@@ -519,7 +519,10 @@ async function chainDeployments(owner) { // owner=null -> all
 // on-chain VERSION RECORD — the authority for the wasm, config, and ports the
 // catalog owner approved. CIDs are refused: a CID names bytes, not a version
 // (several versions can share bytes and differ entirely in approved config).
-async function resolveAppRef(input) {
+// opts.allowPending: admit a version still AWAITING approval (the publisher
+// dev-mode path: --private deployments on a fleet advertising devDeploy).
+// Only an EXPLICIT :version label can name one; rejected/yanked stay refused.
+async function resolveAppRef(input, opts = {}) {
   if (/^ipfs:\/\//i.test(input) || /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z0-9]{20,})$/.test(input))
     throw new Error(`CIDs can't deploy: a CID names bytes, not a version. Deploy a [publisher/]slug:version from the catalog (enclave apps)`);
   const m = input.match(/^(?:([0-9a-zA-Z.]+|0x[0-9a-fA-F]{40})\/)?([a-z0-9][a-z0-9-]*)(?::(.+))?$/);
@@ -541,9 +544,12 @@ async function resolveAppRef(input) {
     if (vi < 0) throw new Error(`app "${slug}" has no approved version yet`);
   }
   const ver = versions[vi];
-  if (Number(ver.approval) !== 1)
-    throw new Error(`${slug}:${ver.version} is ${APPROVAL_WORD[Number(ver.approval)]}; runners only claim approved versions`);
-  return { ref: `catalog://${app.appId}/${vi}`, ver, app };
+  if (Number(ver.approval) === 2)
+    throw new Error(`${slug}:${ver.version} was rejected by the catalog owner; runners never serve it`);
+  if (Number(ver.approval) !== 1 && !opts.allowPending)
+    throw new Error(`${slug}:${ver.version} is ${APPROVAL_WORD[Number(ver.approval)]}; runners only claim approved versions`
+      + ` (deploy it --private to test it before approval, on a fleet advertising devDeploy)`);
+  return { ref: `catalog://${app.appId}/${vi}`, ver, app, pending: Number(ver.approval) !== 1 };
 }
 let _appsCache = null;
 async function catalogApps() {
@@ -1057,8 +1063,20 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
   }
   const ver = versions[vi];
   if (vi === curIdx && !wantShares) return say(`${short(id)} already runs ${app.slug}:${ver.version} (version index ${vi}); nothing to do`);
-  if (Number(ver.approval) !== 1)
-    throw new Error(`${app.slug}:${ver.version} is ${APPROVAL_WORD[Number(ver.approval)]}; runners only serve approved versions`);
+  if (Number(ver.approval) === 2)
+    throw new Error(`${app.slug}:${ver.version} was rejected by the catalog owner; runners never serve it`);
+  if (Number(ver.approval) !== 1) {
+    // pending target: only a PRIVATE deployment may switch to it (dev mode),
+    // and only an explicit version label may name it - same rules as deploy
+    if (d.isPublic)
+      throw new Error(`${app.slug}:${ver.version} is awaiting approval; a PUBLIC deployment can't switch to it (dev-mode testing is private-only)`);
+    if (rest[1] === undefined && vi !== curIdx)
+      throw new Error(`refusing to pick the pending ${app.slug}:${ver.version} implicitly; name it: enclave upgrade ${rest[0]} ${ver.version}`);
+    let av = null; try { av = await api("GET", "/availability"); } catch {}
+    if (!(av && av.aggregate && av.devDeploy === true))
+      throw new Error(`${app.slug}:${ver.version} is awaiting approval, and the live fleet doesn't advertise devDeploy (pending-version private deploys) yet - retry after the fleet updates, or wait for approval`);
+    say(`! ${app.slug}:${ver.version} is awaiting catalog approval - switching this PRIVATE deployment to it (dev mode)`);
+  }
   // the record's shares (bought at create, or re-bought here) must cover the
   // version's minimums on the fleet's hardware — a record no runner accepts
   // would leave the app dark on a still-billing lease
@@ -1175,7 +1193,15 @@ async function cmdDeploy(rest) {
     bool: ["--private", "--public", "--no-wait"],
   });
   if (!f._[0]) throw new Error("usage: enclave deploy <app> [--gpu 0..1] [--cpu 0..1] --fund <usd> [flags]");
-  const { ref, ver, app } = await resolveAppRef(f._[0]);
+  const { ref, ver, app, pending } = await resolveAppRef(f._[0], { allowPending: !!f.private });
+  if (pending) {
+    // dev-mode deploy (pending version, --private): fail closed unless EVERY
+    // live runner admits it - otherwise the create sits Queued forever
+    let av = null; try { av = await api("GET", "/availability"); } catch {}
+    if (!(av && av.aggregate && av.devDeploy === true))
+      throw new Error(`${app.slug}:${ver.version} is awaiting approval, and the live fleet doesn't advertise devDeploy (pending-version private deploys) yet - retry after the fleet updates, or wait for approval`);
+    say(`! ${app.slug}:${ver.version} is awaiting catalog approval - deploying PRIVATE (dev mode): owner-only data path, unlisted`);
+  }
 
   // shares: fractions of one GPU card / one node (1 = the whole thing). When
   // omitted, use the app's minimum on the fleet's hardware (same formula the
