@@ -725,6 +725,31 @@ if (process.env.APPROVAL_SELFTEST) {
   process.exit(0);
 }
 
+// ---- yank teardown: a publisher's yank terminates running deployments ------
+// PURE (yankSweep below does the chain reads). Which record ids must be torn
+// down, given the set of catalog:// references whose version reads back
+// yanked. A yank is the publisher's "this version must not run" — unlike
+// delisting (app.active=false), which only blocks NEW deploys at the gate
+// while existing deployments serve out, a yank reaches into live work: every
+// running/claimed deployment on that exact version is terminated. Only those
+// two statuses are in scope — terminal records hold no resources — and only
+// a POSITIVE yanked read gets a record on the plan: an unreachable catalog
+// keeps everything serving (RPC noise must never tear down paid work).
+function yankTeardownPlan(records, yankedRefs) {
+  return records
+    .filter((r) => (r.status === "running" || r.status === "claimed") && yankedRefs.has(r.ref))
+    .map((r) => r.id);
+}
+
+// YANK_SELFTEST='{"records":[{id,status,ref},…],"yankedRefs":["catalog://…/0",…]}'
+// prints the teardown plan (record ids) as one JSON line and exits — same
+// contract as the seams above (test/yank-teardown.test.mjs drives it).
+if (process.env.YANK_SELFTEST) {
+  const c = JSON.parse(process.env.YANK_SELFTEST);
+  console.log(JSON.stringify(yankTeardownPlan(c.records || [], new Set(c.yankedRefs || []))));
+  process.exit(0);
+}
+
 // ---- owner version change (setAppRef): does the serving record switch? ------
 // Pure core of the audit's in-place upgrade: a RUNNING record whose ledger row
 // carries a different appRef restarts onto the new record (the lease and the
@@ -4597,6 +4622,57 @@ async function ledgerMoveSweep() {
   } finally { _ledgerMoveBusy = false; }
 }
 
+// Publisher-yank enforcement (see yankTeardownPlan for the policy). Runs on
+// its own slow clock: yank state changes rarely, and each pass costs one
+// getVersion read per DISTINCT version among live records, not per record.
+// Teardown order matches the audit's owner-stop branch (stop, release the
+// slice, terminal flip), then the lease is released so the unused tail
+// refunds to the deployment's balance — which stays with the owner, who can
+// setAppRef it to another version to revive the deployment (the claim gate
+// refuses yanked versions, so nobody re-claims it as-is).
+const YANK_SWEEP_SEC = parseInt(process.env.YANK_SWEEP_SEC || "300", 10);
+let _yankBusy = false;
+async function yankSweep() {
+  if (_yankBusy || !APP_CATALOG_ADDRESS) return;
+  _yankBusy = true;
+  try {
+    const live = [...deployments.values()].filter((r) =>
+      r._onchain && (r.status === "running" || r.status === "claimed")
+      && CATALOG_REF_RE.test(String(r.image && r.image.reference || "")));
+    if (!live.length) return;
+    const distinct = new Map();                    // ref string -> {appId, index}
+    for (const rec of live) {
+      const ref = String(rec.image.reference);
+      const m = CATALOG_REF_RE.exec(ref);
+      distinct.set(ref, { appId: m[1], index: Number(m[2]) });
+    }
+    const yankedRefs = new Set();
+    for (const [ref, { appId, index }] of distinct) {
+      try {
+        const v = await chainClient.readContract({ address: getAddress(APP_CATALOG_ADDRESS),
+          abi: CATALOG_ABI, functionName: "getVersion", args: [appId, BigInt(index)] });
+        if (v && v.yanked === true) yankedRefs.add(ref);
+      } catch (e) {
+        console.warn(`[yank] getVersion(${ref}) failed (keeping it serving): ${e.shortMessage || e.message}`);
+      }
+    }
+    if (!yankedRefs.size) return;
+    const plan = new Set(yankTeardownPlan(
+      live.map((r) => ({ id: r.id, status: r.status, ref: String(r.image.reference) })), yankedRefs));
+    for (const rec of live) {
+      if (!plan.has(rec.id)) continue;
+      console.log(`[yank] ${rec.id}: its version was yanked by the publisher -> teardown + release`);
+      try { await stopContainer(rec); } catch {}
+      if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
+      rec.status = "terminated";
+      rec.error = "the app version this deployment runs was yanked by its publisher; "
+                + "switch the deployment to another version (upgrade) to revive it";
+      releaseLease(rec.id, "version yanked by publisher").catch(() => {});
+      saveStateSoon();
+    }
+  } finally { _yankBusy = false; }
+}
+
 async function auditClaims(ledgerById) {
   const me = claimSigner().account.address.toLowerCase();
   for (const rec of [...deployments.values()]) {
@@ -5092,6 +5168,13 @@ function startClaimLoop() {
     await stage("renew", renewLeases);
   }, 60_000);
   if (rt.unref) rt.unref();
+  // Publisher-yank enforcement on its own slow clock (yank state changes
+  // rarely; one catalog read per distinct running version per pass).
+  const yt = setInterval(async () => {
+    if (!_enclaveId) return;
+    await stage("yank", yankSweep);
+  }, YANK_SWEEP_SEC * 1000);
+  if (yt.unref) yt.unref();
   const t = setInterval(async () => {
     if (_claimBusy || !_enclaveId) return;   // not advertised yet, or a slow pass is still running
     _claimBusy = true;
