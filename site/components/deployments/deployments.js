@@ -183,7 +183,7 @@ class Deployments extends EnclaveElement {
     // the open panel the user just unlocked - skip the repaint, the poll
     // catches up once the panel closes.
     this._onAuth = (e) => {
-      if (Enclave.address && this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-sec-body:not([hidden])")) return;
+      if (Enclave.address && this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden])")) return;
       this.refresh({ spinner: !!(e.detail && e.detail.spinner) });
     };
     document.addEventListener("enclave:auth", this._onAuth);
@@ -215,7 +215,7 @@ class Deployments extends EnclaveElement {
     // clobber rule as _onAuth; the regular poll catches up after it closes).
     loadCatalog();
     this._onCat = () => {
-      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-sec-body:not([hidden])")) return;
+      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden])")) return;
       if (this._list) this._renderRows(this._list);
     };
     document.addEventListener("enclave:catalog", this._onCat);
@@ -1337,7 +1337,7 @@ class Deployments extends EnclaveElement {
     if (this._poll) return;
     this._poll = setInterval(() => {
       if (!Enclave.address && !Enclave.accountAuthed()){ this._stopPoll(); return; }
-      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-sec-body:not([hidden])")) return;   // don't clobber an open attestation/output/top-up view
+      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden])")) return;   // don't clobber an open attestation/output/top-up view
       this.refresh();
     }, 10000);
   }
