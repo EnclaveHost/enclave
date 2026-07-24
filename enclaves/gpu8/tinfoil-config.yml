@@ -381,6 +381,19 @@ models:
   - name: "qwen3.5-122b-gguf"
     repo: "EnclaveHost/qwen3.5-122b-gguf@8beb6427d807c9d2cf185ea22c149f8c63668815"
     mpk: "1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c_60242325504_b8673ecf-afc3-5051-8093-f2bf785fe93a"
+  # Qwen3.6-27B at unsloth Dynamic Q4_K_XL (~17.6 GB): the mid-size tenant
+  # option. Slim curated single-file re-wrap (served gguf sha256 ff6941de...
+  # + the official Qwen/Qwen3.6-27B tokenizer.json) - full provenance and
+  # serving notes on the gpu flavor's entry (GGUF arch is qwen35, the pinned
+  # LLAMA_COMMIT bec4772f serves it unchanged; no MODEL_VOLUMES third field
+  # needed - single gguf, no toolchain dependency).
+  # TODO(steven): generate the mpk in the Tinfoil console Models tab from the
+  # pinned repo (per-repo value - the SAME string goes in the gpu flavor's
+  # entry), paste it below, and add
+  # qwen3.6-27b-gguf:/tinfoil/mpk/mpk-<root_hash> to MODEL_VOLUMES above.
+  - name: "qwen3.6-27b-gguf"
+    repo: "EnclaveHost/qwen3.6-27b-gguf@ee09d0591e3b961ae5c42fd337f91c1262d6ea0d"
+    mpk: "TODO_PASTE_FROM_TINFOIL_CONSOLE_MODELS_TAB"
   # Qwen-Image-2512 + Lightning 8-step merge (Q8_0), curated for the sdcpp
   # backend - see the gpu flavor's entry for component/serving notes. This
   # flavor has no MODEL_VOLUMES_SD preload, so the volume is mount-only for

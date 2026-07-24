@@ -480,6 +480,28 @@ models:
   - name: "qwen3.5-9b-gguf"
     repo: "EnclaveHost/qwen3.5-9b-gguf@b42dbc5ad0fa4c9e23d466b8e7138c2cbf5397cf"
     mpk: "b70cb1b66baaf59542b5d478f952fcb4085dfb681deedf9e0420452e2fe6e6be_5978923008_a7a7944b-b900-52c6-a03e-dfb907fe623d"
+  # Qwen3.6-27B (dense hybrid-SSM; GGUF arch is qwen35 with
+  # full_attention_interval 4, so the pinned LLAMA_COMMIT bec4772f serves it
+  # unchanged; CPU e2e smoke-tested on that exact commit 2026-07-23) at
+  # unsloth Dynamic Q4_K_XL (~17.6 GB): the mid-size tenant option, ~28 GB to
+  # serve (17.6 weights + 9.1 KV at the 256K q8_0 node window + working set)
+  # = gpu 0.21 on the H200. Slim curated re-wrap of unsloth/Qwen3.6-27B-GGUF
+  # (which ships 21 quants + vision mmproj + imatrix, ~370 GB, and NO
+  # tokenizer): ONLY the served gguf (sha256 ff6941de..., verified
+  # 2026-07-23) PLUS the official Qwen/Qwen3.6-27B tokenizer.json
+  # (byte-identical to the Qwen3.5 family one), so it's self-contained;
+  # provenance + per-file sha256 in the repo README. SINGLE-file gguf: no
+  # MODEL_VOLUMES third field, no toolchain dependency. llm-chat catalog
+  # entry: the app repo's deploy-config.template.json (chatml,
+  # eos [248046, 248044]).
+  # TODO(steven): generate the mpk in the Tinfoil console Models tab from the
+  # pinned repo, paste it below, and add
+  # qwen3.6-27b-gguf:/tinfoil/mpk/mpk-<root_hash> to MODEL_VOLUMES above.
+  # The mpk is per-repo: the SAME string also goes in enclaves/gpu8's entry
+  # (and its MODEL_VOLUMES) - update both files together.
+  - name: "qwen3.6-27b-gguf"
+    repo: "EnclaveHost/qwen3.6-27b-gguf@ee09d0591e3b961ae5c42fd337f91c1262d6ea0d"
+    mpk: "TODO_PASTE_FROM_TINFOIL_CONSOLE_MODELS_TAB"
   # SD-Turbo (distilled Stable Diffusion 2.1, 512x512 txt2img in 1-4 steps),
   # the Olive fp16 ONNX export by the onnxruntime team, fused for the CUDA EP
   # (com.microsoft ops - GPU-only, the CPU EP has no kernels for it). Serves
