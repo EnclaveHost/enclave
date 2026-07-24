@@ -171,11 +171,26 @@ function ensureControl(origin) {
       let m; try { m = JSON.parse(raw.toString()); } catch { return; }
       if (m && m.type === "open") handleOpen(ws, origin, m);
     });
-    ws.on("unexpected-response", (_q, res) => console.error(`[egress-relay] control refused by ${origin} (HTTP ${res.statusCode}); check EGRESS_RELAY_TOKEN`));
+    // ws emits neither close nor error after unexpected-response (a non-101
+    // HTTP answer, e.g. a 503 from an enclave mid-boot or a 401 on a token
+    // mismatch), so the retry must be armed here too or one refused handshake
+    // strands this enclave's egress until a daemon restart (live 2026-07-24:
+    // a single boot-time 503 zombied the control slot for 5 hours). clearTimeout
+    // keeps the paths idempotent if close does follow the terminate().
+    const retry = () => {
+      if (slot.stopped) return;
+      clearTimeout(slot.timer);
+      slot.timer = setTimeout(connect, 2000);
+    };
+    ws.on("unexpected-response", (_q, res) => {
+      console.error(`[egress-relay] control refused by ${origin} (HTTP ${res.statusCode}); check EGRESS_RELAY_TOKEN; retrying in 2s`);
+      try { ws.terminate(); } catch {}
+      retry();
+    });
     ws.on("close", () => {
       if (slot.stopped) return;
       console.error(`[egress-relay] control channel down (${origin}); reconnecting in 2s`);
-      slot.timer = setTimeout(connect, 2000);
+      retry();
     });
     ws.on("error", (e) => console.error(`[egress-relay] ${origin}:`, e.message));
   };
