@@ -322,18 +322,19 @@ containers:
       # (K-quant needs no FA) - a config-only re-measure, no toolchain rebuild.
       - ENCLAVE_GGML_KV_CACHE_TYPE: "q8_0"
       - ENCLAVE_GGML_FLASH_ATTN: "on"
-      # Concurrent llama contexts per tenant process (needs the session-gate
-      # wasmtime toolchain; older toolchains ignore it). EVERY context
-      # pre-allocates the full 256K window's KV up front (qwen3.6-27b: ~8.5 GB
-      # per session at q8), so N overlapping chat requests cost N windows -
-      # unbounded concurrency is the VRAM exhaustion that broke llm-chat under
-      # ~30 users (2026-07-24: every "cpu: llama.cpp context allocation failed
-      # (n_ctx too large for the share?)" error). Over-cap requests fail fast
-      # with [sessions_busy]; llm-chat waits and retries, so users queue
-      # instead of erroring. Raise ONLY with the VRAM to hold another full
-      # window per increment; the manager forwards this to guests so their
-      # serve pricing multiplies by it.
-      - ENCLAVE_GGML_MAX_SESSIONS: "1"
+      # Concurrent sequences per model per tenant process. Since the batched
+      # (pooled) wasmtime toolchain (the -batch1 ELL repin) every model serves
+      # ALL its concurrent chats from ONE shared KV pool of N_CTX tokens,
+      # decode steps merged into single llama_decode passes - a slot costs no
+      # pre-allocated VRAM (each chat consumes only the pool space its actual
+      # tokens need), so raising this no longer multiplies the window cost
+      # the way the 2026-07-24 per-request-context outage did. 8 = up to 8
+      # users generating at once per deployment per model. Over-cap requests
+      # fail fast with [sessions_busy] (llm-chat >=0.7.6 queues politely);
+      # pool pressure mid-decode is a retryable [kv_pool_full]. The manager
+      # forwards this + ENCLAVE_GGML_POOLED to guests so serve pricing
+      # matches (llm-chat >=0.7.7 prices one persistent pool per model).
+      - ENCLAVE_GGML_MAX_SESSIONS: "8"
       # each app's memory cap is its deployment's cpuShare × NODE_RAM_GB
       # (>= the mem_mb its specs declare); WASM_APP_MIN_MEM_MB (64) is the floor
       # friendly name -> the model's auto-mount path. Tinfoil mounts each
