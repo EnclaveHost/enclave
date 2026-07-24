@@ -182,13 +182,24 @@ export const specOf = (v) => ({ vramMb: Number(v && v.vramMb) || 0, gpuGflops: N
                                 memMb: Number(v && v.memMb) || 0, cpuGflops: Number(v && v.cpuGflops) || 0 });
 export const CONFIG_CACHE = {}; // friendly "slug:version" -> that VERSION's default/template config JSON (pre-fills the deploy form)
 export function looksFriendly(s){ return s.includes(":") && !s.startsWith("ipfs://"); }
-export function resolveAppRef(input){
+/* opts.allowPending: admit a version still AWAITING approval — the dev-mode
+   path (PRIVATE deployments on a fleet advertising devDeploy; the caller owns
+   both checks). Pending resolutions NEVER enter REF_CACHE: the cache hit path
+   skips the approval gate, so caching one would let a later PUBLIC deploy of
+   the same input slip through unexamined. Rejected/yanked stay refused. */
+export function resolveAppRef(input, opts = {}){
   input = (input || "").trim();
   if (!input) return { reference: "", error: "Pick an app: slug:version from the Apps catalog." };
   if (input.startsWith("ipfs://") || /^(baf[a-z0-9]{10,}|Qm[1-9A-HJ-NP-Za-km-z]{20,})$/.test(input))
     return { reference: input, error: "CIDs can’t deploy - a CID names bytes, not a version (several versions can share bytes and differ in approved config). Deploy a slug:version from the Apps catalog." };
   if (!looksFriendly(input)) return { reference: input, error: "Not a slug:version reference. Deploys come from the on-chain catalog - pick an app on the Apps page." };
-  if (REF_CACHE[input]) return { reference: REF_CACHE[input], label: input };
+  // The cache is only the PRE-LOAD fast path (a "Use in Deploy" stash resolving
+  // before the catalog read lands). Once the catalog is loaded, always resolve
+  // fresh: the stash writer (apps.js useInDeploy) caches whatever version the
+  // user clicked — a publisher's own PENDING one included — and the approval
+  // gate below must re-run against the caller's current opts, not be
+  // short-circuited by a cache entry that never saw it.
+  if (REF_CACHE[input] && !STORE.loaded) return { reference: REF_CACHE[input], label: input };
   let pub = null, rest = input;
   const slash = input.indexOf("/");
   if (slash >= 0){ pub = input.slice(0, slash).trim().toLowerCase(); rest = input.slice(slash + 1); }
@@ -202,13 +213,17 @@ export function resolveAppRef(input){
   const vi = apps[0].versions.findIndex(x => x.version === version && !x.yanked);
   const v = vi >= 0 ? apps[0].versions[vi] : null;
   if (!v) return { reference: input, label: input, error: "'" + slug + "' has no live version '" + version + "'." };
-  if (v.approval !== APPROVAL.approved)
-    return { reference: input, label: input, error: "'" + slug + ":" + version + "' " + (v.approval === APPROVAL.rejected ? "was rejected" : "isn’t approved yet") + " by the catalog owner; the enclave refuses to deploy it." };
-  REF_CACHE[input] = catalogRef(apps[0].appId, vi);
+  if (v.approval !== APPROVAL.approved && (v.approval === APPROVAL.rejected || !opts.allowPending))
+    return { reference: input, label: input, error: "'" + slug + ":" + version + "' " + (v.approval === APPROVAL.rejected
+      ? "was rejected by the catalog owner; the enclave refuses to deploy it."
+      : "isn’t approved yet by the catalog owner; the enclave only runs it PRIVATE (owner-only access) for testing - switch Access to Private.") };
+  const awaiting = v.approval !== APPROVAL.approved;   // pending, admitted by allowPending
+  if (!awaiting) REF_CACHE[input] = catalogRef(apps[0].appId, vi);
   PORTS_CACHE[input] = v.ports || "";
   SPECS_CACHE[input] = specOf(v);         // raw specs; floors are computed at read time
   CONFIG_CACHE[input] = stripMedia(v.config || "");   // the version's default config template (store media stripped: _media never reaches an app, and an override built from this prefill must not carry it)
-  return { reference: REF_CACHE[input], label: input, mins: minPctsOf(SPECS_CACHE[input]) };
+  return { reference: catalogRef(apps[0].appId, vi), label: input, mins: minPctsOf(SPECS_CACHE[input]),
+           ...(awaiting ? { awaitingApproval: true } : {}) };
 }
 
 // A mid-session address-book change (js/core/addressbook.js emits

@@ -785,6 +785,11 @@ function aggregateAvailability() {
     // $NAME placeholders in config strings resolving from those secrets at
     // launch — a build refinement on top of `secrets`, same fleet-AND
     secretsInConfig: secretsEnabled() && live.length > 0 && live.every((e) => e.availability?.secretsInConfig === true),
+    // publisher dev-mode: runners admit PENDING catalog versions for PRIVATE
+    // deployments (public deploys of pending versions stay refused). Fleet-AND —
+    // on false a pending-version deploy would sit Queued forever on old runners,
+    // so clients only offer the option when every live runner honors it
+    devDeploy: live.length > 0 && live.every((e) => e.availability?.devDeploy === true),
     // attached model volumes across the fleet (Modelwrap), deduped by name -
     // each carries `enclaves`: which endpoints can mount it (placement matters,
     // a volume only lives where its enclave declares it)

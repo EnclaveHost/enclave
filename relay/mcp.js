@@ -278,7 +278,12 @@ async function resolveApp(input) {
   if (apps.length > 1) throw new Error(`slug "${m[2]}" has ${apps.length} publishers; use <publisher>/${m[2]}`);
   return apps[0];
 }
-async function resolveAppRef(input) {
+// opts.allowPending: admit a version still AWAITING approval — the publisher
+// dev-mode path (PRIVATE deployments on a fleet advertising devDeploy). Only
+// an EXPLICIT :version label can name a pending version (the no-label default
+// stays latest-APPROVED — nobody dev-deploys by accident); rejected and
+// yanked stay refused regardless.
+async function resolveAppRef(input, opts = {}) {
   if (/^ipfs:\/\//i.test(input) || /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z0-9]{20,})$/.test(String(input)))
     throw new Error("CIDs can't deploy: a CID names bytes, not a version. Use [publisher/]slug[:version] from the catalog (list_apps).");
   const m = String(input).match(/^(?:([0-9a-zA-Z.]+|0x[0-9a-fA-F]{40})\/)?([a-z0-9][a-z0-9-]*)(?::(.+))?$/);
@@ -300,9 +305,12 @@ async function resolveAppRef(input) {
     if (vi < 0) throw new Error(`app "${slug}" has no approved version yet`);
   }
   const ver = versions[vi];
-  if (Number(ver.approval) !== 1)
-    throw new Error(`${slug}:${ver.version} is ${APPROVAL_WORD[Number(ver.approval)]}; runners only claim approved versions`);
-  return { ref: `catalog://${app.appId}/${vi}`, index: vi, ver, app };
+  if (Number(ver.approval) === 2)
+    throw new Error(`${slug}:${ver.version} was rejected by the catalog owner; runners never serve it`);
+  if (Number(ver.approval) !== 1 && !opts.allowPending)
+    throw new Error(`${slug}:${ver.version} is ${APPROVAL_WORD[Number(ver.approval)]}; runners only claim approved versions`
+      + ` (a PRIVATE deployment can run it for testing: pass public:false on a fleet advertising devDeploy)`);
+  return { ref: `catalog://${app.appId}/${vi}`, index: vi, ver, app, pending: Number(ver.approval) !== 1 };
 }
 
 // minimum shares for an app's specs on the fleet's hardware — the runner's own
@@ -455,8 +463,19 @@ async function upgradeOrResize(a, resizeOnly) {
   const ver = versions[vi];
   if (vi === curIdx && !wantShares)
     return { id: full, note: `already runs ${app.slug}:${ver.version} (index ${vi}); nothing to do`, transactions: [] };
-  if (Number(ver.approval) !== 1)
-    throw new Error(`${app.slug}:${ver.version} is ${APPROVAL_WORD[Number(ver.approval)]}; runners only serve approved versions`);
+  if (Number(ver.approval) === 2)
+    throw new Error(`${app.slug}:${ver.version} was rejected by the catalog owner; runners never serve it`);
+  if (Number(ver.approval) !== 1) {
+    // pending target: only a PRIVATE deployment may switch to it (dev mode),
+    // and only an explicit version label may name it — same rules as create
+    if (d.isPublic)
+      throw new Error(`${app.slug}:${ver.version} is awaiting approval; a PUBLIC deployment can't switch to it (dev-mode testing is private-only)`);
+    if (a.version === undefined && vi !== curIdx)   // staying on the version it already runs (pure resize) is fine
+      throw new Error(`refusing to pick the pending ${app.slug}:${ver.version} implicitly; name it explicitly via version`);
+    const av = await self("GET", "/availability").catch(() => null);
+    if (!(av && av.aggregate && av.devDeploy === true))
+      throw new Error(`${app.slug}:${ver.version} is awaiting approval, and the live fleet doesn't advertise devDeploy (pending-version private deploys) yet - retry after the fleet updates, or wait for approval`);
+  }
   const pricing = await self("GET", "/v1/pricing").catch(() => null);
   const mins = minShares(ver, pricing);
   let gpuMilli = a.gpuShare !== undefined ? Math.round(Number(a.gpuShare) * 1000) : Number(d.gpuMilli);
@@ -558,7 +577,7 @@ After it runs, the mutable knobs are: get_config/build_set_config (the app-confi
 4. POST the raw bytes to ${IPFS_UPLOAD}/add-wasm with headers content-type: application/wasm, x-upload-address, x-upload-expiry, x-upload-token. The response carries { cid }.
    curl -sX POST ${IPFS_UPLOAD}/add-wasm -H 'content-type: application/wasm' -H "x-upload-address: <address>" -H "x-upload-expiry: <expiry>" -H "x-upload-token: <token>" --data-binary @app.wasm
 5. build_publish { publisher, slug, cid, ... } returns the unsigned publishVersion tx. Optional: version label (default: next integer), name, description, resource specs (vramMb, gpuGflops, memMb, cpuGflops; deploy dials size shares from these), ports CSV, config (the version's default ENCLAVE_CONFIG JSON, immutable), feeUsdPerHour (YOUR per-deployment publisher fee, paid straight to your wallet out of each funding, capped by the platform).
-6. Sign and send. The version starts PENDING; runners only claim approved versions. Images for the app page go to /add-image with the same signed-upload flow (PNG/JPEG/WebP/GIF, or SVG through a strict validator - no scripts/event handlers/external refs). The answer's "svg": true must be stored alongside the CID in the version config's _media block ({thumbnail, banner, thumbnailSvg?, bannerSvg?}) so pages render it with the right content type.
+6. Sign and send. The version starts PENDING; runners only claim approved versions on the PUBLIC path. To test it before approval, deploy it PRIVATE by explicit label (plan_deploy { app: "slug:version", public: false } on a fleet advertising devDeploy): owner-only data path, unlisted in the store. Images for the app page go to /add-image with the same signed-upload flow (PNG/JPEG/WebP/GIF, or SVG through a strict validator - no scripts/event handlers/external refs). The answer's "svg": true must be stored alongside the CID in the version config's _media block ({thumbnail, banner, thumbnailSvg?, bannerSvg?}) so pages render it with the right content type.
 ${SIGNING_NOTE}`,
 
   funding: `Money model: rates are on-chain per-second USDC (6 decimals). A deployment's rate = (pricePerSec6 * gpuMilli + cpuPricePerSec6 * cpuMilli, ceil-divided by 1000) + the version's publisher fee, all snapshotted at create; the pricing tool shows the live numbers and plan_deploy prices the exact deployment. Funding is prepaid and burns per second while leased.
@@ -844,13 +863,21 @@ const TOOLS = [
       cpuShare: { type: "number", description: "Fraction of one CPU node, 0..1 (default: the app's minimum)" },
       appPort: { type: "number", description: "The app's HTTP port (default: the version's http: port, else 8080)" },
       ports: { type: "string", description: "CSV overriding the version's ports, e.g. \"http:8080,tcp:7777\"" },
-      public: { type: "boolean", description: "Listed and open to anyone (default true)" },
+      public: { type: "boolean", description: "Listed and open to anyone (default true). public:false = owner-only data path - also the dev-mode path: on a fleet advertising devDeploy, a PRIVATE deployment may run a version still awaiting catalog approval (name it explicitly as slug:version)" },
       waf: { type: "object", description: "Per-IP protection envelope, e.g. {\"rps\":10,\"burst\":40,\"blockScanners\":true}", additionalProperties: true },
       config: { type: "object", description: "Per-deployment app-config override: replaces the picked version's config as this deployment's ENCLAVE_CONFIG ({} = explicitly empty; the catalog default and other deployments are untouched). Needs a fleet whose availability advertises configOverride:true (old runners refuse the claim) AND a deploymentsSchema() >= 5 ledger (earlier ones cap the field at 100 bytes and revert).", additionalProperties: true },
       fundUsd: { type: "number", description: "Planned USDC funding (used to estimate runtime; funding itself is build_fund after create)" },
     }, ["app"]),
     handler: async (a) => {
-      const { ref, index, ver, app } = await resolveAppRef(a.app);
+      const isPublic = a.public !== false;
+      const { ref, index, ver, app, pending } = await resolveAppRef(a.app, { allowPending: !isPublic });
+      if (pending) {
+        // dev-mode deploy (pending version, private): fail closed unless EVERY
+        // live runner admits it — otherwise the create would sit Queued forever
+        const av = await self("GET", "/availability").catch(() => null);
+        if (!(av && av.aggregate && av.devDeploy === true))
+          throw new Error(`${app.slug}:${ver.version} is awaiting approval, and the live fleet doesn't advertise devDeploy (pending-version private deploys) yet - retry after the fleet updates, or wait for approval`);
+      }
       const pricing = await self("GET", "/v1/pricing").catch(() => null);
       const mins = minShares(ver, pricing);
       let gpuMilli = a.gpuShare !== undefined ? Math.round(Number(a.gpuShare) * 1000) : mins.gpuMilli;
@@ -905,10 +932,11 @@ const TOOLS = [
         throw new Error(`the options envelope is ${envelope.length} bytes but this ledger caps the field at ${envCap} bytes (create() reverts "configCid length")`);
       const rate = (pricePerSec6 * BigInt(gpuMilli) + cpuPricePerSec6 * BigInt(cpuMilli) + 999n) / 1000n + fee6;
       const create = encodeCreateTx({ rev, deployments, appRef: ref, gpuMilli, cpuMilli, appPort,
-        ports: portsCsv, isPublic: a.public !== false, envelope,
+        ports: portsCsv, isPublic, envelope,
         feeRecipient: fee6 > 0n ? app.publisher : "0x0000000000000000000000000000000000000000", feePerSec6: fee6 });
       return {
         app: `${app.slug}:${ver.version}`, appRef: ref,
+        ...(pending ? { pending: `${ver.version} is awaiting catalog approval: this PRIVATE deployment is the dev-mode test path (owner-only data path, unlisted). If the owner later REJECTS the version, runners drop it at the next re-check.` } : {}),
         shares: { gpuMilli, cpuMilli, note: "immutable after create; minimums for this version: " + JSON.stringify(mins) },
         ratePerHour: usdHr(rate), publisherFeePerHour: fee6 > 0n ? usdHr(fee6) : null,
         estimatedRuntime: a.fundUsd ? `${Math.floor(a.fundUsd * 1e6 / Number(rate) / 3600)}h ${Math.floor(a.fundUsd * 1e6 / Number(rate) % 3600 / 60)}m for $${a.fundUsd}` : undefined,

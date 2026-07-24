@@ -16,7 +16,11 @@
 //   still be fetchable when approval lands: the 04:17 timer once swept a CID
 //   pinned+published at 04:16:59 and approved a minute later, leaving that
 //   version permanently unprovisionable (http-probe@0.1.1, 2026-07-24). Only a
-//   Pending version old enough to be abandoned is storage junk.
+//   Pending version old enough to be abandoned is storage junk. The window
+//   also bounds dev-mode deployments (private deploys of Pending versions,
+//   supervisor devDeploy, 2026-07-23): past it, a re-claim's wasm prefetch
+//   404s — publish a fresh version (or get approval) rather than test on a
+//   Pending release for a month.
 //   The keep test is a UNION over every version that lists the CID: a CID that a
 //   later Approved version re-listed stays pinned even if an earlier version of
 //   the same bytes is Pending/yanked (versions can share bytes but differ in
