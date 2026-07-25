@@ -111,10 +111,14 @@ export function enclaveSpecOf(row){
 // Returns { row, name, spec, mins, free:{gpuPct,cpuPct}, queued } — queued:
 // the box fits this app but can't START it now (deploys wait on-chain) — or
 // { none: "why" } when no live enclave could ever run it.
-export function pickEnclaveFor(v, rows){
+// EVERY live enclave that could host `v`, ranked: ready boxes first (in the
+// preference order above), then structurally-fitting-but-full ones (a deploy
+// sized for those queues). Each entry: { row, name, spec, mins, free, gpu,
+// queued }. The deploy surfaces render this as the target dropdown — the
+// head is the recommended pick, any entry is a valid user choice.
+export function rankEnclavesFor(v, rows){
   const claiming = (rows || []).filter((e) => e && e.availability
     && (e.availability.claimEnabled === true || (e.availability.claimEnabled == null && !e.tunnel)));
-  if (!claiming.length) return { none: "no live enclave is taking work right now" };
   const vramMb = Number(v && v.vramMb || 0), gpuGf = Number(v && v.gpuGflops || 0);
   const memMb = Number(v && v.memMb || 0), cpuGf = Number(v && v.cpuGflops || 0);
   const needsGpu = vramMb > 0 || gpuGf > 0;
@@ -129,16 +133,22 @@ export function pickEnclaveFor(v, rows){
     const now = fits && (!needsGpu || free.gpuPct >= mins.gpuPct) && free.cpuPct >= mins.cpuPct;
     const name = row.name || String(row.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "enclave";
     return { row, name, spec, mins, free, gpu, fits, now };
-  });
+  }).filter((c) => c.fits && (needsGpu ? c.gpu : true));
   const order = (list) => list.slice().sort((x, y) => needsGpu
     ? (x.mins.gpuPct - y.mins.gpuPct) || (y.free.gpuPct - x.free.gpuPct)
     : (x.mins.cpuPct - y.mins.cpuPct) || ((x.gpu === true) - (y.gpu === true)) || (y.free.cpuPct - x.free.cpuPct));
-  const pool = cand.filter((c) => needsGpu ? c.gpu : true);
-  const ready = order(pool.filter((c) => c.now));
-  if (ready.length) return { ...ready[0], queued: false };
-  const eventual = order(pool.filter((c) => c.fits));
-  if (eventual.length) return { ...eventual[0], queued: true };
-  return { none: needsGpu && !pool.some((c) => c.gpu)
+  return [...order(cand.filter((c) => c.now)).map((c) => ({ ...c, queued: false })),
+          ...order(cand.filter((c) => !c.now)).map((c) => ({ ...c, queued: true }))];
+}
+
+export function pickEnclaveFor(v, rows){
+  const claiming = (rows || []).filter((e) => e && e.availability
+    && (e.availability.claimEnabled === true || (e.availability.claimEnabled == null && !e.tunnel)));
+  if (!claiming.length) return { none: "no live enclave is taking work right now" };
+  const ranked = rankEnclavesFor(v, rows);
+  if (ranked.length) return ranked[0];
+  const needsGpu = Number(v && v.vramMb || 0) > 0 || Number(v && v.gpuGflops || 0) > 0;
+  return { none: needsGpu && !claiming.some((e) => e.availability.gpu === true)
     ? "this app needs a GPU and no live enclave has one"
     : "no live enclave's hardware is big enough for this app's specs" };
 }

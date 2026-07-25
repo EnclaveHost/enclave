@@ -20,7 +20,7 @@ import { loadTallies, loadReviews, confirmReceipt } from "../core/reviews.js";
 import { payForRuntime } from "../core/fund.js";
 import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf } from "../core/wallet.js";
 import { STORE, loadCatalog, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, REF_CACHE, PORTS_CACHE, SPECS_CACHE, specOf, CONFIG_CACHE, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia } from "../core/catalog.js";
-import { minPctsOf, shareRates, pickEnclaveFor } from "../core/pricing.js";
+import { minPctsOf, shareRates, pickEnclaveFor, rankEnclavesFor } from "../core/pricing.js";
 import { navigate } from "../boot.js";
 
 /* ---- render: filter + sort the catalog into <c-app-card>s ---- */
@@ -485,14 +485,29 @@ function quickDeploy(app, v, idx){
     if (acct) capFee = "This app charges a publisher fee, which credit deploys don’t support yet - connect a wallet to deploy it.";
     paintRate();
   }).catch(() => {});
-  // WHERE this deploys: the same pick as the full console's "deploys to"
-  // line - only claiming enclaves, cheapest fitting box. The mins (and so
-  // the rate) resize to that box's hardware when the rows land; a fleet
-  // that can't run the app pins Deploy off with the reason instead.
+  // WHERE this deploys: the same ranking as the full console's target
+  // dropdown - only claiming enclaves, cheapest fitting box on top as
+  // "auto", every other candidate user-selectable. The mins (and so the
+  // rate) resize to the chosen box's hardware; a fleet that can't run the
+  // app pins Deploy off with the reason instead.
+  let qdRows = null, qdPick = "";
   const fleetRowsNow = async () => {
     const r = await fetch(Enclave.base.replace(/\/v1\/?$/, "") + "/enclaves", { headers: { "Accept": "application/json" } });
     if (!r.ok) throw new Error("no fleet view");
     return (await r.json()).enclaves || [];
+  };
+  // the current target honoring the dropdown pick; { none } when unhostable,
+  // null when there is no fleet view to target from (aggregate math stays)
+  const computeTarget = () => {
+    if (!qdRows || !qdRows.length) return null;
+    const ranked = rankEnclavesFor(specOf(v), qdRows);
+    if (!ranked.length) return pickEnclaveFor(specOf(v), qdRows);
+    if (qdPick){
+      const hit = ranked.find((c) => c.name === qdPick);
+      if (hit) return { ...hit, ranked, picked: true };
+      qdPick = "";                       // the chosen box left the fleet: back to auto
+    }
+    return { ...ranked[0], ranked, picked: false };
   };
   const applyTarget = (t) => {
     target = t;
@@ -506,14 +521,22 @@ function quickDeploy(app, v, idx){
     capTarget = null;
     mins = t.mins;
     if (tEl){
+      const ranked = t.ranked || [t];
+      const optOf = (c) => esc(c.name) + " · " + c.spec.nodeVcpus + " vCPU / " + c.spec.nodeRamGb + " GB"
+        + (c.mins.gpuPct > 0 ? " · " + c.spec.cardVramGb + " GB card" : "")
+        + (c.queued ? " · full, queues" : "");
       tEl.hidden = false;
-      tEl.innerHTML = "⤷ deploys to <b>" + esc(t.name) + "</b> · " + t.spec.nodeVcpus + " vCPU / " + t.spec.nodeRamGb + " GB node"
-        + (t.mins.gpuPct > 0 ? " · " + t.spec.cardVramGb + " GB card" : "")
+      tEl.innerHTML = "⤷ deploys to <select class=\"qd-tgtsel\" title=\"Every live enclave that can host this app. Auto sizes for (and hints) the recommended box; pick one to use it instead.\">"
+        + "<option value=\"\">auto — " + esc(ranked[0].name) + " (recommended)</option>"
+        + ranked.map((c) => "<option value=\"" + esc(c.name) + "\"" + (qdPick === c.name ? " selected" : "") + ">" + optOf(c) + "</option>").join("")
+        + "</select>"
         + (t.queued ? " · <b>currently full - a deploy waits in its queue</b>" : "");
+      const sel = tEl.querySelector(".qd-tgtsel");
+      if (sel) sel.addEventListener("change", () => { qdPick = sel.value; applyTarget(computeTarget()); });
     }
     capCheck(); recalc();
   };
-  fleetRowsNow().then(rows => applyTarget(rows.length ? pickEnclaveFor(specOf(v), rows) : null)).catch(() => {});
+  fleetRowsNow().then(rows => { qdRows = rows; applyTarget(computeTarget()); }).catch(() => {});
   const loadBal = async () => {
     if (acct){
       // credit balance instead of a wallet: the vault op draws from it
@@ -549,9 +572,17 @@ function quickDeploy(app, v, idx){
     // hardware refuses with nothing signed, and a share below the runners'
     // floor can never be minted (created shares are immutable, funding
     // unrecoverable)
-    const t2 = await fleetRowsNow().then(rows => rows.length ? pickEnclaveFor(specOf(v), rows) : null).catch(() => null);
+    const wanted = qdPick;
+    qdRows = await fleetRowsNow().catch(() => qdRows);
+    const t2 = computeTarget();
     applyTarget(t2);
     if (t2 && t2.none) return;               // the modal stays; qd-target + the note say why
+    // an explicit pick that vanished fell back to auto - never silently
+    // under a wallet signature: the repainted dropdown shows the new box
+    if (wanted && t2 && !t2.picked){
+      showToast("The selected enclave (" + wanted + ") is no longer available - switched to auto (" + t2.name + "). Review and deploy again.");
+      return;
+    }
     const m2 = t2 ? t2.mins : minPctsOf(specOf(v));
     // full box? the queue-confirm overlay stacks over this modal; cancel
     // keeps the user here with their amount intact
@@ -560,7 +591,8 @@ function quickDeploy(app, v, idx){
     // the appRef IS the version record: the enclave applies its config,
     // volumes and ports from the chain - nothing rides the deployment
     m.deployOnChain({ reference: catalogRef(app.appId, idx), gpuMilli: m2.gpuPct * 10, cpuMilli: m2.cpuPct * 10,
-      ports: v.ports || "", isPublic: true, fundUsd: usd, asset: "USDC" });
+      ports: v.ports || "", isPublic: true, fundUsd: usd, asset: "USDC",
+      targetName: t2 && !t2.none ? t2.name : "" });
   });
   est(); loadBal();
 }

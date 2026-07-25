@@ -101,6 +101,8 @@
 .qd-h b{color:var(--jade);}
 .qd-ver{color:var(--text-dim);font-size:.8rem;}
 .qd-sub{color:var(--text-muted);font-size:.86rem;line-height:1.6;margin:10px 0 14px;}
+.qd-target{font-family:var(--font-mono);font-size:.72rem;}
+.qd-target select{font-family:var(--font-mono);font-size:.72rem;color:var(--jade-2);background:var(--bg-1);border:1px solid var(--line);border-radius:8px;padding:.3em .5em;max-width:100%;}
 .qd-bal{display:flex;align-items:center;gap:10px;font-family:var(--font-mono);font-size:.78rem;color:var(--text-muted);padding:9px 12px;border:1px solid var(--line-soft);border-radius:9px;background:var(--bg-1);margin-bottom:14px;}
 .qd-bal b{color:var(--text);}
 .qd-buy{margin-left:auto;background:none;border:0;color:var(--jade);cursor:pointer;font-family:var(--font-mono);font-size:.74rem;}
