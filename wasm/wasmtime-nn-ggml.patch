@@ -138,7 +138,7 @@ new file mode 100644
 index 0000000..140bfcd
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,875 @@
+@@ -0,0 +1,1127 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -170,10 +170,18 @@ index 0000000..140bfcd
 +//!   output "logits"  Fp32 dims [1, n_vocab]            last-token logits
 +//! Speculative-decoding verbs (see each handler in `compute`):
 +//!   "tokens"+"all"=1 -> "logits" [n, n_vocab] (per-position verify rows);
-+//!   "caps" -> [seq_id, recurrent]; "copy_from" [src_seq, src_n_past]
++//!   "caps" -> [seq_id, recurrent, mtp]; "copy_from" [src_seq, src_n_past]
 +//!   branches this sequence off another (recurrent state copy-on-write —
 +//!   the zero-memory alternative to "rewind", which recurrent/hybrid
 +//!   models refuse).
++//! MTP self-drafting (models whose GGUF carries a trained next-token head):
++//!   "tokens"+"mtp"=1 -> MTP-aware feed (head observes every position, last
++//!   logits row returned); "tokens"+"all"=1+"mtp_for"=[seq] -> verify pass
++//!   harvesting head rows for the real sequence; "mtp_draft"
++//!   [id_last, k, p_min_milli] -> "draft" [n] proposals; "mtp_accept"
++//!   [pos0, tokens...] mirrors accepted tokens into the head. No separate
++//!   draft model, no second weights allocation — the head context costs one
++//!   attention layer's KV.
 +//!
 +//! SERVING MODEL (continuous batching): an execution context is a SEQUENCE
 +//! HANDLE into its graph's shared server context. llama.cpp serves up to
@@ -271,6 +279,30 @@ index 0000000..140bfcd
 +    fn ell_seq_rewind(ctx: *mut c_void, seq_id: i32, n_keep: i32) -> i32;
 +    fn ell_seq_copy(ctx: *mut c_void, src_seq: i32, dst_seq: i32);
 +    fn ell_model_recurrent(model: *mut c_void) -> i32;
++    fn ell_mtp_available(model: *mut c_void) -> i32;
++    fn ell_mtp_new(
++        model: *mut c_void,
++        target_ctx: *mut c_void,
++        n_ctx: u32,
++        n_batch: u32,
++        n_seq_max: u32,
++        type_k: i32,
++        type_v: i32,
++        flash_attn: i32,
++    ) -> *mut c_void;
++    fn ell_mtp_free(m: *mut c_void);
++    fn ell_mtp_harvest(m: *mut c_void, target_ctx: *mut c_void, seq: i32, n_rows: i32);
++    fn ell_mtp_observe(m: *mut c_void, seq: i32, pos0: i32, tokens: *const i32, n: i32) -> i32;
++    fn ell_mtp_draft(
++        m: *mut c_void,
++        seq: i32,
++        id_last: i32,
++        n_past: i32,
++        k: i32,
++        p_min: f32,
++        tokens_out: *mut i32,
++    ) -> i32;
++    fn ell_mtp_reset(m: *mut c_void, seq: i32);
 +}
 +
 +static INIT: Once = Once::new();
@@ -348,6 +380,7 @@ index 0000000..140bfcd
 +                raw: model,
 +                n_vocab: n_vocab as u32,
 +                recurrent: unsafe { ell_model_recurrent(model) } != 0,
++                mtp: unsafe { ell_mtp_available(model) } != 0,
 +            }),
 +            server: Mutex::new(None),
 +        });
@@ -459,6 +492,10 @@ index 0000000..140bfcd
 +    /// branch-verify strategy (`copy_from`) instead of `rewind`. Surfaced
 +    /// to guests through the "caps" probe.
 +    recurrent: bool,
++    /// the GGUF carries a trained MTP (multi-token prediction) head — the
++    /// model can draft for ITSELF, no separate draft model. Surfaced via
++    /// "caps"; drives the "mtp"-flavored verbs below.
++    mtp: bool,
 +}
 +unsafe impl Send for GgmlModel {}
 +unsafe impl Sync for GgmlModel {}
@@ -498,6 +535,27 @@ index 0000000..140bfcd
 +    slots: Mutex<Vec<i32>>,
 +    q: Mutex<DecodeQueue>,
 +    cv: Condvar,
++    /// context geometry kept for the lazily created MTP head context (it
++    /// mirrors the server's window/quantization so both price the same way)
++    n_ctx: u32,
++    type_k: i32,
++    type_v: i32,
++    flash_attn: i32,
++    /// the MTP head driver (shim-owned): created on FIRST mtp-flavored call,
++    /// under the decode turn so enabling nextn output on the target cannot
++    /// race a decode. None + model.mtp=false => the verbs error and guests
++    /// fall back to plain decode. Head decodes serialize on THIS lock and
++    /// deliberately do NOT take the decode turn — a tiny head step may
++    /// overlap another stream's trunk decode on the GPU.
++    mtp: Mutex<Option<MtpHandle>>,
++}
++
++struct MtpHandle(*mut c_void);
++unsafe impl Send for MtpHandle {}
++impl Drop for MtpHandle {
++    fn drop(&mut self) {
++        unsafe { ell_mtp_free(self.0) };
++    }
 +}
 +unsafe impl Send for GgmlServer {}
 +unsafe impl Sync for GgmlServer {}
@@ -567,6 +625,11 @@ index 0000000..140bfcd
 +                decoding: false,
 +            }),
 +            cv: Condvar::new(),
++            n_ctx,
++            type_k,
++            type_v,
++            flash_attn,
++            mtp: Mutex::new(None),
 +        }))
 +    }
 +
@@ -656,7 +719,19 @@ index 0000000..140bfcd
 +    /// pass and hands back each position's distribution). Takes the decode
 +    /// turn like a leader, but alone - full-logits rows don't merge with
 +    /// last-row batchmates.
-+    fn submit_full(&self, seq_id: i32, pos0: i32, tokens: &[i32]) -> Result<Vec<f32>, String> {
++    ///
++    /// `mtp_for`: harvest the pass's per-position MTP hidden rows for that
++    /// sequence's head state, INSIDE the decode turn (a later decode would
++    /// overwrite them). The MTP head context is created on the first such
++    /// call — also inside the turn, because creation enables nextn output on
++    /// the target and must precede the decode being harvested.
++    fn submit_full(
++        &self,
++        seq_id: i32,
++        pos0: i32,
++        tokens: &[i32],
++        mtp_for: Option<i32>,
++    ) -> Result<Vec<f32>, String> {
 +        if tokens.is_empty() {
 +            return Err("empty token batch".into());
 +        }
@@ -673,19 +748,102 @@ index 0000000..140bfcd
 +        }
 +        q.decoding = true;
 +        drop(q);
++        let mut harvest_err = None;
++        if let Some(ms) = mtp_for {
++            if let Err(e) = self.ensure_mtp() {
++                harvest_err = Some(e);
++            } else {
++                let _ = ms; // harvested after the decode below
++            }
++        }
 +        let mut logits = vec![0f32; tokens.len() * self.n_vocab];
-+        let rc = unsafe {
-+            ell_decode_seq_full(self.raw, self.model.raw, seq_id, pos0,
-+                                tokens.as_ptr(), tokens.len() as i32, logits.as_mut_ptr())
++        let rc = if harvest_err.is_none() {
++            unsafe {
++                ell_decode_seq_full(self.raw, self.model.raw, seq_id, pos0,
++                                    tokens.as_ptr(), tokens.len() as i32, logits.as_mut_ptr())
++            }
++        } else {
++            0
 +        };
++        if rc == 0 && harvest_err.is_none() {
++            if let Some(ms) = mtp_for {
++                let mtp = self.mtp.lock().unwrap();
++                if let Some(h) = mtp.as_ref() {
++                    unsafe { ell_mtp_harvest(h.0, self.raw, ms, tokens.len() as i32) };
++                }
++            }
++        }
 +        let mut q = self.q.lock().unwrap();
 +        q.decoding = false;
 +        self.cv.notify_all();
 +        drop(q);
++        if let Some(e) = harvest_err {
++            return Err(e);
++        }
 +        if rc != 0 {
 +            return Err(decode_err(rc));
 +        }
 +        Ok(logits)
++    }
++
++    /// Create the MTP head context if it does not exist yet. Caller holds the
++    /// decode turn (creation flips the target's nextn-output flag).
++    fn ensure_mtp(&self) -> Result<(), String> {
++        let mut mtp = self.mtp.lock().unwrap();
++        if mtp.is_some() {
++            return Ok(());
++        }
++        if !self.model.mtp {
++            return Err("[mtp_unavailable] this model has no MTP head".into());
++        }
++        let raw = unsafe {
++            ell_mtp_new(self.model.raw, self.raw, self.n_ctx, self.n_batch,
++                        self.n_seq_max, self.type_k, self.type_v, self.flash_attn)
++        };
++        if raw.is_null() {
++            return Err(
++                "[mtp_unavailable] MTP head context creation failed (VRAM, or a \
++                 toolchain predating the MTP shim)"
++                    .to_string(),
++            );
++        }
++        *mtp = Some(MtpHandle(raw));
++        Ok(())
++    }
++
++    /// Mirror a round's ACCEPTED tokens into the head's KV (pairs them with
++    /// the harvested hidden rows; the boundary row becomes the next draft
++    /// seed). Head-only work: serializes on the mtp lock, not the decode turn.
++    fn mtp_observe(&self, seq: i32, pos0: i32, tokens: &[i32]) -> Result<(), String> {
++        let mtp = self.mtp.lock().unwrap();
++        let h = mtp.as_ref().ok_or("[mtp_unavailable] no MTP state (harvest first)")?;
++        let rc = unsafe {
++            ell_mtp_observe(h.0, seq, pos0, tokens.as_ptr(), tokens.len() as i32)
++        };
++        if rc != 0 {
++            return Err(format!("mtp observe failed (rc {rc}; harvested rows stale?)"));
++        }
++        Ok(())
++    }
++
++    /// Propose up to k tokens from the head (greedy, confidence-gated).
++    fn mtp_draft(&self, seq: i32, id_last: i32, n_past: i32, k: i32, p_min: f32)
++        -> Result<Vec<i32>, String>
++    {
++        let mtp = self.mtp.lock().unwrap();
++        let h = mtp.as_ref().ok_or("[mtp_unavailable] no MTP state (prefill with mtp first)")?;
++        let mut out = vec![0i32; k.max(0) as usize];
++        let n = unsafe { ell_mtp_draft(h.0, seq, id_last, n_past, k, p_min, out.as_mut_ptr()) };
++        out.truncate(n.max(0) as usize);
++        Ok(out)
++    }
++
++    /// Forget one sequence's head state (session teardown; slots get reused).
++    fn mtp_reset(&self, seq: i32) {
++        let mtp = self.mtp.lock().unwrap();
++        if let Some(h) = mtp.as_ref() {
++            unsafe { ell_mtp_reset(h.0, seq) };
++        }
 +    }
 +
 +    /// Drop a sequence's tokens from n_keep onward (a speculative round's
@@ -825,6 +983,9 @@ index 0000000..140bfcd
 +            q = self.server.cv.wait(q).unwrap();
 +        }
 +        unsafe { ell_seq_remove(self.server.raw, self.seq_id) };
++        // the MTP head keeps per-seq state (KV + draft seed); slots get
++        // reused by other streams, so forget this one before the slot frees
++        self.server.mtp_reset(self.seq_id);
 +        let mut slots = self.server.slots.lock().unwrap();
 +        slots.push(self.seq_id);
 +        // IDLE RESET: a unified pool FRAGMENTS under churn — used cells
@@ -902,7 +1063,11 @@ index 0000000..140bfcd
 +                // 1 = partial rewind is impossible on this model (branch-
 +                // verify is the only speculative strategy).
 +                if inputs.iter().any(|nt| nt.name == "caps") {
-+                    let vals = [self.seq_id, self.server.model.recurrent as i32];
++                    let vals = [
++                        self.seq_id,
++                        self.server.model.recurrent as i32,
++                        self.server.model.mtp as i32,
++                    ];
 +                    let mut data = Vec::with_capacity(vals.len() * 4);
 +                    for v in vals {
 +                        data.extend_from_slice(&v.to_le_bytes());
@@ -957,19 +1122,80 @@ index 0000000..140bfcd
 +                    self.n_past = n_keep;
 +                    return Ok(Some(vec![]));
 +                }
++                // control verb {"mtp_draft": I32 [3] = [id_last, k, p_min_milli]}:
++                // the model's own MTP head proposes up to k tokens continuing
++                // this sequence (greedy, stops below p_min confidence) -
++                // output "draft" I32 [n], possibly empty. Near-zero cost: the
++                // head is one layer riding state harvested from prior passes.
++                if let Some(md) = inputs.iter().find(|nt| nt.name == "mtp_draft") {
++                    let v = tokens_from_tensor(&md.tensor)?;
++                    let (id_last, k, pmm) = match v.as_slice() {
++                        [i, k, p] => (*i, *k, *p),
++                        _ => return Err(err("mtp_draft needs [id_last, k, p_min_milli]")),
++                    };
++                    let k = k.clamp(1, 16);
++                    let p_min = (pmm.clamp(0, 1000) as f32) / 1000.0;
++                    let toks = self
++                        .server
++                        .mtp_draft(self.seq_id, id_last, self.n_past, k, p_min)
++                        .map_err(err)?;
++                    let mut data = Vec::with_capacity(toks.len() * 4);
++                    for t in &toks {
++                        data.extend_from_slice(&t.to_le_bytes());
++                    }
++                    let t = Tensor {
++                        dimensions: vec![toks.len() as u32],
++                        ty: TensorType::I32,
++                        data,
++                    };
++                    return Ok(Some(vec![NamedTensor { name: "draft".to_string(), tensor: t }]));
++                }
++                // control verb {"mtp_accept": I32 [1+n] = [pos0, tokens...]}:
++                // mirror a verify round's ACCEPTED tokens into the head's KV
++                // (pairs them with the rows harvested by the last mtp-flagged
++                // pass). Rejected proposals never reach the head.
++                if let Some(ma) = inputs.iter().find(|nt| nt.name == "mtp_accept") {
++                    let v = tokens_from_tensor(&ma.tensor)?;
++                    let (pos0, toks) = match v.split_first() {
++                        Some((p, rest)) if !rest.is_empty() => (*p, rest),
++                        _ => return Err(err("mtp_accept needs [pos0, tokens...]")),
++                    };
++                    if pos0 < 0 {
++                        return Err(err("mtp_accept pos0 must be >= 0"));
++                    }
++                    self.server.mtp_observe(self.seq_id, pos0, toks).map_err(err)?;
++                    return Ok(Some(vec![]));
++                }
 +                let tokens = inputs
 +                    .iter()
 +                    .find(|nt| nt.name == "tokens" || nt.name == "0")
 +                    .ok_or_else(|| err("missing \"tokens\" input"))?;
 +                let ids = tokens_from_tensor(&tokens.tensor)?;
++                let flag = |name: &str| {
++                    inputs.iter().any(|nt| nt.name == name
++                        && tokens_from_tensor(&nt.tensor).map(|v| v.first() == Some(&1)).unwrap_or(false))
++                };
 +                // {"all": I32 [1] = 1} beside "tokens": logits for EVERY fed
-+                // position, dims [n, vocab] - the speculative verify step
-+                let want_all = inputs.iter().any(|nt| nt.name == "all"
-+                    && tokens_from_tensor(&nt.tensor).map(|v| v.first() == Some(&1)).unwrap_or(false));
++                // position, dims [n, vocab] - the speculative verify step.
++                // {"mtp_for": I32 [1] = seq} harvests the pass's MTP hidden
++                // rows for that sequence (the verify runs on a scratch branch
++                // but the head state belongs to the REAL sequence).
++                let want_all = flag("all");
++                let mtp_for = inputs
++                    .iter()
++                    .find(|nt| nt.name == "mtp_for")
++                    .map(|nt| tokens_from_tensor(&nt.tensor))
++                    .transpose()?
++                    .and_then(|v| v.first().copied());
++                if let Some(ms) = mtp_for {
++                    if ms < 0 || ms >= self.server.n_seq_max as i32 {
++                        return Err(err(format!("mtp_for seq {ms} outside this graph's sequences")));
++                    }
++                }
 +                if want_all {
 +                    let flat = self
 +                        .server
-+                        .submit_full(self.seq_id, self.n_past, &ids)
++                        .submit_full(self.seq_id, self.n_past, &ids, mtp_for)
 +                        .map_err(err)?;
 +                    self.n_past += ids.len() as i32;
 +                    let mut data = Vec::with_capacity(flat.len() * 4);
@@ -978,6 +1204,32 @@ index 0000000..140bfcd
 +                    }
 +                    let t = Tensor {
 +                        dimensions: vec![ids.len() as u32, self.server.model.n_vocab],
++                        ty: TensorType::Fp32,
++                        data,
++                    };
++                    self.logits = Some(t.clone());
++                    return Ok(Some(vec![NamedTensor { name: "logits".to_string(), tensor: t }]));
++                }
++                // {"mtp": I32 [1] = 1} beside "tokens" (no "all"): an
++                // MTP-aware feed of this sequence - exclusive all-positions
++                // decode (the head needs every position's hidden row), rows
++                // harvested + mirrored into the head, but only the LAST
++                // logits row returned. The speculative prefill path.
++                if flag("mtp") {
++                    let pos0 = self.n_past;
++                    let flat = self
++                        .server
++                        .submit_full(self.seq_id, pos0, &ids, Some(self.seq_id))
++                        .map_err(err)?;
++                    self.server.mtp_observe(self.seq_id, pos0, &ids).map_err(err)?;
++                    self.n_past += ids.len() as i32;
++                    let last = &flat[(ids.len() - 1) * self.server.n_vocab..];
++                    let mut data = Vec::with_capacity(last.len() * 4);
++                    for v in last {
++                        data.extend_from_slice(&v.to_le_bytes());
++                    }
++                    let t = Tensor {
++                        dimensions: vec![1, self.server.model.n_vocab],
 +                        ty: TensorType::Fp32,
 +                        data,
 +                    };

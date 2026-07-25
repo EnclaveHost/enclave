@@ -16,6 +16,9 @@
 #include "ggml.h"
 #include "ggml-backend.h"
 
+#include <dlfcn.h>
+#include <math.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -245,4 +248,217 @@ void ell_seq_copy(void *ctx, int32_t src_seq, int32_t dst_seq) {
 int32_t ell_model_recurrent(void *model) {
     const struct llama_model *m = (const struct llama_model *)model;
     return (llama_model_is_recurrent(m) || llama_model_is_hybrid(m)) ? 1 : 0;
+}
+
+/* ---- MTP (multi-token prediction) driver ---------------------------------
+ * The model's own trained next-token head drafts for it: near-zero proposal
+ * cost, no separate draft model. Single-head, non-shared-memory mode only
+ * (qwen3.5/3.6); the head is dense attention even on hybrid trunks, so its
+ * tiny KV rewinds freely. Head-KV hygiene beats upstream's driver: only
+ * ACCEPTED tokens are ever mirrored into the head (observe), so rejected
+ * proposals never pollute its attention. */
+
+/* The nextn API lives in llama's C++ staging header (src/llama-ext.h), so
+ * libllama exports it MANGLED. Binding the two functions by their Itanium
+ * mangled names (verified against the PINNED build - `nm -D libllama.so`)
+ * keeps the shim plain C and the toolchain unchanged; a pin bump that
+ * changes them makes ell_mtp_new return NULL, which callers treat as
+ * "model has no MTP" - speculation degrades to plain decode, fail-safe. */
+typedef void   (*ell_nextn_set_fn)(struct llama_context *, bool, bool);
+typedef float *(*ell_nextn_ith_fn)(struct llama_context *, int32_t);
+static ell_nextn_set_fn ell_nextn_set;
+static ell_nextn_ith_fn ell_nextn_ith;
+
+static int ell_mtp_bind(void) {
+    if (ell_nextn_set && ell_nextn_ith) {
+        return 1;
+    }
+    ell_nextn_set = (ell_nextn_set_fn)dlsym(
+        RTLD_DEFAULT, "_Z26llama_set_embeddings_nextnP13llama_contextbb");
+    ell_nextn_ith = (ell_nextn_ith_fn)dlsym(
+        RTLD_DEFAULT, "_Z30llama_get_embeddings_nextn_ithP13llama_contexti");
+    return ell_nextn_set != NULL && ell_nextn_ith != NULL;
+}
+
+struct ell_mtp {
+    struct llama_context *head;
+    void *model;
+    int32_t n_embd;
+    int32_t n_seq;
+    float *pending_h;     /* [n_seq][n_embd]: h at each seq's last mirrored pos */
+    float **verify_h;     /* per seq: harvested target nextn rows */
+    int32_t *verify_rows;
+    int32_t *verify_cap;
+    struct llama_batch batch; /* token+embd batch, token side malloc'd (see init) */
+    int32_t batch_cap;
+};
+
+int32_t ell_mtp_available(void *model) {
+    return llama_model_n_layer_nextn((const struct llama_model *)model) > 0 ? 1 : 0;
+}
+
+void *ell_mtp_new(void *model, void *target_ctx, uint32_t n_ctx, uint32_t n_batch,
+                  uint32_t n_seq_max, int32_t type_k, int32_t type_v, int32_t flash_attn) {
+    struct llama_model *lm = (struct llama_model *)model;
+    if (llama_model_n_layer_nextn(lm) <= 0 || !ell_mtp_bind()) {
+        return NULL;
+    }
+    struct llama_context_params p = llama_context_default_params();
+    p.ctx_type = LLAMA_CONTEXT_TYPE_MTP;
+    p.n_ctx = n_ctx;
+    if (n_batch) { p.n_batch = n_batch; }
+    if (n_seq_max) { p.n_seq_max = n_seq_max; }
+    p.kv_unified = true;
+    p.type_k = ell_ggml_kv_type(type_k);
+    p.type_v = ell_ggml_kv_type(type_v);
+    switch (flash_attn) {
+        case ELL_FA_ENABLED:  p.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_ENABLED;  break;
+        case ELL_FA_DISABLED: p.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED; break;
+        default:              p.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_AUTO;     break;
+    }
+    struct llama_context *head = llama_init_from_model(lm, p);
+    if (!head) {
+        return NULL;
+    }
+    struct ell_mtp *m = calloc(1, sizeof(*m));
+    m->head = head;
+    m->model = model;
+    m->n_embd = llama_model_n_embd(lm);
+    m->n_seq = (int32_t)(n_seq_max ? n_seq_max : 1);
+    m->pending_h = calloc((size_t)m->n_seq * m->n_embd, sizeof(float));
+    m->verify_h = calloc(m->n_seq, sizeof(float *));
+    m->verify_rows = calloc(m->n_seq, sizeof(int32_t));
+    m->verify_cap = calloc(m->n_seq, sizeof(int32_t));
+    m->batch_cap = (int32_t)(n_batch ? n_batch : 512);
+    /* llama_batch_init allocates only ONE of token/embd (embd_dim nonzero =
+     * embd); MTP pairs (h, x) so it needs both - add the token side by hand
+     * and free it by hand (llama_batch_free would free it too, but keep
+     * ownership explicit and symmetric with the upstream driver). */
+    m->batch = llama_batch_init(m->batch_cap, m->n_embd, 1);
+    m->batch.token = malloc(sizeof(llama_token) * (size_t)m->batch_cap);
+    /* target must emit nextn hidden rows (unmasked); the head emits its own
+     * (masked) to feed proposals forward */
+    ell_nextn_set((struct llama_context *)target_ctx, true, false);
+    ell_nextn_set(head, true, true);
+    return m;
+}
+
+void ell_mtp_free(void *mp) {
+    struct ell_mtp *m = (struct ell_mtp *)mp;
+    if (!m) { return; }
+    free(m->batch.token);
+    m->batch.token = NULL;
+    llama_batch_free(m->batch);
+    llama_free(m->head);
+    for (int32_t s = 0; s < m->n_seq; s++) { free(m->verify_h[s]); }
+    free(m->verify_h);
+    free(m->verify_rows);
+    free(m->verify_cap);
+    free(m->pending_h);
+    free(m);
+}
+
+void ell_mtp_harvest(void *mp, void *target_ctx, int32_t seq, int32_t n_rows) {
+    struct ell_mtp *m = (struct ell_mtp *)mp;
+    if (seq < 0 || seq >= m->n_seq || n_rows <= 0) { return; }
+    if (m->verify_cap[seq] < n_rows) {
+        m->verify_h[seq] = realloc(m->verify_h[seq],
+                                   (size_t)n_rows * m->n_embd * sizeof(float));
+        m->verify_cap[seq] = n_rows;
+    }
+    for (int32_t i = 0; i < n_rows; i++) {
+        const float *h = ell_nextn_ith((struct llama_context *)target_ctx, i);
+        if (!h) { m->verify_rows[seq] = 0; return; }
+        memcpy(m->verify_h[seq] + (size_t)i * m->n_embd, h,
+               (size_t)m->n_embd * sizeof(float));
+    }
+    m->verify_rows[seq] = n_rows;
+}
+
+int32_t ell_mtp_observe(void *mp, int32_t seq, int32_t pos0,
+                        const int32_t *tokens, int32_t n) {
+    struct ell_mtp *m = (struct ell_mtp *)mp;
+    if (seq < 0 || seq >= m->n_seq || n <= 0 || n > m->batch_cap || pos0 < 0) {
+        return -1;
+    }
+    if (m->verify_rows[seq] < n) {
+        return -1; /* rows 0..n-2 pair tokens 1..n-1; row n-1 becomes pending */
+    }
+    /* drop anything at/after pos0 (a previous round's proposals) - the head
+     * KV is plain attention, partial removal always succeeds */
+    llama_memory_seq_rm(llama_get_memory(m->head), seq, pos0, -1);
+    const size_t row = (size_t)m->n_embd;
+    for (int32_t j = 0; j < n; j++) {
+        m->batch.token[j]     = tokens[j];
+        m->batch.pos[j]       = pos0 + j;
+        m->batch.n_seq_id[j]  = 1;
+        m->batch.seq_id[j][0] = seq;
+        m->batch.logits[j]    = 0;
+        const float *h = (j == 0) ? m->pending_h + (size_t)seq * row
+                                  : m->verify_h[seq] + (size_t)(j - 1) * row;
+        memcpy(m->batch.embd + (size_t)j * row, h, row * sizeof(float));
+    }
+    m->batch.n_tokens = n;
+    int32_t rc = llama_decode(m->head, m->batch);
+    if (rc != 0) {
+        return rc;
+    }
+    memcpy(m->pending_h + (size_t)seq * row,
+           m->verify_h[seq] + (size_t)(n - 1) * row, row * sizeof(float));
+    return 0;
+}
+
+int32_t ell_mtp_draft(void *mp, int32_t seq, int32_t id_last, int32_t n_past,
+                      int32_t k, float p_min, int32_t *tokens_out) {
+    struct ell_mtp *m = (struct ell_mtp *)mp;
+    if (seq < 0 || seq >= m->n_seq || k <= 0 || n_past < 0) {
+        return 0;
+    }
+    /* proposals live at n_past.. and are dropped by the next observe(); still
+     * start clean in case the previous round never observed (early exit) */
+    llama_memory_seq_rm(llama_get_memory(m->head), seq, n_past, -1);
+    const size_t row = (size_t)m->n_embd;
+    const int32_t n_vocab = ell_n_vocab(m->model);
+    int32_t tok = id_last;
+    const float *h = m->pending_h + (size_t)seq * row;
+    int32_t n = 0;
+    for (int32_t i = 0; i < k; i++) {
+        m->batch.token[0]     = tok;
+        m->batch.pos[0]       = n_past + i;
+        m->batch.n_seq_id[0]  = 1;
+        m->batch.seq_id[0][0] = seq;
+        m->batch.logits[0]    = 1;
+        memcpy(m->batch.embd, h, row * sizeof(float));
+        m->batch.n_tokens = 1;
+        if (llama_decode(m->head, m->batch) != 0) {
+            break;
+        }
+        const float *lg = llama_get_logits_ith(m->head, 0);
+        if (!lg) { break; }
+        /* argmax + its softmax probability in one pass (p = 1/sum(exp(l-max))) */
+        int32_t best = 0;
+        float lmax = lg[0];
+        for (int32_t v = 1; v < n_vocab; v++) {
+            if (lg[v] > lmax) { lmax = lg[v]; best = v; }
+        }
+        double sum = 0.0;
+        for (int32_t v = 0; v < n_vocab; v++) { sum += exp((double)(lg[v] - lmax)); }
+        if ((float)(1.0 / sum) < p_min) {
+            break; /* not confident - stop proposing */
+        }
+        tokens_out[n++] = best;
+        tok = best;
+        h = ell_nextn_ith(m->head, 0);
+        if (!h) { break; }
+    }
+    return n;
+}
+
+void ell_mtp_reset(void *mp, int32_t seq) {
+    struct ell_mtp *m = (struct ell_mtp *)mp;
+    if (seq < 0 || seq >= m->n_seq) { return; }
+    llama_memory_seq_rm(llama_get_memory(m->head), seq, -1, -1);
+    memset(m->pending_h + (size_t)seq * m->n_embd, 0,
+           (size_t)m->n_embd * sizeof(float));
+    m->verify_rows[seq] = 0;
 }
