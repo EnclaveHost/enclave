@@ -20,7 +20,7 @@ import { loadTallies, loadReviews, confirmReceipt } from "../core/reviews.js";
 import { payForRuntime } from "../core/fund.js";
 import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf } from "../core/wallet.js";
 import { STORE, loadCatalog, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, REF_CACHE, PORTS_CACHE, SPECS_CACHE, specOf, CONFIG_CACHE, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia } from "../core/catalog.js";
-import { minPctsOf, shareRates } from "../core/pricing.js";
+import { minPctsOf, shareRates, pickEnclaveFor } from "../core/pricing.js";
 import { navigate } from "../boot.js";
 
 /* ---- render: filter + sort the catalog into <c-app-card>s ---- */
@@ -367,12 +367,18 @@ function closeQuick(){
 }
 function quickDeploy(app, v, idx){
   closeQuick();
-  const mins = minPctsOf(v);
+  // First paint sizes on the adopted aggregate; the TARGET enclave replaces
+  // it the moment the fleet rows land (same live-update pattern as the
+  // contract prices below) - the modal then names the box the app deploys
+  // to and sizes the minimum shares against ITS hardware, exactly like the
+  // full console's "deploys to" line.
+  let mins = minPctsOf(v);
+  let target = null;
   // constants first paint; the CONTRACT's live prices (incl. its ceil-to-a-
   // micro-USDC floor) replace them the moment the cached read lands - the
   // rate shown here must match what the deployment actually burns. A paid
   // app's publisher fee rides on top, exactly as create() adds it.
-  let baseRate = shareRates(mins.gpuPct, mins.cpuPct).rate, fee = 0;
+  let baseRate = shareRates(mins.gpuPct, mins.cpuPct).rate, fee = 0, pr6 = null;
   let rate = baseRate;
   const perHr = (rate * 3600).toFixed(2);
   // passkey/card account with no wallet: the deploy spends prepaid credit
@@ -387,6 +393,7 @@ function quickDeploy(app, v, idx){
       '<p class="qd-sub">Runs in its own confidential enclave at <b class="qd-rate">$' + perHr + '/hr</b>. ' +
         (acct ? 'It runs on your credit - it runs until the time you bought is used up, and you can top up or stop it whenever you like.'
               : 'Fund it from your wallet - it runs until the time you bought is used up, and you can top up or stop it whenever you like.') + '</p>' +
+      '<p class="qd-sub qd-target" hidden></p>' +
       '<p class="qd-sub qd-fee" hidden></p>' +
       '<div class="qd-bal"><span>' + (acct ? 'Your credit' : 'Your wallet') + '</span><b class="qd-balv">…</b><button class="qd-connect btn btn-sm" type="button" hidden>Connect wallet</button></div>' +
       '<label class="qd-lbl" for="qdAmt">Amount to fund (' + (acct ? 'USD' : 'USDC') + ')</label>' +
@@ -415,13 +422,17 @@ function quickDeploy(app, v, idx){
   const go = host.querySelector(".qd-go"), balv = host.querySelector(".qd-balv");
   const conn = host.querySelector(".qd-connect");
   const tos = host.querySelector(".qd-tosck");
-  let bal = null, capMsg = null;
+  // Three FATAL notes can pin the Deploy button off (the create would be
+  // refused, or mint an unservable record): the fleet can't run the app at
+  // all (capTarget), the on-chain GPU cap is below its minimum (capCap), a
+  // fee-bearing app on a credit account (capFee). First one wins the note.
+  let bal = null, capTarget = null, capCap = null, capFee = null, gpuCap = null;
+  const fatal = () => capTarget || capCap || capFee;
   const est = () => {
     const usd = parseFloat(amt.value) || 0;
     estv.textContent = (usd > 0 && rate > 0) ? fmtDur(usd / rate) : "–";
     const shortOnFunds = bal != null && usd > bal;
-    // capMsg is fatal (the contract refuses the create); it outranks the
-    // adjustable short-on-funds note and pins the Deploy button off
+    const capMsg = fatal();   // fatal outranks the adjustable short-on-funds note
     note.hidden = !shortOnFunds && !capMsg;
     if (capMsg) note.textContent = capMsg;
     else if (shortOnFunds) note.innerHTML = acct
@@ -432,14 +443,15 @@ function quickDeploy(app, v, idx){
   };
   // quick-deploy buys the app's MINIMUM shares, so the on-chain per-deployment
   // GPU cap decides right at open whether this app is deployable at all -
-  // say so here, in the modal, not after a redirect to the dashboard
-  depMaxGpuMilli().then(cap => {
-    if (mins.gpuPct * 10 > cap){
-      capMsg = "This app needs at least a " + mins.gpuPct + "% GPU share, but the platform currently caps deployments at "
-        + (cap / 10) + "% of a card - it can’t be deployed right now.";
-      est();
-    }
-  }).catch(() => {});
+  // say so here, in the modal, not after a redirect to the dashboard. The
+  // check re-runs whenever the mins change (the target landing/rerouting).
+  const capCheck = () => {
+    capCap = (gpuCap != null && mins.gpuPct * 10 > gpuCap)
+      ? "This app needs at least a " + mins.gpuPct + "% GPU share, but the platform currently caps deployments at "
+        + (gpuCap / 10) + "% of a card - it can’t be deployed right now."
+      : null;
+  };
+  depMaxGpuMilli().then(cap => { gpuCap = cap; capCheck(); est(); }).catch(() => {});
   // the short-on-funds "Add credit" link: boot's interceptor does the SPA
   // navigation, the modal just has to get out of the way first (modified
   // clicks open a new tab - this one should stay put, amount intact)
@@ -453,10 +465,14 @@ function quickDeploy(app, v, idx){
     const rEl = host.querySelector(".qd-rate"); if (rEl) rEl.textContent = "$" + (rate * 3600).toFixed(2) + "/hr";
     est();
   };
-  depPrices6().then(pr => {
-    baseRate = Number(rate6Of(pr, mins.gpuPct * 10, mins.cpuPct * 10)) / 1e6;
+  // rate from the CURRENT mins (they change when the target lands/reroutes):
+  // the contract's live prices when they've arrived, client math until then
+  const recalc = () => {
+    baseRate = pr6 ? Number(rate6Of(pr6, mins.gpuPct * 10, mins.cpuPct * 10)) / 1e6
+                   : shareRates(mins.gpuPct, mins.cpuPct, target && !target.none ? target.spec : undefined).rate;
     paintRate();
-  }).catch(() => {});
+  };
+  depPrices6().then(pr => { pr6 = pr; recalc(); }).catch(() => {});
   // the version's publisher fee (rev-5 catalogs; 0 = free) - shown up front
   // and folded into the burn rate, since create() snapshots it into the record
   catVersionFee(app.appId, idx).then(f => {
@@ -466,9 +482,38 @@ function quickDeploy(app, v, idx){
     if (fEl){ fEl.hidden = false; fEl.textContent = "The rate includes a $" + (fee * 3600).toFixed(2) + "/hr publisher fee, paid straight to this app's publisher."; }
     // credit checkout can't forward a publisher's cut yet (relay refuses the
     // spec too) - say so here, before any passkey prompt
-    if (acct && !capMsg) capMsg = "This app charges a publisher fee, which credit deploys don’t support yet - connect a wallet to deploy it.";
+    if (acct) capFee = "This app charges a publisher fee, which credit deploys don’t support yet - connect a wallet to deploy it.";
     paintRate();
   }).catch(() => {});
+  // WHERE this deploys: the same pick as the full console's "deploys to"
+  // line - only claiming enclaves, cheapest fitting box. The mins (and so
+  // the rate) resize to that box's hardware when the rows land; a fleet
+  // that can't run the app pins Deploy off with the reason instead.
+  const fleetRowsNow = async () => {
+    const r = await fetch(Enclave.base.replace(/\/v1\/?$/, "") + "/enclaves", { headers: { "Accept": "application/json" } });
+    if (!r.ok) throw new Error("no fleet view");
+    return (await r.json()).enclaves || [];
+  };
+  const applyTarget = (t) => {
+    target = t;
+    const tEl = host.querySelector(".qd-target");
+    if (!t){ capTarget = null; if (tEl) tEl.hidden = true; capCheck(); recalc(); return; }
+    if (t.none){
+      capTarget = "Not deployable right now: " + t.none + ".";
+      if (tEl){ tEl.hidden = false; tEl.innerHTML = "✕ " + esc(t.none); }
+      est(); return;
+    }
+    capTarget = null;
+    mins = t.mins;
+    if (tEl){
+      tEl.hidden = false;
+      tEl.innerHTML = "⤷ deploys to <b>" + esc(t.name) + "</b> · " + t.spec.nodeVcpus + " vCPU / " + t.spec.nodeRamGb + " GB node"
+        + (t.mins.gpuPct > 0 ? " · " + t.spec.cardVramGb + " GB card" : "")
+        + (t.queued ? " · <b>currently full - a deploy waits in its queue</b>" : "");
+    }
+    capCheck(); recalc();
+  };
+  fleetRowsNow().then(rows => applyTarget(rows.length ? pickEnclaveFor(specOf(v), rows) : null)).catch(() => {});
   const loadBal = async () => {
     if (acct){
       // credit balance instead of a wallet: the vault op draws from it
@@ -498,14 +543,19 @@ function quickDeploy(app, v, idx){
     // the flow lives in the deploy chunk; it navigates to the dashboard and
     // narrates into the run log (deployOnChain never throws)
     const m = await import("./deploy.js");
-    // shares are re-derived NOW: the availability fetch may have adopted the
-    // fleet's real hardware after this modal opened, and a share below the
-    // runners' floor mints an unclaimable deployment (created shares are
-    // immutable, funding unrecoverable)
-    const m2 = minPctsOf(specOf(v));
-    // full fleet? the queue-confirm overlay stacks over this modal; cancel
+    // shares are re-derived NOW against a FRESH target pick: a box that
+    // filled up since the modal opened REROUTES here (the mins below come
+    // from the new pick and the modal repaints), a fleet that lost the
+    // hardware refuses with nothing signed, and a share below the runners'
+    // floor can never be minted (created shares are immutable, funding
+    // unrecoverable)
+    const t2 = await fleetRowsNow().then(rows => rows.length ? pickEnclaveFor(specOf(v), rows) : null).catch(() => null);
+    applyTarget(t2);
+    if (t2 && t2.none) return;               // the modal stays; qd-target + the note say why
+    const m2 = t2 ? t2.mins : minPctsOf(specOf(v));
+    // full box? the queue-confirm overlay stacks over this modal; cancel
     // keeps the user here with their amount intact
-    if (!(await m.confirmQueuedDeploy(m2.gpuPct, m2.cpuPct))) return;
+    if (!(await m.confirmQueuedDeploy(m2.gpuPct, m2.cpuPct, t2))) return;
     closeQuick();
     // the appRef IS the version record: the enclave applies its config,
     // volumes and ports from the chain - nothing rides the deployment
