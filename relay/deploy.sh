@@ -51,14 +51,14 @@ ssh nan-relay 'for u in nan-tcp-relay nan-tcp6-relay nan-udp-relay nan-egress-re
 echo "== api relay (site box)"
 # api-relay.js imports ./fleet.mjs (shared discovery: registry read + TRUSTED_OPERATORS
 # filter + on-chain runner routing), ./net-guard.mjs (SSRF classifier for discovered
-# origins) AND ./mcp.js (the MCP coding-agent endpoint, mcp.enclave.host);
-# fleet.mjs imports ./net-guard.mjs too. ALL of them MUST ship alongside or the
-# service crash-loops with ERR_MODULE_NOT_FOUND.
+# origins), ./tunnel.js (fleet tunnel for CGNAT self-hosted enclaves) AND ./mcp.js
+# (the MCP coding-agent endpoint, mcp.enclave.host); fleet.mjs imports ./net-guard.mjs
+# too. ALL of them MUST ship alongside or the service crash-loops with ERR_MODULE_NOT_FOUND.
 # auth/billing modules (account sessions, orders, Stripe webhook, PaymentRouter
 # indexer, OFAC screen, provisioner) ship alongside; they self-disable without
 # StateDirectory/env, so shipping them is always safe. npm install below pulls
 # their deps (@simplewebauthn/server, jose) from the updated package.json.
-scp api-relay.js mcp.js auth.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js store.js fleet.mjs net-guard.mjs package.json nan:/opt/nan-relay/
+scp api-relay.js mcp.js auth.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js store.js fleet.mjs net-guard.mjs tunnel.js package.json nan:/opt/nan-relay/
 scp systemd/enclave-api-relay.service nan:/etc/systemd/system/
 ssh nan 'if [ -f /etc/systemd/system/nan-api-relay.service ]; then \
     systemctl disable --now nan-api-relay || true; rm /etc/systemd/system/nan-api-relay.service; fi \
