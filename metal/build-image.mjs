@@ -100,6 +100,18 @@ for (const f of ['gsup.mjs', 'agent.mjs']) fs.copyFileSync(path.join(HERE, 'gues
 let init = fs.readFileSync(path.join(HERE, 'guest', 'init'), 'utf8').replaceAll('__KVER__', KVER);
 fs.writeFileSync(path.join(ROOT, 'init'), init, { mode: 0o755 });
 fs.chmodSync(path.join(ROOT, 'init'), 0o755);
+// CA trust store — the slim base image ships none, so any TLS the guest does
+// (the fleet tunnel's wss, the supervisor's Base RPC, ACME) needs a bundle. Copy
+// the host's; it is public data (not a secret) and does not affect the measurement
+// story (it is just root certs).
+try {
+  const caSrc = fs.realpathSync('/etc/ssl/certs/ca-certificates.crt');
+  const caDst = path.join(ROOT, 'etc/ssl/certs/ca-certificates.crt');
+  fs.mkdirSync(path.dirname(caDst), { recursive: true });
+  fs.copyFileSync(caSrc, caDst);
+  console.log(`[build] installed CA bundle (${fs.readFileSync(caDst, 'utf8').match(/BEGIN CERT/g)?.length || 0} roots)`);
+} catch (e) { console.log(`[build] (no host CA bundle: ${e.message})`); }
+
 // compile the static helpers (no kmod/iproute2 in the slim base image)
 console.log('[build] compiling netup + minsmod…');
 sh('gcc', ['-static', '-Os', '-o', path.join(md, 'netup'), path.join(HERE, 'guest', 'netup.c')]);

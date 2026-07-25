@@ -28,6 +28,7 @@ const NAME      = process.env.METAL_NAME || 'metal0';
 const RAD_PORT  = parseInt(process.env.METAL_RAD_PORT || '8443', 10);
 const SUP_URL   = process.env.METAL_SUP_URL || 'http://127.0.0.1:8080';
 const RELAY_URL = process.env.METAL_RELAY_URL || '';
+const RELAY_HOST = process.env.METAL_RELAY_HOST || '';    // Host/SNI when dialing via an egress helper
 const TOKEN     = process.env.METAL_TUNNEL_TOKEN || '';
 const log = (...a) => console.log('[agent]', ...a);
 
@@ -118,12 +119,41 @@ function forward(frame, send) {
   req.end();
 }
 
+// One-shot connectivity probe so failures are diagnosable from the journal:
+// separate DNS from TCP-reachability, and IPv4 from IPv6.
+async function probe() {
+  const net = await import('node:net');
+  const dns = await import('node:dns');
+  let host = 'api.enclave.host';
+  try { host = new URL(RELAY_URL).hostname; } catch {}
+  try {
+    const a = await dns.promises.resolve4(host).catch(() => []);
+    const aaaa = await dns.promises.resolve6(host).catch(() => []);
+    log(`probe: ${host} -> A=[${a.join(',')}] AAAA=[${aaaa.length ? aaaa.join(',') : 'none'}]`);
+    for (const ip of a.slice(0, 1)) {
+      await new Promise((res) => {
+        const s = net.connect({ host: ip, port: 443, family: 4 });
+        const t = setTimeout(() => { s.destroy(); log(`probe: TCP ${ip}:443 (v4) TIMEOUT`); res(); }, 6000);
+        s.on('connect', () => { clearTimeout(t); log(`probe: TCP ${ip}:443 (v4) OK`); s.destroy(); res(); });
+        s.on('error', (e) => { clearTimeout(t); log(`probe: TCP ${ip}:443 (v4) ${e.code}`); res(); });
+      });
+    }
+  } catch (e) { log(`probe error: ${e.message}`); }
+}
+
 function connectTunnel() {
   if (!RELAY_URL) { log('no relay configured; tunnel disabled (RAD-only mode)'); return; }
+  probe();
   let ws, alive = false;
   const dial = () => {
     log(`tunnel dialing ${RELAY_URL}`);
-    ws = new WebSocket(RELAY_URL, { headers: { 'x-metal-name': NAME, 'x-metal-token': TOKEN } });
+    // force IPv4: QEMU user-net (slirp) NATs IPv4 only, but api.enclave.host has
+    // an AAAA record, so an unpinned dial hangs on the IPv6 attempt. RELAY_HOST,
+    // when set (egress-helper mode), carries the real relay hostname for the Host
+    // header even though the socket target is the helper.
+    const headers = { 'x-metal-name': NAME, 'x-metal-token': TOKEN };
+    if (RELAY_HOST) headers.host = RELAY_HOST;
+    ws = new WebSocket(RELAY_URL, { headers, family: 4 });
     const send = (o) => { try { ws.send(JSON.stringify(o)); } catch {} };
     ws.on('open', () => {
       alive = true;
@@ -135,8 +165,9 @@ function connectTunnel() {
       if (f.t === 'req') forward(f, send);
       else if (f.t === 'ping') send({ t: 'pong' });
     });
+    ws.on('unexpected-response', (_req, res) => { log(`tunnel handshake rejected: HTTP ${res.statusCode}`); try { ws.terminate(); } catch {} });
     ws.on('close', () => { if (alive) log('tunnel closed'); alive = false; setTimeout(dial, 2000); });
-    ws.on('error', (e) => { log(`tunnel error ${e.message}`); try { ws.terminate(); } catch {} });
+    ws.on('error', (e) => { log(`tunnel error: ${e.code || ''} ${e.message || String(e)}`); try { ws.terminate(); } catch {} });
   };
   dial();
 }

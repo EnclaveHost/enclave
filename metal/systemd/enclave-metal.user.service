@@ -1,0 +1,26 @@
+# enclave-metal — user-service variant (systemctl --user).
+#
+# Runs the confidential-VM launcher without root: it works as long as the user
+# can open /dev/kvm (world-rw) and /dev/sev (grant once via metal/host-setup.sh
+# or `setfacl -m u:$USER:rw /dev/sev`). For a boot-time, cross-user, hardened
+# deployment prefer the system service (metal/systemd/enclave-metal.service).
+#
+# Install:
+#   mkdir -p ~/.config/systemd/user
+#   cp metal/systemd/enclave-metal.user.service ~/.config/systemd/user/enclave-metal.service
+#   systemctl --user daemon-reload && systemctl --user enable --now enclave-metal
+#   loginctl enable-linger "$USER"      # so it survives logout / starts at boot
+[Unit]
+Description=Enclave Metal — self-hosted confidential-VM enclave (user)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Projects/enclave
+ExecStart=/usr/bin/node metal/enclave-metal.mjs --config metal/config.json
+Restart=always
+RestartSec=3
+LimitMEMLOCK=infinity
+
+[Install]
+WantedBy=default.target
