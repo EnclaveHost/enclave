@@ -14,7 +14,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, pickEnclaveFor } from "../site/js/core/pricing.js";
+import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, pickEnclaveFor, rankEnclavesFor } from "../site/js/core/pricing.js";
 
 // Reference copy of the RUNNER's minimum-share math (supervisor.js: pctCeil,
 // gpuShareOf, cpuShareOf, minSharesOf with MIN_COMPUTE_PCT=1). Keep in sync.
@@ -134,6 +134,19 @@ test("pickEnclaveFor: only CLAIMING enclaves count (the relay's serving rule)", 
   assert.equal(pickEnclaveFor(MC, [demo, seller]).name, "seller0");
   const hosted = row("cpu1", { gpu: false, nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000, cpuShareFree: 0.5 });
   assert.equal(pickEnclaveFor(MC, [hosted]).name, "cpu1", "hosted boxes predate the flag and are grandfathered");
+});
+
+test("rankEnclavesFor: the dropdown's list — every host, recommended first, full ones queued at the tail", () => {
+  const tiny = row("tiny", { gpu: false, claimEnabled: true, nodeVcpus: 4, nodeRamGb: 3, nodeGflops: 250, cpuShareFree: 1 });
+  const full = row("bigfull", { ...CPU_BOX, cpuShareFree: 0 });
+  const ranked = rankEnclavesFor(MC, [row("kryptos", GPU_BOX), tiny, full, row("big", CPU_BOX)]);
+  // cheapest floor first (big 1% cpu-only, kryptos 1% gpu-leftovers, tiny 17%), full boxes tail
+  assert.deepEqual(ranked.map((c) => c.name), ["big", "kryptos", "tiny", "bigfull"]);
+  assert.deepEqual(ranked.map((c) => c.queued), [false, false, false, true]);
+  assert.equal(ranked[0].name, pickEnclaveFor(MC, [row("kryptos", GPU_BOX), tiny, full, row("big", CPU_BOX)]).name);
+  assert.equal(ranked[2].mins.cpuPct, 17);   // the user MAY pick the tiny box — at its own (17%) floor, eyes open
+  // a box the app can never fit is not an option at all
+  assert.ok(!rankEnclavesFor({ memMb: 8 * 1024, cpuGflops: 0 }, [tiny]).length);
 });
 
 test("enclaveSpecOf: per-axis fallback for old builds", () => {

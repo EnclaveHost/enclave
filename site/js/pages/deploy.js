@@ -21,7 +21,7 @@ import { $, $$, esc, short, wait, fmtNum, fmtDur, hlJson, hlCode, copyText, show
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS, BASE_CHAIN, ACCOUNTS_ENABLED } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
 import { vaultOp, getVault } from "../core/vault.js";
-import { minPctsOf, serverSpec, shareRates, pickEnclaveFor } from "../core/pricing.js";
+import { minPctsOf, serverSpec, shareRates, pickEnclaveFor, rankEnclavesFor } from "../core/pricing.js";
 import { encCall, DEP_SEL, DEP_CREATED_TOPIC, APPROVAL, depGet, depRate6, depPrices6, depSchemaRev, depMaxGpuMilli, rate6Of, waitReceipt, catVersionFee } from "../core/chain.js";
 
 // create()'s shape on the live contract (rev 1 carried a removed sshPubKey
@@ -40,7 +40,7 @@ const depsPanel = () => document.querySelector("c-deployments");
 /* ============================================================
    Console state + request rendering
    ============================================================ */
-const dep = { gpuPct: 25, cpuPct: 5, minGpuPct: 0, minCpuPct: 1, asset: "USDC", public: true, gpuEnclave: true, volumes: new Set(), waf: false, wafAvail: false, cfgAvail: false, devAvail: false };  // gpuEnclave: from /availability (gpu:false = CPU-only enclave); volumes: the picker's ticks - a MIRROR of the App config JSON's `volumes` key, never a second source; wafAvail: fleet aggregate advertises the options envelope (waf:true = every live runner enforces it - the Protection field only shows then); cfgAvail: the aggregate's configOverride flag (true = every live runner honors the envelope's `config` namespace - only then is the App config box editable)
+const dep = { gpuPct: 25, cpuPct: 5, minGpuPct: 0, minCpuPct: 1, asset: "USDC", public: true, gpuEnclave: true, volumes: new Set(), waf: false, wafAvail: false, cfgAvail: false, devAvail: false, targetPick: "" };  // targetPick: the user's explicit enclave choice from the target dropdown ("" = auto, the recommended head of the ranking)  // gpuEnclave: from /availability (gpu:false = CPU-only enclave); volumes: the picker's ticks - a MIRROR of the App config JSON's `volumes` key, never a second source; wafAvail: fleet aggregate advertises the options envelope (waf:true = every live runner enforces it - the Protection field only shows then); cfgAvail: the aggregate's configOverride flag (true = every live runner honors the envelope's `config` namespace - only then is the App config box editable)
 
 /* The Protection controls -> the create() options envelope's `waf` object
    (null = off/unavailable). Mirrors the runner's parse rules (supervisor
@@ -82,7 +82,14 @@ function currentTarget(){
   const input = ($("#cfgImage") ? $("#cfgImage").value : "").trim();
   const spec = SPECS_CACHE[input];
   if (!spec || !fleetRows || !fleetRows.length) return null;
-  return pickEnclaveFor(spec, fleetRows);
+  const ranked = rankEnclavesFor(spec, fleetRows);
+  if (!ranked.length) return pickEnclaveFor(spec, fleetRows);   // the none-reason path
+  if (dep.targetPick){
+    const hit = ranked.find((c) => c.name === dep.targetPick);
+    if (hit) return { ...hit, ranked, picked: true };
+    dep.targetPick = "";        // the chosen box left the fleet: back to auto (runDeploy surfaces this before signing)
+  }
+  return { ...ranked[0], ranked, picked: false };
 }
 // The selected app's minimum shares for the two dials: against the TARGET
 // enclave's hardware when one is known, the adopted fleet spec otherwise.
@@ -241,6 +248,47 @@ function currentFee6(){
   return 0;
 }
 
+/* The target row: "deploys to [dropdown]" — every enclave that can host the
+   app, the recommended pick on top as "auto", any entry user-selectable. The
+   <select> is rebuilt ONLY when the option set actually changes (renderDeploy
+   runs on every keystroke and every 20s poll; clobbering an open dropdown
+   for identical options would fight the user), the status note repaints
+   every time. Selecting a box re-floors the dials to ITS hardware and aims
+   the claim hint at it on deploy. */
+let _tgtOptsKey = null;
+function renderTargetRow(target, spec){
+  const tgt = $("#targetOut"); if (!tgt) return;
+  tgt.hidden = !target;
+  if (!target){ _tgtOptsKey = null; return; }
+  if (target.none){
+    _tgtOptsKey = null;
+    tgt.innerHTML = "✕ not deployable right now: " + esc(target.none);
+    return;
+  }
+  const ranked = target.ranked || [target];
+  const optOf = (c) => esc(c.name) + " · " + fmtNum(c.spec.nodeVcpus) + " vCPU / " + fmtNum(c.spec.nodeRamGb) + " GB"
+    + (c.mins.gpuPct > 0 ? " · " + fmtNum(c.spec.cardVramGb) + " GB card" : "")
+    + " · min " + (c.mins.gpuPct > 0 ? c.mins.gpuPct + "% GPU" : c.mins.cpuPct + "% CPU")
+    + (c.queued ? " · full, queues" : "");
+  const key = ranked.map(optOf).join("|") + "·" + (dep.targetPick || "");
+  if (key !== _tgtOptsKey){
+    _tgtOptsKey = key;
+    tgt.innerHTML = "⤷ deploys to <select id=\"targetSel\" title=\"Every live enclave that can host this app. Auto sizes for (and hints) the recommended box; pick one to size for and hint it instead.\">"
+      + "<option value=\"\">auto — " + esc(ranked[0].name) + " (recommended)</option>"
+      + ranked.map((c) => "<option value=\"" + esc(c.name) + "\"" + (dep.targetPick === c.name ? " selected" : "") + ">" + optOf(c) + "</option>").join("")
+      + "</select> <span class=\"tgt-note\"></span>";
+    const sel = $("#targetSel");
+    if (sel) sel.addEventListener("change", () => { dep.targetPick = sel.value; renderDeploy(); });
+  }
+  const noteEl = tgt.querySelector(".tgt-note");
+  if (noteEl) noteEl.innerHTML =
+    (target.picked ? "<b>" + esc(target.name) + "</b> · " : "")
+    + fmtNum(spec.nodeVcpus) + " vCPU / " + fmtNum(spec.nodeRamGb) + " GB node"
+    + (target.mins.gpuPct > 0 ? " · " + fmtNum(spec.cardVramGb) + " GB card" : "")
+    + (target.queued ? " · <b>currently full — a deploy waits in its queue</b>" : "")
+    + " <i>(your pick gets the claim hint first; the ledger stays an open queue)</i>";
+}
+
 function renderDeploy(){
   syncCfgFromVersion();   // the box follows the picked version's template (no-op until the ref resolves or when it hasn't changed)
   const body = deployBody();
@@ -257,16 +305,7 @@ function renderDeploy(){
   const spec = target && !target.none ? target.spec : serverSpec();
   const gIn = $("#cfgGpuShare"); if (gIn) gIn.min = String(dep.gpuEnclave ? mins.gpuPct : 0);
   const cIn = $("#cfgCpuShare"); if (cIn) cIn.min = String(mins.cpuPct);
-  const tgt = $("#targetOut");
-  if (tgt){
-    tgt.hidden = !target;
-    if (target) tgt.innerHTML = target.none
-      ? "✕ not deployable right now: " + esc(target.none)
-      : "⤷ deploys to <b>" + esc(target.name) + "</b> · " + fmtNum(spec.nodeVcpus) + " vCPU / " + fmtNum(spec.nodeRamGb) + " GB node"
-        + (target.mins.gpuPct > 0 ? " · " + fmtNum(spec.cardVramGb) + " GB card" : "")
-        + (target.queued ? " · <b>currently full — a deploy waits in its queue</b>" : "")
-        + " <i>(the ledger is an open queue: this box or any bigger one serves it)</i>";
-  }
+  renderTargetRow(target, spec);
   const gpuPct = dep.gpuEnclave ? (dep.gpuPct || 0) : 0;
   const cpuPct = dep.cpuPct || 0;
   let rate, readout;
@@ -406,7 +445,13 @@ async function runDeploy(){
   // and a fleet that lost the hardware for this app refuses OUTRIGHT before
   // any wallet step. Dry runs preview off the last poll.
   if (!dry) await refreshFleet();
+  const wanted = dep.targetPick;
   const target = currentTarget();
+  // an explicit pick that vanished mid-flow falls back to auto - but never
+  // silently under a wallet signature: say so and let the user re-confirm
+  if (wanted && target && !target.none && !target.picked)
+    return note([["warn", "[!] the selected enclave (" + wanted + ") is no longer available - switched to auto ("
+      + target.name + "). Review the shares above and deploy again."]]);
   if (target && target.none)
     return note([["warn", "[!] " + raw + " isn't deployable right now: " + target.none + ". Nothing was signed - the form retargets automatically when the fleet changes."]]);
 
@@ -478,7 +523,8 @@ async function runDeploy(){
   btn.disabled = true; const lbl = btn.textContent; btn.textContent = "working…";
   try {
     await deployOnChain({ reference: rref.reference, gpuMilli, cpuMilli, ports,
-      isPublic: dep.public, fundUsd: fund, asset: dep.asset, waf: wafSpec(), config: co && co.obj });
+      isPublic: dep.public, fundUsd: fund, asset: dep.asset, waf: wafSpec(), config: co && co.obj,
+      targetName: target && !target.none ? target.name : "" });
   } finally {
     btn.disabled = false; btn.textContent = lbl;
   }
@@ -575,7 +621,7 @@ export async function deployOnChain(spec){
       const cid = out.deploymentId;
       w.setId(cid);
       w.line("ok", "[✓] created + funded " + cid + " from your credit");
-      watchClaimAndRun(cid, null, w)
+      watchClaimAndRun(cid, null, w, spec.targetName || "")
         .catch(e => w.line("warn", "[x] " + (e.message || String(e))))
         .finally(() => w.end());
       detached = true;
@@ -680,7 +726,7 @@ export async function deployOnChain(spec){
     // DETACHED: deployOnChain resolves here (the wallet work is done), so the
     // caller frees for the NEXT deploy of a fleet while this run's writer
     // keeps streaming into its own strip / row panel
-    watchClaimAndRun(id, null, w)
+    watchClaimAndRun(id, null, w, spec.targetName || "")
       .catch(e => w.line("warn", "[x] " + (e.message || String(e))))
       .finally(() => { w.end(); refreshWallet(); });
     detached = true;
@@ -699,15 +745,18 @@ export async function deployOnChain(spec){
    panel. `dPre` (a fresh depGet) skips the claim wait when the ledger already
    shows a live lease; `w` is the run's bound writer (its dead() aborts us if
    the run is ended from outside). */
-async function watchClaimAndRun(id, dPre, w){
+async function watchClaimAndRun(id, dPre, w, prefer){
+  // prefer: the deploy's target-dropdown pick - the relay then aims the hint
+  // at that ONE box (first crack at claiming) instead of the full fan-out
+  const hintBody = JSON.stringify(prefer ? { id, enclave: prefer } : { id });
   const leased = (d) => d && d.runner && !/^0x0+$/.test(d.runner) && d.leaseUntil * 1000 > Date.now();
   let claimed = leased(dPre) ? dPre : null;
   if (!claimed){
     // nudge the fleet - otherwise the next sweep (<=60s) picks it up
-    w.line("info", "[*] hinting enclaves to claim…");
+    w.line("info", "[*] hinting enclaves to claim…" + (prefer ? " (aimed at " + prefer + ")" : ""));
     try {
       const h = await (await fetch(Enclave.base + "/claim-hint", { method: "POST",
-        headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) })).json();
+        headers: { "content-type": "application/json" }, body: hintBody })).json();
       if (h && h.accepted === false && h.reason) w.line("dimln", "    hint declined: " + h.reason + " (the sweep may still claim it)");
     } catch(e){ w.line("dimln", "    hint failed (" + (e.message || e) + "); the sweep claims funded work within ~1 min"); }
 
@@ -728,7 +777,7 @@ async function watchClaimAndRun(id, dPre, w){
         // reason only when it CHANGES, so this stays quiet in the log.
         try {
           const h = await (await fetch(Enclave.base + "/claim-hint", { method: "POST",
-            headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) })).json();
+            headers: { "content-type": "application/json" }, body: hintBody })).json();
           if (h && h.accepted === false && h.reason && h.reason !== lastReason){
             lastReason = h.reason;
             w.line("warn", "[!] fleet declines to claim: " + h.reason);

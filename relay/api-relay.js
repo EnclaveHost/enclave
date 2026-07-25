@@ -977,29 +977,47 @@ async function gateway(u, req, res) {
   }
 
   if (p === "/v1/claim-hint" && req.method === "POST") {
-    // Fan the hint to every live enclave: CPU-only enclaves take CPU work
-    // immediately, GPU enclaves skip their CPU-first grace when hinted, and
-    // the EnclaveDeployments contract referees any race (the loser's claim tx
-    // reverts; gas is cents). Enclaves answer fast - the actual claim runs in
-    // their background; deployers watch the ledger for the runner.
+    // Fan the hint to the CLAIMING enclaves (a non-claiming box can only
+    // decline): CPU-only enclaves take CPU work immediately, GPU enclaves
+    // skip their CPU-first grace when hinted, and the EnclaveDeployments
+    // contract referees any race (the loser's claim tx reverts; gas is
+    // cents). Enclaves answer fast - the actual claim runs in their
+    // background; deployers watch the ledger for the runner.
+    // The body may carry {enclave: "<name>"} - the deploy console's target
+    // pick: the hint then goes ONLY to that box, giving it first crack (the
+    // 60s sweeps referee everything else). An unknown name falls back to the
+    // full fan-out - a hint must never strand a funded deploy.
     // unauthenticated fan-out amplifier: per-source rate limit + global in-flight
     // cap (fix 2), and the response body from each enclave is size-capped (fix 8).
     if (!rlHint(clientIp(req)))
       return json(res, 429, { error: "rate_limited", message: "Too many claim hints; retry shortly." }, req);
     let body; try { body = await readBody(req); } catch (e) { return json(res, 413, { error: "too_large", message: e.message }, req); }
-    if (!fanoutReserve(live.length))
+    let prefer = "";
+    try { prefer = String(JSON.parse(body.toString() || "{}").enclave || "").trim().toLowerCase(); } catch {}
+    const serving = servingEnclaves();
+    const match = prefer ? serving.filter((e) =>
+      String(e.name || "").toLowerCase() === prefer || String(e.endpoint || "").toLowerCase() === prefer) : [];
+    const pool = match.length ? match : serving;
+    if (!fanoutReserve(pool.length))
       return json(res, 503, { accepted: false, reason: "Relay busy (fan-out cap); the sweep will still pick the deployment up." }, req);
     let results;
     try {
-      results = await Promise.all(live.map(async (e) => {
+      results = await Promise.all(pool.map(async (e) => {
         try {
+          // tunnel-attached enclaves (Phase C sellers) have no dialable
+          // endpoint - the hint rides the hub, like every relay->tunnel call
+          if (tunnelHub.isTunnel(e.endpoint)) {
+            const r = await tunnelHub.request(e.endpoint, { method: "POST", path: "/v1/claim-hint",
+              headers: { "content-type": "application/json" }, body });
+            return JSON.parse(r.body.toString("utf8").slice(0, 4096));
+          }
           const r = await fetch(e.endpoint + "/v1/claim-hint",
             { method: "POST", headers: { "content-type": "application/json" },
               body, signal: AbortSignal.timeout(15_000) });
           return JSON.parse(await readCappedText(r));
         } catch { return null; }
       }));
-    } finally { fanoutRelease(live.length); }
+    } finally { fanoutRelease(pool.length); }
     const best = results.find(r => r && r.accepted) || results.find(Boolean)
               || { accepted: false, reason: "No live enclave answered the hint; the sweep will still pick the deployment up." };
     return json(res, 200, best, req);
