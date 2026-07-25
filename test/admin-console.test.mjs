@@ -225,6 +225,27 @@ test("importFees (parallel arrays) encodes like viem", () => {
     encodeFunctionData({ abi: depAbi, functionName: "importFees", args: [ids, recipients, rates6.map(BigInt)] }));
 });
 
+test("runner-payout surface (rev 7) pins + importEarn encodes like viem", () => {
+  const sel = S("EnclaveDeployments");
+  // the getters/setters every payout-aware path gates on (supervisor withdraw
+  // loop, migration engine, future console surfaces)
+  eq("0x" + sel.earnOf, toFunctionSelector("function earnOf(bytes32) view returns (uint256, uint256, uint64)"));
+  eq("0x" + sel.earned6, toFunctionSelector("function earned6(address) view returns (uint256)"));
+  eq("0x" + sel.withdrawEarnings, toFunctionSelector("function withdrawEarnings(address)"));
+  eq("0x" + sel.settle, toFunctionSelector("function settle(bytes32)"));
+  eq("0x" + sel.fundEscrow, toFunctionSelector("function fundEscrow(bytes32, uint256)"));
+  eq("0x" + sel.setRunnerBps, toFunctionSelector("function setRunnerBps(uint16)"));
+  eq("0x" + sel.setClaimBond, toFunctionSelector("function setClaimBond(uint256, uint64)"));
+  eq("0x" + sel.slashBond, toFunctionSelector("function slashBond(address, uint256, string)"));
+  // the migration carry (parallel arrays, like importFees)
+  const depAbi = ABI("EnclaveDeployments");
+  const ids = ["0x" + "ab".repeat(32), "0x" + "ef".repeat(32)];
+  const rates6 = ["67", "1333"];   // migrate.js carries rate6 as decimal strings
+  eq(encCallX(S("EnclaveDeployments").importEarn, [
+    { t: "bytes32[]", v: ids }, { t: "uint[]", v: rates6 }]),
+    encodeFunctionData({ abi: depAbi, functionName: "importEarn", args: [ids, rates6.map(BigInt)] }));
+});
+
 test("multicall wrapping encodes like viem", () => {
   const catAbi = ABI("EnclaveAppCatalog");
   const inner1 = encCallX(S("EnclaveAppCatalog").importApps, [{ t: "tuple[]", schema: APP_SCHEMA, v: [APP_ROW] }]);

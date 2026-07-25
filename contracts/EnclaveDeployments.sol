@@ -16,12 +16,18 @@ pragma solidity ^0.8.20;
 ///         the remainder — at-most-one-runner-at-a-time is enforced by the chain, not
 ///         by an operator.
 ///
-/// Non-custodial, like EnclavePay: funding forwards USDC/ETH payer -> payout in the SAME
-///         transaction (less the publisher's fee cut, forwarded to their wallet in that
-///         same transaction); nothing is ever held here. `balance6` is an ACCOUNTING number
-///         (prepaid runtime, USDC 6dp), not escrowed money — so leases can "burn" and
-///         "refund" it freely, but stopping a deployment cannot push funds back to the
-///         payer on-chain (that stays a payout-wallet action, as today).
+/// Non-custodial for the PLATFORM and PUBLISHER, like EnclavePay: their splits of every
+///         funding forward payer -> payout / publisher wallet in the SAME transaction.
+///         `balance6` is an ACCOUNTING number (prepaid runtime, USDC 6dp), not escrowed
+///         money — so leases can "burn" and "refund" it freely, but stopping a deployment
+///         cannot push funds back to the payer on-chain (that stays a payout-wallet
+///         action, as today). The one deliberately CUSTODIED slice (rev 7) is the
+///         RUNNER's share: it stays in this contract as per-deployment escrow until a
+///         runner has actually held the lease for the seconds it pays for — that escrow
+///         is exactly what makes seller payout trustless (a permissionless runner is
+///         paid by the chain, not by an invoice to the platform). Bonds (optional
+///         anti-sybil, below) and earned-but-unwithdrawn runner balances are the only
+///         other funds ever held here.
 ///
 /// Trust model (consistent with the other Enclave contracts — claims here, attestation
 ///         gates trust at connect time):
@@ -55,6 +61,14 @@ pragma solidity ^0.8.20;
 ///     signature, and RUNNERS refuse to claim a deployment that under-declares
 ///     the fee of the version it references (fail closed, exactly like catalog
 ///     approval — the enclave that would run the code checks the price too).
+///   - Runner payout (rev 7): each deployment snapshots a per-second RUNNER cut
+///     (runnerBps of the platform component); USDC fundings leave that share in
+///     the contract as escrow, and the operator EOA holding the lease is
+///     credited as lease time elapses (claim/renew/release/settle advance the
+///     meter). withdrawEarnings pays the accrued total to any address. This is
+///     what makes permissionless selling real (metal/PROTOCOL.md Phase C): the
+///     seller's payout comes from chain-held escrow, not a platform promise.
+///     An optional claim bond (off by default) prices sybil claims.
 ///
 /// Fairness bounds (the cost of decentralized failover, all bounded by leaseSec):
 ///   - a runner that dies mid-lease has already burned that lease: the user loses at
@@ -178,7 +192,14 @@ contract EnclaveDeployments {
     // re-priced at the CURRENT list prices (a resize is a new purchase
     // decision, exactly like create; non-resizing deployments keep their
     // snapshots untouched). The share-resize feature gates on >= 6.
-    uint256 public constant deploymentsSchema = 6;
+    // Rev 7 once more keeps the struct byte-for-byte (runner-payout state
+    // lives in side mappings behind earnOf/earned6/bondOf) and marks the
+    // RUNNER-PAYOUT surface: new deployments snapshot a per-second runner
+    // rate (runnerBps of the platform component), USDC fundings escrow that
+    // share in-contract, lease time credits the serving runner's operator as
+    // it elapses, and withdrawEarnings pays it out. The payout feature (and
+    // the optional claim bond) gates on >= 7.
+    uint256 public constant deploymentsSchema = 7;
 
     /// @dev Publisher-fee snapshot, taken at create from the catalog version
     ///      the deployment references (recipient = the app's publisher wallet).
@@ -186,10 +207,45 @@ contract EnclaveDeployments {
     ///      revs (see deploymentsSchema). Packs into one slot.
     struct Fee { address recipient; uint96 rate6; }
 
+    // ---- runner payout (rev 7) --------------------------------------------
+    // The runner's share of every burned lease second, so a permissionless
+    // seller (metal/PROTOCOL.md Phase C) is paid BY THE CHAIN for serving.
+    //
+    //   rate6         per-second runner cut (USDC 6dp), snapshotted at create/
+    //                 resize: runnerBps of the PLATFORM component (rate minus
+    //                 the publisher fee). Snapshotted like the price — later
+    //                 runnerBps changes never re-price existing deployments.
+    //   escrow6       USDC actually HELD here to back future credits: every
+    //                 USDC funding leaves the runner's pro-rata share in the
+    //                 contract (ceil; platform absorbs the dust) instead of
+    //                 forwarding it. Credits are capped by it, so the runner
+    //                 meter can never promise money the contract doesn't hold.
+    //   creditedUntil the lease meter: the timestamp up to which the CURRENT
+    //                 runner has been credited. Advanced by claim/renew/
+    //                 release/settle/setShares; capped at leaseUntil, so a
+    //                 runner is paid for time it HELD the lease, never the
+    //                 released tail. Packs into one slot.
+    struct Earn { uint96 rate6; uint96 escrow6; uint64 creditedUntil; }
+
+    /// @dev Optional anti-sybil claim bond (metal/PROTOCOL.md gate 4). While
+    ///      claimBond6 > 0, claim() requires the operator to have bonded at
+    ///      least that much USDC with no exit pending. Exit is timelocked so
+    ///      provable misbehavior can be slashed before the bond walks.
+    struct Bond { uint192 amount6; uint64 exitAt; }
+
+    uint16 public runnerBps = 8000;        // runner share of the platform component, in bps
+                                           // (80% to the seller). Affects FUTURE creates and
+                                           // resizes only — snapshotted per deployment.
+    uint256 public claimBond6 = 0;         // USDC bond required to claim (0 = bond off, default)
+    uint64  public bondExitDelay = 1 days; // requestBondExit -> withdrawBond timelock
+
     bytes32[] private _ids;                                // every deployment ever created
     mapping(bytes32 => Deployment) private _deployments;
     mapping(bytes32 => bool) private _exists;
     mapping(bytes32 => Fee) private _fees;                 // id -> publisher-fee snapshot (rate6 0 = none)
+    mapping(bytes32 => Earn) private _earn;                // id -> runner-payout snapshot + escrow + meter
+    mapping(address => uint256) public earned6;            // operator -> withdrawable runner earnings (USDC 6dp)
+    mapping(address => Bond) private _bonds;               // operator -> claim bond
     mapping(address => uint64) private _nonces;            // per-creator id salt
 
     event Created(bytes32 indexed id, address indexed owner, string appRef, uint16 gpuMilli, uint16 cpuMilli, uint256 rate);
@@ -203,6 +259,17 @@ contract EnclaveDeployments {
     event Claimed(bytes32 indexed id, bytes32 indexed enclaveId, address indexed operator, uint64 leaseUntil, uint256 burned6);
     event Renewed(bytes32 indexed id, bytes32 indexed enclaveId, uint64 leaseUntil, uint256 burned6);
     event Released(bytes32 indexed id, bytes32 indexed enclaveId, uint256 refunded6);
+    event RunnerRateSet(bytes32 indexed id, uint256 runnerRate6);
+    event RunnerCredited(bytes32 indexed id, address indexed operator, uint256 amount6);
+    event EarningsWithdrawn(address indexed operator, address indexed to, uint256 amount6);
+    event EscrowFunded(bytes32 indexed id, address indexed from, uint256 amount6);
+    event EscrowSwept(bytes32 indexed id, uint256 amount6);
+    event RunnerBpsSet(uint16 runnerBps);
+    event ClaimBondSet(uint256 bond6, uint64 exitDelaySec);
+    event BondPosted(address indexed operator, uint256 amount6, uint256 bonded6);
+    event BondExitRequested(address indexed operator, uint64 exitAt);
+    event BondWithdrawn(address indexed operator, address indexed to, uint256 amount6);
+    event BondSlashed(address indexed operator, uint256 amount6, string reason);
     event PriceSet(uint256 pricePerSec6);
     event CpuPriceSet(uint256 cpuPricePerSec6);
     event LeaseSecSet(uint64 leaseSec);
@@ -226,6 +293,8 @@ contract EnclaveDeployments {
         emit CpuPriceSet(cpuPricePerSec6);
         emit MaxGpuMilliSet(maxGpuMilli);
         emit MaxFeeSet(maxFeePerSec6);
+        emit RunnerBpsSet(runnerBps);              // runner payout live from deploy; bond off by default
+        emit ClaimBondSet(claimBond6, bondExitDelay);
     }
 
     // ========================================================================
@@ -283,6 +352,19 @@ contract EnclaveDeployments {
         d.configCid = configCid;
         _initFee(d, feeRecipient, feePerSec6);   // before _initScalars: the rate fold reads the snapshot
         _initScalars(d, appRef, gpuMilli, cpuMilli, appPort, isPublic);
+        _snapRunnerRate(d);                      // after: the runner cut is a slice of the folded rate
+    }
+
+    /// @dev Snapshot the runner's per-second cut: runnerBps of the PLATFORM
+    ///      component (rate minus the publisher fee). Own frame, same stack
+    ///      reason as _initScalars; also the resize path's recompute (a resize
+    ///      is a new purchase decision, so it re-reads the CURRENT runnerBps,
+    ///      exactly as it re-reads the current list prices).
+    function _snapRunnerRate(Deployment storage d) private {
+        uint256 r6 = ((d.rate - _fees[d.id].rate6) * runnerBps) / 10000;
+        require(r6 <= type(uint96).max, "runner rate range");
+        _earn[d.id].rate6 = uint96(r6);
+        emit RunnerRateSet(d.id, r6);
     }
 
     /// @dev Record the publisher-fee snapshot (own stack frame, same reason as
@@ -371,6 +453,7 @@ contract EnclaveDeployments {
         require(gpuMilli <= maxGpuMilli, "gpuShare > max");
         require(cpuPricePerSec6 > 0 && (gpuMilli == 0 || pricePerSec6 > 0), "price unset");
         uint256 newRate = (pricePerSec6 * gpuMilli + cpuPricePerSec6 * cpuMilli + 999) / 1000 + _fees[id].rate6;
+        _creditRunner(d);                            // settle served time at the OLD runner rate first
         if (d.leaseUntil > block.timestamp) {
             uint256 tail = d.leaseUntil - block.timestamp;
             uint256 refund = tail * d.rate;          // settle the unserved tail at the rate it was burned at
@@ -387,6 +470,7 @@ contract EnclaveDeployments {
         d.gpuMilli = gpuMilli;
         d.cpuMilli = cpuMilli;
         d.rate = newRate;
+        _snapRunnerRate(d);                          // a resize re-buys the runner cut too (current runnerBps)
         emit SharesSet(id, gpuMilli, cpuMilli, newRate);
     }
 
@@ -425,9 +509,7 @@ contract EnclaveDeployments {
         require(value > 0, "amount=0");
         require(bytes16(nonce) == bytes16(id), "nonce !~ id");
         usdc.receiveWithAuthorization(from, address(this), value, validAfter, validBefore, nonce, signature);
-        (address feeTo, uint256 cut) = _feeShare(id, d.rate, value);
-        if (cut > 0) require(usdc.transfer(feeTo, cut), "USDC transfer failed");
-        require(usdc.transfer(payout, value - cut), "USDC transfer failed");
+        _splitFunding(id, d.rate, value);
         d.balance6 += value;
         emit Funded(id, from, value);
     }
@@ -445,17 +527,44 @@ contract EnclaveDeployments {
     function fund(bytes32 id, uint256 value) external {
         Deployment storage d = _requireActive(id);
         require(value > 0, "amount=0");
-        (address feeTo, uint256 cut) = _feeShare(id, d.rate, value);
-        if (cut > 0) require(usdc.transferFrom(msg.sender, feeTo, cut), "USDC transferFrom failed");
-        require(usdc.transferFrom(msg.sender, payout, value - cut), "USDC transferFrom failed");
+        require(usdc.transferFrom(msg.sender, address(this), value), "USDC transferFrom failed");
+        _splitFunding(id, d.rate, value);
         d.balance6 += value;
         emit Funded(id, msg.sender, value);
+    }
+
+    /// @dev Distribute a USDC funding that has already LANDED in this contract:
+    ///      the publisher's pro-rata cut to their wallet, the RUNNER's pro-rata
+    ///      share retained here as escrow (what future lease credits are paid
+    ///      from — see Earn), the platform remainder to payout. The escrow
+    ///      rounds UP and the fee rounds down: the platform absorbs the dust on
+    ///      both, so the escrow always covers every second the credited balance
+    ///      can buy. fee + runner share never exceed the rate (the runner cut
+    ///      is a bps slice of rate-minus-fee), so the clamp is belt-and-braces
+    ///      for the ceil's +1 at the bps=10000 edge.
+    function _splitFunding(bytes32 id, uint256 rate, uint256 value) private {
+        (address feeTo, uint256 cut) = _feeShare(id, rate, value);
+        uint256 esc = 0;
+        uint96 r6 = _earn[id].rate6;
+        if (r6 > 0) {
+            esc = (value * r6 + (rate - 1)) / rate;            // ceil — escrow must cover its seconds
+            if (esc > value - cut) esc = value - cut;
+            // cast safe: esc <= value = real USDC received (total supply << uint96.max 6dp)
+            _earn[id].escrow6 += uint96(esc);
+        }
+        if (cut > 0) require(usdc.transfer(feeTo, cut), "USDC transfer failed");
+        if (value - cut - esc > 0) require(usdc.transfer(payout, value - cut - esc), "USDC transfer failed");
     }
 
     /// @notice Fund/top-up with native ETH, credited as USDC-equivalent at the live
     ///         Chainlink ETH/USD rate (on-chain, unlike EnclavePay where the supervisor
     ///         priced it off-chain — here the BALANCE is chain state, so the
     ///         conversion must be too). Forwarded straight to payout.
+    /// @dev ETH fundings do NOT feed the runner escrow (the escrow pays runners
+    ///      in USDC and this contract can't convert). Runner credits for
+    ///      ETH-funded seconds draw on whatever USDC escrow the deployment has
+    ///      (the min-cap in _creditRunner degrades gracefully to zero); the
+    ///      platform can re-back such a deployment with fundEscrow.
     function fundEth(bytes32 id) external payable {
         Deployment storage d = _requireActive(id);
         require(msg.value > 0, "value=0");
@@ -508,11 +617,17 @@ contract EnclaveDeployments {
         IEnclaveRegistry.Enclave memory e = registry.get(enclaveId);
         require(e.operator == msg.sender, "not operator");
         require(e.active, "enclave inactive");
+        if (claimBond6 > 0) {                    // optional anti-sybil gate (0 = off)
+            Bond storage b = _bonds[msg.sender];
+            require(b.amount6 >= claimBond6 && b.exitAt == 0, "bond required");
+        }
+        _creditRunner(d);                        // settle the PREVIOUS runner's expired-lease tail
 
         (uint64 until, uint256 burned) = _burnLease(d, uint64(block.timestamp));
         d.runner = enclaveId;
         d.runnerOperator = msg.sender;
         d.leaseUntil = until;
+        _earn[id].creditedUntil = uint64(block.timestamp);   // the new runner's meter starts NOW
         emit Claimed(id, enclaveId, msg.sender, until, burned);
     }
 
@@ -524,6 +639,7 @@ contract EnclaveDeployments {
         Deployment storage d = _requireActive(id);
         require(d.runnerOperator == msg.sender, "not runner");
         require(block.timestamp <= d.leaseUntil, "lease expired");
+        _creditRunner(d);                        // credit the lease time held so far
         (uint64 until, uint256 burned) = _burnLease(d, d.leaseUntil);
         d.leaseUntil = until;
         emit Renewed(id, d.runner, until, burned);
@@ -537,6 +653,7 @@ contract EnclaveDeployments {
         Deployment storage d = _deployments[id];
         require(_exists[id], "unknown");
         require(d.runnerOperator == msg.sender, "not runner");
+        _creditRunner(d);                        // pay for time HELD; the refunded tail earns nothing
         uint256 refund = 0;
         if (d.leaseUntil > block.timestamp) {
             refund = (d.leaseUntil - block.timestamp) * d.rate;
@@ -547,6 +664,7 @@ contract EnclaveDeployments {
         d.runner = bytes32(0);
         d.runnerOperator = address(0);
         d.leaseUntil = 0;
+        _earn[id].creditedUntil = 0;             // meter idles until the next claim restarts it
         emit Released(id, enclaveId, refund);
     }
 
@@ -561,6 +679,155 @@ contract EnclaveDeployments {
         d.balance6 -= burned;
         d.spent6 += burned;
         until = from + uint64(secs);
+    }
+
+    // ========================================================================
+    // runner payout (rev 7) — the metered split that pays permissionless sellers
+    // ========================================================================
+
+    /// @dev The runner meter: credit the CURRENT runner's operator for lease
+    ///      time elapsed since the last credit point, at the deployment's
+    ///      snapshotted per-second runner rate, capped at leaseUntil (a
+    ///      released tail is refunded to the user, so it can never also be
+    ///      earned) and capped by the deployment's escrow (credits can never
+    ///      promise money this contract doesn't hold — an ETH-funded or
+    ///      imported record with no escrow just credits nothing until one of
+    ///      its fundings escrows). Piggybacks on the transactions runners
+    ///      already send — claim (settling the PREVIOUS runner), renew,
+    ///      release, setShares — plus the permissionless settle(). The meter
+    ///      always ADVANCES over a zero-escrow window: served-but-unbacked
+    ///      time is forfeit, never retro-credited from later escrow (which
+    ///      backs later seconds).
+    function _creditRunner(Deployment storage d) private {
+        if (d.runner == bytes32(0)) return;                  // no lease has ever started, or released
+        Earn storage e = _earn[d.id];
+        uint64 upto = uint64(block.timestamp);
+        if (upto > d.leaseUntil) upto = d.leaseUntil;        // an expired lease earns through its end, no further
+        if (upto <= e.creditedUntil) return;
+        uint256 credit = uint256(upto - e.creditedUntil) * e.rate6;
+        if (credit > e.escrow6) credit = e.escrow6;
+        e.creditedUntil = upto;
+        if (credit == 0) return;
+        e.escrow6 -= uint96(credit);                         // cast safe: credit <= escrow6 (uint96)
+        earned6[d.runnerOperator] += credit;
+        emit RunnerCredited(d.id, d.runnerOperator, credit);
+    }
+
+    /// @notice Advance the runner meter without any other state change.
+    ///         Permissionless and idempotent: anyone may settle anyone's
+    ///         deployment (it only ever moves already-owed money from escrow
+    ///         to the runner's balance). The one case the piggybacked credits
+    ///         miss is a lease that expired and was never re-claimed or
+    ///         released — the runner (or its supervisor's payout loop) calls
+    ///         this to collect that final quantum.
+    function settle(bytes32 id) external {
+        require(_exists[id], "unknown");
+        _creditRunner(_deployments[id]);
+    }
+
+    /// @notice Withdraw the caller's accrued runner earnings (every credit
+    ///         from every deployment it ever served) to any address — the
+    ///         seller's cold wallet, typically. The caller is the operator
+    ///         EOA that signs claim/renew/release (inside the CVM on a metal
+    ///         enclave), so the host OS never holds a key that could redirect
+    ///         someone else's earnings.
+    function withdrawEarnings(address to) external {
+        require(to != address(0), "zero addr");
+        uint256 amt = earned6[msg.sender];
+        require(amt > 0, "nothing earned");
+        earned6[msg.sender] = 0;                             // effects before interaction
+        require(usdc.transfer(to, amt), "USDC transfer failed");
+        emit EarningsWithdrawn(msg.sender, to, amt);
+    }
+
+    /// @notice Top up a deployment's runner escrow directly (USDC allowance,
+    ///         forwarded into the contract). Permissionless — this only ever
+    ///         ADDS backing for runner credits. The platform uses it to re-back
+    ///         records whose balance arrived outside the escrowing paths:
+    ///         imported (migrated) balances and ETH fundings.
+    function fundEscrow(bytes32 id, uint256 amount6) external {
+        Deployment storage d = _requireActive(id);
+        require(amount6 > 0, "amount=0");
+        require(_earn[id].rate6 > 0, "no runner rate");      // a rate-0 record can never credit it back out
+        require(usdc.transferFrom(msg.sender, address(this), amount6), "USDC transferFrom failed");
+        _earn[d.id].escrow6 += uint96(amount6);              // cast safe: real USDC received
+        emit EscrowFunded(id, msg.sender, amount6);
+    }
+
+    /// @notice Recover a DRAINED deployment's residual escrow dust to payout.
+    ///         Deliberately narrow: only when no lease is live and the balance
+    ///         can't buy one more second — while a deployment can still be
+    ///         claimed, its escrow is the sellers' money-in-waiting and the
+    ///         platform cannot touch it (that immutability is the seller's
+    ///         trust anchor, like the fee snapshot is the publisher's). Any
+    ///         served-but-unsettled time is credited first, so a sweep can
+    ///         never short the last runner.
+    function sweepEscrow(bytes32 id) external {
+        require(msg.sender == owner, "!owner");
+        Deployment storage d = _deployments[id];
+        require(_exists[id], "unknown");
+        _creditRunner(d);
+        require(block.timestamp > d.leaseUntil, "leased");
+        require(d.balance6 < d.rate, "still fundable");
+        uint256 amt = _earn[id].escrow6;
+        require(amt > 0, "no escrow");
+        _earn[id].escrow6 = 0;
+        require(usdc.transfer(payout, amt), "USDC transfer failed");
+        emit EscrowSwept(id, amt);
+    }
+
+    // ---- optional claim bond (anti-sybil, metal/PROTOCOL.md gate 4) --------
+    // Inert while claimBond6 == 0 (the deploy default): claim() checks nothing
+    // and none of these calls are needed. When the operator turns it on, a
+    // runner must lock USDC before claiming; leaving is timelocked so provable
+    // misbehavior can be slashed before the bond walks. Slashing is an OWNER
+    // action with public evidence (the reason string in the event) — the
+    // seller's exposure to a malicious platform is bounded by the bond itself,
+    // never by its earnings.
+
+    /// @notice Lock USDC as the caller's claim bond (adds to any existing
+    ///         bond; cancels a pending exit — posting re-commits).
+    function postBond(uint256 amount6) external {
+        require(amount6 > 0, "amount=0");
+        require(usdc.transferFrom(msg.sender, address(this), amount6), "USDC transferFrom failed");
+        Bond storage b = _bonds[msg.sender];
+        b.amount6 += uint192(amount6);                       // cast safe: real USDC received
+        b.exitAt = 0;
+        emit BondPosted(msg.sender, amount6, b.amount6);
+    }
+
+    /// @notice Start the timelocked exit. While an exit is pending the bond no
+    ///         longer authorizes claims (renew/release of already-held leases
+    ///         still work — winding down is exactly what an exit is for).
+    function requestBondExit() external {
+        Bond storage b = _bonds[msg.sender];
+        require(b.amount6 > 0, "no bond");
+        b.exitAt = uint64(block.timestamp) + bondExitDelay;
+        emit BondExitRequested(msg.sender, b.exitAt);
+    }
+
+    /// @notice Reclaim the whole bond after the exit timelock has passed.
+    function withdrawBond(address to) external {
+        require(to != address(0), "zero addr");
+        Bond storage b = _bonds[msg.sender];
+        require(b.exitAt != 0 && block.timestamp >= b.exitAt, "exit pending");
+        uint256 amt = b.amount6;
+        require(amt > 0, "no bond");
+        delete _bonds[msg.sender];                           // effects before interaction
+        require(usdc.transfer(to, amt), "USDC transfer failed");
+        emit BondWithdrawn(msg.sender, to, amt);
+    }
+
+    /// @notice Slash (part of) an operator's bond to payout, with public
+    ///         evidence in the reason string (e.g. a claim-without-serving
+    ///         incident reference). Owner-gated; bounded by the bond.
+    function slashBond(address operator, uint256 amount6, string calldata reason) external {
+        require(msg.sender == owner, "!owner");
+        Bond storage b = _bonds[operator];
+        require(amount6 > 0 && amount6 <= b.amount6, "amount range");
+        b.amount6 -= uint192(amount6);
+        require(usdc.transfer(payout, amount6), "USDC transfer failed");
+        emit BondSlashed(operator, amount6, reason);
     }
 
     // ========================================================================
@@ -629,6 +896,25 @@ contract EnclaveDeployments {
             require(rates6[i] == 0 || recipients[i] != address(0), "fee recipient");
             _fees[ids[i]] = Fee(recipients[i], uint96(rates6[i]));
             if (rates6[i] > 0) emit FeeSet(ids[i], recipients[i], rates6[i]);
+        }
+    }
+
+    /// @notice Migrate runner-rate snapshots (rev-7 sources; also how a rev-6
+    ///         migration GRANTS runner rates to grandfathered records, at the
+    ///         owner's choice — records left at 0 never pay runners). Verbatim
+    ///         like importFees. Escrow and earned balances do NOT migrate:
+    ///         escrow is real USDC held by the SOURCE contract (re-back the
+    ///         migrated balances here with fundEscrow) and earnings stay
+    ///         withdrawable on the source by their operators forever.
+    function importEarn(bytes32[] calldata ids, uint256[] calldata rates6) external {
+        require(msg.sender == owner, "!owner");
+        require(!importsSealed, "sealed");
+        require(ids.length == rates6.length, "length mismatch");
+        for (uint256 i = 0; i < ids.length; i++) {
+            require(_exists[ids[i]], "unknown");
+            require(rates6[i] <= type(uint96).max, "rate range");
+            _earn[ids[i]].rate6 = uint96(rates6[i]);
+            emit RunnerRateSet(ids[i], rates6[i]);
         }
     }
 
@@ -705,6 +991,30 @@ contract EnclaveDeployments {
         emit MaxFeeSet(_maxFeePerSec6);
     }
 
+    /// @notice The runner's share (bps) of the PLATFORM component of every
+    ///         lease second. Affects FUTURE creates and resizes only — the
+    ///         per-deployment snapshot keeps bps changes non-retroactive,
+    ///         exactly like the prices. 0 pauses runner earning for new
+    ///         deployments (existing snapshots keep paying).
+    function setRunnerBps(uint16 _runnerBps) external {
+        require(msg.sender == owner, "!owner");
+        require(_runnerBps <= 10000, "bps range");
+        runnerBps = _runnerBps;                    // affects FUTURE creates/resizes only
+        emit RunnerBpsSet(_runnerBps);
+    }
+
+    /// @notice The optional claim bond (USDC 6dp; 0 = off, the deploy default)
+    ///         and its exit timelock. Checked at claim() only — running leases
+    ///         and their renew/release never re-check, so turning the bond on
+    ///         strands nobody mid-lease.
+    function setClaimBond(uint256 _bond6, uint64 _exitDelaySec) external {
+        require(msg.sender == owner, "!owner");
+        require(_exitDelaySec >= 1 hours && _exitDelaySec <= 30 days, "delay range");
+        claimBond6 = _bond6;
+        bondExitDelay = _exitDelaySec;
+        emit ClaimBondSet(_bond6, _exitDelaySec);
+    }
+
     function setLeaseSec(uint64 _leaseSec) external {
         require(msg.sender == owner, "!owner");
         require(_leaseSec >= 60 && _leaseSec <= 1 days, "lease range");
@@ -774,6 +1084,22 @@ contract EnclaveDeployments {
         return (f.recipient, f.rate6);
     }
 
+    /// @notice The runner-payout state of a deployment (rev 7): the immutable*
+    ///         per-second runner cut (*until an owner resize re-buys it), the
+    ///         USDC held here backing future credits, and the meter position.
+    ///         (0, 0, 0) = a pre-rev-7 or runnerBps-0 record — never pays.
+    function earnOf(bytes32 id) external view returns (uint256 runnerRate6, uint256 escrow6, uint64 creditedUntil) {
+        Earn storage e = _earn[id];
+        return (e.rate6, e.escrow6, e.creditedUntil);
+    }
+
+    /// @notice An operator's claim bond and its exit state (exitAt 0 = no exit
+    ///         pending; otherwise the timestamp withdrawBond unlocks at).
+    function bondOf(address operator) external view returns (uint256 amount6, uint64 exitAt) {
+        Bond storage b = _bonds[operator];
+        return (b.amount6, b.exitAt);
+    }
+
     /// @notice Paginated dump (enclaves filter client-side, like registry discovery).
     function getPage(uint256 start, uint256 n) external view returns (Deployment[] memory page) {
         uint256 len = _ids.length;
@@ -797,12 +1123,16 @@ contract EnclaveDeployments {
 }
 
 /*
-FUTURE (deliberately not in v1):
-  - runner stake + slashing: claim() requires a bond, slashable if a watcher
-    proves the runner never served the lease (ties into the registry's planned
-    stake-to-register). v1's exposure is already bounded at leaseSec per death.
+FUTURE (deliberately not in this rev):
+  - trustless slashing: rev 7 ships the bond (claim gate + timelocked exit) but
+    slashing is an owner action with public evidence; a watcher protocol that
+    PROVES a runner never served (failed attested probes, signed by N watchers)
+    would replace the owner's judgment with a challenge game.
   - per-deployment price floors/auctions: today price is platform-set; a market
     would let runners bid, with the lease going to the cheapest attested enclave.
   - consumed-time attestation: runners could periodically post signed usage
-    checkpoints, shrinking the "dead runner burns one lease" loss toward zero.
+    checkpoints, shrinking the "dead runner burns one lease" loss toward zero —
+    and letting the runner meter pay for VERIFIED service instead of held time.
+  - ETH-funded runner escrow: fundEth forwards everything (no on-chain USDC
+    conversion); the runner share of ETH fundings relies on fundEscrow re-backing.
 */

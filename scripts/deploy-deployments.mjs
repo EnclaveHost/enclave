@@ -127,6 +127,9 @@ function compile() {
     sources: { "EnclaveDeployments.sol": { content: source } },
     settings: {
       optimizer: { enabled: true, runs: 200 },
+      // rev 7 (runner payout) outgrew legacy codegen's EIP-170 headroom;
+      // viaIR keeps it deployable. build-contract-artifacts.mjs mirrors this.
+      viaIR: true,
       outputSelection: { "*": { "*": ["abi", "evm.bytecode.object"] } },
     },
   };

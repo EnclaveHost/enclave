@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // build-contract-artifacts.mjs - compile every contracts/*.sol exactly the way
-// its deploy script does (solc, optimizer runs=200, viaIR only for the
-// catalog) and emit the results where the browser can use them:
+// its deploy script does (solc, optimizer runs=200, viaIR for the catalog and
+// the deployments ledger) and emit the results where the browser can use them:
 //
 //   site/js/gen/contract-artifacts.js   ES module: { abi, bytecode, selectors,
 //                                       constructor inputs, address-book key }
@@ -36,7 +36,7 @@ const DEFS = [
   { name: "EnclaveRegistry",     bookKey: "registry" },
   { name: "EnclaveAppCatalog",   bookKey: "appCatalog", viaIR: true },
   { name: "EnclavePay",          bookKey: "enclavePay" },
-  { name: "EnclaveDeployments",  bookKey: "deployments" },
+  { name: "EnclaveDeployments",  bookKey: "deployments", viaIR: true },   // rev 7 outgrew legacy codegen's EIP-170 headroom
   { name: "EnclaveFeatured",     bookKey: "featured" },
   { name: "EnclaveReviews",      bookKey: "reviews" },
   { name: "PaymentRouter",       bookKey: "paymentRouter" },
