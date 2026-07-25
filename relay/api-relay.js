@@ -72,7 +72,27 @@ import { isMcpHost, handleMcp } from "./mcp.js";
 import { handleAccount, initAccounts } from "./auth.js";
 import { handleBilling, initBilling } from "./billing.js";
 import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep } from "./secrets.js";
+import { createTunnelHub } from "./tunnel.js";
 installProcessGuards("api-relay");
+
+// --- fleet tunnel: self-hosted (CGNAT) enclaves dial IN and are routed to over
+// the tunnel instead of being dialed. The allowlist is a committed set of
+// {name, tokenSha256} (only the hash is public; the token stays off-repo) plus
+// an optional env of raw name:token pairs the relay hashes itself. Attach auth
+// is routing-only; clients still verify each enclave's attestation end-to-end.
+const DEFAULT_METAL_ALLOW = [
+  { name: "metal0", tokenSha256: "3b28c8d9564f47b1f5031e519c8f6e7bbfaca99e41884b2740e7958e83acec81" },
+];
+const ENV_METAL_ALLOW = (process.env.METAL_TUNNEL_TOKENS || "").split(",").map((s) => s.trim()).filter(Boolean)
+  .map((pair) => { const i = pair.indexOf(":"); const name = pair.slice(0, i), token = pair.slice(i + 1);
+                   return name && token ? { name, tokenSha256: createHash("sha256").update(token).digest("hex") } : null; })
+  .filter(Boolean);
+const tunnelHub = createTunnelHub({
+  allow: [...DEFAULT_METAL_ALLOW, ...ENV_METAL_ALLOW],
+  // when an enclave attaches/detaches, refresh discovery + availability now so it
+  // enters/leaves `live` immediately rather than on the slow (5 min) registry poll
+  onChange: () => { pollRegistry().then(pollAvailability).catch(() => {}); },
+});
 
 let   REGISTRY_ADDRESS  = (process.env.REGISTRY_ADDRESS || "").trim();   // env fallback; the address book (below) overrides
 let   DEPLOYMENTS_ADDRESS = (process.env.DEPLOYMENTS_ADDRESS || "").trim(); // EnclaveDeployments ledger; book overrides too
@@ -238,6 +258,16 @@ async function endpointId(endpoint) {
   return _hashEndpoint(endpoint);
 }
 async function readRegistry() {
+  // tunnel enclaves are locally-authenticated at attach time, so they bypass the
+  // dial-based discovery filters and are simply appended to whatever the static
+  // list / on-chain registry yields. A discovery failure (e.g. a transient RPC
+  // outage) must NOT drop attached tunnels — surface it only when there are none.
+  let base = [];
+  try { base = await discoverRegistry(); }
+  catch (e) { if (!tunnelHub.count()) throw e; console.error(`[api-relay] discovery failed, serving ${tunnelHub.count()} tunnel enclave(s) only: ${e.message}`); }
+  return [...base, ...tunnelHub.origins()];
+}
+async function discoverRegistry() {
   if (STATIC_ENCLAVES.length)
     return Promise.all(STATIC_ENCLAVES.map(async (endpoint) =>
       ({ endpoint, id: await endpointId(endpoint), repo: null, lastSeen: null })));
@@ -517,7 +547,8 @@ async function pollAvailability() {
       const idx = i++;
       if (idx >= src.length) return;
       const e = src[idx];
-      const a = await fetchJson(`${e.endpoint}/availability`);
+      const a = e.tunnel ? await tunnelHub.fetchJson(e.endpoint, "/availability").catch(() => null)
+                         : await fetchJson(`${e.endpoint}/availability`);
       rows[idx] = a ? { ...e, availability: a, checkedAt: new Date().toISOString() } : null;
     }
   };
@@ -592,6 +623,7 @@ const json = (res, code, body, req) => {
 // control-plane paths WE own CORS (swap the enclave's for ours); on an app
 // subdomain the app is its own origin, so pass its headers through untouched.
 function proxyTo(origin, req, res, { path = req.url, setCors = true, idleMs = 30000 } = {}) {
+  if (tunnelHub.isTunnel(origin)) return proxyViaTunnel(origin, req, res, { path, setCors });
   const target = new URL(origin.replace(/\/+$/, "") + path);
   const headers = { ...req.headers, host: target.host };
   delete headers["accept-encoding"];                          // let the enclave send identity; simpler passthrough
@@ -614,6 +646,34 @@ function proxyTo(origin, req, res, { path = req.url, setCors = true, idleMs = 30
   up.on("error", (e) => { if (!res.headersSent) res.writeHead(502, { "Content-Type": "application/json", ...(setCors ? cors(req) : {}) });
                           res.end(JSON.stringify({ error: "upstream_error", message: e.message })); });
   req.pipe(up);
+}
+
+// Reverse-proxy `req` to a tunnel enclave (CGNAT self-hosted). Buffers the body
+// (Phase-1 buffered request/response; the streaming/WS upgrade path over tunnels
+// is a follow-on), forwards method+path+headers over the tunnel, writes the
+// framed response back with our CORS on control-plane paths.
+function proxyViaTunnel(origin, req, res, { path = req.url, setCors = true }) {
+  const chunks = []; let size = 0;
+  req.on("data", (c) => { size += c.length; if (size > 8 * 1024 * 1024) req.destroy(); else chunks.push(c); });
+  req.on("end", async () => {
+    try {
+      const headers = { ...req.headers }; delete headers["accept-encoding"];
+      const r = await tunnelHub.request(origin, { method: req.method, path, headers, body: chunks.length ? Buffer.concat(chunks) : null });
+      const out = {};
+      for (const [k, v] of Object.entries(r.headers || {})) {
+        if (/^connection$|^transfer-encoding$|^content-length$/i.test(k)) continue;
+        if (setCors && /^access-control-/i.test(k)) continue;
+        out[k] = v;
+      }
+      if (setCors) Object.assign(out, cors(req));
+      res.writeHead(r.status || 502, out);
+      res.end(r.body);
+    } catch (e) {
+      if (!res.headersSent) res.writeHead(502, { "Content-Type": "application/json", ...(setCors ? cors(req) : {}) });
+      res.end(JSON.stringify({ error: "tunnel_error", message: e.message }));
+    }
+  });
+  req.on("error", () => { try { res.destroy(); } catch {} });
 }
 
 const proxied = (p) => p.startsWith("/v1/") || p === "/availability" || p === "/x" || p.startsWith("/x/");
@@ -1160,6 +1220,19 @@ const server = http.createServer((req, res) => {
     return handleSecrets(req, res, u, relayCtx).catch((e) =>
       json(res, 500, { error: "secrets_error", message: e.message }, req));
 
+  // Reach a SPECIFIC tunnel enclave through the relay: /t/<name>/<rest> forwards
+  // <rest> over that enclave's tunnel. This is how a CGNAT self-hosted enclave
+  // (no public endpoint) is reachable + independently verifiable — e.g.
+  // /t/metal0/v1/attestation returns its live SEV-SNP attestation, which the
+  // client verifies end-to-end (the relay only shuttles bytes).
+  const tm = u.pathname.match(/^\/t\/([A-Za-z0-9_-]+)(\/.*|)$/);
+  if (tm) {
+    const origin = `tunnel://${tm[1]}`;
+    if (!tunnelHub.origins().some((o) => o.endpoint === origin))
+      return json(res, 404, { error: "no_tunnel", message: `No tunnel enclave named ${tm[1]} is attached.` }, req);
+    return proxyTo(origin, req, res, { path: (tm[2] || "/") + (u.search || ""), setCors: true });
+  }
+
   // API gateway: fleet-aware routing (see the header) — placement on create,
   // owner affinity on deployment-scoped calls, fan-out merge on list, fleet
   // aggregate on /availability, sticky enclave for the rest.
@@ -1195,6 +1268,8 @@ async function fullDepId(id) {
 server.on("upgrade", async (req, socket, head) => {
   socket.on("error", () => socket.destroy());               // dead client mid-handshake must not throw
   const refuse = (code, text) => { try { socket.write(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`); } catch {} socket.destroy(); };
+  // fleet tunnel attach: a self-hosted enclave dialing IN (token-authed in the hub)
+  if ((req.url || "").split("?")[0] === "/v1/fleet-tunnel") return tunnelHub.handleUpgrade(req, socket, head);
   try {
     const depHost = depFromHost(routingHost(req));           // x-forwarded-host only when TRUSTED_PROXY (fix 6)
     const x = depHost ? null : (req.url || "").match(X_PATH_RE);

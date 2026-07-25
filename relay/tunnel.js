@@ -1,0 +1,101 @@
+// relay/tunnel.js — fleet tunnel hub.
+//
+// Self-hosted enclaves (e.g. Enclave Metal boxes) live behind CGNAT: they have
+// no public endpoint the relay can dial. So they dial OUT to the relay and hold
+// a persistent WebSocket; the relay forwards their public HTTP surface (/v1/*,
+// /availability, /x/*) back over it. To the rest of api-relay a tunnel enclave
+// looks like any other fleet member — it shows up in readRegistry() as a synthetic
+// row with a `tunnel://<name>` endpoint, and proxyTo()/pollAvailability() route
+// to it through here instead of dialing.
+//
+// Trust: the tunnel only decides ROUTING, never trust. Clients still verify the
+// enclave's attestation end-to-end (the metal RAD carries a real SEV-SNP report;
+// nothing here vouches for it). Attach auth just stops a random peer from
+// claiming a fleet name: the enclave presents a token whose sha256 is on a
+// committed allowlist (the token itself never enters the repo), so no on-box
+// secret and no secret-in-code is required.
+import { WebSocketServer } from "ws";
+import { createHash, timingSafeEqual } from "node:crypto";
+
+const sha256Hex = (s) => createHash("sha256").update(String(s)).digest("hex");
+const eqHex = (a, b) => { const x = Buffer.from(String(a), "hex"), y = Buffer.from(String(b), "hex"); return x.length === y.length && timingSafeEqual(x, y); };
+
+export function createTunnelHub({ allow = [], reqTimeoutMs = 30000, onChange = () => {} } = {}) {
+  // allow: [{ name, tokenSha256 }]. A name may appear once.
+  const allowByName = new Map(allow.filter((a) => a && a.name && a.tokenSha256).map((a) => [a.name, a.tokenSha256.toLowerCase()]));
+  const wss = new WebSocketServer({ noServer: true });
+  const tunnels = new Map();                                  // name -> { ws, pending, lastSeen, mode, publicUrl }
+
+  function authOk(name, token) {
+    const want = allowByName.get(name);
+    if (!want || !token) return false;
+    return eqHex(sha256Hex(token), want);
+  }
+
+  function handleUpgrade(req, socket, head) {
+    const name = String(req.headers["x-metal-name"] || "");
+    const token = String(req.headers["x-metal-token"] || "");
+    if (!authOk(name, token)) {
+      socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
+      return socket.destroy();
+    }
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      const prev = tunnels.get(name);
+      if (prev && prev.ws !== ws) { try { prev.ws.terminate(); } catch {} }   // newest wins
+      const t = { ws, pending: new Map(), lastSeen: Date.now(), mode: "", publicUrl: "" };
+      tunnels.set(name, t);
+      console.log(`[tunnel] ${name} attached (${tunnels.size} tunnel enclave${tunnels.size === 1 ? "" : "s"})`);
+      try { onChange("attach", name); } catch {}   // refresh discovery so it lands in `live` now, not on the next slow poll
+      ws.on("message", (data) => {
+        t.lastSeen = Date.now();
+        let f; try { f = JSON.parse(data); } catch { return; }
+        if (f.t === "hello") { t.mode = f.mode || ""; t.publicUrl = f.publicUrl || ""; t.transportKeyFp = f.transportKeyFp || ""; return; }
+        if (f.t === "pong") return;
+        if (f.t === "res" && f.id != null) { const p = t.pending.get(f.id); if (p) { t.pending.delete(f.id); p.resolve(f); } }
+      });
+      const bye = () => { if (tunnels.get(name) === t) tunnels.delete(name); for (const p of t.pending.values()) p.reject(new Error("tunnel closed")); console.log(`[tunnel] ${name} detached`); try { onChange("detach", name); } catch {} };
+      ws.on("close", bye);
+      ws.on("error", () => { try { ws.terminate(); } catch {} });
+    });
+  }
+
+  let seq = 1;
+  function send(name, method, path, headers, body) {
+    const t = tunnels.get(name);
+    if (!t) return Promise.reject(new Error(`no tunnel for ${name}`));
+    const id = seq++;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { t.pending.delete(id); reject(new Error("tunnel request timeout")); }, reqTimeoutMs);
+      t.pending.set(id, { resolve: (f) => { clearTimeout(timer); resolve(f); }, reject: (e) => { clearTimeout(timer); reject(e); } });
+      try { t.ws.send(JSON.stringify({ t: "req", id, method, path, headers, body: body ? body.toString("base64") : null })); }
+      catch (e) { clearTimeout(timer); t.pending.delete(id); reject(e); }
+    });
+  }
+
+  const NAME_RE = /^tunnel:\/\/(.+)$/;
+  return {
+    handleUpgrade,
+    isTunnel: (origin) => NAME_RE.test(String(origin || "")),
+    nameOf: (origin) => (String(origin || "").match(NAME_RE) || [])[1] || null,
+    // synthetic registry rows for the attached tunnels (bypass the dial-based
+    // discovery filters; auth already happened at attach time)
+    origins: () => [...tunnels.entries()].map(([name, t]) => ({
+      endpoint: `tunnel://${name}`, id: `tunnel:${name}`, repo: "EnclaveHost/enclave",
+      lastSeen: Math.floor(t.lastSeen / 1000), tunnel: true, mode: t.mode, publicUrl: t.publicUrl,
+    })),
+    // fetch JSON (availability polling)
+    fetchJson: async (origin, path) => {
+      const name = (String(origin).match(NAME_RE) || [])[1];
+      const r = await send(name, "GET", path, {}, null);
+      if (r.status !== 200) return null;
+      try { return JSON.parse(Buffer.from(r.body || "", "base64").toString("utf8")); } catch { return null; }
+    },
+    // full request/response for proxyTo (buffered)
+    request: async (origin, { method, path, headers, body }) => {
+      const name = (String(origin).match(NAME_RE) || [])[1];
+      const r = await send(name, method || "GET", path, headers || {}, body);
+      return { status: r.status || 502, headers: r.headers || {}, body: Buffer.from(r.body || "", "base64") };
+    },
+    count: () => tunnels.size,
+  };
+}

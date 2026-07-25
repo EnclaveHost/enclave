@@ -1,0 +1,7 @@
+build/
+dist/
+*.cpio.gz
+# runtime configs carry the tunnel token — keep them out of git (commit only the example)
+config.json
+config.*.json
+!config.example.json

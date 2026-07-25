@@ -1,0 +1,38 @@
+# enclave-metal — self-hosted TEE enclave (SEV-SNP/TDX) launcher.
+#
+# Runs as a system service because a VMM needs /dev/kvm, /dev/sev and the
+# ability to pin guest memory. The confidentiality boundary is the CPU (the
+# guest is measured and encrypted); root on the host is the *untrusted* operator
+# and cannot see into the guest. Secrets are minted INSIDE the guest per boot.
+#
+# Install:
+#   sudo cp metal/systemd/enclave-metal.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now enclave-metal
+[Unit]
+Description=Enclave Metal — self-hosted confidential-VM enclave
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Adjust to the checkout location. ExecStart runs the launcher, which boots the
+# measured guest image built by `node metal/build-image.mjs`.
+WorkingDirectory=/home/steven/Projects/enclave
+ExecStart=/usr/bin/node metal/enclave-metal.mjs --config metal/config.json
+Restart=always
+RestartSec=3
+# A VMM legitimately pins guest RAM; SNP uses guest_memfd but keep this generous.
+LimitMEMLOCK=infinity
+LimitNOFILE=1048576
+# Harden the host process (the guest is the trust boundary, not this launcher).
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/home/steven/Projects/enclave/metal
+DevicePolicy=closed
+DeviceAllow=/dev/kvm rw
+DeviceAllow=/dev/sev rw
+DeviceAllow=/dev/net/tun rw
+OOMScoreAdjust=-500
+
+[Install]
+WantedBy=multi-user.target

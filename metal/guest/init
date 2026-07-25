@@ -1,0 +1,63 @@
+#!/bin/bash
+# metal guest PID 1. Everything here runs inside the measured SEV-SNP CVM.
+# It mounts the pseudo-filesystems, loads the virtio + confidential-computing
+# guest modules, brings up outbound networking, then hands off to the node
+# process supervisor (gsup.mjs), which runs the wasm-manager, the supervisor,
+# and the metal-agent and keeps them alive.
+set +e
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+KVER="__KVER__"          # substituted at build time
+MODDIR="/lib/modules/$KVER/kernel"
+
+log(){ echo "[metal-init] $*" > /dev/console; }
+
+log "PID1 up; mounting pseudo-filesystems"
+mount -t proc     proc     /proc            2>/dev/null
+mount -t sysfs    sysfs    /sys             2>/dev/null
+mount -t devtmpfs devtmpfs /dev             2>/dev/null
+mkdir -p /dev/pts /dev/shm /run /tmp /mnt/ramdisk
+mount -t devpts   devpts   /dev/pts         2>/dev/null
+mount -t tmpfs    tmpfs    /dev/shm         2>/dev/null
+mount -t tmpfs    tmpfs    /run             2>/dev/null
+mount -t tmpfs    -o mode=1777 tmpfs /tmp   2>/dev/null
+# /mnt/ramdisk is where the supervisor mints its session + TLS keys; MUST be
+# memory-backed so no private key ever touches a host-visible disk.
+mount -t tmpfs    -o mode=0755 tmpfs /mnt/ramdisk 2>/dev/null
+mount -t configfs configfs /sys/kernel/config 2>/dev/null
+
+# --- kernel modules (insmod by explicit path, dependency order from the build)
+# modules.list holds relative paths (kernel/...) in load order: failover +
+# net_failover + virtio_net for networking, then tsm_report + sev-guest/
+# tdx-guest for confidential-computing attestation over configfs-tsm.
+ins(){ if [ -f "$1" ]; then if /opt/metal/minsmod "$1" 2>/tmp/ins.err; then log "loaded $(basename $1)"; else log "FAILED $(basename $1): $(cat /tmp/ins.err)"; fi; else log "MISSING $1"; fi; }
+if [ -f /opt/metal/modules.list ]; then
+  while read -r m; do [ -n "$m" ] && ins "/lib/modules/$KVER/$m"; done < /opt/metal/modules.list
+fi
+
+# give udev-less devtmpfs a moment to settle the virtio nic
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  [ -e /sys/class/net/eth0 ] && break
+  sleep 0.2
+done
+
+# --- outbound networking (static slirp address; enclave only dials out) ------
+IP="${METAL_IP:-10.0.2.15}"; MASK="${METAL_MASK:-255.255.255.0}"; GW="${METAL_GW:-10.0.2.2}"; DNS="${METAL_DNS:-10.0.2.3}"
+if [ -e /sys/class/net/eth0 ]; then
+  /opt/metal/netup eth0 "$IP" "$MASK" "$GW" && log "eth0 $IP via $GW"
+else
+  log "WARNING: eth0 not present; continuing without network"
+fi
+# loopback up (needed for supervisor <-> wasm-manager <-> agent)
+/opt/metal/netup lo 127.0.0.1 255.0.0.0 127.0.0.1 2>/dev/null
+printf 'nameserver %s\n' "$DNS" > /etc/resolv.conf
+# The wasm chroot needs its own resolv.conf copy.
+mkdir -p /opt/roots/wasm/etc && cp /etc/resolv.conf /opt/roots/wasm/etc/resolv.conf 2>/dev/null
+
+log "handing off to gsup"
+exec /usr/local/bin/node /opt/metal/gsup.mjs
+# if gsup ever returns, don't leave a dead CVM wedged — reboot so the host
+# launcher (Restart=always) brings a clean one back.
+log "gsup exited; rebooting"
+sleep 2
+reboot -f 2>/dev/null
+echo b > /proc/sysrq-trigger 2>/dev/null
