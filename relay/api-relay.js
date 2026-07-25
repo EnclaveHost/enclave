@@ -1211,13 +1211,18 @@ const server = http.createServer((req, res) => {
     // aggregate totals count only the CLAIMING subset — capacity nobody can
     // buy (a present-but-not-claiming tunnel box) must not inflate them
     const serving = servingEnclaves();
+    const servingSet = new Set(serving);
+    // every row carries an explicit `serving` verdict so display surfaces
+    // (fleet panel, deploy target lists) can hide what cannot take work
+    // without re-deriving the rule client-side
+    const rows = live.map((e) => ({ ...e, serving: servingSet.has(e) }));
     const agg = {
       enclaves: live.length, serving: serving.length,
       totalGpuShareFree: Math.round(serving.reduce((s, e) => s + gpuFreeOf(e.availability), 0) * 1000) / 1000,
       totalCpuShareFree: Math.round(serving.reduce((s, e) => s + cpuFreeOf(e.availability), 0) * 1000) / 1000,
       totalVramFreeGb: Math.round(serving.reduce((s, e) => s + (e.availability.vramFreeGb || 0), 0) * 10) / 10,
     };
-    return json(res, 200, { updatedAt, aggregate: agg, enclaves: live }, req);
+    return json(res, 200, { updatedAt, aggregate: agg, enclaves: rows }, req);
   }
 
   if (u.pathname === "/route") {

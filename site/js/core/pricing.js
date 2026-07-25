@@ -117,8 +117,9 @@ export function enclaveSpecOf(row){
 // queued }. The deploy surfaces render this as the target dropdown — the
 // head is the recommended pick, any entry is a valid user choice.
 export function rankEnclavesFor(v, rows){
-  const claiming = (rows || []).filter((e) => e && e.availability
-    && (e.availability.claimEnabled === true || (e.availability.claimEnabled == null && !e.tunnel)));
+  const claiming = (rows || []).filter((e) => e && e.availability && (e.serving != null
+    ? e.serving === true   // the relay's explicit verdict (rows since 2026-07-25) outranks the local rule
+    : (e.availability.claimEnabled === true || (e.availability.claimEnabled == null && !e.tunnel))));
   const vramMb = Number(v && v.vramMb || 0), gpuGf = Number(v && v.gpuGflops || 0);
   const memMb = Number(v && v.memMb || 0), cpuGf = Number(v && v.cpuGflops || 0);
   const needsGpu = vramMb > 0 || gpuGf > 0;

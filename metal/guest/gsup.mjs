@@ -52,12 +52,13 @@ const TUNNEL_TOKEN = fw.tunnelToken || '';
 // serves over the tunnel; it just neither claims nor earns.
 const REGISTRY_KEY = fw.registryKey || '';
 const PAYOUT_ADDR  = fw.payoutAddress || '';
+const FLEET_SECRET = fw.fleetSecret || '';             // first-party boxes only: joins the deployment-secrets plane
 const SELLING      = !!(REGISTRY_KEY && PUBLIC_URL);
 
 const flavorEnv = readJson('/opt/metal/flavor-env.json', {});   // baked, non-secret
 
 // --- per-boot secrets (minted in-CVM, never leave it) ------------------------
-const SECRET       = randomBytes(32).toString('hex');
+const SECRET       = FLEET_SECRET || randomBytes(32).toString('hex');
 const ADMIN_TOKEN  = randomBytes(32).toString('hex');
 log(`mode=${MODE} name=${NAME} public=${PUBLIC_URL || '(none)'} relay=${RELAY_URL ? 'set' : '(none)'} selling=${SELLING ? 'on' : 'off'}`);
 log(`advertised capacity: ${NODE_VCPUS} vCPU / ${NODE_RAM_GB} GB RAM / ${NODE_GFLOPS} GFLOPS (from this VM's actual size)`);
@@ -134,6 +135,11 @@ const supEnv = {
     ENCLAVE_REPO: flavorEnv.ENCLAVE_REPO || 'EnclaveHost/enclave',
   } : {}),
   ...(PAYOUT_ADDR ? { PAYOUT_ADDRESS: PAYOUT_ADDR } : {}),
+  // without the FLEET secret, relay-staged deployment secrets can't be
+  // fetched (the auth key derives from it) - report the capability honestly
+  // so the fleet-AND hides the feature instead of stranding secret-bearing
+  // deploys on this box
+  SECRETS_CAPABLE: FLEET_SECRET ? '1' : '0',
   SECRET,
   ADMIN_TOKEN,
   NODE_EXTRA_CA_CERTS: '/etc/ssl/certs/ca-certificates.crt',
