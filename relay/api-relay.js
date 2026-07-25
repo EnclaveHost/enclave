@@ -276,10 +276,16 @@ async function readRegistry() {
   catch (e) { if (!tunnelHub.count()) throw e; console.error(`[api-relay] discovery failed, serving ${tunnelHub.count()} tunnel enclave(s) only: ${e.message}`); }
   return [...base, ...tunnelHub.origins()];
 }
+// Human-facing label for an https endpoint: its first hostname label
+// ("https://kryptos.enclave.host/..." -> "kryptos"). Tunnel rows carry their
+// tunnel name instead (tunnel.js origins()); endpoints stay the routing keys.
+function endpointName(endpoint) {
+  try { return new URL(endpoint).hostname.split(".")[0] || null; } catch { return null; }
+}
 async function discoverRegistry() {
   if (STATIC_ENCLAVES.length)
     return Promise.all(STATIC_ENCLAVES.map(async (endpoint) =>
-      ({ endpoint, id: await endpointId(endpoint), repo: null, lastSeen: null })));
+      ({ endpoint, id: await endpointId(endpoint), name: endpointName(endpoint), repo: null, lastSeen: null })));
   const c = await chain();
   // resolve the registry from the on-chain address book each cycle, so a
   // registry redeploy reaches this box with one owner tx (no env edits)
@@ -314,7 +320,7 @@ async function discoverRegistry() {
     // dial its own localhost / cloud metadata. (Real enclaves are public domains.)
     .filter(({ endpoint }) => { let h; try { h = new URL(endpoint).hostname; } catch { return false; } const ok = !isBlockedHost(h); if (!ok) console.error(`[api-relay] skipping non-global registry endpoint: ${endpoint}`); return ok; })
     .map(async ({ e, endpoint }) =>
-      ({ endpoint, id: await endpointId(endpoint), repo: e.repo, lastSeen: Number(e.lastSeen) })));
+      ({ endpoint, id: await endpointId(endpoint), name: endpointName(endpoint), repo: e.repo, lastSeen: Number(e.lastSeen) })));
 }
 
 // --- EnclaveDeployments ledger (the source of truth for a wallet's work) --------

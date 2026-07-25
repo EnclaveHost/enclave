@@ -8,7 +8,8 @@ for the enclave.host operator (Steven).
 - A self-hosted **SEV-SNP** enclave (`metal0`) runs on this box under systemd
   (`systemctl --user status enclave-metal`), completely independent of Tinfoil.
 - It is **presented on production enclave.host**: `https://api.enclave.host/enclaves`
-  lists it as `tunnel://metal0` next to the Tinfoil GPU enclave, and
+  lists it as **`metal0`** (`name` field; its `endpoint` stays the internal
+  `tunnel://metal0` routing key) next to the Tinfoil GPU enclave, and
   `https://api.enclave.host/t/metal0/v1/health` answers over the reverse tunnel.
 - It is **independently verifiable**:
   `node metal/verify.mjs --url https://api.enclave.host/t/metal0 --vcpus 4`

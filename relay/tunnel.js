@@ -120,9 +120,11 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     isTunnel: (origin) => NAME_RE.test(String(origin || "")),
     nameOf: (origin) => (String(origin || "").match(NAME_RE) || [])[1] || null,
     // synthetic registry rows for the attached tunnels (bypass the dial-based
-    // discovery filters; auth already happened at attach time)
+    // discovery filters; auth already happened at attach time). `endpoint`
+    // keeps the tunnel:// scheme — it is the ROUTING KEY (isTunnel/proxyTo
+    // dispatch on it); `name` is the human-facing label display surfaces use.
     origins: () => [...tunnels.entries()].map(([name, t]) => ({
-      endpoint: `tunnel://${name}`, id: `tunnel:${name}`, repo: "EnclaveHost/enclave",
+      endpoint: `tunnel://${name}`, id: `tunnel:${name}`, name, repo: "EnclaveHost/enclave",
       lastSeen: Math.floor(t.lastSeen / 1000), tunnel: true, mode: t.mode, publicUrl: t.publicUrl,
       measurement: t.measurement || undefined,
     })),
