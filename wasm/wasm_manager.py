@@ -3362,6 +3362,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
         gpu_share = _share("gpuShare")
         if gpu_share > 0 and gpu_share < cpu_share - 1e-9:
             return self._json(422, {"error": "derived gpuShare must be at least cpuShare (too much RAM for that VRAM ask)"})
+        # An in-place restart / version switch must never DUPLICATE a tenant:
+        # the supervisor tears the old instance down before re-creating, but
+        # that teardown is best-effort over HTTP. If it was missed, the OLD
+        # process keeps its whole share pinned (a 27b GPU tenant holds
+        # ~30 GiB of weights+KV) while routing follows the new record - the
+        # replacement then fails context allocation against memory it cannot
+        # see (live 2026-07-25). The process owner dedups by deployment name
+        # as the backstop; before the capacity check, so the duplicate's own
+        # reservation cannot 429 its replacement.
+        name = str(b.get("name") or "").strip()
+        if name:
+            def _live(r):
+                if r.get("status") in ("starting", "running"):
+                    return True
+                p = r.get("_proc")
+                return p is not None and getattr(p, "poll", lambda: 0)() is None
+            with _lock:
+                dupes = [r["id"] for r in _apps.values() if r.get("name") == name and _live(r)]
+            for old in dupes:
+                print(f"[vms] {name}: reaping duplicate live tenant {old} before create", flush=True)
+                teardown(old)
         if _used_cpu_share() + cpu_share > 1.0 + 1e-6:
             return self._json(429, {"error": "insufficient capacity", "capacity": _capacity()})
         try:
@@ -3410,7 +3431,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         req_vols = b.get("volumes") or []                          # attached model volumes by name
         if not isinstance(req_vols, list):
             return self._json(400, {"error": "volumes must be a list of volume names"})
-        rec = launch(app_ref, b.get("name", ""), cpu_share, gpu_share, mem_mb, pspec, storage_mb, config, req_vols, egress, secrets)
+        rec = launch(app_ref, name, cpu_share, gpu_share, mem_mb, pspec, storage_mb, config, req_vols, egress, secrets)
         code = 201 if rec["status"] in ("starting", "running") else 500
         return self._json(code, _public(rec))
 
