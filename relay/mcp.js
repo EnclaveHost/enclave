@@ -962,6 +962,19 @@ const TOOLS = [
     },
   },
   {
+    name: "build_host_fund",
+    description: "Unsigned plain ETH transfer that GASES a self-hosted (metal) enclave's operator EOA — the in-config key that signs the box's register/heartbeat/claim transactions (metal/PROTOCOL.md; `enclave host init` prints the address). Not a payment to anyone: the ETH is consumed as Base network fees over months, and earnings never touch this key (they sweep to the box's payoutAddress). Once funded, the box registers itself and appears as serving.",
+    inputSchema: S({ address: { type: "string", description: "the operator EOA (0x + 40 hex; from `enclave host init` / metal/config.json)" },
+                     eth: { type: "number", description: "ETH amount (default 0.002 — covers a long time at Base fees)" } }, ["address"]),
+    handler: async ({ address, eth }) => {
+      if (!/^0x[0-9a-fA-F]{40}$/.test(String(address || ""))) throw new Error("address must be a 0x…40-hex EOA");
+      const wei = BigInt(Math.round(Number(eth ?? 0.002) * 1e18));
+      if (!(wei > 0n) || wei > 10n ** 18n) throw new Error("eth must be positive (and sanity-capped at 1 ETH — this is a gas tank)");
+      return { transactions: [tx(address, "0x", wei, `gas top-up: ${Number(eth ?? 0.002)} ETH -> operator ${address.slice(0, 10)}…`)],
+               note: "sign+send with the connected wallet; the box registers on its next attempt and then shows serving:true in /enclaves" };
+    },
+  },
+  {
     name: "build_stop",
     description: "Unsigned setActive(false) transaction: stops billing-eligible work on-chain (owner-only on-chain; the tx reverts for non-owners). The runner tears the instance down on its next ledger pass, or immediately via terminate_hosted. Remaining balance stays on the record for build_resume.",
     inputSchema: S({ id: P.id }, ["id"]),

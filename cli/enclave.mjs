@@ -1965,6 +1965,18 @@ encrypted volumes (rclone-crypt over S3; push data with scripts/enclave-encvol.s
                              key -> a "credsEnvelope" for the PUBLIC App Config; the app
                              then unlocks with one signature, nothing typed
 
+sell hosting (run an enclave on your own TEE hardware — metal/PROTOCOL.md)
+  host init [--name N] [--payout 0x…] [--cpus N --mem MiB]
+                             scaffold metal/config.json: mints the box's operator
+                             key INTO that file (gitignored; the printed address
+                             derives from it — nothing external to trust) and
+                             defaults payout to THIS CLI wallet
+  host fund [--eth 0.002] [--address 0x…]
+                             gas the operator from your CLI wallet, one signed
+                             transfer: it pays the box's register/heartbeat/claim
+                             transaction fees — it is not a payment to anyone
+  host status                gas left · listed/serving · accrued USDC earnings
+
 platform
   pricing | availability | gpu | account
 
@@ -1979,6 +1991,114 @@ session (enclave login); keys never leave this machine. Account sessions read
 account-provisioned/credit deployments (ls, whoami, account) but can't sign
 transactions - deploying and funding by credit stays on enclave.host for now.`;
 
+// ---- host: sell hosting on your own TEE hardware (metal/) ---------------------
+// Seller onboarding without the sharp edges: `init` mints the operator key
+// INTO the (gitignored) metal config and prints the address it derives —
+// nothing to trust, you can re-derive it from the file; `fund` gases that
+// operator FROM THE CLI WALLET in one signed transfer instead of a hand-typed
+// send to a pasted address; `status` reads back gas / serving / earnings.
+// The ETH is a GAS TANK for the box's register/heartbeat/claim transactions,
+// not a payment; earnings sweep to payoutAddress (default: this CLI wallet).
+async function cmdHost(rest) {
+  const sub = rest.shift();
+  const f = flags(rest, { val: ["--config", "--name", "--payout", "--eth", "--address", "--mode", "--cpus", "--mem"] });
+  const cfgPath = f.config || path.join("metal", "config.json");
+  const readCfg = () => { try { return JSON.parse(fs.readFileSync(cfgPath, "utf8")); } catch { return null; } };
+  const operatorOf = (cfg) => {
+    if (!cfg || !cfg.registryKey) return null;
+    const pk = cfg.registryKey.startsWith("0x") ? cfg.registryKey : "0x" + cfg.registryKey;
+    return privateKeyToAccount(pk).address;
+  };
+
+  if (sub === "init") {
+    let cfg = readCfg();
+    const fresh = !cfg;
+    if (fresh) {
+      if (!fs.existsSync(path.dirname(cfgPath)))
+        throw new Error(`${path.dirname(cfgPath)}/ not found. Run this from a checkout of the enclave repo `
+          + `(git clone https://github.com/EnclaveHost/enclave) or pass --config <path>`);
+      cfg = { mode: f.mode || "snp", name: f.name || "metal0",
+              cpus: parseInt(f.cpus || "8", 10), memMiB: parseInt(f.mem || "8192", 10),
+              relayUrl: "wss://api.enclave.host/v1/fleet-tunnel", tunnelToken: "" };
+    } else if (f.name) cfg.name = f.name;
+    if (!cfg.publicUrl) cfg.publicUrl = `https://api.enclave.host/t/${cfg.name || "metal0"}`;
+    const minted = !cfg.registryKey;
+    if (minted) cfg.registryKey = generatePrivateKey();
+    if (f.payout) cfg.payoutAddress = f.payout;
+    else if (!cfg.payoutAddress) {
+      const acct = loadKey({ required: false });
+      if (acct) cfg.payoutAddress = acct.address;      // the seller's own wallet — earnings come HERE
+    }
+    fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + "\n", { mode: 0o600 });
+    try { fs.chmodSync(cfgPath, 0o600); } catch {}
+    const op = operatorOf(cfg);
+    say(`${cfgPath} ${fresh ? "created" : "updated"}${minted ? " · operator key MINTED (it stays in this file; keep it out of git — metal/config.json is gitignored in the repo)" : ""}`);
+    kv([["operator", `${op}   (this box's on-chain identity; needs a little Base ETH for gas)`],
+        ["payout", cfg.payoutAddress ? `${cfg.payoutAddress}   (your USDC earnings sweep here)` : "(unset — set one before earning: enclave host init --payout 0x…)"],
+        ["endpoint", cfg.publicUrl]]);
+    say(`next:
+  enclave host fund --eth 0.002              gas the operator from this CLI wallet
+  node metal/build-image.mjs                 reproducible guest image
+  sudo bash metal/host-setup.sh              one-time /dev/sev perms
+  node metal/enclave-metal.mjs --config ${cfgPath}    (or metal/systemd/)
+the box hides itself until its registration confirms, then appears as serving.`);
+    return;
+  }
+
+  if (sub === "fund") {
+    const to = f.address || operatorOf(readCfg());
+    if (!to) throw new Error(`nothing to fund: pass --address 0x…, or run \`enclave host init\` first (looked in ${cfgPath})`);
+    if (!/^0x[0-9a-fA-F]{40}$/.test(to)) throw new Error(`operator address is not a 0x…40-hex EOA: ${to}`);
+    const ethAmt = f.eth || "0.002";
+    const value = BigInt(Math.round(Number(ethAmt) * 1e18));
+    if (!(value > 0n)) throw new Error("--eth must be a positive ETH amount");
+    const account = loadKey();
+    const bal = await pub().getBalance({ address: account.address });
+    if (bal < value) throw new Error(`your CLI wallet ${account.address} holds ${formatUnits(bal, 18)} ETH on Base — less than ${ethAmt}. Bridge/buy Base ETH first.`);
+    say(`gassing operator ${to} with ${ethAmt} ETH from ${account.address}`);
+    say(`(a gas tank for its register/heartbeat/claim transactions — not a payment; earnings never touch this key)`);
+    const hash = await wallet(account).sendTransaction({ to, value });
+    trace(`tx sent ${hash}, waiting for receipt`);
+    const rcpt = await pub().waitForTransactionReceipt({ hash });
+    if (rcpt.status !== "success") throw new Error(`transfer reverted: ${hash}`);
+    say(`✓ funded (tx ${hash})`);
+    kv([["operator balance", `${formatUnits(await pub().getBalance({ address: to }), 18)} ETH`]]);
+    say("the enclave registers itself on its next attempt and then shows as serving (enclave host status)");
+    return;
+  }
+
+  if (sub === "status") {
+    const cfg = readCfg();
+    const name = f.name || (cfg && cfg.name) || "metal0";
+    const op = f.address || operatorOf(cfg);
+    const rows = [["name", name], ["operator", op || "(no config/key found — pass --address or --config)"]];
+    if (op) rows.push(["gas", `${formatUnits(await pub().getBalance({ address: op }), 18)} ETH`]);
+    try {
+      const list = await api("GET", "/enclaves");
+      const row = (list.enclaves || []).find((e) => (e.name || "") === name);
+      rows.push(["listed", row ? "yes" : "no (tunnel down, or not attached to this relay)"]);
+      if (row) rows.push(["serving", row.serving === true ? "yes (registered + claiming)"
+        : "no — " + (row.availability && row.availability.claimEnabled === false
+            ? "not registered yet (needs selling config + a gassed operator)" : "not claiming")]);
+    } catch (e) { rows.push(["listed", `unknown (${e.message})`]); }
+    if (op) {
+      try {
+        const { rev } = await depAbi();
+        if (rev >= 7) {
+          const earned = await read(DEFAULTS.DEPLOYMENTS_ADDRESS,
+            [{ type: "function", name: "earned6", stateMutability: "view",
+               inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] }], "earned6", [op]);
+          rows.push(["earned", `$${(Number(earned) / 1e6).toFixed(2)} accrued on the ledger (auto-swept to payoutAddress)`]);
+        } else rows.push(["earned", "n/a — the live ledger predates runner payout (schema < 7)"]);
+      } catch {}
+    }
+    kv(rows);
+    return;
+  }
+
+  throw new Error("usage: enclave host init [--name N] [--payout 0x…] | host fund [--eth 0.002] [--address 0x…] | host status");
+}
+
 const COMMANDS = {
   key: cmdKey, login: cmdLogin, logout: cmdLogout,
   whoami: cmdWhoami, deploy: cmdDeploy, ls: cmdLs, list: cmdLs,
@@ -1989,7 +2109,7 @@ const COMMANDS = {
   secrets: cmdSecrets, config: cmdConfig,
   publish: cmdPublish, apps: cmdApps,
   pricing: cmdPricing, availability: cmdAvailability, gpu: cmdGpu, account: cmdAccount,
-  encvol: cmdEncvol,
+  encvol: cmdEncvol, host: cmdHost,
 };
 
 // Resolve the platform's contract addresses from the on-chain address book
