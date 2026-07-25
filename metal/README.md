@@ -13,6 +13,11 @@ abstraction, which serves both), and NVIDIA confidential computing by GPU
 passthrough into the CVM (the GPU flavor's worker/MPS containers ride along
 unchanged; CC attestation still comes from NVML inside the guest).
 
+**See also:** [PROTOCOL.md](PROTOCOL.md) — the permissionless protocol for
+anyone to sell hosting on enclave.host anonymously (attestation-gated attach,
+non-custodial on-chain payout, keyless relay). [HANDOFF.md](HANDOFF.md) — what
+is live and the operator-gated production steps.
+
 ```
 host (untrusted)                       guest CVM (trusted, measured)
 ┌──────────────────────────┐   ┌───────────────────────────────────────┐
