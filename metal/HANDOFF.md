@@ -66,6 +66,9 @@ activation, all of it yours:
   (`setClaimBond(bond6, exitDelaySec)`; a bond ≥ one lease quantum's runner
   share makes claim-without-serving unprofitable) and the per-IP attach rate
   limit. Slashing is an owner action with public evidence in the event log.
+  CAREFUL: the bond gates EVERY claim, including the hosted fleet's own —
+  post a bond from each first-party operator EOA (`postBond`) BEFORE flipping
+  it on, or the fleet stops claiming new work (running leases keep renewing).
 - **Seller side (documented in `metal/config.example.json`):** set
   `registryKey` (fresh EOA + a few dollars of Base ETH for gas),
   `payoutAddress`, and `publicUrl=https://api.enclave.host/t/<name>`; the
