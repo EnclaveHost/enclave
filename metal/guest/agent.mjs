@@ -54,6 +54,26 @@ function tsmReport(reportData64) {
   } finally { try { fs.rmdirSync(dir); } catch {} }
 }
 
+// Build a RAD whose report_data binds an arbitrary 32-byte prefix (the default
+// is the transport-key fingerprint; the fleet tunnel's attestation attach asks
+// for sha256(transportKey || challenge) so the quote is FRESH per attach).
+function radWithReportData(first32) {
+  const reportData = Buffer.alloc(64);
+  first32.copy(reportData, 0);
+  const { outblob, auxblob, provider } = tsmReport(reportData);
+  const fmt = (provider || '').includes('tdx') || MODE === 'tdx' ? 'tdx-guest-metal-v1' : 'sev-snp-guest-metal-v1';
+  const doc = { format: fmt, body: outblob.toString('base64'), transportKey: spkiDer.toString('base64'), transportKeyFp: keyFp.toString('hex'), name: NAME };
+  if (auxblob) doc.certs = auxblob.toString('base64');
+  try { doc.manifest = JSON.parse(fs.readFileSync('/opt/metal/manifest.json', 'utf8')); } catch {}
+  return doc;
+}
+// Quote bound to a relay challenge: report_data = sha256(transportKey SPKI || nonce).
+function radForChallenge(nonceB64) {
+  const nonce = Buffer.from(nonceB64, 'base64');
+  const bind = createHash('sha256').update(Buffer.concat([spkiDer, nonce])).digest();
+  return radWithReportData(bind);
+}
+
 let radCache = null, radAt = 0;
 function buildRad() {
   if (radCache && Date.now() - radAt < 10000) return radCache;
@@ -152,6 +172,7 @@ function connectTunnel() {
     // when set (egress-helper mode), carries the real relay hostname for the Host
     // header even though the socket target is the helper.
     const headers = { 'x-metal-name': NAME, 'x-metal-token': TOKEN };
+    if (!TOKEN) headers['x-metal-attest'] = '1';   // no token → prove identity by SEV-SNP quote (permissionless)
     if (RELAY_HOST) headers.host = RELAY_HOST;
     ws = new WebSocket(RELAY_URL, { headers, family: 4 });
     const send = (o) => { try { ws.send(JSON.stringify(o)); } catch {} };
@@ -164,6 +185,10 @@ function connectTunnel() {
       let f; try { f = JSON.parse(data); } catch { return; }
       if (f.t === 'req') forward(f, send);
       else if (f.t === 'ping') send({ t: 'pong' });
+      else if (f.t === 'challenge') {         // permissionless attach: answer with a fresh quote over the nonce
+        try { send({ t: 'attest', rad: radForChallenge(f.nonce) }); log('sent attestation for tunnel challenge'); }
+        catch (e) { log(`attest failed: ${e.message}`); }
+      } else if (f.t === 'attest-result') log(`attest ${f.ok ? 'ACCEPTED' + (f.measurement ? ' meas=' + String(f.measurement).slice(0, 16) + '…' : '') : 'REJECTED: ' + f.reason}`);
     });
     ws.on('unexpected-response', (_req, res) => { log(`tunnel handshake rejected: HTTP ${res.statusCode}`); try { ws.terminate(); } catch {} });
     ws.on('close', () => { if (alive) log('tunnel closed'); alive = false; setTimeout(dial, 2000); });
