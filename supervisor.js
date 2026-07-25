@@ -1482,18 +1482,33 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort
   return { internalPort: 0, smGranted: r.body.sm_granted };
 }
 
+// Tear down the tenant's instance. Returns true when the instance is
+// verifiably gone (deleted now, or no longer known); false when the teardown
+// could not be confirmed. A caller about to re-provision onto the same
+// capacity MUST treat false as "the old process may still hold its VRAM/RAM"
+// and defer - an unconfirmed stop followed by a fresh launch leaves TWO
+// processes on one slice (live 2026-07-25: an upgrade's leaked 27b tenant
+// kept ~30 GiB of weights+KV pinned and the replacement failed context
+// allocation against memory it could not see).
 async function stopContainer(rec) {
   if (PROVISION_BACKEND === "vm") {
-    if (rec._vmId)
-      await vmReq("DELETE", `/vms/${encodeURIComponent(rec._vmId)}`)
-        .catch((e) => console.warn(`[stop-vm] ${rec.id}: ${e.message}`));
-    return;
+    if (!rec._vmId) return true;               // nothing was ever provisioned
+    try {
+      const r = await vmReq("DELETE", `/vms/${encodeURIComponent(rec._vmId)}`);
+      if (r.status === 200 || r.status === 404) return true;
+      console.warn(`[stop-vm] ${rec.id}: HTTP ${r.status}`);
+      return false;
+    } catch (e) { console.warn(`[stop-vm] ${rec.id}: ${e.message}`); return false; }
   }
   // Tear down the tenant's MPS-capped child. The manager terminates the process,
   // which returns its context/VRAM to the driver and releases the share. NOTE:
   // freed VRAM is not zeroed here - residual-data scrubbing is Layer 4.
-  await mgrReq("DELETE", `/tenants/${encodeURIComponent(rec.id)}`)
-    .catch((e) => console.warn(`[stop] ${rec.id}: ${e.message}`));
+  try {
+    const r = await mgrReq("DELETE", `/tenants/${encodeURIComponent(rec.id)}`);
+    if (r.status === 200 || r.status === 404) return true;
+    console.warn(`[stop] ${rec.id}: HTTP ${r.status}`);
+    return false;
+  } catch (e) { console.warn(`[stop] ${rec.id}: ${e.message}`); return false; }
 }
 // What app ran, as an attestation-visible identity. For ipfs://<cid> the CID IS a
 // content hash the (attested) wasm-manager verified the bytes against before running,
@@ -4477,7 +4492,12 @@ async function switchTenantVersion(rec, d) {
   console.log(`[claim] ${rec.id} owner changed ${versionChanged && resize ? "version + shares" : resize ? "shares" : "version"}: `
             + `${rec.image && rec.image.reference} -> ${to} (${g.app.slug}:${g.app.version})`
             + `${resize ? ` gpuMilli ${rec._shares?.gpuMilli ?? "?"} -> ${Number(d.gpuMilli)}, cpuMilli ${rec._shares?.cpuMilli ?? "?"} -> ${Number(d.cpuMilli)}` : ""}; restarting in place`);
-  try { await stopContainer(rec); } catch {}
+  // an unconfirmed stop must DEFER the switch: provisioning over a possibly
+  // still-live instance doubles up on the slice (the old process keeps its
+  // VRAM/RAM while routing follows the new record) - the old version keeps
+  // serving and the next audit pass retries
+  if (!(await stopContainer(rec)))
+    return refuse("the old instance could not be verifiably stopped; it keeps serving until teardown succeeds", true);
   if (resize) {
     // swap the held slice for one at the row's new size. Synchronous release +
     // realloc (no await between): the freed capacity of the OLD slice counts
