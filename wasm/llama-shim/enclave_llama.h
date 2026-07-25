@@ -101,6 +101,21 @@ int32_t ell_decode_batch(void *ctx, void *model, int32_t n_items,
                          float *logits_flat);
 void ell_seq_remove(void *ctx, int32_t seq_id);
 
+/* ---- speculative decoding primitives --------------------------------------
+ *
+ * ell_decode_seq_full: decode n tokens of ONE sequence and write logits for
+ * EVERY position (n rows of n_vocab, in feed order) - the verify step: the
+ * target model consumes the draft's proposed tokens in one pass and hands
+ * back the distribution at each position. Same position/seq/rc contract as
+ * one ell_decode_batch item.
+ *
+ * ell_seq_rewind: drop a sequence's tokens from position n_keep onward (the
+ * rejected tail of a speculative round); the next decode continues at
+ * n_keep. Callers serialize against decodes, as with every context call. */
+int32_t ell_decode_seq_full(void *ctx, void *model, int32_t seq_id, int32_t pos0,
+                            const int32_t *tokens, int32_t n, float *logits_out);
+void ell_seq_rewind(void *ctx, int32_t seq_id, int32_t n_keep);
+
 #ifdef __cplusplus
 }
 #endif
