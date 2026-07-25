@@ -136,6 +136,21 @@ async function readDeployments(source) {
       }));
     }
   }
+  // Runner-rate snapshots are another side mapping (rev >= 7), same story as
+  // fees: invisible to getPage, so read earnOf(id) per row and ride the rate
+  // along as `earn` (non-schema key). Only the RATE migrates - escrow6 is real
+  // USDC held by the source (re-back the target with fundEscrow) and
+  // creditedUntil dies with the source's leases. Skipping this on a
+  // rate-bearing record would silently stop paying its runner on the new
+  // ledger.
+  if (rev >= 7) {
+    for (const page of chunked(rows, 10)) {
+      await Promise.all(page.map(async (r) => {
+        const e = await call(source, encCallX(sel.earnOf, [{ t: "bytes32", v: r.id }]));
+        r.earn = { rate6: hexBig("0x" + (word(e, 0) || "0")).toString() };
+      }));
+    }
+  }
   return rows;
 }
 const depKey = (d) => d.id;
@@ -232,7 +247,9 @@ export const MIG_KINDS = {
     read: readDeployments,
     counts: (d) => {
       const fees = d.filter((x) => x.fee && x.fee.rate6 !== "0").length;
-      return `${d.length} deployment${d.length === 1 ? "" : "s"}` + (fees ? ` (${fees} fee-bearing)` : "");
+      const earns = d.filter((x) => x.earn && x.earn.rate6 !== "0").length;
+      return `${d.length} deployment${d.length === 1 ? "" : "s"}`
+        + (fees ? ` (${fees} fee-bearing)` : "") + (earns ? ` (${earns} runner-rated)` : "");
     },
     /* delta plan: skip anything the target already holds, so an interrupted
        run resumes by re-clicking Migrate, and a second pass right before the
@@ -261,6 +278,18 @@ export const MIG_KINDS = {
           { t: "uint[]", v: c.map((d) => d.fee.rate6) },
         ]),
       })));
+      // runner-rate snapshots ride the same way (importEarn requires the id to
+      // exist, in-order packing preserves that), delta'd like the fees.
+      const haveEarn = new Set(after.filter((d) => d.earn && d.earn.rate6 !== "0").map((d) => d.id.toLowerCase()));
+      const earnTodo = data.filter((d) => d.earn && d.earn.rate6 !== "0" && !haveEarn.has(d.id.toLowerCase()));
+      txs.push(...chunked(earnTodo, CHUNK.fees).map((c, i) => ({
+        label: `importEarn · batch ${i + 1} (${c.length})`,
+        gas: 100_000 + 45_000 * c.length,
+        dataHex: encCallX(sel.importEarn, [
+          { t: "bytes32[]", v: c.map((d) => d.id) },
+          { t: "uint[]", v: c.map((d) => d.earn.rate6) },
+        ]),
+      })));
       return packPlan("EnclaveDeployments", txs);
     },
     async verify(data, target) {
@@ -268,12 +297,14 @@ export const MIG_KINDS = {
       const byId = Object.fromEntries(after.map((d) => [d.id.toLowerCase(), d]));
       const feeCmp = (a, b) => (a.fee?.rate6 || "0") === (b.fee?.rate6 || "0")
         && ((a.fee?.rate6 || "0") === "0" || a.fee.recipient.toLowerCase() === b.fee.recipient.toLowerCase());
+      const earnCmp = (a, b) => (a.earn?.rate6 || "0") === (b.earn?.rate6 || "0");
       const bad = data.filter((d) => {
         const t = byId[d.id.toLowerCase()];
-        return !t || !depCmp(d, t) || !feeCmp(d, t);
+        return !t || !depCmp(d, t) || !feeCmp(d, t) || !earnCmp(d, t);
       }).map((d) => {
         const t = byId[d.id.toLowerCase()];
-        return d.id.slice(0, 10) + "… (" + (t && depCmp(d, t) ? "fee · " : "") + d.appRef + ")";
+        const why = t && depCmp(d, t) ? (feeCmp(d, t) ? "runner rate · " : "fee · ") : "";
+        return d.id.slice(0, 10) + "… (" + why + d.appRef + ")";
       });
       return { total: data.length, ok: data.length - bad.length, bad };
     },

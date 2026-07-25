@@ -65,17 +65,20 @@ via transaction instead of via one enclave's API).
 ## Contract summary (`EnclaveDeployments.sol`)
 
 - **`create(appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, configCid, feeRecipient, feePerSec6)`**
-  (schema rev 6 — rev-1 contracts carried an extra `sshPubKey` string here and in
+  (schema rev 7 — rev-1 contracts carried an extra `sshPubKey` string here and in
   the `Deployment` struct; consumers sniff `deploymentsSchema()` to pick the shape.
   Rev 3 keeps the rev-2 shapes byte-for-byte and only marks the `setAppRef`
   surface; rev 4 again keeps the struct byte-for-byte (the fee snapshot lives in
   a side mapping behind `feeOf(id)`) and adds the two fee args; rev 5 keeps every
   signature and only widens the `configCid` length bound from CID-sized (100
   bytes) to envelope-sized (4096); rev 6 again keeps the struct byte-for-byte
-  and only marks the `setShares` surface (owner share resizes) — so struct
-  decodes gate on `>= 2`, version changes on `>= 3`, publisher fees on `>= 4`,
-  any options envelope over 100 bytes on `>= 5`: a rev-4 `create` reverts
-  `"configCid length"` on one, and share resizes on `>= 6`)
+  and only marks the `setShares` surface (owner share resizes); rev 7 once more
+  keeps the struct byte-for-byte (runner-payout state lives in side mappings
+  behind `earnOf(id)`/`earned6(op)`/`bondOf(op)`) and marks the RUNNER-PAYOUT
+  surface (below) — so struct decodes gate on `>= 2`, version changes on `>= 3`,
+  publisher fees on `>= 4`, any options envelope over 100 bytes on `>= 5`: a
+  rev-4 `create` reverts `"configCid length"` on one, share resizes on `>= 6`,
+  and runner payout on `>= 7`)
   — permissionless; inert until funded. `appRef` is `catalog://<appId>/<versionIndex>`,
   the on-chain record of the catalog VERSION to run (2026-07-09; CID refs are refused
   by runners — a CID names bytes, not a version). The record supplies the wasm,
@@ -124,17 +127,21 @@ via transaction instead of via one enclave's API).
   (default 120s), out of their leftover CPU/RAM pool — e.g. a tenant taking a
   whole card + 10% of the node leaves 90% of that node's CPU for CPU-only work.**
 - **`fundWithAuthorization(id, ...)` / `fund(id, value)` / `fundEth(id)`** —
-  non-custodial, exactly
-  EnclavePay's pattern (EIP-3009 nonce bound to the first 16 bytes of `id`; funds
-  forward to `payout` in the same tx). The difference: the credit lands in
-  on-chain `balance6` instead of an off-chain clock. ETH is priced by the
-  Chainlink ETH/USD feed *in the contract* (staleness-checked), because the
-  balance is chain state so the conversion must be too. On a fee-bearing
-  deployment every funding is SPLIT in that same transaction: the publisher's
-  pro-rata cut (`value × feePerSec6 / rate`, floor — the platform absorbs the
-  dust) goes straight to the snapshot's `feeRecipient`, the rest to `payout`.
-  Still nothing custodied, and `balance6` credits the full amount — the split
-  is who receives the money, not what the deployer bought.
+  EnclavePay's pattern (EIP-3009 nonce bound to the first 16 bytes of `id`;
+  the platform's and publisher's splits forward in the same tx). The
+  difference: the credit lands in on-chain `balance6` instead of an off-chain
+  clock. ETH is priced by the Chainlink ETH/USD feed *in the contract*
+  (staleness-checked), because the balance is chain state so the conversion
+  must be too. Every USDC funding is SPLIT in that same transaction three
+  ways: the publisher's pro-rata cut (`value × feePerSec6 / rate`, floor —
+  the platform absorbs the dust) straight to the snapshot's `feeRecipient`;
+  the RUNNER's pro-rata share (`value × runnerRate6 / rate`, **ceil**, rev 7)
+  RETAINED in the contract as that deployment's escrow — the pot future lease
+  credits are paid from; the platform remainder to `payout`. `balance6`
+  credits the full amount — the split is who receives the money, not what
+  the deployer bought. (`fundEth` still forwards everything but the publisher
+  cut: the escrow pays runners in USDC and the contract can't convert —
+  `fundEscrow` re-backs an ETH-funded record if needed.)
 - **`claim(id, enclaveId)`** — gated to the operator of an **active EnclaveRegistry
   entry** (structural, like catalog lineage ownership). Requires no live lease
   and a balance that buys ≥ 1 second. Burns `min(leaseSec, balance/rate)`.
@@ -190,9 +197,37 @@ via transaction instead of via one enclave's API).
 - **`release(id)`** — graceful hand-back; refunds the unused lease tail to
   `balance6`. Called on clean shutdown, after the owner `setActive(false)`,
   or when provisioning fails right after a claim.
-- **Reads**: `getPage` (enclaves page + filter client-side, like registry
-  discovery), `claimable(id)`, `secondsFundable(id)`, `get(id)` (clients
-  resolve `id -> runner -> endpoint`).
+- **Runner payout (rev 7; `deploymentsSchema() >= 7` is the feature probe)** —
+  what makes permissionless selling real (metal/PROTOCOL.md Phase C): the
+  operator EOA that holds a lease is PAID for it by the chain, not by an
+  invoice to the platform. Each new deployment snapshots `runnerRate6` =
+  `runnerBps` (owner-set, default 8000 = 80%) of the PLATFORM component of its
+  rate (the publisher fee is excluded); resizes re-snapshot at the current bps,
+  exactly as they re-price at the current list prices. USDC fundings retain
+  that share in-contract as per-deployment **escrow** (see the funding bullet),
+  and a **credit meter** moves escrow to the current runner's withdrawable
+  balance for every second it holds the lease: `claim` settles the PREVIOUS
+  runner's expired quantum, `renew`/`release`/`setShares` settle the current
+  one — the meter rides the transactions runners already send, and the
+  permissionless, idempotent **`settle(id)`** collects the one case they miss
+  (a lease that expired and was never re-claimed or released). A released
+  tail refunds to the user and earns nothing: a claim-and-bail runner is paid
+  ~zero. Credits are capped by the deployment's escrow, so the meter can
+  never promise money the contract doesn't hold (imported balances and
+  ETH-funded time have no escrow until **`fundEscrow(id, amount)`** re-backs
+  them — credits just read zero, never revert). **`withdrawEarnings(to)`**
+  pays the caller-EOA's accrued total (across every deployment it ever
+  served) to any address; the supervisor auto-sweeps to `PAYOUT_ADDRESS`
+  once `EARNINGS_MIN_USDC` (default $5) accrues. `earnOf(id)` /
+  `earned6(operator)` are the reads. An optional **claim bond** (gate 4 of
+  the metal protocol; `setClaimBond`, default 0 = off) requires operators to
+  lock USDC before claiming — timelocked exit (`postBond` /
+  `requestBondExit` / `withdrawBond`), owner-slashable with public evidence
+  (`slashBond`) — so claim-without-serving sybils have a price. Migration:
+  `importEarn` carries the rate snapshots (the admin console reads them via
+  `earnOf` like it reads `feeOf`); escrow is real USDC held by the source
+  contract and does NOT migrate — re-back with `fundEscrow` — and earned
+  balances stay withdrawable on the source forever.
 
 ### Fairness bounds (the price of decentralized failover)
 
@@ -447,9 +482,10 @@ the new enclave. This is the same no-trusted-gateway shape as discovery today.
   survive failover, but the /64 prefix is per relay box; a takeover by an
   enclave behind a different relay changes the address. Client re-resolution
   covers it, long-lived UDP flows don't.
-- **No on-chain refunds to the payer.** Funding is forwarded immediately — to
-  `payout`, less the publisher's fee cut on a paid app (non-custodial by
-  design); `balance6` is accounting. Refunding a stopped deployment's
+- **No on-chain refunds to the payer.** The platform's and publisher's splits
+  forward immediately (non-custodial by design; the runner's rev-7 share stays
+  as in-contract escrow, but that pot belongs to future lease credits, not the
+  payer); `balance6` is accounting. Refunding a stopped deployment's
   remainder stays a payout-wallet action, exactly as today (and a publisher's
   already-forwarded cut is theirs — the split follows the money, not the burn).
 - **Consumed-time attestation** (future note in the .sol): runners posting

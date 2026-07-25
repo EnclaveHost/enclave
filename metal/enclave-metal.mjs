@@ -45,7 +45,14 @@ const cmdline = [
   'console=ttyS0', 'root=/dev/ram0', 'rootfstype=ramfs', 'quiet',
   `metal.mode=${MODE}`,
 ].join(' ');
-const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', relayUrl: cfg.relayUrl || '', tunnelToken: cfg.tunnelToken || '' };
+const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', relayUrl: cfg.relayUrl || '', tunnelToken: cfg.tunnelToken || '',
+  // seller earning (metal/PROTOCOL.md Phase C): the operator EOA key that
+  // registers/claims/earns on-chain (needs a little Base ETH for gas), and the
+  // wallet the supervisor auto-sweeps accrued USDC earnings to. Both optional:
+  // without registryKey the enclave serves via the tunnel but neither claims
+  // nor earns. Delivered via fw_cfg like the tunnel token — out-of-band, never
+  // in the launch measurement or the quote.
+  registryKey: cfg.registryKey || '', payoutAddress: cfg.payoutAddress || '' };
 
 // Optional egress helper. QEMU user-net (slirp) NATs outbound for a normal host,
 // but some sandboxed/dev hosts block slirp's EXTERNAL sockets while still routing

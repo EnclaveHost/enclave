@@ -8,6 +8,9 @@
   "relayUrl": "wss://api.enclave.host/v1/fleet-tunnel",
   "tunnelToken": "REPLACE_WITH_A_SHARED_TUNNEL_TOKEN",
 
+  "_registryKey_optional": "0xREPLACE_WITH_A_FUNDED_OPERATOR_EOA_PRIVATE_KEY",
+  "_payoutAddress_optional": "0xREPLACE_WITH_YOUR_PAYOUT_WALLET",
+
   "hostfwd": [
     { "host": 18080, "guest": 8080 }
   ],
@@ -19,5 +22,7 @@
 
   "_egressHelper_optional": { "port": 9443 },
 
-  "_comment": "mode: snp | tdx | dev. dev = plain KVM (no attestation) for bring-up. hostfwd exposes guest ports on host loopback for local testing; production reachability is the fleet tunnel (relayUrl), so hostfwd can be empty. AUTH: set tunnelToken to attach via the relay's committed token allowlist (first-party boxes); OR leave tunnelToken empty to attach PERMISSIONLESSLY by proving your SEV-SNP measurement is on the relay's METAL_ALLOWED_MEASUREMENTS allowlist (metal/PROTOCOL.md). egressHelper (rename to \"egressHelper\") is only needed on sandboxed hosts whose user-net can't NAT externally; a normal seller box dials the relay directly."
+  "_comment": "mode: snp | tdx | dev. dev = plain KVM (no attestation) for bring-up. hostfwd exposes guest ports on host loopback for local testing; production reachability is the fleet tunnel (relayUrl), so hostfwd can be empty. AUTH: set tunnelToken to attach via the relay's committed token allowlist (first-party boxes); OR leave tunnelToken empty to attach PERMISSIONLESSLY by proving your SEV-SNP measurement is on the relay's METAL_ALLOWED_MEASUREMENTS allowlist (metal/PROTOCOL.md). egressHelper (rename to \"egressHelper\") is only needed on sandboxed hosts whose user-net can't NAT externally; a normal seller box dials the relay directly.",
+
+  "_comment_earning": "EARNING (Phase C, metal/PROTOCOL.md): rename registryKey/payoutAddress (drop the _..._optional wrapper) to sell hosting. registryKey = a fresh EOA private key funded with a few dollars of Base ETH for gas; the guest supervisor uses it to register this enclave, claim funded deployments, and collect the runner share the EnclaveDeployments ledger (schema rev 7+) escrows for whoever holds each lease. payoutAddress = YOUR wallet; accrued USDC earnings are auto-withdrawn to it once they clear EARNINGS_MIN_USDC (default $5). Set publicUrl to the relay-routed URL (https://api.enclave.host/t/<name>) so the registry entry is dialable through the tunnel. Both keys ride fw_cfg like tunnelToken: out-of-band, never part of the measurement."
 }

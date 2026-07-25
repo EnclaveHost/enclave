@@ -42,16 +42,24 @@ const fw = (() => {
 })();
 const MODE         = fw.mode || cmdMode || 'snp';      // snp | tdx | dev
 const NAME         = fw.name || 'metal0';
-const PUBLIC_URL   = fw.publicUrl || '';               // e.g. https://metal0.enclave.host
+const PUBLIC_URL   = fw.publicUrl || '';               // e.g. https://api.enclave.host/t/metal0
 const RELAY_URL    = fw.relayUrl || '';                // wss://api.enclave.host/v1/fleet-tunnel
 const TUNNEL_TOKEN = fw.tunnelToken || '';
+// Seller earning (metal/PROTOCOL.md Phase C): with a funded operator EOA key
+// and a public (relay-routed) URL, the supervisor registers on EnclaveRegistry,
+// claims funded EnclaveDeployments work, and is paid the runner share by the
+// rev-7 ledger — auto-swept to payoutAddress. Without a key the enclave still
+// serves over the tunnel; it just neither claims nor earns.
+const REGISTRY_KEY = fw.registryKey || '';
+const PAYOUT_ADDR  = fw.payoutAddress || '';
+const SELLING      = !!(REGISTRY_KEY && PUBLIC_URL);
 
 const flavorEnv = readJson('/opt/metal/flavor-env.json', {});   // baked, non-secret
 
 // --- per-boot secrets (minted in-CVM, never leave it) ------------------------
 const SECRET       = randomBytes(32).toString('hex');
 const ADMIN_TOKEN  = randomBytes(32).toString('hex');
-log(`mode=${MODE} name=${NAME} public=${PUBLIC_URL || '(none)'} relay=${RELAY_URL ? 'set' : '(none)'}`);
+log(`mode=${MODE} name=${NAME} public=${PUBLIC_URL || '(none)'} relay=${RELAY_URL ? 'set' : '(none)'} selling=${SELLING ? 'on' : 'off'}`);
 log(`advertised capacity: ${NODE_VCPUS} vCPU / ${NODE_RAM_GB} GB RAM / ${NODE_GFLOPS} GFLOPS (from this VM's actual size)`);
 
 // --- child management --------------------------------------------------------
@@ -114,10 +122,18 @@ const supEnv = {
   ATTESTATION_URL: 'http://127.0.0.1:8443/.well-known/enclave-attestation',
   RAD_CACHE_MS: '15000',
   PUBLIC_URL,
-  // self-hosted: reachability + claims are handled by the fleet tunnel, not the
-  // on-chain registry, so keep both off until the operator funds an EOA.
-  REGISTRY_ENABLED: '0',
-  CLAIM_ENABLED: '0',
+  // Selling off (no registryKey): the enclave serves over the tunnel but never
+  // advertises on the registry or claims paid work — the safe dev default.
+  // Selling on: register + claim + earn with the config-supplied EOA; the
+  // rev-7 ledger pays its runner share to that EOA and the supervisor's
+  // payout loop sweeps it to PAYOUT_ADDRESS (the seller's own wallet).
+  REGISTRY_ENABLED: SELLING ? '1' : '0',
+  CLAIM_ENABLED: SELLING ? '1' : '0',
+  ...(SELLING ? {
+    REGISTRY_PRIVATE_KEY: REGISTRY_KEY,
+    ENCLAVE_REPO: flavorEnv.ENCLAVE_REPO || 'EnclaveHost/enclave',
+  } : {}),
+  ...(PAYOUT_ADDR ? { PAYOUT_ADDRESS: PAYOUT_ADDR } : {}),
   SECRET,
   ADMIN_TOKEN,
   NODE_EXTRA_CA_CERTS: '/etc/ssl/certs/ca-certificates.crt',

@@ -15,8 +15,8 @@ unchanged; CC attestation still comes from NVML inside the guest).
 
 **See also:** [PROTOCOL.md](PROTOCOL.md) — the permissionless protocol for
 anyone to sell hosting on enclave.host anonymously (attestation-gated attach,
-non-custodial on-chain payout, keyless relay). [HANDOFF.md](HANDOFF.md) — what
-is live and the operator-gated production steps.
+chain-escrowed runner payout to the seller's own wallet, keyless relay).
+[HANDOFF.md](HANDOFF.md) — what is live and the operator-gated production steps.
 
 ```
 host (untrusted)                       guest CVM (trusted, measured)
@@ -102,8 +102,12 @@ the hosted fleet.
 - fleet deployment-secrets fetch (`SECRET`-HMAC with the relay) — off
 - in-enclave ACME DNS-01 push (`SECRET`-HMAC with dns-relay) — off; TLS-ALPN-01 via the tunnel replaces it
 - dedicated-IP egress/ingress (`EGRESS_RELAY_TOKEN`) — off
-- on-chain registry + claim loop — off until the metal operator EOA is funded
-  (`REGISTRY_PRIVATE_KEY` is minted locally; it needs a few dollars of Base ETH)
+- on-chain registry + claim loop + earning — off until the seller sets
+  `registryKey` (a funded operator EOA; a few dollars of Base ETH for gas) and
+  `payoutAddress` in `metal/config.json`. With them set, the guest supervisor
+  registers, claims funded deployments, and the rev-7 `EnclaveDeployments`
+  ledger pays the runner share from escrow — auto-swept to `payoutAddress`
+  (see PROTOCOL.md, "How payout works")
 - `SECRET`/`ADMIN_TOKEN` are minted **in-guest per boot** — the host operator
   cannot read them (stronger than vault injection)
 

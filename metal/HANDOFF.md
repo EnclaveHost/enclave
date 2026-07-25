@@ -36,25 +36,40 @@ systemctl --user disable --now enclave-metal    # stop the user one first
 ```
 
 ### 3. Turn on the permissionless seller protocol (Phase C) — a decision
-Today anyone can *attach* by attestation, but earning is not wired. To let
-anonymous sellers actually earn:
+The earning machinery is now BUILT end to end; what remains is operational
+activation, all of it yours:
 
+- **Redeploy `EnclaveDeployments` (schema rev 7) + migrate.** The rev-7
+  contract pays a metered runner share — `runnerBps` (default **8000** = 80%
+  of the platform component, publisher fee excluded; change it pre-deploy or
+  via `setRunnerBps`) — from per-deployment USDC escrow to whichever operator
+  EOA holds each lease, with `withdrawEarnings` payout and an optional
+  slashable claim bond (`setClaimBond`, off by default). Deploy + migrate from
+  the admin console exactly like the rev-6 cutover (the migration now also
+  carries `importEarn` rate snapshots; note migrated records have NO escrow
+  until re-backed with `fundEscrow`, so they pay runners nothing until then —
+  new deployments escrow from their first funding). NOTE: rev 7 compiles
+  **viaIR** (it outgrew legacy codegen's EIP-170 headroom); both compile paths
+  already match.
+- **Decide the hosted fleet's own payout.** Rev 7 diverts the runner share of
+  NEW deployments' fundings into escrow, and the fleet's enclaves earn it as
+  they serve. Set `PAYOUT_ADDRESS=<the platform cold wallet>` (plus optional
+  `EARNINGS_MIN_USDC`, default 5) in the fleet configs so each enclave
+  auto-sweeps its earnings home — without it, earnings simply accrue on the
+  contract under each enclave's operator EOA, withdrawable any time.
 - **Curate the measurement allowlist.** Establish a Metal **release** (tag +
   reproducible build) and publish its launch measurements per vcpu count. Then on
   the relay box set `METAL_ALLOWED_MEASUREMENTS=<hex,hex,…>` (and keep
   `METAL_REQUIRE_VCEK=1`). Until then, attach stays token-only. The allowlist is
   auditable: anyone can rebuild the release and reproduce each measurement.
-- **On-chain earning — needs a contract change first.** `EnclaveDeployments`
-  currently forwards ALL funding to the single platform `payout` cold wallet;
-  `claim`/`renew`/`release` move only accounting numbers and the runner EOA
-  receives nothing on-chain (it just pays gas). Before a seller can be paid,
-  `EnclaveDeployments` must settle a per-runner share to `runnerOperator` as
-  lease time burns (a metered split, or a claimable per-runner balance). Then
-  point a seller's registry endpoint at `https://api.enclave.host/t/<enclaveId>`,
-  enable `REGISTRY_ENABLED`/`CLAIM_ENABLED` with an in-guest-minted EOA, and
-  decide gas (seller-funded vs platform-sponsored first registration).
-- **Anti-sybil.** Decide whether registration requires a small on-chain bond and
-  the per-IP attach rate limit.
+- **Anti-sybil.** Decide whether to turn the claim bond on
+  (`setClaimBond(bond6, exitDelaySec)`; a bond ≥ one lease quantum's runner
+  share makes claim-without-serving unprofitable) and the per-IP attach rate
+  limit. Slashing is an owner action with public evidence in the event log.
+- **Seller side (documented in `metal/config.example.json`):** set
+  `registryKey` (fresh EOA + a few dollars of Base ETH for gas),
+  `payoutAddress`, and `publicUrl=https://api.enclave.host/t/<name>`; the
+  guest supervisor then registers, claims, earns, and auto-sweeps.
 
 ### 4. Full hardware-signature chain on THIS box (informational, likely no action)
 This workstation EPYC reports a masked/unprovisioned chip id, so AMD KDS has no

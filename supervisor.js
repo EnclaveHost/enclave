@@ -2177,7 +2177,14 @@ app.get("/v1/health", (_req, res) => res.json({ status: "ok", deployments: deplo
   // public DNS — claiming paused, held work released (see the claim loop)
   reach: (CLAIM_READY && REACH_DNS_STRIKES) ? { state: _reach.tripped ? "unreachable" : "ok",
     strikes: _reach.strikes, host: _reach.host,
-    checkedAt: _reach.checkedAt ? new Date(_reach.checkedAt).toISOString() : null } : null }));
+    checkedAt: _reach.checkedAt ? new Date(_reach.checkedAt).toISOString() : null } : null,
+  // runner earnings (rev-7 ledgers): what this enclave's operator EOA has
+  // accrued on the deployments contract and where the sweep sends it
+  earnings: (CLAIM_READY && PAYOUT_ADDRESS) ? {
+    payoutAddress: PAYOUT_ADDRESS,
+    accruedUsdc: _earn.earned6 == null ? null : Number(_earn.earned6) / 1e6,
+    withdrawnUsdc: Number(_earn.withdrawnTotal6) / 1e6,
+    checkedAt: _earn.checkedAt ? new Date(_earn.checkedAt).toISOString() : null } : null }));
 app.get("/v1/version", (_req, res) => res.json({ service: "enclave-supervisor/0.1.0", contract: "enclave-openapi/1.0.0", chainId: CHAIN_ID }));
 
 app.get("/v1/pricing", async (_req, res) => {
@@ -5169,6 +5176,43 @@ async function releaseClaimsOnShutdown() {
   saveStateNow();
 }
 
+// ---- runner earnings (rev-7 ledgers): sweep credits to the payout wallet ----
+// The ledger pays THIS enclave's operator EOA for lease time it holds
+// (contracts/EnclaveDeployments.sol rev 7: renew/release advance the credit
+// meter; the money sits escrowed on the contract until withdrawn). This tick
+// sweeps the accrued balance to PAYOUT_ADDRESS once it clears a minimum, so
+// gas never eats a meaningful slice. Off unless PAYOUT_ADDRESS is set: the
+// hosted fleet points it at the platform cold wallet, a metal seller at their
+// own wallet (metal/config.json payoutAddress) — the operator EOA that signs
+// lives in the CVM either way, so only this configured address can be paid.
+const PAYOUT_ADDRESS    = (process.env.PAYOUT_ADDRESS || "").trim();
+const EARNINGS_MIN_USDC = parseFloat(process.env.EARNINGS_MIN_USDC || "5");        // withdraw when >= this many USDC
+const EARNINGS_CHECK_SEC = parseInt(process.env.EARNINGS_CHECK_SEC || "3600", 10); // how often to look
+const EARN_ABI = [
+  { type: "function", name: "earned6", stateMutability: "view",
+    inputs: [{ name: "operator", type: "address" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "withdrawEarnings", stateMutability: "nonpayable",
+    inputs: [{ name: "to", type: "address" }], outputs: [] },
+];
+let _earn = { checkedAt: 0, earned6: null, withdrawnTotal6: 0n };
+async function payoutTick() {
+  if (!PAYOUT_ADDRESS || !CLAIM_READY) return;
+  if (Date.now() - _earn.checkedAt < EARNINGS_CHECK_SEC * 1000) return;
+  _earn.checkedAt = Date.now();
+  if ((await depsAbi()).rev < 7) return;                 // pre-payout ledger: nothing to sweep
+  const earned = await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
+    abi: EARN_ABI, functionName: "earned6", args: [claimSigner().account.address] });
+  _earn.earned6 = earned;
+  if (Number(earned) / 1e6 < EARNINGS_MIN_USDC) return;
+  const to = getAddress(PAYOUT_ADDRESS);                 // throws on a mistyped address before any tx
+  console.log(`[earn] withdrawing ${(Number(earned) / 1e6).toFixed(2)} USDC of runner earnings -> ${to}`);
+  const rcpt = await sendOperatorTx(DEPLOYMENTS_ADDRESS, EARN_ABI, "withdrawEarnings", [to]).receipt;
+  if (rcpt.status !== "success") { console.warn(`[earn] withdrawEarnings reverted`); return; }
+  _earn.withdrawnTotal6 += BigInt(earned);
+  _earn.earned6 = 0n;
+  console.log(`[earn] runner earnings withdrawn (${(Number(_earn.withdrawnTotal6) / 1e6).toFixed(2)} USDC lifetime)`);
+}
+
 let _claimBusy = false;
 function startClaimLoop() {
   if (!CLAIM_ENABLED) return;
@@ -5197,6 +5241,7 @@ function startClaimLoop() {
     if (!_enclaveId) return;
     await stage("ledger-move", ledgerMoveSweep);  // a repointed book voids leases: never renew on a retired ledger
     await stage("renew", renewLeases);
+    await stage("earnings", payoutTick);          // self-throttled to EARNINGS_CHECK_SEC; no-op unless PAYOUT_ADDRESS
   }, 60_000);
   if (rt.unref) rt.unref();
   // Publisher-yank enforcement on its own slow clock (yank state changes

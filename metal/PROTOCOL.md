@@ -22,7 +22,7 @@ from trusting the person who owns the machine, it comes from the CPU.
 |---|---|---|
 | tenant | the AMD/Intel root of trust; the published Metal source | the seller, the seller's OS/hypervisor, the relay |
 | platform (relay) | the AMD/Intel root; the reproducible Metal measurement | the seller |
-| seller | the on-chain lease contract (non-custodial payout) | the platform, the tenant |
+| seller | the on-chain lease contract (chain-held escrow pays the runner share) | the platform, the tenant |
 
 Every trust edge terminates at a **hardware root** or an **on-chain contract**,
 never at a human. A malicious seller cannot read tenant data (SEV-SNP encrypts
@@ -50,32 +50,44 @@ allowlist** — anyone whose enclave presents a valid Metal quote is in. This is
 the permissionless core. (The bootstrap token path in `tunnel.js` remains for
 first-party boxes and for platforms whose parts have no KDS-published VCEK.)
 
-### 2. On-chain registration + earning (non-custodial)
+### 2. On-chain registration + earning (chain-escrowed)
 
 The Metal supervisor already speaks `EnclaveRegistry` / `EnclaveDeployments`
 (register → claim → lease). A seller enclave:
 
-- mints (or is given) an Ethereum key **inside the CVM**; the host operator never
-  sees it, so they cannot divert payouts or forge the enclave's on-chain identity;
+- signs with the seller's own operator EOA (`registryKey` in `metal/config.json`,
+  delivered out-of-band via fw_cfg like the tunnel token — never part of the
+  measurement). The **platform never holds this key**: it is the seller's
+  on-chain identity, it earns to the seller's own `payoutAddress`, and nobody
+  else can redirect either;
 - registers with `endpoint = https://api.enclave.host/t/<enclaveId>` — a
   relay-hosted URL that routes through the tunnel, so a CGNAT box with no public
   address is still a valid, dialable registry entry;
 - claims funded deployments it can serve, signing `claim`/`renew`/`release` with
   that key.
 
-> **Payout is NOT yet wired for sellers — this needs a contract change.**
-> `EnclaveDeployments` today forwards every funding payment, in the funding
-> transaction itself, to a single platform `payout` cold wallet (minus the
-> optional app-publisher fee). `claim`/`renew`/`release` only move accounting
-> numbers; the runner EOA that claims is recorded solely for authorization and
-> receives **nothing** on-chain. So a permissionless seller currently earns
-> nothing through the contract — operator compensation is off-chain.
->
-> To make this a real earning protocol, `EnclaveDeployments` must settle a
-> per-runner share to `runnerOperator` (the seller's in-CVM EOA) as lease time is
-> burned — a metered split at `release`/`renew`, or a claimable per-runner
-> balance. That is the core open contract work for Phase C. Until it ships, a
-> "seller" can serve deployments but is not paid on-chain.
+**How payout works (schema rev 7 of `EnclaveDeployments`).** Every new
+deployment snapshots a per-second **runner rate**: `runnerBps` (owner-set,
+default **80%**) of the platform component of its price — the app publisher's
+fee is carved out first, exactly as before. When a user funds a deployment
+with USDC, the runner's pro-rata share of that funding is **retained in the
+contract as escrow** instead of being forwarded to the platform wallet. A
+credit meter then moves escrow to whichever operator EOA holds the lease, one
+second at a time, **for lease time actually held**: `renew` and `release`
+settle the current runner, the next `claim` settles a dead runner's expired
+quantum, and the permissionless `settle(id)` collects anything left. A
+released tail refunds to the user and earns the runner nothing — a
+claim-and-bail earns ~zero. `withdrawEarnings(to)` pays the operator's
+accrued USDC (across all deployments it ever served) to any address; the
+Metal supervisor sweeps it to the seller's configured `payoutAddress`
+automatically once it clears a minimum (default $5).
+
+The seller's trust never leaves the chain: the escrow is held by the
+contract, the rate snapshot is immutable for the deployment's life (a resize
+re-buys it, like the price), and credits are structurally capped by escrow —
+the meter cannot promise money the contract does not hold. The platform
+cannot touch a claimable deployment's escrow (`sweepEscrow` only recovers
+residual dust after a record is drained and unleased).
 
 ### 3. The relay stays a keyless router
 
@@ -89,12 +101,16 @@ byte, exactly as with a first-party enclave.
 ### 4. Anti-sybil / anti-grief
 
 - A fake or modified enclave cannot attach (gate 1) or be routed to.
-- A real enclave that claims work and fails to serve earns nothing (billing ticks
-  only while healthy) and its lease is re-claimed by another enclave; the existing
-  stranded-lease sweep handles this.
-- Attach is rate-limited per source IP; registration can require a small on-chain
-  **bond** (slashable on provable misbehavior) so spinning up thousands of fake
-  identities has a cost. Griefing is further bounded by non-refundable funding
+- A real enclave that claims work and releases without serving earns ~nothing
+  (the meter pays for lease time HELD, and a release hands the tail back); a
+  claim-and-vanish earns at most one lease quantum before the stranded-lease
+  sweep re-claims the work for another enclave.
+- Attach is rate-limited per source IP; claiming can require a small on-chain
+  **bond** (rev 7 ships it: `postBond` gates `claim` when the owner sets
+  `setClaimBond`, exit is timelocked, and provable misbehavior — e.g. repeated
+  claim-without-serving — is slashable with public evidence in the event log).
+  Off by default; spinning up thousands of earning identities has a cost the
+  moment it's on. Griefing is further bounded by non-refundable funding
   thresholds (see `docs/autoscale.md`).
 
 ## Measurement governance
@@ -116,21 +132,31 @@ This is strictly stronger than the hosted model's Sigstore link: the measurement
 git clone https://github.com/EnclaveHost/enclave && cd enclave
 sudo bash metal/host-setup.sh                 # one-time: SEV device perms
 node metal/build-image.mjs                     # reproducible; matches the allowlist
-# fund the enclave's EOA with a few dollars of Base ETH (gas for register/heartbeat)
+# metal/config.json: set registryKey to a fresh EOA key funded with a few
+# dollars of Base ETH (gas for register/claim/renew), payoutAddress to YOUR
+# wallet, and publicUrl to the relay-routed https://api.enclave.host/t/<name>
 node metal/enclave-metal.mjs --config metal/config.json   # attaches, registers, earns
 ```
 
-That is the entire onboarding. No account, no approval.
+That is the entire onboarding. No account, no approval. Earnings accrue on
+`EnclaveDeployments` (`earned6(operator)`, visible in the enclave's
+`/v1/health` as `earnings`) and auto-sweep to `payoutAddress`.
 
 ## Delivery phases
 
 - **A — foundation (done):** token-gated tunnel, a Metal enclave presented on
   enclave.host, running under systemd, real SEV-SNP measured boot, reproducible
   measurement, first-party `verify.mjs`.
-- **B — attestation-gated attach:** the relay verifies the SNP quote on attach
-  against the measurement allowlist (gate 1). Permissionless, no token.
-- **C — permissionless earning:** relay-hosted registry endpoint + claim/lease/
-  payout to the seller EOA (gate 2); optional registration bond (gate 4).
+- **B — attestation-gated attach (done):** the relay verifies the SNP quote on
+  attach against the measurement allowlist (gate 1). Permissionless, no token.
+- **C — permissionless earning (built; activation is operator-gated):** the
+  rev-7 `EnclaveDeployments` pays the runner share to the seller EOA from
+  in-contract escrow (gate 2), the Metal config carries the seller's
+  `registryKey`/`payoutAddress`, and the supervisor auto-sweeps earnings; the
+  optional claim bond (gate 4) is in the contract, off by default. What
+  remains is operational: the platform redeploying the rev-7 ledger (and
+  migrating records), publishing the measurement allowlist, and the seller
+  funding their EOA with gas.
 - **D — end-to-end app privacy:** SNI passthrough of app traffic over the tunnel
   so the relay never sees tenant plaintext (gate 3, app plane).
 
