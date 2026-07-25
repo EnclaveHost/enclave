@@ -2331,8 +2331,14 @@ app.get("/availability", async (_req, res) => {
     const h = PROVISION_BACKEND === "vm" ? await vmHealth() : await mgrHealth();
     const c = h.capacity || {};
     const cpuFree = PROVISION_BACKEND === "vm" ? (c.cpuShareFree ?? c.maxShare ?? maxFreeCpu()) : maxFreeCpu();
+    // vm backend: fold the wasm-manager's VRAM-reservation ledger (what the
+    // device can still physically hold, from the process owner) into our card
+    // allocator's plan - a physical-vs-planned divergence (leaked process,
+    // out-of-band device users) then surfaces as reduced advertised capacity
+    // instead of a claim that fails at provision time.
     const gpuFree = !IS_GPU ? 0
-      : PROVISION_BACKEND === "vm" ? maxFreeGpuShare() : (c.gpuShareFree ?? c.maxShare ?? maxFreeGpuShare());
+      : PROVISION_BACKEND === "vm" ? Math.min(maxFreeGpuShare(), c.gpuShareFree ?? Infinity)
+      : (c.gpuShareFree ?? c.maxShare ?? maxFreeGpuShare());
     // wasi-nn readiness rides along (vm backend): `nn` says whether GPU
     // deployments can launch; `nnProbe` carries the boot probe's diagnosis,
     // making a broken GPU path visible from outside without operator access.
@@ -2347,7 +2353,12 @@ app.get("/availability", async (_req, res) => {
     const ram = PROVISION_BACKEND === "vm" && c.ramBudgetMb
       ? { ramBudgetMb: c.ramBudgetMb, ramCommittedMb: c.ramCommittedMb, ramFreeMb: c.ramFreeMb,
           ...(c.sharePoolFree !== undefined ? { sharePoolFree: c.sharePoolFree } : {}) } : {};
-    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn, ...vols, ...ram });
+    // VRAM-reservation ledger passthrough (vm backend with accounting on):
+    // the physical constraint behind gpuShareFree when it is tighter than the
+    // card allocator's plan - same contract as the RAM ledger above.
+    const vram = PROVISION_BACKEND === "vm" && c.vramBudgetGb
+      ? { vramBudgetGb: c.vramBudgetGb, vramCommittedGb: c.vramCommittedGb, vramLedgerFreeGb: c.vramFreeGb } : {};
+    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn, ...vols, ...ram, ...vram });
   } catch (e) {
     return res.json(shape(maxFreeCpu(), maxFreeGpuShare(), "fallback",
       `${PROVISION_BACKEND === "vm" ? "wasm" : "worker"} manager unreachable`));
