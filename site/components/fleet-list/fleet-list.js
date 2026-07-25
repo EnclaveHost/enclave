@@ -15,7 +15,11 @@ class FleetList extends EnclaveElement {
 
   renderedCallback() {
     const list = this.querySelector(".fleet-list"); if (!list) return;
-    const rows = this.rows || [];
+    // only enclaves that SERVE (take on-chain work) are shown: a live but
+    // non-claiming box (relay row serving:false) is operational truth, not
+    // sellable capacity - listing it would advertise hardware nobody can buy.
+    // Rows from an older relay carry no verdict and stay visible.
+    const rows = (this.rows || []).filter((e) => e.serving !== false);
     const meter = (pct) => '<i class="fleet-meter" aria-hidden="true"><b style="width:' + Math.max(0, Math.min(100, pct)) + '%"></b></i>';
     // one stat cell: bright free amount, then the "≈"/"/ total" context and the
     // label in dim ink so the number is what the eye lands on

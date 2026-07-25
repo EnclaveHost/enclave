@@ -2329,10 +2329,10 @@ app.get("/availability", async (_req, res) => {
     configOverride: true,   // this build accepts the envelope's `config` namespace (per-deployment app-config override); same fleet-AND rule — the console unlocks the App config box only when every live runner honors it
     configEdit: true,   // this build's audit re-applies an owner's setConfig to LIVE deployments (waf live-swapped, config = restart in place); without it an edit only lands at the next re-claim — same fleet-AND rule
     shareResize: true,   // this build's audit re-slices a LIVE deployment on an owner's setShares (rev-6 ledgers); without it the billing would change while the served slice silently didn't — same fleet-AND rule, clients refuse the tx against an older fleet
-    secrets: true,   // this build pulls relay-staged per-deployment secrets into the guest env at every launch; fleet-AND'd with the relay's own secretsEnabled() before clients see it
-    secretsInConfig: true,   // this build also resolves $NAME/${NAME} placeholders in config STRING values from those secrets at launch (wasm-manager _subst_secrets); same fleet-AND rule
+    secrets: SECRETS_CAPABLE,   // this build pulls relay-staged per-deployment secrets into the guest env at every launch; fleet-AND'd with the relay's own secretsEnabled() before clients see it. The fetch authenticates with a key DERIVED FROM THE FLEET SECRET, so a box running its own minted SECRET (a metal enclave without cfg.fleetSecret) sets SECRETS_CAPABLE=0 and reports false — honest, and the fleet-AND then hides the feature rather than stranding secret-bearing deploys on it
+    secretsInConfig: SECRETS_CAPABLE,   // this build also resolves $NAME/${NAME} placeholders in config STRING values from those secrets at launch (wasm-manager _subst_secrets); same fleet-AND rule
     devDeploy: true,   // this build's approval gate admits PENDING catalog versions for PRIVATE deployments (publisher dev-mode testing); public deploys of pending versions stay refused — same fleet-AND rule, clients only offer the option when every live runner honors it
-    claimEnabled: CLAIM_READY,   // whether this enclave CLAIMS ledger work. The relay sizes app minimums and fleet capacity over CLAIMING enclaves only: a present-but-not-claiming box (the metal demo enclave) must never set the fleet's sizing floor or inflate buyable capacity
+    claimEnabled: CLAIM_READY && !!_enclaveId,   // whether this enclave CLAIMS ledger work RIGHT NOW: configured for it AND its on-chain registration landed (_enclaveId is only set by a successful register tx — a staged seller with an unfunded gas EOA truthfully reports false until the first register confirms). The relay sizes app minimums, fleet capacity and the deploy target list over CLAIMING enclaves only
     source, ...(note ? { note } : {}), updatedAt: new Date().toISOString(),
   });
   try {
@@ -4118,6 +4118,11 @@ server.on("upgrade", async (req, socket, head) => {
 // registry entry, so advertising (registerOnChain) is a hard prerequisite.
 // (DEPLOYMENTS_ADDRESS is a live binding from ./addressbook.js)
 const CLAIM_ENABLED    = /^(1|true|on)$/i.test(process.env.CLAIM_ENABLED || "");
+// Deployment-secrets capability (availability flags): defaults ON (the hosted
+// fleet shares the fleet SECRET the relay's fetch-HMAC derives from); a
+// self-hosted metal box without cfg.fleetSecret exports SECRETS_CAPABLE=0 so
+// it never advertises a fetch it cannot authenticate.
+const SECRETS_CAPABLE  = !/^(0|false|off)$/i.test(process.env.SECRETS_CAPABLE || "1");
 const CLAIM_POLL_SEC   = parseInt(process.env.CLAIM_POLL_SEC || "60", 10);    // sweep + audit + renew cadence
 const RENEW_MARGIN_SEC = parseInt(process.env.RENEW_MARGIN_SEC || "600", 10); // renew when less lease than this remains (early renewal is FREE: the contract extends FROM leaseUntil, so a wide margin only buys more attempts)
 const CLAIM_MAX_PER_SWEEP = parseInt(process.env.CLAIM_MAX_PER_SWEEP || "3", 10); // new adoptions kicked off per pass (resumes uncapped)
@@ -4934,6 +4939,22 @@ async function claimSweep(ledger) {
 // fires the claim without awaiting it (claim tx + provision can take tens of
 // seconds - an IPFS fetch of a 100MB+ app is part of it - and a hint response
 // must not hang that long; the deployer watches the ledger for the runner).
+async function volumeGate(d, g){
+  let cfgStr = g.config || "";
+  try {
+    const o = parseDepOptions(d.configCid);              // strict; considerClaim already accepted it
+    if (o && o.config) cfgStr = JSON.stringify(o.config);   // the override REPLACES the version's config
+  } catch { /* unreachable: parsed earlier in considerClaim */ }
+  let need = [];
+  try { const c = JSON.parse(cfgStr || "{}"); if (Array.isArray(c.volumes)) need = c.volumes.map(String); } catch {}
+  if (!need.length) return null;
+  const h = await vmHealth().catch(() => null);
+  if (!h) return "app manager unreachable (volume check)";
+  const have = new Set((Array.isArray(h.volumes) ? h.volumes : []).map((x) => String((x && x.name) || x)));
+  const missing = need.filter((n) => !have.has(n));
+  return missing.length ? "app needs model volume(s) this enclave doesn't carry: " + missing.join(", ") : null;
+}
+
 async function considerClaim(d, { hinted = false, background = false } = {}) {
   const ex = deployments.get(d.id);
   if (ex && !CLAIM_TERMINAL.has(ex.status)) return "already serving it here (status " + ex.status + ")";
@@ -5009,6 +5030,14 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
   // a paid app's fee snapshot must cover the version's ask (fail closed)
   const feeWhy = await feeGate(d.id, g);
   if (feeWhy) return feeWhy.why;
+  // Model volumes are PER-BOX hardware, like the card: the config the app
+  // will actually run with (the version's, or the deployment's override)
+  // names what it must mount, and a box that doesn't carry a named volume
+  // could only claim-fail-release in a loop. Fail closed here; the boxes
+  // that carry the volume claim instead. (Mattered from the first
+  // heterogeneous fleet: a metal box carries no Modelwrap volumes.)
+  const volWhy = await volumeGate(d, g);
+  if (volWhy) return volWhy;
   if (background) {
     tryClaim(d, g, firewall, slice, { hinted, resume })
       .catch(e => console.warn(`[claim] hinted claim ${d.id} failed: ${e.shortMessage || e.message}`));

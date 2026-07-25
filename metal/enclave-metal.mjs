@@ -52,7 +52,12 @@ const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', rel
   // without registryKey the enclave serves via the tunnel but neither claims
   // nor earns. Delivered via fw_cfg like the tunnel token — out-of-band, never
   // in the launch measurement or the quote.
-  registryKey: cfg.registryKey || '', payoutAddress: cfg.payoutAddress || '' };
+  registryKey: cfg.registryKey || '', payoutAddress: cfg.payoutAddress || '',
+  // optional FLEET secret (first-party boxes only): with it the guest joins
+  // the fleet's deployment-secrets plane (the relay's fetch auth derives from
+  // it); without it the guest mints its own SECRET per boot and truthfully
+  // advertises secrets-incapable. Anonymous sellers leave this unset.
+  fleetSecret: cfg.fleetSecret || '' };
 
 // Optional egress helper. QEMU user-net (slirp) NATs outbound for a normal host,
 // but some sandboxed/dev hosts block slirp's EXTERNAL sockets while still routing

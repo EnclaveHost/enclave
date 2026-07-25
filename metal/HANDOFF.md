@@ -74,6 +74,21 @@ activation, all of it yours:
   `registryKey` (fresh EOA + a few dollars of Base ETH for gas),
   `payoutAddress`, and `publicUrl=https://api.enclave.host/t/<name>`; the
   guest supervisor then registers, claims, earns, and auto-sweeps.
+- **metal0 IS STAGED to sell (2026-07-25).** Its gitignored `metal/config.json`
+  now carries a freshly minted operator EOA — **fund
+  `0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB` with ~$3-5 of Base ETH and it
+  goes live on its own**: registration lands, `claimEnabled` flips true
+  (truthfully — the flag now requires a CONFIRMED register tx, so the staged
+  box hides itself until then), and it appears in the fleet panel + deploy
+  target dropdowns at its honest 3 GB size. `payoutAddress` is set to the
+  platform cold wallet (read from the deployments contract). Optional:
+  add `fleetSecret` (the shared fleet SECRET) to `metal/config.json` +
+  restart to make it deployment-secrets capable — without it the box
+  truthfully reports `secrets:false`, and the fleet-AND will hide the
+  console's secrets feature while it serves. Also optional: grow the VM
+  (`cpus`/`memMiB`) — 4 vCPU/6 GB is demo-sized (measurement changes with
+  vcpu count). Until the rev-7 ledger redeploy it serves WITHOUT earning
+  (first-party box; payments all reach the cold wallet regardless).
 - **OPEN DESIGN QUESTION — heterogeneous node sizing.** App minimum shares
   are sized against the fleet-wide MINIMUM node (relay `spec*` fields), so a
   small node joining the CLAIMING set inflates every CPU app's minimum share
