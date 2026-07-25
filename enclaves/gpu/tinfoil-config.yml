@@ -351,7 +351,7 @@ containers:
       # (name:path:file.gguf) picks WHICH gguf preloads as the wasi-nn graph
       # when the repo ships several quantizations - the manager stages the
       # pick as a symlink dir, so the mpk-<hash> mount name never matters.
-      - MODEL_VOLUMES: "qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-bb5cace1df1795f9dde1b6da38b2b9edfaaa56f4574a5d6270c1295b192c81c1,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.5-9b-gguf:/tinfoil/mpk/mpk-b70cb1b66baaf59542b5d478f952fcb4085dfb681deedf9e0420452e2fe6e6be,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen3.5-0.8b-gguf:/tinfoil/mpk/mpk-d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8,qwen3.6-27b-mtp-gguf:/tinfoil/mpk/mpk-bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9,sd-turbo:/tinfoil/mpk/mpk-df0919ea85c829fb62c61029ac130f7e4a98bc6a57fe52dfb777a7426d5b36fc,sd-turbo-full:/tinfoil/mpk/mpk-e787b81d664922c08ac69bb0952b436404bbb150f6f7b71971431d0c3ff4ef60,z-image-turbo-sd:/tinfoil/mpk/mpk-2b646ec9773d4dba7227656826627de606a86d98790b0e806a62e548b6c581f5,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2"
+      - MODEL_VOLUMES: "qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-bb5cace1df1795f9dde1b6da38b2b9edfaaa56f4574a5d6270c1295b192c81c1,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.5-9b-gguf:/tinfoil/mpk/mpk-b70cb1b66baaf59542b5d478f952fcb4085dfb681deedf9e0420452e2fe6e6be,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen3.5-0.8b-gguf:/tinfoil/mpk/mpk-d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8,qwen3.6-27b-mtp-gguf:/tinfoil/mpk/mpk-bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9,fable-fusion-27b-mtp-gguf:/tinfoil/mpk/mpk-cf2030ea6070202555fa2d8b762fa4b1c94a3b636dd3d0f587d3f9fafddf4415,sd-turbo:/tinfoil/mpk/mpk-df0919ea85c829fb62c61029ac130f7e4a98bc6a57fe52dfb777a7426d5b36fc,sd-turbo-full:/tinfoil/mpk/mpk-e787b81d664922c08ac69bb0952b436404bbb150f6f7b71971431d0c3ff4ef60,z-image-turbo-sd:/tinfoil/mpk/mpk-2b646ec9773d4dba7227656826627de606a86d98790b0e806a62e548b6c581f5,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2"
       # Volumes preloaded through the stable-diffusion.cpp wasi-nn backend
       # (image txt2img: the guest load_by_name()s the volume and one
       # compute() runs the whole pipeline host-side; weights never enter
@@ -542,6 +542,14 @@ models:
   - name: "qwen3.6-27b-mtp-gguf"
     repo: "EnclaveHost/qwen3.6-27b-mtp-gguf@e6af0316e51eaf3e12982a566941be224c26ed50"
     mpk: "bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9_17921925120_624a9548-dcee-5aa1-8eaa-6d12d0a368a3"
+  # DavidAU Fable-Fusion-27B fine-tune (Qwen3.6-27B-MTP architecture) at Q5_K_M
+  # (~19.7 GB): uncensored creative variant of the MTP 27b. Same geometry as
+  # qwen3.6-27b-mtp-gguf (qwen35 arch, 64+1 MTP layers, 4 KV heads, 256K
+  # context). VRAM similar to the base MTP volume. tokenizer.json byte-identical
+  # to the Qwen3.x family. Single gguf = no MODEL_VOLUMES third field.
+  - name: "fable-fusion-27b-mtp-gguf"
+    repo: "EnclaveHost/fable-fusion-27b-mtp-gguf@00b1e5483d5457fe32c0dd82f2d24a19ef0dc957"
+    mpk: "cf2030ea6070202555fa2d8b762fa4b1c94a3b636dd3d0f587d3f9fafddf4415_21195100160_00d8de3f-ab8c-52dd-82a6-2039c55d6082"
   # SD-Turbo (distilled Stable Diffusion 2.1, 512x512 txt2img in 1-4 steps),
   # the Olive fp16 ONNX export by the onnxruntime team, fused for the CUDA EP
   # (com.microsoft ops - GPU-only, the CPU EP has no kernels for it). Serves
