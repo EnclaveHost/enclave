@@ -138,7 +138,7 @@ new file mode 100644
 index 0000000..140bfcd
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,693 @@
+@@ -0,0 +1,787 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -253,6 +253,16 @@ index 0000000..140bfcd
 +        logits_flat: *mut f32,
 +    ) -> i32;
 +    fn ell_seq_remove(ctx: *mut c_void, seq_id: i32);
++    fn ell_decode_seq_full(
++        ctx: *mut c_void,
++        model: *mut c_void,
++        seq_id: i32,
++        pos0: i32,
++        tokens: *const i32,
++        n: i32,
++        logits_out: *mut f32,
++    ) -> i32;
++    fn ell_seq_rewind(ctx: *mut c_void, seq_id: i32, n_keep: i32);
 +}
 +
 +static INIT: Once = Once::new();
@@ -627,6 +637,55 @@ index 0000000..140bfcd
 +        }
 +    }
 +
++    /// EXCLUSIVE decode of one sequence with logits for EVERY position (the
++    /// speculative verify step: the target consumes the draft's tokens in one
++    /// pass and hands back each position's distribution). Takes the decode
++    /// turn like a leader, but alone - full-logits rows don't merge with
++    /// last-row batchmates.
++    fn submit_full(&self, seq_id: i32, pos0: i32, tokens: &[i32]) -> Result<Vec<f32>, String> {
++        if tokens.is_empty() {
++            return Err("empty token batch".into());
++        }
++        if tokens.len() > self.n_batch as usize {
++            return Err(format!(
++                "batch of {} tokens exceeds n_batch {} (chunk your prefill)",
++                tokens.len(),
++                self.n_batch
++            ));
++        }
++        let mut q = self.q.lock().unwrap();
++        while q.decoding {
++            q = self.cv.wait(q).unwrap();
++        }
++        q.decoding = true;
++        drop(q);
++        let mut logits = vec![0f32; tokens.len() * self.n_vocab];
++        let rc = unsafe {
++            ell_decode_seq_full(self.raw, self.model.raw, seq_id, pos0,
++                                tokens.as_ptr(), tokens.len() as i32, logits.as_mut_ptr())
++        };
++        let mut q = self.q.lock().unwrap();
++        q.decoding = false;
++        self.cv.notify_all();
++        drop(q);
++        if rc != 0 {
++            return Err(decode_err(rc));
++        }
++        Ok(logits)
++    }
++
++    /// Drop a sequence's tokens from n_keep onward (a speculative round's
++    /// rejected tail). Holding the queue lock excludes decode leaders, the
++    /// same discipline as seq removal in Drop.
++    fn rewind(&self, seq_id: i32, n_keep: i32) {
++        let mut q = self.q.lock().unwrap();
++        while q.decoding {
++            q = self.cv.wait(q).unwrap();
++        }
++        unsafe { ell_seq_rewind(self.raw, seq_id, n_keep) };
++        drop(q);
++    }
++
 +    /// The FFI call itself; Err carries the raw llama_decode rc.
 +    fn decode_raw(&self, items: &[PendingItem]) -> Result<Vec<Vec<f32>>, i32> {
 +        let n = items.len();
@@ -797,11 +856,46 @@ index 0000000..140bfcd
 +        match inputs {
 +            // WIT path: named tensors in, named tensors out
 +            Some(inputs) => {
++                // control verb {"rewind": I32 [1]}: drop this sequence's
++                // tokens from the given position on (a speculative round's
++                // rejected tail) - no decode, no outputs
++                if let Some(rw) = inputs.iter().find(|nt| nt.name == "rewind") {
++                    let v = tokens_from_tensor(&rw.tensor)?;
++                    let n_keep = *v.first().ok_or_else(|| err("rewind needs one i32"))?;
++                    if n_keep < 0 || n_keep > self.n_past {
++                        return Err(err(format!("rewind to {n_keep} outside 0..={}", self.n_past)));
++                    }
++                    self.server.rewind(self.seq_id, n_keep);
++                    self.n_past = n_keep;
++                    return Ok(Some(vec![]));
++                }
 +                let tokens = inputs
 +                    .iter()
 +                    .find(|nt| nt.name == "tokens" || nt.name == "0")
 +                    .ok_or_else(|| err("missing \"tokens\" input"))?;
 +                let ids = tokens_from_tensor(&tokens.tensor)?;
++                // {"all": I32 [1] = 1} beside "tokens": logits for EVERY fed
++                // position, dims [n, vocab] - the speculative verify step
++                let want_all = inputs.iter().any(|nt| nt.name == "all"
++                    && tokens_from_tensor(&nt.tensor).map(|v| v.first() == Some(&1)).unwrap_or(false));
++                if want_all {
++                    let flat = self
++                        .server
++                        .submit_full(self.seq_id, self.n_past, &ids)
++                        .map_err(err)?;
++                    self.n_past += ids.len() as i32;
++                    let mut data = Vec::with_capacity(flat.len() * 4);
++                    for v in flat {
++                        data.extend_from_slice(&v.to_le_bytes());
++                    }
++                    let t = Tensor {
++                        dimensions: vec![ids.len() as u32, self.server.model.n_vocab],
++                        ty: TensorType::Fp32,
++                        data,
++                    };
++                    self.logits = Some(t.clone());
++                    return Ok(Some(vec![NamedTensor { name: "logits".to_string(), tensor: t }]));
++                }
 +                let logits = self.decode(&ids)?;
 +                self.logits = Some(logits.clone());
 +                Ok(Some(vec![NamedTensor {

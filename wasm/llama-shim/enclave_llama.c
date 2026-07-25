@@ -188,3 +188,40 @@ int32_t ell_decode_batch(void *ctx, void *model, int32_t n_items,
 void ell_seq_remove(void *ctx, int32_t seq_id) {
     llama_memory_seq_rm(llama_get_memory((struct llama_context *)ctx), seq_id, -1, -1);
 }
+
+int32_t ell_decode_seq_full(void *ctx, void *model, int32_t seq_id, int32_t pos0,
+                            const int32_t *tokens, int32_t n, float *logits_out) {
+    struct llama_context *lctx = (struct llama_context *)ctx;
+    if (n <= 0 || pos0 < 0 || (uint32_t)n > llama_n_batch(lctx)) {
+        return -1;
+    }
+    struct llama_batch batch = llama_batch_init(n, 0, 1);
+    for (int32_t t = 0; t < n; t++) {
+        batch.token[t]     = tokens[t];
+        batch.pos[t]       = pos0 + t;
+        batch.n_seq_id[t]  = 1;
+        batch.seq_id[t][0] = seq_id;
+        batch.logits[t]    = 1;
+    }
+    batch.n_tokens = n;
+    int32_t rc = llama_decode(lctx, batch);
+    if (rc != 0) {
+        llama_batch_free(batch);
+        return rc;
+    }
+    const size_t row = (size_t)ell_n_vocab(model);
+    for (int32_t t = 0; t < n; t++) {
+        const float *lg = llama_get_logits_ith(lctx, t);
+        if (!lg) {
+            llama_batch_free(batch);
+            return -2;
+        }
+        memcpy(logits_out + (size_t)t * row, lg, row * sizeof(float));
+    }
+    llama_batch_free(batch);
+    return 0;
+}
+
+void ell_seq_rewind(void *ctx, int32_t seq_id, int32_t n_keep) {
+    llama_memory_seq_rm(llama_get_memory((struct llama_context *)ctx), seq_id, n_keep, -1);
+}
