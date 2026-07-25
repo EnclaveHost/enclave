@@ -80,13 +80,16 @@ activation, all of it yours:
   and price for all buyers (observed 2026-07-25: the 3 GB metal demo box made
   a 512 MB app's minimum 17% instead of 1% — fixed for NON-claiming boxes by
   scoping sizing to claiming enclaves, but a real small SELLER will do it
-  again the moment it claims). Before admitting small sellers, decide the
-  sizing model: size against the largest claimable node (cheapest; small
-  boxes then only receive apps that fit their proportional slice — the
-  runner-side minimum gate already enforces this), a node-class floor for
-  sellers (e.g. min 16 vCPU / 64 GB to earn), or absolute-unit pricing in a
-  future ledger rev. The current per-node-fraction pricing pays a 3 GB node
-  the same per share as a 64 GB one, so some floor is likely wanted anyway.
+  again the moment it claims). The deploy CONSOLE now sidesteps this: it
+  targets a specific enclave per deploy (pickEnclaveFor — cheapest fitting
+  box, i.e. the largest hardware; shown as "deploys to <name>", rerouted or
+  refused live as availability changes), so its floors never inflate from a
+  small box. Still open for the AGGREGATE consumers (CLI, quick-deploy, MCP
+  — they size on the relay's fleet-min spec* fields) and as policy: a
+  node-class floor for sellers (e.g. min 16 vCPU / 64 GB to earn), or
+  absolute-unit pricing in a future ledger rev. The current per-node-fraction
+  pricing pays a 3 GB node the same per share as a 64 GB one, so some floor
+  is likely wanted anyway.
 
 ### 4. Full hardware-signature chain on THIS box (informational, likely no action)
 This workstation EPYC reports a masked/unprovisioned chip id, so AMD KDS has no

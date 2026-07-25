@@ -14,7 +14,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { minPctsOf, adoptServerSpec, serverSpec, shareRates } from "../site/js/core/pricing.js";
+import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, pickEnclaveFor } from "../site/js/core/pricing.js";
 
 // Reference copy of the RUNNER's minimum-share math (supervisor.js: pctCeil,
 // gpuShareOf, cpuShareOf, minSharesOf with MIN_COMPUTE_PCT=1). Keep in sync.
@@ -87,4 +87,57 @@ test("shareRates reads the adopted hardware, not constants", () => {
   const r = shareRates(92, 8);
   assert.ok(Math.abs(r.vramGb - 0.92 * 140.4) < 1e-9);
   assert.ok(Math.abs(r.ramGb - 0.08 * 64) < 1e-9);
+});
+
+/* ---- per-enclave targeting (the deploy console's "deploys to X" pick) ---- */
+
+const row = (name, a, extra) => ({ name, endpoint: "https://" + name + ".example", availability: a, ...(extra || {}) });
+const GPU_BOX = { gpu: true, claimEnabled: true, ...H200, gpuShareFree: 0.4, cpuShareFree: 0.79 };
+const CPU_BOX = { gpu: false, claimEnabled: true, nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000, gpuShareFree: 0, cpuShareFree: 0.9 };
+const MC = { vramMb: 0, gpuGflops: 0, memMb: 512, cpuGflops: 10 };   // minecraft-shaped CPU app
+
+test("pickEnclaveFor: floors come from the TARGET box, not a fleet minimum", () => {
+  // the 2026-07-25 regression, per-enclave: a tiny box in the fleet must not
+  // resize a CPU app that lands on the big one — the pick names the big box
+  // and sizes 512 MB against ITS 64 GB (1%), never against 3 GB (17%)
+  const tiny = row("metal0", { gpu: false, claimEnabled: true, nodeVcpus: 4, nodeRamGb: 3, nodeGflops: 250, cpuShareFree: 1 });
+  const t = pickEnclaveFor(MC, [row("kryptos", GPU_BOX), tiny, row("big", CPU_BOX)]);
+  assert.equal(t.none, undefined);
+  assert.equal(t.name, "big");            // CPU-only box preferred over GPU leftovers
+  assert.equal(t.mins.cpuPct, 1);         // 512 MB of 64 GB, not of 3 GB
+  assert.equal(t.queued, false);
+});
+
+test("pickEnclaveFor: mirrors claim routing (CPU-only first, GPU leftovers as fallback; GPU apps by free card)", () => {
+  const cpuApp = pickEnclaveFor(MC, [row("kryptos", GPU_BOX)]);
+  assert.equal(cpuApp.name, "kryptos");   // no CPU-only box: GPU leftovers serve it
+  const gpuApp = pickEnclaveFor(IMAGE_GEN, [row("small", { ...GPU_BOX, gpuShareFree: 0.3 }), row("kryptos", { ...GPU_BOX, gpuShareFree: 0.95 }), row("big", CPU_BOX)]);
+  assert.equal(gpuApp.name, "kryptos");   // most free card wins; CPU boxes never take GPU work
+});
+
+test("pickEnclaveFor: a full box queues, a too-small fleet refuses", () => {
+  const full = pickEnclaveFor(MC, [row("big", { ...CPU_BOX, cpuShareFree: 0 })]);
+  assert.equal(full.name, "big");
+  assert.equal(full.queued, true);        // fits the box, waits for capacity — deploys queue on-chain
+  const noGpu = pickEnclaveFor(IMAGE_GEN, [row("big", CPU_BOX)]);
+  assert.ok(noGpu.none && /GPU/.test(noGpu.none));
+  const tooSmall = pickEnclaveFor({ memMb: 128 * 1024, cpuGflops: 0 }, [row("big", CPU_BOX)]);
+  assert.ok(tooSmall.none, "an app over every box's whole node must refuse, not queue at 100%");
+});
+
+test("pickEnclaveFor: only CLAIMING enclaves count (the relay's serving rule)", () => {
+  // a tunnel box without claimEnabled (the metal demo enclave) is invisible;
+  // one that SAYS it claims (a Phase C seller) is a real target
+  const demo = row("metal0", { gpu: false, nodeVcpus: 4, nodeRamGb: 3, nodeGflops: 250, cpuShareFree: 1 }, { tunnel: true });
+  assert.ok(pickEnclaveFor(MC, [demo]).none, "a non-claiming tunnel box serves nobody");
+  const seller = row("seller0", { gpu: false, claimEnabled: true, nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000, cpuShareFree: 0.5 }, { tunnel: true });
+  assert.equal(pickEnclaveFor(MC, [demo, seller]).name, "seller0");
+  const hosted = row("cpu1", { gpu: false, nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000, cpuShareFree: 0.5 });
+  assert.equal(pickEnclaveFor(MC, [hosted]).name, "cpu1", "hosted boxes predate the flag and are grandfathered");
+});
+
+test("enclaveSpecOf: per-axis fallback for old builds", () => {
+  const s = enclaveSpecOf(row("x", { gpu: true, cardVramGb: 79.6 }));
+  assert.equal(s.cardVramGb, 79.6);
+  assert.equal(s.nodeRamGb, 64);          // omitted axes keep the safe constants
 });
