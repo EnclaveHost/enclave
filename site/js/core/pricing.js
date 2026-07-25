@@ -62,19 +62,83 @@ export function adoptServerSpec(a){
 }
 
 export const pctCeil = (x) => Math.min(100, Math.max(MIN_COMPUTE_PCT, Math.ceil(x * 100 - 1e-9)));
-export function minPctsOf(v){                // v: a catalog version's exact specs (zeros = no minimum)
-  const s = serverSpec();
+// v: a catalog version's exact specs (zeros = no minimum). `spec` picks the
+// hardware to divide by: omitted = the adopted fleet spec (aggregate mode),
+// or a specific enclave's hardware from enclaveSpecOf (target mode — the
+// deploy console sizes against the box the deployment would land on).
+export function minPctsOf(v, spec){
+  const s = spec || serverSpec();
   const vramMb = Number(v && v.vramMb || 0), gpuGf = Number(v && v.gpuGflops || 0);
   const memMb = Number(v && v.memMb || 0), cpuGf = Number(v && v.cpuGflops || 0);
   const cpu = (memMb > 0 || cpuGf > 0) ? pctCeil(Math.max(memMb / (s.nodeRamGb * 1024), cpuGf / s.nodeGflops)) : 1;
   const gpu0 = (vramMb > 0 || gpuGf > 0) ? pctCeil(Math.max(vramMb / 1024 / s.cardVramGb, gpuGf / 1000 / s.cardTflops)) : 0;
   return { gpuPct: gpu0 > 0 ? Math.max(gpu0, cpu) : 0, cpuPct: cpu };
 }
-export function shareRates(gpuPct, cpuPct){  // what the two dials buy on this server spec
-  const s = serverSpec();
+export function shareRates(gpuPct, cpuPct, spec){  // what the two dials buy on this server spec
+  const s = spec || serverSpec();
   const g = Math.min(100, Math.max(0, Math.round(gpuPct)));
   const c = Math.min(100, Math.max(MIN_COMPUTE_PCT, Math.round(cpuPct)));
   return { rate: (g / 100) * FULL_RATE + (c / 100) * CPU_NODE_RATE, gpuPct: g, cpuPct: c,
            vramGb: (g / 100) * s.cardVramGb, tflops: (g / 100) * s.cardTflops,
            ramGb: (c / 100) * s.nodeRamGb, vcpus: (c / 100) * s.nodeVcpus, gflops: (c / 100) * s.nodeGflops };
+}
+
+/* ---- per-enclave targeting (the relay's /enclaves rows) ------------------ */
+
+// One enclave row's sizing hardware: its own advertised numbers per axis, the
+// fallback constants for anything it omits (old builds).
+export function enclaveSpecOf(row){
+  const a = (row && row.availability) || {};
+  const s = { ...FALLBACK };
+  for (const k of ["cardVramGb", "cardTflops", "nodeVcpus", "nodeRamGb", "nodeGflops"]){
+    const v = Number(a[k]);
+    if (Number.isFinite(v) && v > 0) s[k] = v;
+  }
+  return s;
+}
+
+// Which live enclave a deployment of `v` would land on, and the dial floors
+// ON THAT BOX. Only CLAIMING enclaves count (same rule as the relay's sizing
+// subset — explicit claimEnabled, with non-tunnel rows grandfathered). Among
+// boxes that fit, the pick is the CHEAPEST FOR THE BUYER: the lowest minimum
+// share, i.e. the biggest hardware — a share sized for it is refused by every
+// smaller box's own claim gate, so the prediction stays self-consistent (a
+// small box never claims a big-box-sized record). Ties mirror claim routing:
+// CPU apps prefer CPU-only boxes (GPU leftovers are the graced fallback),
+// then the most free pool wins. The pick is a PREDICTION, not a booking —
+// the ledger is an open queue and any box at least as big may claim first —
+// but shares sized for the pick are servable by it and by anything bigger.
+// Returns { row, name, spec, mins, free:{gpuPct,cpuPct}, queued } — queued:
+// the box fits this app but can't START it now (deploys wait on-chain) — or
+// { none: "why" } when no live enclave could ever run it.
+export function pickEnclaveFor(v, rows){
+  const claiming = (rows || []).filter((e) => e && e.availability
+    && (e.availability.claimEnabled === true || (e.availability.claimEnabled == null && !e.tunnel)));
+  if (!claiming.length) return { none: "no live enclave is taking work right now" };
+  const vramMb = Number(v && v.vramMb || 0), gpuGf = Number(v && v.gpuGflops || 0);
+  const memMb = Number(v && v.memMb || 0), cpuGf = Number(v && v.cpuGflops || 0);
+  const needsGpu = vramMb > 0 || gpuGf > 0;
+  const cand = claiming.map((row) => {
+    const a = row.availability, spec = enclaveSpecOf(row);
+    const gpu = a.gpu === true;
+    // structural fit: could this BOX ever run the app, at any share?
+    const fits = (!needsGpu || (gpu && vramMb / 1024 <= spec.cardVramGb && gpuGf / 1000 <= spec.cardTflops))
+              && memMb <= spec.nodeRamGb * 1024 && cpuGf <= spec.nodeGflops;
+    const mins = minPctsOf(v, spec);
+    const free = { gpuPct: Math.floor((a.gpuShareFree || 0) * 100), cpuPct: Math.floor((a.cpuShareFree || 0) * 100) };
+    const now = fits && (!needsGpu || free.gpuPct >= mins.gpuPct) && free.cpuPct >= mins.cpuPct;
+    const name = row.name || String(row.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "enclave";
+    return { row, name, spec, mins, free, gpu, fits, now };
+  });
+  const order = (list) => list.slice().sort((x, y) => needsGpu
+    ? (x.mins.gpuPct - y.mins.gpuPct) || (y.free.gpuPct - x.free.gpuPct)
+    : (x.mins.cpuPct - y.mins.cpuPct) || ((x.gpu === true) - (y.gpu === true)) || (y.free.cpuPct - x.free.cpuPct));
+  const pool = cand.filter((c) => needsGpu ? c.gpu : true);
+  const ready = order(pool.filter((c) => c.now));
+  if (ready.length) return { ...ready[0], queued: false };
+  const eventual = order(pool.filter((c) => c.fits));
+  if (eventual.length) return { ...eventual[0], queued: true };
+  return { none: needsGpu && !pool.some((c) => c.gpu)
+    ? "this app needs a GPU and no live enclave has one"
+    : "no live enclave's hardware is big enough for this app's specs" };
 }

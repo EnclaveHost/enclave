@@ -252,6 +252,7 @@
         <div class="field">
           <label for="cfgCpuShare">CPU/RAM share <span class="dim" id="cpuShareUnit">(% of the node · ≤ GPU share for GPU apps)</span> <span class="dim" id="cpuShareCap"></span></label>
           <input type="number" id="cfgCpuShare" value="5" min="1" max="100" step="1" />
+          <div class="target-readout" id="targetOut" hidden></div>
           <div class="tier-readout" id="tierOut"></div>
           <div class="cap-warn" id="capWarn" role="alert" hidden></div>
         </div>

@@ -21,7 +21,7 @@ import { $, $$, esc, short, wait, fmtNum, fmtDur, hlJson, hlCode, copyText, show
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS, BASE_CHAIN, ACCOUNTS_ENABLED } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
 import { vaultOp, getVault } from "../core/vault.js";
-import { minPctsOf, serverSpec, shareRates } from "../core/pricing.js";
+import { minPctsOf, serverSpec, shareRates, pickEnclaveFor } from "../core/pricing.js";
 import { encCall, DEP_SEL, DEP_CREATED_TOPIC, APPROVAL, depGet, depRate6, depPrices6, depSchemaRev, depMaxGpuMilli, rate6Of, waitReceipt, catVersionFee } from "../core/chain.js";
 
 // create()'s shape on the live contract (rev 1 carried a removed sshPubKey
@@ -67,14 +67,34 @@ function renderAccessNote(){
     : "only your wallet (SIWE token) can reach the app, for private/confidential jobs.";
 }
 
-// The selected app's minimum shares for the two dials. Friendly slug:version
-// refs resolve to their catalog specs; raw CIDs we can't see specs for get
-// the open floor (0% GPU / 1% CPU) - the enclave still enforces the real
-// minimums server-side.
-function currentMins(){
+// The relay's /enclaves rows (refreshFleet keeps them fresh; null = no fleet
+// view, e.g. pointed straight at one enclave — aggregate math then applies).
+let fleetRows = null;
+
+/* Which enclave the picked app would LAND ON — the dials size against that
+   box's hardware, not an anonymous fleet aggregate, so the user sees where
+   the app goes and what a share means THERE. Recomputed on every render:
+   the 20s poll refreshes the rows, so a box filling up (or dropping off)
+   REROUTES the target — or turns into an explicit "not available" refusal —
+   while the user is still configuring. null = no basis to target (unknown
+   app specs or no fleet view): the adopted-aggregate math applies as before. */
+function currentTarget(){
   const input = ($("#cfgImage") ? $("#cfgImage").value : "").trim();
   const spec = SPECS_CACHE[input];
-  return spec ? minPctsOf(spec) : { gpuPct: 0, cpuPct: 1 };   // computed NOW, against the adopted fleet hardware
+  if (!spec || !fleetRows || !fleetRows.length) return null;
+  return pickEnclaveFor(spec, fleetRows);
+}
+// The selected app's minimum shares for the two dials: against the TARGET
+// enclave's hardware when one is known, the adopted fleet spec otherwise.
+// Friendly slug:version refs resolve to their catalog specs; raw CIDs we
+// can't see specs for get the open floor (0% GPU / 1% CPU) - the enclave
+// still enforces the real minimums server-side.
+function currentMins(){
+  const t = currentTarget();
+  if (t && !t.none) return t.mins;
+  const input = ($("#cfgImage") ? $("#cfgImage").value : "").trim();
+  const spec = SPECS_CACHE[input];
+  return spec ? minPctsOf(spec) : { gpuPct: 0, cpuPct: 1 };
 }
 /* The "App config" box: pre-filled with the picked VERSION's config - the
    JSON the app receives as ENCLAVE_CONFIG, straight from the on-chain record
@@ -228,30 +248,47 @@ function renderDeploy(){
   $("#outFetch").innerHTML = hlCode(deployFetch(body));
   $("#outCurl").innerHTML = hlCode(deployCurl(body));
   const budget = parseFloat($("#cfgBudget").value) || 0;
-  // the app's specs set the dials' floors; reflect them on the inputs live
+  // WHERE the app would land + the floors ON THAT BOX; reflect them live.
+  // The 20s poll re-renders, so the target reroutes (or refuses) by itself.
+  const target = currentTarget();
+  dep.target = target;
   const mins = currentMins();
   dep.minGpuPct = mins.gpuPct; dep.minCpuPct = mins.cpuPct;
+  const spec = target && !target.none ? target.spec : serverSpec();
   const gIn = $("#cfgGpuShare"); if (gIn) gIn.min = String(dep.gpuEnclave ? mins.gpuPct : 0);
   const cIn = $("#cfgCpuShare"); if (cIn) cIn.min = String(mins.cpuPct);
+  const tgt = $("#targetOut");
+  if (tgt){
+    tgt.hidden = !target;
+    if (target) tgt.innerHTML = target.none
+      ? "✕ not deployable right now: " + esc(target.none)
+      : "⤷ deploys to <b>" + esc(target.name) + "</b> · " + fmtNum(spec.nodeVcpus) + " vCPU / " + fmtNum(spec.nodeRamGb) + " GB node"
+        + (target.mins.gpuPct > 0 ? " · " + fmtNum(spec.cardVramGb) + " GB card" : "")
+        + (target.queued ? " · <b>currently full — a deploy waits in its queue</b>" : "")
+        + " <i>(the ledger is an open queue: this box or any bigger one serves it)</i>";
+  }
   const gpuPct = dep.gpuEnclave ? (dep.gpuPct || 0) : 0;
   const cpuPct = dep.cpuPct || 0;
   let rate, readout;
-  if (gpuPct > 100 || cpuPct > 100) {
+  if (target && target.none) {
+    rate = 0; readout = "✕ " + target.none + " - the deployment would never be claimed";
+  }
+  else if (gpuPct > 100 || cpuPct > 100) {
     rate = 0; readout = "✕ a share exceeds 100% of the " + (gpuPct > 100 ? "card" : "node");
   }
   else if (dep.gpuEnclave && gpuPct < mins.gpuPct) {
-    const s = serverSpec();
-    rate = 0; readout = "✕ this app needs at least a " + mins.gpuPct + "% GPU share (its specs: that much VRAM/compute on the fleet's " + s.cardVramGb + " GB / " + s.cardTflops + " TFLOPS card)";
+    rate = 0; readout = "✕ this app needs at least a " + mins.gpuPct + "% GPU share (its specs: that much VRAM/compute on "
+      + (target ? target.name + "'s" : "the fleet's") + " " + spec.cardVramGb + " GB / " + spec.cardTflops + " TFLOPS card)";
   }
   else if (cpuPct < mins.cpuPct) {
-    const s = serverSpec();
-    rate = 0; readout = "✕ this app needs at least a " + mins.cpuPct + "% CPU share (its specs: that much RAM/compute on the fleet's " + s.nodeRamGb + " GB / " + s.nodeGflops + " GFLOPS node)";
+    rate = 0; readout = "✕ this app needs at least a " + mins.cpuPct + "% CPU share (its specs: that much RAM/compute on "
+      + (target ? target.name + "'s" : "the fleet's") + " " + spec.nodeRamGb + " GB / " + spec.nodeGflops + " GFLOPS node)";
   }
   else if (gpuPct > 0 && Math.round(cpuPct) > Math.round(gpuPct)) {
     rate = 0; readout = "✕ CPU share (" + Math.round(cpuPct) + "%) can't exceed GPU share (" + Math.round(gpuPct) + "%) - a GPU app's CPU slice rides on its card's node";
   }
   else {
-    const g = shareRates(gpuPct, cpuPct);
+    const g = shareRates(gpuPct, cpuPct, spec);
     // money comes from the CONTRACT's prices + ceil math (cached read) -
     // client constants drift; the hardware figures below stay client-side.
     // A paid app's publisher fee rides on top, exactly as create() adds it.
@@ -267,13 +304,22 @@ function renderDeploy(){
   const t = $("#tierOut"); if (t) t.textContent = readout;
   // capacity is a WAIT, not an error: a pick above what's free right now is
   // still worth creating (it queues on-chain; queued demand is also what the
-  // fleet scales on) - but say so clearly before any wallet step
+  // fleet scales on) - but say so clearly before any wallet step. With a
+  // target the verdict is per-BOX (its own free pools); the aggregate covers
+  // the no-target paths.
   const capW = $("#capWarn");
   if (capW){
-    const q = rate > 0 ? queuedVerdict(gpuPct, cpuPct) : null;
+    const q = rate > 0
+      ? (target && !target.none
+          ? ((gpuPct > 0 && gpuPct > target.free.gpuPct) || cpuPct > target.free.cpuPct
+              ? { free: gpuPct > 0 ? target.free.gpuPct + "% of " + target.name + "'s card · " + target.free.cpuPct + "% of its node free"
+                                   : target.free.cpuPct + "% of " + target.name + "'s node free" }
+              : null)
+          : (() => { const v = queuedVerdict(gpuPct, cpuPct);
+              return v && { free: gpuPct > 0 ? freePct.gpu + "% of a card · " + v.cpuFreeHere + "% of its node free" : freePct.cpuAny + "% of the node free" }; })())
+      : null;
     capW.hidden = !q;
-    if (q) capW.textContent = "⚠ this size isn't free right now ("
-      + (gpuPct > 0 ? freePct.gpu + "% of a card · " + q.cpuFreeHere + "% of its node free" : freePct.cpuAny + "% of the node free")
+    if (q) capW.textContent = "⚠ this size isn't free right now (" + q.free
       + ") - you can still deploy: the app is created on-chain, waits as Queued, and starts automatically the moment capacity frees up. Queued time is never billed; the balance only burns while the app runs.";
   }
   $("#estRuntime").textContent = rate > 0 ? fmtDur(budget / rate) : "–";
@@ -353,19 +399,32 @@ async function runDeploy(){
   const ports = ($("#cfgPorts") && $("#cfgPorts").value || "");
   const { portsCsv, appPort } = portsSpec(ports);
 
+  // Fresh targeting at commit time: the 20s poll may be stale and the user is
+  // about to sign final, non-withdrawable funding. Re-read the fleet, re-pick
+  // the target box — one that filled up meanwhile REROUTES here (floors
+  // re-check against the new box; refreshFleet already repainted the form),
+  // and a fleet that lost the hardware for this app refuses OUTRIGHT before
+  // any wallet step. Dry runs preview off the last poll.
+  if (!dry) await refreshFleet();
+  const target = currentTarget();
+  if (target && target.none)
+    return note([["warn", "[!] " + raw + " isn't deployable right now: " + target.none + ". Nothing was signed - the form retargets automatically when the fleet changes."]]);
+
   // HARD floor, the last line before a wallet signature: runners divide the
   // app's specs by their probed hardware and refuse anything below the result,
   // and a created record's shares are IMMUTABLE - an under-provisioned
   // deployment sits "Queued" forever, claimable by nobody, its funding
-  // unrecoverable. The dial UI enforces the same floor; this catches every
-  // other path here (stale prefill, races, hand-edited fields).
-  const fmins = SPECS_CACHE[raw] ? minPctsOf(SPECS_CACHE[raw]) : null;
+  // unrecoverable. The dial UI enforces the same floor against the same
+  // target; this catches every other path (stale prefill, a commit-time
+  // reroute onto a smaller box, races, hand-edited fields).
+  const fmins = target ? target.mins : (SPECS_CACHE[raw] ? minPctsOf(SPECS_CACHE[raw]) : null);
+  const where = target ? "on " + target.name : "on this fleet's hardware";
   if (fmins && fmins.gpuPct > 0 && gpuMilli < fmins.gpuPct * 10)
     return note([["warn", !dep.gpuEnclave
       ? "[!] " + raw + " needs a GPU (min " + fmins.gpuPct + "% of a card) and the fleet has no GPU enclave live - this deployment would never be claimed."
-      : "[!] " + raw + " needs at least a " + fmins.gpuPct + "% GPU share on this fleet's hardware - " + (gpuMilli / 10) + "% would never be claimed. Raise the GPU dial."]]);
+      : "[!] " + raw + " needs at least a " + fmins.gpuPct + "% GPU share " + where + " - " + (gpuMilli / 10) + "% would never be claimed. Raise the GPU dial."]]);
   if (fmins && cpuMilli < fmins.cpuPct * 10)
-    return note([["warn", "[!] " + raw + " needs at least a " + fmins.cpuPct + "% CPU share on this fleet's hardware - " + (cpuMilli / 10) + "% would never be claimed. Raise the CPU dial."]]);
+    return note([["warn", "[!] " + raw + " needs at least a " + fmins.cpuPct + "% CPU share " + where + " - " + (cpuMilli / 10) + "% would never be claimed. Raise the CPU dial."]]);
 
   // HARD ceiling, the floors' mirror: create() refuses gpuMilli above the
   // operator-set on-chain cap (pre-cap contracts read as 1000 = uncapped).
@@ -402,9 +461,9 @@ async function runDeploy(){
   if (!(tos && tos.checked))
     return note([["warn", "[!] real deploys need the Terms of Service box ticked (payments are crypto-only, non-custodial and final; uptime isn’t guaranteed)"]]);
 
-  // capacity gate: a size the fleet can't start right now proceeds only
+  // capacity gate: a size the target box can't start right now proceeds only
   // through the queue-confirm modal's explicit checkbox
-  if (!(await confirmQueuedDeploy(gpuMilli / 10, cpuMilli / 10))) return;
+  if (!(await confirmQueuedDeploy(gpuMilli / 10, cpuMilli / 10, target))) return;
 
   // account/credit pre-checks: the passkey-signed vault deploy itself lives in
   // deployOnChain (shared with the store's quick-deploy modal), but these
@@ -836,16 +895,27 @@ export async function gpuCapRefusal(gpuMilli, minGpuPct){
     : "the platform caps GPU deployments at " + (cap / 10) + "% of a card - lower the GPU share (asked: " + (gpuMilli / 10) + "%).";
 }
 
-export async function confirmQueuedDeploy(gpuPct, cpuPct){
-  try { adoptFreePct(await Enclave.getAvailability()); } catch(e){}
-  const q = queuedVerdict(gpuPct, cpuPct);
-  if (!q) return true;
+export async function confirmQueuedDeploy(gpuPct, cpuPct, target){
+  let queued, freeLine;
+  if (target && !target.none){
+    // per-BOX verdict: the console targeted a specific enclave, so the wait
+    // question is about ITS pools, phrased with its name
+    queued = (gpuPct > 0 && gpuPct > target.free.gpuPct) || cpuPct > target.free.cpuPct;
+    freeLine = gpuPct > 0
+      ? target.free.gpuPct + "% of " + target.name + "'s card / " + target.free.cpuPct + "% of its node are free right now; this deployment asks for " + gpuPct + "% / " + cpuPct + "%"
+      : target.free.cpuPct + "% of " + target.name + "'s node is free right now; this deployment asks for " + cpuPct + "%";
+  } else {
+    try { adoptFreePct(await Enclave.getAvailability()); } catch(e){}
+    const q = queuedVerdict(gpuPct, cpuPct);
+    queued = !!q;
+    freeLine = q ? (gpuPct > 0
+      ? freePct.gpu + "% of a card / " + q.cpuFreeHere + "% of its node are free right now; this deployment asks for " + gpuPct + "% / " + cpuPct + "%"
+      : freePct.cpuAny + "% of the node is free right now; this deployment asks for " + cpuPct + "%") : "";
+  }
+  if (!queued) return true;
   return new Promise((resolve) => {
     const host = document.createElement("div");
     host.className = "qd-overlay"; host.id = "capConfirm";
-    const freeLine = gpuPct > 0
-      ? freePct.gpu + "% of a card / " + q.cpuFreeHere + "% of its node are free right now; this deployment asks for " + gpuPct + "% / " + cpuPct + "%"
-      : freePct.cpuAny + "% of the node is free right now; this deployment asks for " + cpuPct + "%";
     host.innerHTML =
       '<div class="qd-card capq" role="dialog" aria-modal="true" aria-label="Not enough free capacity">' +
         '<div class="qd-h">⚠ The fleet is full for this size</div>' +
@@ -943,7 +1013,7 @@ async function refreshAvailability(){
 // it - pointed directly at an enclave, both fields stay hidden.
 async function refreshFleet(){
   const field = $("#fleetField"), volField = $("#volField");
-  if (!field || !fleetList) return;
+  if (!field || !fleetList) return null;
   try {
     const r = await fetch(Enclave.base.replace(/\/v1\/?$/, "") + "/enclaves", { headers: { "Accept": "application/json" } });
     if (!r.ok) throw new Error("no fleet view");
@@ -952,6 +1022,11 @@ async function refreshFleet(){
       ((b.availability && b.availability.gpu) === true) - ((a.availability && a.availability.gpu) === true)
       || String(a.endpoint || "").localeCompare(String(b.endpoint || "")));
     fleetList.rows = rows;
+    // the deploy console targets a specific enclave off these rows: refresh
+    // them, re-render — a box that filled up or dropped off REROUTES the
+    // target (or flips the form to "not deployable") on this same tick
+    fleetRows = rows;
+    renderDeploy();
     field.hidden = false;
     // Model volumes the fleet advertises (Modelwrap): union across enclaves,
     // each tagged with which enclaves carry it.
@@ -967,7 +1042,8 @@ async function refreshFleet(){
     const vols = [...byName.values()].sort((a,b) => a.name.localeCompare(b.name));
     if (volField) volField.hidden = !vols.length;
     if (volPicker){ volPicker.selected = dep.volumes; volPicker.volumes = vols; }
-  } catch(e){ field.hidden = true; }
+    return fleetRows;
+  } catch(e){ field.hidden = true; fleetRows = null; renderDeploy(); return null; }
 }
 function startAvailPoll(){
   refreshAvailability(); refreshFleet();

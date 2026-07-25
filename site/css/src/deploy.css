@@ -34,6 +34,9 @@
 .run-row{display:flex;align-items:center;gap:12px;padding:13px 16px;border-top:1px solid var(--line);background:var(--bg-1);}
 .run-row .hint{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);margin-left:auto;}
 
+.field .target-readout{margin-top:7px;font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);}
+.field .target-readout b{color:var(--jade-2);font-weight:600;}
+.field .target-readout i{font-style:normal;opacity:.75;}
 .field .tier-readout{margin-top:7px;font-family:var(--font-mono);font-size:.72rem;color:var(--jade-2);min-height:1em;}
 .field .cap-warn{margin-top:7px;font-family:var(--font-mono);font-size:.72rem;line-height:1.6;color:var(--amber);}
 .pay-bal{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;border:1px solid var(--line);border-radius:10px;background:linear-gradient(180deg,var(--surface),#0C131C);padding:10px 12px;}
