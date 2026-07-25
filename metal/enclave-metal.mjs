@@ -12,6 +12,8 @@
 //     "relayUrl":"wss://api.enclave.host/v1/fleet-tunnel", "tunnelToken":"…",
 //     "hostfwd":[{"host":18080,"guest":8080}], "ovmf":"…", "qemu":"…", "dist":"…" }
 import { spawn } from 'node:child_process';
+import net from 'node:net';
+import tls from 'node:tls';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -44,6 +46,28 @@ const cmdline = [
   `metal.mode=${MODE}`,
 ].join(' ');
 const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', relayUrl: cfg.relayUrl || '', tunnelToken: cfg.tunnelToken || '' };
+
+// Optional egress helper. QEMU user-net (slirp) NATs outbound for a normal host,
+// but some sandboxed/dev hosts block slirp's EXTERNAL sockets while still routing
+// the guest→host (10.0.2.2) path. When cfg.egressHelper is set, we run a tiny
+// host-side pipe the guest can reach at 10.0.2.2:<port> and which adds TLS to the
+// real relay — so the guest speaks plaintext ws to the helper and the TLS leg to
+// the relay is end-to-end from the helper. Only needed in such environments; a
+// normal seller box dials the relay directly (leave egressHelper unset).
+if (cfg.egressHelper && cfg.relayUrl) {
+  const ru = new URL(cfg.relayUrl);
+  const port = cfg.egressHelper.port || 9443;
+  const targetHost = ru.hostname, targetPort = Number(ru.port) || 443;
+  net.createServer((gsock) => {
+    const up = tls.connect({ host: targetHost, port: targetPort, servername: targetHost }, () => { gsock.pipe(up); up.pipe(gsock); });
+    const kill = () => { gsock.destroy(); up.destroy(); };
+    up.on('error', kill); gsock.on('error', kill); up.on('close', kill); gsock.on('close', kill);
+  }).listen(port, '127.0.0.1', () => console.log(`[enclave-metal] egress helper 127.0.0.1:${port} → ${targetHost}:${targetPort} (guest reaches it at 10.0.2.2:${port})`));
+  // guest dials the helper in plaintext ws, but keeps the real relay host for the Host header + SNI identity
+  runtimeCfg.relayUrl = `ws://10.0.2.2:${port}${ru.pathname}`;
+  runtimeCfg.relayHost = targetHost;
+}
+
 const fwCfgPath = path.join(os.tmpdir(), `metal-fwcfg-${process.pid}.json`);
 fs.writeFileSync(fwCfgPath, JSON.stringify(runtimeCfg));
 
@@ -58,7 +82,14 @@ function baseArgs() {
     '-fw_cfg', `name=opt/org.enclave.metal,file=${fwCfgPath}`,
     // outbound-only user networking (slirp NAT); the enclave dials OUT to the
     // relay, so no inbound is needed. hostfwd exposes loopback ports for testing.
-    '-netdev', netdev(), '-device', 'virtio-net-pci,netdev=net0',
+    // Offloads are DISABLED: in a confidential guest, memory is encrypted and
+    // DMA goes through bounce buffers, so the host cannot fix up checksums/GSO
+    // for offloaded packets — with them on, external TCP SYNs are silently
+    // dropped and every outbound connection times out.
+    '-netdev', netdev(),
+    '-device', 'virtio-net-pci,netdev=net0,csum=off,gso=off,guest_csum=off,'
+      + 'host_tso4=off,host_tso6=off,guest_tso4=off,guest_tso6=off,guest_ecn=off,'
+      + 'host_ufo=off,guest_ufo=off',
     '-serial', 'mon:stdio',
   ];
   if (MODE === 'dev') return a;

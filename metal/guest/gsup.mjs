@@ -103,6 +103,7 @@ const supEnv = {
   CLAIM_ENABLED: '0',
   SECRET,
   ADMIN_TOKEN,
+  NODE_EXTRA_CA_CERTS: '/etc/ssl/certs/ca-certificates.crt',
 };
 start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], supEnv, { cwd: '/app' });
 
@@ -113,9 +114,11 @@ start('metal-agent', ['/usr/local/bin/node', '/opt/metal/agent.mjs'], {
   METAL_NAME: NAME,
   METAL_PUBLIC_URL: PUBLIC_URL,
   METAL_RELAY_URL: RELAY_URL,
+  METAL_RELAY_HOST: fw.relayHost || '',           // Host/SNI override when dialing via an egress helper
   METAL_TUNNEL_TOKEN: TUNNEL_TOKEN,
   METAL_SUP_URL: 'http://127.0.0.1:8080',
   METAL_RAD_PORT: '8443',
+  NODE_EXTRA_CA_CERTS: '/etc/ssl/certs/ca-certificates.crt',
   SECRET,
 });
 
