@@ -44,11 +44,15 @@ anonymous sellers actually earn:
   the relay box set `METAL_ALLOWED_MEASUREMENTS=<hex,hex,…>` (and keep
   `METAL_REQUIRE_VCEK=1`). Until then, attach stays token-only. The allowlist is
   auditable: anyone can rebuild the release and reproduce each measurement.
-- **On-chain earning.** Point a seller enclave's registry endpoint at
-  `https://api.enclave.host/t/<enclaveId>` (relay-hosted, routes through the
-  tunnel) and enable `REGISTRY_ENABLED`/`CLAIM_ENABLED` with an in-guest-minted
-  EOA. Decide gas: either the seller funds their EOA (a few dollars of Base ETH)
-  or the platform sponsors first registration.
+- **On-chain earning — needs a contract change first.** `EnclaveDeployments`
+  currently forwards ALL funding to the single platform `payout` cold wallet;
+  `claim`/`renew`/`release` move only accounting numbers and the runner EOA
+  receives nothing on-chain (it just pays gas). Before a seller can be paid,
+  `EnclaveDeployments` must settle a per-runner share to `runnerOperator` as
+  lease time burns (a metered split, or a claimable per-runner balance). Then
+  point a seller's registry endpoint at `https://api.enclave.host/t/<enclaveId>`,
+  enable `REGISTRY_ENABLED`/`CLAIM_ENABLED` with an in-guest-minted EOA, and
+  decide gas (seller-funded vs platform-sponsored first registration).
 - **Anti-sybil.** Decide whether registration requires a small on-chain bond and
   the per-IP attach rate limit.
 

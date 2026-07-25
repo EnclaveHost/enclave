@@ -14,9 +14,21 @@
 import { spawn } from 'node:child_process';
 import { randomBytes, createHash } from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 
 const log = (...a) => { try { fs.writeSync(1, `[gsup] ${a.join(' ')}\n`); } catch {} };
 const readJson = (p, d) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return d; } };
+
+// The node's ADVERTISED capacity must be this VM's ACTUAL size, not the baked
+// CPU-flavor constants (16 vCPU / 64 GB) — otherwise the enclave sells capacity
+// it doesn't have. Derive it from the guest itself: vCPUs from the scheduler,
+// RAM from MemTotal minus a reserve for the base system (kernel + initramfs in
+// tmpfs + the three services). GFLOPS scales with vCPUs (~62.5/vCPU, matching
+// the flavor's 1000 GFLOPS for 16 vCPU).
+const NODE_VCPUS = os.cpus().length;
+const totalGb = os.totalmem() / (1024 ** 3);
+const NODE_RAM_GB = Math.max(1, Math.floor(totalGb - 1.5));   // reserve ~1.5 GB for the base system
+const NODE_GFLOPS = Math.max(1, Math.round((1000 / 16) * NODE_VCPUS));
 
 // --- config: mode from the MEASURED cmdline; deployment config from fw_cfg ----
 // (out-of-band, NOT measured — so the launch measurement is stable per image).
@@ -40,6 +52,7 @@ const flavorEnv = readJson('/opt/metal/flavor-env.json', {});   // baked, non-se
 const SECRET       = randomBytes(32).toString('hex');
 const ADMIN_TOKEN  = randomBytes(32).toString('hex');
 log(`mode=${MODE} name=${NAME} public=${PUBLIC_URL || '(none)'} relay=${RELAY_URL ? 'set' : '(none)'}`);
+log(`advertised capacity: ${NODE_VCPUS} vCPU / ${NODE_RAM_GB} GB RAM / ${NODE_GFLOPS} GFLOPS (from this VM's actual size)`);
 
 // --- child management --------------------------------------------------------
 const children = new Map();
@@ -75,8 +88,8 @@ start('wasm-manager',
     ...wasmImgEnv,
     PATH: wasmImgEnv.PATH || '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
     WASM_MANAGER_PORT: '8091',
-    NODE_VCPUS: flavorEnv.NODE_VCPUS || '16',
-    NODE_RAM_GB: flavorEnv.NODE_RAM_GB || '64',
+    NODE_VCPUS: String(NODE_VCPUS),
+    NODE_RAM_GB: String(NODE_RAM_GB),
     NODE_HAS_GPU: '0',
     WASM_CPU_WEIGHT: '100',
     WASM_ACCOUNT_STORAGE_RAM: '1',
@@ -87,6 +100,10 @@ start('wasm-manager',
 // --- supervisor (base root) --------------------------------------------------
 const supEnv = {
   ...flavorEnv,                              // contract addresses, SIWE, CORS, ACME dirs, etc (non-secret)
+  // override the baked flavor capacity with THIS VM's actual size (see above)
+  NODE_VCPUS: String(NODE_VCPUS),
+  NODE_RAM_GB: String(NODE_RAM_GB),
+  NODE_GFLOPS: String(NODE_GFLOPS),
   PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
   PORT: '8080',
   GPU_COUNT: '0',

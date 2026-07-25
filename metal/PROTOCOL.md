@@ -53,15 +53,29 @@ first-party boxes and for platforms whose parts have no KDS-published VCEK.)
 ### 2. On-chain registration + earning (non-custodial)
 
 The Metal supervisor already speaks `EnclaveRegistry` / `EnclaveDeployments`
-(register → claim → lease → paid). A seller enclave:
+(register → claim → lease). A seller enclave:
 
 - mints (or is given) an Ethereum key **inside the CVM**; the host operator never
   sees it, so they cannot divert payouts or forge the enclave's on-chain identity;
 - registers with `endpoint = https://api.enclave.host/t/<enclaveId>` — a
   relay-hosted URL that routes through the tunnel, so a CGNAT box with no public
   address is still a valid, dialable registry entry;
-- claims funded deployments it can serve and is paid per second to its EOA by the
-  lease contract. The platform never custodies the money.
+- claims funded deployments it can serve, signing `claim`/`renew`/`release` with
+  that key.
+
+> **Payout is NOT yet wired for sellers — this needs a contract change.**
+> `EnclaveDeployments` today forwards every funding payment, in the funding
+> transaction itself, to a single platform `payout` cold wallet (minus the
+> optional app-publisher fee). `claim`/`renew`/`release` only move accounting
+> numbers; the runner EOA that claims is recorded solely for authorization and
+> receives **nothing** on-chain. So a permissionless seller currently earns
+> nothing through the contract — operator compensation is off-chain.
+>
+> To make this a real earning protocol, `EnclaveDeployments` must settle a
+> per-runner share to `runnerOperator` (the seller's in-CVM EOA) as lease time is
+> burned — a metered split at `release`/`renew`, or a claimable per-runner
+> balance. That is the core open contract work for Phase C. Until it ships, a
+> "seller" can serve deployments but is not paid on-chain.
 
 ### 3. The relay stays a keyless router
 
