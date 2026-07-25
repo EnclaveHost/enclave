@@ -370,7 +370,14 @@ async function buildSnapshot(log) {
   let enclaves = [], relayDomains = [], relayOk = false;
   try {
     const r = await fetchJson(`${CFG.apiBase}/enclaves`);
-    enclaves = (r.enclaves || []).map((e) => {
+    enclaves = (r.enclaves || [])
+      // capacity that can't be CLAIMED is not capacity: skip enclaves that say
+      // they don't claim, and tunnel boxes unless they say they do (the metal
+      // demo enclave advertises a whole free node it will never serve — counting
+      // it would suppress scale-ups the fleet actually needs)
+      .filter((e) => e.availability?.claimEnabled !== false
+                  && (!e.tunnel || e.availability?.claimEnabled === true))
+      .map((e) => {
       const endpoint = String(e.endpoint || e.url || "");
       return {
         gpu: !!e.availability?.gpu,

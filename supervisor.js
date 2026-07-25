@@ -2332,6 +2332,7 @@ app.get("/availability", async (_req, res) => {
     secrets: true,   // this build pulls relay-staged per-deployment secrets into the guest env at every launch; fleet-AND'd with the relay's own secretsEnabled() before clients see it
     secretsInConfig: true,   // this build also resolves $NAME/${NAME} placeholders in config STRING values from those secrets at launch (wasm-manager _subst_secrets); same fleet-AND rule
     devDeploy: true,   // this build's approval gate admits PENDING catalog versions for PRIVATE deployments (publisher dev-mode testing); public deploys of pending versions stay refused — same fleet-AND rule, clients only offer the option when every live runner honors it
+    claimEnabled: CLAIM_READY,   // whether this enclave CLAIMS ledger work. The relay sizes app minimums and fleet capacity over CLAIMING enclaves only: a present-but-not-claiming box (the metal demo enclave) must never set the fleet's sizing floor or inflate buyable capacity
     source, ...(note ? { note } : {}), updatedAt: new Date().toISOString(),
   });
   try {

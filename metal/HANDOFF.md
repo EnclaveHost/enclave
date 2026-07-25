@@ -74,6 +74,19 @@ activation, all of it yours:
   `registryKey` (fresh EOA + a few dollars of Base ETH for gas),
   `payoutAddress`, and `publicUrl=https://api.enclave.host/t/<name>`; the
   guest supervisor then registers, claims, earns, and auto-sweeps.
+- **OPEN DESIGN QUESTION — heterogeneous node sizing.** App minimum shares
+  are sized against the fleet-wide MINIMUM node (relay `spec*` fields), so a
+  small node joining the CLAIMING set inflates every CPU app's minimum share
+  and price for all buyers (observed 2026-07-25: the 3 GB metal demo box made
+  a 512 MB app's minimum 17% instead of 1% — fixed for NON-claiming boxes by
+  scoping sizing to claiming enclaves, but a real small SELLER will do it
+  again the moment it claims). Before admitting small sellers, decide the
+  sizing model: size against the largest claimable node (cheapest; small
+  boxes then only receive apps that fit their proportional slice — the
+  runner-side minimum gate already enforces this), a node-class floor for
+  sellers (e.g. min 16 vCPU / 64 GB to earn), or absolute-unit pricing in a
+  future ledger rev. The current per-node-fraction pricing pays a 3 GB node
+  the same per share as a 64 GB one, so some floor is likely wanted anyway.
 
 ### 4. Full hardware-signature chain on THIS box (informational, likely no action)
 This workstation EPYC reports a masked/unprovisioned chip id, so AMD KDS has no
