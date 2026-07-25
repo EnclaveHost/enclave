@@ -17,5 +17,7 @@
   "qemu": "qemu-system-x86_64",
   "dist": "metal/dist",
 
-  "_comment": "mode: snp | tdx | dev. dev = plain KVM (no attestation) for bring-up. hostfwd exposes guest ports on host loopback for local testing; production reachability is the fleet tunnel (relayUrl), so hostfwd can be empty. tunnelToken must match the relay's metal allowlist entry for this name."
+  "_egressHelper_optional": { "port": 9443 },
+
+  "_comment": "mode: snp | tdx | dev. dev = plain KVM (no attestation) for bring-up. hostfwd exposes guest ports on host loopback for local testing; production reachability is the fleet tunnel (relayUrl), so hostfwd can be empty. AUTH: set tunnelToken to attach via the relay's committed token allowlist (first-party boxes); OR leave tunnelToken empty to attach PERMISSIONLESSLY by proving your SEV-SNP measurement is on the relay's METAL_ALLOWED_MEASUREMENTS allowlist (metal/PROTOCOL.md). egressHelper (rename to \"egressHelper\") is only needed on sandboxed hosts whose user-net can't NAT externally; a normal seller box dials the relay directly."
 }

@@ -87,8 +87,17 @@ const ENV_METAL_ALLOW = (process.env.METAL_TUNNEL_TOKENS || "").split(",").map((
   .map((pair) => { const i = pair.indexOf(":"); const name = pair.slice(0, i), token = pair.slice(i + 1);
                    return name && token ? { name, tokenSha256: createHash("sha256").update(token).digest("hex") } : null; })
   .filter(Boolean);
+// Permissionless attach (metal/PROTOCOL.md): with a curated allowlist of published
+// Metal release measurements, ANY enclave that proves by fresh SEV-SNP quote that
+// it runs one of them attaches — no token, no operator vetting. Off by default
+// (empty allowlist → token-only); enable by setting METAL_ALLOWED_MEASUREMENTS on
+// the box. VCEK enforcement is ON unless explicitly disabled (only disable for a
+// lab box whose part has no KDS-published VCEK).
+const METAL_ALLOWED_MEASUREMENTS = (process.env.METAL_ALLOWED_MEASUREMENTS || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+const METAL_REQUIRE_VCEK = process.env.METAL_REQUIRE_VCEK !== "0";
 const tunnelHub = createTunnelHub({
   allow: [...DEFAULT_METAL_ALLOW, ...ENV_METAL_ALLOW],
+  attest: METAL_ALLOWED_MEASUREMENTS.length ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK } : null,
   // when an enclave attaches/detaches, refresh discovery + availability now so it
   // enters/leaves `live` immediately rather than on the slow (5 min) registry poll
   onChange: () => { pollRegistry().then(pollAvailability).catch(() => {}); },
