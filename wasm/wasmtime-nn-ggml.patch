@@ -138,14 +138,14 @@ new file mode 100644
 index 0000000..140bfcd
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,787 @@
+@@ -0,0 +1,875 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
 +//! The heavy lifting happens in the system-linked `enclave_llama` shim (a
 +//! flat pointer/scalar C ABI over llama.cpp, shipped next to libllama in the
 +//! enclave-llamacpp toolchain artifact — see wasm/llama-shim in the platform
-+//! repo). This file binds nine shim functions and adapts them to the
++//! repo). This file binds the shim functions and adapts them to the
 +//! wasi-nn backend traits. No new crates: std + FFI only, so the toolchain
 +//! patch carries no Cargo.lock delta.
 +//!
@@ -168,6 +168,12 @@ index 0000000..140bfcd
 +//! Inference contract (WIT named tensors):
 +//!   input  "tokens"  I32  dims [1, n] (n <= n_batch)   token ids
 +//!   output "logits"  Fp32 dims [1, n_vocab]            last-token logits
++//! Speculative-decoding verbs (see each handler in `compute`):
++//!   "tokens"+"all"=1 -> "logits" [n, n_vocab] (per-position verify rows);
++//!   "caps" -> [seq_id, recurrent]; "copy_from" [src_seq, src_n_past]
++//!   branches this sequence off another (recurrent state copy-on-write —
++//!   the zero-memory alternative to "rewind", which recurrent/hybrid
++//!   models refuse).
 +//!
 +//! SERVING MODEL (continuous batching): an execution context is a SEQUENCE
 +//! HANDLE into its graph's shared server context. llama.cpp serves up to
@@ -262,7 +268,9 @@ index 0000000..140bfcd
 +        n: i32,
 +        logits_out: *mut f32,
 +    ) -> i32;
-+    fn ell_seq_rewind(ctx: *mut c_void, seq_id: i32, n_keep: i32);
++    fn ell_seq_rewind(ctx: *mut c_void, seq_id: i32, n_keep: i32) -> i32;
++    fn ell_seq_copy(ctx: *mut c_void, src_seq: i32, dst_seq: i32);
++    fn ell_model_recurrent(model: *mut c_void) -> i32;
 +}
 +
 +static INIT: Once = Once::new();
@@ -339,6 +347,7 @@ index 0000000..140bfcd
 +            model: Arc::new(GgmlModel {
 +                raw: model,
 +                n_vocab: n_vocab as u32,
++                recurrent: unsafe { ell_model_recurrent(model) } != 0,
 +            }),
 +            server: Mutex::new(None),
 +        });
@@ -445,6 +454,11 @@ index 0000000..140bfcd
 +struct GgmlModel {
 +    raw: *mut c_void,
 +    n_vocab: u32,
++    /// carries recurrent (SSM/hybrid) state: partial rewind is impossible
++    /// (no per-token state history), so speculative callers must use the
++    /// branch-verify strategy (`copy_from`) instead of `rewind`. Surfaced
++    /// to guests through the "caps" probe.
++    recurrent: bool,
 +}
 +unsafe impl Send for GgmlModel {}
 +unsafe impl Sync for GgmlModel {}
@@ -676,13 +690,38 @@ index 0000000..140bfcd
 +
 +    /// Drop a sequence's tokens from n_keep onward (a speculative round's
 +    /// rejected tail). Holding the queue lock excludes decode leaders, the
-+    /// same discipline as seq removal in Drop.
-+    fn rewind(&self, seq_id: i32, n_keep: i32) {
++    /// same discipline as seq removal in Drop. Err = the memory REFUSED the
++    /// partial removal (recurrent/hybrid models keep no per-token state
++    /// history; nothing was mutated) — the caller must not decode on as-if
++    /// rewound. Branch-verify (`seq_copy`) is the strategy that needs no
++    /// rewind on any architecture.
++    fn rewind(&self, seq_id: i32, n_keep: i32) -> Result<(), String> {
 +        let mut q = self.q.lock().unwrap();
 +        while q.decoding {
 +            q = self.cv.wait(q).unwrap();
 +        }
-+        unsafe { ell_seq_rewind(self.raw, seq_id, n_keep) };
++        let rc = unsafe { ell_seq_rewind(self.raw, seq_id, n_keep) };
++        drop(q);
++        if rc != 0 {
++            return Err(
++                "[rewind_unsupported] this model keeps recurrent state with no per-token \
++                 history; use branch-verify (copy_from) for speculative rounds"
++                    .to_string(),
++            );
++        }
++        Ok(())
++    }
++
++    /// Make dst an exact branch of src (dst's previous contents dropped).
++    /// Attention KV cells are shared; recurrent state is copy-on-write and
++    /// diverges only when dst next decodes — so branching costs nothing
++    /// until used, on every architecture. Same lock discipline as rewind.
++    fn seq_copy(&self, src_seq: i32, dst_seq: i32) {
++        let mut q = self.q.lock().unwrap();
++        while q.decoding {
++            q = self.cv.wait(q).unwrap();
++        }
++        unsafe { ell_seq_copy(self.raw, src_seq, dst_seq) };
 +        drop(q);
 +    }
 +
@@ -856,16 +895,65 @@ index 0000000..140bfcd
 +        match inputs {
 +            // WIT path: named tensors in, named tensors out
 +            Some(inputs) => {
++                // control verb {"caps": I32 [1]} (value ignored): this
++                // sequence handle's identity and its model's capabilities,
++                // for speculative callers - "caps" I32 [seq_id, recurrent].
++                // seq_id names this handle as a copy_from source; recurrent
++                // 1 = partial rewind is impossible on this model (branch-
++                // verify is the only speculative strategy).
++                if inputs.iter().any(|nt| nt.name == "caps") {
++                    let vals = [self.seq_id, self.server.model.recurrent as i32];
++                    let mut data = Vec::with_capacity(vals.len() * 4);
++                    for v in vals {
++                        data.extend_from_slice(&v.to_le_bytes());
++                    }
++                    let t = Tensor {
++                        dimensions: vec![vals.len() as u32],
++                        ty: TensorType::I32,
++                        data,
++                    };
++                    return Ok(Some(vec![NamedTensor { name: "caps".to_string(), tensor: t }]));
++                }
++                // control verb {"copy_from": I32 [2] = [src_seq, src_n_past]}:
++                // make THIS sequence an exact branch of src_seq (previous
++                // contents dropped; recurrent state copy-on-write). src_seq
++                // comes from the source handle's "caps" probe; src_n_past is
++                // the caller's token count for it (positions are the guest's
++                // own bookkeeping - a wrong count only breaks its own
++                // stream). The speculative pattern: branch the target, verify
++                // draft tokens on the branch, then adopt the branch back on
++                // full accept or re-feed only the accepted tokens on the
++                // real sequence - no rewind on any architecture.
++                if let Some(cp) = inputs.iter().find(|nt| nt.name == "copy_from") {
++                    let v = tokens_from_tensor(&cp.tensor)?;
++                    let (src, src_n_past) = match v.as_slice() {
++                        [s, n] => (*s, *n),
++                        _ => return Err(err("copy_from needs [src_seq, src_n_past]")),
++                    };
++                    if src < 0 || src >= self.server.n_seq_max as i32 || src == self.seq_id {
++                        return Err(err(format!(
++                            "copy_from src {src} outside this graph's sequences"
++                        )));
++                    }
++                    if src_n_past < 0 {
++                        return Err(err("copy_from src_n_past must be >= 0"));
++                    }
++                    self.server.seq_copy(src, self.seq_id);
++                    self.n_past = src_n_past;
++                    return Ok(Some(vec![]));
++                }
 +                // control verb {"rewind": I32 [1]}: drop this sequence's
 +                // tokens from the given position on (a speculative round's
-+                // rejected tail) - no decode, no outputs
++                // rejected tail) - no decode, no outputs. Errors (nothing
++                // mutated) on recurrent/hybrid models, which keep no
++                // per-token state history - branch via copy_from instead.
 +                if let Some(rw) = inputs.iter().find(|nt| nt.name == "rewind") {
 +                    let v = tokens_from_tensor(&rw.tensor)?;
 +                    let n_keep = *v.first().ok_or_else(|| err("rewind needs one i32"))?;
 +                    if n_keep < 0 || n_keep > self.n_past {
 +                        return Err(err(format!("rewind to {n_keep} outside 0..={}", self.n_past)));
 +                    }
-+                    self.server.rewind(self.seq_id, n_keep);
++                    self.server.rewind(self.seq_id, n_keep).map_err(err)?;
 +                    self.n_past = n_keep;
 +                    return Ok(Some(vec![]));
 +                }

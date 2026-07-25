@@ -222,6 +222,27 @@ int32_t ell_decode_seq_full(void *ctx, void *model, int32_t seq_id, int32_t pos0
     return 0;
 }
 
-void ell_seq_rewind(void *ctx, int32_t seq_id, int32_t n_keep) {
-    llama_memory_seq_rm(llama_get_memory((struct llama_context *)ctx), seq_id, n_keep, -1);
+int32_t ell_seq_rewind(void *ctx, int32_t seq_id, int32_t n_keep) {
+    /* llama_memory_seq_rm REFUSES a partial removal it cannot honor (recurrent/
+     * hybrid state keeps no per-token history) and mutates nothing on refusal -
+     * propagate that so callers never continue against a tail they believe
+     * gone. Full-range removals (n_keep 0) always succeed. */
+    bool ok = llama_memory_seq_rm(llama_get_memory((struct llama_context *)ctx),
+                                  seq_id, n_keep, -1);
+    return ok ? 0 : -1;
+}
+
+void ell_seq_copy(void *ctx, int32_t src_seq, int32_t dst_seq) {
+    llama_memory_t mem = llama_get_memory((struct llama_context *)ctx);
+    /* rm_all on dst is the always-supported removal shape (recurrent included),
+     * then adopt src's cells. For attention KV this is metadata (shared cells);
+     * for recurrent state it is copy-on-write: dst shares src's state cell and
+     * diverges into a free cell only when dst next decodes. */
+    llama_memory_seq_rm(mem, dst_seq, -1, -1);
+    llama_memory_seq_cp(mem, src_seq, dst_seq, -1, -1);
+}
+
+int32_t ell_model_recurrent(void *model) {
+    const struct llama_model *m = (const struct llama_model *)model;
+    return (llama_model_is_recurrent(m) || llama_model_is_hybrid(m)) ? 1 : 0;
 }

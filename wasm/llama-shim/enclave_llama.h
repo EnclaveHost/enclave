@@ -109,12 +109,33 @@ void ell_seq_remove(void *ctx, int32_t seq_id);
  * back the distribution at each position. Same position/seq/rc contract as
  * one ell_decode_batch item.
  *
- * ell_seq_rewind: drop a sequence's tokens from position n_keep onward (the
- * rejected tail of a speculative round); the next decode continues at
- * n_keep. Callers serialize against decodes, as with every context call. */
+ * ell_seq_rewind: drop a sequence's tokens from position n_keep onward; the
+ * next decode continues at n_keep. Returns 0 on success, -1 if the memory
+ * REFUSED the partial removal (recurrent/hybrid models keep no per-token
+ * state history; nothing is mutated on refusal) - a caller getting -1 must
+ * NOT decode further on that sequence as-if rewound. n_keep 0 (= remove
+ * everything) always succeeds. Prefer ell_seq_copy branch-verify for
+ * speculative rounds: it needs no rewind on any architecture.
+ *
+ * ell_seq_copy: make dst_seq an exact branch of src_seq (dst's previous
+ * contents dropped first). Attention KV cells are SHARED (metadata only);
+ * recurrent/hybrid state is copy-on-write - dst diverges into its own state
+ * cell at its next decode, leaving src untouched. The speculative pattern:
+ * branch target -> verify the draft's tokens on the branch with
+ * ell_decode_seq_full -> full accept: ell_seq_copy(branch -> real);
+ * partial accept: drop the branch and re-feed only the accepted tokens on
+ * the real sequence. Zero extra memory, no snapshots, works on every arch.
+ *
+ * ell_model_recurrent: 1 when the model carries recurrent (SSM/hybrid)
+ * state - partial ell_seq_rewind will fail on such models and branch-verify
+ * is the only speculative strategy; 0 = classic attention-only.
+ *
+ * Callers serialize all calls per context, as with every context call. */
 int32_t ell_decode_seq_full(void *ctx, void *model, int32_t seq_id, int32_t pos0,
                             const int32_t *tokens, int32_t n, float *logits_out);
-void ell_seq_rewind(void *ctx, int32_t seq_id, int32_t n_keep);
+int32_t ell_seq_rewind(void *ctx, int32_t seq_id, int32_t n_keep);
+void ell_seq_copy(void *ctx, int32_t src_seq, int32_t dst_seq);
+int32_t ell_model_recurrent(void *model);
 
 #ifdef __cplusplus
 }
