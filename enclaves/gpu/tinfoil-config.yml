@@ -351,7 +351,7 @@ containers:
       # (name:path:file.gguf) picks WHICH gguf preloads as the wasi-nn graph
       # when the repo ships several quantizations - the manager stages the
       # pick as a symlink dir, so the mpk-<hash> mount name never matters.
-      - MODEL_VOLUMES: "qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-bb5cace1df1795f9dde1b6da38b2b9edfaaa56f4574a5d6270c1295b192c81c1,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.5-9b-gguf:/tinfoil/mpk/mpk-b70cb1b66baaf59542b5d478f952fcb4085dfb681deedf9e0420452e2fe6e6be,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen3.5-0.8b-gguf:/tinfoil/mpk/mpk-d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8,sd-turbo:/tinfoil/mpk/mpk-df0919ea85c829fb62c61029ac130f7e4a98bc6a57fe52dfb777a7426d5b36fc,sd-turbo-full:/tinfoil/mpk/mpk-e787b81d664922c08ac69bb0952b436404bbb150f6f7b71971431d0c3ff4ef60,z-image-turbo-sd:/tinfoil/mpk/mpk-2b646ec9773d4dba7227656826627de606a86d98790b0e806a62e548b6c581f5,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2"
+      - MODEL_VOLUMES: "qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-bb5cace1df1795f9dde1b6da38b2b9edfaaa56f4574a5d6270c1295b192c81c1,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.5-9b-gguf:/tinfoil/mpk/mpk-b70cb1b66baaf59542b5d478f952fcb4085dfb681deedf9e0420452e2fe6e6be,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen3.5-0.8b-gguf:/tinfoil/mpk/mpk-d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8,qwen3.6-27b-mtp-gguf:/tinfoil/mpk/mpk-bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9,sd-turbo:/tinfoil/mpk/mpk-df0919ea85c829fb62c61029ac130f7e4a98bc6a57fe52dfb777a7426d5b36fc,sd-turbo-full:/tinfoil/mpk/mpk-e787b81d664922c08ac69bb0952b436404bbb150f6f7b71971431d0c3ff4ef60,z-image-turbo-sd:/tinfoil/mpk/mpk-2b646ec9773d4dba7227656826627de606a86d98790b0e806a62e548b6c581f5,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2"
       # Volumes preloaded through the stable-diffusion.cpp wasi-nn backend
       # (image txt2img: the guest load_by_name()s the volume and one
       # compute() runs the whole pipeline host-side; weights never enter
@@ -526,6 +526,22 @@ models:
   - name: "qwen3.5-0.8b-gguf"
     repo: "EnclaveHost/qwen3.5-0.8b-gguf@f1b8cab689624ae5bdcae39808655788f9720ca3"
     mpk: "d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8_824672256_42679e63-4ee1-5717-9738-69ef21bf025a"
+  # Qwen3.6-27B-MTP at unsloth Dynamic Q4_K_XL (~17.9 GB): the SELF-DRAFTING
+  # 27b - same trunk as qwen3.6-27b-gguf plus the model's trained
+  # multi-token-prediction head (1 dense-attention layer). llm-chat's
+  # "draft":"mtp" setting (template entry qwen3.6-27b-mtp-gguf) uses the head
+  # for speculative decoding: near-zero proposal cost, no separate draft
+  # model, output byte-identical to plain decode. Prefer this volume over
+  # 27b + a draft-model pairing. VRAM ~= the plain 27b + ~0.6 GB head KV at
+  # the 256K window (head context created lazily on the first speculative
+  # session) - FITS a 22% share. tokenizer.json byte-identical to the family
+  # copies (sha256 5f9e4d49...). Needs the batch4 MTP toolchain (shim
+  # ell_mtp_*) on the host; older hosts serve it as a plain 27b.
+  # mpk generated in the Tinfoil Models tab 2026-07-25 (17921925120 bytes).
+  # Single gguf = no MODEL_VOLUMES third field.
+  - name: "qwen3.6-27b-mtp-gguf"
+    repo: "EnclaveHost/qwen3.6-27b-mtp-gguf@e6af0316e51eaf3e12982a566941be224c26ed50"
+    mpk: "bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9_17921925120_624a9548-dcee-5aa1-8eaa-6d12d0a368a3"
   # SD-Turbo (distilled Stable Diffusion 2.1, 512x512 txt2img in 1-4 steps),
   # the Olive fp16 ONNX export by the onnxruntime team, fused for the CUDA EP
   # (com.microsoft ops - GPU-only, the CPU EP has no kernels for it). Serves
