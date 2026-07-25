@@ -38,7 +38,10 @@ class FleetList extends EnclaveElement {
           const gFree = a.gpuShareFree != null ? a.gpuShareFree : (gpu ? a.maxShare || 0 : 0);
           const cFree = a.cpuShareFree != null ? a.cpuShareFree : (gpu ? 0 : a.maxShare || 0);
           const gPct = Math.floor(gFree * 100), cPct = Math.floor(cFree * 100);
-          const name = String(e.endpoint || "").replace(/^https?:\/\//, "").split(".")[0] || "enclave";
+          // the relay names each row (tunnel enclaves: their tunnel name, e.g.
+          // "metal0"); the endpoint-derived fallback covers older relays — and
+          // strips ANY scheme, so a tunnel:// row never renders as a pseudo-URL
+          const name = e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "enclave";
           const s = serverSpec();   // adopted fleet hardware; display fallback for rows that omit their own
           const vramGb = a.cardVramGb || s.cardVramGb, tflops = a.cardTflops || s.cardTflops;
           const ramGb = a.nodeRamGb || s.nodeRamGb, vcpus = a.nodeVcpus || s.nodeVcpus;
