@@ -585,13 +585,14 @@ const gpuFreeOf = (a) => a.gpuShareFree ?? (a.gpu ? a.maxShare ?? 0 : 0);
 const cpuFreeOf = (a) => a.cpuShareFree ?? (a.gpu ? 0 : a.maxShare ?? 0);
 function pick(want = {}) {
   const { gpuShare = 0, cpuShare = 0 } = want;
+  const pool = servingEnclaves();   // only boxes that CLAIM can be routed to (a tunnel demo box has no dialable endpoint and takes no work)
   if (gpuShare > 0) {
-    return live
+    return pool
       .filter((e) => e.availability.gpu && gpuFreeOf(e.availability) >= gpuShare
                                         && cpuFreeOf(e.availability) >= cpuShare)
       .sort((a, b) => gpuFreeOf(b.availability) - gpuFreeOf(a.availability))[0] || null;
   }
-  const fits = live.filter((e) => cpuFreeOf(e.availability) >= cpuShare);
+  const fits = pool.filter((e) => cpuFreeOf(e.availability) >= cpuShare);
   const byCpuFree = (a, b) => cpuFreeOf(b.availability) - cpuFreeOf(a.availability);
   return fits.filter((e) => !e.availability.gpu).sort(byCpuFree)[0]
       || fits.filter((e) => e.availability.gpu).sort(byCpuFree)[0]
@@ -812,11 +813,26 @@ function sendForwarded(res, r, req) {
 // every smaller one, and a deployment below a runner's minimum is unclaimable
 // there forever (created shares are immutable). Sizing against the minima
 // keeps a bought share valid on EVERY live enclave.
+// The subset of live enclaves that actually CLAIM ledger work — the only ones
+// whose hardware can be BOUGHT. Sizing minima, capacity views, capability ANDs
+// and routing all compute over this set: a present-but-not-claiming box (the
+// metal demo enclave, CLAIM_ENABLED=0) still shows in the listing and answers
+// over its tunnel, but it must never set the fleet's sizing floor (its 3 GB
+// node made every CPU app's minimum share balloon ~17x, observed 2026-07-25)
+// nor inflate the buyable-capacity totals. `claimEnabled` is explicit from
+// newer supervisors; hosted (non-tunnel) enclaves predate the field and have
+// always claimed, tunnel boxes count only when they SAY they claim (Phase C
+// sellers with registryKey set report true).
+function servingEnclaves() {
+  return live.filter((e) => e.availability?.claimEnabled === true
+    || (e.availability?.claimEnabled == null && !e.tunnel));
+}
 function aggregateAvailability() {
-  const gpus = live.filter((e) => e.availability.gpu);
+  const serving = servingEnclaves();
+  const gpus = serving.filter((e) => e.availability.gpu);
   const g = gpus.slice()
     .sort((a, b) => gpuFreeOf(b.availability) - gpuFreeOf(a.availability))[0]?.availability || null;
-  const c = live.slice()
+  const c = serving.slice()
     .sort((a, b) => cpuFreeOf(b.availability) - cpuFreeOf(a.availability))[0]?.availability || null;
   const minOf = (rows, field) => rows.reduce((m, e) => {
     const v = Number(e.availability?.[field]);
@@ -833,38 +849,38 @@ function aggregateAvailability() {
     vcpusFree: c ? c.vcpusFree ?? 0 : 0, ramGbFree: c ? c.ramGbFree ?? 0 : 0, cpuGflopsFree: c ? c.cpuGflopsFree ?? 0 : 0,
     nodeVcpus: c ? c.nodeVcpus ?? 0 : 0, nodeRamGb: c ? c.nodeRamGb ?? 0 : 0, nodeGflops: c ? c.nodeGflops ?? 0 : 0,
     specCardVramGb: minOf(gpus, "cardVramGb"), specCardTflops: minOf(gpus, "cardTflops"),
-    specNodeVcpus: minOf(live, "nodeVcpus"), specNodeRamGb: minOf(live, "nodeRamGb"), specNodeGflops: minOf(live, "nodeGflops"),
+    specNodeVcpus: minOf(serving, "nodeVcpus"), specNodeRamGb: minOf(serving, "nodeRamGb"), specNodeGflops: minOf(serving, "nodeGflops"),
     // deployment-options capability (per-IP rate limit / WAF): true only when
     // EVERY live enclave enforces the envelope — any runner may claim any
     // deployment, so a mixed fleet would strand protected deploys on old
     // runners ("configCid retired" refusal). Same fleet-minimum rule as spec*.
-    waf: live.length > 0 && live.every((e) => e.availability?.waf === true),
+    waf: serving.length > 0 && serving.every((e) => e.availability?.waf === true),
     // envelope `config` namespace (per-deployment app-config override): same
     // fleet-AND — a mixed fleet would strand an overridden deploy on a runner
     // that refuses the namespace, so the console only unlocks the box on true
-    configOverride: live.length > 0 && live.every((e) => e.availability?.configOverride === true),
+    configOverride: serving.length > 0 && serving.every((e) => e.availability?.configOverride === true),
     // setConfig reaches LIVE deployments (audit envelope watch: waf swaps in
     // place, a config change restarts the app on the new value): fleet-AND -
     // on false an edit still lands on-chain but only applies at re-claim
-    configEdit: live.length > 0 && live.every((e) => e.availability?.configEdit === true),
+    configEdit: serving.length > 0 && serving.every((e) => e.availability?.configEdit === true),
     // setShares reaches LIVE deployments (audit share watch: re-slice +
     // restart in place, or hand the lease to a box that fits): fleet-AND —
     // on false a resize tx would change the BILLING while the served slice
     // silently didn't, so clients refuse to send it against an older fleet
-    shareResize: live.length > 0 && live.every((e) => e.availability?.shareResize === true),
+    shareResize: serving.length > 0 && serving.every((e) => e.availability?.shareResize === true),
     // per-deployment secrets (relay-stored, injected as guest env by the lease
     // holder): needs BOTH this relay configured (SECRETS_KEY + data dir) and a
     // fleet-AND of runners that fetch+inject — a mixed fleet would run the same
     // app with secrets on one runner and without them after a lease migration
-    secrets: secretsEnabled() && live.length > 0 && live.every((e) => e.availability?.secrets === true),
+    secrets: secretsEnabled() && serving.length > 0 && serving.every((e) => e.availability?.secrets === true),
     // $NAME placeholders in config strings resolving from those secrets at
     // launch — a build refinement on top of `secrets`, same fleet-AND
-    secretsInConfig: secretsEnabled() && live.length > 0 && live.every((e) => e.availability?.secretsInConfig === true),
+    secretsInConfig: secretsEnabled() && serving.length > 0 && serving.every((e) => e.availability?.secretsInConfig === true),
     // publisher dev-mode: runners admit PENDING catalog versions for PRIVATE
     // deployments (public deploys of pending versions stay refused). Fleet-AND —
     // on false a pending-version deploy would sit Queued forever on old runners,
     // so clients only offer the option when every live runner honors it
-    devDeploy: live.length > 0 && live.every((e) => e.availability?.devDeploy === true),
+    devDeploy: serving.length > 0 && serving.every((e) => e.availability?.devDeploy === true),
     // attached model volumes across the fleet (Modelwrap), deduped by name -
     // each carries `enclaves`: which endpoints can mount it (placement matters,
     // a volume only lives where its enclave declares it)
@@ -1173,11 +1189,15 @@ const server = http.createServer((req, res) => {
     return json(res, 200, { ok: true, enclaves: live.length, of: registry.length, updatedAt }, req);
 
   if (u.pathname === "/enclaves") {
+    // rows list EVERY live enclave (presentation + tunnel health); the
+    // aggregate totals count only the CLAIMING subset — capacity nobody can
+    // buy (a present-but-not-claiming tunnel box) must not inflate them
+    const serving = servingEnclaves();
     const agg = {
-      enclaves: live.length,
-      totalGpuShareFree: Math.round(live.reduce((s, e) => s + gpuFreeOf(e.availability), 0) * 1000) / 1000,
-      totalCpuShareFree: Math.round(live.reduce((s, e) => s + cpuFreeOf(e.availability), 0) * 1000) / 1000,
-      totalVramFreeGb: Math.round(live.reduce((s, e) => s + (e.availability.vramFreeGb || 0), 0) * 10) / 10,
+      enclaves: live.length, serving: serving.length,
+      totalGpuShareFree: Math.round(serving.reduce((s, e) => s + gpuFreeOf(e.availability), 0) * 1000) / 1000,
+      totalCpuShareFree: Math.round(serving.reduce((s, e) => s + cpuFreeOf(e.availability), 0) * 1000) / 1000,
+      totalVramFreeGb: Math.round(serving.reduce((s, e) => s + (e.availability.vramFreeGb || 0), 0) * 10) / 10,
     };
     return json(res, 200, { updatedAt, aggregate: agg, enclaves: live }, req);
   }
