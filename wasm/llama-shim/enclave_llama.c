@@ -11,6 +11,10 @@
  * by that bare name, and in the manager image it is resolved by ldconfig from
  * /usr/local/lib - a soname-less lib is not reliably cached there.
  */
+/* RTLD_DEFAULT (the mtp nextn binding) is a GNU extension; must be defined
+ * before the FIRST libc header anywhere in the include graph */
+#define _GNU_SOURCE 1
+
 #include "enclave_llama.h"
 #include "llama.h"
 #include "ggml.h"
