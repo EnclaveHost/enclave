@@ -345,7 +345,7 @@ containers:
       # (name:path:file.gguf) picks WHICH gguf preloads as the wasi-nn graph
       # when the repo ships several quantizations - the manager stages the
       # pick as a symlink dir, so the mpk-<hash> mount name never matters.
-      - MODEL_VOLUMES: "qwen2.5-0.5b:/tinfoil/mpk/mpk-e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4,qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-d02f1afc0eee60adc4da2a541c8e095c9cff347b4f3996c2950ff84c676c1c70:qwen2.5-0.5b-instruct-q4_k_m.gguf,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2"
+      - MODEL_VOLUMES: "qwen2.5-0.5b:/tinfoil/mpk/mpk-e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4,qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-d02f1afc0eee60adc4da2a541c8e095c9cff347b4f3996c2950ff84c676c1c70:qwen2.5-0.5b-instruct-q4_k_m.gguf,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen3.5-0.8b-gguf:/tinfoil/mpk/mpk-d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2"
     # SECRET doubles as the manager's control-plane token (VMMGR_TOKEN): tenants
     # hold outbound HTTP to loopback, so the control API on :8091 must reject
     # calls that don't carry it (the supervisor sends X-Vmmgr-Token). The tenant
@@ -403,6 +403,22 @@ models:
   - name: "qwen3.6-27b-gguf"
     repo: "EnclaveHost/qwen3.6-27b-gguf@ee09d0591e3b961ae5c42fd337f91c1262d6ea0d"
     mpk: "fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081_17625395200_623660fa-869e-5ce6-90d1-a6ed9b313653"
+  # Qwen3.5-0.8B at Q8_0 (~775 MB): the family's speculative-decoding DRAFT
+  # volume - attach next to qwen3.6-27b-gguf / qwen3.5-122b-gguf and the
+  # llm-chat template's "draft" wiring turns speculation on (output stays
+  # byte-identical to the big model's own; exact-match verification, see
+  # wasm/llama-shim). tokenizer.json byte-identical to the 9b/27b/122b copies
+  # (sha256 5f9e4d49..., vocab 248320) - the compat gate's requirement. Q8_0
+  # not 4-bit: a draft's whole job is predicting the target's picks, the
+  # acceptance rate is worth 0.4 GB. VRAM at the 256K node window: 0.81
+  # weights + ~1.71 KV(q8_0) + ~0.15 RS + buffers ~= 2.9 GB on top of the
+  # target: 27b+0.8b ~= 30.7 GB, right at a 22% share's edge - trim
+  # ENCLAVE_GGML_N_CTX to 180224 (~27.3 GB, comfortable) or use ~25%.
+  # mpk generated in the Tinfoil Models tab 2026-07-25 (824672256 bytes).
+  # Single gguf = no MODEL_VOLUMES third field.
+  - name: "qwen3.5-0.8b-gguf"
+    repo: "EnclaveHost/qwen3.5-0.8b-gguf@f1b8cab689624ae5bdcae39808655788f9720ca3"
+    mpk: "d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8_824672256_42679e63-4ee1-5717-9738-69ef21bf025a"
   # Qwen-Image-2512 + Lightning 8-step merge (Q8_0), curated for the sdcpp
   # backend - see the gpu flavor's entry for component/serving notes. This
   # flavor has no MODEL_VOLUMES_SD preload, so the volume is mount-only for
