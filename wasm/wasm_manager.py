@@ -178,22 +178,28 @@ GPU_VRAM_GB  = float(os.environ.get("GPU_VRAM_GB", "141"))
 GPU_VRAM_SRC = "env" if "GPU_VRAM_GB" in os.environ else "default"
 
 def _probe_card_vram_gb():
-    """Smallest attached card's memory.total, in GiB (nvidia-smi reports MiB)."""
+    """(smallest attached card's memory.total in GiB, card count) - nvidia-smi
+    reports MiB, one line per card. None on probe failure."""
     try:
         r = subprocess.run(["nvidia-smi", "--query-gpu=memory.total",
                             "--format=csv,noheader,nounits"],
                            capture_output=True, text=True, timeout=15)
         mib = [float(x) for x in r.stdout.split() if x]
         gb = round(min(mib) / 1024, 1) if mib else 0.0
-        return gb if 1 <= gb <= 8192 else None
+        return (gb, len(mib)) if 1 <= gb <= 8192 else None
     except Exception:                                    # noqa: BLE001
         return None
 
+# cards on this node: the VRAM ledger's budget is per-node (GB x cards); the
+# per-card packing itself is the supervisor allocator's job
+GPU_CARDS = max(1, int(os.environ.get("GPU_COUNT", "1")))
 if NODE_HAS_GPU and not MOCK:
     _vram = _probe_card_vram_gb()
     if _vram:
-        GPU_VRAM_GB, GPU_VRAM_SRC = _vram, "nvidia-smi"
-        print(f"[gpu] card VRAM probed: {GPU_VRAM_GB} GB (nvidia-smi memory.total)", flush=True)
+        GPU_VRAM_GB, GPU_VRAM_SRC = _vram[0], "nvidia-smi"
+        GPU_CARDS = max(GPU_CARDS, _vram[1])
+        print(f"[gpu] card VRAM probed: {GPU_VRAM_GB} GB x {GPU_CARDS} card(s) "
+              f"(nvidia-smi memory.total)", flush=True)
     else:
         print(f"[gpu] card VRAM probe failed - using {GPU_VRAM_SRC} {GPU_VRAM_GB} GB", flush=True)
 MPS_PIPE_DIR = os.environ.get("CUDA_MPS_PIPE_DIRECTORY", "/tmp/nvidia-mps")
@@ -309,6 +315,19 @@ DEF_STORAGE_MB = int(os.environ.get("WASM_APP_STORAGE_MB", "256"))              
 # fits under the pure cpuShare dial today — enable per node once sized.
 ACCOUNT_STORAGE_RAM = os.environ.get("WASM_ACCOUNT_STORAGE_RAM", "0").lower() in ("1", "true", "on")
 RAM_ACCT_HEADROOM   = float(os.environ.get("WASM_RAM_HEADROOM", "0.9"))   # fraction of node RAM tenants may reserve
+# --- VRAM-reservation ledger (the GPU sibling of WASM_ACCOUNT_STORAGE_RAM) --- #
+# CUDA_MPS_PINNED_DEVICE_MEM_LIMIT is a CAP, not a reservation: it bounds what
+# a tenant may pin but reserves nothing, so physical device memory is only
+# yours while you hold it. The supervisor's card allocator PLANS slices; this
+# process SPAWNS them - and the two views can diverge (2026-07-25, cc1f4f3f: a
+# leaked duplicate tenant pinned ~30 GiB the planner had handed out once, and
+# the replacement failed context allocation against memory nobody accounted).
+# So the process owner keeps its own physical ledger. Calibrated to admit
+# exactly what the planner plans when the views agree - same per-slice
+# CTX_OVERHEAD_GB term, no headroom - so it binds ONLY on divergence.
+ACCOUNT_VRAM         = os.environ.get("WASM_ACCOUNT_VRAM", "1") == "1"
+VRAM_CTX_OVERHEAD_GB = float(os.environ.get("CTX_OVERHEAD_GB", "0.5"))    # same env the supervisor prices per slice
+VRAM_RESERVE_GB      = float(os.environ.get("WASM_VRAM_RESERVE_GB", "0")) # node-global device users the planner never sees (SD preloads)
 if FS_ENABLED:
     FS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -1847,6 +1866,29 @@ def _ram_budget() -> dict | None:
             "ramFreeMb": max(0, budget - committed)}
 
 
+def _rec_vram_gb(rec) -> float:
+    """Worst-case device memory a tenant can pin: its sold slice (the MPS
+    pinned cap = gpuShare x card VRAM) plus the per-process CUDA context
+    overhead the supervisor's allocator prices identically (CTX_OVERHEAD_GB).
+    0 for CPU tenants. Used only when WASM_ACCOUNT_VRAM is on."""
+    share = float(rec.get("gpuShare") or 0)
+    return share * GPU_VRAM_GB + VRAM_CTX_OVERHEAD_GB if share > 0 else 0.0
+
+
+def _vram_budget() -> dict | None:
+    """The VRAM-reservation ledger (WASM_ACCOUNT_VRAM): worst-case GB pinned
+    by starting/running GPU tenants vs the node's device memory - the SAME
+    sum the admission check at create time enforces. None when the accounting
+    is off or the node has no GPU."""
+    if not (ACCOUNT_VRAM and NODE_HAS_GPU):
+        return None
+    committed = round(sum(_rec_vram_gb(r) for r in _apps.values()
+                          if r["status"] in ("starting", "running")), 2)
+    budget = round(GPU_VRAM_GB * GPU_CARDS - VRAM_RESERVE_GB, 2)
+    return {"vramBudgetGb": budget, "vramCommittedGb": committed,
+            "vramFreeGb": round(max(0.0, budget - committed), 2)}
+
+
 def _capacity() -> dict:
     used = _used_cpu_share()
     free = round(max(0.0, 1.0 - used), 4)
@@ -1871,6 +1913,16 @@ def _capacity() -> dict:
         cap["usedCpuShare"] = cap["usedShare"] = round(1.0 - eff, 4)
         cap["vcpusFree"] = round(NODE_VCPUS * eff, 2)
         cap["ramGbFree"] = round(NODE_RAM_GB * eff, 2)
+    # VRAM ledger: gpuShareFree here is the largest additional single-card
+    # slice THIS ledger still admits (net of the per-slice context overhead);
+    # the supervisor folds min(its card allocator, this) into /availability,
+    # so a physical-vs-planned divergence surfaces as reduced capacity
+    # instead of a claim that fails at provision time.
+    vram = _vram_budget()
+    if vram:
+        cap.update(vram)
+        slice_gb = vram["vramFreeGb"] - VRAM_CTX_OVERHEAD_GB
+        cap["gpuShareFree"] = round(min(1.0, max(0.0, slice_gb / GPU_VRAM_GB)) if GPU_VRAM_GB else 0.0, 4)
     return cap
 
 
@@ -3385,6 +3437,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 teardown(old)
         if _used_cpu_share() + cpu_share > 1.0 + 1e-6:
             return self._json(429, {"error": "insufficient capacity", "capacity": _capacity()})
+        # VRAM-reservation ledger: refuse to spawn a GPU tenant the device
+        # cannot physically hold. Same 429 contract as the cpu pool - the
+        # supervisor backs the claim off and the routing re-plans.
+        if gpu_share > 0:
+            v = _vram_budget()
+            if v:
+                ask_gb = gpu_share * GPU_VRAM_GB + VRAM_CTX_OVERHEAD_GB
+                if ask_gb > v["vramFreeGb"] + 1e-6:
+                    return self._json(429, {
+                        "error": (f"insufficient device memory: this launch would pin {ask_gb:.1f} GB "
+                                  f"but only {v['vramFreeGb']:.1f} GB of {v['vramBudgetGb']:.1f} GB is unreserved"),
+                        "capacity": _capacity()})
         try:
             pspec = _parse_ports(b.get("ports") or [])
         except ValueError as e:
