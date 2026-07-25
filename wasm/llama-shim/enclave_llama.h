@@ -137,6 +137,43 @@ int32_t ell_seq_rewind(void *ctx, int32_t seq_id, int32_t n_keep);
 void ell_seq_copy(void *ctx, int32_t src_seq, int32_t dst_seq);
 int32_t ell_model_recurrent(void *model);
 
+/* ---- MTP (multi-token prediction) self-drafting ---------------------------
+ *
+ * When the GGUF carries a trained next-token head (llama arch metadata
+ * n_layer_nextn > 0 - the *-MTP model variants), the model drafts for
+ * ITSELF: the head runs beside the trunk at near-zero cost, no separate
+ * draft model, no second weights allocation. Single-head, own-memory mode
+ * only (qwen3.5/3.6; the head is dense attention even on hybrid trunks).
+ *
+ * Protocol, per accepted-stream sequence (callers serialize all calls, as
+ * with every context call; pos/seq bookkeeping mirrors the target's):
+ *   ell_mtp_new       one per server context; enables nextn hidden output
+ *                     on the target and creates the head context (tiny
+ *                     attention KV). NULL = no head in the model / OOM.
+ *   ell_mtp_harvest   right after a target decode that produced outputs for
+ *                     EVERY position of one sequence (ell_decode_seq_full):
+ *                     stash the target's per-position hidden rows. Must run
+ *                     before any other target decode overwrites them.
+ *   ell_mtp_observe   mirror the round's ACCEPTED tokens into the head KV
+ *                     (pairs each token with the hidden row of the position
+ *                     before it; row n-1 becomes the next draft seed).
+ *                     Requires a preceding harvest of >= n rows. Rejected
+ *                     proposals never enter the head - its KV stays clean.
+ *   ell_mtp_draft     propose up to k tokens (greedy, stops when the head's
+ *                     confidence drops below p_min); returns how many.
+ *   ell_mtp_reset     forget one sequence (session teardown).
+ *   ell_mtp_available capability probe on a loaded model. */
+int32_t ell_mtp_available(void *model);
+void *ell_mtp_new(void *model, void *target_ctx, uint32_t n_ctx, uint32_t n_batch,
+                  uint32_t n_seq_max, int32_t type_k, int32_t type_v, int32_t flash_attn);
+void ell_mtp_free(void *m);
+void ell_mtp_harvest(void *m, void *target_ctx, int32_t seq, int32_t n_rows);
+int32_t ell_mtp_observe(void *m, int32_t seq, int32_t pos0,
+                        const int32_t *tokens, int32_t n);
+int32_t ell_mtp_draft(void *m, int32_t seq, int32_t id_last, int32_t n_past,
+                      int32_t k, float p_min, int32_t *tokens_out);
+void ell_mtp_reset(void *m, int32_t seq);
+
 #ifdef __cplusplus
 }
 #endif
