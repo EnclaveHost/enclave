@@ -16,9 +16,15 @@
 # release as the tarball, so it establishes that you got the bytes the release
 # holds — transport corruption, a lying mirror, a truncated download. It does
 # NOT defend against whoever can PUBLISH a release (a stolen token, a
-# compromised maintainer account): they write both files. A detached signature
-# over SHA256SUMS with a key pinned in THIS script would close that, and does
-# not exist yet.
+# compromised maintainer account): they write both files.
+#
+# A detached SIGNATURE over SHA256SUMS closes that, and the machinery is here:
+# set ENCLAVE_RELEASE_PUBKEY below and this script REQUIRES a valid signature by
+# that key before it will build. It is empty until the project's release key
+# exists (scripts/release-key.mjs gen), and while empty this script says so on
+# every run rather than implying a guarantee it is not making. The key is PINNED
+# here, never fetched — a key downloaded from the same host as the artifact
+# proves nothing.
 #
 # What you CAN do today, with no key involved: the release assets are
 # `git archive` of the tag, which is byte-deterministic, so anyone with a clone
@@ -35,6 +41,12 @@
 # Needs node >= 20 and npm; hosted mode also needs tar and curl or wget.
 # Windows: irm https://get.enclave.host/install.ps1 | iex  (or npm install -g ./cli)
 set -eu
+
+# Ed25519 public key (base64, 32 raw bytes) whose signature over SHA256SUMS is
+# REQUIRED before a hosted install will build. Empty = unsigned releases are
+# accepted with a loud warning, which is where this started. Fill it from
+# `node scripts/release-key.mjs gen` and keep the private half off CI.
+ENCLAVE_RELEASE_PUBKEY="${ENCLAVE_RELEASE_PUBKEY:-}"
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "error: $1 is required" >&2; exit 1; }; }
 
@@ -99,6 +111,27 @@ main() {
       echo "fetching $ver (checksum-verified)…"
       fetch_to "$base/$tarname"    "$TMP/cli.tar.gz"
       fetch_to "$base/SHA256SUMS"  "$TMP/SHA256SUMS"
+      # Signature first: the checksum below is only as trustworthy as the file
+      # it is read from, so establish WHO wrote SHA256SUMS before believing what
+      # it says about the tarball.
+      if [ -n "$ENCLAVE_RELEASE_PUBKEY" ]; then
+        fetch_to "$base/SHA256SUMS.sig" "$TMP/SHA256SUMS.sig" \
+          || { echo "error: $ver publishes no SHA256SUMS.sig, but this installer pins a release key — refusing to build" >&2; exit 1; }
+        # Inlined ON PURPOSE. The verifier cannot come from the tarball it is
+        # verifying, and this script is what the user actually fetched, so the
+        # check has to live here. cli/verify-sig.mjs is the same algorithm as a
+        # readable module for release-cli.sh and the tests, and
+        # test/release-signing.test.mjs runs BOTH over the same vectors so the
+        # two copies cannot drift apart.
+        node -e 'const f=require("fs"),c=require("crypto");const a=process.argv.slice(1);const r=Buffer.from(a[2].trim(),"base64");const k=c.createPublicKey({key:r.length===32?Buffer.concat([Buffer.from("302a300506032b6570032100","hex"),r]):r,format:"der",type:"spki"});if(k.asymmetricKeyType!=="ed25519")process.exit(1);const t=f.readFileSync(a[1]);const s=t.length===64?t:Buffer.from(t.toString("utf8").trim(),"base64");if(s.length!==64)process.exit(1);process.exit(c.verify(null,f.readFileSync(a[0]),k,s)?0:1);' \
+          "$TMP/SHA256SUMS" "$TMP/SHA256SUMS.sig" "$ENCLAVE_RELEASE_PUBKEY" \
+          || { echo "error: SHA256SUMS for $ver is not signed by the pinned release key — refusing to build" >&2; exit 1; }
+        echo "  signature ok (pinned release key)"
+      else
+        echo "  NOTE: no release key pinned in this installer, so SHA256SUMS is trusted as published." >&2
+        echo "        It proves the bytes match the release, NOT who published it. Reproduce instead:" >&2
+        echo "        git archive --format=tar.gz --prefix=enclave-$ver/ $ver | sha256sum" >&2
+      fi
       want="$(awk -v f="$tarname" '$2==f || $2=="*"f {print $1}' "$TMP/SHA256SUMS")"
       got="$(sha256_of "$TMP/cli.tar.gz")"
       [ -n "$want" ] && [ "$want" = "$got" ] || { echo "error: checksum mismatch for $ver (want=$want got=$got) — refusing to build" >&2; exit 1; }
