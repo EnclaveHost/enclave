@@ -44,6 +44,10 @@
 
     <div class="hostdoc">
 
+      <h2>The fleet you would be joining</h2>
+      <p>Every box below is serving right now, with the capacity it has left. Yours would appear here once it registers.</p>
+      <div class="host-fleet"><c-fleet-list></c-fleet-list></div>
+
       <h2>What you need</h2>
       <ul class="hostdoc-list">
         <li><b>A CPU with a hardware TEE</b> and virtualisation available to the OS. Confidential VMs are what make the guarantee real, so a box without one can run the stack in dev mode but cannot sell.</li>
@@ -81,10 +85,6 @@ enclave host status             <span class="c"># gas left, serving or not, earn
         <li><a href="https://github.com/EnclaveHost/enclave/blob/main/metal/README.md" target="_blank" rel="noopener">Enclave Metal</a>, how the self-hosted server is built and why its attestation is stronger than a managed one.</li>
         <li><a href="https://github.com/EnclaveHost/enclave/blob/main/metal/PROTOCOL.md" target="_blank" rel="noopener">The hosting protocol</a>, how an anonymous box proves itself, claims work and is paid.</li>
       </ul>
-
-      <h2>The fleet you would be joining</h2>
-      <p>Every box below is serving right now, with the capacity it has left. Yours would appear here once it registers.</p>
-      <div class="host-fleet"><c-fleet-list></c-fleet-list></div>
     </div>
   </div>
 </section>
