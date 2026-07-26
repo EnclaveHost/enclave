@@ -1367,6 +1367,19 @@ server.on("upgrade", async (req, socket, head) => {
   const refuse = (code, text) => { try { socket.write(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`); } catch {} socket.destroy(); };
   // fleet tunnel attach: a self-hosted enclave dialing IN (token-authed in the hub)
   if ((req.url || "").split("?")[0] === "/v1/fleet-tunnel") return tunnelHub.handleUpgrade(req, socket, head);
+  // tunnel-routed upgrades (Phase D): /t/<name>/<rest> — the SNI relay's wss
+  // dial into a tunnel box's supervisor (its registered endpoint IS this
+  // path), spliced through the hub as a raw stream; the supervisor answers
+  // the handshake itself, so /x/<id>/tls stays TLS-in-CVM end to end.
+  {
+    const u = new URL(req.url || "/", "http://x");
+    const tm = u.pathname.match(/^\/t\/([A-Za-z0-9_-]+)(\/.*|)$/);
+    if (tm) {
+      const origin = `tunnel://${tm[1]}`;
+      if (!tunnelHub.origins().some((o) => o.endpoint === origin)) return refuse(404, "Not Found");
+      return tunnelHub.spliceUpgrade(origin, req, socket, head, (tm[2] || "/") + (u.search || ""));
+    }
+  }
   try {
     const depHost = depFromHost(routingHost(req));           // x-forwarded-host only when TRUSTED_PROXY (fix 6)
     const x = depHost ? null : (req.url || "").match(X_PATH_RE);
@@ -1376,6 +1389,7 @@ server.on("upgrade", async (req, socket, head) => {
     if (!owner) return refuse(404, "Not Found");
     const rest = depHost ? (req.url === "/" ? "/" : req.url) : req.url.slice(3 + (x[1].length));  // after "/x/<id>"
     const path = "/x/" + id + rest;
+    if (tunnelHub.isTunnel(owner)) return tunnelHub.spliceUpgrade(owner, req, socket, head, path);
     const target = new URL(owner.replace(/\/+$/, "") + path);
     const secure = target.protocol === "https:";
     const up = (secure ? tls : net).connect({
