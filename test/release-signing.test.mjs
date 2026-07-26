@@ -138,8 +138,8 @@ test("release-key.mjs round-trips: gen -> pub -> sign -> verify", () => {
   const keyPath = path.join(dir, "gen.key");
   const gen = execFileSync(process.execPath, [path.join(REPO, "scripts", "release-key.mjs"), "gen", keyPath],
     { encoding: "utf8" });
-  const printed = gen.split("\n").map((l) => l.trim()).find((l) => /^[A-Za-z0-9+/]{43}=$/.test(l));
-  assert.ok(printed, "gen must print the base64 public key to pin");
+  const printed = (/^public key: ([A-Za-z0-9+/]{43}=)$/m.exec(gen) || [])[1];
+  assert.ok(printed, `gen must print the public key it wants pinned; got:\n${gen}`);
   assert.equal(fs.statSync(keyPath).mode & 0o777, 0o600, "a release key must not be world-readable");
 
   const shown = execFileSync(process.execPath, [path.join(REPO, "scripts", "release-key.mjs"), "pub", keyPath],
@@ -190,4 +190,57 @@ test("release-cli.sh signs, self-verifies, and refuses a key the installers do n
   assert.match(rel, /is not the key pinned in cli\/install\.sh[\s\S]{0,200}exit 1/,
     "signing with a key the shipped installers do not pin must be fatal - every install would break");
   assert.match(rel, /SHA256SUMS\.sig/, "the signature is never uploaded");
+});
+
+test("pin writes BOTH installers, verifies it took, and is idempotent", () => {
+  // this replaces a manual paste into two files that must agree. Doing that by
+  // hand at the end of a release is exactly when a typo lands in one and not
+  // the other, and the failure mode - verified on Linux, unverified on Windows -
+  // is invisible until someone looks.
+  const sh = path.join(REPO, "cli", "install.sh"), ps = path.join(REPO, "cli", "install.ps1");
+  const before = { sh: fs.readFileSync(sh, "utf8"), ps: fs.readFileSync(ps, "utf8") };
+  const keyPath = path.join(dir, "pin.key");
+  const run = (...a) => execFileSync(process.execPath, [path.join(REPO, "scripts", "release-key.mjs"), ...a],
+    { encoding: "utf8", stdio: "pipe" });
+  try {
+    run("gen", keyPath);
+    const want = run("pub", keyPath).trim();
+    run("pin", keyPath);
+    const readSh = (t) => (/^ENCLAVE_RELEASE_PUBKEY="\$\{ENCLAVE_RELEASE_PUBKEY:-([^}]*)\}"$/m.exec(t) || [])[1];
+    const readPs = (t) => (/^\$EnclaveReleasePubKey = "([^"]*)"$/m.exec(t) || [])[1];
+    assert.equal(readSh(fs.readFileSync(sh, "utf8")), want, "install.sh was not pinned");
+    assert.equal(readPs(fs.readFileSync(ps, "utf8")), want, "install.ps1 was not pinned");
+
+    // rotation: pinning a second key REPLACES rather than appending or failing
+    const key2 = path.join(dir, "pin2.key");
+    run("gen", key2);
+    const want2 = run("pub", key2).trim();
+    assert.notEqual(want2, want);
+    run("pin", key2);
+    assert.equal(readSh(fs.readFileSync(sh, "utf8")), want2);
+    assert.equal(readPs(fs.readFileSync(ps, "utf8")), want2);
+
+    // a bare base64 public key works too - the private half never has to leave
+    // the machine that holds it just to update a pin
+    run("pin", want);
+    assert.equal(readSh(fs.readFileSync(sh, "utf8")), want);
+    assert.equal(readPs(fs.readFileSync(ps, "utf8")), want);
+
+    // and junk is refused rather than written
+    assert.throws(() => run("pin", "not-a-key"));
+    assert.equal(readSh(fs.readFileSync(sh, "utf8")), want, "a rejected pin must not have written");
+  } finally {
+    fs.writeFileSync(sh, before.sh);
+    fs.writeFileSync(ps, before.ps);
+  }
+});
+
+test("release-cli refuses to publish UNSIGNED when the installers pin a key", () => {
+  // the other direction of the same mistake: pin the key, then cut a release
+  // without ENCLAVE_RELEASE_KEY, and every installer in the wild demands a
+  // signature that release does not carry. Users find that, not us.
+  const rel = fs.readFileSync(path.join(REPO, "scripts", "release-cli.sh"), "utf8");
+  const unsignedBranch = rel.slice(rel.indexOf("NOT SIGNING") - 900, rel.indexOf("NOT SIGNING"));
+  assert.match(unsignedBranch, /PINNED=/, "the unsigned path never reads the shipped pin");
+  assert.match(unsignedBranch, /exit 1/, "a pinned key with no signing key must be fatal");
 });
