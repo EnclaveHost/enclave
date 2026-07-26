@@ -12,7 +12,7 @@ import "../../components/app-card/app-card.js";
 import "../../components/app-detail/app-detail.js";
 import "../../components/app-reviews/app-reviews.js";
 import { $, $$, esc, short, blen, fmtDur, showToast, on, tosAccepted, setTosAccepted } from "../core/util.js";
-import { APP_CATALOG_ADDRESS, APP_CATALOG_CHAIN, FEATURED_ADDRESS, REVIEWS_ADDRESS, USDC_BASE, IPFS_UPLOAD_URL, IPFS_IMAGE_UPLOAD_URL, MAX_WASM_MB, MAX_WASM_BYTES, MAX_IMAGE_MB, MAX_IMAGE_BYTES, BASE_CHAIN, ACCOUNTS_ENABLED } from "../core/config.js";
+import { APP_CATALOG_ADDRESS, APP_CATALOG_CHAIN, FEATURED_ADDRESS, REVIEWS_ADDRESS, USDC_BASE, IPFS_UPLOAD_URL, IPFS_IMAGE_UPLOAD_URL, IPFS_GATEWAY, MAX_WASM_MB, MAX_WASM_BYTES, MAX_IMAGE_MB, MAX_IMAGE_BYTES, BASE_CHAIN, ACCOUNTS_ENABLED } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
 import { catConfigured, catExplorer, encCall, CAT_SEL, CAT_MAX, APPROVAL, depPrices6, depMaxGpuMilli, rate6Of, waitReceipt, catSchemaRev, catMaxFeePerSec6, catVersionFee, featConfigured, featMaxBid, FEAT_SEL, revConfigured, REV_SEL } from "../core/chain.js";
 import { FEATURED, loadCampaigns, pickFeatured, beaconView } from "../core/featured.js";
@@ -652,27 +652,10 @@ async function putWasm(file, onProgress){
       const j = xhr.response || {};
       if (xhr.status < 200 || xhr.status >= 300) return reject(new EnclaveError("upload rejected: " + (j.error || ("HTTP " + xhr.status)), 0));
       if (!j.cid) return reject(new EnclaveError("gateway returned no CID", 0));
-      // TRUST BOUNDARY, currently unchecked: this CID is the GATEWAY's answer,
-      // and it goes straight into the publishVersion transaction the publisher
-      // signs. Nothing here proves it addresses the bytes we just uploaded. The
-      // upload token binds sha256(bytes) and ipfs-add-gateway.py re-derives it
-      // before accepting - but that is the gateway checking itself, which a
-      // compromised gateway simply passes: pin the real bytes, return a CID for
-      // someone else's. The publisher's wallet then attests on-chain to wasm
-      // they never saw, and every deployer of that version runs it.
-      //
-      // Closing it needs an INDEPENDENT read-back - fetch the CID from a
-      // gateway that is not this one (IPFS_GATEWAY, ipfs.io) and compare
-      // sha256 against the local bytes. Not done here because it also needs a
-      // CSP `connect-src https://ipfs.io` on the Caddy vhost, which lives on
-      // the box rather than in this repo: ship the fetch without it and the CSP
-      // blocks every attempt, so the check would silently never run while
-      // reading as a safeguard. Verifying against ipfs.enclave.host instead
-      // would be circular - that is the same host.
-      //
-      // Mitigation that exists today: the CID field is publisher-editable
-      // ("or paste one you've pinned"), so a publisher who pins independently
-      // and pastes their own CID never relies on this answer.
+      // The CID is the GATEWAY's answer and it goes into the publishVersion
+      // transaction the publisher signs, so it is verified against the bytes
+      // before it can be published - see verifyCid below. Nothing here trusts
+      // this value on its own.
       resolve(j.cid);
     };
     pubXhr = xhr;
@@ -728,6 +711,42 @@ function setPubUploading(on){
   const btn = $("#pubSubmit"); if (btn){ btn.disabled = on; btn.textContent = on ? "uploading…" : "Publish to Base"; }
   const cidEl = $("#pubCid"); if (cidEl) cidEl.disabled = on;
 }
+// Does `cid` actually address these bytes? The upload gateway chose the CID and
+// the publisher is about to sign it on-chain, so its own word is not evidence:
+// the token binds sha256(bytes) and ipfs-add-gateway.py re-derives it, but that
+// is the gateway checking itself, which a compromised one passes by pinning the
+// real bytes and answering with a CID for someone else's. Then the publisher's
+// wallet attests to wasm they never saw and every deployer of that version runs
+// it.
+//
+// So read it back from a DIFFERENT gateway (IPFS_GATEWAY, ipfs.io - not
+// ipfs.enclave.host, which would be asking the same host to confirm itself) and
+// compare hashes.
+//
+// Three outcomes, and the middle one is the point:
+//   match     -> publishable
+//   MISMATCH  -> refuse. A gateway that answered with a CID for other bytes is
+//                the whole threat; there is no benign reading.
+//   unreachable/timeout -> WARN, do not block. Propagation lag is normal and
+//                refusing here would break honest publishes far more often than
+//                it would catch anything.
+async function verifyCid(cid, bytes){
+  const want = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
+    .map(b => b.toString(16).padStart(2, "0")).join("");
+  const url = IPFS_GATEWAY.replace(/\/+$/, "") + "/" + encodeURIComponent(cid);
+  let got;
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(20000), cache: "no-store" });
+    if (!r.ok) return { state: "unverified", detail: "HTTP " + r.status };
+    const back = new Uint8Array(await r.arrayBuffer());
+    got = [...new Uint8Array(await crypto.subtle.digest("SHA-256", back))]
+      .map(b => b.toString(16).padStart(2, "0")).join("");
+  } catch(e){
+    return { state: "unverified", detail: e.name === "TimeoutError" ? "timed out" : (e.message || String(e)) };
+  }
+  return got === want ? { state: "ok" } : { state: "mismatch", want, got };
+}
+
 async function ensureCatalogChain(){
   if (APP_CATALOG_CHAIN === BASE_CHAIN) return ensureBaseChain();
   const hex = "0x" + APP_CATALOG_CHAIN.toString(16);
@@ -763,9 +782,24 @@ async function onPubFile(e){
       hint.textContent = f.name + " · " + mb + " MB · " + (done >= total ? "pinning…" : pct + "%");
     });
     if (seq !== pubSeq) return;
+    pubStatus("pinned · verifying the CID resolves to your exact bytes…");
+    const v = await verifyCid(cid, await f.arrayBuffer());
+    if (seq !== pubSeq) return;
+    if (v.state === "mismatch"){
+      // the gateway answered with a CID addressing DIFFERENT bytes
+      $("#pubCid").value = "";
+      hint.textContent = f.name + " · " + mb + " MB · CID REJECTED";
+      pubStatus("the upload gateway returned a CID that does not contain your file "
+        + "(your bytes hash " + v.want.slice(0, 16) + "…, that CID holds " + v.got.slice(0, 16) + "…) "
+        + "- nothing was published; report this before retrying", true);
+      return;
+    }
     $("#pubCid").value = cid;
-    hint.textContent = f.name + " · " + mb + " MB · pinned";
-    pubStatus("pinned · CID " + cid);
+    hint.textContent = f.name + " · " + mb + " MB · " + (v.state === "ok" ? "verified" : "pinned");
+    pubStatus(v.state === "ok"
+      ? "verified · CID " + cid + " resolves to your exact bytes"
+      : "pinned · CID " + cid + " (could not verify via " + IPFS_GATEWAY + " yet: " + v.detail
+        + " - usually propagation lag; the CID came from the upload gateway, so confirm it independently before publishing)");
   } catch(err){
     if (seq !== pubSeq) return;
     hint.textContent = f.name + " · " + mb + " MB · upload failed";

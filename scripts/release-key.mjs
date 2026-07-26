@@ -78,7 +78,16 @@ if (cmd === "gen") {
       to: (k) => `$EnclaveReleasePubKey = "${k}"`,
       read: (t) => (/^\$EnclaveReleasePubKey = "([^"]*)"$/m.exec(t) || [])[1] },
   ];
-  const root = new URL("..", import.meta.url).pathname;
+  // --root lets the tests pin COPIES. A test that edits the real installers is
+  // one crash away from leaving a bogus key pinned in tracked files, and a
+  // bogus pin committed means every installer in the wild demands a signature
+  // by a key that exists in someone's temp dir. (That is not hypothetical: the
+  // first version of that test did exactly this, and its restore-on-exit
+  // "recovered" by writing the leaked pin back.)
+  const rootFlag = rest.indexOf("--root");
+  const root = rootFlag >= 0 && rest[rootFlag + 1]
+    ? rest[rootFlag + 1].replace(/\/*$/, "") + "/"
+    : new URL("..", import.meta.url).pathname;
   for (const e of edits) {
     const path = root + e.file;
     const before = readFileSync(path, "utf8");
