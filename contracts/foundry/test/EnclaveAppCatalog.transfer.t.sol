@@ -208,6 +208,23 @@ contract EnclaveAppCatalogTransferTest is Test {
         vm.stopPrank();
     }
 
+    /// The mirror-image corruption: a lineage whose appId something ALREADY
+    /// redirects away from. transferApp cannot produce it (its destination rule
+    /// refuses a hash an app occupies), and the failure it would cause is
+    /// silent and permanent — the app exists, but appIdOf sends its own
+    /// publisher's slug writes somewhere else, with imports sealed behind it.
+    function test_importRefusesAnAppIdAlreadyShadowed() public {
+        vm.startPrank(OWNER);
+        EnclaveAppCatalog target = new EnclaveAppCatalog();
+        bytes32 shadowed = keccak256(abi.encodePacked(SAFE, "ghost"));
+        EnclaveAppCatalog.App[] memory items = new EnclaveAppCatalog.App[](2);
+        items[0] = appRow(keccak256("lineage-1"), SAFE, "ghost");   // sets _slugRef[shadowed]
+        items[1] = appRow(shadowed, OTHER, "elsewhere");            // …now claims that very hash
+        vm.expectRevert(bytes("appId shadowed by a redirect"));
+        target.importApps(items);
+        vm.stopPrank();
+    }
+
     function test_transferStillWorksAfterSealing() public {
         // recovery order of operations: migrate -> verify -> SEAL -> transfer
         (bytes32 id, ) = publish(BURNER, "warpad", "1", "bafyW1");
