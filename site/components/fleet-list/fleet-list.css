@@ -28,7 +28,12 @@ c-fleet-list{display:contents;}
 .fleet-empty::before{content:"○";font-size:.8em;}
 
 /* footer row: refresh + the on-chain registry link, right-aligned OUTSIDE the box */
-.fleet-foot{display:flex;justify-content:flex-end;gap:14px;margin-top:8px;}
+/* refresh + contract sit on one baseline: the row centres its children, and
+   both get the same 24px tap target so neither box resolves taller than the
+   other (the button had a min-height, the link did not) */
+.fleet-foot{display:flex;align-items:center;justify-content:flex-end;gap:14px;margin-top:8px;}
+.fleet-foot .contract-link{min-height:24px;line-height:1;}
+.fleet-foot .fleet-refresh{line-height:1;}
 .fleet-foot:empty{display:none;}
 .fleet-refresh{font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);background:none;border:0;padding:0;min-width:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}
 .fleet-refresh:hover{color:var(--jade);}
