@@ -314,17 +314,17 @@ test("every constructor argument the console can answer is prefilled", () => {
 test("artifacts stay in sync with contracts/*.sol (regenerate check)", () => {
   // cheap staleness guard: every contract source is older-or-equal than the
   // generated module, or the build regenerates it anyway (build-site.mjs runs
-  // the artifact builder first). Here we just assert the module carries all
-  // eight contracts with bytecode + the seven book keys.
+  // the artifact builder first). Here we just assert the module carries every
+  // contract with bytecode + one book key each.
   assert.deepEqual(Object.keys(CONTRACTS).sort(), [
     "EnclaveAddressBook", "EnclaveAppCatalog", "EnclaveCreditVaultFactory",
-    "EnclaveDeployments", "EnclaveFeatured", "EnclavePay", "EnclaveRegistry",
-    "EnclaveReviews", "PaymentRouter"]);
+    "EnclaveDeployments", "EnclaveFeatured", "EnclaveHostReviews", "EnclavePay",
+    "EnclaveRegistry", "EnclaveReviews", "PaymentRouter"]);
   for (const [name, c] of Object.entries(CONTRACTS)) {
     assert.match(c.bytecode, /^0x[0-9a-f]{100,}$/i, name + " bytecode");
     for (const a of c.ctor) assert.equal(a.type, "address", name + " ctor args are all addresses (the console's deploy encoder assumes this)");
   }
   assert.deepEqual(
     Object.values(CONTRACTS).map((c) => c.bookKey).filter(Boolean).sort(),
-    ["appCatalog", "deployments", "enclavePay", "featured", "paymentRouter", "registry", "reviews", "vaultFactory"]);
+    ["appCatalog", "deployments", "enclavePay", "featured", "hostReviews", "paymentRouter", "registry", "reviews", "vaultFactory"]);
 });
