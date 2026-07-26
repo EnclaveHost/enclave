@@ -323,7 +323,7 @@ class Deployments extends EnclaveElement {
     } catch(e){
       // an expired/refused session isn't a wall anymore: drop the token and
       // re-list scoped by the connected address (the public ledger view)
-      if (e.status === 401 && Enclave.token){ Enclave.token = null; saveSession(); refreshWallet(); return this.refresh(opts); }
+      if (e.status === 401 && Enclave.token){ Enclave.token = null; Enclave.tokenBase = null; saveSession(); refreshWallet(); return this.refresh(opts); }
       body.innerHTML = '<div class="enc-empty">couldn’t load enclaves: ' + esc(e.message || String(e)) + '</div>';
     }
   }

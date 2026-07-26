@@ -33,6 +33,7 @@ export function passkeySupported(){
 /* ---- session lifecycle ---- */
 function adoptAccountSession(sess){
   Enclave.accountToken = sess.token;
+  Enclave.accountTokenBase = Enclave.base;      // bound to the endpoint that minted it
   Enclave.accountId = sess.accountId;
   Enclave.accountMethod = sess.method || null;
   saveAccountSession();
@@ -42,7 +43,8 @@ function adoptAccountSession(sess){
 }
 export function saveAccountSession(){
   if (!Enclave.accountToken){ lsSet("enclave_account", ""); return; }
-  try { lsSet("enclave_account", JSON.stringify({ token: Enclave.accountToken, accountId: Enclave.accountId, method: Enclave.accountMethod })); } catch(e){}
+  try { lsSet("enclave_account", JSON.stringify({ token: Enclave.accountToken, accountId: Enclave.accountId,
+    method: Enclave.accountMethod, base: Enclave.accountTokenBase || Enclave.base })); } catch(e){}
 }
 export function restoreAccountSession(){
   let raw; try { raw = lsGet("enclave_account"); } catch(e){ return; }
@@ -52,6 +54,7 @@ export function restoreAccountSession(){
   const exp = jwtExp(s.token);
   if (exp && exp * 1000 <= Date.now()){ lsSet("enclave_account", ""); return; }
   Enclave.accountToken = s.token;
+  Enclave.accountTokenBase = s.base || null;   // absent on a pre-binding session: default endpoint only
   Enclave.accountId = s.accountId || null;
   Enclave.accountMethod = s.method || null;
   emit("enclave:account", { authed: true, method: Enclave.accountMethod });

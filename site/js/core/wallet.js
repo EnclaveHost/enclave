@@ -226,7 +226,7 @@ function wireProviderEvents(provider){
   provider._enclaveWired = true;
   provider.on("accountsChanged", (acc) => {
     if (!acc || !acc.length){ disconnectWallet(); }
-    else { Enclave.address = acc[0]; Enclave.token = null; saveSession(); refreshWallet(); }
+    else { Enclave.address = acc[0]; Enclave.token = null; Enclave.tokenBase = null; saveSession(); refreshWallet(); }
   });
   provider.on("chainChanged", (c) => { Enclave.chainId = parseInt(c, 16); refreshWallet(); });
 }
@@ -258,6 +258,7 @@ export async function authenticate(){
   }
   const sess = await Enclave.login(message, signature);
   Enclave.token = sess && sess.token;
+  Enclave.tokenBase = Enclave.base;      // bound to the enclave that minted it (api.js `base`)
   if (!Enclave.token) throw new EnclaveError("Login did not return a token.", 0);
   saveSession();
   refreshWallet();
@@ -266,7 +267,7 @@ export async function authenticate(){
 }
 
 export function disconnectWallet(){
-  Enclave.token = null; Enclave.address = null; Enclave.provider = null; Enclave.chainId = null; Enclave.walletRdns = null;
+  Enclave.token = null; Enclave.tokenBase = null; Enclave.address = null; Enclave.provider = null; Enclave.chainId = null; Enclave.walletRdns = null;
   clearSession();
   Enclave.clearAccountSession();   // "Sign out" means BOTH domains: wallet/enclave session and the relay account
   runlog.clear();   // don't leave the prior user's deploy narratives in localStorage / on-screen
@@ -278,7 +279,8 @@ export function disconnectWallet(){
 /* ---- session persistence: survive a page refresh (localStorage bearer token) ---- */
 export function saveSession(){
   if (!Enclave.address){ lsSet("enclave_session", ""); return; }
-  try { lsSet("enclave_session", JSON.stringify({ address: Enclave.address, rdns: Enclave.walletRdns || null, token: Enclave.token || null })); } catch(e){}
+  try { lsSet("enclave_session", JSON.stringify({ address: Enclave.address, rdns: Enclave.walletRdns || null,
+    token: Enclave.token || null, base: Enclave.tokenBase || Enclave.base })); } catch(e){}
 }
 export function clearSession(){ lsSet("enclave_session", ""); }
 // pull the exp (seconds) out of a JWT; null if not a JWT / no exp
@@ -325,6 +327,7 @@ export async function restoreSession(){
   Enclave.provider = provider; Enclave.address = addr; Enclave.chainId = cid ? parseInt(cid, 16) : null;
   Enclave.walletRdns = (chosen.info && chosen.info.rdns) || null;
   Enclave.token = s.token || null;
+  Enclave.tokenBase = s.base || null;   // absent on a pre-binding session: default endpoint only
   wireProviderEvents(provider);
   saveSession();                                                  // re-persist (drops any expired token, refreshes rdns)
   if (Enclave.token) emit("enclave:auth", { authed: true, spinner: true });
