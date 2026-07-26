@@ -38,3 +38,14 @@ e2e/.data/
 e2e/.stack.json
 e2e/test-results/
 e2e/playwright-report/
+
+# Key material never belongs in this tree. Nothing tracked matches these, and
+# the one file the docs tell you to create with a raw private key in it
+# (metal/config.json — registryKey, fleetSecret, tunnelToken) is already
+# ignored by metal/.gitignore. This is the belt to that pair of braces: a
+# committed key cannot be un-committed, only rotated.
+*.key
+*.pem
+*.pkcs8
+*.p12
+*.pfx
