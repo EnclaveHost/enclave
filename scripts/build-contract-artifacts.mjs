@@ -39,6 +39,7 @@ const DEFS = [
   { name: "EnclaveDeployments",  bookKey: "deployments", viaIR: true },   // rev 7 outgrew legacy codegen's EIP-170 headroom
   { name: "EnclaveFeatured",     bookKey: "featured" },
   { name: "EnclaveReviews",      bookKey: "reviews" },
+  { name: "EnclaveHostReviews",  bookKey: "hostReviews" },   // ratings for the enclaves that RUN apps (seller-side reputation)
   { name: "PaymentRouter",       bookKey: "paymentRouter" },
   // the credit-vault FACTORY is the deployable; clones come from it on-chain.
   // `file` names the .sol (which also holds the vault implementation).
