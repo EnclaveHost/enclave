@@ -235,7 +235,7 @@ containers:
     volumes:
       - /mnt/ramdisk/enclave-state:/var/lib/enclave
     secrets:
-      - SECRET                   # manager control-token (VMMGR_TOKEN) + DNS-push HMAC seed; NO LONGER signs session JWTs (those use the in-enclave ES256 key). Fleet-wide.
+      - SECRET                   # SEED for the manager control-token + DNS-push HMAC (both derived, never sent raw); NO LONGER signs session JWTs (those use the in-enclave ES256 key). Fleet-wide.
       - BASE_RPC                 # dedicated Base RPC URL (key-bearing, e.g. Alchemy/QuickNode). Unset = public-pool fallback. Same creation-binding rule as every new secret name.
       - ADMIN_TOKEN              # operator token for POST /v1/admin/deployments/:id/provision
       - WORKER_TOKEN             # shared bearer with the worker container (SAME Tinfoil secret); the supervisor sends it on worker-manager calls. Unset = not sent.
@@ -346,10 +346,14 @@ containers:
       # when the repo ships several quantizations - the manager stages the
       # pick as a symlink dir, so the mpk-<hash> mount name never matters.
       - MODEL_VOLUMES: "qwen2.5-0.5b:/tinfoil/mpk/mpk-e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4,qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-d02f1afc0eee60adc4da2a541c8e095c9cff347b4f3996c2950ff84c676c1c70:qwen2.5-0.5b-instruct-q4_k_m.gguf,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen3.5-0.8b-gguf:/tinfoil/mpk/mpk-d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8,qwen3.6-27b-mtp-gguf:/tinfoil/mpk/mpk-bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9,fable-fusion-27b-mtp-gguf:/tinfoil/mpk/mpk-cf2030ea6070202555fa2d8b762fa4b1c94a3b636dd3d0f587d3f9fafddf4415,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2"
-    # SECRET doubles as the manager's control-plane token (VMMGR_TOKEN): tenants
-    # hold outbound HTTP to loopback, so the control API on :8091 must reject
-    # calls that don't carry it (the supervisor sends X-Vmmgr-Token). The tenant
-    # data plane (/enc/*) and /health use their own auth / stay open.
+    # SECRET SEEDS the manager's control-plane token: both sides derive
+    # HMAC(SECRET,"enclave vmmgr v1") - the raw master is never the bearer,
+    # since this token rides on every control call while SECRET is what the
+    # dns-txt and secrets keys are also derived from. Tenants hold outbound HTTP
+    # to loopback, so the control API on :8091 must reject calls that don't carry
+    # it (the supervisor sends X-Vmmgr-Token). The tenant data plane (/enc/*) and
+    # /health use their own auth / stay open. (The manager still accepts the old
+    # raw-SECRET token until supervisor + wasm-manager are both past this change.)
     secrets:
       - SECRET
     volumes:

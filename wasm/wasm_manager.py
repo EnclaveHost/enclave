@@ -45,6 +45,7 @@ Notes:
   models larger than HF's 50GB per-file cap load as one graph.
 """
 import collections
+import hashlib
 import hmac
 import http.server
 import ipaddress
@@ -82,7 +83,23 @@ PORT         = int(os.environ.get("WASM_MANAGER_PORT", "8091"))   # same port th
 # longer stays legacy-open — a tenant holds outbound HTTP to loopback and could
 # DELETE another tenant's vm, so a box with no token must DENY. Explicitly running
 # open (local dev) is opt-in: VMMGR_ALLOW_UNAUTHENTICATED=1.
-VMMGR_TOKEN  = os.environ.get("VMMGR_TOKEN") or os.environ.get("SECRET") or ""
+# DERIVED, not the raw fleet SECRET. This token rides as a bearer header on
+# every control request the supervisor makes, and the raw SECRET is the master
+# the fleet's OTHER credentials come from (HMAC(SECRET,"enclave dns-txt v1"),
+# HMAC(SECRET,"enclave secrets v1")) - so putting it on the wire of every
+# launch/kill call made one loopback-observable header worth the whole keyring.
+# Same labelled-HMAC discipline as those two; supervisor.js derives identically.
+_VMMGR_EXPLICIT = os.environ.get("VMMGR_TOKEN") or ""
+_SECRET_RAW     = os.environ.get("SECRET") or ""
+VMMGR_TOKEN = _VMMGR_EXPLICIT or (
+    hmac.new(_SECRET_RAW.encode("utf-8", "surrogateescape"), b"enclave vmmgr v1", hashlib.sha256).hexdigest()
+    if _SECRET_RAW else "")
+# ROLLOUT WINDOW: enclave-supervisor and enclave-wasm-manager are SEPARATE
+# images with independent digests, so one updates before the other. Accept the
+# old raw-SECRET token too until both sides are past this change, or a staggered
+# rollout takes the control plane down mid-flight. Drop this once the fleet is
+# fully repointed - it is the ONLY thing still accepting the master on the wire.
+VMMGR_TOKEN_LEGACY = "" if _VMMGR_EXPLICIT else _SECRET_RAW
 VMMGR_ALLOW_UNAUTH = os.environ.get("VMMGR_ALLOW_UNAUTHENTICATED", "").strip().lower() in ("1", "true", "yes", "on")
 # /health is intentionally OPEN (no control token) for the supervisor's liveness
 # probe, but its FULL body leaks capacity, model-volume names/listings, GPU
@@ -3220,7 +3237,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # bytes, not str: compare_digest raises TypeError on a str with any
         # character above U+007F, and headers arrive latin-1-decoded — one high
         # byte in the header would raise inside the auth check rather than fail it
-        return hmac.compare_digest(_b(tok), _b(VMMGR_TOKEN))
+        if hmac.compare_digest(_b(tok), _b(VMMGR_TOKEN)):
+            return True
+        # rollout window only - see VMMGR_TOKEN_LEGACY
+        return bool(VMMGR_TOKEN_LEGACY) and hmac.compare_digest(_b(tok), _b(VMMGR_TOKEN_LEGACY))
 
     # --- encrypted volumes: the tenant plane ------------------------------- #
     # /encvol/<vid>[/<action>] is NOT control-plane: it authenticates with the

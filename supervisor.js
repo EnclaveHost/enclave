@@ -236,9 +236,18 @@ async function mgrHealth(timeoutMs = 3000) {
 // --- app manager client ("vm" backend on VMMGR_URL; the wasm-manager) --------
 // The manager's control API is loopback-reachable by TENANTS too (guests hold
 // outbound HTTP), so it enforces a shared control token when configured: both
-// containers get the same SECRET and the manager rejects control calls without
-// it. VMMGR_TOKEN overrides if the two ever need to differ.
-const VMMGR_TOKEN = process.env.VMMGR_TOKEN || process.env.SECRET || "";
+// containers derive it from the same SECRET and the manager rejects control
+// calls without it. VMMGR_TOKEN overrides if the two ever need to differ.
+//
+// DERIVED, never the raw SECRET (matches SECRETS_FETCH_KEY / DNS_TXT_KEY
+// below). Unlike those two - which are only ever HMAC keys - this one is SENT,
+// as a bearer header on every launch/kill/control call. Sending the master that
+// the fleet's other credentials are derived from meant one observed header
+// yielded the whole keyring; sending a leaf yields only this control plane.
+// The manager still accepts the old raw value during the rollout window, since
+// supervisor and wasm-manager are separate images that update independently.
+const VMMGR_TOKEN = process.env.VMMGR_TOKEN
+  || (SECRET.length ? createHmac("sha256", SECRET).update("enclave vmmgr v1").digest("hex") : "");
 function vmReq(method, path, body, timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
     const u = new URL(VMMGR_URL + path);
