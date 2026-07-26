@@ -19,9 +19,15 @@
 # zipball, so it establishes that you got the bytes the release holds —
 # transport corruption, a lying mirror, a truncated download. It does NOT defend
 # against whoever can PUBLISH a release (a stolen token, a compromised
-# maintainer account): they write both files. A detached signature over
-# SHA256SUMS with a key pinned in THIS script would close that, and does not
-# exist yet.
+# maintainer account): they write both files.
+#
+# A detached SIGNATURE over SHA256SUMS closes that, and the machinery is here:
+# set $EnclaveReleasePubKey below and this script REQUIRES a valid signature by
+# that key before it will build. It is empty until the project's release key
+# exists (scripts/release-key.mjs gen), and while empty this script says so on
+# every run rather than implying a guarantee it is not making. The key is PINNED
+# here, never fetched - a key downloaded from the same host as the artifact
+# proves nothing. Same key, same check, same wording as install.sh.
 #
 # What you CAN do today, with no key involved: the release assets are
 # `git archive` of the tag, which is byte-deterministic, so anyone with a clone
@@ -40,6 +46,12 @@ $ErrorActionPreference = "Stop"
 
 # throw, not exit: under `irm | iex` an exit would close the user's terminal
 function Fail($msg) { Write-Host "error: $msg" -ForegroundColor Red; throw $msg }
+
+# Ed25519 public key (base64, 32 raw bytes) whose signature over SHA256SUMS is
+# REQUIRED before a hosted install will build. Empty = unsigned releases are
+# accepted with a loud warning. Fill it from `node scripts/release-key.mjs gen`
+# with the SAME value pinned in install.sh, and keep the private half off CI.
+$EnclaveReleasePubKey = ""
 
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
   Fail "node is required (https://nodejs.org, v20 or newer)"
@@ -83,6 +95,24 @@ if (-not $cliDir -or -not (Test-Path (Join-Path $cliDir "enclave.mjs"))) {
     Invoke-WebRequest -Uri "$base/$zipname"   -OutFile $zip -UseBasicParsing
     $sums = Join-Path $tmp "SHA256SUMS"
     Invoke-WebRequest -Uri "$base/SHA256SUMS" -OutFile $sums -UseBasicParsing
+    # Signature first: the checksum below is only as trustworthy as the file it
+    # is read from, so establish WHO wrote SHA256SUMS before believing what it
+    # says about the zipball. Inlined for the same reason as install.sh - the
+    # verifier cannot come from the archive it is verifying - and node is
+    # already a hard requirement above, so this needs no openssl.
+    if ($EnclaveReleasePubKey) {
+      $sig = Join-Path $tmp "SHA256SUMS.sig"
+      try { Invoke-WebRequest -Uri "$base/SHA256SUMS.sig" -OutFile $sig -UseBasicParsing }
+      catch { Fail "$ver publishes no SHA256SUMS.sig, but this installer pins a release key - refusing to build" }
+      $js = 'const f=require("fs"),c=require("crypto");const a=process.argv.slice(1);const r=Buffer.from(a[2].trim(),"base64");const k=c.createPublicKey({key:r.length===32?Buffer.concat([Buffer.from("302a300506032b6570032100","hex"),r]):r,format:"der",type:"spki"});if(k.asymmetricKeyType!=="ed25519")process.exit(1);const t=f.readFileSync(a[1]);const s=t.length===64?t:Buffer.from(t.toString("utf8").trim(),"base64");if(s.length!==64)process.exit(1);process.exit(c.verify(null,f.readFileSync(a[0]),k,s)?0:1);'
+      & node -e $js $sums $sig $EnclaveReleasePubKey
+      if ($LASTEXITCODE -ne 0) { Fail "SHA256SUMS for $ver is not signed by the pinned release key - refusing to build" }
+      Write-Host "  signature ok (pinned release key)"
+    } else {
+      Write-Warning "no release key pinned in this installer, so SHA256SUMS is trusted as published."
+      Write-Warning "It proves the bytes match the release, NOT who published it. Reproduce instead:"
+      Write-Warning "git archive --format=zip --prefix=enclave-$ver/ $ver"
+    }
     $want = ((Get-Content $sums | Where-Object { $_ -match [regex]::Escape($zipname) }) -split '\s+' | Where-Object { $_ } | Select-Object -First 1)
     $got  = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
     if (-not $want -or $want.ToLower() -ne $got) { Fail "checksum mismatch for $ver (want=$want got=$got) - refusing to build" }

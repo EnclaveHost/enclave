@@ -62,10 +62,38 @@ git archive --format=zip    --prefix="enclave-$TAG/" "$REF" -o "$OUT/$ZIPBALL"
 say "SHA256SUMS"
 ( cd "$OUT" && sha256sum "$TARBALL" "$ZIPBALL" > SHA256SUMS && cat SHA256SUMS )
 
+# Detached Ed25519 signature over SHA256SUMS. This is the part a stolen publish
+# token cannot forge: the checksum file ships from the same release as the
+# tarball, so whoever can publish writes both. ENCLAVE_RELEASE_KEY points at the
+# PRIVATE key (scripts/release-key.mjs gen) and must NOT live in CI - the whole
+# value is that it is somewhere a compromised runner is not.
+SIGNED=0
+if [ -n "${ENCLAVE_RELEASE_KEY:-}" ]; then
+  [ -f "$ENCLAVE_RELEASE_KEY" ] || { echo "error: ENCLAVE_RELEASE_KEY=$ENCLAVE_RELEASE_KEY does not exist" >&2; exit 1; }
+  say "signing SHA256SUMS"
+  node "$REPO_ROOT/scripts/release-key.mjs" sign "$ENCLAVE_RELEASE_KEY" "$OUT/SHA256SUMS" >/dev/null
+  PUB="$(node "$REPO_ROOT/scripts/release-key.mjs" pub "$ENCLAVE_RELEASE_KEY")"
+  # verify what we are about to publish, with the same code the installer runs
+  node "$REPO_ROOT/cli/verify-sig.mjs" "$OUT/SHA256SUMS" "$OUT/SHA256SUMS.sig" "$PUB" \
+    || { echo "error: the signature we just produced does not verify — refusing to publish" >&2; exit 1; }
+  # and refuse to ship a signature the SHIPPED installers will reject
+  PINNED="$(sed -n 's/^ENCLAVE_RELEASE_PUBKEY="${ENCLAVE_RELEASE_PUBKEY:-\(.*\)}"$/\1/p' "$REPO_ROOT/cli/install.sh")"
+  if [ -n "$PINNED" ] && [ "$PINNED" != "$PUB" ]; then
+    echo "error: signing key ($PUB) is not the key pinned in cli/install.sh ($PINNED)" >&2
+    echo "       every installer in the wild would refuse this release. Update the pin deliberately." >&2
+    exit 1
+  fi
+  [ -n "$PINNED" ] || say "NOTE: cli/install.sh pins no key yet, so installers will not check this signature"
+  SIGNED=1
+else
+  say "NOT SIGNING (ENCLAVE_RELEASE_KEY unset) — SHA256SUMS will ship unsigned"
+fi
+
 if [ "$DRY_RUN" = "1" ]; then
   say "DRY_RUN: built assets (not published), left for inspection:"
   DEST="${TMPDIR:-/tmp}/enclave-cli-$TAG"
   mkdir -p "$DEST"; cp "$OUT/$TARBALL" "$OUT/$ZIPBALL" "$OUT/SHA256SUMS" "$DEST/"
+  [ "$SIGNED" = "1" ] && cp "$OUT/SHA256SUMS.sig" "$DEST/"
   ls -l "$DEST"
   exit 0
 fi
@@ -78,7 +106,10 @@ say "gh release create $TAG"
 # asset) breaks attestation verification platform-wide until the next enclave
 # release buries it. Prereleases are excluded from /releases/latest; the
 # installers are unaffected (they resolve cli-* TAGS via git/matching-refs).
-gh release create "$TAG" "$OUT/$TARBALL" "$OUT/$ZIPBALL" "$OUT/SHA256SUMS" \
+# shellcheck disable=SC2086 # $SIG_ASSET is deliberately word-split (empty = omit)
+SIG_ASSET=""
+[ "$SIGNED" = "1" ] && SIG_ASSET="$OUT/SHA256SUMS.sig"
+gh release create "$TAG" "$OUT/$TARBALL" "$OUT/$ZIPBALL" "$OUT/SHA256SUMS" $SIG_ASSET \
   --prerelease \
   --title "enclave CLI $TAG" \
   --notes "$(cat <<NOTES
