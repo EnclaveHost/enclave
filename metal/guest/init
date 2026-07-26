@@ -58,6 +58,17 @@ mkdir -p /opt/roots/wasm/etc && cp /etc/resolv.conf /opt/roots/wasm/etc/resolv.c
 # which docker supplies on the hosted fleet but an initramfs chroot lacks —
 # without it every claim dies at spawn ([Errno 2] '/dev/null') and the lease
 # bounces to another enclave. rbind carries devtmpfs plus the pts/shm mounts.
+# BREADTH, on purpose but worth knowing: this rbinds the WHOLE devtmpfs into the
+# chroot that hosts tenant wasmtime processes, when the need is /dev/null (plus
+# zero/urandom). A tenant cannot reach any of it through WASI — wasmtime grants
+# exactly the preopens the manager passes (its private /data ramdisk, plus named
+# model/encrypted volumes), and a traversal out of a preopen is refused by the
+# runtime — so this is only reachable after a wasmtime sandbox escape, i.e.
+# defense in depth rather than a live boundary. Narrowing it to an explicit
+# device set is the better shape, but it is boot-critical: the rbind exists
+# because claims died at spawn with [Errno 2] '/dev/null' and bounced their
+# leases to another enclave, so it wants a real SNP boot to change, not a
+# confident edit.
 mkdir -p /opt/roots/wasm/dev
 mount --rbind /dev /opt/roots/wasm/dev 2>/dev/null || log "WARNING: /dev rbind into wasm chroot failed"
 
