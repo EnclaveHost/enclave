@@ -51,7 +51,7 @@ fleet-wide so addresses never collide), and every enclave sets the SAME
 ## API relay
 
 ```bash
-cd relay && npm install
+cd relay && npm ci        # the locked tree; deploy.sh does the same on the boxes
 REGISTRY_ADDRESS=0x... node api-relay.js         # on-chain discovery, or:
 ENCLAVES=https://enclave1...,https://enclave2... node api-relay.js
 ```
@@ -379,7 +379,7 @@ against your enclaves.
 3. **Relay**:
 
 ```bash
-cd relay && npm install
+cd relay && npm ci        # the locked tree; deploy.sh does the same on the boxes
 APP_DOMAIN=app.enclave.host \
 ENCLAVE_URL=https://enclave1.nan.containers.tinfoil.dev \
 RELAY_PORTS=6667,5432 \
