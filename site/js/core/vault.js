@@ -101,9 +101,13 @@ export function assertIsWhatIAskedFor(op, prep, params) {
   if (op === "deploy") {
     const c = decodeCreateCall(prep.createCall);
     const s = params.spec || {};
-    if (c.appRef !== String(s.appRef)) no("a different app");
-    if (c.gpuMilli !== Number(s.gpuMilli || 0) || c.cpuMilli !== Number(s.cpuMilli)) no("different shares");
-    if (c.appPort !== Number(s.appPort)) no("a different port");
+    // mirror the relay's own coercions (validateDeploySpec) so a legitimate
+    // rounding is never mistaken for tampering — the comparison has to be
+    // exact about the VALUES, not about how they were spelled
+    const milli = (share, m) => Math.round(Number(share != null ? Number(share) * 1000 : m) || 0);
+    if (c.appRef !== String(s.appRef ?? "")) no("a different app");
+    if (c.gpuMilli !== milli(s.gpuShare, s.gpuMilli) || c.cpuMilli !== milli(s.cpuShare, s.cpuMilli)) no("different shares");
+    if (c.appPort !== (Math.round(Number(s.appPort)) || 8080)) no("a different port");
     if (c.ports !== String(s.ports || "")) no("different declared ports");
     if (c.isPublic !== !!s.isPublic) no("a different visibility");
     if (c.configCid !== String(s.configCid ?? "")) no("a different config");
