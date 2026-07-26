@@ -3175,6 +3175,8 @@ def _public(rec: dict) -> dict:
 
 
 _ENC_ROUTE_RE = re.compile(r"^/encvol/([^/?]+)(?:/(unlock|sync|lock))?$")
+# constant-time compares take BYTES here — see _authorized below
+_b = lambda s: (s or "").encode("utf-8", "surrogateescape")
 
 
 # ---- HTTP contract --------------------------------------------------------- #
@@ -3209,7 +3211,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not tok:
             m = re.match(r"^Bearer\s+(\S+)$", self.headers.get("Authorization") or "")
             tok = m.group(1) if m else ""
-        return hmac.compare_digest(tok, VMMGR_TOKEN)
+        # bytes, not str: compare_digest raises TypeError on a str with any
+        # character above U+007F, and headers arrive latin-1-decoded — one high
+        # byte in the header would raise inside the auth check rather than fail it
+        return hmac.compare_digest(_b(tok), _b(VMMGR_TOKEN))
 
     # --- encrypted volumes: the tenant plane ------------------------------- #
     # /encvol/<vid>[/<action>] is NOT control-plane: it authenticates with the
@@ -3234,7 +3239,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not tok:
             b = re.match(r"^Bearer\s+(\S+)$", self.headers.get("Authorization") or "")
             tok = b.group(1) if b else ""
-        if not hmac.compare_digest(tok, enc["token"]):
+        if not hmac.compare_digest(_b(tok), _b(enc["token"])):
             self._json(401, {"error": "volume token required"})
             return None
         return rec, action
