@@ -21,6 +21,29 @@ import { verifyQuote } from "./snp-verify.mjs";
 const sha256Hex = (s) => createHash("sha256").update(String(s)).digest("hex");
 const eqHex = (a, b) => { const x = Buffer.from(String(a), "hex"), y = Buffer.from(String(b), "hex"); return x.length === y.length && timingSafeEqual(x, y); };
 
+// A tunnel name is a routing key: it appears in `tunnel://<name>` origins and in
+// the relay's /t/<name>/… path, so it must be a plain label. Anything else is
+// refused at the handshake rather than silently producing an unroutable row.
+const NAME_RE_OK = /^[A-Za-z0-9_-]{1,64}$/;
+
+// A tunnel's publicUrl becomes its REGISTRY ID upstream (keccak256 of the URL),
+// and a synthetic row carrying a known id DISPLACES the discovered on-chain row
+// with the same id (api-relay readRegistry). Believing the claim as sent is a
+// takeover primitive: any attached box could name another enclave's registered
+// endpoint and have the fleet route that enclave's deployments — /x data path
+// and /v1 control path, caller Authorization header included — to itself. So
+// only a SELF-ROUTED url is honored: one whose path is this tunnel's own
+// /t/<name> route, which is exactly what a CGNAT seller registers on chain
+// (`enclave host`, metal/HANDOFF.md) and the only URL this hub can vouch for.
+// A colo box with its own dialable https endpoint needs no claim at all — it is
+// discovered on chain directly and was never displaced.
+function selfRoutedUrl(url, name) {
+  if (!url) return "";
+  let u; try { u = new URL(String(url)); } catch { return ""; }
+  if (u.protocol !== "https:" || u.search || u.hash) return "";
+  return u.pathname.replace(/\/+$/, "") === `/t/${name}` ? String(url) : "";
+}
+
 // allow:  [{ name, tokenSha256 }]                       — bootstrap / first-party boxes
 // attest: { allowedMeasurements: [hex], requireVcek }   — permissionless sellers:
 //   attach is granted to ANY enclave that proves, with a fresh SEV-SNP quote over
@@ -30,7 +53,27 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
   const allowByName = new Map(allow.filter((a) => a && a.name && a.tokenSha256).map((a) => [a.name, a.tokenSha256.toLowerCase()]));
   const attestOn = !!(attest && attest.allowedMeasurements && attest.allowedMeasurements.length);
   const wss = new WebSocketServer({ noServer: true });
-  const tunnels = new Map();                                  // name -> { ws, pending, lastSeen, mode, publicUrl }
+  const tunnels = new Map();                                  // name -> { ws, pending, lastSeen, mode, publicUrl, keyFp }
+
+  // Keepalive. Nothing else proves a tunnel is alive: a half-open socket (NAT
+  // timeout, a box that vanished without a FIN) never fires 'close', so its
+  // entry would keep answering discovery, swallow every request into the 30s
+  // timeout, and — since a name can no longer simply be seized (see
+  // handleUpgrade) — lock the real box out of its own name on reconnect. The
+  // agent answers {t:"ping"} with a pong; ANY frame refreshes lastSeen.
+  const PING_MS = 30_000, DEAD_MS = 90_000;
+  setInterval(() => {
+    const now = Date.now();
+    for (const [name, t] of [...tunnels]) {
+      if (now - t.lastSeen > DEAD_MS) {
+        console.error(`[tunnel] ${name} silent for ${Math.round((now - t.lastSeen) / 1000)}s — terminating`);
+        try { t.ws.terminate(); } catch {}
+        if (tunnels.get(name) === t) { tunnels.delete(name); try { onChange("detach", name); } catch {} }
+        continue;
+      }
+      try { t.ws.send(JSON.stringify({ t: "ping" })); } catch {}
+    }
+  }, PING_MS).unref?.();
 
   function tokenOk(name, token) {
     const want = allowByName.get(name);
@@ -40,9 +83,14 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
 
   // Register an authorized socket as the tunnel for `name` and wire its frames.
   function bind(name, ws, meta = {}) {
+    // A socket that died while its attestation was being verified must never be
+    // registered: no further 'close' can fire on it, so the entry (and the name
+    // with it) would be held forever by a tunnel that answers nothing.
+    if (ws.readyState !== ws.OPEN) { try { ws.terminate(); } catch {} return false; }
     const prev = tunnels.get(name);
     if (prev && prev.ws !== ws) { try { prev.ws.terminate(); } catch {} }   // newest wins
-    const t = { ws, pending: new Map(), streams: new Map(), lastSeen: Date.now(), mode: meta.mode || "", publicUrl: "", measurement: meta.measurement || null };
+    const t = { ws, pending: new Map(), streams: new Map(), lastSeen: Date.now(), mode: meta.mode || "", publicUrl: "",
+                measurement: meta.measurement || null, keyFp: meta.keyFp || "" };
     tunnels.set(name, t);
     console.log(`[tunnel] ${name} attached via ${meta.via || "token"} (${tunnels.size} enclave${tunnels.size === 1 ? "" : "s"})`);
     try { onChange("attach", name); } catch {}   // refresh discovery so it lands in `live` now, not on the next slow poll
@@ -51,7 +99,10 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       let f; try { f = JSON.parse(data); } catch { return; }
       if (f.t === "hello") {
         const had = t.publicUrl;
-        t.mode = f.mode || t.mode; t.publicUrl = f.publicUrl || ""; t.transportKeyFp = f.transportKeyFp || "";
+        t.mode = f.mode || t.mode; t.transportKeyFp = f.transportKeyFp || "";
+        t.publicUrl = selfRoutedUrl(f.publicUrl, name);
+        if (f.publicUrl && !t.publicUrl)
+          console.error(`[tunnel] ${name} claimed publicUrl ${String(f.publicUrl).slice(0, 120)} — IGNORED (not this tunnel's own https://<relay>/t/${name} route); its on-chain runner id stays unstamped`);
         // The attach-time onChange snapshots the registry BEFORE this frame can
         // arrive, so a selling box's registered id (keccak of its publicUrl)
         // stays unknown until the next slow poll — its hosted rows read
@@ -70,29 +121,45 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     const bye = () => { if (tunnels.get(name) === t) tunnels.delete(name); for (const p of t.pending.values()) p.reject(new Error("tunnel closed")); for (const s of [...t.streams.values()]) s({ t: "sx" }); t.streams.clear(); console.log(`[tunnel] ${name} detached`); try { onChange("detach", name); } catch {} };
     ws.on("close", bye);
     ws.on("error", () => { try { ws.terminate(); } catch {} });
+    return true;
   }
 
   function handleUpgrade(req, socket, head) {
     const name = String(req.headers["x-metal-name"] || "").slice(0, 64);
     const token = String(req.headers["x-metal-token"] || "");
     const wantsAttest = req.headers["x-metal-attest"] === "1" || (!token && attestOn);
-    if (!name) { socket.write("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n"); return socket.destroy(); }
+    if (!NAME_RE_OK.test(name)) { socket.write("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n"); return socket.destroy(); }
 
     // Token path (bootstrap / first-party): authorize before the handshake.
     if (tokenOk(name, token)) return wss.handleUpgrade(req, socket, head, (ws) => bind(name, ws, { via: "token" }));
 
     // Attestation path (permissionless): complete the handshake unauthorized, run
     // a challenge → quote → verify exchange, and only then bind (or close).
+    //
+    // A quote proves the peer runs a PUBLISHED Metal release. It proves nothing
+    // about WHICH box it is — every seller runs the same image, so the name in
+    // the handshake header is a request, not an identity. Two rules keep it from
+    // becoming one: names on the token allowlist are reserved outright, and a
+    // name already held by a live tunnel can only be re-taken by the same
+    // attested transport key (a genuine reconnect). Without them any seller
+    // could evict metal0 (or a competitor) and inherit its routing.
     if (wantsAttest && attestOn) {
+      if (allowByName.has(name)) {
+        console.log(`[tunnel] ${name} attest REFUSED: the name is reserved for token attach`);
+        socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
+        return socket.destroy();
+      }
       return wss.handleUpgrade(req, socket, head, (ws) => {
         const nonce = randomBytes(32);
-        let settled = false;
+        let settled = false, verifying = false;
         const deny = (why) => { if (settled) return; settled = true; console.log(`[tunnel] ${name} attest REJECTED: ${why}`); try { ws.send(JSON.stringify({ t: "attest-result", ok: false, reason: why })); } catch {} setTimeout(() => { try { ws.close(); } catch {} }, 100); };
         const timer = setTimeout(() => deny("attestation timeout"), 15000);
+        timer.unref?.();                                     // a stalled attach must not hold the loop open
         ws.on("message", async (data) => {
-          if (settled) return;
+          if (settled || verifying) return;                    // one quote in flight at a time
           let f; try { f = JSON.parse(data); } catch { return; }
           if (f.t !== "attest" || !f.rad || !f.rad.body) return;
+          verifying = true;
           try {
             if (!/sev-snp-guest/.test(f.rad.format || "")) return deny(`format ${f.rad.format} not SEV-SNP`);
             const report = Buffer.from(f.rad.body, "base64");
@@ -100,11 +167,22 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             const aux = f.rad.certs ? Buffer.from(f.rad.certs, "base64") : null;
             const res = await verifyQuote(report, { challenge: nonce, transportKeySpki: spki, auxblob: aux,
               allowedMeasurements: attest.allowedMeasurements, requireVcek: !!attest.requireVcek });
+            // verification is a network round trip (KDS): the timeout may have
+            // denied and closed this socket while we waited. Binding it now
+            // would register a dead ws whose 'close' has already fired — the
+            // name would be held by a tunnel that answers nothing, forever.
+            if (settled) return;
             if (!res.ok) return deny(res.reasons[res.reasons.length - 1] || "quote invalid");
+            const keyFp = spki ? createHash("sha256").update(spki).digest("hex") : "";
+            const prev = tunnels.get(name);
+            if (prev && (!prev.keyFp || prev.keyFp !== keyFp))
+              return deny("that name is held by another enclave");
             clearTimeout(timer); settled = true;
             try { ws.send(JSON.stringify({ t: "attest-result", ok: true, measurement: res.measurement })); } catch {}
-            bind(name, ws, { via: res.vcekVerified ? "attestation" : "attestation(measurement-only)", measurement: res.measurement, mode: "snp" });
+            bind(name, ws, { via: res.vcekVerified ? "attestation" : "attestation(measurement-only)",
+                             measurement: res.measurement, mode: "snp", keyFp });
           } catch (e) { deny(`verify error: ${e.message}`); }
+          finally { verifying = false; }
         });
         ws.on("error", () => { try { ws.terminate(); } catch {} });
         try { ws.send(JSON.stringify({ t: "challenge", nonce: nonce.toString("base64") })); } catch {}

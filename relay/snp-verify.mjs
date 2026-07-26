@@ -14,6 +14,7 @@ export function parseSnpReport(r) {
   if (r.length < 0x2a0 + 0x90) throw new Error(`report too short: ${r.length}`);
   return {
     version: r.readUInt32LE(0x00),
+    policy: r.readBigUInt64LE(0x08),
     vmpl: r.readUInt32LE(0x30),
     reportData: r.subarray(0x50, 0x50 + 64),
     measurement: r.subarray(0x90, 0x90 + 48),
@@ -31,7 +32,28 @@ function rawSigToDer(sig) {
   return Buffer.concat([Buffer.from([0x30, seq.length]), seq]);
 }
 
-async function fetchBuf(url) { const r = await fetch(url); if (!r.ok) throw new Error(`${url}: ${r.status}`); return Buffer.from(await r.arrayBuffer()); }
+// KDS is a third party on the attach path: bound every call so a hung or
+// black-holed fetch can't hold an attestation handshake open indefinitely.
+async function fetchBuf(url, timeoutMs = 8000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal });
+    if (!r.ok) throw new Error(`${url}: ${r.status}`);
+    return Buffer.from(await r.arrayBuffer());
+  } finally { clearTimeout(t); }
+}
+
+// AMD's per-product ARK/ASK chain never changes; KDS rate-limits, so cache it.
+const _chainCache = new Map();   // product -> [ASK, ARK] X509Certificates
+async function certChain(product) {
+  if (_chainCache.has(product)) return _chainCache.get(product);
+  const pem = (await fetchBuf(`${KDS}/vcek/v1/${product}/cert_chain`)).toString("utf8");
+  const chain = pem.split(/(?=-----BEGIN CERTIFICATE-----)/)
+    .filter((s) => s.includes("CERTIFICATE")).map((s) => new X509Certificate(s));
+  _chainCache.set(product, chain);
+  return chain;
+}
 
 function vcekFromAuxblob(aux) {
   try {
@@ -51,7 +73,22 @@ export async function verifyQuote(report, { challenge, transportKeySpki, allowed
   let p;
   try { p = parseSnpReport(report); } catch (e) { return fail(`unparseable report: ${e.message}`); }
 
+  if (p.version < 2) return fail(`report version ${p.version} < 2`);
   if (p.vmpl !== 0) return fail(`VMPL ${p.vmpl} != 0`);
+
+  // 0. GUEST POLICY. The launch measurement covers the guest's initial memory —
+  //    it does NOT cover the policy the hypervisor launched it under, which is
+  //    reported separately here. An allowlisted image booted with DEBUG enabled
+  //    is a transparent box: the host may read and write guest memory at will
+  //    (transport private key included) while still producing a report whose
+  //    measurement matches bit-for-bit. MIGRATE_MA is the same hole one step
+  //    removed — it lets a migration agent move the guest's state off this
+  //    platform. Both must be off before anything else about the quote matters.
+  const POLICY_DEBUG = 1n << 19n, POLICY_MIGRATE_MA = 1n << 18n;
+  if (p.policy & POLICY_DEBUG) return fail(`guest policy 0x${p.policy.toString(16)} allows DEBUG (host can read guest memory)`);
+  if (p.policy & POLICY_MIGRATE_MA) return fail(`guest policy 0x${p.policy.toString(16)} allows MIGRATE_MA`);
+  reasons.push(`guest policy 0x${p.policy.toString(16)}: DEBUG off, MIGRATE_MA off`);
+
   const measurement = p.measurement.toString("hex");
 
   // 1. measurement ∈ allowlist of published Metal releases
@@ -87,13 +124,26 @@ export async function verifyQuote(report, { challenge, transportKeySpki, allowed
     const v = createVerify("sha384"); v.update(p.signedRegion); v.end();
     if (!v.verify({ key: createPublicKey(vcekCert.publicKey), dsaEncoding: "der" }, rawSigToDer(p.signature)))
       return fail("VCEK signature over the report is invalid");
-    const which = src.startsWith("KDS/") ? src.slice(4) : (product || "Milan");
-    const pem = (await fetchBuf(`${KDS}/vcek/v1/${which}/cert_chain`)).toString("utf8");
-    const [ask, ark] = pem.split(/(?=-----BEGIN CERTIFICATE-----)/).filter((s) => s.includes("CERTIFICATE")).map((s) => new X509Certificate(s));
-    if (!(ask && vcekCert.verify(ask.publicKey))) return fail("VCEK does not chain to ASK");
-    if (!(ark && ask.verify(ark.publicKey))) return fail("ASK does not chain to ARK");
-    if (!(ark && ark.verify(ark.publicKey))) return fail("ARK not self-signed");
-    reasons.push(`AMD signature chain verified (VCEK ${src} → ASK → ARK)`);
+    // Which product line's ARK/ASK to chain to. A KDS-fetched VCEK already
+    // named it; one supplied in the auxblob does not, so read the product out
+    // of the cert's own issuer (CN=SEV-Milan / SEV-Genoa / SEV-Turin …) and
+    // only then fall back to trying the known lines. Hardcoding "Milan" here
+    // silently rejected every Genoa/Turin box that shipped its own VCEK.
+    const fromIssuer = (/SEV-([A-Za-z0-9]+)/.exec(vcekCert.issuer || "") || [])[1] || null;
+    const candidates = [...new Set([src.startsWith("KDS/") ? src.slice(4) : null, fromIssuer, product,
+                                    "Milan", "Genoa", "Turin"].filter(Boolean))];
+    let chained = null, lastWhy = "no AMD product line matched";
+    for (const which of candidates) {
+      let ask, ark;
+      try { [ask, ark] = await certChain(which); } catch (e) { lastWhy = `${which}: ${e.message}`; continue; }
+      if (!(ask && ark)) { lastWhy = `${which}: incomplete cert chain`; continue; }
+      if (!vcekCert.verify(ask.publicKey)) { lastWhy = "VCEK does not chain to ASK"; continue; }
+      if (!ask.verify(ark.publicKey)) return fail("ASK does not chain to ARK");
+      if (!ark.verify(ark.publicKey)) return fail("ARK not self-signed");
+      chained = which; break;
+    }
+    if (!chained) return fail(lastWhy);
+    reasons.push(`AMD signature chain verified (VCEK ${src} → ASK → ARK, ${chained})`);
     return { ok: true, measurement, reasons, vcekVerified: true };
   } catch (e) { return fail(`cert-chain verification error: ${e.message}`); }
 }
