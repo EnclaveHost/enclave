@@ -66,6 +66,10 @@ const BUF_MAX_PKTS  = parseInt(process.env.UDP_BUF_MAX_PKTS || "256", 10);
 // off-prefix answer, loopback and the wildcard all lose; with it unset the
 // global-unicast range table is the fallback. (udp6 sockets can't bind IPv4
 // anyway, so the family check is belt-and-braces rather than load-bearing.)
+//
+// This cannot take a working deployment down: ExecStartPre routes THIS SAME
+// value to lo, which is what makes the /64 bind-able - so an address refused for
+// being off-prefix is one the kernel was already refusing with EADDRNOTAVAIL.
 let GATE;
 try { GATE = v6PrefixGate(process.env.UDP_PREFIX); }
 catch (e) { console.error(`fatal: UDP_PREFIX is ${e.message}`); process.exit(1); }
