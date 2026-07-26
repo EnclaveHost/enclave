@@ -438,8 +438,13 @@ export function assertSiweLogin(message, address, apiBase) {
   if ((L[1] || "").toLowerCase() !== address.toLowerCase()) bad("it asks a different address to sign");
   if (L[2] !== "") bad("malformed header");
   // optional one-line statement, then a blank line, then only SIWE fields
+  // EIP-4361: the statement is OPTIONAL, and when it is absent so is the blank
+  // line after it — fields follow the address directly. Tell the two apart by
+  // whether line 3 already parses as a field.
   let i = 3;
-  if (L[i] !== undefined && L[i] !== "") { i++; if (L[i] !== "") bad("statement is not a single line"); i++; }
+  if (L[i] !== undefined && L[i] !== "" && !SIWE_FIELD_RE.test(L[i])) {
+    i++; if (L[i] !== "") bad("statement is not a single line"); i++;
+  }
   const seen = {};
   for (; i < L.length; i++) {
     if (L[i] === "" && i === L.length - 1) continue;              // trailing newline

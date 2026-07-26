@@ -56,6 +56,46 @@ export const Wallet = {
   }
 };
 
+/* ---- the server's challenge, checked before a wallet ever sees it ----
+   The endpoint hands us a string and we ask the user's key to sign it. A wallet
+   does render the text, which is a real backstop the CLI does not have — but
+   "the user might read it" is not a control. This key also authorizes
+   `enclave-upload:…`, `enclave-secrets:put:…` (a secrets WRITE) and the
+   encrypted-volume message whose signature IS the volume key, so a challenge
+   that is not a SIWE login for THIS wallet is refused here rather than shown.
+   Mirrors cli/enclave.mjs assertSiweLogin; the grammar check is what stops a
+   second directive riding along as an extra line. */
+const SIWE_FIELD_RE = /^(URI|Version|Chain ID|Nonce|Issued At|Expiration Time|Not Before|Request ID|Resources): ?(.*)$/;
+export function assertSiweLogin(message, address){
+  const bad = (why) => { throw new EnclaveError(
+    "Refusing to sign: the sign-in challenge is not a SIWE login for this wallet (" + why + "). Nothing was signed.", 0); };
+  if (typeof message !== "string" || message.length > 4096) bad("not a string, or absurdly long");
+  const L = message.split("\n");
+  if (!/^\S+ wants you to sign in with your Ethereum account:$/.test(L[0] || "")) bad("first line is not the SIWE preamble");
+  if ((L[1] || "").toLowerCase() !== String(address || "").toLowerCase()) bad("it asks a different address to sign");
+  if (L[2] !== "") bad("malformed header");
+  // EIP-4361: the statement is OPTIONAL, and when it is absent the blank line
+  // after it is absent too — fields follow the address directly. Tell the two
+  // apart by whether line 3 already parses as a field.
+  let i = 3;
+  if (L[i] !== undefined && L[i] !== "" && !SIWE_FIELD_RE.test(L[i])){
+    i++; if (L[i] !== "") bad("statement is not a single line"); i++;
+  }
+  const seen = {};
+  for (; i < L.length; i++){
+    if (L[i] === "" && i === L.length - 1) continue;
+    if (/^- \S+$/.test(L[i]) && seen["Resources"]) continue;
+    const f = SIWE_FIELD_RE.exec(L[i]);
+    if (!f) bad("line " + (i + 1) + " is not a SIWE field");
+    seen[f[1]] = f[2];
+  }
+  if (!seen["Nonce"]) bad("no Nonce");
+  if (seen["Version"] !== "1") bad("not SIWE version 1");
+  if (seen["Chain ID"] !== String(BASE_CHAIN)) bad("chain " + seen["Chain ID"] + ", expected " + BASE_CHAIN);
+  if (seen["Expiration Time"] && Date.parse(seen["Expiration Time"]) <= Date.now()) bad("already expired");
+  return message;
+}
+
 /* ---- assemble a canonical SIWE message only if the server didn't send one ----
    (exported: account.js signs the same shape against the relay) */
 export function buildSiwe(ch){
@@ -249,7 +289,7 @@ export async function connectWallet(){
 export async function authenticate(){
   if (!Enclave.provider) await connectWallet();
   const ch = await Enclave.getNonce(Enclave.address);
-  const message = (ch && ch.message) ? ch.message : buildSiwe(ch);
+  const message = assertSiweLogin((ch && ch.message) ? ch.message : buildSiwe(ch), Enclave.address);
   let signature;
   try {
     signature = await Enclave.provider.request({ method: "personal_sign", params: [message, Enclave.address] });
