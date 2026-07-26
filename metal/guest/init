@@ -47,8 +47,10 @@ if [ -e /sys/class/net/eth0 ]; then
 else
   log "WARNING: eth0 not present; continuing without network"
 fi
-# loopback up (needed for supervisor <-> wasm-manager <-> agent)
-/opt/metal/netup lo 127.0.0.1 255.0.0.0 127.0.0.1 2>/dev/null
+# loopback up (needed for supervisor <-> wasm-manager <-> agent). Address only,
+# NO gateway: passing one used to add a default route via lo that outranked
+# eth0's and blackholed all off-link egress (RPC, ACME, registration).
+/opt/metal/netup lo 127.0.0.1 255.0.0.0 2>/dev/null
 printf 'nameserver %s\n' "$DNS" > /etc/resolv.conf
 # The wasm chroot needs its own resolv.conf copy.
 mkdir -p /opt/roots/wasm/etc && cp /etc/resolv.conf /opt/roots/wasm/etc/resolv.conf 2>/dev/null
