@@ -107,11 +107,6 @@ contract EnclaveHostReviews {
     IEnclaveAddressBook public immutable book;
     bytes32 public constant LEDGER_KEY = "deployments";   // ascii, right-padded — the book's derivation
 
-    /// @notice Fallback ledger, used only when the book can't answer (no book
-    ///         at all — a local or testnet deploy — or the key retired to
-    ///         zero). Owner-settable so that case stays recoverable.
-    address public ledgerFallback;
-
     struct Tally { uint32 count; uint32 sum; }   // visible reviews only; sum <= 5 * count
 
     mapping(bytes32 => Review[]) private _reviews;                  // enclaveId -> reviews, storage order
@@ -121,30 +116,32 @@ contract EnclaveHostReviews {
     event ReviewPosted(bytes32 indexed enclaveId, address indexed reviewer, uint8 stars, bytes32 deployment);
     event ReviewUpdated(bytes32 indexed enclaveId, address indexed reviewer, uint8 stars);
     event ReviewHidden(bytes32 indexed enclaveId, address indexed reviewer, bool hidden);
-    event LedgerFallbackSet(address indexed ledger);
     event OwnerChanged(address indexed owner);
     event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
 
-    /// @param _book           EnclaveAddressBook, the platform root (0 = none;
-    ///                        then the fallback is the only ledger).
-    /// @param _ledgerFallback EnclaveDeployments to use when the book can't answer.
-    constructor(address _book, address _ledgerFallback) {
-        require(_book != address(0) || _ledgerFallback != address(0), "no ledger source");
+    /// @param _book EnclaveAddressBook, the platform root — the ONLY ledger
+    ///              source. There is deliberately no fallback address: the
+    ///              sibling EnclaveReviews shipped with one, it was the live
+    ///              ledger on deploy day, and it silently rotted three
+    ///              revisions out of date — a stale fallback doesn't keep the
+    ///              contract working, it makes it validate receipts against
+    ///              frozen history. A book repoint is a single `set`, so the
+    ///              key never passes through zero in normal operation; if it
+    ///              ever does, refusing NEW ratings (existing ones stay
+    ///              readable, edits still work) is the honest failure.
+    constructor(address _book) {
+        require(_book != address(0), "no book");
         owner = msg.sender;
         book = IEnclaveAddressBook(_book);
-        ledgerFallback = _ledgerFallback;
-        emit LedgerFallbackSet(_ledgerFallback);
         emit OwnerChanged(msg.sender);
     }
 
     /// @notice The EnclaveDeployments ledger this contract checks receipts
-    ///         against right now. Reads never revert — an unresolvable ledger
-    ///         is address(0), which _proved treats as "proves nothing".
+    ///         against right now — whatever the book says today. Reads never
+    ///         revert: an unresolvable ledger is address(0), which _proved
+    ///         treats as "proves nothing".
     function ledger() public view returns (address) {
-        if (address(book) != address(0)) {
-            try book.addr(LEDGER_KEY) returns (address a) { if (a != address(0)) return a; } catch {}
-        }
-        return ledgerFallback;
+        try book.addr(LEDGER_KEY) returns (address a) { return a; } catch { return address(0); }
     }
 
     /* ---- write ---- */
@@ -280,13 +277,6 @@ contract EnclaveHostReviews {
 
     /* ---- admin ---- */
 
-    /// @notice Set the fallback ledger. Normally dead weight — with a book
-    ///         configured, `ledger()` follows it and this is never consulted.
-    function setLedgerFallback(address _ledger) external {
-        require(msg.sender == owner, "!owner");
-        ledgerFallback = _ledger;
-        emit LedgerFallbackSet(_ledger);
-    }
     function transferOwnership(address newOwner) external {
         require(msg.sender == owner, "!owner");
         pendingOwner = newOwner;

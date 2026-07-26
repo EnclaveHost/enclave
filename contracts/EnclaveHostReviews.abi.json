@@ -5,28 +5,10 @@
         "internalType": "address",
         "name": "_book",
         "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_ledgerFallback",
-        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "ledger",
-        "type": "address"
-      }
-    ],
-    "name": "LedgerFallbackSet",
-    "type": "event"
   },
   {
     "anonymous": false,
@@ -395,19 +377,6 @@
   },
   {
     "inputs": [],
-    "name": "ledgerFallback",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "owner",
     "outputs": [
       {
@@ -498,19 +467,6 @@
       }
     ],
     "name": "setHidden",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_ledger",
-        "type": "address"
-      }
-    ],
-    "name": "setLedgerFallback",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

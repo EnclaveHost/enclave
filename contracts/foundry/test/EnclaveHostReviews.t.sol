@@ -42,7 +42,7 @@ contract EnclaveHostReviewsTest is Test {
         led = new MockLedger();
         book = new MockBook();
         book.set("deployments", address(led));
-        r = new EnclaveHostReviews(address(book), address(0));
+        r = new EnclaveHostReviews(address(book));
         // Alice funded a deployment that metal0 (ENC_A) is running
         led.set(DEP, ALICE, ENC_A, 5_000_000, 260_000);
     }
@@ -176,10 +176,9 @@ contract EnclaveHostReviewsTest is Test {
         r.post(ENC_A, DEP, 5, new string(2001));
     }
 
-    /// The admin console prefills (book, 0) — prove that deploys AND works.
-    function test_deploysWithBookAndZeroFallback() public {
-        EnclaveHostReviews r2 = new EnclaveHostReviews(address(book), address(0));
-        assertEq(r2.ledgerFallback(), address(0));
+    /// The console now submits ONE arg: the book. Prove that deploys and works.
+    function test_deploysWithBookOnly() public {
+        EnclaveHostReviews r2 = new EnclaveHostReviews(address(book));
         assertEq(r2.ledger(), address(led));          // resolved through the book
         vm.prank(ALICE);
         r2.post(ENC_A, DEP, 5, "");                   // receipts still verify
@@ -187,10 +186,26 @@ contract EnclaveHostReviewsTest is Test {
         assertEq(c, 1);
     }
 
-    /// ...and that a bookless deploy still needs a fallback (the ctor guard).
-    function test_refusesDeployWithNeitherSource() public {
-        vm.expectRevert(bytes("no ledger source"));
-        new EnclaveHostReviews(address(0), address(0));
+    /// There is no fallback to fall back TO, so a bookless deploy is refused.
+    function test_refusesDeployWithoutABook() public {
+        vm.expectRevert(bytes("no book"));
+        new EnclaveHostReviews(address(0));
+    }
+
+    /// A retired book key can't be papered over by a stale ledger any more:
+    /// new ratings are refused, existing ones stay readable, edits still work.
+    function test_retiredBookKeyRefusesNewButKeepsOld() public {
+        vm.prank(ALICE); r.post(ENC_A, DEP, 5, "before");
+        book.set("deployments", address(0));          // key retired
+        assertEq(r.ledger(), address(0));
+        vm.prank(BOB);
+        vm.expectRevert(bytes("no funded deployment run by this enclave"));
+        r.post(ENC_A, DEP, 5, "");                    // no NEW ratings
+        (uint32 c, uint32 s) = r.tallyOf(ENC_A);
+        assertEq(c, 1); assertEq(s, 5);               // existing tally intact
+        vm.prank(ALICE); r.post(ENC_A, bytes32(0), 3, "edited anyway");
+        (c, s) = r.tallyOf(ENC_A);
+        assertEq(c, 1); assertEq(s, 3);               // edits need no ledger
     }
 
     function test_pagingIncludesHiddenFlagged() public {
