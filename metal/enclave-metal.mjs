@@ -122,7 +122,18 @@ function baseArgs() {
     a.push('-object', 'tdx-guest,id=cx0');
     a.push('-machine', 'q35,accel=kvm,confidential-guest-support=cx0,memory-backend=ram0,kernel-irqchip=split');
   } else {
-    // SEV-SNP with measured kernel hashes → kernel+initrd+cmdline in the launch digest
+    // SEV-SNP with measured kernel hashes → kernel+initrd+cmdline in the launch digest.
+    //
+    // GUEST POLICY is deliberately left at QEMU's default (0x30000: reserved
+    // bit 17 set, SMT allowed, DEBUG clear) rather than spelled out. Know what
+    // rides on that: the policy is NOT part of the launch measurement, so a
+    // guest booted with DEBUG set produces a byte-identical measurement while
+    // the host can read and write its memory freely. Both verifiers now refuse
+    // that — relay/snp-verify.mjs (tunnel attach) and metal/verify.mjs (what a
+    // buyer runs) — so if a future QEMU ever changed this default the failure
+    // is loud at attach time rather than a silently transparent box. Spelling
+    // `policy=` out here would be belt-and-braces; it is left alone only
+    // because a boot-line change to a serving box wants a real boot to test.
     a.push('-object', `sev-snp-guest,id=cx0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on,sev-device=${SEV_DEVICE}`);
   }
   return a;
