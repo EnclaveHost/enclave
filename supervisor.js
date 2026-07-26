@@ -4939,6 +4939,21 @@ async function claimSweep(ledger) {
 // fires the claim without awaiting it (claim tx + provision can take tens of
 // seconds - an IPFS fetch of a 100MB+ app is part of it - and a hint response
 // must not hang that long; the deployer watches the ledger for the runner).
+// true / false / null(unreachable). 404/503 = the relay has no record / no
+// secrets feature — authoritatively nothing staged, false.
+async function depHasSecrets(id){
+  if (!SECRETS_API) return false;
+  try {
+    const r = await fetch(`${SECRETS_API}/v1/secrets/exists`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: String(id).toLowerCase() }), signal: AbortSignal.timeout(5000) });
+    if (r.status === 404 || r.status === 503) return false;
+    if (!r.ok) return null;
+    const b = await r.json();
+    return b.exists === true;
+  } catch { return null; }
+}
+
 async function volumeGate(d, g){
   let cfgStr = g.config || "";
   try {
@@ -5038,6 +5053,17 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
   // heterogeneous fleet: a metal box carries no Modelwrap volumes.)
   const volWhy = await volumeGate(d, g);
   if (volWhy) return volWhy;
+  // Staged secrets are injected at launch via a FLEET-secret-derived auth this
+  // box may not hold (SECRETS_CAPABLE=0: a metal enclave running its own
+  // minted SECRET). The fetch fails SOFT — the app would launch WITHOUT its
+  // env, silently broken — so a secret-bearing deployment is not our work
+  // item: probe the relay and fail closed, exactly like volumes/fees/approval.
+  if (!SECRETS_CAPABLE) {
+    const has = await depHasSecrets(d.id);
+    if (has !== false) return has === true
+      ? "deployment has staged secrets and this enclave lacks the fleet secrets key"
+      : "cannot verify the deployment has no staged secrets (relay probe unreachable)";
+  }
   if (background) {
     tryClaim(d, g, firewall, slice, { hinted, resume })
       .catch(e => console.warn(`[claim] hinted claim ${d.id} failed: ${e.shortMessage || e.message}`));

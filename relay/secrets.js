@@ -244,6 +244,20 @@ export async function handleSecrets(req, res, u, ctx) {
     return ctx.json(res, 200, { id, rev, env }, req);
   }
 
+  // existence probe — deliberately UNAUTHENTICATED (rate-limited with the
+  // fetch bucket): a secrets-INCAPABLE runner (a metal box without the fleet
+  // secret) asks this before claiming, so a secret-bearing deployment is
+  // never claimed by a box that would launch it without its env. It leaks
+  // only the boolean "this public deployment id has secrets staged" — names
+  // and values stay behind the authenticated paths.
+  if (u.pathname === "/v1/secrets/exists") {
+    if (!rlFetch(ctx.clientIp(req)))
+      return bad(ctx, res, req, 429, "rate_limited", "Too many probes; retry shortly.");
+    const id = String(b.id || "").toLowerCase();
+    if (!/^0x[0-9a-f]{64}$/.test(id)) return bad(ctx, res, req, 422, "bad_id", "id must be a bytes32 deployment id.");
+    return ctx.json(res, 200, { id, exists: !!recOf(id) }, req);
+  }
+
   const m = u.pathname.match(/^\/v1\/secrets\/(0x[0-9a-fA-F]{64})(\/get)?$/);
   if (!m) return bad(ctx, res, req, 404, "not_found", "POST /v1/secrets/:id, /v1/secrets/:id/get, or /v1/secrets/fetch.");
   const id = m[1].toLowerCase();
