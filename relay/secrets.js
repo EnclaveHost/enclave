@@ -188,7 +188,11 @@ async function ownerGate(ctx, req, res, id, b, message) {
 const recOf = (id) => store.data.byId[id] || null;
 const namesOf = (env) => Object.keys(env).sort();
 
-// core mutate, exported for the MCP tools (same signature contract, no HTTP)
+// Core mutate. Exported for TESTS only - and it performs NO authorization: the
+// owner signature is checked by ownerGate in the HTTP layer above, never here.
+// Any future caller (MCP included - its secrets tools deliberately POST to the
+// HTTP endpoints carrying the owner's signature, rather than reaching in here)
+// must go through that gate. Calling this directly is an owner-check bypass.
 export function applyPut(id, payload) {
   let p; try { p = JSON.parse(payload); } catch { throw new Error("payload must be a JSON string"); }
   if (!p || typeof p !== "object" || Array.isArray(p)) throw new Error("payload must be a JSON object {set?, del?, clear?}");
@@ -213,7 +217,7 @@ export function applyPut(id, payload) {
   return { rev, names: namesOf(env), updatedAt };
 }
 
-export function readSecrets(id) {                             // exported for MCP get
+export function readSecrets(id) {          // TESTS only - unauthenticated, see applyPut
   const rec = recOf(id);
   return rec ? { rev: rec.rev, updatedAt: rec.updatedAt, env: open(id, rec.blob) } : { rev: 0, updatedAt: null, env: {} };
 }
