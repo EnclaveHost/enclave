@@ -49,15 +49,30 @@ before(async () => {
     r();
   }));
 
-  proc = spawn(process.execPath, [AGENT], {
-    env: { ...process.env, METAL_MODE: "dev", METAL_NAME: "testbox",
-           METAL_SUP_URL: `http://127.0.0.1:${supPort}`,
-           METAL_RELAY_URL: `ws://127.0.0.1:${relayPort}/v1/fleet-tunnel`,
-           METAL_TUNNEL_TOKEN: "t", METAL_RAD_PORT: String(await freePort()) },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  proc.stdout.resume(); proc.stderr.resume();
-  await connected;
+  // The agent's RAD port is picked by probing for a free one and then handing
+  // it to a CHILD, so the window between probe and bind belongs to whatever
+  // else is starting up — `node --test` runs files in parallel. A collision
+  // kills the agent before it dials, and waiting on `connected` forever turns
+  // that into a 60s cancellation with no explanation. Bounded wait, the
+  // agent's own output in the message, and one retry on a fresh port.
+  let log = "";
+  for (let attempt = 1; ; attempt++) {
+    proc = spawn(process.execPath, [AGENT], {
+      env: { ...process.env, METAL_MODE: "dev", METAL_NAME: "testbox",
+             METAL_SUP_URL: `http://127.0.0.1:${supPort}`,
+             METAL_RELAY_URL: `ws://127.0.0.1:${relayPort}/v1/fleet-tunnel`,
+             METAL_TUNNEL_TOKEN: "t", METAL_RAD_PORT: String(await freePort()) },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    log = "";
+    proc.stdout.on("data", (d) => (log += d));
+    proc.stderr.on("data", (d) => (log += d));
+    const up = await Promise.race([connected.then(() => true),
+                                   new Promise((r) => setTimeout(() => r(false), 8000))]);
+    if (up) break;
+    try { proc.kill("SIGKILL"); } catch {}
+    if (attempt >= 2) throw new Error("metal agent never dialed the test relay:\n" + log.slice(-1500));
+  }
   Object.assign(globalThis, { __ports: { supPort, honeyPort } });
 });
 after(() => {
