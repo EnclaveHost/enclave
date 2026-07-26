@@ -29,6 +29,7 @@
 //       ENCLAVE_API_BASE  gateway or a specific enclave origin (--base)
 //       ENCLAVE_RPC       Base JSON-RPC url (--rpc)
 import fs from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
@@ -1973,6 +1974,15 @@ sell hosting (run an enclave on your own TEE hardware — metal/PROTOCOL.md)
                              key INTO that file (gitignored; the printed address
                              derives from it — nothing external to trust) and
                              defaults payout to THIS CLI wallet
+  host build [--repo PATH]   build the measured guest image from a checkout
+                             (unprivileged; the first run pulls the pinned
+                             images, so give it a while)
+  host run [--config PATH]   launch the enclave in the foreground (ctrl-c stops)
+  host install               run it under systemd instead: writes a user unit
+                             pointing at THIS checkout, enables it at boot and
+                             keeps it running after logout
+  host check                 is the guest answering, and is its attestation real
+                             hardware or dev mode
   host fund [--eth 0.002] [--address 0x…]
                              gas the operator from your CLI wallet, one signed
                              transfer: it pays the box's register/heartbeat/claim
@@ -2003,7 +2013,7 @@ transactions - deploying and funding by credit stays on enclave.host for now.`;
 // not a payment; earnings sweep to payoutAddress (default: this CLI wallet).
 async function cmdHost(rest) {
   const sub = rest.shift();
-  const f = flags(rest, { val: ["--config", "--name", "--payout", "--eth", "--address", "--mode", "--cpus", "--mem", "--eab-kid", "--eab-hmac", "--price-cpu", "--price-gpu", "--gpu"] });
+  const f = flags(rest, { val: ["--config", "--name", "--payout", "--eth", "--address", "--mode", "--cpus", "--mem", "--eab-kid", "--eab-hmac", "--price-cpu", "--price-gpu", "--gpu", "--repo", "--supervisor", "--wasm", "--kernel"] });
   const cfgPath = f.config || path.join("metal", "config.json");
   const readCfg = () => { try { return JSON.parse(fs.readFileSync(cfgPath, "utf8")); } catch { return null; } };
   const operatorOf = (cfg) => {
@@ -2121,7 +2131,111 @@ the box hides itself until its registration confirms, then appears as serving.`)
     return;
   }
 
-  throw new Error("usage: enclave host init [--name N] [--payout 0x…] | host fund [--eth 0.002] [--address 0x…] | host status");
+  // ---- the rest of the quickstart, as commands instead of pasted shell ----
+  // These need the repo (the guest image is built from it), so they resolve
+  // metal/ from the cwd or --repo and say so plainly when it isn't there.
+  const metalDir = () => {
+    const root = f.repo || process.cwd();
+    const d = path.join(root, "metal");
+    if (!fs.existsSync(path.join(d, "build-image.mjs")))
+      throw new Error(`no metal/ here. Run this from a checkout of the enclave repo `
+        + `(git clone https://github.com/EnclaveHost/enclave), or pass --repo <path>`);
+    return { root, dir: d };
+  };
+  const runNode = (root, args, label) => {
+    say(`$ node ${args.join(" ")}`);
+    const r = spawnSync(process.execPath, args, { cwd: root, stdio: "inherit" });
+    if (r.status !== 0) throw new Error(`${label} exited ${r.status ?? r.signal}`);
+  };
+
+  if (sub === "build") {
+    const { root } = metalDir();
+    say("building the measured guest image (unprivileged; the first run pulls images and takes a while)");
+    const args = ["metal/build-image.mjs"];
+    for (const k of ["supervisor", "wasm", "kernel"]) if (f[k]) args.push("--" + k, f[k]);
+    runNode(root, args, "build-image");
+    say(`next: enclave host run --config ${cfgPath}   (or: enclave host install)`);
+    return;
+  }
+
+  if (sub === "run") {
+    const { root } = metalDir();
+    if (!fs.existsSync(path.join(root, "metal", "dist", "initramfs.cpio.gz")))
+      throw new Error("no built image (metal/dist). Run `enclave host build` first.");
+    say(`launching ${cfgPath} in the foreground (ctrl-c stops it; \`enclave host install\` runs it under systemd)`);
+    runNode(root, ["metal/enclave-metal.mjs", "--config", cfgPath], "enclave-metal");
+    return;
+  }
+
+  if (sub === "install") {
+    const { root } = metalDir();
+    if (process.platform !== "linux") throw new Error("systemd install is Linux-only; use `enclave host run` elsewhere");
+    const unitDir = path.join(os.homedir(), ".config", "systemd", "user");
+    fs.mkdirSync(unitDir, { recursive: true });
+    // Generate the unit from THIS checkout's real paths. The shipped template
+    // hardcodes one developer's directory, which silently fails for everyone
+    // else; the absolute node path keeps it working without a login shell.
+    const unit = `[Unit]
+Description=Enclave Metal - self-hosted confidential-VM enclave
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=${root}
+ExecStart=${process.execPath} ${path.join(root, "metal", "enclave-metal.mjs")} --config ${path.resolve(cfgPath)}
+Restart=always
+RestartSec=3
+LimitMEMLOCK=infinity
+
+[Install]
+WantedBy=default.target
+`;
+    const unitPath = path.join(unitDir, "enclave-metal.service");
+    fs.writeFileSync(unitPath, unit);
+    say(`wrote ${unitPath}`);
+    for (const args of [["--user", "daemon-reload"], ["--user", "enable", "--now", "enclave-metal"]]) {
+      const r = spawnSync("systemctl", args, { stdio: "inherit" });
+      if (r.status !== 0) throw new Error(`systemctl ${args.join(" ")} failed (${r.status ?? r.signal})`);
+    }
+    // survive logout / start at boot - without this the box stops selling the
+    // moment the operator's session ends
+    spawnSync("loginctl", ["enable-linger", os.userInfo().username], { stdio: "ignore" });
+    say("✓ running under systemd (enabled at boot, lingering)");
+    say(`logs:   journalctl --user -u enclave-metal -f
+health: enclave host check
+stop:   systemctl --user disable --now enclave-metal`);
+    return;
+  }
+
+  if (sub === "check") {
+    const cfg = readCfg() || {};
+    const hp = (cfg.hostfwd || []).find((h) => Number(h.guest) === 8080);
+    const rows = [];
+    const probe = async (url, opts) => {
+      try {
+        const r = await fetch(url, { signal: AbortSignal.timeout(5000), ...(opts || {}) });
+        return { ok: r.ok, status: r.status, body: await r.text() };
+      } catch (e) { return { err: e.cause?.code || e.message }; }
+    };
+    if (hp) {
+      const h = await probe(`http://127.0.0.1:${hp.host}/v1/health`);
+      rows.push(["supervisor", h.err ? `unreachable (${h.err}) - is the guest up? journalctl --user -u enclave-metal`
+        : h.ok ? "ok" : `HTTP ${h.status}`]);
+    } else rows.push(["supervisor", "(no hostfwd for guest 8080 in the config - probe it over the tunnel instead)"]);
+    const a = await probe(`https://api.enclave.host/t/${cfg.name || "metal0"}/v1/attestation`);
+    if (a.err) rows.push(["attestation", `not reachable through the relay (${a.err})`]);
+    else {
+      // the supervisor wraps the RAD: enclave.attestationDocument.format
+      let fmt = ""; try { const j = JSON.parse(a.body); fmt = j?.enclave?.attestationDocument?.format || j?.format || ""; } catch {}
+      rows.push(["attestation", fmt ? `${fmt}${/dev-unattested/.test(fmt) ? "  (DEV MODE - not attested; set mode snp|tdx to sell)" : "  (hardware-attested)"}`
+        : `HTTP ${a.status}`]);
+    }
+    kv(rows);
+    say("verify the launch measurement independently: node metal/verify.mjs --url https://api.enclave.host/t/" + (cfg.name || "metal0"));
+    return;
+  }
+
+  throw new Error("usage: enclave host init | build | run | install | check | fund | status");
 }
 
 const COMMANDS = {

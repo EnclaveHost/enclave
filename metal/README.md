@@ -120,14 +120,21 @@ fleet-wide feature flags.
 ## Quick start (this repo, any Linux host with /dev/kvm)
 
 ```sh
-node metal/build-image.mjs                 # unprivileged; ~10 min first run
-node metal/enclave-metal.mjs --config metal/config.json   # dev mode boot
-curl -sk https://127.0.0.1:18443/.well-known/enclave-attestation | jq .format
-curl -s  http://127.0.0.1:18080/v1/health  # supervisor, via hostfwd
-# install as a service:
-mkdir -p ~/.config/systemd/user && cp metal/systemd/enclave-metal.service ~/.config/systemd/user/
-systemctl --user daemon-reload && systemctl --user enable --now enclave-metal
+curl -fsSL https://get.enclave.host | sh   # the enclave CLI, if you have not got it
+
+enclave host init          # scaffold metal/config.json + mint this box's key
+enclave host build         # the measured guest image (unprivileged; the first
+                           # run pulls the pinned images, so give it a while)
+enclave host run           # boot it in the foreground, ctrl-c to stop
+enclave host check         # is the guest answering, is the quote real hardware
+enclave host install       # or run it under systemd: enabled at boot, survives
+                           # logout, pointed at THIS checkout
 ```
+
+Each of those maps onto a script in this directory if you would rather drive it
+yourself (`build-image.mjs`, `enclave-metal.mjs`, `systemd/`); the CLI just
+fills in the paths and checks the answers. To sell hosting, keep going with
+`enclave host fund` and `enclave host status` (see PROTOCOL.md).
 
 SNP mode needs: BIOS `SMEE`/`SEV-SNP` enabled + SNP RMP coverage, kernel
 `kvm_amd sev_snp=Y`, `/dev/sev` present; then set `"mode": "snp"` in the
