@@ -14,6 +14,25 @@
 # latest cli-* release. $env:ENCLAVE_CLI_CHANNEL="edge" is an explicit, UNVERIFIED
 # escape hatch that builds the current main tip (dev only).
 #
+# BE HONEST ABOUT WHAT THAT CHECKSUM PROVES (same wording as install.sh, because
+# it is the same limitation). SHA256SUMS ships from the SAME release as the
+# zipball, so it establishes that you got the bytes the release holds —
+# transport corruption, a lying mirror, a truncated download. It does NOT defend
+# against whoever can PUBLISH a release (a stolen token, a compromised
+# maintainer account): they write both files. A detached signature over
+# SHA256SUMS with a key pinned in THIS script would close that, and does not
+# exist yet.
+#
+# What you CAN do today, with no key involved: the release assets are
+# `git archive` of the tag, which is byte-deterministic, so anyone with a clone
+# can reproduce them and tie the artifact to the git history instead of to
+# whoever uploaded it (verified against the live cli-v1.1.0 release):
+#
+#   git fetch --tags; git tag -v <tag>      # if the tag is signed
+#   git archive --format=zip --prefix=enclave-<tag>/ <tag> | sha256sum
+#
+# That hash must equal the zipball line in the release's SHA256SUMS.
+#
 # Needs node >= 20 on PATH.
 # No-script alternative that works on every OS: npm install -g .\cli
 # (npm generates the .cmd shim itself; the CLI is plain node either way).
