@@ -11,6 +11,15 @@
 # NOT build the moving branch tip: it downloads a PINNED release tarball plus its
 # SHA256SUMS and REFUSES to build unless the checksum matches. Pin an exact tag
 # with ENCLAVE_CLI_VERSION=cli-vX.Y.Z; unset resolves the latest cli-* release.
+#
+# BE HONEST ABOUT WHAT THAT CHECKSUM PROVES. SHA256SUMS ships from the SAME
+# release as the tarball, so it establishes that you got the bytes the release
+# holds — transport corruption, a lying mirror, a truncated download. It does
+# NOT defend against whoever can PUBLISH a release (a stolen token, a
+# compromised maintainer account): they write both files. Closing that needs a
+# detached signature over SHA256SUMS with a key pinned in THIS script, which
+# does not exist yet. Until it does, the strongest check available to you is to
+# build from a checkout you have reviewed.
 # ENCLAVE_CLI_CHANNEL=edge is an explicit, UNVERIFIED escape hatch that builds the
 # current main tip (dev only). No prebuilt binary is ever downloaded.
 #
