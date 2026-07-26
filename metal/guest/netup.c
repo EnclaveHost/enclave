@@ -4,8 +4,14 @@
  * user-net / slirp NAT, or a tap on a colo host), so a fixed address is all it
  * needs; there is no inbound at the IP layer (reachability is the fleet tunnel).
  *
- *   netup <iface> <ip> <netmask> <gateway>
+ *   netup <iface> <ip> <netmask> [gateway]
  *   netup eth0 10.0.2.15 255.255.255.0 10.0.2.2
+ *
+ * The gateway is optional: without it only the address comes up and NO route
+ * is added. That matters for lo — a "gateway" of 127.0.0.1 used to install a
+ * SECOND default route via loopback that outranked eth0's, silently
+ * blackholing every off-link packet (DNS via slirp's on-link 10.0.2.3 still
+ * worked, which made it look like a TCP-only egress block).
  */
 #include <arpa/inet.h>
 #include <net/if.h>
@@ -23,8 +29,8 @@ static void set_addr(struct ifreq *ifr, const char *ip) {
 }
 
 int main(int argc, char **argv) {
-  if (argc != 5) { fprintf(stderr, "usage: netup <iface> <ip> <mask> <gw>\n"); return 2; }
-  const char *iface = argv[1], *ip = argv[2], *mask = argv[3], *gw = argv[4];
+  if (argc != 4 && argc != 5) { fprintf(stderr, "usage: netup <iface> <ip> <mask> [gw]\n"); return 2; }
+  const char *iface = argv[1], *ip = argv[2], *mask = argv[3], *gw = argc == 5 ? argv[4] : NULL;
 
   int s = socket(AF_INET, SOCK_DGRAM, 0);
   if (s < 0) { perror("socket"); return 1; }
@@ -41,6 +47,8 @@ int main(int argc, char **argv) {
   if (ioctl(s, SIOCGIFFLAGS, &ifr) < 0) { perror("SIOCGIFFLAGS"); return 1; }
   ifr.ifr_flags |= IFF_UP | IFF_RUNNING;
   if (ioctl(s, SIOCSIFFLAGS, &ifr) < 0) { perror("SIOCSIFFLAGS"); return 1; }
+
+  if (!gw) { close(s); return 0; }
 
   struct rtentry rt;
   memset(&rt, 0, sizeof rt);
