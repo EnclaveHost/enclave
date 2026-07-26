@@ -73,7 +73,13 @@ async function poll(deps) {
     }
     while (from <= safe) {
       const scanFrom = from > RESCAN ? from - RESCAN : 0n;
-      const to = (safe - scanFrom) > CHUNK ? scanFrom + CHUNK : safe;
+      // `to` is measured from scanFrom (the overlap start), so a CHUNK smaller
+      // than RESCAN would land it BEHIND `from` — the cursor would walk
+      // backwards and this loop would never terminate. Only reachable by
+      // misconfiguring the two env knobs against each other, but the failure is
+      // a hot loop in the payment indexer, so clamp it to always advance.
+      let to = (safe - scanFrom) > CHUNK ? scanFrom + CHUNK : safe;
+      if (to < from) to = from;
       for (const [k, b] of _seen) if (b < scanFrom) _seen.delete(k);
       const logs = await pub.getLogs({ address: router, event: PAYMENT_EVENT, fromBlock: scanFrom, toBlock: to });
       for (const lg of logs) {
