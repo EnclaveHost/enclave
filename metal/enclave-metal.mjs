@@ -58,6 +58,11 @@ const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', rel
   // the EAB-less Let's Encrypt fallback — sellers escape LE's per-registered-
   // domain weekly cap. Rides fw_cfg like the keys: out-of-band, unmeasured.
   acmeEabKid: cfg.acmeEabKid || '', acmeEabHmac: cfg.acmeEabHmac || '',
+  // what this operator CHARGES, in USD per hour for a FULL node / FULL card
+  // (see gsup: converted to the ledger's per-second 6dp basis). The GPU ask is
+  // only meaningful on a GPU enclave; gsup drops it otherwise.
+  priceCpuUsdHr: cfg.priceCpuUsdHr != null ? Number(cfg.priceCpuUsdHr) : null,
+  priceGpuUsdHr: cfg.priceGpuUsdHr != null ? Number(cfg.priceGpuUsdHr) : null,
   // optional FLEET secret (first-party boxes only): with it the guest joins
   // the fleet's deployment-secrets plane (the relay's fetch auth derives from
   // it); without it the guest mints its own SECRET per boot and truthfully

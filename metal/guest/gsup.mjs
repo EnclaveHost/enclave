@@ -55,12 +55,33 @@ const PAYOUT_ADDR  = fw.payoutAddress || '';
 const FLEET_SECRET = fw.fleetSecret || '';             // first-party boxes only: joins the deployment-secrets plane
 const SELLING      = !!(REGISTRY_KEY && PUBLIC_URL);
 
+// --- what this operator CHARGES ---------------------------------------------
+// config gives USD/hour for a FULL node / FULL card; the ledger prices in USDC
+// 6dp per second, so convert once here (1 USD/hr = 1e6/3600 units/sec).
+// GPU: this image is the CPU flavor and passes no card through, so there is
+// nothing to sell — a configured GPU price is DROPPED (with a warning) rather
+// than advertised, because advertising a price for hardware we don't have is
+// how a box sells work it can never run. A GPU metal build (card passed
+// through, GPU flavor image) sets METAL_GPU=1 and the ask applies.
+const usdHrToSec6 = (v) => Number.isFinite(v) && v > 0 ? Math.round(v * 1e6 / 3600) : 0;
+const HAS_GPU     = /^(1|true|on)$/i.test(process.env.METAL_GPU || '') || Number(fw.gpuCount || 0) > 0;
+const PRICE_CPU6  = usdHrToSec6(Number(fw.priceCpuUsdHr));
+const PRICE_GPU6  = usdHrToSec6(Number(fw.priceGpuUsdHr));
+if (PRICE_GPU6 > 0 && !HAS_GPU)
+  log('WARNING: priceGpuUsdHr is set but this enclave has no GPU — ignoring it (CPU-only boxes sell no GPU shares)');
+if (HAS_GPU && PRICE_GPU6 <= 0)
+  log('WARNING: GPU enclave with no priceGpuUsdHr — its GPU shares sell at the on-chain list price');
+
 const flavorEnv = readJson('/opt/metal/flavor-env.json', {});   // baked, non-secret
 
 // --- per-boot secrets (minted in-CVM, never leave it) ------------------------
 const SECRET       = FLEET_SECRET || randomBytes(32).toString('hex');
 const ADMIN_TOKEN  = randomBytes(32).toString('hex');
-log(`mode=${MODE} name=${NAME} public=${PUBLIC_URL || '(none)'} relay=${RELAY_URL ? 'set' : '(none)'} selling=${SELLING ? 'on' : 'off'}`);
+log(`mode=${MODE} name=${NAME} public=${PUBLIC_URL || '(none)'} relay=${RELAY_URL ? 'set' : '(none)'} selling=${SELLING ? 'on' : 'off'}`
+  + (PRICE_CPU6 > 0 || (HAS_GPU && PRICE_GPU6 > 0)
+      ? ` ask=${PRICE_CPU6 > 0 ? '$' + (PRICE_CPU6 * 3600 / 1e6).toFixed(2) + '/node-hr' : 'list'}`
+        + (HAS_GPU && PRICE_GPU6 > 0 ? ` · $${(PRICE_GPU6 * 3600 / 1e6).toFixed(2)}/card-hr` : '')
+      : ' ask=list price'));
 log(`advertised capacity: ${NODE_VCPUS} vCPU / ${NODE_RAM_GB} GB RAM / ${NODE_GFLOPS} GFLOPS (from this VM's actual size)`);
 
 // --- child management --------------------------------------------------------
@@ -141,6 +162,12 @@ const supEnv = {
   ...(fw.acmeEabKid && fw.acmeEabHmac ? {
     ACME_EAB_KID: fw.acmeEabKid, ACME_EAB_HMAC: fw.acmeEabHmac,
   } : {}),
+  // seller asking prices: config carries USD/hour for a FULL node / FULL card,
+  // the supervisor wants the ledger's USDC 6dp per SECOND. The box then refuses
+  // work paying less than this and advertises the ask. GPU pricing is dropped on
+  // a CPU-only enclave (nothing to sell) — see PRICE_* below.
+  ...(PRICE_CPU6 > 0 ? { SELL_CPU_PRICE6: String(PRICE_CPU6) } : {}),
+  ...(HAS_GPU && PRICE_GPU6 > 0 ? { SELL_GPU_PRICE6: String(PRICE_GPU6) } : {}),
   ...(PAYOUT_ADDR ? { PAYOUT_ADDRESS: PAYOUT_ADDR } : {}),
   // without the FLEET secret, relay-staged deployment secrets can't be
   // fetched (the auth key derives from it) - report the capability honestly
