@@ -44,7 +44,7 @@ containers:
 
   # --- GPU worker: forks MPS-capped CUDA processes per tenant, runs submitted jobs
   - name: "worker"
-    image: "ghcr.io/enclavehost/enclave-worker@sha256:5f45438c4950748c4b2bbd1c250f93bfd2b0c9ec67b1afc00f40a144b8f66e0e"
+    image: "ghcr.io/enclavehost/enclave-worker@sha256:bf27e5d1064238f6b76ac677e2744955967c8ad4797f948e010f0829929f8265"
     runtime: nvidia
     gpus: all
     ipc: host
