@@ -807,6 +807,9 @@ class Deployments extends EnclaveElement {
       paint("info", "// paid time carries over: the runner restarts the app in place (~a minute); the endpoint and balance don’t change, app state is ephemeral");
       if (resizable)
         paint("dimln", "// the dials re-buy this deployment’s shares in the same transaction - the hourly rate is recalculated at the CURRENT list prices, and a live lease settles at the old rate first");
+      if (hw)
+        paint("dimln", "// minimum shares are measured on " + hw.name + " (" + hw.spec.nodeRamGb + " GB / " + hw.spec.nodeVcpus + " vCPU node"
+          + (bought.gpuMilli ? ", " + hw.spec.cardVramGb + " GB card" : "") + "), the enclave holding this deployment’s lease - it restarts the app in place and checks the new version against its own hardware");
       if (others.some(r => !r.shareFit) && !resizable)
         paint("dimln", "// disabled entries need more than this deployment’s " + (bought.gpuMilli ? (bought.gpuMilli / 10) + "% GPU / " : "") + (bought.cpuMilli / 10) + "% CPU - " + (rev >= 6 ? "the fleet doesn’t re-slice live deployments yet" : "this ledger’s shares are immutable") + ", those need a fresh deploy");
       if (others.some(r => r.shareFit && !r.feeFit))

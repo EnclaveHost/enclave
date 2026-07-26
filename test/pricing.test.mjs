@@ -14,7 +14,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, pickEnclaveFor, rankEnclavesFor } from "../site/js/core/pricing.js";
+import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, pickEnclaveFor, rankEnclavesFor, leaseHostOf } from "../site/js/core/pricing.js";
 
 // Reference copy of the RUNNER's minimum-share math (supervisor.js: pctCeil,
 // gpuShareOf, cpuShareOf, minSharesOf with MIN_COMPUTE_PCT=1). Keep in sync.
@@ -147,6 +147,44 @@ test("rankEnclavesFor: the dropdown's list — every host, recommended first, fu
   assert.equal(ranked[2].mins.cpuPct, 17);   // the user MAY pick the tiny box — at its own (17%) floor, eyes open
   // a box the app can never fit is not an option at all
   assert.ok(!rankEnclavesFor({ memMb: 8 * 1024, cpuGflops: 0 }, [tiny]).length);
+});
+
+/* ---- the lease holder's hardware (a version change / resize, My Apps) ---- */
+
+const RUNNER = "0x" + "ef".repeat(32);
+const NOW = 1785000000000;
+const leased = { runner: RUNNER, leaseUntil: Math.floor(NOW / 1000) + 1800 };
+const FLEET = [{ id: RUNNER, name: "kryptos", endpoint: "https://kryptos.example", availability: GPU_BOX },
+               { id: "0x" + "11".repeat(32), name: "metal0",
+                 availability: { gpu: false, claimEnabled: true, nodeVcpus: 4, nodeRamGb: 3, nodeGflops: 250, cpuShareFree: 1 } }];
+
+test("leaseHostOf: a live lease sizes on ITS box, not the fleet aggregate", () => {
+  // the aggregate is the fleet MINIMUM (metal0's 3 GB node): 512 MB reads as
+  // 17% there and 1% on the box actually running it, which is the only box
+  // whose claim gate the switch has to pass
+  adoptServerSpec({ gpu: true, ...H200, specNodeRamGb: 3, specNodeGflops: 250, specNodeVcpus: 4 });
+  assert.equal(minPctsOf(MC).cpuPct, 17, "aggregate mode still over-asks (unleased work may land anywhere)");
+  const hw = leaseHostOf(leased, FLEET, NOW);
+  assert.equal(hw.name, "kryptos");
+  assert.equal(minPctsOf(MC, hw.spec).cpuPct, 1);
+  adoptServerSpec({ gpu: true, ...H200, specNodeRamGb: 64, specNodeGflops: 1000, specNodeVcpus: 16 });
+});
+
+test("leaseHostOf: nothing is pinned without a live lease in the fleet view", () => {
+  assert.equal(leaseHostOf({ ...leased, leaseUntil: Math.floor(NOW / 1000) - 1 }, FLEET, NOW), null, "expired lease names an EX-runner");
+  assert.equal(leaseHostOf({ runner: "0x" + "0".repeat(64), leaseUntil: Math.floor(NOW / 1000) + 1800 }, FLEET, NOW), null);
+  assert.equal(leaseHostOf(leased, [], NOW), null, "runner absent from the fleet view");
+  assert.equal(leaseHostOf(leased, null, NOW), null, "no fleet view at all");
+  assert.equal(leaseHostOf(null, FLEET, NOW), null);
+  assert.equal(leaseHostOf({ ...leased, runner: "0x" + "ef".repeat(31) }, FLEET, NOW), null, "malformed runner");
+});
+
+test("leaseHostOf: the host's own axes, unknown ones on the safe constants", () => {
+  const cpuOnly = [{ id: RUNNER, name: "seller0", availability: { gpu: false, claimEnabled: true, nodeVcpus: 8, nodeRamGb: 32, nodeGflops: 500 } }];
+  const hw = leaseHostOf(leased, cpuOnly, NOW);
+  assert.equal(hw.spec.nodeRamGb, 32);
+  assert.equal(hw.spec.cardVramGb, 140.4, "a CPU-only host reports no card: the GPU axes keep the constants, never zero");
+  assert.ok(Number.isFinite(minPctsOf(IMAGE_GEN, hw.spec).gpuPct));
 });
 
 test("enclaveSpecOf: per-axis fallback for old builds", () => {
