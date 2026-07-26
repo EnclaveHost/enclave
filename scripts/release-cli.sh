@@ -86,6 +86,17 @@ if [ -n "${ENCLAVE_RELEASE_KEY:-}" ]; then
   [ -n "$PINNED" ] || say "NOTE: cli/install.sh pins no key yet, so installers will not check this signature"
   SIGNED=1
 else
+  # If the SHIPPED installers pin a key, they REQUIRE a SHA256SUMS.sig on
+  # whatever release they resolve. Publishing unsigned here would produce a
+  # release that every install refuses - a self-inflicted outage discovered by
+  # users, not by us. Fail before the tag is pushed.
+  PINNED="$(sed -n 's/^ENCLAVE_RELEASE_PUBKEY="${ENCLAVE_RELEASE_PUBKEY:-\(.*\)}"$/\1/p' "$REPO_ROOT/cli/install.sh")"
+  if [ -n "$PINNED" ]; then
+    echo "error: cli/install.sh pins a release key ($PINNED) but ENCLAVE_RELEASE_KEY is unset." >&2
+    echo "       Every installer would demand a SHA256SUMS.sig this release will not have." >&2
+    echo "       Set ENCLAVE_RELEASE_KEY=<the private key> and re-run." >&2
+    exit 1
+  fi
   say "NOT SIGNING (ENCLAVE_RELEASE_KEY unset) — SHA256SUMS will ship unsigned"
 fi
 
