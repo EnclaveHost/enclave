@@ -98,6 +98,20 @@ async function verifyReport(doc, { manifest, vcpus }) {
   if (p.vmpl === 0) OK("guest runs at VMPL 0 (full privilege inside the CVM)");
   else BAD(`unexpected VMPL ${p.vmpl}`);
 
+  // 1b. GUEST POLICY — the launch measurement does NOT cover it. The same
+  // image, byte-for-byte the same measurement, launched with DEBUG set is a
+  // box whose memory the hypervisor may read and write at will: every other
+  // check below would still print ✓. This is the tool a BUYER runs to decide
+  // whether to trust a seller's enclave, so getting this wrong is not a missed
+  // check, it is false assurance. MIGRATE_MA is the same hole via a migration
+  // agent that can move the guest's state off this platform.
+  const POLICY_DEBUG = 1n << 19n, POLICY_MIGRATE_MA = 1n << 18n;
+  const pol = `0x${p.policy.toString(16)}`;
+  if (p.policy & POLICY_DEBUG) BAD(`guest policy ${pol} allows DEBUG — the host can read this guest's memory; the measurement means nothing here`);
+  else if (p.policy & POLICY_MIGRATE_MA) BAD(`guest policy ${pol} allows MIGRATE_MA — guest state may be moved off this platform`);
+  else OK(`guest policy ${pol}: DEBUG off, MIGRATE_MA off`);
+  if (p.version < 2) BAD(`attestation report version ${p.version} (expected >= 2)`);
+
   // 2. AMD cert chain + report signature. Preferred source is the VCEK carried
   // in the report's own extended-report auxblob (self-contained, no network);
   // otherwise AMD KDS by chip id + TCB. A masked/unprovisioned chip id (common
