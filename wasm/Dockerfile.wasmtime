@@ -98,6 +98,24 @@ RUN git apply --check /tmp/wasmtime-onnx-gpu-strict.patch \
 # to its loopback HTTP data plane on toolchains without it). Adds pinned
 # pure-Rust crypto deps (chacha20poly1305, hkdf) to the wasmtime-wasi crate;
 # the Cargo.lock delta is part of the patch.
+#
+# DEAD SURFACE — RECOMMEND REMOVING THIS PATCH. The NANVOL2 design it implements
+# was hard-cut on 2026-07-07 and superseded by encrypted volumes over rclone
+# crypt + S3 (see wasm_manager.py's "Encrypted volumes" block). Verified: nothing
+# in the tree passes `-S vault=` — not the manager, not any script, workflow or
+# config — so these 985 lines of XChaCha20-Poly1305/HKDF plus a `read_at`
+# interception hook are compiled into the TENANT SANDBOX runtime for a flag that
+# is never set. It is inert rather than misbehaving (every hook is gated behind
+# `Option<VaultDirCtx>`, so the unused cost is a None branch, and the manager's
+# comment about "probing for the flag" describes a fallback nothing reaches), but
+# dead code inside a sandbox is surface with no test exercising it and two crypto
+# dependencies carried in the measured TCB for nothing.
+#
+# Not removed here on purpose: dropping it changes the wasmtime binary, hence the
+# wasm-manager sidecar digest, hence the enclave measurement — which invalidates
+# every published Metal measurement and forces a fleet rebuild. That is an
+# operational event to schedule, not a 4am edit. When it goes: delete the patch
+# file, this block, and re-cut the toolchain image.
 COPY wasmtime-vault-fs.patch /tmp/
 RUN git apply --check /tmp/wasmtime-vault-fs.patch \
  && git apply /tmp/wasmtime-vault-fs.patch
