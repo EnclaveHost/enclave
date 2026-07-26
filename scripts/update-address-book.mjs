@@ -114,6 +114,30 @@ async function main() {
     if (!(key in desired)) output.write(`  ${pad(key)} ${cur}   (in the book only; left alone)\n`);
   if (!diff.length) { output.write("\nnothing to change.\n"); return; }
 
+  // Every consumer on the platform resolves its contracts THROUGH this book and
+  // adopts whatever it finds within one poll — the supervisor's claim path, the
+  // relays' ledger reads, the site. So a transposed hex digit here does not fail
+  // loudly at the keyboard, it repoints the fleet at an address with nothing
+  // behind it. The book itself cannot check (address(0) is the documented way
+  // to RETIRE a key, so it must stay legal), which is exactly why the tool that
+  // drives it should. --allow-codeless is the deliberate override for pointing
+  // at a contract that is not deployed yet.
+  const codeless = [];
+  for (const [key, want] of diff) {
+    if (/^0x0{40}$/i.test(want)) continue;                       // retiring a key
+    const code = await pub.getCode({ address: want }).catch(() => null);
+    if (!code || code === "0x") codeless.push([key, want]);
+  }
+  if (codeless.length) {
+    output.write("\n");
+    for (const [key, want] of codeless)
+      output.write(`  !! ${pad(key)} ${want}   HAS NO CODE on ${netName}\n`);
+    if (!args.includes("--allow-codeless"))
+      die(`refusing: ${codeless.length} target address(es) have no contract on ${netName}. `
+        + `Check for a typo, or pass --allow-codeless if you really mean to point at a future deployment.`);
+    output.write("  (--allow-codeless: proceeding anyway)\n");
+  }
+
   if (!ASSUME_YES) {
     if (!input.isTTY) die("not a terminal — pass --yes to confirm non-interactively");
     const ans = await promptText(`\nSend setMany(${diff.length})${netName === "base" ? " on MAINNET" : ""}? [y/N]: `);
