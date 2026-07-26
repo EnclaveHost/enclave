@@ -652,6 +652,27 @@ async function putWasm(file, onProgress){
       const j = xhr.response || {};
       if (xhr.status < 200 || xhr.status >= 300) return reject(new EnclaveError("upload rejected: " + (j.error || ("HTTP " + xhr.status)), 0));
       if (!j.cid) return reject(new EnclaveError("gateway returned no CID", 0));
+      // TRUST BOUNDARY, currently unchecked: this CID is the GATEWAY's answer,
+      // and it goes straight into the publishVersion transaction the publisher
+      // signs. Nothing here proves it addresses the bytes we just uploaded. The
+      // upload token binds sha256(bytes) and ipfs-add-gateway.py re-derives it
+      // before accepting - but that is the gateway checking itself, which a
+      // compromised gateway simply passes: pin the real bytes, return a CID for
+      // someone else's. The publisher's wallet then attests on-chain to wasm
+      // they never saw, and every deployer of that version runs it.
+      //
+      // Closing it needs an INDEPENDENT read-back - fetch the CID from a
+      // gateway that is not this one (IPFS_GATEWAY, ipfs.io) and compare
+      // sha256 against the local bytes. Not done here because it also needs a
+      // CSP `connect-src https://ipfs.io` on the Caddy vhost, which lives on
+      // the box rather than in this repo: ship the fetch without it and the CSP
+      // blocks every attempt, so the check would silently never run while
+      // reading as a safeguard. Verifying against ipfs.enclave.host instead
+      // would be circular - that is the same host.
+      //
+      // Mitigation that exists today: the CID field is publisher-editable
+      // ("or paste one you've pinned"), so a publisher who pins independently
+      // and pastes their own CID never relies on this answer.
       resolve(j.cid);
     };
     pubXhr = xhr;
