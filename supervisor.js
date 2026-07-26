@@ -2145,7 +2145,18 @@ app.use("/x/:id", async (req, res) => {
     }
     target = new URL(`http://127.0.0.1:${rec._vmHostPort}/${sub}`);
   } else {
-    target = new URL(`${WORKER_MGR_URL}/tenants/${encodeURIComponent(rec.id)}/${sub}`);
+    // /tenants/<id>/ is a TRUST BOUNDARY, not just a path prefix: above it live
+    // the worker manager's own control endpoints (create/kill a tenant, the GPU
+    // attestation, every other tenant's record). The remainder of the request
+    // path is attacker-chosen on any PUBLIC deployment — no session is required
+    // to reach here — and WHATWG URL resolves dot segments, `%2e%2e` included,
+    // so `/x/<id>/../../tenants` would land squarely on that control plane. The
+    // manager's own bearer gate is what refuses it today; this is the wall that
+    // does not depend on a second component being configured correctly.
+    const prefix = `/tenants/${encodeURIComponent(rec.id)}/`;
+    target = new URL(`${WORKER_MGR_URL}${prefix}${sub}`);
+    if (!target.pathname.startsWith(prefix))
+      return fail(res, 400, "bad_path", "The path escapes this deployment's namespace.");
   }
   const headers = { ...req.headers, host: target.host };
   delete headers.authorization; // the Enclave token stays at the supervisor; the worker never sees it

@@ -773,10 +773,28 @@ async function runnerEndpointOf(id) {
   const e = live.find((x) => x.id && x.id.toLowerCase() === runner);
   return e ? e.endpoint : null;
 }
+// SECURITY: an app subdomain is a deployment id PREFIX — canonically the first
+// 8 hex chars, which is 32 bits. Ids are keccak256(creator, nonce), so a
+// collision is not a birthday accident to wave off: an attacker grinds
+// candidate creator addresses OFFLINE until one's next id shares a victim's
+// prefix (seconds of hashing, no gas), then creates that one deployment. Both
+// records then answer to <prefix>.<APP_DOMAIN>. runnerEndpointOf already
+// declines an ambiguous prefix, but declining used to mean "fall back to the
+// fan-out probe", and the probe takes the FIRST enclave that answers — so the
+// ground twin could win the victim's subdomain and be cached as its owner for
+// five minutes. A prefix the LEDGER says names two deployments names neither:
+// refuse it outright rather than let a race pick.
+async function prefixAmbiguous(id) {
+  const h = String(id).toLowerCase();
+  if (!/^0x[0-9a-f]{8,63}$/.test(h)) return false;          // full id or non-ledger shape: nothing to confuse
+  let rows; try { rows = await ledgerRows(); } catch { return false; }
+  return rows.filter((d) => String(d.id).toLowerCase().startsWith(h)).length > 1;
+}
 async function xOwnerOf(id) {                                // data-path resolve (no auth needed)
   const hit = ownerCached(id); if (hit) return hit;
   const byRunner = await runnerEndpointOf(id);              // fix 1c: on-chain claimer wins
   if (byRunner) { ownerLearn(id, byRunner); return byRunner; }
+  if (await prefixAmbiguous(id)) return null;
   if (ownerNegRecent(id)) return null;                      // recent miss: don't re-fan-out (fix 2)
   if (!fanoutReserve(live.length)) return null;             // global fan-out cap (fix 2)
   let ep = null;
@@ -792,6 +810,7 @@ async function v1OwnerOf(id, auth) {                         // control-plane pr
   const hit = ownerCached(id); if (hit) return hit;
   const byRunner = await runnerEndpointOf(id);              // fix 1c: on-chain claimer wins
   if (byRunner) { ownerLearn(id, byRunner); return byRunner; }
+  if (await prefixAmbiguous(id)) return null;               // a prefix naming two deployments names neither
   let ep = null;
   if (fanoutReserve(live.length)) {
     try {

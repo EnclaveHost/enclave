@@ -87,13 +87,13 @@ function stubRpc(ledger = LEDGER) {
     });
   });
 }
-async function startRelay(t, { enclaves, ledger }) {
+async function startRelay(t, { enclaves, ledger, env = {} }) {
   const rpc = stubRpc(ledger); rpc.listen(0, "127.0.0.1"); await once(rpc, "listening");
   const port = await freePort();
   const child = spawn(process.execPath, [path.join(RELAY_DIR, "api-relay.js")], {
     env: { ...process.env, ENCLAVES: enclaves, API_RELAY_PORT: String(port), API_RELAY_BIND: "127.0.0.1",
            BASE_RPC: `http://127.0.0.1:${rpc.address().port}`, RPC_FALLBACKS: "0", DEPLOYMENTS_ADDRESS: "0x" + "12".repeat(20),
-           FEATURED_VIEWS_FILE: path.join(os.tmpdir(), `feat-views-${port}.json`) },
+           FEATURED_VIEWS_FILE: path.join(os.tmpdir(), `feat-views-${port}.json`), ...env },
     stdio: ["ignore", "pipe", "pipe"],
   });
   child.stderr.on("data", (d) => process.stderr.write("[relay] " + d));
@@ -353,4 +353,55 @@ test("api-relay: only origin-form request targets are served, and a bad one is n
 
   // …and the relay is still up: the guard answers, it does not crash the box
   assert.equal((await fetch(origin + "/health")).status, 200);
+});
+
+// ---------- deployment-id prefix collisions ----------------------------------
+// An app subdomain is a deployment id PREFIX — canonically 8 hex chars, 32
+// bits. That is not a birthday problem: ids are keccak256(creator, nonce), so
+// an attacker hashes candidate creator addresses offline until one's first id
+// shares a victim's prefix (seconds, no gas), then creates that one deployment.
+// The ledger closes this at the root from rev 7 on (create reserves the
+// prefix), but records minted before that — and any relay pointed at an older
+// ledger — still need the router to refuse: a prefix naming two deployments
+// names neither, and must never be resolved by "whichever enclave answers the
+// probe first", which is a race the attacker can win and then hold in the
+// owner cache for five minutes.
+test("api-relay: an ambiguous id prefix resolves to nobody, not to whoever answers first", async (t) => {
+  const TWIN_A = "0xabcdef01" + "11".repeat(28);
+  const TWIN_B = "0xabcdef01" + "22".repeat(28);
+  const LONE   = "0x0fedcba9" + "33".repeat(28);
+  const ledger = [
+    { id: TWIN_A, owner: OWNER, appRef: "ipfs://a", active: true, isPublic: true, balance6: 5_000_000, spent6: 0 },
+    { id: TWIN_B, owner: OTHER, appRef: "ipfs://b", active: true, isPublic: true, balance6: 5_000_000, spent6: 0 },
+    { id: LONE,   owner: OWNER, appRef: "ipfs://c", active: true, isPublic: true, balance6: 5_000_000, spent6: 0 },
+  ];
+  // an enclave that claims EVERY id it is probed for — the hostile-answer case
+  const enclave = http.createServer((req, res) => {
+    if (req.url === "/availability") { res.setHeader("content-type", "application/json");
+      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32 })); }
+    res.statusCode = 200; res.end("served");
+  });
+  enclave.listen(0, "127.0.0.1"); await once(enclave, "listening");
+  t.after(() => enclave.close());
+
+  const origin = await startRelay(t, { enclaves: `http://127.0.0.1:${enclave.address().port}`, ledger,
+                                       env: { APP_DOMAIN: "app.enclave.host" } });
+
+  const shared = await fetch(origin + "/x/0xabcdef01/");
+  assert.equal(shared.status, 404, "a prefix two ledger rows answer to must not route anywhere");
+  // …while an unambiguous prefix still resolves exactly as before
+  const lone = await fetch(origin + "/x/0x0fedcba9/");
+  assert.equal(lone.status, 200, "an unambiguous prefix must keep working");
+  // the on-demand TLS gate reads the same resolver, so a contested hostname
+  // never earns a certificate either
+  const ask = (label) => fetch(origin + `/internal/tls-ask?domain=${label}.app.enclave.host`);
+  assert.equal((await ask("abcdef01")).status, 404, "a contested hostname must not earn a certificate");
+  assert.equal((await ask("0fedcba9")).status, 200, "an unambiguous one still does");
+
+  // and the app subdomain itself, which is the whole point of the prefix
+  // fetch() forbids setting Host, so route via x-forwarded-host (TRUSTED_PROXY
+  // is on by default, which is how Caddy fronts the relay in production)
+  const host = (label) => fetch(origin + "/", { headers: { "x-forwarded-host": `${label}.app.enclave.host` } });
+  assert.equal((await host("abcdef01")).status, 404, "the contested subdomain serves nobody");
+  assert.equal((await host("0fedcba9")).status, 200, "the uncontested one serves its app");
 });
