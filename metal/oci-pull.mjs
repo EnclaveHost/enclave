@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Unprivileged OCI image puller. Fetches an image (by @sha256 digest or by tag)
 // from a registry and extracts its merged rootfs to a directory, whiteout-aware,
-// with no docker/podman/root. Blobs are digest-verified and cached.
+// with no docker/podman/root. The manifest AND every blob are digest-verified
+// against bytes we hash ourselves — a @sha256: reference is binding, not advisory.
 //
 //   node oci-pull.mjs ghcr.io/enclavehost/enclave-supervisor@sha256:...  ./rootfs
 //   node oci-pull.mjs ghcr.io/enclavehost/enclave-wasm-manager:11bb1370  ./rootfs
@@ -37,11 +38,30 @@ const MANIFEST_TYPES = [
   'application/vnd.docker.distribution.manifest.list.v2+json',
 ].join(', ');
 
+// Fetch a manifest and VERIFY IT OURSELVES. Blobs were always digest-checked,
+// but the manifest that names them was taken on the registry's word
+// (docker-content-digest is a header the registry writes). That made a
+// `@sha256:` reference advisory rather than binding: serve a different manifest
+// body at that path and every layer digest inside it still self-verifies, so
+// you get a coherent image that is not the one you pinned — and this is the
+// tool that assembles the MEASURED enclave image. The multi-arch path took two
+// such unverified hops, since the sub-manifest digest comes out of the index.
+// The digest returned is the one we COMPUTED, so what callers pin is what was
+// checked.
 async function getManifest(refr) {
   const r = await fetch(`https://${registry}/v2/${repo}/manifests/${refr}`, { headers: hdr(MANIFEST_TYPES) });
   if (!r.ok) throw new Error(`manifest ${refr}: ${r.status}`);
-  const digest = r.headers.get('docker-content-digest');
-  return { json: await r.json(), digest };
+  const body = Buffer.from(await r.arrayBuffer());
+  const digest = 'sha256:' + createHash('sha256').update(body).digest('hex');
+  if (/^sha256:[0-9a-f]{64}$/.test(refr) && digest !== refr)
+    throw new Error(`manifest digest mismatch: asked for ${refr}, got ${digest}`);
+  const claimed = r.headers.get('docker-content-digest');
+  if (claimed && claimed !== digest)
+    console.error(`[oci-pull] WARNING: registry claims ${claimed}, bytes hash to ${digest} — trusting the bytes`);
+  let json;
+  try { json = JSON.parse(body.toString('utf8')); }
+  catch (e) { throw new Error(`manifest ${refr} is not JSON: ${e.message}`); }
+  return { json, digest };
 }
 
 async function getBlob(dgst) {
