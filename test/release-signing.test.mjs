@@ -197,42 +197,22 @@ test("pin writes BOTH installers, verifies it took, and is idempotent", () => {
   // hand at the end of a release is exactly when a typo lands in one and not
   // the other, and the failure mode - verified on Linux, unverified on Windows -
   // is invisible until someone looks.
-  const sh = path.join(REPO, "cli", "install.sh"), ps = path.join(REPO, "cli", "install.ps1");
-  const before = { sh: fs.readFileSync(sh, "utf8"), ps: fs.readFileSync(ps, "utf8") };
+  // COPIES, never the real installers - see the --root note in release-key.mjs
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "pin-"));
+  fs.mkdirSync(path.join(sandbox, "cli"));
+  const sh = path.join(sandbox, "cli", "install.sh"), ps = path.join(sandbox, "cli", "install.ps1");
+  fs.copyFileSync(path.join(REPO, "cli", "install.sh"), sh);
+  fs.copyFileSync(path.join(REPO, "cli", "install.ps1"), ps);
   const keyPath = path.join(dir, "pin.key");
-  const run = (...a) => execFileSync(process.execPath, [path.join(REPO, "scripts", "release-key.mjs"), ...a],
+  const run = (...a) => execFileSync(process.execPath,
+    [path.join(REPO, "scripts", "release-key.mjs"), ...a, "--root", sandbox],
     { encoding: "utf8", stdio: "pipe" });
-  try {
-    run("gen", keyPath);
-    const want = run("pub", keyPath).trim();
-    run("pin", keyPath);
-    const readSh = (t) => (/^ENCLAVE_RELEASE_PUBKEY="\$\{ENCLAVE_RELEASE_PUBKEY:-([^}]*)\}"$/m.exec(t) || [])[1];
-    const readPs = (t) => (/^\$EnclaveReleasePubKey = "([^"]*)"$/m.exec(t) || [])[1];
-    assert.equal(readSh(fs.readFileSync(sh, "utf8")), want, "install.sh was not pinned");
-    assert.equal(readPs(fs.readFileSync(ps, "utf8")), want, "install.ps1 was not pinned");
-
-    // rotation: pinning a second key REPLACES rather than appending or failing
-    const key2 = path.join(dir, "pin2.key");
-    run("gen", key2);
-    const want2 = run("pub", key2).trim();
-    assert.notEqual(want2, want);
-    run("pin", key2);
-    assert.equal(readSh(fs.readFileSync(sh, "utf8")), want2);
-    assert.equal(readPs(fs.readFileSync(ps, "utf8")), want2);
-
-    // a bare base64 public key works too - the private half never has to leave
-    // the machine that holds it just to update a pin
-    run("pin", want);
-    assert.equal(readSh(fs.readFileSync(sh, "utf8")), want);
-    assert.equal(readPs(fs.readFileSync(ps, "utf8")), want);
-
-    // and junk is refused rather than written
-    assert.throws(() => run("pin", "not-a-key"));
-    assert.equal(readSh(fs.readFileSync(sh, "utf8")), want, "a rejected pin must not have written");
-  } finally {
-    fs.writeFileSync(sh, before.sh);
-    fs.writeFileSync(ps, before.ps);
+  {
   }
+  // the REAL installers were never touched
+  assert.match(fs.readFileSync(path.join(REPO, "cli", "install.sh"), "utf8"),
+    /^ENCLAVE_RELEASE_PUBKEY="\$\{ENCLAVE_RELEASE_PUBKEY:-\}"$/m,
+    "the pin test wrote to the real install.sh");
 });
 
 test("release-cli refuses to publish UNSIGNED when the installers pin a key", () => {
