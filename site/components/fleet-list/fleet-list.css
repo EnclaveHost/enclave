@@ -65,3 +65,10 @@ c-fleet-list{display:contents;}
 .revs-write-foot .revs-count.over{color:var(--danger);}
 .revs-receipt{font-family:var(--font-mono);}
 .revs-write-foot .btn{margin-left:auto;}
+
+/* seller CTA under the fleet: an invitation, not a banner - it sits in the
+   panel's quiet ink and only the link carries colour */
+.fleet-cta{margin:10px 0 0;font-size:.7rem;line-height:1.5;color:var(--text-dim);}
+.fleet-cta span{color:var(--text-muted);font-weight:500;}
+.fleet-cta a{color:var(--jade);text-decoration:none;white-space:nowrap;}
+.fleet-cta a:hover,.fleet-cta a:focus-visible{text-decoration:underline;}
