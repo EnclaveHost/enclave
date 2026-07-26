@@ -29,6 +29,7 @@ const PAGES = {
   privacy:   () => import("./pages/privacy.js"),   // Privacy Policy - linked from the footer + deploy gates
   checkout:  () => import("./pages/checkout.js"),  // order checkout: card (hosted Stripe) or USDC (PaymentRouter)
   link:      () => import("./pages/link.js"),      // device-flow approval: the phone side of "Use your phone"
+  host:      () => import("./pages/host.js"),   // seller pitch + the PUBLIC live-fleet panel
 };
 // URL aliases: pathnames that render ANOTHER page's document. /apps/deploy
 // and /apps/publish are the canonical console/form URLs (share links read
