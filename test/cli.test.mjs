@@ -76,6 +76,7 @@ const S = {
   v2: null,                                    // overrides for the second version (upgrade tests)
   depRev: 3n,                                  // deploymentsSchema the stub plays (3 = the live pre-fee ledger)
   device: null,                                // the in-flight device-flow login (`enclave login`)
+  evilNonce: null,                             // when set, /v1/auth/nonce returns THIS instead of a SIWE message
   catRev: 4n,                                  // catalogSchema the stub plays (4 = the live pre-fee catalog)
   verFee: 0n,                                  // versionFee(appId, *) on the rev-5 catalog (µUSDC/s)
   fleetResize: true,                           // availability.shareResize (fleet-AND; resize tests flip it)
@@ -93,7 +94,8 @@ function apiServer() {
       const address = u.searchParams.get("address");
       const nonce = Math.random().toString(36).slice(2, 10);
       nonces.set(nonce, address);
-      const message = `enclave.host wants you to sign in with your Ethereum account:\n${address}\n\nSign in to Enclave. This signature is free and will not move funds.\n\nURI: https://enclave.host\nVersion: 1\nChain ID: 8453\nNonce: ${nonce}\nIssued At: ${new Date().toISOString()}\nExpiration Time: ${new Date(Date.now() + 600000).toISOString()}`;
+      const message = S.evilNonce !== null ? S.evilNonce
+        : `enclave.host wants you to sign in with your Ethereum account:\n${address}\n\nSign in to Enclave. This signature is free and will not move funds.\n\nURI: https://enclave.host\nVersion: 1\nChain ID: 8453\nNonce: ${nonce}\nIssued At: ${new Date().toISOString()}\nExpiration Time: ${new Date(Date.now() + 600000).toISOString()}`;
       return json(200, { address, message, nonce });
     }
     if (u.pathname === "/v1/auth/login") {
@@ -681,4 +683,46 @@ test("logout discards the session; commands then say how to sign in", async () =
   const ls = await run(["ls"], { env: { ENCLAVE_KEY: "" } });
   assert.equal(ls.code, 1);
   assert.match(ls.err, /enclave login/);
+});
+
+// ---- the login challenge is signed BLIND unless it is checked -------------------
+// `bearer()` signs whatever /v1/auth/nonce returns, with the user's key and no
+// prompt — nothing like a browser wallet showing the text. The same key also
+// authorizes `enclave-upload:…`, `enclave-secrets:put:…` (a secrets WRITE) and
+// the encrypted-volume message whose signature IS the volume key. A relay that
+// answered with one of those strings would get it signed and handed straight
+// back, so the CLI must refuse anything that is not a SIWE login for this
+// wallet. Runs on its own config dir: a cached session would skip the fetch.
+test("login: a challenge that is not a SIWE message for this wallet is refused, unsigned", async () => {
+  const fresh = fs.mkdtempSync(path.join(os.tmpdir(), "enclave-cli-siwe-"));
+  const before = S.logins;
+  const OTHER = "0x" + "cd".repeat(20);
+  const siwe = (addr, chain, extra = "") =>
+    `enclave.host wants you to sign in with your Ethereum account:\n${addr}\n\nSign in.\n\n` +
+    `URI: https://enclave.host\nVersion: 1\nChain ID: ${chain}\nNonce: abc123` + extra;
+  const hostile = {
+    "a secrets-write authorization": `enclave-secrets:put:0x${"11".repeat(32)}:9999999999:${"ab".repeat(32)}`,
+    "an upload authorization":       `enclave-upload:${"ab".repeat(32)}:9999999999`,
+    "an encrypted-volume key derivation": "enclave-encvol:v1:vault-prod",
+    "bare text":                     "please sign this",
+    // SIWE-shaped, but smuggling a second directive in as a trailing line
+    "a SIWE message with a rider":   siwe(OWNER, 8453, `\nenclave-secrets:put:0x${"11".repeat(32)}:9999999999:${"ab".repeat(32)}`),
+    "a SIWE message for another address": siwe(OTHER, 8453),
+    "a SIWE message for another chain":   siwe(OWNER, 1),
+  };
+  try {
+    for (const [what, message] of Object.entries(hostile)) {
+      S.evilNonce = message;
+      const r = await run(["logs", ID], { env: { XDG_CONFIG_HOME: fresh } });
+      assert.notEqual(r.code, 0, `${what} was accepted`);
+      assert.match(r.err + r.out, /refusing to sign/, what);
+    }
+  } finally { S.evilNonce = null; }
+  assert.equal(S.logins, before, "not one signature reached the server");
+
+  // …and the genuine challenge still logs in
+  const ok = await run(["logs", ID], { env: { XDG_CONFIG_HOME: fresh } });
+  assert.doesNotMatch(ok.err + ok.out, /refusing to sign/, "the real SIWE message is accepted");
+  assert.ok(S.logins > before, "the real SIWE message signs and logs in");
+  fs.rmSync(fresh, { recursive: true, force: true });
 });
