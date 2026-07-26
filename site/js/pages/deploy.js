@@ -266,16 +266,22 @@ function renderTargetRow(target, spec){
     return;
   }
   const ranked = target.ranked || [target];
-  const optOf = (c) => esc(c.name) + " · " + fmtNum(c.spec.nodeVcpus) + " vCPU / " + fmtNum(c.spec.nodeRamGb) + " GB"
+  // ONE row per enclave: the head of the ranking IS the auto row (value "",
+  // the "no explicit pick" state), labelled recommended and preselected -
+  // listing a separate "auto — X" option on top showed the same box twice.
+  // Picking any other row pins it (dep.targetPick); coming back to the
+  // recommended row restores auto, which keeps following the fleet.
+  const optOf = (c, i) => esc(c.name) + " · " + fmtNum(c.spec.nodeVcpus) + " vCPU / " + fmtNum(c.spec.nodeRamGb) + " GB"
     + (c.mins.gpuPct > 0 ? " · " + fmtNum(c.spec.cardVramGb) + " GB card" : "")
     + " · min " + (c.mins.gpuPct > 0 ? c.mins.gpuPct + "% GPU" : c.mins.cpuPct + "% CPU")
-    + (c.queued ? " · full, queues" : "");
+    + (c.queued ? " · full, queues" : "")
+    + (i === 0 ? " · recommended" : "");
   const key = ranked.map(optOf).join("|") + "·" + (dep.targetPick || "");
   if (key !== _tgtOptsKey){
     _tgtOptsKey = key;
-    tgt.innerHTML = "⤷ deploys to <select id=\"targetSel\" title=\"Every live enclave that can host this app. Auto sizes for (and hints) the recommended box; pick one to size for and hint it instead.\">"
-      + "<option value=\"\">auto — " + esc(ranked[0].name) + " (recommended)</option>"
-      + ranked.map((c) => "<option value=\"" + esc(c.name) + "\"" + (dep.targetPick === c.name ? " selected" : "") + ">" + optOf(c) + "</option>").join("")
+    tgt.innerHTML = "⤷ deploys to <select id=\"targetSel\" title=\"Every live enclave that can host this app. The recommended box is preselected and follows the fleet; pick another to size for and hint it instead.\">"
+      + ranked.map((c, i) => "<option value=\"" + (i === 0 ? "" : esc(c.name)) + "\""
+          + (dep.targetPick === c.name || (!dep.targetPick && i === 0) ? " selected" : "") + ">" + optOf(c, i) + "</option>").join("")
       + "</select> <span class=\"tgt-note\"></span>";
     const sel = $("#targetSel");
     if (sel) sel.addEventListener("change", () => { dep.targetPick = sel.value; renderDeploy(); });

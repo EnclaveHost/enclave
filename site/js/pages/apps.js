@@ -522,13 +522,17 @@ function quickDeploy(app, v, idx){
     mins = t.mins;
     if (tEl){
       const ranked = t.ranked || [t];
-      const optOf = (c) => esc(c.name) + " · " + c.spec.nodeVcpus + " vCPU / " + c.spec.nodeRamGb + " GB"
+      // one row per enclave; the ranking head IS the auto row (value "" =
+      // no explicit pick), preselected and labelled recommended - see the
+      // console's renderTargetRow for the same rule
+      const optOf = (c, i) => esc(c.name) + " · " + c.spec.nodeVcpus + " vCPU / " + c.spec.nodeRamGb + " GB"
         + (c.mins.gpuPct > 0 ? " · " + c.spec.cardVramGb + " GB card" : "")
-        + (c.queued ? " · full, queues" : "");
+        + (c.queued ? " · full, queues" : "")
+        + (i === 0 ? " · recommended" : "");
       tEl.hidden = false;
-      tEl.innerHTML = "⤷ deploys to <select class=\"qd-tgtsel\" title=\"Every live enclave that can host this app. Auto sizes for (and hints) the recommended box; pick one to use it instead.\">"
-        + "<option value=\"\">auto — " + esc(ranked[0].name) + " (recommended)</option>"
-        + ranked.map((c) => "<option value=\"" + esc(c.name) + "\"" + (qdPick === c.name ? " selected" : "") + ">" + optOf(c) + "</option>").join("")
+      tEl.innerHTML = "⤷ deploys to <select class=\"qd-tgtsel\" title=\"Every live enclave that can host this app. The recommended box is preselected and follows the fleet; pick another to use it instead.\">"
+        + ranked.map((c, i) => "<option value=\"" + (i === 0 ? "" : esc(c.name)) + "\""
+            + (qdPick === c.name || (!qdPick && i === 0) ? " selected" : "") + ">" + optOf(c, i) + "</option>").join("")
         + "</select>"
         + (t.queued ? " · <b>currently full - a deploy waits in its queue</b>" : "");
       const sel = tEl.querySelector(".qd-tgtsel");
