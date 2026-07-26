@@ -56,6 +56,9 @@ NODE_VCPUS  = int(os.environ.get("NODE_VCPUS", "16"))
 CHILD_BASE  = int(os.environ.get("CHILD_PORT_BASE", "8100"))
 CUDA_ATTR_MULTIPROCESSOR_COUNT = 16   # cudaDevAttrMultiProcessorCount — reflects the MPS cap
 REQUIRE_FENCE = os.environ.get("REQUIRE_FENCE", "1") not in ("0", "false", "off")
+# per-tenant VRAM cap via MPS (see _spawn_tenant). Default ON: isolation on a
+# shared card is not opt-in. Set PIN_VRAM=0 only if cuInit hangs under it.
+PIN_VRAM      = os.environ.get("PIN_VRAM", "1") not in ("0", "false", "off")
 
 # -------- control-plane hardening (both roles) ------------------------------
 # The manager (and each child) are loopback-reachable by TENANTS too — guests
@@ -250,6 +253,20 @@ def _spawn_tenant(tid: str, share: float) -> dict:
             "CUDA_MPS_ACTIVE_THREAD_PERCENTAGE": str(pct),   # the cap, set BEFORE the child's context
             "WORKER_PORT": str(port),
             "REQUIRE_FENCE": "1" if REQUIRE_FENCE else "0"}
+    # VRAM cap, the OTHER half of the isolation. Only the SM cap was being set
+    # here, so a tenant on this backend could allocate as much of a SHARED
+    # card's memory as it liked and starve its neighbours — while the MPS
+    # sidecar, the enclave configs and this file's own header all describe both
+    # caps as the mechanism. The wasm backend (the live one) has always set
+    # both; this path is dormant behind PROVISION_BACKEND but ships on every
+    # GPU enclave, one env flip from serving.
+    #
+    # PIN_VRAM=0 is the escape hatch the wasm manager gets from its boot probe:
+    # it found CUDA_MPS_PINNED_DEVICE_MEM_LIMIT can hang cuInit on some
+    # driver/MPS combinations, and drops it ("nopin") when that happens. There
+    # is no probe here, so the switch is manual — and isolation is the default.
+    if PIN_VRAM and VRAM_GB > 0:
+        env["CUDA_MPS_PINNED_DEVICE_MEM_LIMIT"] = f"0={max(1, int(share * VRAM_GB * 1024))}M"
     proc = subprocess.Popen([sys.executable, os.path.abspath(__file__), "child"], env=env)
     rec = {"id": tid, "gpuShare": share, "share": share, "pct": pct, "port": port, "status": "starting",
            "sm_granted": None, "device": None, "error": None, "createdAt": time.time(), "_proc": proc}
