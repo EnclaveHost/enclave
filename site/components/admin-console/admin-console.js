@@ -317,7 +317,6 @@ class AdminConsole extends EnclaveElement {
           : this._row("Publisher fee cap <code>setMaxFee</code>", `${S.cat.maxFee} <span class="dim">(≈ ${perHr(S.cat.maxFee)} max per NEW version at publish; released versions keep their fee)</span>`, "cat-maxfee", { owner: S.cat.owner, placeholder: String(S.cat.maxFee), hint: "µUSDC/s" })));
     }
 
-    const ZERO_ADDR = "0x" + "0".repeat(40);
     /* -- deploy cards -- */
     {
       // Every constructor argument this console can already answer from the
@@ -330,9 +329,8 @@ class AdminConsole extends EnclaveElement {
         EnclaveDeployments: { usdc: USDC_BASE, payout: payoutAddr, registry: S.book.entries.registry, ethUsdFeed: S.dep && S.dep.feed },
         EnclaveFeatured: { usdc: USDC_BASE, payout: (S.feat && S.feat.payout) || payoutAddr },
         EnclaveReviews: { book: S.book.addr, ledgerFallback: S.book.entries.deployments || (S.dep && S.dep.addr) },
-        // host ratings resolve the ledger through the book like app reviews;
-        // the fallback stays EMPTY on purpose (see the note below)
-        EnclaveHostReviews: { book: S.book.addr, ledgerFallback: ZERO_ADDR },
+        // host ratings take ONE ctor arg: the book (no fallback by design)
+        EnclaveHostReviews: { book: S.book.addr },
         PaymentRouter: { usdc: USDC_BASE, treasury: payoutAddr },
         EnclaveCreditVaultFactory: { usdc: USDC_BASE, book: S.book.addr, treasury: payoutAddr },
       };
@@ -341,7 +339,7 @@ class AdminConsole extends EnclaveElement {
         EnclaveRegistry: `EnclaveDeployments pins the registry it trusts at construction - after a registry redeploy, redeploy EnclaveDeployments too (pointed at the new registry), then update both book keys.`,
         EnclaveDeployments: `deploys with the source-default prices - adjust in the panel above after pointing the book. Existing deployments live on in the OLD contract; users top up there until they redeploy.`,
         EnclaveReviews: `resolves the ledger it checks receipts against through the BOOK on every call, so a later EnclaveDeployments redeploy needs nothing here. <code>ledgerFallback</code> is only consulted when the book has no <code>deployments</code> key.`,
-        EnclaveHostReviews: `ratings for the ENCLAVES that run apps (receipt = your funded deployment whose <code>runner</code> is that box). Ledger resolved through the BOOK on every call, so a later EnclaveDeployments redeploy needs nothing here - leave <code>ledgerFallback</code> at <code>0x0</code> unless you are deploying without a book: baking in today's ledger only ages badly (the live EnclaveReviews still carries a two-revisions-stale one). Book key: <code>hostReviews</code>.`,
+        EnclaveHostReviews: `ratings for the ENCLAVES that run apps (receipt = your funded deployment whose <code>runner</code> is that box). The BOOK is the only ledger source - resolved on every call, so a later EnclaveDeployments redeploy needs nothing here, and there is deliberately no fallback address to go stale (the live EnclaveReviews carries one three revisions out of date). Book key: <code>hostReviews</code>.`,
         PaymentRouter: `<span class="warn">IMMUTABLE - no owner, no setters</span>: <code>treasury</code> is burned in at deploy (prefilled from the current payout - change it deliberately). Rotating the treasury = deploying a new router and repointing the book key + the relay's <code>PAYMENT_ROUTER_ADDRESS</code>.`,
         EnclaveCreditVaultFactory: `deploys the vault IMPLEMENTATION in its constructor; customer vaults are CREATE2 clones keyed by passkey. <span class="warn">No owner anywhere</span> - vault funds move only on customer passkey signatures, only toward the platform. Existing vaults keep their old factory forever; repointing <code>vaultFactory</code> only changes where NEW vaults come from.`,
       };
@@ -590,9 +588,10 @@ class AdminConsole extends EnclaveElement {
         for (const inp of card.querySelectorAll(".ac-ctor")) {
           const v = inp.value.trim();
           const argName = inp.dataset.ctor;
-          // args that are legitimately zero: an unset price feed, and a
-          // review contract's ledgerFallback when the BOOK is the source
-          // (baking in today's ledger there only ages badly)
+          // args that are legitimately zero: an unset price feed, and
+          // EnclaveReviews' ledgerFallback when the BOOK is the source (baking
+          // in today's ledger there only ages badly - EnclaveHostReviews drops
+          // the arg entirely for the same reason)
           const zeroOk = (name === "EnclaveDeployments" && argName === "ethUsdFeed")
             || (/Reviews$/.test(name) && argName === "ledgerFallback");
           if (!need(ADDR_RE.test(v) && (zeroOk || !isZero(v)), `constructor arg "${argName}" needs a valid ${zeroOk ? "" : "non-zero "}address`)) return;
