@@ -176,6 +176,23 @@ contract EnclaveHostReviewsTest is Test {
         r.post(ENC_A, DEP, 5, new string(2001));
     }
 
+    /// The admin console prefills (book, 0) — prove that deploys AND works.
+    function test_deploysWithBookAndZeroFallback() public {
+        EnclaveHostReviews r2 = new EnclaveHostReviews(address(book), address(0));
+        assertEq(r2.ledgerFallback(), address(0));
+        assertEq(r2.ledger(), address(led));          // resolved through the book
+        vm.prank(ALICE);
+        r2.post(ENC_A, DEP, 5, "");                   // receipts still verify
+        (uint32 c,) = r2.tallyOf(ENC_A);
+        assertEq(c, 1);
+    }
+
+    /// ...and that a bookless deploy still needs a fallback (the ctor guard).
+    function test_refusesDeployWithNeitherSource() public {
+        vm.expectRevert(bytes("no ledger source"));
+        new EnclaveHostReviews(address(0), address(0));
+    }
+
     function test_pagingIncludesHiddenFlagged() public {
         bytes32 dep2 = bytes32(uint256(0x4444));
         led.set(dep2, BOB, ENC_A, 1, 0);
