@@ -962,6 +962,14 @@ if (process.env.WAF_SELFTEST) {
   process.exit(0);
 }
 
+// TENANT_HEADERS_SELFTEST='[{…upstream headers…}, …]' prints what the /x/:id
+// proxy would actually send for each, same seam contract as WAF_SELFTEST.
+// (tenantHeaders is a hoisted function declaration, so it is reachable here.)
+if (process.env.TENANT_HEADERS_SELFTEST) {
+  console.log(JSON.stringify(JSON.parse(process.env.TENANT_HEADERS_SELFTEST).map((h) => tenantHeaders(h))));
+  process.exit(0);
+}
+
 // The pure half of the ledger schema-sniff machinery (depsAbi below). A REAL
 // pre-deploymentsSchema ledger has code at its address, so probing the unknown
 // selector REVERTS; "returned no data"/"0x" means the RPC saw NO CODE there —
@@ -2132,6 +2140,44 @@ function depByIdOrPrefix(id) {
   return rec || null;
 }
 
+// ---- default response headers for TENANT traffic ---------------------------
+// Every tenant app is served at <label>.app.enclave.host, and a passkey's rpId
+// is `enclave.host`. WebAuthn lets ANY origin under a registrable domain
+// exercise that domain's credentials, so a hostile app can call
+// navigator.credentials.get({ rpId: "enclave.host" }) and the browser's prompt
+// names "enclave.host" — the legitimate brand — on a page the user does not
+// control. rpId cannot be narrowed to fix this: it must be a suffix of the
+// site's own domain, and the site is at the APEX (see cb68e88e).
+//
+// Both verifiers already refuse such an assertion by origin — the credit vault
+// on-chain (cb68e88e) and the relay's auth.js (expectedOrigin) — so this is
+// defence in depth, not the fix. What it adds is (1) the browser refusing the
+// call outright, before a human is asked to tap anything, and (2) coverage for
+// the NEXT verifier someone writes, which is the one that will forget.
+//
+// OPT-OUT, deliberately not a new options-envelope namespace: an app that
+// genuinely wants WebAuthn (legitimately, with its OWN subdomain as rpId) sets
+// its own Permissions-Policy and we do not touch it. That keeps a standard HTTP
+// mechanism as the escape hatch instead of inventing config surface, and means
+// this cannot permanently break an app whose author knows what they want.
+function tenantHeaders(upstream) {
+  // Declared INSIDE the function on purpose. This is a hoisted function
+  // declaration and the selftest seam calls it from far earlier in the module;
+  // a module-level `const` here would still be in its temporal dead zone at
+  // that point and throw ReferenceError. (Found by the test, not by reading.)
+  const POLICY = "publickey-credentials-get=(), publickey-credentials-create=()";
+  const h = { ...upstream };
+  // Case-INSENSITIVE check, though Node lower-cases incoming header names and
+  // this could just test "permissions-policy". Enforcing it here makes the
+  // invariant true by construction instead of by an assumption about the
+  // runtime: if that ever stopped holding, an app shipping `Permissions-Policy:`
+  // would emit BOTH its value and ours, and a duplicated header is resolved by
+  // the browser in a way neither of us chose.
+  if (!Object.keys(h).some((k) => k.toLowerCase() === "permissions-policy"))
+    h["permissions-policy"] = POLICY;
+  return h;
+}
+
 app.use("/x/:id", async (req, res) => {
   const rec = depByIdOrPrefix(req.params.id);
   if (!rec) return fail(res, 404, "not_found", "Unknown deployment.");
@@ -2188,7 +2234,7 @@ app.use("/x/:id", async (req, res) => {
   const up = http.request(
     { host: target.hostname, port: target.port || 80, method: req.method,
       path: target.pathname + target.search, headers },
-    (upRes) => { res.writeHead(upRes.statusCode || 502, upRes.headers); upRes.pipe(res); });
+    (upRes) => { res.writeHead(upRes.statusCode || 502, tenantHeaders(upRes.headers)); upRes.pipe(res); });
   up.on("error", (e) => { if (!res.headersSent) res.writeHead(502); res.end("upstream error: " + e.message); });
   // maxBodyMb, the counted half: Content-Length was checked in wafGate, but a
   // chunked (or lying) body only shows its size on the wire. Counting rides

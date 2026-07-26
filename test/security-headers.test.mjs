@@ -17,10 +17,13 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, execFile } from "node:child_process";
+import { promisify } from "node:util";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { bootDaemon } from "./helpers/daemon.mjs";
+
+const pexec = promisify(execFile);
 
 const SUPERVISOR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "supervisor.js");
 
@@ -54,4 +57,49 @@ test("the supervisor does not advertise its framework in X-Powered-By", async ()
   } finally {
     child.kill("SIGKILL");
   }
+});
+
+// ---- tenant responses: the WebAuthn Permissions-Policy default --------------
+// Why this matters is written at tenantHeaders(): every tenant app is served
+// under enclave.host, a passkey's rpId IS enclave.host, and WebAuthn lets any
+// origin under a registrable domain drive that domain's credentials. The vault
+// (on-chain) and relay auth.js both refuse such an assertion by origin already,
+// so this header is the browser-side layer in front of them.
+async function tenantHeaders(...upstreams) {
+  const { stdout } = await pexec(process.execPath, [SUPERVISOR], {
+    env: { ...process.env, ...ENV, TENANT_HEADERS_SELFTEST: JSON.stringify(upstreams) },
+  });
+  const lines = stdout.trim().split("\n").filter(Boolean);
+  return JSON.parse(lines[lines.length - 1]);
+}
+
+test("tenant responses block WebAuthn by default", async () => {
+  const [plain] = await tenantHeaders({ "content-type": "text/html" });
+  assert.equal(plain["permissions-policy"],
+    "publickey-credentials-get=(), publickey-credentials-create=()");
+  // both directions of the credential API: get() harvests an existing passkey,
+  // create() is what would register an attacker's own (the terminal escalation
+  // in cb68e88e's addKey case)
+  assert.match(plain["permissions-policy"], /publickey-credentials-get=\(\)/);
+  assert.match(plain["permissions-policy"], /publickey-credentials-create=\(\)/);
+  // the app's own headers must survive untouched
+  assert.equal(plain["content-type"], "text/html");
+});
+
+test("an app that sets its own Permissions-Policy keeps it (the opt-out)", async () => {
+  // This is the escape hatch instead of a new options-envelope namespace: an
+  // app that legitimately wants WebAuthn under its OWN subdomain says so in a
+  // standard header, and we must not override it — otherwise the default would
+  // be an unfixable break rather than a safe default.
+  const [own] = await tenantHeaders({ "permissions-policy": "publickey-credentials-get=(self)" });
+  assert.equal(own["permissions-policy"], "publickey-credentials-get=(self)");
+});
+
+test("the default cannot be smuggled past by header case", async () => {
+  // Node lower-cases incoming header names, so an upstream can only ever
+  // present this key in one spelling. Pin that assumption: if it ever stopped
+  // holding, a tenant could ship `Permissions-Policy:` and get BOTH values.
+  const [mixed] = await tenantHeaders({ "Permissions-Policy": "camera=()" });
+  const keys = Object.keys(mixed).filter((k) => k.toLowerCase() === "permissions-policy");
+  assert.equal(keys.length, 1, `exactly one permissions-policy key, got ${JSON.stringify(keys)}`);
 });
