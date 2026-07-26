@@ -23,13 +23,13 @@ jobs:
       run:
         working-directory: wasm/apps/llm-chat
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Install wasm32-wasip2 target
         run: rustup target add wasm32-wasip2
 
       - name: Install cargo-component
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@3d7d7cd5ac7f994c1892ae0c06165095b9139094 # v2.85.1
         with:
           tool: cargo-component
 
