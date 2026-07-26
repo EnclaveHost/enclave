@@ -2,7 +2,14 @@
 # compiler, NO dev headers, and NO NumPy<2 pinning — runtime base is enough.
 # Config gives it runtime:nvidia, gpus:all, ipc:host, and the shared
 # /tmp/nvidia-mps mount so it joins the MPS daemon.
-FROM nvidia/cuda:12.6.2-runtime-ubuntu24.04
+# Base pinned by DIGEST, not just the mutable tag: this image is part of the
+# MEASURED enclave TCB, and its sidecar digest is what enclaves/*/tinfoil-config.yml
+# commits to. An upstream repush of the same tag silently changes the measurement,
+# which is exactly what the reproducibility claim behind METAL_ALLOWED_MEASUREMENTS
+# cannot survive (see the root Dockerfile, which has always pinned). This digest is
+# what the tag resolved to when it was pinned, so pinning changed nothing about what
+# gets built - it only stopped it drifting. Re-pin deliberately on a base bump.
+FROM nvidia/cuda:12.6.2-runtime-ubuntu24.04@sha256:16411bb06f363425265b410810a86fc43da705847ee9721be45b478bc4d0ea26
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 python3-pip curl \

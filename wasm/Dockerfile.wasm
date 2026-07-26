@@ -18,7 +18,14 @@
 ARG WASMTIME_IMAGE=ghcr.io/enclavehost/enclave-wasmtime:v45.0.0@sha256:97bd0acc1d67f21277c5f68ec76506465dc4477c181caf00ce7a34ebded3df63
 FROM ${WASMTIME_IMAGE} AS wasmtime
 
-FROM nvidia/cuda:12.6.2-cudnn-runtime-ubuntu24.04
+# Base pinned by DIGEST, not just the mutable tag: this image is part of the
+# MEASURED enclave TCB, and its sidecar digest is what enclaves/*/tinfoil-config.yml
+# commits to. An upstream repush of the same tag silently changes the measurement,
+# which is exactly what the reproducibility claim behind METAL_ALLOWED_MEASUREMENTS
+# cannot survive (see the root Dockerfile, which has always pinned). This digest is
+# what the tag resolved to when it was pinned, so pinning changed nothing about what
+# gets built - it only stopped it drifting. Re-pin deliberately on a base bump.
+FROM nvidia/cuda:12.6.2-cudnn-runtime-ubuntu24.04@sha256:39b73679081ed376dbc0a6aa1a63e553b3895a1454999dfafdd1ce796b131cb8
 
 # gdb: the nn readiness probe captures symbol-level stacks of a hung GPU
 # init (spawns the e2e wasmtime UNDER gdb, interrupts, thread apply all bt)

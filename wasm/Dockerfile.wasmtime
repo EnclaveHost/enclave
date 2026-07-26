@@ -29,7 +29,14 @@
 #
 # Keep WASMTIME_VERSION in lockstep with the P3/socket flags wasm_manager.py
 # was verified against (currently wasmtime 45).
-FROM rust:1.93-bookworm AS build
+# Base pinned by DIGEST, not just the mutable tag: this image is part of the
+# MEASURED enclave TCB, and its sidecar digest is what enclaves/*/tinfoil-config.yml
+# commits to. An upstream repush of the same tag silently changes the measurement,
+# which is exactly what the reproducibility claim behind METAL_ALLOWED_MEASUREMENTS
+# cannot survive (see the root Dockerfile, which has always pinned). This digest is
+# what the tag resolved to when it was pinned, so pinning changed nothing about what
+# gets built - it only stopped it drifting. Re-pin deliberately on a base bump.
+FROM rust:1.93-bookworm@sha256:7c4ae649a84014c467d79319bbf17ce2632ae8b8be123ac2fb2ea5be46823f31 AS build
 
 ARG WASMTIME_VERSION=v45.0.0
 RUN git clone --depth 1 --branch "${WASMTIME_VERSION}" \
