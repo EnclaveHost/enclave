@@ -497,9 +497,28 @@ async function operatorAuth(sig, raw, body, name) {
   return null;
 }
 
+// One guard around the whole handler. installProcessGuards turns any
+// synchronous throw in a request listener into exit(1), and this daemon is the
+// AUTHORITATIVE DNS for the app and ip zones — a single malformed request
+// taking it down darkens every app hostname on the platform and stalls every
+// in-flight ACME order until systemd restarts it. Answer 500 and stay up.
+// (api-relay.js carries the same guard, for the same reason.)
 const api = http.createServer((req, res) => {
+  try { apiHandler(req, res); }
+  catch (e) {
+    console.error("[dns-relay] api handler threw:", (e && e.stack) || e);
+    try { if (!res.headersSent) res.writeHead(500, { "content-type": "application/json" }); } catch {}
+    try { res.end(JSON.stringify({ error: "internal_error" })); } catch {}
+  }
+});
+
+function apiHandler(req, res) {
   const json = (code, body) => { res.writeHead(code, { "content-type": "application/json" }); res.end(JSON.stringify(body)); };
-  const u = new URL(req.url, "http://x");
+  // origin-form only, and appended to a base rather than resolved against one:
+  // an absolute-form target would otherwise parse to a pathname this handler
+  // routes on while naming somewhere else entirely
+  if (!String(req.url || "").startsWith("/")) return json(400, { error: "bad_request_target" });
+  const u = new URL("http://x" + req.url);
 
   if (req.method === "GET" && u.pathname === "/health") {
     let txtRecords = 0;
@@ -576,7 +595,7 @@ const api = http.createServer((req, res) => {
     if (vals) { vals.delete(value); if (!vals.size) txtStore.delete(name); }
     return json(200, { ok: true, name, values: vals ? vals.size : 0 });
   });
-});
+}
 api.on("error", (e) => { console.error("[dns-relay] api:", e.message); process.exit(1); });
 api.listen(API_PORT, API_BIND, () => console.log(`[dns-relay] challenge-push api :${API_PORT}`));
 

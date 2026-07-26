@@ -107,6 +107,23 @@ test("push: DELETE removes just that value", async () => {
   assert.deepEqual(await txtQuery(name), ["keep"]);
 });
 
+test("push: a malformed request target is refused, and the daemon survives it", async () => {
+  // installProcessGuards turns a synchronous throw in a request listener into
+  // exit(1), and this daemon is the authoritative DNS for the app zone — one
+  // bad request must not darken every app hostname on the platform.
+  const raw = (target) => new Promise((resolve, reject) => {
+    const s = net.connect(apiPort, "127.0.0.1", () =>
+      s.write(`GET ${target} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n`));
+    let out = ""; s.setTimeout(5000, () => { s.destroy(); reject(new Error("timeout")); });
+    s.on("data", (d) => (out += d)); s.on("close", () => resolve(out)); s.on("error", reject);
+  });
+  assert.match(await raw("http://elsewhere.example/health"), /^HTTP\/1\.1 400 /);
+  assert.match(await raw("*"), /^HTTP\/1\.1 400 /);
+  // still serving, both planes
+  assert.equal((await fetch(`http://127.0.0.1:${apiPort}/health`)).status, 200);
+  assert.equal(parse(await ask("example.com", 1)).rcode, 5);
+});
+
 // ---- the resolver ------------------------------------------------------------
 
 // minimal query builder/parser: one question, no compression in what we send
