@@ -29,20 +29,43 @@ const freePort = () => new Promise((res) => {
   const s = net.createServer().listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => res(p)); });
 });
 
-before(async () => {
+// freePort() reserves nothing: it binds :0, reads the number and CLOSES, so
+// under a full parallel run another test's server can take that port before the
+// daemon gets there. Then /health answers 200 from a stranger, the readiness
+// check passes, and every assertion below runs against the wrong server - which
+// is exactly how this file once reported an unsigned TXT push as ACCEPTED.
+// So prove identity, not just liveness: /health echoes our zone names, which no
+// other daemon in the suite will. If the port was stolen (or the daemon died on
+// EADDRINUSE), start over on a fresh one.
+async function boot() {
   dnsPort = await freePort(); apiPort = await freePort();
-  proc = spawn(process.execPath, [path.join(ROOT, "relay", "dns-relay.js")], {
+  const p = spawn(process.execPath, [path.join(ROOT, "relay", "dns-relay.js")], {
     env: { ...process.env, IP_ZONE, APP_ZONE, NS_NAME: "ns1.test", ENCLAVES: "https://example.invalid",
            DNS_PORT: String(dnsPort), DNS_API_PORT: String(apiPort), DNS_API_BIND: "127.0.0.1",
            DNS_TXT_KEY: KEY, APP_A: "203.0.113.7" },
     stdio: ["ignore", "pipe", "pipe"],
   });
-  proc.stdout.resume(); proc.stderr.resume();
-  for (let i = 0; i < 100; i++) {                  // wait for the api to answer
-    try { if ((await fetch(`http://127.0.0.1:${apiPort}/health`)).ok) return; } catch {}
+  let log = "";
+  p.stdout.on("data", (d) => (log += d)); p.stderr.on("data", (d) => (log += d));
+  for (let i = 0; i < 100; i++) {
+    if (p.exitCode != null) break;                 // died (port taken, config) - retry
+    try {
+      const r = await fetch(`http://127.0.0.1:${apiPort}/health`);
+      const j = r.ok ? await r.json().catch(() => null) : null;
+      if (j && j.zones && j.zones.app === APP_ZONE) return { p, log: () => log };
+    } catch {}
     await new Promise((r) => setTimeout(r, 100));
   }
-  throw new Error("dns-relay did not come up");
+  try { p.kill("SIGKILL"); } catch {}
+  return { p: null, log: () => log };
+}
+
+before(async () => {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const r = await boot();
+    if (r.p) { proc = r.p; return; }
+    if (attempt === 2) throw new Error(`dns-relay did not come up on its own port after 3 tries:\n${r.log()}`);
+  }
 });
 after(() => { try { proc.kill("SIGKILL"); } catch {} });
 

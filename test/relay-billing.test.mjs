@@ -72,6 +72,30 @@ test("verifyStripeSignature: HMAC, timestamp window, constant-time", () => {
   assert.equal(verifyStripeSignature(body, "", secret), false);
 });
 
+test("verifyStripeSignature: a rolling secret sends SEVERAL v1s, and one match is enough", () => {
+  // Stripe signs with every active secret while a webhook secret is being
+  // rolled and sends them all in one header. Reading just one v1 meant ~half of
+  // all events failed for the length of the rotation - fail-closed, but real
+  // customer credit sat unapplied until Stripe's retries outlived the window.
+  const secret = "whsec_new", old_ = "whsec_old", body = '{"id":"evt_1","type":"x"}';
+  const t = Math.floor(Date.now() / 1000);
+  const v1 = (sec) => createHmac("sha256", sec).update(`${t}.${body}`).digest("hex");
+
+  // ours FIRST, then the other secret's - the ordering that used to lose
+  assert.equal(verifyStripeSignature(body, `t=${t},v1=${v1(secret)},v1=${v1(old_)}`, secret), true);
+  // ours LAST (the ordering that happened to work before)
+  assert.equal(verifyStripeSignature(body, `t=${t},v1=${v1(old_)},v1=${v1(secret)}`, secret), true);
+  // ours in the middle of three
+  assert.equal(verifyStripeSignature(body, `t=${t},v1=${v1(old_)},v1=${v1(secret)},v1=${v1("whsec_third")}`, secret), true);
+  // and none of them ours is still a refusal - accepting ANY is not accepting ALL
+  assert.equal(verifyStripeSignature(body, `t=${t},v1=${v1(old_)},v1=${v1("whsec_third")}`, secret), false);
+  // a junk candidate alongside a good one must not throw or shadow the match
+  assert.equal(verifyStripeSignature(body, `t=${t},v1=zzzz,v1=${v1(secret)}`, secret), true);
+  assert.equal(verifyStripeSignature(body, `t=${t},v1=${"q".repeat(64)},v1=${v1(secret)}`, secret), true);
+  // the timestamp still gates everything, however many signatures ride along
+  assert.equal(verifyStripeSignature(body, `t=${t - 301},v1=${v1(secret)},v1=${v1(old_)}`, secret), false);
+});
+
 // ---------- harness ----------------------------------------------------------
 async function freePort() {
   const s = net.createServer(); s.listen(0, "127.0.0.1"); await once(s, "listening");

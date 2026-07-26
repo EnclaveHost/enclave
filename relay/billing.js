@@ -454,13 +454,28 @@ const adminTokenOk = (given) => {
 };
 
 export function verifyStripeSignature(rawBody, header, secret, nowMs = Date.now()) {
-  const parts = Object.fromEntries(String(header || "").split(",").map((s) => s.split("=", 2)));
-  const t = parseInt(parts.t, 10);
+  // Stripe-Signature is `t=<ts>,v1=<sig>[,v1=<sig>...]`. MULTIPLE v1 entries are
+  // the documented shape while a webhook secret is being rolled: Stripe signs
+  // with every active secret and sends them all. Object.fromEntries kept only
+  // the LAST one, so for the whole rotation window roughly half of all events
+  // failed verification - fail-closed and self-healing (Stripe retries for
+  // days), but it delays real customer credit and buries the alert channel in
+  // 400s exactly when someone is mid-rotation and least wants noise. Accept if
+  // ANY v1 matches; matching one active secret IS the property.
+  const fields = String(header || "").split(",").map((s) => s.split("=", 2));
+  const t = parseInt((fields.find((f) => f[0] === "t") || [])[1], 10);
   if (!Number.isFinite(t) || Math.abs(nowMs / 1000 - t) > 300) return false;
   const expected = createHmac("sha256", secret).update(`${t}.${rawBody}`).digest("hex");
-  const given = String(parts.v1 || "");
-  if (given.length !== expected.length) return false;
-  try { return timingSafeEqual(Buffer.from(given, "hex"), Buffer.from(expected, "hex")); } catch { return false; }
+  const exp = Buffer.from(expected, "hex");
+  let ok = false;
+  for (const [k, v] of fields) {
+    if (k !== "v1") continue;
+    const given = String(v || "");
+    if (given.length !== expected.length) continue;
+    // no early break: every candidate costs the same compare either way
+    try { if (timingSafeEqual(Buffer.from(given, "hex"), exp)) ok = true; } catch { /* not hex */ }
+  }
+  return ok;
 }
 
 // --- order views ----------------------------------------------------------------
