@@ -444,6 +444,15 @@ async function stripeApi(path, params, idemKey) {
 }
 // Stripe-Signature: t=<unix>,v1=<hmac>. HMAC-SHA256(secret, `${t}.${rawBody}`),
 // constant-time compare, 5-minute tolerance. Exported for tests.
+// The operator's review-queue token. Compared in constant time like every
+// other bearer secret here: `!==` on a string leaks its matching prefix through
+// timing, and this one clears held payments and re-arms crediting.
+const adminTokenOk = (given) => {
+  if (!ADMIN_TOKEN) return false;
+  const a = Buffer.from(String(given ?? ""), "utf8"), b = Buffer.from(ADMIN_TOKEN, "utf8");
+  return a.length === b.length && timingSafeEqual(a, b);
+};
+
 export function verifyStripeSignature(rawBody, header, secret, nowMs = Date.now()) {
   const parts = Object.fromEntries(String(header || "").split(",").map((s) => s.split("=", 2)));
   const t = parseInt(parts.t, 10);
@@ -564,7 +573,7 @@ export async function handleBilling(req, res, u, ctx) {
   // -- review queue (operator; x-admin-token) ------------------------------------
   if (p === "/v1/billing/review" && req.method === "GET") {
     if (!ADMIN_TOKEN) return err(ctx, res, req, 503, "review_disabled", "BILLING_ADMIN_TOKEN is not set.");
-    if (req.headers["x-admin-token"] !== ADMIN_TOKEN) return err(ctx, res, req, 401, "unauthorized", "Bad admin token.");
+    if (!adminTokenOk(req.headers["x-admin-token"])) return err(ctx, res, req, 401, "unauthorized", "Bad admin token.");
     const all = u.searchParams.get("all") === "1";
     const items = Object.values(reviews.data.items).filter((i) => all || !i.resolvedAt);
     return ctx.json(res, 200, { items }, req);
@@ -572,7 +581,7 @@ export async function handleBilling(req, res, u, ctx) {
   const rev = p.match(/^\/v1\/billing\/review\/(rev_[a-z0-9]+)\/resolve$/);
   if (rev && req.method === "POST") {
     if (!ADMIN_TOKEN) return err(ctx, res, req, 503, "review_disabled", "BILLING_ADMIN_TOKEN is not set.");
-    if (req.headers["x-admin-token"] !== ADMIN_TOKEN) return err(ctx, res, req, 401, "unauthorized", "Bad admin token.");
+    if (!adminTokenOk(req.headers["x-admin-token"])) return err(ctx, res, req, 401, "unauthorized", "Bad admin token.");
     const item = reviews.data.items[rev[1]];
     if (!item) return err(ctx, res, req, 404, "not_found", "No such review item.");
     if (item.resolvedAt) return err(ctx, res, req, 409, "already_resolved", "This item is already resolved.");
