@@ -66,7 +66,7 @@ import net from "node:net";
 import tls from "node:tls";
 import fs from "node:fs";
 import { createHash, createHmac, randomBytes } from "node:crypto";
-import { readCappedText, installProcessGuards } from "./fleet.mjs";
+import { readCappedText, MAX_BODY_BYTES, installProcessGuards } from "./fleet.mjs";
 import { isBlockedHost } from "./net-guard.mjs";
 import { isMcpHost, handleMcp } from "./mcp.js";
 import { handleAccount, initAccounts } from "./auth.js";
@@ -274,7 +274,18 @@ async function readRegistry() {
   let base = [];
   try { base = await discoverRegistry(); }
   catch (e) { if (!tunnelHub.count()) throw e; console.error(`[api-relay] discovery failed, serving ${tunnelHub.count()} tunnel enclave(s) only: ${e.message}`); }
-  return [...base, ...tunnelHub.origins()];
+  // A tunnel box that SELLS registers on-chain under its public relay-routed
+  // URL, and every lease it claims records keccak(that URL) as `runner`. Stamp
+  // the tunnel row with that id so runner matching — ledgerStatus's "running",
+  // runnerEndpointOf's routing, enclaveNameOf's label — recognizes the box
+  // (the synthetic tunnel:<name> id matched nothing and left hosted rows stuck
+  // on "claimed"). Never-registered dev tunnels keep the synthetic id. A
+  // discovered twin of the same id is dropped: the tunnel is the working route
+  // (its https endpoint would just dial back through this relay).
+  const tuns = await Promise.all(tunnelHub.origins().map(async (o) =>
+    o.publicUrl ? { ...o, id: await endpointId(o.publicUrl) } : o));
+  const tids = new Set(tuns.map((o) => String(o.id).toLowerCase()));
+  return [...base.filter((e) => !e.id || !tids.has(String(e.id).toLowerCase())), ...tuns];
 }
 // Human-facing label for an https endpoint: its first hostname label
 // ("https://kryptos.enclave.host/..." -> "kryptos"). Tunnel rows carry their
@@ -731,6 +742,15 @@ const ownerCached = (id) => {
 const ownerNegRecent = (id) => { const at = OWNER_NEG.get(id); return at != null && Date.now() - at < OWNER_NEG_TTL_MS; };
 const ownerLearn = (id, endpoint) => { if (id && endpoint) { OWNER.set(id, { endpoint, at: Date.now() }); OWNER_NEG.delete(id); } };
 async function probe(url, init) {
+  // tunnel endpoints can't be fetch()ed — round-trip the hub instead. Callers
+  // only read .status, which is all the hub reply carries anyway.
+  if (tunnelHub.isTunnel(url)) {
+    try {
+      const s = String(url), cut = s.indexOf("/", "tunnel://".length);
+      const origin = cut < 0 ? s : s.slice(0, cut), path = cut < 0 ? "/" : s.slice(cut);
+      return await tunnelHub.request(origin, { method: (init && init.method) || "GET", path, headers: (init && init.headers) || {} });
+    } catch { return null; }
+  }
   const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 4000);
   try { return await fetch(url, { ...init, signal: ctrl.signal }); }
   catch { return null; } finally { clearTimeout(t); }
@@ -802,6 +822,12 @@ async function forward(origin, req, body, path = req.url) {
   const headers = {};
   for (const [k, v] of Object.entries(req.headers))
     if (!/^(host|connection|content-length|transfer-encoding|accept-encoding)$/i.test(k)) headers[k] = v;
+  if (tunnelHub.isTunnel(origin)) {          // buffered hub round-trip, same shape + cap as the fetch leg
+    const r = await tunnelHub.request(origin, { method: req.method, path, headers, body: body && body.length ? body : undefined });
+    if (r.body && r.body.length > MAX_BODY_BYTES) throw new Error("response body too large");
+    const ct = Object.entries(r.headers || {}).find(([k]) => k.toLowerCase() === "content-type");
+    return { status: r.status, contentType: ct ? ct[1] : null, text: (r.body || Buffer.alloc(0)).toString("utf8") };
+  }
   const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 30000);
   try {
     const r = await fetch(origin.replace(/\/+$/, "") + path,
