@@ -15,6 +15,39 @@ export const APP_DOMAIN = "app.enclave.host";
 export const BASE_CHAIN = 8453, BASE_CHAIN_HEX = "0x2105";
 export const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
+/* ---- loopback-only override gate -------------------------------------------
+   Two reads below (enclave_addressbook, enclave_rpc) exist ONLY so the e2e
+   suite can point the site at its local anvil - there the site is served from
+   http://localhost:18899, so gating on the ORIGIN keeps that working while
+   making both inert anywhere real.
+
+   Why they need gating at all: a persisted enclave_rpc pins EVERY chain read
+   to one endpoint, and js/core/addressbook.js resolves the contract addresses
+   over those same reads - so a planted value rewrites DEPLOYMENTS_ADDRESS and
+   PAYMENT_ROUTER_ADDRESS, and the wallet then signs create/fund/USDC transfers
+   to an attacker's contract. Planting one needs an existing foothold on the
+   origin (XSS, a hostile extension, a shared browser), but localStorage
+   SURVIVES that foothold being closed: the payload outlives the hole it came
+   through. That is the whole reason these two are worth gating and the
+   sessionStorage addrbook cache below is not - a per-tab cache dies with the
+   tab, and repopulating it needs script execution on the origin all over again.
+
+   Gate on the origin rather than on the value: "is this RPC URL loopback?" can
+   be satisfied by a value the attacker picks (a loopback port they got you to
+   run), while "is this page on loopback?" cannot be satisfied on
+   enclave.host at all. Inert in production no matter what the value says. */
+const LOOPBACK_ORIGIN = (() => {
+  try {
+    const h = String(location.hostname || "").toLowerCase();
+    return h === "localhost" || h.endsWith(".localhost") ||
+           h === "127.0.0.1" || h === "::1" || h === "[::1]";
+  } catch (e) { return false; }   // no `location` (node import) => production rules
+})();
+const devOverride = (k) => {
+  if (!LOOPBACK_ORIGIN) return null;
+  try { return localStorage.getItem(k); } catch (e) { return null; }
+};
+
 /* ---- accounts + order checkout (passkeys/SIWE against the relay, card via
    hosted Stripe Checkout, USDC via the PaymentRouter). LIVE since 2026-07-21;
    the localStorage override exists for tests and local dev (e2e seeds it via
@@ -30,9 +63,11 @@ export const ACCOUNTS_ENABLED = _acct != null ? _acct === "1" : true;
    the site without a rebuild. The last resolve is cached in sessionStorage
    and applied synchronously below, so repeat visits never paint stale
    addresses even for a frame. */
-/* localStorage "enclave_addressbook" override (absent in production; the e2e
-   suite points it at a local chain's book) - same guarded read as enclave_rpc */
-let _book = null; try { _book = localStorage.getItem("enclave_addressbook"); } catch(e){}
+/* localStorage "enclave_addressbook" override (absent in production; points a
+   local run at a local chain's book) - loopback-origin only, see devOverride:
+   this address is the root of contract-address resolution, so an attacker who
+   sets it chooses every contract the wallet is asked to sign against. */
+const _book = devOverride("enclave_addressbook");
 export const ADDRESS_BOOK_ADDRESS = _book || "0xab214342d5A490150A4A977063A2f88E21F80907"; // EnclaveAddressBook on Base; written by scripts/deploy-address-book.mjs ("" = baked addresses only)
 export let APP_CATALOG_ADDRESS = "0xaB0462E55c18E295A221e4Eaa8738F25eB0696D7"; // EnclaveAppCatalog on Base; written automatically by scripts/deploy-app-catalog.mjs
 export let DEPLOYMENTS_ADDRESS = "0x0A7dE5D205c10B812AbaF0b89f3A243466bCEe01"; // EnclaveDeployments on Base; written automatically by scripts/deploy-deployments.mjs
@@ -79,9 +114,9 @@ export const APP_CATALOG_RPC     = "https://base-rpc.publicnode.com";  // prefer
    IP - the official mainnet.base.org hard enough that one catalog load can
    trip "over rate limit". Calls start on the last endpoint that worked and
    rotate on failure. A localStorage "enclave_rpc" override (absent in
-   production; the e2e suite seeds it) points every read at one endpoint -
-   same guarded-read style as the addrbook cache above. */
-let _rpc = null; try { _rpc = localStorage.getItem("enclave_rpc"); } catch(e){}
+   production; the e2e suite seeds it) points every read at one endpoint, which
+   is exactly why it is loopback-origin only - see devOverride above. */
+const _rpc = devOverride("enclave_rpc");
 export const APP_CATALOG_RPCS    = _rpc ? [_rpc] : [APP_CATALOG_RPC, "https://base.drpc.org", "https://1rpc.io/base", "https://mainnet.base.org"];
 
 /* ---- IPFS ---- */
