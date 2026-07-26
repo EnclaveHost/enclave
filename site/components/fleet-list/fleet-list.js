@@ -1,7 +1,9 @@
 /* ============================================================
    <c-fleet-list> - per-enclave capacity rows (the relay's
    /enclaves table). Assign `.rows` (already sorted upstream) and
-   it renders each box's two free pools.
+   it renders each box's two capacity pools. Copy says "available",
+   never "free": on a page that sells compute, "60 GB free" reads as
+   a price, not as headroom.
    ============================================================ */
 import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { esc, fmtNum } from "../../js/core/util.js";
@@ -21,17 +23,17 @@ class FleetList extends EnclaveElement {
     // Rows from an older relay carry no verdict and stay visible.
     const rows = (this.rows || []).filter((e) => e.serving !== false);
     const meter = (pct) => '<i class="fleet-meter" aria-hidden="true"><b style="width:' + Math.max(0, Math.min(100, pct)) + '%"></b></i>';
-    // one stat cell: bright free amount, then the "≈"/"/ total" context and the
-    // label in dim ink so the number is what the eye lands on
-    const stat = (free, total, unit, label) =>
-      '<span class="fleet-stat"><b><i>≈</i>' + free + '<i> / ' + total + '</i>' + (unit ? " " + unit : "") + '</b>'
+    // one stat cell: bright available amount, then the "≈"/"/ total" context and
+    // the label in dim ink so the number is what the eye lands on
+    const stat = (avail, total, unit, label) =>
+      '<span class="fleet-stat"><b><i>≈</i>' + avail + '<i> / ' + total + '</i>' + (unit ? " " + unit : "") + '</b>'
       + '<small>' + label + '</small></span>';
     // one pool = a [label | meter | pct] header line, stat cells underneath
     const pool = (label, pct, stats) =>
       '<div class="fleet-pool">'
       + '<span class="fleet-pool-label">' + label + '</span>'
       + meter(pct)
-      + '<span class="fleet-pool-pct"><b>' + pct + '%</b> free</span>'
+      + '<span class="fleet-pool-pct"><b>' + pct + '%</b> available</span>'
       + '<span class="fleet-stats">' + stats + '</span>'
       + '</div>';
     list.innerHTML = (!rows.length
@@ -55,11 +57,11 @@ class FleetList extends EnclaveElement {
             + '<span class="fleet-name">' + esc(name) + '</span>'
             + '</span>'
             + (gpu ? pool("GPU", gPct,
-                stat(fmtNum(a.vramFreeGb != null ? a.vramFreeGb : gFree * vramGb), fmtNum(vramGb), "GB", "vram free")
-                + stat(Math.round(gFree * tflops), Math.round(tflops), "", "tflops free")) : "")
+                stat(fmtNum(a.vramFreeGb != null ? a.vramFreeGb : gFree * vramGb), fmtNum(vramGb), "GB", "vram available")
+                + stat(Math.round(gFree * tflops), Math.round(tflops), "", "tflops available")) : "")
             + pool("CPU", cPct,
-                stat(fmtNum(cFree * ramGb), fmtNum(ramGb), "GB", "ram free")
-                + stat(fmtNum(cFree * vcpus), fmtNum(vcpus), "", "vcpu free"))
+                stat(fmtNum(cFree * ramGb), fmtNum(ramGb), "GB", "ram available")
+                + stat(fmtNum(cFree * vcpus), fmtNum(vcpus), "", "vcpu available"))
             + '</div>';
         }).join(""));
     // footer row: a manual refresh (dispatches `refresh`; the HOST owns the

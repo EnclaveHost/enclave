@@ -344,22 +344,22 @@ function renderDeploy(){
   // capacity is a WAIT, not an error: a pick above what's free right now is
   // still worth creating (it queues on-chain; queued demand is also what the
   // fleet scales on) - but say so clearly before any wallet step. With a
-  // target the verdict is per-BOX (its own free pools); the aggregate covers
+  // target the verdict is per-BOX (its own available pools); the aggregate covers
   // the no-target paths.
   const capW = $("#capWarn");
   if (capW){
     const q = rate > 0
       ? (target && !target.none
           ? ((gpuPct > 0 && gpuPct > target.free.gpuPct) || cpuPct > target.free.cpuPct
-              ? { free: gpuPct > 0 ? target.free.gpuPct + "% of " + target.name + "'s card · " + target.free.cpuPct + "% of its node free"
-                                   : target.free.cpuPct + "% of " + target.name + "'s node free" }
+              ? { free: gpuPct > 0 ? target.free.gpuPct + "% of " + target.name + "'s card · " + target.free.cpuPct + "% of its node available"
+                                   : target.free.cpuPct + "% of " + target.name + "'s node available" }
               : null)
           : (() => { const v = queuedVerdict(gpuPct, cpuPct);
-              return v && { free: gpuPct > 0 ? freePct.gpu + "% of a card · " + v.cpuFreeHere + "% of its node free" : freePct.cpuAny + "% of the node free" }; })())
+              return v && { free: gpuPct > 0 ? freePct.gpu + "% of a card · " + v.cpuFreeHere + "% of its node available" : freePct.cpuAny + "% of the node available" }; })())
       : null;
     capW.hidden = !q;
-    if (q) capW.textContent = "⚠ this size isn't free right now (" + q.free
-      + ") - you can still deploy: the app is created on-chain, waits as Queued, and starts automatically the moment capacity frees up. Queued time is never billed; the balance only burns while the app runs.";
+    if (q) capW.textContent = "⚠ this size isn't available right now (" + q.free
+      + ") - you can still deploy: the app is created on-chain, waits as Queued, and starts automatically the moment capacity opens up. Queued time is never billed; the balance only burns while the app runs.";
   }
   $("#estRuntime").textContent = rate > 0 ? fmtDur(budget / rate) : "–";
 }
