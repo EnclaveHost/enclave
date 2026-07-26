@@ -285,6 +285,16 @@ async function appOwnerOf(label) {
   // apps publicly (control-plane trust is unaffected; see fleet.mjs).
   const byRunner = await ((fleet.leaseEndpointFor ?? fleet.runnerEndpointFor)?.(label) ?? Promise.resolve(null)).catch(() => null);
   if (byRunner) { APP_OWNER.set(label, { origin: byRunner, at: Date.now(), byLease: !fleet.origins().includes(byRunner) }); return byRunner; }
+  // …and when the on-chain answer is "two deployments answer to this prefix",
+  // the probe below must NOT break the tie. A label is 8 hex of a
+  // keccak256(creator, nonce) id: a twin is ground offline and created for one
+  // transaction, and on THIS path the race decides who receives a client's
+  // ClientHello for the victim's hostname — to an enclave that can hold a real
+  // CA cert for the same label. Ambiguous names serve nobody.
+  if (await (fleet.prefixAmbiguous?.(label) ?? Promise.resolve(false)).catch(() => false)) {
+    console.log(`[relay] ${label} names more than one deployment on the ledger — refusing`);
+    return null;
+  }
   const found = await Promise.all(fleet.origins().map(async (o) => {
     try {
       const r = await fetch(`${o}/x/${encodeURIComponent(label)}`,
