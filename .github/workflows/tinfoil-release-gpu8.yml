@@ -31,6 +31,9 @@ on:
 concurrency:
   group: tinfoil-container-release-${{ inputs.version }}
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest

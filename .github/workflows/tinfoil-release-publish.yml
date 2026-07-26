@@ -29,6 +29,9 @@ on:
 concurrency:
   group: tinfoil-container-release-${{ github.ref_name }}
 
+permissions:
+  contents: read
+
 jobs:
   measure-and-release:
     runs-on: ubuntu-latest

@@ -37,6 +37,9 @@ concurrency:
   group: deploy-main
   cancel-in-progress: false   # never kill a deploy mid-flight; queued runs are covered by the detect diff
 
+permissions:
+  contents: read
+
 jobs:
   detect:
     runs-on: ubuntu-latest
