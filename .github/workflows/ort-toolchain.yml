@@ -27,6 +27,9 @@ on:
         required: true
         default: "nan-onnxruntime-v1.22.0-nan1"
 
+permissions:
+  contents: read
+
 jobs:
   build:
     # ubuntu-22.04 (glibc 2.35) on PURPOSE: the produced libonnxruntime.so must
