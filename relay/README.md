@@ -157,19 +157,22 @@ uses. A new tenant's `udp:N` appears within one poll — no relay config change.
 ### Setup
 
 1. **Enclave**: set `UDP_ADDR_PREFIX` on the supervisor to this box's routed /64
-   (e.g. `2a01:4f9:c013:bdfd::/64`). Unset = UDP addressing off.
+   (the live fleet uses `2a01:4f9:c013:9b52::/64` - see `DEP_ADDR_PREFIX` in
+   `enclaves/*/tinfoil-config.yml`). Unset = UDP addressing off. This value and
+   the relay's `UDP_PREFIX` below MUST be the same /64: the relay only binds
+   addresses inside it, and `ExecStartPre` only routes that /64 to `lo`.
 2. **Box, AnyIP** (once): make the whole /64 bind-able without configuring 2^64
    addresses. The systemd unit does this in `ExecStartPre`; manually it's
-   `ip -6 route add local 2a01:4f9:c013:bdfd::/64 dev lo`.
+   `ip -6 route add local 2a01:4f9:c013:9b52::/64 dev lo`.
 3. **Relay**:
 
 ```bash
-UDP_PREFIX=2a01:4f9:c013:bdfd::/64 \
+UDP_PREFIX=2a01:4f9:c013:9b52::/64 \
 REGISTRY_ADDRESS=0x... node udp-relay.js     # on-chain fleet discovery, or:
 ENCLAVES=https://enclave1...,https://enclave2... node udp-relay.js
 ```
 
-Clients then reach a deployment at its advertised `[2a01:4f9:c013:bdfd:…]:N`
+Clients then reach a deployment at its advertised `[2a01:4f9:c013:9b52:…]:N`
 (shown in the deploy response's `network.udp`). Public deployments only in v1.
 
 ### Caveats (read these)

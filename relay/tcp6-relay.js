@@ -69,6 +69,13 @@ const HS_MS     = parseInt(process.env.TCP6_HANDSHAKE_MS || "10000", 10);
 // unit's env (ExecStartPre uses it for the AnyIP route); read it and hold the
 // answers to it. The egress relay has constrained its source addresses this way
 // since fix 9 - the two INBOUND binders were the ones still taking it on trust.
+//
+// Why this cannot take a working deployment down: ExecStartPre routes THIS SAME
+// value to lo, and that route is what makes the /64 bind-able at all. An address
+// this gate refuses for being off-prefix is one the kernel was already refusing
+// with EADDRNOTAVAIL - so a wrong TCP6_PREFIX was a dead feature before it was a
+// refused one, and the refusal log now names both the address and the prefix
+// instead of leaving an EADDRNOTAVAIL to be interpreted.
 let GATE;
 try { GATE = v6PrefixGate(process.env.TCP6_PREFIX); }
 catch (e) { console.error(`fatal: TCP6_PREFIX is ${e.message}`); process.exit(1); }

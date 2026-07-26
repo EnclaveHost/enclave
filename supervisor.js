@@ -1942,7 +1942,7 @@ const fwUdpPorts = (rec) => (rec.firewall || []).filter((x) => x.startsWith("udp
 // DETERMINISTIC from the deployment id (sha256 → low 64 host bits), so the
 // supervisor and every relay derive the identical value with no shared state.
 // DEP_ADDR_PREFIX (or the legacy UDP_ADDR_PREFIX) is the relay box's routed /64
-// (e.g. "2a01:4f9:c013:bdfd::/64"); unset = dedicated addressing off (the
+// (e.g. "2a01:4f9:c013:9b52::/64", the live fleet's); unset = dedicated addressing off (the
 // /x/:id/(tcp|udp) bridges still work for direct callers, but no address is
 // advertised). See relay/README.md.
 const DEP_ADDR_PREFIX = (process.env.DEP_ADDR_PREFIX || process.env.UDP_ADDR_PREFIX || "").trim();
