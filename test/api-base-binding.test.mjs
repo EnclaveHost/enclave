@@ -101,3 +101,46 @@ test("clearing a session clears its binding too", () => {
   assert.equal(Enclave.accountToken, null);
   assert.equal(Enclave.accountTokenBase, null);
 });
+
+// ---- the sign-in challenge is checked before a wallet sees it ------------------
+// The endpoint hands the page a string and the user's key signs it. A browser
+// wallet does render the text — a real backstop the CLI lacks — but "the user
+// might read it" is not a control. The same key authorizes `enclave-upload:…`,
+// `enclave-secrets:put:…` (a secrets WRITE) and the encrypted-volume message
+// whose signature IS the volume key. Mirrors cli/enclave.mjs assertSiweLogin.
+const { assertSiweLogin } = await import(path.join(REPO, "site/js/core/wallet.js"));
+const { BASE_CHAIN } = await import(path.join(REPO, "site/js/core/config.js"));
+
+const ME = "0x" + "11".repeat(20);
+const THEM = "0x" + "22".repeat(20);
+const siwe = (addr, chain, extra = "") =>
+  `enclave.host wants you to sign in with your Ethereum account:\n${addr}\n\nSign in.\n\n` +
+  `URI: https://enclave.host\nVersion: 1\nChain ID: ${chain}\nNonce: abc123` + extra;
+
+test("siwe gate: the genuine challenge passes, in both spellings", () => {
+  assert.equal(assertSiweLogin(siwe(ME, BASE_CHAIN), ME), siwe(ME, BASE_CHAIN));
+  // no statement, with the optional timestamps
+  const bare = `enclave.host wants you to sign in with your Ethereum account:\n${ME}\n\n`
+    + `URI: https://enclave.host\nVersion: 1\nChain ID: ${BASE_CHAIN}\nNonce: n1\n`
+    + `Issued At: ${new Date().toISOString()}\nExpiration Time: ${new Date(Date.now() + 6e5).toISOString()}`;
+  assert.equal(assertSiweLogin(bare, ME), bare);
+  // address case must not matter
+  assert.ok(assertSiweLogin(siwe(ME.toUpperCase().replace("0X", "0x"), BASE_CHAIN), ME));
+});
+
+test("siwe gate: anything that is not a SIWE login for this wallet is refused", () => {
+  const cases = {
+    "secrets write":  `enclave-secrets:put:0x${"11".repeat(32)}:9999999999:${"ab".repeat(32)}`,
+    "upload token":   `enclave-upload:${"ab".repeat(32)}:9999999999`,
+    "encvol key":     "enclave-encvol:v1:vault-prod",
+    "bare text":      "please sign this",
+    "empty":          "",
+    "smuggled rider": siwe(ME, BASE_CHAIN, `\nenclave-secrets:put:0x${"11".repeat(32)}:9999999999:${"ab".repeat(32)}`),
+    "other address":  siwe(THEM, BASE_CHAIN),
+    "other chain":    siwe(ME, 1),
+    "expired":        siwe(ME, BASE_CHAIN, "\nExpiration Time: 2020-01-01T00:00:00.000Z"),
+    "two-line statement": `enclave.host wants you to sign in with your Ethereum account:\n${ME}\n\nline one\nline two\n\nURI: https://enclave.host\nVersion: 1\nChain ID: ${BASE_CHAIN}\nNonce: n`,
+  };
+  for (const [what, msg] of Object.entries(cases))
+    assert.throws(() => assertSiweLogin(msg, ME), /Refusing to sign/, what);
+});

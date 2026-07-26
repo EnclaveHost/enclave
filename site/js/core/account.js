@@ -22,7 +22,7 @@
    ============================================================ */
 import { ACCOUNTS_ENABLED } from "./config.js";
 import { Enclave, EnclaveError } from "./api.js";
-import { modalize, buildSiwe, jwtExp, connectWallet, refreshWallet, walletDetected } from "./wallet.js";
+import { modalize, buildSiwe, assertSiweLogin, jwtExp, connectWallet, refreshWallet, walletDetected } from "./wallet.js";
 import { $, esc, lsGet, lsSet, showToast, emit } from "./util.js";
 import { qrSvg } from "../lib/qr.js";
 
@@ -103,7 +103,7 @@ function ceremonyError(e, verb){
 export async function signInWalletAccount(){
   if (!Enclave.provider) await connectWallet();
   const ch = await Enclave.accountSiweNonce(Enclave.address);
-  const message = (ch && ch.message) ? ch.message : buildSiwe(ch);
+  const message = assertSiweLogin((ch && ch.message) ? ch.message : buildSiwe(ch), Enclave.address);
   let signature;
   try {
     signature = await Enclave.provider.request({ method: "personal_sign", params: [message, Enclave.address] });
