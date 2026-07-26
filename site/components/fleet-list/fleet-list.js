@@ -6,9 +6,12 @@
    a price, not as headroom.
    ============================================================ */
 import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
-import { esc, fmtNum } from "../../js/core/util.js";
+import { esc, fmtNum, short, showToast } from "../../js/core/util.js";
 import { starsHtml } from "../../js/core/reviews.js";
-import { hrevConfigured, hrevTallies } from "../../js/core/chain.js";
+import { hrevConfigured, hrevTallies, hrevMine, encCall, HREV_SEL, waitReceipt, REVIEW_MAX_BODY } from "../../js/core/chain.js";
+import { HOST_REVIEWS_ADDRESS } from "../../js/core/config.js";
+import { Enclave } from "../../js/core/api.js";
+import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
 import { serverSpec } from "../../js/core/pricing.js";
 import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
@@ -65,8 +68,10 @@ class FleetList extends EnclaveElement {
             + pool("CPU", cPct,
                 stat(fmtNum(cFree * ramGb), fmtNum(ramGb), "GB", "ram available")
                 + stat(fmtNum(cFree * vcpus), fmtNum(vcpus), "", "vcpu available"))
+            + '<div class="fleet-rateform" data-form="' + esc(e.id || "") + '" hidden></div>'
             + '</div>';
         }).join(""));
+    this._wireRate();
     // footer row: a manual refresh (dispatches `refresh`; the HOST owns the
     // fetch and re-assigns .rows, which re-renders and re-arms the button) +
     // the on-chain registry this table mirrors, linked once the address book
@@ -90,16 +95,120 @@ class FleetList extends EnclaveElement {
     }
   }
 
+  /* ---- rating a host: the same 5-star control the app store uses ----
+     The contract takes a RECEIPT - one of your funded deployments whose
+     `runner` is this box - and checks it itself, so the form's job is to find
+     that deployment first. Your deployment rows already name the enclave
+     serving them (the relay stamps it), which is exactly the "runs here now"
+     the receipt needs. No receipt = the form says why instead of offering a
+     signature that would revert. */
+  _wireRate(){
+    for (const btn of this.querySelectorAll(".fleet-rate"))
+      btn.addEventListener("click", () => this._openRate(btn));
+  }
+  async _openRate(btn){
+    const encId = btn.dataset.encid, name = btn.dataset.rate;
+    const box = this.querySelector('[data-form="' + CSS.escape(encId) + '"]');
+    if (!box) return;
+    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
+    box.hidden = false; btn.setAttribute("aria-expanded", "true");
+    box.innerHTML = '<p class="fleet-gate dim">checking whether this enclave runs an app of yours…</p>';
+    if (!Enclave.address){
+      box.innerHTML = '<p class="fleet-gate">Only wallets whose apps this enclave has run can rate it. '
+        + '<button class="btn btn-sm" data-act="connect" type="button">Connect wallet</button></p>';
+      box.querySelector('[data-act="connect"]').addEventListener("click", () => connectWallet().then(() => this._openRate(btn)).catch(() => {}));
+      return;
+    }
+    const [receipt, mine] = await Promise.all([
+      this._receiptFor(name).catch(() => null),
+      hrevMine(encId, Enclave.address).catch(() => null),
+    ]);
+    const already = mine && /^0x0*[1-9a-f]/i.test(mine.reviewer || "");
+    if (!receipt && !already){
+      box.innerHTML = '<p class="fleet-gate">Nothing of yours is running on <b>' + esc(name) + '</b> right now. '
+        + 'Ratings come from wallets whose app this box actually ran - deploy here first, then rate it.</p>';
+      return;
+    }
+    const d = { stars: already ? Number(mine.stars) : 0, body: already ? mine.body : "" };
+    const pick = [1, 2, 3, 4, 5].map((n) =>
+      '<label class="revs-pick-star' + (d.stars >= n ? " on" : "") + '">'
+      + '<input class="sr-only" type="radio" name="hrevStars-' + esc(encId) + '" value="' + n + '"' + (d.stars === n ? " checked" : "") + '>'
+      + '<span aria-hidden="true">★</span><span class="sr-only">' + n + (n === 1 ? " star" : " stars") + '</span></label>').join("");
+    box.innerHTML = '<div class="revs-write">'
+      + '<fieldset class="revs-pick"><legend>' + (already ? "Update your rating of " : "Rate ") + esc(name) + '</legend>' + pick + '</fieldset>'
+      + '<textarea class="revs-body" rows="2" placeholder="How did this box run it? (optional)"></textarea>'
+      + '<div class="revs-write-foot">'
+        + '<span class="revs-count">' + REVIEW_MAX_BODY + ' left</span>'
+        + (receipt ? '<span class="revs-receipt" title="the funded deployment this enclave is running for you">receipt ' + esc(short(receipt)) + '</span>'
+                   : '<span class="revs-receipt" title="you have rated this box before, so an edit needs no fresh receipt">editing your rating</span>')
+        + '<button class="btn btn-primary btn-sm" data-act="post" type="button" disabled>' + (already ? "Update rating" : "Post rating") + '</button>'
+      + '</div></div>';
+    const ta = box.querySelector(".revs-body"); ta.value = d.body || "";
+    const post = box.querySelector('[data-act="post"]');
+    const count = box.querySelector(".revs-count");
+    const sync = () => {
+      const on = box.querySelector('input[type="radio"]:checked');
+      const left = REVIEW_MAX_BODY - new TextEncoder().encode(ta.value || "").length;
+      count.textContent = left + " left"; count.classList.toggle("over", left < 0);
+      post.disabled = this._busy || !on || left < 0;
+      for (const l of box.querySelectorAll(".revs-pick-star"))
+        l.classList.toggle("on", on && Number(l.querySelector("input").value) <= Number(on.value));
+    };
+    box.addEventListener("change", sync); ta.addEventListener("input", sync); sync();
+    post.addEventListener("click", () => this._postRate(box, encId, name, receipt, post, sync));
+  }
+
+  /* One of MY deployments this box is running now (the relay stamps each row
+     with the serving enclave's name). Funded is implied: a row only has a
+     runner because a lease was claimed, and the contract re-checks anyway. */
+  async _receiptFor(name){
+    const res = await Enclave.listDeployments();
+    const rows = Array.isArray(res) ? res : ((res && (res.deployments || res.items || res.data)) || []);
+    const hit = rows.find((d) => d && d.enclave === name && /^0x[0-9a-f]{64}$/i.test(d.id || "")
+      && ["running", "claimed", "provisioning"].includes(d.status || ""));
+    return hit ? hit.id : null;
+  }
+
+  async _postRate(box, encId, name, receipt, btn, sync){
+    const on = box.querySelector('input[type="radio"]:checked');
+    if (!on) return;
+    const body = box.querySelector(".revs-body").value || "";
+    this._busy = true; btn.disabled = true; btn.textContent = "signing…";
+    try {
+      if (!Enclave.provider) await connectWallet();
+      await ensureBaseChain();
+      const data = encCall(HREV_SEL.post, [
+        { t: "bytes32", v: encId },
+        { t: "bytes32", v: receipt || "0x" + "0".repeat(64) },
+        { t: "uint", v: Number(on.value) },
+        { t: "str", v: body },
+      ]);
+      const hash = await sendTx(HOST_REVIEWS_ADDRESS, data);
+      showToast("rating " + name + " · " + hash.slice(0, 12) + "…");
+      await waitReceipt(hash);
+      showToast("rated " + name);
+      box.hidden = true; box.innerHTML = "";
+      this._tallyKey = null;                 // force a re-read so the stars move
+      this._loadRatings(this.rows || []);
+    } catch (e) {
+      showToast("rating failed: " + ((e && (e.shortMessage || e.message)) || e));
+      btn.textContent = "Post rating";
+    } finally { this._busy = false; if (sync) sync(); }
+  }
+
   /* Stars for a box, from EnclaveHostReviews. Absent contract (not deployed /
      not in the address book yet) renders NOTHING rather than a fake 0 - an
      unrated fleet and an unreadable one are different claims. */
   _ratingHtml(e){
     const t = this._tallies && this._tallies[String(e.id || "").toLowerCase()];
     if (!hrevConfigured()) return "";
-    if (!t || !t.count) return '<span class="fleet-rating fleet-unrated" title="No wallet has rated this enclave yet">unrated</span>';
+    const rate = '<button class="fleet-rate btn btn-sm" type="button" data-rate="' + esc(e.name || "") + '" data-encid="' + esc(e.id || "") + '" aria-expanded="false" '
+      + 'title="Rate this enclave - open to wallets whose app it is running">rate</button>';
+    if (!t || !t.count)
+      return '<span class="fleet-rating fleet-unrated" title="No wallet has rated this enclave yet">unrated</span>' + rate;
     const avg = t.sum / t.count;
     return '<span class="fleet-rating" title="' + t.count + ' rating' + (t.count === 1 ? "" : "s") + ' from wallets whose apps this enclave ran">'
-      + starsHtml(avg) + '<small>' + avg.toFixed(1) + ' (' + t.count + ')</small></span>';
+      + starsHtml(avg) + '<small>' + avg.toFixed(1) + ' (' + t.count + ')</small></span>' + rate;
   }
 
   /* One talliesOf call covers every visible box. Cached per paint; a fleet
