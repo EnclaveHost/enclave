@@ -75,12 +75,18 @@ REQUIRE_FENCE = os.environ.get("REQUIRE_FENCE", "1") not in ("0", "false", "off"
 # AND the "trusted PTX" bypass in one shot.
 BIND  = os.environ.get("WORKER_BIND", "127.0.0.1")
 TOKEN = os.environ.get("WORKER_TOKEN", "")
+_TOKEN_B = TOKEN.encode("utf-8", "surrogateescape")
 ALLOW_UNAUTH = os.environ.get("WORKER_ALLOW_UNAUTHENTICATED", "").strip().lower() in ("1", "true", "yes", "on")
 
 
-def _bearer(headers) -> str:
+def _bearer(headers) -> bytes:
+    """The bearer token as BYTES. hmac.compare_digest raises TypeError on a str
+    holding any character above U+007F, and HTTP headers arrive latin-1-decoded
+    — so a request with one high byte in Authorization would blow up inside the
+    auth check instead of simply failing it. Comparing bytes is total."""
     parts = headers.get("Authorization", "").split(None, 1)
-    return parts[1].strip() if len(parts) == 2 and parts[0].lower() == "bearer" else ""
+    tok = parts[1].strip() if len(parts) == 2 and parts[0].lower() == "bearer" else ""
+    return tok.encode("utf-8", "surrogateescape")
 
 
 def _authorized(headers) -> bool:
@@ -89,14 +95,14 @@ def _authorized(headers) -> bool:
     carry the shared token (constant-time compare)."""
     if not TOKEN:
         return ALLOW_UNAUTH
-    return hmac.compare_digest(_bearer(headers), TOKEN)
+    return hmac.compare_digest(_bearer(headers), _TOKEN_B)
 
 
 def _trusted(headers) -> bool:
     """Server-side trust proof used to SKIP PTX fencing. Unlike _authorized, an
     UNSET token is NEVER trusted: with no secret there is no way to authorize
     unfenced PTX, so it stays fenced. Trust is NEVER read from the request body."""
-    return bool(TOKEN) and hmac.compare_digest(_bearer(headers), TOKEN)
+    return bool(TOKEN) and hmac.compare_digest(_bearer(headers), _TOKEN_B)
 
 
 def _auth_warning(role: str):

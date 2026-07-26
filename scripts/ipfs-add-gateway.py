@@ -284,7 +284,10 @@ def upload_auth_error(headers, data):
     h = hashlib.sha256(data).hexdigest()
     expected = hmac.new(UPLOAD_KEY.encode(), ("%s:%s:%d" % (address, h, exp)).encode(),
                         hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(expected, token):
+    # bytes: a token with any character above U+007F would raise TypeError out
+    # of compare_digest instead of failing the check (headers arrive
+    # latin-1-decoded, so that is attacker-reachable)
+    if not hmac.compare_digest(expected.encode(), (token or "").encode("utf-8", "surrogateescape")):
         return (403, "upload authorization does not cover these bytes")
     ok, why = _reserve_bytes(address, len(data))
     if not ok:
