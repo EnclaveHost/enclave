@@ -1967,6 +1967,7 @@ encrypted volumes (rclone-crypt over S3; push data with scripts/enclave-encvol.s
 
 sell hosting (run an enclave on your own TEE hardware — metal/PROTOCOL.md)
   host init [--name N] [--payout 0x…] [--cpus N --mem MiB]
+            [--price-cpu USD/hr] [--gpu N --price-gpu USD/hr]
             [--eab-kid K --eab-hmac H]
                              scaffold metal/config.json: mints the box's operator
                              key INTO that file (gitignored; the printed address
@@ -2002,7 +2003,7 @@ transactions - deploying and funding by credit stays on enclave.host for now.`;
 // not a payment; earnings sweep to payoutAddress (default: this CLI wallet).
 async function cmdHost(rest) {
   const sub = rest.shift();
-  const f = flags(rest, { val: ["--config", "--name", "--payout", "--eth", "--address", "--mode", "--cpus", "--mem", "--eab-kid", "--eab-hmac"] });
+  const f = flags(rest, { val: ["--config", "--name", "--payout", "--eth", "--address", "--mode", "--cpus", "--mem", "--eab-kid", "--eab-hmac", "--price-cpu", "--price-gpu", "--gpu"] });
   const cfgPath = f.config || path.join("metal", "config.json");
   const readCfg = () => { try { return JSON.parse(fs.readFileSync(cfgPath, "utf8")); } catch { return null; } };
   const operatorOf = (cfg) => {
@@ -2029,6 +2030,22 @@ async function cmdHost(rest) {
     // app certs via ZeroSSL first, dodging Let's Encrypt's per-domain weekly cap
     if (!!f["eab-kid"] !== !!f["eab-hmac"]) throw new Error("--eab-kid and --eab-hmac go together (ZeroSSL dashboard - Developer - EAB credentials)");
     if (f["eab-kid"]) { cfg.acmeEabKid = f["eab-kid"]; cfg.acmeEabHmac = f["eab-hmac"]; }
+    // what this box CHARGES: USD/hour for a FULL node / FULL card. It then
+    // refuses work paying less. A GPU ask needs a GPU enclave (--gpu, or a
+    // build that passes a card through) — pricing a card you can't sell would
+    // advertise capacity that can never be claimed.
+    const price = (k) => { if (f[k] == null) return null;
+      const v = Number(f[k]);
+      if (!Number.isFinite(v) || v < 0) throw new Error(`--${k} must be a USD-per-hour number (e.g. --${k} 2.50)`);
+      return v; };
+    const pCpu = price("price-cpu"), pGpu = price("price-gpu");
+    if (pCpu != null) cfg.priceCpuUsdHr = pCpu;
+    if (pGpu != null) {
+      if (!(f.gpu || cfg.gpuCount > 0)) throw new Error("--price-gpu needs a GPU enclave (pass --gpu, or drop the flag: a CPU-only box sells no GPU shares)");
+      cfg.priceGpuUsdHr = pGpu;
+    }
+    if (f.gpu) { cfg.gpuCount = Math.max(1, parseInt(f.gpu, 10) || 1);
+      if (cfg.priceGpuUsdHr == null) say("note: GPU enclave with no --price-gpu — its GPU shares sell at the on-chain list price"); }
     if (f.payout) cfg.payoutAddress = f.payout;
     else if (!cfg.payoutAddress) {
       const acct = loadKey({ required: false });
@@ -2038,8 +2055,11 @@ async function cmdHost(rest) {
     try { fs.chmodSync(cfgPath, 0o600); } catch {}
     const op = operatorOf(cfg);
     say(`${cfgPath} ${fresh ? "created" : "updated"}${minted ? " · operator key MINTED (it stays in this file; keep it out of git — metal/config.json is gitignored in the repo)" : ""}`);
+    const askRow = (label, v, unit) => [label, v != null ? `$${Number(v).toFixed(2)} / ${unit}   (this box refuses work paying less)` : `list price (on-chain) — set with --price-${label.startsWith("cpu") ? "cpu" : "gpu"}`];
     kv([["operator", `${op}   (this box's on-chain identity; needs a little Base ETH for gas)`],
         ["payout", cfg.payoutAddress ? `${cfg.payoutAddress}   (your USDC earnings sweep here)` : "(unset — set one before earning: enclave host init --payout 0x…)"],
+        askRow("cpu ask", cfg.priceCpuUsdHr, "full node-hour"),
+        ...(cfg.gpuCount > 0 ? [askRow("gpu ask", cfg.priceGpuUsdHr, "full card-hour")] : []),
         ["endpoint", cfg.publicUrl]]);
     say(`next:
   enclave host fund --eth 0.002              gas the operator from this CLI wallet

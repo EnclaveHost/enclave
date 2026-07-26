@@ -1018,6 +1018,18 @@ const NODE_GFLOPS     = parseFloat(process.env.NODE_GFLOPS || "")       // CPU c
 let CARD_VRAM_GB      = parseFloat(process.env.GPU_VRAM_GB || "141");   // usable VRAM per card (fallback until the card itself is probed - see adoptCardVram)
 let CARD_VRAM_SRC     = process.env.GPU_VRAM_GB ? "env" : "default";
 const CARD_TFLOPS     = parseFloat(process.env.GPU_TFLOPS || "989");    // GPU compute per card (H200 FP16 dense)
+// --- seller asking prices (self-hosted boxes; metal/PROTOCOL.md) -------------
+// What THIS operator charges to rent its hardware, in USDC 6dp per second for a
+// FULL node / FULL card — the same basis as the ledger's cpuPricePerSec6 /
+// pricePerSec6. Unset (the hosted fleet) = no floor: take work at the list
+// price, unchanged. Set = this box refuses work priced below its own ask (see
+// priceFloorRefusal), and advertises the ask so clients can rank and show it.
+// A CPU-only enclave has no GPU to sell, so SELL_GPU_PRICE6 is ignored there;
+// a GPU enclave that sets only the CPU price still sells its GPU at the list
+// price (nothing is silently unpriced — the ask simply doesn't bind).
+const SELL_CPU_PRICE6 = Math.max(0, Math.round(parseFloat(process.env.SELL_CPU_PRICE6 || "0") || 0));
+const SELL_GPU_PRICE6 = IS_GPU ? Math.max(0, Math.round(parseFloat(process.env.SELL_GPU_PRICE6 || "0") || 0)) : 0;
+const SELLS_AT_ASK    = SELL_CPU_PRICE6 > 0 || SELL_GPU_PRICE6 > 0;
 const CTX_OVERHEAD_GB = parseFloat(process.env.CTX_OVERHEAD_GB || "0.5"); // per-worker context cost, reserved on top of the cap
 const SM_TOTAL        = parseInt(process.env.SM_TOTAL || "132", 10);   // SMs per card (H200=132); for reporting granted SMs
 const MIN_COMPUTE_PCT = parseInt(process.env.MIN_COMPUTE_PCT || "1", 10); // floor; CUDA_MPS_ACTIVE_THREAD_PERCENTAGE is an integer 1..100
@@ -2332,6 +2344,14 @@ app.get("/availability", async (_req, res) => {
     secrets: SECRETS_CAPABLE,   // this build pulls relay-staged per-deployment secrets into the guest env at every launch; fleet-AND'd with the relay's own secretsEnabled() before clients see it. The fetch authenticates with a key DERIVED FROM THE FLEET SECRET, so a box running its own minted SECRET (a metal enclave without cfg.fleetSecret) sets SECRETS_CAPABLE=0 and reports false — honest, and the fleet-AND then hides the feature rather than stranding secret-bearing deploys on it
     secretsInConfig: SECRETS_CAPABLE,   // this build also resolves $NAME/${NAME} placeholders in config STRING values from those secrets at launch (wasm-manager _subst_secrets); same fleet-AND rule
     devDeploy: true,   // this build's approval gate admits PENDING catalog versions for PRIVATE deployments (publisher dev-mode testing); public deploys of pending versions stay refused — same fleet-AND rule, clients only offer the option when every live runner honors it
+    // What this operator ASKS to rent its hardware: USDC 6dp per second for a
+    // FULL node / FULL card (the ledger's own basis). Absent on the hosted
+    // fleet, which serves at the on-chain list price. A box only claims work
+    // paying at least this (priceFloorRefusal), so clients can both SHOW the
+    // ask and predict what each box will take. gpu ask is omitted on a
+    // CPU-only enclave — there is no card to sell.
+    ...(SELLS_AT_ASK ? { askCpuPricePerSec6: SELL_CPU_PRICE6,
+                         ...(IS_GPU && SELL_GPU_PRICE6 > 0 ? { askGpuPricePerSec6: SELL_GPU_PRICE6 } : {}) } : {}),
     claimEnabled: CLAIM_READY && !!_enclaveId,   // whether this enclave CLAIMS ledger work RIGHT NOW: configured for it AND its on-chain registration landed (_enclaveId is only set by a successful register tx — a staged seller with an unfunded gas EOA truthfully reports false until the first register confirms). The relay sizes app minimums, fleet capacity and the deploy target list over CLAIMING enclaves only
     source, ...(note ? { note } : {}), updatedAt: new Date().toISOString(),
   });
@@ -2782,6 +2802,34 @@ async function gateAppReference(reference, opts = {}) {
 const FEE_OF_ABI = [{ type: "function", name: "feeOf", stateMutability: "view",
   inputs: [{ name: "id", type: "bytes32" }],
   outputs: [{ name: "recipient", type: "address" }, { name: "feePerSec6", type: "uint256" }] }];
+// Seller price floor: refuse work that pays less than THIS operator asks for
+// the shares it would occupy. The deployment's snapshotted `rate` covers the
+// shares PLUS the version's publisher fee, and the fee is not the runner's
+// revenue — so the comparison is against rate minus that fee (read from the
+// ledger like feeGate does; a fee that can't be read is treated as 0, which
+// only ever makes this gate STRICTER, never laxer, so an RPC blip can't
+// trick the box into taking underpriced work).
+// Returns null (acceptable) or a refusal string for the sweep log.
+async function priceFloorRefusal(d) {
+  if (!SELLS_AT_ASK) return null;                       // hosted fleet: list price, no floor
+  const gpuMilli = Number(d.gpuMilli) || 0, cpuMilli = Number(d.cpuMilli) || 0;
+  const ask6 = Math.ceil((SELL_GPU_PRICE6 * gpuMilli + SELL_CPU_PRICE6 * cpuMilli) / 1000);
+  if (ask6 <= 0) return null;                           // nothing priced for these shares
+  let fee6 = 0;
+  try {
+    const { rev } = await depsAbi();
+    if (rev >= 4) {
+      const [, f] = await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
+        abi: FEE_OF_ABI, functionName: "feeOf", args: [d.id] });
+      fee6 = Number(f) || 0;
+    }
+  } catch { /* unreadable fee -> 0 -> stricter comparison */ }
+  const share6 = Math.max(0, Number(d.rate) - fee6);    // what the shares themselves pay, per second
+  if (share6 >= ask6) return null;
+  const hr = (n) => "$" + (n * 3600 / 1e6).toFixed(2) + "/hr";
+  return `pays ${hr(share6)} for these shares, below this operator's ask of ${hr(ask6)}`;
+}
+
 async function feeGate(id, g) {
   if (!(g.feePerSec6 > 0n)) return null;
   const { rev } = await depsAbi();
@@ -5028,6 +5076,8 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
   if (provisionBackoffHolds(pf, Date.now(), d.appRef)) return "provisioning failed here recently; backing off";
   const ev = _evacuated.get(d.id);
   if (ev && Date.now() < ev) return "evacuated from here for consolidation; leaving it for another enclave";
+  const priceRefusal = await priceFloorRefusal(d);
+  if (priceRefusal) return priceRefusal;
   const gpuShare = Number(d.gpuMilli) / 1000, cpuShare = Number(d.cpuMilli) / 1000;
   let slice;
   if (gpuShare > 0) {
