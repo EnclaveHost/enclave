@@ -127,17 +127,19 @@ const NET_MAP = {
   ],
 };
 
-const freePort = () => new Promise((res) => {
-  const s = net.createServer().listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => res(p)); });
-});
+// bind :0 and KEEP it - never "find a free port, close it, hope it is still
+// free". The reserve-then-release shape races every other server in a parallel
+// run, and a stranger answering on the port you expected fails as a wrong
+// assertion rather than a bind error (see the boot probe in dns-relay.test.mjs).
+const listenOnFreePort = (srv) =>
+  new Promise((res) => srv.listen(0, "127.0.0.1", () => res(srv.address().port)));
 
 test("tcp6-relay refuses every address it should not bind, and stays up", async () => {
-  const port = await freePort();
   const srv = http.createServer((req, res) => {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify(req.url.startsWith("/v1/net-map") ? NET_MAP : {}));
   });
-  await new Promise((r) => srv.listen(port, "127.0.0.1", r));
+  const port = await listenOnFreePort(srv);
 
   const proc = spawn(process.execPath, [path.join(ROOT, "relay", "tcp6-relay.js")], {
     env: { ...process.env, ENCLAVES: `http://127.0.0.1:${port}`, TCP6_PREFIX: PREFIX, NET_POLL_SEC: "1" },
