@@ -127,8 +127,11 @@ test("tcp6-relay: merges net-maps across the fleet and routes each port to its o
   const [portA, portB] = [await freePort(), await freePort()];
   const encA = await fakeEnclave({ id: "dep_aaa", tcpPort: portA, tag: "A" });
   const encB = await fakeEnclave({ id: "dep_bbb", tcpPort: portB, tag: "B" });
+  // TCP6_PREFIX declares what this rig may bind. A declared prefix IS the
+  // policy (see bindRefusal), so `::1/128` lets the test bind exactly loopback
+  // and nothing else - on the real box it is the routed /64 and loopback loses.
   const { p, logs } = spawnRelay("tcp6-relay.js", {
-    ENCLAVES: `${encA.origin},${encB.origin}`, NET_POLL_SEC: "1" });
+    ENCLAVES: `${encA.origin},${encB.origin}`, NET_POLL_SEC: "1", TCP6_PREFIX: "::1/128" });
   t.after(() => { p.kill(); encA.close(); encB.close(); });
 
   const [ra, rb] = await Promise.all([exchange(portA, "ping-a"), exchange(portB, "ping-b")]);

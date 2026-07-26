@@ -36,9 +36,14 @@
 //                                 flow down (default 10000)
 //   UDP_BUF_MAX_BYTES  optional   pre-open datagram buffer byte cap (default 262144)
 //   UDP_BUF_MAX_PKTS   optional   pre-open datagram buffer packet cap (default 256)
+//   UDP_PREFIX         SHOULD-SET this box's routed /64. Drives the systemd AnyIP step
+//                                 and constrains what udp-map may make us bind: with it
+//                                 set, off-prefix/loopback/wildcard answers are refused.
+//                                 Unset = global-unicast range table only, plus a warning.
 
 import dgram from "node:dgram";
 import WebSocket from "ws";
+import { bindRefusal, v6PrefixGate } from "./net-guard.mjs";
 import { createFleet, fleetConfig, fetchJson, installProcessGuards } from "./fleet.mjs";
 installProcessGuards("udp-relay");
 
@@ -54,6 +59,21 @@ const MAX_FLOWS = parseInt(process.env.UDP_MAX_FLOWS || "4096", 10);
 const HANDSHAKE_MS = parseInt(process.env.UDP_HANDSHAKE_MS || "10000", 10);
 const BUF_MAX_BYTES = parseInt(process.env.UDP_BUF_MAX_BYTES || "262144", 10);
 const BUF_MAX_PKTS  = parseInt(process.env.UDP_BUF_MAX_PKTS || "256", 10);
+
+// SECURITY: /v1/udp-map decides which local address:port this box binds — see
+// the long note in net-guard.mjs. UDP_PREFIX is already in this unit's env for
+// the AnyIP route; hold the map's answers to it. With it set (production) an
+// off-prefix answer, loopback and the wildcard all lose; with it unset the
+// global-unicast range table is the fallback. (udp6 sockets can't bind IPv4
+// anyway, so the family check is belt-and-braces rather than load-bearing.)
+let GATE;
+try { GATE = v6PrefixGate(process.env.UDP_PREFIX); }
+catch (e) { console.error(`fatal: UDP_PREFIX is ${e.message}`); process.exit(1); }
+if (!GATE.constrained)
+  console.error("[udp-relay] UDP_PREFIX unset — bound addresses are only checked against the global-unicast range table, NOT against this box's /64 (another box's address would still bind). Set UDP_PREFIX to the routed /64 the ExecStartPre route uses.");
+
+const warned = new Set();
+const warnOnce = (msg) => { if (warned.has(msg)) return; if (warned.size > 500) warned.clear(); warned.add(msg); console.error(`[udp-relay] ${msg}`); };
 
 const wsOrigin = (origin) => origin.replace(/^http/, "ws");
 
@@ -133,8 +153,17 @@ async function poll() {
     if (!map.enabled) continue;    // udp addressing off there — nothing to bind
     for (const d of map.deployments || []) {
       if (!d.address) continue;
+      const no = bindRefusal(d.address, GATE);
+      if (no) { warnOnce(`${origin} offered ${d.id} on [${d.address}] — refused: ${no}`); continue; }
       for (const port of d.ports || []) {
-        const key = `${d.id}|${d.address}|${port}`;
+        // out-of-range makes sock.bind throw inside this async poll(), where the
+        // rejection is only logged - every listener still queued this round dies
+        const p = Number(port);
+        if (!Number.isInteger(p) || p < 1 || p > 65535) {
+          warnOnce(`${origin} offered ${d.id} udp:${port} — refused: not a port number`);
+          continue;
+        }
+        const key = `${d.id}|${d.address}|${p}`;
         if (!desired.has(key)) desired.set(key, origin);
       }
     }
