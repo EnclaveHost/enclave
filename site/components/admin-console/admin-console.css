@@ -75,6 +75,7 @@
 .ac-danger-btn { border-color: var(--danger-deep); color: var(--danger); }
 
 .ac-mig-ctl { display: grid; grid-template-columns: minmax(130px, auto) 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.ac-xfer-ctl { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 10px 0; }
 .ac-mig-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .ac-mig-log {
   margin-top: 12px; padding: 10px 12px; max-height: 280px; overflow-y: auto;
@@ -86,7 +87,7 @@
 .ac-mig-log .err { color: var(--danger); }
 
 @media (max-width: 760px) {
-  .ac-mig-ctl { grid-template-columns: 1fr; }
+  .ac-mig-ctl, .ac-xfer-ctl { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 760px) {

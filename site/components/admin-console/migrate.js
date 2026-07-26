@@ -191,6 +191,20 @@ async function readCatalog(source) {
     for (let s = 0; s < a.versionCount; s += PAGE)
       a.versions.push(...decodeStructArray(await call(source, encCallX(sel.getVersionsPage, [{ t: "bytes32", v: a.appId }, { t: "uint", v: s }, { t: "uint", v: PAGE }])), verSchema));
     if (rev < 4) for (const v of a.versions) v.config = "";
+    // Publisher fees live in a SIDE MAPPING (rev >= 5), invisible to
+    // getVersionsPage - read versionFee per version and ride it along as
+    // `fee6` (a non-schema key: tuple encodes and verCmp ignore it). Same
+    // story as the ledger's feeOf: skipping this would migrate a paid app's
+    // versions intact but silently zero its fee - every future deployment of
+    // it would stop paying the publisher.
+    if (rev >= 5) {
+      for (const batch of chunked(a.versions.map((v, i) => i), 10)) {
+        await Promise.all(batch.map(async (i) => {
+          const f = await call(source, encCallX(sel.versionFee, [{ t: "bytes32", v: a.appId }, { t: "uint", v: i }]));
+          a.versions[i].fee6 = hexBig((f && f !== "0x") ? f : "0x0").toString();
+        }));
+      }
+    } else for (const v of a.versions) v.fee6 = "0";
   }
   return apps;
 }
@@ -312,7 +326,11 @@ export const MIG_KINDS = {
   catalog: {
     label: "App catalog", contractName: "EnclaveAppCatalog", bookKey: "appCatalog",
     read: readCatalog,
-    counts: (d) => `${d.length} app${d.length === 1 ? "" : "s"}, ${d.reduce((n, a) => n + a.versions.length, 0)} versions`,
+    counts: (d) => {
+      const fees = d.reduce((n, a) => n + a.versions.filter((v) => (v.fee6 || "0") !== "0").length, 0);
+      return `${d.length} app${d.length === 1 ? "" : "s"}, ${d.reduce((n, a) => n + a.versions.length, 0)} versions`
+        + (fees ? ` (${fees} fee-bearing)` : "");
+    },
     plan(data, after) {
       const sel = CONTRACTS.EnclaveAppCatalog.sel;
       const have = Object.fromEntries(after.map((a) => [a.appId.toLowerCase(), a]));
@@ -324,11 +342,28 @@ export const MIG_KINDS = {
       }));
       for (const a of data) {
         // versions are append-only in publish order: the target holds a prefix
-        const done = have[a.appId.toLowerCase()] ? have[a.appId.toLowerCase()].versions.length : 0;
+        const tgt = have[a.appId.toLowerCase()];
+        const done = tgt ? tgt.versions.length : 0;
         for (const [i, c] of chunkBySize(a.versions.slice(done), VER_TX_BYTES, verSize).entries())
           txs.push({ label: `importVersions · ${a.slug} (${c.length}${done || i ? ", cont." : ""})`,
             gas: 100_000 + 300_000 * c.length,
             dataHex: encCallX(sel.importVersions, [{ t: "bytes32", v: a.appId }, { t: "tuple[]", schema: VER_SCHEMA, v: c }]) });
+        // per-version fee snapshots ride AFTER the app's version imports
+        // (importVersionFees bounds-checks the index against the target's
+        // version count; in-order packing preserves that). Delta like the
+        // ledger's fees: a fee is immutable at the source, so "target holds a
+        // nonzero fee at this index" means it's already carried.
+        const feeTodo = a.versions.map((v, i) => ({ i, fee6: v.fee6 || "0" }))
+          .filter((x) => x.fee6 !== "0" && (tgt && tgt.versions[x.i] ? (tgt.versions[x.i].fee6 || "0") === "0" : true));
+        txs.push(...chunked(feeTodo, CHUNK.fees).map((c, i) => ({
+          label: `importVersionFees · ${a.slug} (${c.length}${i ? ", cont." : ""})`,
+          gas: 100_000 + 45_000 * c.length,
+          dataHex: encCallX(sel.importVersionFees, [
+            { t: "bytes32", v: a.appId },
+            { t: "uint[]", v: c.map((x) => x.i) },
+            { t: "uint[]", v: c.map((x) => x.fee6) },
+          ]),
+        })));
       }
       return packPlan("EnclaveAppCatalog", txs);
     },
@@ -340,7 +375,9 @@ export const MIG_KINDS = {
         const t = byId[a.appId.toLowerCase()];
         if (!t || !appCmp(a, t)) { bad.push(a.slug); continue; }
         if (a.versions.length !== t.versions.length || !a.versions.every((v, i) => verCmp(v, t.versions[i])))
-          bad.push(a.slug + " (versions)");
+          { bad.push(a.slug + " (versions)"); continue; }
+        if (!a.versions.every((v, i) => (v.fee6 || "0") === (t.versions[i].fee6 || "0")))
+          bad.push(a.slug + " (fees)");
       }
       return { total: data.length, ok: data.length - bad.length, bad };
     },
