@@ -1292,7 +1292,11 @@ export async function handleMcp(req, res, _u) {
       docs: "https://enclave.host/develop" });
   }
   if (req.method !== "POST") { res.writeHead(405, { Allow: "POST, OPTIONS", ...MCP_CORS }); return res.end(); }
-  const ipKey = (req.socket?.remoteAddress || "") + "|" + (req.headers["x-forwarded-for"] || "").split(",")[0];
+  // last X-Forwarded-For entry, not the first: the proxy APPENDS its peer to
+  // whatever the client sent, so [0] is caller-controlled and every request
+  // could claim a fresh bucket. See clientIp in api-relay.js.
+  const xff = String(req.headers["x-forwarded-for"] || "").split(",").map((x) => x.trim()).filter(Boolean);
+  const ipKey = (req.socket?.remoteAddress || "") + "|" + (xff.length ? xff[xff.length - 1] : "");
   if (!allow(ipKey)) return send(res, 429, rpcError(null, -32000, "rate limited; retry shortly"));
   let body;
   try { body = JSON.parse((await readBody(req)).toString() || ""); }

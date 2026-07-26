@@ -113,6 +113,17 @@ export const Enclave = {
       return a;
     });
   },
+  // The relay's PER-ENCLAVE fleet table (root origin, like /availability; only
+  // the relay serves it - pointed at a single enclave this 404s). Sizing that
+  // names one box - the deploy console's target, a deployment's lease holder -
+  // reads its hardware from here, never from the aggregate.
+  getEnclaves(){
+    const url = (this.base || "").replace(/\/v1\/?$/, "") + "/enclaves";
+    return fetch(url, { headers: { "Accept": "application/json" } }).then(r => {
+      if (!r.ok) throw new EnclaveError("enclaves: HTTP " + r.status, r.status);
+      return r.json();
+    }).then(j => (j && j.enclaves) || []);
+  },
   /* Deployments. List/get are PUBLIC ledger reads: a session token gives the
      enclaves' live view (status/network), but a connected wallet alone is
      enough - the relay scopes by ?owner= (on-chain records are public data;

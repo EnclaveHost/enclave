@@ -142,6 +142,29 @@ export function rankEnclavesFor(v, rows){
           ...order(cand.filter((c) => !c.now)).map((c) => ({ ...c, queued: true }))];
 }
 
+// The box a deployment's shares are ALREADY judged against: the enclave
+// holding its lease. That runner applies an owner's version change / resize in
+// place and gates it on ITS OWN card and node (supervisor minSharesOf), so
+// once a lease exists the fleet-wide aggregate is the wrong ruler in both
+// directions - it is the SMALLEST box on every axis (over-asks: a version this
+// deployment can run reads as unaffordable), while the relay's best-box
+// /v1/pricing numbers under-ask on any smaller runner.
+// `d` is the ledger record (runner bytes32 + leaseUntil), `rows` the relay's
+// /enclaves table, whose row `id` IS that runner. Returns { row, name, spec }
+// or null when nothing is pinned - no live lease (the next claim may come from
+// any box, so the aggregate's over-ask is right again), an unknown runner, or
+// no fleet view at all.
+const ZERO_B32 = "0x" + "0".repeat(64);
+export function leaseHostOf(d, rows, nowMs){
+  const runner = String((d && d.runner) || "").toLowerCase();
+  if (!/^0x[0-9a-f]{64}$/.test(runner) || runner === ZERO_B32) return null;
+  if (!(Number(d.leaseUntil) * 1000 > (nowMs == null ? Date.now() : nowMs))) return null;
+  const row = (rows || []).find((e) => String((e && e.id) || "").toLowerCase() === runner);
+  if (!row || !row.availability) return null;
+  return { row, name: row.name || String(row.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "its enclave",
+           spec: enclaveSpecOf(row) };
+}
+
 export function pickEnclaveFor(v, rows){
   const claiming = (rows || []).filter((e) => e && e.availability
     && (e.availability.claimEnabled === true || (e.availability.claimEnabled == null && !e.tunnel)));
