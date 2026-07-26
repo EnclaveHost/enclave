@@ -53,7 +53,7 @@ remains as provenance, not as a trust root).
 
 | file | role |
 |---|---|
-| `build-image.mjs` | reproducible, **unprivileged** guest image build: pulls the digest-pinned OCI images straight from ghcr (no docker), a pinned Arch kernel package, busybox; emits `dist/` (kernel, initramfs, cmdline) + `dist/manifest.json` with every input digest and the expected SNP launch digest |
+| `build-image.mjs` | **unprivileged** guest image build, reproducible when both `--supervisor`/`--wasm` are pinned by `@sha256:` (the manifest records `reproducible`): pulls the OCI images straight from ghcr (no docker), a pinned Arch kernel package, busybox; emits `dist/` (kernel, initramfs, cmdline) + `dist/manifest.json` with every input digest and the expected SNP launch digest |
 | `oci-pull.mjs` | dockerless OCI puller (anon token, digest-verified blobs, whiteout-aware extraction) |
 | `guest/init` | PID 1 in the CVM: mounts, virtio + TSM modules, DHCP, per-boot secret minting, starts the three services, restarts them, reboots on wedge |
 | `guest/agent.mjs` | the metal-agent, the whole ingress side in-CVM: mints the in-CVM TLS key, gets the SNP report over configfs-tsm with `report_data[0:32] = sha256(TLS pubkey SPKI)`, serves the RAD, fronts the supervisor with TLS, and maintains the outbound fleet tunnel |

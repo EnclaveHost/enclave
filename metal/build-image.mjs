@@ -45,11 +45,17 @@ fs.mkdirSync(ROOT, { recursive: true });
 fs.mkdirSync(DIST, { recursive: true });
 
 // --- 1. pull the two images (digests captured for the manifest) --------------
+// The manifest is the record of WHAT WAS BUILT — the thing a third party
+// reproduces against. An unparseable digest line must stop the build, not be
+// written down as 'unknown'.
 function pull(ref, dest) {
   const r = execFileSyncCapture('node', [path.join(HERE, 'oci-pull.mjs'), ref, dest]);
   const line = r.trim().split('\n').pop().trim();
-  return /^sha256:[0-9a-f]{64}$/.test(line) ? line : 'unknown';
+  if (!/^sha256:[0-9a-f]{64}$/.test(line))
+    throw new Error(`oci-pull did not report a digest for ${ref} (got ${JSON.stringify(line.slice(0, 80))})`);
+  return line;
 }
+const isPinned = (ref) => /@sha256:[0-9a-f]{64}$/.test(ref);
 function execFileSyncCapture(cmd, args) {
   const r = spawnSync(cmd, args, { stdio: ['ignore', 'inherit', 'pipe'], maxBuffer: 1 << 28 });
   if (r.status !== 0) { process.stderr.write(r.stderr || ''); throw new Error(`${cmd} exited ${r.status}`); }
@@ -61,6 +67,15 @@ console.log('[build] pulling supervisor (guest root)…');
 const supDigest = pull(SUPERVISOR_REF, ROOT);
 console.log('[build] pulling wasm-manager (chroot)…');
 const wasmDigest = pull(WASM_REF, WASM_ROOT);
+// A tag was resolved, not pinned: say so once, loudly, and hand over the exact
+// command that IS reproducible. A measurement built from a moving tag must
+// never be curated into METAL_ALLOWED_MEASUREMENTS as if it were.
+for (const [what, ref, dgst] of [['supervisor', SUPERVISOR_REF, supDigest], ['wasm-manager', WASM_REF, wasmDigest]]) {
+  if (isPinned(ref)) continue;
+  const repo = ref.replace(/[@:][^/@:]+$/, '');
+  console.error(`[build] WARNING: ${what} was pulled by TAG (${ref}) — this build is NOT reproducible.`);
+  console.error(`[build]          for a reproducible build, rebuild with:  --${what === 'supervisor' ? 'supervisor' : 'wasm'} ${repo}@${dgst}`);
+}
 
 // --- 2. strip the GPU payload from the wasm chroot (CPU flavor) --------------
 console.log('[build] stripping GPU payload from wasm chroot…');
@@ -153,7 +168,16 @@ const cmdlineTemplate = 'console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet met
 const manifest = {
   builtWith: 'metal/build-image.mjs',
   flavor: 'cpu',
-  images: { supervisor: { ref: SUPERVISOR_REF, digest: supDigest }, wasmManager: { ref: WASM_REF, digest: wasmDigest } },
+  images: { supervisor: { ref: SUPERVISOR_REF, digest: supDigest, pinned: isPinned(SUPERVISOR_REF) },
+            wasmManager: { ref: WASM_REF, digest: wasmDigest, pinned: isPinned(WASM_REF) } },
+  // Whether THIS build is reproducible, stated rather than assumed. A tag ref
+  // resolves to whatever the registry serves today, so the same command a week
+  // later yields a different launch measurement — which is precisely the claim
+  // the Metal release allowlist rests on ("anyone can rebuild the release and
+  // reproduce each measurement", metal/PROTOCOL.md). Only a build whose every
+  // input is digest-pinned can carry that claim, so it is recorded per build
+  // instead of asserted in prose.
+  reproducible: isPinned(SUPERVISOR_REF) && isPinned(WASM_REF),
   kernel: { path: KERNEL, kver: KVER, sha256: kernelSha },
   modules: modList,
   cmdlineTemplate,
