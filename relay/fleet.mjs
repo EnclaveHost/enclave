@@ -240,9 +240,30 @@ export function createFleet(cfg, log = () => {}) {
     for (const ep of origins) if ((await endpointId(ep)) === runner) return ep;   // known + in-fleet
     return null;
   }
+  // Lease lookup for permissionless verifiers (dns-relay's operator-signed TXT
+  // push): the UNIQUE ledger row for an id prefix, reduced to what an auth
+  // check needs. null on unknown AND on ambiguous — a prefix that names two
+  // deployments authorizes neither. { fresh: true } busts the 10s row cache
+  // once: a just-claimed lease (claim tx seconds old) must not be denied by a
+  // stale read — callers use it only after a cached read fails, behind their
+  // own rate limiter.
+  async function leaseFor(idPrefix, { fresh = false } = {}) {
+    const h = String(idPrefix).toLowerCase();
+    if (!/^0x[0-9a-f]{8,64}$/.test(h)) return null;
+    if (!cfg.addressBook && !cfg.deploymentsAddress) return null;
+    if (fresh) _ledger.at = 0;
+    let rows;
+    try { rows = await ledgerRows(); } catch { return null; }
+    const hits = rows.filter((d) => String(d.id).toLowerCase().startsWith(h));
+    if (hits.length !== 1) return null;
+    const d = hits[0];
+    return { id: String(d.id).toLowerCase(),
+             runnerOperator: String(d.runnerOperator || "").toLowerCase(),
+             leaseLive: !ZERO32.test(String(d.runner)) && Number(d.leaseUntil) * 1000 > Date.now() };
+  }
 
   if (cfg.staticList.length) {
-    return { origins: () => origins, runnerEndpointFor,
+    return { origins: () => origins, runnerEndpointFor, leaseFor,
              async start() { log(`static fleet: ${origins.join(", ")}`); } };
   }
 
@@ -307,6 +328,7 @@ export function createFleet(cfg, log = () => {}) {
   return {
     origins: () => origins,
     runnerEndpointFor,
+    leaseFor,
     async start() {
       log(`on-chain fleet: ${cfg.addressBook ? "EnclaveAddressBook " + cfg.addressBook + " -> registry" : "EnclaveRegistry " + cfg.registryAddress}`
           + (cfg.operatorsUnrestricted ? " · UNAUTHENTICATED (TRUSTED_OPERATORS=*)" : ` · trusted operators: ${cfg.trustedOperators.length}`));

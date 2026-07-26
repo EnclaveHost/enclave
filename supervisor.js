@@ -3772,10 +3772,33 @@ async function acmeAccount(ca) {
 //   node -e 'console.log(require("node:crypto").createHmac("sha256",
 //     process.argv[1]).update("enclave dns-txt v1").digest("hex"))' "$SECRET"
 const DNS_TXT_KEY = SECRET ? createHmac("sha256", SECRET).update("enclave dns-txt v1").digest("hex") : "";
+// The on-ledger deployment a cert name belongs to (its label is the id's hex
+// prefix) — the operator-signed push (below) binds the challenge to its lease.
+function certNameDeployment(txtName) {
+  const host = String(txtName).replace(/^_acme-challenge\./, "");
+  for (const r of deployments.values())
+    if (/^0x[0-9a-f]{64}$/i.test(r.id || "") && appCertName(r.id) === host) return r.id.toLowerCase();
+  return null;
+}
+// TXT push auth rides two headers and the daemon takes whichever verifies:
+//  x-relay-sig     fleet HMAC (derived key) — first-party boxes, any name.
+//  x-operator-sig  EIP-191 signature by THIS box's operator key over the same
+//                  body — a SELLER box holds no fleet secret (its HMAC is
+//                  noise to the daemon), but it can PROVE it holds the
+//                  deployment's on-chain lease; the daemon checks the ledger's
+//                  runnerOperator. Per-deployment authority, no shared secret —
+//                  this is what lets a permissionless metal box mint real certs.
 async function dnsTxt(method, name, value) {
-  const body = JSON.stringify({ name, value, ttlSec: 300 });
-  const sig  = createHmac("sha256", DNS_TXT_KEY).update(body).digest("hex");
-  const r = await fetch(`${DNS_API}/v1/txt`, { method, headers: { "content-type": "application/json", "x-relay-sig": sig }, body });
+  const depId = certNameDeployment(name);
+  const body = JSON.stringify({ name, value, ttlSec: 300, ts: Math.floor(Date.now() / 1000),
+                                ...(depId ? { deploymentId: depId } : {}) });
+  const headers = { "content-type": "application/json" };
+  if (DNS_TXT_KEY) headers["x-relay-sig"] = createHmac("sha256", DNS_TXT_KEY).update(body).digest("hex");
+  if (depId && REGISTRY_PK) {
+    try { headers["x-operator-sig"] = await claimSigner().account.signMessage({ message: body }); }
+    catch (e) { console.warn(`[acme] operator co-sign failed (${e.message}); HMAC only`); }
+  }
+  const r = await fetch(`${DNS_API}/v1/txt`, { method, headers, body });
   if (!r.ok) throw new Error(`DNS_API ${method} ${name}: HTTP ${r.status}`);
 }
 // Poll an authz/order URL (POST-as-GET) until ok/bad/timeout, gentle backoff.

@@ -420,7 +420,7 @@ tcp.listen(DNS_PORT);
 
 // ---- challenge-push HTTP API --------------------------------------------------
 
-if (!TXT_KEY) console.error("[dns-relay] DNS_TXT_KEY unset — the challenge-push API will answer 503");
+if (!TXT_KEY) console.error("[dns-relay] DNS_TXT_KEY unset — fleet-HMAC pushes answer 503 (operator-signed pushes still verify on-chain)");
 
 // hex HMAC-SHA256 over the RAW body with the DERIVED DNS_TXT_KEY (NOT the raw
 // fleet SECRET — the enclave derives HMAC(SECRET,'enclave dns-txt v1')), constant-time
@@ -429,6 +429,46 @@ function checkSig(sig, raw) {
   const want = createHmac("sha256", TXT_KEY).update(raw).digest();
   const got = Buffer.from(sig, "hex");
   return got.length === want.length && timingSafeEqual(want, got);
+}
+
+// Permissionless auth (metal/PROTOCOL.md): a SELLER box holds no fleet secret,
+// so instead it signs the raw body (EIP-191) with its on-chain operator key and
+// the push authorizes exactly the subdomain of a deployment that operator
+// PROVABLY leases right now — verified against the EnclaveDeployments ledger,
+// never against another relay's word (a relay box must not be able to mint
+// certs). Strictly narrower than the fleet HMAC (which authorizes any name):
+// per-deployment authority, anchored on chain, replay-bounded by the mandatory
+// ts. Returns null when authorized, else a reason string.
+let _recover = null;
+async function operatorAuth(sig, raw, body, name) {
+  if (!/^0x[0-9a-fA-F]{130}$/.test(String(sig))) return "malformed x-operator-sig";
+  if (body?.ts == null) return "ts is required for operator-signed pushes";   // ±300s window enforced above
+  const depId = String(body.deploymentId || "").toLowerCase();
+  if (!/^0x[0-9a-f]{64}$/.test(depId)) return "deploymentId (bytes32) is required";
+  // name is _acme-challenge.<label>.<zone>; the label must be a single hex
+  // label that prefixes deploymentId — operator authority extends to the
+  // subdomains of deployments it leases, nothing else (no apex, no nesting)
+  const rest = name.slice("_acme-challenge.".length);
+  const zone = rest.endsWith("." + APP_ZONE) ? APP_ZONE
+             : (TCP_ZONE && rest.endsWith("." + TCP_ZONE) ? TCP_ZONE : null);
+  if (!zone) return "name is outside the app/tcp zones";
+  const label = rest.slice(0, -(zone.length + 1));
+  if (!/^[0-9a-f]{8,64}$/.test(label)) return "label is not a deployment id hex prefix";
+  if (!depId.slice(2).startsWith(label)) return "label is not a prefix of deploymentId";
+  if (!_recover) _recover = (await import("viem")).recoverMessageAddress;
+  let signer;
+  try { signer = (await _recover({ message: raw.toString("utf8"), signature: sig })).toLowerCase(); }
+  catch { return "signature does not recover"; }
+  const ok = (l) => !!(l && l.id === depId && l.leaseLive && l.runnerOperator === signer);
+  let lease = await fleet.leaseFor(depId);
+  // a just-claimed lease can be behind the 10s row cache — one fresh re-read
+  // before denying (the API rate limiter bounds how often this can be driven)
+  if (!ok(lease)) lease = await fleet.leaseFor(depId, { fresh: true });
+  if (!ok(lease)) return "signer does not hold the live lease for this deployment";
+  // the label must name ONLY this deployment: a prefix shared with another
+  // ledger row authorizes neither holder (leaseFor is null on ambiguity)
+  if (!(await fleet.leaseFor("0x" + label))) return "label does not uniquely name this deployment";
+  return null;
 }
 
 const api = http.createServer((req, res) => {
@@ -444,18 +484,16 @@ const api = http.createServer((req, res) => {
   if (u.pathname !== "/v1/txt" || (req.method !== "POST" && req.method !== "DELETE"))
     return json(404, { error: "not_found", routes: ["GET /health", "POST /v1/txt", "DELETE /v1/txt"] });
   if (!dnsRate(req.socket?.remoteAddress || "unknown")) return json(429, { error: "rate_limited" });   // fix 11
-  if (!TXT_KEY) return json(503, { error: "no_key", message: "DNS_TXT_KEY is not configured on this relay." });
 
   const chunks = []; let size = 0;
   req.on("data", (d) => { size += d.length; if (size > 65536) req.destroy(); else chunks.push(d); });
   req.on("error", () => {});
-  req.on("end", () => {
+  req.on("end", async () => {
     const raw = Buffer.concat(chunks);
-    if (!checkSig(req.headers["x-relay-sig"], raw)) return json(401, { error: "bad_signature" });
     let body; try { body = JSON.parse(raw.toString("utf8")); } catch { return json(400, { error: "bad_json" }); }
     // replay protection (fix 11): if the SIGNED payload carries a timestamp,
-    // reject stale/future pushes. Backward-compatible — pushes without `ts` are
-    // still accepted (the supervisor must add `ts` to the signed body to enable).
+    // reject stale/future pushes. Backward-compatible for the HMAC path —
+    // pushes without `ts` are still accepted; operator-signed pushes REQUIRE it.
     if (body && body.ts != null) {
       const ts = Number(body.ts);
       if (!Number.isFinite(ts) || Math.abs(Date.now() / 1000 - ts) > 300)
@@ -467,6 +505,20 @@ const api = http.createServer((req, res) => {
     if (!name.startsWith("_acme-challenge.") || !zoneOk || name.length > 253)
       return json(400, { error: "bad_name", message: "name must be _acme-challenge.<name> under the app or tcp zone" });
     if (!value || value.length > 1024) return json(400, { error: "bad_value" });
+
+    // auth: the fleet HMAC (any name), else an operator signature whose
+    // authority is the on-chain lease for THIS deployment's subdomain only
+    let authed = !!TXT_KEY && checkSig(req.headers["x-relay-sig"], raw);
+    if (!authed && typeof req.headers["x-operator-sig"] === "string") {
+      let why;
+      try { why = await operatorAuth(req.headers["x-operator-sig"], raw, body, name); }
+      catch (e) { console.error(`[dns-relay] operator auth error: ${e.message}`); why = "verification error"; }
+      if (why) return json(403, { error: "operator_auth_failed", message: why });
+      authed = true;
+      console.log(`[dns-relay] txt ${req.method} ${name} authorized by operator signature (lease ${String(body.deploymentId).slice(0, 10)}…)`);
+    }
+    if (!authed) return json(TXT_KEY ? 401 : 503, TXT_KEY ? { error: "bad_signature" }
+      : { error: "no_key", message: "DNS_TXT_KEY is not configured on this relay (and no operator signature was presented)." });
 
     if (req.method === "POST") {
       let ttl = TXT_TTL_S;   // body ttlSec can only SHORTEN the cap, never extend it
