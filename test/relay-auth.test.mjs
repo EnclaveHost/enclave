@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import net from "node:net";
 import { once } from "node:events";
 import { spawn } from "node:child_process";
+import { bootApiRelay } from "./helpers/daemon.mjs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import fs from "node:fs";
@@ -26,8 +27,10 @@ async function freePort() {
 }
 
 async function startRelay(t, { dataDir }) {
-  const port = await freePort();
-  const child = spawn(process.execPath, [path.join(RELAY_DIR, "api-relay.js")], {
+  // the relay must PROVE it won the port before /health means anything -
+  // see test/helpers/daemon.mjs
+  const { child, port } = await bootApiRelay((port) =>
+    spawn(process.execPath, [path.join(RELAY_DIR, "api-relay.js")], {
     env: { ...process.env,
       ENCLAVES: "http://127.0.0.1:1", API_RELAY_PORT: String(port), API_RELAY_BIND: "127.0.0.1",
       AUTH_DATA_DIR: dataDir,
@@ -37,14 +40,10 @@ async function startRelay(t, { dataDir }) {
       FEATURED_VIEWS_FILE: path.join(dataDir, "feat.json"),
     },
     stdio: ["ignore", "pipe", "pipe"],
-  });
+    }));
   t.after(() => child.kill("SIGKILL"));
   const origin = `http://127.0.0.1:${port}`;
-  for (let i = 0; i < 100; i++) {
-    try { const r = await fetch(origin + "/health"); if (r.ok) return { origin, child }; } catch {}
-    await delay(100);
-  }
-  throw new Error("relay never answered /health");
+  return { origin, child };
 }
 
 const api = async (origin, method, p, { body, token } = {}) => {

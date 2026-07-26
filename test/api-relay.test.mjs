@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import net from "node:net";
 import { once } from "node:events";
+import { bootDaemon, listenOnFreePort } from "./helpers/daemon.mjs";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -88,22 +89,23 @@ function stubRpc(ledger = LEDGER) {
   });
 }
 async function startRelay(t, { enclaves, ledger, env = {} }) {
-  const rpc = stubRpc(ledger); rpc.listen(0, "127.0.0.1"); await once(rpc, "listening");
-  const port = await freePort();
-  const child = spawn(process.execPath, [path.join(RELAY_DIR, "api-relay.js")], {
-    env: { ...process.env, ENCLAVES: enclaves, API_RELAY_PORT: String(port), API_RELAY_BIND: "127.0.0.1",
-           BASE_RPC: `http://127.0.0.1:${rpc.address().port}`, RPC_FALLBACKS: "0", DEPLOYMENTS_ADDRESS: "0x" + "12".repeat(20),
-           FEATURED_VIEWS_FILE: path.join(os.tmpdir(), `feat-views-${port}.json`), ...env },
-    stdio: ["ignore", "pipe", "pipe"],
+  const rpc = stubRpc(ledger); await listenOnFreePort(rpc);
+  // the relay must prove it won the port before /health means anything: every
+  // daemon here serves /health, so a stranger holding the port answers 200 just
+  // as happily. api-relay logs "[api-relay] :<port>" from inside its listen
+  // callback, which is reached only on a successful bind.
+  const { child, port } = await bootDaemon({
+    start: (port) => spawn(process.execPath, [path.join(RELAY_DIR, "api-relay.js")], {
+      env: { ...process.env, ENCLAVES: enclaves, API_RELAY_PORT: String(port), API_RELAY_BIND: "127.0.0.1",
+             BASE_RPC: `http://127.0.0.1:${rpc.address().port}`, RPC_FALLBACKS: "0", DEPLOYMENTS_ADDRESS: "0x" + "12".repeat(20),
+             FEATURED_VIEWS_FILE: path.join(os.tmpdir(), `feat-views-${port}.json`), ...env },
+      stdio: ["ignore", "pipe", "pipe"],
+    }),
+    claimed: (log, port) => log.includes(`[api-relay] :${port}`),
+    ready: async (port) => (await fetch(`http://127.0.0.1:${port}/health`)).ok,
   });
-  child.stderr.on("data", (d) => process.stderr.write("[relay] " + d));
   t.after(() => { child.kill("SIGKILL"); rpc.close(); });
-  const origin = `http://127.0.0.1:${port}`;
-  for (let i = 0; i < 100; i++) {                     // relay boots after its first polls
-    try { const r = await fetch(origin + "/health"); if (r.ok) return origin; } catch {}
-    await delay(100);
-  }
-  throw new Error("relay never answered /health");
+  return `http://127.0.0.1:${port}`;
 }
 const getJson = async (origin, p, tok) => {
   const r = await fetch(origin + p, { headers: tok ? { Authorization: "Bearer " + tok } : {} });
