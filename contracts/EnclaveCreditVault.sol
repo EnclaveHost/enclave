@@ -21,13 +21,19 @@ pragma solidity ^0.8.20;
 /// signature authorizes, the sender is irrelevant. Replay is stopped by a
 /// per-vault nonce inside the signed digest; staleness by a deadline.
 ///
-/// WebAuthn verification uses the spec's serialization guarantee: an
+/// WebAuthn verification uses the spec's serialization guarantee
+/// (CollectedClientData, Â§5.8.1.1: type, then challenge, then origin), so an
 /// authenticator's clientDataJSON begins exactly with
-///   {"type":"webauthn.get","challenge":"<base64url>"
-/// so the vault requires that literal prefix around the base64url-encoded
-/// operation digest, then verifies sha256(authenticatorData || sha256(
-/// clientDataJSON)) against the registered P-256 public key. The UP flag
+///   {"type":"webauthn.get","challenge":"<base64url>","origin":"<origin>"
+/// The vault requires that literal prefix - digest AND origin, the origin
+/// terminated by its closing quote - then verifies sha256(authenticatorData ||
+/// sha256(clientDataJSON)) against the registered P-256 public key. The UP flag
 /// (authenticatorData[32] & 0x01) must be set.
+///
+/// The origin is not decoration. rpId "enclave.host" means every tenant app at
+/// <label>.app.enclave.host may ask the same authenticator to sign, under a
+/// prompt that names the RP as "enclave.host" - so type+challenge alone would
+/// let a hostile app harvest a signature over ANY op digest, addKey included.
 ///
 /// Deviations from EnclavePay conventions are deliberate and load-bearing:
 /// no owner, no pause, no rescue - immutability IS the custody story.
@@ -48,6 +54,24 @@ contract EnclaveCreditVault {
     IAddressBook public immutable book;
     address public immutable treasury;      // company cold wallet (refund destination)
     address public immutable factory;
+
+    /* The ORIGIN a signing page must have been served from.
+       A passkey's rpId is "enclave.host", and WebAuthn lets ANY origin under
+       that registrable domain ask the authenticator to sign - which includes
+       every tenant app, since deployments are served at
+       <label>.app.enclave.host. A hostile app could therefore call
+       navigator.credentials.get() with a vault-op digest as the challenge, and
+       the OS prompt would name the RP as "enclave.host": indistinguishable from
+       a real one. One tap on OP_ADDKEY registers the attacker's own passkey
+       forever, so a single phish becomes permanent control of the vault.
+       Checking type+challenge is not enough to stop that; only the origin
+       distinguishes our page from a tenant's. The relay's own verifier has
+       always passed expectedOrigin - this one had no equivalent.
+       Two slots so an apex + www pair both work (slot 1 empty = unused); each
+       is the origin's bytes left-aligned in a word, which fits every real
+       origin ("https://enclave.host" is 20 bytes) and avoids parsing JSON. */
+    bytes32 private immutable origin0;  uint256 private immutable origin0Len;
+    bytes32 private immutable origin1;  uint256 private immutable origin1Len;
 
     // "deployments" as ascii-right-padded bytes32 (the address-book key)
     bytes32 private constant BOOK_KEY_DEPLOYMENTS =
@@ -85,16 +109,31 @@ contract EnclaveCreditVault {
 
     struct WebAuthnSig {
         bytes authenticatorData;   // >= 37 bytes, UP flag set
-        string clientDataJSON;     // must start {"type":"webauthn.get","challenge":"<b64url(digest)>"
+        string clientDataJSON;     // {"type":"webauthn.get","challenge":"<b64url(digest)>","origin":"<ours>"
         uint256 r;
         uint256 s;
         uint256 x;                 // public key - must hash to a registered key
         uint256 y;
     }
 
-    constructor(IERC20 _usdc, IAddressBook _book, address _treasury) {
+    constructor(IERC20 _usdc, IAddressBook _book, address _treasury,
+                string memory _origin0, string memory _origin1) {
         usdc = _usdc; book = _book; treasury = _treasury; factory = msg.sender;
+        // validate the locals: immutables cannot be READ during construction
+        (bytes32 w0, uint256 n0) = _packOrigin(_origin0);
+        require(n0 != 0, "origin required");           // never silently unchecked
+        (bytes32 w1, uint256 n1) = _packOrigin(_origin1);   // "" = unused
+        origin0 = w0; origin0Len = n0; origin1 = w1; origin1Len = n1;
         initialized = true;        // the implementation itself is never used directly
+    }
+
+    /// origin bytes, left-aligned in a word. Capped at 32 - long enough for any
+    /// real origin, and a cap beats a loop over storage on every verify.
+    function _packOrigin(string memory s) private pure returns (bytes32 w, uint256 n) {
+        bytes memory b = bytes(s);
+        n = b.length;
+        require(n <= 32, "origin too long");
+        for (uint256 i = 0; i < n; i++) w |= bytes32(b[i]) >> (i * 8);
     }
 
     function initialize(uint256 x, uint256 y) external {
@@ -226,14 +265,30 @@ contract EnclaveCreditVault {
         if (!keyActive[keccak256(abi.encode(sig.x, sig.y))]) return false;
         bytes memory auth = sig.authenticatorData;
         if (auth.length < 37 || (uint8(auth[32]) & 0x01) == 0) return false;   // UP flag
-        // WebAuthn's serialization guarantee: this exact prefix, then our digest
-        bytes memory expect = abi.encodePacked('{"type":"webauthn.get","challenge":"', _b64url(digest), '"');
+        // WebAuthn's serialization guarantee (CollectedClientData, §5.8.1.1):
+        // type, then challenge, then origin, in that order. The first two say
+        // this is an assertion over OUR digest; the third says it was our page
+        // that asked - see the origin0/origin1 note above for why a tenant
+        // subdomain can otherwise ask for the very same signature.
+        bytes memory head = abi.encodePacked('{"type":"webauthn.get","challenge":"', _b64url(digest), '","origin":"');
         bytes memory cdj = bytes(sig.clientDataJSON);
-        if (cdj.length < expect.length) return false;
-        for (uint256 i = 0; i < expect.length; i++) if (cdj[i] != expect[i]) return false;
+        if (!_originIs(cdj, head, origin0, origin0Len) &&
+            !(origin1Len != 0 && _originIs(cdj, head, origin1, origin1Len))) return false;
         bytes32 message = sha256(abi.encodePacked(auth, sha256(cdj)));
         (bool ok, bytes memory ret) = P256_VERIFY.staticcall(abi.encodePacked(message, sig.r, sig.s, sig.x, sig.y));
         return ok && ret.length == 32 && ret[31] == 0x01;
+    }
+
+    /// cdj starts with `head` followed by exactly this origin and its CLOSING
+    /// quote. The quote is the whole point: without it "https://enclave.host"
+    /// also matches "https://enclave.host.evil.example", which is a domain an
+    /// attacker can simply register.
+    function _originIs(bytes memory cdj, bytes memory head, bytes32 w, uint256 n) private pure returns (bool) {
+        uint256 h = head.length;
+        if (cdj.length < h + n + 1) return false;
+        for (uint256 i = 0; i < h; i++) if (cdj[i] != head[i]) return false;
+        for (uint256 i = 0; i < n; i++) if (cdj[h + i] != w[i]) return false;
+        return cdj[h + n] == '"';
     }
 
     function _b64url(bytes32 v) private pure returns (bytes memory out) {
@@ -256,8 +311,13 @@ contract EnclaveCreditVaultFactory {
     EnclaveCreditVault public immutable implementation;
     event VaultCreated(bytes32 indexed keyHash, address vault);
 
-    constructor(IERC20 usdc, IAddressBook book, address treasury) {
-        implementation = new EnclaveCreditVault(usdc, book, treasury);
+    /// origin0 is the site's canonical origin (e.g. "https://enclave.host");
+    /// origin1 is an optional second (a www pair), "" when unused. These bind
+    /// what a passkey assertion must have been signed from - see the note on
+    /// EnclaveCreditVault.origin0. A local rig passes its own origin.
+    constructor(IERC20 usdc, IAddressBook book, address treasury,
+                string memory origin0, string memory origin1) {
+        implementation = new EnclaveCreditVault(usdc, book, treasury, origin0, origin1);
     }
 
     function vaultFor(uint256 x, uint256 y) public view returns (address) {

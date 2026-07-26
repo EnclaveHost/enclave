@@ -26,7 +26,11 @@ const forgeArtifact = (name) => {
   return { abi: j.abi, bytecode: j.bytecode.object };
 };
 
-export async function setupChain(rpc) {
+// siteOrigin: the origin the harness serves the site from. The vault factory
+// PINS it into the implementation - every vault it mints requires a passkey
+// assertion signed on exactly that origin, which is what stops a tenant app at
+// <label>.app.enclave.host harvesting a signature for a vault op in production.
+export async function setupChain(rpc, siteOrigin) {
   const account = privateKeyToAccount(KEYS.deployer);
   const chain = { ...foundry, id: 8453 };
   const pub = createPublicClient({ chain, transport: http(rpc) });
@@ -87,11 +91,13 @@ export async function setupChain(rpc) {
   };
   await setKey("deployments", deployments);
   await setKey("registry", registry);
+  if (!siteOrigin) throw new Error("setupChain needs the site origin to pin into the vault factory");
   const factoryData = encodeDeployData({
     abi: [{ type: "constructor", stateMutability: "nonpayable", inputs: [
-      { type: "address" }, { type: "address" }, { type: "address" }] }],
+      { type: "address" }, { type: "address" }, { type: "address" },
+      { type: "string" }, { type: "string" }] }],
     bytecode: art("EnclaveCreditVaultFactory").bytecode,
-    args: [usdc, book, TREASURY],
+    args: [usdc, book, TREASURY, siteOrigin, ""],
   });
   const factoryHash = await wallet.sendTransaction({ data: factoryData });
   const vaultFactory = getAddress((await pub.waitForTransactionReceipt({ hash: factoryHash })).contractAddress);

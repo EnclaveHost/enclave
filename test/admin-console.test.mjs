@@ -159,14 +159,24 @@ test("creation tx data (bytecode + ctor args) encodes like viem encodeDeployData
   const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
   const REG = "0xCB65f487eba6564D57FfB860cF9aE701584cB4a2";
   const FEED = "0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70";
-  const dep = (name, args) => eq(
-    CONTRACTS[name].bytecode + args.map(encAddr).join(""),
-    encodeDeployData({ abi: ABI(name), bytecode: CONTRACTS[name].bytecode, args }));
+  // mirrors the console: it reads each argument's TYPE off the artifact's ctor
+  // and hands the shared codec a typed list, because the vault factory's pinned
+  // signing origins are strings - address-only concatenation cannot place a
+  // dynamic argument's head and body
+  const dep = (name, args) => {
+    const ctor = CONTRACTS[name].ctor || [];
+    const typed = args.map((v, i) => ({ t: ctor[i] && ctor[i].type === "string" ? "str" : "addr", v }));
+    eq(CONTRACTS[name].bytecode + encCall("", typed).slice(2),
+       encodeDeployData({ abi: ABI(name), bytecode: CONTRACTS[name].bytecode, args }));
+  };
   dep("EnclaveAddressBook", []);
   dep("EnclaveRegistry", []);
   dep("EnclaveAppCatalog", []);
   dep("EnclavePay", [USDC, A1]);
   dep("EnclaveDeployments", [USDC, A1, REG, FEED]);
+  // mixed static + dynamic: three addresses then two strings
+  dep("EnclaveCreditVaultFactory", [USDC, REG, A1, "https://enclave.host", ""]);
+  dep("EnclaveCreditVaultFactory", [USDC, REG, A1, "https://enclave.host", "https://www.enclave.host"]);
 });
 
 test("decodeBook round-trips a viem-encoded all() result (skipping retired keys)", () => {
@@ -349,7 +359,11 @@ test("artifacts stay in sync with contracts/*.sol (regenerate check)", () => {
     "EnclaveRegistry", "EnclaveReviews", "PaymentRouter"]);
   for (const [name, c] of Object.entries(CONTRACTS)) {
     assert.match(c.bytecode, /^0x[0-9a-f]{100,}$/i, name + " bytecode");
-    for (const a of c.ctor) assert.equal(a.type, "address", name + " ctor args are all addresses (the console's deploy encoder assumes this)");
+    // the console's deploy encoder handles exactly these; anything else needs
+    // a codec branch AND a validation branch before it can be deployed there
+    for (const a of c.ctor)
+      assert.ok(["address", "string"].includes(a.type),
+        `${name} ctor arg ${a.name} is ${a.type}; the console's deploy encoder handles address|string only`);
   }
   assert.deepEqual(
     Object.values(CONTRACTS).map((c) => c.bookKey).filter(Boolean).sort(),

@@ -59,7 +59,7 @@ export default async function globalSetup() {
   await waitHttp(RPC, { rpc: true }).catch(() => { throw new Error("anvil did not start (is Foundry installed?)"); });
 
   // 2) contracts + funding
-  const chain = await setupChain(RPC);
+  const chain = await setupChain(RPC, SITE);   // SITE is the origin vaults pin
 
   // 3) stub Stripe: a checkout-session create answers with a url that lands
   // the browser right back on the order's status page (simulating a

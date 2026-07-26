@@ -18,7 +18,7 @@
 import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { Enclave } from "../../js/core/api.js";
 import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
-import { baseRpc, waitReceipt, encCall, encAddr, hexBig, decodeStructArray, CAMPAIGN_SCHEMA, APP_SCHEMA } from "../../js/core/chain.js";
+import { baseRpc, waitReceipt, encCall, hexBig, decodeStructArray, CAMPAIGN_SCHEMA, APP_SCHEMA } from "../../js/core/chain.js";
 import { ADDRESS_BOOK_ADDRESS, USDC_BASE, DEFAULT_API_BASE } from "../../js/core/config.js";
 import { esc, on, short, showToast } from "../../js/core/util.js";
 import { CONTRACTS } from "../../js/gen/contract-artifacts.js";
@@ -354,7 +354,12 @@ class AdminConsole extends EnclaveElement {
         // host ratings take ONE ctor arg: the book (no fallback by design)
         EnclaveHostReviews: { book: S.book.addr },
         PaymentRouter: { usdc: USDC_BASE, treasury: payoutAddr },
-        EnclaveCreditVaultFactory: { usdc: USDC_BASE, book: S.book.addr, treasury: payoutAddr },
+        // origin0 prefills from THIS page's origin: the console is served from the
+        // canonical site origin, so it already knows the value every future vault
+        // gets pinned to. origin1 is the optional second slot (a www pair).
+        // Keep each entry on ONE line - test/admin-console.test.mjs parses this
+        // map by line to prove no constructor arg renders as an empty box.
+        EnclaveCreditVaultFactory: { usdc: USDC_BASE, book: S.book.addr, treasury: payoutAddr, origin0: location.origin, origin1: "" },
       };
       const notes = {
         EnclaveAddressBook: `<span class="warn">redeploying the book replaces the ONE address baked into every component</span> - that path needs the config/site/CLI rebake + a release + a dashboard update. Use <code>scripts/deploy-address-book.mjs</code> instead unless you know exactly why.`,
@@ -369,7 +374,7 @@ class AdminConsole extends EnclaveElement {
         const c = CONTRACTS[name];
         const p = pre[name] || {};
         const inputs = c.ctor.map((a) => `<label class="ac-ctor-l">${esc(a.name)} <span class="ac-hint">${esc(a.type)}</span>
-          <input class="ac-in ac-ctor" data-ctor="${esc(a.name)}" type="text" value="${esc(p[a.name] || "")}" placeholder="0x…" spellcheck="false" /></label>`).join("");
+          <input class="ac-in ac-ctor" data-ctor="${esc(a.name)}" data-ctor-type="${esc(a.type)}" type="text" value="${esc(p[a.name] || "")}" placeholder="${a.type === "string" ? esc(/^origin/.test(a.name) ? "https://enclave.host" : "") : "0x…"}" spellcheck="false" /></label>`).join("");
         return `<div class="ac-card" data-card="${esc(name)}">
           <h4>${esc(name)}<span class="ac-hint">${(c.bytecode.length / 2 - 1).toLocaleString()} bytes${c.bookKey ? ` · book key <code>${esc(c.bookKey)}</code>` : " · not a book entry"}</span></h4>
           ${notes[name] ? `<p class="ac-sub">${notes[name]}</p>` : ""}
@@ -616,10 +621,27 @@ class AdminConsole extends EnclaveElement {
           // EnclaveReviews' ledgerFallback when the BOOK is the source (baking
           // in today's ledger there only ages badly - EnclaveHostReviews drops
           // the arg entirely for the same reason)
+          const argType = inp.dataset.ctorType || "address";
+          if (argType === "string") {
+            // The vault factory's pinned signing origins. Getting one wrong is
+            // not a cosmetic error: it is baked into the implementation forever,
+            // and every vault the factory ever mints would reject every real
+            // assertion. origin1 is the optional second slot, so "" is allowed.
+            const optional = /1$/.test(argName);
+            if (!need(v !== "" || optional, `constructor arg "${argName}" is required`)) return;
+            if (v !== "") {
+              if (!need(/^https:\/\/[a-z0-9.-]+(:\d+)?$/i.test(v) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(v),
+                        `constructor arg "${argName}" must be an ORIGIN like https://enclave.host - scheme and host only, no path or trailing slash`)) return;
+              if (!need(new TextEncoder().encode(v).length <= 32,
+                        `constructor arg "${argName}" is longer than the 32 bytes the contract stores`)) return;
+            }
+            args.push({ t: "str", v });
+            continue;
+          }
           const zeroOk = (name === "EnclaveDeployments" && argName === "ethUsdFeed")
             || (/Reviews$/.test(name) && argName === "ledgerFallback");
           if (!need(ADDR_RE.test(v) && (zeroOk || !isZero(v)), `constructor arg "${argName}" needs a valid ${zeroOk ? "" : "non-zero "}address`)) return;
-          args.push(v);
+          args.push({ t: "addr", v });
         }
         const status = card.querySelector(".ac-status");
         const out = card.querySelector(".ac-deploy-out");
@@ -627,7 +649,10 @@ class AdminConsole extends EnclaveElement {
         try {
           await this._connect();
           this._status(status, "p", "deploying - confirm the creation transaction in your wallet…");
-          const data = c.bytecode + args.map(encAddr).join("");
+          // encCall with an empty selector is exactly the ABI-encoded argument
+          // tuple - static heads then dynamic bodies, which address-only
+          // concatenation could not express once strings joined the list
+          const data = c.bytecode + encCall("", args).slice(2);
           const hash = await sendTx(null, data);
           this._status(status, "p", "sent " + hash.slice(0, 14) + "… waiting for confirmation…");
           const rcpt = await waitReceipt(hash, 90);

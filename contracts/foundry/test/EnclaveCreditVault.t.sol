@@ -33,6 +33,7 @@ contract EnclaveCreditVaultTest is Test {
 
     uint256 constant PK1 = 0xA1CE;   // customer passkey scalar
     uint256 constant PK2 = 0xB0B2;   // second device
+    string constant ORIGIN = "https://enclave.host";   // the vault's pinned signing origin
 
     MockUSDC usdc;
     MockBook book;
@@ -48,7 +49,8 @@ contract EnclaveCreditVaultTest is Test {
         book = new MockBook();
         dep = new MockDeployments(IERC20(address(usdc)), address(0xFEE));
         book.set(BOOK_KEY_DEPLOYMENTS, address(dep));
-        factory = new EnclaveCreditVaultFactory(IERC20(address(usdc)), IAddressBook(address(book)), treasury);
+        factory = new EnclaveCreditVaultFactory(IERC20(address(usdc)), IAddressBook(address(book)), treasury,
+            ORIGIN, "");
         (x1, y1) = vm.publicKeyP256(PK1);
         vault = EnclaveCreditVault(factory.createVault(x1, y1));
         usdc.mint(address(vault), 100e6);   // $100 of credit
@@ -57,6 +59,14 @@ contract EnclaveCreditVaultTest is Test {
     // ---- helpers ----------------------------------------------------------------
 
     function _sig(uint256 pk, bytes32 digest) internal view returns (EnclaveCreditVault.WebAuthnSig memory w) {
+        return _sigFrom(pk, digest, ORIGIN);
+    }
+
+    /// same assertion, but claiming to be signed on `origin` - what a tenant app
+    /// at <label>.app.enclave.host can genuinely produce, since a passkey with
+    /// rpId "enclave.host" is reachable from every origin under it
+    function _sigFrom(uint256 pk, bytes32 digest, string memory origin)
+        internal view returns (EnclaveCreditVault.WebAuthnSig memory w) {
         bytes memory auth = abi.encodePacked(bytes32(uint256(0x1234)), bytes1(0x05), uint32(7)); // rpIdHash|UP+UV|counter
         // vm.toBase64URL pads with '='; WebAuthn challenges are UNPADDED - strip
         bytes memory b64 = bytes(vm.toBase64URL(abi.encodePacked(digest)));
@@ -65,7 +75,7 @@ contract EnclaveCreditVaultTest is Test {
         for (uint256 i = 0; i < len; i++) chal[i] = b64[i];
         string memory cdj = string(abi.encodePacked(
             '{"type":"webauthn.get","challenge":"', chal,
-            '","origin":"https://enclave.host","crossOrigin":false}'));
+            '","origin":"', origin, '","crossOrigin":false}'));
         bytes32 message = sha256(abi.encodePacked(auth, sha256(bytes(cdj))));
         (bytes32 r, bytes32 s) = vm.signP256(pk, message);
         (uint256 px, uint256 py) = vm.publicKeyP256(pk);
@@ -315,5 +325,92 @@ contract EnclaveCreditVaultTest is Test {
             block.chainid, vault.nonce(), id, uint256(amount), deadline));
         vault.fundDeployment(id, amount, deadline, _sig(PK1, digest));
         assertEq(dep.funded6(id), amount);
+    }
+
+    // ---- signing ORIGIN ---------------------------------------------------------
+    //
+    // A passkey with rpId "enclave.host" can be exercised by ANY origin under that
+    // registrable domain, and every tenant app is served at
+    // <label>.app.enclave.host. So a hostile app can genuinely call
+    // navigator.credentials.get() with a vault-op digest as the challenge, under a
+    // prompt naming the RP as "enclave.host". The signature it gets back is real:
+    // correct key, correct digest, UP set. Only the origin in clientDataJSON says
+    // it did not come from our page.
+    //
+    // addKey is why this is not merely a nuisance: one harvested assertion adds the
+    // attacker's own passkey permanently, and every later op needs no phish at all.
+
+    function test_tenantSubdomainOriginRejected_addKey() public {
+        (uint256 x2, uint256 y2) = vm.publicKeyP256(PK2);
+        uint256 deadline = block.timestamp + 300;
+        bytes32 dAdd = keccak256(abi.encode(keccak256("EnclaveVault.addKey.v1"), address(vault),
+            block.chainid, vault.nonce(), x2, y2, deadline));
+        // a real deployment subdomain - the exact origin a tenant app runs on.
+        // build the assertion FIRST: _sigFrom hits the sha256 precompile, and
+        // expectRevert binds to the next call it sees
+        EnclaveCreditVault.WebAuthnSig memory tenant = _sigFrom(PK1, dAdd, "https://a1b2c3d4.app.enclave.host");
+        vm.expectRevert("bad signature");
+        vault.addKey(x2, y2, deadline, tenant);
+        assertEq(vault.keyCount(), 1, "no key may be added from a tenant origin");
+
+        // and the same digest from OUR origin still works, so the op itself is fine
+        vault.addKey(x2, y2, deadline, _sigFrom(PK1, dAdd, ORIGIN));
+        assertEq(vault.keyCount(), 2);
+    }
+
+    function test_tenantSubdomainOriginRejected_spend() public {
+        bytes memory cc = _createCall();
+        uint256 deadline = block.timestamp + 300;
+        bytes32 d = _deployDigest(cc, 10e6, deadline);
+        EnclaveCreditVault.WebAuthnSig memory tenant = _sigFrom(PK1, d, "https://deadbeef.app.enclave.host");
+        vm.expectRevert("bad signature");
+        vault.deployAndFund(cc, 10e6, deadline, tenant);
+        assertEq(usdc.balanceOf(address(vault)), 100e6, "credit must not move");
+    }
+
+    function test_originMustEndWhereOursDoes() public {
+        bytes memory cc = _createCall();
+        uint256 deadline = block.timestamp + 300;
+        bytes32 d = _deployDigest(cc, 10e6, deadline);
+        // a domain anyone can register: our origin is a strict PREFIX of it, so a
+        // prefix compare without the closing-quote check would accept this
+        EnclaveCreditVault.WebAuthnSig memory suffixed = _sigFrom(PK1, d, "https://enclave.host.evil.example");
+        EnclaveCreditVault.WebAuthnSig memory cut      = _sigFrom(PK1, d, "https://enclave.hos");
+        EnclaveCreditVault.WebAuthnSig memory plain    = _sigFrom(PK1, d, "http://enclave.host");
+        vm.expectRevert("bad signature");
+        vault.deployAndFund(cc, 10e6, deadline, suffixed);
+        vm.expectRevert("bad signature");
+        vault.deployAndFund(cc, 10e6, deadline, cut);          // truncation
+        vm.expectRevert("bad signature");
+        vault.deployAndFund(cc, 10e6, deadline, plain);        // scheme matters too
+        assertEq(usdc.balanceOf(address(vault)), 100e6);
+    }
+
+    function test_secondOriginSlotAccepted_whenConfigured() public {
+        // a factory pinning apex + www accepts either, and nothing else
+        EnclaveCreditVaultFactory f2 = new EnclaveCreditVaultFactory(
+            IERC20(address(usdc)), IAddressBook(address(book)), treasury, ORIGIN, "https://www.enclave.host");
+        EnclaveCreditVault v2 = EnclaveCreditVault(f2.createVault(x1, y1));
+        usdc.mint(address(v2), 50e6);
+        uint256 deadline = block.timestamp + 300;
+
+        bytes32 d1 = keccak256(abi.encode(keccak256("EnclaveVault.refundToTreasury.v1"), address(v2),
+            block.chainid, v2.nonce(), uint256(1e6), deadline));
+        v2.refundToTreasury(1e6, deadline, _sigFrom(PK1, d1, "https://www.enclave.host"));
+
+        bytes32 d2 = keccak256(abi.encode(keccak256("EnclaveVault.refundToTreasury.v1"), address(v2),
+            block.chainid, v2.nonce(), uint256(1e6), deadline));
+        v2.refundToTreasury(1e6, deadline, _sigFrom(PK1, d2, ORIGIN));
+
+        bytes32 d3 = keccak256(abi.encode(keccak256("EnclaveVault.refundToTreasury.v1"), address(v2),
+            block.chainid, v2.nonce(), uint256(1e6), deadline));
+        EnclaveCreditVault.WebAuthnSig memory tenant = _sigFrom(PK1, d3, "https://x.app.enclave.host");
+        vm.expectRevert("bad signature");
+        v2.refundToTreasury(1e6, deadline, tenant);
+    }
+
+    function test_factoryRequiresAnOrigin() public {
+        vm.expectRevert("origin required");
+        new EnclaveCreditVaultFactory(IERC20(address(usdc)), IAddressBook(address(book)), treasury, "", "");
     }
 }
