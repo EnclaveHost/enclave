@@ -9,16 +9,23 @@
      - code-bearing payer (Safe, EIP-7702 delegation): USDC's
        signature checker rejects raw digests via ERC-1271, so
        approve(router) then pay() - two plain transactions
-   Every coordinate (token, router, amount, orderRef, EIP-712
-   domain) comes off the ORDER response (GET /billing/orders/:id
-   /usdc), never from baked constants - so a testnet or local
-   anvil order pays exactly the same way.
+   Token, router, amount and orderRef all come off the ORDER
+   response (GET /billing/orders/:id/usdc) rather than baked
+   constants, so a local anvil order pays exactly the same way.
+   The EIP-712 domain is the exception, and deliberately: the two
+   fields that decide WHERE a signature is redeemable
+   (verifyingContract, chainId) are pinned to the token being paid
+   and to BASE_CHAIN - which is where the transaction goes anyway,
+   since ensureBaseChain() below forces the wallet to Base or
+   throws. Letting a server choose those is how a payment
+   signature becomes valid somewhere it was never meant for.
 
    Selectors are literals, verified against the PaymentRouter /
    ERC-20 ABIs in test/pay.test.mjs (the chain.js convention:
    hand-computed selectors have burned us before).
    ============================================================ */
 import { Enclave, EnclaveError } from "./api.js";
+import { BASE_CHAIN } from "./config.js";
 import { encUint, encAddr, encBytes32, baseRpc, waitReceipt, hexBig } from "./chain.js";
 import { ensureBaseChain, sendTx } from "./wallet.js";
 import { payerHasCode } from "./fund.js";
@@ -84,6 +91,10 @@ export async function payOrderWithUsdc(pay, log){
   const nonce = await tokenNonce(usdc, Enclave.address);
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
   const dom = pay.usdcDomain || {};
+  // a /pricing that names another chain is a disagreement worth stopping on, not
+  // signing around silently (missing = fine, we pin BASE_CHAIN below)
+  if (dom.chainId != null && Number(dom.chainId) !== BASE_CHAIN)
+    throw new EnclaveError("the payment token's signing domain names a different chain - nothing was signed", 0);
   const typed = {
     types: {
       EIP712Domain: [
@@ -97,8 +108,13 @@ export async function payOrderWithUsdc(pay, log){
       ],
     },
     primaryType: "Permit",
+    // verifyingContract is pinned to the token being paid (not dom's copy), and
+    // chainId is pinned to the chain being used - the two fields that decide
+    // where this signature is redeemable are not the server's to pick. See the
+    // longer note in fund.js. A /pricing that disagrees is refused below rather
+    // than signed around.
     domain: { name: dom.name || "USD Coin", version: dom.version || "2",
-              chainId: dom.chainId || pay.chainId, verifyingContract: usdc },
+              chainId: BASE_CHAIN, verifyingContract: usdc },
     message: { owner: Enclave.address, spender: router,
                value: amt6.toString(), nonce: nonce.toString(), deadline: deadline.toString() },
   };

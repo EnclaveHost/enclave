@@ -124,6 +124,18 @@ export async function payForRuntime(pay, fundUsdc, asset, log){
   // sign against the TOKEN's own EIP-712 domain (enclave reads it from the chain;
   // fall back to Base-mainnet USDC's well-known fields if it hasn't yet)
   const dom = pay.usdcDomain || { name: "USD Coin", version: "2", chainId: BASE_CHAIN, verifyingContract: pay.usdc };
+  // …but the domain arrives from /pricing, and a domain is precisely what SCOPES
+  // a signature: verifyingContract and chainId decide which contract on which
+  // chain will accept it. Those two are ours to know, not a server's to choose,
+  // so pin them to the token actually being paid on the chain actually being
+  // used. Then a wrong or hostile /pricing can only produce a signature that is
+  // invalid HERE - never one that is valid somewhere we did not intend, which is
+  // the whole cross-domain reuse risk. name/version stay as given: with these two
+  // pinned, getting them wrong can only make the signature fail.
+  // (pay.js pins verifyingContract this way already; this copy did not.)
+  if (String(dom.verifyingContract || pay.usdc).toLowerCase() !== String(pay.usdc || "").toLowerCase()
+      || Number(dom.chainId != null ? dom.chainId : BASE_CHAIN) !== BASE_CHAIN)
+    throw new EnclaveError("the payment token's signing domain does not match the token being paid on this chain - nothing was signed", 0);
   const typed = {
     types: {
       EIP712Domain: [
