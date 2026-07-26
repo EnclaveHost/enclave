@@ -25,14 +25,19 @@
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "jose": "^5.9.6",
-    "solc": "^0.8.35",
     "viem": "^2.53.1",
-    "ws": "^8.18.0"
+    "ws": "^8.21.0"
   },
+  "//solc": "solc is a devDependency because the Dockerfile installs with --omit=dev and this image is MEASURED: every byte it carries is in the TCB and in the published measurement. Nothing inside the enclave imports solc - the only importers are scripts/deploy-*.mjs and scripts/build-contract-artifacts.mjs, which run on a release machine, and the Dockerfile copies no scripts/ at all. CI installs devDeps (plain `npm ci`) before it deploys contracts, and the relay ships its own manifest, so both keep working. Moving it also drops solc's `tmp` (GHSA-52f5-9888-hmc6) out of the production tree.",
   "devDependencies": {
     "@tailwindcss/cli": "^4.3.2",
     "esbuild": "^0.28.1",
+    "solc": "^0.8.35",
     "tailwindcss": "^4.3.2"
+  },
+  "//overrides": "viem pinned its own ws (8.20.1), which GHSA-96hv-2xvq-fx4p makes a memory-exhaustion DoS: a peer sending many tiny frames grows the reassembly buffer without bound. NOT reachable today - nothing here uses viem's webSocket() transport, only http() - so this collapses a dormant SECOND copy onto the version the tree already ran, rather than fixing a live hole. An override and not a viem bump because the fixed viem is a major range away, and swapping the library every consumer signs and reads chain state through is a far bigger change than deduping a transport viem is not using here. `$ws` means 'whatever the direct dependency says', so the two can never drift apart into the state that made this necessary.",
+  "overrides": {
+    "ws": "$ws"
   },
   "allowScripts": {
     "esbuild@0.28.1": true
