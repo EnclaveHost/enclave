@@ -13,18 +13,31 @@ export class EnclaveError extends Error {
 }
 
 export const Enclave = {
+  /* The endpoint every call goes to. It persists in localStorage because the
+     Deploy page exposes the field (point the site at your own relay, or at
+     localhost). That persistence is also why a SESSION IS BOUND TO THE BASE
+     THAT ISSUED IT, below: a stored base survives reloads, so anything that
+     once managed to write localStorage for this origin would otherwise keep
+     receiving the user's bearer token forever — long after the way in was
+     closed. A token is scoped to its issuer anyway (each enclave signs with
+     its own in-enclave key; the relay with its own), so refusing to send it
+     elsewhere costs nothing and is simply the truth about what it means. */
   base: (lsGet("enclave_api_base") || DEFAULT_API_BASE).replace(/\/+$/, ""),
-  token: null, address: null, chainId: null, provider: null, walletRdns: null,
+  token: null, tokenBase: null, address: null, chainId: null, provider: null, walletRdns: null,
   /* relay ACCOUNT session (passkey or SIWE; account.js owns the lifecycle).
      A separate trust domain from `token` (the enclave-minted session for
      deployment-private reads): account tokens gate billing/orders only, and
      the two are never interchangeable. */
-  accountToken: null, accountId: null, accountMethod: null,
+  accountToken: null, accountTokenBase: null, accountId: null, accountMethod: null,
   setBase(u){ this.base = String(u || "").trim().replace(/\/+$/, "") || DEFAULT_API_BASE; lsSet("enclave_api_base", this.base); },
+  /* Is `tok`, minted against `mintedAt`, allowed to travel to the current
+     base? Sessions minted before this binding existed carry no base and are
+     honored only at the default endpoint. */
+  _sendable(mintedAt){ return (mintedAt || DEFAULT_API_BASE).replace(/\/+$/, "") === this.base; },
   authed(){ return !!this.token; },
   accountAuthed(){ return !!this.accountToken; },
   clearAccountSession(){
-    this.accountToken = null; this.accountId = null; this.accountMethod = null;
+    this.accountToken = null; this.accountTokenBase = null; this.accountId = null; this.accountMethod = null;
     lsSet("enclave_account", "");
     emit("enclave:account", { authed: false });
   },
@@ -40,15 +53,21 @@ export const Enclave = {
     const headers = { "Accept": "application/json" };
     const hasBody = opts.body !== undefined;
     if (hasBody) headers["Content-Type"] = "application/json";
+    // A session travels ONLY to the endpoint that minted it (see `base`).
+    const wrongBase = (what) => new EnclaveError(
+      `This ${what} was issued by a different endpoint than the one now configured (${this.base}), so it was not sent. `
+      + "Point the endpoint back, or sign in again against this one.", 401);
     if (opts.auth){
       if (!this.token) throw new EnclaveError("Not signed in. Connect your wallet first.", 401);
+      if (!this._sendable(this.tokenBase)) throw wrongBase("session");
       headers["Authorization"] = "Bearer " + this.token;
     }
     if (opts.accountAuth){
       if (!this.accountToken) throw new EnclaveError("Sign in first.", 401);
+      if (!this._sendable(this.accountTokenBase)) throw wrongBase("account session");
       headers["Authorization"] = "Bearer " + this.accountToken;
     }
-    if (opts.accountAuthOptional && this.accountToken)
+    if (opts.accountAuthOptional && this.accountToken && this._sendable(this.accountTokenBase))
       headers["Authorization"] = "Bearer " + this.accountToken;
     let res;
     try {

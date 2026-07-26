@@ -14,12 +14,21 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# DEPENDENCIES: `npm ci` against a SHIPPED package-lock.json, never `npm install`
+# against package.json alone. Every dependency here is a caret range, so
+# resolving them on the box means whatever the registry serves that morning —
+# on the host that holds the Stripe webhook secret, the accounts store, the
+# vault relayer key and the payment indexer. The Dockerfile and cli/install.sh
+# both already say this in their own words; this path was the one that drifted.
+# A registry failure aborts before any restart (set -e, && chaining): the
+# running processes keep serving from their already-loaded module graph, and
+# the next deploy repairs the tree.
 echo "== nan-relay: tcp (SNI) + tcp6 (dedicated-IP) + udp + egress relays"
 # net-guard.mjs is a symlink to ../net-guard.mjs (the canonical SSRF classifier
 # shared with the enclave's egress.js); scp follows it and ships the content.
 # fleet.mjs is the shared fleet discovery (REGISTRY_ADDRESS / ENCLAVES) the
 # tcp6/udp/egress relays use to follow an arbitrary, changing set of enclaves.
-scp relay.js tcp6-relay.js udp-relay.js egress-relay.js dns-relay.js fleet.mjs net-guard.mjs package.json nan-relay:/opt/nan-relay/
+scp relay.js tcp6-relay.js udp-relay.js egress-relay.js dns-relay.js fleet.mjs net-guard.mjs package.json package-lock.json nan-relay:/opt/nan-relay/
 scp systemd/enclave-tcp-relay.service systemd/enclave-tcp6-relay.service systemd/enclave-udp-relay.service systemd/enclave-egress-relay.service systemd/enclave-dns.service nan-relay:/etc/systemd/system/
 # The egress relay only runs once /etc/nan-relay/egress-relay.env exists
 # (REGISTRY_ADDRESS or ENCLAVES + EGRESS_RELAY_TOKEN + EGRESS_PREFIX=<same
@@ -30,7 +39,7 @@ scp systemd/enclave-tcp-relay.service systemd/enclave-tcp6-relay.service systemd
 ssh nan-relay 'for u in nan-tcp-relay nan-tcp6-relay nan-udp-relay nan-egress-relay; do \
     if [ -f /etc/systemd/system/$u.service ]; then \
       systemctl disable --now $u || true; rm /etc/systemd/system/$u.service; fi; done \
-  && cd /opt/nan-relay && npm install --omit=dev --no-audit --no-fund \
+  && cd /opt/nan-relay && npm ci --omit=dev --no-audit --no-fund \
   && systemctl daemon-reload \
   && systemctl enable enclave-tcp-relay enclave-tcp6-relay enclave-udp-relay \
   && systemctl restart enclave-tcp-relay enclave-tcp6-relay enclave-udp-relay \
@@ -56,13 +65,13 @@ echo "== api relay (site box)"
 # too. ALL of them MUST ship alongside or the service crash-loops with ERR_MODULE_NOT_FOUND.
 # auth/billing modules (account sessions, orders, Stripe webhook, PaymentRouter
 # indexer, OFAC screen, provisioner) ship alongside; they self-disable without
-# StateDirectory/env, so shipping them is always safe. npm install below pulls
-# their deps (@simplewebauthn/server, jose) from the updated package.json.
-scp api-relay.js mcp.js auth.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js store.js fleet.mjs net-guard.mjs tunnel.js snp-verify.mjs package.json nan:/opt/nan-relay/
+# StateDirectory/env, so shipping them is always safe. npm ci below installs
+# their deps (@simplewebauthn/server, jose) from the SHIPPED lockfile.
+scp api-relay.js mcp.js auth.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js store.js fleet.mjs net-guard.mjs tunnel.js snp-verify.mjs package.json package-lock.json nan:/opt/nan-relay/
 scp systemd/enclave-api-relay.service nan:/etc/systemd/system/
 ssh nan 'if [ -f /etc/systemd/system/nan-api-relay.service ]; then \
     systemctl disable --now nan-api-relay || true; rm /etc/systemd/system/nan-api-relay.service; fi \
-  && cd /opt/nan-relay && npm install --omit=dev --no-audit --no-fund \
+  && cd /opt/nan-relay && npm ci --omit=dev --no-audit --no-fund \
   && systemctl daemon-reload \
   && systemctl enable enclave-api-relay \
   && systemctl restart enclave-api-relay \
