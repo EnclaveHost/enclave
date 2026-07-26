@@ -337,7 +337,7 @@ class Deployments extends EnclaveElement {
     $$(".enc-segs button", this).forEach(b => { const n = b.querySelector("b"); if (n) n.textContent = String(counts[b.dataset.bucket] || 0); });
     let shown = this._filter === "all" ? list.slice() : list.filter(d => bucketOf(d.status) === this._filter);
     if (this._q) shown = shown.filter(d =>
-      (d.id + " " + ((d.image && d.image.reference) || "") + " " + (d.status || "")).toLowerCase().includes(this._q));
+      (d.id + " " + ((d.image && d.image.reference) || "") + " " + (d.status || "") + " " + (d.enclave || "")).toLowerCase().includes(this._q));
     const pager = this.querySelector(".enc-pager");
     const clearPager = () => { if (pager){ pager.hidden = true; pager.innerHTML = ""; } };
     if (!list.length){ body.innerHTML = '<div class="enc-empty">No apps yet. <a href="apps">Deploy one →</a></div>'; clearPager(); return; }
@@ -397,7 +397,10 @@ class Deployments extends EnclaveElement {
           '<span class="ap-badge info ep-waf" data-wafb="' + esc(d.id) + '" hidden>protected</span>' +
           '<button class="enc-id" data-copy="' + esc(d.id) + '">' + esc(d.id) + ' ⧉</button>' +
           '<span class="enc-br" aria-hidden="true"></span>' +
-          '<span class="enc-meta">' + esc(encTier(d)) + (appLbl ? ' · <span class="dim">' + esc(appLbl) + '</span>' : '') + '</span>' +
+          '<span class="enc-meta">' + esc(encTier(d)) + (appLbl ? ' · <span class="dim">' + esc(appLbl) + '</span>' : '')
+            // which box serves it (relay stamps `enclave` on live-hosted and
+            // lease-held rows alike; absent while queued/stopped - nothing runs it)
+            + (d.enclave ? ' · <span class="dim enc-host" title="the enclave this app runs on">on ' + esc(d.enclave) + '</span>' : '') + '</span>' +
           '<span class="enc-spend">' + bud + '</span>' +
           '<span class="enc-acts">' +
             '<button class="btn btn-sm enc-outbtn" data-id="' + esc(d.id) + '" aria-expanded="false">Output</button>' +
