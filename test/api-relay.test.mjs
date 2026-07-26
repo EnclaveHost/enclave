@@ -15,6 +15,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import os from "node:os";
+import fs from "node:fs";
 
 const RELAY_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "relay");
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -406,4 +407,40 @@ test("api-relay: an ambiguous id prefix resolves to nobody, not to whoever answe
   const host = (label) => fetch(origin + "/", { headers: { "x-forwarded-host": `${label}.app.enclave.host` } });
   assert.equal((await host("abcdef01")).status, 404, "the contested subdomain serves nobody");
   assert.equal((await host("0fedcba9")).status, 200, "the uncontested one serves its app");
+});
+
+// ---------- X-Forwarded-For: which entry is the rate-limit key -----------------
+
+test("api-relay: rate limits key on the PROXY-APPENDED address, not the caller's claim", async (t) => {
+  // X-Forwarded-For is a client-writable header that the proxy APPENDS its peer
+  // to, so a request sent as `X-Forwarded-For: 1.2.3.4` arrives as
+  // `1.2.3.4, <real client>`. Keying on the FIRST entry let anyone mint a fresh
+  // bucket per request by varying a header - and this key guards the ACME
+  // on-demand-TLS miss limiter (burning the CA's rate limit takes every app
+  // hostname down), the passkey/SIWE attempt limits, and the paid featured-view
+  // dedupe.
+  //
+  // /v1/secrets/exists is the probe: relay-owned (so it answers with a dead
+  // fleet, unlike /v1/claim-hint, which sits behind the no_capacity guard),
+  // unauthenticated, and keyed per IP at capacity 120.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "xff-"));
+  const origin = await startRelay(t, { enclaves: "http://127.0.0.1:1",
+    env: { SECRETS_KEY: "11".repeat(32), AUTH_DATA_DIR: dir } });
+  const probe = (xff) => fetch(origin + "/v1/secrets/exists", {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(xff ? { "x-forwarded-for": xff } : {}) },
+    body: JSON.stringify({ id: "0x" + "11".repeat(32) }) }).then((r) => r.status);
+
+  assert.equal(await probe(), 200, "secrets must be enabled for this probe to mean anything");
+
+  // 200 requests each CLAIMING a different origin, all arriving from one real
+  // client (the last entry). Keyed on the first entry these are 200 fresh
+  // buckets and none is limited; keyed on the last they share one.
+  const spoofed = await Promise.all(Array.from({ length: 200 }, (_, i) => probe(`10.9.8.${i % 250}, 203.0.113.9`)));
+  const limited = spoofed.filter((s) => s === 429).length;
+  assert.ok(limited > 0,
+    `200 requests from one real client were all allowed - the spoofable first X-Forwarded-For entry is still the key`);
+
+  // and a genuinely different client is not punished for that burst
+  assert.equal(await probe("10.9.8.1, 198.51.100.7"), 200, "a different real client must get its own bucket");
 });

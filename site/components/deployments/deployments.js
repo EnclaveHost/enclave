@@ -24,7 +24,7 @@ import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, 
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
-import { shareRates, minPctsOf, adoptServerSpec } from "../../js/core/pricing.js";
+import { shareRates, minPctsOf, adoptServerSpec, leaseHostOf } from "../../js/core/pricing.js";
 
 // The app's reachable URL. Through the gateway each deployment gets its OWN
 // origin: a per-deployment subdomain (<id>.app.enclave.host, the base36 part of
@@ -708,14 +708,19 @@ class Deployments extends EnclaveElement {
     box.hidden = false;
     box.innerHTML = '<div class="ap-attbar">change version · ' + esc(id) + '</div>'
       + '<div class="term enc-upg-status" role="status" aria-live="polite"><span class="ln dimln">// reading the ledger + catalog…</span></div>';
-    let d = null, rev = 1, avail = null;
+    let d = null, rev = 1, avail = null, fleet = null;
     try {
       [rev, d] = await Promise.all([depSchemaRev(), depGet(id)]);
       await loadCatalog();
       // adopt the fleet's live hardware for the minimum-share floors (the
       // deploy dials' rule: a stale spec must over-ask, never under-sell an
-      // unclaimable switch); the pre-fetch fallback constants already over-ask
-      try { avail = await Enclave.getAvailability(); adoptServerSpec(avail); } catch(e){}
+      // unclaimable switch); the pre-fetch fallback constants already over-ask.
+      // The per-enclave table rides along: a leased deployment is sized on the
+      // box that HOLDS the lease, not on the aggregate (see hw below).
+      [avail, fleet] = await Promise.all([
+        Enclave.getAvailability().then(a => { adoptServerSpec(a); return a; }).catch(() => null),
+        Enclave.getEnclaves().catch(() => null),
+      ]);
     } catch(e){ d = null; }
     if (box.hidden || !box.isConnected) return;             // closed while loading
     const fail = (msg) => { box.querySelector(".enc-upg-status").innerHTML = ""; paintLine(box.querySelector(".enc-upg-status"), "warn", msg); };
@@ -750,12 +755,19 @@ class Deployments extends EnclaveElement {
       try { [prices, maxGpu] = await Promise.all([depPrices6(), depMaxGpuMilli()]); }
       catch(e){ resizable = false; }
     }
-    // every approved, un-yanked version, newest first; the current one and the
-    // ones the shares (or the immutable fee snapshot) can't cover render
-    // disabled - unless a resize can cover the share side
+    // WHOSE HARDWARE the floors divide by. A live lease pins it: the enclave
+    // holding it restarts the app in place and checks the new version against
+    // its OWN card and node, so that box - not the fleet - decides what this
+    // deployment can switch to. The adopted aggregate is deliberately the
+    // SMALLEST box on every axis (right for a deploy that could land anywhere,
+    // wrong here): it told a 1%-CPU row leased by a 64 GB box that its app
+    // needs 17%, the same 512 MB measured against a 3 GB node, and disabled
+    // every newer version behind a resize it doesn't need. Unleased rows keep
+    // the aggregate - any box may claim them next, so over-asking is right.
+    const hw = leaseHostOf(d, fleet);          // null = size on the aggregate
     const bought = { gpuMilli: Number(d.gpuMilli) || 0, cpuMilli: Number(d.cpuMilli) || 0 };
     const rows = app.versions
-      .map((v, i) => ({ v, i, mins: minPctsOf(specOf(v)) }))
+      .map((v, i) => ({ v, i, mins: minPctsOf(specOf(v), hw && hw.spec) }))
       .filter(r => !r.v.yanked && r.v.approval === APPROVAL.approved)
       .map(r => ({ ...r,
         shareFit: r.mins.gpuPct * 10 <= bought.gpuMilli && r.mins.cpuPct * 10 <= bought.cpuMilli,
@@ -774,7 +786,8 @@ class Deployments extends EnclaveElement {
       +     rows.map(r => '<option value="' + r.i + '"' + (((r.i === cr.index && !resizable) || !r.fits) ? " disabled" : "") + (pick && r.i === pick.i ? " selected" : (!pick && r.i === cr.index ? " selected" : "")) + '>'
       +       esc(app.slug + ":" + r.v.version)
       +       (r.i === cr.index ? " · current" : "")
-      +       (!r.shareFit && r.i !== cr.index ? " · needs ≥ " + (r.mins.gpuPct ? r.mins.gpuPct + "% GPU / " : "") + r.mins.cpuPct + "% CPU" : "")
+      +       (!r.shareFit && r.i !== cr.index ? " · needs ≥ " + (r.mins.gpuPct ? r.mins.gpuPct + "% GPU / " : "") + r.mins.cpuPct + "% CPU"
+                                                 + (hw ? " on " + hw.name : "") : "")
       +       (r.shareFit && !r.feeFit && r.i !== cr.index ? " · charges $" + (Number(verFees[r.i]) * 3600 / 1e6).toFixed(2) + "/hr publisher fee (above this deployment’s snapshot)" : "")
       +     '</option>').join("")
       +   '</select>'

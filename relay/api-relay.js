@@ -164,7 +164,22 @@ const TRUSTED_PROXY = !/^(0|false|off|no|none)$/i.test((process.env.TRUSTED_PROX
 const routingHost = (req) =>
   (TRUSTED_PROXY && req.headers["x-forwarded-host"]) || req.headers.host;
 const clientIp = (req) => {
-  if (TRUSTED_PROXY) { const xff = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim(); if (xff) return xff; }
+  if (TRUSTED_PROXY) {
+    // The LAST entry, not the first. X-Forwarded-For is a client-writable
+    // header that the proxy APPENDS its peer address to (Caddy's default), so a
+    // request arriving as `X-Forwarded-For: 1.2.3.4` reaches us as
+    // `1.2.3.4, <real client>` - the first entry is whatever the sender typed.
+    // Keying rate limits on it let anyone mint a fresh bucket per request by
+    // varying a header, which is not a small thing here: this key guards the
+    // ACME on-demand-TLS miss limiter (burning the CA's rate limit is a
+    // platform-wide outage), the passkey/SIWE attempt limits, and the paid
+    // featured-view dedupe. Taking the last entry is correct whether the proxy
+    // appends or replaces; it assumes exactly ONE trusted hop, which is this
+    // deployment (Caddy in front). Directly internet-exposed => TRUSTED_PROXY=0,
+    // and then the socket address below is the only thing anyone can trust.
+    const xs = String(req.headers["x-forwarded-for"] || "").split(",").map((x) => x.trim()).filter(Boolean);
+    if (xs.length) return xs[xs.length - 1];
+  }
   return req.socket?.remoteAddress || "unknown";
 };
 
