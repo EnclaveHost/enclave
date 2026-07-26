@@ -193,7 +193,13 @@ def svg_error(b: bytes):
                     return "SVG references must be internal (#id) or embedded raster data: URIs"
             if lname == "attributename" and sval in ("href", "xlink:href"):
                 return "SVG must not animate href attributes"
-            if lname == "style":
+            # url() is not only a CSS thing: fill/stroke/filter/mask/clip-path/
+            # marker-* take a funciri too, and `fill="url(https://evil/x)"` is an
+            # external reference this validator is supposed to refuse - it would
+            # beacon the viewer's IP on a direct /ipfs/<cid> navigation, where the
+            # sandbox CSP stops script but not subresource loads. Internal
+            # url(#id) - the common gradient/filter case - stays fine.
+            if lname == "style" or "url(" in sval:
                 err = _svg_css_error(val)
                 if err:
                     return err

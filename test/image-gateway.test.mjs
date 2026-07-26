@@ -70,7 +70,8 @@ test("a clean SVG pins: cid + svg:true, .svg filename to Kubo", async () => {
   const r = await post(Buffer.from(
     `<?xml version="1.0"?><svg ${NS} viewBox="0 0 10 10"><defs><linearGradient id="g"/>` +
     `<path id="p" d="M0 0h10v10z"/></defs><style>.a{fill:url(#g)}</style>` +
-    `<use href="#p" class="a"/><image href="data:image/png;base64,iVBOR"/></svg>`));
+    `<use href="#p" class="a"/><rect fill="url(#g)" filter="url( #f )"/>` +
+    `<image href="data:image/png;base64,iVBOR"/></svg>`));
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.equal(r.body.svg, true);
   assert.equal(added.at(-1).filename, "image.svg");
@@ -91,6 +92,14 @@ test("the SVG reject matrix: script-capable and externally-referencing construct
     ["foreign namespace",     `<svg ${NS}><g xmlns="http://www.w3.org/1999/xhtml"><div>x</div></g></svg>`],
     ["style url(external)",   `<svg ${NS}><style>.a{background:url(http://e/x)}</style></svg>`],
     ["style attr external",   `<svg ${NS}><rect style="fill:url('https://e/x')"/></svg>`],
+    // funciri lives in presentation ATTRIBUTES too, not only in CSS: fill,
+    // stroke, filter, mask, clip-path, marker-*. An external one beacons the
+    // viewer's IP on a direct /ipfs/<cid> navigation, where the sandbox CSP
+    // stops script but not subresource loads.
+    ["fill attr external",    `<svg ${NS}><rect fill="url(https://e/x)"/></svg>`],
+    ["filter attr external",  `<svg ${NS}><rect filter="url(//e/x#f)"/></svg>`],
+    ["mask attr external",    `<svg ${NS}><rect mask="url( 'http://e/m' )"/></svg>`],
+    ["clip-path external",    `<svg ${NS}><rect clip-path="url(data:image/svg+xml,x)"/></svg>`],
     ["style @import",         `<svg ${NS}><style>@import "http://e/x.css";</style></svg>`],
     ["animated href",         `<svg ${NS}><a href="#x"><animate attributeName="href" values="javascript:alert(1)"/></a></svg>`],
     ["animated xlink:href",   `<svg ${NS}><animate attributeName="xlink:href" to="#z"/></svg>`],
