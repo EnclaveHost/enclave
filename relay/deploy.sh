@@ -57,6 +57,24 @@ ssh nan-relay 'for u in nan-tcp-relay nan-tcp6-relay nan-udp-relay nan-egress-re
        && systemctl is-active enclave-dns; \
      else echo "enclave-dns: no /etc/nan-relay/dns.env yet — skipped (authoritative DNS for app./ip. zones)"; fi'
 
+# --- secret-bearing env files: check, never touch ---------------------------
+# /etc/nan-relay/*.env hold real secrets — PROVISIONER_PRIVATE_KEY is a funded
+# Base key that moves USDC, alongside STRIPE_SECRET_KEY, SECRETS_KEY and
+# UPLOAD_KEY. systemd reads them as root before dropping to the DynamicUser, so
+# nothing needs them group- or world-readable. Nothing in this repo has ever
+# checked, and a key you cannot rule out as leaked is a key you have to rotate.
+# Reported, not modified: this script promises not to touch host env state, and
+# a loud line the operator acts on beats a silent chmod they never see.
+check_env_perms() {
+  ssh "$1" 'for f in /etc/nan-relay/*.env; do [ -e "$f" ] || continue;
+    m=$(stat -c %a "$f"); o=$(stat -c %U "$f");
+    case "$m" in *[1-7]|*[1-7]?) echo "  !! $f is mode $m (owner $o) — readable beyond its owner; run: sudo chmod 600 $f" ;;
+                 *) echo "  ok $f mode $m ($o)" ;; esac; done' || true
+}
+echo "== env-file permissions (secrets live here)"
+check_env_perms nan-relay
+check_env_perms nan
+
 echo "== api relay (site box)"
 # api-relay.js imports ./fleet.mjs (shared discovery: registry read + TRUSTED_OPERATORS
 # filter + on-chain runner routing), ./net-guard.mjs (SSRF classifier for discovered
