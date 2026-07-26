@@ -109,4 +109,79 @@ export function isBlockedHost(host) {
   return h === "localhost" || h.endsWith(".localhost");
 }
 
+/* ---- "is this address one of MINE?" ----------------------------------------
+   Three relays are handed an address over the network and then bind it: the
+   tcp6 and udp relays bind it as a LISTENER (from each enclave's /v1/net-map),
+   and the egress relay SOURCE-binds it (from its control channel). In every
+   case the enclave derives the address from an authenticated deployment id, so
+   the value is normally right - but "normally right" is not the property that
+   matters when the sender is a fleet member that could be rogue or
+   compromised. Whoever picks the address picks which local address:port this
+   production box serves, and a wildcard (`::`) or loopback (`::1`) answer turns
+   one deployment's bridge into an interceptor for traffic that was never its.
+
+   The policy has one source wherever there is one to have: if the operator
+   declared a prefix, membership in it IS the test. That declaration is local
+   config - the attacker supplies the address, never the /64 - so a box whose
+   TCP6_PREFIX is its real routed /64 refuses loopback, wildcard, IPv4 and every
+   other box's address by the same check, and a local test rig can legitimately
+   declare `::1/128` and bind exactly loopback.
+
+   With no prefix declared there is nothing to check against, so bindRefusal
+   falls back to the global-unicast table: wildcard, loopback, link-local, ULA,
+   multicast. Two rules hold either way, because no declaration makes them
+   sensible - the address must be IPv6 (isBlockedHost alone would pass a public
+   v4, this box's OWN public v4 included) and it must not be the unspecified
+   address, which is never one deployment's address however configured.
+   ---------------------------------------------------------------------------- */
+
+// Parse a "2a01:4f8:c17:abcd::/64" style CIDR into a reusable membership test.
+// Throws on a malformed value: every caller treats that as fatal at boot,
+// because silently falling back to "unconstrained" is the outcome this exists
+// to prevent. An empty/unset value returns an explicitly unconstrained gate.
+export function v6PrefixGate(cidr) {
+  const raw = String(cidr || "").trim();
+  if (!raw) return { constrained: false, cidr: "", check: () => true };
+  const [addr, lenStr] = raw.split("/");
+  const len = parseInt(lenStr || "64", 10);
+  const p = parseIp((addr || "").trim());
+  if (!p || p.family !== 6 || !(len >= 0 && len <= 128))
+    throw new Error(`not a valid IPv6 CIDR: ${raw}`);
+  const mask = len === 0 ? 0n : (((1n << 128n) - 1n) << BigInt(128 - len)) & ((1n << 128n) - 1n);
+  const net = p.value & mask;
+  return {
+    constrained: true, cidr: raw,
+    check: (a) => { const s = parseIp(a); return !!s && s.family === 6 && (s.value & mask) === net; },
+  };
+}
+
+// Why a network-supplied address must NOT be bound, or "" if it may be. The
+// string is the log line: a refusal is usually a misconfigured enclave, and the
+// operator needs to see which address was offered and why it lost.
+export function bindRefusal(address, gate) {
+  if (typeof address !== "string" || !address.trim()) return "empty address";
+  const a = address.trim();
+  // Only a bare literal. Brackets, a zone id (%eth0), a mask, or surrounding
+  // space all reach bind() as something the kernel may or may not accept - and
+  // for the two poll-driven binders an argument bind() THROWS on kills every
+  // listener still queued that round, so it has to lose here.
+  if (a !== address || /[[\]%/\s]/.test(a)) return "not a bare IP literal";
+  const ip = parseIp(a);
+  if (!ip) return "not an IP literal";
+  // IPv6 only, and NOT because v4 is exotic: isBlockedHost refuses only
+  // non-global v4, so a public v4 would otherwise pass - including this box's
+  // OWN public v4, which is the wildcard problem wearing a different hat (bind
+  // a port the fronting proxy does not hold and you are serving the internet on
+  // the platform's address). Dedicated addressing is v6 by construction.
+  if (ip.family !== 6) return "not IPv6 (dedicated addressing is IPv6-only)";
+  // never one deployment's address, under any prefix a declaration could name
+  if (ip.value === 0n) return "the unspecified address (would bind every interface)";
+  // a declared prefix is the operator's own statement of what this box may
+  // bind, so it decides - including the narrow `::1/128` a local rig declares.
+  // Nothing else to check against means falling back to the range table.
+  if (gate && gate.constrained) return gate.check(a) ? "" : `outside this box's ${gate.cidr}`;
+  if (isBlockedHost(a)) return "not a global unicast address (wildcard, loopback, link-local, ULA, multicast or v4-mapped)";
+  return "";
+}
+
 export const _internal = { blockedV4, blockedV6, v6ToBig };

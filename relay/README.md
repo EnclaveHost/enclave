@@ -188,8 +188,13 @@ Clients then reach a deployment at its advertised `[2a01:4f9:c013:bdfd:…]:N`
   it. Datagram boundaries are preserved (1 WS message = 1 datagram).
 - Config: `REGISTRY_ADDRESS` or `ENCLAVES` (required; `ENCLAVE_URL` = legacy
   one-entry alias), `UDP_POLL_SEC` (5), `UDP_IDLE_MS` (120000),
-  `UDP_MAX_FLOWS` (4096). `UDP_PREFIX` is only read by the systemd unit's
-  AnyIP step, not the daemon.
+  `UDP_MAX_FLOWS` (4096). `UDP_PREFIX` drives the systemd AnyIP step **and**
+  now constrains what the daemon will bind: `/v1/udp-map` names the address, so
+  a rogue or misconfigured enclave answering `::` would otherwise have this box
+  bind every interface on that port. A declared prefix is the whole policy -
+  off-prefix, loopback and the wildcard all lose. Unset = only the
+  global-unicast range table applies (another box's address would still bind) +
+  a one-time warning.
 
 ## Dedicated-IP TCP relay
 
@@ -240,8 +245,13 @@ deploy response's `network.tcp` / `network.address`). Public deployments only.
   `CAP_NET_BIND_SERVICE` — the systemd unit grants it.
 - Config: `REGISTRY_ADDRESS` or `ENCLAVES` (required; `ENCLAVE_URL` = legacy
   one-entry alias), `NET_POLL_SEC` (5), `TCP6_MAX_CONNS` (4096),
-  `TCP6_HANDSHAKE_MS` (10000). `TCP6_PREFIX` is only read by the systemd
-  unit's AnyIP step, not the daemon.
+  `TCP6_HANDSHAKE_MS` (10000). `TCP6_PREFIX` drives the systemd AnyIP step
+  **and** now constrains what the daemon will bind: `/v1/net-map` names the
+  address, so a rogue or misconfigured enclave answering `::` would otherwise
+  have this box bind every interface on that port and splice the traffic into
+  its app. A declared prefix is the whole policy - off-prefix, loopback and the
+  wildcard all lose. Unset = only the global-unicast range table applies
+  (another box's address would still bind) + a one-time warning.
 
 ## Egress relay (dedicated-IP outbound) — `egress-relay.js`
 
@@ -325,7 +335,11 @@ exists.
   `EGRESS_PREFIX` drives the systemd AnyIP step **and**, when set, constrains the
   outbound source: an `OPEN` whose `source` falls outside this /64 is refused
   before dialing (a rogue control peer can't source-spoof off-prefix). Unset =
-  source unconstrained (today's behavior) + a one-time warning.
+  the global-unicast range table only (loopback, link-local, ULA, multicast and
+  IPv4 sources are refused even unconstrained) + a one-time warning. The check
+  itself is `bindRefusal` in `net-guard.mjs`, shared with the tcp6 and udp
+  relays - it lived only here for a while, which is exactly why the two inbound
+  binders went unguarded.
 
 ## TCP relay (SNI, shared-port)
 

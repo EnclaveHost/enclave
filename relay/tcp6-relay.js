@@ -40,9 +40,14 @@
 //   NET_POLL_SEC       optional   /v1/net-map poll cadence (default 5)
 //   TCP6_MAX_CONNS     optional   concurrent client-connection cap (default 4096)
 //   TCP6_HANDSHAKE_MS  optional   ms to establish the enclave WS before giving up (10000)
+//   TCP6_PREFIX        SHOULD-SET this box's routed /64. Drives the systemd AnyIP step
+//                                 and constrains what net-map may make us bind: with it
+//                                 set, off-prefix/loopback/wildcard answers are refused.
+//                                 Unset = global-unicast range table only, plus a warning.
 
 import net from "node:net";
 import WebSocket, { createWebSocketStream } from "ws";
+import { bindRefusal, v6PrefixGate } from "./net-guard.mjs";
 import { createFleet, fleetConfig, fetchJson, installProcessGuards } from "./fleet.mjs";
 installProcessGuards("tcp6-relay");
 
@@ -55,6 +60,25 @@ const fleet     = createFleet(CFG, (m) => console.log("[tcp6-relay]", m));
 const POLL_MS   = parseInt(process.env.NET_POLL_SEC || "5", 10) * 1000;
 const MAX_CONNS = parseInt(process.env.TCP6_MAX_CONNS || "4096", 10);
 const HS_MS     = parseInt(process.env.TCP6_HANDSHAKE_MS || "10000", 10);
+
+// SECURITY: /v1/net-map decides which local address:port this box binds. The
+// enclave derives the address from an authenticated deployment id, so it is
+// normally its own dedicated /64 address - but a rogue or compromised fleet
+// member answering `::` would have this daemon bind every interface on that
+// port and splice the traffic into its app. TCP6_PREFIX is already in this
+// unit's env (ExecStartPre uses it for the AnyIP route); read it and hold the
+// answers to it. The egress relay has constrained its source addresses this way
+// since fix 9 - the two INBOUND binders were the ones still taking it on trust.
+let GATE;
+try { GATE = v6PrefixGate(process.env.TCP6_PREFIX); }
+catch (e) { console.error(`fatal: TCP6_PREFIX is ${e.message}`); process.exit(1); }
+if (!GATE.constrained)
+  console.error("[tcp6-relay] TCP6_PREFIX unset — bound addresses are only checked against the global-unicast range table, NOT against this box's /64 (another box's address would still bind). Set TCP6_PREFIX to the routed /64 the ExecStartPre route uses.");
+
+// one line per distinct refusal: the poll repeats every few seconds, and a
+// misconfigured enclave must be visible in the log without drowning it
+const warned = new Set();
+const warnOnce = (msg) => { if (warned.has(msg)) return; if (warned.size > 500) warned.clear(); warned.add(msg); console.error(`[tcp6-relay] ${msg}`); };
 
 const wsOrigin = (origin) => origin.replace(/^http/, "ws");
 
@@ -126,8 +150,18 @@ async function poll() {
     if (!map.enabled) continue;    // dedicated addressing off there — nothing to bind
     for (const d of map.deployments || []) {
       if (!d.address) continue;
+      const no = bindRefusal(d.address, GATE);
+      if (no) { warnOnce(`${origin} offered ${d.id} on [${d.address}] — refused: ${no}`); continue; }
       for (const port of d.tcp || []) {
-        const key = `${d.id}|${d.address}|${port}`;
+        // a port outside 1-65535 makes srv.listen throw, and this loop is inside
+        // an async poll() - the rejection is only logged, so the throw would
+        // silently drop every listener still queued behind it this round
+        const p = Number(port);
+        if (!Number.isInteger(p) || p < 1 || p > 65535) {
+          warnOnce(`${origin} offered ${d.id} tcp:${port} — refused: not a port number`);
+          continue;
+        }
+        const key = `${d.id}|${d.address}|${p}`;
         if (!desired.has(key)) desired.set(key, origin);
       }
     }

@@ -47,7 +47,7 @@
 import net from "node:net";
 import dns from "node:dns/promises";
 import WebSocket, { createWebSocketStream } from "ws";
-import { isBlockedHost, parseIp } from "./net-guard.mjs";
+import { isBlockedHost, parseIp, bindRefusal, v6PrefixGate } from "./net-guard.mjs";
 import { createFleet, fleetConfig, installProcessGuards } from "./fleet.mjs";
 installProcessGuards("egress-relay");
 
@@ -65,24 +65,19 @@ const ALLOW_V4  = /^(1|true|on)$/i.test(process.env.EGRESS_ALLOW_V4 || "");
 // The enclave derives it from the authenticated deployment id, but the relay
 // must not blindly source-bind whatever it's told — constrain it to THIS box's
 // routed /64 so a compromised/rogue control peer can't source-spoof off-prefix.
-const EGRESS_PREFIX = (process.env.EGRESS_PREFIX || "").trim();
-let PREFIX_NET = null, PREFIX_MASK = null;
-if (EGRESS_PREFIX) {
-  const [addr, lenStr] = EGRESS_PREFIX.split("/");
-  const len = parseInt(lenStr || "64", 10);
-  const p = parseIp((addr || "").trim());
-  if (p && p.family === 6 && len >= 0 && len <= 128) {
-    PREFIX_MASK = len === 0 ? 0n : (((1n << 128n) - 1n) << BigInt(128 - len)) & ((1n << 128n) - 1n);
-    PREFIX_NET = p.value & PREFIX_MASK;
-  } else { console.error(`fatal: EGRESS_PREFIX is not a valid IPv6 CIDR: ${EGRESS_PREFIX}`); process.exit(1); }
-} else {
+// The gate itself now lives in net-guard.mjs, shared with the tcp6 and udp
+// relays: this check existed HERE only, and the two inbound binders spent that
+// whole time binding whatever /v1/net-map named. One copy, three callers.
+let GATE;
+try { GATE = v6PrefixGate(process.env.EGRESS_PREFIX); }
+catch (e) { console.error(`fatal: EGRESS_PREFIX is ${e.message}`); process.exit(1); }
+if (!GATE.constrained)
   console.error("[egress-relay] EGRESS_PREFIX unset — outbound SOURCE addresses are NOT constrained to this box's /64 (set EGRESS_PREFIX to reject off-prefix sources; see README).");
-}
-function sourceInPrefix(source) {
-  if (PREFIX_NET === null) return true;                 // unconstrained (opt-in), warned at boot
-  const s = parseIp(source);
-  return !!s && s.family === 6 && (s.value & PREFIX_MASK) === PREFIX_NET;
-}
+// bindRefusal adds what the local copy lacked: a source that is loopback,
+// link-local, ULA, multicast or IPv4 is refused even with no prefix set. None of
+// those is ever a dedicated outbound address, and unconstrained used to mean
+// "anything goes".
+const sourceRefusal = (source) => bindRefusal(source, GATE);
 const MAX_CONNS = parseInt(process.env.EGRESS_MAX_CONNS || "4096", 10);
 const DIAL_MS   = parseInt(process.env.EGRESS_DIAL_MS || "10000", 10);
 const AUTH      = { Authorization: `Bearer ${TOKEN}` };
@@ -114,7 +109,12 @@ async function pickTarget(host) {
 function handleOpen(control, origin, { cid, host, port, source }) {
   if (!cid || !host || !port || !source) return;
   // reject a source outside this box's routed /64 before we ever dial (fix 9)
-  if (!sourceInPrefix(source)) { try { control.send(JSON.stringify({ type: "close", cid, reason: "denied" })); } catch {} return; }
+  const badSource = sourceRefusal(source);
+  if (badSource) {
+    console.error(`[egress-relay] refused source ${source}: ${badSource}`);
+    try { control.send(JSON.stringify({ type: "close", cid, reason: "denied" })); } catch {}
+    return;
+  }
   if (connCount >= MAX_CONNS) { control.send(JSON.stringify({ type: "close", cid, reason: "error" })); return; }
 
   const fail = (reason) => { try { control.send(JSON.stringify({ type: "close", cid, reason })); } catch {} };
