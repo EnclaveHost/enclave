@@ -247,6 +247,17 @@ contract EnclaveDeployments {
     mapping(address => uint256) public earned6;            // operator -> withdrawable runner earnings (USDC 6dp)
     mapping(address => Bond) private _bonds;               // operator -> claim bond
     mapping(address => uint64) private _nonces;            // per-creator id salt
+    /// @dev The first 4 bytes of every live id. Off-chain the platform names a
+    ///      deployment by that prefix — `<8 hex>.app.enclave.host` is a DNS
+    ///      label, and a full 64-hex id does not fit in one. 32 bits is not a
+    ///      birthday problem here, it is a GRINDING one: ids are
+    ///      keccak256(creator, nonce), so anyone can hash candidate creator
+    ///      addresses offline until one's next id shares a victim's prefix —
+    ///      seconds of work, no gas — and then create that single deployment to
+    ///      make the victim's hostname ambiguous. Reserving the prefix makes
+    ///      that impossible instead of merely unlikely: the create loop below
+    ///      simply rolls to the next nonce, and the grind has nothing to land on.
+    mapping(bytes4 => bool) private _prefixTaken;
 
     event Created(bytes32 indexed id, address indexed owner, string appRef, uint16 gpuMilli, uint16 cpuMilli, uint256 rate);
     event FeeSet(bytes32 indexed id, address indexed recipient, uint256 feePerSec6);
@@ -340,8 +351,10 @@ contract EnclaveDeployments {
         // ids are creator-salted hashes; the loop guards the one collision path
         // that exists — a fresh contract's nonce restarting at 0 while imported
         // records already carry this creator's old (sender, nonce) ids.
-        do { id = keccak256(abi.encodePacked(msg.sender, _nonces[msg.sender]++)); } while (_exists[id]);
+        do { id = keccak256(abi.encodePacked(msg.sender, _nonces[msg.sender]++)); }
+        while (_exists[id] || _prefixTaken[bytes4(id)]);
         _exists[id] = true;
+        _prefixTaken[bytes4(id)] = true;   // the hostname label is unique too (see _prefixTaken)
         _ids.push(id);
 
         Deployment storage d = _deployments[id];
@@ -864,6 +877,11 @@ contract EnclaveDeployments {
             // fleet tries to claim it — permanently unclaimable. Refuse it here.
             require(items[i].rate > 0, "rate=0");
             _exists[id] = true;
+            // reserve the hostname label too, so a later create() cannot be
+            // ground onto an IMPORTED record's prefix. Idempotent on purpose: a
+            // pre-rule source may already contain a colliding pair, and history
+            // migrates verbatim — refusing it here would strand a real record.
+            _prefixTaken[bytes4(id)] = true;
             _ids.push(id);
             _deployments[id] = items[i];
             Deployment storage d = _deployments[id];
