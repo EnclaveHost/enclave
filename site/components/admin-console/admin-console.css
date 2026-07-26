@@ -93,7 +93,3 @@
   .ac-row, .ac-row-new { grid-template-columns: 1fr; gap: 6px; }
   .ac-live { display: none; }
 }
-
-/* TEMPORARY (rev-7 subset migration): the id filter is long, so it takes the
-   full row rather than sharing with source/target. Delete with #migOnly. */
-.ac-in-wide{grid-column:1/-1;font-family:var(--font-mono);font-size:.7rem;}
