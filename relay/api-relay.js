@@ -427,6 +427,15 @@ const runnerIsLive = (runner) => {
   runner = String(runner).toLowerCase();
   return live.some((e) => e.id && e.id.toLowerCase() === runner);
 };
+// Human label for a lease's runner: registry id -> the enclave's name
+// ("kryptos", "metal0"). The full registry beats `live` here — a briefly
+// unanswering box should still be NAMED on the rows it holds, not blanked.
+function enclaveNameOf(runner) {
+  runner = String(runner || "").toLowerCase();
+  if (!runner || ZERO32.test(runner)) return null;
+  const hit = [...registry, ...live].find((e) => e.id && e.id.toLowerCase() === runner);
+  return hit ? (hit.name || endpointName(hit.endpoint)) : null;
+}
 function ledgerStatus(d) {
   if (!d.active) return "stopped";
   if (!(d.balance6 > 0n || d.spent6 > 0n)) return "awaiting_payment";
@@ -498,8 +507,12 @@ function ledgerView(d) {
   const leaseTail = Math.max(0, Number(d.leaseUntil) - Math.floor(Date.now() / 1000));
   const status = ledgerStatus(d);
   const network = ledgerNetwork(d, status);
+  // name the serving box while a lease is live (running or claimed) — the
+  // dashboard row answers "where is this app?" without another lookup
+  const enclave = (status === "running" || status === "claimed") ? enclaveNameOf(d.runner) : null;
   return {
     id: d.id, owner: d.owner.toLowerCase(), status, public: d.isPublic,
+    ...(enclave ? { enclave } : {}),
     ...(network ? { network } : {}),
     image: { reference: d.appRef },
     resources: { gpuShare: Number(d.gpuMilli) / 1000, cpuShare: Number(d.cpuMilli) / 1000 },
@@ -1076,7 +1089,7 @@ async function listDeployments(u, req, res) {
   const hostedByRunner = new Map();
   for (const { e, r } of oks) {
     const ids = new Set();
-    try { for (const it of JSON.parse(r.text).data || []) { data.push(it); seen.add(String(it.id).toLowerCase()); ids.add(String(it.id).toLowerCase()); ownerLearn(it.id, e.endpoint); } } catch {}
+    try { for (const it of JSON.parse(r.text).data || []) { if (it.enclave == null) it.enclave = e.name || endpointName(e.endpoint); data.push(it); seen.add(String(it.id).toLowerCase()); ids.add(String(it.id).toLowerCase()); ownerLearn(it.id, e.endpoint); } } catch {}
     if (e.id) hostedByRunner.set(String(e.id).toLowerCase(), ids);
   }
   const tokenOwner = tokenAddress(auth);
