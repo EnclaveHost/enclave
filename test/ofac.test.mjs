@@ -33,6 +33,33 @@ test("ofac: parser extracts EVM addresses (lowercased) and the publish date; non
   assert.match(p.other[0], /^XBT:/);
 });
 
+test("ofac: an entry is found however its <id> block is ordered or padded", async () => {
+  const { parseSdnXml } = await import("../relay/ofac.js");
+  // Adjacency of <idType>/<idNumber> is OFAC's habit, not its contract. A
+  // parser that requires it turns a reordered or padded entry into a
+  // sanctioned address reported CLEAR — the one failure the refresh guards
+  // cannot see.
+  const A3 = "0x7F367cC41522cE07553e823bf3be79A889DEbe1B";
+  const A4 = "0x1da5821544e25c636c1417Ba96Ade4Cf6D2f9B5A";
+  const xml = `<?xml version="1.0"?><sdnList>
+    <publshInformation><Publish_Date>07/18/2026</Publish_Date></publshInformation>
+    <sdnEntry><idList>
+      <id><uid>1</uid><idNumber>${A3}</idNumber><idType>Digital Currency Address - ETH</idType></id>
+      <id>
+        <uid>2</uid>
+        <idType>Digital Currency Address - USDC</idType>
+        <idCountry>-0- </idCountry>
+        <idNumber>${A4}</idNumber>
+      </id>
+      <id><uid>3</uid><idType>Website</idType><idNumber>example.invalid</idNumber></id>
+      <id><uid>4</uid><idType>Digital Currency Address - ETH</idType><idNumber>   </idNumber></id>
+    </idList></sdnEntry></sdnList>`;
+  const p = parseSdnXml(xml);
+  assert.deepEqual(p.eth.sort(), [A3.toLowerCase(), A4.toLowerCase()].sort(),
+    "reversed order and an intervening element must both still screen");
+  assert.equal(p.other.length, 0, "a blank idNumber is not an address");
+});
+
 test("ofac: cache-seeded screen answers hit/clear; absent or old data answers stale", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ofac-"));
   process.env.OFAC_SDN_URLS = "http://127.0.0.1:1/x";        // dead: only the cache answers

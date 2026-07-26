@@ -34,13 +34,26 @@ let ethSet = new Set();
 
 export function parseSdnXml(xml) {
   const eth = new Set(), other = new Set();
-  const re = /<idType>Digital Currency Address - ([A-Z0-9.]+)<\/idType>\s*<idNumber>([^<]+)<\/idNumber>/g;
-  let m;
-  while ((m = re.exec(xml))) {
-    const addr = m[2].trim().toLowerCase();
+  // Scan <id> BLOCKS and read the two fields independently, rather than
+  // requiring <idNumber> to sit immediately after <idType>. Adjacency is the
+  // shape OFAC emits today, but it is the schema's habit, not its contract: an
+  // intervening element or a reordered pair would silently drop that entry,
+  // and a dropped entry is a sanctioned address we report as CLEAR. The
+  // refresh guards below catch a wholesale format break (empty, or a >50%
+  // shrink); they cannot catch a partial miss, so the parser must not have
+  // that failure mode in the first place.
+  const block = /<id>([\s\S]*?)<\/id>/g;
+  let b;
+  while ((b = block.exec(xml))) {
+    const t = /<idType>Digital Currency Address - ([A-Z0-9.]+)<\/idType>/.exec(b[1]);
+    if (!t) continue;
+    const n = /<idNumber>([^<]*)<\/idNumber>/.exec(b[1]);
+    if (!n) continue;
+    const addr = n[1].trim().toLowerCase();
+    if (!addr) continue;
     // every EVM-shaped address screens as ETH regardless of the tagged asset
     if (/^0x[0-9a-f]{40}$/.test(addr)) eth.add(addr);
-    else other.add(`${m[1]}:${addr}`);
+    else other.add(`${t[1]}:${addr}`);
   }
   const pub = /<Publish_Date>([^<]+)<\/Publish_Date>/.exec(xml);
   return { eth: [...eth], other: [...other], publishDate: pub ? pub[1] : "" };
