@@ -24,8 +24,19 @@
 //     secrets fetches and nothing else). Enclaves derive the same key locally,
 //     so the fleet needs NO new secret binding. The fetch names the requesting
 //     endpoint; it must be the deployment's live on-chain lease holder
-//     (runner = keccak256(endpoint)), so a fleet member only ever receives
-//     secrets for work the chain says is its.
+//     (runner = keccak256(endpoint)), so secrets only ever leave here for work
+//     the chain says a fleet member is doing.
+//     BE PRECISE ABOUT WHAT THAT PROVES. The derived key is SHARED fleet-wide,
+//     so the HMAC authenticates "a holder of the fleet key", not "this
+//     endpoint": any fleet member could name another's endpoint and be served
+//     that deployment's secrets. The boundary that holds is the fleet's own —
+//     every first-party enclave runs the same attested image, and a
+//     permissionless metal box is given no fleet secret at all (which is why
+//     /v1/secrets/exists exists: a secrets-incapable runner asks before it
+//     claims). Mutual isolation BETWEEN fleet members would need a per-enclave
+//     asymmetric identity (the /v1/session-jwks key, peer-JWKS: designed, not
+//     built) — a symmetric fleet key cannot express it. Do not read the
+//     lease check as more than the second factor it is.
 //
 // Endpoints (relay-owned, answer with zero live enclaves like /v1/account/*):
 //   POST /v1/secrets/:id       {payload, expiry, signature}   owner mutate
