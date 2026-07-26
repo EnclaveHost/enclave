@@ -149,6 +149,18 @@ test("verifyPrepare: a publisher fee smuggled into create() is refused", () => {
       { spec: SPEC, fundUsd: 10 }), /publisher fee/);
 });
 
+test("verifyPrepare: the caller's own spellings all resolve to the same values", () => {
+  // the relay accepts shares as fractions OR millis and rounds; a legitimate
+  // rounding must never read as tampering
+  const call = createCallFor();
+  for (const spec of [SPEC,
+                      { ...SPEC, cpuMilli: undefined, cpuShare: 0.12 },
+                      { ...SPEC, cpuMilli: 120.4 },
+                      { ...SPEC, gpuMilli: undefined },                 // absent gpu = 0
+                      { ...SPEC, appPort: undefined }])                 // absent port = the ledger default
+    verifyPrepare("deploy", prepFor("deploy", { createCall: call, fund6: "1" }), { spec, fundUsd: 10 });
+});
+
 test("verifyPrepare: a swapped app, share, port, visibility or config is refused", () => {
   const cases = [
     [{ ...SPEC, appRef: "catalog://0x" + "ee".repeat(32) + "/1" }, /different app/],
