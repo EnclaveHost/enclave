@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#070A0F" />
+<title>Host an enclave · Enclave</title>
+<meta name="description" content="Run an enclave on hardware you own, claim paid work from the open queue, and get paid on chain for every lease you serve." />
+<link rel="canonical" href="https://enclave.host/host" />
+<meta property="og:title" content="Host an enclave · Enclave" />
+<meta property="og:description" content="Run an enclave on hardware you own, claim paid work from the open queue, and get paid on chain for every lease you serve." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://enclave.host/host" />
+<link rel="icon" href="favicon.ico" sizes="48x48 32x32 16x16" />
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+<script>
+/* Cross-document view transitions are skipped by Chromium when extensions
+   inject content scripts (MetaMask et al): the old page sees pageswap with
+   no viewTransition. Flag it, and the NEXT page (this script runs pre-paint)
+   plays the same settle-in itself (html.soft-enter, see base.css) - content
+   only, the static header stays put. */
+(function(){
+  try { if (sessionStorage.getItem("enclave_novt")) { sessionStorage.removeItem("enclave_novt"); document.documentElement.classList.add("soft-enter"); } } catch(e){}
+  addEventListener("pageswap", function(e){
+    try { if (!e.viewTransition && e.activation) sessionStorage.setItem("enclave_novt", "1"); } catch(e){}
+  });
+})();
+</script>
+<link rel="stylesheet" href="css/site.css" />
+<script type="module" blocking="render" src="js/boot.js"></script>
+</head>
+<body>
+<c-header current=""></c-header>
+<main id="main" tabindex="-1">
+<h1 class="sr-only">Host an enclave</h1>
+
+<section id="host" data-view="host" aria-label="Host an enclave">
+  <div class="wrap">
+    <c-section-head eyebrow="Host an enclave" heading="Your hardware belongs on this list.">
+      <p>Enclave is an open market for confidential compute. Anyone with a machine that has a hardware TEE can run an enclave, claim funded work from the open queue, and be paid on chain for every lease they serve. There is no application to fill in and no account to be approved: your box proves what it is with an attestation, and the ledger does the rest.</p>
+    </c-section-head>
+
+    <div class="hostdoc">
+
+      <h2>What you need</h2>
+      <ul class="hostdoc-list">
+        <li><b>A CPU with a hardware TEE</b> and virtualisation available to the OS. Confidential VMs are what make the guarantee real, so a box without one can run the stack in dev mode but cannot sell.</li>
+        <li><b>Linux with KVM</b> and a few gigabytes of RAM to give the guest. The build runs unprivileged; only the one-time device permission needs root.</li>
+        <li><b>A little gas.</b> Your box registers itself and claims work with its own key, which costs a few cents of Base ETH. The CLI funds it from your wallet in one transfer.</li>
+        <li><b>No public IP.</b> The enclave dials out and holds the connection, so a home machine behind CGNAT works.</li>
+        <li><b>A GPU is optional.</b> CPU-only boxes serve CPU work; a GPU in confidential-computing mode sells GPU shares too.</li>
+      </ul>
+
+      <h2>Setting it up</h2>
+      <p>Everything is one command line tool. Each step below is also a plain script in the repository if you would rather drive it yourself.</p>
+      <pre class="hostdoc-code"><code>curl -fsSL https://get.enclave.host | sh
+
+enclave host init      <span class="c"># mint this box's key, write its config</span>
+enclave host build     <span class="c"># build the measured guest image</span>
+enclave host run       <span class="c"># boot it, ctrl-c to stop</span>
+enclave host check     <span class="c"># is it answering, is the quote real hardware</span>
+enclave host install   <span class="c"># run it under systemd instead, enabled at boot</span></code></pre>
+      <p><code>enclave host build</code> assembles the guest from the same published images the hosted fleet runs, and folds the kernel, the initramfs and the boot arguments into the launch measurement. That measurement is reproducible: anyone can rebuild it and check that the number your box reports is the number the published release produces.</p>
+
+      <h2>Getting paid</h2>
+      <p>Once the box has gas, it registers itself and starts claiming funded deployments from the queue. The ledger escrows the runner share of what each deployment pays and credits it to your operator key for the time you actually hold the lease, and it sweeps to whatever wallet you named when the balance clears the payout threshold. Nobody holds your earnings on your behalf.</p>
+      <pre class="hostdoc-code"><code>enclave host fund --eth 0.002   <span class="c"># gas the box, one signed transfer</span>
+enclave host status             <span class="c"># gas left, serving or not, earnings accrued</span></code></pre>
+      <p>You set your own price. A box can name what it charges per hour for a full node and, if it has one, a full card. It then refuses work paying less than that, and the number is published alongside its capacity so buyers can see it.</p>
+      <pre class="hostdoc-code"><code>enclave host init --price-cpu 2.50 <span class="c"># USD per hour for a full node</span></code></pre>
+
+      <h2>What tenants get, and what you can see</h2>
+      <p>Apps that land on your box run inside the confidential VM, and the memory of that VM is encrypted by the processor against you as much as against anyone else. You host the work without being able to read it. Their TLS terminates inside the enclave too, so traffic passes through your machine as ciphertext.</p>
+      <p>That cuts both ways, and it is the point: buyers do not have to trust you, so they do not have to know who you are. What they check is the attestation your box produces, against the measurement of a published release.</p>
+
+      <h2>Read the details</h2>
+      <p>The full protocol, the trust argument and the operator notes live with the code:</p>
+      <ul class="hostdoc-list">
+        <li><a href="https://github.com/EnclaveHost/enclave/blob/main/metal/README.md" target="_blank" rel="noopener">Enclave Metal</a>, how the self-hosted server is built and why its attestation is stronger than a managed one.</li>
+        <li><a href="https://github.com/EnclaveHost/enclave/blob/main/metal/PROTOCOL.md" target="_blank" rel="noopener">The hosting protocol</a>, how an anonymous box proves itself, claims work and is paid.</li>
+      </ul>
+
+      <p class="hostdoc-cta"><a class="btn btn-primary" href="dashboard">See the live enclaves</a></p>
+    </div>
+  </div>
+</section>
+
+</main>
+<c-footer></c-footer>
+<c-toast></c-toast>
+</body>
+</html>
