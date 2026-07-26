@@ -1225,7 +1225,16 @@ const nonces     = new Map(); // nonce -> { address, exp }
 const NONCE_MAX  = parseInt(process.env.NONCE_MAX || "10000", 10);   // hard cap (LRU/FIFO evict) alongside the TTL sweep, so a flood of /v1/auth/nonce can't grow this map unbounded between sweeps
 const deployments = new Map(); // id -> record (incl. local container handle)
 setInterval(() => { const t = Date.now(); for (const [n,v] of nonces) if (v.exp < t) nonces.delete(n); }, 60_000).unref?.();
-const rid = (p) => p + Math.random().toString(36).slice(2, 10);
+// CSPRNG, not Math.random. This mints the SIWE nonce, and a nonce exists to be
+// UNPREDICTABLE (EIP-4361 says so outright). /v1/auth/nonce is unauthenticated,
+// so anyone can pull as many samples as they like from this process — and V8's
+// Math.random is xorshift128+, whose state is recoverable from a handful of
+// outputs. Eight base-36 chars off one draw was ~41 bits at best and zero once
+// the state is solved; a predicted nonce lets an attacker prepare the exact
+// message the enclave will issue for a wallet before it asks for one. Twelve
+// random bytes, hex, from the same source the session key comes from. (The
+// relay's store.js rid() has always done this; only this copy drifted.)
+const rid = (p) => p + randomBytes(12).toString("hex");
 // Constant-time string compare for secret/token checks (guards length first, as
 // timingSafeEqual throws on unequal-length buffers).
 function safeEqStr(a, b) {

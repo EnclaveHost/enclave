@@ -41,7 +41,7 @@
 // stream clients (no server-initiated messages) and an informational JSON for
 // humans. tools/call errors are in-band (isError), not JSON-RPC errors.
 
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { createPublicClient, http as viemHttp, fallback, encodeFunctionData } from "viem";
 import { base } from "viem/chains";
 
@@ -764,7 +764,9 @@ const TOOLS = [
     inputSchema: S({ id: P.id, token: P.token }, ["id"]),
     handler: async ({ id }, ctx) => {
       if (!ctx.token) return self("GET", `/v1/deployments/${encodeURIComponent(id)}/attestation`);
-      const nonce = createHash("sha256").update(String(Math.random()) + Date.now()).digest("hex");
+      // the freshness nonce a GPU attestation report is signed over: predictable
+      // is the one thing it must not be, so draw it from the CSPRNG
+      const nonce = randomBytes(32).toString("hex");
       return self("GET", `/v1/deployments/${encodeURIComponent(id)}/attestation?nonce=${nonce}`, { token: ctx.token });
     },
   },
