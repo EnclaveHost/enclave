@@ -16,10 +16,19 @@
 # release as the tarball, so it establishes that you got the bytes the release
 # holds — transport corruption, a lying mirror, a truncated download. It does
 # NOT defend against whoever can PUBLISH a release (a stolen token, a
-# compromised maintainer account): they write both files. Closing that needs a
-# detached signature over SHA256SUMS with a key pinned in THIS script, which
-# does not exist yet. Until it does, the strongest check available to you is to
-# build from a checkout you have reviewed.
+# compromised maintainer account): they write both files. A detached signature
+# over SHA256SUMS with a key pinned in THIS script would close that, and does
+# not exist yet.
+#
+# What you CAN do today, with no key involved: the release assets are
+# `git archive` of the tag, which is byte-deterministic, so anyone with a clone
+# can reproduce them and tie the artifact to the git history instead of to
+# whoever uploaded it (verified against the live cli-v1.1.0 release):
+#
+#   git fetch --tags && git tag -v <tag>     # if the tag is signed
+#   git archive --format=tar.gz --prefix=enclave-<tag>/ <tag> | sha256sum
+#
+# That hash must equal the tarball line in the release's SHA256SUMS.
 # ENCLAVE_CLI_CHANNEL=edge is an explicit, UNVERIFIED escape hatch that builds the
 # current main tip (dev only). No prebuilt binary is ever downloaded.
 #

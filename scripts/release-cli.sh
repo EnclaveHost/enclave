@@ -36,8 +36,17 @@ if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
   if [ "$DRY_RUN" = "1" ]; then
     say "DRY_RUN: would create tag $TAG from $TAG_FROM"; REF="$TAG_FROM"
   else
-    say "creating tag $TAG from $TAG_FROM"
-    git tag -a "$TAG" "$TAG_FROM" -m "enclave CLI $TAG"
+    # SIGN the tag when a signing key is configured. The release assets are
+    # git archive of this tag, so a signed tag is the one artifact an attacker
+    # who can publish a GitHub release still cannot forge — SHA256SUMS ships
+    # from the same release as the tarball and proves nothing against them.
+    if git config --get user.signingkey >/dev/null 2>&1; then
+      say "creating SIGNED tag $TAG from $TAG_FROM"
+      git tag -s "$TAG" "$TAG_FROM" -m "enclave CLI $TAG"
+    else
+      say "creating tag $TAG from $TAG_FROM (UNSIGNED — set user.signingkey to sign it)"
+      git tag -a "$TAG" "$TAG_FROM" -m "enclave CLI $TAG"
+    fi
     REF="$TAG"
   fi
 else
@@ -72,5 +81,24 @@ say "gh release create $TAG"
 gh release create "$TAG" "$OUT/$TARBALL" "$OUT/$ZIPBALL" "$OUT/SHA256SUMS" \
   --prerelease \
   --title "enclave CLI $TAG" \
-  --notes "Pinned, checksum-verified CLI release. Install: \`curl -fsSL https://get.enclave.host | sh\` (resolves the latest cli-* release and verifies SHA256SUMS before building)."
+  --notes "$(cat <<NOTES
+Pinned CLI release. Install: \`curl -fsSL https://get.enclave.host | sh\` (resolves the latest cli-* release and checks SHA256SUMS before building).
+
+**What that checksum does and does not prove.** SHA256SUMS ships from this same
+release, so it establishes you got the bytes the release holds — a truncated
+download, a lying mirror. It is not a defence against whoever can publish a
+release here, because they would write both files.
+
+**The independent check.** These assets are \`git archive\` of the tag, which is
+byte-deterministic. Reproduce them from a clone and compare:
+
+\`\`\`
+git fetch --tags && git tag -v $TAG          # if the tag is signed
+git archive --format=tar.gz --prefix=enclave-$TAG/ $TAG | sha256sum
+\`\`\`
+
+That hash must equal the \`$TARBALL\` line in SHA256SUMS. It ties the artifact to
+the git history rather than to whoever uploaded it.
+NOTES
+)"
 say "done: $TAG published with $TARBALL, $ZIPBALL, SHA256SUMS"
