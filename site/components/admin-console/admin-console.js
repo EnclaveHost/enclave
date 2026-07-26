@@ -370,6 +370,8 @@ class AdminConsole extends EnclaveElement {
           <select class="ac-in ac-in-key" id="migKind" aria-label="Migration kind">${Object.entries(MIG_KINDS).map(([k, m]) => `<option value="${k}">${esc(m.label)}</option>`).join("")}</select>
           <input class="ac-in" id="migSource" aria-label="Source contract address" placeholder="source 0x…" spellcheck="false" autocomplete="off" />
           <input class="ac-in" id="migTarget" aria-label="Target contract address" placeholder="target 0x… (the new deploy)" spellcheck="false" autocomplete="off" />
+          <input class="ac-in ac-in-wide" id="migOnly" aria-label="Only these record ids"
+                 placeholder="only these ids (comma-separated 0x… · blank = every record)" spellcheck="false" autocomplete="off" />
         </div>
         <div class="ac-mig-actions">
           <button class="btn btn-sm" data-act="mig-read">Read source</button>
@@ -430,6 +432,13 @@ class AdminConsole extends EnclaveElement {
     if (!kindSel) return;
     const m = MIG_KINDS[kindSel.value];
     this._body.querySelector("#migSource").value = this.S.book.entries[m.bookKey] || "";
+    // TEMPORARY: the two deployments left behind by the rev-7 cutover, prefilled
+    // so the subset migration is one paste-free click. Clear the field (or drop
+    // this line) to migrate everything.
+    const only = this._body.querySelector("#migOnly");
+    if (only && !only.value && kindSel.value === "deployments")
+      only.value = "0xcc1f4f3fada6c3cd8ad0dc4ed03823470639ad2c59edf0a1e1be93ee20241352, "
+                 + "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9";
     this._mig = { kind: kindSel.value, data: null };
     for (const a of ["mig-run", "mig-verify", "mig-seal"]) {
       const b = this._body.querySelector(`[data-act="${a}"]`);
@@ -653,7 +662,9 @@ class AdminConsole extends EnclaveElement {
             if (!need(!st.sealed, "target's imports are permanently sealed - deploy a fresh target")) return;
             log("p", "reading the target to plan the delta…");
             const after = await m.read(tgt);
-            const txs = m.plan(M.data, after);
+            const subset = this._migSubset(M.data, log);
+            if (!need(subset.length, "the id filter matched nothing on the source - fix the ids or clear the field")) return;
+            const txs = m.plan(subset, after);
             if (!txs.length) { log("ok", "nothing to import - target already holds everything. Verify, then seal."); return; }
             log("p", `${txs.length} import transaction${txs.length === 1 ? "" : "s"} to send`);
             await this._connect();
@@ -674,7 +685,7 @@ class AdminConsole extends EnclaveElement {
           btn.disabled = true;
           try {
             log("p", "verifying: re-reading the target and diffing field-by-field…");
-            const r = await m.verify(M.data, tgt);
+            const r = await m.verify(this._migSubset(M.data, log), tgt);
             if (r.bad.length) {
               log("err", `${r.ok}/${r.total} match; mismatched: ${r.bad.slice(0, 10).join(", ")}${r.bad.length > 10 ? " …" : ""}`);
             } else {
@@ -709,6 +720,24 @@ class AdminConsole extends EnclaveElement {
     } catch (err) {
       this._status(panelStatus, "err", friendly(err));
     }
+  }
+
+  /* TEMPORARY subset filter: migrate only the ids listed in #migOnly. Runs the
+     SAME read -> delta plan -> send -> verify pipeline as a full migration (so
+     fee and runner-rate snapshots ride along and a re-click still resumes),
+     just over fewer records. Blank field = every record, the normal behaviour.
+     Remove the input and this method to retire the feature. */
+  _migSubset(data, log){
+    const raw = (this._body.querySelector("#migOnly")?.value || "").trim();
+    if (!raw) return data;
+    const want = new Set(raw.split(/[\s,]+/).filter(Boolean).map((x) => x.toLowerCase()));
+    const pick = data.filter((d) => want.has(String(d.id).toLowerCase()));
+    const missing = [...want].filter((w) => !pick.some((d) => String(d.id).toLowerCase() === w));
+    if (log){
+      log("p", `subset: ${pick.length} of ${data.length} record(s) selected by the id filter`);
+      for (const m of missing) log("err", `  not on the source: ${m}`);
+    }
+    return pick;
   }
 
   async _connect() {
