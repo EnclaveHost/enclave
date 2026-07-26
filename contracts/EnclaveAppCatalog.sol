@@ -515,6 +515,13 @@ contract EnclaveAppCatalog {
             bytes32 appId = items[i].appId;
             require(appId != bytes32(0), "appId=0");
             require(!_exists[appId], "exists");
+            // …and nothing may already redirect AWAY from this appId. transferApp
+            // cannot produce that state (its destination rule refuses a hash that
+            // an app already occupies), so this can only be corrupt or
+            // mis-ordered input — but the failure it prevents is silent and
+            // permanent: the lineage would exist while appIdOf routed its own
+            // publisher's slug writes to a different one, with imports sealed.
+            require(_slugRef[appId] == bytes32(0), "appId shadowed by a redirect");
             bytes32 structural = keccak256(abi.encodePacked(items[i].publisher, items[i].slug));
             if (appId != structural) {
                 // transferApp's strict rule makes redirect + existing structural
