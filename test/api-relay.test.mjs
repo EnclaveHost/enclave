@@ -324,3 +324,33 @@ test("api-relay: featured-view metering — counts once per client per day, serv
   const after = await (await fetch(origin + "/v1/featured-views")).json();
   assert.equal(after.views[app], 1, "refused beacons count nothing");
 });
+
+// ---------- the request target itself ----------------------------------------
+// Node hands an absolute-form target (`GET http://elsewhere/y`, legal for
+// proxies) straight to req.url. The relay routes on the parsed pathname but
+// FORWARDS req.url, so two readings of one target reach two different places —
+// and the concatenated upstream URL is nonsense either way. Origin-form only.
+// The same guard is why a malformed target can never be a fleet outage: a
+// synchronous throw in a request listener is an uncaughtException, and this
+// daemon exits on those.
+test("api-relay: only origin-form request targets are served, and a bad one is not fatal", async (t) => {
+  const origin = await startRelay(t, { enclaves: "http://127.0.0.1:1" });
+  const port = Number(new URL(origin).port);
+
+  const raw = (target) => new Promise((resolve, reject) => {
+    const s = net.connect(port, "127.0.0.1", () =>
+      s.write(`GET ${target} HTTP/1.1\r\nHost: api.enclave.host\r\nConnection: close\r\n\r\n`));
+    let out = "";
+    s.setTimeout(5000, () => { s.destroy(); reject(new Error("timeout")); });
+    s.on("data", (d) => (out += d));
+    s.on("close", () => resolve(out));
+    s.on("error", reject);
+  });
+
+  assert.match(await raw("http://elsewhere.example/health"), /^HTTP\/1\.1 400 /, "absolute-form refused");
+  assert.match(await raw("*"), /^HTTP\/1\.1 400 /, "asterisk-form refused");
+  assert.match(await raw("/health"), /^HTTP\/1\.1 200 /, "origin-form still served");
+
+  // …and the relay is still up: the guard answers, it does not crash the box
+  assert.equal((await fetch(origin + "/health")).status, 200);
+});

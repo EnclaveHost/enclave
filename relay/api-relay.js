@@ -1202,8 +1202,37 @@ const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView,
                    // must be newer than the 10s TTL (just-claimed/just-created)
                    endpointIdOf: endpointId, ledgerExpire: () => { _ledger.at = 0; } };
 
+// Every inbound request runs inside one guard, for two reasons.
+//
+// The request TARGET first. Node hands an absolute-form target (`GET
+// http://elsewhere/y HTTP/1.1`, legal for proxies) to req.url verbatim, and
+// this relay routes on the PARSED pathname while forwarding req.url — two
+// readings of one target, which is the shape request smuggling is made of, and
+// which concatenates into a nonsense upstream host besides. Origin-form only.
+// The pathname is then read with the target APPENDED to a base rather than
+// resolved against one, so a `//host/path` target cannot be read as an
+// authority by the router and as a path by the forwarder.
+//
+// Then the throw. A synchronous throw in a Node request listener is an
+// uncaughtException, and installProcessGuards turns that into exit(1): one
+// malformed request would dark the fleet's whole front door until systemd
+// restarted it. Answer 500 and stay up.
 const server = http.createServer((req, res) => {
-  const u = new URL(req.url, "http://x");
+  if (!String(req.url || "").startsWith("/")) {
+    res.writeHead(400, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+    return res.end(JSON.stringify({ error: "bad_request_target",
+      message: "The request target must be origin-form (/path), not absolute-form or *." }));
+  }
+  try { return handleRequest(req, res); }
+  catch (e) {
+    console.error("[api-relay] request handler threw:", (e && e.stack) || e);
+    try { if (!res.headersSent) res.writeHead(500, { "Content-Type": "application/json", "Cache-Control": "no-store" }); } catch {}
+    try { res.end(JSON.stringify({ error: "internal_error", message: "The relay could not handle this request." })); } catch {}
+  }
+});
+
+function handleRequest(req, res) {
+  const u = new URL("http://x" + req.url);
 
   // On-demand TLS gate: Caddy asks before minting a cert for <host>. Allow only
   // real deployment subdomains so random <junk>.<APP_DOMAIN> can't burn the CA
@@ -1338,7 +1367,7 @@ const server = http.createServer((req, res) => {
       json(res, 502, { error: "gateway_error", message: e.message, updatedAt }, req));
 
   json(res, 404, { error: "not_found", routes: ["/health", "/enclaves", "/route?gpuShare=0.25&cpuShare=0.05", "/v1/* /x/* /availability (fleet-routed to the enclaves)"] }, req);
-});
+}
 
 // WebSocket upgrades. Node hands Upgrade requests to an 'upgrade' listener, not
 // the request handler — without one the relay silently ate the enclaves' WS
@@ -1365,6 +1394,7 @@ async function fullDepId(id) {
 server.on("upgrade", async (req, socket, head) => {
   socket.on("error", () => socket.destroy());               // dead client mid-handshake must not throw
   const refuse = (code, text) => { try { socket.write(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`); } catch {} socket.destroy(); };
+  if (!String(req.url || "").startsWith("/")) return refuse(400, "Bad Request");   // origin-form only (see handleRequest)
   // fleet tunnel attach: a self-hosted enclave dialing IN (token-authed in the hub)
   if ((req.url || "").split("?")[0] === "/v1/fleet-tunnel") return tunnelHub.handleUpgrade(req, socket, head);
   // tunnel-routed upgrades (Phase D): /t/<name>/<rest> — the SNI relay's wss
@@ -1372,7 +1402,7 @@ server.on("upgrade", async (req, socket, head) => {
   // path), spliced through the hub as a raw stream; the supervisor answers
   // the handshake itself, so /x/<id>/tls stays TLS-in-CVM end to end.
   {
-    const u = new URL(req.url || "/", "http://x");
+    const u = new URL("http://x" + (req.url || "/"));
     const tm = u.pathname.match(/^\/t\/([A-Za-z0-9_-]+)(\/.*|)$/);
     if (tm) {
       const origin = `tunnel://${tm[1]}`;
