@@ -16,7 +16,8 @@ unchanged; CC attestation still comes from NVML inside the guest).
 **See also:** [PROTOCOL.md](PROTOCOL.md), the permissionless protocol for
 anyone to sell hosting on enclave.host anonymously (attestation-gated attach,
 chain-escrowed runner payout to the seller's own wallet, keyless relay).
-[HANDOFF.md](HANDOFF.md) covers what is live and the operator-gated production steps.
+[HANDOFF.md](HANDOFF.md) covers what is live and the operator-gated
+production steps.
 
 ```
 host (untrusted)                       guest CVM (trusted, measured)
@@ -39,7 +40,8 @@ host (untrusted)                       guest CVM (trusted, measured)
 A managed TEE provider measures the container config and images at its own
 controlplane, but without a guest RTMR-extend a launched image's digest is
 never folded into the hardware registers: the quote proves only that *some* CVM
-of theirs is running, and a transparency log ties the config to the repo. Metal's guest is a **single initramfs**: kernel, initrd
+of theirs is running, and a transparency log ties the config to the repo.
+Metal's guest is a **single initramfs**: kernel, initrd
 (which *contains* the supervisor and wasm-manager bytes, extracted from the
 same digest-pinned images the fleet runs) and cmdline are all covered by the
 SEV-SNP **launch digest** via direct-boot measured OVMF (`kernel-hashes=on`).
