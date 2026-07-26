@@ -410,10 +410,20 @@ def _check_component(data: bytes):
 
 def _resolve_cid(cid: str) -> pathlib.Path:
     """Fetch `cid` from IPFS, verify the bytes hash to it, cache under APPS_DIR, run."""
-    safe = re.sub(r"[^A-Za-z0-9]", "", cid)
-    if not safe:
-        raise ValueError(f"bad ipfs cid '{cid}'")
-    p = (APPS_DIR / f"ipfs-{safe}.wasm").resolve()
+    # REJECT a non-CID, never sanitize one into a filename. The cache is
+    # content-addressed, so its key has to BE the content address: stripping
+    # characters made the key a lossy transform, and two different catalog CIDs
+    # that differ only outside [A-Za-z0-9] collapsed onto one file. The second
+    # one then took a cache HIT and ran the FIRST one's bytes, skipping the
+    # hash verification entirely — the CID would no longer name what runs,
+    # which is the single assumption the deploy gate rests on. The catalog
+    # bounds a version's cid by LENGTH only (MAX_CID), so any publisher could
+    # declare "bafy.REAL" next to a real "bafyREAL". Real CIDs are alphanumeric
+    # either way (base58btc for v0, base32 for v1), so nothing legitimate is
+    # turned away by requiring it.
+    if not re.fullmatch(r"[A-Za-z0-9]{10,100}", cid or ""):
+        raise ValueError(f"bad ipfs cid '{cid}' (a CID is 10-100 alphanumeric characters)")
+    p = (APPS_DIR / f"ipfs-{cid}.wasm").resolve()
     if p.is_file():
         return p                                   # content-addressed cache hit
     if ipfs_fetch is None:
