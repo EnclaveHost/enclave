@@ -131,7 +131,13 @@ This is strictly stronger than the hosted model's Sigstore link: the measurement
 ```sh
 git clone https://github.com/EnclaveHost/enclave && cd enclave
 sudo bash metal/host-setup.sh                 # one-time: SEV device perms
-node metal/build-image.mjs                     # reproducible; matches the allowlist
+node metal/build-image.mjs \
+  --supervisor ghcr.io/enclavehost/enclave-supervisor@sha256:<d> \
+  --wasm       ghcr.io/enclavehost/enclave-wasm-manager@sha256:<d>
+# Reproducible ONLY with both images pinned by digest (the release notes
+# carry them, and dist/manifest.json records `reproducible: true|false`).
+# A bare invocation resolves TAGS, so it builds a different measurement
+# whenever the tag moves and must not be curated into the allowlist.
 # metal/config.json: set registryKey to a fresh EOA key funded with a few
 # dollars of Base ETH (gas for register/claim/renew), payoutAddress to YOUR
 # wallet, and publicUrl to the relay-routed https://api.enclave.host/t/<name>

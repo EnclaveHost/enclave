@@ -130,7 +130,7 @@ should leave `egressHelper` unset.
 ```sh
 systemctl --user status  enclave-metal          # state
 journalctl --user -u enclave-metal -f           # logs (guest serial)
-node metal/build-image.mjs                       # rebuild (reproducible)
+node metal/build-image.mjs                       # rebuild (pass --supervisor/--wasm @sha256:… to be reproducible)
 systemctl --user restart enclave-metal           # apply a new build
 node metal/verify.mjs --url https://api.enclave.host/t/metal0 --vcpus 4
 ```
