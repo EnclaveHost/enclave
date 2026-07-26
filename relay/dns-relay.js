@@ -454,7 +454,11 @@ function checkSig(sig, raw) {
 // signature turn the relay into an RPC hammer, so operator pushes get their own
 // tight bucket, and the fresh re-read a global cooldown on top — a just-claimed
 // lease needs ONE re-read, not one per attempt.
-const rlOperator = makeRateLimiter(10, 0.2);
+// Sized for the work, not for suspicion: an ACME push is rare per seller (one
+// per issuance/renewal) and behind a fronting proxy every seller shares this
+// bucket, so it must not be the thing that breaks a renewal wave. The real
+// protection against the expensive path is the cooldown below.
+const rlOperator = makeRateLimiter(30, 1);
 const FRESH_COOLDOWN_MS = 5000;
 let _lastFresh = 0;
 
