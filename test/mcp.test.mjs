@@ -18,6 +18,7 @@ import http from "node:http";
 import net from "node:net";
 import { once } from "node:events";
 import { spawn } from "node:child_process";
+import { bootApiRelay } from "./helpers/daemon.mjs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import fs from "node:fs";
@@ -166,23 +167,21 @@ const UPLOAD_KEY = "test-upload-key";
 async function startRelay(t) {
   const enclave = stubEnclave(); enclave.listen(0, "127.0.0.1"); await once(enclave, "listening");
   const rpc = stubRpc(); rpc.listen(0, "127.0.0.1"); await once(rpc, "listening");
-  const port = await freePort();
-  const child = spawn(process.execPath, [path.join(RELAY_DIR, "api-relay.js")], {
+  // the relay must PROVE it won the port before /health means anything -
+  // see test/helpers/daemon.mjs
+  const { child, port } = await bootApiRelay((port) =>
+    spawn(process.execPath, [path.join(RELAY_DIR, "api-relay.js")], {
     env: { ...process.env, ENCLAVES: `http://127.0.0.1:${enclave.address().port}`,
            API_RELAY_PORT: String(port), API_RELAY_BIND: "127.0.0.1",
            BASE_RPC: `http://127.0.0.1:${rpc.address().port}`, RPC_FALLBACKS: "0",
            ADDRESS_BOOK_ADDRESS: "", DEPLOYMENTS_ADDRESS: "0x" + "12".repeat(20),
            APP_DOMAIN: "app.enclave.host", UPLOAD_KEY },
     stdio: ["ignore", "pipe", "pipe"],
-  });
+    }));
   child.stderr.on("data", (d) => process.stderr.write("[relay] " + d));
   t.after(() => { child.kill("SIGKILL"); enclave.close(); rpc.close(); });
   const origin = `http://127.0.0.1:${port}`;
-  for (let i = 0; i < 100; i++) {
-    try { const r = await fetch(origin + "/health"); if (r.ok) return origin; } catch {}
-    await delay(100);
-  }
-  throw new Error("relay never answered /health");
+  return origin;
 }
 // POST a JSON-RPC message to the MCP surface (Host-dispatched: the relay
 // trusts x-forwarded-host by default, which is also how Caddy hands it over)

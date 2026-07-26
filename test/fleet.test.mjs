@@ -102,6 +102,18 @@ function spawnRelay(script, extraEnv) {
   return { p, logs };
 }
 
+// Every port must appear in the relay's OWN listen-callback output before the
+// test dials it - proof the relay won the port rather than a stranger holding it.
+async function bound(logs, ports, ms = 15000) {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    const out = logs.join("");
+    if (ports.every((p) => out.includes(`]:${p} ->`))) return;
+    await delay(100);
+  }
+  throw new Error(`relay never reported binding ${ports.join(", ")}:\n${logs.join("")}`);
+}
+
 // Dial [::1]:port and exchange one payload through the relay, retrying until
 // the relay has polled the map and bound the port.
 async function exchange(port, payload, attempts = 40) {
@@ -133,6 +145,14 @@ test("tcp6-relay: merges net-maps across the fleet and routes each port to its o
   const { p, logs } = spawnRelay("tcp6-relay.js", {
     ENCLAVES: `${encA.origin},${encB.origin}`, NET_POLL_SEC: "1", TCP6_PREFIX: "::1/128" });
   t.after(() => { p.kill(); encA.close(); encB.close(); });
+
+  // Wait for the RELAY's own bind lines before dialing. freePort() reserves
+  // nothing - it binds :0, reads the number and closes - so under a parallel run
+  // something else can hold portA by the time the relay gets there. Dialing then
+  // reaches a stranger and the failure reads as a routing bug rather than a lost
+  // race. The relay logs "[tcp6-relay] [::1]:<port> -> <origin>" from its listen
+  // callback, so those lines mean the relay, and only the relay, owns them.
+  await bound(logs, [portA, portB]);
 
   const [ra, rb] = await Promise.all([exchange(portA, "ping-a"), exchange(portB, "ping-b")]);
   assert.equal(ra, "A:ping-a", `wrong route for enclave A (logs: ${logs.join("")})`);

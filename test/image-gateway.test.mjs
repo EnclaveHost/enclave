@@ -36,17 +36,31 @@ test.before(async () => {
     res.end(JSON.stringify({ Hash: "bafkteststub" }));
   });
   await new Promise((r) => kubo.listen(0, "127.0.0.1", r));
-  gwPort = await freePort();
-  gwProc = spawn("python3", [GW], {
-    env: { ...process.env, PORT: String(gwPort), UPLOAD_KEY: "",
-           KUBO_API: `http://127.0.0.1:${kubo.address().port}` },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  for (let i = 0; i < 100; i++) {
-    try { const r = await fetch(`http://127.0.0.1:${gwPort}/healthz`); if (r.ok) return; } catch {}
-    await new Promise((r) => setTimeout(r, 100));
+  // freePort() reserves nothing (binds :0, reads the number, closes), so under a
+  // parallel run another server can hold it before python gets there. /healthz
+  // is at least this gateway's OWN path - the other daemons in the suite serve
+  // /health and would 404 it - but a dead child must not look like a slow one,
+  // so give up on a corpse and start over on a fresh port.
+  let log = "";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    gwPort = await freePort();
+    gwProc = spawn("python3", [GW], {
+      env: { ...process.env, PORT: String(gwPort), UPLOAD_KEY: "",
+             KUBO_API: `http://127.0.0.1:${kubo.address().port}` },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    log = "";
+    gwProc.stdout.on("data", (d) => (log += d));
+    gwProc.stderr.on("data", (d) => (log += d));
+    let up = false;
+    for (let i = 0; i < 100 && gwProc.exitCode == null; i++) {
+      try { const r = await fetch(`http://127.0.0.1:${gwPort}/healthz`); if (r.ok) { up = true; break; } } catch {}
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    if (up) return;
+    try { gwProc.kill("SIGKILL"); } catch {}
   }
-  throw new Error("gateway never answered /healthz");
+  throw new Error(`gateway never answered /healthz on a port of its own:\n${log}`);
 });
 test.after(() => { gwProc?.kill("SIGKILL"); kubo?.close(); });
 
