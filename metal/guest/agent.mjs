@@ -34,6 +34,11 @@ const MODE      = process.env.METAL_MODE || 'snp';
 const NAME      = process.env.METAL_NAME || 'metal0';
 const RAD_PORT  = parseInt(process.env.METAL_RAD_PORT || '8443', 10);
 const SUP_URL   = process.env.METAL_SUP_URL || 'http://127.0.0.1:8080';
+// the ONE destination anything arriving over the tunnel may reach, resolved
+// once at boot so no frame can move it (see forward() / stream())
+const SUP_HOST  = (() => { try { return new URL(SUP_URL).hostname; } catch { return '127.0.0.1'; } })();
+const SUP_PORT  = (() => { try { return Number(new URL(SUP_URL).port) || 80; } catch { return 8080; } })();
+const SUP_HOST_URL = `http://${SUP_HOST}:${SUP_PORT}`;
 const RELAY_URL = process.env.METAL_RELAY_URL || '';
 const RELAY_HOST = process.env.METAL_RELAY_HOST || '';    // Host/SNI when dialing via an egress helper
 const TOKEN     = process.env.METAL_TUNNEL_TOKEN || '';
@@ -130,10 +135,21 @@ catch (e) { log(`WARNING: attestation unavailable: ${e.message}`); }
 // --- fleet tunnel: forward the enclave's public HTTP surface over an outbound
 // wss the relay accepts. Framed request/response (Phase 1 is buffered; SSE
 // streaming rides a chunked-frame upgrade). ------------------------------------
+// The relay is a ROUTER, not a trusted party — that is the whole premise of the
+// tunnel. `new URL(frame.path, SUP_URL)` honored an ABSOLUTE path frame, so a
+// relay that sent `http://169.254.169.254/…` (or any host on this box's
+// network) got the agent to dial it from INSIDE the CVM: a full SSRF primitive
+// handed to the one component the design says not to trust. The raw-stream path
+// below always pinned the supervisor's port for exactly this reason; the
+// buffered path now does the same. Only the path and query come off the wire.
 function forward(frame, send) {
-  const u = new URL(frame.path, SUP_URL);
+  const reply = (status, text) => send({ t: 'res', id: frame.id, status, headers: {}, body: Buffer.from(text).toString('base64') });
+  const p = String(frame.path || '');
+  if (!p.startsWith('/') || p.startsWith('//')) return reply(400, 'bad request target');
+  let u; try { u = new URL(SUP_HOST_URL + p); } catch { return reply(400, 'bad request target'); }
   const body = frame.body ? Buffer.from(frame.body, 'base64') : undefined;
-  const req = http.request(u, { method: frame.method || 'GET', headers: frame.headers || {} }, (r) => {
+  const req = http.request({ host: SUP_HOST, port: SUP_PORT, path: u.pathname + u.search,
+                             method: frame.method || 'GET', headers: frame.headers || {} }, (r) => {
     const chunks = [];
     r.on('data', (c) => chunks.push(c));
     r.on('end', () => send({
@@ -151,14 +167,13 @@ function forward(frame, send) {
 // — this carries the /x/<id>/tls and /x/<id>/https bridges (TLS terminating in
 // THIS CVM) out through the tunnel. Frames: s+ open · s= ack · sd data · sx
 // close. The only reachable target is the supervisor's own port — the tunnel
-// must never become a generic proxy into the guest.
-const SUP_PORT = (() => { try { return Number(new URL(SUP_URL).port) || 80; } catch { return 8080; } })();
+// must never become a generic proxy into the guest (SUP_HOST/SUP_PORT above).
 const MAX_GUEST_STREAMS = 128, GUEST_STREAM_IDLE_MS = 15 * 60_000;
 const streams = new Map();                        // sid -> net.Socket
 function stream(f, send) {
   if (f.t === 's+') {
     if (streams.size >= MAX_GUEST_STREAMS) return send({ t: 's=', sid: f.sid, ok: false, err: 'stream cap' });
-    const sock = net.connect({ host: '127.0.0.1', port: SUP_PORT });
+    const sock = net.connect({ host: SUP_HOST, port: SUP_PORT });
     streams.set(f.sid, sock);
     sock.setTimeout(GUEST_STREAM_IDLE_MS, () => sock.destroy());
     sock.on('connect', () => send({ t: 's=', sid: f.sid, ok: true }));
