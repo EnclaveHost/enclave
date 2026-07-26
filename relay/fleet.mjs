@@ -154,6 +154,7 @@ export function createFleet(cfg, log = () => {}) {
   // the caller safely falls back to probing — a valid deployment never 404s from
   // this alone.
   let _runnerClient = null, _deploymentsAddress = cfg.deploymentsAddress;
+  let _anyEndpoints = [];        // fresh registry endpoints, operator-allowlist aside (leaseEndpointFor)
   let _hashEndpoint = null;
   const _endpointIdCache = new Map();
   let _ledger = { rows: [], at: 0 };
@@ -240,6 +241,29 @@ export function createFleet(cfg, log = () => {}) {
     for (const ep of origins) if ((await endpointId(ep)) === runner) return ep;   // known + in-fleet
     return null;
   }
+  // The endpoint that PROVABLY holds a deployment's live lease, whether or not
+  // its operator is on the routing allowlist. For app data-plane traffic the
+  // lease IS the authority: whoever holds it already runs the app and already
+  // terminates its TLS (the cert is minted in THAT enclave), so splicing a
+  // client's ciphertext to it grants nothing the lease didn't. This is what
+  // lets an unvetted seller box serve its apps publicly. Deliberately NOT used
+  // for control-plane trust: session/egress tokens still go only to
+  // allowlisted operators (that is what TRUSTED_OPERATORS protects).
+  async function leaseEndpointFor(id) {
+    const strict = await runnerEndpointFor(id);        // in-fleet box: unchanged path
+    if (strict) return strict;
+    const h = String(id).toLowerCase();
+    if (!/^0x[0-9a-f]{8,64}$/.test(h)) return null;
+    let rows;
+    try { rows = await ledgerRows(); } catch { return null; }
+    const hits = rows.filter((d) => String(d.id).toLowerCase().startsWith(h));
+    if (hits.length !== 1) return null;
+    const d = hits[0];
+    if (ZERO32.test(String(d.runner)) || Number(d.leaseUntil) * 1000 <= Date.now()) return null;
+    const runner = String(d.runner).toLowerCase();
+    for (const ep of _anyEndpoints) if ((await endpointId(ep)) === runner) return ep;
+    return null;
+  }
   // Lease lookup for permissionless verifiers (dns-relay's operator-signed TXT
   // push): the UNIQUE ledger row for an id prefix, reduced to what an auth
   // check needs. null on unknown AND on ambiguous — a prefix that names two
@@ -263,7 +287,7 @@ export function createFleet(cfg, log = () => {}) {
   }
 
   if (cfg.staticList.length) {
-    return { origins: () => origins, runnerEndpointFor, leaseFor,
+    return { origins: () => origins, runnerEndpointFor, leaseEndpointFor, leaseFor,
              async start() { log(`static fleet: ${origins.join(", ")}`); } };
   }
 
@@ -299,8 +323,15 @@ export function createFleet(cfg, log = () => {}) {
     const now = Math.floor(Date.now() / 1000);
     warnIfUnauthenticated(cfg, log);
     const ops = cfg.trustedOperators;
-    return rows
-      .filter((e) => e.active && now - Number(e.lastSeen) <= cfg.staleAfterSec)
+    const fresh = rows.filter((e) => e.active && now - Number(e.lastSeen) <= cfg.staleAfterSec);
+    // Endpoint set for LEASE-authorized routing (leaseEndpointFor): every fresh
+    // registry row, WITHOUT the operator allowlist but WITH the https + SSRF
+    // filters. Not a fleet-membership grant — the caller must independently
+    // prove this endpoint holds the deployment's on-chain lease.
+    _anyEndpoints = fresh.map((e) => String(e.endpoint || "").replace(/\/+$/, ""))
+      .filter((ep) => isHttpsEndpoint(ep))
+      .filter((ep) => { let h; try { h = new URL(ep).hostname; } catch { return false; } return !isBlockedHost(h); });
+    return fresh
       // B2: only vetted operators (baked default, or the env allowlist). Pass-all
       // ONLY under the explicit TRUSTED_OPERATORS=* opt-in — never by omission.
       .filter((e) => cfg.operatorsUnrestricted || ops.includes(String(e.operator || "").toLowerCase()))
@@ -328,6 +359,7 @@ export function createFleet(cfg, log = () => {}) {
   return {
     origins: () => origins,
     runnerEndpointFor,
+    leaseEndpointFor,
     leaseFor,
     async start() {
       log(`on-chain fleet: ${cfg.addressBook ? "EnclaveAddressBook " + cfg.addressBook + " -> registry" : "EnclaveRegistry " + cfg.registryAddress}`

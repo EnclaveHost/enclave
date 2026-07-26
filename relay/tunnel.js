@@ -42,7 +42,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
   function bind(name, ws, meta = {}) {
     const prev = tunnels.get(name);
     if (prev && prev.ws !== ws) { try { prev.ws.terminate(); } catch {} }   // newest wins
-    const t = { ws, pending: new Map(), lastSeen: Date.now(), mode: meta.mode || "", publicUrl: "", measurement: meta.measurement || null };
+    const t = { ws, pending: new Map(), streams: new Map(), lastSeen: Date.now(), mode: meta.mode || "", publicUrl: "", measurement: meta.measurement || null };
     tunnels.set(name, t);
     console.log(`[tunnel] ${name} attached via ${meta.via || "token"} (${tunnels.size} enclave${tunnels.size === 1 ? "" : "s"})`);
     try { onChange("attach", name); } catch {}   // refresh discovery so it lands in `live` now, not on the next slow poll
@@ -61,9 +61,13 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
         return;
       }
       if (f.t === "pong") return;
-      if (f.t === "res" && f.id != null) { const p = t.pending.get(f.id); if (p) { t.pending.delete(f.id); p.resolve(f); } }
+      if (f.t === "res" && f.id != null) { const p = t.pending.get(f.id); if (p) { t.pending.delete(f.id); p.resolve(f); } return; }
+      // raw-stream frames (Phase D): s= open-ack · sd data · sx close
+      if ((f.t === "s=" || f.t === "sd" || f.t === "sx") && f.sid != null) {
+        const s = t.streams.get(f.sid); if (s) s(f);
+      }
     });
-    const bye = () => { if (tunnels.get(name) === t) tunnels.delete(name); for (const p of t.pending.values()) p.reject(new Error("tunnel closed")); console.log(`[tunnel] ${name} detached`); try { onChange("detach", name); } catch {} };
+    const bye = () => { if (tunnels.get(name) === t) tunnels.delete(name); for (const p of t.pending.values()) p.reject(new Error("tunnel closed")); for (const s of [...t.streams.values()]) s({ t: "sx" }); t.streams.clear(); console.log(`[tunnel] ${name} detached`); try { onChange("detach", name); } catch {} };
     ws.on("close", bye);
     ws.on("error", () => { try { ws.terminate(); } catch {} });
   }
@@ -111,6 +115,64 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     socket.destroy();
   }
 
+  // ---- raw streams over the control ws (Phase D) -----------------------------
+  // A WebSocket UPGRADE can't ride the buffered req/res frames, so it gets a
+  // spliced byte stream instead: the hub asks the agent to open a TCP
+  // connection to the guest supervisor ({t:"s+"}), replays the client's
+  // upgrade request head into it, and from then on both directions are opaque
+  // {t:"sd"} chunks. The supervisor completes the handshake itself (101 flows
+  // back through the splice), so the in-enclave /x/<id>/tls and /https bridges
+  // — TLS terminating INSIDE the CVM — work unchanged behind a tunnel: this is
+  // what makes a CGNAT seller box publicly serve its apps. The hub never
+  // parses the spliced bytes; on the app-TLS path they are ciphertext
+  // end-to-end. Bounded: per-tunnel stream cap, open timeout, idle timeout,
+  // and a bufferedAmount guard so one slow reader can't balloon hub memory.
+  const MAX_STREAMS = 128, STREAM_OPEN_MS = 10_000, STREAM_IDLE_MS = 15 * 60_000, MAX_WS_BUFFER = 16 * 1024 * 1024;
+  function spliceUpgrade(origin, req, socket, head, path) {
+    const name = (String(origin).match(NAME_RE) || [])[1];
+    const t = tunnels.get(name);
+    const refuse = (code, text) => { try { socket.write(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`); } catch {} socket.destroy(); };
+    if (!t) return refuse(502, "Bad Gateway");
+    if (t.streams.size >= MAX_STREAMS) return refuse(503, "Service Unavailable");
+    const sid = seq++;
+    const sendF = (o) => { try { t.ws.send(JSON.stringify(o)); return true; } catch { return false; } };
+    let open = false, idleTimer = null;
+    const openTimer = setTimeout(() => finish("stream open timeout"), STREAM_OPEN_MS);
+    const idle = () => { clearTimeout(idleTimer); idleTimer = setTimeout(() => finish("idle"), STREAM_IDLE_MS); };
+    function finish(why) {
+      clearTimeout(openTimer); clearTimeout(idleTimer);
+      if (t.streams.delete(sid)) sendF({ t: "sx", sid });
+      if (!open && why !== "closed") refuse(502, "Bad Gateway"); else socket.destroy();
+    }
+    t.streams.set(sid, (f) => {
+      idle();
+      if (f.t === "s=" && !open) {
+        if (!f.ok) return finish(f.err || "open refused");
+        clearTimeout(openTimer); open = true;
+        // replay the client's upgrade request into the guest supervisor: the
+        // request line (path already rewritten by the caller) + headers as
+        // received, then any bytes that arrived with the upgrade event
+        let headStr = `${req.method} ${path} HTTP/1.1\r\n`;
+        for (let i = 0; i < req.rawHeaders.length; i += 2) headStr += `${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}\r\n`;
+        headStr += "\r\n";
+        sendF({ t: "sd", sid, d: Buffer.concat([Buffer.from(headStr, "latin1"), head && head.length ? head : Buffer.alloc(0)]).toString("base64") });
+        socket.on("data", (chunk) => {
+          if (t.ws.bufferedAmount > MAX_WS_BUFFER) return finish("hub buffer overflow");
+          idle(); sendF({ t: "sd", sid, d: chunk.toString("base64") });
+        });
+        socket.resume();
+        return;
+      }
+      if (f.t === "sd" && open) { try { socket.write(Buffer.from(f.d || "", "base64")); } catch {} return; }
+      if (f.t === "sx") { open = true; finish("closed"); }   // remote closed: plain teardown, no 502
+    });
+    socket.pause();
+    socket.on("error", () => finish("closed"));
+    socket.on("close", () => finish("closed"));
+    idle();
+    if (!sendF({ t: "s+", sid })) return finish("tunnel send failed");
+  }
+
   let seq = 1;
   function send(name, method, path, headers, body) {
     const t = tunnels.get(name);
@@ -152,5 +214,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       return { status: r.status || 502, headers: r.headers || {}, body: Buffer.from(r.body || "", "base64") };
     },
     count: () => tunnels.size,
+    // websocket-upgrade splice into the guest supervisor (Phase D)
+    spliceUpgrade,
   };
 }

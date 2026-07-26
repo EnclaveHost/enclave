@@ -268,14 +268,23 @@ const APP_OWNER = new Map();                               // label -> { origin,
 const APP_OWNER_TTL_MS = 5 * 60_000;
 async function appOwnerOf(label) {
   const hit = APP_OWNER.get(label);
-  if (hit && Date.now() - hit.at < APP_OWNER_TTL_MS && fleet.origins().includes(hit.origin)) return hit.origin;
+  // in-fleet origins are cache-valid while they stay in the fleet; a
+  // lease-authorized origin (below) is not in origins by definition, so it
+  // rides the TTL alone and re-proves its lease on expiry
+  if (hit && Date.now() - hit.at < APP_OWNER_TTL_MS && (hit.byLease || fleet.origins().includes(hit.origin))) return hit.origin;
   // SECURITY (fix 1c / B3): prefer the deployment's ON-CHAIN runner over "first
   // enclave answering non-404", so a hostile enclave can't hijack another
   // tenant's app-subdomain by answering for its id. Only used when the fleet
   // exposes a deployments source (ADDRESS_BOOK/DEPLOYMENTS_ADDRESS); otherwise
   // null -> the probe below (unchanged behavior).
-  const byRunner = await (fleet.runnerEndpointFor?.(label) ?? Promise.resolve(null)).catch(() => null);
-  if (byRunner) { APP_OWNER.set(label, { origin: byRunner, at: Date.now() }); return byRunner; }
+  // leaseEndpointFor also answers for a box OUTSIDE the operator allowlist,
+  // provided the ledger says it holds this deployment's live lease. That is
+  // the correct authority here: the lease holder already runs the app and
+  // terminates its TLS in its own enclave, so splicing ciphertext to it grants
+  // nothing — and without this an unvetted SELLER box could never serve its
+  // apps publicly (control-plane trust is unaffected; see fleet.mjs).
+  const byRunner = await ((fleet.leaseEndpointFor ?? fleet.runnerEndpointFor)?.(label) ?? Promise.resolve(null)).catch(() => null);
+  if (byRunner) { APP_OWNER.set(label, { origin: byRunner, at: Date.now(), byLease: !fleet.origins().includes(byRunner) }); return byRunner; }
   const found = await Promise.all(fleet.origins().map(async (o) => {
     try {
       const r = await fetch(`${o}/x/${encodeURIComponent(label)}`,

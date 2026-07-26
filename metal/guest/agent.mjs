@@ -16,12 +16,19 @@
 //
 // No secret in this file leaves the CVM; the transport key is minted per boot.
 import http from 'node:http';
+import net from 'node:net';
 import { createHash, generateKeyPairSync } from 'node:crypto';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 
-const require = createRequire('/app/package.json');       // borrow ws from the supervisor image
-const WebSocket = require('ws');
+// borrow ws from the supervisor image (/app); fall back to normal resolution so
+// the agent also runs outside the CVM (harnesses, dev boxes)
+const WebSocket = (() => {
+  for (const base of ['/app/package.json', import.meta.url]) {
+    try { return createRequire(base)('ws'); } catch {}
+  }
+  throw new Error("cannot resolve 'ws' (looked in /app and next to this file)");
+})();
 
 const MODE      = process.env.METAL_MODE || 'snp';
 const NAME      = process.env.METAL_NAME || 'metal0';
@@ -139,6 +146,34 @@ function forward(frame, send) {
   req.end();
 }
 
+// --- raw streams (Phase D): the hub splices a client's WebSocket UPGRADE into
+// a plain TCP connection to the supervisor, which answers the handshake itself
+// — this carries the /x/<id>/tls and /x/<id>/https bridges (TLS terminating in
+// THIS CVM) out through the tunnel. Frames: s+ open · s= ack · sd data · sx
+// close. The only reachable target is the supervisor's own port — the tunnel
+// must never become a generic proxy into the guest.
+const SUP_PORT = (() => { try { return Number(new URL(SUP_URL).port) || 80; } catch { return 8080; } })();
+const MAX_GUEST_STREAMS = 128, GUEST_STREAM_IDLE_MS = 15 * 60_000;
+const streams = new Map();                        // sid -> net.Socket
+function stream(f, send) {
+  if (f.t === 's+') {
+    if (streams.size >= MAX_GUEST_STREAMS) return send({ t: 's=', sid: f.sid, ok: false, err: 'stream cap' });
+    const sock = net.connect({ host: '127.0.0.1', port: SUP_PORT });
+    streams.set(f.sid, sock);
+    sock.setTimeout(GUEST_STREAM_IDLE_MS, () => sock.destroy());
+    sock.on('connect', () => send({ t: 's=', sid: f.sid, ok: true }));
+    sock.on('data', (c) => send({ t: 'sd', sid: f.sid, d: c.toString('base64') }));
+    const bye = () => { if (streams.delete(f.sid)) send({ t: 'sx', sid: f.sid }); };
+    sock.on('error', (e) => { if (streams.has(f.sid) && !sock.remotePort) { streams.delete(f.sid); send({ t: 's=', sid: f.sid, ok: false, err: e.code || 'connect failed' }); } });
+    sock.on('close', bye);
+    return;
+  }
+  const sock = streams.get(f.sid);
+  if (!sock) return;
+  if (f.t === 'sd') { try { sock.write(Buffer.from(f.d || '', 'base64')); } catch {} }
+  else if (f.t === 'sx') { streams.delete(f.sid); sock.destroy(); }
+}
+
 // One-shot connectivity probe so failures are diagnosable from the journal:
 // separate DNS from TCP-reachability, and IPv4 from IPv6.
 async function probe() {
@@ -184,6 +219,7 @@ function connectTunnel() {
     ws.on('message', (data) => {
       let f; try { f = JSON.parse(data); } catch { return; }
       if (f.t === 'req') forward(f, send);
+      else if (f.t === 's+' || f.t === 'sd' || f.t === 'sx') stream(f, send);
       else if (f.t === 'ping') send({ t: 'pong' });
       else if (f.t === 'challenge') {         // permissionless attach: answer with a fresh quote over the nonce
         try { send({ t: 'attest', rad: radForChallenge(f.nonce) }); log('sent attestation for tunnel challenge'); }
@@ -191,7 +227,7 @@ function connectTunnel() {
       } else if (f.t === 'attest-result') log(`attest ${f.ok ? 'ACCEPTED' + (f.measurement ? ' meas=' + String(f.measurement).slice(0, 16) + '…' : '') : 'REJECTED: ' + f.reason}`);
     });
     ws.on('unexpected-response', (_req, res) => { log(`tunnel handshake rejected: HTTP ${res.statusCode}`); try { ws.terminate(); } catch {} });
-    ws.on('close', () => { if (alive) log('tunnel closed'); alive = false; setTimeout(dial, 2000); });
+    ws.on('close', () => { if (alive) log('tunnel closed'); alive = false; for (const s of [...streams.values()]) s.destroy(); streams.clear(); setTimeout(dial, 2000); });
     ws.on('error', (e) => { log(`tunnel error: ${e.code || ''} ${e.message || String(e)}`); try { ws.terminate(); } catch {} });
   };
   dial();
