@@ -134,6 +134,13 @@ const supEnv = {
     REGISTRY_PRIVATE_KEY: REGISTRY_KEY,
     ENCLAVE_REPO: flavorEnv.ENCLAVE_REPO || 'EnclaveHost/enclave',
   } : {}),
+  // Bring-your-own ZeroSSL EAB (config acmeEabKid/acmeEabHmac): activates the
+  // supervisor's default slot-1 ZeroSSL directory ahead of the Let's Encrypt
+  // fallback. Only ever set as a pair — half a pair is a config error the
+  // supervisor would warn about and skip anyway.
+  ...(fw.acmeEabKid && fw.acmeEabHmac ? {
+    ACME_EAB_KID: fw.acmeEabKid, ACME_EAB_HMAC: fw.acmeEabHmac,
+  } : {}),
   ...(PAYOUT_ADDR ? { PAYOUT_ADDRESS: PAYOUT_ADDR } : {}),
   // without the FLEET secret, relay-staged deployment secrets can't be
   // fetched (the auth key derives from it) - report the capability honestly

@@ -53,6 +53,11 @@ const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', rel
   // nor earns. Delivered via fw_cfg like the tunnel token — out-of-band, never
   // in the launch measurement or the quote.
   registryKey: cfg.registryKey || '', payoutAddress: cfg.payoutAddress || '',
+  // optional ZeroSSL External Account Binding pair (bring-your-own, free
+  // account): with it the guest's ACME slot 1 (ZeroSSL) activates ahead of
+  // the EAB-less Let's Encrypt fallback — sellers escape LE's per-registered-
+  // domain weekly cap. Rides fw_cfg like the keys: out-of-band, unmeasured.
+  acmeEabKid: cfg.acmeEabKid || '', acmeEabHmac: cfg.acmeEabHmac || '',
   // optional FLEET secret (first-party boxes only): with it the guest joins
   // the fleet's deployment-secrets plane (the relay's fetch auth derives from
   // it); without it the guest mints its own SECRET per boot and truthfully

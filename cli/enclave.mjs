@@ -1967,6 +1967,7 @@ encrypted volumes (rclone-crypt over S3; push data with scripts/enclave-encvol.s
 
 sell hosting (run an enclave on your own TEE hardware — metal/PROTOCOL.md)
   host init [--name N] [--payout 0x…] [--cpus N --mem MiB]
+            [--eab-kid K --eab-hmac H]
                              scaffold metal/config.json: mints the box's operator
                              key INTO that file (gitignored; the printed address
                              derives from it — nothing external to trust) and
@@ -2001,7 +2002,7 @@ transactions - deploying and funding by credit stays on enclave.host for now.`;
 // not a payment; earnings sweep to payoutAddress (default: this CLI wallet).
 async function cmdHost(rest) {
   const sub = rest.shift();
-  const f = flags(rest, { val: ["--config", "--name", "--payout", "--eth", "--address", "--mode", "--cpus", "--mem"] });
+  const f = flags(rest, { val: ["--config", "--name", "--payout", "--eth", "--address", "--mode", "--cpus", "--mem", "--eab-kid", "--eab-hmac"] });
   const cfgPath = f.config || path.join("metal", "config.json");
   const readCfg = () => { try { return JSON.parse(fs.readFileSync(cfgPath, "utf8")); } catch { return null; } };
   const operatorOf = (cfg) => {
@@ -2024,6 +2025,10 @@ async function cmdHost(rest) {
     if (!cfg.publicUrl) cfg.publicUrl = `https://api.enclave.host/t/${cfg.name || "metal0"}`;
     const minted = !cfg.registryKey;
     if (minted) cfg.registryKey = generatePrivateKey();
+    // optional bring-your-own ZeroSSL EAB (free account): the box then mints
+    // app certs via ZeroSSL first, dodging Let's Encrypt's per-domain weekly cap
+    if (!!f["eab-kid"] !== !!f["eab-hmac"]) throw new Error("--eab-kid and --eab-hmac go together (ZeroSSL dashboard - Developer - EAB credentials)");
+    if (f["eab-kid"]) { cfg.acmeEabKid = f["eab-kid"]; cfg.acmeEabHmac = f["eab-hmac"]; }
     if (f.payout) cfg.payoutAddress = f.payout;
     else if (!cfg.payoutAddress) {
       const acct = loadKey({ required: false });
