@@ -2426,9 +2426,15 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     # embedder API (WasiCtxBuilder::socket_addr_check) instead of the CLI, OR a
     # per-tenant network namespace (delicate; must still expose the assigned
     # loopback port to the bridge). Until then, the billing/SSRF exposure is
-    # closed at the SERVICES: the worker binds loopback + optional token and the
-    # supervisor endpoints are token-gated. See also the bind audit (_audit_rec),
-    # which still kills a guest that binds an unassigned policed port.
+    # closed at the SERVICES, and those gates are now FAIL-CLOSED rather than
+    # optional, which is what makes accepting this bearable: an unset
+    # WORKER_TOKEN denies every worker request (not "disables auth"), an unset
+    # VMMGR_TOKEN/SECRET denies every control route here, and both opt-outs are
+    # explicit env flags that warn loudly. The one plane a tenant is SUPPOSED to
+    # reach - /encvol - authenticates with that deployment's own 192-bit token,
+    # matched against its own record, so it cannot touch another tenant's
+    # volumes. See also the bind audit (_audit_rec), which still kills a guest
+    # that binds an unassigned policed port.
     net_args = egress_args if egress_transparent else ["-Sinherit-network"]
     cmd = [WASMTIME, "run", "-Scli", *P3_FLAGS, *nn_args, "-Stcp", "-Sudp",
            *net_args, "-Sallow-ip-name-lookup", *fs_args, *cfg_args, *vol_args,
