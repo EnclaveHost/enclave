@@ -49,7 +49,17 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     ws.on("message", (data) => {
       t.lastSeen = Date.now();
       let f; try { f = JSON.parse(data); } catch { return; }
-      if (f.t === "hello") { t.mode = f.mode || t.mode; t.publicUrl = f.publicUrl || ""; t.transportKeyFp = f.transportKeyFp || ""; return; }
+      if (f.t === "hello") {
+        const had = t.publicUrl;
+        t.mode = f.mode || t.mode; t.publicUrl = f.publicUrl || ""; t.transportKeyFp = f.transportKeyFp || "";
+        // The attach-time onChange snapshots the registry BEFORE this frame can
+        // arrive, so a selling box's registered id (keccak of its publicUrl)
+        // stays unknown until the next slow poll — its hosted rows read
+        // "claimed"/unnamed for minutes after every relay restart. Re-announce
+        // the moment the identity lands.
+        if (t.publicUrl !== had) { try { onChange("hello", name); } catch {} }
+        return;
+      }
       if (f.t === "pong") return;
       if (f.t === "res" && f.id != null) { const p = t.pending.get(f.id); if (p) { t.pending.delete(f.id); p.resolve(f); } }
     });
