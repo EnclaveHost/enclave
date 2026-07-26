@@ -634,6 +634,32 @@ function minShares(ver, pricing) {
   const grain = (x) => Math.min(1000, Math.ceil(x * 100) * 10); // whole percents, in milli
   return { gpuMilli: grain(gpu), cpuMilli: Math.max(10, grain(cpu)) };
 }
+// Changing the version or shares of a LEASED deployment is judged by ONE box:
+// the enclave holding the lease restarts the app in place and checks the new
+// version against its own card and node (supervisor minSharesOf). /v1/pricing
+// describes the fleet's best box, which on a mixed fleet is a different machine
+// - so re-point minShares at the lease holder's own numbers, per axis it
+// reports (a CPU-only box reports no card; those axes keep the pricing values).
+// No live lease, no fleet view, or an unknown runner: pricing stands, since any
+// box could claim the record next.
+async function hostPricing(d, pricing) {
+  const runner = String(d?.runner || "").toLowerCase();
+  if (!/^0x[0-9a-f]{64}$/.test(runner) || /^0x0+$/.test(runner)) return { pricing, host: null };
+  if (!(Number(d.leaseUntil) * 1000 > Date.now())) return { pricing, host: null };
+  const rows = await api("GET", "/enclaves").then((j) => j?.enclaves || []).catch(() => []);
+  const row = rows.find((e) => String(e?.id || "").toLowerCase() === runner);
+  const a = row?.availability;
+  if (!a) return { pricing, host: null };
+  const pick = (v, fallback) => (Number(v) > 0 ? Number(v) : fallback);
+  return {
+    host: row.name || "the enclave holding the lease",
+    pricing: { ...pricing,
+      node: { ...(pricing?.node || {}), ramGb: pick(a.nodeRamGb, pricing?.node?.ramGb),
+              gflops: pick(a.nodeGflops, pricing?.node?.gflops), vcpus: pick(a.nodeVcpus, pricing?.node?.vcpus) },
+      card: { ...(pricing?.card || {}), vramGb: pick(a.cardVramGb, pricing?.card?.vramGb),
+              tflops: pick(a.cardTflops, pricing?.card?.tflops) } },
+  };
+}
 
 // ---- funding (EIP-3009 receiveWithAuthorization -> EnclaveDeployments) ---------------
 async function fundUsdc(account, id, amountUsd) {
@@ -1136,10 +1162,14 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
     say(`! ${app.slug}:${ver.version} is awaiting catalog approval - switching this PRIVATE deployment to it (dev mode)`);
   }
   // the record's shares (bought at create, or re-bought here) must cover the
-  // version's minimums on the fleet's hardware — a record no runner accepts
+  // version's minimums ON THE BOX THAT WILL APPLY THE CHANGE — its lease holder
+  // while it has one, the fleet's otherwise; a record that box won't accept
   // would leave the app dark on a still-billing lease
   let pricing = null;
   try { pricing = await api("GET", "/v1/pricing"); } catch {}
+  let host = null;
+  ({ pricing, host } = await hostPricing(d, pricing));
+  const where = host ? `on ${host}` : "on the fleet's hardware";
   const mins = minShares(ver, pricing);
   let gpuMilli = f.gpu !== undefined ? Math.round(numFlag(f.gpu, "--gpu") * 1000) : Number(d.gpuMilli);
   let cpuMilli = f.cpu !== undefined ? Math.round(numFlag(f.cpu, "--cpu") * 1000) : Number(d.cpuMilli);
@@ -1149,8 +1179,8 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
   if (gpuMilli < mins.gpuMilli || cpuMilli < mins.cpuMilli) {
     const dial = `--gpu ${mins.gpuMilli / 1000} --cpu ${mins.cpuMilli / 1000}`;
     if (wantShares)
-      throw new Error(`those dials are below ${app.slug}:${ver.version}'s minimums on the fleet's hardware - it needs at least ${dial}`);
-    throw new Error(`${app.slug}:${ver.version} needs at least gpu ${mins.gpuMilli / 10}% / cpu ${mins.cpuMilli / 10}% on the fleet's hardware, `
+      throw new Error(`those dials are below ${app.slug}:${ver.version}'s minimums ${where} - it needs at least ${dial}`);
+    throw new Error(`${app.slug}:${ver.version} needs at least gpu ${mins.gpuMilli / 10}% / cpu ${mins.cpuMilli / 10}% ${where}, `
                   + `but ${short(id)} bought gpu ${Number(d.gpuMilli) / 10}% / cpu ${Number(d.cpuMilli) / 10}% - `
                   + (rev >= 6
                      ? `resize it in place (the rate is recalculated at current prices): enclave upgrade ${rest[0]}${rest[1] !== undefined ? " " + rest[1] : ""} ${dial}`

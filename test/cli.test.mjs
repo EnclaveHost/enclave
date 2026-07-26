@@ -80,6 +80,7 @@ const S = {
   catRev: 4n,                                  // catalogSchema the stub plays (4 = the live pre-fee catalog)
   verFee: 0n,                                  // versionFee(appId, *) on the rev-5 catalog (µUSDC/s)
   fleetResize: true,                           // availability.shareResize (fleet-AND; resize tests flip it)
+  fleet: null,                                 // GET /enclaves rows (per-box hardware; null = no fleet view)
 };
 
 function apiServer() {
@@ -120,6 +121,11 @@ function apiServer() {
     if (u.pathname === "/availability")
       return json(200, { aggregate: true, enclaves: 2, gpuShareFree: 0.5, cpuShareFree: 0.9,
                          shareResize: S.fleetResize });
+    // per-box fleet table: what a version change / resize of a LEASED
+    // deployment is really sized against (its lease holder), vs /v1/pricing's
+    // fleet-wide numbers. 404 = no fleet view (a direct-to-enclave base).
+    if (u.pathname === "/enclaves")
+      return S.fleet ? json(200, { enclaves: S.fleet }) : json(404, { error: "no_route" });
     if (u.pathname === "/v1/claim-hint") { S.claimed = true; return json(200, { accepted: true, status: "sweeping" }); }
     if (u.pathname === "/v1/apps/upload-token" && req.method === "POST") {
       // wallet-signed upload authorization: recover the signer from the
@@ -464,6 +470,48 @@ test("upgrade refuses a version that outgrows the deployment's immutable shares"
   assert.match(r.err, /needs at least/);
   assert.match(r.err, /shares are immutable/);
   S.versionCount = 1; S.v2 = null;
+});
+
+// The box that applies an in-place switch is the one holding the lease, and it
+// gates the new version on ITS OWN hardware (supervisor minSharesOf). Sizing
+// against the fleet's numbers instead refuses versions the runner would happily
+// serve (and would accept ones a smaller runner then refuses).
+const LEASE_HOLDER = "0x" + "ee".repeat(32);            // depRecord()'s runner while S.claimed
+const fleetRow = (name, a) => ({ id: LEASE_HOLDER, name, endpoint: `https://${name}.example`,
+  availability: { gpu: false, claimEnabled: true, cpuShareFree: 0.9, ...a } });
+const BIG_BOX = { nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000 };
+const TINY_BOX = { nodeVcpus: 4, nodeRamGb: 3, nodeGflops: 250 };
+
+test("upgrade sizes the new version on the enclave HOLDING THE LEASE, not the fleet", async () => {
+  // 512 MB + 10 GFLOPS: 5% of the stub's fleet node (32 GB / 200 GFLOPS), but
+  // 1% of the 64 GB / 1000 GFLOPS box actually running it — the record's 1%
+  // fits, and the fleet-sized floor would have blocked a switch that works
+  S.txs.length = 0; S.claimed = true; S.versionCount = 2; S.v2 = { memMb: 512, cpuGflops: 10 };
+  S.fleet = [fleetRow("kryptos", BIG_BOX)];
+  const r = await run(["upgrade", ID, "2"]);
+  assert.equal(r.code, 0, r.err);
+  assert.ok(S.txs.find((t) => t.functionName === "setAppRef"), "setAppRef tx sent");
+  S.fleet = null; S.versionCount = 1; S.v2 = null; S.claimed = false;
+});
+
+test("upgrade still refuses when the LEASE HOLDER is the small box (and names it)", async () => {
+  S.txs.length = 0; S.claimed = true; S.versionCount = 2; S.v2 = { memMb: 512, cpuGflops: 10 };
+  S.fleet = [fleetRow("metal0", TINY_BOX)];
+  const r = await run(["upgrade", ID, "2"]);
+  assert.notEqual(r.code, 0, "must refuse before any signature");
+  assert.ok(!S.txs.length, "no tx sent");
+  assert.match(r.err, /cpu 17% on metal0/);               // 512 MB of a 3 GB node, named
+  S.fleet = null; S.versionCount = 1; S.v2 = null; S.claimed = false;
+});
+
+test("upgrade falls back to the fleet numbers with no live lease", async () => {
+  // unleased: any box may claim it next, so the fleet-wide floor (5%) is right
+  S.txs.length = 0; S.claimed = false; S.versionCount = 2; S.v2 = { memMb: 512, cpuGflops: 10 };
+  S.fleet = [fleetRow("kryptos", BIG_BOX)];
+  const r = await run(["upgrade", ID, "2"]);
+  assert.notEqual(r.code, 0, "an expired lease pins nothing");
+  assert.match(r.err, /on the fleet's hardware/);
+  S.fleet = null; S.versionCount = 1; S.v2 = null;
 });
 
 test("upgrade to the version already running is a no-op", async () => {

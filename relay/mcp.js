@@ -326,6 +326,32 @@ function minShares(ver, pricing) {
   const grain = (x) => Math.min(1000, Math.ceil(x * 100) * 10);
   return { gpuMilli: grain(gpu), cpuMilli: Math.max(10, grain(cpu)) };
 }
+// Changing the version or shares of a LEASED deployment is judged by ONE box:
+// the enclave holding the lease restarts the app in place and checks the new
+// version against its own card and node (supervisor minSharesOf). /v1/pricing
+// describes the fleet's best box, which on a mixed fleet is a different
+// machine - so size against the lease holder's own numbers, per axis it
+// reports (a CPU-only box reports no card; those axes keep the pricing
+// values). No live lease / unknown runner: pricing stands, since any box could
+// claim the record next. Mirrors cli/enclave.mjs hostPricing.
+async function hostPricing(d, pricing) {
+  const runner = String(d?.runner || "").toLowerCase();
+  if (!/^0x[0-9a-f]{64}$/.test(runner) || /^0x0+$/.test(runner)) return { pricing, host: null };
+  if (!(Number(d.leaseUntil) * 1000 > Date.now())) return { pricing, host: null };
+  const rows = await self("GET", "/enclaves").then((j) => j?.enclaves || []).catch(() => []);
+  const row = rows.find((e) => String(e?.id || "").toLowerCase() === runner);
+  const av = row?.availability;
+  if (!av) return { pricing, host: null };
+  const pick = (v, fallback) => (Number(v) > 0 ? Number(v) : fallback);
+  return {
+    host: row.name || "the enclave holding the lease",
+    pricing: { ...pricing,
+      node: { ...(pricing?.node || {}), ramGb: pick(av.nodeRamGb, pricing?.node?.ramGb),
+              gflops: pick(av.nodeGflops, pricing?.node?.gflops), vcpus: pick(av.nodeVcpus, pricing?.node?.vcpus) },
+      card: { ...(pricing?.card || {}), vramGb: pick(av.cardVramGb, pricing?.card?.vramGb),
+              tflops: pick(av.cardTflops, pricing?.card?.tflops) } },
+  };
+}
 
 // ---- unsigned-transaction encoders (pure; pinned by test/mcp.test.mjs) --------
 const tx = (to, data, value = 0n, describe = "") =>
@@ -476,7 +502,10 @@ async function upgradeOrResize(a, resizeOnly) {
     if (!(av && av.aggregate && av.devDeploy === true))
       throw new Error(`${app.slug}:${ver.version} is awaiting approval, and the live fleet doesn't advertise devDeploy (pending-version private deploys) yet - retry after the fleet updates, or wait for approval`);
   }
-  const pricing = await self("GET", "/v1/pricing").catch(() => null);
+  // sized on the box that will APPLY the change (its lease holder), not the
+  // fleet's best box - see hostPricing
+  const { pricing, host } = await hostPricing(d, await self("GET", "/v1/pricing").catch(() => null));
+  const where = host ? `on ${host}` : "on the fleet's hardware";
   const mins = minShares(ver, pricing);
   let gpuMilli = a.gpuShare !== undefined ? Math.round(Number(a.gpuShare) * 1000) : Number(d.gpuMilli);
   let cpuMilli = a.cpuShare !== undefined ? Math.round(Number(a.cpuShare) * 1000) : Number(d.cpuMilli);
@@ -486,8 +515,8 @@ async function upgradeOrResize(a, resizeOnly) {
   if (gpuMilli < mins.gpuMilli || cpuMilli < mins.cpuMilli) {
     const dial = `gpuShare ${mins.gpuMilli / 1000} / cpuShare ${mins.cpuMilli / 1000}`;
     if (wantShares)
-      throw new Error(`those dials are below ${app.slug}:${ver.version}'s minimums on the fleet's hardware (needs at least ${dial})`);
-    throw new Error(`${app.slug}:${ver.version} needs gpu ${mins.gpuMilli / 10}% / cpu ${mins.cpuMilli / 10}% but this deployment bought `
+      throw new Error(`those dials are below ${app.slug}:${ver.version}'s minimums ${where} (needs at least ${dial})`);
+    throw new Error(`${app.slug}:${ver.version} needs gpu ${mins.gpuMilli / 10}% / cpu ${mins.cpuMilli / 10}% ${where} but this deployment bought `
       + `gpu ${Number(d.gpuMilli) / 10}% / cpu ${Number(d.cpuMilli) / 10}%; `
       + (rev >= 6 ? `pass ${dial} to resize it in place (the rate is recalculated at the current list prices)`
                   : "shares are immutable on this ledger; deploy it fresh instead"));
