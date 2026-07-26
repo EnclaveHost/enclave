@@ -3239,6 +3239,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not tok:
             b = re.match(r"^Bearer\s+(\S+)$", self.headers.get("Authorization") or "")
             tok = b.group(1) if b else ""
+        # TENANT-REACHABLE, and that is the point of the bytes. ENCLAVE_ENC_API +
+        # ENCLAVE_ENC_TOKEN are handed to the GUEST, and the wasmtime egress
+        # patch carves loopback out of the SOCKS front precisely so an app can
+        # dial this plane — so the header below is untrusted guest input, and a
+        # str compare_digest would raise TypeError out of this auth check on any
+        # byte above U+007F rather than returning false. The egress carve-out's
+        # safety argument is literally "the in-CVM services are token-gated
+        # fail-closed"; this is one of those gates. Keep it bytes.
         if not hmac.compare_digest(_b(tok), _b(enc["token"])):
             self._json(401, {"error": "volume token required"})
             return None
