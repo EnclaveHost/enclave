@@ -264,6 +264,24 @@ export function createFleet(cfg, log = () => {}) {
     for (const ep of _anyEndpoints) if ((await endpointId(ep)) === runner) return ep;
     return null;
   }
+  // Does this id PREFIX name more than one ledger deployment? An app subdomain
+  // is a prefix — canonically 8 hex chars, 32 bits — and ids are
+  // keccak256(creator, nonce), so a twin can be ground offline and created for
+  // the price of one transaction. Callers that would otherwise fall back to
+  // "whichever enclave answers the probe first" must refuse instead: on the SNI
+  // path that race decides who receives a client's ClientHello for the victim's
+  // hostname, and the twin can hold a real CA cert for it (same label). Only
+  // ever answers true on certainty; an unreadable ledger is `false`, leaving
+  // the caller's existing behavior untouched.
+  async function prefixAmbiguous(idPrefix) {
+    const h = String(idPrefix).toLowerCase().replace(/^(?!0x)/, "0x");
+    if (!/^0x[0-9a-f]{8,63}$/.test(h)) return false;   // full id or non-ledger shape
+    if (!cfg.addressBook && !cfg.deploymentsAddress) return false;
+    let rows;
+    try { rows = await ledgerRows(); } catch { return false; }
+    return rows.filter((d) => String(d.id).toLowerCase().startsWith(h)).length > 1;
+  }
+
   // Lease lookup for permissionless verifiers (dns-relay's operator-signed TXT
   // push): the UNIQUE ledger row for an id prefix, reduced to what an auth
   // check needs. null on unknown AND on ambiguous — a prefix that names two
@@ -287,7 +305,7 @@ export function createFleet(cfg, log = () => {}) {
   }
 
   if (cfg.staticList.length) {
-    return { origins: () => origins, runnerEndpointFor, leaseEndpointFor, leaseFor,
+    return { origins: () => origins, runnerEndpointFor, leaseEndpointFor, leaseFor, prefixAmbiguous,
              async start() { log(`static fleet: ${origins.join(", ")}`); } };
   }
 
@@ -361,6 +379,7 @@ export function createFleet(cfg, log = () => {}) {
     runnerEndpointFor,
     leaseEndpointFor,
     leaseFor,
+    prefixAmbiguous,
     async start() {
       log(`on-chain fleet: ${cfg.addressBook ? "EnclaveAddressBook " + cfg.addressBook + " -> registry" : "EnclaveRegistry " + cfg.registryAddress}`
           + (cfg.operatorsUnrestricted ? " · UNAUTHENTICATED (TRUSTED_OPERATORS=*)" : ` · trusted operators: ${cfg.trustedOperators.length}`));
