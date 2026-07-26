@@ -4,7 +4,7 @@
    EnclaveDeployments / EnclaveAppCatalog contract surface.
    No web3 library loads on the site.
    ============================================================ */
-import { APP_CATALOG_ADDRESS, DEPLOYMENTS_ADDRESS, FEATURED_ADDRESS, REVIEWS_ADDRESS, APP_CATALOG_CHAIN, APP_CATALOG_RPCS } from "./config.js";
+import { APP_CATALOG_ADDRESS, DEPLOYMENTS_ADDRESS, FEATURED_ADDRESS, REVIEWS_ADDRESS, HOST_REVIEWS_ADDRESS, APP_CATALOG_CHAIN, APP_CATALOG_RPCS } from "./config.js";
 import { EnclaveError } from "./api.js";
 import { wait } from "./util.js";
 
@@ -174,6 +174,42 @@ export async function revCanReview(appId, deploymentId, who){
     [{ t:"bytes32", v: appId }, { t:"bytes32", v: deploymentId }, { t:"addr", v: who }]));
   return hexBig(r) === 1n;
 }
+/* ---- EnclaveHostReviews: the same shape, subject = an ENCLAVE ----
+   Ratings for the boxes that RUN apps. Identical function signatures to
+   EnclaveReviews (so the selectors and the Review decoder are shared - only
+   the target address differs), plus hasReviewed: a wallet that already rated
+   a host may edit without a fresh receipt, because `runner` names the CURRENT
+   lease holder and yours moves. */
+export const HREV_SEL = { ...REV_SEL, hasReviewed: "a20daec2", hostReviewsSchema: "63d14beb" };
+export function hrevConfigured(){ return HOST_REVIEWS_ADDRESS && !/^0x0+$/i.test(HOST_REVIEWS_ADDRESS); }
+export async function hrevCall(data){
+  return (await baseRpc("eth_call", [{ to: HOST_REVIEWS_ADDRESS, data }, "latest"], { emptyRetry: true })) || "0x";
+}
+// every live box's rating in ONE call - the fleet panel's read
+export async function hrevTallies(enclaveIds){
+  if (!enclaveIds.length || !hrevConfigured()) return [];
+  const rows = decodeTallies(await hrevCall(encCall(HREV_SEL.talliesOf, [{ t:"bytes32[]", v: enclaveIds }])), enclaveIds);
+  return rows.map((r) => ({ enclaveId: r.appId, count: r.count, sum: r.sum }));
+}
+export async function hrevGetReviews(enclaveId){
+  const n = Number(hexBig(await hrevCall(encCall(HREV_SEL.reviewCount, [{ t:"bytes32", v: enclaveId }]))));
+  const out = []; const PAGE = 50;
+  for (let s2 = 0; s2 < n; s2 += PAGE)
+    out.push(...decodeStructArray(await hrevCall(encCall(HREV_SEL.getReviewsPage,
+      [{ t:"bytes32", v: enclaveId }, { t:"uint", v: s2 }, { t:"uint", v: PAGE }])), REVIEW_SCHEMA));
+  return out;
+}
+// asked BEFORE the wallet signature, so a refusal is a sentence not a revert
+export async function hrevCanReview(enclaveId, deploymentId, who){
+  const r = await hrevCall(encCall(HREV_SEL.canReview,
+    [{ t:"bytes32", v: enclaveId }, { t:"bytes32", v: deploymentId || "0x" + "0".repeat(64) }, { t:"addr", v: who }]));
+  return hexBig(r) === 1n;
+}
+export async function hrevMine(enclaveId, who){
+  return decodeStruct(await hrevCall(encCall(HREV_SEL.getReview,
+    [{ t:"bytes32", v: enclaveId }, { t:"addr", v: who }])), REVIEW_SCHEMA);
+}
+
 export async function revOwner(){ const r = await revCall("0x" + REV_SEL.owner); return "0x" + (r || "").replace(/^0x/, "").slice(24).padStart(40, "0"); }
 
 /* ---- read side: JSON-RPC against a POOL of public Base RPCs ----

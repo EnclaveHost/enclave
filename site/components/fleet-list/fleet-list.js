@@ -7,6 +7,8 @@
    ============================================================ */
 import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { esc, fmtNum } from "../../js/core/util.js";
+import { starsHtml } from "../../js/core/reviews.js";
+import { hrevConfigured, hrevTallies } from "../../js/core/chain.js";
 import { serverSpec } from "../../js/core/pricing.js";
 import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
@@ -55,6 +57,7 @@ class FleetList extends EnclaveElement {
             + '<span class="fleet-head">'
             + '<span class="ap-badge ' + (gpu ? "info" : "") + '">' + (gpu ? "gpu" : "cpu") + '</span>'
             + '<span class="fleet-name">' + esc(name) + '</span>'
+            + this._ratingHtml(e)
             + '</span>'
             + (gpu ? pool("GPU", gPct,
                 stat(fmtNum(a.vramFreeGb != null ? a.vramFreeGb : gFree * vramGb), fmtNum(vramGb), "GB", "vram available")
@@ -68,6 +71,7 @@ class FleetList extends EnclaveElement {
     // fetch and re-assigns .rows, which re-renders and re-arms the button) +
     // the on-chain registry this table mirrors, linked once the address book
     // has resolved (enclaves register there)
+    this._loadRatings(rows);      // stars per box, one eth_call for the panel
     const foot = this.querySelector(".fleet-foot");
     if (foot) {
       foot.innerHTML = '<button class="fleet-refresh" type="button" title="re-fetch the live fleet view">↻ refresh</button>'
@@ -84,6 +88,33 @@ class FleetList extends EnclaveElement {
         setTimeout(() => { btn.disabled = false; }, 4000);   // safety net if no host listener re-assigns .rows
       });
     }
+  }
+
+  /* Stars for a box, from EnclaveHostReviews. Absent contract (not deployed /
+     not in the address book yet) renders NOTHING rather than a fake 0 - an
+     unrated fleet and an unreadable one are different claims. */
+  _ratingHtml(e){
+    const t = this._tallies && this._tallies[String(e.id || "").toLowerCase()];
+    if (!hrevConfigured()) return "";
+    if (!t || !t.count) return '<span class="fleet-rating fleet-unrated" title="No wallet has rated this enclave yet">unrated</span>';
+    const avg = t.sum / t.count;
+    return '<span class="fleet-rating" title="' + t.count + ' rating' + (t.count === 1 ? "" : "s") + ' from wallets whose apps this enclave ran">'
+      + starsHtml(avg) + '<small>' + avg.toFixed(1) + ' (' + t.count + ')</small></span>';
+  }
+
+  /* One talliesOf call covers every visible box. Cached per paint; a fleet
+     row set that hasn't changed doesn't re-read the chain. */
+  async _loadRatings(rows){
+    if (!hrevConfigured()) return;
+    const ids = rows.map((e) => String(e.id || "")).filter((x) => /^0x[0-9a-f]{64}$/i.test(x));
+    const key = ids.join(",");
+    if (!ids.length || key === this._tallyKey) return;
+    this._tallyKey = key;
+    try {
+      const rowsT = await hrevTallies(ids);
+      this._tallies = Object.fromEntries(rowsT.map((r) => [String(r.enclaveId).toLowerCase(), r]));
+      this.requestRender();    // repaint with the stars in place
+    } catch { /* ratings are decoration: a chain hiccup must not blank the panel */ }
   }
 }
 register("c-fleet-list", FleetList);

@@ -33,3 +33,16 @@ c-fleet-list{display:contents;}
 .fleet-refresh{font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);background:none;border:0;padding:0;min-width:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}
 .fleet-refresh:hover{color:var(--jade);}
 .fleet-refresh:disabled{opacity:.45;cursor:wait;}
+
+/* the fractional five-star glyph (core/reviews.js starsHtml) - components are
+   style-scoped, so the fleet panel carries its own copy of the base rules */
+.stars{position:relative;display:inline-block;line-height:1;white-space:nowrap;
+  font-size:.95rem;letter-spacing:.06em;}
+.stars-off{color:var(--line-strong);}
+.stars-on{position:absolute;inset:0 auto 0 0;overflow:hidden;color:var(--amber-2);}
+
+/* host ratings: stars ride the name line, dim and small so capacity stays the
+   headline; "unrated" is a statement of fact, not a call to action */
+.fleet-rating{display:inline-flex;align-items:center;gap:6px;margin-left:10px;font-size:.68rem;color:var(--text-dim);}
+.fleet-rating .stars{font-size:.72rem;}
+.fleet-unrated{font-family:var(--font-mono);letter-spacing:.04em;}

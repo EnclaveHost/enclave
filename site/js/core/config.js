@@ -39,6 +39,7 @@ export let DEPLOYMENTS_ADDRESS = "0x0A7dE5D205c10B812AbaF0b89f3A243466bCEe01"; /
 export let REGISTRY_ADDRESS    = "";                            // EnclaveRegistry (fleet membership); resolved from the address book only
 export let FEATURED_ADDRESS    = "";                            // EnclaveFeatured (featured-slot view bids); resolved from the address book only - "" = editorial featured pick, no bidding UI
 export let REVIEWS_ADDRESS     = "";                            // EnclaveReviews (1-5 star ratings + comments); resolved from the address book only - "" = the store shows no ratings at all
+export let HOST_REVIEWS_ADDRESS = "";                           // EnclaveHostReviews (1-5 star ratings for the ENCLAVES that run apps); book-resolved only - "" = the fleet panel shows no ratings
 export let PAYMENT_ROUTER_ADDRESS = "";                         // PaymentRouter (order checkout, USDC -> treasury); resolved from the address book only - "" = card-only checkout
 export const APP_CATALOG_CHAIN   = 8453;                        // Base mainnet (kept in sync by the deploy script; 84532 = Base Sepolia)
 
@@ -61,6 +62,9 @@ export function __applyAddresses(map){
   }
   if (map && ok(map.reviews) && map.reviews.toLowerCase() !== REVIEWS_ADDRESS.toLowerCase()){
     REVIEWS_ADDRESS = map.reviews; changed.push("REVIEWS_ADDRESS");
+  }
+  if (map && ok(map.hostReviews) && map.hostReviews.toLowerCase() !== HOST_REVIEWS_ADDRESS.toLowerCase()){
+    HOST_REVIEWS_ADDRESS = map.hostReviews; changed.push("HOST_REVIEWS_ADDRESS");
   }
   if (map && ok(map.paymentRouter) && map.paymentRouter.toLowerCase() !== PAYMENT_ROUTER_ADDRESS.toLowerCase()){
     PAYMENT_ROUTER_ADDRESS = map.paymentRouter; changed.push("PAYMENT_ROUTER_ADDRESS");
