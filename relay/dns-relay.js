@@ -195,6 +195,15 @@ async function poll() {
 
 // ---- challenge store (zone 2's TXT) ----------------------------------------
 
+// Bounded on both axes. A TXT set is authorized (fleet HMAC, or an operator's
+// on-chain lease) but authorization is not a quantity: an authorized pusher can
+// mint one entry per distinct VALUE, and every value under a name is answered
+// in the same response. Unbounded, that is both a memory sink and a first-class
+// amplification vector — one 50-byte TCP query returning megabytes of TXT. Two
+// concurrent orders per name is the real ACME shape; 8 leaves room to spare,
+// and the name cap covers the ~57 distinct id-prefix labels one deployment can
+// legitimately produce, times a fleet's worth of deployments.
+const MAX_TXT_NAMES = 2048, MAX_TXT_VALUES = 8;
 const txtStore = new Map();   // name -> Map(value -> expiresAtMs); several values = concurrent orders
 
 function txtValues(name) {
@@ -439,6 +448,16 @@ function checkSig(sig, raw) {
 // certs). Strictly narrower than the fleet HMAC (which authorizes any name):
 // per-deployment authority, anchored on chain, replay-bounded by the mandatory
 // ts. Returns null when authorized, else a reason string.
+// This path is UNAUTHENTICATED until the recover+ledger check completes, and
+// the check is expensive: a cache-busting re-read pages the whole ledger over
+// RPC. The generic DNS bucket (50/s) would let anyone with a well-formed
+// signature turn the relay into an RPC hammer, so operator pushes get their own
+// tight bucket, and the fresh re-read a global cooldown on top — a just-claimed
+// lease needs ONE re-read, not one per attempt.
+const rlOperator = makeRateLimiter(10, 0.2);
+const FRESH_COOLDOWN_MS = 5000;
+let _lastFresh = 0;
+
 let _recover = null;
 async function operatorAuth(sig, raw, body, name) {
   if (!/^0x[0-9a-fA-F]{130}$/.test(String(sig))) return "malformed x-operator-sig";
@@ -462,8 +481,11 @@ async function operatorAuth(sig, raw, body, name) {
   const ok = (l) => !!(l && l.id === depId && l.leaseLive && l.runnerOperator === signer);
   let lease = await fleet.leaseFor(depId);
   // a just-claimed lease can be behind the 10s row cache — one fresh re-read
-  // before denying (the API rate limiter bounds how often this can be driven)
-  if (!ok(lease)) lease = await fleet.leaseFor(depId, { fresh: true });
+  // before denying, at most once per cooldown across all callers
+  if (!ok(lease) && Date.now() - _lastFresh > FRESH_COOLDOWN_MS) {
+    _lastFresh = Date.now();
+    lease = await fleet.leaseFor(depId, { fresh: true });
+  }
   if (!ok(lease)) return "signer does not hold the live lease for this deployment";
   // the label must name ONLY this deployment: a prefix shared with another
   // ledger row authorizes neither holder (leaseFor is null on ambiguity)
@@ -510,6 +532,8 @@ const api = http.createServer((req, res) => {
     // authority is the on-chain lease for THIS deployment's subdomain only
     let authed = !!TXT_KEY && checkSig(req.headers["x-relay-sig"], raw);
     if (!authed && typeof req.headers["x-operator-sig"] === "string") {
+      if (!rlOperator(req.socket?.remoteAddress || "unknown"))
+        return json(429, { error: "rate_limited", message: "Too many operator-signed pushes; retry shortly." });
       let why;
       try { why = await operatorAuth(req.headers["x-operator-sig"], raw, body, name); }
       catch (e) { console.error(`[dns-relay] operator auth error: ${e.message}`); why = "verification error"; }
@@ -523,8 +547,23 @@ const api = http.createServer((req, res) => {
     if (req.method === "POST") {
       let ttl = TXT_TTL_S;   // body ttlSec can only SHORTEN the cap, never extend it
       if (Number.isFinite(body.ttlSec) && body.ttlSec > 0) ttl = Math.min(ttl, body.ttlSec);
+      const fresh = !txtStore.has(name);
+      if (fresh && txtStore.size >= MAX_TXT_NAMES) {
+        for (const n of [...txtStore.keys()]) txtValues(n);          // expire first, then refuse
+        if (txtStore.size >= MAX_TXT_NAMES) {
+          console.error(`[dns-relay] challenge store full (${txtStore.size} names) — refused ${name}`);
+          return json(503, { error: "store_full", message: "Too many live challenges on this relay; retry shortly." });
+        }
+      }
       const vals = txtStore.get(name) || new Map();
       vals.set(value, Date.now() + ttl * 1000);
+      // over the per-name cap, the value closest to expiry goes: the newest
+      // challenge is the one being validated right now
+      while (vals.size > MAX_TXT_VALUES) {
+        let oldest = null, at = Infinity;
+        for (const [v, exp] of vals) if (exp < at) { at = exp; oldest = v; }
+        vals.delete(oldest);
+      }
       txtStore.set(name, vals);
       console.log(`[dns-relay] txt set ${name} (${vals.size} value${vals.size === 1 ? "" : "s"}, ttl ${ttl}s)`);
       return json(200, { ok: true, name, values: vals.size, ttlSec: ttl });
