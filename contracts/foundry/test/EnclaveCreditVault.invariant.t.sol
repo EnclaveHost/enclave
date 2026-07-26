@@ -82,7 +82,8 @@ contract EnclaveCreditVaultInvariantTest is Test {
         dep = new MockDeployments(IERC20(address(usdc)), PAYOUT);
         book.set(BOOK_KEY_DEPLOYMENTS, address(dep));
         EnclaveCreditVaultFactory factory =
-            new EnclaveCreditVaultFactory(IERC20(address(usdc)), IAddressBook(address(book)), TREASURY);
+            new EnclaveCreditVaultFactory(IERC20(address(usdc)), IAddressBook(address(book)), TREASURY,
+                "https://enclave.host", "");
         (uint256 x, uint256 y) = vm.publicKeyP256(0xA1CE);
         vault = EnclaveCreditVault(factory.createVault(x, y));
         handler = new VaultHandler(vault, usdc);

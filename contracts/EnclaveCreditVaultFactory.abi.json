@@ -15,6 +15,16 @@
         "internalType": "address",
         "name": "treasury",
         "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "origin0",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "origin1",
+        "type": "string"
       }
     ],
     "stateMutability": "nonpayable",
