@@ -246,6 +246,33 @@ test("runner-payout surface (rev 7) pins + importEarn encodes like viem", () => 
     encodeFunctionData({ abi: depAbi, functionName: "importEarn", args: [ids, rates6.map(BigInt)] }));
 });
 
+test("publisher recovery (transferApp) pins + the bulk multicall encodes like viem", () => {
+  // the compromised-publisher remedy: the console's Transfer-all button sends
+  // one multicall of transferApp(appId, to) per app the from-wallet published
+  const catAbi = ABI("EnclaveAppCatalog");
+  eq("0x" + S("EnclaveAppCatalog").transferApp, toFunctionSelector("function transferApp(bytes32 appId, address to)"));
+  // appIdOf turned view in rev 6 (resolves the transfer redirect) - the
+  // selector every client already calls must not have moved
+  eq("0x" + S("EnclaveAppCatalog").appIdOf, toFunctionSelector("function appIdOf(address publisher, string slug) view returns (bytes32)"));
+  const ids = ["0x" + "ab".repeat(32), "0x" + "cd".repeat(32), "0x" + "ef".repeat(32)];
+  const inner = ids.map((id) => encCall(S("EnclaveAppCatalog").transferApp, [{ t: "bytes32", v: id }, { t: "addr", v: A2 }]));
+  for (const [i, id] of ids.entries())
+    eq(inner[i], encodeFunctionData({ abi: catAbi, functionName: "transferApp", args: [id, A2] }));
+  eq(encCallX(S("EnclaveAppCatalog").multicall, [{ t: "bytes[]", v: inner }]),
+    encodeFunctionData({ abi: catAbi, functionName: "multicall", args: [inner] }));
+});
+
+test("importVersionFees (the catalog fee carry) encodes like viem", () => {
+  // migrate.js rides per-version fees along the catalog migration - aligned
+  // by version index, planned after the app's importVersions chunks
+  const catAbi = ABI("EnclaveAppCatalog");
+  const indices = ["0", "3", "17"], fees = ["139", "1389", "278"];   // decimal strings, like the ledger carry
+  eq(encCallX(S("EnclaveAppCatalog").importVersionFees, [
+    { t: "bytes32", v: APP_ROW.appId }, { t: "uint[]", v: indices }, { t: "uint[]", v: fees }]),
+    encodeFunctionData({ abi: catAbi, functionName: "importVersionFees",
+      args: [APP_ROW.appId, indices.map(BigInt), fees.map(BigInt)] }));
+});
+
 test("multicall wrapping encodes like viem", () => {
   const catAbi = ABI("EnclaveAppCatalog");
   const inner1 = encCallX(S("EnclaveAppCatalog").importApps, [{ t: "tuple[]", schema: APP_SCHEMA, v: [APP_ROW] }]);

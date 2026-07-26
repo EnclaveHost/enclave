@@ -18,11 +18,11 @@
 import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { Enclave } from "../../js/core/api.js";
 import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
-import { baseRpc, waitReceipt, encCall, encAddr, hexBig, decodeStructArray, CAMPAIGN_SCHEMA } from "../../js/core/chain.js";
+import { baseRpc, waitReceipt, encCall, encAddr, hexBig, decodeStructArray, CAMPAIGN_SCHEMA, APP_SCHEMA } from "../../js/core/chain.js";
 import { ADDRESS_BOOK_ADDRESS, USDC_BASE, DEFAULT_API_BASE } from "../../js/core/config.js";
 import { esc, on, short, showToast } from "../../js/core/util.js";
 import { CONTRACTS } from "../../js/gen/contract-artifacts.js";
-import { MIG_KINDS, importState, sealTx } from "./migrate.js";
+import { MIG_KINDS, importState, sealTx, encCallX } from "./migrate.js";
 
 const EXPLORER = "https://basescan.org";
 const ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
@@ -149,8 +149,8 @@ class AdminConsole extends EnclaveElement {
       [S.dep, S.cat, S.pay, S.feat, S.rev] = await Promise.all([
         dep ? Promise.all([rdAddr(dep, dSel.owner), rdAddr(dep, dSel.payout), rdUint(dep, dSel.pricePerSec6), rdUint(dep, dSel.cpuPricePerSec6), rdUint(dep, dSel.leaseSec), rdAddr(dep, dSel.ethUsdFeed), rdAddrSoft(dep, dSel.pendingOwner), rdUintSoft(dep, dSel.maxGpuMilli), rdUintSoft(dep, dSel.maxFeePerSec6)])
               .then(([owner, payout, gpu, cpu, lease, feed, pending, maxGpu, maxFee]) => ({ addr: dep, owner, payout, gpu, cpu, lease, feed, pending, maxGpu, maxFee })) : null,
-        cat ? Promise.all([rdAddr(cat, CONTRACTS.EnclaveAppCatalog.sel.owner), rdAddrSoft(cat, CONTRACTS.EnclaveAppCatalog.sel.pendingOwner), rdUintSoft(cat, CONTRACTS.EnclaveAppCatalog.sel.maxFeePerSec6)])
-              .then(([owner, pending, maxFee]) => ({ addr: cat, owner, pending, maxFee })) : null,
+        cat ? Promise.all([rdAddr(cat, CONTRACTS.EnclaveAppCatalog.sel.owner), rdAddrSoft(cat, CONTRACTS.EnclaveAppCatalog.sel.pendingOwner), rdUintSoft(cat, CONTRACTS.EnclaveAppCatalog.sel.maxFeePerSec6), rdUintSoft(cat, CONTRACTS.EnclaveAppCatalog.sel.catalogSchema)])
+              .then(([owner, pending, maxFee, schema]) => ({ addr: cat, owner, pending, maxFee, schema: Number(schema ?? 2) })) : null,
         pay ? Promise.all([rdAddr(pay, pSel.owner), rdAddr(pay, pSel.payout), rdAddr(pay, pSel.usdc), rdAddrSoft(pay, pSel.pendingOwner)])
               .then(([owner, payout, usdc, pending]) => ({ addr: pay, owner, payout, usdc, pending })) : null,
         feat ? Promise.all([rdAddr(feat, fSel.owner), rdAddr(feat, fSel.payout), rdUint(feat, fSel.maxBidPerView6), rdAddrSoft(feat, fSel.pendingOwner),
@@ -310,11 +310,33 @@ class AdminConsole extends EnclaveElement {
 
     /* -- catalog pointer -- */
     if (S.cat) {
+      const feeRow = S.cat.maxFee == null
+        ? `<div class="ac-row"><div class="ac-lbl">Publisher fee cap <code>setMaxFee</code></div><div class="ac-cur"><span class="dim">not in this contract rev — redeploy EnclaveAppCatalog to enable publisher fees</span></div><span></span><span></span><span></span></div>`
+        : this._row("Publisher fee cap <code>setMaxFee</code>", `${S.cat.maxFee} <span class="dim">(≈ ${perHr(S.cat.maxFee)} max per NEW version at publish; released versions keep their fee)</span>`, "cat-maxfee", { owner: S.cat.owner, placeholder: String(S.cat.maxFee), hint: "µUSDC/s" });
+      // Publisher recovery: bulk transferApp (rev >= 6). Takes an explicit
+      // catalog ADDRESS because the recovery runs on a FRESH deploy before the
+      // book points at it (migrate -> verify -> seal -> transfer -> point the
+      // book) - between seal and transfer the compromised key still holds its
+      // publisher rights on the new contract, so the safe order moves the apps
+      // while nothing serves from it yet.
+      const recovery = `
+        <div class="ac-row"><div class="ac-lbl">Publisher recovery <code>transferApp</code><span class="ac-hint">rev ≥ 6 catalog${S.cat.schema >= 6 ? "" : " — the book's is rev " + S.cat.schema + ": deploy fresh, migrate, run this THERE, then point the book"}</span></div>
+          <div class="ac-cur">Move EVERY app one wallet published to a new wallet in one batch - the compromised-publisher-key remedy. AppIds, versions, approvals and every deployment's <code>catalog://</code> reference stay put; the old key keeps no rights and never has to sign.</div>
+          <span></span><span></span><span></span></div>
+        <div class="ac-xfer-ctl">
+          <input class="ac-in" id="xferCat" aria-label="Catalog contract address" value="${esc(S.cat.addr)}" placeholder="catalog 0x… (the rev-6 deploy)" spellcheck="false" autocomplete="off" />
+          <input class="ac-in" id="xferFrom" aria-label="From publisher" placeholder="from publisher 0x… (Load apps suggests one)" spellcheck="false" autocomplete="off" />
+          <input class="ac-in" id="xferTo" aria-label="To wallet" value="${esc(Enclave.address || "")}" placeholder="to wallet 0x…" spellcheck="false" autocomplete="off" />
+        </div>
+        <div class="ac-mig-actions">
+          <button class="btn btn-sm" data-act="cat-xfer-load">Load apps</button>
+          <input class="ac-in ac-in-key" id="xferConfirm" aria-label="Type TRANSFER to confirm" placeholder='type "TRANSFER"' spellcheck="false" autocomplete="off" />
+          <button class="btn btn-primary btn-sm ac-danger-btn" data-act="cat-xfer-run" disabled>Transfer all</button>
+        </div>
+        <div class="ac-mig-log" id="xferLog" role="log" aria-label="Publisher recovery log" hidden></div>`;
       parts.push(sec(`EnclaveAppCatalog · ${link(S.cat.addr)}`,
         `Owner ${mono(S.cat.owner)}. Moderation (approve / reject / verify / delist) already lives on the <a href="apps">Apps page</a> when you browse it with the owner wallet - it isn't duplicated here.`,
-        S.cat.maxFee == null
-          ? `<div class="ac-row"><div class="ac-lbl">Publisher fee cap <code>setMaxFee</code></div><div class="ac-cur"><span class="dim">not in this contract rev — redeploy EnclaveAppCatalog to enable publisher fees</span></div><span></span><span></span><span></span></div>`
-          : this._row("Publisher fee cap <code>setMaxFee</code>", `${S.cat.maxFee} <span class="dim">(≈ ${perHr(S.cat.maxFee)} max per NEW version at publish; released versions keep their fee)</span>`, "cat-maxfee", { owner: S.cat.owner, placeholder: String(S.cat.maxFee), hint: "µUSDC/s" })));
+        feeRow + recovery));
     }
 
     /* -- deploy cards -- */
@@ -440,8 +462,10 @@ class AdminConsole extends EnclaveElement {
     log.hidden = true; log.innerHTML = "";
   }
 
-  _migLog(cls, txt) {
-    const log = this._body.querySelector("#migLog");
+  _migLog(cls, txt) { this._logTo("migLog", cls, txt); }
+
+  _logTo(id, cls, txt) {
+    const log = this._body.querySelector("#" + id);
     log.hidden = false;
     const d = document.createElement("div");
     d.className = cls; d.textContent = txt;
@@ -699,6 +723,80 @@ class AdminConsole extends EnclaveElement {
           } catch (err) { log("err", friendly(err)); btn.disabled = false; }
           return;
         }
+      }
+
+      /* publisher recovery: bulk transferApp on a rev-6 catalog */
+      if (act === "cat-xfer-load") {
+        const catAddr = val("xferCat");
+        if (!need(ADDR_RE.test(catAddr), "enter the catalog contract address (prefilled from the book; paste the fresh rev-6 deploy during a recovery)")) return;
+        const log = (cls, txt) => this._logTo("xferLog", cls, txt);
+        const runBtn = this._body.querySelector('[data-act="cat-xfer-run"]');
+        runBtn.disabled = true; this._xfer = null;
+        btn.disabled = true;
+        try {
+          const sel = CONTRACTS.EnclaveAppCatalog.sel;
+          const [schema, catOwner] = await Promise.all([rdUintSoft(catAddr, sel.catalogSchema), rdAddr(catAddr, sel.owner)]);
+          const n = Number(await rdUint(catAddr, sel.appCount));
+          const apps = [];
+          for (let s = 0; s < n; s += 50)
+            apps.push(...decodeStructArray(await call(catAddr, encCallX(sel.getAppsPage, [{ t: "uint", v: s }, { t: "uint", v: 50 }])), APP_SCHEMA));
+          const byPub = {};
+          for (const a of apps) (byPub[lc(a.publisher)] ||= []).push(a);
+          log("ok", `catalog rev ${schema ?? "<4"} · ${apps.length} app${apps.length === 1 ? "" : "s"} from ${Object.keys(byPub).length} publisher${Object.keys(byPub).length === 1 ? "" : "s"}`);
+          for (const [pub, list] of Object.entries(byPub).sort((x, y) => y[1].length - x[1].length))
+            log("p", `  ${list[0].publisher} — ${list.length}: ${list.map((a) => a.slug).join(", ")}`);
+          if (Number(schema ?? 0) < 6) return void log("err", "this catalog predates publisher transfers (rev < 6) — deploy a fresh EnclaveAppCatalog from the card above, Migrate data into it, run the transfer THERE, then point the book");
+          if (lc(catOwner) !== lc(Enclave.address)) log("err", `owner is ${catOwner} — connect that wallet to transfer`);
+          // suggest the biggest publisher that isn't the catalog owner (the
+          // compromised-wallet shape); still just a prefill, change it freely
+          const fromEl = this._body.querySelector("#xferFrom");
+          if (fromEl && !fromEl.value.trim()) {
+            const sug = Object.entries(byPub).filter(([p]) => p !== lc(catOwner)).sort((x, y) => y[1].length - x[1].length)[0];
+            if (sug) { fromEl.value = sug[1][0].publisher; log("p", `from prefilled: ${sug[1][0].publisher} (${sug[1].length} apps) — make sure this IS the compromised wallet`); }
+          }
+          this._xfer = { catalog: catAddr, apps, owner: catOwner };
+          runBtn.disabled = false;
+        } catch (err) { log("err", "load failed: " + friendly(err)); }
+        finally { btn.disabled = false; }
+        return;
+      }
+      if (act === "cat-xfer-run") {
+        const X = this._xfer;
+        const from = val("xferFrom"), to = val("xferTo"), cf = val("xferConfirm");
+        const log = (cls, txt) => this._logTo("xferLog", cls, txt);
+        if (!need(X && lc(X.catalog) === lc(val("xferCat")), "load the apps first (re-load if you changed the catalog address)")) return;
+        if (!need(ADDR_RE.test(from), "enter the compromised publisher's address in `from`")) return;
+        if (!need(ADDR_RE.test(to) && !isZero(to), "enter the destination wallet in `to` (0x…, non-zero)")) return;
+        if (!need(lc(from) !== lc(to), "from and to are the same wallet")) return;
+        if (!need(cf === "TRANSFER", 'type TRANSFER (exactly) to confirm — this moves EVERY app the from-wallet published')) return;
+        const todo = X.apps.filter((a) => lc(a.publisher) === lc(from));
+        if (!need(todo.length, "the from-wallet publishes no apps in this catalog (already moved?) — re-Load to see the current state")) return;
+        const taken = new Set(X.apps.filter((a) => lc(a.publisher) === lc(to)).map((a) => a.slug));
+        const clash = todo.filter((a) => taken.has(a.slug));
+        if (!need(!clash.length, `the to-wallet already publishes ${clash.map((a) => a.slug).join(", ")} — the contract refuses a duplicate slug per wallet; pick another destination`)) return;
+        btn.disabled = true;
+        try {
+          await this._connect();
+          const sel = CONTRACTS.EnclaveAppCatalog.sel;
+          const calls = todo.map((a) => encCall(sel.transferApp, [{ t: "bytes32", v: a.appId }, { t: "addr", v: to }]));
+          // ~70k gas per transfer: 60 per multicall stays far under the ~9M
+          // budget that keeps public RPCs broadcasting (see migrate.js)
+          const chunks = []; for (let i = 0; i < calls.length; i += 60) chunks.push(calls.slice(i, i + 60));
+          log("p", `${todo.length} app${todo.length === 1 ? "" : "s"} → ${to} in ${chunks.length} transaction${chunks.length === 1 ? "" : "s"}: ${todo.map((a) => a.slug).join(", ")}`);
+          for (let i = 0; i < chunks.length; i++) {
+            log("p", `[${i + 1}/${chunks.length}] transferApp × ${chunks[i].length} — confirm in your wallet…`);
+            const hash = await sendTx(X.catalog, chunks[i].length === 1 ? chunks[i][0] : encCallX(sel.multicall, [{ t: "bytes[]", v: chunks[i] }]));
+            log("p", `  sent ${hash.slice(0, 14)}… waiting…`);
+            await waitReceipt(hash, 90);
+            log("ok", `  ✓ confirmed`);
+          }
+          log("ok", `done — ${todo.length} app${todo.length === 1 ? "" : "s"} now publish as ${to}. Re-Load to verify, then if this catalog isn't in the book yet, point it (Address book panel).`);
+          showToast(`transferred ${todo.length} app${todo.length === 1 ? "" : "s"} ✓`);
+          this._xfer = null;   // state is stale now: require a fresh Load before another run
+        } catch (err) {
+          log("err", friendly(err) + " — apps already moved stay moved; re-Load and Transfer again to finish the rest");
+        }
+        return;
       }
 
       if (act.startsWith("book-point:")) {

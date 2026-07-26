@@ -15,6 +15,18 @@ pragma solidity ^0.8.20;
 ///     else's "hello" are different apps (distinguished by publisher). Because the
 ///     appId embeds msg.sender, only you can ever write to your app — lineage
 ///     ownership is STRUCTURAL, not an access check that can be spoofed.
+///   - Since rev 6 that structural rule has ONE owner-ruled exception:
+///     `transferApp` moves a lineage to a new publisher wallet while the appId
+///     (and with it every deployment's `catalog://<appId>/…` reference) stays
+///     put. It exists as the recovery remedy for a COMPROMISED publisher key —
+///     the compromised key must never need to sign, so the catalog owner rules
+///     the move, exactly the trust model of `grantCid` (and the owner already
+///     gates every deploy via approval). Writes therefore resolve slug → appId
+///     through a transfer redirect and then check `App.publisher`; for a
+///     never-transferred app that is byte-identical to the old structural
+///     check, and the transferred-away key keeps NO rights (not even to reuse
+///     the slug for a fresh lineage — its hash is forever bound to the moved
+///     one).
 ///   - `publishVersion` appends an immutable Version (its own CID, label, and the
 ///     EXACT resources the app needs to run, on four axes: vramMb + gpuGflops of
 ///     a GPU card — both 0 for CPU-only apps — and memMb + cpuGflops of a node;
@@ -122,7 +134,15 @@ contract EnclaveAppCatalog {
     ///         decodes) and marks the publisher-fee surface: struct reads
     ///         keep gating on >= 4, the fee feature (publishVersion's fee
     ///         param, versionFee, maxFeePerSec6) gates on >= 5.
-    uint256 public constant catalogSchema = 5;
+    ///         Revision 6 again keeps every tuple byte-for-byte (the transfer
+    ///         redirect is a side mapping) and marks the publisher-TRANSFER
+    ///         surface: `transferApp`, and `appIdOf` turning view (it resolves
+    ///         through the redirect, so a transferred lineage answers under
+    ///         its CURRENT publisher). Gates: struct reads >= 4, fees >= 5,
+    ///         transfers >= 6. importApps also accepts transferred lineages
+    ///         (appId != keccak(publisher, slug)) from a rev-6 source and
+    ///         recreates their redirect.
+    uint256 public constant catalogSchema = 6;
 
     uint256 private constant MAX_SLUG = 40;
     uint256 private constant MAX_NAME = 80;
@@ -157,8 +177,17 @@ contract EnclaveAppCatalog {
     mapping(bytes32 => mapping(uint256 => uint256)) private _versionFee6; // appId -> version index -> publisher fee
                                                       // (USDC 6dp per second; SIDE MAPPING so rev-4 Version
                                                       // tuples stay byte-for-byte — see catalogSchema)
+    /// @dev Transfer redirect (rev 6): keccak256(currentPublisher, slug) -> the
+    ///      lineage that publisher owns under the slug, for lineages whose
+    ///      appId hashes from a PREVIOUS publisher. Unset for every
+    ///      never-transferred app (resolution falls through to the structural
+    ///      hash), and at most one redirect per (publisher, slug) — transferApp
+    ///      refuses a destination whose hash is taken, so resolution is always
+    ///      unambiguous.
+    mapping(bytes32 => bytes32) private _slugRef;
 
     event AppCreated(bytes32 indexed appId, address indexed publisher, string slug, string name);
+    event AppTransferred(bytes32 indexed appId, address indexed from, address indexed to);
     event AppEdited(bytes32 indexed appId, string name, string description);
     event VersionPublished(bytes32 indexed appId, uint256 indexed index, string version, string cid);
     event VersionFeeSet(bytes32 indexed appId, uint256 indexed index, uint256 feePerSec6);
@@ -177,9 +206,30 @@ contract EnclaveAppCatalog {
         emit MaxFeeSet(maxFeePerSec6);   // cap is live from deploy (hardcoded default)
     }
 
-    /// @dev appId embeds the publisher, so a slug is owned per-address and cannot be squatted.
-    function appIdOf(address publisher, string memory slug) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(publisher, slug));
+    /// @notice The lineage `publisher` owns under `slug`. For a
+    ///         never-transferred app this is the structural hash
+    ///         keccak256(publisher, slug) — a slug is owned per-address and
+    ///         cannot be squatted. For a lineage transferred TO this publisher
+    ///         it is the moved appId (view since rev 6, was pure: resolution
+    ///         goes through the transfer redirect). Every client — CLI
+    ///         publish, MCP, the site — resolves through this call, so
+    ///         transfers need no client changes. Existence is not ownership:
+    ///         the hash of a transferred-AWAY (publisher, slug) still names
+    ///         the moved lineage, which its old key can no longer write to.
+    function appIdOf(address publisher, string memory slug) public view returns (bytes32) {
+        bytes32 structural = keccak256(abi.encodePacked(publisher, slug));
+        bytes32 mapped = _slugRef[structural];
+        return mapped != bytes32(0) ? mapped : structural;
+    }
+
+    /// @dev Resolve msg.sender's slug and require they own the lineage — the
+    ///      rev-6 form of the old structural auth (byte-identical outcome for
+    ///      never-transferred apps; a transferred-away publisher fails the
+    ///      ownership check even though the structural hash still exists).
+    function _resolveMine(string calldata slug) private view returns (bytes32 appId) {
+        appId = appIdOf(msg.sender, slug);
+        require(_exists[appId], "unknown app");
+        require(_apps[appId].publisher == msg.sender, "not publisher");
     }
 
     /// @notice Publish a new version of your app `slug`, creating the app on first use.
@@ -275,7 +325,7 @@ contract EnclaveAppCatalog {
         require(bytes(slug).length > 0 && bytes(slug).length <= MAX_SLUG, "slug length");
         require(bytes(name).length > 0 && bytes(name).length <= MAX_NAME, "name length");
         require(bytes(description).length <= MAX_DESC, "desc length");
-        appId = keccak256(abi.encodePacked(msg.sender, slug));
+        appId = appIdOf(msg.sender, slug);
         App storage a = _apps[appId];
         if (!_exists[appId]) {
             _exists[appId] = true;
@@ -285,6 +335,11 @@ contract EnclaveAppCatalog {
             a.slug = slug;
             a.createdAt = uint64(block.timestamp);
             emit AppCreated(appId, msg.sender, slug, name);
+        } else {
+            // resolution can land on a lineage the sender no longer owns (they
+            // transferred it away and their structural hash still names it) —
+            // ownership is the publisher FIELD since rev 6, never the hash alone
+            require(a.publisher == msg.sender, "not publisher");
         }
         // the latest publish refreshes display metadata (the form pre-fills current values)
         a.name = name;
@@ -298,8 +353,7 @@ contract EnclaveAppCatalog {
     function editApp(string calldata slug, string calldata name, string calldata description) external {
         require(bytes(name).length > 0 && bytes(name).length <= MAX_NAME, "name length");
         require(bytes(description).length <= MAX_DESC, "desc length");
-        bytes32 appId = keccak256(abi.encodePacked(msg.sender, slug));
-        require(_exists[appId], "unknown app");
+        bytes32 appId = _resolveMine(slug);
         App storage a = _apps[appId];
         a.name = name;
         a.description = description;
@@ -309,16 +363,14 @@ contract EnclaveAppCatalog {
 
     /// @notice Delist / relist your whole app (kept on-chain for history either way).
     function setActive(string calldata slug, bool active) external {
-        bytes32 appId = keccak256(abi.encodePacked(msg.sender, slug));
-        require(_exists[appId], "unknown app");
+        bytes32 appId = _resolveMine(slug);
         _apps[appId].active = active;
         emit AppActiveSet(appId, active);
     }
 
     /// @notice Pull a bad release. The version stays on-chain; readers hide it.
     function yankVersion(string calldata slug, uint256 index) external {
-        bytes32 appId = keccak256(abi.encodePacked(msg.sender, slug));
-        require(_exists[appId], "unknown app");
+        bytes32 appId = _resolveMine(slug);
         require(index < _versions[appId].length, "bad index");
         _versions[appId][index].yanked = true;
         emit VersionYanked(appId, index);
@@ -369,6 +421,44 @@ contract EnclaveAppCatalog {
         emit CidGranted(cidKey, appId);
     }
 
+    /// @notice Move an app lineage to a new publisher wallet (rev 6,
+    ///         owner-only). THE compromised-publisher-key remedy: the appId —
+    ///         and every deployment's `catalog://<appId>/…` reference — stays
+    ///         put, versions/approvals/fees are untouched, and from this block
+    ///         `to` holds every publisher right (new versions under the same
+    ///         slug, edit, delist, yank; NEW deployments' fee snapshots read
+    ///         the publisher live, so future fees follow) while the old key
+    ///         holds none. Owner-ruled because the old key must never need to
+    ///         sign — a compromised key CAN still sign, just not safely — the
+    ///         same trust model as `grantCid`, and the owner already gates
+    ///         every deploy via approval. Existing deployments' fee SNAPSHOTS
+    ///         are immutable by design and do not follow (audit them before
+    ///         transferring a fee-bearing app). Re-transfer (owner) can always
+    ///         move a lineage again, so a mistyped `to` is recoverable — no
+    ///         two-step needed, unlike the ownership cliff.
+    /// @dev Strict destination rule: `to` must not already have a lineage
+    ///      under this slug — neither structurally nor via a redirect. This
+    ///      keeps resolution unambiguous and makes redirect + existing
+    ///      structural lineage an impossible state (a slug freed by
+    ///      transferring AWAY stays burned for its old publisher: their hash
+    ///      forever names the moved lineage).
+    function transferApp(bytes32 appId, address to) external {
+        require(msg.sender == owner, "!owner");
+        require(_exists[appId], "unknown app");
+        require(to != address(0), "zero addr");
+        App storage a = _apps[appId];
+        address from = a.publisher;
+        require(to != from, "already publisher");
+        bytes32 dest = keccak256(abi.encodePacked(to, a.slug));
+        require(dest == appId || (!_exists[dest] && _slugRef[dest] == bytes32(0)), "slug taken at destination");
+        bytes32 cur = keccak256(abi.encodePacked(from, a.slug));
+        if (_slugRef[cur] == appId) delete _slugRef[cur];   // `from` was itself a transferee
+        if (dest != appId) _slugRef[dest] = appId;          // structural match = a transfer back home
+        a.publisher = to;
+        a.updatedAt = uint64(block.timestamp);
+        emit AppTransferred(appId, from, to);
+    }
+
     /// @notice Cap the per-second publisher fee (USDC 6dp) a NEW version may
     ///         declare. Publish-time only: released versions keep their fee
     ///         (immutable, approval-covered) even if the cap later drops below
@@ -411,16 +501,28 @@ contract EnclaveAppCatalog {
 
     /// @notice Migrate app lineages verbatim from a previous catalog (the admin
     ///         console reads getAppsPage and replays them here). Publishers keep
-    ///         structural ownership: appId must equal keccak256(publisher, slug),
-    ///         so the original publisher — and only they — can keep releasing to
-    ///         the imported lineage.
+    ///         ownership: an appId that equals keccak256(publisher, slug) is the
+    ///         normal structural lineage; one that does NOT is a TRANSFERRED
+    ///         lineage from a rev-6 source, and the import recreates the
+    ///         redirect that routes the current publisher's slug writes to it —
+    ///         so either way the record's `publisher`, and only they, keep
+    ///         releasing to the imported lineage. (Records are owner-attested
+    ///         until `importsSealed` regardless, exactly as before.)
     function importApps(App[] calldata items) external {
         require(msg.sender == owner, "!owner");
         require(!importsSealed, "sealed");
         for (uint256 i = 0; i < items.length; i++) {
             bytes32 appId = items[i].appId;
-            require(appId == appIdOf(items[i].publisher, items[i].slug), "appId mismatch");
+            require(appId != bytes32(0), "appId=0");
             require(!_exists[appId], "exists");
+            bytes32 structural = keccak256(abi.encodePacked(items[i].publisher, items[i].slug));
+            if (appId != structural) {
+                // transferApp's strict rule makes redirect + existing structural
+                // lineage impossible in any valid source, so replaying either
+                // order imports clean; a collision here means corrupt input
+                require(!_exists[structural] && _slugRef[structural] == bytes32(0), "slug ref taken");
+                _slugRef[structural] = appId;
+            }
             _exists[appId] = true;
             _appIds.push(appId);
             _apps[appId] = items[i];
