@@ -1,4 +1,4 @@
-# Metal — operator handoff & production checklist
+# Metal: operator handoff and production checklist
 
 What is live, what needs your access or a decision, and how to drive it. Written
 for the enclave.host operator (Steven).
@@ -6,18 +6,18 @@ for the enclave.host operator (Steven).
 ## What is live right now
 
 - A self-hosted **SEV-SNP** enclave (`metal0`) runs on this box under systemd
-  (`systemctl --user status enclave-metal`), completely independent of Tinfoil.
+  (`systemctl --user status enclave-metal`), with no external controlplane.
 - It is **presented on production enclave.host**: `https://api.enclave.host/enclaves`
   lists it as **`metal0`** (`name` field; its `endpoint` stays the internal
-  `tunnel://metal0` routing key) next to the Tinfoil GPU enclave, and
+  `tunnel://metal0` routing key) next to the hosted GPU enclave, and
   `https://api.enclave.host/t/metal0/v1/health` answers over the reverse tunnel.
 - It is **independently verifiable**:
   `node metal/verify.mjs --url https://api.enclave.host/t/metal0 --vcpus 4`
   → the launch measurement matches the reproducible build and the served key is
   bound into the SEV-SNP quote.
 - The relay tunnel + permissionless attestation-gated attach are deployed
-  (permissionless attach is OFF until you curate a measurement allowlist — see
-  below — so nothing about the existing fleet changed).
+  (permissionless attach is OFF until you curate a measurement allowlist, see
+  below, so nothing about the existing fleet changed).
 
 ## Needs your access / a decision
 
@@ -36,19 +36,19 @@ sudo systemctl daemon-reload && sudo systemctl enable --now enclave-metal
 systemctl --user disable --now enclave-metal    # stop the user one first
 ```
 
-### 3. Turn on the permissionless seller protocol (Phase C) — a decision
+### 3. Turn on the permissionless seller protocol (Phase C): a decision
 The earning machinery is now BUILT end to end; what remains is operational
 activation, all of it yours:
 
 - **Redeploy `EnclaveDeployments` (schema rev 7) + migrate.** The rev-7
-  contract pays a metered runner share — `runnerBps` (default **8000** = 80%
+  contract pays a metered runner share, `runnerBps` (default **8000** = 80%
   of the platform component, publisher fee excluded; change it pre-deploy or
-  via `setRunnerBps`) — from per-deployment USDC escrow to whichever operator
+  via `setRunnerBps`), from per-deployment USDC escrow to whichever operator
   EOA holds each lease, with `withdrawEarnings` payout and an optional
   slashable claim bond (`setClaimBond`, off by default). Deploy + migrate from
   the admin console exactly like the rev-6 cutover (the migration now also
   carries `importEarn` rate snapshots; note migrated records have NO escrow
-  until re-backed with `fundEscrow`, so they pay runners nothing until then —
+  until re-backed with `fundEscrow`, so they pay runners nothing until then;
   new deployments escrow from their first funding). NOTE: rev 7 compiles
   **viaIR** (it outgrew legacy codegen's EIP-170 headroom); both compile paths
   already match.
@@ -56,7 +56,7 @@ activation, all of it yours:
   NEW deployments' fundings into escrow, and the fleet's enclaves earn it as
   they serve. Set `PAYOUT_ADDRESS=<the platform cold wallet>` (plus optional
   `EARNINGS_MIN_USDC`, default 5) in the fleet configs so each enclave
-  auto-sweeps its earnings home — without it, earnings simply accrue on the
+  auto-sweeps its earnings home; without it, earnings simply accrue on the
   contract under each enclave's operator EOA, withdrawable any time.
 - **Curate the measurement allowlist.** Establish a Metal **release** (tag +
   reproducible build) and publish its launch measurements per vcpu count. Then on
@@ -67,7 +67,7 @@ activation, all of it yours:
   (`setClaimBond(bond6, exitDelaySec)`; a bond ≥ one lease quantum's runner
   share makes claim-without-serving unprofitable) and the per-IP attach rate
   limit. Slashing is an owner action with public evidence in the event log.
-  CAREFUL: the bond gates EVERY claim, including the hosted fleet's own —
+  CAREFUL: the bond gates EVERY claim, including the hosted fleet's own, so
   post a bond from each first-party operator EOA (`postBond`) BEFORE flipping
   it on, or the fleet stops claiming new work (running leases keep renewing).
 - **Seller side (documented in `metal/config.example.json`):** set
@@ -75,32 +75,32 @@ activation, all of it yours:
   `payoutAddress`, and `publicUrl=https://api.enclave.host/t/<name>`; the
   guest supervisor then registers, claims, earns, and auto-sweeps.
 - **metal0 IS STAGED to sell (2026-07-25).** Its gitignored `metal/config.json`
-  now carries a freshly minted operator EOA — **fund
+  now carries a freshly minted operator EOA, so **fund
   `0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB` with ~$3-5 of Base ETH and it
   goes live on its own**: registration lands, `claimEnabled` flips true
-  (truthfully — the flag now requires a CONFIRMED register tx, so the staged
+  (truthfully, because the flag now requires a CONFIRMED register tx, so the staged
   box hides itself until then), and it appears in the fleet panel + deploy
   target dropdowns at its honest 3 GB size. `payoutAddress` is set to the
   platform cold wallet (read from the deployments contract). Optional:
   add `fleetSecret` (the shared fleet SECRET) to `metal/config.json` +
-  restart to make it deployment-secrets capable — without it the box
+  restart to make it deployment-secrets capable; without it the box
   truthfully reports `secrets:false`, and the fleet-AND will hide the
   console's secrets feature while it serves. Also optional: grow the VM
-  (`cpus`/`memMiB`) — 4 vCPU/6 GB is demo-sized (measurement changes with
+  (`cpus`/`memMiB`); 4 vCPU/6 GB is demo-sized (measurement changes with
   vcpu count). Until the rev-7 ledger redeploy it serves WITHOUT earning
   (first-party box; payments all reach the cold wallet regardless).
-- **OPEN DESIGN QUESTION — heterogeneous node sizing.** App minimum shares
+- **OPEN DESIGN QUESTION, heterogeneous node sizing.** App minimum shares
   are sized against the fleet-wide MINIMUM node (relay `spec*` fields), so a
   small node joining the CLAIMING set inflates every CPU app's minimum share
   and price for all buyers (observed 2026-07-25: the 3 GB metal demo box made
-  a 512 MB app's minimum 17% instead of 1% — fixed for NON-claiming boxes by
+  a 512 MB app's minimum 17% instead of 1%, fixed for NON-claiming boxes by
   scoping sizing to claiming enclaves, but a real small SELLER will do it
   again the moment it claims). The deploy CONSOLE now sidesteps this: it
-  targets a specific enclave per deploy (pickEnclaveFor — cheapest fitting
+  targets a specific enclave per deploy (pickEnclaveFor picks the cheapest fitting
   box, i.e. the largest hardware; shown as "deploys to <name>", rerouted or
   refused live as availability changes), so its floors never inflate from a
-  small box. Still open for the AGGREGATE consumers (CLI, quick-deploy, MCP
-  — they size on the relay's fleet-min spec* fields) and as policy: a
+  small box. Still open for the AGGREGATE consumers (CLI, quick-deploy and MCP
+  all size on the relay's fleet-min spec* fields) and as policy: a
   node-class floor for sellers (e.g. min 16 vCPU / 64 GB to earn), or
   absolute-unit pricing in a future ledger rev. The current per-node-fraction
   pricing pays a 3 GB node the same per share as a 64 GB one, so some floor
@@ -110,7 +110,7 @@ activation, all of it yours:
 This workstation EPYC reports a masked/unprovisioned chip id, so AMD KDS has no
 VCEK for it and `verify.mjs` reports the signature chain **inconclusive**
 (measurement + key binding still verify). A datacenter EPYC provisions its VCEK
-and the chain verifies fully — nothing to fix in the code.
+and the chain verifies fully, so there is nothing to fix in the code.
 
 ### 5. This box's egress helper (informational)
 This sandboxed host blocks QEMU user-net's *external* NAT, so `metal/config.json`
@@ -123,7 +123,7 @@ should leave `egressHelper` unset.
   relay holds just its **sha256** (in `DEFAULT_METAL_ALLOW`, committed). Rotate by
   changing both.
 - All in-CVM secrets (`SECRET`, `ADMIN_TOKEN`, the session + TLS keys) are minted
-  **inside the guest per boot** — the host operator never sees them.
+  **inside the guest per boot**, so the host operator never sees them.
 
 ## Quick operations
 
