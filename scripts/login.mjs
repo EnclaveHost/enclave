@@ -55,6 +55,41 @@ try {
   process.exit(1);
 }
 if (!nonce.message) { console.error("nonce failed:", nonce); process.exit(1); }
+// The endpoint hands us a string and we sign it with a REAL wallet key, with no
+// prompt. That is blind signing unless it is checked: the same key authorizes
+// `enclave-upload:…`, `enclave-secrets:put:…` (a secrets WRITE) and the
+// encrypted-volume message whose signature IS the volume key, so an endpoint
+// that returned one of those would get it signed and handed straight back.
+// Same gate as cli/enclave.mjs assertSiweLogin and site/js/core/wallet.js —
+// every line must belong to the SIWE grammar, which is what stops a second
+// directive riding along as an extra line. Inline because this script is
+// standalone by design (no repo imports).
+{
+  const FIELD = /^(URI|Version|Chain ID|Nonce|Issued At|Expiration Time|Not Before|Request ID|Resources): ?(.*)$/;
+  const bad = (why) => {
+    console.error(`REFUSING TO SIGN: ${base} did not return a SIWE login for this wallet (${why}).`);
+    console.error("Nothing was signed. Check ENCLAVE_BASE points where you think it does.");
+    process.exit(1);
+  };
+  const L = String(nonce.message).split("\n");
+  if (String(nonce.message).length > 4096) bad("absurdly long");
+  if (!/^\S+ wants you to sign in with your Ethereum account:$/.test(L[0] || "")) bad("first line is not the SIWE preamble");
+  if ((L[1] || "").toLowerCase() !== acct.address.toLowerCase()) bad("it asks a different address to sign");
+  if (L[2] !== "") bad("malformed header");
+  let i = 3;                                    // the statement is optional (EIP-4361), and so is its blank line
+  if (L[i] !== undefined && L[i] !== "" && !FIELD.test(L[i])) { i++; if (L[i] !== "") bad("statement is not a single line"); i++; }
+  const seen = {};
+  for (; i < L.length; i++) {
+    if (L[i] === "" && i === L.length - 1) continue;
+    if (/^- \S+$/.test(L[i]) && seen["Resources"]) continue;
+    const f = FIELD.exec(L[i]);
+    if (!f) bad(`line ${i + 1} is not a SIWE field`);
+    seen[f[1]] = f[2];
+  }
+  if (!seen["Nonce"]) bad("no Nonce");
+  if (seen["Version"] !== "1") bad("not SIWE version 1");
+  if (seen["Expiration Time"] && Date.parse(seen["Expiration Time"]) <= Date.now()) bad("already expired");
+}
 const signature = await acct.signMessage({ message: nonce.message });
 const login = await fetch(`${base}/v1/auth/login`, {
   method: "POST", headers: { "Content-Type": "application/json" },
