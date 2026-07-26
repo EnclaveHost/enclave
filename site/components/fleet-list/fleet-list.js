@@ -95,6 +95,23 @@ class FleetList extends EnclaveElement {
     }
   }
 
+  /* The host page re-assigns .rows on a 20s poll, and every assignment
+     repaints the whole list - which would yank an open rating form out from
+     under the wallet mid-edit (nothing "auto-hides" it; the row simply gets
+     rebuilt). While a form is open the repaint is DEFERRED, then flushed when
+     it closes, so fresh capacity numbers still land the moment the user is
+     done. */
+  requestRender(){
+    if (this._rateOpen){ this._renderDeferred = true; return; }
+    super.requestRender();
+  }
+  _closeRate(box, btn){
+    this._rateOpen = false;
+    if (box){ box.hidden = true; box.innerHTML = ""; }
+    if (btn) btn.setAttribute("aria-expanded", "false");
+    if (this._renderDeferred){ this._renderDeferred = false; super.requestRender(); }
+  }
+
   /* ---- rating a host: the same 5-star control the app store uses ----
      The contract takes a RECEIPT - one of your funded deployments whose
      `runner` is this box - and checks it itself, so the form's job is to find
@@ -110,8 +127,9 @@ class FleetList extends EnclaveElement {
     const encId = btn.dataset.encid, name = btn.dataset.rate;
     const box = this.querySelector('[data-form="' + CSS.escape(encId) + '"]');
     if (!box) return;
-    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
+    if (!box.hidden) return this._closeRate(box, btn);
     box.hidden = false; btn.setAttribute("aria-expanded", "true");
+    this._rateOpen = true;                 // hold off list repaints until this closes
     box.innerHTML = '<p class="fleet-gate dim">checking whether this enclave runs an app of yours…</p>';
     if (!Enclave.address){
       box.innerHTML = '<p class="fleet-gate">Only wallets whose apps this enclave has run can rate it. '
@@ -187,7 +205,7 @@ class FleetList extends EnclaveElement {
       showToast("rating " + name + " · " + hash.slice(0, 12) + "…");
       await waitReceipt(hash);
       showToast("rated " + name);
-      box.hidden = true; box.innerHTML = "";
+      this._closeRate(box, this.querySelector('.fleet-rate[data-encid="' + CSS.escape(encId) + '"]'));
       this._tallyKey = null;                 // force a re-read so the stars move
       this._loadRatings(this.rows || []);
     } catch (e) {
