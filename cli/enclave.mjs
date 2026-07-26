@@ -406,6 +406,57 @@ function accountToken({ required = true } = {}) {
                     : "not signed in; run `enclave login` (Enclave account/passkey) or set up a wallet key (enclave key new)");
 }
 
+// The login message comes from the SERVER and we sign it with the user's key —
+// with no prompt, unlike a browser wallet, so nobody is reading it. That makes
+// it blind signing unless we check it first. The same key also authorizes
+// `enclave-upload:…`, `enclave-secrets:put:…` (a secrets WRITE) and the
+// encrypted-volume message whose signature IS the volume key; a relay that
+// returned one of those strings here would get it signed and handed straight
+// back. So: the message must be a SIWE login, for THIS wallet, at THIS host,
+// on THIS chain — and every line must belong to the SIWE grammar, which is
+// what stops anything else riding along inside it.
+const SIWE_FIELD_RE = /^(URI|Version|Chain ID|Nonce|Issued At|Expiration Time|Not Before|Request ID|Resources): ?(.*)$/;
+export function assertSiweLogin(message, address, apiBase) {
+  const bad = (why) => { throw new Error(
+    `refusing to sign: the server's login challenge is not a SIWE message for this wallet (${why}). ` +
+    `Nothing was signed. If ${apiBase} is not the endpoint you meant, pass --base.`); };
+  if (typeof message !== "string" || message.length > 4096) bad("not a string, or absurdly long");
+  const L = message.split("\n");
+  const host = (() => { try { return new URL(apiBase).host; } catch { return ""; } })();
+  // The SIWE domain is the SITE (enclave.host); the API host is a sibling
+  // (api.enclave.host). Accept either direction of that relationship, and skip
+  // the comparison entirely for a loopback base — pointing the CLI at a local
+  // relay is a deliberate act, and a false refusal there helps nobody. The
+  // checks that actually stop a cross-protocol smuggle are the grammar, the
+  // address and the chain, all of which still apply.
+  const related = (a, b) => a === b || a.endsWith("." + b) || b.endsWith("." + a);
+  const localish = /^(localhost|127\.|\[?::1|0\.0\.0\.0)/.test(host);
+  const m0 = /^(\S+) wants you to sign in with your Ethereum account:$/.exec(L[0] || "");
+  if (!m0) bad("first line is not the SIWE preamble");
+  if (host && !localish && !related(m0[1].split(":")[0], host.split(":")[0]))
+    bad(`it names domain ${m0[1]}, but we are talking to ${host}`);
+  if ((L[1] || "").toLowerCase() !== address.toLowerCase()) bad("it asks a different address to sign");
+  if (L[2] !== "") bad("malformed header");
+  // optional one-line statement, then a blank line, then only SIWE fields
+  let i = 3;
+  if (L[i] !== undefined && L[i] !== "") { i++; if (L[i] !== "") bad("statement is not a single line"); i++; }
+  const seen = {};
+  for (; i < L.length; i++) {
+    if (L[i] === "" && i === L.length - 1) continue;              // trailing newline
+    if (/^- \S+$/.test(L[i]) && seen["Resources"]) continue;      // resource list entries
+    const f = SIWE_FIELD_RE.exec(L[i]);
+    if (!f) bad(`line ${i + 1} is not a SIWE field: ${JSON.stringify(L[i].slice(0, 60))}`);
+    seen[f[1]] = f[2];
+  }
+  if (!seen["Nonce"]) bad("no Nonce");
+  if (seen["Version"] !== "1") bad("not SIWE version 1");
+  if (host && !localish && seen["URI"] && !related(new URL(seen["URI"]).host.split(":")[0], host.split(":")[0]))
+    bad(`URI points at ${seen["URI"]}`);
+  if (seen["Chain ID"] !== String(DEFAULTS.chainId)) bad(`chain ${seen["Chain ID"]}, expected ${DEFAULTS.chainId}`);
+  if (seen["Expiration Time"] && Date.parse(seen["Expiration Time"]) <= Date.now()) bad("already expired");
+  return message;
+}
+
 async function bearer(account) {
   const key = `${API_BASE}|${account.address.toLowerCase()}`;
   const hit = tokenCache()[key];
@@ -413,6 +464,7 @@ async function bearer(account) {
   trace(`curl -s '${API_BASE}/v1/auth/nonce?address=${account.address}'`);
   const nonce = await fetch(`${API_BASE}/v1/auth/nonce?address=${account.address}`).then((r) => r.json());
   if (!nonce.message) throw new Error(`auth nonce failed: ${JSON.stringify(nonce)}`);
+  assertSiweLogin(nonce.message, account.address, API_BASE);
   const signature = await account.signMessage({ message: nonce.message });
   trace(`curl -sX POST ${API_BASE}/v1/auth/login -d '{"message":…,"signature":…}'`);
   const login = await fetch(`${API_BASE}/v1/auth/login`, {
