@@ -46,3 +46,22 @@ c-fleet-list{display:contents;}
 .fleet-rating{display:inline-flex;align-items:center;gap:6px;margin-left:10px;font-size:.68rem;color:var(--text-dim);}
 .fleet-rating .stars{font-size:.72rem;}
 .fleet-unrated{font-family:var(--font-mono);letter-spacing:.04em;}
+
+/* the rate control + inline form: the SAME star picker the app store uses
+   (.revs-pick-star / .revs-write are re-declared here because components are
+   style-scoped), so rating a host looks and behaves like rating an app */
+.fleet-rate{margin-left:8px;padding:1px 8px;font-size:.62rem;letter-spacing:.04em;}
+.fleet-rateform{grid-column:1/-1;margin-top:8px;}
+.fleet-gate{margin:0;font-size:.72rem;color:var(--text-muted);}
+.revs-write{display:flex;flex-direction:column;gap:8px;}
+.revs-pick{display:flex;align-items:center;gap:2px;border:0;padding:0;margin:0;}
+.revs-pick legend{float:left;margin-right:10px;font-size:.7rem;color:var(--text-dim);}
+.revs-pick-star{cursor:pointer;font-size:1.15rem;line-height:1;color:var(--line-strong);}
+.revs-pick-star.on{color:var(--amber-2);}
+.revs-pick-star:focus-within{outline:2px solid var(--jade);outline-offset:2px;border-radius:2px;}
+.revs-body{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-sm);
+  color:var(--text);font:inherit;font-size:.74rem;padding:6px 8px;resize:vertical;}
+.revs-write-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:.66rem;color:var(--text-dim);}
+.revs-write-foot .revs-count.over{color:var(--danger);}
+.revs-receipt{font-family:var(--font-mono);}
+.revs-write-foot .btn{margin-left:auto;}
