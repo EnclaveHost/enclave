@@ -1873,6 +1873,13 @@ async function getMeasurements(rec, { origin = PUBLIC_URL, nonce, freshGpu = tru
 // ============================================================================
 
 const app = express();
+// Express advertises itself in `X-Powered-By` on EVERY response. This process
+// answers on the public data path (api-relay proxies /v1 and /x straight
+// through, so the header reaches the internet verbatim — it is observable today
+// on api.enclave.host), and it names the server framework of code running
+// INSIDE the CVM. That is a free hint about which CVE list to try against a box
+// whose whole pitch is that you cannot see in. Nothing reads it.
+app.disable("x-powered-by");
 // Express 4 does not catch a REJECTED async route handler — it becomes an
 // unhandledRejection (the process-level guard above logs it, but the request
 // would hang and, pre-guard, the process died). Forward async rejections to the
