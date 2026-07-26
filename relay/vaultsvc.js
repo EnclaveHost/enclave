@@ -3,11 +3,15 @@
 // The relay NEVER holds authority over vault funds - every operation carries a
 // WebAuthn P-256 signature from the customer's passkey, and the CONTRACT
 // recomputes and verifies the signed digest on-chain. This module only:
-//   - computes op digests for the site to display-and-sign (prepare). The
-//     site does NOT yet recompute the digest client-side (tracked hardening,
-//     see site/js/core/vault.js): the trust bound is the CONTRACT's outflow
-//     allowlist - a lying relay could at worst get credit spent on the
-//     platform's own contracts or moved to the company treasury,
+//   - computes op digests for the site to display-and-sign (prepare). The site
+//     RECOMPUTES that digest from the fields and checks them against what the
+//     customer asked for before it prompts the passkey (site/js/core/vault.js
+//     + keccak.js), which is what actually bounds a lying relay here: the
+//     contract's outflow allowlist alone does NOT bound it to "credit spent on
+//     the platform", because create() carries feeRecipient + feePerSec6 and
+//     the publisher fee is paid pro-rata out of every funding - up to the
+//     ledger's cap, to any wallet, on one tap. Do not weaken that client check
+//     on the theory that the contract has it covered; it does not,
 //   - wraps signed assertions into transactions and submits them, paying gas
 //     (a relayer, not a custodian - the sender is irrelevant to the contract),
 //   - deposits company USDC into vaults when a card top-up settles, and
@@ -127,7 +131,10 @@ export async function vaultInfo(key) {
 }
 
 // the digest the passkey must sign for an op - MUST mirror the contract's
-// abi.encode exactly (the site recomputes this independently before signing)
+// abi.encode exactly. The site recomputes it independently before signing
+// (site/js/core/vault.js opDigest, pinned to the contract's encoding in
+// test/vault-digest.test.mjs), so a drift here does not become a silent
+// signature over something else: it becomes a refusal on the page.
 export function opDigest(op, vault, chainId, nonce, args, deadline) {
   const { keccak256, encodeAbiParameters, toHex } = viem;
   const tag = keccak256(toHex(OP[op]));
