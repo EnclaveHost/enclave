@@ -2531,6 +2531,10 @@ app.get("/availability", async (_req, res) => {
     // fraction. sharePoolFree is the raw share ledger for comparison.
     const ram = PROVISION_BACKEND === "vm" && c.ramBudgetMb
       ? { ramBudgetMb: c.ramBudgetMb, ramCommittedMb: c.ramCommittedMb, ramFreeMb: c.ramFreeMb,
+          // how much of `committed` is model weights held resident rather than
+          // tenant reservations — the term that makes an idle-looking box read
+          // 85% used, so consumers can SAY why instead of leaving it a mystery
+          ...(c.ramNnResidentMb ? { ramNnResidentMb: c.ramNnResidentMb } : {}),
           ...(c.sharePoolFree !== undefined ? { sharePoolFree: c.sharePoolFree } : {}) } : {};
     // VRAM-reservation ledger passthrough (vm backend with accounting on):
     // the physical constraint behind gpuShareFree when it is tighter than the
