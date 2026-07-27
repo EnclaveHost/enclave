@@ -1879,6 +1879,23 @@ def _volumes_public() -> list:
             for v in sorted(_model_volumes().values(), key=lambda x: x["name"])]
 
 
+def _nn_available() -> bool:
+    """Does this node offer wasi-nn to tenants?
+
+    GPU node: only once the boot probe says the card + MPS path is healthy —
+    advertising nn on a box whose CUDA init is broken sells deployments that
+    die at load. CPU-only node: there is no card to probe, and the ggml backend
+    runs on the cores a tenant already buys, so the interface is available
+    whenever it is enabled. What a CPU node can actually PRELOAD is a per
+    deployment answer (its RAM budget, see _build_cmd), reported per tenant in
+    nnPreloads/nnSkipped rather than as a node-wide claim."""
+    if not NN_ENABLED:
+        return False
+    if MOCK:
+        return True
+    return _NN_PROBE["state"] == "ok" if NODE_HAS_GPU else True
+
+
 def _ram_budget() -> dict | None:
     """The RAM-reservation ledger (WASM_ACCOUNT_STORAGE_RAM): worst-case MB
     committed by starting/running tenants vs the node ceiling - the SAME sum
@@ -2170,7 +2187,8 @@ def _alloc_ports(pspec) -> dict:
 
 def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdir=None,
                nn=False, enclave_config=None, vol_mounts=None, egress=None, egress_transparent=None,
-               enc=None, gpu_share: float = 0.0, nn_report=None, secrets=None):
+               enc=None, gpu_share: float = 0.0, nn_report=None, secrets=None,
+               cpu_share: float = 0.0):
     """The wasmtime invocation for a ports spec. Returns (cmd, host_port, wait_ports).
     `nn_report`, when a dict, is filled with the wasi-nn preload plan:
     {"emitted": [vol...], "skipped": {vol: why}, "stages": {vol: "kind::dir"}}
@@ -2289,6 +2307,18 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
         vram_bytes = int(gpu_share * GPU_VRAM_GB * (1 << 30)) if gpu_share > 0 else 0
         if vram_bytes:
             vol_args += ["--env", f"ENCLAVE_VRAM_BYTES={vram_bytes}"]
+        # CPU-ONLY NODE: the same budget question with a different resource.
+        # There is no card, so ggml maps the weights into HOST RAM - and the
+        # RAM this tenant is entitled to is exactly the node share it bought.
+        # Budgeting preloads against it keeps the guarantee the VRAM gate gives
+        # on a GPU box: no tenant can preload more than it paid for, and since
+        # shares sum to at most the whole node, the sum of resident models
+        # cannot exceed the node either. A volume over budget stays MOUNTED
+        # (the guest can still read it) but is not preloaded, so a
+        # load_by_name() fails instantly instead of the node swapping itself
+        # to death loading 20 GB of weights it has no room for.
+        ram_budget_bytes = 0 if NODE_HAS_GPU else int(cpu_share * NODE_RAM_GB * (1 << 30))
+        budget_bytes, budget_kind = (vram_bytes, "VRAM") if vram_bytes else (ram_budget_bytes, "RAM")
         # Forward the node's ggml context tuning to the GUEST too: with the
         # window and KV cache type known, an app can price a model's KV cache
         # (weights + n_ctx x kv-bytes/token + working set) and refuse models
@@ -2374,12 +2404,12 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
             skipped[name] = "no preloadable model file (data volume or ambiguous layout)"
         resident = 0
         for _bytes, _name, kind, stage in sorted(vram_stages):
-            if vram_bytes and resident + _bytes > vram_bytes:
-                skipped[_name] = (f"exceeds the VRAM budget ({_bytes / 2**30:.1f} GB weights, "
-                                  f"{resident / 2**30:.1f}/{vram_bytes / 2**30:.1f} GB already claimed)")
+            if budget_bytes and resident + _bytes > budget_bytes:
+                skipped[_name] = (f"exceeds the {budget_kind} budget ({_bytes / 2**30:.1f} GB weights, "
+                                  f"{resident / 2**30:.1f}/{budget_bytes / 2**30:.1f} GB already claimed)")
                 print(f"[nn-graph] volume '{_name}' ({_bytes / 2**30:.1f} GB weights) skipped: "
                       f"{resident / 2**30:.1f} GB already claimed of the deployment's "
-                      f"{vram_bytes / 2**30:.1f} GB VRAM budget - mounting only", flush=True)
+                      f"{budget_bytes / 2**30:.1f} GB {budget_kind} budget - mounting only", flush=True)
                 continue
             resident += _bytes
             vol_args += ["-S", f"nn-graph={kind}::{stage}"]
@@ -2501,9 +2531,17 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
             fsdir = cand
         except OSError as e:
             print(f"[fs] {vid} could not create scratch dir: {e}", flush=True)
-    # wasi-nn: buying a GPU share grants the interface; the share is enforced
-    # per-process by MPS (env below), the same mechanism as the worker backend.
-    nn = NN_ENABLED and NODE_HAS_GPU and gpu_share > 0
+    # wasi-nn: on a GPU node, buying a GPU share grants the interface and MPS
+    # enforces the share per-process (env below), the same mechanism as the
+    # worker backend. On a CPU-ONLY node there is no card to buy: the ggml
+    # backend runs on the cores the tenant already bought and maps the weights
+    # into its share of node RAM (_build_cmd budgets preloads against exactly
+    # that). Withholding the interface there would mean a CPU enclave can never
+    # serve a model-volume app at all - the deployment fails at startup with
+    # "component imports instance wasi:nn/tensor, but a matching implementation
+    # was not found", which is what a self-hosted CPU seller carrying model
+    # volumes hit. GPU nodes are unchanged.
+    nn = NN_ENABLED and (gpu_share > 0 if NODE_HAS_GPU else True)
     rec = {"id": vid, "name": name or vid, "app": app_ref,
            "cpuShare": cpu_share, "gpuShare": gpu_share, "nn": nn,
            "hostPort": port,
@@ -2785,6 +2823,10 @@ def _spawn_and_wait(rec, ctx):
     pspec, wasm, port, port_map, fsdir, nn, enclave_config, vol_mounts, gpu_share, log_path = (
         ctx["pspec"], ctx["wasm"], ctx["port"], ctx["port_map"], ctx["fsdir"], ctx["nn"],
         ctx["enclave_config"], ctx["vol_mounts"], ctx["gpu_share"], ctx["log_path"])
+    # the CPU share is the preload budget on a CPU-only node (see _build_cmd);
+    # rec is the record launch() built, so read it from there rather than
+    # widening the ctx contract
+    cpu_share = float(rec.get("cpuShare") or 0)
     egress = ctx.get("egress", "")
     # enclave transparent egress (phase 2): if the supervisor enabled egress (the
     # per-deployment socks5h URL rides `egress`) AND this toolchain carries the
@@ -2806,7 +2848,7 @@ def _spawn_and_wait(rec, ctx):
     cmd, host_port, wait_ports = _build_cmd(pspec, wasm, port, mem_bytes, port_map, fsdir, nn,
                                             enclave_config, vol_mounts, egress, egress_transparent,
                                             ctx.get("enc"), gpu_share=gpu_share, nn_report=nn_report,
-                                            secrets=ctx.get("secrets"))
+                                            secrets=ctx.get("secrets"), cpu_share=cpu_share)
     # the preload plan, public on the record: what the boot preload will
     # attempt (nnPreloads) and why the rest won't (nnSkipped). The watchdog
     # sweep compares this against what a launch would emit NOW; the log
@@ -2819,7 +2861,11 @@ def _spawn_and_wait(rec, ctx):
     # GPU tenants: the wasmtime process itself is the CUDA process (ORT holds the
     # context), so the MPS caps go in ITS environment (SM% + VRAM from the share).
     env = None
-    if nn:
+    if nn and NODE_HAS_GPU:
+        # MPS caps are a GPU-node concept. A CPU-only nn tenant gets none: there
+        # is no card to slice, and handing it CUDA_MPS_* (SM 1%, a 1 MB pinned
+        # limit computed from a zero GPU share) would be a cap on nothing today
+        # and a trap the day this node grows a card.
         env = _nn_tenant_env(gpu_share, pinned=_NN_PROBE.get("mode") != "nopin")
         rec["mpsPct"] = max(1, round(gpu_share * 100))
         # sdcpp text-encoder placement (wasm/sd-shim, ENCLAVE_SD_TE_ON_CPU):
@@ -3338,7 +3384,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if HEALTH_MINIMAL and not self._ctrl_authed():
                 return self._json(200, live)
             return self._json(200, {**live,
-                                    "nn": NN_ENABLED and NODE_HAS_GPU and (MOCK or _NN_PROBE["state"] == "ok"),
+                                    "nn": _nn_available(),
                                     "nnProbe": dict(_NN_PROBE),
                                     **({"gpuVramGb": GPU_VRAM_GB, "gpuVramSource": GPU_VRAM_SRC}
                                        if NODE_HAS_GPU else {}),
@@ -3571,7 +3617,7 @@ def _debug_env() -> dict:
     out = {"runtime": "wasmtime", "mock": MOCK, "apps_dir": str(APPS_DIR),
            "catalog": sorted(_load_catalog().keys()), "version": _wasmtime_version(),
            "p3": bool(P3_FLAGS),
-           "nn": NN_ENABLED and NODE_HAS_GPU and (MOCK or _NN_PROBE["state"] == "ok"),
+           "nn": _nn_available(),
            "nn_probe": dict(_NN_PROBE), "gpu_vram_gb": GPU_VRAM_GB, "gpu_vram_source": GPU_VRAM_SRC,
            "mps_pipe": MPS_PIPE_DIR if (NN_ENABLED and NODE_HAS_GPU) else None,
            "fs": FS_ENABLED, "fs_guest": FS_GUEST_PATH if FS_ENABLED else None,
