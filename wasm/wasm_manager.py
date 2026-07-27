@@ -123,6 +123,12 @@ NODE_RAM_GB  = int(os.environ.get("NODE_RAM_GB", "64"))
 # (enclaves/cpu/tinfoil-config.yml sets NODE_HAS_GPU=0). Apps without a GPU
 # need are CPU-only and run anywhere the routing sends them.
 NODE_HAS_GPU = os.environ.get("NODE_HAS_GPU", "0").lower() in ("1", "true", "on")
+# CPU-only nodes: how much node RAM to hold back from mmap-backed ggml
+# preloads (base system + other tenants' KV/compute + slack), and the escape
+# hatch back to the strict per-share rule. See _build_cmd's budget block for
+# why mmap'd weights are budgeted against the NODE rather than the share.
+CPU_NN_RESERVE_GB = float(os.environ.get("WASM_CPU_NN_RESERVE_GB", "6") or 6)
+CPU_NN_BUDGET = (os.environ.get("WASM_CPU_NN_BUDGET", "node") or "node").strip().lower()
 # Deployments buy SHARES: cpuShare is this manager's admission unit and sets
 # the guest linear-memory ceiling (wasmtime -W max-memory-size = cpuShare ×
 # NODE_RAM_GB). The app's catalog specs (mem_mb etc.) only set the minimum
@@ -2307,18 +2313,37 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
         vram_bytes = int(gpu_share * GPU_VRAM_GB * (1 << 30)) if gpu_share > 0 else 0
         if vram_bytes:
             vol_args += ["--env", f"ENCLAVE_VRAM_BYTES={vram_bytes}"]
-        # CPU-ONLY NODE: the same budget question with a different resource.
-        # There is no card, so ggml maps the weights into HOST RAM - and the
-        # RAM this tenant is entitled to is exactly the node share it bought.
-        # Budgeting preloads against it keeps the guarantee the VRAM gate gives
-        # on a GPU box: no tenant can preload more than it paid for, and since
-        # shares sum to at most the whole node, the sum of resident models
-        # cannot exceed the node either. A volume over budget stays MOUNTED
-        # (the guest can still read it) but is not preloaded, so a
-        # load_by_name() fails instantly instead of the node swapping itself
-        # to death loading 20 GB of weights it has no room for.
-        ram_budget_bytes = 0 if NODE_HAS_GPU else int(cpu_share * NODE_RAM_GB * (1 << 30))
-        budget_bytes, budget_kind = (vram_bytes, "VRAM") if vram_bytes else (ram_budget_bytes, "RAM")
+        # CPU-ONLY NODE: the same question, but the resource behaves nothing
+        # like VRAM, so the answer is not "a slice of the node per share".
+        # ggml MMAPS a GGUF (llama.cpp: "mmap = true", "CPU_Mapped model buffer
+        # size = 20190.50 MiB"): the weights are FILE-BACKED page cache the
+        # kernel reclaims under pressure, not memory the tenant holds. What the
+        # tenant actually allocates is its KV cache and compute buffers - 512
+        # MiB for a 27B at 8k context - plus its linear memory, which
+        # `-W max-memory-size` already caps. So charging 20 GB of reclaimable
+        # page cache against a share was wrong twice over: it refused models a
+        # node has ample room for, and it measured the wrong bytes.
+        #
+        # What DOES matter is that the weights fit the NODE: a model larger
+        # than RAM page-thrashes forever rather than running slowly. So the
+        # ggml budget is the node's usable RAM (minus a reserve for the base
+        # system, other tenants' KV, and slack), independent of share. The
+        # share still governs what the tenant gets: CPU time and its own
+        # allocations. Operators who want the strict per-share rule anyway can
+        # set WASM_CPU_NN_BUDGET=share.
+        #
+        # sd/onnx are NOT mmap-backed the same way (sdcpp builds anonymous
+        # buffers, ORT sessions allocate per request), so they keep the
+        # per-share budget on a CPU node - reclaimable and resident are
+        # different promises and only ggml makes the first one.
+        share_ram_bytes = int(cpu_share * NODE_RAM_GB * (1 << 30))
+        node_ram_bytes = max(0, int((NODE_RAM_GB - CPU_NN_RESERVE_GB) * (1 << 30)))
+        if NODE_HAS_GPU:
+            budget_bytes, budget_kind = vram_bytes, "VRAM"
+            ggml_budget_bytes = vram_bytes
+        else:
+            budget_bytes, budget_kind = share_ram_bytes, "RAM"
+            ggml_budget_bytes = share_ram_bytes if CPU_NN_BUDGET == "share" else node_ram_bytes
         # Forward the node's ggml context tuning to the GUEST too: with the
         # window and KV cache type known, an app can price a model's KV cache
         # (weights + n_ctx x kv-bytes/token + working set) and refuse models
@@ -2404,12 +2429,16 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
             skipped[name] = "no preloadable model file (data volume or ambiguous layout)"
         resident = 0
         for _bytes, _name, kind, stage in sorted(vram_stages):
-            if budget_bytes and resident + _bytes > budget_bytes:
-                skipped[_name] = (f"exceeds the {budget_kind} budget ({_bytes / 2**30:.1f} GB weights, "
-                                  f"{resident / 2**30:.1f}/{budget_bytes / 2**30:.1f} GB already claimed)")
+            # mmap-backed ggml graphs answer to the node's RAM on a CPU box;
+            # everything else to the tenant's own budget (see above)
+            cap = ggml_budget_bytes if (kind == "ggml" and not NODE_HAS_GPU) else budget_bytes
+            cap_kind = ("node RAM" if cap == node_ram_bytes else budget_kind) if not NODE_HAS_GPU else budget_kind
+            if cap and resident + _bytes > cap:
+                skipped[_name] = (f"exceeds the {cap_kind} budget ({_bytes / 2**30:.1f} GB weights, "
+                                  f"{resident / 2**30:.1f}/{cap / 2**30:.1f} GB already claimed)")
                 print(f"[nn-graph] volume '{_name}' ({_bytes / 2**30:.1f} GB weights) skipped: "
-                      f"{resident / 2**30:.1f} GB already claimed of the deployment's "
-                      f"{budget_bytes / 2**30:.1f} GB {budget_kind} budget - mounting only", flush=True)
+                      f"{resident / 2**30:.1f} GB already claimed of the "
+                      f"{cap / 2**30:.1f} GB {cap_kind} budget - mounting only", flush=True)
                 continue
             resident += _bytes
             vol_args += ["-S", f"nn-graph={kind}::{stage}"]
