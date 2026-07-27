@@ -31,6 +31,12 @@ jobs:
           node-version: 22
       - name: Install dependencies (root + relay)
         run: |
+          # bsdtar: metal/oci-pull.mjs extracts OCI layers with it (whiteout
+          # handling), so oci-pull.test.mjs fails as spawnSync ENOENT without
+          # it. ubuntu-latest ships GNU tar only. A single red test made the
+          # whole suite read as failing on every push, which is how a real
+          # regression hides — cheaper to install the tool than to lose the signal.
+          sudo apt-get update -qq && sudo apt-get install -y -qq libarchive-tools
           npm ci --no-audit --no-fund
           (cd relay && npm ci --no-audit --no-fund)
       - name: node --test

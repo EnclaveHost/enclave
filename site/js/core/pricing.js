@@ -148,6 +148,11 @@ export function enclaveSpecOf(row){
 // which specOf() fills from the version's approved config and the deploy
 // console overrides with the picker's live ticks (an edited config can change
 // them before signing). Absent/empty = no volume constraint.
+// An enclave row's display name: the relay's `name` field, else the host part
+// of its endpoint (tunnel:// rows carry a routing key, not a hostname).
+export const nameOf = (row) => (row && row.name)
+  || String((row && row.endpoint) || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "enclave";
+
 export function volsWanted(v){
   const list = Array.isArray(v && v.volumes) ? v.volumes : [];
   return [...new Set(list.map((x) => String((x && x.name) || x || "")).filter(Boolean))];
@@ -204,7 +209,7 @@ export function rankEnclavesFor(v, rows){
     const mins = minPctsOf(v, spec);
     const free = { gpuPct: Math.floor((a.gpuShareFree || 0) * 100), cpuPct: Math.floor((a.cpuShareFree || 0) * 100) };
     const now = fits && (!needsGpu || free.gpuPct >= mins.gpuPct) && free.cpuPct >= mins.cpuPct;
-    const name = row.name || String(row.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "enclave";
+    const name = nameOf(row);
     // what running THIS app on THIS box costs per second at its minimum
     // shares: the box's own posted price times the share its hardware forces.
     // Big-and-dear can beat small-and-cheap, so the ranking compares money.
@@ -251,14 +256,24 @@ export function pickEnclaveFor(v, rows){
   const ranked = rankEnclavesFor(v, rows);
   if (ranked.length) return ranked[0];
   const needsGpu = Number(v && v.vramMb || 0) > 0 || Number(v && v.gpuGflops || 0) > 0;
-  // Name the volume when THAT is what ruled every box out — "no enclave is big
-  // enough" would be a lie about a fleet that has the hardware and not the
-  // weights, and the fix (attach it, or pick another model) is a different one.
+  // Say which of the two constraints actually bit. "No enclave is big enough"
+  // is a lie about a fleet that has the hardware and lacks the weights, and the
+  // fix differs per case: attach the volume, pick another model, or resize.
   const wantVols = volsWanted(v);
   const missing = wantVols.filter((n) => !claiming.some((e) => hasVolumes(e.availability, [n])));
   if (missing.length) return { none: `no live enclave carries the model volume ${missing.join(" or ")}` };
-  if (wantVols.length && !claiming.some((e) => hasVolumes(e.availability, wantVols)))
+  const carriers = wantVols.length ? claiming.filter((e) => hasVolumes(e.availability, wantVols)) : claiming;
+  if (!carriers.length)
     return { none: `no single live enclave carries all of ${wantVols.join(" + ")} (a deployment mounts its volumes on ONE box)` };
+  // The volumes exist on a box; that box just can't run this app. Name it —
+  // otherwise the reader blames the fleet for hardware it does have, on some
+  // OTHER box that hasn't got the model.
+  if (wantVols.length && carriers.length !== claiming.length){
+    const who = carriers.length <= 3 ? carriers.map(nameOf).join(", ") : `${carriers.length} enclaves`;
+    return { none: needsGpu && !carriers.some((e) => e.availability.gpu === true)
+      ? `this app needs a GPU, and ${who} — the only enclave${carriers.length > 1 ? "s" : ""} carrying ${wantVols.join(" + ")} — ${carriers.length > 1 ? "have" : "has"} none`
+      : `${who} carr${carriers.length > 1 ? "y" : "ies"} ${wantVols.join(" + ")}, but ${carriers.length > 1 ? "none has" : "its hardware is not"} big enough for this app's specs` };
+  }
   return { none: needsGpu && !claiming.some((e) => e.availability.gpu === true)
     ? "this app needs a GPU and no live enclave has one"
     : "no live enclave's hardware is big enough for this app's specs" };

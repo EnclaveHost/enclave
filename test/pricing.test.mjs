@@ -177,6 +177,19 @@ test("pickEnclaveFor: names the missing volume instead of blaming the hardware",
   assert.ok(!/big enough/.test(t.none), "the fleet has the hardware; it lacks the weights");
 });
 
+test("pickEnclaveFor: when the volume's box can't run the app, blame the box that HAS it", () => {
+  // the live case: a GPU app + a volume that only the CPU-only metal box
+  // carries. "no live enclave's hardware is big enough" points the reader at
+  // kryptos, which is big enough and simply hasn't got the model.
+  const metal = row("metal0", { gpu: false, claimEnabled: true, nodeVcpus: 4, nodeRamGb: 28, nodeGflops: 250, cpuShareFree: 1,
+    ...vol("qwen3.5-122b-gguf-merged") }, { tunnel: true });
+  const t = pickEnclaveFor({ ...IMAGE_GEN, volumes: ["qwen3.5-122b-gguf-merged"] }, [row("kryptos", GPU_BOX), metal]);
+  assert.ok(t.none && /metal0/.test(t.none) && /GPU/.test(t.none), t.none);
+  // a CPU app too big for the carrier reads as a size problem ON THAT BOX
+  const big = pickEnclaveFor({ memMb: 64 * 1024, cpuGflops: 0, volumes: ["qwen3.5-122b-gguf-merged"] }, [row("kryptos", GPU_BOX), metal]);
+  assert.ok(big.none && /metal0/.test(big.none) && /big enough/.test(big.none), big.none);
+});
+
 test("pickEnclaveFor: volumes split across two boxes host nothing (a deployment mounts on ONE)", () => {
   const a = row("a", { ...CPU_BOX, ...vol("v1") }), b = row("b", { ...CPU_BOX, ...vol("v2") });
   const t = pickEnclaveFor({ ...MC, volumes: ["v1", "v2"] }, [a, b]);
