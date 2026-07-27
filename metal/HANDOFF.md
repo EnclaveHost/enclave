@@ -80,15 +80,21 @@ activation, all of it yours:
   goes live on its own**: registration lands, `claimEnabled` flips true
   (truthfully, because the flag now requires a CONFIRMED register tx, so the staged
   box hides itself until then), and it appears in the fleet panel + deploy
-  target dropdowns at its honest 3 GB size. `payoutAddress` is set to the
+  target dropdowns at its honest size. `payoutAddress` is set to the
   platform cold wallet (read from the deployments contract). Optional:
   add `fleetSecret` (the shared fleet SECRET) to `metal/config.json` +
   restart to make it deployment-secrets capable; without it the box
   truthfully reports `secrets:false`, and the fleet-AND will hide the
-  console's secrets feature while it serves. Also optional: grow the VM
-  (`cpus`/`memMiB`); 4 vCPU/6 GB is demo-sized (measurement changes with
-  vcpu count). Until the rev-7 ledger redeploy it serves WITHOUT earning
-  (first-party box; payments all reach the cold wallet regardless).
+  console's secrets feature while it serves. Sizing: the VM is 4 vCPU /
+  **32768 MiB** (`cpus`/`memMiB` in `metal/config.json`, grown from 6 GB on
+  2026-07-27), which the guest advertises as 28 GB — `gsup` derives capacity
+  from the VM's own `MemTotal` minus a 1.5 GB base-system reserve, so the only
+  knob is `memMiB` + a restart. RAM is NOT part of the launch measurement
+  (only vcpu count, cmdline, kernel/initrd and OVMF are), so resizing memory
+  keeps the enclave's identity — `metal/verify.mjs --vcpus 4` still matches
+  the build manifest; changing `cpus` does NOT. Until the rev-7 ledger
+  redeploy it serves WITHOUT earning (first-party box; payments all reach the
+  cold wallet regardless).
 - **OPEN DESIGN QUESTION, heterogeneous node sizing.** App minimum shares
   are sized against the fleet-wide MINIMUM node (relay `spec*` fields), so a
   small node joining the CLAIMING set inflates every CPU app's minimum share
@@ -104,7 +110,10 @@ activation, all of it yours:
   node-class floor for sellers (e.g. min 16 vCPU / 64 GB to earn), or
   absolute-unit pricing in a future ledger rev. The current per-node-fraction
   pricing pays a 3 GB node the same per share as a 64 GB one, so some floor
-  is likely wanted anyway.
+  is likely wanted anyway. (Growing metal0 to 32 GB on 2026-07-27 lifted the
+  live aggregate `specNodeRamGb` from 3 to 28, so the fleet no longer pays
+  this cost today — but that is a workaround, not the policy decision: the
+  next small seller re-creates it.)
 
 ### 4. Full hardware-signature chain on THIS box (informational, likely no action)
 This workstation EPYC reports a masked/unprovisioned chip id, so AMD KDS has no
