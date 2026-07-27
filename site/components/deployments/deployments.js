@@ -24,7 +24,7 @@ import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, 
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
-import { shareRates, minPctsOf, adoptServerSpec, leaseHostOf, moveTargetsFor } from "../../js/core/pricing.js";
+import { shareRates, minPctsOf, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason } from "../../js/core/pricing.js";
 
 // The app's reachable URL. Through the gateway each deployment gets its OWN
 // origin: a per-deployment subdomain (<id>.app.enclave.host, the base36 part of
@@ -1482,8 +1482,8 @@ class Deployments extends EnclaveElement {
     const spec = specOf(ver);
     const targets = moveTargetsFor(spec, fleet, d.runner);
     if (!targets.length)
-      return fail("[!] no other live enclave could run this app" + (here ? " - " + here.name + " is the only one that fits" : "")
-                + ". A move re-claims the record, so the destination must pass the same hardware, model-volume and capacity checks as a fresh deploy.");
+      return fail("[!] nowhere to move this to: " + moveBlockReason(spec, fleet, d.runner)
+                + ". A move re-claims the record, so the destination must pass the same hardware, wasi-nn, model-volume and capacity checks as a fresh deploy.");
     const selId = "mvSel" + appLabel(id);
     box.innerHTML = '<div class="ap-attbar">move · ' + esc(id) + '</div>'
       + '<div class="enc-upg-body">'

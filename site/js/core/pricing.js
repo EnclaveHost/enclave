@@ -203,9 +203,16 @@ export function rankEnclavesFor(v, rows){
     // record (supervisor considerClaim). Targeting it anyway would send the
     // claim hint to a box that declines, and the deploy would sit in the open
     // queue waiting for whichever box does carry them.
+    // A GPU box grants wasi-nn ONLY to tenants that bought GPU share
+    // (wasm_manager: `nn = gpu_share > 0` on a GPU node; CPU-only boxes grant
+    // it to everyone). So a model-volume app dialled to 0% GPU cannot run on a
+    // GPU box at all: it links against wasi:nn/tensor, finds no implementation
+    // and dies at startup. Seen live 2026-07-27 — kryptos claimed exactly such
+    // a deployment and handed the lease back four seconds later.
+    const nnBlocked = wantVols.length > 0 && !needsGpu && gpu;
     const fits = (!needsGpu || (gpu && vramMb / 1024 <= spec.cardVramGb && gpuGf / 1000 <= spec.cardTflops))
               && memMb <= spec.nodeRamGb * 1024 && cpuGf <= spec.nodeGflops
-              && hasVolumes(a, wantVols);
+              && hasVolumes(a, wantVols) && !nnBlocked;
     const mins = minPctsOf(v, spec);
     const free = { gpuPct: Math.floor((a.gpuShareFree || 0) * 100), cpuPct: Math.floor((a.cpuShareFree || 0) * 100) };
     const now = fits && (!needsGpu || free.gpuPct >= mins.gpuPct) && free.cpuPct >= mins.cpuPct;
@@ -294,4 +301,27 @@ export function moveTargetsFor(v, rows, currentRunnerId){
   const cur = String(currentRunnerId || "").toLowerCase();
   return rankEnclavesFor(v, rows)
     .filter((c) => String((c.row && c.row.id) || "").toLowerCase() !== cur);
+}
+
+// Why a deployment has nowhere to go, in the reader's terms. Only called when
+// moveTargetsFor came back empty, and deliberately specific: "no other enclave
+// fits" sends someone hunting for hardware when the real answer is a dial they
+// can change (buy GPU share) or a fleet fact they can act on (only one box
+// carries the model).
+export function moveBlockReason(v, rows, currentRunnerId){
+  const cur = String(currentRunnerId || "").toLowerCase();
+  const others = (rows || []).filter((e) => e && e.availability
+    && String((e.id) || "").toLowerCase() !== cur
+    && (e.serving != null ? e.serving === true : e.availability.claimEnabled !== false));
+  if (!others.length) return "no other enclave is taking work right now";
+  const wantVols = volsWanted(v);
+  const needsGpu = Number(v && v.vramMb || 0) > 0 || Number(v && v.gpuGflops || 0) > 0;
+  // absent weights first: that is the more fundamental blocker, and both can be
+  // true at once (the only other box is a GPU box AND lacks the volume)
+  const missing = wantVols.filter((n) => !others.some((e) => hasVolumes(e.availability, [n])));
+  if (missing.length) return `no other live enclave carries ${missing.join(" or ")}`;
+  if (wantVols.length && !needsGpu && others.every((e) => e.availability.gpu === true))
+    return `every other live enclave is a GPU box, and a GPU box only offers wasi-nn to deployments that bought GPU share — `
+         + `this one is dialled to 0% GPU, so ${wantVols.join(" + ")} could not load there. A CPU-only enclave carrying the volume is the destination this needs`;
+  return "no other live enclave's hardware fits this app";
 }
