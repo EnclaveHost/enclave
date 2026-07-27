@@ -80,8 +80,12 @@ let fleetRows = null;
    app specs or no fleet view): the adopted-aggregate math applies as before. */
 function currentTarget(){
   const input = ($("#cfgImage") ? $("#cfgImage").value : "").trim();
-  const spec = SPECS_CACHE[input];
-  if (!spec || !fleetRows || !fleetRows.length) return null;
+  const cached = SPECS_CACHE[input];
+  if (!cached || !fleetRows || !fleetRows.length) return null;
+  // The picker's ticks, not the version's baked list: an edited config (or an
+  // untick) changes which model volumes this deployment will ask for, and
+  // therefore which boxes can host it, before anything is signed.
+  const spec = { ...cached, volumes: [...dep.volumes] };
   const ranked = rankEnclavesFor(spec, fleetRows);
   if (!ranked.length) return pickEnclaveFor(spec, fleetRows);   // the none-reason path
   if (dep.targetPick){
@@ -1104,8 +1108,11 @@ async function refreshFleet(){
     for (const e of rows){
       for (const v of ((e.availability && e.availability.volumes) || [])){
         if (!v || !v.name) continue;
-        const cur = byName.get(v.name) || { name: v.name, bytes: 0, onnx: false, gguf: false, sd: false, count: 0 };
+        const cur = byName.get(v.name) || { name: v.name, bytes: 0, onnx: false, gguf: false, sd: false, count: 0, hosts: [] };
         cur.bytes = Math.max(cur.bytes, v.bytes || 0); cur.onnx = cur.onnx || !!v.onnx; cur.gguf = cur.gguf || !!v.gguf; cur.sd = cur.sd || !!v.sd; cur.count++;
+        // which boxes carry it: a one-enclave volume pins the deployment to that
+        // box, and the picker says so
+        cur.hosts.push(e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0]);
         byName.set(v.name, cur);
       }
     }

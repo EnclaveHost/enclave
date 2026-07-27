@@ -178,8 +178,21 @@ export const SPECS_CACHE = {};  // friendly "slug:version" -> the version's RAW 
                                 // divide by the currently adopted fleet hardware - caching computed percents
                                 // froze them against whatever spec was live at first resolve (the 91%-vs-92%
                                 // unclaimable-deployment bug of 2026-07-14)
+// `volumes` rides along with the hardware numbers because it is the same KIND
+// of requirement: a model volume is attached to a box, not fetched, so which
+// boxes can host this version depends on it exactly as it depends on the card.
+// It comes off the version's approved config (the deploy console overrides it
+// with the picker's live ticks when the config is edited before signing).
 export const specOf = (v) => ({ vramMb: Number(v && v.vramMb) || 0, gpuGflops: Number(v && v.gpuGflops) || 0,
-                                memMb: Number(v && v.memMb) || 0, cpuGflops: Number(v && v.cpuGflops) || 0 });
+                                memMb: Number(v && v.memMb) || 0, cpuGflops: Number(v && v.cpuGflops) || 0,
+                                volumes: volumesOfConfig(v && v.config) });
+export function volumesOfConfig(cfg){
+  if (!cfg) return [];
+  try {
+    const o = typeof cfg === "string" ? JSON.parse(cfg) : cfg;
+    return Array.isArray(o && o.volumes) ? [...new Set(o.volumes.map(String).filter(Boolean))] : [];
+  } catch { return []; }        // an unparseable config constrains nothing; the runner still gates the claim
+}
 export const CONFIG_CACHE = {}; // friendly "slug:version" -> that VERSION's default/template config JSON (pre-fills the deploy form)
 export function looksFriendly(s){ return s.includes(":") && !s.startsWith("ipfs://"); }
 /* opts.allowPending: admit a version still AWAITING approval — the dev-mode
