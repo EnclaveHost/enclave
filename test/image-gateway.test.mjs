@@ -143,3 +143,32 @@ test("the image size cap still applies to SVG", async () => {
   assert.ok(refused, "an over-cap SVG must be refused");
   assert.equal(added.length, before, "nothing may reach Kubo");
 });
+
+// ---- /add-json: the one pin route with NO upload token ----------------------
+// Its per-IP bucket is therefore the only thing between the internet and
+// unbounded pinned storage on the Kubo node — so the bucket's KEY has to be a
+// value the caller cannot pick. X-Forwarded-For is written by the client and
+// APPENDED to by the proxy in front of this gateway (it binds 127.0.0.1), so
+// the first entry is whatever the sender typed and the last is the real peer.
+test("the /add-json rate limit keys on the proxy-appended address, not the caller's claim", async () => {
+  const pin = (xff) => fetch(`http://127.0.0.1:${gwPort}/add-json`, {
+    method: "POST", body: JSON.stringify({ a: 1 }),
+    headers: { "content-type": "application/json", "x-forwarded-for": xff } });
+
+  // Same real peer (the last entry), a different claimed one each time: these
+  // must share ONE bucket. The default bucket is 60/hr, so 80 requests drains
+  // it if — and only if — the claim is ignored.
+  let refused = 0;
+  for (let i = 0; i < 80; i++) {
+    const r = await pin(`10.0.0.${i % 250}, 203.0.113.9`);
+    if (r.status === 429) refused++;
+    await r.arrayBuffer();
+  }
+  assert.ok(refused > 0, "a varied X-Forwarded-For must not mint a fresh bucket per request");
+
+  // ...and a genuinely different peer still gets its own bucket (the limit is
+  // per-source, not a global stop-the-world).
+  const other = await pin("198.51.100.7");
+  assert.equal(other.status, 200, "a different real peer must still be served");
+  await other.arrayBuffer();
+});

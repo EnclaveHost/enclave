@@ -310,8 +310,17 @@ def json_pin_rate_ok(ip):
 
 class Handler(BaseHTTPRequestHandler):
     def _client_ip(self):
-        xff = (self.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
-        return xff or self.client_address[0]
+        # The LAST entry, not the first. X-Forwarded-For is written by the
+        # CLIENT and APPENDED to by the proxy in front of this gateway (it binds
+        # 127.0.0.1, so there is always exactly one), which means the first entry
+        # is whatever the sender typed. Keying the /add-json bucket on it let
+        # anyone mint a fresh rate-limit bucket per request by varying a header -
+        # and /add-json is the ONE pin route with no upload token, so that bucket
+        # is the only thing standing between the internet and unbounded pinned
+        # storage on the Kubo node. Same fix, same reasoning as api-relay's
+        # clientIp (2fc10a34); this file was the sibling that never got it.
+        xs = [x.strip() for x in (self.headers.get("X-Forwarded-For") or "").split(",") if x.strip()]
+        return xs[-1] if xs else self.client_address[0]
 
     def _cors(self):
         # echo the request Origin when it's on the allowlist (a response can

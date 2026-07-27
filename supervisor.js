@@ -1033,6 +1033,17 @@ if (process.env.TENANT_HEADERS_SELFTEST) {
   process.exit(0);
 }
 
+// CLIENT_IP_SELFTEST='[{"headers":{…},"remoteAddress":"…","stamped":"…"}, …]'
+// prints the key the WAF and the hint limiter would bucket each request under.
+// Same seam contract as WAF_SELFTEST; clientIpOf is a hoisted declaration, so it
+// is reachable from here.
+if (process.env.CLIENT_IP_SELFTEST) {
+  console.log(JSON.stringify(JSON.parse(process.env.CLIENT_IP_SELFTEST).map((c) =>
+    clientIpOf({ headers: c.headers || {},
+                 socket: { remoteAddress: c.remoteAddress, ...(c.stamped ? { _clientIp: c.stamped } : {}) } }))));
+  process.exit(0);
+}
+
 // The pure half of the ledger schema-sniff machinery (depsAbi below). A REAL
 // pre-deploymentsSchema ledger has code at its address, so probing the unknown
 // selector REVERTS; "returned no data"/"0x" means the RPC saw NO CODE there —
@@ -2133,17 +2144,30 @@ const egress = (DEP_ADDR_PREFIX && EGRESS_RELAY_TOKEN)
 // limit - app subdomains carry a hex PREFIX of the id instead, resolved here
 // (unique match only; the canonical label is the FIRST 8 CHARS = 32 bits,
 // any longer prefix works too). Shared by the HTTP data path and the
-// The requester's IP as this enclave can best know it. Behind the relay/Caddy
-// the first x-forwarded-for hop is the client (same trust call hintRateOk
-// already makes); on the /x/:id/https bridge the inner requests ride a
-// decrypted stream with no socket address, so the upgrade handler stamps the
-// IP it saw onto the socket. A direct caller can forge the header — per-IP
-// limiting is abuse damping, not a security boundary (a forger degrades
-// himself into someone else's bucket, or into the shared one).
+// The requester's IP as this enclave can best know it. On the /x/:id/https
+// bridge the inner requests ride a decrypted stream with no socket address, so
+// the upgrade handler stamps the IP it saw onto the socket; otherwise it comes
+// from x-forwarded-for.
+//
+// The LAST entry, not the first. X-Forwarded-For is written by the CLIENT and
+// APPENDED to by each proxy, so `X-Forwarded-For: 1.2.3.4` sent from a browser
+// arrives here as "1.2.3.4, <real client>" — the first entry is whatever the
+// sender typed. This key is not only abuse damping any more: it is the bucket
+// for the DEPLOYER-BOUGHT WAF (the options envelope's per-IP rate limit and
+// concurrency cap), a control a tenant pays for and points at attackers. Keyed
+// on the first hop, a flood that varies one header never shares a bucket and the
+// limit does nothing. api-relay forwards headers verbatim and Caddy appends its
+// peer, so on the relay path — the path tenants are actually exposed on — the
+// last entry IS the client and cannot be chosen by them.
+//
+// A DIRECT caller (dialing the enclave's own hostname) can still forge it if
+// nothing in front appends, which is no worse than before: a forger lands in
+// someone else's bucket or the shared one. Same reading as api-relay's
+// clientIp (2fc10a34) and the add-gateway's.
 function clientIpOf(req) {
   if (req.socket && req.socket._clientIp) return req.socket._clientIp;
-  return (String(req.headers["x-forwarded-for"] || "").split(",")[0].trim())
-      || req.socket?.remoteAddress || "?";
+  const xs = String(req.headers["x-forwarded-for"] || "").split(",").map((x) => x.trim()).filter(Boolean);
+  return xs[xs.length - 1] || req.socket?.remoteAddress || "?";
 }
 
 // ---- per-deployment WAF (the options envelope's `waf` namespace) ------------

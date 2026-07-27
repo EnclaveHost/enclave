@@ -115,3 +115,39 @@ test("path rules: decoded + lowercased, prefix-anchored; query never matches", a
   ] });
   assert.deepEqual(paths, [true, true, true, false, false, true, false]);
 });
+
+// ---- who the WAF counts against ---------------------------------------------
+// The per-IP rate limit and concurrency cap are things a DEPLOYER buys and
+// points at attackers, so the bucket key must not be a value the attacker picks.
+// X-Forwarded-For is written by the client and APPENDED to by each proxy: the
+// first entry is whatever the sender typed, the last is what the hop in front
+// actually saw. api-relay forwards headers verbatim and Caddy appends its peer,
+// so on the relay path the last entry IS the client.
+async function clientIp(...cases) {
+  const { stdout } = await pexec(process.execPath, [SUPERVISOR], {
+    env: { ...process.env, SECRET: "test-secret", CLIENT_IP_SELFTEST: JSON.stringify(cases),
+           SWEEP_SELFTEST: "", REACH_SELFTEST: "", ACME_SELFTEST: "", ADDRESS_BOOK_ADDRESS: "", REGISTRY_ENABLED: "",
+           CLAIM_ENABLED: "", ACME_EAB_KID: "", ACME_EAB_HMAC: "", APP_CERT_DOMAIN: "", DNS_API: "" } });
+  const lines = stdout.trim().split("\n").filter(Boolean);
+  return JSON.parse(lines[lines.length - 1]);
+}
+
+test("the WAF buckets on the proxy-appended address, not the caller's claim", async () => {
+  const [forged, plain, none, stamped, spaces] = await clientIp(
+    // a client that typed its own X-Forwarded-For; Caddy appended the truth
+    { headers: { "x-forwarded-for": "1.2.3.4, 203.0.113.9" }, remoteAddress: "10.0.0.1" },
+    // the ordinary case: one hop, one entry
+    { headers: { "x-forwarded-for": "203.0.113.9" }, remoteAddress: "10.0.0.1" },
+    // no header at all: the socket peer is all there is
+    { headers: {}, remoteAddress: "203.0.113.9" },
+    // the /x/:id/https bridge stamps the IP it saw onto the socket; inner
+    // requests have no socket address of their own, so the stamp wins outright
+    { headers: { "x-forwarded-for": "1.2.3.4" }, remoteAddress: "10.0.0.1", stamped: "198.51.100.7" },
+    { headers: { "x-forwarded-for": "  1.2.3.4 ,  203.0.113.9  " }, remoteAddress: "10.0.0.1" },
+  );
+  assert.equal(forged, "203.0.113.9", "a forged first hop must not become the key");
+  assert.equal(plain, "203.0.113.9");
+  assert.equal(none, "203.0.113.9");
+  assert.equal(stamped, "198.51.100.7");
+  assert.equal(spaces, "203.0.113.9");
+});
