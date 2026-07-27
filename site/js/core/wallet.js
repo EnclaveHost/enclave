@@ -286,9 +286,16 @@ export async function connectWallet(){
   return provider;
 }
 
-export async function authenticate(){
+export async function authenticate(opts){
+  // `opts.enclave` pins the whole SIWE round trip (nonce AND login) to one box.
+  // Sessions are per-enclave by design — each enclave signs with its own key
+  // and honors no other kid — so acting on a deployment hosted somewhere other
+  // than the sticky sign-in box needs a session FROM that box. One signature
+  // per enclave you touch; there is no way around it without letting one box
+  // mint tokens another box trusts, which is exactly what the design forbids.
+  const enclave = String((opts && opts.enclave) || "").trim();
   if (!Enclave.provider) await connectWallet();
-  const ch = await Enclave.getNonce(Enclave.address);
+  const ch = await Enclave.getNonce(Enclave.address, enclave);
   const message = assertSiweLogin((ch && ch.message) ? ch.message : buildSiwe(ch), Enclave.address);
   let signature;
   try {
@@ -296,10 +303,11 @@ export async function authenticate(){
   } catch(e){
     throw new EnclaveError((e && e.code === 4001) ? "Signature rejected." : ("Could not sign in: " + (e.message || e)), 0);
   }
-  const sess = await Enclave.login(message, signature);
-  Enclave.token = sess && sess.token;
-  Enclave.tokenBase = Enclave.base;      // bound to the enclave that minted it (api.js `base`)
-  if (!Enclave.token) throw new EnclaveError("Login did not return a token.", 0);
+  const sess = await Enclave.login(message, signature, enclave);
+  const token = sess && sess.token;
+  if (!token) throw new EnclaveError("Login did not return a token.", 0);
+  if (enclave) Enclave.setSessionFor(enclave, token);
+  else { Enclave.token = token; Enclave.tokenBase = Enclave.base; }   // bound to the enclave that minted it (api.js `base`)
   saveSession();
   refreshWallet();
   emit("enclave:auth", { authed: true, spinner: true });
@@ -307,7 +315,7 @@ export async function authenticate(){
 }
 
 export function disconnectWallet(){
-  Enclave.token = null; Enclave.tokenBase = null; Enclave.address = null; Enclave.provider = null; Enclave.chainId = null; Enclave.walletRdns = null;
+  Enclave.token = null; Enclave.tokenBase = null; Enclave.enclaveTokens = {}; Enclave.address = null; Enclave.provider = null; Enclave.chainId = null; Enclave.walletRdns = null;
   clearSession();
   Enclave.clearAccountSession();   // "Sign out" means BOTH domains: wallet/enclave session and the relay account
   runlog.clear();   // don't leave the prior user's deploy narratives in localStorage / on-screen
@@ -320,7 +328,10 @@ export function disconnectWallet(){
 export function saveSession(){
   if (!Enclave.address){ lsSet("enclave_session", ""); return; }
   try { lsSet("enclave_session", JSON.stringify({ address: Enclave.address, rdns: Enclave.walletRdns || null,
-    token: Enclave.token || null, base: Enclave.tokenBase || Enclave.base })); } catch(e){}
+    token: Enclave.token || null, base: Enclave.tokenBase || Enclave.base,
+    // per-enclave sessions ride along so a refresh doesn't re-ask for one
+    // signature per box the user has already signed in to
+    enclaveTokens: Enclave.enclaveTokens || {} })); } catch(e){}
 }
 export function clearSession(){ lsSet("enclave_session", ""); }
 // pull the exp (seconds) out of a JWT; null if not a JWT / no exp
@@ -368,6 +379,14 @@ export async function restoreSession(){
   Enclave.walletRdns = (chosen.info && chosen.info.rdns) || null;
   Enclave.token = s.token || null;
   Enclave.tokenBase = s.base || null;   // absent on a pre-binding session: default endpoint only
+  // per-enclave sessions, expired ones dropped the same way the default is
+  Enclave.enclaveTokens = {};
+  for (const [name, v] of Object.entries((s.enclaveTokens && typeof s.enclaveTokens === "object") ? s.enclaveTokens : {})){
+    if (!v || !v.token) continue;
+    const exp = jwtExp(v.token);
+    if (exp && exp * 1000 <= Date.now()) continue;
+    Enclave.enclaveTokens[String(name).toLowerCase()] = { token: v.token, base: v.base || null };
+  }
   wireProviderEvents(provider);
   saveSession();                                                  // re-persist (drops any expired token, refreshes rdns)
   if (Enclave.token) emit("enclave:auth", { authed: true, spinner: true });

@@ -444,3 +444,47 @@ test("api-relay: rate limits key on the PROXY-APPENDED address, not the caller's
   // and a genuinely different client is not punished for that burst
   assert.equal(await probe("10.9.8.1, 198.51.100.7"), 200, "a different real client must get its own bucket");
 });
+
+// ---------- auth is enclave-scoped: the client may pin which box mints -------
+// Every enclave signs sessions with its OWN in-enclave key and verifies only
+// its own kid, so a token from the sticky box is rejected everywhere else. Any
+// owner-authenticated call on a deployment hosted elsewhere then 401s "Missing
+// or invalid session" — which is what Restart/logs/attestation/Move did on a
+// metal0-hosted deployment (2026-07-27). ?enclave= pins the SIWE round trip to
+// the box that will actually be asked to act.
+test("api-relay: ?enclave= pins /v1/auth/* to that box; sticky otherwise", async (t) => {
+  const mk = (label, gpu) => {
+    const s = http.createServer((req, res) => {
+      res.setHeader("content-type", "application/json");
+      if (req.url === "/availability")
+        return res.end(JSON.stringify({ gpu, cpuShareFree: 0.5, gpuShareFree: gpu ? 0.5 : 0, nodeVcpus: 8, nodeRamGb: 32 }));
+      if (req.url.startsWith("/v1/auth/nonce")) return res.end(JSON.stringify({ nonce: "n", who: label }));
+      if (req.url.startsWith("/v1/pricing")) return res.end(JSON.stringify({ who: label }));
+      res.statusCode = 404; res.end("{}");
+    });
+    return s;
+  };
+  const gpuBox = mk("gpubox", true), cpuBox = mk("cpubox", false);
+  for (const s of [gpuBox, cpuBox]) { s.listen(0, "127.0.0.1"); await once(s, "listening"); t.after(() => s.close()); }
+  const gpuUrl = `http://127.0.0.1:${gpuBox.address().port}`, cpuUrl = `http://127.0.0.1:${cpuBox.address().port}`;
+  const origin = await startRelay(t, { enclaves: `${gpuUrl},${cpuUrl}` });
+
+  const plain = await getJson(origin, "/v1/auth/nonce?address=" + OWNER);
+  assert.equal(plain.status, 200);
+  assert.equal(plain.body.who, "gpubox", "unpinned auth keeps the sticky box (nonces are per-enclave state)");
+
+  const pinned = await getJson(origin, `/v1/auth/nonce?address=${OWNER}&enclave=${encodeURIComponent(cpuUrl)}`);
+  assert.equal(pinned.status, 200);
+  assert.equal(pinned.body.who, "cpubox", "a pin routes the whole SIWE round trip to the named box");
+
+  // an unknown name must NOT fail: a pin is an optimization, and not signing in
+  // at all is worse than signing in against the wrong box
+  const bogus = await getJson(origin, `/v1/auth/nonce?address=${OWNER}&enclave=nosuchbox`);
+  assert.equal(bogus.status, 200);
+  assert.equal(bogus.body.who, "gpubox", "an unknown pin falls back to sticky rather than erroring");
+
+  // the pin is auth-only: it must not let a caller aim unrelated fleet calls
+  const priced = await getJson(origin, `/v1/pricing?enclave=${encodeURIComponent(cpuUrl)}`);
+  assert.equal(priced.status, 200);
+  assert.equal(priced.body.who, "gpubox", "non-auth paths ignore the pin");
+});
