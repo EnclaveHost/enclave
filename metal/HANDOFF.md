@@ -104,9 +104,19 @@ activation, all of it yours:
   truthfully reports `secrets:false`, and the fleet-AND will hide the
   console's secrets feature while it serves. Sizing: the VM is 4 vCPU /
   **32768 MiB** (`cpus`/`memMiB` in `metal/config.json`, grown from 6 GB on
-  2026-07-27), which the guest advertises as 28 GB — `gsup` derives capacity
+  2026-07-27), which the guest advertises as 29 GB — `gsup` derives capacity
   from the VM's own `MemTotal` minus a 1.5 GB base-system reserve, so the only
-  knob is `memMiB` + a restart. RAM is NOT part of the launch measurement
+  knob is `memMiB` + a restart. `memMiB` is a CEILING, not a reservation
+  (`prealloc=false`): the host only loses what the guest actually touches, and
+  a CPU-nn tenant touches its whole model, so what the box costs its owner is
+  set by WHICH MODEL IS RESIDENT, not by `memMiB`. Sizing floor: a preload
+  needs `advertised - WASM_CPU_NN_RESERVE_GB` (6) to clear the weights, so
+  29 GB admits the 19.7 GiB 27B with 3.3 GiB to spare and is the smallest
+  sane size for it. Measure the real cost with `systemctl --user show
+  enclave-metal -p MemoryCurrent` or `/proc/meminfo` `Unevictable` (SNP guest
+  memory is guest_memfd — it never appears in QEMU's RSS, so `ps` reads ~1 GB
+  and lies). Guest page cache is never returned to the host: once a model is
+  loaded that RAM is gone until the VM restarts. RAM is NOT part of the launch measurement
   (only vcpu count, cmdline, kernel/initrd and OVMF are), so resizing memory
   keeps the enclave's identity — `metal/verify.mjs --vcpus 4` still matches
   the build manifest; changing `cpus` does NOT. Until the rev-7 ledger
