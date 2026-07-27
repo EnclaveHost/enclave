@@ -15,7 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, enclavePriceOf, pickEnclaveFor, rankEnclavesFor, leaseHostOf,
-  fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE } from "../site/js/core/pricing.js";
+  moveTargetsFor, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE } from "../site/js/core/pricing.js";
 
 // Reference copy of the RUNNER's minimum-share math (supervisor.js: pctCeil,
 // gpuShareOf, cpuShareOf, minSharesOf with MIN_COMPUTE_PCT=1). Keep in sync.
@@ -312,4 +312,47 @@ test("rankEnclavesFor puts the CHEAPEST box for this app first, not just the big
   const evenBig = row("big", { ...big.availability, askCpuPricePerSec6: 834 });
   const evenSmall = row("small", { ...small.availability, askCpuPricePerSec6: 834 });
   assert.deepEqual(rankEnclavesFor(MC, [evenSmall, evenBig]).map((r) => r.name), ["big", "small"]);
+});
+
+/* ---- moveTargetsFor: where a LIVE deployment may be re-claimed ------------
+   A move is release-then-re-claim, so the destination must pass exactly the
+   gates a fresh deploy passes. These pin the rule that the current host is
+   never offered as a destination, and that a box which would refuse the record
+   is never offered at all — a target the runner declines leaves the app dark
+   in the open queue, which is worse than saying "nowhere to go". ---- */
+const ID_A = "0x" + "a".repeat(64), ID_B = "0x" + "b".repeat(64);
+
+test("moveTargetsFor: the box already holding the lease is never a destination", () => {
+  const rows = [row("kryptos", GPU_BOX, { id: ID_A }), row("big", CPU_BOX, { id: ID_B })];
+  assert.deepEqual(moveTargetsFor(MC, rows, ID_A).map(t => t.name), ["big"]);
+  assert.deepEqual(moveTargetsFor(MC, rows, ID_B).map(t => t.name), ["kryptos"]);
+});
+
+test("moveTargetsFor: a GPU app on the only GPU box has nowhere to go", () => {
+  const rows = [row("kryptos", GPU_BOX, { id: ID_A }), row("big", CPU_BOX, { id: ID_B })];
+  assert.deepEqual(moveTargetsFor(IMAGE_GEN, rows, ID_A), []);
+});
+
+test("moveTargetsFor: a box missing the model volume is not a destination", () => {
+  // the volume rule is per-BOX (attached, not fetched), so a mover must land
+  // somewhere carrying every volume the deployment mounts
+  const withVol = row("metal0", { ...CPU_BOX, volumes: [{ name: "fable-fusion-27b-mtp-gguf" }] }, { id: ID_B });
+  const without = row("kryptos", GPU_BOX, { id: ID_A });
+  const app = { ...MC, volumes: ["fable-fusion-27b-mtp-gguf"] };
+  assert.deepEqual(moveTargetsFor(app, [without, withVol], ID_B).map(t => t.name), []);
+  assert.deepEqual(moveTargetsFor(app, [without, withVol], ID_A).map(t => t.name), ["metal0"]);
+});
+
+test("moveTargetsFor: a full-but-fitting box stays offered, flagged queued", () => {
+  // a deployment may legitimately wait for its destination to free up — the
+  // caller labels it rather than hiding the only sane target
+  const full = row("big", { ...CPU_BOX, cpuShareFree: 0 }, { id: ID_B });
+  const t = moveTargetsFor(MC, [row("kryptos", GPU_BOX, { id: ID_A }), full], ID_A);
+  assert.deepEqual(t.map(x => x.name), ["big"]);   // the source box is excluded, so this is the only one
+  assert.equal(t[0].queued, true);
+});
+
+test("moveTargetsFor: a non-serving box is not a destination", () => {
+  const dark = row("metal0", CPU_BOX, { id: ID_B, serving: false });
+  assert.deepEqual(moveTargetsFor(MC, [row("kryptos", GPU_BOX, { id: ID_A }), dark], ID_A), []);
 });

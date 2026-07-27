@@ -1114,6 +1114,70 @@ async function cmdRestart(rest) {
   say(`${r.status}${r.note ? ` (${r.note})` : ""}`);
 }
 
+// Move a running deployment to another enclave. There is no on-chain "move":
+// EnclaveDeployments.release is RUNNER-only (an owner cannot evict a host), so
+// this is release-then-re-claim. The owner-authenticated DELETE asks the box
+// holding the lease to hand it back — which refunds the unused lease tail to
+// the deployment's balance and returns the record to the open queue, still
+// active and funded — and the claim hint then gives the chosen box first crack.
+//
+// Placement is a STEER, not a lock: nothing on chain reserves a deployment for
+// an enclave. What makes it land is timing — the hinted box evaluates at once
+// while the rest of the fleet only looks on its next sweep (~60s). We poll the
+// ledger and report where it ACTUALLY went, because losing the race is a
+// normal outcome and silently implying success would be a lie.
+async function cmdMove(rest) {
+  const account = loadKey();
+  if (!rest[0] || !rest[1]) throw new Error("usage: enclave move <id> <enclave>   (enclave = a name from `enclave availability`)");
+  const id = await resolveId(rest[0], account);
+  if (!isB32(id)) throw new Error("only on-chain deployments (bytes32 ids) hold a lease that can be moved");
+  const target = String(rest[1]).trim().toLowerCase();
+  const { abi } = await depAbi();
+  const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "get", [id]);
+  if (!d || d.owner === "0x0000000000000000000000000000000000000000") throw new Error(`no deployment ${short(id)} on the ledger`);
+  if (d.owner.toLowerCase() !== account.address.toLowerCase()) throw new Error(`${short(id)} is owned by ${d.owner}, not this key`);
+  const fleet = await api("GET", "/enclaves").catch(() => null);
+  const rows = (fleet && fleet.enclaves) || [];
+  const dest = rows.find((e) => String(e.name || "").toLowerCase() === target);
+  if (!dest) throw new Error(`no live enclave named "${rest[1]}" (see \`enclave availability\`)`);
+  if (String(dest.id || "").toLowerCase() === String(d.runner || "").toLowerCase())
+    return say(`${short(id)} already runs on ${dest.name}`);
+  const from = rows.find((e) => String(e.id || "").toLowerCase() === String(d.runner || "").toLowerCase());
+  const leased = Number(d.leaseUntil) * 1000 > Date.now();
+  if (!leased) say(`${short(id)} holds no live lease right now - this just hints ${dest.name} to claim it`);
+  else if (!(await confirm(`move ${short(id)} off ${from ? from.name : "its current enclave"} to ${dest.name}? (the app stops and relaunches there; unused lease time is refunded, then re-bought at ${dest.name}'s price)`)))
+    return say("aborted");
+  const oldRunner = String(d.runner || "").toLowerCase();
+  if (leased) {
+    await api("DELETE", `/v1/deployments/${id}`, { auth: account });
+    say(`lease released - unused time refunded to the balance; ${short(id)} is back in the open queue`);
+  }
+  const ZERO = "0x" + "0".repeat(64);
+  let landed = null, lastReason = "";
+  for (let i = 0; i < 45 && !landed; i++) {
+    if (i % 3 === 0) {
+      const h = await api("POST", "/v1/claim-hint", { body: { id, enclave: dest.name } }).catch(() => null);
+      if (h && h.accepted === false && h.reason && h.reason !== lastReason) {
+        lastReason = h.reason;
+        say(`${dest.name} declines: ${h.reason}`);
+      }
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+    const cur = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "get", [id]).catch(() => null);
+    const runner = String((cur && cur.runner) || "").toLowerCase();
+    if (cur && runner && runner !== ZERO && Number(cur.leaseUntil) * 1000 > Date.now() && runner !== oldRunner)
+      landed = cur;
+  }
+  const where = landed ? (rows.find((e) => String(e.id || "").toLowerCase() === String(landed.runner).toLowerCase()) || {}).name : null;
+  if (opt.json) return jout({ id, target: dest.name, moved: !!landed, runner: landed ? landed.runner : null, enclave: where || null });
+  if (!landed)
+    say(`no enclave has claimed it yet - the record is funded and queued, so the fleet's sweep picks it up within a minute (watch: enclave status ${short(id)})`);
+  else if (where && where.toLowerCase() === target)
+    say(`running on ${where} now`);
+  else
+    say(`claimed by ${where || "another enclave"}, not ${dest.name} - placement is a steer, not a lock; run the move again to retry`);
+}
+
 // The owner's hourly spend ceiling (ledger rev 8). Prices differ per enclave —
 // each one posts its own — so this is the line that decides which of them may
 // run the deployment, including when its current host dies and the work goes
@@ -2130,6 +2194,10 @@ deployments
                              (the remaining balance stays on the deployment)
   resume <id>                setActive(true): re-queue a stopped deployment; it
                              relaunches from its remaining balance
+  move <id> <enclave>        run it on a different enclave: the current host hands
+                             the lease back (unused time is refunded) and the box
+                             you name claims it. Same URL, version and balance -
+                             a steer, not a lock; prints where it actually landed
   upgrade <id> [<version>] [--gpu 0..1] [--cpu 0..1]
                              switch to another approved version of the same app
                              (default: its latest); paid time carries over - the
@@ -2439,7 +2507,7 @@ const COMMANDS = {
   key: cmdKey, login: cmdLogin, logout: cmdLogout,
   whoami: cmdWhoami, deploy: cmdDeploy, ls: cmdLs, list: cmdLs,
   status: cmdStatus, logs: cmdLogs, fund: cmdFund, attest: cmdAttest,
-  restart: cmdRestart, stop: cmdStop, suspend: cmdStop, resume: cmdResume,
+  restart: cmdRestart, stop: cmdStop, suspend: cmdStop, resume: cmdResume, move: cmdMove,
   upgrade: cmdUpgrade, "set-version": cmdUpgrade,
   resize: (rest) => cmdUpgrade(rest, { resize: true }),
   "rate-cap": cmdRateCap, cap: cmdRateCap,

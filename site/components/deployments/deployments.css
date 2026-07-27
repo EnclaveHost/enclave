@@ -80,7 +80,7 @@ c-deployments{display:contents;}
 .enc-fund-status:empty{display:none;}
 
 /* per-row Version (switch to another approved release; setAppRef) */
-.enc-upg{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:#080c12;}
+.enc-upg,.enc-move{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:#080c12;}
 .enc-upg-body{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;}
 .enc-upg-body label{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);}
 .eu-sel{max-width:100%;background:var(--bg-1);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:.84rem;padding:.4em .6em;}
@@ -91,6 +91,8 @@ c-deployments{display:contents;}
 .eu-dials input:focus{border-color:var(--jade-dim);outline:none;}
 .enc-upg-status{padding:0 18px 10px;min-height:0;}
 .enc-upg-status:empty{display:none;}
+.enc-move-status{padding:0 18px 10px;min-height:0;}
+.enc-move-status:empty{display:none;}
 
 /* per-row Protect (the options envelope's waf namespace; setConfig) */
 .enc-waf{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:#080c12;}
