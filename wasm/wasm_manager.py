@@ -3085,7 +3085,12 @@ def _audit_enc(rec):
 
 # skip reasons that stay true for the tenant's lifetime - never heal-restart
 # for these (a budget or toolchain skip is a decision, not a race).
-_NN_SKIP_TERMINAL = ("exceeds the VRAM budget", "toolchain lacks")
+# Matched by PREFIX and deliberately kind-agnostic: the budget skip names the
+# resource it ran out of (VRAM on a GPU node, RAM on a CPU-only one), and
+# spelling one of them here would make the other look like a race - the sweep
+# would restart the tenant, the launch would skip the volume again for the same
+# arithmetic reason, forever. Seen live 2026-07-27, a restart every ~70s.
+_NN_SKIP_TERMINAL = ("exceeds the ", "toolchain lacks")
 
 
 def _heal_candidates(rec) -> list:
