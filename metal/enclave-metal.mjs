@@ -57,7 +57,10 @@ for (const f of [KERNEL, INITRD]) if (!fs.existsSync(f)) { console.error(`missin
 const VOL_STORE = cfg.volumeStore || '/vm/enclave-volumes';
 function loadVolumes() {
   const want = cfg.volumes === '*'
-    ? (fs.existsSync(VOL_STORE) ? fs.readdirSync(VOL_STORE, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort() : [])
+    // dot-directories are staging, not volumes: model source trees get parked
+    // next to the images they were built from, and "*" must not try to attach one
+    ? (fs.existsSync(VOL_STORE) ? fs.readdirSync(VOL_STORE, { withFileTypes: true })
+        .filter((e) => e.isDirectory() && !e.name.startsWith('.')).map((e) => e.name).sort() : [])
     : (Array.isArray(cfg.volumes) ? cfg.volumes : []);
   const out = [];
   for (const name of want) {
