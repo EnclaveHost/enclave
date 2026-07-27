@@ -357,30 +357,35 @@ test("moveTargetsFor: a non-serving box is not a destination", () => {
   assert.deepEqual(moveTargetsFor(MC, [row("kryptos", GPU_BOX, { id: ID_A }), dark], ID_A), []);
 });
 
-test("a GPU box cannot host a model-volume app dialled to 0% GPU", () => {
-  // wasm_manager: on a GPU node `nn = gpu_share > 0`, so a 0-GPU tenant gets no
-  // wasi-nn and a model-volume app dies at startup on the linker. Live proof
-  // 2026-07-27: kryptos claimed exactly such a deployment and released it 4s later.
+test("a GPU box serves CPU wasi-nn but is never the automatic choice for it", () => {
+  // A 0-GPU tenant gets the ggml CPU backend on any node, GPU boxes included
+  // (wasm_manager: nn is granted to every tenant; only the BUDGET follows the
+  // card). The card is the scarce resource though, so cores-only model work
+  // must rank behind every CPU-only box - demoted, not excluded, because a
+  // deliberate move names its destination and must be honoured.
   const gpuBox = row("kryptos", { ...GPU_BOX, volumes: [{ name: "m" }] }, { id: ID_A });
   const cpuBox = row("metal0", { ...CPU_BOX, volumes: [{ name: "m" }] }, { id: ID_B });
   const cpuOnlyApp = { ...MC, volumes: ["m"] };
-  assert.deepEqual(rankEnclavesFor(cpuOnlyApp, [gpuBox, cpuBox]).map(t => t.name), ["metal0"]);
-  assert.deepEqual(moveTargetsFor(cpuOnlyApp, [gpuBox, cpuBox], ID_B), [],
-    "the GPU box is not a destination for a 0-GPU model-volume deployment");
-  // ...but a deployment that DID buy GPU share can use the same box + volume
+  const ranked = rankEnclavesFor(cpuOnlyApp, [gpuBox, cpuBox]);
+  assert.deepEqual(ranked.map(t => t.name), ["metal0", "kryptos"], "CPU box first, GPU box still offered");
+  assert.equal(ranked[0].cpuNn, false);
+  assert.equal(ranked[1].cpuNn, true, "the GPU box is flagged as running this on cores");
+  // the demotion beats price: a CHEAPER GPU box still ranks behind the CPU one
+  const cheapGpu = row("kryptos", { ...GPU_BOX, volumes: [{ name: "m" }], askCpuPricePerSec6: 1 }, { id: ID_A });
+  const dearCpu = row("metal0", { ...CPU_BOX, volumes: [{ name: "m" }], askCpuPricePerSec6: 9999 }, { id: ID_B });
+  assert.equal(rankEnclavesFor(cpuOnlyApp, [cheapGpu, dearCpu])[0].name, "metal0");
+  // a manual move off the CPU box can still choose the GPU box
+  assert.deepEqual(moveTargetsFor(cpuOnlyApp, [gpuBox, cpuBox], ID_B).map(t => t.name), ["kryptos"]);
+  // a deployment that DID buy GPU share is not demoted - the card is the point
   const gpuApp = { ...IMAGE_GEN, volumes: ["m"] };
-  assert.deepEqual(rankEnclavesFor(gpuApp, [gpuBox, cpuBox]).map(t => t.name), ["kryptos"]);
-  // and a volume-less CPU app is unaffected — the gate is about wasi-nn only
-  assert.deepEqual(rankEnclavesFor(MC, [gpuBox, cpuBox]).map(t => t.name).sort(), ["kryptos", "metal0"]);
+  assert.equal(rankEnclavesFor(gpuApp, [gpuBox, cpuBox])[0].name, "kryptos");
+  // and a volume-less CPU app is untouched by any of this
+  assert.equal(rankEnclavesFor(MC, [gpuBox, cpuBox]).length, 2);
 });
 
-test("moveBlockReason names the wasi-nn gate rather than blaming hardware", () => {
+test("moveBlockReason names the constraint that actually bit", () => {
   const gpuBox = row("kryptos", { ...GPU_BOX, volumes: [{ name: "m" }] }, { id: ID_A });
   const cpuBox = row("metal0", { ...CPU_BOX, volumes: [{ name: "m" }] }, { id: ID_B });
-  const why = moveBlockReason({ ...MC, volumes: ["m"] }, [gpuBox, cpuBox], ID_B);
-  assert.match(why, /GPU box only offers wasi-nn/);
-  assert.match(why, /0% GPU/);
-  // a genuinely absent volume still reads as an absent volume
   const other = moveBlockReason({ ...MC, volumes: ["nope"] }, [gpuBox, cpuBox], ID_B);
   assert.match(other, /carries nope/);
 });
