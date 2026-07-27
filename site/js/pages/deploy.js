@@ -626,6 +626,13 @@ export async function deployOnChain(spec){
           spec: { appRef: spec.reference, gpuMilli: spec.gpuMilli, cpuMilli: spec.cpuMilli,
                   appPort, ports: portsCsv, isPublic: !!spec.isPublic },
           fundUsd: fund,
+          // The rate cap rides in the create() the passkey signs, and the relay
+          // fills it (its quote IS the ceiling). Bound what we will sign by what
+          // we just quoted above - doubled, because the relay quotes from a
+          // 10-minute cached fleet price and this page from a live one, so honest
+          // drift must not refuse a deploy. Omitted when the quote didn't land in
+          // time: an unbounded check is one we cannot honestly make.
+          ...(crate6 > 0n ? { maxRate6Max: String(crate6 * 2n) } : {}),
         });
       } catch(e){ w.line("warn", "[x] " + (e.message || String(e))); return; }
       const cid = out.deploymentId;

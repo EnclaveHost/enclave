@@ -688,8 +688,16 @@ const cors = (req) => {
   }
   return h;
 };
+// Headers on the relay's OWN answers. api.enclave.host is not the apex, so it
+// never inherited the site vhost's HSTS/nosniff: a caller that goes straight to
+// the API (the CLI, the MCP server, a browser that has not first seen
+// enclave.host and taken its includeSubDomains pin) had no pin at all. Only OUR
+// responses — a proxied tenant response is the app's to shape (proxyTo passes
+// its headers through), and nosniff can change how an app's own bytes render.
+const OWN_HEADERS = { "X-Content-Type-Options": "nosniff",
+                      "Strict-Transport-Security": "max-age=31536000; includeSubDomains" };
 const json = (res, code, body, req) => {
-  res.writeHead(code, { "Content-Type": "application/json", "Cache-Control": "no-store",
+  res.writeHead(code, { "Content-Type": "application/json", "Cache-Control": "no-store", ...OWN_HEADERS,
                         ...(req ? cors(req) : { "Access-Control-Allow-Origin": "*" }) });
   res.end(JSON.stringify(body));
 };
@@ -896,7 +904,9 @@ async function forward(origin, req, body, path = req.url) {
   } finally { clearTimeout(t); }
 }
 function sendForwarded(res, r, req) {
-  res.writeHead(r.status, { "Cache-Control": "no-store", ...(r.contentType ? { "Content-Type": r.contentType } : {}), ...cors(req) });
+  // a buffered CONTROL-plane answer (placement, list merge): ours to stamp, same
+  // as json() — never the /x tenant path, which streams through proxyTo
+  res.writeHead(r.status, { "Cache-Control": "no-store", ...(r.contentType ? { "Content-Type": r.contentType } : {}), ...OWN_HEADERS, ...cors(req) });
   res.end(r.text);
 }
 

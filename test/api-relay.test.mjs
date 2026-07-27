@@ -355,7 +355,14 @@ test("api-relay: only origin-form request targets are served, and a bad one is n
   assert.match(await raw("/health"), /^HTTP\/1\.1 200 /, "origin-form still served");
 
   // …and the relay is still up: the guard answers, it does not crash the box
-  assert.equal((await fetch(origin + "/health")).status, 200);
+  const h = await fetch(origin + "/health");
+  assert.equal(h.status, 200);
+  // The relay's OWN answers carry the transport headers api.enclave.host never
+  // inherited from the apex vhost (it is a different host): a caller that goes
+  // straight to the API has no HSTS pin otherwise, and JSON went out sniffable.
+  // Proxied TENANT bytes are deliberately not stamped - that is the app's shape.
+  assert.equal(h.headers.get("x-content-type-options"), "nosniff");
+  assert.match(h.headers.get("strict-transport-security") || "", /^max-age=31536000; includeSubDomains$/);
 });
 
 // ---------- deployment-id prefix collisions ----------------------------------

@@ -168,6 +168,25 @@ test("verifyPrepare: a swapped rate cap is refused", () => {
     { id: ID, action: "maxrate", maxRate6: 900 }), /different change/);
 });
 
+test("verifyPrepare: the credit path bounds a cap it did not name", () => {
+  // The credit deploy does NOT name a cap - the relay fills it from its own
+  // quote - so the caller passes the most it will sign instead. Inside the
+  // bound (ordinary drift between a cached relay quote and a live page one) is
+  // fine; a multiplied cap, the version that burns the buyer's credit at a rate
+  // they were never shown, is not.
+  const at = (cap6) => prepFor("deploy", { createCall: createCallFor({ maxRate6: cap6 }), fund6: "10000000" });
+  const asked = { spec: SPEC, fundUsd: 10, maxRate6Max: "1002" };      // page quote 501, doubled
+  verifyPrepare("deploy", at(501n), asked);                            // exactly quoted
+  verifyPrepare("deploy", at(1002n), asked);                           // at the bound
+  assert.throws(() => verifyPrepare("deploy", at(1003n), asked), /higher rate cap/);
+  assert.throws(() => verifyPrepare("deploy", at(50100n), asked), /higher rate cap/);
+  // an exact cap still wins when the caller named one, bound or no bound
+  assert.throws(() => verifyPrepare("deploy", at(600n),
+    { ...asked, spec: { ...SPEC, maxRate6: 501n } }), /different rate cap/);
+  // no bound passed (the page's quote never landed): unchanged behaviour
+  verifyPrepare("deploy", at(50100n), { spec: SPEC, fundUsd: 10 });
+});
+
 test("verifyPrepare: a publisher fee smuggled into create() is refused", () => {
   const createCall = createCallFor({ feeRecipient: "0x" + "ba".repeat(20), feePerSec6: 1389n });
   assert.throws(() => verifyPrepare("deploy", prepFor("deploy", { createCall, fund6: "10000000" }),
