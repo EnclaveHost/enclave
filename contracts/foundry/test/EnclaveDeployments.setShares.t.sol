@@ -5,23 +5,31 @@ import "forge-std/Test.sol";
 import {EnclaveDeployments, IEnclaveRegistry} from "../../EnclaveDeployments.sol";
 import {MockUSDC} from "./mocks/MockUSDC.sol";
 
-/// Registry stand-in: one active enclave whose operator is settable, matching
-/// the structural claim gate (msg.sender must be the entry's operator).
+/// Registry stand-in: one active, PRICED enclave whose operator is settable,
+/// matching the structural claim gate (msg.sender must be the entry's
+/// operator) and rev 8's pricing read (the host's per-machine prices).
 contract MockRegistry {
     address public operator;
+    uint64 public cpuPrice = 834;    // whole node, USDC 6dp/sec (~$3.00/hr)
+    uint64 public gpuPrice = 1667;   // whole card, USDC 6dp/sec (~$6.00/hr)
     constructor(address _operator) { operator = _operator; }
+    function setPrices(uint64 c, uint64 g) external { cpuPrice = c; gpuPrice = g; }
     function get(bytes32) external view returns (IEnclaveRegistry.Enclave memory e) {
         e.operator = operator;
         e.active = true;
+        e.cpuPricePerSec6 = cpuPrice;
+        e.gpuPricePerSec6 = gpuPrice;
     }
 }
 
-/// setShares (rev 6): the owner re-buys the deployment's two shares in place
-/// and the rate is recalculated at current list prices. The money invariant
-/// under test everywhere: a live lease's unserved tail settles at the rate it
-/// was burned at BEFORE the rate changes — balance6 + spent6 is conserved by
-/// the settle itself, spent6 can never underflow, and release() after a
-/// resize refunds at the new rate the re-burn used.
+/// setShares (rev 6, re-based on rev 8's per-host pricing): the owner re-buys
+/// the deployment's two shares in place and the rate is recalculated — at the
+/// SERVING enclave's posted prices while a lease is live, at the deployment's
+/// own ceiling when nothing is serving it. The money invariant under test
+/// everywhere: a live lease's unserved tail settles at the rate it was burned
+/// at BEFORE the rate changes — balance6 + spent6 is conserved by the settle
+/// itself, spent6 can never underflow, and release() after a resize refunds at
+/// the new rate the re-burn used.
 contract EnclaveDeploymentsSetSharesTest is Test {
     EnclaveDeployments internal dep;
     MockUSDC internal usdc;
@@ -33,8 +41,11 @@ contract EnclaveDeploymentsSetSharesTest is Test {
     address internal publisher = makeAddr("publisher");
     bytes32 internal constant ENCLAVE_ID = keccak256("enclave-1");
 
-    uint256 internal constant GPU_PRICE = 1667; // per-sec 6dp, full card (contract default)
-    uint256 internal constant CPU_PRICE = 834;  // per-sec 6dp, full node (contract default)
+    uint256 internal constant GPU_PRICE = 1667; // per-sec 6dp, full card (this host's posted price)
+    uint256 internal constant CPU_PRICE = 834;  // per-sec 6dp, full node (this host's posted price)
+    // the whole machine: a ceiling this high never binds, so these tests keep
+    // measuring the settle math rather than the cap (which has its own suite)
+    uint256 internal constant ROOMY_CAP = (GPU_PRICE * 1000 + CPU_PRICE * 1000 + 999) / 1000;
 
     function setUp() public {
         usdc = new MockUSDC();
@@ -53,7 +64,7 @@ contract EnclaveDeploymentsSetSharesTest is Test {
 
     function _create(uint16 gpuMilli, uint16 cpuMilli, uint256 fund6) internal returns (bytes32 id) {
         vm.startPrank(user);
-        id = dep.create("catalog://app/0", gpuMilli, cpuMilli, 8080, "", true, "", address(0), 0);
+        id = dep.create("catalog://app/0", gpuMilli, cpuMilli, 8080, "", true, "", address(0), 0, ROOMY_CAP);
         if (fund6 > 0) dep.fund(id, fund6);
         vm.stopPrank();
     }
@@ -65,29 +76,39 @@ contract EnclaveDeploymentsSetSharesTest is Test {
 
     // ---- schema marker ----------------------------------------------------
 
-    function test_schemaIsSeven() public view {
-        assertEq(dep.deploymentsSchema(), 7);
+    function test_schemaIsEight() public view {
+        assertEq(dep.deploymentsSchema(), 8);
     }
 
     // ---- unleased resizes -------------------------------------------------
 
-    function test_resizeUnleased_repricesAtCurrentList() public {
+    function test_resizeUnleased_movesSharesAndHoldsTheCeilingRate() public {
         bytes32 id = _create(500, 250, 0);
         vm.prank(user);
         dep.setShares(id, 800, 400);
         EnclaveDeployments.Deployment memory d = dep.get(id);
         assertEq(d.gpuMilli, 800);
         assertEq(d.cpuMilli, 400);
-        assertEq(d.rate, _rate(800, 400));
+        // nothing is serving it, so no host has priced the new shares: the
+        // working rate stays the ceiling until a claim lands
+        assertEq(d.rate, ROOMY_CAP);
+        assertEq(dep.capOf(id), ROOMY_CAP);
         assertEq(d.balance6, 0);
         assertEq(d.spent6, 0);
+        // and the next claim prices the shares the owner actually bought
+        vm.prank(user);
+        dep.fund(id, 100e6);
+        _claim(id);
+        assertEq(dep.get(id).rate, _rate(800, 400));
     }
 
-    function test_resizeAfterPriceChange_repricesUnchangedShares() public {
-        bytes32 id = _create(500, 250, 0);
+    function test_resizeAfterHostReprices_repricesUnchangedShares() public {
+        bytes32 id = _create(500, 250, 100e6);
+        _claim(id);
         uint256 before = dep.get(id).rate;
-        dep.setPrice(GPU_PRICE * 2); // owner of this test contract deployed dep
-        // same shares, new list price: the resize IS the re-pricing decision
+        assertEq(before, _rate(500, 250));
+        reg.setPrices(uint64(CPU_PRICE), uint64(GPU_PRICE * 2));   // the host puts its card up
+        // same shares, dearer host: the resize IS the re-pricing decision
         vm.prank(user);
         dep.setShares(id, 500, 250);
         assertEq(dep.get(id).rate, (GPU_PRICE * 2 * 500 + CPU_PRICE * 250 + 999) / 1000);
@@ -104,7 +125,7 @@ contract EnclaveDeploymentsSetSharesTest is Test {
         EnclaveDeployments.Deployment memory d = dep.get(id);
         assertEq(d.balance6, d0.balance6);   // untouched: no live tail to settle
         assertEq(d.spent6, d0.spent6);
-        assertEq(d.rate, _rate(100, 100));
+        assertEq(d.rate, ROOMY_CAP);         // unserved again: back to the ceiling basis
     }
 
     // ---- live-lease settle math -------------------------------------------
@@ -226,18 +247,42 @@ contract EnclaveDeploymentsSetSharesTest is Test {
     function test_resizeCarriesFeeSnapshotIntoNewRate() public {
         uint256 fee = 500;
         vm.startPrank(user);
-        bytes32 id = dep.create("catalog://app/0", 500, 250, 8080, "", true, "", publisher, fee);
+        bytes32 id = dep.create("catalog://app/0", 500, 250, 8080, "", true, "", publisher, fee, ROOMY_CAP + fee);
+        dep.fund(id, 100e6);
         vm.stopPrank();
-        assertEq(dep.get(id).rate, _rate(500, 250) + fee);
+        _claim(id);
+        assertEq(dep.get(id).rate, _rate(500, 250) + fee);   // host price + the deployment's own fee
 
         vm.prank(user);
         dep.setShares(id, 100, 100);
         assertEq(dep.get(id).rate, _rate(100, 100) + fee); // fee snapshot immutable, folded back in
 
         // and the next funding splits pro-rata against the NEW rate
+        uint256 paidBefore = usdc.balanceOf(publisher);
         vm.prank(user);
         dep.fund(id, 1_000_000);
-        assertEq(usdc.balanceOf(publisher), (1_000_000 * fee) / (_rate(100, 100) + fee));
+        assertEq(usdc.balanceOf(publisher) - paidBefore, (1_000_000 * fee) / (_rate(100, 100) + fee));
+    }
+
+    function test_resizeOverTheCeiling_reverts() public {
+        uint256 cap = _rate(500, 250);
+        vm.startPrank(user);
+        bytes32 id = dep.create("catalog://app/0", 500, 250, 8080, "", true, "", address(0), 0, cap);
+        dep.fund(id, 100e6);
+        vm.stopPrank();
+        _claim(id);
+        EnclaveDeployments.Deployment memory d0 = dep.get(id);
+
+        vm.prank(user);
+        vm.expectRevert("over rate cap");
+        dep.setShares(id, 900, 450);          // a bigger slice at this host costs more than the ceiling
+        assertEq(dep.get(id).gpuMilli, d0.gpuMilli);
+
+        vm.startPrank(user);
+        dep.setMaxRate(id, _rate(900, 450));  // raise the ceiling and the same resize lands
+        dep.setShares(id, 900, 450);
+        vm.stopPrank();
+        assertEq(dep.get(id).rate, _rate(900, 450));
     }
 
     // ---- bounds (create's rules, re-applied) ------------------------------
@@ -277,6 +322,7 @@ contract EnclaveDeploymentsSetSharesTest is Test {
         EnclaveDeployments.Deployment memory d = dep.get(id);
         assertEq(d.appRef, "catalog://app/1");
         assertEq(d.gpuMilli, 800);
-        assertEq(d.rate, _rate(800, 400));
+        _claim(id);
+        assertEq(dep.get(id).rate, _rate(800, 400));   // priced when a host takes it
     }
 }

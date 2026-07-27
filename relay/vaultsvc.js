@@ -157,7 +157,10 @@ export function opDigest(op, vault, chainId, nonce, args, deadline) {
 }
 
 // create(...) calldata for the CURRENT ledger schema (rev sniff like the
-// provisioner: rev>=4 = 9-arg with zero fee args, else legacy 7-arg)
+// provisioner: rev>=8 = 10-arg with the rate cap, rev>=4 = 9-arg with zero fee
+// args, else legacy 7-arg). spec.maxRate6 is the ceiling the quote was made at
+// — credit checkout quotes the cheapest live enclave, so the cap is exactly
+// what the buyer was shown.
 export async function buildCreateCall(depAddress, spec) {
   const pub = await rpcPool();
   let rev = 3;
@@ -172,20 +175,25 @@ export async function buildCreateCall(depAddress, spec) {
     { name: "cpuMilli", type: "uint16" }, { name: "appPort", type: "uint32" },
     { name: "ports", type: "string" }, { name: "isPublic", type: "bool" }, { name: "configCid", type: "string" },
   ];
-  const inputs = rev >= 4 ? [...baseInputs, { name: "feeRecipient", type: "address" }, { name: "feePerSec6", type: "uint256" }] : baseInputs;
+  const inputs = [...baseInputs,
+    ...(rev >= 4 ? [{ name: "feeRecipient", type: "address" }, { name: "feePerSec6", type: "uint256" }] : []),
+    ...(rev >= 8 ? [{ name: "maxRate6", type: "uint256" }] : [])];
+  if (rev >= 8 && !(BigInt(spec.maxRate6 || 0) > 0n)) throw new Error("spec.maxRate6 is required on this ledger");
   const args = [spec.appRef, spec.gpuMilli, spec.cpuMilli, spec.appPort, spec.ports, spec.isPublic, spec.configCid,
-                ...(rev >= 4 ? ["0x0000000000000000000000000000000000000000", 0n] : [])];
+                ...(rev >= 4 ? ["0x0000000000000000000000000000000000000000", 0n] : []),
+                ...(rev >= 8 ? [BigInt(spec.maxRate6)] : [])];
   return encodeFunctionData({ abi: [{ type: "function", name: "create", stateMutability: "nonpayable", inputs, outputs: [{ type: "bytes32" }] }], args, functionName: "create" });
 }
 
-// setActive/setAppRef/setShares/setConfig calldata for controlDeployment -
-// the vault contract allowlists exactly these selectors (they move no funds),
-// plus a multicall composed solely of them (a version change + share resize
-// ride one passkey signature; the vault checks every inner selector).
-// "options" (setConfig) rewrites the deployment's options envelope - the
-// waf/config namespaces - so vault deployments can gain rate limiting after
-// create, same as wallet ones.
-export async function buildControlCall(id, action, ref, shares, envelope) {
+// setActive/setAppRef/setShares/setConfig/setMaxRate calldata for
+// controlDeployment - the vault contract allowlists exactly these selectors
+// (they move no funds), plus a multicall composed solely of them (a version
+// change + share resize ride one passkey signature; the vault checks every
+// inner selector). "options" (setConfig) rewrites the deployment's options
+// envelope - the waf/config namespaces - so vault deployments can gain rate
+// limiting after create, same as wallet ones. "maxrate" (setMaxRate) moves the
+// spend ceiling: which enclaves may run it, and at what price.
+export async function buildControlCall(id, action, ref, shares, envelope, maxRate6) {
   const { encodeFunctionData } = viem || (viem = await import("viem"));
   const setAppRefCall = () => encodeFunctionData({ abi: [{ type: "function", name: "setAppRef", stateMutability: "nonpayable",
     inputs: [{ type: "bytes32" }, { type: "string" }], outputs: [] }],
@@ -199,6 +207,12 @@ export async function buildControlCall(id, action, ref, shares, envelope) {
     return encodeFunctionData({ abi: [{ type: "function", name: "setConfig", stateMutability: "nonpayable",
       inputs: [{ type: "bytes32" }, { type: "string" }], outputs: [] }],
       functionName: "setConfig", args: [id, String(envelope ?? "")] });
+  if (action === "maxrate") {
+    if (!(BigInt(maxRate6 || 0) > 0n)) throw new Error("maxRate6 must be positive");
+    return encodeFunctionData({ abi: [{ type: "function", name: "setMaxRate", stateMutability: "nonpayable",
+      inputs: [{ type: "bytes32" }, { type: "uint256" }], outputs: [] }],
+      functionName: "setMaxRate", args: [id, BigInt(maxRate6)] });
+  }
   if (action === "resize") {
     const sharesCall = encodeFunctionData({ abi: [{ type: "function", name: "setShares", stateMutability: "nonpayable",
       inputs: [{ type: "bytes32" }, { type: "uint16" }, { type: "uint16" }], outputs: [] }],

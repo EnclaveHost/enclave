@@ -18,7 +18,7 @@ import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { $$, esc, hlJson, fmtDur, statusCls, copyText, showToast, lsGet, lsSet } from "../../js/core/util.js";
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
-import { pad32, encUint, encCall, DEP_SEL, APPROVAL, depPrices6, rate6Of, depMaxGpuMilli, depGet, depSchemaRev, depFeeOf, catVersionFee, waitReceipt } from "../../js/core/chain.js";
+import { pad32, encUint, encCall, DEP_SEL, APPROVAL, depPrices6, rate6Of, depMaxGpuMilli, depGet, depSchemaRev, depFeeOf, depCapOf, catVersionFee, waitReceipt } from "../../js/core/chain.js";
 import { authenticate, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
 import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, STORE } from "../../js/core/catalog.js";
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
@@ -755,6 +755,13 @@ class Deployments extends EnclaveElement {
       try { [prices, maxGpu] = await Promise.all([depPrices6(), depMaxGpuMilli()]); }
       catch(e){ resizable = false; }
     }
+    // The owner's hourly ceiling (rev 8). Editable here whenever every live
+    // runner honors it — the fleet-AND flag, same rule as the resize dials:
+    // against an older runner a lowered cap would just look like a renewal
+    // that mysteriously stopped.
+    const capEditable = rev >= 8 && avail?.rateCap === true;
+    let cap6 = 0n;
+    if (rev >= 8){ try { cap6 = await depCapOf(id); } catch(e){} }
     // WHOSE HARDWARE the floors divide by. A live lease pins it: the enclave
     // holding it restarts the app in place and checks the new version against
     // its OWN card and node, so that box - not the fleet - decides what this
@@ -799,6 +806,13 @@ class Deployments extends EnclaveElement {
          : '')
       +   '<button class="btn btn-sm btn-primary eu-go" type="button">Change version</button>'
       + '</div>'
+      + (capEditable
+         ? '<div class="enc-upg-body eu-cap-row">'
+         +   '<label for="' + selId + 'r">Rate cap $/hr</label>'
+         +   '<input id="' + selId + 'r" class="eu-cap" type="number" min="0" step="0.01" value="' + (Number(cap6) * 3600 / 1e6).toFixed(2) + '">'
+         +   '<button class="btn btn-sm eu-cap-go" type="button">Set cap</button>'
+         + '</div>'
+         : '')
       + '<div class="term enc-upg-status" role="status" aria-live="polite"></div>';
     const sel = box.querySelector(".eu-sel"), go = box.querySelector(".eu-go"), st = box.querySelector(".enc-upg-status");
     const gIn = box.querySelector(".eu-gpu"), cIn = box.querySelector(".eu-cpu");
@@ -806,7 +820,13 @@ class Deployments extends EnclaveElement {
     const intro = () => {
       paint("info", "// paid time carries over: the runner restarts the app in place (~a minute); the endpoint and balance don’t change, app state is ephemeral");
       if (resizable)
-        paint("dimln", "// the dials re-buy this deployment’s shares in the same transaction - the hourly rate is recalculated at the CURRENT list prices, and a live lease settles at the old rate first");
+        paint("dimln", "// the dials re-buy this deployment’s shares in the same transaction - the hourly rate is recalculated at "
+          + (rev >= 8 ? (hw ? hw.name + "’s posted price" : "the price of whichever enclave claims it") : "the CURRENT list prices")
+          + ", and a live lease settles at the old rate first");
+      if (cap6 > 0n)
+        paint("dimln", "// rate cap $" + (Number(cap6) * 3600 / 1e6).toFixed(2) + "/h: enclaves dearer than this can’t run this deployment - "
+          + "it is also what decides where the app goes if its enclave dies"
+          + (capEditable ? "" : " (this fleet can’t change it yet)"));
       if (hw)
         paint("dimln", "// minimum shares are measured on " + hw.name + " (" + hw.spec.nodeRamGb + " GB / " + hw.spec.nodeVcpus + " vCPU node"
           + (bought.gpuMilli ? ", " + hw.spec.cardVramGb + " GB card" : "") + "), the enclave holding this deployment’s lease - it restarts the app in place and checks the new version against its own hardware");
@@ -838,11 +858,21 @@ class Deployments extends EnclaveElement {
         go.disabled = !verChange && !resized;
         if (t.gpuMilli > maxGpu){ paint("warn", "// GPU over the platform’s per-deployment cap of " + (maxGpu / 10) + "%"); go.disabled = true; return; }
         if (resized){
-          const newRate = rate6Of(prices, t.gpuMilli, t.cpuMilli) + snapFee;
+          // priced at the box that will serve the bigger slice: its lease
+          // holder's posted price (rev 8), else the fleet/list price
+          const at = hw && hw.price
+            ? { gpu: BigInt(Math.round(hw.price.full * 1e6)), cpu: BigInt(Math.round(hw.price.node * 1e6)) } : prices;
+          const newRate = rate6Of(at, t.gpuMilli, t.cpuMilli) + snapFee;
           const oldRate = BigInt(Math.round(Number(d.rate) || 0));
           const bal = Number(d.balance6 || 0);
           paint("dimln", "// rate $" + (Number(oldRate) * 3600 / 1e6).toFixed(2) + "/h -> $" + (Number(newRate) * 3600 / 1e6).toFixed(2) + "/h"
+            + (hw ? " at " + hw.name + "’s price" : "")
             + (bal > 0 && Number(newRate) > 0 ? " · remaining balance buys ≈ " + fmtDur(bal / Number(newRate)) : ""));
+          if (cap6 > 0n && newRate > cap6){
+            paint("warn", "// that size costs more than this deployment’s rate cap of $" + (Number(cap6) * 3600 / 1e6).toFixed(2)
+              + "/h - raise the cap below, then resize");
+            go.disabled = true; return;
+          }
           if (Number(d.leaseUntil) * 1000 > Date.now()){
             const tail = Math.max(0, Number(d.leaseUntil) - Math.floor(Date.now() / 1000));
             if (BigInt(bal) + BigInt(tail) * oldRate < newRate){
@@ -907,6 +937,56 @@ class Deployments extends EnclaveElement {
         go.disabled = false;
       } finally { if (!via) refreshWallet(); }
     });
+    // ---- the hourly ceiling: which enclaves may run this deployment --------
+    // Enclaves price their own hardware, so this line decides where the work
+    // can go - including when its host dies and the lease reopens. Below the
+    // running rate it becomes a stop: the paid lease finishes and nothing
+    // renews or re-claims it, which the button says out loud before signing.
+    const capGo = box.querySelector(".eu-cap-go"), capIn = box.querySelector(".eu-cap");
+    if (capGo && capIn){
+      const leased = Number(d.leaseUntil) * 1000 > Date.now();
+      const capOf = () => BigInt(Math.round((parseFloat(capIn.value) || 0) * 1e6 / 3600));
+      capGo.disabled = true;
+      capIn.addEventListener("input", () => { const n = capOf(); capGo.disabled = !(n > snapFee) || n === cap6; });
+      capGo.addEventListener("click", async () => {
+        const next6 = capOf();
+        if (!(next6 > snapFee))
+          return paint("warn", "// the cap must be above the app’s publisher fee ($" + (Number(snapFee) * 3600 / 1e6).toFixed(2) + "/hr)");
+        const runRate = BigInt(Math.round(Number(d.rate) || 0));
+        if (leased && next6 < runRate
+            && !confirm("$" + (Number(next6) * 3600 / 1e6).toFixed(2) + "/hr is below what this deployment pays now ($"
+                        + (Number(runRate) * 3600 / 1e6).toFixed(2) + "/hr).\n\nThe lease you already paid for runs to "
+                        + new Date(Number(d.leaseUntil) * 1000).toLocaleString()
+                        + ", then the app STOPS: no renewal and no re-claim until a cheaper enclave exists or you raise the cap.\n\nSet it anyway?"))
+          return;
+        capGo.disabled = true;
+        const viaVault = ctlOf((this._list || []).find(x => x.id === id)) === "vault";
+        try {
+          if (viaVault){
+            paint("info", "[*] confirm the change with your passkey…");
+            const { vaultOp } = await import("../../js/core/vault.js");
+            await vaultOp("control", { id, action: "maxrate", maxRate6: Number(next6) });
+          } else {
+            if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
+            await ensureBaseChain();
+            paint("info", "[*] confirm the transaction in your wallet…");
+            const th = await sendTx(DEPLOYMENTS_ADDRESS,
+              encCall(DEP_SEL.setMaxRate, [{ t: "bytes32", v: id }, { t: "uint", v: next6 }]));
+            paint("dimln", "  ↳ sent " + th + " · waiting for confirmation…");
+            await waitReceipt(th);
+          }
+          cap6 = next6;
+          paint("ok", "[✓] rate cap now $" + (Number(next6) * 3600 / 1e6).toFixed(2) + "/hr"
+            + (leased && next6 < runRate ? " - the app stops when the current lease ends" : " - enclaves dearer than this can’t run it"));
+          showToast("rate cap set for " + id.slice(0, 10) + "…");
+          this.refresh();
+        } catch(e){
+          const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
+          paint("warn", rejected ? "[x] cancelled - the cap is unchanged" : "[x] " + (e.message || String(e)));
+          capGo.disabled = false;
+        } finally { if (!viaVault) refreshWallet(); }
+      });
+    }
   }
 
   /* ---- per-row Protect: the deployment's options envelope, WAF namespace.

@@ -33,7 +33,10 @@
 //                         tinfoil-config.yml's REGISTRY_ADDRESS line.
 //   ETH_USD_FEED          Chainlink ETH/USD aggregator; defaults per network;
 //                         "none" disables ETH funding (USDC only).
-//   PRICE_PER_SEC6        full-card USDC(6dp)/second price. The contract now
+//   PRICE_PER_SEC6        IGNORED since ledger rev 8: enclaves post their own
+//                         per-machine prices in EnclaveRegistry and the tenant
+//                         pays the claiming enclave's. Historic doc below.
+//   (was) PRICE_PER_SEC6  full-card USDC(6dp)/second price. The contract now
 //                         HARDCODES 1667 (~$6.00/hour) at deploy, so by default
 //                         no setPrice tx is sent at all; set this env var only
 //                         to CHANGE the price ("0" skips the check entirely).
@@ -253,37 +256,19 @@ function announce(addr, net) {
   else console.log("(--no-write-config: skipped tinfoil-config.yml; set DEPLOYMENTS_ADDRESS manually)");
 }
 
-// Set a per-second price if it isn't already what we want. Reads the current
-// value first, so re-runs and --finish are idempotent. Covers both schedules:
-// the full-card GPU price (setPrice) and the whole-node CPU price (setCpuPrice).
-// Returns true if it broadcast a tx (callers pace consecutive sends on this).
-async function ensureOnePrice(pub, wallet, abi, addr, price,
-                              { label, getter, setter, envVar }) {
-  if (price <= 0n) { console.log(`${envVar}=0: skipping ${setter} (${label} creates revert until it is set).`); return false; }
-  const current = await readWithRetry(getter, () =>
-    pub.readContract({ address: addr, abi, functionName: getter }));
-  if (current === price) { console.log(`${label} price already ${price}/sec — nothing to send.`); return false; }
-  if (current > 0n && !process.env[envVar]) {
-    console.log(`${label} price already set (${current}/sec); set ${envVar} explicitly to change it.`);
-    return false;
-  }
-  console.log(`Setting ${label} price (${price} USDC-6dp per second)...`);
-  const h2 = await sendWithRetry(setter, () =>
-    wallet.writeContract({ address: addr, abi, functionName: setter, args: [price] }));
-  const r2 = await readWithRetry(`${setter} receipt`, () => pub.waitForTransactionReceipt({ hash: h2 }));
-  if (r2.status !== "success") die(`${setter} tx did not succeed (status=${r2.status})`);
-  console.log(`  tx ${h2}`);
-  return true;
-}
-async function ensurePrice(pub, wallet, abi, addr, price, cpuPrice) {
-  const sent = await ensureOnePrice(pub, wallet, abi, addr, price,
-    { label: "full-card (GPU)", getter: "pricePerSec6", setter: "setPrice", envVar: "PRICE_PER_SEC6" });
-  // Settle before the next owner tx: right after a receipt, lagging RPC nodes
-  // can still count the mined tx as in-flight and bounce the follow-up with
-  // "in-flight transaction limit reached for delegated accounts".
-  if (sent) { console.log("  (settling 15s before the next owner tx...)"); await new Promise((r) => setTimeout(r, 15000)); }
-  await ensureOnePrice(pub, wallet, abi, addr, cpuPrice,
-    { label: "whole-node (CPU)", getter: "cpuPricePerSec6", setter: "setCpuPrice", envVar: "CPU_PRICE_PER_SEC6" });
+// Pricing left this contract at rev 8: each enclave publishes its own
+// per-machine price in its EnclaveRegistry entry (schema 2) and the ledger
+// charges a tenant its shares of whichever enclave claims it, bounded by that
+// deployment's own maxRate6. There is nothing to set here any more - kept as a
+// loud no-op so an old runbook (or PRICE_PER_SEC6 in someone's env) says so
+// instead of silently doing nothing.
+async function ensurePrice(pub, wallet, abi, addr) {
+  const stale = ["PRICE_PER_SEC6", "CPU_PRICE_PER_SEC6"].filter((k) => process.env[k]);
+  if (stale.length)
+    console.log(`NOTE: ${stale.join(" / ")} set, but this ledger has no platform price: `
+      + `enclaves post their own (SELL_CPU_PRICE6 / SELL_GPU_PRICE6 on each box, published to the registry). Ignored.`);
+  else
+    console.log("Pricing: per enclave (registry entries), not per platform — no price tx to send.");
 }
 
 // Pick the network: from $NETWORK if set, else an interactive menu (number or name).
@@ -313,12 +298,6 @@ async function main() {
   const usdc = getAddress(process.env.USDC_ADDRESS || net.usdc);
   const feedIn = process.env.ETH_USD_FEED || net.ethUsdFeed;
   const feed = /^none$/i.test(feedIn) ? ZERO : getAddress(feedIn);
-  // Defaults MATCH the values hardcoded in the contract (~$6.00/hour full card,
-  // ~$1.00/hour whole CPU node), so a fresh deploy sends ZERO follow-up txs —
-  // ensurePrice just verifies. Set the env vars to change a live contract.
-  const price = BigInt(process.env.PRICE_PER_SEC6 ?? "1667");
-  const cpuPrice = BigInt(process.env.CPU_PRICE_PER_SEC6 ?? "834");
-
   let pk0 = process.env.DEPLOYER_PRIVATE_KEY;
   if (!pk0) {
     if (ASSUME_YES || !input.isTTY) die("DEPLOYER_PRIVATE_KEY is required (set the env var, or run in a terminal to be prompted)");
@@ -348,11 +327,11 @@ async function main() {
     announce(addr, net);
     if (!ASSUME_YES) {
       const rl = readline.createInterface({ input, output });
-      const ans = (await rl.question(`Send setPrice/setCpuPrice to ${addr} on ${netName} if needed? [y/N]: `)).trim();
+      const ans = (await rl.question(`Re-announce ${addr} on ${netName} and rewrite the config? [y/N]: `)).trim();
       rl.close();
-      if (!/^y(es)?$/i.test(ans)) { console.log("Skipped setPrice (re-run with --finish when ready)."); return; }
+      if (!/^y(es)?$/i.test(ans)) { console.log("Skipped (re-run with --finish when ready)."); return; }
     }
-    await ensurePrice(pub, wallet, abi, addr, price, cpuPrice);
+    await ensurePrice(pub, wallet, abi, addr);
     console.log("\nNext:  rebuild+repin the supervisor:  ./scripts/release.sh enclave-supervisor");
     return;
   }
@@ -377,7 +356,8 @@ async function main() {
   console.log(`  payout  (arg2) ${payout}   <- funds land here`);
   console.log(`  registry(arg3) ${registry}   <- claims gated to its operators`);
   console.log(`  feed    (arg4) ${feed === ZERO ? "(none - ETH funding disabled)" : feed}`);
-  console.log(`  setPrice       ${price === 0n ? "(skipped - call setPrice later)" : price + " (USDC 6dp / full-card second)"}`);
+  console.log(`  registry(arg3) must be schema 2 (priced entries) - claims read the host's price from it`);
+  console.log(`  pricing        per enclave, not per platform (no setPrice on this rev)`);
   console.log(`  bytecode       ${(bytecode.length / 2 - 1)} bytes`);
   console.log("===============================================================\n");
 
@@ -419,10 +399,10 @@ async function main() {
   if (rcpt.status !== "success" || !rcpt.contractAddress) die(`deploy tx did not succeed (status=${rcpt.status})`);
   const addr = getAddress(rcpt.contractAddress);
 
-  // announce + write config BEFORE setPrice: if the follow-up tx fails, the
-  // address is already saved (recover the price step with --finish).
+  // announce + write config right after the deploy: the address is saved even
+  // if anything below fails (recover with --finish).
   announce(addr, net);
-  await ensurePrice(pub, wallet, abi, addr, price, cpuPrice);
+  await ensurePrice(pub, wallet, abi, addr);
 
   console.log("\nNext:");
   console.log(`  1. Ensure DEPLOYMENTS_ADDRESS in tinfoil-config.yml is ${addr} (written above)`);

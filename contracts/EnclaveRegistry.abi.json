@@ -41,6 +41,31 @@
         "type": "bytes32"
       },
       {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "cpuPricePerSec6",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "gpuPricePerSec6",
+        "type": "uint64"
+      }
+    ],
+    "name": "PricesSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
         "indexed": true,
         "internalType": "address",
         "name": "operator",
@@ -159,6 +184,16 @@
             "internalType": "bool",
             "name": "active",
             "type": "bool"
+          },
+          {
+            "internalType": "uint64",
+            "name": "cpuPricePerSec6",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "gpuPricePerSec6",
+            "type": "uint64"
           }
         ],
         "internalType": "struct EnclaveRegistry.Enclave",
@@ -220,6 +255,16 @@
             "internalType": "bool",
             "name": "active",
             "type": "bool"
+          },
+          {
+            "internalType": "uint64",
+            "name": "cpuPricePerSec6",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "gpuPricePerSec6",
+            "type": "uint64"
           }
         ],
         "internalType": "struct EnclaveRegistry.Enclave[]",
@@ -297,6 +342,16 @@
         "internalType": "bytes32",
         "name": "measurement",
         "type": "bytes32"
+      },
+      {
+        "internalType": "uint64",
+        "name": "cpuPricePerSec6",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "gpuPricePerSec6",
+        "type": "uint64"
       }
     ],
     "name": "register",
@@ -308,6 +363,19 @@
       }
     ],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "registrySchema",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -329,6 +397,29 @@
       }
     ],
     "name": "setMeasurement",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint64",
+        "name": "cpuPricePerSec6",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "gpuPricePerSec6",
+        "type": "uint64"
+      }
+    ],
+    "name": "setPrices",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

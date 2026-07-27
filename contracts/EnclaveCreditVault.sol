@@ -83,6 +83,7 @@ contract EnclaveCreditVault {
     bytes4 private constant SEL_SET_ACTIVE  = bytes4(keccak256("setActive(bytes32,bool)"));
     bytes4 private constant SEL_SET_SHARES  = bytes4(keccak256("setShares(bytes32,uint16,uint16)"));
     bytes4 private constant SEL_SET_CONFIG  = bytes4(keccak256("setConfig(bytes32,string)"));
+    bytes4 private constant SEL_SET_MAX_RATE = bytes4(keccak256("setMaxRate(bytes32,uint256)"));
     // multicall is allowed ONLY when every inner call is itself an allowed
     // control selector (checked below) - a version change + share resize ride
     // one passkey signature without widening what a signature can move
@@ -158,7 +159,8 @@ contract EnclaveCreditVault {
         _auth(keccak256(abi.encode(OP_DEPLOY, address(this), block.chainid, nonce, keccak256(createCall), fund6, deadline)), deadline, sig);
         address dep = _deployments();
         require(bytes4(createCall[:4]) == bytes4(keccak256("create(string,uint16,uint16,uint32,string,bool,string)"))
-             || bytes4(createCall[:4]) == bytes4(keccak256("create(string,uint16,uint16,uint32,string,bool,string,address,uint256)")),
+             || bytes4(createCall[:4]) == bytes4(keccak256("create(string,uint16,uint16,uint32,string,bool,string,address,uint256)"))
+             || bytes4(createCall[:4]) == bytes4(keccak256("create(string,uint16,uint16,uint32,string,bool,string,address,uint256,uint256)")),
              "not create()");
         (bool ok, bytes memory ret) = dep.call(createCall);
         require(ok, "create failed");
@@ -174,12 +176,15 @@ contract EnclaveCreditVault {
     }
 
     /// owner-only ledger control calls for deployments this vault owns
-    /// (setAppRef / setActive / setShares / setConfig, or a multicall composed
-    /// solely of them) - these move no funds. setShares re-prices the record
-    /// at the ledger's current list prices; the balance it re-burns is the
-    /// deployment's own prepaid accounting number, never vault USDC.
-    /// setConfig rewrites the options envelope (waf/config namespaces), so a
-    /// vault deployment gains rate limiting or a config override post-create.
+    /// (setAppRef / setActive / setShares / setConfig / setMaxRate, or a
+    /// multicall composed solely of them) - these move no funds. setShares
+    /// re-prices the record at the serving enclave's posted prices; the balance
+    /// it re-burns is the deployment's own prepaid accounting number, never
+    /// vault USDC. setConfig rewrites the options envelope (waf/config
+    /// namespaces), so a vault deployment gains rate limiting or a config
+    /// override post-create. setMaxRate moves the deployment's spend ceiling -
+    /// which enclaves may pick it up, and at what price - and can only ever
+    /// change what the deployment's OWN prepaid balance buys.
     function controlDeployment(bytes calldata callData, uint256 deadline, WebAuthnSig calldata sig) external {
         _auth(keccak256(abi.encode(OP_CONTROL, address(this), block.chainid, nonce, keccak256(callData), deadline)), deadline, sig);
         bytes4 sel = bytes4(callData[:4]);
@@ -194,11 +199,11 @@ contract EnclaveCreditVault {
                 bytes4 inner;
                 assembly { inner := mload(add(c, 32)) }
                 require(inner == SEL_SET_APP_REF || inner == SEL_SET_ACTIVE || inner == SEL_SET_SHARES
-                        || inner == SEL_SET_CONFIG, "inner selector not allowed");
+                        || inner == SEL_SET_CONFIG || inner == SEL_SET_MAX_RATE, "inner selector not allowed");
             }
         } else {
             require(sel == SEL_SET_APP_REF || sel == SEL_SET_ACTIVE || sel == SEL_SET_SHARES
-                 || sel == SEL_SET_CONFIG, "selector not allowed");
+                 || sel == SEL_SET_CONFIG || sel == SEL_SET_MAX_RATE, "selector not allowed");
         }
         (bool ok, ) = _deployments().call(callData);
         require(ok, "control failed");

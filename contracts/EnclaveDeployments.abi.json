@@ -236,19 +236,6 @@
     "anonymous": false,
     "inputs": [
       {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "cpuPricePerSec6",
-        "type": "uint256"
-      }
-    ],
-    "name": "CpuPriceSet",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
         "indexed": true,
         "internalType": "bytes32",
         "name": "id",
@@ -501,6 +488,25 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "maxRate6",
+        "type": "uint256"
+      }
+    ],
+    "name": "MaxRateSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
         "internalType": "address",
         "name": "owner",
         "type": "address"
@@ -539,19 +545,6 @@
       }
     ],
     "name": "PayoutChanged",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "pricePerSec6",
-        "type": "uint256"
-      }
-    ],
-    "name": "PriceSet",
     "type": "event"
   },
   {
@@ -748,6 +741,25 @@
         "internalType": "bytes32",
         "name": "id",
         "type": "bytes32"
+      }
+    ],
+    "name": "capOf",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "maxRate6",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
       },
       {
         "internalType": "bytes32",
@@ -793,13 +805,24 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "count",
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "enclaveId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "claimableBy",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "bool",
         "name": "",
-        "type": "uint256"
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -807,7 +830,7 @@
   },
   {
     "inputs": [],
-    "name": "cpuPricePerSec6",
+    "name": "count",
     "outputs": [
       {
         "internalType": "uint256",
@@ -863,6 +886,11 @@
       {
         "internalType": "uint256",
         "name": "feePerSec6",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "maxRate6",
         "type": "uint256"
       }
     ],
@@ -1306,6 +1334,24 @@
   {
     "inputs": [
       {
+        "internalType": "bytes32[]",
+        "name": "ids",
+        "type": "bytes32[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "caps6",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "importCaps",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "components": [
           {
             "internalType": "bytes32",
@@ -1568,8 +1614,19 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "pricePerSec6",
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "enclaveId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "rateFor",
     "outputs": [
       {
         "internalType": "uint256",
@@ -1740,19 +1797,6 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "_cpuPricePerSec6",
-        "type": "uint256"
-      }
-    ],
-    "name": "setCpuPrice",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "address",
         "name": "feed",
         "type": "address"
@@ -1805,6 +1849,24 @@
   {
     "inputs": [
       {
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "maxRate6",
+        "type": "uint256"
+      }
+    ],
+    "name": "setMaxRate",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "o",
         "type": "address"
@@ -1824,19 +1886,6 @@
       }
     ],
     "name": "setPayout",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_pricePerSec6",
-        "type": "uint256"
-      }
-    ],
-    "name": "setPrice",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

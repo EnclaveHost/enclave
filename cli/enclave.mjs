@@ -94,7 +94,11 @@ const depsAbiFor = (tuple, rev) => [
              { name: "configCid", type: "string" },
              // rev-4 ledgers: the publisher-fee snapshot (recipient wallet +
              // the version's per-second fee, folded into the record's rate)
-             ...(rev >= 4 ? [{ name: "feeRecipient", type: "address" }, { name: "feePerSec6", type: "uint256" }] : [])],
+             ...(rev >= 4 ? [{ name: "feeRecipient", type: "address" }, { name: "feePerSec6", type: "uint256" }] : []),
+             // rev-8 ledgers: the owner's per-second spend ceiling. Required —
+             // there is no platform price to fall back on; each enclave posts
+             // its own and this bounds which of them may claim the work
+             ...(rev >= 8 ? [{ name: "maxRate6", type: "uint256" }] : [])],
     outputs: [{ type: "bytes32" }] },
   // rev-4 ledgers only: the fee snapshot back out (0x0/0 = no fee)
   { type: "function", name: "feeOf", stateMutability: "view",
@@ -123,6 +127,12 @@ const depsAbiFor = (tuple, rev) => [
   // the owner's envelope rewrite (all revs; rev < 5 caps the field at 100 bytes)
   { type: "function", name: "setConfig", stateMutability: "nonpayable",
     inputs: [{ name: "id", type: "bytes32" }, { name: "configCid", type: "string" }], outputs: [] },
+  // rev-8 ledgers only: the owner's spend ceiling — which enclaves may run
+  // this deployment (including after its host dies), and at what price
+  { type: "function", name: "setMaxRate", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }, { name: "maxRate6", type: "uint256" }], outputs: [] },
+  { type: "function", name: "capOf", stateMutability: "view",
+    inputs: [{ name: "id", type: "bytes32" }], outputs: [{ name: "maxRate6", type: "uint256" }] },
   { type: "function", name: "get", stateMutability: "view",
     inputs: [{ name: "id", type: "bytes32" }],
     outputs: [{ type: "tuple", components: tuple }] },
@@ -644,15 +654,17 @@ function minShares(ver, pricing) {
 // box could claim the record next.
 async function hostPricing(d, pricing) {
   const runner = String(d?.runner || "").toLowerCase();
-  if (!/^0x[0-9a-f]{64}$/.test(runner) || /^0x0+$/.test(runner)) return { pricing, host: null };
-  if (!(Number(d.leaseUntil) * 1000 > Date.now())) return { pricing, host: null };
+  if (!/^0x[0-9a-f]{64}$/.test(runner) || /^0x0+$/.test(runner)) return { pricing, host: null, hostAsk: null };
+  if (!(Number(d.leaseUntil) * 1000 > Date.now())) return { pricing, host: null, hostAsk: null };
   const rows = await api("GET", "/enclaves").then((j) => j?.enclaves || []).catch(() => []);
   const row = rows.find((e) => String(e?.id || "").toLowerCase() === runner);
   const a = row?.availability;
-  if (!a) return { pricing, host: null };
+  if (!a) return { pricing, host: null, hostAsk: null };
   const pick = (v, fallback) => (Number(v) > 0 ? Number(v) : fallback);
   return {
     host: row.name || "the enclave holding the lease",
+    // its posted price (rev-8 ledgers): a resize re-buys from THIS box
+    hostAsk: { name: row.name, cpu6: Number(a.askCpuPricePerSec6) || 0, gpu6: Number(a.askGpuPricePerSec6) || 0 },
     pricing: { ...pricing,
       node: { ...(pricing?.node || {}), ramGb: pick(a.nodeRamGb, pricing?.node?.ramGb),
               gflops: pick(a.nodeGflops, pricing?.node?.gflops), vcpus: pick(a.nodeVcpus, pricing?.node?.vcpus) },
@@ -660,6 +672,33 @@ async function hostPricing(d, pricing) {
               tflops: pick(a.cardTflops, pricing?.card?.tflops) } },
   };
 }
+
+// What a whole node / whole card costs per second right now, and who says so.
+// Rev-8 ledgers carry no platform price: every enclave posts its own, so a NEW
+// deployment is priced at the cheapest live one (the box it will land on), and
+// a change to an existing one is priced at its lease holder (`at`, from
+// hostPricing) — that is the box actually selling it the slice.
+async function livePrices6(at) {
+  const { rev } = await depAbi();
+  if (rev < 8) {
+    const U = (name) => [{ type: "function", name, stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }];
+    const [gpu6, cpu6] = await Promise.all([
+      read(DEFAULTS.DEPLOYMENTS_ADDRESS, U("pricePerSec6"), "pricePerSec6"),
+      read(DEFAULTS.DEPLOYMENTS_ADDRESS, U("cpuPricePerSec6"), "cpuPricePerSec6"),
+    ]);
+    return { gpu6, cpu6, who: "the platform list price" };
+  }
+  if (at && at.cpu6 > 0)
+    return { gpu6: BigInt(at.gpu6), cpu6: BigInt(at.cpu6),
+             who: at.name ? `${at.name}'s posted price` : "the serving enclave's posted price" };
+  const av = await api("GET", "/availability").catch(() => null);
+  const cpu = Number(av?.cheapestCpuPricePerSec6) || 0, gpu = Number(av?.cheapestGpuPricePerSec6) || 0;
+  if (!cpu) throw new Error("no live enclave is posting a price right now, so this can't be priced - try again shortly");
+  return { gpu6: BigInt(gpu), cpu6: BigInt(cpu), who: "the cheapest live enclave" };
+}
+const rate6Of = (p, gpuMilli, cpuMilli) => (p.gpu6 * BigInt(gpuMilli) + p.cpu6 * BigInt(cpuMilli) + 999n) / 1000n;
+// $/hour <-> USDC 6dp per second (the ledger's unit for caps and rates)
+const perSec6FromHour = (usdPerHour) => BigInt(Math.round(Number(usdPerHour) * 1e6 / 3600));
 
 // ---- funding (EIP-3009 receiveWithAuthorization -> EnclaveDeployments) ---------------
 async function fundUsdc(account, id, amountUsd) {
@@ -927,10 +966,12 @@ async function cmdStatus(rest) {
   const rec = account
     ? await api("GET", `/v1/deployments/${id}`, { auth: account, ok404: true })
     : await api("GET", `/v1/deployments/${id}`, { ok404: true }).catch(() => null);
-  let chainRec = null;
+  let chainRec = null, cap6 = 0n;
   if (isB32(id)) try { chainRec = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "get", [id]); } catch {}
+  if (chainRec && (await depAbi()).rev >= 8)
+    try { cap6 = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "capOf", [id]); } catch {}
   if (!rec && !chainRec) throw new Error(`no deployment ${rest[0]} (not on any live enclave, not on the ledger)`);
-  if (opt.json) return jout({ api: rec, chain: chainRec });
+  if (opt.json) return jout({ api: rec, chain: chainRec, ...(cap6 > 0n ? { maxRate6: String(cap6) } : {}) });
   const leased = chainRec && Number(chainRec.leaseUntil) * 1000 > Date.now();
   // queued vs unfunded is the contract's claimable() boundary (balance6 >= rate):
   // below it no enclave will ever claim, so "queued" would be a lie
@@ -942,7 +983,11 @@ async function cmdStatus(rest) {
     ["visibility", (rec ? rec.public : chainRec?.isPublic) ? "public" : "private (owner bearer required)"],
     rec?.resources ? ["shares", `gpu ${Math.round((rec.resources.gpuShare || 0) * 100)}% · cpu ${Math.round((rec.resources.cpuShare || 0) * 100)}%`]
                    : chainRec ? ["shares", `gpu ${Number(chainRec.gpuMilli) / 10}% · cpu ${Number(chainRec.cpuMilli) / 10}%`] : null,
-    chainRec ? ["rate", `${usd6(chainRec.rate)}/s (${usd6(chainRec.rate * 3600n)}/h)`] : rec ? ["rate", `$${rec.ratePerSecondUsdc}/s`] : null,
+    chainRec ? ["rate", `${usd6(chainRec.rate)}/s (${usd6(chainRec.rate * 3600n)}/h)`
+      + (leased ? " at its current enclave" : cap6 > 0n ? " (its ceiling; no enclave is serving it)" : "")] : rec ? ["rate", `$${rec.ratePerSecondUsdc}/s`] : null,
+    cap6 > 0n ? ["rate cap", `${usd6(cap6 * 3600n)}/h - only enclaves at or under this can run it (enclave rate-cap)`] : null,
+    // a lowered cap that has stopped the app: the runner says so on the record
+    rec?.rateCapBlocked ? ["! cap", rec.rateCapBlocked] : null,
     chainRec ? ["balance", `${usd6(chainRec.balance6)} on-chain (${dur(chainRec.rate > 0n ? Number(chainRec.balance6 / chainRec.rate) : 0)})`] : null,
     rec?.timeRemainingSec != null ? ["remaining", dur(rec.timeRemainingSec)] : null,
     leased ? ["lease", `until ${new Date(Number(chainRec.leaseUntil) * 1000).toISOString()} (runner ${short(chainRec.runner)}, operator ${chainRec.runnerOperator})`] : null,
@@ -1069,6 +1114,46 @@ async function cmdRestart(rest) {
   say(`${r.status}${r.note ? ` (${r.note})` : ""}`);
 }
 
+// The owner's hourly spend ceiling (ledger rev 8). Prices differ per enclave —
+// each one posts its own — so this is the line that decides which of them may
+// run the deployment, including when its current host dies and the work goes
+// back on the queue. Raising it opens up dearer hardware; lowering it below
+// what the app currently costs lets the paid lease finish and then stops it,
+// which is deliberate (a ceiling that can't stop spending isn't one) and
+// confirmed in words before the signature.
+async function cmdRateCap(rest) {
+  const account = loadKey();
+  if (!rest[0]) throw new Error("usage: enclave rate-cap <id> [<usd/hour>]   (no amount = show the current cap)");
+  const id = await resolveId(rest[0], account);
+  if (!isB32(id)) throw new Error("only on-chain deployments (bytes32 ids) carry a rate cap");
+  const { rev, abi } = await depAbi();
+  if (rev < 8) throw new Error("the live ledger predates rate caps (deploymentsSchema < 8)");
+  const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "get", [id]);
+  const cap6 = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "capOf", [id]);
+  const leased = Number(d.leaseUntil) * 1000 > Date.now();
+  if (rest[1] === undefined) {
+    if (opt.json) return jout({ id, maxRate6: String(cap6), maxRatePerHour: Number(cap6) * 3600 / 1e6,
+      ratePerSec6: String(d.rate), ratePerHour: Number(d.rate) * 3600 / 1e6, leased });
+    say(`cap  ${cap6 > 0n ? usd6(cap6 * 3600n) + "/h" : "none (grandfathered record)"}`);
+    say(`rate ${usd6(BigInt(d.rate) * 3600n)}/h${leased ? " (what its current enclave charges)" : " (no enclave is serving it; the ceiling stands in)"}`);
+    return;
+  }
+  const next6 = perSec6FromHour(numFlag(rest[1], "<usd/hour>"));
+  if (!(next6 > 0n)) throw new Error("the cap must be a positive $/hour amount");
+  const fee6 = rev >= 4 ? (await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "feeOf", [id]))[1] : 0n;
+  if (next6 <= fee6)
+    throw new Error(`the cap must exceed this app's publisher fee (${usd6(fee6 * 3600n)}/h)`);
+  if (leased && next6 < BigInt(d.rate)) {
+    say(`! ${usd6(next6 * 3600n)}/h is BELOW what this deployment pays now (${usd6(BigInt(d.rate) * 3600n)}/h).`);
+    say(`  The lease you already paid for runs to ${new Date(Number(d.leaseUntil) * 1000).toLocaleString()}, then the app STOPS:`);
+    say(`  no renewal and no re-claim until a cheaper enclave exists or you raise the cap again.`);
+  }
+  if (!(await confirm(`set ${short(id)}'s rate cap to ${usd6(next6 * 3600n)}/h?`))) return say("aborted");
+  await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi, functionName: "setMaxRate", args: [id, next6] });
+  say(`cap set to ${usd6(next6 * 3600n)}/h`);
+  if (!leased) say("takes effect on the next claim (an enclave dearer than the cap can't take it)");
+}
+
 // The other half of stop: setActive(true) re-queues the work item (its balance
 // never left the record), then one claim-hint nudges the fleet so the relaunch
 // doesn't wait for the next sweep. The app relaunches FRESH from its published
@@ -1167,8 +1252,8 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
   // would leave the app dark on a still-billing lease
   let pricing = null;
   try { pricing = await api("GET", "/v1/pricing"); } catch {}
-  let host = null;
-  ({ pricing, host } = await hostPricing(d, pricing));
+  let host = null, hostAsk = null;
+  ({ pricing, host, hostAsk } = await hostPricing(d, pricing));
   const where = host ? `on ${host}` : "on the fleet's hardware";
   const mins = minShares(ver, pricing);
   let gpuMilli = f.gpu !== undefined ? Math.round(numFlag(f.gpu, "--gpu") * 1000) : Number(d.gpuMilli);
@@ -1204,15 +1289,11 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
   const leased = Number(d.leaseUntil) * 1000 > Date.now();
   let newRate = d.rate, shareNote = "";
   if (resized) {
-    // price the new dials exactly as create() will (current list prices plus
-    // the record's immutable fee snapshot), and enforce the platform's cap
-    const [pricePerSec6, cpuPricePerSec6, maxGpu] = await Promise.all([
-      read(DEFAULTS.DEPLOYMENTS_ADDRESS,
-           [{ type: "function", name: "pricePerSec6", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }],
-           "pricePerSec6"),
-      read(DEFAULTS.DEPLOYMENTS_ADDRESS,
-           [{ type: "function", name: "cpuPricePerSec6", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }],
-           "cpuPricePerSec6"),
+    // price the new dials exactly as the ledger will — at the SERVING
+    // enclave's posted price (rev 8) or the platform list price (older), plus
+    // the record's immutable fee snapshot — and enforce the platform's cap
+    const [prices, maxGpu] = await Promise.all([
+      livePrices6(hostAsk),
       read(DEFAULTS.DEPLOYMENTS_ADDRESS,
            [{ type: "function", name: "maxGpuMilli", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] }],
            "maxGpuMilli").then(Number).catch(() => 1000),
@@ -1220,7 +1301,15 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
     if (gpuMilli > maxGpu)
       throw new Error(`--gpu ${gpuMilli / 10}% is over the platform's per-deployment GPU cap of ${maxGpu / 10}% of a card - lower --gpu`);
     const snapFee6 = rev >= 4 ? (await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "feeOf", [id]))[1] : 0n;
-    newRate = (pricePerSec6 * BigInt(gpuMilli) + cpuPricePerSec6 * BigInt(cpuMilli) + 999n) / 1000n + snapFee6;
+    newRate = rate6Of(prices, gpuMilli, cpuMilli) + snapFee6;
+    if (rev >= 8) {
+      // a resize BUYS time, so the ceiling applies: the contract reverts
+      // "over rate cap" above it
+      const cap6 = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "capOf", [id]).catch(() => 0n);
+      if (cap6 > 0n && newRate > cap6)
+        throw new Error(`those dials cost ${usd6(newRate * 3600n)}/h at ${prices.who}, above this deployment's rate cap of `
+                      + `${usd6(cap6 * 3600n)}/h - raise it first: enclave rate-cap ${id.slice(0, 10)} ${(Number(newRate) * 3600 / 1e6).toFixed(2)}`);
+    }
     // Fail closed while the tx is still unsent: a runner that predates the
     // audit's share watch would keep serving the OLD slice while the ledger
     // bills the NEW rate — refuse unless every live runner re-slices. Only an
@@ -1277,7 +1366,7 @@ async function cmdDeploy(rest) {
   const account = loadKey();
   const f = flags(rest, {
     val: ["--gpu", "--cpu", "--fund", "--fund-eth", "--port", "--ports", "--config-cid", "--waf", "--config",
-          "--secrets", "--secrets-file"],
+          "--secrets", "--secrets-file", "--max-rate"],
     bool: ["--private", "--public", "--no-wait"],
   });
   if (!f._[0]) throw new Error("usage: enclave deploy <app> [--gpu 0..1] [--cpu 0..1] --fund <usd> [flags]");
@@ -1372,14 +1461,9 @@ async function cmdDeploy(rest) {
     say(`secrets: ${Object.keys(secretsSet).length} value${Object.keys(secretsSet).length === 1 ? "" : "s"} will be staged on the relay (private; injected as env vars by the enclave, never on-chain)`);
   }
 
-  // price it before asking for money (same snapshot formula create() applies)
-  const [pricePerSec6, cpuPricePerSec6, maxGpuMilli] = await Promise.all([
-    read(DEFAULTS.DEPLOYMENTS_ADDRESS,
-         [{ type: "function", name: "pricePerSec6", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }],
-         "pricePerSec6"),
-    read(DEFAULTS.DEPLOYMENTS_ADDRESS,
-         [{ type: "function", name: "cpuPricePerSec6", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }],
-         "cpuPricePerSec6"),
+  // price it before asking for money (the same formula the claim will apply)
+  const [prices, maxGpuMilli] = await Promise.all([
+    livePrices6(),
     // operator-set per-deployment GPU-share cap; contracts predating it have
     // no getter (the read reverts) -> 1000 = a whole card, i.e. uncapped
     read(DEFAULTS.DEPLOYMENTS_ADDRESS,
@@ -1410,9 +1494,26 @@ async function cmdDeploy(rest) {
   const envCap = depRev >= 5 ? 4096 : 100;
   if (Buffer.byteLength(envelope) > envCap)
     throw new Error(`the options envelope is ${Buffer.byteLength(envelope)} bytes but this ledger caps the field at ${envCap} bytes (create() reverts "configCid length") - trim the ${envParts.config ? "config override" : "protection rules"}`);
-  const rate = (pricePerSec6 * BigInt(gpuMilli) + cpuPricePerSec6 * BigInt(cpuMilli) + 999n) / 1000n + fee6;
+  const rate = rate6Of(prices, gpuMilli, cpuMilli) + fee6;
   if (fee6 > 0n)
     say(`publisher fee: ${usd6(fee6 * 3600n)}/h, paid straight to ${app.publisher} out of each funding (included in the rate below)`);
+  // The spend ceiling (rev-8 ledgers). Default: exactly what we just quoted —
+  // the cheapest live enclave — so nothing dearer can ever pick this up. A
+  // roomier --max-rate keeps failover options open on a mixed-price fleet, at
+  // the cost of possibly paying more after a host dies.
+  let maxRate6 = 0n;
+  if (depRev >= 8) {
+    maxRate6 = f["max-rate"] !== undefined ? perSec6FromHour(numFlag(f["max-rate"], "--max-rate")) : rate;
+    if (maxRate6 <= fee6)
+      throw new Error(`--max-rate must be above the app's publisher fee (${usd6(fee6 * 3600n)}/h)`);
+    if (maxRate6 < rate)
+      throw new Error(`--max-rate ${usd6(maxRate6 * 3600n)}/h is below what ${prices.who} charges for these shares `
+                    + `(${usd6(rate * 3600n)}/h) - no enclave could claim it`);
+    say(`rate cap: ${usd6(maxRate6 * 3600n)}/h - enclaves dearer than this can't run it, now or after a failover `
+      + `(change it later: enclave rate-cap <id> <usd/hour>)`);
+  } else if (f["max-rate"] !== undefined) {
+    throw new Error("the live ledger predates rate caps (deploymentsSchema < 8) - drop --max-rate");
+  }
   const fundUsd = f.fund !== undefined ? numFlag(f.fund, "--fund") : 0;
   const fundEth = f["fund-eth"] !== undefined ? numFlag(f["fund-eth"], "--fund-eth") : 0;
   if (!fundUsd && !fundEth)
@@ -1429,7 +1530,8 @@ async function cmdDeploy(rest) {
   const rcpt = await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi: depsAbi,
     functionName: "create",
     args: [ref, gpuMilli, cpuMilli, appPort, portsCsv, isPublic, ...(depRev >= 2 ? [] : [""]), envelope,
-           ...(depRev >= 4 ? [fee6 > 0n ? app.publisher : "0x0000000000000000000000000000000000000000", fee6] : [])] });
+           ...(depRev >= 4 ? [fee6 > 0n ? app.publisher : "0x0000000000000000000000000000000000000000", fee6] : []),
+           ...(depRev >= 8 ? [maxRate6] : [])] });
   const log = (rcpt.logs || []).find((l) => l.topics?.[0] === DEP_CREATED_TOPIC
     && l.address.toLowerCase() === DEFAULTS.DEPLOYMENTS_ADDRESS.toLowerCase());
   if (!log) throw new Error("create succeeded but no Created event in the receipt; inspect tx " + rcpt.transactionHash);
@@ -1988,6 +2090,9 @@ deployments
   deploy <app> --fund <usd>  create + fund + wait until live; prints the URL
          [--gpu 0..1] [--cpu 0..1]      shares of one card / one node (default: app minimums)
          [--fund-eth <eth>] [--private] [--port N] [--ports CSV] [--no-wait]
+         [--max-rate <usd/hour>]        hourly spend ceiling (default: what the cheapest live
+                                        enclave charges for these shares). Only enclaves at or
+                                        under it can run the app, now or after a failover
          [--waf '{"rps":10,"burst":40,"maxBodyMb":10,"blockScanners":true}']
                                         per-IP rate limit + request filter, enforced in-enclave
          [--config '{"api_key":"…"}']   app-config override for THIS deployment: replaces the
@@ -2035,6 +2140,11 @@ deployments
                              re-buy the shares without changing versions; the
                              rate is recalculated and a live lease settles at
                              the old rate before re-burning at the new one
+  rate-cap <id> [<usd/hour>]  show or move the hourly spend ceiling. Enclaves
+                             price their own hardware, so this decides which of
+                             them may run the app - including where it fails
+                             over to if its host dies. Below the running rate
+                             stops it at the end of the paid lease
 
 catalog
   publish <app.wasm> --slug S [--version V --name N --desc D --config JSON]
@@ -2332,6 +2442,7 @@ const COMMANDS = {
   restart: cmdRestart, stop: cmdStop, suspend: cmdStop, resume: cmdResume,
   upgrade: cmdUpgrade, "set-version": cmdUpgrade,
   resize: (rest) => cmdUpgrade(rest, { resize: true }),
+  "rate-cap": cmdRateCap, cap: cmdRateCap,
   secrets: cmdSecrets, config: cmdConfig,
   publish: cmdPublish, apps: cmdApps,
   pricing: cmdPricing, availability: cmdAvailability, gpu: cmdGpu, account: cmdAccount,

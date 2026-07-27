@@ -5,7 +5,7 @@
    ============================================================ */
 import { DEFAULT_API_BASE } from "./config.js";
 import { lsGet, lsSet, emit } from "./util.js";
-import { adoptServerSpec } from "./pricing.js";
+import { adoptServerSpec, adoptFleetPrice } from "./pricing.js";
 
 /* ---- typed error carrying HTTP status ---- */
 export class EnclaveError extends Error {
@@ -108,8 +108,11 @@ export const Enclave = {
     }).then(a => {
       // every availability read feeds the share math the REAL fleet hardware -
       // the minimum-dial floors must divide by what the runners divide by
-      // (pricing.js explains why the fallback constants can't be trusted)
+      // (pricing.js explains why the fallback constants can't be trusted) -
+      // and the REAL price, which is each enclave's own now, not a platform
+      // constant: quotes track the cheapest live one
       adoptServerSpec(a);
+      adoptFleetPrice(a);
       return a;
     });
   },

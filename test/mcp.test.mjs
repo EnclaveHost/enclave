@@ -26,7 +26,7 @@ import { createHash, createHmac } from "node:crypto";
 import { decodeFunctionData } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-import { encodeCreateTx, encodeFundTxs, encodeSetActiveTx, encodeSetAppRefTx, encodeSetSharesTx, encodeResizeTx,
+import { encodeCreateTx, encodeFundTxs, encodeSetActiveTx, encodeSetAppRefTx, encodeSetMaxRateTx, encodeSetSharesTx, encodeResizeTx,
   encodeSetConfigTx, encodePublishTx } from "../relay/mcp.js";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -43,15 +43,15 @@ const FEE_TO = "0x" + "fe".repeat(20);
 
 // ---------- 1. encoders vs the checked-in ABI artifacts -----------------------
 test("mcp encoders: create() calldata decodes against contracts/EnclaveDeployments.abi.json", () => {
-  const tx = encodeCreateTx({ rev: 4, deployments: D, appRef: "catalog://" + ID + "/2",
+  const tx = encodeCreateTx({ rev: 8, deployments: D, appRef: "catalog://" + ID + "/2",
     gpuMilli: 250, cpuMilli: 50, appPort: 8080, ports: "http:8080,tcp:7777", isPublic: true,
-    envelope: '{"waf":{"rps":10}}', feeRecipient: FEE_TO, feePerSec6: 28n });
+    envelope: '{"waf":{"rps":10}}', feeRecipient: FEE_TO, feePerSec6: 28n, maxRate6: 500n });
   assert.equal(tx.chainId, 8453);
   assert.equal(tx.to, D);
   assert.equal(tx.value, "0x0");
   const { functionName, args } = decodeFunctionData({ abi: DEPS_ABI, data: tx.data });
   assert.equal(functionName, "create");
-  assert.equal(args.length, 9, "rev-4 nine-arg create");
+  assert.equal(args.length, 10, "rev-8 ten-arg create (the rate cap rides last)");
   assert.equal(args[0], "catalog://" + ID + "/2");
   assert.equal(args[1], 250);
   assert.equal(args[2], 50);
@@ -61,6 +61,19 @@ test("mcp encoders: create() calldata decodes against contracts/EnclaveDeploymen
   assert.equal(args[6], '{"waf":{"rps":10}}');
   assert.equal(String(args[7]).toLowerCase(), FEE_TO);
   assert.equal(args[8], 28n);
+  assert.equal(args[9], 500n, "the owner's hourly ceiling, per second");
+  // a rev-8 create without one would be unclaimable at any price: refuse it
+  assert.throws(() => encodeCreateTx({ rev: 8, deployments: D, appRef: "catalog://" + ID + "/2",
+    gpuMilli: 0, cpuMilli: 50, appPort: 8080, ports: "", isPublic: true, envelope: "",
+    feeRecipient: FEE_TO, feePerSec6: 0n }), /rate cap/);
+});
+
+test("mcp encoders: setMaxRate decodes against the ledger ABI", () => {
+  const { functionName, args } = decodeFunctionData({ abi: DEPS_ABI,
+    data: encodeSetMaxRateTx({ deployments: D, id: ID, maxRate6: 1667n }).data });
+  assert.equal(functionName, "setMaxRate");
+  assert.deepEqual(args, [ID, 1667n]);
+  assert.throws(() => encodeSetMaxRateTx({ deployments: D, id: ID, maxRate6: 0n }), /positive/);
 });
 
 test("mcp encoders: USDC funding is approve + fund, whole cents only", () => {

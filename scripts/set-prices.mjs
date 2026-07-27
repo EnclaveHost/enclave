@@ -102,6 +102,19 @@ async function main() {
     || die("no DEPLOYMENTS_ADDRESS (env or site/js/core/config.js)");
 
   const pub = createPublicClient({ chain: net.chain, transport: http(rpc) });
+  // Ledger rev 8 took pricing off this contract: every enclave publishes its
+  // own per-machine price in its EnclaveRegistry entry and charges it when it
+  // claims. There is nothing here to set, and the reads below would revert -
+  // say so instead of dying on a decode error.
+  const rev = await pub.readContract({ address: addr,
+    abi: [{ type: "function", name: "deploymentsSchema", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }],
+    functionName: "deploymentsSchema" }).then(Number).catch(() => 0);
+  if (rev >= 8)
+    die(`EnclaveDeployments ${addr} is schema ${rev}: the platform sets no prices.\n`
+      + `  Each enclave posts its own (SELL_CPU_PRICE6 / SELL_GPU_PRICE6 on the box, or\n`
+      + `  priceCpuUsdHr / priceGpuUsdHr in a metal config.json) and republishes it to the\n`
+      + `  registry on its next heartbeat. Buyers cap what they'll pay per deployment\n`
+      + `  (maxRate6 / "enclave rate-cap"), so re-pricing a box only affects future claims.`);
   const [g0, c0, owner] = await Promise.all([
     pub.readContract({ address: addr, abi, functionName: "pricePerSec6" }),
     pub.readContract({ address: addr, abi, functionName: "cpuPricePerSec6" }),

@@ -954,12 +954,39 @@ function aggregateAvailability() {
     // on false a pending-version deploy would sit Queued forever on old runners,
     // so clients only offer the option when every live runner honors it
     devDeploy: serving.length > 0 && serving.every((e) => e.availability?.devDeploy === true),
+    // per-deployment rate caps (ledger rev 8): runners price claims off their
+    // own registry entry and treat a cap-blocked renew as "stop at lease end".
+    // Fleet-AND — against an older runner a lowered cap would just look like a
+    // stuck renewal, so clients only offer cap edits when every live runner
+    // handles it
+    rateCap: serving.length > 0 && serving.every((e) => e.availability?.rateCap === true),
+    // the CHEAPEST posted price across the claiming fleet, USDC 6dp/sec for a
+    // whole node / whole card. Each enclave sets its own (registry entry), so
+    // "what does this cost" is a fleet-minimum question now, not a contract
+    // constant. Clients quote "from $X/hr" off these and default a new
+    // deployment's rate cap to the box it actually picked.
+    ...cheapestAsk(serving, gpus),
     // attached model volumes across the fleet (Modelwrap), deduped by name -
     // each carries `enclaves`: which endpoints can mount it (placement matters,
     // a volume only lives where its enclave declares it)
     volumes: fleetVolumes(),
     source: "api-relay", updatedAt,
   };
+}
+
+// The floor price the fleet can serve at: min over the CLAIMING enclaves of
+// each axis, taken independently (the cheapest node and the cheapest card need
+// not be the same box — a buyer picks per deployment, and rankEnclavesFor
+// shows them the real per-box numbers). Omitted entirely when no live enclave
+// posts a price: an old fleet has none, and a made-up number would quote a
+// price nobody charges.
+function cheapestAsk(serving, gpus) {
+  const min = (rows, key) => {
+    const vals = rows.map((e) => Number(e.availability?.[key])).filter((v) => Number.isFinite(v) && v > 0);
+    return vals.length ? Math.min(...vals) : null;
+  };
+  const cpu = min(serving, "askCpuPricePerSec6"), gpu = min(gpus, "askGpuPricePerSec6");
+  return { ...(cpu ? { cheapestCpuPricePerSec6: cpu } : {}), ...(gpu ? { cheapestGpuPricePerSec6: gpu } : {}) };
 }
 
 // Union of every live enclave's advertised model volumes, keyed by name, each
@@ -1231,6 +1258,9 @@ const deploymentExists = async (id) => !!(await xOwnerOf(id));
 // book live-updates the binding.
 const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView,
                    deploymentsAddress: () => DEPLOYMENTS_ADDRESS,
+                   // billing.js quotes at the fleet's cheapest posted price
+                   // (rev-8 ledgers carry none of their own)
+                   fleetAsk: () => cheapestAsk(servingEnclaves(), servingEnclaves().filter((e) => e.availability?.gpu === true)),
                    // secrets.js: match a fetch's claimed endpoint to a lease's
                    // on-chain runner id, and drop the ledger cache when a row
                    // must be newer than the 10s TTL (just-claimed/just-created)

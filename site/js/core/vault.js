@@ -64,10 +64,11 @@ export function opDigest(op, p) {
 }
 
 /* ---- reading back the create() calldata the digest commits to ----
-   All nine arguments of the rev-4+ shape; the three strings are read from
-   their offsets. Deliberately hand-rolled and strict: an encoding this side
-   cannot fully account for is a refusal, not a shrug. */
-const CREATE_SELECTORS = { [DEP_SEL.create]: 9, [DEP_SEL.createV3]: 7 };
+   Every argument of whichever shape the ledger speaks (rev 8 = 10 with the
+   rate cap, rev 4-7 = 9 with the fee snapshot, rev 2-3 = 7); the three strings
+   are read from their offsets. Deliberately hand-rolled and strict: an
+   encoding this side cannot fully account for is a refusal, not a shrug. */
+const CREATE_SELECTORS = { [DEP_SEL.create]: 10, [DEP_SEL.createV4]: 9, [DEP_SEL.createV3]: 7 };
 export function decodeCreateCall(hex) {
   const h = String(hex || "").replace(/^0x/, "").toLowerCase();
   const nArgs = CREATE_SELECTORS[h.slice(0, 8)];
@@ -83,8 +84,9 @@ export function decodeCreateCall(hex) {
   return {
     appRef: str(0), gpuMilli: Number(uint(1)), cpuMilli: Number(uint(2)), appPort: Number(uint(3)),
     ports: str(4), isPublic: uint(5) === 1n, configCid: str(6),
-    feeRecipient: nArgs === 9 ? "0x" + at(7).slice(24) : "0x" + "0".repeat(40),
-    feePerSec6: nArgs === 9 ? uint(8) : 0n,
+    feeRecipient: nArgs >= 9 ? "0x" + at(7).slice(24) : "0x" + "0".repeat(40),
+    feePerSec6: nArgs >= 9 ? uint(8) : 0n,
+    maxRate6: nArgs >= 10 ? uint(9) : 0n,
   };
 }
 
@@ -113,6 +115,9 @@ export function assertIsWhatIAskedFor(op, prep, params) {
     if (c.configCid !== String(s.configCid ?? "")) no("a different config");
     // the diversion vector: the honest path always encodes no publisher fee
     if (c.feePerSec6 !== 0n || c.feeRecipient.toLowerCase() !== ZERO_ADDR) no("a publisher fee to a third party");
+    // the spend ceiling bounds the BURN RATE, not the amount at risk (fund6
+    // below does that) - but when the caller named one, it must be theirs
+    if (s.maxRate6 != null && c.maxRate6 !== BigInt(s.maxRate6)) no("a different rate cap");
     if (params.fundUsd != null && BigInt(prep.fund6) > usd6(params.fundUsd)) no("a larger amount than you entered");
   } else if (op === "fund") {
     if (String(prep.id).toLowerCase() !== String(params.id).toLowerCase()) no("a different deployment");
@@ -136,13 +141,14 @@ export function verifyPrepare(op, prep, params) {
 
 /* The exact calldata a control action must carry. Rebuilt from the caller's
    own arguments, so the comparison never consults anything the relay said. */
-export function expectedControlCall({ id, action, ref, gpuMilli, cpuMilli, envelope }) {
+export function expectedControlCall({ id, action, ref, gpuMilli, cpuMilli, envelope, maxRate6 }) {
   const b32 = { t: "bytes32", v: id };
   const setAppRef = () => encCall(DEP_SEL.setAppRef, [b32, { t: "str", v: String(ref) }]);
   if (action === "suspend" || action === "resume")
     return encCall(DEP_SEL.setActive, [b32, { t: "bool", v: action === "resume" }]);
   if (action === "version") return setAppRef();
   if (action === "options") return encCall(DEP_SEL.setConfig, [b32, { t: "str", v: String(envelope ?? "") }]);
+  if (action === "maxrate") return encCall(DEP_SEL.setMaxRate, [b32, { t: "uint", v: BigInt(maxRate6) }]);
   if (action === "resize") {
     const shares = encCall(DEP_SEL.setShares, [b32, { t: "uint", v: Number(gpuMilli) }, { t: "uint", v: Number(cpuMilli) }]);
     if (ref === undefined || ref === null || ref === "") return shares;
