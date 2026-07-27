@@ -143,6 +143,11 @@ export const Enclave = {
     return this._req("GET", path, { query: this.address ? { owner: this.address } : {} });
   },
   terminateDeployment(id){ return this._req("DELETE", "/deployments/" + encodeURIComponent(id), { auth: true }); },
+  /* Nudge the fleet to claim funded work. `enclave` (a box NAME) makes the
+     relay send the hint to THAT box only, giving it first crack — the steer
+     behind both the deploy target pick and a move. An unknown name falls back
+     to the full fan-out, so a hint can never strand a funded deployment. */
+  claimHint(id, enclave){ return this._req("POST", "/claim-hint", { body: enclave ? { id, enclave } : { id } }); },
   restartDeployment(id){ return this._req("POST", "/deployments/" + encodeURIComponent(id) + "/restart", { auth: true }); },
   logs(id, query){ return this._req("GET", "/deployments/" + encodeURIComponent(id) + "/logs", { auth: true, query }); },
   attestation(id){ return this._req("GET", "/deployments/" + encodeURIComponent(id) + "/attestation", { auth: true }); },

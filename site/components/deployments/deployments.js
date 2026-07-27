@@ -24,7 +24,7 @@ import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, 
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
-import { shareRates, minPctsOf, adoptServerSpec, leaseHostOf } from "../../js/core/pricing.js";
+import { shareRates, minPctsOf, adoptServerSpec, leaseHostOf, moveTargetsFor } from "../../js/core/pricing.js";
 
 // The app's reachable URL. Through the gateway each deployment gets its OWN
 // origin: a per-deployment subdomain (<id>.app.enclave.host, the base36 part of
@@ -183,7 +183,7 @@ class Deployments extends EnclaveElement {
     // the open panel the user just unlocked - skip the repaint, the poll
     // catches up once the panel closes.
     this._onAuth = (e) => {
-      if (Enclave.address && this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden])")) return;
+      if (Enclave.address && this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden])")) return;
       this.refresh({ spinner: !!(e.detail && e.detail.spinner) });
     };
     document.addEventListener("enclave:auth", this._onAuth);
@@ -215,7 +215,7 @@ class Deployments extends EnclaveElement {
     // clobber rule as _onAuth; the regular poll catches up after it closes).
     loadCatalog();
     this._onCat = () => {
-      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden])")) return;
+      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden])")) return;
       if (this._list) this._renderRows(this._list);
     };
     document.addEventListener("enclave:catalog", this._onCat);
@@ -409,6 +409,7 @@ class Deployments extends EnclaveElement {
             (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-wafbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Per-IP rate limit + request filter, enforced inside the enclave at the app’s front door - add, tune or remove it any time; a running app picks the change up live">Protect</button>' : '') +
 
             (st === "running" && ctl === "wallet" ? '<button class="btn btn-sm enc-restart" data-id="' + esc(d.id) + '" title="Stop and relaunch the app in place - same version, endpoint and balance; app state is ephemeral. The fix for a wedged instance (e.g. a model that never loaded at boot)">Restart</button>' : '') +
+            (onchain && st === "running" && ctl === "wallet" ? '<button class="btn btn-sm enc-movebtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Run this app on a different enclave - the current one hands its lease back (unused lease time is refunded to the balance) and the box you pick claims it. Same URL, version and balance">Move</button>' : '') +
             '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '" aria-expanded="false">Verify</button>' +
             (resumable && ctl !== "order" ? '<button class="btn btn-sm enc-resume" data-id="' + esc(d.id) + '" title="Put it back on the queue - an enclave re-claims it and the app relaunches fresh from its published version, spending the remaining balance">Resume</button>' : '') +
             (live && ctl !== "order" ? (onchain
@@ -426,6 +427,7 @@ class Deployments extends EnclaveElement {
         depIp6Row(d) +
         '<div class="enc-fund" hidden></div>' +
         '<div class="enc-upg" hidden></div>' +
+        '<div class="enc-move" hidden></div>' +
         '<div class="enc-waf" hidden></div>' +
         (onchain && (live || resumable) && ctl === "wallet" ? secretsSection(d.id) : '') +
         '<div class="enc-out" data-id="' + esc(d.id) + '" hidden></div>' +
@@ -437,6 +439,7 @@ class Deployments extends EnclaveElement {
     $$(".enc-outbtn", body).forEach(b => b.addEventListener("click", () => this._output(b.dataset.id, b)));
     $$(".enc-fundbtn", body).forEach(b => b.addEventListener("click", () => this._fund(b.dataset.id, b)));
     $$(".enc-upgbtn", body).forEach(b => b.addEventListener("click", () => this._upgrade(b.dataset.id, b)));
+    $$(".enc-movebtn", body).forEach(b => b.addEventListener("click", () => this._move(b.dataset.id, b)));
     $$(".enc-wafbtn", body).forEach(b => b.addEventListener("click", () => this._waf(b.dataset.id, b)));
     $$(".enc-sec[data-id]", body).forEach(el => this._secretsWire(el));
     $$(".enc-verify", body).forEach(b => b.addEventListener("click", () => this._verify(b.dataset.id, b)));
@@ -1417,6 +1420,135 @@ class Deployments extends EnclaveElement {
     catch(e){ showToast(e.message); if (btn){ btn.disabled = false; btn.textContent = onchain ? "Suspend" : "Terminate"; } }
   }
 
+  /* ---- move a running deployment to another enclave.
+
+     A lease can only be handed back by the box holding it
+     (EnclaveDeployments.release is runner-only - the owner has no on-chain
+     authority to evict), so a move is two steps: the owner asks the CURRENT
+     runner to release, which refunds the unused lease tail to the deployment's
+     balance and puts the record back in the open queue still active and
+     funded; then the chosen box gets a claim hint and first crack at it.
+
+     Nothing on-chain pins placement, so this is a STEER, not a guarantee. What
+     makes it land is timing: the hinted box evaluates immediately while every
+     other enclave only notices on its next sweep (CLAIM_POLL_SEC, 60s). We
+     watch the ledger and report where it ACTUALLY went rather than assuming.
+
+     Cost: the app stops and relaunches, so this is the same interruption as
+     Restart plus a claim. No time is lost - release refunds, claim re-burns. ---- */
+  async _move(id, btn) {
+    const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-move"); if (!box) return;
+    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
+    btn.setAttribute("aria-expanded", "true");
+    box.hidden = false;
+    box.innerHTML = '<div class="ap-attbar">move · ' + esc(id) + '</div>'
+      + '<div class="term enc-move-status" role="status" aria-live="polite"><span class="ln dimln">// reading the ledger + fleet…</span></div>';
+    const stEl = () => box.querySelector(".enc-move-status");
+    const fail = (msg) => { const s = stEl(); if (s){ s.innerHTML = ""; paintLine(s, "warn", msg); } };
+    let d = null, fleet = null;
+    try {
+      [d, fleet] = await Promise.all([depGet(id), Enclave.getEnclaves().catch(() => null)]);
+      await loadCatalog();
+      await Enclave.getAvailability().then(a => adoptServerSpec(a)).catch(() => null);
+    } catch(e){ d = null; }
+    if (box.hidden || !box.isConnected) return;             // closed while loading
+    if (!d) return fail("[x] couldn’t read this deployment from the ledger - try again shortly");
+    if (!fleet || !fleet.length) return fail("[x] couldn’t read the fleet list - try again shortly");
+    const here = leaseHostOf(d, fleet);
+    // The app's own requirements decide where it can go. A catalog deployment
+    // carries its version's spec (hardware + model volumes); the deployment's
+    // own config overrides the volume list, exactly as the deploy console does.
+    const cr = parseCatalogRef(d.appRef);
+    const ver = cr && STORE.byId[cr.appId] && STORE.byId[cr.appId].versions
+      ? STORE.byId[cr.appId].versions[cr.index] : null;
+    if (!ver) return fail("[x] the catalog doesn’t list this deployment’s version - a move re-claims the record, and only a listed version can be re-claimed");
+    const spec = specOf(ver);
+    const targets = moveTargetsFor(spec, fleet, d.runner);
+    if (!targets.length)
+      return fail("[!] no other live enclave could run this app" + (here ? " - " + here.name + " is the only one that fits" : "")
+                + ". A move re-claims the record, so the destination must pass the same hardware, model-volume and capacity checks as a fresh deploy.");
+    const selId = "mvSel" + appLabel(id);
+    box.innerHTML = '<div class="ap-attbar">move · ' + esc(id) + '</div>'
+      + '<div class="enc-upg-body">'
+      +   '<label for="' + selId + '">Move' + (here ? " off " + esc(here.name) : "") + ' to</label>'
+      +   '<select class="eu-sel" id="' + selId + '">'
+      +     targets.map((t, i) => '<option value="' + esc(t.name) + '"' + (i === 0 ? " selected" : "") + '>'
+      +       esc(t.name)
+      +       (t.queued ? " · full right now (waits in the queue)" : "")
+      +     '</option>').join("")
+      +   '</select>'
+      +   '<button class="btn btn-sm mv-go">Move</button>'
+      + '</div>'
+      + '<div class="term enc-move-status" role="status" aria-live="polite"></div>';
+    const sel = box.querySelector(".eu-sel"), go = box.querySelector(".mv-go");
+    const s = stEl();
+    paintLine(s, "dimln", "// the app stops here and relaunches there: same URL, version and balance.");
+    paintLine(s, "dimln", "// unused lease time is refunded, then re-bought at the new box’s price.");
+    paintLine(s, "dimln", "// HTTPS returns once the new box issues its own certificate for this URL (~1 min).");
+    go.addEventListener("click", () => this._doMove(id, sel.value, box, go, here && here.name));
+  }
+
+  /* the move itself: release on the current runner, then hint the target until
+     the ledger shows a lease somewhere. Every step reports what the chain says,
+     because a steer that lost its race is a normal outcome, not an error. */
+  async _doMove(id, target, box, go, fromName) {
+    const s = box.querySelector(".enc-move-status");
+    const oldRunner = String((await depGet(id).catch(() => ({}))).runner || "").toLowerCase();
+    go.disabled = true; go.textContent = "moving…";
+    try {
+      if (!Enclave.authed()) await authenticate();
+      paintLine(s, "info", "[*] asking " + (fromName || "the current enclave") + " to hand the lease back…");
+      // owner-authenticated release on the CURRENT runner. The relay routes
+      // this to the lease holder; the record stays active and funded, so the
+      // fleet may re-claim it immediately - which is the point.
+      await Enclave.terminateDeployment(id);
+      paintLine(s, "dimln", "    released - unused lease time refunded to the balance; the record is back in the open queue");
+    } catch(e){
+      paintLine(s, "warn", "[x] the current enclave would not release the lease: " + (e.message || e));
+      paintLine(s, "dimln", "    nothing changed - the app keeps running where it is");
+      go.disabled = false; go.textContent = "Move";
+      return;
+    }
+    const ZERO = "0x" + "0".repeat(64);
+    let landed = null, lastReason = "";
+    for (let i = 0; i < 60 && !landed; i++){
+      if (!box.isConnected) return;
+      // Re-hint while we wait: the first hint can beat the release being
+      // visible to the fleet's load-balanced RPC node and get declined, and a
+      // funded record with no hint sits until someone's 60s sweep finds it.
+      if (i % 3 === 0){
+        try {
+          const h = await Enclave.claimHint(id, target);
+          if (h && h.accepted === false && h.reason && h.reason !== lastReason){
+            lastReason = h.reason;
+            paintLine(s, "warn", "[!] " + target + " declines: " + h.reason);
+          }
+        } catch(e){}
+      }
+      await new Promise(r => setTimeout(r, 2000));
+      let d = null; try { d = await depGet(id); } catch(e){}
+      const runner = String((d && d.runner) || "").toLowerCase();
+      if (d && runner && runner !== ZERO && Number(d.leaseUntil) * 1000 > Date.now()
+          && runner !== oldRunner) landed = d;
+    }
+    if (!landed){
+      paintLine(s, "warn", "[!] no enclave has claimed it yet");
+      paintLine(s, "dimln", "    the record is funded and in the open queue - the fleet's sweep picks it up within a minute. Watch the row.");
+    } else {
+      const fleet = await Enclave.getEnclaves().catch(() => null);
+      const now = leaseHostOf(landed, fleet);
+      const where = (now && now.name) || "another enclave";
+      if (where.toLowerCase() === String(target).toLowerCase())
+        paintLine(s, "ok", "[✓] running on " + where + " now");
+      else {
+        paintLine(s, "warn", "[!] claimed by " + where + ", not " + target);
+        paintLine(s, "dimln", "    placement is a steer, not a lock - whichever eligible box claims first wins. Move again to retry.");
+      }
+    }
+    go.disabled = false; go.textContent = "Move";
+    setTimeout(() => this.refresh(), 1200);
+  }
+
   /* ---- restart a running deployment in place: stop the app instance and
      relaunch it on the same version, lease and balance (no wallet tx - the
      enclave API does it under the owner session). The remedy for a wedged
@@ -1484,7 +1616,7 @@ class Deployments extends EnclaveElement {
     if (this._poll) return;
     this._poll = setInterval(() => {
       if (!Enclave.address && !Enclave.accountAuthed()){ this._stopPoll(); return; }
-      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden])")) return;   // don't clobber an open attestation/output/top-up view
+      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden])")) return;   // don't clobber an open attestation/output/top-up view
       this.refresh();
     }, 10000);
   }

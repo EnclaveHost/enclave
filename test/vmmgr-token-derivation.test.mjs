@@ -34,7 +34,7 @@ spec = importlib.util.spec_from_file_location("wm", ${JSON.stringify(MGR)})
 m = importlib.util.module_from_spec(spec)
 sys.modules["wm"] = m
 spec.loader.exec_module(m)
-print(json.dumps({"token": m.VMMGR_TOKEN, "legacy": m.VMMGR_TOKEN_LEGACY}))
+print(json.dumps({"token": m.VMMGR_TOKEN, "legacy": getattr(m, "VMMGR_TOKEN_LEGACY", None)}))
 `;
   const out = execFileSync("python3", ["-c", code], {
     env: { ...process.env, ...env }, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
@@ -59,24 +59,28 @@ test("the derived token is NOT the raw secret", () => {
   assert.notEqual(py.token, secret, "the master must not be what goes on the wire");
 });
 
-test("an explicit VMMGR_TOKEN still wins on both sides, and disables the legacy path", () => {
+test("an explicit VMMGR_TOKEN still wins on both sides", () => {
   const py = pythonToken({ SECRET: "s3cr3t", VMMGR_TOKEN: "explicit-token" });
   assert.equal(py.token, "explicit-token");
-  assert.equal(py.legacy, "", "an explicitly configured token must not also accept the raw secret");
   // supervisor.js reads the same override first
   const src = fs.readFileSync(path.join(REPO, "supervisor.js"), "utf8");
   assert.match(src, /const VMMGR_TOKEN = process\.env\.VMMGR_TOKEN\s*\n?\s*\|\|/);
 });
 
-test("the rollout window accepts the old raw secret, and only during it", () => {
+test("the raw SECRET is no longer accepted anywhere on this plane", () => {
+  // The staggered-rollout window is CLOSED (2026-07-27): both live enclaves run
+  // post-derivation supervisors. Re-adding a legacy branch would make one
+  // observed loopback header worth the whole fleet keyring again.
   const secret = "s3cr3t";
   const py = pythonToken({ SECRET: secret, VMMGR_TOKEN: "" });
-  assert.equal(py.legacy, secret,
-    "supervisor and wasm-manager are separate images: a staggered rollout must not break the control plane");
-  // with no SECRET at all there is nothing to accept, derived or legacy
+  assert.equal(py.legacy, null, "no legacy raw-SECRET token may exist");
+  const src = fs.readFileSync(MGR, "utf8");
+  const code = src.split("\n").map((l) => l.split("#")[0]).join("\n");
+  assert.doesNotMatch(code, /VMMGR_TOKEN_LEGACY/, "the manager must not carry a second accepted token");
+  assert.doesNotMatch(code, /compare_digest\(_b\(tok\), _b\(_SECRET_RAW\)\)/);
+  // with no SECRET at all there is nothing to accept
   const none = pythonToken({ SECRET: "", VMMGR_TOKEN: "" });
   assert.equal(none.token, "");
-  assert.equal(none.legacy, "");
 });
 
 test("supervisor.js derives with the same label, and never sends the raw SECRET", () => {

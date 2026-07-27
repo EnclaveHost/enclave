@@ -278,3 +278,20 @@ export function pickEnclaveFor(v, rows){
     ? "this app needs a GPU and no live enclave has one"
     : "no live enclave's hardware is big enough for this app's specs" };
 }
+
+// Where a deployment could be moved RIGHT NOW: every enclave that could host
+// it, minus the one already holding its lease. Same eligibility rule as the
+// deploy target list (rankEnclavesFor) — hardware, model volumes and free pool
+// — because a move IS a re-claim: the current runner hands the lease back and
+// the fleet claims it again, so a target that would refuse the record at
+// create time refuses it here too.
+//
+// `queued` entries stay in the list on purpose. A box that fits the app but is
+// full right now is a legitimate destination: the deployment sits in the open
+// queue until that box frees up, exactly like a fresh deploy sized for it. The
+// caller labels them so the choice is informed rather than hidden.
+export function moveTargetsFor(v, rows, currentRunnerId){
+  const cur = String(currentRunnerId || "").toLowerCase();
+  return rankEnclavesFor(v, rows)
+    .filter((c) => String((c.row && c.row.id) || "").toLowerCase() !== cur);
+}
