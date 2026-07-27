@@ -15,7 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, enclavePriceOf, pickEnclaveFor, rankEnclavesFor, leaseHostOf,
-  moveTargetsFor, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE } from "../site/js/core/pricing.js";
+  moveTargetsFor, moveBlockReason, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE } from "../site/js/core/pricing.js";
 
 // Reference copy of the RUNNER's minimum-share math (supervisor.js: pctCeil,
 // gpuShareOf, cpuShareOf, minSharesOf with MIN_COMPUTE_PCT=1). Keep in sync.
@@ -355,4 +355,32 @@ test("moveTargetsFor: a full-but-fitting box stays offered, flagged queued", () 
 test("moveTargetsFor: a non-serving box is not a destination", () => {
   const dark = row("metal0", CPU_BOX, { id: ID_B, serving: false });
   assert.deepEqual(moveTargetsFor(MC, [row("kryptos", GPU_BOX, { id: ID_A }), dark], ID_A), []);
+});
+
+test("a GPU box cannot host a model-volume app dialled to 0% GPU", () => {
+  // wasm_manager: on a GPU node `nn = gpu_share > 0`, so a 0-GPU tenant gets no
+  // wasi-nn and a model-volume app dies at startup on the linker. Live proof
+  // 2026-07-27: kryptos claimed exactly such a deployment and released it 4s later.
+  const gpuBox = row("kryptos", { ...GPU_BOX, volumes: [{ name: "m" }] }, { id: ID_A });
+  const cpuBox = row("metal0", { ...CPU_BOX, volumes: [{ name: "m" }] }, { id: ID_B });
+  const cpuOnlyApp = { ...MC, volumes: ["m"] };
+  assert.deepEqual(rankEnclavesFor(cpuOnlyApp, [gpuBox, cpuBox]).map(t => t.name), ["metal0"]);
+  assert.deepEqual(moveTargetsFor(cpuOnlyApp, [gpuBox, cpuBox], ID_B), [],
+    "the GPU box is not a destination for a 0-GPU model-volume deployment");
+  // ...but a deployment that DID buy GPU share can use the same box + volume
+  const gpuApp = { ...IMAGE_GEN, volumes: ["m"] };
+  assert.deepEqual(rankEnclavesFor(gpuApp, [gpuBox, cpuBox]).map(t => t.name), ["kryptos"]);
+  // and a volume-less CPU app is unaffected — the gate is about wasi-nn only
+  assert.deepEqual(rankEnclavesFor(MC, [gpuBox, cpuBox]).map(t => t.name).sort(), ["kryptos", "metal0"]);
+});
+
+test("moveBlockReason names the wasi-nn gate rather than blaming hardware", () => {
+  const gpuBox = row("kryptos", { ...GPU_BOX, volumes: [{ name: "m" }] }, { id: ID_A });
+  const cpuBox = row("metal0", { ...CPU_BOX, volumes: [{ name: "m" }] }, { id: ID_B });
+  const why = moveBlockReason({ ...MC, volumes: ["m"] }, [gpuBox, cpuBox], ID_B);
+  assert.match(why, /GPU box only offers wasi-nn/);
+  assert.match(why, /0% GPU/);
+  // a genuinely absent volume still reads as an absent volume
+  const other = moveBlockReason({ ...MC, volumes: ["nope"] }, [gpuBox, cpuBox], ID_B);
+  assert.match(other, /carries nope/);
 });
