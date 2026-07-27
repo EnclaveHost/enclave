@@ -1867,15 +1867,33 @@ def _used_cpu_share() -> float:
 
 def _rec_ram_mb(rec) -> int:
     """Worst-case CVM RAM a running tenant can pin: guest linear memory + its
-    ramdisk caps (/data + each encrypted volume's plaintext ceiling). All three
-    live in the CVM's RAM, so the SUM across tenants oversubscribing node RAM is
-    the OOM the storage audit only catches AFTER the fact. Used only when
-    WASM_ACCOUNT_STORAGE_RAM is on."""
-    mb = int(rec.get("mem_mb") or 0) + int(rec.get("storageMb") or 0)
+    ramdisk caps (/data + each encrypted volume's plaintext ceiling) + any model
+    weights the host PRELOADED for it into node RAM. All of it lives in the
+    CVM's RAM, so the SUM across tenants oversubscribing node RAM is the OOM the
+    storage audit only catches AFTER the fact. Used only when
+    WASM_ACCOUNT_STORAGE_RAM is on.
+
+    The preloaded weights (CPU nn only - on a GPU node they land in VRAM and the
+    VRAM ledger owns them) are counted at FULL size even though they are
+    file-backed page cache the kernel could in principle reclaim. Reclaiming
+    them is not free capacity: it is the serving tenant page-thrashing its model
+    back in on every token. A box holding a 19.7 GiB model has ~19.7 GiB less to
+    sell, and until this term existed it advertised those bytes as available -
+    28 GB 'free' on a node with 5 GB actually free (2026-07-27, metal0)."""
+    mb = int(rec.get("mem_mb") or 0) + int(rec.get("storageMb") or 0) + int(rec.get("nnResidentMb") or 0)
     enc = rec.get("_enc")
     if enc:
         mb += sum(int(v["spec"].get("maxMb") or 0) for v in enc["vols"].values())
     return mb
+
+
+def _nn_resident_bytes(exclude: str | None = None) -> int:
+    """Model weights other live tenants already hold resident in node RAM.
+    The per-deployment ggml budget subtracts this: the budget bounds what ONE
+    tenant may map, but node RAM is shared, so without the cross-tenant term two
+    deployments each pass a 23 GiB check and together thrash a 29 GB box."""
+    return sum(int(r.get("nnResidentMb") or 0) for vid, r in _apps.items()
+               if vid != exclude and r["status"] in ("starting", "running")) * (1 << 20)
 
 
 def _volumes_public() -> list:
@@ -1913,7 +1931,10 @@ def _ram_budget() -> dict | None:
                     if r["status"] in ("starting", "running"))
     budget = int(NODE_RAM_GB * 1024 * RAM_ACCT_HEADROOM)
     return {"ramBudgetMb": budget, "ramCommittedMb": committed,
-            "ramFreeMb": max(0, budget - committed)}
+            "ramFreeMb": max(0, budget - committed),
+            # broken out because it is the term that surprises: a box can be
+            # 85% committed with every tenant idle, purely from resident weights
+            "ramNnResidentMb": _nn_resident_bytes() // (1 << 20)}
 
 
 def _rec_vram_gb(rec) -> float:
@@ -2194,10 +2215,11 @@ def _alloc_ports(pspec) -> dict:
 def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdir=None,
                nn=False, enclave_config=None, vol_mounts=None, egress=None, egress_transparent=None,
                enc=None, gpu_share: float = 0.0, nn_report=None, secrets=None,
-               cpu_share: float = 0.0):
+               cpu_share: float = 0.0, nn_resident_other: int = 0):
     """The wasmtime invocation for a ports spec. Returns (cmd, host_port, wait_ports).
     `nn_report`, when a dict, is filled with the wasi-nn preload plan:
-    {"emitted": [vol...], "skipped": {vol: why}, "stages": {vol: "kind::dir"}}
+    {"emitted": [vol...], "skipped": {vol: why}, "stages": {vol: "kind::dir"},
+     "residentBytes": int}
     - what launch() records on the tenant so the preload watchdog and the log
     verifier can hold the boot to it.
 
@@ -2336,8 +2358,14 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
         # buffers, ORT sessions allocate per request), so they keep the
         # per-share budget on a CPU node - reclaimable and resident are
         # different promises and only ggml makes the first one.
+        # ...and node RAM is SHARED, so the node's usable pool is net of what
+        # other live tenants already hold resident. Without that term the budget
+        # is per-deployment only: two tenants each clear a 23 GiB check on a
+        # 29 GB box and the pair thrashes. Subtracting it also keeps the RAM
+        # ledger and this gate reading the same node - _rec_ram_mb charges the
+        # very bytes we deduct here.
         share_ram_bytes = int(cpu_share * NODE_RAM_GB * (1 << 30))
-        node_ram_bytes = max(0, int((NODE_RAM_GB - CPU_NN_RESERVE_GB) * (1 << 30)))
+        node_ram_bytes = max(0, int((NODE_RAM_GB - CPU_NN_RESERVE_GB) * (1 << 30)) - max(0, nn_resident_other))
         if NODE_HAS_GPU:
             budget_bytes, budget_kind = vram_bytes, "VRAM"
             ggml_budget_bytes = vram_bytes
@@ -2433,6 +2461,10 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
             # everything else to the tenant's own budget (see above)
             cap = ggml_budget_bytes if (kind == "ggml" and not NODE_HAS_GPU) else budget_bytes
             cap_kind = ("node RAM" if cap == node_ram_bytes else budget_kind) if not NODE_HAS_GPU else budget_kind
+            if cap_kind == "node RAM" and nn_resident_other > 0:
+                # say WHY the pool is small - otherwise a shrunk budget reads as
+                # a mis-sized node instead of a neighbour holding a model
+                cap_kind += f" net of {nn_resident_other / 2**30:.1f} GB held by other tenants"
             if cap and resident + _bytes > cap:
                 skipped[_name] = (f"exceeds the {cap_kind} budget ({_bytes / 2**30:.1f} GB weights, "
                                   f"{resident / 2**30:.1f}/{cap / 2**30:.1f} GB already claimed)")
@@ -2457,6 +2489,11 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
             nn_report["emitted"] = list(emitted)
             nn_report["skipped"] = dict(skipped)
             nn_report["stages"] = dict(stages)
+            # What this tenant will hold resident in NODE RAM once booted. Only
+            # meaningful on a CPU node: a GPU node's preloads land in VRAM and
+            # are accounted by the VRAM ledger, so charging them to RAM too
+            # would sell the box short twice.
+            nn_report["residentBytes"] = 0 if NODE_HAS_GPU else resident
     # enclave transparent egress (phase 2): `-S egress=<host>:<port>` makes the
     # patched wasmtime funnel ALL guest outbound through the loopback SOCKS front
     # (credential in $ENCLAVE_EGRESS_CRED, set host-side by _spawn_and_wait), so an
@@ -2730,7 +2767,9 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
             rec["status"], rec["error"] = "failed", (
                 f"insufficient RAM budget: this deployment reserves {new_mb} MB (linear memory + "
                 f"/data + encrypted-volume caps); {committed} MB of a {budget_mb} MB ceiling is already "
-                f"committed (WASM_ACCOUNT_STORAGE_RAM)")
+                f"committed by live tenants (their reservations plus "
+                f"{_nn_resident_bytes() // (1 << 20)} MB of model weights they hold resident) "
+                f"(WASM_ACCOUNT_STORAGE_RAM)")
             _rm_fsdir(rec)
             with _lock:
                 _apps.pop(vid, None)
@@ -2877,7 +2916,8 @@ def _spawn_and_wait(rec, ctx):
     cmd, host_port, wait_ports = _build_cmd(pspec, wasm, port, mem_bytes, port_map, fsdir, nn,
                                             enclave_config, vol_mounts, egress, egress_transparent,
                                             ctx.get("enc"), gpu_share=gpu_share, nn_report=nn_report,
-                                            secrets=ctx.get("secrets"), cpu_share=cpu_share)
+                                            secrets=ctx.get("secrets"), cpu_share=cpu_share,
+                                            nn_resident_other=_nn_resident_bytes(exclude=rec["id"]))
     # the preload plan, public on the record: what the boot preload will
     # attempt (nnPreloads) and why the rest won't (nnSkipped). The watchdog
     # sweep compares this against what a launch would emit NOW; the log
@@ -2885,6 +2925,10 @@ def _spawn_and_wait(rec, ctx):
     rec["nnPreloads"] = nn_report.get("emitted", [])
     rec["nnSkipped"] = nn_report.get("skipped", {})
     rec["_nnStages"] = nn_report.get("stages", {})
+    # Weights this tenant holds in node RAM - part of its RAM reservation from
+    # here on, so /capacity stops advertising a resident model as free memory.
+    # Re-read on EVERY spawn (a restart can preload a different set).
+    rec["nnResidentMb"] = int(nn_report.get("residentBytes", 0)) // (1 << 20)
     rec["hostPort"] = host_port
     rec["endpoint"] = f"http://{HOST_IP}:{host_port}" if host_port else None
     # GPU tenants: the wasmtime process itself is the CUDA process (ORT holds the
