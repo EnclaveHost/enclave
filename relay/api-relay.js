@@ -1163,7 +1163,23 @@ async function gateway(u, req, res) {
     return sendForwarded(res, r, req);
   }
 
-  const c = sticky();                                        // auth, pricing, version, attestation, ...
+  // Auth is enclave-scoped state on BOTH halves: the SIWE nonce, and the
+  // session token itself — each enclave signs with its own in-enclave ES256
+  // key and verifies ONLY its own kid (supervisor verifySessionToken), on
+  // purpose, so that no box can mint a session another box will honor. That
+  // makes "which enclave signed me in" load-bearing: a session from the sticky
+  // box is rejected by every other one, and every owner-authenticated call on
+  // a deployment hosted elsewhere 401s "Missing or invalid session" (found
+  // 2026-07-27 — Restart/logs/attestation/Move on a metal0-hosted deployment
+  // all failed this way). So let the CLIENT say which enclave should mint it:
+  // ?enclave=<name> pins the whole SIWE round trip to that box. Unknown name
+  // falls back to sticky rather than failing — a pin is an optimization, and
+  // signing in against the wrong box is recoverable while not signing in isn't.
+  const pin = String(u.searchParams.get("enclave") || "").trim().toLowerCase();
+  const pinned = pin && p.startsWith("/v1/auth/")
+    ? live.find((e) => String(e.name || "").toLowerCase() === pin
+                    || String(e.endpoint || "").toLowerCase() === pin) : null;
+  const c = pinned || sticky();                              // auth, pricing, version, attestation, ...
   return proxyTo(c.endpoint, req, res);
 }
 

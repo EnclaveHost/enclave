@@ -244,8 +244,11 @@ async function mgrHealth(timeoutMs = 3000) {
 // as a bearer header on every launch/kill/control call. Sending the master that
 // the fleet's other credentials are derived from meant one observed header
 // yielded the whole keyring; sending a leaf yields only this control plane.
-// The manager still accepts the old raw value during the rollout window, since
-// supervisor and wasm-manager are separate images that update independently.
+// The manager's rollout-window acceptance of the raw value is GONE (2026-07-27),
+// so this derivation is the only thing that opens its control plane: a manager
+// image older than c1b7352c would now fail every control call (its /health
+// silently drops to the unauthenticated subset — no volumes, no capacity, no nn
+// probe), which is why metal/build-image.mjs pins the two images in step.
 const VMMGR_TOKEN = process.env.VMMGR_TOKEN
   || (SECRET.length ? createHmac("sha256", SECRET).update("enclave vmmgr v1").digest("hex") : "");
 function vmReq(method, path, body, timeoutMs = 120000) {

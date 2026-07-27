@@ -35,6 +35,21 @@ export const Enclave = {
      honored only at the default endpoint. */
   _sendable(mintedAt){ return (mintedAt || DEFAULT_API_BASE).replace(/\/+$/, "") === this.base; },
   authed(){ return !!this.token; },
+  /* Sessions are PER-ENCLAVE. Every enclave signs its own tokens with its own
+     in-enclave key and honors no other kid (supervisor verifySessionToken), so
+     one signed-in state can't cover a fleet: `token` is the sticky box's
+     session (fleet-wide calls), `enclaveTokens` holds one per named box for
+     calls the relay routes to a specific enclave. Nothing is interchangeable —
+     presenting the wrong one reads as "Missing or invalid session". */
+  enclaveTokens: {},
+  sessionFor(name){ return this.enclaveTokens[String(name || "").toLowerCase()] || null; },
+  authedFor(name){ const s = this.sessionFor(name); return !!(s && s.token && this._sendable(s.base)); },
+  setSessionFor(name, token){
+    const k = String(name || "").toLowerCase();
+    if (!k) return;
+    if (token) this.enclaveTokens[k] = { token, base: this.base };
+    else delete this.enclaveTokens[k];
+  },
   accountAuthed(){ return !!this.accountToken; },
   clearAccountSession(){
     this.accountToken = null; this.accountTokenBase = null; this.accountId = null; this.accountMethod = null;
@@ -58,9 +73,17 @@ export const Enclave = {
       `This ${what} was issued by a different endpoint than the one now configured (${this.base}), so it was not sent. `
       + "Point the endpoint back, or sign in again against this one.", 401);
     if (opts.auth){
-      if (!this.token) throw new EnclaveError("Not signed in. Connect your wallet first.", 401);
-      if (!this._sendable(this.tokenBase)) throw wrongBase("session");
-      headers["Authorization"] = "Bearer " + this.token;
+      // A session is minted by ONE enclave and honored by only that enclave
+      // (each signs with its own ES256 key and verifies its own kid alone), so
+      // a call the relay routes to a specific box needs THAT box's session.
+      // `opts.enclave` names it; without one we're on the sticky box's session,
+      // which is right for fleet-wide calls and wrong for per-deployment ones.
+      const tok = opts.enclave ? this.sessionFor(opts.enclave) : { token: this.token, base: this.tokenBase };
+      if (!tok || !tok.token) throw new EnclaveError(opts.enclave
+        ? `Not signed in to ${opts.enclave}. Sessions are per-enclave — sign in again to act on a deployment hosted there.`
+        : "Not signed in. Connect your wallet first.", 401);
+      if (!this._sendable(tok.base)) throw wrongBase("session");
+      headers["Authorization"] = "Bearer " + tok.token;
     }
     if (opts.accountAuth){
       if (!this.accountToken) throw new EnclaveError("Sign in first.", 401);
@@ -91,8 +114,8 @@ export const Enclave = {
     return data;
   },
   /* Auth (public) */
-  getNonce(address){ return this._req("GET", "/auth/nonce", { query: { address } }); },
-  login(message, signature){ return this._req("POST", "/auth/login", { body: { message, signature } }); },
+  getNonce(address, enclave){ return this._req("GET", "/auth/nonce", { query: { address, enclave: enclave || undefined } }); },
+  login(message, signature, enclave){ return this._req("POST", "/auth/login", { query: { enclave: enclave || undefined }, body: { message, signature } }); },
   /* Account */
   getAccount(){ return this._req("GET", "/account", { auth: true }); },
   topup(id){ return this._req("POST", "/deployments/" + encodeURIComponent(id) + "/topup", { auth: true }); },
