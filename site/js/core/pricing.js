@@ -203,16 +203,9 @@ export function rankEnclavesFor(v, rows){
     // record (supervisor considerClaim). Targeting it anyway would send the
     // claim hint to a box that declines, and the deploy would sit in the open
     // queue waiting for whichever box does carry them.
-    // A GPU box grants wasi-nn ONLY to tenants that bought GPU share
-    // (wasm_manager: `nn = gpu_share > 0` on a GPU node; CPU-only boxes grant
-    // it to everyone). So a model-volume app dialled to 0% GPU cannot run on a
-    // GPU box at all: it links against wasi:nn/tensor, finds no implementation
-    // and dies at startup. Seen live 2026-07-27 — kryptos claimed exactly such
-    // a deployment and handed the lease back four seconds later.
-    const nnBlocked = wantVols.length > 0 && !needsGpu && gpu;
     const fits = (!needsGpu || (gpu && vramMb / 1024 <= spec.cardVramGb && gpuGf / 1000 <= spec.cardTflops))
               && memMb <= spec.nodeRamGb * 1024 && cpuGf <= spec.nodeGflops
-              && hasVolumes(a, wantVols) && !nnBlocked;
+              && hasVolumes(a, wantVols);
     const mins = minPctsOf(v, spec);
     const free = { gpuPct: Math.floor((a.gpuShareFree || 0) * 100), cpuPct: Math.floor((a.cpuShareFree || 0) * 100) };
     const now = fits && (!needsGpu || free.gpuPct >= mins.gpuPct) && free.cpuPct >= mins.cpuPct;
@@ -224,13 +217,23 @@ export function rankEnclavesFor(v, rows){
     const minRate = shareRates(mins.gpuPct, mins.cpuPct, spec, price).rate;
     return { row, name, spec, mins, free, gpu, fits, now, price, minRate };
   }).filter((c) => c.fits && (needsGpu ? c.gpu : true));
+  // A GPU box CAN serve model-volume work with no GPU share — the tenant gets
+  // the ggml CPU backend on the cores it bought, same as on a CPU box — but it
+  // must never be the AUTOMATIC choice for it: the card is the scarce thing,
+  // and parking cores-only work on a GPU box spends a machine someone else
+  // needs. So demote rather than exclude, ahead of price, and let an owner
+  // still pick it deliberately (a manual move names its destination).
+  const demoted = (c) => (wantVols.length && !needsGpu && c.gpu) ? 1 : 0;
   // CHEAPEST FIRST, in money — then the old tiebreaks (smallest minimum share,
   // CPU boxes before GPU leftovers for CPU work, most free pool)
-  const order = (list) => list.slice().sort((x, y) => (x.minRate - y.minRate) || (needsGpu
+  const order = (list) => list.slice().sort((x, y) => (demoted(x) - demoted(y)) || (x.minRate - y.minRate) || (needsGpu
     ? (x.mins.gpuPct - y.mins.gpuPct) || (y.free.gpuPct - x.free.gpuPct)
     : (x.mins.cpuPct - y.mins.cpuPct) || ((x.gpu === true) - (y.gpu === true)) || (y.free.cpuPct - x.free.cpuPct)));
-  return [...order(cand.filter((c) => c.now)).map((c) => ({ ...c, queued: false })),
-          ...order(cand.filter((c) => !c.now)).map((c) => ({ ...c, queued: true }))];
+  // cpuNn: this box would run the app's model volumes on CPU cores rather than
+  // its card (a GPU box hosting a 0-GPU tenant). Surfaced so a manual choice is
+  // an informed one — same weights, no card, CPU speed.
+  return [...order(cand.filter((c) => c.now)).map((c) => ({ ...c, queued: false, cpuNn: !!demoted(c) })),
+          ...order(cand.filter((c) => !c.now)).map((c) => ({ ...c, queued: true, cpuNn: !!demoted(c) }))];
 }
 
 // The box a deployment's shares are ALREADY judged against: the enclave
@@ -320,8 +323,5 @@ export function moveBlockReason(v, rows, currentRunnerId){
   // true at once (the only other box is a GPU box AND lacks the volume)
   const missing = wantVols.filter((n) => !others.some((e) => hasVolumes(e.availability, [n])));
   if (missing.length) return `no other live enclave carries ${missing.join(" or ")}`;
-  if (wantVols.length && !needsGpu && others.every((e) => e.availability.gpu === true))
-    return `every other live enclave is a GPU box, and a GPU box only offers wasi-nn to deployments that bought GPU share — `
-         + `this one is dialled to 0% GPU, so ${wantVols.join(" + ")} could not load there. A CPU-only enclave carrying the volume is the destination this needs`;
   return "no other live enclave's hardware fits this app";
 }

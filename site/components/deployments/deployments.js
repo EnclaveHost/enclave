@@ -1492,6 +1492,7 @@ class Deployments extends EnclaveElement {
       +     targets.map((t, i) => '<option value="' + esc(t.name) + '"' + (i === 0 ? " selected" : "") + '>'
       +       esc(t.name)
       +       (t.queued ? " · full right now (waits in the queue)" : "")
+      +       (t.cpuNn ? " · GPU box, but this deployment buys no GPU - the model runs on its CPU cores" : "")
       +     '</option>').join("")
       +   '</select>'
       +   '<button class="btn btn-sm mv-go">Move</button>'

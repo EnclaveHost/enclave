@@ -2389,7 +2389,12 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
         # very bytes we deduct here.
         share_ram_bytes = int(cpu_share * NODE_RAM_GB * (1 << 30))
         node_ram_bytes = max(0, int((NODE_RAM_GB - CPU_NN_RESERVE_GB) * (1 << 30)) - max(0, nn_resident_other))
-        if NODE_HAS_GPU:
+        # WHICH budget applies is a property of the TENANT, not the node: a GPU
+        # box also hosts 0-GPU tenants, and they run on cores. Keying this on
+        # NODE_HAS_GPU gave them a VRAM budget of zero, so every volume was
+        # skipped "exceeds the VRAM budget" and the app could never load.
+        gpu_tenant = NODE_HAS_GPU and gpu_share > 0
+        if gpu_tenant:
             budget_bytes, budget_kind = vram_bytes, "VRAM"
             ggml_budget_bytes = vram_bytes
         else:
@@ -2482,8 +2487,8 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
         for _bytes, _name, kind, stage in sorted(vram_stages):
             # mmap-backed ggml graphs answer to the node's RAM on a CPU box;
             # everything else to the tenant's own budget (see above)
-            cap = ggml_budget_bytes if (kind == "ggml" and not NODE_HAS_GPU) else budget_bytes
-            cap_kind = ("node RAM" if cap == node_ram_bytes else budget_kind) if not NODE_HAS_GPU else budget_kind
+            cap = ggml_budget_bytes if (kind == "ggml" and not gpu_tenant) else budget_bytes
+            cap_kind = ("node RAM" if cap == node_ram_bytes else budget_kind) if not gpu_tenant else budget_kind
             if cap_kind == "node RAM" and nn_resident_other > 0:
                 # say WHY the pool is small - otherwise a shrunk budget reads as
                 # a mis-sized node instead of a neighbour holding a model
@@ -2512,11 +2517,13 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
             nn_report["emitted"] = list(emitted)
             nn_report["skipped"] = dict(skipped)
             nn_report["stages"] = dict(stages)
-            # What this tenant will hold resident in NODE RAM once booted. Only
-            # meaningful on a CPU node: a GPU node's preloads land in VRAM and
-            # are accounted by the VRAM ledger, so charging them to RAM too
-            # would sell the box short twice.
-            nn_report["residentBytes"] = 0 if NODE_HAS_GPU else resident
+            # What this tenant will hold resident in NODE RAM once booted -
+            # which follows where the weights LAND, not what the node has. A
+            # GPU tenant's preloads sit in VRAM and the VRAM ledger owns them
+            # (charging RAM too would sell the box short twice); a 0-GPU tenant
+            # maps them into host RAM even on a GPU box, and that RAM is as
+            # unavailable to the next tenant as it is anywhere else.
+            nn_report["residentBytes"] = 0 if gpu_tenant else resident
     # enclave transparent egress (phase 2): `-S egress=<host>:<port>` makes the
     # patched wasmtime funnel ALL guest outbound through the loopback SOCKS front
     # (credential in $ENCLAVE_EGRESS_CRED, set host-side by _spawn_and_wait), so an
@@ -2633,17 +2640,23 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
             fsdir = cand
         except OSError as e:
             print(f"[fs] {vid} could not create scratch dir: {e}", flush=True)
-    # wasi-nn: on a GPU node, buying a GPU share grants the interface and MPS
-    # enforces the share per-process (env below), the same mechanism as the
-    # worker backend. On a CPU-ONLY node there is no card to buy: the ggml
-    # backend runs on the cores the tenant already bought and maps the weights
-    # into its share of node RAM (_build_cmd budgets preloads against exactly
-    # that). Withholding the interface there would mean a CPU enclave can never
-    # serve a model-volume app at all - the deployment fails at startup with
-    # "component imports instance wasi:nn/tensor, but a matching implementation
-    # was not found", which is what a self-hosted CPU seller carrying model
-    # volumes hit. GPU nodes are unchanged.
-    nn = NN_ENABLED and (gpu_share > 0 if NODE_HAS_GPU else True)
+    # wasi-nn goes to EVERY tenant that asks; what differs is where the weights
+    # land. Holding GPU share gets the card, MPS-capped and VRAM-budgeted (env
+    # below). Holding none gets the ggml CPU backend on the cores the tenant
+    # already bought, weights mapped into node RAM (_build_cmd budgets them).
+    #
+    # That second case is available ON A GPU NODE TOO, which it was not before.
+    # Gating the interface on gpu_share meant a model-volume app dialled to 0%
+    # GPU could not run on the fleet's biggest machines at all: it links against
+    # wasi:nn/tensor, finds no implementation and dies at startup. Live proof
+    # 2026-07-27 - a CPU-dialled llm-chat was moved onto a GPU box, which
+    # claimed the lease and handed it back four seconds later. The card is
+    # still never handed out for free: a 0-GPU tenant gets no CUDA_MPS_* env
+    # and no VRAM budget, so it runs on cores exactly as it would on a CPU box.
+    # Preferring CPU-only boxes for this work is a RANKING decision (the deploy
+    # console demotes GPU boxes for it), not a capability one - an owner who
+    # deliberately moves such a deployment onto a GPU box gets what they asked.
+    nn = NN_ENABLED
     rec = {"id": vid, "name": name or vid, "app": app_ref,
            "cpuShare": cpu_share, "gpuShare": gpu_share, "nn": nn,
            "hostPort": port,
@@ -2970,11 +2983,12 @@ def _spawn_and_wait(rec, ctx):
     # GPU tenants: the wasmtime process itself is the CUDA process (ORT holds the
     # context), so the MPS caps go in ITS environment (SM% + VRAM from the share).
     env = None
-    if nn and NODE_HAS_GPU:
-        # MPS caps are a GPU-node concept. A CPU-only nn tenant gets none: there
-        # is no card to slice, and handing it CUDA_MPS_* (SM 1%, a 1 MB pinned
-        # limit computed from a zero GPU share) would be a cap on nothing today
-        # and a trap the day this node grows a card.
+    if nn and NODE_HAS_GPU and gpu_share > 0:
+        # MPS caps belong to tenants that BOUGHT a card slice. A 0-GPU nn
+        # tenant gets none - on a CPU box there is no card at all, and on a GPU
+        # box it runs on cores by choice, so handing it CUDA_MPS_* (SM 1%, a
+        # 1 MB pinned limit computed from a zero GPU share) would cap a card it
+        # never touches and would strand it the moment ggml probed for one.
         env = _nn_tenant_env(gpu_share, pinned=_NN_PROBE.get("mode") != "nopin")
         rec["mpsPct"] = max(1, round(gpu_share * 100))
         # sdcpp text-encoder placement (wasm/sd-shim, ENCLAVE_SD_TE_ON_CPU):
