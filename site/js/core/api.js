@@ -118,7 +118,7 @@ export const Enclave = {
   login(message, signature, enclave){ return this._req("POST", "/auth/login", { query: { enclave: enclave || undefined }, body: { message, signature } }); },
   /* Account */
   getAccount(){ return this._req("GET", "/account", { auth: true }); },
-  topup(id){ return this._req("POST", "/deployments/" + encodeURIComponent(id) + "/topup", { auth: true }); },
+  topup(id, enclave){ return this._req("POST", "/deployments/" + encodeURIComponent(id) + "/topup", { auth: true, enclave }); },
   /* Pricing (public) */
   getPricing(){ return this._req("GET", "/pricing"); },
   getAvailability(){
@@ -165,15 +165,15 @@ export const Enclave = {
     if (this.token) return this._req("GET", path, { auth: true });
     return this._req("GET", path, { query: this.address ? { owner: this.address } : {} });
   },
-  terminateDeployment(id){ return this._req("DELETE", "/deployments/" + encodeURIComponent(id), { auth: true }); },
+  terminateDeployment(id, enclave){ return this._req("DELETE", "/deployments/" + encodeURIComponent(id), { auth: true, enclave }); },
   /* Nudge the fleet to claim funded work. `enclave` (a box NAME) makes the
      relay send the hint to THAT box only, giving it first crack — the steer
      behind both the deploy target pick and a move. An unknown name falls back
      to the full fan-out, so a hint can never strand a funded deployment. */
   claimHint(id, enclave){ return this._req("POST", "/claim-hint", { body: enclave ? { id, enclave } : { id } }); },
-  restartDeployment(id){ return this._req("POST", "/deployments/" + encodeURIComponent(id) + "/restart", { auth: true }); },
-  logs(id, query){ return this._req("GET", "/deployments/" + encodeURIComponent(id) + "/logs", { auth: true, query }); },
-  attestation(id){ return this._req("GET", "/deployments/" + encodeURIComponent(id) + "/attestation", { auth: true }); },
+  restartDeployment(id, enclave){ return this._req("POST", "/deployments/" + encodeURIComponent(id) + "/restart", { auth: true, enclave }); },
+  logs(id, query, enclave){ return this._req("GET", "/deployments/" + encodeURIComponent(id) + "/logs", { auth: true, query, enclave }); },
+  attestation(id, enclave){ return this._req("GET", "/deployments/" + encodeURIComponent(id) + "/attestation", { auth: true, enclave }); },
   /* System (public) */
   health(){ return this._req("GET", "/health"); },
   version(){ return this._req("GET", "/version"); },
