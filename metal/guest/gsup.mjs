@@ -57,7 +57,9 @@ const SELLING      = !!(REGISTRY_KEY && PUBLIC_URL);
 
 // --- what this operator CHARGES ---------------------------------------------
 // config gives USD/hour for a FULL node / FULL card; the ledger prices in USDC
-// 6dp per second, so convert once here (1 USD/hr = 1e6/3600 units/sec).
+// 6dp per second, so convert once here (1 USD/hr = 1e6/3600 units/sec). On a
+// rev-8 ledger this is not a floor or a hint: it is THE price, published in
+// this enclave's registry entry and charged pro-rata to whoever it claims for.
 // GPU: this image is the CPU flavor and passes no card through, so there is
 // nothing to sell — a configured GPU price is DROPPED (with a warning) rather
 // than advertised, because advertising a price for hardware we don't have is
@@ -70,7 +72,7 @@ const PRICE_GPU6  = usdHrToSec6(Number(fw.priceGpuUsdHr));
 if (PRICE_GPU6 > 0 && !HAS_GPU)
   log('WARNING: priceGpuUsdHr is set but this enclave has no GPU — ignoring it (CPU-only boxes sell no GPU shares)');
 if (HAS_GPU && PRICE_GPU6 <= 0)
-  log('WARNING: GPU enclave with no priceGpuUsdHr — its GPU shares sell at the on-chain list price');
+  log('WARNING: GPU enclave with no priceGpuUsdHr — its GPU shares sell at the supervisor default ($6.00/card-hr)');
 
 const flavorEnv = readJson('/opt/metal/flavor-env.json', {});   // baked, non-secret
 

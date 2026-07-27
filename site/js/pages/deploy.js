@@ -696,11 +696,26 @@ export async function deployOnChain(spec){
     // sniffs once): rev 1 took a now-removed sshPubKey string before
     // configCid; rev 4 grew the publisher-fee snapshot (recipient, fee/sec)
     const rev = (depRev = await depSchemaRev());
-    const cdata = encCall(rev >= 4 ? DEP_SEL.create : rev >= 2 ? DEP_SEL.createV3 : DEP_SEL.createV1, [
+    // rev 8: the record also carries a SPEND CEILING. Default it to exactly
+    // what we just quoted (the cheapest live enclave's price for these shares
+    // plus the app's fee) so nothing dearer can ever claim it — including when
+    // its host dies and the work goes back on the queue. The owner widens it
+    // later from the console (Rate cap) or `enclave rate-cap`.
+    const maxRate6 = rate6 + fee6;
+    if (rev >= 8){
+      if (rate6 <= 0n){
+        // no live price to cap against: create() would revert "maxRate <= fee"
+        w.line("warn", "[x] couldn't read what the fleet charges for these shares right now, so there is no ceiling to set - nothing was sent. Try again in a moment.");
+        return;
+      }
+      w.line("info", "    rate cap: $" + (Number(maxRate6) * 3600 / 1e6).toFixed(2) + "/hr — only enclaves at or under this can run it, now or after a failover");
+    }
+    const cdata = encCall(rev >= 8 ? DEP_SEL.create : rev >= 4 ? DEP_SEL.createV4 : rev >= 2 ? DEP_SEL.createV3 : DEP_SEL.createV1, [
       { t: "str", v: spec.reference }, { t: "uint", v: spec.gpuMilli }, { t: "uint", v: spec.cpuMilli },
       { t: "uint", v: appPort }, { t: "str", v: portsCsv }, { t: "bool", v: !!spec.isPublic },
       ...(rev >= 2 ? [] : [{ t: "str", v: "" }]), { t: "str", v: envelope },
       ...(rev >= 4 ? [{ t: "addr", v: feeTo || "0x" + "0".repeat(40) }, { t: "uint", v: fee6 }] : []),
+      ...(rev >= 8 ? [{ t: "uint", v: maxRate6 }] : []),
     ]);
     const chash = await sendTx(DEPLOYMENTS_ADDRESS, cdata);
     w.line("dimln", "  ↳ sent " + chash + " · waiting for confirmation…");

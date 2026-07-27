@@ -106,10 +106,15 @@ via transaction instead of via one enclave's API).
   until the cap covers their minimum), existing records and owner imports are
   untouched, and every client (console dials, quick-deploy, CLI) re-checks it
   before the wallet signature so nobody signs a doomed create. Both
-  shares are paid for:
-  `rate = (pricePerSec6 × gpuMilli + cpuPricePerSec6 × cpuMilli) / 1000`,
-  rounded up, **plus the publisher fee** (below), snapshotted at create (price
-  changes never re-price existing deployments). `id = keccak256(creator, nonce)`.
+  shares are paid for, at the price of **the enclave that claims the work**
+  (rev 8 — there is no platform price any more; see *Pricing and the rate cap*
+  below):
+  `rate = (host.gpuPricePerSec6 × gpuMilli + host.cpuPricePerSec6 × cpuMilli) / 1000`,
+  rounded up, **plus the publisher fee** (below). `create` also takes
+  `maxRate6`, the owner's per-second ceiling (required, above the fee): until
+  the first claim it IS the record's working rate — the worst case — so
+  funding splits and `secondsFundable` never over-promise.
+  `id = keccak256(creator, nonce)`.
   **Publisher fee (rev 4)**: a catalog version may declare a per-second
   publisher fee (`EnclaveAppCatalog.versionFee`, capped at publish). Clients
   copy it into `create` as `(feeRecipient = the app's publisher wallet,
@@ -172,10 +177,11 @@ via transaction instead of via one enclave's API).
   is the feature probe) — the owner's SHARE RESIZE, grow or shrink, typically
   batched with `setAppRef` via `multicall` when a new version needs different
   resources (one wallet signature for both). Same bounds as `create`,
-  `maxGpuMilli` cap included, and the **rate is recalculated at the CURRENT
-  list prices** plus the immutable fee snapshot: a resize is a new purchase
-  decision, exactly like create — deployments that never resize keep their
-  original snapshot, so price changes stay non-retroactive for them. A LIVE
+  `maxGpuMilli` cap included, and the **rate is recalculated at the SERVING
+  enclave's posted price** (its ceiling when nothing is serving it) plus the
+  immutable fee snapshot, and must stay inside `maxRate6`: a resize is a new
+  purchase decision, exactly like create — over the ceiling it reverts
+  `"over rate cap"`, so raise the cap first. A LIVE
   lease is settled, never re-priced retroactively: the unserved tail refunds
   at the OLD rate (the rate it was burned at — `release()`'s own arithmetic,
   so `spent6` can't underflow), then re-burns at the NEW rate for as many of
@@ -202,8 +208,9 @@ via transaction instead of via one enclave's API).
   operator EOA that holds a lease is PAID for it by the chain, not by an
   invoice to the platform. Each new deployment snapshots `runnerRate6` =
   `runnerBps` (owner-set, default 8000 = 80%) of the PLATFORM component of its
-  rate (the publisher fee is excluded); resizes re-snapshot at the current bps,
-  exactly as they re-price at the current list prices. USDC fundings retain
+  rate (the publisher fee is excluded); claims and resizes re-snapshot at the
+  current bps, exactly as they re-price at the claiming enclave's price — a
+  host earns 80% of what it itself charges. USDC fundings retain
   that share in-contract as per-deployment **escrow** (see the funding bullet),
   and a **credit meter** moves escrow to the current runner's withdrawable
   balance for every second it holds the lease: `claim` settles the PREVIOUS
@@ -228,6 +235,50 @@ via transaction instead of via one enclave's API).
   `earnOf` like it reads `feeOf`); escrow is real USDC held by the source
   contract and does NOT migrate — re-back with `fundEscrow` — and earned
   balances stay withdrawable on the source forever.
+
+### Pricing and the rate cap (rev 8)
+
+Price belongs to the **enclave**, not the platform. `EnclaveRegistry` (schema
+2) carries two numbers per entry — `cpuPricePerSec6` for the whole node's
+vCPU+RAM and `gpuPricePerSec6` for one whole card, USDC 6dp — stated at
+`register` and changeable with `setPrices` (future claims only; a live lease
+was bought at the price in force when it was claimed). `EnclaveDeployments`
+has no `pricePerSec6`/`cpuPricePerSec6` and no `setPrice`/`setCpuPrice` at
+all: `claim` reads the claiming enclave's entry (it already reads it for the
+operator check), computes `hostRate × shares / 1000 + fee`, and snapshots that
+as the deployment's `rate` for the life of the lease. Move the work, and the
+price moves with it.
+
+Every deployment therefore carries `maxRate6` — **the most it will pay per
+second** — set at `create` and changeable any time by the owner with
+`setMaxRate(id, maxRate6)`. It is checked on every purchase of time:
+
+| call | over the cap |
+|---|---|
+| `claim` | reverts `"over rate cap"` — that enclave simply cannot take the work |
+| `renew` | reverts — the paid lease runs out and the app stops |
+| `setShares` | reverts — raise the cap first, or pick smaller dials |
+
+That is what makes automatic failover safe on a fleet of independently-priced
+boxes: when a host goes dark its lease lapses, the work is open to everyone,
+and the enclaves that both FIT it and charge at or under the ceiling are the
+only ones that can pick it up. Lowering the cap under a running rate is a
+deliberate stop — the lease already bought is honoured, then nothing renews or
+re-claims (runners surface the reason rather than retrying, gated on the
+fleet-AND `rateCap` availability flag; the CLI and console warn before
+signing). `capOf(id)` reads the ceiling, `rateFor(id, enclaveId)` prices a
+deployment on any enclave, and `claimableBy(id, enclaveId)` answers "could
+that box take this right now" in one call.
+
+Reads that used to come off the contract now come off the fleet: clients quote
+the **cheapest currently-connected enclave** (the relay aggregates it as
+`cheapestCpuPricePerSec6`/`cheapestGpuPricePerSec6` over claiming boxes, each
+of which advertises its own `askCpu/askGpuPricePerSec6`), and default a new
+deployment's cap to exactly that quote, so nothing dearer can pick it up
+without the owner raising the ceiling. Migration: `importDeployments` defaults
+each imported record's cap to the rate it arrives with — same price, same
+economics, no dearer enclave can take it — and `importCaps` overrides that
+while the window is open (0 = uncapped, the pre-rev-8 behaviour).
 
 ### Fairness bounds (the price of decentralized failover)
 

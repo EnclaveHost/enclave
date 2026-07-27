@@ -404,18 +404,34 @@ async function ledgerRates() {
   if (!dep) throw new Error("deployments ledger address unknown");
   const pub = await rpcPool();
   const U = (name) => [{ type: "function", name, stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }];
-  const [p, c, m] = await Promise.all([
-    pub.readContract({ address: dep, abi: U("pricePerSec6"), functionName: "pricePerSec6" }),
-    pub.readContract({ address: dep, abi: U("cpuPricePerSec6"), functionName: "cpuPricePerSec6" }),
+  const [m, rev] = await Promise.all([
     pub.readContract({ address: dep,
       abi: [{ type: "function", name: "maxGpuMilli", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] }],
       functionName: "maxGpuMilli" }).then(Number).catch(() => 1000),
+    pub.readContract({ address: dep, abi: U("deploymentsSchema"), functionName: "deploymentsSchema" })
+      .then(Number).catch(() => 0),
   ]);
-  _rates = { at: Date.now(), pricePerSec6: p, cpuPricePerSec6: c, maxGpuMilli: m };
+  // Rev 8 took pricing off the ledger: every enclave posts its own, so a quote
+  // is the CHEAPEST currently-connected one — the same number the buyer's
+  // deployment will be charged when that box claims it, and what its rate cap
+  // is set from. No live price = nothing honest to quote.
+  if (rev >= 8) {
+    const ask = (ctxRef.fleetAsk && ctxRef.fleetAsk()) || {};
+    if (!ask.cheapestCpuPricePerSec6) throw new Error("no live enclave is posting a price right now");
+    _rates = { at: Date.now(), maxGpuMilli: m, rev,
+               pricePerSec6: BigInt(ask.cheapestGpuPricePerSec6 || 0),
+               cpuPricePerSec6: BigInt(ask.cheapestCpuPricePerSec6) };
+    return _rates;
+  }
+  const [p, c] = await Promise.all([
+    pub.readContract({ address: dep, abi: U("pricePerSec6"), functionName: "pricePerSec6" }),
+    pub.readContract({ address: dep, abi: U("cpuPricePerSec6"), functionName: "cpuPricePerSec6" }),
+  ]);
+  _rates = { at: Date.now(), pricePerSec6: p, cpuPricePerSec6: c, maxGpuMilli: m, rev };
   return _rates;
 }
-// the ledger's own ceil formula (EnclaveDeployments._initScalars) - the quote
-// IS what the deployment will burn per second
+// the ledger's own ceil formula (EnclaveDeployments._hostRate) - the quote IS
+// what the deployment will burn per second on the box that quoted it
 const rate6For = (r, gpuMilli, cpuMilli) =>
   (r.pricePerSec6 * BigInt(gpuMilli) + r.cpuPricePerSec6 * BigInt(cpuMilli) + 999n) / 1000n;
 
@@ -517,7 +533,14 @@ async function validateDeploySpec(b, ctx, res, req) {
     return null;
   }
   const rate6 = rate6For(rates, gpuMilli, cpuMilli);
-  return { spec: { appRef, gpuMilli, cpuMilli, appPort, ports, isPublic: raw.isPublic !== false, configCid },
+  // The ceiling is what we quoted (rev-8 ledgers): the buyer is charged the
+  // cheapest live enclave's price and can never be moved onto a dearer box
+  // without saying so. maxRate6 must exceed the publisher fee, and credit
+  // checkout refuses fee-bearing apps above, so rate6 (fee 0) is safe.
+  // as a STRING: the spec is persisted as JSON with the order (BigInts don't
+  // serialize), exactly like quote.rate6
+  const maxRate6 = rate6.toString();
+  return { spec: { appRef, gpuMilli, cpuMilli, appPort, ports, isPublic: raw.isPublic !== false, configCid, maxRate6 },
            seconds, rate6, amount6: rate6 * BigInt(seconds) };
 }
 
@@ -828,8 +851,8 @@ export async function handleBilling(req, res, u, ctx) {
       const id = String(b.id || "");
       const action = String(b.action || "");
       if (!/^0x[0-9a-f]{64}$/i.test(id)) return err(ctx, res, req, 422, "bad_params", "control needs a deployment id.");
-      if (!["suspend", "resume", "version", "resize", "options"].includes(action))
-        return err(ctx, res, req, 422, "bad_params", 'control action must be "suspend", "resume", "version", "resize", or "options".');
+      if (!["suspend", "resume", "version", "resize", "options", "maxrate"].includes(action))
+        return err(ctx, res, req, 422, "bad_params", 'control action must be "suspend", "resume", "version", "resize", "options", or "maxrate".');
       if (action === "version" && !(typeof b.ref === "string" && b.ref.length > 0 && b.ref.length <= 100))
         return err(ctx, res, req, 422, "bad_params", "version needs a catalog ref (max 100 chars).");
       let envelope = null;
@@ -858,8 +881,17 @@ export async function handleBilling(req, res, u, ctx) {
           return err(ctx, res, req, 422, "bad_params", "ref must be a catalog ref (max 100 chars).");
         shares = { gpuMilli: g, cpuMilli: c };
       }
+      let maxRate6 = null;
+      if (action === "maxrate") {
+        // the ceiling in USDC 6dp per second; the console and CLI think in
+        // $/hr and convert. The contract re-checks it against the publisher
+        // fee, so this only saves a doomed op.
+        maxRate6 = Number(b.maxRate6);
+        if (!Number.isInteger(maxRate6) || maxRate6 <= 0 || maxRate6 > Number.MAX_SAFE_INTEGER)
+          return err(ctx, res, req, 422, "bad_params", "maxrate needs maxRate6: a positive integer, USDC 6dp per second.");
+      }
       let callData;
-      try { callData = await buildControlCall(id, action, b.ref, shares, envelope); }
+      try { callData = await buildControlCall(id, action, b.ref, shares, envelope, maxRate6); }
       catch (e) { return err(ctx, res, req, 502, "encode_failed", e.message); }
       const digest = opDigest("control", info.address, CHAIN_ID, info.nonce, { callData }, deadline);
       return ctx.json(res, 200, { op: "control", vault: info.address, chainId: CHAIN_ID, nonce: info.nonce,

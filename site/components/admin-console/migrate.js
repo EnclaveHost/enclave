@@ -151,6 +151,19 @@ async function readDeployments(source) {
       }));
     }
   }
+  // Rate caps: a third side mapping (rev >= 8). A rev-8 TARGET defaults every
+  // imported record's cap to the rate it arrives with, which is exactly right
+  // when migrating FROM an older ledger (same economics, no dearer enclave can
+  // take it). From a rev-8 source the real caps must ride along instead, or an
+  // owner's deliberately roomy ceiling would quietly tighten to its rate.
+  if (rev >= 8) {
+    for (const page of chunked(rows, 10)) {
+      await Promise.all(page.map(async (r) => {
+        const c = await call(source, encCallX(sel.capOf, [{ t: "bytes32", v: r.id }]));
+        r.cap6 = hexBig("0x" + (word(c, 0) || "0")).toString();
+      }));
+    }
+  }
   return rows;
 }
 const depKey = (d) => d.id;
@@ -304,6 +317,20 @@ export const MIG_KINDS = {
           { t: "uint[]", v: c.map((d) => d.earn.rate6) },
         ]),
       })));
+      // Spend ceilings, when the SOURCE has them (rev >= 8): importDeployments
+      // already defaulted each record's cap to its rate, so only records whose
+      // real cap differs need a call - which is every one an owner widened.
+      const capTodo = data.filter((d) => d.cap6 !== undefined
+        && d.cap6 !== String(d.rate)
+        && d.cap6 !== (after.find((t) => t.id.toLowerCase() === d.id.toLowerCase()) || {}).cap6);
+      txs.push(...chunked(capTodo, CHUNK.fees).map((c, i) => ({
+        label: `importCaps · batch ${i + 1} (${c.length})`,
+        gas: 100_000 + 45_000 * c.length,
+        dataHex: encCallX(sel.importCaps, [
+          { t: "bytes32[]", v: c.map((d) => d.id) },
+          { t: "uint[]", v: c.map((d) => d.cap6) },
+        ]),
+      })));
       return packPlan("EnclaveDeployments", txs);
     },
     async verify(data, target) {
@@ -312,12 +339,14 @@ export const MIG_KINDS = {
       const feeCmp = (a, b) => (a.fee?.rate6 || "0") === (b.fee?.rate6 || "0")
         && ((a.fee?.rate6 || "0") === "0" || a.fee.recipient.toLowerCase() === b.fee.recipient.toLowerCase());
       const earnCmp = (a, b) => (a.earn?.rate6 || "0") === (b.earn?.rate6 || "0");
+      // a cap the source didn't have is whatever the target defaulted it to
+      const capCmp = (a, b) => a.cap6 === undefined || a.cap6 === b.cap6;
       const bad = data.filter((d) => {
         const t = byId[d.id.toLowerCase()];
-        return !t || !depCmp(d, t) || !feeCmp(d, t) || !earnCmp(d, t);
+        return !t || !depCmp(d, t) || !feeCmp(d, t) || !earnCmp(d, t) || !capCmp(d, t);
       }).map((d) => {
         const t = byId[d.id.toLowerCase()];
-        const why = t && depCmp(d, t) ? (feeCmp(d, t) ? "runner rate · " : "fee · ") : "";
+        const why = t && depCmp(d, t) ? (!feeCmp(d, t) ? "fee · " : !earnCmp(d, t) ? "runner rate · " : "rate cap · ") : "";
         return d.id.slice(0, 10) + "… (" + why + d.appRef + ")";
       });
       return { total: data.length, ok: data.length - bad.length, bad };

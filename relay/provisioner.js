@@ -39,6 +39,7 @@ const createAbi = (rev) => [{
     { name: "ports", type: "string" }, { name: "isPublic", type: "bool" },
     { name: "configCid", type: "string" },
     ...(rev >= 4 ? [{ name: "feeRecipient", type: "address" }, { name: "feePerSec6", type: "uint256" }] : []),
+    ...(rev >= 8 ? [{ name: "maxRate6", type: "uint256" }] : []),
   ],
   outputs: [{ name: "id", type: "bytes32" }],
 }];
@@ -202,8 +203,12 @@ async function provisionOrder(order) {
     }
     const rev = await depRev(pub, dep);
     const s = order.spec;
+    // rev 8: the order's quote IS the ceiling — the buyer paid for the price
+    // we showed them, and no dearer enclave may take the work later. Orders
+    // placed before this field existed fall back to the quoted rate.
     const args = [s.appRef, s.gpuMilli, s.cpuMilli, s.appPort, s.ports, s.isPublic, s.configCid,
-                  ...(rev >= 4 ? [ZERO_ADDR, 0n] : [])];
+                  ...(rev >= 4 ? [ZERO_ADDR, 0n] : []),
+                  ...(rev >= 8 ? [BigInt(s.maxRate6 || order.quote?.rate6 || 0)] : [])];
     order.provision = { step: "creating", txCreate: null, deploymentId: null, txFund: null };
     cfg.orders.flush();                                     // write-ahead: the step exists before the tx
     const txCreate = await wallet.writeContract({ address: dep, abi: createAbi(rev), functionName: "create", args });

@@ -66,10 +66,23 @@ The Metal supervisor already speaks `EnclaveRegistry` / `EnclaveDeployments`
 - claims funded deployments it can serve, signing `claim`/`renew`/`release` with
   that key.
 
-**How payout works (schema rev 7 of `EnclaveDeployments`).** Every new
-deployment snapshots a per-second **runner rate**: `runnerBps` (owner-set,
-default **80%**) of the platform component of its price. The app publisher's
-fee is carved out first, exactly as before. When a user funds a deployment
+**You set your own price (schema rev 2 of `EnclaveRegistry`, rev 8 of the
+ledger).** Your registry entry carries what your WHOLE machine costs per
+second — `cpuPricePerSec6` for the node's vCPU+RAM, `gpuPricePerSec6` for one
+card — and that is what a tenant is charged, pro-rata to the shares it bought,
+the moment you claim its work. There is no platform list price to undercut or
+sit above any more: buyers see every box's price, pick from the ones inside
+their deployment's `maxRate6` ceiling, and a deployment whose ceiling is under
+your price is simply not yours to take (`claim` reverts `"over rate cap"`).
+Set it with `priceCpuUsdHr` / `priceGpuUsdHr` in `config.json`; the guest
+publishes it at registration and re-publishes on the next heartbeat whenever
+you change it. Price yourself out of the market and your box idles; price
+under the fleet and queued work lands on you first.
+
+**How payout works (schema rev 7 of `EnclaveDeployments`).** Every claim
+snapshots a per-second **runner rate**: `runnerBps` (owner-set, default
+**80%**) of the platform component of the price YOU posted. The app
+publisher's fee is carved out first, exactly as before. When a user funds a deployment
 with USDC, the runner's pro-rata share of that funding is **retained in the
 contract as escrow** instead of being forwarded to the platform wallet. A
 credit meter then moves escrow to whichever operator EOA holds the lease, one
@@ -84,7 +97,8 @@ automatically once it clears a minimum (default $5).
 
 The seller's trust never leaves the chain: the escrow is held by the
 contract, the rate snapshot is immutable for the deployment's life (a resize
-re-buys it, like the price), and credits are structurally capped by escrow, so
+re-buys it at your then-current posted price), and credits are structurally
+capped by escrow, so
 the meter cannot promise money the contract does not hold. The platform
 cannot touch a claimable deployment's escrow (`sweepEscrow` only recovers
 residual dust after a record is drained and unleased).

@@ -59,8 +59,7 @@ test("owner calls encode like viem", () => {
   const cases = [
     ["EnclaveAddressBook", "set", [{ t: "bytes32", v: encKey("appCatalog") }, { t: "addr", v: A1 }], [stringToHex("appCatalog", { size: 32 }), A1]],
     ["EnclaveAddressBook", "setOwner", [{ t: "addr", v: A2 }], [A2]],
-    ["EnclaveDeployments", "setPrice", [{ t: "uint", v: "1667" }], [1667n]],
-    ["EnclaveDeployments", "setCpuPrice", [{ t: "uint", v: "278" }], [278n]],
+    ["EnclaveDeployments", "setMaxRate", [{ t: "bytes32", v: "0x" + "ab".repeat(32) }, { t: "uint", v: "1667" }], ["0x" + "ab".repeat(32), 1667n]],
     ["EnclaveDeployments", "setLeaseSec", [{ t: "uint", v: "300" }], [300n]],
     ["EnclaveDeployments", "setMaxGpuMilli", [{ t: "uint", v: "500" }], [500]],
     ["EnclaveDeployments", "setMaxFee", [{ t: "uint", v: "1389" }], [1389n]],
@@ -101,15 +100,15 @@ test("publisher-fee surface pins + encodes like viem", () => {
   eq("0x" + DEP_SEL.maxFeePerSec6, toFunctionSelector("function maxFeePerSec6() view returns (uint256)"));
   eq("0x" + CAT_SEL.versionFee, toFunctionSelector("function versionFee(bytes32, uint256) view returns (uint256)"));
   eq("0x" + CAT_SEL.maxFeePerSec6, "0x" + DEP_SEL.maxFeePerSec6);   // same signature on both contracts
-  // the rev-4 create the deploy console sends (fee snapshot appended)
+  // the rev-8 create the deploy console sends (fee snapshot, then the cap)
   const ref = "catalog://0x" + "cd".repeat(32) + "/3";
   eq(encCall(DEP_SEL.create, [
       { t: "str", v: ref }, { t: "uint", v: 0 }, { t: "uint", v: 50 },
       { t: "uint", v: 8080 }, { t: "str", v: "" }, { t: "bool", v: true },
-      { t: "str", v: "" }, { t: "addr", v: A1 }, { t: "uint", v: 278n },
+      { t: "str", v: "" }, { t: "addr", v: A1 }, { t: "uint", v: 278n }, { t: "uint", v: 700n },
     ]),
     encodeFunctionData({ abi: ABI("EnclaveDeployments"), functionName: "create",
-      args: [ref, 0, 50, 8080, "", true, "", A1, 278n] }));
+      args: [ref, 0, 50, 8080, "", true, "", A1, 278n, 700n] }));
   // the rev-5 publishVersion the Apps page sends: uint32[4] is a STATIC array
   // (4 inline words), so the hand encoder takes the axes as 4 uint args
   eq(encCall(CAT_SEL.publishVersion, [
@@ -119,6 +118,24 @@ test("publisher-fee surface pins + encodes like viem", () => {
     ]),
     encodeFunctionData({ abi: ABI("EnclaveAppCatalog"), functionName: "publishVersion",
       args: ["hello", "Hello", "", "1", "bafy123", [0, 0, 256, 10], "", "{}", 278n] }));
+});
+
+test("rate-cap surface (rev 8) pins + encodes like viem", () => {
+  // the ceiling every claim is checked against: the console's editor sends
+  // setMaxRate, every price display reads capOf, and a migration carries the
+  // caps with importCaps. A hand-pin drifting from the ABI here would send a
+  // tx to the wrong function on a money contract.
+  eq("0x" + DEP_SEL.setMaxRate, toFunctionSelector("function setMaxRate(bytes32 id, uint256 maxRate6)"));
+  eq("0x" + DEP_SEL.capOf, toFunctionSelector("function capOf(bytes32) view returns (uint256)"));
+  eq("0x" + CONTRACTS.EnclaveDeployments.sel.setMaxRate, "0x" + DEP_SEL.setMaxRate);
+  eq("0x" + CONTRACTS.EnclaveDeployments.sel.importCaps, toFunctionSelector("function importCaps(bytes32[], uint256[])"));
+  const id = "0x" + "ab".repeat(32);
+  eq(encCall(DEP_SEL.setMaxRate, [{ t: "bytes32", v: id }, { t: "uint", v: 694n }]),
+    encodeFunctionData({ abi: ABI("EnclaveDeployments"), functionName: "setMaxRate", args: [id, 694n] }));
+  // the registry side: an enclave states its price when it joins the network
+  eq("0x" + CONTRACTS.EnclaveRegistry.sel.setPrices, toFunctionSelector("function setPrices(bytes32,uint64,uint64)"));
+  eq("0x" + CONTRACTS.EnclaveRegistry.sel.register,
+    toFunctionSelector("function register(string,string,bytes32,uint64,uint64) returns (bytes32)"));
 });
 
 test("setAppRef (the dashboard's Version control) pins + encodes like viem", () => {

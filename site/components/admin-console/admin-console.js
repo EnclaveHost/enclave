@@ -147,8 +147,11 @@ class AdminConsole extends EnclaveElement {
         return out;
       };
       [S.dep, S.cat, S.pay, S.feat, S.rev] = await Promise.all([
-        dep ? Promise.all([rdAddr(dep, dSel.owner), rdAddr(dep, dSel.payout), rdUint(dep, dSel.pricePerSec6), rdUint(dep, dSel.cpuPricePerSec6), rdUint(dep, dSel.leaseSec), rdAddr(dep, dSel.ethUsdFeed), rdAddrSoft(dep, dSel.pendingOwner), rdUintSoft(dep, dSel.maxGpuMilli), rdUintSoft(dep, dSel.maxFeePerSec6)])
-              .then(([owner, payout, gpu, cpu, lease, feed, pending, maxGpu, maxFee]) => ({ addr: dep, owner, payout, gpu, cpu, lease, feed, pending, maxGpu, maxFee })) : null,
+        // gpu/cpu are the LEGACY platform list prices: gone from rev-8
+        // ledgers (each enclave posts its own in the registry), so they read
+        // soft and the panel says so instead of showing a stale number
+        dep ? Promise.all([rdAddr(dep, dSel.owner), rdAddr(dep, dSel.payout), rdUintSoft(dep, dSel.pricePerSec6), rdUintSoft(dep, dSel.cpuPricePerSec6), rdUint(dep, dSel.leaseSec), rdAddr(dep, dSel.ethUsdFeed), rdAddrSoft(dep, dSel.pendingOwner), rdUintSoft(dep, dSel.maxGpuMilli), rdUintSoft(dep, dSel.maxFeePerSec6), rdUintSoft(dep, dSel.deploymentsSchema)])
+              .then(([owner, payout, gpu, cpu, lease, feed, pending, maxGpu, maxFee, schema]) => ({ addr: dep, owner, payout, gpu, cpu, lease, feed, pending, maxGpu, maxFee, schema: Number(schema ?? 2) })) : null,
         cat ? Promise.all([rdAddr(cat, CONTRACTS.EnclaveAppCatalog.sel.owner), rdAddrSoft(cat, CONTRACTS.EnclaveAppCatalog.sel.pendingOwner), rdUintSoft(cat, CONTRACTS.EnclaveAppCatalog.sel.maxFeePerSec6), rdUintSoft(cat, CONTRACTS.EnclaveAppCatalog.sel.catalogSchema)])
               .then(([owner, pending, maxFee, schema]) => ({ addr: cat, owner, pending, maxFee, schema: Number(schema ?? 2) })) : null,
         pay ? Promise.all([rdAddr(pay, pSel.owner), rdAddr(pay, pSel.payout), rdAddr(pay, pSel.usdc), rdAddrSoft(pay, pSel.pendingOwner)])
@@ -240,10 +243,17 @@ class AdminConsole extends EnclaveElement {
     /* -- deployments -- */
     if (S.dep) {
       const d = S.dep;
+      const priced = d.gpu != null || d.cpu != null;   // rev <= 7: the platform still sets the price
       parts.push(sec(`EnclaveDeployments · ${link(d.addr)}`,
-        `Prices are µUSDC per second for a FULL card / node; existing deployments keep the rate they were created at. Owner ${mono(d.owner)}.`,
-        this._row("GPU price <code>setPrice</code>", `${d.gpu} <span class="dim">(≈ ${perHr(d.gpu)})</span>`, "dep-gpu", { owner: d.owner, placeholder: String(d.gpu), hint: "µUSDC/s" }) +
-        this._row("CPU price <code>setCpuPrice</code>", `${d.cpu} <span class="dim">(≈ ${perHr(d.cpu)})</span>`, "dep-cpu", { owner: d.owner, placeholder: String(d.cpu), hint: "µUSDC/s" }) +
+        priced
+          ? `Prices are µUSDC per second for a FULL card / node; existing deployments keep the rate they were created at. Owner ${mono(d.owner)}.`
+          : `This ledger (schema ${d.schema}) sets no prices: every enclave publishes its own per-machine rate in its EnclaveRegistry entry, `
+            + `a deployment is charged its shares of whichever enclave claims it, and each deployment's own maxRate6 caps that. `
+            + `Re-price the fleet by changing an enclave's SELL_CPU_PRICE6 / SELL_GPU_PRICE6 (it republishes on its next heartbeat). Owner ${mono(d.owner)}.`,
+        (priced
+          ? this._row("GPU price <code>setPrice</code>", `${d.gpu} <span class="dim">(≈ ${perHr(d.gpu)})</span>`, "dep-gpu", { owner: d.owner, placeholder: String(d.gpu), hint: "µUSDC/s" }) +
+            this._row("CPU price <code>setCpuPrice</code>", `${d.cpu} <span class="dim">(≈ ${perHr(d.cpu)})</span>`, "dep-cpu", { owner: d.owner, placeholder: String(d.cpu), hint: "µUSDC/s" })
+          : `<div class="ac-row"><div class="ac-lbl">Pricing</div><div class="ac-cur"><span class="dim">per enclave (registry entries), not per platform — nothing to set here</span></div><span></span><span></span><span></span></div>`) +
         (d.maxGpu == null
           ? `<div class="ac-row"><div class="ac-lbl">GPU share cap <code>setMaxGpuMilli</code></div><div class="ac-cur"><span class="dim">not in this contract rev — redeploy EnclaveDeployments to enable the cap</span></div><span></span><span></span><span></span></div>`
           : this._row("GPU share cap <code>setMaxGpuMilli</code>", `${d.maxGpu} <span class="dim">(${Number(d.maxGpu) / 10}% of a card max per NEW deployment; existing records untouched)</span>`, "dep-maxgpu", { owner: d.owner, placeholder: String(d.maxGpu), hint: "0…1000 milli" })) +

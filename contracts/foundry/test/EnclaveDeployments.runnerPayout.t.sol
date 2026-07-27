@@ -10,10 +10,15 @@ import {MockUSDC} from "./mocks/MockUSDC.sol";
 /// previous-runner settlement in claim()).
 contract MockRegistryMulti {
     mapping(bytes32 => address) public operatorOf;
+    mapping(bytes32 => uint64) public cpuPriceOf;   // 0 -> the shared default below
+    mapping(bytes32 => uint64) public gpuPriceOf;
     function set(bytes32 id, address operator) external { operatorOf[id] = operator; }
+    function setPrices(bytes32 id, uint64 c, uint64 g) external { cpuPriceOf[id] = c; gpuPriceOf[id] = g; }
     function get(bytes32 id) external view returns (IEnclaveRegistry.Enclave memory e) {
         e.operator = operatorOf[id];
         e.active = true;
+        e.cpuPricePerSec6 = cpuPriceOf[id] == 0 ? 834 : cpuPriceOf[id];
+        e.gpuPricePerSec6 = gpuPriceOf[id] == 0 ? 1667 : gpuPriceOf[id];
     }
 }
 
@@ -39,6 +44,9 @@ contract EnclaveDeploymentsRunnerPayoutTest is Test {
 
     uint256 internal constant GPU_PRICE = 1667;
     uint256 internal constant CPU_PRICE = 834;
+    // whole-machine ceiling: never binds, so these tests keep measuring the
+    // payout meter rather than the cap (EnclaveDeployments.rateCap.t.sol owns that)
+    uint256 internal constant ROOMY_CAP = (GPU_PRICE * 1000 + CPU_PRICE * 1000 + 999) / 1000;
 
     // All warps in this suite are ABSOLUTE (T0 + offset), never
     // vm.warp(block.timestamp + n): with via_ir on (foundry.toml), solc may
@@ -65,7 +73,7 @@ contract EnclaveDeploymentsRunnerPayoutTest is Test {
 
     function _create(uint16 gpuMilli, uint16 cpuMilli, uint256 fund6) internal returns (bytes32 id) {
         vm.startPrank(user);
-        id = dep.create("catalog://app/0", gpuMilli, cpuMilli, 8080, "", true, "", address(0), 0);
+        id = dep.create("catalog://app/0", gpuMilli, cpuMilli, 8080, "", true, "", address(0), 0, ROOMY_CAP);
         if (fund6 > 0) dep.fund(id, fund6);
         vm.stopPrank();
     }
@@ -86,9 +94,12 @@ contract EnclaveDeploymentsRunnerPayoutTest is Test {
 
     // ---- the rate snapshot --------------------------------------------------
 
-    function test_createSnapshotsRunnerRate_platformComponentOnly() public {
-        vm.prank(user);
-        bytes32 id = dep.create("catalog://app/0", 500, 250, 8080, "", true, "", publisher, 500);
+    function test_claimSnapshotsRunnerRate_platformComponentOnly() public {
+        vm.startPrank(user);
+        bytes32 id = dep.create("catalog://app/0", 500, 250, 8080, "", true, "", publisher, 500, ROOMY_CAP + 500);
+        dep.fund(id, 100e6);
+        vm.stopPrank();
+        _claim(id);                                    // the claiming host's price is the rate
         uint256 rate = _rate(500, 250) + 500;
         (uint256 r6,,) = dep.earnOf(id);
         assertEq(r6, ((rate - 500) * 8000) / 10000);   // bps of rate MINUS the publisher fee
@@ -101,12 +112,15 @@ contract EnclaveDeploymentsRunnerPayoutTest is Test {
         bytes32 later = _create(0, 100, 0);
         (uint256 rBefore,,) = dep.earnOf(before);
         (uint256 rLater,,) = dep.earnOf(later);
-        assertEq(rBefore, (_rate(0, 100) * 8000) / 10000);
-        assertEq(rLater, (_rate(0, 100) * 5000) / 10000);
+        // pre-claim the working rate is the deployment's ceiling (no host has
+        // priced it yet), so the cut is bps of that
+        assertEq(rBefore, (ROOMY_CAP * 8000) / 10000);
+        assertEq(rLater, (ROOMY_CAP * 5000) / 10000);
     }
 
     function test_resizeResnapshotsAtCurrentBps() public {
-        bytes32 id = _create(0, 100, 0);
+        bytes32 id = _create(0, 100, 100e6);
+        _claim(id);
         dep.setRunnerBps(5000);
         vm.prank(user);
         dep.setShares(id, 0, 200);
@@ -132,11 +146,15 @@ contract EnclaveDeploymentsRunnerPayoutTest is Test {
     function test_fundSplitsEscrowFeeAndPayout_exactly() public {
         uint256 fee = 500;
         vm.startPrank(user);
-        bytes32 id = dep.create("catalog://app/0", 500, 250, 8080, "", true, "", publisher, fee);
+        bytes32 id = dep.create("catalog://app/0", 500, 250, 8080, "", true, "", publisher, fee, ROOMY_CAP + fee);
         uint256 value = 123_456_789;                   // deliberately non-dividing
         dep.fund(id, value);
         vm.stopPrank();
-        uint256 rate = _rate(500, 250) + fee;
+        // a funding before any claim splits against the record's working rate,
+        // which pre-claim is its ceiling (see EnclaveDeployments.rateCap.t.sol
+        // for what a later claim at a cheaper host does to the ratio)
+        uint256 rate = dep.get(id).rate;
+        assertEq(rate, ROOMY_CAP + fee);
         (uint256 r6, uint256 escrow6,) = dep.earnOf(id);
         uint256 cut = (value * fee) / rate;            // floor (publisher)
         uint256 esc = (value * r6 + rate - 1) / rate;  // ceil (escrow)
@@ -301,8 +319,8 @@ contract EnclaveDeploymentsRunnerPayoutTest is Test {
 
     function test_creditCappedByEscrow_neverInsolvent() public {
         bytes32 id = _create(0, 100, 100e6);
-        (uint256 r6,,) = dep.earnOf(id);
         _claim(id);
+        (uint256 r6,,) = dep.earnOf(id);               // the cut this host bought
         // drain the escrow to a sliver mid-lease via sweep? not allowed (leased) —
         // instead prove the cap arithmetic: elapsed*r6 above escrow pays exactly escrow
         vm.warp(T0 + 1800);
@@ -319,8 +337,8 @@ contract EnclaveDeploymentsRunnerPayoutTest is Test {
         // fund one quantum exactly: after the claim burns it the balance is 0
         uint256 rate = _rate(0, 100);
         bytes32 id = _create(0, 100, rate * 1800 + 7);  // +7: a non-dividing escrow ceil leaves residue
-        (uint256 r6,,) = dep.earnOf(id);
         _claim(id);
+        (uint256 r6,,) = dep.earnOf(id);
         vm.expectRevert("leased");
         dep.sweepEscrow(id);                           // never under a live lease
         vm.warp(T0 + 1800 + 1);

@@ -14,7 +14,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, pickEnclaveFor, rankEnclavesFor, leaseHostOf } from "../site/js/core/pricing.js";
+import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, enclavePriceOf, pickEnclaveFor, rankEnclavesFor, leaseHostOf,
+  fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE } from "../site/js/core/pricing.js";
 
 // Reference copy of the RUNNER's minimum-share math (supervisor.js: pctCeil,
 // gpuShareOf, cpuShareOf, minSharesOf with MIN_COMPUTE_PCT=1). Keep in sync.
@@ -191,4 +192,67 @@ test("enclaveSpecOf: per-axis fallback for old builds", () => {
   const s = enclaveSpecOf(row("x", { gpu: true, cardVramGb: 79.6 }));
   assert.equal(s.cardVramGb, 79.6);
   assert.equal(s.nodeRamGb, 64);          // omitted axes keep the safe constants
+});
+
+/* ---- price is per enclave (rev 8) -----------------------------------------
+   Each enclave posts what its whole machine costs; a deployment pays that
+   fraction of whichever one claims it. So "what does this cost" is answered by
+   the CHEAPEST live enclave (the box a new deployment lands on), and "what
+   would a resize cost" by the box already holding the lease. Getting this
+   wrong doesn't just misprice a readout: the deploy form's default rate cap
+   comes from it, and a cap below what any enclave charges is a deployment
+   nobody can claim. */
+
+test("adoptFleetPrice: the fleet's cheapest posted price, with the constants as the only fallback", () => {
+  const before = fleetPrice();
+  assert.equal(before.live, false, "untouched, the pre-fetch constants stand");
+  assert.equal(before.node, FALLBACK_CPU_NODE_RATE);
+
+  // the relay aggregate carries the minimum over claiming enclaves
+  assert.equal(adoptFleetPrice({ cheapestCpuPricePerSec6: 556, cheapestGpuPricePerSec6: 1200 }), true);
+  const p = fleetPrice();
+  assert.equal(p.live, true);
+  assert.equal(p.node, 0.000556);
+  assert.equal(p.full, 0.0012);
+  assert.equal(adoptFleetPrice({ cheapestCpuPricePerSec6: 556, cheapestGpuPricePerSec6: 1200 }), false, "no change, no re-render");
+
+  // a single enclave's own ask works too (the console can point at one box)
+  assert.equal(adoptFleetPrice({ askCpuPricePerSec6: 834, askGpuPricePerSec6: 1667 }), true);
+  assert.equal(fleetPrice().node, 0.000834);
+  // a fleet that posts nothing leaves the last known price alone
+  assert.equal(adoptFleetPrice({ enclaves: 2 }), false);
+  assert.equal(fleetPrice().node, 0.000834);
+});
+
+test("shareRates prices against the enclave you name, not a platform constant", () => {
+  adoptFleetPrice({ cheapestCpuPricePerSec6: 834, cheapestGpuPricePerSec6: 1667 });
+  const dear = { full: 0.003334, node: 0.001668 };
+  assert.equal(shareRates(0, 100).rate, 0.000834, "no price named: the fleet's cheapest");
+  assert.equal(shareRates(0, 100, undefined, dear).rate, 0.001668);
+  assert.equal(shareRates(50, 10).rate, 0.5 * 0.0016670 + 0.1 * 0.000834);
+});
+
+test("enclavePriceOf: a row's own posted price, the fleet's when it posts none", () => {
+  adoptFleetPrice({ cheapestCpuPricePerSec6: 834, cheapestGpuPricePerSec6: 1667 });
+  const priced = enclavePriceOf(row("seller0", { gpu: true, claimEnabled: true, askCpuPricePerSec6: 1668, askGpuPricePerSec6: 3334 }));
+  assert.equal(priced.node, 0.001668);
+  assert.equal(priced.full, 0.003334);
+  const silent = enclavePriceOf(row("old", { gpu: true, claimEnabled: true }));
+  assert.deepEqual(silent, { full: 0.0016670, node: 0.000834 });
+});
+
+test("rankEnclavesFor puts the CHEAPEST box for this app first, not just the biggest", () => {
+  adoptFleetPrice({ cheapestCpuPricePerSec6: 834, cheapestGpuPricePerSec6: 1667 });
+  // both fit the app; the big box needs a smaller share but charges much more
+  const big = row("dear-big", { gpu: false, claimEnabled: true, cpuShareFree: 1, nodeRamGb: 64, nodeVcpus: 16, nodeGflops: 1000,
+                                askCpuPricePerSec6: 8340 });
+  const small = row("cheap-small", { gpu: false, claimEnabled: true, cpuShareFree: 1, nodeRamGb: 8, nodeVcpus: 4, nodeGflops: 500,
+                                     askCpuPricePerSec6: 400 });
+  const ranked = rankEnclavesFor(MC, [big, small]);
+  assert.deepEqual(ranked.map((r) => r.name), ["cheap-small", "dear-big"]);
+  assert.ok(ranked[0].minRate < ranked[1].minRate);
+  // and with equal prices the old rule stands: the box asking for less of itself
+  const evenBig = row("big", { ...big.availability, askCpuPricePerSec6: 834 });
+  const evenSmall = row("small", { ...small.availability, askCpuPricePerSec6: 834 });
+  assert.deepEqual(rankEnclavesFor(MC, [evenSmall, evenBig]).map((r) => r.name), ["big", "small"]);
 });

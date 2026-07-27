@@ -28,13 +28,23 @@ const CREATE_LEGACY = { type: "function", name: "create", stateMutability: "nonp
            { name: "ports", type: "string" }, { name: "isPublic", type: "bool" },
            { name: "configCid", type: "string" }],
   outputs: [{ type: "bytes32" }] };
+// the rev-4..7 create (fee snapshot, no cap) - the fee tests run on a rev-4 ledger
+const CREATE_V4 = { type: "function", name: "create", stateMutability: "nonpayable",
+  inputs: [...CREATE_LEGACY.inputs, { name: "feeRecipient", type: "address" }, { name: "feePerSec6", type: "uint256" }],
+  outputs: [{ type: "bytes32" }] };
 const PUBLISH_LEGACY = { type: "function", name: "publishVersion", stateMutability: "nonpayable",
   inputs: [{ name: "slug", type: "string" }, { name: "name", type: "string" },
            { name: "description", type: "string" }, { name: "version", type: "string" },
            { name: "cid", type: "string" }, { name: "res", type: "uint32[4]" },
            { name: "ports", type: "string" }, { name: "config", type: "string" }],
   outputs: [{ type: "bytes32" }, { type: "uint256" }] };
-const DEP_ABI = [...JSON.parse(fs.readFileSync(path.join(REPO, "contracts", "EnclaveDeployments.abi.json"), "utf8")), CREATE_LEGACY];
+// rev 8 dropped the two global list prices (each enclave posts its own now),
+// but the CLI still reads them on older ledgers - which these tests exercise -
+// so the stub keeps answering them.
+const PRICE_LEGACY = ["pricePerSec6", "cpuPricePerSec6"].map((name) => ({
+  type: "function", name, stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }));
+const DEP_ABI = [...JSON.parse(fs.readFileSync(path.join(REPO, "contracts", "EnclaveDeployments.abi.json"), "utf8")),
+                 CREATE_LEGACY, CREATE_V4, ...PRICE_LEGACY];
 const CAT_ABI = [...JSON.parse(fs.readFileSync(path.join(REPO, "contracts", "EnclaveAppCatalog.abi.json"), "utf8")), PUBLISH_LEGACY];
 
 const PK = "0x" + "11".repeat(32);
@@ -80,6 +90,8 @@ const S = {
   catRev: 4n,                                  // catalogSchema the stub plays (4 = the live pre-fee catalog)
   verFee: 0n,                                  // versionFee(appId, *) on the rev-5 catalog (µUSDC/s)
   fleetResize: true,                           // availability.shareResize (fleet-AND; resize tests flip it)
+  cap6: 0n,                                    // capOf() (rev-8 ledgers): the deployment's hourly ceiling
+  fleetRateCap: true,                          // availability.rateCap (fleet-AND for cap edits)
   fleet: null,                                 // GET /enclaves rows (per-box hardware; null = no fleet view)
 };
 
@@ -120,7 +132,10 @@ function apiServer() {
       });
     if (u.pathname === "/availability")
       return json(200, { aggregate: true, enclaves: 2, gpuShareFree: 0.5, cpuShareFree: 0.9,
-                         shareResize: S.fleetResize });
+                         shareResize: S.fleetResize, rateCap: S.fleetRateCap,
+                         // rev-8 fleets post prices; the cheapest is what a new
+                         // deployment pays and what its cap defaults to
+                         cheapestCpuPricePerSec6: 556, cheapestGpuPricePerSec6: 1667 });
     // per-box fleet table: what a version change / resize of a LEASED
     // deployment is really sized against (its lease holder), vs /v1/pricing's
     // fleet-wide numbers. 404 = no fleet view (a direct-to-enclave base).
@@ -219,6 +234,7 @@ function rpcServer() {
       versionFee: () => [S.verFee],          // rev-5 surface (the CLI never calls it below rev 5)
       maxFeePerSec6: () => [1389n],          // the publish-time cap (~$5.00/hour)
       feeOf: () => [OWNER, S.verFee],        // rev-4 surface: the deployment's fee snapshot
+      capOf: () => [S.cap6],                 // rev-8 surface: the deployment's spend ceiling
       getAppsPage: () => [Number(args[0]) === 0 ? [{ appId: APP_ID, publisher: OWNER, slug: "hello-world",
         name: "Hello World", description: "first app", versionCount: S.versionCount, createdAt: 1n, updatedAt: 1n, active: true }] : []],
       getVersionsPage: () => [Number(args[1]) === 0 ? [version, version2()].slice(0, S.versionCount) : []],
@@ -568,6 +584,76 @@ test("resize on a pre-rev-6 ledger fails with words, before any signature", asyn
   assert.notEqual(r.code, 0, "must refuse");
   assert.ok(!S.txs.length, "no tx sent");
   assert.match(r.err, /predates share resizes/);
+});
+
+/* ---- rate caps (rev-8 ledgers): the buyer's ceiling ------------------------
+   Enclaves post their own prices, so a deployment states the most it will pay
+   and only enclaves at or under it may run it - which is also what decides
+   where it goes when its host dies. The CLI defaults the cap to what the
+   cheapest live enclave charges, so nothing dearer can pick a new deployment
+   up without the owner asking for it. */
+
+test("deploy on a rev-8 ledger prices at the cheapest live enclave and caps there", async () => {
+  S.txs.length = 0; S.claimed = false; S.depRev = 8n;
+  const r = await run(["deploy", "hello-world:1", "--fund", "2"]);
+  assert.equal(r.code, 0, r.err);
+  const create = S.txs.find((t) => t.functionName === "create");
+  assert.ok(create, "create tx sent");
+  assert.equal(create.args.length, 10, "rev-8 create carries the cap last");
+  // cheapestCpuPricePerSec6 556 * 50 milli, ceil /1000 = 28
+  assert.equal(create.args[9], 28n);
+  assert.match(r.out, /rate cap: \$0\.10\/h/);
+  S.depRev = 3n;
+});
+
+test("deploy --max-rate widens the ceiling, and refuses one nothing could serve", async () => {
+  S.txs.length = 0; S.claimed = false; S.depRev = 8n;
+  const ok = await run(["deploy", "hello-world:1", "--fund", "2", "--max-rate", "1.00"]);
+  assert.equal(ok.code, 0, ok.err);
+  assert.equal(S.txs.find((t) => t.functionName === "create").args[9], 278n);   // $1.00/h -> 278/s
+
+  S.txs.length = 0;
+  const low = await run(["deploy", "hello-world:1", "--fund", "2", "--max-rate", "0.01"]);
+  assert.notEqual(low.code, 0, "a cap under the fleet's price must refuse");
+  assert.ok(!S.txs.length, "no tx sent");
+  assert.match(low.err, /below what the cheapest live enclave charges/);
+
+  S.txs.length = 0; S.depRev = 3n;
+  const old = await run(["deploy", "hello-world:1", "--fund", "2", "--max-rate", "1.00"]);
+  assert.notEqual(old.code, 0, "pre-rev-8 ledgers have no cap to set");
+  assert.match(old.err, /predates rate caps/);
+});
+
+test("rate-cap: shows the ceiling, then moves it", async () => {
+  S.txs.length = 0; S.depRev = 8n; S.cap6 = 501n; S.claimed = false;
+  const show = await run(["rate-cap", ID]);
+  assert.equal(show.code, 0, show.err);
+  assert.ok(!S.txs.length, "reading takes no tx");
+  assert.match(show.out, /cap\s+\$1\.80\/h/);
+
+  const set = await run(["rate-cap", ID, "2.50"]);
+  assert.equal(set.code, 0, set.err);
+  const tx = S.txs.find((t) => t.functionName === "setMaxRate");
+  assert.ok(tx, "setMaxRate tx sent");
+  assert.equal(tx.args[0].toLowerCase(), ID.toLowerCase());
+  assert.equal(tx.args[1], 694n);                           // $2.50/h -> 694/s
+  S.cap6 = 0n; S.depRev = 3n;
+});
+
+test("rate-cap warns before a ceiling that stops a running app, and refuses one under the publisher fee", async () => {
+  S.txs.length = 0; S.depRev = 8n; S.cap6 = 501n; S.claimed = true; S.verFee = 0n;   // leased, paying 6/s
+  const r = await run(["rate-cap", ID, "0.01"]);                      // 3/s: below the running rate
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /BELOW what this deployment pays now/);
+  assert.match(r.out, /then the app STOPS/);
+  assert.ok(S.txs.some((t) => t.functionName === "setMaxRate"), "still sent - the owner confirmed");
+
+  S.txs.length = 0; S.catRev = 5n; S.verFee = 278n;                   // a paid app: fee $1.00/h
+  const under = await run(["rate-cap", ID, "0.50"]);                  // 138/s, under the 278/s fee
+  assert.notEqual(under.code, 0, "a cap under the publisher fee is unpayable");
+  assert.ok(!S.txs.length, "no tx sent");
+  assert.match(under.err, /publisher fee/);
+  S.cap6 = 0n; S.depRev = 3n; S.claimed = false; S.catRev = 4n; S.verFee = 0n;
 });
 
 test("upgrade suggests the in-place resize dials when the version outgrows the shares (rev 6)", async () => {

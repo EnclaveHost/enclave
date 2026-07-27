@@ -21,8 +21,40 @@
    real hardware in the fleet: a wrong fallback must over-ask
    (costs the user pennies), never under-sell.
    ============================================================ */
-export const FULL_RATE = 0.0016667;        // whole-H200 USDC/sec ($6.00/hr)
-export const CPU_NODE_RATE = 0.000834;     // whole CPU node USDC/sec ($3.00/hr)
+/* PRICE IS PER ENCLAVE, adopted live like the hardware. Each enclave posts
+   what its whole machine costs (askCpu/askGpuPricePerSec6 in /availability,
+   its EnclaveRegistry entry on-chain) and a deployment pays that fraction of
+   whichever one claims it — so the number to SHOW is the cheapest connected
+   enclave's, and the number to CHARGE is the target box's. The constants below
+   are only the pre-fetch fallback (the hosted fleet's long-standing prices);
+   adoptFleetPrice replaces them with the live floor. */
+export const FALLBACK_FULL_RATE = 0.0016667;      // whole card USDC/sec ($6.00/hr)
+export const FALLBACK_CPU_NODE_RATE = 0.000834;   // whole node USDC/sec ($3.00/hr)
+let PRICE = null;   // { full, node } USDC/sec, cheapest live enclave; null until adopted
+// Current prices. `live` says whether a real /availability payload set them.
+export function fleetPrice(){
+  return { full: PRICE?.full ?? FALLBACK_FULL_RATE, node: PRICE?.node ?? FALLBACK_CPU_NODE_RATE, live: !!PRICE };
+}
+// Adopt the CHEAPEST posted price from an /availability payload: the relay
+// aggregate carries cheapest*PricePerSec6 (min over claiming enclaves), a
+// single enclave carries its own ask*. Absent on a fleet that predates posted
+// prices — the fallbacks then stand. Returns true when a number changed.
+export function adoptFleetPrice(a){
+  if (!a || typeof a !== "object") return false;
+  const per = (x) => { const v = Number(x); return Number.isFinite(v) && v > 0 ? v / 1e6 : 0; };
+  const full = per(a.cheapestGpuPricePerSec6 ?? a.askGpuPricePerSec6);
+  const node = per(a.cheapestCpuPricePerSec6 ?? a.askCpuPricePerSec6);
+  if (!node) return false;                       // no live price: keep what we have
+  const next = { full: full || PRICE?.full || FALLBACK_FULL_RATE, node };
+  const changed = !PRICE || PRICE.full !== next.full || PRICE.node !== next.node;
+  PRICE = next;
+  return changed;
+}
+// Back-compat aliases for call sites that read a plain number. These follow
+// the adopted price, so a module that imported them once still shows the
+// current one only if it re-reads via fleetPrice() — prefer that.
+export const FULL_RATE = FALLBACK_FULL_RATE;
+export const CPU_NODE_RATE = FALLBACK_CPU_NODE_RATE;
 export const MIN_COMPUTE_PCT = 1;    // shares are dialed in whole percent (CUDA MPS grain); 1% floor, no fixed 1/7
 
 const FALLBACK = {
@@ -74,16 +106,31 @@ export function minPctsOf(v, spec){
   const gpu0 = (vramMb > 0 || gpuGf > 0) ? pctCeil(Math.max(vramMb / 1024 / s.cardVramGb, gpuGf / 1000 / s.cardTflops)) : 0;
   return { gpuPct: gpu0 > 0 ? Math.max(gpu0, cpu) : 0, cpuPct: cpu };
 }
-export function shareRates(gpuPct, cpuPct, spec){  // what the two dials buy on this server spec
+// What the two dials buy on this server spec, and cost per second. `price`
+// pins a specific enclave's posted rates ({full, node} USDC/sec, e.g. from
+// enclavePriceOf(row)); omitted = the cheapest live enclave, which is what a
+// new deployment lands on.
+export function shareRates(gpuPct, cpuPct, spec, price){
   const s = spec || serverSpec();
+  const p = price || fleetPrice();
   const g = Math.min(100, Math.max(0, Math.round(gpuPct)));
   const c = Math.min(100, Math.max(MIN_COMPUTE_PCT, Math.round(cpuPct)));
-  return { rate: (g / 100) * FULL_RATE + (c / 100) * CPU_NODE_RATE, gpuPct: g, cpuPct: c,
+  return { rate: (g / 100) * p.full + (c / 100) * p.node, gpuPct: g, cpuPct: c,
            vramGb: (g / 100) * s.cardVramGb, tflops: (g / 100) * s.cardTflops,
            ramGb: (c / 100) * s.nodeRamGb, vcpus: (c / 100) * s.nodeVcpus, gflops: (c / 100) * s.nodeGflops };
 }
 
 /* ---- per-enclave targeting (the relay's /enclaves rows) ------------------ */
+
+// One enclave row's POSTED price ({full, node} USDC/sec): what it charges for
+// a whole card / whole node. A row that posts nothing falls back to the fleet
+// price, so callers always have a number to show.
+export function enclavePriceOf(row){
+  const a = (row && row.availability) || {};
+  const f = fleetPrice();
+  const per = (x, fb) => { const v = Number(x); return Number.isFinite(v) && v > 0 ? v / 1e6 : fb; };
+  return { full: per(a.askGpuPricePerSec6, f.full), node: per(a.askCpuPricePerSec6, f.node) };
+}
 
 // One enclave row's sizing hardware: its own advertised numbers per axis, the
 // fallback constants for anything it omits (old builds).
@@ -133,11 +180,18 @@ export function rankEnclavesFor(v, rows){
     const free = { gpuPct: Math.floor((a.gpuShareFree || 0) * 100), cpuPct: Math.floor((a.cpuShareFree || 0) * 100) };
     const now = fits && (!needsGpu || free.gpuPct >= mins.gpuPct) && free.cpuPct >= mins.cpuPct;
     const name = row.name || String(row.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "enclave";
-    return { row, name, spec, mins, free, gpu, fits, now };
+    // what running THIS app on THIS box costs per second at its minimum
+    // shares: the box's own posted price times the share its hardware forces.
+    // Big-and-dear can beat small-and-cheap, so the ranking compares money.
+    const price = enclavePriceOf(row);
+    const minRate = shareRates(mins.gpuPct, mins.cpuPct, spec, price).rate;
+    return { row, name, spec, mins, free, gpu, fits, now, price, minRate };
   }).filter((c) => c.fits && (needsGpu ? c.gpu : true));
-  const order = (list) => list.slice().sort((x, y) => needsGpu
+  // CHEAPEST FIRST, in money — then the old tiebreaks (smallest minimum share,
+  // CPU boxes before GPU leftovers for CPU work, most free pool)
+  const order = (list) => list.slice().sort((x, y) => (x.minRate - y.minRate) || (needsGpu
     ? (x.mins.gpuPct - y.mins.gpuPct) || (y.free.gpuPct - x.free.gpuPct)
-    : (x.mins.cpuPct - y.mins.cpuPct) || ((x.gpu === true) - (y.gpu === true)) || (y.free.cpuPct - x.free.cpuPct));
+    : (x.mins.cpuPct - y.mins.cpuPct) || ((x.gpu === true) - (y.gpu === true)) || (y.free.cpuPct - x.free.cpuPct)));
   return [...order(cand.filter((c) => c.now)).map((c) => ({ ...c, queued: false })),
           ...order(cand.filter((c) => !c.now)).map((c) => ({ ...c, queued: true }))];
 }
@@ -162,7 +216,7 @@ export function leaseHostOf(d, rows, nowMs){
   const row = (rows || []).find((e) => String((e && e.id) || "").toLowerCase() === runner);
   if (!row || !row.availability) return null;
   return { row, name: row.name || String(row.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "its enclave",
-           spec: enclaveSpecOf(row) };
+           spec: enclaveSpecOf(row), price: enclavePriceOf(row) };
 }
 
 export function pickEnclaveFor(v, rows){

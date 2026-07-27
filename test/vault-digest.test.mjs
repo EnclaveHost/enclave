@@ -43,15 +43,18 @@ const ID = "0x" + "7b".repeat(32);
 const SPEC = { appRef: "catalog://0x" + "cc".repeat(32) + "/3", gpuMilli: 0, cpuMilli: 120,
                appPort: 8080, ports: "tcp:7777", isPublic: true };
 
-const createCallFor = ({ feeRecipient = "0x0000000000000000000000000000000000000000", feePerSec6 = 0n, spec = SPEC } = {}) =>
+// maxRate6 != null builds the rev-8 (ten-argument) shape, with the deployment's
+// spend ceiling last; otherwise the rev-4..7 nine-argument one
+const createCallFor = ({ feeRecipient = "0x0000000000000000000000000000000000000000", feePerSec6 = 0n, spec = SPEC, maxRate6 = null } = {}) =>
   encodeFunctionData({
     abi: [{ type: "function", name: "create", stateMutability: "nonpayable", outputs: [{ type: "bytes32" }], inputs: [
       { name: "appRef", type: "string" }, { name: "gpuMilli", type: "uint16" }, { name: "cpuMilli", type: "uint16" },
       { name: "appPort", type: "uint32" }, { name: "ports", type: "string" }, { name: "isPublic", type: "bool" },
-      { name: "configCid", type: "string" }, { name: "feeRecipient", type: "address" }, { name: "feePerSec6", type: "uint256" }] }],
+      { name: "configCid", type: "string" }, { name: "feeRecipient", type: "address" }, { name: "feePerSec6", type: "uint256" },
+      ...(maxRate6 != null ? [{ name: "maxRate6", type: "uint256" }] : [])] }],
     functionName: "create",
     args: [spec.appRef, spec.gpuMilli, spec.cpuMilli, spec.appPort, spec.ports, spec.isPublic, spec.configCid ?? "",
-           feeRecipient, feePerSec6],
+           feeRecipient, feePerSec6, ...(maxRate6 != null ? [BigInt(maxRate6)] : [])],
   });
 
 // EnclaveCreditVault._auth's own abi.encode, spelled out per op
@@ -97,6 +100,13 @@ test("decodeCreateCall: round-trips viem's encoding, fee arguments included", ()
   assert.equal(d.feePerSec6, 1389n);
   // an encoding this side cannot account for is a refusal, not a shrug
   assert.throws(() => decodeCreateCall("0xdeadbeef" + "00".repeat(64)), /not a create\(\)/);
+  // rev 8 appends the spend ceiling; every earlier field still reads back
+  const d8 = decodeCreateCall(createCallFor({ maxRate6: 501n }));
+  assert.equal(d8.appRef, SPEC.appRef);
+  assert.equal(d8.cpuMilli, 120);
+  assert.equal(d8.feePerSec6, 0n);
+  assert.equal(d8.maxRate6, 501n);
+  assert.equal(decodeCreateCall(createCallFor()).maxRate6, 0n, "pre-rev-8 calldata carries no cap");
 });
 
 // ---------- control calldata --------------------------------------------------
@@ -117,6 +127,8 @@ test("expectedControlCall: each action rebuilds byte-identical to viem", () => {
     depCall("setConfig", [B, { type: "string" }], [ID, '{"waf":{"rps":10}}']));
   assert.equal(expectedControlCall({ id: ID, action: "resize", gpuMilli: 250, cpuMilli: 200 }),
     depCall("setShares", [B, { type: "uint16" }, { type: "uint16" }], [ID, 250, 200]));
+  assert.equal(expectedControlCall({ id: ID, action: "maxrate", maxRate6: 1667 }),
+    depCall("setMaxRate", [B, { type: "uint256" }], [ID, 1667n]));
   // version + resize ride one signature as a multicall
   assert.equal(expectedControlCall({ id: ID, action: "resize", gpuMilli: 250, cpuMilli: 200, ref }),
     encodeFunctionData({ abi: [{ type: "function", name: "multicall", stateMutability: "nonpayable",
@@ -137,6 +149,23 @@ test("verifyPrepare: an honest prepare passes for every op", () => {
   verifyPrepare("refund", prepFor("refund", { amount6: "5000000" }), { amountUsd: 5 });
   verifyPrepare("control", prepFor("control", { callData: expectedControlCall({ id: ID, action: "suspend" }) }),
     { id: ID, action: "suspend" });
+  // rev-8 deploy: the cap the caller named must be the cap that was encoded
+  verifyPrepare("deploy", prepFor("deploy", { createCall: createCallFor({ maxRate6: 501n }), fund6: "10000000" }),
+    { spec: { ...SPEC, maxRate6: 501n }, fundUsd: 10 });
+  verifyPrepare("control", prepFor("control", { callData: expectedControlCall({ id: ID, action: "maxrate", maxRate6: 900 }) }),
+    { id: ID, action: "maxrate", maxRate6: 900 });
+});
+
+test("verifyPrepare: a swapped rate cap is refused", () => {
+  // the relay quoting one ceiling and encoding another would let a dearer
+  // enclave take the work (the funding still bounds the loss, but the burn
+  // rate is not what the buyer agreed to)
+  assert.throws(() => verifyPrepare("deploy",
+    prepFor("deploy", { createCall: createCallFor({ maxRate6: 5000n }), fund6: "10000000" }),
+    { spec: { ...SPEC, maxRate6: 501n }, fundUsd: 10 }), /different rate cap/);
+  assert.throws(() => verifyPrepare("control",
+    prepFor("control", { callData: expectedControlCall({ id: ID, action: "maxrate", maxRate6: 5000 }) }),
+    { id: ID, action: "maxrate", maxRate6: 900 }), /different change/);
 });
 
 test("verifyPrepare: a publisher fee smuggled into create() is refused", () => {

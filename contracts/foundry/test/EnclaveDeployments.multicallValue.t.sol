@@ -58,7 +58,7 @@ contract EnclaveDeploymentsMulticallValueTest is Test {
 
     function _create() internal returns (bytes32 id) {
         vm.prank(user);
-        id = dep.create("catalog://app/0", 0, 100, 8080, "", true, "", address(0), 0);
+        id = dep.create("catalog://app/0", 0, 100, 8080, "", true, "", address(0), 0, 2501);
     }
 
     /// the payable path itself works - otherwise the reverts below prove nothing

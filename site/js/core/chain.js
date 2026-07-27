@@ -7,6 +7,7 @@
 import { APP_CATALOG_ADDRESS, DEPLOYMENTS_ADDRESS, FEATURED_ADDRESS, REVIEWS_ADDRESS, HOST_REVIEWS_ADDRESS, APP_CATALOG_CHAIN, APP_CATALOG_RPCS } from "./config.js";
 import { EnclaveError } from "./api.js";
 import { wait } from "./util.js";
+import { fleetPrice } from "./pricing.js";
 
 /* ---- word-level encoders ---- */
 export const pad32 = (h) => h.replace(/^0x/, "").toLowerCase().padStart(64, "0");
@@ -27,19 +28,24 @@ export const hexBig = (h) => (!h || h === "0x") ? 0n : BigInt(h);
    (EIP-3009 USDC or ETH), and enclaves claim + serve it under expiring
    leases - so a deployment outlives any single enclave, its update, or
    its crash. */
-export const DEP_SEL = { create:"e99c6ae0",   // rev >= 4: (..., configCid, feeRecipient, feePerSec6) - the publisher-fee snapshot
+export const DEP_SEL = { create:"36aaac4b",   // rev >= 8: (..., feeRecipient, feePerSec6, maxRate6) - the spend ceiling
+                         createV4:"e99c6ae0", // rev 4-7: (..., configCid, feeRecipient, feePerSec6) - the publisher-fee snapshot
                          createV3:"11835efe", // rev 2-3: no fee args
                          createV1:"1a8e502a", // rev 1: extra sshPubKey string before configCid
                          fund:"e46bbc9e", fundAuth:"209c0069", fundEth:"9f33dca0", get:"8eaa6ac0",
                          price:"1e897c58", cpuPrice:"3f6195cc", setActive:"6485d678", setAppRef:"4d506615", maxGpuMilli:"4c8c5963",
                          feeOf:"430062bd", maxFeePerSec6:"95b957d7",
-                         setShares:"00bc2be4",  // rev >= 6: owner share resize, rate recalculated at current prices
+                         setShares:"00bc2be4",  // rev >= 6: owner share resize, re-priced at the serving enclave
                          setConfig:"df6e40ba",  // owner rewrite of the options envelope (waf + config namespaces)
+                         setMaxRate:"2d3e461f", // rev >= 8: move the hourly spend ceiling (which enclaves may run it)
+                         capOf:"6cc6a48c",      // rev >= 8: read that ceiling (0 = a grandfathered, uncapped import)
                          multicall:"ac9650d8", // self-delegatecall batcher: setAppRef + setShares ride one signature
                          deploymentsSchema:"5d1b72b6" };  // shape-revision marker (reverts on rev-1 contracts;
                                                          // rev 3 = rev-2 struct + setAppRef version changes;
                                                          // rev 4 = same struct + the publisher-fee surface;
-                                                         // rev 6 = same struct + the setShares resize surface)
+                                                         // rev 6 = same struct + the setShares resize surface;
+                                                         // rev 8 = same struct, NO platform price (each enclave
+                                                         // posts its own) + the per-deployment rate cap)
 export const DEP_CREATED_TOPIC = "0x3b201eb11e77934b296f908775fc0a82679683fd83a1232579f1014bcf7d3239"; // Created(bytes32,address,string,uint16,uint16,uint256)
 export const DEP_SCHEMA = [   // mirrors EnclaveDeployments.Deployment field order exactly (schema rev 2)
   {k:"id",t:"bytes32"},{k:"owner",t:"addr"},{k:"appRef",t:"str"},{k:"ports",t:"str"},
@@ -263,18 +269,35 @@ export async function depGet(id){
   const obj = decodeStruct(await depCall("0x" + DEP_SEL.get + pad32(id.replace(/^0x/, ""))), schema);
   return obj && Number(obj.createdAt) ? obj : null;           // a never-created id decodes to an all-zero record
 }
-// The contract's live full-card / full-node per-second prices (6dp USDC),
-// read once and cached: EVERY money estimate must come from these - the
-// operator sets them on-chain, so client constants drift (and the create's
-// ceil-to-1-micro-USDC floor makes small deployments cost more than the
-// linear formula suggests).
+// The live full-card / full-node per-second prices (6dp USDC), read once and
+// cached: EVERY money estimate must come from these, never from client
+// constants (and the create's ceil-to-1-micro-USDC floor makes small
+// deployments cost more than the linear formula suggests).
+//
+// Rev 8 moved pricing OFF the contract: each enclave posts its own in its
+// registry entry and charges it when it claims, so the number a new deployment
+// will pay is the CHEAPEST live enclave's — read from /availability, which
+// pricing.js has already adopted. Older ledgers keep the two global getters.
 let _prices6 = null;
 export async function depPrices6(){
   if (_prices6) return _prices6;
+  if ((await depSchemaRev()) >= 8) {
+    const p = fleetPrice();
+    _prices6 = { gpu: BigInt(Math.round(p.full * 1e6)), cpu: BigInt(Math.round(p.node * 1e6)), live: p.live };
+    if (!p.live) _prices6 = null;          // fallback constants: don't cache, retry after /availability lands
+    return _prices6 || { gpu: BigInt(Math.round(p.full * 1e6)), cpu: BigInt(Math.round(p.node * 1e6)), live: false };
+  }
   const [p, c] = await Promise.all([
     depCall("0x" + DEP_SEL.price), depCall("0x" + DEP_SEL.cpuPrice)]);
-  _prices6 = { gpu: BigInt(p || "0x0"), cpu: BigInt(c || "0x0") };
+  _prices6 = { gpu: BigInt(p || "0x0"), cpu: BigInt(c || "0x0"), live: true };
   return _prices6;
+}
+// A deployment's spend ceiling (rev >= 8; 0 on older ledgers and on imported
+// records that were never given one). USDC 6dp per second, like every rate.
+export async function depCapOf(id){
+  if ((await depSchemaRev()) < 8) return 0n;
+  try { return hexBig(await depCall("0x" + DEP_SEL.capOf + pad32(id.replace(/^0x/, "")))); }
+  catch { return 0n; }
 }
 // The operator-set per-deployment GPU-share cap (milli of one card), read once
 // and cached like the prices. create() refuses gpuMilli above it, so every

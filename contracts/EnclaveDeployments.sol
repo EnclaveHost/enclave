@@ -41,17 +41,30 @@ pragma solidity ^0.8.20;
 ///     enclave refuses to claim an ipfs:// appRef whose version isn't Approved in
 ///     EnclaveAppCatalog (one cidStatus eth_call, fail closed). The ledger doesn't parse
 ///     appRefs; the enclave that would run the code is the one that checks it.
-///   - Pricing: two global per-second prices, hardcoded at deploy (~$6.00/hour
-///     for a full GPU card, ~$3.00/hour for a full CPU node — cpuPricePerSec6=834)
-///     and owner-adjustable
-///     later; each deployment SNAPSHOTS its rate at create (price changes never
-///     re-price existing deployments). A deployment BUYS two shares — gpuMilli
-///     of a card's GPU+VRAM and cpuMilli of a node's vCPU+RAM, in 1/1000ths —
-///     and pays for both: rate = (gpuPrice * gpuMilli + cpuPrice * cpuMilli)
-///     / 1000, rounded up. Apps declare their EXACT resource specs (VRAM,
-///     TFLOPS, RAM) in EnclaveAppCatalog; runners convert those specs into each
-///     app's MINIMUM shares (spec / their hardware, the larger of the memory
-///     and compute axes) and refuse deployments that bought less.
+///   - Pricing is the ENCLAVE'S, not the platform's (rev 8): every enclave states
+///     what its whole machine costs per second in its EnclaveRegistry entry —
+///     cpuPricePerSec6 for the node's vCPU+RAM, gpuPricePerSec6 for one card.
+///     A deployment BUYS two shares — gpuMilli of a card's GPU+VRAM and cpuMilli
+///     of a node's vCPU+RAM, in 1/1000ths — and pays that fraction of the host's
+///     price: rate = (hostGpuPrice * gpuMilli + hostCpuPrice * cpuMilli) / 1000,
+///     rounded up, plus the publisher fee. The rate is (re)snapshotted AT CLAIM
+///     from whichever enclave takes the work, so a deployment that fails over to
+///     a different box is priced by that box — and never above the owner's cap
+///     (below). A live lease is never re-priced under the tenant: it was bought
+///     at the price in force when it was claimed. Apps declare their EXACT
+///     resource specs (VRAM, TFLOPS, RAM) in EnclaveAppCatalog; runners convert
+///     those specs into each app's MINIMUM shares (spec / their hardware, the
+///     larger of the memory and compute axes) and refuse deployments that
+///     bought less.
+///   - Rate cap (rev 8): every deployment carries maxRate6, the most it will pay
+///     per second — set at create, changeable any time by the owner
+///     (setMaxRate). It is checked on every purchase of time: claim, renew and
+///     setShares all revert above it. That is what makes automatic failover safe
+///     in a fleet of independently-priced enclaves: a dead host's work is picked
+///     up by any enclave that fits AND charges at or under the cap, and by no
+///     other. Lowering the cap under a running deployment's rate lets the paid
+///     lease finish and then stops it — the cap is a spend ceiling, not just a
+///     placement filter.
 ///   - Publisher fee: a catalog version may declare a per-second publisher fee
 ///     (EnclaveAppCatalog.versionFee, capped at publish). A deployment SNAPSHOTS
 ///     that fee and its payee at create — rate = platform shares + fee — and
@@ -92,6 +105,9 @@ interface IERC20Auth {
 }
 
 /// @dev Field order MUST match EnclaveRegistry.Enclave exactly (ABI-decoded struct).
+///      The two price fields are registrySchema 2; this ledger requires them
+///      (a schema-1 registry decodes short and every claim reverts), which is
+///      why the two contracts are deployed as a pair.
 interface IEnclaveRegistry {
     struct Enclave {
         string  endpoint;
@@ -101,6 +117,8 @@ interface IEnclaveRegistry {
         uint64  registeredAt;
         uint64  lastSeen;
         bool    active;
+        uint64  cpuPricePerSec6;
+        uint64  gpuPricePerSec6;
     }
     function get(bytes32 id) external view returns (Enclave memory);
 }
@@ -158,11 +176,9 @@ contract EnclaveDeployments {
     IEnclaveRegistry public immutable registry;
     IAggregatorV3 public ethUsdFeed;       // 0x0 = ETH funding disabled (USDC only)
 
-    // Prices are HARDCODED at deploy (no post-deploy setter txs needed — Base's
-    // public RPC caps delegated EOAs at one in-flight tx, so follow-up sends
-    // right after the deploy bounce). Owner setters remain for later changes.
-    uint256 public pricePerSec6 = 1667;    // USDC 6dp per second, FULL card (gpuMilli = 1000): ~$6.00/hour
-    uint256 public cpuPricePerSec6 = 834;  // USDC 6dp per second, FULL CPU node (cpuMilli = 1000): ~$3.00/hour
+    // There is NO platform price here (rev 8): each enclave publishes what its
+    // machine costs in its own registry entry, and a deployment is priced by
+    // the enclave that claims it, bounded by the deployment's own rate cap.
     uint64  public leaseSec = 1800;        // lease quantum: max claim/renew burn, max time lost to a dead runner
     uint16  public maxGpuMilli = 1000;     // per-deployment GPU-share cap, enforced at create() only — the
                                            // catalog still lists apps whose specs exceed it (publishable,
@@ -199,7 +215,17 @@ contract EnclaveDeployments {
     // share in-contract, lease time credits the serving runner's operator as
     // it elapses, and withdrawEarnings pays it out. The payout feature (and
     // the optional claim bond) gates on >= 7.
-    uint256 public constant deploymentsSchema = 7;
+    // Rev 8 keeps the struct byte-for-byte again and moves PRICING off the
+    // platform and onto the enclaves: the two global list prices (and their
+    // setters) are GONE, every enclave publishes its own per-machine price in
+    // EnclaveRegistry (registrySchema 2), and a deployment's `rate` is
+    // re-snapshotted from the claiming host on every claim. Each deployment
+    // carries maxRate6 — an owner-set ceiling in the side mapping behind
+    // capOf, settable at create and any time after (setMaxRate) — and claim /
+    // renew / setShares all refuse to buy time above it. The cap + per-host
+    // pricing feature gates on >= 8; a rev-8 ledger also REQUIRES a schema-2
+    // registry (it reads prices out of the entry it already checks).
+    uint256 public constant deploymentsSchema = 8;
 
     /// @dev Publisher-fee snapshot, taken at create from the catalog version
     ///      the deployment references (recipient = the app's publisher wallet).
@@ -244,6 +270,12 @@ contract EnclaveDeployments {
     mapping(bytes32 => bool) private _exists;
     mapping(bytes32 => Fee) private _fees;                 // id -> publisher-fee snapshot (rate6 0 = none)
     mapping(bytes32 => Earn) private _earn;                // id -> runner-payout snapshot + escrow + meter
+    /// @dev id -> the owner's per-second spend ceiling (USDC 6dp, rev 8). Never
+    ///      0 for a record created here (create requires one); imported records
+    ///      get theirs from importCaps, defaulting to the rate they carried.
+    ///      A SIDE MAPPING for the same reason as _fees/_earn: the Deployment
+    ///      tuple stays byte-for-byte across revs.
+    mapping(bytes32 => uint256) private _maxRate6;
     mapping(address => uint256) public earned6;            // operator -> withdrawable runner earnings (USDC 6dp)
     mapping(address => Bond) private _bonds;               // operator -> claim bond
     mapping(address => uint64) private _nonces;            // per-creator id salt
@@ -281,8 +313,7 @@ contract EnclaveDeployments {
     event BondExitRequested(address indexed operator, uint64 exitAt);
     event BondWithdrawn(address indexed operator, address indexed to, uint256 amount6);
     event BondSlashed(address indexed operator, uint256 amount6, string reason);
-    event PriceSet(uint256 pricePerSec6);
-    event CpuPriceSet(uint256 cpuPricePerSec6);
+    event MaxRateSet(bytes32 indexed id, uint256 maxRate6);
     event LeaseSecSet(uint64 leaseSec);
     event MaxGpuMilliSet(uint16 maxGpuMilli);
     event MaxFeeSet(uint256 maxFeePerSec6);
@@ -300,8 +331,6 @@ contract EnclaveDeployments {
         ethUsdFeed = IAggregatorV3(_ethUsdFeed);   // may be 0x0: ETH funding off
         emit PayoutChanged(_payout);
         emit OwnerChanged(msg.sender);
-        emit PriceSet(pricePerSec6);               // prices are live from deploy (hardcoded defaults)
-        emit CpuPriceSet(cpuPricePerSec6);
         emit MaxGpuMilliSet(maxGpuMilli);
         emit MaxFeeSet(maxFeePerSec6);
         emit RunnerBpsSet(runnerBps);              // runner payout live from deploy; bond off by default
@@ -329,6 +358,13 @@ contract EnclaveDeployments {
     ///      pro-rata from every funding. Under-declaring it just makes the
     ///      deployment unclaimable (runners re-check against the catalog),
     ///      same as under-provisioned shares.
+    /// @param maxRate6 the owner's per-second spend ceiling (USDC 6dp, > the
+    ///        publisher fee). REQUIRED: there is no platform price left to fall
+    ///        back on, so a deployment states what it is willing to pay before
+    ///        any enclave prices it. Until the first claim this doubles as the
+    ///        record's rate — the worst case — so funding splits and
+    ///        secondsFundable never over-promise. Change it any time with
+    ///        setMaxRate.
     function create(
         string calldata appRef,
         uint16 gpuMilli,
@@ -338,15 +374,12 @@ contract EnclaveDeployments {
         bool isPublic,
         string calldata configCid,
         address feeRecipient,
-        uint256 feePerSec6
+        uint256 feePerSec6,
+        uint256 maxRate6
     ) external returns (bytes32 id) {
-        require(bytes(appRef).length > 0 && bytes(appRef).length <= MAX_APPREF, "appRef length");
-        require(cpuMilli > 0 && cpuMilli <= 1000, "cpuMilli range");
-        require(gpuMilli <= 1000, "gpuMilli range");
-        require(gpuMilli == 0 || gpuMilli >= cpuMilli, "gpuShare < cpuShare");
-        require(appPort > 0, "appPort range");
-        require(bytes(ports).length <= MAX_PORTS, "ports length");
-        require(bytes(configCid).length <= MAX_CFG, "configCid length");
+        // own frame: with rev 8's tenth argument the checks and the body no
+        // longer fit one stack together (even under viaIR)
+        _validateCreate(appRef, ports, configCid, gpuMilli, cpuMilli, appPort);
 
         // ids are creator-salted hashes; the loop guards the one collision path
         // that exists — a fresh contract's nonce restarting at 0 while imported
@@ -364,8 +397,54 @@ contract EnclaveDeployments {
         d.ports = ports;
         d.configCid = configCid;
         _initFee(d, feeRecipient, feePerSec6);   // before _initScalars: the rate fold reads the snapshot
+        _initCap(id, maxRate6);                  // before too: the pre-claim rate IS the cap
         _initScalars(d, appRef, gpuMilli, cpuMilli, appPort, isPublic);
         _snapRunnerRate(d);                      // after: the runner cut is a slice of the folded rate
+    }
+
+    /// @dev create()'s shape/bounds checks (the parts that don't touch storage).
+    function _validateCreate(string calldata appRef, string calldata ports, string calldata configCid,
+                             uint16 gpuMilli, uint16 cpuMilli, uint32 appPort) private pure {
+        require(bytes(appRef).length > 0 && bytes(appRef).length <= MAX_APPREF, "appRef length");
+        require(cpuMilli > 0 && cpuMilli <= 1000, "cpuMilli range");
+        require(gpuMilli <= 1000, "gpuMilli range");
+        require(gpuMilli == 0 || gpuMilli >= cpuMilli, "gpuShare < cpuShare");
+        require(appPort > 0, "appPort range");
+        require(bytes(ports).length <= MAX_PORTS, "ports length");
+        require(bytes(configCid).length <= MAX_CFG, "configCid length");
+    }
+
+    /// @dev Record the spend ceiling. Bounded by uint96 so every later
+    ///      _snapRunnerRate (rate <= cap) is in range — a claim must never be
+    ///      able to revert on an overflow check.
+    function _initCap(bytes32 id, uint256 maxRate6) private {
+        require(maxRate6 > _fees[id].rate6, "maxRate <= fee");
+        require(maxRate6 <= type(uint96).max, "maxRate range");
+        _maxRate6[id] = maxRate6;
+        emit MaxRateSet(id, maxRate6);
+    }
+
+    /// @notice Change the deployment's per-second spend ceiling — the owner's
+    ///         "never pay more than this" line, editable while the app runs.
+    /// @dev Checked on every purchase of time: claim, renew and setShares all
+    ///      revert above it. RAISING it opens the deployment to pricier
+    ///      enclaves on the next claim; LOWERING it below the current rate lets
+    ///      the already-paid lease finish and then stops the app (no renew, no
+    ///      re-claim) until a cheap enough enclave exists or the cap goes back
+    ///      up — that is the point of a ceiling, and clients warn before
+    ///      signing it. An UNLEASED record re-bases its placeholder rate on the
+    ///      new cap, so funding splits and secondsFundable keep telling the
+    ///      truth about the worst case; a live lease is never re-priced.
+    function setMaxRate(bytes32 id, uint256 maxRate6) external {
+        Deployment storage d = _requireOwned(id);
+        require(maxRate6 > _fees[id].rate6, "maxRate <= fee");
+        require(maxRate6 <= type(uint96).max, "maxRate range");
+        _maxRate6[id] = maxRate6;
+        if (d.leaseUntil <= block.timestamp) {   // unleased: the cap IS the working rate
+            d.rate = maxRate6;
+            _snapRunnerRate(d);
+        }
+        emit MaxRateSet(id, maxRate6);
     }
 
     /// @dev Snapshot the runner's per-second cut: runnerBps of the PLATFORM
@@ -397,7 +476,6 @@ contract EnclaveDeployments {
     ///      without viaIR (same shape as the catalog's `_reserveCid` / `_touchApp`).
     function _initScalars(Deployment storage d, string calldata appRef, uint16 gpuMilli,
                           uint16 cpuMilli, uint32 appPort, bool isPublic) private {
-        require(cpuPricePerSec6 > 0 && (gpuMilli == 0 || pricePerSec6 > 0), "price unset");
         require(gpuMilli <= maxGpuMilli, "gpuShare > max");   // create-only cap; imports bypass (grandfathered)
         d.gpuMilli = gpuMilli;
         d.cpuMilli = cpuMilli;
@@ -405,10 +483,43 @@ contract EnclaveDeployments {
         d.isPublic = isPublic;
         d.active = true;
         d.createdAt = uint64(block.timestamp);
-        // both shares are paid for; ceil so a 1-milli deployment still pays >= 1
-        // unit/sec, plus the publisher's per-second cut recorded by _initFee
-        d.rate = (pricePerSec6 * gpuMilli + cpuPricePerSec6 * cpuMilli + 999) / 1000 + _fees[d.id].rate6;
+        // No host has priced this yet, so the working rate is the CAP: the most
+        // it could ever cost. Every rate-derived number (funding splits,
+        // secondsFundable, claimable) then states the worst case until a claim
+        // replaces it with the actual host's price.
+        d.rate = _maxRate6[d.id];
         emit Created(d.id, msg.sender, appRef, gpuMilli, cpuMilli, d.rate);
+    }
+
+    /// @dev What `enclaveId` charges for `gpuMilli`/`cpuMilli` thousandths of
+    ///      its machine, per second: its registered whole-machine prices scaled
+    ///      by the shares, ceil'd so a 1-milli deployment still pays >= 1
+    ///      unit/sec. The publisher fee is added by callers (it is the
+    ///      deployment's, not the host's).
+    function _hostRate(IEnclaveRegistry.Enclave memory e, uint16 gpuMilli, uint16 cpuMilli)
+        private pure returns (uint256)
+    {
+        return (uint256(e.gpuPricePerSec6) * gpuMilli + uint256(e.cpuPricePerSec6) * cpuMilli + 999) / 1000;
+    }
+
+    /// @notice What this deployment would cost per second on `enclaveId` — the
+    ///         exact number claim() would snapshot. Runners and clients
+    ///         pre-check with it (a claim over the cap reverts).
+    function rateFor(bytes32 id, bytes32 enclaveId) public view returns (uint256) {
+        require(_exists[id], "unknown");
+        Deployment storage d = _deployments[id];
+        return _hostRate(registry.get(enclaveId), d.gpuMilli, d.cpuMilli) + _fees[id].rate6;
+    }
+
+    /// @notice True iff `enclaveId` could claim `id` right now: claimable at
+    ///         all, priced at or under the cap, and funded for at least one
+    ///         second at THAT enclave's price.
+    function claimableBy(bytes32 id, bytes32 enclaveId) external view returns (bool) {
+        if (!claimable(id)) return false;
+        uint256 r = rateFor(id, enclaveId);
+        uint256 cap = _maxRate6[id];
+        if (cap > 0 && r > cap) return false;
+        return r > 0 && _deployments[id].balance6 >= r;
     }
 
     /// @notice Repoint the deployment at another catalog version — the owner's
@@ -434,12 +545,14 @@ contract EnclaveDeployments {
     /// @notice Re-buy the deployment's two shares in place (grow OR shrink) —
     ///         the owner's RESIZE path, typically batched with setAppRef via
     ///         multicall() when a new version needs different resources. The
-    ///         rate is RECALCULATED at the current list prices plus the
-    ///         deployment's immutable publisher-fee snapshot: a resize is a
-    ///         new purchase decision, exactly like create (deployments that
-    ///         never resize keep their original snapshot — price changes stay
-    ///         non-retroactive for them). Same bounds as create, including
-    ///         the operator's maxGpuMilli cap.
+    ///         rate is RECALCULATED — at the SERVING enclave's prices while a
+    ///         lease is live (that box is the one selling the bigger slice),
+    ///         at the cap when the record is unleased (no host has priced it,
+    ///         so the worst case stands in) — plus the deployment's immutable
+    ///         publisher-fee snapshot. A resize is a new purchase decision,
+    ///         exactly like create, and it may not push the rate above the
+    ///         owner's cap: raise the cap first (setMaxRate) if it does. Same
+    ///         bounds as create, including the operator's maxGpuMilli cap.
     ///
     ///         A LIVE lease is settled, never re-priced retroactively: the
     ///         unserved tail is refunded at the OLD rate (the rate it was
@@ -464,8 +577,8 @@ contract EnclaveDeployments {
         require(gpuMilli <= 1000, "gpuMilli range");
         require(gpuMilli == 0 || gpuMilli >= cpuMilli, "gpuShare < cpuShare");
         require(gpuMilli <= maxGpuMilli, "gpuShare > max");
-        require(cpuPricePerSec6 > 0 && (gpuMilli == 0 || pricePerSec6 > 0), "price unset");
-        uint256 newRate = (pricePerSec6 * gpuMilli + cpuPricePerSec6 * cpuMilli + 999) / 1000 + _fees[id].rate6;
+        uint256 newRate = _resizeRate(id, d, gpuMilli, cpuMilli);
+        _requireUnderCap(id, newRate);
         _creditRunner(d);                            // settle served time at the OLD runner rate first
         if (d.leaseUntil > block.timestamp) {
             uint256 tail = d.leaseUntil - block.timestamp;
@@ -485,6 +598,36 @@ contract EnclaveDeployments {
         d.rate = newRate;
         _snapRunnerRate(d);                          // a resize re-buys the runner cut too (current runnerBps)
         emit SharesSet(id, gpuMilli, cpuMilli, newRate);
+    }
+
+    /// @dev The working rate of a record no enclave is currently serving: its
+    ///      ceiling, or — for a legacy import that was never given one — the
+    ///      rate it carried over. Never 0, so _burnLease's division is safe.
+    function _unleasedRate(bytes32 id, Deployment storage d) private view returns (uint256) {
+        uint256 cap = _maxRate6[id];
+        return cap > 0 ? cap : d.rate;
+    }
+
+    /// @dev What a resize re-buys the shares at: the SERVING enclave's posted
+    ///      price plus the fee snapshot. Falls back to the unleased basis (the
+    ///      ceiling) when nothing is serving it, or when the serving entry
+    ///      prices at zero — a deregistered or schema-1 runner must not make a
+    ///      deployment nearly free while it keeps serving out its lease.
+    function _resizeRate(bytes32 id, Deployment storage d, uint16 gpuMilli, uint16 cpuMilli)
+        private view returns (uint256)
+    {
+        if (d.leaseUntil <= block.timestamp) return _unleasedRate(id, d);
+        uint256 host = _hostRate(registry.get(d.runner), gpuMilli, cpuMilli);
+        return host > 0 ? host + _fees[id].rate6 : _unleasedRate(id, d);
+    }
+
+    /// @dev The spend ceiling, enforced everywhere time is BOUGHT (claim /
+    ///      renew / setShares). cap 0 = uncapped, which only an import can
+    ///      produce (create requires one) — a legacy record keeps behaving
+    ///      exactly as it did before rev 8 until its owner sets a cap.
+    function _requireUnderCap(bytes32 id, uint256 rate) private view {
+        uint256 cap = _maxRate6[id];
+        require(cap == 0 || rate <= cap, "over rate cap");
     }
 
     /// @notice Update the portable config; runners apply it on the next (re)launch.
@@ -616,26 +759,39 @@ contract EnclaveDeployments {
     // runner side: claim / renew / release (the failover queue)
     // ========================================================================
 
-    /// @notice Take the lease on a claimable deployment. Burns min(leaseSec,
-    ///         remaining funded time) from the balance and makes the caller the
-    ///         sole legitimate runner until leaseUntil. Claimable = active, funded,
-    ///         and no live lease (never claimed, expired, or released).
+    /// @notice Take the lease on a claimable deployment AT THIS ENCLAVE'S PRICE.
+    ///         Re-snapshots the rate from the caller's registered per-machine
+    ///         prices (rev 8), burns min(leaseSec, remaining funded time) from
+    ///         the balance and makes the caller the sole legitimate runner until
+    ///         leaseUntil. Claimable = active, funded, and no live lease (never
+    ///         claimed, expired, or released).
     /// @dev msg.sender must be the operator of `enclaveId`, an active EnclaveRegistry
     ///      entry — structural gating, same shape as catalog lineage ownership.
     ///      The previous runner's burned lease is NOT refunded (it may be dead;
     ///      nobody trustworthy can attest how much it actually served).
+    ///
+    ///      This is where automatic failover meets the owner's ceiling: a dead
+    ///      host's work is open to every enclave, and the ones whose price for
+    ///      these shares exceeds maxRate6 simply cannot take it ("over rate
+    ///      cap"). The rate a tenant pays therefore only ever moves when the
+    ///      work moves, and never above what they signed for.
     function claim(bytes32 id, bytes32 enclaveId) external {
         Deployment storage d = _requireActive(id);
         require(block.timestamp > d.leaseUntil, "leased");
         IEnclaveRegistry.Enclave memory e = registry.get(enclaveId);
         require(e.operator == msg.sender, "not operator");
         require(e.active, "enclave inactive");
+        require(e.cpuPricePerSec6 > 0, "enclave unpriced");
         if (claimBond6 > 0) {                    // optional anti-sybil gate (0 = off)
             Bond storage b = _bonds[msg.sender];
             require(b.amount6 >= claimBond6 && b.exitAt == 0, "bond required");
         }
-        _creditRunner(d);                        // settle the PREVIOUS runner's expired-lease tail
+        _creditRunner(d);                        // settle the PREVIOUS runner's expired-lease tail at ITS rate
 
+        uint256 newRate = _hostRate(e, d.gpuMilli, d.cpuMilli) + _fees[id].rate6;
+        _requireUnderCap(id, newRate);
+        d.rate = newRate;                        // the price in force for this lease
+        _snapRunnerRate(d);                      // this host earns runnerBps of its OWN ask
         (uint64 until, uint256 burned) = _burnLease(d, uint64(block.timestamp));
         d.runner = enclaveId;
         d.runnerOperator = msg.sender;
@@ -646,12 +802,18 @@ contract EnclaveDeployments {
 
     /// @notice Extend a live lease (only the current runner, only before expiry —
     ///         after expiry the job is back in the open queue and even the same
-    ///         runner must re-claim). Burns the next quantum; extends FROM
-    ///         leaseUntil, since time up to there is already paid.
+    ///         runner must re-claim). Burns the next quantum at the rate this
+    ///         lease was claimed at; extends FROM leaseUntil, since time up to
+    ///         there is already paid.
+    /// @dev A renew BUYS time, so it is capped like a claim: if the owner has
+    ///      dropped maxRate6 under the running rate this reverts "over rate
+    ///      cap" and the app finishes the lease it already paid for, then
+    ///      stops. Runners surface that to the owner rather than retrying.
     function renew(bytes32 id) external {
         Deployment storage d = _requireActive(id);
         require(d.runnerOperator == msg.sender, "not runner");
         require(block.timestamp <= d.leaseUntil, "lease expired");
+        _requireUnderCap(id, d.rate);
         _creditRunner(d);                        // credit the lease time held so far
         (uint64 until, uint256 burned) = _burnLease(d, d.leaseUntil);
         d.leaseUntil = until;
@@ -888,6 +1050,13 @@ contract EnclaveDeployments {
             d.runner = bytes32(0);
             d.runnerOperator = address(0);
             d.leaseUntil = 0;
+            // A migrated record keeps its economics exactly: its own snapshot
+            // becomes its ceiling, so it goes on paying what it paid and can
+            // only fail over to an enclave priced at or under that. Owners
+            // raise it (setMaxRate) to reach pricier hardware. importCaps
+            // overrides this while the window is open.
+            _maxRate6[id] = d.rate;
+            emit MaxRateSet(id, d.rate);
             emit Created(id, d.owner, d.appRef, d.gpuMilli, d.cpuMilli, d.rate);
             // re-emit the funded credit so a LOG-ONLY indexer rebuilds balance6:
             // import copies balance6 straight into storage, and without a Funded
@@ -936,6 +1105,26 @@ contract EnclaveDeployments {
         }
     }
 
+    /// @notice Set migrated records' spend ceilings explicitly (rev-8 sources
+    ///         carry real caps; from an older source importDeployments has
+    ///         already defaulted each one to the rate it arrived with, and this
+    ///         is how the owner widens or tightens that before sealing).
+    /// @dev A cap of 0 means UNCAPPED — the pre-rev-8 behaviour, where any
+    ///      registered enclave may claim at its own price. Deliberately
+    ///      expressible for grandfathered records; create() never produces it.
+    function importCaps(bytes32[] calldata ids, uint256[] calldata caps6) external {
+        require(msg.sender == owner, "!owner");
+        require(!importsSealed, "sealed");
+        require(ids.length == caps6.length, "length mismatch");
+        for (uint256 i = 0; i < ids.length; i++) {
+            require(_exists[ids[i]], "unknown");
+            require(caps6[i] <= type(uint96).max, "maxRate range");
+            require(caps6[i] == 0 || caps6[i] > _fees[ids[i]].rate6, "maxRate <= fee");
+            _maxRate6[ids[i]] = caps6[i];
+            emit MaxRateSet(ids[i], caps6[i]);
+        }
+    }
+
     /// @notice Permanently close the import window (there is no re-open).
     function sealImports() external {
         require(msg.sender == owner, "!owner");
@@ -962,24 +1151,10 @@ contract EnclaveDeployments {
     }
 
     // ========================================================================
-    // admin (pricing + parameters; no custody, no access to balances)
+    // admin (parameters; no custody, no access to balances, NO PRICING — that
+    // belongs to the enclaves now: each one publishes its own per-machine price
+    // in EnclaveRegistry and buyers bound it with their per-deployment cap)
     // ========================================================================
-
-    function setPrice(uint256 _pricePerSec6) external {
-        require(msg.sender == owner, "!owner");
-        require(_pricePerSec6 > 0, "price=0");
-        pricePerSec6 = _pricePerSec6;      // affects FUTURE creates only (rate is snapshotted)
-        emit PriceSet(_pricePerSec6);
-    }
-
-    /// @notice Whole-CPU-node per-second price (every deployment pays it on its
-    ///         cpuMilli). 0 keeps creates disabled until it is deliberately set.
-    function setCpuPrice(uint256 _cpuPricePerSec6) external {
-        require(msg.sender == owner, "!owner");
-        require(_cpuPricePerSec6 > 0, "price=0");
-        cpuPricePerSec6 = _cpuPricePerSec6;   // affects FUTURE creates only (rate is snapshotted)
-        emit CpuPriceSet(_cpuPricePerSec6);
-    }
 
     /// @notice Cap the GPU share (1/1000ths of one card) any single NEW
     ///         deployment may buy. Enforced at create() only: existing records
@@ -1079,16 +1254,33 @@ contract EnclaveDeployments {
     function idAt(uint256 i) external view returns (bytes32) { return _ids[i]; }
     function get(bytes32 id) external view returns (Deployment memory) { return _deployments[id]; }
 
-    /// @notice True iff an enclave may claim right now (active + funded + no live lease).
+    /// @notice True iff an enclave may claim right now (active + funded + no
+    ///         live lease). Funded is judged against the record's CURRENT rate:
+    ///         the price of its last lease, or — while no enclave is serving it
+    ///         — its cap, i.e. the worst case. A cheaper enclave can therefore
+    ///         afford work this reads as unfundable; claimableBy(id, enclaveId)
+    ///         answers that exactly, and claim() itself is the authority.
     function claimable(bytes32 id) public view returns (bool) {
         Deployment storage d = _deployments[id];
         return _exists[id] && d.active && block.timestamp > d.leaseUntil && d.balance6 >= d.rate;
     }
 
-    /// @notice Funded runtime left OUTSIDE the current lease (what future claims can buy).
+    /// @notice Funded runtime left OUTSIDE the current lease (what future claims
+    ///         can buy) at the record's current rate — the floor of what an
+    ///         unleased deployment gets, since its rate is its ceiling until a
+    ///         host prices it.
     function secondsFundable(bytes32 id) external view returns (uint256) {
         Deployment storage d = _deployments[id];
         return d.rate == 0 ? 0 : d.balance6 / d.rate;
+    }
+
+    /// @notice The owner's per-second spend ceiling (USDC 6dp). Every purchase
+    ///         of time — claim, renew, setShares — is checked against it, so it
+    ///         is also the answer to "which enclaves may pick this up if its
+    ///         host dies". 0 = uncapped (only reachable for records imported
+    ///         from a pre-rev-8 ledger).
+    function capOf(bytes32 id) external view returns (uint256 maxRate6) {
+        return _maxRate6[id];
     }
 
     /// @notice The publisher-fee snapshot taken at create: payee wallet and
@@ -1146,8 +1338,11 @@ FUTURE (deliberately not in this rev):
     slashing is an owner action with public evidence; a watcher protocol that
     PROVES a runner never served (failed attested probes, signed by N watchers)
     would replace the owner's judgment with a challenge game.
-  - per-deployment price floors/auctions: today price is platform-set; a market
-    would let runners bid, with the lease going to the cheapest attested enclave.
+  - auctions: rev 8 gives each enclave a posted price and each deployment a
+    ceiling, so the queue clears at whatever fits — but it is first-come, not a
+    bid. A real auction (the lease going to the CHEAPEST attested enclave that
+    wants it, rather than the first one to send the tx) needs a commit window
+    on top of this, and buys little until the fleet is deep.
   - consumed-time attestation: runners could periodically post signed usage
     checkpoints, shrinking the "dead runner burns one lease" loss toward zero —
     and letting the runner meter pay for VERIFIED service instead of held time.

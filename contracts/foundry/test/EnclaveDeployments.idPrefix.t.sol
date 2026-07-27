@@ -42,7 +42,7 @@ contract EnclaveDeploymentsIdPrefixTest is Test {
 
     function _create(address who) internal returns (bytes32 id) {
         vm.prank(who);
-        id = dep.create("catalog://app/0", 0, 10, 8080, "", true, "", address(0), 0);
+        id = dep.create("catalog://app/0", 0, 10, 8080, "", true, "", address(0), 0, 2501);
     }
 
     /// The id create() is about to mint for `who` at its current nonce.

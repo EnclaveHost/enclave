@@ -289,13 +289,37 @@ const HEARTBEAT_SEC     = parseInt(process.env.REGISTRY_HEARTBEAT_SEC || "900", 
 const REGISTRY_READY    = REGISTRY_ENABLED && !!(REGISTRY_ADDRESS && REGISTRY_PK && ENCLAVE_REPO);
 if (REGISTRY_ENABLED && !REGISTRY_READY)
   console.warn("[registry] REGISTRY_ENABLED but REGISTRY_ADDRESS/REGISTRY_PRIVATE_KEY/ENCLAVE_REPO incomplete — not advertising");
+// Registry schema 2 added the two per-machine prices to register() and the
+// entry itself (the ledger reads them when we claim). Schema 1 registries are
+// still out there during a migration, so we sniff and fall back to the
+// three-argument form — on those, pricing stays the old global list price.
 const REGISTRY_ABI = [
   { type: "function", name: "register", stateMutability: "nonpayable",
-    inputs: [{ name: "endpoint", type: "string" }, { name: "repo", type: "string" }, { name: "measurement", type: "bytes32" }],
+    inputs: [{ name: "endpoint", type: "string" }, { name: "repo", type: "string" }, { name: "measurement", type: "bytes32" },
+             { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }],
     outputs: [{ name: "id", type: "bytes32" }] },
+  { type: "function", name: "setPrices", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }, { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }],
+    outputs: [] },
   { type: "function", name: "heartbeat", stateMutability: "nonpayable",
     inputs: [{ name: "id", type: "bytes32" }], outputs: [] },
 ];
+const REGISTRY_ABI_V1 = [
+  { type: "function", name: "register", stateMutability: "nonpayable",
+    inputs: [{ name: "endpoint", type: "string" }, { name: "repo", type: "string" }, { name: "measurement", type: "bytes32" }],
+    outputs: [{ name: "id", type: "bytes32" }] },
+];
+// 2 = the entry carries prices; 1 = it doesn't (the getter reverts there)
+let _registryRev = 0;
+async function registryRev() {
+  if (_registryRev) return _registryRev;
+  try {
+    _registryRev = Number(await chainClient.readContract({ address: getAddress(REGISTRY_ADDRESS),
+      abi: [{ type: "function", name: "registrySchema", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }],
+      functionName: "registrySchema" })) || 1;
+  } catch { _registryRev = 1; }
+  return _registryRev;
+}
 
 // Register THIS enclave under `endpoint` (the hostname a caller reached us at),
 // then heartbeat. Fires at most once (guarded); a transient failure resets the
@@ -315,21 +339,57 @@ async function registerOnChain(endpoint) {
     // and public RPCs cap EIP-7702-delegated accounts at one in-flight tx — so
     // every tx from this key is serialized through confirmation, never raced.
     const id = keccak256(stringToBytes(endpoint));
-    const hash = await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "register",
-      [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT]);
+    // schema 2: the entry carries our PRICE, and the ledger charges tenants
+    // out of it. Re-registering re-states it, so a price change lands with the
+    // next boot; setPrices (below) covers a change without one.
+    const rev = await registryRev();
+    const hash = rev >= 2
+      ? await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "register",
+          [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT, BigInt(SELL_CPU_PRICE6), BigInt(SELL_GPU_PRICE6)])
+      : await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI_V1, "register",
+          [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT]);
     _enclaveId = id; _advertisedEndpoint = endpoint;        // unlocks the claim loop (portable deployments)
-    console.log(`[registry] registered ${endpoint} repo=${ENCLAVE_REPO} id=${id} tx=${hash}`);
-    // heartbeat loop - refresh liveness so readers don't treat us as down
+    console.log(`[registry] registered ${endpoint} repo=${ENCLAVE_REPO} id=${id} tx=${hash}`
+      + (rev >= 2 ? ` price=${SELL_CPU_PRICE6}/sec node${IS_GPU ? ` + ${SELL_GPU_PRICE6}/sec card` : ""}` : " (schema 1: unpriced)"));
+    // heartbeat loop - refresh liveness so readers don't treat us as down,
+    // and keep the published price in step with our configuration (an operator
+    // re-pricing by env restart must not have to re-register; a mismatch would
+    // also mean we quote one price and charge another)
     setInterval(async () => {
       try {
         const h = await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "heartbeat", [id]);
         console.log(`[registry] heartbeat tx=${h}`);
       } catch (e) { console.warn(`[registry] heartbeat failed: ${e.shortMessage || e.message}`); }
+      await syncRegisteredPrice(id).catch(() => {});
     }, Math.max(60, HEARTBEAT_SEC) * 1000).unref();
+    syncRegisteredPrice(id).catch(() => {});
   } catch (e) {
     _registered = false;                                    // let a later request retry
     console.warn(`[registry] self-registration failed: ${e.shortMessage || e.message}`);
   }
+}
+
+// Publish this box's configured price if the chain doesn't already carry it.
+// One eth_call per heartbeat, a tx only on an actual mismatch — which is the
+// operator changing SELL_*_PRICE6, or a registry that predates our entry. On a
+// schema-1 registry there is nowhere to put it, so this is a no-op.
+const REGISTRY_GET_ABI = [{ type: "function", name: "get", stateMutability: "view",
+  inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: [
+    { name: "endpoint", type: "string" }, { name: "repo", type: "string" }, { name: "measurement", type: "bytes32" },
+    { name: "operator", type: "address" }, { name: "registeredAt", type: "uint64" }, { name: "lastSeen", type: "uint64" },
+    { name: "active", type: "bool" }, { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }] }] }];
+async function syncRegisteredPrice(id) {
+  if (await registryRev() < 2) return;
+  let e;
+  try {
+    e = await chainClient.readContract({ address: getAddress(REGISTRY_ADDRESS),
+      abi: REGISTRY_GET_ABI, functionName: "get", args: [id] });
+  } catch { return; }                                       // transient read: try again next heartbeat
+  if (Number(e.cpuPricePerSec6) === SELL_CPU_PRICE6 && Number(e.gpuPricePerSec6) === SELL_GPU_PRICE6) return;
+  const h = await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "setPrices",
+    [id, BigInt(SELL_CPU_PRICE6), BigInt(SELL_GPU_PRICE6)]);
+  console.log(`[registry] price published: ${SELL_CPU_PRICE6}/sec node, ${SELL_GPU_PRICE6}/sec card `
+    + `(was ${e.cpuPricePerSec6}/${e.gpuPricePerSec6}) tx=${h}`);
 }
 
 // Boot-time hostname discovery: the shim terminates TLS inside this CVM, and
@@ -1022,8 +1082,6 @@ if (process.env.SNIFF_SELFTEST) {
 // which GPU enclaves rent to CPU-only apps (CPU-only enclaves get first claim;
 // see the claim loop). CC disables MIG, so a card is ONE trust domain sliced in
 // SOFTWARE: isolation comes from the process boundary, not the slice size.
-const CPU_RATE        = 0.000834;                                       // USDC/sec, the WHOLE node's vCPU+RAM ($3.00/hr)
-const FULL_RATE       = 0.0016667;                                      // USDC/sec, a WHOLE card ($6.00/hr)
 const GPU_COUNT       = parseInt(process.env.GPU_COUNT || "1", 10);     // cards in this enclave; 0 = CPU-only enclave
 // GPU work (gpuShare > 0) runs ONLY on GPU-enabled enclaves. CPU-only work runs
 // on CPU-only enclaves first, and on GPU enclaves out of leftover cpu pool.
@@ -1035,18 +1093,27 @@ const NODE_GFLOPS     = parseFloat(process.env.NODE_GFLOPS || "")       // CPU c
 let CARD_VRAM_GB      = parseFloat(process.env.GPU_VRAM_GB || "141");   // usable VRAM per card (fallback until the card itself is probed - see adoptCardVram)
 let CARD_VRAM_SRC     = process.env.GPU_VRAM_GB ? "env" : "default";
 const CARD_TFLOPS     = parseFloat(process.env.GPU_TFLOPS || "989");    // GPU compute per card (H200 FP16 dense)
-// --- seller asking prices (self-hosted boxes; metal/PROTOCOL.md) -------------
-// What THIS operator charges to rent its hardware, in USDC 6dp per second for a
-// FULL node / FULL card — the same basis as the ledger's cpuPricePerSec6 /
-// pricePerSec6. Unset (the hosted fleet) = no floor: take work at the list
-// price, unchanged. Set = this box refuses work priced below its own ask (see
-// priceFloorRefusal), and advertises the ask so clients can rank and show it.
-// A CPU-only enclave has no GPU to sell, so SELL_GPU_PRICE6 is ignored there;
-// a GPU enclave that sets only the CPU price still sells its GPU at the list
-// price (nothing is silently unpriced — the ask simply doesn't bind).
-const SELL_CPU_PRICE6 = Math.max(0, Math.round(parseFloat(process.env.SELL_CPU_PRICE6 || "0") || 0));
-const SELL_GPU_PRICE6 = IS_GPU ? Math.max(0, Math.round(parseFloat(process.env.SELL_GPU_PRICE6 || "0") || 0)) : 0;
-const SELLS_AT_ASK    = SELL_CPU_PRICE6 > 0 || SELL_GPU_PRICE6 > 0;
+// --- this enclave's PRICE (ledger rev 8; metal/PROTOCOL.md) ------------------
+// What renting THIS machine costs, in USDC 6dp per second for a FULL node
+// (vCPU+RAM) and a FULL card (GPU+VRAM). It is not a floor or a hint: it is the
+// price, published in our EnclaveRegistry entry, and the ledger charges a
+// tenant exactly this fraction of it — shares/1000 — when we claim their work.
+// A deployment whose owner set a lower ceiling than we charge is simply not
+// ours to take (see rateCapRefusal); a buyer picks whoever is cheap enough.
+// Defaults are the hosted fleet's long-standing $3.00/hr node and $6.00/hr
+// card, so an enclave that says nothing prices exactly as it always has. A
+// CPU-only enclave has no card to sell (0).
+const SELL_CPU_PRICE6 = Math.max(1, Math.round(parseFloat(process.env.SELL_CPU_PRICE6 || "") || 834));
+const SELL_GPU_PRICE6 = IS_GPU ? Math.max(0, Math.round(parseFloat(process.env.SELL_GPU_PRICE6 || "") || 1667)) : 0;
+// Whether the operator STATED that price or inherited the default. Only the
+// pre-rev-8 floor cares: on those ledgers the price is global and a record may
+// have been created at an older, lower one, so applying our default as a floor
+// would refuse live tenants the fleet has always served. Explicit = a seller
+// who means it (metal boxes); default = behave exactly as before rev 8.
+const PRICE_IS_EXPLICIT = !!(process.env.SELL_CPU_PRICE6 || process.env.SELL_GPU_PRICE6);
+// USDC/sec as floats, for the human-facing quotes (/v1/pricing, HTTP deploys)
+const CPU_RATE        = SELL_CPU_PRICE6 / 1e6;   // the WHOLE node's vCPU+RAM
+const FULL_RATE       = SELL_GPU_PRICE6 / 1e6;   // a WHOLE card
 const CTX_OVERHEAD_GB = parseFloat(process.env.CTX_OVERHEAD_GB || "0.5"); // per-worker context cost, reserved on top of the cap
 const SM_TOTAL        = parseInt(process.env.SM_TOTAL || "132", 10);   // SMs per card (H200=132); for reporting granted SMs
 const MIN_COMPUTE_PCT = parseInt(process.env.MIN_COMPUTE_PCT || "1", 10); // floor; CUDA_MPS_ACTIVE_THREAD_PERCENTAGE is an integer 1..100
@@ -2297,6 +2364,7 @@ app.get("/v1/pricing", async (_req, res) => {
     usdc: USDC_ADDRESS, usdcDomain,
     ethUsd: ethUsd8 ? (Number(ethUsd8) / 1e8).toFixed(2) : null,
     model: "Deployments buy TWO shares: gpuShare (0..1 of ONE GPU card — VRAM and compute move together; 0 = CPU-only app) and cpuShare (0..1 of the node's vCPU+RAM). Apps declare their exact specs in the catalog — VRAM GB + GPU TFLOPS of a card, RAM MB + CPU GFLOPS of the node; those specs divided by this server's spec (the LARGER of the memory and compute axes per pool, rounded up to the whole percent) are the MINIMUM shares a deployment may buy. A GPU app's gpuShare must be >= its cpuShare. Billed per second, additively.",
+    pricing: "The prices below are THIS enclave's, published in its EnclaveRegistry entry — every enclave sets its own, and a deployment is charged its shares of whichever one claims it. Set maxRatePerHourUsdc (create's maxRate6) to cap that: an enclave costing more than the cap cannot take the work, which is also what bounds where a deployment fails over to when its host dies. Change it any time with setMaxRate.",
     node: { vcpus: NODE_VCPUS, ramGb: NODE_RAM_GB, gflops: NODE_GFLOPS,
             wholeNodePerSecondUsdc: CPU_RATE.toFixed(7), wholeNodePerHourUsdc: (CPU_RATE * 3600).toFixed(2) },
     computeGranularity: { unit: "percent", step: 1, minPercent: MIN_COMPUTE_PCT },
@@ -2426,14 +2494,15 @@ app.get("/availability", async (_req, res) => {
     secrets: SECRETS_CAPABLE,   // this build pulls relay-staged per-deployment secrets into the guest env at every launch; fleet-AND'd with the relay's own secretsEnabled() before clients see it. The fetch authenticates with a key DERIVED FROM THE FLEET SECRET, so a box running its own minted SECRET (a metal enclave without cfg.fleetSecret) sets SECRETS_CAPABLE=0 and reports false — honest, and the fleet-AND then hides the feature rather than stranding secret-bearing deploys on it
     secretsInConfig: SECRETS_CAPABLE,   // this build also resolves $NAME/${NAME} placeholders in config STRING values from those secrets at launch (wasm-manager _subst_secrets); same fleet-AND rule
     devDeploy: true,   // this build's approval gate admits PENDING catalog versions for PRIVATE deployments (publisher dev-mode testing); public deploys of pending versions stay refused — same fleet-AND rule, clients only offer the option when every live runner honors it
-    // What this operator ASKS to rent its hardware: USDC 6dp per second for a
-    // FULL node / FULL card (the ledger's own basis). Absent on the hosted
-    // fleet, which serves at the on-chain list price. A box only claims work
-    // paying at least this (priceFloorRefusal), so clients can both SHOW the
-    // ask and predict what each box will take. gpu ask is omitted on a
-    // CPU-only enclave — there is no card to sell.
-    ...(SELLS_AT_ASK ? { askCpuPricePerSec6: SELL_CPU_PRICE6,
-                         ...(IS_GPU && SELL_GPU_PRICE6 > 0 ? { askGpuPricePerSec6: SELL_GPU_PRICE6 } : {}) } : {}),
+    rateCap: true,   // this build honors per-deployment rate caps (ledger rev 8): it prices claims off its own registry entry and treats a cap-blocked renew as "stop at lease end", not an error to retry — same fleet-AND rule, so clients only offer cap edits when every live runner would behave
+    // THE PRICE of renting this machine: USDC 6dp per second for a FULL node /
+    // FULL card, the same numbers this enclave publishes in its registry entry
+    // and the ledger charges tenants out of (shares/1000 of each). Clients rank
+    // boxes on it, quote "from $X/hr" off the cheapest, and set a deployment's
+    // rate cap against it. The gpu ask is omitted on a CPU-only enclave — there
+    // is no card to sell.
+    askCpuPricePerSec6: SELL_CPU_PRICE6,
+    ...(IS_GPU && SELL_GPU_PRICE6 > 0 ? { askGpuPricePerSec6: SELL_GPU_PRICE6 } : {}),
     claimEnabled: CLAIM_READY && !!_enclaveId,   // whether this enclave CLAIMS ledger work RIGHT NOW: configured for it AND its on-chain registration landed (_enclaveId is only set by a successful register tx — a staged seller with an unfunded gas EOA truthfully reports false until the first register confirms). The relay sizes app minimums, fleet capacity and the deploy target list over CLAIMING enclaves only
     source, ...(note ? { note } : {}), updatedAt: new Date().toISOString(),
   });
@@ -2884,18 +2953,82 @@ async function gateAppReference(reference, opts = {}) {
 const FEE_OF_ABI = [{ type: "function", name: "feeOf", stateMutability: "view",
   inputs: [{ name: "id", type: "bytes32" }],
   outputs: [{ name: "recipient", type: "address" }, { name: "feePerSec6", type: "uint256" }] }];
-// Seller price floor: refuse work that pays less than THIS operator asks for
-// the shares it would occupy. The deployment's snapshotted `rate` covers the
-// shares PLUS the version's publisher fee, and the fee is not the runner's
-// revenue — so the comparison is against rate minus that fee (read from the
-// ledger like feeGate does; a fee that can't be read is treated as 0, which
-// only ever makes this gate STRICTER, never laxer, so an RPC blip can't
-// trick the box into taking underpriced work).
+// What THIS enclave charges, per second, for the shares a deployment bought:
+// our published per-machine price scaled by gpuMilli/cpuMilli, ceil'd exactly
+// as EnclaveDeployments._hostRate does. The publisher fee is the deployment's,
+// not ours, and rides on top.
+const hostRate6 = (gpuMilli, cpuMilli) =>
+  Math.ceil((SELL_GPU_PRICE6 * (Number(gpuMilli) || 0) + SELL_CPU_PRICE6 * (Number(cpuMilli) || 0)) / 1000);
+const usdPerHour = (perSec6) => "$" + (perSec6 * 3600 / 1e6).toFixed(2) + "/hr";
+const CAP_OF_ABI = [{ type: "function", name: "capOf", stateMutability: "view",
+  inputs: [{ name: "id", type: "bytes32" }], outputs: [{ name: "maxRate6", type: "uint256" }] }];
+
+// The buyer's ceiling (ledger rev 8): a deployment states the most it will pay
+// per second, and an enclave whose price for those shares exceeds it may not
+// claim — the chain enforces the same check, so taking the work anyway would
+// just burn a reverted tx. This is what bounds automatic failover: when a host
+// dies, its tenants land on whichever enclave both FITS them and is cheap
+// enough, and stay queued rather than get silently re-priced upward.
+//
+// Fail closed on an unreadable cap: a claim we can't price is not ours.
+// Returns null (acceptable) or a refusal string for the sweep log.
+async function rateCapRefusal(d, g) {
+  const { rev } = await depsAbi();
+  if (rev < 8) return priceFloorRefusal(d);             // pre-rev-8 ledger: the old ask-as-floor rule
+  let cap6;
+  try {
+    cap6 = Number(await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
+      abi: CAP_OF_ABI, functionName: "capOf", args: [d.id] }));
+  } catch {
+    return "could not read the deployment's rate cap from the ledger; try again shortly";
+  }
+  return capVerdict({ mine6: hostRate6(d.gpuMilli, d.cpuMilli), fee6: Number((g && g.feePerSec6) || 0),
+                      cap6, balance6: Number(d.balance6) });
+}
+
+// The decision itself, pure so it can be checked without a chain: what WE
+// charge for these shares plus the deployment's own publisher fee, against the
+// owner's ceiling (0 = uncapped — only reachable for grandfathered imports)
+// and against what its balance can actually buy at our price. The contract
+// enforces the same two rules, so a refusal here just saves a reverted tx.
+// Returns null (acceptable) or a refusal string.
+function capVerdict({ mine6, fee6 = 0, cap6 = 0, balance6 = 0 }) {
+  const total6 = mine6 + fee6;                          // exactly what claim() would snapshot
+  if (cap6 > 0 && total6 > cap6)
+    return `this enclave charges ${usdPerHour(total6)} for those shares`
+         + (fee6 ? ` (incl. ${usdPerHour(fee6)} publisher fee)` : "")
+         + `, above the owner's rate cap of ${usdPerHour(cap6)}`;
+  if (balance6 < total6)
+    return `out of funded time at this enclave's price (${usdPerHour(total6)}) - fund it and retry`;
+  return null;
+}
+
+// PRICE_SELFTEST='[{"gpuMilli":…,"cpuMilli":…,"fee6":…,"cap6":…,"balance6":…},…]'
+// prints, per case, what THIS enclave charges for those shares and whether it
+// would claim the work — the buyer's rate cap decided without a chain. Same
+// seam contract as SWEEP_SELFTEST (test/rate-cap.test.mjs drives it, with the
+// enclave's own price set through SELL_CPU_PRICE6 / SELL_GPU_PRICE6).
+if (process.env.PRICE_SELFTEST) {
+  const out = JSON.parse(process.env.PRICE_SELFTEST).map((c) => {
+    const mine6 = hostRate6(c.gpuMilli || 0, c.cpuMilli || 0);
+    return { mine6, refusal: capVerdict({ mine6, fee6: c.fee6 || 0, cap6: c.cap6 || 0, balance6: c.balance6 || 0 }) };
+  });
+  console.log(JSON.stringify(out));
+  process.exit(0);
+}
+
+// PRE-REV-8 seller price floor: refuse work that pays less than THIS operator
+// asks for the shares it would occupy. On those ledgers the price is global and
+// the deployment's snapshotted `rate` covers the shares PLUS the version's
+// publisher fee, and the fee is not the runner's revenue — so the comparison is
+// against rate minus that fee (read from the ledger like feeGate does; a fee
+// that can't be read is treated as 0, which only ever makes this gate STRICTER,
+// never laxer, so an RPC blip can't trick the box into taking underpriced work).
 // Returns null (acceptable) or a refusal string for the sweep log.
 async function priceFloorRefusal(d) {
-  if (!SELLS_AT_ASK) return null;                       // hosted fleet: list price, no floor
+  if (!PRICE_IS_EXPLICIT) return null;                  // hosted fleet on an old ledger: list price, no floor
   const gpuMilli = Number(d.gpuMilli) || 0, cpuMilli = Number(d.cpuMilli) || 0;
-  const ask6 = Math.ceil((SELL_GPU_PRICE6 * gpuMilli + SELL_CPU_PRICE6 * cpuMilli) / 1000);
+  const ask6 = hostRate6(gpuMilli, cpuMilli);
   if (ask6 <= 0) return null;                           // nothing priced for these shares
   let fee6 = 0;
   try {
@@ -2908,8 +3041,7 @@ async function priceFloorRefusal(d) {
   } catch { /* unreadable fee -> 0 -> stricter comparison */ }
   const share6 = Math.max(0, Number(d.rate) - fee6);    // what the shares themselves pay, per second
   if (share6 >= ask6) return null;
-  const hr = (n) => "$" + (n * 3600 / 1e6).toFixed(2) + "/hr";
-  return `pays ${hr(share6)} for these shares, below this operator's ask of ${hr(ask6)}`;
+  return `pays ${usdPerHour(share6)} for these shares, below this operator's ask of ${usdPerHour(ask6)}`;
 }
 
 async function feeGate(id, g) {
@@ -4585,14 +4717,31 @@ async function renewLeases() {
       rec._leaseUntil = until;
       rec.remainingMs = rec._leaseUntil * 1000 - Date.now();
       rec._renewBackoffUntil = 0;
+      rec.rateCapBlocked = null;      // time bought: whatever the cap was, it isn't blocking now
       console.log(`[claim] ${rec.id} lease ${lapsed ? "RE-CLAIMED (had lapsed)" : "renewed"} until ${new Date(rec._leaseUntil * 1000).toISOString()}`);
       saveStateSoon();
     } catch (e) {
+      const msg = e.shortMessage || e.message || "";
+      // The owner dropped the rate cap under what this deployment costs here:
+      // the chain refuses to sell more time, and no retry will change that.
+      // Serve out the lease they already paid for, tell them why on the
+      // record, and stop re-sending a tx that can only revert. (Raising the
+      // cap again clears rec.rateCapBlocked on the next audit pass, and the
+      // sweep re-claims once the lease lapses.)
+      if (/over rate cap/i.test(msg)) {
+        rec.rateCapBlocked = `the owner's rate cap is below this enclave's price for these shares, so the lease cannot be `
+          + `extended; the app stops when the current lease ends (${new Date(rec._leaseUntil * 1000).toISOString()}). `
+          + `Raise the cap or move to a cheaper enclave.`;
+        rec._renewBackoffUntil = Date.now() + 300_000;
+        console.warn(`[claim] ${rec.id} renew refused by the ledger: over the owner's rate cap; not retrying this quantum`);
+        saveStateSoon();
+        continue;
+      }
       // 60s, NOT minutes: the renewal window is finite and a transient RPC
       // failure must not eat the rest of it (a 5-min backoff once equalled
       // the entire pre-2026-07-19 window - one hiccup guaranteed the lapse)
       rec._renewBackoffUntil = Date.now() + 60_000;
-      console.warn(`[claim] ${lapsed ? "re-claim" : "renew"} ${rec.id} failed (${e.shortMessage || e.message}); `
+      console.warn(`[claim] ${lapsed ? "re-claim" : "renew"} ${rec.id} failed (${msg}); `
                  + `lease ${lapsed ? "lapsed" : "expires"} ${new Date(rec._leaseUntil * 1000).toISOString()}; backing off 60s`);
     } finally { rec._renewing = false; }
   }
@@ -5158,8 +5307,6 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
   if (provisionBackoffHolds(pf, Date.now(), d.appRef)) return "provisioning failed here recently; backing off";
   const ev = _evacuated.get(d.id);
   if (ev && Date.now() < ev) return "evacuated from here for consolidation; leaving it for another enclave";
-  const priceRefusal = await priceFloorRefusal(d);
-  if (priceRefusal) return priceRefusal;
   const gpuShare = Number(d.gpuMilli) / 1000, cpuShare = Number(d.cpuMilli) / 1000;
   let slice;
   if (gpuShare > 0) {
@@ -5200,6 +5347,14 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
   // a paid app's fee snapshot must cover the version's ask (fail closed)
   const feeWhy = await feeGate(d.id, g);
   if (feeWhy) return feeWhy.why;
+  // Price: what WE charge for these shares against what the owner agreed to
+  // pay. Needs the version's fee (it rides on top of our price), so it runs
+  // after the fee gate. A resume skips it — that lease is already bought and
+  // paid for, and walking away from it would strand a tenant we owe service.
+  if (!resume) {
+    const priceWhy = await rateCapRefusal(d, g);
+    if (priceWhy) return priceWhy;
+  }
   // Model volumes are PER-BOX hardware, like the card: the config the app
   // will actually run with (the version's, or the deployment's override)
   // names what it must mount, and a box that doesn't carry a named volume

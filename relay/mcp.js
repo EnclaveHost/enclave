@@ -114,6 +114,7 @@ const createInputsFor = (rev) => [
   ...(rev >= 2 ? [] : [{ name: "sshPubKey", type: "string" }]),
   { name: "configCid", type: "string" },
   ...(rev >= 4 ? [{ name: "feeRecipient", type: "address" }, { name: "feePerSec6", type: "uint256" }] : []),
+  ...(rev >= 8 ? [{ name: "maxRate6", type: "uint256" }] : []),
 ];
 const depsAbiFor = (rev) => [
   { type: "function", name: "create", stateMutability: "nonpayable", inputs: createInputsFor(rev), outputs: [{ type: "bytes32" }] },
@@ -133,6 +134,12 @@ const depsAbiFor = (rev) => [
     inputs: [{ name: "calls", type: "bytes[]" }], outputs: [{ type: "bytes[]" }] },
   { type: "function", name: "setConfig", stateMutability: "nonpayable",
     inputs: [{ name: "id", type: "bytes32" }, { name: "configCid", type: "string" }], outputs: [] },
+  // rev >= 8: the owner's spend ceiling — which enclaves may run this, and at
+  // what price, including when its current host dies
+  { type: "function", name: "setMaxRate", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }, { name: "maxRate6", type: "uint256" }], outputs: [] },
+  { type: "function", name: "capOf", stateMutability: "view", inputs: [{ name: "id", type: "bytes32" }],
+    outputs: [{ name: "maxRate6", type: "uint256" }] },
   { type: "function", name: "feeOf", stateMutability: "view", inputs: [{ name: "id", type: "bytes32" }],
     outputs: [{ name: "recipient", type: "address" }, { name: "feePerSec6", type: "uint256" }] },
   { type: "function", name: "get", stateMutability: "view", inputs: [{ name: "id", type: "bytes32" }],
@@ -326,6 +333,34 @@ function minShares(ver, pricing) {
   const grain = (x) => Math.min(1000, Math.ceil(x * 100) * 10);
   return { gpuMilli: grain(gpu), cpuMilli: Math.max(10, grain(cpu)) };
 }
+// What a whole node / whole card costs per second right now. On rev-8 ledgers
+// there is no platform price: every enclave posts its own and the CHEAPEST
+// currently-connected one is what a new deployment will actually pay (any box
+// dearer than the cap it gets can't claim it). `at` pins the numbers to one
+// specific enclave instead — used when the record already has a lease holder,
+// since that box is the one selling it capacity.
+async function livePrices(at) {
+  const rev = await depRev();
+  if (rev < 8) {
+    const { deployments } = await addresses();
+    const [p, c] = await Promise.all([
+      read(deployments, U256_VIEW("pricePerSec6"), "pricePerSec6"),
+      read(deployments, U256_VIEW("cpuPricePerSec6"), "cpuPricePerSec6"),
+    ]);
+    return { pricePerSec6: p, cpuPricePerSec6: c, source: "the platform list price" };
+  }
+  if (at) {
+    const cpu = Number(at.askCpuPricePerSec6), gpu = Number(at.askGpuPricePerSec6);
+    if (cpu > 0) return { pricePerSec6: BigInt(gpu > 0 ? gpu : 0), cpuPricePerSec6: BigInt(cpu),
+                          source: at.name ? `${at.name}'s posted price` : "the serving enclave's posted price" };
+  }
+  const av = await self("GET", "/availability").catch(() => null);
+  const cpu = Number(av?.cheapestCpuPricePerSec6), gpu = Number(av?.cheapestGpuPricePerSec6);
+  if (!(cpu > 0)) throw new Error("no live enclave is posting a price right now, so this can't be priced");
+  return { pricePerSec6: BigInt(gpu > 0 ? gpu : 0), cpuPricePerSec6: BigInt(cpu),
+           source: "the cheapest live enclave" };
+}
+
 // Changing the version or shares of a LEASED deployment is judged by ONE box:
 // the enclave holding the lease restarts the app in place and checks the new
 // version against its own card and node (supervisor minSharesOf). /v1/pricing
@@ -336,15 +371,18 @@ function minShares(ver, pricing) {
 // claim the record next. Mirrors cli/enclave.mjs hostPricing.
 async function hostPricing(d, pricing) {
   const runner = String(d?.runner || "").toLowerCase();
-  if (!/^0x[0-9a-f]{64}$/.test(runner) || /^0x0+$/.test(runner)) return { pricing, host: null };
-  if (!(Number(d.leaseUntil) * 1000 > Date.now())) return { pricing, host: null };
+  if (!/^0x[0-9a-f]{64}$/.test(runner) || /^0x0+$/.test(runner)) return { pricing, host: null, hostAsk: null };
+  if (!(Number(d.leaseUntil) * 1000 > Date.now())) return { pricing, host: null, hostAsk: null };
   const rows = await self("GET", "/enclaves").then((j) => j?.enclaves || []).catch(() => []);
   const row = rows.find((e) => String(e?.id || "").toLowerCase() === runner);
   const av = row?.availability;
-  if (!av) return { pricing, host: null };
+  if (!av) return { pricing, host: null, hostAsk: null };
   const pick = (v, fallback) => (Number(v) > 0 ? Number(v) : fallback);
   return {
     host: row.name || "the enclave holding the lease",
+    // its POSTED price (rev 8): a resize is re-bought from this box, not from
+    // the fleet's cheapest
+    hostAsk: { name: row.name, askCpuPricePerSec6: av.askCpuPricePerSec6, askGpuPricePerSec6: av.askGpuPricePerSec6 },
     pricing: { ...pricing,
       node: { ...(pricing?.node || {}), ramGb: pick(av.nodeRamGb, pricing?.node?.ramGb),
               gflops: pick(av.nodeGflops, pricing?.node?.gflops), vcpus: pick(av.nodeVcpus, pricing?.node?.vcpus) },
@@ -356,12 +394,19 @@ async function hostPricing(d, pricing) {
 // ---- unsigned-transaction encoders (pure; pinned by test/mcp.test.mjs) --------
 const tx = (to, data, value = 0n, describe = "") =>
   ({ chainId: CHAIN_ID, to, data, value: "0x" + value.toString(16), function: describe });
-export function encodeCreateTx({ rev, deployments, appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, envelope, feeRecipient, feePerSec6 }) {
+export function encodeCreateTx({ rev, deployments, appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, envelope, feeRecipient, feePerSec6, maxRate6 }) {
+  if (rev >= 8 && !(BigInt(maxRate6 || 0) > 0n)) throw new Error("this ledger requires a rate cap (maxRate6) on create");
   const args = [appRef, gpuMilli, cpuMilli, appPort, ports, isPublic,
                 ...(rev >= 2 ? [] : [""]), envelope || "",
-                ...(rev >= 4 ? [feeRecipient, feePerSec6] : [])];
+                ...(rev >= 4 ? [feeRecipient, feePerSec6] : []),
+                ...(rev >= 8 ? [BigInt(maxRate6)] : [])];
   return tx(deployments, encodeFunctionData({ abi: depsAbiFor(rev), functionName: "create", args }), 0n,
-    `EnclaveDeployments.create(${appRef})`);
+    `EnclaveDeployments.create(${appRef}${rev >= 8 ? `, cap ${usdHr(maxRate6)}` : ""})`);
+}
+export function encodeSetMaxRateTx({ deployments, id, maxRate6 }) {
+  if (!(BigInt(maxRate6 || 0) > 0n)) throw new Error("maxRate6 must be positive");
+  return tx(deployments, encodeFunctionData({ abi: depsAbiFor(8), functionName: "setMaxRate", args: [id, BigInt(maxRate6)] }), 0n,
+    `EnclaveDeployments.setMaxRate(${id.slice(0, 10)}…, ${usdHr(maxRate6)})`);
 }
 export function encodeFundTxs({ deployments, id, usd, ethWei }) {
   if (ethWei != null)
@@ -504,7 +549,7 @@ async function upgradeOrResize(a, resizeOnly) {
   }
   // sized on the box that will APPLY the change (its lease holder), not the
   // fleet's best box - see hostPricing
-  const { pricing, host } = await hostPricing(d, await self("GET", "/v1/pricing").catch(() => null));
+  const { pricing, host, hostAsk } = await hostPricing(d, await self("GET", "/v1/pricing").catch(() => null));
   const where = host ? `on ${host}` : "on the fleet's hardware";
   const mins = minShares(ver, pricing);
   let gpuMilli = a.gpuShare !== undefined ? Math.round(Number(a.gpuShare) * 1000) : Number(d.gpuMilli);
@@ -531,15 +576,24 @@ async function upgradeOrResize(a, resizeOnly) {
     throw new Error(`${app.slug}:${ver.version} charges ${usdHr(newFee)} publisher fee, above this deployment's immutable create-time snapshot (${usdHr(snap[1])}); deploy it fresh instead`);
   let rateInfo = {};
   if (resized) {
-    const [p6, c6, maxGpu] = await Promise.all([
-      read(deployments, U256_VIEW("pricePerSec6"), "pricePerSec6"),
-      read(deployments, U256_VIEW("cpuPricePerSec6"), "cpuPricePerSec6"),
+    // rev 8: the bigger slice is bought from the box that will serve it (its
+    // lease holder), at that box's posted price — not a platform list price
+    const [{ pricePerSec6: p6, cpuPricePerSec6: c6 }, maxGpu] = await Promise.all([
+      livePrices(hostAsk),
       read(deployments, [{ type: "function", name: "maxGpuMilli", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] }],
         "maxGpuMilli").then(Number).catch(() => 1000),
     ]);
     if (gpuMilli > maxGpu)
       throw new Error(`gpuShare ${gpuMilli / 1000} is over the platform's per-deployment GPU cap of ${maxGpu / 1000} of a card`);
     const newRate = (BigInt(p6) * BigInt(gpuMilli) + BigInt(c6) * BigInt(cpuMilli) + 999n) / 1000n + BigInt(snap[1]);
+    if (rev >= 8) {
+      // the resize is a purchase, so it is capped like a claim: the contract
+      // reverts "over rate cap" above the owner's ceiling
+      const cap6 = await read(deployments, depsAbiFor(8), "capOf", [full]).catch(() => 0n);
+      if (BigInt(cap6) > 0n && newRate > BigInt(cap6))
+        throw new Error(`that size costs ${usdHr(newRate)} on this enclave, above the deployment's rate cap of ${usdHr(cap6)}; `
+          + `raise the cap first (build_set_max_rate { id, maxRatePerHour }) or pick smaller dials`);
+    }
     // a resize mid-lease settles the tail at the old rate and re-burns it at
     // the new one; the contract refuses if that can't buy one second
     const now = Math.floor(Date.now() / 1000);
@@ -590,12 +644,12 @@ Reads (pricing, availability, catalog, deployment status) need no auth. Owner-on
   deploy: `Deploying an app, step by step:
 1. Pick a catalog app: list_apps, then get_app for versions. Only APPROVED versions are claimable.
 2. plan_deploy { app: "[publisher/]slug[:version]", fundUsd: 5 } with optional gpuShare/cpuShare (fractions 0..1 of one card / one node; defaults are the app's minimums on the fleet hardware), appPort, ports (CSV like "http:8080,tcp:7777,udp:53"), public (default true), waf (per-IP rate-limit/filter object, e.g. {"rps":10,"blockScanners":true}).
-3. It returns the unsigned create tx plus the priced rate per hour (platform shares + any publisher fee, snapshotted immutably at create). Sign and send.
+3. It returns the unsigned create tx plus the priced rate per hour (the cheapest live enclave's price for those shares + any publisher fee) and the rate cap it will carry — the most it may ever pay, which also decides which enclaves can pick it up if its host dies. Pass maxRatePerHour to set a roomier one. Sign and send.
 4. The receipt's Created event (topic ${DEP_CREATED_TOPIC}) carries the id in topics[1].
 5. build_fund { id, usd: 5 } (whole cents) or { id, eth: 0.002 }; sign and send. Runners skip unfunded work.
 6. claim_hint { id }, then poll get_deployment { id }: awaiting_payment -> queued -> claimed -> running. Queued-over-capacity work starts by itself when capacity frees.
 7. The app URL is https://<first-8-hex-of-id>.${APP_DOMAIN} (its own origin). Websockets work. Declared tcp:/udp: ports get a dedicated public IPv6 (in the deployment record's network field).
-Notes: a deployment that under-provisions its app's minimums is never claimed. On rev-6 ledgers the shares can be re-bought later (build_resize, or build_upgrade with gpuShare/cpuShare) with the rate recalculated at the then-current list prices; on older ledgers they are immutable after create. Stop/resume/upgrade are build_stop / build_resume / build_upgrade.
+Notes: a deployment that under-provisions its app's minimums is never claimed. On rev-6 ledgers the shares can be re-bought later (build_resize, or build_upgrade with gpuShare/cpuShare) with the rate recalculated at the serving enclave's posted price; on older ledgers they are immutable after create. Stop/resume/upgrade are build_stop / build_resume / build_upgrade, and build_set_max_rate moves the hourly spend ceiling.
 After it runs, the mutable knobs are: get_config/build_set_config (the app-config override + waf envelope, one owner tx; the runner re-applies it in place) and get_secrets/set_secrets (private env vars on the relay; restart_deployment applies them now). ${SIGNING_NOTE}`,
 
   publish: `Publishing an app to the catalog (wasm component -> IPFS -> on-chain version, then an approval gate):
@@ -609,7 +663,9 @@ After it runs, the mutable knobs are: get_config/build_set_config (the app-confi
 6. Sign and send. The version starts PENDING; runners only claim approved versions on the PUBLIC path. To test it before approval, deploy it PRIVATE by explicit label (plan_deploy { app: "slug:version", public: false } on a fleet advertising devDeploy): owner-only data path, unlisted in the store. Images for the app page go to /add-image with the same signed-upload flow (PNG/JPEG/WebP/GIF, or SVG through a strict validator - no scripts/event handlers/external refs). The answer's "svg": true must be stored alongside the CID in the version config's _media block ({thumbnail, banner, thumbnailSvg?, bannerSvg?}) so pages render it with the right content type.
 ${SIGNING_NOTE}`,
 
-  funding: `Money model: rates are on-chain per-second USDC (6 decimals). A deployment's rate = (pricePerSec6 * gpuMilli + cpuPricePerSec6 * cpuMilli, ceil-divided by 1000) + the version's publisher fee, all snapshotted at create; the pricing tool shows the live numbers and plan_deploy prices the exact deployment. Funding is prepaid and burns per second while leased.
+  funding: `Money model: rates are on-chain per-second USDC (6 decimals), and the PRICE IS THE ENCLAVE'S, not the platform's. Every enclave publishes what its whole machine costs (node vCPU+RAM, and one card) in its registry entry; a deployment pays that fraction of it — (hostGpuPrice * gpuMilli + hostCpuPrice * cpuMilli, ceil-divided by 1000) + the version's publisher fee — snapshotted from whichever enclave CLAIMS it. Move to another enclave (a host dying, a re-claim) and the price is that box's. The pricing tool shows the live numbers and plan_deploy prices the exact deployment at the cheapest live enclave.
+- Rate cap: every deployment carries maxRate6, the most it will pay per second (plan_deploy sets it to the quoted price by default; maxRatePerHour overrides). Enclaves dearer than the cap cannot claim it, so the cap is what bounds automatic failover; build_set_max_rate moves it while the app runs. Lowering it under the running rate lets the paid lease finish, then stops the app.
+Funding is prepaid and burns per second while leased.
 - USDC: build_fund { id, usd } returns approve + fund transactions (whole cents only). The CLI's gasless-style EIP-3009 path (fundWithAuthorization) exists too; the approve+fund pair is equivalent and simpler.
 - ETH: build_fund { id, eth } returns one fundEth transaction; credited as USDC at the live Chainlink ETH/USD rate.
 - Top up any time with build_fund. timeRemainingSec in get_deployment = prepaid lease tail + what the balance still buys.
@@ -898,6 +954,7 @@ const TOOLS = [
       waf: { type: "object", description: "Per-IP protection envelope, e.g. {\"rps\":10,\"burst\":40,\"blockScanners\":true}", additionalProperties: true },
       config: { type: "object", description: "Per-deployment app-config override: replaces the picked version's config as this deployment's ENCLAVE_CONFIG ({} = explicitly empty; the catalog default and other deployments are untouched). Needs a fleet whose availability advertises configOverride:true (old runners refuse the claim) AND a deploymentsSchema() >= 5 ledger (earlier ones cap the field at 100 bytes and revert).", additionalProperties: true },
       fundUsd: { type: "number", description: "Planned USDC funding (used to estimate runtime; funding itself is build_fund after create)" },
+      maxRatePerHour: { type: "number", description: "Spend ceiling in USDC/hour (rev-8 ledgers; default: exactly what the cheapest live enclave charges for these shares). Enclaves dearer than this can never claim the deployment - including when its host dies and the work is re-claimed - so raise it to keep failover options open on a mixed-price fleet. Editable later with build_set_max_rate." },
     }, ["app"]),
     handler: async (a) => {
       const isPublic = a.public !== false;
@@ -939,9 +996,8 @@ const TOOLS = [
         if (envelope.length > 4096) throw new Error("the options envelope (waf + config) exceeds 4096 bytes — runners refuse it; trim the config override");
       }
       const { deployments } = await addresses();
-      const [pricePerSec6, cpuPricePerSec6, maxGpuMilli] = await Promise.all([
-        read(deployments, U256_VIEW("pricePerSec6"), "pricePerSec6"),
-        read(deployments, U256_VIEW("cpuPricePerSec6"), "cpuPricePerSec6"),
+      const [{ pricePerSec6, cpuPricePerSec6, source: priceSource }, maxGpuMilli] = await Promise.all([
+        livePrices(),
         read(deployments, [{ type: "function", name: "maxGpuMilli", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] }],
           "maxGpuMilli").then(Number).catch(() => 1000),
       ]);
@@ -962,14 +1018,29 @@ const TOOLS = [
       if (envelope.length > envCap)
         throw new Error(`the options envelope is ${envelope.length} bytes but this ledger caps the field at ${envCap} bytes (create() reverts "configCid length")`);
       const rate = (pricePerSec6 * BigInt(gpuMilli) + cpuPricePerSec6 * BigInt(cpuMilli) + 999n) / 1000n + fee6;
+      // The spend ceiling (rev 8). Default: exactly the price quoted here — the
+      // cheapest live enclave — so the deployment can never be silently picked
+      // up by a dearer box. maxRatePerHour raises it, which is what a caller
+      // does to keep failover options open across a mixed-price fleet.
+      let maxRate6 = rate;
+      if (a.maxRatePerHour !== undefined) {
+        maxRate6 = BigInt(Math.round(Number(a.maxRatePerHour) * 1e6 / 3600));
+        if (!(maxRate6 > fee6))
+          throw new Error(`maxRatePerHour must exceed the publisher fee (${usdHr(fee6)})`);
+        if (maxRate6 < rate)
+          throw new Error(`maxRatePerHour ${usdHr(maxRate6)} is below what the cheapest live enclave charges for these shares (${usdHr(rate)}); no enclave could claim it`);
+      }
       const create = encodeCreateTx({ rev, deployments, appRef: ref, gpuMilli, cpuMilli, appPort,
-        ports: portsCsv, isPublic, envelope,
+        ports: portsCsv, isPublic, envelope, maxRate6,
         feeRecipient: fee6 > 0n ? app.publisher : "0x0000000000000000000000000000000000000000", feePerSec6: fee6 });
       return {
         app: `${app.slug}:${ver.version}`, appRef: ref,
         ...(pending ? { pending: `${ver.version} is awaiting catalog approval: this PRIVATE deployment is the dev-mode test path (owner-only data path, unlisted). If the owner later REJECTS the version, runners drop it at the next re-check.` } : {}),
         shares: { gpuMilli, cpuMilli, note: "immutable after create; minimums for this version: " + JSON.stringify(mins) },
         ratePerHour: usdHr(rate), publisherFeePerHour: fee6 > 0n ? usdHr(fee6) : null,
+        ...(rev >= 8 ? { pricedBy: priceSource,
+          rateCapPerHour: usdHr(maxRate6),
+          rateCapNote: "the most this deployment will ever pay per hour. Enclaves charging more can't claim it — including when its host dies and the work is re-claimed elsewhere. Change it any time with build_set_max_rate." } : {}),
         estimatedRuntime: a.fundUsd ? `${Math.floor(a.fundUsd * 1e6 / Number(rate) / 3600)}h ${Math.floor(a.fundUsd * 1e6 / Number(rate) % 3600 / 60)}m for $${a.fundUsd}` : undefined,
         transactions: [create],
         next: `1) sign+send the create tx  2) id = topics[1] of the Created event (topic ${DEP_CREATED_TOPIC})  3) build_fund { id, usd | eth }  4) claim_hint { id }  5) get_deployment until running; app URL https://<first-8-hex-of-id>.${APP_DOMAIN}`,
@@ -1042,6 +1113,34 @@ const TOOLS = [
       gpuShare: { type: "number", description: "New GPU share, fraction of one card 0..1" },
       cpuShare: { type: "number", description: "New CPU share, fraction of one node 0..1" } }, ["id"]),
     handler: (a) => upgradeOrResize(a, true),
+  },
+  {
+    name: "build_set_max_rate",
+    description: "Unsigned setMaxRate transaction moving a deployment's hourly spend ceiling (ledger rev 8), settable while the app runs. The cap is checked on every purchase of time: an enclave whose price for these shares exceeds it cannot claim the work — which is exactly what decides where the deployment fails over to when its host goes dark — and neither renewals nor resizes may cross it. RAISING it opens up pricier hardware; LOWERING it below the running rate lets the paid lease finish and then stops the app until a cheap enough enclave exists.",
+    inputSchema: S({ id: P.id,
+      maxRatePerHour: { type: "number", description: "The new ceiling in USDC per hour, e.g. 4.50" } }, ["id", "maxRatePerHour"]),
+    handler: async (a) => {
+      const rev = await depRev();
+      if (rev < 8) throw new Error("the live ledger predates rate caps (deploymentsSchema < 8)");
+      const full = await resolveFullId(a.id);
+      const d = await depGet(full);
+      const { deployments } = await addresses();
+      const maxRate6 = BigInt(Math.round(Number(a.maxRatePerHour) * 1e6 / 3600));
+      if (!(maxRate6 > 0n)) throw new Error("maxRatePerHour must be positive");
+      const [, fee6] = await read(deployments, depsAbiFor(rev), "feeOf", [full]).catch(() => ["0x", 0n]);
+      if (maxRate6 <= BigInt(fee6))
+        throw new Error(`the ceiling must exceed this app's publisher fee (${usdHr(fee6)})`);
+      const leased = Number(d.leaseUntil) * 1000 > Date.now();
+      const running = BigInt(d.rate);
+      return { id: full, owner: d.owner,
+        capPerHour: usdHr(maxRate6), currentRatePerHour: usdHr(running),
+        ...(leased && maxRate6 < running ? { warning:
+          `${usdHr(maxRate6)} is BELOW what this deployment currently pays (${usdHr(running)}). The lease already paid for runs to `
+          + `${new Date(Number(d.leaseUntil) * 1000).toISOString()}, then the app stops: no renewal and no re-claim is possible until a `
+          + `cheaper enclave exists or the cap goes back up.` } : {}),
+        transactions: [encodeSetMaxRateTx({ deployments, id: full, maxRate6 })],
+        next: `sign+send with the owner wallet (${d.owner})` };
+    },
   },
   {
     name: "get_config",
