@@ -1148,11 +1148,27 @@ async function cmdMove(rest) {
   else if (!(await confirm(`move ${short(id)} off ${from ? from.name : "its current enclave"} to ${dest.name}? (the app stops and relaunches there; unused lease time is refunded, then re-bought at ${dest.name}'s price)`)))
     return say("aborted");
   const oldRunner = String(d.runner || "").toLowerCase();
-  if (leased) {
-    await api("DELETE", `/v1/deployments/${id}`, { auth: account });
-    say(`lease released - unused time refunded to the balance; ${short(id)} is back in the open queue`);
-  }
   const ZERO = "0x" + "0".repeat(64);
+  const leaseGone = async () => {
+    const cur = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "get", [id]).catch(() => null);
+    const r = String((cur && cur.runner) || "").toLowerCase();
+    return !cur || !r || r === ZERO || !(Number(cur.leaseUntil) * 1000 > Date.now());
+  };
+  if (leased) {
+    // evacuate=1: the source also stands down from re-claiming for a short
+    // window. Without it the box that just released still has the app staged
+    // and its own sweep re-takes the work within seconds - the move looks like
+    // it worked and nothing moved (observed 2026-07-27).
+    const rel = await api("DELETE", `/v1/deployments/${id}?evacuate=1`, { auth: account });
+    say(`lease released - unused time refunded to the balance`
+        + (rel && rel.standDownSec ? `; ${from ? from.name : "the source"} stands down for ${rel.standDownSec}s` : ""));
+    // the release is a TRANSACTION: hinting before it is mined makes the
+    // destination attempt a claim that reverts "leased", which then puts THAT
+    // box into its own provisioning backoff and locks out the good retry
+    let cleared = false;
+    for (let i = 0; i < 30 && !cleared; i++) { await new Promise((r) => setTimeout(r, 2000)); cleared = await leaseGone(); }
+    if (!cleared) throw new Error("the lease is still live on-chain 60s after the release - nothing moved and nothing was lost; try again shortly");
+  }
   let landed = null, lastReason = "";
   for (let i = 0; i < 45 && !landed; i++) {
     if (i % 3 === 0) {
