@@ -94,22 +94,32 @@ _SECRET_RAW     = os.environ.get("SECRET") or ""
 VMMGR_TOKEN = _VMMGR_EXPLICIT or (
     hmac.new(_SECRET_RAW.encode("utf-8", "surrogateescape"), b"enclave vmmgr v1", hashlib.sha256).hexdigest()
     if _SECRET_RAW else "")
-# ROLLOUT WINDOW: enclave-supervisor and enclave-wasm-manager are SEPARATE
-# images with independent digests, so one updates before the other. Accept the
-# old raw-SECRET token too until both sides are past this change, or a staggered
-# rollout takes the control plane down mid-flight. Drop this once the fleet is
-# fully repointed - it is the ONLY thing still accepting the master on the wire.
-VMMGR_TOKEN_LEGACY = "" if _VMMGR_EXPLICIT else _SECRET_RAW
+# ROLLOUT WINDOW CLOSED (2026-07-27). While supervisor and wasm-manager were
+# rolling independently this also accepted the RAW SECRET, so a staggered update
+# could not take the control plane down mid-flight. Both live enclaves now run
+# post-derivation supervisors (they advertise the rev-8 `rateCap` capability,
+# which shipped long after the derivation), so the master is no longer accepted
+# anywhere on the wire. Re-adding it would mean one observed loopback header is
+# again worth HMAC(SECRET,"enclave dns-txt v1") + HMAC(SECRET,"enclave secrets
+# v1") as well as this plane; if a future staggered rollout needs a window, set
+# VMMGR_TOKEN explicitly on both sides instead of reopening this.
 VMMGR_ALLOW_UNAUTH = os.environ.get("VMMGR_ALLOW_UNAUTHENTICATED", "").strip().lower() in ("1", "true", "yes", "on")
-# /health is intentionally OPEN (no control token) for the supervisor's liveness
-# probe, but its FULL body leaks capacity, model-volume names/listings, GPU
-# specs and the verbose GPU-probe diagnostics to any loopback-reaching caller
-# (a tenant can reach loopback). WASM_HEALTH_MINIMAL=1 trims the UNAUTHENTICATED
-# /health to a bare liveness subset (full detail still returned to callers that
-# present the control token). OFF by default so the supervisor's current
-# /health consumers are untouched; enable once the supervisor is confirmed to
-# either authenticate to /health or not need the detailed fields.
-HEALTH_MINIMAL = os.environ.get("WASM_HEALTH_MINIMAL", "0").lower() in ("1", "true", "on")
+# /health is intentionally OPEN (no control token) for liveness probes — the
+# container healthcheck curls it — but its FULL body leaks capacity (including
+# what OTHER tenants hold committed), model-volume names/listings, GPU specs and
+# the verbose GPU-probe diagnostics to any loopback-reaching caller, and a
+# tenant CAN reach loopback (the wasmtime egress patch carves it out so apps can
+# dial /encvol). So the detailed half is withheld from unauthenticated callers.
+#
+# DEFAULT ON since 2026-07-27. It was off pending "is every real consumer
+# authenticated?" — they are: supervisor.js's vmReq attaches X-Vmmgr-Token to
+# EVERY manager call, /health included, so the supervisor still gets the full
+# body; the healthcheck only needs the 200. Every config in the tree
+# (enclaves/*, metal/guest/gsup.mjs) already set 1, so this only changes what a
+# third-party operator gets by writing no config at all — which is exactly the
+# case that should be safe by default. WASM_HEALTH_MINIMAL=0 restores the old
+# open body for local debugging.
+HEALTH_MINIMAL = os.environ.get("WASM_HEALTH_MINIMAL", "1").lower() in ("1", "true", "on")
 WASMTIME     = os.environ.get("WASMTIME_BIN", "wasmtime")
 APPS_DIR     = pathlib.Path(os.environ.get("WASM_APPS_DIR", "/opt/enclave/apps"))
 CATALOG_PATH = pathlib.Path(os.environ.get("WASM_CATALOG", str(APPS_DIR / "catalog.json")))
@@ -180,6 +190,19 @@ PORT_MAX_DECL  = 19999
 PRIV_PORT_MAX  = 1023
 RESERVED_PORTS = {8080, 8091}
 AUDIT_SECS     = float(os.environ.get("WASM_AUDIT_INTERVAL", "10"))
+# CROSS-TENANT loopback policing (see _audit_peers). Tenants share the CVM's
+# network namespace, so one tenant CAN open a TCP connection straight to another
+# tenant's assigned loopback port - around /x/:id, which is where a PRIVATE
+# deployment's owner-only check and the deployer's WAF live. There is no
+# per-address gate available at the runtime today (see _build_cmd's SECURITY
+# note), so this is measure-and-kill, exactly like the port firewall and the
+# /data ceiling above it.
+#   1/true/on (default) - kill the tenant that dialled a sibling
+#   warn                - record it on the record and log, kill nothing
+#   0/false/off         - don't look
+WASM_PEER_AUDIT = (os.environ.get("WASM_PEER_AUDIT", "1") or "1").strip().lower()
+PEER_AUDIT_ON   = WASM_PEER_AUDIT not in ("0", "false", "off", "no")
+PEER_AUDIT_KILL = PEER_AUDIT_ON and WASM_PEER_AUDIT != "warn"
 # wasi-nn GPU interface: a deployment that BUYS a GPU share (gpuShare > 0)
 # is launched with `-S nn`, so the guest can run inference through the host's
 # backends — ONNX Runtime for ONNX graphs, llama.cpp for GGUF, and
@@ -2519,7 +2542,20 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     # hands the guest the CVM's shared loopback namespace. A malicious tenant
     # can then reach the enclave's own loopback services — supervisor:8080,
     # worker:8090, this manager:8091 — bypassing the
-    # egress net-guard AND per-request billing (an SSRF-to-localhost). We
+    # egress net-guard AND per-request billing (an SSRF-to-localhost).
+    #
+    # AND IT REACHES SIBLINGS, not just platform services — the half this note
+    # used to leave out. Every tenant's app listens on 127.0.0.1:<actual>, so one
+    # tenant can dial another's port and land INSIDE its app, around /x/:id where
+    # a PRIVATE deployment's owner-token check and the deployer's WAF live. That
+    # is not closed at any service, because a tenant app is not ours to gate.
+    # Transparent egress does NOT fix it either: the `-S egress` carve-out dials
+    # literal loopback DIRECT by design (wasmtime-egress.patch), which is what
+    # keeps /encvol reachable. Until the per-address check below exists,
+    # _audit_peers polices it the same way this file polices binds and storage —
+    # it watches every tenant's own sockets for a connection to a live sibling's
+    # port and kills the caller. Detection, not prevention: a short-lived dial
+    # between sweeps can complete first. We
     # deliberately do NOT try to fix this by dropping the flag, because with the
     # STOCK wasmtime CLI there is no middle ground: the WASI socket-address
     # check is all-or-nothing — `-Sinherit-network` sets it to allow-all, and
@@ -3052,10 +3088,9 @@ def _spawn_and_wait(rec, ctx):
 
 
 # --- firewall enforcement: audit what each app actually bound ---------------- #
-def _bound_ports(pid) -> set:
-    """Ports bound by `pid`: its socket inodes (/proc/<pid>/fd) matched against
-    /proc/net/{tcp,tcp6,udp,udp6}. TCP counts only LISTEN (st=0A); UDP counts
-    unconnected binds. Unprivileged: the manager spawned these processes."""
+def _sock_inodes(pid) -> set:
+    """The socket inodes `pid` holds open (/proc/<pid>/fd). Unprivileged: the
+    manager spawned these processes, so it can read their fd table."""
     inodes = set()
     try:
         for fd in os.listdir(f"/proc/{pid}/fd"):
@@ -3066,6 +3101,16 @@ def _bound_ports(pid) -> set:
             if ln.startswith("socket:["):
                 inodes.add(ln[8:-1])
     except OSError:
+        return set()
+    return inodes
+
+
+def _bound_ports(pid) -> set:
+    """Ports bound by `pid`: its socket inodes matched against
+    /proc/net/{tcp,tcp6,udp,udp6}. TCP counts only LISTEN (st=0A); UDP counts
+    unconnected binds."""
+    inodes = _sock_inodes(pid)
+    if not inodes:
         return set()
     ports = set()
     for name in ("tcp", "tcp6", "udp", "udp6"):
@@ -3103,6 +3148,111 @@ def _audit_rec(rec):
                         f"Apps must bind the ACTUAL ports from ENCLAVE_PORTS (logical=actual), not hardcode.")
         print(f"[audit] {rec['id']} killed: unassigned ports {sorted(extra)}", flush=True)
         _kill(rec)
+
+
+# --- cross-tenant loopback policing ----------------------------------------- #
+def _is_loopback_hex(addr_hex: str) -> bool:
+    """Is a /proc/net address a loopback one? The kernel prints each 4-byte word
+    in HOST order, so IPv4 127.0.0.1 reads "0100007F" (last byte first) and ::1
+    reads "00000000000000000000000001000000"; ::ffff:127.0.0.1 is the v4-mapped
+    form. Anything else - including this box's own public address - is not
+    loopback and is none of this audit's business (that traffic left through the
+    egress front and was SSRF-checked there)."""
+    a = (addr_hex or "").lower()
+    if len(a) == 8:                                   # IPv4
+        return a[6:8] == "7f"
+    if len(a) == 32:                                  # IPv6
+        if a == "00000000000000000000000001000000":   # ::1
+            return True
+        if a[16:24] == "0000ffff":                    # ::ffff:a.b.c.d
+            return a[30:32] == "7f"
+    return False
+
+
+def _peer_ports(inodes: set, rows: list) -> set:
+    """Remote LOOPBACK ports the sockets in `inodes` are connected to. `rows` is
+    the /proc/net/{tcp,tcp6} body (header dropped). LISTEN sockets (st=0A) carry
+    a null peer and are skipped; every other state counts, so a half-open or
+    just-refused dial reads the same as a completed one - the intent is what is
+    being policed. `inodes` comes from the tenant's own fd table, so a socket it
+    has already closed (a TIME_WAIT with no owner) is invisible here: this sees
+    connections that are still OPEN when the sweep runs."""
+    out = set()
+    for line in rows:
+        f = line.split()
+        if len(f) < 10 or f[9] not in inodes or f[3] == "0A":
+            continue
+        addr, _, port_hex = f[2].rpartition(":")
+        if not _is_loopback_hex(addr):
+            continue
+        try:
+            out.add(int(port_hex, 16))
+        except ValueError:
+            continue
+    return out
+
+
+def _tenant_port_owner() -> dict:
+    """actual loopback port -> the id of the LIVE tenant it belongs to."""
+    owner = {}
+    with _lock:
+        recs = [(r["id"], r.get("_assigned") or [], r.get("hostPort"))
+                for r in _apps.values() if r["status"] in ("starting", "running")]
+    for vid, assigned, host_port in recs:
+        for p in list(assigned) + ([host_port] if host_port else []):
+            try:
+                owner[int(p)] = vid
+            except (TypeError, ValueError):
+                continue
+    return owner
+
+
+def _audit_peers(rec, port_owner: dict):
+    """Kill a tenant that opened a loopback connection to ANOTHER tenant's port.
+
+    Tenants share one network namespace, and the runtime's egress carve-out
+    dials literal loopback direct (wasmtime-egress.patch), so the /x/:id proxy -
+    where a PRIVATE deployment's owner check and the deployer's WAF live - can be
+    walked around by connecting to the sibling's port on 127.0.0.1. Nothing
+    legitimate does this: an app that wants another app calls its PUBLIC address,
+    which leaves through the egress front. So a hit is a deliberate reach across
+    the tenant boundary and the app dies, the same measure-and-kill answer the
+    port firewall and the storage ceilings give.
+
+    Deliberately not port-scan detection: a CONNECT to a live sibling's port is
+    the thing itself, no heuristics and no threshold."""
+    if not PEER_AUDIT_ON:
+        return
+    proc = rec.get("_proc")
+    pid = getattr(proc, "pid", None)
+    if pid is None or (hasattr(proc, "poll") and proc.poll() is not None):
+        return
+    foreign = {p: vid for p, vid in port_owner.items() if vid != rec["id"]}
+    if not foreign:
+        return
+    inodes = _sock_inodes(pid)
+    if not inodes:
+        return
+    rows = []
+    for name in ("tcp", "tcp6"):
+        try:
+            rows += pathlib.Path(f"/proc/net/{name}").read_text().splitlines()[1:]
+        except OSError:
+            continue
+    hits = sorted({(p, foreign[p]) for p in _peer_ports(inodes, rows) if p in foreign})
+    if not hits:
+        return
+    who = ", ".join(f"{p} ({vid})" for p, vid in hits)
+    rec["peerDials"] = [{"port": p, "deployment": vid} for p, vid in hits]
+    print(f"[audit] {rec['id']} dialled another tenant on loopback: {who}"
+          + ("" if PEER_AUDIT_KILL else " (WASM_PEER_AUDIT=warn: not killed)"), flush=True)
+    if not PEER_AUDIT_KILL:
+        return
+    rec["status"] = "failed"
+    rec["error"] = (f"isolation: connected to another deployment's loopback port ({who}); app killed. "
+                    f"Reach other apps at their public address - the in-CVM loopback is this "
+                    f"enclave's own service plane, not a tenant network.")
+    _kill(rec)
 
 
 def _dir_size(path) -> int:
@@ -3219,6 +3369,7 @@ def _audit_sweep():
                     _heal_preloads(r, c, vols)
             except Exception:
                 pass
+        port_owner = _tenant_port_owner() if PEER_AUDIT_ON else {}
         for r in recs:
             try:
                 _audit_rec(r)
@@ -3226,6 +3377,8 @@ def _audit_sweep():
                     _audit_storage(r)
                 if r["status"] == "running":
                     _audit_enc(r)
+                if r["status"] == "running":
+                    _audit_peers(r, port_owner)
             except Exception:
                 pass
 
@@ -3361,10 +3514,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # bytes, not str: compare_digest raises TypeError on a str with any
         # character above U+007F, and headers arrive latin-1-decoded — one high
         # byte in the header would raise inside the auth check rather than fail it
-        if hmac.compare_digest(_b(tok), _b(VMMGR_TOKEN)):
-            return True
-        # rollout window only - see VMMGR_TOKEN_LEGACY
-        return bool(VMMGR_TOKEN_LEGACY) and hmac.compare_digest(_b(tok), _b(VMMGR_TOKEN_LEGACY))
+        return hmac.compare_digest(_b(tok), _b(VMMGR_TOKEN))
 
     # --- encrypted volumes: the tenant plane ------------------------------- #
     # /encvol/<vid>[/<action>] is NOT control-plane: it authenticates with the
