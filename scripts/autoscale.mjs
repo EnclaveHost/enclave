@@ -9,6 +9,9 @@
 // Tinfoil controlplane; stops auto-managed enclaves that sit idle. Design and
 // threat model: docs/autoscale.md. The guardrails, in one breath:
 //
+//   - Creating a NEW Tinfoil container is OFF unless AUTOSCALE_ALLOW_CREATE is
+//     set: by default scale-up may only restart an existing stopped auto-* box,
+//     so the autoscaler never grows the Tinfoil footprint on its own.
 //   - Demand is read from the CHAIN, and funding is non-custodial and
 //     NON-REFUNDABLE (EnclaveDeployments forwards USDC to the payout wallet in
 //     the funding tx; there is no withdraw path). Faking demand costs real,
@@ -60,6 +63,10 @@ export const CFG = {
   minUnmetShare: { gpu: num("AUTOSCALE_MIN_UNMET_GPU_SHARE", 0.10), cpu: num("AUTOSCALE_MIN_UNMET_CPU_SHARE", 0.25) },
   horizonSec: num("AUTOSCALE_HORIZON_SEC", 86400), // cap per-deployment committed-USD credit at 24h
   maxAuto: { gpu: num("AUTOSCALE_MAX_GPU", 1), cpu: num("AUTOSCALE_MAX_CPU", 1) },
+  // provisioning BRAND-NEW Tinfoil containers is OFF by default: scale-up may
+  // only restart an existing stopped auto-* standby. Set AUTOSCALE_ALLOW_CREATE
+  // (1/true/on/yes) to let the planner and apply create enclaves again.
+  allowCreate: /^(1|true|on|yes)$/i.test(env.AUTOSCALE_ALLOW_CREATE ?? ""),
   orgContainerQuota: 10, // Tinfoil's documented per-org instance limit
   cooldownSec: num("AUTOSCALE_COOLDOWN_SEC", 1800),
   idleStopSec: num("AUTOSCALE_IDLE_STOP_SEC", 2700),
@@ -159,6 +166,8 @@ export function decide(snap, cfg = CFG) {
         if (stopped) {
           actions.push({ type: "start", name: stopped.name, flavor: f, tag: tag.tag, tagDerived: tag.derived,
             reason: reasonOf(f, d) });
+        } else if (!cfg.allowCreate) {
+          warnings.push(`${f}: demand present and no stopped auto-${f} standby to start, but creating new enclaves is DISABLED (set the AUTOSCALE_ALLOW_CREATE repo variable to 1 to re-enable) — the work stays queued`);
         } else if (containers.length >= cfg.orgContainerQuota) {
           warnings.push(`${f}: demand present but the org is at Tinfoil's ${cfg.orgContainerQuota}-container quota`);
         } else {
@@ -591,6 +600,9 @@ async function apply(planPath) {
           }
         }
       } else if (a.type === "create") {
+        // second gate, so a plan reviewed while creation was allowed (or a
+        // hand-edited plan.json) can never provision a box behind the setting
+        if (!CFG.allowCreate) { log("  creating new enclaves is DISABLED (AUTOSCALE_ALLOW_CREATE not set) — skip"); continue; }
         if (cur) { log(`  already exists (status ${cur.status}) — skip`); continue; }
         const args = ["container", "create", a.name, "--repo", CFG.repo, "--tag", a.tag];
         for (const s of configSecrets(a.flavor)) args.push("--secret", s);

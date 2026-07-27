@@ -5,15 +5,19 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { decide } from "../scripts/autoscale.mjs";
 
+// mirrors the production default: creating brand-new Tinfoil containers is off
 const cfg = {
   dwellSec: 900, minFundedSec: 7200,
   minCommittedUsd: { gpu: 12, cpu: 3 },
   minUnmetShare: { gpu: 0.15, cpu: 0.25 },
   horizonSec: 86400,
   maxAuto: { gpu: 1, cpu: 1 },
+  allowCreate: false,
   orgContainerQuota: 10,
   cooldownSec: 1800, idleStopSec: 2700,
 };
+// AUTOSCALE_ALLOW_CREATE=1 — the opt-in that lets the planner provision boxes
+const createCfg = { ...cfg, allowCreate: true };
 
 // $6/hr full card ≈ 1667 µUSDC/s; 3h funded at 100% GPU ≈ $18
 const gpuAsk = (over = {}) => ({
@@ -52,10 +56,24 @@ test("funded unservable GPU demand starts the stopped standby at the fleet tag",
     { type: "start", name: "auto-gpu-1", tag: "v0.5.150" });
 });
 
-test("no standby → create with the next index", () => {
-  const r = decide(snap({ candidates: [gpuAsk()] }), cfg);
+test("no standby → create with the next index (only with AUTOSCALE_ALLOW_CREATE)", () => {
+  const r = decide(snap({ candidates: [gpuAsk()] }), createCfg);
   assert.equal(r.actions[0].type, "create");
   assert.equal(r.actions[0].name, "auto-gpu-1");
+});
+
+test("kill switch: creating new enclaves is off by default — demand queues instead", () => {
+  const r = decide(snap({ candidates: [gpuAsk()] }), cfg);
+  assert.equal(r.actions.length, 0);
+  assert.ok(r.warnings.some((w) => w.includes("AUTOSCALE_ALLOW_CREATE")));
+  // the setting only blocks creation: an existing stopped standby still starts
+  const withStandby = decide(snap({ candidates: [gpuAsk()], containers: [baseline(), autoBox()] }), cfg);
+  assert.deepEqual(withStandby.actions.map((a) => a.type), ["start"]);
+  // …and scale-down is untouched
+  const idle = decide(snap({ containers: [baseline(), autoBox({ status: "running" })],
+    leases: [{ runner: RUNNER, leaseUntil: NOWS - 3000 }],
+    health: { "auto-gpu-1": { deployments: 0 } } }), cfg);
+  assert.deepEqual(idle.actions.map((a) => a.type), ["stop"]);
 });
 
 test("servable demand is not demand", () => {
@@ -115,7 +133,7 @@ test("cooldown fallback: a freshly created auto box blocks even without the stam
 
 test("org quota blocks creation", () => {
   const many = Array.from({ length: 10 }, (_, i) => baseline({ name: `e${i}` }));
-  const r = decide(snap({ candidates: [gpuAsk()], containers: many }), cfg);
+  const r = decide(snap({ candidates: [gpuAsk()], containers: many }), createCfg);
   assert.equal(r.actions.length, 0);
   assert.ok(r.warnings.some((w) => w.includes("quota")));
 });
@@ -132,7 +150,7 @@ test("relay outage freezes the autoscaler entirely", () => {
 
 test("cold fleet (relay ok, zero enclaves) does scale up", () => {
   const r = decide(snap({ candidates: [gpuAsk()], enclaves: [], relayDomains: [], relayOk: true,
-    containers: [baseline({ status: "stopped" })] }), cfg);
+    containers: [baseline({ status: "stopped" })] }), createCfg);
   assert.equal(r.actions.length, 1);
   assert.equal(r.actions[0].type, "create");
 });
@@ -178,7 +196,7 @@ test("untrusted running auto box raises a TRUST warning", () => {
 });
 
 test("cpu demand with no cpu baseline derives the -cpu tag", () => {
-  const r = decide(snap({ candidates: [cpuAsk({ cpuShare: 0.5 })], enclaves: [gpuBox({ cpuShareFree: 0.1 })] }), cfg);
+  const r = decide(snap({ candidates: [cpuAsk({ cpuShare: 0.5 })], enclaves: [gpuBox({ cpuShareFree: 0.1 })] }), createCfg);
   assert.equal(r.actions.length, 1);
   assert.equal(r.actions[0].name, "auto-cpu-1");
   assert.equal(r.actions[0].tag, "v0.5.150-cpu");
@@ -187,7 +205,7 @@ test("cpu demand with no cpu baseline derives the -cpu tag", () => {
 
 test("gpu8 containers are never counted or touched", () => {
   const g8 = baseline({ name: "enclave-gpu8", flavor: "gpu8", currentTag: "v0.5.150-gpu8", gpus: 8 });
-  const r = decide(snap({ candidates: [gpuAsk()], containers: [baseline(), g8] }), cfg);
+  const r = decide(snap({ candidates: [gpuAsk()], containers: [baseline(), g8] }), createCfg);
   assert.ok(r.actions.every((a) => a.flavor !== "gpu8"));
   assert.ok(!r.actions.some((a) => a.name.includes("gpu8")));
 });

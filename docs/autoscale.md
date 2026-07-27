@@ -1,9 +1,9 @@
 # Demand-driven fleet autoscaling
 
 `autoscale.yml` (cron, every 30 min) + `scripts/autoscale.mjs`. Finds funded
-deployments the current fleet has no capacity to claim, and starts (or
-creates) standby enclave containers through the Tinfoil controlplane; stops
-auto-managed enclaves that sit idle. Built so that triggering it is always
+deployments the current fleet has no capacity to claim, and starts (or, when
+`AUTOSCALE_ALLOW_CREATE` is set, creates) standby enclave containers through
+the Tinfoil controlplane; stops auto-managed enclaves that sit idle. Built so that triggering it is always
 **more expensive for an attacker than for us** — see the threat model below.
 
 ## How a scale-up decision is made
@@ -63,6 +63,20 @@ containers don't bill and keep their config), else **create** one. The tag is
 inherited from the live fleet (attestation-locked to `/releases/latest` by the
 update-fleet job); a first-ever CPU box derives `<gpu tag>-cpu` and the plan
 verifies that release exists before proposing.
+
+### Creating new enclaves is off by default
+
+**`AUTOSCALE_ALLOW_CREATE` (unset = disabled).** Without this repo variable the
+autoscaler never calls `tinfoil container create`: scale-up is limited to
+restarting an existing stopped `auto-*` standby, so the fleet's Tinfoil
+footprint only ever changes by hand. When demand clears the economic gates and
+there is no standby to start, `plan` emits a warning instead of a create action
+and the work stays queued. `apply` re-checks the same setting before every
+create, so a plan reviewed while creation was allowed (or an edited
+`plan.json`) still cannot provision a box. Set the repo variable to `1`
+(`gh variable set AUTOSCALE_ALLOW_CREATE -b 1`) to re-enable; unset or set it to
+anything else to disable again. Everything else — start, idle-stop,
+consolidation, rollback — is unaffected.
 
 ## Scale-down
 
@@ -132,7 +146,8 @@ container caps); a compromised RPC could fabricate demand — bounded by the
 same caps, and mitigated by the multi-provider fallback list. Neither lets an
 attacker exceed `MAX_AUTO` containers or touch the baseline fleet.
 
-**Blast radius is structurally limited.** The script can only: start/create
+**Blast radius is structurally limited.** The script can only: start (and, only
+with `AUTOSCALE_ALLOW_CREATE` set, create)
 containers named `auto-*` bound to the org's existing vault secrets at the
 fleet's current release tag, and stop idle `auto-*` containers. It never
 deletes, never rebinds secrets, never changes tags on baseline containers,
@@ -176,5 +191,7 @@ Running → `/v1/health` answers on its domain → the relay lists it within
 1. `TINFOIL_API_KEY` repo secret (shared with the update-fleet job).
 2. `fleet-scale` environment with a required reviewer (`scripts/ci-setup.sh`
    creates it alongside `contract-deploy`).
-3. Watch a few gated cycles; optionally set `AUTOSCALE_MODE=auto` later.
-4. Local dry-run any time: `TINFOIL_API_KEY=admin_… node scripts/autoscale.mjs plan`.
+3. Decide whether new containers may be provisioned at all: creation stays off
+   until `AUTOSCALE_ALLOW_CREATE=1` is set as a repo variable (see above).
+4. Watch a few gated cycles; optionally set `AUTOSCALE_MODE=auto` later.
+5. Local dry-run any time: `TINFOIL_API_KEY=admin_… node scripts/autoscale.mjs plan`.
