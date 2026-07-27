@@ -21,6 +21,23 @@ for the enclave.host operator (Steven).
 
 ## Needs your access / a decision
 
+### 0. Create the model-volume store (30 s, root)
+Model volumes live on the data SSD (`/vm`, root-owned), so the store has to be
+made once before `metal/volumes.mjs` can write there:
+```sh
+sudo mkdir -p /vm/enclave-volumes && sudo chown $USER /vm/enclave-volumes
+```
+Then build the volumes and attach them (see README "Model volumes"):
+```sh
+for m in ~/Projects/enclave-models/*/; do
+  node metal/volumes.mjs build "$(basename "$m")" --src "$m"; done
+node metal/volumes.mjs list
+# metal/config.json: "volumes": "*"   → then: systemctl --user restart enclave-metal
+```
+The volume-set digest rides in HOST_DATA, so this does **not** change the
+enclave's launch measurement — no allowlist churn, and `verify.mjs` keeps
+matching the manifest while additionally printing which models are bound.
+
 ### 1. Make `/dev/sev` access persistent (2 min, root)
 You granted it for this session with `setfacl`. To survive reboot:
 ```sh

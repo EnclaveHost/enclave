@@ -140,6 +140,25 @@ can check that each entry corresponds to a real, inspectable source release.
 This is strictly stronger than the hosted model's Sigstore link: the measurement
 *is* the code, folded into the hardware quote, with no transparency-log detour.
 
+### Model volumes stay OUT of the measurement (and in HOST_DATA)
+
+A seller carrying model volumes (README, "Model volumes") is running the same
+release as everyone else with different DATA attached. If that data entered the
+launch measurement — the obvious design, and what Modelwrap does by putting its
+dm-verity root on the kernel cmdline — then every distinct model set would be a
+distinct measurement, and gate 1's allowlist would have to enumerate the
+cross-product of releases and model sets. Permissionless attach would break for
+exactly the sellers we want.
+
+So the volume-set digest goes in **HOST_DATA** (`MRCONFIGID` on TDX): signed by
+the CPU into every report, absent from the launch measurement. The guest reads
+it back out of its own report and refuses to mount a volume table that doesn't
+hash to it, so the binding is fail-closed inside the enclave, not merely
+observable outside it. Result: **identity of the code and identity of the data
+are separable** — the allowlist keeps pinning releases, while any verifier reads
+straight off the quote which models the box is serving, and dm-verity guarantees
+the bytes behind each of those roots.
+
 ## What a seller runs
 
 ```sh

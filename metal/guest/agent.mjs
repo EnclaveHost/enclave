@@ -77,6 +77,13 @@ function radWithReportData(first32) {
   const doc = { format: fmt, body: outblob.toString('base64'), transportKey: spkiDer.toString('base64'), transportKeyFp: keyFp.toString('hex'), name: NAME };
   if (auxblob) doc.certs = auxblob.toString('base64');
   try { doc.manifest = JSON.parse(fs.readFileSync('/opt/metal/manifest.json', 'utf8')); } catch {}
+  // Attached model volumes, as the guest actually set them up (gsup writes this
+  // after checking the table against the measured metal.vols digest). It is
+  // published UNSIGNED on purpose: a verifier recomputes the digest from these
+  // entries, folds it into the cmdline, and recomputes the launch measurement —
+  // if anything here were altered the measurement would stop matching the
+  // quote. So the hardware ends up vouching for which models are mounted.
+  try { doc.volumes = JSON.parse(fs.readFileSync('/run/metal-volumes.json', 'utf8')); } catch {}
   return doc;
 }
 // Quote bound to a relay challenge: report_data = sha256(transportKey SPKI || nonce).
@@ -109,6 +116,13 @@ function buildRad() {
   doc.transportKeyFp = keyFp.toString('hex');
   doc.name = NAME;
   try { doc.manifest = JSON.parse(fs.readFileSync('/opt/metal/manifest.json', 'utf8')); } catch {}
+  // Attached model volumes, as the guest actually set them up (gsup writes this
+  // after checking the table against the measured metal.vols digest). It is
+  // published UNSIGNED on purpose: a verifier recomputes the digest from these
+  // entries, folds it into the cmdline, and recomputes the launch measurement —
+  // if anything here were altered the measurement would stop matching the
+  // quote. So the hardware ends up vouching for which models are mounted.
+  try { doc.volumes = JSON.parse(fs.readFileSync('/run/metal-volumes.json', 'utf8')); } catch {}
   radCache = doc; radAt = Date.now();
   return doc;
 }
