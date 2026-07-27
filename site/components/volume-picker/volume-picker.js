@@ -28,7 +28,12 @@ class VolumePicker extends EnclaveElement {
         + (v.gguf ? '<span class="ap-badge info">gguf</span>' : "")
         + (v.sd ? '<span class="ap-badge info">sd</span>' : "")
         + (gb ? '<span class="vol-size dim">' + gb + '</span>' : "")
-        + '<span class="vol-where dim">' + v.count + (v.count === 1 ? " enclave" : " enclaves") + '</span>'
+        // WHERE, not just how many: a volume lives on the boxes that attached
+        // it, so ticking one narrows what can host this deployment. Naming the
+        // single host makes that visible here, where the choice is made, rather
+        // than only in the target dropdown below.
+        + '<span class="vol-where dim">' + (v.count === 1 && v.hosts && v.hosts.length === 1
+            ? "only on " + esc(v.hosts[0]) : v.count + (v.count === 1 ? " enclave" : " enclaves")) + '</span>'
         + '</label>';
     }).join("");
     list.querySelectorAll('input[data-vol]').forEach(cb => cb.addEventListener("change", () => {

@@ -150,6 +150,50 @@ test("rankEnclavesFor: the dropdown's list — every host, recommended first, fu
   assert.ok(!rankEnclavesFor({ memMb: 8 * 1024, cpuGflops: 0 }, [tiny]).length);
 });
 
+/* ---- model volumes are placement, not just config ------------------------ */
+// A volume is ATTACHED to a box (Modelwrap on the hosted fleet, dm-verity
+// images on a metal box) — it is never fetched on demand. So a deployment that
+// names one can only run where it lives, and the target must say so BEFORE the
+// signature: the runner's own claim gate refuses the record, and a hint sent to
+// a box that declines leaves the deploy sitting in the open queue.
+const vol = (...names) => ({ volumes: names.map((name) => ({ name })) });
+const LLM = { vramMb: 0, gpuGflops: 0, memMb: 512, cpuGflops: 10, volumes: ["qwen3.5-122b-gguf-merged"] };
+
+test("rankEnclavesFor: only boxes carrying the requested volume are targets", () => {
+  const metal = row("metal0", { gpu: false, claimEnabled: true, nodeVcpus: 4, nodeRamGb: 28, nodeGflops: 250, cpuShareFree: 1,
+    ...vol("qwen3.5-122b-gguf-merged", "qwen2.5-0.5b-gguf") }, { tunnel: true });
+  const kryptos = row("kryptos", { ...GPU_BOX, ...vol("qwen2.5-0.5b-gguf") });
+  const ranked = rankEnclavesFor(LLM, [kryptos, metal, row("big", CPU_BOX)]);
+  assert.deepEqual(ranked.map((c) => c.name), ["metal0"],
+    "the bigger, cheaper boxes cannot host it — they do not carry the volume");
+  // and without the volume constraint the same fleet ranks the big boxes first
+  assert.equal(rankEnclavesFor({ ...LLM, volumes: [] }, [kryptos, metal, row("big", CPU_BOX)])[0].name, "big");
+});
+
+test("pickEnclaveFor: names the missing volume instead of blaming the hardware", () => {
+  const kryptos = row("kryptos", { ...GPU_BOX, ...vol("qwen2.5-0.5b-gguf") });
+  const t = pickEnclaveFor(LLM, [kryptos, row("big", CPU_BOX)]);
+  assert.ok(t.none && /qwen3\.5-122b-gguf-merged/.test(t.none), t.none);
+  assert.ok(!/big enough/.test(t.none), "the fleet has the hardware; it lacks the weights");
+});
+
+test("pickEnclaveFor: volumes split across two boxes host nothing (a deployment mounts on ONE)", () => {
+  const a = row("a", { ...CPU_BOX, ...vol("v1") }), b = row("b", { ...CPU_BOX, ...vol("v2") });
+  const t = pickEnclaveFor({ ...MC, volumes: ["v1", "v2"] }, [a, b]);
+  assert.ok(t.none && /ONE box/.test(t.none), t.none);
+  assert.equal(pickEnclaveFor({ ...MC, volumes: ["v1"] }, [a, b]).name, "a");
+});
+
+test("rankEnclavesFor: a box that advertises no volume list is not a target for volume work", () => {
+  // an enclave whose /availability carries no `volumes` key cannot tell us what
+  // it has; treating silence as "carries everything" is how a claim hint goes
+  // to a box that declines (seen for real when a stale wasm-manager pin made
+  // /health drop to its unauthenticated subset)
+  const silent = row("silent", CPU_BOX);
+  assert.ok(!rankEnclavesFor(LLM, [silent]).length);
+  assert.equal(rankEnclavesFor({ ...LLM, volumes: [] }, [silent]).length, 1, "no volumes asked for, no constraint");
+});
+
 /* ---- the lease holder's hardware (a version change / resize, My Apps) ---- */
 
 const RUNNER = "0x" + "ef".repeat(32);

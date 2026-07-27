@@ -144,6 +144,23 @@ export function enclaveSpecOf(row){
   return s;
 }
 
+// The model volumes a deployment asks for, off the spec object: `v.volumes`,
+// which specOf() fills from the version's approved config and the deploy
+// console overrides with the picker's live ticks (an edited config can change
+// them before signing). Absent/empty = no volume constraint.
+export function volsWanted(v){
+  const list = Array.isArray(v && v.volumes) ? v.volumes : [];
+  return [...new Set(list.map((x) => String((x && x.name) || x || "")).filter(Boolean))];
+}
+// Does this enclave row advertise every one of them? A row with no `volumes`
+// field at all carries none — an enclave that cannot tell us what it has cannot
+// be targeted for work that needs a specific volume.
+export function hasVolumes(a, want){
+  if (!want.length) return true;
+  const have = new Set(((a && a.volumes) || []).map((x) => String((x && x.name) || x || "")));
+  return want.every((n) => have.has(n));
+}
+
 // Which live enclave a deployment of `v` would land on, and the dial floors
 // ON THAT BOX. Only CLAIMING enclaves count (same rule as the relay's sizing
 // subset — explicit claimEnabled, with non-tunnel rows grandfathered). Among
@@ -170,12 +187,20 @@ export function rankEnclavesFor(v, rows){
   const vramMb = Number(v && v.vramMb || 0), gpuGf = Number(v && v.gpuGflops || 0);
   const memMb = Number(v && v.memMb || 0), cpuGf = Number(v && v.cpuGflops || 0);
   const needsGpu = vramMb > 0 || gpuGf > 0;
+  const wantVols = volsWanted(v);
   const cand = claiming.map((row) => {
     const a = row.availability, spec = enclaveSpecOf(row);
     const gpu = a.gpu === true;
     // structural fit: could this BOX ever run the app, at any share?
+    // Model volumes are PER-BOX, like the card: they are attached to an enclave,
+    // not fetched on demand, so a box that doesn't carry every volume this
+    // deployment asks for can never run it — its own claim gate refuses the
+    // record (supervisor considerClaim). Targeting it anyway would send the
+    // claim hint to a box that declines, and the deploy would sit in the open
+    // queue waiting for whichever box does carry them.
     const fits = (!needsGpu || (gpu && vramMb / 1024 <= spec.cardVramGb && gpuGf / 1000 <= spec.cardTflops))
-              && memMb <= spec.nodeRamGb * 1024 && cpuGf <= spec.nodeGflops;
+              && memMb <= spec.nodeRamGb * 1024 && cpuGf <= spec.nodeGflops
+              && hasVolumes(a, wantVols);
     const mins = minPctsOf(v, spec);
     const free = { gpuPct: Math.floor((a.gpuShareFree || 0) * 100), cpuPct: Math.floor((a.cpuShareFree || 0) * 100) };
     const now = fits && (!needsGpu || free.gpuPct >= mins.gpuPct) && free.cpuPct >= mins.cpuPct;
@@ -226,6 +251,14 @@ export function pickEnclaveFor(v, rows){
   const ranked = rankEnclavesFor(v, rows);
   if (ranked.length) return ranked[0];
   const needsGpu = Number(v && v.vramMb || 0) > 0 || Number(v && v.gpuGflops || 0) > 0;
+  // Name the volume when THAT is what ruled every box out — "no enclave is big
+  // enough" would be a lie about a fleet that has the hardware and not the
+  // weights, and the fix (attach it, or pick another model) is a different one.
+  const wantVols = volsWanted(v);
+  const missing = wantVols.filter((n) => !claiming.some((e) => hasVolumes(e.availability, [n])));
+  if (missing.length) return { none: `no live enclave carries the model volume ${missing.join(" or ")}` };
+  if (wantVols.length && !claiming.some((e) => hasVolumes(e.availability, wantVols)))
+    return { none: `no single live enclave carries all of ${wantVols.join(" + ")} (a deployment mounts its volumes on ONE box)` };
   return { none: needsGpu && !claiming.some((e) => e.availability.gpu === true)
     ? "this app needs a GPU and no live enclave has one"
     : "no live enclave's hardware is big enough for this app's specs" };
