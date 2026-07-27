@@ -50,13 +50,14 @@ def rec(vid, proc, ports):
     m._apps[vid] = r
     return r
 
-def settle(pid, want, tries=100):
-    # the child's connect() is async to us; wait for the socket to appear
-    for _ in range(tries):
-        if m._sock_inodes(pid):
-            time.sleep(0.05)
-            return
-        time.sleep(0.05)
+def settle(sock, tries=200):
+    # Wait on the LISTENER, not on the clock: accept() returning proves the
+    # connection is established (and therefore in /proc/net/tcp) without the
+    # test asserting the very thing it is waiting for. Under a loaded parallel
+    # run a fixed sleep raced python's own startup and the audit saw nothing.
+    sock.settimeout(20)
+    conn, _peer = sock.accept()
+    return conn                                  # kept open: closing it ends the connection
 
 ${body}
 `;
@@ -71,7 +72,7 @@ test("a tenant that dials another tenant's port is killed", () => {
 victim_sock, victim_port = listener()
 attacker = dialer(victim_port)
 try:
-    settle(attacker.pid, victim_port)
+    conn = settle(victim_sock)
     rec("victim", None, [victim_port])
     a = rec("attacker", attacker, [victim_port + 10000])
     m._audit_peers(a, m._tenant_port_owner())
@@ -93,7 +94,7 @@ test("WASM_PEER_AUDIT=warn records the dial and kills nothing", () => {
 victim_sock, victim_port = listener()
 attacker = dialer(victim_port)
 try:
-    settle(attacker.pid, victim_port)
+    conn = settle(victim_sock)
     rec("victim", None, [victim_port])
     a = rec("attacker", attacker, [victim_port + 10000])
     m._audit_peers(a, m._tenant_port_owner())
@@ -117,7 +118,7 @@ self_sock, self_port = listener()        # the tenant's OWN assigned port
 to_mgr = dialer(mgr_port)
 to_self = dialer(self_port)
 try:
-    settle(to_mgr.pid, mgr_port); settle(to_self.pid, self_port)
+    c1 = settle(mgr_sock); c2 = settle(self_sock)
     a = rec("a", to_mgr, [self_port])
     b = rec("b", to_self, [self_port + 10000])
     m._audit_peers(a, m._tenant_port_owner())
