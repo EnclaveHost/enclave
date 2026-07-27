@@ -118,6 +118,16 @@ export function assertIsWhatIAskedFor(op, prep, params) {
     // the spend ceiling bounds the BURN RATE, not the amount at risk (fund6
     // below does that) - but when the caller named one, it must be theirs
     if (s.maxRate6 != null && c.maxRate6 !== BigInt(s.maxRate6)) no("a different rate cap");
+    // ...and when it did NOT name one, the cap in the calldata is still a number
+    // the SERVER chose, which is the shape this whole gate exists to refuse. The
+    // credit path can't demand an exact match (the relay quotes from a cached
+    // fleet price, this page from a live read, and an operator re-pricing between
+    // the two is normal), so the caller passes the ceiling it is willing to sign:
+    // its own quote with room for that drift. A relay multiplying the cap - the
+    // only version of this that costs the buyer anything, by burning their credit
+    // at a rate they were never shown - lands outside it.
+    else if (params.maxRate6Max != null && c.maxRate6 > BigInt(params.maxRate6Max))
+      no("a higher rate cap than this page quoted");
     if (params.fundUsd != null && BigInt(prep.fund6) > usd6(params.fundUsd)) no("a larger amount than you entered");
   } else if (op === "fund") {
     if (String(prep.id).toLowerCase() !== String(params.id).toLowerCase()) no("a different deployment");

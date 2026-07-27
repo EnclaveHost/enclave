@@ -54,6 +54,21 @@ test("the supervisor does not advertise its framework in X-Powered-By", async ()
 
     const powered = res.headers.get("x-powered-by");
     assert.equal(powered, null, `X-Powered-By must not be sent (got ${JSON.stringify(powered)})`);
+
+    // ...and the two it MUST send. api.enclave.host is not the apex, so it never
+    // inherited the site vhost's headers: a caller that reaches the API directly
+    // (CLI, MCP, a browser that has not first seen enclave.host) had no HSTS pin
+    // at all, and JSON answers went out sniffable.
+    assert.equal(res.headers.get("x-content-type-options"), "nosniff");
+    assert.match(res.headers.get("strict-transport-security") || "", /^max-age=31536000; includeSubDomains$/);
+
+    // The tenant data path is EXCLUDED: those bytes are the app's, and nosniff
+    // can change how its own content renders. 404 here (no such deployment) is
+    // produced by the /x handler, which is what makes it the right probe.
+    const x = await fetch(`http://127.0.0.1:${port}/x/0x${"ab".repeat(32)}/`);
+    assert.equal(x.status, 404, "expected the /x handler's own not-found");
+    assert.equal(x.headers.get("x-content-type-options"), null, "tenant responses keep their own headers");
+    assert.equal(x.headers.get("strict-transport-security"), null);
   } finally {
     child.kill("SIGKILL");
   }

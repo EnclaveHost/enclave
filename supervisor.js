@@ -1979,6 +1979,27 @@ app.use(cors({
   maxAge: 86400,
 }));
 
+// Transport + sniffing headers on OUR OWN responses. The apex vhost sets these
+// for enclave.host, but api.enclave.host is a different host and was serving
+// neither: a client that reaches the API directly (the CLI, the MCP server, any
+// browser that has not first seen the apex and taken its includeSubDomains pin)
+// had no HSTS pin at all, and JSON answers went out sniffable. Set here rather
+// than in Caddy because this is the process that KNOWS which responses are ours
+// — and because the vhost lives outside this repo, so a header that matters is
+// better owned by the code it protects.
+//
+// /x is excluded on purpose: those bytes are the TENANT's app, and nosniff can
+// change how an app's own content renders. Their default headers are
+// tenantHeaders()' business, not this one's. (Express merges what is set here
+// with what the proxy passes to writeHead, so the exclusion has to be explicit.)
+app.use((req, res, next) => {
+  if (!req.path.startsWith("/x/")) {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+});
+
 const fail = (res, status, code, message) => res.status(status).json({ code, message });
 // Prefer our attested SAN once known; fall back to the request Host only during
 // early boot before the shim cert is read (client verifies attestation over its
