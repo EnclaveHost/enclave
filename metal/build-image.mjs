@@ -41,7 +41,7 @@ const SUPERVISOR_REF = arg('supervisor', 'ghcr.io/enclavehost/enclave-supervisor
 // SILENTLY in the only direction that looks healthy: /health falls back to its
 // unauthenticated liveness subset, so the enclave keeps answering while
 // advertising no volumes, no capacity and no nn probe.
-const WASM_REF = arg('wasm', 'ghcr.io/enclavehost/enclave-wasm-manager:c1b7352c');
+const WASM_REF = arg('wasm', 'ghcr.io/enclavehost/enclave-wasm-manager:8341fdfe');
 
 console.log(`[build] kernel=${KERNEL} kver=${KVER}`);
 console.log(`[build] supervisor=${SUPERVISOR_REF}`);
