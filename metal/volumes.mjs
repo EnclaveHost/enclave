@@ -89,6 +89,10 @@ function build(name) {
   const img = path.join(dir, 'volume.img');
   if (fs.existsSync(img) && !flag('force')) die(`${img} exists (use --force to rebuild)`);
   fs.mkdirSync(dir, { recursive: true });
+  // Start from nothing on a rebuild: mke2fs writes a filesystem INTO an existing
+  // file without truncating it, so a leftover image would keep its old (larger)
+  // size and leave the previous hash tree in the tail.
+  fs.rmSync(img, { force: true });
 
   const { total, files } = treeBytes(src);
   if (!files) die(`${src} has no files`);
@@ -111,6 +115,13 @@ function build(name) {
       '-L', name.slice(0, 16), '-d', src, img, String(dataBlocks),
     ], { env: { ...process.env, SOURCE_DATE_EPOCH: '0' }, stdio: ['ignore', 'inherit', 'inherit'] });
   } catch (e) { die(`mkfs.ext4 failed: ${e.message}`); }
+  // mke2fs's lost+found stays, and shows up in the volume's advertised file
+  // list. Removing it (debugfs -R "rmdir /lost+found") leaves a consistent
+  // filesystem — e2fsck is happy — but debugfs stamps the current time into the
+  // root inode and superblock, so two builds of the same tree stop being
+  // byte-identical. Reproducibility is the load-bearing property here (it is
+  // what lets a buyer rebuild a model volume and compare root hashes); a stray
+  // empty directory is cosmetic.
 
   // 2. the dm-verity hash tree, APPENDED to the same file (one file per volume =
   //    one virtio-blk device per volume). The hash superblock lands at the
@@ -120,6 +131,10 @@ function build(name) {
   const salt = saltFor(name);
   const out = spawnSync('veritysetup', [
     'format', '--hash', 'sha256', '--data-block-size', String(BLOCK), '--hash-block-size', String(BLOCK),
+    // --data-blocks is not optional here: data and hash share one file, so
+    // without it veritysetup measures the data area as the WHOLE file and
+    // refuses ("Data area overlaps with hash area").
+    '--data-blocks', String(dataBlocks),
     '--uuid', uuidFor(name, 'verity'), '--salt', salt, '--hash-offset', String(hashOffset),
     img, img,
   ], { encoding: 'utf8' });

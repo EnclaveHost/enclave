@@ -34,7 +34,14 @@ const KVER = arg('kver', os.release());
 const KERNEL = arg('kernel', '/boot/vmlinuz-linux');
 const MODROOT = arg('modroot', `/usr/lib/modules/${KVER}`);
 const SUPERVISOR_REF = arg('supervisor', 'ghcr.io/enclavehost/enclave-supervisor:latest');
-const WASM_REF = arg('wasm', 'ghcr.io/enclavehost/enclave-wasm-manager:11bb1370');
+// KEEP IN STEP WITH THE SUPERVISOR. These are two independently-tagged images
+// that share a loopback control plane, and its token derivation changed in
+// c1b7352c (raw fleet SECRET → HMAC(SECRET, "enclave vmmgr v1")). Pair a
+// post-c1b7352c supervisor with an older manager and control auth fails
+// SILENTLY in the only direction that looks healthy: /health falls back to its
+// unauthenticated liveness subset, so the enclave keeps answering while
+// advertising no volumes, no capacity and no nn probe.
+const WASM_REF = arg('wasm', 'ghcr.io/enclavehost/enclave-wasm-manager:c1b7352c');
 
 console.log(`[build] kernel=${KERNEL} kver=${KVER}`);
 console.log(`[build] supervisor=${SUPERVISOR_REF}`);
