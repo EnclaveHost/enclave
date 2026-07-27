@@ -165,7 +165,11 @@ export const Enclave = {
     if (this.token) return this._req("GET", path, { auth: true });
     return this._req("GET", path, { query: this.address ? { owner: this.address } : {} });
   },
-  terminateDeployment(id, enclave){ return this._req("DELETE", "/deployments/" + encodeURIComponent(id), { auth: true, enclave }); },
+  /* `evacuate` = the owner is MOVING off this box: the enclave hands the lease
+     back AND stands down from re-claiming it for a short window. Without it the
+     source re-claims its own release within seconds (it still has the app
+     staged) and the move never happens. */
+  terminateDeployment(id, enclave, evacuate){ return this._req("DELETE", "/deployments/" + encodeURIComponent(id), { auth: true, enclave, query: evacuate ? { evacuate: 1 } : undefined }); },
   /* Nudge the fleet to claim funded work. `enclave` (a box NAME) makes the
      relay send the hint to THAT box only, giving it first crack — the steer
      behind both the deploy target pick and a move. An unknown name falls back

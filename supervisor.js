@@ -3586,6 +3586,10 @@ app.post("/v1/admin/deployments/:id/provision", async (req, res) => {
 // without it the source's own sweep wins the race and the move never happens.
 const _evacuated = new Map();                 // id -> until (ms)
 const EVAC_HOLDOFF_MS = 15 * 60_000;
+// An OWNER-initiated move reuses the same set with a much shorter fuse: long
+// enough for the destination to win the race it is being handed, short enough
+// that a move nobody accepts falls back here instead of leaving the app dark.
+const MOVE_HOLDOFF_MS = Math.max(30_000, parseInt(process.env.MOVE_HOLDOFF_SEC || "120", 10) * 1000);
 app.post("/v1/admin/deployments/:id/release", async (req, res) => {
   if (!ADMIN_TOKEN || !safeEqStr(req.headers["x-admin-token"], ADMIN_TOKEN))
     return fail(res, 404, "not_found", "Not found.");
@@ -3630,12 +3634,26 @@ app.delete("/v1/deployments/:id", authed, async (req, res) => {
     // While the deployment stays active+funded on-chain, ANY enclave — this one
     // included — may legitimately re-claim it; a permanent stop is the owner's
     // setActive(false) transaction, not a local delete.
-    releaseLease(rec.id, "owner delete").catch(() => {});
+    //
+    // ?evacuate=1 — the owner is MOVING off this box, not stopping. Re-claiming
+    // is normally correct (a released lease is open work and we may be the best
+    // home for it), but here it defeats the whole request: this enclave still
+    // has the app staged, so its own sweep re-claims within seconds and the
+    // move silently never happens. Same holdoff the operator consolidation
+    // path uses, and for the same stated reason — just far SHORTER, because
+    // these two failures are not symmetrical: consolidation wants the box
+    // drained, while a move that no other enclave accepts should fall back
+    // here rather than leave the app dark for a quarter of an hour.
+    const evacuate = /^(1|true|yes)$/i.test(String(req.query.evacuate || ""));
+    if (evacuate) _evacuated.set(rec.id, Date.now() + MOVE_HOLDOFF_MS);
+    releaseLease(rec.id, evacuate ? "owner move" : "owner delete").catch(() => {});
     return res.json({ id: rec.id, status: "terminated",
                ranSeconds: Math.round((rec.consumedMs || 0) / 1000),
+               ...(evacuate ? { standDownSec: Math.round(MOVE_HOLDOFF_MS / 1000) } : {}),
                note: "On-chain deployment: lease released (unused lease time refunded to its balance). It stays "
                    + "claimable by any enclave while active and funded — call setActive(false) on EnclaveDeployments "
-                   + "to stop it for good." });
+                   + "to stop it for good."
+                   + (evacuate ? ` This enclave stands down from re-claiming it for ${Math.round(MOVE_HOLDOFF_MS / 1000)}s so another can take it; if none does, it becomes claimable here again.` : "") });
   }
   res.json({ id: rec.id, status: "terminated",
              paidUsdc: ((rec.paidUsdc || 0) / 1e6).toFixed(2),

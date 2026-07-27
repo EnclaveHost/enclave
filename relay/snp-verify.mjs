@@ -44,13 +44,54 @@ async function fetchBuf(url, timeoutMs = 8000) {
   } finally { clearTimeout(t); }
 }
 
+// AMD's ROOT KEYS, pinned. The chain check below ends at "the ARK is
+// self-signed", which proves the chain is internally consistent and nothing
+// more: whoever serves the cert_chain gets to BE the root. That made the whole
+// hardware-attestation argument rest on TLS to one host — a KDS the attacker
+// controls (a mis-issued cert, a hijacked route, a rogue CA in the local trust
+// store) can serve a fabricated ARK+ASK and sign a VCEK for a report it wrote,
+// and every step here would pass. Pinning turns that into "compromise KDS AND
+// this repo".
+//
+// PROVENANCE, because a pin nobody can re-derive is just a different kind of
+// trust: Milan and Genoa were captured from KDS and then CONFIRMED byte-for-byte
+// against google/go-sev-guest's embedded copies (verify/trust/ask_ark_*.pem) —
+// a different host, a different TLS chain, a different party. Turin has no such
+// second source published yet, so it is KDS-captured only (2026-07-27); replace
+// it with a corroborated value when one exists.
+//
+// A NEW AMD product line fails CLOSED here (unknown root -> refused), which is
+// the correct direction: the alternative, accepting an unpinned root with a
+// warning, hands the attacker exactly the bypass this closes (the product name
+// is read out of the peer's own VCEK issuer).
+export const AMD_ARK_SHA256 = new Map([
+  ["Milan", "69d063b45344d26a2e94e1f4210de49ef555308287d4c174445c95639a540bcd"],
+  ["Genoa", "4c6598d19c18719c5dfd4a7d335f674e5bfe1d8f800cea2cf270c10d103db2f1"],
+  ["Turin", "1f084161a44bb6d93778a904877d4819cafa5d05ef4193b2ded9dd9c73dd3f6a"],
+]);
+const fpHex = (cert) => String(cert.fingerprint256 || "").replace(/:/g, "").toLowerCase();
+// Is this the AMD root for `product`? Exported so the buyer-side verifier and
+// the tests check the same predicate rather than a second copy of it.
+export function isPinnedArk(cert, product) {
+  const want = AMD_ARK_SHA256.get(product);
+  return !!want && fpHex(cert) === want;
+}
+
 // AMD's per-product ARK/ASK chain never changes; KDS rate-limits, so cache it.
+// Exported so the test can drive the REAL fetch+pin path (with fetch stubbed)
+// rather than a re-implementation of it.
 const _chainCache = new Map();   // product -> [ASK, ARK] X509Certificates
-async function certChain(product) {
+export async function certChain(product) {
   if (_chainCache.has(product)) return _chainCache.get(product);
   const pem = (await fetchBuf(`${KDS}/vcek/v1/${product}/cert_chain`)).toString("utf8");
   const chain = pem.split(/(?=-----BEGIN CERTIFICATE-----)/)
     .filter((s) => s.includes("CERTIFICATE")).map((s) => new X509Certificate(s));
+  // Pin BEFORE caching: a refused chain must not be remembered as this
+  // product's, and every later call re-asks rather than serving a bad hit.
+  const ark = chain[chain.length - 1];
+  if (!ark || !isPinnedArk(ark, product))
+    throw new Error(`${product}: the served ARK is not AMD's pinned root `
+      + `(${ark ? fpHex(ark).slice(0, 16) + "…" : "no root in chain"})`);
   _chainCache.set(product, chain);
   return chain;
 }
