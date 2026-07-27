@@ -172,7 +172,9 @@ function build(name) {
 // ---- list / inspect / rm ----------------------------------------------------
 function list() {
   if (!fs.existsSync(STORE)) die(`no volume store at ${STORE} (create it, or pass --store)`);
-  const names = fs.readdirSync(STORE, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
+  const names = fs.readdirSync(STORE, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && !e.name.startsWith('.'))   // dot-dirs are staging (model source trees), not volumes
+    .map((e) => e.name).sort();
   if (!names.length) { log(`no volumes in ${STORE}`); return; }
   console.log(`\n  ${'VOLUME'.padEnd(28)} ${'CONTENT'.padStart(9)}  ${'IMAGE'.padStart(9)}  ROOT HASH`);
   for (const n of names) {
