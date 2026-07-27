@@ -60,7 +60,52 @@ remains as provenance, not as a trust root).
 | `enclave-metal.mjs` | host-side launcher: builds QEMU argv (`dev` \| `snp` \| `tdx` mode), spawns, watches, restarts; serial console to the journal |
 | `systemd/enclave-metal.service` | user service (`systemctl --user`), `Restart=always` |
 | `verify.mjs` | first-party attestation verification: SNP report signature chain VCEK → ASK → ARK fetched **directly from AMD KDS** (`kdsintf.amd.com`), launch-digest comparison against `manifest.json`, TLS-key binding check. No third-party endpoints. Used by the CLI (`enclave attest` learns the `metal` RAD formats) |
-| `config.example.json` | host config: mode, cpus/ram, enclave name, relay URL, key paths |
+| `volumes.mjs` | builds the attested read-only **model volumes** (ext4 + appended dm-verity hash tree, reproducible: same model tree in → same root hash out); needs no root |
+| `guest/mverity.c` | static in-guest dm-verity setup over the raw device-mapper ioctls (no cryptsetup in a slim measured image) |
+| `config.example.json` | host config: mode, cpus/ram, enclave name, relay URL, key paths, attached volumes |
+
+## Model volumes (the self-hosted Modelwrap)
+
+Large read-only weights — GGUF/ONNX LLMs, diffusion checkpoints, RAG corpora —
+reach tenants the way Tinfoil's Modelwrap delivers them, without Tinfoil. Each
+volume is **one host file**: an ext4 image of the model tree with a dm-verity
+hash tree appended. The launcher attaches it as a read-only virtio-blk disk; the
+guest brings dm-verity up **itself** and mounts it read-only, so every block a
+tenant reads is hash-checked inside the CVM and a host that flips a byte gets an
+I/O error instead of serving different weights.
+
+```sh
+sudo mkdir -p /vm/enclave-volumes && sudo chown $USER /vm/enclave-volumes   # once
+node metal/volumes.mjs build qwen2.5-0.5b-gguf --src ~/models/qwen2.5-0.5b-gguf
+node metal/volumes.mjs list
+# metal/config.json:  "volumes": ["qwen2.5-0.5b-gguf"]   (or "*" for the whole store)
+systemctl --user restart enclave-metal
+```
+
+**The volume set is signed by the CPU.** The launcher launches the VM with
+`sha256(volume table)` in **HOST_DATA** (`MRCONFIGID` on TDX), which the hardware
+stamps into every attestation report; the guest reads HOST_DATA back out of its
+own report and refuses to mount **anything** whose table doesn't hash to it. So a
+buyer can tell *from an attestation alone* which weights an enclave is serving —
+the property Modelwrap gets by putting its verity root on the measured cmdline —
+and `metal/verify.mjs` checks it for you (`HOST_DATA binds this exact
+model-volume set`, then one line per volume with its root hash).
+
+HOST_DATA rather than the cmdline is deliberate: it binds host-supplied config to
+the quote *without* entering the launch measurement, so attaching a model does
+not invalidate the release measurement that `dist/manifest.json` pins and the
+relay's `METAL_ALLOWED_MEASUREMENTS` allowlists. Identity of the **code** and
+identity of the **data** stay separable, which is what lets an anonymous seller
+carry their own models and still attach permissionlessly (PROTOCOL.md gate 1).
+
+Volume images are reproducible (fixed fs UUID, hash seed, `SOURCE_DATE_EPOCH`,
+name-derived verity salt), so anyone holding the same model files can rebuild
+the image and check the root hash the enclave attests to is the model they think
+it is. `--gguf <file>` picks one quantization out of a multi-file tree, `--sd`
+marks a volume that preloads through the stable-diffusion.cpp backend rather
+than ggml; the guest passes both through to the wasm-manager as `MODEL_VOLUMES`
+/ `MODEL_VOLUMES_SD`, which is how deployments then attach them by name
+(console volume picker, or `volumes` in the deployment's config CID).
 
 ## RAD format
 

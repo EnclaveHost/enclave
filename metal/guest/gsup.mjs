@@ -11,7 +11,7 @@
 // (metal.* keys) — which is covered by the SEV-SNP launch measurement when
 // kernel-hashes=on, so it is part of the enclave's verified identity, not a
 // mutable host-side knob.
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { randomBytes, createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -111,6 +111,133 @@ function start(name, argv, env, opts = {}) {
   return child;
 }
 
+// --- attested model volumes --------------------------------------------------
+// Large read-only weights (GGUF/ONNX/diffusion checkpoints) reach tenants the
+// way Tinfoil's Modelwrap delivers them: as dm-verity-protected read-only
+// images mounted in the CVM, never as bytes the guest has to trust the host
+// for. Each volume is one host file (ext4 + an appended verity hash tree,
+// built by metal/volumes.mjs) attached as a virtio-blk disk; the guest sets
+// dm-verity up ITSELF against the root hash from fw_cfg, so every block a
+// tenant reads is hash-checked on the way in and a tampered image fails with
+// an I/O error instead of serving different weights.
+//
+// The binding that makes this ATTESTED rather than merely checksummed: the
+// launcher puts sha256(volume table) in the CPU's HOST_DATA field, which the
+// hardware signs into every attestation report this VM produces. We ask the
+// CPU for a report here, read HOST_DATA back out of it, and refuse to mount
+// ANYTHING unless it matches the table the host handed us over fw_cfg. So a
+// host cannot add, drop, or swap a model without it showing up in every quote,
+// and a remote verifier who reads the table out of the RAD can hash it and
+// compare (metal/verify.mjs does exactly that).
+//
+// HOST_DATA rather than the measured cmdline: it binds host-supplied config to
+// the quote WITHOUT changing the launch measurement, so a box that attaches a
+// model keeps the release measurement that allowlists and dist/manifest.json
+// pin. Dev mode has no report and therefore no enforcement — it is unattested
+// end to end by construction, and says so.
+const VOL_HOST_ROOT   = '/opt/roots/wasm/vol';   // where WE mount it
+const VOL_CHROOT_ROOT = '/vol';                  // the same dir as the chrooted manager sees it
+const VOL_FIELDS = (v) => [v.name, v.alg || 'sha256', v.root, v.salt, v.dataBlockSize,
+  v.hashBlockSize, v.dataBlocks, v.hashStartBlock, v.sd ? 1 : 0, v.gguf || ''].join('|');
+// canonical volume-set digest — the SAME construction in metal/enclave-metal.mjs
+// (which measures it) and metal/verify.mjs (which checks it): one line per
+// volume, sorted, newline-terminated.
+const volumesDigest = (vols) => createHash('sha256')
+  .update(vols.map(VOL_FIELDS).sort().join('\n') + '\n').digest('hex');
+
+function blockDevBySerial(serial) {
+  for (const b of fs.readdirSync('/sys/block')) {
+    for (const p of [`/sys/block/${b}/serial`, `/sys/block/${b}/device/serial`]) {
+      try {
+        if (fs.readFileSync(p, 'utf8').replace(/\0/g, '').trim() === serial) return `/dev/${b}`;
+      } catch {}
+    }
+  }
+  return null;
+}
+
+function mountVolumes(vols) {
+  const ok = [];
+  try { fs.mkdirSync(VOL_HOST_ROOT, { recursive: true }); } catch {}
+  for (const v of vols) {
+    try {
+      const dev = blockDevBySerial(v.serial);
+      if (!dev) { log(`volume ${v.name}: no attached disk with serial ${v.serial}; skipping`); continue; }
+      const node = execFileSync('/opt/metal/mverity', [`mvol-${v.name}`, dev,
+        String(v.dataBlockSize), String(v.hashBlockSize), String(v.dataBlocks),
+        String(v.hashStartBlock), v.alg || 'sha256', v.root, v.salt]).toString().trim();
+      const dir = `${VOL_HOST_ROOT}/${v.name}`;
+      fs.mkdirSync(dir, { recursive: true });
+      // noexec/nodev/nosuid: this is a data volume for tenants, nothing on it is
+      // ever meant to run. ro is belt-and-braces — dm-verity cannot take writes.
+      execFileSync('mount', ['-t', 'ext4', '-o', 'ro,nodev,nosuid,noexec', node, dir]);
+      ok.push({ ...v, mounted: true });
+      log(`volume ${v.name}: mounted ${VOL_CHROOT_ROOT}/${v.name} (dm-verity ${v.alg || 'sha256'}:${String(v.root).slice(0, 16)}…, ${(Number(v.bytes || 0) / 1e9).toFixed(2)} GB)`);
+    } catch (e) {
+      log(`volume ${v.name}: FAILED to attach (${String(e.message || e).split('\n')[0]}); skipping`);
+    }
+  }
+  return ok;
+}
+
+// HOST_DATA, straight from the hardware: ask configfs-tsm for a report and read
+// bytes 0xC0..0xDF of the SNP ATTESTATION_REPORT. Returns '' when there is no
+// report to be had (dev mode / no sev-guest), which is NOT treated as a match.
+function snpHostData() {
+  const dir = `/sys/kernel/config/tsm/report/gsup-${process.pid}`;
+  try {
+    fs.mkdirSync(dir);
+    try {
+      fs.writeFileSync(`${dir}/inblob`, Buffer.alloc(64));
+      const report = fs.readFileSync(`${dir}/outblob`);
+      if (report.length < 0xe0) return '';
+      return report.subarray(0xc0, 0xe0).toString('hex');
+    } finally { try { fs.rmdirSync(dir); } catch {} }
+  } catch { return ''; }
+}
+
+const VOL_TABLE = Array.isArray(fw.volumes) ? fw.volumes : [];
+const VOL_BOUND = MODE === 'snp' ? snpHostData() : '';
+let mountedVols = [];
+if (VOL_TABLE.length) {
+  const computed = volumesDigest(VOL_TABLE);
+  if (MODE !== 'snp') {
+    // Nothing to check against: an unattested guest cannot prove anything about
+    // its volumes either way. Mount them so the path is exercisable in dev, and
+    // be loud that this run proves nothing.
+    mountedVols = mountVolumes(VOL_TABLE);
+    log(`model volumes: ${mountedVols.length}/${VOL_TABLE.length} attached, set digest ${computed.slice(0, 16)}… `
+      + `— NOT BOUND (mode=${MODE} has no attestation report; a real enclave binds this digest in HOST_DATA)`);
+  } else if (computed !== VOL_BOUND) {
+    log(`REFUSING all ${VOL_TABLE.length} model volume(s): the fw_cfg volume table digests to ${computed.slice(0, 16)}… `
+      + `but the CPU's HOST_DATA says ${VOL_BOUND ? VOL_BOUND.slice(0, 16) + '…' : '(unreadable/empty)'}. `
+      + `The host handed us a volume set the hardware is not attesting to — mounting it would let this enclave `
+      + `serve models its quote does not name.`);
+  } else {
+    mountedVols = mountVolumes(VOL_TABLE);
+    log(`model volumes: ${mountedVols.length}/${VOL_TABLE.length} attached, set digest ${computed.slice(0, 16)}… (bound in HOST_DATA)`);
+  }
+  // What the agent publishes in the RAD: the MEASURED table (so a verifier can
+  // recompute the digest and the launch measurement), each entry flagged with
+  // whether it actually mounted.
+  try {
+    fs.writeFileSync('/run/metal-volumes.json', JSON.stringify({
+      digest: computed, hostData: VOL_BOUND, bound: !!VOL_BOUND && computed === VOL_BOUND,
+      volumes: VOL_TABLE.map((v) => ({
+        name: v.name, alg: v.alg || 'sha256', root: v.root, salt: v.salt,
+        dataBlockSize: v.dataBlockSize, hashBlockSize: v.hashBlockSize,
+        dataBlocks: v.dataBlocks, hashStartBlock: v.hashStartBlock,
+        sd: !!v.sd, gguf: v.gguf || '', bytes: v.bytes || 0,
+        mountPath: `${VOL_CHROOT_ROOT}/${v.name}`,
+        mounted: mountedVols.some((m) => m.name === v.name),
+      })),
+    }));
+  } catch (e) { log(`could not publish the volume table: ${e.message}`); }
+}
+const MODEL_VOLUMES = mountedVols
+  .map((v) => `${v.name}:${VOL_CHROOT_ROOT}/${v.name}${v.gguf ? ':' + v.gguf : ''}`).join(',');
+const MODEL_VOLUMES_SD = mountedVols.filter((v) => v.sd).map((v) => v.name).join(',');
+
 // --- wasm-manager (chroot) ---------------------------------------------------
 const WASM_ROOT = '/opt/roots/wasm';
 const wasmImgEnv = readJson('/opt/metal/wasm-env.json', {});
@@ -126,6 +253,21 @@ start('wasm-manager',
     WASM_CPU_WEIGHT: '100',
     WASM_ACCOUNT_STORAGE_RAM: '1',
     WASM_HEALTH_MINIMAL: '1',
+    // attached model volumes: name -> path INSIDE the chroot (plus the optional
+    // third field naming the one gguf to preload out of a multi-file tree). The
+    // manager advertises these on /health, the supervisor republishes them on
+    // /availability, and a deployment attaches them by name.
+    ...(MODEL_VOLUMES ? { MODEL_VOLUMES } : {}),
+    // volumes that preload through the stable-diffusion.cpp backend instead of
+    // ggml — a diffusion gguf is indistinguishable from an LLM gguf by name, so
+    // it has to be declared. The component filenames are the same generic
+    // layout the hosted fleet uses.
+    ...(MODEL_VOLUMES_SD ? {
+      MODEL_VOLUMES_SD,
+      ENCLAVE_SD_DIFFUSION_FILE: wasmImgEnv.ENCLAVE_SD_DIFFUSION_FILE || 'diffusion.gguf',
+      ENCLAVE_SD_LLM_FILE: wasmImgEnv.ENCLAVE_SD_LLM_FILE || 'llm.gguf',
+      ENCLAVE_SD_VAE_FILE: wasmImgEnv.ENCLAVE_SD_VAE_FILE || 'vae.safetensors',
+    } : {}),
     SECRET,
   });
 

@@ -127,10 +127,11 @@ try {
   console.log(`[build] installed CA bundle (${fs.readFileSync(caDst, 'utf8').match(/BEGIN CERT/g)?.length || 0} roots)`);
 } catch (e) { console.log(`[build] (no host CA bundle: ${e.message})`); }
 
-// compile the static helpers (no kmod/iproute2 in the slim base image)
-console.log('[build] compiling netup + minsmod…');
+// compile the static helpers (no kmod/iproute2/cryptsetup in the slim base image)
+console.log('[build] compiling netup + minsmod + mverity…');
 sh('gcc', ['-static', '-Os', '-o', path.join(md, 'netup'), path.join(HERE, 'guest', 'netup.c')]);
 sh('gcc', ['-static', '-Os', '-o', path.join(md, 'minsmod'), path.join(HERE, 'guest', 'minsmod.c')]);
+sh('gcc', ['-static', '-Os', '-o', path.join(md, 'mverity'), path.join(HERE, 'guest', 'mverity.c')]);
 
 // --- 5. kernel modules (decompress the exact set we insmod, keep the tree) ---
 console.log('[build] collecting kernel modules…');
@@ -142,6 +143,18 @@ const wantModules = [
   'kernel/drivers/virt/coco/guest/tsm_report.ko',
   'kernel/drivers/virt/coco/sev-guest/sev-guest.ko',
   'kernel/drivers/virt/coco/tdx-guest/tdx-guest.ko',
+  // attested model volumes: dm-verity over a read-only virtio-blk disk. Load
+  // order matters and so does completeness — insmod resolves no dependencies
+  // itself, and a missing one fails as a bare "No such file or directory" from
+  // finit_module (unresolved symbols), not as anything that names the module.
+  // dm-verity needs dm-mod (which also registers the /dev/mapper/control node
+  // mverity opens), dm-bufio, and reed_solomon (built in for the optional FEC
+  // path). virtio_blk and ext4 are built into this kernel, so neither needs a
+  // module.
+  'kernel/drivers/md/dm-mod.ko',
+  'kernel/drivers/md/dm-bufio.ko',
+  'kernel/lib/reed_solomon/reed_solomon.ko',
+  'kernel/drivers/md/dm-verity.ko',
 ];
 const modList = [];
 for (const rel of wantModules) {
@@ -181,6 +194,20 @@ const manifest = {
   kernel: { path: KERNEL, kver: KVER, sha256: kernelSha },
   modules: modList,
   cmdlineTemplate,
+  // How attached model volumes are bound to the hardware. The launcher puts the
+  // digest of the volume table in HOST_DATA (SEV-SNP) / MRCONFIGID (TDX), which
+  // the CPU signs into every report — NOT in the launch measurement, so this
+  // measurement stays valid whatever models the box carries. Recompute the
+  // digest from the RAD's volume table alone: one line per volume, sorted,
+  // newline-separated, with a trailing newline.
+  volumeBinding: {
+    field: 'HOST_DATA (SNP report offset 0xC0, 32 bytes); MRCONFIGID on TDX',
+    canonicalLine: 'name|alg|root|salt|dataBlockSize|hashBlockSize|dataBlocks|hashStartBlock|sd(1/0)|gguf',
+    digest: 'sha256(lines.sort().join("\\n") + "\\n")',
+    note: 'Volume images are built by metal/volumes.mjs and are themselves reproducible: '
+        + 'same source tree in, same verity root hash out. The guest reads HOST_DATA back '
+        + 'from its own report and refuses to mount a table that does not hash to it.',
+  },
   note: 'The SEV-SNP launch measurement is a function of (OVMF, this kernel, the '
       + 'initramfs, and the final cmdline). Recompute it independently with '
       + 'sev-snp-measure using the sha256 fields here; metal/verify.mjs checks a '

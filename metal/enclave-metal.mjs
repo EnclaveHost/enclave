@@ -12,6 +12,7 @@
 //     "relayUrl":"wss://api.enclave.host/v1/fleet-tunnel", "tunnelToken":"…",
 //     "hostfwd":[{"host":18080,"guest":8080}], "ovmf":"…", "qemu":"…", "dist":"…" }
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import net from 'node:net';
 import tls from 'node:tls';
 import fs from 'node:fs';
@@ -35,6 +36,56 @@ const SEV_DEVICE = cfg.sevDevice || '/dev/sev';
 const KERNEL = path.join(DIST, 'vmlinuz');
 const INITRD = path.join(DIST, 'initramfs.cpio.gz');
 for (const f of [KERNEL, INITRD]) if (!fs.existsSync(f)) { console.error(`missing ${f}; run: node metal/build-image.mjs`); process.exit(1); }
+
+// --- attested model volumes ---------------------------------------------------
+// Each entry in cfg.volumes (names, or "*" for the whole store) is one file
+// built by metal/volumes.mjs: an ext4 image of the model tree with a dm-verity
+// hash tree appended. We attach it as a read-only virtio-blk disk and hand the
+// guest its verity parameters through fw_cfg; the guest brings dm-verity up
+// itself, so the host (this process) is never trusted for the CONTENT.
+//
+// What makes it attested rather than merely hashed: the digest of the whole
+// volume table is launched into the CPU's HOST_DATA field, which the hardware
+// signs into every attestation report this VM ever produces. Add, drop, or swap
+// a model and the quote says so — the property Tinfoil's Modelwrap gets by
+// putting its dm-verity root on the measured cmdline. HOST_DATA rather than the
+// cmdline on purpose: it is host-supplied config bound to the quote WITHOUT
+// entering the launch measurement, so the release measurement (what allowlists
+// and dist/manifest.json pin) stays stable while the model set stays provable.
+// The guest reads HOST_DATA back out of its own report and refuses to mount a
+// table that doesn't hash to it.
+const VOL_STORE = cfg.volumeStore || '/vm/enclave-volumes';
+function loadVolumes() {
+  const want = cfg.volumes === '*'
+    ? (fs.existsSync(VOL_STORE) ? fs.readdirSync(VOL_STORE, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort() : [])
+    : (Array.isArray(cfg.volumes) ? cfg.volumes : []);
+  const out = [];
+  for (const name of want) {
+    const dir = path.join(VOL_STORE, name);
+    let v; try { v = JSON.parse(fs.readFileSync(path.join(dir, 'volume.json'), 'utf8')); }
+    catch (e) { console.error(`[enclave-metal] volume ${name}: no volume.json in ${dir} (${e.code || e.message}); SKIPPED`); continue; }
+    const img = path.join(dir, v.image || 'volume.img');
+    if (!fs.existsSync(img)) { console.error(`[enclave-metal] volume ${name}: missing ${img}; SKIPPED`); continue; }
+    out.push({
+      name: v.name || name, image: img, bytes: v.bytes || 0,
+      alg: v.verity.alg || 'sha256', root: v.verity.root, salt: v.verity.salt,
+      dataBlockSize: v.verity.dataBlockSize, hashBlockSize: v.verity.hashBlockSize,
+      dataBlocks: v.verity.dataBlocks, hashStartBlock: v.verity.hashStartBlock,
+      sd: !!v.sd, gguf: v.gguf || '',
+    });
+  }
+  return out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+}
+const VOLUMES = loadVolumes();
+// virtio-blk serials are how the guest maps a disk to its table entry (device
+// enumeration order is not a contract). 20 bytes max, so index them.
+VOLUMES.forEach((v, i) => { v.serial = `mvol${i}`; });
+// canonical volume-set digest — the SAME construction in metal/guest/gsup.mjs
+// (which enforces it) and metal/verify.mjs (which checks it against a quote).
+const volLine = (v) => [v.name, v.alg, v.root, v.salt, v.dataBlockSize, v.hashBlockSize,
+  v.dataBlocks, v.hashStartBlock, v.sd ? 1 : 0, v.gguf || ''].join('|');
+const VOL_DIGEST = VOLUMES.length
+  ? createHash('sha256').update(VOLUMES.map(volLine).sort().join('\n') + '\n').digest('hex') : '';
 
 // The kernel cmdline is MEASURED (kernel-hashes=on), so it carries only what is
 // part of the enclave's identity: the mode. Deployment-specific runtime config
@@ -67,7 +118,12 @@ const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', rel
   // the fleet's deployment-secrets plane (the relay's fetch auth derives from
   // it); without it the guest mints its own SECRET per boot and truthfully
   // advertises secrets-incapable. Anonymous sellers leave this unset.
-  fleetSecret: cfg.fleetSecret || '' };
+  fleetSecret: cfg.fleetSecret || '',
+  // dm-verity parameters for the attached model volumes. Unmeasured on its own
+  // — the guest hashes this table and refuses to mount unless it matches the
+  // measured metal.vols digest above, so this is a delivery channel, not a
+  // trusted one. The host path never crosses: only the serial the disk carries.
+  volumes: VOLUMES.map(({ image, ...v }) => v) };
 
 // Optional egress helper. QEMU user-net (slirp) NATs outbound for a normal host,
 // but some sandboxed/dev hosts block slirp's EXTERNAL sockets while still routing
@@ -114,12 +170,29 @@ function baseArgs() {
       + 'host_ufo=off,guest_ufo=off',
     '-serial', 'mon:stdio',
   ];
+  // model volumes: one read-only virtio-blk disk each. cache=none keeps the
+  // host page cache out of it — the guest caches what it reads (verified), and
+  // a second copy of a 60 GB model in host RAM only steals memory from the CVM.
+  // The guest never trusts these bytes: dm-verity checks every block.
+  for (const v of VOLUMES) {
+    a.push('-drive', `file=${v.image},if=none,id=${v.serial},format=raw,readonly=on,cache=none,aio=threads`);
+    a.push('-device', `virtio-blk-pci,drive=${v.serial},serial=${v.serial}`);
+  }
   if (MODE === 'dev') return a;
   // confidential VM: private guest memory via memfd + the TEE launch object
   a.push('-object', `memory-backend-memfd,id=ram0,size=${MEM}M,share=true,prealloc=false`);
   a.push('-bios', OVMF);
+  // The attached model volumes' set digest, bound into every attestation report
+  // this VM produces: HOST_DATA (32 bytes) on SEV-SNP, MRCONFIGID (48, zero-
+  // padded) on TDX. Not part of the launch measurement — deliberately, see
+  // "attested model volumes" above.
+  const volB64 = (bytes) => VOL_DIGEST
+    ? Buffer.concat([Buffer.from(VOL_DIGEST, 'hex'), Buffer.alloc(bytes - 32)]).toString('base64') : '';
   if (MODE === 'tdx') {
-    a.push('-object', 'tdx-guest,id=cx0');
+    // NOTE: the guest does NOT self-check MRCONFIGID today (it enforces
+    // HOST_DATA on SNP only), so on TDX the binding is verifiable by a remote
+    // party but not fail-closed inside the guest. No TDX hardware to test on.
+    a.push('-object', `tdx-guest,id=cx0${VOL_DIGEST ? `,mrconfigid=${volB64(48)}` : ''}`);
     a.push('-machine', 'q35,accel=kvm,confidential-guest-support=cx0,memory-backend=ram0,kernel-irqchip=split');
   } else {
     // SEV-SNP with measured kernel hashes → kernel+initrd+cmdline in the launch digest.
@@ -134,7 +207,8 @@ function baseArgs() {
     // is loud at attach time rather than a silently transparent box. Spelling
     // `policy=` out here would be belt-and-braces; it is left alone only
     // because a boot-line change to a serving box wants a real boot to test.
-    a.push('-object', `sev-snp-guest,id=cx0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on,sev-device=${SEV_DEVICE}`);
+    a.push('-object', `sev-snp-guest,id=cx0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on,sev-device=${SEV_DEVICE}`
+      + (VOL_DIGEST ? `,host-data=${volB64(32)}` : ''));
   }
   return a;
 }
@@ -147,6 +221,11 @@ let child = null, stopping = false, restarts = 0;
 function launch() {
   const args = baseArgs();
   console.log(`[enclave-metal] launching ${NAME} mode=${MODE} ${CPUS}vcpu/${MEM}MiB`);
+  if (VOLUMES.length) {
+    console.log(`[enclave-metal] model volumes (${VOLUMES.length}, set digest ${VOL_DIGEST.slice(0, 16)}… — MEASURED):`);
+    for (const v of VOLUMES)
+      console.log(`[enclave-metal]   ${v.name.padEnd(26)} ${(v.bytes / 1e9).toFixed(2).padStart(7)} GB  verity ${v.root.slice(0, 24)}…`);
+  }
   console.log(`[enclave-metal] cmdline: ${cmdline}`);
   child = spawn(QEMU, args, { stdio: ['ignore', 'inherit', 'inherit'] });
   child.on('exit', (code, sig) => {

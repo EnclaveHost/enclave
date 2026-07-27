@@ -20,17 +20,28 @@ const REGISTRY_ADDRESS = process.env?.REGISTRY_ADDRESS || "0xCB65f487eba6564D57F
 const RPC_URL          = process.env?.BASE_RPC || "https://mainnet.base.org";
 const STALE_AFTER_SEC  = 3600;  // treat enclaves silent longer than this as down
 
+const ENCLAVE_TUPLE_V1 = [
+  { name: "endpoint", type: "string" }, { name: "repo", type: "string" },
+  { name: "measurement", type: "bytes32" }, { name: "operator", type: "address" },
+  { name: "registeredAt", type: "uint64" }, { name: "lastSeen", type: "uint64" },
+  { name: "active", type: "bool" }];
 const ABI = [
   { type: "function", name: "count", stateMutability: "view", inputs: [],
     outputs: [{ type: "uint256" }] },
   { type: "function", name: "getPage", stateMutability: "view",
     inputs: [{ name: "start", type: "uint256" }, { name: "n", type: "uint256" }],
-    outputs: [{ type: "tuple[]", components: [
-      { name: "endpoint", type: "string" }, { name: "repo", type: "string" },
-      { name: "measurement", type: "bytes32" }, { name: "operator", type: "address" },
-      { name: "registeredAt", type: "uint64" }, { name: "lastSeen", type: "uint64" },
-      { name: "active", type: "bool" }] }] },
+    outputs: [{ type: "tuple[]", components: ENCLAVE_TUPLE_V1 }] },
 ];
+// Registry schema 2 APPENDED the operator's per-machine prices to the entry.
+// A 7-field decode of a 9-field page reads garbage, so the shape is sniffed
+// per address (cached; the address book can repoint us mid-flight) exactly
+// like the deployments tuple. Schema-1 registries have no getter: it reverts.
+const ENCLAVE_TUPLE = [...ENCLAVE_TUPLE_V1,
+  { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }];
+const abiForRev = (rev) => [ABI[0], { ...ABI[1],
+  outputs: [{ type: "tuple[]", components: rev >= 2 ? ENCLAVE_TUPLE : ENCLAVE_TUPLE_V1 }] }];
+const SCHEMA_ABI = [{ type: "function", name: "registrySchema", stateMutability: "view",
+  inputs: [], outputs: [{ type: "uint256" }] }];
 
 const client = createPublicClient({ chain: base, transport: http(RPC_URL) });
 
@@ -49,12 +60,27 @@ function isPublicHttpsEndpoint(ep) {
   return true;
 }
 
+// Which entry shape the registry at `addr` speaks: 2 = priced entries (the
+// getter exists), 1 = the original seven fields (it reverts there). Cached per
+// address, because the address book can repoint us at a new registry mid-run.
+const _regRev = new Map();
+async function registryAbi(client, addr) {
+  const key = String(addr).toLowerCase();
+  if (!_regRev.has(key)) {
+    const rev = await client.readContract({ address: addr, abi: SCHEMA_ABI, functionName: "registrySchema" })
+      .then(Number).catch(() => 1);
+    _regRev.set(key, rev);
+  }
+  return abiForRev(_regRev.get(key));
+}
+
 // 1) read the registry (slow-moving truth: who exists, where, what code)
 export async function readRegistry(address = REGISTRY_ADDRESS) {
-  const total = Number(await client.readContract({ address, abi: ABI, functionName: "count" }));
+  const abi = await registryAbi(client, address);
+  const total = Number(await client.readContract({ address, abi, functionName: "count" }));
   const out = [];
   for (let start = 0; start < total; start += 50) {
-    const page = await client.readContract({ address, abi: ABI, functionName: "getPage",
+    const page = await client.readContract({ address, abi, functionName: "getPage",
       args: [BigInt(start), 50n] });
     out.push(...page);
   }

@@ -18,6 +18,9 @@
   "_acmeEabKid_optional": "ZEROSSL_EAB_KID_FROM_YOUR_FREE_ACCOUNT",
   "_acmeEabHmac_optional": "ZEROSSL_EAB_HMAC_KEY_see_zerossl_dashboard_Developer_page",
 
+  "_volumes_optional": ["qwen2.5-0.5b-gguf", "qwen3.5-0.8b-gguf"],
+  "_volumeStore_optional": "/vm/enclave-volumes",
+
   "hostfwd": [
     { "host": 18080, "guest": 8080 }
   ],
@@ -33,7 +36,9 @@
 
   "_comment_pricing": "WHAT YOU CHARGE (rename to priceCpuUsdHr / priceGpuUsdHr): USD per hour for a FULL node and a FULL card. This is THE price on a rev-8 ledger, not a floor: it is published in your EnclaveRegistry entry, and when you claim a deployment the chain charges its owner exactly your price times the shares they bought - a 17% CPU share of a $3.00/hr node pays $0.51/hr, of which you keep runnerBps (80% today). Every deployment carries its own hourly ceiling (maxRate6), so work whose owner capped below your price is not offered to you (claim reverts 'over rate cap') - it waits for someone cheaper. Change the price any time: the guest republishes it on its next heartbeat, and live leases keep the price they were claimed at. Unset = the fleet defaults ($3.00/node-hr, $6.00/card-hr). priceGpuUsdHr only applies when this really is a GPU enclave (gpuCount > 0 with a card passed through); on a CPU-only box it is ignored, because advertising a price for hardware you cannot serve sells work you can never run.",
 
-  "_comment_acme": "In-enclave app TLS: the guest mints per-app certs itself via DNS-01 (the challenge push is authorized by your operator key's proof-of-lease - no platform secret needed). Without EAB creds it uses Let's Encrypt, which caps NEW certs per registered domain per week fleet-wide; rename the acmeEab* pair above (free ZeroSSL account -> Developer page -> EAB credentials) to mint via ZeroSSL first with Let's Encrypt as fallback.",
+  "_comment_volumes": "ATTESTED MODEL VOLUMES (rename to volumes / volumeStore): big read-only weights served the way Tinfoil's Modelwrap serves them, but built by you. Each volume is one file (ext4 + an appended dm-verity hash tree) made with `node metal/volumes.mjs build <name> --src <model tree>`; the launcher attaches it read-only and the GUEST sets dm-verity up itself, so every block a tenant reads is hash-checked in the CVM. Use \"*\" to attach every volume in the store. The set's digest is launched into the CPU's HOST_DATA field, so every attestation report this enclave produces names exactly which models it carries (metal/verify.mjs checks it) - while the launch measurement, which allowlists pin, stays the release's. Deployments then attach them by name via the console volume picker or their config CID.",
+
+  "_comment_acme":"In-enclave app TLS: the guest mints per-app certs itself via DNS-01 (the challenge push is authorized by your operator key's proof-of-lease - no platform secret needed). Without EAB creds it uses Let's Encrypt, which caps NEW certs per registered domain per week fleet-wide; rename the acmeEab* pair above (free ZeroSSL account -> Developer page -> EAB credentials) to mint via ZeroSSL first with Let's Encrypt as fallback.",
 
   "_comment_earning": "EARNING (Phase C, metal/PROTOCOL.md): rename registryKey/payoutAddress (drop the _..._optional wrapper) to sell hosting. registryKey = a fresh EOA private key funded with a few dollars of Base ETH for gas; the guest supervisor uses it to register this enclave, claim funded deployments, and collect the runner share the EnclaveDeployments ledger (schema rev 7+) escrows for whoever holds each lease. payoutAddress = YOUR wallet; accrued USDC earnings are auto-withdrawn to it once they clear EARNINGS_MIN_USDC (default $5). Set publicUrl to the relay-routed URL (https://api.enclave.host/t/<name>) so the registry entry is dialable through the tunnel. Both keys ride fw_cfg like tunnelToken: out-of-band, never part of the measurement."
 }

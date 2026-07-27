@@ -162,7 +162,10 @@ async function verifyReport(doc, { manifest, vcpus }) {
       `--vmm-type QEMU --ovmf <ovmf> --kernel dist/vmlinuz --initrd dist/initramfs.cpio.gz --append "<cmdline>")`);
   }
 
-  // 4. transport-key binding
+  // 4. attested model volumes (HOST_DATA)
+  verifyVolumes(doc.volumes, p.hostData);
+
+  // 5. transport-key binding
   if (doc.transportKey) {
     const fp = createHash("sha256").update(Buffer.from(doc.transportKey, "base64")).digest();
     if (Buffer.compare(fp, p.reportData.subarray(0, 32)) === 0) OK("report_data binds the served transport key (sha256 SPKI)");
@@ -170,6 +173,47 @@ async function verifyReport(doc, { manifest, vcpus }) {
   } else console.log("  (no transportKey in document — skipping binding check)");
 
   return failures === 0;
+}
+
+// --- attested model volumes ---------------------------------------------------
+// The enclave publishes the dm-verity table it mounted. On its own that is just
+// JSON off an untrusted network path — what makes it evidence is HOST_DATA: the
+// launcher launched the VM with sha256(table) in that field, and the CPU signs
+// it into every report. So hash the published table and compare. If they match,
+// the hardware is vouching for exactly these model volumes; change one byte of
+// any volume (or of the table) and the digest moves.
+//
+// Two layers, worth keeping straight: HOST_DATA says WHICH volumes (the set of
+// dm-verity roots), and dm-verity inside the guest enforces WHAT IS IN THEM —
+// every block a tenant reads is hashed against its root on the way in, so a
+// host that edits a mounted image gets an I/O error, not a swapped model.
+function volumesDigest(vols) {
+  const line = (v) => [v.name, v.alg || "sha256", v.root, v.salt, v.dataBlockSize,
+    v.hashBlockSize, v.dataBlocks, v.hashStartBlock, v.sd ? 1 : 0, v.gguf || ""].join("|");
+  return createHash("sha256").update(vols.map(line).sort().join("\n") + "\n").digest("hex");
+}
+
+function verifyVolumes(table, hostData) {
+  const hd = Buffer.from(hostData).toString("hex");
+  const vols = table?.volumes || [];
+  if (!vols.length) {
+    // No volumes claimed. HOST_DATA must be empty too — a non-zero one means the
+    // VM was launched bound to a volume set this document isn't showing us.
+    if (/[^0]/.test(hd)) BAD(`no model volumes are published, but HOST_DATA is non-empty (${hd.slice(0, 24)}…) — this enclave was launched bound to something it is not disclosing`);
+    return;
+  }
+  const digest = volumesDigest(vols);
+  if (table.digest && table.digest !== digest)
+    BAD(`the enclave's own volume digest (${String(table.digest).slice(0, 16)}…) does not match the table it published (${digest.slice(0, 16)}…)`);
+  if (digest === hd) OK(`HOST_DATA binds this exact model-volume set (${vols.length} volume(s)) into the hardware report`);
+  else BAD(`model volumes are NOT bound: HOST_DATA is ${hd.slice(0, 24)}… but the published table hashes to ${digest.slice(0, 24)}…`);
+
+  for (const v of vols) {
+    const state = v.mounted === false ? "\x1b[33mNOT MOUNTED\x1b[0m" : "mounted";
+    console.log(`    volume ${String(v.name).padEnd(26)} ${(Number(v.bytes || 0) / 1e9).toFixed(2).padStart(7)} GB  ` +
+      `${v.alg || "sha256"}:${String(v.root).slice(0, 32)}…  ${state}`);
+  }
+  console.log(`    (rebuild any of them with  node metal/volumes.mjs build <name> --src <model tree>  and compare the root hash)`);
 }
 
 // --- entry -------------------------------------------------------------------
