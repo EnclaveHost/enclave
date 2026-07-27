@@ -66,8 +66,15 @@ class FleetList extends EnclaveElement {
                 stat(fmtNum(a.vramFreeGb != null ? a.vramFreeGb : gFree * vramGb), fmtNum(vramGb), "GB", "vram available")
                 + stat(Math.round(gFree * tflops), Math.round(tflops), "", "tflops available")) : "")
             + pool("CPU", cPct,
-                stat(fmtNum(cFree * ramGb), fmtNum(ramGb), "GB", "ram available")
-                + stat(fmtNum(cFree * vcpus), fmtNum(vcpus), "", "vcpu available"))
+                // prefer the enclave's own figure (the RAM-reservation ledger,
+                // which is what actually gates admission) over the folded
+                // fraction — same precedence the VRAM cell above uses
+                stat(fmtNum(a.ramGbFree != null ? a.ramGbFree : cFree * ramGb), fmtNum(ramGb), "GB", "ram available")
+                + stat(fmtNum(cFree * vcpus), fmtNum(vcpus), "", "vcpu available")
+                // a box carrying model volumes can read ~85% used with every
+                // tenant idle: preloaded weights are held, not free. Name that
+                // term or the meter looks broken.
+                + (a.ramNnResidentMb ? stat(fmtNum(a.ramNnResidentMb / 1024), fmtNum(ramGb), "GB", "held by models") : ""))
             + '<div class="fleet-rateform" data-form="' + esc(e.id || "") + '" hidden></div>'
             + '</div>';
         }).join(""));
