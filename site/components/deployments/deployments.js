@@ -1520,8 +1520,9 @@ class Deployments extends EnclaveElement {
       // owner-authenticated release on the CURRENT runner. The relay routes
       // this to the lease holder; the record stays active and funded, so the
       // fleet may re-claim it immediately - which is the point.
-      await Enclave.terminateDeployment(id, host);
-      paintLine(s, "dimln", "    released - unused lease time refunded to the balance; the record is back in the open queue");
+      const rel = await Enclave.terminateDeployment(id, host, true);   // evacuate: stand down, don't re-take it
+      paintLine(s, "dimln", "    released - unused lease time refunded to the balance"
+        + (rel && rel.standDownSec ? `; ${fromName || "it"} stands down for ${rel.standDownSec}s so the move can land` : ""));
     } catch(e){
       paintLine(s, "warn", "[x] the current enclave would not release the lease: " + (e.message || e));
       paintLine(s, "dimln", "    nothing changed - the app keeps running where it is");
@@ -1529,13 +1530,34 @@ class Deployments extends EnclaveElement {
       return;
     }
     const ZERO = "0x" + "0".repeat(64);
+    // The release is a TRANSACTION and the enclave answers before it is mined.
+    // Hinting into a still-live lease makes the destination attempt a claim
+    // that reverts "leased" — and a failed claim puts that box into its own
+    // provisioning backoff, locking out the retry that would have worked. So
+    // wait for the chain to say the lease is actually gone before hinting.
+    paintLine(s, "dimln", "    waiting for the release to land on-chain…");
+    let cleared = false;
+    for (let i = 0; i < 30 && !cleared; i++){
+      if (!box.isConnected) return;
+      await new Promise(r => setTimeout(r, 2000));
+      let d = null; try { d = await depGet(id); } catch(e){}
+      const runner = String((d && d.runner) || "").toLowerCase();
+      if (d && (!runner || runner === ZERO || !(Number(d.leaseUntil) * 1000 > Date.now()))) cleared = true;
+    }
+    if (!cleared){
+      paintLine(s, "warn", "[!] the lease is still live on-chain after 60s - the release may not have been mined");
+      paintLine(s, "dimln", "    nothing is lost: the app keeps running and its balance is intact. Try again shortly.");
+      go.disabled = false; go.textContent = "Move";
+      setTimeout(() => this.refresh(), 1200);
+      return;
+    }
     let landed = null, lastReason = "";
     for (let i = 0; i < 60 && !landed; i++){
       if (!box.isConnected) return;
       // Re-hint while we wait: the first hint can beat the release being
       // visible to the fleet's load-balanced RPC node and get declined, and a
       // funded record with no hint sits until someone's 60s sweep finds it.
-      if (i % 3 === 0){
+      if (i % 4 === 0){
         try {
           const h = await Enclave.claimHint(id, target);
           if (h && h.accepted === false && h.reason && h.reason !== lastReason){

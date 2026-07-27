@@ -19,6 +19,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, X509Certificate, createPublicKey, createVerify } from "node:crypto";
+// ONE pin table for both verifiers (the relay's attach gate and this buyer
+// tool). A second copy is a second thing to update when AMD adds a product
+// line, and the copy that gets forgotten is the one that fails open.
+import { isPinnedArk, AMD_ARK_SHA256 } from "../relay/snp-verify.mjs";
 
 function arg(name, dflt) { const i = process.argv.indexOf("--" + name); return i > 0 ? process.argv[i + 1] : dflt; }
 const OK = (m) => console.log(`  \x1b[32m✓\x1b[0m ${m}`);
@@ -146,6 +150,15 @@ async function verifyReport(doc, { manifest, vcpus }) {
       if (ark && ask.verify(ark.publicKey)) OK("ASK is signed by the AMD SEV root (ARK)");
       else BAD("ASK does not chain to ARK");
       if (ark && ark.verify(ark.publicKey)) OK("ARK is self-signed (AMD root of trust)");
+      // "Self-signed" only says the chain is internally consistent — whoever
+      // serves it gets to BE the root. This is the buyer's own tool, run against
+      // a box someone else operates, so the one link that must not rest on TLS
+      // to a single host is the root: pin it (see AMD_ARK_SHA256's provenance
+      // note). Without this, an attacker who can answer for kdsintf.amd.com
+      // fabricates the whole chain and every line above still prints ✓.
+      if (ark && isPinnedArk(ark, which)) OK(`ARK is AMD's pinned ${which} root (sha256 matches)`);
+      else BAD(`ARK is NOT AMD's pinned ${which} root — the served chain is not AMD's`
+             + (AMD_ARK_SHA256.has(which) ? "" : ` (no pin on file for product "${which}")`));
     } catch (e) { BAD(`AMD cert-chain verification failed: ${e.message}`); }
   }
 
