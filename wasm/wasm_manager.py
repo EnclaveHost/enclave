@@ -2258,6 +2258,61 @@ def _alloc_ports(pspec) -> dict:
     return out
 
 
+# Does THIS wasmtime binary know `-S loopback-allow` (wasm/wasmtime-loopback.patch)?
+#
+# The launcher and the runtime ride in one image but come from TWO inputs, moved
+# by two different hands: wasm_manager.py is rebuilt by CI on every push that
+# touches wasm/, while the binary arrives through Dockerfile.wasm's
+# WASMTIME_IMAGE digest, which only the MANUAL toolchain workflow moves. On
+# 2026-07-28 they came apart — the launcher started emitting the flag hours
+# before a patched binary existed anywhere — and an unknown -S option is not a
+# soft landing: wasmtime answers `error: unknown -S / --wasi option:
+# loopback-allow` and exits 2 before it has even read the module. EVERY tenant
+# launch on the fleet failed, each claim was taken and handed straight back, and
+# from outside it read only as "queued", forever.
+#
+# So ask the binary instead of assuming it. One `-S help` exec against the very
+# file that runs every tenant, cached for the process.
+#
+# ONLY POSITIVE EVIDENCE OF ABSENCE suppresses the flag. A probe that cannot run
+# at all (no binary on PATH, a timeout) leaves it in place: an environment with
+# no wasmtime launches no tenants either, and "I could not check" must never be
+# the thing that quietly takes a wall down. The suppression is loud, and
+# /health carries it so the fleet can be asked from outside which boxes are
+# missing the patch — see test/wasm-loopback-flag.test.mjs, which pins that the
+# flag is still emitted whenever support is not disproven.
+_LOOPBACK_FLAG = None      # None = not probed yet; True/False = the binary's answer
+
+
+def _loopback_flag_supported() -> bool:
+    global _LOOPBACK_FLAG
+    if _LOOPBACK_FLAG is not None:
+        return _LOOPBACK_FLAG
+    if MOCK:
+        _LOOPBACK_FLAG = True
+        return _LOOPBACK_FLAG
+    try:
+        r = subprocess.run([WASMTIME, "serve", "-S", "help"],
+                           capture_output=True, text=True, timeout=10)
+        listed = "loopback-allow" in ((r.stdout or "") + (r.stderr or ""))
+        # A `-S help` that printed nothing recognisable proves nothing about the
+        # option — only a readable option list that OMITS it does.
+        if not listed and "egress" not in ((r.stdout or "") + (r.stderr or "")):
+            return True                      # unreadable listing: decide nothing, don't cache
+        _LOOPBACK_FLAG = listed
+    except Exception as e:
+        print(f"wasm-manager: could not probe `-S loopback-allow` ({e}); "
+              f"passing it as usual", flush=True)
+        return True                          # probe unavailable: unchanged behaviour, don't cache
+    if not _LOOPBACK_FLAG:
+        print("wasm-manager ERROR: this wasmtime has no `-S loopback-allow` — the cross-tenant "
+              "loopback wall is NOT enforced on this box. The image was assembled from a "
+              "wasm_manager.py newer than its WASMTIME_IMAGE pin: rebuild the wasmtime toolchain "
+              "with wasm/wasmtime-loopback.patch and repoint wasm/Dockerfile.wasm. Launching "
+              "tenants WITHOUT the flag — passing it would fail every launch outright.", flush=True)
+    return _LOOPBACK_FLAG
+
+
 def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdir=None,
                nn=False, enclave_config=None, vol_mounts=None, egress=None, egress_transparent=None,
                enc=None, gpu_share: float = 0.0, nn_report=None, secrets=None,
@@ -2589,7 +2644,7 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
             _lb.add(int(_ep.rsplit(":", 1)[1]))
         except (ValueError, IndexError):
             pass
-    lb_args = ["-S", "loopback-allow=" + ",".join(str(p) for p in sorted(_lb))]
+    lb_args = ["-S", "loopback-allow=" + ",".join(str(p) for p in sorted(_lb))] if _loopback_flag_supported() else []
     if pspec["serve"]:
         return ([WASMTIME, "serve", "-Scli", "-Shttp", *P3_FLAGS, *nn_args, *fs_args, *cfg_args, *vol_args,
                  *egress_args, *lb_args, "-W", f"max-memory-size={mem_bytes}",
@@ -3698,6 +3753,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json(200, {**live,
                                     "nn": _nn_available(),
                                     "nnProbe": dict(_NN_PROBE),
+                                    # false = this binary predates wasmtime-loopback.patch, so
+                                    # tenants run WITHOUT the cross-tenant wall (the launcher
+                                    # cannot pass a flag that would fail every launch outright)
+                                    "loopbackWall": _loopback_flag_supported(),
                                     **({"gpuVramGb": GPU_VRAM_GB, "gpuVramSource": GPU_VRAM_SRC}
                                        if NODE_HAS_GPU else {}),
                                     "volumes": _volumes_public(),
@@ -3929,6 +3988,7 @@ def _debug_env() -> dict:
     out = {"runtime": "wasmtime", "mock": MOCK, "apps_dir": str(APPS_DIR),
            "catalog": sorted(_load_catalog().keys()), "version": _wasmtime_version(),
            "p3": bool(P3_FLAGS),
+           "loopback_wall": _loopback_flag_supported(),
            "nn": _nn_available(),
            "nn_probe": dict(_NN_PROBE), "gpu_vram_gb": GPU_VRAM_GB, "gpu_vram_source": GPU_VRAM_SRC,
            "mps_pipe": MPS_PIPE_DIR if (NN_ENABLED and NODE_HAS_GPU) else None,

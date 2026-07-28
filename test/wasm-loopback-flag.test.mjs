@@ -19,6 +19,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -27,7 +29,7 @@ const MGR = path.join(REPO, "wasm", "wasm_manager.py");
 
 // Build a real command line through _build_cmd and return it, plus the parsed
 // loopback list. `kw` is spliced into the call as python keyword arguments.
-function cmdFor(kw = {}, { serve = true } = {}) {
+function cmdFor(kw = {}, { serve = true, env = {} } = {}) {
   const code = `
 import importlib.util, sys, json
 spec = importlib.util.spec_from_file_location("wm", ${JSON.stringify(MGR)})
@@ -45,7 +47,7 @@ for i, a in enumerate(cmd):
 print(json.dumps({"cmd": cmd, "lb": lb}))
 `;
   const out = execFileSync("python3", ["-c", code], {
-    env: { ...process.env, WASM_MANAGER_PORT: "8091", NODE_HAS_GPU: "0" },
+    env: { ...process.env, WASM_MANAGER_PORT: "8091", NODE_HAS_GPU: "0", ...env },
     encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
   });
   const r = JSON.parse(out.trim().split("\n").pop());
@@ -94,4 +96,41 @@ test("the list is sorted, deduped and free of junk", () => {
                                  egress_transparent: "127.0.0.1:8091" }, { serve: false });
   assert.deepEqual(ports, [...new Set(ports)].sort((a, b) => a - b), "sorted + deduped");
   assert.match(lb, /^\d+(,\d+)*$/, "ports only — the runtime parses this strictly");
+});
+
+// ---- and the other half: never emit an option this binary does not have ------
+// The launcher is rebuilt by CI on every wasm/ push; the binary only moves when
+// the manual toolchain workflow does. On 2026-07-28 the launcher ran ahead, and
+// because an unknown -S option is a hard parse error (exit 2, before the module
+// is read), EVERY tenant launch on the fleet died — claimed, failed, released,
+// and "queued" forever from outside. So the flag is now conditional on the
+// binary's own `-S help`, and these pin which way each answer falls.
+const FAKE = (body) => {
+  const dir = mkdtempSync(path.join(tmpdir(), "wt-"));
+  const p = path.join(dir, "wasmtime");
+  writeFileSync(p, `#!/bin/sh\n${body}\n`, { mode: 0o755 });
+  return p;
+};
+
+test("a wasmtime WITHOUT the patch is launched without the flag, not fed one it rejects", () => {
+  // a readable option list that simply omits loopback-allow = positive evidence
+  const bin = FAKE(`echo "  -S    egress=val -- route guest outbound"; exit 0`);
+  const { cmd, lb } = cmdFor({}, { env: { WASMTIME_BIN: bin } });
+  assert.equal(lb, null, "the option must be absent — passing it fails the launch outright");
+  assert.ok(!cmd.some((a) => String(a).startsWith("loopback-allow=")), "no stray argv word either");
+});
+
+test("a wasmtime WITH the patch still gets the flag", () => {
+  const bin = FAKE(`echo "  -S    egress=val -- ..."; echo "  -S    loopback-allow=val -- ..."; exit 0`);
+  const { ports } = cmdFor({}, { env: { WASMTIME_BIN: bin } });
+  assert.deepEqual(ports, [20001], "support probed = wall enforced, unchanged");
+});
+
+test("a probe that cannot answer leaves the wall alone", () => {
+  // "I could not check" must never be the thing that quietly drops a security
+  // control: an unreadable listing and a missing binary both keep the flag.
+  const quiet = FAKE(`exit 0`);                       // ran, said nothing recognisable
+  assert.deepEqual(cmdFor({}, { env: { WASMTIME_BIN: quiet } }).ports, [20001]);
+  const missing = path.join(tmpdir(), "no-such-wasmtime-" + process.pid);
+  assert.deepEqual(cmdFor({}, { env: { WASMTIME_BIN: missing } }).ports, [20001]);
 });
