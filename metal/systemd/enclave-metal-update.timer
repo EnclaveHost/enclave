@@ -1,0 +1,16 @@
+# Checks a few times a day, jittered. NOT every minute: each check is cheap but
+# each UPDATE costs a tenant relaunch and one ACME issuance for every app-zone
+# hostname the box serves (the guest is initramfs-only, so nothing persists and
+# Let's Encrypt allows 5 per 168h per name). A box that updated on every merge
+# would spend that budget in an afternoon.
+[Unit]
+Description=Enclave Metal — periodic release check
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=6h
+RandomizedDelaySec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
