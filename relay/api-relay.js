@@ -1287,11 +1287,41 @@ async function listDeployments(u, req, res) {
   // never asks for a signature and never resumes" — the app was running the
   // whole time (found 2026-07-28 on a deployment moved metal0 -> kryptos ->
   // metal0). The ledger's runner is the tiebreak, exactly as it is for routing.
+  //
+  // Deduping the two hosted rows is NOT enough on its own, because usually
+  // only ONE of them is in `oks` at all: sessions are per-enclave (each box
+  // signs with its own in-enclave key and verifies only its own kid), and the
+  // fan-out presents the caller's token to every box, so the box that did not
+  // mint it answers 401 and drops out. Sign in on the old host and it is the
+  // ONLY answering enclave — its terminated copy is the sole hosted row, it
+  // suppresses the ledger row via `seen`, and the deployment reads TERMINATED
+  // on a box that released it while the real host serves happily elsewhere.
+  // So a hosted row from a box the chain says is not the runner is not just
+  // outranked, it is DISCARDED: the ledger row (which knows the true runner,
+  // resources and lease) takes its place.
   const runnerOf = new Map();
-  try { for (const d of await ledgerRows()) runnerOf.set(String(d.id).toLowerCase(), String(d.runner).toLowerCase()); } catch {}
+  try {
+    for (const d of await ledgerRows())
+      runnerOf.set(String(d.id).toLowerCase(),
+                   { runner: String(d.runner).toLowerCase(), leaseLive: Number(d.leaseUntil) * 1000 > Date.now() });
+  } catch {}
+  // Narrow on purpose, and only for a row that declares the deployment DEAD.
+  // A live-looking row from a box the chain does not yet name is usually just
+  // lag — an enclave serves from the moment it claims, while ledgerRows() is
+  // up to LEDGER_TTL_MS behind the claim tx — and showing it is harmless and
+  // self-correcting. A terminated/stopped/expired row from a box the chain
+  // says is not the runner is the stale-copy case: it cannot become true
+  // again, and it is the one that misreports a running app as ended.
+  const TERMINAL = /^(terminated|stopped|expired)$/;
+  const contradicted = (row, e) => {
+    if (!TERMINAL.test(String(row.status || ""))) return false;
+    const want = runnerOf.get(String(row.id).toLowerCase());
+    return !!(want && want.leaseLive && !ZERO32.test(want.runner)
+              && e.id && String(e.id).toLowerCase() !== want.runner);
+  };
   const wins = (row, e) => {
     const want = runnerOf.get(String(row.id).toLowerCase());
-    if (want && e.id) return String(e.id).toLowerCase() === want;   // the chain names the host
+    if (want && want.runner && e.id) return String(e.id).toLowerCase() === want.runner;   // the chain names the host
     return !/^(terminated|stopped|expired)$/.test(String(row.status || ""));   // else prefer a live row
   };
   for (const { e, r } of oks) {
@@ -1300,6 +1330,7 @@ async function listDeployments(u, req, res) {
       for (const it of JSON.parse(r.text).data || []) {
         if (it.enclave == null) it.enclave = e.name || endpointName(e.endpoint);
         const key = String(it.id).toLowerCase();
+        if (contradicted(it, e)) continue;    // stale copy on an ex-runner: let the ledger row answer
         const prev = at.get(key);
         if (prev == null) { at.set(key, data.length); data.push(it); }
         else if (wins(it, e)) data[prev] = it;
