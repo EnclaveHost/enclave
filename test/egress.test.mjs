@@ -260,10 +260,12 @@ async function phase2Harness(dialTarget) {
 // inheritNetwork adds -Sinherit-network (the phase-1 raw path, for the negative);
 // enclaveEgress exports the guest-visible ENCLAVE_EGRESS url (the phase-1 explicit path).
 function runTcpGuest({ socksPort, id, target, egressOn = true, inheritNetwork = false,
-                       guest = GUEST_TCP, enclaveEgress = false }) {
+                       guest = GUEST_TCP, enclaveEgress = false, loopbackAllow = null }) {
   const args = ["run", "-Scli", "-Sp3", "-Stcp", "-Sudp", "-Sallow-ip-name-lookup"];
   if (inheritNetwork) args.push("-Sinherit-network");
   if (egressOn) args.push("-S", `egress=127.0.0.1:${socksPort}`);
+  // the per-deployment loopback policy (wasm_manager passes this on every launch)
+  if (loopbackAllow !== null) args.push("-S", `loopback-allow=${loopbackAllow}`);
   if (enclaveEgress) args.push("--env", `ENCLAVE_EGRESS=socks5h://${id}:${egressToken(SECRET, id)}@127.0.0.1:${socksPort}`);
   args.push("--env", `TARGET=${target}`, guest);
   const env = { ...process.env };
@@ -293,10 +295,19 @@ test("phase2: transparent egress routes an UNMODIFIED guest's raw wasi:sockets o
   echo.close(); h.teardown();
 });
 
-test("phase2: a locked-down guest dialing a loopback literal is refused (SSRF; raw bypass closed)",
+test("phase2: a locked-down guest dialing a loopback literal is refused",
   { skip: phase2Skip }, async () => {
-  const h = await phase2Harness({ host: "127.0.0.1", port: 1 });   // never dialed (front denies first)
-  const r = await runTcpGuest({ socksPort: h.socksPort, id: "depX", target: "127.0.0.1:22" });
+  // WHAT REFUSES IT, precisely: not the front (the shim never sends a loopback
+  // literal there) and not luck. This test used to dial 127.0.0.1:22 with no
+  // loopback policy and assert CONNERR - which held only on a machine with
+  // nothing on :22. On a box running sshd the guest CONNECTED and read the
+  // banner ("OK SSH-2.0-OpenSSH_10.3"), i.e. the test asserting the raw bypass
+  // was closed was itself the demonstration that it was open. The policy is
+  // what closes it, so the test now runs the production posture: a tenant is
+  // launched with the loopback ports it is allowed, and :22 is not among them.
+  const h = await phase2Harness({ host: "127.0.0.1", port: 1 });   // never dialed (refused in-process)
+  const r = await runTcpGuest({ socksPort: h.socksPort, id: "depX", target: "127.0.0.1:22",
+                                loopbackAllow: h.socksPort });
   assert.match(r.out, /^CONNERR/, `expected a connect error, got ${JSON.stringify(r.out)}`);
   assert.equal(h.opens.filter((o) => o.host === "127.0.0.1").length, 0, "a denied loopback dial must never reach the relay");
   h.teardown();
@@ -381,3 +392,106 @@ function waitForPort(port, ms) {
     tick();
   });
 }
+
+// ===========================================================================
+// LOOPBACK POLICY — the cross-tenant wall (`-S loopback-allow`)
+// ===========================================================================
+// The carve-out that makes /encvol reachable (a literal loopback IP dials
+// DIRECT, never through the front) also made every SIBLING TENANT reachable:
+// each deployment is its own wasmtime process listening on 127.0.0.1:<its
+// port> in ONE shared network namespace, so a guest could connect straight
+// into a neighbour's app - around the supervisor's /x/:id, which is where a
+// PRIVATE deployment's owner check and the deployer's WAF live. No service can
+// close that; another tenant's app is not the platform's to gate.
+//
+// These drive the REAL patched binary against a REAL listener standing in for
+// the neighbour, in both network postures a tenant can be launched with.
+async function neighbour() {
+  const srv = net.createServer((s) => s.on("data", () => s.write("sibling-data")));
+  srv.listen(0, "127.0.0.1"); await once(srv, "listening");
+  return { srv, port: srv.address().port, close: () => srv.close() };
+}
+
+test("loopback policy: a dial to a SIBLING's port is refused (transparent egress on)",
+  { skip: phase2Skip }, async () => {
+  const nb = await neighbour();
+  const h = await phase2Harness({ host: "127.0.0.1", port: 1 });
+  // the tenant is allowed exactly one loopback port - not the neighbour's
+  const r = await runTcpGuest({ socksPort: h.socksPort, id: "depX",
+                                target: `127.0.0.1:${nb.port}`, loopbackAllow: nb.port + 1 });
+  assert.match(r.out, /^CONNERR/, `the sibling dial must fail, got ${JSON.stringify(r.out)}`);
+  assert.match(r.out, /not this deployment's to dial|denied|permission/i,
+    `the refusal should name the policy, got ${JSON.stringify(r.out)}`);
+  assert.equal(h.opens.length, 0, "a refused loopback dial must not reach the relay either");
+  nb.close(); h.teardown();
+});
+
+test("loopback policy: the ALLOWED loopback port still connects (the /encvol plane)",
+  { skip: phase2Skip }, async () => {
+  const nb = await neighbour();
+  const h = await phase2Harness({ host: "127.0.0.1", port: 1 });
+  // /encvol is the one loopback plane a tenant is SUPPOSED to reach: naming it
+  // must still work, or the policy would break encrypted volumes
+  const r = await runTcpGuest({ socksPort: h.socksPort, id: "depX",
+                                target: `127.0.0.1:${nb.port}`, loopbackAllow: nb.port });
+  assert.match(r.out, /^OK sibling-data/, `an allowed dial must connect, got ${JSON.stringify(r.out)} err=${r.err.slice(0, 200)}`);
+  nb.close(); h.teardown();
+});
+
+test("loopback policy: it holds under -Sinherit-network too (the port-serving posture)",
+  { skip: phase2Skip }, async () => {
+  // This is the posture the policy exists for: a declared-ports app gets
+  // `-Sinherit-network`, which installs an allow-ALL address check. Before the
+  // policy there was NOTHING between such a tenant and its neighbours.
+  const nb = await neighbour();
+  const h = await phase2Harness({ host: "127.0.0.1", port: 1 });
+  const r = await runTcpGuest({ socksPort: h.socksPort, id: "depX", target: `127.0.0.1:${nb.port}`,
+                                egressOn: false, inheritNetwork: true, loopbackAllow: nb.port + 1 });
+  assert.match(r.out, /^CONNERR/, `inherit-network must not exempt loopback, got ${JSON.stringify(r.out)}`);
+  nb.close(); h.teardown();
+});
+
+test("loopback policy: inherit-network keeps the raw network it was granted",
+  { skip: phase2Skip }, async () => {
+  // The check REPLACES inherit-network's allow-all, so it must not quietly take
+  // away what that flag grants: a non-loopback destination still connects. A
+  // local non-loopback address stands in for "off box" so the test stays
+  // hermetic. Skipped when the box has no such address.
+  const os = await import("node:os");
+  const lan = Object.values(os.networkInterfaces()).flat()
+    .find((i) => i && i.family === "IPv4" && !i.internal);
+  if (!lan) return;   // nothing to bind: no verdict either way
+  const srv = net.createServer((s) => s.on("data", () => s.write("off-box")));
+  srv.listen(0, lan.address); await once(srv, "listening");
+  const h = await phase2Harness({ host: "127.0.0.1", port: 1 });
+  const r = await runTcpGuest({ socksPort: h.socksPort, id: "depX",
+                                target: `${lan.address}:${srv.address().port}`,
+                                egressOn: false, inheritNetwork: true, loopbackAllow: "" });
+  assert.match(r.out, /^OK off-box/, `a non-loopback dial must still work, got ${JSON.stringify(r.out)}`);
+  srv.close(); h.teardown();
+});
+
+test("loopback policy: an empty list means NO loopback at all", { skip: phase2Skip }, async () => {
+  // A serve-mode app with neither encrypted volumes nor egress gets an empty
+  // list, and that is a real answer, not a missing one.
+  const nb = await neighbour();
+  const h = await phase2Harness({ host: "127.0.0.1", port: 1 });
+  const r = await runTcpGuest({ socksPort: h.socksPort, id: "depX",
+                                target: `127.0.0.1:${nb.port}`, egressOn: false,
+                                inheritNetwork: true, loopbackAllow: "" });
+  assert.match(r.out, /^CONNERR/, `empty must deny, got ${JSON.stringify(r.out)}`);
+  nb.close(); h.teardown();
+});
+
+test("loopback policy: UNSET leaves the old behaviour (a hand-run wasmtime is unchanged)",
+  { skip: phase2Skip }, async () => {
+  // The manager passes the flag on every tenant launch; the runtime default
+  // stays permissive so the manager's own probe processes - which run wasmtime
+  // directly, with no flag - behave exactly as before.
+  const nb = await neighbour();
+  const h = await phase2Harness({ host: "127.0.0.1", port: 1 });
+  const r = await runTcpGuest({ socksPort: h.socksPort, id: "depX",
+                                target: `127.0.0.1:${nb.port}`, egressOn: false, inheritNetwork: true });
+  assert.match(r.out, /^OK sibling-data/, `unset must not restrict, got ${JSON.stringify(r.out)}`);
+  nb.close(); h.teardown();
+});

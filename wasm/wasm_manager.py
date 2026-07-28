@@ -2555,9 +2555,44 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     # wasi:sockets connect. In run mode it ALSO closes the raw bypass — we drop
     # `-Sinherit-network` so the guest can no longer reach the network directly.
     egress_args = ["-S", f"egress={egress_transparent}"] if egress_transparent else []
+    # WHICH LOOPBACK PORTS THIS TENANT MAY DIAL (`-S loopback-allow`, the patched
+    # wasmtime's per-address rule; see wasm/wasmtime-loopback.patch).
+    #
+    # Tenants share ONE network namespace and each listens on 127.0.0.1:<its
+    # port>, so unrestricted loopback let a guest connect straight into a SIBLING
+    # tenant's app - around the supervisor's /x/:id, which is where a PRIVATE
+    # deployment's owner-token check and the deployer's WAF live. Nothing at the
+    # services can close that: another tenant's app is not ours to gate.
+    #
+    # The list is what this deployment legitimately reaches, and nothing else:
+    #   - its OWN assigned ports (an app that talks to itself)
+    #   - the manager's control port, ONLY when it has encrypted volumes (that is
+    #     the /encvol plane behind ENCLAVE_ENC_API, the one loopback service a
+    #     tenant is supposed to use; without encVolumes it has no business there)
+    #   - the SOCKS front, ONLY when this tenant was given an egress URL to dial
+    #     (a phase-1 guest dials it explicitly; the transparent path recognises
+    #     the front before this rule applies, but naming it is free and keeps the
+    #     two paths honest about the same set)
+    # Empty is a real, strict answer: a serve-mode app with neither volumes nor
+    # egress gets NO loopback at all.
+    _lb = set(int(p) for p in ([serve_port] if serve_port else []) + list((port_map or {}).values()) if p)
+    if enc:
+        _lb.add(PORT)
+    for _u in (egress_transparent, egress):
+        if not _u:
+            continue
+        # egress_transparent is already "<host>:<port>"; the guest-visible
+        # ENCLAVE_EGRESS is a full socks5h:// URL (never trust it to parse - an
+        # unparseable one simply contributes no port)
+        _ep = (_parse_egress_url(_u) or {}).get("endpoint", "") if str(_u).startswith("socks5") else str(_u)
+        try:
+            _lb.add(int(_ep.rsplit(":", 1)[1]))
+        except (ValueError, IndexError):
+            pass
+    lb_args = ["-S", "loopback-allow=" + ",".join(str(p) for p in sorted(_lb))]
     if pspec["serve"]:
         return ([WASMTIME, "serve", "-Scli", "-Shttp", *P3_FLAGS, *nn_args, *fs_args, *cfg_args, *vol_args,
-                 *egress_args, "-W", f"max-memory-size={mem_bytes}",
+                 *egress_args, *lb_args, "-W", f"max-memory-size={mem_bytes}",
                  "--addr", f"{HOST_IP}:{serve_port}", str(wasm)],
                 serve_port, [serve_port])
     port_map = port_map or {}
@@ -2615,8 +2650,14 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     # volumes. See also the bind audit (_audit_rec), which still kills a guest
     # that binds an unassigned policed port.
     net_args = egress_args if egress_transparent else ["-Sinherit-network"]
+    # lb_args rides in BOTH modes, and in run mode it is the half that matters
+    # most: `-Sinherit-network` installs an allow-ALL address check, and the
+    # patched CLI replaces it with one that still permits every bind and every
+    # off-box connect but refuses loopback outside this deployment's own set.
+    # That is what keeps a port-serving app off its neighbours' sockets without
+    # taking away the raw network it was granted.
     cmd = [WASMTIME, "run", "-Scli", *P3_FLAGS, *nn_args, "-Stcp", "-Sudp",
-           *net_args, "-Sallow-ip-name-lookup", *fs_args, *cfg_args, *vol_args,
+           *net_args, *lb_args, "-Sallow-ip-name-lookup", *fs_args, *cfg_args, *vol_args,
            "-W", f"max-memory-size={mem_bytes}",
            "--env", "ENCLAVE_PORTS=" + enclave_ports, str(wasm)]
     http_entry = f"http:{pspec['http']}" if pspec["http"] else None
