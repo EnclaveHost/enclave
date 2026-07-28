@@ -180,6 +180,7 @@ export function createFleet(cfg, log = () => {}) {
   // this alone.
   let _runnerClient = null, _deploymentsAddress = cfg.deploymentsAddress;
   let _anyEndpoints = [];        // fresh registry endpoints, operator-allowlist aside (leaseEndpointFor)
+  let _endpointOperators = new Map();   // endpoint -> the operator that registered it
   let _hashEndpoint = null;
   const _endpointIdCache = new Map();
   let _ledger = { rows: [], at: 0 };
@@ -330,7 +331,11 @@ export function createFleet(cfg, log = () => {}) {
   }
 
   if (cfg.staticList.length) {
+    // Static mode has no registry to read, so nobody is provably the operator
+    // of anything. null (not "unknown, allow") keeps every operator-authorized
+    // path fail-closed here rather than silently open.
     return { origins: () => origins, runnerEndpointFor, leaseEndpointFor, leaseFor, prefixAmbiguous,
+             operatorForEndpoint: () => null,
              async start() { log(`static fleet: ${origins.join(", ")}`); } };
   }
 
@@ -372,6 +377,13 @@ export function createFleet(cfg, log = () => {}) {
     // registry row, WITHOUT the operator allowlist but WITH the https + SSRF
     // filters. Not a fleet-membership grant — the caller must independently
     // prove this endpoint holds the deployment's on-chain lease.
+    // WHO REGISTERED an endpoint. Self-scoped authority: it lets a box prove it
+    // may answer dns-01 for its OWN name and nothing else, so it deliberately
+    // skips the trusted-operator allowlist (a permissionless seller still owns
+    // its own hostname) while keeping the active + not-stale filter.
+    _endpointOperators = new Map(fresh
+      .map((e) => [String(e.endpoint || "").replace(/\/+$/, "").toLowerCase(), String(e.operator || "").toLowerCase()])
+      .filter(([ep, op]) => ep && /^0x[0-9a-f]{40}$/.test(op)));
     _anyEndpoints = fresh.map((e) => String(e.endpoint || "").replace(/\/+$/, ""))
       .filter((ep) => isHttpsEndpoint(ep))
       .filter((ep) => { let h; try { h = new URL(ep).hostname; } catch { return false; } return !isBlockedHost(h); });
@@ -406,6 +418,7 @@ export function createFleet(cfg, log = () => {}) {
     leaseEndpointFor,
     leaseFor,
     prefixAmbiguous,
+    operatorForEndpoint: (ep) => _endpointOperators.get(String(ep || "").replace(/\/+$/, "").toLowerCase()) || null,
     async start() {
       log(`on-chain fleet: ${cfg.addressBook ? "EnclaveAddressBook " + cfg.addressBook + " -> registry" : "EnclaveRegistry " + cfg.registryAddress}`
           + (cfg.operatorsUnrestricted ? " · UNAUTHENTICATED (TRUSTED_OPERATORS=*)" : ` · trusted operators: ${cfg.trustedOperators.length}`));

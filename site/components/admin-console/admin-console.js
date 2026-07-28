@@ -23,6 +23,7 @@ import { ADDRESS_BOOK_ADDRESS, USDC_BASE, DEFAULT_API_BASE } from "../../js/core
 import { esc, on, short, showToast } from "../../js/core/util.js";
 import { CONTRACTS } from "../../js/gen/contract-artifacts.js";
 import { MIG_KINDS, importState, sealTx, encCallX } from "./migrate.js";
+import { metricsPanel, paintMetrics, paintHistory, loadMetrics, redrawPlots } from "./metrics.js";
 
 const EXPLORER = "https://basescan.org";
 const ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
@@ -219,6 +220,10 @@ class AdminConsole extends EnclaveElement {
     </section>`;
     const link = (a) => `<a href="${EXPLORER}/address/${esc(a)}" target="_blank" rel="noopener">${esc(short(a))}</a>`;
     const parts = [];
+
+    /* -- what the platform is doing right now (filled asynchronously by
+          _loadMetrics: whole-ledger read, event-log scan, fleet poll) -- */
+    parts.push(metricsPanel());
 
     /* -- address book -- */
     {
@@ -458,6 +463,53 @@ class AdminConsole extends EnclaveElement {
     this._paintSigner();
     this._migPrefill();
     this._gate();
+    this._loadMetrics();
+  }
+
+  /* ---------- the 24-hour operations panel ---------- */
+
+  /* Two passes: the ledger + fleet reads paint immediately, the event-log scan
+     fills the history charts when it lands (or says why it couldn't). Every
+     paint is guarded by a sequence number, so a Refresh mid-scan can't have the
+     old run overwrite the new one's charts. */
+  async _loadMetrics() {
+    const root = this._body.querySelector("#acMetrics");
+    if (!root) return;
+    const seq = this._mSeq = (this._mSeq || 0) + 1;
+    if (!this.S.dep) {
+      root.querySelector("#acKpis").innerHTML =
+        `<div class="ac-kpi ac-kpi-wait">no <code>deployments</code> key in the address book - there is no ledger to measure.</div>`;
+      return;
+    }
+    try {
+      const d = await loadMetrics(
+        { depAddr: this.S.dep.addr, apiBase: DEFAULT_API_BASE, leaseSec: Number(this.S.dep.lease) || 3600 },
+        (partial) => { if (seq === this._mSeq) paintMetrics(root, partial); });
+      if (seq !== this._mSeq) return;
+      paintHistory(root, d);
+      this._observePlots();
+    } catch (e) {
+      if (seq !== this._mSeq) return;
+      root.querySelector("#acKpis").innerHTML =
+        `<div class="ac-kpi ac-kpi-wait">the ledger read failed: ${esc(e.message || String(e))} - retry with ↻ Refresh.</div>`;
+    }
+  }
+
+  /* Charts are drawn at the container's measured width, so a layout change has
+     to redraw them. Only a WIDTH change does: heights follow the data, and
+     reacting to those would have each redraw trigger the next one. */
+  _observePlots() {
+    if (this._ro || typeof ResizeObserver === "undefined") return;
+    this._ro = new ResizeObserver(() => {
+      const root = this._body && this._body.querySelector("#acMetrics");
+      if (!root) return;
+      const w = root.clientWidth;
+      if (w === this._roW) return;
+      this._roW = w;
+      clearTimeout(this._roT);
+      this._roT = setTimeout(() => redrawPlots(root), 120);
+    });
+    this._ro.observe(this._body);
   }
 
   /* reset the migration flow: prefill the source from the book for the chosen
