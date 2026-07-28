@@ -555,24 +555,55 @@ class AdminConsole extends EnclaveElement {
     this._ro.observe(this._body);
   }
 
-  /* reset the migration flow: prefill the source from the book for the chosen
-     kind, clear cached reads, disable the downstream buttons */
+  /* Prefill the source from the book for the chosen kind and reset the flow.
+     _paint() calls this on EVERY repaint, and a repaint follows any owner tx
+     (_tx refreshes 1.2s later) - so resetting unconditionally threw away a
+     migration's cached source read and re-disabled its buttons mid-flow, with
+     the log wiped and no way back except starting over. A migration can span
+     many minutes and several confirmations; it must survive a repaint. Reset
+     only when the KIND actually changed (or on first paint), and otherwise
+     restore what the flow had reached. */
   _migPrefill() {
     const kindSel = this._body && this._body.querySelector("#migKind");
     if (!kindSel) return;
     const m = MIG_KINDS[kindSel.value];
-    this._body.querySelector("#migSource").value = this.S.book.entries[m.bookKey] || "";
-    this._mig = { kind: kindSel.value, data: null };
-    for (const a of ["mig-run", "mig-verify", "mig-seal"]) {
+    const M = this._mig;
+    const keep = M && M.kind === kindSel.value;
+    this._body.querySelector("#migSource").value = keep && M.source
+      ? M.source : (this.S.book.entries[m.bookKey] || "");
+    if (keep && M.target) this._body.querySelector("#migTarget").value = M.target;
+    if (!keep) this._mig = { kind: kindSel.value, data: null };
+    const st = this._mig;
+    for (const a of ["mig-run", "mig-escrow", "mig-verify", "mig-seal"]) {
       const b = this._body.querySelector(`[data-act="${a}"]`);
-      b.disabled = true;
+      if (!b) continue;
+      // restore what the flow had unlocked: a source read unlocks run+verify,
+      // a migrate pass unlocks the escrow step, and seal unlocks once verify
+      // has RUN (clean or not - the warning lives at the seal, not the gate)
+      b.disabled = !(keep && st.data && (a === "mig-run" || a === "mig-verify"
+        || (a === "mig-escrow" && st.ranImport) || (a === "mig-seal" && st.verified)));
       if (a === "mig-seal") { delete b.dataset.armed; b.textContent = "Seal target imports"; }
     }
+    // _paint() replaces the whole body, so the log element is new and empty -
+    // replay the buffered lines rather than losing the audit trail of a
+    // migration that may have already sent money
     const log = this._body.querySelector("#migLog");
-    log.hidden = true; log.innerHTML = "";
+    log.innerHTML = "";
+    const lines = (keep && st.log) || [];
+    for (const l of lines) {
+      const d = document.createElement("div");
+      d.className = l.cls; d.textContent = l.txt;
+      log.appendChild(d);
+    }
+    log.hidden = !lines.length;
+    log.scrollTop = log.scrollHeight;
   }
 
-  _migLog(cls, txt) { this._logTo("migLog", cls, txt); }
+  _migLog(cls, txt) {
+    // buffered so a repaint can replay it (see _migPrefill)
+    if (this._mig) (this._mig.log = this._mig.log || []).push({ cls, txt });
+    this._logTo("migLog", cls, txt);
+  }
 
   _logTo(id, cls, txt) {
     const log = this._body.querySelector("#" + id);
@@ -838,9 +869,14 @@ class AdminConsole extends EnclaveElement {
           return;
         }
 
-        if (!need(M.data && M.source === src, "read the source first (re-read if you changed the address)")) return;
-        if (!need(ADDR_RE.test(tgt), "enter the target contract address (the new deploy)")) return;
-        if (!need(lc(tgt) !== lc(src), "source and target are the same contract")) return;
+        // these guards used to write only to the panel status strip, well away
+        // from the log the operator is watching - a click that did nothing
+        // looked like a dead button
+        const needMig = (cond, msg) => { if (!cond) log("err", msg); return cond; };
+        if (!needMig(M.data && M.source === src, "read the source first (re-read if you changed the address)")) return;
+        if (!needMig(ADDR_RE.test(tgt), "enter the target contract address (the new deploy)")) return;
+        if (!needMig(lc(tgt) !== lc(src), "source and target are the same contract")) return;
+        M.target = tgt;
 
         if (act === "mig-run") {
           btn.disabled = true;
@@ -856,7 +892,7 @@ class AdminConsole extends EnclaveElement {
             const txs = m.plan(M.data, after, opts);
             if (!txs.length) {
               log("ok", "nothing to import - target already holds everything. Back escrow next, then Verify and seal.");
-              enable("mig-escrow", true);
+              M.ranImport = true; enable("mig-escrow", true);
               return;
             }
             log("p", `${txs.length} import transaction${txs.length === 1 ? "" : "s"} to send`);
@@ -869,7 +905,7 @@ class AdminConsole extends EnclaveElement {
               log("ok", `  ✓ ${txs[i].label}`);
             }
             log("ok", "migration pass complete - Back escrow next, then Verify (Migrate again later to pick up new source records).");
-            enable("mig-escrow", true);
+            M.ranImport = true; enable("mig-escrow", true);
           } catch (err) { log("err", friendly(err) + " - fix and click Migrate again; the delta plan resumes where it stopped."); }
           finally { btn.disabled = false; }
           return;
@@ -916,11 +952,20 @@ class AdminConsole extends EnclaveElement {
           try {
             log("p", "verifying: re-reading the target and diffing field-by-field…");
             const r = await m.verify(M.data, tgt, await migOpts());
+            M.verified = true;
+            M.verifyClean = r.bad.length === 0;
+            // Seal unlocks once verify has RUN, clean or not. Gating the BUTTON
+            // on a clean result made the "click again to override" path
+            // unreachable - a disabled button cannot be clicked - so a verify
+            // that disagreed for any reason (including a bug in verify itself)
+            // deadlocked the migration with no way forward in the UI. The
+            // warning belongs at the seal, where it can be read and overridden.
+            enable("mig-seal", true);
             if (r.bad.length) {
               log("err", `${r.ok}/${r.total} match; mismatched: ${r.bad.slice(0, 10).join(", ")}${r.bad.length > 10 ? " …" : ""}`);
+              log("p", "Seal is unlocked but will warn: fix these first if they are real, or override deliberately.");
             } else {
               log("ok", `all ${r.total} records match the source exactly`);
-              enable("mig-seal", true);
             }
           } catch (err) { log("err", "verify failed: " + friendly(err)); }
           finally { btn.disabled = false; }
@@ -938,13 +983,23 @@ class AdminConsole extends EnclaveElement {
             try { plan = await escrowPlan(tgt); }
             catch (err) { log("err", "cannot confirm escrow backing before sealing: " + friendly(err) + " - not sealing."); return; }
             const { items, skipped, total6 } = plan;
-            if (items.length || skipped.length) {
-              log("err", `NOT sealing yet: ${items.length} record${items.length === 1 ? "" : "s"} still need $${(Number(total6) / 1e6).toFixed(2)} of escrow backing`
-                + (skipped.length ? `, and ${skipped.length} cannot be backed at all (see above)` : "")
-                + ". Seal now and those records can never be refunded. Run Back escrow first, or click Seal again to override.");
+            // Only MISSING backing blocks. A skipped record is one fundEscrow
+            // can never take (inactive, or no runner rate) - that state does not
+            // change by waiting, so counting it as a blocker refused the first
+            // click forever and made this check impossible to satisfy.
+            if (skipped.length)
+              log("p", `note: ${skipped.length} record${skipped.length === 1 ? "" : "s"} cannot be escrow-backed at all (listed above) - sealing does not change that.`);
+            if (items.length) {
+              log("err", `NOT sealing yet: ${items.length} record${items.length === 1 ? "" : "s"} still need $${(Number(total6) / 1e6).toFixed(2)} of escrow backing. `
+                + "Seal now and their owners can never be refunded. Run Back escrow first, or click Seal again to override.");
               btn.dataset.armed = "1"; btn.textContent = "Seal anyway (escrow unbacked)";
               return;
             }
+          }
+          if (!M.verifyClean && !btn.dataset.armed) {
+            log("err", "NOT sealing yet: the last verify reported mismatches. Re-run Verify, or click Seal again to override.");
+            btn.dataset.armed = "1"; btn.textContent = "Seal anyway (verify not clean)";
+            return;
           }
           if (!btn.dataset.armed) { btn.dataset.armed = "1"; btn.textContent = "Click again to PERMANENTLY seal"; return; }
           delete btn.dataset.armed; btn.textContent = "Seal target imports";
