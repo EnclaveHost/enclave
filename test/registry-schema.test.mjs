@@ -121,3 +121,42 @@ test("relay/fleet.mjs and relay/api-relay.js carry the same sniff and tuple", ()
     assert.ok(/registrySchema/.test(src) && /_regRev/.test(src), `${f} does not sniff the registry schema`);
   }
 });
+
+/* A registry redeploy must not strand the fleet.
+   REGISTRY_ADDRESS is a LIVE binding — addressbook.js repoints it inside a
+   running process, which is the whole point of the book. Registration, though,
+   was guarded by a once-per-process boolean, so a repointed registry left every
+   box latched onto the old contract: it never registered on the new one, and
+   the new ledger (which reads that contract immutably) rejected every claim
+   with "not operator", because an unregistered id reads back as a zero-filled
+   entry whose operator is 0x0.
+
+   Nothing self-healed and nothing said why. The boxes stayed healthy, kept
+   heartbeating the dead registry, and simply never claimed — every deployment
+   sat "Queued" indefinitely. Observed on the live fleet 2026-07-28. */
+test("registration re-fires when the address book repoints the registry", () => {
+  const sup = fs.readFileSync(path.join(REPO, "supervisor.js"), "utf8");
+
+  // the guard has to be keyed on WHICH registry we registered with
+  assert.match(sup, /function registryRepointed\(\)/,
+    "supervisor must be able to tell that the registry moved under it");
+  assert.match(sup, /_registeredOn/, "it must remember which registry _registered refers to");
+
+  // EVERY path that short-circuits on _registered must consult it, or that path
+  // becomes the one that silently keeps the box on the dead registry
+  const shim = /async function registerFromShimCert\(\) \{[\s\S]*?\n\}/.exec(sup);
+  assert.ok(shim, "registerFromShimCert not found");
+  assert.match(shim[0], /registryRepointed\(\)/,
+    "the shim-cert path short-circuits on _registered and must check for a repoint too");
+
+  const onChain = /async function registerOnChain\(endpoint\) \{[\s\S]*?_registeredOn = /.exec(sup);
+  assert.ok(onChain, "registerOnChain not found");
+  assert.match(onChain[0], /registryRepointed\(\)[\s\S]*?_enclaveId = null/,
+    "a repoint must clear the cached enclave id - it does not exist on the new registry");
+
+  // an idle box gets no requests, so the heartbeat is its only chance to notice
+  const heartbeat = /setInterval\(async \(\) => \{[\s\S]*?HEARTBEAT_SEC\) \* 1000\)/.exec(sup);
+  assert.ok(heartbeat, "registry heartbeat loop not found");
+  assert.match(heartbeat[0], /registryRepointed\(\)/,
+    "an idle enclave must notice a repoint from its heartbeat, not only from traffic");
+});

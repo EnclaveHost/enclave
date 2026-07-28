@@ -377,13 +377,35 @@ async function registryRev() {
 // guard so a later request retries. Never fatal — a failed advertisement must
 // not take down the enclave.
 let _registered = false;
+let _registeredOn = null;         // WHICH registry _registered refers to (see below)
 let _enclaveId = null;            // our EnclaveRegistry id (keccak256 of the advertised endpoint); claim gating needs it
 let _advertisedEndpoint = null;   // the endpoint we registered under; adopted deployments build their URL from it
 let _certSan = null;              // our own attested shim-cert SAN hostname — the ONLY name we self-register / advertise
+/// Has the address book moved the registry out from under our registration?
+/// Every guard that would otherwise short-circuit on `_registered` has to ask
+/// this too, or the box latches onto a registry nobody reads any more.
+function registryRepointed() {
+  return _registered && !!_registeredOn && _registeredOn !== (REGISTRY_ADDRESS || "").toLowerCase();
+}
 async function registerOnChain(endpoint) {
   endpoint = (endpoint || "").replace(/\/+$/, "");
+  // REGISTRY_ADDRESS is a LIVE binding: the address-book poller repoints it in a
+  // running process, which is the entire point of the book. The once-per-process
+  // guard therefore has to be keyed on WHICH registry we registered with, not on
+  // "have we ever registered". Keyed on the boolean alone, a registry redeploy
+  // stranded the whole fleet: every box kept _registered = true and never
+  // registered on the new contract, while the new ledger (which reads that
+  // contract) rejected every claim with "not operator" — an unregistered id
+  // reads back as a zero-filled entry whose operator is 0x0. Nothing self-healed
+  // and nothing said why; the boxes looked healthy and simply never claimed.
+  if (registryRepointed()) {
+    console.warn(`[registry] address book repointed the registry ${_registeredOn} -> ${(REGISTRY_ADDRESS || "").toLowerCase()}; re-registering`);
+    _registered = false;
+    _enclaveId = null;                                      // the old id does not exist on the new registry
+  }
   if (!REGISTRY_READY || _registered || !endpoint) return;
   _registered = true;                                       // claim before await so a request burst registers once
+  _registeredOn = (REGISTRY_ADDRESS || "").toLowerCase();
   try {
     // register/heartbeat go through the shared operator-tx queue (sendOperatorTx,
     // defined with the claim loop): the SAME EOA signs registry and ledger txs,
@@ -416,13 +438,17 @@ async function registerOnChain(endpoint) {
         const h = await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "heartbeat", [id]);
         console.log(`[registry] heartbeat tx=${h}`);
       } catch (e) { console.warn(`[registry] heartbeat failed: ${e.shortMessage || e.message}`); }
+      // an IDLE box gets no requests, so the heartbeat is its only chance to
+      // notice the book repointed the registry - without this it heartbeats
+      // forever into a contract the ledger no longer reads
+      if (registryRepointed()) return void registerFromShimCert().catch(() => {});
       await syncRegisteredPrice(id).catch(() => {});
       await syncRegisteredProofKey(id).catch(() => {});
     }, Math.max(60, HEARTBEAT_SEC) * 1000).unref();
     syncRegisteredPrice(id).catch(() => {});
     syncRegisteredProofKey(id).catch(() => {});
   } catch (e) {
-    _registered = false;                                    // let a later request retry
+    _registered = false; _registeredOn = null;              // let a later request retry
     console.warn(`[registry] self-registration failed: ${e.shortMessage || e.message}`);
   }
 }
@@ -508,7 +534,7 @@ function shimCertHostname(port = 443, timeoutMs = 5000) {
 // Self-register ONLY our own attested shim-cert SAN — never the request Host.
 // Caches the SAN once discovered so originOf() and the lazy trigger reuse it.
 async function registerFromShimCert() {
-  if (!REGISTRY_READY || _registered) return;
+  if (!REGISTRY_READY || (_registered && !registryRepointed())) return;
   const name = _certSan || (_certSan = await shimCertHostname());
   if (name) await registerOnChain("https://" + name);
 }
