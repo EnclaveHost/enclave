@@ -1275,9 +1275,41 @@ async function listDeployments(u, req, res) {
   // outlived the local record (enclave restart/update wiped state, or the
   // resume found no capacity) and nothing actually serves the app.
   const hostedByRunner = new Map();
+  // id -> the index in `data` of the row we are showing for it, so a second
+  // enclave claiming the same deployment REPLACES rather than duplicates.
+  const at = new Map();
+  // Releasing a deployment does not delete the ex-runner's local record, so
+  // after a Move BOTH boxes answer for the same id — the new host with a live
+  // row, the old one with its terminated copy. Pushing both produced a phantom
+  // duplicate that shadowed the real row: it offered Resume (terminated reads
+  // as resumable), and Resume then found the ledger already active, skipped the
+  // setActive tx, and returned having done nothing. That is precisely "resume
+  // never asks for a signature and never resumes" — the app was running the
+  // whole time (found 2026-07-28 on a deployment moved metal0 -> kryptos ->
+  // metal0). The ledger's runner is the tiebreak, exactly as it is for routing.
+  const runnerOf = new Map();
+  try { for (const d of await ledgerRows()) runnerOf.set(String(d.id).toLowerCase(), String(d.runner).toLowerCase()); } catch {}
+  const wins = (row, e) => {
+    const want = runnerOf.get(String(row.id).toLowerCase());
+    if (want && e.id) return String(e.id).toLowerCase() === want;   // the chain names the host
+    return !/^(terminated|stopped|expired)$/.test(String(row.status || ""));   // else prefer a live row
+  };
   for (const { e, r } of oks) {
     const ids = new Set();
-    try { for (const it of JSON.parse(r.text).data || []) { if (it.enclave == null) it.enclave = e.name || endpointName(e.endpoint); data.push(it); seen.add(String(it.id).toLowerCase()); ids.add(String(it.id).toLowerCase()); ownerLearn(it.id, e.endpoint); } } catch {}
+    try {
+      for (const it of JSON.parse(r.text).data || []) {
+        if (it.enclave == null) it.enclave = e.name || endpointName(e.endpoint);
+        const key = String(it.id).toLowerCase();
+        const prev = at.get(key);
+        if (prev == null) { at.set(key, data.length); data.push(it); }
+        else if (wins(it, e)) data[prev] = it;
+        seen.add(key); ids.add(key);
+        // only the winning row's host may be cached as the owner: learning the
+        // ex-runner here is what sent control-plane calls to the box that had
+        // already dropped the record ("No such deployment.")
+        if (data[at.get(key)] === it) ownerLearn(it.id, e.endpoint);
+      }
+    } catch {}
     if (e.id) hostedByRunner.set(String(e.id).toLowerCase(), ids);
   }
   const tokenOwner = tokenAddress(auth);
