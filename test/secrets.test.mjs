@@ -300,3 +300,55 @@ test("fetch: the rollout lever can forgive a MISSING signature, never a wrong on
     "the wrong-key refusal must come BEFORE the lever, so the lever can never reach it");
   assert.match(src, /if \(signer && signer !== owner\)/, "a wrong key is refused unconditionally");
 });
+
+/* ---- a self-hosted box fetches with its OWN key, not the fleet's ----------
+   Requiring the fleet HMAC meant a metal seller could only serve secret-bearing
+   apps by holding a key that ALSO authorizes an _acme-challenge push for any
+   name in the app zone — a certificate for every deployment on the platform —
+   and on metal that key sits in an operator-readable file outside the CVM. The
+   operator signature is the stronger claim anyway: it proves control of the key
+   that registered the endpoint, and the ledger then says whether that endpoint
+   holds this deployment's live lease. So either factor opens the fetch. */
+test("fetch: the operator signature alone authorizes a box with no fleet key", async () => {
+  rows = [leaseRow()];
+  epOwner = OP.address;
+  try {
+    const ts = Math.floor(Date.now() / 1000);
+    // no `sig` at all — this box cannot derive the fleet HMAC
+    const res = await call("/v1/secrets/fetch",
+      { id: ID, endpoint: ENDPOINT, ts, opSig: await opSigFor(OP, ID, ENDPOINT, ts) });
+    assert.equal(res.code, 200, "a registered lease holder gets its own deployment's secrets");
+    assert.ok(res.body.env, "and the env actually comes back");
+
+    // a GARBAGE fleet HMAC alongside a good operator signature is still fine:
+    // the operator factor is what authorizes, not the absence of the other
+    const ok2 = await call("/v1/secrets/fetch",
+      { id: ID, endpoint: ENDPOINT, ts, sig: "0".repeat(64), opSig: await opSigFor(OP, ID, ENDPOINT, ts) });
+    assert.equal(ok2.code, 200);
+
+    // neither factor = refused, and the message says both are missing
+    const none = await call("/v1/secrets/fetch", { id: ID, endpoint: ENDPOINT, ts, sig: "0".repeat(64) });
+    assert.equal(none.code, 401);
+    assert.equal(none.body.error, "no_operator_sig");
+
+    // the WRONG operator is still refused even with no fleet HMAC to fall back on
+    const imp = await call("/v1/secrets/fetch",
+      { id: ID, endpoint: ENDPOINT, ts, opSig: await opSigFor(IMPOSTOR, ID, ENDPOINT, ts) });
+    assert.equal(imp.code, 403);
+    assert.equal(imp.body.error, "wrong_operator");
+  } finally { epOwner = null; }
+});
+
+test("fetch: an UNREGISTERED endpoint still needs the fleet HMAC", async () => {
+  // With no registry entry there is no operator to prove anything against, so
+  // the only remaining factor is the shared key. An unregistered endpoint
+  // cannot hold a lease either, but the refusal must not depend on that.
+  rows = [leaseRow()];
+  epOwner = null;
+  const ts = Math.floor(Date.now() / 1000);
+  const res = await call("/v1/secrets/fetch",
+    { id: ID, endpoint: ENDPOINT, ts, opSig: await opSigFor(OP, ID, ENDPOINT, ts) });
+  assert.equal(res.code, 401);
+  assert.equal(res.body.error, "bad_fetch_sig");
+  assert.match(res.body.message, /no on-chain registry entry/);
+});
