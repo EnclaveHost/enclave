@@ -317,7 +317,14 @@ const supEnv = {
   // fetched (the auth key derives from it) - report the capability honestly
   // so the fleet-AND hides the feature instead of stranding secret-bearing
   // deploys on this box
-  SECRETS_CAPABLE: FLEET_SECRET ? '1' : '0',
+  // Either credential authenticates a secrets fetch: the shared fleet HMAC, or
+  // THIS box's registry key signing the same tuple (the relay checks it against
+  // the endpoint's on-chain operator, then against the lease holder). The
+  // second is what a self-hosted seller can hold — the fleet SECRET also
+  // derives the DNS-TXT key, which would let this box mint a certificate for
+  // any deployment hostname on the platform, and on metal it lives in an
+  // operator-readable file outside the CVM. So: registry key is enough.
+  SECRETS_CAPABLE: (FLEET_SECRET || REGISTRY_KEY) ? '1' : '0',
   SECRET,
   ADMIN_TOKEN,
   NODE_EXTRA_CA_CERTS: '/etc/ssl/certs/ca-certificates.crt',

@@ -4598,10 +4598,21 @@ server.on("upgrade", async (req, socket, head) => {
 // registry entry, so advertising (registerOnChain) is a hard prerequisite.
 // (DEPLOYMENTS_ADDRESS is a live binding from ./addressbook.js)
 const CLAIM_ENABLED    = /^(1|true|on)$/i.test(process.env.CLAIM_ENABLED || "");
-// Deployment-secrets capability (availability flags): defaults ON (the hosted
-// fleet shares the fleet SECRET the relay's fetch-HMAC derives from); a
-// self-hosted metal box without cfg.fleetSecret exports SECRETS_CAPABLE=0 so
-// it never advertises a fetch it cannot authenticate.
+// Deployment-secrets capability (availability flags). TWO ways to authenticate
+// the fetch, and a box needs only one:
+//   - the fleet HMAC, derived from the shared SECRET (the hosted fleet), or
+//   - this enclave's OWN registry key, signing the same tuple; the relay checks
+//     it against the endpoint's EnclaveRegistry entry and then against the
+//     ledger's lease holder.
+// The second is the stronger claim and the only one a self-hosted seller can
+// make: the fleet SECRET also derives the DNS-TXT key, which authorizes an
+// _acme-challenge push for ANY name in the app zone — a certificate for every
+// deployment on the platform — and on a metal box it would live in an
+// operator-readable file outside the CVM. So a box holding a registry key is
+// secrets-capable even with no fleet secret at all; SECRETS_CAPABLE=0 remains
+// the explicit opt-out for a box that has neither.
+// (Kept env-driven so an operator can still switch it off explicitly; the
+// metal guest computes it from whichever credential that box actually holds.)
 const SECRETS_CAPABLE  = !/^(0|false|off)$/i.test(process.env.SECRETS_CAPABLE || "1");
 const CLAIM_POLL_SEC   = parseInt(process.env.CLAIM_POLL_SEC || "60", 10);    // sweep + audit + renew cadence
 const RENEW_MARGIN_SEC = parseInt(process.env.RENEW_MARGIN_SEC || "600", 10); // renew when less lease than this remains (early renewal is FREE: the contract extends FROM leaseUntil, so a wide margin only buys more attempts)

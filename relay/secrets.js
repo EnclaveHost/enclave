@@ -280,8 +280,7 @@ export async function handleSecrets(req, res, u, ctx) {
       return bad(ctx, res, req, 422, "bad_ts", `ts must be a unix time within ±${FETCH_SKEW_SEC}s.`);
     const want = Buffer.from(fetchSig(SECRETS_KEY, id, endpoint, ts), "hex");
     const got = /^[0-9a-f]{64}$/.test(sig) ? Buffer.from(sig, "hex") : Buffer.alloc(32);
-    if (!timingSafeEqual(want, got))
-      return bad(ctx, res, req, 401, "bad_fetch_sig", "The fetch HMAC does not verify.");
+    const fleetOk = timingSafeEqual(want, got);
     // SECOND FACTOR: the endpoint's OWN key, not the fleet's. The HMAC above is
     // a shared derived key — it authenticates "a holder of the fleet key", so
     // by itself any fleet member could name ANOTHER member's endpoint and be
@@ -291,8 +290,10 @@ export async function handleSecrets(req, res, u, ctx) {
     // same tuple with it. An endpoint with no registry entry cannot be a lease
     // holder anyway, so there is nothing to relax for.
     const owner = await endpointOperator(ctx, endpoint);
+    let opOk = false;
     if (owner) {
       const signer = await recoverOp(`enclave-secrets-fetch:${id}:${endpoint}:${ts}`, b.opSig);
+      opOk = !!signer && signer === owner;
       // A WRONG key is always refused — that is the whole point, and no rollout
       // produces one. A MISSING one can only come from a supervisor older than
       // this check, and the relay and the enclave images ship independently: if
@@ -312,6 +313,28 @@ export async function handleSecrets(req, res, u, ctx) {
             "This endpoint is registered on chain; the fetch must be signed by its operator key (opSig).");
       }
     }
+    // EITHER factor opens the fetch, because the operator one is the STRONGER
+    // of the two and the lease check below is what actually scopes it.
+    //
+    // The fleet HMAC only ever proved "a holder of the fleet key" — which is
+    // why it needed the operator signature beside it. The operator signature
+    // proves control of the key that REGISTERED this endpoint on chain, and
+    // the ledger then says whether that endpoint holds this deployment's live
+    // lease. A box passing both is, by definition, the box running the app;
+    // handing it the app's secrets is the entire purpose of the plane.
+    //
+    // Requiring the fleet key ON TOP of that bought nothing and cost a great
+    // deal: it meant a self-hosted enclave could only serve secret-bearing
+    // apps by holding a key that also authorizes pushing ANY _acme-challenge
+    // TXT in the app zone (dns-relay's fleet-HMAC path) — i.e. obtaining a CA
+    // certificate for every deployment hostname on the platform. On a metal
+    // box that key would sit in an operator-readable config file outside the
+    // CVM, so the enclave boundary would not protect it. No third-party seller
+    // can ever be given it, and no first-party box should have to be.
+    if (!fleetOk && !opOk)
+      return bad(ctx, res, req, 401, "bad_fetch_sig",
+        owner ? "The fetch carries neither a valid fleet HMAC nor a signature by this endpoint's registered operator."
+              : "The fetch HMAC does not verify, and this endpoint has no on-chain registry entry to authorize it instead.");
     // the chain says who holds the lease; a fresh re-read covers a claim tx
     // newer than the 10s ledger cache (the supervisor fetches right after it)
     const epId = String(await ctx.endpointIdOf(endpoint)).toLowerCase();
