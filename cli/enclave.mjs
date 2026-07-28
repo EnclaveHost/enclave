@@ -140,6 +140,15 @@ const depsAbiFor = (tuple, rev) => [
     inputs: [{ name: "id", type: "bytes32" }, { name: "maxRate6", type: "uint256" }], outputs: [] },
   { type: "function", name: "capOf", stateMutability: "view",
     inputs: [{ name: "id", type: "bytes32" }], outputs: [{ name: "maxRate6", type: "uint256" }] },
+  // rev-10 ledgers only (deploymentsSchema >= 10): cancel and take back the
+  // unused runtime the ledger still HOLDS. refundableOf is the exact payout,
+  // not an estimate — see the contract's note on why a view can be exact here.
+  { type: "function", name: "refund", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }], outputs: [] },
+  { type: "function", name: "refundableOf", stateMutability: "view",
+    inputs: [{ name: "id", type: "bytes32" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "ownerEscrow6", stateMutability: "view",
+    inputs: [{ type: "bytes32" }], outputs: [{ type: "uint256" }] },
   { type: "function", name: "get", stateMutability: "view",
     inputs: [{ name: "id", type: "bytes32" }],
     outputs: [{ type: "tuple", components: tuple }] },
@@ -1260,6 +1269,49 @@ async function cmdRateCap(rest) {
   if (!leased) say("takes effect on the next claim (an enclave dearer than the cap can't take it)");
 }
 
+// Cancel a deployment and take the unused runtime back to the owner's wallet
+// (rev-10 ledgers). What comes back is what the ledger still HOLDS for the
+// record — the runner escrow — not the sticker price: the publisher's cut and
+// the platform's remainder were forwarded to their wallets at funding time and
+// no contract can claw them back. So this prints the real number from
+// refundableOf and the shortfall against the balance, rather than implying the
+// balance is what lands. Refunding mid-lease is allowed and pays what the lease
+// cannot still claim; the reserved tail comes back once the runner releases.
+async function cmdRefund(rest) {
+  const account = loadKey();
+  if (!rest[0]) throw new Error("usage: enclave refund <id>");
+  const id = await resolveId(rest[0], account);
+  if (!isB32(id)) throw new Error("only on-chain deployments (bytes32 ids) can be refunded");
+  const { rev, abi } = await depAbi();
+  if (rev < 10) throw new Error("the live ledger predates refunds (deploymentsSchema < 10)");
+  const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "get", [id]);
+  if (!d || d.owner === "0x0000000000000000000000000000000000000000") throw new Error(`no deployment ${short(id)} on the ledger`);
+  if (d.owner.toLowerCase() !== account.address.toLowerCase()) throw new Error(`${short(id)} is owned by ${d.owner}, not this key`);
+  const amount6 = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "refundableOf", [id]);
+  const leased = Number(d.leaseUntil) * 1000 > Date.now();
+  const fundable = d.rate > 0n ? Number(d.balance6 / d.rate) : 0;
+  if (!(amount6 > 0n)) {
+    if (leased) throw new Error(`nothing refundable yet: every dollar this record still holds is reserved for the lease running to ${new Date(Number(d.leaseUntil) * 1000).toLocaleString()}. Retry once it ends.`);
+    throw new Error(`nothing to refund on ${short(id)} (it has already spent or refunded everything it held)`);
+  }
+  say(`refundable  ${usd6(amount6)}  ->  ${account.address}`);
+  say(`balance     ${usd6(d.balance6)} (${dur(fundable)} of runtime at ${usd6(d.rate * 3600n)}/h)`);
+  if (d.balance6 > amount6) {
+    say(`! ${usd6(d.balance6 - amount6)} of that balance is NOT refundable: the publisher fee and the platform's`);
+    say(`  share left for their wallets when you funded. Only the host's escrow is still held here.`);
+  }
+  if (leased)
+    say(`! a lease runs to ${new Date(Number(d.leaseUntil) * 1000).toLocaleString()}; its unearned seconds stay reserved for the host and become refundable after it releases (run this again then).`);
+  if (!(await confirm(`refund ${usd6(amount6)} and CANCEL ${short(id)}? (the app stops and the record is deactivated)`))) return say("aborted");
+  await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi, functionName: "refund", args: [id] });
+  // the ledger deactivates the record; tear the live instance down immediately
+  // rather than waiting for the runner's next ActiveSet sweep
+  const r = await api("DELETE", `/v1/deployments/${id}`, { auth: account, ok404: true }).catch(() => null);
+  if (opt.json) return jout({ id, refunded6: String(amount6), refunded: Number(amount6) / 1e6, to: account.address, teardown: r || null });
+  say(`refunded ${usd6(amount6)} to ${account.address}; ${short(id)} is cancelled`);
+  say(`\`enclave fund ${short(id)} --usdc 5\` brings it back if you change your mind`);
+}
+
 // The other half of stop: setActive(true) re-queues the work item (its balance
 // never left the record), then one claim-hint nudges the fleet so the relaunch
 // doesn't wait for the next sweep. The app relaunches FRESH from its published
@@ -2302,6 +2354,13 @@ deployments
                              them may run the app - including where it fails
                              over to if its host dies. Below the running rate
                              stops it at the end of the paid lease
+  refund <id>                cancel and send the unused runtime back to your
+                             wallet, then stop the app. What returns is what the
+                             ledger still HOLDS - the host's escrow, ~80% of
+                             unspent time - not the sticker price: the publisher
+                             fee and the platform share went to their wallets
+                             when you funded. Prints the exact amount first
+                             (aliases: cancel; rev-10 ledgers)
 
 catalog
   publish <app.wasm> --slug S [--version V --name N --desc D --config JSON]
@@ -2600,6 +2659,7 @@ const COMMANDS = {
   upgrade: cmdUpgrade, "set-version": cmdUpgrade,
   resize: (rest) => cmdUpgrade(rest, { resize: true }),
   "rate-cap": cmdRateCap, cap: cmdRateCap,
+  refund: cmdRefund, cancel: cmdRefund,
   secrets: cmdSecrets, config: cmdConfig,
   publish: cmdPublish, apps: cmdApps,
   pricing: cmdPricing, availability: cmdAvailability, gpu: cmdGpu, account: cmdAccount,

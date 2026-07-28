@@ -125,6 +125,12 @@ const depsAbiFor = (rev) => [
     inputs: [{ name: "id", type: "bytes32" }, { name: "active", type: "bool" }], outputs: [] },
   { type: "function", name: "setAppRef", stateMutability: "nonpayable",
     inputs: [{ name: "id", type: "bytes32" }, { name: "appRef", type: "string" }], outputs: [] },
+  // rev >= 10: cancellation — the owner takes back the unused runtime the
+  // ledger still holds, and refundableOf quotes exactly what that is
+  { type: "function", name: "refund", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }], outputs: [] },
+  { type: "function", name: "refundableOf", stateMutability: "view",
+    inputs: [{ name: "id", type: "bytes32" }], outputs: [{ type: "uint256" }] },
   // rev >= 6: the owner's share resize (rate recalculated at current list
   // prices) and the batcher that lets it ride one tx with setAppRef
   { type: "function", name: "setShares", stateMutability: "nonpayable",
@@ -427,6 +433,14 @@ export function encodeFundTxs({ deployments, id, usd, ethWei }) {
       `EnclaveDeployments.fund(${id.slice(0, 10)}…, $${(Number(value) / 1e6).toFixed(2)})`),
   ];
 }
+// rev >= 10: cancel and return the unused runtime the ledger still HOLDS to the
+// owner's wallet. Deliberately no amount argument — the contract pays exactly
+// refundableOf(id), so a caller cannot ask for a number the escrow can't back.
+export function encodeRefundTx({ deployments, id, refundable6 }) {
+  return tx(deployments, encodeFunctionData({ abi: depsAbiFor(10), functionName: "refund", args: [id] }), 0n,
+    `EnclaveDeployments.refund(${id.slice(0, 10)}…)`
+    + (refundable6 != null ? ` -> $${(Number(refundable6) / 1e6).toFixed(2)} to the owner` : ""));
+}
 export function encodeSetActiveTx({ deployments, id, active }) {
   return tx(deployments, encodeFunctionData({ abi: depsAbiFor(2), functionName: "setActive", args: [id, active] }), 0n,
     `EnclaveDeployments.setActive(${id.slice(0, 10)}…, ${active})`);
@@ -669,7 +683,8 @@ Funding is prepaid and burns per second while leased.
 - USDC: build_fund { id, usd } returns approve + fund transactions (whole cents only). The CLI's gasless-style EIP-3009 path (fundWithAuthorization) exists too; the approve+fund pair is equivalent and simpler.
 - ETH: build_fund { id, eth } returns one fundEth transaction; credited as USDC at the live Chainlink ETH/USD rate.
 - Top up any time with build_fund. timeRemainingSec in get_deployment = prepaid lease tail + what the balance still buys.
-- Stopping (build_stop) keeps the balance on the record; build_resume continues it. Funds on a record are spent only while it runs.`,
+- Stopping (build_stop) keeps the balance on the record; build_resume continues it. Funds on a record are spent only while it runs.
+- Cancelling for a refund (build_refund, ledger rev 10) sends unused runtime back to the owner's wallet and deactivates the record. It returns what the contract still HOLDS - the host escrow, ~80% of unspent time - never the sticker price: the publisher fee and the platform share were forwarded to their wallets at funding time. Quote the exact number from build_refund before the user signs, and do not describe the balance as what they will receive. Mid-lease refunds pay only what the lease cannot still claim; the rest is collectable after the runner releases.`,
 
   attestation: `Never trust the gateway: verify the enclave BEFORE sending it secrets.
 - attestation returns the fleet attestation document; deployment_attestation { id } returns the hosting enclave's (public; an owner token adds a fresh GPU nonce challenge).
@@ -1140,6 +1155,36 @@ const TOOLS = [
           + `cheaper enclave exists or the cap goes back up.` } : {}),
         transactions: [encodeSetMaxRateTx({ deployments, id: full, maxRate6 })],
         next: `sign+send with the owner wallet (${d.owner})` };
+    },
+  },
+  {
+    name: "build_refund",
+    description: "Unsigned refund transaction (ledger rev 10): CANCELS a deployment and sends its unused runtime back to the owner's wallet, zeroing the balance and deactivating the record. IMPORTANT, and worth telling the user before they sign: what comes back is what the contract still HOLDS for the record - the host escrow, roughly 80% of unspent time - not the sticker price. The publisher fee and the platform share were forwarded to their wallets at funding time and no contract can claw them back. The exact payout is quoted in `refundable` here and is what the transaction pays. Refunding during a live lease is allowed and pays only what that lease cannot still claim; the reserved remainder becomes refundable once the runner releases, so a second call collects it. Capped at the escrow the OWNER's own fundings contributed, so a third party's top-up is not withdrawable.",
+    inputSchema: S({ id: P.id }, ["id"]),
+    handler: async ({ id }) => {
+      const rev = await depRev();
+      if (rev < 10) throw new Error("the live ledger predates refunds (deploymentsSchema < 10)");
+      const full = await resolveFullId(id);
+      const d = await depGet(full);
+      const { deployments } = await addresses();
+      const refundable6 = await read(deployments, depsAbiFor(rev), "refundableOf", [full]);
+      const leased = Number(d.leaseUntil) * 1000 > Date.now();
+      if (!(BigInt(refundable6) > 0n))
+        throw new Error(leased
+          ? `nothing refundable yet: everything this record still holds is reserved for the lease running to ${new Date(Number(d.leaseUntil) * 1000).toISOString()}. Retry after it ends.`
+          : "nothing to refund: this deployment has already spent or refunded everything the ledger held for it");
+      const balance6 = BigInt(d.balance6), amount6 = BigInt(refundable6);
+      return { id: full, owner: d.owner,
+        refundable: `$${(Number(amount6) / 1e6).toFixed(2)}`,
+        balance: `$${(Number(balance6) / 1e6).toFixed(2)}`,
+        ...(balance6 > amount6 ? { notRefundable:
+          `$${(Number(balance6 - amount6) / 1e6).toFixed(2)} of the balance cannot be returned - the publisher fee and the `
+          + `platform share left for their wallets when this deployment was funded.` } : {}),
+        ...(leased ? { warning:
+          `A lease runs to ${new Date(Number(d.leaseUntil) * 1000).toISOString()}. Its unearned seconds stay reserved for the host and `
+          + `become refundable after it releases - call build_refund again then to collect the remainder.` } : {}),
+        transactions: [encodeRefundTx({ deployments, id: full, refundable6: amount6 })],
+        next: `sign+send with the owner wallet (${d.owner}), then terminate_hosted { id, token } for immediate teardown` };
     },
   },
   {

@@ -82,8 +82,8 @@ contract EnclaveDeploymentsSetSharesTest is Test {
 
     // ---- schema marker ----------------------------------------------------
 
-    function test_schemaIsNine() public view {
-        assertEq(dep.deploymentsSchema(), 9);
+    function test_schemaIsTen() public view {
+        assertEq(dep.deploymentsSchema(), 10);
     }
 
     // ---- unleased resizes -------------------------------------------------
@@ -300,11 +300,11 @@ contract EnclaveDeploymentsSetSharesTest is Test {
         dep.setShares(id, 100, 100); // not the owner (this test contract)
 
         vm.startPrank(user);
-        vm.expectRevert("cpuMilli range");
+        vm.expectRevert("range");
         dep.setShares(id, 100, 0);
-        vm.expectRevert("cpuMilli range");
+        vm.expectRevert("range");
         dep.setShares(id, 0, 1001);
-        vm.expectRevert("gpuMilli range");
+        vm.expectRevert("range");
         dep.setShares(id, 1001, 1000);
         vm.expectRevert("gpuShare < cpuShare");
         dep.setShares(id, 100, 200);

@@ -78,12 +78,14 @@ contract EnclaveCreditVault {
         0x6465706c6f796d656e7473000000000000000000000000000000000000000000;
     address private constant P256_VERIFY = 0x0000000000000000000000000000000000000100;
 
-    // deployment CONTROL selectors the vault will proxy (move no funds):
+    // deployment CONTROL selectors the vault will proxy. All but refund move no
+    // funds; refund moves them inward only (see controlDeployment):
     bytes4 private constant SEL_SET_APP_REF = bytes4(keccak256("setAppRef(bytes32,string)"));
     bytes4 private constant SEL_SET_ACTIVE  = bytes4(keccak256("setActive(bytes32,bool)"));
     bytes4 private constant SEL_SET_SHARES  = bytes4(keccak256("setShares(bytes32,uint16,uint16)"));
     bytes4 private constant SEL_SET_CONFIG  = bytes4(keccak256("setConfig(bytes32,string)"));
     bytes4 private constant SEL_SET_MAX_RATE = bytes4(keccak256("setMaxRate(bytes32,uint256)"));
+    bytes4 private constant SEL_REFUND      = bytes4(keccak256("refund(bytes32)"));
     // multicall is allowed ONLY when every inner call is itself an allowed
     // control selector (checked below) - a version change + share resize ride
     // one passkey signature without widening what a signature can move
@@ -176,15 +178,25 @@ contract EnclaveCreditVault {
     }
 
     /// owner-only ledger control calls for deployments this vault owns
-    /// (setAppRef / setActive / setShares / setConfig / setMaxRate, or a
-    /// multicall composed solely of them) - these move no funds. setShares
-    /// re-prices the record at the serving enclave's posted prices; the balance
-    /// it re-burns is the deployment's own prepaid accounting number, never
-    /// vault USDC. setConfig rewrites the options envelope (waf/config
-    /// namespaces), so a vault deployment gains rate limiting or a config
-    /// override post-create. setMaxRate moves the deployment's spend ceiling -
-    /// which enclaves may pick it up, and at what price - and can only ever
-    /// change what the deployment's OWN prepaid balance buys.
+    /// (setAppRef / setActive / setShares / setConfig / setMaxRate / refund, or
+    /// a multicall composed solely of them). setShares re-prices the record at
+    /// the serving enclave's posted prices; the balance it re-burns is the
+    /// deployment's own prepaid accounting number, never vault USDC. setConfig
+    /// rewrites the options envelope (waf/config namespaces), so a vault
+    /// deployment gains rate limiting or a config override post-create.
+    /// setMaxRate moves the deployment's spend ceiling - which enclaves may
+    /// pick it up, and at what price - and can only ever change what the
+    /// deployment's OWN prepaid balance buys.
+    ///
+    /// Every one of these but refund moves no funds at all, and refund only
+    /// moves them INWARD: EnclaveDeployments.refund pays d.owner, which for a
+    /// deployment this vault created is this vault, so cancelling a vault
+    /// deployment returns its unused runtime to the holder's credit balance
+    /// (spendable on the next deployment, or exitable through the ordinary
+    /// refundToTreasury path). The ledger rejects refund from anyone but the
+    /// record's owner, so this selector cannot reach a deployment the vault
+    /// does not own, and there is no argument by which it could name a
+    /// different payee.
     function controlDeployment(bytes calldata callData, uint256 deadline, WebAuthnSig calldata sig) external {
         _auth(keccak256(abi.encode(OP_CONTROL, address(this), block.chainid, nonce, keccak256(callData), deadline)), deadline, sig);
         bytes4 sel = bytes4(callData[:4]);
@@ -199,11 +211,13 @@ contract EnclaveCreditVault {
                 bytes4 inner;
                 assembly { inner := mload(add(c, 32)) }
                 require(inner == SEL_SET_APP_REF || inner == SEL_SET_ACTIVE || inner == SEL_SET_SHARES
-                        || inner == SEL_SET_CONFIG || inner == SEL_SET_MAX_RATE, "inner selector not allowed");
+                        || inner == SEL_SET_CONFIG || inner == SEL_SET_MAX_RATE
+                        || inner == SEL_REFUND, "inner selector not allowed");
             }
         } else {
             require(sel == SEL_SET_APP_REF || sel == SEL_SET_ACTIVE || sel == SEL_SET_SHARES
-                 || sel == SEL_SET_CONFIG || sel == SEL_SET_MAX_RATE, "selector not allowed");
+                 || sel == SEL_SET_CONFIG || sel == SEL_SET_MAX_RATE
+                 || sel == SEL_REFUND, "selector not allowed");
         }
         (bool ok, ) = _deployments().call(callData);
         require(ok, "control failed");

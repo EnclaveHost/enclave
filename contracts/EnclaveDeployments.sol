@@ -19,15 +19,28 @@ pragma solidity ^0.8.20;
 /// Non-custodial for the PLATFORM and PUBLISHER, like EnclavePay: their splits of every
 ///         funding forward payer -> payout / publisher wallet in the SAME transaction.
 ///         `balance6` is an ACCOUNTING number (prepaid runtime, USDC 6dp), not escrowed
-///         money — so leases can "burn" and "refund" it freely, but stopping a deployment
-///         cannot push funds back to the payer on-chain (that stays a payout-wallet
-///         action, as today). The one deliberately CUSTODIED slice (rev 7) is the
-///         RUNNER's share: it stays in this contract as per-deployment escrow until a
-///         runner has actually held the lease for the seconds it pays for — that escrow
-///         is exactly what makes seller payout trustless (a permissionless runner is
-///         paid by the chain, not by an invoice to the platform). Bonds (optional
-///         anti-sybil, below) and earned-but-unwithdrawn runner balances are the only
-///         other funds ever held here.
+///         money — so leases can "burn" and "refund" it freely. The one deliberately
+///         CUSTODIED slice (rev 7) is the RUNNER's share: it stays in this contract as
+///         per-deployment escrow until a runner has actually held the lease for the
+///         seconds it pays for — that escrow is exactly what makes seller payout
+///         trustless (a permissionless runner is paid by the chain, not by an invoice
+///         to the platform). Bonds (optional anti-sybil, below) and earned-but-
+///         unwithdrawn runner balances are the only other funds ever held here.
+///
+/// Cancellation (rev 10): the owner can wind a deployment down and take its unused
+///         runtime back on-chain — refund(). What it can pay out is exactly what this
+///         contract still HOLDS for that record, which is the runner escrow: the
+///         publisher's cut and the platform's remainder left at funding time and cannot
+///         be clawed back from wallets this contract does not control. So a refund
+///         returns the runner share (runnerBps of the platform component, 80% today) of
+///         whatever time is still unspent — never the whole sticker price, and never a
+///         promise the contract cannot keep. It is trustless in both directions: it can
+///         no more fail for want of funds than it can pay out a seller's money, because
+///         the seconds a live or provable lease can still claim are RESERVED out of it
+///         (see refundableOf). Refunds go to d.owner and are capped at the escrow the
+///         OWNER themselves funded (ownerEscrow6) — funding is permissionless, so that
+///         cap is what keeps a refund a reversal of the owner's own payment rather than
+///         a way to withdraw a third party's top-up (docs/billing-runbook.md §3).
 ///
 /// Trust model (consistent with the other Enclave contracts — claims here, attestation
 ///         gates trust at connect time):
@@ -230,7 +243,7 @@ contract EnclaveDeployments {
     // envelope-sized (4096) so configCid can carry the deployment-options
     // envelope's `config` namespace (a per-deployment app-config override);
     // senders gate envelopes over 100 bytes on >= 5 — the rev-4 create()
-    // reverts "configCid length" on them.
+    // reverts "length" on them.
     // Rev 6 again keeps the struct byte-for-byte and marks the setShares
     // surface (owner share resizes with rate recalculation): the shares are
     // no longer immutable — an owner may re-buy gpuMilli/cpuMilli in place,
@@ -264,7 +277,15 @@ contract EnclaveDeployments {
     // out of the entry it already checks). Metering only switches from held
     // time to proven time at proofRequiredFrom - see that field for why the
     // cutover is a date and not a deploy-time flag.
-    uint256 public constant deploymentsSchema = 9;
+    // Rev 10 keeps the struct byte-for-byte and adds CANCELLATION: the owner
+    // may end a deployment and take back the unspent runtime this contract
+    // still holds for it (refund), bounded by ownerEscrow6 — the escrow that
+    // the OWNER's own fundings contributed — and by what no live or still-
+    // provable lease can claim. New surface: ownerEscrow6, refundableOf,
+    // refund, and the Refunded event. The feature gates on >= 10; clients
+    // below that simply never offer it (an older ledger has no refund path,
+    // which is exactly what schema-9-and-under means).
+    uint256 public constant deploymentsSchema = 10;
 
     /// @dev Publisher-fee snapshot, taken at create from the catalog version
     ///      the deployment references (recipient = the app's publisher wallet).
@@ -316,6 +337,17 @@ contract EnclaveDeployments {
     ///      tuple stays byte-for-byte across revs.
     mapping(bytes32 => uint256) private _maxRate6;
     mapping(address => uint256) public earned6;            // operator -> withdrawable runner earnings (USDC 6dp)
+
+    /// @notice Of a deployment's escrow, how much the OWNER's own fundings put
+    ///         there — the ceiling on what refund() may ever pay back (rev 10).
+    ///         Funding is permissionless: anyone may top up anyone's active
+    ///         deployment, and a sponsor's top-up buys the owner RUNTIME, not a
+    ///         withdrawable deposit. Tracking the owner's own contribution is
+    ///         what keeps a refund a reversal of the owner's payment to the
+    ///         address that made it, rather than a way to withdraw someone
+    ///         else's money (docs/billing-runbook.md §3). Decremented by
+    ///         refund; ETH fundings never raise it because they escrow nothing.
+    mapping(bytes32 => uint256) public ownerEscrow6;
 
     // ---- proof of time (rev 9) --------------------------------------------
     /// @notice How far each deployment's CURRENT runner has PROVEN it was
@@ -390,6 +422,7 @@ contract EnclaveDeployments {
     event EarningsWithdrawn(address indexed operator, address indexed to, uint256 amount6);
     event EscrowFunded(bytes32 indexed id, address indexed from, uint256 amount6);
     event EscrowSwept(bytes32 indexed id, uint256 amount6);
+    event Refunded(bytes32 indexed id, address indexed to, uint256 amount6);
     event RunnerBpsSet(uint16 runnerBps);
     event ClaimBondSet(uint256 bond6, uint64 exitDelaySec);
     event BondPosted(address indexed operator, uint256 amount6, uint256 bonded6);
@@ -496,13 +529,13 @@ contract EnclaveDeployments {
     /// @dev create()'s shape/bounds checks (the parts that don't touch storage).
     function _validateCreate(string calldata appRef, string calldata ports, string calldata configCid,
                              uint16 gpuMilli, uint16 cpuMilli, uint32 appPort) private pure {
-        require(bytes(appRef).length > 0 && bytes(appRef).length <= MAX_APPREF, "appRef length");
-        require(cpuMilli > 0 && cpuMilli <= 1000, "cpuMilli range");
-        require(gpuMilli <= 1000, "gpuMilli range");
+        require(bytes(appRef).length > 0 && bytes(appRef).length <= MAX_APPREF, "length");
+        require(cpuMilli > 0 && cpuMilli <= 1000, "range");
+        require(gpuMilli <= 1000, "range");
         require(gpuMilli == 0 || gpuMilli >= cpuMilli, "gpuShare < cpuShare");
-        require(appPort > 0, "appPort range");
-        require(bytes(ports).length <= MAX_PORTS, "ports length");
-        require(bytes(configCid).length <= MAX_CFG, "configCid length");
+        require(appPort > 0, "range");
+        require(bytes(ports).length <= MAX_PORTS, "length");
+        require(bytes(configCid).length <= MAX_CFG, "length");
     }
 
     /// @dev Record the spend ceiling. Bounded by uint96 so every later
@@ -510,7 +543,7 @@ contract EnclaveDeployments {
     ///      able to revert on an overflow check.
     function _initCap(bytes32 id, uint256 maxRate6) private {
         require(maxRate6 > _fees[id].rate6, "maxRate <= fee");
-        require(maxRate6 <= type(uint96).max, "maxRate range");
+        require(maxRate6 <= type(uint96).max, "range");
         _maxRate6[id] = maxRate6;
         emit MaxRateSet(id, maxRate6);
     }
@@ -529,7 +562,7 @@ contract EnclaveDeployments {
     function setMaxRate(bytes32 id, uint256 maxRate6) external {
         Deployment storage d = _requireOwned(id);
         require(maxRate6 > _fees[id].rate6, "maxRate <= fee");
-        require(maxRate6 <= type(uint96).max, "maxRate range");
+        require(maxRate6 <= type(uint96).max, "range");
         _maxRate6[id] = maxRate6;
         if (d.leaseUntil <= block.timestamp) {   // unleased: the cap IS the working rate
             d.rate = maxRate6;
@@ -545,7 +578,7 @@ contract EnclaveDeployments {
     ///      exactly as it re-reads the current list prices).
     function _snapRunnerRate(Deployment storage d) private {
         uint256 r6 = ((d.rate - _fees[d.id].rate6) * runnerBps) / 10000;
-        require(r6 <= type(uint96).max, "runner rate range");
+        require(r6 <= type(uint96).max, "range");
         _earn[d.id].rate6 = uint96(r6);
         emit RunnerRateSet(d.id, r6);
     }
@@ -628,7 +661,7 @@ contract EnclaveDeployments {
     ///         via multicall) when the new version needs different resources.
     function setAppRef(bytes32 id, string calldata appRef) external {
         Deployment storage d = _requireOwned(id);
-        require(bytes(appRef).length > 0 && bytes(appRef).length <= MAX_APPREF, "appRef length");
+        require(bytes(appRef).length > 0 && bytes(appRef).length <= MAX_APPREF, "length");
         d.appRef = appRef;
         emit AppRefSet(id, appRef);
     }
@@ -664,8 +697,8 @@ contract EnclaveDeployments {
     ///         signature, exactly as they do for create.
     function setShares(bytes32 id, uint16 gpuMilli, uint16 cpuMilli) external {
         Deployment storage d = _requireOwned(id);
-        require(cpuMilli > 0 && cpuMilli <= 1000, "cpuMilli range");
-        require(gpuMilli <= 1000, "gpuMilli range");
+        require(cpuMilli > 0 && cpuMilli <= 1000, "range");
+        require(gpuMilli <= 1000, "range");
         require(gpuMilli == 0 || gpuMilli >= cpuMilli, "gpuShare < cpuShare");
         require(gpuMilli <= maxGpuMilli, "gpuShare > max");
         uint256 newRate = _resizeRate(id, d, gpuMilli, cpuMilli);
@@ -724,7 +757,7 @@ contract EnclaveDeployments {
     /// @notice Update the portable config; runners apply it on the next (re)launch.
     function setConfig(bytes32 id, string calldata configCid) external {
         Deployment storage d = _requireOwned(id);
-        require(bytes(configCid).length <= MAX_CFG, "configCid length");
+        require(bytes(configCid).length <= MAX_CFG, "length");
         d.configCid = configCid;
         emit ConfigSet(id, configCid);
     }
@@ -756,7 +789,7 @@ contract EnclaveDeployments {
         require(value > 0, "amount=0");
         require(bytes16(nonce) == bytes16(id), "nonce !~ id");
         usdc.receiveWithAuthorization(from, address(this), value, validAfter, validBefore, nonce, signature);
-        _splitFunding(id, d.rate, value);
+        _splitFunding(id, from, d.rate, value);
         d.balance6 += value;
         emit Funded(id, from, value);
     }
@@ -774,8 +807,8 @@ contract EnclaveDeployments {
     function fund(bytes32 id, uint256 value) external {
         Deployment storage d = _requireActive(id);
         require(value > 0, "amount=0");
-        require(usdc.transferFrom(msg.sender, address(this), value), "USDC transferFrom failed");
-        _splitFunding(id, d.rate, value);
+        require(usdc.transferFrom(msg.sender, address(this), value), "USDC transfer failed");
+        _splitFunding(id, msg.sender, d.rate, value);
         d.balance6 += value;
         emit Funded(id, msg.sender, value);
     }
@@ -789,7 +822,7 @@ contract EnclaveDeployments {
     ///      can buy. fee + runner share never exceed the rate (the runner cut
     ///      is a bps slice of rate-minus-fee), so the clamp is belt-and-braces
     ///      for the ceil's +1 at the bps=10000 edge.
-    function _splitFunding(bytes32 id, uint256 rate, uint256 value) private {
+    function _splitFunding(bytes32 id, address payer, uint256 rate, uint256 value) private {
         (address feeTo, uint256 cut) = _feeShare(id, rate, value);
         uint256 esc = 0;
         uint96 r6 = _earn[id].rate6;
@@ -798,6 +831,8 @@ contract EnclaveDeployments {
             if (esc > value - cut) esc = value - cut;
             // cast safe: esc <= value = real USDC received (total supply << uint96.max 6dp)
             _earn[id].escrow6 += uint96(esc);
+            // only the owner's own money is refundable to the owner (rev 10)
+            if (payer == _deployments[id].owner) ownerEscrow6[id] += esc;
         }
         if (cut > 0) require(usdc.transfer(feeTo, cut), "USDC transfer failed");
         if (value - cut - esc > 0) require(usdc.transfer(payout, value - cut - esc), "USDC transfer failed");
@@ -814,14 +849,14 @@ contract EnclaveDeployments {
     ///      platform can re-back such a deployment with fundEscrow.
     function fundEth(bytes32 id) external payable {
         Deployment storage d = _requireActive(id);
-        require(msg.value > 0, "value=0");
+        require(msg.value > 0, "amount=0");
         require(address(ethUsdFeed) != address(0), "eth funding disabled");
         (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) = ethUsdFeed.latestRoundData();
         require(answer > 0 && block.timestamp - updatedAt <= FEED_MAX_AGE, "stale price");
         require(answeredInRound >= roundId, "incomplete round");   // reject an answer carried over from an earlier (unfinalized) round
         // wei(1e18) * price(1e8) -> USDC 6dp: divide by 1e20
         uint256 credited = (msg.value * uint256(answer)) / 1e20;
-        require(credited > 0, "dust");
+        require(credited > 0, "amount=0");
         d.balance6 += credited;                                    // effects before interaction (CEI): a contract payout can't reenter mid-credit
         // the publisher's cut splits the WEI (their wallet gets ETH, not USDC).
         // A fee recipient that reverts on plain sends blocks only ETH funding
@@ -944,11 +979,11 @@ contract EnclaveDeployments {
         require(_exists[id], "unknown");
         require(d.runnerOperator == msg.sender, "not runner");
         _creditRunner(d);                        // pay for time HELD; the refunded tail earns nothing
-        uint256 refund = 0;
+        uint256 tail = 0;                        // not `refund` — that names the owner-facing rev-10 call
         if (d.leaseUntil > block.timestamp) {
-            refund = (d.leaseUntil - block.timestamp) * d.rate;
-            d.balance6 += refund;
-            d.spent6 -= refund;
+            tail = (d.leaseUntil - block.timestamp) * d.rate;
+            d.balance6 += tail;
+            d.spent6 -= tail;
         }
         bytes32 enclaveId = d.runner;
         d.runner = bytes32(0);
@@ -956,7 +991,7 @@ contract EnclaveDeployments {
         d.leaseUntil = 0;
         _earn[id].creditedUntil = 0;             // meter idles until the next claim restarts it
         provenUntil[id] = 0;                     // and the proof watermark resets with it
-        emit Released(id, enclaveId, refund);
+        emit Released(id, enclaveId, tail);
     }
 
     /// @dev Burn one lease quantum starting at `from`: as many seconds as the
@@ -1093,9 +1128,66 @@ contract EnclaveDeployments {
         Deployment storage d = _requireActive(id);
         require(amount6 > 0, "amount=0");
         require(_earn[id].rate6 > 0, "no runner rate");      // a rate-0 record can never credit it back out
-        require(usdc.transferFrom(msg.sender, address(this), amount6), "USDC transferFrom failed");
+        require(usdc.transferFrom(msg.sender, address(this), amount6), "USDC transfer failed");
         _earn[d.id].escrow6 += uint96(amount6);              // cast safe: real USDC received
+        if (msg.sender == d.owner) ownerEscrow6[id] += amount6;   // owner's own backing stays refundable
         emit EscrowFunded(id, msg.sender, amount6);
+    }
+
+    /// @notice What refund() would pay the owner right now (USDC 6dp): the
+    ///         escrow this contract still holds for the record, less whatever a
+    ///         lease can still legitimately claim, capped by the escrow the
+    ///         owner's own fundings put there. Zero is the normal answer for a
+    ///         deployment that has spent everything it bought.
+    /// @dev EXACT, not an estimate, even though this is a view that cannot
+    ///      advance the meter first: _creditRunner moves escrow6 and
+    ///      creditedUntil by the same number of seconds' worth, so
+    ///      (escrow6 - reserve) is invariant across a settle. When the credit
+    ///      is escrow-clamped, reserve already exceeds escrow6 and both this
+    ///      and refund() see zero. Clients can therefore render this number
+    ///      directly and refund() will pay it.
+    function refundableOf(bytes32 id) public view returns (uint256) {
+        Deployment storage d = _deployments[id];
+        Earn storage e = _earn[id];
+        // seconds a live lease — or a late checkpoint against one that lapsed —
+        // could still prove and be paid for. That money is the seller's.
+        uint256 reserve = d.leaseUntil > e.creditedUntil
+            ? uint256(d.leaseUntil - e.creditedUntil) * e.rate6
+            : 0;
+        uint256 free = e.escrow6 > reserve ? e.escrow6 - reserve : 0;
+        uint256 own = ownerEscrow6[id];
+        return own < free ? own : free;
+    }
+
+    /// @notice Cancel a deployment and take its unused runtime back (rev 10).
+    ///         Owner only. Pays out the held escrow that no lease can still
+    ///         claim — see refundableOf for exactly how much, and the header
+    ///         for why that is the runner share and not the full sticker price
+    ///         (the publisher's cut and the platform's remainder left this
+    ///         contract at funding time). Zeroes the balance and deactivates
+    ///         the record: the runtime goes back with the money, and the
+    ///         deployment stops being claimable. It can be funded again later.
+    /// @dev Ordering is load-bearing. _creditRunner runs FIRST, so a runner is
+    ///      paid for everything it has proven before a cent moves to the owner,
+    ///      and the reserve keeps back whatever a still-open lease could prove
+    ///      afterwards — so cancelling mid-lease can never strand a seller, and
+    ///      never needs to make the owner wait for the lease to lapse either.
+    ///      Refunding during a live lease pays the free part now; the reserved
+    ///      tail becomes refundable once the runner releases (which returns the
+    ///      unused tail to balance6) or the lease lapses unproven, so a second
+    ///      call collects it. All state is written before the transfer (CEI).
+    function refund(bytes32 id) external {
+        Deployment storage d = _requireOwned(id);
+        _creditRunner(d);
+        uint256 amt = refundableOf(id);
+        require(amt > 0, "nothing to refund");
+        ownerEscrow6[id] -= amt;                             // <= by refundableOf's cap
+        _earn[id].escrow6 -= uint96(amt);                    // cast safe: amt <= escrow6 (uint96)
+        d.balance6 = 0;
+        d.active = false;
+        require(usdc.transfer(d.owner, amt), "USDC transfer failed");
+        emit ActiveSet(id, false);
+        emit Refunded(id, d.owner, amt);
     }
 
     /// @notice Recover a DRAINED deployment's residual escrow dust to payout.
@@ -1133,7 +1225,7 @@ contract EnclaveDeployments {
     ///         bond; cancels a pending exit — posting re-commits).
     function postBond(uint256 amount6) external {
         require(amount6 > 0, "amount=0");
-        require(usdc.transferFrom(msg.sender, address(this), amount6), "USDC transferFrom failed");
+        require(usdc.transferFrom(msg.sender, address(this), amount6), "USDC transfer failed");
         Bond storage b = _bonds[msg.sender];
         b.amount6 += uint192(amount6);                       // cast safe: real USDC received
         b.exitAt = 0;
@@ -1168,7 +1260,7 @@ contract EnclaveDeployments {
     function slashBond(address operator, uint256 amount6, string calldata reason) external {
         require(msg.sender == owner, "!owner");
         Bond storage b = _bonds[operator];
-        require(amount6 > 0 && amount6 <= b.amount6, "amount range");
+        require(amount6 > 0 && amount6 <= b.amount6, "range");
         b.amount6 -= uint192(amount6);
         require(usdc.transfer(payout, amount6), "USDC transfer failed");
         emit BondSlashed(operator, amount6, reason);
@@ -1248,7 +1340,7 @@ contract EnclaveDeployments {
         require(ids.length == recipients.length && ids.length == rates6.length, "length mismatch");
         for (uint256 i = 0; i < ids.length; i++) {
             require(_exists[ids[i]], "unknown");
-            require(rates6[i] <= type(uint96).max, "fee range");
+            require(rates6[i] <= type(uint96).max, "range");
             require(rates6[i] == 0 || recipients[i] != address(0), "fee recipient");
             _fees[ids[i]] = Fee(recipients[i], uint96(rates6[i]));
             if (rates6[i] > 0) emit FeeSet(ids[i], recipients[i], rates6[i]);
@@ -1268,7 +1360,7 @@ contract EnclaveDeployments {
         require(ids.length == rates6.length, "length mismatch");
         for (uint256 i = 0; i < ids.length; i++) {
             require(_exists[ids[i]], "unknown");
-            require(rates6[i] <= type(uint96).max, "rate range");
+            require(rates6[i] <= type(uint96).max, "range");
             _earn[ids[i]].rate6 = uint96(rates6[i]);
             emit RunnerRateSet(ids[i], rates6[i]);
         }
@@ -1287,7 +1379,7 @@ contract EnclaveDeployments {
         require(ids.length == caps6.length, "length mismatch");
         for (uint256 i = 0; i < ids.length; i++) {
             require(_exists[ids[i]], "unknown");
-            require(caps6[i] <= type(uint96).max, "maxRate range");
+            require(caps6[i] <= type(uint96).max, "range");
             require(caps6[i] == 0 || caps6[i] > _fees[ids[i]].rate6, "maxRate <= fee");
             _maxRate6[ids[i]] = caps6[i];
             emit MaxRateSet(ids[i], caps6[i]);
@@ -1333,7 +1425,7 @@ contract EnclaveDeployments {
     ///         (CPU-only deployments are never affected).
     function setMaxGpuMilli(uint16 _maxGpuMilli) external {
         require(msg.sender == owner, "!owner");
-        require(_maxGpuMilli <= 1000, "max range");
+        require(_maxGpuMilli <= 1000, "range");
         maxGpuMilli = _maxGpuMilli;                // affects FUTURE creates only
         emit MaxGpuMilliSet(_maxGpuMilli);
     }
@@ -1348,7 +1440,7 @@ contract EnclaveDeployments {
     ///         snapshot cast in _initFee can never truncate.
     function setMaxFee(uint256 _maxFeePerSec6) external {
         require(msg.sender == owner, "!owner");
-        require(_maxFeePerSec6 <= type(uint96).max, "max range");
+        require(_maxFeePerSec6 <= type(uint96).max, "range");
         maxFeePerSec6 = _maxFeePerSec6;                // affects FUTURE creates only
         emit MaxFeeSet(_maxFeePerSec6);
     }
@@ -1360,7 +1452,7 @@ contract EnclaveDeployments {
     ///         deployments (existing snapshots keep paying).
     function setRunnerBps(uint16 _runnerBps) external {
         require(msg.sender == owner, "!owner");
-        require(_runnerBps <= 10000, "bps range");
+        require(_runnerBps <= 10000, "range");
         runnerBps = _runnerBps;                    // affects FUTURE creates/resizes only
         emit RunnerBpsSet(_runnerBps);
     }
@@ -1371,7 +1463,7 @@ contract EnclaveDeployments {
     ///         strands nobody mid-lease.
     function setClaimBond(uint256 _bond6, uint64 _exitDelaySec) external {
         require(msg.sender == owner, "!owner");
-        require(_exitDelaySec >= 1 hours && _exitDelaySec <= 30 days, "delay range");
+        require(_exitDelaySec >= 1 hours && _exitDelaySec <= 30 days, "range");
         claimBond6 = _bond6;
         bondExitDelay = _exitDelaySec;
         emit ClaimBondSet(_bond6, _exitDelaySec);
@@ -1401,7 +1493,7 @@ contract EnclaveDeployments {
 
     function setLeaseSec(uint64 _leaseSec) external {
         require(msg.sender == owner, "!owner");
-        require(_leaseSec >= 60 && _leaseSec <= 1 days, "lease range");
+        require(_leaseSec >= 60 && _leaseSec <= 1 days, "range");
         leaseSec = _leaseSec;
         emit LeaseSecSet(_leaseSec);
     }
@@ -1539,4 +1631,15 @@ FUTURE (deliberately not in this rev):
     and letting the runner meter pay for VERIFIED service instead of held time.
   - ETH-funded runner escrow: fundEth forwards everything (no on-chain USDC
     conversion); the runner share of ETH fundings relies on fundEscrow re-backing.
+    Rev 10 gives this a second consequence: an ETH-funded deployment escrows
+    nothing, so it has nothing to refund either — cancelling one returns zero
+    until fundEscrow has re-backed it.
+  - FULL refunds: rev 10 returns the runner escrow, which is all this contract
+    holds. The platform's own share of unspent time is unrecoverable because it
+    forwards at funding time. Escrowing it instead — and forwarding it as it is
+    EARNED, the way the runner's share already works — would make a cancellation
+    whole, at the cost of making the contract custodial for the platform slice.
+    That is a deliberate trade against the non-custodial property in the header,
+    not an oversight; the publisher's cut cannot follow either way, since it is
+    another party's money in another party's wallet.
 */

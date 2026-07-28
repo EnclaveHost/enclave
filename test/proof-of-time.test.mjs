@@ -139,8 +139,10 @@ test("the ledger exposes exactly the proof surface the fleet and clients read", 
   assert.deepEqual(fn("setProver").inputs.map((i) => i.type), ["address"]);
   assert.equal(fn("prover").outputs[0].type, "address");
   assert.deepEqual(fn("setProofRequiredFrom").inputs.map((i) => i.type), ["uint64"]);
-  // rev 9 is the marker consumers gate the whole feature on
-  assert.match(LEDGER_SOL, /uint256 public constant deploymentsSchema = 9;/);
+  // rev 9 is the marker consumers gate the whole PROOF feature on; the ledger
+  // rev only ever moves forward, so assert the floor rather than an equality
+  // that every later rev has to come back and edit
+  assert.ok(Number(/deploymentsSchema = (\d+);/.exec(LEDGER_SOL)[1]) >= 9);
 });
 
 test("registry schema 3 carries the proof key, and register() carries it too", () => {
