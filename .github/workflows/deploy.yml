@@ -142,11 +142,23 @@ jobs:
 
           # A config edit needs a new measured release — but image-digest repins
           # are pinned by the release flow itself, so only non-image lines count.
+          # NEVER end this pipeline in `grep -q`. grep -q exits on the FIRST
+          # match, which SIGPIPEs the upstream greps; under `set -o pipefail`
+          # the pipeline then reports 141, `&& config=true` never runs, and a
+          # real config change silently cuts NO release. set -e does not catch
+          # it either (a failure before the final && is exempt), so the step
+          # stays green and just reports release=false.
+          # It is a race on diff SIZE: a small enclaves edit finishes writing
+          # before grep -q exits and does release, a large one does not —
+          # which is why 56f475ec released and 54875a52 (177 diff lines,
+          # 2026-07-28) did not, from what looked like the same kind of edit.
+          # Read the whole diff into a variable instead.
           config=false
           if [ "$config_touched" = true ]; then
-            echo "$HUMAN_COMMITS" | xargs -r -n1 -I{} git show --format= {} -- enclaves \
-              | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | grep -vE '^[+-][[:space:]]*-?[[:space:]]*image:' \
-              | grep -q . && config=true
+            config_diff="$(echo "$HUMAN_COMMITS" | xargs -r -I{} git show --format= {} -- enclaves \
+                           | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' \
+                           | grep -vE '^[+-][[:space:]]*-?[[:space:]]*image:' || true)"
+            [ -n "$config_diff" ] && config=true
           fi
 
           contracts_any=false
@@ -247,9 +259,16 @@ jobs:
             echo "wired_config=false" >> "$GITHUB_OUTPUT"
             echo "nothing to wire"; exit 0
           fi
+          # same `grep -q` + pipefail hazard as the detect job above: a wiring
+          # commit that touched enclaves/ would report wired_config=false and
+          # skip the release. The output is short enough that it usually wins
+          # the race, which is exactly what makes it worth not relying on.
           wired_site=false; wired_config=false
-          git diff --cached --name-only | grep -q '^site/' && wired_site=true
-          git diff --cached --name-only | grep -q '^enclaves/' && wired_config=true
+          wired_files="$(git diff --cached --name-only)"
+          # grep WITHOUT -q: it reads its input to the end, so the upstream
+          # never takes SIGPIPE and pipefail cannot turn a match into a false.
+          echo "$wired_files" | grep -E '^site/'     >/dev/null && wired_site=true
+          echo "$wired_files" | grep -E '^enclaves/' >/dev/null && wired_config=true
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "CI: wire contract addresses after deploy"
