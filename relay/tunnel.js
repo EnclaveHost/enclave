@@ -49,7 +49,17 @@ function selfRoutedUrl(url, name) {
 //   attach is granted to ANY enclave that proves, with a fresh SEV-SNP quote over
 //   a relay-chosen challenge, that it runs a published Metal release (measurement
 //   on the allowlist). No token, no per-seller identity. See metal/PROTOCOL.md.
-export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 30000, onChange = () => {} } = {}) {
+// operatorFor: async (name) -> 0x… | null                — WHO OWNS A NAME on chain.
+//   A quote proves the IMAGE, and the transport key is minted PER BOOT, so
+//   neither survives a reboot as an identity: while a seller was down, another
+//   box running the same published release could take its name and inherit the
+//   routing for keccak(https://<relay>/t/<name>) — the id its own on-chain
+//   registration carries. The one thing that DOES survive is the operator key
+//   that registered it, so when this resolves an owner for the name, the
+//   attaching box must sign the attach challenge with that key. Names with no
+//   on-chain entry stay first-come: there is nothing yet to take.
+export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 30000, onChange = () => {},
+                                  operatorFor = null } = {}) {
   const allowByName = new Map(allow.filter((a) => a && a.name && a.tokenSha256).map((a) => [a.name, a.tokenSha256.toLowerCase()]));
   const attestOn = !!(attest && attest.allowedMeasurements && attest.allowedMeasurements.length);
   const wss = new WebSocketServer({ noServer: true });
@@ -79,6 +89,36 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     const want = allowByName.get(name);
     if (!want || !token) return false;
     return eqHex(sha256Hex(token), want);
+  }
+
+  // ---- name ownership (attest path) -----------------------------------------
+  // The message an attaching box signs with its REGISTRY OPERATOR key. Bound to
+  // the name and to this attach's fresh nonce, and EIP-191-prefixed by
+  // personal_sign — so a signature harvested here can never be replayed as a
+  // transaction, which matters because that key also sends claim/renew.
+  const attachMessage = (name, nonce) => `enclave-tunnel-attach:${name}:${nonce.toString("base64")}`;
+  // Last known owner per name. A lookup that FAILS (an RPC blip) must not open a
+  // name we have already seen registered — cached ownership is what we fall back
+  // to. A name never seen registered stays first-come, which is the same answer
+  // as before this existed.
+  const ownerCache = new Map();
+  async function ownerOf(name) {
+    if (!operatorFor) return null;
+    try {
+      const a = await operatorFor(name);
+      if (a) ownerCache.set(name, String(a).toLowerCase());
+      else ownerCache.delete(name);
+      return a ? String(a).toLowerCase() : null;
+    } catch {
+      return ownerCache.get(name) || null;      // fail closed against a known owner
+    }
+  }
+  async function signerOf(message, sig) {
+    if (typeof sig !== "string" || !/^0x[0-9a-fA-F]{130}$/.test(sig)) return null;
+    try {
+      const { recoverMessageAddress } = await import("viem");
+      return (await recoverMessageAddress({ message, signature: sig })).toLowerCase();
+    } catch { return null; }
   }
 
   // Register an authorized socket as the tunnel for `name` and wire its frames.
@@ -173,6 +213,22 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             // name would be held by a tunnel that answers nothing, forever.
             if (settled) return;
             if (!res.ok) return deny(res.reasons[res.reasons.length - 1] || "quote invalid");
+            // WHOSE NAME IS THIS? A quote proves the image, not the box, so a
+            // name that is REGISTERED ON CHAIN belongs to whoever registered it
+            // — and only that operator's key can take it, whether the real box
+            // is up, rebooting, or gone. Without this, a seller's downtime was
+            // an opening: same image, same name, and the routing for its
+            // registered id follows.
+            const owner = await ownerOf(name);
+            if (owner) {
+              const signer = await signerOf(attachMessage(name, nonce), f.operatorSig);
+              if (settled) return;                       // the timeout may have fired while we recovered
+              if (!signer)
+                return deny(`${name} is registered on chain; attach must carry operatorSig `
+                          + `(personal_sign of "enclave-tunnel-attach:<name>:<nonce b64>") — upgrade the agent`);
+              if (signer !== owner)
+                return deny(`${name} is registered on chain to ${owner}, not ${signer}`);
+            }
             const keyFp = spki ? createHash("sha256").update(spki).digest("hex") : "";
             const prev = tunnels.get(name);
             if (prev && (!prev.keyFp || prev.keyFp !== keyFp))

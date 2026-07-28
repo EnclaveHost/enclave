@@ -3857,6 +3857,37 @@ app.get("/v1/session-jwks", (_req, res) => {
   res.json({ keys: SESSION_JWK ? [SESSION_JWK] : [] });
 });
 
+// ---- prove this box's on-chain identity to the fleet hub --------------------
+// A tunnel name is a routing key, and a quote proves the IMAGE, never which box
+// it is; the metal transport key is minted per boot, so neither survives a
+// reboot as an identity. The one thing that does is the REGISTRY OPERATOR key —
+// the key that registered `<relay>/t/<name>` and claims work under it. So the
+// hub asks an attaching box to sign its attach challenge with that key, and
+// this is where the guest agent gets that signature (the key lives here, not in
+// the agent).
+//
+// DELIBERATELY NOT A SIGNING ORACLE. The message is BUILT here from a validated
+// name + nonce, never taken from the caller, and personal_sign's EIP-191 prefix
+// means what comes out can never be replayed as a transaction — which matters
+// because this same key sends claim/renew. The gate is a token derived from the
+// fleet SECRET (the agent has it; the untrusted relay does not, and every relay
+// frame reaches this process through the agent's forwarder).
+const OPSIGN_KEY = SECRET.length ? createHmac("sha256", SECRET).update("enclave opsign v1").digest("hex") : "";
+app.post("/v1/internal/tunnel-attach-sig", async (req, res) => {
+  if (!OPSIGN_KEY || !safeEqStr(req.headers["x-opsign-token"], OPSIGN_KEY))
+    return fail(res, 404, "not_found", "Not found.");
+  if (!REGISTRY_PK) return fail(res, 409, "no_operator_key", "This enclave holds no registry key.");
+  const name = String((req.body && req.body.name) || "").trim();
+  const nonce = String((req.body && req.body.nonce) || "").trim();
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(name)) return fail(res, 422, "bad_name", "name must be a plain label.");
+  if (!/^[A-Za-z0-9+/=]{1,128}$/.test(nonce)) return fail(res, 422, "bad_nonce", "nonce must be base64.");
+  try {
+    const signature = await claimSigner().account.signMessage({
+      message: `enclave-tunnel-attach:${name}:${nonce}` });
+    res.json({ signature, operator: claimSigner().account.address });
+  } catch (e) { fail(res, 502, "sign_failed", e.shortMessage || e.message); }
+});
+
 // UDP routing map, PUBLIC: the udp-relay (relay/udp-relay.js) polls this to learn
 // which per-deployment IPv6 to bind and which logical ports to route into the
 // /x/:id/udp/:port bridge. Only public+running deployments with udp ports; the
