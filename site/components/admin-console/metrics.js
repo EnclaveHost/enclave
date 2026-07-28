@@ -63,7 +63,7 @@ const usd = (n6) => {
   if (Math.abs(v) >= 1e6) return "$" + (v / 1e6).toFixed(2) + "M";
   if (Math.abs(v) >= 1e4) return "$" + Math.round(v).toLocaleString();
   if (Math.abs(v) >= 1) return "$" + v.toFixed(2);
-  return "$" + v.toFixed(4);
+  return "$" + v.toFixed(4).replace(/(\.\d\d)0+$/, "$1");     // sub-dollar: show the micros, not trailing zeros
 };
 const perHr = (rate6) => usd(Number(rate6) * 3600) + "/hr";
 const pct = (f) => Math.round(f * 100) + "%";
@@ -287,11 +287,15 @@ const BAR_MAX = 24;        // marks stay thin: a column never fills its slot
 const GAP = 2;             // the surface gap that separates touching marks
 const RADIUS = 4;          // rounded data-end, square at the baseline
 
-function niceMax(v) {
-  if (!(v > 0)) return 1;
+/* A round top-of-axis. For a COUNT series it is also rounded up to an even
+   integer, so the mid gridline is a whole number: a rule labelled "8" sitting
+   at 7.5 deployments is a lie the reader has no way to catch. */
+function niceMax(v, integer) {
+  if (!(v > 0)) return integer ? 2 : 1;
   const p = Math.pow(10, Math.floor(Math.log10(v)));
-  for (const m of [1, 1.5, 2, 2.5, 3, 4, 5, 7.5, 10]) if (v <= m * p) return m * p;
-  return 10 * p;
+  let m = 10 * p;
+  for (const k of [1, 1.5, 2, 2.5, 3, 4, 5, 7.5, 10]) if (v <= k * p) { m = k * p; break; }
+  return integer ? Math.max(2, Math.ceil(m / 2) * 2) : m;
 }
 
 /* a column: square where it meets the baseline, rounded at the data end */
@@ -315,7 +319,7 @@ function drawTimeChart(el, spec, w) {
   const { buckets, values, kind, fmt } = spec;
   const h = spec.height || 168;
   const pw = Math.max(40, w - PAD.l - PAD.r), ph = h - PAD.t - PAD.b;
-  const max = niceMax(Math.max(...values, 0));
+  const max = niceMax(Math.max(...values, 0), spec.integer);
   const y = (v) => PAD.t + ph - (v / max) * ph;
   const slot = pw / buckets.length;
   const ticks = [0, max / 2, max];
@@ -395,7 +399,7 @@ function drawFleetChart(el, spec, w) {
     ].filter(Boolean);
     const bars = pools.map((p, k) => {
       const y = top + (pools.length === 1 ? rowH / 2 - barH / 2 - 4 : k * (barH + GAP) + 2);
-      return svgEl("rect", { x: l, y: y.toFixed(1), width: pw.toFixed(1), height: barH, rx: RADIUS, class: "ac-track" }, "")
+      return svgEl("rect", { x: l, y: y.toFixed(1), width: pw.toFixed(1), height: barH, rx: RADIUS, class: "ac-track " + p.cls }, "")
         + svgEl("path", { d: rowPath(l, +y.toFixed(1), +(p.used * pw).toFixed(1), barH), class: "ac-mark " + p.cls }, "");
     }).join("");
     return svgEl("text", { x: labelW, y: (top + 14).toFixed(1), class: "ac-rowlbl", "text-anchor": "end" }, esc(r.name))
@@ -514,6 +518,24 @@ const fig = (id, title, subtitle, legend, aria) =>
      <details class="ac-tbl"><summary>Table view</summary><div class="ac-tbl-wrap" id="tbl-${esc(id)}"></div></details>
    </figure>`;
 
+/* A figure with nothing to show hides its table toggle and its legend rather
+   than offering a control that opens onto nothing. */
+function figEmpty(root, id, note) {
+  const f = root.querySelector(`[data-fig="${id}"]`);
+  if (!f) return;
+  const plot = f.querySelector(".ac-plot");
+  plot.innerHTML = `<p class="ac-plot-note">${note}</p>`;
+  plot._spec = null; plot._at = null;             // or a resize would redraw a chart over the note
+  const t = f.querySelector(".ac-tbl"); if (t) { t.hidden = true; t.querySelector(".ac-tbl-wrap").innerHTML = ""; }
+  const l = f.querySelector(".ac-legend"); if (l) l.hidden = true;
+}
+function figFilled(root, id) {
+  const f = root.querySelector(`[data-fig="${id}"]`);
+  if (!f) return;
+  const t = f.querySelector(".ac-tbl"); if (t) t.hidden = false;
+  const l = f.querySelector(".ac-legend"); if (l) l.hidden = false;
+}
+
 const tbl = (head, rows) =>
   `<table><thead><tr>${head.map((h) => `<th scope="col">${esc(h)}</th>`).join("")}</tr></thead>
    <tbody>${rows.map((r) => `<tr>${r.map((c, i) => i === 0 ? `<th scope="row">${esc(c)}</th>` : `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
@@ -529,9 +551,9 @@ export function paintMetrics(root, d) {
     tile("Running now", String(s.running),
       `on ${s.runners.size} enclave${s.runners.size === 1 ? "" : "s"} · ${(s.gpuMilli / 1000).toFixed(2)} card + ${(s.cpuMilli / 1000).toFixed(2)} node sold`),
     tile("Waiting for an enclave", String(s.waiting),
-      s.waiting ? `funded and claimable — nothing has taken them` : `every funded record is placed`, s.waiting ? "warn" : ""),
+      s.waiting ? `funded and claimable — nothing has taken them` : `every funded record is placed`, s.waiting ? "ac-alert" : ""),
     tile("Out of funds", String(s.unfunded),
-      s.unfunded ? `active but under one second of credit` : `no active record is empty`, s.unfunded ? "warn" : ""),
+      s.unfunded ? `active but under one second of credit` : `no active record is empty`, s.unfunded ? "ac-alert" : ""),
     tile("Created · 24 h", String(created24),
       `${s.total} on the ledger all-time · ${s.inactive} stopped`),
     tile("Committed spend", perHr(s.rate6),
@@ -558,7 +580,7 @@ export function paintMetrics(root, d) {
 
   const createdPlot = root.querySelector("#plot-created");
   createdPlot._spec = {
-    kind: "columns", buckets: d.buckets, values: d.created, count: d.buckets.length,
+    kind: "columns", buckets: d.buckets, values: d.created, count: d.buckets.length, integer: true,
     fmt: { tick: (v) => String(Math.round(v)) },
     tipRows: (i) => ({
       head: hours[i] + lastPartial(i),
@@ -570,21 +592,18 @@ export function paintMetrics(root, d) {
     tbl(["Hour", "Created"], d.buckets.map((b, i) => [hourLabel(b.t0) + lastPartial(i), String(d.created[i])]));
 
   paintFleet(root, d);
-  for (const id of ["running", "spend"]) {
-    const p = root.querySelector("#plot-" + id);
-    p.innerHTML = `<p class="ac-plot-note">scanning the chain's event log…</p>`;
-  }
+  for (const id of ["running", "spend"]) figEmpty(root, id, `scanning the chain's event log…`);
 }
 
 function paintFleet(root, d) {
   const plot = root.querySelector("#plot-fleet");
   if (d.fleet.error || !d.fleet.rows.length) {
-    plot.innerHTML = `<p class="ac-plot-note">${d.fleet.error
+    figEmpty(root, "fleet", d.fleet.error
       ? `the relay did not answer /enclaves: ${esc(d.fleet.error)}`
-      : `no enclave is serving right now`}</p>`;
-    root.querySelector("#tbl-fleet").innerHTML = "";
+      : `no enclave is serving right now`);
     return;
   }
+  figFilled(root, "fleet");
   plot._spec = {
     kind: "fleet", rows: d.fleet.rows, count: d.fleet.rows.length,
     tipRows: (i) => {
@@ -613,11 +632,8 @@ export function paintHistory(root, d) {
   const pendingTiles = kpis.querySelectorAll(".ac-kpi-pending");
 
   if (h.error) {
-    for (const id of ["running", "spend"]) {
-      root.querySelector("#plot-" + id).innerHTML =
-        `<p class="ac-plot-note">the public RPC pool would not serve the event log: ${esc(h.error)}. The ledger-derived numbers above are unaffected — retry with ↻ Refresh.</p>`;
-      root.querySelector("#tbl-" + id).innerHTML = "";
-    }
+    for (const id of ["running", "spend"])
+      figEmpty(root, id, `the public RPC pool would not serve the event log: ${esc(h.error)}. The ledger-derived numbers above are unaffected — retry with ↻ Refresh.`);
     pendingTiles.forEach((t) => {
       t.querySelector(".ac-kpi-v").textContent = "—";
       t.querySelector(".ac-kpi-s").textContent = "the event log was unavailable";
@@ -641,9 +657,10 @@ export function paintHistory(root, d) {
   }
 
   const peak = Math.max(...h.running);
+  figFilled(root, "running"); figFilled(root, "spend");
   const runPlot = root.querySelector("#plot-running");
   runPlot._spec = {
-    kind: "area", buckets: d.buckets, values: h.running, count: d.buckets.length,
+    kind: "area", buckets: d.buckets, values: h.running, count: d.buckets.length, integer: true,
     fmt: { tick: (v) => String(Math.round(v)) },
     tipRows: (i) => ({
       head: hours[i] + lastPartial(i),
@@ -651,8 +668,12 @@ export function paintHistory(root, d) {
     }),
   };
   drawPlot(runPlot);
+  // deliberately NOT "· now N": the tile's "Running now" comes off the records,
+  // this series off the log, and the two can honestly disagree for a lease that
+  // was neither renewed nor released inside the window - putting them in one
+  // line would read as a contradiction rather than as two different questions
   const runFig = root.querySelector('[data-fig="running"] .ac-fig-s');
-  if (runFig) runFig.textContent = `per hour · peak ${peak} · now ${d.sum.running}`;
+  if (runFig) runFig.textContent = `per hour · peak ${peak} · rebuilt from lease events`;
   root.querySelector("#tbl-running").innerHTML =
     tbl(["Hour", "Running"], d.buckets.map((b, i) => [hourLabel(b.t0) + lastPartial(i), String(h.running[i])]));
 
