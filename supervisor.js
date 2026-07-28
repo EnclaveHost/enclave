@@ -2622,6 +2622,12 @@ app.get("/availability", async (_req, res) => {
     // deployments can launch; `nnProbe` carries the boot probe's diagnosis,
     // making a broken GPU path visible from outside without operator access.
     const nn = PROVISION_BACKEND === "vm" && h.nn !== undefined ? { nn: h.nn, nnProbe: h.nnProbe } : {};
+    // Same idea for the cross-tenant loopback wall: the manager reports false when
+    // its wasmtime predates wasmtime-loopback.patch, and a box running tenants
+    // without that wall should be sayable from outside rather than only in a log
+    // nobody can read. Reported ONLY when it is missing — an absent key means the
+    // box either enforces it or is too old to have an opinion.
+    const lbw = PROVISION_BACKEND === "vm" && h.loopbackWall === false ? { loopbackWall: false } : {};
     // attached model volumes this enclave carries (Modelwrap): the console and
     // clients read this to know which volumes a deployment here can mount.
     const vols = PROVISION_BACKEND === "vm" && Array.isArray(h.volumes) ? { volumes: h.volumes } : {};
@@ -2641,7 +2647,7 @@ app.get("/availability", async (_req, res) => {
     // card allocator's plan - same contract as the RAM ledger above.
     const vram = PROVISION_BACKEND === "vm" && c.vramBudgetGb
       ? { vramBudgetGb: c.vramBudgetGb, vramCommittedGb: c.vramCommittedGb, vramLedgerFreeGb: c.vramFreeGb } : {};
-    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn, ...vols, ...ram, ...vram });
+    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn, ...lbw, ...vols, ...ram, ...vram });
   } catch (e) {
     return res.json(shape(maxFreeCpu(), maxFreeGpuShare(), "fallback",
       `${PROVISION_BACKEND === "vm" ? "wasm" : "worker"} manager unreachable`));
