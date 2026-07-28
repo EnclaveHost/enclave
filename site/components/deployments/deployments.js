@@ -24,7 +24,7 @@ import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, 
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
-import { shareRates, minPctsOf, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason } from "../../js/core/pricing.js";
+import { shareRates, minPctsOf, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason, gpuUpgradeForMove, enclavePriceOf } from "../../js/core/pricing.js";
 
 // The app's reachable URL. Through the gateway each deployment gets its OWN
 // origin: a per-deployment subdomain (<id>.app.enclave.host, the base36 part of
@@ -1500,7 +1500,13 @@ class Deployments extends EnclaveElement {
       ? STORE.byId[cr.appId].versions[cr.index] : null;
     if (!ver) return fail("[x] the catalog doesn’t list this deployment’s version - a move re-claims the record, and only a listed version can be re-claimed");
     const spec = specOf(ver);
-    const targets = moveTargetsFor(spec, fleet, d.runner);
+    // the DEPLOYMENT's own softening (its options envelope), distinct from the
+    // publisher's in specOf: an envelope speaks for the owner's dial only
+    const depSoftGpu = (() => {
+      try { const o = JSON.parse(String(d.configCid || "") || "{}"); return o && o.gpu && o.gpu.optional === true; }
+      catch { return false; }
+    })();
+    const targets = moveTargetsFor({ ...spec, depGpuOptional: depSoftGpu, gpuMilli: Number(d.gpuMilli) || 0 }, fleet, d.runner);
     if (!targets.length)
       return fail("[!] nowhere to move this to: " + moveBlockReason(spec, fleet, d.runner)
                 + ". A move re-claims the record, so the destination must pass the same hardware, wasi-nn, model-volume and capacity checks as a fresh deploy.");
@@ -1517,12 +1523,37 @@ class Deployments extends EnclaveElement {
       +   '</select>'
       +   '<button class="btn btn-sm mv-go">Move</button>'
       + '</div>'
+      + '<div class="enc-upg-body mv-upg" hidden></div>'
       + '<div class="term enc-move-status" role="status" aria-live="polite"></div>';
     const sel = box.querySelector(".eu-sel"), go = box.querySelector(".mv-go");
     const s = stEl();
     paintLine(s, "dimln", "// the app stops here and relaunches there: same URL, version and balance.");
     paintLine(s, "dimln", "// unused lease time is refunded, then re-bought at the new box’s price.");
     paintLine(s, "dimln", "// HTTPS returns once the new box issues its own certificate for this URL (~1 min).");
+    // Moving soft-GPU work ONTO a card: without re-buying the slice the app
+    // would run on that box's CPU cores, which is the slow thing on the fast
+    // machine. Offer the resize with the price attached, and make it the
+    // default — landing on a GPU box and not using the GPU is almost never
+    // what the move was for.
+    const upgWrap = box.querySelector(".mv-upg");
+    const bought = { gpuMilli: Number(d.gpuMilli) || 0, cpuMilli: Number(d.cpuMilli) || 0 };
+    const syncUpg = () => {
+      const t = targets.find((x) => x.name === sel.value);
+      const up = t ? gpuUpgradeForMove({ ...spec, depGpuOptional: depSoftGpu }, t, bought.gpuMilli, bought.cpuMilli) : null;
+      this._mvUpgrade = up ? { ...up, target: t } : null;
+      if (!upgWrap) return;
+      upgWrap.hidden = !up;
+      if (!up) return;
+      const now = shareRates(0, Math.max(1, Math.round(bought.cpuMilli / 10)), t.spec, enclavePriceOf(t.row)).rate;
+      const next = shareRates(up.gpuPct, up.cpuPct, t.spec, enclavePriceOf(t.row)).rate;
+      upgWrap.innerHTML = '<label style="display:flex;gap:.5em;align-items:baseline;">'
+        + '<input type="checkbox" class="mv-upg-on" checked /> '
+        + '<span>buy ' + up.gpuPct + '% GPU on ' + esc(t.name) + ' so it uses the card'
+        + ' <span class="dim">(' + up.cpuPct + '% CPU · $' + (next * 3600).toFixed(2) + '/hr, was $' + (now * 3600).toFixed(2)
+        + '/hr on cores) — one wallet signature before the move</span></span></label>';
+    };
+    sel.addEventListener("change", syncUpg);
+    syncUpg();
     go.addEventListener("click", () => this._doMove(id, sel.value, box, go, here && here.name));
   }
 
@@ -1533,6 +1564,30 @@ class Deployments extends EnclaveElement {
     const s = box.querySelector(".enc-move-status");
     const oldRunner = String((await depGet(id).catch(() => ({}))).runner || "").toLowerCase();
     go.disabled = true; go.textContent = "moving…";
+    // Re-buy the card BEFORE handing the lease back, so the destination claims
+    // the record already sized for its GPU and provisions once. Resizing after
+    // the move would land it on cores first and restart it again to add the
+    // card — two interruptions for one intent. A resize refused here (rate cap,
+    // an older fleet) aborts the move with the app still running where it is.
+    const upg = this._mvUpgrade;
+    const wantUpg = upg && box.querySelector(".mv-upg-on")?.checked;
+    if (wantUpg) {
+      try {
+        paintLine(s, "info", `[*] buying ${upg.gpuPct}% GPU on ${upg.target.name} (setShares)…`);
+        if (!Enclave.provider) await connectWallet();
+        await ensureBaseChain();
+        const th = await sendTx(DEPLOYMENTS_ADDRESS,
+          encCall(DEP_SEL.setShares, [{ t: "bytes32", v: id }, { t: "uint", v: upg.gpuPct * 10 }, { t: "uint", v: upg.cpuPct * 10 }]));
+        paintLine(s, "dimln", "    ↳ sent " + th + " · waiting for confirmation…");
+        await waitReceipt(th);
+        paintLine(s, "dimln", `    shares are now ${upg.gpuPct}% GPU / ${upg.cpuPct}% CPU — the destination claims it sized for the card`);
+      } catch(e){
+        paintLine(s, "warn", "[x] the resize did not go through: " + (e.message || e));
+        paintLine(s, "dimln", "    nothing moved - the app keeps running where it is, on the shares it already had");
+        go.disabled = false; go.textContent = "Move";
+        return;
+      }
+    }
     try {
       // the release must be signed for the box HOLDING the lease — its session,
       // not the sign-in box's (see _hostSession)
