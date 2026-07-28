@@ -140,6 +140,13 @@ containers:
       # prerequisite, as is PROVISION_BACKEND=vm (claims run catalog wasm apps).
       - CLAIM_ENABLED: "1"
       - DEPLOYMENTS_ADDRESS: "0x0A7dE5D205c10B812AbaF0b89f3A243466bCEe01"                          # set by scripts/deploy-deployments.mjs
+      # Proof of time (rev-9 ledgers). NOT baked: the address book's `proofOfTime`
+      # key delivers it to a RUNNING enclave, which is what a mid-flight prover
+      # deployment needs. Set PROOF_OF_TIME_ADDRESS here only to pin it without
+      # a book entry. The signing key is minted IN-CVM at boot and published to
+      # the registry automatically — there is no secret to provision.
+      # - PROOF_OF_TIME_ADDRESS: "0x..."               # optional: pin the prover (else from the address book)
+      # - PROOF_INTERVAL_SEC: "300"                    # optional: how often we prove we are serving (contract window is 900s)
       # - CLAIM_POLL_SEC: "60"                           # optional: queue sweep / lease audit cadence
       # - RENEW_MARGIN_SEC: "300"                        # optional: renew when less lease than this remains
       # CPU-only work waits this long for a CPU enclave before a GPU enclave bids on

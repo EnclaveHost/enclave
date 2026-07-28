@@ -116,6 +116,13 @@ const depsAbiFor = (tuple, rev) => [
   // rev-3 ledgers only (deploymentsSchema >= 3): the owner's version change
   { type: "function", name: "setAppRef", stateMutability: "nonpayable",
     inputs: [{ name: "id", type: "bytes32" }, { name: "appRef", type: "string" }], outputs: [] },
+  // rev-9 ledgers only (deploymentsSchema >= 9): how far the serving enclave
+  // has PROVEN it was actually running the app. The runner meter never pays
+  // past this, so it is also the honest answer to "am I getting what I paid
+  // for" — and unlike an uptime badge, nobody can self-report it.
+  { type: "function", name: "provenUntil", stateMutability: "view",
+    inputs: [{ type: "bytes32" }], outputs: [{ type: "uint64" }] },
+  { type: "function", name: "proofRequired", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
   // rev-6 ledgers only (deploymentsSchema >= 6): the owner's share resize —
   // re-buys the two shares in place, rate recalculated at current list prices
   { type: "function", name: "setShares", stateMutability: "nonpayable",
@@ -970,8 +977,14 @@ async function cmdStatus(rest) {
   if (isB32(id)) try { chainRec = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "get", [id]); } catch {}
   if (chainRec && (await depAbi()).rev >= 8)
     try { cap6 = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "capOf", [id]); } catch {}
+  let proven = null, proofReq = false;
+  if (chainRec && (await depAbi()).rev >= 9) try {
+    proven = Number(await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "provenUntil", [id]));
+    proofReq = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "proofRequired", []);
+  } catch {}
   if (!rec && !chainRec) throw new Error(`no deployment ${rest[0]} (not on any live enclave, not on the ledger)`);
-  if (opt.json) return jout({ api: rec, chain: chainRec, ...(cap6 > 0n ? { maxRate6: String(cap6) } : {}) });
+  if (opt.json) return jout({ api: rec, chain: chainRec, ...(cap6 > 0n ? { maxRate6: String(cap6) } : {}),
+    ...(proven != null ? { proofOfTime: { provenUntil: proven, required: proofReq } } : {}) });
   const leased = chainRec && Number(chainRec.leaseUntil) * 1000 > Date.now();
   // queued vs unfunded is the contract's claimable() boundary (balance6 >= rate):
   // below it no enclave will ever claim, so "queued" would be a lie
@@ -991,6 +1004,19 @@ async function cmdStatus(rest) {
     chainRec ? ["balance", `${usd6(chainRec.balance6)} on-chain (${dur(chainRec.rate > 0n ? Number(chainRec.balance6 / chainRec.rate) : 0)})`] : null,
     rec?.timeRemainingSec != null ? ["remaining", dur(rec.timeRemainingSec)] : null,
     leased ? ["lease", `until ${new Date(Number(chainRec.leaseUntil) * 1000).toISOString()} (runner ${short(chainRec.runner)}, operator ${chainRec.runnerOperator})`] : null,
+    // Proof of time: the gap between what you are paying for and what the host
+    // has proven it delivered. Healthy is a few minutes (one proof interval);
+    // a large or growing gap means the host stopped proving it is serving, and
+    // from the ledger's rev 9 on, it stops being paid for that time too.
+    ...(leased && proven != null ? (() => {
+      const now = Math.floor(Date.now() / 1000);
+      const gap = Math.max(0, Math.min(now, Number(chainRec.leaseUntil)) - proven);
+      return [["proven", proven
+        ? `service proven through ${new Date(proven * 1000).toISOString()}`
+          + (gap > 0 ? ` — ${dur(gap)} of this lease is UNPROVEN` : " — fully covered")
+          + (proofReq ? "" : " (the ledger is still in its proof grace window: held time is paid for now)")
+        : "nothing proven on this lease yet"]];
+    })() : []),
     ["url", appUrl(id)],
     // the deployment's dedicated IPv6: declared tcp/udp ports served on it at
     // their real port numbers; with egress on it's the outbound address too

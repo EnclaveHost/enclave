@@ -79,6 +79,44 @@ publishes it at registration and re-publishes on the next heartbeat whenever
 you change it. Price yourself out of the market and your box idles; price
 under the fleet and queued work lands on you first.
 
+**You get paid for time you PROVE you served (schema rev 9 of the ledger).**
+This is the one rule change a seller has to internalise: holding a lease no
+longer earns. Every 5 minutes your box signs a checkpoint — *"this app was
+running here through time T"* — and the ledger pays you for
+`min(now, leaseUntil, provenUntil)`. Three things follow.
+
+*It is automatic, and there is no key to provision.* The signing key is
+secp256k1 and **minted inside your CVM at boot**, alongside the TLS-bridge and
+session keys; the guest publishes its address to your registry entry
+(`EnclaveRegistry.setProofKey`, schema 3) on the next heartbeat and re-publishes
+after every relaunch, because the key is memory-only. You never see it, and
+neither does the platform — which is the point: your operator EOA came from
+outside the CVM (it is in your `config.json`), so a signature from *that* proves
+nothing about what your box is running. This key proves it.
+
+*A partial period pays pro-rata, to the second.* If a tenant's app crashes 19
+minutes into the hour, your supervisor posts a final checkpoint and then
+releases, and you are paid 19 minutes. Under rev 8 you would have been paid the
+whole 30-minute lease; under rev 9 a box that dies silently 7 minutes in is paid
+7 minutes. The symmetry is deliberate — you are no longer paid for dead air, and
+tenants can see that you are not.
+
+*If your proving loop stops, your income stops* within one proof window (15
+minutes), even though the lease is still yours and the tenant is still paying.
+Watch `/v1/health` → `.proofOfTime`: `ready:true` and a `lastRoundAt` that keeps
+moving means you are earning. A rising `rejected` count, or a box logging
+`rev-9 ledger but NO prover address`, means you are working for free. The
+ledger's `proofRequiredFrom` gives the network a 14-day grace window after the
+rev-9 deployment in which held time still pays and checkpoints are merely
+recorded — that window exists so you can confirm your box is proving *before* it
+costs you anything. Do not spend it.
+
+One thing you cannot do, and everyone can check: registering a `proofKey` whose
+private half is not actually in your CVM. Your enclave serves its live key at
+`/v1/attestation` over its attested origin, so anyone can compare that with your
+registry entry, and a mismatch is public evidence against you — which is exactly
+what the bond below exists to be slashed against.
+
 **How payout works (schema rev 7 of `EnclaveDeployments`).** Every claim
 snapshots a per-second **runner rate**: `runnerBps` (owner-set, default
 **80%**) of the platform component of the price YOU posted. The app
@@ -116,9 +154,11 @@ byte, exactly as with a first-party enclave.
 
 - A fake or modified enclave cannot attach (gate 1) or be routed to.
 - A real enclave that claims work and releases without serving earns ~nothing
-  (the meter pays for lease time HELD, and a release hands the tail back); a
-  claim-and-vanish earns at most one lease quantum before the stranded-lease
-  sweep re-claims the work for another enclave.
+  (the meter pays for time PROVEN, and a release hands the tail back); a
+  claim-and-vanish earns at most one **anchor window** — ~8.5 minutes, the range
+  of `blockhash` on Base — because a checkpoint stops being redeemable shortly
+  after it is signed and cannot be pre-signed at all. Before rev 9 the same
+  attack earned a full lease quantum (30 min).
 - Attach is rate-limited per source IP; claiming can require a small on-chain
   **bond** (rev 7 ships it: `postBond` gates `claim` when the owner sets
   `setClaimBond`, exit is timelocked, and provable misbehavior such as repeated

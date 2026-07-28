@@ -135,7 +135,7 @@ test("rate-cap surface (rev 8) pins + encodes like viem", () => {
   // the registry side: an enclave states its price when it joins the network
   eq("0x" + CONTRACTS.EnclaveRegistry.sel.setPrices, toFunctionSelector("function setPrices(bytes32,uint64,uint64)"));
   eq("0x" + CONTRACTS.EnclaveRegistry.sel.register,
-    toFunctionSelector("function register(string,string,bytes32,uint64,uint64) returns (bytes32)"));
+    toFunctionSelector("function register(string,string,bytes32,uint64,uint64,address) returns (bytes32)"));
 });
 
 test("setAppRef (the dashboard's Version control) pins + encodes like viem", () => {
@@ -373,7 +373,7 @@ test("artifacts stay in sync with contracts/*.sol (regenerate check)", () => {
   assert.deepEqual(Object.keys(CONTRACTS).sort(), [
     "EnclaveAddressBook", "EnclaveAppCatalog", "EnclaveCreditVaultFactory",
     "EnclaveDeployments", "EnclaveFeatured", "EnclaveHostReviews", "EnclavePay",
-    "EnclaveRegistry", "EnclaveReviews", "PaymentRouter"]);
+    "EnclaveProofOfTime", "EnclaveRegistry", "EnclaveReviews", "PaymentRouter"]);
   for (const [name, c] of Object.entries(CONTRACTS)) {
     assert.match(c.bytecode, /^0x[0-9a-f]{100,}$/i, name + " bytecode");
     // the console's deploy encoder handles exactly these; anything else needs
@@ -384,5 +384,5 @@ test("artifacts stay in sync with contracts/*.sol (regenerate check)", () => {
   }
   assert.deepEqual(
     Object.values(CONTRACTS).map((c) => c.bookKey).filter(Boolean).sort(),
-    ["appCatalog", "deployments", "enclavePay", "featured", "hostReviews", "paymentRouter", "registry", "reviews", "vaultFactory"]);
+    ["appCatalog", "deployments", "enclavePay", "featured", "hostReviews", "paymentRouter", "proofOfTime", "registry", "reviews", "vaultFactory"]);
 });

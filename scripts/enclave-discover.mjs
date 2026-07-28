@@ -32,14 +32,29 @@ const ABI = [
     inputs: [{ name: "start", type: "uint256" }, { name: "n", type: "uint256" }],
     outputs: [{ type: "tuple[]", components: ENCLAVE_TUPLE_V1 }] },
 ];
-// Registry schema 2 APPENDED the operator's per-machine prices to the entry.
-// A 7-field decode of a 9-field page reads garbage, so the shape is sniffed
-// per address (cached; the address book can repoint us mid-flight) exactly
-// like the deployments tuple. Schema-1 registries have no getter: it reverts.
+// Registry schema 2 APPENDED the operator's per-machine prices to the entry,
+// and schema 3 appended the PROOF KEY. Appended fields keep every earlier
+// field's offset, so a short decode drops the tail rather than misreading it —
+// but the shape is still sniffed per address (cached; the address book can
+// repoint us mid-flight) so callers SEE the newer fields. Schema-1 registries
+// have no getter at all: it reverts.
+// `proofKey` is the address of the secp256k1 key the enclave signs its
+// proof-of-time checkpoints with (EnclaveProofOfTime), minted INSIDE its CVM.
+// It is a CLAIM, exactly like `measurement` is — and it is checkable the same
+// way, without trusting anyone: fetch <endpoint>/v1/attestation over the
+// attested channel and compare `proofKey.address` with this field. They must
+// match. A mismatch means the operator registered a key it may hold outside the
+// enclave, i.e. it can sign "the app is running" for an app it has stopped —
+// which is the one proof-of-time lie the chain cannot catch by itself. A
+// 0x0 proofKey means the host publishes no proofs at all, and a rev-9 ledger
+// past its cutover will not sell it work.
 const ENCLAVE_TUPLE = [...ENCLAVE_TUPLE_V1,
-  { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }];
+  { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" },
+  { name: "proofKey", type: "address" }];
+const ENCLAVE_TUPLE_V2 = ENCLAVE_TUPLE.slice(0, 9);   // schema 2: priced, no proof key
 const abiForRev = (rev) => [ABI[0], { ...ABI[1],
-  outputs: [{ type: "tuple[]", components: rev >= 2 ? ENCLAVE_TUPLE : ENCLAVE_TUPLE_V1 }] }];
+  outputs: [{ type: "tuple[]", components:
+    rev >= 3 ? ENCLAVE_TUPLE : rev >= 2 ? ENCLAVE_TUPLE_V2 : ENCLAVE_TUPLE_V1 }] }];
 const SCHEMA_ABI = [{ type: "function", name: "registrySchema", stateMutability: "view",
   inputs: [], outputs: [{ type: "uint256" }] }];
 
@@ -60,8 +75,9 @@ function isPublicHttpsEndpoint(ep) {
   return true;
 }
 
-// Which entry shape the registry at `addr` speaks: 2 = priced entries (the
-// getter exists), 1 = the original seven fields (it reverts there). Cached per
+// Which entry shape the registry at `addr` speaks: 3 = priced entries carrying a
+// proof key, 2 = priced only, 1 = the original seven fields (it reverts there).
+// Cached per
 // address, because the address book can repoint us at a new registry mid-run.
 const _regRev = new Map();
 async function registryAbi(client, addr) {

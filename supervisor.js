@@ -46,7 +46,7 @@ import { createEgress } from "./egress.js";
 // ADDRESS_BOOK_ADDRESS is set, and re-polled so contract redeploys reach a
 // RUNNING enclave without a new release.
 import { initAddressBook, REGISTRY_ADDRESS, DEPLOYMENTS_ADDRESS, APP_CATALOG_ADDRESS,
-         FORWARDER_ADDRESS } from "./addressbook.js";
+         FORWARDER_ADDRESS, PROOF_OF_TIME_ADDRESS } from "./addressbook.js";
 
 // Process-wide crash guards. This is Express 4: a rejected async route (or any
 // stray background rejection) would otherwise take the whole process down —
@@ -111,6 +111,42 @@ function initSessionKey() {
   const j = SESSION_PUB.export({ format: "jwk" });                 // { kty:'EC', crv:'P-256', x, y }
   SESSION_KID = jwkThumbprint(j);                                  // RFC 7638; stable per key, unique per enclave
   SESSION_JWK = { kty: j.kty, crv: j.crv, x: j.x, y: j.y, kid: SESSION_KID, alg: "ES256", use: "sig" };
+}
+
+// ---- proof-of-time signing key (in-enclave, secp256k1) ---------------------
+// The key that signs EnclaveProofOfTime checkpoints: "deployment X was running
+// here through time T, anchored to block N". Minted IN-ENCLAVE at boot for
+// exactly the same reason as the session key above — and here the reason is
+// money. The operator EOA (REGISTRY_PRIVATE_KEY) is provisioned from OUTSIDE
+// the CVM: the seller creates it and hands it in (Tinfoil secret, or metal
+// fw_cfg), so a signature from THAT key proves nothing about what this box is
+// running. This key the operator has never seen, so a checkpoint signed with it
+// can only have been produced by the measured supervisor inside this CVM, which
+// signs only for tenants it has just probed as alive.
+//
+// secp256k1, not the session key's P-256: the ledger verifies with ecrecover,
+// which is a precompile on every EVM chain, so no dependency on RIP-7212 being
+// enabled. Same tmpfs as the session key (never host disk): it survives a
+// container restart within one CVM boot, and a full relaunch mints a fresh one
+// that the enclave republishes to the registry (setProofKey) at boot. Rotation
+// is safe mid-lease — the ledger checks each proof against the CURRENTLY
+// registered key, and proofs already accepted are immutable.
+let PROOF_ACCOUNT = null;                      // viem account; PROOF_ACCOUNT.address is what we register
+
+function initProofKey() {
+  const keyPath = join(SESSION_KEY_DIR, "proof-secp256k1.hex");
+  let hex = "";
+  try { hex = readFileSync(keyPath, "utf8").trim(); } catch {}   // reuse across a container restart
+  if (!/^0x[0-9a-f]{64}$/i.test(hex)) {
+    hex = "0x" + randomBytes(32).toString("hex");
+    try {
+      mkdirSync(SESSION_KEY_DIR, { recursive: true });
+      writeFileSync(keyPath, hex, { mode: 0o600 });
+    } catch (e) { console.error("[proof] tmpfs persist failed — key is in-memory only this boot:", e.message); }
+    console.log("[proof] minted in-enclave secp256k1 proof-of-time signing key");
+  }
+  PROOF_ACCOUNT = privateKeyToAccount(hex);
+  console.log(`[proof] proof-of-time signer ${PROOF_ACCOUNT.address}`);
 }
 
 // Mint the session token: ES256 over the in-enclave key. `iss`/`kid` = our key
@@ -293,14 +329,20 @@ const REGISTRY_READY    = REGISTRY_ENABLED && !!(REGISTRY_ADDRESS && REGISTRY_PK
 if (REGISTRY_ENABLED && !REGISTRY_READY)
   console.warn("[registry] REGISTRY_ENABLED but REGISTRY_ADDRESS/REGISTRY_PRIVATE_KEY/ENCLAVE_REPO incomplete — not advertising");
 // Registry schema 2 added the two per-machine prices to register() and the
-// entry itself (the ledger reads them when we claim). Schema 1 registries are
-// still out there during a migration, so we sniff and fall back to the
-// three-argument form — on those, pricing stays the old global list price.
+// entry itself (the ledger reads them when we claim); schema 3 appended the
+// PROOF KEY, the in-CVM signer whose checkpoints earn us our lease seconds.
+// Older registries are still out there during a migration, so we sniff and fall
+// back — on a schema-1 registry pricing stays the old global list price, and on
+// anything below 3 there is nowhere to publish a proof key (a rev-9 ledger
+// refuses to sell us work in that state, which is the correct fail-closed).
 const REGISTRY_ABI = [
   { type: "function", name: "register", stateMutability: "nonpayable",
     inputs: [{ name: "endpoint", type: "string" }, { name: "repo", type: "string" }, { name: "measurement", type: "bytes32" },
-             { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }],
+             { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" },
+             { name: "proofKey", type: "address" }],
     outputs: [{ name: "id", type: "bytes32" }] },
+  { type: "function", name: "setProofKey", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }, { name: "proofKey", type: "address" }], outputs: [] },
   { type: "function", name: "setPrices", stateMutability: "nonpayable",
     inputs: [{ name: "id", type: "bytes32" }, { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }],
     outputs: [] },
@@ -312,7 +354,13 @@ const REGISTRY_ABI_V1 = [
     inputs: [{ name: "endpoint", type: "string" }, { name: "repo", type: "string" }, { name: "measurement", type: "bytes32" }],
     outputs: [{ name: "id", type: "bytes32" }] },
 ];
-// 2 = the entry carries prices; 1 = it doesn't (the getter reverts there)
+const REGISTRY_ABI_V2 = [
+  { type: "function", name: "register", stateMutability: "nonpayable",
+    inputs: [{ name: "endpoint", type: "string" }, { name: "repo", type: "string" }, { name: "measurement", type: "bytes32" },
+             { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }],
+    outputs: [{ name: "id", type: "bytes32" }] },
+];
+// 3 = the entry carries a proof key; 2 = prices only; 1 = neither (the getter reverts there)
 let _registryRev = 0;
 async function registryRev() {
   if (_registryRev) return _registryRev;
@@ -346,14 +394,19 @@ async function registerOnChain(endpoint) {
     // out of it. Re-registering re-states it, so a price change lands with the
     // next boot; setPrices (below) covers a change without one.
     const rev = await registryRev();
-    const hash = rev >= 2
+    const proofKey = (PROOF_ACCOUNT && PROOF_ACCOUNT.address) || "0x0000000000000000000000000000000000000000";
+    const hash = rev >= 3
       ? await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "register",
+          [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT, BigInt(SELL_CPU_PRICE6), BigInt(SELL_GPU_PRICE6), proofKey])
+      : rev >= 2
+      ? await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI_V2, "register",
           [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT, BigInt(SELL_CPU_PRICE6), BigInt(SELL_GPU_PRICE6)])
       : await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI_V1, "register",
           [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT]);
     _enclaveId = id; _advertisedEndpoint = endpoint;        // unlocks the claim loop (portable deployments)
     console.log(`[registry] registered ${endpoint} repo=${ENCLAVE_REPO} id=${id} tx=${hash}`
-      + (rev >= 2 ? ` price=${SELL_CPU_PRICE6}/sec node${IS_GPU ? ` + ${SELL_GPU_PRICE6}/sec card` : ""}` : " (schema 1: unpriced)"));
+      + (rev >= 2 ? ` price=${SELL_CPU_PRICE6}/sec node${IS_GPU ? ` + ${SELL_GPU_PRICE6}/sec card` : ""}` : " (schema 1: unpriced)")
+      + (rev >= 3 ? ` proofKey=${proofKey}` : " (pre-schema-3 registry: no proof key published)"));
     // heartbeat loop - refresh liveness so readers don't treat us as down,
     // and keep the published price in step with our configuration (an operator
     // re-pricing by env restart must not have to re-register; a mismatch would
@@ -364,8 +417,10 @@ async function registerOnChain(endpoint) {
         console.log(`[registry] heartbeat tx=${h}`);
       } catch (e) { console.warn(`[registry] heartbeat failed: ${e.shortMessage || e.message}`); }
       await syncRegisteredPrice(id).catch(() => {});
+      await syncRegisteredProofKey(id).catch(() => {});
     }, Math.max(60, HEARTBEAT_SEC) * 1000).unref();
     syncRegisteredPrice(id).catch(() => {});
+    syncRegisteredProofKey(id).catch(() => {});
   } catch (e) {
     _registered = false;                                    // let a later request retry
     console.warn(`[registry] self-registration failed: ${e.shortMessage || e.message}`);
@@ -380,19 +435,52 @@ const REGISTRY_GET_ABI = [{ type: "function", name: "get", stateMutability: "vie
   inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: [
     { name: "endpoint", type: "string" }, { name: "repo", type: "string" }, { name: "measurement", type: "bytes32" },
     { name: "operator", type: "address" }, { name: "registeredAt", type: "uint64" }, { name: "lastSeen", type: "uint64" },
-    { name: "active", type: "bool" }, { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }] }] }];
+    { name: "active", type: "bool" }, { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" },
+    { name: "proofKey", type: "address" }] }] }];
+// Same shape without the schema-3 field: a pre-schema-3 registry decodes SHORT
+// and viem throws on the tuple, so the price sync must fall back or it would
+// spam failures on an older registry mid-migration.
+const REGISTRY_GET_ABI_V2 = [{ type: "function", name: "get", stateMutability: "view",
+  inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components:
+    REGISTRY_GET_ABI[0].outputs[0].components.slice(0, 9) }] }];
+async function registryEntry(id) {
+  const rev = await registryRev();
+  return chainClient.readContract({ address: getAddress(REGISTRY_ADDRESS),
+    abi: rev >= 3 ? REGISTRY_GET_ABI : REGISTRY_GET_ABI_V2, functionName: "get", args: [id] });
+}
+
 async function syncRegisteredPrice(id) {
   if (await registryRev() < 2) return;
   let e;
-  try {
-    e = await chainClient.readContract({ address: getAddress(REGISTRY_ADDRESS),
-      abi: REGISTRY_GET_ABI, functionName: "get", args: [id] });
-  } catch { return; }                                       // transient read: try again next heartbeat
+  try { e = await registryEntry(id); }
+  catch { return; }                                         // transient read: try again next heartbeat
   if (Number(e.cpuPricePerSec6) === SELL_CPU_PRICE6 && Number(e.gpuPricePerSec6) === SELL_GPU_PRICE6) return;
   const h = await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "setPrices",
     [id, BigInt(SELL_CPU_PRICE6), BigInt(SELL_GPU_PRICE6)]);
   console.log(`[registry] price published: ${SELL_CPU_PRICE6}/sec node, ${SELL_GPU_PRICE6}/sec card `
     + `(was ${e.cpuPricePerSec6}/${e.gpuPricePerSec6}) tx=${h}`);
+}
+
+// Keep the registered proof key equal to the key this CVM actually holds. The
+// key is memory-only, so a CVM relaunch mints a new one and the entry MUST
+// follow it: a stale entry means every checkpoint we sign is rejected, the
+// ledger's meter stops at our last proof, and we serve for free. One eth_call
+// per heartbeat, a tx only on an actual mismatch (a relaunch, or a first boot
+// against a freshly migrated registry).
+//
+// It also keeps us HONEST in the direction that matters: whatever we publish
+// here is what /v1/attestation serves, so the two can always be compared by
+// anyone who cares to.
+async function syncRegisteredProofKey(id) {
+  if (!PROOF_ACCOUNT) return;
+  if (await registryRev() < 3) return;                      // nowhere to put it yet
+  let e;
+  try { e = await registryEntry(id); }
+  catch { return; }                                         // transient read: try again next heartbeat
+  const want = getAddress(PROOF_ACCOUNT.address);
+  if (e.proofKey && getAddress(e.proofKey) === want) return;
+  const h = await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "setProofKey", [id, want]);
+  console.log(`[proof] proof key published: ${want} (was ${e.proofKey || "unset"}) tx=${h}`);
 }
 
 // Boot-time hostname discovery: the shim terminates TLS inside this CVM, and
@@ -2444,7 +2532,19 @@ app.get("/v1/health", (_req, res) => res.json({ status: "ok", deployments: deplo
     payoutAddress: PAYOUT_ADDRESS,
     accruedUsdc: _earn.earned6 == null ? null : Number(_earn.earned6) / 1e6,
     withdrawnUsdc: Number(_earn.withdrawnTotal6) / 1e6,
-    checkedAt: _earn.checkedAt ? new Date(_earn.checkedAt).toISOString() : null } : null }));
+    checkedAt: _earn.checkedAt ? new Date(_earn.checkedAt).toISOString() : null } : null,
+  // proof of time (rev-9 ledgers): whether this box is currently EARNING the
+  // lease seconds it holds. `lastRoundAt` going stale, or a rising `rejected`,
+  // is the operator-facing signal that income has stopped — watch it, not the
+  // payout report. Reported whenever claiming is on, even before a prover is
+  // bound, precisely so a missing prover is visible.
+  proofOfTime: CLAIM_READY ? {
+    ready: PROOF_READY(),
+    prover: PROOF_OF_TIME_ADDRESS || null,
+    signer: PROOF_ACCOUNT ? PROOF_ACCOUNT.address : null,
+    intervalSec: PROOF_INTERVAL_SEC,
+    lastRoundAt: _proof.at ? new Date(_proof.at).toISOString() : null,
+    proved: _proof.proved, rejected: _proof.rejected, lastError: _proof.lastError } : null }));
 app.get("/v1/version", (_req, res) => res.json({ service: "enclave-supervisor/0.1.0", contract: "enclave-openapi/1.0.0", chainId: CHAIN_ID }));
 
 app.get("/v1/pricing", async (_req, res) => {
@@ -2595,6 +2695,14 @@ app.get("/availability", async (_req, res) => {
     secretsInConfig: SECRETS_CAPABLE,   // this build also resolves $NAME/${NAME} placeholders in config STRING values from those secrets at launch (wasm-manager _subst_secrets); same fleet-AND rule
     devDeploy: true,   // this build's approval gate admits PENDING catalog versions for PRIVATE deployments (publisher dev-mode testing); public deploys of pending versions stay refused — same fleet-AND rule, clients only offer the option when every live runner honors it
     rateCap: true,   // this build honors per-deployment rate caps (ledger rev 8): it prices claims off its own registry entry and treats a cap-blocked renew as "stop at lease end", not an error to retry — same fleet-AND rule, so clients only offer cap edits when every live runner would behave
+    // PROVES its service (ledger rev 9): it mints an in-CVM proof key, publishes
+    // it to the registry, and posts block-anchored checkpoints for every tenant
+    // it is serving — including a final one at teardown so a partial period
+    // still pays. Advertised per box and AND-ed across the fleet by the relay,
+    // because "every host here is held to account for the hours it bills" is
+    // only true if it is true of ALL of them. A box reports false when it has no
+    // prover bound or no key, which is exactly when it would be serving for free.
+    proofOfTime: PROOF_READY(),
     // THE PRICE of renting this machine: USDC 6dp per second for a FULL node /
     // FULL card, the same numbers this enclave publishes in its registry entry
     // and the ledger charges tenants out of (shares/1000 of each). Clients rank
@@ -2878,6 +2986,15 @@ const view = (rec) => {
   // claimed-from-chain deployments surface their ledger identity + current lease
   if (rec._onchain) o.onchain = { contract: DEPLOYMENTS_ADDRESS, id: rec.id,
     leaseUntil: rec._leaseUntil ? new Date(rec._leaseUntil * 1000).toISOString() : null };
+  // Proof of time, from the runner's side: how far THIS enclave has proven it
+  // served, and when. A tenant reads it to see that the box hosting their app is
+  // being held to account for the hours it bills — and can check it against the
+  // chain (EnclaveDeployments.provenUntil) rather than taking our word for it.
+  if (rec._onchain && rec._provenUntil) o.onchain.proofOfTime = {
+    prover: PROOF_OF_TIME_ADDRESS || null,
+    provenUntil: new Date(rec._provenUntil * 1000).toISOString(),
+    lastProofAt: rec._provenAt ? new Date(rec._provenAt).toISOString() : null,
+    verify: "EnclaveDeployments.provenUntil(id) is authoritative; the runner meter never pays past it." };
   // Dedicated per-deployment IPv6: declared tcp/udp ports are reachable at
   // [address]:<logical port> (tcp via the tcp6-relay, udp via the udp-relay).
   // Surface it so the dashboard/clients get a ready-to-use endpoint at the
@@ -3622,6 +3739,13 @@ function startBillingTicker() {
         saveStateSoon();
         if (rec.remainingMs < -GRACE_SEC * 1000) {
           console.log(`[reaper] ${rec.id} lease over (not renewed) -> teardown`);
+          // Settle what we served in this last, partial period. There is no
+          // release on this path (the lease ended on its own), so without a
+          // final proof the tail from our last checkpoint to the lease end is
+          // never credited — and nothing else would ever come back for it.
+          // The checkpoint clamps at leaseUntil, so this can only ever claim
+          // time the tenant actually paid for.
+          await proveFinalPeriod(rec, "lease expired").catch(() => {});
           try { await stopContainer(rec); } catch {}
           if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
           rec.status = "expired";           // claim sweep may re-adopt it if funded again
@@ -3704,7 +3828,7 @@ app.post("/v1/admin/deployments/:id/release", async (req, res) => {
   rec.status = "expired";
   rec.error = "released by the operator (fleet consolidation); it re-queues and another enclave picks it up";
   _evacuated.set(rec.id, Date.now() + EVAC_HOLDOFF_MS);
-  releaseLease(rec.id, "operator release (consolidation)").catch(() => {});
+  proveAndRelease(rec, "operator release (consolidation)").catch(() => {});
   saveStateSoon();
   console.log(`[admin] ${rec.id} released by operator (consolidation)`);
   res.json(view(rec));
@@ -3748,7 +3872,7 @@ app.delete("/v1/deployments/:id", authed, async (req, res) => {
     // here rather than leave the app dark for a quarter of an hour.
     const evacuate = /^(1|true|yes)$/i.test(String(req.query.evacuate || ""));
     if (evacuate) _evacuated.set(rec.id, Date.now() + MOVE_HOLDOFF_MS);
-    releaseLease(rec.id, evacuate ? "owner move" : "owner delete").catch(() => {});
+    proveAndRelease(rec, evacuate ? "owner move" : "owner delete").catch(() => {});
     return res.json({ id: rec.id, status: "terminated",
                ranSeconds: Math.round((rec.consumedMs || 0) / 1000),
                ...(evacuate ? { standDownSec: Math.round(MOVE_HOLDOFF_MS / 1000) } : {}),
@@ -3860,6 +3984,19 @@ app.get("/v1/attestation", async (req, res) => {
   out.sessionKey = SESSION_JWK
     ? { kid: SESSION_KID, alg: "ES256", jwks: "/v1/session-jwks", keySource: "in-enclave",
         note: "Session JWTs are ES256-signed by this in-enclave key; the operator cannot mint one." }
+    : null;
+  // Bind the PROOF-OF-TIME key the same way, and for a sharper reason: this is
+  // how the "the operator registered a key it holds outside the CVM" lie gets
+  // caught. EnclaveRegistry.get(<our id>).proofKey is a CLAIM; the address below
+  // is what actually signs, served over the attested origin. Anyone — a tenant,
+  // a watcher, a competing seller — can compare the two, and a mismatch is
+  // public evidence against a host that is billing for service it cannot prove.
+  out.proofKey = PROOF_ACCOUNT
+    ? { address: PROOF_ACCOUNT.address, curve: "secp256k1", keySource: "in-enclave",
+        registry: { enclaveId: _enclaveId, field: "proofKey" },
+        verify: "Compare with EnclaveRegistry.get(enclaveId).proofKey — they MUST match.",
+        note: "Signs EnclaveProofOfTime checkpoints. Minted in this CVM; the operator has never held it. "
+            + "Rotates on CVM relaunch (memory-only), and the enclave republishes it with setProofKey at boot." }
     : null;
   if (!IS_GPU)                                 // CPU-only enclave: no card, no NVML evidence to fetch
     return res.json({ generatedAt: new Date().toISOString(), ...out, guideUrl: "https://enclave.host/#attest" });
@@ -3996,7 +4133,7 @@ app.post("/v1/deployments/:id/restart", authed, async (req, res) => {
       // same contract as every failed provision: the record keeps the reason,
       // the lease goes back refunded so the fleet (this node included) retries
       noteProvisionFailure(rec.id, rec.image && rec.image.reference);
-      releaseLease(rec.id, "owner restart provision failed").catch(() => {});
+      proveAndRelease(rec, "owner restart provision failed").catch(() => {});
       saveStateSoon();
       return fail(res, 502, "restart_failed",
         rec.error || "Relaunch failed — the lease was handed back; the fleet retries.");
@@ -4114,6 +4251,7 @@ function initTlsBridge() {
   } catch (e) { console.error("[tls-bridge] in-enclave cert mint failed (openssl missing?) - /tls/ bridge disabled:", e.message); }
 }
 initSessionKey();
+initProofKey();
 initTlsBridge();
 if (TLS_BRIDGE_CTX) console.log(`[tls-bridge] in-enclave TLS termination enabled (/x/:id/tls/:port) · ${TLS_BRIDGE_INFO.fingerprint256}`);
 
@@ -4719,7 +4857,7 @@ async function abandonClaims(why) {
     try { await stopContainer(rec); } catch {}
     if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
     rec.status = "expired"; rec.error = why;      // the owner's evidence (console polls the record)
-    releaseLease(rec.id, why).catch(() => {});
+    proveAndRelease(rec, why).catch(() => {});
   }
   saveStateSoon();
 }
@@ -5014,7 +5152,7 @@ async function switchTenantVersion(rec, d) {
     rec.status = "expired";          // CLAIM_TERMINAL: any enclave (this one included) may re-adopt at the new size
     rec.error = "share resize: " + why;
     delete rec.versionChange;
-    releaseLease(rec.id, "share resize: " + why).catch(() => {});
+    proveAndRelease(rec, "share resize: " + why).catch(() => {});
     saveStateSoon();
   };
   const refuse = (why, transient) => {
@@ -5115,7 +5253,7 @@ async function switchTenantVersion(rec, d) {
     // owner's evidence, hand the lease back refunded, back off THIS version
     // here (the backoff clears if the owner switches the version again)
     noteProvisionFailure(rec.id, to);
-    releaseLease(rec.id, "version change provision failed").catch(() => {});
+    proveAndRelease(rec, "version change provision failed").catch(() => {});
   }
   saveStateSoon();
 }
@@ -5172,7 +5310,7 @@ async function applyEnvelopeEdit(rec, d, verdict) {
   rec.status = "claimed";          // the provision path's input state
   if (!(await provisionTenant(rec))) {
     noteProvisionFailure(rec.id, rec.image && rec.image.reference);
-    releaseLease(rec.id, "config change provision failed").catch(() => {});
+    proveAndRelease(rec, "config change provision failed").catch(() => {});
   }
   saveStateSoon();
 }
@@ -5259,7 +5397,7 @@ async function yankSweep() {
       rec.status = "terminated";
       rec.error = "the app version this deployment runs was yanked by its publisher; "
                 + "switch the deployment to another version (upgrade) to revive it";
-      releaseLease(rec.id, "version yanked by publisher").catch(() => {});
+      proveAndRelease(rec, "version yanked by publisher").catch(() => {});
       saveStateSoon();
     }
   } finally { _yankBusy = false; }
@@ -5294,7 +5432,7 @@ async function auditClaims(ledgerById) {
       try { await stopContainer(rec); } catch {}
       if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
       rec.status = "terminated";
-      if (mine) releaseLease(rec.id, "owner setActive(false)").catch(() => {});
+      if (mine) proveAndRelease(rec, "owner setActive(false)").catch(() => {});
       saveStateSoon();
     } else if (!mine) {
       // Re-acquire-in-place gate for a LAPSED lease: prefer our own enclave id
@@ -5344,7 +5482,7 @@ async function auditClaims(ledgerById) {
       if (!(await provisionTenant(rec))) {
         // keep the "failed" record as the owner's evidence (see adopt())
         noteProvisionFailure(rec.id, rec.image && rec.image.reference);
-        releaseLease(rec.id, "provision failed after crash recovery").catch(() => {});
+        proveAndRelease(rec, "provision failed after crash recovery").catch(() => {});
         saveStateSoon();
       }
     } else {
@@ -5388,7 +5526,7 @@ async function auditClaims(ledgerById) {
           rec.status = "failed"; rec.error = rec.error || "app process kept dying";
           if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
           noteProvisionFailure(rec.id, rec.image && rec.image.reference);
-          releaseLease(rec.id, "app kept dying").catch(() => {});
+          proveAndRelease(rec, "app kept dying").catch(() => {});
           saveStateSoon();
           continue;
         }
@@ -5397,7 +5535,7 @@ async function auditClaims(ledgerById) {
         rec.status = "claimed";               // provision path's input state
         if (!(await provisionTenant(rec))) {
           noteProvisionFailure(rec.id, rec.image && rec.image.reference);
-          releaseLease(rec.id, "relaunch after app death failed").catch(() => {});
+          proveAndRelease(rec, "relaunch after app death failed").catch(() => {});
         }
         saveStateSoon();
       }
@@ -5704,7 +5842,7 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false 
   const until = leaseFromReceipt(rcpt, "Claimed", d.id);
   if (until == null) {   // success receipt without our event: should be impossible - refund rather than strand
     console.warn(`[claim] ${d.id} claim confirmed but no Claimed event found; releasing`);
-    releaseLease(d.id, "claim receipt unreadable").catch(() => {});
+    releaseLease(d.id, "claim receipt unreadable").catch(() => {});   // never provisioned: nothing to prove
     return;
   }
   await adopt({ ...d, leaseUntil: BigInt(until), runner: _enclaveId,
@@ -5727,7 +5865,7 @@ async function adopt(d, g, firewall, slice) {
   }
   const gpu = slice.cpu ? allocCpu(slice.cpuShare) : allocGpu(slice.vramGb, slice.computeShare, slice.cpuShare);
   if (!gpu) {                                                // capacity vanished since the sweep checked
-    releaseLease(d.id, "capacity vanished").catch(() => {}); // hand it back with the lease refunded
+    releaseLease(d.id, "capacity vanished").catch(() => {}); // hand it back with the lease refunded (never served: no proof)
     return;
   }
   // the version's declared http:N entry is the app port; the record decides
@@ -5795,7 +5933,7 @@ async function adopt(d, g, firewall, slice) {
     // CLAIM_TERMINAL, so any enclave (this one included) may still re-adopt.
     const coolMs = noteProvisionFailure(rec.id, rec.image && rec.image.reference);
     console.warn(`[claim] provision failed for ${rec.id} (${rec.error || "?"}); backing off ${Math.round(coolMs / 60000)}min here`);
-    releaseLease(rec.id, "provision failed").catch(() => {});
+    releaseLease(rec.id, "provision failed").catch(() => {});   // never served here: no proof, we earn nothing
   }
   saveStateSoon();
 }
@@ -5816,6 +5954,11 @@ async function releaseClaimsOnShutdown() {
     Promise.allSettled(mine.map(async (rec) => {
       rec.status = "terminated";     // this enclave's instance dies with the CVM; the on-chain deployment stays claimable
       if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
+      // Prove the partial period, THEN release — release clears the watermark,
+      // so the other order silently donates this shift's tail. Inside the same
+      // 10s cap as the releases: a clean shutdown must stay fast, and losing
+      // the proof costs only us.
+      await proveFinalPeriod(rec, "shutdown").catch(() => {});
       await sendClaimTx("release", [rec.id]);
     })),
     new Promise(r => setTimeout(r, 10_000)),
@@ -5841,12 +5984,275 @@ const EARN_ABI = [
   { type: "function", name: "withdrawEarnings", stateMutability: "nonpayable",
     inputs: [{ name: "to", type: "address" }], outputs: [] },
 ];
+// ============================================================================
+// proof of time (rev-9 ledgers) — earning the lease seconds we hold
+// ============================================================================
+// Through rev 8 a held lease paid by itself. From rev 9 it does not: the ledger
+// credits min(now, leaseUntil, provenUntil), and provenUntil only moves when
+// EnclaveProofOfTime accepts a CHECKPOINT signed by this CVM's in-enclave proof
+// key (PROOF_ACCOUNT) and anchored to a recent block hash. If this loop stops,
+// our income stops within one proof window — which is the entire point, and why
+// it is written to be the most conservative loop in this file:
+//
+//   - we prove a deployment ONLY after confirming its app is actually up, and
+//     "up" here means a real TCP connect to the port the tenant serves on, not
+//     just "the manager still has a record" (a SIGFPE'd app once served
+//     ECONNREFUSED for an hour while its lease kept being renewed — see
+//     _refreshStatus in wasm/wasm_manager.py). A proof we cannot stand behind is
+//     one we do not sign;
+//   - we anchor to the PREVIOUS block, the newest hash that exists on-chain, so
+//     the proof has the full ~256-block window to land;
+//   - we prove every PROOF_INTERVAL_SEC, comfortably inside the contract's
+//     window, so one failed tx never costs a second of income: the next
+//     checkpoint's window still reaches back over the gap;
+//   - and we batch through checkpointMany, which is tolerant by design — one
+//     deployment whose lease just lapsed must not cost us the proofs for every
+//     other tenant on this box.
+const PROOF_INTERVAL_SEC = parseInt(process.env.PROOF_INTERVAL_SEC || "300", 10);   // 5 min, vs the contract's 15 min window
+const PROOF_MAX_PER_TX   = parseInt(process.env.PROOF_MAX_PER_TX || "25", 10);      // keep one batch inside the block gas limit
+const PROOF_PROBE_MS     = parseInt(process.env.PROOF_PROBE_MS || "2000", 10);      // per-app liveness probe timeout
+
+const PROOF_ABI = [
+  { type: "function", name: "checkpoint", stateMutability: "nonpayable", inputs: [
+    { name: "id", type: "bytes32" }, { name: "enclaveId", type: "bytes32" }, { name: "upto", type: "uint64" },
+    { name: "anchorBlock", type: "uint64" }, { name: "anchorHash", type: "bytes32" }, { name: "sig", type: "bytes" }],
+    outputs: [] },
+  { type: "function", name: "checkpointMany", stateMutability: "nonpayable", inputs: [
+    { name: "cps", type: "tuple[]", components: [
+      { name: "id", type: "bytes32" }, { name: "enclaveId", type: "bytes32" }, { name: "upto", type: "uint64" },
+      { name: "anchorBlock", type: "uint64" }, { name: "anchorHash", type: "bytes32" }, { name: "sig", type: "bytes" }] }],
+    outputs: [{ type: "bool[]" }] },
+  { type: "function", name: "proofWindowSec", stateMutability: "view", inputs: [], outputs: [{ type: "uint64" }] },
+  { type: "function", name: "unprovenSec", stateMutability: "view",
+    inputs: [{ type: "bytes32" }], outputs: [{ type: "uint64" }] },
+];
+// EIP-712 typed data, mirroring EnclaveProofOfTime.PROOF_TYPEHASH exactly. The
+// domain binds chainId + the prover's address, so a proof cannot be replayed on
+// a fork or against a different prover.
+const PROOF_712_TYPES = {
+  ProofOfTime: [
+    { name: "id", type: "bytes32" }, { name: "enclaveId", type: "bytes32" }, { name: "operator", type: "address" },
+    { name: "upto", type: "uint64" }, { name: "anchorBlock", type: "uint64" }, { name: "anchorHash", type: "bytes32" },
+  ],
+};
+
+const PROOF_REJECT_ABI = [{ type: "event", name: "CheckpointRejected", inputs: [
+  { name: "id", type: "bytes32", indexed: true }, { name: "reason", type: "string" }] }];
+
+// Proving needs everything claiming needs, PLUS a bound prover contract to prove
+// to and an in-CVM key to prove with. Missing either is not an error on a rev-8
+// ledger (nothing to prove) — but on a rev-9 one it means we serve for free, so
+// startClaimLoop says so loudly.
+const PROOF_READY = () => CLAIM_READY && !!PROOF_OF_TIME_ADDRESS && !!PROOF_ACCOUNT && !!_enclaveId;
+
+let _proof = { at: 0, proved: 0, rejected: 0, lastError: null };
+
+// Is this deployment's app REALLY serving right now? instanceAlive only asks the
+// manager whether the process exists; this also opens a socket to the port the
+// tenant's traffic goes to, which is the closest thing this supervisor can
+// honestly assert about the app on a tenant's behalf. Undetermined (no forwarded
+// port yet, raw-TCP-only app with nothing on the HTTP port) falls back to the
+// manager's answer rather than refusing to pay ourselves for real work.
+async function tenantServing(rec) {
+  if (!(await instanceAlive(rec))) return false;
+  const port = rec._vmHostPort;
+  if (!port) return true;                                  // nothing to probe yet; the manager's word stands
+  return await new Promise((resolve) => {
+    const sock = net.connect({ host: "127.0.0.1", port }, () => { sock.destroy(); resolve(true); });
+    sock.setTimeout(PROOF_PROBE_MS, () => { sock.destroy(); resolve(false); });
+    sock.on("error", () => { sock.destroy(); resolve(false); });
+  });
+}
+
+// Sign one checkpoint with the in-enclave proof key. `upto` is capped at the
+// lease end: the contract clamps there anyway, and asking for more would just
+// make our own logs lie about what we proved.
+async function signCheckpoint(rec, upto, anchorBlock, anchorHash) {
+  const sig = await PROOF_ACCOUNT.signTypedData({
+    domain: { name: "EnclaveProofOfTime", version: "1", chainId: base.id,
+              verifyingContract: getAddress(PROOF_OF_TIME_ADDRESS) },
+    types: PROOF_712_TYPES,
+    primaryType: "ProofOfTime",
+    message: { id: rec.id, enclaveId: _enclaveId, operator: claimSigner().account.address,
+               upto: BigInt(upto), anchorBlock: BigInt(anchorBlock), anchorHash },
+  });
+  return { id: rec.id, enclaveId: _enclaveId, upto: BigInt(upto),
+           anchorBlock: BigInt(anchorBlock), anchorHash, sig };
+}
+
+// Build a checkpoint for every live lease whose app we can confirm is serving.
+// Returns the batch plus the records it covers, so callers can report per-record.
+async function buildCheckpoints(recs) {
+  const head = await chainClient.getBlock({ blockTag: "latest" });
+  // anchor on the PARENT: blockhash(latest) is 0 inside the very next block's
+  // execution on some clients, and the parent is guaranteed to be in range
+  const anchorBlock = Number(head.number) - 1;
+  const anchorHash = head.parentHash;
+  const now = Math.floor(Date.now() / 1000);
+  const batch = [], covered = [];
+  for (const rec of recs) {
+    if (batch.length >= PROOF_MAX_PER_TX) break;
+    if (!(await tenantServing(rec))) {
+      console.warn(`[proof] ${rec.id} not serving — NOT signing a proof for it`);
+      continue;
+    }
+    const upto = Math.min(now, rec._leaseUntil || now);
+    if (upto <= 0) continue;
+    batch.push(await signCheckpoint(rec, upto, anchorBlock, anchorHash));
+    covered.push(rec);
+  }
+  return { batch, covered };
+}
+
+// Every live lease, oldest proof first, in as many batches as it takes.
+//
+// The ordering is not cosmetic and the loop is not optional. A box can serve
+// well over PROOF_MAX_PER_TX tenants (the RAM-budget ceiling is ~60), and
+// `deployments` iterates in INSERTION order — so a single capped batch off the
+// front would prove the same first 25 every round and the remaining tenants
+// would never be proven at all, earning this box nothing for them, silently,
+// forever. Sorting by staleness makes coverage rotate on its own AND puts
+// whoever is closest to losing income first; the loop then finishes the round.
+async function proveAllLeases(recs, why) {
+  const queue = [...recs].sort((a, b) => (a._provenAt || 0) - (b._provenAt || 0));
+  let landed = 0, sent = 0;
+  // one batch per PROOF_MAX_PER_TX, plus a hard stop so a pathological record
+  // count can never turn one round into an unbounded tx storm
+  const maxBatches = Math.ceil(queue.length / Math.max(1, PROOF_MAX_PER_TX)) + 1;
+  let rest = queue;
+  while (rest.length && sent < maxBatches) {
+    const before = rest.length;
+    landed += await proveLeases(rest, why);
+    sent++;
+    // drop whatever this batch covered (proveLeases stamps _provenAt) and keep
+    // going; if a pass covers nothing (nothing serving), stop rather than spin
+    rest = rest.filter(r => (r._provenAt || 0) < _proof.at);
+    if (rest.length === before) break;
+  }
+  return landed;
+}
+
+// Post proofs for everything we are serving. `why` only shapes the log line.
+async function proveLeases(recs, why) {
+  if (!PROOF_READY() || !recs.length) return 0;
+  const { batch, covered } = await buildCheckpoints(recs);
+  if (!batch.length) return 0;
+  const fn = batch.length === 1 ? "checkpoint" : "checkpointMany";
+  const args = batch.length === 1
+    ? [batch[0].id, batch[0].enclaveId, batch[0].upto, batch[0].anchorBlock, batch[0].anchorHash, batch[0].sig]
+    : [batch];
+  const sent = sendOperatorTx(PROOF_OF_TIME_ADDRESS, PROOF_ABI, fn, args);
+  await sent;
+  const rcpt = await sent.receipt;
+  if (rcpt.status !== "success") throw new Error(`${fn} tx reverted`);
+  // checkpointMany swallows per-item failures on purpose (see the contract):
+  // surface them here so a seller sees WHY a proof was refused instead of a
+  // silently short payout weeks later.
+  const rejects = parseEventLogs({ abi: PROOF_REJECT_ABI, logs: rcpt.logs, eventName: "CheckpointRejected", strict: false });
+  const refused = new Set();
+  for (const r of rejects) {
+    refused.add(String(r.args.id).toLowerCase());
+    console.warn(`[proof] rejected ${r.args.id}: ${r.args.reason}`);
+  }
+  const landed = batch.length - refused.size;
+  _proof.proved += landed; _proof.rejected += refused.size; _proof.lastError = null;
+  // Stamp ONLY what actually landed. A rejected proof left marked as proven
+  // would report a provenUntil to the tenant that is not on-chain, and would
+  // make the rotation in proveAllLeases treat this record as done — so the
+  // retry would wait a whole round instead of happening in this one.
+  const byId = new Map(batch.map(b => [String(b.id).toLowerCase(), b]));
+  for (const rec of covered) {
+    const key = String(rec.id).toLowerCase();
+    if (refused.has(key)) continue;
+    rec._provenUntil = Number(byId.get(key)?.upto || 0);
+    rec._provenAt = Date.now();
+  }
+  console.log(`[proof] ${landed}/${batch.length} checkpoint(s) landed (${why})`);
+  saveStateSoon();
+  return landed;
+}
+
+// The steady clock. Everything we hold a lease on, every PROOF_INTERVAL_SEC.
+async function proofTick() {
+  if (!PROOF_READY()) return;
+  if (Date.now() - _proof.at < PROOF_INTERVAL_SEC * 1000) return;
+  _proof.at = Date.now();
+  const mine = [...deployments.values()].filter(r =>
+    r._onchain && r.status === "running" && r._leaseUntil * 1000 > Date.now()
+    && (!r._ledger || r._ledger.toLowerCase() === DEPLOYMENTS_ADDRESS.toLowerCase()));
+  if (!mine.length) return;
+  try { await proveAllLeases(mine, "steady"); }
+  catch (e) {
+    // Not fatal and not retried harder: the next tick's window reaches back
+    // over this gap, so a transient RPC failure costs nothing as long as it
+    // does not persist past the contract's proofWindowSec.
+    _proof.lastError = e.shortMessage || e.message;
+    console.warn(`[proof] checkpoint round failed (${_proof.lastError}); the next round covers the gap`);
+  }
+}
+
+// A deployment is ending HERE and now: crash, owner stop, eviction, drain,
+// shutdown. Prove the fraction of the period we actually served BEFORE the
+// lease goes back, because release() clears the watermark and a proof after it
+// has no lease left to settle against. This is what makes a partial hour pay.
+//
+// Best-effort by design: if it fails we still release (the tenant getting their
+// unserved tail back matters more than our last few minutes of income), and the
+// only cost is ours.
+async function proveFinalPeriod(rec, why) {
+  if (!PROOF_READY() || !rec._onchain) return;
+  if (rec._ledger && rec._ledger.toLowerCase() !== DEPLOYMENTS_ADDRESS.toLowerCase()) return;
+  if (!rec._leaseUntil) return;
+  // NEVER sign a proof for a record that never ran here. startedAt is stamped
+  // only after spawnContainer succeeds (see provisionTenant), so this is the
+  // honest line between "we served and are settling up" and "we claimed and
+  // never provisioned" — the latter releases with nothing proven, which is
+  // exactly right: the tenant gets the whole lease back and we earn nothing.
+  if (!rec.startedAt) return;
+  try {
+    // Deliberately NOT gated on tenantServing: the app is already gone by the
+    // time most teardown paths reach here. What we are proving is the time up
+    // to now, which the steady loop was probing all along — and the contract
+    // still caps it at one window past our last checkpoint, so this can only
+    // settle service the loop was already vouching for.
+    const head = await chainClient.getBlock({ blockTag: "latest" });
+    const upto = Math.min(Math.floor(Date.now() / 1000), rec._leaseUntil);
+    const cp = await signCheckpoint(rec, upto, Number(head.number) - 1, head.parentHash);
+    const sent = sendOperatorTx(PROOF_OF_TIME_ADDRESS, PROOF_ABI, "checkpoint",
+      [cp.id, cp.enclaveId, cp.upto, cp.anchorBlock, cp.anchorHash, cp.sig]);
+    await sent;
+    const rcpt = await sent.receipt;
+    if (rcpt.status !== "success") throw new Error("final checkpoint reverted");
+    console.log(`[proof] ${rec.id} final period settled through ${new Date(upto * 1000).toISOString()} (${why})`);
+  } catch (e) {
+    console.warn(`[proof] ${rec.id} final checkpoint failed (${why}): ${e.shortMessage || e.message}; `
+               + `the unproven tail of this period is forfeit`);
+  }
+}
+
+// Prove, then release, in that order — the one ordering the ledger cares about.
+async function proveAndRelease(rec, why) {
+  await proveFinalPeriod(rec, why);
+  return releaseLease(rec.id, why);
+}
+
 let _earn = { checkedAt: 0, earned6: null, withdrawnTotal6: 0n };
 async function payoutTick() {
   if (!PAYOUT_ADDRESS || !CLAIM_READY) return;
   if (Date.now() - _earn.checkedAt < EARNINGS_CHECK_SEC * 1000) return;
   _earn.checkedAt = Date.now();
   if ((await depsAbi()).rev < 7) return;                 // pre-payout ledger: nothing to sweep
+  // Settle the hour before reading it. Two things the steady loops don't cover:
+  //   - a checkpoint proves service, but the ledger only CREDITS it on a call
+  //     that runs the meter, and a lease that lapsed without being re-claimed or
+  //     released never gets one. settle() is the permissionless collector for
+  //     exactly that final quantum (contracts/EnclaveDeployments.sol settle()),
+  //     and nothing in this file used to call it — so a dead deployment's last
+  //     proven period sat uncredited until some other enclave claimed the id.
+  //   - proving one more time right here means the hour we are about to withdraw
+  //     includes the minutes since the last steady round, rather than trailing
+  //     it by up to PROOF_INTERVAL_SEC.
+  await settleLapsedLeases();
   const earned = await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
     abi: EARN_ABI, functionName: "earned6", args: [claimSigner().account.address] });
   _earn.earned6 = earned;
@@ -5859,6 +6265,32 @@ async function payoutTick() {
   _earn.earned6 = 0n;
   console.log(`[earn] runner earnings withdrawn (${(Number(_earn.withdrawnTotal6) / 1e6).toFixed(2)} USDC lifetime)`);
 }
+
+// Run the ledger's meter over leases that ended while we held them, so the last
+// proven period is credited within the hour it happened instead of waiting for
+// another enclave to claim the id. Permissionless and idempotent on-chain — it
+// only ever moves money already owed from escrow into our balance.
+async function settleLapsedLeases() {
+  const stale = [...deployments.values()].filter(r =>
+    r._onchain && r._leaseUntil && r._leaseUntil * 1000 <= Date.now()
+    && ["expired", "failed", "terminated"].includes(r.status)
+    && !r._settled
+    && (!r._ledger || r._ledger.toLowerCase() === DEPLOYMENTS_ADDRESS.toLowerCase()));
+  for (const rec of stale.slice(0, 10)) {                // bounded: this rides the hourly tick
+    try {
+      const sent = sendOperatorTx(DEPLOYMENTS_ADDRESS, SETTLE_ABI, "settle", [rec.id]);
+      await sent;
+      if ((await sent.receipt).status !== "success") throw new Error("settle reverted");
+      rec._settled = true;                               // once is enough; the meter is monotonic
+      console.log(`[earn] settled the final period of ${rec.id}`);
+      saveStateSoon();
+    } catch (e) {
+      console.warn(`[earn] settle ${rec.id} failed: ${e.shortMessage || e.message}`);
+    }
+  }
+}
+const SETTLE_ABI = [{ type: "function", name: "settle", stateMutability: "nonpayable",
+  inputs: [{ name: "id", type: "bytes32" }], outputs: [] }];
 
 let _claimBusy = false;
 function startClaimLoop() {
@@ -5888,6 +6320,11 @@ function startClaimLoop() {
     if (!_enclaveId) return;
     await stage("ledger-move", ledgerMoveSweep);  // a repointed book voids leases: never renew on a retired ledger
     await stage("renew", renewLeases);
+    // Proofs ride the renewal clock, not the slower full pass: from rev 9 a
+    // lapse here costs real income (unproven time is never paid), and the full
+    // pass can stall for minutes inside audit/sweep — the same reason renewals
+    // were moved off it. Self-throttled to PROOF_INTERVAL_SEC.
+    await stage("proof", proofTick);
     await stage("earnings", payoutTick);          // self-throttled to EARNINGS_CHECK_SEC; no-op unless PAYOUT_ADDRESS
   }, 60_000);
   if (rt.unref) rt.unref();
@@ -5917,6 +6354,23 @@ function startClaimLoop() {
   }, CLAIM_POLL_SEC * 1000);
   if (t.unref) t.unref();
   console.log(`[claim] loop on: ${DEPLOYMENTS_ADDRESS} every ${CLAIM_POLL_SEC}s (renew margin ${RENEW_MARGIN_SEC}s)`);
+  // Say plainly whether we can earn. On a rev-9 ledger past its cutover, a box
+  // that cannot prove is a box working for free — that must never be something
+  // an operator discovers from a payout report.
+  (async () => {
+    try {
+      const { rev } = await depsAbi();
+      if (rev < 9) return console.log(`[proof] ledger rev ${rev}: proof of time not required (held time still pays)`);
+      if (!PROOF_OF_TIME_ADDRESS)
+        return console.warn("[proof] rev-9 ledger but NO prover address (address-book key `proofOfTime`, or "
+                          + "PROOF_OF_TIME_ADDRESS): we cannot prove service and will earn NOTHING after the cutover");
+      const required = await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
+        abi: [{ type: "function", name: "proofRequired", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] }],
+        functionName: "proofRequired" });
+      console.log(`[proof] on: ${PROOF_OF_TIME_ADDRESS} every ${PROOF_INTERVAL_SEC}s, signer ${PROOF_ACCOUNT.address}`
+        + (required ? " — proven-time metering is LIVE" : " — still in grace (held time pays for now)"));
+    } catch (e) { console.warn(`[proof] readiness check failed: ${e.shortMessage || e.message}`); }
+  })();
 }
 
 // Funding instructions for a claimed deployment: top-ups go to the ledger
