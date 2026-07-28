@@ -310,23 +310,38 @@ containers:
       - CUDA_MPS_PIPE_DIRECTORY: "/tmp/nvidia-mps"
       # ggml (GGUF) context window for EVERY GPU tenant on this node (the manager
       # inherits this into each -S nn-graph wasmtime process; there is no
-      # per-deployment override). 262144 = 256K tokens = Qwen3.5-122B's NATIVE
-      # context (max_position_embeddings); going past it needs static YaRN, which
-      # Qwen warns degrades shorter requests, so we hold at native. The KV cache
-      # is allocated up front for the full window, so it scales with the model -
-      # but Qwen3.5 is a HYBRID linear-attention MoE: only 12 of its 48 layers are
+      # per-deployment override). 180224 = 176K tokens, down from the 262144 =
+      # 256K that was Qwen3.5-122B's NATIVE context (max_position_embeddings);
+      # going past native needs static YaRN, which Qwen warns degrades shorter
+      # requests, so 256K was the ceiling and 176K is now the chosen floor
+      # under it - see the sizing note below. The KV cache is allocated up
+      # front for the full window, so it scales with the model - but Qwen3.5 is
+      # a HYBRID linear-attention MoE: only 12 of its 48 layers are
       # full-attention (the other 36 carry a constant-size linear/recurrent state
       # that does NOT grow with context). So KV = 12 layers x 2 KV heads x 256
-      # head-dim x (K+V) x 2 bytes = 24 KB/token: 256K f16 = ~6.4 GB on top of the
-      # ~60 GB weights (~67 GB total), so a 122B deployment MUST buy a >=~50% GPU
+      # head-dim x (K+V) x 2 bytes = 24 KB/token: 176K f16 = ~4.4 GB on top of the
+      # ~60 GB weights (~66 GB total), so a 122B deployment MUST buy a >=~47% GPU
       # share or context allocation fails loudly ("n_ctx too large for the share").
-      # (The q8_0 KV cache set below halves it to ~3.2 GB, easing the floor to
-      # ~48%.) Small models (qwen2.5-0.5b-gguf) pay only a few hundred MB. Lower
-      # this if the node should not carry the big-context cost by default.
-      - ENCLAVE_GGML_N_CTX: "262144"
+      # (The q8_0 KV cache set below more than halves it to ~2.4 GB, easing the
+      # floor to ~46%.) Small models (qwen2.5-0.5b-gguf) pay only a few hundred
+      # MB. Lower this further if the node should not carry the big-context cost
+      # by default.
+      # 2026-07-28: 262144 -> 180224. The window is the dominant VRAM term and
+      # nothing we run can reach 256K: the largest app config is the 122b's
+      # max_prompt_tokens 98304 + max_new_cap 81920 = 180224 exactly, so this
+      # costs no usable context. It reclaims ~3.2 GB on a 27b-class model
+      # (17 KV-bearing layers: 9.70 -> 6.67 GB pool) plus 0.57 -> 0.39 GB for
+      # the MTP head context, which llama.cpp sizes from this SAME value.
+      # That margin is what lets fable-fusion-27b-mtp-q4-gguf serve with
+      # speculative decoding inside a 32 GB share: at 262144 the pool
+      # allocated, generation started, and the run froze a few tokens in when
+      # the FIRST speculative round lazily created the head context with no
+      # VRAM left (deployment a025ed60, 2026-07-28); one GB lower and the pool
+      # itself would not allocate at all.
+      - ENCLAVE_GGML_N_CTX: "180224"
       # KV-cache quantization (needs the KV-quant wasmtime toolchain - the
       # WASMTIME_IMAGE repinned alongside this commit). q8_0 on BOTH K and V
-      # halves the up-front KV the window costs (256K: ~6.4 GB f16 -> ~3.2 GB) at
+      # halves the up-front KV the window costs (176K: ~4.4 GB f16 -> ~2.4 GB) at
       # negligible quality cost. A quantized V cache REQUIRES Flash Attention (the
       # backend auto-enables it for a q8 V, but we set it explicitly). FA on this
       # H200 UNDER MPS is the one unvalidated piece: if a 122B ever fails context
@@ -335,6 +350,17 @@ containers:
       # (K-quant needs no FA) - a config-only re-measure, no toolchain rebuild.
       - ENCLAVE_GGML_KV_CACHE_TYPE: "q8_0"
       - ENCLAVE_GGML_FLASH_ATTN: "on"
+      # Max tokens per llama_decode, and what llama.cpp reserves the
+      # logits/output buffer from: n_batch x vocab x 4 = ~0.51 GB at 512 on a
+      # 248320-vocab model, paid once for the main context and again for the
+      # MTP head. Nothing we serve batches that wide - llm-chat prefills in
+      # PREFILL_CHUNK=128 chunks and its speculative verify pass sends
+      # k+1 <= 17 - so 128 is the widest batch a guest can actually produce,
+      # and dropping to it reclaims ~0.76 GB across the two contexts at zero
+      # functional cost. A guest that exceeds it fails fast and says so
+      # ("batch of N tokens exceeds n_batch 128 (chunk your prefill)"), so
+      # raise this again if an app ever needs wider decodes.
+      - ENCLAVE_GGML_N_BATCH: "128"
       # Concurrent sequences per model per tenant process. Since the batched
       # (pooled) wasmtime toolchain (the -batch1 ELL repin) every model serves
       # ALL its concurrent chats from ONE shared KV pool of N_CTX tokens,
@@ -507,9 +533,9 @@ models:
   # Qwen3.6-27B (dense hybrid-SSM; GGUF arch is qwen35 with
   # full_attention_interval 4, so the pinned LLAMA_COMMIT bec4772f serves it
   # unchanged; CPU e2e smoke-tested on that exact commit 2026-07-23) at
-  # unsloth Dynamic Q4_K_XL (~17.6 GB): the mid-size tenant option, ~28 GB to
-  # serve (17.6 weights + 9.1 KV at the 256K q8_0 node window + working set)
-  # = gpu 0.21 on the H200. Slim curated re-wrap of unsloth/Qwen3.6-27B-GGUF
+  # unsloth Dynamic Q4_K_XL (~17.6 GB): the mid-size tenant option, ~25.5 GB to
+  # serve (17.6 weights + 6.3 KV at the 176K q8_0 node window + working set)
+  # = gpu 0.19 on the H200. Slim curated re-wrap of unsloth/Qwen3.6-27B-GGUF
   # (which ships 21 quants + vision mmproj + imatrix, ~370 GB, and NO
   # tokenizer): ONLY the served gguf (sha256 ff6941de..., verified
   # 2026-07-23) PLUS the official Qwen/Qwen3.6-27B tokenizer.json
@@ -528,10 +554,11 @@ models:
   # wasm/llama-shim). tokenizer.json byte-identical to the 9b/27b/122b copies
   # (sha256 5f9e4d49..., vocab 248320) - the compat gate's requirement. Q8_0
   # not 4-bit: a draft's whole job is predicting the target's picks, the
-  # acceptance rate is worth 0.4 GB. VRAM at the 256K node window: 0.81
-  # weights + ~1.71 KV(q8_0) + ~0.15 RS + buffers ~= 2.9 GB on top of the
-  # target: 27b+0.8b ~= 30.7 GB, right at a 22% share's edge - trim
-  # ENCLAVE_GGML_N_CTX to 180224 (~27.3 GB, comfortable) or use ~25%.
+  # acceptance rate is worth 0.4 GB. VRAM at the 176K node window: 0.81
+  # weights + ~1.18 KV(q8_0) + ~0.15 RS + buffers ~= 2.3 GB on top of the
+  # target: 27b+0.8b ~= 27.7 GB, a comfortable ~20% share. (At the old 256K
+  # window this pairing came to ~30.7 GB and sat right at a 22% share's edge;
+  # trimming N_CTX to 180224 was the advice here, and is now the default.)
   # mpk generated in the Tinfoil Models tab 2026-07-25 (824672256 bytes).
   # Single gguf = no MODEL_VOLUMES third field.
   - name: "qwen3.5-0.8b-gguf"
@@ -543,9 +570,10 @@ models:
   # "draft":"mtp" setting (template entry qwen3.6-27b-mtp-gguf) uses the head
   # for speculative decoding: near-zero proposal cost, no separate draft
   # model, output byte-identical to plain decode. Prefer this volume over
-  # 27b + a draft-model pairing. VRAM ~= the plain 27b + ~0.6 GB head KV at
-  # the 256K window (head context created lazily on the first speculative
-  # session) - FITS a 22% share. tokenizer.json byte-identical to the family
+  # 27b + a draft-model pairing. VRAM ~= the plain 27b + ~0.4 GB head KV at
+  # the 176K window (head context created lazily on the first speculative
+  # session, sized from the SAME N_CTX as the main pool) - ~26.2 GB, FITS a
+  # 19% share. tokenizer.json byte-identical to the family
   # copies (sha256 5f9e4d49...). Needs the batch4 MTP toolchain (shim
   # ell_mtp_*) on the host; older hosts serve it as a plain 27b.
   # mpk generated in the Tinfoil Models tab 2026-07-25 (17921925120 bytes).
@@ -555,28 +583,33 @@ models:
     mpk: "bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9_17921925120_624a9548-dcee-5aa1-8eaa-6d12d0a368a3"
   # DavidAU Fable-Fusion-27B fine-tune (Qwen3.6-27B-MTP architecture) at Q5_K_M
   # (~19.7 GB): uncensored creative variant of the MTP 27b. Same geometry as
-  # qwen3.6-27b-mtp-gguf (qwen35 arch, 64+1 MTP layers, 4 KV heads, 256K
-  # context). VRAM similar to the base MTP volume. tokenizer.json byte-identical
-  # to the Qwen3.x family. Single gguf = no MODEL_VOLUMES third field.
+  # qwen3.6-27b-mtp-gguf (qwen35 arch, 64+1 MTP layers, 4 KV heads, 176K
+  # context). ~29.5 GB to serve at the 176K window (21.2 weights + 6.7 KV
+  # including the head context + working set) = ~21% share. tokenizer.json
+  # byte-identical to the Qwen3.x family. Single gguf = no MODEL_VOLUMES
+  # third field.
   - name: "fable-fusion-27b-mtp-gguf"
     repo: "EnclaveHost/fable-fusion-27b-mtp-gguf@00b1e5483d5457fe32c0dd82f2d24a19ef0dc957"
     mpk: "cf2030ea6070202555fa2d8b762fa4b1c94a3b636dd3d0f587d3f9fafddf4415_21195100160_00d8de3f-ab8c-52dd-82a6-2039c55d6082"
   # The SAME Fable-Fusion-27B one quant step down, at Q4_K_M (~18.5 GB): the
-  # variant that fits a 25% H200 share WITH speculative decoding. Q5_K_M needs
-  # ~33.1 GB to serve (21.2 weights + 9.7 KV at the 256K q8_0 node window +
-  # ~0.6 head KV + working set) against the 35.1 GB a 25% share holds, and
-  # because the MTP head context is created LAZILY on the first speculative
-  # session the tenant does not fail at boot: it preloads, answers /warmup in
-  # ~100 ms, then stalls the first real chat request for the full 180 s
-  # request budget when the head allocation tips it over. Diagnosed on
-  # deployment a025ed60 2026-07-28, where the identical build at a 33% share
-  # (cc1f4f3f) served the same volume fine. Q4_K_M puts the sum at ~30.4 GB,
-  # a 4.7 GB margin, in line with qwen3.6-27b-mtp-gguf fitting a 22% share.
-  # Same geometry as the Q5 volume (qwen35 arch, 64+1 MTP layers, 4 KV heads,
-  # 256K context); tokenizer.json byte-identical to the Qwen3.x family
-  # (sha256 5f9e4d49...). Attach ONE of the two fable volumes, never both -
-  # llm-chat serves the largest attached model that fits, which would pick
-  # the Q5 and bring the stall back.
+  # low-VRAM variant, ~26.8 GB to serve at the 176K window (18.5 weights +
+  # 6.7 KV including the lazily-created MTP head context + working set) =
+  # ~19% share, and ~5 GB of margin inside a 32 GB budget.
+  # The history, since these numbers were re-derived from it: at the old 256K
+  # window the Q5 volume needed ~32.5 GB against the 35.1 GB a 25% share
+  # holds, and because the MTP head context is created LAZILY on the first
+  # speculative session the tenant did not fail at boot - it preloaded,
+  # answered /warmup in ~100 ms, then stalled the first real chat request for
+  # the full 180 s request budget when the head's own KV and compute buffers
+  # exhausted what was left. One GB lower and the main pool would not
+  # allocate at all. Seen on deployment a025ed60 2026-07-28, while the
+  # identical build at a 33% share (cc1f4f3f) served the same volume fine.
+  # Trimming N_CTX to 180224 removed the squeeze itself; this quant adds
+  # ~2.7 GB on top. Same geometry as the Q5 volume; tokenizer.json
+  # byte-identical to the Qwen3.x family (sha256 5f9e4d49...).
+  # Attach ONE of the two fable volumes, never both: two 27b preloads is
+  # ~40 GB of weights before a byte of KV, and llm-chat would serve the
+  # larger of them anyway.
   # mpk generated in the Tinfoil Models tab 2026-07-28 (18511405056 bytes).
   # Single gguf = no MODEL_VOLUMES third field.
   - name: "fable-fusion-27b-mtp-q4-gguf"
