@@ -125,6 +125,14 @@
           <label for="pubGpuT">GPU compute <span class="dim">(min TFLOPS · both GPU fields 0 = CPU-only app)</span></label>
           <input type="number" id="pubGpuT" value="0" min="0" step="1" />
         </div>
+        <div class="field" id="pubGpuNeedField" hidden>
+          <label>GPU need <span class="dim">(what the two GPU fields above MEAN)</span></label>
+          <div class="seg" id="pubGpuNeed" role="group" aria-label="GPU need">
+            <button data-gpuneed="0" class="on" type="button" aria-pressed="true">Required</button>
+            <button data-gpuneed="1" type="button" aria-pressed="false">Desired</button>
+          </div>
+          <div class="dim" id="pubGpuNeedNote" role="status" style="margin-top:7px;font-family:var(--font-mono);font-size:.68rem;line-height:1.5;"></div>
+        </div>
         <div>
           <label for="pubMem">Memory <span class="dim">(min MB of RAM · the runtime-enforced cap)</span></label>
           <input type="number" id="pubMem" value="128" min="1" step="1" />
