@@ -1835,16 +1835,22 @@ async function verifyMatchingRelease(host, repo) {
   };
   const latest = await attempt(base.digest, base.sigstoreBundle);
   if (latest?.securityVerified) return latest;                // the common case: this node runs the latest (GPU) release
+  // Bounded, like every other outbound call here: this runs inside the
+  // self-check that /v1/attestation's consumers read, and node's fetch has no
+  // default timeout — a github-proxy that accepts and stalls would pin the
+  // shared in-flight self-check promise (and every request awaiting it) rather
+  // than answering "unavailable".
+  const ghFetch = (u) => fetch(u, { signal: AbortSignal.timeout(15000) });
   let latestTag;
-  try { latestTag = (await (await fetch(`${GITHUB_PROXY}/repos/${repo}/releases/latest`)).json())?.tag_name; } catch { /* offline */ }
+  try { latestTag = (await (await ghFetch(`${GITHUB_PROXY}/repos/${repo}/releases/latest`)).json())?.tag_name; } catch { /* offline */ }
   for (const suffix of (latestTag ? ["-cpu", "-gpu8"] : [])) {
     const tag = latestTag + suffix;
     let digest, sigstoreBundle;
     try {
-      const hr = await fetch(`${GITHUB_PROXY}/${repo}/releases/download/${tag}/tinfoil.hash`);
+      const hr = await ghFetch(`${GITHUB_PROXY}/${repo}/releases/download/${tag}/tinfoil.hash`);
       if (!hr.ok) continue;
       digest = (await hr.text()).trim();
-      sigstoreBundle = (await (await fetch(`${GITHUB_PROXY}/repos/${repo}/attestations/sha256:${digest}`)).json())?.attestations?.[0]?.bundle;
+      sigstoreBundle = (await (await ghFetch(`${GITHUB_PROXY}/repos/${repo}/attestations/sha256:${digest}`)).json())?.attestations?.[0]?.bundle;
     } catch { continue; }
     if (!digest || !sigstoreBundle) continue;
     const doc = await attempt(digest, sigstoreBundle);
@@ -4027,9 +4033,22 @@ const desiredCertNames = (rec) => {
 //     across CAs. Errors that indict the CA rather than the name carry
 //     .caLevel: acmeIssue reads it to cool the slot off and fail over. -------
 const caErr = (msg) => Object.assign(new Error(msg), { caLevel: true });
+// EVERY ACME network call is bounded. node's fetch has no default timeout, and
+// the whole failover design reads an ERROR to cool a CA off and try the next
+// one — so a CA that accepts the connection and never answers (an overloaded
+// LB, a black-holing middlebox: the shape the 2026-07-18 outage took hours
+// before the endpoint died outright) would hang the issuance forever and the
+// failover would never fire. acmePoll's own 90s deadline can't save it either:
+// that deadline is only checked between posts. An AbortError arrives at the
+// existing catch sites, which already mark it caLevel — a timeout indicts the
+// CA, exactly like a refused connection. (dohQuery in this same file has always
+// been bounded; ACME was the sibling that wasn't.)
+const ACME_HTTP_MS = parseInt(process.env.ACME_HTTP_TIMEOUT_MS || "20000", 10);
+const acmeFetch = (url, init = {}, ms = ACME_HTTP_MS) =>
+  fetch(url, { ...init, signal: AbortSignal.timeout(ms) });
 async function acmeDir(ca) {
   if (!ca.dir) {
-    let r; try { r = await fetch(ca.directory); } catch (e) { throw caErr(`directory: ${e.message}`); }
+    let r; try { r = await acmeFetch(ca.directory); } catch (e) { throw caErr(`directory: ${e.message}`); }
     if (!r.ok) throw caErr(`directory fetch ${r.status}`);
     ca.dir = await r.json().catch(() => { throw caErr("directory is not JSON (an outage page?)"); });
   }
@@ -4037,7 +4056,7 @@ async function acmeDir(ca) {
 }
 async function takeNonce(ca) {
   if (ca.nonce) { const n = ca.nonce; ca.nonce = null; return n; }
-  let r; try { r = await fetch((await acmeDir(ca)).newNonce, { method: "HEAD" }); }
+  let r; try { r = await acmeFetch((await acmeDir(ca)).newNonce, { method: "HEAD" }); }
   catch (e) { throw e.caLevel ? e : caErr(`newNonce: ${e.message}`); }
   const n = r.headers.get("replay-nonce");
   if (!n) throw caErr("newNonce returned no replay-nonce");
@@ -4054,8 +4073,8 @@ async function acmePost(ca, url, payload, { useJwk = false } = {}) {
     const nonce = await takeNonce(ca);
     const prot  = { alg: "ES256", nonce, url, ...(useJwk ? { jwk: ca.account.jwk } : { kid: ca.account.kid }) };
     let r; try {
-      r = await fetch(url, { method: "POST", headers: { "content-type": "application/jose+json" },
-                             body: JSON.stringify(jwsSignEs256(prot, payload, ca.account.key)) });
+      r = await acmeFetch(url, { method: "POST", headers: { "content-type": "application/jose+json" },
+                                 body: JSON.stringify(jwsSignEs256(prot, payload, ca.account.key)) });
     } catch (e) { throw caErr(`POST ${url}: ${e.message}`); }
     ca.nonce = r.headers.get("replay-nonce") || ca.nonce;       // every reply carries the next nonce
     const isJson = /json/.test(r.headers.get("content-type") || "");
@@ -4130,7 +4149,10 @@ async function dnsTxt(method, name, value) {
     try { headers["x-operator-sig"] = await claimSigner().account.signMessage({ message: body }); }
     catch (e) { console.warn(`[acme] operator co-sign failed (${e.message}); HMAC only`); }
   }
-  const r = await fetch(`${DNS_API}/v1/txt`, { method, headers, body });
+  // bounded like the ACME calls: the challenge daemon is another network hop
+  // that can accept and stall, and an unanswered TXT push holds the whole
+  // issuance (and, on removal, leaves the record behind)
+  const r = await acmeFetch(`${DNS_API}/v1/txt`, { method, headers, body });
   if (!r.ok) throw new Error(`DNS_API ${method} ${name}: HTTP ${r.status}`);
 }
 // Poll an authz/order URL (POST-as-GET) until ok/bad/timeout, gentle backoff.

@@ -11,5 +11,6 @@ export default async function globalTeardown() {
     for (const pid of pids || []) { try { process.kill(pid, "SIGKILL"); } catch {} }
   } catch {}
   try { globalThis.__stack?.stripe?.close(); } catch {}
+  try { globalThis.__stack?.enclave?.close(); } catch {}
   try { globalThis.__stack?.site?.close(); } catch {}
 }

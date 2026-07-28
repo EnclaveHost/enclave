@@ -33,14 +33,27 @@ function rawSigToDer(sig) {
 }
 
 // KDS is a third party on the attach path: bound every call so a hung or
-// black-holed fetch can't hold an attestation handshake open indefinitely.
+// black-holed fetch can't hold an attestation handshake open indefinitely —
+// and bound the BODY too. A VCEK is ~1.3 KB and a cert_chain ~5 KB, so anything
+// approaching this cap is a broken or hostile endpoint, and reading it into
+// memory unbounded would be the cheapest possible attack on the relay from a
+// position (answering for KDS) the ARK pin below already assumes is reachable.
+const MAX_KDS_BYTES = 256 * 1024;
 async function fetchBuf(url, timeoutMs = 8000) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const r = await fetch(url, { signal: ctrl.signal });
     if (!r.ok) throw new Error(`${url}: ${r.status}`);
-    return Buffer.from(await r.arrayBuffer());
+    const len = Number(r.headers.get("content-length") || 0);
+    if (len > MAX_KDS_BYTES) throw new Error(`${url}: ${len} bytes exceeds the ${MAX_KDS_BYTES}-byte cap`);
+    const chunks = []; let seen = 0;
+    for await (const c of r.body ?? []) {                 // count as it arrives: a lying/absent length proves nothing
+      seen += c.length;
+      if (seen > MAX_KDS_BYTES) { ctrl.abort(); throw new Error(`${url}: body exceeds the ${MAX_KDS_BYTES}-byte cap`); }
+      chunks.push(c);
+    }
+    return Buffer.concat(chunks.map((c) => Buffer.from(c)));
   } finally { clearTimeout(t); }
 }
 
