@@ -106,6 +106,11 @@ export const Enclave = {
       // stored session so the UI flips back to signed-out instead of erroring
       // on every poll
       if (res.status === 401 && opts.accountAuth) this.clearAccountSession();
+      // A per-enclave session the ENCLAVE rejects is dead weight: it was minted
+      // by some other box (its kid is the only one it honours), so keeping it
+      // means every retry fails identically until localStorage is cleared by
+      // hand. Drop it so the next attempt re-mints against the right enclave.
+      if (res.status === 401 && opts.enclave) this.setSessionFor(opts.enclave, null);
       const msg = (data && data.message) ? data.message
         : (typeof data === "string" && data) ? data
         : ("HTTP " + res.status + " " + res.statusText);
