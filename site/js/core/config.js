@@ -69,8 +69,15 @@ export const ACCOUNTS_ENABLED = _acct != null ? _acct === "1" : true;
    sets it chooses every contract the wallet is asked to sign against. */
 const _book = devOverride("enclave_addressbook");
 export const ADDRESS_BOOK_ADDRESS = _book || "0xab214342d5A490150A4A977063A2f88E21F80907"; // EnclaveAddressBook on Base; written by scripts/deploy-address-book.mjs ("" = baked addresses only)
-export let APP_CATALOG_ADDRESS = "0xaB0462E55c18E295A221e4Eaa8738F25eB0696D7"; // EnclaveAppCatalog on Base; written automatically by scripts/deploy-app-catalog.mjs
-export let DEPLOYMENTS_ADDRESS = "0x0A7dE5D205c10B812AbaF0b89f3A243466bCEe01"; // EnclaveDeployments on Base; written automatically by scripts/deploy-deployments.mjs
+// KEEP THESE CURRENT. They are the fallback used before the address book
+// resolves (and if it fails), and a RETIRED EnclaveDeployments still answers
+// get() for the same deployment ids with a stale record — active:false, old
+// shares, no lease. So a stale fallback does not fail loudly; it hands the
+// console a plausible wrong answer, and any write goes to the dead ledger.
+// Observed 2026-07-28: 0xa025ed60… read active:true/cpu 80/lease live on the
+// live contract and active:false/cpu 10/no lease on the baked one.
+export let APP_CATALOG_ADDRESS = "0x23f5ae678977b37293d18444346483f5c1e052df"; // EnclaveAppCatalog on Base; written automatically by scripts/deploy-app-catalog.mjs
+export let DEPLOYMENTS_ADDRESS = "0x48dc96b8b7d7e9e4e1f282f9ace4a6cf914064b2"; // EnclaveDeployments on Base; written automatically by scripts/deploy-deployments.mjs
 export let REGISTRY_ADDRESS    = "";                            // EnclaveRegistry (fleet membership); resolved from the address book only
 export let FEATURED_ADDRESS    = "";                            // EnclaveFeatured (featured-slot view bids); resolved from the address book only - "" = editorial featured pick, no bidding UI
 export let REVIEWS_ADDRESS     = "";                            // EnclaveReviews (1-5 star ratings + comments); resolved from the address book only - "" = the store shows no ratings at all
