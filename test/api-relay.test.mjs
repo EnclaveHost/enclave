@@ -579,3 +579,40 @@ test("api-relay: two enclaves claiming one deployment yield ONE row, the on-chai
   assert.equal(rows[0].status, "running", "the chain says newhost holds the lease, so its row is the real one");
   assert.equal(rows[0].enclave, "newhost");
 });
+
+// ---- the ex-runner is the ONLY box that answers ------------------------------
+// The case deduping hosted rows does not reach. Sessions are per-enclave, so
+// the fan-out's token is honoured by exactly one box; sign in on the deployment's
+// PREVIOUS host and its terminated copy is the only hosted row there is. It then
+// suppressed the ledger row (`seen`) and the deployment read TERMINATED, on a box
+// that had released it, while the real host served it fine. Screenshotted
+// 2026-07-28: "TERMINATED … on kryptos" for an app running on metal0.
+test("api-relay: a stale row on an ex-runner never shadows the ledger's live one", async (t) => {
+  const ID66 = ID("66");
+  // the ONLY enclave that honours this token is the one that no longer hosts it
+  const exRunner = http.createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    if (req.url === "/availability")
+      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32 }));
+    if (req.url.split("?")[0] === "/v1/deployments")
+      return res.end(JSON.stringify({ data: [{ id: ID66, status: "terminated", enclave: "exrunner" }], cursor: null }));
+    res.statusCode = 404; res.end("{}");
+  });
+  exRunner.listen(0, "127.0.0.1"); await once(exRunner, "listening"); t.after(() => exRunner.close());
+  const exUrl = `http://127.0.0.1:${exRunner.address().port}`;
+
+  const { keccak256, stringToBytes } = await import("viem");
+  // the chain says a DIFFERENT box holds the live lease
+  const realRunner = keccak256(stringToBytes("https://elsewhere.invalid"));
+  const ledger = [{ id: ID66, owner: OWNER, appRef: "ipfs://moved", active: true, balance6: 2_000_000, spent6: 100_000,
+                    runner: realRunner, leaseUntil: FUTURE }];
+  const origin = await startRelay(t, { enclaves: exUrl, ledger });
+
+  const { status, body } = await getJson(origin, "/v1/deployments", jwt(OWNER));
+  assert.equal(status, 200);
+  const rows = body.data.filter((r) => String(r.id).toLowerCase() === ID66.toLowerCase());
+  assert.equal(rows.length, 1);
+  assert.notEqual(rows[0].status, "terminated",
+    "a box the chain says is not the runner must not declare the deployment dead");
+  assert.equal(rows[0].ledger, true, "the ledger row answers instead of the ex-runner's copy");
+});
