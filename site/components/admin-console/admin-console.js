@@ -484,10 +484,9 @@ class AdminConsole extends EnclaveElement {
     try {
       const d = await loadMetrics(
         { depAddr: this.S.dep.addr, apiBase: DEFAULT_API_BASE, leaseSec: Number(this.S.dep.lease) || 3600 },
-        (partial) => { if (seq === this._mSeq) paintMetrics(root, partial); });
+        (partial) => { if (seq !== this._mSeq) return; paintMetrics(root, partial); this._observePlots(); });
       if (seq !== this._mSeq) return;
       paintHistory(root, d);
-      this._observePlots();
     } catch (e) {
       if (seq !== this._mSeq) return;
       root.querySelector("#acKpis").innerHTML =

@@ -28,7 +28,7 @@ echo "== nan-relay: tcp (SNI) + tcp6 (dedicated-IP) + udp + egress relays"
 # shared with the enclave's egress.js); scp follows it and ships the content.
 # fleet.mjs is the shared fleet discovery (REGISTRY_ADDRESS / ENCLAVES) the
 # tcp6/udp/egress relays use to follow an arbitrary, changing set of enclaves.
-scp relay.js tcp6-relay.js udp-relay.js egress-relay.js dns-relay.js fleet.mjs net-guard.mjs package.json package-lock.json nan-relay:/opt/nan-relay/
+scp relay.js tcp6-relay.js udp-relay.js egress-relay.js dns-relay.js fleet.mjs net-guard.mjs boxhost.js package.json package-lock.json nan-relay:/opt/nan-relay/
 scp systemd/enclave-tcp-relay.service systemd/enclave-tcp6-relay.service systemd/enclave-udp-relay.service systemd/enclave-egress-relay.service systemd/enclave-dns.service nan-relay:/etc/systemd/system/
 # The egress relay only runs once /etc/nan-relay/egress-relay.env exists
 # (REGISTRY_ADDRESS or ENCLAVES + EGRESS_RELAY_TOKEN + EGRESS_PREFIX=<same
@@ -85,7 +85,7 @@ echo "== api relay (site box)"
 # indexer, OFAC screen, provisioner) ship alongside; they self-disable without
 # StateDirectory/env, so shipping them is always safe. npm ci below installs
 # their deps (@simplewebauthn/server, jose) from the SHIPPED lockfile.
-scp api-relay.js mcp.js auth.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js store.js fleet.mjs net-guard.mjs tunnel.js snp-verify.mjs package.json package-lock.json nan:/opt/nan-relay/
+scp api-relay.js mcp.js auth.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js store.js fleet.mjs net-guard.mjs tunnel.js snp-verify.mjs boxhost.js package.json package-lock.json nan:/opt/nan-relay/
 scp systemd/enclave-api-relay.service nan:/etc/systemd/system/
 ssh nan 'if [ -f /etc/systemd/system/nan-api-relay.service ]; then \
     systemctl disable --now nan-api-relay || true; rm /etc/systemd/system/nan-api-relay.service; fi \
