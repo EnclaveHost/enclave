@@ -968,14 +968,41 @@ function setPubImage(kind, cid, svg){
   if (prev){ prev.classList.toggle("has", !!cid); prev.style.backgroundImage = cid ? "url('" + mediaUrl(cid, svg) + "')" : ""; }
   const clr = $("#pub"+K+"Clear"); if (clr) clr.hidden = !cid;
 }
+/* The publisher's GPU-need switch. It rides IN the version config as
+   `gpuOptional: true` rather than a new on-chain column: config is already
+   immutable per version, approved with it, and already where platform-read keys
+   live (`volumes`). Only the app knows whether it degrades to CPU or cannot
+   start without a card, and on-chain the vram/gflops axes are just numbers.
+
+   Only offered when the version actually declares GPU specs — with both axes 0
+   there is no requirement to soften, and runners refuse the flag rather than
+   accept a no-op. Hiding it also RESETS it, so a spec edited down to 0 can't
+   leave a stale `gpuOptional` in the published config. */
+let pubGpuOptional = false;
+function syncPubGpuNeed(){
+  const declares = (parseFloat(($("#pubVram") || {}).value) || 0) > 0
+                || (parseFloat(($("#pubGpuT") || {}).value) || 0) > 0;
+  if (!declares) pubGpuOptional = false;
+  const f = $("#pubGpuNeedField"); if (f) f.hidden = !declares;
+  $$("#pubGpuNeed button").forEach(b => {
+    const on = (b.dataset.gpuneed === "1") === !!pubGpuOptional;
+    b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+  const n = $("#pubGpuNeedNote");
+  if (n) n.textContent = !declares ? ""
+    : pubGpuOptional
+      ? "Desired: the app starts without a card. Runners set NO GPU floor, so a deployment may buy 0% GPU and any enclave — including CPU-only ones — can serve it. The figures above become the slice a deployer buys to actually get the card."
+      : "Required: the figures above are a hard minimum. Only a GPU enclave can run this app, and every deployment must buy at least the share they imply.";
+}
 function readPubConfig(){
   const raw = ($("#pubConfig") && $("#pubConfig").value || "").trim();
-  if (!raw) return { val: "" };
+  if (!raw && !pubGpuOptional) return { val: "" };
   let o;
   try {
-    o = JSON.parse(raw);
+    o = raw ? JSON.parse(raw) : {};
     if (!o || Array.isArray(o) || typeof o !== "object") return { err: "app config must be a JSON object, e.g. {\"api_key\":\"…\"}" };
   } catch(e){ return { err: "app config isn't valid JSON (" + e.message + ")" }; }
+  if (pubGpuOptional) o.gpuOptional = true; else delete o.gpuOptional;
   // measure the minified form - withMedia re-serializes before publishing, so
   // pretty-printed whitespace in the editor never counts against the ceiling
   const val = JSON.stringify(o);
@@ -1068,6 +1095,7 @@ function resetPublish(){
   clearPubImage("thumb"); clearPubImage("banner");
   $("#pubVersion").value = "1.0.0"; $("#pubVram").value = "0"; $("#pubGpuT").value = "0";
   $("#pubMem").value = "128"; $("#pubCpuG").value = "1"; pubStatus("");
+  pubGpuOptional = false; syncPubGpuNeed();
 }
 // "1.0.0" -> "1.0.1", "v2" -> "v3", "2.1.0-beta" -> "2.1.1-beta": bump the last
 // number in the label; it's a suggestion, the field stays editable.
@@ -1096,6 +1124,7 @@ function publishPrefillOf(app, vi){
     vram: String((Number(v.vramMb) || 0) / 1024), gpuT: String((Number(v.gpuGflops) || 0) / 1000),
     mem: String(Number(v.memMb) || 128), cpuG: String(Math.max(1, Number(v.cpuGflops) || 1)),
     ports: v.ports || "", config: prettyConfig(stripMedia(v.config || "")),
+    gpuOptional: (() => { try { return JSON.parse(v.config || "{}").gpuOptional === true; } catch { return false; } })(),
     thumb: media.thumbnail || "", banner: media.banner || "",
     thumbSvg: !!media.thumbnailSvg, bannerSvg: !!media.bannerSvg,
     note: "pre-filled from " + app.slug + " " + (v.version || "") + " - fix specs/ports and publish (same bytes), or pick a new .wasm if the code changed"
@@ -1145,6 +1174,7 @@ function applyPrefillPublish(){
   $("#pubVram").value = s.vram || "0"; $("#pubGpuT").value = s.gpuT || "0";
   $("#pubMem").value = s.mem || "128"; $("#pubCpuG").value = s.cpuG || "1"; $("#pubPorts").value = s.ports || "";
   const pc = $("#pubConfig"); if (pc) pc.value = s.config || "";
+  pubGpuOptional = !!s.gpuOptional; syncPubGpuNeed();
   setPubImage("thumb", s.thumb || "", !!s.thumbSvg); setPubImage("banner", s.banner || "", !!s.bannerSvg);
   pubStatus(s.note || "");
 }
@@ -1309,6 +1339,13 @@ function initStore(){
   $("#pubCancel").addEventListener("click", closePublish);   // (+ Publish app is a plain <a href="#publish">)
   $("#pubSubmit").addEventListener("click", publishApp);
   const pf = $("#pubFile"); if (pf) pf.addEventListener("change", onPubFile);
+  // the GPU-need switch, and the spec fields that decide whether it applies at all
+  const gn = $("#pubGpuNeed");
+  if (gn) gn.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-gpuneed]"); if (!b) return;
+    pubGpuOptional = b.dataset.gpuneed === "1"; syncPubGpuNeed();
+  });
+  ["#pubVram", "#pubGpuT"].forEach((sel) => { const el = $(sel); if (el) el.addEventListener("input", syncPubGpuNeed); });
   const row = $("#pubFileRow");
   if (row && !IPFS_UPLOAD_URL){ row.classList.add("disabled"); $("#pubFileHint").textContent = "upload disabled here; paste a CID below"; }
   const tf = $("#pubThumbFile"); if (tf) tf.addEventListener("change", (e) => onPubImage(e, "thumb"));
