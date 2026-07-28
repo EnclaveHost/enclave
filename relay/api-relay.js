@@ -1348,7 +1348,21 @@ const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView,
                    // secrets.js: match a fetch's claimed endpoint to a lease's
                    // on-chain runner id, and drop the ledger cache when a row
                    // must be newer than the 10s TTL (just-claimed/just-created)
-                   endpointIdOf: endpointId, ledgerExpire: () => { _ledger.at = 0; } };
+                   endpointIdOf: endpointId, ledgerExpire: () => { _ledger.at = 0; },
+                   // ...and WHOSE key that endpoint is, so a secrets fetch can be
+                   // held to the operator that registered it rather than to the
+                   // fleet-wide derived key alone (relay/secrets.js). Same read
+                   // as the tunnel's name-ownership gate: an inactive or absent
+                   // entry is "nobody", and errors propagate to the caller's own
+                   // fail-closed decision.
+                   operatorOfEndpoint: async (endpoint) => {
+                     if (!REGISTRY_ADDRESS) return null;
+                     const c = await chain();
+                     const e = await c.readContract({ address: REGISTRY_ADDRESS, abi: GET_ABI,
+                       functionName: "get", args: [await endpointId(endpoint)] });
+                     const op = String(e?.operator || "");
+                     return e?.active && !/^0x0{40}$/i.test(op) ? op.toLowerCase() : null;
+                   } };
 
 // Every inbound request runs inside one guard, for two reasons.
 //

@@ -3356,9 +3356,23 @@ async function fetchDepSecrets(id) {
       const sig = createHmac("sha256",
           createHmac("sha256", Buffer.from(SECRETS_FETCH_KEY, "hex")).update("fetch-auth v1").digest())
         .update(`${idL}:${_advertisedEndpoint}:${ts}`).digest("hex");
+      // SECOND FACTOR, and the one that is actually OURS. The HMAC above is the
+      // fleet-wide derived key: it proves "a holder of the fleet key" and not
+      // "this endpoint", so on its own any fleet member could name another
+      // member's endpoint and be handed that deployment's secrets (relay/
+      // secrets.js says so at the line). The operator key that REGISTERED this
+      // endpoint is per-enclave, and the relay can check it against the registry
+      // — so sign the same tuple with it. personal_sign, so this signature can
+      // never be replayed as a transaction by the key that also sends claims.
+      let opSig = "";
+      if (REGISTRY_PK) {
+        try { opSig = await claimSigner().account.signMessage({
+          message: `enclave-secrets-fetch:${idL}:${_advertisedEndpoint}:${ts}` }); }
+        catch { /* unsigned: the relay decides whether its policy still allows it */ }
+      }
       const r = await fetch(`${SECRETS_API}/v1/secrets/fetch`, {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: idL, endpoint: _advertisedEndpoint, ts, sig }),
+        body: JSON.stringify({ id: idL, endpoint: _advertisedEndpoint, ts, sig, ...(opSig ? { opSig } : {}) }),
         signal: AbortSignal.timeout(5000) });
       if (r.ok) {
         const b = await r.json();

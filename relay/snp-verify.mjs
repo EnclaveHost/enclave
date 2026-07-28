@@ -67,11 +67,12 @@ async function fetchBuf(url, timeoutMs = 8000) {
 // this repo".
 //
 // PROVENANCE, because a pin nobody can re-derive is just a different kind of
-// trust: Milan and Genoa were captured from KDS and then CONFIRMED byte-for-byte
-// against google/go-sev-guest's embedded copies (verify/trust/ask_ark_*.pem) —
-// a different host, a different TLS chain, a different party. Turin has no such
-// second source published yet, so it is KDS-captured only (2026-07-27); replace
-// it with a corroborated value when one exists.
+// trust: ALL THREE were captured from KDS and then CONFIRMED byte-for-byte
+// against google/go-sev-guest's embedded copies — a different host, a different
+// TLS chain, a different party. The files are verify/trust/ask_ark_milan.pem,
+// ask_ark_genoa.pem and ask_ark_turin_vcek.pem (Turin's is named for the VCEK
+// line; the VLEK chain beside it is a different root and NOT what a guest
+// report chains to). Re-check the same way if a product line is ever added.
 //
 // A NEW AMD product line fails CLOSED here (unknown root -> refused), which is
 // the correct direction: the alternative, accepting an unpinned root with a

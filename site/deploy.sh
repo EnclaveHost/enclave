@@ -90,6 +90,60 @@ systemctl reload caddy
 echo "[deploy] CSP script-src synced: $(ls "$ARC" | wc -l) hashes (48h union), caddy reloaded"
 CSPEOF
 
+# ---- the two headers the apex vhost never had ------------------------------
+# A live probe of enclave.host shows a strong CSP, HSTS, nosniff and
+# referrer-policy — and no Permissions-Policy and no COOP. Both are cheap and
+# both close something real:
+#
+#   Permissions-Policy  denies the powerful features this site never uses, so an
+#                       injected script (or an embedded frame) cannot reach a
+#                       camera, mic, geolocation or USB device. publickey-
+#                       credentials-* are deliberately NOT named: their default
+#                       allowlist is already `self`, which is exactly what the
+#                       passkey flows need, and naming them wrong would break
+#                       sign-in. `payment=(self)` for the same reason.
+#   COOP                same-origin-ALLOW-POPUPS severs `window.opener` for
+#                       cross-origin documents that opened us (tabnabbing, and
+#                       the cross-window handle half of the XS-leak family)
+#                       while keeping the popups WE open working — plain
+#                       same-origin would break the wallet flows, which is why
+#                       it was left off.
+#
+# Anchored to the Content-Security-Policy line so it can only ever land in the
+# vhost that has one (the site's), inserted at its indentation, and skipped
+# entirely if either header already exists. Same backup/validate/restore shape
+# as the script-src sync above: a Caddyfile that fails `caddy validate` is put
+# back and the deploy aborts rather than reloading a broken front door.
+ssh nan bash -s <<'HDREOF'
+set -euo pipefail
+export LC_ALL=C
+CF=/etc/caddy/Caddyfile
+PP='Permissions-Policy "accelerometer=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(self), usb=(), xr-spatial-tracking=()"'
+CO='Cross-Origin-Opener-Policy "same-origin-allow-popups"'
+have_pp=$(grep -c 'Permissions-Policy' "$CF" || true)
+have_co=$(grep -c 'Cross-Origin-Opener-Policy' "$CF" || true)
+if [ "$have_pp" != "0" ] && [ "$have_co" != "0" ]; then
+  echo "[deploy] security headers already present"; exit 0
+fi
+grep -q 'Content-Security-Policy' "$CF" || {
+  echo "[deploy] WARN: no Content-Security-Policy line to anchor to; headers left alone"; exit 0; }
+BAK="$CF.bak-hdr-$(date -u +%Y%m%d-%H%M%S)"
+cp -a "$CF" "$BAK"
+PP="$PP" CO="$CO" HAVE_PP="$have_pp" HAVE_CO="$have_co" awk '
+  { print }
+  /Content-Security-Policy/ && !done {
+    match($0, /^[ \t]*/); pad = substr($0, 1, RLENGTH)
+    if (ENVIRON["HAVE_PP"] == "0") print pad ENVIRON["PP"]
+    if (ENVIRON["HAVE_CO"] == "0") print pad ENVIRON["CO"]
+    done = 1
+  }' "$BAK" > "$CF"
+caddy validate --config "$CF" >/dev/null 2>&1 || {
+  echo "[deploy] ERROR: patched Caddyfile failed validate - restored, deploy aborted" >&2
+  cp -a "$BAK" "$CF"; exit 1; }
+systemctl reload caddy
+echo "[deploy] security headers added (Permissions-Policy, COOP), caddy reloaded"
+HDREOF
+
 ssh nan 'chown -R ipfs:ipfs /opt/nan-site && \
   sudo -u ipfs IPFS_PATH=/var/lib/ipfs /usr/local/bin/nan-deploy.sh /opt/nan-site'
 

@@ -8,11 +8,11 @@
 // fabricated ARK+ASK, signs a VCEK for a report they wrote, and both verifiers
 // print ✓ down the line. Pinning makes that "compromise KDS AND this repo".
 //
-// The fixtures are the REAL AMD chains as published by KDS. Milan and Genoa are
+// The fixtures are the REAL AMD chains as published by KDS, and all three are
 // byte-identical to google/go-sev-guest's embedded copies (verify/trust/
-// ask_ark_*.pem) — a different host, a different TLS chain, a different party —
-// which is what makes the pins corroborated rather than trust-on-first-use.
-// Turin has no such second source published yet.
+// ask_ark_milan.pem, ask_ark_genoa.pem, ask_ark_turin_vcek.pem) — a different
+// host, a different TLS chain, a different party. That second source is what
+// makes these pins corroborated rather than trust-on-first-use.
 //
 //   run: node --test test/snp-ark-pin.test.mjs
 

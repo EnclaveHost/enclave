@@ -45,7 +45,15 @@ const ctx = {
   ledgerRows: async () => rows,
   ledgerExpire: () => {},
   endpointIdOf: async (ep) => (ep === ENDPOINT ? RUNNER : "0x" + "ee".repeat(32)),
+  // WHO the registry says owns each endpoint. `epOwner` is swapped per test:
+  // null = unregistered (nothing to prove), an address = that operator's key is
+  // required, and a thrown error = an unreadable registry.
+  operatorOfEndpoint: async (ep) => {
+    if (typeof epOwner === "function") return epOwner(ep);
+    return epOwner;
+  },
 };
+let epOwner = null;
 const call = async (pathname, body) => {
   const res = {};
   await handleSecrets({ method: "POST", body }, res, new URL("http://x" + pathname), ctx);
@@ -213,4 +221,82 @@ test("unknown deployment 404s for owner ops", async () => {
     signature: await OWNER.signMessage({ message: putMessage(id99, expiry, "{}") }),
   });
   assert.equal(res.code, 404);
+});
+
+// ---- the endpoint's OWN key, not just the fleet's ---------------------------
+// The fetch HMAC is a SHARED derived key: it proves "a holder of the fleet key",
+// so on its own any fleet member could name another member's endpoint and be
+// handed that deployment's secrets. The registry says which operator registered
+// each endpoint, and only that operator holds the key — so a registered
+// endpoint must sign the same tuple with it.
+const OP = privateKeyToAccount("0x" + "31".repeat(32));
+const IMPOSTOR = privateKeyToAccount("0x" + "32".repeat(32));
+const opSigFor = (acct, id, ep, ts) =>
+  acct.signMessage({ message: `enclave-secrets-fetch:${id}:${ep}:${ts}` });
+
+test("fetch: a REGISTERED endpoint must sign with the operator that registered it", async () => {
+  rows = [leaseRow()];
+  epOwner = OP.address;
+  try {
+    const ts = Math.floor(Date.now() / 1000);
+    const base = { id: ID, endpoint: ENDPOINT, ts, sig: fetchSig(KEY, ID, ENDPOINT, ts) };
+
+    // the fleet HMAC alone is no longer enough
+    let res = await call("/v1/secrets/fetch", base);
+    assert.equal(res.code, 401);
+    assert.equal(res.body.error, "no_operator_sig");
+
+    // ...nor is a signature from ANOTHER fleet member's key (the exact case the
+    // shared key could not distinguish)
+    res = await call("/v1/secrets/fetch", { ...base, opSig: await opSigFor(IMPOSTOR, ID, ENDPOINT, ts) });
+    assert.equal(res.code, 403);
+    assert.equal(res.body.error, "wrong_operator");
+
+    // ...nor one bound to a different tuple (another deployment's secrets)
+    const other = "0x" + "5c".repeat(32);
+    res = await call("/v1/secrets/fetch", { ...base, opSig: await opSigFor(OP, other, ENDPOINT, ts) });
+    assert.equal(res.code, 403);
+
+    // the real operator is served
+    res = await call("/v1/secrets/fetch", { ...base, opSig: await opSigFor(OP, ID, ENDPOINT, ts) });
+    assert.equal(res.code, 200);
+    assert.equal(res.body.env.S3_KEY, "s3cr3t");
+  } finally { epOwner = null; }
+});
+
+test("fetch: an UNREGISTERED endpoint is unchanged, and a dead registry fails closed", async () => {
+  rows = [leaseRow()];
+  const ts = Math.floor(Date.now() / 1000);
+  const base = { id: ID, endpoint: ENDPOINT, ts, sig: fetchSig(KEY, ID, ENDPOINT, ts) };
+
+  // no registry entry: nothing to prove (such an endpoint cannot hold a lease
+  // in the first place, so this relaxes nothing)
+  epOwner = null;
+  assert.equal((await call("/v1/secrets/fetch", base)).code, 200);
+
+  // once an owner HAS been seen, an unreadable registry keeps demanding it
+  epOwner = OP.address;
+  assert.equal((await call("/v1/secrets/fetch",
+    { ...base, opSig: await opSigFor(OP, ID, ENDPOINT, ts) })).code, 200);
+  epOwner = () => { throw new Error("rpc down"); };
+  try {
+    let res = await call("/v1/secrets/fetch", { ...base, opSig: await opSigFor(IMPOSTOR, ID, ENDPOINT, ts) });
+    assert.equal(res.code, 403, "a known owner must survive an unreadable registry");
+    res = await call("/v1/secrets/fetch", { ...base, opSig: await opSigFor(OP, ID, ENDPOINT, ts) });
+    assert.equal(res.code, 200, "...and the real operator still gets through");
+  } finally { epOwner = null; }
+});
+
+test("fetch: the rollout lever can forgive a MISSING signature, never a wrong one", async () => {
+  // SECRETS_REQUIRE_OPSIG=0 exists for exactly one case - a relay that updated
+  // before the enclaves did - so it must sit on the missing-signature branch
+  // only. Behaviour with the lever ON is covered above (wrong_operator = 403);
+  // this pins that the lever cannot move it, which a runtime test cannot show
+  // without a second, uninitialised module instance.
+  const src = fs.readFileSync(new URL("../relay/secrets.js", import.meta.url), "utf8");
+  const wrong = src.indexOf("wrong_operator");
+  const lever = src.indexOf("if (REQUIRE_OPSIG)");
+  assert.ok(wrong > 0 && lever > wrong,
+    "the wrong-key refusal must come BEFORE the lever, so the lever can never reach it");
+  assert.match(src, /if \(signer && signer !== owner\)/, "a wrong key is refused unconditionally");
 });
