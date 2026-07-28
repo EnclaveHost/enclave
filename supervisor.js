@@ -902,7 +902,12 @@ const WAF_SCANNER_PATHS = [
   "/vendor/phpunit", "/server-status", "/actuator", "/web.config", "/appsettings.json",
   "/id_rsa", "/backup.sql", "/dump.sql", "/config.php",
 ];
-function parseDepOptions(raw) {
+// `gpuMilli` (when the caller has the ledger record) enables the one
+// cross-field rule the envelope has: `gpu.optional` is meaningful ONLY on a
+// deployment that bought GPU share. Without a slice there is no card to make
+// optional, and accepting the flag anyway would tell an owner their CPU-only
+// deployment was "preferring" hardware it can never be given.
+function parseDepOptions(raw, gpuMilli) {
   const s = String(raw || "").trim();
   if (!s) return {};
   if (s.length > DEP_OPTIONS_MAX_BYTES) throw new Error(`options exceed ${DEP_OPTIONS_MAX_BYTES} bytes`);
@@ -910,9 +915,30 @@ function parseDepOptions(raw) {
     throw new Error("configCid is retired: a CID names bytes nobody validated — this field may only carry a deployment-options JSON envelope like {\"waf\":{…},\"config\":{…}} (config = an inline app-config override for this deployment); recreate the deployment without a config reference");
   let o; try { o = JSON.parse(s); } catch (e) { throw new Error("options envelope is not valid JSON: " + e.message); }
   if (!o || Array.isArray(o) || typeof o !== "object") throw new Error("options envelope must be a JSON object");
-  const unknown = Object.keys(o).filter((k) => k !== "waf" && k !== "config");
-  if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: waf, config)`);
+  const unknown = Object.keys(o).filter((k) => k !== "waf" && k !== "config" && k !== "gpu");
+  if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: waf, config, gpu)`);
   const opts = {};
+  if ("gpu" in o) {
+    // The card requirement, softened. `optional: true` says the deployment
+    // PREFERS a GPU enclave (it bought a slice and pays for one where a card
+    // exists) but will run on a CPU-only enclave rather than wait — where the
+    // ledger charges only the cpu half, because a CPU enclave posts no GPU
+    // price. `false` is the default and the old behaviour: GPU-only.
+    const g = o.gpu;
+    if (!g || Array.isArray(g) || typeof g !== "object") throw new Error("gpu must be a JSON object like {\"optional\":true}");
+    const badG = Object.keys(g).filter((k) => k !== "optional");
+    if (badG.length) throw new Error(`unknown gpu option ${JSON.stringify(badG[0])} (this runner knows: optional)`);
+    if ("optional" in g) {
+      if (typeof g.optional !== "boolean") throw new Error("gpu.optional must be true or false");
+      // Only an option when a GPU share was actually bought. Refused, not
+      // ignored: an owner who sets it on a CPU-only deployment has
+      // misunderstood what it does, and silence would leave them believing
+      // their app is chasing a card.
+      if (g.optional && gpuMilli != null && Number(gpuMilli) <= 0)
+        throw new Error("gpu.optional applies only to a deployment that bought GPU share (this one is 0% GPU, so it already runs anywhere - there is no card requirement to make optional)");
+      opts.gpuOptional = g.optional;
+    }
+  }
   if ("config" in o) {
     // the app-config override: shape-checked only (object, no reserved keys) —
     // the CONTENT is the app's own contract with its deployer, exactly like a
@@ -1019,7 +1045,13 @@ function wafPathBlocked(w, url) {
 if (process.env.WAF_SELFTEST) {
   const c = JSON.parse(process.env.WAF_SELFTEST);
   console.log(JSON.stringify({
-    parse: (c.parse || []).map((raw) => { try { return { ok: parseDepOptions(raw) }; } catch (e) { return { err: e.message }; } }),
+    // an entry may be a bare envelope string, or {raw, gpuMilli} to drive the
+    // one cross-field rule (gpu.optional needs a bought GPU share)
+    parse: (c.parse || []).map((x) => {
+      const raw = (x && typeof x === "object") ? x.raw : x;
+      const gpuMilli = (x && typeof x === "object") ? x.gpuMilli : undefined;
+      try { return { ok: parseDepOptions(raw, gpuMilli) }; } catch (e) { return { err: e.message }; }
+    }),
     paths: (c.paths || []).map((x) => wafPathBlocked(x.waf, x.url)),
   }));
   process.exit(0);
@@ -2545,6 +2577,7 @@ app.get("/availability", async (_req, res) => {
     configOverride: true,   // this build accepts the envelope's `config` namespace (per-deployment app-config override); same fleet-AND rule — the console unlocks the App config box only when every live runner honors it
     configEdit: true,   // this build's audit re-applies an owner's setConfig to LIVE deployments (waf live-swapped, config = restart in place); without it an edit only lands at the next re-claim — same fleet-AND rule
     shareResize: true,   // this build's audit re-slices a LIVE deployment on an owner's setShares (rev-6 ledgers); without it the billing would change while the served slice silently didn't — same fleet-AND rule, clients refuse the tx against an older fleet
+    gpuOptional: true,   // this build understands {"gpu":{"optional":true}}: a GPU-dialled deployment may fall back to a CPU-only enclave instead of queueing. Same fleet-AND rule — against an older fleet the envelope would be REFUSED outright (unknown namespace), so the console must not offer the control until every live runner knows it
     secrets: SECRETS_CAPABLE,   // this build pulls relay-staged per-deployment secrets into the guest env at every launch; fleet-AND'd with the relay's own secretsEnabled() before clients see it. The fetch authenticates with a key DERIVED FROM THE FLEET SECRET, so a box running its own minted SECRET (a metal enclave without cfg.fleetSecret) sets SECRETS_CAPABLE=0 and reports false — honest, and the fleet-AND then hides the feature rather than stranding secret-bearing deploys on it
     secretsInConfig: SECRETS_CAPABLE,   // this build also resolves $NAME/${NAME} placeholders in config STRING values from those secrets at launch (wasm-manager _subst_secrets); same fleet-AND rule
     devDeploy: true,   // this build's approval gate admits PENDING catalog versions for PRIVATE deployments (publisher dev-mode testing); public deploys of pending versions stay refused — same fleet-AND rule, clients only offer the option when every live runner honors it
@@ -4878,8 +4911,15 @@ async function switchTenantVersion(rec, d) {
     saveStateSoon();
   };
   // a resize to GPU work can never be served by a CPU-only enclave, whatever
-  // the catalog says — no point consulting it
-  if (resize && Number(d.gpuMilli) > 0 && !IS_GPU) return evict("GPU work on a CPU-only enclave");
+  // the catalog says — no point consulting it. UNLESS the owner marked the
+  // card optional: they said they would rather keep running on cores than
+  // queue for hardware, and evicting them into the queue is the one thing
+  // that flag exists to prevent.
+  if (resize && Number(d.gpuMilli) > 0 && !IS_GPU) {
+    let optional = false;
+    try { optional = parseDepOptions(d.configCid, d.gpuMilli).gpuOptional === true; } catch { optional = false; }
+    if (!optional) return evict("GPU work on a CPU-only enclave");
+  }
   let g;
   try { g = await gateAppReference(to, { forPrivate: !d.isPublic }); }
   catch (e) { g = { error: { status: 503, msg: e.shortMessage || e.message } }; }
@@ -4943,7 +4983,7 @@ async function switchTenantVersion(rec, d) {
   // override-free deployment follows the new version's config. The envelope
   // was validated at claim; a stale-unparsable one degrades like adopt's.
   try {
-    const o = parseDepOptions(d.configCid);
+    const o = parseDepOptions(d.configCid, d.gpuMilli);
     rec.config = "config" in o ? JSON.stringify(o.config) : (g.config || "");
     if ("config" in o) rec.configOverride = true; else delete rec.configOverride;
     rec._envelope = String(d.configCid || "");   // the envelope watch must not re-restart for what this switch just applied
@@ -5351,7 +5391,7 @@ async function depHasSecrets(id){
 async function volumeGate(d, g){
   let cfgStr = g.config || "";
   try {
-    const o = parseDepOptions(d.configCid);              // strict; considerClaim already accepted it
+    const o = parseDepOptions(d.configCid, d.gpuMilli);  // strict; considerClaim already accepted it
     if (o && o.config) cfgStr = JSON.stringify(o.config);   // the override REPLACES the version's config
   } catch { /* unreachable: parsed earlier in considerClaim */ }
   let need = [];
@@ -5386,7 +5426,7 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
   // doesn't recognize is refused, never ignored: silently dropping an option
   // would serve traffic the owner believes is filtered, or run the app on a
   // config the owner believes was overridden.
-  try { parseDepOptions(d.configCid); }
+  try { parseDepOptions(d.configCid, d.gpuMilli); }
   catch (e) { return "deployment options refused: " + e.message; }
   // Routing: the deployment bought two shares. GPU work (gpuMilli > 0)
   // runs ONLY on GPU enclaves and must fit a card AND the node's cpu pool.
@@ -5399,9 +5439,26 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
   if (provisionBackoffHolds(pf, Date.now(), d.appRef)) return "provisioning failed here recently; backing off";
   const ev = _evacuated.get(d.id);
   if (ev && Date.now() < ev) return "evacuated from here for consolidation; leaving it for another enclave";
+  // `gpu.optional` on the envelope: the deployment bought a card slice and
+  // PREFERS one, but would rather run on cores than sit in the queue. A
+  // CPU-only enclave may then take it, and the ledger charges only the cpu
+  // half by itself - _hostRate multiplies gpuMilli by THIS enclave's posted
+  // gpu price, which is zero on a box with no card. Honoured only when the
+  // app's own version declares no hard GPU need: an envelope may waive the
+  // OWNER's dial, never the publisher's stated requirement, or a version that
+  // needs 128 GB of VRAM "falls back" to CPU and thrashes forever.
+  let gpuOptional = false;
+  try { gpuOptional = parseDepOptions(d.configCid, d.gpuMilli).gpuOptional === true; } catch { gpuOptional = false; }
   const gpuShare = Number(d.gpuMilli) / 1000, cpuShare = Number(d.cpuMilli) / 1000;
   let slice;
-  if (gpuShare > 0) {
+  let asCpuFallback = false;
+  if (gpuShare > 0 && !IS_GPU && gpuOptional) {
+    const gg = await gateAppReference(d.appRef, { forPrivate: !d.isPublic }).catch(() => null);
+    const needsCard = !!(gg && gg.min && ((gg.min.vramMb || 0) > 0 || (gg.min.gpuGflops || 0) > 0));
+    if (needsCard) return "GPU work on a CPU-only enclave (gpu.optional cannot waive the app version's own VRAM/compute requirement)";
+    asCpuFallback = true;
+  }
+  if (gpuShare > 0 && !asCpuFallback) {
     if (!IS_GPU) return "GPU work on a CPU-only enclave";
     // Don't claim GPU work the manager would 503: right after a boot the CUDA
     // readiness probe is still running, and a claim during that window burns
@@ -5415,6 +5472,9 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
     if (slice.vramGb > maxFreeVram() + 1e-9 || slice.cpuShare > maxFreeCpu() + 1e-9)
       return "no free capacity for those shares here right now";
   } else {
+    // asCpuFallback lands here too: a GPU-dialled deployment served on cores
+    // takes exactly the CPU path - the cpu slice it bought, no card, and the
+    // manager sees gpuShare 0, so wasi-nn comes from the ggml CPU backend.
     if (IS_GPU && !hinted && !resume) {
       const claimableSince = Math.max(Number(d.createdAt), Number(d.leaseUntil));
       if (Date.now() < (claimableSince + CPU_CLAIM_GRACE_SEC) * 1000) return "cpu-first grace";
@@ -5563,7 +5623,7 @@ async function adopt(d, g, firewall, slice) {
     // (the spread lands after config: above on purpose); configOverride marks
     // the record so the owner can see their override is what's serving.
     ...(() => { try {
-      const o = parseDepOptions(d.configCid);
+      const o = parseDepOptions(d.configCid, d.gpuMilli);
       return { ...(o.waf ? { waf: o.waf } : {}),
                ...("config" in o ? { config: JSON.stringify(o.config), configOverride: true } : {}) };
     } catch { return {}; } })(),
