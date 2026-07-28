@@ -22,7 +22,7 @@ import { baseRpc, waitReceipt, encCall, hexBig, decodeStructArray, CAMPAIGN_SCHE
 import { ADDRESS_BOOK_ADDRESS, USDC_BASE, DEFAULT_API_BASE } from "../../js/core/config.js";
 import { esc, on, short, showToast } from "../../js/core/util.js";
 import { CONTRACTS } from "../../js/gen/contract-artifacts.js";
-import { MIG_KINDS, importState, sealTx, encCallX } from "./migrate.js";
+import { MIG_KINDS, importState, sealTx, encCallX, escrowPlan, approveTx } from "./migrate.js";
 import { metricsPanel, paintMetrics, paintHistory, loadMetrics, redrawPlots } from "./metrics.js";
 
 const EXPLORER = "https://basescan.org";
@@ -151,8 +151,11 @@ class AdminConsole extends EnclaveElement {
         // gpu/cpu are the LEGACY platform list prices: gone from rev-8
         // ledgers (each enclave posts its own in the registry), so they read
         // soft and the panel says so instead of showing a stale number
-        dep ? Promise.all([rdAddr(dep, dSel.owner), rdAddr(dep, dSel.payout), rdUintSoft(dep, dSel.pricePerSec6), rdUintSoft(dep, dSel.cpuPricePerSec6), rdUint(dep, dSel.leaseSec), rdAddr(dep, dSel.ethUsdFeed), rdAddrSoft(dep, dSel.pendingOwner), rdUintSoft(dep, dSel.maxGpuMilli), rdUintSoft(dep, dSel.maxFeePerSec6), rdUintSoft(dep, dSel.deploymentsSchema)])
-              .then(([owner, payout, gpu, cpu, lease, feed, pending, maxGpu, maxFee, schema]) => ({ addr: dep, owner, payout, gpu, cpu, lease, feed, pending, maxGpu, maxFee, schema: Number(schema ?? 2) })) : null,
+        dep ? Promise.all([rdAddr(dep, dSel.owner), rdAddr(dep, dSel.payout), rdUintSoft(dep, dSel.pricePerSec6), rdUintSoft(dep, dSel.cpuPricePerSec6), rdUint(dep, dSel.leaseSec), rdAddr(dep, dSel.ethUsdFeed), rdAddrSoft(dep, dSel.pendingOwner), rdUintSoft(dep, dSel.maxGpuMilli), rdUintSoft(dep, dSel.maxFeePerSec6), rdUintSoft(dep, dSel.deploymentsSchema),
+                           // rev >= 9 proof-of-time surface (soft: absent below 9)
+                           rdAddrSoft(dep, dSel.prover), rdUintSoft(dep, dSel.proofRequiredFrom), rdAddrSoft(dep, dSel.registry), rdUintSoft(dep, dSel.runnerBps)])
+              .then(([owner, payout, gpu, cpu, lease, feed, pending, maxGpu, maxFee, schema, prover, proofFrom, registry, runnerBps]) =>
+                ({ addr: dep, owner, payout, gpu, cpu, lease, feed, pending, maxGpu, maxFee, schema: Number(schema ?? 2), prover, proofFrom, registry, runnerBps })) : null,
         cat ? Promise.all([rdAddr(cat, CONTRACTS.EnclaveAppCatalog.sel.owner), rdAddrSoft(cat, CONTRACTS.EnclaveAppCatalog.sel.pendingOwner), rdUintSoft(cat, CONTRACTS.EnclaveAppCatalog.sel.maxFeePerSec6), rdUintSoft(cat, CONTRACTS.EnclaveAppCatalog.sel.catalogSchema)])
               .then(([owner, pending, maxFee, schema]) => ({ addr: cat, owner, pending, maxFee, schema: Number(schema ?? 2) })) : null,
         pay ? Promise.all([rdAddr(pay, pSel.owner), rdAddr(pay, pSel.payout), rdAddr(pay, pSel.usdc), rdAddrSoft(pay, pSel.pendingOwner)])
@@ -269,6 +272,41 @@ class AdminConsole extends EnclaveElement {
         this._row("ETH/USD feed <code>setEthUsdFeed</code>", isZero(d.feed) ? `<span class="dim">disabled (0x0)</span>` : mono(d.feed), "dep-feed", { owner: d.owner, hint: "0x0 disables ETH funding" }) +
         this._row("Payout <code>setPayout</code>", mono(d.payout), "dep-payout", { owner: d.owner })));
     } else parts.push(sec("EnclaveDeployments", `<span class="warn">not in the address book</span> - deploy one below, or set the <code>deployments</code> key.`, ""));
+
+    /* -- proof of time (rev >= 9): the prover binding + the metering cutover --
+       setProver is ONE-SHOT and permanent by design (a seller's proof of
+       service must not be re-pointable at a contract swapped in later), so it
+       gets the typed-confirmation treatment and refuses to paint a Bind button
+       once a prover is set. */
+    if (S.dep && S.dep.schema >= 9) {
+      const d = S.dep;
+      const bound = d.prover && !isZero(d.prover);
+      const from = d.proofFrom == null ? null : Number(d.proofFrom);
+      const live = from ? (Date.now() / 1000 >= from) : false;
+      const bookProver = S.book.entries.proofOfTime;
+      parts.push(sec(`Proof of time · ledger ${link(d.addr)}`,
+        `Hosts are paid for service they PROVE, not lease time they hold. The bound EnclaveProofOfTime is the only contract that may advance a deployment's <code>provenUntil</code> watermark; `
+        + `the ledger re-applies every clamp that touches money, so the worst a broken prover can do is degrade metering to held time. `
+        + `The binding is <b>permanent</b> - a different prover needs a new ledger.`,
+        `<div class="ac-row"><div class="ac-lbl">Registry it reads <span class="ac-hint">immutable; proof keys and prices come from here</span></div><div class="ac-cur">${mono(d.registry)}${
+            bookProver === undefined && S.book.entries.registry && lc(S.book.entries.registry) !== lc(d.registry)
+              ? ` <span class="warn">≠ the book's <code>registry</code> (${short(S.book.entries.registry)}) - this ledger will keep reading the one above, forever</span>` : ""
+          }</div><span></span><span></span><span></span></div>`
+        + (bound
+          ? `<div class="ac-row"><div class="ac-lbl">Prover <code>setProver</code></div><div class="ac-cur">${mono(d.prover)} <span class="dim">bound and frozen ✓</span>${
+              bookProver && lc(bookProver) !== lc(d.prover) ? ` <span class="warn">the book's <code>proofOfTime</code> is ${short(bookProver)} - enclaves will send checkpoints to a contract this ledger does not accept</span>` : ""
+            }${!bookProver ? ` <span class="warn">not in the address book yet - running enclaves cannot find it; set the <code>proofOfTime</code> key above</span>` : ""}</div><span></span><span></span><span></span></div>`
+          : this._row(`Prover <code>setProver</code> <span class="warn">ONE-SHOT</span>`, `<span class="warn">unbound</span> <span class="dim">- checkpoints are rejected; hosts earn on held time until the cutover, then nothing</span>`,
+              "dep-prover", { owner: d.owner, placeholder: bookProver || "0x… (the EnclaveProofOfTime deploy)", verb: "Bind", hint: "permanent - cannot be changed or cleared" })
+            + `<div class="ac-row"><div class="ac-lbl">Confirm</div><div class="ac-cur"><span class="dim">type BIND to enable the button's transaction</span></div><input class="ac-in" id="cf-dep-prover" placeholder="BIND" spellcheck="false" autocomplete="off" /><span></span><span></span></div>`)
+        + (from === null
+          ? `<div class="ac-row"><div class="ac-lbl">Cutover <code>setProofRequiredFrom</code></div><div class="ac-cur"><span class="dim">not in this contract rev</span></div><span></span><span></span><span></span></div>`
+          : this._row("Cutover <code>setProofRequiredFrom</code>",
+              from === 0
+                ? `<span class="dim">0 - metering stays on HELD time; checkpoints are recorded but never gate pay</span>`
+                : `${new Date(from * 1000).toLocaleString()} <span class="dim">(${live ? "LIVE - unproven time earns nothing" : "grace: held-time metering until then"})</span>`,
+              "dep-prooffrom", { owner: d.owner, placeholder: String(from), hint: "unix seconds; 0 = never (two-way kill switch)" }))));
+    }
 
     /* -- pay -- */
     if (S.pay) {
@@ -416,9 +454,12 @@ class AdminConsole extends EnclaveElement {
           <input class="ac-in" id="migSource" aria-label="Source contract address" placeholder="source 0x…" spellcheck="false" autocomplete="off" />
           <input class="ac-in" id="migTarget" aria-label="Target contract address" placeholder="target 0x… (the new deploy)" spellcheck="false" autocomplete="off" />
         </div>
+        <p class="ac-sub">Runner escrow is the one thing that cannot be imported: it is real USDC the SOURCE holds and keeps. Every migrated record therefore lands with <code>escrow6 = 0</code>, and until <b>Back escrow</b> re-seats it a seller serving that deployment earns nothing and its owner's refund pays nothing. Do it BEFORE sealing - while imports are open the backing is credited to each record's OWNER (it is re-seating money they already paid), and after sealing it is not, permanently.</p>
+        <label class="ac-ctor-l ac-mig-opt"><input type="checkbox" id="migGrantRates" checked /> Grant a runner rate to records that have none <span class="ac-hint">records predating the runner meter arrive at rate6 = 0: they can never pay a seller, can never be escrow-backed, and can never be refunded. Grants <code>runnerBps</code> of each one's rate minus its publisher fee, exactly what create() would have snapshotted.</span></label>
         <div class="ac-mig-actions">
           <button class="btn btn-sm" data-act="mig-read">Read source</button>
           <button class="btn btn-primary btn-sm" data-act="mig-run" disabled>Migrate</button>
+          <button class="btn btn-sm" data-act="mig-escrow" disabled>Back escrow (USDC)</button>
           <button class="btn btn-sm" data-act="mig-verify" disabled>Verify</button>
           <button class="btn btn-sm ac-danger-btn" data-act="mig-seal" disabled>Seal target imports</button>
         </div>
@@ -621,6 +662,38 @@ class AdminConsole extends EnclaveElement {
         if (!need(/^\d+$/.test(v) && +v >= 60 && +v <= 86400, "lease must be 60…86400 seconds")) return;
         return void this._tx(S.dep.addr, encCall(dSel.setLeaseSec, [{ t: "uint", v }]), `setLeaseSec(${v})`, panelStatus, true);
       }
+      /* The one-shot prover binding. Checked here as hard as it can be from a
+         browser: the address must carry code, must point BACK at this ledger,
+         and must read the same registry - a prover built against a different
+         pair silently rejects every checkpoint the fleet ever signs, and there
+         is no second attempt. */
+      if (act === "dep-prover") {
+        const v = inputFor(act);
+        if (!need(ADDR_RE.test(v) && !isZero(v), "enter the deployed EnclaveProofOfTime address")) return;
+        if (!need(val("cf-dep-prover") === "BIND", "type BIND to confirm - this binding is permanent")) return;
+        const pSelPot = CONTRACTS.EnclaveProofOfTime.sel;
+        const code = await baseRpc("eth_getCode", [v, "latest"]).catch(() => "0x");
+        if (!need(code && code !== "0x", "no contract code at that address on Base")) return;
+        const [itsLedger, itsRegistry] = await Promise.all([
+          rdAddrSoft(v, pSelPot.deployments), rdAddrSoft(v, pSelPot.registry)]);
+        if (!need(lc(itsLedger) === lc(S.dep.addr),
+          `that prover is built against ledger ${short(itsLedger)}, not this one (${short(S.dep.addr)}) - it could never credit anything here`)) return;
+        if (!need(lc(itsRegistry) === lc(S.dep.registry),
+          `that prover reads registry ${short(itsRegistry)} but this ledger reads ${short(S.dep.registry)} - proof keys would be looked up in the wrong place`)) return;
+        return void this._tx(S.dep.addr, encCall(dSel.setProver, [{ t: "addr", v }]),
+          `setProver(${short(v)}) — permanent`, panelStatus, true);
+      }
+      if (act === "dep-prooffrom") {
+        const v = inputFor(act);
+        if (!need(/^\d+$/.test(v), "unix seconds, or 0 to keep metering on held time")) return;
+        const n = Number(v);
+        if (!need(n === 0 || n > 1_600_000_000, "that is not a plausible unix timestamp (seconds, not milliseconds)")) return;
+        if (n !== 0 && !need(!isZero(S.dep.prover || ZERO),
+          "bind a prover first - switching to proven-time metering with none bound stops every host's income at the cutover")) return;
+        return void this._tx(S.dep.addr, encCall(dSel.setProofRequiredFrom, [{ t: "uint", v }]),
+          n === 0 ? "setProofRequiredFrom(0) — metering stays on held time" : `setProofRequiredFrom(${v}) — ${new Date(n * 1000).toLocaleString()}`,
+          panelStatus, true);
+      }
       if (act === "dep-feed" || act === "dep-payout" || act === "pay-payout" || act === "feat-payout" || act === "rev-fallback") {
         const v = inputFor(act);
         if (!need(ADDR_RE.test(v), "enter a 0x… address (40 hex)")) return;
@@ -766,8 +839,19 @@ class AdminConsole extends EnclaveElement {
             if (!need(!st.sealed, "target's imports are permanently sealed - deploy a fresh target")) return;
             log("p", "reading the target to plan the delta…");
             const after = await m.read(tgt);
-            const txs = m.plan(M.data, after);
-            if (!txs.length) { log("ok", "nothing to import - target already holds everything. Verify, then seal."); return; }
+            // runnerBps is the target's own snapshot constant - read it here so
+            // a granted rate matches exactly what create() would have taken
+            const grantRates = !!this._body.querySelector("#migGrantRates")?.checked;
+            const runnerBps = m.contractName === "EnclaveDeployments"
+              ? Number(await rdUintSoft(tgt, CONTRACTS.EnclaveDeployments.sel.runnerBps) ?? 0) : 0;
+            if (grantRates && m.contractName === "EnclaveDeployments" && !runnerBps)
+              log("p", "  note: target reports runnerBps 0 - no rates can be granted");
+            const txs = m.plan(M.data, after, { grantRates, runnerBps });
+            if (!txs.length) {
+              log("ok", "nothing to import - target already holds everything. Back escrow next, then Verify and seal.");
+              enable("mig-escrow", true);
+              return;
+            }
             log("p", `${txs.length} import transaction${txs.length === 1 ? "" : "s"} to send`);
             await this._connect();
             for (let i = 0; i < txs.length; i++) {
@@ -777,8 +861,45 @@ class AdminConsole extends EnclaveElement {
               await waitReceipt(hash, 90);
               log("ok", `  ✓ ${txs[i].label}`);
             }
-            log("ok", "migration pass complete - run Verify next (Migrate again later to pick up new source records).");
+            log("ok", "migration pass complete - Back escrow next, then Verify (Migrate again later to pick up new source records).");
+            enable("mig-escrow", true);
           } catch (err) { log("err", friendly(err) + " - fix and click Migrate again; the delta plan resumes where it stopped."); }
+          finally { btn.disabled = false; }
+          return;
+        }
+
+        /* Re-seat the runner escrow the source keeps. Two transactions: one
+           USDC approve for the exact total, then the batched fundEscrow calls.
+           Idempotent and resumable - the plan is computed from what the target
+           is missing right now, so a half-finished run just re-plans smaller. */
+        if (act === "mig-escrow") {
+          if (!need(m.contractName === "EnclaveDeployments", "escrow backing only applies to the deployments ledger")) return;
+          btn.disabled = true;
+          try {
+            const st = await importState(tgt, m.contractName);
+            if (st.capable && st.sealed)
+              log("err", "NOTE: imports are already sealed - backing still works, but it will NOT be credited as the owners' refundable escrow. That attribution closed with the seal.");
+            log("p", "reading the target to work out what backing is missing…");
+            const { items, skipped, total6, txs } = await escrowPlan(tgt);
+            for (const s of skipped) log("err", `  skipped ${s.id.slice(0, 12)}… - ${s.why}`);
+            if (!items.length) { log("ok", "every record is fully backed - nothing to send. Verify next."); return; }
+            const totalUsd = "$" + (Number(total6) / 1e6).toFixed(2);
+            log("p", `${items.length} record${items.length === 1 ? "" : "s"} need backing, ${totalUsd} of USDC total`);
+            await this._connect();
+            log("p", `approving ${totalUsd} of USDC to the ledger - confirm in your wallet…`);
+            const ah = await sendTx(USDC_BASE, approveTx(tgt, total6));
+            log("p", `  sent ${ah.slice(0, 14)}… waiting…`);
+            await waitReceipt(ah, 90);
+            log("ok", "  ✓ approved");
+            for (let i = 0; i < txs.length; i++) {
+              log("p", `[${i + 1}/${txs.length}] ${txs[i].label} - confirm in your wallet…`);
+              const hash = await sendTx(tgt, txs[i].dataHex);
+              log("p", `  sent ${hash.slice(0, 14)}… waiting…`);
+              await waitReceipt(hash, 90);
+              log("ok", `  ✓ ${txs[i].label}`);
+            }
+            log("ok", `escrow backed with ${totalUsd} ✓ - sellers can now be paid and owners can now cancel for a refund. Verify next.`);
+          } catch (err) { log("err", friendly(err) + " - click Back escrow again; it re-plans from what is still missing."); }
           finally { btn.disabled = false; }
           return;
         }
@@ -800,6 +921,19 @@ class AdminConsole extends EnclaveElement {
         }
 
         if (act === "mig-seal") {
+          // Last chance to catch the one thing sealing makes permanent that
+          // verify cannot see: escrow attribution. Refuse the FIRST click while
+          // backing is still missing rather than warn after the fact.
+          if (m.contractName === "EnclaveDeployments" && !btn.dataset.armed) {
+            const { items, skipped, total6 } = await escrowPlan(tgt).catch(() => ({ items: [], skipped: [], total6: "0" }));
+            if (items.length || skipped.length) {
+              log("err", `NOT sealing yet: ${items.length} record${items.length === 1 ? "" : "s"} still need $${(Number(total6) / 1e6).toFixed(2)} of escrow backing`
+                + (skipped.length ? `, and ${skipped.length} cannot be backed at all (see above)` : "")
+                + ". Seal now and those records can never be refunded. Run Back escrow first, or click Seal again to override.");
+              btn.dataset.armed = "1"; btn.textContent = "Seal anyway (escrow unbacked)";
+              return;
+            }
+          }
           if (!btn.dataset.armed) { btn.dataset.armed = "1"; btn.textContent = "Click again to PERMANENTLY seal"; return; }
           delete btn.dataset.armed; btn.textContent = "Seal target imports";
           btn.disabled = true;

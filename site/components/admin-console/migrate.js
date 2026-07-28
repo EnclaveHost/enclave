@@ -88,6 +88,68 @@ export async function importState(target, contractName) {
   } catch (e) { return { capable: false }; }
 }
 
+/* Runner escrow is the one thing a migration CANNOT import: it is real USDC
+   held by the source contract, and the source keeps it (its operators stay able
+   to withdraw what they earned there, forever). So a freshly migrated ledger
+   holds balances it cannot pay anyone out of - every record arrives with
+   escrow6 = 0, and until it is re-backed:
+     - _creditRunner caps every credit at escrow6, so a seller serving a
+       migrated deployment earns NOTHING; and
+     - (rev >= 10) refundableOf is 0, so the owner's Cancel button cannot pay.
+   sealImports does not close this - fundEscrow stays open forever - but the
+   ownerEscrow6 ATTRIBUTION does close with it: while imports are open a
+   platform fundEscrow credits the owner (it is re-seating money the owner
+   already paid on the source), and once sealed it does not. Back the escrow
+   BEFORE sealing or the records are permanently un-refundable.
+
+   Required backing per record is what _splitFunding would have escrowed for the
+   balance it still carries: ceil(balance6 * rate6 / rate), read off the TARGET
+   (its rate6 is what its own credits will use), minus whatever it already
+   holds. Records that are inactive or still have rate6 = 0 are reported as
+   skipped rather than silently dropped - fundEscrow would revert on both. */
+export async function escrowPlan(target) {
+  const sel = CONTRACTS.EnclaveDeployments.sel;
+  const total = wNum(await call(target, "0x" + sel.count), 0);
+  const rows = [];
+  for (let s = 0; s < total; s += PAGE)
+    rows.push(...decodeStructArray(await call(target, encCallX(sel.getPage, [{ t: "uint", v: s }, { t: "uint", v: PAGE }])), DEP_SCHEMA));
+  const items = [], skipped = [];
+  for (const page of chunked(rows, 10)) {
+    await Promise.all(page.map(async (r) => {
+      const e = await call(target, encCallX(sel.earnOf, [{ t: "bytes32", v: r.id }]));
+      const rate6 = hexBig("0x" + (word(e, 0) || "0"));
+      const held = hexBig("0x" + (word(e, 1) || "0"));
+      const bal = BigInt(r.balance6), rate = BigInt(r.rate);
+      if (rate6 === 0n) return void skipped.push({ id: r.id, why: "no runner rate - grant one during Migrate first" });
+      if (!r.active) return void skipped.push({ id: r.id, why: "inactive - fundEscrow requires an active record" });
+      if (bal === 0n || rate === 0n) return;                       // nothing to back
+      const want = (bal * rate6 + (rate - 1n)) / rate;             // ceil, exactly like _splitFunding
+      if (want > held) items.push({ id: r.id, amount6: (want - held).toString() });
+    }));
+  }
+  items.sort((a, b) => (a.id < b.id ? -1 : 1));                    // deterministic order for a resumable run
+  const totalNeeded = items.reduce((s, x) => s + BigInt(x.amount6), 0n);
+  const txs = chunked(items, CHUNK.escrow).map((c, i) => ({
+    label: `fundEscrow · batch ${i + 1} (${c.length})`,
+    gas: 60_000 + 90_000 * c.length,
+    dataHex: encCallX(CONTRACTS.EnclaveDeployments.sel.multicall, [{ t: "bytes[]", v: c.map((x) =>
+      encCallX(sel.fundEscrow, [{ t: "bytes32", v: x.id }, { t: "uint", v: x.amount6 }])) }]),
+  }));
+  return { items, skipped, total6: totalNeeded.toString(), txs: txs.length === 1 && items.length === 1
+    ? [{ label: `fundEscrow · 1 record`, gas: 150_000,
+         dataHex: encCallX(sel.fundEscrow, [{ t: "bytes32", v: items[0].id }, { t: "uint", v: items[0].amount6 }]) }]
+    : txs };
+}
+
+/* ERC-20 approve(address,uint256) - the console's only non-project-contract
+   call. Same selector site/js/core/fund.js uses, pinned against viem in
+   test/admin-console.test.mjs. fundEscrow pulls with transferFrom, so the
+   target needs an allowance before the batches above will land. */
+export const APPROVE_SEL = "095ea7b3";
+export function approveTx(spender, amount6) {
+  return encCallX(APPROVE_SEL, [{ t: "addr", v: spender }, { t: "uint", v: String(amount6) }]);
+}
+
 /* ---- per-kind engines ----
    Each kind: { label, contractName, bookKey,
                 read(source) -> data, counts(data) -> string,
@@ -100,7 +162,8 @@ const PAGE = 50;
 // at broadcast - it never lands, so the console sits on "sent … waiting" while
 // the receipt never appears. Bound every packed tx on BOTH axes (see packPlan),
 // and size-chunk versions since their `config` blob can be up to 4 KB each.
-const CHUNK = { deployments: 6, apps: 10, fees: 40 };   // fees: 3 words + 1 SSTORE + event per id - cheap
+const CHUNK = { deployments: 6, apps: 10, fees: 40, escrow: 12 };   // fees: 3 words + 1 SSTORE + event per id - cheap
+                                                       // escrow: each is a USDC transferFrom + SSTOREs, ~90k gas
 const VER_TX_BYTES = 6 * 1024;   // max calldata for a single importVersions call
 
 /* -- deployments -- */
@@ -147,7 +210,11 @@ async function readDeployments(source) {
     for (const page of chunked(rows, 10)) {
       await Promise.all(page.map(async (r) => {
         const e = await call(source, encCallX(sel.earnOf, [{ t: "bytes32", v: r.id }]));
-        r.earn = { rate6: hexBig("0x" + (word(e, 0) || "0")).toString() };
+        // escrow6 rides along READ-ONLY: it cannot be imported (it is real USDC
+        // held by the source), but the escrow step below needs to show what the
+        // source is holding so an operator can see what they are re-backing.
+        r.earn = { rate6: hexBig("0x" + (word(e, 0) || "0")).toString(),
+                   escrow6: hexBig("0x" + (word(e, 1) || "0")).toString() };
       }));
     }
   }
@@ -281,7 +348,7 @@ export const MIG_KINDS = {
     /* delta plan: skip anything the target already holds, so an interrupted
        run resumes by re-clicking Migrate, and a second pass right before the
        book flips picks up records created on the source in the meantime. */
-    plan(data, after) {
+    plan(data, after, opts = {}) {
       const sel = CONTRACTS.EnclaveDeployments.sel;
       const have = new Set(after.map((d) => d.id.toLowerCase()));
       const todo = data.filter((d) => !have.has(d.id.toLowerCase())).map(depClean);
@@ -307,14 +374,33 @@ export const MIG_KINDS = {
       })));
       // runner-rate snapshots ride the same way (importEarn requires the id to
       // exist, in-order packing preserves that), delta'd like the fees.
+      //
+      // A record whose SOURCE rate6 is 0 has nothing to copy - it predates the
+      // runner meter. Left at 0 it can never pay a seller a cent, and (rev 10)
+      // fundEscrow refuses it outright ("no runner rate"), so it can never be
+      // backed or refunded either. sealImports makes all of that permanent,
+      // which is why importEarn doubles as the GRANT path the ledger documents.
+      // opts.grantRates computes what create() would have snapshotted for it:
+      // runnerBps of the rate minus the publisher fee (_snapRunnerRate).
+      const grantBps = Number(opts.runnerBps || 0);
+      const granted = new Map();
+      if (opts.grantRates && grantBps > 0)
+        for (const d of data) {
+          if (d.earn && d.earn.rate6 !== "0") continue;
+          const fee6 = BigInt((d.fee && d.fee.rate6) || 0);
+          const r6 = ((BigInt(d.rate) - fee6) * BigInt(grantBps)) / 10000n;
+          if (r6 > 0n) granted.set(d.id.toLowerCase(), r6.toString());
+        }
+      const rateOf = (d) => granted.get(d.id.toLowerCase()) || (d.earn && d.earn.rate6) || "0";
       const haveEarn = new Set(after.filter((d) => d.earn && d.earn.rate6 !== "0").map((d) => d.id.toLowerCase()));
-      const earnTodo = data.filter((d) => d.earn && d.earn.rate6 !== "0" && !haveEarn.has(d.id.toLowerCase()));
+      const earnTodo = data.filter((d) => rateOf(d) !== "0" && !haveEarn.has(d.id.toLowerCase()));
       txs.push(...chunked(earnTodo, CHUNK.fees).map((c, i) => ({
-        label: `importEarn · batch ${i + 1} (${c.length})`,
+        label: `importEarn · batch ${i + 1} (${c.length})`
+          + (c.some((d) => granted.has(d.id.toLowerCase())) ? " · includes granted rates" : ""),
         gas: 100_000 + 45_000 * c.length,
         dataHex: encCallX(sel.importEarn, [
           { t: "bytes32[]", v: c.map((d) => d.id) },
-          { t: "uint[]", v: c.map((d) => d.earn.rate6) },
+          { t: "uint[]", v: c.map(rateOf) },
         ]),
       })));
       // Spend ceilings, when the SOURCE has them (rev >= 8): importDeployments

@@ -386,3 +386,61 @@ test("artifacts stay in sync with contracts/*.sol (regenerate check)", () => {
     Object.values(CONTRACTS).map((c) => c.bookKey).filter(Boolean).sort(),
     ["appCatalog", "deployments", "enclavePay", "featured", "hostReviews", "paymentRouter", "proofOfTime", "registry", "reviews", "vaultFactory"]);
 });
+
+/* ---- migration escrow backing + the proof-of-time bindings (rev 9/10) ----
+   These are the console actions with no undo: fundEscrow attribution closes
+   with sealImports, and setProver cannot be changed at all. An encoding bug in
+   either is unrecoverable, so both are pinned against viem here. */
+
+test("fundEscrow + the approve that funds it encode like viem", async () => {
+  const { approveTx, APPROVE_SEL } = await import(path.join(REPO, "site/components/admin-console/migrate.js"));
+  const depAbi = ABI("EnclaveDeployments");
+  const id = "0x" + "ab".repeat(32);
+  eq(encCallX(S("EnclaveDeployments").fundEscrow, [{ t: "bytes32", v: id }, { t: "uint", v: "1234500" }]),
+    encodeFunctionData({ abi: depAbi, functionName: "fundEscrow", args: [id, 1234500n] }));
+
+  // ERC-20 approve is the console's only non-project-contract call, so its
+  // selector has no artifact to drift against - derive it from the signature
+  assert.equal("0x" + APPROVE_SEL, toFunctionSelector("approve(address,uint256)"));
+  const ERC20 = [{ type: "function", name: "approve", stateMutability: "nonpayable",
+    inputs: [{ type: "address" }, { type: "uint256" }], outputs: [{ type: "bool" }] }];
+  eq(approveTx(A2, "19780000"), encodeFunctionData({ abi: ERC20, functionName: "approve", args: [A2, 19780000n] }));
+});
+
+test("batched fundEscrow rides the ledger's multicall, encoded like viem", () => {
+  const depAbi = ABI("EnclaveDeployments");
+  const ids = ["0x" + "ab".repeat(32), "0x" + "ef".repeat(32)];
+  const amounts = ["1000000", "2500000"];
+  const inner = ids.map((id, i) => encodeFunctionData({ abi: depAbi, functionName: "fundEscrow", args: [id, BigInt(amounts[i])] }));
+  eq(encCallX(S("EnclaveDeployments").multicall, [{ t: "bytes[]", v: ids.map((id, i) =>
+      encCallX(S("EnclaveDeployments").fundEscrow, [{ t: "bytes32", v: id }, { t: "uint", v: amounts[i] }])) }]),
+    encodeFunctionData({ abi: depAbi, functionName: "multicall", args: [inner] }));
+});
+
+test("setProver / setProofRequiredFrom encode like viem", () => {
+  const depAbi = ABI("EnclaveDeployments");
+  eq(encCall(S("EnclaveDeployments").setProver, [{ t: "addr", v: A2 }]),
+    encodeFunctionData({ abi: depAbi, functionName: "setProver", args: [A2] }));
+  eq(encCall(S("EnclaveDeployments").setProofRequiredFrom, [{ t: "uint", v: "1786458509" }]),
+    encodeFunctionData({ abi: depAbi, functionName: "setProofRequiredFrom", args: [1786458509n] }));
+  eq(encCall(S("EnclaveDeployments").setProofRequiredFrom, [{ t: "uint", v: "0" }]),
+    encodeFunctionData({ abi: depAbi, functionName: "setProofRequiredFrom", args: [0n] }));
+});
+
+test("the escrow step's required-backing formula matches _splitFunding's ceil", () => {
+  // ceil(balance6 * rate6 / rate) - the same rounding the contract uses, so a
+  // backed record covers every second its balance can buy (never one short)
+  const want = (bal, rate6, rate) => (BigInt(bal) * BigInt(rate6) + (BigInt(rate) - 1n)) / BigInt(rate);
+  assert.equal(want(100_000_000, 667, 834), 79_976_020n);      // pinned in the Solidity suite too
+  assert.equal(want(1, 1, 3), 1n, "a sub-unit remainder still rounds UP");
+  assert.equal(want(0, 667, 834), 0n);
+});
+
+test("a granted runner rate matches the contract's _snapRunnerRate", () => {
+  const sol = fs.readFileSync(path.join(REPO, "contracts/EnclaveDeployments.sol"), "utf8");
+  assert.match(sol, /uint256 r6 = \(\(d\.rate - _fees\[d\.id\]\.rate6\) \* runnerBps\) \/ 10000;/,
+    "the console grants runnerBps*(rate-fee)/10000; if the contract's formula moves, migrate.js must follow");
+  const grant = (rate, fee6, bps) => ((BigInt(rate) - BigInt(fee6)) * BigInt(bps)) / 10000n;
+  assert.equal(grant(834, 0, 8000), 667n);
+  assert.equal(grant(1042, 200, 8000), 673n);
+});
