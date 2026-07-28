@@ -73,6 +73,7 @@ import { handleAccount, initAccounts } from "./auth.js";
 import { handleBilling, initBilling } from "./billing.js";
 import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep } from "./secrets.js";
 import { createTunnelHub } from "./tunnel.js";
+import { boxOrigin, boxLabelOfHost } from "./boxhost.js";
 installProcessGuards("api-relay");
 
 // --- fleet tunnel: self-hosted (CGNAT) enclaves dial IN and are routed to over
@@ -109,7 +110,10 @@ const TUNNEL_ORIGIN = (process.env.TUNNEL_PUBLIC_ORIGIN || "https://api.enclave.
 async function tunnelNameOwner(name) {
   if (!REGISTRY_ADDRESS) return null;
   const c = await chain();
-  const id = await endpointId(`${TUNNEL_ORIGIN}/t/${name}`);
+  // A minted box name (boxhost.js) registers under its OWN host, so its id is
+  // computable from the name alone — which is the whole reason the derived
+  // label doubles as the attach name. Legacy names keep the path form.
+  const id = await endpointId(boxOrigin(name) || `${TUNNEL_ORIGIN}/t/${name}`);
   const e = await c.readContract({ address: REGISTRY_ADDRESS, abi: GET_ABI, functionName: "get", args: [id] });
   const op = String(e?.operator || "");
   return e?.active && !/^0x0{40}$/i.test(op) ? op.toLowerCase() : null;
@@ -1521,6 +1525,26 @@ function handleRequest(req, res) {
     return handleSecrets(req, res, u, relayCtx).catch((e) =>
       json(res, 500, { error: "secrets_error", message: e.message }, req));
 
+  // A box reached by its OWN name: e<hex>.<BOX_ZONE> is a whole host, so the
+  // request arrives with that Host and an ordinary path. Forward the path
+  // untouched over that box's tunnel.
+  //
+  // This is what makes a tunnel box verifiable. Every attestation verifier
+  // takes a bare HOST and builds /.well-known/tinfoil-attestation from it, so
+  // the /t/<name> path form below gets truncated to the relay's own hostname
+  // and ends up verifying the RELAY (found 2026-07-28: every metal0-hosted app
+  // failed in-browser this way). With a real host the URL survives, and once
+  // the zone is served with SNI passthrough the client's TLS terminates at the
+  // BOX — so the quote's reportData binds the certificate the client actually
+  // saw, which no relay-terminated path can ever do.
+  const boxName = boxLabelOfHost(routingHost(req));
+  if (boxName) {
+    const origin = `tunnel://${boxName}`;
+    if (!tunnelHub.origins().some((o) => o.endpoint === origin))
+      return json(res, 404, { error: "no_tunnel", message: `No enclave is attached for ${routingHost(req)}.` }, req);
+    return proxyTo(origin, req, res, { path: u.pathname + (u.search || ""), setCors: true });
+  }
+
   // Reach a SPECIFIC tunnel enclave through the relay: /t/<name>/<rest> forwards
   // <rest> over that enclave's tunnel. This is how a CGNAT self-hosted enclave
   // (no public endpoint) is reachable + independently verifiable — e.g.
@@ -1583,6 +1607,14 @@ server.on("upgrade", async (req, socket, head) => {
       const origin = `tunnel://${tm[1]}`;
       if (!tunnelHub.origins().some((o) => o.endpoint === origin)) return refuse(404, "Not Found");
       return tunnelHub.spliceUpgrade(origin, req, socket, head, (tm[2] || "/") + (u.search || ""));
+    }
+    // …and the same box reached by its own hostname, so a websocket to a box
+    // does not silently fall through to the deployment router below.
+    const bn = boxLabelOfHost(routingHost(req));
+    if (bn) {
+      const origin = `tunnel://${bn}`;
+      if (!tunnelHub.origins().some((o) => o.endpoint === origin)) return refuse(404, "Not Found");
+      return tunnelHub.spliceUpgrade(origin, req, socket, head, u.pathname + (u.search || ""));
     }
   }
   try {

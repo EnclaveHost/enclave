@@ -17,6 +17,7 @@
 import { WebSocketServer } from "ws";
 import { createHash, timingSafeEqual, randomBytes } from "node:crypto";
 import { verifyQuote } from "./snp-verify.mjs";
+import { boxOrigin } from "./boxhost.js";
 
 const sha256Hex = (s) => createHash("sha256").update(String(s)).digest("hex");
 const eqHex = (a, b) => { const x = Buffer.from(String(a), "hex"), y = Buffer.from(String(b), "hex"); return x.length === y.length && timingSafeEqual(x, y); };
@@ -32,15 +33,24 @@ const NAME_RE_OK = /^[A-Za-z0-9_-]{1,64}$/;
 // takeover primitive: any attached box could name another enclave's registered
 // endpoint and have the fleet route that enclave's deployments — /x data path
 // and /v1 control path, caller Authorization header included — to itself. So
-// only a SELF-ROUTED url is honored: one whose path is this tunnel's own
-// /t/<name> route, which is exactly what a CGNAT seller registers on chain
-// (`enclave host`, metal/HANDOFF.md) and the only URL this hub can vouch for.
+// only a SELF-ROUTED url is honored: one this hub can vouch for from the attach
+// name alone, which is exactly what a CGNAT seller registers on chain
+// (`enclave host`, metal/HANDOFF.md).
 // A colo box with its own dialable https endpoint needs no claim at all — it is
 // discovered on chain directly and was never displaced.
+//
+// Two accepted shapes, and the check is the same in both: derive the URL from
+// `name` and compare, never parse trust out of what was sent.
+//   1. https://<box-zone-host>      — the box's own name (boxhost.js). Its
+//      label IS the attach name, so this is a pure derivation.
+//   2. https://<relay>/t/<name>     — the legacy path route, kept so a box
+//      that predates the zone (or a relay with BOX_ZONE unset) still attaches.
 function selfRoutedUrl(url, name) {
   if (!url) return "";
   let u; try { u = new URL(String(url)); } catch { return ""; }
   if (u.protocol !== "https:" || u.search || u.hash) return "";
+  const origin = boxOrigin(name);
+  if (origin && u.pathname.replace(/\/+$/, "") === "" && `https://${u.host}` === origin) return origin;
   return u.pathname.replace(/\/+$/, "") === `/t/${name}` ? String(url) : "";
 }
 
