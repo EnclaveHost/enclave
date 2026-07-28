@@ -107,7 +107,11 @@ const pub = createPublicClient({ chain, transport: http(RPC) });
 
 // ---- resolve the pair this prover binds to --------------------------------
 const BOOK = (process.env.ADDRESS_BOOK_ADDRESS || "").trim();
-const BOOK_ABI = [{ type: "function", name: "get", stateMutability: "view",
+// EnclaveAddressBook's lookup is addr(bytes32), not get() — every other script
+// in this directory uses that name, and this one didn't, so ADDRESS_BOOK_ADDRESS
+// resolution failed with a raw viem revert before it could reach any of the
+// checks below.
+const BOOK_ABI = [{ type: "function", name: "addr", stateMutability: "view",
   inputs: [{ type: "bytes32" }], outputs: [{ type: "address" }] }];
 const keyOf = (s) => "0x" + Buffer.from(s, "ascii").toString("hex").padEnd(64, "0");
 
@@ -115,7 +119,8 @@ async function resolve(name, envName, bookKey) {
   const fromEnv = (process.env[envName] || "").trim();
   if (fromEnv) return getAddress(fromEnv);
   if (!BOOK) die(`${envName} is required (or set ADDRESS_BOOK_ADDRESS so ${name} resolves from the book)`);
-  const a = await pub.readContract({ address: getAddress(BOOK), abi: BOOK_ABI, functionName: "get", args: [keyOf(bookKey)] });
+  const a = await pub.readContract({ address: getAddress(BOOK), abi: BOOK_ABI, functionName: "addr", args: [keyOf(bookKey)] })
+    .catch((e) => die(`could not read \`${bookKey}\` from the address book at ${BOOK}: ${e.shortMessage || e.message}`));
   if (/^0x0{40}$/i.test(a)) die(`the address book has no \`${bookKey}\` entry; set ${envName} explicitly`);
   return getAddress(a);
 }
