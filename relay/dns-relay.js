@@ -52,6 +52,7 @@ import net from "node:net";
 import http from "node:http";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { createFleet, fleetConfig, fetchJson, installProcessGuards } from "./fleet.mjs";
+import { isBoxHost } from "./boxhost.js";
 installProcessGuards("dns-relay");
 
 const need = (k) => { const v = (process.env[k] || "").trim(); if (!v) { console.error(`fatal: ${k} is required`); process.exit(1); } return v; };
@@ -69,6 +70,13 @@ const APP_ZONE  = fqdn(need("APP_ZONE"));
 // shape as the app zone, delegated here so in-enclave ACME can answer dns-01
 // for <label>.tcp.* names too. Unset = zone off (Cloudflare keeps serving it).
 const TCP_ZONE  = process.env.TCP_ZONE ? fqdn(process.env.TCP_ZONE.trim()) : null;
+// zone 4 (optional): self-hosted ENCLAVES, one wildcard name per box
+// (e<16hex>.box.enclave.host — relay/boxhost.js). Delegated here for the same
+// reason as the app zone: the box answers dns-01 itself and holds its own
+// certificate, which is what lets a client's TLS terminate AT the box instead
+// of at the relay. Without that the quote's reportData binds a key the client
+// never saw and attestation cannot complete. Unset = zone off.
+const BOX_ZONE  = process.env.BOX_ZONE ? fqdn(process.env.BOX_ZONE.trim()) : null;
 const NS_NAME   = fqdn(need("NS_NAME"));
 // hostmaster at the NS name's parent (ns1.enclave.host -> hostmaster.enclave.host)
 const RNAME     = "hostmaster." + (NS_NAME.includes(".") ? NS_NAME.slice(NS_NAME.indexOf(".") + 1) : NS_NAME);
@@ -163,6 +171,8 @@ if (process.env.APP_AAAA && !APP_AAAA) { console.error("fatal: APP_AAAA is not a
 const TCP_A = process.env.TCP_A ? ipv4Bytes(process.env.TCP_A.trim()) : null;
 if (process.env.TCP_A && !TCP_A) { console.error("fatal: TCP_A is not a valid IPv4 address"); process.exit(1); }
 const TCP_AAAA = process.env.TCP_AAAA ? ipv6Bytes(process.env.TCP_AAAA.trim()) : null;
+const BOX_A = process.env.BOX_A ? ipv4Bytes(process.env.BOX_A.trim()) : null;
+const BOX_AAAA = process.env.BOX_AAAA ? ipv6Bytes(process.env.BOX_AAAA.trim()) : null;
 if (process.env.TCP_AAAA && !TCP_AAAA) { console.error("fatal: TCP_AAAA is not a valid IPv6 address"); process.exit(1); }
 
 // ---- fleet state (zone 1's data) -------------------------------------------
@@ -314,6 +324,8 @@ function answer(q) {
   if (q.qname === APP_ZONE || q.qname.endsWith("." + APP_ZONE)) return resolveWildcard(q.qname, q.qtype, APP_ZONE, APP_A, APP_AAAA);
   if (TCP_ZONE && (q.qname === TCP_ZONE || q.qname.endsWith("." + TCP_ZONE)))
     return resolveWildcard(q.qname, q.qtype, TCP_ZONE, TCP_A, TCP_AAAA);
+  if (BOX_ZONE && (q.qname === BOX_ZONE || q.qname.endsWith("." + BOX_ZONE)))
+    return resolveWildcard(q.qname, q.qtype, BOX_ZONE, BOX_A, BOX_AAAA);
   return EMPTY(RC.REFUSED);   // not our zone — we're authoritative, not a resolver
 }
 
@@ -466,12 +478,35 @@ let _recover = null;
 async function operatorAuth(sig, raw, body, name) {
   if (!/^0x[0-9a-fA-F]{130}$/.test(String(sig))) return "malformed x-operator-sig";
   if (body?.ts == null) return "ts is required for operator-signed pushes";   // ±300s window enforced above
+  const rest = name.slice("_acme-challenge.".length);
+
+  // BOX ZONE: the name IS an enclave's own hostname, so authority is simply
+  // "the operator that registered this endpoint" — no deployment involved.
+  // Deliberately narrow: the signer must own THIS host, so a box can renew its
+  // own certificate and no other box's, and a registry row for some unrelated
+  // endpoint grants nothing here.
+  if (BOX_ZONE && rest.endsWith("." + BOX_ZONE)) {
+    const host = rest.slice(0, -(BOX_ZONE.length + 1)) + "." + BOX_ZONE;
+    if (!isBoxHost(host, BOX_ZONE)) return "label is not a minted box name";
+    // Registry lookup BEFORE the ECDSA recover: it is an in-memory map hit, and
+    // it means an unauthenticated caller cannot make us do public-key crypto for
+    // a name nobody has registered. What it reveals (whether a box is
+    // registered) is already public on chain.
+    const op = fleet.operatorForEndpoint(`https://${host}`);
+    if (!op) return "no live registry entry for this box name";
+    if (!_recover) _recover = (await import("viem")).recoverMessageAddress;
+    let signer;
+    try { signer = (await _recover({ message: raw.toString("utf8"), signature: sig })).toLowerCase(); }
+    catch { return "signature does not recover"; }
+    if (op !== signer) return "signer is not the operator registered for this box";
+    return null;
+  }
+
   const depId = String(body.deploymentId || "").toLowerCase();
   if (!/^0x[0-9a-f]{64}$/.test(depId)) return "deploymentId (bytes32) is required";
   // name is _acme-challenge.<label>.<zone>; the label must be a single hex
   // label that prefixes deploymentId — operator authority extends to the
   // subdomains of deployments it leases, nothing else (no apex, no nesting)
-  const rest = name.slice("_acme-challenge.".length);
   const zone = rest.endsWith("." + APP_ZONE) ? APP_ZONE
              : (TCP_ZONE && rest.endsWith("." + TCP_ZONE) ? TCP_ZONE : null);
   if (!zone) return "name is outside the app/tcp zones";
@@ -523,7 +558,7 @@ function apiHandler(req, res) {
   if (req.method === "GET" && u.pathname === "/health") {
     let txtRecords = 0;
     for (const name of [...txtStore.keys()]) txtRecords += txtValues(name).length;
-    return json(200, { ok: true, zones: { ip: IP_ZONE, app: APP_ZONE, tcp: TCP_ZONE },
+    return json(200, { ok: true, zones: { ip: IP_ZONE, app: APP_ZONE, tcp: TCP_ZONE, box: BOX_ZONE },
                        deployments: deployments.length, txtRecords });
   }
   if (u.pathname !== "/v1/txt" || (req.method !== "POST" && req.method !== "DELETE"))
@@ -546,9 +581,10 @@ function apiHandler(req, res) {
     }
     const name = typeof body?.name === "string" ? fqdn(body.name) : "";
     const value = typeof body?.value === "string" ? body.value : "";
-    const zoneOk = name.endsWith("." + APP_ZONE) || (TCP_ZONE && name.endsWith("." + TCP_ZONE));
+    const zoneOk = name.endsWith("." + APP_ZONE) || (TCP_ZONE && name.endsWith("." + TCP_ZONE))
+                || (BOX_ZONE && name.endsWith("." + BOX_ZONE));
     if (!name.startsWith("_acme-challenge.") || !zoneOk || name.length > 253)
-      return json(400, { error: "bad_name", message: "name must be _acme-challenge.<name> under the app or tcp zone" });
+      return json(400, { error: "bad_name", message: "name must be _acme-challenge.<name> under the app, tcp or box zone" });
     if (!value || value.length > 1024) return json(400, { error: "bad_value" });
 
     // auth: the fleet HMAC (any name), else an operator signature whose
