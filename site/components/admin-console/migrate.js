@@ -260,6 +260,20 @@ async function readDeployments(source) {
   }
   return rows;
 }
+/* The runner rate a GRANT gives a record whose source had none - the ledger's
+   own _snapRunnerRate, runnerBps of the rate minus the publisher fee. Shared by
+   plan() and verify() deliberately: a grant is a difference from the source
+   that verify must EXPECT, and if the two computed it separately they could
+   disagree and leave a correct migration permanently unable to verify clean
+   (which blocks Seal). Returns null when nothing would be granted. */
+function grantedRate6(d, runnerBps) {
+  if (!runnerBps) return null;
+  if (d.earn && d.earn.rate6 !== "0") return null;      // it has one; nothing to grant
+  const fee6 = BigInt((d.fee && d.fee.rate6) || 0);
+  const r6 = ((BigInt(d.rate) - fee6) * BigInt(runnerBps)) / 10000n;
+  return r6 > 0n ? r6.toString() : null;
+}
+
 const depKey = (d) => d.id;
 const depClean = (d) => ({ ...d, runner: "0x" + "0".repeat(64), runnerOperator: "0x" + "0".repeat(40), leaseUntil: 0 });
 const depCmp = (a, b) => DEP_SCHEMA.every((f) => ["runner", "runnerOperator", "leaseUntil"].includes(f.k)
@@ -411,15 +425,12 @@ export const MIG_KINDS = {
       // which is why importEarn doubles as the GRANT path the ledger documents.
       // opts.grantRates computes what create() would have snapshotted for it:
       // runnerBps of the rate minus the publisher fee (_snapRunnerRate).
-      const grantBps = Number(opts.runnerBps || 0);
+      const grantBps = opts.grantRates ? Number(opts.runnerBps || 0) : 0;
       const granted = new Map();
-      if (opts.grantRates && grantBps > 0)
-        for (const d of data) {
-          if (d.earn && d.earn.rate6 !== "0") continue;
-          const fee6 = BigInt((d.fee && d.fee.rate6) || 0);
-          const r6 = ((BigInt(d.rate) - fee6) * BigInt(grantBps)) / 10000n;
-          if (r6 > 0n) granted.set(d.id.toLowerCase(), r6.toString());
-        }
+      for (const d of data) {
+        const r6 = grantedRate6(d, grantBps);
+        if (r6) granted.set(d.id.toLowerCase(), r6);
+      }
       const rateOf = (d) => granted.get(d.id.toLowerCase()) || (d.earn && d.earn.rate6) || "0";
       const haveEarn = new Set(after.filter((d) => d.earn && d.earn.rate6 !== "0").map((d) => d.id.toLowerCase()));
       const earnTodo = data.filter((d) => rateOf(d) !== "0" && !haveEarn.has(d.id.toLowerCase()));
@@ -448,12 +459,20 @@ export const MIG_KINDS = {
       })));
       return packPlan("EnclaveDeployments", txs);
     },
-    async verify(data, target) {
+    async verify(data, target, opts = {}) {
       const after = await readDeployments(target);
       const byId = Object.fromEntries(after.map((d) => [d.id.toLowerCase(), d]));
       const feeCmp = (a, b) => (a.fee?.rate6 || "0") === (b.fee?.rate6 || "0")
         && ((a.fee?.rate6 || "0") === "0" || a.fee.recipient.toLowerCase() === b.fee.recipient.toLowerCase());
-      const earnCmp = (a, b) => (a.earn?.rate6 || "0") === (b.earn?.rate6 || "0");
+      // A GRANTED rate is a deliberate difference from the source, so verify has
+      // to expect it or a correct migration can never verify clean - and Seal
+      // only unlocks on a clean verify. Accept exactly the granted value,
+      // never merely "non-zero".
+      const grantBps = opts.grantRates ? Number(opts.runnerBps || 0) : 0;
+      const earnCmp = (a, b) => {
+        const src = a.earn?.rate6 || "0", tgt = b.earn?.rate6 || "0";
+        return src === tgt || (src === "0" && tgt === grantedRate6(a, grantBps));
+      };
       // a cap the source didn't have is whatever the target defaulted it to
       const capCmp = (a, b) => a.cap6 === undefined || a.cap6 === b.cap6;
       const bad = data.filter((d) => {

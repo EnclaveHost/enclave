@@ -812,6 +812,17 @@ class AdminConsole extends EnclaveElement {
         const src = val("migSource"), tgt = val("migTarget");
         const log = (cls, txt) => this._migLog(cls, txt);
         const enable = (a, on2) => { this._body.querySelector(`[data-act="${a}"]`).disabled = !on2; };
+        /* Plan and verify MUST see the same options. A granted runner rate is a
+           deliberate difference from the source, so a verify that doesn't know
+           about the grant reports every granted record as a mismatch - and Seal
+           only unlocks on a clean verify. runnerBps comes off the target so a
+           grant matches what its own create() would have snapshotted. */
+        const migOpts = async () => {
+          const grantRates = !!this._body.querySelector("#migGrantRates")?.checked;
+          if (m.contractName !== "EnclaveDeployments" || !grantRates) return { grantRates: false, runnerBps: 0 };
+          const runnerBps = Number(await rdUintSoft(tgt, CONTRACTS.EnclaveDeployments.sel.runnerBps) ?? 0);
+          return { grantRates, runnerBps };
+        };
 
         if (act === "mig-read") {
           if (!need(ADDR_RE.test(src), "enter the source contract address")) return;
@@ -839,14 +850,10 @@ class AdminConsole extends EnclaveElement {
             if (!need(!st.sealed, "target's imports are permanently sealed - deploy a fresh target")) return;
             log("p", "reading the target to plan the delta…");
             const after = await m.read(tgt);
-            // runnerBps is the target's own snapshot constant - read it here so
-            // a granted rate matches exactly what create() would have taken
-            const grantRates = !!this._body.querySelector("#migGrantRates")?.checked;
-            const runnerBps = m.contractName === "EnclaveDeployments"
-              ? Number(await rdUintSoft(tgt, CONTRACTS.EnclaveDeployments.sel.runnerBps) ?? 0) : 0;
-            if (grantRates && m.contractName === "EnclaveDeployments" && !runnerBps)
+            const opts = await migOpts();
+            if (opts.grantRates && !opts.runnerBps)
               log("p", "  note: target reports runnerBps 0 - no rates can be granted");
-            const txs = m.plan(M.data, after, { grantRates, runnerBps });
+            const txs = m.plan(M.data, after, opts);
             if (!txs.length) {
               log("ok", "nothing to import - target already holds everything. Back escrow next, then Verify and seal.");
               enable("mig-escrow", true);
@@ -908,7 +915,7 @@ class AdminConsole extends EnclaveElement {
           btn.disabled = true;
           try {
             log("p", "verifying: re-reading the target and diffing field-by-field…");
-            const r = await m.verify(M.data, tgt);
+            const r = await m.verify(M.data, tgt, await migOpts());
             if (r.bad.length) {
               log("err", `${r.ok}/${r.total} match; mismatched: ${r.bad.slice(0, 10).join(", ")}${r.bad.length > 10 ? " …" : ""}`);
             } else {

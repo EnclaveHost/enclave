@@ -470,3 +470,31 @@ test("migrate reads retry on empty and then fail loudly, never coerce to zero", 
   const impState = /export async function importState\([\s\S]*?\n\}/.exec(src);
   assert.match(impState[0], /isRevert\(e\)/, "importState must not report an RPC failure as 'no import surface'");
 });
+
+/* A granted runner rate is a deliberate difference from the source, so verify
+   has to EXPECT it. It didn't: every granted record was reported as a "runner
+   rate" mismatch, verify could never come back clean, and Seal (which only
+   unlocks on a clean verify) was unreachable for any migration that used the
+   grant. Plan and verify must agree on the exact granted value. */
+test("verify accepts a granted runner rate, and only the exact granted value", async () => {
+  const { MIG_KINDS } = await import(path.join(REPO, "site/components/admin-console/migrate.js"));
+  const src = fs.readFileSync(path.join(REPO, "site/components/admin-console/migrate.js"), "utf8");
+
+  // one shared helper, used by both - separate copies could drift apart and
+  // silently make a correct migration unverifiable
+  assert.match(src, /function grantedRate6\(d, runnerBps\)/);
+  const planBody = /plan\(data, after, opts = \{\}\) \{[\s\S]*?\n    \},/.exec(src);
+  const verBody = /async verify\(data, target, opts = \{\}\) \{[\s\S]*?\n    \},/.exec(src);
+  assert.match(planBody[0], /grantedRate6\(/, "plan must grant via the shared helper");
+  assert.match(verBody[0], /grantedRate6\(/, "verify must expect the grant via the same helper");
+  // the verBody regex above already pins the (data, target, opts = {}) signature;
+  // Function.length can't check it, since it stops counting at the first default
+  assert.equal(typeof MIG_KINDS.deployments.verify, "function");
+
+  // the exact value: runnerBps of rate minus the publisher fee (_snapRunnerRate)
+  const grant = (rate, fee6, bps) => ((BigInt(rate) - BigInt(fee6)) * BigInt(bps)) / 10000n;
+  assert.equal(grant(559, 0, 8000), 447n);      // the live records this shipped for
+  assert.equal(grant(409, 0, 8000), 327n);
+  // and verify must not accept just any non-zero rate in place of the grant
+  assert.doesNotMatch(verBody[0], /tgt !== "0"/, "a granted rate is an exact value, not 'anything non-zero'");
+});
