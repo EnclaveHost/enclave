@@ -666,7 +666,14 @@ the new enclave. This is the same no-trusted-gateway shape as discovery today.
   payout is capped at `ownerEscrow6` — the escrow the owner's OWN fundings
   contributed — so a third party's top-up is not withdrawable by the owner and
   a refund stays a reversal of the owner's own payment
-  (`docs/billing-runbook.md` §3). Closing the remaining gap (returning the
+  (`docs/billing-runbook.md` §3). **Migration note:** imported records carry no
+  escrow (the real USDC stays on the source contract), so the platform re-backs
+  them with `fundEscrow` — and while the import window is open that credits
+  `ownerEscrow6`, because it is re-seating money the owner already paid. Skip
+  that and every pre-existing deployment migrates in permanently un-refundable,
+  which `sealImports` then makes permanent. After sealing, a platform
+  `fundEscrow` is the ETH-funding case and stays non-refundable.
+  Closing the remaining gap (returning the
   platform's own 20% too) means escrowing it rather than forwarding it, i.e.
   making the contract custodial for the platform share — a real design change,
   not a patch.

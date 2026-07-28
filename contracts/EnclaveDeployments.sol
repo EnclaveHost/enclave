@@ -1124,13 +1124,24 @@ contract EnclaveDeployments {
     ///         ADDS backing for runner credits. The platform uses it to re-back
     ///         records whose balance arrived outside the escrowing paths:
     ///         imported (migrated) balances and ETH fundings.
+    /// @dev Who that escrow counts as REFUNDABLE for (rev 10) splits on exactly
+    ///      those two cases, and the import window separates them. While
+    ///      imports are OPEN the platform is re-seating escrow that a migrated
+    ///      record's balance already represents — money the OWNER paid on the
+    ///      source contract — so it credits ownerEscrow6. Without that, every
+    ///      deployment predating this ledger would arrive permanently
+    ///      un-refundable and sealImports would make it permanent. Once SEALED,
+    ///      a platform top-up is the ETH-funding case instead: that payer's ETH
+    ///      went to payout, and this is the platform making runners whole with
+    ///      its own money, so it backs credits without becoming refundable.
     function fundEscrow(bytes32 id, uint256 amount6) external {
         Deployment storage d = _requireActive(id);
         require(amount6 > 0, "amount=0");
         require(_earn[id].rate6 > 0, "no runner rate");      // a rate-0 record can never credit it back out
         require(usdc.transferFrom(msg.sender, address(this), amount6), "USDC transfer failed");
         _earn[d.id].escrow6 += uint96(amount6);              // cast safe: real USDC received
-        if (msg.sender == d.owner) ownerEscrow6[id] += amount6;   // owner's own backing stays refundable
+        if (msg.sender == d.owner || (msg.sender == owner && !importsSealed))
+            ownerEscrow6[id] += amount6;                     // owner's own backing stays refundable
         emit EscrowFunded(id, msg.sender, amount6);
     }
 

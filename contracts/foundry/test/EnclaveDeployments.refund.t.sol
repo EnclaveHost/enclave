@@ -342,6 +342,85 @@ contract EnclaveDeploymentsRefundTest is Test {
         assertEq(escrow6, 0);
     }
 
+    // ---- migration: a record that predates this ledger must still refund ----
+
+    /// The whole install base arrives through importDeployments, whose balances
+    /// are accounting numbers with no escrow behind them (the real USDC stays on
+    /// the source contract). The platform re-backs them with fundEscrow — as the
+    /// PLATFORM, not as each owner — so without the import-window rule in
+    /// fundEscrow every migrated deployment would land permanently un-refundable
+    /// and sealImports would freeze that in place.
+    function _importOne(bytes32 id, uint256 balance6) internal {
+        EnclaveDeployments.Deployment[] memory items = new EnclaveDeployments.Deployment[](1);
+        items[0].id = id;
+        items[0].owner = user;
+        items[0].appRef = "catalog://app/0";
+        items[0].gpuMilli = GPU_MILLI;
+        items[0].cpuMilli = CPU_MILLI;
+        items[0].appPort = 8080;
+        items[0].active = true;
+        items[0].createdAt = uint64(block.timestamp);
+        items[0].rate = RATE;
+        items[0].balance6 = balance6;
+        dep.importDeployments(items);
+        bytes32[] memory ids = new bytes32[](1);
+        uint256[] memory rates = new uint256[](1);
+        ids[0] = id; rates[0] = (RATE * 8000) / 10000;
+        dep.importEarn(ids, rates);                    // grant the runner rate the source carried
+    }
+
+    function test_migratedRecordIsRefundableAfterThePlatformReBacksIt() public {
+        bytes32 id = keccak256("migrated-1");
+        _importOne(id, 100e6);
+        assertEq(dep.refundableOf(id), 0, "nothing is backed until the platform re-seats the escrow");
+
+        uint256 esc = _escOf(id, 100e6);
+        usdc.mint(address(this), esc);
+        usdc.approve(address(dep), esc);
+        dep.fundEscrow(id, esc);                       // platform re-backs, import window still OPEN
+
+        assertEq(dep.ownerEscrow6(id), esc, "re-seated escrow counts as the owner's own payment");
+        assertEq(dep.refundableOf(id), esc);
+        uint256 before = usdc.balanceOf(user);
+        vm.prank(user);
+        dep.refund(id);
+        assertEq(usdc.balanceOf(user) - before, esc, "a migrated owner can cancel like anyone else");
+        _assertSolvent(id);
+    }
+
+    /// After sealing, a platform fundEscrow is the ETH-funding case: the payer's
+    /// ETH went to payout, so this is the platform backing runner credits with
+    /// its OWN money and it must not become withdrawable by the owner.
+    function test_platformReBackingAfterSealingIsNotTheOwnersToTake() public {
+        bytes32 id = keccak256("migrated-2");
+        _importOne(id, 100e6);
+        dep.sealImports();
+
+        uint256 esc = _escOf(id, 100e6);
+        usdc.mint(address(this), esc);
+        usdc.approve(address(dep), esc);
+        dep.fundEscrow(id, esc);
+
+        assertEq(dep.ownerEscrow6(id), 0, "platform money stays platform money once imports are sealed");
+        assertEq(dep.refundableOf(id), 0);
+        vm.prank(user);
+        vm.expectRevert("nothing to refund");
+        dep.refund(id);
+        // ...but it still does its real job: backing the runner's credits
+        (, uint256 escrow6,) = dep.earnOf(id);
+        assertEq(escrow6, esc);
+    }
+
+    /// The owner topping up their OWN migrated record is refundable either way.
+    function test_ownerTopUpAfterSealingIsStillRefundable() public {
+        bytes32 id = keccak256("migrated-3");
+        _importOne(id, 100e6);
+        dep.sealImports();
+        vm.prank(user);
+        dep.fund(id, 50e6);
+        assertEq(dep.refundableOf(id), _escOf(id, 50e6));
+    }
+
     // ---- fuzz: solvency and the owner cap hold for any funding split --------
 
     function testFuzz_refundNeverExceedsOwnFundingAndKeepsContractSolvent(
