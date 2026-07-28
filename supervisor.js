@@ -3825,6 +3825,29 @@ app.get("/v1/deployments/:id/attestation", async (req, res) => {
   catch (e) { fail(res, 502, "attestation_error", e.message); }
 });
 
+// The RAW attestation document, PUBLIC and verbatim — the artifact every
+// verifier actually consumes (tinfoil-cli, @tinfoilsh/verifier, the site's
+// in-browser check all fetch exactly this path and parse {format, body}).
+//
+// On Tinfoil the SHIM serves this path in front of us, so this route is dead
+// code there — the shim wins and nothing changes. It exists for METAL, where
+// there is no shim: the document lives on a private loopback port
+// (ATTESTATION_URL, e.g. http://127.0.0.1:8443/.well-known/enclave-attestation)
+// and nothing re-served it publicly. So a metal box advertised
+// verification.attestationEndpoint pointing at a path that 404'd — its own
+// selfCheck read "unavailable", and no client could ever verify it (found
+// 2026-07-28: every metal0-hosted app failed to verify in the browser).
+//
+// Serving it verbatim gives nothing away: the quote is self-verifying and
+// already public by design — it is what a stranger is SUPPOSED to fetch before
+// trusting this enclave with a byte. We serve the cached copy (RAD_CACHE_MS)
+// rather than re-fetching per request, for the same reason the shim does:
+// quote generation is not free and this endpoint is unauthenticated.
+app.get(RAD_PATH, async (req, res) => {
+  try { res.json((await fetchEnclaveRad(originOf(req))).doc); }
+  catch (e) { fail(res, 503, "attestation_unavailable", e.message); }
+});
+
 // Enclave-level attestation, PUBLIC: verify the enclave before logging in or
 // sending a byte. GPU evidence is included from the shared cache (refreshed
 // with a self-chosen nonce) so an unauthenticated caller can't spam NVML report
