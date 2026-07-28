@@ -18,7 +18,7 @@ import { serveSite } from "./serve-site.mjs";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
 // high ports, all >= 18000: dev boxes park ad-hoc servers on the 8x00 range
-const SITE_PORT = 18899, RELAY_PORT = 18200, STRIPE_PORT = 18300, ANVIL_PORT = 18545;
+const SITE_PORT = 18899, RELAY_PORT = 18200, STRIPE_PORT = 18300, ANVIL_PORT = 18545, ENCLAVE_PORT = 18400;
 // the SITE runs on localhost, not 127.0.0.1: WebAuthn RP IDs must be
 // DOMAINS, and Chromium rejects rp.id="127.0.0.1" outright
 const SITE = `http://localhost:${SITE_PORT}`;
@@ -77,6 +77,30 @@ export default async function globalSetup() {
   });
   await new Promise((r) => stripe.listen(STRIPE_PORT, "127.0.0.1", r));
 
+  // 3b) a stub ENCLAVE that answers /availability with a PRICE.
+  // Rev 8 took pricing off the ledger: a quote is the cheapest CLAIMING
+  // enclave's posted price, and with none the relay refuses to quote at all
+  // ("no live enclave is posting a price right now") - which is the right
+  // fail-closed answer in production and made the credit specs fail here, where
+  // ENCLAVES used to point at a dead port. So the rig now models what it is
+  // testing against: one claiming enclave at the fleet's long-standing
+  // $3.00/node-hr + $6.00/card-hr. Availability only - every other call still
+  // goes to the relay's own handlers (accounts, billing, the ledger reads).
+  const enclave = http.createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    if ((req.url || "").split("?")[0] === "/availability")
+      return res.end(JSON.stringify({
+        gpu: false, type: "cpu", claimEnabled: true,
+        cpuShareFree: 1, gpuShareFree: 0, maxShare: 1,
+        nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000,
+        vcpusFree: 16, ramGbFree: 64, cpuGflopsFree: 1000,
+        askCpuPricePerSec6: 834,        // $3.00/node-hr, the hosted default
+        updatedAt: new Date().toISOString(),
+      }));
+    res.statusCode = 404; res.end(JSON.stringify({ error: "not_found" }));
+  });
+  await new Promise((r) => enclave.listen(ENCLAVE_PORT, "127.0.0.1", r));
+
   // 4) the relay, on a fresh data dir with the OFAC cache pre-seeded
   const dataDir = path.join(HERE, ".data");
   fs.rmSync(dataDir, { recursive: true, force: true });
@@ -86,7 +110,7 @@ export default async function globalSetup() {
     eth: [chain.sanctioned.toLowerCase()], other: [] }));
   const relay = spawn(process.execPath, [path.join(REPO, "relay", "api-relay.js")], {
     env: { ...process.env,
-      ENCLAVES: "http://127.0.0.1:1",
+      ENCLAVES: `http://127.0.0.1:${ENCLAVE_PORT}`,   // the priced stub above (rev-8 quoting needs one)
       API_RELAY_PORT: String(RELAY_PORT), API_RELAY_BIND: "127.0.0.1",
       AUTH_DATA_DIR: dataDir,
       CORS_ORIGINS: SITE,
@@ -123,7 +147,7 @@ export default async function globalSetup() {
   const site = await serveSite(path.join(REPO, "site"), SITE_PORT);
   await waitHttp(`http://127.0.0.1:${SITE_PORT}/index.html`);
 
-  globalThis.__stack = { stripe, site };
+  globalThis.__stack = { stripe, site, enclave };
   fs.writeFileSync(path.join(HERE, ".stack.json"), JSON.stringify({
     rpc: RPC, site: SITE, relay: `http://127.0.0.1:${RELAY_PORT}`,
     whsec: WHSEC, pids, ...chain,

@@ -453,6 +453,12 @@ async function stripeApi(path, params, idemKey) {
       ...(idemKey ? { "Idempotency-Key": idemKey } : {}),
     },
     body: new URLSearchParams(stripeForm(params)).toString(),
+    // bounded like every other outbound call on this box: node's fetch has no
+    // default timeout, so a Stripe endpoint that accepts and stalls would hold
+    // the caller's HTTP request open indefinitely instead of failing to a 502
+    // the buyer can retry. Safe to retry precisely because these calls carry an
+    // Idempotency-Key.
+    signal: AbortSignal.timeout(20000),
   });
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(body?.error?.message || `Stripe ${path} failed (${r.status})`);

@@ -66,11 +66,10 @@ test("certChain refuses — and does not cache — a chain that is not AMD's", a
   const realFetch = globalThis.fetch;
   let calls = 0;
   // Serve Genoa's real chain when Milan is asked for: a perfectly valid AMD
-  // chain, for the wrong root. This drives the REAL fetch + pin + cache path.
-  globalThis.fetch = async () => {
-    calls++;
-    return { ok: true, arrayBuffer: async () => Buffer.from(chainPem("Genoa"), "utf8") };
-  };
+  // chain, for the wrong root. This drives the REAL fetch + pin + cache path,
+  // through a REAL Response so the streamed, size-capped reader is the one that
+  // runs rather than a hand-rolled stand-in for it.
+  globalThis.fetch = async () => { calls++; return new Response(Buffer.from(chainPem("Genoa"), "utf8")); };
   try {
     await assert.rejects(() => certChain("Milan"), /not AMD's pinned root/);
     // a refused chain must NOT be remembered as this product's: the next call
@@ -79,10 +78,7 @@ test("certChain refuses — and does not cache — a chain that is not AMD's", a
     assert.equal(calls, 2, "the refused chain must not have been cached");
 
     // and the honest case still resolves + caches
-    globalThis.fetch = async () => {
-      calls++;
-      return { ok: true, arrayBuffer: async () => Buffer.from(chainPem("Turin"), "utf8") };
-    };
+    globalThis.fetch = async () => { calls++; return new Response(Buffer.from(chainPem("Turin"), "utf8")); };
     const chain = await certChain("Turin");
     assert.equal(chain.length, 2);
     const before = calls;
@@ -103,4 +99,16 @@ test("both verifiers share ONE pin table", () => {
   // the relay side enforces inside certChain, so every caller inherits it
   const relay = fs.readFileSync(path.join(REPO, "relay", "snp-verify.mjs"), "utf8");
   assert.match(relay, /if \(!ark \|\| !isPinnedArk\(ark, product\)\)/);
+});
+
+test("an oversized KDS body is refused rather than read into memory", async () => {
+  // Answering for KDS is the position the pin already assumes is reachable, so
+  // the cheapest attack from there is not a forged cert at all - it is an
+  // endless body. A VCEK is ~1.3 KB and a cert_chain ~5 KB; anything near the
+  // cap is broken or hostile either way.
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(Buffer.alloc(512 * 1024, 0x41));
+  try {
+    await assert.rejects(() => certChain("Milan"), /exceeds the \d+-byte cap/);
+  } finally { globalThis.fetch = realFetch; }
 });
