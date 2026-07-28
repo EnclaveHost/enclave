@@ -498,3 +498,32 @@ test("verify accepts a granted runner rate, and only the exact granted value", a
   // and verify must not accept just any non-zero rate in place of the grant
   assert.doesNotMatch(verBody[0], /tgt !== "0"/, "a granted rate is an exact value, not 'anything non-zero'");
 });
+
+/* A migration spans minutes and several confirmations. _paint() runs on every
+   repaint - and a repaint follows any owner tx - so the flow has to survive one.
+   It didn't: _migPrefill reset unconditionally, throwing away the cached source
+   read, re-disabling every button and wiping the log mid-migration. */
+test("the migration flow survives a repaint, and Seal is never unreachable", () => {
+  const src = fs.readFileSync(path.join(REPO, "site/components/admin-console/admin-console.js"), "utf8");
+  const prefill = /_migPrefill\(\) \{[\s\S]*?\n  \}/.exec(src);
+  assert.ok(prefill, "_migPrefill not found");
+  assert.match(prefill[0], /M\.kind === kindSel\.value/, "must only reset when the KIND changed");
+  assert.match(prefill[0], /st\.log/, "the log must be replayed from a buffer, not lost with the DOM");
+
+  // Seal must unlock once verify has RUN. Gating the button on a CLEAN verify
+  // makes "click again to override" unreachable - a disabled button cannot be
+  // clicked - so any verify disagreement deadlocks the migration.
+  const ver = /if \(act === "mig-verify"\) \{[\s\S]*?\n        \}/.exec(src);
+  assert.ok(ver, "mig-verify handler not found");
+  const enableIdx = ver[0].indexOf('enable("mig-seal", true)');
+  assert.ok(enableIdx > 0, "verify must unlock seal");
+  assert.ok(enableIdx < ver[0].indexOf("if (r.bad.length)"),
+    "seal must unlock regardless of the verify result - the warning belongs at the seal, not the gate");
+
+  // and the escrow pre-check must block only on MISSING backing: a skipped
+  // record (inactive / no runner rate) never becomes backable, so counting it
+  // as a blocker refuses the click forever
+  const seal = /if \(act === "mig-seal"\) \{[\s\S]*?\n        \}/.exec(src);
+  assert.match(seal[0], /if \(items\.length\) \{/, "only missing backing may block the seal");
+  assert.doesNotMatch(seal[0], /items\.length \|\| skipped\.length/, "a permanently-skipped record must not block sealing");
+});
