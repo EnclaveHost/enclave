@@ -22,7 +22,12 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BUILD = path.join(HERE, 'build');
-const DIST = path.join(HERE, 'dist');
+// --out lets the auto-updater build BESIDE the live image instead of over it:
+// a staged build that fails leaves the serving image untouched (metal/update.mjs).
+const DIST = path.resolve(arg('out', path.join(HERE, 'dist')));
+// --release stamps which published tag this image was built from, so the
+// updater can tell "already current" from "never checked" without guessing.
+const RELEASE = arg('release', '');
 const ROOT = path.join(BUILD, 'root');                       // the guest / (initramfs)
 const sh = (cmd, args, opts = {}) => execFileSync(cmd, args, { stdio: ['ignore', 'inherit', 'inherit'], ...opts });
 const out = (cmd, args) => execFileSync(cmd, args, { maxBuffer: 1 << 30 }).toString();
@@ -188,6 +193,7 @@ const cmdlineTemplate = 'console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet met
 const manifest = {
   builtWith: 'metal/build-image.mjs',
   flavor: 'cpu',
+  ...(RELEASE ? { release: RELEASE } : {}),   // the published tag this image was built from (metal/update.mjs reads it)
   images: { supervisor: { ref: SUPERVISOR_REF, digest: supDigest, pinned: isPinned(SUPERVISOR_REF) },
             wasmManager: { ref: WASM_REF, digest: wasmDigest, pinned: isPinned(WASM_REF) } },
   // Whether THIS build is reproducible, stated rather than assumed. A tag ref

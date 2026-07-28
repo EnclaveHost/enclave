@@ -35,6 +35,46 @@ host (untrusted)                       guest CVM (trusted, measured)
         (CGNAT-safe)           └───────────────────────────────────────┘   (enclave.host)
 ```
 
+## Staying current (auto-update)
+
+Tinfoil enclaves are PUSHED: merge to main, CI cuts a release, `tinfoil-cli`
+moves each running enclave. A metal box usually has no inbound path at all
+(CGNAT), so it PULLS the same artifact on a timer instead:
+
+    cp metal/systemd/enclave-metal-update.* ~/.config/systemd/user/
+    systemctl --user daemon-reload
+    systemctl --user enable --now enclave-metal-update.timer
+
+    node metal/update.mjs --check     # what it would do, changes nothing
+    node metal/update.mjs --force     # ignore the idle policy (still health-gated)
+
+It tracks the newest published release for this box's flavor (`vX.Y.Z-cpu` for a
+CPU box) — the same artifact the CPU fleet moves to — and builds it in a
+throwaway git worktree at that tag, never from the working tree this box runs
+out of. That tree is also somebody's desk, and an enclave must not attest to
+half-finished work.
+
+**It stages and rolls back.** The new image is built beside the live one and
+swapped in; if the box does not answer `/v1/health` with a fresh watcher inside
+`healthGraceSec`, the previous image goes back and a halt marker
+(`metal/.update-halted`) stops further updates until a human clears it. This is
+not hypothetical: on 2026-07-27 a manager build reached metal0 whose wasmtime
+did not know a flag that build passes unconditionally, every tenant died at
+spawn, and the box handed back the lease it had just resumed. An unattended
+updater without this gate would have done that at 3am and left it there.
+
+**It waits for idle by default.** A restart relaunches every tenant AND costs
+one ACME issuance per app-zone hostname the box serves — the guest is
+initramfs-only, so no certificate survives it, and Let's Encrypt allows 5 per
+168h per name. Updating on every merge would spend a week's budget in an
+afternoon. `maxDeferSec` (6h) caps the wait so a permanently busy box still
+takes fixes.
+
+Note the measurement changes with the image, by design. While the relay's
+`METAL_ALLOWED_MEASUREMENTS` allowlist is empty (token-only attach) that costs
+nothing; once it is in use, the new release's measurement has to be published
+before boxes move to it, exactly as for any other release.
+
 ## Why the trust story is *stronger* than the hosted fleet
 
 A managed TEE provider measures the container config and images at its own

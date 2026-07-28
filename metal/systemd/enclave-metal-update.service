@@ -1,0 +1,21 @@
+# enclave-metal-update — the pull half of "merge to main and the fleet moves".
+#
+# Tinfoil enclaves are pushed to by CI; a metal box behind CGNAT has no inbound
+# path, so it checks for the newest published release for its flavor and, when
+# the policy in metal/config.json's `autoUpdate` allows, rebuilds and restarts
+# enclave-metal. The updater stages beside the live image and rolls back if the
+# box does not come back healthy, so a bad release costs one restart, not a night.
+#
+# Install (user service, alongside enclave-metal.service):
+#   cp metal/systemd/enclave-metal-update.* ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now enclave-metal-update.timer
+[Unit]
+Description=Enclave Metal — check for a new release and update
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Projects/enclave
+ExecStart=/usr/bin/node metal/update.mjs --config metal/config.json
+# a failed update has already rolled itself back; don't let systemd retry-loop it
+SuccessExitStatus=0 1
