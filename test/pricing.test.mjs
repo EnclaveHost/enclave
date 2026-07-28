@@ -15,7 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, enclavePriceOf, pickEnclaveFor, rankEnclavesFor, leaseHostOf,
-  moveTargetsFor, moveBlockReason, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE } from "../site/js/core/pricing.js";
+  moveTargetsFor, moveBlockReason, wantedGpuPct, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE } from "../site/js/core/pricing.js";
 
 // Reference copy of the RUNNER's minimum-share math (supervisor.js: pctCeil,
 // gpuShareOf, cpuShareOf, minSharesOf with MIN_COMPUTE_PCT=1). Keep in sync.
@@ -400,17 +400,44 @@ test("moveBlockReason names the constraint that actually bit", () => {
 test("soft-GPU work prefers a GPU box and keeps CPU boxes as fallback", () => {
   const gpuBox = row("kryptos", { ...GPU_BOX, volumes: [{ name: "m" }] }, { id: ID_A });
   const cpuBox = row("metal0", { ...CPU_BOX, volumes: [{ name: "m" }] }, { id: ID_B });
-  const soft = { memMb: 512, cpuGflops: 10, volumes: ["m"], gpuMilli: 200, gpuOptional: true };
+  const soft = { memMb: 512, cpuGflops: 10, volumes: ["m"], gpuMilli: 200, depGpuOptional: true };
   const ranked = rankEnclavesFor(soft, [cpuBox, gpuBox]);
   assert.deepEqual(ranked.map(t => t.name), ["kryptos", "metal0"], "card first, cores as fallback");
   assert.equal(ranked[0].cpuNn, false);
   assert.equal(ranked[1].cpuNn, true, "the CPU box is flagged as running it on cores");
   // the flag is inert without a bought slice — there is no card requirement to soften
-  const noSlice = { memMb: 512, cpuGflops: 10, volumes: ["m"], gpuMilli: 0, gpuOptional: true };
+  const noSlice = { memMb: 512, cpuGflops: 10, volumes: ["m"], gpuMilli: 0, depGpuOptional: true };
   assert.deepEqual(rankEnclavesFor(noSlice, [cpuBox, gpuBox]).map(t => t.name), ["metal0", "kryptos"],
     "with no GPU share it is ordinary CPU work: GPU boxes demoted again");
   // and it never overrides the APP's own hard GPU spec
-  const hard = { ...IMAGE_GEN, volumes: ["m"], gpuMilli: 200, gpuOptional: true };
+  const hard = { ...IMAGE_GEN, volumes: ["m"], gpuMilli: 200, depGpuOptional: true };
   assert.deepEqual(rankEnclavesFor(hard, [cpuBox, gpuBox]).map(t => t.name), ["kryptos"],
     "a version that declares VRAM can never land on a CPU box, whatever the envelope says");
+});
+
+/* ---- the PUBLISHER's declaration: GPU specs as desired, not required ------
+   A version config's `gpuOptional: true` says the app starts without a card
+   and would use one if given it. The floor must then stop forcing a GPU dial —
+   and the console's floor has to match the runner's minSharesOf exactly, since
+   a console floor below the runner's sells a deployment nobody can claim. */
+test("a publisher-optional GPU spec sets no dial floor but still recommends a slice", () => {
+  adoptServerSpec({ gpu: true, ...H200 });
+  const v = { vramMb: 20000, gpuGflops: 1000, memMb: 512, cpuGflops: 10 };
+  assert.equal(minPctsOf(v).gpuPct, 14, "declared axes normally force a GPU dial");
+  assert.equal(minPctsOf({ ...v, gpuOptional: true }).gpuPct, 0, "publisher-optional forces none");
+  assert.equal(minPctsOf({ ...v, gpuOptional: true }).cpuPct, 1, "the CPU floor is untouched");
+  // the axes still mean something: they size what to buy to actually get the card
+  assert.equal(wantedGpuPct({ ...v, gpuOptional: true }), 14);
+  assert.equal(wantedGpuPct(v), 0, "no recommendation when the card is required — the floor already says it");
+});
+
+test("a publisher-optional version can land on a CPU box, a required one cannot", () => {
+  const gpuBox = row("kryptos", GPU_BOX, { id: ID_A });
+  const cpuBox = row("metal0", CPU_BOX, { id: ID_B });
+  const v = { vramMb: 20000, gpuGflops: 1000, memMb: 512, cpuGflops: 10 };
+  assert.deepEqual(rankEnclavesFor(v, [gpuBox, cpuBox]).map(t => t.name), ["kryptos"],
+    "a required card excludes every CPU box");
+  const soft = rankEnclavesFor({ ...v, gpuOptional: true }, [gpuBox, cpuBox]);
+  assert.deepEqual(soft.map(t => t.name), ["kryptos", "metal0"], "optional: card first, cores as fallback");
+  assert.equal(soft[1].cpuNn, true);
 });

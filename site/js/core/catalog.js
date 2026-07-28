@@ -185,7 +185,22 @@ export const SPECS_CACHE = {};  // friendly "slug:version" -> the version's RAW 
 // with the picker's live ticks when the config is edited before signing).
 export const specOf = (v) => ({ vramMb: Number(v && v.vramMb) || 0, gpuGflops: Number(v && v.gpuGflops) || 0,
                                 memMb: Number(v && v.memMb) || 0, cpuGflops: Number(v && v.cpuGflops) || 0,
-                                volumes: volumesOfConfig(v && v.config) });
+                                volumes: volumesOfConfig(v && v.config),
+                                gpuOptional: gpuOptionalOfConfig(v && v.config) });
+/* The publisher's declaration that this version's GPU axes are DESIRED, not
+   required: the app starts without a card and would use one if given it. Read
+   from the version config, like `volumes` — immutable per version, approved
+   with it, and the only place that knows the difference (on-chain the axes are
+   just numbers). An unparseable config declares nothing, which leaves the
+   specs required: the runner computes the same, and a console floor below the
+   runner's would sell a deployment nobody can claim. */
+export function gpuOptionalOfConfig(cfg){
+  if (!cfg) return false;
+  try {
+    const o = typeof cfg === "string" ? JSON.parse(cfg) : cfg;
+    return !!(o && o.gpuOptional === true);
+  } catch { return false; }
+}
 export function volumesOfConfig(cfg){
   if (!cfg) return [];
   try {

@@ -907,6 +907,12 @@ const WAF_SCANNER_PATHS = [
 // deployment that bought GPU share. Without a slice there is no card to make
 // optional, and accepting the flag anyway would tell an owner their CPU-only
 // deployment was "preferring" hardware it can never be given.
+// A version config's `gpuOptional: true` — the publisher declaring that this
+// app's GPU specs describe what it WOULD use, not what it needs to start. An
+// unparseable config declares nothing (fail closed: the specs stay required).
+function gpuOptionalOfConfig(cfg) {
+  try { return JSON.parse(String(cfg || "{}") || "{}").gpuOptional === true; } catch { return false; }
+}
 function parseDepOptions(raw, gpuMilli) {
   const s = String(raw || "").trim();
   if (!s) return {};
@@ -1184,9 +1190,16 @@ const cpuShareOf = (memMb, cpuGflops = 0) =>
 // Zero-guarded: axes the app didn't declare add no minimum. A GPU app's CPU
 // minimum also lifts its GPU minimum, or the gpuShare >= cpuShare invariant
 // could never be satisfied at the floor.
+// `min.gpuOptional` (the publisher's word, from the version config) turns the
+// declared GPU axes from a REQUIREMENT into a preference: the app runs without
+// a card, and would use one if given it. The floor then stops forcing a GPU
+// dial, so the deployment may buy 0% GPU and any enclave can serve it. It does
+// NOT stop the specs meaning something - they still size the slice a deployer
+// who wants the card should buy, and the console recommends exactly that.
 function minSharesOf(min) {
   const cpu = (min.memMb || min.cpuGflops) ? cpuShareOf(min.memMb || 0, min.cpuGflops || 0) : 0;
-  const gpu0 = (min.vramMb || min.gpuGflops) ? gpuShareOf((min.vramMb || 0) / 1024, (min.gpuGflops || 0) / 1000) : 0;
+  const gpu0 = (!min.gpuOptional && (min.vramMb || min.gpuGflops))
+    ? gpuShareOf((min.vramMb || 0) / 1024, (min.gpuGflops || 0) / 1000) : 0;
   return { gpuShare: gpu0 > 0 ? Math.max(gpu0, cpu) : 0, cpuShare: cpu };
 }
 
@@ -3029,7 +3042,13 @@ async function gateAppReference(reference, opts = {}) {
            pending: Number(v.approval) !== 1,   // true only on the forPrivate dev-mode path
            app: { appId, index, slug: a.slug, version: v.version, publisher: a.publisher },
            min: { vramMb: Number(v.vramMb) || 0, gpuGflops: Number(v.gpuGflops) || 0,
-                  memMb: Number(v.memMb) || 0, cpuGflops: Number(v.cpuGflops) || 0 } };
+                  memMb: Number(v.memMb) || 0, cpuGflops: Number(v.cpuGflops) || 0,
+                  // The publisher's own word on whether the card is required,
+                  // read from the VERSION config - the same place `volumes`
+                  // lives, and immutable per version like everything else in
+                  // it. On-chain the axes are just numbers; only the app knows
+                  // whether it degrades to CPU or cannot start without a card.
+                  gpuOptional: gpuOptionalOfConfig(v.config) } };
 }
 
 // A paid app is servable only if the DEPLOYMENT snapshotted the version's
@@ -5454,7 +5473,8 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
   let asCpuFallback = false;
   if (gpuShare > 0 && !IS_GPU && gpuOptional) {
     const gg = await gateAppReference(d.appRef, { forPrivate: !d.isPublic }).catch(() => null);
-    const needsCard = !!(gg && gg.min && ((gg.min.vramMb || 0) > 0 || (gg.min.gpuGflops || 0) > 0));
+    const needsCard = !!(gg && gg.min && !gg.min.gpuOptional
+      && ((gg.min.vramMb || 0) > 0 || (gg.min.gpuGflops || 0) > 0));
     if (needsCard) return "GPU work on a CPU-only enclave (gpu.optional cannot waive the app version's own VRAM/compute requirement)";
     asCpuFallback = true;
   }
