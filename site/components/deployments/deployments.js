@@ -1305,7 +1305,7 @@ class Deployments extends EnclaveElement {
     const el = box.querySelector(".enc-out-logs"), scroller = box.querySelector(".enc-out-term");
     if (!el) return;
     try {
-      const text = await Enclave.logs(id, { tail: 200 }, await this._hostSession(id));
+      const text = await this._asHost(id, (h) => Enclave.logs(id, { tail: 200 }, h));
       if (box.hidden || !el.isConnected) return;
       const lines = String(text == null ? "" : text).split("\n");
       while (lines.length && lines[lines.length - 1] === "") lines.pop();
@@ -1359,7 +1359,7 @@ class Deployments extends EnclaveElement {
       + '<pre class="ap-attpre">fetching…</pre>';
     const badge = box.querySelector(".enc-vbadge");
     try {
-      const att = await Enclave.attestation(id, await this._hostSession(id));
+      const att = await this._asHost(id, (h) => Enclave.attestation(id, h));
       const pre = box.querySelector(".ap-attpre"); if (pre) pre.innerHTML = hlJson(att);
       const vspec = vspecOf(att);
       if (!vspec){ if (badge) badge.textContent = ""; return; }
@@ -1407,7 +1407,7 @@ class Deployments extends EnclaveElement {
         const th = await sendTx(DEPLOYMENTS_ADDRESS, "0x" + DEP_SEL.setActive + pad32(id.replace(/^0x/, "")) + encUint(0));
         await waitReceipt(th);
       }
-      const r = await Enclave.terminateDeployment(id, await this._hostSession(id)).catch(e => {
+      const r = await this._asHost(id, (h) => Enclave.terminateDeployment(id, h)).catch(e => {
         // the enclave's owner-stop watcher may already have torn it down
         if (onchain) return null;
         throw e;
@@ -1435,6 +1435,26 @@ class Deployments extends EnclaveElement {
     if (!host){ if (!Enclave.authed()) await authenticate(); return ""; }
     if (!Enclave.authedFor(host)) await authenticate({ enclave: host });
     return host;
+  }
+
+  /* Run an owner-authenticated call against the box HOSTING this deployment,
+     re-signing once if that box rejects the session.
+
+     A cached session can be one this enclave will never honour — minted on
+     another box before the sign-in pin existed, or when the pin fell back.
+     _req drops it on the 401, so a single retry re-mints against the right
+     enclave and succeeds. Without the retry the user just sees "Missing or
+     invalid session" forever, because nothing ever evicts the bad token. */
+  async _asHost(id, call) {
+    const host = await this._hostSession(id);
+    try { return await call(host); }
+    catch (e) {
+      if (e && e.status === 401 && host && !Enclave.authedFor(host)) {
+        await authenticate({ enclave: host });      // _req already dropped the stale one
+        return await call(host);
+      }
+      throw e;
+    }
   }
 
   /* ---- move a running deployment to another enclave.
@@ -1517,11 +1537,10 @@ class Deployments extends EnclaveElement {
       // the release must be signed for the box HOLDING the lease — its session,
       // not the sign-in box's (see _hostSession)
       paintLine(s, "info", "[*] asking " + (fromName || "the current enclave") + " to hand the lease back…");
-      const host = await this._hostSession(id);
       // owner-authenticated release on the CURRENT runner. The relay routes
       // this to the lease holder; the record stays active and funded, so the
       // fleet may re-claim it immediately - which is the point.
-      const rel = await Enclave.terminateDeployment(id, host, true);   // evacuate: stand down, don't re-take it
+      const rel = await this._asHost(id, (h) => Enclave.terminateDeployment(id, h, true));   // evacuate: stand down, don't re-take it
       paintLine(s, "dimln", "    released - unused lease time refunded to the balance"
         + (rel && rel.standDownSec ? `; ${fromName || "it"} stands down for ${rel.standDownSec}s so the move can land` : ""));
     } catch(e){
@@ -1603,7 +1622,7 @@ class Deployments extends EnclaveElement {
     try {
       // owner-private action: rides the session token, lazy-SIWE like logs
       if (!Enclave.authed()) await authenticate();
-      await Enclave.restartDeployment(id, await this._hostSession(id));
+      await this._asHost(id, (h) => Enclave.restartDeployment(id, h));
       showToast("restarted " + id.slice(0, 10) + "… - relaunching in place, back within a minute");
       setTimeout(() => this.refresh(), 1200);
     }
