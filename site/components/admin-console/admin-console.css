@@ -77,6 +77,10 @@
 .ac-mig-ctl { display: grid; grid-template-columns: minmax(130px, auto) 1fr 1fr; gap: 10px; margin-bottom: 10px; }
 .ac-xfer-ctl { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 10px 0; }
 .ac-mig-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+/* the migrate panel's checkbox options sit between the address inputs and the
+   action row; the checkbox must not stretch the way .ac-in fields do */
+.ac-mig-opt { margin: 8px 0 12px; line-height: 1.5; }
+.ac-mig-opt input[type="checkbox"] { width: auto; margin-right: 6px; vertical-align: baseline; }
 .ac-mig-log {
   margin-top: 12px; padding: 10px 12px; max-height: 280px; overflow-y: auto;
   border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg-1);
