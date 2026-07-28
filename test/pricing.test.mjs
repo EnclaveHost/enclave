@@ -15,7 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, enclavePriceOf, pickEnclaveFor, rankEnclavesFor, leaseHostOf,
-  moveTargetsFor, moveBlockReason, wantedGpuPct, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE } from "../site/js/core/pricing.js";
+  moveTargetsFor, moveBlockReason, wantedGpuPct, gpuUpgradeForMove, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE } from "../site/js/core/pricing.js";
 
 // Reference copy of the RUNNER's minimum-share math (supervisor.js: pctCeil,
 // gpuShareOf, cpuShareOf, minSharesOf with MIN_COMPUTE_PCT=1). Keep in sync.
@@ -440,4 +440,32 @@ test("a publisher-optional version can land on a CPU box, a required one cannot"
   const soft = rankEnclavesFor({ ...v, gpuOptional: true }, [gpuBox, cpuBox]);
   assert.deepEqual(soft.map(t => t.name), ["kryptos", "metal0"], "optional: card first, cores as fallback");
   assert.equal(soft[1].cpuNn, true);
+});
+
+/* ---- moving soft-GPU work onto a card should re-buy the slice ------------
+   A deployment whose card is optional runs on CPU cores wherever it lands —
+   including on a GPU box, because the manager grants the card only to tenants
+   holding GPU share. Moving it to a GPU enclave without re-buying therefore
+   delivers the slow thing on the fast machine, which is never what the move
+   was for. */
+test("gpuUpgradeForMove sizes the slice from the version's declared axes", () => {
+  adoptServerSpec({ gpu: true, ...H200 });
+  const gpuT = { row: { availability: { gpu: true } }, spec: H200 };
+  const cpuT = { row: { availability: { gpu: false } }, spec: { ...H200, cardVramGb: 0, cardTflops: 0, nodeRamGb: 28 } };
+  const v = { vramMb: 20000, gpuGflops: 1000, memMb: 512, cpuGflops: 10, gpuOptional: true };
+
+  assert.deepEqual(gpuUpgradeForMove(v, gpuT, 0, 80), { gpuPct: 14, cpuPct: 8 });
+  assert.equal(gpuUpgradeForMove(v, cpuT, 0, 80), null, "a CPU destination has no card to buy");
+  assert.equal(gpuUpgradeForMove(v, gpuT, 200, 80), null, "already holds a slice");
+  assert.equal(gpuUpgradeForMove({ memMb: 512, cpuGflops: 10, gpuOptional: true }, gpuT, 0, 80), null,
+    "no declared GPU axes = nothing to size a slice from");
+  assert.equal(gpuUpgradeForMove({ ...v, gpuOptional: false }, gpuT, 0, 80), null,
+    "a hard-GPU version was never on a CPU box to move off");
+  // Only the PUBLISHER's flag can size an upgrade: the slice comes from the
+  // version's declared axes, and only that flag makes them a preference. The
+  // deployment-level flag softens a slice already bought, so such a deployment
+  // is never at 0% GPU in the first place.
+  assert.equal(gpuUpgradeForMove({ ...v, gpuOptional: false, depGpuOptional: true }, gpuT, 0, 80), null);
+  // the contract invariant gpuMilli >= cpuMilli is applied here, not discovered on revert
+  assert.deepEqual(gpuUpgradeForMove(v, gpuT, 0, 300), { gpuPct: 30, cpuPct: 30 });
 });

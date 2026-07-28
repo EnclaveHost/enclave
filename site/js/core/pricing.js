@@ -361,3 +361,33 @@ export function moveBlockReason(v, rows, currentRunnerId){
   if (missing.length) return `no other live enclave carries ${missing.join(" or ")}`;
   return "no other live enclave's hardware fits this app";
 }
+
+/* Moving a soft-GPU deployment ONTO a GPU box: what it should re-buy.
+
+   A deployment whose card is optional runs on cores wherever it lands — even
+   on a GPU enclave, because the manager grants wasi-nn on the card only to
+   tenants holding GPU share. So a move that puts it on a GPU box without
+   re-buying the slice quietly delivers the slow thing on the fast machine.
+
+   Returns { gpuPct, cpuPct } to pass to setShares, or null when there is
+   nothing to do: the target has no card, the version declares no GPU axes to
+   size a slice from (nothing to buy), the deployment already holds one, or the
+   card requirement was never optional (a hard-GPU deployment could not have
+   been on a CPU box in the first place).
+
+   The contract's own invariant is applied here rather than discovered on
+   revert: gpuMilli >= cpuMilli, so a big CPU share lifts the GPU one. */
+export function gpuUpgradeForMove(v, target, boughtGpuMilli, boughtCpuMilli){
+  if (!target || !target.row || target.row.availability?.gpu !== true) return null;
+  if (Number(boughtGpuMilli || 0) > 0) return null;          // already buying a card
+  // Only the PUBLISHER's flag can size an upgrade, because the slice is sized
+  // from the version's declared axes and only that flag makes them a
+  // preference. The deployment-level flag softens a slice the owner already
+  // bought — so a deployment carrying it is not at 0% GPU and was filtered out
+  // above. Checking it here too would just be noise that never fires.
+  if (!(v && v.gpuOptional)) return null;
+  const want = wantedGpuPct(v, target.spec);
+  if (!(want > 0)) return null;                              // no declared axes to size from
+  const cpuPct = Math.max(1, Math.round(Number(boughtCpuMilli || 0) / 10));
+  return { gpuPct: Math.max(want, cpuPct), cpuPct };
+}
