@@ -37,6 +37,7 @@ const DEFS = [
   { name: "EnclaveAppCatalog",   bookKey: "appCatalog", viaIR: true },
   { name: "EnclavePay",          bookKey: "enclavePay" },
   { name: "EnclaveDeployments",  bookKey: "deployments", viaIR: true },   // rev 7 outgrew legacy codegen's EIP-170 headroom
+  { name: "EnclaveProofOfTime",  bookKey: "proofOfTime" },   // rev-9 proof of time; bound into the ledger once (setProver)
   { name: "EnclaveFeatured",     bookKey: "featured" },
   { name: "EnclaveReviews",      bookKey: "reviews" },
   { name: "EnclaveHostReviews",  bookKey: "hostReviews" },   // ratings for the enclaves that RUN apps (seller-side reputation)

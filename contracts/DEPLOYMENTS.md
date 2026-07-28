@@ -78,7 +78,11 @@ via transaction instead of via one enclave's API).
   surface (below) — so struct decodes gate on `>= 2`, version changes on `>= 3`,
   publisher fees on `>= 4`, any options envelope over 100 bytes on `>= 5`: a
   rev-4 `create` reverts `"configCid length"` on one, share resizes on `>= 6`,
-  and runner payout on `>= 7`)
+  runner payout on `>= 7`, per-host pricing + the rate cap on `>= 8`, and
+  PROOF OF TIME on `>= 9` — rev 9 keeps the struct byte-for-byte one last time
+  and changes what EARNS: the runner meter is capped by a `provenUntil`
+  watermark that only a bound `EnclaveProofOfTime` may advance. See "Proof of
+  time (rev 9)" below)
   — permissionless; inert until funded. `appRef` is `catalog://<appId>/<versionIndex>`,
   the on-chain record of the catalog VERSION to run (2026-07-09; CID refs are refused
   by runners — a CID names bytes, not a version). The record supplies the wasm,
@@ -280,14 +284,129 @@ each imported record's cap to the rate it arrives with — same price, same
 economics, no dearer enclave can take it — and `importCaps` overrides that
 while the window is open (0 = uncapped, the pre-rev-8 behaviour).
 
+### Proof of time (rev 9)
+
+Through rev 8 a **held lease paid by itself**. `_creditRunner` credited
+`min(now, leaseUntil)` and nothing on-chain could tell serving from silence, so
+an enclave that claimed a lease and then stopped — crashed app, wedged box, or
+plain dishonesty — was paid to the end of its quantum anyway. The documented
+worst case was 30 minutes of paid dead air per runner death, and the only
+recourse was an owner-judged bond slash.
+
+From rev 9 a runner is paid for time it can **prove** it served.
+
+**The proof.** Every `proofWindowSec` (default 900) the serving enclave signs a
+checkpoint — *"deployment X was running here through time T"* — with a
+secp256k1 key **minted inside its own CVM**. `EnclaveRegistry` schema 3 carries
+the address half per entry (`proofKey`, set at `register` or with
+`setProofKey`); the private half never leaves the enclave, so the operator
+running the host OS — who was handed the operator EOA from outside the CVM, and
+could always sign with *that* — cannot sign for an app it has stopped. The
+supervisor only signs after confirming the app is actually up, and "up" means a
+real TCP connect to the port the tenant serves on, not just "the manager still
+has a record".
+
+**Why it proves *time*, not just uptime.** Each checkpoint commits to the hash
+of a **recent block**, and that one binding does three jobs:
+
+1. the hash did not exist before that block was mined — so a signature carrying
+   it cannot have been pre-computed for a shift the host had not yet worked;
+2. `blockhash()` only reaches back 256 blocks (~8.5 min on Base) — so a proof
+   stops being redeemable shortly after it is made, and cannot be hoarded and
+   cashed in after the box is dead;
+3. the anchor is **unpredictable**. This is the property Storj buys with
+   randomly-timed audits from a satellite; here it falls out of the chain, with
+   nobody to trust for the randomness.
+
+And one checkpoint advances the watermark by **at most `proofWindowSec`**, so an
+hour of pay costs an hour of separately-anchored proofs. Time cannot be
+compressed into a single transaction — which is the whole reason it is called
+proof of *time*.
+
+**What it pays.** The meter becomes
+`min(now, leaseUntil, provenUntil)`. Unproven time inside a paid lease earns
+nobody anything, and every partial period settles **to the second**:
+
+| situation | rev 8 paid the host | rev 9 pays the host |
+|---|---|---|
+| serving all hour, proving on cadence | the hour | the hour |
+| app crashes 19 min in, host settles at teardown | the full 30-min lease | 19 minutes |
+| box dies silently 7 min into a lease | the full 30-min lease | 7 minutes |
+| holds the lease, never serves | the full 30-min lease | nothing |
+| host proves nothing for 40 min, then posts one proof | — | 15 minutes (one window) |
+
+That last row is the design working: a host that goes dark and comes back is
+paid for what it proves *after* it returns, never for the gap.
+
+**Partial periods are the point.** A runner tearing down mid-hour — crash, owner
+stop, eviction, drain, shutdown — posts a final checkpoint **and then** releases.
+That order is load-bearing: `release` clears the watermark, so a proof sent
+after it has no lease left to settle against. Skipping the final proof entirely
+is legal and costs the runner the unproven tail, so the incentive points at
+settling honestly either way. The supervisor wires this into every teardown path
+that had actually been serving, and deliberately **not** into the ones that
+never provisioned (claim-then-provision-failed earns nothing, as it should).
+
+**Why two contracts.** `EnclaveDeployments` is ~90 bytes under the EIP-170
+24,576-byte limit. EIP-712 + `ecrecover` + the anchor and window rules do not
+fit there, so the protocol lives in **`EnclaveProofOfTime`**, bound into the
+ledger **once** with `setProver` and then frozen (it refuses to overwrite a
+non-zero binding — a seller's proof of service must never be re-pointable at
+something the platform swaps in later). The ledger keeps only what touches
+money: the `provenUntil` watermark, the meter clamp, and the prover-gated
+`creditProven`. Every clamp that moves money is re-applied **in the ledger** —
+never past `now`, never past `leaseUntil`, strictly monotonic, never beyond the
+escrow held — so the worst a broken or hostile prover can do is degrade the
+ledger to rev-8 held-time metering. It can never overpay beyond what rev 8
+already would.
+
+**The cutover is a date, not a flag.** `proofRequiredFrom` defaults to 14 days
+after deployment. Before it, the meter pays held time exactly as rev 8 did while
+checkpoints are already accepted and recorded — so every operator, including
+independent sellers upgrading their own boxes on their own schedule, can watch
+their own coverage and fix their box *before* it costs them anything. It is also
+the kill switch: `setProofRequiredFrom` moves it either way with no other state
+disturbed, and `provenUntil` keeps advancing meanwhile, so flipping it back on
+resumes exactly where it left off. Past the cutover, `claim` additionally
+refuses an enclave with no published `proofKey` — a box that cannot be paid
+should not be holding a tenant's app.
+
+**Watching it.** `provenUntil(id)` is the authority. The live shortfall is
+`min(now, leaseUntil) - provenUntil` — zero on a healthy deployment, at most one
+proof interval in normal operation, and a sustained non-zero value is a host
+that stopped serving (`EnclaveProofOfTime.unprovenSec(id)` and `coverageOf(id)`
+compute it, and `enclave status <id>` prints it). `EnclaveProofOfTime` also keeps
+what the money path cannot afford to: `recordOf(id)` (`lastProofAt`,
+`provenSec`, `proofs`) and `hostedSec(operator)` — lifetime **proven** hosting
+seconds per host, the one uptime number in the system no seller can
+self-report. A `lastProofAt` that stopped moving is the on-chain shape of
+"stopped serving", and is exactly the evidence the claim bond exists to be
+slashed against.
+
+**The residual trust.** One lie no contract here can catch: an operator
+registering a `proofKey` whose private half is *not* in its CVM. It is also the
+one lie **anybody** can catch — the enclave serves its live proof key over its
+attested origin (`/v1/attestation` → `proofKey.address`), so comparing that with
+`EnclaveRegistry.get(enclaveId).proofKey` is a public check any tenant, watcher
+or competing seller can run, and a mismatch is public evidence. Making the proof
+adversarial rather than self-reported-within-an-attested-boundary — binding a
+client-signed receipt, Storj's uplink orders — is the next step, and is listed
+in the FUTURE block of `EnclaveProofOfTime.sol`.
+
 ### Fairness bounds (the price of decentralized failover)
 
 The old per-tick clock could freeze during outages because one trusted party
 kept it. Without that party, the quantum of trust is the **lease**:
 
-- A runner that dies mid-lease has burned that lease. The user's worst-case
-  loss is `leaseSec` per runner death (default 30 min). Clean shutdowns lose
-  nothing (`release` refunds).
+- A runner that dies mid-lease has burned that lease. The **tenant's**
+  worst-case loss is `leaseSec` per runner death (default 30 min). Clean
+  shutdowns lose nothing (`release` refunds).
+- The **runner's** exposure is now the mirror of that, and it is what rev 9
+  changed: a host is paid only through its last checkpoint, so the gap between
+  dying and being noticed earns it nothing. The most it can take for service it
+  did not render is one anchor window (~8.5 min on Base) — a proof signed
+  moments before the app died can still be redeemed while its block is in
+  range — against the full 30 minutes a rev-8 ledger paid for the same silence.
 - Two enclaves racing to claim: the loser's tx reverts. Gas on Base is cents;
   the jittered sweep below makes races rare.
 - `leaseSec` is the tuning knob: shorter = tighter fairness + more gas;
@@ -539,8 +658,20 @@ the new enclave. This is the same no-trusted-gateway shape as discovery today.
   payer); `balance6` is accounting. Refunding a stopped deployment's
   remainder stays a payout-wallet action, exactly as today (and a publisher's
   already-forwarded cut is theirs — the split follows the money, not the burn).
-- **Consumed-time attestation** (future note in the .sol): runners posting
-  signed usage checkpoints would shrink the dead-runner loss below `leaseSec`.
+- ~~**Consumed-time attestation**: runners posting signed usage checkpoints
+  would shrink the dead-runner loss below `leaseSec`.~~ **SHIPPED in rev 9** —
+  see "Proof of time (rev 9)" above. What remains of the idea is making the
+  proof *adversarial* (a client-signed receipt or an independent prober, rather
+  than the enclave's own attested assertion) and refunding unproven time to the
+  **tenant** rather than leaving it escrowed; both are in the FUTURE block of
+  `EnclaveProofOfTime.sol`.
+- **`EnclaveDeployments` is at its size ceiling.** ~90 bytes under EIP-170's
+  24,576, which is why rev 9's verification had to become a second contract.
+  The next feature that needs ledger bytes has to reclaim some first, and the
+  only lever of real size is the revert strings (~4.2 KB, 18% of the contract)
+  — currently blocked by 16 off-chain consumers that match on those exact
+  strings (`supervisor.js`, `relay/`, `cli/`, `site/`). Measure with
+  `forge build --sizes` before adding anything.
 
 ## Deploy
 

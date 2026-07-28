@@ -34,6 +34,7 @@ const ENTRIES = [
   { key: "registry",     env: "REGISTRY_ADDRESS" },
   { key: "deployments",  env: "DEPLOYMENTS_ADDRESS" },
   { key: "appCatalog",   env: "APP_CATALOG_ADDRESS" },
+  { key: "proofOfTime",  env: "PROOF_OF_TIME_ADDRESS" },
   { key: "enclavePay",   env: "FORWARDER_ADDRESS" },
 ];
 const args = process.argv.slice(2);

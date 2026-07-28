@@ -68,6 +68,25 @@
       {
         "indexed": true,
         "internalType": "address",
+        "name": "proofKey",
+        "type": "address"
+      }
+    ],
+    "name": "ProofKeySet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
         "name": "operator",
         "type": "address"
       },
@@ -194,6 +213,11 @@
             "internalType": "uint64",
             "name": "gpuPricePerSec6",
             "type": "uint64"
+          },
+          {
+            "internalType": "address",
+            "name": "proofKey",
+            "type": "address"
           }
         ],
         "internalType": "struct EnclaveRegistry.Enclave",
@@ -265,6 +289,11 @@
             "internalType": "uint64",
             "name": "gpuPricePerSec6",
             "type": "uint64"
+          },
+          {
+            "internalType": "address",
+            "name": "proofKey",
+            "type": "address"
           }
         ],
         "internalType": "struct EnclaveRegistry.Enclave[]",
@@ -352,6 +381,11 @@
         "internalType": "uint64",
         "name": "gpuPricePerSec6",
         "type": "uint64"
+      },
+      {
+        "internalType": "address",
+        "name": "proofKey",
+        "type": "address"
       }
     ],
     "name": "register",
@@ -420,6 +454,24 @@
       }
     ],
     "name": "setPrices",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "proofKey",
+        "type": "address"
+      }
+    ],
+    "name": "setProofKey",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

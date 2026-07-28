@@ -82,11 +82,39 @@ pragma solidity ^0.8.20;
 ///     what makes permissionless selling real (metal/PROTOCOL.md Phase C): the
 ///     seller's payout comes from chain-held escrow, not a platform promise.
 ///     An optional claim bond (off by default) prices sybil claims.
+///   - PROOF OF TIME (rev 9): holding a lease is no longer what earns. A runner
+///     is paid for time it can PROVE it served. The proof protocol itself -
+///     block-anchored checkpoints signed by a key minted inside the serving
+///     CVM - lives in EnclaveProofOfTime, a companion contract bound here ONCE
+///     and then frozen (setProver / proverSealed). This contract keeps only
+///     what touches money: the per-deployment watermark `provenUntil`, the
+///     clamp that stops the runner meter at it, and the single prover-gated
+///     entry point that advances it. See EnclaveProofOfTime for what a proof
+///     is and why it cannot be forged, pre-signed, hoarded or compressed.
 ///
-/// Fairness bounds (the cost of decentralized failover, all bounded by leaseSec):
-///   - a runner that dies mid-lease has already burned that lease: the user loses at
-///     most leaseSec of paid time per runner death (clean shutdowns refund via
-///     release; the old per-tick freezing clock can't exist without a trusted party).
+///     WHY TWO CONTRACTS: this one is 300 bytes under the EIP-170 limit. It is
+///     not a layering preference - the verification simply does not fit here,
+///     and putting it behind a sealed immutable binding was the only way to
+///     ship proof of time without cutting something else out of the ledger.
+///     The trust that grant carries is bounded and worth stating plainly: the
+///     prover can advance a watermark, and nothing else. It cannot move a
+///     tenant's balance, change a rate, redirect earnings, or credit past
+///     `now`, past `leaseUntil`, or past what the escrow holds - every one of
+///     those clamps is enforced HERE, below, on money this contract holds. A
+///     broken prover degrades this ledger to rev-8 held-time metering at
+///     worst; it can never overpay beyond what a rev-8 ledger already would.
+///
+/// Fairness bounds (the cost of decentralized failover):
+///   - a runner that dies mid-lease has already burned that lease: the TENANT
+///     loses at most leaseSec of paid time per runner death (clean shutdowns
+///     refund via release; the old per-tick freezing clock can't exist without
+///     a trusted party). Under rev 9 the DEAD RUNNER is paid only through its
+///     last checkpoint, so the gap between dying and being noticed costs the
+///     host its own income and earns it nothing.
+///   - a runner that stops serving but keeps its lease earns nothing after its
+///     last checkpoint. The worst case it can steal is the proof anchor window
+///     (~8.5 min on Base), against the 30 min (leaseSec) a rev-8 ledger paid
+///     for the same silence.
 ///   - two enclaves may race to claim; the loser's tx reverts (gas, cents on Base).
 interface IERC20Auth {
     function transfer(address to, uint256 amount) external returns (bool);
@@ -105,9 +133,9 @@ interface IERC20Auth {
 }
 
 /// @dev Field order MUST match EnclaveRegistry.Enclave exactly (ABI-decoded struct).
-///      The two price fields are registrySchema 2; this ledger requires them
-///      (a schema-1 registry decodes short and every claim reverts), which is
-///      why the two contracts are deployed as a pair.
+///      The two price fields are registrySchema 2 and `proofKey` is schema 3;
+///      this ledger requires both (an older registry decodes short and every
+///      claim reverts), which is why they are deployed as a set.
 interface IEnclaveRegistry {
     struct Enclave {
         string  endpoint;
@@ -119,6 +147,7 @@ interface IEnclaveRegistry {
         bool    active;
         uint64  cpuPricePerSec6;
         uint64  gpuPricePerSec6;
+        address proofKey;
     }
     function get(bytes32 id) external view returns (Enclave memory);
 }
@@ -225,7 +254,17 @@ contract EnclaveDeployments {
     // renew / setShares all refuse to buy time above it. The cap + per-host
     // pricing feature gates on >= 8; a rev-8 ledger also REQUIRES a schema-2
     // registry (it reads prices out of the entry it already checks).
-    uint256 public constant deploymentsSchema = 8;
+    // Rev 9 keeps the struct byte-for-byte one last time and changes WHAT
+    // EARNS: the runner meter is capped by a per-deployment `provenUntil`
+    // watermark that only a bound EnclaveProofOfTime may advance, so a runner
+    // is paid for service it proved rather than lease time it held. New
+    // surface here: provenUntil, creditProven, prover/setProver/proverSealed,
+    // proofRequiredFrom/setProofRequiredFrom. The feature gates on >= 9, and a
+    // rev-9 ledger REQUIRES a schema-3 registry (its claim gate reads proofKey
+    // out of the entry it already checks). Metering only switches from held
+    // time to proven time at proofRequiredFrom - see that field for why the
+    // cutover is a date and not a deploy-time flag.
+    uint256 public constant deploymentsSchema = 9;
 
     /// @dev Publisher-fee snapshot, taken at create from the catalog version
     ///      the deployment references (recipient = the app's publisher wallet).
@@ -277,6 +316,50 @@ contract EnclaveDeployments {
     ///      tuple stays byte-for-byte across revs.
     mapping(bytes32 => uint256) private _maxRate6;
     mapping(address => uint256) public earned6;            // operator -> withdrawable runner earnings (USDC 6dp)
+
+    // ---- proof of time (rev 9) --------------------------------------------
+    /// @notice How far each deployment's CURRENT runner has PROVEN it was
+    ///         serving. The runner meter never credits past this once the
+    ///         cutover has passed, so unproven time inside a paid lease earns
+    ///         nothing. Seeded to block.timestamp at claim (a lease starts with
+    ///         no proven time ahead of it), cleared at release, and advanced
+    ///         ONLY by creditProven below.
+    ///
+    ///         The live shortfall a watcher looks for is
+    ///         min(now, leaseUntil) - provenUntil: zero on a healthy
+    ///         deployment, and a sustained non-zero value is a host that
+    ///         stopped serving. It is deliberately computed off-chain rather
+    ///         than exposed as a view here - see the size note in the header.
+    mapping(bytes32 => uint64) public provenUntil;
+
+    /// @notice The bound EnclaveProofOfTime, and whether that binding is final.
+    ///         Set once, then frozen forever: a seller's proof of service must
+    ///         not be re-pointable at a contract the platform swaps in later.
+    ///         Zero (unbound) means no proof protocol is attached and the meter
+    ///         behaves exactly as rev 8 did - which is also why "unset" doubles
+    ///         as the one-shot guard: setProver refuses to overwrite a non-zero
+    ///         binding, so the first write is the last.
+    address public prover;
+
+    /// @notice When the meter switches from HELD time to PROVEN time (0 = never).
+    /// @dev A DATE, not a boolean, because this contract does not run alone:
+    ///      independent sellers (metal/PROTOCOL.md) upgrade their own boxes on
+    ///      their own schedule, and flipping the meter the instant a new ledger
+    ///      goes live would silently zero the income of every host still
+    ///      running yesterday's supervisor. Before the cutover the meter pays
+    ///      held time exactly as rev 8 did, while checkpoints are already
+    ///      accepted and recorded - so every operator can watch their own
+    ///      coverage and fix their box BEFORE it costs them anything. The
+    ///      constructor sets it PROOF_GRACE ahead of deployment so the cutover
+    ///      happens by itself, with no admin step to forget.
+    ///
+    ///      Also THE KILL SWITCH: if a rollout goes wrong and honest hosts are
+    ///      losing income to a bug in their own proving loop, the owner moves
+    ///      it forward (or to 0) and the meter falls back to held time with no
+    ///      other state disturbed - provenUntil keeps advancing meanwhile, so
+    ///      flipping it back on resumes exactly where it left off.
+    uint64 public proofRequiredFrom;
+    uint64 private constant PROOF_GRACE = 14 days;
     mapping(address => Bond) private _bonds;               // operator -> claim bond
     mapping(address => uint64) private _nonces;            // per-creator id salt
     /// @dev The first 4 bytes of every live id. Off-chain the platform names a
@@ -303,7 +386,7 @@ contract EnclaveDeployments {
     event Renewed(bytes32 indexed id, bytes32 indexed enclaveId, uint64 leaseUntil, uint256 burned6);
     event Released(bytes32 indexed id, bytes32 indexed enclaveId, uint256 refunded6);
     event RunnerRateSet(bytes32 indexed id, uint256 runnerRate6);
-    event RunnerCredited(bytes32 indexed id, address indexed operator, uint256 amount6);
+    event RunnerCredited(bytes32 indexed id, address indexed operator, uint256 amount6, uint64 secondsCredited);
     event EarningsWithdrawn(address indexed operator, address indexed to, uint256 amount6);
     event EscrowFunded(bytes32 indexed id, address indexed from, uint256 amount6);
     event EscrowSwept(bytes32 indexed id, uint256 amount6);
@@ -314,6 +397,8 @@ contract EnclaveDeployments {
     event BondWithdrawn(address indexed operator, address indexed to, uint256 amount6);
     event BondSlashed(address indexed operator, uint256 amount6, string reason);
     event MaxRateSet(bytes32 indexed id, uint256 maxRate6);
+    event ProverSet(address indexed prover);
+    event ProofRequiredFromSet(uint64 at);
     event LeaseSecSet(uint64 leaseSec);
     event MaxGpuMilliSet(uint16 maxGpuMilli);
     event MaxFeeSet(uint256 maxFeePerSec6);
@@ -335,6 +420,12 @@ contract EnclaveDeployments {
         emit MaxFeeSet(maxFeePerSec6);
         emit RunnerBpsSet(runnerBps);              // runner payout live from deploy; bond off by default
         emit ClaimBondSet(claimBond6, bondExitDelay);
+        // Proof of time runs in grace from block one: checkpoints are accepted
+        // and recorded immediately, but the METER only switches to proven time
+        // after the window, so a fleet of independently-operated boxes gets an
+        // announced date to be ready by instead of a cliff.
+        proofRequiredFrom = uint64(block.timestamp) + PROOF_GRACE;
+        emit ProofRequiredFromSet(proofRequiredFrom);
     }
 
     // ========================================================================
@@ -782,6 +873,11 @@ contract EnclaveDeployments {
         require(e.operator == msg.sender, "not operator");
         require(e.active, "enclave inactive");
         require(e.cpuPricePerSec6 > 0, "enclave unpriced");
+        // Past the cutover, an enclave with no published in-CVM proof key could
+        // hold a lease it can never be paid for, and the tenant's app would sit
+        // on a box with no incentive to keep it up. Refuse the claim: the work
+        // stays in the queue for a host that can prove its service.
+        require(!proofRequired() || e.proofKey != address(0), "no proof key");
         if (claimBond6 > 0) {                    // optional anti-sybil gate (0 = off)
             Bond storage b = _bonds[msg.sender];
             require(b.amount6 >= claimBond6 && b.exitAt == 0, "bond required");
@@ -797,6 +893,9 @@ contract EnclaveDeployments {
         d.runnerOperator = msg.sender;
         d.leaseUntil = until;
         _earn[id].creditedUntil = uint64(block.timestamp);   // the new runner's meter starts NOW
+        provenUntil[id] = uint64(block.timestamp);           // ... and so does its proof obligation:
+                                                             // the previous runner's watermark must not
+                                                             // carry over and hand this one free seconds
         emit Claimed(id, enclaveId, msg.sender, until, burned);
     }
 
@@ -824,6 +923,22 @@ contract EnclaveDeployments {
     ///         reopen the queue. Called on clean shutdown, on teardown after the
     ///         owner stops the deployment, or when provisioning fails right after
     ///         a claim (so the user doesn't pay for a runner that never served).
+    /// @dev THE PARTIAL-PERIOD PATH, and it is ORDER-SENSITIVE. A runner tearing
+    ///      down mid-hour - the app crashed, the owner stopped it, the box is
+    ///      being drained - settles the fraction it actually served by posting a
+    ///      final checkpoint to EnclaveProofOfTime and THEN releasing. The
+    ///      checkpoint moves provenUntil to the moment of the crash, this call
+    ///      credits exactly that, and the unserved remainder of the lease goes
+    ///      back to the tenant.
+    ///
+    ///      Proof and release live on different contracts, so there is no single
+    ///      multicall spanning them - and this call CLEARS the watermark, so a
+    ///      final proof sent after it has no lease left to prove against and
+    ///      settles nothing. Runners must send checkpoint-then-release, in that
+    ///      order, through a queue that serializes on confirmation. Releasing
+    ///      without the final proof at all is legal and costs the runner the
+    ///      unproven tail, so the incentive points at settling honestly either
+    ///      way.
     function release(bytes32 id) external {
         Deployment storage d = _deployments[id];
         require(_exists[id], "unknown");
@@ -840,6 +955,7 @@ contract EnclaveDeployments {
         d.runnerOperator = address(0);
         d.leaseUntil = 0;
         _earn[id].creditedUntil = 0;             // meter idles until the next claim restarts it
+        provenUntil[id] = 0;                     // and the proof watermark resets with it
         emit Released(id, enclaveId, refund);
     }
 
@@ -873,19 +989,33 @@ contract EnclaveDeployments {
     ///      always ADVANCES over a zero-escrow window: served-but-unbacked
     ///      time is forfeit, never retro-credited from later escrow (which
     ///      backs later seconds).
+    ///
+    ///      Rev 9 adds the third ceiling: provenUntil. Past the cutover a
+    ///      runner is paid for the intersection of time it HELD the lease and
+    ///      time it PROVED it was serving - so silence inside a paid lease
+    ///      earns nothing, and the pro-rata is exact to the second in both
+    ///      directions. Unproven time is forfeit on the same principle as
+    ///      unbacked time: creditedUntil does not advance past it, so a host
+    ///      that goes dark and comes back is paid for what it proves after it
+    ///      returns, never for the gap.
     function _creditRunner(Deployment storage d) private {
         if (d.runner == bytes32(0)) return;                  // no lease has ever started, or released
         Earn storage e = _earn[d.id];
         uint64 upto = uint64(block.timestamp);
         if (upto > d.leaseUntil) upto = d.leaseUntil;        // an expired lease earns through its end, no further
+        if (proofRequired()) {
+            uint64 proven = provenUntil[d.id];
+            if (upto > proven) upto = proven;                // ... and no further than it proved it served
+        }
         if (upto <= e.creditedUntil) return;
-        uint256 credit = uint256(upto - e.creditedUntil) * e.rate6;
+        uint64 secs = upto - e.creditedUntil;
+        uint256 credit = uint256(secs) * e.rate6;
         if (credit > e.escrow6) credit = e.escrow6;
         e.creditedUntil = upto;
         if (credit == 0) return;
         e.escrow6 -= uint96(credit);                         // cast safe: credit <= escrow6 (uint96)
         earned6[d.runnerOperator] += credit;
-        emit RunnerCredited(d.id, d.runnerOperator, credit);
+        emit RunnerCredited(d.id, d.runnerOperator, credit, secs);
     }
 
     /// @notice Advance the runner meter without any other state change.
@@ -898,6 +1028,45 @@ contract EnclaveDeployments {
     function settle(bytes32 id) external {
         require(_exists[id], "unknown");
         _creditRunner(_deployments[id]);
+    }
+
+    /// @notice Advance a deployment's proven-service watermark and pay out what
+    ///         that just unlocked. The ONLY way provenUntil ever moves forward,
+    ///         and callable only by the bound EnclaveProofOfTime, which accepts
+    ///         it only against a block-anchored signature from the serving
+    ///         enclave's in-CVM key.
+    /// @dev Every clamp that touches money is re-applied HERE rather than
+    ///      trusted to the prover, so the worst a broken or hostile prover can
+    ///      do is degrade this ledger to rev-8 held-time metering:
+    ///        - never past `now` (no buying future seconds);
+    ///        - never past `leaseUntil` (no earning outside what the tenant
+    ///          bought - the released tail is refunded to them, so it can
+    ///          never also be earned);
+    ///        - strictly monotonic (a watermark cannot be walked backwards to
+    ///          replay a window, and a repeat is a revert, not a silent no-op);
+    ///        - and _creditRunner below still caps the payout by the escrow
+    ///          this contract actually holds.
+    ///      The prover owns exactly one rule this contract does not re-check:
+    ///      how far back a single proof may reach (its window). That is what
+    ///      makes proof of time expensive to fake, and it is enforced there.
+    /// @notice True once the meter pays for PROVEN service instead of held
+    ///         lease time. Checkpoints are accepted and recorded either way -
+    ///         this only decides whether _creditRunner is capped by the
+    ///         watermark. Clients show it so a seller knows which rules its
+    ///         income is under today.
+    function proofRequired() public view returns (bool) {
+        return proofRequiredFrom != 0 && block.timestamp >= proofRequiredFrom;
+    }
+
+    function creditProven(bytes32 id, uint64 upto) external {
+        require(msg.sender == prover, "!prover");
+        Deployment storage d = _deployments[id];
+        uint64 ceiling = uint64(block.timestamp);
+        if (ceiling > d.leaseUntil) ceiling = d.leaseUntil;
+        if (upto > ceiling) upto = ceiling;
+        require(upto > provenUntil[id], "nothing to prove");
+        provenUntil[id] = upto;
+        _creditRunner(d);
     }
 
     /// @notice Withdraw the caller's accrued runner earnings (every credit
@@ -1206,6 +1375,28 @@ contract EnclaveDeployments {
         claimBond6 = _bond6;
         bondExitDelay = _exitDelaySec;
         emit ClaimBondSet(_bond6, _exitDelaySec);
+    }
+
+    /// @notice Bind the EnclaveProofOfTime that may advance proven-service
+    ///         watermarks. ONE-SHOT: a non-zero binding can never be changed,
+    ///         because a seller's proof of service must not be re-pointable at
+    ///         a contract the platform swaps in later. Deploy order is prover-
+    ///         after-ledger (the prover takes this address immutably), so this
+    ///         is the single call that completes the pair.
+    function setProver(address p) external {
+        require(msg.sender == owner, "!owner");
+        require(prover == address(0), "sealed");   // reuses an existing literal: this
+        prover = p;                                // contract is byte-bound (see the header)
+        emit ProverSet(p);
+    }
+
+    /// @notice Move the proven-time cutover (0 = never require proofs). See
+    ///         proofRequiredFrom: this is both the rollout date and the kill
+    ///         switch if honest hosts start losing income to a proving bug.
+    function setProofRequiredFrom(uint64 at) external {
+        require(msg.sender == owner, "!owner");
+        proofRequiredFrom = at;
+        emit ProofRequiredFromSet(at);
     }
 
     function setLeaseSec(uint64 _leaseSec) external {

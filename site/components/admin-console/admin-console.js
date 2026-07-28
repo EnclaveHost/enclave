@@ -375,10 +375,13 @@ class AdminConsole extends EnclaveElement {
         // Keep each entry on ONE line - test/admin-console.test.mjs parses this
         // map by line to prove no constructor arg renders as an empty box.
         EnclaveCreditVaultFactory: { usdc: USDC_BASE, book: S.book.addr, treasury: payoutAddr, origin0: location.origin, origin1: "" },
+        // proof of time binds to the LEDGER + REGISTRY pair it verifies against, both immutably
+        EnclaveProofOfTime: { deployments: S.book.entries.deployments || (S.dep && S.dep.addr), registry: S.book.entries.registry },
       };
       const notes = {
         EnclaveAddressBook: `<span class="warn">redeploying the book replaces the ONE address baked into every component</span> - that path needs the config/site/CLI rebake + a release + a dashboard update. Use <code>scripts/deploy-address-book.mjs</code> instead unless you know exactly why.`,
         EnclaveRegistry: `EnclaveDeployments pins the registry it trusts at construction - after a registry redeploy, redeploy EnclaveDeployments too (pointed at the new registry), then update both book keys.`,
+        EnclaveProofOfTime: `<span class="warn">the ledger's setProver binding is ONE-SHOT and permanent</span> - deploy this, then send <code>EnclaveDeployments.setProver</code> once, then publish the <code>proofOfTime</code> book key so running enclaves pick it up. A rev-9 ledger with no prover bound pays HELD time (rev-8 behaviour); past its <code>proofRequiredFrom</code> cutover with no prover, hosts prove nothing and earn nothing. See <code>scripts/deploy-proof-of-time.mjs</code>, which checks the whole pair before broadcasting.`,
         EnclaveDeployments: `deploys with the source-default prices - adjust in the panel above after pointing the book. Existing deployments live on in the OLD contract; users top up there until they redeploy.`,
         EnclaveReviews: `resolves the ledger it checks receipts against through the BOOK on every call, so a later EnclaveDeployments redeploy needs nothing here. <code>ledgerFallback</code> is only consulted when the book has no <code>deployments</code> key.`,
         EnclaveHostReviews: `ratings for the ENCLAVES that run apps (receipt = your funded deployment whose <code>runner</code> is that box). The BOOK is the only ledger source - resolved on every call, so a later EnclaveDeployments redeploy needs nothing here, and there is deliberately no fallback address to go stale (the live EnclaveReviews carries one three revisions out of date). Book key: <code>hostReviews</code>.`,

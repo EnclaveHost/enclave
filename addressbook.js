@@ -21,6 +21,7 @@ export let REGISTRY_ADDRESS      = process.env.REGISTRY_ADDRESS || "";
 export let DEPLOYMENTS_ADDRESS   = process.env.DEPLOYMENTS_ADDRESS || "";
 export let APP_CATALOG_ADDRESS   = process.env.APP_CATALOG_ADDRESS || "";
 export let FORWARDER_ADDRESS     = process.env.FORWARDER_ADDRESS || "";
+export let PROOF_OF_TIME_ADDRESS = process.env.PROOF_OF_TIME_ADDRESS || "";
 
 const BOOK = (process.env.ADDRESS_BOOK_ADDRESS || "").trim();
 const POLL_SEC = parseInt(process.env.ADDRESS_BOOK_POLL_SEC || "", 10) || 300;
@@ -33,9 +34,11 @@ const KEYS = {
   deployments:  ["DEPLOYMENTS_ADDRESS",   (v) => { DEPLOYMENTS_ADDRESS = v; }],
   appCatalog:   ["APP_CATALOG_ADDRESS",   (v) => { APP_CATALOG_ADDRESS = v; }],
   enclavePay:   ["FORWARDER_ADDRESS",     (v) => { FORWARDER_ADDRESS = v; }],
+  proofOfTime:  ["PROOF_OF_TIME_ADDRESS", (v) => { PROOF_OF_TIME_ADDRESS = v; }],
 };
 const current = () => ({ registry: REGISTRY_ADDRESS, deployments: DEPLOYMENTS_ADDRESS,
-  appCatalog: APP_CATALOG_ADDRESS, enclavePay: FORWARDER_ADDRESS });
+  appCatalog: APP_CATALOG_ADDRESS, enclavePay: FORWARDER_ADDRESS,
+  proofOfTime: PROOF_OF_TIME_ADDRESS });
 
 let client = null;
 async function readBook() {

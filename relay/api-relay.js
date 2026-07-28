@@ -282,13 +282,21 @@ const ABI = [
     outputs: [{ type: "tuple[]", components: ENCLAVE_TUPLE_V1 }] },
 ];
 // Registry schema 2 APPENDED the operator's per-machine prices to the entry.
-// A 7-field decode of a 9-field page reads garbage, so the shape is sniffed
-// per address (cached; the address book can repoint us mid-flight) exactly
-// like the deployments tuple. Schema-1 registries have no getter: it reverts.
+// Schema 3 appended the PROOF KEY. Appended fields keep every earlier field's
+// offset, so a short decode drops the tail rather than misreading it — but the
+// shape is still sniffed per address (cached; the address book can repoint us
+// mid-flight) so callers SEE the newer fields. Schema-1 registries have no
+// getter at all: it reverts. THIS BLOCK IS PINNED IDENTICAL across
+// scripts/enclave-discover.mjs, relay/fleet.mjs and relay/api-relay.js by
+// test/registry-schema.test.mjs — a drift is a cutover outage in whichever
+// service lagged.
 const ENCLAVE_TUPLE = [...ENCLAVE_TUPLE_V1,
-  { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }];
+  { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" },
+  { name: "proofKey", type: "address" }];
+const ENCLAVE_TUPLE_V2 = ENCLAVE_TUPLE.slice(0, 9);   // schema 2: priced, no proof key
 const abiForRev = (rev) => [ABI[0], { ...ABI[1],
-  outputs: [{ type: "tuple[]", components: rev >= 2 ? ENCLAVE_TUPLE : ENCLAVE_TUPLE_V1 }] }];
+  outputs: [{ type: "tuple[]", components:
+    rev >= 3 ? ENCLAVE_TUPLE : rev >= 2 ? ENCLAVE_TUPLE_V2 : ENCLAVE_TUPLE_V1 }] }];
 const SCHEMA_ABI = [{ type: "function", name: "registrySchema", stateMutability: "view",
   inputs: [], outputs: [{ type: "uint256" }] }];
 // Single-entry read (tunnelNameOwner). The v1 tuple is a PREFIX of the v2 one
@@ -1045,6 +1053,11 @@ function aggregateAvailability() {
     // stuck renewal, so clients only offer cap edits when every live runner
     // handles it
     rateCap: serving.length > 0 && serving.every((e) => e.availability?.rateCap === true),
+    // Every live runner proves the time it bills for (ledger rev 9): it signs
+    // block-anchored checkpoints from a key minted inside its own CVM, and the
+    // ledger pays it only for service it proved. AND-ed, not OR-ed: a buyer can
+    // only be told "the hosts here are held to account" if every host is.
+    proofOfTime: serving.length > 0 && serving.every((e) => e.availability?.proofOfTime === true),
     // the CHEAPEST posted price across the claiming fleet, USDC 6dp/sec for a
     // whole node / whole card. Each enclave sets its own (registry entry), so
     // "what does this cost" is a fleet-minimum question now, not a contract

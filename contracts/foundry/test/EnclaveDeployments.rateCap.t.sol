@@ -39,14 +39,26 @@ contract EnclaveDeploymentsRateCapTest is Test {
 
     uint256 internal constant T0 = 1_700_000_000;
 
+    // registry schema 3: every enclave publishes the in-CVM key that signs its
+    // proof-of-time checkpoints. This suite is about PRICING, so the keys only
+    // need to be present and distinct (setUp pins the pre-cutover meter).
+    address internal constant cheapProofKey = address(uint160(uint256(keccak256("cheap.proof"))));
+    address internal constant dearProofKey  = address(uint160(uint256(keccak256("dear.proof"))));
+
     function setUp() public {
         usdc = new MockUSDC();
         reg = new EnclaveRegistry();
         dep = new EnclaveDeployments(address(usdc), payout, address(reg), address(0));
+        // These suites pin the PRE-CUTOVER meter (held lease time, the rev-8
+        // semantics they were written against). Proven-time metering — what the
+        // meter does once proofRequiredFrom passes, and the whole proof protocol
+        // in EnclaveProofOfTime — has its own suite in
+        // EnclaveDeployments.proofOfTime.t.sol.
+        dep.setProofRequiredFrom(0);
         vm.prank(cheapOp);
-        cheapId = reg.register("https://cheap.example", "EnclaveHost/enclave", bytes32(0), CPU_CHEAP, GPU_CHEAP);
+        cheapId = reg.register("https://cheap.example", "EnclaveHost/enclave", bytes32(0), CPU_CHEAP, GPU_CHEAP, cheapProofKey);
         vm.prank(dearOp);
-        dearId = reg.register("https://dear.example", "EnclaveHost/enclave", bytes32(0), CPU_DEAR, GPU_DEAR);
+        dearId = reg.register("https://dear.example", "EnclaveHost/enclave", bytes32(0), CPU_DEAR, GPU_DEAR, dearProofKey);
         usdc.mint(user, 1_000_000e6);
         vm.prank(user);
         usdc.approve(address(dep), type(uint256).max);
@@ -69,10 +81,11 @@ contract EnclaveDeploymentsRateCapTest is Test {
     // ---- registry: the enclave states its price ----------------------------
 
     function test_registryCarriesPrices_andOnlyTheOperatorRePricesThem() public {
-        assertEq(reg.registrySchema(), 2);
+        assertEq(reg.registrySchema(), 3);
         IEnclaveRegistry.Enclave memory e = _entry(cheapId);
         assertEq(e.cpuPricePerSec6, CPU_CHEAP);
         assertEq(e.gpuPricePerSec6, GPU_CHEAP);
+        assertEq(e.proofKey, cheapProofKey);   // schema 3: register() carries it too
 
         vm.prank(dearOp);
         vm.expectRevert("not operator");
@@ -93,6 +106,7 @@ contract EnclaveDeploymentsRateCapTest is Test {
         e.active = r.active;
         e.cpuPricePerSec6 = r.cpuPricePerSec6;
         e.gpuPricePerSec6 = r.gpuPricePerSec6;
+        e.proofKey = r.proofKey;
     }
 
     // ---- the claim prices the deployment ------------------------------------

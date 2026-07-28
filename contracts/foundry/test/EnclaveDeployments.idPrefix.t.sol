@@ -37,6 +37,12 @@ contract EnclaveDeploymentsIdPrefixTest is Test {
         usdc = new MockUSDC();
         reg = new MockRegistry(operator);
         dep = new EnclaveDeployments(address(usdc), payout, address(reg), address(0));
+        // These suites pin the PRE-CUTOVER meter (held lease time, the rev-8
+        // semantics they were written against). Proven-time metering — what the
+        // meter does once proofRequiredFrom passes, and the whole proof protocol
+        // in EnclaveProofOfTime — has its own suite in
+        // EnclaveDeployments.proofOfTime.t.sol.
+        dep.setProofRequiredFrom(0);
         vm.warp(1_700_000_000);
     }
 

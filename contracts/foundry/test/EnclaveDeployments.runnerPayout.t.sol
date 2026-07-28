@@ -61,6 +61,12 @@ contract EnclaveDeploymentsRunnerPayoutTest is Test {
         reg.set(ENCLAVE_ID, operator);
         reg.set(ENCLAVE_ID_2, operator2);
         dep = new EnclaveDeployments(address(usdc), payout, address(reg), address(0));
+        // These suites pin the PRE-CUTOVER meter (held lease time, the rev-8
+        // semantics they were written against). Proven-time metering — what the
+        // meter does once proofRequiredFrom passes, and the whole proof protocol
+        // in EnclaveProofOfTime — has its own suite in
+        // EnclaveDeployments.proofOfTime.t.sol.
+        dep.setProofRequiredFrom(0);
         usdc.mint(user, 1_000_000e6);
         vm.prank(user);
         usdc.approve(address(dep), type(uint256).max);

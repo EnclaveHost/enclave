@@ -28,6 +28,19 @@ pragma solidity ^0.8.20;
 ///     a live lease was bought at the price in force when it was claimed.
 ///   - Liveness is advisory: operators heartbeat; readers treat entries whose
 ///     lastSeen is older than a window of their choosing (e.g. 1h) as down.
+///   - PROOF KEY (schema 3): the address half of a secp256k1 keypair MINTED
+///     INSIDE the CVM at boot (like the TLS-bridge key and the ES256 session
+///     key - the operator never sees the private half). EnclaveProofOfTime
+///     verifies proof-of-time checkpoints against it: the enclave signs "app X
+///     was running here at time T, anchored to block N", and the ledger pays
+///     for PROVEN service instead of held lease time. Registering it is a
+///     CLAIM like `measurement` is - anyone can fetch /v1/attestation over the
+///     enclave's attested origin and check that the key served there is the
+///     key on-chain. A mismatch is public, provable misbehavior (the ledger's
+///     bond exists to price exactly that). The key rotates on every CVM
+///     relaunch, because the CVM has no persistent disk to keep it on: the
+///     enclave re-publishes with setProofKey at boot, and checkpoints are
+///     always verified against the CURRENT entry.
 ///   - Open registration (anyone may register). Sybil resistance via
 ///     stake-to-register + slashing is a deliberate FUTURE addition (see notes);
 ///     it is not needed for correctness because attestation, not registration,
@@ -45,6 +58,10 @@ contract EnclaveRegistry {
         // offsets — readers still sniff registrySchema before decoding) ------
         uint64  cpuPricePerSec6;  // USDC 6dp per second for the WHOLE node (vCPU+RAM)
         uint64  gpuPricePerSec6;  // USDC 6dp per second for ONE WHOLE card (GPU+VRAM); 0 on a CPU-only box
+        // ---- proof of time (schema 3; APPENDED, same reason as the prices) --
+        address proofKey;         // in-CVM secp256k1 signer for EnclaveProofOfTime checkpoints
+                                  // (0x0 = this enclave posts no proofs and, once the ledger's
+                                  // proof cutover has passed, cannot claim work)
     }
 
     /// @dev Struct-shape revision, sniffed by consumers exactly as
@@ -52,7 +69,11 @@ contract EnclaveRegistry {
     ///      call reverts there) had no prices and a three-argument register();
     ///      rev 2 appends the two per-machine prices and grows register() to
     ///      carry them, so an enclave states its price as it joins the network.
-    uint256 public constant registrySchema = 2;
+    ///      Rev 3 appends the proof key (and grows register() again), so an
+    ///      enclave states WHICH in-CVM key signs its proof-of-time
+    ///      checkpoints. A rev-9 EnclaveDeployments requires this field; the
+    ///      two contracts deploy as a pair, exactly as rev 2 / rev 8 did.
+    uint256 public constant registrySchema = 3;
 
     bytes32[] private _ids;                       // all endpoint ids ever registered
     mapping(bytes32 => Enclave) private _enclaves;
@@ -61,6 +82,7 @@ contract EnclaveRegistry {
     event Registered(bytes32 indexed id, address indexed operator, string endpoint, string repo);
     event Updated(bytes32 indexed id, string repo, bytes32 measurement);
     event PricesSet(bytes32 indexed id, uint64 cpuPricePerSec6, uint64 gpuPricePerSec6);
+    event ProofKeySet(bytes32 indexed id, address indexed proofKey);
     event Heartbeat(bytes32 indexed id, uint64 at);
     event Deregistered(bytes32 indexed id);
 
@@ -79,8 +101,13 @@ contract EnclaveRegistry {
     ///        box (and then GPU work simply prices at cpu-only, which no GPU
     ///        deployment can be served by anyway — runners refuse GPU work
     ///        without a card).
+    /// @param proofKey the address half of the enclave's in-CVM proof-of-time
+    ///        signer (schema 3). Registering at boot is how a freshly relaunched
+    ///        CVM publishes the key it just minted; 0x0 is accepted (an enclave
+    ///        that posts no proofs), but a rev-9 ledger refuses its claims once
+    ///        the proof cutover has passed.
     function register(string calldata endpoint, string calldata repo, bytes32 measurement,
-                      uint64 cpuPricePerSec6, uint64 gpuPricePerSec6)
+                      uint64 cpuPricePerSec6, uint64 gpuPricePerSec6, address proofKey)
         external
         returns (bytes32 id)
     {
@@ -104,8 +131,35 @@ contract EnclaveRegistry {
         e.active = true;
         e.cpuPricePerSec6 = cpuPricePerSec6;
         e.gpuPricePerSec6 = gpuPricePerSec6;
+        e.proofKey = proofKey;
         emit Updated(id, repo, measurement);
         emit PricesSet(id, cpuPricePerSec6, gpuPricePerSec6);
+        emit ProofKeySet(id, proofKey);
+    }
+
+    /// @notice Publish the in-CVM key that signs this enclave's proof-of-time
+    ///         checkpoints, without re-registering. Called at every boot: the
+    ///         key lives only in the CVM's memory, so a relaunch mints a new
+    ///         one and the entry must follow it or the ledger stops accepting
+    ///         this enclave's proofs (and stops paying it).
+    /// @dev Rotation is safe mid-lease. EnclaveProofOfTime verifies each
+    ///      checkpoint against the key registered AT VERIFICATION TIME, and a
+    ///      checkpoint is only redeemable for ~256 blocks after it is signed
+    ///      (its block anchor), so rotating cannot invalidate proofs already
+    ///      accepted and cannot revive proofs signed by the retired key.
+    ///
+    ///      Setting this to an address whose private half is NOT in the CVM is
+    ///      the one lie this contract cannot catch - and the one anybody can:
+    ///      the enclave serves its live proof key over the attested origin
+    ///      (/v1/attestation), so a watcher compares the two and has public
+    ///      evidence if they differ.
+    function setProofKey(bytes32 id, address proofKey) external {
+        Enclave storage e = _enclaves[id];
+        require(_exists[id], "unknown");
+        require(e.operator == msg.sender, "not operator");
+        e.proofKey = proofKey;
+        e.lastSeen = uint64(block.timestamp);
+        emit ProofKeySet(id, proofKey);
     }
 
     /// @notice Re-price this enclave without re-registering. Affects FUTURE
