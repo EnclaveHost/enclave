@@ -103,8 +103,21 @@ export function minPctsOf(v, spec){
   const vramMb = Number(v && v.vramMb || 0), gpuGf = Number(v && v.gpuGflops || 0);
   const memMb = Number(v && v.memMb || 0), cpuGf = Number(v && v.cpuGflops || 0);
   const cpu = (memMb > 0 || cpuGf > 0) ? pctCeil(Math.max(memMb / (s.nodeRamGb * 1024), cpuGf / s.nodeGflops)) : 1;
-  const gpu0 = (vramMb > 0 || gpuGf > 0) ? pctCeil(Math.max(vramMb / 1024 / s.cardVramGb, gpuGf / 1000 / s.cardTflops)) : 0;
+  // A version whose publisher marked the card OPTIONAL sets no GPU floor: the
+  // app starts without one. Mirrors the runner's minSharesOf exactly — this
+  // floor may never sit below the runner's or the deployment is unclaimable.
+  const gpu0 = (!(v && v.gpuOptional) && (vramMb > 0 || gpuGf > 0))
+    ? pctCeil(Math.max(vramMb / 1024 / s.cardVramGb, gpuGf / 1000 / s.cardTflops)) : 0;
   return { gpuPct: gpu0 > 0 ? Math.max(gpu0, cpu) : 0, cpuPct: cpu };
+}
+// What a deployer SHOULD buy to get the card on a gpuOptional version: the
+// slice its declared axes ask for. Not a floor — a recommendation the deploy
+// dials start at, so "GPU preferred" doesn't quietly become "GPU never".
+export function wantedGpuPct(v, spec){
+  const s = spec || serverSpec();
+  const vramMb = Number(v && v.vramMb || 0), gpuGf = Number(v && v.gpuGflops || 0);
+  if (!(v && v.gpuOptional) || (vramMb <= 0 && gpuGf <= 0)) return 0;
+  return pctCeil(Math.max(vramMb / 1024 / s.cardVramGb, gpuGf / 1000 / s.cardTflops));
 }
 // What the two dials buy on this server spec, and cost per second. `price`
 // pins a specific enclave's posted rates ({full, node} USDC/sec, e.g. from
@@ -198,8 +211,18 @@ export function rankEnclavesFor(v, rows){
   // half there (a CPU enclave posts no GPU price). So soft-GPU work ranks
   // every GPU box first and keeps CPU boxes as fallback, rather than either
   // queueing for a card or silently forgetting it wanted one.
-  const hardGpu = vramMb > 0 || gpuGf > 0;
-  const softGpu = !hardGpu && !!(v && v.gpuOptional) && Number(v && v.gpuMilli || 0) > 0;
+  // TWO different softenings, and they must not be confused:
+  //   v.gpuOptional     — the PUBLISHER's, from the version config. Demotes the
+  //                       version's own axes to a preference, so a CPU box
+  //                       becomes a legal home for the app at all.
+  //   v.depGpuOptional  — the DEPLOYMENT's, from its options envelope. Softens
+  //                       the owner's bought slice only. It can never waive the
+  //                       publisher's requirement: an envelope speaks for the
+  //                       owner's dial, not for what the app needs to start.
+  const hardGpu = (vramMb > 0 || gpuGf > 0) && !(v && v.gpuOptional);
+  const softGpu = !hardGpu && (
+       (!!(v && v.gpuOptional) && (vramMb > 0 || gpuGf > 0))
+    || (!!(v && v.depGpuOptional) && Number(v && v.gpuMilli || 0) > 0));
   const needsGpu = hardGpu;
   const wantVols = volsWanted(v);
   const cand = claiming.map((row) => {

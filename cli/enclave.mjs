@@ -1447,7 +1447,7 @@ async function cmdDeploy(rest) {
   const f = flags(rest, {
     val: ["--gpu", "--cpu", "--fund", "--fund-eth", "--port", "--ports", "--config-cid", "--waf", "--config",
           "--secrets", "--secrets-file", "--max-rate"],
-    bool: ["--private", "--public", "--no-wait"],
+    bool: ["--private", "--public", "--no-wait", "--gpu-optional"],
   });
   if (!f._[0]) throw new Error("usage: enclave deploy <app> [--gpu 0..1] [--cpu 0..1] --fund <usd> [flags]");
   const { ref, ver, app, pending } = await resolveAppRef(f._[0], { allowPending: !!f.private });
@@ -1520,6 +1520,26 @@ async function cmdDeploy(rest) {
     }
     say("config override: this deployment runs on YOUR config (the version's config stays the default for every other deployment)");
   } else if (ver && ver.config) say("the version's approved config applies (from its on-chain record; override with --config '{…}')");
+  // --gpu-optional: this deployment PREFERS a card but will run on cores
+  // rather than queue for one. Only meaningful with a bought GPU share - the
+  // runner refuses it otherwise rather than accept a no-op - and fleet-AND
+  // gated for the same reason --config is: a runner predating the `gpu`
+  // namespace refuses the WHOLE envelope, leaving the deployment unclaimable
+  // on that box.
+  if (f["gpu-optional"]) {
+    if (!(gpuMilli > 0))
+      throw new Error("--gpu-optional applies only when you buy a GPU share (--gpu 0.2); with no slice there is no card requirement to soften and the deployment already runs anywhere");
+    envParts.gpu = { optional: true };
+    try {
+      const av = await api("GET", "/availability");
+      if (av && av.aggregate && av.gpuOptional !== true)
+        throw new Error("the live fleet doesn't understand gpu.optional yet (availability.gpuOptional is not true) — a runner predating it refuses the whole envelope, so this deployment would never be claimed. Drop --gpu-optional or retry after the fleet updates.");
+    } catch (e) {
+      if (/doesn't understand gpu.optional/.test(e.message)) throw e;
+      say("! couldn't read fleet availability to confirm gpu.optional support; if a runner predates it, this deployment will sit Queued unclaimed");
+    }
+    say("gpu: PREFERRED, not required — a GPU enclave claims it first; if every card is busy a CPU-only enclave runs it on cores and the ledger bills only the CPU share there");
+  }
   const envelope = Object.keys(envParts).length ? JSON.stringify(envParts) : "";
   if (Buffer.byteLength(envelope) > 4096)
     throw new Error(`the options envelope (waf + config) is ${Buffer.byteLength(envelope)} bytes; runners refuse envelopes over 4096 bytes — trim the config override`);
@@ -1679,15 +1699,32 @@ async function cmdDeploy(rest) {
 async function cmdPublish(rest) {
   const account = loadKey();
   const f = flags(rest, { val: ["--slug", "--name", "--desc", "--version", "--mem", "--cpu-gflops",
-                                "--vram", "--gpu-gflops", "--ports", "--config", "--fee"] });
+                                "--vram", "--gpu-gflops", "--ports", "--config", "--fee"],
+                       bool: ["--gpu-optional"] });
   const file = f._[0];
   if (!file || !f.slug) throw new Error("usage: enclave publish <app.wasm> --slug <slug> [--name --desc --version --mem MB --cpu-gflops N --vram MB --gpu-gflops N --ports CSV --config JSON --fee $/hr]");
   if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(f.slug)) throw new Error("slug: lowercase letters, digits, hyphens (max 40)");
   // --config = the app's default/template ENCLAVE_CONFIG (deploy consoles pre-fill from it)
-  if (f.config){
-    if (Buffer.byteLength(f.config) > 4096) throw new Error("--config too long (≤ 4096 bytes)");
-    let o; try { o = JSON.parse(f.config); } catch (e) { throw new Error("--config isn't valid JSON: " + e.message); }
+  // --gpu-optional rides IN that config as `gpuOptional: true`: the publisher
+  // declaring that --vram/--gpu-gflops describe what this app WOULD use, not
+  // what it needs to start. Runners then set no GPU floor for it (minSharesOf)
+  // and CPU-only enclaves may serve it; the declared axes stay the recommended
+  // slice for a deployer who wants the card. It lives in the version config
+  // rather than a new on-chain column because config is already immutable per
+  // version, approved with it, and already the place platform-meaningful keys
+  // live (`volumes`) - no catalog redeploy, and it ships the day it is pushed.
+  if (f.config || f["gpu-optional"]){
+    const raw = f.config || "{}";
+    if (Buffer.byteLength(raw) > 4096) throw new Error("--config too long (≤ 4096 bytes)");
+    let o; try { o = JSON.parse(raw); } catch (e) { throw new Error("--config isn't valid JSON: " + e.message); }
     if (!o || Array.isArray(o) || typeof o !== "object") throw new Error("--config must be a JSON object");
+    if (f["gpu-optional"]){
+      if (!(Number(f.vram) > 0 || Number(f["gpu-gflops"]) > 0))
+        throw new Error("--gpu-optional describes GPU specs as desired rather than required, so it needs --vram and/or --gpu-gflops (without them this app already asks for no card)");
+      o.gpuOptional = true;
+      f.config = JSON.stringify(o);
+      say("gpu-optional: --vram/--gpu-gflops publish as DESIRED - runners set no GPU floor, CPU-only enclaves may serve it, and the declared slice is what a deployer buys to get the card");
+    }
   }
   const bytes = fs.readFileSync(file);
   // same gate the IPFS gateway and runners apply: a wasi:http *component*
@@ -2210,6 +2247,16 @@ deployments
                              (the remaining balance stays on the deployment)
   resume <id>                setActive(true): re-queue a stopped deployment; it
                              relaunches from its remaining balance
+  publish ... [--gpu-optional]
+                             publish --vram/--gpu-gflops as DESIRED, not required:
+                             runners set no GPU floor, CPU-only enclaves may serve
+                             the app, and the declared slice is what a deployer
+                             buys to actually get the card
+  deploy ... [--gpu-optional]
+                             this deployment PREFERS a card (needs --gpu): a GPU
+                             enclave claims it first, but a CPU-only one runs it
+                             on cores rather than let it queue - and bills only
+                             the CPU share there
   move <id> <enclave>        run it on a different enclave: the current host hands
                              the lease back (unused time is refunded) and the box
                              you name claims it. Same URL, version and balance -

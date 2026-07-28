@@ -89,7 +89,7 @@ function currentTarget(){
   // decide whether a CPU-only box is a legal home for GPU-dialled work, so the
   // ranking has to see the dials as they stand right now.
   const spec = { ...cached, volumes: [...dep.volumes],
-                 gpuOptional: !!(dep.gpuOptional && dep.gpuOptAvail), gpuMilli: Math.round(dep.gpuPct * 10) };
+                 depGpuOptional: !!(dep.gpuOptional && dep.gpuOptAvail), gpuMilli: Math.round(dep.gpuPct * 10) };
   const ranked = rankEnclavesFor(spec, fleetRows);
   if (!ranked.length) return pickEnclaveFor(spec, fleetRows);   // the none-reason path
   if (dep.targetPick){
