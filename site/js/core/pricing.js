@@ -264,9 +264,13 @@ export function rankEnclavesFor(v, rows){
   const order = (list) => list.slice().sort((x, y) => (demoted(x) - demoted(y)) || (x.minRate - y.minRate) || (needsGpu
     ? (x.mins.gpuPct - y.mins.gpuPct) || (y.free.gpuPct - x.free.gpuPct)
     : (x.mins.cpuPct - y.mins.cpuPct) || ((x.gpu === true) - (y.gpu === true)) || (y.free.cpuPct - x.free.cpuPct)));
-  // cpuNn: this box would run the app's model volumes on CPU cores rather than
-  // its card (a GPU box hosting a 0-GPU tenant). Surfaced so a manual choice is
-  // an informed one — same weights, no card, CPU speed.
+  // cpuNn: on this box the app's model volumes run on CPU cores, not a card.
+  // TWO ways to land there and the flag covers both: a GPU box hosting a
+  // 0-GPU tenant (it has a card, this deployment did not buy it), and a
+  // card-less box hosting soft-GPU work (there is no card to buy). Callers
+  // label it "CPU only" — what the DEPLOYMENT gets is the decision-relevant
+  // fact, and it is true either way; naming the box's own hardware was not
+  // (it called metal0 a GPU box).
   const onCores = (c) => softGpu ? !c.gpu : (wantVols.length && !needsGpu && c.gpu);
   return [...order(cand.filter((c) => c.now)).map((c) => ({ ...c, queued: false, cpuNn: !!onCores(c) })),
           ...order(cand.filter((c) => !c.now)).map((c) => ({ ...c, queued: true, cpuNn: !!onCores(c) }))];
@@ -377,6 +381,22 @@ export function moveBlockReason(v, rows, currentRunnerId){
 
    The contract's own invariant is applied here rather than discovered on
    revert: gpuMilli >= cpuMilli, so a big CPU share lifts the GPU one. */
+/* The other direction: moving a GPU-holding deployment onto a CARD-LESS box.
+
+   The shares stay legal there (a soft-GPU record may run on cores) and the
+   ledger already stops charging for the card — a box with no GPU posts no GPU
+   price, so _hostRate bills only the cpu half. What the slice still costs is
+   PLACEMENT: while it holds one, the deployment's minimum share is sized for
+   hardware this box does not have, and every future claim reads as GPU work.
+   So offer to drop it, and say plainly that it is not about the money.
+
+   Returns { gpuPct: 0, cpuPct } or null when there is nothing to drop. */
+export function gpuDowngradeForMove(v, target, boughtGpuMilli, boughtCpuMilli){
+  if (!target || !target.row || target.row.availability?.gpu === true) return null;
+  if (!(Number(boughtGpuMilli || 0) > 0)) return null;        // nothing bought to give back
+  return { gpuPct: 0, cpuPct: Math.max(1, Math.round(Number(boughtCpuMilli || 0) / 10)) };
+}
+
 export function gpuUpgradeForMove(v, target, boughtGpuMilli, boughtCpuMilli){
   if (!target || !target.row || target.row.availability?.gpu !== true) return null;
   if (Number(boughtGpuMilli || 0) > 0) return null;          // already buying a card
