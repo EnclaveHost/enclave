@@ -1,0 +1,318 @@
+# wasmtime-loopback.patch — the cross-tenant wall.
+#
+# THE HOLE. Tenants share ONE network namespace inside the CVM: every deployment
+# is its own wasmtime process listening on 127.0.0.1:<its port>. The egress
+# shim's carve-out (a literal loopback IP dials DIRECT, never through the front)
+# is what keeps the enclave's own planes reachable — /encvol behind
+# ENCLAVE_ENC_API, and the SOCKS front itself for a phase-1 guest — but it is
+# unqualified, so it also lets a guest dial a SIBLING TENANT's port and land
+# inside its app. That walks around the supervisor's /x/:id, which is where a
+# PRIVATE deployment's owner-token check and the deployer's bought WAF live.
+# Nothing at the services can close it: another tenant's app is not the
+# platform's to gate. In `run` mode it is worse still — a port-serving app is
+# granted `-Sinherit-network`, which installs an allow-ALL address check.
+#
+# THE FIX. `-S loopback-allow=<port[,port...]>` names the loopback ports a
+# process may dial; everything else on loopback is refused. Enforced at all
+# three places a dial can leave a guest:
+#   1. egress.rs connect_addr      — wasi:sockets under transparent egress
+#      (that path REPLACES the host connect, so the address check never sees it)
+#   2. egress.rs connect_authority — wasi:http literal-IP destinations
+#      + connect_direct, the same rule when egress is OFF (wasi:http does not
+#      consult the address check at all, so this path would escape it entirely).
+#      It judges RESOLVED addresses, so a NAME pointing at loopback is caught.
+#   3. src/common.rs socket_addr_check — wasi:sockets with no egress. Installed
+#      ONLY where it can TIGHTEN: with egress on (replacing that check with a
+#      stricter one) or with inherit-network on (replacing allow-all). With
+#      neither, the default is deny-all and we leave it alone.
+# Bind is untouched — a tenant must bind its own assigned ports (the manager's
+# bind audit polices which). UDP egress stays denied under transparent egress.
+#
+# UNSET = the previous behaviour (any loopback port), so a hand-launched
+# wasmtime — the manager's own probe processes — is unchanged. wasm_manager.py
+# passes the flag on EVERY tenant launch, with that deployment's own ports plus
+# the manager port (only with encrypted volumes) and the egress front (only when
+# one was given); test/wasm-loopback-flag.test.mjs pins that, and
+# test/egress.test.mjs drives this patch through a real binary against a real
+# listener standing in for the neighbour.
+#
+# Verified against wasmtime v45.0.0 with the full shipped patch stack applied in
+# Dockerfile order: cargo check clean, and 18/18 of test/egress.test.mjs green
+# on a debug build of the result.
+diff --git a/crates/cli-flags/src/lib.rs b/crates/cli-flags/src/lib.rs
+index 6ba2aa3..4673a99 100644
+--- a/crates/cli-flags/src/lib.rs
++++ b/crates/cli-flags/src/lib.rs
+@@ -538,6 +538,19 @@ wasmtime_option_group! {
+         /// and the relay. Requires TCP granted (`-Stcp`).
+         #[serde(default)]
+         pub egress: Option<String>,
++        /// Loopback ports this guest may dial: `loopback-allow=<port[,port...]>`.
++        ///
++        /// Every tenant on an enclave runs as its own wasmtime process bound to
++        /// 127.0.0.1 in ONE shared network namespace, so an unrestricted
++        /// loopback reach lets a guest connect straight into a SIBLING tenant's
++        /// app — around the proxy where private-deployment auth and the
++        /// deployer's WAF live. This names the loopback ports that are
++        /// legitimately this deployment's: its own listeners, the manager's
++        /// control port, the egress front. Everything else on loopback is
++        /// refused, with or without `-S egress` (an empty list means none at
++        /// all). Unset leaves loopback unrestricted, as before.
++        #[serde(default)]
++        pub loopback_allow: Option<String>,
+         /// Flag for WASI preview2 to inherit the host's network within the
+         /// guest so it has full access to all addresses/ports/etc.
+         pub inherit_network: Option<bool>,
+diff --git a/crates/wasi-http/src/p2/mod.rs b/crates/wasi-http/src/p2/mod.rs
+index d8f9767..772c6ff 100644
+--- a/crates/wasi-http/src/p2/mod.rs
++++ b/crates/wasi-http/src/p2/mod.rs
+@@ -579,7 +579,6 @@ pub async fn default_send_request_handler(
+     use crate::io::TokioIo;
+     use crate::p2::{error::dns_error, hyper_request_error};
+     use http_body_util::BodyExt;
+-    use tokio::net::TcpStream;
+     use tokio::time::timeout;
+ 
+     if !request.headers().contains_key(hyper::header::HOST) {
+@@ -611,7 +610,10 @@ pub async fn default_send_request_handler(
+             let (host, port) = wasmtime_wasi::egress::split_authority(&authority);
+             wasmtime_wasi::egress::connect_authority(host, port).await
+         } else {
+-            TcpStream::connect(&authority).await
++            // egress off: still subject to the loopback policy, which this path
++            // would otherwise escape entirely (wasi:http does not consult the
++            // socket-address check). No policy set = plain upstream connect.
++            wasmtime_wasi::egress::connect_direct(&authority).await
+         }
+     };
+     let tcp_stream = timeout(connect_timeout, connect_fut)
+diff --git a/crates/wasi-http/src/p3/request.rs b/crates/wasi-http/src/p3/request.rs
+index 6f2d081..16d2862 100644
+--- a/crates/wasi-http/src/p3/request.rs
++++ b/crates/wasi-http/src/p3/request.rs
+@@ -335,7 +335,8 @@ pub async fn default_send_request(
+             let (host, port) = wasmtime_wasi::egress::split_authority(&authority);
+             wasmtime_wasi::egress::connect_authority(host, port).await
+         } else {
+-            TcpStream::connect(&authority).await
++            // egress off: the loopback policy still applies here (see p2).
++            wasmtime_wasi::egress::connect_direct(&authority).await
+         }
+     };
+     let stream = match tokio::time::timeout(connect_timeout, connect_fut).await {
+diff --git a/crates/wasi/src/egress.rs b/crates/wasi/src/egress.rs
+index abcab39..ce02fb7 100644
+--- a/crates/wasi/src/egress.rs
++++ b/crates/wasi/src/egress.rs
+@@ -4,7 +4,9 @@
+ //! opts in explicitly, but automatic and un-bypassable.
+ //!
+ //! One carve-out: destinations whose LITERAL IP is loopback (127.0.0.0/8, ::1)
+-//! dial DIRECT, never through the front. In-CVM loopback traffic is not egress:
++//! dial DIRECT, never through the front — and only to the ports
++//! `-S loopback-allow` names, because every tenant on the box shares this
++//! loopback (see LOOPBACK_ALLOW). In-CVM loopback traffic is not egress:
+ //! it never leaves the enclave, has no source identity to tag, and the relay
+ //! could never serve it (127.0.0.1 dialed AT the relay is the relay's own
+ //! loopback — the guest just gets ConnectionRefused). The platform's own
+@@ -101,6 +103,104 @@ pub fn enabled() -> bool {
+     get().is_some()
+ }
+ 
++// ---- in-CVM loopback policy ------------------------------------------------
++//
++// The carve-out above (a literal loopback IP dials DIRECT) is what keeps the
++// enclave's own loopback planes reachable — /encvol behind ENCLAVE_ENC_API, and
++// the SOCKS front itself for a phase-1 guest. But EVERY TENANT ON THE BOX
++// listens on that same loopback: one wasmtime process per deployment, each
++// bound to 127.0.0.1:<its port> in ONE shared network namespace. So an
++// unqualified carve-out lets a guest dial a SIBLING TENANT's port and land
++// inside its app — around the supervisor's /x/:id, which is where a PRIVATE
++// deployment's owner-token check and the deployer's WAF live. Nothing at the
++// services can close that: another tenant's app is not the platform's to gate.
++//
++// `-S loopback-allow=<port[,port...]>` names the loopback ports this process
++// may dial: its own listeners, the manager's control port, the egress front.
++// Everything else on loopback is refused here, at the only place that sees the
++// dial. Unset keeps the previous behaviour (any loopback port) so a
++// hand-launched wasmtime — the manager's own probe processes — is unchanged;
++// the launcher is what makes the policy universal, and wasm_manager.py passes
++// the flag on every tenant launch.
++static LOOPBACK_ALLOW: OnceLock<Option<Vec<u16>>> = OnceLock::new();
++
++/// Install the loopback policy from the `-S loopback-allow=` value. Idempotent
++/// (first call wins, like `init`). An empty list is meaningful and strict: it
++/// means NO loopback destination at all.
++pub fn set_loopback_allow(spec: &str) -> Result<(), String> {
++    let mut ports = Vec::new();
++    for part in spec.split(',') {
++        let part = part.trim();
++        if part.is_empty() {
++            continue;
++        }
++        let port: u16 = part
++            .parse()
++            .map_err(|_| format!("-S loopback-allow expects ports, got `{part}`"))?;
++        if port == 0 {
++            return Err("-S loopback-allow: port 0 is not a destination".to_string());
++        }
++        ports.push(port);
++    }
++    let _ = LOOPBACK_ALLOW.set(Some(ports));
++    Ok(())
++}
++
++/// May this process dial `port` on loopback? True when no policy was installed.
++pub fn loopback_allowed(port: u16) -> bool {
++    match LOOPBACK_ALLOW.get() {
++        Some(Some(ports)) => ports.contains(&port),
++        _ => true,
++    }
++}
++
++/// True once a policy has been installed (the CLI uses this to decide whether
++/// a socket-address check is needed even with egress off).
++pub fn loopback_policy_set() -> bool {
++    matches!(LOOPBACK_ALLOW.get(), Some(Some(_)))
++}
++
++/// Dial `authority` (`host:port`) DIRECTLY, applying the loopback policy.
++///
++/// The `wasi:http` outbound path does not go through the socket-address check
++/// (it is a different context), so with transparent egress OFF a serve-mode app
++/// could reach any loopback port over HTTP even when a policy is set. This is
++/// that path's enforcement point. It resolves first and judges the RESOLVED
++/// addresses, so a NAME that points at loopback is refused too - the case a
++/// literal-only check would miss.
++pub async fn connect_direct(authority: &str) -> io::Result<TcpStream> {
++    if !loopback_policy_set() {
++        return TcpStream::connect(authority).await;
++    }
++    let mut last: Option<io::Error> = None;
++    for addr in tokio::net::lookup_host(authority).await? {
++        if addr.ip().is_loopback() && !loopback_allowed(addr.port()) {
++            last = Some(loopback_refused(addr.port()));
++            continue;
++        }
++        match TcpStream::connect(addr).await {
++            Ok(s) => return Ok(s),
++            Err(e) => last = Some(e),
++        }
++    }
++    Err(last.unwrap_or_else(|| {
++        io::Error::new(io::ErrorKind::AddrNotAvailable, "no address for authority")
++    }))
++}
++
++/// The refusal a blocked loopback dial produces. Named so both call sites and
++/// the socket-address check read the same way in a tenant's log.
++pub fn loopback_refused(port: u16) -> io::Error {
++    io::Error::new(
++        io::ErrorKind::PermissionDenied,
++        format!(
++            "loopback port {port} is not this deployment's to dial \
++             (in-CVM loopback is the enclave's service plane, not a tenant network; \
++             reach other apps at their public address)"
++        ),
++    )
++}
++
+ /// `<host>:<port>` → SocketAddr (loopback only ever in practice, but we accept
+ /// any literal). Brackets around a v6 host are tolerated.
+ fn parse_endpoint(s: &str) -> Option<SocketAddr> {
+@@ -153,8 +253,13 @@ pub async fn connect_addr(addr: SocketAddr) -> io::Result<TcpStream> {
+     if addr == cfg.front {
+         return TcpStream::connect(cfg.front).await;
+     }
+-    // In-CVM loopback dials DIRECT — not egress (see the module doc's carve-out).
++    // In-CVM loopback dials DIRECT — not egress (see the module doc's carve-out)
++    // — but only to a port this deployment is allowed to reach (LOOPBACK_ALLOW):
++    // every tenant on the box listens on this same loopback.
+     if addr.ip().is_loopback() {
++        if !loopback_allowed(addr.port()) {
++            return Err(loopback_refused(addr.port()));
++        }
+         return TcpStream::connect(addr).await;
+     }
+     socks_connect(cfg, Dest::Ip(addr.ip()), addr.port()).await
+@@ -171,8 +276,12 @@ pub async fn connect_authority(host: &str, port: u16) -> io::Result<TcpStream> {
+             if SocketAddr::new(ip, port) == cfg.front {
+                 return TcpStream::connect(cfg.front).await;
+             }
+-            // In-CVM loopback dials DIRECT — not egress (module-doc carve-out).
++            // In-CVM loopback dials DIRECT — not egress (module-doc carve-out),
++            // subject to the same per-deployment port policy as connect_addr.
+             if ip.is_loopback() {
++                if !loopback_allowed(port) {
++                    return Err(loopback_refused(port));
++                }
+                 return TcpStream::connect(SocketAddr::new(ip, port)).await;
+             }
+             Dest::Ip(ip)
+diff --git a/src/common.rs b/src/common.rs
+index 263a9bc..0f4d04d 100644
+--- a/src/common.rs
++++ b/src/common.rs
+@@ -407,16 +407,55 @@ impl RunCommon {
+         // (Placed after inherit-network handling so egress's stricter check wins
+         // if both are somehow set.)
+         if let Some(spec) = &self.common.wasi.egress {
+-            use wasmtime_wasi::sockets::SocketAddrUse;
+             let cred = std::env::var("ENCLAVE_EGRESS_CRED").map_err(|_| {
+                 format_err!("-S egress: $ENCLAVE_EGRESS_CRED must hold the `<id>:<token>` credential")
+             })?;
+             wasmtime_wasi::egress::init(spec, &cred).map_err(|e| format_err!("{e}"))?;
+-            builder.socket_addr_check(|_addr, use_| {
+-                let allow = matches!(
+-                    use_,
+-                    SocketAddrUse::TcpBind | SocketAddrUse::TcpConnect | SocketAddrUse::UdpBind
+-                );
++        }
++
++        // `-S loopback-allow=<ports>`: which loopback ports this guest may dial.
++        // Installed BEFORE the check below so the check can read it.
++        if let Some(spec) = &self.common.wasi.loopback_allow {
++            wasmtime_wasi::egress::set_loopback_allow(spec).map_err(|e| format_err!("{e}"))?;
++        }
++
++        // ONE socket-address check, covering both concerns — a second call would
++        // replace the first, so they cannot be installed independently.
++        //
++        //   egress on : permit TCP bind/connect + UDP bind, DENY raw UDP egress
++        //               (phase-1 SOCKS is TCP CONNECT only). With
++        //               `-Sinherit-network` omitted this is the guest's whole
++        //               network permission.
++        //   loopback  : refuse a TCP connect to a loopback address outside the
++        //               allowed set. This is the arm that holds when there is NO
++        //               egress — a port-serving app runs under
++        //               `-Sinherit-network`, which sets an allow-ALL check, and
++        //               replacing it here is the only way to keep that app off
++        //               its neighbours' sockets. Bind is untouched: a tenant
++        //               must be able to bind its own assigned ports (the
++        //               manager's bind audit polices which).
++        // ONLY where it can TIGHTEN. Installing a check replaces whatever is
++        // there, and with neither egress nor inherit-network the default is
++        // DENY-ALL - a check of ours would loosen that to "anything but
++        // disallowed loopback". So: egress on (replaces the egress check with a
++        // stricter one) or inherit-network on (replaces allow-all with a
++        // stricter one). Otherwise leave the default alone; a guest with no
++        // network grant needs no loopback policy.
++        let egress_on = self.common.wasi.egress.is_some();
++        let inherit_net = self.common.wasi.inherit_network.unwrap_or(false);
++        if egress_on || (inherit_net && wasmtime_wasi::egress::loopback_policy_set()) {
++            use wasmtime_wasi::sockets::SocketAddrUse;
++            builder.socket_addr_check(move |addr, use_| {
++                let allow = match use_ {
++                    SocketAddrUse::TcpBind | SocketAddrUse::UdpBind => true,
++                    SocketAddrUse::TcpConnect => {
++                        !addr.ip().is_loopback() || wasmtime_wasi::egress::loopback_allowed(addr.port())
++                    }
++                    // UDP egress: unchanged either way — denied under transparent
++                    // egress (there is no UDP front), otherwise as permissive as
++                    // the flags the guest was granted.
++                    SocketAddrUse::UdpConnect | SocketAddrUse::UdpOutgoingDatagram => !egress_on,
++                };
+                 Box::pin(async move { allow })
+             });
+         }

@@ -133,6 +133,18 @@ COPY wasmtime-egress.patch /tmp/
 RUN git apply --check /tmp/wasmtime-egress.patch \
  && git apply /tmp/wasmtime-egress.patch
 
+# THE CROSS-TENANT WALL: `-S loopback-allow=<ports>` (wasm/wasmtime-loopback.patch,
+# whose header carries the full reasoning). The egress carve-out above dials a
+# literal loopback IP DIRECT — which is what keeps /encvol and the front
+# reachable, and also let a guest dial a SIBLING TENANT's port, landing inside
+# its app around the supervisor's /x/:id (private-deployment auth, the
+# deployer's WAF). Tenants share one network namespace, so nothing at the
+# services could close that. Must apply AFTER the egress patch: it modifies the
+# file that one creates. Pure std/tokio, no Cargo.lock delta.
+COPY wasmtime-loopback.patch /tmp/
+RUN git apply --check /tmp/wasmtime-loopback.patch \
+ && git apply /tmp/wasmtime-loopback.patch
+
 # enclave ggml wasi-nn backend: GGUF models (llama.cpp) behind wasi:nn -
 # `-S nn-graph=ggml::<dir>` preloads a model under the dir basename, guests
 # load_by_name() it, and the weights never enter guest linear memory (model
