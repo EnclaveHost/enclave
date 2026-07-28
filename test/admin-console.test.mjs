@@ -444,3 +444,29 @@ test("a granted runner rate matches the contract's _snapRunnerRate", () => {
   assert.equal(grant(834, 0, 8000), 667n);
   assert.equal(grant(1042, 200, 8000), 673n);
 });
+
+/* An empty eth_call must never become a zero.
+   migrate.js reads feed IMPORTS, so `0x` from a lagging pool member is the most
+   dangerous possible answer: word()/wNum() turn it into 0, and 0 is valid data.
+   Observed live during a real migration - count read empty, the target looked
+   EMPTY, verify reported 0/4 and the delta re-planned importDeployments (which
+   reverts "exists"). The silent half is worse: an empty feeOf on the SOURCE
+   migrates a fee-bearing record with fee 0 and cuts its publisher off, and an
+   empty schema sniff decodes every record with the wrong struct layout. */
+test("migrate reads retry on empty and then fail loudly, never coerce to zero", async () => {
+  const src = fs.readFileSync(path.join(REPO, "site/components/admin-console/migrate.js"), "utf8");
+  const callFn = /const call = async \(to, data\) => \{[\s\S]*?\n\};/.exec(src);
+  assert.ok(callFn, "migrate.js must define its eth_call wrapper as a guarded async function");
+  assert.match(callFn[0], /emptyRetry: true/, "reads must retry across the RPC pool before giving up");
+  assert.match(callFn[0], /throw new Error/, "an empty result must throw, not return a zero-ish value");
+
+  // the revision sniffs may swallow ONLY a revert - swallowing an empty read
+  // picks a struct schema at random and shifts every field of every record
+  for (const fn of ["depRevOf", "catalogRevOf"]) {
+    const body = new RegExp(`async function ${fn}\\(addr\\) \\{[\\s\\S]*?\\n\\}`).exec(src);
+    assert.ok(body, `${fn} not found`);
+    assert.match(body[0], /isRevert\(e\)/, `${fn} must distinguish a revert from a failed read`);
+  }
+  const impState = /export async function importState\([\s\S]*?\n\}/.exec(src);
+  assert.match(impState[0], /isRevert\(e\)/, "importState must not report an RPC failure as 'no import surface'");
+});

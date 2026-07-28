@@ -925,7 +925,12 @@ class AdminConsole extends EnclaveElement {
           // verify cannot see: escrow attribution. Refuse the FIRST click while
           // backing is still missing rather than warn after the fact.
           if (m.contractName === "EnclaveDeployments" && !btn.dataset.armed) {
-            const { items, skipped, total6 } = await escrowPlan(tgt).catch(() => ({ items: [], skipped: [], total6: "0" }));
+            let plan;
+            // a failed check is NOT a clean check: sealing is permanent, so an
+            // RPC that cannot answer must stop the seal, not wave it through
+            try { plan = await escrowPlan(tgt); }
+            catch (err) { log("err", "cannot confirm escrow backing before sealing: " + friendly(err) + " - not sealing."); return; }
+            const { items, skipped, total6 } = plan;
             if (items.length || skipped.length) {
               log("err", `NOT sealing yet: ${items.length} record${items.length === 1 ? "" : "s"} still need $${(Number(total6) / 1e6).toFixed(2)} of escrow backing`
                 + (skipped.length ? `, and ${skipped.length} cannot be backed at all (see above)` : "")
