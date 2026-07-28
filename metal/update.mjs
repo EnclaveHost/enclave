@@ -52,14 +52,27 @@ const REPO = path.dirname(HERE);
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i > 0 ? process.argv[i + 1] : d; };
 const has = (n) => process.argv.includes('--' + n);
 
-const cfgPath = arg('config', path.join(HERE, 'config.json'));
-const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
-const AU = cfg.autoUpdate || {};
-const NAME = cfg.name || 'metal0';
-const DIST = cfg.dist ? path.resolve(REPO, cfg.dist) : path.join(HERE, 'dist');
-const SERVICE = AU.service || 'enclave-metal';
-const HOSTFWD = (cfg.hostfwd || []).find((h) => Number(h.guest) === 8080)?.host || 18080;
-const MARKER = path.join(DIST, '..', '.update-halted');
+// The box's config is read LAZILY, never at import: metal/config.json holds
+// this box's secrets and is gitignored, so it does not exist on a CI runner or
+// in anyone else's checkout. The policy functions below are pure and must stay
+// importable without it — reading it up here made `import` itself throw ENOENT
+// and took the whole test file down with it.
+let _ctx = null;
+function ctx() {
+  if (_ctx) return _ctx;
+  const cfgPath = arg('config', path.join(HERE, 'config.json'));
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  const AU = cfg.autoUpdate || {};
+  const DIST = cfg.dist ? path.resolve(REPO, cfg.dist) : path.join(HERE, 'dist');
+  _ctx = {
+    cfgPath, cfg, AU, DIST,
+    NAME: cfg.name || 'metal0',
+    SERVICE: AU.service || 'enclave-metal',
+    HOSTFWD: (cfg.hostfwd || []).find((h) => Number(h.guest) === 8080)?.host || 18080,
+    MARKER: path.join(DIST, '..', '.update-halted'),
+  };
+  return _ctx;
+}
 
 const log = (m) => console.log(`[metal-update] ${m}`);
 
@@ -104,12 +117,12 @@ export function updateVerdict({ current, latest, running = 0, deferredSince = nu
 /* ---------- the box's current + available state --------------------------- */
 
 function manifest() {
-  try { return JSON.parse(fs.readFileSync(path.join(DIST, 'manifest.json'), 'utf8')); } catch { return null; }
+  try { return JSON.parse(fs.readFileSync(path.join(ctx().DIST, 'manifest.json'), 'utf8')); } catch { return null; }
 }
 
 async function health() {
   try {
-    const r = await fetch(`http://127.0.0.1:${HOSTFWD}/v1/health`, { signal: AbortSignal.timeout(8000) });
+    const r = await fetch(`http://127.0.0.1:${ctx().HOSTFWD}/v1/health`, { signal: AbortSignal.timeout(8000) });
     if (!r.ok) return null;
     return await r.json();
   } catch { return null; }
@@ -147,6 +160,7 @@ async function waitHealthy(deadlineMs) {
 }
 
 async function apply(tag) {
+  const { cfgPath, AU, DIST, SERVICE, MARKER } = ctx();
   const wt = path.join(os.tmpdir(), `metal-update-${process.pid}`);
   const staging = DIST + '.new';
   const prev = DIST + '.prev';
@@ -200,6 +214,7 @@ async function apply(tag) {
 /* ---------- main ----------------------------------------------------------- */
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  const { AU, DIST, MARKER } = ctx();
   const m = manifest();
   const flavor = m?.flavor || 'cpu';
   const current = m?.release || null;
