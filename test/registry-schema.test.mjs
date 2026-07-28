@@ -160,3 +160,36 @@ test("registration re-fires when the address book repoints the registry", () => 
   assert.match(heartbeat[0], /registryRepointed\(\)/,
     "an idle enclave must notice a repoint from its heartbeat, not only from traffic");
 });
+
+/* A failed schema sniff must not be cached as "rev 1".
+   registryRev() picks WHICH register() ABI the box calls: rev 1 takes 3 args,
+   rev 2 takes 5, rev 3 takes 6. Caching a failed read as rev 1 is therefore
+   unrecoverable — the box calls a 3-arg register() that does not exist on a
+   schema-2/3 registry, every attempt reverts, and no retry can heal it because
+   the wrong answer is cached.
+
+   Cost metal0 its registration outright on 2026-07-28: it sniffed one second
+   after boot with the RPC not yet warm, cached rev 1, and then logged
+   "self-registration failed: register reverted" forever while the rest of the
+   fleet registered normally. */
+test("a failed registry schema sniff is not cached, and the cache is per-registry", () => {
+  const sup = fs.readFileSync(path.join(REPO, "supervisor.js"), "utf8");
+  const fn = /async function registryRev\(\) \{[\s\S]*?\n\}/.exec(sup);
+  assert.ok(fn, "registryRev not found");
+
+  // only a revert may be cached as rev 1
+  assert.match(fn[0], /revert/i, "must distinguish a revert from an RPC failure");
+  assert.doesNotMatch(fn[0], /\}\s*catch\s*\{\s*_registryRev = 1;\s*\}/,
+    "a bare catch that caches rev 1 is the bug this test exists for");
+  assert.match(fn[0], /throw e/, "a non-revert failure must propagate so the caller retries");
+
+  // and the cache must be keyed on the registry it was sniffed against, since
+  // the address book repoints REGISTRY_ADDRESS inside a running process
+  assert.match(fn[0], /_registryRevOf/, "the sniff must be cached per registry address");
+
+  // every caller has to tolerate the throw
+  for (const caller of ["syncRegisteredPrice", "syncRegisteredProofKey"]) {
+    const re = new RegExp(`${caller}\\(id\\)\\.catch\\(`);
+    assert.match(sup, re, `${caller} must be called with a .catch so a sniff failure is retryable`);
+  }
+});

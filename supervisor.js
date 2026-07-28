@@ -362,14 +362,32 @@ const REGISTRY_ABI_V2 = [
 ];
 // 3 = the entry carries a proof key; 2 = prices only; 1 = neither (the getter reverts there)
 let _registryRev = 0;
+let _registryRevOf = null;        // WHICH registry _registryRev was sniffed against
 async function registryRev() {
-  if (_registryRev) return _registryRev;
+  // Cache per REGISTRY_ADDRESS: the book repoints it live, and a rev sniffed
+  // against the old contract picks the wrong register() ABI on the new one.
+  const on = (REGISTRY_ADDRESS || "").toLowerCase();
+  if (_registryRev && _registryRevOf === on) return _registryRev;
   try {
-    _registryRev = Number(await chainClient.readContract({ address: getAddress(REGISTRY_ADDRESS),
+    const rev = Number(await chainClient.readContract({ address: getAddress(REGISTRY_ADDRESS),
       abi: [{ type: "function", name: "registrySchema", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }],
       functionName: "registrySchema" })) || 1;
-  } catch { _registryRev = 1; }
-  return _registryRev;
+    _registryRev = rev; _registryRevOf = on;
+    return rev;
+  } catch (e) {
+    // ONLY a revert means "no such getter, so this is a rev-1 registry". Any
+    // other failure is the RPC, and caching it as rev 1 is unrecoverable: the
+    // box then calls the 3-arg register() forever, which does not exist on a
+    // schema-2/3 registry, so every attempt reverts and no retry can heal it.
+    // Cost a live box its registration entirely (metal0, 2026-07-28: sniffed
+    // one second after boot, RPC not warm, wrong ABI from then on).
+    if (/revert/i.test(e?.shortMessage || e?.message || "")) {
+      _registryRev = 1; _registryRevOf = on;
+      return 1;
+    }
+    console.warn(`[registry] schema sniff failed (not caching): ${e.shortMessage || e.message}`);
+    throw e;                       // callers already treat a failed register as retryable
+  }
 }
 
 // Register THIS enclave under `endpoint` (the hostname a caller reached us at),
