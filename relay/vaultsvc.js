@@ -213,6 +213,15 @@ export async function buildControlCall(id, action, ref, shares, envelope, maxRat
       inputs: [{ type: "bytes32" }, { type: "uint256" }], outputs: [] }],
       functionName: "setMaxRate", args: [id, BigInt(maxRate6)] });
   }
+  // Cancel + refund (ledger rev 10). Named "cancel", not "refund", so it can
+  // never be confused with the top-level `refund` op, which is
+  // refundToTreasury (the card-refund flow). This one pays the deployment's
+  // unused runtime back INTO the vault's own credit balance, because the vault
+  // is the record's on-chain owner.
+  if (action === "cancel")
+    return encodeFunctionData({ abi: [{ type: "function", name: "refund", stateMutability: "nonpayable",
+      inputs: [{ type: "bytes32" }], outputs: [] }],
+      functionName: "refund", args: [id] });
   if (action === "resize") {
     const sharesCall = encodeFunctionData({ abi: [{ type: "function", name: "setShares", stateMutability: "nonpayable",
       inputs: [{ type: "bytes32" }, { type: "uint16" }, { type: "uint16" }], outputs: [] }],

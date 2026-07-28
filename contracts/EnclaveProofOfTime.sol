@@ -419,12 +419,15 @@ FUTURE (deliberately not in this rev):
     now GENERATES that evidence on-chain — unprovenSec, and a lastProofAt that
     stopped moving — so what remains is a challenge game that lets a watcher
     slash against it without the owner's judgment.
-  - refunding unproven time to the TENANT: the ledger stops paying a runner for
-    silence, but the tenant's balance was already burned at claim and the
-    unearned escrow stays escrowed until the record drains. Crediting it back
-    to balance6 is strictly better and is a small change to the ledger's clamp;
-    it needs a decision about who owns the gap when a host is down but the app
-    is still reachable through a cached route.
+  - refunding unproven time to the TENANT: PARTLY ADDRESSED by the ledger's
+    rev-10 refund(). Escrow a runner never proved against is escrow no lease can
+    still claim, so once the lease is closed out (released, or settled after it
+    lapsed) the owner can take it back with the rest of their unused runtime.
+    What is still open is the automatic case — crediting it back to balance6 as
+    the silence happens, so a deployment that outlives a dead host keeps its
+    runtime instead of needing the owner to cancel and re-fund. That still needs
+    a decision about who owns the gap when a host is down but the app is still
+    reachable through a cached route.
   - a proof key inside the quote: on metal the SNP report_data has 32 free bytes
     (metal/guest/agent.mjs radWithReportData), so the proof key could be bound
     into the hardware quote itself rather than served over the attested origin.

@@ -426,7 +426,7 @@ contract EnclaveDeploymentsRunnerPayoutTest is Test {
         dep.postBond(50e6);
         vm.stopPrank();
 
-        vm.expectRevert("amount range");
+        vm.expectRevert("range");
         dep.slashBond(operator, 51e6, "over-slash");
         dep.slashBond(operator, 20e6, "claimed 3 leases, served none (probe log 2026-07-25)");
         (uint256 amount6,) = dep.bondOf(operator);

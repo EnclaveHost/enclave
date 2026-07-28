@@ -652,26 +652,54 @@ the new enclave. This is the same no-trusted-gateway shape as discovery today.
   survive failover, but the /64 prefix is per relay box; a takeover by an
   enclave behind a different relay changes the address. Client re-resolution
   covers it, long-lived UDP flows don't.
-- **No on-chain refunds to the payer.** The platform's and publisher's splits
-  forward immediately (non-custodial by design; the runner's rev-7 share stays
-  as in-contract escrow, but that pot belongs to future lease credits, not the
-  payer); `balance6` is accounting. Refunding a stopped deployment's
-  remainder stays a payout-wallet action, exactly as today (and a publisher's
-  already-forwarded cut is theirs — the split follows the money, not the burn).
+- ~~**No on-chain refunds to the payer.**~~ **PARTLY SHIPPED in rev 10** —
+  `refund(id)` lets an owner cancel a deployment and take back the unused
+  runtime, but only what the contract still HOLDS: the runner escrow. The
+  platform's and publisher's splits still forward immediately (non-custodial by
+  design) and cannot be clawed back, so a refund returns `runnerBps` of the
+  platform component of unspent time — ~80% today, less any publisher fee — and
+  never the sticker price. Every client quotes `refundableOf(id)` (which is
+  exact, not an estimate) rather than `balance6`, because the gap between the
+  two is the part of the story users get wrong. Two guards make it trustless in
+  both directions: whatever a live-or-still-provable lease could yet claim is
+  reserved out of the payout, so cancelling can never strand a seller; and the
+  payout is capped at `ownerEscrow6` — the escrow the owner's OWN fundings
+  contributed — so a third party's top-up is not withdrawable by the owner and
+  a refund stays a reversal of the owner's own payment
+  (`docs/billing-runbook.md` §3). Closing the remaining gap (returning the
+  platform's own 20% too) means escrowing it rather than forwarding it, i.e.
+  making the contract custodial for the platform share — a real design change,
+  not a patch.
 - ~~**Consumed-time attestation**: runners posting signed usage checkpoints
   would shrink the dead-runner loss below `leaseSec`.~~ **SHIPPED in rev 9** —
   see "Proof of time (rev 9)" above. What remains of the idea is making the
   proof *adversarial* (a client-signed receipt or an independent prober, rather
-  than the enclave's own attested assertion) and refunding unproven time to the
-  **tenant** rather than leaving it escrowed; both are in the FUTURE block of
-  `EnclaveProofOfTime.sol`.
-- **`EnclaveDeployments` is at its size ceiling.** ~90 bytes under EIP-170's
-  24,576, which is why rev 9's verification had to become a second contract.
-  The next feature that needs ledger bytes has to reclaim some first, and the
-  only lever of real size is the revert strings (~4.2 KB, 18% of the contract)
-  — currently blocked by 16 off-chain consumers that match on those exact
-  strings (`supervisor.js`, `relay/`, `cli/`, `site/`). Measure with
-  `forge build --sizes` before adding anything.
+  than the enclave's own attested assertion) — see the FUTURE block of
+  `EnclaveProofOfTime.sol`. Returning unproven time to the **tenant** rather
+  than leaving it escrowed is no longer open: rev 10's `refund` reaches it once
+  the lease is closed out, since escrow a runner never proved against is escrow
+  no lease can still claim.
+- **`EnclaveDeployments` is at its size ceiling.** 146 bytes under EIP-170's
+  24,576 as of rev 10, which is why rev 9's verification had to become a second
+  contract. Rev 10's `refund` cost 953 bytes and did not fit; it was paid for by
+  collapsing the *parameter-validation* revert strings (twelve `"<param> range"`
+  into one `"range"`, three `"<field> length"` into `"length"`, the zero-amount
+  checks into `"amount=0"`, `"USDC transferFrom failed"` into
+  `"USDC transfer failed"`) — ~62 bytes reclaimed per unique string eliminated.
+  That lever is still the largest one available, and it is far less blocked than
+  this note used to claim: an audit of `supervisor.js`, `relay/`, `cli/` and
+  `site/` found exactly **one** revert string that off-chain code branches on,
+  `"over rate cap"` (`supervisor.js`, the renew loop's cap-blocked backoff).
+  Everything else that looked like a consumer is a comment, a doc, or a
+  client-side message that merely quotes the text. What IS pinned is the Foundry
+  suite (`vm.expectRevert("literal")`), so a rename is a two-place edit. Keep
+  state and authorization strings intact — they are what ops actually diagnose
+  from; spend validation strings first. Measure with `forge build --sizes`
+  before adding anything.
+  > Do **not** buy bytes by lowering `optimizer_runs`. `runs=1` fits the current
+  > contract with 46 bytes to spare, but `claim`/`renew` run on every lease
+  > quantum for every deployment in the fleet, and that is the wrong hot path to
+  > tax for a size problem the revert strings can solve.
 
 ## Deploy
 

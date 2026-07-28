@@ -251,7 +251,7 @@ contract EnclaveDeploymentsRateCapTest is Test {
         vm.startPrank(user);
         vm.expectRevert("maxRate <= fee");
         dep.create("catalog://app/0", 0, 100, 8080, "", true, "", publisher, fee, fee);
-        vm.expectRevert("maxRate range");
+        vm.expectRevert("range");
         dep.create("catalog://app/0", 0, 100, 8080, "", true, "", address(0), 0, uint256(type(uint96).max) + 1);
         bytes32 id = dep.create("catalog://app/0", 0, 100, 8080, "", true, "", publisher, fee, fee + 1);
         vm.stopPrank();

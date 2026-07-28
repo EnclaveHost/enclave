@@ -39,6 +39,8 @@ export const DEP_SEL = { create:"36aaac4b",   // rev >= 8: (..., feeRecipient, f
                          setConfig:"df6e40ba",  // owner rewrite of the options envelope (waf + config namespaces)
                          setMaxRate:"2d3e461f", // rev >= 8: move the hourly spend ceiling (which enclaves may run it)
                          capOf:"6cc6a48c",      // rev >= 8: read that ceiling (0 = a grandfathered, uncapped import)
+                         refund:"7249fbb6",     // rev >= 10: cancel + return the unused runtime the ledger still HOLDS
+                         refundableOf:"bfa34835", // rev >= 10: exactly what refund() pays (not an estimate)
                          multicall:"ac9650d8", // self-delegatecall batcher: setAppRef + setShares ride one signature
                          deploymentsSchema:"5d1b72b6" };  // shape-revision marker (reverts on rev-1 contracts;
                                                          // rev 3 = rev-2 struct + setAppRef version changes;
@@ -297,6 +299,17 @@ export async function depPrices6(){
 export async function depCapOf(id){
   if ((await depSchemaRev()) < 8) return 0n;
   try { return hexBig(await depCall("0x" + DEP_SEL.capOf + pad32(id.replace(/^0x/, "")))); }
+  catch { return 0n; }
+}
+// What cancelling a deployment would pay its owner right now (rev >= 10; USDC
+// 6dp). This is the HELD escrow that no lease can still claim — NOT the
+// deployment's balance: the publisher fee and the platform share were forwarded
+// to their wallets when the deployment was funded, so a refund can never return
+// them. Always render this number rather than balance6 next to a refund action.
+// 0 on older ledgers, so the UI simply never offers the action there.
+export async function depRefundableOf(id){
+  if ((await depSchemaRev()) < 10) return 0n;
+  try { return hexBig(await depCall("0x" + DEP_SEL.refundableOf + pad32(id.replace(/^0x/, "")))); }
   catch { return 0n; }
 }
 // The operator-set per-deployment GPU-share cap (milli of one card), read once

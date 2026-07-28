@@ -112,7 +112,7 @@ contract EnclaveDeploymentsMulticallValueTest is Test {
         bytes[] memory calls = new bytes[](1);
         calls[0] = abi.encodeWithSelector(EnclaveDeployments.fundEth.selector, id);
         vm.prank(user);
-        vm.expectRevert(bytes("value=0"));
+        vm.expectRevert(bytes("amount=0"));
         dep.multicall(calls);
     }
 

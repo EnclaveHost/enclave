@@ -104,9 +104,41 @@ or ~$50k, whichever comes first):
    few days (`OFAC`/unmatched sweeps) in case a stale client pays it - those
    funds still land at the OLD treasury and are attributed manually.
 
-## 3. Refunds (manual, finance-approved, no exceptions)
+## 3. Refunds
 
-There is no refund code path anywhere, deliberately. All refunds:
+### 3a. Self-serve cancellation (on-chain, no ticket)
+
+Since ledger rev 10 a deployment owner can cancel their own deployment and take
+its unused runtime back without involving anybody here:
+`EnclaveDeployments.refund(id)`, surfaced as `enclave refund <id>`, the console's
+**Cancel** button, and the MCP `build_refund` tool. This is **not** an exception
+to the rules below, because it is not a payment reversal performed by us — it is
+the customer withdrawing money the contract already holds on their behalf, to
+the address that put it there. Nothing to approve, nothing to screen, no
+treasury outflow. Ops involvement is zero by design.
+
+Two properties keep it inside the same-address discipline that §3b exists to
+enforce, and both are enforced by the contract, not by policy:
+
+- the payout goes to `d.owner` and nowhere else — there is no payee argument;
+- it is capped at `ownerEscrow6(id)`, the escrow the **owner's own fundings**
+  contributed. Funding a deployment is permissionless, so without that cap a
+  sponsor could fund and the owner could withdraw, which is a transfer service.
+  A third party's top-up buys the owner runtime, not a withdrawable deposit.
+
+What the customer gets back is the **host escrow** — roughly 80% of unspent
+time, less any publisher fee — not the sticker price. The publisher's cut and
+the platform's share were forwarded to their wallets at funding time and are
+not recoverable by any contract. Every client quotes `refundableOf(id)` before
+the signature and names the shortfall explicitly. **If a customer contacts
+support believing they were short-changed, this is why**; the gap is disclosed
+pre-signature in all three clients, and the number they received is exactly
+what `refundableOf` returned. Making customers whole beyond that is a §3b
+discretionary refund and needs finance like any other.
+
+### 3b. Everything else (manual, finance-approved, no exceptions)
+
+There is no other refund code path anywhere, deliberately. All such refunds:
 
 1. Land in the review queue or support inbox and get a ticket.
 2. Are approved by finance (a named human) before anything moves.

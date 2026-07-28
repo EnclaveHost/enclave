@@ -18,7 +18,7 @@ import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { $$, esc, hlJson, fmtDur, statusCls, copyText, showToast, lsGet, lsSet } from "../../js/core/util.js";
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
-import { pad32, encUint, encCall, DEP_SEL, APPROVAL, depPrices6, rate6Of, depMaxGpuMilli, depGet, depSchemaRev, depFeeOf, depCapOf, catVersionFee, waitReceipt } from "../../js/core/chain.js";
+import { pad32, encUint, encCall, DEP_SEL, APPROVAL, depPrices6, rate6Of, depMaxGpuMilli, depGet, depSchemaRev, depFeeOf, depCapOf, depRefundableOf, catVersionFee, waitReceipt } from "../../js/core/chain.js";
 import { authenticate, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
 import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, STORE } from "../../js/core/catalog.js";
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
@@ -415,6 +415,12 @@ class Deployments extends EnclaveElement {
             (live && ctl !== "order" ? (onchain
               ? '<button class="btn btn-sm danger enc-kill" data-id="' + esc(d.id) + '" title="Stop the app and take it off the queue. The remaining balance stays on the deployment - Resume restarts it any time">Suspend</button>'
               : '<button class="btn btn-sm danger enc-kill" data-id="' + esc(d.id) + '">Terminate</button>') : '') +
+            // Cancel is the one-way door Suspend is not: it ENDS the deployment
+            // and sends its unused runtime back. Offered on stopped rows too -
+            // suspend-then-cancel is the ordinary path. The dialog quotes the
+            // real payout from the ledger before anything is signed, because it
+            // is not the balance (see _refund).
+            (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm danger enc-refund" data-id="' + esc(d.id) + '" title="End this deployment and send its unused runtime back' + (ctl === "vault" ? ' to your credit balance' : ' to your wallet') + '. You get back what the contract still holds for it, which is less than the balance - the exact amount is shown before you confirm">Cancel</button>' : '') +
           '</span>' +
         '</div>' +
         ((st === "failed" || st === "expired") && d.error ? '<div class="enc-err" title="why this deployment ' + esc(st) + '">⚠ ' + esc(d.error) + '</div>' : '') +
@@ -444,6 +450,7 @@ class Deployments extends EnclaveElement {
     $$(".enc-sec[data-id]", body).forEach(el => this._secretsWire(el));
     $$(".enc-verify", body).forEach(b => b.addEventListener("click", () => this._verify(b.dataset.id, b)));
     $$(".enc-kill", body).forEach(b => b.addEventListener("click", () => this._kill(b.dataset.id, b)));
+    $$(".enc-refund", body).forEach(b => b.addEventListener("click", () => this._refund(b.dataset.id, b)));
     $$(".enc-resume", body).forEach(b => b.addEventListener("click", () => this._resume(b.dataset.id, b)));
     $$(".enc-restart", body).forEach(b => b.addEventListener("click", () => this._restart(b.dataset.id, b)));
     this._fillWhy();               // cached decline reasons repaint instantly with the rows
@@ -1418,6 +1425,66 @@ class Deployments extends EnclaveElement {
       setTimeout(() => this.refresh(), 900);
     }
     catch(e){ showToast(e.message); if (btn){ btn.disabled = false; btn.textContent = onchain ? "Suspend" : "Terminate"; } }
+  }
+
+  /* Cancel a deployment and send its unused runtime back (ledger rev 10).
+
+     The whole point of this handler is to be honest about the number. What the
+     contract can return is what it still HOLDS for the record - the host's
+     escrow - and NOT the balance on the row: the publisher fee and the platform
+     share were forwarded to their wallets the moment the deployment was funded,
+     and no contract can pull them back. So the quote comes from refundableOf()
+     (which is exact, not an estimate) and the dialog names the shortfall
+     explicitly rather than letting the balance imply the payout.
+
+     Unlike Suspend this is one-way: the ledger zeroes the balance and
+     deactivates the record. Re-funding it later is possible but buys new time
+     at the price of the day, so the confirm has to read like an ending. */
+  async _refund(id, btn){
+    const row = (this._list || []).find(x => x.id === id);
+    const vault = ctlOf(row) === "vault";
+    const where = vault ? "your credit balance" : "your wallet";
+    const orig = btn ? btn.textContent : "Cancel";
+    if (btn){ btn.disabled = true; btn.textContent = "checking…"; }
+    try {
+      if ((await depSchemaRev()) < 10) throw new Error("this ledger predates refunds - suspend it instead, or contact support");
+      const [amount6, d] = await Promise.all([depRefundableOf(id), depGet(id)]);
+      const bal6 = d ? BigInt(d.balance6 || 0) : 0n;
+      const leased = d && Number(d.leaseUntil) * 1000 > Date.now();
+      if (!(amount6 > 0n))
+        throw new Error(leased
+          ? "nothing refundable yet - everything still held is reserved for the running lease. Suspend it and try again once the host hands the lease back."
+          : "nothing to refund - this deployment has already spent everything the contract held for it");
+      const usd = (v) => "$" + (Number(v) / 1e6).toFixed(2);
+      const lines = ["Cancel " + id.slice(0, 10) + "… and send " + usd(amount6) + " back to " + where + "?", ""];
+      if (bal6 > amount6)
+        lines.push("Its balance is " + usd(bal6) + ", but " + usd(bal6 - amount6) + " of that cannot be returned: the "
+                 + "publisher fee and the platform share went to their wallets when you funded it. " + usd(amount6)
+                 + " is what the contract still holds, and it is exactly what you will receive.", "");
+      if (leased)
+        lines.push("A lease is running. Its unearned time stays reserved for the host and becomes refundable once "
+                 + "the host hands the lease back - cancel again then to collect the rest.", "");
+      lines.push("The app stops and the deployment ends. This cannot be undone.");
+      if (!confirm(lines.join("\n"))){ if (btn){ btn.disabled = false; btn.textContent = orig; } return; }
+
+      if (btn) btn.textContent = "cancelling…";
+      if (vault){
+        // vault-owned row: the vault contract IS the record's on-chain owner, so
+        // the refund lands in the holder's credit balance (passkey-signed)
+        const { vaultOp } = await import("../../js/core/vault.js");
+        await vaultOp("control", { id, action: "cancel" });
+      } else {
+        showToast("confirm the refund in your wallet - " + usd(amount6) + " comes back and the deployment ends");
+        await ensureBaseChain();
+        await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS, "0x" + DEP_SEL.refund + pad32(id.replace(/^0x/, ""))));
+      }
+      // the ledger already deactivated it; tear the instance down now rather
+      // than waiting for the runner's next owner-stop sweep
+      await this._asHost(id, (h) => Enclave.terminateDeployment(id, h)).catch(() => null);
+      showToast("cancelled " + id.slice(0, 10) + "… - " + usd(amount6) + " returned to " + where);
+      setTimeout(() => this.refresh(), 900);
+    }
+    catch(e){ showToast(e.message || String(e)); if (btn){ btn.disabled = false; btn.textContent = orig; } }
   }
 
   /* Which box HOSTS this deployment, and a session that box will honor.
