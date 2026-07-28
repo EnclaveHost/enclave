@@ -495,3 +495,51 @@ test("api-relay: ?enclave= pins /v1/auth/* to that box; sticky otherwise", async
   assert.equal(priced.status, 200);
   assert.equal(priced.body.who, "gpubox", "non-auth paths ignore the pin");
 });
+
+// ---------- a Move must take effect on the NEXT call, not in five minutes ----
+// The relay caches "which enclave owns this id" for 5 minutes to avoid a
+// fan-out probe per request. That cache used to be consulted BEFORE the
+// ledger, so the instant a Move rewrote the runner on chain, every
+// control-plane call still went to the box that had just given the deployment
+// up — and that box answers "No such deployment.", because releasing drops its
+// local record. Verify/logs/restart on a just-moved app failed that way for up
+// to OWNER_TTL_MS (found 2026-07-28 after a metal0 -> kryptos -> metal0 move).
+// The old host keeps a stale row in its OWN list for a while too, which is what
+// poisons the cache here — exactly as it does in production.
+test("api-relay: the on-chain runner outranks a cached owner, so a moved deployment routes to its new host", async (t) => {
+  const ID66 = ID("66");
+  const mk = (label, hosts) => http.createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    if (req.url === "/availability")
+      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32 }));
+    // the deployment-scoped call: the previous host has nothing left to serve
+    if (req.url.startsWith(`/v1/deployments/${ID66}`)) {
+      if (!hosts) { res.statusCode = 404; return res.end(JSON.stringify({ code: "not_found", message: "No such deployment." })); }
+      return res.end(JSON.stringify({ who: label }));
+    }
+    // …but it still LISTS the row (its local record outlives the release), and
+    // every row in a 200 list teaches the relay an owner for that id
+    if (req.url.split("?")[0] === "/v1/deployments")
+      return res.end(JSON.stringify({ data: hosts ? [] : [{ id: ID66, status: "running" }], cursor: null }));
+    res.statusCode = 404; res.end("{}");
+  });
+  const oldHost = mk("oldhost", false), newHost = mk("newhost", true);
+  for (const s of [oldHost, newHost]) { s.listen(0, "127.0.0.1"); await once(s, "listening"); t.after(() => s.close()); }
+  const oldUrl = `http://127.0.0.1:${oldHost.address().port}`, newUrl = `http://127.0.0.1:${newHost.address().port}`;
+
+  const { keccak256, stringToBytes } = await import("viem");
+  const ledger = [
+    { id: ID66, owner: OWNER, appRef: "ipfs://moved", active: true, balance6: 2_000_000, spent6: 100_000,
+      runner: keccak256(stringToBytes(newUrl)), leaseUntil: FUTURE },       // the chain says: newHost holds the lease
+  ];
+  const origin = await startRelay(t, { enclaves: `${oldUrl},${newUrl}`, ledger });
+
+  // the signed-in list fans out to BOTH boxes and learns an owner from each
+  // row it sees — this is what writes oldHost into the cache for ID66
+  const list = await getJson(origin, "/v1/deployments", jwt(OWNER));
+  assert.equal(list.status, 200);
+
+  const att = await getJson(origin, `/v1/deployments/${ID66}/attestation`, jwt(OWNER));
+  assert.equal(att.status, 200, "a control-plane call on a moved deployment must not 404 on its old host");
+  assert.equal(att.body.who, "newhost", "the ledger's runner decides the route, not whatever was cached first");
+});

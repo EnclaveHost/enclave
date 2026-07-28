@@ -804,6 +804,19 @@ const sticky = () =>
 // /x/:id (unauth; 404 = not here) covers the data path, and the /v1 record
 // itself (with the caller's token; 200 = here) covers control-plane calls even
 // after the instance is gone (a terminated record still exists on its enclave).
+//
+// ORDER MATTERS: the LEDGER is consulted before this cache, never after. The
+// cache exists to skip the fan-out PROBE, which is expensive; it was never
+// meant to outrank on-chain truth, and outranking it is a bug with a 5-minute
+// blast radius. A Move rewrites the runner in one transaction, so the instant
+// it lands every cached entry for that id names the box that just gave it up —
+// and that box answers the control plane "No such deployment." until the entry
+// ages out (found 2026-07-28, right after a metal0 -> kryptos -> metal0 move).
+// Reading the ledger first costs nothing a request didn't already pay:
+// ledgerRows() is itself cached (LEDGER_TTL_MS), so this is an in-memory scan,
+// and runnerEndpointOf declines anything the chain can't answer for (unleased,
+// ambiguous prefix, non-ledger dep_ id) — which is exactly when the cache and
+// then the probe should get their turn.
 const OWNER = new Map();                                     // dep id -> { endpoint, at }
 const OWNER_TTL_MS = 5 * 60_000;
 const OWNER_NEG = new Map();                                 // dep id -> at (miss, short-lived; fix 2)
@@ -865,9 +878,9 @@ async function prefixAmbiguous(id) {
   return rows.filter((d) => String(d.id).toLowerCase().startsWith(h)).length > 1;
 }
 async function xOwnerOf(id) {                                // data-path resolve (no auth needed)
-  const hit = ownerCached(id); if (hit) return hit;
   const byRunner = await runnerEndpointOf(id);              // fix 1c: on-chain claimer wins
   if (byRunner) { ownerLearn(id, byRunner); return byRunner; }
+  const hit = ownerCached(id); if (hit) return hit;
   if (await prefixAmbiguous(id)) return null;
   if (ownerNegRecent(id)) return null;                      // recent miss: don't re-fan-out (fix 2)
   if (!fanoutReserve(live.length)) return null;             // global fan-out cap (fix 2)
@@ -881,9 +894,9 @@ async function xOwnerOf(id) {                                // data-path resolv
   return ep;
 }
 async function v1OwnerOf(id, auth) {                         // control-plane probe (caller's token)
-  const hit = ownerCached(id); if (hit) return hit;
   const byRunner = await runnerEndpointOf(id);              // fix 1c: on-chain claimer wins
   if (byRunner) { ownerLearn(id, byRunner); return byRunner; }
+  const hit = ownerCached(id); if (hit) return hit;
   if (await prefixAmbiguous(id)) return null;               // a prefix naming two deployments names neither
   let ep = null;
   if (fanoutReserve(live.length)) {
