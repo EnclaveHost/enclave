@@ -26,17 +26,21 @@
 //     endpoint; it must be the deployment's live on-chain lease holder
 //     (runner = keccak256(endpoint)), so secrets only ever leave here for work
 //     the chain says a fleet member is doing.
-//     BE PRECISE ABOUT WHAT THAT PROVES. The derived key is SHARED fleet-wide,
-//     so the HMAC authenticates "a holder of the fleet key", not "this
-//     endpoint": any fleet member could name another's endpoint and be served
-//     that deployment's secrets. The boundary that holds is the fleet's own —
-//     every first-party enclave runs the same attested image, and a
-//     permissionless metal box is given no fleet secret at all (which is why
-//     /v1/secrets/exists exists: a secrets-incapable runner asks before it
-//     claims). Mutual isolation BETWEEN fleet members would need a per-enclave
-//     asymmetric identity (the /v1/session-jwks key, peer-JWKS: designed, not
-//     built) — a symmetric fleet key cannot express it. Do not read the
-//     lease check as more than the second factor it is.
+//     BE PRECISE ABOUT WHAT THE HMAC PROVES. The derived key is SHARED
+//     fleet-wide, so on its own it authenticates "a holder of the fleet key",
+//     not "this endpoint" — any fleet member could name another's endpoint and
+//     be served that deployment's secrets. A symmetric fleet key cannot express
+//     mutual isolation between members, so it does not have to: the endpoint's
+//     OWN key does.
+//   operator signature (2026-07-27): when the claimed endpoint has an
+//     EnclaveRegistry entry, the fetch must ALSO carry `opSig` — a personal_sign
+//     over the same <id>:<endpoint>:<ts> tuple by the operator that registered
+//     it. That key is per-enclave and never leaves its CVM, so naming somebody
+//     else's endpoint now needs their key, not just the fleet's. An endpoint
+//     with no entry cannot be a lease holder anyway, so nothing is relaxed for
+//     it; a registry read that fails falls back to the last owner seen (an RPC
+//     blip must not become the way in). This is the per-enclave identity the
+//     peer-JWKS note used to defer — reached with the key the box already has.
 //
 // Endpoints (relay-owned, answer with zero live enclaves like /v1/account/*):
 //   POST /v1/secrets/:id       {payload, expiry, signature}   owner mutate
@@ -44,8 +48,11 @@
 //                              signs: enclave-secrets:put:<id>:<expiry>:<sha256(payload)>
 //   POST /v1/secrets/:id/get   {expiry, signature}            owner read back
 //                              signs: enclave-secrets:get:<id>:<expiry>
-//   POST /v1/secrets/fetch     {id, endpoint, ts, sig}        lease-holder fetch
-//                              sig = HMAC(fetchKey, "<id>:<endpoint>:<ts>")
+//   POST /v1/secrets/fetch     {id, endpoint, ts, sig, opSig}  lease-holder fetch
+//                              sig   = HMAC(fetchKey, "<id>:<endpoint>:<ts>")
+//                              opSig = personal_sign by the endpoint's registry
+//                                      operator of
+//                                      "enclave-secrets-fetch:<id>:<endpoint>:<ts>"
 //
 // Config (env): SECRETS_KEY (64-hex, = HMAC(SECRET, "enclave secrets v1"); the
 // supervisor header documents the same derivation for DNS_TXT_KEY), plus the
@@ -68,6 +75,11 @@ const sub = (label) => createHmac("sha256", Buffer.from(SECRETS_KEY, "hex")).upd
 export const SECRETS_LIMITS = { maxKeys: 64, maxValueBytes: 4096, maxTotalBytes: 16384 };
 export const SECRET_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const SIG_TTL_SEC = 600, FETCH_SKEW_SEC = 300;
+// Enforce the per-enclave operator signature on fetches from a REGISTERED
+// endpoint (see the AUTH note above). Default ON; SECRETS_REQUIRE_OPSIG=0 is the
+// lever for one case only — a rollout where this relay updated before the
+// enclaves did — and every use of it is logged with the endpoint to fix.
+const REQUIRE_OPSIG = !/^(0|false|off|no)$/i.test((process.env.SECRETS_REQUIRE_OPSIG ?? "1").trim());
 
 export const putMessage = (id, expiry, payload) =>
   `enclave-secrets:put:${id}:${expiry}:${createHash("sha256").update(payload, "utf8").digest("hex")}`;
@@ -75,6 +87,30 @@ export const getMessage = (id, expiry) => `enclave-secrets:get:${id}:${expiry}`;
 export const fetchSig = (keyHex, id, endpoint, ts) =>
   createHmac("sha256", createHmac("sha256", Buffer.from(keyHex, "hex")).update("fetch-auth v1").digest())
     .update(`${id}:${endpoint}:${ts}`).digest("hex");
+
+// WHO OWNS an endpoint on chain, cached like the tunnel hub's owner cache: a
+// registry read that FAILS must not open an endpoint we have already seen
+// registered, and an endpoint never seen registered stays as it was.
+const _epOwner = new Map();
+async function endpointOperator(ctx, endpoint) {
+  if (!ctx.operatorOfEndpoint) return null;                 // older relay wiring: unchanged behaviour
+  try {
+    const a = await ctx.operatorOfEndpoint(endpoint);
+    if (a) _epOwner.set(endpoint, String(a).toLowerCase());
+    else _epOwner.delete(endpoint);
+    return a ? String(a).toLowerCase() : null;
+  } catch {
+    return _epOwner.get(endpoint) || null;                  // fail closed against a known owner
+  }
+}
+// Recover the signer of a personal_sign over `message`, or null.
+async function recoverOp(message, sig) {
+  if (typeof sig !== "string" || !/^0x[0-9a-fA-F]{130}$/.test(sig)) return null;
+  try {
+    const { recoverMessageAddress } = await import("viem");
+    return (await recoverMessageAddress({ message, signature: sig })).toLowerCase();
+  } catch { return null; }
+}
 
 let store = null;         // JsonStore { byId: { <id>: { rev, updatedAt, blob, missingSince? } } }
 let enabled = false;
@@ -246,6 +282,36 @@ export async function handleSecrets(req, res, u, ctx) {
     const got = /^[0-9a-f]{64}$/.test(sig) ? Buffer.from(sig, "hex") : Buffer.alloc(32);
     if (!timingSafeEqual(want, got))
       return bad(ctx, res, req, 401, "bad_fetch_sig", "The fetch HMAC does not verify.");
+    // SECOND FACTOR: the endpoint's OWN key, not the fleet's. The HMAC above is
+    // a shared derived key — it authenticates "a holder of the fleet key", so
+    // by itself any fleet member could name ANOTHER member's endpoint and be
+    // served that deployment's secrets (the header above has always said so).
+    // The registry entry for this endpoint names an operator, and only that
+    // operator holds the key: when the entry exists, the caller must sign the
+    // same tuple with it. An endpoint with no registry entry cannot be a lease
+    // holder anyway, so there is nothing to relax for.
+    const owner = await endpointOperator(ctx, endpoint);
+    if (owner) {
+      const signer = await recoverOp(`enclave-secrets-fetch:${id}:${endpoint}:${ts}`, b.opSig);
+      // A WRONG key is always refused — that is the whole point, and no rollout
+      // produces one. A MISSING one can only come from a supervisor older than
+      // this check, and the relay and the enclave images ship independently: if
+      // the relay lands first, every secret-bearing app on the fleet launches
+      // without its secrets until the enclaves catch up. So the missing case is
+      // loud and has an operator lever (REQUIRE=0) to unblock a bad rollout
+      // order; enforcing is the default, and the log names exactly what to fix.
+      if (signer && signer !== owner)
+        return bad(ctx, res, req, 403, "wrong_operator",
+          `The fetch is signed by ${signer}, but ${endpoint} is registered to ${owner}.`);
+      if (!signer) {
+        console.error(`[secrets] ${endpoint} fetched WITHOUT an operator signature `
+          + `(registered to ${owner}) — its supervisor predates the per-enclave check`
+          + (REQUIRE_OPSIG ? "; REFUSED" : "; allowed by SECRETS_REQUIRE_OPSIG=0"));
+        if (REQUIRE_OPSIG)
+          return bad(ctx, res, req, 401, "no_operator_sig",
+            "This endpoint is registered on chain; the fetch must be signed by its operator key (opSig).");
+      }
+    }
     // the chain says who holds the lease; a fresh re-read covers a claim tx
     // newer than the 10s ledger cache (the supervisor fetches right after it)
     const epId = String(await ctx.endpointIdOf(endpoint)).toLowerCase();
