@@ -40,7 +40,7 @@ const depsPanel = () => document.querySelector("c-deployments");
 /* ============================================================
    Console state + request rendering
    ============================================================ */
-const dep = { gpuPct: 25, cpuPct: 5, minGpuPct: 0, minCpuPct: 1, asset: "USDC", public: true, gpuEnclave: true, volumes: new Set(), waf: false, wafAvail: false, cfgAvail: false, devAvail: false, targetPick: "" };  // targetPick: the user's explicit enclave choice from the target dropdown ("" = auto, the recommended head of the ranking)  // gpuEnclave: from /availability (gpu:false = CPU-only enclave); volumes: the picker's ticks - a MIRROR of the App config JSON's `volumes` key, never a second source; wafAvail: fleet aggregate advertises the options envelope (waf:true = every live runner enforces it - the Protection field only shows then); cfgAvail: the aggregate's configOverride flag (true = every live runner honors the envelope's `config` namespace - only then is the App config box editable)
+const dep = { gpuPct: 25, cpuPct: 5, minGpuPct: 0, minCpuPct: 1, asset: "USDC", public: true, gpuEnclave: true, volumes: new Set(), waf: false, wafAvail: false, gpuOptional: false, gpuOptAvail: false, cfgAvail: false, devAvail: false, targetPick: "" };  // targetPick: the user's explicit enclave choice from the target dropdown ("" = auto, the recommended head of the ranking)  // gpuEnclave: from /availability (gpu:false = CPU-only enclave); volumes: the picker's ticks - a MIRROR of the App config JSON's `volumes` key, never a second source; wafAvail: fleet aggregate advertises the options envelope (waf:true = every live runner enforces it - the Protection field only shows then); cfgAvail: the aggregate's configOverride flag (true = every live runner honors the envelope's `config` namespace - only then is the App config box editable)
 
 /* The Protection controls -> the create() options envelope's `waf` object
    (null = off/unavailable). Mirrors the runner's parse rules (supervisor
@@ -85,7 +85,11 @@ function currentTarget(){
   // The picker's ticks, not the version's baked list: an edited config (or an
   // untick) changes which model volumes this deployment will ask for, and
   // therefore which boxes can host it, before anything is signed.
-  const spec = { ...cached, volumes: [...dep.volumes] };
+  // gpuOptional/gpuMilli are the DEPLOYMENT's intent, not the version's: they
+  // decide whether a CPU-only box is a legal home for GPU-dialled work, so the
+  // ranking has to see the dials as they stand right now.
+  const spec = { ...cached, volumes: [...dep.volumes],
+                 gpuOptional: !!(dep.gpuOptional && dep.gpuOptAvail), gpuMilli: Math.round(dep.gpuPct * 10) };
   const ranked = rankEnclavesFor(spec, fleetRows);
   if (!ranked.length) return pickEnclaveFor(spec, fleetRows);   // the none-reason path
   if (dep.targetPick){
@@ -192,10 +196,31 @@ function deployBody(){
   if (co && co.obj) body.config = co.obj;   // per-deployment app-config override: rides the same envelope, replaces the version's config as THIS deployment's ENCLAVE_CONFIG
   return body;
 }
-// the create() options envelope for a spec ({waf, config}) - "" when neither rides
+// the create() options envelope for a spec ({waf, config, gpuOptional}) - ""
+// when none rides. `gpu.optional` only ever appears on a deployment that
+// bought GPU share: without a slice there is no card requirement to soften,
+// and every runner refuses the flag on a 0% GPU deployment rather than let an
+// owner believe their app is preferring hardware it can never be given.
 function envelopeOf(spec){
-  const parts = { ...(spec.waf ? { waf: spec.waf } : {}), ...(spec.config ? { config: spec.config } : {}) };
+  const parts = { ...(spec.waf ? { waf: spec.waf } : {}), ...(spec.config ? { config: spec.config } : {}),
+                  ...(spec.gpuOptional && Number(spec.gpuPct || 0) > 0 ? { gpu: { optional: true } } : {}) };
   return Object.keys(parts).length ? JSON.stringify(parts) : "";
+}
+// Show the GPU-requirement control only when it can mean anything: a GPU
+// share is dialled AND every live runner understands the namespace. Hidden
+// also resets the flag - a control nobody can see must not keep sending an
+// option the fleet would refuse.
+function syncGpuOptField(){
+  const f = $("#gpuOptField");
+  const usable = dep.gpuOptAvail && Number(dep.gpuPct || 0) > 0;
+  if (!usable) dep.gpuOptional = false;
+  if (f) f.hidden = !usable;
+  $$("#cfgGpuOpt button").forEach(x => segSet(x, (x.dataset.gpuopt === "1") === !!dep.gpuOptional));
+  const n = $("#gpuOptNote");
+  if (n) n.textContent = !usable ? ""
+    : dep.gpuOptional
+      ? "Preferred: a GPU enclave takes it first. If none has room, a CPU-only enclave runs it on cores instead of queueing — and the ledger bills only the CPU share there, because a box with no card posts no GPU price."
+      : "Required: only a GPU enclave can claim it. If every card is full the deployment waits in the queue rather than running slower.";
 }
 function deployFetch(b){
   const r = (b.image && b.image.reference) || "catalog://<appId>/<versionIndex>";
@@ -433,7 +458,7 @@ async function runDeploy(){
   // simulation fails and the tx never lands (observed live 2026-07-22), so
   // refuse HERE, before any wallet popup. Rev 5 widened the field to match the
   // runners' 4096-byte envelope cap.
-  const envBytes = new TextEncoder().encode(envelopeOf({ waf: wafSpec(), config: co && co.obj })).length;
+  const envBytes = new TextEncoder().encode(envelopeOf({ waf: wafSpec(), config: co && co.obj, gpuOptional: dep.gpuOptional, gpuPct: dep.gpuPct })).length;
   const envCap = depRev >= 5 ? 4096 : 100;
   if (envBytes > envCap)
     return note([["warn", depRev >= 5
@@ -490,7 +515,7 @@ async function runDeploy(){
 
   if (dry){
     const wafDry = wafSpec();
-    const envDryStr = envelopeOf({ waf: wafDry, config: co && co.obj });
+    const envDryStr = envelopeOf({ waf: wafDry, config: co && co.obj, gpuOptional: dep.gpuOptional, gpuPct: dep.gpuPct });
     const envDry = envDryStr ? JSON.stringify(envDryStr) : "\"\"";
     const plan = [["warn", "// dry run: nothing is sent"]];
     plan.push(["info", co
@@ -534,6 +559,7 @@ async function runDeploy(){
   try {
     await deployOnChain({ reference: rref.reference, gpuMilli, cpuMilli, ports,
       isPublic: dep.public, fundUsd: fund, asset: dep.asset, waf: wafSpec(), config: co && co.obj,
+      gpuOptional: dep.gpuOptional,
       targetName: target && !target.none ? target.name : "" });
   } finally {
     btn.disabled = false; btn.textContent = lbl;
@@ -1032,6 +1058,12 @@ async function refreshAvailability(){
     dep.wafAvail = a.waf === true;
     const wf = $("#wafField");
     if (wf){ wf.hidden = !dep.wafAvail; if (!dep.wafAvail) dep.waf = false; }
+    // "GPU preferred, not required": same fleet-AND rule and for a harder
+    // reason - a runner that predates the `gpu` namespace refuses the WHOLE
+    // envelope, so offering it against a mixed fleet would sell a deployment
+    // that some boxes cannot claim at all.
+    dep.gpuOptAvail = a.gpuOptional === true;
+    syncGpuOptField();
     // dev-mode deploys (a PRIVATE deployment may run a version still awaiting
     // approval): only when EVERY live runner admits them - otherwise the
     // create would sit Queued forever on an old runner. Same fleet-AND rule.
@@ -1266,7 +1298,7 @@ function initDeploy(){
     fleetList.addEventListener("refresh", refreshFleet);
   }
 
-  $("#cfgGpuShare").addEventListener("input", e => { dep.gpuPct = parseFloat(e.target.value) || 0; renderDeploy(); });
+  $("#cfgGpuShare").addEventListener("input", e => { dep.gpuPct = parseFloat(e.target.value) || 0; syncGpuOptField(); renderDeploy(); });
   const cpuIn = $("#cfgCpuShare"); if (cpuIn) cpuIn.addEventListener("input", e => { dep.cpuPct = parseFloat(e.target.value) || 0; renderDeploy(); });
   $("#cfgAsset").addEventListener("click", e => {
     const b = e.target.closest("button[data-asset]"); if (!b) return;
@@ -1289,6 +1321,15 @@ function initDeploy(){
     });
     ["#wafRps", "#wafBurst", "#wafBody"].forEach(s => { const el = $(s); if (el) el.addEventListener("input", renderDeploy); });
     const ws = $("#wafScan"); if (ws) ws.addEventListener("change", renderDeploy);
+  }
+  const cfgGpuOpt = $("#cfgGpuOpt");
+  if (cfgGpuOpt){
+    cfgGpuOpt.addEventListener("click", e => {
+      const b = e.target.closest("button[data-gpuopt]"); if (!b) return;
+      dep.gpuOptional = b.dataset.gpuopt === "1"; $$("#cfgGpuOpt button").forEach(x => segSet(x, x === b));
+      syncGpuOptField();
+      renderDeploy();
+    });
   }
   ["#cfgImage", "#cfgBudget", "#cfgPorts"].forEach(s => { const el = $(s); if (el) el.addEventListener("input", renderDeploy); });
   // the config box pre-fills with the picked VERSION's config; its `volumes`

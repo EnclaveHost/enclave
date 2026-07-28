@@ -191,7 +191,16 @@ export function rankEnclavesFor(v, rows){
     : (e.availability.claimEnabled === true || (e.availability.claimEnabled == null && !e.tunnel))));
   const vramMb = Number(v && v.vramMb || 0), gpuGf = Number(v && v.gpuGflops || 0);
   const memMb = Number(v && v.memMb || 0), cpuGf = Number(v && v.cpuGflops || 0);
-  const needsGpu = vramMb > 0 || gpuGf > 0;
+  // A deployment's GPU need has two strengths. The app's own specs (vram /
+  // gpuGflops) are a HARD requirement - no CPU box can ever serve them. A
+  // bought GPU share with `gpu.optional` is a PREFERENCE: it wants a card,
+  // but a CPU-only box is a legal home and the ledger bills it only the cpu
+  // half there (a CPU enclave posts no GPU price). So soft-GPU work ranks
+  // every GPU box first and keeps CPU boxes as fallback, rather than either
+  // queueing for a card or silently forgetting it wanted one.
+  const hardGpu = vramMb > 0 || gpuGf > 0;
+  const softGpu = !hardGpu && !!(v && v.gpuOptional) && Number(v && v.gpuMilli || 0) > 0;
+  const needsGpu = hardGpu;
   const wantVols = volsWanted(v);
   const cand = claiming.map((row) => {
     const a = row.availability, spec = enclaveSpecOf(row);
@@ -223,7 +232,10 @@ export function rankEnclavesFor(v, rows){
   // and parking cores-only work on a GPU box spends a machine someone else
   // needs. So demote rather than exclude, ahead of price, and let an owner
   // still pick it deliberately (a manual move names its destination).
-  const demoted = (c) => (wantVols.length && !needsGpu && c.gpu) ? 1 : 0;
+  // soft-GPU inverts the demotion: the card IS wanted here, so a GPU box is
+  // the preferred home and a CPU box is the fallback.
+  const demoted = (c) => softGpu ? (c.gpu ? 0 : 1)
+                       : ((wantVols.length && !needsGpu && c.gpu) ? 1 : 0);
   // CHEAPEST FIRST, in money — then the old tiebreaks (smallest minimum share,
   // CPU boxes before GPU leftovers for CPU work, most free pool)
   const order = (list) => list.slice().sort((x, y) => (demoted(x) - demoted(y)) || (x.minRate - y.minRate) || (needsGpu
@@ -232,8 +244,9 @@ export function rankEnclavesFor(v, rows){
   // cpuNn: this box would run the app's model volumes on CPU cores rather than
   // its card (a GPU box hosting a 0-GPU tenant). Surfaced so a manual choice is
   // an informed one — same weights, no card, CPU speed.
-  return [...order(cand.filter((c) => c.now)).map((c) => ({ ...c, queued: false, cpuNn: !!demoted(c) })),
-          ...order(cand.filter((c) => !c.now)).map((c) => ({ ...c, queued: true, cpuNn: !!demoted(c) }))];
+  const onCores = (c) => softGpu ? !c.gpu : (wantVols.length && !needsGpu && c.gpu);
+  return [...order(cand.filter((c) => c.now)).map((c) => ({ ...c, queued: false, cpuNn: !!onCores(c) })),
+          ...order(cand.filter((c) => !c.now)).map((c) => ({ ...c, queued: true, cpuNn: !!onCores(c) }))];
 }
 
 // The box a deployment's shares are ALREADY judged against: the enclave

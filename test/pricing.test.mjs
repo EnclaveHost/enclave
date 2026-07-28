@@ -389,3 +389,28 @@ test("moveBlockReason names the constraint that actually bit", () => {
   const other = moveBlockReason({ ...MC, volumes: ["nope"] }, [gpuBox, cpuBox], ID_B);
   assert.match(other, /carries nope/);
 });
+
+/* ---- "GPU preferred, not required" --------------------------------------
+   A bought GPU share is normally a hard requirement: only GPU boxes may claim,
+   and the deployment queues when every card is full. `gpu.optional` on the
+   envelope softens THAT dial (never the app version's own VRAM spec — an
+   envelope may waive the owner's choice, not the publisher's requirement), so
+   a CPU-only box becomes a legal fallback and the ledger bills only the cpu
+   half there. Placement has to invert accordingly: card first, cores second. */
+test("soft-GPU work prefers a GPU box and keeps CPU boxes as fallback", () => {
+  const gpuBox = row("kryptos", { ...GPU_BOX, volumes: [{ name: "m" }] }, { id: ID_A });
+  const cpuBox = row("metal0", { ...CPU_BOX, volumes: [{ name: "m" }] }, { id: ID_B });
+  const soft = { memMb: 512, cpuGflops: 10, volumes: ["m"], gpuMilli: 200, gpuOptional: true };
+  const ranked = rankEnclavesFor(soft, [cpuBox, gpuBox]);
+  assert.deepEqual(ranked.map(t => t.name), ["kryptos", "metal0"], "card first, cores as fallback");
+  assert.equal(ranked[0].cpuNn, false);
+  assert.equal(ranked[1].cpuNn, true, "the CPU box is flagged as running it on cores");
+  // the flag is inert without a bought slice — there is no card requirement to soften
+  const noSlice = { memMb: 512, cpuGflops: 10, volumes: ["m"], gpuMilli: 0, gpuOptional: true };
+  assert.deepEqual(rankEnclavesFor(noSlice, [cpuBox, gpuBox]).map(t => t.name), ["metal0", "kryptos"],
+    "with no GPU share it is ordinary CPU work: GPU boxes demoted again");
+  // and it never overrides the APP's own hard GPU spec
+  const hard = { ...IMAGE_GEN, volumes: ["m"], gpuMilli: 200, gpuOptional: true };
+  assert.deepEqual(rankEnclavesFor(hard, [cpuBox, gpuBox]).map(t => t.name), ["kryptos"],
+    "a version that declares VRAM can never land on a CPU box, whatever the envelope says");
+});

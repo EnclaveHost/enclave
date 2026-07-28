@@ -229,6 +229,14 @@
           </div>
           <div class="dim" id="accessNote" role="status" style="margin-top:7px;font-family:var(--font-mono);font-size:.68rem;line-height:1.5;"></div>
         </div>
+        <div class="field" id="gpuOptField" hidden>
+          <span class="lbl">GPU requirement <span class="dim">(only when you buy a GPU share · rides the on-chain record, editable later)</span></span>
+          <div class="seg" id="cfgGpuOpt" role="group" aria-label="GPU requirement">
+            <button data-gpuopt="0" class="on" type="button" aria-pressed="true">Required</button>
+            <button data-gpuopt="1" type="button" aria-pressed="false">Preferred</button>
+          </div>
+          <div class="dim" id="gpuOptNote" role="status" style="margin-top:7px;font-family:var(--font-mono);font-size:.68rem;line-height:1.5;"></div>
+        </div>
         <div class="field" id="wafField" hidden>
           <span class="lbl">Protection <span class="dim">(optional per-IP rate limit + request filter · enforced inside the enclave, before traffic reaches the app · rides the on-chain record, fixed at create)</span></span>
           <div class="seg" id="cfgWaf" role="group" aria-label="Protection">

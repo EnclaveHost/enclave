@@ -151,3 +151,41 @@ test("the WAF buckets on the proxy-appended address, not the caller's claim", as
   assert.equal(stamped, "198.51.100.7");
   assert.equal(spaces, "203.0.113.9");
 });
+
+/* ---- the `gpu` namespace: a card requirement that can be softened ---------
+   `gpu.optional` says the deployment PREFERS a GPU enclave but would rather
+   run on cores than queue. It is only an option when a GPU share was actually
+   bought — with no slice there is no requirement to soften, and accepting it
+   silently would leave an owner believing their CPU-only deployment is
+   chasing hardware it can never be given. So: refused, not ignored. */
+test("gpu.optional is accepted only on a deployment that bought GPU share", async () => {
+  const env = JSON.stringify({ gpu: { optional: true } });
+  const [withSlice] = await parse({ raw: env, gpuMilli: 200 });
+  assert.deepEqual(withSlice, { ok: { gpuOptional: true } });
+
+  const [noSlice] = await parse({ raw: env, gpuMilli: 0 });
+  assert.match(noSlice.err, /applies only to a deployment that bought GPU share/);
+  assert.match(noSlice.err, /0% GPU/);
+
+  // explicitly false is always fine — it is the default, and says GPU-only
+  const [off] = await parse({ raw: JSON.stringify({ gpu: { optional: false } }), gpuMilli: 0 });
+  assert.deepEqual(off, { ok: { gpuOptional: false } });
+});
+
+test("the gpu namespace is shape-checked like every other option", async () => {
+  const [notObj] = await parse(JSON.stringify({ gpu: true }));
+  assert.match(notObj.err, /gpu must be a JSON object/);
+  const [badKey] = await parse(JSON.stringify({ gpu: { preferred: true } }));
+  assert.match(badKey.err, /unknown gpu option "preferred"/);
+  const [badType] = await parse(JSON.stringify({ gpu: { optional: "yes" } }));
+  assert.match(badType.err, /must be true or false/);
+  // and it composes with the namespaces that already existed
+  const [both] = await parse({ raw: JSON.stringify({ gpu: { optional: true }, config: { a: 1 } }), gpuMilli: 50 });
+  assert.deepEqual(both.ok.gpuOptional, true);
+  assert.deepEqual(both.ok.config, { a: 1 });
+});
+
+test("an unknown namespace still names what this runner knows, now including gpu", async () => {
+  const [r] = await parse(JSON.stringify({ nope: {} }));
+  assert.match(r.err, /this runner knows: waf, config, gpu/);
+});

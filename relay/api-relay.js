@@ -977,6 +977,13 @@ function aggregateAvailability() {
     // on false a resize tx would change the BILLING while the served slice
     // silently didn't, so clients refuse to send it against an older fleet
     shareResize: serving.length > 0 && serving.every((e) => e.availability?.shareResize === true),
+    // {"gpu":{"optional":true}} — a GPU-dialled deployment may fall back to a
+    // CPU-only enclave rather than queue for a card: fleet-AND, and strictly so.
+    // A runner that predates the namespace REFUSES the whole envelope as
+    // unknown (deliberately - options are never silently dropped), which would
+    // strand the deployment unclaimable on that box. So the console must not
+    // offer the control until every live runner knows the word.
+    gpuOptional: serving.length > 0 && serving.every((e) => e.availability?.gpuOptional === true),
     // per-deployment secrets (relay-stored, injected as guest env by the lease
     // holder): needs BOTH this relay configured (SECRETS_KEY + data dir) and a
     // fleet-AND of runners that fetch+inject — a mixed fleet would run the same
