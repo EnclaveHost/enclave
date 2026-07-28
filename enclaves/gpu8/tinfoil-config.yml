@@ -352,7 +352,7 @@ containers:
       # (name:path:file.gguf) picks WHICH gguf preloads as the wasi-nn graph
       # when the repo ships several quantizations - the manager stages the
       # pick as a symlink dir, so the mpk-<hash> mount name never matters.
-      - MODEL_VOLUMES: "qwen2.5-0.5b:/tinfoil/mpk/mpk-e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4,qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-d02f1afc0eee60adc4da2a541c8e095c9cff347b4f3996c2950ff84c676c1c70:qwen2.5-0.5b-instruct-q4_k_m.gguf,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen3.5-0.8b-gguf:/tinfoil/mpk/mpk-d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8,qwen3.6-27b-mtp-gguf:/tinfoil/mpk/mpk-bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9,fable-fusion-27b-mtp-gguf:/tinfoil/mpk/mpk-cf2030ea6070202555fa2d8b762fa4b1c94a3b636dd3d0f587d3f9fafddf4415,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2"
+      - MODEL_VOLUMES: "qwen2.5-0.5b:/tinfoil/mpk/mpk-e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4,qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-d02f1afc0eee60adc4da2a541c8e095c9cff347b4f3996c2950ff84c676c1c70:qwen2.5-0.5b-instruct-q4_k_m.gguf,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen3.5-0.8b-gguf:/tinfoil/mpk/mpk-d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8,qwen3.6-27b-mtp-gguf:/tinfoil/mpk/mpk-bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9,fable-fusion-27b-mtp-gguf:/tinfoil/mpk/mpk-cf2030ea6070202555fa2d8b762fa4b1c94a3b636dd3d0f587d3f9fafddf4415,fable-fusion-27b-mtp-q4-gguf:/tinfoil/mpk/mpk-13f6f4245454958735336168c1d128794fe349563471640521ed325951fefbdb,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2"
     # SECRET SEEDS the manager's control-plane token: both sides derive
     # HMAC(SECRET,"enclave vmmgr v1") - the raw master is never the bearer,
     # since this token rides on every control call while SECRET is what the
@@ -452,6 +452,16 @@ models:
   - name: "fable-fusion-27b-mtp-gguf"
     repo: "EnclaveHost/fable-fusion-27b-mtp-gguf@00b1e5483d5457fe32c0dd82f2d24a19ef0dc957"
     mpk: "cf2030ea6070202555fa2d8b762fa4b1c94a3b636dd3d0f587d3f9fafddf4415_21195100160_00d8de3f-ab8c-52dd-82a6-2039c55d6082"
+  # The same Fable-Fusion-27B one quant step down, at Q4_K_M (~18.5 GB): the
+  # variant that fits a 25% share WITH speculative decoding, where Q5_K_M
+  # does not and stalls the first request on the lazy MTP head allocation.
+  # Attach ONE of the two fable volumes, never both. See the gpu flavor's
+  # entry for the full sizing arithmetic.
+  # mpk generated in the Tinfoil Models tab 2026-07-28 (18511405056 bytes).
+  # Single gguf = no MODEL_VOLUMES third field.
+  - name: "fable-fusion-27b-mtp-q4-gguf"
+    repo: "EnclaveHost/fable-fusion-27b-mtp-q4-gguf@94dd782df9bfdca2e42deaac37a2ffc3263a95e6"
+    mpk: "13f6f4245454958735336168c1d128794fe349563471640521ed325951fefbdb_18511405056_b759e0c4-cf8e-50f5-96d8-499684d24e2f"
   # Qwen-Image-2512 + Lightning 8-step merge (Q8_0), curated for the sdcpp
   # backend - see the gpu flavor's entry for component/serving notes. This
   # flavor has no MODEL_VOLUMES_SD preload, so the volume is mount-only for
