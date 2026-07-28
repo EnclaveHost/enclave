@@ -95,6 +95,16 @@ test("supervisor.js derives with the same label, and never sends the raw SECRET"
     .map((l) => l.slice(0, l.includes("//") ? l.indexOf("//") : undefined))
     .flatMap((l) => [...l.matchAll(/\.update\("(enclave [a-z0-9 -]+ v\d)"\)/g)].map((m) => m[1]));
   assert.equal(new Set(labels).size, labels.length, `derivation labels must be unique: ${labels.join(", ")}`);
-  assert.deepEqual(new Set(labels), new Set(["enclave vmmgr v1", "enclave secrets v1", "enclave dns-txt v1"]),
+  // Each label is a separate leaf of the fleet SECRET, and adding one is a
+  // deliberate act - hence this pin. What each reaches:
+  //   vmmgr    - the wasm-manager control plane (sent as a bearer header)
+  //   secrets  - authenticates a lease-holder's per-deployment secrets fetch
+  //   dns-txt  - authorizes an ACME challenge push at the DNS daemon
+  //   opsign   - lets the in-guest metal agent ask for ONE scoped signature:
+  //              the tunnel attach challenge, over a message this process
+  //              builds (see /v1/internal/tunnel-attach-sig and
+  //              test/opsign.test.mjs). It is not a signing oracle.
+  assert.deepEqual(new Set(labels),
+    new Set(["enclave vmmgr v1", "enclave secrets v1", "enclave dns-txt v1", "enclave opsign v1"]),
     "a new derivation label needs a look at what else that key can reach");
 });

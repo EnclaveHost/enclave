@@ -73,8 +73,8 @@ test("snp: non-zero VMPL, old report version, off-allowlist measurement, stale c
 const TOKEN = "s3cret-token";
 const TOKEN_SHA = createHash("sha256").update(TOKEN).digest("hex");
 
-async function hubServer({ attest = null } = {}) {
-  const hub = createTunnelHub({ allow: [{ name: "metal0", tokenSha256: TOKEN_SHA }], attest });
+async function hubServer({ attest = null, operatorFor = null } = {}) {
+  const hub = createTunnelHub({ allow: [{ name: "metal0", tokenSha256: TOKEN_SHA }], attest, operatorFor });
   const server = http.createServer((_req, res) => res.end("ok"));
   server.on("upgrade", (req, socket, head) => hub.handleUpgrade(req, socket, head));
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
@@ -152,5 +152,132 @@ test("tunnel: attestation attach cannot take a token-reserved name", async () =>
     assert.equal(typeof r.frames[0].nonce, "string");
     assert.equal(h.hub.count(), 0, "unverified peer must not be in the fleet");
     r.ws.close();
+  } finally { await h.close(); }
+});
+
+// ---------- a name belongs to the key that registered it ----------------------
+// A quote proves the IMAGE, never which box it is - every seller runs the same
+// published release - and the metal transport key is minted PER BOOT, so
+// neither is an identity that survives a reboot. That left a window: while a
+// seller was down, another box running the same release could take its name and
+// inherit the routing for keccak(https://<relay>/t/<name>), the id its own
+// on-chain registration carries. The registry OPERATOR key is what survives, so
+// a registered name now demands a signature from it.
+// A RAD document the hub will accept: a quote whose report_data binds the
+// transport key to THIS attach's nonce, i.e. what a real agent sends.
+const radFor = (nonce) => ({
+  format: "sev-snp-guest/v2",
+  body: report({ reportData: createHash("sha256").update(Buffer.concat([SPKI, nonce])).digest() }).toString("base64"),
+  transportKey: SPKI.toString("base64"),
+});
+
+const { privateKeyToAccount } = await import("viem/accounts");
+const OWNER = privateKeyToAccount("0x" + "11".repeat(32));
+const OTHER = privateKeyToAccount("0x" + "22".repeat(32));
+
+// Drive a full attest handshake: dial, read the challenge, answer with a quote
+// (+ optional operator signature), and report the hub's verdict.
+async function attestAttach(h, name, { signer = null, quoteNonceFrom = (n) => n } = {}) {
+  const r = await dial(h.url, { "x-metal-name": name, "x-metal-attest": "1" });
+  if (r.state !== "open") return { state: r.state };
+  await settle();
+  const ch = r.frames.find((f) => f.t === "challenge");
+  const nonce = Buffer.from(ch.nonce, "base64");
+  const rad = radFor(quoteNonceFrom(nonce));
+  const frame = { t: "attest", rad };
+  if (signer) frame.operatorSig = await signer.signMessage({
+    message: `enclave-tunnel-attach:${name}:${nonce.toString("base64")}` });
+  r.ws.send(JSON.stringify(frame));
+  const res = await waitResult(r.frames);
+  try { r.ws.close(); } catch {}
+  return { state: "open", ok: !!res?.ok, reason: res?.reason || "(no verdict)" };
+}
+
+// Wait for the hub's verdict rather than sleeping at it: the owner check runs a
+// dynamic `import("viem")`, and the FIRST one in a process is slow enough that a
+// fixed settle() read an empty frame list and called it a refusal.
+async function waitResult(frames, ms = 8000) {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    const f = frames.find((x) => x.t === "attest-result");
+    if (f) return f;
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  return null;
+}
+
+test("tunnel: a REGISTERED name demands the operator key that registered it", async () => {
+  const h = await hubServer({ attest: { allowedMeasurements: [MEAS], requireVcek: false },
+                              operatorFor: async (n) => (n === "seller7" ? OWNER.address : null) });
+  try {
+    // the owner attaches: image proven by the quote, identity by the signature
+    const good = await attestAttach(h, "seller7", { signer: OWNER });
+    assert.equal(good.ok, true, `owner must attach: ${good.reason}`);
+    assert.equal(h.hub.count(), 1);
+    await settle();
+
+    // a stranger running the SAME published image cannot take the name
+    const thief = await attestAttach(h, "seller7", { signer: OTHER });
+    assert.equal(thief.ok, false);
+    assert.match(thief.reason, /registered on chain to/i);
+
+    // ...nor by simply omitting the proof
+    const silent = await attestAttach(h, "seller7");
+    assert.equal(silent.ok, false);
+    assert.match(silent.reason, /operatorSig/i);
+  } finally { await h.close(); }
+});
+
+test("tunnel: an UNREGISTERED name stays first-come (nothing to take yet)", async () => {
+  const h = await hubServer({ attest: { allowedMeasurements: [MEAS], requireVcek: false },
+                              operatorFor: async () => null });
+  try {
+    const r = await attestAttach(h, "brand-new");
+    assert.equal(r.ok, true, `an unowned name needs no signature: ${r.reason}`);
+  } finally { await h.close(); }
+});
+
+test("tunnel: a lookup failure fails CLOSED against a name we have seen owned", async () => {
+  // An RPC blip must not become the way in. Once the hub has resolved an owner
+  // for a name, a later failure falls back to it rather than opening the name.
+  let mode = "ok";
+  const h = await hubServer({ attest: { allowedMeasurements: [MEAS], requireVcek: false },
+                              operatorFor: async (n) => {
+                                if (mode === "down") throw new Error("rpc down");
+                                return n === "seller7" ? OWNER.address : null;
+                              } });
+  try {
+    assert.equal((await attestAttach(h, "seller7", { signer: OWNER })).ok, true);
+    await settle();
+    mode = "down";
+    const thief = await attestAttach(h, "seller7", { signer: OTHER });
+    assert.equal(thief.ok, false, "a known owner must survive an unreadable registry");
+    // and a name we have never resolved is still first-come while the chain is out
+    const fresh = await attestAttach(h, "never-seen");
+    assert.equal(fresh.ok, true);
+  } finally { await h.close(); }
+});
+
+test("tunnel: the signature is bound to THIS attach's nonce and name", async () => {
+  const h = await hubServer({ attest: { allowedMeasurements: [MEAS], requireVcek: false },
+                              operatorFor: async () => OWNER.address });
+  try {
+    // a signature over another name's message is not this name's proof
+    const r = await dial(h.url, { "x-metal-name": "seller7", "x-metal-attest": "1" });
+    await settle();
+    const ch = r.frames.find((f) => f.t === "challenge");
+    const nonce = Buffer.from(ch.nonce, "base64");
+    const wrongName = await OWNER.signMessage({
+      message: `enclave-tunnel-attach:someone-else:${nonce.toString("base64")}` });
+    r.ws.send(JSON.stringify({ t: "attest", rad: radFor(nonce), operatorSig: wrongName }));
+    const res = await waitResult(r.frames);
+    assert.equal(res?.ok, false, "a signature for another name must not attach this one");
+    try { r.ws.close(); } catch {}
+
+    // a signature over a STALE nonce likewise (replay of an old attach)
+    const stale = await attestAttach(h, "seller7", {
+      signer: { signMessage: () => OWNER.signMessage({
+        message: `enclave-tunnel-attach:seller7:${Buffer.alloc(32, 9).toString("base64")}` }) } });
+    assert.equal(stale.ok, false, "a replayed signature must not attach");
   } finally { await h.close(); }
 });

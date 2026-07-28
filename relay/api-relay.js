@@ -95,9 +95,29 @@ const ENV_METAL_ALLOW = (process.env.METAL_TUNNEL_TOKENS || "").split(",").map((
 // lab box whose part has no KDS-published VCEK).
 const METAL_ALLOWED_MEASUREMENTS = (process.env.METAL_ALLOWED_MEASUREMENTS || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 const METAL_REQUIRE_VCEK = process.env.METAL_REQUIRE_VCEK !== "0";
+// The origin a CGNAT seller registers itself under: `<origin>/t/<name>` is the
+// URL its on-chain entry carries, and keccak of it is the runner id its leases
+// record. Configurable because a relay can be reached under more than one name;
+// unset = the hosted default.
+const TUNNEL_ORIGIN = (process.env.TUNNEL_PUBLIC_ORIGIN || "https://api.enclave.host").replace(/\/+$/, "");
+// WHO OWNS A TUNNEL NAME on chain, for the hub's attest gate (see tunnel.js).
+// null = nobody has registered `<origin>/t/<name>`, so the name is still
+// first-come; an address = only that operator's key may attach under it.
+// Inactive entries are treated as unowned: a deregistered seller has given the
+// name up. Errors propagate — the hub decides how to fail, and it fails closed
+// against an owner it has already seen.
+async function tunnelNameOwner(name) {
+  if (!REGISTRY_ADDRESS) return null;
+  const c = await chain();
+  const id = await endpointId(`${TUNNEL_ORIGIN}/t/${name}`);
+  const e = await c.readContract({ address: REGISTRY_ADDRESS, abi: GET_ABI, functionName: "get", args: [id] });
+  const op = String(e?.operator || "");
+  return e?.active && !/^0x0{40}$/i.test(op) ? op.toLowerCase() : null;
+}
 const tunnelHub = createTunnelHub({
   allow: [...DEFAULT_METAL_ALLOW, ...ENV_METAL_ALLOW],
   attest: METAL_ALLOWED_MEASUREMENTS.length ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK } : null,
+  operatorFor: tunnelNameOwner,
   // when an enclave attaches/detaches, refresh discovery + availability now so it
   // enters/leaves `live` immediately rather than on the slow (5 min) registry poll
   onChange: () => { pollRegistry().then(pollAvailability).catch(() => {}); },
@@ -267,6 +287,11 @@ const abiForRev = (rev) => [ABI[0], { ...ABI[1],
   outputs: [{ type: "tuple[]", components: rev >= 2 ? ENCLAVE_TUPLE : ENCLAVE_TUPLE_V1 }] }];
 const SCHEMA_ABI = [{ type: "function", name: "registrySchema", stateMutability: "view",
   inputs: [], outputs: [{ type: "uint256" }] }];
+// Single-entry read (tunnelNameOwner). The v1 tuple is a PREFIX of the v2 one
+// and `operator` sits inside it, so this decode is correct on both schemas —
+// no sniff needed for the one field it reads.
+const GET_ABI = [{ type: "function", name: "get", stateMutability: "view",
+  inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: ENCLAVE_TUPLE_V1 }] }];
 // Which entry shape the registry at `addr` speaks: 2 = priced entries (the
 // getter exists), 1 = the original seven fields (it reverts there). Cached per
 // address, because the address book can repoint us at a new registry mid-run.

@@ -17,7 +17,7 @@
 // No secret in this file leaves the CVM; the transport key is minted per boot.
 import http from 'node:http';
 import net from 'node:net';
-import { createHash, generateKeyPairSync } from 'node:crypto';
+import { createHash, createHmac, generateKeyPairSync } from 'node:crypto';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 
@@ -42,6 +42,10 @@ const SUP_HOST_URL = `http://${SUP_HOST}:${SUP_PORT}`;
 const RELAY_URL = process.env.METAL_RELAY_URL || '';
 const RELAY_HOST = process.env.METAL_RELAY_HOST || '';    // Host/SNI when dialing via an egress helper
 const TOKEN     = process.env.METAL_TUNNEL_TOKEN || '';
+// Gate for the supervisor's scoped attach-signer (see below). Derived, never the
+// raw fleet SECRET on the wire, and the untrusted relay never holds it.
+const OPSIGN_TOKEN = process.env.SECRET
+  ? createHmac('sha256', process.env.SECRET).update('enclave opsign v1').digest('hex') : '';
 const log = (...a) => console.log('[agent]', ...a);
 
 // --- transport identity (minted in-CVM) -------------------------------------
@@ -203,6 +207,33 @@ function stream(f, send) {
   else if (f.t === 'sx') { streams.delete(f.sid); sock.destroy(); }
 }
 
+// PROVE WHO THIS BOX IS, not just what it runs. A quote proves the IMAGE and the
+// transport key is minted per boot, so on the attest path a name could be taken
+// by any box running the same published release while its real owner was down -
+// and with it the routing for that name's on-chain id. The registry OPERATOR key
+// is the identity that survives a reboot, and it lives in the supervisor, so ask
+// it to sign this attach's challenge. Best effort: a box with no registry key
+// (it does not sell) simply sends nothing, and unregistered names stay
+// first-come, exactly as before.
+function attachSignature(nonce) {
+  return new Promise((resolve) => {
+    if (!OPSIGN_TOKEN) return resolve('');
+    const body = JSON.stringify({ name: NAME, nonce });
+    const req = http.request({ host: SUP_HOST, port: SUP_PORT, path: '/v1/internal/tunnel-attach-sig',
+                               method: 'POST', timeout: 10000,
+                               headers: { 'content-type': 'application/json',
+                                          'content-length': Buffer.byteLength(body),
+                                          'x-opsign-token': OPSIGN_TOKEN } }, (r) => {
+      let buf = '';
+      r.on('data', (c) => (buf += c));
+      r.on('end', () => { try { resolve(JSON.parse(buf).signature || ''); } catch { resolve(''); } });
+    });
+    req.on('error', () => resolve(''));
+    req.on('timeout', () => { req.destroy(); resolve(''); });
+    req.write(body); req.end();
+  });
+}
+
 // One-shot connectivity probe so failures are diagnosable from the journal:
 // separate DNS from TCP-reachability, and IPv4 from IPv6.
 async function probe() {
@@ -251,8 +282,17 @@ function connectTunnel() {
       else if (f.t === 's+' || f.t === 'sd' || f.t === 'sx') stream(f, send);
       else if (f.t === 'ping') send({ t: 'pong' });
       else if (f.t === 'challenge') {         // permissionless attach: answer with a fresh quote over the nonce
-        try { send({ t: 'attest', rad: radForChallenge(f.nonce) }); log('sent attestation for tunnel challenge'); }
-        catch (e) { log(`attest failed: ${e.message}`); }
+        // ...and, when this box sells, a signature from the registry operator
+        // key that OWNS this name on chain (attachSignature). The quote says
+        // what runs; that signature says who it is.
+        (async () => {
+          try {
+            const rad = radForChallenge(f.nonce);
+            const operatorSig = await attachSignature(f.nonce);
+            send({ t: 'attest', rad, ...(operatorSig ? { operatorSig } : {}) });
+            log(`sent attestation for tunnel challenge${operatorSig ? ' + operator signature' : ''}`);
+          } catch (e) { log(`attest failed: ${e.message}`); }
+        })();
       } else if (f.t === 'attest-result') log(`attest ${f.ok ? 'ACCEPTED' + (f.measurement ? ' meas=' + String(f.measurement).slice(0, 16) + '…' : '') : 'REJECTED: ' + f.reason}`);
     });
     ws.on('unexpected-response', (_req, res) => { log(`tunnel handshake rejected: HTTP ${res.statusCode}`); try { ws.terminate(); } catch {} });
