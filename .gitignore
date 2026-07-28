@@ -48,4 +48,8 @@ e2e/playwright-report/
 *.pem
 *.pkcs8
 *.p12
+# ...but AMD's PUBLIC per-product root chains are test DATA, not key material:
+# snp-ark-pin.test.mjs verifies our pinned ARK against them, so a runner that
+# cannot see them fails a test that passes on every developer's machine.
+!test/fixtures/amd/*.pem
 *.pfx
