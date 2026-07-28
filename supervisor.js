@@ -5540,15 +5540,25 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
   // needs 128 GB of VRAM "falls back" to CPU and thrashes forever.
   let gpuOptional = false;
   try { gpuOptional = parseDepOptions(d.configCid, d.gpuMilli).gpuOptional === true; } catch { gpuOptional = false; }
+  // The PUBLISHER's flag counts too, and on its own. A version that declares
+  // its GPU axes desired-not-required says the app runs without a card - which
+  // is exactly the licence to serve it here. Requiring the deployment envelope
+  // as well stranded the obvious case: a soft-GPU app that bought a slice for a
+  // GPU box could never move back to a CPU one ("GPU work on a CPU-only
+  // enclave"), even though its publisher had already said cores are fine.
   const gpuShare = Number(d.gpuMilli) / 1000, cpuShare = Number(d.cpuMilli) / 1000;
   let slice;
   let asCpuFallback = false;
-  if (gpuShare > 0 && !IS_GPU && gpuOptional) {
+  if (gpuShare > 0 && !IS_GPU) {
     const gg = await gateAppReference(d.appRef, { forPrivate: !d.isPublic }).catch(() => null);
-    const needsCard = !!(gg && gg.min && !gg.min.gpuOptional
-      && ((gg.min.vramMb || 0) > 0 || (gg.min.gpuGflops || 0) > 0));
-    if (needsCard) return "GPU work on a CPU-only enclave (gpu.optional cannot waive the app version's own VRAM/compute requirement)";
-    asCpuFallback = true;
+    const publisherOptional = !!(gg && gg.min && gg.min.gpuOptional);
+    const declaresGpu = !!(gg && gg.min && ((gg.min.vramMb || 0) > 0 || (gg.min.gpuGflops || 0) > 0));
+    // Either flag opens the fallback; neither one can waive a HARD requirement.
+    if (gpuOptional || publisherOptional) {
+      if (declaresGpu && !publisherOptional)
+        return "GPU work on a CPU-only enclave (gpu.optional cannot waive the app version's own VRAM/compute requirement)";
+      asCpuFallback = true;
+    }
   }
   if (gpuShare > 0 && !asCpuFallback) {
     if (!IS_GPU) return "GPU work on a CPU-only enclave";

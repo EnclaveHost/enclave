@@ -15,7 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, enclavePriceOf, pickEnclaveFor, rankEnclavesFor, leaseHostOf,
-  moveTargetsFor, moveBlockReason, wantedGpuPct, gpuUpgradeForMove, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE } from "../site/js/core/pricing.js";
+  moveTargetsFor, moveBlockReason, wantedGpuPct, gpuUpgradeForMove, gpuDowngradeForMove, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE } from "../site/js/core/pricing.js";
 
 // Reference copy of the RUNNER's minimum-share math (supervisor.js: pctCeil,
 // gpuShareOf, cpuShareOf, minSharesOf with MIN_COMPUTE_PCT=1). Keep in sync.
@@ -468,4 +468,18 @@ test("gpuUpgradeForMove sizes the slice from the version's declared axes", () =>
   assert.equal(gpuUpgradeForMove({ ...v, gpuOptional: false, depGpuOptional: true }, gpuT, 0, 80), null);
   // the contract invariant gpuMilli >= cpuMilli is applied here, not discovered on revert
   assert.deepEqual(gpuUpgradeForMove(v, gpuT, 0, 300), { gpuPct: 30, cpuPct: 30 });
+});
+
+test("gpuDowngradeForMove gives the card back when the destination has none", () => {
+  adoptServerSpec({ gpu: true, ...H200 });
+  const gpuT = { row: { availability: { gpu: true } }, spec: H200 };
+  const cpuT = { row: { availability: { gpu: false } }, spec: { ...H200, cardVramGb: 0, cardTflops: 0, nodeRamGb: 28 } };
+  const v = { vramMb: 32768, gpuGflops: 240000, memMb: 2048, cpuGflops: 5, gpuOptional: true };
+
+  assert.deepEqual(gpuDowngradeForMove(v, cpuT, 250, 80), { gpuPct: 0, cpuPct: 8 });
+  assert.equal(gpuDowngradeForMove(v, gpuT, 250, 80), null, "a GPU destination keeps the slice");
+  assert.equal(gpuDowngradeForMove(v, cpuT, 0, 80), null, "nothing bought, nothing to drop");
+  // the two directions are mutually exclusive for a given destination
+  assert.equal(gpuUpgradeForMove(v, cpuT, 0, 80), null);
+  assert.ok(gpuUpgradeForMove(v, gpuT, 0, 80));
 });

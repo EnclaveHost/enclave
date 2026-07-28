@@ -24,7 +24,7 @@ import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, 
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
-import { shareRates, minPctsOf, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason, gpuUpgradeForMove, enclavePriceOf } from "../../js/core/pricing.js";
+import { shareRates, minPctsOf, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf } from "../../js/core/pricing.js";
 
 // The app's reachable URL. Through the gateway each deployment gets its OWN
 // origin: a per-deployment subdomain (<id>.app.enclave.host, the base36 part of
@@ -1518,7 +1518,7 @@ class Deployments extends EnclaveElement {
       +     targets.map((t, i) => '<option value="' + esc(t.name) + '"' + (i === 0 ? " selected" : "") + '>'
       +       esc(t.name)
       +       (t.queued ? " · full right now (waits in the queue)" : "")
-      +       (t.cpuNn ? " · GPU box, but this deployment buys no GPU - the model runs on its CPU cores" : "")
+      +       (t.cpuNn ? " · CPU only" : "")
       +     '</option>').join("")
       +   '</select>'
       +   '<button class="btn btn-sm mv-go">Move</button>'
@@ -1539,18 +1539,29 @@ class Deployments extends EnclaveElement {
     const bought = { gpuMilli: Number(d.gpuMilli) || 0, cpuMilli: Number(d.cpuMilli) || 0 };
     const syncUpg = () => {
       const t = targets.find((x) => x.name === sel.value);
-      const up = t ? gpuUpgradeForMove({ ...spec, depGpuOptional: depSoftGpu }, t, bought.gpuMilli, bought.cpuMilli) : null;
-      this._mvUpgrade = up ? { ...up, target: t } : null;
+      const vv = { ...spec, depGpuOptional: depSoftGpu };
+      const up = t ? gpuUpgradeForMove(vv, t, bought.gpuMilli, bought.cpuMilli) : null;
+      const down = t && !up ? gpuDowngradeForMove(vv, t, bought.gpuMilli, bought.cpuMilli) : null;
+      const act = up || down;
+      this._mvUpgrade = act ? { ...act, target: t, dir: up ? "up" : "down" } : null;
       if (!upgWrap) return;
-      upgWrap.hidden = !up;
-      if (!up) return;
-      const now = shareRates(0, Math.max(1, Math.round(bought.cpuMilli / 10)), t.spec, enclavePriceOf(t.row)).rate;
-      const next = shareRates(up.gpuPct, up.cpuPct, t.spec, enclavePriceOf(t.row)).rate;
+      upgWrap.hidden = !act;
+      if (!act) return;
+      const price = enclavePriceOf(t.row);
+      const nowPct = Math.max(1, Math.round(bought.cpuMilli / 10));
+      const cur = shareRates(Math.round(bought.gpuMilli / 10), nowPct, t.spec, price).rate;
+      const next = shareRates(act.gpuPct, act.cpuPct, t.spec, price).rate;
       upgWrap.innerHTML = '<label style="display:flex;gap:.5em;align-items:baseline;">'
         + '<input type="checkbox" class="mv-upg-on" checked /> '
-        + '<span>buy ' + up.gpuPct + '% GPU on ' + esc(t.name) + ' so it uses the card'
-        + ' <span class="dim">(' + up.cpuPct + '% CPU · $' + (next * 3600).toFixed(2) + '/hr, was $' + (now * 3600).toFixed(2)
-        + '/hr on cores) — one wallet signature before the move</span></span></label>';
+        + (up
+            ? '<span>buy ' + up.gpuPct + '% GPU on ' + esc(t.name) + ' so it uses the card'
+              + ' <span class="dim">(' + up.cpuPct + '% CPU · $' + (next * 3600).toFixed(2) + '/hr, was $' + (cur * 3600).toFixed(2)
+              + '/hr on cores) — one wallet signature before the move</span></span>'
+            : '<span>drop the ' + Math.round(bought.gpuMilli / 10) + '% GPU share — ' + esc(t.name) + ' has no card'
+              + ' <span class="dim">(keeps ' + act.cpuPct + '% CPU. The ledger already stops charging for a card this box'
+              + ' does not have; dropping it stops the record asking every future claim for GPU hardware)'
+              + ' — one wallet signature before the move</span></span>')
+        + '</label>';
     };
     sel.addEventListener("change", syncUpg);
     syncUpg();
@@ -1573,14 +1584,16 @@ class Deployments extends EnclaveElement {
     const wantUpg = upg && box.querySelector(".mv-upg-on")?.checked;
     if (wantUpg) {
       try {
-        paintLine(s, "info", `[*] buying ${upg.gpuPct}% GPU on ${upg.target.name} (setShares)…`);
+        paintLine(s, "info", upg.dir === "down"
+          ? `[*] dropping the GPU share for ${upg.target.name} (setShares)…`
+          : `[*] buying ${upg.gpuPct}% GPU on ${upg.target.name} (setShares)…`);
         if (!Enclave.provider) await connectWallet();
         await ensureBaseChain();
         const th = await sendTx(DEPLOYMENTS_ADDRESS,
           encCall(DEP_SEL.setShares, [{ t: "bytes32", v: id }, { t: "uint", v: upg.gpuPct * 10 }, { t: "uint", v: upg.cpuPct * 10 }]));
         paintLine(s, "dimln", "    ↳ sent " + th + " · waiting for confirmation…");
         await waitReceipt(th);
-        paintLine(s, "dimln", `    shares are now ${upg.gpuPct}% GPU / ${upg.cpuPct}% CPU — the destination claims it sized for the card`);
+        paintLine(s, "dimln", `    shares are now ${upg.gpuPct}% GPU / ${upg.cpuPct}% CPU`);
       } catch(e){
         paintLine(s, "warn", "[x] the resize did not go through: " + (e.message || e));
         paintLine(s, "dimln", "    nothing moved - the app keeps running where it is, on the shares it already had");
