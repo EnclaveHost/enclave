@@ -413,7 +413,7 @@ class Deployments extends EnclaveElement {
             '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '" aria-expanded="false">Verify</button>' +
             (resumable && ctl !== "order" ? '<button class="btn btn-sm enc-resume" data-id="' + esc(d.id) + '" title="Put it back on the queue - an enclave re-claims it and the app relaunches fresh from its published version, spending the remaining balance">Resume</button>' : '') +
             (live && ctl !== "order" ? (onchain
-              ? '<button class="btn btn-sm danger enc-kill" data-id="' + esc(d.id) + '" title="Stop the app and take it off the queue. The remaining balance stays on the deployment - Resume restarts it any time">Suspend</button>'
+              ? '<button class="btn btn-sm warn enc-kill" data-id="' + esc(d.id) + '" title="Stop the app and take it off the queue. The remaining balance stays on the deployment - Resume restarts it any time">Suspend</button>'
               : '<button class="btn btn-sm danger enc-kill" data-id="' + esc(d.id) + '">Terminate</button>') : '') +
             // Cancel is the one-way door Suspend is not: it ENDS the deployment
             // and sends its unused runtime back. Offered on stopped rows too -
