@@ -4358,7 +4358,17 @@ function acmeReconcile() {
   if (!ACME_ENABLED) return;
   const now = Date.now();
   for (const r of deployments.values()) {
-    if (!(r.public && r.status === "running")) continue;
+    // "claimed" counts, not just "running". The certificate depends on nothing
+    // the app provides — dns-01 proves control of the NAME, and the name is a
+    // function of the deployment id — so ordering it can overlap provisioning
+    // instead of queueing behind it. That matters most exactly when the wait is
+    // worst: a model-volume tenant only reports "running" once its weights are
+    // loaded, so a 32 GB model on a card meant minutes of provisioning followed
+    // by a cold ~25s issuance the user watched as "site can't be reached".
+    // Cost of being early: a claim that then fails to provision has spent one
+    // issuance on a name it will not serve. Bounded (two CAs, and a failed
+    // claim is rare) and far cheaper than serialising every move behind a load.
+    if (!(r.public && (r.status === "running" || r.status === "claimed"))) continue;
     for (const name of desiredCertNames(r)) {
       if (acmeCerts.get(name)?.renewAt > now) continue;       // held and still fresh
       if (acmeRetry.get(name)?.nextAt > now)  continue;       // failing; wait out the backoff
@@ -5737,6 +5747,10 @@ async function adopt(d, g, firewall, slice) {
     _port: 0, _payTimer: null,
   };
   deployments.set(rec.id, rec); saveStateSoon();
+  // Start the certificate NOW, in parallel with the launch below. On a move the
+  // destination has never served this hostname, so it always needs a fresh one;
+  // doing it here hides the whole issuance behind provisioning.
+  acmeReconcileSoon();
   if (await provisionTenant(rec)) {
     console.log(`[claim] ${rec.id} adopted: app=${g.app.slug}:${g.app.version} (${g.ref}) gpuShare=${round3(slice.gpuShare || 0)} cpuShare=${round3(slice.cpuShare)} `
               + `lease until ${new Date(rec._leaseUntil * 1000).toISOString()}`);
