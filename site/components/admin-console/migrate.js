@@ -72,7 +72,26 @@ export function encCallX(selector, args) {
 
 /* ---- low-level reads ---- */
 
-const call = (to, data) => baseRpc("eth_call", [{ to, data }, "latest"]);
+/* Every read here feeds an IMPORT, so a silently empty response is the one
+   thing this file must never tolerate. `0x` from a lagging pool member is not a
+   zero - but word()/wNum() turn it into one, and that zero is indistinguishable
+   from real data:
+     - count -> the target reads as EMPTY, so the delta re-plans records it
+       already holds (importDeployments then reverts "exists") and verify
+       reports every record missing;
+     - feeOf/earnOf/capOf -> the side mappings read as 0, so verify reports
+       phantom mismatches AND, far worse, a source read can migrate a
+       fee-bearing record with fee 0, silently cutting its publisher off.
+   So: retry across the pool (emptyRetry), then FAIL LOUDLY rather than guess.
+   Callers that legitimately expect a revert (revision sniffs) catch that
+   separately - a revert and an empty answer are different facts. */
+const call = async (to, data) => {
+  const r = await baseRpc("eth_call", [{ to, data }, "latest"], { emptyRetry: true });
+  if (!r || r === "0x")
+    throw new Error(`empty response from ${to.slice(0, 10)}… - an RPC is lagging behind this contract, not a zero value. Retry in a moment.`);
+  return r;
+};
+const isRevert = (e) => /revert/i.test((e && e.message) || "");
 const word = (hex, i) => (hex || "").replace(/^0x/, "").slice(i * 64, i * 64 + 64);
 const wNum = (hex, i) => Number(hexBig("0x" + (word(hex, i) || "0")));
 const wAddr = (hex, i) => "0x" + word(hex, i).slice(24);
@@ -83,9 +102,14 @@ const wB32 = (hex, i) => "0x" + word(hex, i);
 export async function importState(target, contractName) {
   try {
     const r = await call(target, "0x" + CONTRACTS[contractName].sel.importsSealed);
-    if (!r || r === "0x") return { capable: false };
     return { capable: true, sealed: hexBig(r) !== 0n };
-  } catch (e) { return { capable: false }; }
+  } catch (e) {
+    // A revert genuinely means "no import surface here". Anything else is an
+    // RPC problem, and reporting THAT as "not import-capable" would send an
+    // operator off to deploy a second target they do not need.
+    if (isRevert(e)) return { capable: false };
+    throw e;
+  }
 }
 
 /* Runner escrow is the one thing a migration CANNOT import: it is real USDC
@@ -173,8 +197,11 @@ const VER_TX_BYTES = 6 * 1024;   // max calldata for a single importVersions cal
 // schema and drop the field, so the import always encodes the rev-2 tuple.
 async function depRevOf(addr) {
   const sel = CONTRACTS.EnclaveDeployments.sel;
+  // ONLY a revert means "rev 1" (the getter does not exist there). An empty or
+  // failed read must propagate: sniffing rev 1 by accident decodes every record
+  // with the V1 schema, which silently shifts every field.
   try { return wNum(await call(addr, "0x" + sel.deploymentsSchema), 0) || 1; }   // word 0 of the return
-  catch (e) { return 1; }
+  catch (e) { if (isRevert(e)) return 1; throw e; }
 }
 async function readDeployments(source) {
   const sel = CONTRACTS.EnclaveDeployments.sel;
@@ -255,8 +282,10 @@ async function catalogRevOf(addr) {
   // decoded rev-4 versions config-LESS: a silent config drop the verify pass
   // couldn't see (both sides dropped it). Deployments hit the loud version
   // of the same bug (mid-struct field -> every row garbled, 0/N verify).
+  // Same rule as depRevOf: only a REVERT means "the getter isn't there" (rev
+  // 2). An empty read must propagate rather than silently pick a schema.
   try { return wNum(await call(addr, "0x" + sel.catalogSchema), 0) || 2; }
-  catch (e) { return 2; }
+  catch (e) { if (isRevert(e)) return 2; throw e; }
 }
 async function readCatalog(source) {
   const sel = CONTRACTS.EnclaveAppCatalog.sel;
