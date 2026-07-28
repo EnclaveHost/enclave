@@ -1339,6 +1339,29 @@ def _parse_egress_url(url: str):
 
 
 
+def _no_card_env() -> dict:
+    """The process env for an nn tenant that bought NO GPU share on a GPU box.
+
+    Sibling of _nn_tenant_env, and the reason it exists: that one CAPS a tenant's
+    use of the card (MPS SM% + pinned VRAM, both computed from the share), and a
+    0-GPU tenant has no share to compute from - so instead of an uncapped
+    tenant, there must be one with no card at all. Without this it would inherit
+    the manager's environment, which on a GPU node carries the MPS pipe and an
+    unrestricted view of the device: an unset CUDA_MPS_ACTIVE_THREAD_PERCENTAGE
+    means ALL the SMs, and an ExecutionTarget::Gpu request (ORT's CUDA EP, an
+    sdcpp graph) would take the whole card on a box that sells it by the slice.
+
+    Hide the device, unjoin MPS, and pin ggml to zero offloaded layers - the
+    last one also stops a node-global ENCLAVE_GGML_N_GPU_LAYERS from reaching a
+    tenant that never bought a card. A Gpu request then fails loudly, which is
+    the honest answer, instead of quietly spending someone else's slice."""
+    env = dict(os.environ)
+    env["CUDA_VISIBLE_DEVICES"] = ""
+    env.pop("CUDA_MPS_PIPE_DIRECTORY", None)
+    env["ENCLAVE_GGML_N_GPU_LAYERS"] = "0"
+    return env
+
+
 def _nn_tenant_env(gpu_share: float, pinned: bool) -> dict:
     """The MPS cap env a GPU tenant's wasmtime process runs with. `pinned`
     adds the per-client VRAM limit; dropped when the probe found it poisonous
@@ -3045,6 +3068,12 @@ def _spawn_and_wait(rec, ctx):
             # kernels we just disabled (moot for pre-fused Olive graphs,
             # load-bearing for plain exports)
             env.setdefault("ORT_GRAPH_OPT_LEVEL", "basic")
+    elif nn and NODE_HAS_GPU:
+        # A 0-GPU tenant on a GPU box: wasi-nn without the card. The comment
+        # above this launch path promises such a tenant "runs on cores exactly
+        # as it would on a CPU box" - _no_card_env is what makes that true by
+        # construction rather than by the backends happening to default to CPU.
+        env = _no_card_env()
     if egress_env:
         # SOCKS credential for transparent egress: wasmtime PROCESS env only
         # (guest-invisible — no -Sinherit-env,
