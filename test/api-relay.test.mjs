@@ -543,3 +543,39 @@ test("api-relay: the on-chain runner outranks a cached owner, so a moved deploym
   assert.equal(att.status, 200, "a control-plane call on a moved deployment must not 404 on its old host");
   assert.equal(att.body.who, "newhost", "the ledger's runner decides the route, not whatever was cached first");
 });
+
+// ---- one deployment, one row, even when two boxes claim it ------------------
+// Releasing does not delete the ex-runner's local record, so after a Move both
+// the new host and the old one answer for the same id. The list pushed both,
+// and the stale terminated copy shadowed the live row: terminated reads as
+// resumable, so the UI showed Resume; Resume then read the ledger, found it
+// already active, skipped the setActive tx and returned having done nothing.
+// The app was running the whole time (found 2026-07-28 on a deployment moved
+// metal0 -> kryptos -> metal0). The ledger's runner breaks the tie.
+test("api-relay: two enclaves claiming one deployment yield ONE row, the on-chain runner's", async (t) => {
+  const ID66 = ID("66");
+  const mk = (label, status) => http.createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    if (req.url === "/availability")
+      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32 }));
+    if (req.url.split("?")[0] === "/v1/deployments")
+      return res.end(JSON.stringify({ data: [{ id: ID66, status, enclave: label }], cursor: null }));
+    res.statusCode = 404; res.end("{}");
+  });
+  // the OLD host answers first and says terminated; the real one says running
+  const oldHost = mk("oldhost", "terminated"), newHost = mk("newhost", "running");
+  for (const s of [oldHost, newHost]) { s.listen(0, "127.0.0.1"); await once(s, "listening"); t.after(() => s.close()); }
+  const oldUrl = `http://127.0.0.1:${oldHost.address().port}`, newUrl = `http://127.0.0.1:${newHost.address().port}`;
+
+  const { keccak256, stringToBytes } = await import("viem");
+  const ledger = [{ id: ID66, owner: OWNER, appRef: "ipfs://moved", active: true, balance6: 2_000_000, spent6: 100_000,
+                    runner: keccak256(stringToBytes(newUrl)), leaseUntil: FUTURE }];
+  const origin = await startRelay(t, { enclaves: `${oldUrl},${newUrl}`, ledger });
+
+  const { status, body } = await getJson(origin, "/v1/deployments", jwt(OWNER));
+  assert.equal(status, 200);
+  const rows = body.data.filter((r) => String(r.id).toLowerCase() === ID66.toLowerCase());
+  assert.equal(rows.length, 1, "a deployment must appear once, however many boxes remember it");
+  assert.equal(rows[0].status, "running", "the chain says newhost holds the lease, so its row is the real one");
+  assert.equal(rows[0].enclave, "newhost");
+});
