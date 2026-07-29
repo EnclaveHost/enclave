@@ -93,6 +93,10 @@ const out = JSON.parse(solc.compile(JSON.stringify({
   sources: { "EnclaveProofOfTime.sol": { content: source } },
   settings: {
     optimizer: { enabled: true, runs: 200 },
+    // viaIR, exactly as build-contract-artifacts.mjs does it: since the clock
+    // charge landed, emitting Checkpointed's 6 args overflows legacy codegen's
+    // stack, and the two paths' bytecode must stay identical either way.
+    viaIR: true,
     outputSelection: { "*": { "*": ["abi", "evm.bytecode.object"] } },
   },
 })));
