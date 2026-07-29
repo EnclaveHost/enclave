@@ -845,60 +845,95 @@ class Deployments extends EnclaveElement {
       if (others.some(r => r.shareFit && !r.feeFit))
         paint("dimln", "// entries charging a higher publisher fee than this deployment snapshotted at create need a fresh deploy - the fee snapshot is immutable");
     };
-    // target shares off the dials (milli, percent grain), floored per selection
+    // target shares off the dials (milli, percent grain), read RAW - typing is
+    // never corrected and never clamped here, because a dial that fixes itself
+    // mid-entry can't be typed THROUGH: with a 6% CPU share, the "1" of an
+    // intended 18% GPU was snapped to 6 before the "8" ever arrived. Everything
+    // out of range is caught by problem() below, on the button.
     const dials = () => ({
-      gpuMilli: gIn ? Math.max(0, Math.min(1000, Math.round(Number(gIn.value || 0)) * 10)) : bought.gpuMilli,
-      cpuMilli: cIn ? Math.max(10, Math.min(1000, Math.round(Number(cIn.value || 0)) * 10)) : bought.cpuMilli,
+      gpuMilli: gIn ? Math.round(Number(gIn.value || 0)) * 10 : bought.gpuMilli,
+      cpuMilli: cIn ? Math.round(Number(cIn.value || 0)) * 10 : bought.cpuMilli,
     });
-    const upd = () => {
+    // the rate this size would run at, priced at the box that will serve it:
+    // its lease holder's posted price (rev 8), else the fleet/list price
+    const rateOf = t => rate6Of(hw && hw.price
+      ? { gpu: BigInt(Math.round(hw.price.full * 1e6)), cpu: BigInt(Math.round(hw.price.node * 1e6)) }
+      : prices, t.gpuMilli, t.cpuMilli) + snapFee;
+    // EVERY rule the transaction must satisfy, in one place. Returns "" when
+    // the dials are good. Shown as a live hint while you type - a hint only:
+    // it neither rewrites the field nor disables the button. The click runs the
+    // same function and refuses there, which is the one place a half-typed
+    // number can't be mistaken for a final answer.
+    const problem = (r, t, resized) => {
+      if (!gIn || !cIn) return "";
+      if (!Number.isFinite(Number(gIn.value)) || !Number.isFinite(Number(cIn.value)))
+        return "// both shares have to be numbers";
+      if (t.gpuMilli < 0 || t.cpuMilli < 0) return "// shares can’t be negative";
+      const ver = app.slug + ":" + r.v.version;
+      if (t.gpuMilli < r.mins.gpuPct * 10)
+        return "// " + ver + " needs at least " + r.mins.gpuPct + "% GPU" + (hw ? " on " + hw.name : "");
+      if (t.cpuMilli < Math.max(10, r.mins.cpuPct * 10))
+        return "// " + ver + " needs at least " + Math.max(1, r.mins.cpuPct) + "% CPU" + (hw ? " on " + hw.name : "");
+      if (t.cpuMilli > 1000) return "// the CPU share can’t be more than 100% of the node";
+      if (t.gpuMilli > maxGpu) return "// GPU over the platform’s per-deployment cap of " + (maxGpu / 10) + "%";
+      if (t.gpuMilli > 0 && t.gpuMilli < t.cpuMilli)
+        return "// a GPU deployment’s GPU share can’t sit below its CPU share - raise GPU to "
+          + (t.cpuMilli / 10) + "% or more, or lower CPU";
+      if (!resized) return "";
+      const newRate = rateOf(t);
+      if (cap6 > 0n && newRate > cap6)
+        return "// that size costs more than this deployment’s rate cap of $" + (Number(cap6) * 3600 / 1e6).toFixed(2)
+          + "/h - raise the cap below, then resize";
+      if (Number(d.leaseUntil) * 1000 > Date.now()){
+        const tail = Math.max(0, Number(d.leaseUntil) - Math.floor(Date.now() / 1000));
+        if (BigInt(Number(d.balance6 || 0)) + BigInt(tail) * BigInt(Math.round(Number(d.rate) || 0)) < newRate)
+          return "// the remaining balance can’t fund even one second at the new rate - top it up first";
+      }
+      return "";
+    };
+    // prefill = a discrete choice (opening the panel, picking a version), NOT a
+    // keystroke: only then may the dials be written for you.
+    const upd = (prefill) => {
       const r = rows.find(x => String(x.i) === sel.value);
       st.innerHTML = ""; intro();
       if (!r || !r.fits){ go.disabled = true; return; }
       if (resizable && gIn && cIn){
-        // raising the floors to the selected version's minimums beats a dead
-        // Apply button: the deploy form's rule, applied to the switch
-        if (Math.round(Number(gIn.value || 0)) < r.mins.gpuPct) gIn.value = r.mins.gpuPct;
-        if (Math.round(Number(cIn.value || 0)) < Math.max(1, r.mins.cpuPct)) cIn.value = Math.max(1, r.mins.cpuPct);
+        // the floors ride the spinner and the a11y contract, not the keystroke:
+        // min/max steer the arrows and announce the range without touching what
+        // you typed (browsers don't refuse out-of-range typing outside a form)
         gIn.min = r.mins.gpuPct; cIn.min = Math.max(1, r.mins.cpuPct);
+        if (prefill){
+          // pick a version that needs more than this deployment bought and the
+          // dials come up already holding its minimums - the convenience the
+          // old per-keystroke version was after, at the one moment it can't
+          // land in the middle of a number being typed
+          if (Math.round(Number(gIn.value || 0)) < r.mins.gpuPct) gIn.value = r.mins.gpuPct;
+          if (Math.round(Number(cIn.value || 0)) < Math.max(1, r.mins.cpuPct)) cIn.value = Math.max(1, r.mins.cpuPct);
+          const p = dials();
+          if (p.gpuMilli > 0 && p.gpuMilli < p.cpuMilli) gIn.value = p.cpuMilli / 10;  // contract: gpuMilli >= cpuMilli
+        }
         const t = dials();
-        if (t.gpuMilli > 0 && t.gpuMilli < t.cpuMilli) { gIn.value = t.cpuMilli / 10; t.gpuMilli = t.cpuMilli; } // contract: gpuMilli >= cpuMilli
         const resized = t.gpuMilli !== bought.gpuMilli || t.cpuMilli !== bought.cpuMilli;
         const verChange = r.i !== cr.index;
         go.textContent = verChange && resized ? "Change version + resize" : resized ? "Resize" : "Change version";
         go.disabled = !verChange && !resized;
-        if (t.gpuMilli > maxGpu){ paint("warn", "// GPU over the platform’s per-deployment cap of " + (maxGpu / 10) + "%"); go.disabled = true; return; }
+        const bad = problem(r, t, resized);
+        if (bad){ paint("warn", bad); return; }   // hint only - the click re-checks
         if (resized){
-          // priced at the box that will serve the bigger slice: its lease
-          // holder's posted price (rev 8), else the fleet/list price
-          const at = hw && hw.price
-            ? { gpu: BigInt(Math.round(hw.price.full * 1e6)), cpu: BigInt(Math.round(hw.price.node * 1e6)) } : prices;
-          const newRate = rate6Of(at, t.gpuMilli, t.cpuMilli) + snapFee;
-          const oldRate = BigInt(Math.round(Number(d.rate) || 0));
-          const bal = Number(d.balance6 || 0);
-          paint("dimln", "// rate $" + (Number(oldRate) * 3600 / 1e6).toFixed(2) + "/h -> $" + (Number(newRate) * 3600 / 1e6).toFixed(2) + "/h"
+          const newRate = rateOf(t), oldRate = Math.round(Number(d.rate) || 0), bal = Number(d.balance6 || 0);
+          paint("dimln", "// rate $" + (oldRate * 3600 / 1e6).toFixed(2)
+            + "/h -> $" + (Number(newRate) * 3600 / 1e6).toFixed(2) + "/h"
             + (hw ? " at " + hw.name + "’s price" : "")
             + (bal > 0 && Number(newRate) > 0 ? " · remaining balance buys ≈ " + fmtDur(bal / Number(newRate)) : ""));
-          if (cap6 > 0n && newRate > cap6){
-            paint("warn", "// that size costs more than this deployment’s rate cap of $" + (Number(cap6) * 3600 / 1e6).toFixed(2)
-              + "/h - raise the cap below, then resize");
-            go.disabled = true; return;
-          }
-          if (Number(d.leaseUntil) * 1000 > Date.now()){
-            const tail = Math.max(0, Number(d.leaseUntil) - Math.floor(Date.now() / 1000));
-            if (BigInt(bal) + BigInt(tail) * oldRate < newRate){
-              paint("warn", "// the remaining balance can’t fund even one second at the new rate - top it up first");
-              go.disabled = true;
-            }
-          }
         }
       } else {
         go.disabled = r.i === cr.index || !r.fits;
       }
     };
-    sel.addEventListener("change", upd);
-    if (gIn) gIn.addEventListener("input", upd);
-    if (cIn) cIn.addEventListener("input", upd);
-    upd();
+    sel.addEventListener("change", () => upd(true));
+    if (gIn) gIn.addEventListener("input", () => upd(false));
+    if (cIn) cIn.addEventListener("input", () => upd(false));
+    upd(true);
     go.addEventListener("click", async () => {
       const r = rows.find(x => String(x.i) === sel.value);
       if (!r || !r.fits) return;
@@ -906,6 +941,12 @@ class Deployments extends EnclaveElement {
       const resized = resizable && (t.gpuMilli !== bought.gpuMilli || t.cpuMilli !== bought.cpuMilli);
       const verChange = r.i !== cr.index;
       if (!verChange && !resized) return;
+      // the one gate: nothing was rejected while it was being typed, so the
+      // dials are checked here, before a signature is ever asked for
+      if (resizable && gIn && cIn){
+        const bad = problem(r, t, resized);
+        if (bad){ st.innerHTML = ""; intro(); paint("warn", bad); return; }
+      }
       go.disabled = true;
       const via = ctlOf((this._list || []).find(x => x.id === id)) === "vault";
       const doneWord = verChange ? "switched to " + app.slug + ":" + r.v.version + (resized ? " at " + (t.gpuMilli / 10) + "% GPU / " + (t.cpuMilli / 10) + "% CPU" : "")
