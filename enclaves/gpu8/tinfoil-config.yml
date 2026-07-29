@@ -380,7 +380,7 @@ containers:
       # (name:path:file.gguf) picks WHICH gguf preloads as the wasi-nn graph
       # when the repo ships several quantizations - the manager stages the
       # pick as a symlink dir, so the mpk-<hash> mount name never matters.
-      - MODEL_VOLUMES: "qwen2.5-0.5b:/tinfoil/mpk/mpk-e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4,qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-d02f1afc0eee60adc4da2a541c8e095c9cff347b4f3996c2950ff84c676c1c70:qwen2.5-0.5b-instruct-q4_k_m.gguf,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen3.5-0.8b-gguf:/tinfoil/mpk/mpk-d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8,qwen3.6-27b-mtp-gguf:/tinfoil/mpk/mpk-bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9,fable-fusion-27b-mtp-gguf:/tinfoil/mpk/mpk-cf2030ea6070202555fa2d8b762fa4b1c94a3b636dd3d0f587d3f9fafddf4415,fable-fusion-27b-mtp-q4-gguf:/tinfoil/mpk/mpk-13f6f4245454958735336168c1d128794fe349563471640521ed325951fefbdb,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2"
+      - MODEL_VOLUMES: "qwen2.5-0.5b:/tinfoil/mpk/mpk-e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4,qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-d02f1afc0eee60adc4da2a541c8e095c9cff347b4f3996c2950ff84c676c1c70:qwen2.5-0.5b-instruct-q4_k_m.gguf,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen3.5-0.8b-gguf:/tinfoil/mpk/mpk-d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8,qwen3.6-27b-mtp-gguf:/tinfoil/mpk/mpk-bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9,fable-fusion-27b-mtp-gguf:/tinfoil/mpk/mpk-cf2030ea6070202555fa2d8b762fa4b1c94a3b636dd3d0f587d3f9fafddf4415,fable-fusion-27b-mtp-q4-gguf:/tinfoil/mpk/mpk-13f6f4245454958735336168c1d128794fe349563471640521ed325951fefbdb,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2,qwen3-vl-8b-gguf:/tinfoil/mpk/mpk-3f7dafb23d0491e0f25b6136320ed91e990cb9fdc5a464ce07271b4aff2e279e:Qwen3VL-8B-Instruct-Q8_0.gguf"
     # SECRET SEEDS the manager's control-plane token: both sides derive
     # HMAC(SECRET,"enclave vmmgr v1") - the raw master is never the bearer,
     # since this token rides on every control call while SECRET is what the
@@ -495,6 +495,37 @@ models:
   - name: "fable-fusion-27b-mtp-q4-gguf"
     repo: "EnclaveHost/fable-fusion-27b-mtp-q4-gguf@94dd782df9bfdca2e42deaac37a2ffc3263a95e6"
     mpk: "13f6f4245454958735336168c1d128794fe349563471640521ed325951fefbdb_18511405056_b759e0c4-cf8e-50f5-96d8-499684d24e2f"
+  # Qwen3-VL-8B-Instruct at Q8_0 (~8.7 GB) WITH its F16 vision projector
+  # (~1.2 GB): the fleet's first model that can READ images. llm-chat marks its
+  # catalog entry "vision": true, which is what makes the playground offer an
+  # attach button and the API accept OpenAI content-parts messages carrying
+  # pictures; the host pairs the weights with the mmproj it finds beside them
+  # and loads the projector LAZILY, on the first image a deployment is actually
+  # sent, so a chat that never attaches one never pays its VRAM.
+  # ~25.3 GB to serve (8.7 weights + 1.2 projector + 13.3 KV at the 176K q8_0
+  # node window + working set) = gpu 0.18 on the H200. Note what dominates:
+  # this model is DENSE, so ALL 36 layers hold KV (no kv_layers reduction like
+  # the hybrid qwen3.5/3.6 entries) and the cache costs more than the weights.
+  # That is also why Q8_0 rather than Q4_K_M - better weights buy quality for
+  # ~3.7 GB of a 25 GB total, and vision is where quantization damage hurts
+  # most: misreading a number off a chart is a worse failure than a clumsy
+  # sentence.
+  # TWO ggufs in one volume, so MODEL_VOLUMES DOES carry a third field naming
+  # the weights. Hosts new enough for vision identify the projector by its
+  # "mmproj" name and take it out of the model pick themselves; naming the file
+  # explicitly is what also makes this volume load on a host that predates
+  # that, where it serves as an ordinary text model.
+  # VISION NEEDS THE TOOLCHAIN: libmtmd ships in the enclave-llamacpp tarball
+  # from the -mm1 build onward. On an older wasmtime this volume still serves
+  # text and llm-chat reports images unavailable, rather than ignoring them.
+  # Tokenizer is the Qwen3-VL one (vocab 151936) and is NOT the Qwen3.x family
+  # tokenizer (248320), so it cannot draft for them or they for it - leave
+  # `draft` unset on its catalog entry. Causal + M-RoPE, so unlike gemma-style
+  # non-causal VLMs it needs no ENCLAVE_GGML_N_UBATCH raise.
+  # mpk generated in the Tinfoil Models tab 2026-07-29 (9875603456 bytes).
+  - name: "qwen3-vl-8b-gguf"
+    repo: "EnclaveHost/qwen3-vl-8b-gguf@f3632f227678b6d7f35178c061d3aff184d695f0"
+    mpk: "3f7dafb23d0491e0f25b6136320ed91e990cb9fdc5a464ce07271b4aff2e279e_9875603456_8d1a2496-f2c7-5ca8-a8a2-9d348475d613"
   # Qwen-Image-2512 + Lightning 8-step merge (Q8_0), curated for the sdcpp
   # backend - see the gpu flavor's entry for component/serving notes. This
   # flavor has no MODEL_VOLUMES_SD preload, so the volume is mount-only for
