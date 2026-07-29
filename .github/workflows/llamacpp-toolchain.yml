@@ -6,12 +6,17 @@
 #
 # Why shims ride the tarball: llama.h passes structs BY VALUE, whose layout
 # shifts between llama.cpp releases; the shim pins the wasmtime<->llama
-# boundary to pointers and scalars (8 functions), compiled HERE against the
-# exact pinned llama.cpp, so the Rust FFI in wasm/wasmtime-nn-ggml.patch can
-# never layout-drift. Same story for enclave_sd over sd.cpp
-# (wasm/wasmtime-nn-sdcpp.patch). Bumping an engine = change its commit
-# below, run this, paste the printed sha into Dockerfile.wasmtime, dispatch
-# the toolchain.
+# boundary to pointers and scalars, compiled HERE against the exact pinned
+# llama.cpp, so the Rust FFI in wasm/wasmtime-nn-ggml.patch can never
+# layout-drift. Same story for enclave_sd over sd.cpp
+# (wasm/wasmtime-nn-sdcpp.patch), and for libmtmd (vision), which the llama
+# shim also wraps. Bumping an engine = change its commit below, run this,
+# paste the printed sha into Dockerfile.wasmtime, dispatch the toolchain.
+#
+# ALWAYS DISPATCH WITH A FRESH TAG. The upload clobbers an existing asset in
+# place, so re-running with the tag the deployed Dockerfile pins would break
+# its sha256 check and with it every manager image build. The default below
+# is the NEXT tag, not the one in Dockerfile.wasmtime.
 #
 # ONE ggml, deliberately: sd.cpp builds with SD_USE_SYSTEM_GGML against the
 # ggml from the LLAMA checkout (identical commit to the shipped libs). Two
@@ -37,9 +42,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Release tag for the lib tarball (created if missing)"
+        description: "Release tag for the lib tarball (created if missing; use a FRESH tag)"
         required: true
-        default: "enclave-llamacpp-bec4772f-sd3"
+        default: "enclave-llamacpp-bec4772f-mm1"
 
 env:
   # pinned llama.cpp revision - the one the shim + backend were validated
@@ -126,13 +131,21 @@ jobs:
             -DCMAKE_CUDA_FLAGS="-DGGML_MAX_NAME=128" \
             -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=OFF \
             -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_APP=OFF -DLLAMA_BUILD_COMMON=OFF \
+            `# libmtmd = vision (VLM mmproj: image preprocessing, the vision` \
+            `# encoder, the projector, per-model marker tokens and M-RoPE image` \
+            `# positions). LLAMA_BUILD_MTMD is exactly the standalone-library` \
+            `# gate: it adds tools/mtmd WITHOUT tools/common, which is what lets` \
+            `# it build here with TOOLS and COMMON off (upstream even asserts` \
+            `# mtmd never links llama-common). Consumed by the shim's` \
+            `# ell_mtmd_* entry points.` \
+            -DLLAMA_BUILD_MTMD=ON \
             -DCMAKE_INSTALL_PREFIX=/tmp/ggml-prefix
           # Library targets only: the tools/app executables are broken at
           # this pin with SERVER/TOOLS off (llama-app links -lllama-server-impl
           # unconditionally), and a lib tarball needs no executables anyway.
           # With BACKEND_DL the backend modules are NOT in llama's dependency
           # closure - build them explicitly.
-          cmake --build build -j"$(nproc)" --target llama ggml-cpu ggml-cuda
+          cmake --build build -j"$(nproc)" --target llama ggml-cpu ggml-cuda mtmd
           ls -la build/bin/lib*.so* | head -20
           # Install ggml (headers + libs + ggml-config.cmake) so sd.cpp's
           # SD_USE_SYSTEM_GGML find_package(ggml) resolves. TOOLS/APP/COMMON
@@ -141,14 +154,26 @@ jobs:
 
       - name: Compile the enclave_llama shim against the pinned build
         run: |
+          # -I tools/mtmd for mtmd.h + mtmd-helper.h (the vision entry points);
+          # -lmtmd links the library built above. Both are ADDITIVE: a wasmtime
+          # built against an older tarball resolves ell_mtmd_* by dlsym and
+          # simply reports no vision, so this never becomes a hard dependency
+          # in the other direction.
           cc -shared -fPIC \
             -Wl,-soname,libenclave_llama.so \
             -DGGML_MAX_NAME=128 \
             -I /tmp/llama.cpp/include -I /tmp/llama.cpp/ggml/include \
+            -I /tmp/llama.cpp/tools/mtmd \
             "$GITHUB_WORKSPACE/wasm/llama-shim/enclave_llama.c" \
-            -L /tmp/llama.cpp/build/bin -lllama -lggml \
+            -L /tmp/llama.cpp/build/bin -lllama -lggml -lmtmd \
             -o /tmp/libenclave_llama.so
-          ldd /tmp/libenclave_llama.so | grep -E "llama|ggml"
+          ldd /tmp/libenclave_llama.so | grep -E "llama|ggml|mtmd"
+          # the vision entry points must actually be exported - a silently
+          # mtmd-less shim would look exactly like an old tarball at runtime
+          for sym in ell_mtmd_caps_file ell_mtmd_new ell_mtmd_eval_image; do
+            nm -D --defined-only /tmp/libenclave_llama.so | grep -q " $sym\$" \
+              || { echo "::error::$sym missing from the shim"; exit 1; }
+          done
           # BACKEND_DL invariant: nothing in the link chain may NEED libcuda -
           # it must stay dlopen-only (the exact regression that broke the
           # manager image). ldd resolves transitively, so check the closure.
@@ -227,6 +252,9 @@ jobs:
           # real files + their SONAME/dev links, preserved as relative symlinks
           cp -a /tmp/llama.cpp/build/bin/libllama.so* "$OUT/lib/"
           cp -a /tmp/llama.cpp/build/bin/libggml*.so* "$OUT/lib/"
+          # libmtmd: DT_NEEDED by the shim, so it must ride along or the
+          # manager image's ldconfig cache leaves the shim unloadable
+          cp -a /tmp/llama.cpp/build/bin/libmtmd.so* "$OUT/lib/"
           cp -a /tmp/libenclave_llama.so "$OUT/lib/"
           cp -a /tmp/sd.cpp/build/bin/libstable-diffusion.so "$OUT/lib/"
           cp -a /tmp/libenclave_sd.so "$OUT/lib/"
@@ -252,7 +280,7 @@ jobs:
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
             || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease \
                  --title "$TAG (ggml-stack lib tarball)" \
-                 --notes "llama.cpp $LLAMA_COMMIT CUDA libs (sm_86+sm_90, CUDA 12.6, GGML_NATIVE=OFF, GGML_MAX_NAME=128, GGML_BACKEND_DL: cpu/cuda are dlopened modules) + stable-diffusion.cpp $SD_COMMIT built against the SAME ggml (SD_USE_SYSTEM_GGML) + the enclave_llama (wasm/llama-shim/) and enclave_sd (wasm/sd-shim/) shims. Consumed by Dockerfile.wasmtime (ELL_URL/ELL_SHA256) for the ggml and sdcpp wasi-nn backends (wasm/wasmtime-nn-ggml.patch, wasm/wasmtime-nn-sdcpp.patch)."
+                 --notes "llama.cpp $LLAMA_COMMIT CUDA libs (sm_86+sm_90, CUDA 12.6, GGML_NATIVE=OFF, GGML_MAX_NAME=128, GGML_BACKEND_DL: cpu/cuda are dlopened modules) + libmtmd (vision/mmproj, LLAMA_BUILD_MTMD standalone) + stable-diffusion.cpp $SD_COMMIT built against the SAME ggml (SD_USE_SYSTEM_GGML) + the enclave_llama (wasm/llama-shim/) and enclave_sd (wasm/sd-shim/) shims. Consumed by Dockerfile.wasmtime (ELL_URL/ELL_SHA256) for the ggml and sdcpp wasi-nn backends (wasm/wasmtime-nn-ggml.patch, wasm/wasmtime-nn-sdcpp.patch)."
           gh release upload "$TAG" "/tmp/pkg/$TAG.tgz" \
             --repo "$GITHUB_REPOSITORY" --clobber
           echo "Pin in wasm/Dockerfile.wasmtime:"

@@ -19,6 +19,8 @@
 #include "llama.h"
 #include "ggml.h"
 #include "ggml-backend.h"
+#include "mtmd.h"
+#include "mtmd-helper.h"
 
 #include <dlfcn.h>
 #include <math.h>
@@ -125,6 +127,17 @@ void *ell_new_server(void *model, uint32_t n_ctx, uint32_t n_batch, uint32_t n_s
     p.n_ctx = n_ctx;
     if (n_batch) { p.n_batch = n_batch; }
     if (n_seq_max) { p.n_seq_max = n_seq_max; }
+    /* n_ubatch by env, not by parameter: see the header. Only vision models
+     * whose image chunks decode non-causally need it above the default, and
+     * every model pays for it in compute buffers, so it stays opt-in. */
+    const char *ub = getenv("ENCLAVE_GGML_N_UBATCH");
+    if (ub && *ub) {
+        long v = strtol(ub, NULL, 10);
+        if (v > 0) {
+            p.n_ubatch = (uint32_t)v;
+            if (p.n_batch < p.n_ubatch) { p.n_batch = p.n_ubatch; }
+        }
+    }
     /* ONE pool of n_ctx tokens shared by every sequence (vs. the split
      * per-stream layout): a long conversation and several short ones coexist
      * without pre-partitioning, which is the sizing model the platform's
@@ -465,4 +478,134 @@ void ell_mtp_reset(void *mp, int32_t seq) {
     memset(m->pending_h + (size_t)seq * m->n_embd, 0,
            (size_t)m->n_embd * sizeof(float));
     m->verify_rows[seq] = 0;
+}
+
+/* ---- vision (multimodal input) -------------------------------------------
+ * Thin wrapper over libmtmd: the caller passes raw image FILE bytes and a
+ * position, mtmd does preprocessing, the vision encoder, the projector, the
+ * model's marker tokens and the mask/M-RoPE handling, and the caller learns
+ * only how many positions the sequence advanced. See the header for the
+ * contract and for why these are optional symbols. */
+
+struct ell_mtmd {
+    mtmd_context *ctx;
+};
+
+int32_t ell_mtmd_caps_file(const char *mmproj_path) {
+    if (!mmproj_path) { return -1; }
+    struct mtmd_caps c = mtmd_get_cap_from_file(mmproj_path);
+    if (!c.inp_vision && !c.inp_audio) {
+        return -1; /* readable GGUFs that project nothing are not mmprojs */
+    }
+    return (c.inp_vision ? 1 : 0) | (c.inp_audio ? 2 : 0);
+}
+
+void *ell_mtmd_new(void *model, const char *mmproj_path, int32_t n_threads,
+                   int32_t use_gpu, int32_t image_max_tokens) {
+    if (!model || !mmproj_path) { return NULL; }
+    struct mtmd_context_params p = mtmd_context_params_default();
+    p.use_gpu = use_gpu != 0;
+    /* the tenant log is the deployment's log: keep per-image encode timings
+     * out of it, the backend already times the whole eval */
+    p.print_timings = false;
+    if (n_threads > 0) { p.n_threads = n_threads; }
+    if (image_max_tokens > 0) { p.image_max_tokens = image_max_tokens; }
+    mtmd_context *c = mtmd_init_from_file(mmproj_path,
+                                          (const struct llama_model *)model, p);
+    if (!c) { return NULL; }
+    if (!mtmd_support_vision(c)) {
+        /* an audio-only projector against an image verb: refuse at load
+         * rather than per request */
+        mtmd_free(c);
+        return NULL;
+    }
+    struct ell_mtmd *m = calloc(1, sizeof(*m));
+    if (!m) { mtmd_free(c); return NULL; }
+    m->ctx = c;
+    return m;
+}
+
+void ell_mtmd_free(void *mp) {
+    struct ell_mtmd *m = (struct ell_mtmd *)mp;
+    if (!m) { return; }
+    mtmd_free(m->ctx);
+    free(m);
+}
+
+int32_t ell_mtmd_eval_image(void *mp, void *lctx, int32_t seq_id, int32_t pos0,
+                            const uint8_t *bytes, uint32_t len, int32_t n_batch,
+                            int32_t *n_pos_out) {
+    struct ell_mtmd *m = (struct ell_mtmd *)mp;
+    struct llama_context *c = (struct llama_context *)lctx;
+    if (!m || !c || !bytes || len == 0 || pos0 < 0 || n_batch <= 0 || !n_pos_out) {
+        return -1;
+    }
+    /* placeholder=false: actually decode the pixels (a placeholder bitmap
+     * carries only geometry, for cache lookups we do not do) */
+    struct mtmd_helper_bitmap_wrapper w =
+        mtmd_helper_bitmap_init_from_buf(m->ctx, bytes, (size_t)len, false);
+    if (w.video_ctx) {
+        /* video needs the C++ helper loop and an ffmpeg binary in the enclave;
+         * neither exists here, and a half-decoded video is worse than a clear
+         * refusal */
+        mtmd_helper_video_free(w.video_ctx);
+        if (w.bitmap) { mtmd_bitmap_free(w.bitmap); }
+        return 2;
+    }
+    if (!w.bitmap) {
+        return 2;
+    }
+    if (mtmd_bitmap_is_audio(w.bitmap)) {
+        mtmd_bitmap_free(w.bitmap);
+        return 2;
+    }
+    mtmd_input_chunks *chunks = mtmd_input_chunks_init();
+    if (!chunks) {
+        mtmd_bitmap_free(w.bitmap);
+        return 1;
+    }
+    /* Text is JUST the media marker, so mtmd emits exactly the chunks this
+     * model wants around one image and nothing else: the caller renders its
+     * own chat template and feeds the surrounding text itself. add_special is
+     * off for the same reason (no BOS in the middle of a conversation). */
+    struct mtmd_input_text txt;
+    txt.text = mtmd_default_marker();
+    txt.add_special = false;
+    txt.parse_special = true;
+    const mtmd_bitmap *bmps[1];
+    bmps[0] = w.bitmap;
+    int32_t rc = mtmd_tokenize(m->ctx, chunks, &txt, bmps, 1);
+    mtmd_bitmap_free(w.bitmap);
+    if (rc != 0) {
+        mtmd_input_chunks_free(chunks);
+        return 2; /* 1 = marker/bitmap count mismatch (impossible here), 2 = preprocessing */
+    }
+    /* A non-causal image chunk (gemma-style) must land in ONE ubatch or the
+     * mask is wrong, and mtmd's helper splits at n_batch without knowing that.
+     * Catch it here with a distinct code instead of returning a quietly
+     * degraded answer. */
+    const uint32_t n_ubatch = llama_n_ubatch(c);
+    const size_t n_chunks = mtmd_input_chunks_size(chunks);
+    for (size_t i = 0; i < n_chunks; i++) {
+        const mtmd_input_chunk *ch = mtmd_input_chunks_get(chunks, i);
+        if (mtmd_input_chunk_get_type(ch) != MTMD_INPUT_CHUNK_TYPE_IMAGE) {
+            continue;
+        }
+        if (mtmd_decode_use_non_causal(m->ctx, ch) &&
+            mtmd_input_chunk_get_n_tokens(ch) > (size_t)n_ubatch) {
+            mtmd_input_chunks_free(chunks);
+            return 3;
+        }
+    }
+    llama_pos new_n_past = pos0;
+    /* logits_last=false: the image is never the end of a prompt, the caller's
+     * text turn follows and produces the row it samples from */
+    rc = mtmd_helper_eval_chunks(m->ctx, c, chunks, (llama_pos)pos0,
+                                 (llama_seq_id)seq_id, n_batch, false, &new_n_past);
+    mtmd_input_chunks_free(chunks);
+    if (rc != 0) {
+        return 1;
+    }
+    *n_pos_out = (int32_t)(new_n_past - (llama_pos)pos0);
+    return 0;
 }
