@@ -140,6 +140,17 @@ containers:
       # prerequisite, as is PROVISION_BACKEND=vm (claims run catalog wasm apps).
       - CLAIM_ENABLED: "1"
       - DEPLOYMENTS_ADDRESS: "0x0A7dE5D205c10B812AbaF0b89f3A243466bCEe01"                          # set by scripts/deploy-deployments.mjs
+      # Where this box's runner earnings sweep to. The supervisor's hourly
+      # payoutTick withdraws earned6[REGISTRY_PRIVATE_KEY's EOA] once it clears
+      # EARNINGS_MIN_USDC and sends it here. Leaving it UNSET is a silent no-op:
+      # payoutTick returns on its first line and /v1/health drops the `earnings`
+      # block entirely, so a box serves and accrues for weeks with no signal that
+      # nothing is being collected (2026-07-29: $61.26 sat unwithdrawn this way).
+      # Not a secret; a public destination. Nothing here can redirect anyone
+      # else's money: withdrawEarnings only ever pays the caller's own accrual.
+      - PAYOUT_ADDRESS: "0x271A59B4B1Ee756e0E46D84aA4C9c26a8d48F44D"
+      # - EARNINGS_MIN_USDC: "5"                         # optional: sweep once accrual clears this
+      # - EARNINGS_CHECK_SEC: "3600"                     # optional: how often to check
       # Proof of time (rev-9 ledgers). NOT baked: the address book's `proofOfTime`
       # key delivers it to a RUNNING enclave, which is what a mid-flight prover
       # deployment needs. Set PROOF_OF_TIME_ADDRESS here only to pin it without
