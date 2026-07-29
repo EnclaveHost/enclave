@@ -249,6 +249,84 @@ contract EnclaveDeploymentsProofOfTimeTest is Test {
         assertEq(dep.earned6(operator), WINDOW * _runnerRate(id));  // one window, not 1800s
     }
 
+    function test_manyCheckpointsInOneBlockCannotCompressTime() public {
+        // REGRESSION (2026-07-29). The window alone bounded nothing: `base` is
+        // re-read from the ledger on every call and creditProven writes it in
+        // the same call, so checkpoints stacked inside ONE block each ratcheted
+        // a fresh window. Twelve of them bought 10,200s of pay for zero service.
+        // Every advance is now charged against the clock, so the second proof in
+        // a block has a budget of zero.
+        bytes32 id = _create(0, 100, 1000e6);
+        _claim(id);
+        uint256 r6 = _runnerRate(id);
+
+        _travelTo(T0 + 1500);                    // 25 minutes of total silence
+        _checkpoint(id, uint64(T0 + 1500));      // recovers exactly one window
+        assertEq(dep.earned6(operator), WINDOW * r6);
+
+        // ... and every further attempt in the SAME block buys nothing. Sign
+        // first: expectRevert applies to the next CALL, and _checkpoint's own
+        // proofDigest staticcall would otherwise absorb it.
+        for (uint256 i = 0; i < 5; i++) {
+            (uint64 ab, bytes32 ah, bytes memory sig) =
+                _sign(proofPk, id, ENCLAVE_ID, operator, uint64(T0 + 1500));
+            vm.expectRevert("nothing to prove");
+            pot.checkpoint(id, ENCLAVE_ID, uint64(T0 + 1500), ab, ah, sig);
+        }
+        assertEq(dep.earned6(operator), WINDOW * r6, "silence stayed unpaid");
+        assertEq(dep.provenUntil(id), T0 + WINDOW);
+    }
+
+    function test_oneSignatureReplayedInABatchBuysNothingExtra() public {
+        // The digest commits to no watermark, so a signature IS replayable —
+        // it just cannot buy a second window, because the clock has not moved.
+        bytes32 id = _create(0, 100, 1000e6);
+        _claim(id);
+        uint256 r6 = _runnerRate(id);
+        _travelTo(T0 + 1500);
+
+        uint64 upto = uint64(T0 + 1500);
+        (uint64 ab, bytes32 ah, bytes memory sig) = _sign(proofPk, id, ENCLAVE_ID, operator, upto);
+        EnclaveProofOfTime.Checkpoint[] memory cps = new EnclaveProofOfTime.Checkpoint[](12);
+        for (uint256 i = 0; i < 12; i++) cps[i] = EnclaveProofOfTime.Checkpoint(id, ENCLAVE_ID, upto, ab, ah, sig);
+        bool[] memory landed = pot.checkpointMany(cps);
+
+        assertTrue(landed[0]);
+        for (uint256 i = 1; i < 12; i++) assertFalse(landed[i], "replay bought a window");
+        assertEq(dep.earned6(operator), WINDOW * r6, "one window total, not twelve");
+        (, uint64 provenSec, uint32 proofs) = pot.recordOf(id);
+        assertEq(provenSec, WINDOW);
+        assertEq(proofs, 1);
+        assertEq(pot.hostedSec(operator), WINDOW, "reputation cannot be inflated either");
+    }
+
+    function test_provenTimeCanOnlyWalkForwardAsFastAsTheClock() public {
+        // The header's property, as an assertion: between any two proofs the
+        // watermark moves by at most the wall-clock time that separated them
+        // (and never by more than one window). That is what makes an hour of
+        // pay cost an hour, and it is what a per-call window clamp alone
+        // could not deliver.
+        bytes32 id = _create(0, 100, 1000e6);
+        _claim(id);
+
+        uint64 prevProven = dep.provenUntil(id);
+        uint256 prevAt = block.timestamp;
+        for (uint256 k = 1; k <= 5; k++) {
+            uint256 step = k * 400;                       // 400s apart, inside the window
+            _travelTo(T0 + step);
+            vm.prank(operator);
+            dep.renew(id);                                // keep the lease ahead of us
+            _checkpoint(id, uint64(T0 + step));
+
+            uint64 nowProven = dep.provenUntil(id);
+            uint256 wall = block.timestamp - prevAt;
+            assertLe(nowProven - prevProven, wall, "watermark outran the clock");
+            prevProven = nowProven; prevAt = block.timestamp;
+        }
+        // proving on a steady cadence is still paid to the second
+        assertEq(dep.earned6(operator), 2000 * _runnerRate(id));
+    }
+
     function test_anHourOfPayCostsAnHourOfProofs() public {
         // The honest path, end to end: a host proving on a 10-minute cadence is
         // paid for every second of the hour it worked.
