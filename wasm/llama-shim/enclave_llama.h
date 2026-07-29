@@ -4,7 +4,9 @@
  * that would be layout-roulette on every bump. This shim pins the boundary to
  * pointers and scalars only (opaque handles, int32/uint32/float*), compiled and
  * shipped INSIDE the prebuilt enclave-llamacpp tarball next to libllama, so the
- * Rust side binds nine trivial functions that cannot drift.
+ * Rust side binds trivial functions that cannot drift. Same story for libmtmd
+ * (vision), whose C API also passes structs by value: see the vision block at
+ * the bottom.
  *
  * Threading/session model: one ell_context per wasi-nn execution context. The
  * KV cache lives inside it - callers feed token ids (chunked to <= n_batch)
@@ -74,6 +76,13 @@ int32_t ell_decode(void *ctx, void *model, const int32_t *tokens, int32_t n, flo
  * sequence, which is the whole memory win over one ell_new_context per
  * request). Same type_k/type_v/flash_attn contract as ell_new_context; free
  * with ell_free_context. n_seq_max 1 behaves like ell_new_context.
+ *
+ * n_ubatch (the physical batch llama splits n_batch into) stays at llama's
+ * default unless ENCLAVE_GGML_N_UBATCH is set in the environment. It is read
+ * HERE rather than passed, because adding a parameter would silently change
+ * this function's ABI for a wasmtime built against an older tarball. Raising
+ * it costs compute-buffer VRAM and only matters for vision models that decode
+ * images with a non-causal mask, which must hold a whole image in one ubatch.
  *
  * ell_decode_batch: decode n_items sequences' pending tokens in ONE
  * llama_decode call - under load, concurrent requests' decode steps merge
@@ -173,6 +182,57 @@ int32_t ell_mtp_observe(void *m, int32_t seq, int32_t pos0,
 int32_t ell_mtp_draft(void *m, int32_t seq, int32_t id_last, int32_t n_past,
                       int32_t k, float p_min, int32_t *tokens_out);
 void ell_mtp_reset(void *m, int32_t seq);
+
+/* ---- vision (multimodal input) via libmtmd --------------------------------
+ *
+ * A VLM ships two files: the language GGUF (loaded by ell_load_model like any
+ * other model) and an mmproj GGUF holding the vision encoder + projector.
+ * libmtmd owns everything model-specific about the pairing: which marker
+ * tokens wrap an image (qwen's vision_start/end, gemma's start_of_image),
+ * whether the image chunk decodes with a non-causal mask, and how M-RoPE
+ * numbers the image's positions. The shim therefore hands mtmd the RAW FILE
+ * BYTES and a position, and gets back "this many positions consumed" - no
+ * vision knowledge crosses into wasmtime or the guest.
+ *
+ * These entry points are OPTIONAL: a wasmtime built against an older tarball
+ * resolves them at runtime (dlsym) and reports "no vision" when they are
+ * absent, so a toolchain bump is what turns vision on, never a rebuild
+ * requirement. Keep that property - do not let the ggml backend NEED them at
+ * link time.
+ *
+ * ell_mtmd_caps_file  probe an mmproj without loading it (and without a
+ *                     model): bitmask 1 = vision, 2 = audio, 0 = neither,
+ *                     -1 = unreadable/not an mmproj. Cheap enough for the
+ *                     preload path to classify a volume's ggufs.
+ * ell_mtmd_new        load the projector for `model`. n_threads sizes the CPU
+ *                     side of preprocessing; use_gpu 1 puts the encoder on the
+ *                     GPU (where the share paid for one). image_max_tokens > 0
+ *                     caps the tokens ONE image may expand to on dynamic-
+ *                     resolution models (0 = the mmproj's own metadata) - the
+ *                     lever that keeps a phone photo from eating the KV pool.
+ *                     NULL on failure.
+ * ell_mtmd_eval_image tokenize + encode + decode ONE image file (whatever
+ *                     stb_image reads: png/jpg/webp/gif/bmp) into `seq_id` of
+ *                     `lctx` starting at `pos0`, marker tokens included.
+ *                     Writes the POSITIONS consumed to n_pos_out (M-RoPE
+ *                     makes that differ from token count, which is why the
+ *                     caller cannot compute it). n_batch is the caller's
+ *                     llama batch size. Returns 0 ok; 1 decode failed;
+ *                     2 the bytes are not a decodable image; 3 the image
+ *                     needs a larger n_ubatch (non-causal models must hold a
+ *                     whole image in one ubatch - raise ENCLAVE_GGML_N_UBATCH);
+ *                     -1 bad arguments.
+ *
+ * Threading: eval is NOT thread-safe against itself or against decode on the
+ * same lctx (it drives llama_decode directly and toggles the causal mask).
+ * Callers serialize it exactly as they serialize decode. */
+int32_t ell_mtmd_caps_file(const char *mmproj_path);
+void *ell_mtmd_new(void *model, const char *mmproj_path, int32_t n_threads,
+                   int32_t use_gpu, int32_t image_max_tokens);
+void ell_mtmd_free(void *m);
+int32_t ell_mtmd_eval_image(void *m, void *lctx, int32_t seq_id, int32_t pos0,
+                            const uint8_t *bytes, uint32_t len, int32_t n_batch,
+                            int32_t *n_pos_out);
 
 #ifdef __cplusplus
 }

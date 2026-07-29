@@ -37,6 +37,19 @@
 # and one published app scales with the deployment's resources - llm-chat's
 # smallest-first warmup ladder + unfit-model reporting ride on this.
 # Contract: input "tokens" I32 [1,n] -> output "logits" Fp32 [1,n_vocab].
+# VISION: a volume that pairs its model with an *mmproj*.gguf projector also
+# accepts input "image" U8 [n] = one image FILE's bytes -> output "image_pos"
+# I32 [1], the positions it consumed; guests interleave it with "tokens" to
+# place a picture inside a rendered prompt, and "caps" gained a fourth element
+# (vision) so they can tell before they try. All the model-specific vision
+# work (marker tokens, non-causal image masks, M-RoPE image positions) lives
+# in libmtmd behind the shim's ell_mtmd_* entry points, which this backend
+# resolves by DLSYM rather than linking: a node whose toolchain tarball
+# predates them builds and serves exactly as before and reports vision=0, so
+# turning vision on is a toolchain bump, never a rebuild requirement. The
+# projector is loaded LAZILY, on the first image, so text-only deployments
+# never pay its VRAM. A volume's projector is also what keeps its second gguf
+# from confusing the model pick (is_mmproj_name).
 # CONTINUOUS BATCHING: each graph has ONE shared llama context (created on
 # first use) with a unified KV pool of N_CTX tokens total; a wasi-nn
 # execution context is a SEQUENCE HANDLE into it (per-request cost = a seq
@@ -62,6 +75,13 @@
 # no free slot = fail-fast [sessions_busy] for guests to wait-and-retry on,
 # pool pressure at decode = retryable [kv_pool_full]),
 # ENCLAVE_GGML_BACKEND_DIR (backend-module dir; unset = exe dir + cwd).
+# Vision-only knobs: ENCLAVE_GGML_IMAGE_MAX_TOKENS (cap the tokens ONE image
+# may expand to on dynamic-resolution models; 0 = the mmproj's metadata),
+# ENCLAVE_GGML_MMPROJ_FILE (projector name when it is not *mmproj*.gguf),
+# ENCLAVE_GGML_MTMD_THREADS (preprocessing threads, default 4), and
+# ENCLAVE_GGML_N_UBATCH - read by the SHIM, and needed only by models that
+# decode images with a non-causal mask, which must hold a whole image in one
+# physical batch ([image_too_wide] otherwise).
 #
 # Build: cargo build --release --features "wasi-nn,wasmtime-wasi-nn/ggml"
 # with ELL_LIB_LOCATION=<dir holding libenclave_llama.so + libllama.so>
@@ -135,10 +155,10 @@ index b2db808..af89d10 100644
  
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
 new file mode 100644
-index 0000000..140bfcd
+index 0000000..23462dc
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,1127 @@
+@@ -0,0 +1,1456 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -170,10 +190,10 @@ index 0000000..140bfcd
 +//!   output "logits"  Fp32 dims [1, n_vocab]            last-token logits
 +//! Speculative-decoding verbs (see each handler in `compute`):
 +//!   "tokens"+"all"=1 -> "logits" [n, n_vocab] (per-position verify rows);
-+//!   "caps" -> [seq_id, recurrent, mtp]; "copy_from" [src_seq, src_n_past]
-+//!   branches this sequence off another (recurrent state copy-on-write —
-+//!   the zero-memory alternative to "rewind", which recurrent/hybrid
-+//!   models refuse).
++//!   "caps" -> [seq_id, recurrent, mtp, vision]; "copy_from"
++//!   [src_seq, src_n_past] branches this sequence off another (recurrent
++//!   state copy-on-write — the zero-memory alternative to "rewind", which
++//!   recurrent/hybrid models refuse).
 +//! MTP self-drafting (models whose GGUF carries a trained next-token head):
 +//!   "tokens"+"mtp"=1 -> MTP-aware feed (head observes every position, last
 +//!   logits row returned); "tokens"+"all"=1+"mtp_for"=[seq] -> verify pass
@@ -182,6 +202,15 @@ index 0000000..140bfcd
 +//!   [pos0, tokens...] mirrors accepted tokens into the head. No separate
 +//!   draft model, no second weights allocation — the head context costs one
 +//!   attention layer's KV.
++//! VISION (a volume that pairs its model with an *mmproj*.gguf projector):
++//!   "image" U8 [n] = one image FILE's bytes (png/jpeg/webp/gif/bmp) ->
++//!   "image_pos" I32 [1], the positions it consumed. Guests interleave it
++//!   with "tokens" to place a picture inside a rendered prompt: text before,
++//!   image, text after. libmtmd owns everything model-specific (the marker
++//!   tokens around an image, non-causal image masks, M-RoPE's 2-D image
++//!   positions), so no vision knowledge lives here or in the guest. The shim
++//!   entry points behind it are resolved by DLSYM, so a node whose toolchain
++//!   predates them still builds, still serves text, and reports vision=0.
 +//!
 +//! SERVING MODEL (continuous batching): an execution context is a SEQUENCE
 +//! HANDLE into its graph's shared server context. llama.cpp serves up to
@@ -227,6 +256,20 @@ index 0000000..140bfcd
 +//!                               llama restores state on that failure).
 +//!   ENCLAVE_GGML_BACKEND_DIR    dir holding the dlopened libggml-* backend
 +//!                               modules (unset = exe dir + cwd)
++//!   ENCLAVE_GGML_N_UBATCH       physical batch size (read by the SHIM, not
++//!                               here). Only vision models that decode images
++//!                               non-causally need it above llama's default:
++//!                               such an image must fit ONE ubatch or the
++//!                               "image" verb refuses with [image_too_wide].
++//!   ENCLAVE_GGML_MMPROJ_FILE    projector file name inside the volume, when
++//!                               it is not the conventional *mmproj*.gguf
++//!   ENCLAVE_GGML_IMAGE_MAX_TOKENS  cap the tokens ONE image may expand to on
++//!                               dynamic-resolution vision models (0 = the
++//!                               mmproj's own metadata). The lever that stops
++//!                               a large photo from eating the KV pool.
++//!   ENCLAVE_GGML_MTMD_THREADS   CPU threads for image preprocessing
++//!                               (default 4; the encode follows the model
++//!                               onto the GPU)
 +
 +use super::{
 +    BackendError, BackendExecutionContext, BackendFromDir, BackendGraph, BackendInner, Id,
@@ -236,8 +279,8 @@ index 0000000..140bfcd
 +use crate::{ExecutionContext, Graph};
 +use std::collections::{HashMap, VecDeque};
 +use std::ffi::{c_char, c_void, CString};
-+use std::path::Path;
-+use std::sync::{Arc, Condvar, Mutex, Once};
++use std::path::{Path, PathBuf};
++use std::sync::{Arc, Condvar, Mutex, Once, OnceLock};
 +
 +unsafe extern "C" {
 +    fn ell_init();
@@ -305,6 +348,87 @@ index 0000000..140bfcd
 +    fn ell_mtp_reset(m: *mut c_void, seq: i32);
 +}
 +
++// dlsym, for the OPTIONAL vision entry points below. In libc since glibc 2.34
++// (and in libdl before that, which libc pulls in either way).
++unsafe extern "C" {
++    fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
++}
++
++// ---- vision (libmtmd), resolved at RUNTIME ---------------------------------
++//
++// These four shim entry points are looked up by dlsym instead of being linked
++// like the rest, and the reason is a hard requirement rather than taste: the
++// wasmtime binary links libenclave_llama.so from a PINNED toolchain tarball,
++// so a link-time reference to a symbol a deployed tarball lacks would break
++// the manager image build outright. Resolved this way, an older tarball simply
++// reports "no vision": the ggml backend builds and serves exactly as before,
++// the "caps" probe returns vision=0, and the "image" verb refuses with a
++// message that says which half is missing. Turning vision on is then a
++// toolchain bump alone (see wasm/llama-shim/enclave_llama.h).
++type MtmdCapsFn = unsafe extern "C" fn(*const c_char) -> i32;
++type MtmdNewFn = unsafe extern "C" fn(*mut c_void, *const c_char, i32, i32, i32) -> *mut c_void;
++type MtmdFreeFn = unsafe extern "C" fn(*mut c_void);
++type MtmdEvalFn = unsafe extern "C" fn(
++    *mut c_void, // mtmd handle
++    *mut c_void, // llama context
++    i32,         // seq_id
++    i32,         // pos0
++    *const u8,   // image file bytes
++    u32,         // len
++    i32,         // n_batch
++    *mut i32,    // out: positions consumed
++) -> i32;
++
++struct MtmdSyms {
++    caps_file: MtmdCapsFn,
++    new: MtmdNewFn,
++    free: MtmdFreeFn,
++    eval_image: MtmdEvalFn,
++}
++unsafe impl Send for MtmdSyms {}
++unsafe impl Sync for MtmdSyms {}
++
++static MTMD_SYMS: OnceLock<Option<MtmdSyms>> = OnceLock::new();
++
++/// The shim's vision entry points, or None when the linked toolchain predates
++/// them. All four or nothing: a partial set means a half-built shim, and
++/// guessing which half works is worse than reporting no vision.
++fn mtmd_syms() -> Option<&'static MtmdSyms> {
++    MTMD_SYMS
++        .get_or_init(|| {
++            // RTLD_DEFAULT (null on glibc) searches the process's own global
++            // scope, which is where the linked shim already lives.
++            let sym = |name: &str| -> *mut c_void {
++                let Ok(c) = CString::new(name) else { return std::ptr::null_mut() };
++                unsafe { dlsym(std::ptr::null_mut(), c.as_ptr()) }
++            };
++            let caps = sym("ell_mtmd_caps_file");
++            let new = sym("ell_mtmd_new");
++            let free = sym("ell_mtmd_free");
++            let eval = sym("ell_mtmd_eval_image");
++            if caps.is_null() || new.is_null() || free.is_null() || eval.is_null() {
++                return None;
++            }
++            Some(unsafe {
++                MtmdSyms {
++                    caps_file: std::mem::transmute::<*mut c_void, MtmdCapsFn>(caps),
++                    new: std::mem::transmute::<*mut c_void, MtmdNewFn>(new),
++                    free: std::mem::transmute::<*mut c_void, MtmdFreeFn>(free),
++                    eval_image: std::mem::transmute::<*mut c_void, MtmdEvalFn>(eval),
++                }
++            })
++        })
++        .as_ref()
++}
++
++/// Does this file name look like a vision projector rather than a model?
++/// llama.cpp's own convention across every VLM repo is an `mmproj` prefix
++/// (mmproj-F16.gguf, mmproj-model-f16.gguf); the name is also how the model
++/// pick tells the two ggufs in a VLM volume apart.
++fn is_mmproj_name(name: &str) -> bool {
++    name.to_ascii_lowercase().contains("mmproj")
++}
++
 +static INIT: Once = Once::new();
 +
 +fn err(msg: impl Into<String>) -> BackendError {
@@ -347,6 +471,18 @@ index 0000000..140bfcd
 +
 +impl GgmlBackend {
 +    fn load_path(&self, path: &Path, target: ExecutionTarget) -> Result<Graph, BackendError> {
++        self.load_path_mm(path, target, None)
++    }
++
++    /// `mmproj`: the volume's vision projector, when it has one. Loading it is
++    /// deferred to the first image (it costs VRAM of its own), so all that
++    /// happens here is the capability probe that decides what "caps" reports.
++    fn load_path_mm(
++        &self,
++        path: &Path,
++        target: ExecutionTarget,
++        mmproj: Option<PathBuf>,
++    ) -> Result<Graph, BackendError> {
 +        INIT.call_once(|| unsafe { ell_init() });
 +        // GPU offload only when asked for AND the linked libllama carries a
 +        // GPU backend; a CPU-only libllama silently ignores n_gpu_layers.
@@ -375,12 +511,25 @@ index 0000000..140bfcd
 +            unsafe { ell_free_model(model) };
 +            return Err(err("model reports no vocabulary"));
 +        }
++        // A projector is only usable if BOTH halves are there: the file on the
++        // volume and a shim that knows what to do with it. Probe the file's
++        // capability bits (vision = 1) so a stray gguf named mmproj-something
++        // cannot advertise vision the model cannot serve.
++        let mmproj = mmproj.and_then(|p| {
++            let syms = mtmd_syms()?;
++            let c = CString::new(p.to_string_lossy().as_bytes()).ok()?;
++            let caps = unsafe { (syms.caps_file)(c.as_ptr()) };
++            (caps > 0 && caps & 1 != 0).then_some((p, c))
++        });
 +        let graph: Box<dyn BackendGraph> = Box::new(GgmlGraph {
 +            model: Arc::new(GgmlModel {
 +                raw: model,
 +                n_vocab: n_vocab as u32,
 +                recurrent: unsafe { ell_model_recurrent(model) } != 0,
 +                mtp: unsafe { ell_mtp_available(model) } != 0,
++                vision: mmproj.is_some(),
++                mmproj: mmproj.map(|(_, c)| c),
++                gpu: ngl != 0,
 +            }),
 +            server: Mutex::new(None),
 +        });
@@ -442,6 +591,19 @@ index 0000000..140bfcd
 +
 +impl BackendFromDir for GgmlBackend {
 +    fn load_from_dir(&mut self, path: &Path, target: ExecutionTarget) -> Result<Graph, BackendError> {
++        // A VLM volume holds TWO ggufs: the language model and its vision
++        // projector. The projector is identified by name (see is_mmproj_name)
++        // and taken out of the model candidates first, so "exactly one *.gguf"
++        // keeps meaning "exactly one MODEL" and a vision volume needs no
++        // special casing anywhere else. ENCLAVE_GGML_MMPROJ_FILE overrides the
++        // pick for a volume that names its projector something else.
++        let mmproj_override = std::env::var("ENCLAVE_GGML_MMPROJ_FILE").ok();
++        let mut mmproj: Option<PathBuf> = mmproj_override
++            .as_deref()
++            .map(str::trim)
++            .filter(|s| !s.is_empty())
++            .map(|f| path.join(f))
++            .filter(|p| p.is_file());
 +        // model.gguf wins; otherwise exactly one *.gguf in the directory;
 +        // otherwise one complete split family (part 00001 is the model).
 +        let preferred = path.join("model.gguf");
@@ -453,6 +615,15 @@ index 0000000..140bfcd
 +                .filter_map(|e| e.ok().map(|e| e.path()))
 +                .filter(|p| p.extension().map(|x| x == "gguf").unwrap_or(false))
 +                .collect();
++            if mmproj.is_none() {
++                if let Some(i) = ggufs.iter().position(|p| {
++                    p.file_name().and_then(|n| n.to_str()).map(is_mmproj_name).unwrap_or(false)
++                }) {
++                    mmproj = Some(ggufs.remove(i));
++                }
++            } else {
++                ggufs.retain(|p| Some(p.as_path()) != mmproj.as_deref());
++            }
 +            let names: std::collections::BTreeSet<String> = ggufs
 +                .iter()
 +                .filter_map(|p| p.file_name().and_then(|n| n.to_str()).map(String::from))
@@ -464,13 +635,31 @@ index 0000000..140bfcd
 +                    None => {
 +                        return Err(err(format!(
 +                            "expected model.gguf, exactly one *.gguf, or one complete \
-+                             *-00001-of-NNNNN.gguf split family in {} (found {n})",
++                             *-00001-of-NNNNN.gguf split family in {} (found {n}; a \
++                             vision projector named *mmproj*.gguf does not count \
++                             toward that)",
 +                            path.display()
 +                        )))
 +                    }
 +                },
 +            }
 +        };
++        // model.gguf took the fast path above without scanning the directory:
++        // its projector still has to be found.
++        if mmproj.is_none() {
++            mmproj = std::fs::read_dir(path)
++                .ok()
++                .into_iter()
++                .flatten()
++                .filter_map(|e| e.ok().map(|e| e.path()))
++                .find(|p| {
++                    p.extension().map(|x| x == "gguf").unwrap_or(false)
++                        && p.file_name()
++                            .and_then(|n| n.to_str())
++                            .map(is_mmproj_name)
++                            .unwrap_or(false)
++                });
++        }
 +        // Preloads arrive with ExecutionTarget::Cpu from the registry; the
 +        // env override decides real offload so operators control it per
 +        // process without patching the registry call.
@@ -480,7 +669,7 @@ index 0000000..140bfcd
 +        } else {
 +            target
 +        };
-+        self.load_path(&model_path, target)
++        self.load_path_mm(&model_path, target, mmproj)
 +    }
 +}
 +
@@ -496,6 +685,15 @@ index 0000000..140bfcd
 +    /// model can draft for ITSELF, no separate draft model. Surfaced via
 +    /// "caps"; drives the "mtp"-flavored verbs below.
 +    mtp: bool,
++    /// the volume pairs this model with a vision projector AND the linked
++    /// shim can drive it: the "image" verb will work. Surfaced via "caps" so
++    /// a guest can hide (or refuse) attachments before spending a request.
++    vision: bool,
++    /// path to that projector, kept for the lazy load on first image
++    mmproj: Option<CString>,
++    /// the model was loaded with GPU offload — the vision encoder follows it
++    /// onto the same device rather than encoding on the CPU
++    gpu: bool,
 +}
 +unsafe impl Send for GgmlModel {}
 +unsafe impl Sync for GgmlModel {}
@@ -548,6 +746,11 @@ index 0000000..140bfcd
 +    /// deliberately do NOT take the decode turn — a tiny head step may
 +    /// overlap another stream's trunk decode on the GPU.
 +    mtp: Mutex<Option<MtpHandle>>,
++    /// the vision projector (shim-owned), created on the FIRST image and kept
++    /// for the graph's lifetime. Deferred because the encoder's weights and
++    /// compute buffers cost VRAM that a text-only deployment should never pay:
++    /// a chat that never attaches a picture never loads it.
++    mtmd: Mutex<Option<MtmdHandle>>,
 +}
 +
 +struct MtpHandle(*mut c_void);
@@ -555,6 +758,17 @@ index 0000000..140bfcd
 +impl Drop for MtpHandle {
 +    fn drop(&mut self) {
 +        unsafe { ell_mtp_free(self.0) };
++    }
++}
++
++struct MtmdHandle(*mut c_void);
++unsafe impl Send for MtmdHandle {}
++impl Drop for MtmdHandle {
++    fn drop(&mut self) {
++        // resolved when the handle was created, so it exists here
++        if let Some(syms) = mtmd_syms() {
++            unsafe { (syms.free)(self.0) };
++        }
 +    }
 +}
 +unsafe impl Send for GgmlServer {}
@@ -630,6 +844,7 @@ index 0000000..140bfcd
 +            type_v,
 +            flash_attn,
 +            mtp: Mutex::new(None),
++            mtmd: Mutex::new(None),
 +        }))
 +    }
 +
@@ -809,6 +1024,106 @@ index 0000000..140bfcd
 +        }
 +        *mtp = Some(MtpHandle(raw));
 +        Ok(())
++    }
++
++    /// Encode one image into `seq_id` at `pos0` and return the POSITIONS it
++    /// consumed (M-RoPE numbers an image's positions by its grid, not by its
++    /// token count, so only libmtmd can say). Takes the decode turn
++    /// EXCLUSIVELY: the shim drives llama_decode itself here and, on models
++    /// that want it, flips the causal mask off and back around the image, so
++    /// nothing else may be decoding on this context meanwhile.
++    fn eval_image(&self, seq_id: i32, pos0: i32, bytes: &[u8]) -> Result<i32, String> {
++        if bytes.is_empty() {
++            return Err("empty image".into());
++        }
++        if bytes.len() > u32::MAX as usize {
++            return Err("image too large".into());
++        }
++        let syms = mtmd_syms().ok_or(
++            "[vision_unavailable] this node's llama.cpp toolchain predates the vision \
++             entry points (no libmtmd in the shim)",
++        )?;
++        let mut q = self.q.lock().unwrap();
++        while q.decoding {
++            q = self.cv.wait(q).unwrap();
++        }
++        q.decoding = true;
++        drop(q);
++        let mut n_pos = 0i32;
++        let outcome = match self.ensure_mtmd() {
++            Err(e) => Err(e),
++            Ok(handle) => {
++                let rc = unsafe {
++                    (syms.eval_image)(
++                        handle,
++                        self.raw,
++                        seq_id,
++                        pos0,
++                        bytes.as_ptr(),
++                        bytes.len() as u32,
++                        self.n_batch as i32,
++                        &mut n_pos,
++                    )
++                };
++                match rc {
++                    0 if n_pos > 0 => Ok(n_pos),
++                    0 => Err("the projector consumed no positions for this image".to_string()),
++                    1 => Err(decode_err(1)),
++                    2 => Err("[image_undecodable] not a readable image (png, jpeg, webp, \
++                              gif and bmp are what the encoder reads)"
++                        .to_string()),
++                    3 => Err(
++                        "[image_too_wide] this model decodes images with a non-causal mask, \
++                         which needs the whole image in one physical batch - raise \
++                         ENCLAVE_GGML_N_UBATCH on this node (or send a smaller image)"
++                            .to_string(),
++                    ),
++                    other => Err(format!("image encode failed (rc {other})")),
++                }
++            }
++        };
++        let mut q = self.q.lock().unwrap();
++        q.decoding = false;
++        self.cv.notify_all();
++        drop(q);
++        outcome
++    }
++
++    /// Load the vision projector if it is not loaded yet, returning its
++    /// handle. Caller holds the decode turn (the load allocates on the same
++    /// device the decode is about to use).
++    fn ensure_mtmd(&self) -> Result<*mut c_void, String> {
++        let mut m = self.mtmd.lock().unwrap();
++        if let Some(h) = m.as_ref() {
++            return Ok(h.0);
++        }
++        let syms = mtmd_syms().ok_or("[vision_unavailable] no libmtmd in this shim")?;
++        let path = self.model.mmproj.as_ref().ok_or(
++            "[vision_unavailable] this model volume carries no vision projector \
++             (add an *mmproj*.gguf beside the model)",
++        )?;
++        // 4 CPU threads is llama.cpp's own default for the preprocessing side;
++        // the encode itself rides the GPU whenever the model did.
++        let threads = env_i32("ENCLAVE_GGML_MTMD_THREADS", 4);
++        let max_tokens = env_i32("ENCLAVE_GGML_IMAGE_MAX_TOKENS", 0);
++        let raw = unsafe {
++            (syms.new)(
++                self.model.raw,
++                path.as_ptr(),
++                threads,
++                self.model.gpu as i32,
++                max_tokens,
++            )
++        };
++        if raw.is_null() {
++            return Err(
++                "[vision_unavailable] the vision projector failed to load (VRAM, or an \
++                 mmproj that does not match this model)"
++                    .to_string(),
++            );
++        }
++        *m = Some(MtmdHandle(raw));
++        Ok(raw)
 +    }
 +
 +    /// Mirror a round's ACCEPTED tokens into the head's KV (pairs them with
@@ -1067,6 +1382,7 @@ index 0000000..140bfcd
 +                        self.seq_id,
 +                        self.server.model.recurrent as i32,
 +                        self.server.model.mtp as i32,
++                        self.server.model.vision as i32,
 +                    ];
 +                    let mut data = Vec::with_capacity(vals.len() * 4);
 +                    for v in vals {
@@ -1078,6 +1394,39 @@ index 0000000..140bfcd
 +                        data,
 +                    };
 +                    return Ok(Some(vec![NamedTensor { name: "caps".to_string(), tensor: t }]));
++                }
++                // {"image": U8 [n]} = one image FILE (png/jpeg/webp/gif/bmp
++                // bytes, exactly as uploaded): encode it into this sequence at
++                // the current position and answer "image_pos" I32 [1] with the
++                // positions it consumed. No logits - an image is never the end
++                // of a prompt, the text turn that follows produces the row the
++                // guest samples from. Interleaving is therefore just: feed the
++                // text before the picture as "tokens", feed the picture, feed
++                // the text after it. Everything model-specific (the marker
++                // tokens around the image, the mask, M-RoPE's 2-D positions)
++                // happens inside libmtmd, which is why the guest sends raw file
++                // bytes and does no vision work of its own.
++                if let Some(img) = inputs.iter().find(|nt| nt.name == "image") {
++                    if img.tensor.ty != TensorType::U8 {
++                        return Err(err(format!(
++                            "\"image\" must be a U8 tensor of file bytes (got {:?})",
++                            img.tensor.ty
++                        )));
++                    }
++                    let n_pos = self
++                        .server
++                        .eval_image(self.seq_id, self.n_past, &img.tensor.data)
++                        .map_err(err)?;
++                    self.n_past += n_pos;
++                    let t = Tensor {
++                        dimensions: vec![1],
++                        ty: TensorType::I32,
++                        data: n_pos.to_le_bytes().to_vec(),
++                    };
++                    return Ok(Some(vec![NamedTensor {
++                        name: "image_pos".to_string(),
++                        tensor: t,
++                    }]));
 +                }
 +                // control verb {"copy_from": I32 [2] = [src_seq, src_n_past]}:
 +                // make THIS sequence an exact branch of src_seq (previous
