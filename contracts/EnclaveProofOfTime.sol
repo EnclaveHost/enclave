@@ -34,9 +34,20 @@ pragma solidity ^0.8.20;
 ///           3. the anchor is unpredictable. This is the property Storj buys
 ///              with randomly-timed audits from a satellite; here it falls out
 ///              of the chain itself, with nobody to trust for the randomness.
-///         And one checkpoint may advance the watermark by at most
-///         proofWindowSec, so an hour of pay costs an hour of separately
+///         And a checkpoint may advance the watermark by at most proofWindowSec
+///         AND at most the time that has actually elapsed since the last
+///         accepted proof, so an hour of pay costs an hour of separately
 ///         anchored proofs. Time cannot be compressed into one transaction.
+///
+///         That second clamp is load-bearing and was missing until 2026-07-29.
+///         The window alone bounds nothing: `base` is re-read from the ledger on
+///         every call and creditProven writes it in the same call, so N
+///         checkpoints in ONE transaction ratcheted N windows — and because the
+///         digest commits to no watermark, one signature replayed N times did
+///         it. Twelve copies of a single signature against a single anchor
+///         bought 10,200 seconds of pay for zero service. Charging every advance
+///         against the wall clock is what restores the property the paragraph
+///         above claims.
 ///
 /// PARTIAL PERIODS are the point, not an edge case. Because the watermark and
 ///         the meter are both per-second, a host is paid for exactly the
@@ -119,8 +130,13 @@ interface IEnclaveRegistry {
 
 contract EnclaveProofOfTime {
     /// @dev Struct-shape/feature revision, sniffed by consumers the way
-    ///      deploymentsSchema and registrySchema are.
-    uint256 public constant proofSchema = 1;
+    ///      deploymentsSchema and registrySchema are. Rev 1 clamped a
+    ///      checkpoint by proofWindowSec ALONE, which bounded nothing (see the
+    ///      header): rev 2 additionally charges every advance against elapsed
+    ///      wall-clock time. The signed digest is UNCHANGED between the two, so
+    ///      a supervisor needs no release to work with either — but only a rev-2
+    ///      prover actually makes proven time cost time.
+    uint256 public constant proofSchema = 2;
 
     IEnclaveDeployments public immutable deployments;
     IEnclaveRegistry    public immutable registry;
@@ -269,13 +285,28 @@ contract EnclaveProofOfTime {
             // every other — never a base of 0 to prove back from 1970.
             base = ceiling > proofWindowSec ? ceiling - proofWindowSec : 0;
         }
-        if (upto > base + proofWindowSec) upto = base + proofWindowSec;
+        Record storage r = recordOf[id];
+        // ... and never more than has actually ELAPSED since the last accepted
+        // proof. Without this the window is not a limit at all: `base` is re-read
+        // from the ledger on every call and creditProven writes it immediately,
+        // so N checkpoints inside ONE transaction ratchet N windows — and since
+        // the digest commits to no watermark, the SAME signature serves for all
+        // N. Twelve copies of one signature, one anchor, one block bought 10,200
+        // seconds of pay for zero service. Charging the advance against real time
+        // is what actually makes an hour of pay cost an hour: a second proof in
+        // the same block has a budget of zero and is refused "nothing to prove",
+        // so the watermark can only ever walk forward as fast as the clock does.
+        // A host that lost proofs to an RPC stall still recovers a whole window
+        // on its next one, which is the tolerance the cadence was chosen for.
+        uint64 elapsed = uint64(block.timestamp) > r.lastProofAt
+            ? uint64(block.timestamp) - r.lastProofAt : 0;
+        uint64 advance = elapsed < proofWindowSec ? elapsed : proofWindowSec;
+        if (upto > base + advance) upto = base + advance;
         require(upto > base, "nothing to prove");
 
         deployments.creditProven(id, upto);   // the ledger re-clamps, then pays
 
         uint64 proven = upto - base;
-        Record storage r = recordOf[id];
         r.lastProofAt = uint64(block.timestamp);
         r.provenSec  += proven;
         r.proofs     += 1;

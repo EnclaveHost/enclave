@@ -2588,7 +2588,13 @@ app.get("/v1/health", (_req, res) => res.json({ status: "ok", deployments: deplo
     signer: PROOF_ACCOUNT ? PROOF_ACCOUNT.address : null,
     intervalSec: PROOF_INTERVAL_SEC,
     lastRoundAt: _proof.at ? new Date(_proof.at).toISOString() : null,
-    proved: _proof.proved, rejected: _proof.rejected, lastError: _proof.lastError } : null }));
+    proved: _proof.proved, rejected: _proof.rejected, lastError: _proof.lastError } : null,
+  // The anti-sybil gate's state on THIS box. `ok: false` is the honest reason a
+  // seller's enclave has gone quiet: the ledger asks a bond it is not willing
+  // (CLAIM_BOND_MAX6) or not able to post, so it stops claiming rather than
+  // spend the operator's float. null = claiming is off here entirely.
+  claimBond: CLAIM_READY ? { ok: _bond.ok, max6: CLAIM_BOND_MAX6.toString(),
+    checkedAt: _bond.at ? new Date(_bond.at).toISOString() : null, why: _bond.why } : null }));
 app.get("/v1/version", (_req, res) => res.json({ service: "enclave-supervisor/0.1.0", contract: "enclave-openapi/1.0.0", chainId: CHAIN_ID }));
 
 app.get("/v1/pricing", async (_req, res) => {
@@ -5031,6 +5037,81 @@ function sendOperatorTx(address, abi, functionName, args) {
   return p;            // receipt wait instead of polling for it a second time
 }
 const sendClaimTx = (functionName, args) => sendOperatorTx(DEPLOYMENTS_ADDRESS, CLAIM_TX_ABI, functionName, args);
+
+// ---- claim bond (anti-sybil, EnclaveDeployments rev 7) ----------------------
+// The ledger can require an operator to lock USDC before it may claim. That
+// gate is the only on-chain cost of a SYBIL claim: registration is open and the
+// price and proof key in a registry entry are both self-declared, so without a
+// bond any address can take the lease on a funded deployment, serve nothing and
+// collect the runner escrow. Nothing here posted a bond until 2026-07-29, which
+// meant turning the gate on would have made every claim in the fleet revert
+// "bond required" - an outage, not a defence. So the switch was unflippable.
+//
+// This makes it flippable: we read what the ledger asks for and top the bond up
+// to it before claiming. While claimBond6 is 0 (the deploy default) every line
+// below is inert and no USDC moves, so shipping this changes nothing until the
+// owner actually raises the bond - which is the point. CLAIM_BOND_MAX6 is the
+// operator's own ceiling on that: the ledger's owner sets the ask, and this box
+// refuses to lock more than its operator agreed to, going quiet instead of
+// silently spending a seller's float.
+const CLAIM_BOND_MAX6 = BigInt(process.env.CLAIM_BOND_MAX6 || "0");
+const BOND_ABI = [
+  { type: "function", name: "claimBond6", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "bondOf", stateMutability: "view", inputs: [{ name: "operator", type: "address" }],
+    outputs: [{ name: "amount6", type: "uint256" }, { name: "exitAt", type: "uint64" }] },
+  { type: "function", name: "postBond", stateMutability: "nonpayable",
+    inputs: [{ name: "amount6", type: "uint256" }], outputs: [] },
+];
+const ERC20_APPROVE_ABI = [
+  { type: "function", name: "approve", stateMutability: "nonpayable",
+    inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] },
+  { type: "function", name: "allowance", stateMutability: "view",
+    inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }], outputs: [{ type: "uint256" }] },
+];
+let _bond = { ok: null, at: 0, why: null };
+// Are we bonded enough to claim? Cached briefly - this runs ahead of the sweep,
+// not per deployment. Returns true when the ledger asks for nothing.
+async function claimBondReady() {
+  if (!CLAIM_READY) return false;
+  if (_bond.ok !== null && Date.now() - _bond.at < 300_000) return _bond.ok;
+  const dep = getAddress(DEPLOYMENTS_ADDRESS);
+  try {
+    const need = await chainClient.readContract({ address: dep, abi: BOND_ABI, functionName: "claimBond6" });
+    if (need === 0n) { _bond = { ok: true, at: Date.now(), why: null }; return true; }
+    const me = claimSigner().account.address;
+    const [have, exitAt] = await chainClient.readContract({ address: dep, abi: BOND_ABI, functionName: "bondOf", args: [me] });
+    // a pending exit stops authorizing claims even when the amount is there;
+    // posting again re-commits and clears it, so the top-up path covers both
+    if (have >= need && exitAt === 0n) { _bond = { ok: true, at: Date.now(), why: null }; return true; }
+    const short = have >= need ? 0n : need - have;
+    if (CLAIM_BOND_MAX6 === 0n || need > CLAIM_BOND_MAX6) {
+      _bond = { ok: false, at: Date.now(),
+        why: `ledger asks a ${need} claim bond; CLAIM_BOND_MAX6 is ${CLAIM_BOND_MAX6} - not claiming` };
+      console.warn(`[bond] ${_bond.why}`);
+      return false;
+    }
+    // approve exactly what we are about to lock, then lock it
+    const usdc = getAddress(USDC_ADDRESS);
+    const allowance = await chainClient.readContract({ address: usdc, abi: ERC20_APPROVE_ABI,
+      functionName: "allowance", args: [me, dep] });
+    const post = short > 0n ? short : 1n;   // re-commit clears a pending exit
+    if (allowance < post) {
+      const ap = sendOperatorTx(usdc, ERC20_APPROVE_ABI, "approve", [dep, post]);
+      await ap; await ap.receipt;
+    }
+    const tx = sendOperatorTx(dep, BOND_ABI, "postBond", [post]);
+    await tx;
+    const rcpt = await tx.receipt;
+    if (rcpt.status !== "success") throw new Error("postBond reverted");
+    console.log(`[bond] posted ${post} USDC6; bonded for claiming on ${dep}`);
+    _bond = { ok: true, at: Date.now(), why: null };
+    return true;
+  } catch (e) {
+    _bond = { ok: false, at: Date.now(), why: e.shortMessage || e.message };
+    console.warn(`[bond] cannot satisfy the claim bond (${_bond.why}); not claiming this pass`);
+    return false;
+  }
+}
 // get/getPage through the sniffed shape, with one self-heal retry: a decode
 // error means the cached shape is wrong for this ledger however it got there
 // (a poisoned sniff, a mid-flight migration) — drop the cache, re-sniff, and
@@ -5846,6 +5927,11 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
 // re-check catches a claim that landed during the wait without paying for a
 // reverted tx. Losing the race anyway costs one reverted tx (cents on Base).
 async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false } = {}) {
+  // Ahead of the prefetch, not after it: if the ledger wants a bond we cannot
+  // post, there is no point pulling a 100MB image we may never launch. A RESUME
+  // holds its lease already and the contract re-checks nothing on renew or
+  // release, so winding an existing tenant down is never gated on the bond.
+  if (!resume && !(await claimBondReady())) return;
   if (!hinted && !resume) await new Promise(r => setTimeout(r, Math.random() * 5000));
   // Fetch + verify + cache the app BEFORE burning a lease: the launch's own
   // fetch then hits the manager's local cache instead of racing a 100MB+
