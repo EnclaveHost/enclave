@@ -641,8 +641,14 @@ const ACME_ENABLED = !!(ACME_CAS.length && APP_CERT_DOMAIN && DNS_API);
 // keeps the self-signed bridge pair: that pair is verified by fingerprint over
 // the attested origin (/v1/tls-bridge), not by name, and refusing it would
 // break the pin flow.
-function sniDecide(servername, heldCtx, bridgeCtx) {
+// A CUSTOMER's own domain (`managed`) follows the same rule as an app-zone
+// name, and for a sharper reason: the bridge pair is a wildcard for OUR zone,
+// so on their hostname it is not merely unauthenticatable but plainly invalid.
+// Serving it would put a certificate error on the customer's brand and teach
+// their users to click through one. No held cert, no handshake.
+function sniDecide(servername, heldCtx, bridgeCtx, managed = false) {
   if (heldCtx) return { use: "acme", ctx: heldCtx };
+  if (managed) return { use: "refuse" };
   if (APP_CERT_DOMAIN && String(servername || "").toLowerCase().endsWith(`.${APP_CERT_DOMAIN}`)) return { use: "refuse" };
   return { use: "bridge", ctx: bridgeCtx || undefined };
 }
@@ -753,7 +759,7 @@ if (process.env.ACME_SELFTEST) {
     // the SNI decision table (APP_CERT_DOMAIN from env): "acme" = the held CA
     // cert, "bridge" = the self-signed pair, "refuse" = fail closed.
     const ctx = {};                     // truthy stand-in: the decision only routes contexts
-    const use = (name, held) => sniDecide(name, held, ctx).use;
+    const use = (name, held, managed) => sniDecide(name, held, ctx, managed).use;
     console.log(JSON.stringify({
       domain:     APP_CERT_DOMAIN,
       held:       use("a.app.enclave.host", ctx),
@@ -763,6 +769,12 @@ if (process.env.ACME_SELFTEST) {
       bareDomain: use("app.enclave.host", null),
       legacyTcp:  use("b.tcp.enclave.host", null),
       noSni:      use(undefined, null),
+      // a customer's own domain: attached-and-verified but no cert held yet is
+      // a REFUSAL, never the wildcard bridge pair (which is invalid for it)
+      customNoCert: use("shop.example.com", null, true),
+      customHeld:   use("shop.example.com", ctx, true),
+      // …and a name we manage nothing for stays on the pin flow, unchanged
+      unknownName:  use("shop.example.com", null, false),
     }));
   } else {
     // RFC 7515 Appendix A.3's P-256 key: the fixed vector the tests compare
@@ -1719,7 +1731,7 @@ function toBytes(s) {
   const n = +m[1], u = m[2].toLowerCase();
   return u === "g" ? n*1073741824 : u === "m" ? n*1048576 : u === "k" ? n*1024 : n;
 }
-async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort, ports, config, secrets }) {
+async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort, ports, config, secrets, hosts }) {
   // Two backends. "vm": hand the app reference to the app manager on VMMGR_URL
   // (the wasm-manager runs it as a `wasmtime serve` process; cpuShare is its
   // admission unit and sets the guest memory cap — cpuShare × node RAM;
@@ -1755,7 +1767,12 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort
         egress: egress ? egress.envFor(deploymentId) : "",
         // relay-staged owner secrets (fetchDepSecrets): guest-only --env vars,
         // validated by the manager; like config/egress, never in a log line
-        ...(secrets ? { secrets } : {}) }, SPAWN_TIMEOUT_MS);
+        ...(secrets ? { secrets } : {}),
+        // every hostname this deployment answers on (its own subdomain + any
+        // verified custom domain) -> the guest's ENCLAVE_HOSTS. A manager that
+        // predates the field ignores it, so the app simply doesn't get the
+        // list — nothing else changes.
+        ...(hosts && hosts.length ? { hosts: hosts.join(",") } : {}) }, SPAWN_TIMEOUT_MS);
     if (r.status !== 201)
       throw new Error(`vmmanager: ${r.body.error || r.body.message || r.status}`);
     console.log(`[spawn-vm] ${deploymentId} image=${ref} cpuShare=${c} gpuShare=${g} `
@@ -2743,6 +2760,7 @@ app.get("/availability", async (_req, res) => {
     gpuOptional: true,   // this build understands {"gpu":{"optional":true}}: a GPU-dialled deployment may fall back to a CPU-only enclave instead of queueing. Same fleet-AND rule — against an older fleet the envelope would be REFUSED outright (unknown namespace), so the console must not offer the control until every live runner knows it
     secrets: SECRETS_CAPABLE,   // this build pulls relay-staged per-deployment secrets into the guest env at every launch; fleet-AND'd with the relay's own secretsEnabled() before clients see it. The fetch authenticates with a key DERIVED FROM THE FLEET SECRET, so a box running its own minted SECRET (a metal enclave without cfg.fleetSecret) sets SECRETS_CAPABLE=0 and reports false — honest, and the fleet-AND then hides the feature rather than stranding secret-bearing deploys on it
     secretsInConfig: SECRETS_CAPABLE,   // this build also resolves $NAME/${NAME} placeholders in config STRING values from those secrets at launch (wasm-manager _subst_secrets); same fleet-AND rule
+    customDomains: !!DOMAINS_API,   // this build pulls a deployment's owner-attached hostnames, mints their certificates in-CVM (dns-01 through the delegated challenge alias) and hands the guest ENCLAVE_HOSTS; fleet-AND'd with the relay's domainsEnabled() before clients see it — a lease landing on a runner without it would leave the customer's own domain refusing handshakes with nothing on the dashboard to explain why
     devDeploy: true,   // this build's approval gate admits PENDING catalog versions for PRIVATE deployments (publisher dev-mode testing); public deploys of pending versions stay refused — same fleet-AND rule, clients only offer the option when every live runner honors it
     rateCap: true,   // this build honors per-deployment rate caps (ledger rev 8): it prices claims off its own registry entry and treats a cap-blocked renew as "stop at lease end", not an error to retry — same fleet-AND rule, so clients only offer cap edits when every live runner would behave
     // PROVES its service (ledger rev 9): it mints an in-CVM proof key, publishes
@@ -3564,6 +3582,106 @@ async function fetchDepSecrets(id) {
   return cached || null;
 }
 
+// --- custom domains ---------------------------------------------------------
+// The hostnames an owner attached to a deployment THIS enclave runs
+// (relay/domains.js holds the records and proves their DNS). We pull them for
+// three reasons: to mint their certificates, to know which names our TLS may
+// answer for, and to tell the guest what it is allowed to consider its own.
+//
+// Same fetch shape and same authority as the secrets pull — the fleet HMAC
+// and/or this enclave's registry operator key, scoped by the on-chain lease —
+// because it is the same question: what does the box running this deployment
+// get to know about it? The reply is a list of names, not a secret, but the
+// authorization matters anyway: a box that could read another deployment's
+// domains could mint certificates for a customer's hostname.
+//
+// The response also carries the ACME challenge alias to push TXT records to
+// (see acmeChallengeName), and the request carries an issuance REPORT, which
+// is the only way a customer ever learns that a CA refused their domain.
+const DOMAINS_API = (process.env.DOMAINS_API ?? SECRETS_API).trim().replace(/\/+$/, "");
+const _depDomains  = new Map();      // dep id -> string[] hostnames we may serve
+const _domainOwner = new Map();      // hostname -> dep id (reverse index: ACME + SNI + the Host check)
+const _certReports = new Map();      // hostname -> { ok, ca, error } queued for the next fetch
+
+function reindexDomains() {
+  _domainOwner.clear();
+  for (const [id, hosts] of _depDomains) for (const h of hosts) _domainOwner.set(h, id);
+}
+// Is this a customer hostname we manage certificates for? (sniDecide's third
+// case, and the Host check on the HTTPS bridge.)
+const customDomainOwner = (host) => _domainOwner.get(String(host || "").toLowerCase().split(":")[0].replace(/\.+$/, "")) || null;
+
+async function fetchDepDomains(id) {
+  if (!DOMAINS_API || !_advertisedEndpoint || /^(1|true|on)$/i.test(process.env.MOCK_SPAWN || ""))
+    return _depDomains.get(id) || [];
+  const idL = String(id).toLowerCase();
+  try {
+    const ts = Math.floor(Date.now() / 1000);
+    const sig = createHmac("sha256",
+        createHmac("sha256", Buffer.from(SECRETS_FETCH_KEY, "hex")).update("domains-fetch v1").digest())
+      .update(`${idL}:${_advertisedEndpoint}:${ts}`).digest("hex");
+    let opSig = "";
+    if (REGISTRY_PK) {
+      try { opSig = await claimSigner().account.signMessage({
+        message: `enclave-domains-fetch:${idL}:${_advertisedEndpoint}:${ts}` }); }
+      catch { /* the relay decides whether its policy still allows the HMAC alone */ }
+    }
+    // report only on the names this deployment owns, and clear them as they go:
+    // a report that fails to send is retried by the next tick, not lost.
+    const mine = _depDomains.get(idL) || [];
+    const report = [];
+    for (const h of mine) { const r = _certReports.get(h); if (r) report.push({ hostname: h, ...r }); }
+    const r = await fetch(`${DOMAINS_API}/v1/domains/fetch`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: idL, endpoint: _advertisedEndpoint, ts, sig,
+                             ...(opSig ? { opSig } : {}), ...(report.length ? { report } : {}) }),
+      signal: AbortSignal.timeout(5000) });
+    if (!r.ok) {
+      // 503 (relay without the feature) and 404 (not on its ledger view) are
+      // authoritative "no custom domains", not an outage worth logging every tick.
+      if (r.status === 503 || r.status === 404) { _depDomains.set(idL, []); reindexDomains(); return []; }
+      throw new Error(`HTTP ${r.status}`);
+    }
+    const b = await r.json();
+    for (const item of report) _certReports.delete(item.hostname);        // delivered
+    const hosts = (Array.isArray(b.domains) ? b.domains : [])
+      .map((h) => String(h).toLowerCase().replace(/\.+$/, ""))
+      .filter((h) => /^[a-z0-9.-]{1,253}$/.test(h));
+    const before = (_depDomains.get(idL) || []).join(",");
+    _depDomains.set(idL, hosts);
+    reindexDomains();
+    if (before !== hosts.join(",")) console.log(`[domains] ${idL.slice(0, 10)}… serves ${hosts.length ? hosts.join(", ") : "no custom domains"}`);
+    return hosts;
+  } catch (e) {
+    // KEEP the last known list. A relay blip must not withdraw a live
+    // customer's certificate or stop the app answering on their name.
+    console.warn(`[domains] ${idL.slice(0, 10)}… fetch failed (${e.message}); keeping the last known list`);
+    return _depDomains.get(idL) || [];
+  }
+}
+
+// Refresh every deployment we are running, then let ACME pick up anything new.
+// Cheap (one small POST per deployment per cycle) and it is what makes an
+// attach reach a live app without a restart.
+async function refreshCustomDomains() {
+  if (!DOMAINS_API) return;
+  const live = [...deployments.values()].filter((r) => r._onchain && r.status === "running");
+  for (const rec of live) await fetchDepDomains(rec.id);
+  for (const id of [...(_depDomains.keys())]) if (!live.some((r) => r.id.toLowerCase() === id)) _depDomains.delete(id);
+  reindexDomains();
+  acmeReconcileSoon();
+}
+
+// Every hostname a deployment answers on: its own subdomain first (the
+// canonical one), then the customer's. This is what the guest gets as
+// ENCLAVE_HOSTS and what the Host check on the bridge accepts.
+function hostsFor(rec) {
+  const names = [];
+  if (APP_CERT_DOMAIN && (servesHttp(rec) || fwTcpPorts(rec).length)) names.push(appCertName(rec.id));
+  for (const h of _depDomains.get(String(rec.id).toLowerCase()) || []) names.push(h);
+  return names;
+}
+
 // Spawn the tenant's MPS-capped worker process (called once, on first payment).
 async function provisionTenant(rec) {
   try {
@@ -3571,12 +3689,16 @@ async function provisionTenant(rec) {
     // so `enclave restart` after a secrets change applies it
     const sec = PROVISION_BACKEND === "vm" && rec._onchain ? await fetchDepSecrets(rec.id) : null;
     if (sec) { if (sec.rev > 0) rec.secretsRev = sec.rev; else delete rec.secretsRev; }
+    // …and the same for the deployment's own hostnames: a launch is when the
+    // guest learns which names are its own, so pull the current list first
+    if (PROVISION_BACKEND === "vm" && rec._onchain) await fetchDepDomains(rec.id).catch(() => {});
     const sp = await spawnContainer({ deploymentId: rec.id,
       gpuShare: rec.resources.gpuShare || 0, cpuShare: rec.resources.cpuShare,
       image: { reference: rec.appWasm || (rec.image && rec.image.reference) },
       appPort: rec.network.port, ports: rec.firewall,
       config: rec.config || "",
-      secrets: sec && Object.keys(sec.env).length ? sec.env : null });
+      secrets: sec && Object.keys(sec.env).length ? sec.env : null,
+      hosts: hostsFor(rec) });
     rec._port = sp.internalPort;
     if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; }
     if (sp.portMap) rec.portMap = sp.portMap;   // logical -> actual (public: clients see their mapping)
@@ -4337,6 +4459,11 @@ const desiredCertNames = (rec) => {
   // per-name certs are issued under it anymore; TLS_BRIDGE_DOMAIN now only
   // names the self-signed fallback pair and gates the /tls/ path.
   if (servesHttp(rec) || fwTcpPorts(rec).length) names.push(appCertName(rec.id));
+  // …plus every custom domain the owner attached and the relay verified. These
+  // are ordinary single-name certs like the one above; what differs is only
+  // WHERE the dns-01 TXT record goes (acmeChallengeName), because we cannot
+  // write in the customer's zone — they delegate a name in ours to us.
+  for (const h of _depDomains.get(String(rec.id).toLowerCase()) || []) names.push(h);
   return names;
 };
 
@@ -4437,6 +4564,27 @@ async function acmeAccount(ca) {
 //   node -e 'console.log(require("node:crypto").createHmac("sha256",
 //     process.argv[1]).update("enclave dns-txt v1").digest("hex"))' "$SECRET"
 const DNS_TXT_KEY = SECRET ? createHmac("sha256", SECRET).update("enclave dns-txt v1").digest("hex") : "";
+// WHERE a name's dns-01 TXT record goes. For our own app zone that is simply
+// _acme-challenge.<name>, the record we serve ourselves. For a CUSTOMER's
+// domain we have no write access to their zone at all — so they publish a
+// permanent CNAME from _acme-challenge.<their name> into ours, and we push the
+// record at the far end of it. CAs follow that CNAME as a matter of course; it
+// is the standard delegation and it survives renewals with no further action
+// from the customer.
+//
+// The alias is the deployment's OWN challenge name, not a per-domain one, and
+// that is load-bearing: dns-relay authorizes an operator-signed push at
+// _acme-challenge.<label>.<zone> only when <label> is a hex prefix of a
+// deployment that pusher holds the live lease for. Reusing it means a
+// self-hosted box — which holds no fleet secret — can mint its tenants' custom
+// certificates with exactly the authority it already has. Concurrent orders on
+// one alias are fine: the challenge store keeps a SET of values per name and a
+// DELETE removes one value, not the name.
+function acmeChallengeName(name) {
+  const id = customDomainOwner(name);
+  return id ? `_acme-challenge.${appCertName(id)}` : `_acme-challenge.${name}`;
+}
+
 // The on-ledger deployment a cert name belongs to (its label is the id's hex
 // prefix) — the operator-signed push (below) binds the challenge to its lease.
 function certNameDeployment(txtName) {
@@ -4501,7 +4649,7 @@ async function acmeIssueVia(ca, name) {
   if (authz.data.status !== "valid") {
     const chal = (authz.data.challenges || []).find((c) => c.type === "dns-01");
     if (!chal) throw new Error(`no dns-01 challenge offered for ${name}`);
-    txtName  = `_acme-challenge.${name}`;
+    txtName  = acmeChallengeName(name);
     txtValue = dns01TxtValue(chal.token, acct.thumbprint);
     await dnsTxt("POST", txtName, txtValue);
   }
@@ -4605,11 +4753,17 @@ async function acmePump() {
         const issued = await acmeIssue(name);
         acmeCerts.set(name, issued);
         acmeRetry.delete(name);
+        // A customer's domain: tell the relay, which is the only path by which
+        // the person who owns that name learns their certificate exists.
+        if (customDomainOwner(name)) _certReports.set(name, { ok: true, ca: issued.caHost });
         console.log(`[acme] issued ${name} via ${issued.caHost} (expires ${new Date(issued.expiresAt).toISOString()})`);
       } catch (e) {
         const failures = (acmeRetry.get(name)?.failures || 0) + 1;
         const backoff  = Math.min(3600_000, 300_000 * 2 ** (failures - 1));
         acmeRetry.set(name, { failures, nextAt: Date.now() + backoff });
+        // …and the same on failure. "Your domain has no certificate and here is
+        // the CA's reason" is the single most useful thing this feature can say.
+        if (customDomainOwner(name)) _certReports.set(name, { ok: false, error: `${e.message} (attempt ${failures})` });
         console.error(`[acme] failed ${name}: ${e.message} (retry #${failures} in ${Math.round(backoff / 60_000)}m)`);
       }
       await sleepMs(2000);
@@ -4640,7 +4794,7 @@ const acmeCtxFor = (servername) => {
   return held && held.expiresAt > Date.now() ? held.ctx : null;
 };
 const sniSelect = (servername, cb) => {
-  const d = sniDecide(servername, acmeCtxFor(servername), TLS_BRIDGE_CTX);
+  const d = sniDecide(servername, acmeCtxFor(servername), TLS_BRIDGE_CTX, !!customDomainOwner(servername));
   if (d.use === "refuse")
     return cb(new Error(`no CA cert held for ${servername} - refusing the handshake instead of serving the self-signed placeholder`));
   cb(null, d.ctx);
@@ -4658,6 +4812,23 @@ const sniSelect = (servername, cb) => {
 const internalAppServer = http.createServer((req, res) => {
   const fullId = req.socket._appDepId;
   if (!fullId) { res.writeHead(500); return res.end(); }      // unreachable: only our emit('connection') feeds this server
+  // A Host that belongs to ANOTHER deployment is refused, never served. The
+  // relay routes by SNI and the certificate has to match, so getting here with
+  // someone else's Host takes a client that deliberately mismatched the two —
+  // but "which app answers" must never come down to a header we don't control.
+  // 421 is the precise answer (RFC 7540 §9.1.2: this connection is not
+  // authoritative for that host) and it is what tells a reusing client to open
+  // a fresh connection rather than retry into the same wrong place.
+  //
+  // Deliberately narrow: only a host we KNOW belongs elsewhere is refused.
+  // Anything unrecognized (an IP, a bare origin, a name the fetch hasn't
+  // learned yet) still passes, because a stale domain list must never take a
+  // running app off the air.
+  const owner = customDomainOwner(req.headers.host);
+  if (owner && owner !== String(fullId).toLowerCase()) {
+    res.writeHead(421, { "Content-Type": "text/plain", "Cache-Control": "no-store" });
+    return res.end("Misdirected Request\n");
+  }
   req.url = `/x/${fullId}${req.url.startsWith("/") ? "" : "/"}${req.url}`;
   app(req, res);                                              // the express app is a plain (req,res) function
 });
@@ -6551,4 +6722,16 @@ startClaimLoop();
 // in-enclave ACME: issue + renew per-app browser certs for <label>.APP_CERT_DOMAIN
 // (opt-in; a warning-then-no-op unless EAB + domain + DNS API are all configured).
 startAcme();
+
+// custom domains: pull each running deployment's verified hostnames, report
+// issuance back, and nudge ACME when the list changes. Runs even with ACME off
+// — the list also feeds the guest's ENCLAVE_HOSTS and the bridge's Host check.
+// One minute is fast enough that an attach reaches a live app while the
+// customer is still looking at the dashboard, and slow enough to be free.
+if (DOMAINS_API) {
+  const dt = setInterval(() => refreshCustomDomains().catch((e) => console.warn("[domains] refresh:", e.message)), 60_000);
+  if (dt.unref) dt.unref();
+  refreshCustomDomains().catch(() => {});
+  console.log(`[domains] custom hostnames via ${DOMAINS_API}`);
+}
 
