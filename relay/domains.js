@@ -291,8 +291,13 @@ let store = null;                 // JsonStore { byHost: { <hostname>: record } 
 let enabled = false;
 export const domainsEnabled = () => enabled;
 
-const rlOwner  = makeRateLimiter({ capacity: 20, refillPerSec: 20 / 300 });   // per wallet: 20 burst, 4/min sustained
-const rlAdd    = makeRateLimiter({ capacity: 10, refillPerSec: 10 / 600 });   // per wallet, attach/verify only (each costs DNS lookups)
+// Two buckets, because the two kinds of call cost wildly different things. A
+// list is a memory read and the dashboard polls it while open, so it gets a
+// loose one; attach/verify each spend real DNS lookups against a customer's
+// zone and are how someone would try to use us as a resolver amplifier, so
+// they get a tight one ON TOP of the loose one.
+const rlOwner  = makeRateLimiter({ capacity: 30, refillPerSec: 0.5 });        // per wallet, every call
+const rlAdd    = makeRateLimiter({ capacity: 10, refillPerSec: 10 / 600 });   // per wallet, attach/verify only
 const rlIp     = makeRateLimiter({ capacity: 60, refillPerSec: 1 });          // per source ip
 const rlFetch  = makeRateLimiter({ capacity: 120, refillPerSec: 10 });        // fleet traffic
 const rlMap    = makeRateLimiter({ capacity: 120, refillPerSec: 4 });         // routing map readers
@@ -573,7 +578,17 @@ async function rowOf(ctx, id, { fresh = false } = {}) {
 
 // Owner gate — identical in shape to secrets.js ownerGate (one convention for
 // owner-signed relay calls; the message string is what differs).
-async function ownerGate(ctx, req, res, id, b, message) {
+//
+// `replay` is the one deliberate departure. Every MUTATION is single-use, as
+// there. The LIST read is not, and that is what makes a live status panel
+// possible: the dashboard re-lists every 30s while it is open, and a wallet
+// prompt every 30s is not a feature anyone would use. What a captured list
+// signature buys inside its ≤10-minute window is a second read of hostnames
+// that are already in DNS and in the CT logs, plus their verification tokens —
+// and a token is not a credential: it is a nonce we look for in the customer's
+// zone, so holding it grants nothing without control of that zone AND the
+// owner's wallet. The expiry bound still applies; nothing else is relaxed.
+async function ownerGate(ctx, req, res, id, b, message, { replay = true } = {}) {
   const now = Math.floor(Date.now() / 1000);
   const expiry = parseInt(b.expiry, 10);
   const signature = String(b.signature || "");
@@ -593,7 +608,7 @@ async function ownerGate(ctx, req, res, id, b, message) {
   if (!d) return bad(ctx, res, req, 404, "not_found", `No deployment ${id} on the ledger.`), null;
   if (String(d.owner).toLowerCase() !== address)
     return bad(ctx, res, req, 403, "not_owner", "The signer does not own this deployment."), null;
-  if (!sigFresh(signature, expiry))
+  if (replay && !sigFresh(signature, expiry))
     return bad(ctx, res, req, 409, "sig_replayed", "This signature was already used; sign a fresh request."), null;
   return { d, address };
 }
@@ -622,7 +637,7 @@ export async function handleDomains(req, res, u, ctx) {
   const expiry = parseInt(b.expiry, 10);
 
   if (action === "list") {
-    const gate = await ownerGate(ctx, req, res, id, b, listMessage(id, expiry));
+    const gate = await ownerGate(ctx, req, res, id, b, listMessage(id, expiry), { replay: false });
     if (!gate) return;
     return ctx.json(res, 200, { id, label: labelFor(id), zone: APP_ZONE,
       limit: DOMAIN_LIMITS.perDeployment, domains: rowsFor(id).map(publicView) }, req);

@@ -118,6 +118,44 @@ c-deployments{display:contents;}
 .enc-sec-status{padding:0 18px 10px;min-height:0;}
 .enc-sec-status:empty{display:none;}
 
+/* per-row Domains (bring-your-own hostnames: the bar carries the toggle, the
+   body lists each attached name with the exact DNS records to create) */
+.enc-dom{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:#080c12;}
+.ed-toggle{float:right;margin:-4px 0 -4px 10px;text-transform:none;letter-spacing:0;}
+.enc-dom-body{display:flex;flex-direction:column;gap:12px;padding:12px 18px;}
+.enc-dom-status{padding:0 18px 10px;min-height:0;}
+.enc-dom-status:empty{display:none;}
+.ed-empty{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);line-height:1.6;}
+.ed-add{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+.ed-in{flex:1 1 220px;min-width:0;background:var(--bg-1);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:.8rem;padding:.5em .7em;}
+.ed-in:focus{border-color:var(--jade-dim);}
+.ed-row{border:1px solid var(--line-soft);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;}
+.ed-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.ed-dot{font-size:.7rem;}
+.ed-dot.ok{color:var(--jade);}
+.ed-dot.warn{color:var(--amber);}
+.ed-dot.info{color:var(--iris);}
+.ed-host{font-family:var(--font-mono);font-size:.82rem;color:var(--text);text-decoration:none;}
+a.ed-host:hover{color:var(--jade);}
+.ed-state{font-family:var(--font-mono);font-size:.7rem;}
+.ed-state.ok{color:var(--jade);}
+.ed-state.warn{color:var(--amber);}
+.ed-state.info{color:var(--iris);}
+.ed-acts{margin-left:auto;display:flex;gap:8px;}
+.ed-acts .btn{text-transform:none;letter-spacing:0;}
+/* the record table: scrolls INSIDE the row - a long delegation target must
+   never widen the dashboard */
+.ed-recs{display:flex;flex-direction:column;gap:6px;overflow-x:auto;}
+.ed-rec{display:flex;gap:8px;align-items:center;font-family:var(--font-mono);font-size:.7rem;white-space:nowrap;}
+.ed-rt{color:var(--iris);min-width:3.2em;}
+.ed-rn{color:var(--text-dim);}
+.ed-rv{color:var(--text);}
+.ed-copy{text-transform:none;letter-spacing:0;padding:.05em .45em;}
+.ed-hint{color:var(--text-dim);white-space:normal;}
+.ed-err{font-family:var(--font-mono);font-size:.7rem;line-height:1.6;}
+.ed-err.warn{color:var(--amber);}
+.ed-err.dimln{color:var(--text-dim);}
+
 /* per-row Output panel (narrative + app logs) */
 .enc-out{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:#080c12;}
 .enc-out-term{max-height:360px;}

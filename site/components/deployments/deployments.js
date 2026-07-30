@@ -101,6 +101,75 @@ function secretsSection(id){
     + '</div>';
 }
 
+// Per-row Domains: attach a hostname you own and the app serves on it, with a
+// certificate minted inside the enclave. Collapsed to a bar until opened -
+// listing needs a wallet signature (the relay proves ownership against the
+// ledger), so nothing is fetched until the customer asks for it.
+function domainsSection(id){
+  const label = appLabel(id);
+  return '<div class="enc-dom" data-id="' + esc(id) + '">'
+    +   '<div class="ap-attbar">'
+    +     '<button class="btn btn-sm ed-toggle" type="button" aria-controls="edBody' + label + '" aria-expanded="false" title="Serve this app on a domain you own, with a certificate minted inside the enclave">Domains ↓</button>'
+    +     'domains · ' + esc(id)
+    +   '</div>'
+    +   '<div class="enc-dom-body" id="edBody' + label + '" hidden>'
+    +     '<div class="ed-list"></div>'
+    +     '<div class="ed-add">'
+    +       '<label class="sr-only" for="edIn' + label + '">Hostname to attach</label>'
+    +       '<input class="ed-in" id="edIn' + label + '" type="text" inputmode="url" spellcheck="false" autocomplete="off" placeholder="shop.example.com">'
+    +       '<button class="btn btn-sm btn-primary ed-add-btn" type="button" title="One wallet signature attaches this hostname">Attach</button>'
+    +     '</div>'
+    +   '</div>'
+    +   '<div class="term enc-dom-status" role="status" aria-live="polite"></div>'
+    + '</div>';
+}
+
+// One attached domain: its state, the records to create, and what to fix.
+// Every status carries an action — a customer looking at this should never
+// have to guess what the platform is waiting for.
+const DOM_STATE = {
+  pending_dns: { cls: "warn",  dot: "◌", text: "waiting for DNS" },
+  verified:    { cls: "info",  dot: "◍", text: "verified · certificate on the way" },
+  active:      { cls: "ok",    dot: "●", text: "live" },
+  failed:      { cls: "warn",  dot: "○", text: "not verified" },
+};
+function domainRow(d){
+  const s = DOM_STATE[d.status] || DOM_STATE.failed;
+  const rec = (r, hint) => '<div class="ed-rec">'
+    + '<span class="ed-rt">' + esc(r.type) + '</span>'
+    + '<code class="ed-rn" title="record name">' + esc(r.name) + '</code>'
+    + '<code class="ed-rv" title="record value">' + esc(r.value) + '</code>'
+    + '<button class="btn btn-sm ed-copy" type="button" data-copy="' + esc(r.value) + '" title="Copy the value">copy</button>'
+    + (hint ? '<span class="ed-hint">' + esc(hint) + '</span>' : '')
+    + '</div>';
+  const live = d.status === "active";
+  return '<div class="ed-row" data-host="' + esc(d.hostname) + '">'
+    + '<div class="ed-head">'
+    +   '<span class="ed-dot ' + s.cls + '" aria-hidden="true">' + s.dot + '</span>'
+    +   (live ? '<a class="ed-host" href="https://' + esc(d.hostname) + '/" target="_blank" rel="noopener">' + esc(d.hostname) + ' ↗</a>'
+            : '<span class="ed-host">' + esc(d.hostname) + '</span>')
+    +   '<span class="ed-state ' + s.cls + '">' + esc(s.text) + '</span>'
+    +   '<span class="ed-acts">'
+    +     (live ? '' : '<button class="btn btn-sm ed-check" type="button" title="Check the DNS records now (they are re-checked automatically every few minutes)">check now</button>')
+    +     '<button class="btn btn-sm ed-del" type="button" title="Detach this hostname: routing stops and the certificate is dropped">detach</button>'
+    +   '</span>'
+    + '</div>'
+    // Records stay visible while live: people move DNS providers, and the
+    // delegation CNAME must survive the move or renewal quietly stops working.
+    + '<div class="ed-recs">'
+    +   rec(d.records.routing, d.hostname.split(".").length <= 2 ? "apex: use CNAME flattening, or A/AAAA to our edge" : "")
+    +   rec(d.records.challenge, "proves you own the name")
+    +   rec(d.records.acme, "keeps the certificate renewing — leave it in place")
+    + '</div>'
+    + (d.lastError ? '<div class="ed-err warn">⚠ ' + esc(d.lastError) + '</div>' : '')
+    + (d.caaWarning ? '<div class="ed-err warn">⚠ ' + esc(d.caaWarning) + '</div>' : '')
+    + (d.certificate && d.certificate.error
+        ? '<div class="ed-err warn">⚠ certificate: ' + esc(d.certificate.error) + '</div>' : '')
+    + (live && d.certificate && d.certificate.ca
+        ? '<div class="ed-err dimln">// certificate issued by ' + esc(d.certificate.ca) + ', minted inside the enclave</div>' : '')
+    + '</div>';
+}
+
 function shortImg(s){ if (!s) return ""; return s.length > 44 ? s.slice(0, 42) + "…" : s; }
 // Status buckets for the filter bar: coarse groups beat ten raw statuses.
 // Unknown/new statuses land in "ended" rather than vanishing.
@@ -183,7 +252,7 @@ class Deployments extends EnclaveElement {
     // the open panel the user just unlocked - skip the repaint, the poll
     // catches up once the panel closes.
     this._onAuth = (e) => {
-      if (Enclave.address && this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden])")) return;
+      if (Enclave.address && this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden])")) return;
       this.refresh({ spinner: !!(e.detail && e.detail.spinner) });
     };
     document.addEventListener("enclave:auth", this._onAuth);
@@ -215,7 +284,7 @@ class Deployments extends EnclaveElement {
     // clobber rule as _onAuth; the regular poll catches up after it closes).
     loadCatalog();
     this._onCat = () => {
-      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden])")) return;
+      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden])")) return;
       if (this._list) this._renderRows(this._list);
     };
     document.addEventListener("enclave:catalog", this._onCat);
@@ -436,6 +505,7 @@ class Deployments extends EnclaveElement {
         '<div class="enc-move" hidden></div>' +
         '<div class="enc-waf" hidden></div>' +
         (onchain && (live || resumable) && ctl === "wallet" ? secretsSection(d.id) : '') +
+        (onchain && (live || resumable) && ctl === "wallet" ? domainsSection(d.id) : '') +
         '<div class="enc-out" data-id="' + esc(d.id) + '" hidden></div>' +
         '<div class="enc-att" hidden></div>' +
       '</div>';
@@ -448,6 +518,7 @@ class Deployments extends EnclaveElement {
     $$(".enc-movebtn", body).forEach(b => b.addEventListener("click", () => this._move(b.dataset.id, b)));
     $$(".enc-wafbtn", body).forEach(b => b.addEventListener("click", () => this._waf(b.dataset.id, b)));
     $$(".enc-sec[data-id]", body).forEach(el => this._secretsWire(el));
+    $$(".enc-dom[data-id]", body).forEach(el => this._domainsWire(el));
     $$(".enc-verify", body).forEach(b => b.addEventListener("click", () => this._verify(b.dataset.id, b)));
     $$(".enc-kill", body).forEach(b => b.addEventListener("click", () => this._kill(b.dataset.id, b)));
     $$(".enc-refund", body).forEach(b => b.addEventListener("click", () => this._refund(b.dataset.id, b)));
@@ -1280,6 +1351,143 @@ class Deployments extends EnclaveElement {
     });
   }
 
+  /* ---- per-row Domains: attach a hostname you own ------------------------
+     Four signed calls (list/add/verify/delete), each an EIP-191 personal_sign
+     the relay checks against the deployment's on-chain owner - the secrets
+     convention, same shapes:
+       list:   enclave-domains:list:<id>:<expiry>
+       add:    enclave-domains:add:<id>:<expiry>:<hostname>
+       verify: enclave-domains:verify:<id>:<expiry>:<hostname>
+       delete: enclave-domains:del:<id>:<expiry>:<hostname>
+     The hostname in a signed message is the NORMALIZED one, so the client
+     normalizes before signing and the relay re-normalizes before checking -
+     "EXAMPLE.com " must not produce a signature over a string no record will
+     ever match again.
+     While the panel is open it re-lists every 30s WITHOUT a signature prompt,
+     reusing the one the customer already gave until it expires - watching
+     pending_dns become live is the whole point of the panel, and a wallet
+     popup every 30s is not a feature anyone would use. The relay exempts the
+     LIST read from its single-use rule for exactly this (mutations stay
+     single-use, so every one of those drops the cached signature). */
+  _domainsWire(box) {
+    const id = box.dataset.id;
+    const toggle = box.querySelector(".ed-toggle"), body_ = box.querySelector(".enc-dom-body"),
+          list = box.querySelector(".ed-list"), input = box.querySelector(".ed-in"),
+          add = box.querySelector(".ed-add-btn"), st = box.querySelector(".enc-dom-status");
+    if (!id || !toggle || !body_ || !list || !input || !add || !st) return;
+    const paint = (cls, txt) => paintLine(st, cls, txt);
+    const sign = async (message) => {
+      if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
+      return Enclave.provider.request({ method: "personal_sign", params: [message, Enclave.address] });
+    };
+    const call = async (path, body) => {
+      const r = await fetch(Enclave.base + path, { method: "POST",
+        headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.message || j.error || ("HTTP " + r.status));
+      return j;
+    };
+    // Same normalization the relay applies, so what gets signed is what gets
+    // stored. Deliberately lenient about what it ACCEPTS (a pasted URL, a
+    // trailing dot) and strict about what it EMITS.
+    const norm = (s) => String(s || "").trim().toLowerCase()
+      .replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/\.+$/, "");
+    let timer = null, listSig = null;   // { expiry, signature } reused by the poll
+
+    const render = (r) => {
+      const rows = r.domains || [];
+      list.innerHTML = rows.length ? rows.map(domainRow).join("")
+        : '<div class="ed-empty">No domains attached. Add one below and this app will serve it '
+          + 'on your own name, with a certificate minted inside the enclave.</div>';
+      $$(".ed-copy", list).forEach(b => b.addEventListener("click", () => copyText(b.dataset.copy)));
+      $$(".ed-check", list).forEach(b => b.addEventListener("click", () =>
+        act("verify", b.closest(".ed-row").dataset.host, b)));
+      $$(".ed-del", list).forEach(b => b.addEventListener("click", () =>
+        act("delete", b.closest(".ed-row").dataset.host, b)));
+      const pending = rows.filter(d => d.status !== "active").length;
+      if (rows.length) paint("dimln", "// " + rows.length + " of " + r.limit + " attached"
+        + (pending ? " · " + pending + " waiting on DNS or a certificate - re-checked automatically" : " · all live"));
+      else st.innerHTML = "";
+    };
+
+    const refresh = async ({ interactive = true } = {}) => {
+      const now = Math.floor(Date.now() / 1000);
+      if (!listSig || listSig.expiry <= now + 10) {
+        if (!interactive) return;                       // poll: never prompt, just wait for the next user action
+        const expiry = now + 300;
+        listSig = { expiry, signature: await sign("enclave-domains:list:" + id + ":" + expiry) };
+      }
+      render(await call("/domains/" + id + "/list", listSig));
+    };
+
+    // add/verify/delete: one signature each, then re-list. The re-list needs a
+    // FRESH signature (the relay makes every owner signature single-use), so
+    // the cached one is dropped whenever a mutation lands.
+    const act = async (kind, hostname, btn) => {
+      const host = norm(hostname);
+      if (!host) return paint("warn", "[x] enter a hostname");
+      if (btn) btn.disabled = true;
+      try {
+        const expiry = Math.floor(Date.now() / 1000) + 300;
+        const msg = { add: "enclave-domains:add:", verify: "enclave-domains:verify:", delete: "enclave-domains:del:" }[kind]
+                  + id + ":" + expiry + ":" + host;
+        paint("info", "[*] one signature " + { add: "attaches", verify: "re-checks", delete: "detaches" }[kind] + " " + host + "…");
+        const signature = await sign(msg);
+        const path = "/domains/" + id + (kind === "add" ? "" : "/" + kind);
+        const r = await call(path, { hostname: host, expiry, signature });
+        listSig = null;
+        if (kind === "delete") {
+          paint("ok", "[✓] " + host + " detached - remove its DNS records at your provider too");
+          showToast(host + " detached");
+        } else if (r.status === "active" || r.status === "verified") {
+          paint("ok", "[✓] " + host + " verified" + (r.status === "active" ? " and live" : " - the certificate is being minted, usually within a minute"));
+        } else {
+          paint("warn", "[!] " + host + " attached · " + (r.lastError || "create the DNS records below; we re-check every few minutes"));
+        }
+        if (kind === "add") input.value = "";
+        await refresh();
+        // fleet advisory, exactly like secrets: the relay stores regardless,
+        // but serving the name needs runners that know the feature
+        try {
+          const a = await Enclave.getAvailability();
+          if (a && a.aggregate && a.customDomains !== true)
+            paint("dimln", "// heads-up: the live fleet doesn’t serve custom domains yet - this one starts working once it updates");
+        } catch(e){}
+      } catch(e){
+        const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
+        paint("warn", rejected ? "[x] rejected in wallet - nothing changed" : "[x] " + (e.message || String(e)));
+      } finally { if (btn) btn.disabled = false; }
+    };
+
+    toggle.addEventListener("click", async () => {
+      if (toggle.dataset.open) {
+        body_.hidden = true; delete toggle.dataset.open;
+        toggle.textContent = "Domains ↓";
+        toggle.setAttribute("aria-expanded", "false");
+        st.innerHTML = ""; list.innerHTML = ""; listSig = null;
+        clearInterval(timer); timer = null;
+        return;
+      }
+      toggle.disabled = true;
+      try {
+        paint("info", "[*] one signature lists this deployment’s domains…");
+        await refresh();
+        body_.hidden = false;
+        toggle.dataset.open = "1";
+        toggle.textContent = "Hide";
+        toggle.setAttribute("aria-expanded", "true");
+        // While it's open, keep the statuses moving on their own - the whole
+        // point of the panel is watching pending_dns become live.
+        clearInterval(timer);
+        timer = setInterval(() => refresh({ interactive: false }).catch(() => {}), 30000);
+      } catch(e){
+        paint("warn", "[x] " + (e.message || String(e)));
+      } finally { toggle.disabled = false; }
+    });
+    add.addEventListener("click", () => act("add", input.value, add));
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); act("add", input.value, add); } });
+  }
+
   /* ---- per-row Output panel: recorded deploy narrative + live app logs ---- */
   _output(id, btn) {
     const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-out"); if (!box) return;
@@ -1853,7 +2061,7 @@ class Deployments extends EnclaveElement {
     if (this._poll) return;
     this._poll = setInterval(() => {
       if (!Enclave.address && !Enclave.accountAuthed()){ this._stopPoll(); return; }
-      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden])")) return;   // don't clobber an open attestation/output/top-up view
+      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden])")) return;   // don't clobber an open attestation/output/top-up view
       this.refresh();
     }, 10000);
   }
