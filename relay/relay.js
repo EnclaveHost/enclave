@@ -409,10 +409,22 @@ async function appOwnerOf(label) {
 // Hostnames this relay does not route get 421, the same answer as an unknown
 // SNI — never a redirect, so this is not a general-purpose reflector.
 const HTTP_METHOD_RE = /^[A-Z]{3,10}$/;
+// What an unrouted hostname is told. A bare status code is a dead end: the
+// first person to point a real domain here and get "HTTP ERROR 421" had no way
+// to tell a DNS mistake from a platform one (2026-07-30 — it was neither; the
+// relay simply had not been told where to read the domain map). Say the one
+// thing that distinguishes the cases. It discloses nothing: the answer is
+// identical whether the hostname is attached to somebody else, half-verified,
+// or has never been heard of.
+const UNROUTED_BODY = "This hostname is not served here.\n\n"
+  + "If you are attaching a custom domain, it is not verified yet — open the\n"
+  + "Domains section of your deployment to see which DNS record is missing.\n";
 function httpsRedirect(client, head) {
-  const reply = (status, extra = "") => {
-    client.end(`HTTP/1.1 ${status}\r\nConnection: close\r\nContent-Length: 0\r\n`
-             + `Cache-Control: no-store\r\n${extra}\r\n`);
+  const reply = (status, extra = "", body = "") => {
+    client.end(`HTTP/1.1 ${status}\r\nConnection: close\r\n`
+             + `Content-Type: text/plain; charset=utf-8\r\n`
+             + `Content-Length: ${Buffer.byteLength(body)}\r\n`
+             + `Cache-Control: no-store\r\n${extra}\r\n${body}`);
   };
   const lines = head.split("\r\n");
   const [method, target, version] = (lines[0] || "").split(" ");
@@ -427,7 +439,7 @@ function httpsRedirect(client, head) {
   if (!/^[a-z0-9.-]{1,253}$/.test(host)) return reply("400 Bad Request");
   const routed = customDomains.has(host)
     || [...APP_DOMAINS, ...DOMAINS].some((d) => host.endsWith("." + d));
-  if (!routed) return reply("421 Misdirected Request");
+  if (!routed) return reply("421 Misdirected Request", "", UNROUTED_BODY);
   reply("301 Moved Permanently", `Location: https://${host}${target}\r\n`);
 }
 

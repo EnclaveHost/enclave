@@ -25,6 +25,9 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const APP_DOMAIN = "app.test";
 const CUSTOM = "shop.example.com";
 const DEP = "0x" + "cc1f4f3f" + "cd".repeat(28);
+const UNROUTED_BODY_TEXT = "This hostname is not served here.\n\n"
+  + "If you are attaching a custom domain, it is not verified yet — open the\n"
+  + "Domains section of your deployment to see which DNS record is missing.\n";
 
 let proc, httpPort, mapServer, mapPort, mapHits = 0;
 
@@ -135,6 +138,13 @@ test("a hostname we do not route gets 421 and no redirect — this is not a refl
     const r = await raw(httpPort, `GET / HTTP/1.1\r\nHost: ${host}\r\n\r\n`);
     assert.match(r, /^HTTP\/1\.1 421 /, host);
     assert.ok(!/Location:/i.test(r), `${host} was redirected`);
+    // …and it SAYS what to do. A bare status code sent the first real user of
+    // this feature hunting through DNS for a fault that was on our side.
+    assert.match(r, /not served here/, host);
+    assert.match(r, /Domains section/, host);
+    // the refusal must still be identical for every unrouted host — it must not
+    // become a way to ask whether a hostname is attached to somebody else
+    assert.equal(r.split("\r\n\r\n")[1], UNROUTED_BODY_TEXT, host);
   }
   // …while an unknown label in OUR OWN zone still redirects: the https attempt
   // is where that name gets refused (no cert, no handshake), and sending a
