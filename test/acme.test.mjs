@@ -182,6 +182,18 @@ test("sni: app-zone names are CA-or-refuse; pin-flow names keep the bridge pair"
   assert.equal(v.noSni,      "bridge");   // SNI-less clients = pin flow by definition
 });
 
+// A customer's own domain is CA-or-refuse for a sharper reason than an app-zone
+// name: the bridge pair is a wildcard for OUR zone, so on their hostname it is
+// not merely unauthenticatable, it is plainly invalid. Serving it would put a
+// certificate error on the customer's brand. A name we manage nothing for is
+// unaffected — that is still the pin flow.
+test("sni: an attached custom domain is CA-or-refuse; unmanaged names are untouched", async () => {
+  const v = await selftest("sni", { APP_CERT_DOMAIN: "app.enclave.host" });
+  assert.equal(v.customHeld,   "acme");     // its own CA cert, minted in-CVM
+  assert.equal(v.customNoCert, "refuse");   // attached but not yet issued -> no handshake
+  assert.equal(v.unknownName,  "bridge");   // same string, NOT attached -> unchanged behavior
+});
+
 test("sni: no APP_CERT_DOMAIN (feature off) leaves every name on the bridge pair", async () => {
   const v = await selftest("sni", {});    // APP_CERT_DOMAIN cleared by the harness
   assert.equal(v.appNoCert, "bridge");

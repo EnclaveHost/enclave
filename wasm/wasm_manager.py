@@ -518,6 +518,35 @@ SECRETS_MAX_KEYS, SECRETS_MAX_VALUE, SECRETS_MAX_TOTAL = 64, 4096, 16384
 _SECRET_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 
 
+# Every hostname this deployment legitimately answers on, comma-separated: its
+# own <label>.app.enclave.host plus any custom domain its owner attached and
+# proved (relay/domains.js). Handed to the guest as ENCLAVE_HOSTS so an app can
+# build the things only IT can build — a Host allowlist, CSRF trusted origins,
+# a websocket Origin check — without hardcoding a hostname it cannot know at
+# publish time. Absolute URLs and redirects should still come from the REQUEST
+# Host (which the in-enclave TLS bridge passes through untouched); this list is
+# for deciding which Hosts are legitimate, not for picking one.
+#
+# Spawn-time, like secrets: a newly attached domain reaches the guest at the
+# next start. Routing, TLS and the cross-tenant Host refusal are all live
+# immediately, so the gap is an app-level allowlist and nothing structural.
+HOSTS_MAX_BYTES = 4096
+_HOSTNAME_RE = re.compile(r"^[a-z0-9.-]{1,253}$")
+
+
+def _validate_hosts(text) -> str:
+    """Comma-separated hostnames, normalized and filtered. Never fatal: a bad
+    entry is dropped rather than failing the launch, because this is platform
+    metadata about a running app, not the app's own configuration."""
+    out = []
+    for h in str(text or "").lower().split(","):
+        h = h.strip().rstrip(".")
+        if h and _HOSTNAME_RE.match(h) and h not in out:
+            out.append(h)
+    joined = ",".join(out)
+    return joined[:HOSTS_MAX_BYTES] if len(joined) <= HOSTS_MAX_BYTES else ""
+
+
 # Config placeholders: $NAME / ${NAME} inside any STRING value of the config
 # JSON resolves to the deployment's secret of that name at launch, so a PUBLIC
 # on-chain config can reference private values ("credentials": {"secretAccessKey":
@@ -2344,7 +2373,7 @@ def _loopback_flag_supported() -> bool:
 def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdir=None,
                nn=False, enclave_config=None, vol_mounts=None, egress=None, egress_transparent=None,
                enc=None, gpu_share: float = 0.0, nn_report=None, secrets=None,
-               cpu_share: float = 0.0, nn_resident_other: int = 0):
+               cpu_share: float = 0.0, nn_resident_other: int = 0, hosts=""):
     """The wasmtime invocation for a ports spec. Returns (cmd, host_port, wait_ports).
     `nn_report`, when a dict, is filled with the wasi-nn preload plan:
     {"emitted": [vol...], "skipped": {vol: why}, "stages": {vol: "kind::dir"},
@@ -2396,6 +2425,11 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     # a log line. Set in both modes: a `serve` app makes outbound calls too.
     if egress:
         cfg_args += ["--env", "ENCLAVE_EGRESS=" + egress]
+    # the hostnames this deployment answers on (see _validate_hosts). Public
+    # information — it is in DNS and in the CT logs — so unlike the values
+    # above it is safe in a log line; it rides here to stay with the guest env.
+    if hosts:
+        cfg_args += ["--env", "ENCLAVE_HOSTS=" + hosts]
     # attached model volumes: preopen each mount as a guest /models/<name> dir.
     # Read-only in practice (dm-verity/EROFS mounts are physically read-only);
     # ENCLAVE_MODELS lists the mounted names so the app can discover them without
@@ -2756,7 +2790,7 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
 
 def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
            mem_mb: int = 0, pspec=None, storage_mb=None, config="", volumes=None,
-           egress="", secrets=None) -> dict:
+           egress="", secrets=None, hosts="") -> dict:
     pspec = pspec or _parse_ports([])
     if storage_mb is None:
         storage_mb = DEF_STORAGE_MB
@@ -2974,7 +3008,8 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
 
     ctx = {"pspec": pspec, "wasm": wasm, "port": port, "port_map": port_map, "fsdir": fsdir,
            "nn": nn, "enclave_config": enclave_config, "vol_mounts": vol_mounts, "gpu_share": gpu_share,
-           "log_path": log_path, "egress": egress, "enc": enc, "secrets": secrets}
+           "log_path": log_path, "egress": egress, "enc": enc, "secrets": secrets,
+           "hosts": _validate_hosts(hosts)}
     return _spawn_and_wait(rec, ctx)
 
 
@@ -3114,7 +3149,8 @@ def _spawn_and_wait(rec, ctx):
                                             enclave_config, vol_mounts, egress, egress_transparent,
                                             ctx.get("enc"), gpu_share=gpu_share, nn_report=nn_report,
                                             secrets=ctx.get("secrets"), cpu_share=cpu_share,
-                                            nn_resident_other=_nn_resident_bytes(exclude=rec["id"]))
+                                            nn_resident_other=_nn_resident_bytes(exclude=rec["id"]),
+                                            hosts=ctx.get("hosts", ""))
     # the preload plan, public on the record: what the boot preload will
     # attempt (nnPreloads) and why the rest won't (nnSkipped). The watchdog
     # sweep compares this against what a launch would emit NOW; the log
@@ -3987,10 +4023,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         config = str(b.get("config") or "").strip()                # per-deployment ENCLAVE_CONFIG (the version's config, inline; validated in launch)
         egress = str(b.get("egress") or "").strip()                # per-deployment ENCLAVE_EGRESS (opaque SOCKS URL, forwarded verbatim)
         secrets = b.get("secrets") or None                         # relay-staged owner secrets (guest --env; validated in launch, never logged)
+        hosts = str(b.get("hosts") or "").strip()                  # every hostname this deployment answers on -> guest ENCLAVE_HOSTS
         req_vols = b.get("volumes") or []                          # attached model volumes by name
         if not isinstance(req_vols, list):
             return self._json(400, {"error": "volumes must be a list of volume names"})
-        rec = launch(app_ref, name, cpu_share, gpu_share, mem_mb, pspec, storage_mb, config, req_vols, egress, secrets)
+        rec = launch(app_ref, name, cpu_share, gpu_share, mem_mb, pspec, storage_mb, config, req_vols, egress, secrets, hosts)
         code = 201 if rec["status"] in ("starting", "running") else 500
         return self._json(code, _public(rec))
 
