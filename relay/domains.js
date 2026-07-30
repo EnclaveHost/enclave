@@ -358,6 +358,16 @@ export function domainMap() {
   return out;
 }
 
+// One hostname's deployment, for the request path (a per-request domainMap()
+// would rebuild the whole object to answer one lookup). Same rule as the map:
+// verified and active route, everything else is unknown.
+export function domainDeployment(hostname) {
+  if (!enabled) return null;
+  const h = String(hostname || "").toLowerCase().split(":")[0].replace(/\.+$/, "");
+  const r = recOf(h);
+  return r && (r.status === "verified" || r.status === "active") ? r.deploymentId : null;
+}
+
 // The certificate-authorization gate. This is the "ask" endpoint of Caddy's
 // on_demand_tls / certmagic's DecisionFunc, in the shape this stack needs: it
 // answers only from memory (a DNS lookup here would put a network round trip in

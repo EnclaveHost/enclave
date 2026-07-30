@@ -72,7 +72,7 @@ import { isMcpHost, handleMcp } from "./mcp.js";
 import { handleAccount, initAccounts } from "./auth.js";
 import { handleBilling, initBilling } from "./billing.js";
 import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep } from "./secrets.js";
-import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainMap, tlsAskAllowed } from "./domains.js";
+import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDeployment, tlsAskAllowed } from "./domains.js";
 import { createTunnelHub } from "./tunnel.js";
 import { boxOrigin, boxLabelOfHost } from "./boxhost.js";
 installProcessGuards("api-relay");
@@ -1520,7 +1520,15 @@ function handleRequest(req, res) {
   // App subdomain: <dep-id>.<APP_DOMAIN> is the deployment's OWN origin. Route it
   // to the OWNING enclave's /x/<id> data path, passing the app's own headers
   // through (it's a distinct origin, so the gateway doesn't impose CORS).
-  const depHost = depFromHost(routingHost(req));            // x-forwarded-host only when TRUSTED_PROXY (fix 6)
+  //
+  // A verified CUSTOM domain resolves to the same deployment and takes exactly
+  // this path. The SNI relay is the normal route for those names, so reaching
+  // here means something terminated TLS in front of us (a customer's CDN, or a
+  // Caddy that fronts this relay) — the routing answer must be the same either
+  // way, and an unknown hostname must reach no app at all rather than the
+  // first one that happens to answer.
+  const depHost = depFromHost(routingHost(req))             // x-forwarded-host only when TRUSTED_PROXY (fix 6)
+               || domainDeployment(routingHost(req));
   if (depHost) {
     if (!ownerCached(depHost) && !rlMiss(clientIp(req))) return json(res, 429, { error: "rate_limited", message: "Too many lookups; retry shortly." });
     return xOwnerOf(depHost).then((owner) => {

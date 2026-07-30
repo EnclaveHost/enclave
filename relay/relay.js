@@ -29,6 +29,20 @@
 //                                     into the app's HTTP surface). All TLS
 //                                     terminates in-CVM with ACME certs; this
 //                                     box never holds keys. Unset = off.
+//   DOMAINS_API             optional  api-relay origin to read the custom-domain
+//                                     routing map from (GET /v1/domains/map),
+//                                     e.g. "https://api.enclave.host". Customer
+//                                     hostnames are exact-matched against that
+//                                     map and route exactly like the app
+//                                     subdomain they name. Unset = off, and an
+//                                     unknown SNI keeps being refused. The map
+//                                     is public read-only data (every hostname
+//                                     in it is already in DNS and in the CT
+//                                     logs), so this needs no credential —
+//                                     which keeps this box "holds no secrets".
+//   REDIRECT_HTTP_PORT      optional  logical port to answer plaintext HTTP on
+//                                     with a 301 to https (default 80; 0 = off).
+//                                     Only for hostnames this relay routes.
 //   REGISTRY_ADDRESS        required* EnclaveRegistry on Base: FLEET discovery — the
 //                                     relay routes each SNI'd deployment to the
 //                                     enclave that OWNS it (learned from every
@@ -85,6 +99,12 @@ const DOMAIN    = DOMAINS[0] || null;
 // App-subdomain suffixes (in-enclave browser TLS). Optional; empty = feature off.
 const APP_DOMAINS = (process.env.APP_DOMAIN || "").toLowerCase().split(",")
   .map(s => s.trim().replace(/^\.+|\.+$/g, "")).filter(Boolean);
+// Customer-owned hostnames. These share nothing with the suffix rules above:
+// a custom domain is an EXACT name, learned from the api-relay's routing map,
+// and it resolves to the very same deployment (and therefore the very same
+// enclave, cert and bridge path) as that deployment's own app subdomain.
+const DOMAINS_API = (process.env.DOMAINS_API || "").trim().replace(/\/+$/, "");
+const REDIRECT_HTTP_PORT = parseInt(process.env.REDIRECT_HTTP_PORT || "80", 10);
 // FLEET discovery (REGISTRY_ADDRESS / ENCLAVES / legacy ENCLAVE_URL): the relay
 // learns which enclave owns each deployment from their /v1/net-map, so one box
 // serves the whole fleet and follows enclaves as they come and go.
@@ -178,6 +198,36 @@ async function poll() {
   for (const o of [...originDeps.keys()]) if (!live.has(o)) originDeps.delete(o);
 }
 
+// --- custom domains: hostname -> deployment id -------------------------------
+// The api-relay's domain store is the authority for WHICH deployment a
+// customer hostname belongs to (an owner signed for it and its DNS was
+// verified); the chain stays the authority for WHICH ENCLAVE that deployment
+// runs on (appOwnerOf below). Splitting it that way means neither a hostile
+// enclave nor a hostile map reader can point somebody's domain anywhere: the
+// map cannot name an enclave, and an enclave cannot name a domain.
+//
+// A poll that FAILS keeps the last map, exactly like the net-map poll: a relay
+// blip must not dark every custom domain on the platform.
+const customDomains = new Map();                           // hostname -> full deployment id
+async function pollDomains() {
+  if (!DOMAINS_API) return;
+  const m = await fetchJson(DOMAINS_API + "/v1/domains/map");
+  if (!m || !m.domains || typeof m.domains !== "object") return;
+  const next = new Map();
+  for (const [host, id] of Object.entries(m.domains)) {
+    const h = String(host).toLowerCase().replace(/\.+$/, "");
+    // Defensive, not decorative: this map is the one input to routing that
+    // comes over the network, and a name matching an app/legacy suffix would
+    // let a bad map shadow the suffix rules below.
+    if (!/^[a-z0-9.-]{1,253}$/.test(h) || !/^(0x[0-9a-f]{64}|dep_[a-z0-9]+)$/.test(String(id).toLowerCase())) continue;
+    if ([...APP_DOMAINS, ...DOMAINS].some((d) => h === d || h.endsWith("." + d))) continue;
+    next.set(h, String(id).toLowerCase());
+  }
+  if (next.size !== customDomains.size) console.log(`[relay] custom domains: ${next.size} routed`);
+  customDomains.clear();
+  for (const [k, v] of next) customDomains.set(k, v);
+}
+
 // Resolve a SNI label to { origin, id, tcp } (tcp = the deployment's declared
 // tcp ports). Matches an exact id, or (for on-chain bytes32 ids) a unique hex
 // prefix; ambiguous prefixes are refused.
@@ -210,9 +260,46 @@ function handle(client, logicalPort) {
   const timer = setTimeout(() => client.destroy(), HELLO_MS);
   const onData = (chunk) => {
     buf = Buffer.concat([buf, chunk]);
+    // Plaintext on the HTTP port. A customer's own domain is a name people TYPE,
+    // and they type it without a scheme — so the first request a custom domain
+    // ever sees is usually http://. Before this, that connection was reset as a
+    // malformed ClientHello ("this site can't be reached", with a valid site one
+    // redirect away). Answer it ourselves; nothing is terminated and no app
+    // bytes are involved, so the box still holds no keys and sees no plaintext
+    // that wasn't already addressed to it.
+    if (REDIRECT_HTTP_PORT && logicalPort === REDIRECT_HTTP_PORT && buf.length && buf[0] !== 0x16) {
+      const head = buf.toString("latin1");
+      const end = head.indexOf("\r\n\r\n");
+      if (end === -1) { if (buf.length > 8192) { clearTimeout(timer); client.destroy(); } return; }
+      client.off("data", onData); clearTimeout(timer);
+      return httpsRedirect(client, head.slice(0, end));
+    }
     const sni = sniFromClientHello(buf);
     if (sni === null) { if (buf.length > 20000) { clearTimeout(timer); client.destroy(); } return; }
     client.off("data", onData); clearTimeout(timer);
+    // A CUSTOMER's own hostname: exact match, and it lands on precisely the
+    // path its deployment's own subdomain would have. Checked before the suffix
+    // rules because it is an exact lookup and cannot be a suffix match (the
+    // add endpoint refuses any name in a zone we own, and pollDomains drops
+    // one anyway).
+    const customId = (sni !== false) && customDomains.get(sni);
+    if (customId) {
+      const label = customId.startsWith("0x") ? customId.slice(2, 10) : customId.replace(/^dep[-_]/, "");
+      const owned = resolve(label);
+      // Same 443-precedence rule as the app zone: a tenant that DECLARED tcp:443
+      // owns 443 on every name that reaches them, their own domain included.
+      if (owned && owned.tcp.has(logicalPort)) {
+        client.pause();
+        return splice(client, owned.origin, owned.id, `/x/${encodeURIComponent(owned.id)}/tls/${logicalPort}`, buf);
+      }
+      if (logicalPort !== 443) return client.destroy();
+      client.pause();
+      appOwnerOf(customId).then((origin) => {
+        if (!origin || client.destroyed) return client.destroy();
+        splice(client, origin, customId, `/x/${encodeURIComponent(customId)}/https`, buf);
+      });
+      return;
+    }
     // App-subdomain names ride the same passthrough but land on the enclave's
     // /x/<label>/https path (in-enclave ACME cert + the app's normal HTTP
     // serving) instead of a tenant TCP port. Browsers only: 443.
@@ -307,6 +394,39 @@ async function appOwnerOf(label) {
   return origin;
 }
 
+// Answer a plaintext HTTP request on the redirect port with a 301 to the same
+// URL over https. `head` is the request head with no trailing CRLFCRLF.
+//
+// Everything that reaches the response is validated rather than escaped: the
+// Host is matched against a strict hostname charset and the target must be
+// printable ASCII with no space, so neither can carry the CR/LF that would let
+// a client write its own response headers (a bare LF inside the request line
+// survives a split on CRLF, which is exactly how that bug is usually written).
+// Hostnames this relay does not route get 421, the same answer as an unknown
+// SNI — never a redirect, so this is not a general-purpose reflector.
+const HTTP_METHOD_RE = /^[A-Z]{3,10}$/;
+function httpsRedirect(client, head) {
+  const reply = (status, extra = "") => {
+    client.end(`HTTP/1.1 ${status}\r\nConnection: close\r\nContent-Length: 0\r\n`
+             + `Cache-Control: no-store\r\n${extra}\r\n`);
+  };
+  const lines = head.split("\r\n");
+  const [method, target, version] = (lines[0] || "").split(" ");
+  if (!HTTP_METHOD_RE.test(method || "") || !/^HTTP\/1\.[01]$/.test(version || "")) return reply("400 Bad Request");
+  if (!target || !target.startsWith("/") || !/^[!-~]+$/.test(target)) return reply("400 Bad Request");
+  let host = "";
+  for (const l of lines.slice(1)) {
+    const i = l.indexOf(":");
+    if (i > 0 && l.slice(0, i).trim().toLowerCase() === "host") { host = l.slice(i + 1).trim().toLowerCase(); break; }
+  }
+  host = host.replace(/:\d+$/, "").replace(/\.+$/, "");
+  if (!/^[a-z0-9.-]{1,253}$/.test(host)) return reply("400 Bad Request");
+  const routed = customDomains.has(host)
+    || [...APP_DOMAINS, ...DOMAINS].some((d) => host.endsWith("." + d));
+  if (!routed) return reply("421 Misdirected Request");
+  reply("301 Moved Permanently", `Location: https://${host}${target}\r\n`);
+}
+
 function splice(client, origin, dep, path, hello) {
   const ws = new WebSocket(wsOrigin(origin) + path, { perMessageDeflate: false });
   const wsStream = createWebSocketStream(ws);
@@ -335,6 +455,12 @@ function splice(client, origin, dep, path, hello) {
 await fleet.start();
 await poll();
 setInterval(poll, POLL_MS);
+// custom-domain map: same "keep the last good answer" rule as the net-map poll
+if (DOMAINS_API) {
+  await pollDomains().catch(() => {});
+  setInterval(() => pollDomains().catch(() => {}), Math.max(POLL_MS, 30_000)).unref?.();
+  console.log(`[relay] custom domains via ${DOMAINS_API}/v1/domains/map`);
+}
 
 // Range entries skip ports that are busy or privileged-and-denied (a box that
 // also runs sshd etc. keeps working); explicitly listed ports stay fatal so a
