@@ -85,7 +85,7 @@ echo "== api relay (site box)"
 # indexer, OFAC screen, provisioner) ship alongside; they self-disable without
 # StateDirectory/env, so shipping them is always safe. npm ci below installs
 # their deps (@simplewebauthn/server, jose) from the SHIPPED lockfile.
-scp api-relay.js mcp.js auth.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js store.js fleet.mjs net-guard.mjs tunnel.js snp-verify.mjs boxhost.js package.json package-lock.json nan:/opt/nan-relay/
+scp api-relay.js mcp.js auth.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js domains.js store.js fleet.mjs net-guard.mjs tunnel.js snp-verify.mjs boxhost.js package.json package-lock.json nan:/opt/nan-relay/
 scp systemd/enclave-api-relay.service nan:/etc/systemd/system/
 ssh nan 'if [ -f /etc/systemd/system/nan-api-relay.service ]; then \
     systemctl disable --now nan-api-relay || true; rm /etc/systemd/system/nan-api-relay.service; fi \
