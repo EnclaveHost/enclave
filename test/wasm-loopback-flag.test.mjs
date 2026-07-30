@@ -27,6 +27,20 @@ import { fileURLToPath } from "node:url";
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MGR = path.join(REPO, "wasm", "wasm_manager.py");
 
+const FAKE = (body) => {
+  const dir = mkdtempSync(path.join(tmpdir(), "wt-"));
+  const p = path.join(dir, "wasmtime");
+  writeFileSync(p, `#!/bin/sh\n${body}\n`, { mode: 0o755 });
+  return p;
+};
+
+// A wasmtime that advertises the '+' form. The composition tests below are
+// about WHAT lands in the list; without this they would silently depend on the
+// probe's answer for whatever binary is on PATH, which is how they all started
+// failing the moment the probe got stricter.
+const SUPPORTS = FAKE(`echo "  -S    egress=val -- ..."; echo "  -S    loopback-allow=<port[+port...]> -- ..."; exit 0`);
+
+
 // Build a real command line through _build_cmd and return it, plus the parsed
 // loopback list. `kw` is spliced into the call as python keyword arguments.
 function cmdFor(kw = {}, { serve = true, env = {} } = {}) {
@@ -47,11 +61,12 @@ for i, a in enumerate(cmd):
 print(json.dumps({"cmd": cmd, "lb": lb}))
 `;
   const out = execFileSync("python3", ["-c", code], {
-    env: { ...process.env, WASM_MANAGER_PORT: "8091", NODE_HAS_GPU: "0", ...env },
+    env: { ...process.env, WASM_MANAGER_PORT: "8091", NODE_HAS_GPU: "0",
+           WASMTIME_BIN: SUPPORTS, ...env },
     encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
   });
   const r = JSON.parse(out.trim().split("\n").pop());
-  return { ...r, ports: r.lb === null ? null : r.lb.split(",").filter(Boolean).map(Number) };
+  return { ...r, ports: r.lb === null ? null : r.lb.split("+").filter(Boolean).map(Number) };
 }
 
 test("a serve app with nothing to reach gets an EMPTY list, not a missing one", () => {
@@ -85,7 +100,7 @@ test("run mode carries it too — the posture the wall exists for", () => {
   // allow-ALL address check; the flag is what the patched CLI replaces it with.
   const { cmd, ports } = cmdFor({}, { serve: false });
   assert.ok(cmd.includes("-Sinherit-network"), "this is the inherit-network posture");
-  const i = cmd.indexOf("loopback-allow=" + ports.join(","));
+  const i = cmd.indexOf("loopback-allow=" + ports.join("+"));
   assert.ok(i > 0 && cmd[i - 1] === "-S", "the flag must be a real -S option, not a stray argv word");
   // its own actual bind (the port map value), not the logical one
   assert.ok(ports.includes(20002), `the app's own actual port must be dialable: ${ports}`);
@@ -95,7 +110,8 @@ test("the list is sorted, deduped and free of junk", () => {
   const { lb, ports } = cmdFor({ enc: [{}, "http://127.0.0.1:8091/x", "t"],
                                  egress_transparent: "127.0.0.1:8091" }, { serve: false });
   assert.deepEqual(ports, [...new Set(ports)].sort((a, b) => a - b), "sorted + deduped");
-  assert.match(lb, /^\d+(,\d+)*$/, "ports only — the runtime parses this strictly");
+  assert.match(lb, /^\d+(\+\d+)*$/,
+    "PLUS-separated: `-S` splits its argument on commas, so a comma here kills every launch");
 });
 
 // ---- and the other half: never emit an option this binary does not have ------
@@ -105,13 +121,6 @@ test("the list is sorted, deduped and free of junk", () => {
 // is read), EVERY tenant launch on the fleet died — claimed, failed, released,
 // and "queued" forever from outside. So the flag is now conditional on the
 // binary's own `-S help`, and these pin which way each answer falls.
-const FAKE = (body) => {
-  const dir = mkdtempSync(path.join(tmpdir(), "wt-"));
-  const p = path.join(dir, "wasmtime");
-  writeFileSync(p, `#!/bin/sh\n${body}\n`, { mode: 0o755 });
-  return p;
-};
-
 test("a wasmtime WITHOUT the patch is launched without the flag, not fed one it rejects", () => {
   // a readable option list that simply omits loopback-allow = positive evidence
   const bin = FAKE(`echo "  -S    egress=val -- route guest outbound"; exit 0`);
@@ -121,16 +130,30 @@ test("a wasmtime WITHOUT the patch is launched without the flag, not fed one it 
 });
 
 test("a wasmtime WITH the patch still gets the flag", () => {
-  const bin = FAKE(`echo "  -S    egress=val -- ..."; echo "  -S    loopback-allow=val -- ..."; exit 0`);
+  const bin = FAKE(`echo "  -S    egress=val -- ..."; echo "  -S    loopback-allow=<port[+port...]> -- ..."; exit 0`);
   const { ports } = cmdFor({}, { env: { WASMTIME_BIN: bin } });
   assert.deepEqual(ports, [20001], "support probed = wall enforced, unchanged");
 });
 
-test("a probe that cannot answer leaves the wall alone", () => {
-  // "I could not check" must never be the thing that quietly drops a security
-  // control: an unreadable listing and a missing binary both keep the flag.
+test("a COMMA-only binary is refused the flag — the 2026-07-30 outage", () => {
+  // The option name is listed, so the old name-only probe said yes and the
+  // launcher handed it `loopback-allow=A,B`. `-S` split that on the comma and
+  // wasmtime died with `unknown -S / --wasi option: B`, taking every tenant on
+  // the fleet with it. Knowing the NAME is not knowing the SEPARATOR.
+  const bin = FAKE(`echo "  -S    egress=val -- ..."; echo "  -S    loopback-allow=<port[,port...]> -- ..."; exit 0`);
+  const { cmd, lb } = cmdFor({}, { env: { WASMTIME_BIN: bin } });
+  assert.equal(lb, null, "an older comma-only patch must not be fed a list it will split");
+  assert.ok(!cmd.some((a) => String(a).startsWith("loopback-allow=")), "no stray argv word either");
+});
+
+test("a probe that cannot answer suppresses the flag rather than the box", () => {
+  // This used to fall the other way, on the principle that "I could not check"
+  // should never quietly drop a security control. Twice that principle took the
+  // whole fleet down instead, so it is inverted here ON PURPOSE: unproven means
+  // launch WITHOUT the wall and say so loudly. A wall that refuses every launch
+  // protects nothing.
   const quiet = FAKE(`exit 0`);                       // ran, said nothing recognisable
-  assert.deepEqual(cmdFor({}, { env: { WASMTIME_BIN: quiet } }).ports, [20001]);
+  assert.equal(cmdFor({}, { env: { WASMTIME_BIN: quiet } }).lb, null);
   const missing = path.join(tmpdir(), "no-such-wasmtime-" + process.pid);
-  assert.deepEqual(cmdFor({}, { env: { WASMTIME_BIN: missing } }).ports, [20001]);
+  assert.equal(cmdFor({}, { env: { WASMTIME_BIN: missing } }).lb, null);
 });

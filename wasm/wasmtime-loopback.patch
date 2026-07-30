@@ -12,7 +12,7 @@
 # platform's to gate. In `run` mode it is worse still — a port-serving app is
 # granted `-Sinherit-network`, which installs an allow-ALL address check.
 #
-# THE FIX. `-S loopback-allow=<port[,port...]>` names the loopback ports a
+# THE FIX. `-S loopback-allow=<port[+port...]>` names the loopback ports a
 # process may dial; everything else on loopback is refused. Enforced at all
 # three places a dial can leave a guest:
 #   1. egress.rs connect_addr      — wasi:sockets under transparent egress
@@ -36,18 +36,36 @@
 # test/egress.test.mjs drives this patch through a real binary against a real
 # listener standing in for the neighbour.
 #
+# PLUS-SEPARATED, and that is not cosmetic. `-S` splits its OWN argument on
+# commas before any option sees the value, so the comma-joined list this patch
+# first shipped with parsed as `loopback-allow=<first>` plus a bogus option named
+# `<second>`, and wasmtime exited with "unknown -S / --wasi option: <port>".
+# Every tenant on the box died at launch the first time an image carrying this
+# patch reached the fleet (2026-07-30 00:43Z, release v0.5.296: three
+# deployments, all `failed`, card idle, provisioning backing off). The launcher
+# greps this option's HELP TEXT for the `+` form to decide whether a toolchain
+# speaks it, so a manager that joins with `+` refuses to pass the flag at all to
+# an older comma-only binary instead of killing its tenants. The parser still
+# accepts ',' for non-CLI callers, where nothing splits it.
+#
 # Verified against wasmtime v45.0.0 with the full shipped patch stack applied in
 # Dockerfile order: cargo check clean, and 18/18 of test/egress.test.mjs green
 # on a debug build of the result.
 diff --git a/crates/cli-flags/src/lib.rs b/crates/cli-flags/src/lib.rs
-index 6ba2aa3..4673a99 100644
+index 6ba2aa3..ea297ca 100644
 --- a/crates/cli-flags/src/lib.rs
 +++ b/crates/cli-flags/src/lib.rs
-@@ -538,6 +538,19 @@ wasmtime_option_group! {
+@@ -538,6 +538,25 @@ wasmtime_option_group! {
          /// and the relay. Requires TCP granted (`-Stcp`).
          #[serde(default)]
          pub egress: Option<String>,
-+        /// Loopback ports this guest may dial: `loopback-allow=<port[,port...]>`.
++        /// Loopback ports this guest may dial: `loopback-allow=<port[+port...]>`.
++        ///
++        /// PLUS-separated, not comma: `-S` splits its own argument on commas
++        /// before an option ever sees it, so `loopback-allow=80,443` parses as
++        /// `loopback-allow=80` plus a bogus option named `443` and the process
++        /// dies at launch. The launcher greps this help text for the `+` form to
++        /// decide whether a toolchain speaks it (see wasm_manager.py).
 +        ///
 +        /// Every tenant on an enclave runs as its own wasmtime process bound to
 +        /// 127.0.0.1 in ONE shared network namespace, so an unrestricted
@@ -102,7 +120,7 @@ index 6f2d081..16d2862 100644
      };
      let stream = match tokio::time::timeout(connect_timeout, connect_fut).await {
 diff --git a/crates/wasi/src/egress.rs b/crates/wasi/src/egress.rs
-index abcab39..ce02fb7 100644
+index abcab39..5b54ed5 100644
 --- a/crates/wasi/src/egress.rs
 +++ b/crates/wasi/src/egress.rs
 @@ -4,7 +4,9 @@
@@ -116,7 +134,7 @@ index abcab39..ce02fb7 100644
  //! it never leaves the enclave, has no source identity to tag, and the relay
  //! could never serve it (127.0.0.1 dialed AT the relay is the relay's own
  //! loopback — the guest just gets ConnectionRefused). The platform's own
-@@ -101,6 +103,104 @@ pub fn enabled() -> bool {
+@@ -101,6 +103,108 @@ pub fn enabled() -> bool {
      get().is_some()
  }
  
@@ -132,7 +150,7 @@ index abcab39..ce02fb7 100644
 +// deployment's owner-token check and the deployer's WAF live. Nothing at the
 +// services can close that: another tenant's app is not the platform's to gate.
 +//
-+// `-S loopback-allow=<port[,port...]>` names the loopback ports this process
++// `-S loopback-allow=<port[+port...]>` names the loopback ports this process
 +// may dial: its own listeners, the manager's control port, the egress front.
 +// Everything else on loopback is refused here, at the only place that sees the
 +// dial. Unset keeps the previous behaviour (any loopback port) so a
@@ -146,7 +164,11 @@ index abcab39..ce02fb7 100644
 +/// means NO loopback destination at all.
 +pub fn set_loopback_allow(spec: &str) -> Result<(), String> {
 +    let mut ports = Vec::new();
-+    for part in spec.split(',') {
++    // '+' is the CLI separator: wasmtime's `-S` splits its argument on commas
++    // itself, so a comma-joined list loses everything after the first port to
++    // an "unknown -S option" error. ',' stays accepted for callers that are
++    // not the command line (tests, embedders), where it cannot do harm.
++    for part in spec.split(['+', ',']) {
 +        let part = part.trim();
 +        if part.is_empty() {
 +            continue;
@@ -221,7 +243,7 @@ index abcab39..ce02fb7 100644
  /// `<host>:<port>` → SocketAddr (loopback only ever in practice, but we accept
  /// any literal). Brackets around a v6 host are tolerated.
  fn parse_endpoint(s: &str) -> Option<SocketAddr> {
-@@ -153,8 +253,13 @@ pub async fn connect_addr(addr: SocketAddr) -> io::Result<TcpStream> {
+@@ -153,8 +257,13 @@ pub async fn connect_addr(addr: SocketAddr) -> io::Result<TcpStream> {
      if addr == cfg.front {
          return TcpStream::connect(cfg.front).await;
      }
@@ -236,7 +258,7 @@ index abcab39..ce02fb7 100644
          return TcpStream::connect(addr).await;
      }
      socks_connect(cfg, Dest::Ip(addr.ip()), addr.port()).await
-@@ -171,8 +276,12 @@ pub async fn connect_authority(host: &str, port: u16) -> io::Result<TcpStream> {
+@@ -171,8 +280,12 @@ pub async fn connect_authority(host: &str, port: u16) -> io::Result<TcpStream> {
              if SocketAddr::new(ip, port) == cfg.front {
                  return TcpStream::connect(cfg.front).await;
              }

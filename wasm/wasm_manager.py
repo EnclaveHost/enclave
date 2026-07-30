@@ -2285,6 +2285,25 @@ _LOOPBACK_FLAG = None      # None = not probed yet; True/False = the binary's an
 
 
 def _loopback_flag_supported() -> bool:
+    """Does this wasmtime speak `-S loopback-allow=<port[+port...]>`?
+
+    The question is the SEPARATOR, not the option name. `-S` splits its own
+    argument on commas before any option sees the value, so the comma-joined
+    list this launcher used to emit reached wasmtime as
+    `loopback-allow=<first>` plus a bogus option named `<second>`, and an
+    unknown -S option is a hard parse error before the module is even read.
+    Every tenant on the box died at launch — 2026-07-28 with the option name
+    unknown, then again 2026-07-30 (release v0.5.296) with the name known and
+    the separator wrong. So probe for the `+` FORM in the help text: a binary
+    advertising `<port[,port...]>` carries the older patch and cannot be handed
+    a multi-port list at all.
+
+    UNPROVEN MEANS DO NOT PASS. That is the opposite of the usual instinct for
+    a security control, and it is deliberate: a wall that refuses every launch
+    protects nothing, it just takes the box down. The suppression is loud, and
+    /health carries it so the fleet can be asked from outside which boxes are
+    missing the patch.
+    """
     global _LOOPBACK_FLAG
     if _LOOPBACK_FLAG is not None:
         return _LOOPBACK_FLAG
@@ -2294,16 +2313,12 @@ def _loopback_flag_supported() -> bool:
     try:
         r = subprocess.run([WASMTIME, "serve", "-S", "help"],
                            capture_output=True, text=True, timeout=10)
-        listed = "loopback-allow" in ((r.stdout or "") + (r.stderr or ""))
-        # A `-S help` that printed nothing recognisable proves nothing about the
-        # option — only a readable option list that OMITS it does.
-        if not listed and "egress" not in ((r.stdout or "") + (r.stderr or "")):
-            return True                      # unreadable listing: decide nothing, don't cache
-        _LOOPBACK_FLAG = listed
+        # the patch documents its own separator; that string is the contract
+        _LOOPBACK_FLAG = "port[+port" in ((r.stdout or "") + (r.stderr or ""))
     except Exception as e:
         print(f"wasm-manager: could not probe `-S loopback-allow` ({e}); "
-              f"passing it as usual", flush=True)
-        return True                          # probe unavailable: unchanged behaviour, don't cache
+              f"launching WITHOUT the loopback wall", flush=True)
+        _LOOPBACK_FLAG = False
     if not _LOOPBACK_FLAG:
         print("wasm-manager ERROR: this wasmtime has no `-S loopback-allow` — the cross-tenant "
               "loopback wall is NOT enforced on this box. The image was assembled from a "
@@ -2644,7 +2659,8 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
             _lb.add(int(_ep.rsplit(":", 1)[1]))
         except (ValueError, IndexError):
             pass
-    lb_args = ["-S", "loopback-allow=" + ",".join(str(p) for p in sorted(_lb))] if _loopback_flag_supported() else []
+    # '+'-joined, NOT comma: `-S` eats commas (see _loopback_flag_supported)
+    lb_args = ["-S", "loopback-allow=" + "+".join(str(p) for p in sorted(_lb))] if _loopback_flag_supported() else []
     if pspec["serve"]:
         return ([WASMTIME, "serve", "-Scli", "-Shttp", *P3_FLAGS, *nn_args, *fs_args, *cfg_args, *vol_args,
                  *egress_args, *lb_args, "-W", f"max-memory-size={mem_bytes}",
