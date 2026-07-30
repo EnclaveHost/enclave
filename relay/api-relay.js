@@ -46,6 +46,14 @@
 //                                  /x-forwarded-for; set 0/off/none when the relay
 //                                  is directly internet-exposed so clients can't
 //                                  spoof routing/source via those headers.
+//   INTERNAL_TOKEN     optional    shared secret for /internal/* (the on-demand
+//                                  TLS ask). Unset, those routes admit a
+//                                  loopback caller that carries NO forwarding
+//                                  headers — which is Caddy's own `ask` request
+//                                  but not anything Caddy proxies. Set it (plus
+//                                  `header_up X-Internal-Token` on the ask
+//                                  handler in the Caddyfile) to replace that
+//                                  heuristic with a real credential.
 //   TRUSTED_OPERATORS  optional    comma-separated lowercased EnclaveRegistry
 //                                  operator addresses; when set, on-chain discovery
 //                                  is filtered to these (closes B1/B2/B3). Unset =
@@ -65,7 +73,7 @@ import https from "node:https";
 import net from "node:net";
 import tls from "node:tls";
 import fs from "node:fs";
-import { createHash, createHmac, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { readCappedText, MAX_BODY_BYTES, installProcessGuards } from "./fleet.mjs";
 import { isBlockedHost } from "./net-guard.mjs";
 import { isMcpHost, handleMcp } from "./mcp.js";
@@ -238,6 +246,33 @@ function featCount(req, app) {
 const isLoopback = (req) => {
   const a = req.socket?.remoteAddress || "";
   return /^127\./.test(a) || a === "::1" || a === "::ffff:127.0.0.1" || a.startsWith("::ffff:127.");
+};
+// "Loopback" is NOT "internal" on a box with a proxy in front of it, and this
+// relay always has one. Every request Caddy forwards arrives from 127.0.0.1, so
+// a socket-address check alone admits the entire internet — verified against
+// production 2026-07-30, where a public curl of /internal/tls-ask was answered
+// (200 for a real deployment subdomain, 400 for junk: an unauthenticated
+// existence oracle, and with custom domains a "which hostnames does this
+// platform serve" oracle).
+//
+// What actually distinguishes the real caller: Caddy GENERATES its on-demand
+// `ask` request itself, so it carries no forwarding headers, while anything it
+// proxies on a client's behalf always does — clientIp() above depends on
+// exactly that being true. Requiring their absence closes the door with no
+// Caddyfile change. INTERNAL_TOKEN is the stronger form when someone can edit
+// the Caddyfile: a shared header the internet cannot guess, checked instead of
+// the heuristic.
+const FORWARDED_HEADERS = ["x-forwarded-for", "x-forwarded-host", "x-forwarded-proto",
+                           "x-forwarded-port", "x-real-ip", "forwarded", "via"];
+const INTERNAL_TOKEN = (process.env.INTERNAL_TOKEN || "").trim();
+const isInternalCall = (req) => {
+  if (!isLoopback(req)) return false;
+  if (INTERNAL_TOKEN) {
+    const got = String(req.headers["x-internal-token"] || "");
+    return got.length === INTERNAL_TOKEN.length
+      && timingSafeEqual(Buffer.from(got), Buffer.from(INTERNAL_TOKEN));
+  }
+  return FORWARDED_HEADERS.every((h) => req.headers[h] == null);
 };
 // In-memory token-bucket rate limiter (fix 2), per source key. Generous by
 // design — it only sheds the abusive miss/fan-out traffic, not normal browsing.
@@ -1499,10 +1534,12 @@ function handleRequest(req, res) {
 
   // On-demand TLS gate: Caddy asks before minting a cert for <host>. Allow only
   // real deployment subdomains so random <junk>.<APP_DOMAIN> can't burn the CA
-  // rate limit. Reached on loopback from Caddy — restricted to loopback (fix 11)
-  // and rate-limited on the miss (fix 2) so it can't be driven as a fan-out probe.
+  // rate limit. Rate-limited on the miss (fix 2) so it can't be driven as a
+  // fan-out probe, and restricted to genuinely internal callers — see
+  // isInternalCall for why "loopback" alone was not that, and was answering the
+  // public internet until 2026-07-30.
   if (u.pathname === "/internal/tls-ask") {
-    if (!isLoopback(req)) { res.writeHead(403); return res.end("forbidden"); }
+    if (!isInternalCall(req)) { res.writeHead(403); return res.end("forbidden"); }
     const asked = (u.searchParams.get("domain") || "").toLowerCase().replace(/\.+$/, "").split(":")[0];
     // A CUSTOMER's own hostname (relay/domains.js): authorized only while its
     // record says verified/active, answered from memory so this stays a
