@@ -268,9 +268,13 @@ function handle(client, logicalPort) {
     // bytes are involved, so the box still holds no keys and sees no plaintext
     // that wasn't already addressed to it.
     if (REDIRECT_HTTP_PORT && logicalPort === REDIRECT_HTTP_PORT && buf.length && buf[0] !== 0x16) {
+      // the cap is on the BYTES SEEN, not on "still waiting for the terminator":
+      // a complete-but-enormous head is just as much unbounded work, and no
+      // legitimate request to a redirector is 8 KB
+      if (buf.length > 8192) { clearTimeout(timer); client.destroy(); return; }
       const head = buf.toString("latin1");
       const end = head.indexOf("\r\n\r\n");
-      if (end === -1) { if (buf.length > 8192) { clearTimeout(timer); client.destroy(); } return; }
+      if (end === -1) return;
       client.off("data", onData); clearTimeout(timer);
       return httpsRedirect(client, head.slice(0, end));
     }

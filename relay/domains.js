@@ -297,7 +297,11 @@ export const domainsEnabled = () => enabled;
 // zone and are how someone would try to use us as a resolver amplifier, so
 // they get a tight one ON TOP of the loose one.
 const rlOwner  = makeRateLimiter({ capacity: 30, refillPerSec: 0.5 });        // per wallet, every call
-const rlAdd    = makeRateLimiter({ capacity: 10, refillPerSec: 10 / 600 });   // per wallet, attach/verify only
+// Burst deliberately sits ABOVE DOMAIN_LIMITS.perDeployment: a customer
+// attaching their full quota in one sitting is a legitimate flow, and it must
+// end with the honest "you have reached the limit" rather than a rate-limit
+// message that tells them nothing about what to do next.
+const rlAdd    = makeRateLimiter({ capacity: 2 * DOMAIN_LIMITS.perDeployment, refillPerSec: 10 / 600 });   // per wallet, attach/verify only
 const rlIp     = makeRateLimiter({ capacity: 60, refillPerSec: 1 });          // per source ip
 const rlFetch  = makeRateLimiter({ capacity: 120, refillPerSec: 10 });        // fleet traffic
 const rlMap    = makeRateLimiter({ capacity: 120, refillPerSec: 4 });         // routing map readers
