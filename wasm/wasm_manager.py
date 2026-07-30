@@ -1136,6 +1136,19 @@ def _stage_nn_graph(name: str, gguf):
     # accepts model.safetensors / model.gguf / a single file); LLM ggufs keep
     # the model.gguf / split-family contract.
     targets = {x.name: x for x in fam} if fam else {f"model{gguf.suffix}": gguf}
+    # A VISION volume pairs its weights with a projector (*mmproj*.gguf), and the
+    # ggml backend looks for that projector IN THIS DIRECTORY, beside the model.
+    # Staging only the model therefore makes the projector INVISIBLE to the host
+    # while the guest can plainly see it in its own /models mount - which reads as
+    # "the volume carries no *mmproj*.gguf, or this node's toolchain is too old"
+    # when in fact the file is right there and the toolchain is fine. Stage it
+    # under its real name; the host matches this same *mmproj* convention from the
+    # other side, and its "exactly one MODEL" pick already excludes projectors.
+    # GGUF only: sd checkpoints have no such pairing.
+    if gguf.suffix == ".gguf":
+        for extra in sorted(gguf.parent.glob("*.gguf")):
+            if "mmproj" in extra.name.lower():
+                targets[extra.name] = extra
     try:
         d.mkdir(parents=True, exist_ok=True)
         for pat in ("*.gguf", "*.safetensors", "*.ckpt"):
