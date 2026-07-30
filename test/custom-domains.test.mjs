@@ -446,6 +446,37 @@ test("DNS that disappears demotes a live domain — but slowly, and not on one b
   assert.equal(tlsAskAllowed(host), true);
 });
 
+test("our own resolvers failing is never a strike against a customer's domain", async () => {
+  const OWNER5 = privateKeyToAccount("0x" + "55".repeat(32));
+  const ID5 = "0x" + "5a5a5a5a" + "55".repeat(28);
+  rows = [leaseRow({ id: ID5, owner: OWNER5.address })];
+  const host = "resolver.example.com";
+  const add = await call(`/v1/domains/${ID5}`, await signed(OWNER5, (e) => addMessage(ID5, e, host), { hostname: host }));
+  publish(host, { token: add.body.token });
+  const recheck = async () => (await call(`/v1/domains/${ID5}/verify`,
+    await signed(OWNER5, (e) => verifyMessage(ID5, e, host), { hostname: host }))).body;
+  assert.equal((await recheck()).status, "verified");
+
+  // every resolver unreachable: the module must ABSTAIN, not conclude "gone".
+  // Ten rounds is twice the demotion threshold — a network outage on OUR side
+  // must never cost a customer their routing.
+  const saved = process.env.DOMAIN_DOH_RESOLVERS;
+  doh.close();
+  try {
+    for (let i = 0; i < 10; i++) {
+      const d = await recheck();
+      assert.equal(d.status, "verified", `round ${i}`);
+    }
+    assert.equal(tlsAskAllowed(host), true);
+  } finally {
+    await new Promise((r) => doh.listen(new URL(saved).port, "127.0.0.1", r));
+    doh.unref();
+  }
+  // and once they answer again, an actually-missing record still counts
+  delete ZONE[`${CHALLENGE_PREFIX}.${host}|${TYPE.TXT}`];
+  assert.match((await recheck()).lastError, /No TXT record/);
+});
+
 // ---------- the certificate-authorization gate ---------------------------------
 
 test("tls-ask says yes ONLY for a proven name, and never for a zone we own", () => {

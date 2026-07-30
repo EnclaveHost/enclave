@@ -456,9 +456,17 @@ async function checkRecord(rec) {
     doh(rec.hostname, TYPE.CAA),
     edgeAddrs(),
   ]);
-  // Every lookup failing is a local network problem, not a customer error.
-  if (!txt && !route) return { indeterminate: true };
+  // A null here means every resolver errored — OUR problem, not the customer's.
+  // NXDOMAIN comes back as a real answer, so a genuinely missing record still
+  // counts; only an unreachable resolver is indeterminate. Either lookup is
+  // enough to abstain: a strike on a live domain moves it toward losing its
+  // routing, and no amount of our own flakiness should push it there.
+  if (!txt || !route) return { indeterminate: true };
   const aaaa = (route && !dataOf(route.answers, TYPE.A).length) ? await doh(rec.hostname, TYPE.AAAA) : null;
+  // Same abstention for an apex we cannot judge: with no CNAME in the answer
+  // the verdict rests entirely on recognizing our own edge addresses, so
+  // failing to learn them would read as "points somewhere else".
+  if (!edge.length && !dataOf(route.answers, TYPE.CNAME).length) return { indeterminate: true };
   return evaluate({
     txt: dataOf(txt?.answers, TYPE.TXT),
     routing: { cnames: dataOf(route?.answers, TYPE.CNAME),
