@@ -4716,6 +4716,7 @@ async function acmeIssue(name) {
 function acmeReconcile() {
   if (!ACME_ENABLED) return;
   const now = Date.now();
+  const desired = new Set();
   for (const r of deployments.values()) {
     // "claimed" counts, not just "running". The certificate depends on nothing
     // the app provides — dns-01 proves control of the NAME, and the name is a
@@ -4732,7 +4733,27 @@ function acmeReconcile() {
       if (acmeCerts.get(name)?.renewAt > now) continue;       // held and still fresh
       if (acmeRetry.get(name)?.nextAt > now)  continue;       // failing; wait out the backoff
       if (!acmeQueue.includes(name)) acmeQueue.push(name);
+      desired.add(name);
     }
+  }
+  // A DETACHED custom domain forgets its key material here. Routing already
+  // stopped at the relay, so a held cert for a name nobody claims is not
+  // reachable — but "delete" has to mean the enclave stops holding the key too,
+  // not "stops holding it at the next reboot".
+  //
+  // Scoped to custom names on purpose: app-zone certs are NOT pruned, because a
+  // deployment that is briefly absent from `deployments` (a restart, a
+  // re-claim) would otherwise throw away a perfectly good certificate and spend
+  // an issuance re-minting it. A custom name has a positive statement behind it
+  // — the relay listed it — so its absence is information; an app-zone name's
+  // absence is just a gap in local state.
+  for (const name of [...acmeCerts.keys()]) {
+    if (desired.has(name)) continue;
+    if (APP_CERT_DOMAIN && name.endsWith(`.${APP_CERT_DOMAIN}`)) continue;
+    if (_domainOwner.has(name)) continue;                     // still attached, just not running right now
+    acmeCerts.delete(name);
+    acmeRetry.delete(name);
+    console.log(`[acme] dropped ${name} — no deployment here claims it`);
   }
   if (acmeQueue.length) acmePump();
 }
