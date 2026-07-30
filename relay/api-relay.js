@@ -72,6 +72,7 @@ import { isMcpHost, handleMcp } from "./mcp.js";
 import { handleAccount, initAccounts } from "./auth.js";
 import { handleBilling, initBilling } from "./billing.js";
 import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep } from "./secrets.js";
+import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainMap, tlsAskAllowed } from "./domains.js";
 import { createTunnelHub } from "./tunnel.js";
 import { boxOrigin, boxLabelOfHost } from "./boxhost.js";
 installProcessGuards("api-relay");
@@ -1042,6 +1043,13 @@ function aggregateAvailability() {
     // $NAME placeholders in config strings resolving from those secrets at
     // launch — a build refinement on top of `secrets`, same fleet-AND
     secretsInConfig: secretsEnabled() && serving.length > 0 && serving.every((e) => e.availability?.secretsInConfig === true),
+    // customer-owned hostnames (relay/domains.js): needs this relay configured
+    // AND a fleet-AND of runners that fetch the names and mint their
+    // certificates. Strictly AND-ed: a lease migrating to a runner that doesn't
+    // know the feature would leave the customer's own domain refusing
+    // handshakes with nothing on the dashboard to explain it, so the console
+    // only offers the section when every live runner can honour it.
+    customDomains: domainsEnabled() && serving.length > 0 && serving.every((e) => e.availability?.customDomains === true),
     // publisher dev-mode: runners admit PENDING catalog versions for PRIVATE
     // deployments (public deploys of pending versions stay refused). Fleet-AND —
     // on false a pending-version deploy would sit Queued forever on old runners,
@@ -1495,7 +1503,15 @@ function handleRequest(req, res) {
   // and rate-limited on the miss (fix 2) so it can't be driven as a fan-out probe.
   if (u.pathname === "/internal/tls-ask") {
     if (!isLoopback(req)) { res.writeHead(403); return res.end("forbidden"); }
-    const id = depFromHost(u.searchParams.get("domain") || "");
+    const asked = (u.searchParams.get("domain") || "").toLowerCase().replace(/\.+$/, "").split(":")[0];
+    // A CUSTOMER's own hostname (relay/domains.js): authorized only while its
+    // record says verified/active, answered from memory so this stays a
+    // handshake-time-safe lookup, and never for a name in a zone we own — that
+    // check lives in domains.js and is applied here even though the add
+    // endpoint already refused such a name, because this gate is the last thing
+    // between a request and a certificate.
+    if (tlsAskAllowed(asked)) { res.writeHead(200); return res.end(); }
+    const id = depFromHost(asked);
     if (!id) { res.writeHead(400); return res.end("bad domain"); }
     if (!ownerCached(id) && !rlMiss(clientIp(req))) { res.writeHead(429); return res.end("rate limited"); }
     return deploymentExists(id).then((ok) => { res.writeHead(ok ? 200 : 404); res.end(); });
@@ -1600,6 +1616,12 @@ function handleRequest(req, res) {
   if (u.pathname === "/v1/secrets" || u.pathname.startsWith("/v1/secrets/"))
     return handleSecrets(req, res, u, relayCtx).catch((e) =>
       json(res, 500, { error: "secrets_error", message: e.message }, req));
+  // Custom domains (domains.js): relay-owned like secrets — an owner attaches a
+  // hostname long before the deployment that will serve it is claimed, so this
+  // must answer with zero live enclaves too.
+  if (u.pathname === "/v1/domains" || u.pathname.startsWith("/v1/domains/"))
+    return handleDomains(req, res, u, relayCtx).catch((e) =>
+      json(res, 500, { error: "domains_error", message: e.message }, req));
 
   // A box reached by its OWN name: e<hex>.<BOX_ZONE> is a whole host, so the
   // request arrives with that Host and an ordinary path. Forward the path
@@ -1729,6 +1751,8 @@ await initAccounts();          // no data dir/deps => disabled with one log line
 await initBilling(relayCtx);   // needs accounts; degrades the same way
 await initSecrets();           // needs SECRETS_KEY + the same data dir; degrades the same way
 startSecretsSweep(relayCtx);   // hourly off-ledger purge (no-op while disabled)
+await initDomains();           // custom domains: same data dir, CUSTOM_DOMAINS=0 opts out
+startDomainSweep(relayCtx);    // DNS re-check + demotion sweep (no-op while disabled)
 setInterval(pollRegistry, REGISTRY_POLL_SEC * 1000);
 setInterval(resolveDeployments, REGISTRY_POLL_SEC * 1000);
 setInterval(pollAvailability, AVAIL_POLL_SEC * 1000);
