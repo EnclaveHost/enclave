@@ -106,13 +106,14 @@
             <li><a href="#docs-udp"><span class="n">11</span>UDP</a></li>
             <li><a href="#docs-gpu"><span class="n">12</span>GPU inference (wasi-nn)</a></li>
             <li><a href="#docs-encvol"><span class="n">13</span>Encrypted volumes</a></li>
+            <li><a href="#docs-domains"><span class="n">14</span>Custom domains</a></li>
           </ul>
           <div class="grp">Reference</div>
           <ul>
-            <li><a href="#docs-attest"><span class="n">14</span>Attestation for users</a></li>
-            <li><a href="#docs-langs"><span class="n">15</span>Other languages</a></li>
-            <li><a href="#docs-limits"><span class="n">16</span>Limits &amp; sandbox</a></li>
-            <li><a href="#docs-troubleshoot"><span class="n">17</span>Troubleshooting</a></li>
+            <li><a href="#docs-attest"><span class="n">15</span>Attestation for users</a></li>
+            <li><a href="#docs-langs"><span class="n">16</span>Other languages</a></li>
+            <li><a href="#docs-limits"><span class="n">17</span>Limits &amp; sandbox</a></li>
+            <li><a href="#docs-troubleshoot"><span class="n">18</span>Troubleshooting</a></li>
           </ul>
         </nav>
       </aside>
@@ -126,7 +127,7 @@
           <p>Inside the enclave your app runs in a strict capability sandbox, in its own OS process, launched by the exact same <code>wasmtime</code> command you can run locally:</p>
           <ul>
             <li><b>Filesystem</b>: a single private, writable <code>/data</code> directory (RAM-backed scratch, torn down with the deployment). Nothing else is visible, and paths that escape it (<code>/data/../..</code>) are refused by the runtime. <a href="#docs-data">Chapter 08 →</a></li>
-            <li><b>Environment</b>: empty, except <code>ENCLAVE_PORTS</code> for service apps. No host env ever leaks in.</li>
+            <li><b>Environment</b>: empty, except what the platform hands you deliberately - <code>ENCLAVE_PORTS</code> for service apps, <code>ENCLAVE_HOSTS</code> with every hostname this deployment answers on (<a href="#docs-domains">Chapter 14 →</a>), and the config/secrets channels described later. No host env ever leaks in.</li>
             <li><b>Network</b>: none by default beyond the HTTP socket the runtime serves for you. Declaring open ports switches the app to service mode with <code>wasi:sockets</code>. <a href="#docs-ports">Chapter 09 →</a></li>
             <li><b>GPU</b>: none by default. A deployment that buys a GPU share gets <code>wasi-nn</code> - ONNX, GGUF (llama.cpp) and image-diffusion (stable-diffusion.cpp) inference through the enclave's runtime, on an MPS-capped slice of the enclave's GPU. <a href="#docs-gpu">Chapter 12 →</a></li>
             <li><b>Memory</b>: the guest's linear memory is capped at the deployment's CPU share of the node's RAM (cpuShare × <span data-live-spec="node-ram">64</span>&nbsp;GB), enforced by the runtime - always at least the <code>memMb</code> the app's specs declare, since the specs floor the share.</li>
@@ -683,8 +684,50 @@ envelope        = "encv1:" + base64( iv[16] || AES-256-CTR(encKey, iv, credsJSON
         </article>
 
         <!-- 14 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-domains">
+          <h3><span class="n">14</span>Custom domains</h3>
+          <p>Every deployment answers on its own subdomain, <code>&lt;label&gt;.app.enclave.host</code>. You can also attach <b>a domain you own</b>, and the app serves it under that name - same backend, no redirect, no frame - with a certificate <b>minted inside the enclave</b>. The private key for your domain is generated in the CVM and never leaves it, which is the same guarantee the platform subdomain already gives you.</p>
+          <p>Open <b>Domains</b> on the deployment in the <a href="apps/dashboard">dashboard</a>, type the hostname, and it shows you the exact records to create. There are three:</p>
+          <c-code fn="your DNS provider"><pre><code># 1. routing - where the traffic goes
+shop.example.com.                    CNAME  cc1f4f3f.app.enclave.host.
+
+# 2. ownership - proves this deployment may claim the name
+_enclave-challenge.shop.example.com. TXT    "enclave-verify-9f3a…"
+
+# 3. certificates - delegates issuance AND renewal. Leave it in place.
+_acme-challenge.shop.example.com.    CNAME  _acme-challenge.cc1f4f3f.app.enclave.host.</code></pre></c-code>
+          <p>DNS is re-checked every few minutes, so the status moves on its own: <b>waiting for DNS</b> → <b>verified</b> → <b>live</b>, usually within a minute or two of the records publishing. Nothing is served on your name until it is verified <i>and</i> its certificate exists - a name with no certificate gets a refused handshake, never a warning page.</p>
+
+          <h4><span class="mono">www</span> vs the apex</h4>
+          <p>A subdomain like <code>www.example.com</code> or <code>shop.example.com</code> is the easy case: it can hold a CNAME, so record 1 above works as written.</p>
+          <p>An <b>apex</b> (<code>example.com</code>, no subdomain) cannot hold a CNAME - <a href="https://datatracker.ietf.org/doc/html/rfc1034" target="_blank" rel="noopener">RFC&nbsp;1034</a> forbids a CNAME alongside the SOA and NS records every zone apex must have. Two ways round it, and we accept both:</p>
+          <ul>
+            <li><b>CNAME flattening</b> (Cloudflare's <span class="mono">CNAME</span> at the root, Route 53 <span class="mono">ALIAS</span>, DNSimple <span class="mono">ALIAS</span>, Netlify, and most modern providers). You enter a CNAME to <code>&lt;label&gt;.app.enclave.host</code> and the provider publishes our <b>A/AAAA records</b> under your apex instead. Verification sees those addresses, recognizes our edge, and accepts it - flattening and a real CNAME are the same proof that traffic reaches us.</li>
+            <li><b>A/AAAA by hand</b>, pointing at our edge addresses. It works, and it is what flattening does for you, but it is a static copy of an address we may one day change: prefer flattening, or a <code>www</code> subdomain, wherever your provider offers it.</li>
+          </ul>
+          <p>The common shape is to attach <b>both</b>: <code>example.com</code> (flattened) and <code>www.example.com</code> (CNAME), then have your app redirect one to the other. Each is a separate attachment with its own certificate. Records 2 and 3 are per-hostname either way - <code>_enclave-challenge.www.example.com</code> is a different record from <code>_enclave-challenge.example.com</code>.</p>
+
+          <h4>Writing an app that serves more than one name</h4>
+          <p>Your guest environment carries <code>ENCLAVE_HOSTS</code>: a comma-separated list of every hostname this deployment answers on, its own subdomain first. Use it for the checks only your app can make - a Host allowlist, CSRF trusted origins, a websocket <code>Origin</code> check - instead of hardcoding a name you cannot know at publish time. Build absolute URLs and redirects from the <b>request's</b> Host (it reaches you untouched), and leave cookies host-only unless you have a reason not to.</p>
+          <p><code>ENCLAVE_HOSTS</code> is set when the app starts, so a domain attached to a running app appears in it after a <b>restart</b>. Routing and TLS for the new name work immediately - only the app's own view of the list waits.</p>
+
+          <h4>When it doesn't go live</h4>
+          <ul>
+            <li><b>"No TXT record …"</b> - the <code>_enclave-challenge</code> record is missing or holds a different value. Some providers append the zone name for you: creating <code>_enclave-challenge.shop.example.com</code> in the <i>example.com</i> zone often needs the name entered as <code>_enclave-challenge.shop</code>.</li>
+            <li><b>"CNAME does not point at …"</b> - the name resolves, but somewhere else. If you use a CDN in front of us, put it in <b>DNS-only</b> mode (Cloudflare: grey cloud, not orange). A proxying CDN terminates TLS itself, so our edge never sees your visitors' handshakes and the certificate we mint for you is never presented.</li>
+            <li><b>"CAA records only allow …"</b> - your zone publishes a <a href="https://datatracker.ietf.org/doc/html/rfc8659" target="_blank" rel="noopener">CAA</a> policy that excludes our CA. Add <code>0 issue "sectigo.com"</code> alongside whatever is there, or remove the restriction.</li>
+            <li><b>A certificate error, with the CA's own words</b> - issuance was attempted and refused. The reason is shown verbatim under the domain; nearly always it is CAA, or record 3 missing so the CA cannot find the challenge.</li>
+            <li><b>It was live and went back to "waiting for DNS"</b> - the records stopped resolving for a sustained period, so routing and issuance were withdrawn. Put them back and it recovers by itself, usually within a few minutes.</li>
+          </ul>
+          <div class="doc-note">
+            <span class="nt">Detaching</span>
+            <p>Detach in the dashboard and routing stops within a minute; the enclave drops the certificate (it only ever held it in RAM). Remove the three records at your provider too - a <code>CNAME</code> left pointing at a name you no longer own is worth cleaning up wherever it points.</p>
+          </div>
+        </article>
+
+        <!-- 15 ------------------------------------------------------------ -->
         <article class="doc" id="docs-attest">
-          <h3><span class="n">14</span>Attestation for your users</h3>
+          <h3><span class="n">15</span>Attestation for your users</h3>
           <p>The platform's core promise extends to your app: a user can verify, cryptographically and before sending a byte of data, that they're talking to an attested enclave running exactly the code that was measured. For apps deployed by CID, the attestation includes <b>your app</b>: its <code>app.cid</code> field names the exact bytes that ran, hash-verified against the CID inside the enclave by the measured runtime, with a <code>coverage</code> note stating precisely what covers it (the boot measurement covers the runtime; the runtime pins your app).</p>
           <c-code fn="verify.js · attested client"><pre><code>import { SecureClient } from "tinfoil";
 
@@ -704,7 +747,7 @@ curl -H "Authorization: Bearer $LOGIN_TOKEN" \
 
         <!-- 15 ------------------------------------------------------------ -->
         <article class="doc" id="docs-langs">
-          <h3><span class="n">15</span>Other languages</h3>
+          <h3><span class="n">16</span>Other languages</h3>
           <p>The platform runs <b>components</b>, not a language: anything that emits a <code>wasi:http</code> component works. Mature routes today:</p>
           <ul>
             <li><b>Rust</b>: <code>cargo-component</code>, as used throughout this guide. The most complete support, including <code>std::net</code> for service apps.</li>
@@ -719,7 +762,7 @@ curl -H "Authorization: Bearer $LOGIN_TOKEN" \
 
         <!-- 16 ------------------------------------------------------------ -->
         <article class="doc" id="docs-limits">
-          <h3><span class="n">16</span>Limits &amp; sandbox reference</h3>
+          <h3><span class="n">17</span>Limits &amp; sandbox reference</h3>
           <h4>What your code can touch</h4>
           <div class="tbl"><table class="params">
             <thead><tr><th scope="col">capability</th><th scope="col">web app (default)</th><th scope="col">service app (declared ports)</th></tr></thead>
@@ -753,7 +796,7 @@ curl -H "Authorization: Bearer $LOGIN_TOKEN" \
 
         <!-- 17 ------------------------------------------------------------ -->
         <article class="doc" id="docs-troubleshoot">
-          <h3><span class="n">17</span>Troubleshooting</h3>
+          <h3><span class="n">18</span>Troubleshooting</h3>
           <div class="tbl"><table class="params symptoms">
             <thead><tr><th scope="col">symptom</th><th scope="col">cause → fix</th></tr></thead>
             <tbody>
