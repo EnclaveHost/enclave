@@ -17,17 +17,22 @@ contract MockRegistryTransfer {
 }
 
 /// Deployment transfer (rev 11): transferDeployment hands a record — every
-/// owner right AND the rev-10 refund right — to another wallet, one-shot.
-/// The invariants under test:
+/// owner right, one-shot — to another wallet, and NEVER moves money between
+/// wallets. The invariants under test:
 ///   - the handoff is total: the old key keeps nothing, the new key holds
-///     everything (config, active, cap, resize, refund);
-///   - the refund right travels WITH the escrow: ownerEscrow6 stays on the
-///     record, refund() pays whoever owns it at call time — transferring an
-///     un-refunded backing is giving it away, by design;
+///     everything (config, active, cap, resize, refund-going-forward);
+///   - the money gate: while the contract holds any of the owner's own
+///     refundable backing (min(ownerEscrow6, escrow6) > 0) the transfer is
+///     refused — refund first, so funds return to the wallet that paid them
+///     and what changes hands is the record alone;
+///   - the gate is NOT refundableOf: mid-lease that reads zero while the
+///     seller's reserve is still escrowed and would free to the NEW owner at
+///     release; and a fully-spent record's stale ownerEscrow6 must not brick
+///     the handoff;
+///   - sponsored/ETH runtime (never the owner's to withdraw) rides along;
 ///   - who-is-the-owner is evaluated at funding time: the new owner's top-ups
 ///     become refundable, the old owner's become sponsorship;
-///   - a live lease neither blocks a transfer nor notices one — the seller's
-///     escrow, meter and earnings are untouched;
+///   - the seller is paid in full through every sequence;
 ///   - the contract stays solvent throughout.
 contract EnclaveDeploymentsTransferTest is Test {
     EnclaveDeployments internal dep;
@@ -36,7 +41,7 @@ contract EnclaveDeploymentsTransferTest is Test {
 
     address internal alice = makeAddr("alice");     // creates + transfers away
     address internal bob = makeAddr("bob");         // receives
-    address internal carol = makeAddr("carol");     // second hop
+    address internal carol = makeAddr("carol");     // sponsor / second hop
     address internal payout = makeAddr("payout");
     address internal operator = makeAddr("operator");
     bytes32 internal constant ENCLAVE_ID = keccak256("enclave-1");
@@ -59,9 +64,12 @@ contract EnclaveDeploymentsTransferTest is Test {
         dep.setProofRequiredFrom(0);           // pre-cutover meter, as in the refund suite
         usdc.mint(alice, 1_000_000e6);
         usdc.mint(bob, 1_000_000e6);
+        usdc.mint(carol, 1_000_000e6);
         vm.prank(alice);
         usdc.approve(address(dep), type(uint256).max);
         vm.prank(bob);
+        usdc.approve(address(dep), type(uint256).max);
+        vm.prank(carol);
         usdc.approve(address(dep), type(uint256).max);
         vm.warp(T0);
     }
@@ -76,6 +84,10 @@ contract EnclaveDeploymentsTransferTest is Test {
     function _claim(bytes32 id) internal {
         vm.prank(operator);
         dep.claim(id, ENCLAVE_ID);
+    }
+
+    function _rate6(bytes32 id) internal view returns (uint256 r6) {
+        (r6,,) = dep.earnOf(id);
     }
 
     function _assertSolvent(bytes32 id) internal view {
@@ -146,41 +158,115 @@ contract EnclaveDeploymentsTransferTest is Test {
         assertEq(dep.get(id).owner, carol);
     }
 
-    // ---- the refund right travels with the escrow ---------------------------
+    // ---- a transfer never moves money ---------------------------------------
 
-    /// The headline semantic: an un-refunded backing is part of what `to`
-    /// receives. refund() after the handoff pays BOB alice's escrowed funding.
-    function test_unRefundedEscrowGoesToTheNewOwner() public {
+    /// The headline gate: while the contract holds ANY of the owner's own
+    /// refundable backing, the record does not change hands. Refund first —
+    /// the money returns to the wallet that paid it — then hand over the
+    /// (empty) record. What `to` receives is control, never funds.
+    function test_fundedRecordRefusesTransfer_untilRefunded() public {
         bytes32 id = _create(100e6);
         uint256 quoted = dep.refundableOf(id);
-        assertGt(quoted, 0, "alice's funding is escrowed and refundable");
+        assertGt(quoted, 0);
 
         vm.prank(alice);
+        vm.expectRevert("refund first");
         dep.transferDeployment(id, bob);
 
-        assertEq(dep.refundableOf(id), quoted, "the quote survives the handoff unchanged");
-        uint256 aliceBefore = usdc.balanceOf(alice);
-        uint256 bobBefore = usdc.balanceOf(bob);
-        vm.prank(bob);
-        dep.refund(id);
-        assertEq(usdc.balanceOf(bob) - bobBefore, quoted, "the new owner collects it");
-        assertEq(usdc.balanceOf(alice), aliceBefore, "the old owner gets nothing");
-        _assertSolvent(id);
-    }
-
-    /// ...and the reverse: refunding BEFORE transferring is how an owner keeps
-    /// their money out of the deal.
-    function test_refundFirstThenTransferHandsOverAnEmptyBacking() public {
-        bytes32 id = _create(100e6);
+        uint256 before = usdc.balanceOf(alice);
         vm.startPrank(alice);
-        dep.refund(id);
-        dep.setActive(id, true);                // refund deactivates; hand it over live
-        dep.transferDeployment(id, bob);
+        dep.refund(id);                          // the money comes home first
+        dep.setActive(id, true);                 // refund deactivates; hand it over live
+        dep.transferDeployment(id, bob);         // now it is only a record
         vm.stopPrank();
-        assertEq(dep.refundableOf(id), 0, "nothing left for the new owner to take");
+
+        assertEq(usdc.balanceOf(alice) - before, quoted, "the old owner keeps their money");
+        assertEq(dep.get(id).owner, bob);
+        assertEq(dep.refundableOf(id), 0, "the new owner receives no withdrawable funds");
         vm.prank(bob);
         vm.expectRevert("amount=0");
         dep.refund(id);
+        _assertSolvent(id);
+    }
+
+    /// Mid-lease the gate holds TWICE, which is exactly why it reads
+    /// min(ownerEscrow6, escrow6) and not refundableOf: after the first
+    /// refund the free part is home but the seller's reserve is still
+    /// escrowed — refundableOf reads ZERO in that window, and gating on it
+    /// would let the released tail land with the NEW owner. The seller is
+    /// paid in full through the whole sequence.
+    function test_midLeaseTransferWaitsForTheTail_andTheSellerIsWhole() public {
+        bytes32 id = _create(100e6);
+        _claim(id);
+        vm.warp(T0 + 600);
+
+        vm.prank(alice);
+        vm.expectRevert("refund first");
+        dep.transferDeployment(id, bob);
+
+        vm.prank(alice);
+        dep.refund(id);                          // free part home; the tail stays reserved
+        assertEq(dep.refundableOf(id), 0, "the reserve is not refundable yet");
+        vm.prank(alice);
+        vm.expectRevert("refund first");         // the refundableOf==0 window does NOT open the gate
+        dep.transferDeployment(id, bob);
+
+        vm.warp(T0 + 900);
+        vm.prank(operator);
+        dep.release(id);                         // seller hands back; the unserved tail frees
+        assertEq(dep.earned6(operator), 900 * _rate6(id), "the seller is paid for every held second");
+
+        uint256 tail = dep.refundableOf(id);
+        assertGt(tail, 0);
+        uint256 before = usdc.balanceOf(alice);
+        vm.startPrank(alice);
+        dep.refund(id);                          // the tail comes home too
+        dep.transferDeployment(id, bob);
+        vm.stopPrank();
+        assertEq(usdc.balanceOf(alice) - before, tail);
+        assertEq(dep.get(id).owner, bob);
+        _assertSolvent(id);
+    }
+
+    /// ownerEscrow6 == 0 means nothing held here is the owner's to withdraw,
+    /// so a sponsored record transfers freely — mid-lease included — with its
+    /// runtime riding along and the seller untouched. The new owner cannot
+    /// withdraw the sponsor's money either (the rev-10 cap, unchanged).
+    function test_sponsoredRuntimeRidesAlong() public {
+        bytes32 id = _create(0);
+        vm.prank(carol);
+        dep.fund(id, 100e6);                     // a third party buys alice runtime
+        _claim(id);
+        (, uint256 escBefore,) = dep.earnOf(id);
+        assertGt(escBefore, 0);
+        assertEq(dep.ownerEscrow6(id), 0, "none of it is the owner's");
+
+        vm.prank(alice);
+        dep.transferDeployment(id, bob);         // no gate: no owner money is held
+
+        (, uint256 escAfter,) = dep.earnOf(id);
+        assertEq(escAfter, escBefore, "the seller's escrow is untouched");
+        assertGt(dep.get(id).balance6, 0, "the runtime rides along");
+        assertEq(dep.refundableOf(id), 0, "and none of it becomes the new owner's to take");
+        _assertSolvent(id);
+    }
+
+    /// A fully-spent record keeps a stale ownerEscrow6 forever (only refund
+    /// decrements it) with no escrow behind it. The escrow6 side of the gate
+    /// keeps it transferable — there is no money left to protect.
+    function test_spentRecordStaysTransferable() public {
+        bytes32 id = _create(1e6);               // one short lease consumes it all
+        _claim(id);
+        vm.warp(uint256(dep.get(id).leaseUntil));
+        dep.settle(id);                          // the seller takes everything it served
+        uint256 dust = dep.refundableOf(id);     // rounding remainder, if any, goes home
+        if (dust > 0) { vm.prank(alice); dep.refund(id); }
+        (, uint256 esc,) = dep.earnOf(id);
+        assertEq(esc, 0, "nothing is held any more");
+        assertGt(dep.ownerEscrow6(id), 0, "the stale cap survives spending");
+        vm.prank(alice);
+        dep.transferDeployment(id, bob);         // and must not brick the handoff
+        assertEq(dep.get(id).owner, bob);
     }
 
     // ---- who-is-the-owner is a funding-time question ------------------------
@@ -199,52 +285,6 @@ contract EnclaveDeploymentsTransferTest is Test {
         dep.fund(id, 50e6);                     // the OLD owner is now just a sponsor
         assertEq(dep.ownerEscrow6(id), bobEsc, "a sponsor's top-up is not the owner's to take");
         assertEq(dep.refundableOf(id), bobEsc);
-        _assertSolvent(id);
-    }
-
-    // ---- a live lease neither blocks nor notices a transfer -----------------
-
-    function test_transferMidLeaseLeavesTheSellerWhole() public {
-        bytes32 id = _create(100e6);
-        _claim(id);
-        (uint256 r6, uint256 escBefore,) = dep.earnOf(id);
-        uint64 leaseUntil = dep.get(id).leaseUntil;
-
-        vm.warp(T0 + 600);                      // part-way through the lease
-        vm.prank(alice);
-        dep.transferDeployment(id, bob);
-
-        (, uint256 escAfter,) = dep.earnOf(id);
-        assertEq(escAfter, escBefore, "the seller's escrow is untouched");
-        assertEq(dep.get(id).leaseUntil, leaseUntil, "the lease is untouched");
-
-        // the runner serves the lease out and is paid for every second of it
-        vm.warp(uint256(leaseUntil));
-        dep.settle(id);
-        assertEq(dep.earned6(operator), uint256(leaseUntil - T0) * r6, "paid in full across the handoff");
-        _assertSolvent(id);
-    }
-
-    /// Mid-lease the reserve math is the new owner's problem and privilege,
-    /// exactly as it was the old owner's: the lease's remaining seconds stay
-    /// reserved for the seller, the free part refunds to the new owner now.
-    function test_midLeaseRefundAfterTransferPaysTheNewOwnerTheFreePart() public {
-        bytes32 id = _create(100e6);
-        _claim(id);
-        vm.prank(alice);
-        dep.transferDeployment(id, bob);
-
-        uint256 quoted = dep.refundableOf(id);
-        (uint256 r6,,) = dep.earnOf(id);
-        uint64 leaseUntil = dep.get(id).leaseUntil;
-        uint256 reserve = uint256(leaseUntil - uint64(block.timestamp)) * r6;
-
-        uint256 before = usdc.balanceOf(bob);
-        vm.prank(bob);
-        dep.refund(id);
-        assertEq(usdc.balanceOf(bob) - before, quoted, "the quote was exact for the new owner too");
-        (, uint256 escAfter,) = dep.earnOf(id);
-        assertEq(escAfter, reserve, "exactly the seller's reserve stays behind");
         _assertSolvent(id);
     }
 

@@ -131,7 +131,13 @@ const depsAbiFor = (rev) => [
     inputs: [{ name: "id", type: "bytes32" }], outputs: [] },
   { type: "function", name: "refundableOf", stateMutability: "view",
     inputs: [{ name: "id", type: "bytes32" }], outputs: [{ type: "uint256" }] },
-  // rev >= 11: hand the record — control AND the refund right — to another wallet
+  { type: "function", name: "ownerEscrow6", stateMutability: "view",
+    inputs: [{ name: "id", type: "bytes32" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "earnOf", stateMutability: "view",
+    inputs: [{ name: "id", type: "bytes32" }],
+    outputs: [{ name: "runnerRate6", type: "uint256" }, { name: "escrow6", type: "uint256" }, { name: "creditedUntil", type: "uint64" }] },
+  // rev >= 11: hand the record — control, never money — to another wallet;
+  // reverts "refund first" while the owner's own backing is still held
   { type: "function", name: "transferDeployment", stateMutability: "nonpayable",
     inputs: [{ name: "id", type: "bytes32" }, { name: "to", type: "address" }], outputs: [] },
   // rev >= 6: the owner's share resize (rate recalculated at current list
@@ -446,11 +452,12 @@ export function encodeRefundTx({ deployments, id, refundable6 }) {
 }
 // rev >= 11: one-shot ownership handoff — no accept step exists on-chain, so
 // the caller's confirmation IS the safety net; the description restates both
-// wallets so signers see exactly what they are about to give away, and to whom.
-export function encodeTransferTx({ deployments, id, to, refundable6 }) {
+// wallets so signers see exactly what they are about to give away, and to
+// whom. Money never rides along: the contract reverts "refund first" while it
+// still holds the owner's refundable backing (build_transfer chains the refund).
+export function encodeTransferTx({ deployments, id, to }) {
   return tx(deployments, encodeFunctionData({ abi: depsAbiFor(11), functionName: "transferDeployment", args: [id, to] }), 0n,
-    `EnclaveDeployments.transferDeployment(${id.slice(0, 10)}…, ${to})`
-    + (refundable6 != null && refundable6 > 0n ? ` — its $${(Number(refundable6) / 1e6).toFixed(2)} refundable escrow goes with it` : ""));
+    `EnclaveDeployments.transferDeployment(${id.slice(0, 10)}…, ${to}) — control moves, money does not`);
 }
 export function encodeSetActiveTx({ deployments, id, active }) {
   return tx(deployments, encodeFunctionData({ abi: depsAbiFor(2), functionName: "setActive", args: [id, active] }), 0n,
@@ -696,7 +703,7 @@ Funding is prepaid and burns per second while leased.
 - Top up any time with build_fund. timeRemainingSec in get_deployment = prepaid lease tail + what the balance still buys.
 - Stopping (build_stop) keeps the balance on the record; build_resume continues it. Funds on a record are spent only while it runs.
 - Cancelling for a refund (build_refund, ledger rev 10) sends unused runtime back to the owner's wallet and deactivates the record. It returns what the contract still HOLDS - the host escrow, ~80% of unspent time - never the sticker price: the publisher fee and the platform share were forwarded to their wallets at funding time. Quote the exact number from build_refund before the user signs, and do not describe the balance as what they will receive. Mid-lease refunds pay only what the lease cannot still claim; the rest is collectable after the runner releases.
-- Transferring a deployment (build_transfer, ledger rev 11) hands the record to another wallet in one signature: control, balance, the refundable escrow, staged secrets and custom domains all move together, and the app keeps running through it. One-shot - no accept step - so always restate the destination address to the user before they sign, and suggest build_refund first when the escrow should stay with the current owner.`,
+- Transferring a deployment (build_transfer, ledger rev 11) hands the record to another wallet. Control moves, money never does: the ledger refuses the transfer while it holds the owner's refundable escrow, so build_transfer chains a refund in front when needed - the owner's money returns to the owner, and the record hands over with zero balance for the new owner to fund. Staged secrets and custom domains stay with the record. One-shot - no accept step - so always restate the destination address to the user before they sign.`,
 
   attestation: `Never trust the gateway: verify the enclave BEFORE sending it secrets.
 - attestation returns the fleet attestation document; deployment_attestation { id } returns the hosting enclave's (public; an owner token adds a fresh GPU nonce challenge).
@@ -1201,7 +1208,7 @@ const TOOLS = [
   },
   {
     name: "build_transfer",
-    description: "Unsigned transferDeployment transaction (ledger rev 11): hands a deployment to another wallet. Every owner right moves together and the handoff is ONE-SHOT - there is no accept step, and only the new owner could ever transfer it back - so confirm the destination address with the user before they sign. What travels with the record, and is worth telling the user: the app itself (it keeps running through the handoff; the lease and serving box never notice), the funded balance, the refundable escrow (quoted here; the OLD owner should build_refund first if it is meant to come back to them), any relay-staged secrets, and any custom domains. The old owner's future top-ups become third-party sponsorship (not refundable to anyone); the new owner's top-ups are theirs to refund.",
+    description: "Unsigned transferDeployment transaction(s) (ledger rev 11): hands a deployment to another wallet. Control moves, MONEY NEVER DOES: the ledger reverts \"refund first\" while it still holds any of the owner's refundable escrow, so when there is money to return this tool puts a refund transaction IN FRONT of the transfer - the current owner's funds come back to the current owner's wallet, then the record (with zero balance; the new owner funds it) changes hands. The handoff is ONE-SHOT - there is no accept step, and only the new owner could ever transfer it back - so confirm the destination address with the user before they sign. Relay-staged secrets and custom domains stay with the record (they are the record's, not the wallet's) - suggest rotating any credentials the new owner must not hold. The old owner's future top-ups become third-party sponsorship; the new owner's top-ups are theirs to refund.",
     inputSchema: S({ id: P.id,
       to: { type: "string", description: "Destination wallet address (0x…) - the new owner" } }, ["id", "to"]),
     handler: async ({ id, to }) => {
@@ -1212,14 +1219,35 @@ const TOOLS = [
       const d = await depGet(full);
       if (dest.toLowerCase() === String(d.owner).toLowerCase()) throw new Error(`${dest} already owns this deployment`);
       const { deployments } = await addresses();
-      const refundable6 = BigInt(await read(deployments, depsAbiFor(rev), "refundableOf", [full]).catch(() => 0n));
+      const abi = depsAbiFor(rev);
+      // the ledger's own gate: any owner-refundable backing still held = no transfer
+      const [ownerEsc6, earn] = await Promise.all([
+        read(deployments, abi, "ownerEscrow6", [full]),
+        read(deployments, abi, "earnOf", [full]),
+      ]);
+      const blocked = BigInt(ownerEsc6) > 0n && BigInt(earn[1]) > 0n;
+      const secretsNote = "relay-staged secrets and custom domains stay with the deployment; rotate any credentials the new owner must not hold";
+      if (!blocked)
+        return { id: full, from: d.owner, to: dest, secretsNote,
+          transactions: [encodeTransferTx({ deployments, id: full, to: dest })],
+          next: `sign+send with the CURRENT owner wallet (${d.owner}); one-shot, so verify ${dest} with the user first` };
+      const refundable6 = BigInt(await read(deployments, abi, "refundableOf", [full]));
+      const leased = Number(d.leaseUntil) * 1000 > Date.now();
+      if (!(refundable6 > 0n))
+        // the mid-lease window: the free part refunded already, the host's
+        // reserve is still escrowed - nothing can be chained, wind down first
+        throw new Error(`the owner's remaining escrow is reserved for the lease running to ${new Date(Number(d.leaseUntil) * 1000).toISOString()}. `
+          + `build_stop first (the host releases within ~a minute), build_refund to collect it, then transfer.`);
       return { id: full, from: d.owner, to: dest,
-        ...(refundable6 > 0n ? { escrowGoesWithIt:
-          `$${(Number(refundable6) / 1e6).toFixed(2)} of refundable escrow travels with the record - the new owner can take it. `
-          + `build_refund BEFORE transferring if it should return to the current owner.` } : {}),
-        secretsNote: "relay-staged secrets and custom domains stay with the deployment; rotate any credentials the new owner must not hold",
-        transactions: [encodeTransferTx({ deployments, id: full, to: dest, refundable6 })],
-        next: `sign+send with the CURRENT owner wallet (${d.owner}); one-shot, so verify ${dest} with the user first` };
+        refundsFirst: `$${(Number(refundable6) / 1e6).toFixed(2)} returns to the CURRENT owner's wallet (${d.owner}) before the record changes hands - `
+          + `the ledger refuses to transfer owner money, so the transfer transaction alone would revert "refund first".`,
+        ...(leased ? { warning:
+          `A lease runs to ${new Date(Number(d.leaseUntil) * 1000).toISOString()}. If part of the escrow stays reserved for the host, `
+          + `the transfer transaction reverts "refund first" - retry after the host releases (build_refund then collects the tail too).` } : {}),
+        secretsNote,
+        transactions: [encodeRefundTx({ deployments, id: full, refundable6 }),
+                       encodeTransferTx({ deployments, id: full, to: dest })],
+        next: `sign+send BOTH in order with the CURRENT owner wallet (${d.owner}); one-shot, so verify ${dest} with the user first` };
     },
   },
   {

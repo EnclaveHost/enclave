@@ -18,7 +18,7 @@ import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { $$, esc, hlJson, fmtDur, statusCls, copyText, showToast, lsGet, lsSet } from "../../js/core/util.js";
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
-import { pad32, encUint, encCall, DEP_SEL, APPROVAL, depPrices6, rate6Of, depMaxGpuMilli, depGet, depSchemaRev, depFeeOf, depCapOf, depRefundableOf, catVersionFee, waitReceipt } from "../../js/core/chain.js";
+import { pad32, encUint, encCall, hexBig, DEP_SEL, APPROVAL, depPrices6, rate6Of, depMaxGpuMilli, depGet, depSchemaRev, depFeeOf, depCapOf, depRefundableOf, depCall, catVersionFee, waitReceipt } from "../../js/core/chain.js";
 import { authenticate, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
 import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, STORE } from "../../js/core/catalog.js";
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
@@ -582,7 +582,7 @@ class Deployments extends EnclaveElement {
             // wallet rows only: a vault-owned record's on-chain owner IS the
             // vault contract - handing it to an outside wallet would tear it
             // out of the vault's accounting (a vault feature if ever wanted)
-            (onchain && (live || resumable) && ctl === "wallet" ? '<button class="btn btn-sm enc-xferbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Hand this deployment to another wallet - the app keeps running; the balance, the refundable escrow, staged secrets and custom domains all go with it. One signature, no way back from this wallet">Transfer</button>' : '') +
+            (onchain && (live || resumable) && ctl === "wallet" ? '<button class="btn btn-sm enc-xferbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Hand this deployment to another wallet. Control moves, money never does: any refundable escrow returns to YOUR wallet first (the ledger refuses to transfer it), then the record - with its staged secrets and custom domains - changes hands. One-shot, no way back from this wallet">Transfer</button>' : '') +
           '</span>' +
         '</div>' +
         ((st === "failed" || st === "expired") && d.error ? '<div class="enc-err" title="why this deployment ' + esc(st) + '">⚠ ' + esc(d.error) + '</div>' : '') +
@@ -1832,13 +1832,17 @@ class Deployments extends EnclaveElement {
     catch(e){ showToast(e.message || String(e)); if (btn){ btn.disabled = false; btn.textContent = orig; } }
   }
 
-  /* Hand the record to another wallet (rev-11 ledgers). ONE-SHOT on-chain -
-     there is no accept step, so the destination address is the whole risk and
-     the panel treats it that way: pasted in full, validated, and restated in
-     the confirm. What travels is spelled out before anything is signed: every
-     owner right, the balance, the refundable escrow (Cancel first to keep it),
-     staged secrets and custom domains. Wallet rows only - a vault-owned
-     record's on-chain owner IS the vault contract (see the render gate). */
+  /* Hand the record to another wallet (rev-11 ledgers). A transfer moves
+     CONTROL and never money: the ledger reverts "refund first" while it still
+     holds any of this wallet's refundable backing, so the panel reads the
+     gate (min(ownerEscrow6, escrow6)) and either transfers directly, chains
+     Cancel + transfer (your money back to YOUR wallet, then the empty record
+     hands over), or - while a lease reserves part of the escrow for the host -
+     points at Suspend first. ONE-SHOT on-chain: no accept step, so the
+     destination address is the whole risk - pasted in full, validated, and
+     restated in the confirm. Staged secrets and custom domains stay with the
+     record. Wallet rows only - a vault-owned record's on-chain owner IS the
+     vault contract (see the render gate). */
   async _transfer(id, btn){
     const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-xfer"); if (!box) return;
     if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
@@ -1846,27 +1850,46 @@ class Deployments extends EnclaveElement {
     box.hidden = false;
     box.innerHTML = '<div class="ap-attbar">transfer · ' + esc(id) + '</div>'
       + '<div class="term enc-xfer-status" role="status" aria-live="polite"><span class="ln dimln">// reading the ledger…</span></div>';
-    let rev = 1, amount6 = 0n;
-    try { [rev, amount6] = await Promise.all([depSchemaRev(), depRefundableOf(id)]); } catch(e){}
+    const b32 = pad32(id.replace(/^0x/, ""));
+    let rev = 1, d = null, amount6 = 0n, ownerEsc6 = 0n, escrow6 = 0n;
+    try {
+      [rev, d, amount6] = await Promise.all([depSchemaRev(), depGet(id), depRefundableOf(id)]);
+      if (rev >= 11) {
+        const [oe, earn] = await Promise.all([depCall("0x" + DEP_SEL.ownerEscrow6 + b32), depCall("0x" + DEP_SEL.earnOf + b32)]);
+        ownerEsc6 = hexBig(oe);
+        escrow6 = hexBig("0x" + earn.replace(/^0x/, "").slice(64, 128));   // (rate6, escrow6, creditedUntil)
+      }
+    } catch(e){}
     if (box.hidden || !box.isConnected) return;               // closed while loading
     const fail = (msg) => { const st = box.querySelector(".enc-xfer-status"); st.innerHTML = ""; paintLine(st, "warn", msg); };
     if (rev < 11) return fail("[x] the live ledger predates deployment transfers (deploymentsSchema < 11)");
+    if (!d) return fail("[x] couldn’t read this deployment from the ledger - try again shortly");
     const usd = (v) => "$" + (Number(v) / 1e6).toFixed(2);
+    const blocked = ownerEsc6 > 0n && escrow6 > 0n;           // the ledger's own gate
+    const leased = Number(d.leaseUntil) * 1000 > Date.now();
+    if (blocked && !(amount6 > 0n))
+      // the mid-lease window: refundable reads zero while the host's reserve
+      // is still escrowed - nothing to chain, the owner must wind down first
+      return fail("[x] your remaining escrow is reserved for the running lease. Suspend the app (the host releases within ~a minute), Cancel to collect it, then transfer.");
+    const chain = blocked;                                    // Cancel rides in front of the transfer
     const fid = "ex" + appLabel(id);
     box.innerHTML = '<div class="ap-attbar">transfer · ' + esc(id) + '</div>'
       + '<div class="enc-xfer-body">'
       +   '<label for="' + fid + 'a">New owner</label>'
       +   '<input id="' + fid + 'a" class="ex-addr" type="text" spellcheck="false" autocomplete="off" placeholder="0x…" size="46">'
-      +   '<button class="btn btn-sm btn-primary ex-go" type="button" disabled>Transfer</button>'
+      +   '<button class="btn btn-sm btn-primary ex-go" type="button" disabled>' + (chain ? "Refund & transfer" : "Transfer") + '</button>'
       + '</div>'
       + '<div class="term enc-xfer-status" role="status" aria-live="polite"></div>';
     const st = box.querySelector(".enc-xfer-status"), go = box.querySelector(".ex-go"), aIn = box.querySelector(".ex-addr");
     const paint = (cls, txt) => paintLine(st, cls, txt);
     const intro = () => {
       st.innerHTML = "";
-      paint("info", "// hands EVERYTHING to the new wallet: the app (it keeps running), the balance, "
-                  + (amount6 > 0n ? usd(amount6) + " of refundable escrow (Cancel first to keep it), " : "")
-                  + "staged secrets and custom domains");
+      paint("info", "// a transfer moves control, never money: the record hands over"
+                  + (chain ? " AFTER " + usd(amount6) + " of your refundable escrow returns to this wallet (two signatures; the app stops - the new owner funds it)"
+                           : " with zero of your funds in it")
+                  + "; staged secrets and custom domains go with the record");
+      if (chain && leased)
+        paint("dimln", "// a lease is running: if part of your escrow stays reserved for the host, the transfer step waits until the host releases - reopen this panel then");
       paint("dimln", "// one-shot: there is no accept step, and only the new owner could ever transfer it back");
     };
     const sync = () => { go.disabled = !/^0x[0-9a-fA-F]{40}$/.test((aIn.value || "").trim()); };
@@ -1877,19 +1900,28 @@ class Deployments extends EnclaveElement {
       if (!/^0x[0-9a-fA-F]{40}$/.test(to)) return paint("warn", "[x] not an Ethereum address (0x + 40 hex characters)");
       if (to.toLowerCase() === String(Enclave.address || "").toLowerCase()) return paint("warn", "[x] that address already owns this deployment");
       if (/^0x0{40}$/i.test(to)) return paint("warn", "[x] the zero address");
-      const lines = ["Transfer " + id.slice(0, 10) + "… to", "", to, "", "This wallet loses every right to it - control, secrets, domains"
-                   + (amount6 > 0n ? " and its " + usd(amount6) + " refundable escrow" : "") + ". There is no way back from here. Continue?"];
+      const lines = ["Transfer " + id.slice(0, 10) + "… to", "", to, "",
+                     (chain ? usd(amount6) + " comes back to your wallet first, then this wallet loses every right to the record"
+                            : "This wallet loses every right to the record") + " - control, secrets, domains. Your money never goes to the new owner. There is no way back from here. Continue?"];
       if (!confirm(lines.join("\n"))) return;
       go.disabled = true; aIn.disabled = true;
       try {
-        paint("info", "[*] confirm the transfer in your wallet…");
         await ensureBaseChain();
-        await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS, "0x" + DEP_SEL.transferDeployment + pad32(id.replace(/^0x/, "")) + pad32(to)));
+        if (chain){
+          paint("info", "[*] 1/2 confirm the refund in your wallet - " + usd(amount6) + " comes back to you…");
+          await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS, "0x" + DEP_SEL.refund + b32));
+          paint("ok", "[✓] refunded " + usd(amount6) + " to your wallet");
+        }
+        paint("info", "[*] " + (chain ? "2/2 " : "") + "confirm the transfer in your wallet…");
+        await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS, "0x" + DEP_SEL.transferDeployment + b32 + pad32(to)));
         paint("ok", "[✓] transferred to " + to);
         showToast("transferred " + id.slice(0, 10) + "… - it now belongs to " + to.slice(0, 10) + "… and will leave this list");
         setTimeout(() => this.refresh(), 1200);
       } catch(e){
-        paint("warn", "[x] " + (e && e.message || e));
+        const m = String(e && e.message || e);
+        paint("warn", /refund first/.test(m)
+          ? "[x] part of your escrow is still reserved for the running lease - Suspend the app, Cancel once the host releases, then transfer"
+          : "[x] " + m);
         go.disabled = false; aIn.disabled = false;
       }
     });
