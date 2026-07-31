@@ -262,6 +262,45 @@ print(json.dumps({"status": rec["status"], "error": rec.get("error"), "wasi": re
   assert.match(r.error, /WASIp3/, "the owner's one piece of evidence must name the actual problem");
 });
 
+// ---- 4b. the manager BOOTS ---------------------------------------------------
+
+test("wasm_manager starts as __main__ and answers /health with probed p3", async () => {
+  // The 2026-07-31 v0.5.301 rollback: a constant renamed everywhere EXCEPT
+  // main()'s startup banner. Every other test imports the module, which never
+  // runs main(), so the NameError only fired inside the CVM and the container
+  // health-checked itself to death. This is the missing coverage: run the real
+  // entrypoint, require the banner line AND a live /health answer.
+  const { spawn } = await import("node:child_process");
+  const bin = FAKE(HELP_P3);
+  const port = 18000 + (process.pid % 2000);
+  const proc = spawn("python3", [MGR], {
+    env: { ...process.env, WASM_MANAGER_PORT: String(port), WASMTIME_BIN: bin,
+           NODE_HAS_GPU: "0", VMMGR_TOKEN: "t", WASM_FS: "0" },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let out = "";
+  proc.stdout.on("data", (d) => { out += d; });
+  proc.stderr.on("data", (d) => { out += d; });
+  try {
+    let health = null;
+    for (let i = 0; i < 50 && !health; i++) {
+      if (proc.exitCode !== null) break;
+      await new Promise((r) => setTimeout(r, 200));
+      // authenticated: WASM_HEALTH_MINIMAL defaults ON, and the detailed
+      // fields (p3 among them) are for the control plane — exactly how the
+      // supervisor's vmHealth() asks in production
+      health = await fetch(`http://127.0.0.1:${port}/health`, { headers: { authorization: "Bearer t" } })
+        .then((r) => r.json()).catch(() => null);
+    }
+    assert.equal(proc.exitCode, null, `the manager must still be running; it said:\n${out}`);
+    assert.ok(health && health.ok === true, `no /health answer; output:\n${out}`);
+    assert.equal(health.p3, true, "/health carries the probed p3 answer");
+    assert.match(out, /wasm-manager on :\d+ .*p3=True/, "the startup banner printed");
+  } finally {
+    proc.kill("SIGKILL");
+  }
+});
+
 // ---- 5. the capability plumbing, pinned like proofOfTime --------------------
 
 test("manager /health carries p3, supervisor forwards it, the relay ANDs it", () => {
