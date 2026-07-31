@@ -173,11 +173,15 @@ test("refund-sweep batches (suspend + refund multicalls) encode like viem", () =
   eq(encCallX(sel.multicall, [{ t: "bytes[]", v: refunds }]),
     encodeFunctionData({ abi: ABI("EnclaveDeployments"), functionName: "multicall",
       args: [ids.map((id) => encodeFunctionData({ abi: ABI("EnclaveDeployments"), functionName: "refund", args: [id] }))] }));
-  // the sweep only ever signs for the connected wallet's records, and refuses
-  // pre-refund ledgers - the constraint lives in the plan, pin it there
+  // the sweep only ever signs for the connected wallet's records on a live
+  // ledger, refuses pre-refund ledgers, and only widens to every owner once
+  // the source is RETIRED - the constraints live in the plan, pin them there
   const mig = fs.readFileSync(path.join(REPO, "site/components/admin-console/migrate.js"), "utf8");
   assert.match(mig, /refundSweepPlan[\s\S]{0,900}deploymentsSchema \$\{rev\} < 10/);
-  assert.match(mig, /refundSweepPlan[\s\S]{0,2200}r\.owner\.toLowerCase\(\) === me/);
+  assert.match(mig, /isRetired \? rows : rows\.filter\(\(r\) => r\.owner\.toLowerCase\(\) === me\)/);
+  // …and the end-of-life switch itself: selector-only owner tx, rev-11 ABI
+  eq("0x" + sel.retire, toFunctionSelector("function retire()"));
+  eq("0x" + sel.retired, toFunctionSelector("function retired()"));
 });
 
 test("allowance funding pair (fund.js) encodes like viem", () => {

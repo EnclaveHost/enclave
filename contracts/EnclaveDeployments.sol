@@ -213,6 +213,7 @@ contract EnclaveDeployments {
 
     address public owner;                  // sets price/leaseSec/payout; NOT a custodian
     address public pendingOwner;           // two-step handoff: must acceptOwnership()
+    bool    public retired;                // one-way end-of-life (rev 11): see retire()
     address public payout;                 // where funding lands (the Enclave cold wallet)
     IERC20Auth   public immutable usdc;
     IEnclaveRegistry public immutable registry;
@@ -292,9 +293,12 @@ contract EnclaveDeployments {
     // curated lineage. A transfer moves CONTROL and never money — it is
     // refused while the contract still holds the owner's own refundable
     // backing (refund first; see the function's gate for why the check is
-    // min(ownerEscrow6, escrow6) and not refundableOf). New surface:
-    // transferDeployment and the DeploymentTransferred event. The feature
-    // gates on >= 11.
+    // min(ownerEscrow6, escrow6) and not refundableOf). Rev 11 also adds
+    // END-OF-LIFE: retire() (owner, one-way) closes every activity gate and
+    // opens refund() to any caller — still always paying each record's
+    // OWNER — so no ledger after this one can strand user funds at a
+    // migration (see retire()). New surface: transferDeployment,
+    // DeploymentTransferred, and retire/retired. The feature gates on >= 11.
     uint256 public constant deploymentsSchema = 11;
 
     /// @dev Publisher-fee snapshot, taken at create from the catalog version
@@ -601,7 +605,7 @@ contract EnclaveDeployments {
     ///      indexers how much of it is the publisher's cut.
     function _initFee(Deployment storage d, address feeRecipient, uint256 feePerSec6) private {
         if (feePerSec6 == 0) return;
-        require(feePerSec6 <= maxFeePerSec6, "fee > max");    // create-only cap; imports bypass (grandfathered)
+        require(feePerSec6 <= maxFeePerSec6, "range");    // create-only cap; imports bypass (grandfathered)
         require(feeRecipient != address(0), "fee recipient");
         _fees[d.id] = Fee(feeRecipient, uint96(feePerSec6));  // cast safe: maxFeePerSec6 <= uint96.max (setter-enforced)
         emit FeeSet(d.id, feeRecipient, feePerSec6);
@@ -950,9 +954,9 @@ contract EnclaveDeployments {
         Deployment storage d = _requireActive(id);
         require(block.timestamp > d.leaseUntil, "leased");
         IEnclaveRegistry.Enclave memory e = registry.get(enclaveId);
-        require(e.operator == msg.sender, "not operator");
+        require(e.operator == msg.sender, "not runner");
         require(e.active, "enclave inactive");
-        require(e.cpuPricePerSec6 > 0, "enclave unpriced");
+        require(e.cpuPricePerSec6 > 0, "enclave inactive");
         // Past the cutover, an enclave with no published in-CVM proof key could
         // hold a lease it can never be paid for, and the tenant's app would sit
         // on a box with no incentive to keep it up. Refuse the claim: the work
@@ -1233,7 +1237,13 @@ contract EnclaveDeployments {
     ///      unused tail to balance6) or the lease lapses unproven, so a second
     ///      call collects it. All state is written before the transfer (CEI).
     function refund(bytes32 id) external {
-        Deployment storage d = _requireOwned(id);
+        Deployment storage d = _deployments[id];
+        require(_exists[id], "unknown");
+        // RETIRED ledgers open this to ANY caller (rev 11): the payout still
+        // goes to d.owner below, so a permissionless sweep can only ever push
+        // money home, never take it — see retire() for why that must not need
+        // ten thousand owner signatures.
+        require(d.owner == msg.sender || retired, "!owner");
         _creditRunner(d);
         uint256 amt = refundableOf(id);
         require(amt > 0, "amount=0");
@@ -1393,7 +1403,7 @@ contract EnclaveDeployments {
     function importFees(bytes32[] calldata ids, address[] calldata recipients, uint256[] calldata rates6) external {
         require(msg.sender == owner, "!owner");
         require(!importsSealed, "sealed");
-        require(ids.length == recipients.length && ids.length == rates6.length, "length mismatch");
+        require(ids.length == recipients.length && ids.length == rates6.length, "range");
         for (uint256 i = 0; i < ids.length; i++) {
             require(_exists[ids[i]], "unknown");
             require(rates6[i] <= type(uint96).max, "range");
@@ -1413,7 +1423,7 @@ contract EnclaveDeployments {
     function importEarn(bytes32[] calldata ids, uint256[] calldata rates6) external {
         require(msg.sender == owner, "!owner");
         require(!importsSealed, "sealed");
-        require(ids.length == rates6.length, "length mismatch");
+        require(ids.length == rates6.length, "range");
         for (uint256 i = 0; i < ids.length; i++) {
             require(_exists[ids[i]], "unknown");
             require(rates6[i] <= type(uint96).max, "range");
@@ -1432,7 +1442,7 @@ contract EnclaveDeployments {
     function importCaps(bytes32[] calldata ids, uint256[] calldata caps6) external {
         require(msg.sender == owner, "!owner");
         require(!importsSealed, "sealed");
-        require(ids.length == caps6.length, "length mismatch");
+        require(ids.length == caps6.length, "range");
         for (uint256 i = 0; i < ids.length; i++) {
             require(_exists[ids[i]], "unknown");
             require(caps6[i] <= type(uint96).max, "range");
@@ -1570,6 +1580,33 @@ contract EnclaveDeployments {
     /// @notice Begin a TWO-STEP ownership handoff. `o` must call acceptOwnership()
     ///         to take control; until then `owner` is unchanged, so a mistyped
     ///         address can never strand price/lease/payout governance.
+    /// @notice END-OF-LIFE (rev 11, ONE-WAY): closes every activity gate —
+    ///         claim, renew, and all funding go through _requireActive, which
+    ///         refuses a retired ledger — and opens refund() to ANY caller,
+    ///         still always paying each record's OWNER. This is the migration
+    ///         answer to stranded funds: a successor ledger takes the fleet,
+    ///         this one is retired, and one permissionless sweep pushes every
+    ///         record's held escrow back to the wallet that funded it — no
+    ///         owner signatures needed, so real users' money can never be
+    ///         trapped by a redeploy again.
+    /// @dev The power this grants is deliberately NOTHING until the end: while
+    ///      un-retired the platform still cannot stop, drain or refund anyone's
+    ///      record, and retiring is exactly what repointing the fleet already
+    ///      does de facto (no runner will claim here again) — made honest,
+    ///      observable on-chain, and paired with the money going home. Live
+    ///      leases keep their reserve through the sweep (_creditRunner runs
+    ///      first, exactly as in an owner refund), so retiring mid-lease can
+    ///      never strand a seller either; sweep again after the last lease
+    ///      lapses to collect the tails. There is no un-retire: a successor
+    ///      exists, and flip-flopping an ended ledger back into claimability
+    ///      would let it race its own replacement. Deliberately NO event: the
+    ///      public flag is the durable record and this tx is the timeline
+    ///      marker — an event is ~36 bytes this contract does not have.
+    function retire() external {
+        require(msg.sender == owner, "!owner");
+        retired = true;
+    }
+
     function setOwner(address o) external {
         require(msg.sender == owner, "!owner");
         require(o != address(0), "zero addr");
@@ -1579,7 +1616,7 @@ contract EnclaveDeployments {
 
     /// @notice Complete the handoff. Only the pending owner may finalize.
     function acceptOwnership() external {
-        require(msg.sender == pendingOwner, "!pendingOwner");
+        require(msg.sender == pendingOwner, "!owner");
         owner = pendingOwner;
         pendingOwner = address(0);
         emit OwnerChanged(owner);
@@ -1668,6 +1705,7 @@ contract EnclaveDeployments {
     }
     function _requireActive(bytes32 id) private view returns (Deployment storage d) {
         d = _deployments[id];
+        require(!retired, "retired");   // end-of-life: no claims, renewals or funding (see retire())
         require(_exists[id], "unknown");
         require(d.active, "inactive");
     }

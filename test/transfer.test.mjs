@@ -49,6 +49,22 @@ test("the ledger exposes the transfer surface every client gates on", () => {
   assert.match(sol, /require\(ownerEscrow6\[id\] == 0 \|\| _earn\[id\]\.escrow6 == 0, "refund first"\);/);
 });
 
+test("the ledger exposes end-of-life: retire closes activity, refunds go permissionless-to-owner", () => {
+  // rev 11's migration guarantee: users' funds can never be trapped by a
+  // redeploy. retire() (owner, one-way) must exist alongside a public flag…
+  const fn = DEPS_ABI.find((f) => f.type === "function" && f.name === "retire");
+  assert.equal(fn.inputs.length, 0);
+  assert.equal(fn.stateMutability, "nonpayable");
+  const flag = DEPS_ABI.find((f) => f.type === "function" && f.name === "retired");
+  assert.equal(flag.outputs[0].type, "bool");
+  // …and the two gates must be exactly these: every activity entry point
+  // funnels through _requireActive (closing claim/renew/all funding at once),
+  // and refund() relaxes to any caller while STILL paying d.owner.
+  const sol = rd("contracts", "EnclaveDeployments.sol");
+  assert.match(sol, /_requireActive\(bytes32 id\)[\s\S]{0,200}require\(!retired, "retired"\);/);
+  assert.match(sol, /require\(d\.owner == msg\.sender \|\| retired, "!owner"\);/);
+});
+
 test("mcp encoder: transferDeployment decodes against the ledger ABI, address in the label", () => {
   const tx = encodeTransferTx({ deployments: D, id: ID, to: TO });
   const { functionName, args } = decodeFunctionData({ abi: DEPS_ABI, data: tx.data });

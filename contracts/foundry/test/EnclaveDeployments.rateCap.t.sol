@@ -88,7 +88,7 @@ contract EnclaveDeploymentsRateCapTest is Test {
         assertEq(e.proofKey, cheapProofKey);   // schema 3: register() carries it too
 
         vm.prank(dearOp);
-        vm.expectRevert("not operator");
+        vm.expectRevert("not operator");       // EnclaveRegistry's own string (the LEDGER's claim gate merged into "not runner")
         reg.setPrices(cheapId, 1, 1);
 
         vm.prank(cheapOp);
@@ -341,7 +341,7 @@ contract EnclaveDeploymentsRateCapTest is Test {
         d2.fund(id, 100e6);
         vm.stopPrank();
         vm.prank(cheapOp);
-        vm.expectRevert("enclave unpriced");
+        vm.expectRevert("enclave inactive");
         d2.claim(id, keccak256("stub"));
     }
 }
