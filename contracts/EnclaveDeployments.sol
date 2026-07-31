@@ -286,10 +286,13 @@ contract EnclaveDeployments {
     // below that simply never offer it (an older ledger has no refund path,
     // which is exactly what schema-9-and-under means).
     // Rev 11 keeps the struct byte-for-byte and makes the record itself
-    // TRANSFERABLE: transferDeployment hands a deployment — control and the
-    // rev-10 refund right together — to another wallet. Self-serve (the
-    // deployment's owner signs), unlike the catalog's owner-ruled transferApp:
-    // a deployment is the buyer's asset, not a curated lineage. New surface:
+    // TRANSFERABLE: transferDeployment hands a deployment to another wallet.
+    // Self-serve (the deployment's owner signs), unlike the catalog's
+    // owner-ruled transferApp: a deployment is the buyer's asset, not a
+    // curated lineage. A transfer moves CONTROL and never money — it is
+    // refused while the contract still holds the owner's own refundable
+    // backing (refund first; see the function's gate for why the check is
+    // min(ownerEscrow6, escrow6) and not refundableOf). New surface:
     // transferDeployment and the DeploymentTransferred event. The feature
     // gates on >= 11.
     uint256 public constant deploymentsSchema = 11;
@@ -781,26 +784,35 @@ contract EnclaveDeployments {
     }
 
     /// @notice Hand this deployment to another wallet (rev 11): every owner
-    ///         right — config, active, cap, resize, version changes — AND the
-    ///         rev-10 refund right move together. refund() pays whoever owns
-    ///         the record at call time and ownerEscrow6 stays with the record,
-    ///         so an un-refunded backing is part of what `to` receives; take
-    ///         refund() first if that is not the deal. From here on the NEW
-    ///         owner's fundings credit ownerEscrow6 (fund checks the owner at
-    ///         funding time) and the old owner's top-ups are sponsorship like
-    ///         anyone else's. The lease is untouched: a serving runner keeps
-    ///         earning against the same escrow and never notices.
-    /// @dev ONE-SHOT, no pending/accept step: a two-step handoff costs ~460
+    ///         right — config, active, cap, resize, version changes — moves in
+    ///         one signature. A transfer NEVER moves money between wallets:
+    ///         while this contract still holds any of the owner's own
+    ///         refundable backing, the transfer is refused — refund() first,
+    ///         so the money returns to the wallet that paid it and what
+    ///         changes hands is the record alone. Zero-balance records
+    ///         transfer freely (the new owner funds them, and from then on
+    ///         it is THEIR fundings that credit ownerEscrow6); sponsored or
+    ///         ETH-bought runtime rides along untouched, because none of it
+    ///         was ever the owner's to withdraw.
+    /// @dev The gate is min(ownerEscrow6, escrow6) == 0, NOT refundableOf == 0:
+    ///      mid-lease the free part refunds immediately but the lease reserve
+    ///      stays escrowed for the seller and frees again at release — a
+    ///      refundableOf gate passes in that window and would hand the
+    ///      released tail to the NEW owner. And a fully-SPENT record keeps a
+    ///      stale ownerEscrow6 (only refund decrements it) with no escrow
+    ///      behind it; it must stay transferable — the escrow6 side clears it.
+    ///      ONE-SHOT, no pending/accept step: a two-step handoff costs ~460
     ///      bytes of runtime code and this contract has ~100 under EIP-170
     ///      (see WHY TWO CONTRACTS above) — so clients must confirm `to`
-    ///      before signing, the way they quote refundableOf before a refund.
-    ///      A mistyped `to` is unrecoverable by the sender. Zero is refused
-    ///      so a transfer cannot orphan the record into the sweep path. The
-    ///      id keeps embedding the CREATOR (ids are (creator, nonce) hashes,
+    ///      before signing. A mistyped `to` loses the RECORD but never money:
+    ///      the gate already sent the money home. Zero is refused so a
+    ///      transfer cannot orphan the record into the sweep path. The id
+    ///      keeps embedding the CREATOR (ids are (creator, nonce) hashes,
     ///      never re-derived), so a transferred id never moves or collides.
     function transferDeployment(bytes32 id, address to) external {
         Deployment storage d = _requireOwned(id);
         require(to != address(0), "zero addr");
+        require(ownerEscrow6[id] == 0 || _earn[id].escrow6 == 0, "refund first");
         d.owner = to;
         emit DeploymentTransferred(id, msg.sender, to);
     }
@@ -1336,13 +1348,13 @@ contract EnclaveDeployments {
         require(!importsSealed, "sealed");
         for (uint256 i = 0; i < items.length; i++) {
             bytes32 id = items[i].id;
-            require(id != bytes32(0), "id=0");
+            require(id != bytes32(0), "range");
             require(!_exists[id], "exists");
             // create() always yields rate >= 1 (cpuMilli >= 1, cpuPrice > 0), but
             // import copies rate verbatim from the source record. A rate==0 record
             // would divide-by-zero in _burnLease (balance6 / rate) the moment the
             // fleet tries to claim it — permanently unclaimable. Refuse it here.
-            require(items[i].rate > 0, "rate=0");
+            require(items[i].rate > 0, "range");
             _exists[id] = true;
             // reserve the hostname label too, so a later create() cannot be
             // ground onto an IMPORTED record's prefix. Idempotent on purpose: a

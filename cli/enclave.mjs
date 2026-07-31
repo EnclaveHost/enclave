@@ -149,8 +149,12 @@ const depsAbiFor = (tuple, rev) => [
     inputs: [{ name: "id", type: "bytes32" }], outputs: [{ type: "uint256" }] },
   { type: "function", name: "ownerEscrow6", stateMutability: "view",
     inputs: [{ type: "bytes32" }], outputs: [{ type: "uint256" }] },
-  // rev-11 ledgers only: hand the record — control AND the refund right — to
-  // another wallet. One-shot on-chain (no accept step); cmdTransfer confirms.
+  { type: "function", name: "earnOf", stateMutability: "view",
+    inputs: [{ type: "bytes32" }],
+    outputs: [{ name: "runnerRate6", type: "uint256" }, { name: "escrow6", type: "uint256" }, { name: "creditedUntil", type: "uint64" }] },
+  // rev-11 ledgers only: hand the record — control, never money — to another
+  // wallet. The ledger refuses it while any of the owner's own refundable
+  // backing is still held ("refund first"); cmdTransfer chains the refund.
   { type: "function", name: "transferDeployment", stateMutability: "nonpayable",
     inputs: [{ name: "id", type: "bytes32" }, { name: "to", type: "address" }], outputs: [] },
   { type: "function", name: "get", stateMutability: "view",
@@ -1316,12 +1320,14 @@ async function cmdRefund(rest) {
   say(`\`enclave fund ${short(id)} --usdc 5\` brings it back if you change your mind`);
 }
 
-// Hand a deployment to another wallet (rev-11 ledgers). One-shot on-chain —
-// there is no accept step, and no way back except the new owner transferring
-// it again — so this shows the FULL destination address and spells out what
-// travels with the record: the refundable escrow (refund first to keep it),
-// any staged secrets, and any custom domains. The app itself never notices:
-// the lease, the balance and the serving box stay put.
+// Hand a deployment to another wallet (rev-11 ledgers). A transfer moves
+// CONTROL and never money: the ledger refuses it ("refund first") while it
+// still holds any of this wallet's refundable backing, so this command chains
+// the refund - your money comes back to YOUR wallet, then the (empty) record
+// changes hands. One-shot on-chain - no accept step, and no way back except
+// the new owner transferring it again - so the FULL destination address is
+// shown before anything is signed. Staged secrets and custom domains stay
+// with the record (they are the record's, not the wallet's).
 async function cmdTransfer(rest) {
   const account = loadKey();
   if (!rest[0] || !rest[1]) throw new Error("usage: enclave transfer <id> <0xaddress>");
@@ -1334,19 +1340,49 @@ async function cmdTransfer(rest) {
   if (!d || d.owner === "0x0000000000000000000000000000000000000000") throw new Error(`no deployment ${short(id)} on the ledger`);
   if (d.owner.toLowerCase() !== account.address.toLowerCase()) throw new Error(`${short(id)} is owned by ${d.owner}, not this key`);
   if (to.toLowerCase() === account.address.toLowerCase()) throw new Error(`${to} already owns ${short(id)}`);
-  const refundable6 = rev >= 10 ? await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "refundableOf", [id]) : 0n;
+  // the ledger's gate: any of the owner's own backing still held = no transfer
+  const [ownerEsc6, earn] = await Promise.all([
+    read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "ownerEscrow6", [id]),
+    read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "earnOf", [id]),
+  ]);
+  const blocked = ownerEsc6 > 0n && earn[1] > 0n;
+  const leased = Number(d.leaseUntil) * 1000 > Date.now();
   say(`deployment  ${short(id)}`);
   say(`owner       ${account.address}  ->  ${to}`);
-  if (refundable6 > 0n) {
-    say(`! ${usd6(refundable6)} of refundable escrow travels WITH the record - the new owner`);
-    say(`  can take it. \`enclave refund ${short(id)}\` first if it should come back to you.`);
-  }
   say(`! staged secrets and custom domains stay with the deployment; rotate any`);
   say(`  credentials in them that the new owner must not hold.`);
-  if (!(await confirm(`transfer ${short(id)} to ${to}? (one-shot: only the new owner could ever transfer it back)`))) return say("aborted");
+  if (!blocked) {
+    if (!(await confirm(`transfer ${short(id)} to ${to}? (one-shot: only the new owner could ever transfer it back)`))) return say("aborted");
+    await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi, functionName: "transferDeployment", args: [id, to] });
+    if (opt.json) return jout({ id, from: account.address, to });
+    return say(`${short(id)} now belongs to ${to}`);
+  }
+  const refundable6 = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "refundableOf", [id]);
+  if (!(refundable6 > 0n))
+    // the mid-lease window: the free part is home but the tail is reserved
+    // for the host and would free to the NEW owner - the ledger refuses that
+    throw new Error(`your remaining escrow is reserved for the running lease (to ${new Date(Number(d.leaseUntil) * 1000).toLocaleString()}). `
+      + `\`enclave stop ${short(id)}\` (the host releases within ~a minute), \`enclave refund\` to collect it, then transfer.`);
+  say(`! the ledger holds ${usd6(refundable6)} of your money and refuses to transfer it`);
+  say(`  with the record - it comes back to THIS wallet first, then the record`);
+  say(`  (with zero balance${leased ? ", once the lease winds down" : ""}) hands over. Two transactions.`);
+  if (leased)
+    say(`! a lease runs to ${new Date(Number(d.leaseUntil) * 1000).toLocaleString()}; if part of your escrow stays reserved for it,`);
+  if (leased)
+    say(`  the transfer step will be refused until the host releases - run this again then.`);
+  if (!(await confirm(`refund ${usd6(refundable6)} to ${account.address}, then transfer ${short(id)} to ${to}?`))) return say("aborted");
+  await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi, functionName: "refund", args: [id] });
+  say(`refunded ${usd6(refundable6)} to ${account.address}`);
+  const [esc2, earn2] = await Promise.all([
+    read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "ownerEscrow6", [id]),
+    read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "earnOf", [id]),
+  ]);
+  if (esc2 > 0n && earn2[1] > 0n)
+    throw new Error(`${usd6(esc2 < earn2[1] ? esc2 : earn2[1])} stays reserved for the running lease; `
+      + `once the host releases, \`enclave refund ${short(id)}\` collects it and the transfer will go through.`);
   await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi, functionName: "transferDeployment", args: [id, to] });
-  if (opt.json) return jout({ id, from: account.address, to });
-  say(`${short(id)} now belongs to ${to}`);
+  if (opt.json) return jout({ id, from: account.address, to, refunded6: String(refundable6) });
+  say(`${short(id)} now belongs to ${to} (your ${usd6(refundable6)} stayed with you)`);
 }
 
 // The other half of stop: setActive(true) re-queues the work item (its balance
@@ -2398,12 +2434,13 @@ deployments
                              fee and the platform share went to their wallets
                              when you funded. Prints the exact amount first
                              (aliases: cancel; rev-10 ledgers)
-  transfer <id> <0xaddr>     hand the deployment to another wallet: every owner
-                             right AND the refund right move together (refund
-                             first to keep your escrow). One-shot - there is no
-                             accept step, so check the address. The app keeps
-                             running; secrets and domains stay with the record
-                             (rev-11 ledgers)
+  transfer <id> <0xaddr>     hand the deployment to another wallet. Control
+                             moves, money never does: the ledger refuses the
+                             transfer while it still holds your refundable
+                             escrow, so this refunds you first (two txs), then
+                             hands over the record. One-shot - no accept step,
+                             so check the address. Secrets and domains stay
+                             with the record (rev-11 ledgers)
 
 catalog
   publish <app.wasm> --slug S [--version V --name N --desc D --config JSON]
