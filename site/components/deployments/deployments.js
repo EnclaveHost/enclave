@@ -123,22 +123,43 @@ export function mobileLinksOf(ref){
     return android || ios ? { android, ios } : null;
   } catch { return null; }
 }
-function mobileSection(d){
+// The GENERIC shell: one signed APK any *.app.enclave.host deployment can
+// pair into via the deep link this section mints (the shell stores the
+// target, verifies its attestation on the phone, then loads it). Rows whose
+// version publishes dedicated builds (_mobile) offer those instead.
+const GENERIC_APK = "https://github.com/EnclaveHost/enclave-apps/releases/download/mobile-enclave/enclave.apk";
+export function mobilePairLink(d, ep){
+  try {
+    const host = new URL(String(ep)).host;
+    if (!/^[0-9a-z-]+\.app\.enclave\.host$/i.test(host)) return "";   // custom domains pair via a branded build instead
+    const name = (d.app && d.app.slug) || appLabel(d.id);
+    return "enclave://open?u=" + encodeURIComponent("https://" + host)
+         + "&d=" + encodeURIComponent(d.id) + "&n=" + encodeURIComponent(name);
+  } catch { return ""; }
+}
+function mobileSection(d, ep){
   const links = mobileLinksOf(d.image && d.image.reference);
-  if (!links) return "";
+  const pair = !links && d.public && (d.status || "") === "running" ? mobilePairLink(d, ep) : "";
+  if (!links && !pair) return "";
   const label = appLabel(d.id);
+  const body = links
+    ? (links.android
+        ? '<a class="btn btn-sm btn-primary" href="' + esc(links.android) + '" target="_blank" rel="noopener" title="Signed APK - Android asks you to allow installs from your browser the first time">Android · APK ↓</a>'
+        : '')
+      + (links.ios
+        ? '<a class="btn btn-sm btn-primary" href="' + esc(links.ios) + '" target="_blank" rel="noopener">iPhone ↗</a>'
+        : '<span class="em-note">iPhone: open the app in Safari, then Share → Add to Home Screen.</span>')
+    : '<a class="btn btn-sm btn-primary" href="' + esc(GENERIC_APK) + '" target="_blank" rel="noopener" title="One signed APK for any Enclave app - Android asks you to allow installs from your browser the first time">1 · Get the Enclave app ↓</a>'
+      + '<a class="btn btn-sm" href="' + esc(pair) + '" title="Opens the installed Enclave app and pairs it to this deployment - it verifies the enclave on your phone, then loads the app">2 · Open this app in it</a>'
+      + '<button class="btn btn-sm em-copy" type="button" data-copy="' + esc(pair) + '" title="Copy the pairing link (e.g. to send it to your phone)">copy link</button>'
+      + '<span class="em-note">Do both steps ON YOUR PHONE (this page works there too). iPhone: open the app in Safari, then Share → Add to Home Screen.</span>';
   return '<div class="enc-mob">'
     +   '<div class="ap-attbar">'
     +     '<button class="btn btn-sm em-toggle" type="button" aria-controls="emBody' + label + '" aria-expanded="false" title="Install this app on a phone - the mobile build verifies the enclave on the device before the app loads">Get the app ↓</button>'
     +     'mobile app · ' + esc(d.id)
     +   '</div>'
     +   '<div class="enc-mob-body" id="emBody' + label + '" hidden>'
-    +     (links.android
-            ? '<a class="btn btn-sm btn-primary" href="' + esc(links.android) + '" target="_blank" rel="noopener" title="Signed APK - Android asks you to allow installs from your browser the first time">Android · APK ↓</a>'
-            : '')
-    +     (links.ios
-            ? '<a class="btn btn-sm btn-primary" href="' + esc(links.ios) + '" target="_blank" rel="noopener">iPhone ↗</a>'
-            : '<span class="em-note">iPhone: open the app in Safari, then Share → Add to Home Screen.</span>')
+    +     body
     +     '<span class="em-note">The mobile build re-checks the enclave’s attestation on your device before the app loads.</span>'
     +   '</div>'
     + '</div>';
@@ -553,9 +574,10 @@ class Deployments extends EnclaveElement {
         '<div class="enc-waf" hidden></div>' +
         (onchain && (live || resumable) && ctl === "wallet" ? secretsSection(d.id) : '') +
         (onchain && (live || resumable) && ctl === "wallet" ? domainsSection(d.id) : '') +
-        // public catalog data, so every row kind gets it (self-gates on the
-        // version's config actually naming mobile builds)
-        mobileSection(d) +
+        // public data, so every row kind gets it: dedicated builds when the
+        // version's config names them, else the generic-shell pairing flow
+        // for any running public app on a platform origin
+        mobileSection(d, ep) +
         '<div class="enc-out" data-id="' + esc(d.id) + '" hidden></div>' +
         '<div class="enc-att" hidden></div>' +
       '</div>';
@@ -576,6 +598,7 @@ class Deployments extends EnclaveElement {
       panel.hidden = !open;
       b.setAttribute("aria-expanded", String(open));
     }));
+    $$(".em-copy", body).forEach(b => b.addEventListener("click", () => copyText(b.dataset.copy)));
     $$(".enc-verify", body).forEach(b => b.addEventListener("click", () => this._verify(b.dataset.id, b)));
     $$(".enc-kill", body).forEach(b => b.addEventListener("click", () => this._kill(b.dataset.id, b)));
     $$(".enc-refund", body).forEach(b => b.addEventListener("click", () => this._refund(b.dataset.id, b)));
