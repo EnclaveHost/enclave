@@ -105,7 +105,7 @@ pragma solidity ^0.8.20;
 ///     entry point that advances it. See EnclaveProofOfTime for what a proof
 ///     is and why it cannot be forged, pre-signed, hoarded or compressed.
 ///
-///     WHY TWO CONTRACTS: this one is 300 bytes under the EIP-170 limit. It is
+///     WHY TWO CONTRACTS: this one is ~100 bytes under the EIP-170 limit. It is
 ///     not a layering preference - the verification simply does not fit here,
 ///     and putting it behind a sealed immutable binding was the only way to
 ///     ship proof of time without cutting something else out of the ledger.
@@ -285,7 +285,14 @@ contract EnclaveDeployments {
     // refund, and the Refunded event. The feature gates on >= 10; clients
     // below that simply never offer it (an older ledger has no refund path,
     // which is exactly what schema-9-and-under means).
-    uint256 public constant deploymentsSchema = 10;
+    // Rev 11 keeps the struct byte-for-byte and makes the record itself
+    // TRANSFERABLE: transferDeployment hands a deployment — control and the
+    // rev-10 refund right together — to another wallet. Self-serve (the
+    // deployment's owner signs), unlike the catalog's owner-ruled transferApp:
+    // a deployment is the buyer's asset, not a curated lineage. New surface:
+    // transferDeployment and the DeploymentTransferred event. The feature
+    // gates on >= 11.
+    uint256 public constant deploymentsSchema = 11;
 
     /// @dev Publisher-fee snapshot, taken at create from the catalog version
     ///      the deployment references (recipient = the app's publisher wallet).
@@ -412,6 +419,7 @@ contract EnclaveDeployments {
     event SharesSet(bytes32 indexed id, uint16 gpuMilli, uint16 cpuMilli, uint256 rate);
     event ConfigSet(bytes32 indexed id, string configCid);
     event ActiveSet(bytes32 indexed id, bool active);
+    event DeploymentTransferred(bytes32 indexed id, address indexed from, address indexed to);
     event Funded(bytes32 indexed id, address indexed payer, uint256 amount6);
     event FundedEth(bytes32 indexed id, address indexed payer, uint256 amountWei, uint256 credited6);
     event Claimed(bytes32 indexed id, bytes32 indexed enclaveId, address indexed operator, uint64 leaseUntil, uint256 burned6);
@@ -772,6 +780,31 @@ contract EnclaveDeployments {
         emit ActiveSet(id, active);
     }
 
+    /// @notice Hand this deployment to another wallet (rev 11): every owner
+    ///         right — config, active, cap, resize, version changes — AND the
+    ///         rev-10 refund right move together. refund() pays whoever owns
+    ///         the record at call time and ownerEscrow6 stays with the record,
+    ///         so an un-refunded backing is part of what `to` receives; take
+    ///         refund() first if that is not the deal. From here on the NEW
+    ///         owner's fundings credit ownerEscrow6 (fund checks the owner at
+    ///         funding time) and the old owner's top-ups are sponsorship like
+    ///         anyone else's. The lease is untouched: a serving runner keeps
+    ///         earning against the same escrow and never notices.
+    /// @dev ONE-SHOT, no pending/accept step: a two-step handoff costs ~460
+    ///      bytes of runtime code and this contract has ~100 under EIP-170
+    ///      (see WHY TWO CONTRACTS above) — so clients must confirm `to`
+    ///      before signing, the way they quote refundableOf before a refund.
+    ///      A mistyped `to` is unrecoverable by the sender. Zero is refused
+    ///      so a transfer cannot orphan the record into the sweep path. The
+    ///      id keeps embedding the CREATOR (ids are (creator, nonce) hashes,
+    ///      never re-derived), so a transferred id never moves or collides.
+    function transferDeployment(bytes32 id, address to) external {
+        Deployment storage d = _requireOwned(id);
+        require(to != address(0), "zero addr");
+        d.owner = to;
+        emit DeploymentTransferred(id, msg.sender, to);
+    }
+
     /// @notice Fund/top-up with a signed USDC authorization (EIP-3009). Callable by
     ///         anyone; the payer credited is `from`. Same non-custodial forward and
     ///         nonce-binding as EnclavePay: the authorization's nonce must start with
@@ -1113,7 +1146,7 @@ contract EnclaveDeployments {
     function withdrawEarnings(address to) external {
         require(to != address(0), "zero addr");
         uint256 amt = earned6[msg.sender];
-        require(amt > 0, "nothing earned");
+        require(amt > 0, "amount=0");
         earned6[msg.sender] = 0;                             // effects before interaction
         require(usdc.transfer(to, amt), "USDC transfer failed");
         emit EarningsWithdrawn(msg.sender, to, amt);
@@ -1191,7 +1224,7 @@ contract EnclaveDeployments {
         Deployment storage d = _requireOwned(id);
         _creditRunner(d);
         uint256 amt = refundableOf(id);
-        require(amt > 0, "nothing to refund");
+        require(amt > 0, "amount=0");
         ownerEscrow6[id] -= amt;                             // <= by refundableOf's cap
         _earn[id].escrow6 -= uint96(amt);                    // cast safe: amt <= escrow6 (uint96)
         d.balance6 = 0;
@@ -1617,7 +1650,9 @@ contract EnclaveDeployments {
     function _requireOwned(bytes32 id) private view returns (Deployment storage d) {
         d = _deployments[id];
         require(_exists[id], "unknown");
-        require(d.owner == msg.sender, "not owner");
+        // deliberately the admin gate's string: a unique one here costs ~46
+        // bytes of the EIP-170 headroom this contract does not have
+        require(d.owner == msg.sender, "!owner");
     }
     function _requireActive(bytes32 id) private view returns (Deployment storage d) {
         d = _deployments[id];

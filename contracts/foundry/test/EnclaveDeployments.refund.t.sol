@@ -152,7 +152,7 @@ contract EnclaveDeploymentsRefundTest is Test {
         // the accounting fact directly: an unfunded record refunds nothing.
         assertEq(dep.refundableOf(id), 0);
         vm.prank(user);
-        vm.expectRevert("nothing to refund");
+        vm.expectRevert("amount=0");
         dep.refund(id);
     }
 
@@ -185,14 +185,14 @@ contract EnclaveDeploymentsRefundTest is Test {
         vm.prank(sponsor);
         dep.fund(id, 100e6);
         vm.prank(sponsor);
-        vm.expectRevert("not owner");
+        vm.expectRevert("!owner");
         dep.refund(id);
     }
 
     function test_onlyTheOwnerMayRefund() public {
         bytes32 id = _create(100e6);
         vm.prank(operator);
-        vm.expectRevert("not owner");
+        vm.expectRevert("!owner");
         dep.refund(id);
     }
 
@@ -261,7 +261,7 @@ contract EnclaveDeploymentsRefundTest is Test {
         vm.warp(uint256(leaseUntil) + 3600);     // the lease lapsed; nobody released
         assertEq(dep.refundableOf(id), 0, "still the runner's to claim");
         vm.prank(user);
-        vm.expectRevert("nothing to refund");
+        vm.expectRevert("amount=0");
         dep.refund(id);
 
         dep.settle(id);                          // meter closes: the runner takes it
@@ -295,7 +295,7 @@ contract EnclaveDeploymentsRefundTest is Test {
         vm.prank(user);
         dep.refund(id);
         vm.prank(user);
-        vm.expectRevert("nothing to refund");
+        vm.expectRevert("amount=0");
         dep.refund(id);
     }
 
@@ -404,7 +404,7 @@ contract EnclaveDeploymentsRefundTest is Test {
         assertEq(dep.ownerEscrow6(id), 0, "platform money stays platform money once imports are sealed");
         assertEq(dep.refundableOf(id), 0);
         vm.prank(user);
-        vm.expectRevert("nothing to refund");
+        vm.expectRevert("amount=0");
         dep.refund(id);
         // ...but it still does its real job: backing the runner's credits
         (, uint256 escrow6,) = dep.earnOf(id);

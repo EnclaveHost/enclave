@@ -409,6 +409,33 @@ test("detach stops routing and withdraws the certificate authorization", async (
     await signed(OWNER, (e) => deleteMessage(ID, e, host), { hostname: host }))).code, 404);
 });
 
+test("a transfer moves the domain gates: the attachment survives, control follows the chain", async () => {
+  // transferDeployment (ledger rev 11) flips d.owner in place. The domain
+  // store is keyed by deployment id and holds no owner — ownerGate re-reads
+  // the ledger — so attached hostnames (and their verification state) go WITH
+  // the record: the old key loses list/attach/detach, the new key gains them.
+  // fresh wallets: the suite's shared OWNER/OTHER keys are near the per-wallet
+  // rate budget by this point, and this test is about ownership, not limits
+  const SELLER = privateKeyToAccount("0x" + "51".repeat(32));
+  const BUYER  = privateKeyToAccount("0x" + "52".repeat(32));
+  const ID5 = "0x" + "55".repeat(32);
+  const host = "moved.example.com";
+  rows = [leaseRow({ id: ID5, owner: SELLER.address })];
+  let r = await call(`/v1/domains/${ID5}`, await signed(SELLER, (e) => addMessage(ID5, e, host), { hostname: host }));
+  assert.equal(r.code, 201);
+  rows = [leaseRow({ id: ID5, owner: BUYER.address })];    // the transfer, as ledgerRows sees it
+  // the old key keeps nothing
+  r = await call(`/v1/domains/${ID5}/list`, await signed(SELLER, (e) => listMessage(ID5, e)));
+  assert.equal(r.code, 403);
+  assert.equal(r.body.error, "not_owner");
+  // the attachment is the new owner's now — visible, and theirs to detach
+  r = await call(`/v1/domains/${ID5}/list`, await signed(BUYER, (e) => listMessage(ID5, e)));
+  assert.equal(r.code, 200);
+  assert.ok(r.body.domains.some((d) => d.hostname === host), "the hostname must survive the handoff");
+  r = await call(`/v1/domains/${ID5}/delete`, await signed(BUYER, (e) => deleteMessage(ID5, e, host), { hostname: host }));
+  assert.equal(r.code, 200);
+});
+
 test("DNS that disappears demotes a live domain — but slowly, and not on one bad answer", async () => {
   // its own wallet and deployment: re-checking spends the per-wallet DNS-op
   // budget, and this test deliberately re-checks seven times in a row

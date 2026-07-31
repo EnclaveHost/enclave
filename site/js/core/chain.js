@@ -41,6 +41,7 @@ export const DEP_SEL = { create:"36aaac4b",   // rev >= 8: (..., feeRecipient, f
                          capOf:"6cc6a48c",      // rev >= 8: read that ceiling (0 = a grandfathered, uncapped import)
                          refund:"7249fbb6",     // rev >= 10: cancel + return the unused runtime the ledger still HOLDS
                          refundableOf:"bfa34835", // rev >= 10: exactly what refund() pays (not an estimate)
+                         transferDeployment:"dd68b480", // rev >= 11: hand the record (control + the refund right) to another wallet, one-shot
                          multicall:"ac9650d8", // self-delegatecall batcher: setAppRef + setShares ride one signature
                          deploymentsSchema:"5d1b72b6" };  // shape-revision marker (reverts on rev-1 contracts;
                                                          // rev 3 = rev-2 struct + setAppRef version changes;

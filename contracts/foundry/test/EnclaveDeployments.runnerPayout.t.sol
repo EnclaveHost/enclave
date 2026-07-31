@@ -282,7 +282,7 @@ contract EnclaveDeploymentsRunnerPayoutTest is Test {
         assertEq(usdc.balanceOf(coldWallet), earned);
         assertEq(dep.earned6(operator), 0);
         vm.prank(operator);
-        vm.expectRevert("nothing earned");
+        vm.expectRevert("amount=0");
         dep.withdrawEarnings(coldWallet);
     }
 

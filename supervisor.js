@@ -5735,6 +5735,17 @@ async function auditClaims(ledgerById) {
     rec.paidUsdc = Number(d.spent6 + d.balance6);
     rec._balance6 = Number(d.balance6);          // funded-runtime display: balance beyond the current lease
     rec.rate = Number(d.rate) / 1e6;             // a setShares resize recalculates it on-chain; keep the mirror honest
+    // transferDeployment (rev 11): rec.owner is otherwise a claim-time snapshot
+    // (adopt), and it keys every owner gate on this box — the private data
+    // path, logs, delete/restart, top-up. Mirror it here so a transfer moves
+    // those gates to the new wallet within one audit pass instead of only on
+    // the next re-claim. Same checksummed form adopt stamps.
+    const chainOwner = getAddress(d.owner);
+    if (rec.owner !== chainOwner) {
+      console.log(`[claim] ${rec.id} owner transferred on-chain ${rec.owner} -> ${chainOwner}`);
+      rec.owner = chainOwner;
+      saveStateSoon();
+    }
     // OWNERSHIP is keyed on the ENCLAVE ID (d.runner === _enclaveId), matching the
     // sweep (considerClaim) and the resume path — NOT on runnerOperator. On a
     // SHARED gas key several enclaves sign as the same operator EOA but have

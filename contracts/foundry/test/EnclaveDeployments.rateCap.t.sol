@@ -257,7 +257,7 @@ contract EnclaveDeploymentsRateCapTest is Test {
         vm.stopPrank();
         assertEq(dep.capOf(id), fee + 1);
 
-        vm.expectRevert("not owner");
+        vm.expectRevert("!owner");
         dep.setMaxRate(id, 10_000);                  // this test contract is not the owner
 
         vm.prank(user);
