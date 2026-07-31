@@ -1,54 +1,183 @@
-# enclave-wasip3-build: the BLESSED toolchain for wasm32-wasip3 app builds.
-#
-# Why this container exists: stable rustc lists wasm32-wasip3 but ships NO std
-# for it (Tier 3, no dist artifacts — verified against the 2026-07-25 nightly
-# manifest too: the target is absent entirely), so every wasip3 build goes
-# through `-Zbuild-std`, which is nightly-only. A floating nightly is the
-# opposite of a reproducible recipe, so the platform pins ONE and publishers
-# build inside it. The app-side trust story is unchanged from wasip2 — the CID
-# is the contract, verified byte-for-byte in-enclave before launch (there is no
-# source-rebuild verifier for either target; see docs/wasip3.md) — but this
-# container plus a committed Cargo.lock is what makes an independent
-# rebuild-and-compare of a p3 CID *possible*: same container, same lockfile,
-# same bytes out.
+# enclave-wasip3-build v2: the BLESSED toolchain for wasm32-wasip3 app builds.
 #
 #   docker build -f wasm/Dockerfile.wasip3-build -t enclave-wasip3-build wasm/
 #   docker run --rm -v "$PWD":/src enclave-wasip3-build
 #   # -> target/wasm32-wasip3/release/<app>.wasm (a p3 async component)
+#   # (first run: docker run --rm -v "$PWD":/src --entrypoint cargo \
+#   #    enclave-wasip3-build generate-lockfile   — the build is --locked)
 #
-# PINS (move all three deliberately, together, and announce — publishers'
-# rebuilds must keep matching their published CIDs):
-#   - base image by DIGEST (same discipline as Dockerfile.wasmtime: a repushed
-#     tag silently changes what "the same recipe" builds)
-#   - the nightly BY DATE: nightly-2026-07-25 = rustc 1.99.0-nightly
-#     (da86f4d07 2026-07-24), rust-src included for -Zbuild-std. Its std for
-#     wasip3 binds the `wasip3` crate; components it emits still IMPORT WASIp2
-#     APIs (the rustc target spec documents this) and EXPORT the p3 world —
-#     which is exactly what the platform's classifier and wasmtime 45 serve.
-#   - wasi-sdk by sha256: -Zbuild-std compiles wasi-libc's C side, which needs
-#     a wasm-targeting clang the base image does not carry.
+# Why v2 exists — the v1 recipe (stock nightly + wasi-sdk 25) cannot produce a
+# working component, verified 2026-07-31 on the first real app-side build:
+#
+#   1. rustc's wasm32-wasip3 target spec emits `--cooperative-threading` in
+#      pre-link-args; every shipped rust-lld is LLD 22 and the flag lands in
+#      LLD 23 — stock builds die at link with "unknown argument".
+#   2. wasi-sdk 25 ships no wasip3 sysroot, and its wasip2 libc lacks the
+#      `__wasilibc_futex_wait/wake` symbols the wasip3 std links against.
+#   3. wasi-sdk 34-rc.2 ships both a wasip3 sysroot and an LLD 23 — but its
+#      libc objects carry LLVM 23's cooperative-TLS ABI, which LLVM-22 rustc
+#      objects cannot link with. Codegen and linker must share an LLVM major,
+#      and a clean LLVM-23 rustc pairing does not exist yet.
+#
+# So this image builds the missing piece itself and strips the flag itself,
+# under one rule taken from the diagnosis: EVERYTHING THAT BECOMES WASM BYTES
+# IS LLVM 22, the major the pinned nightly's rust-lld (22.1.8) speaks.
+#
+#   - wasi-libc, at EXACTLY the revision wasi-sdk-34-rc.2 pins (submodule
+#     fb2edcef), compiled for TARGET_TRIPLE=wasm32-wasip2 — the p2 flavor ON
+#     PURPOSE, two measured reasons deep:
+#       (a) that rev's wasip3-native bindings speak wasi 0.3.0-FINAL
+#           (`set(wasip3-version 0.3.0)`; a wasip3-flavored build imports
+#           wasi:cli/*@0.3.0), and the fleet's wasmtime 45 serves
+#           0.3.0-rc-2026-03-15 — instantiation fails on the version string.
+#           The p2-flavored libc imports wasi:cli/*@0.2.x, which every
+#           wasmtime links unconditionally; mixed 0.2 imports under a p3
+#           export are the documented-normal shape of a rustc p3 component.
+#       (b) it carries the `__wasilibc_futex_wait/wake` pair (verified in
+#           upstream's expected symbol list for wasm32-wasip2 at this rev)
+#           with the abort-if-blocking-actually-happens semantics rust std
+#           documents — the exact symbols v1's sdk-25 libc was missing, now
+#           from upstream source instead of a guest-side shim crate.
+#     Compiled by the PINNED LLVM 22.1.8 release clang, NOT wasi-sdk 34's
+#     clang 23. Also measured, not cautious: a clang-23 build of this source
+#     predefines `__wasm_libcall_thread_context__` even without coop threads
+#     and emits the libcall task/TLS helper symbols (__wasm_init_async_task,
+#     __wasm_get_tls_base, …) with `__init_stack_pointer` left undefined —
+#     the very ABI rust-lld 22 refuses. CHECK_SYMBOLS=ON diffs the produced
+#     symbol set against upstream's clang-22 expected list on every image
+#     build (upstream CI builds this flavor with clang 22), so an ABI leak
+#     fails the image; the futex pair is additionally asserted by name.
+#   - /opt/wasm32-wasip3.json: rustc's own wasm32-wasip3 spec minus
+#     `--cooperative-threading` (and minus `is-builtin`), generated at image
+#     build from the pinned nightly — never hand-maintained.
+#   - a link smoke test: an empty bin crate goes through the full build-std +
+#     stripped-spec + our-libc + rust-lld chain at IMAGE build time, so a
+#     broken chain fails HERE, not in a publisher's checkout.
+#
+# RETIREMENT (one event, all together): when rustc lands on LLVM 23, the
+# builtin spec's flag matches its own lld and stock wasi-sdk 34+ sysroots
+# link cleanly — then: drop the spec strip (CMD goes back to
+# `--target wasm32-wasip3`), drop the wasi-libc build and the LLVM download
+# (use the shipped sysroot), keep the nightly pin until wasip3 std goes
+# tier-2. Until that day these pins move DELIBERATELY, TOGETHER, and are
+# announced: publishers' rebuilds must keep matching their published CIDs.
+#
+# Guest-side facts this recipe bakes in (see the develop guide's WASIp3
+# chapter): wasip3 crate must be PINNED =0.6.0 (its world is
+# wasi:http@0.3.0-rc-2026-03-15, which the fleet's wasmtime 45 serves; 0.7.x
+# tracks 0.3.0-final and will NOT instantiate), and release LTO is forced to
+# THIN via cargo config env below — fat LTO trips a duplicate `cabi_realloc`
+# between std's wit-bindgen copy and the app's own.
+#
+# Base pinned by DIGEST (repo discipline: a repushed tag silently changes
+# what "the same recipe" builds). ninja from Debian shapes only the libc
+# build graph, never codegen; every compiler and linker is a pinned artifact.
 FROM rust:1.93-bookworm@sha256:7c4ae649a84014c467d79319bbf17ce2632ae8b8be123ac2fb2ea5be46823f31
+
+RUN apt-get update && apt-get install -y --no-install-recommends ninja-build xz-utils \
+ && rm -rf /var/lib/apt/lists/*
+
+# CMake by pinned release (bookworm's 3.25 is under wasi-libc's 3.26 floor;
+# a Kitware tarball is also one fewer thing apt can move under the recipe)
+ARG CMAKE_URL=https://github.com/Kitware/CMake/releases/download/v3.31.7/cmake-3.31.7-linux-x86_64.tar.gz
+ARG CMAKE_SHA256=14e15d0b445dbeac686acc13fe13b3135e8307f69ccf4c5c91403996ce5aa2d4
+RUN curl -fsSL -o /tmp/cmake.tgz "${CMAKE_URL}" \
+ && echo "${CMAKE_SHA256}  /tmp/cmake.tgz" | sha256sum -c - \
+ && tar -xzf /tmp/cmake.tgz -C /opt && rm /tmp/cmake.tgz
+ENV PATH=/opt/cmake-3.31.7-linux-x86_64/bin:${PATH}
 
 ARG P3_NIGHTLY=nightly-2026-07-25
 RUN rustup toolchain install "${P3_NIGHTLY}" --profile minimal --component rust-src \
  && rustup default "${P3_NIGHTLY}"
 
-ARG WASI_SDK_VERSION=25.0
-ARG WASI_SDK_URL=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-25/wasi-sdk-25.0-x86_64-linux.tar.gz
-ARG WASI_SDK_SHA256=52640dde13599bf127a95499e61d6d640256119456d1af8897ab6725bcf3d89c
-RUN curl -fsSL -o /tmp/wasi-sdk.tgz "${WASI_SDK_URL}" \
- && echo "${WASI_SDK_SHA256}  /tmp/wasi-sdk.tgz" | sha256sum -c - \
- && tar -xzf /tmp/wasi-sdk.tgz -C /opt && rm /tmp/wasi-sdk.tgz
-ENV WASI_SDK_PATH=/opt/wasi-sdk-25.0-x86_64-linux
-ENV CC_wasm32_wasip3=${WASI_SDK_PATH}/bin/clang \
-    AR_wasm32_wasip3=${WASI_SDK_PATH}/bin/llvm-ar
+# LLVM 22.1.8 release clang — the SAME LLVM major (and point release) as the
+# nightly's bundled rust-lld, per the matched-pair rule in the header. Only
+# the pieces the libc build (and cc-rs app deps) need are kept; the release
+# tarball is ~5 GB unpacked and the rest of it has no business in the image.
+ARG LLVM_URL=https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.8/LLVM-22.1.8-Linux-X64.tar.xz
+ARG LLVM_SHA256=df0e1ecf16caf3489a272a5eea4eec9b0d82878f6477fa309504f918a0006384
+RUN curl -fsSL -o /tmp/llvm.tar.xz "${LLVM_URL}" \
+ && echo "${LLVM_SHA256}  /tmp/llvm.tar.xz" | sha256sum -c - \
+ && mkdir -p /tmp/llvm /opt/llvm22/bin \
+ && tar -xJf /tmp/llvm.tar.xz -C /tmp/llvm --strip-components=1 \
+ && cp -a /tmp/llvm/bin/clang-22 /tmp/llvm/bin/llvm-ar /tmp/llvm/bin/llvm-nm /opt/llvm22/bin/ \
+ && ln -s clang-22 /opt/llvm22/bin/clang \
+ && mkdir -p /opt/llvm22/lib && cp -a /tmp/llvm/lib/clang /opt/llvm22/lib/ \
+ && (cp -a /tmp/llvm/lib/*.so* /opt/llvm22/lib/ 2>/dev/null || true) \
+ && rm -rf /tmp/llvm /tmp/llvm.tar.xz \
+ && /opt/llvm22/bin/clang --version | grep -q "clang version 22.1.8"
+ENV LLVM22=/opt/llvm22
 
-# Determinism knobs, applied to EVERY build in this container so no publisher
-# forgets one: --remap-path-prefix strips the host paths (the same source in a
-# different checkout dir must not change the bytes); --locked refuses to build
-# without the committed Cargo.lock (an unlocked resolve is a different build).
-ENV RUSTFLAGS="--remap-path-prefix=/src=. --remap-path-prefix=/usr/local/cargo=/cargo"
+# wasi-libc at the wasi-sdk-34-rc.2 submodule pin, p2-flavored per the
+# header's (a)/(b). Upstream's own configure line (their CI), minus tests;
+# CHECK_SYMBOLS is the ABI-drift tripwire. The result lands in
+# /opt/wasip3-sysroot — the sysroot FOR wasip3 builds, wasip2-flavored on
+# purpose; the lib/include paths below say wasm32-wasip2 and that is correct.
+ARG WASI_LIBC_REV=fb2edcef33395cd18f5921041f9c40d6127adc68
+RUN git init -q /src/wasi-libc && cd /src/wasi-libc \
+ && git remote add origin https://github.com/WebAssembly/wasi-libc \
+ && git fetch -q --depth 1 origin "${WASI_LIBC_REV}" && git checkout -q FETCH_HEAD \
+ && CC="${LLVM22}/bin/clang" AR="${LLVM22}/bin/llvm-ar" NM="${LLVM22}/bin/llvm-nm" \
+    cmake -G Ninja -S . -B build \
+      -DTARGET_TRIPLE=wasm32-wasip2 \
+      -DBUILD_SHARED=OFF -DCHECK_SYMBOLS=ON -DCMAKE_LINK_DEPENDS_USE_LINKER=OFF \
+ && ninja -C build \
+ && "${LLVM22}/bin/llvm-nm" build/sysroot/lib/wasm32-wasip2/libc.a 2>/dev/null \
+      | grep -q "T __wasilibc_futex_wait" \
+ && "${LLVM22}/bin/llvm-nm" build/sysroot/lib/wasm32-wasip2/libc.a 2>/dev/null \
+      | grep -q "T __wasilibc_futex_wake" \
+ && cp -a build/sysroot /opt/wasip3-sysroot \
+ && cd / && rm -rf /src/wasi-libc
+
+# The stripped target spec: rustc's own answer, minus the LLD-23-only flag
+# and the is-builtin marker (rustc refuses custom specs carrying it). The
+# filter is substring-based on EVERY link-args table: the JSON printer
+# expands the flag into both linker flavors ("--cooperative-threading" for
+# wasm-lld, "-Wl,--cooperative-threading" for the cc flavor). Never edited
+# by hand — regenerating from the pinned nightly IS the maintenance.
+RUN <<'STRIP'
+set -e
+rustc -Zunstable-options --print target-spec-json --target wasm32-wasip3 > /tmp/spec.json
+python3 - <<'PY'
+import json
+s = json.load(open("/tmp/spec.json"))
+s.pop("is-builtin", None)
+for table in [k for k in s if "link-args" in k]:
+    s[table] = {flavor: [a for a in args if "cooperative-threading" not in a]
+                for flavor, args in s[table].items()}
+json.dump(s, open("/opt/wasm32-wasip3.json", "w"), indent=2, sort_keys=True)
+PY
+rm /tmp/spec.json
+if grep -q cooperative-threading /opt/wasm32-wasip3.json; then
+  echo "spec strip FAILED: the flag survives in wasm32-wasip3.json" >&2
+  exit 1
+fi
+STRIP
+
+# Determinism + linkage, applied to EVERY build so no publisher forgets one:
+#   -L        our wasip3 libc (the futex symbols and friends)
+#   remap     host paths must not change the bytes
+#   --locked  (in CMD) an unlocked resolve is a different build
+#   LTO=thin  cargo config env OVERRIDES the app's Cargo.toml profile — fat
+#             LTO reproducibly breaks (duplicate cabi_realloc, header above)
+# cc-rs deps in an app's graph get the LLVM-22 clang against our sysroot.
+ENV RUSTFLAGS="-Zunstable-options -L /opt/wasip3-sysroot/lib/wasm32-wasip2 --remap-path-prefix=/src=. --remap-path-prefix=/usr/local/cargo=/cargo"
+ENV CARGO_PROFILE_RELEASE_LTO=thin
+ENV CC_wasm32_wasip3=/opt/llvm22/bin/clang \
+    AR_wasm32_wasip3=/opt/llvm22/bin/llvm-ar \
+    CFLAGS_wasm32_wasip3="--sysroot=/opt/wasip3-sysroot -isystem /opt/wasip3-sysroot/include/wasm32-wasip2"
 ENV CARGO_TERM_COLOR=never
 
+# Link smoke test: the whole chain (build-std + stripped spec + our libc +
+# rust-lld 22) proves itself at image build. Layer byte 1 = a component came
+# out the other end. Artifacts discarded; no network touched (rust-src
+# vendors std's dependency graph).
+RUN cargo new /tmp/smoke --bin -q && cd /tmp/smoke \
+ && cargo build --release --target /opt/wasm32-wasip3.json \
+      -Zbuild-std=std,panic_abort -Zjson-target-spec \
+ && python3 -c 'b = open("/tmp/smoke/target/wasm32-wasip3/release/smoke.wasm", "rb").read(8); \
+assert b[0:4] == b"\x00asm" and (b[6] | (b[7] << 8)) == 1, "not a component"' \
+ && rm -rf /tmp/smoke "${CARGO_HOME:-/usr/local/cargo}/registry/cache" || exit 1
+
 WORKDIR /src
-CMD ["cargo", "build", "--release", "--target", "wasm32-wasip3", "-Zbuild-std=std,panic_abort", "--locked"]
+CMD ["cargo", "build", "--release", "--target", "/opt/wasm32-wasip3.json", "-Zbuild-std=std,panic_abort", "-Zjson-target-spec", "--locked"]

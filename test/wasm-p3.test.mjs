@@ -38,9 +38,14 @@ const FAKE = (body) => {
   return p;
 };
 
-// help output shapes: the loopback line keeps those tests' invariants intact
-const HELP_P3 = `echo "  -S    loopback-allow=<port[+port...]> -- ..."; echo "  -S            p3[=y|n] -- Enable support for WASIp3 APIs."; exit 0`;
+// help output shapes: the loopback line keeps those tests' invariants intact.
+// The fake answers every probe with the same text, which is fine — each probe
+// greps only its own token (-S help for p3, -W help for component-model-async).
+const HELP_P3 = `echo "  -S    loopback-allow=<port[+port...]> -- ..."; echo "  -S            p3[=y|n] -- Enable support for WASIp3 APIs."; echo "  -W  component-model-async[=y|n] -- Component model support for async lifting/lowering."; exit 0`;
 const HELP_NO_P3 = `echo "  -S    loopback-allow=<port[+port...]> -- ..."; exit 0`;
+// the 2026-07-31 shape: -Sp3 advertised but the engine feature absent — a p3
+// surface whose streams cannot instantiate. Must count as NOT serving p3.
+const HELP_P3_NO_CMA = `echo "  -S    loopback-allow=<port[+port...]> -- ..."; echo "  -S            p3[=y|n] -- Enable support for WASIp3 APIs."; exit 0`;
 // long-option help for the serve tuning knobs (same fake answers both probes)
 const HELP_P3_TUNING = HELP_P3.replace("exit 0",
   `echo "      --max-instance-reuse-count <N>"; echo "      --max-instance-concurrent-reuse-count <N>"; echo "      --idle-instance-timeout <T>"; exit 0`);
@@ -67,12 +72,26 @@ print(json.dumps({"cmd": cmd, "p3": m._p3_supported(), "active": m._p3_active()}
 
 // ---- 1. the -Sp3 probe ------------------------------------------------------
 
-test("a wasmtime that proves p3 gets -Sp3, in both launch modes", () => {
+test("a wasmtime that proves p3 gets -Sp3 AND -W component-model-async, in both launch modes", () => {
   const bin = FAKE(HELP_P3);
   for (const serve of [true, false]) {
     const { cmd } = cmdFor({}, { serve, env: { WASMTIME_BIN: bin } });
     assert.ok(cmd.includes("-Sp3"), `${serve ? "serve" : "run"} argv must carry -Sp3`);
+    const i = cmd.indexOf("component-model-async");
+    assert.ok(i > 0 && cmd[i - 1] === "-W",
+      "the engine feature must ride along as a real -W option: -Sp3 alone cannot instantiate a p3 component's streams");
   }
+});
+
+test("a wasmtime advertising -Sp3 WITHOUT the engine feature does not serve p3", () => {
+  // the app side's 2026-07-31 finding: "`stream` requires the component model
+  // async feature". Half-support must read as NO support, or p3 claims land
+  // on a box whose every p3 launch fails at instantiation.
+  const bin = FAKE(HELP_P3_NO_CMA);
+  const { cmd, p3 } = cmdFor({}, { env: { WASMTIME_BIN: bin } });
+  assert.equal(p3, false);
+  assert.ok(!cmd.includes("-Sp3"), "neither flag is passed — both or neither");
+  assert.ok(!cmd.includes("component-model-async"));
 });
 
 test("a wasmtime WITHOUT p3 is never handed the flag", () => {

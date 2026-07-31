@@ -90,9 +90,13 @@ many requests share it, and CPU time by the share's cgroup/MPS envelope.
   contract redeploy, and nothing touches `EnclaveDeployments` (which has ~78
   bytes of EIP-170 headroom and must not be edited for this). Undeclared =
   "0.2": every pre-p3 version, correctly.
-- **Claim routing**: the manager probes its own binary for `-S p3` (`-S help`
-  contains `p3[=y|n]` — the loopback-probe doctrine: never pass an option the
-  binary doesn't prove, unproven means don't pass), reports `p3` on
+- **Claim routing**: the manager probes its own binary for BOTH p3 flags —
+  `-S p3` (`-S help` contains `p3[=y|n]`) and `-W component-model-async`
+  (`-W help` token; without the engine feature a p3 component fails
+  instantiation with "`stream` requires the component model async feature" —
+  found by the app side's first real build, so the launcher emits both or
+  neither; the loopback-probe doctrine: never pass an option the binary
+  doesn't prove, unproven means don't pass) — and reports `p3` on
   `/health`; the supervisor forwards it on `/availability`; the relay ANDs it
   across the claiming fleet. `considerClaim` refuses a `wasi: "0.3"` version
   on a box that doesn't serve p3 — same shape as the volume and secrets
@@ -144,31 +148,66 @@ gate. p3 must not be held to a bar p2 never met, so the p3 publish gate is
 OPEN, not held for tier-2 std.
 
 What we ship instead is the recipe that makes independent rebuilds
-*possible*: **`wasm/Dockerfile.wasip3-build`**, the blessed container —
+*possible*: **`wasm/Dockerfile.wasip3-build`** (v2, 2026-07-31 — v1 could
+not link a working component; the first real app-side build found the chain
+of breaks, all verified: the builtin target spec emits
+`--cooperative-threading`, which no shipped rust-lld (LLD 22) knows; wasi-sdk
+25 has no wasip3 sysroot and its wasip2 libc lacks the
+`__wasilibc_futex_wait/wake` the wasip3 std links; wasi-sdk 34-rc.2 has both
+but its libc carries LLVM 23's cooperative-TLS ABI, unlinkable with LLVM-22
+rustc objects). v2's rule is the diagnosis's own: **everything that becomes
+wasm bytes is LLVM 22**, matching the pinned nightly's rust-lld 22.1.8 —
 
 - base image by digest (the repo's standard discipline),
 - **`nightly-2026-07-25`** (rustc 1.99.0-nightly, da86f4d07 2026-07-24) with
   `rust-src`, because stable ships no wasip3 std and `-Zbuild-std` is
   nightly-only (verified against the dist manifest: wasm32-wasip3 has no
   artifacts at all),
-- wasi-sdk 25.0 by sha256 for wasi-libc's C side,
-- `RUSTFLAGS=--remap-path-prefix…` and `--locked` baked in, so checkout paths
-  and unlocked resolves can't change the bytes,
-- one command: `cargo build --release --target wasm32-wasip3
-  -Zbuild-std=std,panic_abort --locked`.
+- **wasi-libc built in-image** at rev `fb2edcef` (exactly what wasi-sdk
+  34-rc.2 pins) for **`TARGET_TRIPLE=wasm32-wasip2` — the p2 flavor on
+  purpose**, both reasons measured during acceptance: (a) that rev's
+  wasip3-native bindings speak wasi **0.3.0-final** (`wasip3-version 0.3.0`
+  in its CMake), so a wasip3-flavored libc makes every component import
+  `wasi:cli/*@0.3.0`, which the fleet's rc-2026-03-15 wasmtime cannot
+  satisfy — the p2-flavored libc imports `wasi:cli/*@0.2.x`, which every
+  wasmtime links unconditionally (and is why "mixed 0.2 imports" is the
+  documented-normal p3 component shape); (b) it defines
+  `__wasilibc_futex_wait/wake` (in upstream's expected-symbols list for this
+  flavor) with the abort-if-blocking semantics rust std documents — the
+  symbols v1's sdk-25 libc lacked, now from upstream source instead of a
+  guest shim. Compiled by the **pinned LLVM 22.1.8 release clang** — NOT
+  sdk34's clang 23, and that is evidence, not caution: a clang-23 build
+  predefines `__wasm_libcall_thread_context__` even without coop threads and
+  emits the libcall task/TLS helpers (caught by the image's
+  `CHECK_SYMBOLS=ON` tripwire against upstream's clang-22 expected list,
+  which the build diffs on every image build — the futex pair is
+  additionally asserted by name). Upstream's own CI builds this flavor with
+  clang 22; we do exactly that,
+- **`/opt/wasm32-wasip3.json`**: rustc's own `--print target-spec-json`
+  minus `--cooperative-threading` and `is-builtin`, regenerated from the
+  pinned nightly at image build — never hand-maintained,
+- `RUSTFLAGS` (`-Zunstable-options`, `-L` our libc, path remaps),
+  `CARGO_PROFILE_RELEASE_LTO=thin` (fat LTO reproducibly duplicates
+  `cabi_realloc` between std's wit-bindgen and the app's), and a link smoke
+  test that pushes an empty crate through the whole chain at image build,
+- one publisher command, unchanged: `docker run --rm -v "$PWD":/src
+  enclave-wasip3-build` (CMD: `cargo build --release --target
+  /opt/wasm32-wasip3.json -Zbuild-std=std,panic_abort -Zjson-target-spec
+  --locked`).
+
+Guest-side facts the recipe assumes (develop guide, WASIp3 chapter): the
+`wasip3` crate pinned `=0.6.0` (its world is `wasi:http@0.3.0-rc-2026-03-15`,
+which wasmtime 45 serves; 0.7.x tracks 0.3.0-final and will not
+instantiate), and the futex discipline — a wait that would actually block
+aborts, so no std locks held across awaits.
 
 Publishers commit `Cargo.lock` (enclave-apps already does) and note the
-container tag in their README. When rustc ships tier-2 wasip3 std, the
-container pin moves to that stable and the nightly clause retires. When a
-rebuild verifier is built, it verifies p2 and p3 through the same door; the
-p3 recipe was designed so that day needs no new decisions.
-
-One canary-order caveat: the nightly's std binds the `wasip3` crate 0.6.x,
-wasmtime 45 serves `wasi:http@0.3.0-rc-2026-03-15`. The rc snapshots must
-agree for the EXPORTED world (imports stay p2 and always link). The p3
-hello-world on the canary is exactly the test of that alignment — if it
-fails to instantiate, the fix is moving one pin (app-side wit-bindgen
-bindings or the nightly), not a redesign.
+container tag in their README. RETIREMENT is one event, all together: when
+rustc lands on LLVM 23, the builtin spec's flag matches its own lld and
+stock wasi-sdk 34+ sysroots link cleanly — drop the spec strip, drop the
+in-image libc build, keep the nightly pin until wasip3 std goes tier-2.
+When a rebuild verifier is built, it verifies p2 and p3 through the same
+door; the p3 recipe was designed so that day needs no new decisions.
 
 ## 5. Gateway behavior (documented; no fix needed)
 

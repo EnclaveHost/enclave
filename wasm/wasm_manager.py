@@ -2468,16 +2468,24 @@ def _loopback_flag_supported() -> bool:
     return _LOOPBACK_FLAG
 
 
-# Does THIS wasmtime binary know `-S p3` (WASIp3 / component-model async)?
-# Same doctrine as the loopback probe, applied BEFORE the outage this time:
-# the launcher and the binary move by different hands, and an unknown -S
-# option is exit 2 before the module is read — on every tenant, p2 included.
-# So `-Sp3` is emitted only on positive evidence from this binary's own
-# `-S help`. The probe token is the option name PLUS its value hint as the
-# help printer renders them contiguously ("p3[=y|n]"): a bare "p3" substring
-# could match prose. Unproven means DO NOT PASS — dropping the flag costs
-# nothing on the p2 majority, and wasip3 deployments are refused at claim
-# and at launch with a readable error instead of exit-2ing the whole box.
+# Does THIS wasmtime binary serve WASIp3? TWO flags make that true, and the
+# probe proves BOTH — same doctrine as the loopback probe, applied BEFORE the
+# outage this time: the launcher and the binary move by different hands, and
+# an unknown option is exit 2 before the module is read, on every tenant.
+#   -S p3                       links the WASIp3 API surface
+#   -W component-model-async    enables the async/`stream` component-model
+#                               feature in the ENGINE — without it a p3
+#                               component fails instantiation with "`stream`
+#                               requires the component model async feature"
+#                               (found by the app side's first real p3 build,
+#                               2026-07-31: -Sp3 alone serves nothing)
+# Probe tokens are option name PLUS value hint as the help printer renders
+# them contiguously ("p3[=y|n]", "component-model-async[=y|n]"): bare names
+# could match prose, and the exact token cannot match the sibling
+# component-model-async-stackful/-bytes options. Unproven means DO NOT PASS —
+# dropping the pair costs nothing on the p2 majority, and wasip3 deployments
+# are refused at claim and at launch with a readable error instead of
+# exit-2ing the whole box.
 _P3_FLAG = None            # None = not probed yet; True/False = the binary's answer
 
 
@@ -2488,17 +2496,20 @@ def _p3_supported() -> bool:
     if MOCK:
         _P3_FLAG = True
         return _P3_FLAG
-    try:
-        r = subprocess.run([WASMTIME, "serve", "-S", "help"],
+    def _help(group):
+        r = subprocess.run([WASMTIME, "serve", group, "help"],
                            capture_output=True, text=True, timeout=10)
-        _P3_FLAG = "p3[=y|n]" in ((r.stdout or "") + (r.stderr or ""))
+        return (r.stdout or "") + (r.stderr or "")
+    try:
+        _P3_FLAG = ("p3[=y|n]" in _help("-S")
+                    and "component-model-async[=y|n]" in _help("-W"))
     except Exception as e:
-        print(f"wasm-manager: could not probe `-S p3` ({e}); launching without it", flush=True)
+        print(f"wasm-manager: could not probe the p3 flag pair ({e}); launching without them", flush=True)
         _P3_FLAG = False
     if not _P3_FLAG:
-        print("wasm-manager: this wasmtime does not advertise `-S p3` — wasip2 tenants launch "
-              "unchanged, wasip3 versions are refused at claim/launch (/health carries `p3`).",
-              flush=True)
+        print("wasm-manager: this wasmtime does not advertise BOTH `-S p3` and "
+              "`-W component-model-async` — wasip2 tenants launch unchanged, wasip3 "
+              "versions are refused at claim/launch (/health carries `p3`).", flush=True)
     return _P3_FLAG
 
 
@@ -2508,7 +2519,9 @@ def _p3_active() -> bool:
 
 
 def _p3_flags() -> list:
-    return ["-Sp3"] if _p3_active() else []
+    # both or neither: -Sp3 without the engine feature is a p3 surface whose
+    # streams cannot instantiate — worse than absent, it looks half-alive
+    return ["-Sp3", "-W", "component-model-async"] if _p3_active() else []
 
 
 def _p3_tuning(enclave_config, wasi_contract) -> list:
