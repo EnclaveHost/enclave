@@ -1632,7 +1632,7 @@ def _nn_probe_e2e(env, targets=("cpu", "gpu"), timeout=None, extra_args=()) -> t
     if not wasm.is_file():
         return ({t: True for t in targets}, "e2e skipped (nn-demo.wasm not baked in)")
     port = _free_port()
-    cmd = [WASMTIME, "serve", "-Scli", "-Shttp", *P3_FLAGS, "-Snn", *extra_args,
+    cmd = [WASMTIME, "serve", "-Scli", "-Shttp", *_p3_flags(), "-Snn", *extra_args,
            "--addr", f"{HOST_IP}:{port}", str(wasm)]
     try:
         proc = subprocess.Popen(cmd, env=env, stdin=subprocess.DEVNULL,
@@ -1775,7 +1775,7 @@ def _nn_probe_gdb(env, extra_args=()) -> str:
     cmd = ["gdb", "--batch", "-q",
            "-ex", "set pagination off", "-ex", "set confirm off", "-ex", "run",
            "-ex", "thread apply all bt 24",
-           "--args", WASMTIME, "serve", "-Scli", "-Shttp", *P3_FLAGS, "-Snn", *extra_args,
+           "--args", WASMTIME, "serve", "-Scli", "-Shttp", *_p3_flags(), "-Snn", *extra_args,
            "--addr", f"{HOST_IP}:{port}", str(wasm)]
     try:
         proc = subprocess.Popen(cmd, env=env, stdin=subprocess.DEVNULL,
@@ -4329,7 +4329,7 @@ def main():
     if _NN_PROBE["state"] == "probing":
         threading.Thread(target=_nn_probe_loop, daemon=True).start()   # gates GPU launches
     print(f"wasm-manager on :{PORT} runtime=wasmtime mock={MOCK} apps_dir={APPS_DIR} "
-          f"p3={bool(P3_FLAGS)} fs={FS_ENABLED} nn={_NN_PROBE['state']}", flush=True)
+          f"p3={_p3_active()} fs={FS_ENABLED} nn={_NN_PROBE['state']}", flush=True)
     if not VMMGR_TOKEN:
         if VMMGR_ALLOW_UNAUTH:
             print("wasm-manager WARNING: no VMMGR_TOKEN/SECRET and VMMGR_ALLOW_UNAUTHENTICATED=1 — "
