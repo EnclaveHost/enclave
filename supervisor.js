@@ -1057,6 +1057,16 @@ const WAF_SCANNER_PATHS = [
 function gpuOptionalOfConfig(cfg) {
   try { return JSON.parse(String(cfg || "{}") || "{}").gpuOptional === true; } catch { return false; }
 }
+// The version's declared wasi world contract ("0.2" | "0.3"), stamped into the
+// config by the publish path from the component's own export section. Claim
+// ROUTING only — the manager re-classifies the actual bytes at launch, so a
+// config that lies fails there with a readable error. Undeclared/unparseable
+// means "0.2": every version published before the key existed is wasip2, and
+// fail-open-to-p2 is safe both ways (a p2-capable box serves it; an undeclared
+// p3 version launch-fails only on boxes that could never serve it anyway).
+function wasiOfConfig(cfg) {
+  try { return JSON.parse(String(cfg || "{}") || "{}").wasi === "0.3" ? "0.3" : "0.2"; } catch { return "0.2"; }
+}
 function parseDepOptions(raw, gpuMilli) {
   const s = String(raw || "").trim();
   if (!s) return {};
@@ -2804,6 +2814,13 @@ app.get("/availability", async (_req, res) => {
     // nobody can read. Reported ONLY when it is missing — an absent key means the
     // box either enforces it or is too old to have an opinion.
     const lbw = PROVISION_BACKEND === "vm" && h.loopbackWall === false ? { loopbackWall: false } : {};
+    // WASIp3 serving capability: the manager probed its own wasmtime for
+    // `-S p3` (and honors the operator's WASM_P3 switch). Reported as a real
+    // boolean either way — the relay ANDs `p3 === true` across the claiming
+    // fleet before clients rely on it, and this box's own claim gate refuses
+    // wasi-0.3 versions when it is false. Absent = a manager too old to have
+    // an opinion, which the AND treats as false (correct: it predates p3).
+    const p3 = PROVISION_BACKEND === "vm" && h.p3 !== undefined ? { p3: h.p3 === true } : {};
     // attached model volumes this enclave carries (Modelwrap): the console and
     // clients read this to know which volumes a deployment here can mount.
     const vols = PROVISION_BACKEND === "vm" && Array.isArray(h.volumes) ? { volumes: h.volumes } : {};
@@ -2823,7 +2840,7 @@ app.get("/availability", async (_req, res) => {
     // card allocator's plan - same contract as the RAM ledger above.
     const vram = PROVISION_BACKEND === "vm" && c.vramBudgetGb
       ? { vramBudgetGb: c.vramBudgetGb, vramCommittedGb: c.vramCommittedGb, vramLedgerFreeGb: c.vramFreeGb } : {};
-    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn, ...lbw, ...vols, ...ram, ...vram });
+    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn, ...lbw, ...p3, ...vols, ...ram, ...vram });
   } catch (e) {
     return res.json(shape(maxFreeCpu(), maxFreeGpuShare(), "fallback",
       `${PROVISION_BACKEND === "vm" ? "wasm" : "worker"} manager unreachable`));
@@ -6081,6 +6098,19 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
   const mins = minSharesOf(g.min);
   if (gpuShare < mins.gpuShare - 1e-9 || cpuShare < mins.cpuShare - 1e-9)
     return `below the app's minimum shares on this hardware (needs gpuShare ${round3(mins.gpuShare)} / cpuShare ${round3(mins.cpuShare)})`;
+  // WASIp3 is a RUNTIME capability, gated like the card and the volumes: the
+  // version's config declares `wasi: "0.3"` (stamped from the binary by the
+  // publish path) and a box whose wasmtime cannot serve p3 could only
+  // claim-fail-release in a loop. The manager is the authority — it probed
+  // its own binary (`p3` on /health) — and unreachable means fail closed,
+  // exactly like the catalog. Undeclared versions are wasip2 (all of them,
+  // before the key existed); the manager still re-classifies the actual
+  // bytes at launch, so this gate is routing, not trust.
+  if (wasiOfConfig(g.config) === "0.3") {
+    const p3h = await vmHealth().catch(() => null);
+    if (!p3h) return "app targets WASIp3 and the app manager cannot be asked (unreachable)";
+    if (p3h.p3 !== true) return "app targets WASIp3 and this box's runtime does not serve it";
+  }
   // The firewall is the VERSION's declared ports — part of what approval
   // covered. The deployment's own ports field is ignored (create() still
   // carries it for the ledger's benefit; the record is the authority).

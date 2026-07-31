@@ -1101,6 +1101,16 @@ function aggregateAvailability() {
     // ledger pays it only for service it proved. AND-ed, not OR-ed: a buyer can
     // only be told "the hosts here are held to account" if every host is.
     proofOfTime: serving.length > 0 && serving.every((e) => e.availability?.proofOfTime === true),
+    // WASIp3 (component-model async) serving: each runner probes its own
+    // wasmtime for `-S p3` and reports per box; a version publishes `wasi:
+    // "0.3"` in its config and only p3-capable boxes claim it. Fleet-AND for
+    // the same reason as devDeploy — on false a p3 deploy could sit Queued
+    // until a capable box has room, so clients warn (and the console only
+    // offers p3 publishes cleanly) when every claiming runner serves it.
+    // Per-box truth stays visible in the target list for the canary flow:
+    // deploying pinned to a p3-capable box is legitimate while the AND is
+    // still false.
+    p3: serving.length > 0 && serving.every((e) => e.availability?.p3 === true),
     // the CHEAPEST posted price across the claiming fleet, USDC 6dp/sec for a
     // whole node / whole card. Each enclave sets its own (registry entry), so
     // "what does this cost" is a fleet-minimum question now, not a contract

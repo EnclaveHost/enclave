@@ -327,10 +327,16 @@ print("ok", flush=True)
 # and `serve`, and no longer marks it experimental. The flag widens the API
 # SURFACE only — wasip2 components ignore it, wasip3 components need it to
 # instantiate — while network reach stays gated by the same tcp/udp/
-# inherit-network grants and the bind audit polices what is actually bound.
+# inherit-network grants and the bind audit polices what is actually bound
+# (the egress and loopback patches cover the p3 code paths too: they hook
+# wasi-http's p3/request.rs and wasi's p3 sockets, so the cross-tenant wall
+# and dedicated-IP egress hold for both worlds).
 # WASM_P3=0 drops the flag fleet-wide (operator kill-switch, e.g. if a
-# wasmtime upgrade regresses p3) without rebuilding the image.
-P3_FLAGS       = [] if os.environ.get("WASM_P3", "1").lower() in ("0", "false", "no") else ["-Sp3"]
+# wasmtime upgrade regresses p3) without rebuilding the image. Whether the
+# flag is actually EMITTED is decided per binary by _p3_supported() — the
+# loopback lesson applied in advance: never pass an option this wasmtime
+# does not have.
+_P3_ENV_ENABLED = os.environ.get("WASM_P3", "1").lower() not in ("0", "false", "no")
 
 # App scratch filesystem: each deployment gets its own private, writable /data
 # preopen (wasi:filesystem via `wasmtime --dir`), so off-the-shelf code that
@@ -452,6 +458,98 @@ def _check_component(data: bytes):
         raise ValueError("fetched a core wasm module, not a wasi:http component")
     if layer != 1:
         raise ValueError(f"unrecognized wasm layer {layer} (expected a component)")
+
+
+# Which wasi world contract does a component target? Read from the BINARY —
+# the top-level component import (10) / export (11) sections carry the world's
+# interface names as plain length-prefixed strings — never from catalog
+# metadata: a version config can say anything, the bytes are what runs. The
+# EXPORT decides, in the same order `wasmtime serve` tries instantiation:
+# a component exporting both worlds is served as p3 (ServicePre::new first,
+# p2 ProxyPre fallback), so classification must agree or the claim gate and
+# the runtime would disagree about the same bytes.
+#   wasi:http/handler@0.3.*           -> "0.3"  (wasi:http/service world)
+#   wasi:http/incoming-handler@0.2.*  -> "0.2"  (wasi:http/proxy world)
+#   wasi:cli/run@0.3.* / @0.2.*       -> run-mode app, same versions
+# Mixed IMPORTS are normal and say nothing: rustc's wasm32-wasip3 std still
+# imports WASIp2 APIs ("that's ok since it's all component-model-level
+# imports anyway" — rustc target spec), and serve links both API sets into
+# one linker. A component exporting neither world classifies as None: the
+# caller decides whether that is an error (it is not here — the audit sweep
+# and wasmtime itself refuse what cannot serve).
+_WASI_NAME_RE = re.compile(rb"[A-Za-z0-9:/@.+\-]+")
+
+
+def _uleb(data: bytes, i: int):
+    r = s = 0
+    while True:
+        b = data[i]; i += 1
+        r |= (b & 0x7F) << s
+        if not (b & 0x80):
+            return r, i
+        s += 7
+        if s > 35:
+            raise ValueError("uleb128 too long")
+
+
+def _component_wasi_names(path: pathlib.Path):
+    """(imports, exports): wasi:* interface names named by the component's own
+    top-level import/export sections. Seeks past every other section, so a
+    big component costs a handful of reads, not a full load. Extraction scans
+    for length-prefixed `wasi:`-strings inside those two payloads rather than
+    decoding the full entry grammar — entries carry externdescs whose encoding
+    has churned across component-model revisions, while name strings have not;
+    a scan inside the RIGHT sections cannot see linear memory or data (those
+    live in nested core-module sections we never open)."""
+    imports, exports = set(), set()
+    with open(path, "rb") as f:
+        pre = f.read(8)
+        if len(pre) < 8 or pre[0:4] != b"\x00asm" or (pre[6] | (pre[7] << 8)) != 1:
+            return imports, exports
+        while True:
+            head = f.read(6)                       # section id + worst-case u32 leb
+            if len(head) < 2:
+                break
+            sid = head[0]
+            try:
+                size, j = _uleb(head, 1)
+            except (IndexError, ValueError):
+                break
+            f.seek(j - len(head), 1)               # rewind the over-read (SEEK_CUR)
+            if sid in (10, 11):                    # component import / export section
+                payload = f.read(size)
+                names = set()
+                for m in re.finditer(rb"wasi:", payload):
+                    p = m.start()
+                    for back in range(1, 6):       # LEB length sits just before the string
+                        if p - back < 0:
+                            break
+                        try:
+                            ln, q = _uleb(payload, p - back)
+                        except (IndexError, ValueError):
+                            continue
+                        if q == p and p + ln <= len(payload):
+                            s = payload[p:p + ln]
+                            if _WASI_NAME_RE.fullmatch(s):
+                                names.add(s.decode())
+                            break
+                (imports if sid == 10 else exports).update(names)
+            else:
+                f.seek(size, 1)
+    return imports, exports
+
+
+def _component_contract(path: pathlib.Path) -> dict:
+    """{"wasi": "0.2"|"0.3"|None, "world": <the export that decided>|None}"""
+    _imports, exports = _component_wasi_names(path)
+    for prefix, ver in (("wasi:http/handler@0.3.", "0.3"),
+                       ("wasi:http/incoming-handler@0.2.", "0.2"),
+                       ("wasi:cli/run@0.3.", "0.3"),
+                       ("wasi:cli/run@0.2.", "0.2")):
+        hit = sorted(e for e in exports if e.startswith(prefix))
+        if hit:
+            return {"wasi": ver, "world": hit[0]}
+    return {"wasi": None, "world": None}
 
 
 def _resolve_cid(cid: str) -> pathlib.Path:
@@ -2370,10 +2468,117 @@ def _loopback_flag_supported() -> bool:
     return _LOOPBACK_FLAG
 
 
+# Does THIS wasmtime binary know `-S p3` (WASIp3 / component-model async)?
+# Same doctrine as the loopback probe, applied BEFORE the outage this time:
+# the launcher and the binary move by different hands, and an unknown -S
+# option is exit 2 before the module is read — on every tenant, p2 included.
+# So `-Sp3` is emitted only on positive evidence from this binary's own
+# `-S help`. The probe token is the option name PLUS its value hint as the
+# help printer renders them contiguously ("p3[=y|n]"): a bare "p3" substring
+# could match prose. Unproven means DO NOT PASS — dropping the flag costs
+# nothing on the p2 majority, and wasip3 deployments are refused at claim
+# and at launch with a readable error instead of exit-2ing the whole box.
+_P3_FLAG = None            # None = not probed yet; True/False = the binary's answer
+
+
+def _p3_supported() -> bool:
+    global _P3_FLAG
+    if _P3_FLAG is not None:
+        return _P3_FLAG
+    if MOCK:
+        _P3_FLAG = True
+        return _P3_FLAG
+    try:
+        r = subprocess.run([WASMTIME, "serve", "-S", "help"],
+                           capture_output=True, text=True, timeout=10)
+        _P3_FLAG = "p3[=y|n]" in ((r.stdout or "") + (r.stderr or ""))
+    except Exception as e:
+        print(f"wasm-manager: could not probe `-S p3` ({e}); launching without it", flush=True)
+        _P3_FLAG = False
+    if not _P3_FLAG:
+        print("wasm-manager: this wasmtime does not advertise `-S p3` — wasip2 tenants launch "
+              "unchanged, wasip3 versions are refused at claim/launch (/health carries `p3`).",
+              flush=True)
+    return _P3_FLAG
+
+
+def _p3_active() -> bool:
+    """The box serves WASIp3: the binary speaks it AND the operator switch is on."""
+    return _P3_ENV_ENABLED and _p3_supported()
+
+
+def _p3_flags() -> list:
+    return ["-Sp3"] if _p3_active() else []
+
+
+def _p3_tuning(enclave_config, wasi_contract) -> list:
+    """serve-mode instance knobs for a wasip3 component, from the version
+    config's `p3` object. wasmtime 45 reuses instances for p3 (defaults: 128
+    requests per instance, 16 concurrent, 1s idle hold) where p2 stays one
+    instance per request; a publisher whose guest state must not be shared
+    that widely — or whose nn compute() is sync and would stall its instance's
+    other in-flight requests — dials these down per VERSION:
+      {"p3": {"maxConcurrent": 1, "maxReuse": 256, "idleSeconds": 5}}
+    Clamped hard (concurrent 1-64, reuse 1-1024, idle 0-120s): these shape one
+    tenant's own process, but unbounded values are still a resource lever.
+    Emitted ONLY for a component classified 0.3 AND only when this binary's
+    serve --help lists the option — the flags are younger than -Sp3 itself,
+    and a bad per-version value must degrade to wasmtime's defaults with a
+    printed warning, never brick the version."""
+    if wasi_contract != "0.3" or not enclave_config:
+        return []
+    try:
+        t = (json.loads(enclave_config) or {}).get("p3")
+    except Exception:
+        return []
+    if not isinstance(t, dict):
+        return []
+    help_text = _serve_long_help()
+    args = []
+    for key, flag, lo, hi, suffix in (
+            ("maxConcurrent", "--max-instance-concurrent-reuse-count", 1, 64, ""),
+            ("maxReuse", "--max-instance-reuse-count", 1, 1024, ""),
+            ("idleSeconds", "--idle-instance-timeout", 0, 120, "s")):
+        if key not in t:
+            continue
+        if flag not in help_text:
+            print(f"wasm-manager: this wasmtime lacks {flag}; ignoring p3.{key}", flush=True)
+            continue
+        try:
+            v = max(lo, min(hi, int(t[key])))
+        except (TypeError, ValueError):
+            print(f"wasm-manager: version config p3.{key} is not an integer; ignoring", flush=True)
+            continue
+        args += [flag, f"{v}{suffix}"]
+    return args
+
+
+_SERVE_HELP = None
+
+
+def _serve_long_help() -> str:
+    """`wasmtime serve --help` text, cached for the process (probe substrate
+    for long options the way `-S help` is for -S ones)."""
+    global _SERVE_HELP
+    if _SERVE_HELP is not None:
+        return _SERVE_HELP
+    if MOCK:
+        _SERVE_HELP = ("--max-instance-concurrent-reuse-count "
+                       "--max-instance-reuse-count --idle-instance-timeout")
+        return _SERVE_HELP
+    try:
+        r = subprocess.run([WASMTIME, "serve", "--help"],
+                           capture_output=True, text=True, timeout=10)
+        _SERVE_HELP = (r.stdout or "") + (r.stderr or "")
+    except Exception:
+        _SERVE_HELP = ""
+    return _SERVE_HELP
+
+
 def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdir=None,
                nn=False, enclave_config=None, vol_mounts=None, egress=None, egress_transparent=None,
                enc=None, gpu_share: float = 0.0, nn_report=None, secrets=None,
-               cpu_share: float = 0.0, nn_resident_other: int = 0, hosts=""):
+               cpu_share: float = 0.0, nn_resident_other: int = 0, hosts="", wasi_contract=None):
     """The wasmtime invocation for a ports spec. Returns (cmd, host_port, wait_ports).
     `nn_report`, when a dict, is filled with the wasi-nn preload plan:
     {"emitted": [vol...], "skipped": {vol: why}, "stages": {vol: "kind::dir"},
@@ -2389,8 +2594,11 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
                 bind the actual). The grant is coarse (wasmtime can't allowlist
                 per port), so the audit sweep enforces the firewall: bind an
                 unassigned low port and the app is killed.
-    Both modes add -Sp3 (unless WASM_P3=0) so apps may target the WASIp3
-    async APIs as well as wasip2; socket permissions are identical either way.
+    Both modes add -Sp3 (when this binary proves it and WASM_P3 is not 0) so
+    apps may target the WASIp3 async APIs as well as wasip2; socket
+    permissions are identical either way. `wasi_contract` is the launch-time
+    classification of the component's own bytes ("0.2"/"0.3"/None); a 0.3
+    serve app additionally gets the publisher's `p3` instance knobs.
     `fsdir`, when set, is preopened as the guest's /data (a private ramdisk
     scratch space); the app sees only that subtree.
     `nn`, when set, grants wasi-nn (`-S nn`): the deployment bought a GPU share,
@@ -2709,7 +2917,8 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     # '+'-joined, NOT comma: `-S` eats commas (see _loopback_flag_supported)
     lb_args = ["-S", "loopback-allow=" + "+".join(str(p) for p in sorted(_lb))] if _loopback_flag_supported() else []
     if pspec["serve"]:
-        return ([WASMTIME, "serve", "-Scli", "-Shttp", *P3_FLAGS, *nn_args, *fs_args, *cfg_args, *vol_args,
+        return ([WASMTIME, "serve", "-Scli", "-Shttp", *_p3_flags(), *_p3_tuning(enclave_config, wasi_contract),
+                 *nn_args, *fs_args, *cfg_args, *vol_args,
                  *egress_args, *lb_args, "-W", f"max-memory-size={mem_bytes}",
                  "--addr", f"{HOST_IP}:{serve_port}", str(wasm)],
                 serve_port, [serve_port])
@@ -2774,7 +2983,7 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     # off-box connect but refuses loopback outside this deployment's own set.
     # That is what keeps a port-serving app off its neighbours' sockets without
     # taking away the raw network it was granted.
-    cmd = [WASMTIME, "run", "-Scli", *P3_FLAGS, *nn_args, "-Stcp", "-Sudp",
+    cmd = [WASMTIME, "run", "-Scli", *_p3_flags(), *nn_args, "-Stcp", "-Sudp",
            *net_args, *lb_args, "-Sallow-ip-name-lookup", *fs_args, *cfg_args, *vol_args,
            "-W", f"max-memory-size={mem_bytes}",
            "--env", "ENCLAVE_PORTS=" + enclave_ports, str(wasm)]
@@ -2867,6 +3076,26 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
         wasm = _resolve_wasm(app_ref)
     except ValueError as e:
         rec["status"], rec["error"] = "failed", str(e)
+        return rec
+
+    # World contract, from the bytes that will run — never from metadata (a
+    # version config declares `wasi` for CLAIM routing; this is the launch-time
+    # truth it is held to). A wasip3 component on a box whose runtime cannot
+    # speak p3 must fail HERE with a readable error: without this check it
+    # would instantiate-fail inside wasmtime with missing-import noise (p3
+    # probed off) — or, worse, exit 2 on a flag (never: the probe owns that).
+    try:
+        contract = _component_contract(wasm)
+    except OSError as e:
+        contract = {"wasi": None, "world": None}
+        print(f"[wasi] {vid} contract classification failed ({e}); launching as-is", flush=True)
+    rec["wasi"] = contract["wasi"]
+    rec["wasiWorld"] = contract["world"]
+    if contract["wasi"] == "0.3" and not _p3_active():
+        why = "WASM_P3=0 (operator switch)" if _p3_supported() else "this wasmtime lacks -S p3"
+        rec["status"] = "failed"
+        rec["error"] = (f"app targets WASIp3 ({contract['world']}) but this box does not "
+                        f"serve p3 ({why}); a p3-capable enclave must claim it")
         return rec
 
     # per-deployment config: the approved catalog version's config JSON, passed
@@ -3009,7 +3238,7 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
     ctx = {"pspec": pspec, "wasm": wasm, "port": port, "port_map": port_map, "fsdir": fsdir,
            "nn": nn, "enclave_config": enclave_config, "vol_mounts": vol_mounts, "gpu_share": gpu_share,
            "log_path": log_path, "egress": egress, "enc": enc, "secrets": secrets,
-           "hosts": _validate_hosts(hosts)}
+           "hosts": _validate_hosts(hosts), "wasi": contract["wasi"]}
     return _spawn_and_wait(rec, ctx)
 
 
@@ -3150,7 +3379,7 @@ def _spawn_and_wait(rec, ctx):
                                             ctx.get("enc"), gpu_share=gpu_share, nn_report=nn_report,
                                             secrets=ctx.get("secrets"), cpu_share=cpu_share,
                                             nn_resident_other=_nn_resident_bytes(exclude=rec["id"]),
-                                            hosts=ctx.get("hosts", ""))
+                                            hosts=ctx.get("hosts", ""), wasi_contract=ctx.get("wasi"))
     # the preload plan, public on the record: what the boot preload will
     # attempt (nnPreloads) and why the rest won't (nnSkipped). The watchdog
     # sweep compares this against what a launch would emit NOW; the log
@@ -3822,6 +4051,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                     # tenants run WITHOUT the cross-tenant wall (the launcher
                                     # cannot pass a flag that would fail every launch outright)
                                     "loopbackWall": _loopback_flag_supported(),
+                                    # this box serves WASIp3 components (binary probed AND
+                                    # WASM_P3 not switched off) — the supervisor forwards it
+                                    # to /availability and the claim gate keys on it
+                                    "p3": _p3_active(),
                                     **({"gpuVramGb": GPU_VRAM_GB, "gpuVramSource": GPU_VRAM_SRC}
                                        if NODE_HAS_GPU else {}),
                                     "volumes": _volumes_public(),
@@ -4053,7 +4286,10 @@ def _wasmtime_version() -> str:
 def _debug_env() -> dict:
     out = {"runtime": "wasmtime", "mock": MOCK, "apps_dir": str(APPS_DIR),
            "catalog": sorted(_load_catalog().keys()), "version": _wasmtime_version(),
-           "p3": bool(P3_FLAGS),
+           # p3: what the box actually serves; p3_env/p3_binary: why, when it doesn't
+           # (the old field reported the env switch alone and would claim p3 on a
+           # binary that rejects the flag)
+           "p3": _p3_active(), "p3_env": _P3_ENV_ENABLED, "p3_binary": _p3_supported(),
            "loopback_wall": _loopback_flag_supported(),
            "nn": _nn_available(),
            "nn_probe": dict(_NN_PROBE), "gpu_vram_gb": GPU_VRAM_GB, "gpu_vram_source": GPU_VRAM_SRC,

@@ -292,8 +292,15 @@ size + the wasm/component preamble server-side, optionally runs `wasm-tools vali
   + component layer field. UX only — fast feedback, catches honest mistakes.
 - Caddy `request_body { max_size 2049MiB }` on `/add-wasm`: the enforceable size ceiling.
 - Gateway: the enforceable **content** gate for what gets pinned to *your node*.
+  Also detects the component's wasi world contract (0.2 or 0.3) from its export
+  section and reports it in the `/add-wasm` response — publish clients stamp it
+  into the version config (`wasi`) so runners route WASIp3 work to p3-capable
+  boxes. Informational, never a refusal: the layer check is deliberately
+  version-proof.
 - wasm-manager at deploy (`wasmtime serve`): the authoritative "is it a runnable
-  wasi:http component" check.
+  wasi:http component" check — and the authoritative world classification
+  (`_component_contract`, from the bytes that will run; a version config that
+  lies about `wasi` fails at launch with a readable error).
 
 **What server-side upload validation still can't do:** the catalog contract is
 permissionless — anyone can pin bytes elsewhere and call `publishVersion` with that

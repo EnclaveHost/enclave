@@ -40,7 +40,7 @@ const depsPanel = () => document.querySelector("c-deployments");
 /* ============================================================
    Console state + request rendering
    ============================================================ */
-const dep = { gpuPct: 25, cpuPct: 5, minGpuPct: 0, minCpuPct: 1, asset: "USDC", public: true, gpuEnclave: true, volumes: new Set(), waf: false, wafAvail: false, gpuOptional: false, gpuOptAvail: false, cfgAvail: false, devAvail: false, targetPick: "" };  // targetPick: the user's explicit enclave choice from the target dropdown ("" = auto, the recommended head of the ranking)  // gpuEnclave: from /availability (gpu:false = CPU-only enclave); volumes: the picker's ticks - a MIRROR of the App config JSON's `volumes` key, never a second source; wafAvail: fleet aggregate advertises the options envelope (waf:true = every live runner enforces it - the Protection field only shows then); cfgAvail: the aggregate's configOverride flag (true = every live runner honors the envelope's `config` namespace - only then is the App config box editable)
+const dep = { gpuPct: 25, cpuPct: 5, minGpuPct: 0, minCpuPct: 1, asset: "USDC", public: true, gpuEnclave: true, volumes: new Set(), waf: false, wafAvail: false, gpuOptional: false, gpuOptAvail: false, cfgAvail: false, devAvail: false, p3Avail: false, targetPick: "" };  // targetPick: the user's explicit enclave choice from the target dropdown ("" = auto, the recommended head of the ranking)  // gpuEnclave: from /availability (gpu:false = CPU-only enclave); volumes: the picker's ticks - a MIRROR of the App config JSON's `volumes` key, never a second source; wafAvail: fleet aggregate advertises the options envelope (waf:true = every live runner enforces it - the Protection field only shows then); cfgAvail: the aggregate's configOverride flag (true = every live runner honors the envelope's `config` namespace - only then is the App config box editable)
 
 /* The Protection controls -> the create() options envelope's `waf` object
    (null = off/unavailable). Mirrors the runner's parse rules (supervisor
@@ -489,6 +489,21 @@ async function runDeploy(){
       + target.name + "). Review the shares above and deploy again."]]);
   if (target && target.none)
     return note([["warn", "[!] " + raw + " isn't deployable right now: " + target.none + ". Nothing was signed - the form retargets automatically when the fleet changes."]]);
+
+  // WASIp3 apps: the version's config declares `wasi: "0.3"` (stamped from the
+  // binary at publish) and only p3-capable runners claim it. Fleet-AND false
+  // is a HARD refusal — the deployment would sit Queued with its funding
+  // unrecoverable — with one carve-out: an explicitly PICKED target box that
+  // itself advertises p3 (availability.p3) is the canary flow, allowed with a
+  // warning, because the ledger stays an open queue and that box will claim it.
+  let verWasi3 = false;
+  try { verWasi3 = JSON.parse(CONFIG_CACHE[raw] || "{}").wasi === "0.3"; } catch(e){}
+  if (verWasi3 && !dep.p3Avail){
+    const boxP3 = !!(target && target.picked && target.row && target.row.availability?.p3 === true);
+    if (!boxP3)
+      return note([["warn", "[!] " + raw + " is a WASIp3 app and not every live runner serves p3 yet - it could sit Queued. Pick a p3-capable enclave from the target list explicitly (canary), or wait for the fleet to advertise p3."]]);
+    note([["info", "[*] WASIp3 canary: " + target.name + " serves p3 and your pick sends the claim hint there first; the rest of the fleet will not claim this deployment until it advertises p3."]]);
+  }
 
   // HARD floor, the last line before a wallet signature: runners divide the
   // app's specs by their probed hardware and refuse anything below the result,
@@ -1068,6 +1083,12 @@ async function refreshAvailability(){
     // approval): only when EVERY live runner admits them - otherwise the
     // create would sit Queued forever on an old runner. Same fleet-AND rule.
     dep.devAvail = a.devDeploy === true;
+    // WASIp3 apps (a version whose config declares wasi "0.3"): the aggregate
+    // is the whole-fleet answer; a per-box `availability.p3` still admits the
+    // CANARY flow — deploying pinned to a p3-capable box while the AND is
+    // false is legitimate, so runDeploy warns rather than refuses when the
+    // picked target box itself serves p3.
+    dep.p3Avail = a.p3 === true;
     // App config override (envelope `config` namespace): the box unlocks only
     // when EVERY live runner honors it - on a mixed/older fleet an overridden
     // deployment would be refused at claim and sit Queued forever - AND the
