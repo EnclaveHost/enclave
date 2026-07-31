@@ -22,7 +22,7 @@ import { baseRpc, waitReceipt, encCall, hexBig, decodeStructArray, CAMPAIGN_SCHE
 import { ADDRESS_BOOK_ADDRESS, USDC_BASE, DEFAULT_API_BASE } from "../../js/core/config.js";
 import { esc, on, short, showToast } from "../../js/core/util.js";
 import { CONTRACTS } from "../../js/gen/contract-artifacts.js";
-import { MIG_KINDS, importState, sealTx, encCallX, escrowPlan, approveTx } from "./migrate.js";
+import { MIG_KINDS, importState, sealTx, encCallX, escrowPlan, approveTx, refundSweepPlan } from "./migrate.js";
 import { metricsPanel, paintMetrics, paintHistory, loadMetrics, redrawPlots } from "./metrics.js";
 
 const EXPLORER = "https://basescan.org";
@@ -454,7 +454,13 @@ class AdminConsole extends EnclaveElement {
           <input class="ac-in" id="migSource" aria-label="Source contract address" placeholder="source 0x…" spellcheck="false" autocomplete="off" />
           <input class="ac-in" id="migTarget" aria-label="Target contract address" placeholder="target 0x… (the new deploy)" spellcheck="false" autocomplete="off" />
         </div>
-        <p class="ac-sub">Runner escrow is the one thing that cannot be imported: it is real USDC the SOURCE holds and keeps. Every migrated record therefore lands with <code>escrow6 = 0</code>, and until <b>Back escrow</b> re-seats it a seller serving that deployment earns nothing and its owner's refund pays nothing. Do it BEFORE sealing - while imports are open the backing is credited to each record's OWNER (it is re-seating money they already paid), and after sealing it is not, permanently.</p>
+        <p class="ac-sub"><b>Refund sweep first</b> (deployments ledger only): before the snapshot, suspend and refund every record the CONNECTED wallet owns <em>on the source</em> - each refund pays this wallet back and zeroes the record, so it migrates empty: nothing for Back escrow to front, and nothing left pullable twice (a rev-10 source keeps a live <code>refund()</code> forever). Batched via <code>multicall</code>: typically one Suspend confirmation, a ~minute wait while the fleet releases, then one Refund confirmation - re-scan to collect lease tails that were still reserved. <code>refund()</code> is owner-gated, so third-party records are only counted here; their owners collect on the source themselves.</p>
+        <div class="ac-mig-actions">
+          <button class="btn btn-sm" data-act="mig-swp-scan">Scan source</button>
+          <button class="btn btn-sm" data-act="mig-swp-stop" disabled>Suspend mine</button>
+          <button class="btn btn-sm" data-act="mig-swp-refund" disabled>Refund mine</button>
+        </div>
+        <p class="ac-sub">Runner escrow is the one thing that cannot be imported: it is real USDC the SOURCE holds and keeps. Every migrated record therefore lands with <code>escrow6 = 0</code>, and until <b>Back escrow</b> re-seats it a seller serving that deployment earns nothing and its owner's refund pays nothing. Do it BEFORE sealing - while imports are open the backing is credited to each record's OWNER (it is re-seating money they already paid), and after sealing it is not, permanently. A completed refund sweep leaves nothing to back.</p>
         <label class="ac-ctor-l ac-mig-opt"><input type="checkbox" id="migGrantRates" checked /> Grant a runner rate to records that have none <span class="ac-hint">records predating the runner meter arrive at rate6 = 0: they can never pay a seller, can never be escrow-backed, and can never be refunded. Grants <code>runnerBps</code> of each one's rate minus its publisher fee, exactly what create() would have snapshotted.</span></label>
         <div class="ac-mig-actions">
           <button class="btn btn-sm" data-act="mig-read">Read source</button>
@@ -843,6 +849,10 @@ class AdminConsole extends EnclaveElement {
         const src = val("migSource"), tgt = val("migTarget");
         const log = (cls, txt) => this._migLog(cls, txt);
         const enable = (a, on2) => { this._body.querySelector(`[data-act="${a}"]`).disabled = !on2; };
+        // these guards used to write only to the panel status strip, well away
+        // from the log the operator is watching - a click that did nothing
+        // looked like a dead button
+        const needMig = (cond, msg) => { if (!cond) log("err", msg); return cond; };
         /* Plan and verify MUST see the same options. A granted runner rate is a
            deliberate difference from the source, so a verify that doesn't know
            about the grant reports every granted record as a mismatch - and Seal
@@ -854,6 +864,55 @@ class AdminConsole extends EnclaveElement {
           const runnerBps = Number(await rdUintSoft(tgt, CONTRACTS.EnclaveDeployments.sel.runnerBps) ?? 0);
           return { grantRates, runnerBps };
         };
+
+        /* -- refund sweep: source-side, no target and no mig-read needed -- */
+        if (act === "mig-swp-scan" || act === "mig-swp-stop" || act === "mig-swp-refund") {
+          if (!needMig(m.contractName === "EnclaveDeployments", "the refund sweep applies to the deployments ledger - pick it in the kind selector")) return;
+          if (!needMig(ADDR_RE.test(src), "enter the source contract address (the LIVE ledger)")) return;
+          const usd = (v) => "$" + (Number(v) / 1e6).toFixed(2);
+          btn.disabled = true;
+          try {
+            await this._connect();
+            const wallet = Enclave.address;
+            if (act === "mig-swp-scan") {
+              log("p", `scanning ${src} for records owned by ${wallet}…`);
+              const plan = await refundSweepPlan(src, wallet);
+              M.sweep = plan; M.sweepSource = src;
+              log("ok", `${plan.mine} record${plan.mine === 1 ? "" : "s"} owned by this wallet - ${usd(plan.refundable6)} refundable right now`
+                + (plan.reserved.length ? `; ${usd(plan.reserved6)} more still lease-reserved on ${plan.reserved.length} (frees when the hosts release - re-scan then)` : ""));
+              if (plan.suspend.length)
+                log("p", `${plan.suspend.length} record${plan.suspend.length === 1 ? "" : "s"} to suspend - the fleet tears down and releases within ~a minute of the batch landing`);
+              if (plan.othersFunded)
+                log("p", `note: ${plan.othersFunded} funded record${plan.othersFunded === 1 ? "" : "s"} belong to OTHER wallets - refund() is owner-gated, so their owners collect on this ledger themselves (it keeps refund() forever)`);
+              if (!plan.suspend.length && !plan.refunds.length && !plan.reserved.length)
+                log("ok", "nothing to sweep for this wallet - migrate away");
+              enable("mig-swp-stop", plan.suspendTxs.length > 0);
+              enable("mig-swp-refund", plan.refundTxs.length > 0);
+              return;
+            }
+            if (!needMig(M.sweep && M.sweepSource === src, "scan first (re-scan if you changed the address)")) return;
+            const txs = act === "mig-swp-stop" ? M.sweep.suspendTxs : M.sweep.refundTxs;
+            if (!needMig(txs.length, "nothing in that batch - re-scan")) return;
+            for (let i = 0; i < txs.length; i++) {
+              log("p", `[${i + 1}/${txs.length}] ${txs[i].label} - confirm in your wallet…`);
+              const hash = await sendTx(src, txs[i].dataHex);
+              log("p", `  sent ${hash.slice(0, 14)}… waiting…`);
+              await waitReceipt(hash, 90);
+              log("ok", `  ✓ ${txs[i].label}`);
+            }
+            if (act === "mig-swp-stop") {
+              log("ok", "suspended ✓ - the fleet releases the leases within ~a minute; re-scan, then Refund mine");
+              enable("mig-swp-stop", false);
+            } else {
+              log("ok", `refunded ${usd(M.sweep.refundable6)} to ${wallet} ✓`
+                + (M.sweep.reserved.length ? ` - ${usd(M.sweep.reserved6)} of lease tails frees at release; re-scan to collect it` : " - this wallet's records are clean; snapshot and migrate"));
+              enable("mig-swp-refund", false);
+            }
+            M.sweep = null;                    // a sent batch stales the plan: force a re-scan
+          } catch (err) { log("err", friendly(err) + " - re-scan and retry; the sweep re-plans from live state (a runner settling mid-flight reverts the whole batch harmlessly)."); }
+          finally { btn.disabled = false; }
+          return;
+        }
 
         if (act === "mig-read") {
           if (!need(ADDR_RE.test(src), "enter the source contract address")) return;
@@ -869,10 +928,6 @@ class AdminConsole extends EnclaveElement {
           return;
         }
 
-        // these guards used to write only to the panel status strip, well away
-        // from the log the operator is watching - a click that did nothing
-        // looked like a dead button
-        const needMig = (cond, msg) => { if (!cond) log("err", msg); return cond; };
         if (!needMig(M.data && M.source === src, "read the source first (re-read if you changed the address)")) return;
         if (!needMig(ADDR_RE.test(tgt), "enter the target contract address (the new deploy)")) return;
         if (!needMig(lc(tgt) !== lc(src), "source and target are the same contract")) return;

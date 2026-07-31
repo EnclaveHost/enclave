@@ -158,6 +158,28 @@ test("setShares + multicall (the dashboard's resize control) pin + encode like v
     encodeFunctionData({ abi: ABI("EnclaveDeployments"), functionName: "multicall", args: [inner] }));
 });
 
+test("refund-sweep batches (suspend + refund multicalls) encode like viem", () => {
+  // the console's pre-migration sweep: refund every record the connected
+  // wallet owns ON THE SOURCE so it migrates empty. Pin both inner-call
+  // shapes exactly as refundSweepPlan packs them - a drifted encoding would
+  // sign a batch the ledger reverts wholesale ("multicall failed").
+  const sel = CONTRACTS.EnclaveDeployments.sel;
+  const ids = ["0x" + "ab".repeat(32), "0x" + "cd".repeat(32)];
+  const stop = ids.map((id) => encCallX(sel.setActive, [{ t: "bytes32", v: id }, { t: "bool", v: false }]));
+  eq(encCallX(sel.multicall, [{ t: "bytes[]", v: stop }]),
+    encodeFunctionData({ abi: ABI("EnclaveDeployments"), functionName: "multicall",
+      args: [ids.map((id) => encodeFunctionData({ abi: ABI("EnclaveDeployments"), functionName: "setActive", args: [id, false] }))] }));
+  const refunds = ids.map((id) => encCallX(sel.refund, [{ t: "bytes32", v: id }]));
+  eq(encCallX(sel.multicall, [{ t: "bytes[]", v: refunds }]),
+    encodeFunctionData({ abi: ABI("EnclaveDeployments"), functionName: "multicall",
+      args: [ids.map((id) => encodeFunctionData({ abi: ABI("EnclaveDeployments"), functionName: "refund", args: [id] }))] }));
+  // the sweep only ever signs for the connected wallet's records, and refuses
+  // pre-refund ledgers - the constraint lives in the plan, pin it there
+  const mig = fs.readFileSync(path.join(REPO, "site/components/admin-console/migrate.js"), "utf8");
+  assert.match(mig, /refundSweepPlan[\s\S]{0,900}deploymentsSchema \$\{rev\} < 10/);
+  assert.match(mig, /refundSweepPlan[\s\S]{0,2200}r\.owner\.toLowerCase\(\) === me/);
+});
+
 test("allowance funding pair (fund.js) encodes like viem", () => {
   // the code-bearing-payer path in site/js/core/fund.js: approve on the token,
   // then EnclaveDeployments.fund — pin both calldatas and the hand-pinned

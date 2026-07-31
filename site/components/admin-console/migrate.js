@@ -174,6 +174,74 @@ export function approveTx(spender, amount6) {
   return encCallX(APPROVE_SEL, [{ t: "addr", v: spender }, { t: "uint", v: String(amount6) }]);
 }
 
+/* ---- pre-migration refund sweep (SOURCE-side, before the snapshot) --------
+   "Refund then migrate": every record the CONNECTED wallet owns gets
+   suspended and refunded ON THE SOURCE, so it migrates with a zero balance -
+   nothing for Back escrow to front, and nothing left owner-pullable on a
+   retired ledger (a rev-10 source keeps a live refund() forever, so any
+   balance re-backed on the target in the import window would be collectable
+   TWICE). Third-party records cannot be swept - refund() is owner-gated, and
+   that gate is the non-custodial anchor - so they are only REPORTED: their
+   owners collect on the source themselves.
+
+   Two batched phases, both idempotent and re-plannable from live state:
+     1. suspend - setActive(false) on the wallet's active records, so the
+        fleet tears down and releases each lease (its reserved tail frees
+        back to refundable within ~a pass);
+     2. refund  - refund(id) for every record refundable RIGHT NOW.
+   Owner money still lease-reserved (min(ownerEscrow6, escrow6) beyond the
+   current quote) is returned as `reserved`: re-scan after the releases land
+   and the next refund batch collects the tails. Plans go stale the moment a
+   runner settles or claims - a reverted batch just means re-scan and resend. */
+export async function refundSweepPlan(source, wallet) {
+  const sel = CONTRACTS.EnclaveDeployments.sel;
+  const rev = await depRevOf(source);
+  if (rev < 10) throw new Error(`this ledger predates refunds (deploymentsSchema ${rev} < 10) - nothing to sweep`);
+  const me = (wallet || "").toLowerCase();
+  if (!me) throw new Error("no wallet connected - the sweep can only sign for records this wallet owns");
+  const total = wNum(await call(source, "0x" + sel.count), 0);
+  const rows = [];
+  for (let s = 0; s < total; s += PAGE)
+    rows.push(...decodeStructArray(await call(source, encCallX(sel.getPage, [{ t: "uint", v: s }, { t: "uint", v: PAGE }])), DEP_SCHEMA));
+  const now = Math.floor(Date.now() / 1000);
+  const mine = rows.filter((r) => r.owner.toLowerCase() === me);
+  const suspend = [], refunds = [], reserved = [];
+  let refundable6 = 0n, reserved6 = 0n;
+  for (const page of chunked(mine, 10)) {
+    await Promise.all(page.map(async (r) => {
+      const [rf, oe, e] = await Promise.all([
+        call(source, encCallX(sel.refundableOf, [{ t: "bytes32", v: r.id }])),
+        call(source, encCallX(sel.ownerEscrow6, [{ t: "bytes32", v: r.id }])),
+        call(source, encCallX(sel.earnOf, [{ t: "bytes32", v: r.id }])),
+      ]);
+      const quote = hexBig(rf), own = hexBig(oe), held = hexBig("0x" + (word(e, 1) || "0"));
+      if (r.active && (BigInt(r.balance6) > 0n || Number(r.leaseUntil) > now)) suspend.push(r.id);
+      if (quote > 0n) { refunds.push(r.id); refundable6 += quote; }
+      // owner money the ledger still holds beyond today's quote = the lease
+      // reserve (or an unsettled lapse); it frees at release/settle
+      const stuck = (own < held ? own : held) - quote;
+      if (stuck > 0n) { reserved.push({ id: r.id, amount6: stuck.toString(), leaseUntil: Number(r.leaseUntil) }); reserved6 += stuck; }
+    }));
+  }
+  suspend.sort(); refunds.sort();                      // deterministic order for a resumable run
+  const suspendTxs = chunked(suspend, CHUNK.suspend).map((c, i) => ({
+    label: `setActive(false) · batch ${i + 1} (${c.length})`,
+    dataHex: encCallX(sel.multicall, [{ t: "bytes[]", v: c.map((id) =>
+      encCallX(sel.setActive, [{ t: "bytes32", v: id }, { t: "bool", v: false }])) }]),
+  }));
+  const refundTxs = chunked(refunds, CHUNK.refund).map((c, i) => ({
+    label: `refund · batch ${i + 1} (${c.length})`,
+    dataHex: encCallX(sel.multicall, [{ t: "bytes[]", v: c.map((id) =>
+      encCallX(sel.refund, [{ t: "bytes32", v: id }])) }]),
+  }));
+  // funded records this wallet CANNOT sweep: their owners self-refund here
+  const othersFunded = rows.length - mine.length
+    ? rows.filter((r) => r.owner.toLowerCase() !== me && BigInt(r.balance6) > 0n).length : 0;
+  return { mine: mine.length, suspend, refunds, reserved, othersFunded,
+           refundable6: refundable6.toString(), reserved6: reserved6.toString(),
+           suspendTxs, refundTxs };
+}
+
 /* ---- per-kind engines ----
    Each kind: { label, contractName, bookKey,
                 read(source) -> data, counts(data) -> string,
@@ -186,8 +254,9 @@ const PAGE = 50;
 // at broadcast - it never lands, so the console sits on "sent … waiting" while
 // the receipt never appears. Bound every packed tx on BOTH axes (see packPlan),
 // and size-chunk versions since their `config` blob can be up to 4 KB each.
-const CHUNK = { deployments: 6, apps: 10, fees: 40, escrow: 12 };   // fees: 3 words + 1 SSTORE + event per id - cheap
-                                                       // escrow: each is a USDC transferFrom + SSTOREs, ~90k gas
+const CHUNK = { deployments: 6, apps: 10, fees: 40, escrow: 12,     // fees: 3 words + 1 SSTORE + event per id - cheap
+                suspend: 60, refund: 12 };             // escrow/refund: each moves USDC + SSTOREs, ~90k gas;
+                                                       // suspend: one SSTORE + event, cheap
 const VER_TX_BYTES = 6 * 1024;   // max calldata for a single importVersions call
 
 /* -- deployments -- */
