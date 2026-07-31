@@ -79,20 +79,19 @@ class AdminConsole extends EnclaveElement {
     this._evaluate();
   }
 
-  /* The page renders NOTHING unless the connected wallet is the address
-     book's owner - read live, fail closed (RPC trouble = locked; the next
-     wallet event retries). This is presentation only: the real gate is every
-     contract's own owner check, which the chain enforces on each write. */
+  /* The page renders for ANY connected wallet (none connected = locked:
+     there is nothing to sign with). It used to render only for the address
+     book's owner, but a governance ROTATION made that a deadlock: the book is
+     a one-step setOwner, so handing it over first locked the OLD wallet out
+     of the console while it still owned every other contract - with no way
+     to nominate them. Per-row gating stays: _gate() disables every button
+     whose contract answers to a different owner (and shows who), pending
+     handoffs surface an Accept only to the pending key, and the chain
+     enforces the real owner check on every write regardless. Everything the
+     page displays is public on-chain state. */
   async _evaluate() {
     const me = lc(Enclave.address);
-    const seq = this._evSeq = (this._evSeq || 0) + 1;
     if (!me || !ADDRESS_BOOK_ADDRESS) return this._lock();
-    if (!this._bookOwner) {
-      try { this._bookOwner = await rdAddr(ADDRESS_BOOK_ADDRESS, CONTRACTS.EnclaveAddressBook.sel.owner); }
-      catch (e) { return this._lock(); }
-      if (seq !== this._evSeq) return;                 // superseded by a newer wallet event
-    }
-    if (isZero(this._bookOwner) || lc(this._bookOwner) !== me) return this._lock();
     this._unlock();
   }
 
