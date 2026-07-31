@@ -128,6 +128,21 @@ export function mobileLinksOf(ref){
 // target, verifies its attestation on the phone, then loads it). Rows whose
 // version publishes dedicated builds (_mobile) offer those instead.
 const GENERIC_APK = "https://github.com/EnclaveHost/enclave-apps/releases/download/mobile-enclave/enclave.apk";
+
+// PREPACKAGED per-deployment APKs: CI snapshots the app's whole UI off its
+// live origin into a signed APK pre-linked to that deployment (zero
+// downloads at open; only API calls touch the network), and commits the
+// list of built labels to mobile-index.json. Rows on that list offer the
+// direct install; the CI cron re-snapshots them. A row not yet on the list
+// falls back to the pairing flow below - dispatching the mobile-shell
+// workflow with the deployment id is what adds it.
+const DEP_APK_BASE = "https://github.com/EnclaveHost/enclave-apps/releases/download/mobile-dep-";
+const DEP_INDEX_URL = "https://raw.githubusercontent.com/EnclaveHost/enclave-apps/main/mobile-index.json";
+let DEP_APKS = null;    // Set of 8-hex labels once the index answers
+fetch(DEP_INDEX_URL)
+  .then((r) => (r.ok ? r.json() : null))
+  .then((j) => { DEP_APKS = new Set(((j && j.deployments) || []).map(String)); })
+  .catch(() => { DEP_APKS = new Set(); });
 export function mobilePairLink(d, ep){
   try {
     const host = new URL(String(ep)).host;
@@ -139,9 +154,13 @@ export function mobilePairLink(d, ep){
 }
 function mobileSection(d, ep){
   const links = mobileLinksOf(d.image && d.image.reference);
-  const pair = !links && d.public && (d.status || "") === "running" ? mobilePairLink(d, ep) : "";
-  if (!links && !pair) return "";
   const label = appLabel(d.id);
+  const running = d.public && (d.status || "") === "running";
+  const depApk = !links && running && DEP_APKS && DEP_APKS.has(label)
+    ? DEP_APK_BASE + label + "/" + label + ".apk" : "";
+  const pair = !links && !depApk && running ? mobilePairLink(d, ep) : "";
+  if (!links && !depApk && !pair) return "";
+  const name = (d.app && d.app.slug) || label;
   const body = links
     ? (links.android
         ? '<a class="btn btn-sm btn-primary" href="' + esc(links.android) + '" target="_blank" rel="noopener" title="Signed APK - Android asks you to allow installs from your browser the first time">Android · APK ↓</a>'
@@ -149,6 +168,9 @@ function mobileSection(d, ep){
       + (links.ios
         ? '<a class="btn btn-sm btn-primary" href="' + esc(links.ios) + '" target="_blank" rel="noopener">iPhone ↗</a>'
         : '<span class="em-note">iPhone: open the app in Safari, then Share → Add to Home Screen.</span>')
+    : depApk
+    ? '<a class="btn btn-sm btn-primary" href="' + esc(depApk) + '" target="_blank" rel="noopener" title="Signed APK with the app packaged inside - Android asks you to allow installs from your browser the first time">Android · install ' + esc(name) + ' ↓</a>'
+      + '<span class="em-note">The app’s UI ships inside the APK: it opens instantly, works offline, and only its API calls reach the enclave. Rebuilt automatically when the app updates. iPhone: open the app in Safari, then Share → Add to Home Screen.</span>'
     : '<a class="btn btn-sm btn-primary" href="' + esc(GENERIC_APK) + '" target="_blank" rel="noopener" title="One signed APK for any Enclave app - Android asks you to allow installs from your browser the first time">1 · Get the Enclave app ↓</a>'
       + '<a class="btn btn-sm" href="' + esc(pair) + '" title="Opens the installed Enclave app and pairs it to this deployment - it verifies the enclave on your phone, then loads the app">2 · Open this app in it</a>'
       + '<button class="btn btn-sm em-copy" type="button" data-copy="' + esc(pair) + '" title="Copy the pairing link (e.g. to send it to your phone)">copy link</button>'
