@@ -184,3 +184,11 @@ a.ed-host:hover{color:var(--jade);}
    Flat (no btn-primary gradient/glow): it sits in a row of small actions */
 .btn.ok{border-color:var(--jade-deep);color:var(--jade-2);} .btn.ok:hover{border-color:var(--jade);background:rgba(47,230,168,.08);}
 @media(max-width:560px){.enc-spend{width:100%;order:5;}.enc-acts{margin-left:0;width:100%;flex-direction:column;align-items:stretch;}}
+
+/* per-row "Get the app" (mobile builds a published version names in its
+   config `_mobile`: the bar carries the toggle, the body the store links) */
+.enc-mob{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:#080c12;}
+.em-toggle{float:right;margin:-4px 0 -4px 10px;text-transform:none;letter-spacing:0;}
+.enc-mob-body{display:flex;gap:10px 14px;flex-wrap:wrap;align-items:center;padding:12px 18px;}
+.enc-mob-body .btn{text-decoration:none;}
+.em-note{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);line-height:1.6;flex:1 1 100%;}

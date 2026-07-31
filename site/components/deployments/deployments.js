@@ -101,6 +101,49 @@ function secretsSection(id){
     + '</div>';
 }
 
+/* ---- per-row "Get the app" section ----
+   A published version may name installable MOBILE builds in its on-chain
+   config under "_mobile" ({android: <apk url>, ios: <store url>}) - the
+   verify-first shell (enclave-apps/mobile-shell) wrapping this app, which
+   checks the enclave's attestation ON THE PHONE before the app loads. The
+   config is publisher-authored, so a link only renders from an allowlist of
+   store/release hosts: the dashboard must never become an arbitrary-binary
+   delivery vector. Grow the list deliberately, never to "any https". */
+const MOBILE_KEY = "_mobile";
+const MOBILE_HOSTS = /^https:\/\/(github\.com\/[^?#\s]+\/releases\/download\/|play\.google\.com\/|apps\.apple\.com\/|testflight\.apple\.com\/)/i;
+export function mobileLinksOf(ref){
+  try {
+    const cr = parseCatalogRef(ref);
+    const app = cr && STORE.byId[cr.appId];
+    const ver = app && app.versions ? app.versions[cr.index] : null;
+    const m = ver ? (JSON.parse(ver.config || "{}") || {})[MOBILE_KEY] : null;
+    if (!m || typeof m !== "object") return null;
+    const pick = (u) => (typeof u === "string" && MOBILE_HOSTS.test(u) && safeHref(u)) || "";
+    const android = pick(m.android), ios = pick(m.ios);
+    return android || ios ? { android, ios } : null;
+  } catch { return null; }
+}
+function mobileSection(d){
+  const links = mobileLinksOf(d.image && d.image.reference);
+  if (!links) return "";
+  const label = appLabel(d.id);
+  return '<div class="enc-mob">'
+    +   '<div class="ap-attbar">'
+    +     '<button class="btn btn-sm em-toggle" type="button" aria-controls="emBody' + label + '" aria-expanded="false" title="Install this app on a phone - the mobile build verifies the enclave on the device before the app loads">Get the app ↓</button>'
+    +     'mobile app · ' + esc(d.id)
+    +   '</div>'
+    +   '<div class="enc-mob-body" id="emBody' + label + '" hidden>'
+    +     (links.android
+            ? '<a class="btn btn-sm btn-primary" href="' + esc(links.android) + '" target="_blank" rel="noopener" title="Signed APK - Android asks you to allow installs from your browser the first time">Android · APK ↓</a>'
+            : '')
+    +     (links.ios
+            ? '<a class="btn btn-sm btn-primary" href="' + esc(links.ios) + '" target="_blank" rel="noopener">iPhone ↗</a>'
+            : '<span class="em-note">iPhone: open the app in Safari, then Share → Add to Home Screen.</span>')
+    +     '<span class="em-note">The mobile build re-checks the enclave’s attestation on your device before the app loads.</span>'
+    +   '</div>'
+    + '</div>';
+}
+
 // Per-row Domains: attach a hostname you own and the app serves on it, with a
 // certificate minted inside the enclave. Collapsed to a bar until opened -
 // listing needs a wallet signature (the relay proves ownership against the
@@ -369,6 +412,10 @@ class Deployments extends EnclaveElement {
     // a session only enriches rows with the enclaves' live view
     if (!body.querySelector(".enc-row") || opts.spinner) body.innerHTML = '<div class="loading" role="status">loading your enclaves…</div>';
     try {
+      // fire-and-forget: the row art and the mobile section resolve versions
+      // through the catalog STORE; a cold cache fills while the first paint
+      // proceeds and the poll repaints with it (loadCatalog self-dedupes)
+      loadCatalog().catch(() => null);
       const list = [];
       if (Enclave.address){
         const res = await Enclave.listDeployments();
@@ -506,6 +553,9 @@ class Deployments extends EnclaveElement {
         '<div class="enc-waf" hidden></div>' +
         (onchain && (live || resumable) && ctl === "wallet" ? secretsSection(d.id) : '') +
         (onchain && (live || resumable) && ctl === "wallet" ? domainsSection(d.id) : '') +
+        // public catalog data, so every row kind gets it (self-gates on the
+        // version's config actually naming mobile builds)
+        mobileSection(d) +
         '<div class="enc-out" data-id="' + esc(d.id) + '" hidden></div>' +
         '<div class="enc-att" hidden></div>' +
       '</div>';
@@ -519,6 +569,13 @@ class Deployments extends EnclaveElement {
     $$(".enc-wafbtn", body).forEach(b => b.addEventListener("click", () => this._waf(b.dataset.id, b)));
     $$(".enc-sec[data-id]", body).forEach(el => this._secretsWire(el));
     $$(".enc-dom[data-id]", body).forEach(el => this._domainsWire(el));
+    $$(".em-toggle", body).forEach(b => b.addEventListener("click", () => {
+      const panel = document.getElementById(b.getAttribute("aria-controls"));
+      if (!panel) return;
+      const open = panel.hidden;
+      panel.hidden = !open;
+      b.setAttribute("aria-expanded", String(open));
+    }));
     $$(".enc-verify", body).forEach(b => b.addEventListener("click", () => this._verify(b.dataset.id, b)));
     $$(".enc-kill", body).forEach(b => b.addEventListener("click", () => this._kill(b.dataset.id, b)));
     $$(".enc-refund", body).forEach(b => b.addEventListener("click", () => this._refund(b.dataset.id, b)));
@@ -2061,7 +2118,7 @@ class Deployments extends EnclaveElement {
     if (this._poll) return;
     this._poll = setInterval(() => {
       if (!Enclave.address && !Enclave.accountAuthed()){ this._stopPoll(); return; }
-      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden])")) return;   // don't clobber an open attestation/output/top-up view
+      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden]), .enc-mob-body:not([hidden])")) return;   // don't clobber an open attestation/output/top-up view
       this.refresh();
     }, 10000);
   }
