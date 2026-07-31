@@ -152,39 +152,37 @@ export function mobilePairLink(d, ep){
          + "&d=" + encodeURIComponent(d.id) + "&n=" + encodeURIComponent(name);
   } catch { return ""; }
 }
-function mobileSection(d, ep){
+// What this row can offer a phone, in order of preference; null = no button.
+function mobileOffer(d, ep){
   const links = mobileLinksOf(d.image && d.image.reference);
+  if (links) return { kind: "links", links };
+  if (!(d.public && (d.status || "") === "running")) return null;
   const label = appLabel(d.id);
-  const running = d.public && (d.status || "") === "running";
-  const depApk = !links && running && DEP_APKS && DEP_APKS.has(label)
-    ? DEP_APK_BASE + label + "/" + label + ".apk" : "";
-  const pair = !links && !depApk && running ? mobilePairLink(d, ep) : "";
-  if (!links && !depApk && !pair) return "";
-  const name = (d.app && d.app.slug) || label;
-  const body = links
-    ? (links.android
-        ? '<a class="btn btn-sm btn-primary" href="' + esc(links.android) + '" target="_blank" rel="noopener" title="Signed APK - Android asks you to allow installs from your browser the first time">Android · APK ↓</a>'
+  if (DEP_APKS && DEP_APKS.has(label))
+    return { kind: "apk", url: DEP_APK_BASE + label + "/" + label + ".apk" };
+  const pair = mobilePairLink(d, ep);
+  return pair ? { kind: "pair", pair } : null;
+}
+const IOS_NOTE = "iPhone: open the app in Safari, then Share → Add to Home Screen.";
+function mobileDialogBody(offer, name){
+  if (offer.kind === "links") {
+    return (offer.links.android
+        ? '<div class="em-dl"><a class="btn btn-primary" href="' + esc(offer.links.android) + '" target="_blank" rel="noopener">Android · APK ↓</a></div>'
         : '')
-      + (links.ios
-        ? '<a class="btn btn-sm btn-primary" href="' + esc(links.ios) + '" target="_blank" rel="noopener">iPhone ↗</a>'
-        : '<span class="em-note">iPhone: open the app in Safari, then Share → Add to Home Screen.</span>')
-    : depApk
-    ? '<a class="btn btn-sm btn-primary" href="' + esc(depApk) + '" target="_blank" rel="noopener" title="Signed APK with the app packaged inside - Android asks you to allow installs from your browser the first time">Android · install ' + esc(name) + ' ↓</a>'
-      + '<span class="em-note">The app’s UI ships inside the APK: it opens instantly, works offline, and only its API calls reach the enclave. Rebuilt automatically when the app updates. iPhone: open the app in Safari, then Share → Add to Home Screen.</span>'
-    : '<a class="btn btn-sm btn-primary" href="' + esc(GENERIC_APK) + '" target="_blank" rel="noopener" title="One signed APK for any Enclave app - Android asks you to allow installs from your browser the first time">1 · Get the Enclave app ↓</a>'
-      + '<a class="btn btn-sm" href="' + esc(pair) + '" title="Opens the installed Enclave app and pairs it to this deployment - it verifies the enclave on your phone, then loads the app">2 · Open this app in it</a>'
-      + '<button class="btn btn-sm em-copy" type="button" data-copy="' + esc(pair) + '" title="Copy the pairing link (e.g. to send it to your phone)">copy link</button>'
-      + '<span class="em-note">Do both steps ON YOUR PHONE (this page works there too). iPhone: open the app in Safari, then Share → Add to Home Screen.</span>';
-  return '<div class="enc-mob">'
-    +   '<div class="ap-attbar">'
-    +     '<button class="btn btn-sm em-toggle" type="button" aria-controls="emBody' + label + '" aria-expanded="false" title="Install this app on a phone - the mobile build verifies the enclave on the device before the app loads">Get the app ↓</button>'
-    +     'mobile app · ' + esc(d.id)
-    +   '</div>'
-    +   '<div class="enc-mob-body" id="emBody' + label + '" hidden>'
-    +     body
-    +     '<span class="em-note">The mobile build re-checks the enclave’s attestation on your device before the app loads.</span>'
-    +   '</div>'
-    + '</div>';
+      + (offer.links.ios
+        ? '<div class="em-dl"><a class="btn btn-primary" href="' + esc(offer.links.ios) + '" target="_blank" rel="noopener">iPhone ↗</a></div>'
+        : '<p class="qd-sub">' + IOS_NOTE + '</p>')
+      + '<p class="qd-sub">Android asks you to allow installs from your browser the first time.</p>';
+  }
+  if (offer.kind === "apk") {
+    return '<div class="em-dl"><a class="btn btn-primary" href="' + esc(offer.url) + '" target="_blank" rel="noopener">Android · install ' + esc(name) + ' ↓</a></div>'
+      + '<p class="qd-sub">The app’s UI ships inside the APK: it opens instantly, works offline, and only its API calls reach the enclave. It is rebuilt automatically when the app updates. Android asks you to allow installs from your browser the first time.</p>'
+      + '<p class="qd-sub">' + IOS_NOTE + '</p>';
+  }
+  return '<div class="em-dl"><a class="btn btn-primary" href="' + esc(GENERIC_APK) + '" target="_blank" rel="noopener">1 · Get the Enclave app ↓</a></div>'
+    + '<div class="em-dl"><a class="btn" href="' + esc(offer.pair) + '">2 · Open this app in it</a>'
+    + '<button class="btn em-copy" type="button" data-copy="' + esc(offer.pair) + '" title="Copy the pairing link (e.g. to send it to your phone)">copy link</button></div>'
+    + '<p class="qd-sub">Do both steps ON YOUR PHONE (this page works there too). The link pairs the installed Enclave app to this deployment. ' + IOS_NOTE + '</p>';
 }
 
 // Per-row Domains: attach a hostname you own and the app serves on it, with a
@@ -570,6 +568,7 @@ class Deployments extends EnclaveElement {
             (st === "running" && ctl === "wallet" ? '<button class="btn btn-sm enc-restart" data-id="' + esc(d.id) + '" title="Stop and relaunch the app in place - same version, endpoint and balance; app state is ephemeral. The fix for a wedged instance (e.g. a model that never loaded at boot)">Restart</button>' : '') +
             (onchain && st === "running" && ctl === "wallet" ? '<button class="btn btn-sm enc-movebtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Run this app on a different enclave - the current one hands its lease back (unused lease time is refunded to the balance) and the box you pick claims it. Same URL, version and balance">Move</button>' : '') +
             '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '" aria-expanded="false">Verify</button>' +
+            (mobileOffer(d, ep) ? '<button class="btn btn-sm enc-mobbtn" data-id="' + esc(d.id) + '" title="Install this app on a phone - the mobile build verifies the enclave on the device before the app loads">Get app</button>' : '') +
             (resumable && ctl !== "order" ? '<button class="btn btn-sm ok enc-resume" data-id="' + esc(d.id) + '" title="Put it back on the queue - an enclave re-claims it and the app relaunches fresh from its published version, spending the remaining balance">Resume</button>' : '') +
             (live && ctl !== "order" ? (onchain
               ? '<button class="btn btn-sm warn enc-kill" data-id="' + esc(d.id) + '" title="Stop the app and take it off the queue. The remaining balance stays on the deployment - Resume restarts it any time">Suspend</button>'
@@ -596,10 +595,6 @@ class Deployments extends EnclaveElement {
         '<div class="enc-waf" hidden></div>' +
         (onchain && (live || resumable) && ctl === "wallet" ? secretsSection(d.id) : '') +
         (onchain && (live || resumable) && ctl === "wallet" ? domainsSection(d.id) : '') +
-        // public data, so every row kind gets it: dedicated builds when the
-        // version's config names them, else the generic-shell pairing flow
-        // for any running public app on a platform origin
-        mobileSection(d, ep) +
         '<div class="enc-out" data-id="' + esc(d.id) + '" hidden></div>' +
         '<div class="enc-att" hidden></div>' +
       '</div>';
@@ -613,14 +608,7 @@ class Deployments extends EnclaveElement {
     $$(".enc-wafbtn", body).forEach(b => b.addEventListener("click", () => this._waf(b.dataset.id, b)));
     $$(".enc-sec[data-id]", body).forEach(el => this._secretsWire(el));
     $$(".enc-dom[data-id]", body).forEach(el => this._domainsWire(el));
-    $$(".em-toggle", body).forEach(b => b.addEventListener("click", () => {
-      const panel = document.getElementById(b.getAttribute("aria-controls"));
-      if (!panel) return;
-      const open = panel.hidden;
-      panel.hidden = !open;
-      b.setAttribute("aria-expanded", String(open));
-    }));
-    $$(".em-copy", body).forEach(b => b.addEventListener("click", () => copyText(b.dataset.copy)));
+    $$(".enc-mobbtn", body).forEach(b => b.addEventListener("click", () => this._mobile(b.dataset.id)));
     $$(".enc-verify", body).forEach(b => b.addEventListener("click", () => this._verify(b.dataset.id, b)));
     $$(".enc-kill", body).forEach(b => b.addEventListener("click", () => this._kill(b.dataset.id, b)));
     $$(".enc-refund", body).forEach(b => b.addEventListener("click", () => this._refund(b.dataset.id, b)));
@@ -2159,11 +2147,44 @@ class Deployments extends EnclaveElement {
     catch(e){ showToast(e.message); if (btn){ btn.disabled = false; btn.textContent = "Resume"; } }
   }
 
+  /* ---- "Get app": the row button opens a POPUP (same qd-overlay idiom as
+     the deploy page's capacity dialog) rather than growing the row - the
+     content is three short branches (dedicated builds / prepackaged APK /
+     generic-shell pairing), and a popup outside the component also survives
+     the poll's repaints untouched. */
+  _mobile(id) {
+    const d = (this._list || []).find((x) => String(x.id) === String(id));
+    if (!d) return;
+    const offer = mobileOffer(d, appEndpoint(d));
+    if (!offer) return;
+    const name = (d.app && d.app.slug) || appLabel(d.id);
+    const prev = document.getElementById("encMobDlg");
+    if (prev) prev.remove();
+    const host = document.createElement("div");
+    host.className = "qd-overlay"; host.id = "encMobDlg";
+    host.innerHTML =
+      '<div class="qd-card" role="dialog" aria-modal="true" aria-label="Get the app on a phone">' +
+        '<div class="qd-h">Get the app · ' + esc(name) + '</div>' +
+        mobileDialogBody(offer, name) +
+        '<p class="qd-sub">The mobile build re-checks the enclave’s attestation on your device before the app loads.</p>' +
+        '<div class="qd-actions"><button class="btn em-close" type="button">Close</button></div>' +
+      '</div>';
+    document.body.appendChild(host);
+    const onKey = (e) => { if (e.key === "Escape") done(); };
+    const done = () => { host.remove(); document.removeEventListener("keydown", onKey); };
+    document.addEventListener("keydown", onKey);
+    host.addEventListener("click", (e) => { if (e.target === host) done(); });
+    host.querySelector(".em-close").addEventListener("click", done);
+    const copy = host.querySelector(".em-copy");
+    if (copy) copy.addEventListener("click", () => copyText(copy.dataset.copy));
+    host.querySelector(".em-close").focus();
+  }
+
   _startPoll() {
     if (this._poll) return;
     this._poll = setInterval(() => {
       if (!Enclave.address && !Enclave.accountAuthed()){ this._stopPoll(); return; }
-      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden]), .enc-mob-body:not([hidden])")) return;   // don't clobber an open attestation/output/top-up view
+      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden])")) return;   // don't clobber an open attestation/output/top-up view (the Get-app POPUP lives outside the component and survives repaints)
       this.refresh();
     }, 10000);
   }
