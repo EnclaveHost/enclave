@@ -685,11 +685,11 @@ Notes: a deployment that under-provisions its app's minimums is never claimed. O
 After it runs, the mutable knobs are: get_config/build_set_config (the app-config override + waf envelope, one owner tx; the runner re-applies it in place) and get_secrets/set_secrets (private env vars on the relay; restart_deployment applies them now). ${SIGNING_NOTE}`,
 
   publish: `Publishing an app to the catalog (wasm component -> IPFS -> on-chain version, then an approval gate):
-1. Build a wasm32-wasip2 COMPONENT (wasi:http). Core modules are refused.
+1. Build a wasm32-wasip2 COMPONENT (wasi:http), or a wasm32-wasip3 one (wasi:http@0.3 async; see the develop guide's WASIp3 chapter for the pinned toolchain). Core modules are refused.
 2. sha256 the bytes, pick expiry = now + up to 600 seconds (unix), and personal_sign EXACTLY the string:
    enclave-upload:<sha256hex>:<expiry>
 3. upload_token { hash, expiry, signature } returns { token, address, expiry }.
-4. POST the raw bytes to ${IPFS_UPLOAD}/add-wasm with headers content-type: application/wasm, x-upload-address, x-upload-expiry, x-upload-token. The response carries { cid }.
+4. POST the raw bytes to ${IPFS_UPLOAD}/add-wasm with headers content-type: application/wasm, x-upload-address, x-upload-expiry, x-upload-token. The response carries { cid, wasi, world } — wasi is the detected world contract ("0.2" or "0.3"); put it in the version config as {"wasi":"0.3"} for a WASIp3 app so runners route its claims to p3-capable boxes (the CLI and the site do this automatically).
    curl -sX POST ${IPFS_UPLOAD}/add-wasm -H 'content-type: application/wasm' -H "x-upload-address: <address>" -H "x-upload-expiry: <expiry>" -H "x-upload-token: <token>" --data-binary @app.wasm
 5. build_publish { publisher, slug, cid, ... } returns the unsigned publishVersion tx. Optional: version label (default: next integer), name, description, resource specs (vramMb, gpuGflops, memMb, cpuGflops; deploy dials size shares from these), ports CSV, config (the version's default ENCLAVE_CONFIG JSON, immutable), feeUsdPerHour (YOUR per-deployment publisher fee, paid straight to your wallet out of each funding, capped by the platform).
 6. Sign and send. The version starts PENDING; runners only claim approved versions on the PUBLIC path. To test it before approval, deploy it PRIVATE by explicit label (plan_deploy { app: "slug:version", public: false } on a fleet advertising devDeploy): owner-only data path, unlisted in the store. Images for the app page go to /add-image with the same signed-upload flow (PNG/JPEG/WebP/GIF, or SVG through a strict validator - no scripts/event handlers/external refs). The answer's "svg": true must be stored alongside the CID in the version config's _media block ({thumbnail, banner, thumbnailSvg?, bannerSvg?}) so pages render it with the right content type.
@@ -917,9 +917,10 @@ const TOOLS = [
   },
   {
     name: "claim_hint",
-    description: "Nudge the fleet to claim a funded on-chain deployment right now (otherwise the ~60s sweep finds it). Advisory and unauthenticated.",
-    inputSchema: S({ id: P.id }, ["id"]),
-    handler: async ({ id }) => self("POST", "/v1/claim-hint", { body: { id } }),
+    description: "Nudge the fleet to claim a funded on-chain deployment right now (otherwise the ~60s sweep finds it). Advisory and unauthenticated. Optional enclave pins the hint to one named box (see /enclaves) — the WASIp3-canary and placement path; the ledger stays an open queue either way.",
+    inputSchema: S({ id: P.id,
+      enclave: { type: "string", description: "Send the hint only to this enclave (a name from /enclaves), e.g. a p3-capable canary box" } }, ["id"]),
+    handler: async ({ id, enclave }) => self("POST", "/v1/claim-hint", { body: enclave ? { id, enclave } : { id } }),
   },
   {
     name: "restart_deployment",
@@ -1000,6 +1001,26 @@ const TOOLS = [
         if (!(av && av.aggregate && av.devDeploy === true))
           throw new Error(`${app.slug}:${ver.version} is awaiting approval, and the live fleet doesn't advertise devDeploy (pending-version private deploys) yet - retry after the fleet updates, or wait for approval`);
       }
+      // WASIp3 apps (the version config's `wasi: "0.3"`): only p3-capable
+      // runners claim them. Same shape as the CLI's gate — fleet-AND true
+      // deploys normally; at least one capable box is the canary path (note
+      // in the plan, claim_hint {enclave} pins it); none = Queued forever,
+      // refuse before any signature.
+      let p3Note = null;
+      {
+        let verWasi3 = false;
+        try { verWasi3 = JSON.parse(ver.config || "{}").wasi === "0.3"; } catch {}
+        if (verWasi3) {
+          const av = await self("GET", "/availability").catch(() => null);
+          if (!(av && av.aggregate && av.p3 === true)) {
+            const rows = await self("GET", "/enclaves").then((j) => j?.enclaves || []).catch(() => []);
+            const capable = rows.filter((e) => e?.availability?.p3 === true).map((e) => e.name).filter(Boolean);
+            if (!capable.length)
+              throw new Error(`${app.slug}:${ver.version} is a WASIp3 app and no live enclave serves p3 yet - it would sit Queued forever; retry after the fleet updates`);
+            p3Note = `WASIp3 canary: only ${capable.join(", ")} will claim this deployment; pass claim_hint {id, enclave: "${capable[0]}"} to route it there`;
+          }
+        }
+      }
       const pricing = await self("GET", "/v1/pricing").catch(() => null);
       const mins = minShares(ver, pricing);
       let gpuMilli = a.gpuShare !== undefined ? Math.round(Number(a.gpuShare) * 1000) : mins.gpuMilli;
@@ -1070,6 +1091,7 @@ const TOOLS = [
       return {
         app: `${app.slug}:${ver.version}`, appRef: ref,
         ...(pending ? { pending: `${ver.version} is awaiting catalog approval: this PRIVATE deployment is the dev-mode test path (owner-only data path, unlisted). If the owner later REJECTS the version, runners drop it at the next re-check.` } : {}),
+        ...(p3Note ? { p3: p3Note } : {}),
         shares: { gpuMilli, cpuMilli, note: "immutable after create; minimums for this version: " + JSON.stringify(mins) },
         ratePerHour: usdHr(rate), publisherFeePerHour: fee6 > 0n ? usdHr(fee6) : null,
         ...(rev >= 8 ? { pricedBy: priceSource,

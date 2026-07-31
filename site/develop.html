@@ -151,7 +151,7 @@
         <!-- 02 ------------------------------------------------------------ -->
         <article class="doc" id="docs-toolchain">
           <h3><span class="n">02</span>Toolchain setup</h3>
-          <p>The walkthrough uses <b>Rust</b>, the most mature component toolchain today (other languages in <a href="#docs-langs">chapter 15</a>). You need the WASI 0.2 target, <code>cargo-component</code>, and, for local testing, the same <code>wasmtime</code> runtime the enclave uses:</p>
+          <p>The walkthrough uses <b>Rust</b>, the most mature component toolchain today (other languages in <a href="#docs-langs">chapter 15</a>). You need the WASI 0.2 target, <code>cargo-component</code>, and, for local testing, the same <code>wasmtime</code> runtime the enclave uses (WASI 0.3 async components are also served - their pinned toolchain is at the end of <a href="#docs-hello">chapter 03</a>):</p>
           <c-code fn="terminal"><pre><code># Rust component toolchain
 rustup target add wasm32-wasip2
 cargo install cargo-component
@@ -222,6 +222,27 @@ wasmtime serve -Scli -Shttp -Sp3 \
   --dir scratch::/data \
   -W max-memory-size=134217728 \
   --addr 127.0.0.1:8080 target/wasm32-wasip2/release/hello.wasm</code></pre></c-code>
+
+          <h4>Going async: WASIp3 components</h4>
+          <p><b>wasm32-wasip3</b> is the component model's native-async target: one instance serves many in-flight requests, imports don't block it, and request/response bodies are first-class <code>stream</code>s - the right substrate for agent apps whose time goes to model and tool calls. The enclave serves both worlds side by side; the export in your world file is the whole difference:</p>
+          <c-code fn="wit/world.wit · p3"><pre><code>package enclave:hello;
+
+world hello {
+  include wasi:http/service@0.3.0-rc-2026-03-15;
+}</code></pre></c-code>
+          <p>Stable Rust lists the target but ships no std for it yet, so p3 builds use the platform's <b>blessed toolchain container</b> (<code>wasm/Dockerfile.wasip3-build</code> in the platform repo): a pinned nightly (<code>nightly-2026-07-25</code>) with <code>rust-src</code>, a pinned wasi-sdk, and the determinism flags baked in, so the same source and lockfile give everyone the same bytes - commit your <code>Cargo.lock</code>:</p>
+          <c-code fn="terminal"><pre><code>docker build -f wasm/Dockerfile.wasip3-build -t enclave-wasip3-build wasm/
+docker run --rm -v "$PWD":/src enclave-wasip3-build
+# artifact: target/wasm32-wasip3/release/hello.wasm
+# (the container runs: cargo build --release --target wasm32-wasip3 \
+#    -Zbuild-std=std,panic_abort --locked)
+wasmtime serve -Scli -Shttp -Sp3 --addr 127.0.0.1:8080 target/wasm32-wasip3/release/hello.wasm</code></pre></c-code>
+          <p>Publishing is unchanged - the upload path reads your component's exports and stamps the detected world (<code>"wasi": "0.3"</code>) into the version config, so only p3-capable enclaves claim it (per-box <code>p3</code> on <code>/availability</code>; ANDed fleet-wide when every runner serves it). Three p3-specific notes:</p>
+          <ul>
+            <li><b>Instances are reused and concurrent.</b> Up to 16 requests share one instance (and its linear memory and globals) before it's recycled after ~128 requests or 1s idle. That's the feature - warm state across an agent session - but if your handler assumes per-request isolation, dial it down per version in the config: <code>{"p3": {"maxConcurrent": 1, "maxReuse": 256, "idleSeconds": 5}}</code>. Billing is unchanged either way: you pay per second for the share, never per request.</li>
+            <li><b>wasi-nn works via the 0.2 bridge.</b> Import <code>wasi:nn@0.2.0-rc-2024-10-28</code> from your p3 world exactly as from a p2 one - same backends, same <code>/models</code> preloads. Its <code>compute()</code> is a sync hostcall that stalls the instance's other requests for the duration, so nn apps on the bridge should set <code>"p3": {"maxConcurrent": 1}</code>. The async, streaming <code>wasi:nn@0.3-draft</code> (host pushes tokens over a <code>stream&lt;u8&gt;</code>) is published in the platform repo at <code>wasm/wit/wasi-nn-0.3-draft/</code> and lands with the next runtime toolchain cut.</li>
+            <li><b>Streams still need bytes.</b> The gateway's ~180s cut is an idle timer per hop - any body byte resets it, and SSE comment heartbeats pass through untouched (the proxies are content-type-blind). Same rules as p2: emit early, emit often, and send <code>content-encoding: identity</code> on event streams.</li>
+          </ul>
         </article>
 
         <!-- 04 ------------------------------------------------------------ -->
@@ -231,7 +252,7 @@ wasmtime serve -Scli -Shttp -Sp3 \
           <ol>
             <li>Connect your wallet (header button) and hit <b>+ Publish app</b>.</li>
             <li>Pick a <b>slug</b>, your app's stable id, e.g. <code>my-hello</code> (a–z, 0–9, hyphens, ≤ 40 chars). Slugs live in <i>your wallet's namespace</i>: the on-chain app id is <code>keccak256(publisher, slug)</code>, so nobody can squat or write to your lineage. The slug doesn't have to match your crate name.</li>
-            <li>Set a <b>version</b> label (e.g. <code>1.0.0</code>) and choose your <code>hello.wasm</code>. The file is validated (component check, ≤ 2 GB), uploaded, pinned to IPFS, and the <b>CID</b> field fills in (or paste a CID you pinned yourself).</li>
+            <li>Set a <b>version</b> label (e.g. <code>1.0.0</code>) and choose your <code>hello.wasm</code>. The file is validated (component check, ≤ 2 GB), its world contract is detected from the exports (wasip2 or wasip3 - stamped into the version config as <code>wasi</code> so runners route p3 work to p3-capable boxes), uploaded, pinned to IPFS, and the <b>CID</b> field fills in (or paste a CID you pinned yourself).</li>
             <li>Set the display name, a description, and the app's <b>exact minimum resources</b> on four axes: the VRAM (GB) and GPU compute (TFLOPS) it needs on one card (both 0 for CPU-only apps, which is most of them), and the RAM (MB - also the runtime-enforced memory cap; the Hello app is fine at 128) and CPU compute (GFLOPS, at least 1 - every app computes something - and note the unit: a whole <span data-live-spec="node-vcpus">16</span>-vCPU node is only ≈<span data-live-spec="node-gflops">1000</span> GFLOPS ≈ 1 TFLOPS, so declaring the node's full GFLOPS claims the entire node and forces a 100% CPU share; most small apps want 1-50) it needs on the node. These specs set the MINIMUM shares on the deploy page's two dials (spec ÷ server spec, the larger of the memory and compute axes); deploys below them are refused. Only for service apps, add the <b>open ports</b> the version may bind (<a href="#docs-ports">chapter 09</a>). Leave ports empty for a standard web app.</li>
             <li>Optionally set an <b>hourly fee</b> for running your app. It is stored on the version record, shown to every deployer up front, and paid <b>straight to your publisher wallet</b>: whenever a deployer funds a deployment of your app, your share of that funding is forwarded to your wallet in the same transaction (non-custodial, like all Enclave payments). The fee is capped on-chain by the platform, immutable per version like the ports and config, and covered by the owner's approval - re-pricing means publishing a new version, so an approved app can never silently change its price. Leave it at 0 for a free app.</li>
             <li><b>Publish to Base</b>: one transaction, signed by your wallet, attributed on-chain to you.</li>
@@ -480,7 +501,7 @@ fn actual_port(logical: &amp;str) -&gt; u16 {
         .find_map(|e| e.trim().strip_prefix(&amp;format!("{logical}="))?.parse().ok())
         .unwrap_or_else(|| panic!("{logical} not in ENCLAVE_PORTS"))
 }</code></pre></c-code>
-          <p>Readiness: the enclave waits (~20 s) for your first <code>http:</code>/<code>tcp:</code> port to accept before marking the deployment running, so bind early in <code>main()</code>. Both launch modes also pass <code>-S p3</code>, so you may target the async <b>WASIp3</b> API surface instead of wasip2's poll-based one. Same sandbox, same rules; guest toolchains for p3 are still young.</p>
+          <p>Readiness: the enclave waits (~20 s) for your first <code>http:</code>/<code>tcp:</code> port to accept before marking the deployment running, so bind early in <code>main()</code>. Both launch modes also pass <code>-S p3</code> (on runtimes that prove it), so you may target the async <b>WASIp3</b> API surface instead of wasip2's poll-based one - same sandbox, same rules; the pinned p3 toolchain is at the end of <a href="#docs-hello">chapter 03</a>.</p>
         </article>
 
         <!-- 10 ------------------------------------------------------------ -->
@@ -580,6 +601,7 @@ world app {
   import wasi:nn/graph@0.2.0-rc-2024-10-28;
   export wasi:http/incoming-handler@0.2.6;
 }</code></pre></c-code>
+          <p>A <b>WASIp3</b> app imports the same <code>wasi:nn@0.2</code> interfaces from its p3 world - the runtime links both API sets into one process, so nothing changes on the nn side (the bridge; see the p3 notes in <a href="#docs-hello">chapter 03</a> for the one concurrency caveat). The async, token-streaming <code>wasi:nn@0.3-draft</code> is published in the platform repo and arrives with a future runtime cut.</p>
           <p>Load once, compute per request - the whole API is four calls, and it drives all three backends. <b>The ONNX path first.</b> Tensors cross the boundary as little-endian bytes in any ONNX element type - fp16, fp32, fp64, bf16, i32, i64, u8 - and outputs come back in the model's actual dtype. Zero-size dimensions are legal (an empty KV cache bootstrapping a decoder's first step), and <code>compute</code> returns owned tensor handles you can feed straight back as the next step's inputs, so KV-cache bytes never round-trip through your linear memory.</p>
           <c-code fn="src/lib.rs · inference"><pre><code>use bindings::wasi::nn::graph::{load, ExecutionTarget, GraphEncoding};
 use bindings::wasi::nn::tensor::{Tensor, TensorType};
@@ -800,7 +822,8 @@ curl -H "Authorization: Bearer $LOGIN_TOKEN" \
           <div class="tbl"><table class="params symptoms">
             <thead><tr><th scope="col">symptom</th><th scope="col">cause → fix</th></tr></thead>
             <tbody>
-              <tr><th scope="row" class="pname">"a core wasm module, not a wasi:http component"</th><td>You built a plain module. Build with <code>cargo component</code> (or a toolchain that emits components); the upload gateway and the enclave both check the component layer field.</td></tr>
+              <tr><th scope="row" class="pname">"a core wasm module, not a wasi:http component"</th><td>You built a plain module. Build with <code>cargo component</code> for wasip2, or the blessed wasip3 container (<a href="#docs-hello">chapter 03</a>) - both emit components; the upload gateway and the enclave both check the component layer field.</td></tr>
+              <tr><th scope="row" class="pname">"app targets WASIp3 … a p3-capable enclave must claim it"</th><td>Your version published as <code>wasi: "0.3"</code> but landed on (or was hinted to) a box whose runtime doesn't serve p3 yet. Pick a p3-capable enclave in the deploy target list (per-box <code>p3</code> on <code>/availability</code>), or wait for the fleet-wide flag.</td></tr>
               <tr><th scope="row" class="pname">403 not_approved on deploy</th><td>That version is still Pending (or was Rejected); the catalog owner approves each CID before it can run. Check the status badge on your app card in <a href="apps">Apps</a>.</td></tr>
               <tr><th scope="row" class="pname">"firewall: bound unassigned port(s) … app killed"</th><td>The app hardcoded a port. Read <code>ENCLAVE_PORTS</code> and bind the <i>actual</i> ports (<a href="#docs-ports">ch. 09</a>).</td></tr>
               <tr><th scope="row" class="pname">"did not open port in time"</th><td>Bind your first <code>http:</code>/<code>tcp:</code> port early in <code>main()</code>; the readiness window is ~20 s.</td></tr>

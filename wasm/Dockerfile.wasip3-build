@@ -1,0 +1,54 @@
+# enclave-wasip3-build: the BLESSED toolchain for wasm32-wasip3 app builds.
+#
+# Why this container exists: stable rustc lists wasm32-wasip3 but ships NO std
+# for it (Tier 3, no dist artifacts — verified against the 2026-07-25 nightly
+# manifest too: the target is absent entirely), so every wasip3 build goes
+# through `-Zbuild-std`, which is nightly-only. A floating nightly is the
+# opposite of a reproducible recipe, so the platform pins ONE and publishers
+# build inside it. The app-side trust story is unchanged from wasip2 — the CID
+# is the contract, verified byte-for-byte in-enclave before launch (there is no
+# source-rebuild verifier for either target; see docs/wasip3.md) — but this
+# container plus a committed Cargo.lock is what makes an independent
+# rebuild-and-compare of a p3 CID *possible*: same container, same lockfile,
+# same bytes out.
+#
+#   docker build -f wasm/Dockerfile.wasip3-build -t enclave-wasip3-build wasm/
+#   docker run --rm -v "$PWD":/src enclave-wasip3-build
+#   # -> target/wasm32-wasip3/release/<app>.wasm (a p3 async component)
+#
+# PINS (move all three deliberately, together, and announce — publishers'
+# rebuilds must keep matching their published CIDs):
+#   - base image by DIGEST (same discipline as Dockerfile.wasmtime: a repushed
+#     tag silently changes what "the same recipe" builds)
+#   - the nightly BY DATE: nightly-2026-07-25 = rustc 1.99.0-nightly
+#     (da86f4d07 2026-07-24), rust-src included for -Zbuild-std. Its std for
+#     wasip3 binds the `wasip3` crate; components it emits still IMPORT WASIp2
+#     APIs (the rustc target spec documents this) and EXPORT the p3 world —
+#     which is exactly what the platform's classifier and wasmtime 45 serve.
+#   - wasi-sdk by sha256: -Zbuild-std compiles wasi-libc's C side, which needs
+#     a wasm-targeting clang the base image does not carry.
+FROM rust:1.93-bookworm@sha256:7c4ae649a84014c467d79319bbf17ce2632ae8b8be123ac2fb2ea5be46823f31
+
+ARG P3_NIGHTLY=nightly-2026-07-25
+RUN rustup toolchain install "${P3_NIGHTLY}" --profile minimal --component rust-src \
+ && rustup default "${P3_NIGHTLY}"
+
+ARG WASI_SDK_VERSION=25.0
+ARG WASI_SDK_URL=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-25/wasi-sdk-25.0-x86_64-linux.tar.gz
+ARG WASI_SDK_SHA256=52640dde13599bf127a95499e61d6d640256119456d1af8897ab6725bcf3d89c
+RUN curl -fsSL -o /tmp/wasi-sdk.tgz "${WASI_SDK_URL}" \
+ && echo "${WASI_SDK_SHA256}  /tmp/wasi-sdk.tgz" | sha256sum -c - \
+ && tar -xzf /tmp/wasi-sdk.tgz -C /opt && rm /tmp/wasi-sdk.tgz
+ENV WASI_SDK_PATH=/opt/wasi-sdk-25.0-x86_64-linux
+ENV CC_wasm32_wasip3=${WASI_SDK_PATH}/bin/clang \
+    AR_wasm32_wasip3=${WASI_SDK_PATH}/bin/llvm-ar
+
+# Determinism knobs, applied to EVERY build in this container so no publisher
+# forgets one: --remap-path-prefix strips the host paths (the same source in a
+# different checkout dir must not change the bytes); --locked refuses to build
+# without the committed Cargo.lock (an unlocked resolve is a different build).
+ENV RUSTFLAGS="--remap-path-prefix=/src=. --remap-path-prefix=/usr/local/cargo=/cargo"
+ENV CARGO_TERM_COLOR=never
+
+WORKDIR /src
+CMD ["cargo", "build", "--release", "--target", "wasm32-wasip3", "-Zbuild-std=std,panic_abort", "--locked"]

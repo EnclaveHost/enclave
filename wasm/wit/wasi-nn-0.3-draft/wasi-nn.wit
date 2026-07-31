@@ -1,0 +1,138 @@
+package wasi:nn@0.3.0-draft-2026-07-31;
+
+/// Enclave's WASIp3 (component-model async) draft of wasi-nn. There is no
+/// upstream wasi:nn for p3 yet; this package is the platform's proposed
+/// contract, published here FIRST so guest bindings and the host backend are
+/// built against the same file. Design rules, in order:
+///
+///   1. Shape-compatible with wasi:nn@0.2.0-rc-2024-10-28 wherever async
+///      changes nothing: tensor, graph-encoding, execution-target, errors and
+///      the load/load-by-name/init-execution-context flow are the 0.2 shapes,
+///      so a guest port is an adapter swap, not a rewrite.
+///   2. `compute` is ASYNC. In a p3 world one instance serves many in-flight
+///      requests on one event loop; the 0.2 bridge's sync compute() blocks
+///      that loop for the whole inference, stalling every other request in
+///      the instance (documented in docs/wasip3.md). Async compute suspends
+///      only its own task — the reason this interface exists at all.
+///   3. Streaming is a STREAM, not a poll. Generative backends (ggml, sdcpp
+///      progress) emit incrementally; 0.2 guests poll compute() in a loop
+///      with guest-managed state. `compute-stream` returns the component-
+///      model `stream` type and the host pushes: one hostcall per request
+///      instead of one per token, and SSE heartbeat/first-byte behavior falls
+///      out of the guest just forwarding the stream.
+///
+/// Host-side: implemented by the wasmtime toolchain's nn backends (ggml,
+/// onnx, sdcpp — the same registry and `-S nn-graph` preloads as 0.2; both
+/// interface versions link into one process and share loaded models). Until
+/// that toolchain cut lands, p3 guests use the 0.2 bridge unchanged.
+world ml {
+    import tensor;
+    import graph;
+    import inference;
+    import errors;
+}
+
+/// Identical to 0.2: all inputs and outputs are tensors.
+interface tensor {
+    type tensor-dimensions = list<u32>;
+
+    enum tensor-type {
+        FP16,
+        FP32,
+        FP64,
+        BF16,
+        U8,
+        I32,
+        I64
+    }
+
+    type tensor-data = list<u8>;
+
+    resource tensor {
+        constructor(dimensions: tensor-dimensions, ty: tensor-type, data: tensor-data);
+        dimensions: func() -> tensor-dimensions;
+        ty: func() -> tensor-type;
+        data: func() -> tensor-data;
+    }
+}
+
+/// Identical to 0.2 except `load` is async: pulling a model into a backend is
+/// I/O + engine init measured in seconds, exactly what must not block the
+/// instance's other requests. (`load-by-name` of a preloaded graph is a
+/// registry lookup and stays sync.)
+interface graph {
+    use errors.{error};
+    use inference.{graph-execution-context};
+
+    resource graph {
+        init-execution-context: func() -> result<graph-execution-context, error>;
+    }
+
+    enum graph-encoding {
+        openvino,
+        onnx,
+        tensorflow,
+        pytorch,
+        tensorflowlite,
+        ggml,
+        sd,
+        autodetect,
+    }
+
+    enum execution-target {
+        cpu,
+        gpu,
+        tpu
+    }
+
+    type graph-builder = list<u8>;
+
+    load: async func(builder: list<graph-builder>, encoding: graph-encoding, target: execution-target) -> result<graph, error>;
+
+    load-by-name: func(name: string) -> result<graph, error>;
+}
+
+/// The 0.2 inference session, made async — plus the stream the whole draft
+/// exists for.
+interface inference {
+    use errors.{error};
+    use tensor.{tensor};
+
+    type named-tensor = tuple<string, tensor>;
+
+    resource graph-execution-context {
+        /// One-shot inference, 0.2 semantics with an async lift: suspends the
+        /// calling task, never the instance.
+        compute: async func(inputs: list<named-tensor>) -> result<list<named-tensor>, error>;
+
+        /// Streaming inference for incremental backends. The host pushes
+        /// output as it is produced and closes the stream when generation
+        /// ends; an error after streaming began arrives as the function
+        /// result once the stream is drained. Stream contents are
+        /// backend-defined bytes: UTF-8 text chunks for generative LLMs
+        /// (ggml), encoded progress/preview frames for image pipelines
+        /// (sdcpp). Non-incremental backends may answer with a single chunk
+        /// and close — callers must not assume chunk granularity.
+        compute-stream: async func(inputs: list<named-tensor>) -> result<stream<u8>, error>;
+    }
+}
+
+/// Identical to 0.2.
+interface errors {
+    enum error-code {
+        invalid-argument,
+        invalid-encoding,
+        timeout,
+        runtime-error,
+        unsupported-operation,
+        too-large,
+        not-found,
+        security,
+        unknown
+    }
+
+    resource error {
+        code: func() -> error-code;
+        data: func() -> string;
+    }
+}

@@ -617,14 +617,65 @@ async function validateWasm(file){
   // Preamble after the magic is version:u16 + layer:u16. Key on the layer, which is
   // stable across component-version bumps: 0 = core module, 1 = component.
   const layer = h[6] | (h[7] << 8);
-  if (layer === 0) throw new EnclaveError("This is a core wasm module, but Enclave runs wasi:http *components*. Rebuild with cargo-component (target wasm32-wasip2).", 0);
+  if (layer === 0) throw new EnclaveError("This is a core wasm module, but Enclave runs wasi:http *components*. Rebuild for wasm32-wasip2 (cargo-component) or wasm32-wasip3 (see the develop guide).", 0);
   if (layer !== 1) throw new EnclaveError("Unrecognized wasm preamble (layer " + layer + "); expected a wasi:http component.", 0);
   return true;
+}
+// Which wasi world contract does the picked component target? Same classifier
+// as the CLI (componentContract in cli/enclave.mjs) and the runner
+// (wasm_manager._component_contract) — the EXPORT decides, in the order
+// `wasmtime serve` tries instantiation. Read from the binary, never asked of
+// the publisher; publishApp stamps the answer into the version config as
+// `wasi` so runners route wasip3 claims to p3-capable boxes. Null (no file
+// picked / unclassifiable / CID pasted by hand) publishes without the key,
+// exactly like every pre-p3 version — the runner classifies at launch anyway.
+function componentContract(u8){
+  const none = { wasi: null, world: null };
+  if (u8.length < 8 || !(u8[0] === 0 && u8[1] === 0x61 && u8[2] === 0x73 && u8[3] === 0x6d) || (u8[6] | (u8[7] << 8)) !== 1) return none;
+  const uleb = (buf, i) => {                    // -> [value, nextIndex]; throws on malformed
+    let r = 0, s = 0;
+    for (;;){
+      const b = buf[i++];
+      if (b === undefined) throw new Error("truncated");
+      r += (b & 0x7f) * 2 ** s;
+      if (!(b & 0x80)) return [r, i];
+      s += 7; if (s > 35) throw new Error("uleb too long");
+    }
+  };
+  const W = [0x77, 0x61, 0x73, 0x69, 0x3a];     // "wasi:"
+  const exports = new Set(), dec = new TextDecoder("latin1");
+  try {
+    for (let i = 8; i < u8.length; ){
+      const sid = u8[i];
+      const [size, j] = uleb(u8, i + 1);
+      if (sid === 11){                          // top-level component export section
+        const pay = u8.subarray(j, j + size);
+        for (let p = 0; p + W.length <= pay.length; p++){
+          if (pay[p] !== W[0] || pay[p+1] !== W[1] || pay[p+2] !== W[2] || pay[p+3] !== W[3] || pay[p+4] !== W[4]) continue;
+          for (let back = 1; back <= 5 && p - back >= 0; back++){
+            let ln, q;
+            try { [ln, q] = uleb(pay, p - back); } catch(_){ continue; }
+            if (q !== p || p + ln > pay.length) continue;
+            const s = dec.decode(pay.subarray(p, p + ln));
+            if (/^[A-Za-z0-9:/@.+-]+$/.test(s)) exports.add(s);
+            break;
+          }
+        }
+      }
+      i = j + size;
+    }
+  } catch(_){ return none; }
+  for (const [prefix, ver] of [["wasi:http/handler@0.3.", "0.3"], ["wasi:http/incoming-handler@0.2.", "0.2"],
+                               ["wasi:cli/run@0.3.", "0.3"], ["wasi:cli/run@0.2.", "0.2"]]){
+    const hit = [...exports].filter(e => e.startsWith(prefix)).sort();
+    if (hit.length) return { wasi: ver, world: hit[0] };
+  }
+  return none;
 }
 // In-flight publish upload (XHR so we get upload progress - fetch can't report
 // it). Tracked module-wide: a new file pick aborts the old upload, and the
 // publish path refuses to run while one is active.
-let pubXhr = null, pubSeq = 0;
+let pubXhr = null, pubSeq = 0, pubWasi = null;
 async function putWasm(file, onProgress){
   if (!IPFS_UPLOAD_URL) throw new EnclaveError("Direct upload isn’t configured here; paste a CID you’ve pinned (e.g. `ipfs add app.wasm`).", 0);
   if (file.size > MAX_WASM_BYTES) throw new EnclaveError("Too large: max " + MAX_WASM_MB + " MB.", 0);
@@ -761,15 +812,20 @@ async function onPubFile(e){
   const seq = ++pubSeq;                                     // supersedes any in-flight upload
   if (pubXhr){ try { pubXhr.abort(); } catch(_){} pubXhr = null; }
   $("#pubCid").value = "";                                  // never leave the previous CID publishable
+  pubWasi = null;                                           // …nor the previous file's world contract
   const hint = $("#pubFileHint"), bar = $("#pubUpBar");
   const mb = (f.size / 1048576).toFixed(2);
   hint.textContent = f.name + " · " + mb + " MB";
   try { await validateWasm(f); }
   catch(err){ if (seq !== pubSeq) return; pubStatus(err.message || String(err), true); e.target.value = ""; return; }
   if (seq !== pubSeq) return;
+  // world contract from the bytes (publishApp stamps it into the config);
+  // classification failure is not an upload failure
+  try { pubWasi = componentContract(new Uint8Array(await f.arrayBuffer())).wasi; } catch(_){ pubWasi = null; }
+  if (seq !== pubSeq) return;
   setPubUploading(true);
   if (bar){ bar.hidden = false; bar.firstElementChild.style.width = "0%"; bar.setAttribute("aria-valuenow", "0"); }
-  pubStatus("valid component · uploading to IPFS… 0%");
+  pubStatus("valid " + (pubWasi === "0.3" ? "WASIp3 " : pubWasi === "0.2" ? "WASIp2 " : "") + "component · uploading to IPFS… 0%");
   try {
     const cid = await putWasm(f, (done, total) => {
       if (seq !== pubSeq || !total) return;
@@ -839,6 +895,17 @@ async function publishApp(){
   if (blen(ports) > 96) return pubStatus("open-ports config too long (≤ 96 bytes)", true);
   const pErr = validPortsCsv(ports); if (pErr) return pubStatus(pErr, true);
   const cfg = readPubConfig(); if (cfg.err) return pubStatus(cfg.err, true);
+  // stamp the detected world contract (`wasi: "0.2"|"0.3"`) into the version
+  // config — same envelope pattern as gpuOptional/_media, and the binary is
+  // the authority over anything typed in the config box (claim routing:
+  // runners send wasip3 versions only to p3-capable boxes). A hand-pasted
+  // CID has no bytes to classify and publishes without the key.
+  if (pubWasi){
+    try {
+      const o = JSON.parse(cfg.val || "{}");
+      if (o && typeof o === "object" && !Array.isArray(o)){ o.wasi = pubWasi; cfg.val = JSON.stringify(o); }
+    } catch(_){ /* readPubConfig already validated shape; never block on the stamp */ }
+  }
   // fold the (already-uploaded) thumbnail/banner CIDs into the version config
   // under _media - they ride in the config since the catalog contract has no
   // media field. Re-check the ceiling: media adds ~150 bytes over the app config.

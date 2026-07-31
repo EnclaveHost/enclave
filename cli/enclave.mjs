@@ -1611,6 +1611,26 @@ async function cmdDeploy(rest) {
     say(`! ${app.slug}:${ver.version} is awaiting catalog approval - deploying PRIVATE (dev mode): owner-only data path, unlisted`);
   }
 
+  // WASIp3 apps (the version config's `wasi: "0.3"`, stamped from the binary
+  // at publish): only p3-capable runners claim them. Fleet-AND true = every
+  // box serves it, deploy normally. Otherwise: at least one capable box =
+  // canary, warn and proceed (the ledger is an open queue; incapable boxes
+  // refuse the claim and `enclave move <id> <box>` hints placement). No
+  // capable box anywhere = the deployment would sit Queued forever with its
+  // funding unrecoverable - fail with words before any wallet step.
+  let verWasi3 = false;
+  try { verWasi3 = JSON.parse(ver?.config || "{}").wasi === "0.3"; } catch {}
+  if (verWasi3) {
+    let av = null; try { av = await api("GET", "/availability"); } catch {}
+    if (!(av && av.aggregate && av.p3 === true)) {
+      const rows = await api("GET", "/enclaves").then((j) => j?.enclaves || []).catch(() => []);
+      const capable = rows.filter((e) => e?.availability?.p3 === true).map((e) => e.name).filter(Boolean);
+      if (!capable.length)
+        throw new Error(`${app.slug}:${ver.version} is a WASIp3 app and no live enclave serves p3 yet - it would sit Queued forever. Retry after the fleet updates.`);
+      say(`! WASIp3 canary: not every runner serves p3 yet - only ${capable.join(", ")} will claim this; \`enclave move <id> ${capable[0]}\` hints placement if it stays Queued`);
+    }
+  }
+
   // shares: fractions of one GPU card / one node (1 = the whole thing). When
   // omitted, use the app's minimum on the fleet's hardware (same formula the
   // runners enforce) so `enclave deploy hello-world:1 --fund 2` just works.
@@ -1847,6 +1867,55 @@ async function cmdDeploy(rest) {
   say(`verify before sending data: enclave attest ${id}`);
 }
 
+// Which wasi world contract does a component target? Same classifier as the
+// runner (wasm_manager._component_contract) and the upload gateway — the
+// EXPORT decides, in the order `wasmtime serve` tries instantiation. Mixed
+// 0.2/0.3 IMPORTS are normal (rustc's wasm32-wasip3 std still imports WASIp2
+// APIs), so only the top-level export section (id 11) is read: section walk,
+// then a scan for length-prefixed `wasi:` names inside that one payload.
+function componentContract(bytes) {
+  const none = { wasi: null, world: null };
+  if (bytes.length < 8 || bytes.readUInt32LE(0) !== 0x6d736100 || (bytes[6] | (bytes[7] << 8)) !== 1) return none;
+  const uleb = (buf, i) => {   // -> [value, nextIndex]; throws on malformed
+    let r = 0, s = 0;
+    for (;;) {
+      const b = buf[i++];
+      if (b === undefined) throw new Error("truncated uleb128");
+      r += (b & 0x7f) * 2 ** s;
+      if (!(b & 0x80)) return [r, i];
+      s += 7;
+      if (s > 35) throw new Error("uleb128 too long");
+    }
+  };
+  const exports = new Set();
+  try {
+    for (let i = 8; i < bytes.length; ) {
+      const sid = bytes[i];
+      const [size, j] = uleb(bytes, i + 1);
+      if (sid === 11) {
+        const payload = bytes.subarray(j, j + size);
+        for (let p = 0; (p = payload.indexOf("wasi:", p)) !== -1; p++) {
+          for (let back = 1; back <= 5 && p - back >= 0; back++) {
+            let ln, q;
+            try { [ln, q] = uleb(payload, p - back); } catch { continue; }
+            if (q !== p || p + ln > payload.length) continue;
+            const s = payload.subarray(p, p + ln).toString("latin1");
+            if (/^[A-Za-z0-9:/@.+-]+$/.test(s)) exports.add(s);
+            break;
+          }
+        }
+      }
+      i = j + size;
+    }
+  } catch { return none; }
+  for (const [prefix, ver] of [["wasi:http/handler@0.3.", "0.3"], ["wasi:http/incoming-handler@0.2.", "0.2"],
+                               ["wasi:cli/run@0.3.", "0.3"], ["wasi:cli/run@0.2.", "0.2"]]) {
+    const hit = [...exports].filter((e) => e.startsWith(prefix)).sort();
+    if (hit.length) return { wasi: ver, world: hit[0] };
+  }
+  return none;
+}
+
 async function cmdPublish(rest) {
   const account = loadKey();
   const f = flags(rest, { val: ["--slug", "--name", "--desc", "--version", "--mem", "--cpu-gflops",
@@ -1882,8 +1951,17 @@ async function cmdPublish(rest) {
   if (bytes.length < 8 || bytes.readUInt32LE(0) !== 0x6d736100)
     throw new Error(`${file} is not a wasm binary (bad magic)`);
   const layer = bytes[6] | (bytes[7] << 8);
-  if (layer === 0) throw new Error(`${file} is a core wasm module, not a component; build for wasm32-wasip2 (cargo component / componentize)`);
+  if (layer === 0) throw new Error(`${file} is a core wasm module, not a component; build for wasm32-wasip2 (cargo component / componentize) or wasm32-wasip3 (see the develop guide's WASIp3 chapter)`);
   if (layer !== 1) throw new Error(`${file} has unrecognized wasm layer ${layer} (expected a component)`);
+  // world contract, read from the binary (never asked of the publisher): a
+  // wasip3 component publishes `wasi: "0.3"` in its version config so runners
+  // route claims to p3-capable boxes; the runner re-classifies the bytes at
+  // launch, so this stamp is routing, not trust. wasip2 versions are stamped
+  // too — explicit beats implied — and an unclassifiable export section
+  // publishes without the key, exactly like every pre-p3 version.
+  const contract = componentContract(bytes);
+  if (contract.wasi) say(`detected ${contract.wasi === "0.3" ? "WASIp3" : "WASIp2"} component (exports ${contract.world})`);
+  else say("could not classify the component's wasi world from its exports; publishing without a wasi tag (runners will classify at launch)");
 
   // version defaults to the next integer for your app (labels are free-form, matched exactly on deploy)
   let version = f.version;
@@ -1932,6 +2010,18 @@ async function cmdPublish(rest) {
   // --config rides rev-4 catalogs as the version's default/template ENCLAVE_CONFIG
   const rev = await catRev();
   if (f.config && rev < 4) throw new Error("--config needs the rev-4 catalog (this one doesn't store per-version configs)");
+  // stamp the detected world contract into the version config (rev-4+: config
+  // is immutable per version and approval-covered, the same envelope pattern
+  // as gpuOptional/_media — no catalog schema change). A publisher-supplied
+  // `wasi` never survives: the binary is the authority.
+  if (contract.wasi && rev >= 4) {
+    let cfgObj; try { cfgObj = JSON.parse(f.config || "{}"); } catch { cfgObj = {}; }
+    if (cfgObj.wasi !== undefined && cfgObj.wasi !== contract.wasi)
+      say(`--config declared wasi ${JSON.stringify(cfgObj.wasi)} but the binary exports ${contract.world}; using the binary's answer`);
+    cfgObj.wasi = contract.wasi;
+    f.config = JSON.stringify(cfgObj);
+    if (Buffer.byteLength(f.config) > 4096) throw new Error("--config too long after the wasi stamp (≤ 4096 bytes)");
+  }
   const args = [f.slug, f.name || f.slug, f.desc || "", version, cid, res, f.ports || ""];
   if (rev >= 3) args.push(f.config || "");   // rev 3+ take the 8-arg form (rev 3 stores it app-level; we always pass "")
   if (rev >= 5) args.push(feePerSec6);       // rev 5+ take the 9-arg form (the version's publisher fee; 0 = free)

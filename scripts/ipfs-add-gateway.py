@@ -78,6 +78,70 @@ def preamble_error(b: bytes):
     return None
 
 
+# Which wasi world contract does the component target? Same classifier as the
+# runner's wasm_manager._component_contract (keep them in lockstep — the
+# runner's copy is the authority at launch; this one only REPORTS, so the
+# publish clients can stamp `wasi` into the version config for claim routing).
+# The EXPORT decides, in the order `wasmtime serve` tries instantiation; mixed
+# 0.2/0.3 IMPORTS are normal (rustc's wasip3 std still imports WASIp2 APIs).
+# Never a refusal: an unclassifiable component uploads exactly as before.
+_WASI_NAME_RE = re.compile(rb"[A-Za-z0-9:/@.+\-]+")
+
+
+def _uleb(data, i):
+    r = s = 0
+    while True:
+        b = data[i]; i += 1
+        r |= (b & 0x7F) << s
+        if not (b & 0x80):
+            return r, i
+        s += 7
+        if s > 35:
+            raise ValueError("uleb128 too long")
+
+
+def component_contract(data: bytes):
+    """{"wasi": "0.2"|"0.3"|None, "world": <deciding export>|None} for a layer-1
+    component; scans length-prefixed wasi:* names inside the TOP-LEVEL import
+    (10) / export (11) sections only — nested core modules are never opened."""
+    out = {"wasi": None, "world": None}
+    if len(data) < 8 or data[0:4] != b"\x00asm" or (data[6] | (data[7] << 8)) != 1:
+        return out
+    exports = set()
+    i = 8
+    try:
+        while i < len(data):
+            sid = data[i]
+            size, j = _uleb(data, i + 1)
+            if sid == 11:
+                payload = data[j:j + size]
+                for m in re.finditer(rb"wasi:", payload):
+                    p = m.start()
+                    for back in range(1, 6):
+                        if p - back < 0:
+                            break
+                        try:
+                            ln, q = _uleb(payload, p - back)
+                        except (IndexError, ValueError):
+                            continue
+                        if q == p and p + ln <= len(payload):
+                            s = payload[p:p + ln]
+                            if _WASI_NAME_RE.fullmatch(s):
+                                exports.add(s.decode())
+                            break
+            i = j + size
+    except (IndexError, ValueError):
+        return out
+    for prefix, ver in (("wasi:http/handler@0.3.", "0.3"),
+                        ("wasi:http/incoming-handler@0.2.", "0.2"),
+                        ("wasi:cli/run@0.3.", "0.3"),
+                        ("wasi:cli/run@0.2.", "0.2")):
+        hit = sorted(e for e in exports if e.startswith(prefix))
+        if hit:
+            return {"wasi": ver, "world": hit[0]}
+    return out
+
+
 def wasm_tools_error(data: bytes):
     """Tier 2: authoritative validation via `wasm-tools validate` (if configured)."""
     if not WASM_TOOLS:
@@ -412,7 +476,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(502, {"error": "ipfs add failed: %s" % e})
         if not cid:
             return self._json(502, {"error": "ipfs returned no CID"})
-        return self._json(200, {"cid": cid})
+        # the detected world contract rides back so publish clients can stamp
+        # `wasi` into the version config (claim routing); informational only
+        return self._json(200, {"cid": cid, **component_contract(data)})
 
     def log_message(self, *a):  # quiet; systemd/journal captures stdout if needed
         pass
