@@ -163,6 +163,28 @@ via transaction instead of via one enclave's API).
   record. `true` re-queues it — the app relaunches fresh from its published
   version, spending what's left. The dashboard's Suspend/Resume buttons and the
   CLI's `stop`/`resume` are exactly this toggle.
+- **`transferDeployment(id, to)`** (rev 11+; `deploymentsSchema() >= 11` is the
+  feature probe) — the owner hands the record to another wallet. Every owner
+  right moves together and the app never notices: the lease, the balance and
+  the serving box stay put, and the runner's audit pass re-keys the box's own
+  owner gates (private data path, logs, restart/delete, top-up) to the new
+  wallet within one pass. **What travels is the whole deal**, and clients say
+  so before the signature: the rev-10 refund right (`refund()` pays whoever
+  owns the record at call time and `ownerEscrow6` stays put, so an un-refunded
+  backing is the new owner's to take — refund FIRST if it isn't part of the
+  deal), plus the relay-staged secrets (values readable by the new owner —
+  rotate credentials they must not hold) and any custom domains, both keyed by
+  deployment id with ownership re-read from the ledger per request. From the
+  handoff on, the NEW owner's fundings credit `ownerEscrow6`; the old owner's
+  top-ups become third-party sponsorship. **ONE-SHOT**: a pending/accept
+  two-step costs ~460 bytes this contract does not have under EIP-170, so
+  there is no way back except the new owner transferring it again — every
+  client restates the full destination address in its confirm. Wallet-owned
+  records only in the UI: a vault-owned record's on-chain owner IS the credit
+  vault, and the vault's selector allowlist deliberately excludes this call
+  (a passkey op must never move a record — and its future refunds — out of
+  the vault's accounting). The dashboard's Transfer panel, the CLI's
+  `transfer <id> <0xaddr>` and MCP's `build_transfer` are this call.
 - **`setAppRef(id, appRef)`** (rev 3+; `deploymentsSchema() >= 3` is the feature
   probe) — the owner's VERSION CHANGE. Repoints the deployment at another
   catalog version record; funded time, shares, rate and any live lease all

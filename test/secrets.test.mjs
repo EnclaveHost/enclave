@@ -223,6 +223,31 @@ test("unknown deployment 404s for owner ops", async () => {
   assert.equal(res.code, 404);
 });
 
+test("a transfer moves the secrets gates: old owner 403s, new owner reads what was staged", async () => {
+  // transferDeployment (ledger rev 11) flips d.owner in place. The relay
+  // stores no owner of its own — the gate re-reads the ledger — so the staged
+  // secrets go WITH the record, VALUES included (owner get). That is the
+  // documented deal: every client warns "rotate credentials the new owner
+  // must not hold" before the transfer signature.
+  const ID3 = "0x" + "44".repeat(32);
+  const put = async (acct, payload) => { const expiry = expiryNow();
+    return call(`/v1/secrets/${ID3}`, { payload, expiry,
+      signature: await acct.signMessage({ message: putMessage(ID3, expiry, payload) }) }); };
+  const get = async (acct) => { const expiry = expiryNow();
+    return call(`/v1/secrets/${ID3}/get`, { expiry,
+      signature: await acct.signMessage({ message: getMessage(ID3, expiry) }) }); };
+  rows = [leaseRow({ id: ID3 })];
+  let res = await put(OWNER, JSON.stringify({ set: { S3_KEY: "handed-over" } }));
+  assert.equal(res.code, 200);
+  rows = [leaseRow({ id: ID3, owner: OTHER.address })];   // the transfer, as ledgerRows sees it
+  res = await put(OWNER, JSON.stringify({ set: { X: "y" } }));
+  assert.equal(res.code, 403);                            // the old key keeps nothing
+  assert.equal(res.body.error, "not_owner");
+  res = await get(OTHER);
+  assert.equal(res.code, 200);                            // the new owner holds the values
+  assert.equal(res.body.env.S3_KEY, "handed-over");
+});
+
 // ---- the endpoint's OWN key, not just the fleet's ---------------------------
 // The fetch HMAC is a SHARED derived key: it proves "a holder of the fleet key",
 // so on its own any fleet member could name another member's endpoint and be

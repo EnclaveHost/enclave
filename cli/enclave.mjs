@@ -36,7 +36,7 @@ import crypto from "node:crypto";
 import rlSync from "node:readline";
 import { stdin, stdout, stderr, argv, env, exit } from "node:process";
 import { createPublicClient, createWalletClient, http as viemHttp, fallback,
-         parseEther, formatUnits, encodeFunctionData } from "viem";
+         parseEther, formatUnits, encodeFunctionData, getAddress } from "viem";
 import { base } from "viem/chains";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 
@@ -149,6 +149,10 @@ const depsAbiFor = (tuple, rev) => [
     inputs: [{ name: "id", type: "bytes32" }], outputs: [{ type: "uint256" }] },
   { type: "function", name: "ownerEscrow6", stateMutability: "view",
     inputs: [{ type: "bytes32" }], outputs: [{ type: "uint256" }] },
+  // rev-11 ledgers only: hand the record — control AND the refund right — to
+  // another wallet. One-shot on-chain (no accept step); cmdTransfer confirms.
+  { type: "function", name: "transferDeployment", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }, { name: "to", type: "address" }], outputs: [] },
   { type: "function", name: "get", stateMutability: "view",
     inputs: [{ name: "id", type: "bytes32" }],
     outputs: [{ type: "tuple", components: tuple }] },
@@ -1312,6 +1316,39 @@ async function cmdRefund(rest) {
   say(`\`enclave fund ${short(id)} --usdc 5\` brings it back if you change your mind`);
 }
 
+// Hand a deployment to another wallet (rev-11 ledgers). One-shot on-chain —
+// there is no accept step, and no way back except the new owner transferring
+// it again — so this shows the FULL destination address and spells out what
+// travels with the record: the refundable escrow (refund first to keep it),
+// any staged secrets, and any custom domains. The app itself never notices:
+// the lease, the balance and the serving box stay put.
+async function cmdTransfer(rest) {
+  const account = loadKey();
+  if (!rest[0] || !rest[1]) throw new Error("usage: enclave transfer <id> <0xaddress>");
+  const id = await resolveId(rest[0], account);
+  if (!isB32(id)) throw new Error("only on-chain deployments (bytes32 ids) can be transferred");
+  let to; try { to = getAddress(rest[1]); } catch { throw new Error(`"${rest[1]}" is not an Ethereum address`); }
+  const { rev, abi } = await depAbi();
+  if (rev < 11) throw new Error("the live ledger predates deployment transfers (deploymentsSchema < 11)");
+  const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "get", [id]);
+  if (!d || d.owner === "0x0000000000000000000000000000000000000000") throw new Error(`no deployment ${short(id)} on the ledger`);
+  if (d.owner.toLowerCase() !== account.address.toLowerCase()) throw new Error(`${short(id)} is owned by ${d.owner}, not this key`);
+  if (to.toLowerCase() === account.address.toLowerCase()) throw new Error(`${to} already owns ${short(id)}`);
+  const refundable6 = rev >= 10 ? await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "refundableOf", [id]) : 0n;
+  say(`deployment  ${short(id)}`);
+  say(`owner       ${account.address}  ->  ${to}`);
+  if (refundable6 > 0n) {
+    say(`! ${usd6(refundable6)} of refundable escrow travels WITH the record - the new owner`);
+    say(`  can take it. \`enclave refund ${short(id)}\` first if it should come back to you.`);
+  }
+  say(`! staged secrets and custom domains stay with the deployment; rotate any`);
+  say(`  credentials in them that the new owner must not hold.`);
+  if (!(await confirm(`transfer ${short(id)} to ${to}? (one-shot: only the new owner could ever transfer it back)`))) return say("aborted");
+  await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi, functionName: "transferDeployment", args: [id, to] });
+  if (opt.json) return jout({ id, from: account.address, to });
+  say(`${short(id)} now belongs to ${to}`);
+}
+
 // The other half of stop: setActive(true) re-queues the work item (its balance
 // never left the record), then one claim-hint nudges the fleet so the relaunch
 // doesn't wait for the next sweep. The app relaunches FRESH from its published
@@ -2361,6 +2398,12 @@ deployments
                              fee and the platform share went to their wallets
                              when you funded. Prints the exact amount first
                              (aliases: cancel; rev-10 ledgers)
+  transfer <id> <0xaddr>     hand the deployment to another wallet: every owner
+                             right AND the refund right move together (refund
+                             first to keep your escrow). One-shot - there is no
+                             accept step, so check the address. The app keeps
+                             running; secrets and domains stay with the record
+                             (rev-11 ledgers)
 
 catalog
   publish <app.wasm> --slug S [--version V --name N --desc D --config JSON]
@@ -2659,7 +2702,7 @@ const COMMANDS = {
   upgrade: cmdUpgrade, "set-version": cmdUpgrade,
   resize: (rest) => cmdUpgrade(rest, { resize: true }),
   "rate-cap": cmdRateCap, cap: cmdRateCap,
-  refund: cmdRefund, cancel: cmdRefund,
+  refund: cmdRefund, cancel: cmdRefund, transfer: cmdTransfer,
   secrets: cmdSecrets, config: cmdConfig,
   publish: cmdPublish, apps: cmdApps,
   pricing: cmdPricing, availability: cmdAvailability, gpu: cmdGpu, account: cmdAccount,

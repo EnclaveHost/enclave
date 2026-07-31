@@ -82,8 +82,8 @@ contract EnclaveDeploymentsSetSharesTest is Test {
 
     // ---- schema marker ----------------------------------------------------
 
-    function test_schemaIsTen() public view {
-        assertEq(dep.deploymentsSchema(), 10);
+    function test_schemaIsEleven() public view {
+        assertEq(dep.deploymentsSchema(), 11);
     }
 
     // ---- unleased resizes -------------------------------------------------
@@ -296,7 +296,7 @@ contract EnclaveDeploymentsSetSharesTest is Test {
     function test_boundsAndAuth() public {
         bytes32 id = _create(500, 250, 0);
 
-        vm.expectRevert("not owner");
+        vm.expectRevert("!owner");
         dep.setShares(id, 100, 100); // not the owner (this test contract)
 
         vm.startPrank(user);

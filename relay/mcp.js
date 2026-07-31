@@ -42,7 +42,7 @@
 // humans. tools/call errors are in-band (isError), not JSON-RPC errors.
 
 import { createHash, randomBytes } from "node:crypto";
-import { createPublicClient, http as viemHttp, fallback, encodeFunctionData } from "viem";
+import { createPublicClient, http as viemHttp, fallback, encodeFunctionData, getAddress } from "viem";
 import { base } from "viem/chains";
 
 const PORT = parseInt(process.env.API_RELAY_PORT || "8100", 10);
@@ -131,6 +131,9 @@ const depsAbiFor = (rev) => [
     inputs: [{ name: "id", type: "bytes32" }], outputs: [] },
   { type: "function", name: "refundableOf", stateMutability: "view",
     inputs: [{ name: "id", type: "bytes32" }], outputs: [{ type: "uint256" }] },
+  // rev >= 11: hand the record — control AND the refund right — to another wallet
+  { type: "function", name: "transferDeployment", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }, { name: "to", type: "address" }], outputs: [] },
   // rev >= 6: the owner's share resize (rate recalculated at current list
   // prices) and the batcher that lets it ride one tx with setAppRef
   { type: "function", name: "setShares", stateMutability: "nonpayable",
@@ -441,6 +444,14 @@ export function encodeRefundTx({ deployments, id, refundable6 }) {
     `EnclaveDeployments.refund(${id.slice(0, 10)}…)`
     + (refundable6 != null ? ` -> $${(Number(refundable6) / 1e6).toFixed(2)} to the owner` : ""));
 }
+// rev >= 11: one-shot ownership handoff — no accept step exists on-chain, so
+// the caller's confirmation IS the safety net; the description restates both
+// wallets so signers see exactly what they are about to give away, and to whom.
+export function encodeTransferTx({ deployments, id, to, refundable6 }) {
+  return tx(deployments, encodeFunctionData({ abi: depsAbiFor(11), functionName: "transferDeployment", args: [id, to] }), 0n,
+    `EnclaveDeployments.transferDeployment(${id.slice(0, 10)}…, ${to})`
+    + (refundable6 != null && refundable6 > 0n ? ` — its $${(Number(refundable6) / 1e6).toFixed(2)} refundable escrow goes with it` : ""));
+}
 export function encodeSetActiveTx({ deployments, id, active }) {
   return tx(deployments, encodeFunctionData({ abi: depsAbiFor(2), functionName: "setActive", args: [id, active] }), 0n,
     `EnclaveDeployments.setActive(${id.slice(0, 10)}…, ${active})`);
@@ -684,7 +695,8 @@ Funding is prepaid and burns per second while leased.
 - ETH: build_fund { id, eth } returns one fundEth transaction; credited as USDC at the live Chainlink ETH/USD rate.
 - Top up any time with build_fund. timeRemainingSec in get_deployment = prepaid lease tail + what the balance still buys.
 - Stopping (build_stop) keeps the balance on the record; build_resume continues it. Funds on a record are spent only while it runs.
-- Cancelling for a refund (build_refund, ledger rev 10) sends unused runtime back to the owner's wallet and deactivates the record. It returns what the contract still HOLDS - the host escrow, ~80% of unspent time - never the sticker price: the publisher fee and the platform share were forwarded to their wallets at funding time. Quote the exact number from build_refund before the user signs, and do not describe the balance as what they will receive. Mid-lease refunds pay only what the lease cannot still claim; the rest is collectable after the runner releases.`,
+- Cancelling for a refund (build_refund, ledger rev 10) sends unused runtime back to the owner's wallet and deactivates the record. It returns what the contract still HOLDS - the host escrow, ~80% of unspent time - never the sticker price: the publisher fee and the platform share were forwarded to their wallets at funding time. Quote the exact number from build_refund before the user signs, and do not describe the balance as what they will receive. Mid-lease refunds pay only what the lease cannot still claim; the rest is collectable after the runner releases.
+- Transferring a deployment (build_transfer, ledger rev 11) hands the record to another wallet in one signature: control, balance, the refundable escrow, staged secrets and custom domains all move together, and the app keeps running through it. One-shot - no accept step - so always restate the destination address to the user before they sign, and suggest build_refund first when the escrow should stay with the current owner.`,
 
   attestation: `Never trust the gateway: verify the enclave BEFORE sending it secrets.
 - attestation returns the fleet attestation document; deployment_attestation { id } returns the hosting enclave's (public; an owner token adds a fresh GPU nonce challenge).
@@ -1185,6 +1197,29 @@ const TOOLS = [
           + `become refundable after it releases - call build_refund again then to collect the remainder.` } : {}),
         transactions: [encodeRefundTx({ deployments, id: full, refundable6: amount6 })],
         next: `sign+send with the owner wallet (${d.owner}), then terminate_hosted { id, token } for immediate teardown` };
+    },
+  },
+  {
+    name: "build_transfer",
+    description: "Unsigned transferDeployment transaction (ledger rev 11): hands a deployment to another wallet. Every owner right moves together and the handoff is ONE-SHOT - there is no accept step, and only the new owner could ever transfer it back - so confirm the destination address with the user before they sign. What travels with the record, and is worth telling the user: the app itself (it keeps running through the handoff; the lease and serving box never notice), the funded balance, the refundable escrow (quoted here; the OLD owner should build_refund first if it is meant to come back to them), any relay-staged secrets, and any custom domains. The old owner's future top-ups become third-party sponsorship (not refundable to anyone); the new owner's top-ups are theirs to refund.",
+    inputSchema: S({ id: P.id,
+      to: { type: "string", description: "Destination wallet address (0x…) - the new owner" } }, ["id", "to"]),
+    handler: async ({ id, to }) => {
+      const rev = await depRev();
+      if (rev < 11) throw new Error("the live ledger predates deployment transfers (deploymentsSchema < 11)");
+      let dest; try { dest = getAddress(String(to || "").trim()); } catch { throw new Error(`"${to}" is not an Ethereum address`); }
+      const full = await resolveFullId(id);
+      const d = await depGet(full);
+      if (dest.toLowerCase() === String(d.owner).toLowerCase()) throw new Error(`${dest} already owns this deployment`);
+      const { deployments } = await addresses();
+      const refundable6 = BigInt(await read(deployments, depsAbiFor(rev), "refundableOf", [full]).catch(() => 0n));
+      return { id: full, from: d.owner, to: dest,
+        ...(refundable6 > 0n ? { escrowGoesWithIt:
+          `$${(Number(refundable6) / 1e6).toFixed(2)} of refundable escrow travels with the record - the new owner can take it. `
+          + `build_refund BEFORE transferring if it should return to the current owner.` } : {}),
+        secretsNote: "relay-staged secrets and custom domains stay with the deployment; rotate any credentials the new owner must not hold",
+        transactions: [encodeTransferTx({ deployments, id: full, to: dest, refundable6 })],
+        next: `sign+send with the CURRENT owner wallet (${d.owner}); one-shot, so verify ${dest} with the user first` };
     },
   },
   {
