@@ -199,13 +199,20 @@ export async function refundSweepPlan(source, wallet) {
   if (rev < 10) throw new Error(`this ledger predates refunds (deploymentsSchema ${rev} < 10) - nothing to sweep`);
   const me = (wallet || "").toLowerCase();
   if (!me) throw new Error("no wallet connected - the sweep can only sign for records this wallet owns");
+  // rev 11: a RETIRED ledger opens refund() to ANY caller - still paying each
+  // record's OWNER - so the sweep widens to EVERY record, and the suspend
+  // phase disappears (no claim can land on a retired ledger; leases lapse on
+  // their own within a quantum). This is how a cutover with real users works:
+  // fleet repoints, retire(), one permissionless sweep sends everyone home.
+  let isRetired = false;
+  if (rev >= 11) isRetired = hexBig(await call(source, "0x" + sel.retired)) !== 0n;
   const total = wNum(await call(source, "0x" + sel.count), 0);
   const rows = [];
   for (let s = 0; s < total; s += PAGE)
     rows.push(...decodeStructArray(await call(source, encCallX(sel.getPage, [{ t: "uint", v: s }, { t: "uint", v: PAGE }])), DEP_SCHEMA));
   const now = Math.floor(Date.now() / 1000);
-  const mine = rows.filter((r) => r.owner.toLowerCase() === me);
-  const suspend = [], refunds = [], reserved = [];
+  const mine = isRetired ? rows : rows.filter((r) => r.owner.toLowerCase() === me);
+  const suspend = [], refunds = [], reserved = [], refundOwners = new Set();
   let refundable6 = 0n, reserved6 = 0n;
   for (const page of chunked(mine, 10)) {
     await Promise.all(page.map(async (r) => {
@@ -215,8 +222,9 @@ export async function refundSweepPlan(source, wallet) {
         call(source, encCallX(sel.earnOf, [{ t: "bytes32", v: r.id }])),
       ]);
       const quote = hexBig(rf), own = hexBig(oe), held = hexBig("0x" + (word(e, 1) || "0"));
-      if (r.active && (BigInt(r.balance6) > 0n || Number(r.leaseUntil) > now)) suspend.push(r.id);
-      if (quote > 0n) { refunds.push(r.id); refundable6 += quote; }
+      // setActive stays owner-gated even when retired - and is pointless there
+      if (!isRetired && r.active && (BigInt(r.balance6) > 0n || Number(r.leaseUntil) > now)) suspend.push(r.id);
+      if (quote > 0n) { refunds.push(r.id); refundable6 += quote; refundOwners.add(r.owner.toLowerCase()); }
       // owner money the ledger still holds beyond today's quote = the lease
       // reserve (or an unsettled lapse); it frees at release/settle
       const stuck = (own < held ? own : held) - quote;
@@ -234,10 +242,12 @@ export async function refundSweepPlan(source, wallet) {
     dataHex: encCallX(sel.multicall, [{ t: "bytes[]", v: c.map((id) =>
       encCallX(sel.refund, [{ t: "bytes32", v: id }])) }]),
   }));
-  // funded records this wallet CANNOT sweep: their owners self-refund here
-  const othersFunded = rows.length - mine.length
-    ? rows.filter((r) => r.owner.toLowerCase() !== me && BigInt(r.balance6) > 0n).length : 0;
+  // funded records this wallet CANNOT sweep (un-retired ledgers only): their
+  // owners self-refund here, or retirement opens them to the sweep
+  const othersFunded = isRetired ? 0
+    : rows.filter((r) => r.owner.toLowerCase() !== me && BigInt(r.balance6) > 0n).length;
   return { mine: mine.length, suspend, refunds, reserved, othersFunded,
+           retired: isRetired, refundOwners: refundOwners.size,
            refundable6: refundable6.toString(), reserved6: reserved6.toString(),
            suspendTxs, refundTxs };
 }

@@ -454,11 +454,12 @@ class AdminConsole extends EnclaveElement {
           <input class="ac-in" id="migSource" aria-label="Source contract address" placeholder="source 0x…" spellcheck="false" autocomplete="off" />
           <input class="ac-in" id="migTarget" aria-label="Target contract address" placeholder="target 0x… (the new deploy)" spellcheck="false" autocomplete="off" />
         </div>
-        <p class="ac-sub"><b>Refund sweep first</b> (deployments ledger only): before the snapshot, suspend and refund every record the CONNECTED wallet owns <em>on the source</em> - each refund pays this wallet back and zeroes the record, so it migrates empty: nothing for Back escrow to front, and nothing left pullable twice (a rev-10 source keeps a live <code>refund()</code> forever). Batched via <code>multicall</code>: typically one Suspend confirmation, a ~minute wait while the fleet releases, then one Refund confirmation - re-scan to collect lease tails that were still reserved. <code>refund()</code> is owner-gated, so third-party records are only counted here; their owners collect on the source themselves.</p>
+        <p class="ac-sub"><b>Refund sweep first</b> (deployments ledger only): before the snapshot, suspend and refund every record the CONNECTED wallet owns <em>on the source</em> - each refund pays this wallet back and zeroes the record, so it migrates empty: nothing for Back escrow to front, and nothing left pullable twice (a rev-10 source keeps a live <code>refund()</code> forever). Batched via <code>multicall</code>: typically one Suspend confirmation, a ~minute wait while the fleet releases, then one Refund confirmation - re-scan to collect lease tails that were still reserved. On a rev-10 source <code>refund()</code> is owner-gated, so third-party records are only counted; their owners collect there themselves. A rev-11 source can instead be <b>retired</b> (one-way, AFTER the fleet points at the successor): claims, renewals and funding close forever, <code>refund()</code> opens to any caller <em>still paying each record's own wallet</em>, and the sweep widens to every user's records - nobody's funds can be trapped by the redeploy.</p>
         <div class="ac-mig-actions">
           <button class="btn btn-sm" data-act="mig-swp-scan">Scan source</button>
           <button class="btn btn-sm" data-act="mig-swp-stop" disabled>Suspend mine</button>
-          <button class="btn btn-sm" data-act="mig-swp-refund" disabled>Refund mine</button>
+          <button class="btn btn-sm" data-act="mig-swp-refund" disabled>Refund</button>
+          <button class="btn btn-sm ac-danger-btn" data-act="mig-swp-retire">Retire source ledger</button>
         </div>
         <p class="ac-sub">Runner escrow is the one thing that cannot be imported: it is real USDC the SOURCE holds and keeps. Every migrated record therefore lands with <code>escrow6 = 0</code>, and until <b>Back escrow</b> re-seats it a seller serving that deployment earns nothing and its owner's refund pays nothing. Do it BEFORE sealing - while imports are open the backing is credited to each record's OWNER (it is re-seating money they already paid), and after sealing it is not, permanently. A completed refund sweep leaves nothing to back.</p>
         <label class="ac-ctor-l ac-mig-opt"><input type="checkbox" id="migGrantRates" checked /> Grant a runner rate to records that have none <span class="ac-hint">records predating the runner meter arrive at rate6 = 0: they can never pay a seller, can never be escrow-backed, and can never be refunded. Grants <code>runnerBps</code> of each one's rate minus its publisher fee, exactly what create() would have snapshotted.</span></label>
@@ -866,7 +867,7 @@ class AdminConsole extends EnclaveElement {
         };
 
         /* -- refund sweep: source-side, no target and no mig-read needed -- */
-        if (act === "mig-swp-scan" || act === "mig-swp-stop" || act === "mig-swp-refund") {
+        if (act === "mig-swp-scan" || act === "mig-swp-stop" || act === "mig-swp-refund" || act === "mig-swp-retire") {
           if (!needMig(m.contractName === "EnclaveDeployments", "the refund sweep applies to the deployments ledger - pick it in the kind selector")) return;
           if (!needMig(ADDR_RE.test(src), "enter the source contract address (the LIVE ledger)")) return;
           const usd = (v) => "$" + (Number(v) / 1e6).toFixed(2);
@@ -874,10 +875,36 @@ class AdminConsole extends EnclaveElement {
           try {
             await this._connect();
             const wallet = Enclave.address;
+            if (act === "mig-swp-retire") {
+              // ONE-WAY end-of-life (rev 11): closes claim/renew/fund forever
+              // and opens refund() to any caller (still paying each owner)
+              const dSel = CONTRACTS.EnclaveDeployments.sel;
+              let isRet = false, rev11 = true;
+              try { isRet = hexBig((await call(src, "0x" + dSel.retired)) || "0x0") !== 0n; } catch { rev11 = false; }
+              if (!needMig(rev11, "this ledger predates retirement (deploymentsSchema < 11) - only owners can refund its records")) return;
+              if (isRet) { log("ok", "already retired - Scan: the sweep covers every owner's records"); return; }
+              if (!btn.dataset.armed) {
+                btn.dataset.armed = "1"; btn.textContent = "Click again to PERMANENTLY retire";
+                log("err", "retiring is ONE-WAY: no more claims, renewals or funding on this ledger, ever - only refunds home. Do it AFTER the fleet points at the successor. Click again to proceed.");
+                return;
+              }
+              delete btn.dataset.armed; btn.textContent = "Retire source ledger";
+              log("p", "retire() - confirm in your wallet…");
+              const hash = await sendTx(src, "0x" + dSel.retire);
+              log("p", `  sent ${hash.slice(0, 14)}… waiting…`);
+              await waitReceipt(hash, 90);
+              log("ok", "retired ✓ - re-scan: the sweep now covers EVERY owner's records, each refund paying that record's own wallet");
+              M.sweep = null;
+              return;
+            }
             if (act === "mig-swp-scan") {
               log("p", `scanning ${src} for records owned by ${wallet}…`);
               const plan = await refundSweepPlan(src, wallet);
               M.sweep = plan; M.sweepSource = src;
+              if (plan.retired)
+                log("ok", `ledger is RETIRED: sweeping EVERY owner's records - ${usd(plan.refundable6)} refundable right now across ${plan.refundOwners} owner wallet${plan.refundOwners === 1 ? "" : "s"} (each refund pays that record's own wallet)`
+                  + (plan.reserved.length ? `; ${usd(plan.reserved6)} more frees as leases lapse (re-scan in ~30 min)` : ""));
+              else
               log("ok", `${plan.mine} record${plan.mine === 1 ? "" : "s"} owned by this wallet - ${usd(plan.refundable6)} refundable right now`
                 + (plan.reserved.length ? `; ${usd(plan.reserved6)} more still lease-reserved on ${plan.reserved.length} (frees when the hosts release - re-scan then)` : ""));
               if (plan.suspend.length)
@@ -904,8 +931,10 @@ class AdminConsole extends EnclaveElement {
               log("ok", "suspended ✓ - the fleet releases the leases within ~a minute; re-scan, then Refund mine");
               enable("mig-swp-stop", false);
             } else {
-              log("ok", `refunded ${usd(M.sweep.refundable6)} to ${wallet} ✓`
-                + (M.sweep.reserved.length ? ` - ${usd(M.sweep.reserved6)} of lease tails frees at release; re-scan to collect it` : " - this wallet's records are clean; snapshot and migrate"));
+              log("ok", (M.sweep.retired
+                  ? `refunded ${usd(M.sweep.refundable6)} home across ${M.sweep.refundOwners} owner wallet${M.sweep.refundOwners === 1 ? "" : "s"} ✓`
+                  : `refunded ${usd(M.sweep.refundable6)} to ${wallet} ✓`)
+                + (M.sweep.reserved.length ? ` - ${usd(M.sweep.reserved6)} of lease tails frees at release; re-scan to collect it` : " - clean; snapshot and migrate"));
               enable("mig-swp-refund", false);
             }
             M.sweep = null;                    // a sent batch stales the plan: force a re-scan

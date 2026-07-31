@@ -193,6 +193,23 @@ via transaction instead of via one enclave's API).
   and the vault's selector allowlist deliberately excludes this call (a
   passkey op must never move a record — and its future refunds — out of the
   vault's accounting).
+- **`retire()`** (rev 11+, owner, ONE-WAY, no event — the public `retired`
+  flag is the record) — END-OF-LIFE, the migration answer to stranded user
+  funds. Every activity entry point (`claim`, `renew`, `fund`,
+  `fundWithAuthorization`, `fundEth`, `fundEscrow`) funnels through
+  `_requireActive`, which refuses a retired ledger — so no rogue operator can
+  race the wind-down and burn owners' balances into lease earnings — and
+  `refund()` opens to ANY caller while still paying each record's OWNER: one
+  permissionless sweep (the admin console's Refund button after Retire, or
+  anyone's keeper script) pushes every record's held escrow back to the
+  wallet that funded it, no owner signatures needed. Until retire() is called
+  the platform holds none of this power — every gate reads exactly as rev 10
+  — and retiring is what repointing the fleet already does de facto, made
+  honest and observable on-chain. Live leases keep their reserve through the
+  sweep (`_creditRunner` first, as in an owner refund), so a seller can never
+  be stranded; sweep again after the last lease lapses to collect the tails.
+  Retirement opens ONLY the refund gate: transfer, config and active stay
+  owner-gated. There is no un-retire.
 - **`setAppRef(id, appRef)`** (rev 3+; `deploymentsSchema() >= 3` is the feature
   probe) — the owner's VERSION CHANGE. Repoints the deployment at another
   catalog version record; funded time, shares, rate and any live lease all
