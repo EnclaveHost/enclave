@@ -93,6 +93,14 @@
 # flips) - compare like with like when validating determinism. Split-family
 # smoke 2026-07-09: a q4_k_m gguf-split into 3 parts loads through the staged
 # symlink dir and greedy-decodes TOKEN-IDENTICAL to the merged file.
+#
+# 2026-08-01 topk prefilter: an optional {"topk": K} input beside "tokens"
+# makes every logits return sparse - "topk_ids" I32 [n,K] + "topk_logits"
+# Fp32 [n,K], host-side selection, rows sorted descending. Motivated by the
+# speculative-decoding round-cost measurement (~90-120ms per verify round,
+# dominated by (k+1) full-vocab rows crossing the guest boundary + wasm
+# scans); also trims the per-token tax of plain decode. Guests sniff the
+# output name and fall back to dense "logits" on engines without it.
 diff --git a/Cargo.lock b/Cargo.lock
 index 6ffaac1..3c68c51 100644
 --- a/Cargo.lock
@@ -155,10 +163,10 @@ index b2db808..af89d10 100644
  
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
 new file mode 100644
-index 0000000..23462dc
+index 0000000..531aead
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,1456 @@
+@@ -0,0 +1,1541 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -781,6 +789,54 @@ index 0000000..23462dc
 +
 +/// llama_decode rc -> caller-facing message. rc 1 = the pool momentarily
 +/// cannot hold the step; llama RESTORES state on it, so it is retryable.
++/// Host-side top-k reduction of a logits row block: the guest sampler only
++/// ever looks at a bounded candidate set (top_k <= 256 in practice), so
++/// shipping the full vocab row (~1MB at 248320 floats) across the wasi-nn
++/// boundary per position - and scanning it in wasm - is pure per-token tax.
++/// An {"topk": K} input beside "tokens" replaces the "logits" output with
++/// "topk_ids" I32 [n,K] + "topk_logits" Fp32 [n,K], each row sorted by
++/// logit descending. Selection runs on the host CPU; K clamps to 16..=1024.
++fn topk_rows(flat: &[f32], rows: usize, vocab: usize, k: usize) -> (Tensor, Tensor) {
++    use std::cmp::Ordering;
++    let k = k.min(vocab);
++    let mut ids_data = Vec::with_capacity(rows * k * 4);
++    let mut val_data = Vec::with_capacity(rows * k * 4);
++    for r in 0..rows {
++        let row = &flat[r * vocab..(r + 1) * vocab];
++        // bounded selection, same shape as the guest sampler it replaces:
++        // keep the running top-k, replace the minimum when beaten (rare
++        // once the floor warms - the scan itself dominates)
++        let mut cand: Vec<(u32, f32)> = Vec::with_capacity(k + 1);
++        let mut floor = f32::NEG_INFINITY;
++        for (i, &v) in row.iter().enumerate() {
++            if cand.len() < k {
++                cand.push((i as u32, v));
++                if cand.len() == k {
++                    floor = cand.iter().map(|p| p.1).fold(f32::INFINITY, f32::min);
++                }
++            } else if v > floor {
++                let mi = cand
++                    .iter()
++                    .enumerate()
++                    .min_by(|a, b| a.1 .1.partial_cmp(&b.1 .1).unwrap_or(Ordering::Equal))
++                    .map(|(idx, _)| idx)
++                    .unwrap();
++                cand[mi] = (i as u32, v);
++                floor = cand.iter().map(|p| p.1).fold(f32::INFINITY, f32::min);
++            }
++        }
++        cand.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
++        for (i, v) in cand {
++            ids_data.extend_from_slice(&(i as i32).to_le_bytes());
++            val_data.extend_from_slice(&v.to_le_bytes());
++        }
++    }
++    (
++        Tensor { dimensions: vec![rows as u32, k as u32], ty: TensorType::I32, data: ids_data },
++        Tensor { dimensions: vec![rows as u32, k as u32], ty: TensorType::Fp32, data: val_data },
++    )
++}
++
 +fn decode_err(rc: i32) -> String {
 +    if rc == 1 {
 +        "[kv_pool_full] the shared KV pool cannot hold this step right now — too many (or too \
@@ -1530,6 +1586,17 @@ index 0000000..23462dc
 +                // rows for that sequence (the verify runs on a scratch branch
 +                // but the head state belongs to the REAL sequence).
 +                let want_all = flag("all");
++                // {"topk": I32 [1] = K}: reduce every logits row host-side
++                // to its top-K before crossing the guest boundary (see
++                // topk_rows). Engines predating this input simply ignore it
++                // and return dense "logits" - guests sniff the output name.
++                let topk = inputs
++                    .iter()
++                    .find(|nt| nt.name == "topk")
++                    .map(|nt| tokens_from_tensor(&nt.tensor))
++                    .transpose()?
++                    .and_then(|v| v.first().copied())
++                    .map(|kv| kv.clamp(16, 1024) as usize);
 +                let mtp_for = inputs
 +                    .iter()
 +                    .find(|nt| nt.name == "mtp_for")
@@ -1547,6 +1614,13 @@ index 0000000..23462dc
 +                        .submit_full(self.seq_id, self.n_past, &ids, mtp_for)
 +                        .map_err(err)?;
 +                    self.n_past += ids.len() as i32;
++                    if let Some(kv) = topk {
++                        let (ti, tv) = topk_rows(&flat, ids.len(), self.server.n_vocab, kv);
++                        return Ok(Some(vec![
++                            NamedTensor { name: "topk_ids".to_string(), tensor: ti },
++                            NamedTensor { name: "topk_logits".to_string(), tensor: tv },
++                        ]));
++                    }
 +                    let mut data = Vec::with_capacity(flat.len() * 4);
 +                    for v in flat {
 +                        data.extend_from_slice(&v.to_le_bytes());
@@ -1573,6 +1647,13 @@ index 0000000..23462dc
 +                    self.server.mtp_observe(self.seq_id, pos0, &ids).map_err(err)?;
 +                    self.n_past += ids.len() as i32;
 +                    let last = &flat[(ids.len() - 1) * self.server.n_vocab..];
++                    if let Some(kv) = topk {
++                        let (ti, tv) = topk_rows(last, 1, self.server.n_vocab, kv);
++                        return Ok(Some(vec![
++                            NamedTensor { name: "topk_ids".to_string(), tensor: ti },
++                            NamedTensor { name: "topk_logits".to_string(), tensor: tv },
++                        ]));
++                    }
 +                    let mut data = Vec::with_capacity(last.len() * 4);
 +                    for v in last {
 +                        data.extend_from_slice(&v.to_le_bytes());
@@ -1584,6 +1665,18 @@ index 0000000..23462dc
 +                    };
 +                    self.logits = Some(t.clone());
 +                    return Ok(Some(vec![NamedTensor { name: "logits".to_string(), tensor: t }]));
++                }
++                if let Some(kv) = topk {
++                    let row = self
++                        .server
++                        .submit(self.seq_id, self.n_past, ids.to_vec())
++                        .map_err(err)?;
++                    self.n_past += ids.len() as i32;
++                    let (ti, tv) = topk_rows(&row, 1, self.server.n_vocab, kv);
++                    return Ok(Some(vec![
++                        NamedTensor { name: "topk_ids".to_string(), tensor: ti },
++                        NamedTensor { name: "topk_logits".to_string(), tensor: tv },
++                    ]));
 +                }
 +                let logits = self.decode(&ids)?;
 +                self.logits = Some(logits.clone());
@@ -1649,7 +1742,7 @@ index f6f81e8..b8d8710 100644
      {
          backends.push(Backend::from(PytorchBackend::default()));
 diff --git a/crates/wasi-nn/src/lib.rs b/crates/wasi-nn/src/lib.rs
-index b826f6a..efb8fd6 100644
+index b826f6a..3dd6190 100644
 --- a/crates/wasi-nn/src/lib.rs
 +++ b/crates/wasi-nn/src/lib.rs
 @@ -16,6 +16,17 @@ use wasmtime::format_err;
@@ -1670,7 +1763,9 @@ index b826f6a..efb8fd6 100644
      let mut backends = backend::list();
      let mut registry = InMemoryRegistry::new();
      for (kind, path) in preload_graphs {
-@@ -28,7 +39,15 @@ pub fn preload(preload_graphs: &[(String, String)]) -> wasmtime::Result<(Vec<Bac
+@@ -26,9 +37,17 @@ pub fn preload(preload_graphs: &[(String, String)]) -> wasmtime::Result<(Vec<Bac
+             .ok_or(format_err!("unsupported backend: {kind}"))?
+             .as_dir_loadable()
              .ok_or(format_err!("{kind} does not support directory loading"))?;
 -        registry.load(backend, Path::new(path))?;
 +        // Enclave: a graph that fails to load (typically CUDA OOM - the
@@ -1716,7 +1811,7 @@ index 32e668e..805d5df 100644
              "tensorflow" => Ok(generated::graph::GraphEncoding::Tensorflow),
              "tensorflowlite" => Ok(generated::graph::GraphEncoding::Tensorflowlite),
 diff --git a/src/commands/serve.rs b/src/commands/serve.rs
-index 6b491c7..177ac30 100644
+index 6b491c7..a824307 100644
 --- a/src/commands/serve.rs
 +++ b/src/commands/serve.rs
 @@ -48,6 +48,15 @@ const DEFAULT_WASIP3_MAX_INSTANCE_REUSE_COUNT: usize = 128;
