@@ -1422,6 +1422,477 @@ def _stage_onnx_dir(name: str, host_path):
         return None
 
 
+# --- GPU request-level arbiter (work-conserving fair share) ----------------- #
+# CUDA_MPS_ACTIVE_THREAD_PERCENTAGE is a STATIC partition, fixed the moment a
+# tenant's wasmtime attaches to MPS: a 5%-share tenant is locked to ~5% of the
+# SMs even when the rest of the card is idle, and MPS has no weight/fair-share
+# scheduler to do better (set_active_thread_percentage only affects FUTURE
+# clients). So idle capacity is wasted by construction. The arbiter replaces
+# the SM cap as the *fairness* mechanism: GPU tenants launch with the FULL SM
+# budget (WASM_NN_ARB_SM_PCT, default 100) and instead take short-lived TURNS
+# on the card — the patched toolchain (wasmtime-nn-arbiter.patch) acquires a
+# grant over this Unix socket around each natural compute quantum (one ggml
+# decode turn, one ORT run, one sd denoise step) and releases it after. The
+# scheduler is weighted fair queuing over VIRTUAL TIME: a grant's wall-clock
+# hold is charged to the tenant as held/gpuShare, and the next grant goes to
+# the waiting tenant with the smallest virtual time — so an idle card grants
+# instantly (work-conserving burst to 100%), and a contended card divides GPU
+# TIME in proportion to purchased shares. The pinned-VRAM cap is UNTOUCHED:
+# device memory cannot be reclaimed from a burster, so it can never be
+# work-conserving and stays sized by the share.
+#
+# FAIL-OPEN, both sides, always: arbitration is a fairness upgrade, not a
+# wall. The toolchain client runs computes unarbitrated the moment the socket
+# misbehaves (and reconnects with backoff, so a manager restart re-arms it);
+# this server never fails a launch, revokes the slot of any grant held past
+# WASM_NN_ARB_MAX_HOLD_SECS (a wedged CUDA call must not freeze the queue — a
+# known GPU failure mode here is a D-state ioctl), and a tenant that dies
+# mid-grant releases by disconnect. Cross-tenant floors degrade to the
+# hardware scheduler in every failure mode — i.e. to plain uncapped sharing,
+# never to an outage.
+#
+# ROLLOUT (launcher and wasmtime move by different hands — see the loopback
+# probe's doctrine): OFF unless the operator sets WASM_NN_ARBITER=1, and even
+# then tenants keep today's hard MPS caps until _arbiter_support() PROVES the
+# binary carries the client (it launches a throwaway `wasmtime serve -Snn`
+# pointed at a probe socket and requires an actual hello). Unproven means
+# hard caps — behavior is bit-identical to the pre-arbiter fleet.
+#
+# Queues: HELLO names a queue; grants are exclusive per queue (WASM_NN_ARB_CONC,
+# default 1). Today every tenant lands on queue "0" — wasi-nn tenants share
+# card 0 (the pinned-VRAM cap is written for device 0). If per-tenant card
+# packing lands later, the launcher sets ENCLAVE_NN_ARB_QUEUE per card and
+# this file needs no change.
+NN_ARB_ENABLED  = os.environ.get("WASM_NN_ARBITER", "").strip().lower() in ("1", "true", "on")
+NN_ARB_SOCK     = os.environ.get("WASM_NN_ARB_SOCK", "/tmp/enclave-nn-arb.sock")
+NN_ARB_SM_PCT   = min(100, max(1, int(os.environ.get("WASM_NN_ARB_SM_PCT", "100") or 100)))
+NN_ARB_MAX_HOLD = float(os.environ.get("WASM_NN_ARB_MAX_HOLD_SECS", "30") or 30)
+NN_ARB_CONC     = max(1, int(os.environ.get("WASM_NN_ARB_CONC", "1") or 1))
+# Hesitation window (below): how long a freed slot waits for a more-deserving
+# tenant's next request before settling for a waiter. Sized to cover a guest's
+# gap between compute quanta (sample + stream a token: ~sub-ms to a few ms).
+NN_ARB_GRACE    = float(os.environ.get("WASM_NN_ARB_GRACE_MS", "15") or 15) / 1000.0
+
+
+class NnArbScheduler:
+    """The pure scheduler state machine — no I/O, no locking, injectable clock,
+    so tests drive it directly. The socket server below is a thin shell that
+    translates connection events into these calls under one lock and writes
+    out the grants they return (lists of (conn_id, req_id)).
+
+    Virtual-time bookkeeping: each tenant carries `vt`, charged held/weight at
+    release; the queue's `vclock` rides up to the granted tenant's vt so a
+    tenant that was idle re-enters at max(own vt, vclock) — idleness banks no
+    credit (else a long-idle tenant could monopolize the card for minutes to
+    "catch up"). FIFO within a tenant; min-vt across tenants.
+
+    HESITATION (the part that makes weights actually bite): clients are
+    synchronous — hold, release, compute the next step, re-request — so at
+    the instant a tenant releases, it is never in the waiting list, and
+    naive work-conserving dispatch hands the slot to whoever IS waiting.
+    Every release then alternates 1:1 and a 50% share equals a 5% share
+    under contention. So dispatch hesitates: when some recently-releasing
+    tenant is MORE underserved (lower vt) than every waiter, the slot is
+    held for it for NN_ARB_GRACE (its next request typically lands within a
+    millisecond) before settling for the waiter. Bounded work-conservation
+    loss (grace ms per handoff, only under contention), exact long-run
+    share-proportional split. conc=1 only — with multiple slots the spare
+    capacity already absorbs the race."""
+
+    def __init__(self, conc=None, max_hold=None, grace=None, clock=time.monotonic):
+        self.conc = max(1, int(conc if conc is not None else NN_ARB_CONC))
+        self.max_hold = float(max_hold if max_hold is not None else NN_ARB_MAX_HOLD)
+        self.grace = float(grace if grace is not None else NN_ARB_GRACE)
+        # how recently a tenant must have released to be worth hesitating for
+        self.phantom_window = max(0.25, self.grace * 4)
+        self.clock = clock
+        self.conns = {}     # conn_id -> {"tenant", "queue"}
+        self.queues = {}    # name -> {"vclock", "tenants", "active", "waiting", "hold"}
+        self.stats = {"grants": 0, "revokes": 0, "hesitations": 0}
+
+    def _q(self, name):
+        q = self.queues.get(name)
+        if q is None:
+            q = self.queues[name] = {"vclock": 0.0, "tenants": {}, "active": {},
+                                     "waiting": [], "hold": None}
+        return q
+
+    def _busy(self, q, tenant) -> bool:
+        return (any(w["tenant"] == tenant for w in q["waiting"])
+                or any(a["tenant"] == tenant for a in q["active"].values()))
+
+    def hello(self, conn_id, tenant, weight, queue):
+        tenant, queue = str(tenant or conn_id)[:128], str(queue or "0")[:64]
+        self.conns[conn_id] = {"tenant": tenant, "queue": queue}
+        q = self._q(queue)
+        t = q["tenants"].setdefault(tenant, {"vt": 0.0, "weight": 0.01, "conns": 0})
+        t["conns"] += 1
+        try:
+            w = float(weight)
+        except (TypeError, ValueError):
+            w = 0.0
+        if w > 0:
+            t["weight"] = max(1e-4, min(1.0, w))
+
+    def acquire(self, conn_id, req_id):
+        c = self.conns.get(conn_id)
+        if c is None:
+            return []
+        q = self._q(c["queue"])
+        # the request a hesitation was waiting for: clear the hold, dispatch
+        # picks this tenant by min-vt on its own merits
+        if q["hold"] is not None and q["hold"]["tenant"] == c["tenant"]:
+            q["hold"] = None
+        t = q["tenants"].get(c["tenant"])
+        if t is not None and not self._busy(q, c["tenant"]):
+            t["vt"] = max(t["vt"], q["vclock"])
+        q["waiting"].append({"conn": conn_id, "req": req_id, "tenant": c["tenant"]})
+        return self._dispatch(q)
+
+    def release(self, conn_id, req_id):
+        c = self.conns.get(conn_id)
+        if c is None:
+            return []
+        q = self._q(c["queue"])
+        a = q["active"].pop((conn_id, req_id), None)
+        if a is None:
+            return []            # duplicate, or already revoked — ignored
+        self._charge(q, a)
+        t = q["tenants"].get(c["tenant"])
+        if t is not None:
+            t["last_rel"] = self.clock()   # hesitation eligibility (voluntary rel only)
+        return self._dispatch(q)
+
+    def disconnect(self, conn_id):
+        c = self.conns.pop(conn_id, None)
+        if c is None:
+            return []
+        q = self._q(c["queue"])
+        q["waiting"] = [w for w in q["waiting"] if w["conn"] != conn_id]
+        for key in [k for k in q["active"] if k[0] == conn_id]:
+            self._charge(q, q["active"].pop(key))
+        t = q["tenants"].get(c["tenant"])
+        if t is not None:
+            t["conns"] -= 1
+            if t["conns"] <= 0 and not self._busy(q, c["tenant"]):
+                del q["tenants"][c["tenant"]]
+                if q["hold"] is not None and q["hold"]["tenant"] == c["tenant"]:
+                    q["hold"] = None       # never hesitate for the departed
+        return self._dispatch(q)
+
+    def tick(self):
+        """Timer duties: revoke grants held past max_hold (a wedged CUDA call
+        must not freeze the queue — charged and dropped, the eventual rel is
+        ignored) and resolve expired hesitations. Returns (grants, revoked)
+        where revoked = [(queue, tenant, held_secs)]."""
+        grants, revoked = [], []
+        now = self.clock()
+        for name, q in self.queues.items():
+            over = [k for k, a in q["active"].items() if now - a["t0"] > self.max_hold]
+            for key in over:
+                a = q["active"].pop(key)
+                self._charge(q, a)
+                self.stats["revokes"] += 1
+                revoked.append((name, a["tenant"], now - a["t0"]))
+            if over or (q["hold"] is not None and q["hold"]["until"] <= now):
+                grants += self._dispatch(q)
+        return grants, revoked
+
+    def _charge(self, q, a):
+        t = q["tenants"].get(a["tenant"])
+        if t is not None:
+            t["vt"] += max(0.0, self.clock() - a["t0"]) / t["weight"]
+
+    def _phantom(self, q, below_vt, now):
+        """The most underserved tenant worth hesitating for: connected, not
+        waiting or active, released voluntarily within the window, and
+        strictly lower vt than the best waiter."""
+        best, best_vt = None, below_vt
+        for name, t in q["tenants"].items():
+            if (t["conns"] > 0 and t["vt"] < best_vt
+                    and now - t.get("last_rel", -1e18) < self.phantom_window
+                    and not self._busy(q, name)):
+                best, best_vt = name, t["vt"]
+        return best
+
+    def _dispatch(self, q):
+        grants = []
+        now = self.clock()
+        while q["waiting"] and len(q["active"]) < self.conc:
+            if q["hold"] is not None:
+                if q["hold"]["until"] > now:
+                    break              # slot spoken for (hesitation pending)
+                q["hold"] = None
+            # min() keeps the FIRST minimal element, so ties (same tenant, or
+            # equal-vt tenants) resolve in arrival order
+            best = min(q["waiting"], key=lambda w: q["tenants"][w["tenant"]]["vt"])
+            if self.conc == 1:
+                ph = self._phantom(q, q["tenants"][best["tenant"]]["vt"], now)
+                if ph is not None:
+                    q["hold"] = {"tenant": ph, "until": now + self.grace}
+                    self.stats["hesitations"] += 1
+                    break
+            q["waiting"].remove(best)
+            q["vclock"] = max(q["vclock"], q["tenants"][best["tenant"]]["vt"])
+            q["active"][(best["conn"], best["req"])] = {"tenant": best["tenant"],
+                                                        "t0": self.clock()}
+            self.stats["grants"] += 1
+            grants.append((best["conn"], best["req"]))
+        return grants
+
+    def snapshot(self):
+        return {"stats": dict(self.stats),
+                "queues": {name: {"active": len(q["active"]),
+                                  "waiting": len(q["waiting"]),
+                                  "tenants": {t: {"weight": v["weight"],
+                                                  "vt": round(v["vt"], 3)}
+                                              for t, v in q["tenants"].items()}}
+                           for name, q in self.queues.items()}}
+
+
+class _NnArbServer:
+    """The socket shell: newline-JSON over a Unix stream socket.
+      client -> {"op":"hello","v":1,"tenant","weight","queue"}   (first line)
+      server -> {"ok":true}
+      client -> {"op":"acq","id":N}    ... server -> {"ok":true,"id":N} on grant
+      client -> {"op":"rel","id":N}    (fire-and-forget)
+    Disconnect = release everything the connection holds or awaits. The hello
+    weight is advisory: when the tenant id matches a live record, the RECORD's
+    gpuShare is authoritative (the env is manager-set either way — guests
+    cannot reach this socket, wasmtime preopens no path to it)."""
+
+    def __init__(self, path):
+        self.path = path
+        self.sched = NnArbScheduler()
+        self.lock = threading.Lock()
+        self.socks = {}                 # conn_id -> (socket, write_lock)
+        self._n = 0
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            pass
+        self.srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.srv.bind(path)
+        self.srv.listen(64)
+        threading.Thread(target=self._accept_loop, daemon=True, name="nn-arb-accept").start()
+        threading.Thread(target=self._tick_loop, daemon=True, name="nn-arb-tick").start()
+
+    def _accept_loop(self):
+        while True:
+            try:
+                s, _ = self.srv.accept()
+            except OSError:
+                return
+            threading.Thread(target=self._conn_loop, args=(s,), daemon=True).start()
+
+    def _conn_loop(self, s):
+        cid = None
+        try:
+            f = s.makefile("r", encoding="utf-8", newline="\n")
+            try:
+                hello = json.loads(f.readline() or "null")
+            except ValueError:
+                hello = None
+            if not isinstance(hello, dict) or hello.get("op") != "hello":
+                s.close()
+                return
+            tenant = str(hello.get("tenant") or "")[:128]
+            weight = hello.get("weight")
+            with _lock:
+                rec = _apps.get(tenant)
+                if rec and rec.get("gpuShare"):
+                    weight = rec["gpuShare"]
+            with self.lock:
+                self._n += 1
+                cid = self._n
+                self.socks[cid] = (s, threading.Lock())
+                self.sched.hello(cid, tenant, weight, hello.get("queue"))
+            self._send(cid, {"ok": True})
+            for line in f:
+                try:
+                    msg = json.loads(line)
+                except ValueError:
+                    continue
+                op, rid = msg.get("op"), msg.get("id")
+                if not isinstance(rid, int):
+                    continue
+                with self.lock:
+                    grants = (self.sched.acquire(cid, rid) if op == "acq"
+                              else self.sched.release(cid, rid) if op == "rel" else [])
+                for g in grants:
+                    self._send(g[0], {"ok": True, "id": g[1]})
+        except Exception:                                        # noqa: BLE001
+            pass                       # a broken conn is just a disconnect
+        finally:
+            if cid is not None:
+                with self.lock:
+                    self.socks.pop(cid, None)
+                    grants = self.sched.disconnect(cid)
+                for g in grants:
+                    self._send(g[0], {"ok": True, "id": g[1]})
+            try:
+                s.close()
+            except OSError:
+                pass
+
+    def _send(self, cid, obj):
+        with self.lock:
+            ent = self.socks.get(cid)
+        if not ent:
+            return
+        sock, wlock = ent
+        try:
+            with wlock:
+                sock.sendall((json.dumps(obj) + "\n").encode())
+        except OSError:
+            # let the conn's own reader thread observe the close and clean up
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+
+    def _tick_loop(self):
+        # 10ms cadence: hesitation holds (NN_ARB_GRACE ~15ms) must resolve
+        # promptly or the grace becomes added latency for the waiter. The
+        # sweep itself is O(active grants) — a handful of dict entries.
+        while True:
+            time.sleep(0.01)
+            with self.lock:
+                grants, revoked = self.sched.tick()
+            for name, tenant, held in revoked:
+                print(f"[nn-arb] REVOKED queue {name}: '{tenant}' held a grant "
+                      f"{held:.1f}s (> {self.sched.max_hold:.0f}s) — slot freed, "
+                      f"tenant keeps running unarbitrated until it releases", flush=True)
+            for g in grants:
+                self._send(g[0], {"ok": True, "id": g[1]})
+
+    def snapshot(self):
+        with self.lock:
+            out = self.sched.snapshot()
+        out["sock"] = self.path
+        return out
+
+
+_NN_ARB = None                  # the running _NnArbServer, or None
+_NN_ARB_SUPPORT = {"state": "unprobed", "supported": False, "detail": ""}
+_NN_ARB_PROBE_LOCK = threading.Lock()
+
+
+def _arbiter_support() -> dict:
+    """Does THIS wasmtime carry the nn-arbiter client (wasmtime-nn-arbiter.patch)?
+
+    POSITIVE-signal probe, probed once, lazily, from the launch path (same
+    doctrine as the preload probe): launch a throwaway `wasmtime serve -Snn`
+    on the boot fixture with ENCLAVE_NN_ARBITER pointing at a probe socket,
+    and call it supported ONLY when the runtime actually connects and says
+    hello — the exact behavior tenants will rely on, not a help-text marker.
+    Unproven means HARD CAPS: tenants keep the share-sized SM percentage and
+    behavior is bit-identical to the pre-arbiter fleet. That direction matters
+    because raising SM caps WITHOUT a working client would quietly stop
+    enforcing the very floors tenants pay for."""
+    with _NN_ARB_PROBE_LOCK:
+        if _NN_ARB_SUPPORT["state"] != "unprobed":
+            return _NN_ARB_SUPPORT
+        wasm = APPS_DIR / "nn-demo.wasm"
+        if MOCK or not wasm.is_file():
+            _NN_ARB_SUPPORT.update(state="probed", supported=False,
+                                   detail="mock" if MOCK else "no nn-demo.wasm fixture")
+            return _NN_ARB_SUPPORT
+        sock_path = str(FS_DIR / "nn-arb-probe.sock")
+        srv = proc = None
+        try:
+            FS_DIR.mkdir(parents=True, exist_ok=True)
+            try:
+                os.unlink(sock_path)
+            except FileNotFoundError:
+                pass
+            srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            srv.bind(sock_path)
+            srv.listen(1)
+            srv.settimeout(1.0)
+            env = dict(os.environ)
+            env.update({"ENCLAVE_NN_ARBITER": sock_path,
+                        "ENCLAVE_NN_ARB_TENANT": "capability-probe",
+                        "ENCLAVE_NN_ARB_WEIGHT": "1",
+                        "ENCLAVE_NN_ARB_QUEUE": "probe"})
+            proc = subprocess.Popen([WASMTIME, "serve", "-Scli", "-Shttp", "-Snn",
+                                     "--addr", f"{HOST_IP}:{_free_port()}", str(wasm)],
+                                    env=env, stdin=subprocess.DEVNULL,
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                    preexec_fn=_preexec)
+            deadline, got = time.time() + 30, ""
+            while time.time() < deadline:
+                if proc.poll() is not None:
+                    got = f"serve exited rc={proc.returncode} before connecting"
+                    break
+                try:
+                    c, _ = srv.accept()
+                except socket.timeout:
+                    continue
+                c.settimeout(5.0)
+                try:
+                    got = (c.makefile("r", encoding="utf-8").readline() or "").strip()
+                    c.sendall(b'{"ok":true}\n')
+                except OSError:
+                    pass
+                finally:
+                    c.close()
+                break
+            ok = '"hello"' in got
+            _NN_ARB_SUPPORT.update(state="probed", supported=ok,
+                                   detail="hello received" if ok
+                                   else (got or "no connect within 30s"))
+        except Exception as e:                                   # noqa: BLE001
+            _NN_ARB_SUPPORT.update(state="failed", supported=False, detail=f"probe error: {e}")
+        finally:
+            if proc is not None:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except Exception:                                # noqa: BLE001
+                    pass
+            if srv is not None:
+                srv.close()
+            try:
+                os.unlink(sock_path)
+            except OSError:
+                pass
+        print(f"[nn-arb] toolchain support: {_NN_ARB_SUPPORT['supported']} "
+              f"({_NN_ARB_SUPPORT['detail']})", flush=True)
+        return _NN_ARB_SUPPORT
+
+
+def _start_nn_arbiter():
+    """Boot-time (main). Never raises: a failed bind leaves _NN_ARB None and
+    every launch keeps hard caps."""
+    global _NN_ARB
+    if _NN_ARB is not None:
+        return
+    try:
+        _NN_ARB = _NnArbServer(NN_ARB_SOCK)
+        print(f"[nn-arb] serving on {NN_ARB_SOCK} (conc={NN_ARB_CONC}, "
+              f"sm={NN_ARB_SM_PCT}%, max-hold={NN_ARB_MAX_HOLD:.0f}s)", flush=True)
+    except Exception as e:                                       # noqa: BLE001
+        _NN_ARB = None
+        print(f"[nn-arb] failed to start ({e}) — GPU tenants keep hard MPS caps", flush=True)
+
+
+def _nn_arbiter_live() -> bool:
+    """Arbitration governs NEW GPU launches: knob on, server up, toolchain
+    proven. May block once (~30s) on the lazy probe — launch path only; the
+    health path reads _NN_ARB_SUPPORT without triggering it."""
+    if not (NN_ARB_ENABLED and _NN_ARB is not None):
+        return False
+    return bool(_arbiter_support().get("supported"))
+
+
+def _nn_arb_public() -> dict:
+    out = {"enabled": NN_ARB_ENABLED, "smPct": NN_ARB_SM_PCT,
+           "probe": dict(_NN_ARB_SUPPORT)}
+    if _NN_ARB is not None:
+        out.update(_NN_ARB.snapshot())
+    return out
+
+
 
 
 
@@ -1508,7 +1979,13 @@ def _nn_tenant_env(gpu_share: float, pinned: bool) -> dict:
     (mode "nopin") - the SM cap is the validated, load-bearing one."""
     env = dict(os.environ)
     env["CUDA_MPS_PIPE_DIRECTORY"] = MPS_PIPE_DIR
-    env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(max(1, round(gpu_share * 100)))
+    # Under a live arbiter the SM percentage stops being the fairness
+    # mechanism (turn-taking is — see the nn-arb section) and becomes the
+    # burst ceiling; without one it IS the enforcement of the sold share.
+    if _nn_arbiter_live():
+        env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(NN_ARB_SM_PCT)
+    else:
+        env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(max(1, round(gpu_share * 100)))
     if pinned:
         env["CUDA_MPS_PINNED_DEVICE_MEM_LIMIT"] = f"0={max(1, int(gpu_share * GPU_VRAM_GB * 1024))}M"
     # host-side wasi-nn traces into the tenant's log file (owner-readable via
@@ -3417,6 +3894,19 @@ def _spawn_and_wait(rec, ctx):
         # never touches and would strand it the moment ggml probed for one.
         env = _nn_tenant_env(gpu_share, pinned=_NN_PROBE.get("mode") != "nopin")
         rec["mpsPct"] = max(1, round(gpu_share * 100))
+        # Work-conserving fair share (see the nn-arb section): the tenant's
+        # runtime takes weighted turns on the card instead of living inside a
+        # static SM slice. Grant weight = the RECORD's gpuShare (re-checked by
+        # the arbiter at hello). All wasi-nn tenants share queue "0" today —
+        # per-card queues become a launcher-side env change if per-tenant card
+        # packing lands.
+        if _nn_arbiter_live():
+            env["ENCLAVE_NN_ARBITER"] = NN_ARB_SOCK
+            env["ENCLAVE_NN_ARB_TENANT"] = rec["id"]
+            env["ENCLAVE_NN_ARB_WEIGHT"] = str(gpu_share)
+            env["ENCLAVE_NN_ARB_QUEUE"] = "0"
+            rec["mpsPct"] = NN_ARB_SM_PCT
+            rec["nnArbiter"] = True
         # sdcpp text-encoder placement (wasm/sd-shim, ENCLAVE_SD_TE_ON_CPU):
         # an explicit deployment-config `sdTeOnCpu` wins; else AUTO - when the
         # attached SD volumes' resident weights plus the ~3 GB 1024px working
@@ -4068,7 +4558,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                     # WASM_P3 not switched off) — the supervisor forwards it
                                     # to /availability and the claim gate keys on it
                                     "p3": _p3_active(),
-                                    **({"gpuVramGb": GPU_VRAM_GB, "gpuVramSource": GPU_VRAM_SRC}
+                                    **({"gpuVramGb": GPU_VRAM_GB, "gpuVramSource": GPU_VRAM_SRC,
+                                        # request-level GPU fair-share (nn-arb): enabled = the
+                                        # operator knob; probe = whether the toolchain's client
+                                        # was proven (unproven = tenants keep hard MPS caps)
+                                        "nnArbiter": _nn_arb_public()}
                                        if NODE_HAS_GPU else {}),
                                     "volumes": _volumes_public(),
                                     "capacity": _capacity()})
@@ -4311,7 +4805,8 @@ def _debug_env() -> dict:
            "default_storage_mb": DEF_STORAGE_MB if FS_ENABLED else 0,
            "enc": ENC_ENABLED and shutil.which(RCLONE_BIN) is not None,
            "enc_guest": ENC_GUEST_ROOT if ENC_ENABLED else None,
-           "nn_preload": dict(_PRELOAD_SUPPORT)}
+           "nn_preload": dict(_PRELOAD_SUPPORT),
+           "nn_arbiter": _nn_arb_public()}
     try:
         out["uname"] = " ".join(os.uname())
     except Exception as e:
@@ -4341,6 +4836,8 @@ def main():
     threading.Thread(target=_audit_sweep, daemon=True).start()   # firewall bind + storage audit
     if _NN_PROBE["state"] == "probing":
         threading.Thread(target=_nn_probe_loop, daemon=True).start()   # gates GPU launches
+    if NN_ARB_ENABLED and NODE_HAS_GPU and NN_ENABLED and not MOCK:
+        _start_nn_arbiter()          # GPU work-conserving fair share (tenants connect at launch)
     print(f"wasm-manager on :{PORT} runtime=wasmtime mock={MOCK} apps_dir={APPS_DIR} "
           f"p3={_p3_active()} fs={FS_ENABLED} nn={_NN_PROBE['state']}", flush=True)
     if not VMMGR_TOKEN:

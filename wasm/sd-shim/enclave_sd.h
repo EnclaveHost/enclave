@@ -80,6 +80,17 @@ int32_t esd_txt2img(void *handle,
  * (process-global, best effort - for error messages, not control flow). */
 const char *esd_last_error(void);
 
+/* Between-steps hook, process-global (generations are serialized by the
+ * caller, so one is enough): cb fires on the GENERATING thread after each
+ * denoise step. The wasmtime sdcpp backend uses it to yield its GPU-arbiter
+ * turn between steps, so a multi-second image queues at step granularity
+ * instead of monopolizing the card (wasmtime-nn-arbiter.patch). The Rust
+ * side resolves this symbol by DLSYM: a toolchain tarball predating it
+ * still serves, generations just hold one whole-image turn. cb may block;
+ * NULL unregisters. */
+typedef void (*esd_step_cb_t)(void *ud);
+void esd_set_step_cb(esd_step_cb_t cb, void *ud);
+
 #ifdef __cplusplus
 }
 #endif

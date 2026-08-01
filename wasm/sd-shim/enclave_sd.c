@@ -293,3 +293,24 @@ int32_t esd_txt2img(void *handle,
 }
 
 const char *esd_last_error(void) { return g_last_error; }
+
+/* step hook (see the header): bridge sd.cpp's progress callback - which
+ * reports (step, steps, time) we do not need - down to the caller's plain
+ * "a step finished" notification. Registered process-wide; generations are
+ * serialized by the Rust side's per-model mutex, so there is no concurrent
+ * firing to guard against. */
+static esd_step_cb_t g_step_cb;
+static void *g_step_ud;
+
+static void esd_progress_bridge(int step, int steps, float time, void *data) {
+    (void)step; (void)steps; (void)time; (void)data;
+    if (g_step_cb) {
+        g_step_cb(g_step_ud);
+    }
+}
+
+void esd_set_step_cb(esd_step_cb_t cb, void *ud) {
+    g_step_cb = cb;
+    g_step_ud = ud;
+    sd_set_progress_callback(cb ? esd_progress_bridge : NULL, NULL);
+}
