@@ -196,8 +196,13 @@ a, fa = client("vm-a", 0.001)   # lies small; record says 0.5
 b, fb = client("vm-b", 0.1)
 
 a.sendall(b'{"op":"acq","id":1}\\n')
-g = json.loads(fa.readline())
-first = g == {"ok": True, "id": 1}
+raw = fa.readline()
+# WIRE-SHAPE PIN, byte-exact: the Rust client (wasmtime-nn-arbiter.patch)
+# parses grants by reading the digits IMMEDIATELY after '"id":'. Pythonic
+# json.dumps spacing ('"id": 1') made it drop every grant and ride the 120s
+# fail-open watchdog per decode step (live 2026-08-01). Parse like the
+# client does, not with a JSON parser that would forgive the regression.
+first = raw == '{"ok":true,"id":1}\\n'
 
 b.sendall(b'{"op":"acq","id":7}\\n')
 import select
@@ -205,8 +210,7 @@ r, _, _ = select.select([b], [], [], 0.3)
 blocked = not r                           # conc=1: b must wait for a's rel
 
 a.sendall(b'{"op":"rel","id":1}\\n')
-g2 = json.loads(fb.readline())
-handoff = g2 == {"ok": True, "id": 7}
+handoff = fb.readline() == '{"ok":true,"id":7}\\n'
 
 # a dies (no rel for nothing held, but with a queued acq) -> b unaffected
 a.sendall(b'{"op":"acq","id":2}\\n')
