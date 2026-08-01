@@ -1,0 +1,47 @@
+Shape-keyed CUDA graph slots - the engine half of making speculative
+decoding graph-friendly.
+
+Upstream keys its per-context CUDA-graph map by the first node's ADDRESS
+alone (one slot per llama_context in practice, since the sched pool reuses
+the same base address for every build). Warmup demands two consecutive
+same-shape calls on a slot, so any workload that alternates ubatch shapes -
+an MTP verify pass of 1+k tokens interleaved with partial-accept re-feeds
+of 1..k tokens, or with plain 1-token steps - resets the slot's warmup on
+EVERY alternation and never replays a graph. That launch-latency gap is
+exactly why plain decode (~60 tok/s, one constant shape, graphs hot) beat
+every speculative config (~39-53 tok/s, graphs never captured) on the
+2026-08-01 fable-fusion-27b bench.
+
+Folding the shape signature (node count + first/last node extents) into
+the key gives each RECURRING shape its own slot: verify passes, re-feeds
+and plain steps all warm up independently and replay from then on. The
+key remains an opaque unordered_map key (never dereferenced), the 10s
+idle sweep in cuda_graph() bounds the slot population, and a hash
+collision merely lands two shapes on one slot - the node_props mismatch
+path then re-captures, which is stock behavior for every shape today.
+
+--- a/ggml/src/ggml-cuda/ggml-cuda.cu
++++ b/ggml/src/ggml-cuda/ggml-cuda.cu
+@@ -2543,7 +2543,21 @@
+ }
+ 
+ static const void * ggml_cuda_graph_get_key(ggml_cgraph * cgraph) {
+-    return cgraph->nodes[0];
++    // enclave shape-keyed slots: mix the shape signature into the key so
++    // alternating ubatch shapes (speculative verify / re-feed / 1-token
++    // steps) stop resetting one shared slot's warmup - each recurring
++    // shape warms and replays its own instance. Opaque map key only;
++    // collisions re-capture via the node_props mismatch path; the idle
++    // sweep in cuda_graph() bounds the population.
++    const ggml_tensor * n0 = cgraph->nodes[0];
++    const ggml_tensor * nl = cgraph->nodes[cgraph->n_nodes - 1];
++    uintptr_t h = (uintptr_t) n0;
++    h ^= (uintptr_t) cgraph->n_nodes * (uintptr_t) 0x9E3779B97F4A7C15ull;
++    for (int d = 0; d < GGML_MAX_DIMS; ++d) {
++        h = h * (uintptr_t) 1099511628211ull ^ (uintptr_t) n0->ne[d];
++        h = h * (uintptr_t) 1099511628211ull ^ (uintptr_t) nl->ne[d];
++    }
++    return (const void *) h;
+ }
+ 
+ static bool ggml_cuda_graph_update_required(ggml_backend_cuda_context * cuda_ctx, ggml_cgraph * cgraph) {
