@@ -316,7 +316,7 @@ containers:
       # for the client (an actual connect+hello) and keeps today's hard MPS SM
       # caps until proven, so flipping this on early is safe, just inert —
       # /health nnArbiter.probe says which. VRAM pins stay share-sized always.
-      # - WASM_NN_ARBITER: "1"
+      - WASM_NN_ARBITER: "1"        # ON since v0.5.306 (toolchain @1a7ee93c proven live first)
       # - WASM_NN_ARB_MAX_HOLD_SECS: "30"   # lease: a wedged grant frees the slot after this
       # - WASM_NN_ARB_GRACE_MS: "15"        # hesitation window (see the scheduler's doc comment)
       # RAM admission gate: refuse deployments whose linear-mem + /data + enc-vol
