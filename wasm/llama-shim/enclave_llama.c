@@ -460,16 +460,22 @@ int32_t ell_mtp_draft(void *mp, int32_t seq, int32_t id_last, int32_t n_past,
         }
         const float *lg = llama_get_logits_ith(m->head, 0);
         if (!lg) { break; }
-        /* argmax + its softmax probability in one pass (p = 1/sum(exp(l-max))) */
         int32_t best = 0;
         float lmax = lg[0];
         for (int32_t v = 1; v < n_vocab; v++) {
             if (lg[v] > lmax) { lmax = lg[v]; best = v; }
         }
-        double sum = 0.0;
-        for (int32_t v = 0; v < n_vocab; v++) { sum += exp((double)(lg[v] - lmax)); }
-        if ((float)(1.0 / sum) < p_min) {
-            break; /* not confident - stop proposing */
+        /* confidence gate (p = 1/sum(exp(l-max))). p_min <= 0 means "always
+         * draft the full k": the gate can never trip, so skip the O(vocab)
+         * exp() sum outright. Full-length drafts also keep every verify pass
+         * the same ubatch shape, which is what lets the CUDA backend keep
+         * replaying its captured graph instead of re-warming. */
+        if (p_min > 0.0f) {
+            double sum = 0.0;
+            for (int32_t v = 0; v < n_vocab; v++) { sum += exp((double)(lg[v] - lmax)); }
+            if ((float)(1.0 / sum) < p_min) {
+                break; /* not confident - stop proposing */
+            }
         }
         tokens_out[n++] = best;
         tok = best;
