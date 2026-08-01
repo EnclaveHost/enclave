@@ -163,10 +163,10 @@ index b2db808..af89d10 100644
  
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
 new file mode 100644
-index 0000000..531aead
+index 0000000..f72bfd5
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,1541 @@
+@@ -0,0 +1,1539 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -797,38 +797,36 @@ index 0000000..531aead
 +/// "topk_ids" I32 [n,K] + "topk_logits" Fp32 [n,K], each row sorted by
 +/// logit descending. Selection runs on the host CPU; K clamps to 16..=1024.
 +fn topk_rows(flat: &[f32], rows: usize, vocab: usize, k: usize) -> (Tensor, Tensor) {
-+    use std::cmp::Ordering;
 +    let k = k.min(vocab);
 +    let mut ids_data = Vec::with_capacity(rows * k * 4);
 +    let mut val_data = Vec::with_capacity(rows * k * 4);
++    // total-order key: monotone f32 -> u32 bit trick (negatives flipped,
++    // positives offset), so the heap never touches partial_cmp. Selection
++    // runs INSIDE the exclusive decode turn - it must stay O(n log k) with
++    // a one-branch-per-element scan, not an O(n*k) rescan-the-min loop
++    // (the first cut of this function cost MTP rounds ~30ms each).
++    fn fkey(v: f32) -> u32 {
++        let b = v.to_bits();
++        if b & 0x8000_0000 != 0 { !b } else { b | 0x8000_0000 }
++    }
 +    for r in 0..rows {
 +        let row = &flat[r * vocab..(r + 1) * vocab];
-+        // bounded selection, same shape as the guest sampler it replaces:
-+        // keep the running top-k, replace the minimum when beaten (rare
-+        // once the floor warms - the scan itself dominates)
-+        let mut cand: Vec<(u32, f32)> = Vec::with_capacity(k + 1);
-+        let mut floor = f32::NEG_INFINITY;
++        let mut heap: std::collections::BinaryHeap<std::cmp::Reverse<(u32, u32)>> =
++            std::collections::BinaryHeap::with_capacity(k + 1);
 +        for (i, &v) in row.iter().enumerate() {
-+            if cand.len() < k {
-+                cand.push((i as u32, v));
-+                if cand.len() == k {
-+                    floor = cand.iter().map(|p| p.1).fold(f32::INFINITY, f32::min);
-+                }
-+            } else if v > floor {
-+                let mi = cand
-+                    .iter()
-+                    .enumerate()
-+                    .min_by(|a, b| a.1 .1.partial_cmp(&b.1 .1).unwrap_or(Ordering::Equal))
-+                    .map(|(idx, _)| idx)
-+                    .unwrap();
-+                cand[mi] = (i as u32, v);
-+                floor = cand.iter().map(|p| p.1).fold(f32::INFINITY, f32::min);
++            let kk = fkey(v);
++            if heap.len() < k {
++                heap.push(std::cmp::Reverse((kk, i as u32)));
++            } else if kk > heap.peek().unwrap().0 .0 {
++                *heap.peek_mut().unwrap() = std::cmp::Reverse((kk, i as u32));
 +            }
 +        }
-+        cand.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
-+        for (i, v) in cand {
++        let mut cand: Vec<(u32, u32)> = heap.into_iter().map(|std::cmp::Reverse(p)| p).collect();
++        cand.sort_unstable_by(|a, b| b.0.cmp(&a.0));
++        for (kk, i) in cand {
++            let _ = kk;
 +            ids_data.extend_from_slice(&(i as i32).to_le_bytes());
-+            val_data.extend_from_slice(&v.to_le_bytes());
++            val_data.extend_from_slice(&row[i as usize].to_le_bytes());
 +        }
 +    }
 +    (
