@@ -1743,7 +1743,15 @@ class _NnArbServer:
         sock, wlock = ent
         try:
             with wlock:
-                sock.sendall((json.dumps(obj) + "\n").encode())
+                # COMPACT separators are WIRE FORMAT, not style: the toolchain
+                # client parses grant frames with a substring scan that reads
+                # the digits immediately after '"id":'. Default json.dumps
+                # spacing ('"id": 7') made it parse an empty string, drop
+                # EVERY grant, and ride the 120s fail-open watchdog on every
+                # decode step — live 2026-08-01 as "forever warming" llm-chat
+                # minutes after the v0.5.306 knob flip. Pinned by the wire
+                # test's raw-bytes assertion; keep both in step.
+                sock.sendall((json.dumps(obj, separators=(",", ":")) + "\n").encode())
         except OSError:
             # let the conn's own reader thread observe the close and clean up
             try:
