@@ -2029,7 +2029,10 @@ async function cmdPublish(rest) {
     functionName: "publishVersion", args });
   if (opt.json) return jout({ slug: f.slug, version, cid, appId, tx: rcpt.transactionHash, approval: "pending" });
   say(`published ${f.slug}:${version} (tx ${rcpt.transactionHash})`);
-  say(`approval is pending (runners only claim approved versions); deploy once approved:`);
+  say(`approval is pending. Test it NOW as a private deployment (owner-only data path,`);
+  say(`no approval needed - approval only gates public visibility):`);
+  say(`  enclave deploy ${f.slug}:${version} --private --fund 2`);
+  say(`once the catalog owner approves, deploy public:`);
   say(`  enclave deploy ${f.slug}:${version} --fund 2`);
 }
 
