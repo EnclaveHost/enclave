@@ -101,6 +101,11 @@
 # dominated by (k+1) full-vocab rows crossing the guest boundary + wasm
 # scans); also trims the per-token tax of plain decode. Guests sniff the
 # output name and fall back to dense "logits" on engines without it.
+#
+# 2026-08-01 timing verb: {"timing": 1} beside any verb appends "elapsed_us"
+# I32 [1] (wall time of the whole compute call, lock waits included) to the
+# outputs. The per-verb instrument that replaced guessing at the speculative
+# round-cost decomposition; costs one Instant::now when unused.
 diff --git a/Cargo.lock b/Cargo.lock
 index 6ffaac1..3c68c51 100644
 --- a/Cargo.lock
@@ -163,10 +168,10 @@ index b2db808..af89d10 100644
  
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
 new file mode 100644
-index 0000000..f72bfd5
+index 0000000..258f714
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,1539 @@
+@@ -0,0 +1,1572 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -1422,6 +1427,49 @@ index 0000000..f72bfd5
 +        &mut self,
 +        inputs: Option<Vec<NamedTensor>>,
 +    ) -> Result<Option<Vec<NamedTensor>>, BackendError> {
++        // {"timing": I32 [1] = 1} beside any verb: append "elapsed_us" I32 [1]
++        // (wall time of this whole compute call, lock waits included) to the
++        // outputs - the per-verb decomposition instrument that ended the
++        // speculation round-cost guessing game. Requested per call by the
++        // guest, so it costs nothing when unused.
++        let t_start = std::time::Instant::now();
++        let want_timing = inputs.as_ref().map_or(false, |v| {
++            v.iter().any(|nt| nt.name == "timing"
++                && tokens_from_tensor(&nt.tensor).map(|t| t.first() == Some(&1)).unwrap_or(false))
++        });
++        let out = self.compute_inner(inputs);
++        if want_timing {
++            if let Ok(Some(mut v)) = out {
++                let us = t_start.elapsed().as_micros().min(i32::MAX as u128) as i32;
++                v.push(NamedTensor {
++                    name: "elapsed_us".to_string(),
++                    tensor: Tensor { dimensions: vec![1], ty: TensorType::I32, data: us.to_le_bytes().to_vec() },
++                });
++                return Ok(Some(v));
++            } else {
++                return out;
++            }
++        }
++        out
++    }
++
++    fn get_output(&mut self, id: Id) -> Result<Tensor, BackendError> {
++        match id {
++            Id::Index(0) => {}
++            Id::Name(ref n) if n == "logits" => {}
++            other => return Err(err(format!("unknown output {other:?} (expected \"logits\")"))),
++        }
++        self.logits
++            .clone()
++            .ok_or_else(|| err("no logits available (has `compute` been called?)"))
++    }
++}
++
++impl GgmlExecutionContext {
++    fn compute_inner(
++        &mut self,
++        inputs: Option<Vec<NamedTensor>>,
++    ) -> Result<Option<Vec<NamedTensor>>, BackendError> {
 +        match inputs {
 +            // WIT path: named tensors in, named tensors out
 +            Some(inputs) => {
@@ -1695,16 +1743,6 @@ index 0000000..f72bfd5
 +        }
 +    }
 +
-+    fn get_output(&mut self, id: Id) -> Result<Tensor, BackendError> {
-+        match id {
-+            Id::Index(0) => {}
-+            Id::Name(ref n) if n == "logits" => {}
-+            other => return Err(err(format!("unknown output {other:?} (expected \"logits\")"))),
-+        }
-+        self.logits
-+            .clone()
-+            .ok_or_else(|| err("no logits available (has `compute` been called?)"))
-+    }
 +}
 diff --git a/crates/wasi-nn/src/backend/mod.rs b/crates/wasi-nn/src/backend/mod.rs
 index f6f81e8..b8d8710 100644
