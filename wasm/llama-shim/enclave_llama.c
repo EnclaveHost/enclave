@@ -76,6 +76,35 @@ int32_t ell_n_vocab(void *model) {
     return llama_vocab_n_tokens(llama_model_get_vocab((const struct llama_model *)model));
 }
 
+/* ---- host tokenizer ------------------------------------------------------
+ * The GGUF already carries the model's tokenizer, fully built the moment the
+ * model loads. Exporting it saves every guest request the multi-MB
+ * tokenizer.json read + parse (~600ms of TTFT measured in-fleet 2026-08-01).
+ * Both calls are pure vocab lookups - no context, no decode turn. */
+
+/* Tokenize UTF-8 text (parse_special on: template markers like <|im_start|>
+ * must map to their single special ids, exactly as the guest-side tokenizer
+ * did). Returns the token count, or -needed when out_cap is too small, or
+ * INT32_MIN on hard failure. */
+int32_t ell_tokenize(void *model, const char *text, int32_t text_len,
+                     int32_t *out_ids, int32_t out_cap) {
+    const struct llama_vocab *v = llama_model_get_vocab((const struct llama_model *)model);
+    int32_t n = llama_tokenize(v, text, text_len, out_ids, out_cap,
+                               /*add_special=*/false, /*parse_special=*/true);
+    if (n < 0) {
+        /* llama returns -needed on overflow */
+        return n == INT32_MIN ? INT32_MIN : n;
+    }
+    return n;
+}
+
+/* The raw bytes of one token (special tokens render their text form).
+ * Returns byte count, or -needed when buf is too small. */
+int32_t ell_token_piece(void *model, int32_t id, char *buf, int32_t cap) {
+    const struct llama_vocab *v = llama_model_get_vocab((const struct llama_model *)model);
+    return llama_token_to_piece(v, id, buf, cap, /*lstrip=*/0, /*special=*/true);
+}
+
 /* ell_kv_type code -> ggml_type; unknown falls back to F16 (the llama default). */
 static enum ggml_type ell_ggml_kv_type(int32_t t) {
     switch (t) {
