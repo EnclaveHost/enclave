@@ -59,6 +59,14 @@ int32_t ell_gpu_devices(void) {
 void *ell_load_model(const char *path, int32_t n_gpu_layers) {
     struct llama_model_params p = llama_model_default_params();
     p.n_gpu_layers = n_gpu_layers;
+    /* upstream ddd4ec14 (#26296) made MTP-head loading OPT-IN and default
+     * OFF; without this the nextn tensors load as "unused ... ignoring",
+     * ell_mtp_available() reports 0, and speculation silently degrades to
+     * plain decode (observed live 2026-08-01, first build on the new pin).
+     * Always on, matching pre-#26296 behavior: the head's cost is priced
+     * into the fit math (kv_layers+1) and callers without MTP models are
+     * unaffected (no nextn tensors to load). */
+    p.load_mtp = true;
     return llama_model_load_from_file(path, p);
 }
 
