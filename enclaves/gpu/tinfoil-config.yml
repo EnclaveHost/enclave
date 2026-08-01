@@ -309,6 +309,16 @@ containers:
       # off by default: it's a FLAT cap, so it would throttle a deployment that
       # legitimately bought a large CPU share. Enable + tune to the max share sold.
       # - WASM_CPU_MAX_PCT: "50"
+      # GPU work-conserving fair share (the nn-arb section of wasm_manager.py):
+      # tenants launch at FULL SM budget and take gpuShare-weighted turns on the
+      # card — burst to 100% when idle, share-proportional under contention.
+      # Needs a wasmtime carrying wasmtime-nn-arbiter.patch: the manager PROBES
+      # for the client (an actual connect+hello) and keeps today's hard MPS SM
+      # caps until proven, so flipping this on early is safe, just inert —
+      # /health nnArbiter.probe says which. VRAM pins stay share-sized always.
+      # - WASM_NN_ARBITER: "1"
+      # - WASM_NN_ARB_MAX_HOLD_SECS: "30"   # lease: a wedged grant frees the slot after this
+      # - WASM_NN_ARB_GRACE_MS: "15"        # hesitation window (see the scheduler's doc comment)
       # RAM admission gate: refuse deployments whose linear-mem + /data + enc-vol
       # caps oversubscribe NODE_RAM_GB × WASM_RAM_HEADROOM (default 0.9), instead of
       # relying only on the measure-and-kill storage audit (closes the tmpfs-OOM window).

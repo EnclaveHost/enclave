@@ -1,0 +1,228 @@
+// GPU request-level arbiter (work-conserving fair share) — wasm_manager.py.
+//
+// The contract under test, in order of what it would cost to break:
+//   1. OFF is bit-identical to the pre-arbiter fleet: no knob = share-sized
+//      MPS SM caps and no ENCLAVE_NN_ARBITER env (the launcher must never arm
+//      tenants against a toolchain that was not proven).
+//   2. The scheduler is work-conserving: an idle queue grants instantly.
+//   3. Contention divides GPU TIME by gpuShare (weighted fair queuing over
+//      virtual time), and idling banks no credit.
+//   4. Crash-safety: a revoked (wedged) grant frees the slot; a dead
+//      connection releases everything it held or awaited.
+//   5. The socket server speaks the wire protocol the toolchain client
+//      (wasmtime-nn-arbiter.patch) implements, and takes the weight from the
+//      RECORD when the tenant id is known (hello weight is advisory).
+//
+//   run: node --test test/nn-arbiter.test.mjs   (needs python3)
+
+import test from "node:test";
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const MGR = path.join(REPO, "wasm", "wasm_manager.py");
+
+function run(pyBody) {
+  const code = `
+import importlib.util, sys, json, os, socket, tempfile, threading, time
+spec = importlib.util.spec_from_file_location("wm", ${JSON.stringify(MGR)})
+m = importlib.util.module_from_spec(spec); sys.modules["wm"] = m
+spec.loader.exec_module(m)
+${pyBody}
+`;
+  const out = execFileSync("python3", ["-c", code], {
+    env: { ...process.env, NODE_HAS_GPU: "1", WASM_NN: "1",
+           CUDA_MPS_PIPE_DIRECTORY: "/tmp/nvidia-mps", GPU_VRAM_GB: "141" },
+    encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+  });
+  return JSON.parse(out.trim().split("\n").pop());
+}
+
+test("OFF by default: share-sized SM cap, no arbiter env — bit-identical to today", () => {
+  const r = run(`
+env = m._nn_tenant_env(0.25, pinned=True)
+print(json.dumps({"enabled": m.NN_ARB_ENABLED,
+                  "sm": env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"],
+                  "armed": "ENCLAVE_NN_ARBITER" in env,
+                  "live": m._nn_arbiter_live()}))
+`);
+  assert.equal(r.enabled, false, "WASM_NN_ARBITER must default off");
+  assert.equal(r.sm, "25", "without the arbiter the SM cap IS the sold share");
+  assert.equal(r.armed, false);
+  assert.equal(r.live, false);
+});
+
+test("live arbiter: SM cap becomes the burst ceiling (VRAM pin untouched)", () => {
+  const r = run(`
+m.NN_ARB_ENABLED = True
+m._NN_ARB = object()                       # server "running"
+m._NN_ARB_SUPPORT.update(state="probed", supported=True)   # toolchain proven
+env = m._nn_tenant_env(0.25, pinned=True)
+# GPU_VRAM_GB may be probed off a real local card — derive the expectation
+print(json.dumps({"sm": env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"],
+                  "pin": env["CUDA_MPS_PINNED_DEVICE_MEM_LIMIT"],
+                  "want": "0=%dM" % max(1, int(0.25 * m.GPU_VRAM_GB * 1024))}))
+`);
+  assert.equal(r.sm, "100", "arbitrated tenants burst to the full SM budget");
+  assert.equal(r.pin, r.want,
+    "the VRAM pin can never be work-conserving and stays share-sized");
+});
+
+test("unproven toolchain keeps hard caps even with the knob on", () => {
+  const r = run(`
+m.NN_ARB_ENABLED = True
+m._NN_ARB = object()
+m._NN_ARB_SUPPORT.update(state="probed", supported=False)  # probe said no
+env = m._nn_tenant_env(0.25, pinned=True)
+print(json.dumps({"sm": env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"],
+                  "live": m._nn_arbiter_live()}))
+`);
+  assert.equal(r.sm, "25", "unproven means hard caps — the loopback doctrine");
+  assert.equal(r.live, false);
+});
+
+test("scheduler: work-conserving, share-proportional, no banked idle credit", () => {
+  const r = run(`
+clk = [0.0]
+
+s = m.NnArbScheduler(conc=1, max_hold=30, clock=lambda: clk[0])
+s.hello(1, "solo", 0.05, "0")
+instant = s.acquire(1, 0) == [(1, 0)]      # idle queue grants a 5% tenant instantly
+
+# Steady contention, 1s holds: both tenants keep their next request queued at
+# all times; whoever is granted holds 1s, releases, immediately re-queues.
+# Over 600 turns the grant split must approach the share split .5:.1 = 5:1.
+def contended_counts(w1, w2, turns):
+    sched = m.NnArbScheduler(conc=1, max_hold=1e9, clock=lambda: clk[0])
+    sched.hello(1, "a", w1, "0"); sched.hello(2, "b", w2, "0")
+    gr = sched.acquire(1, 1)
+    sched.acquire(2, 1)
+    n, rid = {1: 0, 2: 0}, {1: 1, 2: 1}
+    order = []
+    for _ in range(turns):
+        (conn, req) = gr[0]
+        n[conn] += 1
+        order.append(conn)
+        clk[0] += 1.0                      # the grant holds the card 1s
+        rid[conn] += 1
+        nxt = sched.release(conn, req)     # release -> next grant fires...
+        # ...and re-queue self; a hesitation means the grant comes from HERE
+        own = sched.acquire(conn, rid[conn] * 1000 + conn)
+        gr = nxt or own or sched._dispatch(sched._q("0"))
+    return n, order, sched
+
+n, _, _ = contended_counts(0.5, 0.1, 600)
+
+# No banked idle credit: equal weights, but "busy" worked alone for 500s
+# while "sleepy" idled. When sleepy shows up it must ALTERNATE with busy from
+# now on (vclock clamps its vt), not take 250 catch-up turns in a row.
+sched = m.NnArbScheduler(conc=1, max_hold=1e9, clock=lambda: clk[0])
+sched.hello(1, "busy", 0.5, "0"); sched.hello(2, "sleepy", 0.5, "0")
+gr = sched.acquire(1, 1)
+rid = {1: 1, 2: 0}
+for _ in range(500):                       # busy grinds alone
+    (conn, req) = gr[0]
+    clk[0] += 1.0
+    rid[1] += 1
+    nxt = sched.release(conn, req)
+    own = sched.acquire(1, rid[1])
+    gr = nxt or own or sched._dispatch(sched._q("0"))
+sched.acquire(2, 900001)                   # sleepy arrives NOW
+order = []
+for _ in range(6):
+    (conn, req) = gr[0]
+    order.append(conn)
+    clk[0] += 1.0
+    rid[conn] += 1
+    nxt = sched.release(conn, req)
+    own = sched.acquire(conn, conn * 100000 + rid[conn])
+    gr = nxt or own or sched._dispatch(sched._q("0"))
+sleepy_burst = max(len(list(g)) for _, g in __import__("itertools").groupby(order))
+
+print(json.dumps({"instant": instant, "big": n[1], "small": n[2],
+                  "sleepy_burst": sleepy_burst}))
+`);
+  assert.equal(r.instant, true, "an idle queue must grant without waiting");
+  const ratio = r.big / r.small;
+  assert.ok(ratio > 4.4 && ratio < 5.6,
+    `GPU time must split ~5:1 for shares .5:.1 (got ${r.big}:${r.small})`);
+  assert.ok(r.sleepy_burst <= 2,
+    `a returning idler competes from NOW, no banked credit (longest run ${r.sleepy_burst})`);
+});
+
+test("revoke frees the slot; disconnect releases everything", () => {
+  const r = run(`
+clk = [0.0]
+s = m.NnArbScheduler(conc=1, max_hold=30, clock=lambda: clk[0])
+s.hello(1, "wedged", 0.5, "0"); s.hello(2, "healthy", 0.5, "0")
+s.acquire(1, 1)                            # wedged holds...
+s.acquire(2, 1)                            # healthy waits
+clk[0] = 31.0                              # ...past the lease
+grants, revoked = s.tick()
+revoke_ok = grants == [(2, 1)] and revoked[0][1] == "wedged"
+late_rel = s.release(1, 1)                 # the wedged rel arrives late: ignored
+# disconnect: conn 2 dies holding the grant and with another acq queued
+s.acquire(2, 2)
+g = s.disconnect(2)
+gone = not s._q("0")["active"] and not s._q("0")["waiting"]
+print(json.dumps({"revoke_ok": revoke_ok, "late_rel": late_rel == [],
+                  "gone": gone}))
+`);
+  assert.ok(r.revoke_ok, "a wedged grant must not freeze the queue");
+  assert.ok(r.late_rel, "a release after revoke is ignored, not double-freed");
+  assert.ok(r.gone, "a dead connection leaves nothing behind");
+});
+
+test("wire protocol e2e: hello/acq/grant/rel over the real socket, record weight wins", () => {
+  const r = run(`
+sock_path = tempfile.mktemp(prefix="nn-arb-test-", suffix=".sock")
+# a live record for tenant "vm-a": the record's gpuShare must override hello
+m._apps["vm-a"] = {"id": "vm-a", "status": "running", "gpuShare": 0.5,
+                   "cpuShare": 0.1}
+srv = m._NnArbServer(sock_path)
+
+def client(tenant, weight):
+    c = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    c.connect(sock_path)
+    c.sendall((json.dumps({"op": "hello", "v": 1, "tenant": tenant,
+                           "weight": weight, "queue": "0"}) + "\\n").encode())
+    f = c.makefile("r")
+    assert json.loads(f.readline())["ok"] is True
+    return c, f
+
+a, fa = client("vm-a", 0.001)   # lies small; record says 0.5
+b, fb = client("vm-b", 0.1)
+
+a.sendall(b'{"op":"acq","id":1}\\n')
+g = json.loads(fa.readline())
+first = g == {"ok": True, "id": 1}
+
+b.sendall(b'{"op":"acq","id":7}\\n')
+import select
+r, _, _ = select.select([b], [], [], 0.3)
+blocked = not r                           # conc=1: b must wait for a's rel
+
+a.sendall(b'{"op":"rel","id":1}\\n')
+g2 = json.loads(fb.readline())
+handoff = g2 == {"ok": True, "id": 7}
+
+# a dies (no rel for nothing held, but with a queued acq) -> b unaffected
+a.sendall(b'{"op":"acq","id":2}\\n')
+time.sleep(0.1)
+a.close()
+time.sleep(0.2)
+with srv.lock:
+    w = srv.sched.queues["0"]["tenants"].get("vm-a", {}).get("weight")
+snap = srv.snapshot()
+print(json.dumps({"first": first, "blocked": blocked, "handoff": handoff,
+                  "recordWeight": w, "grants": snap["stats"]["grants"]}))
+`);
+  assert.ok(r.first, "idle queue: first acq grants immediately");
+  assert.ok(r.blocked, "conc=1: the second tenant queues");
+  assert.ok(r.handoff, "rel hands the card to the waiter");
+  assert.equal(r.recordWeight, 0.5,
+    "the deployment record's gpuShare outranks the hello weight");
+  assert.equal(r.grants, 2);
+});

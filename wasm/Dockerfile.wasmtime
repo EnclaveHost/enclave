@@ -178,6 +178,17 @@ COPY wasmtime-nn-onnx-preload.patch /tmp/
 RUN git apply --check /tmp/wasmtime-nn-onnx-preload.patch \
  && git apply /tmp/wasmtime-nn-onnx-preload.patch
 
+# enclave GPU request-level arbiter client (work-conserving fair share): one
+# `arbiter::turn()` per GPU compute quantum against the wasm-manager's
+# arbiter socket, plus the eager connect its capability probe observes.
+# INERT until the manager arms ENCLAVE_NN_ARBITER (WASM_NN_ARBITER=1 + probe),
+# so this patch landing before or after a manager release is safe either way.
+# Must apply LAST: it is diffed against the fully-patched tree (it touches
+# the files the nn patches create/rewrite).
+COPY wasmtime-nn-arbiter.patch /tmp/
+RUN git apply --check /tmp/wasmtime-nn-arbiter.patch \
+ && git apply /tmp/wasmtime-nn-arbiter.patch
+
 # System-linked ORT: the binary NEEDS libonnxruntime.so.1 at runtime; ship it
 # plus the two provider dylibs the CUDA EP dlopens (providers_shared is the
 # dispatcher). providers_tensorrt is deliberately not shipped (never

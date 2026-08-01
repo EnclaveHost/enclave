@@ -1,0 +1,607 @@
+# enclave GPU request-level arbiter client - work-conserving fair share for
+# wasi-nn GPU tenants, against wasmtime v45.0.0.
+#
+# APPLY ORDER: LAST, after wasmtime-nn-onnx-preload.patch (diffed against a
+# tree with every other enclave patch applied; it touches ggml.rs, sdcpp.rs
+# and onnx.rs, which the nn patches create/rewrite).
+#
+# What it adds: crates/wasi-nn/src/arbiter.rs - a std-only client (no crates,
+# no Cargo.lock delta) for the wasm-manager's GPU arbiter socket - plus one
+# `arbiter::turn(gpu)` RAII acquire around each natural GPU compute quantum:
+#   ggml.rs   the merged decode turn (leader), the full-logits verify pass,
+#             MTP observe/draft head decodes, the vision-encoder eval
+#   onnx.rs   each session.run of an ExecutionTarget::Gpu session
+#   sdcpp.rs  each denoise STEP - via the sd shim's dlsym-OPTIONAL
+#             esd_set_step_cb hook (an older tarball = one whole-image turn,
+#             bounded by the server's lease revoke)
+# and an eager connect+hello in serve.rs right after the listener binds,
+# which is what the wasm-manager's capability probe observes (it launches a
+# throwaway serve pointed at a probe socket and requires an actual hello -
+# no help-text marker, the probed thing IS the behavior).
+#
+# WHY: CUDA_MPS_ACTIVE_THREAD_PERCENTAGE is a static partition fixed at MPS
+# attach - a 5%-share tenant is locked to ~5% of the SMs even on an idle
+# card, and MPS has no fair-share scheduler to do better. Under a live
+# arbiter the manager launches GPU tenants with the FULL SM budget and
+# fairness moves here: short weighted turns per compute quantum, granted
+# instantly when the card is idle (burst to 100%) and in gpuShare proportion
+# when contended (weighted fair queuing over virtual time, server-side).
+# Pinned VRAM stays share-sized - device memory cannot be reclaimed from a
+# burster, so it can never be work-conserving.
+#
+# FAIL-OPEN everywhere: no env = every turn() is a free no-op; any socket
+# failure = computes run unarbitrated while a rate-limited reconnect retries
+# (a wasm-manager restart must re-arm arbitration without tenant relaunches);
+# a grant unanswered past the watchdog = drop the connection and run. The
+# worst failure mode is plain uncapped sharing - never a stalled tenant.
+# Rollout is manager-side (WASM_NN_ARBITER + the probe): this patch alone
+# changes nothing until the manager arms the env, so toolchain and manager
+# releases stay order-independent.
+#
+# Build: no new features; rides the existing wasi-nn/ggml/sdcpp/onnx flags.
+# cargo check clean 2026-07-31 on the fully-patched tree (wasmtime-wasi-nn
+# with ggml,sdcpp,onnx + the CLI with wasi-nn).
+diff --git a/crates/wasi-nn/src/arbiter.rs b/crates/wasi-nn/src/arbiter.rs
+new file mode 100644
+index 0000000..c18062f
+--- /dev/null
++++ b/crates/wasi-nn/src/arbiter.rs
+@@ -0,0 +1,312 @@
++//! Client for the wasm-manager's GPU request-level arbiter (work-conserving
++//! fair share). See the `nn-arb` section of wasm_manager.py for the design;
++//! the short version: instead of living inside a static MPS SM partition,
++//! GPU tenants launch with the full SM budget and take short weighted TURNS
++//! on the card — one turn per natural compute quantum (a ggml decode turn,
++//! an ORT run, an sd denoise step). An idle card grants instantly, so a lone
++//! tenant bursts to 100%; a contended card divides GPU *time* in proportion
++//! to purchased shares.
++//!
++//! Protocol (newline-JSON over the Unix socket named by `ENCLAVE_NN_ARBITER`):
++//!   -> {"op":"hello","v":1,"tenant":"<id>","weight":<share>,"queue":"0"}
++//!   <- {"ok":true}
++//!   -> {"op":"acq","id":N}        ... blocks until ...   <- {"ok":true,"id":N}
++//!   -> {"op":"rel","id":N}
++//!
++//! FAIL-OPEN is the invariant every path here upholds: arbitration is a
++//! fairness upgrade, never a wall. No socket env = every `turn()` is a no-op.
++//! A connect/write/read failure = computes run unarbitrated while a
++//! rate-limited reconnect keeps trying (a wasm-manager restart replaces the
++//! socket; tenants must re-arm without a relaunch). A grant that never
++//! arrives inside the watchdog window = drop the connection and run — the
++//! server revokes abandoned grants on its own lease timer, so nothing wedges.
++//! The one thing this module never does is fail or stall a compute forever
++//! on behalf of fairness.
++//!
++//! std-only on purpose: no serde, no new crates, no Cargo.lock delta. The
++//! grant frame is fixed-shape, so a substring scan is the whole parser.
++
++use std::collections::HashMap;
++use std::io::{BufRead, BufReader, Write};
++use std::os::unix::net::UnixStream;
++use std::sync::atomic::{AtomicU64, Ordering};
++use std::sync::mpsc::{sync_channel, RecvTimeoutError, SyncSender};
++use std::sync::{Arc, Mutex, OnceLock};
++use std::time::{Duration, Instant};
++
++/// How long an `acq` may sit unanswered before we declare the arbiter wedged
++/// and fail open. Legitimate queue waits are bounded by (waiters x the
++/// server's max-hold lease), far under this.
++const GRANT_WATCHDOG: Duration = Duration::from_secs(120);
++/// Minimum gap between reconnect attempts once the socket is down.
++const RECONNECT_EVERY: Duration = Duration::from_secs(5);
++/// A hello whose reply takes longer than this is a broken server.
++const HELLO_TIMEOUT: Duration = Duration::from_secs(5);
++
++struct Conn {
++    stream: UnixStream,
++    wlock: Mutex<()>,
++    /// acq ids whose grant is still outstanding; the reader thread completes
++    /// them with `true` (granted) — teardown completes them with `false`
++    /// (fail open, run unarbitrated).
++    pending: Mutex<HashMap<u64, SyncSender<bool>>>,
++}
++
++impl Conn {
++    fn write_line(&self, line: &str) -> std::io::Result<()> {
++        let _w = self.wlock.lock().unwrap();
++        (&self.stream).write_all(line.as_bytes())?;
++        (&self.stream).write_all(b"\n")
++    }
++}
++
++struct Client {
++    path: String,
++    tenant: String,
++    weight: String,
++    queue: String,
++    next_id: AtomicU64,
++    state: Mutex<ClientState>,
++}
++
++struct ClientState {
++    conn: Option<Arc<Conn>>,
++    last_attempt: Option<Instant>,
++}
++
++static CLIENT: OnceLock<Option<Client>> = OnceLock::new();
++
++fn json_escape(s: &str) -> String {
++    s.chars()
++        .filter(|c| !c.is_control())
++        .map(|c| match c {
++            '"' => "\\\"".to_string(),
++            '\\' => "\\\\".to_string(),
++            c => c.to_string(),
++        })
++        .collect()
++}
++
++fn client() -> Option<&'static Client> {
++    CLIENT
++        .get_or_init(|| {
++            let path = std::env::var("ENCLAVE_NN_ARBITER").ok()?;
++            if path.is_empty() {
++                return None;
++            }
++            // weight goes over the wire as a bare JSON number; anything
++            // unparsable becomes 0 and the server substitutes its own
++            // authoritative value (the deployment record's gpuShare).
++            let weight = std::env::var("ENCLAVE_NN_ARB_WEIGHT")
++                .ok()
++                .and_then(|w| w.trim().parse::<f64>().ok())
++                .filter(|w| w.is_finite() && *w > 0.0)
++                .map(|w| format!("{w}"))
++                .unwrap_or_else(|| "0".to_string());
++            Some(Client {
++                path,
++                tenant: json_escape(&std::env::var("ENCLAVE_NN_ARB_TENANT").unwrap_or_default()),
++                weight,
++                queue: json_escape(
++                    &std::env::var("ENCLAVE_NN_ARB_QUEUE").unwrap_or_else(|_| "0".into()),
++                ),
++                next_id: AtomicU64::new(1),
++                state: Mutex::new(ClientState {
++                    conn: None,
++                    last_attempt: None,
++                }),
++            })
++        })
++        .as_ref()
++}
++
++/// Connect + hello early, at server startup. The wasm-manager's capability
++/// probe launches a throwaway serve and calls the toolchain arbiter-capable
++/// ONLY if this connect actually happens — keep it eager and loud.
++pub fn init_early() {
++    let Some(c) = client() else { return };
++    match c.ensure_conn(true) {
++        Some(_) => eprintln!(
++            "[nn-arb] connected to {} (tenant={}, queue={})",
++            c.path, c.tenant, c.queue
++        ),
++        None => eprintln!(
++            "[nn-arb] arbiter socket {} not reachable — GPU computes run \
++             unarbitrated until it appears (reconnecting)",
++            c.path
++        ),
++    }
++}
++
++impl Client {
++    /// The live connection, dialing a new one if allowed. `force` skips the
++    /// reconnect rate limit (startup only).
++    fn ensure_conn(&self, force: bool) -> Option<Arc<Conn>> {
++        let mut st = self.state.lock().unwrap();
++        if let Some(conn) = st.conn.as_ref() {
++            return Some(conn.clone());
++        }
++        if !force {
++            if let Some(t) = st.last_attempt {
++                if t.elapsed() < RECONNECT_EVERY {
++                    return None;
++                }
++            }
++        }
++        st.last_attempt = Some(Instant::now());
++        let conn = match self.dial() {
++            Ok(conn) => Arc::new(conn),
++            Err(e) => {
++                if force {
++                    eprintln!("[nn-arb] dial {} failed: {e}", self.path);
++                }
++                return None;
++            }
++        };
++        st.conn = Some(conn.clone());
++        drop(st);
++        let reader = conn.clone();
++        let me: &'static Client = unsafe { &*(self as *const Client) };
++        // Safety of the transmute-to-'static above: the only Client lives in
++        // a static OnceLock and is never dropped.
++        std::thread::Builder::new()
++            .name("nn-arb-reader".into())
++            .spawn(move || me.read_loop(reader))
++            .ok();
++        Some(conn)
++    }
++
++    fn dial(&self) -> std::io::Result<Conn> {
++        let stream = UnixStream::connect(&self.path)?;
++        stream.set_read_timeout(Some(HELLO_TIMEOUT))?;
++        let hello = format!(
++            "{{\"op\":\"hello\",\"v\":1,\"tenant\":\"{}\",\"weight\":{},\"queue\":\"{}\"}}\n",
++            self.tenant, self.weight, self.queue
++        );
++        (&stream).write_all(hello.as_bytes())?;
++        let mut line = String::new();
++        BufReader::new(stream.try_clone()?).read_line(&mut line)?;
++        if !line.contains("\"ok\"") {
++            return Err(std::io::Error::other("arbiter rejected hello"));
++        }
++        stream.set_read_timeout(None)?;
++        Ok(Conn {
++            stream,
++            wlock: Mutex::new(()),
++            pending: Mutex::new(HashMap::new()),
++        })
++    }
++
++    fn read_loop(&'static self, conn: Arc<Conn>) {
++        let reader = match conn.stream.try_clone() {
++            Ok(s) => BufReader::new(s),
++            Err(_) => return self.teardown(&conn),
++        };
++        for line in reader.lines() {
++            let Ok(line) = line else { break };
++            // grant frames are {"ok":true,"id":N}; anything else is ignored
++            let Some(idx) = line.find("\"id\":") else {
++                continue;
++            };
++            let id: u64 = line[idx + 5..]
++                .chars()
++                .take_while(|c| c.is_ascii_digit())
++                .collect::<String>()
++                .parse()
++                .unwrap_or(0);
++            if let Some(tx) = conn.pending.lock().unwrap().remove(&id) {
++                let _ = tx.send(true);
++            }
++        }
++        self.teardown(&conn);
++    }
++
++    /// Forget a dead connection and wake everyone it owes a grant — they run
++    /// unarbitrated (fail open). Idempotent; keyed by pointer identity so a
++    /// replacement connection is never torn down by its predecessor's reader.
++    fn teardown(&self, conn: &Arc<Conn>) {
++        let mut st = self.state.lock().unwrap();
++        if st.conn.as_ref().is_some_and(|c| Arc::ptr_eq(c, conn)) {
++            st.conn = None;
++        }
++        drop(st);
++        let _ = conn.stream.shutdown(std::net::Shutdown::Both);
++        for (_, tx) in conn.pending.lock().unwrap().drain() {
++            let _ = tx.send(false);
++        }
++    }
++
++    fn acquire(&'static self) -> Turn {
++        let Some(conn) = self.ensure_conn(false) else {
++            return Turn(None);
++        };
++        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
++        let (tx, rx) = sync_channel(1);
++        conn.pending.lock().unwrap().insert(id, tx);
++        if conn
++            .write_line(&format!("{{\"op\":\"acq\",\"id\":{id}}}"))
++            .is_err()
++        {
++            conn.pending.lock().unwrap().remove(&id);
++            self.teardown(&conn);
++            return Turn(None);
++        }
++        match rx.recv_timeout(GRANT_WATCHDOG) {
++            Ok(true) => Turn(Some((self, conn, id))),
++            Ok(false) => Turn(None),
++            Err(RecvTimeoutError::Timeout) => {
++                eprintln!(
++                    "[nn-arb] no grant within {}s — arbiter wedged? running \
++                     unarbitrated and reconnecting",
++                    GRANT_WATCHDOG.as_secs()
++                );
++                conn.pending.lock().unwrap().remove(&id);
++                self.teardown(&conn);
++                Turn(None)
++            }
++            Err(RecvTimeoutError::Disconnected) => Turn(None),
++        }
++    }
++
++    fn release(&self, conn: &Arc<Conn>, id: u64) {
++        if conn
++            .write_line(&format!("{{\"op\":\"rel\",\"id\":{id}}}"))
++            .is_err()
++        {
++            self.teardown(conn);
++        }
++    }
++}
++
++/// A granted turn on the card, released on drop. `Turn(None)` — from a CPU
++/// compute, an unarmed process, or any arbiter failure — is a free no-op.
++pub struct Turn(Option<(&'static Client, Arc<Conn>, u64)>);
++
++impl Drop for Turn {
++    fn drop(&mut self) {
++        if let Some((client, conn, id)) = self.0.take() {
++            client.release(&conn, id);
++        }
++    }
++}
++
++/// This process carries the arbiter env at all — for deciding whether to
++/// install optional hooks (the sd step callback), NOT whether a given
++/// compute should block: that's `turn()`'s job.
++pub fn armed() -> bool {
++    client().is_some()
++}
++
++/// Take a turn on the card before dispatching one GPU compute quantum.
++/// `gpu: false` (a CPU-target graph) never arbitrates — CPU fairness is the
++/// cgroup weight's job, and burning a card turn on a CPU compute would
++/// throttle GPU tenants for nothing.
++pub fn turn(gpu: bool) -> Turn {
++    if !gpu {
++        return Turn(None);
++    }
++    match client() {
++        Some(c) => c.acquire(),
++        None => Turn(None),
++    }
++}
+diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
+index 23462dc..14a80a3 100644
+--- a/crates/wasi-nn/src/backend/ggml.rs
++++ b/crates/wasi-nn/src/backend/ggml.rs
+@@ -737,7 +737,13 @@ impl GgmlServer {
+                 }
+                 q.decoding = true;
+                 drop(q);
+-                let results = self.decode_items(&items);
++                // one merged decode = one turn on the card (see arbiter.rs);
++                // took the decode turn FIRST so a queued grant never blocks
++                // this graph's other callers from merging behind us
++                let results = {
++                    let _turn = crate::arbiter::turn(self.model.gpu);
++                    self.decode_items(&items)
++                };
+                 q = self.q.lock().unwrap();
+                 for (it, res) in items.into_iter().zip(results) {
+                     q.results.insert(it.ticket, res);
+@@ -811,6 +817,7 @@ impl GgmlServer {
+             }
+         }
+         let mut logits = vec![0f32; tokens.len() * self.n_vocab];
++        let _turn = crate::arbiter::turn(self.model.gpu && harvest_err.is_none());
+         let rc = if harvest_err.is_none() {
+             unsafe {
+                 ell_decode_seq_full(self.raw, self.model.raw, seq_id, pos0,
+@@ -827,6 +834,7 @@ impl GgmlServer {
+                 }
+             }
+         }
++        drop(_turn);
+         let mut q = self.q.lock().unwrap();
+         q.decoding = false;
+         self.cv.notify_all();
+@@ -892,6 +900,9 @@ impl GgmlServer {
+         let outcome = match self.ensure_mtmd() {
+             Err(e) => Err(e),
+             Ok(handle) => {
++                // the vision encoder is a real GPU burst (it follows the
++                // model's device) — it takes a turn like any decode
++                let _turn = crate::arbiter::turn(self.model.gpu);
+                 let rc = unsafe {
+                     (syms.eval_image)(
+                         handle,
+@@ -971,6 +982,7 @@ impl GgmlServer {
+     fn mtp_observe(&self, seq: i32, pos0: i32, tokens: &[i32]) -> Result<(), String> {
+         let mtp = self.mtp.lock().unwrap();
+         let h = mtp.as_ref().ok_or("[mtp_unavailable] no MTP state (harvest first)")?;
++        let _turn = crate::arbiter::turn(self.model.gpu);
+         let rc = unsafe {
+             ell_mtp_observe(h.0, seq, pos0, tokens.as_ptr(), tokens.len() as i32)
+         };
+@@ -987,6 +999,7 @@ impl GgmlServer {
+         let mtp = self.mtp.lock().unwrap();
+         let h = mtp.as_ref().ok_or("[mtp_unavailable] no MTP state (prefill with mtp first)")?;
+         let mut out = vec![0i32; k.max(0) as usize];
++        let _turn = crate::arbiter::turn(self.model.gpu);
+         let n = unsafe { ell_mtp_draft(h.0, seq, id_last, n_past, k, p_min, out.as_mut_ptr()) };
+         out.truncate(n.max(0) as usize);
+         Ok(out)
+diff --git a/crates/wasi-nn/src/backend/onnx.rs b/crates/wasi-nn/src/backend/onnx.rs
+index 2a06def..77ea65b 100644
+--- a/crates/wasi-nn/src/backend/onnx.rs
++++ b/crates/wasi-nn/src/backend/onnx.rs
+@@ -162,7 +162,7 @@ impl BackendFromDir for OnnxBackend {
+     }
+ }
+ 
+-struct OnnxGraph(Arc<Mutex<Session>>, #[allow(dead_code)] ExecutionTarget);
++struct OnnxGraph(Arc<Mutex<Session>>, ExecutionTarget);
+ unsafe impl Send for OnnxGraph {}
+ unsafe impl Sync for OnnxGraph {}
+ 
+@@ -195,6 +195,7 @@ impl BackendGraph for OnnxGraph {
+             session: self.0.clone(),
+             inputs,
+             outputs,
++            gpu: matches!(self.1, ExecutionTarget::Gpu),
+         });
+         Ok(box_.into())
+     }
+@@ -204,6 +205,8 @@ struct OnnxExecutionContext {
+     session: Arc<Mutex<Session>>,
+     inputs: Vec<TensorSlot>,
+     outputs: Vec<TensorSlot>,
++    /// the session runs on the CUDA EP — each Run takes an arbiter turn
++    gpu: bool,
+ }
+ 
+ unsafe impl Send for OnnxExecutionContext {}
+@@ -292,6 +295,9 @@ impl BackendExecutionContext for OnnxExecutionContext {
+                     session_inputs.extend(to_input_value(i)?);
+                 }
+                 let mut session = self.session.lock().unwrap();
++                // session lock FIRST, then the turn: the grant covers exactly
++                // the GPU execution, not the wait for this graph's own queue
++                let _turn = crate::arbiter::turn(self.gpu);
+                 let session_outputs = session.run(session_inputs.as_slice())?;
+ 
+                 let mut output_tensors = Vec::new();
+@@ -314,6 +320,9 @@ impl BackendExecutionContext for OnnxExecutionContext {
+                     session_inputs.extend(to_input_value(i)?);
+                 }
+                 let mut session = self.session.lock().unwrap();
++                // session lock FIRST, then the turn: the grant covers exactly
++                // the GPU execution, not the wait for this graph's own queue
++                let _turn = crate::arbiter::turn(self.gpu);
+                 let session_outputs = session.run(session_inputs.as_slice())?;
+                 for i in 0..self.outputs.len() {
+                     let tensor = extract_output_tensor(&session_outputs[i])?;
+diff --git a/crates/wasi-nn/src/backend/sdcpp.rs b/crates/wasi-nn/src/backend/sdcpp.rs
+index d4db59b..31c214f 100644
+--- a/crates/wasi-nn/src/backend/sdcpp.rs
++++ b/crates/wasi-nn/src/backend/sdcpp.rs
+@@ -286,18 +286,74 @@ impl BackendFromDir for SdCppBackend {
+                 last_error()
+             )));
+         }
++        // Arbiter step-yield (see the compute path): the shim's per-step
++        // callback hook is dlsym-OPTIONAL, same doctrine as the ggml
++        // backend's vision entry points — a toolchain tarball predating it
++        // still builds and serves, generations just hold one whole-image
++        // turn (which the arbiter's lease revoke bounds).
++        if use_gpu && crate::arbiter::armed() {
++            SD_STEP_HOOK.call_once(|| unsafe {
++                let sym = dlsym(std::ptr::null_mut(), c"esd_set_step_cb".as_ptr());
++                if !sym.is_null() {
++                    let set: EsdSetStepCb = std::mem::transmute(sym);
++                    set(sd_step_yield, std::ptr::null_mut());
++                } else {
++                    eprintln!(
++                        "[nn-arb] sd shim has no esd_set_step_cb — images hold one \
++                         whole-generation turn (bump the llamacpp toolchain for \
++                         per-step fairness)"
++                    );
++                }
++            });
++        }
+         let graph: Box<dyn BackendGraph> = Box::new(SdGraph(Arc::new(SdModel {
+             raw: Mutex::new(handle as usize),
++            gpu: use_gpu,
+         })));
+         Ok(graph.into())
+     }
+ }
+ 
++// dlsym, for the OPTIONAL step-callback hook (in libc since glibc 2.34).
++unsafe extern "C" {
++    fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
++}
++type EsdSetStepCb = unsafe extern "C" fn(unsafe extern "C" fn(*mut c_void), *mut c_void);
++
++static SD_STEP_HOOK: Once = Once::new();
++
++thread_local! {
++    /// The generation thread's current arbiter turn. Set around esd_txt2img;
++    /// the step callback swaps it for a fresh one BETWEEN denoise steps, so a
++    /// long generation queues at step granularity instead of monopolizing the
++    /// card. Thread-local because the callback is process-global while
++    /// generations are per-model-mutex — only the thread actually inside
++    /// esd_txt2img carries a turn to yield.
++    static SD_TURN: std::cell::RefCell<Option<crate::arbiter::Turn>> =
++        const { std::cell::RefCell::new(None) };
++}
++
++/// Called by the shim between denoise steps (never concurrently with itself
++/// on one thread). Release the turn we hold, immediately re-acquire — under
++/// contention the WFQ grants someone else the gap; idle, the re-acquire is a
++/// socket round-trip (~100us against multi-second generations).
++unsafe extern "C" fn sd_step_yield(_ud: *mut c_void) {
++    SD_TURN.with(|t| {
++        let mut t = t.borrow_mut();
++        if t.is_some() {
++            *t = None; // rel
++            *t = Some(crate::arbiter::turn(true));
++        }
++    });
++}
++
+ /// The loaded sd_ctx. generate_image is not documented thread-safe, so the
+ /// raw handle lives behind a Mutex - one generation at a time per model
+ /// (requests queue; an image is seconds, not minutes, on the GPU).
+ struct SdModel {
+     raw: Mutex<usize>,
++    /// placed on the GPU — generations take arbiter turns
++    gpu: bool,
+ }
+ impl Drop for SdModel {
+     fn drop(&mut self) {
+@@ -395,8 +451,13 @@ impl SdExecutionContext {
+ 
+         let mut rgb = vec![0u8; (width * height * 3) as usize];
+         let rc = {
++            // model mutex FIRST (this graph's own queue), then the card turn.
++            // The turn parks in SD_TURN so the shim's step callback can yield
++            // it between denoise steps; taken/cleared here so a shim without
++            // the hook still holds exactly one turn per generation.
+             let raw = self.model.raw.lock().unwrap();
+-            unsafe {
++            SD_TURN.set(Some(crate::arbiter::turn(self.model.gpu)));
++            let rc = unsafe {
+                 esd_txt2img(
+                     *raw as *mut c_void,
+                     prompt_c.as_ptr(),
+@@ -410,7 +471,9 @@ impl SdExecutionContext {
+                     scheduler_c.as_ptr(),
+                     rgb.as_mut_ptr(),
+                 )
+-            }
++            };
++            SD_TURN.set(None); // rel the last step's turn
++            rc
+         };
+         if rc != 0 {
+             return Err(err(format!("txt2img failed (rc {rc}): {}", last_error())));
+diff --git a/crates/wasi-nn/src/lib.rs b/crates/wasi-nn/src/lib.rs
+index 18444ee..b83ac9c 100644
+--- a/crates/wasi-nn/src/lib.rs
++++ b/crates/wasi-nn/src/lib.rs
+@@ -1,3 +1,4 @@
++pub mod arbiter;
+ pub mod backend;
+ mod registry;
+ pub mod wit;
+diff --git a/src/commands/serve.rs b/src/commands/serve.rs
+index a824307..4314aa1 100644
+--- a/src/commands/serve.rs
++++ b/src/commands/serve.rs
+@@ -645,6 +645,16 @@ impl ServeCommand {
+ 
+         log::info!("Listening on {}", self.addr);
+ 
++        // Enclave: join the wasm-manager's GPU arbiter (work-conserving fair
++        // share — see wasmtime_wasi_nn::arbiter) the moment the listener is
++        // up. Eager on purpose: the manager's capability probe launches a
++        // throwaway serve and calls this toolchain arbiter-capable ONLY if
++        // the connect actually happens at startup. No-op without the env.
++        if self.run.common.wasi.nn == Some(true) {
++            #[cfg(feature = "wasi-nn")]
++            wasmtime_wasi_nn::arbiter::init_early();
++        }
++
+         // Enclave: load `-S nn-graph` models NOW, once for the process - a
+         // ggml GGUF hits VRAM the moment the server is up instead of on
+         // (every!) request. Deliberately after bind: connections arriving

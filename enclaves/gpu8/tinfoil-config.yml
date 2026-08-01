@@ -310,6 +310,9 @@ containers:
       # - WASM_CGROUP_PARENT: "/sys/fs/cgroup/<delegated-cpu-subtree>"
       - WASM_CPU_WEIGHT: "100"      # equal fair-share weight per tenant — stops single-tenant CPU starvation
       # - WASM_CPU_MAX_PCT: "50"    # optional FLAT hard ceiling; enable + tune to the max CPU share sold
+      # GPU work-conserving fair share (see the GPU flavor for the rationale):
+      # inert until the wasmtime carries wasmtime-nn-arbiter.patch (probed).
+      # - WASM_NN_ARBITER: "1"
       - WASM_ACCOUNT_STORAGE_RAM: "1"   # refuse deployments that oversubscribe NODE_RAM_GB
       - WASM_HEALTH_MINIMAL: "1"        # bare-liveness /health for unauthenticated (tenant) callers; supervisor authenticates with SECRET
       - CUDA_MPS_PIPE_DIRECTORY: "/tmp/nvidia-mps"
