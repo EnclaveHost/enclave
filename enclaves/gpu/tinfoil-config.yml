@@ -381,7 +381,12 @@ containers:
       # functional cost. A guest that exceeds it fails fast and says so
       # ("batch of N tokens exceeds n_batch 128 (chunk your prefill)"), so
       # raise this again if an app ever needs wider decodes.
-      - ENCLAVE_GGML_N_BATCH: "128"
+      # 512 (2026-08-01, was 128): a 772-token prompt prefills in 2 decode
+      # turns instead of 7 — with the arbiter live each turn bursts at full
+      # SM, so bigger turns are pure win; costs ~1-2 GB more compute buffer.
+      # BINDS AT CREATION ONLY (see enclave-worker-token-rollout): takes
+      # effect at the next dashboard Edit-config re-save + relaunch.
+      - ENCLAVE_GGML_N_BATCH: "512"
       # Concurrent sequences per model per tenant process. Since the batched
       # (pooled) wasmtime toolchain (the -batch1 ELL repin) every model serves
       # ALL its concurrent chats from ONE shared KV pool of N_CTX tokens,
