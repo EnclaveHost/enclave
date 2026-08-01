@@ -33,6 +33,10 @@ int32_t ell_gpu_devices(void);
 void *ell_load_model(const char *path, int32_t n_gpu_layers);
 void ell_free_model(void *model);
 int32_t ell_n_vocab(void *model);
+/* host tokenizer (pure vocab lookups; see the .c for conventions) */
+int32_t ell_tokenize(void *model, const char *text, int32_t text_len,
+                     int32_t *out_ids, int32_t out_cap);
+int32_t ell_token_piece(void *model, int32_t id, char *buf, int32_t cap);
 
 /* KV-cache element type for ell_new_context's type_k/type_v. Our OWN stable
  * codes, mapped to ggml_type inside the shim (which owns the ggml.h include),
