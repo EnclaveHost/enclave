@@ -152,6 +152,37 @@ print(json.dumps({"instant": instant, "big": n[1], "small": n[2],
     `a returning idler competes from NOW, no banked credit (longest run ${r.sleepy_burst})`);
 });
 
+test("a sparse tenant never taxes a hot one with dead holds", () => {
+  const r = run(`
+clk = [0.0]
+s = m.NnArbScheduler(conc=1, max_hold=1e9, grace=0.015, clock=lambda: clk[0])
+s.hello(1, "hot", 0.5, "0"); s.hello(2, "sparse", 0.5, "0")
+# hot grinds 100ms turns; sparse does ONE op and goes quiet. Under the old
+# hesitation rule sparse (recent, marginally lower vt) put a dead 15ms hold
+# in front of EVERY hot dispatch — a per-token decode tax, seen live
+# 2026-08-01. The predictor (gap EWMA <= grace) must refuse to hesitate for
+# a tenant that has never demonstrated a quick return.
+g = s.acquire(1, 1)
+s.acquire(2, 1)                            # sparse queues once
+clk[0] += 0.1
+g = s.release(1, 1)                        # sparse takes its one turn
+assert g == [(2, 1)], g
+clk[0] += 0.01
+s.release(2, 1)                            # ...and goes quiet forever
+instant = []
+rid = 10
+for _ in range(5):                         # hot keeps grinding
+    got = s.acquire(1, rid)
+    instant.append(got == [(1, rid)])      # must grant IMMEDIATELY, no hold
+    clk[0] += 0.1
+    s.release(1, rid)
+    rid += 1
+print(json.dumps({"instant": instant}))
+`);
+  assert.deepEqual(r.instant, [true, true, true, true, true],
+    "every hot acquire must grant instantly once sparse has gone quiet");
+});
+
 test("revoke frees the slot; disconnect releases everything", () => {
   const r = run(`
 clk = [0.0]
