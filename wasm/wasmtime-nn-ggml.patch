@@ -168,10 +168,10 @@ index b2db808..af89d10 100644
  
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
 new file mode 100644
-index 0000000..258f714
+index 0000000..53a0fcb
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,1572 @@
+@@ -0,0 +1,1577 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -1485,6 +1485,11 @@ index 0000000..258f714
 +                        self.server.model.recurrent as i32,
 +                        self.server.model.mtp as i32,
 +                        self.server.model.vision as i32,
++                        // the host's real batch cap: guests size their prefill
++                        // chunks to it instead of hardcoding the historical 128
++                        // (an ENCLAVE_GGML_N_BATCH re-save then delivers
++                        // fewer, bigger prefill passes with no app change)
++                        self.server.n_batch as i32,
 +                    ];
 +                    let mut data = Vec::with_capacity(vals.len() * 4);
 +                    for v in vals {
