@@ -39,14 +39,17 @@
 # releases stay order-independent.
 #
 # Build: no new features; rides the existing wasi-nn/ggml/sdcpp/onnx flags.
-# cargo check clean 2026-07-31 on the fully-patched tree (wasmtime-wasi-nn
-# with ggml,sdcpp,onnx + the CLI with wasi-nn).
+# cargo check clean 2026-07-31 (full tree) + 2026-08-01 (wire-format
+# hardening: the grant parser trims spacing after '"id":' - the server
+# emitting pythonic spacing once dropped every grant and put each decode
+# on the 120s watchdog; now either side alone survives the other
+# regressing).
 diff --git a/crates/wasi-nn/src/arbiter.rs b/crates/wasi-nn/src/arbiter.rs
 new file mode 100644
-index 0000000..c18062f
+index 0000000..d8ccfc3
 --- /dev/null
 +++ b/crates/wasi-nn/src/arbiter.rs
-@@ -0,0 +1,312 @@
+@@ -0,0 +1,319 @@
 +//! Client for the wasm-manager's GPU request-level arbiter (work-conserving
 +//! fair share). See the `nn-arb` section of wasm_manager.py for the design;
 +//! the short version: instead of living inside a static MPS SM partition,
@@ -253,11 +256,18 @@ index 0000000..c18062f
 +        };
 +        for line in reader.lines() {
 +            let Ok(line) = line else { break };
-+            // grant frames are {"ok":true,"id":N}; anything else is ignored
++            // grant frames are {"ok":true,"id":N}; anything else is ignored.
++            // trim_start is LOAD-BEARING, not defensive fluff: the server
++            // emitting pythonic '"id": N' (a space) once dropped every grant
++            // here and put each decode step on the 120s fail-open watchdog
++            // (live 2026-08-01). The server now pins compact separators AND
++            // this side tolerates spacing — either alone survives the other
++            // regressing.
 +            let Some(idx) = line.find("\"id\":") else {
 +                continue;
 +            };
 +            let id: u64 = line[idx + 5..]
++                .trim_start()
 +                .chars()
 +                .take_while(|c| c.is_ascii_digit())
 +                .collect::<String>()
