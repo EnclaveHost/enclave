@@ -1544,8 +1544,17 @@ class NnArbScheduler:
         if q["hold"] is not None and q["hold"]["tenant"] == c["tenant"]:
             q["hold"] = None
         t = q["tenants"].get(c["tenant"])
-        if t is not None and not self._busy(q, c["tenant"]):
-            t["vt"] = max(t["vt"], q["vclock"])
+        if t is not None:
+            # release->re-acquire gap, EWMA'd: the hesitation PREDICTOR (see
+            # _phantom). A hot decode loop re-requests in sub-ms; a tenant
+            # that came back after seconds must not be hesitated for.
+            lr = t.get("last_rel")
+            if lr is not None:
+                gap = max(0.0, self.clock() - lr)
+                ew = t.get("gap_ewma")
+                t["gap_ewma"] = gap if ew is None else 0.7 * ew + 0.3 * gap
+            if not self._busy(q, c["tenant"]):
+                t["vt"] = max(t["vt"], q["vclock"])
         q["waiting"].append({"conn": conn_id, "req": req_id, "tenant": c["tenant"]})
         return self._dispatch(q)
 
@@ -1605,12 +1614,21 @@ class NnArbScheduler:
 
     def _phantom(self, q, below_vt, now):
         """The most underserved tenant worth hesitating for: connected, not
-        waiting or active, released voluntarily within the window, and
-        strictly lower vt than the best waiter."""
+        waiting or active, released voluntarily within the window, strictly
+        lower vt than the best waiter — AND predicted to actually come back
+        within the grace (its release->re-acquire gap EWMA fits it). The
+        prediction gate is load-bearing: without it, any tenant that touched
+        the card in the last window and sits marginally below the dominant
+        tenant's vt taxes EVERY dispatch with a dead hold — observed live
+        2026-08-01 as llm-chat decode slowdown minutes after arming. A hot
+        loop re-requests in sub-ms and keeps its protection; a sparse caller
+        proves nothing and gets ordinary min-vt service when it shows up."""
         best, best_vt = None, below_vt
         for name, t in q["tenants"].items():
             if (t["conns"] > 0 and t["vt"] < best_vt
                     and now - t.get("last_rel", -1e18) < self.phantom_window
+                    and t.get("gap_ewma") is not None
+                    and t["gap_ewma"] <= self.grace
                     and not self._busy(q, name)):
                 best, best_vt = name, t["vt"]
         return best
@@ -1763,8 +1781,17 @@ class _NnArbServer:
         # 10ms cadence: hesitation holds (NN_ARB_GRACE ~15ms) must resolve
         # promptly or the grace becomes added latency for the waiter. The
         # sweep itself is O(active grants) — a handful of dict entries.
+        n = 0
+        last_stats = {}
         while True:
             time.sleep(0.01)
+            n += 1
+            if n % 6000 == 0:            # once a minute, only when something moved
+                with self.lock:
+                    s = dict(self.sched.stats)
+                if s != last_stats:
+                    print(f"[nn-arb] stats: {s}", flush=True)
+                    last_stats = s
             with self.lock:
                 grants, revoked = self.sched.tick()
             for name, tenant, held in revoked:
