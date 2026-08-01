@@ -168,10 +168,10 @@ index b2db808..af89d10 100644
  
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
 new file mode 100644
-index 0000000..53a0fcb
+index 0000000..d1dbac4
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,1577 @@
+@@ -0,0 +1,1655 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -301,6 +301,9 @@ index 0000000..53a0fcb
 +    fn ell_load_model(path: *const c_char, n_gpu_layers: i32) -> *mut c_void;
 +    fn ell_free_model(model: *mut c_void);
 +    fn ell_n_vocab(model: *mut c_void) -> i32;
++    fn ell_tokenize(model: *mut c_void, text: *const i8, text_len: i32,
++                    out_ids: *mut i32, out_cap: i32) -> i32;
++    fn ell_token_piece(model: *mut c_void, id: i32, buf: *mut i8, cap: i32) -> i32;
 +    fn ell_free_context(ctx: *mut c_void);
 +    fn ell_reset(ctx: *mut c_void);
 +    fn ell_new_server(
@@ -1479,6 +1482,79 @@ index 0000000..53a0fcb
 +                // seq_id names this handle as a copy_from source; recurrent
 +                // 1 = partial rewind is impossible on this model (branch-
 +                // verify is the only speculative strategy).
++                // {"tokenize": U8 [n]} = UTF-8 text -> "ids" I32 [m]: the
++                // GGUF's own tokenizer, host-side (parse_special on, so
++                // template markers map to their special ids). Pure vocab
++                // lookup - no decode turn, safe concurrently. Saves guests
++                // the multi-MB tokenizer.json parse every fresh instance
++                // paid (~535ms of TTFT measured 2026-08-01).
++                if let Some(tv) = inputs.iter().find(|nt| nt.name == "tokenize") {
++                    let text = tv.tensor.data.clone();
++                    let mut cap = text.len() as i32 + 64;
++                    loop {
++                        let mut ids = vec![0i32; cap as usize];
++                        let n = unsafe {
++                            ell_tokenize(self.server.model.raw, text.as_ptr() as *const i8,
++                                         text.len() as i32, ids.as_mut_ptr(), cap)
++                        };
++                        if n == i32::MIN {
++                            return Err(err("host tokenizer failed on this text"));
++                        }
++                        if n < 0 {
++                            cap = -n;
++                            continue;
++                        }
++                        ids.truncate(n as usize);
++                        let mut data = Vec::with_capacity(ids.len() * 4);
++                        for t in &ids {
++                            data.extend_from_slice(&t.to_le_bytes());
++                        }
++                        return Ok(Some(vec![NamedTensor {
++                            name: "ids".to_string(),
++                            tensor: Tensor { dimensions: vec![ids.len() as u32], ty: TensorType::I32, data },
++                        }]));
++                    }
++                }
++                // {"vocab_pieces": I32 [1] = 1} -> the WHOLE vocabulary's raw
++                // byte pieces: "bytes" U8 [total] + "offsets" I32 [n_vocab+1]
++                // (prefix offsets; piece i = bytes[offsets[i]..offsets[i+1]]).
++                // One ~2-3MB copy per session replaces the guest-side
++                // tokenizer for DECODING entirely (detok = table lookup).
++                if inputs.iter().any(|nt| nt.name == "vocab_pieces") {
++                    let n_vocab = self.server.n_vocab as i32;
++                    let mut bytes: Vec<u8> = Vec::with_capacity(n_vocab as usize * 7);
++                    let mut offsets: Vec<u8> = Vec::with_capacity((n_vocab as usize + 1) * 4);
++                    offsets.extend_from_slice(&0i32.to_le_bytes());
++                    let mut buf = vec![0i8; 256];
++                    for id in 0..n_vocab {
++                        let mut n = unsafe {
++                            ell_token_piece(self.server.model.raw, id, buf.as_mut_ptr(), buf.len() as i32)
++                        };
++                        if n < 0 && -n as usize > buf.len() {
++                            buf.resize(-n as usize, 0);
++                            n = unsafe {
++                                ell_token_piece(self.server.model.raw, id, buf.as_mut_ptr(), buf.len() as i32)
++                            };
++                        }
++                        if n > 0 {
++                            let b: &[u8] = unsafe {
++                                std::slice::from_raw_parts(buf.as_ptr() as *const u8, n as usize)
++                            };
++                            bytes.extend_from_slice(b);
++                        }
++                        offsets.extend_from_slice(&(bytes.len() as i32).to_le_bytes());
++                    }
++                    return Ok(Some(vec![
++                        NamedTensor {
++                            name: "bytes".to_string(),
++                            tensor: Tensor { dimensions: vec![bytes.len() as u32], ty: TensorType::U8, data: bytes },
++                        },
++                        NamedTensor {
++                            name: "offsets".to_string(),
++                            tensor: Tensor { dimensions: vec![n_vocab as u32 + 1], ty: TensorType::I32, data: offsets },
++                        },
++                    ]));
++                }
 +                if inputs.iter().any(|nt| nt.name == "caps") {
 +                    let vals = [
 +                        self.seq_id,
@@ -1490,6 +1566,8 @@ index 0000000..53a0fcb
 +                        // (an ENCLAVE_GGML_N_BATCH re-save then delivers
 +                        // fewer, bigger prefill passes with no app change)
 +                        self.server.n_batch as i32,
++                        // host tokenizer available ("tokenize"/"vocab_pieces")
++                        1,
 +                    ];
 +                    let mut data = Vec::with_capacity(vals.len() * 4);
 +                    for v in vals {
