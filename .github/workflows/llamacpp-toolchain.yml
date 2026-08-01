@@ -48,9 +48,18 @@ on:
 
 env:
   # pinned llama.cpp revision - the one the shim + backend were validated
-  # against (2026-07-07). Bump deliberately; re-verify the batch-by-value
-  # cast note in wasm/llama-shim/enclave_llama.c when you do.
-  LLAMA_COMMIT: bec4772f6a2527d371557b5d2032641e5ff7619c
+  # against. Bump deliberately; re-verify the batch-by-value cast note in
+  # wasm/llama-shim/enclave_llama.c when you do.
+  # 2026-08-01 bump bec4772f -> ddd4ec14 (304 commits): harvests upstream
+  # CUDA decode/graph work (single-stream decode is launch-latency-bound -
+  # the standing "pin bump" speed lever). Seams verified against the new
+  # tree BEFORE the bump: llama_batch byte-identical, the four MTP nextn
+  # seams (incl. exact mangled-signature decls in src/llama-ext.h) and all
+  # six mtmd entry points present unchanged. FORCE_CUBLAS stays ON, so the
+  # sm_90 MMQ speckle (#24399) remains bypassed regardless of its upstream
+  # status. Remaining bump risk is sd.cpp (its own pin) compiling against
+  # the newer system ggml - this build fails loudly there if so.
+  LLAMA_COMMIT: ddd4ec1428a6201e18975ea52b07c71e0f9aef26
   # pinned stable-diffusion.cpp revision (see wasm/sd-shim/README.md),
   # validated against the LLAMA_COMMIT ggml on 2026-07-13 (local CPU e2e:
   # identical output to the vendored-ggml build).

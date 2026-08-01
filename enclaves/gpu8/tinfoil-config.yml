@@ -359,7 +359,7 @@ containers:
       # chunks and verifies k+1 <= 17, so 128 is the widest batch a guest can
       # produce; ~0.76 GB reclaimed at zero functional cost. Over-wide batches
       # fail fast with an explicit message. See the gpu flavor for detail.
-      - ENCLAVE_GGML_N_BATCH: "128"
+      - ENCLAVE_GGML_N_BATCH: "512"   # 2026-08-01, was 128 — see the gpu flavor; binds at creation only
       # Concurrent sequences per model per tenant process. Since the batched
       # (pooled) wasmtime toolchain (the -batch1 ELL repin) every model serves
       # ALL its concurrent chats from ONE shared KV pool of N_CTX tokens,
