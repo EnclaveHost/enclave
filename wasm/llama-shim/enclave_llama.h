@@ -235,6 +235,11 @@ void ell_mtp_reset(void *m, int32_t seq);
  *                 pageable memory; out = [pinned_ok, pinned_us, pageable_us].
  *                 The CVM-side answer to "why do multi-row logits copies
  *                 cost ~20ms under confidential compute". 0 ok, -1 no GPU. */
+/* ell_graph_perf  [build_us, sched_alloc_us, set_inputs_us, slot_state]
+ *                 from llama_graph_perf; micros read-and-clear, slot_state
+ *                 persistent (0/1/-1). 0 ok, -1 null ctx. */
+int32_t ell_graph_perf(void *ctx, int64_t *out);
+
 int32_t ell_d2h_probe(int32_t size_mb, int64_t *out);
 
 int32_t ell_mtmd_caps_file(const char *mmproj_path);
