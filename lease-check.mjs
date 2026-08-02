@@ -1,14 +1,22 @@
 import { createPublicClient, http, fallback } from "viem";
 import { base } from "viem/chains";
 const c = createPublicClient({ chain: base, transport: fallback(["https://base-rpc.publicnode.com","https://mainnet.base.org"].map(u=>http(u))) });
+// Resolve the ledger through the address book — a hardcoded deployments
+// address goes stale on every schema redeploy (this script once pointed at a
+// ledger whose newest lease was two weeks old and read "fleet empty").
+const bookAbi = [{ type: "function", name: "all", stateMutability: "view", inputs: [], outputs: [{ type: "bytes32[]" }, { type: "address[]" }] }];
+const [keys, values] = await c.readContract({ address: "0xab214342d5A490150A4A977063A2f88E21F80907", abi: bookAbi, functionName: "all" });
+let A;
+keys.forEach((kh, i) => { let k = ""; for (let b = 2; b < kh.length; b += 2) { const ch = parseInt(kh.slice(b, b + 2), 16); if (!ch) break; k += String.fromCharCode(ch); } if (k === "deployments") A = values[i]; });
+if (!A) throw new Error("address book has no 'deployments' entry");
 const TUPLE = [["id","bytes32"],["owner","address"],["appRef","string"],["ports","string"],["configCid","string"],["gpuMilli","uint16"],["cpuMilli","uint16"],["appPort","uint32"],["isPublic","bool"],["active","bool"],["createdAt","uint64"],["rate","uint256"],["balance6","uint256"],["spent6","uint256"],["runner","bytes32"],["runnerOperator","address"],["leaseUntil","uint64"]].map(([name,type])=>({name,type}));
 const abi = [{type:"function",name:"count",stateMutability:"view",inputs:[],outputs:[{type:"uint256"}]},{type:"function",name:"getPage",stateMutability:"view",inputs:[{type:"uint256"},{type:"uint256"}],outputs:[{type:"tuple[]",components:TUPLE}]}];
-const A = "0x0A7dE5D205c10B812AbaF0b89f3A243466bCEe01";
 const n = Number(await c.readContract({address:A,abi,functionName:"count"}));
 const rows = [];
 for (let s=0;s<n;s+=50) rows.push(...await c.readContract({address:A,abi,functionName:"getPage",args:[BigInt(s),50n]}));
 const now = Math.floor(Date.now()/1000);
 const live = rows.filter(d=>d.active && Number(d.leaseUntil)>now);
 const queued = rows.filter(d=>d.active && Number(d.rate)>0 && Number(d.balance6)>=Number(d.rate) && Number(d.leaseUntil)<=now);
-console.log("leased:", live.map(d=>`${d.id.slice(0,10)} gpu=${d.gpuMilli/1000}`).join("  "));
+console.log("ledger:", A, "rows:", n);
+console.log("leased:", live.map(d=>`${d.id.slice(0,10)} gpu=${d.gpuMilli/1000}`).join("  ") || "none");
 console.log("queued:", queued.map(d=>`${d.id.slice(0,10)} gpu=${d.gpuMilli/1000} $${(Number(d.balance6)/1e6).toFixed(2)}`).join("  ") || "none");
