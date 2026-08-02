@@ -116,7 +116,8 @@ jobs:
           # LLAMA_GRAPH_SLOT_ALT=0 = config-only rollback. Details in the
           # patch header.
           git apply "$GITHUB_WORKSPACE/wasm/llamacpp-graph-slot.patch"
-          grep -q "ensure_sched_alt" src/llama-context.cpp || { echo "::error::graph-slot patch did not apply"; exit 1; }
+          grep -q "ensure_slot_alt" src/llama-context.cpp || { echo "::error::graph-slot patch did not apply"; exit 1; }
+          grep -q "GRAPH_SLOTS_ALT" src/llama-context.h || { echo "::error::graph-slot ring hunk did not apply"; exit 1; }
           grep -q "llama_graph_perf" include/llama.h || { echo "::error::graph-perf hunk did not apply"; exit 1; }
           # mm7 VERDICT (2026-08-02, canary with per-verb timing): shape-keyed
           # graph slots were retried (mm7 = mm4 + slot cap + kill-switch) after
