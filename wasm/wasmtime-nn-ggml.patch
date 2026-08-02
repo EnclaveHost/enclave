@@ -106,6 +106,13 @@
 # I32 [1] (wall time of the whole compute call, lock waits included) to the
 # outputs. The per-verb instrument that replaced guessing at the speculative
 # round-cost decomposition; costs one Instant::now when unused.
+#
+# 2026-08-02 d2h_probe verb: {"d2h_probe": I32 [size_mb]} -> "d2h" I32
+# [pinned_ok, pinned_us, pageable_us], backed by the shim's ell_d2h_probe.
+# Times a real device->host copy both ways from inside the CVM - the only
+# way to see whether ggml-cuda's pinned host buffer silently demoted to
+# pageable under SEV-SNP (the standing suspect for the flat ~20-26ms
+# multi-row logits-copy tax that killed speculation economics).
 diff --git a/Cargo.lock b/Cargo.lock
 index 6ffaac1..3c68c51 100644
 --- a/Cargo.lock
@@ -168,10 +175,10 @@ index b2db808..af89d10 100644
  
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
 new file mode 100644
-index 0000000..d1dbac4
+index 0000000..14d70b7
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,1655 @@
+@@ -0,0 +1,1685 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -304,6 +311,7 @@ index 0000000..d1dbac4
 +    fn ell_tokenize(model: *mut c_void, text: *const i8, text_len: i32,
 +                    out_ids: *mut i32, out_cap: i32) -> i32;
 +    fn ell_token_piece(model: *mut c_void, id: i32, buf: *mut i8, cap: i32) -> i32;
++    fn ell_d2h_probe(size_mb: i32, out: *mut i64) -> i32;
 +    fn ell_free_context(ctx: *mut c_void);
 +    fn ell_reset(ctx: *mut c_void);
 +    fn ell_new_server(
@@ -1488,6 +1496,35 @@ index 0000000..d1dbac4
 +                // lookup - no decode turn, safe concurrently. Saves guests
 +                // the multi-MB tokenizer.json parse every fresh instance
 +                // paid (~535ms of TTFT measured 2026-08-01).
++                // {"d2h_probe": I32 [size_mb]} -> "d2h" I32 [pinned_ok,
++                // pinned_us, pageable_us]: times a device->host copy of
++                // size_mb into pinned (if the device host buffer type
++                // allocates) and plain pageable memory. The CVM-side
++                // measurement behind the 2026-08-02 multi-token-pass
++                // post-mortem: llama's logits buffer wants pinned memory
++                // but ggml-cuda silently demotes to pageable when
++                // cudaMallocHost fails, and only this number says which
++                // path this enclave actually runs. Read-only wrt sessions,
++                // safe concurrently.
++                if let Some(pv) = inputs.iter().find(|nt| nt.name == "d2h_probe") {
++                    let size_mb = pv.tensor.data.get(0..4)
++                        .map(|b| i32::from_le_bytes([b[0], b[1], b[2], b[3]]))
++                        .unwrap_or(4);
++                    let mut out = [0i64; 3];
++                    let rc = unsafe { ell_d2h_probe(size_mb, out.as_mut_ptr()) };
++                    if rc != 0 {
++                        return Err(err("d2h probe failed (no GPU device or allocation failure)"));
++                    }
++                    let vals: Vec<i32> = out.iter().map(|&v| v.clamp(i32::MIN as i64, i32::MAX as i64) as i32).collect();
++                    let mut data = Vec::with_capacity(12);
++                    for v in &vals {
++                        data.extend_from_slice(&v.to_le_bytes());
++                    }
++                    return Ok(Some(vec![NamedTensor {
++                        name: "d2h".to_string(),
++                        tensor: Tensor { dimensions: vec![3], ty: TensorType::I32, data },
++                    }]));
++                }
 +                if let Some(tv) = inputs.iter().find(|nt| nt.name == "tokenize") {
 +                    let text = tv.tensor.data.clone();
 +                    let mut cap = text.len() as i32 + 64;
