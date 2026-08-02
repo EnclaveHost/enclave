@@ -1,0 +1,161 @@
+CUDA graph pointer-update path - mm13, the mechanism that lets batched
+passes replay instead of running as thousands of individual launches.
+
+The 2026-08-02 instrumentation campaign ended here: a speculative verify
+pass costs ~45ms against a 15.5ms graph-replayed single-token step, and
+every candidate for that gap was measured innocent except one - batched
+passes NEVER run as CUDA graphs. The mechanism, from source + fleet
+phase_us: llama's graph reuse keeps cgraph->uid stable for the 1-token
+path, so ggml-cuda skips its property check and replays. A speculative
+verify instead rebuilds its graph every round (its scratch KV branch -
+seq_rm + seq_cp, the design hybrid-SSM models force, changes the memory
+state so llm_graph_result::can_reuse fails), so the uid changes, the
+node properties differ, and the stock warmup gate - which demands
+consecutive property-stable calls before capturing - never completes.
+The pass then executes directly: ~2500 kernel launches, and launch
+overhead is the dominant cost under SEV-SNP confidential compute.
+
+But the properties that differ are only the DATA POINTERS: same ops,
+same shapes, same strides, same op_params - the KV cache simply lives at
+new addresses. That is precisely the case cudaGraphExecUpdate exists
+for, and ggml already calls it (ggml_cuda_graph_update_executable) when
+a capture is refreshed; the gate just never lets execution reach it.
+
+Change 1: ggml_cuda_graph_update_required() gains an out-param that
+classifies a change as topology (node count, op, type, ne, nb,
+op_params, src ne/nb) versus data-pointer-only.
+
+Change 2: the warmup gate treats a pointer-only change as capturable -
+warmup completes, the graph is re-captured and cudaGraphExecUpdate
+patches the new addresses into the existing executable (its existing
+failure path already falls back to re-instantiate, so a violated
+constraint degrades to stock behavior rather than breaking). Topology
+changes still reset warmup exactly as before.
+
+GGML_CUDA_GRAPH_PTR_UPDATE=0 restores stock behavior (config-only
+rollback, no rebuild).
+diff --git a/ggml/src/ggml-cuda/ggml-cuda.cu b/ggml/src/ggml-cuda/ggml-cuda.cu
+index 561ab7a..ad8ed1e 100644
+--- a/ggml/src/ggml-cuda/ggml-cuda.cu
++++ b/ggml/src/ggml-cuda/ggml-cuda.cu
+@@ -2546,8 +2546,18 @@ static const void * ggml_cuda_graph_get_key(ggml_cgraph * cgraph) {
+     return cgraph->nodes[0];
+ }
+ 
+-static bool ggml_cuda_graph_update_required(ggml_backend_cuda_context * cuda_ctx, ggml_cgraph * cgraph) {
++// enclave mm13: the caller needs to know WHY properties changed. A graph
++// whose topology is unchanged but whose data pointers moved (llama rebuilt
++// the graph for a speculative verify on a scratch branch: same ops, same
++// shapes, new KV addresses) can be re-captured and patched into the
++// existing executable via cudaGraphExecUpdate - orders of magnitude
++// cheaper than the thousands of individual kernel launches that direct
++// execution costs under confidential compute. A topology change (node
++// count, ops, shapes, strides) still forces the stock warmup reset.
++static bool ggml_cuda_graph_update_required(ggml_backend_cuda_context * cuda_ctx, ggml_cgraph * cgraph,
++                                            bool * topology_changed = nullptr) {
+     bool res = false;
++    bool topo = false;
+ 
+     const void * graph_key = ggml_cuda_graph_get_key(cgraph);
+     ggml_cuda_graph * graph = cuda_ctx->cuda_graph(graph_key);
+@@ -2556,6 +2566,9 @@ static bool ggml_cuda_graph_update_required(ggml_backend_cuda_context * cuda_ctx
+         cgraph->uid == graph->uid) {
+         GGML_LOG_DEBUG("CUDA Graph id %zu reused\n", cgraph->uid);
+         GGML_ASSERT((int)graph->node_props.size() == cgraph->n_nodes);
++        if (topology_changed) {
++            *topology_changed = false;
++        }
+         return false;
+     }
+ 
+@@ -2563,7 +2576,8 @@ static bool ggml_cuda_graph_update_required(ggml_backend_cuda_context * cuda_ctx
+ 
+     // Check if the graph size has changed
+     if ((int)graph->node_props.size() != cgraph->n_nodes) {
+-        res = true;
++        res  = true;
++        topo = true;
+         graph->node_props.resize(cgraph->n_nodes);
+     }
+ 
+@@ -2580,11 +2594,29 @@ static bool ggml_cuda_graph_update_required(ggml_backend_cuda_context * cuda_ctx
+         }
+ 
+         if (res || memcmp(&graph->node_props[i], &prop, sizeof(prop)) != 0) {
++            if (!topo) {
++                // classify: everything except the data pointers must match for
++                // this to be a pointer-only change that ExecUpdate can patch
++                const ggml_cuda_graph::node_properties & old_prop = graph->node_props[i];
++                if (old_prop.node.op   != prop.node.op   ||
++                    old_prop.node.type != prop.node.type ||
++                    memcmp(old_prop.node.ne, prop.node.ne, sizeof(prop.node.ne)) != 0 ||
++                    memcmp(old_prop.node.nb, prop.node.nb, sizeof(prop.node.nb)) != 0 ||
++                    memcmp(old_prop.node.op_params, prop.node.op_params, sizeof(prop.node.op_params)) != 0 ||
++                    memcmp(old_prop.node_src_ne, prop.node_src_ne, sizeof(prop.node_src_ne)) != 0 ||
++                    memcmp(old_prop.node_src_nb, prop.node_src_nb, sizeof(prop.node_src_nb)) != 0) {
++                    topo = true;
++                }
++            }
+             graph->node_props[i] = prop;
+             res = true;
+         }
+     }
+ 
++    if (topology_changed) {
++        *topology_changed = topo;
++    }
++
+     return res;
+ }
+ 
+@@ -4129,7 +4161,24 @@ static enum ggml_status ggml_backend_cuda_graph_compute(ggml_backend_t backend,
+     if (graph->is_enabled()) {
+         const bool graph_compatible = ggml_cuda_graph_check_compability(cgraph);
+         if (graph_compatible) {
+-            const bool properties_changed = ggml_cuda_graph_update_required(cuda_ctx, cgraph);
++            bool topology_changed = false;
++            const bool properties_changed = ggml_cuda_graph_update_required(cuda_ctx, cgraph, &topology_changed);
++
++            // enclave mm13: pointer-only churn is patchable. Speculative
++            // verify passes rebuild their graph every round on a scratch KV
++            // branch, so properties differ every call and the stock gate
++            // never completes warmup - the pass then runs as thousands of
++            // individual launches, which is the dominant cost under
++            // confidential compute. When the topology is identical we let
++            // capture proceed and cudaGraphExecUpdate patch the new
++            // addresses into the existing executable (ExecUpdate failure
++            // already falls back to re-instantiate). GGML_CUDA_GRAPH_PTR_UPDATE=0
++            // restores stock behavior.
++            static const bool ptr_update = [] {
++                const char * e = getenv("GGML_CUDA_GRAPH_PTR_UPDATE");
++                return !(e && atoi(e) == 0);
++            }();
++            const bool patchable = ptr_update && properties_changed && !topology_changed;
+ 
+             if (!graph->warmup_complete) {
+                 // Warmup: need at least 2 calls with no property change on the 2nd call
+@@ -4138,11 +4187,22 @@ static enum ggml_status ggml_backend_cuda_graph_compute(ggml_backend_t backend,
+                     GGML_LOG_DEBUG("%s: CUDA graph warmup complete\n", __func__);
+                     use_cuda_graph = true;
+                     cuda_graph_update_required = true;
++                } else if (patchable && graph->node_props.size() > 0) {
++                    // same shape as last call, only addresses moved
++                    graph->warmup_complete = true;
++                    GGML_LOG_DEBUG("%s: CUDA graph warmup complete (pointer-update path)\n", __func__);
++                    use_cuda_graph = true;
++                    cuda_graph_update_required = true;
+                 }
+-                // else: properties changed or first call - execute directly (use_cuda_graph stays false)
++                // else: topology changed or first call - execute directly
+             } else {
+                 // Post-warmup: normal CUDA graph operation
+-                if (properties_changed) {
++                if (properties_changed && patchable) {
++                    // addresses moved but the graph is the same shape: capture
++                    // and patch rather than dropping back to direct execution
++                    use_cuda_graph = true;
++                    cuda_graph_update_required = true;
++                } else if (properties_changed) {
+                     // Properties changed - reset warmup, execute directly until stable again
+                     graph->warmup_complete = false;
+                     GGML_LOG_DEBUG("%s: CUDA graph warmup reset\n", __func__);

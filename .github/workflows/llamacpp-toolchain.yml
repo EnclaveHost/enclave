@@ -44,7 +44,7 @@ on:
       release_tag:
         description: "Release tag for the lib tarball (created if missing; use a FRESH tag)"
         required: true
-        default: "enclave-llamacpp-ddd4ec14-mm12"
+        default: "enclave-llamacpp-ddd4ec14-mm13"
 
 env:
   # pinned llama.cpp revision - the one the shim + backend were validated
@@ -118,6 +118,17 @@ jobs:
           git apply "$GITHUB_WORKSPACE/wasm/llamacpp-graph-slot.patch"
           grep -q "ensure_slot_alt" src/llama-context.cpp || { echo "::error::graph-slot patch did not apply"; exit 1; }
           grep -q "GRAPH_SLOTS_ALT" src/llama-context.h || { echo "::error::graph-slot ring hunk did not apply"; exit 1; }
+          # mm13 CUDA graph pointer-update path: batched passes (speculative
+          # verifies) rebuild their graph every round on a scratch KV branch,
+          # so the stock warmup gate never captures and the pass runs as
+          # ~2500 individual launches - the dominant cost under SEV-SNP. The
+          # differing properties are only DATA POINTERS, which is exactly
+          # what cudaGraphExecUpdate patches (ggml already calls it). This
+          # classifies topology-vs-pointer changes and lets the pointer-only
+          # case capture + patch. GGML_CUDA_GRAPH_PTR_UPDATE=0 = stock.
+          git apply "$GITHUB_WORKSPACE/wasm/llamacpp-cuda-graph-ptr-update.patch"
+          grep -q "GGML_CUDA_GRAPH_PTR_UPDATE" ggml/src/ggml-cuda/ggml-cuda.cu || { echo "::error::ptr-update patch did not apply"; exit 1; }
+          grep -q "topology_changed" ggml/src/ggml-cuda/ggml-cuda.cu || { echo "::error::ptr-update classifier hunk did not apply"; exit 1; }
           grep -q "llama_graph_perf" include/llama.h || { echo "::error::graph-perf hunk did not apply"; exit 1; }
           # mm7 VERDICT (2026-08-02, canary with per-verb timing): shape-keyed
           # graph slots were retried (mm7 = mm4 + slot cap + kill-switch) after
