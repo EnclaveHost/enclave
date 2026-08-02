@@ -44,7 +44,7 @@ on:
       release_tag:
         description: "Release tag for the lib tarball (created if missing; use a FRESH tag)"
         required: true
-        default: "enclave-llamacpp-ddd4ec14-mm7"
+        default: "enclave-llamacpp-ddd4ec14-mm6"
 
 env:
   # pinned llama.cpp revision - the one the shim + backend were validated
@@ -107,21 +107,21 @@ jobs:
           # so the BF16 traits (also CUBLAS_COMPUTE_32F) stay untouched.
           sed -i '/struct batched_mul_mat_traits<GGML_TYPE_F32>/,/};/ s/compute_type = CUBLAS_COMPUTE_32F;/compute_type = CUBLAS_COMPUTE_32F_FAST_TF32;/' ggml/src/ggml-cuda/ggml-cuda.cu
           grep -q "CUBLAS_COMPUTE_32F_FAST_TF32" ggml/src/ggml-cuda/ggml-cuda.cu || { echo "::error::sd19 TF32 patch did not apply (struct/line moved)"; exit 1; }
-          # mm7 shape-keyed CUDA graph slots + capture gate + slot cap. This
-          # REVIVES the mm3/mm4 experiment the mm5 revert concluded - because
-          # the world changed under the revert's verdict: the "guest-side
-          # verify sampling" tax it named was since killed by host-side topk
-          # sparse logits, the mislabeled "expert physics" turned out to be a
-          # flat ~40-47ms un-graphed-pass tax (fable-fusion is DENSE - the
-          # 2026-08-01 batch-cost curve), and p_min=0 fixed-k drafts make
-          # verify shapes constant, the one workload shape-keying serves.
-          # New vs mm4: a slot cap bounds the k16/p0.3 many-shapes regression
-          # by construction, and GGML_CUDA_GRAPH_SHAPES=0 is a wholesale
-          # kill-switch. Rationale + measurements in the patch header and the
-          # enclave-ggml-backend memory.
-          git apply "$GITHUB_WORKSPACE/wasm/llamacpp-cuda-graph-mm7.patch"
-          grep -q "enclave shape-keyed slots" ggml/src/ggml-cuda/ggml-cuda.cu || { echo "::error::mm7 graph patch did not apply"; exit 1; }
-          grep -q "GGML_CUDA_GRAPH_SLOTS" ggml/src/ggml-cuda/common.cuh || { echo "::error::mm7 slot-cap hunk did not apply"; exit 1; }
+          # mm7 VERDICT (2026-08-02, canary with per-verb timing): shape-keyed
+          # graph slots were retried (mm7 = mm4 + slot cap + kill-switch) after
+          # topk sparse logits removed the sampling tax the mm5 revert blamed.
+          # REFUTED AGAIN, now with the mechanism pinned: the flat ~44ms cost
+          # of every multi-token pass is KERNEL-RESIDENT (the hybrid-SSM
+          # small-batch path does fixed per-pass kernel work), not
+          # launch-resident - fixed-shape k2 verify passes still averaged
+          # 51.5ms under mm7 (capture would have collapsed the mean to ~20ms),
+          # and the k16/p0.3 live-config guard sat at the mm4 regression level.
+          # Launch tax is only the ~5-8ms warmup-vs-replay delta on batch-1.
+          # Stock graph code is the known-good state; speculation on this arch
+          # needs kernel surgery (fused small-batch scan), not graph plumbing.
+          # History: wasm/llamacpp-cuda-graph-mm7.patch (deleted with this
+          # revert), the mm5 revert before it, and the enclave-ggml-backend
+          # memory.
 
       - name: Build (Release, CUDA, shared libs, sm_86+sm_90, portable CPU)
         run: |
