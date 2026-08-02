@@ -1,0 +1,41 @@
+# Integrity check for the wasmtime patch stack. The 8 patches only ever get
+# applied for real inside a MANUAL "Wasmtime Toolchain" dispatch, so a patch
+# edited out of sync with its siblings (they share files - nn-ggml applies
+# 5th, the arbiter LAST, both touch ggml.rs) would sit broken on main until
+# the next dispatch failed mid-cascade. This applies the full stack in
+# Dockerfile order against the pinned wasmtime tag on every patch change -
+# minutes-cheap, catches bitrot at the PR/push instead of the build.
+name: wasmtime patch stack
+
+on:
+  push:
+    branches: [main]
+    paths: ["wasm/*.patch", ".github/workflows/wasmtime-patch-check.yml"]
+  pull_request:
+    paths: ["wasm/*.patch"]
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Clone wasmtime at the pinned tag
+        run: |
+          # tag must match Dockerfile.wasmtime's checkout
+          git clone --depth 1 --branch v45.0.0 https://github.com/bytecodealliance/wasmtime /tmp/wasmtime
+      - name: Apply the stack in Dockerfile order
+        run: |
+          cd /tmp/wasmtime
+          # order is load-bearing: later patches assume earlier hunks exist
+          for p in wasmtime-onnx-gpu-strict wasmtime-vault-fs wasmtime-egress \
+                   wasmtime-loopback wasmtime-nn-ggml wasmtime-nn-sdcpp \
+                   wasmtime-nn-onnx-preload wasmtime-nn-arbiter; do
+            git apply --check "$GITHUB_WORKSPACE/wasm/$p.patch" \
+              || { echo "::error::$p.patch no longer applies (stack order or upstream drift)"; exit 1; }
+            git apply "$GITHUB_WORKSPACE/wasm/$p.patch"
+            echo "applied $p"
+          done
