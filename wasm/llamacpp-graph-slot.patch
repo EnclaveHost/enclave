@@ -11,8 +11,9 @@ why the mm7 shape-keyed-capture experiment measured no gain). The mm9
 fleet decomposition pinned 37-50ms of every verify inside llama_decode
 with every other suspect measured innocent.
 
-Change 1 (slot): ubatches of 2..16 tokens get their own
-llm_graph_result + ggml_backend_sched pair, created lazily on first use
+Change 1 (slot RING): ubatches of 2..8 tokens get a small LRU ring of
+llm_graph_result + ggml_backend_sched pairs (GRAPH_SLOTS_ALT = 3),
+keyed by EXACT token count and created lazily on first use
 (non-speculative workloads never pay the extra compute buffer, which is
 reserved at the slot's 16-token worst case, far below the primary's
 prefill-sized arena). Each slot's own sched pool also hands CUDA-graph
@@ -22,6 +23,18 @@ that ran; both slots reset on memory updates. Local proof (0.8b,
 alternating b1/b5 x100): build+alloc 0.123+0.125ms/pass -> 0.008+0.006,
 greedy argmax chain BIT-IDENTICAL to the single-slot path.
 LLAMA_GRAPH_SLOT_ALT=0 disables wholesale (config-only rollback).
+
+Why a ring and not one slot (measured on the fleet, 2026-08-02): with a
+single alt slot the CVM still paid gbuild 1.9-2.9ms + galloc 1.5-2.1ms
+on EVERY verify, because a speculative round does not use one shape -
+it interleaves verify(k+1), partial-accept re-feeds of 1..k tokens, and
+(prompt-lookup) variable draft lengths, so the one-deep cache thrashed
+exactly like the shared slot. The same fleet run proved the slot itself
+engages (slot_state=1 on 110/110 verifies) and that CVM vCPUs build
+graphs ~1000x slower than a desktop (0.008ms -> 2-3ms), which is why
+this term is invisible locally and dominant in the enclave. Local
+3-shape mix (b1/b2/b3 interleaved, CPU-only build): build+alloc
+0.335+0.198ms/pass -> 0.008+0.005, argmax chain bit-identical.
 
 Change 2 (instrumentation): llama_graph_perf(ctx, out[3]) - cumulative
 read-and-clear micros of [build_graph, sched_alloc, set_inputs] inside
@@ -44,86 +57,105 @@ index 6e53e22..4fcfa69 100644
      LLAMA_API void                           llama_perf_context_print(const struct llama_context * ctx);
      LLAMA_API void                           llama_perf_context_reset(      struct llama_context * ctx);
 diff --git a/src/llama-context.cpp b/src/llama-context.cpp
-index 5ef7bec..0ef88b3 100644
+index 5ef7bec..372588a 100644
 --- a/src/llama-context.cpp
 +++ b/src/llama-context.cpp
-@@ -703,6 +703,9 @@ void llama_context::synchronize() {
+@@ -703,6 +703,11 @@ void llama_context::synchronize() {
      }
  
      ggml_backend_sched_synchronize(sched.get());
-+    if (sched_alt) {
-+        ggml_backend_sched_synchronize(sched_alt.get());
++    for (auto & sl : slots_alt) {
++        if (sl.sched) {
++            ggml_backend_sched_synchronize(sl.sched.get());
++        }
 +    }
  
      // FIXME: if multiple single tokens are evaluated without a synchronization,
      // the stats will be added to the prompt evaluation stats
-@@ -804,6 +807,9 @@ bool llama_context::memory_update(bool optimize) {
+@@ -804,6 +809,11 @@ bool llama_context::memory_update(bool optimize) {
          // TODO: change the mctx->apply() to return information if a graph reserve is needed
          //       reset the graph result only if the memory module did reset the scheduler
          gf_res_prev->reset();
-+        if (gf_res_alt) {
-+            gf_res_alt->reset();
++        for (auto & sl : slots_alt) {
++            if (sl.res) {
++                sl.res->reset();
++            }
 +        }
  
          if (!mctx->apply()) {
              LLAMA_LOG_ERROR("%s: failed to apply memory update\n", __func__);
-@@ -1317,6 +1323,55 @@ bool llama_context::set_adapter_cvec(
+@@ -1317,6 +1327,70 @@ bool llama_context::set_adapter_cvec(
      return res;
  }
  
-+bool llama_context::ensure_sched_alt() {
-+    // LLAMA_GRAPH_SLOT_ALT=0 disables the slot wholesale (config-only
++llama_context::alt_slot * llama_context::ensure_slot_alt(uint32_t n_tokens) {
++    // LLAMA_GRAPH_SLOT_ALT=0 disables the ring wholesale (config-only
 +    // rollback lever, mirrors LLAMA_GRAPH_REUSE_DISABLE).
 +    static const bool disabled = [] {
 +        const char * e = getenv("LLAMA_GRAPH_SLOT_ALT");
 +        return e && atoi(e) == 0;
 +    }();
 +    if (disabled) {
-+        return false;
-+    }
-+    if (sched_alt) {
-+        return true;
++        return nullptr;
 +    }
 +    if (backend_ptrs.empty()) {
-+        return false;
++        return nullptr;
 +    }
-+    // lazily build the small-batch slot: its own sched (own compute-buffer
-+    // arena - also a stable base for CUDA-graph capture) reserved at the
-+    // slot's worst case of 16 tokens, so the extra VRAM stays far below the
-+    // primary's prefill-sized buffer. Failure leaves sched_alt null and the
-+    // caller falls back to the shared slot (upstream behavior).
-+    const size_t max_nodes = this->graph_max_nodes(8);
-+    gf_res_alt.reset(new llm_graph_result(max_nodes));
-+    sched_alt.reset(ggml_backend_sched_new(backend_ptrs.data(), backend_buft.data(), backend_ptrs.size(), max_nodes, false, cparams.op_offload));
++    slot_tick++;
++    // exact-shape hit
++    for (auto & sl : slots_alt) {
++        if (sl.sched && sl.n_tokens == n_tokens) {
++            sl.last_use = slot_tick;
++            return &sl;
++        }
++    }
++    // miss: take an empty entry, else evict the LRU one
++    alt_slot * pick = nullptr;
++    for (auto & sl : slots_alt) {
++        if (!sl.sched) { pick = &sl; break; }
++    }
++    if (!pick) {
++        pick = &slots_alt[0];
++        for (auto & sl : slots_alt) {
++            if (sl.last_use < pick->last_use) pick = &sl;
++        }
++        pick->sched = nullptr;
++        pick->res = nullptr;
++    }
++    const size_t max_nodes = this->graph_max_nodes(n_tokens);
++    pick->res.reset(new llm_graph_result(max_nodes));
++    pick->sched.reset(ggml_backend_sched_new(backend_ptrs.data(), backend_buft.data(), backend_ptrs.size(), max_nodes, false, cparams.op_offload));
 +    llama_memory_context_ptr mctx;
 +    if (memory) {
 +        mctx = memory->init_full();
 +        if (!mctx) {
-+            sched_alt = nullptr;
-+            gf_res_alt = nullptr;
++            pick->sched = nullptr;
++            pick->res = nullptr;
 +            slot_alt_state = -1;
-+            return false;
++            return nullptr;
 +        }
 +    }
 +    const auto save_active = sched_active;
-+    auto * gf = graph_reserve(8, 1, 8, mctx.get(), false, nullptr, sched_alt.get());
++    auto * gf = graph_reserve(n_tokens, 1, n_tokens, mctx.get(), false, nullptr, pick->sched.get());
 +    sched_active = save_active;
 +    if (!gf) {
-+        LLAMA_LOG_WARN("%s: small-batch slot reserve failed - staying single-slot\n", __func__);
-+        sched_alt = nullptr;
-+        gf_res_alt = nullptr;
++        LLAMA_LOG_WARN("%s: graph-slot reserve failed for n_tokens=%u - shared slot fallback\n", __func__, n_tokens);
++        pick->sched = nullptr;
++        pick->res = nullptr;
 +        slot_alt_state = -1;
-+        return false;
++        return nullptr;
 +    }
-+    LLAMA_LOG_INFO("%s: small-batch graph slot ready (<=8 tokens)\n", __func__);
++    pick->n_tokens = n_tokens;
++    pick->last_use = slot_tick;
++    LLAMA_LOG_INFO("%s: graph slot ready for n_tokens=%u\n", __func__, n_tokens);
 +    slot_alt_state = 1;
-+    return true;
++    return pick;
 +}
 +
  llm_graph_result * llama_context::process_ubatch(const llama_ubatch & ubatch, llm_graph_type gtype, llama_memory_context_i * mctx, ggml_status & ret) {
      if (mctx && !mctx->apply()) {
          LLAMA_LOG_ERROR("%s: failed to apply memory context\n", __func__);
-@@ -1324,7 +1379,14 @@ llm_graph_result * llama_context::process_ubatch(const llama_ubatch & ubatch, ll
+@@ -1324,7 +1398,15 @@ llm_graph_result * llama_context::process_ubatch(const llama_ubatch & ubatch, ll
          return nullptr;
      }
  
@@ -132,14 +164,15 @@ index 5ef7bec..0ef88b3 100644
 +    // verify/re-feed shapes) to their own graph slot so alternation with
 +    // 1-token steps stops thrashing one shared cache. Slot selection must
 +    // happen BEFORE graph_params: the params embed the sched.
-+    const bool use_alt = ubatch.n_tokens >= 2 && ubatch.n_tokens <= 8 && ensure_sched_alt();
-+    sched_active = use_alt ? sched_alt.get() : sched.get();
++    alt_slot * slot = (ubatch.n_tokens >= 2 && ubatch.n_tokens <= 8)
++        ? ensure_slot_alt(ubatch.n_tokens) : nullptr;
++    sched_active = slot ? slot->sched.get() : sched.get();
 +
-+    auto * res = use_alt ? gf_res_alt.get() : gf_res_prev.get();
++    auto * res = slot ? slot->res.get() : gf_res_prev.get();
      auto * gf  = res->get_gf();
  
      // the new graph parameters
-@@ -1338,21 +1400,21 @@ llm_graph_result * llama_context::process_ubatch(const llama_ubatch & ubatch, ll
+@@ -1338,21 +1420,21 @@ llm_graph_result * llama_context::process_ubatch(const llama_ubatch & ubatch, ll
          // on the GPU. we must synchronize before set_inputs to avoid overwriting input tensors
          // that the previous compute is still reading.
          if (cparams.pipeline_parallel) {
@@ -166,7 +199,7 @@ index 5ef7bec..0ef88b3 100644
  
          if (!gf) {
              LLAMA_LOG_ERROR("%s: failed to initialize graph\n", __func__);
-@@ -1360,11 +1422,13 @@ llm_graph_result * llama_context::process_ubatch(const llama_ubatch & ubatch, ll
+@@ -1360,11 +1442,13 @@ llm_graph_result * llama_context::process_ubatch(const llama_ubatch & ubatch, ll
              return nullptr;
          }
  
@@ -181,7 +214,7 @@ index 5ef7bec..0ef88b3 100644
      }
  
      // set the input data for the input tensors
-@@ -1372,9 +1436,9 @@ llm_graph_result * llama_context::process_ubatch(const llama_ubatch & ubatch, ll
+@@ -1372,9 +1456,9 @@ llm_graph_result * llama_context::process_ubatch(const llama_ubatch & ubatch, ll
          //const auto t_start_us = ggml_time_us();
  
          // FIXME this call causes a crash if any model inputs were not used in the graph and were therefore not allocated
@@ -193,7 +226,7 @@ index 5ef7bec..0ef88b3 100644
      }
  
      const auto status = graph_compute(res->get_gf(), ubatch.n_tokens > 1);
-@@ -1474,7 +1538,7 @@ int llama_context::encode(const llama_batch & batch_inp) {
+@@ -1474,7 +1558,7 @@ int llama_context::encode(const llama_batch & batch_inp) {
  
      // extract logits
      if (logits.data && t_logits) {
@@ -202,7 +235,7 @@ index 5ef7bec..0ef88b3 100644
          GGML_ASSERT(backend_res != nullptr);
          GGML_ASSERT(logits.data != nullptr);
  
-@@ -1483,7 +1547,7 @@ int llama_context::encode(const llama_batch & batch_inp) {
+@@ -1483,7 +1567,7 @@ int llama_context::encode(const llama_batch & batch_inp) {
  
      // extract embeddings
      if (embd.data && t_embd) {
@@ -211,7 +244,7 @@ index 5ef7bec..0ef88b3 100644
          GGML_ASSERT(backend_embd != nullptr);
  
          switch (cparams.pooling_type) {
-@@ -1538,7 +1602,7 @@ int llama_context::encode(const llama_batch & batch_inp) {
+@@ -1538,7 +1622,7 @@ int llama_context::encode(const llama_batch & batch_inp) {
  
      // extract nextn embeddings (hidden state before the final output norm)
      if (embd_nextn.data && t_h_nextn && cparams.pooling_type == LLAMA_POOLING_TYPE_NONE) {
@@ -220,7 +253,7 @@ index 5ef7bec..0ef88b3 100644
          GGML_ASSERT(backend_h != nullptr);
  
          const uint32_t n_embd = hparams.n_embd_out();
-@@ -1913,7 +1977,7 @@ int llama_context::decode(const llama_batch & batch_inp) {
+@@ -1913,7 +1997,7 @@ int llama_context::decode(const llama_batch & batch_inp) {
  
          // extract logits
          if (logits.data && t_logits && n_outputs > 0 && needs_raw_logits(ubatch, sampling.samplers)) {
@@ -229,7 +262,7 @@ index 5ef7bec..0ef88b3 100644
              GGML_ASSERT(backend_res != nullptr);
              GGML_ASSERT(logits.data != nullptr);
  
-@@ -1928,7 +1992,7 @@ int llama_context::decode(const llama_batch & batch_inp) {
+@@ -1928,7 +2012,7 @@ int llama_context::decode(const llama_batch & batch_inp) {
  
          // extract embeddings
          if (embd.data && t_embd && n_outputs > 0) {
@@ -238,7 +271,7 @@ index 5ef7bec..0ef88b3 100644
              GGML_ASSERT(backend_embd != nullptr);
  
              switch (cparams.pooling_type) {
-@@ -1996,7 +2060,7 @@ int llama_context::decode(const llama_batch & batch_inp) {
+@@ -1996,7 +2080,7 @@ int llama_context::decode(const llama_batch & batch_inp) {
              const int64_t offset = masked ? n_outputs_prev  : n_tokens_prev;
  
              if (embd_nextn.data && t_h_nextn && n_rows > 0 && cparams.pooling_type == LLAMA_POOLING_TYPE_NONE) {
@@ -247,7 +280,7 @@ index 5ef7bec..0ef88b3 100644
                  GGML_ASSERT(backend_h != nullptr);
  
                  const uint32_t n_embd  = hparams.n_embd_out();
-@@ -2013,11 +2077,11 @@ int llama_context::decode(const llama_batch & batch_inp) {
+@@ -2013,11 +2097,11 @@ int llama_context::decode(const llama_batch & batch_inp) {
              const auto stride = n_vocab;
  
              // async copy the sampling data from the backend to the host
@@ -263,7 +296,7 @@ index 5ef7bec..0ef88b3 100644
          }
  
          n_outputs_prev += n_outputs;
-@@ -2268,7 +2332,7 @@ void llama_context::extract_layer_inputs(const llm_graph_result * res, size_t to
+@@ -2268,7 +2352,7 @@ void llama_context::extract_layer_inputs(const llm_graph_result * res, size_t to
          const size_t dst_offset = token_offset * row_floats;
          GGML_ASSERT(dst_offset + nfloats <= embd_layer_inp[il].size);
  
@@ -272,7 +305,7 @@ index 5ef7bec..0ef88b3 100644
          GGML_ASSERT(backend != nullptr);
          ggml_backend_tensor_get_async(backend, t, embd_layer_inp[il].data + dst_offset, 0, nbytes);
      }
-@@ -2367,7 +2431,7 @@ llm_graph_result * llama_context::get_gf_res_reserve() const {
+@@ -2367,7 +2451,7 @@ llm_graph_result * llama_context::get_gf_res_reserve() const {
  }
  
  ggml_cgraph * llama_context::graph_reserve(
@@ -281,28 +314,32 @@ index 5ef7bec..0ef88b3 100644
      LLAMA_LOG_DEBUG("%s: reserving a graph for ubatch with n_tokens = %4u, n_seqs = %2u, n_outputs = %4u\n", __func__, n_tokens, n_seqs, n_outputs);
      GGML_ASSERT(n_outputs >= 1);
  
-@@ -2376,10 +2440,17 @@ ggml_cgraph * llama_context::graph_reserve(
+@@ -2376,10 +2460,21 @@ ggml_cgraph * llama_context::graph_reserve(
          LLAMA_LOG_DEBUG("%s: making n_tokens a multiple of n_seqs - n_tokens = %u, n_seqs = %u, n_outputs = %u\n", __func__, n_tokens, n_seqs, n_outputs);
      }
  
 -    ggml_backend_sched_reset(sched.get());
 +    ggml_backend_sched_t su = sched_use ? sched_use : sched.get();
 +    sched_active = su;
++
++    ggml_backend_sched_reset(su);
  
 -    // when the scheduler is reset, we cannot reuse the old graph, so we reset the previous graph result to prevent that
 -    gf_res_prev->reset();
-+    ggml_backend_sched_reset(su);
-+
 +    // when the scheduler is reset, we cannot reuse the old graph, so we reset that slot's cached result to prevent reuse
 +    if (su == sched.get()) {
 +        gf_res_prev->reset();
-+    } else if (gf_res_alt) {
-+        gf_res_alt->reset();
++    } else {
++        for (auto & sl : slots_alt) {
++            if (sl.sched && sl.sched.get() == su && sl.res) {
++                sl.res->reset();
++            }
++        }
 +    }
  
      // store the n_outputs as it is, and restore it afterwards
      // TODO: not sure if needed, might simplify in the future by removing this
-@@ -2412,11 +2483,11 @@ ggml_cgraph * llama_context::graph_reserve(
+@@ -2412,11 +2507,11 @@ ggml_cgraph * llama_context::graph_reserve(
      // initialize scheduler with the specified graph
      if (split_only) {
          if (sizes) {
@@ -317,7 +354,7 @@ index 5ef7bec..0ef88b3 100644
          GGML_ASSERT(!sizes);
          LLAMA_LOG_ERROR("%s: failed to allocate compute buffers\n", __func__);
          return nullptr;
-@@ -2436,7 +2507,7 @@ llm_graph_params llama_context::graph_params(
+@@ -2436,7 +2531,7 @@ llm_graph_params llama_context::graph_params(
          /*.cparams     =*/ cparams,
          /*.ubatch      =*/ ubatch,
          /*.gtype       =*/ gtype,
@@ -326,7 +363,7 @@ index 5ef7bec..0ef88b3 100644
          /*.backend_cpu =*/ backend_cpu,
          /*.cvec        =*/ cvec.get(),
          /*.loras       =*/ loras.get(),
-@@ -2468,7 +2539,7 @@ ggml_status llama_context::graph_compute(
+@@ -2468,7 +2563,7 @@ ggml_status llama_context::graph_compute(
          set_n_threads_fn.second(set_n_threads_fn.first, n_threads);
      }
  
@@ -335,7 +372,7 @@ index 5ef7bec..0ef88b3 100644
      if (status != GGML_STATUS_SUCCESS) {
          LLAMA_LOG_ERROR("%s: ggml_backend_sched_graph_compute_async failed with error %d\n", __func__, status);
      }
-@@ -2496,7 +2567,7 @@ llm_graph_cb llama_context::graph_get_cb() const {
+@@ -2496,7 +2591,7 @@ llm_graph_cb llama_context::graph_get_cb() const {
                  for (const auto & backend : backends) {
                      if (ggml_backend_get_device(backend.get()) == dev_layer) {
                          if (ggml_backend_supports_op(backend.get(), cur)) {
@@ -344,7 +381,7 @@ index 5ef7bec..0ef88b3 100644
                          }
                      }
                  }
-@@ -4109,6 +4180,24 @@ int32_t llama_decode(
+@@ -4109,6 +4204,24 @@ int32_t llama_decode(
  // perf
  //
  
@@ -370,7 +407,7 @@ index 5ef7bec..0ef88b3 100644
      llama_perf_context_data data = {};
  
 diff --git a/src/llama-context.h b/src/llama-context.h
-index bf91daa..a403021 100644
+index bf91daa..a1a52bc 100644
 --- a/src/llama-context.h
 +++ b/src/llama-context.h
 @@ -187,6 +187,9 @@ struct llama_context {
@@ -392,7 +429,7 @@ index bf91daa..a403021 100644
  
      bool set_sampler(llama_seq_id seq_id, llama_sampler * sampler);
  
-@@ -367,6 +370,20 @@ private:
+@@ -367,6 +370,34 @@ private:
      llm_graph_result_ptr gf_res_prev;
      llm_graph_result_ptr gf_res_reserve;
  
@@ -403,17 +440,31 @@ index bf91daa..a403021 100644
 +    // gives capture a stable base address for free). Ubatches of 2..16
 +    // tokens get their own result+sched pair, created lazily so workloads
 +    // that never speculate never pay the extra compute buffer.
-+    llm_graph_result_ptr gf_res_alt;
-+    ggml_backend_sched_ptr sched_alt;
++    // mm12: the slot generalizes to a small RING keyed by ubatch token
++    // count. One slot was not enough: a speculative round interleaves its
++    // fixed verify shape (k+1 tokens) with partial-accept re-feeds (1..k
++    // tokens) and variable lookup drafts, and a one-deep cache thrashes on
++    // exactly that alternation (measured on the fleet: gbuild 2-3ms on
++    // every verify WITH the slot engaged). Each entry lazily reserves at
++    // its own token count, so small shapes stay cheap.
++    static constexpr int GRAPH_SLOTS_ALT = 3;
++    struct alt_slot {
++        llm_graph_result_ptr res;
++        ggml_backend_sched_ptr sched;
++        uint32_t n_tokens = 0;   // shape key; 0 = empty
++        uint64_t last_use = 0;   // LRU tick
++    };
++    alt_slot slots_alt[GRAPH_SLOTS_ALT];
++    uint64_t slot_tick = 0;
 +    ggml_backend_sched_t sched_active = nullptr; // sched of the current/last graph op
 +
 +    ggml_backend_sched_t sched_cur() const { return sched_active ? sched_active : sched.get(); }
-+    bool ensure_sched_alt();
++    alt_slot * ensure_slot_alt(uint32_t n_tokens);
 +
      // host buffer for the model output (logits and embeddings)
      ggml_backend_buffer_ptr buf_output;
  
-@@ -387,6 +404,17 @@ private:
+@@ -387,6 +418,17 @@ private:
      mutable int64_t t_compute_start_us = 0;
      mutable int64_t n_queued_tokens    = 0;
  
