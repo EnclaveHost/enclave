@@ -1,0 +1,120 @@
+Pinned recurrent state cells - mm14, the precondition for a speculative
+verify pass to reuse its graph at all.
+
+Chain of evidence from the 2026-08-02 campaign: a verify pass costs ~45ms
+against a 15.5ms graph-replayed single-token step; the gap is un-graphed
+kernel launches; launches persist because ggml-cuda never captures a
+batched graph; capture never happens because llama rebuilds the graph
+every verify; the rebuild happens because llm_graph_result::can_reuse
+fails - and on hybrid-SSM models it fails on exactly one condition,
+llm_graph_input_rs::can_reuse's `head == mctx->get_head()`.
+
+Why the head moves: enclave speculation verifies on a scratch branch
+(seq_rm + seq_cp per round, the design hybrid models force since partial
+rewind is impossible). Stock seq_cp gives the destination the SOURCE's
+tail cell, and find_slot's "gather and re-order" step then swaps cells so
+participating sequences sit contiguously - so the scratch sequence's
+recurrent cell index, and with it the memory head, changes every round.
+
+Change: pin each sequence's recurrent state cell to index == seq_id.
+  - seq_cp gives the destination its OWN pinned cell and records the
+    source in cell.src, which the graph's s_copy already honours as a
+    copy-on-write (rather than sharing the source's tail). It falls back
+    to the stock path when that index is owned by another sequence, so
+    the invariant "a cell's seq_id set matches its tail" always holds.
+  - find_slot prefers the sequence's pinned index when allocating a fresh
+    cell, and skips the gather/re-order swap for pinned cells.
+
+Validated on the real path (wasmtime + llm-chat + lookup drafting =
+branch verify, qwen3.5-0.8b hybrid, temperature 0): output byte-identical
+to stock, sha dea8944c8f5558f4 both ways. LLAMA_RS_PIN_CELLS=0 restores
+stock behavior without a rebuild.
+diff --git a/src/llama-memory-recurrent.cpp b/src/llama-memory-recurrent.cpp
+index ef82eb9..fcb6966 100644
+--- a/src/llama-memory-recurrent.cpp
++++ b/src/llama-memory-recurrent.cpp
+@@ -232,6 +232,17 @@ bool llama_memory_recurrent::seq_rm(llama_seq_id seq_id, llama_pos p0, llama_pos
+     return true;
+ }
+ 
++// enclave mm14: LLAMA_RS_PIN_CELLS=0 restores stock recurrent cell handling
++// (shared tails + gather/re-order swaps). On by default: pinned cells are
++// what let a speculative verify pass reuse its graph and replay.
++static bool rs_pin_cells() {
++    static const bool v = [] {
++        const char * e = getenv("LLAMA_RS_PIN_CELLS");
++        return !(e && atoi(e) == 0);
++    }();
++    return v;
++}
++
+ void llama_memory_recurrent::seq_cp(llama_seq_id seq_id_src, llama_seq_id seq_id_dst, llama_pos p0, llama_pos p1) {
+     if (seq_id_src == seq_id_dst) {
+         return;
+@@ -261,10 +272,38 @@ void llama_memory_recurrent::seq_cp(llama_seq_id seq_id_src, llama_seq_id seq_id
+             }
+         }
+         if (tail_src.tail >= 0) {
+-            auto & cell_src = cells[tail_src.tail];
++            const bool pin_ok = rs_pin_cells()
++                && (uint32_t) seq_id_dst < size
++                && (cells[seq_id_dst].is_empty()
++                    || (cells[seq_id_dst].seq_id.size() == 1
++                        && cells[seq_id_dst].has_seq_id(seq_id_dst)));
++            if (pin_ok) {
++                // enclave mm14: pinned cells - the destination keeps its OWN
++                // cell (index == seq_id) and records a copy-on-write source,
++                // which the graph's s_copy already honours. Sharing the
++                // source's tail (the stock path) makes the destination's cell
++                // index depend on the source, and the subsequent find_slot
++                // "gather and re-order" swap then moves it again - so the
++                // recurrent head moves every round, llm_graph_input_rs::
++                // can_reuse fails on `head == mctx->get_head()`, llama
++                // rebuilds the graph, and the CUDA layer can never replay a
++                // speculative verify. Pinning keeps head constant per
++                // sequence, which is the precondition for replay.
++                auto & cell_dst = cells[seq_id_dst];
++                cell_dst.src = tail_src.tail;
++                cell_dst.pos = cells[tail_src.tail].pos;
++                cell_dst.seq_id.clear();
++                cell_dst.seq_id.insert(seq_id_dst);
++                tail_dst.tail = seq_id_dst;
++                if (cell_dst.pos >= 0) {
++                    used += 1;
++                }
++            } else {
++                auto & cell_src = cells[tail_src.tail];
+ 
+-            cell_src.seq_id.insert(seq_id_dst);
+-            tail_dst.tail = tail_src.tail;
++                cell_src.seq_id.insert(seq_id_dst);
++                tail_dst.tail = tail_src.tail;
++            }
+         }
+     }
+ }
+@@ -577,6 +616,12 @@ bool llama_memory_recurrent::find_slot(const llama_ubatch & ubatch) {
+             if (cell.seq_id.size() == 1) { has_cell = true; }
+         }
+         if (!has_cell) {
++            // enclave mm14: prefer the sequence's pinned index (cell == seq_id)
++            // when it is free, so the recurrent head stops wandering between
++            // rounds; fall back to the rolling search when it is occupied.
++            if (rs_pin_cells() && (uint32_t) seq_id < size && cells[seq_id].is_empty()) {
++                next_empty_cell = seq_id;
++            }
+             auto & empty_cell = cells[next_empty_cell];
+             GGML_ASSERT(empty_cell.is_empty());
+             // copy old tail into the empty cell
+@@ -608,6 +653,11 @@ bool llama_memory_recurrent::find_slot(const llama_ubatch & ubatch) {
+         const uint32_t i = s*n_seq_tokens;
+         const int32_t dst_id = s + min;
+         const int32_t src_id = cells[ubatch.seq_id[i][0]].tail;
++        // enclave mm14: pinned cells already sit at their own index; swapping
++        // them is what makes the recurrent head wander between rounds.
++        if (rs_pin_cells() && dst_id != src_id) {
++            continue;
++        }
+         if (dst_id != src_id) {
+             auto & dst_cell = cells[dst_id];
+             auto & src_cell = cells[src_id];
