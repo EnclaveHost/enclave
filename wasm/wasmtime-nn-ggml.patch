@@ -183,10 +183,10 @@ index b2db808..af89d10 100644
  
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
 new file mode 100644
-index 0000000..1d3b87c
+index 0000000..a800040
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,1727 @@
+@@ -0,0 +1,1737 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -320,6 +320,7 @@ index 0000000..1d3b87c
 +                    out_ids: *mut i32, out_cap: i32) -> i32;
 +    fn ell_token_piece(model: *mut c_void, id: i32, buf: *mut i8, cap: i32) -> i32;
 +    fn ell_d2h_probe(size_mb: i32, out: *mut i64) -> i32;
++    fn ell_graph_perf(ctx: *mut c_void, out: *mut i64) -> i32;
 +    fn ell_free_context(ctx: *mut c_void);
 +    fn ell_reset(ctx: *mut c_void);
 +    fn ell_new_server(
@@ -778,11 +779,14 @@ index 0000000..1d3b87c
 +    /// deliberately do NOT take the decode turn — a tiny head step may
 +    /// overlap another stream's trunk decode on the GPU.
 +    mtp: Mutex<Option<MtpHandle>>,
-+    /// mm9: [gate_us, alloc_us, turn_us, decode_us, harvest_us] of the
-+    /// LAST submit_full - single-decode serialization makes "last"
-+    /// well-defined for the verb that just ran. turn_us is written by the
-+    /// arbiter layer (its patch applies above this one); 0 without it.
-+    last_phases: Mutex<[i64; 5]>,
++    /// mm9/mm11: [gate_us, alloc_us, turn_us, decode_us, harvest_us,
++    /// gbuild_us, galloc_us, ginput_us, slot_state] of the LAST
++    /// submit_full - single-decode serialization makes "last" well-defined
++    /// for the verb that just ran. turn_us is written by the arbiter layer
++    /// (its patch applies above this one); 0 without it. The g* tail comes
++    /// from llama_graph_perf: whether llama's small-batch graph slot
++    /// engaged (slot_state 1) and what the CPU-side stages cost.
++    last_phases: Mutex<[i64; 9]>,
 +    /// the vision projector (shim-owned), created on the FIRST image and kept
 +    /// for the graph's lifetime. Deferred because the encoder's weights and
 +    /// compute buffers cost VRAM that a text-only deployment should never pay:
@@ -927,7 +931,7 @@ index 0000000..1d3b87c
 +            type_v,
 +            flash_attn,
 +            mtp: Mutex::new(None),
-+            last_phases: Mutex::new([0; 5]),
++            last_phases: Mutex::new([0; 9]),
 +            mtmd: Mutex::new(None),
 +        }))
 +    }
@@ -1075,6 +1079,8 @@ index 0000000..1d3b87c
 +            0
 +        };
 +        let ph_decode = ph_t2.elapsed().as_micros() as i64;
++        let mut gperf = [0i64; 4];
++        unsafe { ell_graph_perf(self.raw, gperf.as_mut_ptr()); }
 +        {
 +            // ph[2] (arbiter turn wait) was written inside the window ph_t2
 +            // opened, so the decode slot subtracts it out; without the
@@ -1084,6 +1090,10 @@ index 0000000..1d3b87c
 +            ph[1] = ph_alloc;
 +            ph[3] = ph_decode - ph[2];
 +            ph[4] = 0;
++            ph[5] = gperf[0];
++            ph[6] = gperf[1];
++            ph[7] = gperf[2];
++            ph[8] = gperf[3];
 +        }
 +        if rc == 0 && harvest_err.is_none() {
 +            if let Some(ms) = mtp_for {
@@ -1826,15 +1836,15 @@ index 0000000..1d3b87c
 +                    if let Some(kv) = topk {
 +                        let (ti, tv) = topk_rows(&flat, ids.len(), self.server.n_vocab, kv);
 +                        let ph_topk = ph_t4.elapsed().as_micros() as i64;
-+                        let mut pdata = Vec::with_capacity(24);
-+                        for v in [ph[0], ph[1], ph[2], ph[3], ph[4], ph_topk] {
++                        let mut pdata = Vec::with_capacity(40);
++                        for v in [ph[0], ph[1], ph[2], ph[3], ph[4], ph_topk, ph[5], ph[6], ph[7], ph[8]] {
 +                            pdata.extend_from_slice(&(v.clamp(0, i32::MAX as i64) as i32).to_le_bytes());
 +                        }
 +                        return Ok(Some(vec![
 +                            NamedTensor { name: "topk_ids".to_string(), tensor: ti },
 +                            NamedTensor { name: "topk_logits".to_string(), tensor: tv },
 +                            NamedTensor { name: "phase_us".to_string(),
-+                                          tensor: Tensor { dimensions: vec![6], ty: TensorType::I32, data: pdata } },
++                                          tensor: Tensor { dimensions: vec![10], ty: TensorType::I32, data: pdata } },
 +                        ]));
 +                    }
 +                    let mut data = Vec::with_capacity(flat.len() * 4);

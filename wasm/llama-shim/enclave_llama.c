@@ -64,6 +64,18 @@ int32_t ell_gpu_devices(void) {
  * times synchronous tensor_get into (a) the device's pinned host buffer if
  * it allocates, (b) plain malloc. min-of-3 each. out = [pinned_ok,
  * pinned_us, pageable_us]. Returns 0 ok, -1 no GPU / alloc failure. */
+/* Graph-stage perf + small-batch slot state, from llama_graph_perf (mm11):
+ * out = [build_us, sched_alloc_us, set_inputs_us, slot_state] with the
+ * micros read-and-clear and slot_state persistent (0 never tried, 1 the
+ * small-batch graph slot is active, -1 its reserve failed on this box).
+ * The discriminator for whether the mm10 slot actually engages inside the
+ * CVM - its failure warning never leaves host logs. */
+int32_t ell_graph_perf(void *ctx, int64_t *out) {
+    if (!ctx) return -1;
+    llama_graph_perf((struct llama_context *)ctx, out);
+    return 0;
+}
+
 int32_t ell_d2h_probe(int32_t size_mb, int64_t *out) {
     if (size_mb < 1)  size_mb = 1;
     if (size_mb > 16) size_mb = 16;
