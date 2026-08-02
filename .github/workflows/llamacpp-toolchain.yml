@@ -44,7 +44,7 @@ on:
       release_tag:
         description: "Release tag for the lib tarball (created if missing; use a FRESH tag)"
         required: true
-        default: "enclave-llamacpp-ddd4ec14-mm6"
+        default: "enclave-llamacpp-ddd4ec14-mm7"
 
 env:
   # pinned llama.cpp revision - the one the shim + backend were validated
@@ -107,17 +107,21 @@ jobs:
           # so the BF16 traits (also CUBLAS_COMPUTE_32F) stay untouched.
           sed -i '/struct batched_mul_mat_traits<GGML_TYPE_F32>/,/};/ s/compute_type = CUBLAS_COMPUTE_32F;/compute_type = CUBLAS_COMPUTE_32F_FAST_TF32;/' ggml/src/ggml-cuda/ggml-cuda.cu
           grep -q "CUBLAS_COMPUTE_32F_FAST_TF32" ggml/src/ggml-cuda/ggml-cuda.cu || { echo "::error::sd19 TF32 patch did not apply (struct/line moved)"; exit 1; }
-          # mm5 REVERT of the mm3/mm4 shape-keyed CUDA-graph experiment: keying
-          # the graph map by ubatch shape (so speculative verify/re-feed shapes
-          # stop resetting one shared slot's warmup) was tested fleet-wide on
-          # 2026-08-01 and REFUTED as the speculation bottleneck - with shapes
-          # demonstrably captured, mtp k4 still trailed plain 44 vs 58 tok/s,
-          # and the catalog-default k16/p0.3 config REGRESSED ~39 -> ~32 even
-          # after a capture gate (mm4) fixed the worst churn. Stock graph code
-          # is the known-good state; the speculation tax lives in head-step
-          # chains and guest-side verify sampling, not launch latency. Full
-          # story: enclave-ggml-backend memory + git history of
-          # wasm/llamacpp-cuda-graph-key.patch (deleted with this revert).
+          # mm7 shape-keyed CUDA graph slots + capture gate + slot cap. This
+          # REVIVES the mm3/mm4 experiment the mm5 revert concluded - because
+          # the world changed under the revert's verdict: the "guest-side
+          # verify sampling" tax it named was since killed by host-side topk
+          # sparse logits, the mislabeled "expert physics" turned out to be a
+          # flat ~40-47ms un-graphed-pass tax (fable-fusion is DENSE - the
+          # 2026-08-01 batch-cost curve), and p_min=0 fixed-k drafts make
+          # verify shapes constant, the one workload shape-keying serves.
+          # New vs mm4: a slot cap bounds the k16/p0.3 many-shapes regression
+          # by construction, and GGML_CUDA_GRAPH_SHAPES=0 is a wholesale
+          # kill-switch. Rationale + measurements in the patch header and the
+          # enclave-ggml-backend memory.
+          git apply "$GITHUB_WORKSPACE/wasm/llamacpp-cuda-graph-mm7.patch"
+          grep -q "enclave shape-keyed slots" ggml/src/ggml-cuda/ggml-cuda.cu || { echo "::error::mm7 graph patch did not apply"; exit 1; }
+          grep -q "GGML_CUDA_GRAPH_SLOTS" ggml/src/ggml-cuda/common.cuh || { echo "::error::mm7 slot-cap hunk did not apply"; exit 1; }
 
       - name: Build (Release, CUDA, shared libs, sm_86+sm_90, portable CPU)
         run: |
