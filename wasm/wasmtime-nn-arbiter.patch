@@ -388,16 +388,20 @@ index 23462dc..14a80a3 100644
                  q = self.q.lock().unwrap();
                  for (it, res) in items.into_iter().zip(results) {
                      q.results.insert(it.ticket, res);
-@@ -811,6 +817,7 @@ impl GgmlServer {
-             }
-         }
+@@ -877,7 +883,10 @@ impl GgmlServer {
+         let ph_t1 = std::time::Instant::now();
          let mut logits = vec![0f32; tokens.len() * self.n_vocab];
+         let ph_alloc = ph_t1.elapsed().as_micros() as i64;
+         let ph_t2 = std::time::Instant::now();
++        let ph_turn_t = std::time::Instant::now();
 +        let _turn = crate::arbiter::turn(self.model.gpu && harvest_err.is_none());
++        self.last_phases.lock().unwrap()[2] = ph_turn_t.elapsed().as_micros() as i64;
          let rc = if harvest_err.is_none() {
              unsafe {
                  ell_decode_seq_full(self.raw, self.model.raw, seq_id, pos0,
-@@ -827,6 +834,7 @@ impl GgmlServer {
+@@ -905,7 +913,8 @@ impl GgmlServer {
                  }
+                 self.last_phases.lock().unwrap()[4] = ph_t3.elapsed().as_micros() as i64;
              }
          }
 +        drop(_turn);

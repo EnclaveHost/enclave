@@ -113,6 +113,14 @@
 # way to see whether ggml-cuda's pinned host buffer silently demoted to
 # pageable under SEV-SNP (the standing suspect for the flat ~20-26ms
 # multi-row logits-copy tax that killed speculation economics).
+#
+# 2026-08-02 phase_us (mm9): the verify verb ("all" + "topk") also returns
+# "phase_us" I32 [gate_us, alloc_us, decode_us, harvest_us, topk_us] - the
+# named decomposition of the elapsed_us window. Built to corner the ~20ms
+# of per-verify time that kernels, copies, boundaries, launch counts, MPS
+# caps and D2H rates all measurably do NOT account for; prime remaining
+# suspects are the serialization gate and the fresh multi-MB logits alloc
+# (SNP page acceptance). elapsed minus sum(phase_us) = wit-layer overhead.
 diff --git a/Cargo.lock b/Cargo.lock
 index 6ffaac1..3c68c51 100644
 --- a/Cargo.lock
@@ -175,10 +183,10 @@ index b2db808..af89d10 100644
  
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
 new file mode 100644
-index 0000000..14d70b7
+index 0000000..1d3b87c
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,1685 @@
+@@ -0,0 +1,1727 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -770,6 +778,11 @@ index 0000000..14d70b7
 +    /// deliberately do NOT take the decode turn — a tiny head step may
 +    /// overlap another stream's trunk decode on the GPU.
 +    mtp: Mutex<Option<MtpHandle>>,
++    /// mm9: [gate_us, alloc_us, turn_us, decode_us, harvest_us] of the
++    /// LAST submit_full - single-decode serialization makes "last"
++    /// well-defined for the verb that just ran. turn_us is written by the
++    /// arbiter layer (its patch applies above this one); 0 without it.
++    last_phases: Mutex<[i64; 5]>,
 +    /// the vision projector (shim-owned), created on the FIRST image and kept
 +    /// for the graph's lifetime. Deferred because the encoder's weights and
 +    /// compute buffers cost VRAM that a text-only deployment should never pay:
@@ -914,6 +927,7 @@ index 0000000..14d70b7
 +            type_v,
 +            flash_attn,
 +            mtp: Mutex::new(None),
++            last_phases: Mutex::new([0; 5]),
 +            mtmd: Mutex::new(None),
 +        }))
 +    }
@@ -1027,12 +1041,19 @@ index 0000000..14d70b7
 +                self.n_batch
 +            ));
 +        }
++        // mm9 phase split: the elapsed_us window on the verify verb carries
++        // ~20ms that no kernel, copy or boundary accounts for. Name the
++        // segment instead of guessing: gate wait / logits alloc (an SNP
++        // guest pays page-acceptance on fresh mappings) / decode / harvest.
++        let ph_t0 = std::time::Instant::now();
 +        let mut q = self.q.lock().unwrap();
 +        while q.decoding {
 +            q = self.cv.wait(q).unwrap();
 +        }
 +        q.decoding = true;
 +        drop(q);
++        let ph_gate = ph_t0.elapsed().as_micros() as i64;
++        self.last_phases.lock().unwrap()[2] = 0; // turn; the arbiter layer times it
 +        let mut harvest_err = None;
 +        if let Some(ms) = mtp_for {
 +            if let Err(e) = self.ensure_mtp() {
@@ -1041,7 +1062,10 @@ index 0000000..14d70b7
 +                let _ = ms; // harvested after the decode below
 +            }
 +        }
++        let ph_t1 = std::time::Instant::now();
 +        let mut logits = vec![0f32; tokens.len() * self.n_vocab];
++        let ph_alloc = ph_t1.elapsed().as_micros() as i64;
++        let ph_t2 = std::time::Instant::now();
 +        let rc = if harvest_err.is_none() {
 +            unsafe {
 +                ell_decode_seq_full(self.raw, self.model.raw, seq_id, pos0,
@@ -1050,12 +1074,25 @@ index 0000000..14d70b7
 +        } else {
 +            0
 +        };
++        let ph_decode = ph_t2.elapsed().as_micros() as i64;
++        {
++            // ph[2] (arbiter turn wait) was written inside the window ph_t2
++            // opened, so the decode slot subtracts it out; without the
++            // arbiter it stays the 0 reset above and the subtraction is exact.
++            let mut ph = self.last_phases.lock().unwrap();
++            ph[0] = ph_gate;
++            ph[1] = ph_alloc;
++            ph[3] = ph_decode - ph[2];
++            ph[4] = 0;
++        }
 +        if rc == 0 && harvest_err.is_none() {
 +            if let Some(ms) = mtp_for {
++                let ph_t3 = std::time::Instant::now();
 +                let mtp = self.mtp.lock().unwrap();
 +                if let Some(h) = mtp.as_ref() {
 +                    unsafe { ell_mtp_harvest(h.0, self.raw, ms, tokens.len() as i32) };
 +                }
++                self.last_phases.lock().unwrap()[4] = ph_t3.elapsed().as_micros() as i64;
 +            }
 +        }
 +        let mut q = self.q.lock().unwrap();
@@ -1780,11 +1817,24 @@ index 0000000..14d70b7
 +                        .submit_full(self.seq_id, self.n_past, &ids, mtp_for)
 +                        .map_err(err)?;
 +                    self.n_past += ids.len() as i32;
++                    // mm9: name where the verify verb's time goes -
++                    // "phase_us" I32 [gate, alloc, decode, harvest, topk].
++                    // The wrapper in wit.rs appends elapsed_us; the delta
++                    // between elapsed and this sum is wit-layer overhead.
++                    let ph = *self.server.last_phases.lock().unwrap();
++                    let ph_t4 = std::time::Instant::now();
 +                    if let Some(kv) = topk {
 +                        let (ti, tv) = topk_rows(&flat, ids.len(), self.server.n_vocab, kv);
++                        let ph_topk = ph_t4.elapsed().as_micros() as i64;
++                        let mut pdata = Vec::with_capacity(24);
++                        for v in [ph[0], ph[1], ph[2], ph[3], ph[4], ph_topk] {
++                            pdata.extend_from_slice(&(v.clamp(0, i32::MAX as i64) as i32).to_le_bytes());
++                        }
 +                        return Ok(Some(vec![
 +                            NamedTensor { name: "topk_ids".to_string(), tensor: ti },
 +                            NamedTensor { name: "topk_logits".to_string(), tensor: tv },
++                            NamedTensor { name: "phase_us".to_string(),
++                                          tensor: Tensor { dimensions: vec![6], ty: TensorType::I32, data: pdata } },
 +                        ]));
 +                    }
 +                    let mut data = Vec::with_capacity(flat.len() * 4);
