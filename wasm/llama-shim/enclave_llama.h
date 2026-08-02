@@ -230,6 +230,13 @@ void ell_mtp_reset(void *m, int32_t seq);
  * Threading: eval is NOT thread-safe against itself or against decode on the
  * same lctx (it drives llama_decode directly and toggles the causal mask).
  * Callers serialize it exactly as they serialize decode. */
+/* ell_d2h_probe   times a size_mb device->host copy into pinned (if the
+ *                 device's host buffer type allocates - out[0]=1) and plain
+ *                 pageable memory; out = [pinned_ok, pinned_us, pageable_us].
+ *                 The CVM-side answer to "why do multi-row logits copies
+ *                 cost ~20ms under confidential compute". 0 ok, -1 no GPU. */
+int32_t ell_d2h_probe(int32_t size_mb, int64_t *out);
+
 int32_t ell_mtmd_caps_file(const char *mmproj_path);
 void *ell_mtmd_new(void *model, const char *mmproj_path, int32_t n_threads,
                    int32_t use_gpu, int32_t image_max_tokens);

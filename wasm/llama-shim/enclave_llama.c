@@ -56,6 +56,76 @@ int32_t ell_gpu_devices(void) {
     return n;
 }
 
+/* D2H path probe: the speculation post-mortem's last open question is
+ * whether logits copies out of the GPU run at pinned or pageable speed
+ * inside the CVM (ggml-cuda's host buffer type FALLS BACK to plain malloc
+ * with only a host-side warning when cudaMallocHost fails - plausible under
+ * SEV-SNP, invisible from the guest). Allocates size_mb on the device, then
+ * times synchronous tensor_get into (a) the device's pinned host buffer if
+ * it allocates, (b) plain malloc. min-of-3 each. out = [pinned_ok,
+ * pinned_us, pageable_us]. Returns 0 ok, -1 no GPU / alloc failure. */
+int32_t ell_d2h_probe(int32_t size_mb, int64_t *out) {
+    if (size_mb < 1)  size_mb = 1;
+    if (size_mb > 16) size_mb = 16;
+    const size_t sz = (size_t) size_mb * 1024 * 1024;
+    out[0] = 0; out[1] = -1; out[2] = -1;
+
+    ggml_backend_dev_t dev = NULL;
+    for (size_t i = 0; i < ggml_backend_dev_count(); i++) {
+        if (ggml_backend_dev_type(ggml_backend_dev_get(i)) == GGML_BACKEND_DEVICE_TYPE_GPU) {
+            dev = ggml_backend_dev_get(i);
+            break;
+        }
+    }
+    if (!dev) return -1;
+
+    struct ggml_init_params ip = { /*mem_size*/ ggml_tensor_overhead() * 2, /*mem_buffer*/ NULL, /*no_alloc*/ true };
+    struct ggml_context * gctx = ggml_init(ip);
+    if (!gctx) return -1;
+    struct ggml_tensor * t = ggml_new_tensor_1d(gctx, GGML_TYPE_F32, (int64_t) (sz / sizeof(float)));
+    ggml_backend_buffer_t dbuf = ggml_backend_alloc_ctx_tensors_from_buft(gctx, ggml_backend_dev_buffer_type(dev));
+    if (!dbuf) { ggml_free(gctx); return -1; }
+
+    ggml_backend_buffer_t pbuf = NULL;
+    ggml_backend_buffer_type_t host_buft = ggml_backend_dev_host_buffer_type(dev);
+    if (host_buft) {
+        pbuf = ggml_backend_buft_alloc_buffer(host_buft, sz);
+    }
+    void * pageable = malloc(sz);
+    if (!pageable) { if (pbuf) ggml_backend_buffer_free(pbuf); ggml_backend_buffer_free(dbuf); ggml_free(gctx); return -1; }
+
+    /* one warm copy primes lazy init on whichever path exists */
+    ggml_backend_tensor_get(t, pageable, 0, sz);
+
+    if (pbuf) {
+        void * pinned = ggml_backend_buffer_get_base(pbuf);
+        int64_t best = INT64_MAX;
+        for (int r = 0; r < 3; r++) {
+            const int64_t t0 = ggml_time_us();
+            ggml_backend_tensor_get(t, pinned, 0, sz);
+            const int64_t el = ggml_time_us() - t0;
+            if (el < best) best = el;
+        }
+        out[0] = 1; out[1] = best;
+    }
+    {
+        int64_t best = INT64_MAX;
+        for (int r = 0; r < 3; r++) {
+            const int64_t t0 = ggml_time_us();
+            ggml_backend_tensor_get(t, pageable, 0, sz);
+            const int64_t el = ggml_time_us() - t0;
+            if (el < best) best = el;
+        }
+        out[2] = best;
+    }
+
+    free(pageable);
+    if (pbuf) ggml_backend_buffer_free(pbuf);
+    ggml_backend_buffer_free(dbuf);
+    ggml_free(gctx);
+    return 0;
+}
+
 void *ell_load_model(const char *path, int32_t n_gpu_layers) {
     struct llama_model_params p = llama_model_default_params();
     p.n_gpu_layers = n_gpu_layers;
