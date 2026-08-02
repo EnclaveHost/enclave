@@ -1,0 +1,155 @@
+Shape-keyed CUDA graph slots, capture gate, slot cap - mm7, the engine
+half of fixed-shape speculative decoding.
+
+Revives the mm4 experiment with the two guards its failure taught, and
+in a changed world: since the mm5 revert, host-side topk sparse logits
+killed the guest-side verify-sampling tax that the revert named as a
+dominant term, and p_min=0 fixed-k drafts (llm-chat >= 0.30) make every
+verify pass the SAME shape, which is the one workload shape-keying is
+built for. Measured on fable-fusion-27b (dense qwen35, 2026-08-01):
+every multi-token pass pays a flat ~40-47ms (batches 2-8) vs a 15.5ms
+replayed 1-token step - a fixed un-graphed-launch tax under
+confidential compute, not per-token compute.
+
+Change 1 (get_key): fold the shape signature (node count + first/last
+node extents) into the graph-map key so each RECURRING ubatch shape
+warms and replays its own slot instead of resetting one shared slot on
+every alternation. GGML_CUDA_GRAPH_SHAPES=0 restores the upstream key
+(kill-switch, host env).
+
+Change 2 (capture gate): capture only after GGML_CUDA_GRAPH_WARMUP
+consecutive property-stable calls on a slot (default 3). Rare shapes
+and colliding shapes never capture - direct execution, stock behavior.
+This was mm4's fix for the mm3 churn regression.
+
+Change 3 (slot cap, new in mm7): at most GGML_CUDA_GRAPH_SLOTS slots
+(default 6) may ever hold a captured graph per context; later shapes
+are created but never capture. mm4 still regressed k16/p0.3 (39 -> 32)
+because 17+ recurring draft lengths each eventually captured; the cap
+bounds that failure mode by construction while leaving fixed-shape
+configs ({1-token, verify k+1, a couple of re-feeds}) untouched.
+
+diff --git a/ggml/src/ggml-cuda/common.cuh b/ggml/src/ggml-cuda/common.cuh
+index 33be16d..4068106 100644
+--- a/ggml/src/ggml-cuda/common.cuh
++++ b/ggml/src/ggml-cuda/common.cuh
+@@ -1243,6 +1243,8 @@ struct ggml_cuda_graph {
+     std::vector<cudaGraphNode_t> nodes;
+     bool disable_due_to_gpu_arch = false;
+     bool warmup_complete = false;
++    int stable_calls = 0;
++    bool capture_allowed = true;
+     uint64_t uid = 0;
+     int64_t last_used_time = 0;
+     struct node_properties {
+@@ -1446,6 +1448,22 @@ struct ggml_backend_cuda_context {
+         auto it = cuda_graphs.find(first_node_ptr);
+         if (it == cuda_graphs.end()) {
+             it = cuda_graphs.emplace(first_node_ptr, std::make_unique<ggml_cuda_graph>()).first;
++            // enclave slot cap (mm7): with shape-keyed graph keys a workload
++            // that cycles many ubatch shapes (a confidence-gated draft: k16/
++            // p0.3 produced 17+ verify/re-feed lengths) would capture a graph
++            // per shape, and capture+instantiate cost far exceeds one direct
++            // pass (the mm3 regression, 39 -> 30 tok/s). Slots past the cap
++            // are created (they still count visits and evict on idle) but are
++            // never allowed to capture - they execute directly forever, which
++            // is stock behavior. Fixed-shape speculation needs at most
++            // {1-token, verify k+1, a couple of re-feed lengths} = well under
++            // the default of 6.
++            static const size_t slot_cap = [] {
++                const char * env = getenv("GGML_CUDA_GRAPH_SLOTS");
++                const int v = env ? atoi(env) : 6;
++                return (size_t) (v > 0 ? v : 6);
++            }();
++            it->second->capture_allowed = cuda_graphs.size() <= slot_cap;
+         }
+         it->second->last_used_time = time_now;
+         return it->second.get();
+diff --git a/ggml/src/ggml-cuda/ggml-cuda.cu b/ggml/src/ggml-cuda/ggml-cuda.cu
+index 561ab7a..f388593 100644
+--- a/ggml/src/ggml-cuda/ggml-cuda.cu
++++ b/ggml/src/ggml-cuda/ggml-cuda.cu
+@@ -2543,7 +2543,36 @@ static bool ggml_cuda_graph_check_compability(ggml_cgraph * cgraph) {
+ }
+ 
+ static const void * ggml_cuda_graph_get_key(ggml_cgraph * cgraph) {
+-    return cgraph->nodes[0];
++    // enclave shape-keyed slots (mm7, revives mm4): upstream keys the graph
++    // map by the first node's ADDRESS alone, which in practice is one slot
++    // per llama_context (the sched pool reuses its base address every build).
++    // Warmup demands consecutive same-shape calls, so a speculative workload
++    // that alternates ubatch shapes (verify pass of 1+k tokens, partial
++    // re-feeds, 1-token steps) resets that one slot's warmup on EVERY
++    // alternation and never replays a graph - measured on fable-fusion-27b
++    // as a flat ~40-47ms cost on every multi-token pass vs a 15.5ms replayed
++    // 1-token step. Mixing the shape signature (node count + first/last node
++    // extents) into the key gives each RECURRING shape its own slot. The key
++    // stays an opaque map key (never dereferenced); a collision merely lands
++    // two shapes on one slot, where the capture gate holds them to direct
++    // execution - stock behavior. GGML_CUDA_GRAPH_SHAPES=0 restores the
++    // upstream key wholesale.
++    static const bool shape_keys = [] {
++        const char * env = getenv("GGML_CUDA_GRAPH_SHAPES");
++        return !(env && env[0] == '0');
++    }();
++    if (!shape_keys) {
++        return cgraph->nodes[0];
++    }
++    const ggml_tensor * n0 = cgraph->nodes[0];
++    const ggml_tensor * nl = cgraph->nodes[cgraph->n_nodes - 1];
++    uintptr_t h = (uintptr_t) n0;
++    h ^= (uintptr_t) cgraph->n_nodes * (uintptr_t) 0x9E3779B97F4A7C15ull;
++    for (int d = 0; d < GGML_MAX_DIMS; ++d) {
++        h = h * (uintptr_t) 1099511628211ull ^ (uintptr_t) n0->ne[d];
++        h = h * (uintptr_t) 1099511628211ull ^ (uintptr_t) nl->ne[d];
++    }
++    return (const void *) h;
+ }
+ 
+ static bool ggml_cuda_graph_update_required(ggml_backend_cuda_context * cuda_ctx, ggml_cgraph * cgraph) {
+@@ -4132,19 +4161,38 @@ static enum ggml_status ggml_backend_cuda_graph_compute(ggml_backend_t backend,
+             const bool properties_changed = ggml_cuda_graph_update_required(cuda_ctx, cgraph);
+ 
+             if (!graph->warmup_complete) {
+-                // Warmup: need at least 2 calls with no property change on the 2nd call
+-                if (!properties_changed) {
+-                    graph->warmup_complete = true;
+-                    GGML_LOG_DEBUG("%s: CUDA graph warmup complete\n", __func__);
+-                    use_cuda_graph = true;
+-                    cuda_graph_update_required = true;
++                // Warmup, with the enclave capture gate (mm7): shape-keyed
++                // slots mean rare shapes would otherwise pay capture cost
++                // they never amortize. Demand GGML_CUDA_GRAPH_WARMUP
++                // consecutive property-stable calls on the slot (default 3)
++                // before instantiating: hot shapes (the 1-token step, a
++                // fixed-k verify pass) capture within a few rounds and
++                // replay from then on; cold shapes - and slots past the
++                // GGML_CUDA_GRAPH_SLOTS cap, and colliding shapes that keep
++                // resetting each other - execute directly forever, which is
++                // exactly stock behavior.
++                static const int warmup_n = [] {
++                    const char * env = getenv("GGML_CUDA_GRAPH_WARMUP");
++                    const int v = env ? atoi(env) : 3;
++                    return v > 0 ? v : 3;
++                }();
++                if (!properties_changed && graph->capture_allowed) {
++                    if (++graph->stable_calls >= warmup_n) {
++                        graph->warmup_complete = true;
++                        GGML_LOG_DEBUG("%s: CUDA graph warmup complete\n", __func__);
++                        use_cuda_graph = true;
++                        cuda_graph_update_required = true;
++                    }
++                } else if (properties_changed) {
++                    graph->stable_calls = 0;
+                 }
+-                // else: properties changed or first call - execute directly (use_cuda_graph stays false)
++                // executing directly until the shape proves hot
+             } else {
+                 // Post-warmup: normal CUDA graph operation
+                 if (properties_changed) {
+                     // Properties changed - reset warmup, execute directly until stable again
+                     graph->warmup_complete = false;
++                    graph->stable_calls = 0;
+                     GGML_LOG_DEBUG("%s: CUDA graph warmup reset\n", __func__);
+                 } else {
+                     use_cuda_graph = true;
