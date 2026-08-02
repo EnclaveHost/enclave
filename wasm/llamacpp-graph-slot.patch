@@ -1,0 +1,424 @@
+Small-batch graph slot + graph-stage perf split - mm10, the fix the
+2026-08-02 phase-split investigation demanded.
+
+Speculative decoding alternates 1-token steps with small multi-token
+verify passes. llama_context caches exactly ONE graph (gf_res_prev), so
+every alternation re-pays CPU-side model.build_graph + sched_alloc
+(measured: 0.12ms+0.13ms per pass on a desktop CPU, an estimated
+10-20ms on SNP-throttled CVM vCPUs) AND destabilizes CUDA-graph capture
+above it (allocations move every pass, so batched shapes never replay -
+why the mm7 shape-keyed-capture experiment measured no gain). The mm9
+fleet decomposition pinned 37-50ms of every verify inside llama_decode
+with every other suspect measured innocent.
+
+Change 1 (slot): ubatches of 2..16 tokens get their own
+llm_graph_result + ggml_backend_sched pair, created lazily on first use
+(non-speculative workloads never pay the extra compute buffer, which is
+reserved at the slot's 16-token worst case, far below the primary's
+prefill-sized arena). Each slot's own sched pool also hands CUDA-graph
+capture a stable base address per shape for free. sched_active routes
+the decode path (graph params, compute, output extraction) to the slot
+that ran; both slots reset on memory updates. Local proof (0.8b,
+alternating b1/b5 x100): build+alloc 0.123+0.125ms/pass -> 0.008+0.006,
+greedy argmax chain BIT-IDENTICAL to the single-slot path.
+LLAMA_GRAPH_SLOT_ALT=0 disables wholesale (config-only rollback).
+
+Change 2 (instrumentation): llama_graph_perf(ctx, out[3]) - cumulative
+read-and-clear micros of [build_graph, sched_alloc, set_inputs] inside
+process_ubatch, the counters that named this bottleneck.
+
+diff --git a/include/llama.h b/include/llama.h
+index 6e53e22..4ba1bed 100644
+--- a/include/llama.h
++++ b/include/llama.h
+@@ -1560,6 +1560,10 @@ extern "C" {
+         int32_t n_sample;   // number of sampled tokens
+     };
+ 
++    // enclave (mm10-instr): cumulative CPU-side graph-stage micros
++    // [build_graph, sched_alloc, set_inputs]; read-and-clear.
++    LLAMA_API void llama_graph_perf(struct llama_context * ctx, int64_t * out);
++
+     LLAMA_API struct llama_perf_context_data llama_perf_context      (const struct llama_context * ctx);
+     LLAMA_API void                           llama_perf_context_print(const struct llama_context * ctx);
+     LLAMA_API void                           llama_perf_context_reset(      struct llama_context * ctx);
+diff --git a/src/llama-context.cpp b/src/llama-context.cpp
+index 5ef7bec..18f68ea 100644
+--- a/src/llama-context.cpp
++++ b/src/llama-context.cpp
+@@ -703,6 +703,9 @@ void llama_context::synchronize() {
+     }
+ 
+     ggml_backend_sched_synchronize(sched.get());
++    if (sched_alt) {
++        ggml_backend_sched_synchronize(sched_alt.get());
++    }
+ 
+     // FIXME: if multiple single tokens are evaluated without a synchronization,
+     // the stats will be added to the prompt evaluation stats
+@@ -804,6 +807,9 @@ bool llama_context::memory_update(bool optimize) {
+         // TODO: change the mctx->apply() to return information if a graph reserve is needed
+         //       reset the graph result only if the memory module did reset the scheduler
+         gf_res_prev->reset();
++        if (gf_res_alt) {
++            gf_res_alt->reset();
++        }
+ 
+         if (!mctx->apply()) {
+             LLAMA_LOG_ERROR("%s: failed to apply memory update\n", __func__);
+@@ -1317,6 +1323,52 @@ bool llama_context::set_adapter_cvec(
+     return res;
+ }
+ 
++bool llama_context::ensure_sched_alt() {
++    // LLAMA_GRAPH_SLOT_ALT=0 disables the slot wholesale (config-only
++    // rollback lever, mirrors LLAMA_GRAPH_REUSE_DISABLE).
++    static const bool disabled = [] {
++        const char * e = getenv("LLAMA_GRAPH_SLOT_ALT");
++        return e && atoi(e) == 0;
++    }();
++    if (disabled) {
++        return false;
++    }
++    if (sched_alt) {
++        return true;
++    }
++    if (backend_ptrs.empty()) {
++        return false;
++    }
++    // lazily build the small-batch slot: its own sched (own compute-buffer
++    // arena - also a stable base for CUDA-graph capture) reserved at the
++    // slot's worst case of 16 tokens, so the extra VRAM stays far below the
++    // primary's prefill-sized buffer. Failure leaves sched_alt null and the
++    // caller falls back to the shared slot (upstream behavior).
++    const size_t max_nodes = this->graph_max_nodes(16);
++    gf_res_alt.reset(new llm_graph_result(max_nodes));
++    sched_alt.reset(ggml_backend_sched_new(backend_ptrs.data(), backend_buft.data(), backend_ptrs.size(), max_nodes, false, cparams.op_offload));
++    llama_memory_context_ptr mctx;
++    if (memory) {
++        mctx = memory->init_full();
++        if (!mctx) {
++            sched_alt = nullptr;
++            gf_res_alt = nullptr;
++            return false;
++        }
++    }
++    const auto save_active = sched_active;
++    auto * gf = graph_reserve(16, 1, 16, mctx.get(), false, nullptr, sched_alt.get());
++    sched_active = save_active;
++    if (!gf) {
++        LLAMA_LOG_WARN("%s: small-batch slot reserve failed - staying single-slot\n", __func__);
++        sched_alt = nullptr;
++        gf_res_alt = nullptr;
++        return false;
++    }
++    LLAMA_LOG_INFO("%s: small-batch graph slot ready (<=16 tokens)\n", __func__);
++    return true;
++}
++
+ llm_graph_result * llama_context::process_ubatch(const llama_ubatch & ubatch, llm_graph_type gtype, llama_memory_context_i * mctx, ggml_status & ret) {
+     if (mctx && !mctx->apply()) {
+         LLAMA_LOG_ERROR("%s: failed to apply memory context\n", __func__);
+@@ -1324,7 +1376,14 @@ llm_graph_result * llama_context::process_ubatch(const llama_ubatch & ubatch, ll
+         return nullptr;
+     }
+ 
+-    auto * res = gf_res_prev.get();
++    // enclave mm10: route small multi-token ubatches (the speculative
++    // verify/re-feed shapes) to their own graph slot so alternation with
++    // 1-token steps stops thrashing one shared cache. Slot selection must
++    // happen BEFORE graph_params: the params embed the sched.
++    const bool use_alt = ubatch.n_tokens >= 2 && ubatch.n_tokens <= 16 && ensure_sched_alt();
++    sched_active = use_alt ? sched_alt.get() : sched.get();
++
++    auto * res = use_alt ? gf_res_alt.get() : gf_res_prev.get();
+     auto * gf  = res->get_gf();
+ 
+     // the new graph parameters
+@@ -1338,21 +1397,21 @@ llm_graph_result * llama_context::process_ubatch(const llama_ubatch & ubatch, ll
+         // on the GPU. we must synchronize before set_inputs to avoid overwriting input tensors
+         // that the previous compute is still reading.
+         if (cparams.pipeline_parallel) {
+-            ggml_backend_sched_synchronize(sched.get());
++            ggml_backend_sched_synchronize(sched_active);
+         }
+ 
+         n_reused++;
+     } else {
+         res->reset();
+ 
+-        ggml_backend_sched_reset(sched.get());
+-        ggml_backend_sched_set_eval_callback(sched.get(), cparams.cb_eval, cparams.cb_eval_user_data);
++        ggml_backend_sched_reset(sched_active);
++        ggml_backend_sched_set_eval_callback(sched_active, cparams.cb_eval, cparams.cb_eval_user_data);
+ 
+         //const auto t_start_us = ggml_time_us();
+ 
++        const int64_t t_gb0 = ggml_time_us();
+         gf = model.build_graph(gparams);
+-
+-        //LLAMA_LOG_INFO("graph build time: %.3f ms\n", (ggml_time_us() - t_start_us)/1000.0);
++        t_gbuild_us += ggml_time_us() - t_gb0;
+ 
+         if (!gf) {
+             LLAMA_LOG_ERROR("%s: failed to initialize graph\n", __func__);
+@@ -1360,11 +1419,13 @@ llm_graph_result * llama_context::process_ubatch(const llama_ubatch & ubatch, ll
+             return nullptr;
+         }
+ 
+-        if (!ggml_backend_sched_alloc_graph(sched.get(), gf)) {
++        const int64_t t_ga0 = ggml_time_us();
++        if (!ggml_backend_sched_alloc_graph(sched_active, gf)) {
+             LLAMA_LOG_ERROR("%s: failed to allocate graph\n", __func__);
+             ret = GGML_STATUS_ALLOC_FAILED;
+             return nullptr;
+         }
++        t_galloc_us += ggml_time_us() - t_ga0;
+     }
+ 
+     // set the input data for the input tensors
+@@ -1372,9 +1433,9 @@ llm_graph_result * llama_context::process_ubatch(const llama_ubatch & ubatch, ll
+         //const auto t_start_us = ggml_time_us();
+ 
+         // FIXME this call causes a crash if any model inputs were not used in the graph and were therefore not allocated
++        const int64_t t_gi0 = ggml_time_us();
+         res->set_inputs(&ubatch);
+-
+-        //LLAMA_LOG_INFO("graph set inputs time: %.3f ms\n", (ggml_time_us() - t_start_us)/1000.0);
++        t_ginput_us += ggml_time_us() - t_gi0;
+     }
+ 
+     const auto status = graph_compute(res->get_gf(), ubatch.n_tokens > 1);
+@@ -1474,7 +1535,7 @@ int llama_context::encode(const llama_batch & batch_inp) {
+ 
+     // extract logits
+     if (logits.data && t_logits) {
+-        ggml_backend_t backend_res = ggml_backend_sched_get_tensor_backend(sched.get(), t_logits);
++        ggml_backend_t backend_res = ggml_backend_sched_get_tensor_backend(sched_cur(), t_logits);
+         GGML_ASSERT(backend_res != nullptr);
+         GGML_ASSERT(logits.data != nullptr);
+ 
+@@ -1483,7 +1544,7 @@ int llama_context::encode(const llama_batch & batch_inp) {
+ 
+     // extract embeddings
+     if (embd.data && t_embd) {
+-        ggml_backend_t backend_embd = ggml_backend_sched_get_tensor_backend(sched.get(), t_embd);
++        ggml_backend_t backend_embd = ggml_backend_sched_get_tensor_backend(sched_cur(), t_embd);
+         GGML_ASSERT(backend_embd != nullptr);
+ 
+         switch (cparams.pooling_type) {
+@@ -1538,7 +1599,7 @@ int llama_context::encode(const llama_batch & batch_inp) {
+ 
+     // extract nextn embeddings (hidden state before the final output norm)
+     if (embd_nextn.data && t_h_nextn && cparams.pooling_type == LLAMA_POOLING_TYPE_NONE) {
+-        ggml_backend_t backend_h = ggml_backend_sched_get_tensor_backend(sched.get(), t_h_nextn);
++        ggml_backend_t backend_h = ggml_backend_sched_get_tensor_backend(sched_cur(), t_h_nextn);
+         GGML_ASSERT(backend_h != nullptr);
+ 
+         const uint32_t n_embd = hparams.n_embd_out();
+@@ -1913,7 +1974,7 @@ int llama_context::decode(const llama_batch & batch_inp) {
+ 
+         // extract logits
+         if (logits.data && t_logits && n_outputs > 0 && needs_raw_logits(ubatch, sampling.samplers)) {
+-            ggml_backend_t backend_res = ggml_backend_sched_get_tensor_backend(sched.get(), t_logits);
++            ggml_backend_t backend_res = ggml_backend_sched_get_tensor_backend(sched_cur(), t_logits);
+             GGML_ASSERT(backend_res != nullptr);
+             GGML_ASSERT(logits.data != nullptr);
+ 
+@@ -1928,7 +1989,7 @@ int llama_context::decode(const llama_batch & batch_inp) {
+ 
+         // extract embeddings
+         if (embd.data && t_embd && n_outputs > 0) {
+-            ggml_backend_t backend_embd = ggml_backend_sched_get_tensor_backend(sched.get(), t_embd);
++            ggml_backend_t backend_embd = ggml_backend_sched_get_tensor_backend(sched_cur(), t_embd);
+             GGML_ASSERT(backend_embd != nullptr);
+ 
+             switch (cparams.pooling_type) {
+@@ -1996,7 +2057,7 @@ int llama_context::decode(const llama_batch & batch_inp) {
+             const int64_t offset = masked ? n_outputs_prev  : n_tokens_prev;
+ 
+             if (embd_nextn.data && t_h_nextn && n_rows > 0 && cparams.pooling_type == LLAMA_POOLING_TYPE_NONE) {
+-                ggml_backend_t backend_h = ggml_backend_sched_get_tensor_backend(sched.get(), t_h_nextn);
++                ggml_backend_t backend_h = ggml_backend_sched_get_tensor_backend(sched_cur(), t_h_nextn);
+                 GGML_ASSERT(backend_h != nullptr);
+ 
+                 const uint32_t n_embd  = hparams.n_embd_out();
+@@ -2013,11 +2074,11 @@ int llama_context::decode(const llama_batch & batch_inp) {
+             const auto stride = n_vocab;
+ 
+             // async copy the sampling data from the backend to the host
+-            copy_tensor_async_ints(res->t_sampled, sampling.sampled, seq_to_output_row, sched.get());
++            copy_tensor_async_ints(res->t_sampled, sampling.sampled, seq_to_output_row, sched_cur());
+ 
+-            copy_tensor_async_floats    (res->t_sampled_logits, sampling.logits,     stride, sampling.logits_count,     seq_to_output_row, sched.get());
+-            copy_tensor_async_floats    (res->t_sampled_probs,  sampling.probs,      stride, sampling.probs_count,      seq_to_output_row, sched.get());
+-            copy_tensor_async_candidates(res->t_candidates,     sampling.candidates, stride, sampling.candidates_count, seq_to_output_row, sched.get());
++            copy_tensor_async_floats    (res->t_sampled_logits, sampling.logits,     stride, sampling.logits_count,     seq_to_output_row, sched_cur());
++            copy_tensor_async_floats    (res->t_sampled_probs,  sampling.probs,      stride, sampling.probs_count,      seq_to_output_row, sched_cur());
++            copy_tensor_async_candidates(res->t_candidates,     sampling.candidates, stride, sampling.candidates_count, seq_to_output_row, sched_cur());
+         }
+ 
+         n_outputs_prev += n_outputs;
+@@ -2268,7 +2329,7 @@ void llama_context::extract_layer_inputs(const llm_graph_result * res, size_t to
+         const size_t dst_offset = token_offset * row_floats;
+         GGML_ASSERT(dst_offset + nfloats <= embd_layer_inp[il].size);
+ 
+-        ggml_backend_t backend = ggml_backend_sched_get_tensor_backend(sched.get(), t);
++        ggml_backend_t backend = ggml_backend_sched_get_tensor_backend(sched_cur(), t);
+         GGML_ASSERT(backend != nullptr);
+         ggml_backend_tensor_get_async(backend, t, embd_layer_inp[il].data + dst_offset, 0, nbytes);
+     }
+@@ -2367,7 +2428,7 @@ llm_graph_result * llama_context::get_gf_res_reserve() const {
+ }
+ 
+ ggml_cgraph * llama_context::graph_reserve(
+-        uint32_t n_tokens, uint32_t n_seqs, uint32_t n_outputs, const llama_memory_context_i * mctx, bool split_only, size_t * sizes) {
++        uint32_t n_tokens, uint32_t n_seqs, uint32_t n_outputs, const llama_memory_context_i * mctx, bool split_only, size_t * sizes, ggml_backend_sched_t sched_use) {
+     LLAMA_LOG_DEBUG("%s: reserving a graph for ubatch with n_tokens = %4u, n_seqs = %2u, n_outputs = %4u\n", __func__, n_tokens, n_seqs, n_outputs);
+     GGML_ASSERT(n_outputs >= 1);
+ 
+@@ -2376,10 +2437,17 @@ ggml_cgraph * llama_context::graph_reserve(
+         LLAMA_LOG_DEBUG("%s: making n_tokens a multiple of n_seqs - n_tokens = %u, n_seqs = %u, n_outputs = %u\n", __func__, n_tokens, n_seqs, n_outputs);
+     }
+ 
+-    ggml_backend_sched_reset(sched.get());
++    ggml_backend_sched_t su = sched_use ? sched_use : sched.get();
++    sched_active = su;
+ 
+-    // when the scheduler is reset, we cannot reuse the old graph, so we reset the previous graph result to prevent that
+-    gf_res_prev->reset();
++    ggml_backend_sched_reset(su);
++
++    // when the scheduler is reset, we cannot reuse the old graph, so we reset that slot's cached result to prevent reuse
++    if (su == sched.get()) {
++        gf_res_prev->reset();
++    } else if (gf_res_alt) {
++        gf_res_alt->reset();
++    }
+ 
+     // store the n_outputs as it is, and restore it afterwards
+     // TODO: not sure if needed, might simplify in the future by removing this
+@@ -2412,11 +2480,11 @@ ggml_cgraph * llama_context::graph_reserve(
+     // initialize scheduler with the specified graph
+     if (split_only) {
+         if (sizes) {
+-            ggml_backend_sched_reserve_size(sched.get(), gf, sizes);
++            ggml_backend_sched_reserve_size(su, gf, sizes);
+         } else {
+-            ggml_backend_sched_split_graph(sched.get(), gf);
++            ggml_backend_sched_split_graph(su, gf);
+         }
+-    } else if (!ggml_backend_sched_reserve(sched.get(), gf)) {
++    } else if (!ggml_backend_sched_reserve(su, gf)) {
+         GGML_ASSERT(!sizes);
+         LLAMA_LOG_ERROR("%s: failed to allocate compute buffers\n", __func__);
+         return nullptr;
+@@ -2436,7 +2504,7 @@ llm_graph_params llama_context::graph_params(
+         /*.cparams     =*/ cparams,
+         /*.ubatch      =*/ ubatch,
+         /*.gtype       =*/ gtype,
+-        /*.sched       =*/ sched.get(),
++        /*.sched       =*/ sched_cur(),
+         /*.backend_cpu =*/ backend_cpu,
+         /*.cvec        =*/ cvec.get(),
+         /*.loras       =*/ loras.get(),
+@@ -2468,7 +2536,7 @@ ggml_status llama_context::graph_compute(
+         set_n_threads_fn.second(set_n_threads_fn.first, n_threads);
+     }
+ 
+-    auto status = ggml_backend_sched_graph_compute_async(sched.get(), gf);
++    auto status = ggml_backend_sched_graph_compute_async(sched_cur(), gf);
+     if (status != GGML_STATUS_SUCCESS) {
+         LLAMA_LOG_ERROR("%s: ggml_backend_sched_graph_compute_async failed with error %d\n", __func__, status);
+     }
+@@ -2496,7 +2564,7 @@ llm_graph_cb llama_context::graph_get_cb() const {
+                 for (const auto & backend : backends) {
+                     if (ggml_backend_get_device(backend.get()) == dev_layer) {
+                         if (ggml_backend_supports_op(backend.get(), cur)) {
+-                            ggml_backend_sched_set_tensor_backend(sched.get(), cur, backend.get());
++                            ggml_backend_sched_set_tensor_backend(sched_cur(), cur, backend.get());
+                         }
+                     }
+                 }
+@@ -4109,6 +4177,23 @@ int32_t llama_decode(
+ // perf
+ //
+ 
++void llama_context::graph_perf_get(int64_t * out) const {
++    out[0] = t_gbuild_us;
++    out[1] = t_galloc_us;
++    out[2] = t_ginput_us;
++    t_gbuild_us = 0;
++    t_galloc_us = 0;
++    t_ginput_us = 0;
++}
++
++void llama_graph_perf(llama_context * ctx, int64_t * out) {
++    if (ctx == nullptr) {
++        out[0] = out[1] = out[2] = 0;
++        return;
++    }
++    ctx->graph_perf_get(out);
++}
++
+ llama_perf_context_data llama_perf_context(const llama_context * ctx) {
+     llama_perf_context_data data = {};
+ 
+diff --git a/src/llama-context.h b/src/llama-context.h
+index bf91daa..89873ca 100644
+--- a/src/llama-context.h
++++ b/src/llama-context.h
+@@ -187,6 +187,9 @@ struct llama_context {
+     llama_perf_context_data perf_get_data() const;
+     void perf_reset();
+ 
++    // enclave mm10-instr: read-and-clear the graph-stage split
++    void graph_perf_get(int64_t * out) const;
++
+     llama_memory_breakdown memory_breakdown() const;
+ 
+     //
+@@ -249,7 +252,7 @@ public:
+ 
+     // reserve a graph with a dummy ubatch of the specified size
+     ggml_cgraph * graph_reserve(
+-        uint32_t n_tokens, uint32_t n_seqs, uint32_t n_outputs, const llama_memory_context_i * mctx, bool split_only = false, size_t * sizes = nullptr);
++        uint32_t n_tokens, uint32_t n_seqs, uint32_t n_outputs, const llama_memory_context_i * mctx, bool split_only = false, size_t * sizes = nullptr, ggml_backend_sched_t sched_use = nullptr);
+ 
+     bool set_sampler(llama_seq_id seq_id, llama_sampler * sampler);
+ 
+@@ -367,6 +370,20 @@ private:
+     llm_graph_result_ptr gf_res_prev;
+     llm_graph_result_ptr gf_res_reserve;
+ 
++    // enclave mm10 small-batch graph slot: speculative workloads alternate
++    // 1-token steps with small multi-token verify passes; one cached graph
++    // thrashes on every alternation, re-paying CPU-side build+sched_alloc
++    // AND destabilizing CUDA-graph capture (each slot's own sched pool also
++    // gives capture a stable base address for free). Ubatches of 2..16
++    // tokens get their own result+sched pair, created lazily so workloads
++    // that never speculate never pay the extra compute buffer.
++    llm_graph_result_ptr gf_res_alt;
++    ggml_backend_sched_ptr sched_alt;
++    ggml_backend_sched_t sched_active = nullptr; // sched of the current/last graph op
++
++    ggml_backend_sched_t sched_cur() const { return sched_active ? sched_active : sched.get(); }
++    bool ensure_sched_alt();
++
+     // host buffer for the model output (logits and embeddings)
+     ggml_backend_buffer_ptr buf_output;
+ 
+@@ -387,6 +404,13 @@ private:
+     mutable int64_t t_compute_start_us = 0;
+     mutable int64_t n_queued_tokens    = 0;
+ 
++    // enclave graph-perf split (mm10-instr): cumulative us in the CPU-side
++    // stages of process_ubatch - the term that alternating ubatch shapes
++    // re-pay on every pass. Read-and-clear via llama_graph_perf().
++    mutable int64_t t_gbuild_us = 0;
++    mutable int64_t t_galloc_us = 0;
++    mutable int64_t t_ginput_us = 0;
++
+     mutable int32_t n_p_eval = 0; // number of tokens in eval calls for the prompt (with batch size > 1)
+     mutable int32_t n_eval   = 0; // number of eval calls
+ 
