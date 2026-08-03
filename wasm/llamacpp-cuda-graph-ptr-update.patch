@@ -34,6 +34,45 @@ changes still reset warmup exactly as before.
 
 GGML_CUDA_GRAPH_PTR_UPDATE=0 restores stock behavior (config-only
 rollback, no rebuild).
+
+mm17 addendum - graph idle eviction: ggml-cuda evicted captured graphs
+after 10s idle, which assumes a handful of hot shapes. A speculative
+workload keeps ~a dozen live (verify batches on the scratch branch plus
+partial-accept re-feeds on the real sequence), each hit only every few
+rounds, so they aged out and were RE-CAPTURED rather than replayed -
+the reason widening the slot ring 3 -> 12 helped k=4 but hurt k=2. The
+threshold is now 300s, env-tunable via GGML_CUDA_GRAPH_IDLE_SEC. A
+captured graph holds an exec handle, not weights, so retention is cheap.
+diff --git a/ggml/src/ggml-cuda/common.cuh b/ggml/src/ggml-cuda/common.cuh
+index 33be16d..f0db46e 100644
+--- a/ggml/src/ggml-cuda/common.cuh
++++ b/ggml/src/ggml-cuda/common.cuh
+@@ -1431,11 +1431,23 @@ struct ggml_backend_cuda_context {
+     ggml_cuda_graph * cuda_graph(const void * first_node_ptr) {
+         const int64_t time_now = ggml_time_us();
+ 
+-        // sweep every 5s, evicting cuda graphs unused for >=10s
++        // enclave mm17: the stock 10s idle eviction assumes a few hot graphs.
++        // Speculative decoding keeps a dozen live shapes (verify batches on
++        // the scratch branch + partial-accept re-feeds on the real sequence),
++        // each hit only every few rounds, so at 10s they were evicted and
++        // RE-CAPTURED instead of replayed - which is why widening the graph
++        // slot ring 3 -> 12 improved k=4 but regressed k=2. A captured graph
++        // costs an exec handle, not weights, so holding them far longer is
++        // cheap. GGML_CUDA_GRAPH_IDLE_SEC overrides (default 300).
++        static const int64_t graph_idle_us = [] {
++            const char * e = getenv("GGML_CUDA_GRAPH_IDLE_SEC");
++            const int v = e ? atoi(e) : 300;
++            return (int64_t) (v > 0 ? v : 300) * 1'000'000;
++        }();
+         if (time_now - last_graph_eviction_sweep >= 5'000'000) {
+             last_graph_eviction_sweep = time_now;
+             for (auto it = cuda_graphs.begin(); it != cuda_graphs.end(); ) {
+-                if (time_now - it->second->last_used_time >= 10'000'000) {
++                if (time_now - it->second->last_used_time >= graph_idle_us) {
+                     it = cuda_graphs.erase(it);
+                 } else {
+                     ++it;
 diff --git a/ggml/src/ggml-cuda/ggml-cuda.cu b/ggml/src/ggml-cuda/ggml-cuda.cu
 index 561ab7a..ad8ed1e 100644
 --- a/ggml/src/ggml-cuda/ggml-cuda.cu
