@@ -234,6 +234,49 @@ export async function buildControlCall(id, action, ref, shares, envelope, maxRat
   throw new Error("unknown control action");
 }
 
+/* ---- stranded vaults (a factory migration left them behind) -----------------
+
+   ONE-OFF RECOVERY TOOL, not a product surface: nothing advertises these, and
+   nothing here decides whether a balance *should* be returned. A vault minted
+   by a superseded factory keeps its balance and only its own passkey can move
+   it, so this exists purely so the person holding that passkey can sign on a
+   phone while the relay pays the gas.
+
+   The one question worth answering, and it is answered by PROOF rather than
+   trust: is this vault the one the caller's own passkey controls? The named
+   factory re-derives the same CREATE2 address from the account's public key,
+   so a request naming someone else's vault - or the wrong factory - fails to
+   match and is refused. That is what keeps an explicit vault address in the
+   request from becoming a way to touch a stranger's money. */
+export async function strandedVaultFor(key, entry) {
+  const pub = await rpcPool();
+  const factory = String(entry && entry.factory || "");
+  const vault = String(entry && entry.vault || "");
+  if (!/^0x[0-9a-fA-F]{40}$/.test(factory) || !/^0x[0-9a-fA-F]{40}$/.test(vault)) return null;
+  let derived;
+  try {
+    derived = await pub.readContract({ address: factory, abi: FACTORY_ABI,
+      functionName: "vaultFor", args: [BigInt(key.x), BigInt(key.y)] });
+  } catch { return null; }                       // not a factory / unreadable
+  if (derived.toLowerCase() !== vault.toLowerCase()) return null;   // not this account's
+  const [code, balance6] = await Promise.all([
+    pub.getCode({ address: vault }).catch(() => null),
+    pub.readContract({ address: cfg.usdc, abi: ERC20_ABI, functionName: "balanceOf", args: [vault] }).catch(() => 0n),
+  ]);
+  if (!code || code === "0x" || !(balance6 > 0n)) return null;       // nothing to recover
+  return { address: vault, factory, balance6: balance6.toString() };
+}
+
+/// the live nonce of an ARBITRARY vault (a stranded one is not the account's
+/// current vault, so vaultInfo's derivation does not reach it). Returned as a
+/// STRING like vaultInfo's: a BigInt reaching a response body throws inside
+/// JSON.stringify AFTER writeHead has run, which is a hung request rather than
+/// an error anyone can see.
+export async function vaultNonce(address) {
+  const pub = await rpcPool();
+  return (await pub.readContract({ address, abi: VAULT_ABI, functionName: "nonce" })).toString();
+}
+
 // DER ECDSA -> {r, s} bigints (the precompile takes raw values, any s)
 export function derToRS(der) {
   const u8 = Buffer.from(der);
