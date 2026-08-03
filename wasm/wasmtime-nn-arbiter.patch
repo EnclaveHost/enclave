@@ -374,7 +374,7 @@ index 0000000..d8ccfc3
 +    }
 +}
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
-index a4c586e..118ac1b 100644
+index 2035f8d..198d146 100644
 --- a/crates/wasi-nn/src/backend/ggml.rs
 +++ b/crates/wasi-nn/src/backend/ggml.rs
 @@ -833,7 +833,13 @@ impl GgmlServer {
@@ -390,7 +390,7 @@ index a4c586e..118ac1b 100644
 +                    self.decode_items(&items)
 +                };
                  {
-                     let mut gperf = [0i64; 7];
+                     let mut gperf = [0i64; 8];
                      unsafe { ell_graph_perf2(self.raw, gperf.as_mut_ptr()); }
 @@ -925,6 +931,9 @@ impl GgmlServer {
          let mut logits = vec![0f32; tokens.len() * self.n_vocab];
