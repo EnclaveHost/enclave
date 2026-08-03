@@ -410,6 +410,34 @@ int32_t ell_seq_rewind(void *ctx, int32_t seq_id, int32_t n_keep) {
     return ok ? 0 : -1;
 }
 
+/* ---- hidden-state export (mm24: medusa-head training harvest) ----------
+ * Frozen-trunk draft heads train on (h_t -> future token) pairs, and h_t
+ * is just inference output: toggle embeddings, run a chunk, read rows.
+ * llama outputs ALL positions when embeddings are enabled, so a prefill
+ * chunk yields one row per token at prefill speed - the whole training
+ * corpus harvests at ~20x decode speed. */
+void ell_set_embeddings(void *ctx, int32_t on) {
+    llama_set_embeddings((struct llama_context *)ctx, on != 0);
+}
+
+int32_t ell_n_embd(void *model) {
+    return llama_model_n_embd((const struct llama_model *)model);
+}
+
+/* copy position i's last-layer hidden row (n_embd floats) after a decode
+ * that ran with embeddings enabled; returns 0, or -1 when the row is
+ * unavailable (embeddings off, i out of range). */
+int32_t ell_hidden_row(void *ctx, int32_t i, float *out, int32_t cap) {
+    struct llama_context *lctx = (struct llama_context *)ctx;
+    const float *e = llama_get_embeddings_ith(lctx, i);
+    if (!e || cap < 0) {
+        return -1;
+    }
+    /* caller passes cap = n_embd; trust but bound */
+    memcpy(out, e, (size_t)cap * sizeof(float));
+    return 0;
+}
+
 int32_t ell_cuda_sync_stats(int64_t out[2]) {
     /* cumulative [sync_us, sync_calls] from the CUDA module's sync-instr
      * counters (mm20). The module is dlopened RTLD_LOCAL, so the getter
