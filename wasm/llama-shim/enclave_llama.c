@@ -257,6 +257,21 @@ void *ell_new_server(void *model, uint32_t n_ctx, uint32_t n_batch, uint32_t n_s
             if (p.n_batch < p.n_ubatch) { p.n_batch = p.n_ubatch; }
         }
     }
+    /* Recurrent-state snapshots for speculative rewind, env-read like
+     * n_ubatch above (a parameter would silently change this function's ABI
+     * for a wasmtime built against an older tarball). Each unit of depth
+     * widens every recurrent layer's R/S tensors by one full copy (~1.2 GB
+     * on the 27b), buying llama_memory_seq_rm rollback of that many trailing
+     * tokens - the no-branch speculative verify. llama clamps the value to 0
+     * itself on archs without rollback support (currently qwen3.5/moe), and
+     * 0 (unset) is byte-for-byte today's context. */
+    const char *rs = getenv("ENCLAVE_GGML_N_RS_SEQ");
+    if (rs && *rs) {
+        long v = strtol(rs, NULL, 10);
+        if (v > 0) {
+            p.n_rs_seq = (uint32_t)(v > 16 ? 16 : v);
+        }
+    }
     /* ONE pool of n_ctx tokens shared by every sequence (vs. the split
      * per-stream layout): a long conversation and several short ones coexist
      * without pre-partitioning, which is the sizing model the platform's
@@ -365,10 +380,21 @@ int32_t ell_seq_rewind(void *ctx, int32_t seq_id, int32_t n_keep) {
     /* llama_memory_seq_rm REFUSES a partial removal it cannot honor (recurrent/
      * hybrid state keeps no per-token history) and mutates nothing on refusal -
      * propagate that so callers never continue against a tail they believe
-     * gone. Full-range removals (n_keep 0) always succeed. */
+     * gone. Full-range removals (n_keep 0) always succeed. With
+     * ENCLAVE_GGML_N_RS_SEQ > 0 (ell_rewind_depth > 0) a partial removal of up
+     * to that many trailing tokens SUCCEEDS on rollback-capable hybrid archs:
+     * the recurrent state restores from the per-token snapshot groups the last
+     * decode wrote. */
     bool ok = llama_memory_seq_rm(llama_get_memory((struct llama_context *)ctx),
                                   seq_id, n_keep, -1);
     return ok ? 0 : -1;
+}
+
+int32_t ell_rewind_depth(void *ctx) {
+    /* the EFFECTIVE snapshot depth of this context (llama zeroes the request
+     * on archs without rollback), i.e. how many trailing tokens of the most
+     * recent decode ell_seq_rewind can drop on a recurrent/hybrid model */
+    return (int32_t)llama_n_rs_seq((struct llama_context *)ctx);
 }
 
 void ell_seq_copy(void *ctx, int32_t src_seq, int32_t dst_seq) {

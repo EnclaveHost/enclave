@@ -121,6 +121,16 @@
 # caps and D2H rates all measurably do NOT account for; prime remaining
 # suspects are the serialization gate and the fresh multi-MB logits alloc
 # (SNP page acceptance). elapsed minus sum(phase_us) = wit-layer overhead.
+#
+# 2026-08-03 rewind-depth caps (mm18): "caps" grows a 7th element,
+# rewind_depth - the context's effective recurrent-snapshot depth (the shim
+# reads ENCLAVE_GGML_N_RS_SEQ at server-context creation; llama zeroes it on
+# archs without rollback support). > 0 tells a speculative guest that
+# "rewind" of up to that many trailing tokens of the last decode works EVEN
+# on recurrent/hybrid models, enabling the no-branch verify: feed the draft
+# on the REAL sequence, rewind the rejected tail. Stable seq id + stable
+# shape is what lets llama's graph slots and CUDA-graph capture hold across
+# rounds - the replay the scratch-branch strategy kept defeating.
 diff --git a/Cargo.lock b/Cargo.lock
 index 6ffaac1..3c68c51 100644
 --- a/Cargo.lock
@@ -183,10 +193,10 @@ index b2db808..af89d10 100644
  
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
 new file mode 100644
-index 0000000..a800040
+index 0000000..13638f2
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,1737 @@
+@@ -0,0 +1,1767 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -218,10 +228,12 @@ index 0000000..a800040
 +//!   output "logits"  Fp32 dims [1, n_vocab]            last-token logits
 +//! Speculative-decoding verbs (see each handler in `compute`):
 +//!   "tokens"+"all"=1 -> "logits" [n, n_vocab] (per-position verify rows);
-+//!   "caps" -> [seq_id, recurrent, mtp, vision]; "copy_from"
-+//!   [src_seq, src_n_past] branches this sequence off another (recurrent
-+//!   state copy-on-write — the zero-memory alternative to "rewind", which
-+//!   recurrent/hybrid models refuse).
++//!   "caps" -> [seq_id, recurrent, mtp, vision, n_batch, host_tok,
++//!   rewind_depth]; "copy_from" [src_seq, src_n_past] branches this
++//!   sequence off another (recurrent state copy-on-write — the zero-memory
++//!   alternative to "rewind", which recurrent/hybrid models refuse unless
++//!   caps' rewind_depth > 0: then the context snapshots that many trailing
++//!   tokens per decode and "rewind" within the depth succeeds anywhere).
 +//! MTP self-drafting (models whose GGUF carries a trained next-token head):
 +//!   "tokens"+"mtp"=1 -> MTP-aware feed (head observes every position, last
 +//!   logits row returned); "tokens"+"all"=1+"mtp_for"=[seq] -> verify pass
@@ -353,6 +365,7 @@ index 0000000..a800040
 +        logits_out: *mut f32,
 +    ) -> i32;
 +    fn ell_seq_rewind(ctx: *mut c_void, seq_id: i32, n_keep: i32) -> i32;
++    fn ell_rewind_depth(ctx: *mut c_void) -> i32;
 +    fn ell_seq_copy(ctx: *mut c_void, src_seq: i32, dst_seq: i32);
 +    fn ell_model_recurrent(model: *mut c_void) -> i32;
 +    fn ell_mtp_available(model: *mut c_void) -> i32;
@@ -772,6 +785,13 @@ index 0000000..a800040
 +    type_k: i32,
 +    type_v: i32,
 +    flash_attn: i32,
++    /// effective recurrent-snapshot depth of this context (0 unless the node
++    /// set ENCLAVE_GGML_N_RS_SEQ and the arch supports rollback): how many
++    /// trailing tokens of the last decode `rewind` can drop even on a
++    /// recurrent/hybrid model. Surfaced through "caps" so speculative guests
++    /// can verify on the REAL sequence and rewind the rejected tail instead
++    /// of paying the branch-verify round trip.
++    rewind_depth: i32,
 +    /// the MTP head driver (shim-owned): created on FIRST mtp-flavored call,
 +    /// under the decode turn so enabling nextn output on the target cannot
 +    /// race a decode. None + model.mtp=false => the verbs error and guests
@@ -912,6 +932,10 @@ index 0000000..a800040
 +                 share's free VRAM (lower ENCLAVE_GGML_N_CTX or buy a larger share)",
 +            ));
 +        }
++        // what depth the context actually got (llama zeroes the request on
++        // archs that cannot roll back recurrent state, so this is the truth
++        // the guest must hear, not the env)
++        let rewind_depth = unsafe { ell_rewind_depth(raw) };
 +        Ok(Arc::new(GgmlServer {
 +            raw,
 +            model: model.clone(),
@@ -930,6 +954,7 @@ index 0000000..a800040
 +            type_k,
 +            type_v,
 +            flash_attn,
++            rewind_depth,
 +            mtp: Mutex::new(None),
 +            last_phases: Mutex::new([0; 9]),
 +            mtmd: Mutex::new(None),
@@ -1533,10 +1558,12 @@ index 0000000..a800040
 +            Some(inputs) => {
 +                // control verb {"caps": I32 [1]} (value ignored): this
 +                // sequence handle's identity and its model's capabilities,
-+                // for speculative callers - "caps" I32 [seq_id, recurrent].
-+                // seq_id names this handle as a copy_from source; recurrent
-+                // 1 = partial rewind is impossible on this model (branch-
-+                // verify is the only speculative strategy).
++                // for speculative callers - "caps" I32 [seq_id, recurrent,
++                // ...]. seq_id names this handle as a copy_from source;
++                // recurrent 1 = partial rewind is impossible on this model
++                // (branch-verify is the only speculative strategy) UNLESS
++                // the trailing rewind_depth element is > 0 (recurrent
++                // snapshots; see the "rewind" verb below).
 +                // {"tokenize": U8 [n]} = UTF-8 text -> "ids" I32 [m]: the
 +                // GGUF's own tokenizer, host-side (parse_special on, so
 +                // template markers map to their special ids). Pure vocab
@@ -1652,6 +1679,15 @@ index 0000000..a800040
 +                        self.server.n_batch as i32,
 +                        // host tokenizer available ("tokenize"/"vocab_pieces")
 +                        1,
++                        // recurrent-snapshot rewind depth: > 0 means "rewind"
++                        // works on this model for up to that many trailing
++                        // tokens of the last decode, EVEN when recurrent=1 -
++                        // a speculative guest should then verify on its real
++                        // sequence and rewind the rejected tail (stable seq
++                        // and shape keep the engine's graph caches hot)
++                        // instead of branch-verify. 0 = the historical
++                        // contract (branch via copy_from).
++                        self.server.rewind_depth,
 +                    ];
 +                    let mut data = Vec::with_capacity(vals.len() * 4);
 +                    for v in vals {
@@ -1730,6 +1766,10 @@ index 0000000..a800040
 +                // rejected tail) - no decode, no outputs. Errors (nothing
 +                // mutated) on recurrent/hybrid models, which keep no
 +                // per-token state history - branch via copy_from instead.
++                // EXCEPTION: caps' rewind_depth > 0 means the context keeps
++                // that many per-token recurrent snapshots, and a rewind of
++                // up to that many trailing tokens of the LAST decode
++                // succeeds even here.
 +                if let Some(rw) = inputs.iter().find(|nt| nt.name == "rewind") {
 +                    let v = tokens_from_tensor(&rw.tensor)?;
 +                    let n_keep = *v.first().ok_or_else(|| err("rewind needs one i32"))?;
