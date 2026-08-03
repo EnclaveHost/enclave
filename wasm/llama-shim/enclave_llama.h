@@ -169,6 +169,15 @@ int32_t ell_rewind_depth(void *ctx);
  * per-decode fixed-cost investigation). -1/-1 + rc -1 when the loaded CUDA
  * module predates the instrument or no GPU module is loaded. */
 int32_t ell_cuda_sync_stats(int64_t out[2]);
+
+/* hidden-state export (mm24, medusa-head training): toggle embeddings
+ * output on a context, then any decode yields per-position last-layer
+ * hidden rows readable via ell_hidden_row (cap = ell_n_embd floats).
+ * Leave embeddings OFF outside harvest passes - enabling them makes every
+ * decode output all positions. */
+void ell_set_embeddings(void *ctx, int32_t on);
+int32_t ell_n_embd(void *model);
+int32_t ell_hidden_row(void *ctx, int32_t i, float *out, int32_t cap);
 void ell_seq_copy(void *ctx, int32_t src_seq, int32_t dst_seq);
 int32_t ell_model_recurrent(void *model);
 
