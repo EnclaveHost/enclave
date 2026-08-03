@@ -116,6 +116,27 @@ mechanical, mirror generate_lookup's two-strategy split).
   +20%. If Steven wants the parity-tying bundle built anyway, it is:
   [observe-fold + GPU argmax + fused verb + nnCtx/k4], one toolchain
   cascade + one llm-chat minor, est. 2-4 h + one canary window.
+- **mm19 BUILT AND MEASURED the two best MTP fixes — and found the true
+  floor.** Shipped fleet-wide (ELL mm19 sha 8f81eb16, image e5a62224,
+  release v0.5.364): ell_mtp_draft2 folds the round's accepted tokens
+  into the draft call (one WIT trip + ONE arbiter grant instead of two,
+  verified locally: 62 draft calls / 2 explicit accepts, byte-identical
+  output) and the draft confidence gate went exact-but-cheap (exp only
+  within 16 of max — was ~2.7 ms/token of vCPU exp()). llm-chat 0.35.0
+  drives it and allows depth 3-4 with MTP when nnCtx <= 128K. FLEET
+  RESULT: mtp2rs2 35.5/35.6 (vs 36.8/36.5 pre-fold — nothing), and the
+  first-ever depth-4/k4/128K run (no wedge — the nnCtx unlock works)
+  managed 37.8/32.9 at 74-76% acceptance with verify 49-55 ms.
+  CONCLUSION, now measured to the bottom: the mtp_accept cost was never
+  the trip — it was the head decode itself. Every llama_decode on this
+  stack has a ~5-10 ms floor regardless of model size (sync + output
+  path + launch under CC), and MTP pays it k+1 times per round. Beating
+  it needs the whole draft loop inside one decode-free CUDA-graphed
+  multi-step head sequence — deep llama surgery, for a mode
+  prompt-lookup beats for free. THE MTP FILE IS CLOSED on this hardware
+  generation, now with the fixes actually built rather than argued.
+  mm19 stays shipped (semantics-identical, strictly cheaper CPU-side,
+  depth-4+nnCtx proven safe; plain and lookup paths untouched).
 - **Do the fused-round-verb arithmetic BEFORE building it** (it looked
   like the next mountain; the numbers say no). Best case — one WIT call
   per round, head steps CUDA-graphed at ~3 ms: the mtp verify itself
