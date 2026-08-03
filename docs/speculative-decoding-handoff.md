@@ -137,6 +137,26 @@ mechanical, mirror generate_lookup's two-strategy split).
   generation, now with the fixes actually built rather than argued.
   mm19 stays shipped (semantics-identical, strictly cheaper CPU-side,
   depth-4+nnCtx proven safe; plain and lookup paths untouched).
+- **THE DECOMPOSITION ARC (mm20→mm22): the per-token budget finally has
+  names.** mm20 (sync-instr, ggml proc-registry export): total stream-sync
+  waits = 0.18 ms/token on the fleet — no CC sync tax exists. mm21
+  (llama_graph_perf2 + the gperf verb): plain decode's 15.6 ms/token =
+  **out 14.35–14.75** (output reserve + logits extraction) + comp 1.6
+  (sched CPU) + everything else < 0.1. The d2h probe acquits the copy
+  itself (pinned AND pageable ~0.6 ms/MB in-CVM). Remaining suspect: a
+  PAGEABLE output buffer makes cudaMemcpyAsync a hidden full-stream wait
+  (invisible to the sync counter) — llama tries the pinned CUDA_Host buft
+  but ggml silently falls back to malloc on cudaMallocHost failure. mm22
+  logs the buffer type obtained at every output_reserve (the verdict is
+  in every boot log now) and isolates the get_async call (gperf out_get).
+  Two endgames: (a) fleet buffer non-pinned → fix the allocation, and the
+  ceiling moves from 62 toward the SM-cap bandwidth limit; (b) buffer
+  pinned → out_get≈0 relocates the wait, and the 14 ms is GPU exec
+  reality (27b batch-1 at a 25% SM cap ≈ 1.2 TB/s achievable ≈ 14 ms) —
+  in which case 62 tok/s IS the bandwidth wall, speculation (lookup-rs)
+  is precisely the right mitigation (more tokens per weight pass), and
+  the per-share ceiling becomes a pricing/SM% conversation, not an
+  engineering one.
 - **Do the fused-round-verb arithmetic BEFORE building it** (it looked
   like the next mountain; the numbers say no). Best case — one WIT call
   per round, head steps CUDA-graphed at ~3 ms: the mtp verify itself
