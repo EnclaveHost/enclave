@@ -268,6 +268,9 @@ void ell_mtp_reset(void *m, int32_t seq);
  *                 from llama_graph_perf; micros read-and-clear, slot_state
  *                 persistent (0/1/-1). 0 ok, -1 null ctx. */
 int32_t ell_graph_perf(void *ctx, int64_t *out);
+/* mm21: out[7] = ell_graph_perf plus [4]=memory-init us, [5]=graph-compute
+ * call us, [6]=output reserve+extract us (read-and-clear). */
+int32_t ell_graph_perf2(void *ctx, int64_t *out);
 
 int32_t ell_d2h_probe(int32_t size_mb, int64_t *out);
 

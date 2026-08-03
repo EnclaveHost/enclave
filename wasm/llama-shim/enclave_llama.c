@@ -76,6 +76,17 @@ int32_t ell_graph_perf(void *ctx, int64_t *out) {
     return 0;
 }
 
+int32_t ell_graph_perf2(void *ctx, int64_t *out) {
+    /* mm21: out[7] = graph_perf plus [4]=memory init_batch us,
+     * [5]=graph_compute call us, [6]=output reserve+extract us
+     * (read-and-clear) - the decode-stage decomposition behind the
+     * CPU-orchestration-bound finding (sync waits measured 0.18 ms/token,
+     * so the ~15 ms/token lives in llama's CPU path; these name it). */
+    if (!ctx) return -1;
+    llama_graph_perf2((struct llama_context *)ctx, out);
+    return 0;
+}
+
 int32_t ell_d2h_probe(int32_t size_mb, int64_t *out) {
     if (size_mb < 1)  size_mb = 1;
     if (size_mb > 16) size_mb = 16;
