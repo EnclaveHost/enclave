@@ -37,6 +37,79 @@ is drafting-limited (n-gram matches are scarce — MTP drafts every round at
 77–79% acceptance and is the obvious next port; the loop change is
 mechanical, mirror generate_lookup's two-strategy split).
 
+## UPDATE 2026-08-03 (later still): the batch-cost curve is CONVEX, and
+## "k exploration is closed" was WRONG — it was only closed UPWARD
+
+Read this before touching `draft_tokens` again. The campaign's cost model
+assumed a **constant** marginal cost per in-batch token (~3.5 ms on the
+fleet 27b). That constant was fitted entirely inside the k≥4 regime,
+because every bench ever run used k=4 or higher (k=4 means a **5-token**
+verify batch). Below that, the curve is much cheaper — and nobody had
+looked, because "k exploration closed both directions" recorded two
+experiments (fixed k=6, adaptive escalation to k=6) that both went UP.
+
+**Measured cost of one decode vs batch width** (9b MTP — same `qwen35`
+hybrid-SSM arch as the fleet 27b — RTX 3070, `tools/specbench/
+batch-cost-sweep.py`, medians of 40–60, reproduced at prefill 512 AND
+2048; and independently from in-app `feed_all#decode` counters):
+
+| batch | synthetic | in-app | incremental |
+|---|---|---|---|
+| n=1 (plain) | 18.94 ms | 18.2 ms | — |
+| n=2 (k=1) | 20.06 | 20.2 | **+1.1** |
+| n=3 (k=2) | 21.50 | 23.3 | **+1.4** |
+| n=4 (k=3) | 25.17 | 28.3 | +3.7 |
+| n=5 (k=4) | 28.24 | 30.9 | +3.1 |
+| n=6 (k=5) | 31.29 | 35.1 | +3.0 |
+| n=8 (k=7) | 38.04 | 39.0 | +2.7 |
+
+The first two extra tokens are nearly free; the step lands at n≥4. The
+old 3.5 ms/token constant is a good fit for n≥4 and badly wrong below it.
+
+**Break-even acceptance is (round tax)/(plain step)**, so it collapses
+with k: **k=1 ≈ 11%, k=2 ≈ 16%, k=4 ≈ 33–40%.** The shipped config needs
+~40% acceptance merely to stop losing, which is exactly why it nets only
++5 tok/s on prose and went NEGATIVE on long-form.
+
+**Round overhead outside the decode is NOT the story** (I expected it to
+be). From the in-app counters: `rewind` is ~15 **microseconds** per call,
+gbuild ~60 µs, galloc ~50 µs, alloc ~40 µs, topk 0.3–1.2 ms. Total under
+~1.5 ms. The round tax is the batch width, essentially nothing else.
+
+**Local long-form A/B** (9b, 768-token novel prompt, 2 reps, reps within
+0.6 tok/s of each other — new `lookup<N>[g<MIN>][x]` harness kinds):
+
+| config | mean tok/s | vs plain | drafted/accepted |
+|---|---|---|---|
+| plain | 55.05 | — | — |
+| lookup k=4 (SHIPPED) | 59.2 | +7.5% | 36/17 (47%) |
+| lookup k=1 | 57.9 | +5.1% | 16/10 (63%) |
+| lookup k=1, 3-gram floor | 60.0 | +8.9% | 22/16 (73%) |
+| **lookup k=2, 3-gram, gate off** | **60.3** | **+9.5%** | 38/19 (50%) |
+
+k=2/3-gram/gate-off beat shipped k=4 on BOTH reps individually. Two new
+default-off config knobs make this sweepable without changing shipped
+behaviour: **`draft_min_ngram`** (anchor floor, clamped 2..=6) and
+**`draft_gate`** (false disables the EMA pause + anchor escalation). The
+gate and the 4-gram floor were both tuned against k=4 economics — at k=1/2
+a misfire costs ~2 ms instead of ~12.7 ms, so anchors that were correctly
+rejected as "pure round tax" at k=4 can pay for themselves.
+
+**Fidelity caveat found while doing this.** At 768 tokens, batched verify
+is NOT byte-identical to plain: plain, k=4, and the small-k configs
+produced three DIFFERENT (each internally reproducible) outputs. This is
+not a new bug and not caused by the knobs — it is argmax over near-equal
+logits where a batch-n decode's reduction order differs from batch-1's, so
+sampling ties break differently. It is pre-existing in the shipped k=4
+path. The "byte-exact vs plain" golden gate holds at 160–256 tokens and
+degrades with length; treat it as length-sensitive, not absolute.
+
+**Not yet validated on the fleet.** The curve shape is architectural
+(kernel tiling / graph slots) so it should transfer, but the 27b at a 25%
+SM cap is more bandwidth-bound and could have a different step. That is
+the one measurement worth buying bench time for; the config is a
+deployment-config edit, no release needed.
+
 ### Same-day follow-ups (also 2026-08-03, later)
 
 - **k=6 / depth-6 is a NEGATIVE** (config-only probe): quote 60.9, prose
@@ -212,6 +285,10 @@ mechanical, mirror generate_lookup's two-strategy split).
   break even, and lookup's tails don't deliver that on this model.
   llm-chat 0.35.5 reverts to flat k (gate + backoff kept) and is the
   deployed bench build. K EXPLORATION IS CLOSED both directions.
+  **CORRECTION (same day, see the convex-cost-curve update above): this
+  claim was wrong. Both experiments went UPWARD (fixed 6, escalation to
+  6). k=1 and k=2 were never benched, the ~3.5 ms/token figure only holds
+  for n≥4, and small k measures BETTER than the shipped k=4 locally.**
 - **Do the fused-round-verb arithmetic BEFORE building it** (it looked
   like the next mountain; the numbers say no). Best case — one WIT call
   per round, head steps CUDA-graphed at ~3 ms: the mtp verify itself
