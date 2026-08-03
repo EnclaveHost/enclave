@@ -146,6 +146,39 @@ once — including the quote workload where ALL configs currently lose to
 plain. That is the engine campaign worth mounting, and it now has a
 number attached to it.
 
+### The cliff also kills the trained-multi-token-head idea (do not fund it yet)
+
+Steven asked whether we could train the model a multi-token head instead of
+waiting for upstream. Answered two ways, both negative for kryptos TODAY:
+
+1. **The shipped model has no such head.** `Fable-Fusion-27B-MTP` carries
+   `qwen35.nextn_predict_layers = [1]` and exactly one nextn block — the
+   depth-1 SEQUENTIAL head we already exploit, which costs a full decode
+   per proposal. Same for qwen3.6-27b-mtp and qwen3.5-9b-mtp.
+2. **Trained parallel (Medusa-style) heads would not pay on this hardware.**
+   Feasibility harness built and run end-to-end (mm24 shim exports
+   `ell_set_embeddings`/`ell_n_embd`/`ell_hidden_row`; harvest hidden rows
+   from a prefill pass; train residual-MLP heads through the frozen
+   lm_head). Held-out top-1 on a 0.8b proxy, seed-group holdout, 77k pairs:
+   **offset+2 = 36.8%** (climbing ~3 points per doubling of data),
+   **offset+3 = 9.0%, offset+4 = 3.8%**. So a head STACK is pointless — only
+   a single k=1 head is worth anything. But a k=1 proposal means a
+   **batch-2 verify, which is exactly the ~27 ms cliff**: break-even needs
+   ~75% accuracy and we measured 36.8%. Even a wildly optimistic 50% gives
+   ~18 ms/token (~55 tok/s) against plain's ~65. Heads propose on EVERY
+   round (unlike lookup's ~13–25% engagement) and it still does not matter,
+   because the cliff — not acceptance — is what binds.
+
+   Beware the obvious trap here: a first pass with a random row split and a
+   greedy self-generated corpus scored 87/82/80% and looked like a slam
+   dunk. That corpus was loop-degenerate (17.7% unique 4-grams) and the
+   split leaked near-duplicate windows; a document-level holdout collapsed
+   it to 26.5/0/0. Sample with temperature and hold out whole documents.
+
+**Conclusion: fix the replay cliff FIRST.** It is the common blocker for
+MTP, for trained heads, and for the quote workload. Every proposer idea
+downstream of it is gated on the same ~11.6 ms.
+
 ### Same-day follow-ups (also 2026-08-03, later)
 
 - **k=6 / depth-6 is a NEGATIVE** (config-only probe): quote 60.9, prose
