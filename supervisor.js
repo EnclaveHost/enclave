@@ -1712,6 +1712,180 @@ if (process.env.POOL_SELFTEST) {
   process.exit(0);
 }
 
+// ---- instance reconciliation: the RECORDS are the truth, the BACKEND's
+//      instances are a cache ------------------------------------------------
+// One layer below reconcilePools. That sweep fixes OUR accounting of what our
+// own records hold; it cannot see an instance the backend is still running for
+// a record we no longer have. Every teardown path ends in stopContainer, whose
+// contract is explicitly best-effort over HTTP - and twelve of its thirteen
+// callers discard the boolean, because they MUST proceed regardless (a lease
+// that ended has to be released on-chain whether or not the local stop
+// confirmed). So an unconfirmed stop left the process alive, holding its whole
+// slice, with nothing on either side able to see it: the supervisor had
+// dropped the record, and the manager has no owner-liveness check of its own.
+//
+// Live proof (2026-08-03, kryptos): an owner's setActive(false) released the
+// lease on-chain and dropped the record, but the DELETE never landed. The
+// wasm-manager kept the tenant "running" - 4% of the share pool and 17.6 GB of
+// resident ggml weights, 35% of the node's sellable RAM - against a deployment
+// that no longer existed. Nothing reclaimed it, and nothing could: the state is
+// in-memory, so only a manager restart would have cleared it. Same class as the
+// 2026-07-25 leak quoted in stopContainer's own comment.
+//
+// The fix is structural rather than per-call-site: reconcile the backend's
+// instance list against our records on a cadence, and tear down anything we do
+// not own. That also covers the cases a call-site fix cannot - a supervisor
+// crash between stop and release, a restart that expired a mid-provision
+// record, a manager that outlived us entirely.
+//   The listing itself is load-bearing beyond the plan it feeds: the manager
+// re-checks each record's process on every /vms read (_public -> _refresh_status)
+// and its RAM ledger counts only starting/running, but nothing READ on a
+// cadence - so a tenant that died on its own kept its bytes committed until
+// something happened to ask. Polling this every 60s keeps that ledger honest
+// too, which is why the sweep runs even when it reaps nothing.
+const INSTANCE_REAP_MIN_AGE_SEC = Math.max(30, parseInt(process.env.INSTANCE_REAP_MIN_AGE_SEC || "120", 10));
+
+// PURE core. Which backend instances are orphans, given our records.
+// Ownership is keyed on the DEPLOYMENT ID, which both backends carry: the vm
+// manager mints its own random vid ("app_1a2b3c4d5") and echoes the deployment
+// id as `name`, while the worker manager keys tenants by the deployment id
+// itself. Keying on the id (not the vid) is what closes the provisioning race:
+// a record enters `deployments` at reservation, long before spawnContainer
+// returns the vid we would otherwise match on, so an in-flight launch is
+// always recognised as owned.
+//   `minAgeSec` is belt-and-braces on top of that: an instance younger than it
+// is never reaped, so even a backend that ignores `name`, or a launch path
+// that somehow registers late, gets a grace window instead of a kill. An
+// instance with no usable createdAt is reaped on age grounds alone being
+// unknowable - it is old enough to have predated the field.
+//   Terminal records own nothing (TERMINAL_STATUSES: every flip into one
+// releases the slice synchronously), so an instance still running for one is
+// exactly the leak this sweep exists to catch.
+function orphanInstancePlan(instances, records, { nowMs, minAgeSec }) {
+  const owned = new Set();
+  for (const r of records || []) {
+    if (r && r.id != null && !TERMINAL_STATUSES.has(r.status)) owned.add(String(r.id));
+  }
+  const plan = [];
+  for (const v of instances || []) {
+    if (!v) continue;
+    const vmId = String(v.id ?? "");
+    const key = String(v.name || v.id || "");
+    if (!vmId || !key || owned.has(key)) continue;
+    const created = Number(v.createdAt) * 1000;
+    if (Number.isFinite(created) && created > 0 && nowMs - created < minAgeSec * 1000) continue;
+    plan.push({ vmId, id: key });
+  }
+  return plan;
+}
+
+// INSTANCE_SELFTEST='{"instances":[{"id":"app_1","name":"0xabc","createdAt":1}],
+//   "records":[{"id":"0xabc","status":"running"}],"nowMs":…,"minAgeSec":120}'
+// prints the reap plan as one JSON line and exits - same contract as the seams
+// above (test/instance-reconcile.test.mjs drives it).
+if (process.env.INSTANCE_SELFTEST) {
+  const c = JSON.parse(process.env.INSTANCE_SELFTEST);
+  console.log(JSON.stringify(orphanInstancePlan(c.instances || [], c.records || [], {
+    nowMs: c.nowMs != null ? c.nowMs : Date.now(),
+    minAgeSec: c.minAgeSec != null ? c.minAgeSec : INSTANCE_REAP_MIN_AGE_SEC })));
+  process.exit(0);
+}
+
+// List what the backend is actually running. Returns null - meaning "no
+// answer", never "nothing runs" - when the manager cannot be reached or
+// answers a shape we don't recognise. A failed listing MUST NOT read as an
+// empty fleet: that would turn one unreachable manager into a sweep that tears
+// down every live tenant on the box.
+async function listBackendInstances() {
+  if (PROVISION_BACKEND === "vm") {
+    const r = await vmReq("GET", "/vms", null, 10_000);
+    return r.status === 200 && Array.isArray(r.body && r.body.vms) ? r.body.vms : null;
+  }
+  const r = await mgrReq("GET", "/tenants", null, 10_000);
+  return r.status === 200 && Array.isArray(r.body && r.body.tenants) ? r.body.tenants : null;
+}
+
+async function reconcileInstances() {
+  if (/^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) return [];
+  let instances;
+  try {
+    instances = await listBackendInstances();
+  } catch (e) {
+    console.warn(`[instance] backend listing failed (${e.message}) - skipping this pass`);
+    return [];
+  }
+  if (instances === null) {
+    console.warn("[instance] backend listing unavailable - skipping this pass");
+    return [];
+  }
+  const plan = orphanInstancePlan(instances, [...deployments.values()],
+                                  { nowMs: Date.now(), minAgeSec: INSTANCE_REAP_MIN_AGE_SEC });
+  const reaped = [];
+  for (const o of plan) {
+    const path = PROVISION_BACKEND === "vm"
+      ? `/vms/${encodeURIComponent(o.vmId)}` : `/tenants/${encodeURIComponent(o.vmId)}`;
+    try {
+      const r = PROVISION_BACKEND === "vm"
+        ? await vmReq("DELETE", path, null, 30_000) : await mgrReq("DELETE", path, null, 30_000);
+      if (r.status === 200 || r.status === 404) {
+        reaped.push(o.id);
+        console.warn(`[instance] reaped orphan ${o.id} (vm=${o.vmId}) - no record owns it; `
+                   + "its slice and any resident model weights are back in the pool");
+      } else {
+        console.warn(`[instance] orphan ${o.id} (vm=${o.vmId}): DELETE HTTP ${r.status} - retrying next pass`);
+      }
+    } catch (e) {
+      console.warn(`[instance] orphan ${o.id} (vm=${o.vmId}): ${e.message} - retrying next pass`);
+    }
+  }
+  return reaped;
+}
+
+// Debounced kick, so an unconfirmed stop converges in seconds rather than
+// waiting out the cadence. The pass itself is idempotent, so a coalesced burst
+// of failures costs one sweep.
+let _instanceSweepTimer = null;
+function reconcileInstancesSoon(delayMs = 5_000) {
+  if (_instanceSweepTimer) return;
+  _instanceSweepTimer = setTimeout(() => {
+    _instanceSweepTimer = null;
+    reconcileInstances().catch((e) => console.warn(`[instance] sweep failed: ${e.message}`));
+  }, delayMs);
+  if (_instanceSweepTimer.unref) _instanceSweepTimer.unref();
+}
+
+// INSTANCE_SWEEP_SELFTEST='{"records":[{"id":"0xabc","status":"running"},…]}'
+// runs ONE REAL reconcileInstances() pass against whatever VMMGR_URL/MGR_URL
+// point at (a stub manager in the tests), prints the reaped ids as one JSON
+// line and exits. Unlike INSTANCE_SELFTEST above - which drives the pure
+// planner - this exercises the part that actually issues DELETEs, including
+// the fail-closed rule that an unreadable listing reaps NOTHING.
+// Top-level await, so the rest of the module never evaluates - the seam must
+// not boot a server or bind a port, exactly like the synchronous seams above.
+if (process.env.INSTANCE_SWEEP_SELFTEST) {
+  const c = JSON.parse(process.env.INSTANCE_SWEEP_SELFTEST);
+  for (const r of c.records || []) deployments.set(r.id, r);
+  try {
+    console.log(JSON.stringify({ reaped: await reconcileInstances() }));
+    process.exit(0);
+  } catch (e) { console.log(JSON.stringify({ error: e.message })); process.exit(1); }
+}
+
+function startInstanceReconciler() {
+  // The boot pass is DELAYED, unlike the pool reconciler's. That one reads our
+  // own restored records; this one can delete another process's work, and at
+  // t=0 loadState has run but nothing has re-registered or re-claimed yet. The
+  // delay also keeps the min-age window meaningful across a supervisor restart.
+  const first = setTimeout(() => {
+    reconcileInstances().catch((e) => console.warn(`[instance] boot sweep failed: ${e.message}`));
+  }, Math.max(30_000, INSTANCE_REAP_MIN_AGE_SEC * 1000 / 2));
+  if (first.unref) first.unref();
+  const t = setInterval(() => {
+    reconcileInstances().catch((e) => console.warn(`[instance] sweep failed: ${e.message}`));
+  }, 60_000);
+  if (t.unref) t.unref();
+}
+
 // ============================================================================
 // >>> IMPLEMENT THESE for your CVM launch mechanism (e.g. the app manager on
 //     VMMGR_URL). Contract: one ingress port, no sibling reach.
@@ -1813,15 +1987,25 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort
 // processes on one slice (live 2026-07-25: an upgrade's leaked 27b tenant
 // kept ~30 GiB of weights+KV pinned and the replacement failed context
 // allocation against memory it could not see).
+//   Callers that cannot defer - a lease that ended must be released on-chain
+// whether or not the local stop confirmed - are covered by the instance
+// reconciler instead: every false here schedules a sweep, which finds the
+// instance unowned once the record goes terminal and tears it down for real.
+// So an unconfirmed stop is now a LATENCY, never a permanent leak.
+function stopUnconfirmed(rec, why) {
+  console.warn(`[stop] ${rec.id}: UNCONFIRMED (${why}) - the instance may still hold its slice; `
+             + "handing off to the instance reconciler");
+  reconcileInstancesSoon();
+  return false;
+}
 async function stopContainer(rec) {
   if (PROVISION_BACKEND === "vm") {
     if (!rec._vmId) return true;               // nothing was ever provisioned
     try {
       const r = await vmReq("DELETE", `/vms/${encodeURIComponent(rec._vmId)}`);
       if (r.status === 200 || r.status === 404) return true;
-      console.warn(`[stop-vm] ${rec.id}: HTTP ${r.status}`);
-      return false;
-    } catch (e) { console.warn(`[stop-vm] ${rec.id}: ${e.message}`); return false; }
+      return stopUnconfirmed(rec, `HTTP ${r.status}`);
+    } catch (e) { return stopUnconfirmed(rec, e.message); }
   }
   // Tear down the tenant's MPS-capped child. The manager terminates the process,
   // which returns its context/VRAM to the driver and releases the share. NOTE:
@@ -1829,9 +2013,8 @@ async function stopContainer(rec) {
   try {
     const r = await mgrReq("DELETE", `/tenants/${encodeURIComponent(rec.id)}`);
     if (r.status === 200 || r.status === 404) return true;
-    console.warn(`[stop] ${rec.id}: HTTP ${r.status}`);
-    return false;
-  } catch (e) { console.warn(`[stop] ${rec.id}: ${e.message}`); return false; }
+    return stopUnconfirmed(rec, `HTTP ${r.status}`);
+  } catch (e) { return stopUnconfirmed(rec, e.message); }
 }
 // What app ran, as an attestation-visible identity. For ipfs://<cid> the CID IS a
 // content hash the (attested) wasm-manager verified the bytes against before running,
@@ -6776,6 +6959,11 @@ else if (REGISTRY_READY) advertiseFromShimCert();
 startPaymentWatcher();
 startBillingTicker();
 startPoolReconciler();
+
+// ...and the same doctrine one layer down: tear down backend instances no
+// record owns, so an unconfirmed stop can never strand a tenant's slice (and
+// its resident model weights) against a deployment that no longer exists.
+startInstanceReconciler();
 
 // portable deployments: claim/renew/release on-chain leases (opt-in; see
 // contracts/DEPLOYMENTS.md). Requires registry advertising + DEPLOYMENTS_ADDRESS.
