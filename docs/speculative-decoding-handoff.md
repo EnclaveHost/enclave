@@ -91,6 +91,31 @@ mechanical, mirror generate_lookup's two-strategy split).
   this engine generation. (Deferred with it: the ell_mtp_available
   tensor-verification hardening — still worth bundling into whatever
   the NEXT real toolchain cut is.)
+- **THE MTP DOSSIER (2026-08-03, Steven asked for every option): correctness
+  is DONE, profitability is measured to a parity ceiling.** Correct today:
+  rewind-commit MTP validated local + fleet (90% acceptance, no wedge at
+  depth ≤ 2, guards hold). The fleet round decomposition (k=2, from the
+  mtp2rs2 frames): verify 36–43 ms (gbuild 0.3 → llama reuse fine; local CG
+  trace shows the nextn graph REPLAYS, 56/59) + mtp_draft 10–14 ms (2 head
+  steps; softmax only ~2.7 ms/step of it — p_min=0 probe made things WORSE,
+  32.4 vs 36.8, by forcing full-k drafts) + mtp_accept (head observe)
+  9.5–14 ms + topk 1.3 + 4 WIT trips ≈ 70 ms for 2.7 tokens. Head-side
+  llama reuse verified locally (LLAMA_GRAPH_RESULT_DEBUG: 228 reuse / 28
+  refuse). Options costed: GPU-side argmax for draft steps (−4-6 ms),
+  observe folded into next draft call (−8-12 ms), fused round verb (−2-6
+  ms), depth-4 k=4 via the new nnCtx knob (+1.4 tokens/round IF the 90%
+  chain holds). ALL of them together: round ~45 ms → 60 tok/s at k2,
+  65–71 at k4-optimistic — **parity with shipped lookup-rs, never above**,
+  because the nextn verify itself (~35 ms replayed, +20% graph vs lookup's)
+  eats the winning budget. Head-on-CPU: worse (~30-60 ms/step). Batched
+  multi-token head: impossible at depth-1 nextn (sequential by
+  construction). VERDICT: park MTP behind lookup-rs on this hardware
+  generation; the resident head VRAM is reclaimable via nnLoadMtp:false;
+  revisit on (a) an upstream multi-token/eagle-style head, (b) cheaper
+  launch/sync under CC, or (c) a model whose nextn verify graph is not
+  +20%. If Steven wants the parity-tying bundle built anyway, it is:
+  [observe-fold + GPU argmax + fused verb + nnCtx/k4], one toolchain
+  cascade + one llm-chat minor, est. 2-4 h + one canary window.
 - **Do the fused-round-verb arithmetic BEFORE building it** (it looked
   like the next mountain; the numbers say no). Best case — one WIT call
   per round, head steps CUDA-graphed at ~3 ms: the mtp verify itself
