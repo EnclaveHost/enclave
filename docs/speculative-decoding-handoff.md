@@ -70,11 +70,18 @@ mechanical, mirror generate_lookup's two-strategy split).
   (0xed05dd04…, throwaway wallet key at ~/.config/enclave/key). It is
   suspended; llm-chat-bench 0.34.2 is the deployed version.
 
+- **0.34.4 (4-gram lookup anchor) closed the session**: quote 63.1 ± 0.4
+  (drafting up ~50%, now AT plain with the tightest variance of any spec
+  config ever) and prose 69.1/59.2/68.9 — replicating the headline (the
+  59.2 is a lookup-found-nothing trajectory; the floor works as designed).
+  Pooled prose across both windows: 6 samples, mean 66.9 vs plain 62.8.
+
 **Current best config on mm18: `draft:"lookup", draft_tokens:4,
-tokenizer:"host"` + deployment `nnRsSeq:4`** — +8% over plain on
-draft-friendly prompts, parity floor elsewhere, byte-exact plain-fidelity
-locally. The catalog publish (Steven's wallet) is still the item worth
-more than any of this.
+tokenizer:"host"` + deployment `nnRsSeq:4`** (llm-chat 0.34.4) — +6-8%
+over plain on draft-friendly prompts, parity floor elsewhere, byte-exact
+plain-fidelity locally. The catalog publish (Steven's wallet) is still
+the item worth more than any of this. Bench deployment: suspended,
+~$0.5 escrow left, llm-chat-bench 0.34.4 deployed.
 
 ## The one-line status (pre-mm18, kept for context)
 
