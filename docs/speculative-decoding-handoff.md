@@ -366,6 +366,14 @@ If that lands, the verify pass should replay and the arithmetic above says
 85–115 tok/s. It touches the shim (`ell_seq_*`), the wasi-nn ggml backend's
 speculative verbs, and llama context creation — a design change, not a knob.
 
+## The harness is now IN-REPO: tools/specbench/
+
+ab-serve.sh (local byte-exact A/B), fleet-bench.sh (fleet golden + 3-sample
+matrices), the measured cfg-*.json, session.mjs (bearer minting), and a
+README carrying the measurement discipline. The session-scratchpad copies
+this doc used to reference die with the workstation; these do not. Gate
+every future engine/pin bump through them.
+
 ## How to work on this without wasting the budget
 
 Hard-won process rules, each of which I violated at least once:
