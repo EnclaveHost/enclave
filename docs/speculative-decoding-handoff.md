@@ -75,6 +75,22 @@ mechanical, mirror generate_lookup's two-strategy split).
   config ever) and prose 69.1/59.2/68.9 — replicating the headline (the
   59.2 is a lookup-found-nothing trajectory; the floor works as designed).
   Pooled prose across both windows: 6 samples, mean 66.9 vs plain 62.8.
+- **The verify pass REPLAYS — confirmed by direct trace, and it closes
+  the last engine question.** A temporary `ENCLAVE_CG_TRACE` print at
+  ggml-cuda's evaluate-and-capture (local sm_86, 0.8b, lookup-rs k4/d4;
+  the traced clone lives in the b7e62e01 session scratchpad as
+  llama-mm19/, and the clang-CUDA CMake fix needed to build it locally
+  is saved there as clang-cuda-build.diff): batch-1 key = 98 replays /
+  1 capture, verify key = 16 replays / 1 capture over 16-18 rounds.
+  Batched verifies ride full CUDA-graph replay on mm18. Consequence:
+  the planned mm19 (batch the K conv-snapshot copies, 240→48 nodes) is
+  CANCELLED — those copies are inside a replayed graph, their launch
+  cost is already amortized; and the fleet's 30 ms verify vs the ~24 ms
+  estimate is EXECUTION cost (wider batch + keep_rs GDN + snapshot
+  stores under CC), not overhead. Lookup-rs is at its replay floor for
+  this engine generation. (Deferred with it: the ell_mtp_available
+  tensor-verification hardening — still worth bundling into whatever
+  the NEXT real toolchain cut is.)
 - **Do the fused-round-verb arithmetic BEFORE building it** (it looked
   like the next mountain; the numbers say no). Best case — one WIT call
   per round, head steps CUDA-graphed at ~3 ms: the mtp verify itself
