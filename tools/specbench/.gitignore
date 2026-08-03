@@ -3,3 +3,7 @@
 ab-*.txt
 ab-*.done.json
 ab-serve-*.log
+# minted session JWT - a live credential, never commit
+bearer.txt
+# fleet done-frames: regenerable bench output (results live in the handoff)
+fm-*.json
