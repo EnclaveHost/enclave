@@ -14,7 +14,7 @@ cd "$S"
 P_PROSE="Explain why the sky is blue, why sunsets are red, and why clouds are white, in about three paragraphs."
 P_QUOTE="Here is a short policy: 'All deployments must pin their base images by digest. All secrets must rotate every 90 days. All services must emit structured logs.' Go through the policy sentence by sentence: quote each sentence exactly, then give one concrete example of following it."
 
-mint() { node "$OLD/session.mjs" https://api.enclave.host > "$S/bearer.txt" 2>/dev/null; B=$(cat "$S/bearer.txt"); }
+mint() { node "$S/session.mjs" https://api.enclave.host > "$S/bearer.txt" 2>/dev/null; B=$(cat "$S/bearer.txt"); }
 wait_app() {
   for j in $(seq 1 40); do
     curl -s -m 45 -H "authorization: Bearer $B" -H "content-type: application/json" \
