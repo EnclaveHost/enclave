@@ -204,10 +204,14 @@ export async function vaultOp(op, params){
              : op === "fund"   ? { id: prep.id, fund6: prep.fund6 }
              : op === "refund" ? { amount6: prep.amount6 }
              : { callData: prep.callData };
-  return Enclave.vaultExec({ op, deadline: prep.deadline, args, assertion: {
-    credId: asr.id,
-    authenticatorData: asr.response.authenticatorData,
-    clientDataJSON: asr.response.clientDataJSON,
-    signature: asr.response.signature,
-  }});
+  return Enclave.vaultExec({ op, deadline: prep.deadline, args,
+    // a refund against a vault a migration stranded names it explicitly; the
+    // relay re-proves it belongs to this account's passkey before submitting
+    ...(params.vault ? { vault: params.vault, factory: params.factory } : {}),
+    assertion: {
+      credId: asr.id,
+      authenticatorData: asr.response.authenticatorData,
+      clientDataJSON: asr.response.clientDataJSON,
+      signature: asr.response.signature,
+    }});
 }
