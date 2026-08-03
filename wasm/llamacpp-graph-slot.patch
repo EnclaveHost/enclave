@@ -417,7 +417,7 @@ index 5ef7bec..5d2db80 100644
      llama_perf_context_data data = {};
  
 diff --git a/src/llama-context.h b/src/llama-context.h
-index bf91daa..a840181 100644
+index bf91daa..e33a961 100644
 --- a/src/llama-context.h
 +++ b/src/llama-context.h
 @@ -187,6 +187,9 @@ struct llama_context {
@@ -439,7 +439,7 @@ index bf91daa..a840181 100644
  
      bool set_sampler(llama_seq_id seq_id, llama_sampler * sampler);
  
-@@ -367,6 +370,35 @@ private:
+@@ -367,6 +370,43 @@ private:
      llm_graph_result_ptr gf_res_prev;
      llm_graph_result_ptr gf_res_reserve;
  
@@ -457,7 +457,15 @@ index bf91daa..a840181 100644
 +    // exactly that alternation (measured on the fleet: gbuild 2-3ms on
 +    // every verify WITH the slot engaged). Each entry lazily reserves at
 +    // its own token count, so small shapes stay cheap.
-+    static constexpr int GRAPH_SLOTS_ALT = 3;
++    // mm16: 12, not 3. Keying by (n_tokens, seq_id) multiplies the live
++    // key count: a k-token speculative round produces verify batches of
++    // 2..k+1 on the scratch branch AND partial-accept re-feeds of 2..k on
++    // the real sequence, so k=4 alone wants ~7 keys. With 3 slots the ring
++    // thrashed and k=4 regressed (fleet: gbuild 1.46 -> 4.33ms, verify
++    // 41 -> 55ms) while k=2, which fits, improved (43.3 -> 28.8ms). Slots
++    // are lazily created and bounded to <=8-token graphs, so the extra
++    // compute buffers are small next to the model.
++    static constexpr int GRAPH_SLOTS_ALT = 12;
 +    struct alt_slot {
 +        llm_graph_result_ptr res;
 +        ggml_backend_sched_ptr sched;
@@ -475,7 +483,7 @@ index bf91daa..a840181 100644
      // host buffer for the model output (logits and embeddings)
      ggml_backend_buffer_ptr buf_output;
  
-@@ -387,6 +419,17 @@ private:
+@@ -387,6 +427,17 @@ private:
      mutable int64_t t_compute_start_us = 0;
      mutable int64_t n_queued_tokens    = 0;
  
