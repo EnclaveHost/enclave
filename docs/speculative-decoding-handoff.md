@@ -203,6 +203,15 @@ mechanical, mirror generate_lookup's two-strategy split).
   recipe above. The mm7->mm23 arc is complete: every theory tested,
   every millisecond named, and the one config that beats physics is the
   one already recommended for the catalog.
+- **Adaptive-k (hot-streak escalation to k=6): tried, soft NEGATIVE,
+  reverted.** Quote 60.7 vs the flat-k 63.1 baseline (unguarded daytime
+  window - kryptos contention suspected, but the direction agrees with
+  fixed k=6's clean negative). The physics explains it: each in-batch
+  draft token costs ~3.5 ms of sequential hybrid-scan regardless of
+  acceptance, so k>4 needs >70% MARGINAL acceptance at depth 5-6 to
+  break even, and lookup's tails don't deliver that on this model.
+  llm-chat 0.35.5 reverts to flat k (gate + backoff kept) and is the
+  deployed bench build. K EXPLORATION IS CLOSED both directions.
 - **Do the fused-round-verb arithmetic BEFORE building it** (it looked
   like the next mountain; the numbers say no). Best case — one WIT call
   per round, head steps CUDA-graphed at ~3 ms: the mtp verify itself
