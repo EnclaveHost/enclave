@@ -46,10 +46,15 @@ const DEFS = [
   { name: "PaymentRouter",       bookKey: "paymentRouter" },
   // the credit-vault FACTORY is the deployable; clones come from it on-chain.
   // `file` names the .sol (which also holds the vault implementation).
-  { name: "EnclaveCreditVaultFactory", file: "EnclaveCreditVault", bookKey: "vaultFactory" },
+  // `alsoAbi` names contracts in the same file whose ABI is worth keeping in
+  // sync but which are NOT deployable from the console: the vault itself is
+  // minted as a clone by its factory, yet the admin console encodes calls
+  // straight to it (stranded-vault recovery), and those need pinning.
+  { name: "EnclaveCreditVaultFactory", file: "EnclaveCreditVault", bookKey: "vaultFactory",
+    alsoAbi: ["EnclaveCreditVault"] },
 ];
 
-function compile(name, viaIR, fileBase) {
+function compile(name, viaIR, fileBase, alsoAbi) {
   const file = (fileBase || name) + ".sol";
   const source = fs.readFileSync(path.join(REPO, "contracts", file), "utf8");
   const input = {
@@ -66,14 +71,23 @@ function compile(name, viaIR, fileBase) {
   if (errs.length) throw new Error(`solc(${file}):\n` + errs.map((e) => e.formattedMessage).join("\n"));
   const c = out.contracts[file][name];
   if (!c || !c.evm.bytecode.object) throw new Error(`no bytecode for ${name}`);
-  return { abi: c.abi, bytecode: "0x" + c.evm.bytecode.object };
+  const extraAbis = {};
+  for (const also of alsoAbi || []) {
+    const e = out.contracts[file][also];
+    if (!e) throw new Error(`${file} has no contract ${also}`);
+    extraAbis[also] = e.abi;
+  }
+  return { abi: c.abi, bytecode: "0x" + c.evm.bytecode.object, extraAbis };
 }
 
 const artifacts = {};
 for (const def of DEFS) {
-  const { abi, bytecode } = compile(def.name, def.viaIR, def.file);
+  const { abi, bytecode, extraAbis } = compile(def.name, def.viaIR, def.file, def.alsoAbi);
   fs.writeFileSync(path.join(REPO, "contracts", def.name + ".abi.json"),
     JSON.stringify(abi, null, 2) + "\n");
+  for (const [also, alsoAbiJson] of Object.entries(extraAbis))
+    fs.writeFileSync(path.join(REPO, "contracts", also + ".abi.json"),
+      JSON.stringify(alsoAbiJson, null, 2) + "\n");
   const sel = {};
   for (const f of abi) {
     if (f.type !== "function") continue;

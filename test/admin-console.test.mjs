@@ -112,6 +112,42 @@ test("vaultmig.js pins + encodings match viem (the credit-vault recovery flow)",
     "the factory creation bytecode must embed the ledger's current create() selector - a stale artifact re-wedges every vault it mints");
 });
 
+test("vault recovery surface pins + encodes like viem (refundToTreasury struct, migrateToSuccessor)", async () => {
+  const { VAULT_SEL, encodeRefundCall, derToRS } = await import(path.join(REPO, "site/components/admin-console/vaultmig.js"));
+  const vaultAbi = ABI("EnclaveCreditVault");
+  const sigTuple = { type: "tuple", components: [
+    { name: "authenticatorData", type: "bytes" }, { name: "clientDataJSON", type: "string" },
+    { name: "r", type: "uint256" }, { name: "s", type: "uint256" },
+    { name: "x", type: "uint256" }, { name: "y", type: "uint256" }] };
+  eq("0x" + VAULT_SEL.refundToTreasury,
+     toFunctionSelector({ type: "function", name: "refundToTreasury", inputs: [{ type: "uint256" }, { type: "uint256" }, sigTuple] }));
+  eq("0x" + VAULT_SEL.migrateToSuccessor, toFunctionSelector("function migrateToSuccessor(uint256,uint256)"));
+  eq("0x" + VAULT_SEL.nonce, toFunctionSelector("function nonce() view returns (uint256)"));
+  eq("0x" + VAULT_SEL.rootKeyHash, toFunctionSelector("function rootKeyHash() view returns (bytes32)"));
+  eq("0x" + VAULT_SEL.recoveryAdmin, toFunctionSelector("function recoveryAdmin() view returns (address)"));
+  // every one of them must exist on the CONTRACT, not just as a string here
+  for (const name of ["refundToTreasury", "migrateToSuccessor", "nonce", "rootKeyHash", "recoveryAdmin"])
+    assert.ok(vaultAbi.some((f) => f.type === "function" && f.name === name), "vault ABI has " + name);
+
+  // the hand-rolled dynamic struct: odd-length authenticatorData and a
+  // clientDataJSON straddling a word boundary are where padding bugs hide
+  const sig = {
+    authenticatorData: "0x" + "49960de5".repeat(9) + "01",
+    clientDataJSON: '{"type":"webauthn.get","challenge":"abc","origin":"https://enclave.host","crossOrigin":false}',
+    r: 0x1234567890abcdefn, s: (1n << 255n) + 7n, x: 0xaaan, y: 0xbbbn,
+  };
+  eq(encodeRefundCall(25_000_000n, 1893456000n, sig),
+     encodeFunctionData({ abi: vaultAbi, functionName: "refundToTreasury",
+       args: [25_000_000n, 1893456000n, [sig.authenticatorData, sig.clientDataJSON, sig.r, sig.s, sig.x, sig.y]] }));
+
+  // DER -> (r,s), including the leading-zero-stripped 33-byte integer form
+  const der = Buffer.from(
+    "3046" + "022100" + "ff".repeat(32) + "0220" + "01".repeat(32), "hex");
+  const rs = derToRS(new Uint8Array(der));
+  assert.equal(rs.r, BigInt("0x" + "ff".repeat(32)));
+  assert.equal(rs.s, BigInt("0x" + "01".repeat(32)));
+});
+
 test("chain.js DEP_SEL hand-pins match the ABI (the cap getter every deploy path gates on)", () => {
   eq("0x" + DEP_SEL.maxGpuMilli, toFunctionSelector("function maxGpuMilli() view returns (uint16)"));
   eq("0x" + CONTRACTS.EnclaveDeployments.sel.maxGpuMilli, "0x" + DEP_SEL.maxGpuMilli);
@@ -226,6 +262,7 @@ test("creation tx data (bytecode + ctor args) encodes like viem encodeDeployData
   const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
   const REG = "0xCB65f487eba6564D57FfB860cF9aE701584cB4a2";
   const FEED = "0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70";
+  const ZERO_ADDR = "0x" + "0".repeat(40);   // recoveryAdmin = 0 declines the recovery power
   // mirrors the console: it reads each argument's TYPE off the artifact's ctor
   // and hands the shared codec a typed list, because the vault factory's pinned
   // signing origins are strings - address-only concatenation cannot place a
@@ -242,8 +279,8 @@ test("creation tx data (bytecode + ctor args) encodes like viem encodeDeployData
   dep("EnclavePay", [USDC, A1]);
   dep("EnclaveDeployments", [USDC, A1, REG, FEED]);
   // mixed static + dynamic: three addresses then two strings
-  dep("EnclaveCreditVaultFactory", [USDC, REG, A1, "https://enclave.host", ""]);
-  dep("EnclaveCreditVaultFactory", [USDC, REG, A1, "https://enclave.host", "https://www.enclave.host"]);
+  dep("EnclaveCreditVaultFactory", [USDC, REG, A1, A1, "https://enclave.host", ""]);
+  dep("EnclaveCreditVaultFactory", [USDC, REG, A1, ZERO_ADDR, "https://enclave.host", "https://www.enclave.host"]);
 });
 
 test("decodeBook round-trips a viem-encoded all() result (skipping retired keys)", () => {

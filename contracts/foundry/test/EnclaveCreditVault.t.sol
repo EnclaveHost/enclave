@@ -31,6 +31,7 @@ function ensureP256(Vm vm) {
 contract EnclaveCreditVaultTest is Test {
     address constant P256_VERIFY = 0x0000000000000000000000000000000000000100;
     bytes32 constant BOOK_KEY_DEPLOYMENTS = 0x6465706c6f796d656e7473000000000000000000000000000000000000000000;
+    bytes32 constant BOOK_KEY_VAULT_FACTORY = 0x7661756c74466163746f72790000000000000000000000000000000000000000;
 
     uint256 constant PK1 = 0xA1CE;   // customer passkey scalar
     uint256 constant PK2 = 0xB0B2;   // second device
@@ -42,6 +43,7 @@ contract EnclaveCreditVaultTest is Test {
     EnclaveCreditVaultFactory factory;
     EnclaveCreditVault vault;
     address treasury = address(0x7E57);
+    address constant RECOVERY_ADMIN = address(0xAD11);
     uint256 x1; uint256 y1;
 
     function setUp() public {
@@ -51,7 +53,7 @@ contract EnclaveCreditVaultTest is Test {
         dep = new MockDeployments(IERC20(address(usdc)), address(0xFEE));
         book.set(BOOK_KEY_DEPLOYMENTS, address(dep));
         factory = new EnclaveCreditVaultFactory(IERC20(address(usdc)), IAddressBook(address(book)), treasury,
-            ORIGIN, "");
+            RECOVERY_ADMIN, ORIGIN, "");
         (x1, y1) = vm.publicKeyP256(PK1);
         vault = EnclaveCreditVault(factory.createVault(x1, y1));
         usdc.mint(address(vault), 100e6);   // $100 of credit
@@ -408,7 +410,7 @@ contract EnclaveCreditVaultTest is Test {
     function test_secondOriginSlotAccepted_whenConfigured() public {
         // a factory pinning apex + www accepts either, and nothing else
         EnclaveCreditVaultFactory f2 = new EnclaveCreditVaultFactory(
-            IERC20(address(usdc)), IAddressBook(address(book)), treasury, ORIGIN, "https://www.enclave.host");
+            IERC20(address(usdc)), IAddressBook(address(book)), treasury, RECOVERY_ADMIN, ORIGIN, "https://www.enclave.host");
         EnclaveCreditVault v2 = EnclaveCreditVault(f2.createVault(x1, y1));
         usdc.mint(address(v2), 50e6);
         uint256 deadline = block.timestamp + 300;
@@ -428,8 +430,128 @@ contract EnclaveCreditVaultTest is Test {
         v2.refundToTreasury(1e6, deadline, tenant);
     }
 
+    // ---- migrateToSuccessor (the no-passkey recovery) ---------------------------
+
+    /// Stand up the successor world: a NEW factory, the book repointed at it,
+    /// and this customer's vault minted there. Mirrors what the admin console's
+    /// migration flow does on-chain.
+    function _successorFactory() internal returns (EnclaveCreditVaultFactory f2, address succ) {
+        f2 = new EnclaveCreditVaultFactory(IERC20(address(usdc)), IAddressBook(address(book)), treasury,
+            RECOVERY_ADMIN, ORIGIN, "");
+        book.set(BOOK_KEY_VAULT_FACTORY, address(f2));
+        succ = f2.createVault(x1, y1);
+    }
+
+    function test_migrateToSuccessor_movesCreditToTheSameCustomer() public {
+        (, address succ) = _successorFactory();
+        vm.prank(RECOVERY_ADMIN);
+        vault.migrateToSuccessor(x1, y1);
+        assertEq(usdc.balanceOf(address(vault)), 0, "stranded vault drained");
+        assertEq(usdc.balanceOf(succ), 100e6, "credit landed at the customer's new vault");
+        // and it is genuinely THEIRS: the same passkey still spends it
+        assertEq(EnclaveCreditVault(succ).keyActive(keccak256(abi.encode(x1, y1))), true);
+        assertEq(usdc.balanceOf(treasury), 0, "the company took nothing");
+    }
+
+    /// The whole security claim in one test: recoveryAdmin picks NOTHING about
+    /// where the money goes. No amount, no recipient - the only reachable
+    /// destination is the derived successor.
+    function test_migrateToSuccessor_companyCannotRedirectOrSkim() public {
+        (, address succ) = _successorFactory();
+        // a second registered device does NOT retarget the transfer: only the
+        // ROOT key (this vault's CREATE2 salt) is accepted
+        (uint256 x2, uint256 y2) = vm.publicKeyP256(PK2);
+        uint256 deadline = block.timestamp + 300;
+        bytes32 dAdd = keccak256(abi.encode(keccak256("EnclaveVault.addKey.v1"), address(vault),
+            block.chainid, vault.nonce(), x2, y2, deadline));
+        vault.addKey(x2, y2, deadline, _sig(PK1, dAdd));
+        vm.prank(RECOVERY_ADMIN);
+        vm.expectRevert(bytes("not this vault's root key"));
+        vault.migrateToSuccessor(x2, y2);
+        // an unregistered key is refused too
+        vm.prank(RECOVERY_ADMIN);
+        vm.expectRevert(bytes("not this vault's root key"));
+        vault.migrateToSuccessor(uint256(1), uint256(2));
+        // and the honest call still pays only the customer
+        vm.prank(RECOVERY_ADMIN);
+        vault.migrateToSuccessor(x1, y1);
+        assertEq(usdc.balanceOf(succ), 100e6);
+    }
+
+    function test_migrateToSuccessor_onlyRecoveryAdmin() public {
+        _successorFactory();
+        vm.expectRevert(bytes("recovery admin only"));
+        vault.migrateToSuccessor(x1, y1);            // this test contract
+        vm.prank(treasury);
+        vm.expectRevert(bytes("recovery admin only"));
+        vault.migrateToSuccessor(x1, y1);
+    }
+
+    /// The gate that protects LIVE credit: while this vault is still the one
+    /// the current factory mints, its balance cannot be moved at all.
+    function test_migrateToSuccessor_refusedWhileCurrent() public {
+        book.set(BOOK_KEY_VAULT_FACTORY, address(factory));
+        vm.prank(RECOVERY_ADMIN);
+        vm.expectRevert(bytes("not superseded"));
+        vault.migrateToSuccessor(x1, y1);
+        assertEq(usdc.balanceOf(address(vault)), 100e6);
+    }
+
+    /// Never send credit to an address with no code: the successor must be
+    /// minted first, or the funds would be stranded past all recovery.
+    function test_migrateToSuccessor_requiresAMintedSuccessor() public {
+        EnclaveCreditVaultFactory f2 = new EnclaveCreditVaultFactory(IERC20(address(usdc)),
+            IAddressBook(address(book)), treasury, RECOVERY_ADMIN, ORIGIN, "");
+        book.set(BOOK_KEY_VAULT_FACTORY, address(f2));   // predicted, but not created
+        vm.prank(RECOVERY_ADMIN);
+        vm.expectRevert(bytes("successor not minted"));
+        vault.migrateToSuccessor(x1, y1);
+        f2.createVault(x1, y1);
+        vm.prank(RECOVERY_ADMIN);
+        vault.migrateToSuccessor(x1, y1);               // now it lands
+        assertEq(usdc.balanceOf(f2.vaultFor(x1, y1)), 100e6);
+    }
+
+    function test_migrateToSuccessor_zeroAdminDisablesItForever() public {
+        EnclaveCreditVaultFactory f0 = new EnclaveCreditVaultFactory(IERC20(address(usdc)),
+            IAddressBook(address(book)), treasury, address(0), ORIGIN, "");
+        EnclaveCreditVault v0 = EnclaveCreditVault(f0.createVault(x1, y1));
+        usdc.mint(address(v0), 10e6);
+        (, address succ) = _successorFactory();
+        assertTrue(succ != address(v0));
+        vm.prank(address(0));
+        vm.expectRevert(bytes("recovery admin only"));
+        v0.migrateToSuccessor(x1, y1);
+        assertEq(usdc.balanceOf(address(v0)), 10e6, "a zero-admin vault only ever moves on a passkey");
+    }
+
+    /// Draining twice must not be possible, and an empty vault is not a
+    /// silent no-op the operator could mistake for success.
+    function test_migrateToSuccessor_notRepeatable() public {
+        _successorFactory();
+        vm.prank(RECOVERY_ADMIN);
+        vault.migrateToSuccessor(x1, y1);
+        vm.prank(RECOVERY_ADMIN);
+        vm.expectRevert(bytes("empty"));
+        vault.migrateToSuccessor(x1, y1);
+    }
+
+    /// A migrated-away vault still belongs to its customer: the passkey keeps
+    /// working, so credit sent there later is theirs, not the company's.
+    function test_migrateToSuccessor_leavesThePasskeyInCharge() public {
+        _successorFactory();
+        vm.prank(RECOVERY_ADMIN);
+        vault.migrateToSuccessor(x1, y1);
+        usdc.mint(address(vault), 7e6);                 // a late top-up to the old address
+        uint256 deadline = block.timestamp + 300;
+        bytes32 d = keccak256(abi.encode(keccak256("EnclaveVault.refundToTreasury.v1"), address(vault),
+            block.chainid, vault.nonce(), uint256(7e6), deadline));
+        vault.refundToTreasury(7e6, deadline, _sig(PK1, d));
+        assertEq(usdc.balanceOf(treasury), 7e6);
+    }
+
     function test_factoryRequiresAnOrigin() public {
         vm.expectRevert("origin required");
-        new EnclaveCreditVaultFactory(IERC20(address(usdc)), IAddressBook(address(book)), treasury, "", "");
+        new EnclaveCreditVaultFactory(IERC20(address(usdc)), IAddressBook(address(book)), treasury, RECOVERY_ADMIN, "", "");
     }
 }

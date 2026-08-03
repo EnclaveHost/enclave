@@ -7,15 +7,21 @@ pragma solidity ^0.8.20;
 ///   - deployAndFund / fundDeployment: pay EnclaveDeployments (resolved through
 ///     the address book on every call, never a stored copy) for runtime the
 ///     vault then owns on-chain.
-///   - refundToTreasury: the ONLY other outflow, to the factory-pinned company
-///     treasury - used for the manual refund flow (customer signs the request,
-///     the company refunds the card off-chain).
+///   - refundToTreasury: the ONLY other outflow to the COMPANY, to the
+///     factory-pinned treasury - used for the manual refund flow (customer
+///     signs the request, the company refunds the card off-chain).
+///   - migrateToSuccessor: the one sideways move, and the one call that does
+///     NOT need a passkey. It forwards the whole balance to the same
+///     customer's vault at the book's current factory - a derived destination,
+///     spendable only by that same customer - so a factory redeploy cannot
+///     strand credit behind a signature nobody can ask for. See the function.
 /// There is NO withdraw, NO arbitrary call, NO upgrade, NO owner. The company
-/// cannot move funds: every operation requires a fresh WebAuthn P-256
-/// signature from the customer's passkey (verified via the RIP-7212 precompile
-/// at 0x…0100, live on Base since Fjord), and the destinations above are the
-/// complete list. The customer cannot exit funds either: this is prepaid
-/// service credit with on-chain accounting, not a wallet.
+/// cannot move funds TO ITSELF: every operation that pays the platform requires
+/// a fresh WebAuthn P-256 signature from the customer's passkey (verified via
+/// the RIP-7212 precompile at 0x…0100, live on Base since Fjord), and the
+/// destinations above are the complete list. The customer cannot exit funds
+/// either: this is prepaid service credit with on-chain accounting, not a
+/// wallet.
 ///
 /// Anyone may SUBMIT a signed operation (the relay does, paying gas) - the
 /// signature authorizes, the sender is irrelevant. Replay is stopped by a
@@ -49,11 +55,18 @@ interface IAddressBook {
     function addr(bytes32 key) external view returns (address);
 }
 
+interface IVaultFactory {
+    function vaultFor(uint256 x, uint256 y) external view returns (address);
+}
+
 contract EnclaveCreditVault {
     IERC20  public immutable usdc;
     IAddressBook public immutable book;
     address public immutable treasury;      // company cold wallet (refund destination)
     address public immutable factory;
+    /// May call migrateToSuccessor - and NOTHING else. Zero disables that
+    /// function permanently for every vault this implementation backs.
+    address public immutable recoveryAdmin;
 
     /* The ORIGIN a signing page must have been served from.
        A passkey's rpId is "enclave.host", and WebAuthn lets ANY origin under
@@ -76,6 +89,9 @@ contract EnclaveCreditVault {
     // "deployments" as ascii-right-padded bytes32 (the address-book key)
     bytes32 private constant BOOK_KEY_DEPLOYMENTS =
         0x6465706c6f796d656e7473000000000000000000000000000000000000000000;
+    // "vaultFactory", same encoding - the CURRENT factory, for migrateToSuccessor
+    bytes32 private constant BOOK_KEY_VAULT_FACTORY =
+        0x7661756c74466163746f72790000000000000000000000000000000000000000;
     address private constant P256_VERIFY = 0x0000000000000000000000000000000000000100;
 
     // deployment CONTROL selectors the vault will proxy. All but refund move no
@@ -103,9 +119,15 @@ contract EnclaveCreditVault {
     uint256 public keyCount;
     uint256 public nonce;                        // increments on every executed op
     bool private initialized;
+    /// The key this vault was MINTED from - also its CREATE2 salt, so it alone
+    /// reproduces this vault's address (and its successor's) at any factory.
+    /// Later-added devices are not it: migrateToSuccessor must land where the
+    /// customer's credit already lives, not at a second device's address.
+    bytes32 public rootKeyHash;
 
     event KeyAdded(bytes32 indexed keyHash);
     event KeyRemoved(bytes32 indexed keyHash);
+    event MigratedToSuccessor(address indexed successor, uint256 amount6);
     event Deployed(bytes32 indexed id, uint256 funded6);
     event Funded(bytes32 indexed id, uint256 amount6);
     event Refunded(uint256 amount6);
@@ -119,9 +141,10 @@ contract EnclaveCreditVault {
         uint256 y;
     }
 
-    constructor(IERC20 _usdc, IAddressBook _book, address _treasury,
+    constructor(IERC20 _usdc, IAddressBook _book, address _treasury, address _recoveryAdmin,
                 string memory _origin0, string memory _origin1) {
         usdc = _usdc; book = _book; treasury = _treasury; factory = msg.sender;
+        recoveryAdmin = _recoveryAdmin;
         // validate the locals: immutables cannot be READ during construction
         (bytes32 w0, uint256 n0) = _packOrigin(_origin0);
         require(n0 != 0, "origin required");           // never silently unchecked
@@ -145,7 +168,49 @@ contract EnclaveCreditVault {
         initialized = true;
         bytes32 kh = keccak256(abi.encode(x, y));
         keyActive[kh] = true; keyCount = 1;
+        rootKeyHash = kh;
         emit KeyAdded(kh);
+    }
+
+    /// Forward this vault's whole balance to the SAME customer's vault on the
+    /// current factory - the one escape from a vault that a factory redeploy
+    /// has left behind.
+    ///
+    /// This is the only function the company can call without a passkey, and
+    /// it is deliberately shaped so that calling it can never profit the
+    /// company: the destination is DERIVED, never passed. It is whatever the
+    /// book's current vaultFactory mints for this vault's own root key - an
+    /// address only this customer's passkey can spend from - and the call
+    /// reverts unless that address is a different, already-deployed contract.
+    /// There is no amount and no recipient to choose. Compare refundToTreasury,
+    /// which does pay the company and therefore needs the customer's signature.
+    ///
+    /// Why it exists: vaults are immutable clones, so a factory redeploy (the
+    /// 2026-08-03 create()-selector wedge) strands every existing vault's
+    /// balance behind a passkey that only its owner holds. Without this, making
+    /// customers whole means the company fronting the balance forward and then
+    /// asking each customer to sign a refund of money that is no longer theirs
+    /// to care about - an awkward, unanswerable request the moment those
+    /// customers are real. With it, a migration moves credit by itself.
+    ///
+    /// Trust note: this hands "book owner + recoveryAdmin" the power to move
+    /// customer credit somewhere it could be spent, since a malicious book
+    /// entry could name a factory whose vaultFor() returns an attacker's
+    /// address. That is a real widening of what a full governance compromise
+    /// costs, accepted knowingly for the recovery it buys; recoveryAdmin = 0
+    /// declines the trade permanently.
+    function migrateToSuccessor(uint256 x, uint256 y) external {
+        require(msg.sender == recoveryAdmin && recoveryAdmin != address(0), "recovery admin only");
+        require(keccak256(abi.encode(x, y)) == rootKeyHash, "not this vault's root key");
+        address f = book.addr(BOOK_KEY_VAULT_FACTORY);
+        require(f != address(0), "no factory");
+        address succ = IVaultFactory(f).vaultFor(x, y);
+        require(succ != address(this), "not superseded");    // still the current factory's own vault
+        require(succ.code.length != 0, "successor not minted");   // never strand it at an empty address
+        uint256 bal = usdc.balanceOf(address(this));
+        require(bal > 0, "empty");
+        require(usdc.transfer(succ, bal), "transfer failed");
+        emit MigratedToSuccessor(succ, bal);
     }
 
     // ---- operations (all passkey-signed; anyone submits) ------------------------
@@ -334,9 +399,14 @@ contract EnclaveCreditVaultFactory {
     /// origin1 is an optional second (a www pair), "" when unused. These bind
     /// what a passkey assertion must have been signed from - see the note on
     /// EnclaveCreditVault.origin0. A local rig passes its own origin.
-    constructor(IERC20 usdc, IAddressBook book, address treasury,
+    /// recoveryAdmin may call migrateToSuccessor on the vaults this factory
+    /// mints - forwarding a stranded balance to the same customer's vault at a
+    /// LATER factory, and nothing else (see EnclaveCreditVault). Zero declines
+    /// that power permanently, at the cost of needing a customer signature to
+    /// move anything out of a vault this factory's successor has replaced.
+    constructor(IERC20 usdc, IAddressBook book, address treasury, address recoveryAdmin,
                 string memory origin0, string memory origin1) {
-        implementation = new EnclaveCreditVault(usdc, book, treasury, origin0, origin1);
+        implementation = new EnclaveCreditVault(usdc, book, treasury, recoveryAdmin, origin0, origin1);
     }
 
     function vaultFor(uint256 x, uint256 y) public view returns (address) {

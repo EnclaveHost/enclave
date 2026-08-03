@@ -17,6 +17,11 @@
         "type": "address"
       },
       {
+        "internalType": "address",
+        "name": "recoveryAdmin",
+        "type": "address"
+      },
+      {
         "internalType": "string",
         "name": "origin0",
         "type": "string"
