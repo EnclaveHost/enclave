@@ -171,6 +171,20 @@ mechanical, mirror generate_lookup's two-strategy split).
   all along, buffer pinning is the one bounded engineering item left,
   and the rest is SM%/share sizing. Boot logs now name the buffer type
   at every output_reserve - grep "output buffer =" on any node.
+- **mm23 OPENER (specified, not built): why cudaMallocHost fails in
+  tenants.** ggml's host alloc short-circuits on GGML_CUDA_NO_PINNED
+  (nothing sets it) or a real cudaMallocHost failure. Prime suspect:
+  CUDA_MPS_PINNED_DEVICE_MEM_LIMIT in the tenant env (the manager's nn
+  probe even has a 'nopin' mode that drops exactly that var when cuInit
+  hangs under it). Supporting evidence: the d2h probe's pinned and
+  pageable timings are IDENTICAL (686 vs 652 us/MB) - its "pinned"
+  buffer silently fell back too (pinned_ok=true cannot detect the
+  fallback; fix the probe to check ggml_backend_buffer_name). The
+  experiment: run one tenant without the MPS pinned limit (or
+  cudaHostRegister the fallback region in ggml), then read the mm22
+  boot-log line 'output buffer = ' - CUDA_Host means out_get drops
+  ~1-4 ms/token platform-wide. Everything needed ships in mm22 already;
+  mm23 is a manager-env experiment plus at most a 15-line ggml patch.
 - **Do the fused-round-verb arithmetic BEFORE building it** (it looked
   like the next mountain; the numbers say no). Best case — one WIT call
   per round, head steps CUDA-graphed at ~3 ms: the mtp verify itself
