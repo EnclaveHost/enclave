@@ -2008,6 +2008,23 @@ def _no_card_env() -> dict:
     return env
 
 
+def _nn_cfg_int(enclave_config, key: str, lo: int, hi: int):
+    """An integer knob from the per-deployment config JSON, or None. Bools
+    are excluded deliberately (json true would int() to 1), and out-of-range
+    values are ignored rather than clamped - a config asking for something
+    the platform won't grant should behave as if it never asked."""
+    if not enclave_config:
+        return None
+    try:
+        v = json.loads(enclave_config).get(key)
+    except (ValueError, AttributeError):
+        return None
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    v = int(v)
+    return v if lo <= v <= hi else None
+
+
 def _nn_tenant_env(gpu_share: float, pinned: bool) -> dict:
     """The MPS cap env a GPU tenant's wasmtime process runs with. `pinned`
     adds the per-client VRAM limit; dropped when the probe found it poisonous
@@ -3282,10 +3299,18 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
         # "let's try it" probe of a too-big model kills the whole tenant.
         # MAX_SESSIONS rides along so the app's serve pricing can multiply
         # the per-session cost by the host's concurrent-context cap.
-        for k in ("ENCLAVE_GGML_N_CTX", "ENCLAVE_GGML_KV_CACHE_TYPE",
-                  "ENCLAVE_GGML_KV_CACHE_TYPE_V", "ENCLAVE_GGML_MAX_SESSIONS"):
-            if os.environ.get(k, "").strip():
-                vol_args += ["--env", f"{k}={os.environ[k].strip()}"]
+        nn_fwd = {k: os.environ.get(k, "").strip()
+                  for k in ("ENCLAVE_GGML_N_CTX", "ENCLAVE_GGML_KV_CACHE_TYPE",
+                            "ENCLAVE_GGML_KV_CACHE_TYPE_V", "ENCLAVE_GGML_MAX_SESSIONS")}
+        # a deployment-config nnCtx override changes what the HOST allocates
+        # (see the launch-time env in _spawn_and_wait); quote the same number
+        # to the guest so its serve pricing matches reality
+        nc = _nn_cfg_int(enclave_config, "nnCtx", 8192, 262144)
+        if nc is not None:
+            nn_fwd["ENCLAVE_GGML_N_CTX"] = str(nc)
+        for k, val in nn_fwd.items():
+            if val:
+                vol_args += ["--env", f"{k}={val}"]
         # The batched (pooled) ggml toolchain serves all of a model's
         # concurrent sessions from ONE shared KV pool. This manager ships in
         # the SAME image as that wasmtime, so the flag is a build-time truth,
@@ -4010,13 +4035,33 @@ def _spawn_and_wait(rec, ctx):
         # recurrent-state copy in the tenant's own VRAM/RAM share, and
         # absent/0 leaves the context byte-for-byte unchanged - so only the
         # deployment that wants rewind-based speculation pays for it.
-        try:
-            rs = json.loads(enclave_config).get("nnRsSeq")
-        except (ValueError, AttributeError):
-            rs = None
-        if isinstance(rs, (int, float)) and not isinstance(rs, bool) and 1 <= int(rs) <= 16:
+        rs = _nn_cfg_int(enclave_config, "nnRsSeq", 1, 16)
+        if rs is not None:
             env = env if env is not None else dict(os.environ)
-            env["ENCLAVE_GGML_N_RS_SEQ"] = str(int(rs))
+            env["ENCLAVE_GGML_N_RS_SEQ"] = str(rs)
+        # Context-window override, same pattern: `nnCtx` shrinks (or grows,
+        # within the node ceiling) THIS deployment's unified KV pool. The
+        # trade is the tenant's own to make - a smaller window frees VRAM
+        # for things like snapshot depth or an MTP head, a larger one buys
+        # longer conversations at the price of pool memory. The guest-side
+        # forward in _build_cmd quotes the same override so app fit math
+        # prices what the host actually allocated.
+        nc = _nn_cfg_int(enclave_config, "nnCtx", 8192, 262144)
+        if nc is not None:
+            env = env if env is not None else dict(os.environ)
+            env["ENCLAVE_GGML_N_CTX"] = str(nc)
+        # MTP-head opt-out (`nnLoadMtp: false` -> the shim skips loading the
+        # nextn tensors, reclaiming their VRAM for deployments that draft
+        # via prompt-lookup or not at all). Engines predating the env read
+        # ignore it - the knob is inert until the next toolchain cut, the
+        # same shipping pattern as every other engine knob here.
+        try:
+            lmtp = json.loads(enclave_config).get("nnLoadMtp")
+        except (ValueError, AttributeError):
+            lmtp = None
+        if lmtp is False:
+            env = env if env is not None else dict(os.environ)
+            env["ENCLAVE_GGML_LOAD_MTP"] = "0"
     if egress_env:
         # SOCKS credential for transparent egress: wasmtime PROCESS env only
         # (guest-invisible — no -Sinherit-env,
