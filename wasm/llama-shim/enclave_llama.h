@@ -88,6 +88,12 @@ int32_t ell_decode(void *ctx, void *model, const int32_t *tokens, int32_t n, flo
  * it costs compute-buffer VRAM and only matters for vision models that decode
  * images with a non-causal mask, which must hold a whole image in one ubatch.
  *
+ * ENCLAVE_GGML_N_RS_SEQ (same env-not-parameter reasoning) requests that many
+ * recurrent-state snapshots per sequence, enabling ell_seq_rewind of up to
+ * that many trailing tokens on rollback-capable hybrid archs (see the
+ * speculative block below). Costs one full R/S tensor copy per unit of depth
+ * across every recurrent layer; unset/0 = today's context exactly.
+ *
  * ell_decode_batch: decode n_items sequences' pending tokens in ONE
  * llama_decode call - under load, concurrent requests' decode steps merge
  * into one pass over the weights instead of n_items passes. Flat arrays,
@@ -127,8 +133,19 @@ void ell_seq_remove(void *ctx, int32_t seq_id);
  * REFUSED the partial removal (recurrent/hybrid models keep no per-token
  * state history; nothing is mutated on refusal) - a caller getting -1 must
  * NOT decode further on that sequence as-if rewound. n_keep 0 (= remove
- * everything) always succeeds. Prefer ell_seq_copy branch-verify for
- * speculative rounds: it needs no rewind on any architecture.
+ * everything) always succeeds. EXCEPTION: a server context created with
+ * ENCLAVE_GGML_N_RS_SEQ=d > 0 (on a rollback-capable arch - see
+ * ell_rewind_depth) snapshots the recurrent state of each decode's trailing
+ * d tokens, so a partial rewind of up to d tokens of the LAST decode
+ * succeeds even on hybrid models. That is the no-branch speculative verify:
+ * verify the draft on the REAL sequence (stable seq id and shape = the
+ * engine's graph caches hold), then rewind the rejected tail for free.
+ * Without the env (depth 0), prefer ell_seq_copy branch-verify: it needs no
+ * rewind on any architecture.
+ *
+ * ell_rewind_depth: the context's EFFECTIVE snapshot depth (0 = none, either
+ * unrequested or the arch cannot roll back). The capability probe behind the
+ * caller's strategy choice; costs nothing.
  *
  * ell_seq_copy: make dst_seq an exact branch of src_seq (dst's previous
  * contents dropped first). Attention KV cells are SHARED (metadata only);
@@ -147,6 +164,7 @@ void ell_seq_remove(void *ctx, int32_t seq_id);
 int32_t ell_decode_seq_full(void *ctx, void *model, int32_t seq_id, int32_t pos0,
                             const int32_t *tokens, int32_t n, float *logits_out);
 int32_t ell_seq_rewind(void *ctx, int32_t seq_id, int32_t n_keep);
+int32_t ell_rewind_depth(void *ctx);
 void ell_seq_copy(void *ctx, int32_t src_seq, int32_t dst_seq);
 int32_t ell_model_recurrent(void *model);
 

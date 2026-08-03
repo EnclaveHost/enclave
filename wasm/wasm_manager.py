@@ -4002,6 +4002,21 @@ def _spawn_and_wait(rec, ctx):
         # as it would on a CPU box" - _no_card_env is what makes that true by
         # construction rather than by the backends happening to default to CPU.
         env = _no_card_env()
+    if nn and enclave_config:
+        # Recurrent-snapshot depth for speculative rewind (the shim's
+        # ENCLAVE_GGML_N_RS_SEQ, read at ggml server-context creation):
+        # deployment-config `nnRsSeq`, wasmtime PROCESS env like the MPS
+        # caps. Per-deployment because each unit of depth costs one full
+        # recurrent-state copy in the tenant's own VRAM/RAM share, and
+        # absent/0 leaves the context byte-for-byte unchanged - so only the
+        # deployment that wants rewind-based speculation pays for it.
+        try:
+            rs = json.loads(enclave_config).get("nnRsSeq")
+        except (ValueError, AttributeError):
+            rs = None
+        if isinstance(rs, (int, float)) and not isinstance(rs, bool) and 1 <= int(rs) <= 16:
+            env = env if env is not None else dict(os.environ)
+            env["ENCLAVE_GGML_N_RS_SEQ"] = str(int(rs))
     if egress_env:
         # SOCKS credential for transparent egress: wasmtime PROCESS env only
         # (guest-invisible — no -Sinherit-env,
