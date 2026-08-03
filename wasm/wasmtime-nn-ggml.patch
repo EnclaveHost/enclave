@@ -214,7 +214,7 @@ index b2db808..af89d10 100644
  
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
 new file mode 100644
-index 0000000..a4c586e
+index 0000000..2035f8d
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
 @@ -0,0 +1,1862 @@
@@ -847,7 +847,7 @@ index 0000000..a4c586e
 +    /// decode on this server - read via the "gperf" verb, never cleared
 +    /// (guests report start/end deltas). The decomposition of the CVM's
 +    /// CPU-orchestration-bound ~15 ms/token.
-+    gperf_total: Mutex<[i64; 7]>,
++    gperf_total: Mutex<[i64; 8]>,
 +    /// the vision projector (shim-owned), created on the FIRST image and kept
 +    /// for the graph's lifetime. Deferred because the encoder's weights and
 +    /// compute buffers cost VRAM that a text-only deployment should never pay:
@@ -998,7 +998,7 @@ index 0000000..a4c586e
 +            rewind_depth,
 +            mtp: Mutex::new(None),
 +            last_phases: Mutex::new([0; 9]),
-+            gperf_total: Mutex::new([0; 7]),
++            gperf_total: Mutex::new([0; 8]),
 +            mtmd: Mutex::new(None),
 +        }))
 +    }
@@ -1055,7 +1055,7 @@ index 0000000..a4c586e
 +                drop(q);
 +                let results = self.decode_items(&items);
 +                {
-+                    let mut gperf = [0i64; 7];
++                    let mut gperf = [0i64; 8];
 +                    unsafe { ell_graph_perf2(self.raw, gperf.as_mut_ptr()); }
 +                    let mut tot = self.gperf_total.lock().unwrap();
 +                    for (t, g) in tot.iter_mut().zip(gperf.iter()) {
@@ -1154,7 +1154,7 @@ index 0000000..a4c586e
 +            0
 +        };
 +        let ph_decode = ph_t2.elapsed().as_micros() as i64;
-+        let mut gperf = [0i64; 7];
++        let mut gperf = [0i64; 8];
 +        unsafe { ell_graph_perf2(self.raw, gperf.as_mut_ptr()); }
 +        {
 +            let mut tot = self.gperf_total.lock().unwrap();
@@ -1736,16 +1736,16 @@ index 0000000..a4c586e
 +                }
 +                // probe verb {"gperf": I32 [1]} (value ignored): cumulative
 +                // llama decode-stage micros for this server as "gperf"
-+                // I32 [7] in MILLIseconds [build, alloc, input, slot,
-+                // mem-init, compute-call, output]. Monotonic; guests
-+                // report per-generation deltas (mm21).
++                // I32 [8] in MILLIseconds [build, alloc, input, slot,
++                // mem-init, compute-call, output, out-get]. Monotonic;
++                // guests report per-generation deltas (mm21/22).
 +                if inputs.iter().any(|nt| nt.name == "gperf") {
 +                    let tot = *self.server.gperf_total.lock().unwrap();
-+                    let mut data = Vec::with_capacity(7 * 4);
++                    let mut data = Vec::with_capacity(8 * 4);
 +                    for v in tot {
 +                        data.extend_from_slice(&(((v / 1000) & 0x7fff_ffff) as i32).to_le_bytes());
 +                    }
-+                    let t = Tensor { dimensions: vec![7], ty: TensorType::I32, data };
++                    let t = Tensor { dimensions: vec![8], ty: TensorType::I32, data };
 +                    return Ok(Some(vec![NamedTensor { name: "gperf".to_string(), tensor: t }]));
 +                }
 +                if inputs.iter().any(|nt| nt.name == "caps") {
