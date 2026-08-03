@@ -1,20 +1,22 @@
-Sync-time instrument - mm20 investigation opener.
+Sync-instr + pinned-output rescue (mm20/mm23).
 
-Every llama_decode on the CVM carries a model-size-independent fixed cost
-of ~5-8 ms (2026-08-03 measurements: 1-layer MTP head decodes 8-12 ms,
-65-layer batch-1 15.4 ms where graph exec accounts for ~10, batch-5 verify
-30 ms where exec accounts for ~24). That constant is what makes sequential
-draft steps unprofitable and holds plain decode at ~62 tok/s. The prime
-suspect is cudaStreamSynchronize under SEV-SNP - the CC host<->device
-round trip. This patch times every stream sync in ggml-cuda cumulatively
-and exports ggml_backend_cuda_sync_stats() (C symbol, dlsym'd by the
-enclave shim - no link-time dependency, CPU flavors unaffected). If the
-fleet shows sync_us/token in the multi-ms range, the follow-up is a
-doorbell completion path (graph's tail node writes a pinned flag the host
-spin-reads) - a candidate +20-30% on EVERY decode mode.
+mm20: every stream sync timed cumulatively, exported as
+ggml_backend_cuda_sync_stats through the backend proc registry (dlopened
+modules are RTLD_LOCAL - dlsym cannot see them). Fleet verdict: 0.18
+ms/token total sync wait - the CC sync tax does not exist.
+
+mm23: cudaMallocHost fails inside CVM tenant environments (suspect: the
+MPS pinned-device limit in the tenant env), and ggml's silent pageable
+fallback makes the logits extraction a BLOCKING full-stream wait
+(out_get = 14.20 of the fleet's 15.6 ms/token). Before surrendering to a
+pageable buffer, pin malloc'd pages via cudaHostRegister - a different
+driver path. Local proof under GGML_CUDA_NO_PINNED=1: register succeeds,
+buffer reports CUDA_Host, out_get 0. If it also succeeds on the fleet,
+the blocking wait becomes an async submit and 1-4 ms/token comes back on
+every decode mode.
 
 diff --git a/ggml/src/ggml-cuda/ggml-cuda.cu b/ggml/src/ggml-cuda/ggml-cuda.cu
-index a7f2bf7..201c4f1 100644
+index a7f2bf7..9b06cc2 100644
 --- a/ggml/src/ggml-cuda/ggml-cuda.cu
 +++ b/ggml/src/ggml-cuda/ggml-cuda.cu
 @@ -94,6 +94,29 @@ static_assert(sizeof(half) == sizeof(ggml_fp16_t), "wrong fp16 size");
@@ -110,7 +112,52 @@ index a7f2bf7..201c4f1 100644
  }
  
  static const ggml_backend_buffer_i ggml_backend_cuda_buffer_interface = {
-@@ -1935,7 +1958,7 @@ static void ggml_cuda_mul_mat_id(ggml_backend_cuda_context & ctx, ggml_tensor *
+@@ -1270,6 +1293,19 @@ static void ggml_backend_cuda_host_buffer_free_buffer(ggml_backend_buffer_t buff
+     CUDA_CHECK(cudaFreeHost(buffer->context));
+ }
+ 
++// enclave mm23: cudaMallocHost fails inside CVM tenant environments
++// (suspect: the MPS pinned-device limit in the tenant env), and ggml's
++// silent pageable fallback turns every logits extraction into a BLOCKING
++// full-stream wait (measured: out_get = 14.20 of the 15.6 ms/token fleet
++// budget). Pinning caller-provided pages via cudaHostRegister takes a
++// different driver path; when it works, D2H into the output buffer is
++// async again. Freed via unregister + free, mirroring the buffer's own
++// allocation.
++static void ggml_backend_cuda_hostreg_free_buffer(ggml_backend_buffer_t buffer) {
++    CUDA_CHECK(cudaHostUnregister(buffer->context));
++    free(buffer->context);
++}
++
+ static void * ggml_cuda_host_malloc(size_t size) {
+     if (getenv("GGML_CUDA_NO_PINNED") != nullptr) {
+         return nullptr;
+@@ -1292,6 +1328,24 @@ static ggml_backend_buffer_t ggml_backend_cuda_host_buffer_type_alloc_buffer(ggm
+     void * ptr = ggml_cuda_host_malloc(size);
+ 
+     if (ptr == nullptr) {
++        // enclave mm23: before surrendering to a pageable buffer, try
++        // pinning malloc'd pages instead - see hostreg_free_buffer above
++        void * mem = nullptr;
++        if (posix_memalign(&mem, 4096, size) == 0 && mem != nullptr) {
++            const cudaError_t err = cudaHostRegister(mem, size, cudaHostRegisterDefault);
++            if (err == cudaSuccess) {
++                GGML_LOG_INFO("%s: pinned %.2f MiB via cudaHostRegister (cudaMallocHost unavailable)\n",
++                              __func__, size / 1024.0 / 1024.0);
++                ggml_backend_buffer_t buffer = ggml_backend_cpu_buffer_from_ptr(mem, size);
++                buffer->buft = buft;
++                buffer->iface.free_buffer = ggml_backend_cuda_hostreg_free_buffer;
++                return buffer;
++            }
++            (void)cudaGetLastError();
++            GGML_LOG_INFO("%s: cudaHostRegister also failed (%s) - pageable fallback\n",
++                          __func__, cudaGetErrorString(err));
++            free(mem);
++        }
+         // fallback to cpu buffer
+         return ggml_backend_buft_alloc_buffer(ggml_backend_cpu_buffer_type(), size);
+     }
+@@ -1935,7 +1989,7 @@ static void ggml_cuda_mul_mat_id(ggml_backend_cuda_context & ctx, ggml_tensor *
  
      std::vector<char> ids_host(ggml_nbytes(ids));
      CUDA_CHECK(cudaMemcpyAsync(ids_host.data(), ids->data, ggml_nbytes(ids), cudaMemcpyDeviceToHost, stream));
@@ -119,7 +166,7 @@ index a7f2bf7..201c4f1 100644
  
      for (int64_t i02 = 0; i02 < ne02; ++i02) { // expert matrices
          for (int64_t i12 = 0; i12 < ne12; ++i12) { // tokens
-@@ -1956,7 +1979,7 @@ static void ggml_cuda_mul_mat_id(ggml_backend_cuda_context & ctx, ggml_tensor *
+@@ -1956,7 +2010,7 @@ static void ggml_cuda_mul_mat_id(ggml_backend_cuda_context & ctx, ggml_tensor *
      ids_to_sorted_host.insert(ids_to_sorted_host.end(), ids_from_sorted_host.begin(), ids_from_sorted_host.end());
  
      CUDA_CHECK(cudaMemcpyAsync(ids_buf_dev.ptr, ids_to_sorted_host.data(), 2*ne_get_rows*sizeof(int32_t), cudaMemcpyHostToDevice, stream));
@@ -128,7 +175,7 @@ index a7f2bf7..201c4f1 100644
  
      const int32_t * ids_to_sorted   = ids_buf_dev.ptr + 0*ne_get_rows;
      const int32_t * ids_from_sorted = ids_buf_dev.ptr + 1*ne_get_rows;
-@@ -2496,7 +2519,7 @@ static bool ggml_backend_cuda_cpy_tensor_async(ggml_backend_t backend_src, ggml_
+@@ -2496,7 +2550,7 @@ static bool ggml_backend_cuda_cpy_tensor_async(ggml_backend_t backend_src, ggml_
  static void ggml_backend_cuda_synchronize(ggml_backend_t backend) {
      ggml_backend_cuda_context * cuda_ctx = (ggml_backend_cuda_context *)backend->context;
  
@@ -137,7 +184,7 @@ index a7f2bf7..201c4f1 100644
  
      GGML_UNUSED(backend);
  }
-@@ -5392,6 +5415,11 @@ static ggml_backend_feature * ggml_backend_cuda_get_features(ggml_backend_reg_t
+@@ -5392,6 +5446,11 @@ static ggml_backend_feature * ggml_backend_cuda_get_features(ggml_backend_reg_t
  
  static void * ggml_backend_cuda_reg_get_proc_address(ggml_backend_reg_t reg, const char * name) {
      GGML_UNUSED(reg);
