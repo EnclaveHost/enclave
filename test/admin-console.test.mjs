@@ -88,6 +88,30 @@ test("the dashboard's setConfig envelope call encodes like viem", () => {
   eq("0x" + DEP_SEL.setConfig, toFunctionSelector("function setConfig(bytes32 id, string configCid)"));
 });
 
+test("vaultmig.js pins + encodings match viem (the credit-vault recovery flow)", async () => {
+  const { ERC20_SEL, IMPL_SEL } = await import(path.join(REPO, "site/components/admin-console/vaultmig.js"));
+  eq("0x" + ERC20_SEL.balanceOf, toFunctionSelector("function balanceOf(address) view returns (uint256)"));
+  eq("0x" + ERC20_SEL.transfer, toFunctionSelector("function transfer(address,uint256) returns (bool)"));
+  eq("0x" + IMPL_SEL.treasury, toFunctionSelector("function treasury() view returns (address)"));
+  const fac = CONTRACTS.EnclaveCreditVaultFactory.sel;
+  const abi = ABI("EnclaveCreditVaultFactory");
+  const x = "0x" + "ab".repeat(32), y = "0x" + "cd".repeat(32);
+  eq("0x" + fac.createVault + encCall("", [{ t: "uint", v: x }, { t: "uint", v: y }]).slice(2),
+     encodeFunctionData({ abi, functionName: "createVault", args: [BigInt(x), BigInt(y)] }));
+  eq("0x" + fac.vaultFor + encCall("", [{ t: "uint", v: x }, { t: "uint", v: y }]).slice(2),
+     encodeFunctionData({ abi, functionName: "vaultFor", args: [BigInt(x), BigInt(y)] }));
+  // the fronting transfer is assembled by hand (selector + two words) - pin it
+  const to = "0x" + "12".repeat(20), amt = 25_000_000n;
+  eq("0x" + ERC20_SEL.transfer + encAddr(to) + encCall("", [{ t: "uint", v: amt }]).slice(2),
+     encodeFunctionData({ abi: [{ type: "function", name: "transfer", inputs: [{ type: "address" }, { type: "uint256" }], outputs: [{ type: "bool" }] }],
+       functionName: "transfer", args: [to, amt] }));
+  // the wedge probe keys on the ledger's CURRENT create selector being a
+  // compile-time constant in the implementation's runtime code: true of the
+  // checked-in build, and exactly the property the 2026-08-03 outage broke
+  assert.ok(CONTRACTS.EnclaveCreditVaultFactory.bytecode.toLowerCase().includes(DEP_SEL.create),
+    "the factory creation bytecode must embed the ledger's current create() selector - a stale artifact re-wedges every vault it mints");
+});
+
 test("chain.js DEP_SEL hand-pins match the ABI (the cap getter every deploy path gates on)", () => {
   eq("0x" + DEP_SEL.maxGpuMilli, toFunctionSelector("function maxGpuMilli() view returns (uint16)"));
   eq("0x" + CONTRACTS.EnclaveDeployments.sel.maxGpuMilli, "0x" + DEP_SEL.maxGpuMilli);
