@@ -104,11 +104,47 @@ sampling ties break differently. It is pre-existing in the shipped k=4
 path. The "byte-exact vs plain" golden gate holds at 160–256 tokens and
 degrades with length; treat it as length-sensitive, not absolute.
 
-**Not yet validated on the fleet.** The curve shape is architectural
-(kernel tiling / graph slots) so it should transfer, but the 27b at a 25%
-SM cap is more bandwidth-bound and could have a different step. That is
-the one measurement worth buying bench time for; the config is a
-deployment-config edit, no release needed.
+### FLEET VERDICT: small k LOSES on kryptos. The shape does NOT transfer.
+
+Measured immediately after the above (3 samples × 2 prompts per config,
+plain run first in the same window as a contention guard, $1.07 of lease):
+
+| config | quote | prose | verify decode |
+|---|---|---|---|
+| plain | **63.4** ± 1.0 | 61.6 ± 0.5 | — |
+| lookup k=4 (SHIPPED) | 60.5 ± 0.8 | **66.1** ± 4.5 | ~32 ms (batch 5) |
+| lookup k=2 | 58.2 ± 0.2 | 62.2 ± 2.7 | ~29 ms (batch 3) |
+| lookup k=1 | 59.4 ± 0.3 | 64.8 ± 2.2 | ~27 ms (batch 2) |
+
+**The fleet's batch-cost curve is the INVERSE of the local one.** Back out
+the verify decodes: batch-1 ≈ 15.4 ms, but batch-2 already costs ~27 ms —
+an **~11.6 ms penalty for the FIRST extra token** — after which each
+further token adds only ~1.8 ms (27.0 → 29.3 → 32.4 for batch 2 → 3 → 5).
+Locally that first step cost 1.1 ms. Break-even acceptance therefore runs
+the other way on the fleet: **k=1 needs ~75%** (measured lookup acceptance
+is ~73%, i.e. right at the edge) while k=4 amortises the cliff over four
+proposals.
+
+**Why:** batch-1 decode is the CUDA-graph REPLAY path; any wider batch
+leaves it and pays a fixed re-entry cost that the CC/MPS stack makes
+large. The 3070 has no such cliff. So on this hardware, once you have paid
+to leave replay you should buy as MANY tokens as the acceptance supports —
+which is precisely what k=4 does.
+
+**Net: the shipped `draft_tokens: 4` is CORRECT for the fleet and the
+"k=4 sweet spot" conclusion stands.** What was wrong was only its stated
+*reason* (a constant ~3.5 ms/token marginal). The real structure is a big
+fixed cliff plus a small slope. Small k remains the right shape on
+hardware WITHOUT the replay cliff (consumer GPUs, self-hosted metal), and
+the `draft_min_ngram` / `draft_gate` knobs stay useful there — but do not
+ship them to kryptos expecting a win.
+
+**The lever this actually identifies:** the ~11.6 ms replay-cliff, not the
+per-token slope. If a verify pass of stable width could replay a captured
+graph as cheaply as batch-1 does, every speculation config improves at
+once — including the quote workload where ALL configs currently lose to
+plain. That is the engine campaign worth mounting, and it now has a
+number attached to it.
 
 ### Same-day follow-ups (also 2026-08-03, later)
 
@@ -285,10 +321,15 @@ deployment-config edit, no release needed.
   break even, and lookup's tails don't deliver that on this model.
   llm-chat 0.35.5 reverts to flat k (gate + backoff kept) and is the
   deployed bench build. K EXPLORATION IS CLOSED both directions.
-  **CORRECTION (same day, see the convex-cost-curve update above): this
-  claim was wrong. Both experiments went UPWARD (fixed 6, escalation to
-  6). k=1 and k=2 were never benched, the ~3.5 ms/token figure only holds
-  for n≥4, and small k measures BETTER than the shipped k=4 locally.**
+  **CORRECTION (same day, see the cost-curve update above): the stated
+  REASON was wrong, the conclusion was right. Both experiments went UPWARD
+  (fixed 6, escalation to 6), so k=1/k=2 were never benched — they have
+  been now. On the fleet the cost is a ~11.6 ms cliff at the first extra
+  token plus a ~1.8 ms/token slope, NOT a flat 3.5 ms/token; small k loses
+  (prose: k4 66.1, k1 64.8, k2 62.2) and k=4 stays the sweet spot. Small k
+  wins only on hardware without the CUDA-graph replay cliff (measured
+  better than k=4 locally on a 3070). K exploration is now closed in both
+  directions FOR REAL, with the measurement to back it.**
 - **Do the fused-round-verb arithmetic BEFORE building it** (it looked
   like the next mountain; the numbers say no). Best case — one WIT call
   per round, head steps CUDA-graphed at ~3 ms: the mtp verify itself
