@@ -422,6 +422,29 @@ Hard-won process rules, each of which I violated at least once:
   `feed_all[_mtp]` (verify) and its `#gate #alloc #turn #decode #harvest
   #topk #gbuild #galloc #ginput #slot` split.
 
+## STEVEN'S PUBLISH CHECKLIST (2026-08-03, everything staged)
+
+The one action worth more than the whole campaign, now a copy-paste:
+
+1. `~/llm-chat-fast-config.json` is CURRENT (draft lookup k4, tokenizer
+   host, **nnRsSeq 4** added 2026-08-03) - the measured-best config on the
+   mm18+ engines (prose 66.9 pooled vs plain 62.8, parity floor elsewhere,
+   long-form protected by the 0.34.5/6 gate).
+2. Build is current in the repo: enclave-apps llm-chat **0.35.5**
+   (`cargo build --target wasm32-wasip2 --release`) - same source the
+   bench validated all night.
+3. Publish with YOUR wallet (the bench throwaway cannot):
+   `enclave publish .../llm_chat.wasm --slug llm-chat --version <next>
+   --config "$(cat ~/llm-chat-fast-config.json)" ...` (match the current
+   catalog entry's mem/vram; catalog numbering is its own - map by CID).
+4. Existing deployments pick the version config on upgrade; the
+   `nnRsSeq` knob reaches the engine via the deployment config
+   (manager v0.5.360+, engine mm18+ - the whole fleet qualifies).
+5. Expected user-facing delta: the 2026-08-01 A/B measured the shipped
+   catalog config (mtp k16/.3) at ~39 tok/s vs plain ~59-62; this config
+   benches 62-69 with TTFT roughly halved (host tokenizer). Verify after
+   with tools/specbench/fleet-bench.sh against any deployment you own.
+
 ## The thing to do first, before any of this
 
 Publish a current llm-chat build with `~/llm-chat-fast-config.json`
