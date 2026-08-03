@@ -546,10 +546,17 @@ void ell_mtp_harvest(void *mp, void *target_ctx, int32_t seq, int32_t n_rows) {
     m->verify_rows[seq] = n_rows;
 }
 
+static int32_t ell_mtp_observe_impl(struct ell_mtp *m, int32_t seq, int32_t pos0,
+                                    const int32_t *tokens, int32_t n);
+
 int32_t ell_mtp_observe(void *mp, int32_t seq, int32_t pos0,
                         const int32_t *tokens, int32_t n) {
-    struct ell_mtp *m = (struct ell_mtp *)mp;
-    if (seq < 0 || seq >= m->n_seq || n <= 0 || n > m->batch_cap || pos0 < 0) {
+    return ell_mtp_observe_impl((struct ell_mtp *)mp, seq, pos0, tokens, n);
+}
+
+static int32_t ell_mtp_observe_impl(struct ell_mtp *m, int32_t seq, int32_t pos0,
+                                    const int32_t *tokens, int32_t n) {
+    if (!m || seq < 0 || seq >= m->n_seq || n <= 0 || n > m->batch_cap || pos0 < 0) {
         return -1;
     }
     if (m->verify_rows[seq] < n) {
@@ -582,7 +589,7 @@ int32_t ell_mtp_observe(void *mp, int32_t seq, int32_t pos0,
 int32_t ell_mtp_draft(void *mp, int32_t seq, int32_t id_last, int32_t n_past,
                       int32_t k, float p_min, int32_t *tokens_out) {
     struct ell_mtp *m = (struct ell_mtp *)mp;
-    if (seq < 0 || seq >= m->n_seq || k <= 0 || n_past < 0) {
+    if (!m || seq < 0 || seq >= m->n_seq || k <= 0 || n_past < 0) {
         return 0;
     }
     /* proposals live at n_past.. and are dropped by the next observe(); still
@@ -612,13 +619,23 @@ int32_t ell_mtp_draft(void *mp, int32_t seq, int32_t id_last, int32_t n_past,
             if (lg[v] > lmax) { lmax = lg[v]; best = v; }
         }
         /* confidence gate (p = 1/sum(exp(l-max))). p_min <= 0 means "always
-         * draft the full k": the gate can never trip, so skip the O(vocab)
-         * exp() sum outright. Full-length drafts also keep every verify pass
-         * the same ubatch shape, which is what lets the CUDA backend keep
-         * replaying its captured graph instead of re-warming. */
+         * draft the full k": the gate can never trip, so skip the pass
+         * outright. Full-length drafts also keep every verify pass the same
+         * ubatch shape, which is what lets the CUDA backend keep replaying
+         * its captured graph instead of re-warming.
+         *
+         * The sum is EXACT but cheap (mm19): exp() only for logits within
+         * 16 of the max - anything below contributes < 1.2e-7 each, and the
+         * whole 248K tail is bounded by +0.03, absorbed as slack. The naive
+         * full-vocab exp() sum measured ~2.7 ms per drafted token on
+         * SNP-throttled vCPUs (fleet, 2026-08-03); this pass is comparisons
+         * plus a handful of exp() calls. */
         if (p_min > 0.0f) {
-            double sum = 0.0;
-            for (int32_t v = 0; v < n_vocab; v++) { sum += exp((double)(lg[v] - lmax)); }
+            const float floor_l = lmax - 16.0f;
+            double sum = 0.03; /* tail slack: 248K * 1.2e-7 */
+            for (int32_t v = 0; v < n_vocab; v++) {
+                if (lg[v] >= floor_l) { sum += exp((double)(lg[v] - lmax)); }
+            }
             if ((float)(1.0 / sum) < p_min) {
                 break; /* not confident - stop proposing */
             }
@@ -629,6 +646,29 @@ int32_t ell_mtp_draft(void *mp, int32_t seq, int32_t id_last, int32_t n_past,
         if (!h) { break; }
     }
     return n;
+}
+
+/* observe-fold (mm19): the previous round's ACCEPTED tokens ride the next
+ * draft call - one shim entry, one head-context session, instead of a
+ * separate mtp_accept round trip (measured 9.5-14 ms/round on the fleet,
+ * mostly boundary and sync). Semantically identical to
+ * ell_mtp_observe(obs_*) followed by ell_mtp_draft(...): the observe
+ * mirrors accepted tokens into the head KV and re-seeds pending_h, then
+ * the draft chain runs exactly as before. obs_n 0 = plain draft. Returns
+ * the draft count; a FAILED observe returns 0 drafts (the caller falls
+ * back to plain decode for the round and the next explicit observe
+ * resynchronizes the head). */
+int32_t ell_mtp_draft2(void *mp, int32_t seq, int32_t id_last, int32_t n_past,
+                       int32_t k, float p_min, int32_t *tokens_out,
+                       int32_t obs_pos0, const int32_t *obs_tokens, int32_t obs_n) {
+    struct ell_mtp *m = (struct ell_mtp *)mp;
+    if (!m) { return 0; }
+    if (obs_n > 0) {
+        if (ell_mtp_observe_impl(m, seq, obs_pos0, obs_tokens, obs_n) != 0) {
+            return 0;
+        }
+    }
+    return ell_mtp_draft(mp, seq, id_last, n_past, k, p_min, tokens_out);
 }
 
 void ell_mtp_reset(void *mp, int32_t seq) {

@@ -44,6 +44,10 @@
 # emitting pythonic spacing once dropped every grant and put each decode
 # on the 120s watchdog; now either side alone survives the other
 # regressing).
+#
+# 2026-08-03 (mm19 observe-fold interop): the mtp_draft turn now covers the
+# folded observe + draft chain in one grant - pre-fold these were two
+# separate arbiter grants per speculative round.
 diff --git a/crates/wasi-nn/src/arbiter.rs b/crates/wasi-nn/src/arbiter.rs
 new file mode 100644
 index 0000000..d8ccfc3
@@ -370,10 +374,10 @@ index 0000000..d8ccfc3
 +    }
 +}
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
-index 23462dc..14a80a3 100644
+index 07774cf..c56770b 100644
 --- a/crates/wasi-nn/src/backend/ggml.rs
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -737,7 +737,13 @@ impl GgmlServer {
+@@ -824,7 +824,13 @@ impl GgmlServer {
                  }
                  q.decoding = true;
                  drop(q);
@@ -388,8 +392,7 @@ index 23462dc..14a80a3 100644
                  q = self.q.lock().unwrap();
                  for (it, res) in items.into_iter().zip(results) {
                      q.results.insert(it.ticket, res);
-@@ -877,7 +883,10 @@ impl GgmlServer {
-         let ph_t1 = std::time::Instant::now();
+@@ -908,6 +914,9 @@ impl GgmlServer {
          let mut logits = vec![0f32; tokens.len() * self.n_vocab];
          let ph_alloc = ph_t1.elapsed().as_micros() as i64;
          let ph_t2 = std::time::Instant::now();
@@ -399,8 +402,7 @@ index 23462dc..14a80a3 100644
          let rc = if harvest_err.is_none() {
              unsafe {
                  ell_decode_seq_full(self.raw, self.model.raw, seq_id, pos0,
-@@ -905,7 +913,8 @@ impl GgmlServer {
-                 }
+@@ -943,6 +952,7 @@ impl GgmlServer {
                  self.last_phases.lock().unwrap()[4] = ph_t3.elapsed().as_micros() as i64;
              }
          }
@@ -408,7 +410,7 @@ index 23462dc..14a80a3 100644
          let mut q = self.q.lock().unwrap();
          q.decoding = false;
          self.cv.notify_all();
-@@ -892,6 +900,9 @@ impl GgmlServer {
+@@ -1008,6 +1018,9 @@ impl GgmlServer {
          let outcome = match self.ensure_mtmd() {
              Err(e) => Err(e),
              Ok(handle) => {
@@ -418,7 +420,7 @@ index 23462dc..14a80a3 100644
                  let rc = unsafe {
                      (syms.eval_image)(
                          handle,
-@@ -971,6 +982,7 @@ impl GgmlServer {
+@@ -1087,6 +1100,7 @@ impl GgmlServer {
      fn mtp_observe(&self, seq: i32, pos0: i32, tokens: &[i32]) -> Result<(), String> {
          let mtp = self.mtp.lock().unwrap();
          let h = mtp.as_ref().ok_or("[mtp_unavailable] no MTP state (harvest first)")?;
@@ -426,14 +428,16 @@ index 23462dc..14a80a3 100644
          let rc = unsafe {
              ell_mtp_observe(h.0, seq, pos0, tokens.as_ptr(), tokens.len() as i32)
          };
-@@ -987,6 +999,7 @@ impl GgmlServer {
-         let mtp = self.mtp.lock().unwrap();
-         let h = mtp.as_ref().ok_or("[mtp_unavailable] no MTP state (prefill with mtp first)")?;
-         let mut out = vec![0i32; k.max(0) as usize];
+@@ -1113,6 +1127,9 @@ impl GgmlServer {
+             Some((p, t)) => (p, t.as_ptr(), t.len() as i32),
+             None => (0, std::ptr::null(), 0),
+         };
++        // ONE arbiter grant covers the folded observe AND the draft chain -
++        // pre-fold these were two separate grants per round
 +        let _turn = crate::arbiter::turn(self.model.gpu);
-         let n = unsafe { ell_mtp_draft(h.0, seq, id_last, n_past, k, p_min, out.as_mut_ptr()) };
-         out.truncate(n.max(0) as usize);
-         Ok(out)
+         let n = unsafe {
+             ell_mtp_draft2(h.0, seq, id_last, n_past, k, p_min, out.as_mut_ptr(), op, ot, on)
+         };
 diff --git a/crates/wasi-nn/src/backend/onnx.rs b/crates/wasi-nn/src/backend/onnx.rs
 index 2a06def..77ea65b 100644
 --- a/crates/wasi-nn/src/backend/onnx.rs

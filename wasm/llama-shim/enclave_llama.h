@@ -203,6 +203,13 @@ int32_t ell_mtp_observe(void *m, int32_t seq, int32_t pos0,
                         const int32_t *tokens, int32_t n);
 int32_t ell_mtp_draft(void *m, int32_t seq, int32_t id_last, int32_t n_past,
                       int32_t k, float p_min, int32_t *tokens_out);
+/* ell_mtp_draft2: ell_mtp_observe(obs_*) + ell_mtp_draft in ONE entry (the
+ * per-round observe verb round trip measured 9.5-14 ms on the fleet, mostly
+ * boundary + sync). obs_n 0 = plain draft. A failed observe returns 0
+ * drafts; the head resynchronizes at the next observe. */
+int32_t ell_mtp_draft2(void *m, int32_t seq, int32_t id_last, int32_t n_past,
+                       int32_t k, float p_min, int32_t *tokens_out,
+                       int32_t obs_pos0, const int32_t *obs_tokens, int32_t obs_n);
 void ell_mtp_reset(void *m, int32_t seq);
 
 /* ---- vision (multimodal input) via libmtmd --------------------------------
