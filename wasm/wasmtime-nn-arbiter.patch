@@ -374,10 +374,10 @@ index 0000000..d8ccfc3
 +    }
 +}
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
-index 07774cf..c56770b 100644
+index a4c586e..118ac1b 100644
 --- a/crates/wasi-nn/src/backend/ggml.rs
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -824,7 +824,13 @@ impl GgmlServer {
+@@ -833,7 +833,13 @@ impl GgmlServer {
                  }
                  q.decoding = true;
                  drop(q);
@@ -389,10 +389,10 @@ index 07774cf..c56770b 100644
 +                    let _turn = crate::arbiter::turn(self.model.gpu);
 +                    self.decode_items(&items)
 +                };
-                 q = self.q.lock().unwrap();
-                 for (it, res) in items.into_iter().zip(results) {
-                     q.results.insert(it.ticket, res);
-@@ -908,6 +914,9 @@ impl GgmlServer {
+                 {
+                     let mut gperf = [0i64; 7];
+                     unsafe { ell_graph_perf2(self.raw, gperf.as_mut_ptr()); }
+@@ -925,6 +931,9 @@ impl GgmlServer {
          let mut logits = vec![0f32; tokens.len() * self.n_vocab];
          let ph_alloc = ph_t1.elapsed().as_micros() as i64;
          let ph_t2 = std::time::Instant::now();
@@ -402,7 +402,7 @@ index 07774cf..c56770b 100644
          let rc = if harvest_err.is_none() {
              unsafe {
                  ell_decode_seq_full(self.raw, self.model.raw, seq_id, pos0,
-@@ -943,6 +952,7 @@ impl GgmlServer {
+@@ -966,6 +975,7 @@ impl GgmlServer {
                  self.last_phases.lock().unwrap()[4] = ph_t3.elapsed().as_micros() as i64;
              }
          }
@@ -410,7 +410,7 @@ index 07774cf..c56770b 100644
          let mut q = self.q.lock().unwrap();
          q.decoding = false;
          self.cv.notify_all();
-@@ -1008,6 +1018,9 @@ impl GgmlServer {
+@@ -1031,6 +1041,9 @@ impl GgmlServer {
          let outcome = match self.ensure_mtmd() {
              Err(e) => Err(e),
              Ok(handle) => {
@@ -420,7 +420,7 @@ index 07774cf..c56770b 100644
                  let rc = unsafe {
                      (syms.eval_image)(
                          handle,
-@@ -1087,6 +1100,7 @@ impl GgmlServer {
+@@ -1110,6 +1123,7 @@ impl GgmlServer {
      fn mtp_observe(&self, seq: i32, pos0: i32, tokens: &[i32]) -> Result<(), String> {
          let mtp = self.mtp.lock().unwrap();
          let h = mtp.as_ref().ok_or("[mtp_unavailable] no MTP state (harvest first)")?;
@@ -428,7 +428,7 @@ index 07774cf..c56770b 100644
          let rc = unsafe {
              ell_mtp_observe(h.0, seq, pos0, tokens.as_ptr(), tokens.len() as i32)
          };
-@@ -1113,6 +1127,9 @@ impl GgmlServer {
+@@ -1136,6 +1150,9 @@ impl GgmlServer {
              Some((p, t)) => (p, t.as_ptr(), t.len() as i32),
              None => (0, std::ptr::null(), 0),
          };
