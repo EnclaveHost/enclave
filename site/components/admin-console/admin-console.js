@@ -23,7 +23,8 @@ import { ADDRESS_BOOK_ADDRESS, USDC_BASE, DEFAULT_API_BASE } from "../../js/core
 import { esc, on, short, showToast } from "../../js/core/util.js";
 import { CONTRACTS } from "../../js/gen/contract-artifacts.js";
 import { MIG_KINDS, importState, sealTx, encCallX, escrowPlan, approveTx, refundSweepPlan } from "./migrate.js";
-import { vaultImplCurrent, scanVaults, planVaultMigration, oldTreasury, balanceOf6 } from "./vaultmig.js";
+import { vaultImplCurrent, scanVaults, planVaultMigration, oldTreasury, balanceOf6,
+         signRefund, vaultTreasury } from "./vaultmig.js";
 import { metricsPanel, paintMetrics, paintHistory, loadMetrics, redrawPlots } from "./metrics.js";
 
 const EXPLORER = "https://basescan.org";
@@ -420,7 +421,11 @@ class AdminConsole extends EnclaveElement {
         // gets pinned to. origin1 is the optional second slot (a www pair).
         // Keep each entry on ONE line - test/admin-console.test.mjs parses this
         // map by line to prove no constructor arg renders as an empty box.
-        EnclaveCreditVaultFactory: { usdc: USDC_BASE, book: S.book.addr, treasury: payoutAddr, origin0: location.origin, origin1: "" },
+        // recoveryAdmin defaults to the governance wallet: it may ONLY forward a
+        // superseded vault's balance to that same customer's vault at the
+        // current factory (never to us), which is what lets a future factory
+        // migration move credit without a passkey tap from every customer
+        EnclaveCreditVaultFactory: { usdc: USDC_BASE, book: S.book.addr, treasury: payoutAddr, recoveryAdmin: S.book.owner, origin0: location.origin, origin1: "" },
         // proof of time binds to the LEDGER + REGISTRY pair it verifies against, both immutably
         EnclaveProofOfTime: { deployments: S.book.entries.deployments || (S.dep && S.dep.addr), registry: S.book.entries.registry },
       };
@@ -432,7 +437,7 @@ class AdminConsole extends EnclaveElement {
         EnclaveReviews: `resolves the ledger it checks receipts against through the BOOK on every call, so a later EnclaveDeployments redeploy needs nothing here. <code>ledgerFallback</code> is only consulted when the book has no <code>deployments</code> key.`,
         EnclaveHostReviews: `ratings for the ENCLAVES that run apps (receipt = your funded deployment whose <code>runner</code> is that box). The BOOK is the only ledger source - resolved on every call, so a later EnclaveDeployments redeploy needs nothing here, and there is deliberately no fallback address to go stale (the live EnclaveReviews carries one three revisions out of date). Book key: <code>hostReviews</code>.`,
         PaymentRouter: `<span class="warn">IMMUTABLE - no owner, no setters</span>: <code>treasury</code> is burned in at deploy (prefilled from the current payout - change it deliberately). Rotating the treasury = deploying a new router and repointing the book key + the relay's <code>PAYMENT_ROUTER_ADDRESS</code>.`,
-        EnclaveCreditVaultFactory: `deploys the vault IMPLEMENTATION in its constructor; customer vaults are CREATE2 clones keyed by passkey. <span class="warn">No owner anywhere</span> - vault funds move only on customer passkey signatures, only toward the platform. Existing vaults keep their old factory forever; repointing <code>vaultFactory</code> only changes where NEW vaults come from.`,
+        EnclaveCreditVaultFactory: `deploys the vault IMPLEMENTATION in its constructor; customer vaults are CREATE2 clones keyed by passkey. <span class="warn">No owner anywhere</span> - vault funds move to the PLATFORM only on customer passkey signatures. <code>recoveryAdmin</code> is the single exception and cannot profit us: it may call <code>migrateToSuccessor</code>, which forwards a superseded vault's whole balance to <em>that same customer's</em> vault at the book's current factory (a derived destination, spendable only by their passkey) - so a future factory migration moves credit without asking every customer to tap. Zero declines that power permanently. Existing vaults keep their old factory forever; repointing <code>vaultFactory</code> only changes where NEW vaults come from.`,
       };
       const cards = Object.keys(CONTRACTS).map((name) => {
         const c = CONTRACTS[name];
@@ -478,9 +483,22 @@ class AdminConsole extends EnclaveElement {
         parts.push(`<section class="ac-panel"><h3>Credit vaults · ${link(S.vlt.addr)}</h3>
           <p class="ac-sub">${S.vlt.current === true
             ? `implementation ${mono(S.vlt.impl)} allowlists the ledger's current <code>create()</code> (<code>${esc(DEP_SEL.create)}</code>) - in sync. If a ledger revision ever reshapes <code>create()</code> again, this panel becomes the recovery flow.`
-            : `<span class="warn">couldn't probe the factory's implementation</span> - a flaky RPC read, most likely. Refresh; if it persists, the factory address in the book may not be a vault factory at all.`}</p>
+            : `<span class="warn">couldn't probe the factory's implementation</span> - a flaky RPC read, most likely. Refresh; if it persists, the factory address in the book may not be a vault factory at all.`}
+          ${S.vlt.recovery === false
+            ? ` This factory was built <span class="warn">without <code>migrateToSuccessor</code></span>: if it is ever superseded, every funded vault it minted needs its customer's passkey to move - deploy the current build to fix that (see the vault-factory card below).`
+            : S.vlt.recovery === true ? ` Its vaults carry <code>migrateToSuccessor</code>, so a future migration moves credit on its own - no customer taps.` : ""}</p>
         </section>`);
       }
+
+      /* stranded vaults: emptying one predates migrateToSuccessor and so needs
+         a passkey - the operator's own, for vaults they hold the key to */
+      parts.push(`<section class="ac-panel"><h3>Stranded vault recovery</h3>
+        <p class="ac-sub">A vault left behind by a factory migration keeps its balance until something moves it. Vaults minted by a factory that carries <code>migrateToSuccessor</code> are handled by the migration flow itself. Older ones can only be emptied by their own passkey, and only toward that vault's immutable <code>treasury</code> - so this signs <code>refundToTreasury</code> with a passkey <em>you</em> hold and submits it from the connected wallet. The relay is not involved and no endpoint accepts a vault address; a passkey that did not create the vault is caught here rather than as a reverted transaction. Money you fronted during a migration comes back this way.</p>
+        <div class="ac-mig-ctl"><input class="ac-in" id="vltRecFactory" aria-label="Superseded factory address" placeholder="superseded factory 0x…" value="${esc(saved.oldFactory || (wedged ? S.vlt.addr : ""))}" spellcheck="false" autocomplete="off" /></div>
+        <div class="ac-mig-actions"><button class="btn btn-sm" data-act="vlt-rec-scan">Scan for stranded balances</button></div>
+        <div id="vltRecList"></div>
+        <div class="ac-mig-log" id="vltRecLog" role="log" aria-label="Stranded vault recovery log" hidden></div>
+      </section>`);
     }
 
     /* -- migrate -- */
@@ -674,8 +692,29 @@ class AdminConsole extends EnclaveElement {
     }
     log.hidden = !lines.length;
     log.scrollTop = log.scrollHeight;
-    if (V && V.oldFactory) this._body.querySelector("#vltOld").value = V.oldFactory;
-    if (V && V.scan) this._body.querySelector('[data-act="vlt-run"]').disabled = false;
+    const old = this._body.querySelector("#vltOld");
+    if (old && V && V.oldFactory) old.value = V.oldFactory;
+    const run = this._body.querySelector('[data-act="vlt-run"]');
+    if (run && V && V.scan) run.disabled = false;
+    this._paintVltRec();
+  }
+
+  /* the stranded-vault list: one row per vault that still holds credit, each
+     recoverable only with the passkey that created it */
+  _paintVltRec() {
+    const host = this._body && this._body.querySelector("#vltRecList");
+    if (!host) return;
+    const R = this._vltRec;
+    if (!R) { host.innerHTML = ""; return; }
+    const rows = R.funded.filter((v) => v.balance6 > 0n);
+    host.innerHTML = rows.length
+      ? rows.map((v) => `<div class="ac-row"><div class="ac-lbl">${esc(short(v.vault))}
+          <span class="ac-hint">$${(Number(v.balance6) / 1e6).toFixed(2)} stranded${v.keyLost ? " · passkey NOT recoverable" : ""}</span></div>
+          <div class="ac-cur">${v.keyLost ? '<span class="warn">no operator path</span>' : "signs with the passkey that created it"}</div>
+          <span></span>
+          <button class="btn btn-sm" data-act="vlt-rec:${esc(v.vault)}"${v.keyLost ? " disabled" : ""}>Sign + recover</button>
+          <span></span></div>`).join("")
+      : `<p class="ac-sub dim">nothing stranded - every scanned vault is empty.</p>`;
   }
 
   /* cross-session resume state: survives a browser restart between the
@@ -885,8 +924,13 @@ class AdminConsole extends EnclaveElement {
             args.push({ t: "str", v });
             continue;
           }
+          // args that are legitimately zero: an unset price feed, the reviews
+          // fallback when the BOOK is the source, and a vault factory minted
+          // with NO recovery admin (the pure-immutable choice - every stranded
+          // balance then needs its customer's passkey, forever)
           const zeroOk = (name === "EnclaveDeployments" && argName === "ethUsdFeed")
-            || (/Reviews$/.test(name) && argName === "ledgerFallback");
+            || (/Reviews$/.test(name) && argName === "ledgerFallback")
+            || (name === "EnclaveCreditVaultFactory" && argName === "recoveryAdmin");
           if (!need(ADDR_RE.test(v) && (zeroOk || !isZero(v)), `constructor arg "${argName}" needs a valid ${zeroOk ? "" : "non-zero "}address`)) return;
           args.push({ t: "addr", v });
         }
@@ -916,6 +960,52 @@ class AdminConsole extends EnclaveElement {
         } finally { btn.disabled = false; }
         return;
       }
+      /* stranded-vault recovery: one passkey tap per vault, submitted here */
+      if (act === "vlt-rec-scan" || act.startsWith("vlt-rec:")) {
+        const log = (cls, txt) => this._logTo("vltRecLog", cls, txt);
+        const usd = (v6) => "$" + (Number(v6) / 1e6).toFixed(2);
+        btn.disabled = true;
+        try {
+          if (act === "vlt-rec-scan") {
+            const f = val("vltRecFactory");
+            if (!need(ADDR_RE.test(f), "enter the superseded factory's address")) return;
+            log("p", `scanning ${f} for vaults that still hold credit…`);
+            const scan = await scanVaults(f, (t) => log("p", "  " + t));
+            const funded = scan.vaults.filter((v) => v.balance6 > 0n);
+            this._vltRec = { factory: f, funded };
+            this._paintVltRec();
+            log(funded.length ? "ok" : "p", funded.length
+              ? `${funded.length} vault${funded.length === 1 ? "" : "s"} holding ${usd(funded.reduce((a, v) => a + v.balance6, 0n))} - recover each with the passkey that created it`
+              : "nothing stranded here - every vault this factory minted is empty");
+            return;
+          }
+          /* vlt-rec:<vault> */
+          const addr = act.slice(8);
+          const R = this._vltRec, v = R && R.funded.find((f) => lc(f.vault) === lc(addr));
+          if (!need(v, "re-scan first")) return;
+          if (!need(!v.keyLost, "this vault's passkey can't be recovered from its creation tx - it has no operator path")) return;
+          await this._connect();
+          // live re-read: a balance that moved since the scan would make the
+          // signed amount wrong, and the signature commits to the amount
+          const bal6 = await balanceOf6(v.vault);
+          if (!need(bal6 > 0n, "this vault is already empty - re-scan")) return;
+          const treasury = await vaultTreasury(v.vault);
+          log("p", `${v.vault}: signing a ${usd(bal6)} refund to ${treasury || "its treasury"} - tap the passkey that created it…`);
+          const deadline = Math.floor(Date.now() / 1000) + 900;
+          const { data } = await signRefund(v.vault, v.x, v.y, bal6, deadline);
+          log("p", "  signed ✓ - confirm the transaction in your wallet…");
+          const h = await sendTx(v.vault, data);
+          log("p", `  sent ${h.slice(0, 14)}… waiting…`);
+          await waitReceipt(h, 90);
+          log("ok", `  recovered ${usd(bal6)} from ${v.vault} ✓`);
+          v.balance6 = 0n;
+          this._paintVltRec();
+        } catch (err) {
+          log("err", friendly(err));
+        } finally { btn.disabled = false; }
+        return;
+      }
+
       /* credit-vault factory migration (scan → one run that deploys/repoints/
          re-mints/fronts whatever live chain state still needs) */
       if (act === "vlt-scan" || act === "vlt-run") {
@@ -997,8 +1087,10 @@ class AdminConsole extends EnclaveElement {
 
           /* 3) re-mint + front, re-planned from live state (the delta) */
           log("p", "planning the per-vault delta…");
-          const plan = await planVaultMigration(V.scan.vaults, target);
+          const plan = await planVaultMigration(V.scan.vaults, target, Enclave.address);
           for (const s of plan.skipped) log("p", `  skip ${s.vault.slice(0, 10)}…: ${s.why}`);
+          if (plan.self6 > 0n)
+            log("ok", `  ${usd(plan.self6)} moves by migrateToSuccessor - those vaults forward their own credit, so no company USDC is fronted for them`);
           if (plan.steps.length) {
             const mine6 = await balanceOf6(Enclave.address);
             if (!needV(mine6 >= plan.front6, `fronting needs ${usd(plan.front6)} USDC but the connected wallet holds ${usd(mine6)} - top up and re-run (the plan resumes as a delta)`)) return;
