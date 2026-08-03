@@ -185,6 +185,24 @@ mechanical, mirror generate_lookup's two-strategy split).
   boot-log line 'output buffer = ' - CUDA_Host means out_get drops
   ~1-4 ms/token platform-wide. Everything needed ships in mm22 already;
   mm23 is a manager-env experiment plus at most a 15-line ggml patch.
+- **THE FINAL CORRECTION (mm23): no overhead was left at all.** The
+  fleet boot log (capture: resume -> one title probe -> pull logs before
+  request spam floods the window) reads 'output buffer = CUDA_Host' -
+  pinned all along, cudaMallocHost fine. With a bare-cudaMemcpyAsync
+  get_tensor_async and a pinned dst still blocking 14.2 ms, the driver
+  itself forces synchronous D2H under the CC stack: the memcpy waits for
+  the stream (the whole forward pass), invisible to every sync counter.
+  Final reconciled batch-1 budget: ~13.5 ms GPU exec (bandwidth at the
+  25% SM cap) + 0.65 copy + 1.7 CPU = the measured 15.6-16. **62 tok/s
+  is the share's physics.** The only lever over physics is
+  tokens-per-exec - speculation - which is shipped and winning
+  (lookup-rs). mm23's hostRegister rescue stays as insurance for nodes
+  where pinned alloc DOES fail. Bonus discoveries: GGML debug lines
+  reach tenant logs ('CUDA Graph id reused' x248/window = production
+  replay confirmed without any instrument), and the boot-log capture
+  recipe above. The mm7->mm23 arc is complete: every theory tested,
+  every millisecond named, and the one config that beats physics is the
+  one already recommended for the catalog.
 - **Do the fused-round-verb arithmetic BEFORE building it** (it looked
   like the next mountain; the numbers say no). Best case — one WIT call
   per round, head steps CUDA-graphed at ~3 ms: the mtp verify itself
