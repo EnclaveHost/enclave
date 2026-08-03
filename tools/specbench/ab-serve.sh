@@ -10,10 +10,10 @@ OLD=$HOME/.cache/specbench-deps
 : "${BIN:?}" "${LIB:?}" "${CFGKIND:?}" "${PORT:?}" "${PROMPT:?}" "${TAG:?}"
 RS=${RS:-}
 
-CFG=$(python3 - "$CFGKIND" <<'EOF'
-import json, sys
-kind = sys.argv[1]
-if kind.startswith("mtp"):
+CFG=$(python3 - "$CFGKIND" "${MODEL:-0.8b}" "${MAXNEW:-160}" <<'EOF'
+import json, re, sys
+kind, model, maxnew = sys.argv[1], sys.argv[2], int(sys.argv[3])
+if kind.startswith("mtp") or model == "9b":
     vol = "qwen3.5-9b-mtp-gguf"
     m = {"name":"qwen3.5-9b-mtp","backend":"ggml","n_layers":32,"n_kv_heads":4,
          "head_dim":256,"kv_layers":8,"vocab":248320,"eos":[248046,248044],
@@ -24,9 +24,19 @@ else:
          "head_dim":256,"kv_layers":6,"vocab":248320,"eos":[248046,248044],
          "template":"chatml","thinking":False,"temperature":0.0}
 cfg = dict(m); cfg["model_volume"]=vol
-cfg["max_new_cap"]=160; cfg["default_max_new"]=160
-if kind == "lookup4":
-    cfg["draft"]="lookup"; cfg["draft_tokens"]=4
+cfg["max_new_cap"]=maxnew; cfg["default_max_new"]=maxnew
+# lookup<N> for any N: the k-sweep. The batch-cost curve is convex (the
+# first 2 extra in-batch tokens are ~1.2 ms each, n>=4 costs ~3 ms each),
+# so small k is a different economic regime than the k=4 everything was
+# benched at.
+# lookup<N>[g<MINNGRAM>][x] : x = gate OFF (always propose)
+mlk = re.fullmatch(r"lookup(\d+)(?:g(\d+))?(x?)", kind)
+if mlk:
+    cfg["draft"]="lookup"; cfg["draft_tokens"]=int(mlk.group(1))
+    if mlk.group(2):
+        cfg["draft_min_ngram"]=int(mlk.group(2))
+    if mlk.group(3):
+        cfg["draft_gate"]=False
 if kind == "mtp4":
     cfg["draft"]="mtp"; cfg["draft_tokens"]=4; cfg["draft_p_min"]=0.4
 if kind == "mtp4think":
@@ -43,9 +53,10 @@ ENVV=(ENCLAVE_GGML_BACKEND_DIR="$LIB" ENCLAVE_GGML_N_GPU_LAYERS=${NGL:-99}
       LD_LIBRARY_PATH="$LIB:$OLD/cuda-tk/lib64")
 [ -n "$RS" ] && ENVV+=(ENCLAVE_GGML_N_RS_SEQ="$RS")
 
-case "$CFGKIND" in
-  mtp*) VOL=qwen3.5-9b-mtp-gguf ;;
-  *)    VOL=qwen3.5-0.8b-gguf ;;
+case "$CFGKIND:${MODEL:-0.8b}" in
+  mtp*)   VOL=qwen3.5-9b-mtp-gguf ;;
+  *:9b)   VOL=qwen3.5-9b-mtp-gguf ;;
+  *)      VOL=qwen3.5-0.8b-gguf ;;
 esac
 env "${ENVV[@]}" \
 "$BIN" serve -S cli -S nn \
