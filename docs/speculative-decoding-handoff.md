@@ -75,6 +75,20 @@ mechanical, mirror generate_lookup's two-strategy split).
   config ever) and prose 69.1/59.2/68.9 — replicating the headline (the
   59.2 is a lookup-found-nothing trajectory; the floor works as designed).
   Pooled prose across both windows: 6 samples, mean 66.9 vs plain 62.8.
+- **Do the fused-round-verb arithmetic BEFORE building it** (it looked
+  like the next mountain; the numbers say no). Best case — one WIT call
+  per round, head steps CUDA-graphed at ~3 ms: the mtp verify itself
+  still costs 39–42 ms (harvest of nextn rows is inherent to MTP), so a
+  k=2 round lands ≈45–48 ms for ~2.7 tokens ≈ 58 tok/s, k=4 ≈ 63 —
+  BELOW lookup-rs's 68. Same wall for a small draft model (0.8b steps
+  are launch-latency-bound ~10–15 ms on the CVM like the head's).
+  **General law of this hardware: sequential per-token draft steps of
+  ANY size lose to the launch-latency floor; only free proposers
+  (prompt-lookup) and the trunk's own batched verify come out ahead.**
+  What would actually move the needle next: an upstream pin bump that
+  cuts the 15.4 ms batch-1 replay floor (benefits plain AND every spec
+  round), or batched/tree drafting where k proposals come from ONE
+  pass — neither is a knob, both are engine campaigns.
 
 **Current best config on mm18: `draft:"lookup", draft_tokens:4,
 tokenizer:"host"` + deployment `nnRsSeq:4`** (llm-chat 0.34.4) — +6-8%
