@@ -18,11 +18,12 @@
 import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { Enclave } from "../../js/core/api.js";
 import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
-import { baseRpc, waitReceipt, encCall, hexBig, decodeStructArray, CAMPAIGN_SCHEMA, APP_SCHEMA } from "../../js/core/chain.js";
+import { baseRpc, waitReceipt, encCall, hexBig, decodeStructArray, CAMPAIGN_SCHEMA, APP_SCHEMA, DEP_SEL } from "../../js/core/chain.js";
 import { ADDRESS_BOOK_ADDRESS, USDC_BASE, DEFAULT_API_BASE } from "../../js/core/config.js";
 import { esc, on, short, showToast } from "../../js/core/util.js";
 import { CONTRACTS } from "../../js/gen/contract-artifacts.js";
 import { MIG_KINDS, importState, sealTx, encCallX, escrowPlan, approveTx, refundSweepPlan } from "./migrate.js";
+import { vaultImplCurrent, scanVaults, planVaultMigration, oldTreasury, balanceOf6 } from "./vaultmig.js";
 import { metricsPanel, paintMetrics, paintHistory, loadMetrics, redrawPlots } from "./metrics.js";
 
 const EXPLORER = "https://basescan.org";
@@ -146,7 +147,7 @@ class AdminConsole extends EnclaveElement {
           out.push(...decodeStructArray(await call(feat, encCall(fSel.getCampaignsPage, [{ t: "uint", v: s }, { t: "uint", v: 100 }])), CAMPAIGN_SCHEMA));
         return out;
       };
-      [S.dep, S.cat, S.pay, S.feat, S.rev] = await Promise.all([
+      [S.dep, S.cat, S.pay, S.feat, S.rev, S.vlt] = await Promise.all([
         // gpu/cpu are the LEGACY platform list prices: gone from rev-8
         // ledgers (each enclave posts its own in the registry), so they read
         // soft and the panel says so instead of showing a stale number
@@ -166,6 +167,14 @@ class AdminConsole extends EnclaveElement {
         rev ? Promise.all([rdAddr(rev, rSel.owner), rdAddrSoft(rev, rSel.pendingOwner),
                            rdAddr(rev, rSel.ledger), rdAddr(rev, rSel.ledgerFallback), rdAddr(rev, rSel.book)])
               .then(([owner, pending, ledger, fallback, revBook]) => ({ addr: rev, owner, pending, ledger, fallback, revBook })) : null,
+        // credit-vault skew probe: the factory's IMMUTABLE implementation must
+        // allowlist the ledger's CURRENT create() selector, or every credit
+        // deploy reverts "not create()" (the 2026-08-03 wedge). current: null
+        // = the probe itself failed, which paints as "couldn't check", never
+        // as healthy.
+        E.vaultFactory ? vaultImplCurrent(E.vaultFactory)
+              .then((r) => ({ addr: E.vaultFactory, ...r }))
+              .catch(() => ({ addr: E.vaultFactory, impl: null, current: null })) : null,
       ]);
       this._note.hidden = true;
       this._paint();
@@ -444,6 +453,36 @@ class AdminConsole extends EnclaveElement {
         <div class="ac-cards">${cards}</div><div class="ac-status" role="status" aria-live="polite" hidden></div></section>`);
     }
 
+    /* -- credit-vault factory skew -- */
+    if (S.vlt) {
+      const saved = this._vltSaved();
+      const wedged = S.vlt.current === false;
+      // "current but a migration is mid-flight": the book already points at a
+      // healthy factory, yet a previous run recorded an old factory whose
+      // funded vaults may not all be re-minted/fronted - keep the flow up
+      const resuming = S.vlt.current === true && saved.oldFactory && lc(saved.oldFactory) !== lc(S.vlt.addr);
+      if (wedged || resuming) {
+        parts.push(`<section class="ac-panel"><h3><span class="warn">Credit vaults - ${wedged ? "factory skew" : "migration in flight"}</span></h3>
+          <p class="ac-sub">${wedged
+            ? `The live factory's immutable implementation ${mono(S.vlt.impl || "?")} does <b>not</b> allowlist the ledger's current <code>create()</code> selector (<code>${esc(DEP_SEL.create)}</code>): every credit <code>deployAndFund</code> reverts <code>not create()</code>, and vault USDC only moves on customer passkey signatures - no admin path can touch it.`
+            : `The book already points at a current factory, but the migration from ${mono(saved.oldFactory)} hasn't finished - re-scan and run to complete the delta.`}
+          One flow, all from this wallet: deploy the current factory build (skipped if done), repoint the book key <code>vaultFactory</code> (skipped if done), re-mint every funded vault from its customer's <b>same passkey</b> - the P-256 pubkey is replayed from the old factory's <code>createVault</code> calldata, so custody never changes, only the address - and <b>front each old balance in USDC from the connected wallet</b> so every customer is whole immediately. The stranded originals repay the treasury as customers sign refunds; re-running after any interruption resumes as a delta from live chain state.</p>
+          <div class="ac-mig-ctl"><input class="ac-in" id="vltOld" aria-label="Old (wedged) factory address" placeholder="old factory 0x…" value="${esc(wedged ? S.vlt.addr : saved.oldFactory || "")}" spellcheck="false" autocomplete="off" /></div>
+          <div class="ac-mig-actions">
+            <button class="btn btn-sm" data-act="vlt-scan">Scan old factory</button>
+            <button class="btn btn-primary btn-sm ac-danger-btn" data-act="vlt-run" disabled>Migrate + front the credit</button>
+          </div>
+          <div class="ac-mig-log" id="vltLog" role="log" aria-label="Vault migration log" hidden></div>
+        </section>`);
+      } else {
+        parts.push(`<section class="ac-panel"><h3>Credit vaults · ${link(S.vlt.addr)}</h3>
+          <p class="ac-sub">${S.vlt.current === true
+            ? `implementation ${mono(S.vlt.impl)} allowlists the ledger's current <code>create()</code> (<code>${esc(DEP_SEL.create)}</code>) - in sync. If a ledger revision ever reshapes <code>create()</code> again, this panel becomes the recovery flow.`
+            : `<span class="warn">couldn't probe the factory's implementation</span> - a flaky RPC read, most likely. Refresh; if it persists, the factory address in the book may not be a vault factory at all.`}</p>
+        </section>`);
+      }
+    }
+
     /* -- migrate -- */
     {
       parts.push(`<section class="ac-panel"><h3>Migrate data</h3>
@@ -512,6 +551,7 @@ class AdminConsole extends EnclaveElement {
     this._body.hidden = false;
     this._paintSigner();
     this._migPrefill();
+    this._vltPrefill();
     this._gate();
     this._loadMetrics();
   }
@@ -610,6 +650,39 @@ class AdminConsole extends EnclaveElement {
     if (this._mig) (this._mig.log = this._mig.log || []).push({ cls, txt });
     this._logTo("migLog", cls, txt);
   }
+
+  /* ---------- credit-vault factory migration (vaultmig.js drives) ---------- */
+
+  _vltLog(cls, txt) {
+    const V = this._vlt || (this._vlt = {});
+    (V.log = V.log || []).push({ cls, txt });
+    this._logTo("vltLog", cls, txt);
+  }
+
+  /* replay the buffered log + restore what a completed scan had unlocked -
+     _paint() replaces the whole body, and this flow sends real money, so the
+     audit trail must survive every repaint (the _migPrefill contract) */
+  _vltPrefill() {
+    const log = this._body && this._body.querySelector("#vltLog");
+    if (!log) return;
+    const V = this._vlt, lines = (V && V.log) || [];
+    log.innerHTML = "";
+    for (const l of lines) {
+      const d = document.createElement("div");
+      d.className = l.cls; d.textContent = l.txt;
+      log.appendChild(d);
+    }
+    log.hidden = !lines.length;
+    log.scrollTop = log.scrollHeight;
+    if (V && V.oldFactory) this._body.querySelector("#vltOld").value = V.oldFactory;
+    if (V && V.scan) this._body.querySelector('[data-act="vlt-run"]').disabled = false;
+  }
+
+  /* cross-session resume state: survives a browser restart between the
+     factory deploy and the last fronting tx (chain state alone can't name
+     the OLD factory once the book has been repointed) */
+  _vltSaved() { try { return JSON.parse(localStorage.getItem("enclave_vaultmig") || "{}"); } catch { return {}; } }
+  _vltSave(o) { try { Object.keys(o).length ? localStorage.setItem("enclave_vaultmig", JSON.stringify(o)) : localStorage.removeItem("enclave_vaultmig"); } catch {} }
 
   _logTo(id, cls, txt) {
     const log = this._body.querySelector("#" + id);
@@ -843,6 +916,112 @@ class AdminConsole extends EnclaveElement {
         } finally { btn.disabled = false; }
         return;
       }
+      /* credit-vault factory migration (scan → one run that deploys/repoints/
+         re-mints/fronts whatever live chain state still needs) */
+      if (act === "vlt-scan" || act === "vlt-run") {
+        const V = this._vlt || (this._vlt = {});
+        const log = (cls, txt) => this._vltLog(cls, txt);
+        const needV = (cond, msg) => { if (!cond) log("err", msg); return cond; };
+        const usd = (v6) => "$" + (Number(v6) / 1e6).toFixed(2);
+        const old = val("vltOld");
+        if (!needV(ADDR_RE.test(old), "enter the OLD (wedged) factory address")) return;
+        btn.disabled = true;
+        try {
+          if (act === "vlt-scan") {
+            log("p", `scanning ${old} for vaults…`);
+            const scan = await scanVaults(old, (t) => log("p", "  " + t));
+            V.scan = scan; V.oldFactory = old;
+            const funded = scan.vaults.filter((v) => v.balance6 > 0n);
+            const lost = funded.filter((v) => v.keyLost);
+            const total6 = funded.reduce((a, v) => a + v.balance6, 0n);
+            for (const v of scan.vaults)
+              log(v.keyLost && v.balance6 > 0n ? "err" : "p",
+                `  ${v.vault} · ${usd(v.balance6)}${v.keyLost ? " · passkey NOT recoverable from its creation tx" : ""}`);
+            log("ok", `${scan.vaults.length} vault${scan.vaults.length === 1 ? "" : "s"}, ${funded.length} funded, ${usd(total6)} to front`);
+            if (lost.length) log("err", `${lost.length} funded vault${lost.length === 1 ? "" : "s"} excluded (no recoverable passkey) - those need a manual path`);
+            this._vltSave({ ...this._vltSaved(), oldFactory: old });
+            this._body.querySelector('[data-act="vlt-run"]').disabled = false;
+            return;
+          }
+          /* vlt-run */
+          if (!needV(V.scan && lc(V.oldFactory) === lc(old), "scan first (re-scan if you changed the address)")) return;
+          // this MOVES USDC out of the connected wallet - arm-twice, like retire
+          if (!btn.dataset.armed) {
+            btn.dataset.armed = "1"; btn.textContent = "Click again to migrate + SEND the USDC";
+            log("err", "the run deploys/repoints as needed, then SENDS real USDC from the connected wallet into the re-minted customer vaults (spendable credit - not recoverable by us). Click again to proceed.");
+            return;
+          }
+          delete btn.dataset.armed; btn.textContent = "Migrate + front the credit";
+          await this._connect();
+
+          /* 1) a factory whose implementation passes the create() probe:
+                the book's (already repointed), else one this flow deployed
+                earlier (browser died before the repoint), else deploy fresh */
+          const cur = S.book.entries.vaultFactory;
+          let target = null;
+          if (cur && lc(cur) !== lc(old)) { try { if ((await vaultImplCurrent(cur)).current) target = cur; } catch {} }
+          const saved = this._vltSaved();
+          if (!target && saved.newFactory) { try { if ((await vaultImplCurrent(saved.newFactory)).current) target = saved.newFactory; } catch {} }
+          if (!target) {
+            const treasury = (await oldTreasury(old)) || (S.dep && S.dep.payout);
+            if (!needV(treasury && !isZero(treasury), "no treasury to carry over (old impl unreadable, ledger has no payout) - deploy from the card above, then re-run")) return;
+            const origin0 = location.origin;
+            if (!needV(/^https:\/\/[a-z0-9.-]+(:\d+)?$/i.test(origin0) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin0),
+              `this page's origin (${origin0}) can't be the vaults' pinned signing origin - deploy from the card above with the real one, then re-run`)) return;
+            if (!needV(new TextEncoder().encode(origin0).length <= 32, `this page's origin (${origin0}) exceeds the 32 bytes the contract stores - deploy from the card above`)) return;
+            log("p", `deploying EnclaveCreditVaultFactory (treasury ${treasury}, origin ${origin0}) - confirm in your wallet…`);
+            const data = CONTRACTS.EnclaveCreditVaultFactory.bytecode + encCall("", [
+              { t: "addr", v: USDC_BASE }, { t: "addr", v: S.book.addr }, { t: "addr", v: treasury },
+              { t: "str", v: origin0 }, { t: "str", v: "" }]).slice(2);
+            const hash = await sendTx(null, data);
+            log("p", `  sent ${hash.slice(0, 14)}… waiting…`);
+            const rcpt = await waitReceipt(hash, 90);
+            target = rcpt.contractAddress;
+            if (!needV(target && ADDR_RE.test(target), "confirmed, but no contract address in the receipt - check basescan, then re-run")) return;
+            // the fresh deploy must pass the very probe that flagged the wedge
+            if (!needV((await vaultImplCurrent(target)).current, "the FRESH deploy fails the create() probe - the checked-in artifact predates the ledger: rebuild (build-contract-artifacts.mjs), redeploy the site, re-run")) return;
+            log("ok", `  factory ${target} ✓`);
+            this._vltSave({ oldFactory: old, newFactory: target });
+          } else log("p", `reusing current factory ${target}`);
+
+          /* 2) repoint the book (owner tx; skipped when already there) */
+          if (lc(cur || "") !== lc(target)) {
+            if (!needV(lc(Enclave.address) === lc(S.book.owner), `the book repoint must come from its owner ${S.book.owner} - connect that wallet and re-run (everything already done is kept)`)) return;
+            log("p", `book: vaultFactory → ${target} - confirm in your wallet…`);
+            const h = await sendTx(S.book.addr, encCall(CONTRACTS.EnclaveAddressBook.sel.set,
+              [{ t: "bytes32", v: encKey("vaultFactory") }, { t: "addr", v: target }]));
+            log("p", `  sent ${h.slice(0, 14)}… waiting…`);
+            await waitReceipt(h, 90);
+            log("ok", "  repointed ✓ - the relay follows within its 10-min book cache");
+          } else log("p", "book already points at the current factory");
+
+          /* 3) re-mint + front, re-planned from live state (the delta) */
+          log("p", "planning the per-vault delta…");
+          const plan = await planVaultMigration(V.scan.vaults, target);
+          for (const s of plan.skipped) log("p", `  skip ${s.vault.slice(0, 10)}…: ${s.why}`);
+          if (plan.steps.length) {
+            const mine6 = await balanceOf6(Enclave.address);
+            if (!needV(mine6 >= plan.front6, `fronting needs ${usd(plan.front6)} USDC but the connected wallet holds ${usd(mine6)} - top up and re-run (the plan resumes as a delta)`)) return;
+            for (let i = 0; i < plan.steps.length; i++) {
+              const st = plan.steps[i];
+              log("p", `[${i + 1}/${plan.steps.length}] ${st.label} - confirm in your wallet…`);
+              const h = await sendTx(st.to, st.data);
+              log("p", `  sent ${h.slice(0, 14)}… waiting…`);
+              await waitReceipt(h, 90);
+              log("ok", `  ✓ ${st.label}`);
+            }
+          }
+          const lost = V.scan.vaults.filter((v) => v.balance6 > 0n && v.keyLost);
+          log("ok", `done - ${plan.steps.length} tx${plan.steps.length === 1 ? "" : "s"}, ${usd(plan.front6)} fronted ✓. Credit deploys resume within ~10 min. The old vaults still hold their USDC: each repays the treasury when its customer signs a refund. When convenient, refresh the baked fallbacks (sync-contract-addresses.sh + the relay's VAULT_FACTORY_ADDRESS env).`);
+          if (lost.length) log("err", `${lost.length} funded vault${lost.length === 1 ? "" : "s"} still unmigrated (unrecoverable passkey) - the resume state stays until they're handled`);
+          else { this._vltSave({}); V.scan = null; }
+          setTimeout(() => this.refresh(), 1500);
+        } catch (err) {
+          log("err", friendly(err) + " - re-run to resume; the plan is re-derived from live chain state, so nothing is done twice.");
+        } finally { btn.disabled = false; }
+        return;
+      }
+
       /* migration */
       if (act.startsWith("mig-")) {
         const M = this._mig, m = MIG_KINDS[M.kind];

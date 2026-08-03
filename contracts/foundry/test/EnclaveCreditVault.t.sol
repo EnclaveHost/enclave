@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import { Test, Vm } from "forge-std/Test.sol";
 import { EnclaveCreditVault, EnclaveCreditVaultFactory, IERC20, IAddressBook } from "../../EnclaveCreditVault.sol";
+import { EnclaveDeployments } from "../../EnclaveDeployments.sol";
 import { MockUSDC } from "./mocks/MockUSDC.sol";
 import { MockBook, MockDeployments } from "./mocks/MockPlatform.sol";
 
@@ -129,6 +130,24 @@ contract EnclaveCreditVaultTest is Test {
         assertEq(usdc.balanceOf(address(vault)), 70e6);
         assertEq(usdc.balanceOf(address(0xFEE)), 30e6, "funding landed at the ledger payout");
         assertEq(vault.nonce(), 1);
+    }
+
+    /// REGRESSION (2026-08-03 production wedge): the live factory had been
+    /// deployed a week before rev 8 grew create() a tenth argument, so its
+    /// baked allowlist rejected the calldata the relay builds for every
+    /// rev>=8 ledger - "not create()" on every credit deploy, with the vaults'
+    /// funds reachable only through customer-signed refunds. This pins the
+    /// allowlist to the REAL ledger's create selector: reshape create() in
+    /// EnclaveDeployments.sol and this fails until the vault's list moves in
+    /// the same commit (and the deployed factory moves with it - the admin
+    /// console's vault-factory panel flags the live skew).
+    function test_deployAndFund_liveLedgerCreateShape() public {
+        bytes memory cc = abi.encodeWithSelector(EnclaveDeployments.create.selector,
+            "ipfs://bafyvault", uint16(250), uint16(100), uint32(8080), "", true, "", address(0), uint256(0), uint256(278));
+        uint256 deadline = block.timestamp + 300;
+        bytes32 id = vault.deployAndFund(cc, 10e6, deadline, _sig(PK1, _deployDigest(cc, 10e6, deadline)));
+        assertEq(dep.ownerOf(id), address(vault), "vault owns the deployment made with the live create() shape");
+        assertEq(dep.funded6(id), 10e6);
     }
 
     function test_replayRejected() public {

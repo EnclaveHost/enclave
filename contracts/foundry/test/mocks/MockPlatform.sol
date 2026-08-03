@@ -15,9 +15,10 @@ contract MockBook {
 
 /// Minimal EnclaveDeployments stand-in for vault unit tests: create() records
 /// the caller as owner and returns a deterministic id; fund() pulls USDC from
-/// the caller to `payout` (the real ledger's non-custodial shape). Both the
-/// rev-3 7-arg and rev-4 9-arg create() selectors exist, like the sniffed real
-/// ledgers. setAppRef/setActive are owner-gated no-ops that record the call.
+/// the caller to `payout` (the real ledger's non-custodial shape). The rev-3
+/// 7-arg, rev-4 9-arg and rev-8 10-arg create() selectors all exist, like the
+/// sniffed real ledgers. setAppRef/setActive are owner-gated no-ops that
+/// record the call.
 contract MockDeployments {
     IERC20 public immutable usdc;
     address public immutable payout;
@@ -34,6 +35,8 @@ contract MockDeployments {
     function create(string calldata appRef, uint16, uint16, uint32, string calldata, bool, string calldata)
         external returns (bytes32) { return _create(appRef); }
     function create(string calldata appRef, uint16, uint16, uint32, string calldata, bool, string calldata, address, uint256)
+        external returns (bytes32) { return _create(appRef); }
+    function create(string calldata appRef, uint16, uint16, uint32, string calldata, bool, string calldata, address, uint256, uint256)
         external returns (bytes32) { return _create(appRef); }
     function _create(string calldata appRef) private returns (bytes32 id) {
         id = keccak256(abi.encode(address(this), count++, appRef));
