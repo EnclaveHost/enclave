@@ -399,6 +399,41 @@ int32_t ell_seq_rewind(void *ctx, int32_t seq_id, int32_t n_keep) {
     return ok ? 0 : -1;
 }
 
+int32_t ell_cuda_sync_stats(int64_t out[2]) {
+    /* cumulative [sync_us, sync_calls] from the CUDA module's sync-instr
+     * counters (mm20). The module is dlopened RTLD_LOCAL, so the getter
+     * travels ggml's backend proc registry rather than the dynamic symbol
+     * table. Absence (older module, no GPU) reports -1/-1 - callers surface
+     * it as "engine predates the instrument", never an error. */
+    typedef int64_t (*fn_t)(int64_t *);
+    static fn_t fn;
+    static int looked;
+    if (!looked) {
+        for (size_t i = 0; i < ggml_backend_dev_count(); i++) {
+            ggml_backend_dev_t dev = ggml_backend_dev_get(i);
+            if (ggml_backend_dev_type(dev) != GGML_BACKEND_DEVICE_TYPE_GPU) {
+                continue;
+            }
+            ggml_backend_reg_t reg = ggml_backend_dev_backend_reg(dev);
+            if (reg) {
+                fn = (fn_t)ggml_backend_reg_get_proc_address(
+                    reg, "ggml_backend_cuda_sync_stats");
+            }
+            break;
+        }
+        looked = 1;
+    }
+    if (!fn) {
+        out[0] = -1;
+        out[1] = -1;
+        return -1;
+    }
+    int64_t calls = 0;
+    out[0] = fn(&calls);
+    out[1] = calls;
+    return 0;
+}
+
 int32_t ell_rewind_depth(void *ctx) {
     /* the EFFECTIVE snapshot depth of this context (llama zeroes the request
      * on archs without rollback), i.e. how many trailing tokens of the most
