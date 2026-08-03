@@ -165,6 +165,10 @@ int32_t ell_decode_seq_full(void *ctx, void *model, int32_t seq_id, int32_t pos0
                             const int32_t *tokens, int32_t n, float *logits_out);
 int32_t ell_seq_rewind(void *ctx, int32_t seq_id, int32_t n_keep);
 int32_t ell_rewind_depth(void *ctx);
+/* cumulative CUDA stream-sync stats [us, calls] (mm20 sync-instr; the
+ * per-decode fixed-cost investigation). -1/-1 + rc -1 when the loaded CUDA
+ * module predates the instrument or no GPU module is loaded. */
+int32_t ell_cuda_sync_stats(int64_t out[2]);
 void ell_seq_copy(void *ctx, int32_t src_seq, int32_t dst_seq);
 int32_t ell_model_recurrent(void *model);
 

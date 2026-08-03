@@ -130,6 +130,12 @@ jobs:
           grep -q "GGML_CUDA_GRAPH_PTR_UPDATE" ggml/src/ggml-cuda/ggml-cuda.cu || { echo "::error::ptr-update patch did not apply"; exit 1; }
           grep -q "topology_changed" ggml/src/ggml-cuda/ggml-cuda.cu || { echo "::error::ptr-update classifier hunk did not apply"; exit 1; }
           grep -q "GGML_CUDA_GRAPH_IDLE_SEC" ggml/src/ggml-cuda/common.cuh || { echo "::error::mm17 graph-idle hunk did not apply"; exit 1; }
+          # mm20 sync-instr: time every CUDA stream sync cumulatively and
+          # export ggml_backend_cuda_sync_stats (dlsym'd by the shim). The
+          # direct measurement of the CVM's ~5-8ms per-decode fixed cost;
+          # applies LAST - its diff is against the fully-patched cuda file.
+          git apply "$GITHUB_WORKSPACE/wasm/llamacpp-sync-instr.patch"
+          grep -q "ggml_backend_cuda_sync_stats" ggml/src/ggml-cuda/ggml-cuda.cu || { echo "::error::sync-instr patch did not apply"; exit 1; }
           # mm14 pinned recurrent cells: on hybrid-SSM models a speculative
           # verify rebuilds its graph every round because
           # llm_graph_input_rs::can_reuse requires a stable memory head, and

@@ -140,6 +140,13 @@
 # made the draft confidence gate exact-but-cheap (exp only within 16 of the
 # max logit) - the full-vocab exp sum measured ~2.7 ms per drafted token on
 # SNP vCPUs.
+#
+# 2026-08-03 sync-instr caps (mm20): caps grows [8]=cumulative CUDA
+# stream-sync ms and [9]=sync call count (from the engine's
+# ggml_backend_cuda_sync_stats via the shim's dlsym'd ell_cuda_sync_stats;
+# -1 = module predates the instrument). Guests report per-generation deltas
+# - the direct measurement of the ~5-8 ms per-decode fixed cost suspected
+# to be the SEV-SNP sync tax.
 diff --git a/Cargo.lock b/Cargo.lock
 index 6ffaac1..3c68c51 100644
 --- a/Cargo.lock
@@ -202,10 +209,10 @@ index b2db808..af89d10 100644
  
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
 new file mode 100644
-index 0000000..07774cf
+index 0000000..39dc915
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,1813 @@
+@@ -0,0 +1,1826 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -375,6 +382,7 @@ index 0000000..07774cf
 +    ) -> i32;
 +    fn ell_seq_rewind(ctx: *mut c_void, seq_id: i32, n_keep: i32) -> i32;
 +    fn ell_rewind_depth(ctx: *mut c_void) -> i32;
++    fn ell_cuda_sync_stats(out: *mut i64) -> i32;
 +    fn ell_seq_copy(ctx: *mut c_void, src_seq: i32, dst_seq: i32);
 +    fn ell_model_recurrent(model: *mut c_void) -> i32;
 +    fn ell_mtp_available(model: *mut c_void) -> i32;
@@ -1700,6 +1708,14 @@ index 0000000..07774cf
 +                    ]));
 +                }
 +                if inputs.iter().any(|nt| nt.name == "caps") {
++                    // mm20 sync-instr: cumulative CUDA stream-sync time and
++                    // call count since process start (the per-decode
++                    // fixed-cost investigation). -1/-1 = the loaded engine
++                    // module predates the instrument (or no GPU module).
++                    let mut sync = [0i64; 2];
++                    if unsafe { ell_cuda_sync_stats(sync.as_mut_ptr()) } != 0 {
++                        sync = [-1, -1];
++                    }
 +                    let vals = [
 +                        self.seq_id,
 +                        self.server.model.recurrent as i32,
@@ -1725,6 +1741,10 @@ index 0000000..07774cf
 +                        // "mtp_obs" input (mm19+), saving the mtp_accept
 +                        // round trip each round
 +                        1,
++                        // cumulative CUDA sync ms (wraps ~24 days) + calls;
++                        // guests report per-generation DELTAS (mm20)
++                        if sync[0] >= 0 { (sync[0] / 1000) as i32 } else { -1 },
++                        if sync[1] >= 0 { (sync[1] & 0x7fff_ffff) as i32 } else { -1 },
 +                    ];
 +                    let mut data = Vec::with_capacity(vals.len() * 4);
 +                    for v in vals {
