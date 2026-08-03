@@ -157,6 +157,20 @@ mechanical, mirror generate_lookup's two-strategy split).
   is precisely the right mitigation (more tokens per weight pass), and
   the per-share ceiling becomes a pricing/SM% conversation, not an
   engineering one.
+- **THE VERDICT (mm22): one blocking memcpy.** out_get = 14.20 of the
+  14.21 ms `out` bracket - the whole constant is the logits
+  tensor_get_async, and blocking-on-pageable is the only CUDA mode that
+  fits (pinned submission is microseconds; the mm20 sync counter stayed
+  at 8 us because the wait hides inside the driver). The fleet's llama
+  output buffer is PAGEABLE - the CUDA_Host attempt silently fell back
+  (locally it pins and out_get = 0). Final fleet token model:
+  exec-at-SM-cap 9-13 ms (weights / achievable bandwidth at 25% SMs -
+  physics) + pageable staging 1-4 ms (mm23 candidate: cudaHostRegister
+  the fallback region, bounded ~+20%) + llama CPU 1.7 + WIT 0.6. The
+  62 tok/s wall is ~85% share physics: speculation was the right lever
+  all along, buffer pinning is the one bounded engineering item left,
+  and the rest is SM%/share sizing. Boot logs now name the buffer type
+  at every output_reserve - grep "output buffer =" on any node.
 - **Do the fused-round-verb arithmetic BEFORE building it** (it looked
   like the next mountain; the numbers say no). Best case — one WIT call
   per round, head steps CUDA-graphed at ~3 ms: the mtp verify itself
