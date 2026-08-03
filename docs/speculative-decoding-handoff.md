@@ -44,24 +44,28 @@ mechanical, mirror generate_lookup's two-strategy split).
   and verify climbs back to 37–44 ms (bigger batch + 7 snapshot slots
   written). **k=4 / depth-4 is the lookup sweet spot.** Do not re-probe
   without new information; depth 8 exceeds the 25% share's VRAM anyway.
-- **MTP + snapshots WEDGES on the fleet** (llm-chat 0.34.1 carried the
-  mechanical rewind port; local CPU validation was clean, 9b-MTP, thinking
-  on and off). Symptom: "prefilling 768 prompt tokens" then nothing —
-  feed_mtp (an UNMODIFIED 0.33.x code path) hangs under an nnRsSeq>0
-  context; process stays alive, /title keeps answering, the decode turn is
-  held forever. Proof of rs-dependence: the SAME engine and app run
-  branch-mode mtp4 without nnRsSeq at 34.9/33.5 tok/s (slow as MTP branch
-  always was, but alive). Suspect: the first-ever CUDA graph combining
-  nextn output (enabled at head creation) with the keep_rs delta-net path
-  — most likely some op falls off the CUDA backend and the scheduler runs
-  it on SNP-throttled CPU, which at 27b scale reads as a hang. **First
-  experiment next session** (30 seconds once local VRAM is free): local
-  GPU serve, 9b-mtp + ENCLAVE_GGML_N_RS_SEQ=4 + draft:mtp, watch for the
-  hang; GGML_SCHED debug output names the per-op device and settles the
-  fell-off-CUDA hypothesis directly. **llm-chat 0.34.2 guards the combo**
-  (open_mtp refuses when caps rewind_depth > 0 → clean fallback; the
-  rewind-commit MTP loop is already written and waiting in generate_mtp
-  for the engine fix).
+- **MTP + snapshots: the wedge was VRAM, not kernels — and MTP is closed
+  by head overhead, not by strategy.** The depth-4 wedge ("prefilling 768
+  prompt tokens" then nothing, decode turn held, /title fine) reproduced
+  locally as a CLEAN NULL at head-context creation once the sm_86 card
+  freed up: weights + snapshot groups + the head's own full-window KV
+  exceed free VRAM; on the fleet the same sum lands at the 25% share's
+  MPS pinned limit (~35.2 GB), where an over-limit alloc BLOCKS instead
+  of failing — that block, inside the decode turn, is the wedge. Proof
+  chain: depth-4-no-mtp runs (lookup-rs), mtp-no-depth runs (34.9/33.5
+  tok/s), local depth-1/2 mtp-rs runs FAST (80.7/87.2 vs plain ~53 on the
+  3070, rewind-commit, 80–90% acceptance), and fleet depth-2 mtp-rs runs
+  with NO wedge. But the fleet number is the tell: **36.8/36.5 tok/s at
+  90% acceptance** — identical to every fleet MTP config all campaign.
+  ~73 ms/round of which only ~39 is the verify; the rest is k sequential
+  head steps + harvest/observe + 4 guest↔host WIT round trips per round,
+  all launch-latency-bound on the SNP H200 (locally head steps are
+  compute-cheap, hence 87 tok/s there). MTP on this fleet needs a FUSED
+  host-side round verb (draft k + verify + accept + rewind in ONE WIT
+  call, one CUDA-graphable sequence) — a real engine design item, the
+  main unexplored lever. llm-chat 0.34.3+ allows mtp at depth ≤ 2 and
+  refuses deeper (the VRAM-calibrated guard); the rewind-commit MTP loop
+  is live and correct, just not profitable on CVM hardware yet.
 - The bench meter: ~$1.3 remains on the bench deployment
   (0xed05dd04…, throwaway wallet key at ~/.config/enclave/key). It is
   suspended; llm-chat-bench 0.34.2 is the deployed version.
