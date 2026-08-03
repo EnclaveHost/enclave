@@ -132,11 +132,24 @@ mechanical, mirror generate_lookup's two-strategy split).
   pass — neither is a knob, both are engine campaigns.
 
 **Current best config on mm18: `draft:"lookup", draft_tokens:4,
-tokenizer:"host"` + deployment `nnRsSeq:4`** (llm-chat 0.34.4) — +6-8%
-over plain on draft-friendly prompts, parity floor elsewhere, byte-exact
-plain-fidelity locally. The catalog publish (Steven's wallet) is still
-the item worth more than any of this. Bench deployment: suspended,
-~$0.5 escrow left, llm-chat-bench 0.34.4 deployed.
+tokenizer:"host"` + deployment `nnRsSeq:4`, llm-chat 0.34.6.** The
+complete workload map (fleet, 27b, all measured this session):
+
+| workload | plain | lookup-rs | note |
+|---|---|---|---|
+| short explainer (256 tok) | 62.8 | 68.0 | +5.2; 6-sample pooled 66.9 |
+| quote-structured (256) | 63.8 | 63.1 | parity, tightest variance ever |
+| turn-2 of a conversation | 62.9 | 64.2 | +1.4 at ~50% acceptance |
+| long-form novel (1024) | 64.4 | 62.8 | was −2.6 ungated; 0.34.5 EMA
+gate + 0.34.6 exponential probe backoff + 2048-token scan cap restored
+it to noise-range; best leg 64.4 with acceptance RISING to 53% (the
+gate drafts only where drafting works) |
+
+Byte-exact plain-fidelity held on every app version (local golden gate).
+The catalog publish (Steven's wallet) is still the item worth more than
+any of this. Bench deployment: suspended, ~$0.35 escrow left,
+llm-chat-bench 0.34.6 deployed — refund or refill before the next
+campaign.
 
 ## The one-line status (pre-mm18, kept for context)
 
