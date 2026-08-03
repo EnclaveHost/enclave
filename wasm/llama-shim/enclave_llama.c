@@ -145,10 +145,19 @@ void *ell_load_model(const char *path, int32_t n_gpu_layers) {
      * OFF; without this the nextn tensors load as "unused ... ignoring",
      * ell_mtp_available() reports 0, and speculation silently degrades to
      * plain decode (observed live 2026-08-01, first build on the new pin).
-     * Always on, matching pre-#26296 behavior: the head's cost is priced
+     * Default on, matching pre-#26296 behavior: the head's cost is priced
      * into the fit math (kv_layers+1) and callers without MTP models are
-     * unaffected (no nextn tensors to load). */
-    p.load_mtp = true;
+     * unaffected (no nextn tensors to load).
+     *
+     * ENCLAVE_GGML_LOAD_MTP=0 (deployment-config nnLoadMtp:false) is the
+     * per-deployment opt-OUT: the head weights cost real VRAM (~260 MB on
+     * the 27b) and only pay when a config drafts with the head - which
+     * loses to prompt-lookup on CVM hardware (per-round head-step +
+     * harvest launch costs, measured 2026-08-03). Opt-out keeps absence a
+     * deliberate choice: a drafting config against a headless load
+     * degrades loudly to plain decode via ell_mtp_available()=0. */
+    const char *lm = getenv("ENCLAVE_GGML_LOAD_MTP");
+    p.load_mtp = !(lm && lm[0] == '0' && lm[1] == '\0');
     return llama_model_load_from_file(path, p);
 }
 
