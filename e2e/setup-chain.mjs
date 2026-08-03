@@ -92,12 +92,27 @@ export async function setupChain(rpc, siteOrigin) {
   await setKey("deployments", deployments);
   await setKey("registry", registry);
   if (!siteOrigin) throw new Error("setupChain needs the site origin to pin into the vault factory");
+  // Constructor shape comes from the ARTIFACT, and the values are matched BY
+  // NAME: a hand-written inputs list silently shifts every argument when the
+  // constructor grows one (recoveryAdmin, 2026-08-03), and a shifted string
+  // offset shows up as "panic: memory allocation error" from deep inside
+  // deployment, not as anything that names the real cause. An argument this
+  // map has no value for is a loud failure here instead.
+  const vaultCtorValues = {
+    usdc, book, treasury: TREASURY, origin0: siteOrigin, origin1: "",
+    // the deployer is the operator in the e2e world; it may only forward a
+    // superseded vault's balance to that same customer's newer vault
+    recoveryAdmin: account.address,
+  };
+  const vaultCtor = art("EnclaveCreditVaultFactory").ctor;
+  for (const a of vaultCtor)
+    if (!(a.name in vaultCtorValues))
+      throw new Error(`setup-chain: EnclaveCreditVaultFactory gained constructor arg "${a.name}" (${a.type}) - give it a value here`);
   const factoryData = encodeDeployData({
-    abi: [{ type: "constructor", stateMutability: "nonpayable", inputs: [
-      { type: "address" }, { type: "address" }, { type: "address" },
-      { type: "string" }, { type: "string" }] }],
+    abi: [{ type: "constructor", stateMutability: "nonpayable",
+            inputs: vaultCtor.map((a) => ({ name: a.name, type: a.type })) }],
     bytecode: art("EnclaveCreditVaultFactory").bytecode,
-    args: [usdc, book, TREASURY, siteOrigin, ""],
+    args: vaultCtor.map((a) => vaultCtorValues[a.name]),
   });
   const factoryHash = await wallet.sendTransaction({ data: factoryData });
   const vaultFactory = getAddress((await pub.waitForTransactionReceipt({ hash: factoryHash })).contractAddress);
