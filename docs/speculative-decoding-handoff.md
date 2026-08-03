@@ -3,7 +3,41 @@
 Written 2026-08-03 after a ~12-hour campaign (engine builds mm7 → mm17).
 Everything below is measured on the live fleet unless marked otherwise.
 
-## The one-line status
+## UPDATE 2026-08-03: mm18 landed the no-branch verify — first real win
+
+The "next real idea" below (verify without a scratch branch) shipped as
+**mm18** and it works. Fleet numbers (3-sample, 27b, same harness):
+
+| config | quote prompt | prose prompt | verify decode |
+|---|---|---|---|
+| plain | 63.8 ± 1.3 | 62.8 ± 0.2 | — |
+| lookup k=4, branch-commit | 56.3 ± 2.7 | 60.0 ± 1.2 | 36–41 ms |
+| **lookup k=4, rewind-commit** | **62.4 ± 0.2** | **68.0 ± 3.5** | **30–32 ms** |
+
+Prose: all three rewind samples (66.0/72.9/65.0) beat plain's best sample.
+First mean-above-plain result of the campaign. The win decomposes as:
+gbuild/galloc collapsed (1.7–1.9 → 0.3–0.4 ms — llama graph reuse finally
+HOLDS on verify passes), verify decode −9 ms, and the partial-accept
+re-feed pass is gone entirely.
+
+How: llama's upstream `n_rs_seq` recurrent-snapshot support (in the pin all
+along, arch-gated to qwen3.5) — the engine reads `ENCLAVE_GGML_N_RS_SEQ` at
+server-context creation (deployment-config `nnRsSeq` → process env, mm18
+shim exports `ell_rewind_depth`, caps[6] surfaces it), and llm-chat 0.34.0's
+lookup loop verifies on the REAL sequence, rewinding the rejected tail
+(depth covers k). Costs ~1.2 GB VRAM per unit of depth on the 27b.
+Correctness: mm18 plain is byte-identical to the mm14 golden archive on the
+fleet; locally (full logits rows) rewind-mode output is byte-identical to
+plain decode — branch-verify itself is NOT (re-feed numerics flip sampling
+ties), so the new path is also more faithful.
+
+Still unconverted: verify b5 costs 30 ms against ~24 ms for a pure replay
+(the gap is plausibly the K snapshot writes per layer), and the quote leg
+is drafting-limited (n-gram matches are scarce — MTP drafts every round at
+77–79% acceptance and is the obvious next port; the loop change is
+mechanical, mirror generate_lookup's two-strategy split).
+
+## The one-line status (pre-mm18, kept for context)
 
 Speculation went from **-40%** (the published config, MTP k=16, ~39 tok/s
 against plain decode's 62–66) to **parity** (prompt-lookup k=4, ~61.5 mean
@@ -105,7 +139,7 @@ been re-checked on every build and is the guard to keep.
 - **The arbiter, the decode gate, allocation, MPS capping** — all measured
   innocent via the `phase_us` instrument.
 
-## The next real idea (a different class of change)
+## The next real idea (a different class of change) — DONE, see the mm18 update above
 
 Every remaining approach in the "make the branch stable" family is exhausted.
 The one structural idea left: **verify without a scratch branch.**
