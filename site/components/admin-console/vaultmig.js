@@ -65,6 +65,11 @@ export async function vaultImplCurrent(factory) {
     // does this build carry the no-passkey escape hatch? (same
     // selector-as-constant reasoning as the create() probe)
     recovery: code.includes(VAULT_SEL.migrateToSuccessor),
+    // the refund destination in force TODAY. A successor factory should carry
+    // it forward deliberately: it is immutable in the implementation, so a
+    // redeploy that takes a different default silently moves where every
+    // future refund lands.
+    treasury: asAddr(await call(impl, "0x" + IMPL_SEL.treasury)),
   };
 }
 
