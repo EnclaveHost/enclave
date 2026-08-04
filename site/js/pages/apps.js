@@ -962,8 +962,32 @@ async function publishApp(){
       const hit = (a.versions || []).find(v => v.cid === cid);
       if (!hit) continue;
       const sameApp = a.slug === slug && me && (a.publisher || "").toLowerCase() === me;
-      if (!sameApp) return pubStatus("this exact .wasm is already on-chain as " + a.slug + " " + hit.version
-        + " - a CID belongs to the app that first listed it. Publish the fix as a new version of that app, or rebuild so the bytes (and CID) change.", true);
+      if (!sameApp){
+        const claim = "this exact .wasm is already on-chain as " + a.slug + " " + hit.version
+          + " - a CID belongs to the app that first listed it.";
+        // The catalog owner holds the on-chain remedy: grantCid authorizes ONE
+        // other app to list an already-claimed CID (bench builds and squatters
+        // both land here). There is no grant getter, so the chain stays the
+        // arbiter - an ungranted publish still reverts with the clear message
+        // in the catch below. Offered only when the TARGET app already exists
+        // under the connected wallet (its appId is on-chain; a brand-new slug
+        // has none yet - publish it once with different bytes first).
+        const mineApp = STORE.apps.find(x => x.slug === slug && me && (x.publisher || "").toLowerCase() === me);
+        if (STORE.owner && me === STORE.owner && mineApp && mineApp.appId){
+          if (!confirm(claim + "\n\nAs catalog owner you can grant this CID to " + slug
+              + " and publish these exact bytes (grantCid, one tx), or cancel and rebuild so the bytes change.\n\nSend the grant now, then continue publishing?"))
+            return pubStatus(claim + " Publish the fix as a new version of that app, or rebuild so the bytes (and CID) change.", true);
+          pubStatus("granting CID to " + slug + "…");
+          await ensureCatalogChain();
+          const gh = await sendTx(APP_CATALOG_ADDRESS,
+            encCall(CAT_SEL.grantCid, [{t:"str",v:cid},{v:mineApp.appId}]));
+          pubStatus("grant sent · " + gh + " · waiting for confirmation…");
+          await waitReceipt(gh);
+          pubStatus("CID granted ✓ continuing publish…");
+        } else {
+          return pubStatus(claim + " Publish the fix as a new version of that app, or rebuild so the bytes (and CID) change.", true);
+        }
+      }
       break;
     }
     // 2) version labels are immutable history within an app (your namespace)
