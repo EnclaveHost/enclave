@@ -101,6 +101,40 @@ test("a DELETE that fails is NOT counted, and retries next pass", async () => {
   assert.deepEqual(r.deleted, ["app_s"], "but it was attempted");
 });
 
+// The telemetry exists so a stuck sweep is visible WITHOUT shell access, which
+// is what the 2026-08-03 recurrence actually cost. Its one job is to not report
+// a clean sweep when the leak is still leaking.
+test("telemetry: a failed listing reports ok:false, never a clean pass", async () => {
+  const r = await sweep({ vms: null, records: [] });
+  assert.equal(r.sweep.ok, false);
+  assert.match(r.sweep.reason, /listing unavailable/);
+  assert.equal(r.sweep.reaped, 0);
+});
+
+test("telemetry: an orphan that survives DELETE is NOT ok", async () => {
+  const r = await sweep({ vms: [old("app_s", "0xstuck")], records: [], deleteStatus: 503 });
+  assert.equal(r.sweep.ok, false, "a surviving orphan must not read as a clean sweep");
+  assert.equal(r.sweep.orphans, 1);
+  assert.equal(r.sweep.reaped, 0);
+  assert.match(r.sweep.reason, /survived DELETE/);
+});
+
+test("telemetry: a genuinely clean box reports ok with what it holds", async () => {
+  const r = await sweep({
+    vms: [old("app_a", "0xaaa")],
+    records: [{ id: "0xaaa", status: "running" }],
+  });
+  assert.equal(r.sweep.ok, true);
+  assert.equal(r.sweep.reason, "clean");
+  assert.equal(r.sweep.seen, 1);
+  assert.deepEqual(r.sweep.held, [{ id: "0xaaa", vm: "app_a", status: "running", owned: true }]);
+});
+
+test("telemetry: held[] names the leaking tenant and marks it unowned", async () => {
+  const r = await sweep({ vms: [old("app_1", "0xleak")], records: [], deleteStatus: 503 });
+  assert.deepEqual(r.sweep.held, [{ id: "0xleak", vm: "app_1", status: "running", owned: false }]);
+});
+
 test("mixed box: only the unowned instances go", async () => {
   const r = await sweep({
     vms: [old("app_live", "0xlive"), old("app_orph", "0xorph"), old("app_term", "0xterm")],
