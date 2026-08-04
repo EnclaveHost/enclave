@@ -356,18 +356,31 @@ follows is the state of every route to making it better.
 | batch-width cliff (B) | OPEN, the big one | 10.57 ms, gates everything |
 | tree / multi-candidate | likely ARCHITECTURALLY BLOCKED | see below |
 
-**Tree verification is the one route the cost structure begs for and the
-architecture appears to forbid.** The economics are ideal: the cliff is
-10.57 ms but each further in-batch token is only ~1.8 ms, so a wide batch
-harvesting many candidates per cliff payment would be very cheap per
-token. But tree/Medusa-style verification needs candidate branches that do
-not attend to each other, and on this model **48 of 65 layers are
-recurrent** — an SSM/delta-net scan carries ONE sequential state, so
-parallel branches cannot share a pass the way attention layers can. Running
-candidates as separate SEQUENCES instead is possible in principle but
-multiplies the recurrent state per candidate. NOT yet measured; this is the
-most interesting remaining unknown and the reasoning above should be
-verified rather than trusted.
+**Tree verification: NOT "blocked" — I said that earlier and it was wrong —
+but economically dead, for a sharper reason.** llama supports multi-sequence
+batching with per-sequence recurrent state, so verifying N candidate
+branches as N sequences in one decode is perfectly possible. The problem is
+that **a recurrent model cannot SHARE prefix compute between branches.** An
+attention model verifies a tree against one shared KV prefix with a tree
+mask, so each extra candidate costs only its own ~k tokens. An SSM/delta-net
+carries one sequential state per sequence, so N branches are N independent
+token streams: batch width goes k+1 → N·k+1.
+
+Costed against the measured curve (entry 10.57 ms, marginal 1.8 ms/token,
+plain 16.41), with optimistic diminishing yields for extra candidates:
+
+| branches | batch | round | yield | tok/s |
+|---|---|---|---|---|
+| 1 | 5 | 34.2 ms | ~3.0 | **87.8** |
+| 2 | 9 | 41.4 ms | ~3.6 | 87.0 |
+| 3 | 13 | 48.6 ms | ~3.9 | 80.3 |
+
+Flat then falling. A second candidate mostly duplicates the first — it only
+helps when the target's own token differs from candidate 1's AND matches
+candidate 2's — so the extra width never pays for itself. Note the marginal
+per-token cost is so cheap that even the ATTENTION counterfactual barely
+differs here; on this hardware the win would have to come from acceptance,
+not from tree width. **Route closed on arithmetic, no build required.**
 
 ### Target B — the batch-width cliff (10.57 ms, the real campaign)
 
