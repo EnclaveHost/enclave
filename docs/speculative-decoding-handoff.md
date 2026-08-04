@@ -47,6 +47,28 @@ the merged plain path broke until the readback passed last-token indices).
 | arbiter turn | 0.47 | 0.46 | — |
 | **round** (~1.85 tok) | 28.0 | **23.3** | → 76–79 tok/s |
 
+**Follow-up (same day, Steven's ask): `nnDevTopk` lifts EVERY route,
+config-only.** One window, 0.35.7, armed vs unarmed in-window controls:
+
+| config | quote | prose | delta |
+|---|---|---|---|
+| plain | 63.3 ± 1.1 | 62.3 ± 0.3 | — |
+| plain + nnDevTopk | **65.6** ± 1.2 | **64.6** ± 0.1 | +2.3 / +2.3 |
+| lookup-rs k=4 | 62.5 ± 0.8 | 63.6 ± 4.2 | — |
+| lookup-rs + nnDevTopk | **67.2** ± 1.8 | **67.7** ± 5.0 | +4.7 / +4.1 |
+
+Lookup gains double plain's (its batch-5 verify loses five row
+extractions + a ~2.8 ms host topk per round), and armed lookup-rs beats
+plain on QUOTE for the first time ever. Champion unchanged: mtp1dt
+78.7/76.4. **Required app fix found by the armed engine's honest
+refusal:** the plain path's early prefill chunks (`want_logits=false`)
+sent no topk input → dense request → refused → /chat died on multi-chunk
+prompts (>~1 chunk; /title and single-chunk prompts masked it, and the
+local golden prompt was one chunk — coverage gap). llm-chat **0.35.7**
+sends topk on every feed (~2 KB discarded on ignored chunks); verified
+byte-identical armed vs unarmed on a forced multi-chunk local gate.
+Catalog implication: ANY config with `nnDevTopk` needs llm-chat ≥ 0.35.7.
+
 Notes for whoever ships this to the catalog (Steven's action):
 - The config is `cfg-mtp1dt.json`: `draft:"mtp", draft_tokens:1,
   draft_p_min:0.4, nnRsSeq:1, nnMtpDevSample:true, nnDevTopk:true`
