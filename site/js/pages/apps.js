@@ -11,7 +11,7 @@ import "../../components/section-head/section-head.js";
 import "../../components/app-card/app-card.js";
 import "../../components/app-detail/app-detail.js";
 import "../../components/app-reviews/app-reviews.js";
-import { $, $$, esc, short, blen, fmtDur, showToast, on, tosAccepted, setTosAccepted } from "../core/util.js";
+import { $, $$, esc, short, blen, fmtDur, fmtNum, showToast, on, tosAccepted, setTosAccepted } from "../core/util.js";
 import { APP_CATALOG_ADDRESS, APP_CATALOG_CHAIN, FEATURED_ADDRESS, REVIEWS_ADDRESS, USDC_BASE, IPFS_UPLOAD_URL, IPFS_IMAGE_UPLOAD_URL, IPFS_GATEWAY, MAX_WASM_MB, MAX_WASM_BYTES, MAX_IMAGE_MB, MAX_IMAGE_BYTES, BASE_CHAIN, ACCOUNTS_ENABLED } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
 import { catConfigured, catExplorer, encCall, CAT_SEL, CAT_MAX, APPROVAL, depPrices6, depMaxGpuMilli, rate6Of, waitReceipt, catSchemaRev, catMaxFeePerSec6, catVersionFee, featConfigured, featMaxBid, FEAT_SEL, revConfigured, REV_SEL } from "../core/chain.js";
@@ -20,7 +20,7 @@ import { loadTallies, loadReviews, confirmReceipt } from "../core/reviews.js";
 import { payForRuntime } from "../core/fund.js";
 import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf } from "../core/wallet.js";
 import { STORE, loadCatalog, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, REF_CACHE, PORTS_CACHE, SPECS_CACHE, specOf, CONFIG_CACHE, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia } from "../core/catalog.js";
-import { minPctsOf, shareRates, pickEnclaveFor, rankEnclavesFor } from "../core/pricing.js";
+import { minPctsOf, startSharesFor, shareRates, pickEnclaveFor, rankEnclavesFor } from "../core/pricing.js";
 import { navigate } from "../boot.js";
 
 /* ---- render: filter + sort the catalog into <c-app-card>s ---- */
@@ -372,13 +372,25 @@ function quickDeploy(app, v, idx){
   // contract prices below) - the modal then names the box the app deploys
   // to and sizes the minimum shares against ITS hardware, exactly like the
   // full console's "deploys to" line.
-  let mins = minPctsOf(v);
+  // specOf, never the raw version: `gpuOptional` (and `volumes`) live in the
+  // approved CONFIG, so sizing off `v` read the publisher's card as REQUIRED
+  // and the first paint quoted a share the target pass then dropped to 0.
+  const vspec = specOf(v);
+  let mins = minPctsOf(vspec);
+  // What this modal BUYS. Usually the floors - but a gpuOptional version has a
+  // 0% GPU floor (its declared card is a preference, not a requirement), and
+  // buying that floor deployed a model app onto CPU cores while the modal said
+  // nothing about a card. startSharesFor buys the slice the version declares;
+  // the full console ("Advanced →") is where someone chooses CPU-only instead.
+  // Recomputed with `mins` on every target change - the slice sizes against the
+  // box this actually lands on, like the floors do.
+  let buy = startSharesFor(vspec);
   let target = null;
   // constants first paint; the CONTRACT's live prices (incl. its ceil-to-a-
   // micro-USDC floor) replace them the moment the cached read lands - the
   // rate shown here must match what the deployment actually burns. A paid
   // app's publisher fee rides on top, exactly as create() adds it.
-  let baseRate = shareRates(mins.gpuPct, mins.cpuPct).rate, fee = 0, pr6 = null;
+  let baseRate = shareRates(buy.gpuPct, buy.cpuPct).rate, fee = 0, pr6 = null;
   let rate = baseRate;
   const perHr = (rate * 3600).toFixed(2);
   // passkey/card account with no wallet: the deploy spends prepaid credit
@@ -390,7 +402,7 @@ function quickDeploy(app, v, idx){
   host.innerHTML =
     '<div class="qd-card" role="dialog" aria-modal="true" aria-label="Deploy ' + esc(app.name || app.slug) + '">' +
       '<div class="qd-h">Deploy <b>' + esc(app.name || app.slug) + '</b> <span class="qd-ver">' + esc(v.version) + '</span></div>' +
-      '<p class="qd-sub">Runs in its own confidential enclave at <b class="qd-rate">$' + perHr + '/hr</b>. ' +
+      '<p class="qd-sub">Runs in its own confidential enclave on <b class="qd-shares"></b> at <b class="qd-rate">$' + perHr + '/hr</b>. ' +
         (acct ? 'It runs on your credit - it runs until the time you bought is used up, and you can top up or stop it whenever you like.'
               : 'Fund it from your wallet - it runs until the time you bought is used up, and you can top up or stop it whenever you like.') + '</p>' +
       '<p class="qd-sub qd-target" hidden></p>' +
@@ -441,17 +453,23 @@ function quickDeploy(app, v, idx){
     go.disabled = !(usd >= 0.01) || shortOnFunds || !tos.checked || !!capMsg;
     go.title = capMsg ? "" : tos.checked ? "" : "Agree to the Terms of Service above to deploy";
   };
-  // quick-deploy buys the app's MINIMUM shares, so the on-chain per-deployment
-  // GPU cap decides right at open whether this app is deployable at all -
-  // say so here, in the modal, not after a redirect to the dashboard. The
-  // check re-runs whenever the mins change (the target landing/rerouting).
+  // The on-chain per-deployment GPU cap decides right at open whether this app
+  // is deployable at all - say so here, in the modal, not after a redirect to
+  // the dashboard. It is the app's FLOOR that decides that, not what the modal
+  // buys: a soft GPU slice above the cap is simply trimmed to it (the card was
+  // a preference), where a REQUIRED share above the cap can never be created.
+  // The check re-runs whenever the mins change (the target landing/rerouting).
   const capCheck = () => {
     capCap = (gpuCap != null && mins.gpuPct * 10 > gpuCap)
       ? "This app needs at least a " + mins.gpuPct + "% GPU share, but the platform currently caps deployments at "
         + (gpuCap / 10) + "% of a card - it can’t be deployed right now."
       : null;
   };
-  depMaxGpuMilli().then(cap => { gpuCap = cap; capCheck(); est(); }).catch(() => {});
+  depMaxGpuMilli().then(cap => {
+    gpuCap = cap;
+    buy = startSharesFor(vspec, target && !target.none ? target.spec : undefined, cap / 10);
+    capCheck(); recalc(); est();
+  }).catch(() => {});
   // the short-on-funds "Add credit" link: boot's interceptor does the SPA
   // navigation, the modal just has to get out of the way first (modified
   // clicks open a new tab - this one should stay put, amount intact)
@@ -463,13 +481,22 @@ function quickDeploy(app, v, idx){
   const paintRate = () => {
     rate = baseRate + fee;
     const rEl = host.querySelector(".qd-rate"); if (rEl) rEl.textContent = "$" + (rate * 3600).toFixed(2) + "/hr";
+    // SAY the slice, don't just price it. A one-click deploy still mints
+    // immutable shares, and "CPU only" is the fact a deployer of a model app
+    // most needs to see BEFORE signing - the rate alone never said it.
+    const sEl = host.querySelector(".qd-shares");
+    if (sEl){
+      const s = shareRates(buy.gpuPct, buy.cpuPct, target && !target.none ? target.spec : undefined);
+      sEl.textContent = (s.gpuPct > 0 ? s.gpuPct + "% of a card (" + s.vramGb.toFixed(0) + " GB VRAM) · " : "CPU only · ")
+                      + s.cpuPct + "% of a node (" + fmtNum(s.ramGb) + " GB RAM)";
+    }
     est();
   };
-  // rate from the CURRENT mins (they change when the target lands/reroutes):
+  // rate from the CURRENT shares (they change when the target lands/reroutes):
   // the contract's live prices when they've arrived, client math until then
   const recalc = () => {
-    baseRate = pr6 ? Number(rate6Of(pr6, mins.gpuPct * 10, mins.cpuPct * 10)) / 1e6
-                   : shareRates(mins.gpuPct, mins.cpuPct, target && !target.none ? target.spec : undefined).rate;
+    baseRate = pr6 ? Number(rate6Of(pr6, buy.gpuPct * 10, buy.cpuPct * 10)) / 1e6
+                   : shareRates(buy.gpuPct, buy.cpuPct, target && !target.none ? target.spec : undefined).rate;
     paintRate();
   };
   depPrices6().then(pr => { pr6 = pr; recalc(); }).catch(() => {});
@@ -500,8 +527,8 @@ function quickDeploy(app, v, idx){
   // null when there is no fleet view to target from (aggregate math stays)
   const computeTarget = () => {
     if (!qdRows || !qdRows.length) return null;
-    const ranked = rankEnclavesFor(specOf(v), qdRows);
-    if (!ranked.length) return pickEnclaveFor(specOf(v), qdRows);
+    const ranked = rankEnclavesFor(vspec, qdRows);
+    if (!ranked.length) return pickEnclaveFor(vspec, qdRows);
     if (qdPick){
       const hit = ranked.find((c) => c.name === qdPick);
       if (hit) return { ...hit, ranked, picked: true };
@@ -520,6 +547,7 @@ function quickDeploy(app, v, idx){
     }
     capTarget = null;
     mins = t.mins;
+    buy = startSharesFor(vspec, t.spec, gpuCap != null ? gpuCap / 10 : 0);
     if (tEl){
       const ranked = t.ranked || [t];
       // one row per enclave; the ranking head IS the auto row (value "" =
@@ -587,7 +615,12 @@ function quickDeploy(app, v, idx){
       showToast("The selected enclave (" + wanted + ") is no longer available - switched to auto (" + t2.name + "). Review and deploy again.");
       return;
     }
-    const m2 = t2 ? t2.mins : minPctsOf(specOf(v));
+    // applyTarget(t2) above re-derived `buy` against the fresh pick; on the
+    // no-fleet-view path there is no target to size from, so fall back to the
+    // aggregate. The SHARES BOUGHT are these, not the floors: created shares
+    // are immutable, so a soft-GPU app minted at its 0% floor would need a
+    // resize (a second tx) before it ever touched the card it asked for.
+    const m2 = t2 && !t2.none ? buy : startSharesFor(vspec, undefined, gpuCap != null ? gpuCap / 10 : 0);
     // full box? the queue-confirm overlay stacks over this modal; cancel
     // keeps the user here with their amount intact
     if (!(await m.confirmQueuedDeploy(m2.gpuPct, m2.cpuPct, t2))) return;
@@ -598,7 +631,7 @@ function quickDeploy(app, v, idx){
       ports: v.ports || "", isPublic: true, fundUsd: usd, asset: "USDC",
       targetName: t2 && !t2.none ? t2.name : "" });
   });
-  est(); loadBal();
+  paintRate(); loadBal();   // paintRate fills the shares line and calls est()
 }
 
 /* ---- write side: IPFS upload + publish/verify/yank/delist txs ---- */
