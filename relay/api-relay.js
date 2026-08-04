@@ -1045,6 +1045,17 @@ function aggregateAvailability() {
     nodeVcpus: c ? c.nodeVcpus ?? 0 : 0, nodeRamGb: c ? c.nodeRamGb ?? 0 : 0, nodeGflops: c ? c.nodeGflops ?? 0 : 0,
     specCardVramGb: minOf(gpus, "cardVramGb"), specCardTflops: minOf(gpus, "cardTflops"),
     specNodeVcpus: minOf(serving, "nodeVcpus"), specNodeRamGb: minOf(serving, "nodeRamGb"), specNodeGflops: minOf(serving, "nodeGflops"),
+    // WHY the cpu pool is small, carried up from the enclave whose numbers we
+    // just quoted. The aggregate reported the folded cpuShareFree and dropped
+    // every term behind it, so a box reading 65% free with one resident model
+    // was unexplainable without per-enclave access: ramNnResidentMb is usually
+    // the whole answer, and sharePoolFree says how much is actually SOLD.
+    // instanceSweep is the reclaimer's own last word - a stuck sweep is the
+    // difference between "in use" and "leaking", and it must be sayable here.
+    ...(c && c.ramBudgetMb ? { ramBudgetMb: c.ramBudgetMb, ramCommittedMb: c.ramCommittedMb,
+                               ramFreeMb: c.ramFreeMb, sharePoolFree: c.sharePoolFree,
+                               ...(c.ramNnResidentMb ? { ramNnResidentMb: c.ramNnResidentMb } : {}) } : {}),
+    ...(c && c.instanceSweep ? { instanceSweep: c.instanceSweep } : {}),
     // deployment-options capability (per-IP rate limit / WAF): true only when
     // EVERY live enclave enforces the envelope — any runner may claim any
     // deployment, so a mixed fleet would strand protected deploys on old

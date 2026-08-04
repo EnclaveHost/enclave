@@ -1798,24 +1798,40 @@ if (process.env.INSTANCE_SELFTEST) {
 // down every live tenant on the box.
 async function listBackendInstances() {
   if (PROVISION_BACKEND === "vm") {
-    const r = await vmReq("GET", "/vms", null, 10_000);
+    // 30s, not the 10s this shipped with: GET /vms serves the whole list under
+    // the manager's _lock (and _public re-stats every encrypted volume), so it
+    // queues behind any launch/teardown/audit holding it. A timeout here is not
+    // a slow answer, it is a SKIPPED PASS - the sweep must be patient enough
+    // that contention never reads as "nothing to reconcile".
+    const r = await vmReq("GET", "/vms", null, 30_000);
     return r.status === 200 && Array.isArray(r.body && r.body.vms) ? r.body.vms : null;
   }
-  const r = await mgrReq("GET", "/tenants", null, 10_000);
+  const r = await mgrReq("GET", "/tenants", null, 30_000);
   return r.status === 200 && Array.isArray(r.body && r.body.tenants) ? r.body.tenants : null;
 }
 
+// Last pass's outcome, surfaced on /availability. A reconciler with no way to
+// report itself is one you can only debug with shell access to the box: the
+// 2026-08-03 recurrence cost hours precisely because "the sweep ran and found
+// nothing" and "the sweep never completed a pass" look identical from outside.
+// Anything that can delete a tenant must be able to say what it did.
+let _instanceSweep = { at: null, ok: null, reason: "not yet run", seen: 0, orphans: 0, reaped: 0 };
+function instanceSweepStatus() { return { ..._instanceSweep }; }
+
 async function reconcileInstances() {
   if (/^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) return [];
+  const stamp = (o) => { _instanceSweep = { at: new Date().toISOString(), ...o }; };
   let instances;
   try {
     instances = await listBackendInstances();
   } catch (e) {
     console.warn(`[instance] backend listing failed (${e.message}) - skipping this pass`);
+    stamp({ ok: false, reason: `listing failed: ${e.message}`, seen: 0, orphans: 0, reaped: 0 });
     return [];
   }
   if (instances === null) {
     console.warn("[instance] backend listing unavailable - skipping this pass");
+    stamp({ ok: false, reason: "listing unavailable (non-200 or unexpected shape)", seen: 0, orphans: 0, reaped: 0 });
     return [];
   }
   const plan = orphanInstancePlan(instances, [...deployments.values()],
@@ -1838,6 +1854,19 @@ async function reconcileInstances() {
       console.warn(`[instance] orphan ${o.id} (vm=${o.vmId}): ${e.message} - retrying next pass`);
     }
   }
+  // A pass that found orphans it could not delete is NOT ok - that is the leak
+  // still leaking, and it must not read as a clean sweep.
+  stamp({ ok: reaped.length === plan.length, seen: instances.length,
+          orphans: plan.length, reaped: reaped.length,
+          reason: plan.length === 0 ? "clean"
+                : reaped.length === plan.length ? `reaped ${reaped.length}`
+                : `${plan.length - reaped.length} orphan(s) survived DELETE`,
+          // WHICH instances the backend is running and who we think owns them:
+          // the single fact that would have ended the 2026-08-03 recurrence in
+          // one request instead of an evening of inference.
+          held: instances.slice(0, 20).map((v) => ({
+            id: String(v.name || v.id || ""), vm: String(v.id ?? ""), status: v.status || null,
+            owned: !plan.some((o) => o.vmId === String(v.id ?? "")) })) });
   return reaped;
 }
 
@@ -1866,7 +1895,8 @@ if (process.env.INSTANCE_SWEEP_SELFTEST) {
   const c = JSON.parse(process.env.INSTANCE_SWEEP_SELFTEST);
   for (const r of c.records || []) deployments.set(r.id, r);
   try {
-    console.log(JSON.stringify({ reaped: await reconcileInstances() }));
+    const reaped = await reconcileInstances();
+    console.log(JSON.stringify({ reaped, sweep: instanceSweepStatus() }));
     process.exit(0);
   } catch (e) { console.log(JSON.stringify({ error: e.message })); process.exit(1); }
 }
@@ -3007,6 +3037,11 @@ app.get("/availability", async (_req, res) => {
     // attached model volumes this enclave carries (Modelwrap): the console and
     // clients read this to know which volumes a deployment here can mount.
     const vols = PROVISION_BACKEND === "vm" && Array.isArray(h.volumes) ? { volumes: h.volumes } : {};
+    // The instance reconciler's last pass. Published because the ledger fields
+    // below tell you capacity is missing but never WHY, and the sweep that is
+    // supposed to reclaim it had no voice at all: a box leaking a tenant and a
+    // box with nothing to reclaim were indistinguishable from outside.
+    const sweep = { instanceSweep: instanceSweepStatus() };
     // RAM-reservation ledger passthrough (vm backend with accounting on): the
     // binding constraint behind cpuShareFree when it is tighter than the share
     // pool - lets consumers show/gate on exact MB headroom, not just the folded
@@ -3023,7 +3058,7 @@ app.get("/availability", async (_req, res) => {
     // card allocator's plan - same contract as the RAM ledger above.
     const vram = PROVISION_BACKEND === "vm" && c.vramBudgetGb
       ? { vramBudgetGb: c.vramBudgetGb, vramCommittedGb: c.vramCommittedGb, vramLedgerFreeGb: c.vramFreeGb } : {};
-    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn, ...lbw, ...p3, ...vols, ...ram, ...vram });
+    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn, ...lbw, ...p3, ...vols, ...ram, ...vram, ...sweep });
   } catch (e) {
     return res.json(shape(maxFreeCpu(), maxFreeGpuShare(), "fallback",
       `${PROVISION_BACKEND === "vm" ? "wasm" : "worker"} manager unreachable`));
