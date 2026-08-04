@@ -525,7 +525,12 @@ static int ell_mtp_bind(void) {
     return ell_nextn_set != NULL && ell_nextn_ith != NULL;
 }
 
+/* device-sampling: at most this many head sequences get a backend sampler
+ * chain (they must outlive the context, so the chains live on ell_mtp) */
+#define ELL_MTP_MAX_SMPL 8
 struct ell_mtp {
+    int32_t dev_sample;
+    struct llama_sampler *smpl[ELL_MTP_MAX_SMPL];
     struct llama_context *head;
     void *model;
     int32_t n_embd;
@@ -561,12 +566,58 @@ void *ell_mtp_new(void *model, void *target_ctx, uint32_t n_ctx, uint32_t n_batc
         case ELL_FA_DISABLED: p.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED; break;
         default:              p.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_AUTO;     break;
     }
+    /* ENCLAVE_MTP_DEV_SAMPLE=1: sample the draft steps ON DEVICE. llama skips
+     * the 248K-vocab logits copy to host entirely when every output sequence
+     * has a backend sampler chain (needs_raw_logits, llama-context.cpp) - and
+     * that copy is 77% of a head step: measured 3.67 -> 0.77 ms on a 9b, all
+     * of it transfer rather than the one-block head's arithmetic.
+     *
+     * OFF by default. It suppresses the p_min confidence gate, because the
+     * gate needs the raw row the whole point is not to fetch - harmless at
+     * k=1 (one proposal, nothing to truncate) but a real behaviour change at
+     * larger k, where forcing full-length drafts measured WORSE (acceptance
+     * 75%% -> 57%% on the fleet). The chains must be sampler CHAINS and must
+     * outlive the context. Falls back to the host argmax path if the backend
+     * refuses the sampler graph (it needs extra compute buffers). */
+    const char *ds_env = getenv("ENCLAVE_MTP_DEV_SAMPLE");
+    int32_t want_dev = (ds_env && *ds_env == '1') ? 1 : 0;
+    int32_t ns_dev = (int32_t)(n_seq_max ? n_seq_max : 1);
+    if (ns_dev > ELL_MTP_MAX_SMPL) { ns_dev = ELL_MTP_MAX_SMPL; }
+    struct llama_sampler *chains[ELL_MTP_MAX_SMPL] = {0};
+    struct llama_sampler_seq_config scfg[ELL_MTP_MAX_SMPL];
+    if (want_dev) {
+        for (int32_t s = 0; s < ns_dev; s++) {
+            struct llama_sampler_chain_params cp = llama_sampler_chain_default_params();
+            cp.no_perf = true;
+            chains[s] = llama_sampler_chain_init(cp);
+            if (!chains[s]) { want_dev = 0; break; }
+            llama_sampler_chain_add(chains[s], llama_sampler_init_greedy());
+            scfg[s].seq_id  = s;
+            scfg[s].sampler = chains[s];
+        }
+    }
+    if (want_dev) {
+        p.samplers   = scfg;
+        p.n_samplers = (size_t)ns_dev;
+    }
     struct llama_context *head = llama_init_from_model(lm, p);
+    if (!head && want_dev) {
+        p.samplers = NULL;
+        p.n_samplers = 0;
+        for (int32_t s = 0; s < ns_dev; s++) {
+            if (chains[s]) { llama_sampler_free(chains[s]); chains[s] = NULL; }
+        }
+        want_dev = 0;
+        head = llama_init_from_model(lm, p);
+    }
     if (!head) {
+        for (int32_t s = 0; s < ns_dev; s++) { if (chains[s]) { llama_sampler_free(chains[s]); } }
         return NULL;
     }
     struct ell_mtp *m = calloc(1, sizeof(*m));
     m->head = head;
+    m->dev_sample = want_dev;
+    for (int32_t s = 0; s < ELL_MTP_MAX_SMPL; s++) { m->smpl[s] = chains[s]; }
     m->model = model;
     m->n_embd = llama_model_n_embd(lm);
     m->n_seq = (int32_t)(n_seq_max ? n_seq_max : 1);
@@ -595,6 +646,9 @@ void ell_mtp_free(void *mp) {
     m->batch.token = NULL;
     llama_batch_free(m->batch);
     llama_free(m->head);
+    for (int32_t s = 0; s < ELL_MTP_MAX_SMPL; s++) {
+        if (m->smpl[s]) { llama_sampler_free(m->smpl[s]); m->smpl[s] = NULL; }
+    }
     for (int32_t s = 0; s < m->n_seq; s++) { free(m->verify_h[s]); }
     free(m->verify_h);
     free(m->verify_rows);
@@ -685,12 +739,20 @@ int32_t ell_mtp_draft(void *mp, int32_t seq, int32_t id_last, int32_t n_past,
         if (llama_decode(m->head, m->batch) != 0) {
             break;
         }
-        const float *lg = llama_get_logits_ith(m->head, 0);
-        if (!lg) { break; }
         int32_t best = 0;
-        float lmax = lg[0];
-        for (int32_t v = 1; v < n_vocab; v++) {
-            if (lg[v] > lmax) { lmax = lg[v]; best = v; }
+        float lmax = 0.0f;
+        const float *lg = NULL;
+        if (m->dev_sample) {
+            /* the row never left the device - llama sampled it there */
+            best = (int32_t)llama_get_sampled_token_ith(m->head, 0);
+            if (best < 0) { break; }
+        } else {
+            lg = llama_get_logits_ith(m->head, 0);
+            if (!lg) { break; }
+            lmax = lg[0];
+            for (int32_t v = 1; v < n_vocab; v++) {
+                if (lg[v] > lmax) { lmax = lg[v]; best = v; }
+            }
         }
         /* confidence gate (p = 1/sum(exp(l-max))). p_min <= 0 means "always
          * draft the full k": the gate can never trip, so skip the pass
@@ -704,7 +766,7 @@ int32_t ell_mtp_draft(void *mp, int32_t seq, int32_t id_last, int32_t n_past,
          * full-vocab exp() sum measured ~2.7 ms per drafted token on
          * SNP-throttled vCPUs (fleet, 2026-08-03); this pass is comparisons
          * plus a handful of exp() calls. */
-        if (p_min > 0.0f) {
+        if (p_min > 0.0f && lg) {
             const float floor_l = lmax - 16.0f;
             double sum = 0.03; /* tail slack: 248K * 1.2e-7 */
             for (int32_t v = 0; v < n_vocab; v++) {

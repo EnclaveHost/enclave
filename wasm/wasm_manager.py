@@ -4102,6 +4102,19 @@ def _spawn_and_wait(rec, ctx):
         if lmtp is False:
             env = env if env is not None else dict(os.environ)
             env["ENCLAVE_GGML_LOAD_MTP"] = "0"
+        # MTP device-sampling (`nnMtpDevSample: true` -> the head's draft steps
+        # are sampled ON DEVICE, so llama never copies the 248K-vocab logits
+        # row to host; that copy measured 77% of a head step, 3.67 -> 0.77 ms
+        # on a 9b). It suppresses the p_min confidence gate, which needs the
+        # raw row - harmless at draft_tokens 1, a real change above that.
+        # Inert on engines predating the env read, like every knob here.
+        try:
+            mds = json.loads(enclave_config).get("nnMtpDevSample")
+        except (ValueError, AttributeError):
+            mds = None
+        if mds is True:
+            env = env if env is not None else dict(os.environ)
+            env["ENCLAVE_MTP_DEV_SAMPLE"] = "1"
     if egress_env:
         # SOCKS credential for transparent egress: wasmtime PROCESS env only
         # (guest-invisible — no -Sinherit-env,
