@@ -3,6 +3,64 @@
 Written 2026-08-03 after a ~12-hour campaign (engine builds mm7 → mm17).
 Everything below is measured on the live fleet unless marked otherwise.
 
+## ⚑ 2026-08-04: 70 CLEARED — mm26 device top-k lands MTP k=1 at 78.7/76.4
+
+The campaign goal (a fleet-measured MTP config over 70 tok/s) is DONE, with
+margin. Same window, 3 samples × 2 prompts, 27b at the 25% share:
+
+| config | quote | prose | vdec | acceptance |
+|---|---|---|---|---|
+| mtp1fv (mm26 engine, control) | 67.4 ± 3.3 | 64.3 ± 0.9 | ~21.1 ms | ~86% |
+| **mtp1dt (+ nnDevTopk)** | **78.7 ± 1.9** | **76.4 ± 1.4** | **18.3 ms** | ~86% |
+
+Every mtp1dt sample cleared 70 (74.5 worst, 81.3 best); the worst beat the
+control's best. For scale: plain is 62–63.4 and shipped lookup-rs is 66.1
+prose / 60.5 quote — **this is the fastest config ever measured on kryptos,
++24% over plain, and it beats lookup-rs on BOTH prompts.** The MTP file
+that mm19 closed ("parked behind lookup-rs on this hardware generation")
+is now the champion; what reopened it was k=1 (batch-2 has no nextn
+premium) plus three engine builds that removed everything around the
+decode: mm24 devSample (−2.3 ms draft D2H), mm25 fused round (a wash, but
+it produced the phase map), mm26 device top-k (−4.7 ms/round).
+
+**mm26 in one line: the verify's top-256 is computed ON DEVICE** (llama
+backend samplers per output row — the one-row-per-seq restriction lifted,
+bounded at ≤8 output rows so prefill keeps the classic path) **so the
+2 × 992 KB forced-sync logits extraction and the 1.27 ms host-side vCPU
+scan both die.** The greedy head chain also stopped copying its full-vocab
+row (a silent ~1 MB/step tax found in review — part of why mm24
+under-delivered its local projection). Deployment knob `nnDevTopk:
+true|K` (manager → `ENCLAVE_GGML_DEV_TOPK`); engine ELL mm26 `1e582e03…`,
+wasmtime image `c6e85559…`, release **v0.5.382**, attest PASS ×2.
+Correctness: plain, fused, and two-call legs each byte-identical armed vs
+unarmed (9b, temp 0, CPU) — and one real bug caught locally before
+shipping (the `_ith` getters take BATCH-TOKEN indices, not item indices;
+the merged plain path broke until the readback passed last-token indices).
+
+**The winning round budget** (per-round, fleet, mtp1dt):
+
+| component | mm25 | mm26 | saved by |
+|---|---|---|---|
+| verify decode (batch-2) | 21.3 | **18.3** | no logits extraction (CUB top-k in-graph) |
+| head draft step | 4.8 | **4.2** | greedy full-row-copy fix |
+| host topk | 1.27 | **0** | on device |
+| arbiter turn | 0.47 | 0.46 | — |
+| **round** (~1.85 tok) | 28.0 | **23.3** | → 76–79 tok/s |
+
+Notes for whoever ships this to the catalog (Steven's action):
+- The config is `cfg-mtp1dt.json`: `draft:"mtp", draft_tokens:1,
+  draft_p_min:0.4, nnRsSeq:1, nnMtpDevSample:true, nnDevTopk:true`
+  (+`draft_fused` default-on), llm-chat ≥ 0.35.6, fleet ≥ v0.5.382.
+- It needs the MTP head loaded (`nnLoadMtp` default) — +1.2 GB VRAM for
+  rs1 and ~260 MB head weights vs a lookup config, for +10 tok/s over
+  lookup's best leg and +18 on quote.
+- `nnDevTopk` also arms plain decode (feed rows come back as top-256) —
+  plain and lookup configs may see their own small win from the dead
+  extraction; unmeasured, one config-only window would settle it.
+- Byte-golden caveats unchanged (160–256 tokens; batch-vs-plain tie flips
+  at 768+ are pre-existing).
+- Bench deployment: suspended, **$3.92**, llm-chat-bench 0.35.6.
+
 ## UPDATE 2026-08-04: mm24 on-device draft sampling — +6 tok/s, 65.5 prose
 
 The 621056e1 shim change (backend greedy sampler chains on the head context,
