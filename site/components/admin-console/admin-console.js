@@ -424,7 +424,7 @@ class AdminConsole extends EnclaveElement {
         // superseded vault's balance to that same customer's vault at the
         // current factory (never to us), which is what lets a future factory
         // migration move credit without a passkey tap from every customer
-        EnclaveCreditVaultFactory: { usdc: USDC_BASE, book: S.book.addr, treasury: payoutAddr, recoveryAdmin: S.book.owner, origin0: location.origin, origin1: "" },
+        EnclaveCreditVaultFactory: { usdc: USDC_BASE, book: S.book.addr, treasury: (S.vlt && S.vlt.treasury && !isZero(S.vlt.treasury)) ? S.vlt.treasury : payoutAddr, recoveryAdmin: S.book.owner, origin0: location.origin, origin1: "" },
         // proof of time binds to the LEDGER + REGISTRY pair it verifies against, both immutably
         EnclaveProofOfTime: { deployments: S.book.entries.deployments || (S.dep && S.dep.addr), registry: S.book.entries.registry },
       };
