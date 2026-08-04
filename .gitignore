@@ -53,3 +53,6 @@ e2e/playwright-report/
 # cannot see them fails a test that passes on every developer's machine.
 !test/fixtures/amd/*.pem
 *.pfx
+
+# playwright-cli session artifacts (snapshots, traces); .playwright/ config IS committed
+.playwright-cli/

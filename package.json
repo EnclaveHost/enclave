@@ -30,6 +30,7 @@
   },
   "//solc": "solc is a devDependency because the Dockerfile installs with --omit=dev and this image is MEASURED: every byte it carries is in the TCB and in the published measurement. Nothing inside the enclave imports solc - the only importers are scripts/deploy-*.mjs and scripts/build-contract-artifacts.mjs, which run on a release machine, and the Dockerfile copies no scripts/ at all. CI installs devDeps (plain `npm ci`) before it deploys contracts, and the relay ships its own manifest, so both keep working. Moving it also drops solc's `tmp` (GHSA-52f5-9888-hmc6) out of the production tree.",
   "devDependencies": {
+    "@playwright/cli": "^0.1.17",
     "@tailwindcss/cli": "^4.3.2",
     "esbuild": "^0.28.1",
     "solc": "^0.8.35",
