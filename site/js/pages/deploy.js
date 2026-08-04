@@ -21,7 +21,7 @@ import { $, $$, esc, short, wait, fmtNum, fmtDur, hlJson, hlCode, copyText, show
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS, BASE_CHAIN, ACCOUNTS_ENABLED } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
 import { vaultOp, getVault } from "../core/vault.js";
-import { minPctsOf, serverSpec, shareRates, pickEnclaveFor, rankEnclavesFor } from "../core/pricing.js";
+import { minPctsOf, startSharesFor, serverSpec, shareRates, pickEnclaveFor, rankEnclavesFor } from "../core/pricing.js";
 import { encCall, DEP_SEL, DEP_CREATED_TOPIC, APPROVAL, depGet, depRate6, depPrices6, depSchemaRev, depMaxGpuMilli, rate6Of, waitReceipt, catVersionFee } from "../core/chain.js";
 
 // create()'s shape on the live contract (rev 1 carried a removed sshPubKey
@@ -1347,9 +1347,15 @@ function applyUseInDeploy(){
   let stash = null;
   try { stash = JSON.parse(sessionStorage.getItem("enclave_use_in_deploy") || "null"); } catch(e){}
   const applyMins = (mins, ports, config) => {
+    // The dials open at the START shares, not at the floors: on a gpuOptional
+    // version the GPU floor is 0 and opening there turned "GPU preferred" into
+    // "GPU never" - the handoff pre-filled 0% GPU and the app ran its model on
+    // cores. `min` stays the real floor, so dialling down is still allowed.
+    const start = startSharesFor(SPECS_CACHE[friendly]);
+    const startGpu = Math.max(start.gpuPct, mins.gpuPct);
     dep.minGpuPct = mins.gpuPct; dep.minCpuPct = mins.cpuPct;
-    dep.gpuPct = mins.gpuPct; dep.cpuPct = mins.cpuPct;
-    const gi = $("#cfgGpuShare"); if (gi){ gi.min = String(mins.gpuPct); gi.value = String(mins.gpuPct); }
+    dep.gpuPct = startGpu; dep.cpuPct = mins.cpuPct;
+    const gi = $("#cfgGpuShare"); if (gi){ gi.min = String(mins.gpuPct); gi.value = String(startGpu); }
     const ci = $("#cfgCpuShare"); if (ci){ ci.min = String(mins.cpuPct); ci.value = String(mins.cpuPct); }
     const fp = $("#cfgPorts"); if (fp) fp.value = ports || "";
     // the app's default config template pre-fills the App config box
@@ -1361,7 +1367,9 @@ function applyUseInDeploy(){
       syncVolsFromCfg();   // a template carrying {"volumes":[…]} ticks the picker
     }
     renderDeploy();
-    showToast("Deploy set to " + friendly + " (min " + mins.gpuPct + "% GPU / " + mins.cpuPct + "% CPU)"
+    showToast("Deploy set to " + friendly + (startGpu > mins.gpuPct
+              ? " (GPU preferred: " + startGpu + "% GPU / " + mins.cpuPct + "% CPU - dial GPU to 0 to run it on cores)"
+              : " (min " + mins.gpuPct + "% GPU / " + mins.cpuPct + "% CPU)")
             + (ports ? " · open ports " + ports : "") + (config ? " · config template applied" : ""));
   };
   // the stash must carry the version's RAW specs (not computed percents): the

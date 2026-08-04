@@ -14,9 +14,9 @@ import { esc, short, copyText } from "../../js/core/util.js";
 import { IPFS_GATEWAY } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { APPROVAL, catVersionFee } from "../../js/core/chain.js";
-import { STORE, selIdx, appOfficial, mediaOf, mediaUrl, verVisible, visibleVerIdxs } from "../../js/core/catalog.js";
+import { STORE, selIdx, appOfficial, mediaOf, mediaUrl, verVisible, visibleVerIdxs, specOf } from "../../js/core/catalog.js";
 import { tallyOf, avgOf, starsHtml } from "../../js/core/reviews.js";
-import { minPctsOf } from "../../js/core/pricing.js";
+import { minPctsOf, wantedGpuPct } from "../../js/core/pricing.js";
 
 class AppDetail extends EnclaveElement {
   static properties = { app: null };
@@ -77,7 +77,12 @@ class AppDetail extends EnclaveElement {
     // options keep the REAL on-chain index; versions the viewer may not see emit nothing
     const opts = app.versions.map((vv, idx) => !verVisible(app, vv) ? '' :
       '<option value="' + idx + '"' + (idx === i ? ' selected' : '') + '>' + esc(vv.version) + (vv.verified ? ' ✓' : '') + (vv.yanked ? ' (yanked)' : '') + apLabel(vv) + '</option>').join('');
-    const m = minPctsOf(v);
+    // specOf, not the raw version: `gpuOptional` lives in the approved config,
+    // and without it this chip called a 34 GB-VRAM app's card REQUIRED while the
+    // deploy paths treated it as optional - two screens, two different answers.
+    const vspec = specOf(v);
+    const m = minPctsOf(vspec);
+    const wantGpu = wantedGpuPct(vspec);
     // publish stamp: the version's on-chain createdAt (block time of its
     // publishVersion tx). The fallback version object above has none - hide.
     const pub = Number(v.createdAt) ? new Date(Number(v.createdAt) * 1000) : null;
@@ -92,8 +97,10 @@ class AppDetail extends EnclaveElement {
           ? (Math.round(Number(v.vramMb) / 102.4) / 10) + ' GB VRAM' + (Number(v.gpuGflops) > 0 ? ' / ' + (Number(v.gpuGflops) / 1000) + ' TFLOPS GPU' : '') + ', '
           : 'CPU-only, ')
         + Number(v.memMb) + ' MB RAM' + (Number(v.cpuGflops) > 0 ? ' / ' + Number(v.cpuGflops) + ' GFLOPS CPU' : '')
-        + ') set the minimum deploy shares">min '
-        + (m.gpuPct > 0 ? m.gpuPct + '% GPU · ' : 'CPU-only · ') + m.cpuPct + '% CPU</span>'
+        + ') set the minimum deploy shares">'
+        + (m.gpuPct > 0 ? 'min ' + m.gpuPct + '% GPU · '
+           : wantGpu > 0 ? 'prefers ' + wantGpu + '% GPU · min '
+           : 'CPU-only · min ') + m.cpuPct + '% CPU</span>'
       + (v.ports ? '<span class="vlbl" title="open ports: ports this version may bind">⛨ ' + esc(v.ports) + '</span>' : '')
       + '<span class="vlbl appd-fee" hidden></span>'
       + (v.yanked ? '<span class="vyank">yanked</span>' : '');

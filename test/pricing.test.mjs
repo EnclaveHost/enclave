@@ -15,7 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, enclavePriceOf, pickEnclaveFor, rankEnclavesFor, leaseHostOf,
-  moveTargetsFor, moveBlockReason, wantedGpuPct, gpuUpgradeForMove, gpuDowngradeForMove, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE } from "../site/js/core/pricing.js";
+  moveTargetsFor, moveBlockReason, wantedGpuPct, startSharesFor, gpuUpgradeForMove, gpuDowngradeForMove, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE } from "../site/js/core/pricing.js";
 
 // Reference copy of the RUNNER's minimum-share math (supervisor.js: pctCeil,
 // gpuShareOf, cpuShareOf, minSharesOf with MIN_COMPUTE_PCT=1). Keep in sync.
@@ -429,6 +429,40 @@ test("a publisher-optional GPU spec sets no dial floor but still recommends a sl
   // the axes still mean something: they size what to buy to actually get the card
   assert.equal(wantedGpuPct({ ...v, gpuOptional: true }), 14);
   assert.equal(wantedGpuPct(v), 0, "no recommendation when the card is required — the floor already says it");
+});
+
+/* The floor is what a deployment may not go BELOW; it was never the default
+   PURCHASE. On a gpuOptional version the two differ by a whole card, and the
+   deploy paths (quick-deploy's one click, the console's pre-filled dials) used
+   to buy the floor — which minted a model app at 0% GPU, running on cores, with
+   nothing on screen saying the card had been skipped. LIVE REGRESSION: llm-chat
+   1.3.27 declares 34 GB VRAM / 240 TFLOPS gpuOptional and deployed at gpuMilli
+   0 (0xd6041bab…, 2026-08-03). */
+test("start shares buy a publisher-optional version's declared card, not its 0% floor", () => {
+  adoptServerSpec({ gpu: true, ...H200 });
+  const hard = { vramMb: 20000, gpuGflops: 1000, memMb: 512, cpuGflops: 10 };
+  const soft = { ...hard, gpuOptional: true };
+  assert.deepEqual(startSharesFor(soft), { gpuPct: 14, cpuPct: 1 },
+    "the declared slice is bought even though the floor is 0");
+  assert.deepEqual(startSharesFor(hard), minPctsOf(hard),
+    "a REQUIRED card already starts at its floor — start shares must not move it");
+  assert.deepEqual(startSharesFor({ memMb: 512, cpuGflops: 10 }), minPctsOf({ memMb: 512, cpuGflops: 10 }),
+    "a CPU-only app is untouched: no declared axes, nothing to lift");
+  // the floors themselves are NOT moved: dialling down to CPU-only stays legal
+  assert.equal(minPctsOf(soft).gpuPct, 0, "start shares must not become a new floor");
+});
+
+test("a soft start slice respects gpuMilli >= cpuMilli and the on-chain GPU cap", () => {
+  adoptServerSpec({ gpu: true, ...H200 });
+  // a small card ask under a big CPU ask: create() refuses gpuMilli < cpuMilli
+  const cpuHeavy = { vramMb: 1024, gpuGflops: 1, memMb: 32768, cpuGflops: 10, gpuOptional: true };
+  const s = startSharesFor(cpuHeavy);
+  assert.ok(s.gpuPct >= s.cpuPct, `gpu ${s.gpuPct}% must not sit below cpu ${s.cpuPct}%`);
+  // the cap TRIMS a preference rather than making the app undeployable — the
+  // card was never required, and create() reverts above the cap
+  const soft = { vramMb: 20000, gpuGflops: 1000, memMb: 512, cpuGflops: 10, gpuOptional: true };
+  assert.equal(startSharesFor(soft, undefined, 10).gpuPct, 10, "trimmed to the cap");
+  assert.equal(startSharesFor(soft, undefined, 0).gpuPct, 14, "no cap known: the full declared slice");
 });
 
 test("a publisher-optional version can land on a CPU box, a required one cannot", () => {

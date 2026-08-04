@@ -119,6 +119,24 @@ export function wantedGpuPct(v, spec){
   if (!(v && v.gpuOptional) || (vramMb <= 0 && gpuGf <= 0)) return 0;
   return pctCeil(Math.max(vramMb / 1024 / s.cardVramGb, gpuGf / 1000 / s.cardTflops));
 }
+/* The shares a deploy should START at (quick-deploy buys these outright; the
+   console's dials open here). Normally the app's floors — but a floor is what a
+   deployment may not go BELOW, and it was never meant to double as the default
+   purchase. On a gpuOptional version the two differ by an entire card: the GPU
+   floor is 0, so buying the floor deployed a model app onto CPU cores with
+   nothing on screen saying the card had been skipped. Start at the slice the
+   version declares instead, lifted to the CPU share (the contract requires
+   gpuMilli >= cpuMilli). The floors are unchanged and still gate the dials, so
+   dialling back down to CPU-only stays available — deliberately, not by
+   default. `cap` (the on-chain per-deployment GPU cap, in percent) trims a soft
+   slice rather than making the app undeployable: the card is a preference, and
+   create() would refuse anything above the cap. */
+export function startSharesFor(v, spec, cap){
+  const mins = minPctsOf(v, spec);
+  let want = wantedGpuPct(v, spec);
+  if (Number(cap) > 0) want = Math.min(want, Math.floor(Number(cap)));
+  return want > mins.gpuPct ? { gpuPct: Math.max(want, mins.cpuPct), cpuPct: mins.cpuPct } : mins;
+}
 // What the two dials buy on this server spec, and cost per second. `price`
 // pins a specific enclave's posted rates ({full, node} USDC/sec, e.g. from
 // enclavePriceOf(row)); omitted = the cheapest live enclave, which is what a
