@@ -236,21 +236,80 @@ Speculation is **+0.4 against its own matched baseline**. The entire −3.0
 Everywhere in this document that speculation looks break-even, it is
 carrying a tax that belongs to the mechanism, not to the drafting.
 
-**The fix:** emit the recurrent-state snapshot copies only when
-`ubatch.n_tokens > 1`. Verify passes feed `[pending, d1..dm]` as one batch
-so they keep full rollback; plain steps stop paying. Upstream llama owns
-this (`llama-memory-recurrent.cpp`, `s_copy`/`rs_idx`, buffer sized
-`mem_size * (1 + n_rs_seq)`), so it is a new patch in the
-`llamacpp-*.patch` chain, not a shim change. Expected: recover ~0.78 ms on
-~80% of decodes ≈ **+4%**, and quote goes from −3.0 to ≈ +0.4.
-NOT YET IMPLEMENTED — scoped and measured only.
+**Diagnosis so far — premise CONFIRMED, two mechanisms REFUTED, root
+cause still OPEN.** Do not re-run these; they are settled:
+
+- *The tax is real at batch-1.* Three alternating local rounds, rs=0
+  16.73/16.87/16.76 vs rs=6 17.18/17.21/17.24. A single-token decode that
+  can never be rewound pays it.
+- *It is a fixed per-DECODE cost, not per-token.* Fleet verb table: `feed`
+  +0.78 ms, but `feed_batch` (512 tokens) only +2.1 ms across its handful
+  of ubatches.
+- *NOT the extra state-row copies.* `build_rs`'s `s_copy_extra` covers
+  `n_rs - n_seqs` rows, but `get_n_rs()` returns the CELL count (`mem->n`),
+  not snapshot levels — with one sequence the view is zero-sized and no
+  extra rows move. The "(1 + n_rs_seq)" multiplier is on the BUFFER, not
+  on per-decode copies.
+- *NOT lost graph reuse / rebuilds.* rs=0 and rs=6 produce identical CUDA
+  graph reuse counts (47 vs 47), identical `graph_reserve` lines, and one
+  warmup each. Replay is fully intact with snapshots on.
+- *NOT proportional to depth.* Local rs=0/1/2/4 are indistinguishable
+  (16.6–16.9 ms) with only rs=6 slightly worse; on the FLEET, depth 6 vs 4
+  at k=4 is throughput-neutral (quote 60.4 vs 60.7, prose 65.3 vs 64.5,
+  both inside noise).
+
+Leading remaining theory: the snapshot write destination rotates through
+levels, so the captured CUDA graph needs pointer updates every decode
+across the 48 recurrent layers (cf. `llamacpp-cuda-graph-ptr-update.patch`)
+— fixed per-decode, depth-independent, replay-preserving, which fits every
+observation above. **To test it, the plain decode path needs the `gperf`
+sub-counters that today exist only on `feed_all`** (`feed#gbuild`,
+`#galloc`, `#ginput`, …). That instrumentation cycle is the next step, and
+it is cheap; do it BEFORE writing any fix.
+
+The originally proposed fix (gate snapshot emission on `ubatch.n_tokens >
+1`) is still the right SHAPE — verify passes feed `[pending, d1..dm]` as
+one batch so rollback survives, plain steps stop paying — but with the
+copy theory refuted there is no longer a known place to apply it. Find the
+root cause first.
 
 Config corollary available TODAY, no build: `nnRsSeq` should be the
 MINIMUM that covers k (4 for k=4, not the 6 the bench deployment carried).
-The per-decode write looks fixed-cost rather than proportional to depth
-(local rs=0/1/2/4/6 all sit within 0.6 ms), so extra depth mostly buys
-VRAM pressure — ~1.2 GB per unit on the 27b, i.e. **6 → 4 frees ~2.4 GB**
-of a 25% share for nothing lost.
+Fleet-measured as throughput-NEUTRAL, so this is not a speed win — but at
+~1.2 GB per depth unit on the 27b, **6 → 4 frees ~2.4 GB** of a 25% share
+for nothing lost, and depth 6 was never buying anything at k=4.
+
+### ROUTE MAP: every proposer route and its status
+
+Speculation **already works on fable-fusion**: +5.9 tok/s prose and +0.4
+quote against a MATCHED baseline (see the re-attribution above). What
+follows is the state of every route to making it better.
+
+| route | status | evidence |
+|---|---|---|
+| prompt-lookup n-gram | **SHIPPING, positive** | +5.9 prose / +0.4 quote vs matched |
+| MTP depth-1 head | closed, negative | per-decode floor; k+1 head calls |
+| trained parallel heads | closed, negative | 36.8/9.0/3.8% + batch-2 cliff needs ~75% |
+| small k (1,2) | closed, negative | fleet: k4 66.1 > k1 64.8 > k2 62.2 |
+| large k (6) | closed, negative | pre-existing k=6 leg |
+| separate draft model | closed, negative | launch-latency floor, per handoff |
+| lower snapshot depth | closed, NEUTRAL | fleet 6 vs 4 inside noise; frees 2.4 GB |
+| snapshot tax removal (A) | OPEN, root cause unknown | 0.78 ms/decode, ~+4% if found |
+| batch-width cliff (B) | OPEN, the big one | 10.57 ms, gates everything |
+| tree / multi-candidate | likely ARCHITECTURALLY BLOCKED | see below |
+
+**Tree verification is the one route the cost structure begs for and the
+architecture appears to forbid.** The economics are ideal: the cliff is
+10.57 ms but each further in-batch token is only ~1.8 ms, so a wide batch
+harvesting many candidates per cliff payment would be very cheap per
+token. But tree/Medusa-style verification needs candidate branches that do
+not attend to each other, and on this model **48 of 65 layers are
+recurrent** — an SSM/delta-net scan carries ONE sequential state, so
+parallel branches cannot share a pass the way attention layers can. Running
+candidates as separate SEQUENCES instead is possible in principle but
+multiplies the recurrent state per candidate. NOT yet measured; this is the
+most interesting remaining unknown and the reasoning above should be
+verified rather than trusted.
 
 ### Target B — the batch-width cliff (10.57 ms, the real campaign)
 
