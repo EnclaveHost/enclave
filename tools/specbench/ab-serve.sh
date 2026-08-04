@@ -30,13 +30,15 @@ cfg["max_new_cap"]=maxnew; cfg["default_max_new"]=maxnew
 # so small k is a different economic regime than the k=4 everything was
 # benched at.
 # lookup<N>[g<MINNGRAM>][x] : x = gate OFF (always propose)
-mlk = re.fullmatch(r"lookup(\d+)(?:g(\d+))?(x?)", kind)
+mlk = re.fullmatch(r"lookup(\d+)(?:g(\d+))?(x?)(?:b(\d+))?", kind)
 if mlk:
     cfg["draft"]="lookup"; cfg["draft_tokens"]=int(mlk.group(1))
     if mlk.group(2):
         cfg["draft_min_ngram"]=int(mlk.group(2))
     if mlk.group(3):
         cfg["draft_gate"]=False
+    if mlk.group(4):
+        cfg["draft_anchor_bonus"]=int(mlk.group(4))
 if kind == "mtp4":
     cfg["draft"]="mtp"; cfg["draft_tokens"]=4; cfg["draft_p_min"]=0.4
 if kind == "mtp4think":
