@@ -39,6 +39,13 @@ if mlk:
         cfg["draft_gate"]=False
     if mlk.group(4):
         cfg["draft_anchor_bonus"]=int(mlk.group(4))
+# mtp<K>[nf] : the model's own head at draft_tokens K; nf = draft_fused
+# false (pin the two-call loop on an mm25+ engine - the fused-round A/B)
+mmtp = re.fullmatch(r"mtp(\d+)(nf)?", kind)
+if mmtp:
+    cfg["draft"]="mtp"; cfg["draft_tokens"]=int(mmtp.group(1)); cfg["draft_p_min"]=0.4
+    if mmtp.group(2):
+        cfg["draft_fused"]=False
 if kind == "mtp4":
     cfg["draft"]="mtp"; cfg["draft_tokens"]=4; cfg["draft_p_min"]=0.4
 if kind == "mtp4think":
