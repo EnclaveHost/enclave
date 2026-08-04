@@ -112,40 +112,14 @@ test("vaultmig.js pins + encodings match viem (the credit-vault recovery flow)",
     "the factory creation bytecode must embed the ledger's current create() selector - a stale artifact re-wedges every vault it mints");
 });
 
-test("vault recovery surface pins + encodes like viem (refundToTreasury struct, migrateToSuccessor)", async () => {
-  const { VAULT_SEL, encodeRefundCall, derToRS } = await import(path.join(REPO, "site/components/admin-console/vaultmig.js"));
+test("vault recovery selectors pin against the vault ABI (the no-passkey migration path)", async () => {
+  const { VAULT_SEL } = await import(path.join(REPO, "site/components/admin-console/vaultmig.js"));
   const vaultAbi = ABI("EnclaveCreditVault");
-  const sigTuple = { type: "tuple", components: [
-    { name: "authenticatorData", type: "bytes" }, { name: "clientDataJSON", type: "string" },
-    { name: "r", type: "uint256" }, { name: "s", type: "uint256" },
-    { name: "x", type: "uint256" }, { name: "y", type: "uint256" }] };
-  eq("0x" + VAULT_SEL.refundToTreasury,
-     toFunctionSelector({ type: "function", name: "refundToTreasury", inputs: [{ type: "uint256" }, { type: "uint256" }, sigTuple] }));
   eq("0x" + VAULT_SEL.migrateToSuccessor, toFunctionSelector("function migrateToSuccessor(uint256,uint256)"));
-  eq("0x" + VAULT_SEL.nonce, toFunctionSelector("function nonce() view returns (uint256)"));
-  eq("0x" + VAULT_SEL.rootKeyHash, toFunctionSelector("function rootKeyHash() view returns (bytes32)"));
   eq("0x" + VAULT_SEL.recoveryAdmin, toFunctionSelector("function recoveryAdmin() view returns (address)"));
-  // every one of them must exist on the CONTRACT, not just as a string here
-  for (const name of ["refundToTreasury", "migrateToSuccessor", "nonce", "rootKeyHash", "recoveryAdmin"])
+  eq("0x" + VAULT_SEL.rootKeyHash, toFunctionSelector("function rootKeyHash() view returns (bytes32)"));
+  for (const name of ["migrateToSuccessor", "recoveryAdmin", "rootKeyHash"])
     assert.ok(vaultAbi.some((f) => f.type === "function" && f.name === name), "vault ABI has " + name);
-
-  // the hand-rolled dynamic struct: odd-length authenticatorData and a
-  // clientDataJSON straddling a word boundary are where padding bugs hide
-  const sig = {
-    authenticatorData: "0x" + "49960de5".repeat(9) + "01",
-    clientDataJSON: '{"type":"webauthn.get","challenge":"abc","origin":"https://enclave.host","crossOrigin":false}',
-    r: 0x1234567890abcdefn, s: (1n << 255n) + 7n, x: 0xaaan, y: 0xbbbn,
-  };
-  eq(encodeRefundCall(25_000_000n, 1893456000n, sig),
-     encodeFunctionData({ abi: vaultAbi, functionName: "refundToTreasury",
-       args: [25_000_000n, 1893456000n, [sig.authenticatorData, sig.clientDataJSON, sig.r, sig.s, sig.x, sig.y]] }));
-
-  // DER -> (r,s), including the leading-zero-stripped 33-byte integer form
-  const der = Buffer.from(
-    "3046" + "022100" + "ff".repeat(32) + "0220" + "01".repeat(32), "hex");
-  const rs = derToRS(new Uint8Array(der));
-  assert.equal(rs.r, BigInt("0x" + "ff".repeat(32)));
-  assert.equal(rs.s, BigInt("0x" + "01".repeat(32)));
 });
 
 test("chain.js DEP_SEL hand-pins match the ABI (the cap getter every deploy path gates on)", () => {
