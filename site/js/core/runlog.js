@@ -128,6 +128,24 @@ export const runlog = {
   },
 };
 
+/* What payment offer a RECORDED run implies, if any - the half of the answer
+   that lives in the story. A run whose action line already carries a
+   descriptor needs nothing (the replay paints it); a run that merely ENDS in a
+   funding failure gets one re-derived from its prose, which is every run
+   written before action lines existed and every run cut off before the offer
+   was. `usd` "" means the amount could not be recovered: ask for one, never
+   guess. The other half is the caller's - pair this with the LEDGER's state,
+   so a deployment funded since is never asked to pay twice. */
+export function retryOfferOf(run, id) {
+  const lines = (run && run.lines) || [];
+  if ([...lines].reverse().some(l => l[2] && l[2].kind === "fund")) return null;
+  if (!lines.some(l => /^\[x\] funding (rejected|failed)/.test(l[1] || ""))) return null;
+  // the amount is fund.js's own wording ("pay 5.00 USDC · buys runtime…" /
+  // "sign a 5.00 USDC payment authorization"); an ETH run states no USDC sum
+  const m = /(?:pay|sign a) ([\d.]+) USDC/.exec(lines.map(l => l[1]).join("\n"));
+  return { kind: "fund", id: id || run.id, usd: m ? m[1] : "", asset: "USDC" };
+}
+
 /* Append one styled line to a .term container: repeated identical lines
    collapse into a (xN) counter, and the view follows the tail only when the
    reader is already at (or near) the bottom - never yank someone out of

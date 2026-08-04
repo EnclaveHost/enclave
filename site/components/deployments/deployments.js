@@ -22,7 +22,7 @@ import { pad32, encUint, encCall, hexBig, DEP_SEL, APPROVAL, depPrices6, rate6Of
 import { authenticate, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
 import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, STORE } from "../../js/core/catalog.js";
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
-import { runlog, paintLine } from "../../js/core/runlog.js";
+import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
 import { shareRates, minPctsOf, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf } from "../../js/core/pricing.js";
 
@@ -339,9 +339,15 @@ class Deployments extends EnclaveElement {
       const b = e.target && e.target.closest && e.target.closest(".ln-act");
       if (!b || b.disabled || !this.contains(b) || b.dataset.kind !== "fund") return;
       b.disabled = true;          // an offer is spent once taken; a retry that fails paints a fresh one
-      const id = b.dataset.id;
+      const id = b.dataset.id, usd = parseFloat(b.dataset.usd);
+      // no amount recorded (see _output): hand off to the row's Top up, which asks for one
+      if (!(usd > 0)) {
+        const fb = this.querySelector('.enc-fundbtn[data-id="' + id + '"]');
+        if (fb){ fb.click(); fb.scrollIntoView({ block: "nearest" }); }
+        return;
+      }
       import("../../js/pages/deploy.js")
-        .then(m => m.retryFunding(id, parseFloat(b.dataset.usd), b.dataset.asset, runlog.runFor(id)))
+        .then(m => m.retryFunding(id, usd, b.dataset.asset, runlog.runFor(id)))
         .catch(() => { b.disabled = false; });
     });
     // document-level listeners must be removable: the soft-nav router mounts a
@@ -1631,6 +1637,15 @@ class Deployments extends EnclaveElement {
     if (run) {
       paintLine(nar, "dimln", "// deploy narrative · " + run.label + " (recorded in this browser)", scroller);
       run.lines.forEach(l => paintLine(nar, l[0], l[1], scroller, l[2]));
+      // A narrative that ends in a payment that never happened gets the offer
+      // to finish it, even when the record carries no descriptor of its own
+      // (retryOfferOf re-derives one). Gated on the LEDGER still showing
+      // nothing paid, never on the story alone: a deployment funded since must
+      // not be asked to pay twice.
+      const offer = retryOfferOf(run, id);
+      if (offer && ["awaiting_payment", "unfunded"].indexOf(d && d.status) !== -1)
+        paintLine(nar, "act", offer.usd ? "[↻] Retry payment · $" + offer.usd + " USDC" : "[↻] Retry payment",
+                  scroller, offer);
     }
     if (ctlOf(d) !== "wallet") this._noteLogs(box);
     else if (Enclave.authed()) this._startLogs(id, box);
