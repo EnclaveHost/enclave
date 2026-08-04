@@ -367,6 +367,30 @@ DEF_STORAGE_MB = int(os.environ.get("WASM_APP_STORAGE_MB", "256"))              
 # fits under the pure cpuShare dial today — enable per node once sized.
 ACCOUNT_STORAGE_RAM = os.environ.get("WASM_ACCOUNT_STORAGE_RAM", "0").lower() in ("1", "true", "on")
 RAM_ACCT_HEADROOM   = float(os.environ.get("WASM_RAM_HEADROOM", "0.9"))   # fraction of node RAM tenants may reserve
+
+# ---- dead-man lease on every tenant (see POST /vms/lease) -------------------
+# Teardown used to be purely INSTRUCTED: the supervisor decided a tenant should
+# die and sent a DELETE. Every link in that chain fails open - if the DELETE is
+# lost, the supervisor forgets, or it crashes between stopping and releasing,
+# this process keeps the tenant alive forever holding its whole slice, and
+# neither side can see the other's view. That stranded 17.6 GB of resident ggml
+# weights on kryptos twice (2026-08-03), and an instructed reclaimer could not
+# fix it because it reclaims over the very channel that failed.
+#   So the default on silence is RELEASE, not HOLD. Every tenant carries a
+# lease the supervisor must keep renewing by naming it in a heartbeat; anything
+# whose lease lapses this process reaps ITSELF, with nobody's permission.
+TENANT_LEASE_TTL = float(os.environ.get("WASM_TENANT_LEASE_TTL_SEC", "300"))
+# ...but "the supervisor says this tenant is not mine" and "the supervisor is
+# not talking" are DIFFERENT facts, and only the first is evidence about a
+# tenant. The data path does not run through this API - a manager-API outage
+# leaves tenants serving perfectly - so reaping on silence would turn a blip in
+# a control channel nobody was using into a fleet-wide outage. Enforcement is
+# therefore gated on having heard from the supervisor RECENTLY: no heartbeat at
+# all, no reaping, however long the silence lasts.
+TENANT_LEASE_SILENCE = float(os.environ.get("WASM_TENANT_LEASE_SILENCE_SEC", "180"))
+_lease_last_beat = None    # None = never heard one: the lease is INERT until the
+                           # first heartbeat, so an older supervisor that knows
+                           # nothing about leases can never trigger a mass reap
 # --- VRAM-reservation ledger (the GPU sibling of WASM_ACCOUNT_STORAGE_RAM) --- #
 # CUDA_MPS_PINNED_DEVICE_MEM_LIMIT is a CAP, not a reservation: it bounds what
 # a tenant may pin but reserves nothing, so physical device memory is only
@@ -2652,6 +2676,18 @@ def _ram_budget() -> dict | None:
             "ramNnResidentMb": _nn_resident_bytes() // (1 << 20)}
 
 
+def _lease_public() -> dict:
+    """Dead-man lease state, for /capacity -> /availability. `armed` false means
+    no heartbeat has ever arrived and nothing can be reaped on lease grounds -
+    which is the honest thing to say about a box where the switch is not live
+    yet, rather than letting it look protected."""
+    now = time.time()
+    return {"armed": _lease_last_beat is not None,
+            "enforcing": _lease_last_beat is not None and (now - _lease_last_beat) <= TENANT_LEASE_SILENCE,
+            "lastBeatAgoSec": None if _lease_last_beat is None else round(now - _lease_last_beat, 1),
+            "ttlSec": TENANT_LEASE_TTL}
+
+
 def _rec_vram_gb(rec) -> float:
     """Worst-case device memory a tenant can pin: its sold slice (the MPS
     pinned cap = gpuShare x card VRAM) plus the per-process CUDA context
@@ -2709,6 +2745,7 @@ def _capacity() -> dict:
         cap.update(vram)
         slice_gb = vram["vramFreeGb"] - VRAM_CTX_OVERHEAD_GB
         cap["gpuShareFree"] = round(min(1.0, max(0.0, slice_gb / GPU_VRAM_GB)) if GPU_VRAM_GB else 0.0, 4)
+    cap["tenantLease"] = _lease_public()
     return cap
 
 
@@ -3606,6 +3643,9 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
            "error": None, "mem_mb": mem_mb,   # exact guest memory cap (floor MIN_MEM_MB)
            "storageMb": storage_mb if fsdir else 0,   # 0 = no /data (opted out or disabled)
            "storageBytes": 0,                         # last measured /data usage (audit sweep)
+           # a FULL lease at birth, so a launch that races the supervisor's
+           # heartbeat is never mistaken for an unvouched tenant
+           "leaseUntil": time.time() + TENANT_LEASE_TTL,
            "ports": pspec["norm"],           # logical (the app's advertised interface)
            "portMap": port_map,              # logical entry -> actual loopback bind
            "boundPorts": [],                 # actuals confirmed bound (the bridge checks this)
@@ -4387,9 +4427,45 @@ def _heal_preloads(rec, cands, vols):
     _kill(rec)
 
 
+def _lease_expired(now: float) -> list:
+    """PURE. Which live tenants' leases have lapsed, given the clock and what we
+    know about the supervisor. Returns [] whenever we must not act:
+
+      - no heartbeat ever received  -> the lease is inert (old supervisor)
+      - no heartbeat RECENTLY       -> silence is not evidence about any tenant
+
+    Only when the supervisor is demonstrably talking does an unrenewed lease
+    mean what it looks like: this tenant is one nobody owns any more.
+    """
+    if _lease_last_beat is None:
+        return []
+    if now - _lease_last_beat > TENANT_LEASE_SILENCE:
+        return []
+    return [r["id"] for r in _apps.values()
+            if r["status"] in ("starting", "running")
+            and float(r.get("leaseUntil") or 0) < now]
+
+
+def _lease_reap():
+    now = time.time()
+    with _lock:
+        dead = _lease_expired(now)
+    for vid in dead:
+        print(f"[lease] {vid}: lease expired - the supervisor stopped vouching for it; reaping "
+              f"(its slice and any resident model weights go back to the pool)", flush=True)
+        try:
+            teardown(vid)
+        except Exception as e:
+            print(f"[lease] {vid}: teardown failed ({e}) - retrying next sweep", flush=True)
+
+
 def _audit_sweep():
     while True:
         time.sleep(AUDIT_SECS)
+        try:
+            _lease_reap()
+        except Exception:
+            pass
         with _lock:
             recs = [r for r in _apps.values() if r["status"] == "running"]
         heal = [(r, c) for r in recs if (c := _heal_candidates(r))]
@@ -4753,6 +4829,31 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self._json(422, {"error": str(e)})
             except Exception as e:
                 return self._json(502, {"error": f"prefetch failed: {e}"})
+        # The supervisor's heartbeat: the ids it still legitimately owns. Every
+        # named tenant's lease is extended; every live tenant it did NOT name is
+        # left to lapse and _lease_reap tears it down. This is the whole
+        # dead-man switch - the supervisor never has to successfully instruct a
+        # teardown for one to happen, it only has to stop vouching, which is
+        # also what a crashed or wedged supervisor does for free.
+        if self.path == "/vms/lease":
+            global _lease_last_beat
+            b = self._body()
+            ids = {str(x) for x in (b.get("ids") or []) if str(x)}
+            now = time.time()
+            ttl = TENANT_LEASE_TTL
+            extended, unvouched = [], []
+            with _lock:
+                _lease_last_beat = now
+                for r in _apps.values():
+                    if r["status"] not in ("starting", "running"):
+                        continue
+                    key = str(r.get("name") or r["id"])
+                    if key in ids:
+                        r["leaseUntil"] = now + ttl
+                        extended.append(key)
+                    else:
+                        unvouched.append({"id": key, "expiresIn": round(float(r.get("leaseUntil") or 0) - now, 1)})
+            return self._json(200, {"extended": extended, "unvouched": unvouched, "ttlSec": ttl})
         if self.path != "/vms":
             return self._json(404, {"error": "not found"})
         b = self._body()
