@@ -85,6 +85,8 @@ export const CAT_SEL = {
                                // app-level-config layout (versions config-LESS); missing = 2
   setActive:"9e4b5d56", yankVersion:"345c52dc", setVerified:"4ca171e5",
   setApproval:"a67613fa",
+  grantCid:"353aa20f",         // grantCid(string,bytes32) - owner-only anti-squat remedy:
+                               // authorizes ONE other app to list an already-claimed CID
 };
 // Version.approval: the owner's deploy-gating ruling (unlike `verified`, a curation signal)
 export const APPROVAL = { pending:0, approved:1, rejected:2 };
