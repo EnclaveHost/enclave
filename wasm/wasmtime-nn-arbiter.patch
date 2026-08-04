@@ -381,10 +381,10 @@ index 0000000..d8ccfc3
 +    }
 +}
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
-index fb382b8..50d562f 100644
+index 2240373..23545a7 100644
 --- a/crates/wasi-nn/src/backend/ggml.rs
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -833,7 +833,13 @@ impl GgmlServer {
+@@ -905,7 +905,13 @@ impl GgmlServer {
                  }
                  q.decoding = true;
                  drop(q);
@@ -399,17 +399,17 @@ index fb382b8..50d562f 100644
                  {
                      let mut gperf = [0i64; 8];
                      unsafe { ell_graph_perf2(self.raw, gperf.as_mut_ptr()); }
-@@ -925,6 +931,9 @@ impl GgmlServer {
-         let mut logits = vec![0f32; tokens.len() * self.n_vocab];
+@@ -1000,6 +1006,9 @@ impl GgmlServer {
+         let mut k_eff = 0usize;
          let ph_alloc = ph_t1.elapsed().as_micros() as i64;
          let ph_t2 = std::time::Instant::now();
 +        let ph_turn_t = std::time::Instant::now();
 +        let _turn = crate::arbiter::turn(self.model.gpu && harvest_err.is_none());
 +        self.last_phases.lock().unwrap()[2] = ph_turn_t.elapsed().as_micros() as i64;
          let rc = if harvest_err.is_none() {
-             unsafe {
-                 ell_decode_seq_full(self.raw, self.model.raw, seq_id, pos0,
-@@ -966,6 +975,7 @@ impl GgmlServer {
+             if k_cap > 0 {
+                 let r = unsafe {
+@@ -1050,6 +1059,7 @@ impl GgmlServer {
                  self.last_phases.lock().unwrap()[4] = ph_t3.elapsed().as_micros() as i64;
              }
          }
@@ -417,7 +417,7 @@ index fb382b8..50d562f 100644
          let mut q = self.q.lock().unwrap();
          q.decoding = false;
          self.cv.notify_all();
-@@ -1039,6 +1049,15 @@ impl GgmlServer {
+@@ -1133,6 +1143,15 @@ impl GgmlServer {
              unlock(self);
              return Err(e);
          }
@@ -433,7 +433,7 @@ index fb382b8..50d562f 100644
          // -- observe (visible failure, rows still intact on error)
          let ph_td = std::time::Instant::now();
          if let Some((op, ot)) = obs {
-@@ -1094,7 +1113,10 @@ impl GgmlServer {
+@@ -1200,7 +1219,10 @@ impl GgmlServer {
              let mut ph = self.last_phases.lock().unwrap();
              ph[0] = ph_gate;
              ph[1] = ph_alloc;
@@ -445,7 +445,7 @@ index fb382b8..50d562f 100644
              ph[4] = 0;
              ph[5] = gperf[0];
              ph[6] = gperf[1];
-@@ -1109,6 +1131,7 @@ impl GgmlServer {
+@@ -1215,6 +1237,7 @@ impl GgmlServer {
              }
              self.last_phases.lock().unwrap()[4] = ph_t3.elapsed().as_micros() as i64;
          }
@@ -453,7 +453,7 @@ index fb382b8..50d562f 100644
          unlock(self);
          if rc != 0 {
              return Err(decode_err(rc));
-@@ -1168,6 +1191,9 @@ impl GgmlServer {
+@@ -1284,6 +1307,9 @@ impl GgmlServer {
          let outcome = match self.ensure_mtmd() {
              Err(e) => Err(e),
              Ok(handle) => {
@@ -463,7 +463,7 @@ index fb382b8..50d562f 100644
                  let rc = unsafe {
                      (syms.eval_image)(
                          handle,
-@@ -1247,6 +1273,7 @@ impl GgmlServer {
+@@ -1363,6 +1389,7 @@ impl GgmlServer {
      fn mtp_observe(&self, seq: i32, pos0: i32, tokens: &[i32]) -> Result<(), String> {
          let mtp = self.mtp.lock().unwrap();
          let h = mtp.as_ref().ok_or("[mtp_unavailable] no MTP state (harvest first)")?;
@@ -471,7 +471,7 @@ index fb382b8..50d562f 100644
          let rc = unsafe {
              ell_mtp_observe(h.0, seq, pos0, tokens.as_ptr(), tokens.len() as i32)
          };
-@@ -1273,6 +1300,9 @@ impl GgmlServer {
+@@ -1389,6 +1416,9 @@ impl GgmlServer {
              Some((p, t)) => (p, t.as_ptr(), t.len() as i32),
              None => (0, std::ptr::null(), 0),
          };

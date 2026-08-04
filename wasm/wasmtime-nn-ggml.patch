@@ -163,6 +163,15 @@
 # grants to one on top. The observe runs BEFORE any decode, so its
 # failure ([mtp_obs_failed]) leaves the harvest rows intact and the
 # guest recovers exactly like the standalone path.
+#
+# 2026-08-04 device top-k rows (mm26): when the shim arms
+# ENCLAVE_GGML_DEV_TOPK, small decodes return the device-computed top-K
+# (RowOut/RowsOut::TopK) via ell_decode_seq_topk / ell_decode_batch_topk
+# and the "topk_ids"/"topk_logits" outputs are built straight from them -
+# no full-vocab extraction, no host-side scan. Wide batches (prefill) and
+# unarmed engines keep the Dense path byte-for-byte. caps[11] = armed K.
+# Dense "logits" requests on an armed engine are refused with a clear
+# error (the full row never leaves the device).
 diff --git a/Cargo.lock b/Cargo.lock
 index 6ffaac1..3c68c51 100644
 --- a/Cargo.lock
@@ -225,10 +234,10 @@ index b2db808..af89d10 100644
  
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
 new file mode 100644
-index 0000000..fb382b8
+index 0000000..2240373
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,2083 @@
+@@ -0,0 +1,2275 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -399,6 +408,34 @@ index 0000000..fb382b8
 +    ) -> i32;
 +    fn ell_seq_rewind(ctx: *mut c_void, seq_id: i32, n_keep: i32) -> i32;
 +    fn ell_rewind_depth(ctx: *mut c_void) -> i32;
++    // mm26 device top-k (ENCLAVE_GGML_DEV_TOPK): armed K probe + decode
++    // variants that read back the device-computed top-k per output row
++    // (k_eff > 0, ids/vals at k_cap stride) or fall back in the same call
++    // to full logits rows in vals_out (return 0). Never re-decode.
++    fn ell_server_topk_k(ctx: *mut c_void) -> i32;
++    fn ell_decode_seq_topk(
++        ctx: *mut c_void,
++        model: *mut c_void,
++        seq_id: i32,
++        pos0: i32,
++        tokens: *const i32,
++        n: i32,
++        k_cap: i32,
++        ids_out: *mut i32,
++        vals_out: *mut f32,
++    ) -> i32;
++    fn ell_decode_batch_topk(
++        ctx: *mut c_void,
++        model: *mut c_void,
++        n_items: i32,
++        seq_ids: *const i32,
++        counts: *const i32,
++        positions: *const i32,
++        tokens_flat: *const i32,
++        k_cap: i32,
++        ids_out: *mut i32,
++        vals_out: *mut f32,
++    ) -> i32;
 +    fn ell_cuda_sync_stats(out: *mut i64) -> i32;
 +    fn ell_seq_copy(ctx: *mut c_void, src_seq: i32, dst_seq: i32);
 +    fn ell_model_recurrent(model: *mut c_void) -> i32;
@@ -803,10 +840,47 @@ index 0000000..fb382b8
 +    tokens: Vec<i32>,
 +}
 +
++/// A decoded output row in whichever form the engine produced it: the
++/// classic full-vocab logits row, or the device-computed top-k (mm26 -
++/// ids + logits sorted by logit descending, uniform k per call). Guests
++/// that asked for "topk" get tensors built from either form; a DENSE
++/// request on an armed engine is refused at the dispatch layer.
++#[derive(Clone)]
++enum RowOut {
++    Dense(Vec<f32>),
++    TopK { ids: Vec<i32>, vals: Vec<f32> },
++}
++
++/// Multi-row sibling of RowOut for the all-positions verify paths (flat
++/// buffers; row count is the caller's token count, k is uniform).
++enum RowsOut {
++    Dense(Vec<f32>),
++    TopK { ids: Vec<i32>, vals: Vec<f32>, k: usize },
++}
++
++/// Build the "topk_ids"/"topk_logits" tensors straight from device top-k
++/// buffers (k_src-strided), serving the guest's requested k_out <= k_src
++/// rows-of-k slices without a host-side scan.
++fn topk_tensors(ids: &[i32], vals: &[f32], rows: usize, k_src: usize, k_out: usize) -> (Tensor, Tensor) {
++    let k = k_out.min(k_src);
++    let mut ids_data = Vec::with_capacity(rows * k * 4);
++    let mut val_data = Vec::with_capacity(rows * k * 4);
++    for r in 0..rows {
++        for i in 0..k {
++            ids_data.extend_from_slice(&ids[r * k_src + i].to_le_bytes());
++            val_data.extend_from_slice(&vals[r * k_src + i].to_le_bytes());
++        }
++    }
++    (
++        Tensor { dimensions: vec![rows as u32, k as u32], ty: TensorType::I32, data: ids_data },
++        Tensor { dimensions: vec![rows as u32, k as u32], ty: TensorType::Fp32, data: val_data },
++    )
++}
++
 +struct DecodeQueue {
 +    next_ticket: u64,
 +    pending: VecDeque<PendingItem>,
-+    results: HashMap<u64, Result<Vec<f32>, String>>,
++    results: HashMap<u64, Result<RowOut, String>>,
 +    /// a leader is inside ell_decode_batch — exactly one at a time, and
 +    /// seq removal (Drop) must also wait on this
 +    decoding: bool,
@@ -822,6 +896,9 @@ index 0000000..fb382b8
 +    n_batch: u32,
 +    n_seq_max: u32,
 +    n_vocab: usize,
++    /// mm26: device top-k armed at K (0 = off) - small decodes return
++    /// TopK rows, wide ones (prefill) fall back to Dense inside the shim
++    dev_topk: i32,
 +    slots: Mutex<Vec<i32>>,
 +    q: Mutex<DecodeQueue>,
 +    cv: Condvar,
@@ -988,12 +1065,16 @@ index 0000000..fb382b8
 +        // archs that cannot roll back recurrent state, so this is the truth
 +        // the guest must hear, not the env)
 +        let rewind_depth = unsafe { ell_rewind_depth(raw) };
++        // mm26: the K the shim actually armed (0 = ENCLAVE_GGML_DEV_TOPK
++        // unset, or the sampler graph was refused and the shim fell back)
++        let dev_topk = unsafe { ell_server_topk_k(raw) };
 +        Ok(Arc::new(GgmlServer {
 +            raw,
 +            model: model.clone(),
 +            n_batch,
 +            n_seq_max,
 +            n_vocab: model.n_vocab as usize,
++            dev_topk,
 +            slots: Mutex::new((0..n_seq_max as i32).collect()),
 +            q: Mutex::new(DecodeQueue {
 +                next_ticket: 0,
@@ -1022,7 +1103,7 @@ index 0000000..fb382b8
 +    /// continuous batching by natural queueing, no artificial delay window
 +    /// (requests that arrive while a batch is on the GPU merge into the
 +    /// next one).
-+    fn submit(&self, seq_id: i32, pos0: i32, tokens: Vec<i32>) -> Result<Vec<f32>, String> {
++    fn submit(&self, seq_id: i32, pos0: i32, tokens: Vec<i32>) -> Result<RowOut, String> {
 +        if tokens.is_empty() {
 +            return Err("empty token batch".into());
 +        }
@@ -1089,7 +1170,7 @@ index 0000000..fb382b8
 +    /// pool-full rc 1 with several items, fall back to per-item decodes so
 +    /// one over-long request cannot fail its batchmates (llama restores
 +    /// state on rc 1, so the retry is sound).
-+    fn decode_items(&self, items: &[PendingItem]) -> Vec<Result<Vec<f32>, String>> {
++    fn decode_items(&self, items: &[PendingItem]) -> Vec<Result<RowOut, String>> {
 +        match self.decode_raw(items) {
 +            Ok(rows) => rows.into_iter().map(Ok).collect(),
 +            Err(1) if items.len() > 1 => items
@@ -1120,7 +1201,7 @@ index 0000000..fb382b8
 +        pos0: i32,
 +        tokens: &[i32],
 +        mtp_for: Option<i32>,
-+    ) -> Result<Vec<f32>, String> {
++    ) -> Result<RowsOut, String> {
 +        if tokens.is_empty() {
 +            return Err("empty token batch".into());
 +        }
@@ -1154,12 +1235,24 @@ index 0000000..fb382b8
 +        }
 +        let ph_t1 = std::time::Instant::now();
 +        let mut logits = vec![0f32; tokens.len() * self.n_vocab];
++        let k_cap = self.dev_topk.max(0) as usize;
++        let mut tk_ids = if k_cap > 0 { vec![0i32; tokens.len() * k_cap] } else { Vec::new() };
++        let mut k_eff = 0usize;
 +        let ph_alloc = ph_t1.elapsed().as_micros() as i64;
 +        let ph_t2 = std::time::Instant::now();
 +        let rc = if harvest_err.is_none() {
-+            unsafe {
-+                ell_decode_seq_full(self.raw, self.model.raw, seq_id, pos0,
-+                                    tokens.as_ptr(), tokens.len() as i32, logits.as_mut_ptr())
++            if k_cap > 0 {
++                let r = unsafe {
++                    ell_decode_seq_topk(self.raw, self.model.raw, seq_id, pos0,
++                                        tokens.as_ptr(), tokens.len() as i32,
++                                        self.dev_topk, tk_ids.as_mut_ptr(), logits.as_mut_ptr())
++                };
++                if r > 0 { k_eff = r as usize; 0 } else { r }
++            } else {
++                unsafe {
++                    ell_decode_seq_full(self.raw, self.model.raw, seq_id, pos0,
++                                        tokens.as_ptr(), tokens.len() as i32, logits.as_mut_ptr())
++                }
 +            }
 +        } else {
 +            0
@@ -1207,7 +1300,17 @@ index 0000000..fb382b8
 +        if rc != 0 {
 +            return Err(decode_err(rc));
 +        }
-+        Ok(logits)
++        if k_eff > 0 {
++            let n = tokens.len();
++            let mut ids = Vec::with_capacity(n * k_eff);
++            let mut vals = Vec::with_capacity(n * k_eff);
++            for i in 0..n {
++                ids.extend_from_slice(&tk_ids[i * k_cap..i * k_cap + k_eff]);
++                vals.extend_from_slice(&logits[i * k_cap..i * k_cap + k_eff]);
++            }
++            return Ok(RowsOut::TopK { ids, vals, k: k_eff });
++        }
++        Ok(RowsOut::Dense(logits))
 +    }
 +
 +    /// The fused speculative round (mm25): observe + draft + verify in ONE
@@ -1240,7 +1343,7 @@ index 0000000..fb382b8
 +        p_min: f32,
 +        obs: Option<(i32, &[i32])>,
 +        pending: &[i32],
-+    ) -> Result<(Vec<i32>, Vec<f32>, i64), String> {
++    ) -> Result<(Vec<i32>, RowsOut, i64), String> {
 +        if pending.is_empty() {
 +            return Err("mtp_round needs at least one pending token".into());
 +        }
@@ -1306,11 +1409,23 @@ index 0000000..fb382b8
 +        ids.extend_from_slice(&drafts);
 +        let ph_t1 = std::time::Instant::now();
 +        let mut logits = vec![0f32; ids.len() * self.n_vocab];
++        let k_cap = self.dev_topk.max(0) as usize;
++        let mut tk_ids = if k_cap > 0 { vec![0i32; ids.len() * k_cap] } else { Vec::new() };
++        let mut k_eff = 0usize;
 +        let ph_alloc = ph_t1.elapsed().as_micros() as i64;
 +        let ph_t2 = std::time::Instant::now();
-+        let rc = unsafe {
-+            ell_decode_seq_full(self.raw, self.model.raw, seq_id, pos0,
-+                                ids.as_ptr(), ids.len() as i32, logits.as_mut_ptr())
++        let rc = if k_cap > 0 {
++            let r = unsafe {
++                ell_decode_seq_topk(self.raw, self.model.raw, seq_id, pos0,
++                                    ids.as_ptr(), ids.len() as i32,
++                                    self.dev_topk, tk_ids.as_mut_ptr(), logits.as_mut_ptr())
++            };
++            if r > 0 { k_eff = r as usize; 0 } else { r }
++        } else {
++            unsafe {
++                ell_decode_seq_full(self.raw, self.model.raw, seq_id, pos0,
++                                    ids.as_ptr(), ids.len() as i32, logits.as_mut_ptr())
++            }
 +        };
 +        let ph_decode = ph_t2.elapsed().as_micros() as i64;
 +        let mut gperf = [0i64; 8];
@@ -1344,7 +1459,17 @@ index 0000000..fb382b8
 +        if rc != 0 {
 +            return Err(decode_err(rc));
 +        }
-+        Ok((drafts, logits, ph_draft))
++        if k_eff > 0 {
++            let n = ids.len();
++            let mut tids = Vec::with_capacity(n * k_eff);
++            let mut tvals = Vec::with_capacity(n * k_eff);
++            for i in 0..n {
++                tids.extend_from_slice(&tk_ids[i * k_cap..i * k_cap + k_eff]);
++                tvals.extend_from_slice(&logits[i * k_cap..i * k_cap + k_eff]);
++            }
++            return Ok((drafts, RowsOut::TopK { ids: tids, vals: tvals, k: k_eff }, ph_draft));
++        }
++        Ok((drafts, RowsOut::Dense(logits), ph_draft))
 +    }
 +
 +    /// Create the MTP head context if it does not exist yet. Caller holds the
@@ -1557,13 +1682,48 @@ index 0000000..fb382b8
 +    }
 +
 +    /// The FFI call itself; Err carries the raw llama_decode rc.
-+    fn decode_raw(&self, items: &[PendingItem]) -> Result<Vec<Vec<f32>>, i32> {
++    fn decode_raw(&self, items: &[PendingItem]) -> Result<Vec<RowOut>, i32> {
 +        let n = items.len();
 +        let seq_ids: Vec<i32> = items.iter().map(|i| i.seq_id).collect();
 +        let counts: Vec<i32> = items.iter().map(|i| i.tokens.len() as i32).collect();
 +        let positions: Vec<i32> = items.iter().map(|i| i.pos0).collect();
 +        let flat: Vec<i32> = items.iter().flat_map(|i| i.tokens.iter().copied()).collect();
 +        let mut logits = vec![0f32; n * self.n_vocab];
++        if self.dev_topk > 0 {
++            let k_cap = self.dev_topk as usize;
++            let mut ids = vec![0i32; n * k_cap];
++            let rc = unsafe {
++                ell_decode_batch_topk(
++                    self.raw,
++                    self.model.raw,
++                    n as i32,
++                    seq_ids.as_ptr(),
++                    counts.as_ptr(),
++                    positions.as_ptr(),
++                    flat.as_ptr(),
++                    self.dev_topk,
++                    ids.as_mut_ptr(),
++                    logits.as_mut_ptr(),
++                )
++            };
++            if rc < 0 {
++                return Err(rc);
++            }
++            if rc > 0 {
++                let k = rc as usize;
++                return Ok((0..n)
++                    .map(|i| RowOut::TopK {
++                        ids: ids[i * k_cap..i * k_cap + k].to_vec(),
++                        vals: logits[i * k_cap..i * k_cap + k].to_vec(),
++                    })
++                    .collect());
++            }
++            // rc == 0: sampled path did not engage - full rows in `logits`
++            return Ok(logits
++                .chunks_exact(self.n_vocab)
++                .map(|c| RowOut::Dense(c.to_vec()))
++                .collect());
++        }
 +        let rc = unsafe {
 +            ell_decode_batch(
 +                self.raw,
@@ -1579,7 +1739,7 @@ index 0000000..fb382b8
 +        if rc != 0 {
 +            return Err(rc);
 +        }
-+        Ok(logits.chunks_exact(self.n_vocab).map(|c| c.to_vec()).collect())
++        Ok(logits.chunks_exact(self.n_vocab).map(|c| RowOut::Dense(c.to_vec())).collect())
 +    }
 +}
 +
@@ -1699,6 +1859,14 @@ index 0000000..fb382b8
 +            .submit(self.seq_id, self.n_past, tokens.to_vec())
 +            .map_err(err)?;
 +        self.n_past += tokens.len() as i32;
++        let RowOut::Dense(row) = row else {
++            // mm26: a dense-logits request on a device-top-k-armed engine -
++            // the full row never left the device. Deployments that arm
++            // nnDevTopk serve guests that always ask for "topk".
++            return Err(err(
++                "this engine is armed for device top-k (nnDevTopk); dense logits output is unavailable - request a topk input",
++            ));
++        };
 +        let mut data = Vec::with_capacity(row.len() * 4);
 +        for v in row {
 +            data.extend_from_slice(&v.to_le_bytes());
@@ -1937,6 +2105,9 @@ index 0000000..fb382b8
 +                        // fused speculative round: "mtp_round" runs
 +                        // observe + draft + verify in one call (mm25)
 +                        1,
++                        // device top-k: the K this engine is armed with
++                        // (mm26, nnDevTopk); 0 = host-side topk_rows
++                        self.server.dev_topk,
 +                    ];
 +                    let mut data = Vec::with_capacity(vals.len() * 4);
 +                    for v in vals {
@@ -2084,7 +2255,10 @@ index 0000000..fb382b8
 +                    self.n_past += n_rows as i32;
 +                    let ph = *self.server.last_phases.lock().unwrap();
 +                    let ph_t4 = std::time::Instant::now();
-+                    let (ti, tv) = topk_rows(&flat, n_rows, self.server.n_vocab, kv);
++                    let (ti, tv) = match &flat {
++                        RowsOut::Dense(flat) => topk_rows(flat, n_rows, self.server.n_vocab, kv),
++                        RowsOut::TopK { ids, vals, k } => topk_tensors(ids, vals, n_rows, *k, kv),
++                    };
 +                    let ph_topk = ph_t4.elapsed().as_micros() as i64;
 +                    let mut pdata = Vec::with_capacity(44);
 +                    for v in [ph[0], ph[1], ph[2], ph[3], ph[4], ph_topk,
@@ -2222,7 +2396,10 @@ index 0000000..fb382b8
 +                    let ph = *self.server.last_phases.lock().unwrap();
 +                    let ph_t4 = std::time::Instant::now();
 +                    if let Some(kv) = topk {
-+                        let (ti, tv) = topk_rows(&flat, ids.len(), self.server.n_vocab, kv);
++                        let (ti, tv) = match &flat {
++                            RowsOut::Dense(flat) => topk_rows(flat, ids.len(), self.server.n_vocab, kv),
++                            RowsOut::TopK { ids: ti, vals, k } => topk_tensors(ti, vals, ids.len(), *k, kv),
++                        };
 +                        let ph_topk = ph_t4.elapsed().as_micros() as i64;
 +                        let mut pdata = Vec::with_capacity(40);
 +                        for v in [ph[0], ph[1], ph[2], ph[3], ph[4], ph_topk, ph[5], ph[6], ph[7], ph[8]] {
@@ -2235,6 +2412,12 @@ index 0000000..fb382b8
 +                                          tensor: Tensor { dimensions: vec![10], ty: TensorType::I32, data: pdata } },
 +                        ]));
 +                    }
++                    let RowsOut::Dense(flat) = flat else {
++                        return Err(err(
++                            "this engine is armed for device top-k (nnDevTopk); dense \"logits\" \
++                             output is unavailable - request {\"topk\": K}",
++                        ));
++                    };
 +                    let mut data = Vec::with_capacity(flat.len() * 4);
 +                    for v in flat {
 +                        data.extend_from_slice(&v.to_le_bytes());
@@ -2260,14 +2443,29 @@ index 0000000..fb382b8
 +                        .map_err(err)?;
 +                    self.server.mtp_observe(self.seq_id, pos0, &ids).map_err(err)?;
 +                    self.n_past += ids.len() as i32;
-+                    let last = &flat[(ids.len() - 1) * self.server.n_vocab..];
 +                    if let Some(kv) = topk {
-+                        let (ti, tv) = topk_rows(last, 1, self.server.n_vocab, kv);
++                        let (ti, tv) = match &flat {
++                            RowsOut::Dense(flat) => {
++                                let last = &flat[(ids.len() - 1) * self.server.n_vocab..];
++                                topk_rows(last, 1, self.server.n_vocab, kv)
++                            }
++                            RowsOut::TopK { ids: ti, vals, k } => {
++                                let last = ids.len() - 1;
++                                topk_tensors(&ti[last * k..], &vals[last * k..], 1, *k, kv)
++                            }
++                        };
 +                        return Ok(Some(vec![
 +                            NamedTensor { name: "topk_ids".to_string(), tensor: ti },
 +                            NamedTensor { name: "topk_logits".to_string(), tensor: tv },
 +                        ]));
 +                    }
++                    let RowsOut::Dense(flat) = flat else {
++                        return Err(err(
++                            "this engine is armed for device top-k (nnDevTopk); dense \"logits\" \
++                             output is unavailable - request {\"topk\": K}",
++                        ));
++                    };
++                    let last = &flat[(ids.len() - 1) * self.server.n_vocab..];
 +                    let mut data = Vec::with_capacity(last.len() * 4);
 +                    for v in last {
 +                        data.extend_from_slice(&v.to_le_bytes());
@@ -2286,7 +2484,10 @@ index 0000000..fb382b8
 +                        .submit(self.seq_id, self.n_past, ids.to_vec())
 +                        .map_err(err)?;
 +                    self.n_past += ids.len() as i32;
-+                    let (ti, tv) = topk_rows(&row, 1, self.server.n_vocab, kv);
++                    let (ti, tv) = match &row {
++                        RowOut::Dense(row) => topk_rows(row, 1, self.server.n_vocab, kv),
++                        RowOut::TopK { ids, vals } => topk_tensors(ids, vals, 1, ids.len(), kv),
++                    };
 +                    return Ok(Some(vec![
 +                        NamedTensor { name: "topk_ids".to_string(), tensor: ti },
 +                        NamedTensor { name: "topk_logits".to_string(), tensor: tv },

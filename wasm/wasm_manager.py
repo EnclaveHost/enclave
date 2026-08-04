@@ -4115,6 +4115,22 @@ def _spawn_and_wait(rec, ctx):
         if mds is True:
             env = env if env is not None else dict(os.environ)
             env["ENCLAVE_MTP_DEV_SAMPLE"] = "1"
+        # Device top-k (`nnDevTopk: true|<K>` -> the serving context arms a
+        # [top_k(K)] backend sampler chain per sequence; small decodes then
+        # return top-K ids+logits computed ON DEVICE instead of extracting
+        # full 248K-vocab rows through the CC-forced-synchronous D2H and
+        # scanning them on vCPUs - ~2.5 ms of a k=1 speculative round.
+        # true = 256 (the app's HOST_TOPK). Prefill and wide batches keep
+        # the classic path inside llama. Inert on engines predating mm26.
+        try:
+            dtk = json.loads(enclave_config).get("nnDevTopk")
+        except (ValueError, AttributeError):
+            dtk = None
+        if dtk is True:
+            dtk = 256
+        if isinstance(dtk, int) and not isinstance(dtk, bool) and 16 <= dtk <= 4096:
+            env = env if env is not None else dict(os.environ)
+            env["ENCLAVE_GGML_DEV_TOPK"] = str(dtk)
     if egress_env:
         # SOCKS credential for transparent egress: wasmtime PROCESS env only
         # (guest-invisible — no -Sinherit-env,

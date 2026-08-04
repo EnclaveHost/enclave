@@ -152,6 +152,14 @@ jobs:
           git apply "$GITHUB_WORKSPACE/wasm/llamacpp-rs-pin-cells.patch"
           grep -q "rs_pin_cells" src/llama-memory-recurrent.cpp || { echo "::error::rs-pin patch did not apply"; exit 1; }
           grep -q "llama_graph_perf" include/llama.h || { echo "::error::graph-perf hunk did not apply"; exit 1; }
+          # mm26 device top-k rows: backend sampling per OUTPUT ROW (was one
+          # row per sequence), bounded by LLAMA_SAMPLER_MAX_ROWS (default 8:
+          # prefill keeps the raw-logits path); greedy chains stop copying
+          # the full-vocab row. Applies LAST - diffed against the patched
+          # tree. Kill switch: leave ENCLAVE_GGML_DEV_TOPK unset.
+          git apply "$GITHUB_WORKSPACE/wasm/llamacpp-topk-rows.patch"
+          grep -q "sampler_max_rows" src/llama-context.cpp || { echo "::error::topk-rows context hunk did not apply"; exit 1; }
+          grep -q "sampler_graph_max_rows" src/llama-graph.cpp || { echo "::error::topk-rows graph hunk did not apply"; exit 1; }
           # mm7 VERDICT (2026-08-02, canary with per-verb timing): shape-keyed
           # graph slots were retried (mm7 = mm4 + slot cap + kill-switch) after
           # topk sparse logits removed the sampling tax the mm5 revert blamed.
