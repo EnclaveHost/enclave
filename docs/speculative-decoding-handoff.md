@@ -314,13 +314,81 @@ verified rather than trusted.
 ### Target B — the batch-width cliff (10.57 ms, the real campaign)
 
 Going from a 1-token to a 2-token batch costs 10.57 ms; going from 2 to 5
-costs only 5.4 ms MORE. Nearly all of it is the transition itself. The
-working theory is still that batch-1 rides CUDA-graph replay and any wider
-batch does not (a 3070 shows a 1.1 ms step for the same transition, so it
-is not arithmetic). Verify this against `ENCLAVE_CG_TRACE` before building:
-if wide-batch verify passes ARE replaying, the theory is wrong and the
-10.57 ms is something else. This is the expensive one and the gate on
-every proposer idea.
+costs only 5.4 ms MORE. Nearly all of it is the transition itself.
+
+**DIAGNOSED — and it is NOT the graph-replay cliff I first proposed.** Two
+pieces of evidence kill that theory: (1) this document already proved
+wide-batch verify passes REPLAY on the fleet (`ENCLAVE_CG_TRACE`, 16
+replays / 1 capture), and (2) rs=0 vs rs=6 locally give identical graph
+reuse counts. Replay is intact; the cost is real compute.
+
+**Reproduced locally by capping SMs** — the fleet runs at a 25% MPS SM cap,
+so `CUDA_MPS_ACTIVE_THREAD_PERCENTAGE=25` on the 3070 (`smcap-test.sh`):
+
+| batch | uncapped | 25% SM cap |
+|---|---|---|
+| 1 | 16.9 ms | 47.57 |
+| 2 | ~19 (+2) | 56.68 (**+9.11**) |
+| 3 | 21.5 | 69.57 |
+| 5 | 26 | 92.67 |
+
+The first extra token costs ~2 ms uncapped and **9.11 ms at a 25% cap**,
+right next to the fleet's 10.57 ms. The cliff is SM starvation of the
+multi-token path. (Beyond batch-2 the shapes diverge — the fleet's marginal
+stays ~1.8 ms while a capped 3070 keeps paying ~12 ms/token — because an
+H200's 25% is far more absolute compute than a 3070's.)
+
+**The uncomfortable implication: the cliff is largely INHERENT, not a bug
+with a fix behind it.** llama has two delta-net kernels — fused
+`(autoregressive)` for single-token decode and `(chunked)` for multi-token
+— and the single-token one is specially fast. Looping it is WORSE than
+paying the cliff: on the fleet batch-2 costs 27.0 ms vs 2 x 15.4 = 30.8 ms
+looped, and batch-5 costs 32.4 ms vs 77 ms looped. So the chunked path is
+already the right choice and is doing its job; there is no wrong-kernel
+mistake to correct.
+
+**What this means strategically — and it INVERTS the small-k intuition.**
+Entry is expensive and width is cheap, so you want the WIDEST verify batch
+your proposer can fill accurately. k=4 is the lookup optimum only because
+lookup's per-position acceptance decays; a proposer that stayed accurate at
+depth would justify a wider batch and amortise the 10.6 ms much better.
+That is the actual shape of the remaining opportunity: **not removing the
+cliff, but filling wider batches with better proposals.** Every accurate-
+at-depth proposer tried so far (MTP head, trained heads) failed on
+proposal COST or ACCURACY, not on the cliff.
+
+### …and then: NOTHING CAN FILL THE WIDTH (tested, negative)
+
+Acting on the above, tried **anchor-conditional draft length** — grant extra
+draft tokens when the n-gram anchor that matched is LONGER, since anchor
+length is the evidence that the match will continue. Deliberately different
+from the hot-streak escalation that failed (that keyed on recent
+ACCEPTANCE; this keys on the evidence for THIS proposal). Implemented as a
+default-off `draft_anchor_bonus`, measured, and **REVERTED as a negative**:
+
+- On prose it is a NO-OP. Bonus 0/2/4 gave byte-identical 36 drafted / 17
+  accepted — free-form prose essentially only ever matches at 4-grams, so
+  the bonus condition never fires.
+- On quote-structured text it fires barely and slightly HURTS: 60.5 tok/s
+  flat vs 59.8 with bonus (48→50 drafted, 14→13 accepted).
+- **Re-tested in the RIGHT cost regime** (25% MPS SM cap locally, which
+  reproduces the fleet cliff — the uncapped machine charges ~3 ms/token for
+  width and has no cliff, so it penalises exactly what the fleet rewards):
+  plain 21.0, k=4 21.3, k=6 21.3, k=8 21.4. All noise.
+
+The decisive detail: **k=6 and k=8 drafted the IDENTICAL 54 tokens.** Asking
+for 8 gets you 5 when the history match only supplies 5. Lookup's
+continuations are short and its deep-position acceptance is low, so the
+width is free but there is nothing to put in it. Combined with the fleet's
+k=6 negative, `draft_tokens: 4` is confirmed optimal for lookup from both
+directions and for a now-understood reason.
+
+**This is the crux of the whole campaign:** the cost structure rewards wide
+verify batches, and NO available proposer can supply accurate width —
+lookup runs out of continuation, the MTP head costs a decode per token, and
+trained heads are only 36.8% accurate one step out. Any future work should
+be aimed squarely at *a proposer that is accurate 4+ tokens deep and costs
+no decodes*, because the verify side is already cheap enough to exploit one.
 
 ### Same-day follow-ups (also 2026-08-03, later)
 
