@@ -48,6 +48,87 @@ fold already merged accept into draft). Saving ~2–3 ms lands the round at
 patch collides — `git apply --reject`, hand-merge, regen) + llm-chat loop
 change, then the full toolchain cascade.
 
+## UPDATE 2026-08-04 (later): mm25 fused round BUILT — a WASH, and the
+## boundary theory is dead. Every millisecond of the round is now named.
+
+The fused verb shipped end-to-end same day: `mtp_round` in the bridge
+(NO shim change — it composes existing ELL exports; wasmtime image
+`80d0e6f4…`, release v0.5.380, attest ×2), llm-chat 0.35.6 drives it
+(`draft_fused: false` pins the two-call loop for A/B), and the local
+golden gate PASSED — fused vs two-call byte-identical at temp 0 on the 9b
+(sha cfa44366…, identical 83/74 acceptance, fused leg's verb profile is
+mtp_round + rewind alone). Fleet A/B (same window, 3 × 2 prompts, k=1+ds):
+
+| config | quote | prose | note |
+|---|---|---|---|
+| mtp1dsnf (two-call control) | 64.2 ± 1.4 | 63.1 ± 1.4 | draft/rd 5.7–5.8 ms |
+| mtp1fv (fused) | 63.3 ± 0.2 | 64.9 ± 0.4 | draft/rd 4.8–4.9 ms |
+| mtp1fvnt (fused + thinking off) | **66.4** ± 0.9 | 64.9 ± 0.9 | config-only |
+
+**Verdict: a WASH** (+1.8 prose / −0.9 quote, window noise ±1.4). The verb
+stays — default-on, no regression, cleaner instrument, and the draft side
+genuinely dropped 5.8 → 4.8 ms — but the projected 2–3 ms was NOT there.
+**The "~2.6 ms WIT/other" was never boundary cost**: elapsed_us on the two
+verbs already covered ~98% of the round. The two boundary crossings cost
+~0.5 ms combined. mm19 (fold), mm24 (devSample) and mm25 (fuse) all
+attacked the same boundary layer; the ledger reads fold +0, ds +6 (it was
+a real 2.3 ms D2H), fuse +0. THE BOUNDARY IS MINED OUT.
+
+**The complete fused-round budget** (phase_us, fleet, prose leg, per round;
+quote ~+0.9 on decode):
+
+| component | ms | bound by |
+|---|---|---|
+| verify decode (batch-2) | 21.3 | width cliff at 25% SM — physics |
+| head draft step | 4.8 | llama_decode CPU/launch floor (~1.7 ms sched CPU alone) |
+| host topk (2 × 248K rows, K=256) | 1.27 | SNP vCPU scan — reducible |
+| arbiter turn wait | 0.47 | socket round trip |
+| gate+alloc+harvest+gbuild+misc | ~0.35 | — |
+| guest sampling + WIT | ~0.6 | — |
+| **round** | **28.0–29.0** | 1.84–1.85 tokens → 63–65 tok/s |
+
+(The fused leg's reported decode looks ~0.7 ms higher than the control's —
+accounting, not regression: the control subtracts its in-window turn wait
+from the decode slot, the fused verb takes its turn before the observe and
+reports decode unsubtracted.)
+
+**Think-off (config-only) is worth ~+2–3 on quote-structured prompts**
+(66.4 vs 63.3 fused-think-on) and nothing on prose; acceptance shows the
+think block drafts no better than answer text, so the win is workload
+shape (shorter, denser generations), not drafting. It changes the product
+(no reasoning), so it is a per-deployment choice, not a default.
+
+### Where the remaining path to 70 actually is (arithmetic, 2026-08-04)
+
+Config-level levers are EXHAUSTED: k=2+ds is dead (batch-3 verify ~40 ms
+swamps everything), acceptance is capped ~92% even with the gate, and the
+floor stack — 16.4 batch-1-equivalent + ~4.9 cliff + 4.8 head step + ~2
+fixed — caps k=1 at ~66–68 on a 25% share even with a perfect boundary.
+Two engine levers carry real arithmetic, both llama-ext/ELL surgery:
+
+1. **Device top-k reporter (mm26 candidate, smaller).** A trunk-side
+   backend-sampler-style path that emits top-K ids+vals per verify row on
+   device, so llama skips the 2 × 248K logits extraction (the ~1.3 ms
+   copy inside the forced-sync out_get) AND the 1.27 ms host topk dies.
+   Net ≈ −2.3 ms → ~25.7 ms round ≈ **71–72 prose**. Reuses the exact
+   machinery mm24 proved for the head, but needs a new small-output path
+   in llama-ext (the sampler infra returns ONE token, not K rows).
+2. **Next-round draft inside the verify graph (bigger).** At k=1 the
+   round's serial tail is one head step; folding it into the verify
+   decode's CUDA graph — conditioned on the ARGMAX continuation, with a
+   fallback draft when the app's sample diverges — projects ~25 ms ≈
+   **~73**, degrading with argmax-hit-rate (unmeasured, est. 70–80% at
+   temp 0.6). Full fusion with a free head step projects ~80.
+
+Cheap-but-insufficient: threading the host topk across rows (~+1),
+K=256→64 (~+0.3), think-off (+2–3 quote only). Sum lands ~68 best case.
+
+Bench state: suspended (verified terminated), **$4.10** (~2.5 h) left,
+llm-chat-bench 0.35.6 deployed (fused default-on). Configs in-repo:
+cfg-mtp1ds (mm24 champion), cfg-mtp1dsnf / cfg-mtp1fv / cfg-mtp1fvnt.
+Morning-window champion stands: **mtp1ds 64.9 quote / 65.5 prose**; this
+(noisier) window's best MTP-with-thinking config is fused at 64.9 prose.
+
 ## UPDATE 2026-08-03: mm18 landed the no-branch verify — first real win
 
 The "next real idea" below (verify without a scratch branch) shipped as
