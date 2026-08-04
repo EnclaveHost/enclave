@@ -54,6 +54,12 @@ c-deployments{display:contents;}
 .term .info{color:var(--iris);}
 .term .dimln{color:var(--text-dim);}
 .term .logln{color:#B9C6D6;}
+/* an ACTION line: a real button in the stream (retry a failed payment), so a
+   story that went wrong offers its own way forward. Must follow .term .ln -
+   equal specificity, source order decides the display. */
+.term .ln-act{display:inline-block;width:auto;margin:3px 0;background:var(--jade-deep);border:1px solid var(--jade-dim);border-radius:8px;color:var(--jade);font-family:var(--font-mono);font-size:.78rem;line-height:1.5;padding:.4em .8em;min-height:28px;cursor:pointer;text-align:left;transition:.15s;}
+.term .ln-act:hover:not(:disabled){border-color:var(--jade);color:var(--jade-2);}
+.term .ln-act:disabled{opacity:.45;cursor:default;}
 
 /* the live-deploy strips: standalone cards while a run is streaming */
 .enc-lives{display:grid;gap:14px;grid-template-columns:minmax(0,1fr);}   /* same min-content escape as .enc-body */

@@ -45,16 +45,21 @@ function writerFor(run) {
     save();
     emit("enclave:runlog", { type: "id", run: run });
   };
-  const line = (cls, txt) => {
+  /* `act` (optional) turns the line into a CLICKABLE offer instead of prose -
+     a JSON-serializable descriptor like { kind:"fund", id, usd, asset } that
+     paintLine renders as a <button> and the painting component dispatches on.
+     It rides in the persisted tuple's third slot, so a retry offer survives a
+     reload the same way its narrative does. */
+  const line = (cls, txt, act) => {
     if (dead()) return;
-    run.lines.push([cls, txt]);
+    run.lines.push(act ? [cls, txt, act] : [cls, txt]);
     // name the run after its deployment id the moment one appears in the text.
     // bytes32 ids read exactly like tx hashes (and the "↳ sent 0x…" line comes
     // FIRST), so 0x…64 only counts right after "created"; the deploy flow also
     // names the run explicitly via setId().
     if (!run.id) { const m = /\b(dep_[a-z0-9]+)\b/.exec(txt) || /\bcreated (0x[0-9a-f]{64})\b/i.exec(txt); if (m) setId(m[1]); }
     save();
-    emit("enclave:runlog", { type: "line", run: run, cls: cls, txt: txt });
+    emit("enclave:runlog", { type: "line", run: run, cls: cls, txt: txt, act: act || null });
   };
   const end = () => {
     if (run.done) return;
@@ -117,9 +122,9 @@ export const runlog = {
   },
 
   /* legacy line sink (fund.js's default log): the newest live run, or a fresh one */
-  line(cls, txt) {
+  line(cls, txt, act) {
     const w = live.size ? writerFor([...live][live.size - 1]) : runlog.startRun();
-    w.line(cls, txt);
+    w.line(cls, txt, act);
   },
 };
 
@@ -127,11 +132,26 @@ export const runlog = {
    collapse into a (xN) counter, and the view follows the tail only when the
    reader is already at (or near) the bottom - never yank someone out of
    scrollback. `scroller` (optional) is the element that actually scrolls
-   when it isn't the container itself. */
-export function paintLine(container, cls, txt, scroller) {
+   when it isn't the container itself. `act` (optional, see writerFor) paints
+   the line as a real <button> carrying the descriptor in data-*: a story that
+   went wrong can offer its own way forward, right where the reader is looking. */
+export function paintLine(container, cls, txt, scroller, act) {
   if (!container) return;
   const sc = scroller || container;
   const follow = sc.scrollHeight - sc.scrollTop - sc.clientHeight < 48;
+  if (act) {
+    // never collapsed into a repeat counter, and never given .dataset.raw: two
+    // identical offers are two different offers, and a plain line that happens
+    // to read the same must not fold into a button
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "ln ln-act " + cls;
+    b.textContent = txt;
+    Object.keys(act).forEach(k => { if (act[k] != null) b.dataset[k] = String(act[k]); });
+    container.appendChild(b);
+    if (follow) sc.scrollTop = sc.scrollHeight;
+    return;
+  }
   const last = container.lastElementChild;
   if (last && last.dataset && last.dataset.raw === txt && last.className === "ln " + cls) {
     const n = parseInt(last.dataset.n || "1", 10) + 1;

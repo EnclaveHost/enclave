@@ -330,6 +330,20 @@ class Deployments extends EnclaveElement {
     });
     const q = this.querySelector(".enc-search");
     if (q) q.addEventListener("input", () => { this._q = q.value.trim().toLowerCase(); this._page = 0; this._renderRows(this._list || []); });
+    // run-log ACTION lines - today "[↻] Retry payment", painted into a run's
+    // narrative when a deploy's funding failed. ONE delegated handler for every
+    // painter: a live strip has no row to hang a listener on (an unfunded
+    // deployment has no row at all), and a row's Output panel is rebuilt on
+    // each open, so the click is caught at the component instead.
+    this.addEventListener("click", (e) => {
+      const b = e.target && e.target.closest && e.target.closest(".ln-act");
+      if (!b || b.disabled || !this.contains(b) || b.dataset.kind !== "fund") return;
+      b.disabled = true;          // an offer is spent once taken; a retry that fails paints a fresh one
+      const id = b.dataset.id;
+      import("../../js/pages/deploy.js")
+        .then(m => m.retryFunding(id, parseFloat(b.dataset.usd), b.dataset.asset, runlog.runFor(id)))
+        .catch(() => { b.disabled = false; });
+    });
     // document-level listeners must be removable: the soft-nav router mounts a
     // fresh instance per visit, and detached ones must not keep refreshing.
     // A sign-in mid-view (the lazy log/attestation unlock) must NOT clobber
@@ -398,7 +412,7 @@ class Deployments extends EnclaveElement {
     s.querySelector(".enc-live-lbl").textContent = run.id || run.label || "";
     s.querySelector(".enc-live-x").addEventListener("click", () => { this._strips.delete(run); s.remove(); });
     const out = s.querySelector(".enc-live-out");
-    run.lines.forEach(l => paintLine(out, l[0], l[1]));   // rejoined/resumed runs replay their history
+    run.lines.forEach(l => paintLine(out, l[0], l[1], null, l[2]));   // rejoined/resumed runs replay their history (l[2] = an action line's descriptor)
     wrap.appendChild(s);
     this._strips.set(run, s);
     return s;
@@ -420,9 +434,9 @@ class Deployments extends EnclaveElement {
     }
     else if (d.type === "line") {
       const s = this._strip(d.run, false);               // a dismissed strip stays dismissed
-      if (s) paintLine(s.querySelector(".enc-live-out"), d.cls, d.txt);
+      if (s) paintLine(s.querySelector(".enc-live-out"), d.cls, d.txt, null, d.act);
       // a row's open Output panel for this deployment follows the narrative too
-      if (d.run.id) { const nar = this._openNar(d.run.id); if (nar) paintLine(nar.box, d.cls, d.txt, nar.scroller); }
+      if (d.run.id) { const nar = this._openNar(d.run.id); if (nar) paintLine(nar.box, d.cls, d.txt, nar.scroller, d.act); }
     }
     else if (d.type === "end") this._retireStrip(d.run);
     else if (d.type === "clear") {                        // sign-out purged the run log
@@ -1616,7 +1630,7 @@ class Deployments extends EnclaveElement {
     const run = runlog.runFor(id);
     if (run) {
       paintLine(nar, "dimln", "// deploy narrative · " + run.label + " (recorded in this browser)", scroller);
-      run.lines.forEach(l => paintLine(nar, l[0], l[1], scroller));
+      run.lines.forEach(l => paintLine(nar, l[0], l[1], scroller, l[2]));
     }
     if (ctlOf(d) !== "wallet") this._noteLogs(box);
     else if (Enclave.authed()) this._startLogs(id, box);

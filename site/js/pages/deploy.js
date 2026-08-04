@@ -792,6 +792,7 @@ export async function deployOnChain(spec){
       const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
       w.line("warn", rejected ? "[x] funding rejected in wallet." : "[x] funding failed: " + (e.message || e));
       w.line("dimln", "    " + id + " exists on-chain but is unfunded (inert, costs nothing). Fund it any time - it starts once it has balance.");
+      offerRetry(w, id, fund, asset);
       return;
     }
 
@@ -809,6 +810,82 @@ export async function deployOnChain(spec){
   } finally {
     if (!detached && w) w.end();
     refreshWallet();
+  }
+}
+
+/* The one deploy failure the reader can still fix from where they are
+   standing: the record exists on-chain, it just has no balance. So the run log
+   carries the click that fixes it - a run-log ACTION line (js/core/runlog),
+   which <c-deployments> paints as a button and dispatches back into
+   retryFunding below. Everything needed to re-sign rides in the descriptor, so
+   the offer survives a reload exactly as the narrative around it does. */
+function offerRetry(w, id, usd, asset){
+  w.line("act", "[↻] Retry payment · " + (asset === "ETH" ? "≈ $" + usd + " of ETH" : "$" + usd + " USDC"),
+         { kind: "fund", id: id, usd: usd, asset: asset });
+}
+
+/* Pay for a deployment that was created but never funded. Picks its own run's
+   narrative back up (the deploy flow ended that writer when the funding
+   failed) and, once the money lands, continues into the SAME claim/status
+   watch the first attempt never reached - a retry finishes the story rather
+   than starting a second one. `run` is that recorded run; null (the history
+   was cleared) opens a fresh one named after the deployment. */
+export async function retryFunding(id, usd, asset, run){
+  if (!/^0x[0-9a-f]{64}$/i.test(id || "")) return;
+  usd = Number(usd) || 0;
+  asset = asset === "ETH" ? "ETH" : "USDC";
+  // a run something else is already writing (a resumed watch) is not ours to append to
+  let w = null;
+  if (run){
+    w = runlog.resume(run);
+    if (!w) return showToast("that deploy is already running - watch its log");
+  } else {
+    w = runlog.startRun(); w.setId(id);
+  }
+  let detached = false;
+  try {
+    if (!(usd > 0)){ w.line("warn", "[x] no amount recorded for this retry - use Top up on the deployment's row instead"); return; }
+    // the balance may have landed since: a tx the wallet reported as failed but
+    // that mined anyway, another tab, the dashboard's Top up. Read the LEDGER
+    // before asking for a second signature - a retry must never double-pay.
+    let d = null;
+    try { d = await depGet(id); } catch(e){}
+    if (d && d.rate > 0 && d.balance6 >= d.rate){
+      w.line("ok", "[✓] already funded - the ledger holds " + fmtDur(d.balance6 / d.rate) + " of runtime for it. Nothing was charged.");
+      watchClaimAndRun(id, d, w, "")
+        .catch(e => w.line("warn", "[x] " + (e.message || String(e))))
+        .finally(() => { w.end(); refreshWallet(); });
+      detached = true;
+      return;
+    }
+    if (d && !d.active){
+      w.line("warn", "[x] this deployment is suspended on the ledger - Resume it first (funding an inactive record reverts)");
+      return;
+    }
+    if (!Enclave.provider){
+      w.line("info", "[*] connecting wallet…");
+      await connectWallet();
+      w.line("ok", "[✓] wallet " + short(Enclave.address));
+    }
+    await ensureBaseChain();
+    w.line("info", "[*] retrying the payment for " + id + "…");
+    let pricing = null;
+    try { pricing = await (await fetch(Enclave.base + "/pricing", { signal: AbortSignal.timeout(8000) })).json(); } catch(e){}
+    await payForRuntime({
+      contract: DEPLOYMENTS_ADDRESS, deploymentRef: id,
+      usdcDomain: pricing && pricing.usdcDomain, usdc: (pricing && pricing.usdc) || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      ethUsd: pricing && pricing.ethUsd,
+    }, usd, asset, w.line);
+    watchClaimAndRun(id, null, w, "")
+      .catch(e => w.line("warn", "[x] " + (e.message || String(e))))
+      .finally(() => { w.end(); refreshWallet(); });
+    detached = true;
+  } catch(e){
+    const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
+    w.line("warn", rejected ? "[x] funding rejected in wallet." : "[x] funding failed: " + (e.message || e));
+    offerRetry(w, id, usd, asset);        // still created, still unfunded, still fixable
+  } finally {
+    if (!detached){ w.end(); refreshWallet(); }
   }
 }
 
@@ -957,6 +1034,10 @@ export async function resumeDeployWatch(run){
     if (!(d.balance6 > 0 || d.spent6 > 0)){
       w.line("warn", "[!] created, but no funding has landed on-chain - the reload likely hit before (or during) the funding step.");
       w.line("dimln", "    " + id + " sits inert (costs nothing). Fund it any time - enclaves claim it the moment it has balance.");
+      // a run that offered a retry before the reload offers it again: the
+      // amount and asset are in its own record, so the click still works
+      const prev = [...run.lines].reverse().map(l => l[2]).find(a => a && a.kind === "fund");
+      if (prev) offerRetry(w, id, prev.usd, prev.asset);
       return;
     }
     await watchClaimAndRun(id, d, w);
