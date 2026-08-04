@@ -279,6 +279,49 @@ Fleet-measured as throughput-NEUTRAL, so this is not a speed win — but at
 ~1.2 GB per depth unit on the 27b, **6 → 4 frees ~2.4 GB** of a 25% share
 for nothing lost, and depth 6 was never buying anything at k=4.
 
+### MTP RE-OPENED AND RE-CLOSED (2026-08-03, with the missing measurement)
+
+The MTP dossier below parked MTP on a bundle projection that rested on one
+untested premise it flagged itself: "+1.4 tokens/round **IF the 90% chain
+holds**". The 90% figure had only ever been verified at depth ≤ 2, because
+deeper drafts used to wedge; the `nnCtx` knob later unlocked depth 4 and
+nobody went back. Measured it (config-only, no build, 3 samples x 2
+prompts):
+
+| | quote | prose | verify decode | acceptance |
+|---|---|---|---|---|
+| mtp k=2 | 31.0 | 33.8 | ~47 ms | **~89%** (156/175, 153/176, …) |
+| mtp k=4 | **38.9** | 33.8 | ~52.6 ms | **76–85%** (181/214, 179/234, …) |
+
+**The chain HOLDS.** Acceptance decays gently to 76–85% at depth 4, not to
+the 50–60% that would have killed it outright, and depth 4 is worth **+25%
+on quote (31.0 → 38.9)** for a config change alone. That premise was sound.
+
+**But the same run kills the bundle on a different number.** MTP's verify
+decode at batch-5 is **52.6 ms against lookup's 32.4 ms at identical
+width** — a **+62% nextn premium**, not the +20% the dossier assumed. Round
+arithmetic from the measured frames:
+
+- k=4 today: 4.16 tok/round, 107 ms round = 52.6 verify + 54 draft-side,
+  i.e. **13.6 ms per head step** for a ONE-BLOCK head (pure launch / sync /
+  logits-D2H / 248K host argmax — not arithmetic).
+- Make head steps entirely FREE: 53 ms round → **79 tok/s**, which WOULD
+  beat lookup.
+- At the realistically achievable 2 ms/step (GPU argmax + fused round
+  verb): 61 ms → **68.6 tok/s**, a hair over lookup's 66.1.
+- At 5 ms/step: 57.3. At 10 ms/step: 44.9.
+
+So the entire bundle's value sits in a narrow band between "slightly beats
+lookup" and "loses", and it only reaches the top of that band if head steps
+collapse from 13.6 ms to ~2 ms — a 7x cut the dossier itself costed at only
+−4-6 ms (argmax) and −2-6 ms (fused verb), i.e. to ~8-10 ms, which lands at
+45-57 tok/s. **VERDICT UNCHANGED: MTP stays parked behind lookup-rs** — but
+now for a measured reason rather than an assumed one, and the binding
+constraint is named: it is the **+62% nextn verify premium**, not the
+acceptance chain and not the drafting overhead alone. Anyone revisiting MTP
+should attack the verify graph first; halving that premium is worth more
+than every drafting optimisation combined.
+
 ### ROUTE MAP: every proposer route and its status
 
 Speculation **already works on fable-fusion**: +5.9 tok/s prose and +0.4
