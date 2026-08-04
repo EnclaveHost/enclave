@@ -125,11 +125,41 @@ the other way on the fleet: **k=1 needs ~75%** (measured lookup acceptance
 is ~73%, i.e. right at the edge) while k=4 amortises the cliff over four
 proposals.
 
-**Why:** batch-1 decode is the CUDA-graph REPLAY path; any wider batch
-leaves it and pays a fixed re-entry cost that the CC/MPS stack makes
-large. The 3070 has no such cliff. So on this hardware, once you have paid
-to leave replay you should buy as MANY tokens as the acceptance supports —
-which is precisely what k=4 does.
+**Why (PROVISIONAL — the attribution is confounded, see below):** the
+working theory was that batch-1 decode is the CUDA-graph REPLAY path and
+any wider batch leaves it, paying a fixed re-entry cost the CC/MPS stack
+makes large. The 3070 has no such cliff. Either way the ORDERING above is
+a direct measurement and does not depend on the explanation.
+
+> **CONFOUND — found, then RESOLVED by measurement (same day).** The
+> ~11.6 ms figure differenced the verify decode against a plain leg that
+> ran with **no `nnRsSeq`** (no snapshots) while every lookup leg ran
+> `nnRsSeq: 6`, mixing batch width with snapshot-write cost. Settled with
+> one matched fleet leg — plain decode AT `nnRsSeq: 6`, paying the
+> snapshot cost while doing no drafting at all. Same instrument
+> throughout (`feed` vs `feed_all#decode`, medians of 6):
+>
+> | | ms/decode |
+> |---|---|
+> | plain, no snapshots | 15.64 |
+> | plain, `nnRsSeq: 6` | 16.41 |
+> | verify batch-2 | 26.99 |
+> | verify batch-3 | 29.30 |
+> | verify batch-5 | 32.41 |
+>
+> **Snapshot tax = 0.78 ms/decode. TRUE batch-width cliff = 10.57 ms.**
+> The cliff survives (it was 91% of the original figure), so the engine
+> target below is sound — but the 0.78 ms turns out to matter more than
+> its size suggests. See the next section.
+
+**Share-size caveat (2026-08-03, after `8cd7a8fd`):** every fleet number
+here is at a **25% GPU share** — that is what the bench deployment holds.
+The gpu-optional deploy fix means a freshly deployed llm-chat now buys the
+slice its version declares rather than a 0% floor, which can be a much
+larger share. A bigger slice makes batch-1 faster and rescales the whole
+tax/step ratio, so `draft_tokens: 4` is validated AT 25% and is not
+automatically optimal at a full card. Re-bench on the real deployment's
+share before treating the publish-checklist config as settled.
 
 **Net: the shipped `draft_tokens: 4` is CORRECT for the fleet and the
 "k=4 sweet spot" conclusion stands.** What was wrong was only its stated
@@ -177,7 +207,61 @@ waiting for upstream. Answered two ways, both negative for kryptos TODAY:
 
 **Conclusion: fix the replay cliff FIRST.** It is the common blocker for
 MTP, for trained heads, and for the quote workload. Every proposer idea
-downstream of it is gated on the same ~11.6 ms.
+downstream of it is gated on the same ~10.6 ms.
+
+## THE ENGINE CAMPAIGN: two targets, one of them cheap and mis-blamed
+
+Scoped 2026-08-03 from the matched measurement above. There are TWO costs,
+not one, and the small one has been getting blamed on speculation.
+
+### Target A — the snapshot tax (0.78 ms on EVERY decode, ~4.7%)
+
+Enabling `nnRsSeq` costs 0.78 ms per decode **whether or not that decode
+can ever be rewound**. Ordinary plain steps (n_tokens == 1) are never
+rewound — a rewind only ever walks back inside the verify batch that just
+ran — yet they pay it too, and lookup only engages on ~13–25% of rounds,
+so the great majority of decodes pay for nothing.
+
+**This re-explains the quote regression.** Read the same fleet window:
+
+| quote | tok/s |
+|---|---|
+| plain, no snapshots | 63.5 |
+| plain, `nnRsSeq: 6` | 60.1 |
+| lookup k=4, `nnRsSeq: 6` | 60.5 |
+
+Speculation is **+0.4 against its own matched baseline**. The entire −3.0
+"speculation loses on quote" result is the snapshot tax. Prose likewise:
+62.8 → 60.2 (tax) → 66.1, so drafting is worth **+5.9**, not +3.3.
+Everywhere in this document that speculation looks break-even, it is
+carrying a tax that belongs to the mechanism, not to the drafting.
+
+**The fix:** emit the recurrent-state snapshot copies only when
+`ubatch.n_tokens > 1`. Verify passes feed `[pending, d1..dm]` as one batch
+so they keep full rollback; plain steps stop paying. Upstream llama owns
+this (`llama-memory-recurrent.cpp`, `s_copy`/`rs_idx`, buffer sized
+`mem_size * (1 + n_rs_seq)`), so it is a new patch in the
+`llamacpp-*.patch` chain, not a shim change. Expected: recover ~0.78 ms on
+~80% of decodes ≈ **+4%**, and quote goes from −3.0 to ≈ +0.4.
+NOT YET IMPLEMENTED — scoped and measured only.
+
+Config corollary available TODAY, no build: `nnRsSeq` should be the
+MINIMUM that covers k (4 for k=4, not the 6 the bench deployment carried).
+The per-decode write looks fixed-cost rather than proportional to depth
+(local rs=0/1/2/4/6 all sit within 0.6 ms), so extra depth mostly buys
+VRAM pressure — ~1.2 GB per unit on the 27b, i.e. **6 → 4 frees ~2.4 GB**
+of a 25% share for nothing lost.
+
+### Target B — the batch-width cliff (10.57 ms, the real campaign)
+
+Going from a 1-token to a 2-token batch costs 10.57 ms; going from 2 to 5
+costs only 5.4 ms MORE. Nearly all of it is the transition itself. The
+working theory is still that batch-1 rides CUDA-graph replay and any wider
+batch does not (a 3070 shows a 1.1 ms step for the same transition, so it
+is not arithmetic). Verify this against `ENCLAVE_CG_TRACE` before building:
+if wide-batch verify passes ARE replaying, the theory is wrong and the
+10.57 ms is something else. This is the expensive one and the gate on
+every proposer idea.
 
 ### Same-day follow-ups (also 2026-08-03, later)
 
