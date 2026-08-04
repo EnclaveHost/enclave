@@ -29,7 +29,7 @@ globalThis.localStorage = {
   removeItem(k){ this._m.delete(k); },
 };
 
-const { runlog, paintLine } = await import("../site/js/core/runlog.js");
+const { runlog, paintLine, retryOfferOf } = await import("../site/js/core/runlog.js");
 const ACT = { kind: "fund", id: "0x" + "d6".repeat(32), usd: 5, asset: "USDC" };
 
 test("an action line keeps its descriptor in the run, the event and localStorage", async () => {
@@ -86,6 +86,48 @@ test("plain lines are unchanged: same span, same repeat collapse", () => {
   assert.equal(box.children[0].textContent, "[*] waiting…  (x2)");
 });
 
+/* --- the offer a run RECORDED BEFORE any of this still implies --- */
+const runOf = (...lines) => ({ id: ACT.id, lines });
+const FAILED = [
+  ["info", "[*] sign a 5.00 USDC payment authorization (EIP-3009)… (wallet · gas-free signature)"],
+  ["info", "[*] pay 5.00 USDC · buys runtime… (wallet · one tx, no approve)"],
+  ["warn", "[x] funding rejected in wallet."],
+  ["dimln", "    " + ACT.id + " exists on-chain but is unfunded (inert, costs nothing)."],
+];
+
+test("an old narrative that ends in a funding failure still yields an offer", () => {
+  assert.deepEqual(retryOfferOf(runOf(...FAILED), ACT.id), { kind: "fund", id: ACT.id, usd: "5.00", asset: "USDC" });
+  // "funding failed: <reason>" is the other half of that branch
+  const other = [...FAILED.slice(0, 2), ["warn", "[x] funding failed: insufficient funds"]];
+  assert.equal(retryOfferOf(runOf(...other), ACT.id).usd, "5.00");
+});
+
+test("a run that already carries a descriptor is not offered twice", () => {
+  assert.equal(retryOfferOf(runOf(...FAILED, ["act", "[↻] Retry payment · $5 USDC", ACT]), ACT.id), null,
+    "the replay paints the stored offer - synthesizing a second one would double it");
+});
+
+test("a run that never failed at funding is offered nothing", () => {
+  assert.equal(retryOfferOf(runOf(["ok", "[✓] created " + ACT.id], ["ok", "[✓] payment sent 0xabc"]), ACT.id), null);
+  assert.equal(retryOfferOf(null, ACT.id), null);
+  assert.equal(retryOfferOf({ lines: [] }, ACT.id), null);
+});
+
+test("an unrecoverable amount yields an offer with no sum, never a guessed one", () => {
+  const eth = runOf(["info", "[*] fundEth ≈ 0.0021 ETH (≈ $5.00 @ $2380.00/ETH)… (wallet · one tx)"],
+                    ["warn", "[x] funding rejected in wallet."]);
+  const o = retryOfferOf(eth, ACT.id);
+  assert.equal(o.usd, "", "an ETH run states no USDC sum - the button must ask instead of signing a guess");
+});
+
+test("the offer is gated on the ledger, not on the story alone", () => {
+  const src = fs.readFileSync(path.join(REPO, "site/components/deployments/deployments.js"), "utf8");
+  assert.match(src, /const offer = retryOfferOf\(run, id\);\s*\n\s*if \(offer && \["awaiting_payment", "unfunded"\]\.indexOf\(d && d\.status\) !== -1\)/,
+    "a deployment funded since its failed run must not be asked to pay twice");
+  // …and with no amount to sign, the click hands off to Top up, which asks
+  assert.match(src, /if \(!\(usd > 0\)\) \{[\s\S]{0,200}?enc-fundbtn\[data-id="/);
+});
+
 test("a failed deploy funding offers the retry, and retryFunding is exported for it", () => {
   const src = fs.readFileSync(path.join(REPO, "site/js/pages/deploy.js"), "utf8");
   assert.match(src, /w\.line\("warn", rejected \? "\[x\] funding rejected in wallet\."[\s\S]{0,400}?offerRetry\(w, id, fund, asset\)/,
@@ -106,7 +148,7 @@ test("<c-deployments> passes the descriptor through every run-line painter", () 
   assert.match(src, /paintLine\(nar\.box, d\.cls, d\.txt, nar\.scroller, d\.act\)/);
   // and the click reaches the retry
   assert.match(src, /closest\("\.ln-act"\)/);
-  assert.match(src, /m\.retryFunding\(id, parseFloat\(b\.dataset\.usd\), b\.dataset\.asset, runlog\.runFor\(id\)\)/);
+  assert.match(src, /m\.retryFunding\(id, usd, b\.dataset\.asset, runlog\.runFor\(id\)\)/);
 });
 
 test("the action button is styled, and after .term .ln so its display wins", () => {
