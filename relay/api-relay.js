@@ -1056,6 +1056,8 @@ function aggregateAvailability() {
                                ramFreeMb: c.ramFreeMb, sharePoolFree: c.sharePoolFree,
                                ...(c.ramNnResidentMb ? { ramNnResidentMb: c.ramNnResidentMb } : {}) } : {}),
     ...(c && c.instanceSweep ? { instanceSweep: c.instanceSweep } : {}),
+    ...(c && c.tenantVouch ? { tenantVouch: c.tenantVouch } : {}),
+    ...(c && c.tenantLease ? { tenantLease: c.tenantLease } : {}),
     // deployment-options capability (per-IP rate limit / WAF): true only when
     // EVERY live enclave enforces the envelope — any runner may claim any
     // deployment, so a mixed fleet would strand protected deploys on old

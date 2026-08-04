@@ -1810,6 +1810,66 @@ async function listBackendInstances() {
   return r.status === 200 && Array.isArray(r.body && r.body.tenants) ? r.body.tenants : null;
 }
 
+// ---- the heartbeat half: vouch for what we still own ------------------------
+// The sweep above is a PUSH - we decide a tenant should die and send a DELETE -
+// so it fails open on every link: a lost DELETE, an unreachable manager, a
+// supervisor that crashes between stopping and releasing. That is how the same
+// tenant stranded twice. The manager therefore runs a dead-man lease and we
+// hold the switch: name the tenants we still own, every pass, and anything we
+// stop naming the manager reaps on its own. We never have to successfully
+// instruct a teardown - we only have to stop vouching, which is also exactly
+// what a crashed supervisor does for free.
+//
+// WHICH records vouch is the whole safety question. Non-terminal is necessary
+// but not sufficient: a record the chain no longer backs would otherwise be
+// vouched for forever, which is the one shape the sweep also cannot catch (it
+// sees an owned instance). On a box that claims on-chain work, an OFF-LEDGER
+// record vouches for nothing - there is no such thing as legitimate off-ledger
+// tenancy here. AUTO_PROVISION is the deliberate exception: a pilot/manual
+// box has no chain to appeal to, so local records are the only truth it has.
+//   Note what is deliberately NOT required: a live on-chain lease read. The
+// audit already keeps serving through an unreadable ledger ("the lease is
+// prepaid"), and making the heartbeat hostage to RPC availability would let an
+// RPC outage reap paid, running work. Chain-BACKED is the test, not chain-live.
+function vouchesForLease(rec) {
+  if (TERMINAL_STATUSES.has(rec.status)) return false;
+  return rec._onchain ? true : AUTO_PROVISION === true;
+}
+// VOUCH_SELFTEST='{"records":[{"id":"0xabc","status":"running","_onchain":true},…]}'
+// prints the ids that would be vouched for as one JSON line and exits - same
+// contract as the seams above (test/tenant-lease.test.mjs drives it).
+if (process.env.VOUCH_SELFTEST) {
+  const c = JSON.parse(process.env.VOUCH_SELFTEST);
+  console.log(JSON.stringify((c.records || []).filter(vouchesForLease).map((r) => String(r.id))));
+  process.exit(0);
+}
+let _lastVouch = { at: null, ok: null, vouched: 0, reason: "not yet run" };
+async function vouchTenants() {
+  if (PROVISION_BACKEND !== "vm") return;   // worker backend has no lease route
+  if (/^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) return;
+  const ids = [...deployments.values()].filter(vouchesForLease).map((r) => String(r.id));
+  try {
+    const r = await vmReq("POST", "/vms/lease", { ids }, 15_000);
+    const ok = r.status === 200;
+    _lastVouch = { at: new Date().toISOString(), ok, vouched: ids.length,
+                   reason: ok ? "ok" : `HTTP ${r.status}`,
+                   ...(Array.isArray(r.body && r.body.unvouched) && r.body.unvouched.length
+                       ? { unvouched: r.body.unvouched } : {}) };
+    if (ok && r.body && r.body.unvouched && r.body.unvouched.length) {
+      console.warn(`[lease] ${r.body.unvouched.length} tenant(s) we do not own are running on the `
+                 + `backend and will be reaped when their lease lapses: `
+                 + r.body.unvouched.map((u) => `${u.id} (${u.expiresIn}s)`).join(", "));
+    }
+  } catch (e) {
+    // A failed heartbeat is SAFE by construction: the manager only enforces
+    // while it is hearing from us, so silence suspends the lease rather than
+    // triggering it. Recorded because a heartbeat that never lands means the
+    // dead-man switch is not actually armed, which must be visible.
+    _lastVouch = { at: new Date().toISOString(), ok: false, vouched: ids.length, reason: e.message };
+    console.warn(`[lease] heartbeat failed (${e.message}) - the manager suspends enforcement while silent`);
+  }
+}
+
 // Last pass's outcome, surfaced on /availability. A reconciler with no way to
 // report itself is one you can only debug with shell access to the box: the
 // 2026-08-03 recurrence cost hours precisely because "the sweep ran and found
@@ -1821,6 +1881,11 @@ function instanceSweepStatus() { return { ..._instanceSweep }; }
 async function reconcileInstances() {
   if (/^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) return [];
   const stamp = (o) => { _instanceSweep = { at: new Date().toISOString(), ...o }; };
+  // Vouch FIRST, and unconditionally. The heartbeat is what keeps legitimate
+  // tenants alive, so it must never be skipped by an early return below - a
+  // listing failure that also suppressed vouching would turn one unreadable
+  // GET into every tenant on the box lapsing.
+  await vouchTenants();
   let instances;
   try {
     instances = await listBackendInstances();
@@ -3041,7 +3106,11 @@ app.get("/availability", async (_req, res) => {
     // below tell you capacity is missing but never WHY, and the sweep that is
     // supposed to reclaim it had no voice at all: a box leaking a tenant and a
     // box with nothing to reclaim were indistinguishable from outside.
-    const sweep = { instanceSweep: instanceSweepStatus() };
+    // ...and the dead-man switch's own state, both halves: whether we are still
+    // vouching (ours) and whether the manager considers the lease armed and
+    // enforcing (its). A switch nobody can see is a switch nobody knows is off.
+    const sweep = { instanceSweep: instanceSweepStatus(), tenantVouch: { ..._lastVouch },
+                    ...(c.tenantLease ? { tenantLease: c.tenantLease } : {}) };
     // RAM-reservation ledger passthrough (vm backend with accounting on): the
     // binding constraint behind cpuShareFree when it is tighter than the share
     // pool - lets consumers show/gate on exact MB headroom, not just the folded
