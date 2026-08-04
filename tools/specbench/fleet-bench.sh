@@ -86,7 +86,7 @@ for cfg in os.environ.get('CFGS','plain lk4 lk4rs').split():
             if not raw: continue
             d=json.loads(raw); v=d.get('verb_us',{}) or {}
             tps.append(d.get('tok_per_s',0))
-            e=v.get('feed_all#decode') or v.get('feed_all_mtp#decode')
+            e=v.get('feed_all#decode') or v.get('feed_all_mtp#decode') or v.get('mtp_round#decode')
             if e: dec.append(e['us']/1000/max(e['n'],1))
             if d.get('draft_tokens'): acc.append(f"{d.get('draft_accepted',0)}/{d.get('draft_tokens',0)}")
         if tps:
