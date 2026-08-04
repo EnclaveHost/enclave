@@ -306,25 +306,42 @@ at batch-3. So MTP's economics are the mirror image of lookup's: lookup
 amortises a big entry cost over width, MTP must stay narrow. Every previous
 MTP verdict was measured in the regime where MTP is worst.
 
-**The k=1 round decomposes as 32.5 ms for 1.92 tokens** = verify 20.7 +
-~11.8 overhead (one head step ~6.6 ms + `mtp_accept` ~8.9 ms + WIT). The
-frames still show a separate `mtp_accept` call, i.e. the running engine
-reports no `mtp_fold` capability even though the repo pins mm23 — so
-**mm19's observe-fold, which deletes that call, is built but not reaching
-this deployment.** Projected from the measured decomposition:
+**The k=1 round decomposes as 32.5 ms for 1.92 tokens.** Per-round costs
+from the frames (dividing each verb's total by the ROUND count, not by its
+own call count — the trap below):
+
+| component | per round |
+|---|---|
+| verify (`feed_all_mtp#decode`) | 20.7 ms |
+| `mtp_draft` (one head step) | **7.61 ms** |
+| `mtp_accept` | 0.17 ms |
+| WIT / sampling / remainder | ~4 ms |
+
+**Observe-fold is ALREADY ACTIVE — do not "fix" it.** I first read
+`mtp_accept`'s 8.9 ms per-CALL average as a per-round cost and concluded
+mm19's fold was not reaching the fleet. Wrong: at k=1 there are 138 rounds
+but only ~13 `mtp_accept` calls (it still fires on think-close flushes and
+empty-draft recovery), so it costs **0.17 ms per round**. `caps[7]` is
+hardcoded to 1 in the bridge and the fleet runs the mm23 pin. Fold works.
+
+So the remaining fat at k=1 is the **7.61 ms draft call for a SINGLE head
+step** — a one-block head that should be well under a millisecond of GPU
+work. It is WIT round trip + `llama_decode` on the head context + a 248K
+host-side argmax. That is what GPU-side argmax and a fused round verb
+actually attack:
 
 | | round | tok/s |
 |---|---|---|
 | today | 32.5 ms | 59.0 |
-| + observe-fold (removes mtp_accept) | 23.6 ms | **81.2** |
-| + 2 ms head step (GPU argmax / fused verb) | 22.7 ms | 84.6 |
-| + free head step | 21.2 ms | 90.6 |
+| head step 6.8 → 2 ms | 27.7 ms | 69.3 |
+| draft folded into the verify call (no extra WIT) | ~24 ms | **80** |
+| free head step | 21.2 ms | 90.6 |
 
-**Observe-fold ALONE projects MTP past plain (62) and past lookup (66) —
-at k=1.** That is the first credible route to MTP beating lookup-rs on this
-hardware, and the code for it already exists. Verify the engine actually
-lacks caps[7] before building anything; then the k=1 + fold combination is
-the experiment worth running.
+**At k=1 the bundle projects 69–80 tok/s, above lookup's 66.1.** That is the
+first credible route to MTP beating lookup-rs on this hardware — and unlike
+the k=2/k=4 projections it does not need the nextn verify premium solved at
+all, because at batch-2 there IS no premium (MTP verify 20.7 vs lookup's
+27.0).
 
 ### MTP RE-OPENED AND RE-CLOSED (2026-08-03, with the missing measurement)
 
