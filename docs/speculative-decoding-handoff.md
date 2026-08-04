@@ -311,6 +311,21 @@ arithmetic from the measured frames:
   verb): 61 ms → **68.6 tok/s**, a hair over lookup's 66.1.
 - At 5 ms/step: 57.3. At 10 ms/step: 44.9.
 
+**Where the premium is NOT** (measured, do not re-run): the verify verb
+reports per-phase, and at k=4 lookup vs mtp reads decode 34.63 → **52.87**,
+harvest 0.00 → **0.03**, topk 2.81 → 1.81, gbuild 0.16 → 0.62. The whole
+premium is inside the DECODE. Harvesting the nextn hidden rows is free, so
+it is not hidden-state transfer. And it is NOT batch-shape churn defeating
+CUDA replay either — the obvious suspect, since `draft_p_min: 0.4`
+truncates drafts to variable lengths: forcing constant full-k drafts with
+`p_min: 0` left the verify decode at 48–62 ms (unchanged) and cost 5.8
+tok/s on prose, because acceptance falls 75% → 57% when low-confidence
+proposals are pushed into the batch. **`draft_p_min: 0.4` is confirmed
+correct at k=4**; the gate earns its keep. The premium's cause is still
+UNIDENTIFIED — candidates left are the resident head context's VRAM/MPS
+pressure on the main context, and the `feed_all_mtp` engine path itself
+doing something the plain `feed_all` path does not.
+
 So the entire bundle's value sits in a narrow band between "slightly beats
 lookup" and "loses", and it only reaches the top of that band if head steps
 collapse from 13.6 ms to ~2 ms — a 7x cut the dossier itself costed at only
