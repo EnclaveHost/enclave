@@ -152,6 +152,17 @@
 # the "gperf" verb [build, alloc, input, slot, mem-init, compute-call,
 # output] - fed by ell_graph_perf2 after every leader decode. Names the
 # CPU-orchestration-bound ~15 ms/token (mm20 proved sync waits are 0.18).
+#
+# 2026-08-04 fused round (mm25): the "mtp_round" verb runs a WHOLE
+# rewind-commit speculative round in one call - the optional mtp_obs
+# observe, the head's k-draft chain, and the all-positions verify of
+# [pending.., drafts..] with rows harvested for the calling sequence.
+# Output "draft" + "topk_ids"/"topk_logits" + "phase_us" I32 [11]
+# ([10] = the draft chain). caps[10] advertises it. One boundary
+# crossing instead of two per round; the arbiter layer narrows two
+# grants to one on top. The observe runs BEFORE any decode, so its
+# failure ([mtp_obs_failed]) leaves the harvest rows intact and the
+# guest recovers exactly like the standalone path.
 diff --git a/Cargo.lock b/Cargo.lock
 index 6ffaac1..3c68c51 100644
 --- a/Cargo.lock
@@ -214,10 +225,10 @@ index b2db808..af89d10 100644
  
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
 new file mode 100644
-index 0000000..2035f8d
+index 0000000..fb382b8
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,1862 @@
+@@ -0,0 +1,2083 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -1199,6 +1210,143 @@ index 0000000..2035f8d
 +        Ok(logits)
 +    }
 +
++    /// The fused speculative round (mm25): observe + draft + verify in ONE
++    /// call under ONE decode turn. Today's rewind-commit MTP round pays two
++    /// guest round trips (mtp_draft, then the all-positions verify) and two
++    /// arbiter grants; at k=1 that boundary is ~2-3 ms of a ~28 ms round.
++    /// The host has everything it needs to run the sequence itself: the
++    /// folded observe mirrors the last round's accepted tokens into the
++    /// head, the head drafts (device-sampled when armed), and the trunk
++    /// verifies [pending.., drafts..] with rows harvested for this same
++    /// sequence - which is also the one ORDERING that keeps the deferred
++    /// observe correct (it must land before this pass overwrites the
++    /// harvest rows it pairs with).
++    ///
++    /// The observe runs EXPLICITLY (not folded into the draft) so its
++    /// failure is visible BEFORE the trunk decode overwrites the harvest
++    /// rows: on [mtp_obs_failed] nothing has been decoded and the guest
++    /// recovers exactly like the standalone path (explicit mtp_accept
++    /// against the still-intact rows, then retry without the fold). A
++    /// failed or empty DRAFT is not an error: the verify runs on the
++    /// pending tokens alone and the round degrades to a plain step.
++    ///
++    /// Returns (drafts, flat logits rows, draft_us).
++    fn mtp_round(
++        &self,
++        seq_id: i32,
++        id_last: i32,
++        pos0: i32,
++        k: i32,
++        p_min: f32,
++        obs: Option<(i32, &[i32])>,
++        pending: &[i32],
++    ) -> Result<(Vec<i32>, Vec<f32>, i64), String> {
++        if pending.is_empty() {
++            return Err("mtp_round needs at least one pending token".into());
++        }
++        if pending.len() + k.max(0) as usize > self.n_batch as usize {
++            return Err(format!(
++                "mtp_round of {} pending + k {} exceeds n_batch {}",
++                pending.len(),
++                k,
++                self.n_batch
++            ));
++        }
++        let ph_t0 = std::time::Instant::now();
++        let mut q = self.q.lock().unwrap();
++        while q.decoding {
++            q = self.cv.wait(q).unwrap();
++        }
++        q.decoding = true;
++        drop(q);
++        let ph_gate = ph_t0.elapsed().as_micros() as i64;
++        self.last_phases.lock().unwrap()[2] = 0; // turn; the arbiter layer times it
++        let unlock = |slf: &Self| {
++            let mut q = slf.q.lock().unwrap();
++            q.decoding = false;
++            slf.cv.notify_all();
++        };
++        if let Err(e) = self.ensure_mtp() {
++            unlock(self);
++            return Err(e);
++        }
++        // -- observe (visible failure, rows still intact on error)
++        let ph_td = std::time::Instant::now();
++        if let Some((op, ot)) = obs {
++            let mtp = self.mtp.lock().unwrap();
++            let h = mtp.as_ref().unwrap(); // ensure_mtp above
++            let rc = unsafe { ell_mtp_observe(h.0, seq_id, op, ot.as_ptr(), ot.len() as i32) };
++            if rc != 0 {
++                drop(mtp);
++                unlock(self);
++                return Err(format!(
++                    "[mtp_obs_failed] fused observe failed (rc {rc}; harvested rows stale?)"
++                ));
++            }
++        }
++        // -- draft (0..=k tokens; empty is a plain-step round, not an error).
++        //    Drafts continue AFTER the pending tokens: the head already holds
++        //    every committed token (the observe above mirrored this round's),
++        //    and the last pending token is the draft seed exactly as in the
++        //    standalone verb.
++        let mut drafts = vec![0i32; k.max(0) as usize];
++        let n = {
++            let mtp = self.mtp.lock().unwrap();
++            let h = mtp.as_ref().unwrap();
++            unsafe {
++                ell_mtp_draft2(h.0, seq_id, id_last, pos0, k, p_min,
++                               drafts.as_mut_ptr(), 0, std::ptr::null(), 0)
++            }
++        };
++        drafts.truncate(n.max(0) as usize);
++        let ph_draft = ph_td.elapsed().as_micros() as i64;
++        // -- verify [pending.., drafts..] on this sequence, harvest for it
++        let mut ids: Vec<i32> = Vec::with_capacity(pending.len() + drafts.len());
++        ids.extend_from_slice(pending);
++        ids.extend_from_slice(&drafts);
++        let ph_t1 = std::time::Instant::now();
++        let mut logits = vec![0f32; ids.len() * self.n_vocab];
++        let ph_alloc = ph_t1.elapsed().as_micros() as i64;
++        let ph_t2 = std::time::Instant::now();
++        let rc = unsafe {
++            ell_decode_seq_full(self.raw, self.model.raw, seq_id, pos0,
++                                ids.as_ptr(), ids.len() as i32, logits.as_mut_ptr())
++        };
++        let ph_decode = ph_t2.elapsed().as_micros() as i64;
++        let mut gperf = [0i64; 8];
++        unsafe { ell_graph_perf2(self.raw, gperf.as_mut_ptr()); }
++        {
++            let mut tot = self.gperf_total.lock().unwrap();
++            for (t, g) in tot.iter_mut().zip(gperf.iter()) {
++                if *g > 0 { *t += *g; } // slot_state passes through untouched
++            }
++        }
++        {
++            let mut ph = self.last_phases.lock().unwrap();
++            ph[0] = ph_gate;
++            ph[1] = ph_alloc;
++            ph[3] = ph_decode - ph[2];
++            ph[4] = 0;
++            ph[5] = gperf[0];
++            ph[6] = gperf[1];
++            ph[7] = gperf[2];
++            ph[8] = gperf[3];
++        }
++        if rc == 0 {
++            let ph_t3 = std::time::Instant::now();
++            let mtp = self.mtp.lock().unwrap();
++            if let Some(h) = mtp.as_ref() {
++                unsafe { ell_mtp_harvest(h.0, self.raw, seq_id, ids.len() as i32) };
++            }
++            self.last_phases.lock().unwrap()[4] = ph_t3.elapsed().as_micros() as i64;
++        }
++        unlock(self);
++        if rc != 0 {
++            return Err(decode_err(rc));
++        }
++        Ok((drafts, logits, ph_draft))
++    }
++
 +    /// Create the MTP head context if it does not exist yet. Caller holds the
 +    /// decode turn (creation flips the target's nextn-output flag).
 +    fn ensure_mtp(&self) -> Result<(), String> {
@@ -1786,6 +1934,9 @@ index 0000000..2035f8d
 +                        // guests report per-generation DELTAS (mm20)
 +                        if sync[0] >= 0 { (sync[0] / 1000) as i32 } else { -1 },
 +                        if sync[1] >= 0 { (sync[1] & 0x7fff_ffff) as i32 } else { -1 },
++                        // fused speculative round: "mtp_round" runs
++                        // observe + draft + verify in one call (mm25)
++                        1,
 +                    ];
 +                    let mut data = Vec::with_capacity(vals.len() * 4);
 +                    for v in vals {
@@ -1877,6 +2028,87 @@ index 0000000..2035f8d
 +                    self.server.rewind(self.seq_id, n_keep).map_err(err)?;
 +                    self.n_past = n_keep;
 +                    return Ok(Some(vec![]));
++                }
++                // control verb {"mtp_round": I32 [3] = [id_last, k, p_min_milli]}
++                // beside {"tokens": [pending...]} and {"topk": [K]} (mm25,
++                // caps[10]): the WHOLE speculative round in one call - the
++                // optional {"mtp_obs"} observe, the head's k-draft chain, and
++                // the all-positions verify of [pending.., drafts..] with rows
++                // harvested for THIS sequence (rewind-commit mode only).
++                // Outputs "draft" I32 [m] + "topk_ids"/"topk_logits" over
++                // pending+m rows + "phase_us" I32 [11] ([..10] as the verify
++                // verb, [10] = the draft chain). One boundary crossing and
++                // one arbiter grant instead of two - at k=1 that is ~2-3 ms
++                // of a ~28 ms round. [mtp_obs_failed] = the folded observe
++                // failed BEFORE any decode: recover exactly like the
++                // standalone path (explicit mtp_accept, then retry unfolded).
++                if let Some(mr) = inputs.iter().find(|nt| nt.name == "mtp_round") {
++                    let v = tokens_from_tensor(&mr.tensor)?;
++                    let (id_last, k, pmm) = match v.as_slice() {
++                        [i, k, p] => (*i, *k, *p),
++                        _ => return Err(err("mtp_round needs [id_last, k, p_min_milli]")),
++                    };
++                    let k = k.clamp(1, 16);
++                    let p_min = (pmm.clamp(0, 1000) as f32) / 1000.0;
++                    let obs_v;
++                    let obs = match inputs.iter().find(|nt| nt.name == "mtp_obs") {
++                        Some(mo) => {
++                            obs_v = tokens_from_tensor(&mo.tensor)?;
++                            match obs_v.split_first() {
++                                Some((p, rest)) if !rest.is_empty() && *p >= 0 => {
++                                    Some((*p, rest))
++                                }
++                                _ => return Err(err("mtp_obs needs [pos0>=0, tokens...]")),
++                            }
++                        }
++                        None => None,
++                    };
++                    let pending = inputs
++                        .iter()
++                        .find(|nt| nt.name == "tokens")
++                        .ok_or_else(|| err("mtp_round needs a \"tokens\" input"))?;
++                    let pending = tokens_from_tensor(&pending.tensor)?;
++                    let kv = inputs
++                        .iter()
++                        .find(|nt| nt.name == "topk")
++                        .map(|nt| tokens_from_tensor(&nt.tensor))
++                        .transpose()?
++                        .and_then(|v| v.first().copied())
++                        .map(|kv| kv.clamp(16, 1024) as usize)
++                        .ok_or_else(|| err("mtp_round needs a \"topk\" input"))?;
++                    let (drafts, flat, draft_us) = self
++                        .server
++                        .mtp_round(self.seq_id, id_last, self.n_past, k, p_min, obs, &pending)
++                        .map_err(err)?;
++                    let n_rows = pending.len() + drafts.len();
++                    self.n_past += n_rows as i32;
++                    let ph = *self.server.last_phases.lock().unwrap();
++                    let ph_t4 = std::time::Instant::now();
++                    let (ti, tv) = topk_rows(&flat, n_rows, self.server.n_vocab, kv);
++                    let ph_topk = ph_t4.elapsed().as_micros() as i64;
++                    let mut pdata = Vec::with_capacity(44);
++                    for v in [ph[0], ph[1], ph[2], ph[3], ph[4], ph_topk,
++                              ph[5], ph[6], ph[7], ph[8], draft_us] {
++                        pdata.extend_from_slice(&(v.clamp(0, i32::MAX as i64) as i32).to_le_bytes());
++                    }
++                    let mut ddata = Vec::with_capacity(drafts.len() * 4);
++                    for t in &drafts {
++                        ddata.extend_from_slice(&t.to_le_bytes());
++                    }
++                    return Ok(Some(vec![
++                        NamedTensor {
++                            name: "draft".to_string(),
++                            tensor: Tensor {
++                                dimensions: vec![drafts.len() as u32],
++                                ty: TensorType::I32,
++                                data: ddata,
++                            },
++                        },
++                        NamedTensor { name: "topk_ids".to_string(), tensor: ti },
++                        NamedTensor { name: "topk_logits".to_string(), tensor: tv },
++                        NamedTensor { name: "phase_us".to_string(),
++                                      tensor: Tensor { dimensions: vec![11], ty: TensorType::I32, data: pdata } },
++                    ]));
 +                }
 +                // control verb {"mtp_draft": I32 [3] = [id_last, k, p_min_milli]}:
 +                // the model's own MTP head proposes up to k tokens continuing

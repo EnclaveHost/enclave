@@ -48,6 +48,13 @@
 # 2026-08-03 (mm19 observe-fold interop): the mtp_draft turn now covers the
 # folded observe + draft chain in one grant - pre-fold these were two
 # separate arbiter grants per speculative round.
+#
+# 2026-08-04 (mm25 fused-round interop): ONE turn covers the entire
+# "mtp_round" verb - head observe, k-step draft chain, and the trunk
+# verify decode - where the standalone verbs pay two grants per
+# speculative round. The turn is taken before the observe (outside the
+# verify-decode phase window), so the fused verb's decode slot reports
+# ph_decode unsubtracted; ph[2] still reports the wait itself.
 diff --git a/crates/wasi-nn/src/arbiter.rs b/crates/wasi-nn/src/arbiter.rs
 new file mode 100644
 index 0000000..d8ccfc3
@@ -374,7 +381,7 @@ index 0000000..d8ccfc3
 +    }
 +}
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
-index 2035f8d..198d146 100644
+index fb382b8..50d562f 100644
 --- a/crates/wasi-nn/src/backend/ggml.rs
 +++ b/crates/wasi-nn/src/backend/ggml.rs
 @@ -833,7 +833,13 @@ impl GgmlServer {
@@ -410,7 +417,43 @@ index 2035f8d..198d146 100644
          let mut q = self.q.lock().unwrap();
          q.decoding = false;
          self.cv.notify_all();
-@@ -1031,6 +1041,9 @@ impl GgmlServer {
+@@ -1039,6 +1049,15 @@ impl GgmlServer {
+             unlock(self);
+             return Err(e);
+         }
++        // ONE grant covers the whole fused round - the head observe, the
++        // k-step draft chain, AND the trunk verify. The standalone verbs pay
++        // one grant each (two per speculative round); halving that boundary
++        // is half of what this verb exists for. Taken BEFORE the observe, so
++        // ph[2] here is a pre-decode wait (the decode slot below does not
++        // subtract it).
++        let ph_turn_t = std::time::Instant::now();
++        let _turn = crate::arbiter::turn(self.model.gpu);
++        self.last_phases.lock().unwrap()[2] = ph_turn_t.elapsed().as_micros() as i64;
+         // -- observe (visible failure, rows still intact on error)
+         let ph_td = std::time::Instant::now();
+         if let Some((op, ot)) = obs {
+@@ -1094,7 +1113,10 @@ impl GgmlServer {
+             let mut ph = self.last_phases.lock().unwrap();
+             ph[0] = ph_gate;
+             ph[1] = ph_alloc;
+-            ph[3] = ph_decode - ph[2];
++            // the fused round's turn is acquired BEFORE the observe, outside
++            // the decode window - no subtraction (cf. submit_full, where the
++            // wait lands inside it)
++            ph[3] = ph_decode;
+             ph[4] = 0;
+             ph[5] = gperf[0];
+             ph[6] = gperf[1];
+@@ -1109,6 +1131,7 @@ impl GgmlServer {
+             }
+             self.last_phases.lock().unwrap()[4] = ph_t3.elapsed().as_micros() as i64;
+         }
++        drop(_turn);
+         unlock(self);
+         if rc != 0 {
+             return Err(decode_err(rc));
+@@ -1168,6 +1191,9 @@ impl GgmlServer {
          let outcome = match self.ensure_mtmd() {
              Err(e) => Err(e),
              Ok(handle) => {
@@ -420,7 +463,7 @@ index 2035f8d..198d146 100644
                  let rc = unsafe {
                      (syms.eval_image)(
                          handle,
-@@ -1110,6 +1123,7 @@ impl GgmlServer {
+@@ -1247,6 +1273,7 @@ impl GgmlServer {
      fn mtp_observe(&self, seq: i32, pos0: i32, tokens: &[i32]) -> Result<(), String> {
          let mtp = self.mtp.lock().unwrap();
          let h = mtp.as_ref().ok_or("[mtp_unavailable] no MTP state (harvest first)")?;
@@ -428,7 +471,7 @@ index 2035f8d..198d146 100644
          let rc = unsafe {
              ell_mtp_observe(h.0, seq, pos0, tokens.as_ptr(), tokens.len() as i32)
          };
-@@ -1136,6 +1150,9 @@ impl GgmlServer {
+@@ -1273,6 +1300,9 @@ impl GgmlServer {
              Some((p, t)) => (p, t.as_ptr(), t.len() as i32),
              None => (0, std::ptr::null(), 0),
          };
