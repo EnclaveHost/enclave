@@ -3,6 +3,51 @@
 Written 2026-08-03 after a ~12-hour campaign (engine builds mm7 → mm17).
 Everything below is measured on the live fleet unless marked otherwise.
 
+## UPDATE 2026-08-04: mm24 on-device draft sampling — +6 tok/s, 65.5 prose
+
+The 621056e1 shim change (backend greedy sampler chains on the head context,
+`nnMtpDevSample: true` → `ENCLAVE_MTP_DEV_SAMPLE=1`, skips the 248K logits
+D2H on draft steps) shipped as **mm24** (ELL `ccbe78af…b726`, wasmtime image
+`36f1a7be…1706`, release v0.5.378, attest PASS ×2). Fleet A/B, same window,
+3 samples × 2 prompts, k=1 (`cfg-mtp1rs1` vs `cfg-mtp1ds`):
+
+| config | quote | prose | vdec | mtp_draft/round | acceptance |
+|---|---|---|---|---|---|
+| mtp k=1 rs1 (control) | 58.7 ± 0.7 | 59.6 ± 0.6 | ~20.6 ms | 7.65–7.72 ms | ~91% |
+| **mtp k=1 rs1 + devSample** | **64.9 ± 0.4** | **65.5 ± 0.5** | ~20.3 ms | **5.31–5.48 ms** | ~84–86% |
+
+Notes, all from the per-ROUND decomposition (verb total ÷ `feed_all_mtp` n):
+
+- The D2H death delivered **−2.3 ms/round** of the ~2.9 projected locally.
+  `mtp_accept` calls dropped to ZERO in ds mode (the fold covers everything
+  once sampling is on-device).
+- The control leg came in 2–3 below its recorded 62.0/60.4 — slower window
+  (contention); the **in-window +6.2/+5.9 delta is the trustworthy number**.
+- The suppressed p_min gate cost ~6 points of acceptance and ~nothing net:
+  tokens/round is 1.84 (gated) vs 1.85 (ungated) — at k=1 the gate only
+  converts "draft and fail" into "don't draft", worth ~4 ms on the ~9% of
+  rounds it fires. Confirmed harmless, as predicted.
+- **Round is now ~28.3 ms for ~1.85 tokens**: verify 20.3 + draft 5.4 +
+  ~2.6 WIT/sampling/other. 70 tok/s needs ≤26.5 ms.
+
+**Two levers closed by arithmetic, no bench needed:**
+
+- **k=2 + devSample is DEAD**: batch-3 MTP verify is 40.8 ms; even the 89%
+  chain gives ~2.7 tokens / ~54 ms ≈ 50 tok/s. The width penalty returns
+  regardless of how cheap drafting gets. Do not test.
+- **Thinking-off cannot reach 70 by itself**: tok/s = (1+a)/round with
+  a ≤ 1 caps at 70.7 at the current round cost. It stays a diagnostic
+  (prompt-limited vs think-block-limited acceptance) to fold into the next
+  bench window as a third config.
+
+**The remaining lever is the fused round verb** (draft + verify + accept in
+ONE WIT call: today a round pays 2 WIT trips + 2 arbiter grants — the mm19
+fold already merged accept into draft). Saving ~2–3 ms lands the round at
+~25.3–26.3 ms ≈ **70–73 tok/s**. That campaign is next: mm25 shim entry +
+`wasm/wasmtime-nn-ggml.patch` bridge verb (wt8 worktree flow; the arbiter
+patch collides — `git apply --reject`, hand-merge, regen) + llm-chat loop
+change, then the full toolchain cascade.
+
 ## UPDATE 2026-08-03: mm18 landed the no-branch verify — first real win
 
 The "next real idea" below (verify without a scratch branch) shipped as
