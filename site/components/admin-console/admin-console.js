@@ -23,8 +23,7 @@ import { ADDRESS_BOOK_ADDRESS, USDC_BASE, DEFAULT_API_BASE } from "../../js/core
 import { esc, on, short, showToast } from "../../js/core/util.js";
 import { CONTRACTS } from "../../js/gen/contract-artifacts.js";
 import { MIG_KINDS, importState, sealTx, encCallX, escrowPlan, approveTx, refundSweepPlan } from "./migrate.js";
-import { vaultImplCurrent, scanVaults, planVaultMigration, oldTreasury, balanceOf6,
-         signRefund, vaultTreasury } from "./vaultmig.js";
+import { vaultImplCurrent, scanVaults, planVaultMigration, oldTreasury, balanceOf6 } from "./vaultmig.js";
 import { metricsPanel, paintMetrics, paintHistory, loadMetrics, redrawPlots } from "./metrics.js";
 
 const EXPLORER = "https://basescan.org";
@@ -490,15 +489,6 @@ class AdminConsole extends EnclaveElement {
         </section>`);
       }
 
-      /* stranded vaults: emptying one predates migrateToSuccessor and so needs
-         a passkey - the operator's own, for vaults they hold the key to */
-      parts.push(`<section class="ac-panel"><h3>Stranded vault recovery</h3>
-        <p class="ac-sub">A vault left behind by a factory migration keeps its balance until something moves it. Vaults minted by a factory that carries <code>migrateToSuccessor</code> are handled by the migration flow itself. Older ones can only be emptied by their own passkey, and only toward that vault's immutable <code>treasury</code> - so this signs <code>refundToTreasury</code> with a passkey <em>you</em> hold and submits it from the connected wallet. The relay is not involved and no endpoint accepts a vault address; a passkey that did not create the vault is caught here rather than as a reverted transaction. Money you fronted during a migration comes back this way.</p>
-        <div class="ac-mig-ctl"><input class="ac-in" id="vltRecFactory" aria-label="Superseded factory address" placeholder="superseded factory 0x…" value="${esc(saved.oldFactory || (wedged ? S.vlt.addr : ""))}" spellcheck="false" autocomplete="off" /></div>
-        <div class="ac-mig-actions"><button class="btn btn-sm" data-act="vlt-rec-scan">Scan for stranded balances</button></div>
-        <div id="vltRecList"></div>
-        <div class="ac-mig-log" id="vltRecLog" role="log" aria-label="Stranded vault recovery log" hidden></div>
-      </section>`);
     }
 
     /* -- migrate -- */
@@ -696,25 +686,6 @@ class AdminConsole extends EnclaveElement {
     if (old && V && V.oldFactory) old.value = V.oldFactory;
     const run = this._body.querySelector('[data-act="vlt-run"]');
     if (run && V && V.scan) run.disabled = false;
-    this._paintVltRec();
-  }
-
-  /* the stranded-vault list: one row per vault that still holds credit, each
-     recoverable only with the passkey that created it */
-  _paintVltRec() {
-    const host = this._body && this._body.querySelector("#vltRecList");
-    if (!host) return;
-    const R = this._vltRec;
-    if (!R) { host.innerHTML = ""; return; }
-    const rows = R.funded.filter((v) => v.balance6 > 0n);
-    host.innerHTML = rows.length
-      ? rows.map((v) => `<div class="ac-row"><div class="ac-lbl">${esc(short(v.vault))}
-          <span class="ac-hint">$${(Number(v.balance6) / 1e6).toFixed(2)} stranded${v.keyLost ? " · passkey NOT recoverable" : ""}</span></div>
-          <div class="ac-cur">${v.keyLost ? '<span class="warn">no operator path</span>' : "signs with the passkey that created it"}</div>
-          <span></span>
-          <button class="btn btn-sm" data-act="vlt-rec:${esc(v.vault)}"${v.keyLost ? " disabled" : ""}>Sign + recover</button>
-          <span></span></div>`).join("")
-      : `<p class="ac-sub dim">nothing stranded - every scanned vault is empty.</p>`;
   }
 
   /* cross-session resume state: survives a browser restart between the
@@ -960,52 +931,6 @@ class AdminConsole extends EnclaveElement {
         } finally { btn.disabled = false; }
         return;
       }
-      /* stranded-vault recovery: one passkey tap per vault, submitted here */
-      if (act === "vlt-rec-scan" || act.startsWith("vlt-rec:")) {
-        const log = (cls, txt) => this._logTo("vltRecLog", cls, txt);
-        const usd = (v6) => "$" + (Number(v6) / 1e6).toFixed(2);
-        btn.disabled = true;
-        try {
-          if (act === "vlt-rec-scan") {
-            const f = val("vltRecFactory");
-            if (!need(ADDR_RE.test(f), "enter the superseded factory's address")) return;
-            log("p", `scanning ${f} for vaults that still hold credit…`);
-            const scan = await scanVaults(f, (t) => log("p", "  " + t));
-            const funded = scan.vaults.filter((v) => v.balance6 > 0n);
-            this._vltRec = { factory: f, funded };
-            this._paintVltRec();
-            log(funded.length ? "ok" : "p", funded.length
-              ? `${funded.length} vault${funded.length === 1 ? "" : "s"} holding ${usd(funded.reduce((a, v) => a + v.balance6, 0n))} - recover each with the passkey that created it`
-              : "nothing stranded here - every vault this factory minted is empty");
-            return;
-          }
-          /* vlt-rec:<vault> */
-          const addr = act.slice(8);
-          const R = this._vltRec, v = R && R.funded.find((f) => lc(f.vault) === lc(addr));
-          if (!need(v, "re-scan first")) return;
-          if (!need(!v.keyLost, "this vault's passkey can't be recovered from its creation tx - it has no operator path")) return;
-          await this._connect();
-          // live re-read: a balance that moved since the scan would make the
-          // signed amount wrong, and the signature commits to the amount
-          const bal6 = await balanceOf6(v.vault);
-          if (!need(bal6 > 0n, "this vault is already empty - re-scan")) return;
-          const treasury = await vaultTreasury(v.vault);
-          log("p", `${v.vault}: signing a ${usd(bal6)} refund to ${treasury || "its treasury"} - tap the passkey that created it…`);
-          const deadline = Math.floor(Date.now() / 1000) + 900;
-          const { data } = await signRefund(v.vault, v.x, v.y, bal6, deadline);
-          log("p", "  signed ✓ - confirm the transaction in your wallet…");
-          const h = await sendTx(v.vault, data);
-          log("p", `  sent ${h.slice(0, 14)}… waiting…`);
-          await waitReceipt(h, 90);
-          log("ok", `  recovered ${usd(bal6)} from ${v.vault} ✓`);
-          v.balance6 = 0n;
-          this._paintVltRec();
-        } catch (err) {
-          log("err", friendly(err));
-        } finally { btn.disabled = false; }
-        return;
-      }
-
       /* credit-vault factory migration (scan → one run that deploys/repoints/
          re-mints/fronts whatever live chain state still needs) */
       if (act === "vlt-scan" || act === "vlt-run") {

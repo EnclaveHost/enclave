@@ -7,14 +7,18 @@
    ledger revision that reshapes create() (rev 8 grew maxRate6)
    strands every existing vault: the relay encodes the live shape,
    the baked allowlist rejects it, and every credit deploy reverts
-   "not create()" (production, 2026-08-03). Vault USDC only moves
-   on customer passkey signatures, so the recovery is NOT a data
-   migration: deploy a current factory, repoint the book, re-mint
-   each customer's vault from the SAME passkey (the P-256 pubkey
-   is replayed from the old factory's createVault calldata - same
-   key, same owner, new CREATE2 address), and front each old
-   balance from the operator wallet. The stranded originals repay
-   the treasury whenever their customers next sign a refund.
+   "not create()" (production, 2026-08-03). Recovery is NOT a data
+   migration: deploy a current factory, repoint the book, and
+   re-mint each customer's vault from the SAME passkey (the P-256
+   pubkey is replayed from the old factory's createVault calldata -
+   same key, same owner, new CREATE2 address).
+
+   Moving the BALANCE across depends on what minted the old vault.
+   Vaults from a factory carrying migrateToSuccessor forward their
+   own credit to the successor - no company money, no customer tap.
+   Older ones cannot: their only outflow is passkey-signed, so the
+   plan fronts the balance from the operator wallet and the
+   stranded original is settled out of band.
 
    The skew probe doubles as a standing alarm: DEP_SEL.create is
    viem-derived from the ledger source at site build time, so the
@@ -26,11 +30,9 @@
    send tx plans; the component drives the wallet and paints
    progress (the migrate.js division of labor).
    ============================================================ */
-import { baseRpc, encCall, encUint, encStr, pad32, hexBig, DEP_SEL } from "../../js/core/chain.js";
-import { USDC_BASE, BASE_CHAIN } from "../../js/core/config.js";
+import { baseRpc, encCall, encUint, pad32, hexBig, DEP_SEL } from "../../js/core/chain.js";
+import { USDC_BASE } from "../../js/core/config.js";
 import { CONTRACTS } from "../../js/gen/contract-artifacts.js";
-import { opDigest } from "../../js/core/vault.js";
-import { hexToBytes } from "../../js/core/keccak.js";
 
 const FAC = CONTRACTS.EnclaveCreditVaultFactory;
 // USDC + vault-impl selectors, hand-pinned like chain.js's DEP_SEL (the
@@ -162,128 +164,11 @@ export async function planVaultMigration(vaults, newFactory, operator) {
   return { steps, front6, self6, skipped };
 }
 
-/* ---- stranded-vault recovery: one passkey tap, submitted by the operator ----
-
-   A vault minted before migrateToSuccessor existed can only be emptied by its
-   own passkey, and refundToTreasury is the only call that pays the company. So
-   this is the manual path: recompute the op digest (the SAME opDigest the
-   customer-facing flow uses - pinned to the contract's abi.encode in
-   test/vault-digest.test.mjs), take one WebAuthn assertion over it, and submit
-   the signed op from the governance wallet. The relay is not involved at all:
-   the contract verifies the signature and does not care who sends it, so this
-   needs no endpoint that accepts an arbitrary vault address.
-
-   Note the destination is NOT ours to choose - refundToTreasury pays the
-   vault's own immutable treasury. This tool can only move a stranded balance
-   to where that vault always could. */
-
-export const VAULT_SEL = {
-  nonce: "affed0e0", treasury: "61d027b3",
-  refundToTreasury: "20bd3667",   // (uint256,uint256,(bytes,string,uint256,uint256,uint256,uint256))
-  migrateToSuccessor: "17857979", rootKeyHash: "1d3ca5b9", recoveryAdmin: "5f6529a3",
-};
-
-export const readNonce = async (vault) => hexBig(await call(vault, "0x" + VAULT_SEL.nonce));
-
-/* ABI-encode refundToTreasury(uint256,uint256,(bytes,string,uint256,uint256,uint256,uint256)).
-   Hand-rolled because the console's codec has no dynamic-tuple branch, and
-   pinned against viem in test/admin-console.test.mjs - a struct this side got
-   subtly wrong is a reverted transaction over real money. */
-export function encodeRefundCall(amount6, deadline, sig) {
-  const authBody = (() => { const h = sig.authenticatorData.replace(/^0x/, "").toLowerCase();
-    return encUint(h.length / 2) + h.padEnd(Math.ceil(h.length / 64) * 64, "0"); })();
-  const cdjBody = encStr(sig.clientDataJSON).body;
-  // the tuple's own head: two offsets (relative to the TUPLE start) then r,s,x,y
-  const tupleHead = encUint(6 * 32) + encUint(6 * 32 + authBody.length / 2)
-    + encUint(sig.r) + encUint(sig.s) + encUint(sig.x) + encUint(sig.y);
-  const tuple = tupleHead + authBody + cdjBody;
-  // outer: amount6, deadline, offset-to-tuple (dynamic, so it goes in a tail)
-  return "0x" + VAULT_SEL.refundToTreasury
-    + encUint(amount6) + encUint(deadline) + encUint(3 * 32) + tuple;
-}
-
-/* DER ECDSA -> {r, s} (mirrors relay/vaultsvc.js derToRS; the precompile takes
-   raw values and any s, so no low-s normalization). */
-export function derToRS(der) {
-  let i = 2;                                   // SEQUENCE header (sigs are ~70 bytes)
-  const readInt = () => {
-    if (der[i++] !== 0x02) throw new Error("bad DER signature");
-    const len = der[i++]; let v = der.subarray(i, i + len); i += len;
-    while (v.length > 32 && v[0] === 0) v = v.subarray(1);
-    if (v.length > 32) throw new Error("bad DER integer");
-    let h = ""; for (const b of v) h += b.toString(16).padStart(2, "0");
-    return BigInt("0x" + h);
-  };
-  const r = readInt(), s = readInt();
-  return { r, s };
-}
-
-const b64uToBytes = (s) => {
-  const b = atob(String(s).replace(/-/g, "+").replace(/_/g, "/"));
-  const out = new Uint8Array(b.length);
-  for (let i = 0; i < b.length; i++) out[i] = b.charCodeAt(i);
-  return out;
-};
-const b64uFromBytes = (bytes) => {
-  let s = ""; for (const b of bytes) s += String.fromCharCode(b);
-  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-};
-
-/* Did THIS passkey sign it? The vault checks keccak(x,y) against its registered
-   keys on-chain, so a wrong authenticator is a reverted transaction; verifying
-   the same thing here with WebCrypto turns that into "you picked the wrong
-   passkey, try the other one" before any gas is spent. */
-async function signedByExpectedKey(sig, message) {
-  try {
-    const hx = (n) => n.toString(16).padStart(64, "0");
-    const key = await crypto.subtle.importKey("jwk", {
-      kty: "EC", crv: "P-256",
-      x: b64uFromBytes(hexToBytes(hx(sig.x))), y: b64uFromBytes(hexToBytes(hx(sig.y))),
-    }, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
-    const raw = new Uint8Array(64);
-    raw.set(hexToBytes(hx(sig.r)), 0); raw.set(hexToBytes(hx(sig.s)), 32);
-    return await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, raw, message);
-  } catch { return true; }    // no WebCrypto answer is not evidence of a bad key
-}
-
-/* One passkey tap over a stranded vault's refund digest. Returns the calldata
-   for the caller to submit from whatever wallet it likes. */
-export async function signRefund(vault, x, y, amount6, deadlineSec) {
-  const nonce = await readNonce(vault);
-  const digest = opDigest("refund", { vault, chainId: BASE_CHAIN, nonce, amount6, deadline: deadlineSec });
-  const { startAuthentication } = await import("/vendor/webauthn.js");
-  // no allowCredentials: the credential id was never recorded operator-side,
-  // and these are discoverable passkeys - the authenticator offers its own
-  const asr = await startAuthentication({ optionsJSON: {
-    challenge: b64uFromBytes(hexToBytes(digest.replace(/^0x/, ""))),
-    userVerification: "preferred", timeout: 120000,
-  }});
-  const authenticatorData = b64uToBytes(asr.response.authenticatorData);
-  const clientDataJSON = new TextDecoder().decode(b64uToBytes(asr.response.clientDataJSON));
-  const sig = {
-    authenticatorData: "0x" + Array.from(authenticatorData, (b) => b.toString(16).padStart(2, "0")).join(""),
-    clientDataJSON,
-    ...derToRS(b64uToBytes(asr.response.signature)),
-    x: BigInt(x), y: BigInt(y),
-  };
-  // the message the contract checks: sha256(authData || sha256(clientDataJSON))
-  const cdjHash = new Uint8Array(await crypto.subtle.digest("SHA-256", b64uToBytes(asr.response.clientDataJSON)));
-  const pre = new Uint8Array(authenticatorData.length + 32);
-  pre.set(authenticatorData, 0); pre.set(cdjHash, authenticatorData.length);
-  const message = new Uint8Array(await crypto.subtle.digest("SHA-256", pre));
-  if (!(await signedByExpectedKey(sig, message)))
-    throw new Error("that passkey is not the one this vault was created with - pick the other one when prompted");
-  return { data: encodeRefundCall(amount6, deadlineSec, sig), digest, nonce };
-}
-
-/* Where a refund from THIS vault necessarily lands (immutable, set at its
-   implementation's deploy) - shown before signing, never chosen. */
-export async function vaultTreasury(vault) {
-  try {
-    const t = asAddr(await call(vault, "0x" + VAULT_SEL.treasury));
-    return isZero(t) ? null : t;
-  } catch { return null; }
-}
+/* Selectors the console calls straight on a vault clone: the vault is minted
+   by its factory, never deployed from here, so there is no deploy artifact to
+   read them off. Pinned against the checked-in ABI in
+   test/admin-console.test.mjs. */
+export const VAULT_SEL = { migrateToSuccessor: "17857979", recoveryAdmin: "5f6529a3", rootKeyHash: "1d3ca5b9" };
 
 /* The old implementation's treasury, carried into the new factory so the
    refund destination never silently moves with a recovery. */
