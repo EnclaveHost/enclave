@@ -234,7 +234,13 @@ void *ell_new_context(void *model, uint32_t n_ctx, uint32_t n_batch,
     return llama_init_from_model((struct llama_model *)model, p);
 }
 
-void ell_free_context(void *ctx) { llama_free((struct llama_context *)ctx); }
+static void ell_topk_release(void *ctx); /* mm26 registry, defined below */
+
+void ell_free_context(void *ctx) {
+    llama_free((struct llama_context *)ctx);
+    /* device top-k chains must outlive the context; freed after it */
+    ell_topk_release(ctx);
+}
 
 void ell_reset(void *ctx) {
     llama_memory_clear(llama_get_memory((struct llama_context *)ctx), true);
@@ -258,6 +264,49 @@ int32_t ell_decode(void *ctx, void *model, const int32_t *tokens, int32_t n, flo
     }
     memcpy(logits_out, logits, (size_t)ell_n_vocab(model) * sizeof(float));
     return 0;
+}
+
+/* ---- device top-k (mm26) --------------------------------------------------
+ * ENCLAVE_GGML_DEV_TOPK=<K>: arm every server sequence with a backend
+ * sampler chain of [top_k(K)]. llama then computes the top-K candidate ids
+ * and their logits ON DEVICE for every output row of a small decode and
+ * skips the full-vocab logits extraction entirely (needs_raw_logits) - the
+ * per-row cost drops from a ~1 MB forced-sync D2H + a host-side 248K scan
+ * to two K-sized async copies and a CUB radix sort. Wide batches (prefill:
+ * more output rows than LLAMA_SAMPLER_MAX_ROWS, default 8) fall back to the
+ * raw-logits path inside llama, and the *_topk entry points report that
+ * fallback to the caller instead of failing (return 0 = full rows written).
+ * Chains must outlive the context: registered here, freed by
+ * ell_free_context after llama_free. */
+#define ELL_TOPK_MAX_CTX 16
+#define ELL_TOPK_MAX_SEQ 16
+struct ell_topk_reg {
+    void *ctx;
+    int32_t k;
+    int32_t n_seq;
+    struct llama_sampler *chains[ELL_TOPK_MAX_SEQ];
+};
+static struct ell_topk_reg ell_topk_regs[ELL_TOPK_MAX_CTX];
+
+static struct ell_topk_reg *ell_topk_find(void *ctx) {
+    for (int i = 0; i < ELL_TOPK_MAX_CTX; i++) {
+        if (ell_topk_regs[i].ctx == ctx) { return &ell_topk_regs[i]; }
+    }
+    return NULL;
+}
+
+static void ell_topk_release(void *ctx) {
+    struct ell_topk_reg *r = ctx ? ell_topk_find(ctx) : NULL;
+    if (!r) { return; }
+    for (int32_t s = 0; s < r->n_seq; s++) {
+        if (r->chains[s]) { llama_sampler_free(r->chains[s]); }
+    }
+    memset(r, 0, sizeof(*r));
+}
+
+int32_t ell_server_topk_k(void *ctx) {
+    struct ell_topk_reg *r = ell_topk_find(ctx);
+    return r ? r->k : 0;
 }
 
 void *ell_new_server(void *model, uint32_t n_ctx, uint32_t n_batch, uint32_t n_seq_max,
@@ -305,7 +354,61 @@ void *ell_new_server(void *model, uint32_t n_ctx, uint32_t n_batch, uint32_t n_s
         case ELL_FA_AUTO:
         default:              p.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_AUTO;     break;
     }
-    return llama_init_from_model((struct llama_model *)model, p);
+    /* device top-k arming (see the mm26 block above). Chains are sampler
+     * CHAINS (bare samplers are refused by llama), built per sequence, and
+     * must outlive the context. A context that refuses the sampler graph
+     * (extra compute buffers) falls back to an unarmed context cleanly. */
+    int32_t tk = 0;
+    const char *tke = getenv("ENCLAVE_GGML_DEV_TOPK");
+    if (tke && *tke) {
+        long v = strtol(tke, NULL, 10);
+        if (v >= 16 && v <= 4096) { tk = (int32_t)v; }
+    }
+    int32_t ns_tk = (int32_t)(n_seq_max ? n_seq_max : 1);
+    if (ns_tk > ELL_TOPK_MAX_SEQ) { ns_tk = ELL_TOPK_MAX_SEQ; }
+    struct llama_sampler *tkchains[ELL_TOPK_MAX_SEQ] = {0};
+    struct llama_sampler_seq_config tkcfg[ELL_TOPK_MAX_SEQ];
+    if (tk > 0) {
+        for (int32_t s = 0; s < ns_tk; s++) {
+            struct llama_sampler_chain_params cp = llama_sampler_chain_default_params();
+            cp.no_perf = true;
+            tkchains[s] = llama_sampler_chain_init(cp);
+            if (!tkchains[s]) { tk = 0; break; }
+            llama_sampler_chain_add(tkchains[s], llama_sampler_init_top_k(tk));
+            tkcfg[s].seq_id  = s;
+            tkcfg[s].sampler = tkchains[s];
+        }
+    }
+    if (tk > 0) {
+        p.samplers   = tkcfg;
+        p.n_samplers = (size_t)ns_tk;
+    }
+    struct llama_context *lctx = llama_init_from_model((struct llama_model *)model, p);
+    if (!lctx && tk > 0) {
+        p.samplers = NULL;
+        p.n_samplers = 0;
+        for (int32_t s = 0; s < ns_tk; s++) {
+            if (tkchains[s]) { llama_sampler_free(tkchains[s]); tkchains[s] = NULL; }
+        }
+        tk = 0;
+        lctx = llama_init_from_model((struct llama_model *)model, p);
+    }
+    if (lctx && tk > 0) {
+        struct ell_topk_reg *r = ell_topk_find(NULL); /* free slot */
+        if (r) {
+            r->ctx = lctx;
+            r->k = tk;
+            r->n_seq = ns_tk;
+            memcpy(r->chains, tkchains, sizeof(tkchains));
+        }
+        /* no free registry slot: keep serving, report unarmed via
+         * ell_server_topk_k == 0; chains leak, bounded by process life */
+    } else if (tk > 0) {
+        for (int32_t s = 0; s < ns_tk; s++) {
+            if (tkchains[s]) { llama_sampler_free(tkchains[s]); }
+        }
+    }
+    return lctx;
 }
 
 int32_t ell_decode_batch(void *ctx, void *model, int32_t n_items,
@@ -394,6 +497,150 @@ int32_t ell_decode_seq_full(void *ctx, void *model, int32_t seq_id, int32_t pos0
     }
     llama_batch_free(batch);
     return 0;
+}
+
+/* mm26 shared readback: after a decode on an armed context, copy each of
+ * the n output rows' device-computed top-k (ids + logits) into k_cap-strided
+ * buffers. Returns k_eff (>0), or 0 when the sampled path did not engage
+ * (wide batch, unarmed context) - the caller then reads full logits rows
+ * itself. Never re-decodes. */
+static int32_t ell_topk_readback(struct llama_context *lctx, int32_t n,
+                                 const int32_t *idxs,
+                                 int32_t k_cap, int32_t *ids_out, float *vals_out) {
+    /* idxs[i] = the BATCH TOKEN INDEX of row i's output (the _ith getters
+     * follow llama_get_logits_ith semantics: token index, not output row -
+     * they only coincide when every token is an output) */
+    int32_t cnt0 = (int32_t)llama_get_sampled_candidates_count_ith(lctx, idxs[0]);
+    if (cnt0 <= 0) {
+        return 0;
+    }
+    int32_t k_eff = cnt0 < k_cap ? cnt0 : k_cap;
+    for (int32_t i = 0; i < n; i++) {
+        const llama_token *ids = llama_get_sampled_candidates_ith(lctx, idxs[i]);
+        const float *vals = llama_get_sampled_logits_ith(lctx, idxs[i]);
+        int32_t ci = (int32_t)llama_get_sampled_candidates_count_ith(lctx, idxs[i]);
+        int32_t li = (int32_t)llama_get_sampled_logits_count_ith(lctx, idxs[i]);
+        if (!ids || !vals || ci < k_eff || li < k_eff) {
+            return -4; /* partial sampled state: should not happen */
+        }
+        memcpy(ids_out + (size_t)i * k_cap, ids, (size_t)k_eff * sizeof(int32_t));
+        memcpy(vals_out + (size_t)i * k_cap, vals, (size_t)k_eff * sizeof(float));
+    }
+    return k_eff;
+}
+
+/* ell_decode_seq_full with a device top-k readback (mm26). On an armed
+ * context whose sampled path engaged, writes k_eff ids+logits per row at
+ * k_cap stride and returns k_eff. Otherwise falls back IN THE SAME CALL to
+ * copying full logits rows into vals_out (vocab stride - the caller sizes
+ * vals_out for n*vocab floats either way) and returns 0. */
+int32_t ell_decode_seq_topk(void *ctx, void *model, int32_t seq_id, int32_t pos0,
+                            const int32_t *tokens, int32_t n, int32_t k_cap,
+                            int32_t *ids_out, float *vals_out) {
+    struct llama_context *lctx = (struct llama_context *)ctx;
+    if (n <= 0 || pos0 < 0 || k_cap <= 0 || (uint32_t)n > llama_n_batch(lctx)) {
+        return -1;
+    }
+    struct llama_batch batch = llama_batch_init(n, 0, 1);
+    for (int32_t t = 0; t < n; t++) {
+        batch.token[t]     = tokens[t];
+        batch.pos[t]       = pos0 + t;
+        batch.n_seq_id[t]  = 1;
+        batch.seq_id[t][0] = seq_id;
+        batch.logits[t]    = 1;
+    }
+    batch.n_tokens = n;
+    int32_t rc = llama_decode(lctx, batch);
+    if (rc != 0) {
+        llama_batch_free(batch);
+        return rc;
+    }
+    int32_t k_eff;
+    {
+        /* every token is an output row: idx i = token i */
+        int32_t *idxs = malloc((size_t)n * sizeof(int32_t));
+        for (int32_t t = 0; t < n; t++) { idxs[t] = t; }
+        k_eff = ell_topk_readback(lctx, n, idxs, k_cap, ids_out, vals_out);
+        free(idxs);
+    }
+    if (k_eff == 0) {
+        const size_t row = (size_t)ell_n_vocab(model);
+        for (int32_t t = 0; t < n; t++) {
+            const float *lg = llama_get_logits_ith(lctx, t);
+            if (!lg) {
+                llama_batch_free(batch);
+                return -2;
+            }
+            memcpy(vals_out + (size_t)t * row, lg, row * sizeof(float));
+        }
+    }
+    llama_batch_free(batch);
+    return k_eff;
+}
+
+/* ell_decode_batch with a device top-k readback (mm26); same contract as
+ * ell_decode_seq_topk (k_eff > 0 = k_cap-strided ids+vals; 0 = full logits
+ * rows in vals_out at vocab stride). */
+int32_t ell_decode_batch_topk(void *ctx, void *model, int32_t n_items,
+                              const int32_t *seq_ids, const int32_t *counts,
+                              const int32_t *positions, const int32_t *tokens_flat,
+                              int32_t k_cap, int32_t *ids_out, float *vals_out) {
+    struct llama_context *lctx = (struct llama_context *)ctx;
+    if (n_items <= 0 || k_cap <= 0) {
+        return -1;
+    }
+    int32_t total = 0;
+    for (int32_t i = 0; i < n_items; i++) {
+        if (counts[i] <= 0 || positions[i] < 0) {
+            return -1;
+        }
+        total += counts[i];
+    }
+    if ((uint32_t)total > llama_n_batch(lctx)) {
+        return -1;
+    }
+    struct llama_batch batch = llama_batch_init(total, 0, 1);
+    int32_t cursor = 0;
+    for (int32_t i = 0; i < n_items; i++) {
+        for (int32_t t = 0; t < counts[i]; t++) {
+            batch.token[cursor]     = tokens_flat[cursor];
+            batch.pos[cursor]       = positions[i] + t;
+            batch.n_seq_id[cursor]  = 1;
+            batch.seq_id[cursor][0] = seq_ids[i];
+            batch.logits[cursor]    = (int8_t)(t == counts[i] - 1);
+            cursor++;
+        }
+    }
+    batch.n_tokens = total;
+    int32_t rc = llama_decode(lctx, batch);
+    if (rc != 0) {
+        llama_batch_free(batch);
+        return rc;
+    }
+    int32_t k_eff;
+    {
+        /* each item outputs only its LAST token */
+        int32_t *idxs = malloc((size_t)n_items * sizeof(int32_t));
+        int32_t c = 0;
+        for (int32_t i = 0; i < n_items; i++) { c += counts[i]; idxs[i] = c - 1; }
+        k_eff = ell_topk_readback(lctx, n_items, idxs, k_cap, ids_out, vals_out);
+        free(idxs);
+    }
+    if (k_eff == 0) {
+        const size_t row = (size_t)ell_n_vocab(model);
+        cursor = 0;
+        for (int32_t i = 0; i < n_items; i++) {
+            cursor += counts[i];
+            const float *lg = llama_get_logits_ith(lctx, cursor - 1);
+            if (!lg) {
+                llama_batch_free(batch);
+                return -2;
+            }
+            memcpy(vals_out + (size_t)i * row, lg, row * sizeof(float));
+        }
+    }
+    llama_batch_free(batch);
+    return k_eff;
 }
 
 int32_t ell_seq_rewind(void *ctx, int32_t seq_id, int32_t n_keep) {

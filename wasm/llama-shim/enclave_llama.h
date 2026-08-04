@@ -161,6 +161,23 @@ void ell_seq_remove(void *ctx, int32_t seq_id);
  * is the only speculative strategy; 0 = classic attention-only.
  *
  * Callers serialize all calls per context, as with every context call. */
+/* mm26 device top-k: ENCLAVE_GGML_DEV_TOPK=<K> arms every server sequence
+ * with a backend [top_k(K)] chain - llama computes the top-K ids+logits per
+ * output row ON DEVICE and skips the full-vocab logits extraction for small
+ * decodes. ell_server_topk_k reports the armed K (0 = unarmed). The *_topk
+ * decode variants return k_eff > 0 with ids/vals at k_cap stride, or 0 when
+ * the sampled path did not engage (wide batch/unarmed) with full logits
+ * rows written to vals_out at vocab stride instead - the caller sizes
+ * vals_out for n*vocab floats either way, and never needs to re-decode. */
+int32_t ell_server_topk_k(void *ctx);
+int32_t ell_decode_seq_topk(void *ctx, void *model, int32_t seq_id, int32_t pos0,
+                            const int32_t *tokens, int32_t n, int32_t k_cap,
+                            int32_t *ids_out, float *vals_out);
+int32_t ell_decode_batch_topk(void *ctx, void *model, int32_t n_items,
+                              const int32_t *seq_ids, const int32_t *counts,
+                              const int32_t *positions, const int32_t *tokens_flat,
+                              int32_t k_cap, int32_t *ids_out, float *vals_out);
+
 int32_t ell_decode_seq_full(void *ctx, void *model, int32_t seq_id, int32_t pos0,
                             const int32_t *tokens, int32_t n, float *logits_out);
 int32_t ell_seq_rewind(void *ctx, int32_t seq_id, int32_t n_keep);

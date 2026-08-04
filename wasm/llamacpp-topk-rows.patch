@@ -1,0 +1,298 @@
+# enclave llama.cpp patch - device top-k rows (mm26).
+#
+# Backend sampling could serve at most ONE output row per sequence, which
+# made it useless for the speculative verify (one sequence, k+1 output
+# rows). This patch:
+#   1. lifts that restriction: build_sampling instantiates the sampler
+#      chain once per OUTPUT ROW, and the result maps are keyed by the
+#      local output row (the key type stays int32; the async copies and
+#      the _ith getters were row-indexed already);
+#   2. bounds the sampler graph by output-row count (LLAMA_SAMPLER_MAX_ROWS,
+#      default 8): wider batches - prefill chunks - take the raw-logits
+#      path unchanged, needs_raw_logits mirrors the bound;
+#   3. stores a chain's output logits only when a sampler REDUCED them
+#      (top_k's K-sized gather): greedy used to leave the full-vocab input
+#      view in llama_sampler_data.logits, and the copy of that row (~1 MB,
+#      forced-sync under CC) was silently taxing the mm24 head chains;
+#   4. drops the dummy-row pad + inactive-sampler applications: graph
+#      slots are keyed by (n_tokens, seq) on this engine (graph-slot
+#      patch), so sampler topology is a function of the slot key, and the
+#      stability trick only cost a full-vocab sort per idle sequence.
+#
+# With a [top_k(K)] chain armed on the serving context (the shim's
+# ENCLAVE_GGML_DEV_TOPK), a k=1 verify reads back 2 x K ids+logits instead
+# of extracting 2 x 248320 floats through the CC-forced-synchronous D2H
+# and scanning them on SNP-throttled vCPUs. Requires GGML_CUDA_USE_CUB
+# for wide-row CUDA TOP_K (auto-on at CUDA >= 11.7; the toolchain builds
+# with 12.4).
+#
+# Applies AFTER llamacpp-rs-pin-cells.patch (diffed against the patched
+# tree). Kill switch: leave ENCLAVE_GGML_DEV_TOPK unset - with no chains
+# armed every path is byte-for-byte stock.
+diff --git a/src/llama-context.cpp b/src/llama-context.cpp
+index 87c4ee0..a2da95b 100644
+--- a/src/llama-context.cpp
++++ b/src/llama-context.cpp
+@@ -1769,7 +1769,34 @@ static void copy_tensor_async_candidates(
+     }
+ }
+ 
++// enclave topk-rows: backend sampling is no longer restricted to one output
++// row per sequence (build_sampling instantiates the chain per output row),
++// but only for small batches - a prefill chunk with hundreds of output rows
++// would explode the sampler graph. Batches with more output rows than this
++// take the raw-logits path unchanged. Must match sampler_graph_max_rows()
++// in llama-graph.cpp (same env, same default).
++static int32_t sampler_max_rows() {
++    static int32_t v = 0;
++    if (v == 0) {
++        const char * e = getenv("LLAMA_SAMPLER_MAX_ROWS");
++        v = e ? atoi(e) : 8;
++        if (v < 1) {
++            v = 8;
++        }
++    }
++    return v;
++}
++
+ static bool needs_raw_logits(const llama_ubatch & ubatch, const std::map<llama_seq_id, llama_sampler *> & samplers) {
++    uint32_t n_out = 0;
++    for (uint32_t i = 0; i < ubatch.n_tokens; i++) {
++        if (ubatch.output[i]) {
++            n_out++;
++        }
++    }
++    if (n_out > (uint32_t) sampler_max_rows()) {
++        return true; // too wide for the sampler graph - raw logits path
++    }
+     for (uint32_t i = 0; i < ubatch.n_tokens; i++) {
+         if (!ubatch.output[i]) {
+             continue;
+@@ -1813,29 +1840,11 @@ int llama_context::decode(const llama_batch & batch_inp) {
+ 
+     const uint32_t n_seq_max = cparams.kv_unified ? LLAMA_MAX_SEQ : cparams.n_seq_max;
+ 
+-    // TODO: avoid this workaround in the future
+-    if (has_samplers && batch_inp.logits) {
+-        std::vector<int32_t> seq_output_count(n_seq_max, 0);
+-
+-        for (int32_t i = 0; i < batch_inp.n_tokens; ++i) {
+-            if (batch_inp.logits[i] == 0) {
+-                continue;
+-            }
+-
+-            const int ns = batch_inp.n_seq_id ? batch_inp.n_seq_id[i] : 1;
+-
+-            for (int32_t s = 0; s < ns; ++s) {
+-                const llama_seq_id seq_id = batch_inp.seq_id ? batch_inp.seq_id[i][s] : 0;
+-
+-                seq_output_count[seq_id]++;
+-                if (seq_output_count[seq_id] > 1) {
+-                    LLAMA_LOG_ERROR("%s: backend sampling requires at most one output token per sequence (seq_id %d had %d)\n",
+-                            __func__, seq_id, seq_output_count[seq_id]);
+-                    return -1;
+-                }
+-            }
+-        }
+-    }
++    // enclave topk-rows: multi-output-per-sequence backend sampling is
++    // supported now - build_sampling instantiates the chain once per output
++    // row and the result maps are keyed by output row. Wide batches (over
++    // sampler_max_rows outputs, i.e. prefill) skip the sampler graph and
++    // take the raw-logits path; needs_raw_logits enforces that bound.
+ 
+     if (!balloc->init(batch_inp, vocab, memory.get(), n_embd, n_seq_max, output_all)) {
+         LLAMA_LOG_ERROR("%s: failed to initialize batch\n", __func__);
+@@ -2104,16 +2113,25 @@ int llama_context::decode(const llama_batch & batch_inp) {
+         }
+ 
+         // Copy backend sampling output if this ubatch produced any sampling tensors.
+-        if (has_samplers && (!res->t_sampled.empty() || !res->t_sampled_probs.empty() || !res->t_sampled_logits.empty())) {
+-            const auto seq_to_output_row = build_seq_to_output_row(ubatch, n_outputs_prev);
++        // enclave topk-rows: the result maps are keyed by LOCAL output row
++        // (build_sampling instantiates chains per row); the copy target row
++        // is that key offset by the rows of previous ubatches. The map type
++        // is unchanged (llama_seq_id is int32), only the key's meaning is.
++        if (has_samplers && (!res->t_sampled.empty() || !res->t_sampled_probs.empty() ||
++                             !res->t_sampled_logits.empty() || !res->t_candidates.empty())) {
++            std::map<llama_seq_id, uint32_t> row_map;
++            for (const auto & kv : res->t_sampled)        { row_map[kv.first] = n_outputs_prev + kv.first; }
++            for (const auto & kv : res->t_sampled_logits) { row_map[kv.first] = n_outputs_prev + kv.first; }
++            for (const auto & kv : res->t_sampled_probs)  { row_map[kv.first] = n_outputs_prev + kv.first; }
++            for (const auto & kv : res->t_candidates)     { row_map[kv.first] = n_outputs_prev + kv.first; }
+             const auto stride = n_vocab;
+ 
+             // async copy the sampling data from the backend to the host
+-            copy_tensor_async_ints(res->t_sampled, sampling.sampled, seq_to_output_row, sched_cur());
++            copy_tensor_async_ints(res->t_sampled, sampling.sampled, row_map, sched_cur());
+ 
+-            copy_tensor_async_floats    (res->t_sampled_logits, sampling.logits,     stride, sampling.logits_count,     seq_to_output_row, sched_cur());
+-            copy_tensor_async_floats    (res->t_sampled_probs,  sampling.probs,      stride, sampling.probs_count,      seq_to_output_row, sched_cur());
+-            copy_tensor_async_candidates(res->t_candidates,     sampling.candidates, stride, sampling.candidates_count, seq_to_output_row, sched_cur());
++            copy_tensor_async_floats    (res->t_sampled_logits, sampling.logits,     stride, sampling.logits_count,     row_map, sched_cur());
++            copy_tensor_async_floats    (res->t_sampled_probs,  sampling.probs,      stride, sampling.probs_count,      row_map, sched_cur());
++            copy_tensor_async_candidates(res->t_candidates,     sampling.candidates, stride, sampling.candidates_count, row_map, sched_cur());
+         }
+ 
+         t_gout_us += ggml_time_us() - t_gx0;
+diff --git a/src/llama-graph.cpp b/src/llama-graph.cpp
+index 6d1c8f4..45cb57d 100644
+--- a/src/llama-graph.cpp
++++ b/src/llama-graph.cpp
+@@ -3409,79 +3409,108 @@ void llm_graph_context::build_pooling(
+     ggml_build_forward_expand(gf, cur);
+ }
+ 
++// enclave topk-rows: sampler-graph width bound - must match
++// sampler_max_rows() in llama-context.cpp (same env, same default)
++static int32_t sampler_graph_max_rows() {
++    static int32_t v = 0;
++    if (v == 0) {
++        const char * e = getenv("LLAMA_SAMPLER_MAX_ROWS");
++        v = e ? atoi(e) : 8;
++        if (v < 1) {
++            v = 8;
++        }
++    }
++    return v;
++}
++
+ void llm_graph_context::build_sampling() const {
+     if (samplers.empty() || !res->t_logits) {
+         return;
+     }
+ 
++    // enclave topk-rows: (local output row, seq) of every output row, in
++    // output order - a sampled sequence gets ONE CHAIN APPLICATION PER ROW
++    // (was: one per sequence, hard-limited to a single output row). The
++    // result maps are keyed by the LOCAL output row; the key type stays
++    // int32, the async copies and the _ith getters are row-indexed already.
++    std::vector<std::pair<int32_t, llama_seq_id>> out_rows;
++    for (uint32_t i = 0; i < ubatch.n_tokens; i++) {
++        if (ubatch.output[i]) {
++            out_rows.push_back({ (int32_t) out_rows.size(), ubatch.seq_id[i][0] });
++        }
++    }
++
++    // wide batches (prefill chunks) skip the sampler graph entirely -
++    // needs_raw_logits in llama-context.cpp mirrors this bound, so they
++    // take the raw-logits path unchanged
++    if ((int32_t) out_rows.size() > sampler_graph_max_rows()) {
++        return;
++    }
++
+     std::array<ggml_tensor *, 2> outs;
+     outs[0] = res->t_logits;
+ 
+     auto inp_sampling = std::make_unique<llm_graph_input_sampling>(samplers);
+     res->add_input(std::move(inp_sampling));
+ 
+-    std::map<llama_seq_id, int32_t> seq_to_logit_row;
+-    int32_t logit_row_idx = 0;
+-
+-    for (uint32_t i = 0; i < ubatch.n_tokens; i++) {
+-        if (ubatch.output[i]) {
+-            llama_seq_id seq_id = ubatch.seq_id[i][0];
+-            seq_to_logit_row[seq_id] = logit_row_idx;
+-            logit_row_idx++;
+-        }
+-    }
+-
+     // res->t_logits will contain logits for all tokens that want the logits calculated (logits=1 or output=1)
+     GGML_ASSERT(res->t_logits != nullptr && "missing t_logits tensor");
+ 
+-    // add a dummy row of logits
+-    // this trick makes the graph static, regardless of which samplers are activated
+-    // this is important in order to minimize graph reallocations
+-    ggml_tensor * logits_t = ggml_pad(ctx0, res->t_logits, 0, 1, 0, 0);
++    // (the upstream dummy-row pad + inactive-sampler applications are gone:
++    // on this engine graph slots are keyed by (n_tokens, seq) already, so a
++    // graph's sampler topology is a function of its slot key and the
++    // stability trick only cost a full-vocab sort per idle sequence)
++    ggml_tensor * logits_t = res->t_logits;
+ 
+     for (const auto & [seq_id, sampler] : samplers) {
+-        const auto it = seq_to_logit_row.find(seq_id);
++        assert(sampler->iface->backend_apply);
+ 
+-        // inactive samplers always work on the first row
+-        const auto row_idx = it != seq_to_logit_row.end() ? it->second : 0;
+-        const int i_out    = it != seq_to_logit_row.end() ? 1          : 0;
++        for (const auto & [row_idx, row_seq] : out_rows) {
++            if (row_seq != seq_id) {
++                continue;
++            }
+ 
+-        ggml_tensor * logits_seq = ggml_view_1d(ctx0, logits_t, logits_t->ne[0], row_idx * logits_t->nb[1]);
+-        ggml_format_name(logits_seq, "logits_seq_%d", seq_id);
++            ggml_tensor * logits_seq = ggml_view_1d(ctx0, logits_t, logits_t->ne[0], (size_t) row_idx * logits_t->nb[1]);
++            ggml_format_name(logits_seq, "logits_seq_%d_r%d", seq_id, row_idx);
+ 
+-        struct llama_sampler_data data = {
+-            /*.logits      =*/ logits_seq,
+-            /*.probs       =*/ nullptr,
+-            /*.sampled     =*/ nullptr,
+-            /*.candidates  =*/ nullptr,
+-        };
++            struct llama_sampler_data data = {
++                /*.logits      =*/ logits_seq,
++                /*.probs       =*/ nullptr,
++                /*.sampled     =*/ nullptr,
++                /*.candidates  =*/ nullptr,
++            };
+ 
+-        assert(sampler->iface->backend_apply);
+-        sampler->iface->backend_apply(sampler, ctx0, gf, &data);
++            sampler->iface->backend_apply(sampler, ctx0, gf, &data);
+ 
+-        if (data.sampled != nullptr) {
+-            res->t_sampled[seq_id] = data.sampled;
+-            outs[1] = data.sampled;
+-            ggml_build_forward_select(gf, outs.data(), outs.size(), i_out);
+-        }
++            if (data.sampled != nullptr) {
++                res->t_sampled[row_idx] = data.sampled;
++                outs[1] = data.sampled;
++                ggml_build_forward_select(gf, outs.data(), outs.size(), 1);
++            }
+ 
+-        if (data.probs != nullptr) {
+-            res->t_sampled_probs[seq_id] = data.probs;
+-            outs[1] = data.probs;
+-            ggml_build_forward_select(gf, outs.data(), outs.size(), i_out);
+-        }
++            if (data.probs != nullptr) {
++                res->t_sampled_probs[row_idx] = data.probs;
++                outs[1] = data.probs;
++                ggml_build_forward_select(gf, outs.data(), outs.size(), 1);
++            }
+ 
+-        if (data.logits != nullptr) {
+-            res->t_sampled_logits[seq_id] = data.logits;
+-            outs[1] = data.logits;
+-            ggml_build_forward_select(gf, outs.data(), outs.size(), i_out);
+-        }
++            // store logits only when a sampler REDUCED them (top_k's gather):
++            // greedy leaves the full-vocab input view here, and copying that
++            // row costs ~1 MB of forced-sync D2H per decode under CC - the
++            // exact copy backend sampling exists to avoid
++            if (data.logits != nullptr && data.logits != logits_seq) {
++                res->t_sampled_logits[row_idx] = data.logits;
++                outs[1] = data.logits;
++                ggml_build_forward_select(gf, outs.data(), outs.size(), 1);
++            }
+ 
+-        if (data.candidates != nullptr) {
+-            res->t_candidates[seq_id] = data.candidates;
+-            outs[1] = data.candidates;
+-            ggml_build_forward_select(gf, outs.data(), outs.size(), i_out);
++            if (data.candidates != nullptr) {
++                res->t_candidates[row_idx] = data.candidates;
++                outs[1] = data.candidates;
++                ggml_build_forward_select(gf, outs.data(), outs.size(), 1);
++            }
+         }
++
+     }
+ 
+     // TODO: Call llama_sampler_accept_ggml after all samplers have been applied.
