@@ -36,7 +36,7 @@ import { verifyAccountSession, accountsEnabled, vaultKeyOf } from "./auth.js";
 import { initOfac, screenAddress } from "./ofac.js";
 import { startIndexer } from "./indexer.js";
 import { initProvisioner, enqueueProvision, recoverProvisioning } from "./provisioner.js";
-import { initVault, vaultEnabled, vaultInfo, ensureVault, depositToVault, opDigest, buildCreateCall, buildControlCall, submitOp, vaultAddressFor, strandedVaultFor, vaultNonce } from "./vaultsvc.js";
+import { initVault, vaultEnabled, vaultInfo, ensureVault, depositToVault, opDigest, buildCreateCall, buildControlCall, submitOp, vaultAddressFor } from "./vaultsvc.js";
 import { publisherFee6 } from "./mcp.js";
 import { createHmac, timingSafeEqual, randomBytes } from "node:crypto";
 
@@ -904,35 +904,13 @@ export async function handleBilling(req, res, u, ctx) {
         deadline, digest, callData, action, id, credId: key.credId }, req);
     }
     if (b.op === "refund") {
-      // One-off recovery path: a vault left behind by a factory migration can
-      // only be emptied by its own passkey, and its owner may not be at a
-      // machine that can pay gas. Naming it explicitly is safe because
-      // strandedVaultFor PROVES it is this account's - the named factory
-      // re-derives the same CREATE2 address from this account's public key -
-      // so the address in the request can never reach a stranger's vault.
-      // Nothing advertises this; the caller has to already know the address.
-      let target = { address: info.address, nonce: info.nonce, balance6 };
-      if (b.vault !== undefined || b.factory !== undefined) {
-        const s = await strandedVaultFor(key, { vault: b.vault, factory: b.factory });
-        if (!s) return err(ctx, res, req, 422, "not_your_vault",
-          "That vault is not one this account's passkey controls at the factory given, or it holds nothing.");
-        target = { address: s.address, nonce: await vaultNonce(s.address), balance6: BigInt(s.balance6) };
-      }
-      // a named vault with no amount asks for the whole balance: the caller
-      // cannot know it (that vault is not their current one, and its token is
-      // whatever the vault was built with), so quoting it here is what keeps
-      // the client from having to guess. Floored to whole cents - the unit the
-      // op takes; sub-cent dust stays put.
-      const cents = b.amountUsd === undefined && b.vault !== undefined
-        ? Number(target.balance6 / 10000n)
-        : Math.round(Number(b.amountUsd) * 100);
+      const cents = Math.round(Number(b.amountUsd) * 100);
       if (!Number.isFinite(cents) || cents <= 0) return err(ctx, res, req, 422, "bad_params", "refund needs a positive amountUsd.");
       const amount6 = BigInt(cents) * 10000n;
-      if (amount6 > target.balance6) return err(ctx, res, req, 422, "insufficient_credit", "Refund exceeds that vault's balance.");
-      const digest = opDigest("refund", target.address, CHAIN_ID, target.nonce, { amount6 }, deadline);
-      return ctx.json(res, 200, { op: "refund", vault: target.address, chainId: CHAIN_ID, nonce: target.nonce,
-        deadline, digest, amount6: amount6.toString(), amountUsd: (Number(amount6) / 1e6).toFixed(2),
-        balance6: target.balance6.toString(), credId: key.credId }, req);
+      if (amount6 > balance6) return err(ctx, res, req, 422, "insufficient_credit", "Refund exceeds your credit balance.");
+      const digest = opDigest("refund", info.address, CHAIN_ID, info.nonce, { amount6 }, deadline);
+      return ctx.json(res, 200, { op: "refund", vault: info.address, chainId: CHAIN_ID, nonce: info.nonce,
+        deadline, digest, amount6: amount6.toString(), credId: key.credId }, req);
     }
     return err(ctx, res, req, 422, "bad_op", 'op must be "deploy", "fund", "control", or "refund".');
   }
@@ -949,16 +927,7 @@ export async function handleBilling(req, res, u, ctx) {
     if (!["deploy", "fund", "refund", "control"].includes(b.op))
       return err(ctx, res, req, 422, "bad_op", "Unknown vault op.");
     let vaultAddr;
-    try {
-      // same proof as prepare: an explicitly named vault is accepted only when
-      // this account's own passkey is what the named factory derives it from
-      if (b.op === "refund" && (b.vault !== undefined || b.factory !== undefined)) {
-        const s = await strandedVaultFor(key, { vault: b.vault, factory: b.factory });
-        if (!s) return err(ctx, res, req, 422, "not_your_vault",
-          "That vault is not one this account's passkey controls at the factory given, or it holds nothing.");
-        vaultAddr = s.address;
-      } else vaultAddr = await ensureVault(key);
-    }
+    try { vaultAddr = await ensureVault(key); }
     catch (e) { return err(ctx, res, req, 502, "vault_error", e.message); }
     try {
       const out = await submitOp(b.op, vaultAddr, b.args || {}, b.deadline, { ...a, x: key.x, y: key.y });

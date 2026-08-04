@@ -8,7 +8,7 @@
 // every WebAuthn ceremony; the P-256 verifier at 0x100 checks them on anvil
 // exactly as Base's native precompile does in prod.
 import { test, expect } from "@playwright/test";
-import { seedStorage, addVirtualAuthenticator, fireStripeWebhook, stack } from "../fixtures/session.mjs";
+import { seedStorage, addVirtualAuthenticator, fireStripeWebhook } from "../fixtures/session.mjs";
 
 test("credit: card top-up lands on-chain; one passkey tap deploys from it; dashboard extends it", async ({ page, context }) => {
   await seedStorage(context, page);
@@ -90,45 +90,4 @@ test("credit: a spend beyond the balance is refused with a plain message", async
   });
   expect(msg).toMatch(/credit/i);
   expect(msg).toMatch(/Add credit/i);
-});
-
-// The stranded-vault recovery link (a one-off operator tool, not a product
-// surface): a vault a factory migration left behind can only be emptied by its
-// own passkey, which lives on a phone rather than on the machine holding the
-// governance wallet. Opening the dashboard with ?recover=<vault>&factory=<f>
-// reads the balance, takes one passkey tap, and the relay submits. Here the
-// account's CURRENT vault stands in for a stranded one - the mechanism under
-// test is the explicit vault address surviving prepare -> sign -> exec, and
-// the relay PROVING the named vault is this account's before it will touch it.
-test("credit: the recovery link empties a named vault after one passkey tap", async ({ page, context }) => {
-  await seedStorage(context, page);
-  await addVirtualAuthenticator(context, page);
-  await page.goto("/checkout");
-  await page.click("#coSignin");
-  await page.click("#authPasskey");
-  await expect(page.locator("#coBal")).toContainText("$0.00");
-
-  await page.fill("#coAmt", "10");
-  await page.click("#coCard");
-  await page.waitForURL(/checkout\?order=/);
-  await fireStripeWebhook(new URL(page.url()).searchParams.get("order"));
-  await expect(page.locator(".os-head")).toContainText("Credit added", { timeout: 30_000 });
-
-  const vault = await page.evaluate(async () => (await (await import("/js/core/api.js")).Enclave.billingVault()).address);
-
-  // a vault this account's passkey does NOT derive at that factory is refused
-  // before anything is signed - the property that keeps an explicit address
-  // from reaching a stranger's money
-  const stranger = "0x" + "ab".repeat(20);
-  await page.goto(`/dashboard?recover=${stranger}&factory=${stack.vaultFactory}`);
-  await expect(page.locator("#recOut")).toContainText("not one this account", { timeout: 15_000 });
-
-  await page.goto(`/dashboard?recover=${vault}&factory=${stack.vaultFactory}`);
-  await expect(page.locator("#recAmt")).toContainText("$10.00", { timeout: 15_000 });
-  await page.locator("#recGo").dispatchEvent("click");
-  await expect(page.locator("#recOut")).toContainText("Returned $10.00", { timeout: 30_000 });
-
-  // the credit is gone from the vault: the balance the header reads is now $0
-  await page.goto("/checkout");
-  await expect(page.locator("#coBal")).toContainText("$0.00", { timeout: 20_000 });
 });
