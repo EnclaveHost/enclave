@@ -279,6 +279,53 @@ Fleet-measured as throughput-NEUTRAL, so this is not a speed win — but at
 ~1.2 GB per depth unit on the 27b, **6 → 4 frees ~2.4 GB** of a 25% share
 for nothing lost, and depth 6 was never buying anything at k=4.
 
+## MTP WANTS k=1 — 59 tok/s, and NOBODY EVER TESTED IT (2026-08-03, late)
+
+**Read this before anything else about MTP.** The whole campaign benched
+MTP at k=16 (the catalog default), k=4 and k=2. It never tried a
+SINGLE-token draft. At k=1 MTP jumps to **59.0 tok/s quote / 58.8 prose at
+92% acceptance**, against the 35–39 every other k has ever produced:
+
+| config | quote | prose | verify decode | acceptance |
+|---|---|---|---|---|
+| **mtp k=1** | **59.0** ± 1.6 | **58.8** ± 1.2 | **20.7 ms** | **92%** |
+| mtp k=2 | 39.0 | 37.2 | 40.8 ms | ~89% |
+| mtp k=4 | 38.9 | 33.8 | 52.9 ms | 76–85% |
+
+**Why: the nextn verify premium is not fixed, it EXPLODES with width.**
+Verify decode by batch width, MTP vs lookup at identical widths:
+
+| batch | lookup | mtp | premium |
+|---|---|---|---|
+| 2 (k=1) | 27.0 ms | **20.7** | **−6.3 (MTP FASTER)** |
+| 3 (k=2) | 29.3 | 40.8 | +11.5 |
+| 5 (k=4) | 34.6 | 52.9 | +18.3 |
+
+At batch-2 the MTP verify is CHEAPER than lookup's; the penalty only starts
+at batch-3. So MTP's economics are the mirror image of lookup's: lookup
+amortises a big entry cost over width, MTP must stay narrow. Every previous
+MTP verdict was measured in the regime where MTP is worst.
+
+**The k=1 round decomposes as 32.5 ms for 1.92 tokens** = verify 20.7 +
+~11.8 overhead (one head step ~6.6 ms + `mtp_accept` ~8.9 ms + WIT). The
+frames still show a separate `mtp_accept` call, i.e. the running engine
+reports no `mtp_fold` capability even though the repo pins mm23 — so
+**mm19's observe-fold, which deletes that call, is built but not reaching
+this deployment.** Projected from the measured decomposition:
+
+| | round | tok/s |
+|---|---|---|
+| today | 32.5 ms | 59.0 |
+| + observe-fold (removes mtp_accept) | 23.6 ms | **81.2** |
+| + 2 ms head step (GPU argmax / fused verb) | 22.7 ms | 84.6 |
+| + free head step | 21.2 ms | 90.6 |
+
+**Observe-fold ALONE projects MTP past plain (62) and past lookup (66) —
+at k=1.** That is the first credible route to MTP beating lookup-rs on this
+hardware, and the code for it already exists. Verify the engine actually
+lacks caps[7] before building anything; then the k=1 + fold combination is
+the experiment worth running.
+
 ### MTP RE-OPENED AND RE-CLOSED (2026-08-03, with the missing measurement)
 
 The MTP dossier below parked MTP on a bundle projection that rested on one
