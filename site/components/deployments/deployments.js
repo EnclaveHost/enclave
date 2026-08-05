@@ -2312,7 +2312,11 @@ class Deployments extends EnclaveElement {
     if (!d) return;
     const offer = mobileOffer(d, appEndpoint(d));
     if (!offer) return;
-    const name = (d.app && d.app.slug) || appLabel(d.id);
+    // same identity the card title uses, minus the version: slug via the
+    // catalog ref when d.app is absent, the 8-hex label only as a last resort
+    const name = (d.app && d.app.slug)
+      || String(slugOfRef(d.image && d.image.reference) || "").split(/[:#]/)[0]
+      || appLabel(d.id);
     box.innerHTML =
       '<div class="enc-mob-body">' +
         '<p class="enc-mob-lead">Run ' + esc(name) + ' on a phone. The download below is the app’s mobile build: it re-checks the enclave’s attestation on the device before anything loads, so the phone trusts the enclave itself, not this site.</p>' +
