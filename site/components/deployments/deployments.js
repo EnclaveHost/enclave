@@ -588,7 +588,6 @@ class Deployments extends EnclaveElement {
           // panel lives in the tab strip below (develop-page tab idiom)
           '<span class="enc-acts">' +
             (st === "running" && ctl === "wallet" ? '<button class="btn btn-sm enc-restart" data-id="' + esc(d.id) + '" title="Stop and relaunch the app in place - same version, endpoint and balance; app state is ephemeral. The fix for a wedged instance (e.g. a model that never loaded at boot)">Restart</button>' : '') +
-            (mobileOffer(d, ep) ? '<button class="btn btn-sm enc-mobbtn" data-id="' + esc(d.id) + '" title="Install this app on a phone - the mobile build verifies the enclave on the device before the app loads">Get app</button>' : '') +
             (resumable && ctl !== "order" ? '<button class="btn btn-sm ok enc-resume" data-id="' + esc(d.id) + '" title="Put it back on the queue - an enclave re-claims it and the app relaunches fresh from its published version, spending the remaining balance">Resume</button>' : '') +
             (live && ctl !== "order" ? (onchain
               ? '<button class="btn btn-sm warn enc-kill" data-id="' + esc(d.id) + '" title="Stop the app and take it off the queue. The remaining balance stays on the deployment - Resume restarts it any time">Suspend</button>'
@@ -619,6 +618,7 @@ class Deployments extends EnclaveElement {
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-wafbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Per-IP rate limit + request filter, enforced inside the enclave at the app’s front door - add, tune or remove it any time; a running app picks the change up live">Protect</button>' : '') +
           (onchain && st === "running" && ctl === "wallet" ? '<button class="btn btn-sm enc-movebtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Run this app on a different enclave - the current one hands its lease back (unused lease time is refunded to the balance) and the box you pick claims it. Same URL, version and balance">Move</button>' : '') +
           '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '" aria-expanded="false">Verify</button>' +
+          (mobileOffer(d, ep) ? '<button class="btn btn-sm enc-mobbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Install this app on a phone - the mobile build verifies the enclave on the device before the app loads">Downloads</button>' : '') +
           // secrets/domains are tabs like every other panel; their toggle
           // buttons live HERE, the sections below hold only body + status
           // (the wire helpers resolve the toggle at row level)
@@ -633,6 +633,7 @@ class Deployments extends EnclaveElement {
         '<div class="enc-upg" hidden></div>' +
         '<div class="enc-move" hidden></div>' +
         '<div class="enc-waf" hidden></div>' +
+        '<div class="enc-mob" hidden></div>' +
         '<div class="enc-xfer" hidden></div>' +
         (onchain && (live || resumable) && ctl === "wallet" ? secretsSection(d.id) : '') +
         (onchain && (live || resumable) && ctl === "wallet" ? domainsSection(d.id) : '') +
@@ -660,7 +661,7 @@ class Deployments extends EnclaveElement {
     $$(".enc-xferbtn", body).forEach(b => b.addEventListener("click", () => this._transfer(b.dataset.id, b)));
     $$(".enc-sec[data-id]", body).forEach(el => this._secretsWire(el));
     $$(".enc-dom[data-id]", body).forEach(el => this._domainsWire(el));
-    $$(".enc-mobbtn", body).forEach(b => b.addEventListener("click", () => this._mobile(b.dataset.id)));
+    $$(".enc-mobbtn", body).forEach(b => b.addEventListener("click", () => this._mobile(b.dataset.id, b)));
     $$(".enc-verify", body).forEach(b => b.addEventListener("click", () => this._verify(b.dataset.id, b)));
     $$(".enc-kill", body).forEach(b => b.addEventListener("click", () => this._kill(b.dataset.id, b)));
     $$(".enc-refund", body).forEach(b => b.addEventListener("click", () => this._refund(b.dataset.id, b)));
@@ -2300,44 +2301,33 @@ class Deployments extends EnclaveElement {
     catch(e){ showToast(e.message); if (btn){ btn.disabled = false; btn.textContent = "Resume"; } }
   }
 
-  /* ---- "Get app": the row button opens a POPUP (same qd-overlay idiom as
-     the deploy page's capacity dialog) rather than growing the row - the
-     content is three short branches (dedicated builds / prepackaged APK /
-     generic-shell pairing), and a popup outside the component also survives
-     the poll's repaints untouched. */
-  _mobile(id) {
+  /* ---- "Downloads": a tab panel like the others (was a popup). Content is
+     three short branches (dedicated builds / prepackaged APK / generic-shell
+     pairing); the panel is inside the component, so it is listed in the
+     poll's open-panel guard. */
+  _mobile(id, btn) {
+    const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-mob"); if (!box) return;
+    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
     const d = (this._list || []).find((x) => String(x.id) === String(id));
     if (!d) return;
     const offer = mobileOffer(d, appEndpoint(d));
     if (!offer) return;
     const name = (d.app && d.app.slug) || appLabel(d.id);
-    const prev = document.getElementById("encMobDlg");
-    if (prev) prev.remove();
-    const host = document.createElement("div");
-    host.className = "qd-overlay"; host.id = "encMobDlg";
-    host.innerHTML =
-      '<div class="qd-card" role="dialog" aria-modal="true" aria-label="Get the app on a phone">' +
-        '<div class="qd-h">Get the app · ' + esc(name) + '</div>' +
+    box.innerHTML =
+      '<div class="enc-mob-body">' +
+        '<p class="enc-mob-lead">Run ' + esc(name) + ' on a phone. The download below is the app’s mobile build: it re-checks the enclave’s attestation on the device before anything loads, so the phone trusts the enclave itself, not this site.</p>' +
         mobileDialogBody(offer, name) +
-        '<p class="qd-sub">The mobile build re-checks the enclave’s attestation on your device before the app loads.</p>' +
-        '<div class="qd-actions"><button class="btn em-close" type="button">Close</button></div>' +
       '</div>';
-    document.body.appendChild(host);
-    const onKey = (e) => { if (e.key === "Escape") done(); };
-    const done = () => { host.remove(); document.removeEventListener("keydown", onKey); };
-    document.addEventListener("keydown", onKey);
-    host.addEventListener("click", (e) => { if (e.target === host) done(); });
-    host.querySelector(".em-close").addEventListener("click", done);
-    const copy = host.querySelector(".em-copy");
+    box.hidden = false; btn.setAttribute("aria-expanded", "true");
+    const copy = box.querySelector(".em-copy");
     if (copy) copy.addEventListener("click", () => copyText(copy.dataset.copy));
-    host.querySelector(".em-close").focus();
   }
 
   _startPoll() {
     if (this._poll) return;
     this._poll = setInterval(() => {
       if (!Enclave.address && !Enclave.accountAuthed()){ this._stopPoll(); return; }
-      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden])")) return;   // don't clobber an open attestation/output/top-up view (the Get-app POPUP lives outside the component and survives repaints)
+      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-mob:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden])")) return;   // don't clobber an open panel (Downloads included - it lives in-row now)
       this.refresh();
     }, 10000);
   }
