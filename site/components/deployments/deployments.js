@@ -83,6 +83,9 @@ function openCtl(d, ep, tls){
 // until a reveal signature succeeds (_secretsWire). Values only ever exist in
 // the DOM while unlocked; every repaint guard keys on .enc-sec-body so the
 // poll never wipes an open editor and never stalls on the always-present bar.
+// While the reveal signature is still PENDING the body is hidden, so that
+// window pins repaints via [data-busy] on the section instead (_panelPinned) -
+// a wallet prompt easily outlives a 10s poll tick.
 function secretsSection(id){
   const label = appLabel(id);
   return '<div class="enc-sec" data-id="' + esc(id) + '">'
@@ -348,7 +351,7 @@ class Deployments extends EnclaveElement {
     // the open panel the user just unlocked - skip the repaint, the poll
     // catches up once the panel closes.
     this._onAuth = (e) => {
-      if (Enclave.address && this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden])")) return;
+      if (Enclave.address && this._panelPinned()) return;
       this.refresh({ spinner: !!(e.detail && e.detail.spinner) });
     };
     document.addEventListener("enclave:auth", this._onAuth);
@@ -380,7 +383,7 @@ class Deployments extends EnclaveElement {
     // clobber rule as _onAuth; the regular poll catches up after it closes).
     loadCatalog();
     this._onCat = () => {
-      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden])")) return;
+      if (this._panelPinned()) return;
       if (this._list) this._renderRows(this._list);
     };
     document.addEventListener("enclave:catalog", this._onCat);
@@ -1431,6 +1434,7 @@ class Deployments extends EnclaveElement {
         return;
       }
       toggle.disabled = true;
+      box.dataset.busy = "1";   // pin repaints for the wallet wait - the body is still hidden (see _panelPinned)
       try {
         paint("info", "[*] one signature reveals this deployment’s stored secrets…");
         const expiry = Math.floor(Date.now() / 1000) + 300;
@@ -1456,7 +1460,7 @@ class Deployments extends EnclaveElement {
       } catch(e){
         paint("warn", "[x] " + (e.message || String(e)));
         toggle.disabled = false;
-      }
+      } finally { delete box.dataset.busy; }   // on success the visible body takes over the pin
     });
     save.addEventListener("click", async () => {
       const set = {};
@@ -1610,6 +1614,7 @@ class Deployments extends EnclaveElement {
         return;
       }
       toggle.disabled = true;
+      box.dataset.busy = "1";   // same repaint pin as secrets: hidden body + pending wallet prompt
       try {
         paint("info", "[*] one signature lists this deployment’s domains…");
         await refresh();
@@ -1622,7 +1627,7 @@ class Deployments extends EnclaveElement {
         timer = setInterval(() => refresh({ interactive: false }).catch(() => {}), 30000);
       } catch(e){
         paint("warn", "[x] " + (e.message || String(e)));
-      } finally { toggle.disabled = false; }
+      } finally { toggle.disabled = false; delete box.dataset.busy; }
     });
     add.addEventListener("click", () => act("add", input.value, add));
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); act("add", input.value, add); } });
@@ -2327,11 +2332,22 @@ class Deployments extends EnclaveElement {
     if (copy) copy.addEventListener("click", () => copyText(copy.dataset.copy));
   }
 
+  /* One answer to "is the user mid-something in a row?" for EVERY repaint
+     path (auth edge, catalog land, the 10s poll): any open in-row panel, or a
+     signed reveal still waiting on its wallet prompt. The second clause
+     exists because secrets/domains are reveal-first - their bodies stay
+     hidden until the signature lands - so the open-body check alone has a
+     gap exactly as wide as the wallet interaction, and a repaint through it
+     rebuilds the row and strands the reveal in detached DOM (the dropdown
+     "closes" under the wallet popup). The poll catches up once it clears. */
+  _panelPinned() {
+    return !!this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-mob:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden]), .enc-sec[data-busy], .enc-dom[data-busy]");
+  }
   _startPoll() {
     if (this._poll) return;
     this._poll = setInterval(() => {
       if (!Enclave.address && !Enclave.accountAuthed()){ this._stopPoll(); return; }
-      if (this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-mob:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden])")) return;   // don't clobber an open panel (Downloads included - it lives in-row now)
+      if (this._panelPinned()) return;
       this.refresh();
     }, 10000);
   }
