@@ -103,7 +103,7 @@ elif [ "$MODE" = concurrent ]; then
     done
     crash=$(timeout 90 $CLI logs $ID --tail 300 2>&1 | grep -icE 'GGML_ASSERT|non-consecutive token position|CUDA error|Aborted')
     done_n=$([ -f "$S/conc-$cfg.jsonl" ] && wc -l < "$S/conc-$cfg.jsonl" || echo 0)
-    tps=$([ -f "$S/conc-$cfg.jsonl" ] && python3 -c "import json,sys,statistics;v=[json.loads(l).get('tok_per_s',0) for l in open('$S/conc-$cfg.jsonl')];print(f'{statistics.mean(v):.1f}' if v else 'na')" || echo na)
+    tps=$([ -f "$S/conc-$cfg.jsonl" ] && python3 -c "import json,sys,statistics;v=[json.loads(l.replace('data: ','')).get('tok_per_s',0) for l in open('$S/conc-$cfg.jsonl') if l.strip()];print(f'{statistics.mean(v):.1f}' if v else 'na')" || echo na)
     verdict=$([ "$crash" = 0 ] && echo CLEAN || echo "CRASH($crash)")
     echo "$cfg concurrent(${CONC}x${ROUNDS}): $verdict  completed=$done_n  mean_tok_s(under load)=$tps"
     rm -f "$S/conc-$cfg.jsonl"
