@@ -26,14 +26,27 @@
 <main id="main" tabindex="-1">
 <section class="hero" aria-label="Not found">
   <div class="wrap">
-    <div class="hero-copy">
-      <span class="eyebrow">404 · not found</span>
-      <h1>This page doesn't <span class="hl">exist</span>.</h1>
-      <p class="lede">The address may be mistyped, out of date, or pointing at something that moved. Everything real is one click away.</p>
-      <div class="hero-cta">
-        <a href="./" class="btn btn-primary">Home <span class="arr" aria-hidden="true">→</span></a>
-        <a href="apps" class="btn btn-ghost">Browse apps</a>
-        <a href="develop" class="btn btn-ghost">Developer docs</a>
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <span class="eyebrow">404 · not found</span>
+        <h1>This page doesn't <span class="am">exist</span>.</h1>
+        <p class="lede">The address may be mistyped, out of date, or pointing at something that moved. Everything real is one click away.</p>
+        <div class="hero-cta">
+          <a href="./" class="btn btn-primary">Home <span class="arr" aria-hidden="true">→</span></a>
+          <a href="apps" class="btn btn-ghost">Browse apps</a>
+          <a href="develop" class="btn btn-ghost">Developer docs</a>
+        </div>
+      </div>
+      <!-- the console reports the failed lookup - static, no script, no jade
+           (nothing here verified; the lit path home is the primary button) -->
+      <div class="code">
+        <div class="codebar"><span class="fn">verifier console</span></div>
+        <pre><code>$ enclave verify <span class="tok-punc">&lt;this address&gt;</span>
+catalog      <span class="tok-punc">no app published here</span>
+fleet        <span class="tok-punc">no enclave serving it</span>
+release log  <span class="tok-punc">no measurement recorded</span>
+
+<span class="tok-num">exit 404</span> <span class="tok-com"># a mistyped address and a missing one measure the same</span></code></pre>
       </div>
     </div>
   </div>

@@ -21,7 +21,7 @@ c-wallet-button{display:contents;}
 .wp-mini{background:#101a24;border:1px solid var(--line);color:var(--iris);border-radius:6px;padding:.15em .5em;cursor:pointer;font-family:inherit;font-size:.7rem;min-height:24px;min-width:24px;display:inline-flex;align-items:center;justify-content:center;}
 .wp-bal{margin:10px 0;font-size:.76rem;color:var(--text-muted);} .wp-bal .bl-h{color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;font-size:.62rem;margin-bottom:5px;}
 .wp-bal .bl{display:flex;justify-content:space-between;color:var(--text);padding:2px 0;} .wp-bal .bl.dim{color:var(--text-muted);}
-.wp-disc{width:100%;background:#16111a;border:1px solid #3a2230;color:#ff8a8a;border-radius:8px;padding:.55em;cursor:pointer;font-family:inherit;font-size:.76rem;margin-top:4px;}
+.wp-disc{width:100%;background:var(--well);border:1px solid var(--danger-deep);color:var(--danger-2);border-radius:8px;padding:.55em;cursor:pointer;font-family:inherit;font-size:.76rem;margin-top:4px;}
 .wp-disc:hover{border-color:#ff6b6b;}
 .wallet-pick{position:fixed;inset:0;z-index:120;background:rgba(4,6,10,.74);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px);}
 .wp-card{width:300px;background:#0c121b;border:1px solid var(--line);border-radius:14px;padding:16px;font-family:var(--font-mono);}
@@ -33,20 +33,20 @@ c-wallet-button{display:contents;}
 .wp-cancel{width:100%;background:none;border:1px solid var(--line);color:var(--text-muted);border-radius:8px;padding:.5em;cursor:pointer;font-family:inherit;font-size:.76rem;margin-top:2px;}
 .wp-note{font-size:.72rem;color:var(--text-muted);line-height:1.55;margin:0 0 10px;} .wp-note b{color:var(--text);}
 .wp-sub{color:var(--text-dim);font-size:.72em;}
-.wp-input{width:100%;box-sizing:border-box;background:#080C12;border:1px solid var(--line);color:var(--text);font-family:inherit;font-size:.85rem;padding:.6em .7em;border-radius:8px;margin-bottom:8px;letter-spacing:.03em;}
+.wp-input{width:100%;box-sizing:border-box;background:var(--well);border:1px solid var(--line);color:var(--text);font-family:inherit;font-size:.85rem;padding:.6em .7em;border-radius:8px;margin-bottom:8px;letter-spacing:.03em;}
 .wp-input:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
 .wp-go{justify-content:center;color:var(--jade);border-color:var(--jade-dim);}
-.wp-err{font-size:.72rem;color:#ff8a8a;margin:-2px 0 8px;}
+.wp-err{font-size:.72rem;color:var(--danger-2);margin:-2px 0 8px;}
 .wp-fund{display:flex;gap:8px;margin:2px 0 10px;}
 /* the Deposit QR: white quiet zone so phone cameras lock on against the dark card */
 .wp-qr{display:flex;justify-content:center;margin:10px 0 2px;}
-.wp-qr svg{width:176px;height:176px;background:#fff;padding:12px;border-radius:10px;}
-.wp-addr-full{font-family:var(--font-mono);font-size:.72rem;word-break:break-all;background:#080C12;border:1px solid var(--line);border-radius:8px;padding:.6em .7em;margin:8px 0;color:var(--jade-2);user-select:all;}
+.wp-qr svg{width:176px;height:176px;background:#fff;padding:12px;border-radius:12px;}
+.wp-addr-full{font-family:var(--font-mono);font-size:.72rem;word-break:break-all;background:var(--well);border:1px solid var(--line);border-radius:8px;padding:.6em .7em;margin:8px 0;color:var(--jade-2);user-select:all;}
 .wp-amts{display:flex;gap:6px;margin:10px 0;}
 .wp-amt{flex:1;background:#0a0f17;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:.5em 0;cursor:pointer;font-family:inherit;font-size:.82rem;}
 .wp-amt.on{border-color:var(--jade);color:var(--jade);font-weight:700;text-decoration:underline;text-underline-offset:3px;}
 .wp-status{font-size:.72rem;line-height:1.5;margin:8px 0;word-break:break-word;}
-.wp-status.err{color:#ff8a8a;} .wp-status.ok{color:var(--jade);} .wp-status.pend{color:var(--text-muted);}
+.wp-status.err{color:var(--danger-2);} .wp-status.ok{color:var(--jade);} .wp-status.pend{color:var(--text-muted);}
 .wp-or{display:flex;align-items:center;gap:10px;margin:2px 0 10px;color:var(--text-dim);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;}
 .wp-or::before,.wp-or::after{content:"";flex:1;height:1px;background:var(--line-soft);}
 .wp-hint{font-size:.66rem;line-height:1.5;color:var(--text-dim);margin:-4px 2px 10px;}

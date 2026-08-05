@@ -13,8 +13,13 @@ c-header{display:contents;}
 .skip-link:not(:focus){width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0;}
 
 /* ---------- nav ---------- */
-header.nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px);
-  background:rgba(7,10,15,.72);border-bottom:1px solid var(--line-soft);
+/* scrim: a slightly denser top stop keeps the bar legible over bright page
+   content without losing the glass; plain rgba first = pre-gradient fallback */
+header.nav{position:sticky;top:0;z-index:50;
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  background:rgba(7,10,15,.72);
+  background:linear-gradient(180deg,rgba(7,10,15,.88),rgba(7,10,15,.7));
+  border-bottom:1px solid var(--line-soft);
   view-transition-name:site-header;}   /* identical across pages → visually persistent through navigations */
 .nav-inner{display:flex;align-items:center;justify-content:space-between;height:64px;position:relative;}
 .brand{display:flex;align-items:center;gap:.7em;font-family:var(--font-mono);font-weight:600;letter-spacing:.04em;}
@@ -22,12 +27,12 @@ header.nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px);
 header.nav .brand svg{width:40px;height:40px;}
 header.nav .brand svg.nm{width:auto;height:20px;}
 .brand svg.nm{width:auto;height:12px;display:block;flex:none;}
-.brand .sub{color:var(--text-dim);font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;border-left:1px solid var(--line);padding-left:.7em;margin-left:.2em;}
 .nav-links{display:flex;align-items:center;gap:6px;position:absolute;left:50%;transform:translateX(-50%);}
-.nav-links a{font-family:var(--font-mono);font-size:.82rem;color:var(--text-muted);padding:.5em .7em;border-radius:7px;transition:.15s;}
+.nav-links a{display:inline-flex;align-items:center;justify-content:center;
+  font-family:var(--font-mono);font-size:.82rem;color:var(--text-muted);
+  padding:.5em .7em;border-radius:7px;
+  transition:color .15s var(--ease),background-color .15s var(--ease);}
 .nav-links a:hover{color:var(--text);background:var(--surface);}
-.nav-cta{display:flex;align-items:center;gap:10px;}
-.menu-btn{display:none;}
 
 /* ---------- responsive ---------- */
 /* the absolutely-centered links ignore flex layout and overlap the brand
@@ -37,16 +42,30 @@ header.nav .brand svg.nm{width:auto;height:20px;}
   .nav-links{position:static;transform:none;gap:2px;}
   .nav-links a{padding:.5em .45em;font-size:.78rem;}
 }
-@media (max-width:640px){
-  .nav-inner{height:auto;min-height:64px;padding-top:10px;padding-bottom:12px;}
-  .nav-inner .brand{width:100%;justify-content:center;}   /* own centered row; wallet + tab rows follow (.brand alone would hit the footer's too) */
-  .nav-links{display:none;}
-  .menu-btn{display:inline-flex;}
-}
 
-/* ---------- active tab + mobile tab row (was runtime-injected) ---------- */
-.nav-links a[data-view]{position:relative;} .nav-links a.active{color:var(--jade);background:var(--surface);}
+/* ---------- active tab ---------- */
+.nav-links a[data-view]{position:relative;}
+.nav-links a.active{color:var(--jade);background:var(--surface);}
 .nav-links a.active::after{content:'';position:absolute;left:.7em;right:.7em;bottom:-1px;height:2px;background:var(--jade);border-radius:2px;}
 @media (max-width:880px){.nav-links a.active::after{left:.45em;right:.45em;}}
-@media(max-width:640px){.nav-inner{flex-wrap:wrap;row-gap:9px;justify-content:space-between;}.nav-links{display:flex !important;position:static;transform:none;left:auto;order:3;width:100%;justify-content:center;gap:4px;border-top:1px solid var(--line-soft);padding-top:9px;}.nav-links a{flex:1;text-align:center;padding:.55em .4em;font-size:.8rem;}}
-.nav-inner{position:relative;}
+
+/* ---------- ≤640px: three designed rows ----------
+   brand (centered) / wallet (centered) / full-width tab row behind its own
+   hairline. Every interactive row holds a ≥44px tap target (WCAG 2.5.8+),
+   and the tab row's pills split the width evenly like a segmented control. */
+@media (max-width:640px){
+  .nav-inner{flex-wrap:wrap;height:auto;min-height:64px;row-gap:2px;
+    padding-top:8px;padding-bottom:0;justify-content:space-between;}
+  .nav-inner .brand{width:100%;justify-content:center;min-height:44px;}   /* scoped: .brand alone would hit the footer's too */
+  /* header layout only - the auto margins center the wallet's own row.
+     c-header ancestor outranks wallet-button.css's later-imported
+     `.nav-inner .wallet-mount{margin-left:0}` at equal layer */
+  c-header .nav-inner .wallet-mount{margin-inline:auto;}
+  .nav-links{position:static;transform:none;order:3;width:100%;
+    justify-content:center;gap:4px;margin-top:6px;
+    border-top:1px solid var(--line-soft);padding:5px 0;}
+  .nav-links a{flex:1;min-height:44px;padding:.4em;font-size:.8rem;}
+  /* tuck the jade bar up under the label instead of the pill's far edge -
+     inside a 44px target the bottom edge floats too far from the text */
+  .nav-links a.active::after{left:.6em;right:.6em;bottom:6px;}
+}

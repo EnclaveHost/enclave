@@ -9,10 +9,13 @@
    ============================================================ */
 c-volume-picker{display:contents;}
 
-.vol-list .vol-row{display:flex;align-items:center;gap:10px;margin:0;padding:9px 12px;border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);font-size:.72rem;letter-spacing:0;color:var(--text-muted);cursor:pointer;}
+.vol-list .vol-row{display:flex;align-items:center;gap:10px;margin:0;padding:9px 12px;border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);font-size:.72rem;letter-spacing:0;color:var(--text-muted);cursor:pointer;transition:background-color .15s var(--ease);}
 .vol-list .vol-row:last-child{border-bottom:0;}
-.vol-list .vol-row.on{background:rgba(52,211,153,.06);}
+.vol-list .vol-row:hover:not(.on){background:var(--bg-1);}
+/* picked = the active-selection idiom: jade tint + the 3px inset bar (the
+   ticked box stays the non-color cue) */
+.vol-list .vol-row.on{background:rgba(47,230,168,.06);box-shadow:inset 3px 0 0 var(--jade);}
 .vol-row input{accent-color:var(--jade);margin:0;flex:none;}
 .vol-name{color:var(--text);font-size:.76rem;overflow-wrap:anywhere;}
-.vol-list .vol-size{margin-left:auto;white-space:nowrap;padding-left:14px;}
+.vol-list .vol-size{margin-left:auto;white-space:nowrap;padding-left:14px;font-variant-numeric:tabular-nums;}
 .vol-list .vol-where{white-space:nowrap;}

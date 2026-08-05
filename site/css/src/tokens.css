@@ -28,7 +28,22 @@
   --iris:#8FA2FF;
   --iris-deep:#1A2150;
   --danger:#FF6B6B;
+  /* softer red for inline error copy (parallel to jade-2/amber-2) */
+  --danger-2:#FF8A8A;
   --danger-deep:#3A1717;
+  /* deepest tier: terminals, code, inputs — sits BELOW the page ground */
+  --well:#080C12;
+  /* card/panel alias — checkout, link and order-status style against it */
+  --panel:var(--surface);
+  /* hover border lift tiers: controls (strong) and cards (soft) */
+  --line-hover:#33465C;
+  --line-hover-soft:#2B3A4D;
+  /* bottom stop of the card top-lit gradient */
+  --surface-deep:#0C131C;
+  /* code + terminal ink tiers */
+  --code-ink:#C7D3E2;
+  --term-ink:#B9C6D6;
+  --code-comment:#6B7D94;
   --m-get:#2FE6A8;
   --m-post:#7E9CFF;
   --m-patch:#FF914D;

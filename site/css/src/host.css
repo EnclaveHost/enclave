@@ -1,20 +1,28 @@
 /* ============================================================
-   Host an enclave - the seller's page. Prose-width documentation
-   in the site's own ink rather than a link out to a repo README.
+   Host an enclave - the seller's page. Documentation rhythm in
+   the develop-docs idiom: mono section heads over hairlines,
+   78ch prose, inline-code chips, code wells, one lit CTA.
    ============================================================ */
 .hostdoc{max-width:56rem;margin-top:26px;}
-.hostdoc h2{margin:30px 0 10px;font-size:1rem;font-weight:500;color:var(--text);
-  letter-spacing:.01em;}
-.hostdoc h2:first-child{margin-top:0;}
-.hostdoc p{margin:0 0 12px;font-size:.86rem;line-height:1.65;color:var(--text-muted);}
-.hostdoc code{font-family:var(--font-mono);font-size:.92em;color:var(--text);}
-.hostdoc-list{margin:0 0 12px;padding-left:1.1rem;list-style:disc;}
-.hostdoc-list li{margin-bottom:7px;font-size:.86rem;line-height:1.6;color:var(--text-muted);}
+.hostdoc-cta{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 34px;}
+.hostdoc h2{font-family:var(--font-mono);font-size:1.08rem;font-weight:600;color:var(--text);
+  letter-spacing:.01em;margin:34px 0 10px;padding-top:24px;border-top:1px solid var(--line-soft);}
+.hostdoc>h2:first-of-type{margin-top:0;padding-top:0;border-top:0;}
+.hostdoc p{margin:0 0 12px;font-size:.95rem;line-height:1.65;color:var(--text-muted);max-width:78ch;}
+.hostdoc p b{color:var(--text);}
+.hostdoc p code,.hostdoc li code{font-family:var(--font-mono);font-size:.86em;color:var(--jade-2);
+  background:var(--bg-1);border:1px solid var(--line-soft);border-radius:5px;padding:.08em .35em;}
+.hostdoc-list{margin:0 0 14px;padding-left:1.3em;list-style:disc;max-width:78ch;}
+.hostdoc-list li{margin-bottom:8px;font-size:.95rem;line-height:1.65;color:var(--text-muted);}
 .hostdoc-list li b{color:var(--text);font-weight:500;}
-.hostdoc-list a{color:var(--jade);text-decoration:none;}
-.hostdoc-list a:hover,.hostdoc-list a:focus-visible{text-decoration:underline;}
-.hostdoc-code{margin:0 0 16px;padding:12px 14px;overflow-x:auto;
-  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);}
-.hostdoc-code code{display:block;font-size:.76rem;line-height:1.75;white-space:pre;color:var(--text);}
-.hostdoc-code .c{color:var(--text-dim);}
-.hostdoc-cta{margin-top:26px;}
+/* in-prose links carry the underline, never color alone (WCAG 1.4.1) */
+.hostdoc-list a{color:var(--jade);text-decoration:underline;text-underline-offset:3px;}
+.hostdoc-list a:hover,.hostdoc-list a:focus-visible{color:var(--jade-2);}
+/* command blocks are code wells: sunk below the page, comment ink dimmed */
+.hostdoc-code{margin:14px 0 16px;padding:14px 16px;overflow-x:auto;
+  background:var(--well);border:1px solid var(--line-soft);border-radius:var(--radius-sm);}
+.hostdoc-code code{display:block;font-family:var(--font-mono);font-size:.82rem;line-height:1.65;white-space:pre;color:var(--code-ink);}
+.hostdoc-code .c{color:var(--code-comment);font-style:italic;}
+/* the shared .doc-note callout, restored against .hostdoc's own p rhythm */
+.hostdoc .doc-note p{margin:.2em 0;font-size:.9rem;}
+.host-fleet{margin-bottom:6px;}

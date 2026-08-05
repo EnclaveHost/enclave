@@ -248,12 +248,12 @@
         <span class="pc-rate">× $<span data-live-price="unit-hr" data-cpu="100">3</span>/hr per whole node</span>
         <p>0-100% of the node's vCPU+RAM: each percent buys ≈<span data-live-spec="vcpu" data-cpu="1">0.16</span> vCPU, ≈<span data-live-spec="ram" data-cpu="1">0.64</span>&nbsp;GB RAM, ≈<span data-live-spec="gflops" data-cpu="1">10</span> GFLOPS (a whole node is roughly a thousandth of a card's FLOPS). <b>Your app's memory cap is exactly this slice of the node's <span data-live-spec="node-ram">64</span>&nbsp;GB.</b></p>
       </div>
-      <div class="price-card">
+      <div class="price-card aux">
         <span class="pc-t">Floors come from app specs</span>
         <span class="pc-rate">minimums, not suggestions</span>
         <p>The VRAM, compute, and RAM an app declares in the catalog set each dial's minimum: spec ÷ server spec (<span data-live-spec="card-vram">140.4</span>&nbsp;GB / <span data-live-spec="card-tflops">989</span> TFLOPS per card; <span data-live-spec="node-ram">64</span>&nbsp;GB / ~<span data-live-spec="node-gflops">1000</span> GFLOPS per node), larger axis wins, rounded up to a whole percent. An app declaring <span data-live-spec="tflops-floor" data-gpu="50">494</span> TFLOPS can't deploy below a 50% GPU share even if it needs 2&nbsp;GB of VRAM - <b>you can't occupy an axis without paying for it.</b></p>
       </div>
-      <div class="price-card">
+      <div class="price-card aux">
         <span class="pc-t">Rules of the road</span>
         <span class="pc-rate">software caps · CC disables MIG</span>
         <p>A GPU app's GPU share must be at least its CPU share (its CPU slice rides on the card's node) - so a 100%-GPU, 10%-CPU tenant leaves 90% of that node for CPU-only apps. <b>Unsold CPU on a GPU node is never stranded.</b> Shares are runtime-enforced software caps, not hardware MIG partitions.</p>

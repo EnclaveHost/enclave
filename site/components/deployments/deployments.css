@@ -13,13 +13,19 @@ c-deployments{display:contents;}
 .enc-segs button.on b{color:var(--jade-dim);}
 /* with the count gone, the search fills the gap between the seg and refresh/CTA */
 .enc-search{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:.78rem;padding:.55em .8em;flex:1 1 auto;min-width:210px;}
-.enc-search:focus{border-color:var(--jade-dim);}
+.enc-search:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
 
 /* pager: 5 deployments per page */
 .enc-pager{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:14px;}
 .enc-pg-info{font-family:var(--font-mono);font-size:.74rem;color:var(--text-dim);font-variant-numeric:tabular-nums;}
 .enc-pg[disabled]{opacity:.4;cursor:default;}
-.enc-empty{padding:34px 0;text-align:center;font-family:var(--font-mono);font-size:.8rem;color:var(--text-muted);}
+/* absence states (no apps yet / filter came up empty / load failed): dashed =
+   absent, with the first-run copy pointing at the store. JS supplies the text;
+   the ring glyph is presentational only (alt-text syntax keeps it silent) */
+.enc-empty{padding:38px 22px;text-align:center;font-family:var(--font-mono);font-size:.8rem;line-height:1.7;color:var(--text-muted);border:1px dashed var(--line-hover-soft);border-radius:var(--radius);background:var(--bg-1);}
+.enc-empty::before{content:"○" / "";display:block;margin-bottom:8px;color:var(--text-dim);}
+.enc-empty a{color:var(--jade);text-decoration:underline;text-underline-offset:3px;}
+.enc-empty a:hover{color:var(--jade-2);}
 /* minmax(0,1fr), NOT auto: rows are full of unbreakable mono tokens (bytes32
    ids, ip6+ports lines, panel titles) whose min-content would otherwise floor
    the track at ~650px and scroll the whole page sideways on phones */
@@ -32,39 +38,50 @@ c-deployments{display:contents;}
 /* each deployment is a CARD in the app-card material (surface, radius,
    border, hover accent) - panels expand inside their card */
 .enc-row{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;transition:border-color .2s var(--ease);}
-.enc-row:hover{border-color:#33465c;}
+.enc-row:hover{border-color:var(--line-hover);}
 .enc-row.enc-new{border-color:var(--jade-dim);box-shadow:0 0 0 1px var(--jade-deep) inset;background:rgba(47,230,168,.04);}
 .enc-main{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+/* status at a glance: the status badge (statusCls tones) carries a state dot -
+   jade pulses while the app is LIVE, amber marks a failure, iris marks the
+   in-between states (queued/deploying). The waf "protected" badge shares the
+   .info tone but is not a status - no dot. Dots are alt-text-silenced: the
+   badge already says the word. */
+.enc-main .ap-badge.ok::before,.enc-main .ap-badge.warn::before,.enc-main .ap-badge.info:not(.ep-waf)::before{content:"●" / "";margin-right:.45em;font-size:.8em;}
+.enc-main .ap-badge.ok::before{animation:encpulse 1.2s ease-in-out infinite;}
+@media (prefers-reduced-motion:reduce){.enc-main .ap-badge.ok::before{animation:none;}}
 .enc-thumb{flex:none;width:48px;aspect-ratio:16/9;border-radius:var(--radius-sm);border:1px solid var(--line-soft);background:var(--bg-1) center/cover no-repeat;}   /* the app's cover art (store thumbnail or generated stand-in) */
 .enc-br{flex-basis:100%;height:0;}   /* hard wrap after the instance id: tier/app/spend start the next line */
 .enc-id{background:none;border:0;color:var(--jade-2);font-family:var(--font-mono);font-size:.84rem;cursor:pointer;padding:0;min-width:24px;min-height:24px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}   /* min 24px hit target; stays inline-block so the ellipsis keeps working */   /* a bytes32 id outgrows a phone; the copy button holds the full value */
-.enc-meta{font-family:var(--font-mono);font-size:.76rem;color:var(--text);overflow-wrap:anywhere;} .enc-meta .dim{color:var(--text-muted);}
-.enc-spend{font-family:var(--font-mono);font-size:.76rem;color:var(--text-muted);}
+.enc-meta{font-family:var(--font-mono);font-size:.76rem;color:var(--text);overflow-wrap:anywhere;font-variant-numeric:tabular-nums;} .enc-meta .dim{color:var(--text-muted);}
+.enc-spend{font-family:var(--font-mono);font-size:.76rem;color:var(--text-muted);font-variant-numeric:tabular-nums;}
 .enc-acts{margin-left:auto;display:flex;gap:8px;}
-.enc-ep{display:block;margin-top:9px;background:#080c12;border:1px solid var(--line-soft);color:var(--jade-2);font-family:var(--font-mono);font-size:.76rem;cursor:pointer;text-align:left;padding:.5em .7em;border-radius:8px;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.enc-att{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;}
+.enc-ep{display:block;margin-top:9px;background:var(--well);border:1px solid var(--line-soft);color:var(--jade-2);font-family:var(--font-mono);font-size:.76rem;cursor:pointer;text-align:left;padding:.5em .7em;border-radius:8px;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:border-color .15s var(--ease);}
+.enc-ep:hover{border-color:var(--line-hover-soft);}
+.enc-att{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:var(--well);}
 
 /* terminal-style output (shared by the live strip and row Output panels;
    the .term/.ln palette moved here from the retired <c-terminal>) */
-.term{font-family:var(--font-mono);font-size:.8rem;padding:14px 18px;line-height:1.7;color:#B9C6D6;overflow-y:auto;}
+.term{font-family:var(--font-mono);font-size:.8rem;padding:14px 18px;line-height:1.7;color:var(--term-ink);overflow-y:auto;}
 .term .ln{display:block;white-space:pre-wrap;word-break:break-word;}
 .term .p{color:var(--jade);}
 .term .ok{color:var(--jade);}
 .term .warn{color:var(--amber);}
 .term .info{color:var(--iris);}
 .term .dimln{color:var(--text-dim);}
-.term .logln{color:#B9C6D6;}
+.term .logln{color:var(--term-ink);}
 /* an ACTION line: a real button in the stream (retry a failed payment), so a
    story that went wrong offers its own way forward. Must follow .term .ln -
    equal specificity, source order decides the display. */
-.term .ln-act{display:inline-block;width:auto;margin:3px 0;background:var(--jade-deep);border:1px solid var(--jade-dim);border-radius:8px;color:var(--jade);font-family:var(--font-mono);font-size:.78rem;line-height:1.5;padding:.4em .8em;min-height:28px;cursor:pointer;text-align:left;transition:.15s;}
+.term .ln-act{display:inline-block;width:auto;margin:3px 0;background:var(--jade-deep);border:1px solid var(--jade-dim);border-radius:8px;color:var(--jade);font-family:var(--font-mono);font-size:.78rem;line-height:1.5;padding:.4em .8em;min-height:28px;cursor:pointer;text-align:left;transition:border-color .15s var(--ease),color .15s var(--ease);}
 .term .ln-act:hover:not(:disabled){border-color:var(--jade);color:var(--jade-2);}
 .term .ln-act:disabled{opacity:.45;cursor:default;}
 
 /* the live-deploy strips: standalone cards while a run is streaming */
 .enc-lives{display:grid;gap:14px;grid-template-columns:minmax(0,1fr);}   /* same min-content escape as .enc-body */
 .enc-lives:not(:empty){margin-bottom:14px;}
-.enc-live{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:#080c12;}
+/* a streaming deploy is ALIVE: the verified-card inset ring + a quiet jade
+   glow lift it above the resting rows (glow, never a shadow) */
+.enc-live{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--well);box-shadow:0 0 0 1px var(--jade-deep) inset,0 0 40px -18px var(--jade-glow);}
 .enc-live-bar{display:flex;align-items:center;gap:10px;padding:8px 18px;border-bottom:1px solid var(--line-soft);background:var(--bg-1);}
 .enc-live-bar .elb-k{font-family:var(--font-mono);font-size:.64rem;letter-spacing:.1em;text-transform:uppercase;color:var(--jade);}
 .enc-live-bar .elb-k::before{content:"●";margin-right:6px;animation:encpulse 1.2s ease-in-out infinite;}
@@ -76,67 +93,69 @@ c-deployments{display:contents;}
 .enc-live-out{max-height:300px;}
 
 /* per-row Top up (amount -> runtime -> one signature) */
-.enc-fund{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:#080c12;}
+.enc-fund{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:var(--well);}
 .enc-fund-body{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;}
 .enc-fund-body label{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);}
 .ef-amt{width:110px;background:var(--bg-1);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:.84rem;padding:.4em .6em;}
-.ef-amt:focus{border-color:var(--jade-dim);}
-.ef-est{font-family:var(--font-mono);font-size:.76rem;color:var(--jade);}
+.ef-amt:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
+/* "adds ≈ 2h 10m" is an estimate: amber, the spend/compute channel - matching
+   the deploy console's runtime estimate (jade would claim it as verified) */
+.ef-est{font-family:var(--font-mono);font-size:.76rem;color:var(--amber);font-variant-numeric:tabular-nums;}
 .enc-fund-status{padding:0 18px 10px;min-height:0;}
 .enc-fund-status:empty{display:none;}
 
 /* per-row Version (switch to another approved release; setAppRef) */
-.enc-upg,.enc-move{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:#080c12;}
+.enc-upg,.enc-move{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:var(--well);}
 .enc-upg-body{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;}
 .enc-upg-body label{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);}
 .eu-sel{max-width:100%;background:var(--bg-1);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:.84rem;padding:.4em .6em;}
-.eu-sel:focus{border-color:var(--jade-dim);}
+.eu-sel:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
 /* share dials (rev-6 ledger + a fleet that re-slices): re-buy gpu/cpu in the same tx */
 .eu-dials{display:flex;align-items:center;gap:8px;}
 .eu-dials input{width:5.5em;background:var(--bg-1);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:.84rem;padding:.4em .6em;}
-.eu-dials input:focus{border-color:var(--jade-dim);outline:none;}
+.eu-dials input:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
 .enc-upg-status{padding:0 18px 10px;min-height:0;}
 .enc-upg-status:empty{display:none;}
 .enc-move-status{padding:0 18px 10px;min-height:0;}
 .enc-move-status:empty{display:none;}
 
 /* per-row Protect (the options envelope's waf namespace; setConfig) */
-.enc-waf{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:#080c12;}
+.enc-waf{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:var(--well);}
 .enc-waf-body{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;}
 .enc-waf-body label{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);}
 .enc-waf-body abbr{cursor:help;text-decoration:underline dotted;}
 .enc-waf-body input[type="number"]{width:6em;background:var(--bg-1);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:.84rem;padding:.4em .6em;}
-.enc-waf-body input[type="number"]:focus{border-color:var(--jade-dim);outline:none;}
+.enc-waf-body input[type="number"]:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
 .enc-waf-body input[type="number"]:disabled{opacity:.45;}
 .ew-on,.ew-scanlbl{display:inline-flex;align-items:center;gap:6px;}
 .enc-waf-status{padding:0 18px 10px;min-height:0;}
 .enc-waf-status:empty{display:none;}
 
 /* per-row Transfer (transferDeployment: hand the record to another wallet) */
-.enc-xfer{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:#080c12;}
+.enc-xfer{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:var(--well);}
 .enc-xfer-body{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;}
 .enc-xfer-body label{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);}
 .ex-addr{background:var(--bg-1);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:.84rem;padding:.4em .6em;flex:1;min-width:24em;}
-.ex-addr:focus{border-color:var(--jade-dim);outline:none;}
+.ex-addr:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
 .ex-addr:disabled{opacity:.45;}
 .enc-xfer-status{padding:0 18px 10px;min-height:0;}
 .enc-xfer-status:empty{display:none;}
 
 /* per-row Secrets (private env vars: relay-stored, locked-first editor - the
    bar carries the Unlock/Lock control; the body exists only while unlocked) */
-.enc-sec{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:#080c12;}
+.enc-sec{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:var(--well);}
 .es-toggle{float:right;margin:-4px 0 -4px 10px;text-transform:none;letter-spacing:0;}
 .enc-sec-body{display:flex;flex-direction:column;gap:10px;padding:12px 18px;}
 .enc-sec-body label{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);}
 .es-ta{width:100%;background:var(--bg-1);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:.8rem;padding:.5em .7em;resize:vertical;}
-.es-ta:focus{border-color:var(--jade-dim);}
+.es-ta:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
 .enc-sec-acts{display:flex;gap:10px;flex-wrap:wrap;}
 .enc-sec-status{padding:0 18px 10px;min-height:0;}
 .enc-sec-status:empty{display:none;}
 
 /* per-row Domains (bring-your-own hostnames: the bar carries the toggle, the
    body lists each attached name with the exact DNS records to create) */
-.enc-dom{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:#080c12;}
+.enc-dom{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:var(--well);}
 .ed-toggle{float:right;margin:-4px 0 -4px 10px;text-transform:none;letter-spacing:0;}
 .enc-dom-body{display:flex;flex-direction:column;gap:12px;padding:12px 18px;}
 .enc-dom-status{padding:0 18px 10px;min-height:0;}
@@ -144,7 +163,7 @@ c-deployments{display:contents;}
 .ed-empty{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);line-height:1.6;}
 .ed-add{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
 .ed-in{flex:1 1 220px;min-width:0;background:var(--bg-1);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:.8rem;padding:.5em .7em;}
-.ed-in:focus{border-color:var(--jade-dim);}
+.ed-in:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
 .ed-row{border:1px solid var(--line-soft);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;}
 .ed-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
 .ed-dot{font-size:.7rem;}
@@ -173,7 +192,7 @@ a.ed-host:hover{color:var(--jade);}
 .ed-err.dimln{color:var(--text-dim);}
 
 /* per-row Output panel (narrative + app logs) */
-.enc-out{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:#080c12;}
+.enc-out{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:var(--well);}
 .enc-out-term{max-height:360px;}
 .enc-out-nar:not(:empty){padding-bottom:8px;margin-bottom:8px;border-bottom:1px dashed var(--line-soft);}
 .enc-out-info:not(:empty){padding-bottom:8px;margin-bottom:8px;border-bottom:1px dashed var(--line-soft);}
@@ -181,7 +200,7 @@ a.ed-host:hover{color:var(--jade);}
    this browser): until the in-enclave ACME cert actually handshakes it is a
    disabled <button> - amber, open padlock - then swaps to the live <a> with
    the closed padlock in the usual jade */
-.enc-open{margin-left:8px;font-family:var(--font-mono);font-size:.7rem;color:var(--jade);border:1px solid var(--jade-dim);border-radius:6px;padding:.15em .5em;background:none;}
+.enc-open{margin-left:8px;font-family:var(--font-mono);font-size:.7rem;color:var(--jade);border:1px solid var(--jade-dim);border-radius:6px;padding:.15em .5em;background:none;transition:background-color .15s var(--ease),border-color .15s var(--ease);}
 .enc-open:hover{background:var(--jade-deep);}
 .enc-open[disabled]{color:var(--amber);border-color:var(--amber-dim);cursor:default;}
 .enc-open[disabled]:hover{background:none;}
@@ -190,9 +209,9 @@ a.ed-host:hover{color:var(--jade);}
 @media (prefers-reduced-motion:reduce){.enc-open[disabled] .enc-lock{animation:none;}}
 .enc-vbadge{float:right;text-transform:none;letter-spacing:0;font-size:.7rem;}
 .enc-vbadge.ok{color:var(--jade);} .enc-vbadge.bad{color:var(--amber);}
-.ap-attbar{font-family:var(--font-mono);font-size:.66rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;padding:9px 18px;background:#0b1119;border-bottom:1px solid var(--line-soft);overflow-wrap:anywhere;}   /* wrap (don't ellipsize) the id: nowrap would clip the floated verify badge */
+.ap-attbar{font-family:var(--font-mono);font-size:.66rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;padding:9px 18px;background:var(--bg-1);border-bottom:1px solid var(--line-soft);overflow-wrap:anywhere;}   /* wrap (don't ellipsize) the id: nowrap would clip the floated verify badge */
 .ap-attpre{margin:0;padding:14px 18px;max-height:320px;overflow:auto;font-family:var(--font-mono);font-size:.76rem;line-height:1.55;white-space:pre-wrap;word-break:break-word;}
-.btn.danger{border-color:#3a2230;color:#ff8a8a;} .btn.danger:hover{border-color:#ff6b6b;background:rgba(255,107,107,.08);}
+.btn.danger{border-color:var(--danger-deep);color:var(--danger-2);} .btn.danger:hover{border-color:var(--danger);background:rgba(255,107,107,.08);}
 /* Suspend is reversible (Resume restores it) - amber, so red stays reserved
    for the one-way doors next to it (Terminate, Cancel) */
 .btn.warn{border-color:var(--amber-deep);color:var(--amber-2);} .btn.warn:hover{border-color:var(--amber);background:rgba(255,145,77,.08);}

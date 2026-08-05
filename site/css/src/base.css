@@ -10,7 +10,7 @@
 html{background:var(--bg);color-scheme:dark;scroll-behavior:smooth;scroll-padding-top:80px;-webkit-text-size-adjust:100%;}
 /* ≤640px the sticky header wraps to three rows (~150px tall) - anchor jumps
    must still land clear of it (WCAG 2.4.11) */
-@media (max-width:640px){html{scroll-padding-top:150px;}}
+@media (max-width:640px){html{scroll-padding-top:160px;}}
 [hidden]{display:none !important;}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto;}}
 
@@ -123,7 +123,7 @@ main:focus,main:focus-visible{outline:none;}
   background:var(--surface);color:var(--text);transition:.18s var(--ease);
   text-decoration:none;white-space:nowrap;
 }
-.btn:hover{border-color:#33465c;background:var(--surface-2);transform:translateY(-1px);}
+.btn:hover{border-color:var(--line-hover);background:var(--surface-2);transform:translateY(-1px);}
 .btn .arr{transition:transform .18s var(--ease);}
 .btn:hover .arr{transform:translateX(3px);}
 .btn-primary{
@@ -147,23 +147,23 @@ section{padding:84px 0;position:relative;}
 @media (prefers-reduced-motion:reduce){.loading::before{animation:none;border-top-color:var(--line);}}
 
 /* ---------- code block ---------- */
-.code{font-family:var(--font-mono);font-size:.82rem;line-height:1.65;background:#080C12;border:1px solid var(--line-soft);border-radius:var(--radius-sm);overflow:auto;}
+.code{font-family:var(--font-mono);font-size:.82rem;line-height:1.65;background:var(--well);border:1px solid var(--line-soft);border-radius:var(--radius-sm);overflow:auto;}
 .code .codebar{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--line-soft);background:var(--bg-1);position:sticky;top:0;}
 .code .codebar .fn{color:var(--text-dim);font-size:.72rem;display:flex;align-items:center;gap:.6em;}
 .code pre{margin:0;padding:14px 16px;white-space:pre;}
-.code code{color:#C7D3E2;}
+.code code{color:var(--code-ink);}
 .tok-key{color:var(--iris);}
 .tok-str{color:var(--jade-2);}
 .tok-num{color:var(--amber-2);}
 .tok-punc{color:var(--text-dim);}
-.tok-com{color:#6B7D94;font-style:italic;}
+.tok-com{color:var(--code-comment);font-style:italic;}
 .tok-bool{color:var(--amber);}
 .tok-meth{color:var(--jade);font-weight:600;}
 /* explicit line-height: the ⧉/▶ symbols come from fallback fonts whose
    line-height:normal differs from the mono font's - buttons would come out
    different heights side by side */
 .copybtn{font-family:var(--font-mono);font-size:.7rem;line-height:1.5;color:var(--text-muted);border:1px solid var(--line);background:var(--surface);padding:.32em .6em;border-radius:6px;cursor:pointer;transition:.15s;display:inline-flex;gap:.4em;align-items:center;min-height:24px;min-width:24px;justify-content:center;}
-.copybtn:hover{color:var(--text);border-color:#33465c;}
+.copybtn:hover{color:var(--text);border-color:var(--line-hover);background:var(--surface-2);}
 .copybtn.ok{color:var(--jade);border-color:rgba(47,230,168,.4);}
 /* margin-left:auto: the codebar is space-between, which centers a THIRD child
    (fn | run | copy) - the auto margin pulls run+copy into one right-side group.

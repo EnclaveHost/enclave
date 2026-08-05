@@ -16,6 +16,8 @@ c-app-reviews{display:block;}
 .revs{display:flex;flex-direction:column;gap:18px;margin-top:26px;padding-top:22px;border-top:1px solid var(--line);}
 .revs-h{margin:0;font-size:1.1rem;}
 .revs-none{margin:0;color:var(--text-muted);font-size:.9rem;}
+/* the reviews' first read is a small in-block wait, not a page-sized one */
+.revs .loading{padding:18px 0;font-size:.74rem;}
 
 /* ---- summary: the number, the stars, the distribution ---- */
 .revs-summary{display:flex;flex-wrap:wrap;align-items:center;gap:28px;}
@@ -30,8 +32,11 @@ c-app-reviews{display:block;}
 .revs-bar-fill{display:block;height:100%;background:var(--amber-dim);}
 
 /* ---- write form ---- */
+/* the gate is the machine stating why the form is closed: mono voice, and
+   the dashed border that means provisional everywhere else on the site */
 .revs-gate{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:10px;
-  font-size:.86rem;color:var(--text-muted);background:var(--bg-1);border:1px solid var(--line-soft);
+  font-family:var(--font-mono);font-size:.74rem;line-height:1.6;color:var(--text-muted);
+  background:var(--bg-1);border:1px dashed var(--line);
   border-radius:var(--radius-sm);padding:12px 14px;}
 .revs-write{display:flex;flex-direction:column;gap:10px;background:var(--bg-1);
   border:1px solid var(--line-soft);border-radius:var(--radius-sm);padding:14px;}
@@ -46,9 +51,11 @@ c-app-reviews{display:block;}
 .revs-pick:hover .revs-pick-star{color:var(--amber-2);}
 .revs-pick-star:hover ~ .revs-pick-star{color:var(--line-strong);}
 .revs-pick-star:has(:focus-visible){outline:2px solid var(--jade);outline-offset:2px;}
-.revs-body{width:100%;resize:vertical;background:var(--surface);border:1px solid var(--line);
-  border-radius:var(--radius-sm);color:var(--text);font-size:.88rem;line-height:1.5;padding:9px 11px;}
-.revs-body:focus{border-color:var(--jade-dim);outline:none;}
+.revs-body{width:100%;resize:vertical;background:var(--well);border:1px solid var(--line);
+  border-radius:var(--radius-sm);color:var(--text);font-size:.88rem;line-height:1.5;padding:9px 11px;
+  transition:border-color .15s var(--ease),box-shadow .15s var(--ease);}
+.revs-body::placeholder{color:var(--text-dim);}
+.revs-body:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);outline:none;}
 .revs-write-foot{display:flex;flex-wrap:wrap;align-items:center;gap:10px;
   font-family:var(--font-mono);font-size:.7rem;color:var(--text-dim);}
 .revs-count.over{color:var(--danger);}
@@ -57,7 +64,7 @@ c-app-reviews{display:block;}
 
 /* ---- the list ---- */
 .revs-list{display:flex;flex-direction:column;gap:2px;}
-.rev{padding:13px 0;border-top:1px solid var(--line-soft);}
+.rev{padding:14px 0;border-top:1px solid var(--line-soft);}
 .rev:first-child{border-top:0;}
 .rev-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px;
   font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);}

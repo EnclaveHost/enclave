@@ -3,8 +3,8 @@
    ============================================================ */
 c-fleet-list{display:contents;}
 
-.fleet-list{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#080c12;display:block;}
-.fleet-row{display:flex;flex-direction:column;gap:9px;padding:10px 12px 11px;border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);}
+.fleet-list{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--well);display:block;}
+.fleet-row{display:flex;flex-direction:column;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);}
 .fleet-row:last-child{border-bottom:0;}
 .fleet-head{display:flex;align-items:center;gap:12px;}
 .fleet-name{color:var(--text);font-size:.76rem;overflow-wrap:anywhere;}
@@ -15,8 +15,8 @@ c-fleet-list{display:contents;}
 .fleet-pool-label{font-size:.66rem;letter-spacing:.1em;color:var(--text-dim);}
 .fleet-pool-pct{white-space:nowrap;font-size:.7rem;color:var(--text-dim);}
 .fleet-pool-pct b{font-weight:500;color:var(--text);font-variant-numeric:tabular-nums;}
-.fleet-meter{display:block;height:5px;border-radius:3px;background:rgba(47,230,168,.12);overflow:hidden;}   /* track = a faint step of the fill's own jade ramp */
-.fleet-meter b{display:block;height:100%;background:linear-gradient(90deg,var(--jade),var(--jade-2));border-radius:3px;}
+.fleet-meter{display:block;height:5px;border-radius:999px;background:rgba(47,230,168,.12);overflow:hidden;}   /* track = a faint step of the fill's own jade ramp; meter tracks are true pills */
+.fleet-meter b{display:block;height:100%;background:linear-gradient(90deg,var(--jade),var(--jade-2));border-radius:999px;}
 
 /* stat cells: value over label; "≈" and the "/ total" context recede into dim ink */
 .fleet-stats{grid-column:2/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px 16px;}   /* equal columns so the cells align across the GPU and CPU pools */
@@ -35,7 +35,7 @@ c-fleet-list{display:contents;}
 .fleet-foot .contract-link{min-height:24px;line-height:1;}
 .fleet-foot .fleet-refresh{line-height:1;}
 .fleet-foot:empty{display:none;}
-.fleet-refresh{font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);background:none;border:0;padding:0;min-width:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}
+.fleet-refresh{font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);background:none;border:0;padding:0;min-width:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:color .15s var(--ease);}
 .fleet-refresh:hover{color:var(--jade);}
 .fleet-refresh:disabled{opacity:.45;cursor:wait;}
 
@@ -63,7 +63,7 @@ c-fleet-list{display:contents;}
 .revs-pick legend{float:left;margin-right:10px;font-size:.7rem;color:var(--text-dim);}
 .revs-pick-star{cursor:pointer;font-size:1.15rem;line-height:1;color:var(--line-strong);}
 .revs-pick-star.on{color:var(--amber-2);}
-.revs-pick-star:focus-within{outline:2px solid var(--jade);outline-offset:2px;border-radius:2px;}
+.revs-pick-star:focus-within{outline:2px solid var(--jade);outline-offset:2px;border-radius:5px;}
 .revs-body{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-sm);
   color:var(--text);font:inherit;font-size:.74rem;padding:6px 8px;resize:vertical;}
 .revs-write-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:.66rem;color:var(--text-dim);}

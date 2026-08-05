@@ -4,7 +4,12 @@
 c-ticker{display:contents;}
 
 .ticker{border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);background:var(--bg-1);overflow:hidden;margin-top:34px;position:relative;}
-.ticker-pause{position:absolute;right:10px;top:50%;transform:translateY(-50%);z-index:1;
+/* facts surface out of the band instead of clipping at the frame - the
+   fades resolve to the ticker's own ground, so no new color is introduced */
+.ticker::before,.ticker::after{content:"";position:absolute;top:0;bottom:0;width:56px;z-index:1;pointer-events:none;}
+.ticker::before{left:0;background:linear-gradient(90deg,var(--bg-1),transparent);}
+.ticker::after{right:0;background:linear-gradient(270deg,var(--bg-1),transparent);}
+.ticker-pause{position:absolute;right:10px;top:50%;transform:translateY(-50%);z-index:2;
   min-width:28px;min-height:28px;display:inline-flex;align-items:center;justify-content:center;
   font-size:.8rem;line-height:1;color:var(--text-muted);cursor:pointer;
   background:var(--surface-2);border:1px solid var(--line-strong);border-radius:6px;}

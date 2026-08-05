@@ -1,43 +1,218 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-05T03:24:04Z",
+  "generatedAt": "2026-08-05T04:02:37Z",
   "title": "Design System: Enclave",
   "extensions": {
     "colorMeta": {
-      "jade": { "role": "primary", "displayName": "Jade", "canonical": "#2FE6A8", "tonalRamp": ["#0E3A2C", "#14543F", "#1C9C74", "#24C08C", "#2FE6A8", "#5FF0C0", "#9AF6D8", "#D3FBEE"] },
-      "amber": { "role": "secondary", "displayName": "Compute Amber", "canonical": "#FF914D", "tonalRamp": ["#3A2014", "#6B3A1E", "#B4622F", "#D97A3D", "#FF914D", "#FFB07A", "#FFCDA8", "#FFE8D6"] },
-      "iris": { "role": "tertiary", "displayName": "Iris", "canonical": "#8FA2FF", "tonalRamp": ["#1A2150", "#2A3670", "#465099", "#6272C4", "#8FA2FF", "#ABB8FF", "#C9D2FF", "#E7EBFF"] },
-      "danger": { "role": "error", "displayName": "Signal Red", "canonical": "#FF6B6B", "tonalRamp": ["#3A1717", "#6B2525", "#A33B3B", "#D15252", "#FF6B6B", "#FF8A8A", "#FFB3B3", "#FFDCDC"] },
-      "bg": { "role": "neutral", "displayName": "Void", "canonical": "#070A0F", "tonalRamp": ["#070A0F", "#0B0F16", "#0F1620", "#131C28", "#1E2937", "#566880", "#93A1B5", "#E7EEF6"] },
-      "surface": { "role": "neutral", "displayName": "Panel", "canonical": "#0F1620" },
-      "code-well": { "role": "neutral", "displayName": "Code Well", "canonical": "#080C12" },
-      "text": { "role": "neutral", "displayName": "Ink", "canonical": "#E7EEF6" }
+      "jade": {
+        "role": "primary",
+        "displayName": "Jade",
+        "canonical": "#2FE6A8",
+        "tonalRamp": [
+          "#0E3A2C",
+          "#14543F",
+          "#1C9C74",
+          "#24C08C",
+          "#2FE6A8",
+          "#5FF0C0",
+          "#9AF6D8",
+          "#D3FBEE"
+        ]
+      },
+      "amber": {
+        "role": "secondary",
+        "displayName": "Compute Amber",
+        "canonical": "#FF914D",
+        "tonalRamp": [
+          "#3A2014",
+          "#6B3A1E",
+          "#B4622F",
+          "#D97A3D",
+          "#FF914D",
+          "#FFB07A",
+          "#FFCDA8",
+          "#FFE8D6"
+        ]
+      },
+      "iris": {
+        "role": "tertiary",
+        "displayName": "Iris",
+        "canonical": "#8FA2FF",
+        "tonalRamp": [
+          "#1A2150",
+          "#2A3670",
+          "#465099",
+          "#6272C4",
+          "#8FA2FF",
+          "#ABB8FF",
+          "#C9D2FF",
+          "#E7EBFF"
+        ]
+      },
+      "danger": {
+        "role": "error",
+        "displayName": "Signal Red",
+        "canonical": "#FF6B6B",
+        "tonalRamp": [
+          "#3A1717",
+          "#6B2525",
+          "#A33B3B",
+          "#D15252",
+          "#FF6B6B",
+          "#FF8A8A",
+          "#FFB3B3",
+          "#FFDCDC"
+        ]
+      },
+      "bg": {
+        "role": "neutral",
+        "displayName": "Void",
+        "canonical": "#070A0F",
+        "tonalRamp": [
+          "#070A0F",
+          "#0B0F16",
+          "#0F1620",
+          "#131C28",
+          "#1E2937",
+          "#566880",
+          "#93A1B5",
+          "#E7EEF6"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Panel",
+        "canonical": "#0F1620"
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#E7EEF6"
+      },
+      "well": {
+        "role": "neutral",
+        "displayName": "Code Well",
+        "canonical": "#080C12"
+      },
+      "surface-deep": {
+        "role": "neutral",
+        "displayName": "Card Gradient Base",
+        "canonical": "#0C131C"
+      },
+      "line-hover": {
+        "role": "neutral",
+        "displayName": "Hover Hairline (controls)",
+        "canonical": "#33465C"
+      },
+      "line-hover-soft": {
+        "role": "neutral",
+        "displayName": "Hover Hairline (cards)",
+        "canonical": "#2B3A4D"
+      },
+      "code-ink": {
+        "role": "neutral",
+        "displayName": "Code Ink",
+        "canonical": "#C7D3E2"
+      },
+      "term-ink": {
+        "role": "neutral",
+        "displayName": "Terminal Ink",
+        "canonical": "#B9C6D6"
+      },
+      "danger-2": {
+        "role": "error",
+        "displayName": "Signal Red (soft)",
+        "canonical": "#FF8A8A"
+      }
     },
     "typographyMeta": {
-      "display": { "displayName": "Display", "purpose": "Hero H1 only; mono, tight negative tracking." },
-      "headline": { "displayName": "Headline", "purpose": "Section heads (.sec-head h2)." },
-      "title": { "displayName": "Title", "purpose": "Card/panel headings; 1rem-1.3rem mono by nesting depth." },
-      "body": { "displayName": "Body", "purpose": "Sans prose only, 42-78ch caps; components run 0.86-0.95rem." },
-      "label": { "displayName": "Label / Eyebrow", "purpose": "Mono uppercase 0.12-0.22em tracking; the product's labeling voice." }
+      "display": {
+        "displayName": "Display",
+        "purpose": "Hero H1 only; mono, tight negative tracking."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section heads (.sec-head h2)."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card/panel headings; 1rem-1.3rem mono by nesting depth."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Sans prose only, 42-78ch caps; components run 0.86-0.95rem."
+      },
+      "label": {
+        "displayName": "Label / Eyebrow",
+        "purpose": "Mono uppercase 0.12-0.22em tracking; the product's labeling voice."
+      }
     },
     "shadows": [
-      { "name": "primary-glow", "value": "0 0 0 1px rgba(47,230,168,.06), 0 10px 30px -12px rgba(47,230,168,.45)", "purpose": "The one lit (primary) button per view." },
-      { "name": "chrome-float", "value": "0 30px 80px -40px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.03)", "purpose": "Hero sealed-enclave panel; popover/toast use lighter variants. The only true drop shadows." },
-      { "name": "verify-glow", "value": "0 0 30px -16px rgba(47,230,168,.14)", "purpose": "Active attestation links, jade icon tiles, verified accents." },
-      { "name": "focus-ring", "value": "0 0 0 3px rgba(47,230,168,.12)", "purpose": "Form-field focus, with jade border; global :focus-visible is a 2px jade outline offset 2." },
-      { "name": "active-bar", "value": "inset 3px 0 0 #2FE6A8", "purpose": "Selected step/link: the non-color state cue (WCAG 1.4.1)." }
+      {
+        "name": "primary-glow",
+        "value": "0 0 0 1px rgba(47,230,168,.06), 0 10px 30px -12px rgba(47,230,168,.45)",
+        "purpose": "The one lit (primary) button per view."
+      },
+      {
+        "name": "chrome-float",
+        "value": "0 30px 80px -40px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.03)",
+        "purpose": "Hero sealed-enclave panel; popover/toast use lighter variants. The only true drop shadows."
+      },
+      {
+        "name": "verify-glow",
+        "value": "0 0 30px -16px rgba(47,230,168,.14)",
+        "purpose": "Active attestation links, jade icon tiles, verified accents."
+      },
+      {
+        "name": "focus-ring",
+        "value": "0 0 0 3px rgba(47,230,168,.12)",
+        "purpose": "Form-field focus, with jade border; global :focus-visible is a 2px jade outline offset 2."
+      },
+      {
+        "name": "active-bar",
+        "value": "inset 3px 0 0 #2FE6A8",
+        "purpose": "Selected step/link: the non-color state cue (WCAG 1.4.1)."
+      }
     ],
     "motion": [
-      { "name": "ease-standard", "value": "cubic-bezier(.2,.7,.2,1)", "purpose": "The only named curve (--ease); state changes at .12s-.2s, view transitions .28s, reveals .75s-1s." },
-      { "name": "vt-enter", "value": "opacity 0->1, translateY(6px)->0, .28s", "purpose": "Cross-document view transition; header persists via view-transition-name." },
-      { "name": "encpulse", "value": "opacity 50% dip, 1.2s ease-in-out infinite", "purpose": "Live/deploying dots. All loops gate behind prefers-reduced-motion." },
-      { "name": "grid-drift", "value": "translate3d 26px diagonal, 8s linear infinite", "purpose": "Body silicon-grid texture drift." }
+      {
+        "name": "ease-standard",
+        "value": "cubic-bezier(.2,.7,.2,1)",
+        "purpose": "The only named curve (--ease); state changes at .12s-.2s, view transitions .28s, reveals .75s-1s."
+      },
+      {
+        "name": "vt-enter",
+        "value": "opacity 0->1, translateY(6px)->0, .28s",
+        "purpose": "Cross-document view transition; header persists via view-transition-name."
+      },
+      {
+        "name": "encpulse",
+        "value": "opacity 50% dip, 1.2s ease-in-out infinite",
+        "purpose": "Live/deploying dots. All loops gate behind prefers-reduced-motion."
+      },
+      {
+        "name": "grid-drift",
+        "value": "translate3d 26px diagonal, 8s linear infinite",
+        "purpose": "Body silicon-grid texture drift."
+      }
     ],
     "breakpoints": [
-      { "name": "rail-collapse", "value": "1000px" },
-      { "name": "header-compact", "value": "880px" },
-      { "name": "single-column", "value": "640px" },
-      { "name": "type-tighten", "value": "560px" }
+      {
+        "name": "rail-collapse",
+        "value": "1000px"
+      },
+      {
+        "name": "header-compact",
+        "value": "880px"
+      },
+      {
+        "name": "single-column",
+        "value": "640px"
+      },
+      {
+        "name": "type-tighten",
+        "value": "560px"
+      }
     ]
   },
   "components": [
@@ -109,11 +284,31 @@
       "One easing curve, reduced-motion honored everywhere"
     ],
     "rules": [
-      { "name": "The Jade Means Verified Rule", "body": "Jade appears only where something is proven, live, or focused - a verified badge, an attestation step, a focus ring, a running deployment. If a screen is covered in jade, nothing on it reads as verified; scarcity is the semantics.", "section": "colors" },
-      { "name": "The One Gold Rule", "body": "Gold (rgba(240,185,11,.35)) exists in exactly one place: the featured app card's border. Never introduce it anywhere else.", "section": "colors" },
-      { "name": "The Mono Voice Rule", "body": "If the product or the machine is speaking - a heading, a status, a hash, a price, a button - it is monospace. Sans is reserved for sentences addressed to a human. Never set prose in mono or a heading in sans.", "section": "typography" },
-      { "name": "The No-Webfont Rule", "body": "System stacks only. Never add @font-face or a font CDN.", "section": "typography" },
-      { "name": "The Glow, Not Lift Rule", "body": "Shadows never simulate altitude on resting content. A shadow is either a jade glow (meaning: verified/alive) or black depth under truly floating chrome. Cards at rest are flat.", "section": "elevation" }
+      {
+        "name": "The Jade Means Verified Rule",
+        "body": "Jade appears only where something is proven, live, or focused - a verified badge, an attestation step, a focus ring, a running deployment. If a screen is covered in jade, nothing on it reads as verified; scarcity is the semantics.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Gold Rule",
+        "body": "Gold (rgba(240,185,11,.35)) exists in exactly one place: the featured app card's border. Never introduce it anywhere else.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mono Voice Rule",
+        "body": "If the product or the machine is speaking - a heading, a status, a hash, a price, a button - it is monospace. Sans is reserved for sentences addressed to a human. Never set prose in mono or a heading in sans.",
+        "section": "typography"
+      },
+      {
+        "name": "The No-Webfont Rule",
+        "body": "System stacks only. Never add @font-face or a font CDN.",
+        "section": "typography"
+      },
+      {
+        "name": "The Glow, Not Lift Rule",
+        "body": "Shadows never simulate altitude on resting content. A shadow is either a jade glow (meaning: verified/alive) or black depth under truly floating chrome. Cards at rest are flat.",
+        "section": "elevation"
+      }
     ],
     "dos": [
       "Do build depth with the tonal ladder (Void > Band > Panel > Raised > Top, wells #080C12) and 1px hairlines; reserve shadows for glows and floating chrome.",
@@ -127,7 +322,7 @@
       "Don't add web fonts, a light theme, or Tailwind utility classes in markup - all three absences are deliberate architecture, not gaps.",
       "Don't use lift shadows on cards, or any shadow that isn't a jade glow or floating-chrome black.",
       "Don't use jade decoratively, gold anywhere but the featured border, or introduce new hues (purple gradients are an explicit anti-reference).",
-      "Don't reference --panel - it is never defined; use --surface.",
+      "Don't hard-code palette literals - every color is a token now; --panel aliases --surface.",
       "Don't invent radii or type sizes outside the established tiers (14/9/8/7/6/5/999px; the mono scale).",
       "Don't style with !important or restyle another component's internals; extend by composing the existing classes and tokens."
     ]

@@ -7,10 +7,13 @@ colors:
   surface: "#0F1620"
   surface-2: "#131C28"
   surface-3: "#172230"
-  code-well: "#080C12"
+  well: "#080C12"
+  surface-deep: "#0C131C"
   line: "#1E2937"
   line-soft: "#16202C"
   line-strong: "#566880"
+  line-hover: "#33465C"
+  line-hover-soft: "#2B3A4D"
   text: "#E7EEF6"
   text-muted: "#93A1B5"
   text-dim: "#7A8AA0"
@@ -24,7 +27,11 @@ colors:
   amber-deep: "#3A2014"
   iris: "#8FA2FF"
   danger: "#FF6B6B"
+  danger-2: "#FF8A8A"
   danger-deep: "#3A1717"
+  code-ink: "#C7D3E2"
+  term-ink: "#B9C6D6"
+  code-comment: "#6B7D94"
 typography:
   display:
     fontFamily: 'ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, "Liberation Mono", monospace'
@@ -53,12 +60,90 @@ typography:
     fontSize: "0.72rem"
     fontWeight: 400
     letterSpacing: "0.22em"
+  body-sm:
+    fontFamily: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+    fontSize: "0.88rem"
+    fontWeight: 400
+    lineHeight: 1.5
+  code:
+    fontFamily: 'ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, "Liberation Mono", monospace'
+    fontSize: "0.82rem"
+    fontWeight: 400
+    lineHeight: 1.65
+  caption:
+    fontFamily: 'ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, "Liberation Mono", monospace'
+    fontSize: "0.74rem"
+    fontWeight: 400
+    letterSpacing: "0.02em"
+  badge:
+    fontFamily: 'ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, "Liberation Mono", monospace'
+    fontSize: "0.68rem"
+    fontWeight: 400
+    letterSpacing: "0.06em"
+  tag:
+    fontFamily: 'ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, "Liberation Mono", monospace'
+    fontSize: "0.6rem"
+    fontWeight: 700
+    letterSpacing: "0.04em"
+  lede:
+    fontFamily: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+    fontSize: "clamp(1rem, 1.6vw, 1.18rem)"
+    fontWeight: 400
+    lineHeight: 1.6
+  title-lg:
+    fontFamily: 'ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, "Liberation Mono", monospace'
+    fontSize: "1.3rem"
+    fontWeight: 700
+  title-md:
+    fontFamily: 'ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, "Liberation Mono", monospace'
+    fontSize: "1.25rem"
+    fontWeight: 700
+    letterSpacing: "-0.01em"
+  title-sm:
+    fontFamily: 'ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, "Liberation Mono", monospace'
+    fontSize: "1.08rem"
+    fontWeight: 700
+  card-title:
+    fontFamily: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+    fontSize: "1.02rem"
+    fontWeight: 600
+    lineHeight: 1.3
+  body-doc:
+    fontFamily: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+    fontSize: "0.95rem"
+    fontWeight: 400
+    lineHeight: 1.65
+  body-card:
+    fontFamily: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+    fontSize: "0.92rem"
+    fontWeight: 400
+    lineHeight: 1.55
+  ui:
+    fontFamily: 'ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, "Liberation Mono", monospace'
+    fontSize: "0.86rem"
+    fontWeight: 400
+    letterSpacing: "0.02em"
+  mono-body:
+    fontFamily: 'ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, "Liberation Mono", monospace'
+    fontSize: "0.8rem"
+    fontWeight: 400
+    lineHeight: 1.7
+  micro:
+    fontFamily: 'ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, "Liberation Mono", monospace'
+    fontSize: "0.64rem"
+    fontWeight: 400
+    letterSpacing: "0.04em"
 rounded:
   panel: "14px"
+  tile: "12px"
   control: "9px"
   field: "8px"
   chip: "7px"
+  micro: "6px"
   badge: "5px"
+  focus: "4px"
+  meter: "3px"
+  bit: "2px"
   pill: "999px"
 spacing:
   gutter: "24px"
@@ -82,7 +167,7 @@ components:
   button-primary-hover:
     backgroundColor: "linear-gradient(180deg, rgba(47,230,168,.24), rgba(47,230,168,.1))"
   input-field:
-    backgroundColor: "{colors.code-well}"
+    backgroundColor: "{colors.well}"
     textColor: "{colors.text}"
     rounded: "{rounded.field}"
     padding: "0.6em 0.7em"
@@ -139,7 +224,7 @@ A near-black blue-green ground carrying one semantic accent family (jade), one w
 - **Signal Red** (#FF6B6B): errors, required marks, DELETE; softer #ff8a8a for inline error copy; #3A1717 for danger fills.
 
 ### Neutral
-- **Void** (#070A0F): page background. **Band** (#0B0F16): alternating sections, wells, thumbnails. **Panel** (#0F1620): default card/panel/button surface. **Panel Raised** (#131C28) and **Panel Top** (#172230): hover surface and toast. **Code Well** (#080C12): terminals, code, inputs — the deepest tier (widely used but untokenized; treat it as a real token).
+- **Void** (#070A0F): page background. **Band** (#0B0F16): alternating sections, wells, thumbnails. **Panel** (#0F1620): default card/panel/button surface. **Panel Raised** (#131C28) and **Panel Top** (#172230): hover surface and toast. **Code Well** (`--well`, #080C12): terminals, code, inputs — the deepest tier.
 - **Hairline** (#1E2937), **Hairline Soft** (#16202C), **Hairline Strong** (#566880): default borders, internal dividers, and form-control borders respectively — the strong tier exists to clear WCAG 1.4.11 (≥3:1).
 - **Ink** (#E7EEF6), **Ink Muted** (#93A1B5), **Ink Dim** (#7A8AA0): text hierarchy; all hold ≥4.5:1 on every surface tier.
 
@@ -236,6 +321,6 @@ The hero's live instrument: near-black gradient panel with the system's only tru
 - **Don't** add web fonts, a light theme, or Tailwind utility classes in markup — all three absences are deliberate architecture, not gaps.
 - **Don't** use lift shadows on cards, or any shadow that isn't a jade glow or floating-chrome black.
 - **Don't** use jade decoratively, gold anywhere but the featured border, or introduce new hues (purple gradients are an explicit anti-reference).
-- **Don't** reference `--panel` — it is used by checkout/link/order-status but **never defined**; use `--surface` (and fixing those three files means defining or replacing it, a known quirk).
+- **Don't** hard-code palette literals — every color in the system is a token now (`--well`, `--line-hover`, `--line-hover-soft`, `--surface-deep`, `--code-ink`, `--term-ink`, `--code-comment`, `--danger-2`; `--panel` aliases `--surface`).
 - **Don't** invent radii or type sizes outside the established tiers (14/9/8/7/6/5/999px; the mono scale above).
 - **Don't** style with `!important` or restyle another component's internals; extend by composing the existing classes (`.btn`, `.chip`, `.eyebrow`, `.code`) and tokens.

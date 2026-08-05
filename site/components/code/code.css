@@ -2,5 +2,12 @@
    <c-code> - reuses the global .code / .codebar / .copybtn
    chrome (those classes also style code blocks that other
    components generate from data, so they stay in base.css).
+   Only c-code-scoped refinements live here.
    ============================================================ */
 c-code{display:contents;}
+
+/* the filename is a caption, not prose: quiet caption tracking, and long
+   labels ("terminal · enclave parity") truncate instead of crowding the
+   copy button off the bar */
+c-code .codebar .fn{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.02em;}
+c-code .codebar .copybtn{flex:none;margin-left:12px;}
