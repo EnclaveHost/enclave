@@ -84,12 +84,12 @@ function openCtl(d, ep, tls){
 // the DOM while unlocked; every repaint guard keys on .enc-sec-body so the
 // poll never wipes an open editor and never stalls on the always-present bar.
 // disclosure-toggle label: text + a chevron the CSS rotates on aria-expanded
-const tgLabel = (t) => '<span class="tg-lbl">' + t + '</span><span class="chev" aria-hidden="true">▾</span>';
+const tgLabel = (t) => '<span class="tg-lbl sr-only">' + t + '</span><span class="chev" aria-hidden="true">▾</span>';
 function secretsSection(id){
   const label = appLabel(id);
   return '<div class="enc-sec" data-id="' + esc(id) + '">'
     +   '<div class="ap-attbar">'
-    +     '<button class="btn btn-sm ok es-toggle" type="button" aria-controls="esBody' + label + '" aria-expanded="false" title="Private env vars for this app (S3 keys, API tokens): stored on the relay - never on the public chain - and injected at app start by the enclave holding its lease. One wallet signature reveals them for editing">' + tgLabel("unlock") + '</button>'
+    +     '<button class="es-toggle" type="button" aria-controls="esBody' + label + '" aria-expanded="false" title="Private env vars for this app (S3 keys, API tokens): stored on the relay - never on the public chain - and injected at app start by the enclave holding its lease. One wallet signature reveals them for editing">' + tgLabel("unlock") + '</button>'
     +     '<span class="enc-subl">secrets</span><span class="enc-subd">relay-stored · injected at app start</span>'
     +   '</div>'
     +   '<div class="enc-sec-body" id="esBody' + label + '" hidden>'
@@ -195,7 +195,7 @@ function domainsSection(id){
   const label = appLabel(id);
   return '<div class="enc-dom" data-id="' + esc(id) + '">'
     +   '<div class="ap-attbar">'
-    +     '<button class="btn btn-sm ed-toggle" type="button" aria-controls="edBody' + label + '" aria-expanded="false" title="Serve this app on a domain you own, with a certificate minted inside the enclave">' + tgLabel("manage") + '</button>'
+    +     '<button class="ed-toggle" type="button" aria-controls="edBody' + label + '" aria-expanded="false" title="Serve this app on a domain you own, with a certificate minted inside the enclave">' + tgLabel("manage") + '</button>'
     +     '<span class="enc-subl">domains</span><span class="enc-subd">your hostname · cert minted in-enclave</span>'
     +   '</div>'
     +   '<div class="enc-dom-body" id="edBody' + label + '" hidden>'
