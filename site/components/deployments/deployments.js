@@ -83,15 +83,9 @@ function openCtl(d, ep, tls){
 // until a reveal signature succeeds (_secretsWire). Values only ever exist in
 // the DOM while unlocked; every repaint guard keys on .enc-sec-body so the
 // poll never wipes an open editor and never stalls on the always-present bar.
-// disclosure-toggle label: text + a chevron the CSS rotates on aria-expanded
-const tgLabel = (t) => '<span class="tg-lbl sr-only">' + t + '</span><span class="chev" aria-hidden="true">▾</span>';
 function secretsSection(id){
   const label = appLabel(id);
   return '<div class="enc-sec" data-id="' + esc(id) + '">'
-    +   '<div class="ap-attbar">'
-    +     '<button class="es-toggle" type="button" aria-controls="esBody' + label + '" aria-expanded="false" title="Private env vars for this app (S3 keys, API tokens): stored on the relay - never on the public chain - and injected at app start by the enclave holding its lease. One wallet signature reveals them for editing">' + tgLabel("unlock") + '</button>'
-    +     '<span class="enc-subl">secrets</span><span class="enc-subd">relay-stored · injected at app start</span>'
-    +   '</div>'
     +   '<div class="enc-sec-body" id="esBody' + label + '" hidden>'
     +     '<label for="esTa' + label + '">Private env vars, one KEY="value" per line (quotes optional; inside double quotes, escape &quot; and \\ with a backslash) - stored on the relay, never on-chain; the enclave injects them when the app starts</label>'
     +     '<textarea class="es-ta" id="esTa' + label + '" rows="5" spellcheck="false" autocomplete="off" placeholder="S3_ACCESS_KEY_ID=&quot;…&quot;&#10;S3_SECRET_ACCESS_KEY=&quot;…&quot;"></textarea>'
@@ -194,10 +188,6 @@ function mobileDialogBody(offer, name){
 function domainsSection(id){
   const label = appLabel(id);
   return '<div class="enc-dom" data-id="' + esc(id) + '">'
-    +   '<div class="ap-attbar">'
-    +     '<button class="ed-toggle" type="button" aria-controls="edBody' + label + '" aria-expanded="false" title="Serve this app on a domain you own, with a certificate minted inside the enclave">' + tgLabel("manage") + '</button>'
-    +     '<span class="enc-subl">domains</span><span class="enc-subd">your hostname · cert minted in-enclave</span>'
-    +   '</div>'
     +   '<div class="enc-dom-body" id="edBody' + label + '" hidden>'
     +     '<div class="ed-list"></div>'
     +     '<div class="ed-add">'
@@ -629,6 +619,11 @@ class Deployments extends EnclaveElement {
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-wafbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Per-IP rate limit + request filter, enforced inside the enclave at the app’s front door - add, tune or remove it any time; a running app picks the change up live">Protect</button>' : '') +
           (onchain && st === "running" && ctl === "wallet" ? '<button class="btn btn-sm enc-movebtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Run this app on a different enclave - the current one hands its lease back (unused lease time is refunded to the balance) and the box you pick claims it. Same URL, version and balance">Move</button>' : '') +
           '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '" aria-expanded="false">Verify</button>' +
+          // secrets/domains are tabs like every other panel; their toggle
+          // buttons live HERE, the sections below hold only body + status
+          // (the wire helpers resolve the toggle at row level)
+          (onchain && (live || resumable) && ctl === "wallet" ? '<button class="btn btn-sm es-toggle" aria-controls="esBody' + appLabel(d.id) + '" aria-expanded="false" title="Private env vars for this app (S3 keys, API tokens): stored on the relay - never on the public chain - and injected at app start by the enclave holding its lease. One wallet signature reveals them for editing">Secrets</button>' : '') +
+          (onchain && (live || resumable) && ctl === "wallet" ? '<button class="btn btn-sm ed-toggle" aria-controls="edBody' + appLabel(d.id) + '" aria-expanded="false" title="Serve this app on a domain you own, with a certificate minted inside the enclave">Domains</button>' : '') +
           // wallet rows only: a vault-owned record's on-chain owner IS the
           // vault contract - handing it to an outside wallet would tear it
           // out of the vault's accounting (a vault feature if ever wanted)
@@ -1389,7 +1384,8 @@ class Deployments extends EnclaveElement {
      only exists after a reveal signature has shown what's stored. ---- */
   _secretsWire(box) {
     const id = box.dataset.id;
-    const ta = box.querySelector(".es-ta"), toggle = box.querySelector(".es-toggle"),
+    const row = box.closest(".enc-row") || box;
+    const ta = box.querySelector(".es-ta"), toggle = row.querySelector(".es-toggle"),
           body_ = box.querySelector(".enc-sec-body"), save = box.querySelector(".es-save"),
           st = box.querySelector(".enc-sec-status");
     if (!id || !ta || !toggle || !body_ || !save || !st) return;
@@ -1427,7 +1423,6 @@ class Deployments extends EnclaveElement {
         ta.value = "";
         body_.hidden = true;
         delete toggle.dataset.open;
-        toggle.innerHTML = tgLabel("unlock");
         toggle.title = "One wallet signature reveals this deployment’s stored secrets for editing";
         toggle.setAttribute("aria-expanded", "false");
         armedClear = false; save.textContent = "Save";
@@ -1444,7 +1439,6 @@ class Deployments extends EnclaveElement {
         ta.value = r.names.map(n => n + "=" + quo(r.env[n])).join("\n");
         body_.hidden = false;
         toggle.dataset.open = "1";
-        toggle.innerHTML = tgLabel("lock");
         toggle.title = "Hide the revealed values (what’s stored is untouched)";
         toggle.setAttribute("aria-expanded", "true");
         toggle.disabled = false;
@@ -1518,7 +1512,7 @@ class Deployments extends EnclaveElement {
      single-use, so every one of those drops the cached signature). */
   _domainsWire(box) {
     const id = box.dataset.id;
-    const toggle = box.querySelector(".ed-toggle"), body_ = box.querySelector(".enc-dom-body"),
+    const toggle = (box.closest(".enc-row") || box).querySelector(".ed-toggle"), body_ = box.querySelector(".enc-dom-body"),
           list = box.querySelector(".ed-list"), input = box.querySelector(".ed-in"),
           add = box.querySelector(".ed-add-btn"), st = box.querySelector(".enc-dom-status");
     if (!id || !toggle || !body_ || !list || !input || !add || !st) return;
@@ -1609,7 +1603,6 @@ class Deployments extends EnclaveElement {
     toggle.addEventListener("click", async () => {
       if (toggle.dataset.open) {
         body_.hidden = true; delete toggle.dataset.open;
-        toggle.innerHTML = tgLabel("manage");
         toggle.setAttribute("aria-expanded", "false");
         st.innerHTML = ""; list.innerHTML = ""; listSig = null;
         clearInterval(timer); timer = null;
@@ -1621,7 +1614,6 @@ class Deployments extends EnclaveElement {
         await refresh();
         body_.hidden = false;
         toggle.dataset.open = "1";
-        toggle.innerHTML = tgLabel("hide");
         toggle.setAttribute("aria-expanded", "true");
         // While it's open, keep the statuses moving on their own - the whole
         // point of the panel is watching pending_dns become live.
