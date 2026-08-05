@@ -88,7 +88,7 @@ function secretsSection(id){
   return '<div class="enc-sec" data-id="' + esc(id) + '">'
     +   '<div class="ap-attbar">'
     +     '<button class="btn btn-sm btn-primary es-toggle" type="button" aria-controls="esBody' + label + '" aria-expanded="false" title="Private env vars for this app (S3 keys, API tokens): stored on the relay - never on the public chain - and injected at app start by the enclave holding its lease. One wallet signature reveals them for editing">Unlock ↓</button>'
-    +     'secrets · ' + esc(id)
+    +     '<span class="enc-subl">secrets</span><span class="enc-subd">relay-stored · injected at app start</span>'
     +   '</div>'
     +   '<div class="enc-sec-body" id="esBody' + label + '" hidden>'
     +     '<label for="esTa' + label + '">Private env vars, one KEY="value" per line (quotes optional; inside double quotes, escape &quot; and \\ with a backslash) - stored on the relay, never on-chain; the enclave injects them when the app starts</label>'
@@ -194,7 +194,7 @@ function domainsSection(id){
   return '<div class="enc-dom" data-id="' + esc(id) + '">'
     +   '<div class="ap-attbar">'
     +     '<button class="btn btn-sm ed-toggle" type="button" aria-controls="edBody' + label + '" aria-expanded="false" title="Serve this app on a domain you own, with a certificate minted inside the enclave">Domains ↓</button>'
-    +     'domains · ' + esc(id)
+    +     '<span class="enc-subl">domains</span><span class="enc-subd">your hostname · cert minted in-enclave</span>'
     +   '</div>'
     +   '<div class="enc-dom-body" id="edBody' + label + '" hidden>'
     +     '<div class="ed-list"></div>'
@@ -566,19 +566,29 @@ class Deployments extends EnclaveElement {
       const appLbl = (d.app && d.app.slug ? d.app.slug + ":" + d.app.version : null)
         || (d.image && d.image.reference ? slugOfRef(d.image.reference) || shortImg(d.image.reference) : null);
       const art = artOfRef(d.image && d.image.reference, appLbl || d.id);
+      // the card leads with the APP, not the raw id: the bytes32 becomes a
+      // compact copy chip (full value in data-copy/title), stated once per card
+      const idShort = (d.id || "").length > 20 ? d.id.slice(0, 10) + "…" + d.id.slice(-4) : (d.id || "–");
+      // remaining-runtime meter: spent/paid are both dollars, so 1 - spent/paid
+      // IS the remaining fraction; only meaningful on live, funded rows
+      const paidN = parseFloat(d.paidUsdc), spentN = parseFloat(d.spentUsdc);
+      const leftPct = live && paidN > 0 && spentN >= 0
+        ? Math.max(0, Math.min(100, Math.round(100 * (1 - spentN / paidN)))) : null;
       return '<div class="enc-row' + (highlight && d.id === highlight ? " enc-new" : "") + '">' +
         '<div class="enc-main">' +
           '<span class="enc-thumb" style="background-image:' + art + '" aria-hidden="true"></span>' +
+          '<span class="enc-title">' + esc(appLbl || idShort) + '</span>' +
           '<span class="ap-badge ' + statusCls(st) + '">' + esc(st) + '</span>' +
           '<span class="ap-badge ' + (d.public ? 'ep-public' : 'ep-private') + '" title="' + (d.public ? 'anyone can reach the app endpoint' : 'only your wallet token can reach the app') + '">' + (d.public ? 'public' : 'private') + '</span>' +
           '<span class="ap-badge info ep-waf" data-wafb="' + esc(d.id) + '" hidden>protected</span>' +
-          '<button class="enc-id" data-copy="' + esc(d.id) + '">' + esc(d.id) + ' ⧉</button>' +
+          '<button class="enc-id" data-copy="' + esc(d.id) + '" title="' + esc(d.id) + '" aria-label="copy deployment id">' + esc(idShort) + ' ⧉</button>' +
           '<span class="enc-br" aria-hidden="true"></span>' +
-          '<span class="enc-meta">' + esc(encTier(d)) + (appLbl ? ' · <span class="dim">' + esc(appLbl) + '</span>' : '')
+          '<span class="enc-meta">' + esc(encTier(d))
             // which box serves it (relay stamps `enclave` on live-hosted and
             // lease-held rows alike; absent while queued/stopped - nothing runs it)
             + (d.enclave ? ' · <span class="dim enc-host" title="the enclave this app runs on">on ' + esc(d.enclave) + '</span>' : '') + '</span>' +
           '<span class="enc-spend">' + bud + '</span>' +
+          (leftPct != null ? '<span class="enc-meter" title="~' + leftPct + '% of paid runtime remaining" aria-hidden="true"><b style="width:' + leftPct + '%"></b></span>' : '') +
           '<span class="enc-acts">' +
             '<button class="btn btn-sm enc-outbtn" data-id="' + esc(d.id) + '" aria-expanded="false">Output</button>' +
             (live && ctl !== "order" ? '<button class="btn btn-sm enc-fundbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="' + (ctl === "vault" ? 'Add runtime from your credit balance - one passkey tap' : 'Add runtime - a gas-free USDC signature credits the deployment’s on-chain balance') + '">Top up</button>' : '') +
@@ -589,6 +599,8 @@ class Deployments extends EnclaveElement {
             (onchain && st === "running" && ctl === "wallet" ? '<button class="btn btn-sm enc-movebtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Run this app on a different enclave - the current one hands its lease back (unused lease time is refunded to the balance) and the box you pick claims it. Same URL, version and balance">Move</button>' : '') +
             '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '" aria-expanded="false">Verify</button>' +
             (mobileOffer(d, ep) ? '<button class="btn btn-sm enc-mobbtn" data-id="' + esc(d.id) + '" title="Install this app on a phone - the mobile build verifies the enclave on the device before the app loads">Get app</button>' : '') +
+            // hairline divider: inspection controls left, lifecycle controls right
+            ((live || resumable) && ctl !== "order" ? '<span class="enc-actsep" aria-hidden="true"></span>' : '') +
             (resumable && ctl !== "order" ? '<button class="btn btn-sm ok enc-resume" data-id="' + esc(d.id) + '" title="Put it back on the queue - an enclave re-claims it and the app relaunches fresh from its published version, spending the remaining balance">Resume</button>' : '') +
             (live && ctl !== "order" ? (onchain
               ? '<button class="btn btn-sm warn enc-kill" data-id="' + esc(d.id) + '" title="Stop the app and take it off the queue. The remaining balance stays on the deployment - Resume restarts it any time">Suspend</button>'
