@@ -513,7 +513,7 @@ class Deployments extends EnclaveElement {
     this._list = list;
     const counts = { all: list.length, running: 0, queued: 0, ended: 0, failed: 0 };
     list.forEach(d => { counts[bucketOf(d.status)]++; });
-    $$(".enc-segs button", this).forEach(b => { const n = b.querySelector("b"); if (n) n.textContent = String(counts[b.dataset.bucket] || 0); });
+    $$(".enc-segs button", this).forEach(b => { const n = b.querySelector("b"); if (n) n.textContent = String(counts[b.dataset.bucket] || 0); b.classList.toggle("zero", !(counts[b.dataset.bucket] > 0)); });
     let shown = this._filter === "all" ? list.slice() : list.filter(d => bucketOf(d.status) === this._filter);
     if (this._q) shown = shown.filter(d =>
       (d.id + " " + ((d.image && d.image.reference) || "") + " " + (d.status || "") + " " + (d.enclave || "")).toLowerCase().includes(this._q));
@@ -647,6 +647,16 @@ class Deployments extends EnclaveElement {
     }).join("");
     $$(".enc-id", body).forEach(b => b.addEventListener("click", () => copyText(b.dataset.copy)));
     $$(".enc-ep", body).forEach(b => b.addEventListener("click", () => copyText(b.dataset.ep)));
+    // STRICT tabs: opening one panel first closes any open sibling - via the
+    // open tab's own click path (capture phase runs before the open handler),
+    // so each panel keeps its own close semantics. Re-entry is safe: the
+    // synthetic click hits a button whose aria-expanded is "true", which the
+    // opening-only selector below ignores.
+    $$(".enc-tabs", body).forEach(strip => strip.addEventListener("click", (e) => {
+      const b = e.target.closest('button[aria-expanded="false"]');
+      if (!b) return;
+      $$('button[aria-expanded="true"]', strip).forEach(o => { if (o !== b) o.click(); });
+    }, true));
     $$(".enc-outbtn", body).forEach(b => b.addEventListener("click", () => this._output(b.dataset.id, b)));
     $$(".enc-fundbtn", body).forEach(b => b.addEventListener("click", () => this._fund(b.dataset.id, b)));
     $$(".enc-upgbtn", body).forEach(b => b.addEventListener("click", () => this._upgrade(b.dataset.id, b)));
