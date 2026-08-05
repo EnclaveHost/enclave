@@ -79,6 +79,13 @@ c-deployments{display:contents;}
 .enc-tabs .btn[aria-expanded="true"]::after{content:"";position:absolute;left:.9em;right:.9em;bottom:-1px;height:2px;background:var(--jade);border-radius:2px;}
 /* tab toggles that disable while a signature is in flight */
 .enc-tabs .btn[disabled]{opacity:.45;cursor:default;}
+/* Downloads panel (was the Get-app popup): lead copy + the download rows */
+.enc-mob{display:block;}
+.enc-mob-body{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;background:var(--well);padding:14px 18px;display:flex;flex-direction:column;gap:12px;}
+.enc-mob-lead{margin:0;font-family:var(--font-mono);font-size:.76rem;line-height:1.65;color:var(--text-muted);max-width:78ch;}
+.enc-mob-body .em-dl{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+.enc-mob-body .em-dl .btn{text-decoration:none;}
+.enc-mob-body .qd-sub{margin:0;font-family:var(--font-mono);font-size:.74rem;line-height:1.6;color:var(--text-dim);max-width:78ch;}
 .enc-meta{font-family:var(--font-mono);font-size:.76rem;color:var(--text);overflow-wrap:anywhere;font-variant-numeric:tabular-nums;} .enc-meta .dim{color:var(--text-muted);}
 .enc-spend{font-family:var(--font-mono);font-size:.76rem;color:var(--text-muted);font-variant-numeric:tabular-nums;}
 .enc-acts{margin-left:auto;display:flex;gap:8px;}
@@ -247,9 +254,7 @@ a.ed-host:hover{color:var(--jade);}
 /* Resume is the way back out of that suspend - jade, the palette's "go".
    Flat (no btn-primary gradient/glow): it sits in a row of small actions */
 .btn.ok{border-color:var(--jade-deep);color:var(--jade-2);} .btn.ok:hover{border-color:var(--jade);background:rgba(47,230,168,.08);}
-@media(max-width:560px){.enc-spend{width:100%;order:5;}.enc-meter{order:5;width:100%;}.enc-acts{margin-left:0;width:100%;flex-direction:column;align-items:stretch;}.enc-tabs .btn{flex:1;text-align:center;min-height:40px;}}
+@media(max-width:560px){.enc-spend{width:100%;order:5;}.enc-meter{order:5;width:100%;}.enc-acts{margin-left:0;width:100%;flex-direction:column;align-items:stretch;}.enc-acts .btn{justify-content:center;}.enc-tabs .btn{flex:1;text-align:center;min-height:40px;}}
 
 /* "Get app" popup content (the dialog itself is the shared qd-overlay/
    qd-card idiom; these are just its download rows) */
-#encMobDlg .em-dl{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0;}
-#encMobDlg .em-dl .btn{text-decoration:none;}
