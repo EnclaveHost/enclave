@@ -50,8 +50,18 @@ c-deployments{display:contents;}
 .enc-main .ap-badge.ok::before{animation:encpulse 1.2s ease-in-out infinite;}
 @media (prefers-reduced-motion:reduce){.enc-main .ap-badge.ok::before{animation:none;}}
 .enc-thumb{flex:none;width:48px;aspect-ratio:16/9;border-radius:var(--radius-sm);border:1px solid var(--line-soft);background:var(--bg-1) center/cover no-repeat;}   /* the app's cover art (store thumbnail or generated stand-in) */
-.enc-br{flex-basis:100%;height:0;}   /* hard wrap after the instance id: tier/app/spend start the next line */
-.enc-id{background:none;border:0;color:var(--jade-2);font-family:var(--font-mono);font-size:.84rem;cursor:pointer;padding:0;min-width:24px;min-height:24px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}   /* min 24px hit target; stays inline-block so the ellipsis keeps working */   /* a bytes32 id outgrows a phone; the copy button holds the full value */
+.enc-br{flex-basis:100%;height:0;}   /* hard wrap after the id chip: tier/spend/meter start the next line */
+/* the card's name is the APP; the bytes32 lives in the copy chip beside it */
+.enc-title{font-family:var(--font-mono);font-size:.95rem;font-weight:600;letter-spacing:.01em;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.enc-id{margin-left:auto;background:var(--well);border:1px solid var(--line-soft);border-radius:6px;color:var(--text-dim);font-family:var(--font-mono);font-size:.72rem;cursor:pointer;padding:.25em .55em;min-height:24px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color .15s var(--ease),border-color .15s var(--ease);}
+.enc-id:hover{color:var(--jade-2);border-color:var(--line-hover);}
+/* remaining paid runtime: jade = what's left, deep-jade track = what's burned */
+.enc-meter{flex:none;align-self:center;width:110px;height:3px;border-radius:3px;background:var(--jade-deep);overflow:hidden;}
+.enc-meter b{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--jade-dim),var(--jade));}
+.enc-actsep{flex:none;align-self:stretch;width:1px;background:var(--line-soft);margin:2px 2px;}
+/* sub-bar labels (secrets/domains): the ruled-label voice, no id restatement */
+.enc-subl{color:var(--text-dim);letter-spacing:.14em;}
+.enc-subd{color:var(--text-dim);text-transform:none;letter-spacing:.02em;margin-left:8px;font-size:.64rem;}   /* --text-dim is the floor: every dimmer treatment fails 4.5:1 (axe-verified) */
 .enc-meta{font-family:var(--font-mono);font-size:.76rem;color:var(--text);overflow-wrap:anywhere;font-variant-numeric:tabular-nums;} .enc-meta .dim{color:var(--text-muted);}
 .enc-spend{font-family:var(--font-mono);font-size:.76rem;color:var(--text-muted);font-variant-numeric:tabular-nums;}
 .enc-acts{margin-left:auto;display:flex;gap:8px;}
@@ -218,7 +228,7 @@ a.ed-host:hover{color:var(--jade);}
 /* Resume is the way back out of that suspend - jade, the palette's "go".
    Flat (no btn-primary gradient/glow): it sits in a row of small actions */
 .btn.ok{border-color:var(--jade-deep);color:var(--jade-2);} .btn.ok:hover{border-color:var(--jade);background:rgba(47,230,168,.08);}
-@media(max-width:560px){.enc-spend{width:100%;order:5;}.enc-acts{margin-left:0;width:100%;flex-direction:column;align-items:stretch;}}
+@media(max-width:560px){.enc-spend{width:100%;order:5;}.enc-meter{order:5;width:100%;}.enc-acts{margin-left:0;width:100%;flex-direction:column;align-items:stretch;}}
 
 /* "Get app" popup content (the dialog itself is the shared qd-overlay/
    qd-card idiom; these are just its download rows) */
