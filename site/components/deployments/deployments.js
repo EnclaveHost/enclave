@@ -83,11 +83,13 @@ function openCtl(d, ep, tls){
 // until a reveal signature succeeds (_secretsWire). Values only ever exist in
 // the DOM while unlocked; every repaint guard keys on .enc-sec-body so the
 // poll never wipes an open editor and never stalls on the always-present bar.
+// disclosure-toggle label: text + a chevron the CSS rotates on aria-expanded
+const tgLabel = (t) => '<span class="tg-lbl">' + t + '</span><span class="chev" aria-hidden="true">▾</span>';
 function secretsSection(id){
   const label = appLabel(id);
   return '<div class="enc-sec" data-id="' + esc(id) + '">'
     +   '<div class="ap-attbar">'
-    +     '<button class="btn btn-sm btn-primary es-toggle" type="button" aria-controls="esBody' + label + '" aria-expanded="false" title="Private env vars for this app (S3 keys, API tokens): stored on the relay - never on the public chain - and injected at app start by the enclave holding its lease. One wallet signature reveals them for editing">Unlock ↓</button>'
+    +     '<button class="btn btn-sm ok es-toggle" type="button" aria-controls="esBody' + label + '" aria-expanded="false" title="Private env vars for this app (S3 keys, API tokens): stored on the relay - never on the public chain - and injected at app start by the enclave holding its lease. One wallet signature reveals them for editing">' + tgLabel("unlock") + '</button>'
     +     '<span class="enc-subl">secrets</span><span class="enc-subd">relay-stored · injected at app start</span>'
     +   '</div>'
     +   '<div class="enc-sec-body" id="esBody' + label + '" hidden>'
@@ -193,7 +195,7 @@ function domainsSection(id){
   const label = appLabel(id);
   return '<div class="enc-dom" data-id="' + esc(id) + '">'
     +   '<div class="ap-attbar">'
-    +     '<button class="btn btn-sm ed-toggle" type="button" aria-controls="edBody' + label + '" aria-expanded="false" title="Serve this app on a domain you own, with a certificate minted inside the enclave">Domains ↓</button>'
+    +     '<button class="btn btn-sm ed-toggle" type="button" aria-controls="edBody' + label + '" aria-expanded="false" title="Serve this app on a domain you own, with a certificate minted inside the enclave">' + tgLabel("manage") + '</button>'
     +     '<span class="enc-subl">domains</span><span class="enc-subd">your hostname · cert minted in-enclave</span>'
     +   '</div>'
     +   '<div class="enc-dom-body" id="edBody' + label + '" hidden>'
@@ -592,18 +594,11 @@ class Deployments extends EnclaveElement {
             + (d.enclave ? ' · <span class="dim enc-host" title="the enclave this app runs on">on ' + esc(d.enclave) + '</span>' : '') + '</span>' +
           '<span class="enc-spend">' + bud + '</span>' +
           (runwayPct != null ? '<span class="enc-meter' + (runwaySec < RUNWAY_LOW ? ' low' : '') + '" title="' + esc(fmtDur(runwaySec)) + ' of paid runtime left · full bar = 48h" aria-hidden="true"><b style="width:' + runwayPct + '%"></b></span>' : '') +
+          // the acts row holds only IMMEDIATE actions; everything that opens a
+          // panel lives in the tab strip below (develop-page tab idiom)
           '<span class="enc-acts">' +
-            '<button class="btn btn-sm enc-outbtn" data-id="' + esc(d.id) + '" aria-expanded="false">Output</button>' +
-            (live && ctl !== "order" ? '<button class="btn btn-sm enc-fundbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="' + (ctl === "vault" ? 'Add runtime from your credit balance - one passkey tap' : 'Add runtime - a gas-free USDC signature credits the deployment’s on-chain balance') + '">Top up</button>' : '') +
-            (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-upgbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Switch to another approved version of this app - paid time carries over; the app restarts in place on the new version">Version</button>' : '') +
-            (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-wafbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Per-IP rate limit + request filter, enforced inside the enclave at the app’s front door - add, tune or remove it any time; a running app picks the change up live">Protect</button>' : '') +
-
             (st === "running" && ctl === "wallet" ? '<button class="btn btn-sm enc-restart" data-id="' + esc(d.id) + '" title="Stop and relaunch the app in place - same version, endpoint and balance; app state is ephemeral. The fix for a wedged instance (e.g. a model that never loaded at boot)">Restart</button>' : '') +
-            (onchain && st === "running" && ctl === "wallet" ? '<button class="btn btn-sm enc-movebtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Run this app on a different enclave - the current one hands its lease back (unused lease time is refunded to the balance) and the box you pick claims it. Same URL, version and balance">Move</button>' : '') +
-            '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '" aria-expanded="false">Verify</button>' +
             (mobileOffer(d, ep) ? '<button class="btn btn-sm enc-mobbtn" data-id="' + esc(d.id) + '" title="Install this app on a phone - the mobile build verifies the enclave on the device before the app loads">Get app</button>' : '') +
-            // hairline divider: inspection controls left, lifecycle controls right
-            ((live || resumable) && ctl !== "order" ? '<span class="enc-actsep" aria-hidden="true"></span>' : '') +
             (resumable && ctl !== "order" ? '<button class="btn btn-sm ok enc-resume" data-id="' + esc(d.id) + '" title="Put it back on the queue - an enclave re-claims it and the app relaunches fresh from its published version, spending the remaining balance">Resume</button>' : '') +
             (live && ctl !== "order" ? (onchain
               ? '<button class="btn btn-sm warn enc-kill" data-id="' + esc(d.id) + '" title="Stop the app and take it off the queue. The remaining balance stays on the deployment - Resume restarts it any time">Suspend</button>'
@@ -614,10 +609,6 @@ class Deployments extends EnclaveElement {
             // real payout from the ledger before anything is signed, because it
             // is not the balance (see _refund).
             (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm danger enc-refund" data-id="' + esc(d.id) + '" title="End this deployment and send its unused runtime back' + (ctl === "vault" ? ' to your credit balance' : ' to your wallet') + '. You get back what the contract still holds for it, which is less than the balance - the exact amount is shown before you confirm">Cancel</button>' : '') +
-            // wallet rows only: a vault-owned record's on-chain owner IS the
-            // vault contract - handing it to an outside wallet would tear it
-            // out of the vault's accounting (a vault feature if ever wanted)
-            (onchain && (live || resumable) && ctl === "wallet" ? '<button class="btn btn-sm enc-xferbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Hand this deployment to another wallet. Control moves, money never does: any refundable escrow returns to YOUR wallet first (the ledger refuses to transfer it), then the record - with its staged secrets and custom domains - changes hands. One-shot, no way back from this wallet">Transfer</button>' : '') +
           '</span>' +
         '</div>' +
         ((st === "failed" || st === "expired") && d.error ? '<div class="enc-err" title="why this deployment ' + esc(st) + '">⚠ ' + esc(d.error) + '</div>' : '') +
@@ -628,6 +619,21 @@ class Deployments extends EnclaveElement {
         (ep ? '<div class="enc-eprow"><button class="enc-ep" data-ep="' + esc(ep) + '">' + esc(ep) + ' ⧉</button>'
               + openCtl(d, ep, this._tls && this._tls.get(d.id)) + '</div>' : '') +
         depIp6Row(d) +
+        // panel tabs (develop-page idiom): each button toggles its panel below;
+        // aria-expanded doubles as the active-tab style hook. Transfer lives
+        // here - it opens a panel and does not belong beside Cancel.
+        '<div class="enc-tabs" role="group" aria-label="deployment panels">' +
+          '<button class="btn btn-sm enc-outbtn" data-id="' + esc(d.id) + '" aria-expanded="false">Output</button>' +
+          (live && ctl !== "order" ? '<button class="btn btn-sm enc-fundbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="' + (ctl === "vault" ? 'Add runtime from your credit balance - one passkey tap' : 'Add runtime - a gas-free USDC signature credits the deployment’s on-chain balance') + '">Top up</button>' : '') +
+          (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-upgbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Switch to another approved version of this app - paid time carries over; the app restarts in place on the new version">Version</button>' : '') +
+          (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-wafbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Per-IP rate limit + request filter, enforced inside the enclave at the app’s front door - add, tune or remove it any time; a running app picks the change up live">Protect</button>' : '') +
+          (onchain && st === "running" && ctl === "wallet" ? '<button class="btn btn-sm enc-movebtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Run this app on a different enclave - the current one hands its lease back (unused lease time is refunded to the balance) and the box you pick claims it. Same URL, version and balance">Move</button>' : '') +
+          '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '" aria-expanded="false">Verify</button>' +
+          // wallet rows only: a vault-owned record's on-chain owner IS the
+          // vault contract - handing it to an outside wallet would tear it
+          // out of the vault's accounting (a vault feature if ever wanted)
+          (onchain && (live || resumable) && ctl === "wallet" ? '<button class="btn btn-sm enc-xferbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Hand this deployment to another wallet. Control moves, money never does: any refundable escrow returns to YOUR wallet first (the ledger refuses to transfer it), then the record - with its staged secrets and custom domains - changes hands. One-shot, no way back from this wallet">Transfer</button>' : '') +
+        '</div>' +
         '<div class="enc-fund" hidden></div>' +
         '<div class="enc-upg" hidden></div>' +
         '<div class="enc-move" hidden></div>' +
@@ -1411,7 +1417,7 @@ class Deployments extends EnclaveElement {
         ta.value = "";
         body_.hidden = true;
         delete toggle.dataset.open;
-        toggle.textContent = "Unlock ↓";
+        toggle.innerHTML = tgLabel("unlock");
         toggle.title = "One wallet signature reveals this deployment’s stored secrets for editing";
         toggle.setAttribute("aria-expanded", "false");
         armedClear = false; save.textContent = "Save";
@@ -1428,7 +1434,7 @@ class Deployments extends EnclaveElement {
         ta.value = r.names.map(n => n + "=" + quo(r.env[n])).join("\n");
         body_.hidden = false;
         toggle.dataset.open = "1";
-        toggle.textContent = "Lock";
+        toggle.innerHTML = tgLabel("lock");
         toggle.title = "Hide the revealed values (what’s stored is untouched)";
         toggle.setAttribute("aria-expanded", "true");
         toggle.disabled = false;
@@ -1593,7 +1599,7 @@ class Deployments extends EnclaveElement {
     toggle.addEventListener("click", async () => {
       if (toggle.dataset.open) {
         body_.hidden = true; delete toggle.dataset.open;
-        toggle.textContent = "Domains ↓";
+        toggle.innerHTML = tgLabel("manage");
         toggle.setAttribute("aria-expanded", "false");
         st.innerHTML = ""; list.innerHTML = ""; listSig = null;
         clearInterval(timer); timer = null;
@@ -1605,7 +1611,7 @@ class Deployments extends EnclaveElement {
         await refresh();
         body_.hidden = false;
         toggle.dataset.open = "1";
-        toggle.textContent = "Hide";
+        toggle.innerHTML = tgLabel("hide");
         toggle.setAttribute("aria-expanded", "true");
         // While it's open, keep the statuses moving on their own - the whole
         // point of the panel is watching pending_dns become live.
