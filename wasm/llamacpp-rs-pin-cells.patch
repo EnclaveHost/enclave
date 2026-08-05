@@ -23,14 +23,35 @@ Change: pin each sequence's recurrent state cell to index == seq_id.
     to the stock path when that index is owned by another sequence, so
     the invariant "a cell's seq_id set matches its tail" always holds.
   - find_slot prefers the sequence's pinned index when allocating a fresh
-    cell, and skips the gather/re-order swap for pinned cells.
+    cell, and skips the gather/re-order swap for pinned cells - but ONLY
+    for a SINGLE-sequence ubatch (mm27, 2026-08-04).
+
+mm27 concurrency fix. The two find_slot behaviours (prefer-pinned-index,
+skip-reorder) were originally unconditional, and validated SINGLE-STREAM
+only. Under real multi-user load they abort the tenant: the "update pos"
+loop after the reorder unconditionally reads and re-tails cells[s+min]
+(the contiguous slot), so skipping the pack for pinned cells that sit at
+arbitrary indices re-tails the WRONG cell -> "find_slot: non-consecutive
+token position" -> next round's GGML_ASSERT(cell.has_seq_id(seq_id))
+kills the wasmtime process (users saw "the stream ended before the
+response finished / instance likely restarted"). Gating both on
+n_seqs == 1 is exact: with one sequence, min == that sequence's pinned
+tail, so s+min already IS the pinned cell and nothing is skipped wrongly;
+single-stream output is bit-identical to pre-mm27 (the added condition is
+always true there). With several sequences the stock pack runs and the
+layout is correct - graph reuse is lost to batch-shape churn under
+concurrency anyway, so nothing of value is given up. seq_cp's pinning is
+unchanged (it is per-copy and already guarded); the crash was purely the
+find_slot reorder-skip. Reproduced + fixed locally: 4-way concurrent
+hammer on the 9b aborts round 1 with the old unconditional skip, clean 8
+rounds with the n_seqs==1 gate, pinning ON.
 
 Validated on the real path (wasmtime + llm-chat + lookup drafting =
 branch verify, qwen3.5-0.8b hybrid, temperature 0): output byte-identical
 to stock, sha dea8944c8f5558f4 both ways. LLAMA_RS_PIN_CELLS=0 restores
 stock behavior without a rebuild.
 diff --git a/src/llama-memory-recurrent.cpp b/src/llama-memory-recurrent.cpp
-index ef82eb9..fcb6966 100644
+index ef82eb9..8aac38c 100644
 --- a/src/llama-memory-recurrent.cpp
 +++ b/src/llama-memory-recurrent.cpp
 @@ -232,6 +232,17 @@ bool llama_memory_recurrent::seq_rm(llama_seq_id seq_id, llama_pos p0, llama_pos
@@ -93,26 +114,42 @@ index ef82eb9..fcb6966 100644
          }
      }
  }
-@@ -577,6 +616,12 @@ bool llama_memory_recurrent::find_slot(const llama_ubatch & ubatch) {
+@@ -577,6 +616,18 @@ bool llama_memory_recurrent::find_slot(const llama_ubatch & ubatch) {
              if (cell.seq_id.size() == 1) { has_cell = true; }
          }
          if (!has_cell) {
 +            // enclave mm14: prefer the sequence's pinned index (cell == seq_id)
 +            // when it is free, so the recurrent head stops wandering between
 +            // rounds; fall back to the rolling search when it is occupied.
-+            if (rs_pin_cells() && (uint32_t) seq_id < size && cells[seq_id].is_empty()) {
++            // ONLY for a single-sequence ubatch (mm27 concurrency fix): with
++            // several sequences batched, the gather/re-order below packs them
++            // into the contiguous range [min, min+n_seqs) that the "update
++            // pos" loop and the SSM scan both index by s+min, so a pinned
++            // placement OUTSIDE that range must not survive - see the
++            // reorder-skip guard.
++            if (rs_pin_cells() && n_seqs == 1 && (uint32_t) seq_id < size && cells[seq_id].is_empty()) {
 +                next_empty_cell = seq_id;
 +            }
              auto & empty_cell = cells[next_empty_cell];
              GGML_ASSERT(empty_cell.is_empty());
              // copy old tail into the empty cell
-@@ -608,6 +653,11 @@ bool llama_memory_recurrent::find_slot(const llama_ubatch & ubatch) {
+@@ -608,6 +659,21 @@ bool llama_memory_recurrent::find_slot(const llama_ubatch & ubatch) {
          const uint32_t i = s*n_seq_tokens;
          const int32_t dst_id = s + min;
          const int32_t src_id = cells[ubatch.seq_id[i][0]].tail;
 +        // enclave mm14: pinned cells already sit at their own index; swapping
 +        // them is what makes the recurrent head wander between rounds.
-+        if (rs_pin_cells() && dst_id != src_id) {
++        // mm27 concurrency fix: skip the swap ONLY when this ubatch holds a
++        // SINGLE sequence. With one sequence min == that sequence's (pinned)
++        // tail, so s+min already IS the pinned cell and the "update pos" loop
++        // below indexes it correctly. With several sequences the pinned cells
++        // sit at arbitrary indices while that loop unconditionally reads and
++        // re-tails cells[s+min]; skipping the pack then re-tails the WRONG
++        // cell -> "non-consecutive token position" -> the next round's
++        // GGML_ASSERT(cell.has_seq_id) aborts the tenant (the 2026-08-04
++        // multi-user crash). Under concurrency graph reuse is lost to batch-
++        // shape churn anyway, so packing (stock behaviour) costs nothing.
++        if (rs_pin_cells() && n_seqs == 1 && dst_id != src_id) {
 +            continue;
 +        }
          if (dst_id != src_id) {
