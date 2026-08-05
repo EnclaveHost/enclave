@@ -3,6 +3,77 @@
 Written 2026-08-03 after a ~12-hour campaign (engine builds mm7 → mm17).
 Everything below is measured on the live fleet unless marked otherwise.
 
+## ⚑ 2026-08-05: mm27 SHIPPED (pinning is concurrency-safe again) + the MTP+lookup hybrid is DEAD
+
+Two threads closed tonight.
+
+**mm27 = the proper fix for the 2026-08-04 concurrency crash.** 297e86ec
+gates mm14's recurrent-cell pin + skip-reorder on `n_seqs==1`: a lone
+stream keeps the pin (and its CUDA-graph reuse on branch-commit verify),
+any multi-sequence batch takes stock `find_slot` packing. Cascade: ELL
+`793080da…` (run 30968547217) → Dockerfile.wasmtime pin 4ab7c2a0 (NOTE:
+that file is EXCLUDED from deploy.yml's sidecar paths - the pin push
+deploys nothing) → wasmtime image `e284b09e…` (toolchain run 30972223867,
+~9 min cached) → Dockerfile.wasm repin 0df4837f → **v0.5.386, attest
+PASS ×2** → only then drop the fleet-wide `LLAMA_RS_PIN_CELLS=0`
+override (ab3ef920; the env stays engine-honored as a per-node kill
+switch) → **v0.5.387, attest PASS ×2, pinning live again**. Validation
+on v0.5.387 (pinning ON, the exact mm14 crash scenario):
+
+- Concurrent gate (`CFGS=mtp1dt CONC=4 ROUNDS=4 fleet-bench.sh
+  concurrent`, pinning ON - the exact scenario that aborted mm14):
+  **CLEAN**, 15/16 completions, zero crash signatures in the tenant log.
+- Champion speed (`CFGS=mtp1dt` multi, the 131k champion config):
+  **79.4 ± 1.8 quote / 78.0 ± 2.0 prose** - clears the ≥76 gate; the
+  rewind-commit champion is unaffected by pinning, as predicted.
+
+**The MTP+lookup hybrid (b8853f3 `draft_lookup_assist`) LOST its fleet
+A/B and is REVERTED (enclave-apps 9813273).** The idea - on rounds with
+a ≥4-gram anchor, draft `draft_tokens` free lookup tokens instead of the
+head's k=1 - cannot pay its costs on kryptos. A/B at shared nnCtx 32768,
+in-window control, 3 samples × 2 prompts, llm-chat-bench 0.35.11:
+
+| config | quote | prose |
+|---|---|---|
+| mtp1dt32 (champion @32k, control) | **79.6 ± 0.9** | 75.7 ± 2.8 |
+| mtp1lk32 (+assist k4 rs4) | 70.8 ± 1.9 | 75.9 ± 2.4 |
+
+Quote **-11%**: the control's worst sample (78.8) beat the assist's best
+(73.1). Why: `[lk-assist]` engagement was only 5-9% of rounds on the
+QUOTE prompt (the lookup-friendliest case; ~0% on prose) at 22-56%
+lookup acceptance, so the occasional 4-wide verify (vdec 18.3 → ~20.5 ms)
+plus the forced two-call path on EVERY round bought almost nothing back.
+Same shape as the mm19 k=4 verdict: wider verify does not pay on this
+hardware generation. Prose→80 still means folding the head draft into
+the verify CUDA graph - engine surgery, not app work.
+
+**Three bench traps burned tonight (cost ~2h + ~$2; all now in the ggml
+memory):**
+
+1. `nnCtx:131072` + `nnRsSeq:4` + the MTP head over-commits the 25%
+   share: session creation dies in `cuMemCreate` (CUDA OOM), the tenant
+   aborts, the manager restarts it, and every request eats the ~180s
+   proxy timeout. fleet-bench then writes EMPTY fm files that look like
+   a config failure. Tenant logs are per-boot - diagnose by polling
+   `enclave logs` DURING the hang, not after.
+2. OMITTING `nnCtx` is not "small ctx": the manager falls back to the
+   node-default `ENCLAVE_GGML_N_CTX` (huge) and quotes it to the guest,
+   whose fit math then silently drops the MTP head - llm-chat falls back
+   to PLAIN decode with only a status frame saying so ("MTP drafting
+   unavailable (…); plain decode"). The leg "succeeds" at plain speed
+   and poisons the A/B: no `feed_all_mtp` verbs, no draft fields in the
+   done frame. Pin `nnCtx` EXPLICITLY on both legs of any rs/head A/B.
+3. The first request after a config-set restart can run plain (open_mtp
+   races init). Check per-sample draft fields before trusting leg means.
+
+Champion and pending actions are unchanged: **cfg-mtp1dt (78.7/76.4,
+llm-chat ≥0.35.6) still stands; the catalog publish is still Steven's
+pending action and still worth more than any of this.** A curiosity for
+the next session: the 32k-ctx control leg measured 79.6 ± 0.9 quote -
+above the 131k champion record's 78.7 ± 1.9. One in-window
+131k-vs-32k A/B would settle whether nnCtx 32768 is a free point; do NOT
+claim it from tonight's cross-window numbers.
+
 ## ⚠ 2026-08-04: EVERY NUMBER IN THIS FILE IS SINGLE-STREAM — and that hid a crash
 
 `fleet-bench.sh` fires requests serially, and the local golden gates ran
