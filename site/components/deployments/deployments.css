@@ -66,10 +66,10 @@ c-deployments{display:contents;}
 .enc-meter b{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--jade-dim),var(--jade));}
 .enc-meter.low{background:var(--amber-deep);}
 .enc-meter.low b{background:linear-gradient(90deg,var(--amber-dim),var(--amber));}
-/* endpoint row: URL well + the TLS-gated open control side by side */
+/* endpoint row: the TLS-gated open control leads, URL well fills the rest */
 .enc-eprow{display:flex;gap:8px;align-items:center;margin-top:9px;}
 .enc-eprow .enc-ep{flex:1;min-width:0;margin-top:0;}
-.enc-eprow .enc-open{margin-left:0;flex:none;}
+.enc-eprow .enc-open{margin-left:0;flex:none;order:-1;}
 /* panel tab strip (develop-page idiom): flat tabs on a hairline baseline;
    an open panel's tab lights jade via its aria-expanded state */
 .enc-tabs{display:flex;gap:2px;flex-wrap:wrap;margin-top:12px;border-bottom:1px solid var(--line-soft);}
