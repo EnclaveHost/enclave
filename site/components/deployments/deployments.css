@@ -64,7 +64,17 @@ c-deployments{display:contents;}
 .enc-eprow{display:flex;gap:8px;align-items:center;margin-top:9px;}
 .enc-eprow .enc-ep{flex:1;min-width:0;margin-top:0;}
 .enc-eprow .enc-open{margin-left:0;flex:none;}
-.enc-actsep{flex:none;align-self:stretch;width:1px;background:var(--line-soft);margin:2px 2px;}
+/* panel tab strip (develop-page idiom): flat tabs on a hairline baseline;
+   an open panel's tab lights jade via its aria-expanded state */
+.enc-tabs{display:flex;gap:2px;flex-wrap:wrap;margin-top:12px;border-bottom:1px solid var(--line-soft);}
+.enc-tabs .btn{background:none;border:0;border-radius:9px 9px 0 0;color:var(--text-muted);font-size:.76rem;padding:.55em .9em;min-height:32px;position:relative;transition:color .15s var(--ease),background-color .15s var(--ease);}
+.enc-tabs .btn:hover{color:var(--text);background:var(--surface-2);border-color:transparent;transform:none;}
+.enc-tabs .btn[aria-expanded="true"]{color:var(--jade);background:var(--surface-2);}
+.enc-tabs .btn[aria-expanded="true"]::after{content:"";position:absolute;left:.9em;right:.9em;bottom:-1px;height:2px;background:var(--jade);border-radius:2px;}
+/* disclosure chevron on the secrets/domains toggles */
+.es-toggle .chev,.ed-toggle .chev{display:inline-block;margin-left:5px;transition:transform .15s var(--ease);}
+.es-toggle[aria-expanded="true"] .chev,.ed-toggle[aria-expanded="true"] .chev{transform:rotate(180deg);}
+@media (prefers-reduced-motion:reduce){.es-toggle .chev,.ed-toggle .chev{transition:none;}}
 /* sub-bar labels (secrets/domains): the ruled-label voice, no id restatement */
 .enc-subl{color:var(--text-dim);letter-spacing:.14em;}
 .enc-subd{color:var(--text-dim);text-transform:none;letter-spacing:.02em;margin-left:8px;font-size:.64rem;}   /* --text-dim is the floor: every dimmer treatment fails 4.5:1 (axe-verified) */
@@ -234,7 +244,7 @@ a.ed-host:hover{color:var(--jade);}
 /* Resume is the way back out of that suspend - jade, the palette's "go".
    Flat (no btn-primary gradient/glow): it sits in a row of small actions */
 .btn.ok{border-color:var(--jade-deep);color:var(--jade-2);} .btn.ok:hover{border-color:var(--jade);background:rgba(47,230,168,.08);}
-@media(max-width:560px){.enc-spend{width:100%;order:5;}.enc-meter{order:5;width:100%;}.enc-acts{margin-left:0;width:100%;flex-direction:column;align-items:stretch;}}
+@media(max-width:560px){.enc-spend{width:100%;order:5;}.enc-meter{order:5;width:100%;}.enc-acts{margin-left:0;width:100%;flex-direction:column;align-items:stretch;}.enc-tabs .btn{flex:1;text-align:center;min-height:40px;}}
 
 /* "Get app" popup content (the dialog itself is the shared qd-overlay/
    qd-card idiom; these are just its download rows) */
