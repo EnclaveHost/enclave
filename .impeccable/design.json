@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-05T03:24:04Z",
+  "title": "Design System: Enclave",
+  "extensions": {
+    "colorMeta": {
+      "jade": { "role": "primary", "displayName": "Jade", "canonical": "#2FE6A8", "tonalRamp": ["#0E3A2C", "#14543F", "#1C9C74", "#24C08C", "#2FE6A8", "#5FF0C0", "#9AF6D8", "#D3FBEE"] },
+      "amber": { "role": "secondary", "displayName": "Compute Amber", "canonical": "#FF914D", "tonalRamp": ["#3A2014", "#6B3A1E", "#B4622F", "#D97A3D", "#FF914D", "#FFB07A", "#FFCDA8", "#FFE8D6"] },
+      "iris": { "role": "tertiary", "displayName": "Iris", "canonical": "#8FA2FF", "tonalRamp": ["#1A2150", "#2A3670", "#465099", "#6272C4", "#8FA2FF", "#ABB8FF", "#C9D2FF", "#E7EBFF"] },
+      "danger": { "role": "error", "displayName": "Signal Red", "canonical": "#FF6B6B", "tonalRamp": ["#3A1717", "#6B2525", "#A33B3B", "#D15252", "#FF6B6B", "#FF8A8A", "#FFB3B3", "#FFDCDC"] },
+      "bg": { "role": "neutral", "displayName": "Void", "canonical": "#070A0F", "tonalRamp": ["#070A0F", "#0B0F16", "#0F1620", "#131C28", "#1E2937", "#566880", "#93A1B5", "#E7EEF6"] },
+      "surface": { "role": "neutral", "displayName": "Panel", "canonical": "#0F1620" },
+      "code-well": { "role": "neutral", "displayName": "Code Well", "canonical": "#080C12" },
+      "text": { "role": "neutral", "displayName": "Ink", "canonical": "#E7EEF6" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Hero H1 only; mono, tight negative tracking." },
+      "headline": { "displayName": "Headline", "purpose": "Section heads (.sec-head h2)." },
+      "title": { "displayName": "Title", "purpose": "Card/panel headings; 1rem-1.3rem mono by nesting depth." },
+      "body": { "displayName": "Body", "purpose": "Sans prose only, 42-78ch caps; components run 0.86-0.95rem." },
+      "label": { "displayName": "Label / Eyebrow", "purpose": "Mono uppercase 0.12-0.22em tracking; the product's labeling voice." }
+    },
+    "shadows": [
+      { "name": "primary-glow", "value": "0 0 0 1px rgba(47,230,168,.06), 0 10px 30px -12px rgba(47,230,168,.45)", "purpose": "The one lit (primary) button per view." },
+      { "name": "chrome-float", "value": "0 30px 80px -40px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.03)", "purpose": "Hero sealed-enclave panel; popover/toast use lighter variants. The only true drop shadows." },
+      { "name": "verify-glow", "value": "0 0 30px -16px rgba(47,230,168,.14)", "purpose": "Active attestation links, jade icon tiles, verified accents." },
+      { "name": "focus-ring", "value": "0 0 0 3px rgba(47,230,168,.12)", "purpose": "Form-field focus, with jade border; global :focus-visible is a 2px jade outline offset 2." },
+      { "name": "active-bar", "value": "inset 3px 0 0 #2FE6A8", "purpose": "Selected step/link: the non-color state cue (WCAG 1.4.1)." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(.2,.7,.2,1)", "purpose": "The only named curve (--ease); state changes at .12s-.2s, view transitions .28s, reveals .75s-1s." },
+      { "name": "vt-enter", "value": "opacity 0->1, translateY(6px)->0, .28s", "purpose": "Cross-document view transition; header persists via view-transition-name." },
+      { "name": "encpulse", "value": "opacity 50% dip, 1.2s ease-in-out infinite", "purpose": "Live/deploying dots. All loops gate behind prefers-reduced-motion." },
+      { "name": "grid-drift", "value": "translate3d 26px diagonal, 8s linear infinite", "purpose": "Body silicon-grid texture drift." }
+    ],
+    "breakpoints": [
+      { "name": "rail-collapse", "value": "1000px" },
+      { "name": "header-compact", "value": "880px" },
+      { "name": "single-column", "value": "640px" },
+      { "name": "type-tighten", "value": "560px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one lit action per view; jade gradient tint, glow, arrow-nudge on hover.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Deploy an app <span class=\"ds-arr\">→</span></button>",
+      "css": ".ds-btn{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:.86rem;letter-spacing:.02em;display:inline-flex;align-items:center;gap:.55em;cursor:pointer;padding:.74em 1.15em;border-radius:9px;border:1px solid #1E2937;background:#0F1620;color:#E7EEF6;transition:.18s cubic-bezier(.2,.7,.2,1);white-space:nowrap}.ds-btn .ds-arr{transition:transform .18s cubic-bezier(.2,.7,.2,1)}.ds-btn:hover .ds-arr{transform:translateX(3px)}.ds-btn-primary{background:linear-gradient(180deg,rgba(47,230,168,.16),rgba(47,230,168,.06));border-color:rgba(47,230,168,.4);color:#5FF0C0;box-shadow:0 0 0 1px rgba(47,230,168,.06),0 10px 30px -12px rgba(47,230,168,.45)}.ds-btn-primary:hover{border-color:#2FE6A8;background:linear-gradient(180deg,rgba(47,230,168,.24),rgba(47,230,168,.1));transform:translateY(-1px)}.ds-btn:focus-visible{outline:2px solid #2FE6A8;outline-offset:2px}"
+    },
+    {
+      "name": "Default Button",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "Quiet panel-surface button; hover raises one tonal tier and lifts 1px.",
+      "html": "<button class=\"ds-btn2\">Read the API</button>",
+      "css": ".ds-btn2{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:.86rem;letter-spacing:.02em;display:inline-flex;align-items:center;gap:.55em;cursor:pointer;padding:.74em 1.15em;border-radius:9px;border:1px solid #1E2937;background:#0F1620;color:#E7EEF6;transition:.18s cubic-bezier(.2,.7,.2,1)}.ds-btn2:hover{border-color:#33465c;background:#131C28;transform:translateY(-1px)}.ds-btn2:focus-visible{outline:2px solid #2FE6A8;outline-offset:2px}"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Code-well input with mono label; jade border + soft ring on focus.",
+      "html": "<div class=\"ds-field\"><label class=\"ds-lbl\" for=\"ds-in\">APP CID</label><input id=\"ds-in\" class=\"ds-input\" type=\"text\" placeholder=\"bafy…\"></div>",
+      "css": ".ds-field{display:block;min-width:240px}.ds-lbl{display:block;font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:.74rem;color:#93A1B5;margin-bottom:6px;letter-spacing:.02em}.ds-input{width:100%;font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:.84rem;color:#E7EEF6;background:#080C12;border:1px solid #566880;border-radius:8px;padding:.6em .7em;transition:.15s}.ds-input::placeholder{color:#7A8AA0}.ds-input:focus{border-color:#2FE6A8;box-shadow:0 0 0 3px rgba(47,230,168,.12);outline:none}"
+    },
+    {
+      "name": "Status Badges",
+      "kind": "chip",
+      "refersTo": "badge-verified",
+      "description": "Semantic state chips: jade verified pill, amber/iris outline badges.",
+      "html": "<span class=\"ds-pill\">✓ verified</span> <span class=\"ds-badge ds-badge-warn\">PENDING</span> <span class=\"ds-badge ds-badge-info\">INFO</span>",
+      "css": ".ds-pill{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:.68rem;letter-spacing:.04em;padding:3px 8px;border-radius:999px;border:1px solid #1C9C74;color:#2FE6A8;background:#0E3A2C;display:inline-block}.ds-badge{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;padding:.2em .6em;border-radius:5px;border:1px solid #1E2937;display:inline-block}.ds-badge-warn{color:#FFB07A;border-color:rgba(255,145,77,.45);background:rgba(255,145,77,.08)}.ds-badge-info{color:#8FA2FF;border-color:rgba(143,162,255,.4);background:rgba(143,162,255,.07)}"
+    },
+    {
+      "name": "App Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Catalog tile: band thumbnail, mono-adjacent body, jade border rise on hover.",
+      "html": "<div class=\"ds-card\" tabindex=\"0\"><div class=\"ds-thumb\">■</div><div class=\"ds-cardbody\"><div class=\"ds-cardhead\">LLM Chat <span class=\"ds-pill2\">by Enclave</span></div><p class=\"ds-carddesc\">Private LLM chat on attested GPUs. Prompts and replies are processed only inside the enclave.</p></div></div>",
+      "css": ".ds-card{background:#0F1620;border:1px solid #1E2937;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;max-width:300px;cursor:pointer;transition:border-color .2s cubic-bezier(.2,.7,.2,1),transform .2s cubic-bezier(.2,.7,.2,1)}.ds-card:hover{border-color:#1C9C74;transform:translateY(-2px)}.ds-card:focus-visible{border-color:#2FE6A8;box-shadow:0 0 0 2px #2FE6A8;outline:none}.ds-thumb{aspect-ratio:16/9;background:#0B0F16;border-bottom:1px solid #16202C;display:flex;align-items:center;justify-content:center;color:#1E2937;font-size:2rem}.ds-cardbody{display:flex;flex-direction:column;gap:10px;padding:16px 18px}.ds-cardhead{font-family:ui-sans-serif,system-ui,sans-serif;font-size:1.02rem;font-weight:600;line-height:1.3;color:#E7EEF6;display:flex;align-items:center;gap:8px}.ds-pill2{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:.68rem;font-weight:400;padding:3px 8px;border-radius:999px;border:1px solid #1C9C74;color:#2FE6A8;background:#0E3A2C}.ds-carddesc{margin:0;font-family:ui-sans-serif,system-ui,sans-serif;font-size:.88rem;line-height:1.5;color:#93A1B5}"
+    },
+    {
+      "name": "Code Block",
+      "kind": "custom",
+      "refersTo": "input-field",
+      "description": "The code-well idiom: sticky filename bar, syntax tokens in iris/jade/amber.",
+      "html": "<div class=\"ds-code\"><div class=\"ds-codebar\"><span>deploy.json</span><button class=\"ds-copy\">copy</button></div><pre class=\"ds-pre\"><span class=\"ds-tk\">\"app\"</span><span class=\"ds-tp\">:</span> <span class=\"ds-ts\">\"catalog://42/1\"</span><span class=\"ds-tp\">,</span>\n<span class=\"ds-tk\">\"hours\"</span><span class=\"ds-tp\">:</span> <span class=\"ds-tn\">24</span></pre></div>",
+      "css": ".ds-code{background:#080C12;border:1px solid #16202C;border-radius:9px;overflow:hidden;min-width:280px}.ds-codebar{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:#0B0F16;border-bottom:1px solid #16202C;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:.72rem;color:#7A8AA0}.ds-copy{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:.7rem;line-height:1.5;padding:.25em .6em;border-radius:6px;border:1px solid #1E2937;background:#0F1620;color:#93A1B5;cursor:pointer;transition:.15s}.ds-copy:hover{border-color:#33465c;color:#E7EEF6}.ds-pre{margin:0;padding:14px 16px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:.82rem;line-height:1.65;color:#C7D3E2;white-space:pre}.ds-tk{color:#8FA2FF}.ds-ts{color:#5FF0C0}.ds-tn{color:#FFB07A}.ds-tp{color:#7A8AA0}"
+    },
+    {
+      "name": "Section Head",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "The eyebrow + headline idiom that opens every section.",
+      "html": "<div class=\"ds-sechead\"><div class=\"ds-eyebrow\">ATTESTATION</div><h2 class=\"ds-h2\">Verify it yourself.</h2><p class=\"ds-lede\">The whole chain of trust, checkable from your browser before you send a byte.</p></div>",
+      "css": ".ds-sechead{max-width:62ch}.ds-eyebrow{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:.72rem;letter-spacing:.22em;text-transform:uppercase;color:#2FE6A8;display:flex;align-items:center;gap:10px}.ds-eyebrow::before{content:'';width:22px;height:1px;background:linear-gradient(90deg,#2FE6A8,transparent)}.ds-h2{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:clamp(1.7rem,3vw,2.5rem);font-weight:600;line-height:1.1;letter-spacing:-.01em;color:#E7EEF6;margin:.55em 0 .35em}.ds-lede{font-family:ui-sans-serif,system-ui,sans-serif;font-size:1.05rem;line-height:1.6;color:#93A1B5;margin:0}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Verifier's Console",
+    "overview": "Enclave's interface is an instrument, not a brochure. Every surface behaves like the readout of a machine that is showing you its evidence: near-black layered panels, hairline borders, corner-bracket ticks, live hashes, and a single jade light that comes on only where something is proven. Monospace is the product's voice, prose is the only place a human typeface appears, and decoration is limited to what a console would actually emit: glows, grids, and measurement sweeps. Depth is tonal, from the page ground up through five surface tiers to the code wells that sit below the page like inspection hatches. Motion is quiet and mechanical, and the system deliberately rejects light mode, web fonts, purple gradients, lift shadows, and decorative accent color.",
+    "keyCharacteristics": [
+      "Dark-only, five-tier tonal depth instead of shadows",
+      "Mono voice: every heading, label, button, and number is system monospace",
+      "Jade is semantic (verified / live / focusable), never decorative",
+      "Corner brackets, hairlines, and dashed borders as instrument chrome",
+      "One easing curve, reduced-motion honored everywhere"
+    ],
+    "rules": [
+      { "name": "The Jade Means Verified Rule", "body": "Jade appears only where something is proven, live, or focused - a verified badge, an attestation step, a focus ring, a running deployment. If a screen is covered in jade, nothing on it reads as verified; scarcity is the semantics.", "section": "colors" },
+      { "name": "The One Gold Rule", "body": "Gold (rgba(240,185,11,.35)) exists in exactly one place: the featured app card's border. Never introduce it anywhere else.", "section": "colors" },
+      { "name": "The Mono Voice Rule", "body": "If the product or the machine is speaking - a heading, a status, a hash, a price, a button - it is monospace. Sans is reserved for sentences addressed to a human. Never set prose in mono or a heading in sans.", "section": "typography" },
+      { "name": "The No-Webfont Rule", "body": "System stacks only. Never add @font-face or a font CDN.", "section": "typography" },
+      { "name": "The Glow, Not Lift Rule", "body": "Shadows never simulate altitude on resting content. A shadow is either a jade glow (meaning: verified/alive) or black depth under truly floating chrome. Cards at rest are flat.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do build depth with the tonal ladder (Void > Band > Panel > Raised > Top, wells #080C12) and 1px hairlines; reserve shadows for glows and floating chrome.",
+      "Do use the one easing curve cubic-bezier(.2,.7,.2,1) at 0.12-0.2s for state changes, and gate every loop or reveal behind prefers-reduced-motion.",
+      "Do give form controls the Hairline Strong border (#566880) and jade focus treatment; the site holds WCAG 2.1/2.2 AA with axe at zero.",
+      "Do pair every color state with a non-color cue: the 3px inset jade bar, a status glyph, an underline.",
+      "Do keep labels in the eyebrow idiom (mono, uppercase, 0.12-0.22em tracking) and prose in sans within its 42-78ch caps.",
+      "Do use translateY + border-rise for hover, and the arrow-nudge on buttons that navigate."
+    ],
+    "donts": [
+      "Don't add web fonts, a light theme, or Tailwind utility classes in markup - all three absences are deliberate architecture, not gaps.",
+      "Don't use lift shadows on cards, or any shadow that isn't a jade glow or floating-chrome black.",
+      "Don't use jade decoratively, gold anywhere but the featured border, or introduce new hues (purple gradients are an explicit anti-reference).",
+      "Don't reference --panel - it is never defined; use --surface.",
+      "Don't invent radii or type sizes outside the established tiers (14/9/8/7/6/5/999px; the mono scale).",
+      "Don't style with !important or restyle another component's internals; extend by composing the existing classes and tokens."
+    ]
+  }
+}

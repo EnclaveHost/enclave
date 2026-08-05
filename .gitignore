@@ -57,7 +57,8 @@ e2e/playwright-report/
 # playwright-cli session artifacts (snapshots, traces); .playwright/ config IS committed
 .playwright-cli/
 
-# impeccable live-mode runtime state; only the config is tracked
+# impeccable live-mode runtime state; only the config and design sidecar are tracked
 .impeccable/**
+!.impeccable/design.json
 !.impeccable/live/
 !.impeccable/live/config.json
