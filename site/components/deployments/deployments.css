@@ -7,10 +7,16 @@ c-deployments{display:contents;}
    enclosing box, the section-head above carries the title */
 .enclaves{margin-top:4px;display:block;}
 .enc-toolbar{margin:18px 0 16px;}
-.enc-segs{flex-wrap:wrap;}   /* five buckets don't fit one line on a phone */
-.enc-segs button{flex:none;padding:.5em .95em;}
-.enc-segs b{font-weight:400;color:var(--text-dim);margin-left:5px;font-size:.72rem;}
+/* the status filter is a TAB BAR (develop-page idiom): a full-width row on a
+   hairline baseline; search/refresh/CTA wrap onto their own row below */
+.enc-segs{flex-basis:100%;flex-wrap:wrap;gap:2px;border-bottom:1px solid var(--line-soft);}
+.seg.enc-segs button{flex:none;background:none;border:0;border-radius:9px 9px 0 0;color:var(--text-muted);font-size:.78rem;padding:.6em 1em;min-height:36px;position:relative;transition:color .15s var(--ease),background-color .15s var(--ease);}
+.seg.enc-segs button:hover{color:var(--text);background:var(--surface-2);}
+.seg.enc-segs button.on{color:var(--jade);background:var(--surface-2);}
+.seg.enc-segs button.on::after{content:"";position:absolute;left:1em;right:1em;bottom:-1px;height:2px;background:var(--jade);border-radius:2px;}
+.enc-segs b{font-weight:400;color:var(--text-dim);margin-left:5px;font-size:.72rem;font-variant-numeric:tabular-nums;}
 .enc-segs button.on b{color:var(--jade-dim);}
+.enc-segs button.zero{opacity:.45;}   /* empty buckets recede; still clickable */
 /* with the count gone, the search fills the gap between the seg and refresh/CTA */
 .enc-search{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:.78rem;padding:.55em .8em;flex:1 1 auto;min-width:210px;}
 .enc-search:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
