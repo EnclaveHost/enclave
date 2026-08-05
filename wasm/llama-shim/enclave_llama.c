@@ -1150,9 +1150,17 @@ int32_t ell_mtmd_eval_image(void *mp, void *lctx, int32_t seq_id, int32_t pos0,
     /* Text is JUST the media marker, so mtmd emits exactly the chunks this
      * model wants around one image and nothing else: the caller renders its
      * own chat template and feeds the surrounding text itself. add_special is
-     * off for the same reason (no BOS in the middle of a conversation). */
-    struct mtmd_input_text txt;
-    txt.text = mtmd_default_marker();
+     * off for the same reason (no BOS in the middle of a conversation).
+     * Zero-init, then EVERY field named: ddd4ec14 added text_len (tokenize
+     * reads exactly that many bytes, no NUL fallback) and an uninitialized
+     * field here made every image on the fleet "not readable" - the marker
+     * string came out garbage-length, tokenize failed, and the shim's rc 2
+     * blamed the decoder. A future field added to this struct must default
+     * to zero, not stack garbage. */
+    struct mtmd_input_text txt = {0};
+    const char *marker = mtmd_default_marker();
+    txt.text = marker;
+    txt.text_len = strlen(marker);
     txt.add_special = false;
     txt.parse_special = true;
     const mtmd_bitmap *bmps[1];
