@@ -77,13 +77,8 @@ c-deployments{display:contents;}
 .enc-tabs .btn:hover{color:var(--text);background:var(--surface-2);border-color:transparent;transform:none;}
 .enc-tabs .btn[aria-expanded="true"]{color:var(--jade);background:var(--surface-2);}
 .enc-tabs .btn[aria-expanded="true"]::after{content:"";position:absolute;left:.9em;right:.9em;bottom:-1px;height:2px;background:var(--jade);border-radius:2px;}
-/* disclosure chevron on the secrets/domains toggles */
-.es-toggle .chev,.ed-toggle .chev{display:inline-block;transition:transform .15s var(--ease);}
-.es-toggle[aria-expanded="true"] .chev,.ed-toggle[aria-expanded="true"] .chev{transform:rotate(180deg);}
-@media (prefers-reduced-motion:reduce){.es-toggle .chev,.ed-toggle .chev{transition:none;}}
-/* sub-bar labels (secrets/domains): the ruled-label voice, no id restatement */
-.enc-subl{color:var(--text-dim);letter-spacing:.14em;}
-.enc-subd{color:var(--text-dim);text-transform:none;letter-spacing:.02em;margin-left:8px;font-size:.64rem;}   /* --text-dim is the floor: every dimmer treatment fails 4.5:1 (axe-verified) */
+/* tab toggles that disable while a signature is in flight */
+.enc-tabs .btn[disabled]{opacity:.45;cursor:default;}
 .enc-meta{font-family:var(--font-mono);font-size:.76rem;color:var(--text);overflow-wrap:anywhere;font-variant-numeric:tabular-nums;} .enc-meta .dim{color:var(--text-muted);}
 .enc-spend{font-family:var(--font-mono);font-size:.76rem;color:var(--text-muted);font-variant-numeric:tabular-nums;}
 .enc-acts{margin-left:auto;display:flex;gap:8px;}
@@ -175,12 +170,12 @@ c-deployments{display:contents;}
 
 /* per-row Secrets (private env vars: relay-stored, locked-first editor - the
    bar carries the Unlock/Lock control; the body exists only while unlocked) */
-.enc-sec{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:var(--well);}
-/* icon-only disclosure: a quiet gray arrow (verb lives in the sr-only label) */
-.es-toggle{float:right;margin:-4px 0 -4px 10px;background:none;border:0;cursor:pointer;color:var(--text-dim);font-size:.92rem;line-height:1;padding:4px 9px;min-height:24px;min-width:28px;border-radius:6px;transition:color .15s var(--ease),background-color .15s var(--ease);}
-.es-toggle:hover,.ed-toggle:hover{color:var(--text);background:var(--surface-2);}
-.es-toggle[disabled],.ed-toggle[disabled]{opacity:.45;cursor:default;}
-.enc-sec-body{display:flex;flex-direction:column;gap:10px;padding:12px 18px;}
+/* secrets/domains: toggles are TABS in .enc-tabs; the sections are unstyled
+   shells (invisible while their body + status are hidden/empty) */
+.enc-sec{display:block;}
+.enc-sec-body{display:flex;flex-direction:column;gap:10px;padding:12px 18px;border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;background:var(--well);}
+.enc-sec-status:not(:empty){border:1px solid var(--line-soft);border-radius:8px;margin-top:8px;background:var(--well);padding:10px 18px;}
+.enc-sec-status:empty{display:none;}
 .enc-sec-body label{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);}
 .es-ta{width:100%;background:var(--bg-1);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:.8rem;padding:.5em .7em;resize:vertical;}
 .es-ta:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
@@ -190,10 +185,9 @@ c-deployments{display:contents;}
 
 /* per-row Domains (bring-your-own hostnames: the bar carries the toggle, the
    body lists each attached name with the exact DNS records to create) */
-.enc-dom{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:var(--well);}
-.ed-toggle{float:right;margin:-4px 0 -4px 10px;background:none;border:0;cursor:pointer;color:var(--text-dim);font-size:.92rem;line-height:1;padding:4px 9px;min-height:24px;min-width:28px;border-radius:6px;transition:color .15s var(--ease),background-color .15s var(--ease);}
-.enc-dom-body{display:flex;flex-direction:column;gap:12px;padding:12px 18px;}
-.enc-dom-status{padding:0 18px 10px;min-height:0;}
+.enc-dom{display:block;}
+.enc-dom-body{display:flex;flex-direction:column;gap:12px;padding:12px 18px;border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;background:var(--well);}
+.enc-dom-status:not(:empty){border:1px solid var(--line-soft);border-radius:8px;margin-top:8px;background:var(--well);padding:10px 18px;}
 .enc-dom-status:empty{display:none;}
 .ed-empty{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);line-height:1.6;}
 .ed-add{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
