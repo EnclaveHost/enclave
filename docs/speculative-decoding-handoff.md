@@ -3,6 +3,32 @@
 Written 2026-08-03 after a ~12-hour campaign (engine builds mm7 → mm17).
 Everything below is measured on the live fleet unless marked otherwise.
 
+## ⚠ 2026-08-04: EVERY NUMBER IN THIS FILE IS SINGLE-STREAM — and that hid a crash
+
+`fleet-bench.sh` fires requests serially, and the local golden gates ran
+one stream, so the entire mm7→mm26 arc — and mm14's own byte-identical
+validation — was measured with exactly one active sequence. Concurrency is
+a SEPARATE correctness axis and it was never tested. It bit in production:
+under real multi-user load the mm14 rs-pin-cells patch aborts the tenant
+(`GGML_ASSERT(cell.has_seq_id(seq_id))` in llama-memory-recurrent.cpp) —
+it pins each hybrid sequence's recurrent cell to index==seq_id and skips
+find_slot's gather/re-order, which is exactly what packs *concurrent*
+sequences contiguously, so two live sequences collide and the recurrent
+tail desyncs. Users saw "the stream ended before the response finished /
+instance likely restarted", intermittent, retry-resistant (the process
+restarted). PRE-EXISTING (bare plain decode crashes too) — making MTP the
+champion (drafts every round) + real traffic just supplied the missing
+concurrency. Fixed no-rebuild: manager sets `LLAMA_RS_PIN_CELLS=0` fleet-
+wide (the patch's kill switch; the rewind-commit champion verifies on the
+real sequence and never needed the pin). Local repro: 4 concurrent long
+streams crash round 1 pinned, clean 8 rounds unpinned, output unchanged.
+**Gate every future recurrent/speculative engine change with a CONCURRENT
+hammer (N simultaneous long thinking streams x rounds), not just the
+serial golden gate.** `tools/specbench` should grow a concurrent mode.
+The proper fix (concurrency-safe pinning, then re-enable) is a later
+engine build; until then pinning is off and its only lost benefit is
+CUDA-graph reuse on the non-champion BRANCH-commit verify path.
+
 ## ⚑ 2026-08-04: 70 CLEARED — mm26 device top-k lands MTP k=1 at 78.7/76.4
 
 The campaign goal (a fleet-measured MTP config over 70 tok/s) is DONE, with
