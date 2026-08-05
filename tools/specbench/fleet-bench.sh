@@ -60,6 +60,54 @@ if [ "$MODE" = golden ]; then
   gen cfg-lk4rs.json  "$P_QUOTE" lk4rs-q
   gen cfg-plain.json  "$P_PROSE" plain-p
   gen cfg-lk4rs.json  "$P_PROSE" lk4rs-p
+elif [ "$MODE" = concurrent ]; then
+  # CONCURRENCY GATE (added 2026-08-04 after the mm14 recurrent-pin crash
+  # that only surfaced under multi-user load - every other number in this
+  # harness is single-stream). For each CFGS config: fire CONC (default 4)
+  # simultaneous long thinking streams x ROUNDS (default 4), then read the
+  # TENANT LOG and grep for the abort signature. The verdict is the log
+  # grep, NOT per-request success: a saturated slot pool returns
+  # [sessions_busy] (fine), but GGML_ASSERT / "non-consecutive token
+  # position" / a CUDA error means the recurrent pool corrupted and the
+  # tenant died. Bearer is re-minted here because a config-set restart
+  # rotates the in-enclave JWT keys.
+  CONC=${CONC:-4}; ROUNDS=${ROUNDS:-4}
+  CP=("Explain confidential computing, then compare SEV-SNP and TDX in detail with examples."
+      "Prove that the square root of two is irrational and explain every step carefully."
+      "Compare three sorting algorithms by time and space complexity, reasoning through each."
+      "Explain how speculative decoding works and its tradeoffs versus plain decoding, in depth.")
+  for cfg in ${CFGS:-mtp1dt}; do
+    setcfg "cfg-$cfg.json" || { echo "$cfg down"; continue; }
+    # readiness gate: a REAL completion must succeed (re-mint on auth fail),
+    # because /title can pass while the model is still reloading
+    ready=0
+    for a in $(seq 1 30); do
+      rr=$(curl -s -m 90 -H "authorization: Bearer $B" -H "content-type: application/json" -X POST "$URL/chat" \
+           -d '{"messages":[{"role":"user","content":"Reply with the single word ok."}],"max_tokens":16,"web_search":"off"}' 2>/dev/null)
+      echo "$rr" | grep -q '"done":true' && { ready=1; break; }
+      echo "$rr" | grep -qiE 'invalid token|unauthor' && mint
+      sleep 10
+    done
+    [ "$ready" = 1 ] || { echo "$cfg: NEVER_READY"; continue; }
+    ok=0; fail=0
+    for r in $(seq 1 "$ROUNDS"); do
+      pids=()
+      for i in $(seq 0 $((CONC-1))); do
+        idx=$(( i % 4 ))
+        body=$(python3 -c 'import json,sys;print(json.dumps({"messages":[{"role":"user","content":sys.argv[1]}],"max_tokens":400,"web_search":"off"}))' "${CP[$idx]} round $r stream $i")
+        ( d=$(curl -s -m 240 -H "authorization: Bearer $B" -H "content-type: application/json" -X POST "$URL/chat" -d "$body" 2>/dev/null | grep '"done":true' | tail -1)
+          echo "$d" | grep -q tok_per_s && printf '%s\n' "$d" >> "$S/conc-$cfg.jsonl" ) &
+        pids+=($!)
+      done
+      for p in "${pids[@]}"; do wait $p; done
+    done
+    crash=$(timeout 90 $CLI logs $ID --tail 300 2>&1 | grep -icE 'GGML_ASSERT|non-consecutive token position|CUDA error|Aborted')
+    done_n=$([ -f "$S/conc-$cfg.jsonl" ] && wc -l < "$S/conc-$cfg.jsonl" || echo 0)
+    tps=$([ -f "$S/conc-$cfg.jsonl" ] && python3 -c "import json,sys,statistics;v=[json.loads(l).get('tok_per_s',0) for l in open('$S/conc-$cfg.jsonl')];print(f'{statistics.mean(v):.1f}' if v else 'na')" || echo na)
+    verdict=$([ "$crash" = 0 ] && echo CLEAN || echo "CRASH($crash)")
+    echo "$cfg concurrent(${CONC}x${ROUNDS}): $verdict  completed=$done_n  mean_tok_s(under load)=$tps"
+    rm -f "$S/conc-$cfg.jsonl"
+  done
 else
   for cfg in ${CFGS:-plain lk4 lk4rs}; do
     setcfg "cfg-$cfg.json" || { echo "$cfg down"; continue; }
