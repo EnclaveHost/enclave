@@ -569,11 +569,14 @@ class Deployments extends EnclaveElement {
       // the card leads with the APP, not the raw id: the bytes32 becomes a
       // compact copy chip (full value in data-copy/title), stated once per card
       const idShort = (d.id || "").length > 20 ? d.id.slice(0, 10) + "…" + d.id.slice(-4) : (d.id || "–");
-      // remaining-runtime meter: spent/paid are both dollars, so 1 - spent/paid
-      // IS the remaining fraction; only meaningful on live, funded rows
-      const paidN = parseFloat(d.paidUsdc), spentN = parseFloat(d.spentUsdc);
-      const leftPct = live && paidN > 0 && spentN >= 0
-        ? Math.max(0, Math.min(100, Math.round(100 * (1 - spentN / paidN)))) : null;
+      // runway gauge: measures TIME LEFT against a fixed 48h horizon, NOT
+      // spent/paid - a long-lived topped-up row has spent≈paid forever, which
+      // would pin a spend-ratio bar at empty beside a healthy "14h left".
+      // Floor at 2% so a nearly-drained row still shows a sliver; amber under
+      // 6h (the bar length itself is the non-color cue, text has the number).
+      const RUNWAY_FULL = 172800, RUNWAY_LOW = 21600;
+      const runwaySec = live && d.timeRemainingSec > 0 ? d.timeRemainingSec : null;
+      const runwayPct = runwaySec != null ? Math.max(2, Math.min(100, Math.round(100 * runwaySec / RUNWAY_FULL))) : null;
       return '<div class="enc-row' + (highlight && d.id === highlight ? " enc-new" : "") + '">' +
         '<div class="enc-main">' +
           '<span class="enc-thumb" style="background-image:' + art + '" aria-hidden="true"></span>' +
@@ -588,7 +591,7 @@ class Deployments extends EnclaveElement {
             // lease-held rows alike; absent while queued/stopped - nothing runs it)
             + (d.enclave ? ' · <span class="dim enc-host" title="the enclave this app runs on">on ' + esc(d.enclave) + '</span>' : '') + '</span>' +
           '<span class="enc-spend">' + bud + '</span>' +
-          (leftPct != null ? '<span class="enc-meter" title="~' + leftPct + '% of paid runtime remaining" aria-hidden="true"><b style="width:' + leftPct + '%"></b></span>' : '') +
+          (runwayPct != null ? '<span class="enc-meter' + (runwaySec < RUNWAY_LOW ? ' low' : '') + '" title="' + esc(fmtDur(runwaySec)) + ' of paid runtime left · full bar = 48h" aria-hidden="true"><b style="width:' + runwayPct + '%"></b></span>' : '') +
           '<span class="enc-acts">' +
             '<button class="btn btn-sm enc-outbtn" data-id="' + esc(d.id) + '" aria-expanded="false">Output</button>' +
             (live && ctl !== "order" ? '<button class="btn btn-sm enc-fundbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="' + (ctl === "vault" ? 'Add runtime from your credit balance - one passkey tap' : 'Add runtime - a gas-free USDC signature credits the deployment’s on-chain balance') + '">Top up</button>' : '') +
@@ -622,8 +625,8 @@ class Deployments extends EnclaveElement {
         // target, catalog unreachable): the OLD version keeps serving; say why
         (d.versionChange && d.versionChange.error ? '<div class="enc-err" title="the requested version change has not applied - the previous version keeps serving; the runner retries automatically">⚠ version change pending: ' + esc(d.versionChange.error) + '</div>' : '') +
         (st === "queued" ? '<div class="enc-why" data-why="' + esc(d.id) + '" role="status" aria-live="polite" hidden></div>' : '') +
-        (ep ? '<button class="enc-ep" data-ep="' + esc(ep) + '">' + esc(ep) + ' ⧉</button>'
-              + openCtl(d, ep, this._tls && this._tls.get(d.id)) : '') +
+        (ep ? '<div class="enc-eprow"><button class="enc-ep" data-ep="' + esc(ep) + '">' + esc(ep) + ' ⧉</button>'
+              + openCtl(d, ep, this._tls && this._tls.get(d.id)) + '</div>' : '') +
         depIp6Row(d) +
         '<div class="enc-fund" hidden></div>' +
         '<div class="enc-upg" hidden></div>' +
