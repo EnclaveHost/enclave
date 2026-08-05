@@ -66,9 +66,17 @@ memory):**
 3. The first request after a config-set restart can run plain (open_mtp
    races init). Check per-sample draft fields before trusting leg means.
 
-Champion and pending actions are unchanged: **cfg-mtp1dt (78.7/76.4,
-llm-chat ≥0.35.6) still stands; the catalog publish is still Steven's
-pending action and still worth more than any of this.** A curiosity for
+**The catalog publish is DONE - and it happened before this session even
+started** (a stale-memory false alarm, caught by Steven): llm-chat
+**1.3.31**, published 2026-08-04 16:57 on the LIVE catalog (resolve it
+via the address book - the CLI DEFAULTS' baked catalog address is a
+retired deploy showing ancient versions), carries the FULL champion
+config with the draft keys (`draft:"mtp", draft_tokens:1, draft_p_min:
+0.4, draft_fused:true, tokenizer:"host"`) inside `models.<volume>` -
+config.rs `resolve_entry` overlays the model entry onto the top-level
+config, so app-level keys are valid at EITHER level; check both before
+declaring a knob missing. Existing deployments predating 1.3.31 need an
+upgrade/redeploy to pick it up. A curiosity for
 the next session: the 32k-ctx control leg measured 79.6 ± 0.9 quote -
 above the 131k champion record's 78.7 ± 1.9. One in-window
 131k-vs-32k A/B would settle whether nnCtx 32768 is a free point; do NOT
