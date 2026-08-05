@@ -2029,6 +2029,10 @@ def _no_card_env() -> dict:
     env["CUDA_VISIBLE_DEVICES"] = ""
     env.pop("CUDA_MPS_PIPE_DIRECTORY", None)
     env["ENCLAVE_GGML_N_GPU_LAYERS"] = "0"
+    # same recurrent-cell-pinning correctness fix as _nn_tenant_env: a 0-GPU
+    # tenant still runs the ggml backend (on CPU), and the mm14 concurrency
+    # crash is in llama's recurrent memory, not in any kernel - see there.
+    env.setdefault("LLAMA_RS_PIN_CELLS", "0")
     return env
 
 
@@ -2075,6 +2079,27 @@ def _nn_tenant_env(gpu_share: float, pinned: bool) -> dict:
     # silent fallback). setdefault: a dashboard env on the manager container
     # overrides per node.
     env.setdefault("ENCLAVE_GGML_N_GPU_LAYERS", "-1")
+    # RECURRENT CELL PINNING OFF (correctness, 2026-08-04). The mm14
+    # rs-pin-cells engine patch pins each hybrid-SSM sequence's recurrent
+    # state cell to index==seq_id and SKIPS find_slot's gather/re-order for
+    # pinned cells - that re-order is exactly what packs several concurrent
+    # sequences' cells contiguously, so under real multi-user load two
+    # sequences fight over the pinned layout and the recurrent tail
+    # bookkeeping desyncs: `find_slot: non-consecutive token position` then
+    # `GGML_ASSERT(cell.has_seq_id(seq_id))` aborts the whole wasmtime
+    # process (users saw "the stream ended before the response finished /
+    # instance likely restarted", intermittently, on hybrid models). The
+    # patch was only ever validated SINGLE-STREAM (the whole speculation
+    # campaign benched serially), which is why it shipped. Reproduced +
+    # fixed locally: 4-way concurrent hammer on the 9b crashes round 1 with
+    # pinning on, clean for 8 rounds with it off, output unchanged. The
+    # pinning's only benefit was CUDA-graph reuse on BRANCH-commit
+    # speculative verify; the shipped rewind-commit path verifies on the
+    # real sequence and never moved the head, so it does not need it. A
+    # concurrency-safe pin is a later engine build; until then this is the
+    # no-rebuild fix. setdefault: a manager-container env can re-enable it
+    # per node for single-tenant speed experiments.
+    env.setdefault("LLAMA_RS_PIN_CELLS", "0")
     # FUSED ATTENTION. Background: ORT's sm_90 flash/memory-efficient attention
     # kernels compute launch heuristics that integer-divide by the device SM
     # budget; under a small MPS partition (a 2-4% slice of an H200) the
