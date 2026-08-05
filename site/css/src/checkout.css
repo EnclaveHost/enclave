@@ -1,17 +1,26 @@
-/* Checkout page (checkout.html / js/pages/checkout.js) */
+/* ============================================================
+   Checkout page (checkout.html / js/pages/checkout.js).
+   A money page: one calm panel, one amount, one lit action
+   (the Stripe handoff). Numbers are mono + tabular; the only
+   jade is the live balance readout and the primary button.
+   ============================================================ */
 #checkout .co-body{margin-top:26px;max-width:560px;}
-#checkout .co-form{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px 22px;}
-#checkout .co-field{margin-bottom:14px;}
-#checkout .co-field>label{display:block;font-size:.72rem;color:var(--text-dim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;}
-#checkout .co-shares{display:flex;align-items:center;gap:12px;font-size:.78rem;color:var(--text-muted);}
-#checkout .co-shares label{display:flex;align-items:center;gap:8px;font-size:.74rem;color:var(--text-muted);}
-#checkout .co-shares .wp-input{width:90px;margin-bottom:0;}
-#checkout .co-spec{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:.74rem;color:var(--text-dim);margin-bottom:14px;}
-#checkout .co-spec code{font-family:var(--font-mono);color:var(--text-muted);word-break:break-all;}
-#checkout .co-spec b{color:var(--text);}
-#checkout .co-quote{font-size:.9rem;color:var(--jade);min-height:1.4em;margin:4px 0 10px;}
-#checkout .co-err{font-size:.74rem;color:#ff8a8a;margin:0 0 10px;}
-#checkout .co-pay{display:flex;gap:12px;margin:4px 0 12px;flex-wrap:wrap;}
+#checkout .co-form{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px;}
+/* live balance readout (role=status): a machine number, quietly lit */
+#checkout .co-quote{font-family:var(--font-mono);font-size:.82rem;font-variant-numeric:tabular-nums;color:var(--jade);min-height:1.5em;margin:0 0 18px;}
+#checkout .co-field{margin-bottom:4px;}
+#checkout .co-field>label{display:block;font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px;}
+/* preset amounts + the action row share .co-pay; presets sit inside .co-field */
+#checkout .co-pay{display:flex;gap:10px;margin:0 0 12px;flex-wrap:wrap;}
+#checkout .co-pay .btn{font-variant-numeric:tabular-nums;}
+/* the amount is the page's hero number: large mono in a code well */
+#checkout .co-shares{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:1.25rem;color:var(--text-muted);}
+#checkout .co-shares .wp-input{width:150px;margin-bottom:0;font-family:var(--font-mono);font-size:1.25rem;font-variant-numeric:tabular-nums;letter-spacing:.02em;padding:.4em .55em;}
+/* inline error: danger ink in its own bordered, tinted block (role=alert) */
+#checkout .co-err{font-size:.88rem;line-height:1.55;color:var(--danger-2);background:linear-gradient(180deg,var(--danger-deep),transparent);border:1px solid var(--danger-deep);border-radius:8px;padding:10px 14px;margin:12px 0 0;}
+/* the one primary action, separated from the form by a hairline */
+#checkout .co-form>.co-pay{border-top:1px solid var(--line-soft);margin:18px 0 14px;padding-top:18px;}
 #checkout .co-note{font-size:.74rem;line-height:1.6;color:var(--text-dim);margin:10px 0 0;}
 #checkout .co-note a{color:var(--jade-2);}
+#checkout .co-note p{margin:0 0 12px;}
 #checkout c-order-status{display:block;margin-top:18px;}

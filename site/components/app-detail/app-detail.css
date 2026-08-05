@@ -13,20 +13,25 @@ c-app-detail{display:block;}
 .appd-banner{width:100%;aspect-ratio:4/1;min-height:120px;border-radius:var(--radius);
   background:var(--bg-1) center/cover no-repeat;border:1px solid var(--line);}
 
-.appd-head{display:flex;flex-direction:column;gap:10px;}
+/* title block: 8px binds the h1 to its meta line (one group); the page's
+   16px flow gap separates the group from banner, prose and controls */
+.appd-head{display:flex;flex-direction:column;gap:8px;}
 .appd-titlerow{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;}
-.appd-titlerow h1{margin:0;font-size:1.7rem;line-height:1.2;word-break:break-word;}
-.appd-titlerow .app-badges{justify-content:flex-end;margin-top:4px;}
+.appd-titlerow h1{margin:0;font-size:1.7rem;line-height:1.15;letter-spacing:-.01em;word-break:break-word;}
+.appd-titlerow .app-badges{justify-content:flex-end;margin-top:6px;}
 .appd-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-family:var(--font-mono);font-size:.74rem;color:var(--text-dim);}
-.appd-desc{margin:0;font-size:.98rem;color:var(--text-muted);line-height:1.6;}
+.appd-desc{margin:0;font-size:.98rem;color:var(--text-muted);line-height:1.6;max-width:78ch;}
 .appd-rating{display:inline-flex;align-items:center;gap:6px;color:var(--text-dim);}
 .appd-rating:hover{color:var(--text);}
 
-.appd .app-verrow{gap:10px;}
+/* the version row is the page's instrument strip: picker, publish stamp,
+   exact specs, ports and fee sit together in one quiet band */
+.appd .app-verrow{gap:10px 14px;padding:11px 14px;border:1px solid var(--line-soft);border-radius:var(--radius-sm);background:var(--bg-1);}
 .appd .app-actions{margin-top:2px;}
 
 .appd.delisted{opacity:.85;}
-.appd.delisted .appd-banner{filter:grayscale(.4);}
+/* dashed = provisional: a delisted app's hero carries the site-wide idiom */
+.appd.delisted .appd-banner{filter:grayscale(.4);border-style:dashed;}
 
 @media (max-width:560px){
   .appd-titlerow h1{font-size:1.35rem;}

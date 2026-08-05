@@ -7,17 +7,41 @@
 .store-meta .chip b{color:var(--text);}
 .store-meta a.chip[href]:hover{border-color:var(--jade-dim);color:var(--text);}
 .store-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:22px 0 18px;}
-#storeSearch{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);
-  font-family:var(--font-mono);font-size:.82rem;padding:8px 12px;flex:1 1 340px;min-width:260px;max-width:560px;margin-right:auto;}
-#storeSearch:focus{border-color:var(--jade-dim);}
+/* the filter reads as chips, not a stretched segment: tabs size to their
+   labels (the moderation tabs appear beside Approved for owners/publishers) */
+.store-toolbar .seg button{flex:none;padding:.55em .95em;}
+.store-toolbar .seg button:active{transform:translateY(1px);}
+/* the search field is a code well like every other instrument input; focus =
+   the site-wide jade border + soft ring */
+#storeSearch{background:var(--well);border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);
+  font-family:var(--font-mono);font-size:.82rem;padding:9px 12px;flex:1 1 340px;min-width:260px;max-width:560px;margin-right:auto;
+  transition:border-color .15s var(--ease),box-shadow .15s var(--ease);}
+#storeSearch::placeholder{color:var(--text-dim);}
+#storeSearch:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
 /* refresh: the button IS the progress indicator - its glyph spins while the
    catalog re-reads and the grid stays up (dimmed) behind it, so a refresh
    never throws away the last good paint */
 #storeRefresh .rf-icon{display:inline-block;}
 #storeRefresh.busy .rf-icon{animation:encspin .8s linear infinite;}
-.store-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:16px;}
-.store-grid[aria-busy="true"]{opacity:.5;transition:opacity .15s var(--ease);}
-.store-note{grid-column:1/-1;text-align:center;color:var(--text-muted);padding:44px 16px;border:1px dashed var(--line);border-radius:var(--radius);background:var(--bg-1);}
+/* no spin under reduced motion: the glyph goes jade while the re-read is
+   live (the dimmed grid signals it too) */
+@media (prefers-reduced-motion:reduce){#storeRefresh.busy .rf-icon{animation:none;color:var(--jade);}}
+.store-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:16px;transition:opacity .15s var(--ease);}
+.store-grid[aria-busy="true"]{opacity:.5;}
+/* first read: the injected .loading (spinner + caption, base.css) fills a
+   card-row-sized provisional well - dashed = not-yet-real - so the page keeps
+   its shape while the catalog is read; a quiet shimmer sweeps it meanwhile */
+.store-grid .loading,#appDetailView .loading{grid-column:1/-1;min-height:280px;
+  border:1px dashed var(--line);border-radius:var(--radius);background:var(--bg-1);}
+@keyframes store-shimmer{from{background-position:130% 0;}to{background-position:-30% 0;}}
+@media (prefers-reduced-motion:no-preference){
+  .store-grid .loading,#appDetailView .loading{
+    background:linear-gradient(100deg,var(--bg-1) 42%,var(--surface) 50%,var(--bg-1) 58%) var(--bg-1);
+    background-size:220% 100%;animation:store-shimmer 1.6s linear infinite;}
+}
+.store-note{grid-column:1/-1;text-align:center;color:var(--text-muted);font-size:.88rem;line-height:1.7;
+  padding:54px 20px;border:1px dashed var(--line);border-radius:var(--radius);background:var(--bg-1);}
+.store-note .dim{font-family:var(--font-mono);font-size:.74rem;}
 
 /* ---- pager: the grid shows at most 4 rows per page ---- */
 .store-pager{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:18px;}
@@ -33,6 +57,8 @@
 .featured-tag .dim{color:var(--text-dim);text-transform:none;letter-spacing:0;}
 .featured-slot c-app-card{display:block;}
 .featured-slot .app-card{border-color:rgba(240,185,11,.35);}
+/* the one permitted gold holds on hover - the lift alone signals the card */
+.featured-slot .app-card:hover{border-color:rgba(240,185,11,.35);}
 .featured-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;min-height:20px;}
 .featured-foot .hint{font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);}
 .featured-promote{font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);background:none;border:none;
@@ -54,18 +80,25 @@
 .publish-panel{margin-top:22px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px;}
 .publish-panel h4{margin:0 0 4px;font-size:1rem;}
 .publish-panel .pub-sub{margin:0 0 16px;color:var(--text-muted);font-size:.86rem;}
-.pub-grid{display:grid;gap:14px;grid-template-columns:1fr 1fr;}
+/* rhythm: 6px binds a label to its field (related), 18px row gap separates
+   one field group from the next, and the commit row below sits past a rule */
+.pub-grid{display:grid;gap:18px 14px;grid-template-columns:1fr 1fr;}
 .pub-grid .full{grid-column:1/-1;}
 .publish-panel label,.publish-panel .lbl{display:block;font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);margin-bottom:6px;}
-.publish-panel input[type=text],.publish-panel input[type=number],.publish-panel textarea{width:100%;background:var(--bg-1);
-  border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:.82rem;padding:9px 11px;}
+.publish-panel input[type=text],.publish-panel input[type=number],.publish-panel textarea{width:100%;background:var(--well);
+  border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:.82rem;padding:9px 11px;
+  transition:border-color .15s var(--ease),box-shadow .15s var(--ease);}
 .publish-panel textarea{resize:vertical;min-height:64px;line-height:1.5;}
-.publish-panel input:focus,.publish-panel textarea:focus{border-color:var(--jade-dim);}
+.publish-panel input::placeholder,.publish-panel textarea::placeholder{color:var(--text-dim);}
+.publish-panel input:focus,.publish-panel textarea:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
 #pubFileRow.disabled{opacity:.55;}
 #pubFileRow .hint{font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);margin-top:6px;}
-#pubUpBar{height:4px;background:var(--bg-1);border:1px solid var(--line);border-radius:3px;overflow:hidden;margin-top:8px;}
-#pubUpBar>div{height:100%;width:0%;background:var(--jade-dim);transition:width .2s;}
-.pub-actions{display:flex;align-items:center;gap:12px;margin-top:18px;flex-wrap:wrap;}
+/* meter idiom: pill track, jade fill = work underway. No width transition -
+   progress events land often enough, and animating width re-lays-out the bar */
+#pubUpBar{height:5px;background:var(--well);border:1px solid var(--line-soft);border-radius:999px;overflow:hidden;margin-top:8px;}
+#pubUpBar>div{height:100%;width:0%;background:var(--jade-dim);border-radius:999px;}
+/* the commit row is the panel's footer: a hairline separates it from the form */
+.pub-actions{display:flex;align-items:center;gap:12px;margin-top:22px;padding-top:16px;border-top:1px solid var(--line-soft);flex-wrap:wrap;}
 .pub-status{font-family:var(--font-mono);font-size:.74rem;color:var(--text-muted);word-break:break-all;flex:1 1 240px;}
 .pub-status.err{color:var(--danger);}
 
@@ -90,7 +123,14 @@
 .pub-img-foot .hint.ok{color:var(--jade);}
 .pub-img-foot .hint.err{color:var(--danger);}
 .pub-img-clear{margin-left:auto;}
-@media(max-width:640px){.pub-grid{grid-template-columns:1fr;}.pub-media-row{grid-template-columns:1fr;}}
+@media(max-width:640px){
+  .pub-grid{grid-template-columns:1fr;gap:16px;}
+  .pub-media-row{grid-template-columns:1fr;}
+  /* comfortable tap targets: the toolbar's controls clear 44px; the search
+     field takes its own full-width row */
+  #storeSearch{min-height:44px;flex-basis:100%;max-width:none;margin-right:0;}
+  .store-toolbar .seg button,.store-toolbar .btn,.store-pager .btn{min-height:44px;}
+}
 
 /* ============================================================
    Quick-deploy modal (store card "Deploy →")

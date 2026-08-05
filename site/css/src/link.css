@@ -1,12 +1,23 @@
-/* Device-link approval page (link.html / js/pages/link.js) */
+/* ============================================================
+   Device-link approval page (link.html / js/pages/link.js).
+   The pairing code is the hero: large tracked mono in a code
+   well, whether entered by hand or echoed back for approval.
+   ============================================================ */
 #link .co-body{margin-top:26px;max-width:560px;}
-#link .lk-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px 22px;}
-#link .lk-facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0 0 14px;font-size:.78rem;}
+#link .lk-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px;}
+#link .lk-facts{display:grid;grid-template-columns:auto 1fr;gap:10px 16px;align-items:center;margin:0 0 16px;}
 #link .lk-facts div{display:contents;}
-#link .lk-facts dt{color:var(--text-dim);letter-spacing:.06em;text-transform:uppercase;font-size:.68rem;align-self:center;}
-#link .lk-facts dd{margin:0;color:var(--text);}
-#link .lk-facts code{font-family:var(--font-mono);color:var(--text-muted);word-break:break-all;}
-#link .lk-row{display:flex;gap:12px;margin-top:14px;flex-wrap:wrap;}
-#link .lk-row .ac-in{flex:1;min-width:160px;background:var(--panel-2,var(--panel));border:1px solid var(--line);border-radius:8px;color:var(--text);padding:10px 12px;font-family:var(--font-mono);letter-spacing:.12em;text-transform:uppercase;}
-#link .co-note{font-size:.74rem;line-height:1.6;color:var(--text-dim);margin:10px 0 0;}
-#link .co-note b{color:var(--text);}
+#link .lk-facts dt{font-family:var(--font-mono);font-size:.66rem;color:var(--text-dim);letter-spacing:.12em;text-transform:uppercase;}
+#link .lk-facts dd{margin:0;font-family:var(--font-mono);font-size:.82rem;color:var(--text);}
+#link .lk-facts code{color:var(--text-muted);word-break:break-all;}
+/* the code being approved - link.js renders it as the dl's LAST row */
+#link .lk-facts div:last-child dd code{display:inline-block;background:var(--well);border:1px solid var(--line-soft);border-radius:8px;padding:.3em .55em;font-size:1.25rem;letter-spacing:.22em;color:var(--text);word-break:normal;}
+#link .lk-row{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap;}
+/* manual entry: the same hero treatment, as a field (well + strong border) */
+#link .lk-row .ac-in{flex:1;min-width:180px;background:var(--well);border:1px solid var(--line-strong);border-radius:8px;color:var(--text);padding:.45em .65em;font-family:var(--font-mono);font-size:1.25rem;letter-spacing:.22em;text-transform:uppercase;}
+#link .lk-row .ac-in::placeholder{color:var(--text-dim);}
+#link .lk-row .ac-in:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
+#link .co-note{font-size:.88rem;line-height:1.6;color:var(--text-muted);margin:14px 0 0;}
+#link .lk-card .co-note:first-child{margin-top:0;}
+/* the phishing warning is the defense: caution ink, never softened */
+#link .co-note b{color:var(--amber-2);}

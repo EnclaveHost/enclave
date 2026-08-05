@@ -204,7 +204,7 @@ addEventListener("popstate", (e) => {
    trees, and table scrollers overflow horizontally; keyboard users need focus
    to scroll them. Only regions that actually overflow get a tab stop, and
    only ones this added (data-a11y-scroll) ever get it removed again. */
-const SCROLLABLE_SEL = ".code,.mig-scroll,.schema";
+const SCROLLABLE_SEL = ".code,.mig-scroll,.schema,.tbl";
 let _scrollScan;
 function syncScrollFocus() {
   clearTimeout(_scrollScan);

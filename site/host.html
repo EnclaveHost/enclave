@@ -44,6 +44,11 @@
 
     <div class="hostdoc">
 
+      <div class="hostdoc-cta">
+        <a class="btn btn-primary" href="#setup">Register your hardware <span class="arr" aria-hidden="true">→</span></a>
+        <a class="btn btn-ghost" href="https://github.com/EnclaveHost/enclave/blob/main/metal/PROTOCOL.md" target="_blank" rel="noopener">Read the protocol</a>
+      </div>
+
       <h2>The fleet you would be joining</h2>
       <p>Every box below is serving right now, with the capacity it has left. Yours would appear here once it registers.</p>
       <div class="host-fleet"><c-fleet-list></c-fleet-list></div>
@@ -57,7 +62,7 @@
         <li><b>A GPU is optional.</b> CPU-only boxes serve CPU work; a GPU in confidential-computing mode sells GPU shares too.</li>
       </ul>
 
-      <h2>Setting it up</h2>
+      <h2 id="setup">Setting it up</h2>
       <p>Everything is one command line tool. Each step below is also a plain script in the repository if you would rather drive it yourself.</p>
       <pre class="hostdoc-code"><code>curl -fsSL https://get.enclave.host | sh
 
@@ -66,7 +71,11 @@ enclave host build     <span class="c"># build the measured guest image</span>
 enclave host run       <span class="c"># boot it, ctrl-c to stop</span>
 enclave host check     <span class="c"># is it answering, is the quote real hardware</span>
 enclave host install   <span class="c"># run it under systemd instead, enabled at boot</span></code></pre>
-      <p><code>enclave host build</code> assembles the guest from the same published images the hosted fleet runs, and folds the kernel, the initramfs and the boot arguments into the launch measurement. That measurement is reproducible: anyone can rebuild it and check that the number your box reports is the number the published release produces.</p>
+      <p><code>enclave host build</code> assembles the guest from the same published images the hosted fleet runs, and folds the kernel, the initramfs and the boot arguments into the launch measurement.</p>
+      <div class="doc-note">
+        <span class="nt">Reproducible</span>
+        <p>That measurement is reproducible: anyone can rebuild it and check that the number your box reports is the number the published release produces.</p>
+      </div>
 
       <h2>Getting paid</h2>
       <p>Once the box has gas, it registers itself and starts claiming funded deployments from the queue. The ledger escrows the runner share of what each deployment pays and credits it to your operator key for the time you actually hold the lease, and it sweeps to whatever wallet you named when the balance clears the payout threshold. Nobody holds your earnings on your behalf.</p>

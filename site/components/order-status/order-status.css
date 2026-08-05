@@ -1,15 +1,23 @@
-/* <c-order-status> - one order's live status card */
-.os-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;max-width:520px;}
-.os-head{display:flex;align-items:center;gap:10px;font-weight:700;font-size:1rem;margin-bottom:6px;}
+/* <c-order-status> - one order's live status card. The state machine
+   reads like the console: mono state line in line-state colors with the
+   spinner while work is in flight, order facts in a code well below.
+   Settled = the jade light comes on. */
+.os-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;max-width:520px;transition:border-color .18s var(--ease),box-shadow .18s var(--ease);}
+.os-head{display:flex;align-items:center;gap:10px;font-family:var(--font-mono);font-weight:700;font-size:1rem;letter-spacing:.01em;margin-bottom:6px;}
 .os-head.ok{color:var(--jade);}
-.os-head.warn{color:var(--amber,#e8b34c);}
-.os-head.err{color:#ff8a8a;}
+.os-head.warn{color:var(--amber);}
+.os-head.err{color:var(--danger-2);}
 .os-head.pend{color:var(--text);}
-.os-body{font-size:.8rem;line-height:1.6;color:var(--text-muted);margin:0 0 12px;}
-.os-meta{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:.72rem;color:var(--text-dim);margin-bottom:8px;}
-.os-meta code{font-family:var(--font-mono);color:var(--text-muted);word-break:break-all;}
-.os-meta b{color:var(--text);}
-.os-go{margin-top:6px;display:inline-block;}
+.os-body{font-size:.8rem;line-height:1.6;color:var(--text-muted);margin:0 0 14px;}
+/* order facts: sub-label keys, mono values, sunk in a well like a receipt */
+.os-meta{display:grid;grid-template-columns:auto 1fr;gap:7px 16px;align-items:baseline;font-family:var(--font-mono);font-size:.74rem;color:var(--text-dim);background:var(--well);border:1px solid var(--line-soft);border-radius:8px;padding:12px 14px;margin-bottom:12px;}
+.os-meta span{font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;}
+.os-meta code{color:var(--text-muted);word-break:break-all;}
+.os-meta b{color:var(--text);font-size:.82rem;font-variant-numeric:tabular-nums;}
+/* settled = jade; older browsers without :has() keep the neutral card */
+.os-card:has(.os-head.ok){border-color:var(--jade-dim);box-shadow:0 0 0 1px var(--jade-deep) inset,0 0 40px -18px var(--jade-glow);}
+.os-card:has(.os-head.err){border-color:var(--danger-deep);}
+.os-go{margin-top:4px;margin-right:8px;display:inline-block;}
 .os-spin{width:12px;height:12px;border-radius:50%;border:2px solid var(--line-strong);border-top-color:var(--jade);animation:os-spin .9s linear infinite;flex:none;}
 @keyframes os-spin{to{transform:rotate(360deg);}}
 @media (prefers-reduced-motion:reduce){.os-spin{animation:none;border-top-color:var(--line-strong);}}

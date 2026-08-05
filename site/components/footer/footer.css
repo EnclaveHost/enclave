@@ -7,21 +7,26 @@ c-footer{display:contents;}
    in-flow content, so without a stacking lift the texture bleeds through the
    footer's (already solid) background - lifted, the surface is truly opaque */
 footer{position:relative;z-index:1;border-top:1px solid var(--line-soft);background:var(--bg-1);padding:56px 0 36px;}
-.foot-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr 1.1fr;gap:30px;}
-.foot-grid h2{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin:0 0 14px;font-weight:600;}
+.foot-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr 1.1fr;gap:34px 30px;}
+/* column heads carry the instrument's ruled-label idiom (cf. .block-lbl):
+   uppercase mono with a trailing hairline */
+.foot-grid h2{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin:0 0 14px;font-weight:600;display:flex;align-items:center;gap:10px;}
+.foot-grid h2::after{content:"";flex:1;height:1px;background:var(--line-soft);}
 .foot-grid ul{margin:0;padding:0;list-style:none;}
-.foot-grid a{display:block;color:var(--text-muted);font-size:.88rem;padding:4px 0;transition:.12s;}
+.foot-grid a{display:block;color:var(--text-muted);font-size:.88rem;padding:5px 0;transition:color .12s var(--ease);}
 .foot-grid a:hover{color:var(--jade);}
-.foot-grid a.foot-mail code{display:block;font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);margin-top:1px;transition:.12s;}
+.foot-grid a.foot-mail code{display:block;font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);margin-top:1px;transition:color .12s var(--ease);}
 .foot-grid a.foot-mail:hover code{color:var(--jade);}
-.foot-brand p{color:var(--text-muted);font-size:.9rem;max-width:34ch;margin:14px 0;}
-.foot-meta{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);display:flex;flex-direction:column;gap:6px;}
+.foot-brand p{color:var(--text-muted);font-size:.9rem;line-height:1.6;max-width:34ch;margin:14px 0;}
+.foot-meta{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.02em;color:var(--text-dim);display:flex;flex-direction:column;gap:6px;
+  border-top:1px solid var(--line-soft);padding-top:12px;}   /* hairline-ruled brand block */
 .foot-meta code{color:var(--jade);background:var(--surface);border:1px solid var(--line);padding:.1em .4em;border-radius:5px;}
-.foot-bottom{margin-top:40px;padding-top:22px;border-top:1px solid var(--line-soft);display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;font-family:var(--font-mono);font-size:.74rem;color:var(--text-dim);}
+.foot-bottom{margin-top:40px;padding-top:22px;border-top:1px solid var(--line-soft);display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;font-family:var(--font-mono);font-size:.74rem;letter-spacing:.02em;color:var(--text-dim);}
 
 @media (max-width:1000px){
   .foot-grid{grid-template-columns:1fr 1fr;}
+  .foot-brand{grid-column:1 / -1;max-width:52ch;}   /* brand block owns its own row above the link columns */
 }
 @media (max-width:640px){
-  .foot-grid{grid-template-columns:1fr;}
+  .foot-grid{grid-template-columns:1fr;gap:28px;}
 }
