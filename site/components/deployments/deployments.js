@@ -2305,8 +2305,16 @@ class Deployments extends EnclaveElement {
         }
       }
       if (this._why) this._why.delete(id);   // a pre-suspend decline reason must not outlive the resume
+      // the nudge's answer carries WHY when every enclave declines (capacity,
+      // missing model volume, …) - surface it behind the optimistic toast, or
+      // a Resume the fleet can't honor reads as a button that does nothing.
+      // (a failed row's ex-runner no longer declines on its provision-failure
+      // cooldown: an owner hint overrides the timer)
       fetch(Enclave.base + "/claim-hint", { method: "POST",
-        headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) }).catch(() => {});
+        headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) })
+        .then(r => r.json())
+        .then(h => { if (h && h.accepted === false && h.reason) showToast("the fleet declined the resume nudge: " + h.reason); })
+        .catch(() => {});
       // the contract's claimable() boundary: below it no enclave ever claims
       const drained = dep && !(dep.balance6 >= dep.rate);
       showToast(drained
