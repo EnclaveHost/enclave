@@ -459,7 +459,7 @@ class Deployments extends EnclaveElement {
     this._paintedAcct = Enclave.accountAuthed();    // …and the account edge (_onAcct)
     const hideBar = () => { const tb = this.querySelector(".enc-toolbar"); if (tb) tb.hidden = true; };
     if (!Enclave.address && !this._paintedAcct){
-      this._stopPoll(); hideBar();
+      this._stopPoll(); hideBar(); this._sessionNote();
       const pager = this.querySelector(".enc-pager"); if (pager){ pager.hidden = true; pager.innerHTML = ""; }
       body.innerHTML = '<div class="enc-empty">Sign in (above) to see your enclaves.</div>'; return;
     }
@@ -490,14 +490,44 @@ class Deployments extends EnclaveElement {
         } catch(e){ if (!Enclave.address) throw e; }   // wallet rows still serve
       }
       const tb = this.querySelector(".enc-toolbar"); if (tb) tb.hidden = false;   // refresh + Deploy CTA live here now
+      this._sessionNote();
       this._renderRows(list, opts.highlight);
       this._startPoll();
     } catch(e){
       // an expired/refused session isn't a wall anymore: drop the token and
-      // re-list scoped by the connected address (the public ledger view)
-      if (e.status === 401 && Enclave.token){ Enclave.token = null; Enclave.tokenBase = null; saveSession(); refreshWallet(); return this.refresh(opts); }
+      // re-list scoped by the connected address (the public ledger view) -
+      // but VISIBLY (the bar below), never silently: the fallback hides
+      // runner-held truth, and the owner must know signing in restores it
+      if (e.status === 401 && Enclave.token){ Enclave.token = null; Enclave.tokenBase = null; saveSession(); refreshWallet(); this._sessDropped = true; return this.refresh(opts); }
       body.innerHTML = '<div class="enc-empty">couldn’t load enclaves: ' + esc(e.message || String(e)) + '</div>';
     }
+  }
+
+  /* ---- a dropped session must be VISIBLE. Every fleet update reboots the
+     enclaves, which mints fresh in-enclave session keys (ramdisk-backed by
+     design) and 401s every stored token; the refresh path above then falls
+     back to the public ledger view. Right call - never wall the list - but
+     the fallback hides what only the enclaves' view carries: a failed app's
+     status and error. The owner sees a bare "queued", no error, and nothing
+     suggesting sign-in would change that (found live 2026-08-06: a failed
+     deployment read as "queued" through two fleet updates). This bar is the
+     missing signal, and it offers the fix. ---- */
+  _sessionNote() {
+    let el = this.querySelector(".enc-sessnote");
+    if (!(this._sessDropped && Enclave.address && !Enclave.token)){ if (el) el.remove(); return; }
+    if (el) return;
+    const body = this.querySelector(".enc-body"); if (!body) return;
+    el = document.createElement("div");
+    el.className = "enc-sessnote";
+    el.setAttribute("role", "status");
+    el.innerHTML = '⚠ Signed out by a fleet update. Rows show only public ledger status: a failed app reads as "queued" and its error stays hidden until you sign back in. '
+      + '<button type="button" class="btn btn-sm es-signin">Sign in</button>';
+    el.querySelector(".es-signin").addEventListener("click", async (e) => {
+      const b = e.currentTarget; b.disabled = true; b.textContent = "signing in…";
+      try { await authenticate(); this._sessDropped = false; this.refresh(); }
+      catch(err){ showToast(err.message || String(err)); b.disabled = false; b.textContent = "Sign in"; }
+    });
+    body.before(el);
   }
 
   _renderRows(list, highlight) {
