@@ -1402,7 +1402,9 @@ async function cmdResume(rest) {
   if (d.active) say("already active on the ledger; nudging the fleet");
   else await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi: (await depAbi()).abi,
     functionName: "setActive", args: [id, true] });
-  const h = await api("POST", "/v1/claim-hint", { body: { id } }).catch(() => null);
+  // force: resume is the one hint that may override the ex-runner's
+  // provision-failure cooldown (the owner explicitly asked for a retry NOW)
+  const h = await api("POST", "/v1/claim-hint", { body: { id, force: true } }).catch(() => null);
   if (opt.json) return jout({ id, active: true, fundableSec: fundable, hint: h });
   if (fundable < 1)
     say(`re-queued, but UNFUNDED: ${usd6(d.balance6)} buys under a second at ${usd6(d.rate * 3600n)}/h - \`enclave fund ${short(id)} --usdc 5\` un-sticks it`);

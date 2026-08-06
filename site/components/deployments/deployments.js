@@ -2308,10 +2308,11 @@ class Deployments extends EnclaveElement {
       // the nudge's answer carries WHY when every enclave declines (capacity,
       // missing model volume, …) - surface it behind the optimistic toast, or
       // a Resume the fleet can't honor reads as a button that does nothing.
-      // (a failed row's ex-runner no longer declines on its provision-failure
-      // cooldown: an owner hint overrides the timer)
+      // force: Resume is the ONE hint allowed to override a failed row's
+      // ex-runner provision cooldown (the automatic hints - the why-probe,
+      // the funding nudges - must not, or a crash-looping app never rests)
       fetch(Enclave.base + "/claim-hint", { method: "POST",
-        headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) })
+        headers: { "content-type": "application/json" }, body: JSON.stringify({ id, force: true }) })
         .then(r => r.json())
         .then(h => { if (h && h.accepted === false && h.reason) showToast("the fleet declined the resume nudge: " + h.reason); })
         .catch(() => {});
