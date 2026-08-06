@@ -543,8 +543,15 @@ class Deployments extends EnclaveElement {
       // record shadows the ledger's "unfunded" while signed in): the record
       // is still active on the ledger, so it takes top-ups and the claim
       // sweep re-adopts it the moment the balance covers the rate again.
+      // "failed" is the same shape with a different cause: the runner kept
+      // the record as the owner's evidence of WHY (crash loop, provision
+      // failure) and handed the lease back, but the ledger row stays active
+      // with its balance - and failed is claim-terminal, so the fleet
+      // re-adopts once the cause is fixed. The FIX lives in these controls
+      // (switch Version, Top up, edit Secrets, Resume's claim-hint nudge),
+      // so hiding them on failure would lock the owner out of the recovery.
       const live = ["running", "provisioning", "queued", "pending", "claiming", "claimed", "awaiting_payment", "unfunded"].indexOf(st) !== -1
-        || (onchain && st === "expired");
+        || (onchain && (st === "expired" || st === "failed"));
       // on-chain rows are WORK ITEMS: setActive(false) suspends (the remaining
       // balance stays on the record) and setActive(true) re-queues it, so a
       // stopped/terminated on-chain row is resumable, not gone. "stopped" is
@@ -554,9 +561,13 @@ class Deployments extends EnclaveElement {
       // balance and only need the re-queue nudge (_resume skips the setActive
       // tx when the ledger record never went inactive; a drained one gets told
       // to Top up instead of a relaunch promise that can't happen).
+      // "failed" resumes the same way expired does: its ledger record never
+      // went inactive, so _resume skips the setActive signature and the
+      // claim-hint nudge alone re-queues it (typically after a Version
+      // switch fixed what made it fail).
       // Legacy dep_ instances have no ledger record to reactivate: theirs
       // stays Terminate, and ended legacy rows offer nothing.
-      const resumable = onchain && (st === "stopped" || st === "terminated" || st === "expired");
+      const resumable = onchain && (st === "stopped" || st === "terminated" || st === "expired" || st === "failed");
       // the row's app identity, shared by the cover-art chip and the meta line
       const appLbl = (d.app && d.app.slug ? d.app.slug + ":" + d.app.version : null)
         || (d.image && d.image.reference ? slugOfRef(d.image.reference) || shortImg(d.image.reference) : null);
