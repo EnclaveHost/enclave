@@ -2524,9 +2524,10 @@ async function addrFromAuth(req) {
 // ---------------------------------------------------------------------------
 // Firewall config validation. Mirrors the wasm-manager's rules so a bad spec fails
 // fast at create (422) instead of at provision: entries are "http" (default serve
-// mode) | "http:N" | "tcp:N" | "udp:N"; N in 1..19999 (logical labels; <1024 always remapped), excluding infra ports
-// (8080 supervisor, 8091 manager) and the manager-assigned serve range (20000+).
-const FW_MIN = 1, FW_MAX = 19999, FW_RESERVED = new Set([1080, 8080, 8090, 8091]);   // infra ports: 1080 egress SOCKS, 8080 supervisor, 8090 GPU worker, 8091 wasm-manager (logical labels; <1024 is always remapped to an unprivileged actual by the manager)
+// mode) | "http:N" | "tcp:N" | "udp:N"; N in 1..49999 (logical labels; <1024 always
+// remapped), excluding infra ports (8080 supervisor, 8091 manager). The ceiling
+// matches what the public relay binds (RELAY_PORTS=1-49999).
+const FW_MIN = 1, FW_MAX = 49999, FW_RESERVED = new Set([1080, 8080, 8090, 8091]);   // infra ports: 1080 egress SOCKS, 8080 supervisor, 8090 GPU worker, 8091 wasm-manager (logical labels; <1024 is always remapped to an unprivileged actual by the manager)
 function parseFirewall(fw) {
   const raw = (fw && Array.isArray(fw.ports)) ? fw.ports : [];
   if (raw.length > 8) throw new Error("firewall.ports: at most 8 entries.");

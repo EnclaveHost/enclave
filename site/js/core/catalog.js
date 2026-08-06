@@ -18,15 +18,16 @@ import { Enclave } from "./api.js";
 
 export const STORE = { apps:[], byId:{}, sel:{}, owner:null, filter:"approved", loaded:false, loading:false, at:0 };
 
-// firewall entry: http (default web app) | http:N | tcp:N | udp:N, N in 1-19999 (labels; <1024 always remapped)
-// (8080/8091 are infra-reserved; the enclave enforces the same rules server-side)
+// firewall entry: http (default web app) | http:N | tcp:N | udp:N, N in 1-49999 (labels; <1024 always remapped)
+// (1080/8080/8090/8091 are infra-reserved; the enclave enforces the same rules server-side)
 export const FW_ENTRY_RE = /^(http|http:\d{1,5}|tcp:\d{1,5}|udp:\d{1,5})$/;
+const FW_RESERVED = [1080, 8080, 8090, 8091];
 export function validPortsCsv(s){
   const parts = String(s || "").split(",").map(x => x.trim().toLowerCase()).filter(Boolean);
   for (const p of parts){
     if (!FW_ENTRY_RE.test(p)) return "bad port spec '" + p + "' (use http[:N], tcp:N, udp:N)";
     const n = p.includes(":") ? +p.split(":")[1] : 0;
-    if (n && (n < 1 || n > 19999 || n === 8080 || n === 8091)) return "port " + n + " not allowed (1-19999, excluding 8080/8091)";
+    if (n && (n < 1 || n > 49999 || FW_RESERVED.includes(n))) return "port " + n + " not allowed (1-49999, excluding " + FW_RESERVED.join("/") + ")";
   }
   return null;
 }
