@@ -124,8 +124,6 @@ WASMTIME     = os.environ.get("WASMTIME_BIN", "wasmtime")
 APPS_DIR     = pathlib.Path(os.environ.get("WASM_APPS_DIR", "/opt/enclave/apps"))
 CATALOG_PATH = pathlib.Path(os.environ.get("WASM_CATALOG", str(APPS_DIR / "catalog.json")))
 HOST_IP      = os.environ.get("WASM_HOST_IP", "127.0.0.1")
-PORT_LO      = int(os.environ.get("WASM_PORT_LO", "20000"))
-PORT_HI      = int(os.environ.get("WASM_PORT_HI", "40000"))
 NODE_VCPUS   = int(os.environ.get("NODE_VCPUS", "16"))
 NODE_RAM_GB  = int(os.environ.get("NODE_RAM_GB", "64"))
 # Does this node have a GPU attached? Catalog apps that declare a GPU need
@@ -181,12 +179,13 @@ WASM_MAX_BYTES = int(os.environ.get("WASM_MAX_BYTES", str(2 * 1024 * 1024 * 1024
 IPFS_TIMEOUT   = float(os.environ.get("IPFS_FETCH_TIMEOUT", "660"))
 # firewall: per-version ports config from the catalog. Logical ports are LABELS
 # (each deployment binds a remapped actual), so classic low numbers are allowed —
-# a DNS app may advertise udp:53. The ceiling keeps labels out of the manager-
-# assigned serve range; reserved keeps them off infrastructure (supervisor 8080,
-# this manager 8091). Privileged actuals are never attempted: logical < 1024 is
-# ALWAYS remapped to a free high port (unprivileged processes can't bind them).
+# a DNS app may advertise udp:53. The ceiling matches what the public relay
+# binds (RELAY_PORTS=1-49999; its ephemeral range is pinned above the ceiling);
+# reserved keeps labels off infrastructure (supervisor 8080, this manager 8091).
+# Privileged actuals are never attempted: logical < 1024 is ALWAYS remapped to
+# a free high port (unprivileged processes can't bind them).
 PORT_MIN_DECL  = 1
-PORT_MAX_DECL  = 19999
+PORT_MAX_DECL  = 49999
 PRIV_PORT_MAX  = 1023
 RESERVED_PORTS = {8080, 8091}
 AUDIT_SECS     = float(os.environ.get("WASM_AUDIT_INTERVAL", "10"))

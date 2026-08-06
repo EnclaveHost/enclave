@@ -16,13 +16,13 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
-# RELAY_PORTS=1-19999 binds ~20k listen sockets + one fd per live connection
-LimitNOFILE=65536
+# RELAY_PORTS=1-49999 binds ~50k listen sockets + one fd per live connection
+LimitNOFILE=131072
 # lets the range include ports below 1024
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
-# resource caps (fix 10); higher memory headroom for the ~20k listen sockets
-MemoryMax=1G
+# resource caps (fix 10); higher memory headroom for the ~50k listen sockets
+MemoryMax=2G
 TasksMax=512
 
 [Install]

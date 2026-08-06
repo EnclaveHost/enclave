@@ -3,9 +3,11 @@
 # restart them. Paths are relative to relay/ however this script is invoked.
 #
 # TWO hosts (ssh aliases; Host blocks in ~/.ssh/config, CI writes equivalents):
-#   nan-relay - the TCP (SNI) + UDP relays. relay.js binds the whole 1-19999
+#   nan-relay - the TCP (SNI) + UDP relays. relay.js binds the whole 1-49999
 #               public port range there, so the API relay CANNOT share this
-#               box (its port 8100 sits inside that range).
+#               box (its port 8100 sits inside that range). The box pins
+#               net.ipv4.ip_local_port_range to 58000-65535 so its own outbound
+#               ephemerals never collide with the listener range.
 #   nan       - the API relay (api.enclave.host: the box's Caddy fronts :8100).
 #
 # Host layout (see README): /opt/nan-relay/ holds the daemons and their
@@ -24,6 +26,22 @@ cd "$(dirname "$0")"
 # running processes keep serving from their already-loaded module graph, and
 # the next deploy repairs the tree.
 echo "== nan-relay: tcp (SNI) + tcp6 (dedicated-IP) + udp + egress relays"
+# --- one-time port-range widening (2026-08-05): logical labels grew from
+# 1-19999 to 1-49999 (supervisor parseFirewall / wasm_manager PORT_MAX_DECL /
+# site validator moved together). The listener range now overlaps the kernel's
+# default ephemeral ports (32768-60999), so the box pins its outbound
+# ephemerals ABOVE the range BEFORE the wider bind — otherwise range binds race
+# whatever outbound connections hold those ports and the skipped listeners stay
+# dark until the next restart. Idempotent. The env edit is a surgical flip of
+# the exact old value: any other RELAY_PORTS value is left alone (the grep
+# below prints what the restart will actually bind). This is a deliberate
+# exception to "env files are host state, never touched here", scoped to the
+# one migration, like the unit-rename block below.
+ssh nan-relay 'printf "net.ipv4.ip_local_port_range = 58000 65535\n" > /etc/sysctl.d/90-enclave-relay-ephemeral.conf \
+  && sysctl -q -p /etc/sysctl.d/90-enclave-relay-ephemeral.conf \
+  && sed -i "s/^RELAY_PORTS=1-19999$/RELAY_PORTS=1-49999/" /etc/nan-relay/tcp-relay.env \
+  && grep -H "^RELAY_PORTS=" /etc/nan-relay/tcp-relay.env \
+  && sysctl net.ipv4.ip_local_port_range'
 # net-guard.mjs is a symlink to ../net-guard.mjs (the canonical SSRF classifier
 # shared with the enclave's egress.js); scp follows it and ships the content.
 # fleet.mjs is the shared fleet discovery (REGISTRY_ADDRESS / ENCLAVES) the

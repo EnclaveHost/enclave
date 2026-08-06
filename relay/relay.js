@@ -54,11 +54,14 @@
 //   NET_POLL_SEC            optional  /v1/net-map poll cadence (default 5)
 //   RELAY_PORTS             required  comma list of "public[:logical]" ports and
 //                                     "lo-hi" ranges (range = pass-through, public
-//                                     == logical). "1-19999" serves every logical
+//                                     == logical). "1-49999" serves every logical
 //                                     port the platform allows — the box needs no
 //                                     firewall, and a tenant's new tcp:N works with
 //                                     no relay config change. e.g.:
-//                                       RELAY_PORTS=1-19999            all apps
+//                                       RELAY_PORTS=1-49999            all apps
+//                                       (pin net.ipv4.ip_local_port_range above
+//                                       the range first — 58000 65535 — or range
+//                                       binds race the box's outbound ephemerals)
 //                                       RELAY_PORTS=6667,6697:6667     just IRC
 //   RELAY_EXCLUDE           optional  ports never bound (default "22"; sshd)
 //   RELAY_BIND              optional  comma list of LOCAL addresses to listen on

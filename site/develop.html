@@ -515,7 +515,7 @@ curl -X POST --data-binary 'round trip' 127.0.0.1:8080/echo</code></pre></c-code
           <c-code fn="the ENCLAVE_PORTS contract"><pre><code>ENCLAVE_PORTS=tcp:5432=31245,udp:9053=31246     # logical=actual; BIND THE ACTUAL</code></pre></c-code>
           <div class="doc-note warn">
             <span class="nt">The one rule</span>
-            <p><b>Read <code>ENCLAVE_PORTS</code> and bind the actual ports. Never hardcode.</b> The socket grant is coarse, so an audit sweep polices the fine print: an app that binds a port it wasn't assigned is killed on the spot. Labels are 1–19999 (8080/8091 reserved for infrastructure); labels below 1024 (say <code>udp:53</code>) are always remapped to an unprivileged actual. Up to 8 entries per version.</p>
+            <p><b>Read <code>ENCLAVE_PORTS</code> and bind the actual ports. Never hardcode.</b> The socket grant is coarse, so an audit sweep polices the fine print: an app that binds a port it wasn't assigned is killed on the spot. Labels are 1–49999 (1080/8080/8090/8091 reserved for infrastructure); labels below 1024 (say <code>udp:53</code>) are always remapped to an unprivileged actual. Up to 8 entries per version.</p>
           </div>
           <p>Parsing the contract is a few lines; every service example below uses this helper:</p>
           <c-code fn="src/main.rs · ENCLAVE_PORTS helper"><pre><code>/// "tcp:7000=31245,udp:9053=31246" → the actual port for a logical entry.
@@ -830,7 +830,7 @@ curl -H "Authorization: Bearer $LOGIN_TOKEN" \
               <tr><th scope="row" class="pname">app specs (vramMb/gpuGflops/memMb/cpuGflops)</th><td>exact MB + GFLOPS, per version</td><td>set the MINIMUM deploy shares (spec ÷ server spec, larger of memory/compute, ceil to %)</td></tr>
               <tr><th scope="row" class="pname">memory cap</th><td>= memMb</td><td>exactly what you ask for, runtime-enforced; the CPU share is derived from it</td></tr>
               <tr><th scope="row" class="pname">/data cap (storage_mb)</th><td>256 MB default · 0 = no /data</td><td>audit sweep kills on breach</td></tr>
-              <tr><th scope="row" class="pname">open ports</th><td>≤ 8 entries · labels 1–19999</td><td>8080/8091 reserved · labels &lt; 1024 always remapped</td></tr>
+              <tr><th scope="row" class="pname">open ports</th><td>≤ 8 entries · labels 1–49999</td><td>1080/8080/8090/8091 reserved · labels &lt; 1024 always remapped</td></tr>
               <tr><th scope="row" class="pname">GPU/VRAM share</th><td>0–100% of one card</td><td>0 = CPU-only · VRAM+compute in proportion · floored at the app's minimum · × $<span data-live-price="unit-hr" data-gpu="100">6</span>/hr</td></tr>
               <tr><th scope="row" class="pname">CPU/RAM share</th><td>1–100% of the node</td><td>RAM+vCPU in proportion (sets the memory cap) · floored at the app's minimum · ≤ GPU share for GPU apps · × $<span data-live-price="unit-hr" data-cpu="100">3</span>/hr</td></tr>
               <tr><th scope="row" class="pname">readiness window</th><td>~20 s</td><td>first <code>http:</code>/<code>tcp:</code> port must accept, or the deploy fails</td></tr>
