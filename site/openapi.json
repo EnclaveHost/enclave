@@ -363,7 +363,8 @@
         "requestBody": {
           "required": true,
           "content": { "application/json": { "schema": { "type": "object", "required": ["id"], "properties": {
-            "id": { "type": "string", "description": "The bytes32 deployment id from the Created event (0x + 64 hex).", "example": "0x8b7a…" } } } } }
+            "id": { "type": "string", "description": "The bytes32 deployment id from the Created event (0x + 64 hex).", "example": "0x8b7a…" },
+            "force": { "type": "boolean", "description": "Resume-class hints only: override the ex-runner's provision-failure cooldown so a failed deployment retries NOW (set after fixing the cause - a version switch, a corrected secret). A plain hint respects the cooldown, so a crash-looping app rests in failed between escalating retries." } } } } }
         },
         "responses": {
           "200": { "description": "Evaluation result from the first enclave that accepted (or the last refusal reason).",

@@ -2981,6 +2981,13 @@ function hintRateOk(req) {
 }
 app.post("/v1/claim-hint", async (req, res) => {
   const id = String((req.body && req.body.id) || "").toLowerCase().trim();
+  // force:true = a resume-class control (console Resume, `enclave resume`):
+  // the ONLY hint allowed to override this box's provision-failure cooldown.
+  // Most hints are automatic (the relay's post-funding nudge, the console's
+  // queued-row why-probe every 30s) - if those overrode it, a crash-looping
+  // app would be re-claimed the moment it failed, forever, instead of
+  // resting in "failed" between escalating retries.
+  const force = !!(req.body && req.body.force === true);
   if (!/^0x[0-9a-f]{64}$/.test(id))
     return fail(res, 422, "invalid_spec", "id must be the bytes32 deployment id (0x + 64 hex chars).");
   if (!CLAIM_READY || !_enclaveId)
@@ -3011,7 +3018,7 @@ app.post("/v1/claim-hint", async (req, res) => {
         return res.json({ accepted: false, reason: "claim would revert on-chain: " + (e.shortMessage || e.message) });
       }
     }
-    const reason = await considerClaim(d, { hinted: true, background: true });
+    const reason = await considerClaim(d, { hinted: true, forced: force, background: true });
     if (reason) return res.json({ accepted: false, reason });
     res.json({ accepted: true, status: "claiming" });
   } catch (e) {
@@ -6289,7 +6296,7 @@ async function volumeGate(d, g){
   return missing.length ? "app needs model volume(s) this enclave doesn't carry: " + missing.join(", ") : null;
 }
 
-async function considerClaim(d, { hinted = false, background = false } = {}) {
+async function considerClaim(d, { hinted = false, forced = false, background = false } = {}) {
   const ex = deployments.get(d.id);
   if (ex && !CLAIM_TERMINAL.has(ex.status)) return "already serving it here (status " + ex.status + ")";
   // Unreachable enclaves take no work — resumes included: re-provisioning an
@@ -6320,21 +6327,25 @@ async function considerClaim(d, { hinted = false, background = false } = {}) {
   // only out of LEFTOVER cpu pool.
   // Back off ids that just failed provisioning HERE: without this a broken
   // app (or a transient local fault) claims / fails / releases in a loop.
-  // A HINT overrides the timer: it is the owner's explicit click (Resume,
-  // deploy console) asking for one real retry NOW, and on a small fleet the
+  // A FORCED hint overrides the timer: it is the owner's explicit Resume
+  // click asking for one real retry NOW, and on a small fleet the
   // ex-runner's cooldown can be the only box able to take the id back - a
   // Resume that answers "backing off" for up to an hour reads as broken.
+  // `hinted` alone is NOT enough: hints also arrive automatically (the
+  // relay's post-funding nudge, the console's queued-row why-probe every
+  // 30s), and when those overrode the cooldown a crash-looping app
+  // flip-flopped running<->queued forever instead of resting in "failed".
   // Override the timer only, never the record: the entry stays, so if this
   // forced retry fails too noteProvisionFailure keeps escalating the SWEEP's
-  // cooldown, and a hint loop can't turn a doomed id into a fast
+  // cooldown, and a forced-hint loop can't turn a doomed id into a fast
   // claim/fail/release cycle - each forced retry still walks the full
   // prefetch+provision gauntlet and the per-source hint rate limit bounds
   // how often anyone can ask (the race-loser gas here is the cents the
   // fan-out design already accepts).
   const pf = _provisionBackoff.get(d.id);
   if (provisionBackoffHolds(pf, Date.now(), d.appRef)) {
-    if (!hinted) return "provisioning failed here recently; backing off";
-    console.log(`[claim] ${d.id} provision backoff (failure ${pf.n}, ${Math.max(1, Math.round((pf.until - Date.now()) / 60000))}min left) overridden by owner hint`);
+    if (!forced) return "provisioning failed here recently; backing off";
+    console.log(`[claim] ${d.id} provision backoff (failure ${pf.n}, ${Math.max(1, Math.round((pf.until - Date.now()) / 60000))}min left) overridden by owner resume`);
   }
   const ev = _evacuated.get(d.id);
   if (ev && Date.now() < ev) return "evacuated from here for consolidation; leaving it for another enclave";

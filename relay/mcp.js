@@ -919,8 +919,9 @@ const TOOLS = [
     name: "claim_hint",
     description: "Nudge the fleet to claim a funded on-chain deployment right now (otherwise the ~60s sweep finds it). Advisory and unauthenticated. Optional enclave pins the hint to one named box (see /enclaves) — the WASIp3-canary and placement path; the ledger stays an open queue either way.",
     inputSchema: S({ id: P.id,
-      enclave: { type: "string", description: "Send the hint only to this enclave (a name from /enclaves), e.g. a p3-capable canary box" } }, ["id"]),
-    handler: async ({ id, enclave }) => self("POST", "/v1/claim-hint", { body: enclave ? { id, enclave } : { id } }),
+      enclave: { type: "string", description: "Send the hint only to this enclave (a name from /enclaves), e.g. a p3-capable canary box" },
+      force: { type: "boolean", description: "Override the ex-runner's provision-failure cooldown (the resume control's flag). Set it only when the owner asked to retry a failed deployment NOW, after fixing the cause - a plain hint respects the cooldown so a crash-looping app can rest in failed" } }, ["id"]),
+    handler: async ({ id, enclave, force }) => self("POST", "/v1/claim-hint", { body: { id, ...(enclave ? { enclave } : {}), ...(force === true ? { force: true } : {}) } }),
   },
   {
     name: "restart_deployment",
