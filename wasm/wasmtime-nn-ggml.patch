@@ -1,5 +1,5 @@
 diff --git a/Cargo.lock b/Cargo.lock
-index d459cc9f0d..ebf27ee9e3 100644
+index d459cc9..ebf27ee 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
 @@ -26,6 +26,16 @@ version = "2.0.0"
@@ -182,7 +182,7 @@ index d459cc9f0d..ebf27ee9e3 100644
   "test-programs-artifacts",
   "thiserror 2.0.17",
 diff --git a/crates/wasi-nn/Cargo.toml b/crates/wasi-nn/Cargo.toml
-index e116efb1e1..48e79b20f3 100644
+index e116efb..48e79b2 100644
 --- a/crates/wasi-nn/Cargo.toml
 +++ b/crates/wasi-nn/Cargo.toml
 @@ -70,6 +70,9 @@ default = ["openvino", "winml"]
@@ -196,7 +196,7 @@ index e116efb1e1..48e79b20f3 100644
  onnx-download = ["onnx", "ort/download-binaries"]
  # CUDA execution provider for NVIDIA GPU support (requires CUDA toolkit)
 diff --git a/crates/wasi-nn/build.rs b/crates/wasi-nn/build.rs
-index b2db808d48..af89d103d8 100644
+index b2db808..af89d10 100644
 --- a/crates/wasi-nn/build.rs
 +++ b/crates/wasi-nn/build.rs
 @@ -1,6 +1,17 @@
@@ -219,10 +219,10 @@ index b2db808d48..af89d103d8 100644
  
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
 new file mode 100644
-index 0000000000..22403731ee
+index 0000000..dc098cf
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,2275 @@
+@@ -0,0 +1,2401 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -336,6 +336,13 @@ index 0000000000..22403731ee
 +//!   ENCLAVE_GGML_MTMD_THREADS   CPU threads for image preprocessing
 +//!                               (default 4; the encode follows the model
 +//!                               onto the GPU)
++//!   ENCLAVE_GGML_COMPUTE_WATCHDOG_S  engine-watchdog ceiling for one verb /
++//!                               context init / session teardown (default
++//!                               600; 0 disables). See the watchdog section
++//!                               below for why exceeding it ABORTS.
++//!   ENCLAVE_GGML_LOAD_WATCHDOG_S  engine-watchdog ceiling for one model
++//!                               load (default 3600; 0 disables) — sized
++//!                               for a cold 100+ GB volume read.
 +
 +use super::{
 +    BackendError, BackendExecutionContext, BackendFromDir, BackendGraph, BackendInner, Id,
@@ -578,6 +585,113 @@ index 0000000000..22403731ee
 +    }
 +}
 +
++// ---- engine watchdog --------------------------------------------------
++//
++// llama.cpp/CUDA calls are synchronous FFI: nothing above them can cancel
++// one that never returns. A GPU whose context died mid-call (an MPS reset
++// took the partition, a driver wedge) leaves the calling thread blocked in
++// native code FOREVER while it holds the decode turn — every follower,
++// every session Drop and the slot pool then wait on state that can never
++// change, and the deployment answers [sessions_busy] politely until a
++// human restarts it. Observed live 2026-08-07: the GPU manager reported
++// NOTHING resident (all SMs and VRAM free) while the tenant swore the
++// model was "loaded and serving", indefinitely.
++//
++// A thread stuck inside dead native code cannot be recovered in-process,
++// so the recovery unit is the PROCESS: one tenant is one wasmtime, the
++// supervisor already respawns an instance whose manager reports it dead
++// (instanceAlive -> respawnTenant), and the respawn reloads the model into
++// a fresh context. The watchdog turns "wedged until a human notices" into
++// "down for one model reload, automatically".
++//
++// Mechanics: every guest-triggered entry into this backend registers an
++// RAII guard; a monitor thread scans them every few seconds and ABORTS the
++// process, loudly, when one has outlived its ceiling. Guards wrap whole
++// entry points (verb dispatch, context init, model load, session teardown)
++// rather than individual ell_* calls — deliberately OUTSIDE the regions
++// the arbiter patch rewrites — so decode-turn and lock waits count toward
++// the same ceiling: waiting on a wedged holder is the same emergency as
++// being one. Ceilings are generous multiples of the slowest legitimate
++// case (a CPU-mode prefill chunk; a cold 100+ GB model load) and
++// per-tenant tunable via the env block above; 0 disables.
++
++struct WatchdogEntry {
++    what: &'static str,
++    started: std::time::Instant,
++    limit_s: u32,
++}
++
++static WATCHDOG: OnceLock<Mutex<HashMap<u64, WatchdogEntry>>> = OnceLock::new();
++static WATCHDOG_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
++
++fn compute_watchdog_s() -> u32 {
++    static S: OnceLock<u32> = OnceLock::new();
++    *S.get_or_init(|| env_u32("ENCLAVE_GGML_COMPUTE_WATCHDOG_S", 600))
++}
++
++fn load_watchdog_s() -> u32 {
++    static S: OnceLock<u32> = OnceLock::new();
++    *S.get_or_init(|| env_u32("ENCLAVE_GGML_LOAD_WATCHDOG_S", 3600))
++}
++
++/// The guard map, creating the monitor thread on first use. The map lock is
++/// only ever held for entry/exit bookkeeping and the scan — never across
++/// FFI — so the monitor cannot itself get stuck behind a wedged call.
++fn watchdog_map() -> &'static Mutex<HashMap<u64, WatchdogEntry>> {
++    WATCHDOG.get_or_init(|| {
++        let _ = std::thread::Builder::new().name("nn-watchdog".into()).spawn(|| loop {
++            std::thread::sleep(std::time::Duration::from_secs(10));
++            let Some(m) = WATCHDOG.get() else { continue };
++            for e in m.lock().unwrap().values() {
++                let held = e.started.elapsed().as_secs();
++                if held > u64::from(e.limit_s) {
++                    eprintln!(
++                        "[nn-watchdog] FATAL: {} has been inside the ggml backend for {held}s \
++                         (ceiling {}s) — the GPU/backend context is presumed dead, and a thread \
++                         blocked in native code cannot be recovered in-process. Aborting so the \
++                         supervisor respawns this tenant on a fresh engine.",
++                        e.what, e.limit_s
++                    );
++                    std::process::abort();
++                }
++            }
++        });
++        Mutex::new(HashMap::new())
++    })
++}
++
++/// RAII registration of one backend entry. Costs one atomic bump and two
++/// short map locks per verb — noise next to a decode.
++struct WatchdogGuard(Option<u64>);
++
++impl WatchdogGuard {
++    fn new(what: &'static str, limit_s: u32) -> WatchdogGuard {
++        if limit_s == 0 {
++            return WatchdogGuard(None);
++        }
++        let id = WATCHDOG_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
++        watchdog_map().lock().unwrap().insert(
++            id,
++            WatchdogEntry { what, started: std::time::Instant::now(), limit_s },
++        );
++        WatchdogGuard(Some(id))
++    }
++    fn compute(what: &'static str) -> WatchdogGuard {
++        WatchdogGuard::new(what, compute_watchdog_s())
++    }
++    fn load(what: &'static str) -> WatchdogGuard {
++        WatchdogGuard::new(what, load_watchdog_s())
++    }
++}
++
++impl Drop for WatchdogGuard {
++    fn drop(&mut self) {
++        if let Some(id) = self.0 {
++            watchdog_map().lock().unwrap().remove(&id);
++        }
++    }
++}
++
 +#[derive(Default)]
 +pub struct GgmlBackend();
 +unsafe impl Send for GgmlBackend {}
@@ -597,6 +711,10 @@ index 0000000000..22403731ee
 +        target: ExecutionTarget,
 +        mmproj: Option<PathBuf>,
 +    ) -> Result<Graph, BackendError> {
++        // load-class ceiling: ell_init dlopens driver-backed modules and the
++        // model read walks the whole volume, either of which can wedge on a
++        // dead device just like a decode
++        let _wd = WatchdogGuard::load("a model load");
 +        INIT.call_once(|| unsafe { ell_init() });
 +        // GPU offload only when asked for AND the linked libllama carries a
 +        // GPU backend; a CPU-only libllama silently ignores n_gpu_layers.
@@ -1740,6 +1858,8 @@ index 0000000000..22403731ee
 +
 +impl BackendGraph for GgmlGraph {
 +    fn init_execution_context(&self) -> Result<ExecutionContext, BackendError> {
++        // covers the lazy GgmlServer::new (the KV pool's VRAM claim) too
++        let _wd = WatchdogGuard::compute("an execution-context init");
 +        let server = {
 +            let mut s = self.server.lock().unwrap();
 +            match &*s {
@@ -1790,6 +1910,9 @@ index 0000000000..22403731ee
 +unsafe impl Sync for GgmlExecutionContext {}
 +impl Drop for GgmlExecutionContext {
 +    fn drop(&mut self) {
++        // the decode-turn wait below is unbounded when the turn holder is
++        // wedged, and a hung teardown pins an executor thread and its slot
++        let _wd = WatchdogGuard::compute("a session teardown");
 +        // seq removal mutates the llama context: wait out any in-flight
 +        // batch (bounded — one llama_decode), remove under the queue lock so
 +        // no leader starts meanwhile, then free the slot. The slot lock is
@@ -1885,6 +2008,9 @@ index 0000000000..22403731ee
 +        // speculation round-cost guessing game. Requested per call by the
 +        // guest, so it costs nothing when unused.
 +        let t_start = std::time::Instant::now();
++        // one guard for the whole verb, decode-turn and lock waits included:
++        // a wait on a wedged holder is the same emergency as being one
++        let _wd = WatchdogGuard::compute("a compute verb");
 +        let want_timing = inputs.as_ref().map_or(false, |v| {
 +            v.iter().any(|nt| nt.name == "timing"
 +                && tokens_from_tensor(&nt.tensor).map(|t| t.first() == Some(&1)).unwrap_or(false))
@@ -2499,7 +2625,7 @@ index 0000000000..22403731ee
 +
 +}
 diff --git a/crates/wasi-nn/src/backend/mod.rs b/crates/wasi-nn/src/backend/mod.rs
-index f6f81e8080..b8d871003e 100644
+index f6f81e8..b8d8710 100644
 --- a/crates/wasi-nn/src/backend/mod.rs
 +++ b/crates/wasi-nn/src/backend/mod.rs
 @@ -2,6 +2,8 @@
@@ -2532,7 +2658,7 @@ index f6f81e8080..b8d871003e 100644
      {
          backends.push(Backend::from(PytorchBackend::default()));
 diff --git a/crates/wasi-nn/src/lib.rs b/crates/wasi-nn/src/lib.rs
-index b826f6abab..3dd6190c17 100644
+index b826f6a..3dd6190 100644
 --- a/crates/wasi-nn/src/lib.rs
 +++ b/crates/wasi-nn/src/lib.rs
 @@ -16,6 +16,17 @@ use wasmtime::format_err;
@@ -2574,7 +2700,7 @@ index b826f6abab..3dd6190c17 100644
  
  /// A machine learning backend.
 diff --git a/crates/wasi-nn/src/registry/in_memory.rs b/crates/wasi-nn/src/registry/in_memory.rs
-index 0523c8d519..797ae4d076 100644
+index 0523c8d..797ae4d 100644
 --- a/crates/wasi-nn/src/registry/in_memory.rs
 +++ b/crates/wasi-nn/src/registry/in_memory.rs
 @@ -6,6 +6,10 @@ use crate::wit::ExecutionTarget;
@@ -2589,7 +2715,7 @@ index 0523c8d519..797ae4d076 100644
  impl InMemoryRegistry {
      pub fn new() -> Self {
 diff --git a/crates/wasi-nn/src/wit.rs b/crates/wasi-nn/src/wit.rs
-index 32e668e277..805d5df8a4 100644
+index 32e668e..805d5df 100644
 --- a/crates/wasi-nn/src/wit.rs
 +++ b/crates/wasi-nn/src/wit.rs
 @@ -389,6 +389,7 @@ impl FromStr for generated::graph::GraphEncoding {
@@ -2601,7 +2727,7 @@ index 32e668e277..805d5df8a4 100644
              "tensorflow" => Ok(generated::graph::GraphEncoding::Tensorflow),
              "tensorflowlite" => Ok(generated::graph::GraphEncoding::Tensorflowlite),
 diff --git a/src/commands/serve.rs b/src/commands/serve.rs
-index 48c2a23fb8..9661d0d96e 100644
+index 48c2a23..9661d0d 100644
 --- a/src/commands/serve.rs
 +++ b/src/commands/serve.rs
 @@ -48,6 +48,15 @@ const DEFAULT_WASIP3_MAX_INSTANCE_REUSE_COUNT: usize = 128;
