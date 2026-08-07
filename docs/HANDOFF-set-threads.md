@@ -121,14 +121,64 @@ when you extend it.
    this. Porting musl's pthreads onto SET primitives is the next project and
    it is large.
 2. **Not in the Dockerfile chain.** Stays out of `wasm/Dockerfile.wasmtime`
-   until someone who did not write `set_threads.rs` has reviewed the
-   concurrency design.
+   pending the review checklist below. Note this is not blocking anything:
+   no guest can reach SET until the toolchain exists (item 1), so the patch
+   can sit out of the chain indefinitely at zero cost.
 3. Cross-instance spawn, mutable shared globals and genuinely shared tables
    are refused, not implemented. Cranelift rejects `global.atomic.*` /
    `table.atomic.*` upstream anyway, so no compilable guest can express them.
 4. Platform capability plumbing (`set` beside `coopThreads`: compile-probe →
    byte-marker → publish stamp → claim gate → per-tenant flag → fleet-AND) is
    designed but not wired.
+
+## The review checklist (what "pending review" actually means)
+
+There is one human contributor to this repo, no CODEOWNERS and no branch
+protection — so "pending review" means **Steven, or nobody**. Left vague that
+is just an indefinite hold wearing a process costume. So here is the finite
+list. Everything else in the patch is plumbing that the type checker and the
+test suite already cover; these six are where a mistake would be real and
+silent.
+
+1. **`unsafe impl Send for SpawnPayload`** (`set_threads.rs`) — the
+   load-bearing unsafe in the whole change. It asserts the raw pointers inside
+   the copied import records may cross to another thread. That is only true
+   because of invariants (1) and (2) above. If either is ever weakened, this
+   impl becomes unsound. Check the argument, not just the comment.
+2. **Join-before-deallocate ordering** in `StoreOpaque::drop`. The join sits at
+   the very top. Confirm nothing above it can free something a worker reads,
+   and decide whether joining while already unwinding from a panic is the
+   behaviour you want.
+3. **`replace_defined_memory_with_shared`** (`instance.rs`) — writes a raw
+   pointer into the view's vmctx and swaps the Rust-side `Memory`. It relies
+   on "no guest code has run in this view yet". Verify that holds for every
+   path into it, including a module whose startup function runs (element
+   segments, complex global initializers) before the swap.
+4. **The cross-thread guard's `None` case.** `current_vm_store_context()`
+   returns `Option`; on `None` the guard falls through and permits entry. I
+   believe `None` is unreachable here (the function is only called from wasm,
+   which means a `CallThreadState` exists), but that is an argument, not a
+   proof, and it is the failure mode that would silently reopen the race.
+5. **Reference-typed globals are NOT snapshotted** — they are skipped, so a
+   view gets their module-declared *initial* values, not the primary's current
+   ones. Deliberate (their values are pointers tied to the primary instance),
+   but it is a divergence a guest could observe, and it is weaker than the
+   "globals: snapshot at spawn" summary suggests.
+6. **Workers disable epoch interruption and fuel** (`set_epoch_deadline(u64::MAX/2)`,
+   `set_fuel(u64::MAX)` in `run_view`). Not a hole today: this platform never
+   used epoch interruption for guest timeouts, and the controls that do exist
+   (cgroup `cpu.weight`/`cpu.max`, the measure-and-kill audit polls) are
+   cgroup- and process-scoped, so they already cover worker threads. But it is
+   a **landmine**: epoch interruption is the natural mechanism to reach for
+   when adding a per-request guest timeout, and SET workers would silently
+   ignore it. If that timeout is ever added, this line must be revisited in
+   the same change.
+
+If you would rather not be the only reviewer, the natural outside audience is
+bytecodealliance/wasmtime#9466 — they have the most relevant expertise, and
+items 1-4 are exactly the questions they would ask. The design deliberately
+implements less than the full SET proposal (see "Sharedness, stated exactly"
+in `docs/wasm-parallelism.md`), so expect that to be the first thing debated.
 
 ## Gotchas that still cost time
 
