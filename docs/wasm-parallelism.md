@@ -305,6 +305,14 @@ would if this code were wrong.
   OCaml installed.)
 - Regression-checked: `thread.available_parallelism` still answers 32 (and 8
   under `ENCLAVE_AVAILABLE_PARALLELISM=8`), plain core modules unaffected.
+- **Adversarial review, 2026-08-07** — four independent readers plus a
+  hostile-guest probe. It found real UB (a worker could re-enter the primary
+  store through an imported memory's libcall, because the *core*
+  `enter_host_from_wasm` was unguarded) and four other critical defects. All
+  fixed; see `docs/HANDOFF-set-threads.md` for the list and for what is
+  known-and-accepted rather than fixed. The lesson worth keeping: the bug that
+  mattered was found by writing a hostile guest and by fresh readers, not by
+  re-reading code I had just written.
 
 ### Engine changes beyond the spawn path
 

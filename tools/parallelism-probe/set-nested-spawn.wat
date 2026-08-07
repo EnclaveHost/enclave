@@ -1,8 +1,15 @@
 ;; Negative probe: a SET worker calling thread.spawn-ref AGAIN (nested spawn).
 ;; The worker cannot re-enter the primary component's store, so this must TRAP
-;; the worker thread with a clear message — never abort the process, and never
-;; silently race. Expected: "set-thread-1: ... cannot call back into the
-;; component that spawned it" on stderr, exit 1.
+;; that worker with a clear message — never abort the process, never kill the
+;; host, and never silently race.
+;;
+;; Expected on stderr:
+;;   set-thread-1 trapped (thread ends; siblings continue): ...
+;;   Caused by: a shared-everything-threads worker cannot call back into ...
+;; and then a CLEAN return of 1 from run(): the host survives the worker's
+;; death. The bounded wait below is the point — the worker never bumps the
+;; counter (it trapped), so this demonstrates that losing a worker is the
+;; guest's problem to handle, not the host's.
 (component
   (core type $start (shared (func (param i32))))
   (core func $spawn (canon thread.spawn-ref $start))
@@ -21,14 +28,11 @@
     (func (export "run") (result i32)
       (local $c i32)
       (drop (call $spawn (ref.func $worker) (i32.const 1)))
-      ;; park so the worker gets a chance to run and trap
-      (block $done
-        (loop $w
-          (local.set $c (i32.atomic.load (i32.const 0)))
-          (br_if $done (i32.eq (local.get $c) (i32.const 99)))
-          (drop (memory.atomic.wait32 (i32.const 0) (local.get $c) (i64.const 2000000000)))
-          (br $w)))
-      (i32.const 0))
+      ;; bounded wait: give the worker time to run and trap, then carry on.
+      ;; It never bumps the counter, so this always times out — proving the
+      ;; host is still alive and able to make progress.
+      (drop (memory.atomic.wait32 (i32.const 0) (i32.const 0) (i64.const 2000000000)))
+      (i32.const 1))
   )
   (core instance $i (instantiate $m (with "" (instance (export "spawn" (func $spawn))))))
   (alias core export $i "run" (core func $run))
