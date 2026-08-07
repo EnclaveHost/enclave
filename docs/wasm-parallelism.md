@@ -143,7 +143,58 @@ Upstream has not started: the only SET commits in wasmtime's history are
 no linked PRs, and the entire SET test suite is a single 3-line `.wast` that
 asserts an empty module parses.
 
-## What DOES work: measured 7.8x, and how
+## WORKING: real parallel pthreads, measured 11.3x (2026-08-07)
+
+Not a harness this time — a real C program using `pthread_create`/`pthread_join`,
+compiled by clang, running on our patched wasmtime and using many cores. The
+host side of wasi-threads is REBUILT in `src/commands/run.rs` (upstream deleted
+it in b4b23fe583). Source: `tools/parallelism-probe/pthread-scaling.c`.
+
+| threads | guest wall | real | user | cores busy |
+|---|---|---|---|---|
+| 1  | 219ms | 0.239s | 0.256s | 1.1 |
+| 2  | 220ms | 0.227s | 0.444s | 2.0 |
+| 4  | 219ms | 0.226s | 0.881s | 3.9 |
+| 8  | 231ms | 0.238s | 1.781s | 7.5 |
+| 16 | 309ms | 0.316s | 3.928s | **12.4** |
+
+16 threads x 900M iterations = 14.4 BILLION iterations in 309ms. Sequential
+would be ~3.5s: **11.3x**. `user` climbing to 3.9s while `real` stays ~0.3s is
+the part that cannot be faked — those are real cores.
+
+Build the guest with imported+exported shared memory, which the WASI p1 host
+also requires so it can reach guest memory:
+
+    clang --target=wasm32-wasip1-threads -O2 -pthread \
+      -Wl,--import-memory,--shared-memory,--export-memory,--max-memory=67108864 \
+      -o app.wasm app.c
+    wasmtime run -W threads,shared-memory app.wasm
+
+Two things upstream's version could not do, solved here:
+
+- **No clonable WASI ctx.** wasi-threads needed `T: Clone`, which is why
+  `wasi-common` was deleted in the SAME commit — the modern `wasmtime_wasi` ctx
+  is not `Clone`. Cloning was never the actual requirement: each thread just
+  needs *a* context, so we build a FRESH one per thread (inheriting stdio, so
+  `printf` from a worker still reaches the terminal). Honest consequence:
+  threads share LINEAR MEMORY (what pthreads needs) but NOT a file-descriptor
+  table. Compute-parallel work is unaffected; opening an fd on one thread and
+  reading it on another is not supported.
+- **Async engine.** The CLI configures async, so the sync `instantiate`/`call`
+  entrypoints deadlock in a spawned thread. Threads drive the async ones on
+  their own tokio context, and the main thread returning `process::exit`s (the
+  wasi-threads rule that the main thread ending ends them all) — without that
+  the CLI blocks forever on workers parked in a futex.
+
+**Scope, stated plainly:** this is core modules (wasip1-threads), not
+components. It is real parallelism available today; it costs the component
+boundary that carries egress, the loopback wall and the WASI capability model.
+That trade is a product decision, not a technical one, and this file exists so
+it can be made with numbers instead of guesses.
+
+## The earlier harness: 7.8x, and how
+
+
 
 The machinery for real parallelism is still in the engine — only the
 wasi-threads *crate* was deleted. `SharedMemory`, `-W threads`, `-W

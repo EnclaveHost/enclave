@@ -426,3 +426,158 @@ index f62ea58d9c..aee8f6802d 100644
  #[cfg(feature = "component-model-async")]
  fn backpressure_modify(
      store: &mut dyn VMStore,
+diff --git a/src/commands/run.rs b/src/commands/run.rs
+index 4159165be2..4da3973186 100644
+--- a/src/commands/run.rs
++++ b/src/commands/run.rs
+@@ -11,6 +11,7 @@ use std::ffi::OsString;
+ use std::path::{Path, PathBuf};
+ #[cfg(feature = "debug")]
+ use std::pin::Pin;
++use std::sync::{Arc, OnceLock};
+ use std::thread;
+ use wasmtime::{
+     Engine, Error, Func, Module, Result, Store, StoreLimits, Val, ValType, bail,
+@@ -715,6 +716,126 @@ impl RunCommand {
+             }
+         }
+ 
++        // enclave: wasi-threads style REAL parallel threads.
++        //
++        // Upstream deleted `crates/wasi-threads` together with `wasi-common`
++        // (b4b23fe583) and the reason those went in one commit matters: the old
++        // clonable wasi-common ctx was what let each spawned thread get a
++        // `Store` of its own. The modern `wasmtime_wasi` ctx is NOT `Clone`.
++        //
++        // Cloning was never the requirement though — each thread just needs *a*
++        // context. So we build a FRESH one per thread (inheriting stdio, so
++        // printf from a worker still lands on the terminal). The consequence is
++        // honest and worth stating: threads share LINEAR MEMORY, which is what
++        // pthreads actually needs, but they do NOT share a file-descriptor
++        // table. Compute-parallel workloads are unaffected; a program that
++        // opens an fd on one thread and reads it on another is not supported.
++        //
++        // Mechanism (the one measured at 7.8x in tools/parallelism-probe): one
++        // `SharedMemory` imported by every per-thread instance, one `Store` per
++        // OS thread. A `Store` is `!Sync`, so what is shared is the MEMORY,
++        // never the store.
++        let mut wasi_threads_active = false;
++        if let CliLinker::Core(linker) = &mut *linker {
++            let module = main_target.unwrap_core().clone();
++            let wants_threads = module
++                .imports()
++                .any(|i| i.module() == "wasi" && i.name() == "thread-spawn");
++            if wants_threads {
++                let engine = store.engine().clone();
++                // the shared memory every instance (main + threads) imports
++                let Some(mem_ty) = module
++                    .imports()
++                    .find(|i| i.module() == "env" && i.name() == "memory")
++                    .and_then(|i| i.ty().memory().cloned())
++                else {
++                    bail!(
++                        "a wasi-threads module must import its shared memory as `env`/`memory` \
++                         (link with -Wl,--import-memory,--shared-memory)"
++                    );
++                };
++                let shared = wasmtime::SharedMemory::new(&engine, mem_ty)?;
++                linker.define(&mut *store, "env", "memory", shared.clone())?;
++
++                let pre: Arc<OnceLock<wasmtime::InstancePre<Host>>> = Arc::new(OnceLock::new());
++                let tid = Arc::new(std::sync::atomic::AtomicI32::new(1));
++                let argv = self.compute_argv()?;
++                {
++                    let pre = pre.clone();
++                    let tid = tid.clone();
++                    let engine = engine.clone();
++                    linker.func_wrap(
++                        "wasi",
++                        "thread-spawn",
++                        move |_caller: wasmtime::Caller<'_, Host>, start_arg: i32| -> i32 {
++                            let Some(pre) = pre.get().cloned() else {
++                                return -1;
++                            };
++                            let id = tid.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
++                            let engine = engine.clone();
++                            let argv = argv.clone();
++                            let spawned = std::thread::Builder::new()
++                                .name(format!("wasi-thread-{id}"))
++                                .spawn(move || {
++                                    // a FRESH context for this thread
++                                    let mut b = wasmtime_wasi::WasiCtxBuilder::new();
++                                    b.args(&argv);
++                                    b.inherit_stdin();
++                                    b.inherit_stdout();
++                                    b.inherit_stderr();
++                                    let host = Host {
++                                        wasip1_ctx: Some(b.build_p1()),
++                                        ..Default::default()
++                                    };
++                                    let mut store = Store::new(&engine, host);
++                                    // the CLI configures the engine for async, so the
++                                    // sync entrypoints must NOT be used here — they
++                                    // deadlock. Drive the async ones on this thread's
++                                    // own tokio context (what the deleted wasi-threads
++                                    // crate did in its `use_async` branch).
++                                    let instance = match wasmtime_wasi::runtime::in_tokio(
++                                        pre.instantiate_async(&mut store),
++                                    ) {
++                                        Ok(i) => i,
++                                        Err(e) => {
++                                            eprintln!("wasi-thread-{id}: instantiate: {e:?}");
++                                            return;
++                                        }
++                                    };
++                                    let f = match instance
++                                        .get_typed_func::<(i32, i32), ()>(&mut store, "wasi_thread_start")
++                                    {
++                                        Ok(f) => f,
++                                        Err(e) => {
++                                            eprintln!("wasi-thread-{id}: no wasi_thread_start: {e:?}");
++                                            return;
++                                        }
++                                    };
++                                    if let Err(e) = wasmtime_wasi::runtime::in_tokio(
++                                        f.call_async(&mut store, (id, start_arg)),
++                                    ) {
++                                        eprintln!("wasi-thread-{id}: trapped: {e:?}");
++                                        std::process::exit(1);
++                                    }
++                                });
++                            match spawned {
++                                Ok(_) => id,
++                                Err(e) => {
++                                    eprintln!("wasi-thread-{id}: spawn failed: {e}");
++                                    -1
++                                }
++                            }
++                        },
++                    )?;
++                }
++                // the spawn closure needs the InstancePre, which needs the
++                // fully-populated linker: break the cycle with a OnceLock.
++                let built = linker.instantiate_pre(&module)?;
++                let _ = pre.set(built);
++                wasi_threads_active = true;
++            }
++        }
++
+         let finish_epoch_handler =
+             self.setup_epoch_handler(store, main_target, profiled_modules)?;
+ 
+@@ -753,6 +874,15 @@ impl RunCommand {
+                 if let Some(func) = func {
+                     self.invoke_func(store, func).await?;
+                 }
++                if wasi_threads_active {
++                    // wasi-threads: the main thread returning ends every thread,
++                    // same as `proc_exit`. Otherwise the CLI blocks forever on
++                    // workers parked in a futex.
++                    use std::io::Write;
++                    let _ = std::io::stdout().flush();
++                    let _ = std::io::stderr().flush();
++                    std::process::exit(0);
++                }
+                 Ok(CliInstance::Core(instance))
+             }
+             #[cfg(feature = "component-model")]
