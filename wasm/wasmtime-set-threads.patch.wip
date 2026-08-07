@@ -1,0 +1,279 @@
+diff --git a/crates/cli-flags/src/lib.rs b/crates/cli-flags/src/lib.rs
+index ca34b9306b..593abe3361 100644
+--- a/crates/cli-flags/src/lib.rs
++++ b/crates/cli-flags/src/lib.rs
+@@ -1285,6 +1285,11 @@ impl CommonOptions {
+             ("component-model", component_model_implements, wasm_component_model_implements)
+             ("component-model", component_model_memory64, wasm_component_model_memory64)
+             ("threads", threads, wasm_threads)
++            // enclave: `-W shared-everything-threads` parsed but never applied
++            // upstream (only the wast runner called the setter) — the flag was
++            // a silent no-op on the CLI. Wire it like its siblings so the
++            // engine actually sees the feature.
++            ("threads", shared_everything_threads, wasm_shared_everything_threads)
+             ("gc", gc, wasm_gc)
+             ("gc", reference_types, wasm_reference_types)
+             ("gc", function_references, wasm_function_references)
+diff --git a/crates/cranelift/src/compiler/component.rs b/crates/cranelift/src/compiler/component.rs
+index 3d49e8daac..b0308be55f 100644
+--- a/crates/cranelift/src/compiler/component.rs
++++ b/crates/cranelift/src/compiler/component.rs
+@@ -197,6 +197,17 @@ impl<'a> TrampolineCompiler<'a> {
+             Trampoline::ResourceDrop { instance, ty } => {
+                 self.translate_resource_drop(*instance, *ty);
+             }
++            Trampoline::ThreadAvailableParallelism => {
++                self.translate_libcall(
++                    host::thread_available_parallelism,
++                    // a core count is never -1, and NegativeOne is the sentinel
++                    // this component trampoline path actually implements (it
++                    // also does the u64->i32 truncation we want)
++                    TrapSentinel::NegativeOne,
++                    WasmArgs::InRegisters,
++                    |_me, _params| {},
++                );
++            }
+             Trampoline::BackpressureInc { instance } => {
+                 self.translate_libcall(
+                     host::backpressure_modify,
+@@ -1478,6 +1489,7 @@ impl<'a> TrampolineCompiler<'a> {
+         let instance = match trampoline {
+             // These intrinsics explicitly do not check the may-leave flag.
+             Trampoline::ResourceRep { .. }
++            | Trampoline::ThreadAvailableParallelism
+             | Trampoline::BackpressureInc { .. }
+             | Trampoline::BackpressureDec { .. } => return,
+ 
+diff --git a/crates/environ/src/component.rs b/crates/environ/src/component.rs
+index 3f78867781..9ccdb0ce3b 100644
+--- a/crates/environ/src/component.rs
++++ b/crates/environ/src/component.rs
+@@ -97,6 +97,11 @@ macro_rules! foreach_builtin_component_function {
+             resource_transfer_own(vmctx: vmctx, src_idx: u32, src_table: u32, dst_table: u32) -> u64;
+             resource_transfer_borrow(vmctx: vmctx, src_idx: u32, src_table: u32, dst_table: u32) -> u64;
+ 
++            // enclave/SET: `thread.available-parallelism` — how many threads
++            // can actually run at once. Not a constant: it must reflect the
++            // CPU the TENANT bought, not the node's core count.
++            thread_available_parallelism(vmctx: vmctx) -> u64;
++
+             enter_sync_call(vmctx: vmctx, caller_instance: u32, callee_async: u32, callee_instance: u32) -> bool;
+             exit_sync_call(vmctx: vmctx) -> bool;
+ 
+diff --git a/crates/environ/src/component/dfg.rs b/crates/environ/src/component/dfg.rs
+index e89fccf18e..02d2c41bf1 100644
+--- a/crates/environ/src/component/dfg.rs
++++ b/crates/environ/src/component/dfg.rs
+@@ -338,6 +338,7 @@ pub enum Trampoline {
+         instance: RuntimeComponentInstanceIndex,
+         ty: TypeResourceTableIndex,
+     },
++    ThreadAvailableParallelism,
+     BackpressureInc {
+         instance: RuntimeComponentInstanceIndex,
+     },
+@@ -965,6 +966,7 @@ impl LinearizeDfg<'_> {
+                 instance: *instance,
+                 ty: *ty,
+             },
++            Trampoline::ThreadAvailableParallelism => info::Trampoline::ThreadAvailableParallelism,
+             Trampoline::BackpressureInc { instance } => info::Trampoline::BackpressureInc {
+                 instance: *instance,
+             },
+diff --git a/crates/environ/src/component/info.rs b/crates/environ/src/component/info.rs
+index 6f9386cc0a..74a61e52eb 100644
+--- a/crates/environ/src/component/info.rs
++++ b/crates/environ/src/component/info.rs
+@@ -771,6 +771,9 @@ pub enum Trampoline {
+         ty: TypeResourceTableIndex,
+     },
+ 
++    /// A `thread.available-parallelism` intrinsic (shared-everything-threads).
++    ThreadAvailableParallelism,
++
+     /// A `backpressure.inc` intrinsic.
+     BackpressureInc {
+         /// The specific component instance which is calling the intrinsic.
+@@ -1211,6 +1214,7 @@ impl Trampoline {
+             ResourceNew { ty, .. } => format!("component-resource-new[{}]", ty.as_u32()),
+             ResourceRep { ty, .. } => format!("component-resource-rep[{}]", ty.as_u32()),
+             ResourceDrop { ty, .. } => format!("component-resource-drop[{}]", ty.as_u32()),
++            ThreadAvailableParallelism => format!("thread-available-parallelism"),
+             BackpressureInc { .. } => format!("backpressure-inc"),
+             BackpressureDec { .. } => format!("backpressure-dec"),
+             TaskReturn { .. } => format!("task-return"),
+diff --git a/crates/environ/src/component/translate.rs b/crates/environ/src/component/translate.rs
+index c4d7ed007e..a1e1f4c259 100644
+--- a/crates/environ/src/component/translate.rs
++++ b/crates/environ/src/component/translate.rs
+@@ -195,6 +195,10 @@ enum LocalInitializer<'data> {
+     ResourceRep(AliasableResourceId, ModuleInternedTypeIndex),
+     ResourceDrop(AliasableResourceId, ModuleInternedTypeIndex),
+ 
++    ThreadAvailableParallelism {
++        func: ModuleInternedTypeIndex,
++    },
++
+     BackpressureInc {
+         func: ModuleInternedTypeIndex,
+     },
+@@ -876,9 +880,13 @@ impl<'a, 'data> Translator<'a, 'data> {
+                             core_func_index += 1;
+                             LocalInitializer::ResourceRep(resource, ty)
+                         }
++                        wasmparser::CanonicalFunction::ThreadAvailableParallelism => {
++                            let core_type = self.core_func_signature(core_func_index)?;
++                            core_func_index += 1;
++                            LocalInitializer::ThreadAvailableParallelism { func: core_type }
++                        }
+                         wasmparser::CanonicalFunction::ThreadSpawnRef { .. }
+-                        | wasmparser::CanonicalFunction::ThreadSpawnIndirect { .. }
+-                        | wasmparser::CanonicalFunction::ThreadAvailableParallelism => {
++                        | wasmparser::CanonicalFunction::ThreadSpawnIndirect { .. } => {
+                             bail!("unsupported intrinsic")
+                         }
+                         wasmparser::CanonicalFunction::BackpressureInc => {
+diff --git a/crates/environ/src/component/translate/inline.rs b/crates/environ/src/component/translate/inline.rs
+index d5e8c41379..c08ab365c4 100644
+--- a/crates/environ/src/component/translate/inline.rs
++++ b/crates/environ/src/component/translate/inline.rs
+@@ -673,6 +673,13 @@ impl<'a> Inliner<'a> {
+                 ));
+                 frame.funcs.push((*ty, dfg::CoreDef::Trampoline(index)));
+             }
++            ThreadAvailableParallelism { func } => {
++                let index = self
++                    .result
++                    .trampolines
++                    .push((*func, dfg::Trampoline::ThreadAvailableParallelism));
++                frame.funcs.push((*func, dfg::CoreDef::Trampoline(index)));
++            }
+             BackpressureInc { func } => {
+                 let index = self.result.trampolines.push((
+                     *func,
+diff --git a/crates/environ/src/types.rs b/crates/environ/src/types.rs
+index 099d4250af..54a43d2ed9 100644
+--- a/crates/environ/src/types.rs
++++ b/crates/environ/src/types.rs
+@@ -1426,28 +1426,36 @@ impl fmt::Display for WasmSubType {
+     }
+ }
+ 
+-/// Implicitly define all of these helper functions to handle only unshared
+-/// types; essentially, these act like `is_unshared_*` functions until shared
+-/// support is implemented.
++/// These helpers are shared-AWARE for functions and shared-BLIND for the GC
++/// types, and the difference is deliberate.
++///
++/// `shared` on a FUNC type says the function may be referenced from several
++/// threads. It does not change the signature, the calling convention, or the
++/// ABI — a `(shared (func (result i32)))` is called exactly like a
++/// `(func (result i32))`. So the func accessors look straight through the bit;
++/// refusing to do so is what made every shared-everything-threads intrinsic
++/// panic in `unwrap_func` the moment its trampoline was compiled
++/// (enclave: `thread.available_parallelism`, see docs/wasm-parallelism.md).
++///
++/// `shared` on a STRUCT/ARRAY/CONT type is a different claim entirely: those
++/// are GC objects, and sharing changes allocation, write barriers and
++/// collection. None of that is implemented, so those accessors still act like
++/// `is_unshared_*` and their `unwrap_*` still assert — a shared GC type
++/// reaching them is a real "not yet implemented", not a false alarm.
+ #[expect(missing_docs, reason = "self-describing functions")]
+ impl WasmSubType {
+     #[inline]
+     pub fn is_func(&self) -> bool {
+-        self.composite_type.inner.is_func() && !self.composite_type.shared
++        self.composite_type.inner.is_func()
+     }
+ 
+     #[inline]
+     pub fn as_func(&self) -> Option<&WasmFuncType> {
+-        if self.composite_type.shared {
+-            None
+-        } else {
+-            self.composite_type.inner.as_func()
+-        }
++        self.composite_type.inner.as_func()
+     }
+ 
+     #[inline]
+     pub fn unwrap_func(&self) -> &WasmFuncType {
+-        assert!(!self.composite_type.shared);
+         self.composite_type.inner.unwrap_func()
+     }
+ 
+diff --git a/crates/wasmtime/src/runtime/type_registry.rs b/crates/wasmtime/src/runtime/type_registry.rs
+index 0d98863617..c1da1d588e 100644
+--- a/crates/wasmtime/src/runtime/type_registry.rs
++++ b/crates/wasmtime/src/runtime/type_registry.rs
+@@ -1181,10 +1181,13 @@ impl TypeRegistryInner {
+         let Some(gc_runtime) = gc_runtime else {
+             // If we don't have a GC runtime, then we won't have any GC types
+             // and don't have to remember any GC layouts.
++            // NB: `composite_type.shared` is NOT asserted away here. A shared
++            // FUNC type is legal (shared-everything-threads intrinsics have
++            // one) and carries no GC layout, which is exactly what this branch
++            // is checking for. The `Func(_)` test below is the real invariant.
+             debug_assert!(entry.0.shared_type_indices.iter().all(|ty| {
+                 let id = shared_type_index_to_slab_id(*ty);
+                 let sub_ty = self.types[id].as_ref().unwrap();
+-                assert!(!sub_ty.composite_type.shared);
+                 matches!(
+                     &sub_ty.composite_type.inner,
+                     wasmtime_environ::WasmCompositeInnerType::Func(_)
+@@ -1196,7 +1199,18 @@ impl TypeRegistryInner {
+         for &ty_idx in &entry.0.shared_type_indices {
+             let id = shared_type_index_to_slab_id(ty_idx);
+             let sub_ty = self.types[id].as_ref().unwrap();
+-            assert!(!sub_ty.composite_type.shared);
++            // Shared FUNC types are fine and fall straight through the `Func`
++            // arm below (no GC layout to compute). Shared GC types genuinely
++            // are not implemented — sharing changes their allocation and
++            // barriers — so keep asserting for those.
++            assert!(
++                !sub_ty.composite_type.shared
++                    || matches!(
++                        &sub_ty.composite_type.inner,
++                        wasmtime_environ::WasmCompositeInnerType::Func(_)
++                    ),
++                "shared GC types are not implemented"
++            );
+ 
+             let gc_layout = match &sub_ty.composite_type.inner {
+                 wasmtime_environ::WasmCompositeInnerType::Func(_) => continue,
+diff --git a/crates/wasmtime/src/runtime/vm/component/libcalls.rs b/crates/wasmtime/src/runtime/vm/component/libcalls.rs
+index f62ea58d9c..1b0488c0a4 100644
+--- a/crates/wasmtime/src/runtime/vm/component/libcalls.rs
++++ b/crates/wasmtime/src/runtime/vm/component/libcalls.rs
+@@ -693,6 +693,31 @@ fn exit_sync_call(store: &mut dyn VMStore, instance: Instance) -> Result<()> {
+     store.exit_guest_sync_call()
+ }
+ 
++// enclave/SET: `thread.available-parallelism`.
++//
++// How many threads can ACTUALLY run at once. On a multi-tenant node the honest
++// answer is not the host's core count — a guest that sizes its pool from
++// `nproc` on a 32-core box while holding a 0.25 share just builds 32 threads
++// to contend over 8 cores' worth of cgroup weight. So the tenant's slice wins
++// when the embedder tells us what it is: ENCLAVE_AVAILABLE_PARALLELISM is set
++// per-deployment by the app manager from the purchased cpuShare (the same
++// shape as the MPS/VRAM caps it already passes). Absent that, fall back to the
++// host's parallelism, which is the right answer for a plain `wasmtime run`.
++//
++// Never returns 0: a guest that reads 0 typically divides by it.
++fn thread_available_parallelism(_store: &mut dyn VMStore, _instance: Instance) -> Result<u32> {
++    let n = match std::env::var("ENCLAVE_AVAILABLE_PARALLELISM") {
++        Ok(v) => v.trim().parse::<u32>().unwrap_or(0),
++        Err(_) => 0,
++    };
++    if n > 0 {
++        return Ok(n);
++    }
++    Ok(std::thread::available_parallelism()
++        .map(|n| n.get() as u32)
++        .unwrap_or(1))
++}
++
+ #[cfg(feature = "component-model-async")]
+ fn backpressure_modify(
+     store: &mut dyn VMStore,
