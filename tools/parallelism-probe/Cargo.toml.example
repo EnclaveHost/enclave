@@ -1,0 +1,11 @@
+[package]
+name = "setharness"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wasmtime = { path = "../wasmtime-src/crates/wasmtime", features = ["cranelift", "threads"] }
+anyhow = "1"
+
+[profile.release]
+debug = false
