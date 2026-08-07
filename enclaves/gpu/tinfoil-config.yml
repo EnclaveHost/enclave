@@ -36,7 +36,10 @@ containers:
       - /mnt/ramdisk/nvidia-mps:/tmp/nvidia-mps          # shared MPS pipe dir
       - /mnt/ramdisk/nvidia-mps-log:/tmp/nvidia-mps-log
     healthcheck:
-      test: ["CMD-SHELL", "echo get_server_list | nvidia-cuda-mps-control >/dev/null 2>&1"]
+      # attach-based once the entrypoint's probe has succeeded once (the stamp
+      # goes stale when attaches hang, which get_server_list cannot see); the
+      # old daemon-answers check covers only the pre-first-probe boot window
+      test: ["CMD-SHELL", "if [ -f /tmp/mps-attach-ok ]; then [ $(($(date +%s) - $(stat -c %Y /tmp/mps-attach-ok))) -lt 300 ]; else echo get_server_list | nvidia-cuda-mps-control >/dev/null 2>&1; fi"]
       interval: 15s
       timeout: 5s
       retries: 5
