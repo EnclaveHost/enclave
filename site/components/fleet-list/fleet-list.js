@@ -12,7 +12,7 @@ import { hrevConfigured, hrevTallies, hrevMine, encCall, HREV_SEL, waitReceipt, 
 import { HOST_REVIEWS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
-import { serverSpec } from "../../js/core/pricing.js";
+import { serverSpec, enclavePriceOf } from "../../js/core/pricing.js";
 import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
 
@@ -33,6 +33,13 @@ class FleetList extends EnclaveElement {
     const stat = (avail, total, unit, label) =>
       '<span class="fleet-stat"><b><i>≈</i>' + avail + '<i> / ' + total + '</i>' + (unit ? " " + unit : "") + '</b>'
       + '<small>' + label + '</small></span>';
+    // the price rides the same stat idiom: bright number, dim context. The
+    // ledger charges by the WHOLE card / node per hour and a share pays its
+    // fraction, so the label names that basis instead of implying a per-share
+    // price. Trailing ".00" trims the way the docs' headline rates do.
+    const perHr = (v) => "$" + (v * 3600).toFixed(2).replace(/\.00$/, "");
+    const priceStat = (v, basis) =>
+      '<span class="fleet-stat"><b>' + perHr(v) + '<i>/hr</i></b><small>' + basis + '</small></span>';
     // one pool = a [label | meter | pct] header line, stat cells underneath
     const pool = (label, pct, stats) =>
       '<div class="fleet-pool">'
@@ -56,6 +63,7 @@ class FleetList extends EnclaveElement {
           const s = serverSpec();   // adopted fleet hardware; display fallback for rows that omit their own
           const vramGb = a.cardVramGb || s.cardVramGb, tflops = a.cardTflops || s.cardTflops;
           const ramGb = a.nodeRamGb || s.nodeRamGb, vcpus = a.nodeVcpus || s.nodeVcpus;
+          const price = enclavePriceOf(e);   // this box's posted ask; the fleet price where it posts none
           return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
             + '<span class="fleet-head">'
             + '<span class="ap-badge ' + (gpu ? "info" : "") + '">' + (gpu ? "gpu" : "cpu") + '</span>'
@@ -64,7 +72,8 @@ class FleetList extends EnclaveElement {
             + '</span>'
             + (gpu ? pool("GPU", gPct,
                 stat(fmtNum(a.vramFreeGb != null ? a.vramFreeGb : gFree * vramGb), fmtNum(vramGb), "GB", "vram available")
-                + stat(Math.round(gFree * tflops), Math.round(tflops), "", "tflops available")) : "")
+                + stat(Math.round(gFree * tflops), Math.round(tflops), "", "tflops available")
+                + priceStat(price.full, "per full card")) : "")
             + pool("CPU", cPct,
                 // prefer the enclave's own figure (the RAM-reservation ledger,
                 // which is what actually gates admission) over the folded
@@ -74,7 +83,8 @@ class FleetList extends EnclaveElement {
                 // a box carrying model volumes can read ~85% used with every
                 // tenant idle: preloaded weights are held, not free. Name that
                 // term or the meter looks broken.
-                + (a.ramNnResidentMb ? stat(fmtNum(a.ramNnResidentMb / 1024), fmtNum(ramGb), "GB", "held by models") : ""))
+                + (a.ramNnResidentMb ? stat(fmtNum(a.ramNnResidentMb / 1024), fmtNum(ramGb), "GB", "held by models") : "")
+                + priceStat(price.node, "per full node"))
             + '<div class="fleet-rateform" data-form="' + esc(e.id || "") + '" hidden></div>'
             + '</div>';
         }).join(""));
