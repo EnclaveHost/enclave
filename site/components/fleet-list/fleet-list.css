@@ -11,8 +11,11 @@ c-fleet-list{display:contents;}
 
 /* one pool = a [label | meter | pct] grid line with the stat cells underneath;
    the meter flexes so the header line fits any aside width, the stats wrap */
-.fleet-pool{display:grid;grid-template-columns:34px minmax(48px,1fr) auto;align-items:center;column-gap:10px;row-gap:6px;}
+.fleet-pool{display:grid;grid-template-columns:48px minmax(48px,1fr) auto;align-items:center;column-gap:10px;row-gap:6px;}   /* label column fits "$2.50/hr" so the price can live under the label */
 .fleet-pool-label{font-size:.66rem;letter-spacing:.1em;color:var(--text-dim);}
+/* the pool's price, under its label: the number in stat-cell ink, "/hr" dim */
+.fleet-pool-price{grid-column:1;font-size:.66rem;white-space:nowrap;color:var(--text-dim);align-self:start;}
+.fleet-pool-price b{font-weight:500;color:var(--text);font-variant-numeric:tabular-nums;}
 .fleet-pool-pct{white-space:nowrap;font-size:.7rem;color:var(--text-dim);}
 .fleet-pool-pct b{font-weight:500;color:var(--text);font-variant-numeric:tabular-nums;}
 .fleet-meter{display:block;height:5px;border-radius:999px;background:rgba(47,230,168,.12);overflow:hidden;}   /* track = a faint step of the fill's own jade ramp; meter tracks are true pills */
