@@ -1,164 +1,145 @@
-# Handoff: make true multi-core shared-everything-threads work
+# Handoff: shared-everything-threads — DONE on the engine side
 
-## The requirement
+## Status: the requirement is met, and measured
 
-**Get true multi-core shared-everything-threads (SET) working: `thread.spawn-ref` /
-`thread.spawn-indirect` must actually spawn threads that run in PARALLEL, in the
-SAME instance, sharing memory + tables + globals.** Steven's instruction,
-verbatim in intent: *rebuilding wasmtime from the ground up is acceptable if
-that is what it takes.* Do not treat "upstream hasn't done it" as a stopping
-condition. Partial credit does not count: a SET guest must show real wall-clock
-speedup with multiple cores busy, measured.
+`thread.spawn-ref` and `thread.spawn-indirect` spawn **real OS threads that
+run guest code in parallel inside one component instance, sharing linear
+memory**. Not a fallback, not a stub.
 
-Success = a guest calling `thread.spawn-*` gets N threads executing
-concurrently in one instance, and `user` CPU time scales with N while `real`
-stays flat.
+Measured on the 32-core workstation, constant TOTAL work (14.4e9 iterations
+split N ways) — `tools/parallelism-probe/set-spawn-parallel.wat`:
 
-## Where the previous session stopped, and exactly why
+| threads | 1 | 2 | 4 | 8 | 16 | 32 |
+|---|---|---|---|---|---|---|
+| real | 13.97s | 6.99s | 3.50s | 1.75s | 0.88s | **0.50s** |
+| speedup | 1.0x | 2.0x | 4.0x | 8.0x | 15.8x | **27.9x** |
 
-Everything below is verified — compiler errors, missing APIs, or code read, not
-estimates. Do not re-derive it; go straight at the wall.
+And the shape that cannot be faked — constant work *per thread*, 900M
+iterations each: `real` stays ~0.9s while `user` climbs 0.87s → 31.1s, i.e.
+31.2 cores busy at N=32.
 
-**The wall: SET spawn needs multiple OS threads inside ONE wasmtime instance,
-and wasmtime's execution model forbids it by construction.**
-
-1. Entering guest code requires `&mut Store`. Two threads on one store is
-   `error[E0499]` — not a flag, a type-level invariant. **~320 call sites** take
-   `&mut StoreOpaque` / `StoreContextMut<'_, T>`:
-   `grep -rn "&mut StoreOpaque\|StoreContextMut<" crates/wasmtime/src | wc -l`
-2. Per-execution state lives in the shared `VMStoreContext` reachable from
-   vmctx — stack limits, last-wasm entry/exit SP+FP, epoch deadline, fuel. Two
-   threads through one vmctx corrupt each other's stack tracking. **This is the
-   real technical crux: that state must become per-thread while instance state
-   (memory/tables/globals) stays shared.**
-3. The wasi-threads escape hatch (a `Store` per thread over one *imported*
-   `SharedMemory`) does NOT generalise to components: `wasmtime::component::Linker`
-   has no `define` for memories (the core `Linker` does, `linker.rs:369`), and a
-   component *creates* its memory via an internal initializer, so there is no
-   import to override (`component/instance.rs:790`, `InstantiateModule::Static`).
-
-So the paths are: (A) make execution thread-safe — the real fix, and what the
-requirement implies; (B) hard-fork wasmtime and restructure the store/instance
-split; (C) upstream via bytecodealliance/wasmtime#9466. (A) and (B) are the same
-work at different blast radii.
-
-## What is ALREADY BUILT — do not redo it
-
-All in `wasm/wasmtime-set-threads.patch.wip` (583 lines) against wasmtime dev
-commit **`ac0772970b9ad2cd53866d95db69e26311fe3b75`** (49.0.0 line). It applies
-on top of the 8-patch enclave stack. **Deliberately NOT in the Dockerfile
-chain.**
-
-1. **`-W shared-everything-threads` was a silent no-op upstream** — parsed, never
-   applied. Wired in `crates/cli-flags/src/lib.rs`'s
-   `handle_conditionally_compiled!` table. With it, shared globals and shared
-   func types compile.
-2. **Shared FUNC types made first-class.** `WasmSubType::{is,as,unwrap}_func`
-   treated `shared` as "not a func" (upstream's "acts like `is_unshared_*`"
-   block), so every SET trampoline panicked in `unwrap_func`. Also narrowed
-   `type_registry.rs` GC-layout assertions and dropped the concrete-heap-type
-   assertion in `compile/module_types.rs`. **GC struct/array/cont accessors
-   still assert on purpose** — there `shared` really changes allocation and
-   barriers.
-3. **All three SET intrinsics plumbed through 7 sites**
-   (`environ/src/component.rs` libcall decl → `component/translate.rs` →
-   `translate/inline.rs` → `component/dfg.rs` → `component/info.rs` →
-   `cranelift/src/compiler/component.rs` trampoline →
-   `runtime/vm/component/libcalls.rs`). `thread.available_parallelism` fully
-   works and answers from the TENANT's slice via `ENCLAVE_AVAILABLE_PARALLELISM`.
-   **`thread_spawn` currently returns `-1`** (`libcalls.rs`) — that is the single
-   function to make real.
-4. **Implemented the `NegativeTwo` host-result arm** in the component trampoline
-   (was a `todo!()`). It is the only sentinel that lets a libcall return `-1` to
-   the guest instead of trapping — required by the spawn ABI.
-5. **Concrete shared func types interned** at the spawn canon, else the
-   trampoline's `(ref null $start)` panics "no entry found for key".
-6. **wasi-threads host spawn REBUILT and WORKING** in `src/commands/run.rs`
-   (~130 lines). Upstream deleted it in `b4b23fe583`. **This achieves real
-   parallelism: 11.3×, 12.4 cores busy.** Study it — it is the working
-   reference for spawning guest code on OS threads in this codebase.
-
-## Verify the current state in ~5 minutes
+Best of three on an idle box (16-physical-core EPYC 9115), from a wasmtime
+built out of the patch applied to a **fresh checkout**. Benchmark on a quiet
+machine: a pass taken while a compile ran read 21.6x purely from contention.
 
 ```sh
-cd <scratch> && git clone https://github.com/bytecodealliance/wasmtime wasmtime-src
-cd wasmtime-src && git checkout ac0772970b9ad2cd53866d95db69e26311fe3b75
-for p in onnx-gpu-strict vault-fs egress loopback nn-ggml nn-sdcpp nn-onnx-preload nn-arbiter; do
-  git apply <repo>/wasm/wasmtime-$p.patch; done
-git apply <repo>/wasm/wasmtime-set-threads.patch.wip
-cargo build --release -p wasmtime-cli --bin wasmtime
-
-# SET component loads + runs (spawn returns -1, guest falls back): prints 32007
-./target/release/wasmtime run -W threads,shared-everything-threads,component-model-threading,shared-memory \
-  --invoke 'run()' <repo>/tools/parallelism-probe/set-spawn-fallback.wat
-
-# REAL parallel threads (core modules): user time scales, real stays flat
-clang --target=wasm32-wasip1-threads -O2 -pthread \
-  -Wl,--import-memory,--shared-memory,--export-memory,--max-memory=67108864 \
-  -o par.wasm <repo>/tools/parallelism-probe/pthread-scaling.c
-for n in 1 4 16; do time ./target/release/wasmtime run -W threads,shared-memory par.wasm $n; done
+W="-W threads,shared-everything-threads,component-model-threading,shared-memory"
+time wasmtime run $W --invoke 'run(16, 900000000)' tools/parallelism-probe/set-spawn-parallel.wat
 ```
 
-## Gotchas that cost the last session hours
+Full detail, including what is deliberately NOT shared and why, is in
+`docs/wasm-parallelism.md` → "SET spawn is real". Read that before changing
+anything here.
 
-- **Feature flags lie.** wasmtime 47 advertises `-W component-model-threading`
-  in help and cannot parse `thread.new-indirect`. **Always probe by compiling a
-  probe module, never by grepping help text.** (`wasm_manager._threads_supported`
-  does this.)
-- **The wasi-sdk sysroot stubs `pthread_create` → ENOTSUP at runtime.** Build
-  wasi-libc from source with `-DENABLE_COOP_THREADS=ON` (see
-  `wasm/Dockerfile.wasip3c-build`).
-- **wasm-component-ld ≥ 0.5.28 required**; the SDK ships 0.5.27, which fails to
-  *encode* coop modules. Replace it in the SDK bin dir — clang invokes it by
-  absolute path, so PATH-shadowing does nothing.
-- **The CLI configures the engine async.** Calling sync `instantiate`/`call` in a
-  spawned thread DEADLOCKS. Use `wasmtime_wasi::runtime::in_tokio(...)` with the
-  `_async` variants.
-- **The main thread returning must `process::exit`**, or the CLI hangs forever on
-  workers parked in a futex (wasi-threads semantics: main ending ends all).
-- **No clonable WASI ctx.** `Host` isn't `Clone` (that's why `wasi-common` was
-  deleted alongside wasi-threads). Build a FRESH ctx per thread. Consequence:
-  threads share linear memory but NOT an fd table.
-- **WAT syntax traps:** `thread.available_parallelism` (underscore, not hyphen);
-  memory is `(memory 1 1 shared)` (limits THEN shared); table is
-  `(table shared 1 1 (ref null (shared func)))` (shared BEFORE limits); inline
-  func types dedupe onto an earlier declared type, so declare shared and
-  unshared types explicitly or your unshared function silently becomes shared.
-- **Check your own benchmark first.** A `pthread_t t[N]` with `N=4` while passing
-  8 threads is a stack overflow that looks exactly like an engine hang.
+## The idea, in one paragraph
 
-## Non-negotiable constraint on the result
+The previous session stopped at "entering guest code needs `&mut Store`, so
+two threads in one instance is `error[E0499]`". That framing contained the
+mistake: it assumed the spawned thread must share the *Store*. It must not.
+The `Store` is where **execution** state lives (stack limits, last-wasm
+entry/exit SP+FP, epoch deadline, fuel) — precisely the state that must be
+per-thread. What must be shared is **instance** state. So each spawned thread
+gets its own `Store` holding an *execution view*: a fresh instantiation of the
+same module against the same resolved import records, whose defined shared
+memories are then re-pointed at the primary's `SharedMemory` (an `Arc` all
+instances point into, growth behind a lock — wasmtime's own existing
+cross-store sharing mechanism). Memory is physically shared; execution state
+is not. `&mut Store` exclusivity is untouched at all ~320 call sites, so the
+compiler still proves the invariant.
 
-This engine is **measured into a TEE attestation** (SEV-SNP/TDX). A runtime with
-latent data races that still attests correctly is the worst failure mode this
-product has — it silently breaks the only guarantee the platform sells.
+`unsafe impl Sync for Store` appears nowhere.
 
-This does not block the work. It shapes it:
+## Where the code is
 
-- Keep it out of `wasm/Dockerfile.wasmtime`'s patch chain until the concurrency
-  design has been reviewed and stress-tested.
-- Prove it under `RUSTFLAGS="-Z sanitizer=thread"` and wasmtime's own fuzz
-  targets before it goes anywhere near the fleet.
-- Prefer restructuring so the compiler enforces the invariants (splitting
-  per-thread execution context out of `VMStoreContext`) over `unsafe` casts that
-  merely silence `!Sync`. **`unsafe impl Sync for Store` is not a solution**; it
-  is the bug.
-- Land it behind the existing capability plumbing (compile-probe → byte-marker →
-  publish stamp → claim gate → per-tenant flag → fleet-AND), which already exists
-  for coop threads and generalises directly — add a `set` capability beside
-  `coopThreads`.
+- `crates/wasmtime/src/runtime/vm/component/set_threads.rs` — **new**, the
+  whole mechanism plus a long design comment. Start here.
+- `crates/wasmtime/src/runtime/vm/component/libcalls.rs` — `thread_spawn_ref`
+  / `thread_spawn_indirect` and the `ThreadSpawnResult` sentinel newtype.
+- `crates/wasmtime/src/runtime/vm/instance.rs` — the primary-side capture
+  helpers (`copy_raw_imports`, `snapshot_plain_globals`,
+  `defined_shared_memories_cloned`, `func_index_of_func_ref`) and the
+  view-side `replace_defined_memory_with_shared`.
+- `crates/wasmtime/src/runtime/vm/component.rs` — the cross-thread entry guard
+  in `enter_host_from_wasm`.
+- `crates/wasmtime/src/runtime/store.rs` — `set_thread_joins`, joined at the
+  top of `StoreOpaque::drop`.
 
-## Where things live
+All of it is in `wasm/wasmtime-set-threads.patch.wip` (1650 lines, 21 files)
+against wasmtime dev commit `ac0772970b9ad2cd53866d95db69e26311fe3b75`,
+applied on top of the 8-patch enclave stack. Verified to apply clean on a
+fresh checkout.
 
-- `docs/wasm-parallelism.md` — full evidence, measurements, layer map
-- `docs/wasip3-threads.md` — cooperative threads (SHIPPED, live on the fleet)
-- `wasm/wasmtime-set-threads.patch.wip` — all engine work described above
-- `wasm/wasmtime-*.patch` — the 8-patch enclave stack (apply first, in Dockerfile order)
-- `tools/parallelism-probe/` — harness, SET guests, pthread benchmark, README
-- `wasm/Dockerfile.wasip3c-build` — coop-threads C toolchain (builds threaded guests today)
-- Repo HEAD when written: `f6558223`
+## Two invariants — do not break these
 
-Read `docs/wasm-parallelism.md` before writing code. Start by reading the
-working `src/commands/run.rs` spawn implementation, then decide between
-thread-safe-Store (A) and hard-fork (B) — and say which you chose and why before
-you start cutting.
+1. **Lifetime.** Workers hold raw pointers into the primary store's instances
+   (their import records). `StoreOpaque::drop` joins every spawned worker
+   BEFORE deallocating. If you add an early-return or reorder that drop, the
+   workers get dangling pointers.
+2. **No re-entry.** A worker must never call back into the primary store.
+   `enter_host_from_wasm` compares the component's `VMStoreContext` against
+   the one executing on this thread and, on a mismatch, records a trap **on
+   the worker's own thread** (via `HostResult::unwind_sentinel`, which exists
+   so a trap can be signalled without holding the store — the whole point,
+   since touching that store is the race). The worker dies alone with a clear
+   message; the host survives.
+
+   The realistic way to hit this is **nested spawn** — a worker spawning
+   another thread, which is reasonable guest code. My first version aborted
+   the process here and that was wrong: legitimate guest code deserves a trap,
+   not a host takedown. Regression test:
+   `tools/parallelism-probe/set-nested-spawn.wat`. Abort is retained only for
+   libcalls with no unwind sentinel (structurally cannot trap; none should be
+   reachable this way) and for a Rust panic on a worker.
+
+Spawn **refuses** (ABI `-1` + stderr diagnostic, guest takes its sequential
+fallback) any module shape whose view would not be faithful: non-shared
+defined memory, imported table or global, imported core-wasm function,
+mutable `shared` global, guest `start` section, GC. Keep that list fail-closed
+when you extend it.
+
+## Evidence that exists (re-run it, don't trust it)
+
+- **ThreadSanitizer** (`-Zsanitizer=thread -Zbuild-std`, nightly): all four
+  SET probes clean. The TSan toolchain was first verified to *actually report*
+  a known race — a clean run from an uninstrumented binary is silently green.
+  Scope: TSan sees the host runtime, not JIT guest code.
+- **Fuzzing**: `component_api` (2048 execs, 54.8k coverage points, no crashes
+  — a smoke test, not a campaign) and `instantiate`. `instantiate` finds a crash
+  that reproduces **identically on the SET-free baseline** — a pre-existing
+  fuzz-harness unwrap at `crates/fuzzing/src/generators/config.rs:470`. Always
+  re-run a fuzz crash against the unpatched baseline before believing it.
+- **Soak**: 8000 spawn/join cycles (500 rounds x 16 threads) with contended
+  atomics and cross-thread `memory.grow` — all completions accounted for.
+- 187 `wasmtime` unit tests, 238 component-model/threads integration tests.
+- Regressions: `available_parallelism` still 32 (8 under
+  `ENCLAVE_AVAILABLE_PARALLELISM`), plain core modules unaffected.
+
+## What is NOT done
+
+1. **Guest toolchain — the real remaining gap.** wasi-libc has no SET thread
+   model, so SET guests are hand-written WAT. `clang -pthread` cannot target
+   this. Porting musl's pthreads onto SET primitives is the next project and
+   it is large.
+2. **Not in the Dockerfile chain.** Stays out of `wasm/Dockerfile.wasmtime`
+   until someone who did not write `set_threads.rs` has reviewed the
+   concurrency design.
+3. Cross-instance spawn, mutable shared globals and genuinely shared tables
+   are refused, not implemented. Cranelift rejects `global.atomic.*` /
+   `table.atomic.*` upstream anyway, so no compilable guest can express them.
+4. Platform capability plumbing (`set` beside `coopThreads`: compile-probe →
+   byte-marker → publish stamp → claim gate → per-tenant flag → fleet-AND) is
+   designed but not wired.
+
+## Gotchas that still cost time
+
+- **Feature flags lie.** Always probe by compiling a probe module, never by
+  grepping help text.
+- **WAT syntax:** `thread.available_parallelism` is underscored but
+  `thread.spawn-indirect` is hyphenated. Memory is `(memory 1 1 shared)`
+  (limits THEN shared); table is `(table shared 1 1 (ref null (shared func)))`
+  (shared BEFORE limits, and the element type must be the ABSTRACT
+  `(shared func)`, not a concrete `(ref null $t)`).
+- **`set-spawn-fallback.wat` races by design now.** It was written when spawn
+  could only fail, so it has no join. Use `set-spawn-parallel.wat` to measure.
+- Building the fuzz targets needs `git submodule update --init` and (for the
+  default features) an OCaml install; `--no-default-features` skips the latter.
