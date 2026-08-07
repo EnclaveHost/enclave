@@ -27,7 +27,7 @@ gpus: 1            # whole H200 attached to the enclave (CC allows 1 or 8)
 containers:
   # --- MPS daemon: makes per-tenant SM%/VRAM caps enforceable in prod -----------
   - name: "mps-control"
-    image: "ghcr.io/enclavehost/enclave-mps@sha256:2b8784abe743b6002303499f907bf4d27c68a744132db3abe4c20306b3a7f97a"
+    image: "ghcr.io/enclavehost/enclave-mps@sha256:ae0cda565c727bfaeac5c0440e12643b90a9b3d032c250a39405106d15406eb9"
     runtime: nvidia
     gpus: all
     ipc: host
