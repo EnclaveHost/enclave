@@ -1,8 +1,8 @@
 diff --git a/crates/cli-flags/src/lib.rs b/crates/cli-flags/src/lib.rs
-index ca34b9306b..593abe3361 100644
+index 2a2b0f6..9399114 100644
 --- a/crates/cli-flags/src/lib.rs
 +++ b/crates/cli-flags/src/lib.rs
-@@ -1285,6 +1285,11 @@ impl CommonOptions {
+@@ -1329,6 +1329,11 @@ impl CommonOptions {
              ("component-model", component_model_implements, wasm_component_model_implements)
              ("component-model", component_model_memory64, wasm_component_model_memory64)
              ("threads", threads, wasm_threads)
@@ -15,10 +15,10 @@ index ca34b9306b..593abe3361 100644
              ("gc", reference_types, wasm_reference_types)
              ("gc", function_references, wasm_function_references)
 diff --git a/crates/cranelift/src/compiler/component.rs b/crates/cranelift/src/compiler/component.rs
-index 3d49e8daac..4c2cb649de 100644
+index 3d49e8d..d3cd52a 100644
 --- a/crates/cranelift/src/compiler/component.rs
 +++ b/crates/cranelift/src/compiler/component.rs
-@@ -197,6 +197,30 @@ impl<'a> TrampolineCompiler<'a> {
+@@ -197,6 +197,42 @@ impl<'a> TrampolineCompiler<'a> {
              Trampoline::ResourceDrop { instance, ty } => {
                  self.translate_resource_drop(*instance, *ty);
              }
@@ -33,23 +33,35 @@ index 3d49e8daac..4c2cb649de 100644
 +                    |_me, _params| {},
 +                );
 +            }
-+            Trampoline::ThreadSpawn => {
++            Trampoline::ThreadSpawnRef => {
 +                self.translate_libcall(
-+                    host::thread_spawn,
++                    host::thread_spawn_ref,
 +                    // -2 = the host trapped; -1 = "spawn failed", which the
 +                    // ABI requires us to hand back to the guest intact.
 +                    TrapSentinel::NegativeTwo,
-+                    // spawn-ref takes (funcref, i32) and spawn-indirect takes
-+                    // (i32, i32); spilling to a ValRaw list lets ONE trampoline
-+                    // serve both signatures.
-+                    WasmArgs::ValRawList,
++                    // wasm args are (funcref, i32): the reference arrives as a
++                    // pointer-sized register value, exactly what the libcall's
++                    // `funcref: ptr_u8` parameter expects.
++                    WasmArgs::InRegisters,
 +                    |_me, _params| {},
++                );
++            }
++            Trampoline::ThreadSpawnIndirect { table } => {
++                self.translate_libcall(
++                    host::thread_spawn_indirect,
++                    TrapSentinel::NegativeTwo,
++                    // wasm args are (elem: i32, start_arg: i32); the table the
++                    // canon named is baked in as a constant.
++                    WasmArgs::InRegisters,
++                    |me, params| {
++                        params.push(me.index_value(*table));
++                    },
 +                );
 +            }
              Trampoline::BackpressureInc { instance } => {
                  self.translate_libcall(
                      host::backpressure_modify,
-@@ -1046,6 +1070,20 @@ impl<'a> TrampolineCompiler<'a> {
+@@ -1046,6 +1082,20 @@ impl<'a> TrampolineCompiler<'a> {
                  self.raise_if_host_trapped(result.unwrap());
                  self.abi_store_results(&[]);
              }
@@ -70,7 +82,7 @@ index 3d49e8daac..4c2cb649de 100644
              HostResult::Sentinel(_) => todo!("support additional return types if/when necessary"),
  
              HostResult::MultiValue { ptr, len } => {
-@@ -1454,6 +1492,23 @@ impl<'a> TrampolineCompiler<'a> {
+@@ -1454,6 +1504,23 @@ impl<'a> TrampolineCompiler<'a> {
          self.builder.ins().ireduce(ir::types::I32, ret)
      }
  
@@ -94,17 +106,30 @@ index 3d49e8daac..4c2cb649de 100644
      fn raise_if_negative_one(&mut self, ret: ir::Value) -> ir::Value {
          let result_ty = self.builder.func.dfg.value_type(ret);
          let minus_one = self.builder.ins().iconst(result_ty, -1);
-@@ -1478,6 +1533,8 @@ impl<'a> TrampolineCompiler<'a> {
+@@ -1478,6 +1545,9 @@ impl<'a> TrampolineCompiler<'a> {
          let instance = match trampoline {
              // These intrinsics explicitly do not check the may-leave flag.
              Trampoline::ResourceRep { .. }
 +            | Trampoline::ThreadAvailableParallelism
-+            | Trampoline::ThreadSpawn
++            | Trampoline::ThreadSpawnRef
++            | Trampoline::ThreadSpawnIndirect { .. }
              | Trampoline::BackpressureInc { .. }
              | Trampoline::BackpressureDec { .. } => return,
  
+diff --git a/crates/environ/src/compile/module_environ.rs b/crates/environ/src/compile/module_environ.rs
+index 1c79613..cdd1bae 100644
+--- a/crates/environ/src/compile/module_environ.rs
++++ b/crates/environ/src/compile/module_environ.rs
+@@ -626,6 +626,7 @@ impl<'a, 'data> ModuleEnvironment<'a, 'data> {
+                 let func_index = FuncIndex::from_u32(func);
+                 debug_assert!(self.result.start_func.is_none());
+                 self.result.start_func = Some(func_index);
++                self.result.module.has_guest_start = true;
+ 
+                 // To make startup a bit easier, invoking the `start` function
+                 // is a responsibility deferred to the startup function.
 diff --git a/crates/environ/src/compile/module_types.rs b/crates/environ/src/compile/module_types.rs
-index 082b3cab23..8f894a91bd 100644
+index 082b3ca..23d0153 100644
 --- a/crates/environ/src/compile/module_types.rs
 +++ b/crates/environ/src/compile/module_types.rs
 @@ -568,7 +568,10 @@ where
@@ -119,11 +144,34 @@ index 082b3cab23..8f894a91bd 100644
                      match &ty.composite_type.inner {
                          WasmCompositeInnerType::Array(_) => WasmHeapType::ConcreteArray(index),
                          WasmCompositeInnerType::Func(_) => WasmHeapType::ConcreteFunc(index),
+@@ -609,7 +612,12 @@ where
+                 // indirectly get one by looking it up inside the current rec
+                 // group.
+                 if let Some(ty) = self.types.types.get(interned) {
+-                    assert!(!ty.composite_type.shared);
++                    // NB: no `!shared` assertion, for the same reason as the
++                    // `UnpackedIndex::Id` arm above: a concrete reference to a
++                    // SHARED func type is legal under
++                    // shared-everything-threads (a shared funcref table's
++                    // element type is exactly that), and sharedness does not
++                    // change which of array/func/struct this is.
+                     match &ty.composite_type.inner {
+                         WasmCompositeInnerType::Array(_) => WasmHeapType::ConcreteArray(index),
+                         WasmCompositeInnerType::Func(_) => WasmHeapType::ConcreteFunc(index),
+@@ -624,7 +632,7 @@ where
+                         .nth(rec_group_index)
+                         .unwrap();
+                     let wasmparser_ty = &parser_types[id].composite_type;
+-                    assert!(!wasmparser_ty.shared);
++                    // NB: no `!shared` assertion — see above.
+                     match &wasmparser_ty.inner {
+                         wasmparser::CompositeInnerType::Array(_) => {
+                             WasmHeapType::ConcreteArray(index)
 diff --git a/crates/environ/src/component.rs b/crates/environ/src/component.rs
-index 3f78867781..daa0b9c4a5 100644
+index 3f78867..1c38de3 100644
 --- a/crates/environ/src/component.rs
 +++ b/crates/environ/src/component.rs
-@@ -97,6 +97,16 @@ macro_rules! foreach_builtin_component_function {
+@@ -97,6 +97,17 @@ macro_rules! foreach_builtin_component_function {
              resource_transfer_own(vmctx: vmctx, src_idx: u32, src_table: u32, dst_table: u32) -> u64;
              resource_transfer_borrow(vmctx: vmctx, src_idx: u32, src_table: u32, dst_table: u32) -> u64;
  
@@ -135,79 +183,97 @@ index 3f78867781..daa0b9c4a5 100644
 +            // the new thread's id, or a NEGATIVE value meaning "spawn failed"
 +            // (which the ABI defines and guests are required to handle). -2 is
 +            // reserved as the host-trap sentinel, so failure is reported as -1.
-+            thread_spawn(vmctx: vmctx, args: ptr_u8, nargs: size) -> u64;
++            thread_spawn_ref(vmctx: vmctx, funcref: ptr_u8, arg: u32) -> u64;
++            thread_spawn_indirect(vmctx: vmctx, table: u32, elem: u32, arg: u32) -> u64;
 +
              enter_sync_call(vmctx: vmctx, caller_instance: u32, callee_async: u32, callee_instance: u32) -> bool;
              exit_sync_call(vmctx: vmctx) -> bool;
  
 diff --git a/crates/environ/src/component/dfg.rs b/crates/environ/src/component/dfg.rs
-index e89fccf18e..a6852918da 100644
+index e89fccf..867e084 100644
 --- a/crates/environ/src/component/dfg.rs
 +++ b/crates/environ/src/component/dfg.rs
-@@ -338,6 +338,8 @@ pub enum Trampoline {
+@@ -338,6 +338,11 @@ pub enum Trampoline {
          instance: RuntimeComponentInstanceIndex,
          ty: TypeResourceTableIndex,
      },
 +    ThreadAvailableParallelism,
-+    ThreadSpawn,
++    ThreadSpawnRef,
++    ThreadSpawnIndirect {
++        table: TableId,
++    },
      BackpressureInc {
          instance: RuntimeComponentInstanceIndex,
      },
-@@ -965,6 +967,8 @@ impl LinearizeDfg<'_> {
+@@ -965,6 +970,11 @@ impl LinearizeDfg<'_> {
                  instance: *instance,
                  ty: *ty,
              },
 +            Trampoline::ThreadAvailableParallelism => info::Trampoline::ThreadAvailableParallelism,
-+            Trampoline::ThreadSpawn => info::Trampoline::ThreadSpawn,
++            Trampoline::ThreadSpawnRef => info::Trampoline::ThreadSpawnRef,
++            Trampoline::ThreadSpawnIndirect { table } => info::Trampoline::ThreadSpawnIndirect {
++                table: self.runtime_table(*table),
++            },
              Trampoline::BackpressureInc { instance } => info::Trampoline::BackpressureInc {
                  instance: *instance,
              },
 diff --git a/crates/environ/src/component/info.rs b/crates/environ/src/component/info.rs
-index 6f9386cc0a..c3d6416f6f 100644
+index 6f9386c..41ba29f 100644
 --- a/crates/environ/src/component/info.rs
 +++ b/crates/environ/src/component/info.rs
-@@ -771,6 +771,13 @@ pub enum Trampoline {
+@@ -771,6 +771,19 @@ pub enum Trampoline {
          ty: TypeResourceTableIndex,
      },
  
 +    /// A `thread.available-parallelism` intrinsic (shared-everything-threads).
 +    ThreadAvailableParallelism,
 +
-+    /// A `thread.spawn-ref` / `thread.spawn-indirect` intrinsic
-+    /// (shared-everything-threads).
-+    ThreadSpawn,
++    /// A `thread.spawn-ref` intrinsic (shared-everything-threads).
++    ThreadSpawnRef,
++
++    /// A `thread.spawn-indirect` intrinsic (shared-everything-threads).
++    ThreadSpawnIndirect {
++        /// The component-level index of the core table holding the shared
++        /// start functions a guest may spawn.
++        table: RuntimeTableIndex,
++    },
 +
      /// A `backpressure.inc` intrinsic.
      BackpressureInc {
          /// The specific component instance which is calling the intrinsic.
-@@ -1211,6 +1218,8 @@ impl Trampoline {
+@@ -1211,6 +1224,9 @@ impl Trampoline {
              ResourceNew { ty, .. } => format!("component-resource-new[{}]", ty.as_u32()),
              ResourceRep { ty, .. } => format!("component-resource-rep[{}]", ty.as_u32()),
              ResourceDrop { ty, .. } => format!("component-resource-drop[{}]", ty.as_u32()),
 +            ThreadAvailableParallelism => format!("thread-available-parallelism"),
-+            ThreadSpawn => format!("thread-spawn"),
++            ThreadSpawnRef => format!("thread-spawn-ref"),
++            ThreadSpawnIndirect { .. } => format!("thread-spawn-indirect"),
              BackpressureInc { .. } => format!("backpressure-inc"),
              BackpressureDec { .. } => format!("backpressure-dec"),
              TaskReturn { .. } => format!("task-return"),
 diff --git a/crates/environ/src/component/translate.rs b/crates/environ/src/component/translate.rs
-index c4d7ed007e..a2074a3069 100644
+index c4d7ed0..844f6c0 100644
 --- a/crates/environ/src/component/translate.rs
 +++ b/crates/environ/src/component/translate.rs
-@@ -195,6 +195,13 @@ enum LocalInitializer<'data> {
+@@ -195,6 +195,17 @@ enum LocalInitializer<'data> {
      ResourceRep(AliasableResourceId, ModuleInternedTypeIndex),
      ResourceDrop(AliasableResourceId, ModuleInternedTypeIndex),
  
 +    ThreadAvailableParallelism {
 +        func: ModuleInternedTypeIndex,
 +    },
-+    ThreadSpawn {
++    ThreadSpawnRef {
 +        func: ModuleInternedTypeIndex,
++    },
++    ThreadSpawnIndirect {
++        func: ModuleInternedTypeIndex,
++        table_index: TableIndex,
 +    },
 +
      BackpressureInc {
          func: ModuleInternedTypeIndex,
      },
-@@ -876,10 +883,30 @@ impl<'a, 'data> Translator<'a, 'data> {
+@@ -876,10 +887,46 @@ impl<'a, 'data> Translator<'a, 'data> {
                              core_func_index += 1;
                              LocalInitializer::ResourceRep(resource, ty)
                          }
@@ -220,10 +286,7 @@ index c4d7ed007e..a2074a3069 100644
 +                            core_func_index += 1;
 +                            LocalInitializer::ThreadAvailableParallelism { func: core_type }
 +                        }
-+                        wasmparser::CanonicalFunction::ThreadSpawnRef { func_ty_index }
-+                        | wasmparser::CanonicalFunction::ThreadSpawnIndirect {
-+                            func_ty_index, ..
-+                        } => {
++                        wasmparser::CanonicalFunction::ThreadSpawnRef { func_ty_index } => {
 +                            // The spawn signature contains a CONCRETE reference
 +                            // to the thread-start type, so that type has to be
 +                            // interned too — otherwise converting the
@@ -238,15 +301,34 @@ index c4d7ed007e..a2074a3069 100644
 +                            }
 +                            let core_type = self.core_func_signature(core_func_index)?;
 +                            core_func_index += 1;
-+                            LocalInitializer::ThreadSpawn { func: core_type }
++                            LocalInitializer::ThreadSpawnRef { func: core_type }
++                        }
++                        wasmparser::CanonicalFunction::ThreadSpawnIndirect {
++                            func_ty_index,
++                            table_index,
++                        } => {
++                            // Same interning requirement as `thread.spawn-ref`
++                            // above, for the same reason.
++                            let types = self.validator.types(0).unwrap();
++                            if let wasmparser::component_types::ComponentCoreTypeId::Sub(id) =
++                                types.core_type_at_in_component(func_ty_index)
++                            {
++                                self.types.module_types_builder().intern_type(types, id)?;
++                            }
++                            let core_type = self.core_func_signature(core_func_index)?;
++                            core_func_index += 1;
++                            LocalInitializer::ThreadSpawnIndirect {
++                                func: core_type,
++                                table_index: TableIndex::from_u32(table_index),
++                            }
                          }
                          wasmparser::CanonicalFunction::BackpressureInc => {
                              let core_type = self.core_func_signature(core_func_index)?;
 diff --git a/crates/environ/src/component/translate/inline.rs b/crates/environ/src/component/translate/inline.rs
-index d5e8c41379..2c813293ba 100644
+index d5e8c41..57afb9d 100644
 --- a/crates/environ/src/component/translate/inline.rs
 +++ b/crates/environ/src/component/translate/inline.rs
-@@ -673,6 +673,20 @@ impl<'a> Inliner<'a> {
+@@ -673,6 +673,35 @@ impl<'a> Inliner<'a> {
                  ));
                  frame.funcs.push((*ty, dfg::CoreDef::Trampoline(index)));
              }
@@ -257,18 +339,75 @@ index d5e8c41379..2c813293ba 100644
 +                    .push((*func, dfg::Trampoline::ThreadAvailableParallelism));
 +                frame.funcs.push((*func, dfg::CoreDef::Trampoline(index)));
 +            }
-+            ThreadSpawn { func } => {
++            ThreadSpawnRef { func } => {
 +                let index = self
 +                    .result
 +                    .trampolines
-+                    .push((*func, dfg::Trampoline::ThreadSpawn));
++                    .push((*func, dfg::Trampoline::ThreadSpawnRef));
++                frame.funcs.push((*func, dfg::CoreDef::Trampoline(index)));
++            }
++            ThreadSpawnIndirect { func, table_index } => {
++                // Resolve which core table the canon names, exactly like
++                // `thread.new-indirect` above: the table export is interned so
++                // the runtime can reach it as a `RuntimeTableIndex`.
++                let table_export = frame.tables[*table_index].clone().map_index(|i| match i {
++                    EntityIndex::Table(i) => i,
++                    _ => unreachable!(),
++                });
++                let table_id = self.result.tables.push(table_export);
++                let index = self.result.trampolines.push((
++                    *func,
++                    dfg::Trampoline::ThreadSpawnIndirect { table: table_id },
++                ));
 +                frame.funcs.push((*func, dfg::CoreDef::Trampoline(index)));
 +            }
              BackpressureInc { func } => {
                  let index = self.result.trampolines.push((
                      *func,
+diff --git a/crates/environ/src/module.rs b/crates/environ/src/module.rs
+index 98e5510..9d6213c 100644
+--- a/crates/environ/src/module.rs
++++ b/crates/environ/src/module.rs
+@@ -192,6 +192,13 @@ pub struct Module {
+     /// Whether or not this module has a start function,
+     pub startup: ModuleStartup,
+ 
++    /// enclave/SET: whether the guest itself declared a `(start ...)`
++    /// section. `startup` above conflates that with wasmtime-synthesized
++    /// initialization (table segments, complex globals), and the SET spawn
++    /// path must refuse modules with guest start code while still running the
++    /// synthesized initialization in each execution view.
++    pub has_guest_start: bool,
++
+     /// Precompute per-table static images, if applicable.
+     ///
+     /// This map tracks, for each defined table in this module, the initial
+@@ -305,6 +312,7 @@ impl Module {
+             initializers: Default::default(),
+             exports: Default::default(),
+             startup: ModuleStartup::None,
++            has_guest_start: false,
+             table_initialization: Default::default(),
+             memory_initialization: Default::default(),
+             passive_elements: Default::default(),
+@@ -613,6 +621,7 @@ impl TypeTrace for Module {
+             initializers: _,
+             exports: _,
+             startup,
++            has_guest_start: _,
+             table_initialization: _,
+             memory_initialization: _,
+             passive_elements: _,
+@@ -665,6 +674,7 @@ impl TypeTrace for Module {
+             initializers: _,
+             exports: _,
+             startup,
++            has_guest_start: _,
+             table_initialization: _,
+             memory_initialization: _,
+             passive_elements: _,
 diff --git a/crates/environ/src/types.rs b/crates/environ/src/types.rs
-index 099d4250af..54a43d2ed9 100644
+index 099d425..57b054f 100644
 --- a/crates/environ/src/types.rs
 +++ b/crates/environ/src/types.rs
 @@ -1426,28 +1426,36 @@ impl fmt::Display for WasmSubType {
@@ -318,8 +457,144 @@ index 099d4250af..54a43d2ed9 100644
          self.composite_type.inner.unwrap_func()
      }
  
+@@ -1921,6 +1929,10 @@ pub struct Global {
+     pub wasm_ty: crate::WasmValType,
+     /// A flag indicating whether the value may change at runtime.
+     pub mutability: bool,
++    /// Whether this global is `shared` (shared-everything-threads). Carried
++    /// through translation so the runtime can see sharedness; storage and
++    /// access are currently identical to unshared globals.
++    pub shared: bool,
+ }
+ 
+ impl TypeTrace for Global {
+@@ -1931,6 +1943,7 @@ impl TypeTrace for Global {
+         let Global {
+             wasm_ty,
+             mutability: _,
++            shared: _,
+         } = self;
+         wasm_ty.trace(func)
+     }
+@@ -1942,6 +1955,7 @@ impl TypeTrace for Global {
+         let Global {
+             wasm_ty,
+             mutability: _,
++            shared: _,
+         } = self;
+         wasm_ty.trace_mut(func)
+     }
+@@ -2490,6 +2504,7 @@ pub trait TypeConvert {
+         Ok(Global {
+             wasm_ty: self.convert_valtype(ty.content_type)?,
+             mutability: ty.mutable,
++            shared: ty.shared,
+         })
+     }
+ 
+@@ -2619,6 +2634,16 @@ pub trait TypeConvert {
+     fn convert_heap_type(&self, ty: wasmparser::HeapType) -> WasmResult<WasmHeapType> {
+         Ok(match ty {
+             wasmparser::HeapType::Concrete(i) => self.lookup_heap_type(i),
++            // enclave/SET: `(shared func)` — the element type of a shared
++            // funcref table — has the same representation as `func` (a
++            // funcref is a pointer either way; `shared` is a validation-time
++            // property). Only FUNC gets this treatment: sharedness on extern
++            // and the GC heap types really does change allocation/barriers
++            // and those stay unsupported below.
++            wasmparser::HeapType::Abstract {
++                ty: wasmparser::AbstractHeapType::Func,
++                shared: true,
++            } => WasmHeapType::Func,
+             wasmparser::HeapType::Abstract { ty, shared: false } => match ty {
+                 wasmparser::AbstractHeapType::Extern => WasmHeapType::Extern,
+                 wasmparser::AbstractHeapType::NoExtern => WasmHeapType::NoExtern,
+diff --git a/crates/wasmtime/src/runtime/externals/global.rs b/crates/wasmtime/src/runtime/externals/global.rs
+index ede512d..d329405 100644
+--- a/crates/wasmtime/src/runtime/externals/global.rs
++++ b/crates/wasmtime/src/runtime/externals/global.rs
+@@ -375,6 +375,7 @@ impl Global {
+                 const TY: wasmtime_environ::Global = wasmtime_environ::Global {
+                     mutability: true,
+                     wasm_ty: wasmtime_environ::WasmValType::I32,
++                    shared: false,
+                 };
+                 &TY
+             }
+diff --git a/crates/wasmtime/src/runtime/store.rs b/crates/wasmtime/src/runtime/store.rs
+index 9cc49ea..16db001 100644
+--- a/crates/wasmtime/src/runtime/store.rs
++++ b/crates/wasmtime/src/runtime/store.rs
+@@ -470,6 +470,13 @@ pub struct StoreOpaque {
+ 
+     instances: TryPrimaryMap<InstanceId, StoreInstance>,
+ 
++    /// enclave/SET: join handles for every shared-everything-threads worker
++    /// spawned from this store. Joined at the START of this store's `Drop`,
++    /// which is what makes the workers' pointers into this store's instances
++    /// sound: nothing they can reach is deallocated while they run.
++    #[cfg(all(feature = "std", feature = "threads"))]
++    set_thread_joins: Vec<std::thread::JoinHandle<()>>,
++
+     signal_handler: Option<SignalHandler>,
+     modules: ModuleRegistry,
+     func_refs: FuncRefs,
+@@ -731,6 +738,8 @@ impl<T> Store<T> {
+             #[cfg(feature = "stack-switching")]
+             continuations: Vec::new(),
+             instances: TryPrimaryMap::new(),
++            #[cfg(all(feature = "std", feature = "threads"))]
++            set_thread_joins: Vec::new(),
+             signal_handler: None,
+             gc_store: None,
+             #[cfg(feature = "gc")]
+@@ -1657,6 +1666,13 @@ impl StoreOpaque {
+         (self.instances[id].handle.get_mut(), &self.modules)
+     }
+ 
++    /// enclave/SET: register a spawned shared-everything-threads worker with
++    /// this store; it is joined at the start of this store's `Drop`.
++    #[cfg(all(feature = "std", feature = "threads"))]
++    pub(crate) fn push_set_thread_join(&mut self, handle: std::thread::JoinHandle<()>) {
++        self.set_thread_joins.push(handle);
++    }
++
+     /// Access multiple instances specified via `ids`.
+     ///
+     /// # Panics
+@@ -2423,6 +2439,18 @@ impl Drop for StoreOpaque {
+         // NB it's important that this destructor does not access `self.data`.
+         // That is deallocated by `Drop for Store<T>` above.
+ 
++        // enclave/SET: workers hold raw pointers into this store's component
++        // and core instances (their import records). Join them BEFORE any
++        // deallocation below. A worker parked forever makes this hang, which
++        // is the sound outcome; process-level lifetime management (the CLI
++        // exiting, the fleet watchdog) owns that case.
++        #[cfg(all(feature = "std", feature = "threads"))]
++        for handle in mem::take(&mut self.set_thread_joins) {
++            if let Err(e) = handle.join() {
++                log::warn!("SET worker thread panicked: {e:?}");
++            }
++        }
++
+         unsafe {
+             let allocator = self.engine.allocator();
+             let ondemand = OnDemandInstanceAllocator::default();
+diff --git a/crates/wasmtime/src/runtime/trampoline/global.rs b/crates/wasmtime/src/runtime/trampoline/global.rs
+index b1ac737..e6fd521 100644
+--- a/crates/wasmtime/src/runtime/trampoline/global.rs
++++ b/crates/wasmtime/src/runtime/trampoline/global.rs
+@@ -20,6 +20,7 @@ pub fn generate_global_export(
+ ) -> Result<crate::Global> {
+     let global = wasmtime_environ::Global {
+         wasm_ty: ty.content().to_wasm_type(),
++        shared: false,
+         mutability: match ty.mutability() {
+             Mutability::Const => false,
+             Mutability::Var => true,
 diff --git a/crates/wasmtime/src/runtime/type_registry.rs b/crates/wasmtime/src/runtime/type_registry.rs
-index 0d98863617..c1da1d588e 100644
+index 0d98863..c1da1d5 100644
 --- a/crates/wasmtime/src/runtime/type_registry.rs
 +++ b/crates/wasmtime/src/runtime/type_registry.rs
 @@ -1181,10 +1181,13 @@ impl TypeRegistryInner {
@@ -357,11 +632,96 @@ index 0d98863617..c1da1d588e 100644
  
              let gc_layout = match &sub_ty.composite_type.inner {
                  wasmtime_environ::WasmCompositeInnerType::Func(_) => continue,
+diff --git a/crates/wasmtime/src/runtime/vm/component.rs b/crates/wasmtime/src/runtime/vm/component.rs
+index de21c67..eefbb99 100644
+--- a/crates/wasmtime/src/runtime/vm/component.rs
++++ b/crates/wasmtime/src/runtime/vm/component.rs
+@@ -16,8 +16,8 @@ use crate::runtime::vm::instance::{InstanceLayout, OwnedInstance, OwnedVMContext
+ use crate::runtime::vm::vmcontext::VMFunctionBody;
+ use crate::runtime::vm::{
+     HostResult, SendSyncPtr, VMArrayCallFunction, VMFuncRef, VMGlobalDefinition,
+-    VMMemoryDefinition, VMOpaqueContext, VMStore, VMStoreRawPtr, VMTableImport, VMWasmCallFunction,
+-    ValRaw, VmPtr, VmSafe, catch_unwind_and_record_trap,
++    VMMemoryDefinition, VMOpaqueContext, VMStore, VMStoreContext, VMStoreRawPtr, VMTableImport,
++    VMWasmCallFunction, ValRaw, VmPtr, VmSafe, catch_unwind_and_record_trap,
+ };
+ use crate::store::InstanceId;
+ use crate::{Func, vm};
+@@ -41,6 +41,8 @@ const INVALID_PTR: usize = 0xdead_dead_beef_beef_u64 as usize;
+ mod handle_table;
+ mod libcalls;
+ mod resources;
++#[cfg(all(feature = "std", feature = "threads"))]
++mod set_threads;
+ 
+ pub use self::handle_table::{HandleTable, RemovedResource};
+ #[cfg(feature = "component-model-async")]
+@@ -258,6 +260,60 @@ impl ComponentInstance {
+         // allocation which can go backwards to a `ComponentInstance`.
+         let mut ptr = unsafe { Self::from_vmctx(vmctx) };
+ 
++        // enclave/SET: fail closed if this intrinsic/host call is entered from
++        // a thread that is currently executing a DIFFERENT store — i.e. a
++        // shared-everything-threads worker reaching back into the component
++        // that spawned it. Materializing `&mut` on this component's store
++        // below would alias the owning thread's `&mut`, which is exactly the
++        // data race the whole per-thread-Store design exists to prevent.
++        //
++        // Reachable in one realistic way: a spawned worker calling
++        // `thread.spawn-*` again (nested spawn). That is legitimate guest code
++        // to write, so it gets a TRAP on the worker's own thread rather than a
++        // process abort — the worker unwinds through its own store and dies
++        // alone. Only if the return type has no unwind sentinel (a libcall
++        // that structurally cannot trap, none of which should be reachable
++        // this way) is there nothing to hand back, and then stopping is the
++        // only sound option left.
++        //
++        // Both the comparison and the trap read only this thread's TLS plus a
++        // vmctx field this allocation owns: no borrow of the other store is
++        // created on the failure path.
++        #[cfg(all(feature = "std", feature = "threads"))]
++        {
++            // SAFETY: `vmctx` is valid per this function's contract, and the
++            // store-context slot was initialized at instantiation.
++            let own: VmPtr<VMStoreContext> = *unsafe {
++                let reference = ptr.as_ref();
++                reference.vmctx_plus_offset::<VmPtr<VMStoreContext>>(
++                    reference.offsets.vm_store_context(),
++                )
++            };
++            if let Some(current) = crate::runtime::vm::traphandlers::current_vm_store_context() {
++                if current != own.as_non_null() {
++                    match R::unwind_sentinel() {
++                        Some(sentinel) => {
++                            crate::runtime::vm::traphandlers::record_unwind_on_this_thread(
++                                crate::Error::msg(
++                                    "a shared-everything-threads worker cannot call back into \
++                                     the component that spawned it (nested `thread.spawn-*`, or \
++                                     an unshared import from a shared function)",
++                                ),
++                            );
++                            return sentinel;
++                        }
++                        None => {
++                            eprintln!(
++                                "wasmtime: fatal: non-trapping component libcall entered from a \
++                                 shared-everything-threads worker thread; aborting"
++                            );
++                            std::process::abort();
++                        }
++                    }
++                }
++            }
++        }
++
+         // SAFETY: it's a contract of this function that it's safe to use `ptr`
+         // as a mutable reference.
+         let reference = unsafe { ptr.as_mut() };
 diff --git a/crates/wasmtime/src/runtime/vm/component/libcalls.rs b/crates/wasmtime/src/runtime/vm/component/libcalls.rs
-index f62ea58d9c..aee8f6802d 100644
+index f62ea58..31a4314 100644
 --- a/crates/wasmtime/src/runtime/vm/component/libcalls.rs
 +++ b/crates/wasmtime/src/runtime/vm/component/libcalls.rs
-@@ -693,6 +693,64 @@ fn exit_sync_call(store: &mut dyn VMStore, instance: Instance) -> Result<()> {
+@@ -693,6 +693,116 @@ fn exit_sync_call(store: &mut dyn VMStore, instance: Instance) -> Result<()> {
      store.exit_guest_sync_call()
  }
  
@@ -392,42 +752,749 @@ index f62ea58d9c..aee8f6802d 100644
 +
 +// enclave/SET: `thread.spawn-ref` / `thread.spawn-indirect`.
 +//
-+// Returns -1, the ABI's "spawn failed", and that is the honest answer on this
-+// engine rather than a placeholder. Shared-everything-threads means the new
-+// thread runs in the SAME instance — same memory, same tables, same globals —
-+// and wasmtime cannot do that today: entering guest code takes `&mut Store`,
-+// which is exclusive by construction (the borrow checker refuses two threads
-+// on one store). The trick that made wasi-threads work — a separate `Store`
-+// per thread over one IMPORTED shared memory — does not generalise to
-+// components either, because a component instantiates its own memory
-+// internally and cannot import a memory instance from outside. Two component
-+// instances are two memories, which is the opposite of shared-everything.
++// REAL OS threads: each spawned thread runs the shared start function in a
++// per-thread execution view of the defining instance — its own `Store` (so
++// per-execution state stays exclusive by construction), its own vmctx, and
++// the PRIMARY's `SharedMemory` re-pointed into it so linear memory is
++// physically shared. Design, guards and soundness argument live in
++// `super::set_threads`; the measured result lives in docs/wasm-parallelism.md.
 +//
-+// Making this return a real thread id needs wasmtime's execution model to
-+// become thread-safe (store bookkeeping, fuel, epoch interruption, trap
-+// handling, stack limits, GC roots). Until then the RIGHT behaviour is the
-+// spec's documented failure path, because it keeps SET components LOADABLE
-+// and RUNNABLE: a guest calls spawn, sees the failure, and takes its
-+// sequential fallback — instead of the whole component being rejected at
-+// translation time, which is what happened before this.
++// Returns the new thread's id (>= 1), or -1 ("spawn failed", which the ABI
++// defines and guests are required to handle) for module shapes the view
++// cannot faithfully represent yet — those log a diagnostic. Traps only on
++// guest bugs (null/ill-typed start function).
 +//
-+// Pairs with `thread.available_parallelism`, which reports the tenant's real
-+// slice: a guest that checks it first never asks to spawn in the first place.
-+// See docs/wasm-parallelism.md.
-+fn thread_spawn(
++// The result type is NOT `Result<u32>`: its unwind sentinel is `u64::MAX`,
++// aka -1, which the NegativeTwo trampoline arm would pass through to the
++// guest as a fake "spawn failed" while leaving the recorded trap pending in
++// TLS. `ThreadSpawnResult` puts the unwind sentinel at `u64::MAX - 1` (-2),
++// matching the trampoline.
++#[derive(Copy, Clone)]
++pub(crate) struct ThreadSpawnResult(pub i32);
++
++impl ThreadSpawnResult {
++    pub(crate) const FAILED: ThreadSpawnResult = ThreadSpawnResult(-1);
++}
++
++unsafe impl crate::runtime::vm::HostResultHasUnwindSentinel for ThreadSpawnResult {
++    type Abi = u64;
++    const SENTINEL: u64 = u64::MAX - 1;
++    fn into_abi(self) -> u64 {
++        // Zero-extend the i32: -1 becomes 0xFFFF_FFFF, which the trampoline
++        // truncates back to the guest-visible i32 -1 and which can never
++        // collide with the trap sentinel above.
++        self.0 as u32 as u64
++    }
++}
++
++#[cfg(all(feature = "std", feature = "threads"))]
++fn thread_spawn_ref(
++    store: &mut dyn VMStore,
++    _instance: Instance,
++    funcref: *mut u8,
++    arg: u32,
++) -> Result<ThreadSpawnResult> {
++    super::set_threads::spawn_ref(store, funcref, arg)
++}
++
++#[cfg(all(feature = "std", feature = "threads"))]
++fn thread_spawn_indirect(
++    store: &mut dyn VMStore,
++    instance: Instance,
++    table: u32,
++    elem: u32,
++    arg: u32,
++) -> Result<ThreadSpawnResult> {
++    super::set_threads::spawn_indirect(
++        store,
++        instance,
++        wasmtime_environ::component::RuntimeTableIndex::from_u32(table),
++        elem,
++        arg,
++    )
++}
++
++#[cfg(not(all(feature = "std", feature = "threads")))]
++fn thread_spawn_ref(
 +    _store: &mut dyn VMStore,
 +    _instance: Instance,
-+    _args: *mut u8,
-+    _nargs: usize,
-+) -> Result<u32> {
-+    Ok(-1i32 as u32)
++    _funcref: *mut u8,
++    _arg: u32,
++) -> Result<ThreadSpawnResult> {
++    Ok(ThreadSpawnResult::FAILED)
++}
++
++#[cfg(not(all(feature = "std", feature = "threads")))]
++fn thread_spawn_indirect(
++    _store: &mut dyn VMStore,
++    _instance: Instance,
++    _table: u32,
++    _elem: u32,
++    _arg: u32,
++) -> Result<ThreadSpawnResult> {
++    Ok(ThreadSpawnResult::FAILED)
 +}
 +
  #[cfg(feature = "component-model-async")]
  fn backpressure_modify(
      store: &mut dyn VMStore,
+diff --git a/crates/wasmtime/src/runtime/vm/component/set_threads.rs b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
+new file mode 100644
+index 0000000..f4a7901
+--- /dev/null
++++ b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
+@@ -0,0 +1,391 @@
++//! enclave/SET: real OS-thread spawning for the shared-everything-threads
++//! `thread.spawn-ref` / `thread.spawn-indirect` component intrinsics.
++//!
++//! # Design: per-thread execution views over shared instance state
++//!
++//! Wasmtime's execution model requires `&mut Store` to enter guest code, and
++//! per-execution state (stack limits, last-wasm entry/exit SP+FP, the epoch
++//! deadline, fuel) lives in the store's `VMStoreContext`, reached from the
++//! instance's vmctx. Two OS threads through one vmctx would therefore corrupt
++//! each other's execution state — that, not codegen, is what makes a naive
++//! "share the Store" implementation unsound, and `unsafe impl Sync for Store`
++//! would merely hide it.
++//!
++//! Instead each spawned thread gets its OWN `Store` (so the borrow checker
++//! keeps enforcing execution exclusivity everywhere, unchanged) holding an
++//! *execution view* of the primary instance:
++//!
++//! * the view is a fresh instantiation of the SAME module, against the SAME
++//!   already-resolved import records the primary was instantiated with;
++//! * its defined shared memories are then re-pointed at the primary's
++//!   `SharedMemory` (an `Arc` whose `VMMemoryDefinition` all instances share,
++//!   with growth behind a lock — the exact mechanism wasmtime already uses
++//!   for shared memories between stores), so linear memory is PHYSICALLY the
++//!   same memory;
++//! * its plain (numeric/vector) globals are snapshotted from the primary at
++//!   spawn time;
++//! * the start function is invoked through the VIEW's own funcref, so all
++//!   code the thread runs enters through the view's vmctx and the worker
++//!   store's `VMStoreContext`. Traps, backtraces, signals and epochs work
++//!   because N threads × N stores is already-supported wasmtime usage.
++//!
++//! Sharedness of the state a *valid* SET guest can actually reach from a
++//! spawned function on this engine:
++//!
++//! * memory: physically shared (above);
++//! * tables: per-view, materialized from the same initializers. Cranelift
++//!   rejects `table.atomic.*` ("not yet implemented" upstream), so no guest
++//!   this engine can compile is able to express cross-thread table mutation;
++//! * globals: snapshot at spawn. `global.atomic.*` equally does not compile,
++//!   and modules with MUTABLE `shared` globals are refused at spawn (below)
++//!   rather than silently diverging.
++//!
++//! # Lifetime / soundness invariants
++//!
++//! The worker holds raw pointers into the primary store (import records whose
++//! `vmctx`/`from` pointers target the primary component and its instances).
++//! Those stay valid because:
++//!
++//! 1. every spawn registers its `JoinHandle` with the PRIMARY store, and
++//!    `StoreOpaque::drop` joins them before deallocating anything;
++//! 2. a worker thread never calls back into the primary store: component
++//!    intrinsics and canon-lowered host imports all enter through
++//!    `ComponentInstance::enter_host_from_wasm`, which aborts the process if
++//!    entered from a thread that does not own the component's store. This is
++//!    defense in depth — shared-everything-threads validation already forbids
++//!    shared functions from calling unshared imports — and failing closed is
++//!    the correct posture for a runtime measured into a TEE attestation.
++//!
++//! Spawn refuses (returns the ABI's `-1` failure, with a diagnostic on
++//! stderr) any module shape whose view would NOT be faithful: non-shared
++//! defined memories, imported tables/globals, imported core-wasm functions,
++//! mutable `shared` globals, a wasm `start` section, or GC use.
++
++use crate::prelude::*;
++use crate::runtime::vm::component::libcalls::ThreadSpawnResult;
++use crate::runtime::vm::instance::CopiedImports;
++use crate::runtime::vm::memory::SharedMemory;
++use crate::runtime::vm::{Instance as VmInstance, VMFuncRef, VMStore};
++use crate::store::{Asyncness, StoreOpaque};
++use crate::{AsContextMut, Engine, Module, Store, Val};
++use core::pin::Pin;
++use core::ptr::NonNull;
++use core::sync::atomic::{AtomicU64, Ordering};
++use wasmtime_environ::component::RuntimeTableIndex;
++use wasmtime_environ::{DefinedGlobalIndex, DefinedMemoryIndex, FuncIndex, VMCONTEXT_MAGIC};
++
++/// Monotonic SET thread ids handed back to guests. Non-negative i32 range;
++/// starts at 1 (0 is reserved by convention for "the main thread").
++static NEXT_SET_THREAD_ID: AtomicU64 = AtomicU64::new(1);
++
++/// Everything a worker thread needs to build and run its execution view.
++struct SpawnPayload {
++    engine: Engine,
++    module: Module,
++    imports: CopiedImports,
++    shared_memories: Vec<(DefinedMemoryIndex, SharedMemory)>,
++    global_snapshot: Vec<(DefinedGlobalIndex, [u8; 16])>,
++    func_index: FuncIndex,
++    start_arg: i32,
++    thread_id: i64,
++}
++
++// SAFETY: the raw pointers inside `imports` point at engine-lifetime data
++// (compiled code, builtin arrays) and at the primary store's component and
++// core instances. The primary store joins every spawned worker in its `Drop`
++// before any of that is deallocated, and the cross-thread entry guard in
++// `enter_host_from_wasm` prevents the worker from ever turning those pointers
++// into `&mut` access of the primary store.
++unsafe impl Send for SpawnPayload {}
++
++/// `thread.spawn-ref`: `funcref` is the guest's `(ref null (shared func))`
++/// argument, passed by the trampoline as a raw pointer.
++pub(crate) fn spawn_ref(
++    store: &mut dyn VMStore,
++    funcref: *mut u8,
++    arg: u32,
++) -> Result<ThreadSpawnResult> {
++    let Some(funcref) = NonNull::new(funcref.cast::<VMFuncRef>()) else {
++        // A null start function can never run; the ABI's failure result is
++        // reserved for resource exhaustion, so this is a guest bug => trap.
++        bail!("thread.spawn-ref: start function reference is null");
++    };
++    spawn_funcref(store.store_opaque_mut(), funcref, arg)
++}
++
++/// `thread.spawn-indirect`: resolve `elem` in the canon-declared table, on
++/// the calling (store-owning) thread, then spawn like `spawn-ref`.
++pub(crate) fn spawn_indirect(
++    store: &mut dyn VMStore,
++    instance: crate::component::Instance,
++    table: RuntimeTableIndex,
++    elem: u32,
++    arg: u32,
++) -> Result<ThreadSpawnResult> {
++    let store = store.store_opaque_mut();
++    let func = {
++        let (component, registry) = instance.id().get_mut_and_registry(store);
++        component.index_runtime_func_table(registry, table, u64::from(elem))?
++    };
++    let Some(func) = func else {
++        bail!("thread.spawn-indirect: table element {elem} is uninitialized");
++    };
++    let funcref = func.vm_func_ref(store);
++    spawn_funcref(store, funcref, arg)
++}
++
++/// Common spawn path. Runs on the thread that owns the primary store, with
++/// `&mut StoreOpaque` legally held — every read of primary state happens
++/// here, not on the worker.
++fn spawn_funcref(
++    store: &mut StoreOpaque,
++    funcref: NonNull<VMFuncRef>,
++    arg: u32,
++) -> Result<ThreadSpawnResult> {
++    // The ABI's graceful failure: log why, hand the guest -1, let it take its
++    // sequential fallback.
++    //
++    // The stderr copy is printed ONCE per process. A guest whose module shape
++    // is unsupported typically calls spawn in a loop (once per worker it
++    // wanted), and the diagnostic is there to tell a developer why their
++    // threads did not appear — not to reprint that answer thousands of times
++    // into a tenant's logs. `log::warn!` still fires every time for anyone
++    // who wants the full trace.
++    macro_rules! refuse {
++        ($($msg:tt)*) => {{
++            log::warn!($($msg)*);
++            static ONCE: std::sync::Once = std::sync::Once::new();
++            ONCE.call_once(|| {
++                eprintln!(
++                    "wasmtime: thread.spawn refused: {} (further refusals logged at warn level only)",
++                    format_args!($($msg)*)
++                );
++            });
++            return Ok(ThreadSpawnResult::FAILED);
++        }};
++    }
++
++    let fr = unsafe { funcref.as_ref() };
++
++    // The start function must be plain core wasm — a component trampoline or
++    // host function cannot be the body of a spawned thread.
++    let vmctx_magic = unsafe { *funcref.as_ref().vmctx.as_non_null().cast::<u32>().as_ref() };
++    if vmctx_magic != VMCONTEXT_MAGIC {
++        bail!("thread.spawn: start function is not a core wasm function");
++    }
++
++    // Signature check: the SET spawn ABI start type is `(func (param i32))`.
++    {
++        let ty = crate::FuncType::from_shared_type_index(store.engine(), fr.type_index);
++        let ok = ty.results().len() == 0
++            && ty.params().len() == 1
++            && matches!(ty.params().next(), Some(crate::ValType::I32));
++        if !ok {
++            bail!("thread.spawn: start function must have type (param i32) -> ()");
++        }
++    }
++
++    // SAFETY: the magic check above proved this is a core-module vmctx, and
++    // it belongs to this store's component (checked right below), so deriving
++    // a shared reference while we hold `&mut StoreOpaque` is sound.
++    let defining: NonNull<VmInstance> =
++        unsafe { VmInstance::from_vmctx(funcref.as_ref().vmctx.as_non_null().cast()) };
++    let defining = unsafe { defining.as_ref() };
++    if !defining.belongs_to_store(store) {
++        bail!("thread.spawn: start function belongs to a different store");
++    }
++
++    let Some(func_index) = defining.func_index_of_func_ref(funcref) else {
++        refuse!("start funcref is not one of its defining instance's escaped functions");
++    };
++
++    // ---- v1 module-shape guards: refuse any shape whose execution view ----
++    // ---- would not faithfully share state with the primary instance.  ----
++    let module = defining.env_module();
++
++    if module.has_guest_start {
++        refuse!("module has a wasm `start` section (unsupported on SET threads)");
++    }
++    if module.needs_gc_heap {
++        refuse!("module requires a GC heap (unsupported on SET threads)");
++    }
++    for (idx, mem) in module.memories.iter() {
++        if !mem.shared {
++            refuse!(
++                "memory {} is not `shared`; every memory of a module spawning \
++                 SET threads must be shared",
++                idx.as_u32()
++            );
++        }
++    }
++    if module.num_imported_tables != 0 {
++        refuse!("module imports a table (unsupported on SET threads)");
++    }
++    if module.num_imported_globals != 0 {
++        refuse!("module imports a global (unsupported on SET threads)");
++    }
++    for (idx, global) in module.globals.iter() {
++        if global.shared && global.mutability {
++            refuse!(
++                "global {} is mutable and `shared`; cross-thread global \
++                 mutation is not implemented (guests coordinate through \
++                 shared memory)",
++                idx.as_u32()
++            );
++        }
++    }
++    let Some(runtime_module) = defining.runtime_module() else {
++        refuse!("cannot spawn from a synthetic module");
++    };
++    let runtime_module = runtime_module.clone();
++
++    let imports = defining.copy_raw_imports();
++
++    // Imported functions must not be other core-wasm functions: a view
++    // calling one would execute a foreign instance with the PRIMARY's
++    // execution state from the worker thread. Component trampolines are fine
++    // to import (the cross-thread entry guard makes calling one fail closed,
++    // and validation prevents valid guests from doing so).
++    for (i, import) in imports.functions.iter().enumerate() {
++        let magic = unsafe { *import.vmctx.as_non_null().cast::<u32>().as_ref() };
++        if magic == VMCONTEXT_MAGIC {
++            refuse!(
++                "imported function {i} is another core module's function \
++                 (cross-instance SET threads are unsupported)"
++            );
++        }
++    }
++
++    // ---- capture ----
++    let thread_id = NEXT_SET_THREAD_ID.fetch_add(1, Ordering::Relaxed) as i64;
++    if thread_id > i64::from(i32::MAX) {
++        return Ok(ThreadSpawnResult::FAILED);
++    }
++    let payload = SpawnPayload {
++        engine: store.engine().clone(),
++        module: runtime_module,
++        imports,
++        shared_memories: defining.defined_shared_memories_cloned(),
++        global_snapshot: defining.snapshot_plain_globals(),
++        func_index,
++        start_arg: arg as i32,
++        thread_id,
++    };
++
++    let handle = std::thread::Builder::new()
++        .name(format!("set-thread-{thread_id}"))
++        .spawn(move || worker_main(payload));
++    match handle {
++        Ok(handle) => {
++            store.push_set_thread_join(handle);
++            Ok(ThreadSpawnResult(thread_id as i32))
++        }
++        Err(e) => {
++            log::warn!("thread.spawn: OS thread creation failed: {e}");
++            Ok(ThreadSpawnResult::FAILED)
++        }
++    }
++}
++
++/// Body of a spawned SET thread: build the execution view, run the start
++/// function, tear the view down.
++fn worker_main(payload: SpawnPayload) {
++    let thread_id = payload.thread_id;
++
++    // A guest TRAP is normal operation: it unwinds into `call` inside
++    // `run_view` and arrives here as `Err`. wasi-threads precedent applies —
++    // a thread that traps takes the program with it, the way a segfault
++    // would, because its siblings are mid-computation over memory whose
++    // invariants the trapping thread may have been halfway through
++    // re-establishing.
++    //
++    // A Rust PANIC is different: it means an engine bug, on a thread holding
++    // raw pointers into another store, with shared memory in an unknown
++    // state. Letting it unwind into `std::thread`'s backstop would leave the
++    // process running on state we have no story for, and would surface only
++    // as a warning at join time. Catch it and stop.
++    let result =
++        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_view(payload)));
++    match result {
++        Ok(Ok(())) => {}
++        Ok(Err(e)) => {
++            eprintln!("set-thread-{thread_id}: {e:?}");
++            std::process::exit(1);
++        }
++        Err(_) => {
++            // The default panic hook has already printed the payload and
++            // location by this point.
++            eprintln!(
++                "wasmtime: fatal: panic on shared-everything-threads worker \
++                 set-thread-{thread_id}; aborting"
++            );
++            std::process::abort();
++        }
++    }
++}
++
++fn run_view(payload: SpawnPayload) -> Result<()> {
++    let mut store: Store<()> = Store::new(&payload.engine, ());
++    // A fresh store's epoch deadline is 0, which means "trap at the first
++    // epoch check" once the engine's epoch has ever been bumped. SET workers
++    // are not individually interruptible in v1; the process watchdog owns
++    // their lifetime.
++    store.set_epoch_deadline(u64::MAX / 2);
++    let _ = store.set_fuel(u64::MAX);
++
++    let mut ctx = store.as_context_mut();
++
++    // Re-instantiate the defining module against the primary's own resolved
++    // import records. Element segments and (complex) global initializers run
++    // against THIS view; active data segments are applied to the view's
++    // freshly-created memories, which are thrown away below when the shared
++    // ones are re-pointed at the primary's. There is no wasm `start` section
++    // (guarded at spawn).
++    //
++    // SAFETY (new_started): the import records come verbatim from an
++    // instantiation of this exact module, so they are type-correct by
++    // construction; `Send`ing them here is covered by the invariants on
++    // `SpawnPayload`.
++    let instance = crate::runtime::vm::assert_ready(unsafe {
++        crate::Instance::new_started(
++            &mut ctx,
++            &payload.module,
++            payload.imports.as_imports(),
++            Asyncness::No,
++        )
++    })?;
++    let id = instance.id();
++
++    {
++        let opaque = ctx.0.store_opaque_mut();
++        let mut vminstance: Pin<&mut VmInstance> = opaque.instance_mut(id);
++        for (index, shared) in payload.shared_memories {
++            // SAFETY: no guest code has run in this view yet; the memory is
++            // declared shared (enforced at spawn), so the vmctx slot is the
++            // out-of-line pointer form.
++            unsafe {
++                vminstance
++                    .as_mut()
++                    .replace_defined_memory_with_shared(index, shared);
++            }
++        }
++        vminstance.write_plain_globals(&payload.global_snapshot);
++    }
++
++    // Invoke the start function through the VIEW's funcref: same compiled
++    // code as the primary, entered with the view's vmctx and this store's
++    // execution state.
++    let func = {
++        let opaque = ctx.0.store_opaque_mut();
++        let store_id = opaque.id();
++        let (vminstance, registry) = opaque.instance_and_module_registry_mut(id);
++        let funcref = vminstance
++            .get_func_ref(registry, payload.func_index)
++            .expect("escaped funcref must exist");
++        // SAFETY: the funcref lives in an instance owned by this store.
++        unsafe { crate::Func::from_vm_func_ref(store_id, funcref) }
++    };
++
++    func.call(&mut store, &[Val::I32(payload.start_arg)], &mut [])?;
++    Ok(())
++}
+diff --git a/crates/wasmtime/src/runtime/vm/instance.rs b/crates/wasmtime/src/runtime/vm/instance.rs
+index 06ba7e4..b8481bf 100644
+--- a/crates/wasmtime/src/runtime/vm/instance.rs
++++ b/crates/wasmtime/src/runtime/vm/instance.rs
+@@ -506,6 +506,151 @@ impl Instance {
+         unsafe { self.vmctx_plus_offset_raw(self.offsets().vmctx_vmglobal_definition(index)) }
+     }
+ 
++    // ===== enclave/SET: support for shared-everything-threads execution =====
++    //
++    // A spawned SET thread executes in an "execution view" of the primary
++    // instance: a fresh instantiation of the same module, in a per-thread
++    // `Store`, whose defined shared memories are re-pointed at the primary's
++    // `SharedMemory` and whose plain globals are snapshotted from the primary
++    // at spawn time. The helpers below are the primary-side capture and the
++    // view-side surgery for that. See `vm::component::set_threads`.
++
++    /// Does this instance belong to `store`?
++    pub(crate) fn belongs_to_store(&self, store: &StoreOpaque) -> bool {
++        match &self.store {
++            Some(ptr) => core::ptr::eq(
++                ptr.0.as_ptr() as *const u8,
++                store.traitobj().as_ptr() as *const u8,
++            ),
++            None => false,
++        }
++    }
++
++    /// Reverse-map a funcref pointer to the `FuncIndex` it was created for,
++    /// if it is one of THIS instance's escaped-function funcrefs (i.e. it
++    /// lives inside this instance's vmctx `func_refs` array).
++    pub(crate) fn func_index_of_func_ref(&self, fr: NonNull<VMFuncRef>) -> Option<FuncIndex> {
++        let module = self.env_module();
++        for (func_index, f) in module.functions.iter() {
++            if !f.is_escaping() {
++                continue;
++            }
++            let entry = unsafe {
++                self.vmctx_plus_offset_raw::<VMFuncRef>(self.offsets().vmctx_func_ref(f.func_ref))
++            };
++            if entry.as_ptr() == fr.as_ptr() {
++                return Some(func_index);
++            }
++        }
++        None
++    }
++
++    /// Copy this instance's already-resolved raw import records. These are
++    /// exactly the records `initialize_vmctx` wrote at instantiation and are
++    /// suitable for re-instantiating the same module against the same
++    /// arguments.
++    pub(crate) fn copy_raw_imports(&self) -> CopiedImports {
++        let module = self.env_module();
++        CopiedImports {
++            functions: (0..module.num_imported_funcs)
++                .map(|i| self.imported_function(FuncIndex::new(i)).clone())
++                .collect(),
++            tables: (0..module.num_imported_tables)
++                .map(|i| self.imported_table(TableIndex::new(i)).clone())
++                .collect(),
++            memories: (0..module.num_imported_memories)
++                .map(|i| self.imported_memory(MemoryIndex::new(i)).clone())
++                .collect(),
++            globals: (0..module.num_imported_globals)
++                .map(|i| self.imported_global(GlobalIndex::new(i)).clone())
++                .collect(),
++            tags: (0..module.num_imported_tags)
++                .map(|i| self.imported_tag(TagIndex::new(i)).clone())
++                .collect(),
++        }
++    }
++
++    /// Clone handles to every defined shared memory of this instance.
++    pub(crate) fn defined_shared_memories_cloned(
++        &self,
++    ) -> Vec<(DefinedMemoryIndex, crate::runtime::vm::memory::SharedMemory)> {
++        let mut out = Vec::new();
++        for (idx, (_, mem)) in self.memories.iter() {
++            if let Some(shared) = mem.as_shared_memory() {
++                out.push((idx, shared.clone()));
++            }
++        }
++        out
++    }
++
++    /// Snapshot the current values of all defined globals of PLAIN (numeric /
++    /// vector) type. Reference-typed globals are skipped: their values are
++    /// pointers tied to this instance and must not leak into a view.
++    pub(crate) fn snapshot_plain_globals(&self) -> Vec<(DefinedGlobalIndex, [u8; 16])> {
++        let module = self.env_module();
++        let mut out = Vec::new();
++        for (index, global) in module.globals.iter() {
++            let Some(def_index) = module.defined_global_index(index) else {
++                continue;
++            };
++            if !matches!(
++                global.wasm_ty,
++                wasmtime_environ::WasmValType::I32
++                    | wasmtime_environ::WasmValType::I64
++                    | wasmtime_environ::WasmValType::F32
++                    | wasmtime_environ::WasmValType::F64
++                    | wasmtime_environ::WasmValType::V128
++            ) {
++                continue;
++            }
++            let bytes = unsafe { *self.global_ptr(def_index).cast::<[u8; 16]>().as_ref() };
++            out.push((def_index, bytes));
++        }
++        out
++    }
++
++    /// Write a snapshot produced by `snapshot_plain_globals` (on the primary)
++    /// into THIS instance's globals. Only sound before this instance has
++    /// started executing guest code.
++    pub(crate) fn write_plain_globals(&self, snapshot: &[(DefinedGlobalIndex, [u8; 16])]) {
++        for (def_index, bytes) in snapshot {
++            unsafe {
++                self.global_ptr(*def_index)
++                    .cast::<[u8; 16]>()
++                    .write(*bytes);
++            }
++        }
++    }
++
++    /// Re-point the defined memory `index` of this instance at `shared`,
++    /// which must be another instantiation's `SharedMemory` of a compatible
++    /// type. The previously-created memory for that slot is dropped.
++    ///
++    /// # Safety
++    ///
++    /// Only sound before this instance has started executing guest code, and
++    /// only for a defined memory that is declared `shared` (so the vmctx slot
++    /// is a pointer to an out-of-line `VMMemoryDefinition`).
++    pub(crate) unsafe fn replace_defined_memory_with_shared(
++        mut self: Pin<&mut Self>,
++        index: DefinedMemoryIndex,
++        shared: crate::runtime::vm::memory::SharedMemory,
++    ) {
++        debug_assert!({
++            let module = self.env_module();
++            module.memories[module.memory_index(index)].shared
++        });
++        let def_ptr = shared.vmmemory_ptr();
++        let offset = self.offsets().vmctx_vmmemory_pointer(index);
++        unsafe {
++            self.as_mut()
++                .vmctx_plus_offset_raw::<VmPtr<VMMemoryDefinition>>(offset)
++                .write(VmPtr::from(def_ptr));
++        }
++        let entry = &mut self.memories_mut()[index];
++        entry.1 = Memory::Shared(shared);
++    }
++
+     /// Get all globals within this instance.
+     ///
+     /// Returns both import and defined globals.
+@@ -1566,6 +1711,29 @@ unsafe impl InstanceLayout for Instance {
+     }
+ }
+ 
++/// enclave/SET: a by-value copy of an instance's resolved raw import records,
++/// used to re-instantiate the same module (as a per-thread execution view)
++/// against the same arguments. See `vm::component::set_threads`.
++pub(crate) struct CopiedImports {
++    pub functions: Vec<VMFunctionImport>,
++    pub tables: Vec<VMTableImport>,
++    pub memories: Vec<VMMemoryImport>,
++    pub globals: Vec<VMGlobalImport>,
++    pub tags: Vec<VMTagImport>,
++}
++
++impl CopiedImports {
++    pub(crate) fn as_imports(&self) -> crate::runtime::vm::Imports<'_> {
++        crate::runtime::vm::Imports {
++            functions: &self.functions,
++            tables: &self.tables,
++            memories: &self.memories,
++            globals: &self.globals,
++            tags: &self.tags,
++        }
++    }
++}
++
+ pub type InstanceHandle = OwnedInstance<Instance>;
+ 
+ /// A handle holding an `Instance` of a WebAssembly module.
+diff --git a/crates/wasmtime/src/runtime/vm/traphandlers.rs b/crates/wasmtime/src/runtime/vm/traphandlers.rs
+index 7ea34b1..859d86f 100644
+--- a/crates/wasmtime/src/runtime/vm/traphandlers.rs
++++ b/crates/wasmtime/src/runtime/vm/traphandlers.rs
+@@ -98,6 +98,34 @@ pub(super) unsafe fn raise_preexisting_trap(store: &mut dyn VMStore) {
+     tls::with(|info| unsafe { info.unwrap().unwind(store) })
+ }
+ 
++/// enclave/SET: the `VMStoreContext` of the store whose wasm is currently
++/// executing on THIS thread, if any. Reads only thread-local state — safe to
++/// call without any store borrow, which is exactly what the cross-thread
++/// entry guard in `ComponentInstance::enter_host_from_wasm` needs.
++pub(crate) fn current_vm_store_context() -> Option<NonNull<VMStoreContext>> {
++    tls::with(|info| info.map(|info| info.vm_store_context.get()))
++}
++
++/// enclave/SET: record a pending trap against THIS thread's in-flight wasm
++/// call, without a store.
++///
++/// Callers must return their ABI's unwind sentinel immediately afterwards
++/// (see `HostResult::unwind_sentinel`), exactly as
++/// `catch_unwind_and_record_trap` does — Cranelift-generated code tests for
++/// the sentinel and then raises the recorded unwind.
++///
++/// The point of not taking a store is the cross-thread guard in
++/// `ComponentInstance::enter_host_from_wasm`: it fires precisely when
++/// touching the relevant store would be a data race.
++#[cfg(all(feature = "std", feature = "threads"))]
++pub(crate) fn record_unwind_on_this_thread(err: crate::Error) {
++    tls::with(|info| {
++        if let Some(info) = info {
++            info.record_unwind(UnwindReason::from(err));
++        }
++    })
++}
++
+ /// Invokes the closure `f` and handles any error/panic/trap that happens
+ /// within.
+ ///
+@@ -171,6 +199,21 @@ pub trait HostResult {
+         store: &mut dyn VMStore,
+         f: impl FnOnce(&mut dyn VMStore) -> Self,
+     ) -> (Self::Abi, Option<UnwindReason>);
++
++    /// enclave/SET: the ABI value meaning "an unwind happened", for the return
++    /// types that have one.
++    ///
++    /// `None` for the base-case types (`u32`, `bool`, ...), whose libcalls
++    /// cannot trap at all and therefore have no sentinel to encode.
++    ///
++    /// This exists so a caller can signal a trap WITHOUT holding the store —
++    /// specifically the cross-thread guard in
++    /// `ComponentInstance::enter_host_from_wasm`, which detects that entering
++    /// the host would alias another thread's `&mut Store` and so must not
++    /// touch that store even to report the problem.
++    fn unwind_sentinel() -> Option<Self::Abi> {
++        None
++    }
+ }
+ 
+ // Base case implementations that do not catch unwinds. These are for libcalls
+@@ -307,6 +350,10 @@ where
+             f()
+         }
+     }
++
++    fn unwind_sentinel() -> Option<T::Abi> {
++        Some(T::SENTINEL)
++    }
+ }
+ 
+ /// Trait used in conjunction with `HostResult for Result<T, E>` where this is
 diff --git a/src/commands/run.rs b/src/commands/run.rs
-index 4159165be2..4da3973186 100644
+index 4159165..4da3973 100644
 --- a/src/commands/run.rs
 +++ b/src/commands/run.rs
 @@ -11,6 +11,7 @@ use std::ffi::OsString;
