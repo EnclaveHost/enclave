@@ -51,6 +51,34 @@ wrong about layers 2-4 and I have since built them. Corrected status:
   All of this is in `wasm/wasmtime-set-threads.patch.wip`, deliberately NOT in
   the Dockerfile chain.
 
+- **Layer 4 (intrinsics) — ALL THREE NOW IMPLEMENTED.** `thread.spawn-ref`,
+  `thread.spawn-indirect` and `thread.available_parallelism` are real
+  trampolines now; previously the two spawn intrinsics `bail!`-ed at
+  TRANSLATION time, which meant a SET component could not even be loaded.
+  A complete SET guest — shared memory, shared func types, a concrete
+  `(ref null $start)`, guest atomics, `thread.spawn-ref` — now loads and runs
+  (`tools/parallelism-probe/set-spawn-fallback.wat`):
+
+      $ wasmtime run -W threads,shared-everything-threads,component-model-threading,shared-memory \
+          --invoke 'run()' set-spawn-fallback.wat
+      32007          # 32 cores * 1000 + 7 units of work completed
+      $ ENCLAVE_AVAILABLE_PARALLELISM=4 ...
+      4007
+
+  Spawn returns the ABI's documented failure (-1), the guest takes its
+  sequential fallback, and the work still happens through shared-memory
+  atomics. That is the honest answer on this engine and it is a very
+  different situation from "the component is rejected": SET guests are
+  loadable, runnable and forward-compatible — the day the engine can really
+  spawn, the same binaries get parallelism with no rebuild.
+
+  Getting there also needed two more fixes worth naming: concrete references
+  to shared func types had to be interned (otherwise the trampoline's
+  `(ref null $start)` panicked with "no entry found for key") and the
+  `NegativeTwo` host-result arm had to be implemented in the component
+  trampoline — it was a `todo!()`, and it is the only sentinel that lets a
+  libcall hand `-1` back to the guest instead of trapping on it.
+
 ### The actual wall: `thread.spawn-*` needs a thread-safe Store
 
 "Shared everything" means a spawned thread runs in the **same instance** —
