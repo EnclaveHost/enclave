@@ -1124,6 +1124,11 @@ function aggregateAvailability() {
     // deploying pinned to a p3-capable box is legitimate while the AND is
     // still false.
     p3: serving.length > 0 && serving.every((e) => e.availability?.p3 === true),
+    // Cooperative threads (🧵), one capability over: `threads: true` versions
+    // route only to boxes whose engine passed the thread.new-indirect compile
+    // probe (coopThreads on each runner's availability). Same fleet-AND
+    // reasoning as p3, same per-box canary escape hatch.
+    coopThreads: serving.length > 0 && serving.every((e) => e.availability?.coopThreads === true),
     // the CHEAPEST posted price across the claiming fleet, USDC 6dp/sec for a
     // whole node / whole card. Each enclave sets its own (registry entry), so
     // "what does this cost" is a fleet-minimum question now, not a contract

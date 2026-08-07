@@ -1,61 +1,8 @@
-# wasmtime-loopback.patch — the cross-tenant wall.
-#
-# THE HOLE. Tenants share ONE network namespace inside the CVM: every deployment
-# is its own wasmtime process listening on 127.0.0.1:<its port>. The egress
-# shim's carve-out (a literal loopback IP dials DIRECT, never through the front)
-# is what keeps the enclave's own planes reachable — /encvol behind
-# ENCLAVE_ENC_API, and the SOCKS front itself for a phase-1 guest — but it is
-# unqualified, so it also lets a guest dial a SIBLING TENANT's port and land
-# inside its app. That walks around the supervisor's /x/:id, which is where a
-# PRIVATE deployment's owner-token check and the deployer's bought WAF live.
-# Nothing at the services can close it: another tenant's app is not the
-# platform's to gate. In `run` mode it is worse still — a port-serving app is
-# granted `-Sinherit-network`, which installs an allow-ALL address check.
-#
-# THE FIX. `-S loopback-allow=<port[+port...]>` names the loopback ports a
-# process may dial; everything else on loopback is refused. Enforced at all
-# three places a dial can leave a guest:
-#   1. egress.rs connect_addr      — wasi:sockets under transparent egress
-#      (that path REPLACES the host connect, so the address check never sees it)
-#   2. egress.rs connect_authority — wasi:http literal-IP destinations
-#      + connect_direct, the same rule when egress is OFF (wasi:http does not
-#      consult the address check at all, so this path would escape it entirely).
-#      It judges RESOLVED addresses, so a NAME pointing at loopback is caught.
-#   3. src/common.rs socket_addr_check — wasi:sockets with no egress. Installed
-#      ONLY where it can TIGHTEN: with egress on (replacing that check with a
-#      stricter one) or with inherit-network on (replacing allow-all). With
-#      neither, the default is deny-all and we leave it alone.
-# Bind is untouched — a tenant must bind its own assigned ports (the manager's
-# bind audit polices which). UDP egress stays denied under transparent egress.
-#
-# UNSET = the previous behaviour (any loopback port), so a hand-launched
-# wasmtime — the manager's own probe processes — is unchanged. wasm_manager.py
-# passes the flag on EVERY tenant launch, with that deployment's own ports plus
-# the manager port (only with encrypted volumes) and the egress front (only when
-# one was given); test/wasm-loopback-flag.test.mjs pins that, and
-# test/egress.test.mjs drives this patch through a real binary against a real
-# listener standing in for the neighbour.
-#
-# PLUS-SEPARATED, and that is not cosmetic. `-S` splits its OWN argument on
-# commas before any option sees the value, so the comma-joined list this patch
-# first shipped with parsed as `loopback-allow=<first>` plus a bogus option named
-# `<second>`, and wasmtime exited with "unknown -S / --wasi option: <port>".
-# Every tenant on the box died at launch the first time an image carrying this
-# patch reached the fleet (2026-07-30 00:43Z, release v0.5.296: three
-# deployments, all `failed`, card idle, provisioning backing off). The launcher
-# greps this option's HELP TEXT for the `+` form to decide whether a toolchain
-# speaks it, so a manager that joins with `+` refuses to pass the flag at all to
-# an older comma-only binary instead of killing its tenants. The parser still
-# accepts ',' for non-CLI callers, where nothing splits it.
-#
-# Verified against wasmtime v45.0.0 with the full shipped patch stack applied in
-# Dockerfile order: cargo check clean, and 18/18 of test/egress.test.mjs green
-# on a debug build of the result.
 diff --git a/crates/cli-flags/src/lib.rs b/crates/cli-flags/src/lib.rs
-index 6ba2aa3..ea297ca 100644
+index 6957fd834c..2a2b0f657d 100644
 --- a/crates/cli-flags/src/lib.rs
 +++ b/crates/cli-flags/src/lib.rs
-@@ -538,6 +538,25 @@ wasmtime_option_group! {
+@@ -559,6 +559,25 @@ wasmtime_option_group! {
          /// and the relay. Requires TCP granted (`-Stcp`).
          #[serde(default)]
          pub egress: Option<String>,
@@ -81,19 +28,11 @@ index 6ba2aa3..ea297ca 100644
          /// Flag for WASI preview2 to inherit the host's network within the
          /// guest so it has full access to all addresses/ports/etc.
          pub inherit_network: Option<bool>,
-diff --git a/crates/wasi-http/src/p2/mod.rs b/crates/wasi-http/src/p2/mod.rs
-index d8f9767..772c6ff 100644
---- a/crates/wasi-http/src/p2/mod.rs
-+++ b/crates/wasi-http/src/p2/mod.rs
-@@ -579,7 +579,6 @@ pub async fn default_send_request_handler(
-     use crate::io::TokioIo;
-     use crate::p2::{error::dns_error, hyper_request_error};
-     use http_body_util::BodyExt;
--    use tokio::net::TcpStream;
-     use tokio::time::timeout;
- 
-     if !request.headers().contains_key(hyper::header::HOST) {
-@@ -611,7 +610,10 @@ pub async fn default_send_request_handler(
+diff --git a/crates/wasi-http/src/default_send_request.rs b/crates/wasi-http/src/default_send_request.rs
+index d719649feb..2b99fcd6b7 100644
+--- a/crates/wasi-http/src/default_send_request.rs
++++ b/crates/wasi-http/src/default_send_request.rs
+@@ -75,7 +75,10 @@ pub async fn default_send_request(
              let (host, port) = wasmtime_wasi::egress::split_authority(&authority);
              wasmtime_wasi::egress::connect_authority(host, port).await
          } else {
@@ -104,23 +43,9 @@ index d8f9767..772c6ff 100644
 +            wasmtime_wasi::egress::connect_direct(&authority).await
          }
      };
-     let tcp_stream = timeout(connect_timeout, connect_fut)
-diff --git a/crates/wasi-http/src/p3/request.rs b/crates/wasi-http/src/p3/request.rs
-index 6f2d081..16d2862 100644
---- a/crates/wasi-http/src/p3/request.rs
-+++ b/crates/wasi-http/src/p3/request.rs
-@@ -335,7 +335,8 @@ pub async fn default_send_request(
-             let (host, port) = wasmtime_wasi::egress::split_authority(&authority);
-             wasmtime_wasi::egress::connect_authority(host, port).await
-         } else {
--            TcpStream::connect(&authority).await
-+            // egress off: the loopback policy still applies here (see p2).
-+            wasmtime_wasi::egress::connect_direct(&authority).await
-         }
-     };
      let stream = match tokio::time::timeout(connect_timeout, connect_fut).await {
 diff --git a/crates/wasi/src/egress.rs b/crates/wasi/src/egress.rs
-index abcab39..5b54ed5 100644
+index abcab3927a..5b54ed5030 100644
 --- a/crates/wasi/src/egress.rs
 +++ b/crates/wasi/src/egress.rs
 @@ -4,7 +4,9 @@
@@ -273,10 +198,10 @@ index abcab39..5b54ed5 100644
              }
              Dest::Ip(ip)
 diff --git a/src/common.rs b/src/common.rs
-index 263a9bc..0f4d04d 100644
+index bece6a0020..0d49bd92c9 100644
 --- a/src/common.rs
 +++ b/src/common.rs
-@@ -407,16 +407,55 @@ impl RunCommon {
+@@ -411,16 +411,61 @@ impl RunCommon {
          // (Placed after inherit-network handling so egress's stricter check wins
          // if both are somehow set.)
          if let Some(spec) = &self.common.wasi.egress {
@@ -327,13 +252,19 @@ index 263a9bc..0f4d04d 100644
 +            builder.socket_addr_check(move |addr, use_| {
 +                let allow = match use_ {
 +                    SocketAddrUse::TcpBind | SocketAddrUse::UdpBind => true,
++                    // listen/accept on an already-bound socket: the bind check
++                    // was the gate; these must pass or every server app breaks
++                    // (new check points in wasmtime 49; v45 had no such uses).
++                    SocketAddrUse::TcpListen | SocketAddrUse::TcpAccept => true,
 +                    SocketAddrUse::TcpConnect => {
 +                        !addr.ip().is_loopback() || wasmtime_wasi::egress::loopback_allowed(addr.port())
 +                    }
 +                    // UDP egress: unchanged either way — denied under transparent
 +                    // egress (there is no UDP front), otherwise as permissive as
-+                    // the flags the guest was granted.
-+                    SocketAddrUse::UdpConnect | SocketAddrUse::UdpOutgoingDatagram => !egress_on,
++                    // the flags the guest was granted. (49 renamed the send-side
++                    // uses; reception was never an egress question.)
++                    SocketAddrUse::UdpSend => !egress_on,
++                    SocketAddrUse::UdpReceive => true,
 +                };
                  Box::pin(async move { allow })
              });

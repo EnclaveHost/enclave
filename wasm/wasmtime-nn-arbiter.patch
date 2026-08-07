@@ -1,63 +1,6 @@
-# enclave GPU request-level arbiter client - work-conserving fair share for
-# wasi-nn GPU tenants, against wasmtime v45.0.0.
-#
-# APPLY ORDER: LAST, after wasmtime-nn-onnx-preload.patch (diffed against a
-# tree with every other enclave patch applied; it touches ggml.rs, sdcpp.rs
-# and onnx.rs, which the nn patches create/rewrite).
-#
-# What it adds: crates/wasi-nn/src/arbiter.rs - a std-only client (no crates,
-# no Cargo.lock delta) for the wasm-manager's GPU arbiter socket - plus one
-# `arbiter::turn(gpu)` RAII acquire around each natural GPU compute quantum:
-#   ggml.rs   the merged decode turn (leader), the full-logits verify pass,
-#             MTP observe/draft head decodes, the vision-encoder eval
-#   onnx.rs   each session.run of an ExecutionTarget::Gpu session
-#   sdcpp.rs  each denoise STEP - via the sd shim's dlsym-OPTIONAL
-#             esd_set_step_cb hook (an older tarball = one whole-image turn,
-#             bounded by the server's lease revoke)
-# and an eager connect+hello in serve.rs right after the listener binds,
-# which is what the wasm-manager's capability probe observes (it launches a
-# throwaway serve pointed at a probe socket and requires an actual hello -
-# no help-text marker, the probed thing IS the behavior).
-#
-# WHY: CUDA_MPS_ACTIVE_THREAD_PERCENTAGE is a static partition fixed at MPS
-# attach - a 5%-share tenant is locked to ~5% of the SMs even on an idle
-# card, and MPS has no fair-share scheduler to do better. Under a live
-# arbiter the manager launches GPU tenants with the FULL SM budget and
-# fairness moves here: short weighted turns per compute quantum, granted
-# instantly when the card is idle (burst to 100%) and in gpuShare proportion
-# when contended (weighted fair queuing over virtual time, server-side).
-# Pinned VRAM stays share-sized - device memory cannot be reclaimed from a
-# burster, so it can never be work-conserving.
-#
-# FAIL-OPEN everywhere: no env = every turn() is a free no-op; any socket
-# failure = computes run unarbitrated while a rate-limited reconnect retries
-# (a wasm-manager restart must re-arm arbitration without tenant relaunches);
-# a grant unanswered past the watchdog = drop the connection and run. The
-# worst failure mode is plain uncapped sharing - never a stalled tenant.
-# Rollout is manager-side (WASM_NN_ARBITER + the probe): this patch alone
-# changes nothing until the manager arms the env, so toolchain and manager
-# releases stay order-independent.
-#
-# Build: no new features; rides the existing wasi-nn/ggml/sdcpp/onnx flags.
-# cargo check clean 2026-07-31 (full tree) + 2026-08-01 (wire-format
-# hardening: the grant parser trims spacing after '"id":' - the server
-# emitting pythonic spacing once dropped every grant and put each decode
-# on the 120s watchdog; now either side alone survives the other
-# regressing).
-#
-# 2026-08-03 (mm19 observe-fold interop): the mtp_draft turn now covers the
-# folded observe + draft chain in one grant - pre-fold these were two
-# separate arbiter grants per speculative round.
-#
-# 2026-08-04 (mm25 fused-round interop): ONE turn covers the entire
-# "mtp_round" verb - head observe, k-step draft chain, and the trunk
-# verify decode - where the standalone verbs pay two grants per
-# speculative round. The turn is taken before the observe (outside the
-# verify-decode phase window), so the fused verb's decode slot reports
-# ph_decode unsubtracted; ph[2] still reports the wait itself.
 diff --git a/crates/wasi-nn/src/arbiter.rs b/crates/wasi-nn/src/arbiter.rs
 new file mode 100644
-index 0000000..d8ccfc3
+index 0000000000..d8ccfc30af
 --- /dev/null
 +++ b/crates/wasi-nn/src/arbiter.rs
 @@ -0,0 +1,319 @@
@@ -381,7 +324,7 @@ index 0000000..d8ccfc3
 +    }
 +}
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
-index 2240373..23545a7 100644
+index 22403731ee..23545a7b2f 100644
 --- a/crates/wasi-nn/src/backend/ggml.rs
 +++ b/crates/wasi-nn/src/backend/ggml.rs
 @@ -905,7 +905,13 @@ impl GgmlServer {
@@ -482,7 +425,7 @@ index 2240373..23545a7 100644
              ell_mtp_draft2(h.0, seq, id_last, n_past, k, p_min, out.as_mut_ptr(), op, ot, on)
          };
 diff --git a/crates/wasi-nn/src/backend/onnx.rs b/crates/wasi-nn/src/backend/onnx.rs
-index 2a06def..77ea65b 100644
+index 2a06def819..77ea65b785 100644
 --- a/crates/wasi-nn/src/backend/onnx.rs
 +++ b/crates/wasi-nn/src/backend/onnx.rs
 @@ -162,7 +162,7 @@ impl BackendFromDir for OnnxBackend {
@@ -532,7 +475,7 @@ index 2a06def..77ea65b 100644
                  for i in 0..self.outputs.len() {
                      let tensor = extract_output_tensor(&session_outputs[i])?;
 diff --git a/crates/wasi-nn/src/backend/sdcpp.rs b/crates/wasi-nn/src/backend/sdcpp.rs
-index d4db59b..31c214f 100644
+index d4db59b0f9..31c214fd65 100644
 --- a/crates/wasi-nn/src/backend/sdcpp.rs
 +++ b/crates/wasi-nn/src/backend/sdcpp.rs
 @@ -286,18 +286,74 @@ impl BackendFromDir for SdCppBackend {
@@ -637,7 +580,7 @@ index d4db59b..31c214f 100644
          if rc != 0 {
              return Err(err(format!("txt2img failed (rc {rc}): {}", last_error())));
 diff --git a/crates/wasi-nn/src/lib.rs b/crates/wasi-nn/src/lib.rs
-index 18444ee..b83ac9c 100644
+index 18444eefbb..b83ac9c41a 100644
 --- a/crates/wasi-nn/src/lib.rs
 +++ b/crates/wasi-nn/src/lib.rs
 @@ -1,3 +1,4 @@
@@ -646,10 +589,10 @@ index 18444ee..b83ac9c 100644
  mod registry;
  pub mod wit;
 diff --git a/src/commands/serve.rs b/src/commands/serve.rs
-index a824307..4314aa1 100644
+index 9661d0d96e..64fbb49fcd 100644
 --- a/src/commands/serve.rs
 +++ b/src/commands/serve.rs
-@@ -645,6 +645,16 @@ impl ServeCommand {
+@@ -658,6 +658,16 @@ impl ServeCommand {
  
          log::info!("Listening on {}", self.addr);
  

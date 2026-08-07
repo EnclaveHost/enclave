@@ -62,6 +62,16 @@
 # tier-2. Until that day these pins move DELIBERATELY, TOGETHER, and are
 # announced: publishers' rebuilds must keep matching their published CIDs.
 #
+# The same event unlocks COOPERATIVE THREADS (std::thread) for Rust guests:
+# the platform already serves them (wasmtime 49 line, -W component-model-
+# threading, claim-routed via the `threads` config stamp) and C/C++ publishers
+# build them TODAY via Dockerfile.wasip3c-build — Rust alone is gated on the
+# codegen ABI. Verified 2026-08-07 against nightly-2026-08-04: the builtin
+# spec's `--cooperative-threading` + LLVM-22 codegen dies at link with
+# "object file uses globals for thread context". When the retirement event
+# fires, ALSO link the coop-flavored libc (ENABLE_COOP_THREADS=ON, see the
+# C image) and re-run the platform thread suite before announcing.
+#
 # Guest-side facts this recipe bakes in (see the develop guide's WASIp3
 # chapter): wasip3 crate must be PINNED =0.6.0 (its world is
 # wasi:http@0.3.0-rc-2026-03-15, which the fleet's wasmtime 45 serves; 0.7.x

@@ -104,7 +104,11 @@ def component_contract(data: bytes):
     """{"wasi": "0.2"|"0.3"|None, "world": <deciding export>|None} for a layer-1
     component; scans length-prefixed wasi:* names inside the TOP-LEVEL import
     (10) / export (11) sections only — nested core modules are never opened."""
-    out = {"wasi": None, "world": None}
+    # `threads`: the cooperative-threads (🧵) marker — the coop runtime's core
+    # module imports `[thread-new-indirect-v0]` and siblings, length-prefixed
+    # names sitting verbatim in the bytes (same raw-scan doctrine as the
+    # wasi: strings below). Publish paths stamp it as `threads: true`.
+    out = {"wasi": None, "world": None, "threads": b"[thread-" in data}
     if len(data) < 8 or data[0:4] != b"\x00asm" or (data[6] | (data[7] << 8)) != 1:
         return out
     exports = set()
@@ -138,7 +142,7 @@ def component_contract(data: bytes):
                         ("wasi:cli/run@0.2.", "0.2")):
         hit = sorted(e for e in exports if e.startswith(prefix))
         if hit:
-            return {"wasi": ver, "world": hit[0]}
+            return {**out, "wasi": ver, "world": hit[0]}
     return out
 
 

@@ -1,182 +1,108 @@
-# enclave ggml wasi-nn backend - GGUF language models (llama.cpp) behind the
-# standard wasi:nn interface, against wasmtime v45.0.0.
-#
-# APPLY ORDER: LAST, after wasmtime-onnx-gpu-strict.patch (this diff is based
-# on a tree with the other enclave patches applied - both touch
-# crates/wasi-nn/Cargo.toml and backend/mod.rs).
-#
-# What it adds: crates/wasi-nn/src/backend/ggml.rs (a backend that binds the
-# system-linked enclave_llama shim - see wasm/llama-shim/), its registration
-# in backend/mod.rs + wit.rs FromStr ("ggml" now parses for -S nn-graph), a
-# no-dependency `ggml` cargo feature, build.rs link directives driven by
-# ELL_LIB_LOCATION (same system-link pattern as ORT_LIB_LOCATION), and the
-# serve-startup preload hoist (serve.rs + wasi-nn lib.rs/in_memory.rs, below).
-# The ggml backend adds NO crates (pure std + FFI); the Cargo.lock hunk only
-# records the other patches' deps (half, sha2).
-#
-# Model delivery: -S nn-graph=ggml::<dir> preloads <dir>/model.gguf (or the
-# single *.gguf, or part 00001 of ONE complete "<prefix>-NNNNN-of-MMMMM.gguf"
-# split family - HF's 50GB per-file cap forces big models to ship split, and
-# llama.cpp derives the sibling paths from part 00001's file name) under the
-# DIRECTORY BASENAME; guests load_by_name() it, so
-# weights never transit the guest's 32-bit linear memory - model size is
-# bounded by the tenant's share, not wasm32. The model loads ONCE per
-# process, AT SERVER STARTUP: upstream `wasmtime serve` preloads -S nn-graph
-# inside new_store(), i.e. per request store (wasip2 components get a fresh
-# store per request), which would pull a multi-GB GGUF into VRAM on every
-# request and free it after. This patch hoists the preload to right after
-# the listener binds (weights hit VRAM the moment the deployment is up;
-# connections arriving during the load queue in the listen backlog) and
-# shares the graphs with every store through Arc'd registry clones
-# (InMemoryRegistry gains Clone, lib.rs gains preload_registry()). A graph
-# that fails to preload (typically CUDA OOM: the share cannot hold it) is
-# SKIPPED loudly instead of killing the server: the deployment serves the
-# graphs that did fit, and a guest load_by_name() of a skipped graph errors
-# per-model. The wasm-manager emits ggml graphs SMALLEST-FIRST, so what fits
-# is deterministic (residency is first-come-first-served within the share)
-# and one published app scales with the deployment's resources - llm-chat's
-# smallest-first warmup ladder + unfit-model reporting ride on this.
-# Contract: input "tokens" I32 [1,n] -> output "logits" Fp32 [1,n_vocab].
-# VISION: a volume that pairs its model with an *mmproj*.gguf projector also
-# accepts input "image" U8 [n] = one image FILE's bytes -> output "image_pos"
-# I32 [1], the positions it consumed; guests interleave it with "tokens" to
-# place a picture inside a rendered prompt, and "caps" gained a fourth element
-# (vision) so they can tell before they try. All the model-specific vision
-# work (marker tokens, non-causal image masks, M-RoPE image positions) lives
-# in libmtmd behind the shim's ell_mtmd_* entry points, which this backend
-# resolves by DLSYM rather than linking: a node whose toolchain tarball
-# predates them builds and serves exactly as before and reports vision=0, so
-# turning vision on is a toolchain bump, never a rebuild requirement. The
-# projector is loaded LAZILY, on the first image, so text-only deployments
-# never pay its VRAM. A volume's projector is also what keeps its second gguf
-# from confusing the model pick (is_mmproj_name).
-# CONTINUOUS BATCHING: each graph has ONE shared llama context (created on
-# first use) with a unified KV pool of N_CTX tokens total; a wasi-nn
-# execution context is a SEQUENCE HANDLE into it (per-request cost = a seq
-# slot, not a context allocation), and concurrent requests' decode steps
-# merge into single llama_decode calls (leader protocol in GgmlServer).
-# GGUF volumes must also carry tokenizer.json (guest-side tokenization).
-#
-# GPU: the llama.cpp libs are GGML_BACKEND_DL builds - the cpu/cuda compute
-# backends are dlopened MODULES, loaded by the shim's ell_init() from
-# ENCLAVE_GGML_BACKEND_DIR. The wasmtime binary therefore carries NO
-# DT_NEEDED on libcuda.so.1 (driver libs exist only where the nvidia
-# container runtime injects them - never on CPU-flavor nodes). STRICT GPU:
-# offload requested (ENCLAVE_GGML_N_GPU_LAYERS != 0) + no ggml GPU device
-# loaded = loud load failure, never a silent CPU fallback. The preload
-# registry hardcodes ExecutionTarget::Cpu, so the env is ALSO what turns
-# offload on for preloaded graphs (the wasm-manager sets -1 per GPU tenant).
-#
-# Tuning env (host process only): ENCLAVE_GGML_N_CTX (default 8192 - the
-# SHARED pool size in tokens, not a per-request window),
-# ENCLAVE_GGML_N_BATCH (512), ENCLAVE_GGML_N_GPU_LAYERS (-1 = offload all),
-# ENCLAVE_GGML_MAX_SESSIONS (default 1 - concurrent sequences per graph;
-# slots share the ONE pool so raising it costs no extra pre-allocated VRAM;
-# no free slot = fail-fast [sessions_busy] for guests to wait-and-retry on,
-# pool pressure at decode = retryable [kv_pool_full]),
-# ENCLAVE_GGML_BACKEND_DIR (backend-module dir; unset = exe dir + cwd).
-# Vision-only knobs: ENCLAVE_GGML_IMAGE_MAX_TOKENS (cap the tokens ONE image
-# may expand to on dynamic-resolution models; 0 = the mmproj's metadata),
-# ENCLAVE_GGML_MMPROJ_FILE (projector name when it is not *mmproj*.gguf),
-# ENCLAVE_GGML_MTMD_THREADS (preprocessing threads, default 4), and
-# ENCLAVE_GGML_N_UBATCH - read by the SHIM, and needed only by models that
-# decode images with a non-causal mask, which must hold a whole image in one
-# physical batch ([image_too_wide] otherwise).
-#
-# Build: cargo build --release --features "wasi-nn,wasmtime-wasi-nn/ggml"
-# with ELL_LIB_LOCATION=<dir holding libenclave_llama.so + libllama.so>
-# (the enclave-llamacpp toolchain artifact; llamacpp-toolchain.yml builds it).
-# CPU-smoked 2026-07-07 on the fully-patched tree (qwen2.5-0.5b q4_k_m,
-# ~114 tok/s via the dlopened cpu module; self-deterministic; strict-GPU
-# guard + no-backend failure paths exercised). NOTE: greedy token streams
-# differ between GGML_NATIVE=ON and =OFF kernel builds (near-tie argmax
-# flips) - compare like with like when validating determinism. Split-family
-# smoke 2026-07-09: a q4_k_m gguf-split into 3 parts loads through the staged
-# symlink dir and greedy-decodes TOKEN-IDENTICAL to the merged file.
-#
-# 2026-08-01 topk prefilter: an optional {"topk": K} input beside "tokens"
-# makes every logits return sparse - "topk_ids" I32 [n,K] + "topk_logits"
-# Fp32 [n,K], host-side selection, rows sorted descending. Motivated by the
-# speculative-decoding round-cost measurement (~90-120ms per verify round,
-# dominated by (k+1) full-vocab rows crossing the guest boundary + wasm
-# scans); also trims the per-token tax of plain decode. Guests sniff the
-# output name and fall back to dense "logits" on engines without it.
-#
-# 2026-08-01 timing verb: {"timing": 1} beside any verb appends "elapsed_us"
-# I32 [1] (wall time of the whole compute call, lock waits included) to the
-# outputs. The per-verb instrument that replaced guessing at the speculative
-# round-cost decomposition; costs one Instant::now when unused.
-#
-# 2026-08-02 d2h_probe verb: {"d2h_probe": I32 [size_mb]} -> "d2h" I32
-# [pinned_ok, pinned_us, pageable_us], backed by the shim's ell_d2h_probe.
-# Times a real device->host copy both ways from inside the CVM - the only
-# way to see whether ggml-cuda's pinned host buffer silently demoted to
-# pageable under SEV-SNP (the standing suspect for the flat ~20-26ms
-# multi-row logits-copy tax that killed speculation economics).
-#
-# 2026-08-02 phase_us (mm9): the verify verb ("all" + "topk") also returns
-# "phase_us" I32 [gate_us, alloc_us, decode_us, harvest_us, topk_us] - the
-# named decomposition of the elapsed_us window. Built to corner the ~20ms
-# of per-verify time that kernels, copies, boundaries, launch counts, MPS
-# caps and D2H rates all measurably do NOT account for; prime remaining
-# suspects are the serialization gate and the fresh multi-MB logits alloc
-# (SNP page acceptance). elapsed minus sum(phase_us) = wit-layer overhead.
-#
-# 2026-08-03 rewind-depth caps (mm18): "caps" grows a 7th element,
-# rewind_depth - the context's effective recurrent-snapshot depth (the shim
-# reads ENCLAVE_GGML_N_RS_SEQ at server-context creation; llama zeroes it on
-# archs without rollback support). > 0 tells a speculative guest that
-# "rewind" of up to that many trailing tokens of the last decode works EVEN
-# on recurrent/hybrid models, enabling the no-branch verify: feed the draft
-# on the REAL sequence, rewind the rejected tail. Stable seq id + stable
-# shape is what lets llama's graph slots and CUDA-graph capture hold across
-# rounds - the replay the scratch-branch strategy kept defeating.
-#
-# 2026-08-03 mtp observe-fold (mm19): "mtp_draft" accepts a companion
-# "mtp_obs" [pos0, tokens...] input - the previous round's accepted tokens
-# observe into the head inside the SAME call (ell_mtp_draft2), removing the
-# per-round mtp_accept round trip (measured 9.5-14 ms on the fleet, mostly
-# boundary + sync). caps grows an 8th element (mtp_fold=1). The shim also
-# made the draft confidence gate exact-but-cheap (exp only within 16 of the
-# max logit) - the full-vocab exp sum measured ~2.7 ms per drafted token on
-# SNP vCPUs.
-#
-# 2026-08-03 sync-instr caps (mm20): caps grows [8]=cumulative CUDA
-# stream-sync ms and [9]=sync call count (from the engine's
-# ggml_backend_cuda_sync_stats via the shim's dlsym'd ell_cuda_sync_stats;
-# -1 = module predates the instrument). Guests report per-generation deltas
-# - the direct measurement of the ~5-8 ms per-decode fixed cost suspected
-# to be the SEV-SNP sync tax.
-#
-# 2026-08-03 gperf probe (mm21): cumulative llama decode-stage millis via
-# the "gperf" verb [build, alloc, input, slot, mem-init, compute-call,
-# output] - fed by ell_graph_perf2 after every leader decode. Names the
-# CPU-orchestration-bound ~15 ms/token (mm20 proved sync waits are 0.18).
-#
-# 2026-08-04 fused round (mm25): the "mtp_round" verb runs a WHOLE
-# rewind-commit speculative round in one call - the optional mtp_obs
-# observe, the head's k-draft chain, and the all-positions verify of
-# [pending.., drafts..] with rows harvested for the calling sequence.
-# Output "draft" + "topk_ids"/"topk_logits" + "phase_us" I32 [11]
-# ([10] = the draft chain). caps[10] advertises it. One boundary
-# crossing instead of two per round; the arbiter layer narrows two
-# grants to one on top. The observe runs BEFORE any decode, so its
-# failure ([mtp_obs_failed]) leaves the harvest rows intact and the
-# guest recovers exactly like the standalone path.
-#
-# 2026-08-04 device top-k rows (mm26): when the shim arms
-# ENCLAVE_GGML_DEV_TOPK, small decodes return the device-computed top-K
-# (RowOut/RowsOut::TopK) via ell_decode_seq_topk / ell_decode_batch_topk
-# and the "topk_ids"/"topk_logits" outputs are built straight from them -
-# no full-vocab extraction, no host-side scan. Wide batches (prefill) and
-# unarmed engines keep the Dense path byte-for-byte. caps[11] = armed K.
-# Dense "logits" requests on an armed engine are refused with a clear
-# error (the full row never leaves the device).
 diff --git a/Cargo.lock b/Cargo.lock
-index 6ffaac1..3c68c51 100644
+index d459cc9f0d..ebf27ee9e3 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
-@@ -2818,6 +2818,7 @@ version = "2.0.0-rc.10"
+@@ -26,6 +26,16 @@ version = "2.0.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "512761e0bb2578dd7380c6baaa0f4ce03e84f95e960231d1dec8bf4d7d6e2627"
+ 
++[[package]]
++name = "aead"
++version = "0.5.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "d122413f284cf2d62fb1b7db97e02edb8cda96d769b16e443a4f6195e35662b0"
++dependencies = [
++ "crypto-common",
++ "generic-array",
++]
++
+ [[package]]
+ name = "aes"
+ version = "0.8.4"
+@@ -463,6 +473,17 @@ version = "1.0.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+ 
++[[package]]
++name = "chacha20"
++version = "0.9.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "c3613f74bd2eac03dad61bd53dbe620703d4371614fe0bc3b9f04dd36fe4e818"
++dependencies = [
++ "cfg-if",
++ "cipher",
++ "cpufeatures 0.2.7",
++]
++
+ [[package]]
+ name = "chacha20"
+ version = "0.10.0"
+@@ -474,6 +495,19 @@ dependencies = [
+  "rand_core 0.10.0",
+ ]
+ 
++[[package]]
++name = "chacha20poly1305"
++version = "0.10.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "10cd79432192d1c0f4e1a0fef9527696cc039165d729fb41b3f4f4f354c2dc35"
++dependencies = [
++ "aead",
++ "chacha20 0.9.1",
++ "cipher",
++ "poly1305",
++ "zeroize",
++]
++
+ [[package]]
+ name = "ciborium"
+ version = "0.2.0"
+@@ -509,6 +543,7 @@ checksum = "773f3b9af64447d2ce9850330c473515014aa235e6a783b02db81ff39e4a3dad"
+ dependencies = [
+  "crypto-common",
+  "inout",
++ "zeroize",
+ ]
+ 
+ [[package]]
+@@ -1150,6 +1185,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "1bfb12502f3fc46cca1bb51ac28df9d618d813cdc3d2f25b9fe775a34af26bb3"
+ dependencies = [
+  "generic-array",
++ "rand_core 0.6.3",
+  "typenum",
+ ]
+ 
+@@ -1854,6 +1890,15 @@ version = "0.5.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "fc0fef456e4baa96da950455cd02c081ca953b141298e41db3fc7e36b1da849c"
+ 
++[[package]]
++name = "hkdf"
++version = "0.12.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "7b5f8eb2ad728638ea2c7d47a21db23b7b58a72ed6a38256b8a1849f15fbbdf7"
++dependencies = [
++ "hmac",
++]
++
+ [[package]]
+ name = "hmac"
+ version = "0.12.1"
+@@ -2688,6 +2733,12 @@ version = "11.1.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "0ab1bc2a289d34bd04a330323ac98a1b4bc82c9d9fcb1e66b63caa84da26b575"
+ 
++[[package]]
++name = "opaque-debug"
++version = "0.3.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
++
+ [[package]]
+ name = "openssl"
+ version = "0.10.80"
+@@ -2768,6 +2819,7 @@ version = "2.0.0-rc.10"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "1fa7e49bd669d32d7bc2a15ec540a527e7764aec722a45467814005725bcd721"
  dependencies = [
@@ -184,10 +110,69 @@ index 6ffaac1..3c68c51 100644
   "ort-sys",
   "smallvec 2.0.0-alpha.10",
   "tracing",
-@@ -5450,9 +5451,11 @@ name = "wasmtime-wasi-nn"
- version = "45.0.0"
+@@ -2923,6 +2975,17 @@ version = "0.3.32"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
+ 
++[[package]]
++name = "poly1305"
++version = "0.8.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "8159bd90725d2df49889a078b54f4f79e87f1f8a8444194cdca81d38f5393abf"
++dependencies = [
++ "cpufeatures 0.2.7",
++ "opaque-debug",
++ "universal-hash",
++]
++
+ [[package]]
+ name = "postcard"
+ version = "1.1.3"
+@@ -3066,7 +3129,7 @@ version = "0.10.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "d2e8e8bcc7961af1fdac401278c6a831614941f6164ee3bf4ce61b7edb162207"
  dependencies = [
-  "cap-std",
+- "chacha20",
++ "chacha20 0.10.0",
+  "getrandom 0.4.2",
+  "rand_core 0.10.0",
+ ]
+@@ -4160,6 +4223,16 @@ version = "0.2.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "957e51f3646910546462e67d5f7599b9e4fb8acdd304b087a6494730f9eebf04"
+ 
++[[package]]
++name = "universal-hash"
++version = "0.5.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "fc1de2c688dc15305988b563c3854064043356019f97a4b46276fe734c4f07ea"
++dependencies = [
++ "crypto-common",
++ "subtle",
++]
++
+ [[package]]
+ name = "unsafe-libyaml"
+ version = "0.2.11"
+@@ -5146,10 +5219,14 @@ dependencies = [
+  "bytes",
+  "cap-fs-ext",
+  "cap-primitives",
++ "chacha20poly1305",
+  "env_logger 0.11.5",
+  "futures",
++ "hkdf",
+  "rand 0.10.1",
+  "rustix 1.1.4",
++ "serde_json",
++ "sha2",
+  "tempfile",
+  "test-log",
+  "test-programs-artifacts",
+@@ -5233,9 +5310,11 @@ dependencies = [
+ name = "wasmtime-wasi-nn"
+ version = "49.0.0"
+ dependencies = [
 + "half 2.4.1",
   "libtest-mimic",
   "openvino",
@@ -197,10 +182,10 @@ index 6ffaac1..3c68c51 100644
   "test-programs-artifacts",
   "thiserror 2.0.17",
 diff --git a/crates/wasi-nn/Cargo.toml b/crates/wasi-nn/Cargo.toml
-index 98f6a9a..618b7c0 100644
+index e116efb1e1..48e79b20f3 100644
 --- a/crates/wasi-nn/Cargo.toml
 +++ b/crates/wasi-nn/Cargo.toml
-@@ -71,6 +71,9 @@ default = ["openvino", "winml"]
+@@ -70,6 +70,9 @@ default = ["openvino", "winml"]
  openvino = ["dep:openvino"]
  # ONNX is available on all platforms.
  onnx = ["dep:ort"]
@@ -211,7 +196,7 @@ index 98f6a9a..618b7c0 100644
  onnx-download = ["onnx", "ort/download-binaries"]
  # CUDA execution provider for NVIDIA GPU support (requires CUDA toolkit)
 diff --git a/crates/wasi-nn/build.rs b/crates/wasi-nn/build.rs
-index b2db808..af89d10 100644
+index b2db808d48..af89d103d8 100644
 --- a/crates/wasi-nn/build.rs
 +++ b/crates/wasi-nn/build.rs
 @@ -1,6 +1,17 @@
@@ -234,7 +219,7 @@ index b2db808..af89d10 100644
  
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
 new file mode 100644
-index 0000000..2240373
+index 0000000000..22403731ee
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
 @@ -0,0 +1,2275 @@
@@ -2514,7 +2499,7 @@ index 0000000..2240373
 +
 +}
 diff --git a/crates/wasi-nn/src/backend/mod.rs b/crates/wasi-nn/src/backend/mod.rs
-index f6f81e8..b8d8710 100644
+index f6f81e8080..b8d871003e 100644
 --- a/crates/wasi-nn/src/backend/mod.rs
 +++ b/crates/wasi-nn/src/backend/mod.rs
 @@ -2,6 +2,8 @@
@@ -2547,7 +2532,7 @@ index f6f81e8..b8d8710 100644
      {
          backends.push(Backend::from(PytorchBackend::default()));
 diff --git a/crates/wasi-nn/src/lib.rs b/crates/wasi-nn/src/lib.rs
-index b826f6a..3dd6190 100644
+index b826f6abab..3dd6190c17 100644
 --- a/crates/wasi-nn/src/lib.rs
 +++ b/crates/wasi-nn/src/lib.rs
 @@ -16,6 +16,17 @@ use wasmtime::format_err;
@@ -2589,7 +2574,7 @@ index b826f6a..3dd6190 100644
  
  /// A machine learning backend.
 diff --git a/crates/wasi-nn/src/registry/in_memory.rs b/crates/wasi-nn/src/registry/in_memory.rs
-index 0523c8d..797ae4d 100644
+index 0523c8d519..797ae4d076 100644
 --- a/crates/wasi-nn/src/registry/in_memory.rs
 +++ b/crates/wasi-nn/src/registry/in_memory.rs
 @@ -6,6 +6,10 @@ use crate::wit::ExecutionTarget;
@@ -2604,7 +2589,7 @@ index 0523c8d..797ae4d 100644
  impl InMemoryRegistry {
      pub fn new() -> Self {
 diff --git a/crates/wasi-nn/src/wit.rs b/crates/wasi-nn/src/wit.rs
-index 32e668e..805d5df 100644
+index 32e668e277..805d5df8a4 100644
 --- a/crates/wasi-nn/src/wit.rs
 +++ b/crates/wasi-nn/src/wit.rs
 @@ -389,6 +389,7 @@ impl FromStr for generated::graph::GraphEncoding {
@@ -2616,7 +2601,7 @@ index 32e668e..805d5df 100644
              "tensorflow" => Ok(generated::graph::GraphEncoding::Tensorflow),
              "tensorflowlite" => Ok(generated::graph::GraphEncoding::Tensorflowlite),
 diff --git a/src/commands/serve.rs b/src/commands/serve.rs
-index 6b491c7..a824307 100644
+index 48c2a23fb8..9661d0d96e 100644
 --- a/src/commands/serve.rs
 +++ b/src/commands/serve.rs
 @@ -48,6 +48,15 @@ const DEFAULT_WASIP3_MAX_INSTANCE_REUSE_COUNT: usize = 128;
@@ -2635,7 +2620,7 @@ index 6b491c7..a824307 100644
  struct Host {
      table: wasmtime::component::ResourceTable,
      ctx: WasiCtx,
-@@ -395,16 +404,17 @@ impl ServeCommand {
+@@ -399,16 +408,17 @@ impl ServeCommand {
          if self.run.common.wasi.nn == Some(true) {
              #[cfg(feature = "wasi-nn")]
              {
@@ -2663,7 +2648,7 @@ index 6b491c7..a824307 100644
              }
          }
  
-@@ -635,6 +645,36 @@ impl ServeCommand {
+@@ -648,6 +658,36 @@ impl ServeCommand {
  
          log::info!("Listening on {}", self.addr);
  

@@ -1964,6 +1964,13 @@ async function cmdPublish(rest) {
   const contract = componentContract(bytes);
   if (contract.wasi) say(`detected ${contract.wasi === "0.3" ? "WASIp3" : "WASIp2"} component (exports ${contract.world})`);
   else say("could not classify the component's wasi world from its exports; publishing without a wasi tag (runners will classify at launch)");
+  // cooperative threads (🧵): a coop-linked guest's core module imports
+  // `[thread-new-indirect-v0]` and siblings — length-prefixed names sitting
+  // verbatim in the binary, so the same raw-scan doctrine as the world scan.
+  // Stamped as `threads: true` so runners route claims to thread-capable
+  // boxes; the runner re-classifies the bytes at launch (routing, not trust).
+  const needsThreads = bytes.includes("[thread-");
+  if (needsThreads) say("detected cooperative threads (\u{1F9F5}): only thread-capable enclaves will claim it");
 
   // version defaults to the next integer for your app (labels are free-form, matched exactly on deploy)
   let version = f.version;
@@ -2016,11 +2023,21 @@ async function cmdPublish(rest) {
   // is immutable per version and approval-covered, the same envelope pattern
   // as gpuOptional/_media — no catalog schema change). A publisher-supplied
   // `wasi` never survives: the binary is the authority.
-  if (contract.wasi && rev >= 4) {
+  if ((contract.wasi || needsThreads) && rev >= 4) {
     let cfgObj; try { cfgObj = JSON.parse(f.config || "{}"); } catch { cfgObj = {}; }
-    if (cfgObj.wasi !== undefined && cfgObj.wasi !== contract.wasi)
-      say(`--config declared wasi ${JSON.stringify(cfgObj.wasi)} but the binary exports ${contract.world}; using the binary's answer`);
-    cfgObj.wasi = contract.wasi;
+    if (contract.wasi) {
+      if (cfgObj.wasi !== undefined && cfgObj.wasi !== contract.wasi)
+        say(`--config declared wasi ${JSON.stringify(cfgObj.wasi)} but the binary exports ${contract.world}; using the binary's answer`);
+      cfgObj.wasi = contract.wasi;
+    }
+    // threads: binary is the authority in BOTH directions — set when the
+    // marker is present, dropped when it isn't (an over-declared `threads`
+    // would route claims to thread boxes for nothing).
+    if (needsThreads) cfgObj.threads = true;
+    else if (cfgObj.threads !== undefined) {
+      say("--config declared threads but the binary carries no [thread- imports; dropping the key");
+      delete cfgObj.threads;
+    }
     f.config = JSON.stringify(cfgObj);
     if (Buffer.byteLength(f.config) > 4096) throw new Error("--config too long after the wasi stamp (≤ 4096 bytes)");
   }

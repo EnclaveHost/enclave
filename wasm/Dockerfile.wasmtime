@@ -28,7 +28,12 @@
 # ordinary wasm-manager rebuild.
 #
 # Keep WASMTIME_VERSION in lockstep with the P3/socket flags wasm_manager.py
-# was verified against (currently wasmtime 45).
+# was verified against (currently the wasmtime 49 dev commit below — the first
+# engine that parses cooperative-threading guests; see docs/wasip3-threads.md).
+# WASMTIME_VERSION accepts a tag OR a full commit sha: cooperative threading
+# shipped between releases, so the pin is the exact dev commit the local
+# thread-suite verification ran against. Move it to the v49.0.0 release tag
+# when that exists, re-verifying the same suite.
 # Base pinned by DIGEST, not just the mutable tag: this image is part of the
 # MEASURED enclave TCB, and its sidecar digest is what enclaves/*/tinfoil-config.yml
 # commits to. An upstream repush of the same tag silently changes the measurement,
@@ -36,11 +41,17 @@
 # cannot survive (see the root Dockerfile, which has always pinned). This digest is
 # what the tag resolved to when it was pinned, so pinning changed nothing about what
 # gets built - it only stopped it drifting. Re-pin deliberately on a base bump.
-FROM rust:1.93-bookworm@sha256:7c4ae649a84014c467d79319bbf17ce2632ae8b8be123ac2fb2ea5be46823f31 AS build
+# rust 1.97: wasmtime 49's MSRV is 1.95 (workspace rust-version), which the
+# previous 1.93 base predates.
+FROM rust:1.97-bookworm@sha256:14bc9c5966e7b3a385794b3d5389a8765668342025fbcc7b2e3d2866ac4bd8c3 AS build
 
-ARG WASMTIME_VERSION=v45.0.0
-RUN git clone --depth 1 --branch "${WASMTIME_VERSION}" \
-      https://github.com/bytecodealliance/wasmtime /src/wasmtime
+ARG WASMTIME_VERSION=ac0772970b9ad2cd53866d95db69e26311fe3b75
+# init+fetch instead of clone --branch: works for tags AND commit shas (same
+# pattern as the wasi-libc block in Dockerfile.wasip3-build).
+RUN git init -q /src/wasmtime && cd /src/wasmtime \
+ && git remote add origin https://github.com/bytecodealliance/wasmtime \
+ && git fetch -q --depth 1 origin "${WASMTIME_VERSION}" \
+ && git checkout -q FETCH_HEAD
 WORKDIR /src/wasmtime
 
 # ONNX Runtime GPU: Enclave's own PATCHED build (nan-onnxruntime), NOT Microsoft's
