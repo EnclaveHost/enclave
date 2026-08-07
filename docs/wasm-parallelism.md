@@ -213,9 +213,17 @@ enforced rather than hoped for:
 - **tables: per-view**, materialized from the same initializers. Cranelift
   rejects `table.atomic.*` upstream ("not yet implemented"), so no guest this
   engine can compile is *able* to express cross-thread table mutation.
-- **globals: snapshot at spawn.** `global.atomic.*` equally does not compile,
-  and a module with a MUTABLE `shared` global is refused at spawn rather than
-  silently diverging.
+- **globals: snapshot at spawn** — for PLAIN (numeric/vector) globals.
+  Reference-typed globals are skipped, so a view gets their module-declared
+  *initial* values instead: their contents are pointers tied to the primary
+  instance and must not leak across. `global.atomic.*` equally does not
+  compile, and a module with a MUTABLE `shared` global is refused at spawn
+  rather than silently diverging.
+
+Two limits worth naming rather than leaving in code comments: SET workers run
+with epoch interruption and fuel disabled (see the review checklist in
+`docs/HANDOFF-set-threads.md`, item 6), and each spawn costs a full
+instantiation.
 
 Spawn returns the ABI's `-1` ("spawn failed", which guests are required to
 handle) with a stderr diagnostic for any module shape whose view would not be
