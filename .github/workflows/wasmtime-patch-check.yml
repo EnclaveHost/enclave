@@ -10,9 +10,9 @@ name: wasmtime patch stack
 on:
   push:
     branches: [main]
-    paths: ["wasm/*.patch", ".github/workflows/wasmtime-patch-check.yml"]
+    paths: ["wasm/*.patch", "wasm/Dockerfile.wasmtime", ".github/workflows/wasmtime-patch-check.yml"]
   pull_request:
-    paths: ["wasm/*.patch"]
+    paths: ["wasm/*.patch", "wasm/Dockerfile.wasmtime"]
 
 permissions:
   contents: read
@@ -23,10 +23,19 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      - name: Clone wasmtime at the pinned tag
+      - name: Clone wasmtime at the pinned ref
         run: |
-          # tag must match Dockerfile.wasmtime's checkout
-          git clone --depth 1 --branch v45.0.0 https://github.com/bytecodealliance/wasmtime /tmp/wasmtime
+          # ONE source of truth: the ref comes out of Dockerfile.wasmtime's ARG,
+          # so this check can never drift from what the toolchain build uses.
+          # init+fetch (not clone --branch) because the ARG may be a commit sha —
+          # coop threads shipped between wasmtime releases (docs/wasip3-threads.md).
+          REF=$(sed -n 's/^ARG WASMTIME_VERSION=//p' "$GITHUB_WORKSPACE/wasm/Dockerfile.wasmtime")
+          test -n "$REF" || { echo "::error::could not read WASMTIME_VERSION from Dockerfile.wasmtime"; exit 1; }
+          echo "pinned ref: $REF"
+          git init -q /tmp/wasmtime && cd /tmp/wasmtime
+          git remote add origin https://github.com/bytecodealliance/wasmtime
+          git fetch -q --depth 1 origin "$REF"
+          git checkout -q FETCH_HEAD
       - name: Apply the stack in Dockerfile order
         run: |
           cd /tmp/wasmtime

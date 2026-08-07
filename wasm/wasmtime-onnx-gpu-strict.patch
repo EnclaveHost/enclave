@@ -1,5 +1,5 @@
 diff --git a/crates/wasi-nn/Cargo.toml b/crates/wasi-nn/Cargo.toml
-index 724ea33..98f6a9a 100644
+index e787a5f00a..e116efb1e1 100644
 --- a/crates/wasi-nn/Cargo.toml
 +++ b/crates/wasi-nn/Cargo.toml
 @@ -32,7 +32,10 @@ thiserror = { workspace = true }
@@ -14,7 +14,7 @@ index 724ea33..98f6a9a 100644
  
  [target.'cfg(target_pointer_width = "64")'.dependencies]
 diff --git a/crates/wasi-nn/src/backend/mod.rs b/crates/wasi-nn/src/backend/mod.rs
-index 8ea57c1..0bfe7bf 100644
+index 8ea57c195e..f6f81e8080 100644
 --- a/crates/wasi-nn/src/backend/mod.rs
 +++ b/crates/wasi-nn/src/backend/mod.rs
 @@ -114,7 +114,9 @@ impl Id {
@@ -29,7 +29,7 @@ index 8ea57c1..0bfe7bf 100644
      #[error("Failed while accessing guest module")]
      GuestAccess(#[from] GuestError),
 diff --git a/crates/wasi-nn/src/backend/onnx.rs b/crates/wasi-nn/src/backend/onnx.rs
-index c7cc645..c1f8576 100644
+index c7cc645d35..2a06def819 100644
 --- a/crates/wasi-nn/src/backend/onnx.rs
 +++ b/crates/wasi-nn/src/backend/onnx.rs
 @@ -18,8 +18,26 @@ use ort::{
@@ -333,16 +333,3 @@ index c7cc645..c1f8576 100644
  pub fn f32_vec_to_bytes(data: Vec<f32>) -> Vec<u8> {
      data.into_iter().flat_map(f32::to_le_bytes).collect()
  }
-diff --git a/src/commands/serve.rs b/src/commands/serve.rs
-index c69678f..6b491c7 100644
---- a/src/commands/serve.rs
-+++ b/src/commands/serve.rs
-@@ -804,7 +804,7 @@ impl HandlerState for HostHandlerState {
-     }
- 
-     fn handle_worker_error(&self, error: wasmtime::Error) {
--        eprintln!("worker error: {error}");
-+        eprintln!("worker error: {error:?}");
-     }
- }
- 

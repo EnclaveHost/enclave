@@ -16,9 +16,9 @@ on:
   workflow_dispatch:
     inputs:
       wasmtime-version:
-        description: 'wasmtime tag to build (e.g. v45.0.0)'
+        description: 'wasmtime tag or commit sha to build (must match Dockerfile.wasmtime ARG)'
         required: true
-        default: 'v45.0.0'
+        default: 'ac0772970b9ad2cd53866d95db69e26311fe3b75'
         type: string
 
 concurrency:

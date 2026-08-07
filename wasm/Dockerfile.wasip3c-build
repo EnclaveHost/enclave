@@ -1,0 +1,128 @@
+# wasip3 C/C++ COOPERATIVE-THREADS build image: the reproducible toolchain a
+# publisher uses to build a threaded (pthread) wasi:http/cli component for the
+# platform. This is the FIRST guest toolchain that can target cooperative
+# threads (wasip3 🧵) — Rust cannot yet: rustc's LLVM-22 codegen still emits
+# the globals-based thread-context ABI, and lld refuses to mix it with the
+# libcall ABI coop threading needs ("object file uses globals for thread
+# context, but --cooperative-threading was specified"). The Rust recipe
+# (Dockerfile.wasip3-build) picks threads up at its documented retirement
+# event: rustc landing on LLVM 23. C/C++ needs no such wait — wasi-sdk 34's
+# clang IS LLVM 23.
+#
+# The chain, every link pinned:
+#   - wasi-sdk-34.0-rc.2: clang 23 + wasm-ld 23 (knows `--cooperative-threading`)
+#     — the same SDK whose wasi-libc submodule rev the Rust recipe pins.
+#   - wasi-libc at the rev below, built here with -DTARGET_TRIPLE=wasm32-wasip3
+#     -DENABLE_COOP_THREADS=ON: the SHIPPED SDK sysroot is a no-threads build
+#     (pthread_create returns ENOTSUP at runtime — found the hard way), so the
+#     coop flavor must be compiled from source. Its pthreads ride the
+#     component-model task system: `pthread_create` lowers to the
+#     `thread.new-indirect` canon builtin, futexes to waitable-sets.
+#   - wasm-component-ld v0.5.28: the SDK ships 0.5.27, which cannot encode the
+#     coop-threading core module ("failed to encode component"); wasi-libc's
+#     own cmake floor agrees (WASM_COMPONENT_LD_REQUIRED_VERSION 0.5.28). The
+#     release binary REPLACES the SDK's copy so clang's stock driver link
+#     works — the driver hardcodes its own bin dir.
+#
+# What comes out runs ONLY on a thread-capable box (wasmtime >= the 49 dev
+# line with -W component-model-threading): the publish path stamps
+# `threads: true` from the `[thread-` imports and claim routing keeps it off
+# older boxes. Threads are COOPERATIVE: they interleave on the instance's
+# async runtime (a blocking futex wait suspends the thread, it no longer
+# aborts the instance) — concurrency for thread-shaped code, not extra cores.
+#
+# Usage (mirrors the Rust image):
+#   docker run --rm -v "$PWD":/src enclave-wasip3c-build \
+#     threads-app.c -o app.wasm [-lpthread implied by -pthread]
+#
+# Base pinned by DIGEST (repo discipline: a repushed tag silently changes what
+# "the same recipe" builds).
+FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241 AS build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl xz-utils git ninja-build python3 \
+ && rm -rf /var/lib/apt/lists/*
+
+# CMake by pinned release (wasi-libc's floor is 3.26; bookworm apt has 3.25)
+ARG CMAKE_URL=https://github.com/Kitware/CMake/releases/download/v3.31.7/cmake-3.31.7-linux-x86_64.tar.gz
+ARG CMAKE_SHA256=14e15d0b445dbeac686acc13fe13b3135e8307f69ccf4c5c91403996ce5aa2d4
+RUN curl -fsSL -o /tmp/cmake.tgz "${CMAKE_URL}" \
+ && echo "${CMAKE_SHA256}  /tmp/cmake.tgz" | sha256sum -c - \
+ && tar -xzf /tmp/cmake.tgz -C /opt && rm /tmp/cmake.tgz
+ENV PATH=/opt/cmake-3.31.7-linux-x86_64/bin:${PATH}
+
+# wasi-sdk 34 rc.2 — clang 23, wasm-ld 23, and the stock (no-threads) sysroot
+ARG WASI_SDK_URL=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34-rc.2/wasi-sdk-34.0-rc.2-x86_64-linux.tar.gz
+ARG WASI_SDK_SHA256=114ee5fe63cb5f2a6c0febcee446060267298158a409c7ab3ac0e06e6d4bd9ce
+RUN curl -fsSL -o /tmp/sdk.tgz "${WASI_SDK_URL}" \
+ && echo "${WASI_SDK_SHA256}  /tmp/sdk.tgz" | sha256sum -c - \
+ && mkdir -p /opt/wasi-sdk \
+ && tar -xzf /tmp/sdk.tgz -C /opt/wasi-sdk --strip-components=1 \
+ && rm /tmp/sdk.tgz \
+ && /opt/wasi-sdk/bin/clang --version | grep -q "clang version 23" \
+ && /opt/wasi-sdk/bin/wasm-ld --version
+
+# wasm-component-ld 0.5.28 REPLACES the SDK's 0.5.27 (coop-threading encode
+# floor; wasi-libc pins the same requirement). Replacing in the SDK bin dir —
+# not PATH-shadowing — because clang's driver invokes it by absolute path.
+ARG WCL_URL=https://github.com/bytecodealliance/wasm-component-ld/releases/download/v0.5.28/wasm-component-ld-v0.5.28-x86_64-linux.tar.gz
+ARG WCL_SHA256=b80fe75feb4621d1e3e538b7b8b2c3904eab18354626c7a5fef1d77c021b8b81
+RUN curl -fsSL -o /tmp/wcl.tgz "${WCL_URL}" \
+ && echo "${WCL_SHA256}  /tmp/wcl.tgz" | sha256sum -c - \
+ && tar -xzf /tmp/wcl.tgz -C /tmp \
+ && install -m755 /tmp/wasm-component-ld-v0.5.28-x86_64-linux/wasm-component-ld /opt/wasi-sdk/bin/wasm-component-ld \
+ && rm -rf /tmp/wcl.tgz /tmp/wasm-component-ld-v0.5.28-x86_64-linux \
+ && /opt/wasi-sdk/bin/wasm-component-ld --version | grep -q "0.5.28"
+
+# wasi-libc, coop-threads flavor. Rev pinned PAST the wasi-sdk-34-rc.2
+# submodule (fb2edcef): the coop futex consolidation (#851) and the
+# import-routed stack pointer (#856) land after it and are load-bearing for
+# the thread runtime this image exists to expose. The upstream CI line for
+# this exact flavor is `-DTARGET_TRIPLE=wasm32-wasip3 -DENABLE_COOP_THREADS=ON`
+# with wasi-sdk-34.0-rc.2's clang — reproduced verbatim.
+ARG WASI_LIBC_REV=6d8745c8cec1aaa82c24f2e3d7a544f7ea9c2089
+RUN git init -q /src/wasi-libc && cd /src/wasi-libc \
+ && git remote add origin https://github.com/WebAssembly/wasi-libc \
+ && git fetch -q --depth 1 origin "${WASI_LIBC_REV}" && git checkout -q FETCH_HEAD \
+ && CC=/opt/wasi-sdk/bin/clang AR=/opt/wasi-sdk/bin/llvm-ar NM=/opt/wasi-sdk/bin/llvm-nm \
+    cmake -G Ninja -S . -B build \
+      -DTARGET_TRIPLE=wasm32-wasip3 -DENABLE_COOP_THREADS=ON \
+      -DCMAKE_LINK_DEPENDS_USE_LINKER=OFF \
+ && ninja -C build \
+ && cp -a build/sysroot /opt/wasip3-coop-sysroot \
+ && cd / && rm -rf /src/wasi-libc
+
+# Smoke test: a real pthread program goes through the whole chain at IMAGE
+# build — spawn/join/mutex — and the result must be (a) a layer-1 component,
+# (b) carrying the `[thread-` intrinsic imports the publish path stamps
+# `threads: true` from. A broken chain fails HERE, not in a publisher's
+# checkout.
+RUN <<'SMOKE'
+set -e
+cat > /tmp/smoke.c <<'EOF'
+#include <pthread.h>
+#include <stdio.h>
+static void *w(void *a) { return a; }
+int main(void) {
+  pthread_t t; void *r;
+  if (pthread_create(&t, 0, w, (void *)7)) { puts("create failed"); return 1; }
+  pthread_join(t, &r);
+  return r == (void *)7 ? 0 : 1;
+}
+EOF
+/opt/wasi-sdk/bin/clang --target=wasm32-wasip3 -O2 -pthread \
+  --sysroot=/opt/wasip3-coop-sysroot -Wl,--cooperative-threading \
+  -o /tmp/smoke.wasm /tmp/smoke.c
+python3 - <<'PY'
+b = open("/tmp/smoke.wasm", "rb").read()
+assert b[0:4] == b"\x00asm" and (b[6] | (b[7] << 8)) == 1, "not a component"
+assert b"[thread-new-indirect" in b, "coop thread intrinsics missing - stub libc linked?"
+PY
+rm /tmp/smoke.wasm /tmp/smoke.c
+SMOKE
+
+# Every build gets the coop sysroot + the coop link flag without the
+# publisher having to remember either.
+WORKDIR /src
+ENTRYPOINT ["/opt/wasi-sdk/bin/clang", "--target=wasm32-wasip3", "-O2", "-pthread", \
+            "--sysroot=/opt/wasip3-coop-sysroot", "-Wl,--cooperative-threading"]

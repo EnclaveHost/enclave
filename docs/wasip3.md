@@ -17,7 +17,10 @@ many in-flight requests, imports don't block the instance, and bodies/tokens
 are native `stream`s. That is the right substrate for agent workloads (LLM
 tool loops are I/O-bound). Threads are NOT part of this: wasi-threads is
 p1-only, shared-everything-threads has no toolchain, and nothing here changes
-the one-process-per-deployment model.
+the one-process-per-deployment model. (2026-08-07: COOPERATIVE threads —
+pthreads on the p3 task system, concurrency not parallelism — are now their
+own capability on top of this substrate; see docs/wasip3-threads.md. The
+one-process model still stands.)
 
 More was in place than anyone remembered:
 

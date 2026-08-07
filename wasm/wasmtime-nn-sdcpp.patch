@@ -1,8 +1,8 @@
 diff --git a/crates/wasi-nn/Cargo.toml b/crates/wasi-nn/Cargo.toml
-index 618b7c0..6ad3216 100644
+index 48e79b20f3..f6edc2aa46 100644
 --- a/crates/wasi-nn/Cargo.toml
 +++ b/crates/wasi-nn/Cargo.toml
-@@ -74,6 +74,10 @@ onnx = ["dep:ort"]
+@@ -73,6 +73,10 @@ onnx = ["dep:ort"]
  # ggml/llama.cpp backend: pure FFI against the system-linked enclave_llama
  # shim (ELL_LIB_LOCATION at build time) - no cargo dependencies at all.
  ggml = []
@@ -14,7 +14,7 @@ index 618b7c0..6ad3216 100644
  onnx-download = ["onnx", "ort/download-binaries"]
  # CUDA execution provider for NVIDIA GPU support (requires CUDA toolkit)
 diff --git a/crates/wasi-nn/build.rs b/crates/wasi-nn/build.rs
-index af89d10..cac6b1e 100644
+index af89d103d8..cac6b1ee9a 100644
 --- a/crates/wasi-nn/build.rs
 +++ b/crates/wasi-nn/build.rs
 @@ -12,6 +12,17 @@ fn main() {
@@ -36,7 +36,7 @@ index af89d10..cac6b1e 100644
      let wasi_root = cwd.join("witx");
  
 diff --git a/crates/wasi-nn/src/backend/mod.rs b/crates/wasi-nn/src/backend/mod.rs
-index b8d8710..05697c5 100644
+index b8d871003e..05697c5ed1 100644
 --- a/crates/wasi-nn/src/backend/mod.rs
 +++ b/crates/wasi-nn/src/backend/mod.rs
 @@ -6,6 +6,8 @@
@@ -85,7 +85,7 @@ index b8d8710..05697c5 100644
  }
 diff --git a/crates/wasi-nn/src/backend/sdcpp.rs b/crates/wasi-nn/src/backend/sdcpp.rs
 new file mode 100644
-index 0000000..d4db59b
+index 0000000000..d4db59b0f9
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/sdcpp.rs
 @@ -0,0 +1,453 @@
@@ -543,7 +543,7 @@ index 0000000..d4db59b
 +    }
 +}
 diff --git a/crates/wasi-nn/src/lib.rs b/crates/wasi-nn/src/lib.rs
-index efb8fd6..175e2bb 100644
+index 3dd6190c17..41410bbaf1 100644
 --- a/crates/wasi-nn/src/lib.rs
 +++ b/crates/wasi-nn/src/lib.rs
 @@ -30,11 +30,23 @@ pub fn preload_registry(preload_graphs: &[(String, String)]) -> wasmtime::Result

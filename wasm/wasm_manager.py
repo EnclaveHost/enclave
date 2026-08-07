@@ -58,6 +58,7 @@ import shutil
 import signal
 import socket
 import subprocess
+import tempfile
 import threading
 import time
 import urllib.parse
@@ -3139,6 +3140,93 @@ def _p3_tuning(enclave_config, wasi_contract) -> list:
     return args
 
 
+# Cooperative threads (wasip3 🧵): a coop-linked guest (wasi-libc
+# ENABLE_COOP_THREADS + lld `--cooperative-threading`) implements pthreads /
+# std::thread on component-model tasks — threads interleave on the instance's
+# async runtime (concurrent, not parallel; the process/cpu model is untouched).
+# Serving one takes wasmtime >= the 49 dev line AND `-W component-model-
+# threading`. HELP TEXT IS A LIAR HERE, which is why this probe is not the
+# usual token match: wasmtime 47 ADVERTISES the option yet cannot parse the
+# `thread.new-indirect` canon builtin every coop guest is linked around (its
+# binary reader predates the encoding — "failed to parse WebAssembly module").
+# So ask the binary the only honest way: COMPILE the smallest component that
+# uses the builtin. Pass = the engine that will run tenants accepted the exact
+# construct pthread_create needs. Unproven means DO NOT PASS (the loopback
+# doctrine): the flag is dropped, and thread-needing apps are refused at
+# launch with a readable error instead of exit-2ing the box or dying in
+# missing-import noise.
+_THREADS_ENV_ENABLED = os.environ.get("WASM_COOP_THREADS", "1").lower() not in ("0", "false", "no")
+_THREADS_FLAG = None       # None = not probed yet; True/False = the binary's answer
+
+# The probe component: nothing but a funcref table and one `thread.new-indirect`
+# canon builtin against it — the intrinsic pthread_create lowers to. Text WAT on
+# purpose (wasmtime parses .wat natively): no binary artifact to ship or drift.
+_THREADS_PROBE_WAT = """(component
+  (core type $start (func (param i32)))
+  (core module $m
+    (table (export "t") 1 1 funcref)
+  )
+  (core instance $i (instantiate $m))
+  (alias core export $i "t" (core table $tbl))
+  (core func $spawn (canon thread.new-indirect $start $tbl))
+)
+"""
+
+
+def _threads_supported() -> bool:
+    global _THREADS_FLAG
+    if _THREADS_FLAG is not None:
+        return _THREADS_FLAG
+    if MOCK:
+        _THREADS_FLAG = True
+        return _THREADS_FLAG
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            wat = pathlib.Path(td) / "thread-probe.wat"
+            wat.write_text(_THREADS_PROBE_WAT)
+            r = subprocess.run([WASMTIME, "compile",
+                                "-W", "component-model-threading,component-model-async",
+                                str(wat), "-o", str(pathlib.Path(td) / "probe.cwasm")],
+                               capture_output=True, text=True, timeout=30)
+        _THREADS_FLAG = r.returncode == 0
+    except Exception as e:
+        print(f"wasm-manager: could not probe cooperative-threading support ({e}); "
+              f"launching without the flag", flush=True)
+        _THREADS_FLAG = False
+    if not _THREADS_FLAG:
+        print("wasm-manager: this wasmtime cannot compile the thread.new-indirect probe — "
+              "coop-thread guests are refused at launch with a readable error "
+              "(/health carries `coopThreads`).", flush=True)
+    return _THREADS_FLAG
+
+
+def _threads_active() -> bool:
+    """The box serves coop-thread guests: p3 is live (threads are a p3
+    feature), the binary proved the builtin, and the operator switch is on."""
+    return _THREADS_ENV_ENABLED and _p3_active() and _threads_supported()
+
+
+def _needs_coop_threads(wasm) -> bool:
+    """Does this component spawn cooperative threads? The coop runtime's core
+    module imports `[thread-new-indirect-v0]` (and siblings) — length-prefixed
+    names sitting verbatim in the binary, so a raw scan is exact the same way
+    the wasi:-string world scan is. Calibrated on real builds: a coop-linked
+    guest carries the marker ~12x, a non-coop build of the same source zero.
+    Prefix-matched (`[thread-`) so a future `-v1` revision still routes right;
+    a data-segment false positive costs only an unneeded engine flag."""
+    try:
+        return b"[thread-" in pathlib.Path(wasm).read_bytes()
+    except OSError:
+        return False
+
+
+def _threads_flags(needs_threads) -> list:
+    # per-tenant, not blanket: the 🧵 surface is experimental engine area, so
+    # only guests that carry the intrinsic marker get it switched on.
+    return (["-W", "component-model-threading"]
+            if needs_threads and _threads_active() else [])
+
+
 _SERVE_HELP = None
 
 
@@ -3164,7 +3252,8 @@ def _serve_long_help() -> str:
 def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdir=None,
                nn=False, enclave_config=None, vol_mounts=None, egress=None, egress_transparent=None,
                enc=None, gpu_share: float = 0.0, nn_report=None, secrets=None,
-               cpu_share: float = 0.0, nn_resident_other: int = 0, hosts="", wasi_contract=None):
+               cpu_share: float = 0.0, nn_resident_other: int = 0, hosts="", wasi_contract=None,
+               threads=False):
     """The wasmtime invocation for a ports spec. Returns (cmd, host_port, wait_ports).
     `nn_report`, when a dict, is filled with the wasi-nn preload plan:
     {"emitted": [vol...], "skipped": {vol: why}, "stages": {vol: "kind::dir"},
@@ -3512,6 +3601,7 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     lb_args = ["-S", "loopback-allow=" + "+".join(str(p) for p in sorted(_lb))] if _loopback_flag_supported() else []
     if pspec["serve"]:
         return ([WASMTIME, "serve", "-Scli", "-Shttp", *_p3_flags(), *_p3_tuning(enclave_config, wasi_contract),
+                 *_threads_flags(threads),
                  *nn_args, *fs_args, *cfg_args, *vol_args,
                  *egress_args, *lb_args, "-W", f"max-memory-size={mem_bytes}",
                  "--addr", f"{HOST_IP}:{serve_port}", str(wasm)],
@@ -3577,7 +3667,7 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     # off-box connect but refuses loopback outside this deployment's own set.
     # That is what keeps a port-serving app off its neighbours' sockets without
     # taking away the raw network it was granted.
-    cmd = [WASMTIME, "run", "-Scli", *_p3_flags(), *nn_args, "-Stcp", "-Sudp",
+    cmd = [WASMTIME, "run", "-Scli", *_p3_flags(), *_threads_flags(threads), *nn_args, "-Stcp", "-Sudp",
            *net_args, *lb_args, "-Sallow-ip-name-lookup", *fs_args, *cfg_args, *vol_args,
            "-W", f"max-memory-size={mem_bytes}",
            "--env", "ENCLAVE_PORTS=" + enclave_ports, str(wasm)]
@@ -3693,6 +3783,20 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
         rec["status"] = "failed"
         rec["error"] = (f"app targets WASIp3 ({contract['world']}) but this box does not "
                         f"serve p3 ({why}); a p3-capable enclave must claim it")
+        return rec
+    # Cooperative threads (🧵): same doctrine, one step further into the
+    # binary. A coop-linked guest that launches on a box whose engine lacks
+    # the builtin dies as "failed to parse WebAssembly module" — noise. Fail
+    # HERE with the readable truth instead.
+    needs_threads = _needs_coop_threads(wasm)
+    rec["threads"] = needs_threads
+    if needs_threads and not _threads_active():
+        why = ("WASM_COOP_THREADS=0 (operator switch)" if not _THREADS_ENV_ENABLED
+               else "p3 is not live on this box" if not _p3_active()
+               else "this wasmtime cannot run the thread.new-indirect builtin")
+        rec["status"] = "failed"
+        rec["error"] = (f"app uses cooperative threads (wasip3 \U0001f9f5) but this box "
+                        f"cannot serve them ({why}); a thread-capable enclave must claim it")
         return rec
 
     # per-deployment config: the approved catalog version's config JSON, passed
@@ -3835,7 +3939,8 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
     ctx = {"pspec": pspec, "wasm": wasm, "port": port, "port_map": port_map, "fsdir": fsdir,
            "nn": nn, "enclave_config": enclave_config, "vol_mounts": vol_mounts, "gpu_share": gpu_share,
            "log_path": log_path, "egress": egress, "enc": enc, "secrets": secrets,
-           "hosts": _validate_hosts(hosts), "wasi": contract["wasi"]}
+           "hosts": _validate_hosts(hosts), "wasi": contract["wasi"],
+           "threads": needs_threads}
     return _spawn_and_wait(rec, ctx)
 
 
@@ -3976,7 +4081,8 @@ def _spawn_and_wait(rec, ctx):
                                             ctx.get("enc"), gpu_share=gpu_share, nn_report=nn_report,
                                             secrets=ctx.get("secrets"), cpu_share=cpu_share,
                                             nn_resident_other=_nn_resident_bytes(exclude=rec["id"]),
-                                            hosts=ctx.get("hosts", ""), wasi_contract=ctx.get("wasi"))
+                                            hosts=ctx.get("hosts", ""), wasi_contract=ctx.get("wasi"),
+                                            threads=ctx.get("threads", False))
     # the preload plan, public on the record: what the boot preload will
     # attempt (nnPreloads) and why the rest won't (nnSkipped). The watchdog
     # sweep compares this against what a launch would emit NOW; the log
@@ -4765,6 +4871,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                     # WASM_P3 not switched off) — the supervisor forwards it
                                     # to /availability and the claim gate keys on it
                                     "p3": _p3_active(),
+                                    # this box serves cooperative-thread (🧵) guests: p3 live
+                                    # AND the thread.new-indirect compile probe passed AND
+                                    # WASM_COOP_THREADS not switched off — same forwarding,
+                                    # same claim-gate role, for versions marked `threads`
+                                    "coopThreads": _threads_active(),
                                     **({"gpuVramGb": GPU_VRAM_GB, "gpuVramSource": GPU_VRAM_SRC,
                                         # request-level GPU fair-share (nn-arb): enabled = the
                                         # operator knob; probe = whether the toolchain's client
@@ -5029,6 +5140,8 @@ def _debug_env() -> dict:
            # (the old field reported the env switch alone and would claim p3 on a
            # binary that rejects the flag)
            "p3": _p3_active(), "p3_env": _P3_ENV_ENABLED, "p3_binary": _p3_supported(),
+           "coop_threads": _threads_active(), "coop_threads_env": _THREADS_ENV_ENABLED,
+           "coop_threads_binary": _threads_supported(),
            "loopback_wall": _loopback_flag_supported(),
            "nn": _nn_available(),
            "nn_probe": dict(_NN_PROBE), "gpu_vram_gb": GPU_VRAM_GB, "gpu_vram_source": GPU_VRAM_SRC,
@@ -5071,7 +5184,7 @@ def main():
     if NN_ARB_ENABLED and NODE_HAS_GPU and NN_ENABLED and not MOCK:
         _start_nn_arbiter()          # GPU work-conserving fair share (tenants connect at launch)
     print(f"wasm-manager on :{PORT} runtime=wasmtime mock={MOCK} apps_dir={APPS_DIR} "
-          f"p3={_p3_active()} fs={FS_ENABLED} nn={_NN_PROBE['state']}", flush=True)
+          f"p3={_p3_active()} coopThreads={_threads_active()} fs={FS_ENABLED} nn={_NN_PROBE['state']}", flush=True)
     if not VMMGR_TOKEN:
         if VMMGR_ALLOW_UNAUTH:
             print("wasm-manager WARNING: no VMMGR_TOKEN/SECRET and VMMGR_ALLOW_UNAUTHENTICATED=1 — "

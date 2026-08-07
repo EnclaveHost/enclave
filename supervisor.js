@@ -1067,6 +1067,14 @@ function gpuOptionalOfConfig(cfg) {
 function wasiOfConfig(cfg) {
   try { return JSON.parse(String(cfg || "{}") || "{}").wasi === "0.3" ? "0.3" : "0.2"; } catch { return "0.2"; }
 }
+// Cooperative threads (🧵), same doctrine one key over: `threads: true` is
+// stamped by the publish path when the binary carries the coop-runtime's
+// [thread- imports. Routing only — the manager re-sniffs the bytes at launch.
+// Undeclared means "no threads": every pre-threads version, and fail-open in
+// that direction is safe (any box serves a non-threaded guest).
+function threadsOfConfig(cfg) {
+  try { return JSON.parse(String(cfg || "{}") || "{}").threads === true; } catch { return false; }
+}
 function parseDepOptions(raw, gpuMilli) {
   const s = String(raw || "").trim();
   if (!s) return {};
@@ -3107,6 +3115,8 @@ app.get("/availability", async (_req, res) => {
     // wasi-0.3 versions when it is false. Absent = a manager too old to have
     // an opinion, which the AND treats as false (correct: it predates p3).
     const p3 = PROVISION_BACKEND === "vm" && h.p3 !== undefined ? { p3: h.p3 === true } : {};
+    // cooperative threads: same shape, same AND semantics at the relay
+    const cth = PROVISION_BACKEND === "vm" && h.coopThreads !== undefined ? { coopThreads: h.coopThreads === true } : {};
     // attached model volumes this enclave carries (Modelwrap): the console and
     // clients read this to know which volumes a deployment here can mount.
     const vols = PROVISION_BACKEND === "vm" && Array.isArray(h.volumes) ? { volumes: h.volumes } : {};
@@ -3135,7 +3145,7 @@ app.get("/availability", async (_req, res) => {
     // card allocator's plan - same contract as the RAM ledger above.
     const vram = PROVISION_BACKEND === "vm" && c.vramBudgetGb
       ? { vramBudgetGb: c.vramBudgetGb, vramCommittedGb: c.vramCommittedGb, vramLedgerFreeGb: c.vramFreeGb } : {};
-    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn, ...lbw, ...p3, ...vols, ...ram, ...vram, ...sweep });
+    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn, ...lbw, ...p3, ...cth, ...vols, ...ram, ...vram, ...sweep });
   } catch (e) {
     return res.json(shape(maxFreeCpu(), maxFreeGpuShare(), "fallback",
       `${PROVISION_BACKEND === "vm" ? "wasm" : "worker"} manager unreachable`));
@@ -6423,6 +6433,14 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     const p3h = await vmHealth().catch(() => null);
     if (!p3h) return "app targets WASIp3 and the app manager cannot be asked (unreachable)";
     if (p3h.p3 !== true) return "app targets WASIp3 and this box's runtime does not serve it";
+  }
+  // Cooperative threads (🧵): gated exactly like p3 — the manager probed its
+  // own engine (coopThreads on /health: the thread.new-indirect compile
+  // probe), and a box that can't serve them could only claim-fail-release.
+  if (threadsOfConfig(g.config)) {
+    const th = await vmHealth().catch(() => null);
+    if (!th) return "app uses cooperative threads and the app manager cannot be asked (unreachable)";
+    if (th.coopThreads !== true) return "app uses cooperative threads and this box's runtime does not serve them";
   }
   // The firewall is the VERSION's declared ports — part of what approval
   // covered. The deployment's own ports field is ignored (create() still

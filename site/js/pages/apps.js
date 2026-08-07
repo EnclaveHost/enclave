@@ -705,10 +705,21 @@ function componentContract(u8){
   }
   return none;
 }
+// Raw ASCII substring scan over component bytes — the cooperative-threads
+// marker (`[thread-`) is a length-prefixed core-import name sitting verbatim
+// in the binary, same as the wasi: strings above.
+function hasBytes(bytes, ascii){
+  const pat = Array.from(ascii, (c) => c.charCodeAt(0));
+  outer: for (let i = 0; i + pat.length <= bytes.length; i++){
+    for (let j = 0; j < pat.length; j++) if (bytes[i + j] !== pat[j]) continue outer;
+    return true;
+  }
+  return false;
+}
 // In-flight publish upload (XHR so we get upload progress - fetch can't report
 // it). Tracked module-wide: a new file pick aborts the old upload, and the
 // publish path refuses to run while one is active.
-let pubXhr = null, pubSeq = 0, pubWasi = null;
+let pubXhr = null, pubSeq = 0, pubWasi = null, pubThreads = false;
 async function putWasm(file, onProgress){
   if (!IPFS_UPLOAD_URL) throw new EnclaveError("Direct upload isn’t configured here; paste a CID you’ve pinned (e.g. `ipfs add app.wasm`).", 0);
   if (file.size > MAX_WASM_BYTES) throw new EnclaveError("Too large: max " + MAX_WASM_MB + " MB.", 0);
@@ -846,6 +857,7 @@ async function onPubFile(e){
   if (pubXhr){ try { pubXhr.abort(); } catch(_){} pubXhr = null; }
   $("#pubCid").value = "";                                  // never leave the previous CID publishable
   pubWasi = null;                                           // …nor the previous file's world contract
+  pubThreads = false;
   const hint = $("#pubFileHint"), bar = $("#pubUpBar");
   const mb = (f.size / 1048576).toFixed(2);
   hint.textContent = f.name + " · " + mb + " MB";
@@ -854,11 +866,18 @@ async function onPubFile(e){
   if (seq !== pubSeq) return;
   // world contract from the bytes (publishApp stamps it into the config);
   // classification failure is not an upload failure
-  try { pubWasi = componentContract(new Uint8Array(await f.arrayBuffer())).wasi; } catch(_){ pubWasi = null; }
+  try {
+    const pubBytes = new Uint8Array(await f.arrayBuffer());
+    pubWasi = componentContract(pubBytes).wasi;
+    // cooperative threads (🧵): the coop runtime's core module imports
+    // `[thread-new-indirect-v0]` and siblings — raw byte scan, same doctrine
+    // as the wasi: world scan (publishApp stamps `threads: true`)
+    pubThreads = hasBytes(pubBytes, "[thread-");
+  } catch(_){ pubWasi = null; pubThreads = false; }
   if (seq !== pubSeq) return;
   setPubUploading(true);
   if (bar){ bar.hidden = false; bar.firstElementChild.style.width = "0%"; bar.setAttribute("aria-valuenow", "0"); }
-  pubStatus("valid " + (pubWasi === "0.3" ? "WASIp3 " : pubWasi === "0.2" ? "WASIp2 " : "") + "component · uploading to IPFS… 0%");
+  pubStatus("valid " + (pubWasi === "0.3" ? "WASIp3 " : pubWasi === "0.2" ? "WASIp2 " : "") + (pubThreads ? "threaded " : "") + "component · uploading to IPFS… 0%");
   try {
     const cid = await putWasm(f, (done, total) => {
       if (seq !== pubSeq || !total) return;
@@ -933,10 +952,16 @@ async function publishApp(){
   // the authority over anything typed in the config box (claim routing:
   // runners send wasip3 versions only to p3-capable boxes). A hand-pasted
   // CID has no bytes to classify and publishes without the key.
-  if (pubWasi){
+  if (pubWasi || pubThreads){
     try {
       const o = JSON.parse(cfg.val || "{}");
-      if (o && typeof o === "object" && !Array.isArray(o)){ o.wasi = pubWasi; cfg.val = JSON.stringify(o); }
+      if (o && typeof o === "object" && !Array.isArray(o)){
+        if (pubWasi) o.wasi = pubWasi;
+        // threads: set when the binary carries the marker, dropped when it
+        // doesn't — an over-declared `threads` would route claims for nothing
+        if (pubThreads) o.threads = true; else delete o.threads;
+        cfg.val = JSON.stringify(o);
+      }
     } catch(_){ /* readPubConfig already validated shape; never block on the stamp */ }
   }
   // fold the (already-uploaded) thumbnail/banner CIDs into the version config

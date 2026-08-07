@@ -1,174 +1,8 @@
-diff --git a/Cargo.lock b/Cargo.lock
-index ca4b4b1..6ffaac1 100644
---- a/Cargo.lock
-+++ b/Cargo.lock
-@@ -26,6 +26,16 @@ version = "2.0.0"
- source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "512761e0bb2578dd7380c6baaa0f4ce03e84f95e960231d1dec8bf4d7d6e2627"
- 
-+[[package]]
-+name = "aead"
-+version = "0.5.2"
-+source = "registry+https://github.com/rust-lang/crates.io-index"
-+checksum = "d122413f284cf2d62fb1b7db97e02edb8cda96d769b16e443a4f6195e35662b0"
-+dependencies = [
-+ "crypto-common",
-+ "generic-array",
-+]
-+
- [[package]]
- name = "aes"
- version = "0.8.4"
-@@ -499,6 +509,17 @@ version = "1.0.0"
- source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
- 
-+[[package]]
-+name = "chacha20"
-+version = "0.9.1"
-+source = "registry+https://github.com/rust-lang/crates.io-index"
-+checksum = "c3613f74bd2eac03dad61bd53dbe620703d4371614fe0bc3b9f04dd36fe4e818"
-+dependencies = [
-+ "cfg-if",
-+ "cipher",
-+ "cpufeatures 0.2.7",
-+]
-+
- [[package]]
- name = "chacha20"
- version = "0.10.0"
-@@ -510,6 +531,19 @@ dependencies = [
-  "rand_core 0.10.0",
- ]
- 
-+[[package]]
-+name = "chacha20poly1305"
-+version = "0.10.1"
-+source = "registry+https://github.com/rust-lang/crates.io-index"
-+checksum = "10cd79432192d1c0f4e1a0fef9527696cc039165d729fb41b3f4f4f354c2dc35"
-+dependencies = [
-+ "aead",
-+ "chacha20 0.9.1",
-+ "cipher",
-+ "poly1305",
-+ "zeroize",
-+]
-+
- [[package]]
- name = "ciborium"
- version = "0.2.0"
-@@ -545,6 +579,7 @@ checksum = "773f3b9af64447d2ce9850330c473515014aa235e6a783b02db81ff39e4a3dad"
- dependencies = [
-  "crypto-common",
-  "inout",
-+ "zeroize",
- ]
- 
- [[package]]
-@@ -1109,6 +1144,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "1bfb12502f3fc46cca1bb51ac28df9d618d813cdc3d2f25b9fe775a34af26bb3"
- dependencies = [
-  "generic-array",
-+ "rand_core 0.6.3",
-  "typenum",
- ]
- 
-@@ -1830,6 +1866,15 @@ version = "0.5.2"
- source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "fc0fef456e4baa96da950455cd02c081ca953b141298e41db3fc7e36b1da849c"
- 
-+[[package]]
-+name = "hkdf"
-+version = "0.12.4"
-+source = "registry+https://github.com/rust-lang/crates.io-index"
-+checksum = "7b5f8eb2ad728638ea2c7d47a21db23b7b58a72ed6a38256b8a1849f15fbbdf7"
-+dependencies = [
-+ "hmac",
-+]
-+
- [[package]]
- name = "hmac"
- version = "0.12.1"
-@@ -2686,6 +2731,12 @@ version = "11.1.3"
- source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "0ab1bc2a289d34bd04a330323ac98a1b4bc82c9d9fcb1e66b63caa84da26b575"
- 
-+[[package]]
-+name = "opaque-debug"
-+version = "0.3.1"
-+source = "registry+https://github.com/rust-lang/crates.io-index"
-+checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
-+
- [[package]]
- name = "openssl"
- version = "0.10.78"
-@@ -2879,6 +2930,17 @@ version = "0.3.32"
- source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
- 
-+[[package]]
-+name = "poly1305"
-+version = "0.8.0"
-+source = "registry+https://github.com/rust-lang/crates.io-index"
-+checksum = "8159bd90725d2df49889a078b54f4f79e87f1f8a8444194cdca81d38f5393abf"
-+dependencies = [
-+ "cpufeatures 0.2.7",
-+ "opaque-debug",
-+ "universal-hash",
-+]
-+
- [[package]]
- name = "postcard"
- version = "1.1.3"
-@@ -3022,7 +3084,7 @@ version = "0.10.1"
- source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "d2e8e8bcc7961af1fdac401278c6a831614941f6164ee3bf4ce61b7edb162207"
- dependencies = [
-- "chacha20",
-+ "chacha20 0.10.0",
-  "getrandom 0.4.2",
-  "rand_core 0.10.0",
- ]
-@@ -4147,6 +4209,16 @@ version = "0.2.3"
- source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "957e51f3646910546462e67d5f7599b9e4fb8acdd304b087a6494730f9eebf04"
- 
-+[[package]]
-+name = "universal-hash"
-+version = "0.5.1"
-+source = "registry+https://github.com/rust-lang/crates.io-index"
-+checksum = "fc1de2c688dc15305988b563c3854064043356019f97a4b46276fe734c4f07ea"
-+dependencies = [
-+ "crypto-common",
-+ "subtle",
-+]
-+
- [[package]]
- name = "unsafe-libyaml"
- version = "0.2.11"
-@@ -5284,13 +5356,17 @@ dependencies = [
-  "cap-std",
-  "cap-time-ext",
-  "cfg-if",
-+ "chacha20poly1305",
-  "env_logger 0.11.5",
-  "fs-set-times",
-  "futures",
-+ "hkdf",
-  "io-extras",
-  "io-lifetimes",
-  "rand 0.10.1",
-  "rustix 1.1.4",
-+ "serde_json",
-+ "sha2",
-  "tempfile",
-  "test-log",
-  "test-programs-artifacts",
 diff --git a/crates/cli-flags/src/lib.rs b/crates/cli-flags/src/lib.rs
-index 37e98b9..45ed76d 100644
+index ca34b9306b..493d9791ba 100644
 --- a/crates/cli-flags/src/lib.rs
 +++ b/crates/cli-flags/src/lib.rs
-@@ -513,6 +513,17 @@ wasmtime_option_group! {
+@@ -534,6 +534,17 @@ wasmtime_option_group! {
          /// `wasmtime_wasi_nn` crate.
          #[serde(skip)]
          pub nn_graph: Vec<WasiNnGraph>,
@@ -187,13 +21,13 @@ index 37e98b9..45ed76d 100644
          /// guest so it has full access to all addresses/ports/etc.
          pub inherit_network: Option<bool>,
 diff --git a/crates/wasi/Cargo.toml b/crates/wasi/Cargo.toml
-index 829a330..0c4f497 100644
+index 444a92d1dc..09e2b4bb13 100644
 --- a/crates/wasi/Cargo.toml
 +++ b/crates/wasi/Cargo.toml
-@@ -38,6 +38,13 @@ futures = { workspace = true }
+@@ -33,6 +33,13 @@ async-trait = { workspace = true }
+ futures = { workspace = true }
  url = { workspace = true }
  rand = { workspace = true, features = ['std_rng', 'thread_rng'] }
- cfg-if = { workspace = true }
 +# enclave-vault (NANVOL2) transparent encrypted preopens: XChaCha20-Poly1305 blocks
 +# + HKDF-SHA256 file keys + a JSON manifest (see src/vault.rs). Pinned exactly:
 +# this binary is measured into the enclave image.
@@ -205,10 +39,10 @@ index 829a330..0c4f497 100644
  [dev-dependencies]
  tokio = { workspace = true, features = ["time", "sync", "io-std", "io-util", "rt", "rt-multi-thread", "net", "macros", "fs"] }
 diff --git a/crates/wasi/src/ctx.rs b/crates/wasi/src/ctx.rs
-index 0b84bc2..5c77220 100644
+index 13c3503830..862a9d0434 100644
 --- a/crates/wasi/src/ctx.rs
 +++ b/crates/wasi/src/ctx.rs
-@@ -316,6 +316,40 @@ impl WasiCtxBuilder {
+@@ -317,6 +317,39 @@ impl WasiCtxBuilder {
          Ok(self)
      }
  
@@ -231,11 +65,10 @@ index 0b84bc2..5c77220 100644
 +        vek: [u8; 32],
 +    ) -> Result<&mut Self> {
 +        let vol = crate::vault::VaultVol::open(cipher_dir.as_ref(), &vek)?;
-+        let dir = cap_std::fs::Dir::open_ambient_dir(host_path.as_ref(), ambient_authority())?;
++        let dir = cap_primitives::fs::open_ambient_dir(host_path.as_ref(), ambient_authority())?;
 +        let mut dir = Dir::new(
 +            dir,
-+            DirPerms::READ,
-+            FilePerms::READ,
++            FsPerms::ReadOnly,
 +            OpenMode::READ,
 +            self.filesystem.allow_blocking_current_thread,
 +        );
@@ -250,11 +83,11 @@ index 0b84bc2..5c77220 100644
      /// custom generator specified.
      ///
 diff --git a/crates/wasi/src/filesystem.rs b/crates/wasi/src/filesystem.rs
-index 1782098..91519d8 100644
+index a8e90bf989..92bd47c054 100644
 --- a/crates/wasi/src/filesystem.rs
 +++ b/crates/wasi/src/filesystem.rs
-@@ -676,6 +676,12 @@ pub struct File {
-     /// oflags back out using fcntl.
+@@ -684,6 +684,12 @@ pub struct File {
+     /// of reading the oflags back out using fcntl.
      pub open_mode: OpenMode,
  
 +    /// enclave-vault: when this file was opened inside an encrypted (NANVOL2)
@@ -266,7 +99,7 @@ index 1782098..91519d8 100644
      allow_blocking_current_thread: bool,
  }
  
-@@ -690,6 +696,7 @@ impl File {
+@@ -698,6 +704,7 @@ impl File {
              file: Arc::new(file),
              perms,
              open_mode,
@@ -274,8 +107,8 @@ index 1782098..91519d8 100644
              allow_blocking_current_thread,
          }
      }
-@@ -787,6 +794,12 @@ pub struct Dir {
-     /// oflags back out using fcntl.
+@@ -796,6 +803,12 @@ pub struct Dir {
+     /// of reading the oflags back out using fcntl.
      pub open_mode: OpenMode,
  
 +    /// enclave-vault: set on the preopen of an encrypted (NANVOL2) skeleton and
@@ -287,15 +120,15 @@ index 1782098..91519d8 100644
      pub(crate) allow_blocking_current_thread: bool,
  }
  
-@@ -803,6 +816,7 @@ impl Dir {
+@@ -810,6 +823,7 @@ impl Dir {
+             dir: Arc::new(dir),
              perms,
-             file_perms,
              open_mode,
 +            vault: None,
              allow_blocking_current_thread,
          }
      }
-@@ -1022,6 +1036,10 @@ impl Dir {
+@@ -1019,6 +1033,10 @@ impl Dir {
              NotDir,
          }
  
@@ -305,22 +138,21 @@ index 1782098..91519d8 100644
 +
          let opened = self
              .run_blocking::<_, std::io::Result<OpenResult>>(move |d| {
-                 let opened = d.open_with(&path, &opts)?;
-@@ -1046,20 +1064,32 @@ impl Dir {
+                 let opened = cap_primitives::fs::open(d, path.as_ref(), &opts)?;
+@@ -1041,19 +1059,31 @@ impl Dir {
                  Err(ErrorCode::IsDirectory)
              }
  
 -            OpenResult::Dir(dir) => Ok(Descriptor::Dir(Dir::new(
 -                dir,
 -                self.perms,
--                self.file_perms,
 -                open_mode,
 -                allow_blocking_current_thread,
 -            ))),
 -
 -            OpenResult::File(file) => Ok(Descriptor::File(File::new(
 -                file,
--                self.file_perms,
+-                self.perms,
 -                open_mode,
 -                allow_blocking_current_thread,
 -            ))),
@@ -328,7 +160,6 @@ index 1782098..91519d8 100644
 +                let mut dir = Dir::new(
 +                    dir,
 +                    self.perms,
-+                    self.file_perms,
 +                    open_mode,
 +                    allow_blocking_current_thread,
 +                );
@@ -341,7 +172,7 @@ index 1782098..91519d8 100644
 +            OpenResult::File(file) => {
 +                let mut file = File::new(
 +                    file,
-+                    self.file_perms,
++                    self.perms,
 +                    open_mode,
 +                    allow_blocking_current_thread,
 +                );
@@ -354,7 +185,7 @@ index 1782098..91519d8 100644
              OpenResult::NotDir => Err(ErrorCode::NotDirectory),
          }
 diff --git a/crates/wasi/src/lib.rs b/crates/wasi/src/lib.rs
-index 506fcc3..00f725f 100644
+index 6dfd0b83d6..b57065214b 100644
 --- a/crates/wasi/src/lib.rs
 +++ b/crates/wasi/src/lib.rs
 @@ -48,6 +48,9 @@ pub mod p3;
@@ -368,7 +199,7 @@ index 506fcc3..00f725f 100644
  
  pub use self::clocks::{HostMonotonicClock, HostWallClock};
 diff --git a/crates/wasi/src/p1.rs b/crates/wasi/src/p1.rs
-index 95c688e..66a9654 100644
+index 3559576ee9..1ad5b371aa 100644
 --- a/crates/wasi/src/p1.rs
 +++ b/crates/wasi/src/p1.rs
 @@ -1686,14 +1686,20 @@ impl wasi_snapshot_preview1::WasiSnapshotPreview1 for WasiP1Ctx {
@@ -412,16 +243,16 @@ index 95c688e..66a9654 100644
                                  Ok(buf)
                              })
 diff --git a/crates/wasi/src/p2/filesystem.rs b/crates/wasi/src/p2/filesystem.rs
-index 39e10e3..1520723 100644
+index cad47f68d0..7f128fad1d 100644
 --- a/crates/wasi/src/p2/filesystem.rs
 +++ b/crates/wasi/src/p2/filesystem.rs
 @@ -84,10 +84,21 @@ impl FileInputStream {
          }
      }
  
--    fn blocking_read(file: &cap_std::fs::File, offset: u64, size: usize) -> ReadState {
+-    fn blocking_read(file: &std::fs::File, offset: u64, size: usize) -> ReadState {
 +    fn blocking_read(
-+        file: &cap_std::fs::File,
++        file: &std::fs::File,
 +        vault: Option<&crate::vault::VaultFile>,
 +        offset: u64,
 +        size: usize,
@@ -476,18 +307,18 @@ index 39e10e3..1520723 100644
          }
  
 diff --git a/crates/wasi/src/p2/host/filesystem.rs b/crates/wasi/src/p2/host/filesystem.rs
-index 6ac2082..745dce3 100644
+index 3fc37a45ad..263bc2f7e9 100644
 --- a/crates/wasi/src/p2/host/filesystem.rs
 +++ b/crates/wasi/src/p2/host/filesystem.rs
-@@ -111,6 +111,7 @@ impl HostDescriptor for WasiFilesystemCtxView<'_> {
-             return Err(ErrorCode::NotPermitted.into());
-         }
+@@ -108,6 +108,7 @@ impl HostDescriptor for WasiFilesystemCtxView<'_> {
+     ) -> FsResult<(Vec<u8>, bool)> {
+         let f = self.table.get(&fd)?.file()?;
  
 +        let vault = f.vault.clone();
          let (mut buffer, r) = f
              .run_blocking(move |f| {
                  let mut buffer = vec![
-@@ -119,7 +120,12 @@ impl HostDescriptor for WasiFilesystemCtxView<'_> {
+@@ -116,7 +117,12 @@ impl HostDescriptor for WasiFilesystemCtxView<'_> {
                          .unwrap_or(usize::MAX)
                          .min(crate::MAX_READ_SIZE_ALLOC)
                  ];
@@ -502,10 +333,10 @@ index 6ac2082..745dce3 100644
              })
              .await;
 diff --git a/crates/wasi/src/p3/filesystem/host.rs b/crates/wasi/src/p3/filesystem/host.rs
-index d59d1a6..2dbc407 100644
+index 54437ce23f..68ef2f89aa 100644
 --- a/crates/wasi/src/p3/filesystem/host.rs
 +++ b/crates/wasi/src/p3/filesystem/host.rs
-@@ -169,6 +169,9 @@ impl<D> StreamProducer<D> for ReadStreamProducer {
+@@ -165,6 +165,9 @@ impl<D> StreamProducer<D> for ReadStreamProducer {
          mut dst: Destination<'a, Self::Item, Self::Buffer>,
          finish: bool,
      ) -> Poll<wasmtime::Result<StreamResult>> {
@@ -515,7 +346,7 @@ index d59d1a6..2dbc407 100644
          if let Some(file) = self.file.as_blocking_file() {
              // Once a blocking file, always a blocking file, so assert as such.
              assert!(self.task.is_none());
-@@ -177,7 +180,11 @@ impl<D> StreamProducer<D> for ReadStreamProducer {
+@@ -173,7 +176,11 @@ impl<D> StreamProducer<D> for ReadStreamProducer {
              if buf.is_empty() {
                  return Poll::Ready(Ok(StreamResult::Completed));
              }
@@ -528,14 +359,14 @@ index d59d1a6..2dbc407 100644
                  Ok(0) => {
                      self.close(Ok(()));
                      Poll::Ready(Ok(StreamResult::Dropped))
-@@ -201,7 +208,11 @@ impl<D> StreamProducer<D> for ReadStreamProducer {
+@@ -197,7 +204,11 @@ impl<D> StreamProducer<D> for ReadStreamProducer {
              let file = Arc::clone(me.file.as_file());
              let offset = me.offset;
              spawn_blocking(move || {
--                sys::read_at_cursor_unspecified(file, &mut buf, offset).map(|n| {
+-                sys::read_at_cursor_unspecified(&file, &mut buf, offset).map(|n| {
 +                let r = match &vault {
 +                    Some(v) => v.read_at(&mut buf, offset),
-+                    None => sys::read_at_cursor_unspecified(file, &mut buf, offset),
++                    None => sys::read_at_cursor_unspecified(&file, &mut buf, offset),
 +                };
 +                r.map(|n| {
                      buf.truncate(n);
@@ -543,10 +374,10 @@ index d59d1a6..2dbc407 100644
                  })
 diff --git a/crates/wasi/src/vault.rs b/crates/wasi/src/vault.rs
 new file mode 100644
-index 0000000..cbc0aa6
+index 0000000000..9080c5876d
 --- /dev/null
 +++ b/crates/wasi/src/vault.rs
-@@ -0,0 +1,388 @@
+@@ -0,0 +1,404 @@
 +//! enclave-vault NANVOL2: transparent, read-only, on-demand decryption for
 +//! preopened directories — gocryptfs semantics with ZERO privileges.
 +//!
@@ -588,7 +419,7 @@ index 0000000..cbc0aa6
 +/// One unlocked NANVOL2 volume: the (sandboxed) cipherdir handle, the
 +/// decrypted manifest, per-file keys, and the plaintext block cache.
 +pub struct VaultVol {
-+    cipher: cap_std::fs::Dir,
++    cipher: std::fs::File,
 +    block_size: u64,
 +    files: HashMap<String, VaultEntry>,
 +    cache: Mutex<BlockCache>,
@@ -673,9 +504,21 @@ index 0000000..cbc0aa6
 +    /// Open a cipherdir with the volume's VEK: decrypt + parse the manifest
 +    /// and derive the per-file keys. ~KBs of work regardless of volume size.
 +    pub fn open(cipher_dir: &Path, vek: &[u8; 32]) -> Result<Arc<Self>> {
-+        let cipher =
-+            cap_std::fs::Dir::open_ambient_dir(cipher_dir, cap_std::ambient_authority())?;
-+        let sealed = cipher.read("manifest.nvm")?;
++        let cipher = cap_primitives::fs::open_ambient_dir(
++            cipher_dir,
++            cap_primitives::ambient_authority(),
++        )?;
++        let sealed = {
++            use std::io::Read;
++            let mut f = cap_primitives::fs::open(
++                &cipher,
++                "manifest.nvm".as_ref(),
++                cap_primitives::fs::OpenOptions::new().read(true),
++            )?;
++            let mut buf = Vec::new();
++            f.read_to_end(&mut buf)?;
++            buf
++        };
 +        let plain = open_nanvol1(&sealed, vek)?;
 +        let man: serde_json::Value =
 +            serde_json::from_slice(&plain).map_err(|e| bad(format!("manifest json: {e}")))?;
@@ -749,7 +592,11 @@ index 0000000..cbc0aa6
 +        }
 +        let want = (plain_len + TAG_LEN) as usize;
 +        let mut sealed = vec![0u8; want];
-+        let f = self.cipher.open(&entry.blob)?;
++        let f = cap_primitives::fs::open(
++            &self.cipher,
++            entry.blob.as_ref(),
++            cap_primitives::fs::OpenOptions::new().read(true),
++        )?;
 +        let mut got = 0;
 +        while got < want {
 +            let n = crate::filesystem::sys::read_at_cursor_unspecified(
@@ -936,11 +783,11 @@ index 0000000..cbc0aa6
 +    }
 +}
 diff --git a/src/common.rs b/src/common.rs
-index 167d838..86bd620 100644
+index 1500ea8a68..47795ed363 100644
 --- a/src/common.rs
 +++ b/src/common.rs
-@@ -355,6 +355,26 @@ impl RunCommon {
-             )?;
+@@ -356,6 +356,26 @@ impl RunCommon {
+             builder.initial_cwd(cwd);
          }
  
 +        // enclave-vault encrypted preopens: -S vault=<guest>::<skeleton>::<cipherdir>,
@@ -966,11 +813,10 @@ index 167d838..86bd620 100644
          if self.common.wasi.listenfd == Some(true) {
              bail!("components do not support --listenfd");
          }
-@@ -558,3 +578,16 @@ impl wasmtime_wasi_http::p2::WasiHttpHooks for HttpHooks {
- 
- #[cfg(feature = "wasi-http")]
- impl wasmtime_wasi_http::p3::WasiHttpHooks for HttpHooks {}
-+
+@@ -560,3 +580,15 @@ impl wasmtime_wasi_http::WasiHttpHooks for HttpHooks {
+         self.p2_outgoing_body_chunk_size
+     }
+ }
 +/// 32-byte hex (optionally 0x-prefixed) -> VEK bytes, for `-S vault`.
 +fn parse_vek(s: &str) -> Option<[u8; 32]> {
 +    let s = s.trim().trim_start_matches("0x");
