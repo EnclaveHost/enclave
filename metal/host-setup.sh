@@ -36,6 +36,7 @@ else
 fi
 
 echo "== memlock limit for interactive testing =="
+mkdir -p /etc/security/limits.d
 cat > /etc/security/limits.d/sev.conf <<EOF
 ${SUDO_USER:-$USER} hard memlock unlimited
 ${SUDO_USER:-$USER} soft memlock unlimited
