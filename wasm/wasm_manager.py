@@ -50,6 +50,7 @@ import hmac
 import http.server
 import ipaddress
 import json
+import math
 import os
 import pathlib
 import re
@@ -2821,6 +2822,30 @@ def _cpu_weight_for(cpu_share: float) -> int:
     if cpu_share <= 0:
         return 100
     return max(1, min(10000, round(cpu_share * 10000)))
+
+
+def _available_parallelism_for(cpu_share: float) -> int:
+    """How many threads a tenant holding `cpu_share` can ACTUALLY run at once.
+
+    Handed to the tenant's wasmtime as ENCLAVE_AVAILABLE_PARALLELISM, where it
+    becomes the answer to the shared-everything-threads
+    `thread.available_parallelism` intrinsic AND the ceiling on how many SET
+    worker threads that process may have live (docs/wasm-parallelism.md).
+
+    The honest answer is the tenant's SLICE, not the node's core count. A guest
+    that sizes a pool from a 32-core box while holding 0.25 just builds 32
+    threads to contend over 8 cores' worth of cgroup weight — and, worse, OS
+    threads are a NODE-WIDE kernel resource (threads-max, pid space) that
+    cpu.weight does not bound, so an over-sized pool is a cost the tenant's
+    neighbours pay too.
+
+    Rounds UP and floors at 1: a guest reading 0 typically divides by it, and a
+    small-share tenant should still be able to express a pool. Unpriced callers
+    (share 0) get 1 — ordinary sequential behaviour, matching how
+    `_cpu_weight_for` treats them as ordinary rather than starved."""
+    if cpu_share <= 0:
+        return 1
+    return max(1, min(NODE_VCPUS, math.ceil(cpu_share * NODE_VCPUS)))
 _cpu_cgroup_parent = None      # resolved lazily on first launch; False once known-unavailable
 
 
@@ -4218,6 +4243,21 @@ def _spawn_and_wait(rec, ctx):
         # as it would on a CPU box" - _no_card_env is what makes that true by
         # construction rather than by the backends happening to default to CPU.
         env = _no_card_env()
+    # CPU parallelism is a property of EVERY tenant, GPU or not, so it lands
+    # after the MPS/no-card branches above (each of which REPLACES `env`).
+    #
+    # Inert on today's fleet: the shared-everything-threads intrinsics that
+    # read this are in wasm/wasmtime-set-threads.patch.wip, deliberately not in
+    # Dockerfile.wasmtime's chain. It is set NOW because it has to be in place
+    # BEFORE they land — absent it the engine falls back to the node's core
+    # count, so a tenant's `thread.available_parallelism` answer and its SET
+    # worker-thread ceiling would both be sized from hardware it does not own.
+    # OS threads are a node-wide kernel resource that cpu.weight cannot bound,
+    # which is why that ceiling has to track the purchased share.
+    # See docs/wasm-parallelism.md.
+    env = dict(os.environ) if env is None else env
+    env["ENCLAVE_AVAILABLE_PARALLELISM"] = str(_available_parallelism_for(cpu_share))
+    rec["availableParallelism"] = _available_parallelism_for(cpu_share)
     if nn and enclave_config:
         # Recurrent-snapshot depth for speculative rewind (the shim's
         # ENCLAVE_GGML_N_RS_SEQ, read at ggml server-context creation):
