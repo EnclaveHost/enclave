@@ -21,6 +21,57 @@ They get conflated constantly, so:
 | **wasi-threads** (p1) | real OS threads, shared linear memory, true parallelism | **DELETED from wasmtime** (commit b4b23fe583, "Remove wasi-threads and wasi-common" #13558) |
 | **shared-everything-threads** (SET) | true parallelism, reachable from a component | **not implemented** — see the layer map |
 
+## UPDATE 2026-08-07 (later the same day): three of those layers turned out to
+## be buildable, and I built them. The wall is somewhere else.
+
+An earlier revision of this file said SET "cannot be built from here". That was
+wrong about layers 2-4 and I have since built them. Corrected status:
+
+- **Layer 2 (CLI wiring) — BUILT.** See below; the flag was a silent no-op.
+- **Layer 3 (shared types) — BUILT for functions.** `WasmSubType::{is,as,unwrap}_func`
+  treated `shared` as "not a func", so every SET intrinsic panicked in
+  `unwrap_func` the moment its trampoline compiled. `shared` on a FUNC type
+  changes neither signature, calling convention nor ABI, so those accessors now
+  see through it; `type_registry`'s GC-layout assertions were likewise narrowed
+  (a shared func has no GC layout). The GC accessors still assert — there
+  `shared` really does change allocation and barriers.
+- **Layer 4 (intrinsics) — ONE IS WORKING.** `thread.available_parallelism`
+  runs end-to-end through all seven plumbing sites (wasmparser → translate →
+  inline → dfg → info → cranelift trampoline → runtime libcall):
+
+      $ wasmtime run -W threads,shared-everything-threads,component-model-threading \
+          --invoke 'run()' tools/parallelism-probe/set-available-parallelism.wat
+      32
+      $ ENCLAVE_AVAILABLE_PARALLELISM=8 ...   ->   8
+
+  It answers from the TENANT's slice, not the node's core count — a guest
+  sizing a pool from 32 while holding a 0.25 share would just build 32 threads
+  to fight over 8 cores' worth of cgroup weight.
+
+  All of this is in `wasm/wasmtime-set-threads.patch.wip`, deliberately NOT in
+  the Dockerfile chain.
+
+### The actual wall: `thread.spawn-*` needs a thread-safe Store
+
+"Shared everything" means a spawned thread runs in the **same instance** —
+same memory, same tables, same globals. In wasmtime, entering guest code
+requires `&mut Store`, so it is exclusive *by construction*. This is not a
+feature flag; the borrow checker rejects it outright:
+
+    error[E0499]: cannot borrow `store` as mutable more than once at a time
+
+And the escape hatch that made wasi-threads work — separate `Store`s sharing
+one *imported* memory — is unavailable to components: a component instantiates
+its own memory internally, and while it can import a core *module*, it cannot
+import a memory *instance* from outside (tested). Two component instances are
+therefore two memories, which is the opposite of shared-everything.
+
+So the remaining work is not "one more layer". It is making wasmtime's
+execution model thread-safe — store bookkeeping, fuel, epoch interruption,
+trap handling, stack limits and GC roots all become concurrent — which is the
+core rearchitecture upstream has not started. That is the honest boundary, and
+it is now demonstrated by a compile error rather than asserted.
+
 ## The layer map (measured, not assumed)
 
 1. **Spec / validator — EXISTS.** `wasm-tools validate --features
