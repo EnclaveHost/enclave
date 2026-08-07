@@ -112,6 +112,12 @@ const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', rel
   // the EAB-less Let's Encrypt fallback — sellers escape LE's per-registered-
   // domain weekly cap. Rides fw_cfg like the keys: out-of-band, unmeasured.
   acmeEabKid: cfg.acmeEabKid || '', acmeEabHmac: cfg.acmeEabHmac || '',
+  // NOMINAL node RAM (fleet parity): the Tinfoil flavors advertise their baked
+  // size (64/512 GB), not the guest kernel's MemTotal, so metal advertises the
+  // size the host gives the VM the same way. gsup caps it at the measured
+  // total + a small boot haircut so a config typo (or a dishonest seller)
+  // can't advertise RAM the VM doesn't have.
+  nodeRamGb: Math.round(Number(MEM) / 1024),
   // what this operator CHARGES, in USD per hour for a FULL node / FULL card
   // (see gsup: converted to the ledger's per-second 6dp basis). The GPU ask is
   // only meaningful on a GPU enclave; gsup drops it otherwise.

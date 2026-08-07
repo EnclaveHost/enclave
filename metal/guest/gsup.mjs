@@ -19,15 +19,17 @@ import os from 'node:os';
 const log = (...a) => { try { fs.writeSync(1, `[gsup] ${a.join(' ')}\n`); } catch {} };
 const readJson = (p, d) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return d; } };
 
-// The node's ADVERTISED capacity must be this VM's ACTUAL size, not the baked
-// CPU-flavor constants (16 vCPU / 64 GB) — otherwise the enclave sells capacity
-// it doesn't have. Derive it from the guest itself: vCPUs from the scheduler,
-// RAM from MemTotal minus a reserve for the base system (kernel + initramfs in
-// tmpfs + the three services). GFLOPS scales with vCPUs (~62.5/vCPU, matching
-// the flavor's 1000 GFLOPS for 16 vCPU).
+// The node's ADVERTISED capacity is this VM's size: vCPUs from the scheduler,
+// GFLOPS scaling with them (~62.5/vCPU, matching the flavor's 1000 for 16).
+// RAM follows the FLEET convention: advertise the NOMINAL size the host gives
+// the VM (fw_cfg nodeRamGb, from config memMiB) exactly as the Tinfoil flavors
+// advertise their baked constants — on both, the wasm manager's RAM-headroom
+// admission gate (×0.9) is what holds back the kernel + base-system overhead.
+// The nominal is capped at MemTotal + 3 GB (≈ the kernel's boot-time haircut)
+// so a config typo or a dishonest seller can't advertise RAM the VM doesn't
+// have; with no nominal, fall back to the measured size as before.
 const NODE_VCPUS = os.cpus().length;
 const totalGb = os.totalmem() / (1024 ** 3);
-const NODE_RAM_GB = Math.max(1, Math.floor(totalGb - 1.5));   // reserve ~1.5 GB for the base system
 const NODE_GFLOPS = Math.max(1, Math.round((1000 / 16) * NODE_VCPUS));
 
 // --- config: mode from the MEASURED cmdline; deployment config from fw_cfg ----
@@ -40,6 +42,10 @@ const fw = (() => {
   }
   return {};
 })();
+const nominalRamGb = Math.round(Number(fw.nodeRamGb) || 0);
+const NODE_RAM_GB  = nominalRamGb > 0
+  ? Math.min(nominalRamGb, Math.ceil(totalGb) + 3)
+  : Math.max(1, Math.floor(totalGb - 1.5));            // measured: reserve ~1.5 GB for the base system
 const MODE         = fw.mode || cmdMode || 'snp';      // snp | tdx | dev
 const NAME         = fw.name || 'metal0';
 const PUBLIC_URL   = fw.publicUrl || '';               // e.g. https://api.enclave.host/t/metal0
@@ -84,7 +90,7 @@ log(`mode=${MODE} name=${NAME} public=${PUBLIC_URL || '(none)'} relay=${RELAY_UR
       ? ` ask=${PRICE_CPU6 > 0 ? '$' + (PRICE_CPU6 * 3600 / 1e6).toFixed(2) + '/node-hr' : 'list'}`
         + (HAS_GPU && PRICE_GPU6 > 0 ? ` · $${(PRICE_GPU6 * 3600 / 1e6).toFixed(2)}/card-hr` : '')
       : ' ask=list price'));
-log(`advertised capacity: ${NODE_VCPUS} vCPU / ${NODE_RAM_GB} GB RAM / ${NODE_GFLOPS} GFLOPS (from this VM's actual size)`);
+log(`advertised capacity: ${NODE_VCPUS} vCPU / ${NODE_RAM_GB} GB RAM / ${NODE_GFLOPS} GFLOPS (RAM ${nominalRamGb > 0 ? 'nominal, fleet convention' : 'measured'})`);
 
 // --- child management --------------------------------------------------------
 const children = new Map();
