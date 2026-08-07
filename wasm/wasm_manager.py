@@ -2757,14 +2757,29 @@ def _capacity() -> dict:
     return cap
 
 
-# CPU noisy-neighbour control (cgroup v2), OPT-IN, default OFF. Today tenants
-# share the node's CPU freely and a bursty app relies on grabbing idle cores; a
-# mis-sized HARD cap would throttle a legitimate long-running/bursty app, so we
-# apply NOTHING unless an operator sets one of these:
-#   WASM_CPU_WEIGHT=<1..10000>  per-tenant cgroup cpu.weight (fair-share). Does
-#                               NOT cap — it only divides CONTENDED CPU
-#                               proportionally between tenants, so a tenant still
-#                               bursts to all idle cores. The recommended knob.
+# CPU noisy-neighbour control (cgroup v2). Two knobs with DELIBERATELY
+# different defaults, because they are not the same kind of risk:
+#
+#   cpu.weight  ON BY DEFAULT, proportional to the tenant's PURCHASED cpuShare.
+#               A weight does NOT cap anything: it only divides CONTENDED CPU
+#               between tenants, so an app still bursts to every idle core.
+#               What it buys is the invariant the fleet actually sells — under
+#               contention you get the share you paid for, and no neighbour can
+#               take it from you. That mattered less when a tenant was one
+#               single-threaded wasm process; it is load-bearing the moment a
+#               guest can run on many cores at once (concurrency today via
+#               `serve`'s per-request parallelism, real parallelism when the
+#               engine grows it — see docs/wasm-parallelism.md). Turning this
+#               on later, AFTER parallel guests exist, would be closing the
+#               door behind the horse.
+#   cpu.max     STILL OPT-IN, default OFF. A HARD ceiling throttles a bursty
+#               app even on an otherwise idle node, which is a real regression
+#               for legitimate workloads. Only an operator should ask for it.
+#
+# Operator overrides:
+#   WASM_CPU_WEIGHT=<1..10000>  pin EVERY tenant to this fixed weight instead of
+#                               the proportional default (escape hatch / A-B).
+#   WASM_CPU_WEIGHT=0           disable the weight entirely (pre-2026-08 behaviour).
 #   WASM_CPU_MAX_PCT=<1..100>   HARD ceiling: at most this % of the whole node's
 #                               vCPUs (cgroup cpu.max). Can throttle bursty apps
 #                               — use deliberately.
@@ -2783,7 +2798,29 @@ def _capacity() -> dict:
 _CPU_WEIGHT        = os.environ.get("WASM_CPU_WEIGHT", "").strip()
 _CPU_MAX_PCT       = os.environ.get("WASM_CPU_MAX_PCT", "").strip()
 _CGROUP_PARENT_ENV = os.environ.get("WASM_CGROUP_PARENT", "").strip()
-_CPU_CGROUP_ON     = bool(_CPU_WEIGHT or _CPU_MAX_PCT)
+# "0" is the explicit opt-OUT of the proportional weight; anything else
+# non-empty pins a fixed weight; empty = the proportional default.
+_CPU_WEIGHT_OFF    = _CPU_WEIGHT in ("0", "off", "no", "false")
+# cgroup work now runs by default (the weight), not only when a knob is set.
+_CPU_CGROUP_ON     = bool(_CPU_MAX_PCT) or not _CPU_WEIGHT_OFF
+
+
+def _cpu_weight_for(cpu_share: float) -> int:
+    """cgroup-v2 cpu.weight for a tenant holding `cpu_share` of the node.
+
+    The whole node is 10000, so a share maps straight onto it: two tenants at
+    0.25 and 0.75 divide a contended node 25/75, which is exactly what they
+    bought. Clamped into cgroup's legal 1..10000. A share of 0 (direct callers
+    that never set one) falls back to cgroup's own default of 100 rather than
+    weight 1 — an unpriced tenant should be ordinary, not starved."""
+    if _CPU_WEIGHT and not _CPU_WEIGHT_OFF:
+        try:
+            return max(1, min(10000, int(_CPU_WEIGHT)))
+        except ValueError:
+            return 100
+    if cpu_share <= 0:
+        return 100
+    return max(1, min(10000, round(cpu_share * 10000)))
 _cpu_cgroup_parent = None      # resolved lazily on first launch; False once known-unavailable
 
 
@@ -2846,10 +2883,11 @@ def _cpu_cgroup_base():
     return _cpu_cgroup_parent or None
 
 
-def _apply_cpu_cgroup(vid: str, pid: int):
+def _apply_cpu_cgroup(vid: str, pid: int, cpu_share: float = 0.0):
     """Best-effort: move `pid` (a setsid group leader) into a per-tenant cgroup
-    and set cpu.weight / cpu.max from the operator knobs. No-op unless a knob is
-    set; never raises. Returns the cgroup dir (for teardown) or None."""
+    and set cpu.weight (proportional to `cpu_share`, on by default) / cpu.max
+    (opt-in). Never raises — a tenant that cannot be placed runs unweighted
+    rather than not at all. Returns the cgroup dir (for teardown) or None."""
     if not _CPU_CGROUP_ON:
         return None
     base = _cpu_cgroup_base()
@@ -2858,9 +2896,9 @@ def _apply_cpu_cgroup(vid: str, pid: int):
     cg = base / vid
     try:
         cg.mkdir(exist_ok=True)
-        if _CPU_WEIGHT:
+        if not _CPU_WEIGHT_OFF:
             try:
-                (cg / "cpu.weight").write_text(str(max(1, min(10000, int(_CPU_WEIGHT)))))
+                (cg / "cpu.weight").write_text(str(_cpu_weight_for(cpu_share)))
             except (ValueError, OSError) as e:
                 print(f"[cpu] {vid}: cpu.weight not applied: {e}", flush=True)
         if _CPU_MAX_PCT:
@@ -4259,8 +4297,9 @@ def _spawn_and_wait(rec, ctx):
         logf.close()
         return rec
     rec["_proc"] = proc
-    # OPT-IN CPU fair-share / cap (default off = no-op; see _apply_cpu_cgroup).
-    cg = _apply_cpu_cgroup(rec["id"], proc.pid)
+    # CPU fair-share proportional to the purchased share (on by default) plus
+    # the opt-in hard cap. See _apply_cpu_cgroup.
+    cg = _apply_cpu_cgroup(rec["id"], proc.pid, float(rec.get("cpuShare") or 0))
     if cg:
         rec["_cgroup"] = str(cg)
 

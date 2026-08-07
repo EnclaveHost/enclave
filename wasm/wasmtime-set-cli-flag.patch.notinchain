@@ -1,0 +1,16 @@
+diff --git a/crates/cli-flags/src/lib.rs b/crates/cli-flags/src/lib.rs
+index ca34b9306b..593abe3361 100644
+--- a/crates/cli-flags/src/lib.rs
++++ b/crates/cli-flags/src/lib.rs
+@@ -1285,6 +1285,11 @@ impl CommonOptions {
+             ("component-model", component_model_implements, wasm_component_model_implements)
+             ("component-model", component_model_memory64, wasm_component_model_memory64)
+             ("threads", threads, wasm_threads)
++            // enclave: `-W shared-everything-threads` parsed but never applied
++            // upstream (only the wast runner called the setter) — the flag was
++            // a silent no-op on the CLI. Wire it like its siblings so the
++            // engine actually sees the feature.
++            ("threads", shared_everything_threads, wasm_shared_everything_threads)
+             ("gc", gc, wasm_gc)
+             ("gc", reference_types, wasm_reference_types)
+             ("gc", function_references, wasm_function_references)
