@@ -522,10 +522,10 @@ index ede512d..d329405 100644
                  &TY
              }
 diff --git a/crates/wasmtime/src/runtime/store.rs b/crates/wasmtime/src/runtime/store.rs
-index 9cc49ea..16db001 100644
+index 9cc49ea..bdd6d4f 100644
 --- a/crates/wasmtime/src/runtime/store.rs
 +++ b/crates/wasmtime/src/runtime/store.rs
-@@ -470,6 +470,13 @@ pub struct StoreOpaque {
+@@ -470,6 +470,17 @@ pub struct StoreOpaque {
  
      instances: TryPrimaryMap<InstanceId, StoreInstance>,
  
@@ -533,13 +533,17 @@ index 9cc49ea..16db001 100644
 +    /// spawned from this store. Joined at the START of this store's `Drop`,
 +    /// which is what makes the workers' pointers into this store's instances
 +    /// sound: nothing they can reach is deallocated while they run.
++    ///
++    /// Pruned of finished workers on each spawn, so a guest doing repeated
++    /// spawn/join rounds does not accumulate handles without bound.
 +    #[cfg(all(feature = "std", feature = "threads"))]
 +    set_thread_joins: Vec<std::thread::JoinHandle<()>>,
++
 +
      signal_handler: Option<SignalHandler>,
      modules: ModuleRegistry,
      func_refs: FuncRefs,
-@@ -731,6 +738,8 @@ impl<T> Store<T> {
+@@ -731,6 +742,8 @@ impl<T> Store<T> {
              #[cfg(feature = "stack-switching")]
              continuations: Vec::new(),
              instances: TryPrimaryMap::new(),
@@ -548,21 +552,36 @@ index 9cc49ea..16db001 100644
              signal_handler: None,
              gc_store: None,
              #[cfg(feature = "gc")]
-@@ -1657,6 +1666,13 @@ impl StoreOpaque {
+@@ -1657,6 +1670,28 @@ impl StoreOpaque {
          (self.instances[id].handle.get_mut(), &self.modules)
      }
  
 +    /// enclave/SET: register a spawned shared-everything-threads worker with
 +    /// this store; it is joined at the start of this store's `Drop`.
++    ///
++    /// Also drops the handles of workers that have already finished, so a
++    /// guest doing repeated spawn/join rounds does not grow this vector
++    /// without bound. Joining a finished thread does not block.
 +    #[cfg(all(feature = "std", feature = "threads"))]
 +    pub(crate) fn push_set_thread_join(&mut self, handle: std::thread::JoinHandle<()>) {
++        if self.set_thread_joins.len() >= 64 {
++            let finished = mem::take(&mut self.set_thread_joins);
++            for h in finished {
++                if h.is_finished() {
++                    let _ = h.join();
++                } else {
++                    self.set_thread_joins.push(h);
++                }
++            }
++        }
 +        self.set_thread_joins.push(handle);
 +    }
++
 +
      /// Access multiple instances specified via `ids`.
      ///
      /// # Panics
-@@ -2423,6 +2439,18 @@ impl Drop for StoreOpaque {
+@@ -2423,6 +2458,18 @@ impl Drop for StoreOpaque {
          // NB it's important that this destructor does not access `self.data`.
          // That is deallocated by `Drop for Store<T>` above.
  
@@ -633,7 +652,7 @@ index 0d98863..c1da1d5 100644
              let gc_layout = match &sub_ty.composite_type.inner {
                  wasmtime_environ::WasmCompositeInnerType::Func(_) => continue,
 diff --git a/crates/wasmtime/src/runtime/vm/component.rs b/crates/wasmtime/src/runtime/vm/component.rs
-index de21c67..eefbb99 100644
+index de21c67..de86238 100644
 --- a/crates/wasmtime/src/runtime/vm/component.rs
 +++ b/crates/wasmtime/src/runtime/vm/component.rs
 @@ -16,8 +16,8 @@ use crate::runtime::vm::instance::{InstanceLayout, OwnedInstance, OwnedVMContext
@@ -647,7 +666,20 @@ index de21c67..eefbb99 100644
  };
  use crate::store::InstanceId;
  use crate::{Func, vm};
-@@ -41,6 +41,8 @@ const INVALID_PTR: usize = 0xdead_dead_beef_beef_u64 as usize;
+@@ -38,9 +38,21 @@ use wasmtime_environ::{HostPtr, PrimaryMap, VMSharedTypeIndex};
+ )]
+ const INVALID_PTR: usize = 0xdead_dead_beef_beef_u64 as usize;
+ 
++/// enclave/SET: byte offset of `vm_store_context` within any
++/// `VMComponentContext`.
++///
++/// The prefix `magic: u32`, pad-to-pointer, `builtins: *const _`,
++/// `vm_store_context: *const _` precedes every variable-length area, so this
++/// is the same for every component. Asserted against `VMComponentOffsets`
++/// below so a layout change breaks the build rather than the guard.
++#[cfg(all(feature = "std", feature = "threads"))]
++const SET_VMCOMPONENT_STORE_CONTEXT_OFFSET: usize = 2 * core::mem::size_of::<usize>();
++
  mod handle_table;
  mod libcalls;
  mod resources;
@@ -656,7 +688,7 @@ index de21c67..eefbb99 100644
  
  pub use self::handle_table::{HandleTable, RemovedResource};
  #[cfg(feature = "component-model-async")]
-@@ -258,6 +260,60 @@ impl ComponentInstance {
+@@ -258,6 +270,69 @@ impl ComponentInstance {
          // allocation which can go backwards to a `ComponentInstance`.
          let mut ptr = unsafe { Self::from_vmctx(vmctx) };
  
@@ -681,34 +713,43 @@ index de21c67..eefbb99 100644
 +        // created on the failure path.
 +        #[cfg(all(feature = "std", feature = "threads"))]
 +        {
++            // Read the store-context slot with pure POINTER ARITHMETIC. Do
++            // NOT form a `&ComponentInstance` here: on the very path this
++            // detects, the owning thread holds `&mut` to that allocation, so
++            // a shared reference to it would itself be the aliasing violation
++            // being reported.
++            //
 +            // SAFETY: `vmctx` is valid per this function's contract, and the
-+            // store-context slot was initialized at instantiation.
-+            let own: VmPtr<VMStoreContext> = *unsafe {
-+                let reference = ptr.as_ref();
-+                reference.vmctx_plus_offset::<VmPtr<VMStoreContext>>(
-+                    reference.offsets.vm_store_context(),
-+                )
++            // slot is written once at instantiation and never mutated.
++            let own = unsafe {
++                vmctx
++                    .byte_add(SET_VMCOMPONENT_STORE_CONTEXT_OFFSET)
++                    .cast::<VmPtr<VMStoreContext>>()
++                    .read()
++                    .as_non_null()
 +            };
-+            if let Some(current) = crate::runtime::vm::traphandlers::current_vm_store_context() {
-+                if current != own.as_non_null() {
-+                    match R::unwind_sentinel() {
-+                        Some(sentinel) => {
-+                            crate::runtime::vm::traphandlers::record_unwind_on_this_thread(
-+                                crate::Error::msg(
-+                                    "a shared-everything-threads worker cannot call back into \
-+                                     the component that spawned it (nested `thread.spawn-*`, or \
-+                                     an unshared import from a shared function)",
-+                                ),
-+                            );
-+                            return sentinel;
-+                        }
-+                        None => {
-+                            eprintln!(
-+                                "wasmtime: fatal: non-trapping component libcall entered from a \
-+                                 shared-everything-threads worker thread; aborting"
-+                            );
-+                            std::process::abort();
-+                        }
++            if crate::runtime::vm::traphandlers::set_entry_is_cross_thread(own) {
++                let err = crate::Error::msg(
++                    "a shared-everything-threads worker cannot call back into the component \
++                     that spawned it (nested `thread.spawn-*`, or an unshared import from a \
++                     shared function)",
++                );
++                match R::unwind_sentinel() {
++                    Some(sentinel)
++                        if crate::runtime::vm::traphandlers::record_unwind_on_this_thread(err) =>
++                    {
++                        return sentinel;
++                    }
++                    // Either this libcall shape has no way to report a trap,
++                    // or there is no activation to attach one to. Continuing
++                    // would alias another thread's `&mut Store`.
++                    _ => {
++                        eprintln!(
++                            "wasmtime: fatal: a shared-everything-threads worker entered a \
++                             component libcall that cannot report a trap; aborting rather than \
++                             aliasing the owning thread's store"
++                        );
++                        std::process::abort();
 +                    }
 +                }
 +            }
@@ -718,10 +759,10 @@ index de21c67..eefbb99 100644
          // as a mutable reference.
          let reference = unsafe { ptr.as_mut() };
 diff --git a/crates/wasmtime/src/runtime/vm/component/libcalls.rs b/crates/wasmtime/src/runtime/vm/component/libcalls.rs
-index f62ea58..31a4314 100644
+index f62ea58..ba4d8e8 100644
 --- a/crates/wasmtime/src/runtime/vm/component/libcalls.rs
 +++ b/crates/wasmtime/src/runtime/vm/component/libcalls.rs
-@@ -693,6 +693,116 @@ fn exit_sync_call(store: &mut dyn VMStore, instance: Instance) -> Result<()> {
+@@ -693,6 +693,127 @@ fn exit_sync_call(store: &mut dyn VMStore, instance: Instance) -> Result<()> {
      store.exit_guest_sync_call()
  }
  
@@ -737,17 +778,28 @@ index f62ea58..31a4314 100644
 +// host's parallelism, which is the right answer for a plain `wasmtime run`.
 +//
 +// Never returns 0: a guest that reads 0 typically divides by it.
++//
++// Cached: this is read on every call of a guest-facing intrinsic, and
++// `std::env::var` allocates and takes a lock.
++pub(crate) fn available_parallelism() -> u32 {
++    use std::sync::OnceLock;
++    static CACHED: OnceLock<u32> = OnceLock::new();
++    *CACHED.get_or_init(|| {
++        let n = match std::env::var("ENCLAVE_AVAILABLE_PARALLELISM") {
++            Ok(v) => v.trim().parse::<u32>().unwrap_or(0),
++            Err(_) => 0,
++        };
++        if n > 0 {
++            return n;
++        }
++        std::thread::available_parallelism()
++            .map(|n| n.get() as u32)
++            .unwrap_or(1)
++    })
++}
++
 +fn thread_available_parallelism(_store: &mut dyn VMStore, _instance: Instance) -> Result<u32> {
-+    let n = match std::env::var("ENCLAVE_AVAILABLE_PARALLELISM") {
-+        Ok(v) => v.trim().parse::<u32>().unwrap_or(0),
-+        Err(_) => 0,
-+    };
-+    if n > 0 {
-+        return Ok(n);
-+    }
-+    Ok(std::thread::available_parallelism()
-+        .map(|n| n.get() as u32)
-+        .unwrap_or(1))
++    Ok(available_parallelism())
 +}
 +
 +// enclave/SET: `thread.spawn-ref` / `thread.spawn-indirect`.
@@ -840,10 +892,10 @@ index f62ea58..31a4314 100644
      store: &mut dyn VMStore,
 diff --git a/crates/wasmtime/src/runtime/vm/component/set_threads.rs b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
 new file mode 100644
-index 0000000..f4a7901
+index 0000000..fe6de52
 --- /dev/null
 +++ b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
-@@ -0,0 +1,391 @@
+@@ -0,0 +1,545 @@
 +//! enclave/SET: real OS-thread spawning for the shared-everything-threads
 +//! `thread.spawn-ref` / `thread.spawn-indirect` component intrinsics.
 +//!
@@ -896,16 +948,18 @@ index 0000000..f4a7901
 +//!    `StoreOpaque::drop` joins them before deallocating anything;
 +//! 2. a worker thread never calls back into the primary store: component
 +//!    intrinsics and canon-lowered host imports all enter through
-+//!    `ComponentInstance::enter_host_from_wasm`, which aborts the process if
-+//!    entered from a thread that does not own the component's store. This is
-+//!    defense in depth — shared-everything-threads validation already forbids
-+//!    shared functions from calling unshared imports — and failing closed is
-+//!    the correct posture for a runtime measured into a TEE attestation.
++//!    `ComponentInstance::enter_host_from_wasm`, which TRAPS the worker (on
++//!    the worker's own thread, without touching the other store) if entered
++//!    from a thread that does not own the component's store. The realistic
++//!    way to reach it is a nested spawn — a worker spawning another thread —
++//!    which is reasonable guest code and so must not take the host down.
 +//!
 +//! Spawn refuses (returns the ABI's `-1` failure, with a diagnostic on
 +//! stderr) any module shape whose view would NOT be faithful: non-shared
 +//! defined memories, imported tables/globals, imported core-wasm functions,
-+//! mutable `shared` globals, a wasm `start` section, or GC use.
++//! mutable `shared` globals, a wasm `start` section, or GC use — and any
++//! spawn beyond the live-thread cap (`max_live_threads`), which is what
++//! bounds a hostile guest's thread creation.
 +
 +use crate::prelude::*;
 +use crate::runtime::vm::component::libcalls::ThreadSpawnResult;
@@ -916,9 +970,58 @@ index 0000000..f4a7901
 +use crate::{AsContextMut, Engine, Module, Store, Val};
 +use core::pin::Pin;
 +use core::ptr::NonNull;
-+use core::sync::atomic::{AtomicU64, Ordering};
++use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 +use wasmtime_environ::component::RuntimeTableIndex;
++use wasmtime_environ::component::VMCOMPONENT_MAGIC;
 +use wasmtime_environ::{DefinedGlobalIndex, DefinedMemoryIndex, FuncIndex, VMCONTEXT_MAGIC};
++
++/// How many workers one store may have running at once.
++///
++/// OS threads are a NODE-WIDE kernel resource (`threads-max`, pid space), and
++/// the cgroup controls this platform applies (`cpu.weight`, `cpu.max`) bound a
++/// tenant's CPU share but not its thread count — so an uncapped guest loop
++/// degrades every tenant on the box, not just its own. Measured before this
++/// cap existed: 200 spawn calls produced 234 live OS threads with no refusal,
++/// at ~2.3 MB of stack address space each; the binding resource is the thread
++/// count itself, not memory.
++///
++/// The bound is PROCESS-global, not per-store, and that matters: under
++/// `wasmtime serve` a fresh `Store` is created per HTTP request (wasip2
++/// reuses an instance once) with up to 1000 concurrent requests, so a
++/// per-store cap would have been a 1000x under-count of the real thread
++/// ceiling.
++///
++/// It is sized from `thread.available_parallelism`, which reports the
++/// tenant's purchased slice when the embedder sets
++/// `ENCLAVE_AVAILABLE_PARALLELISM` and the HOST core count otherwise. Note
++/// the platform does not set that variable today, so on-fleet this currently
++/// derives from the node's core count, not the tenant's share — wiring it up
++/// is a prerequisite for enabling SET, not an optimization. The 4x headroom
++/// is for pools whose threads block rather than compute.
++/// `ENCLAVE_MAX_SET_THREADS` overrides it; the floor of 4 keeps a
++/// single-core tenant able to express a small pool.
++///
++/// Exceeding it returns the ABI's documented `-1` ("spawn failed"), which SET
++/// guests are already required to handle — the same graceful path an
++/// unsupported module shape takes.
++fn max_live_threads() -> usize {
++    use std::sync::OnceLock;
++    static CACHED: OnceLock<usize> = OnceLock::new();
++    *CACHED.get_or_init(|| {
++        if let Ok(v) = std::env::var("ENCLAVE_MAX_SET_THREADS") {
++            if let Ok(n) = v.trim().parse::<usize>() {
++                if n > 0 {
++                    return n;
++                }
++            }
++        }
++        let par = super::libcalls::available_parallelism() as usize;
++        par.saturating_mul(4).max(4)
++    })
++}
++
++/// Live SET workers in this PROCESS. See `max_live_threads`.
++static LIVE_SET_THREADS: AtomicUsize = AtomicUsize::new(0);
 +
 +/// Monotonic SET thread ids handed back to guests. Non-negative i32 range;
 +/// starts at 1 (0 is reserved by convention for "the main thread").
@@ -1070,6 +1173,22 @@ index 0000000..f4a7901
 +    if module.num_imported_globals != 0 {
 +        refuse!("module imports a global (unsupported on SET threads)");
 +    }
++    // An IMPORTED memory is the dangerous one, not merely unsupported:
++    // `memory.grow` and `memory.atomic.wait*`/`notify` on an imported memory
++    // are lowered to call the builtin with the DEFINING instance's vmctx, so
++    // a worker's futex wait would re-enter the primary store. The core-side
++    // guard in `Instance::enter_host_from_wasm` now catches that too, but
++    // refusing here means such a guest gets its sequential fallback instead
++    // of a trap on its first mutex acquisition.
++    if module.num_imported_memories != 0 {
++        refuse!(
++            "module imports a memory; memory operations on it resolve through \
++             the defining instance (unsupported on SET threads)"
++        );
++    }
++    if module.num_imported_tags != 0 {
++        refuse!("module imports a tag (unsupported on SET threads)");
++    }
 +    for (idx, global) in module.globals.iter() {
 +        if global.shared && global.mutability {
 +            refuse!(
@@ -1087,20 +1206,53 @@ index 0000000..f4a7901
 +
 +    let imports = defining.copy_raw_imports();
 +
-+    // Imported functions must not be other core-wasm functions: a view
-+    // calling one would execute a foreign instance with the PRIMARY's
-+    // execution state from the worker thread. Component trampolines are fine
-+    // to import (the cross-thread entry guard makes calling one fail closed,
-+    // and validation prevents valid guests from doing so).
++    // Imported functions: ALLOW-LIST, not a deny-list. Only a component
++    // trampoline may be imported — calling one from a worker fails closed via
++    // the cross-thread entry guard, and SET validation stops valid guests
++    // reaching it anyway.
++    //
++    // Everything else is refused, including host-function contexts
++    // (`VM_ARRAY_CALL_HOST_FUNC_MAGIC`). That case would be worse than a
++    // race: the array-call trampoline is monomorphized over the PRIMARY
++    // store's data type `T` but would run against the worker's `Store<()>`,
++    // reinterpreting `()` as `T` — a type confusion, and a use-after-free of
++    // `T` besides, since `Drop for Store<T>` destroys `T` before the workers
++    // are joined. I could not construct a component instantiation that puts
++    // one here, which is exactly why the polarity must be allow-list: this
++    // must not become reachable by a change elsewhere.
 +    for (i, import) in imports.functions.iter().enumerate() {
 +        let magic = unsafe { *import.vmctx.as_non_null().cast::<u32>().as_ref() };
-+        if magic == VMCONTEXT_MAGIC {
++        if magic != VMCOMPONENT_MAGIC {
 +            refuse!(
-+                "imported function {i} is another core module's function \
++                "imported function {i} is not a component trampoline \
 +                 (cross-instance SET threads are unsupported)"
 +            );
 +        }
 +    }
++
++    // ---- reserve a slot under the live-thread cap ----
++    //
++    // A compare-exchange loop rather than a blind increment, so a refusal
++    // never leaves the counter above the cap (which would wedge the store
++    // into refusing forever).
++    let cap = max_live_threads();
++    loop {
++        let cur = LIVE_SET_THREADS.load(Ordering::Acquire);
++        if cur >= cap {
++            refuse!(
++                "live SET thread cap reached ({cap}); raise ENCLAVE_MAX_SET_THREADS \
++                 or lower the guest's pool size"
++            );
++        }
++        if LIVE_SET_THREADS
++            .compare_exchange_weak(cur, cur + 1, Ordering::AcqRel, Ordering::Acquire)
++            .is_ok()
++        {
++            break;
++        }
++    }
++    // From here on every early return MUST release the slot.
++    let slot = SlotGuard(true);
 +
 +    // ---- capture ----
 +    let thread_id = NEXT_SET_THREAD_ID.fetch_add(1, Ordering::Relaxed) as i64;
@@ -1118,17 +1270,54 @@ index 0000000..f4a7901
 +        thread_id,
 +    };
 +
++    // Size the worker stack from the engine's wasm-stack limit rather than
++    // taking Rust's 2 MiB default. The limit is computed as
++    // `stack_pointer - max_wasm_stack` at entry, so if an embedder raises
++    // `max_wasm_stack` above the thread's real stack, the guard-page check
++    // never fires and deep guest recursion runs off the end of the stack
++    // instead of trapping cleanly.
++    let stack_size = store
++        .engine()
++        .config()
++        .max_wasm_stack
++        .saturating_add(512 * 1024)
++        .max(2 * 1024 * 1024);
 +    let handle = std::thread::Builder::new()
 +        .name(format!("set-thread-{thread_id}"))
++        .stack_size(stack_size)
 +        .spawn(move || worker_main(payload));
 +    match handle {
 +        Ok(handle) => {
++            // The worker owns the slot now and releases it when it exits.
++            slot.into_worker();
 +            store.push_set_thread_join(handle);
 +            Ok(ThreadSpawnResult(thread_id as i32))
 +        }
 +        Err(e) => {
++            // `slot` releases on drop, so a failed spawn does not leak a slot.
 +            log::warn!("thread.spawn: OS thread creation failed: {e}");
 +            Ok(ThreadSpawnResult::FAILED)
++        }
++    }
++}
++
++/// Releases a reserved slot unless ownership was handed to a worker. Exists so
++/// that every early return between reservation and a successful
++/// `thread::spawn` — including a `?` or a panic — cannot leak a slot and
++/// permanently shrink the cap.
++struct SlotGuard(bool);
++
++impl SlotGuard {
++    /// The worker thread now owns this slot and will release it on exit.
++    fn into_worker(mut self) {
++        self.0 = false;
++    }
++}
++
++impl Drop for SlotGuard {
++    fn drop(&mut self) {
++        if self.0 {
++            LIVE_SET_THREADS.fetch_sub(1, Ordering::AcqRel);
 +        }
 +    }
 +}
@@ -1137,6 +1326,10 @@ index 0000000..f4a7901
 +/// function, tear the view down.
 +fn worker_main(payload: SpawnPayload) {
 +    let thread_id = payload.thread_id;
++    // Release this worker's slot under the live-thread cap however it exits —
++    // normal return, guest trap, or panic. Declared before the work so it
++    // drops last.
++    let _slot = SlotGuard(true);
 +
 +    // A guest TRAP is normal operation: it unwinds into `call` inside
 +    // `run_view` and arrives here as `Err`. wasi-threads precedent applies —
@@ -1155,8 +1348,21 @@ index 0000000..f4a7901
 +    match result {
 +        Ok(Ok(())) => {}
 +        Ok(Err(e)) => {
-+            eprintln!("set-thread-{thread_id}: {e:?}");
-+            std::process::exit(1);
++            // A guest TRAP kills only this worker. Earlier this called
++            // `process::exit(1)` on the wasi-threads precedent that a trapping
++            // thread ends the program — but that made a single `unreachable`,
++            // an out-of-bounds load, or a nested `thread.spawn` into a
++            // whole-process kill, contradicting the guard's own promise that a
++            // worker "dies alone", and `exit` runs atexit handlers while
++            // sibling threads still hold the shared-memory lock and malloc
++            // arenas, which can hang instead of dying.
++            //
++            // The honest cost of dying alone: siblings waiting on this
++            // thread's futex are not woken, so a guest that loses a worker may
++            // deadlock itself. That is the guest's own bug to handle, and it
++            // is strictly better than taking down a runtime serving it and
++            // (under `wasmtime serve`) its other in-flight requests.
++            eprintln!("set-thread-{thread_id} trapped (thread ends; siblings continue): {e:?}");
 +        }
 +        Err(_) => {
 +            // The default panic hook has already printed the payload and
@@ -1236,10 +1442,71 @@ index 0000000..f4a7901
 +    Ok(())
 +}
 diff --git a/crates/wasmtime/src/runtime/vm/instance.rs b/crates/wasmtime/src/runtime/vm/instance.rs
-index 06ba7e4..b8481bf 100644
+index 06ba7e4..8a97a88 100644
 --- a/crates/wasmtime/src/runtime/vm/instance.rs
 +++ b/crates/wasmtime/src/runtime/vm/instance.rs
-@@ -506,6 +506,151 @@ impl Instance {
+@@ -324,6 +324,60 @@ impl Instance {
+     where
+         R: HostResult,
+     {
++        // enclave/SET: the cross-thread guard, mirroring the one in
++        // `ComponentInstance::enter_host_from_wasm`. It has to be HERE too,
++        // not only there: Cranelift lowers `memory.grow` and
++        // `memory.atomic.wait*`/`notify` on an IMPORTED memory by calling the
++        // builtin with the *defining* instance's vmctx (see
++        // `func_environ::memory_vmctx_and_defined_index`), and tag imports do
++        // the same. A shared-everything-threads worker executing a futex wait
++        // on an imported shared memory would therefore land here holding the
++        // PRIMARY store's vmctx and materialize `&mut dyn VMStore` on it from
++        // the wrong thread — the exact race the per-thread-Store design
++        // exists to prevent, on the single most common SET code path.
++        //
++        // Spawn also refuses modules with imported memories/tags, but that is
++        // a deny-list and deny-lists are how this class of bug returns. This
++        // check makes the invariant hold regardless of which module shapes
++        // the spawn guards happen to enumerate.
++        //
++        // Read with pure pointer arithmetic: forming `&Instance` before the
++        // check would itself alias the owning thread's `&mut`.
++        #[cfg(all(feature = "std", feature = "threads"))]
++        {
++            // SAFETY: `vmctx` is valid per this function's contract, and the
++            // store-context slot is written once at instantiation.
++            let own = unsafe {
++                vmctx
++                    .byte_add(usize::from(HostPtr.vmctx_store_context()))
++                    .cast::<VmPtr<VMStoreContext>>()
++                    .read()
++                    .as_non_null()
++            };
++            if crate::runtime::vm::traphandlers::set_entry_is_cross_thread(own) {
++                let err = crate::Error::msg(
++                    "a shared-everything-threads worker cannot call back into the store that \
++                     spawned it (a memory/tag operation on an imported item resolves through \
++                     the defining instance)",
++                );
++                match R::unwind_sentinel() {
++                    Some(sentinel)
++                        if crate::runtime::vm::traphandlers::record_unwind_on_this_thread(err) =>
++                    {
++                        return sentinel;
++                    }
++                    _ => {
++                        eprintln!(
++                            "wasmtime: fatal: a shared-everything-threads worker entered a core \
++                             libcall that cannot report a trap; aborting rather than aliasing \
++                             the owning thread's store"
++                        );
++                        std::process::abort();
++                    }
++                }
++            }
++        }
++
+         // SAFETY: It's a contract of this function that `vmctx` is a valid
+         // pointer with neither the store nor other instances actively in use
+         // when this is called, so it should be safe to acquire a mutable
+@@ -506,6 +560,166 @@ impl Instance {
          unsafe { self.vmctx_plus_offset_raw(self.offsets().vmctx_vmglobal_definition(index)) }
      }
  
@@ -1320,9 +1587,21 @@ index 06ba7e4..b8481bf 100644
 +        out
 +    }
 +
-+    /// Snapshot the current values of all defined globals of PLAIN (numeric /
-+    /// vector) type. Reference-typed globals are skipped: their values are
-+    /// pointers tied to this instance and must not leak into a view.
++    /// Snapshot the current values of defined `shared` globals of PLAIN
++    /// (numeric / vector) type.
++    ///
++    /// NON-shared globals are deliberately excluded, and that is a
++    /// correctness requirement rather than caution. Under
++    /// shared-everything-threads an unshared global is per-THREAD state — the
++    /// canonical one being `__stack_pointer`. Copying the spawning thread's
++    /// value into a worker would start that worker on the spawner's C shadow
++    /// stack, and both would then push into the same region of shared linear
++    /// memory: silent in-sandbox corruption with no trap. A worker must get
++    /// the module's initial value and let the guest's own thread-start code
++    /// install per-thread state from its context argument.
++    ///
++    /// Reference-typed globals are skipped too: their values are pointers
++    /// tied to this instance and must not leak into a view.
 +    pub(crate) fn snapshot_plain_globals(&self) -> Vec<(DefinedGlobalIndex, [u8; 16])> {
 +        let module = self.env_module();
 +        let mut out = Vec::new();
@@ -1330,6 +1609,9 @@ index 06ba7e4..b8481bf 100644
 +            let Some(def_index) = module.defined_global_index(index) else {
 +                continue;
 +            };
++            if !global.shared {
++                continue;
++            }
 +            if !matches!(
 +                global.wasm_ty,
 +                wasmtime_environ::WasmValType::I32
@@ -1391,7 +1673,7 @@ index 06ba7e4..b8481bf 100644
      /// Get all globals within this instance.
      ///
      /// Returns both import and defined globals.
-@@ -1566,6 +1711,29 @@ unsafe impl InstanceLayout for Instance {
+@@ -1566,6 +1780,29 @@ unsafe impl InstanceLayout for Instance {
      }
  }
  
@@ -1422,10 +1704,10 @@ index 06ba7e4..b8481bf 100644
  
  /// A handle holding an `Instance` of a WebAssembly module.
 diff --git a/crates/wasmtime/src/runtime/vm/traphandlers.rs b/crates/wasmtime/src/runtime/vm/traphandlers.rs
-index 7ea34b1..859d86f 100644
+index 7ea34b1..9c156ae 100644
 --- a/crates/wasmtime/src/runtime/vm/traphandlers.rs
 +++ b/crates/wasmtime/src/runtime/vm/traphandlers.rs
-@@ -98,6 +98,34 @@ pub(super) unsafe fn raise_preexisting_trap(store: &mut dyn VMStore) {
+@@ -98,6 +98,75 @@ pub(super) unsafe fn raise_preexisting_trap(store: &mut dyn VMStore) {
      tls::with(|info| unsafe { info.unwrap().unwind(store) })
  }
  
@@ -1435,6 +1717,39 @@ index 7ea34b1..859d86f 100644
 +/// entry guard in `ComponentInstance::enter_host_from_wasm` needs.
 +pub(crate) fn current_vm_store_context() -> Option<NonNull<VMStoreContext>> {
 +    tls::with(|info| info.map(|info| info.vm_store_context.get()))
++}
++
++/// enclave/SET: the shared cross-thread entry guard.
++///
++/// Returns `true` when entering the host for the vmctx whose `VMStoreContext`
++/// is `own` would alias a store that ANOTHER thread is currently executing —
++/// i.e. this is a shared-everything-threads worker reaching back into the
++/// store that spawned it.
++///
++/// Callers must read `own` with pure POINTER ARITHMETIC off the vmctx, never
++/// by forming a `&Instance` / `&ComponentInstance`: on exactly the path this
++/// guard detects, the owning thread may hold `&mut` to that allocation, so
++/// materializing a shared reference to it is itself the aliasing violation
++/// the guard exists to report. Both store-context slots sit at
++/// shape-independent constant offsets, so this costs nothing.
++///
++/// Note this is not a thread-identity test. It asks "is the innermost wasm
++/// activation on this thread the same store as this vmctx's". Those coincide
++/// only because every entry into wasm funnels through
++/// `invoke_wasm_and_catch_traps` -> `catch_traps`, which pushes a
++/// `CallThreadState` carrying that store's context. If a future change enters
++/// wasm outside that funnel, this guard silently weakens.
++#[cfg(all(feature = "std", feature = "threads"))]
++pub(crate) fn set_entry_is_cross_thread(own: NonNull<VMStoreContext>) -> bool {
++    match current_vm_store_context() {
++        Some(current) => current != own,
++        // No wasm is executing on this thread, so there is no other store's
++        // `&mut` to alias. Unreachable from the wasm-entry paths this guards
++        // (they are only called FROM wasm, which means an activation exists),
++        // but permitting is the correct answer rather than merely the safe
++        // default: a host-initiated call is exactly the legitimate case.
++        None => false,
++    }
 +}
 +
 +/// enclave/SET: record a pending trap against THIS thread's in-flight wasm
@@ -1448,19 +1763,27 @@ index 7ea34b1..859d86f 100644
 +/// The point of not taking a store is the cross-thread guard in
 +/// `ComponentInstance::enter_host_from_wasm`: it fires precisely when
 +/// touching the relevant store would be a data race.
++/// Returns `false` if there is NO in-flight wasm call on this thread to
++/// attach the trap to, in which case the caller must NOT return an unwind
++/// sentinel — generated code would raise an unwind that was never recorded,
++/// which destructively unwinds the stack and then panics reading the absent
++/// reason. Fail closed instead.
 +#[cfg(all(feature = "std", feature = "threads"))]
-+pub(crate) fn record_unwind_on_this_thread(err: crate::Error) {
-+    tls::with(|info| {
-+        if let Some(info) = info {
++#[must_use]
++pub(crate) fn record_unwind_on_this_thread(err: crate::Error) -> bool {
++    tls::with(|info| match info {
++        Some(info) => {
 +            info.record_unwind(UnwindReason::from(err));
++            true
 +        }
++        None => false,
 +    })
 +}
 +
  /// Invokes the closure `f` and handles any error/panic/trap that happens
  /// within.
  ///
-@@ -171,6 +199,21 @@ pub trait HostResult {
+@@ -171,6 +240,21 @@ pub trait HostResult {
          store: &mut dyn VMStore,
          f: impl FnOnce(&mut dyn VMStore) -> Self,
      ) -> (Self::Abi, Option<UnwindReason>);
@@ -1482,7 +1805,7 @@ index 7ea34b1..859d86f 100644
  }
  
  // Base case implementations that do not catch unwinds. These are for libcalls
-@@ -307,6 +350,10 @@ where
+@@ -307,6 +391,10 @@ where
              f()
          }
      }

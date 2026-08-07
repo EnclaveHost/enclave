@@ -64,7 +64,7 @@ compiler still proves the invariant.
 - `crates/wasmtime/src/runtime/store.rs` — `set_thread_joins`, joined at the
   top of `StoreOpaque::drop`.
 
-All of it is in `wasm/wasmtime-set-threads.patch.wip` (1650 lines, 21 files)
+All of it is in `wasm/wasmtime-set-threads.patch.wip` (1973 lines, 21 files)
 against wasmtime dev commit `ac0772970b9ad2cd53866d95db69e26311fe3b75`,
 applied on top of the 8-patch enclave stack. Verified to apply clean on a
 fresh checkout.
@@ -120,10 +120,11 @@ when you extend it.
    model, so SET guests are hand-written WAT. `clang -pthread` cannot target
    this. Porting musl's pthreads onto SET primitives is the next project and
    it is large.
-2. **Not in the Dockerfile chain.** Stays out of `wasm/Dockerfile.wasmtime`
-   pending the review checklist below. Note this is not blocking anything:
-   no guest can reach SET until the toolchain exists (item 1), so the patch
-   can sit out of the chain indefinitely at zero cost.
+2. **Not in the Dockerfile chain**, and after the 2026-08-07 review that is a
+   deliberate call rather than a placeholder — see below. The review found
+   real UB; it is fixed, but a change that needed five critical fixes on its
+   first serious read should soak, and nothing is waiting on it (no guest can
+   reach SET until the toolchain exists, item 1).
 3. Cross-instance spawn, mutable shared globals and genuinely shared tables
    are refused, not implemented. Cranelift rejects `global.atomic.*` /
    `table.atomic.*` upstream anyway, so no compilable guest can express them.
@@ -131,54 +132,87 @@ when you extend it.
    byte-marker → publish stamp → claim gate → per-tenant flag → fleet-AND) is
    designed but not wired.
 
-## The review checklist (what "pending review" actually means)
+## The review happened (2026-08-07). Findings and what changed.
 
-There is one human contributor to this repo, no CODEOWNERS and no branch
-protection — so "pending review" means **Steven, or nobody**. Left vague that
-is just an indefinite hold wearing a process costume. So here is the finite
-list. Everything else in the patch is plumbing that the type checker and the
-test suite already cover; these six are where a mistake would be real and
-silent.
+Steven's call: there is no second reviewer and there will not be one, so
+review it and merge. I did the review the only way that is not a rubber stamp
+— four independent adversarial readers with fresh context, each told to refute
+rather than approve, plus a hostile-guest probe I wrote and ran.
 
-1. **`unsafe impl Send for SpawnPayload`** (`set_threads.rs`) — the
-   load-bearing unsafe in the whole change. It asserts the raw pointers inside
-   the copied import records may cross to another thread. That is only true
-   because of invariants (1) and (2) above. If either is ever weakened, this
-   impl becomes unsound. Check the argument, not just the comment.
-2. **Join-before-deallocate ordering** in `StoreOpaque::drop`. The join sits at
-   the very top. Confirm nothing above it can free something a worker reads,
-   and decide whether joining while already unwinding from a panic is the
-   behaviour you want.
-3. **`replace_defined_memory_with_shared`** (`instance.rs`) — writes a raw
-   pointer into the view's vmctx and swaps the Rust-side `Memory`. It relies
-   on "no guest code has run in this view yet". Verify that holds for every
-   path into it, including a module whose startup function runs (element
-   segments, complex global initializers) before the swap.
-4. **The cross-thread guard's `None` case.** `current_vm_store_context()`
-   returns `Option`; on `None` the guard falls through and permits entry. I
-   believe `None` is unreachable here (the function is only called from wasm,
-   which means a `CallThreadState` exists), but that is an argument, not a
-   proof, and it is the failure mode that would silently reopen the race.
-5. **Reference-typed globals are NOT snapshotted** — they are skipped, so a
-   view gets their module-declared *initial* values, not the primary's current
-   ones. Deliberate (their values are pointers tied to the primary instance),
-   but it is a divergence a guest could observe, and it is weaker than the
-   "globals: snapshot at spawn" summary suggests.
-6. **Workers disable epoch interruption and fuel** (`set_epoch_deadline(u64::MAX/2)`,
-   `set_fuel(u64::MAX)` in `run_view`). Not a hole today: this platform never
-   used epoch interruption for guest timeouts, and the controls that do exist
-   (cgroup `cpu.weight`/`cpu.max`, the measure-and-kill audit polls) are
-   cgroup- and process-scoped, so they already cover worker threads. But it is
-   a **landmine**: epoch interruption is the natural mechanism to reach for
-   when adding a per-request guest timeout, and SET workers would silently
-   ignore it. If that timeout is ever added, this line must be revisited in
-   the same change.
+**It found real UB that I missed, and the merge is therefore NOT done.** Three
+of the four reviewers independently identified the same hole, which is the
+strongest signal in the batch.
 
-If you would rather not be the only reviewer, the natural outside audience is
-bytecodealliance/wasmtime#9466 — they have the most relevant expertise, and
-items 1-4 are exactly the questions they would ask. The design deliberately
-implements less than the full SET proposal (see "Sharedness, stated exactly"
-in `docs/wasm-parallelism.md`), so expect that to be the first thing debated.
+### Critical, now fixed
+
+1. **A worker could re-enter the PRIMARY store — the exact race this design
+   exists to prevent.** Cranelift lowers `memory.grow` and
+   `memory.atomic.wait*`/`notify` on an **imported** memory by calling the
+   builtin with the *defining* instance's vmctx. So a worker doing the futex
+   wait that every SET mutex uses would land in
+   `Instance::enter_host_from_wasm` holding the primary's vmctx and
+   materialize `&mut dyn VMStore` on it from the wrong thread. My guard was
+   only on the **component** entry point; the **core** one was unguarded.
+   This is the most common SET code path, not an exotic shape.
+   Fixed twice over: the guard now also lives in
+   `Instance::enter_host_from_wasm` (so it fails closed regardless of which
+   module shapes the spawn guards enumerate), and spawn refuses imported
+   memories and tags. Probe: `tools/parallelism-probe/set-imported-memory.wat`.
+2. **The guard itself committed the violation it reports.** It did
+   `ptr.as_ref()` to read the store-context pointer, forming a
+   `&ComponentInstance` over the primary's allocation on the worker thread —
+   while the owning thread may hold `&mut` to it. Both store-context slots sit
+   at shape-independent constant offsets, so it now reads them with pure
+   pointer arithmetic and never forms the reference.
+3. **The thread cap was per-store, and `wasmtime serve` builds a fresh store
+   per HTTP request** (wasip2 reuse count 1, up to 1000 concurrent). That made
+   the real ceiling 1000x the intended one. The cap is now process-global.
+4. **Non-shared globals were being snapshotted into workers.** Under SET an
+   unshared global is per-*thread* state — canonically `__stack_pointer`. A
+   worker inheriting the spawner's value starts on the spawner's C shadow
+   stack and both push into the same region of shared memory: silent
+   in-sandbox corruption, no trap. Now skipped, so a worker gets initial
+   values and the guest's thread-start code installs its own.
+5. **Unbounded thread creation** (found by my own hostile probe before the
+   reviewers reported): 200 spawn calls produced 234 OS threads with no
+   refusal. The platform sets only `cpu.weight`/`cpu.max` — no `pids.max` —
+   and threads are a node-wide kernel resource, so this degraded every tenant
+   on the box. Now capped.
+
+### Also fixed
+
+- The imported-function check was a **deny-list**; inverted to an allow-list
+  (only component trampolines). A host-function context slipping through would
+  have been a type confusion of the store's `T`, not merely a race.
+- **Any guest trap on a worker called `process::exit(1)`** — a one-instruction
+  self-DoS, and it contradicted this file's own claim that a worker "dies
+  alone". Workers now die alone for real.
+- `record_unwind_on_this_thread` failed **open**; it now returns whether it
+  recorded, and the caller aborts rather than returning a sentinel for an
+  unwind that was never recorded (which would unwind destructively and then
+  panic).
+- Worker stacks are sized from `max_wasm_stack` instead of taking Rust's 2 MiB
+  default, so raising that config can't put the limit below the real stack.
+
+### Known-and-accepted, written down rather than fixed
+
+- **Workers run with epoch interruption and fuel disabled**, and
+  `StoreOpaque::drop` joins them unconditionally. One guest thread that loops
+  forever therefore wedges store teardown permanently. Process supervision
+  owns this today; it must be revisited before SET is enabled.
+- **`Drop for Store<T>` destroys `T` before the join.** Workers can't reach
+  `T` (the guards block it), but the ordering contradicts the invariant as
+  stated. Worth moving the join earlier.
+- **`Instance::new_started` runs the module's startup function** (passive
+  element/data segments — exactly what `wasm-ld --shared-memory` emits)
+  against the view's *private* memory before the swap. Not unsound, but it
+  wastes a full memory allocation per spawn and means complex global
+  initializers see pre-snapshot values.
+- **Worker stores have no `ResourceLimiter`**, so `table.grow` on a worker
+  escapes `-W max-table-elements`.
+- `ENCLAVE_AVAILABLE_PARALLELISM` is **never set by `wasm_manager.py`**, so the
+  cap currently derives from the node's core count, not the tenant's purchased
+  share. Wiring that up is a prerequisite for enabling SET, not a nicety.
 
 ## Gotchas that still cost time
 
