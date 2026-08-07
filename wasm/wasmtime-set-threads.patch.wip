@@ -521,8 +521,51 @@ index ede512d..d329405 100644
                  };
                  &TY
              }
+diff --git a/crates/wasmtime/src/runtime/instance.rs b/crates/wasmtime/src/runtime/instance.rs
+index 53fd54f..4e4bf73 100644
+--- a/crates/wasmtime/src/runtime/instance.rs
++++ b/crates/wasmtime/src/runtime/instance.rs
+@@ -253,6 +253,29 @@ impl Instance {
+         module: &Module,
+         imports: Imports<'_>,
+         asyncness: Asyncness,
++    ) -> Result<Instance> {
++        // SAFETY: same contract as this function.
++        unsafe { Instance::new_started_with(store, module, imports, asyncness, |_, _| Ok(())).await }
++    }
++
++    /// As `new_started`, but runs `before_start` on the freshly allocated
++    /// instance BEFORE its startup function executes.
++    ///
++    /// enclave/SET needs this: a worker's execution view must have its shared
++    /// memories re-pointed at the primary's, and its globals seeded, before
++    /// any compiled wasm runs against the view. Otherwise the startup function
++    /// (element segments, complex global initializers, segmented data init —
++    /// exactly what `wasm-ld --shared-memory` emits) executes against the
++    /// view's own throwaway memory, which both wastes a full memory allocation
++    /// per spawn and lets initializers observe pre-seed global values.
++    ///
++    /// This function's unsafety is the same as `Instance::new_raw`.
++    pub(crate) async unsafe fn new_started_with<T>(
++        store: &mut StoreContextMut<'_, T>,
++        module: &Module,
++        imports: Imports<'_>,
++        asyncness: Asyncness,
++        before_start: impl FnOnce(&mut StoreOpaque, Instance) -> Result<()>,
+     ) -> Result<Instance> {
+         let instance = {
+             let (mut limiter, store) = store.0.resource_limiter_and_store_opaque();
+@@ -261,6 +284,8 @@ impl Instance {
+             unsafe { Instance::new_raw(store, limiter.as_mut(), module, imports).await? }
+         };
+ 
++        before_start(store.0, instance)?;
++
+         // If this instance requires startup, which is a dynamic decision made
+         // at this point in conjunction with analysis at compile time, the
+         // instance gets started. Note that this isn't just the wasm start
 diff --git a/crates/wasmtime/src/runtime/store.rs b/crates/wasmtime/src/runtime/store.rs
-index 9cc49ea..bdd6d4f 100644
+index 9cc49ea..1fc16b4 100644
 --- a/crates/wasmtime/src/runtime/store.rs
 +++ b/crates/wasmtime/src/runtime/store.rs
 @@ -470,6 +470,17 @@ pub struct StoreOpaque {
@@ -552,7 +595,7 @@ index 9cc49ea..bdd6d4f 100644
              signal_handler: None,
              gc_store: None,
              #[cfg(feature = "gc")]
-@@ -1657,6 +1670,28 @@ impl StoreOpaque {
+@@ -1657,6 +1670,49 @@ impl StoreOpaque {
          (self.instances[id].handle.get_mut(), &self.modules)
      }
  
@@ -577,11 +620,52 @@ index 9cc49ea..bdd6d4f 100644
 +        self.set_thread_joins.push(handle);
 +    }
 +
++    /// enclave/SET: block until every worker spawned from this store has
++    /// finished.
++    ///
++    /// Called from `Drop for Store<T>` BEFORE the embedder's `T` is destroyed,
++    /// and again from `StoreOpaque::drop` for stores torn down by other paths.
++    /// Draining makes the second call a no-op.
++    ///
++    /// This blocks indefinitely by design: a worker still holds raw pointers
++    /// into this store's instances, so proceeding to deallocate would be a
++    /// use-after-free. A guest that parks a worker forever therefore hangs its
++    /// own teardown — see the epoch deadline in `set_threads::run_view`, which
++    /// is what lets an epoch-using embedder interrupt such a worker.
++    #[cfg(all(feature = "std", feature = "threads"))]
++    pub(crate) fn join_set_threads(&mut self) {
++        for handle in mem::take(&mut self.set_thread_joins) {
++            if let Err(e) = handle.join() {
++                log::warn!("SET worker thread panicked: {e:?}");
++            }
++        }
++    }
++
 +
      /// Access multiple instances specified via `ids`.
      ///
      /// # Panics
-@@ -2423,6 +2458,18 @@ impl Drop for StoreOpaque {
+@@ -2408,6 +2464,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
+ 
+ impl<T> Drop for Store<T> {
+     fn drop(&mut self) {
++        // enclave/SET: join shared-everything-threads workers FIRST — before
++        // `run_manual_drop_routines` (which runs embedder `Drop` impls and
++        // disposes fibers) and before `T` itself is destroyed below.
++        //
++        // `StoreOpaque::drop` also joins, and that covers stores dropped by
++        // other paths, but by the time it runs `T` is already gone. Workers
++        // cannot reach `T` today (the cross-thread guards stop them), so this
++        // is closing the gap between the invariant as documented — "joined
++        // before anything is deallocated" — and where the join actually sat.
++        // Joining twice is harmless: the vector is drained.
++        #[cfg(all(feature = "std", feature = "threads"))]
++        self.inner.inner.join_set_threads();
++
+         self.run_manual_drop_routines();
+ 
+         // For documentation on this `unsafe`, see `into_data`.
+@@ -2423,6 +2492,14 @@ impl Drop for StoreOpaque {
          // NB it's important that this destructor does not access `self.data`.
          // That is deallocated by `Drop for Store<T>` above.
  
@@ -591,11 +675,7 @@ index 9cc49ea..bdd6d4f 100644
 +        // is the sound outcome; process-level lifetime management (the CLI
 +        // exiting, the fleet watchdog) owns that case.
 +        #[cfg(all(feature = "std", feature = "threads"))]
-+        for handle in mem::take(&mut self.set_thread_joins) {
-+            if let Err(e) = handle.join() {
-+                log::warn!("SET worker thread panicked: {e:?}");
-+            }
-+        }
++        self.join_set_threads();
 +
          unsafe {
              let allocator = self.engine.allocator();
@@ -892,10 +972,10 @@ index f62ea58..ba4d8e8 100644
      store: &mut dyn VMStore,
 diff --git a/crates/wasmtime/src/runtime/vm/component/set_threads.rs b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
 new file mode 100644
-index 0000000..fe6de52
+index 0000000..4bdbfee
 --- /dev/null
 +++ b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
-@@ -0,0 +1,545 @@
+@@ -0,0 +1,601 @@
 +//! enclave/SET: real OS-thread spawning for the shared-everything-threads
 +//! `thread.spawn-ref` / `thread.spawn-indirect` component intrinsics.
 +//!
@@ -1020,6 +1100,20 @@ index 0000000..fe6de52
 +    })
 +}
 +
++/// Epoch ticks a worker may run before it traps, when the embedder uses
++/// epoch interruption. See the rationale in `run_view`.
++fn set_worker_epoch_ticks() -> u64 {
++    use std::sync::OnceLock;
++    static CACHED: OnceLock<u64> = OnceLock::new();
++    *CACHED.get_or_init(|| {
++        std::env::var("ENCLAVE_SET_EPOCH_TICKS")
++            .ok()
++            .and_then(|v| v.trim().parse::<u64>().ok())
++            .filter(|n| *n > 0)
++            .unwrap_or(600)
++    })
++}
++
 +/// Live SET workers in this PROCESS. See `max_live_threads`.
 +static LIVE_SET_THREADS: AtomicUsize = AtomicUsize::new(0);
 +
@@ -1094,19 +1188,20 @@ index 0000000..fe6de52
 +    // The ABI's graceful failure: log why, hand the guest -1, let it take its
 +    // sequential fallback.
 +    //
-+    // The stderr copy is printed ONCE per process. A guest whose module shape
-+    // is unsupported typically calls spawn in a loop (once per worker it
-+    // wanted), and the diagnostic is there to tell a developer why their
-+    // threads did not appear — not to reprint that answer thousands of times
-+    // into a tenant's logs. `log::warn!` still fires every time for anyone
-+    // who wants the full trace.
++    // The stderr copy is printed once per REFUSAL REASON (the `static` lives
++    // in the macro body, so each expansion site gets its own). A guest whose
++    // module shape is unsupported typically calls spawn in a loop, and the
++    // diagnostic exists to tell a developer why their threads did not appear —
++    // not to reprint that answer thousands of times into a tenant's logs.
++    // `log::warn!` is likewise rate-limited, because an unbounded refusal loop
++    // is otherwise a free log-volume amplifier.
 +    macro_rules! refuse {
 +        ($($msg:tt)*) => {{
-+            log::warn!($($msg)*);
 +            static ONCE: std::sync::Once = std::sync::Once::new();
 +            ONCE.call_once(|| {
++                log::warn!($($msg)*);
 +                eprintln!(
-+                    "wasmtime: thread.spawn refused: {} (further refusals logged at warn level only)",
++                    "wasmtime: thread.spawn refused: {} (further identical refusals are silent)",
 +                    format_args!($($msg)*)
 +                );
 +            });
@@ -1188,6 +1283,22 @@ index 0000000..fe6de52
 +    }
 +    if module.num_imported_tags != 0 {
 +        refuse!("module imports a tag (unsupported on SET threads)");
++    }
++    // A worker's `Store` carries no `ResourceLimiter` — the primary's lives in
++    // its embedder data `T`, which the runtime layer cannot reach generically
++    // — so `table.grow` on a worker would escape the embedder's dynamic cap
++    // (`-W max-table-elements`). Requiring a DECLARED maximum bounds worker
++    // table growth to a static property of the module that was validated when
++    // the primary instantiated it. Residual, documented rather than hidden:
++    // that static max, not the embedder's dynamic cap, is the worker's bound.
++    for (idx, table) in module.tables.iter() {
++        if table.limits.max.is_none() {
++            refuse!(
++                "table {} has no declared maximum; unbounded growth on a worker \
++                 would escape the embedder's table limit",
++                idx.as_u32()
++            );
++        }
 +    }
 +    for (idx, global) in module.globals.iter() {
 +        if global.shared && global.mutability {
@@ -1378,51 +1489,76 @@ index 0000000..fe6de52
 +
 +fn run_view(payload: SpawnPayload) -> Result<()> {
 +    let mut store: Store<()> = Store::new(&payload.engine, ());
-+    // A fresh store's epoch deadline is 0, which means "trap at the first
-+    // epoch check" once the engine's epoch has ever been bumped. SET workers
-+    // are not individually interruptible in v1; the process watchdog owns
-+    // their lifetime.
-+    store.set_epoch_deadline(u64::MAX / 2);
-+    let _ = store.set_fuel(u64::MAX);
++
++    // Workers MUST stay epoch-interruptible. A fresh store's deadline is 0,
++    // i.e. "trap at the first epoch check", so it has to be set to something
++    // — but setting it to `u64::MAX` (as this first did) makes a worker
++    // uninterruptible, and `Store::drop` joins workers unconditionally. One
++    // guest thread looping forever would then wedge teardown permanently:
++    // under `wasmtime serve` that consumes a tokio worker thread per request,
++    // so a handful of requests stop the tenant serving entirely, and the
++    // embedder's `--wasm timeout` (which is epoch-based) could not intervene.
++    //
++    // A finite deadline keeps that escape hatch open: if the embedder runs an
++    // epoch ticker, runaway workers eventually trap and the join completes.
++    // The tick count is deliberately generous — epoch semantics are the
++    // embedder's, so there is no universally correct value — and
++    // `ENCLAVE_SET_EPOCH_TICKS` tunes it. If the embedder does not use epochs
++    // at all, no epoch checks are compiled in and process supervision remains
++    // the backstop; that is the honest residual.
++    store.set_epoch_deadline(set_worker_epoch_ticks());
++    store.epoch_deadline_trap();
++
++    // Fuel is left at the store default rather than being handed a huge
++    // budget: if an embedder metered the primary with fuel, silently exempting
++    // workers would defeat exactly the control they configured.
++    let _ = &mut store;
 +
 +    let mut ctx = store.as_context_mut();
 +
 +    // Re-instantiate the defining module against the primary's own resolved
-+    // import records. Element segments and (complex) global initializers run
-+    // against THIS view; active data segments are applied to the view's
-+    // freshly-created memories, which are thrown away below when the shared
-+    // ones are re-pointed at the primary's. There is no wasm `start` section
-+    // (guarded at spawn).
++    // import records, and swap in the primary's shared memories + seed the
++    // globals BEFORE the module's startup function runs.
 +    //
-+    // SAFETY (new_started): the import records come verbatim from an
++    // The ordering is load-bearing, not tidiness. `needs_startup()` is true
++    // for passive element/data segments and complex global initializers —
++    // exactly what `wasm-ld --shared-memory` emits — so startup IS compiled
++    // wasm, and running it before the swap would both initialize a throwaway
++    // memory (a full allocation per spawn, reserved to the declared maximum)
++    // and let initializers read globals that had not been seeded yet.
++    //
++    // SAFETY (new_started_with): the import records come verbatim from an
 +    // instantiation of this exact module, so they are type-correct by
 +    // construction; `Send`ing them here is covered by the invariants on
 +    // `SpawnPayload`.
++    let shared_memories = payload.shared_memories;
++    let global_snapshot = payload.global_snapshot;
 +    let instance = crate::runtime::vm::assert_ready(unsafe {
-+        crate::Instance::new_started(
++        crate::Instance::new_started_with(
 +            &mut ctx,
 +            &payload.module,
 +            payload.imports.as_imports(),
 +            Asyncness::No,
++            move |opaque, instance| {
++                let id = instance.id();
++                let mut vminstance: Pin<&mut VmInstance> = opaque.instance_mut(id);
++                for (index, shared) in shared_memories {
++                    // SAFETY: no guest code has run in this view yet — this
++                    // hook is invoked before the startup function — and the
++                    // memory is declared shared (enforced at spawn), so the
++                    // vmctx slot is the out-of-line pointer form.
++                    unsafe {
++                        vminstance
++                            .as_mut()
++                            .replace_defined_memory_with_shared(index, shared);
++                    }
++                }
++                vminstance.write_plain_globals(&global_snapshot);
++                Ok(())
++            },
 +        )
 +    })?;
 +    let id = instance.id();
-+
-+    {
-+        let opaque = ctx.0.store_opaque_mut();
-+        let mut vminstance: Pin<&mut VmInstance> = opaque.instance_mut(id);
-+        for (index, shared) in payload.shared_memories {
-+            // SAFETY: no guest code has run in this view yet; the memory is
-+            // declared shared (enforced at spawn), so the vmctx slot is the
-+            // out-of-line pointer form.
-+            unsafe {
-+                vminstance
-+                    .as_mut()
-+                    .replace_defined_memory_with_shared(index, shared);
-+            }
-+        }
-+        vminstance.write_plain_globals(&payload.global_snapshot);
-+    }
 +
 +    // Invoke the start function through the VIEW's funcref: same compiled
 +    // code as the primary, entered with the view's vmctx and this store's
@@ -1442,7 +1578,7 @@ index 0000000..fe6de52
 +    Ok(())
 +}
 diff --git a/crates/wasmtime/src/runtime/vm/instance.rs b/crates/wasmtime/src/runtime/vm/instance.rs
-index 06ba7e4..8a97a88 100644
+index 06ba7e4..11c17e8 100644
 --- a/crates/wasmtime/src/runtime/vm/instance.rs
 +++ b/crates/wasmtime/src/runtime/vm/instance.rs
 @@ -324,6 +324,60 @@ impl Instance {
@@ -1506,7 +1642,7 @@ index 06ba7e4..8a97a88 100644
          // SAFETY: It's a contract of this function that `vmctx` is a valid
          // pointer with neither the store nor other instances actively in use
          // when this is called, so it should be safe to acquire a mutable
-@@ -506,6 +560,166 @@ impl Instance {
+@@ -506,6 +560,169 @@ impl Instance {
          unsafe { self.vmctx_plus_offset_raw(self.offsets().vmctx_vmglobal_definition(index)) }
      }
  
@@ -1603,6 +1739,9 @@ index 06ba7e4..8a97a88 100644
 +    /// Reference-typed globals are skipped too: their values are pointers
 +    /// tied to this instance and must not leak into a view.
 +    pub(crate) fn snapshot_plain_globals(&self) -> Vec<(DefinedGlobalIndex, [u8; 16])> {
++        // The raw [u8; 16] copies below are only correct while that IS the
++        // storage width. Break the build, not the guests, if it changes.
++        const _: () = assert!(core::mem::size_of::<VMGlobalDefinition>() == 16);
 +        let module = self.env_module();
 +        let mut out = Vec::new();
 +        for (index, global) in module.globals.iter() {
@@ -1673,7 +1812,7 @@ index 06ba7e4..8a97a88 100644
      /// Get all globals within this instance.
      ///
      /// Returns both import and defined globals.
-@@ -1566,6 +1780,29 @@ unsafe impl InstanceLayout for Instance {
+@@ -1566,6 +1783,29 @@ unsafe impl InstanceLayout for Instance {
      }
  }
  

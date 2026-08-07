@@ -213,17 +213,24 @@ enforced rather than hoped for:
 - **tables: per-view**, materialized from the same initializers. Cranelift
   rejects `table.atomic.*` upstream ("not yet implemented"), so no guest this
   engine can compile is *able* to express cross-thread table mutation.
-- **globals: snapshot at spawn** — for PLAIN (numeric/vector) globals.
-  Reference-typed globals are skipped, so a view gets their module-declared
-  *initial* values instead: their contents are pointers tied to the primary
-  instance and must not leak across. `global.atomic.*` equally does not
+- **globals: snapshot at spawn** — for `shared`, PLAIN (numeric/vector)
+  globals only. NON-shared globals are deliberately excluded: under SET an
+  unshared global is per-THREAD state, canonically `__stack_pointer`, and
+  copying the spawner's value would start a worker on the spawner's C shadow
+  stack with both pushing into the same region of shared memory.
+  Reference-typed globals are skipped too, their contents being pointers tied
+  to the primary instance. `global.atomic.*` equally does not
   compile, and a module with a MUTABLE `shared` global is refused at spawn
   rather than silently diverging.
 
-Two limits worth naming rather than leaving in code comments: SET workers run
-with epoch interruption and fuel disabled (see the review checklist in
-`docs/HANDOFF-set-threads.md`, item 6), and each spawn costs a full
-instantiation.
+Worker execution is bounded rather than exempt: workers take a finite epoch
+deadline (`ENCLAVE_SET_EPOCH_TICKS`, default 600) and trap on it, so an
+epoch-using embedder can interrupt a runaway thread instead of having store
+teardown wedge on the unconditional join; fuel is left at the store default so
+a fuel-metering embedder is not silently bypassed. Spawn still costs a full
+instantiation, but the primary's memories are now swapped in BEFORE the module
+startup function runs, so a spawn no longer initializes a throwaway memory it
+immediately discards.
 
 Spawn returns the ABI's `-1` ("spawn failed", which guests are required to
 handle) with a stderr diagnostic for any module shape whose view would not be

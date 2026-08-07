@@ -64,7 +64,7 @@ compiler still proves the invariant.
 - `crates/wasmtime/src/runtime/store.rs` — `set_thread_joins`, joined at the
   top of `StoreOpaque::drop`.
 
-All of it is in `wasm/wasmtime-set-threads.patch.wip` (1973 lines, 21 files)
+All of it is in `wasm/wasmtime-set-threads.patch.wip` (2112 lines, 22 files)
 against wasmtime dev commit `ac0772970b9ad2cd53866d95db69e26311fe3b75`,
 applied on top of the 8-patch enclave stack. Verified to apply clean on a
 fresh checkout.
@@ -194,25 +194,63 @@ strongest signal in the batch.
 - Worker stacks are sized from `max_wasm_stack` instead of taking Rust's 2 MiB
   default, so raising that config can't put the limit below the real stack.
 
-### Known-and-accepted, written down rather than fixed
+### The open issues from that review are now closed too
 
-- **Workers run with epoch interruption and fuel disabled**, and
-  `StoreOpaque::drop` joins them unconditionally. One guest thread that loops
-  forever therefore wedges store teardown permanently. Process supervision
-  owns this today; it must be revisited before SET is enabled.
-- **`Drop for Store<T>` destroys `T` before the join.** Workers can't reach
-  `T` (the guards block it), but the ordering contradicts the invariant as
-  stated. Worth moving the join earlier.
-- **`Instance::new_started` runs the module's startup function** (passive
-  element/data segments — exactly what `wasm-ld --shared-memory` emits)
-  against the view's *private* memory before the swap. Not unsound, but it
-  wastes a full memory allocation per spawn and means complex global
-  initializers see pre-snapshot values.
-- **Worker stores have no `ResourceLimiter`**, so `table.grow` on a worker
-  escapes `-W max-table-elements`.
-- `ENCLAVE_AVAILABLE_PARALLELISM` is **never set by `wasm_manager.py`**, so the
-  cap currently derives from the node's core count, not the tenant's purchased
-  share. Wiring that up is a prerequisite for enabling SET, not a nicety.
+Steven's call after reading the above was "patch all the open issues and get
+it over the finish line safely." Done:
+
+- **Workers are epoch-interruptible again.** They used to run with
+  `set_epoch_deadline(u64::MAX/2)`, and since `Store::drop` joins workers
+  unconditionally, one guest thread looping forever wedged teardown
+  permanently — under `wasmtime serve` that burns a tokio worker per request,
+  so a handful of requests stop the tenant serving, with the embedder's
+  epoch-based `--wasm timeout` unable to intervene. Workers now take a finite
+  deadline (`ENCLAVE_SET_EPOCH_TICKS`, default 600) and
+  `epoch_deadline_trap()`. Fuel is left at the store default rather than being
+  handed `u64::MAX`, because silently exempting workers would defeat exactly
+  the metering an embedder configured. Residual: an embedder that uses neither
+  epochs nor fuel still relies on process supervision.
+- **The join moved ahead of `T`'s destruction.** `Drop for Store<T>` now joins
+  workers before `run_manual_drop_routines()` and before `T` is dropped;
+  `StoreOpaque::drop` still joins (draining makes it a no-op) for stores torn
+  down by other paths. The invariant and the code now agree.
+- **Memories are swapped BEFORE the startup function runs**, via a new
+  `Instance::new_started_with` hook. `needs_startup()` is true for passive
+  element/data segments and complex global initializers — precisely what
+  `wasm-ld --shared-memory` emits — so startup is compiled wasm that used to
+  run against a throwaway memory. That cost a full memory allocation per spawn
+  (reserved to the declared maximum) and let initializers read globals before
+  they were seeded. Both gone.
+- **Worker table growth is bounded.** A worker's `Store` has no
+  `ResourceLimiter` (the primary's lives in its embedder data `T`, unreachable
+  from the runtime layer), so `table.grow` escaped `-W max-table-elements`.
+  Spawn now refuses modules with a table that has no declared maximum, which
+  bounds a worker to a static property the primary already validated.
+  Residual, stated plainly: that declared maximum, not the embedder's dynamic
+  cap, is the worker's bound.
+- **`ENCLAVE_AVAILABLE_PARALLELISM` is now set by `wasm_manager.py`**
+  (`_available_parallelism_for`, tests in
+  `test/wasm-available-parallelism.test.mjs`), derived from the purchased
+  `cpuShare` and clamped to `NODE_VCPUS`, rounding up with a floor of 1. This
+  was the last prerequisite: without it the engine falls back to the node's
+  core count, so both the guest-visible `thread.available_parallelism` answer
+  and the SET worker-thread ceiling would be sized from hardware the tenant
+  does not own. Inert on today's fleet — nothing reads the variable until the
+  patch enters the Dockerfile chain — which is exactly why it is safe to land
+  ahead of it.
+- Minor: the refusal path no longer amplifies logs (an unbounded guest refusal
+  loop used to emit an unbounded `log::warn!` stream — now rate-limited with
+  the stderr copy), and the raw 16-byte global copy is backed by a
+  `const` assertion instead of an assumption.
+
+### Still true, and deliberately not "fixed"
+
+- A worker that traps dies alone, so siblings waiting on its futex may
+  deadlock. That is the guest's bug to handle and is strictly better than
+  killing a runtime that serves other in-flight requests.
+- The join is unbounded by design: a worker holds raw pointers into the
+  store's instances, so proceeding to deallocate would be a use-after-free.
+  The epoch deadline above is what keeps that from being unrecoverable.
 
 ## Gotchas that still cost time
 
