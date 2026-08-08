@@ -71,7 +71,12 @@ for n in 1 2 4 8 16 32; do time wasmtime run $W --invoke "run($n, $((14400000000
 ```
 
 Under ThreadSanitizer (`-Zsanitizer=thread` + `-Zbuild-std`, nightly) all
-four executable SET probes are clean. Verify your TSan build actually reports races
+four executable SET probes are clean. **Build TSan with `--cfg rustix_use_libc`**
+or the results are noise: fiber stacks are freed through `rustix`'s raw
+`munmap`, which TSan cannot intercept, so a recycled stack address is reported
+as a race with the thread that died. The discriminator is `run(200, 1, 2000)` —
+one worker at a time, no concurrency possible — which still reported 12 races
+before the flag and zero after. Verify your TSan build actually reports races
 before trusting a clean run — a miscompiled or uninstrumented binary is
 silently green. TSan instruments the host runtime, not JIT-compiled guest
 code, so it covers instance/store lifetimes and the `SharedMemory` growth

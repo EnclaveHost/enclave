@@ -1,5 +1,5 @@
 diff --git a/Cargo.lock b/Cargo.lock
-index ebf27ee..a7f4620 100644
+index ebf27ee9..a7f46208 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
 @@ -4630,8 +4630,6 @@ dependencies = [
@@ -12,7 +12,7 @@ index ebf27ee..a7f4620 100644
   "bitflags 2.11.1",
   "hashbrown 0.17.0",
 diff --git a/Cargo.toml b/Cargo.toml
-index 6aafcf9..651816f 100644
+index 6aafcf9e..651816f8 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
 @@ -790,3 +790,9 @@ fpr = "fpr"
@@ -26,7 +26,7 @@ index 6aafcf9..651816f 100644
 +[patch.crates-io]
 +wasmparser = { path = "vendor/wasmparser" }
 diff --git a/crates/cli-flags/src/lib.rs b/crates/cli-flags/src/lib.rs
-index 2a2b0f6..9399114 100644
+index 2a2b0f65..93991146 100644
 --- a/crates/cli-flags/src/lib.rs
 +++ b/crates/cli-flags/src/lib.rs
 @@ -1329,6 +1329,11 @@ impl CommonOptions {
@@ -41,8 +41,30 @@ index 2a2b0f6..9399114 100644
              ("gc", gc, wasm_gc)
              ("gc", reference_types, wasm_reference_types)
              ("gc", function_references, wasm_function_references)
+diff --git a/crates/component-macro/src/component.rs b/crates/component-macro/src/component.rs
+index a9f693bd..673b67ed 100644
+--- a/crates/component-macro/src/component.rs
++++ b/crates/component-macro/src/component.rs
+@@ -808,7 +808,7 @@ impl Expander for LowerExpander {
+             }));
+ 
+             stores.extend(quote!(#pattern => {
+-                *cx.get::<#discriminant_size>(offset) = #index_quoted.to_le_bytes();
++                cx.put::<#discriminant_size>(offset, #index_quoted.to_le_bytes());
+                 #store
+             }));
+         }
+@@ -905,7 +905,7 @@ impl Expander for LowerExpander {
+                     #extract_ty
+                     debug_assert!(offset % (<Self as #wt::component::ComponentType>::ALIGN32 as usize) == 0);
+                     let discrim = *self as #ty;
+-                    *cx.get::<#size>(offset) = discrim.to_le_bytes();
++                    cx.put::<#size>(offset, discrim.to_le_bytes());
+                     Ok(())
+                 }
+             }
 diff --git a/crates/cranelift/src/compiler/component.rs b/crates/cranelift/src/compiler/component.rs
-index 3d49e8d..d3cd52a 100644
+index 3d49e8da..d3cd52ad 100644
 --- a/crates/cranelift/src/compiler/component.rs
 +++ b/crates/cranelift/src/compiler/component.rs
 @@ -197,6 +197,42 @@ impl<'a> TrampolineCompiler<'a> {
@@ -144,7 +166,7 @@ index 3d49e8d..d3cd52a 100644
              | Trampoline::BackpressureDec { .. } => return,
  
 diff --git a/crates/environ/src/compile/module_environ.rs b/crates/environ/src/compile/module_environ.rs
-index 1c79613..cdd1bae 100644
+index 1c796132..cdd1bae9 100644
 --- a/crates/environ/src/compile/module_environ.rs
 +++ b/crates/environ/src/compile/module_environ.rs
 @@ -626,6 +626,7 @@ impl<'a, 'data> ModuleEnvironment<'a, 'data> {
@@ -156,7 +178,7 @@ index 1c79613..cdd1bae 100644
                  // To make startup a bit easier, invoking the `start` function
                  // is a responsibility deferred to the startup function.
 diff --git a/crates/environ/src/compile/module_types.rs b/crates/environ/src/compile/module_types.rs
-index 082b3ca..23d0153 100644
+index 082b3cab..23d0153a 100644
 --- a/crates/environ/src/compile/module_types.rs
 +++ b/crates/environ/src/compile/module_types.rs
 @@ -568,7 +568,10 @@ where
@@ -195,7 +217,7 @@ index 082b3ca..23d0153 100644
                          wasmparser::CompositeInnerType::Array(_) => {
                              WasmHeapType::ConcreteArray(index)
 diff --git a/crates/environ/src/component.rs b/crates/environ/src/component.rs
-index 3f78867..1c38de3 100644
+index 3f788677..1c38de3d 100644
 --- a/crates/environ/src/component.rs
 +++ b/crates/environ/src/component.rs
 @@ -97,6 +97,17 @@ macro_rules! foreach_builtin_component_function {
@@ -217,7 +239,7 @@ index 3f78867..1c38de3 100644
              exit_sync_call(vmctx: vmctx) -> bool;
  
 diff --git a/crates/environ/src/component/dfg.rs b/crates/environ/src/component/dfg.rs
-index e89fccf..867e084 100644
+index e89fccf1..9215e1e7 100644
 --- a/crates/environ/src/component/dfg.rs
 +++ b/crates/environ/src/component/dfg.rs
 @@ -338,6 +338,11 @@ pub enum Trampoline {
@@ -232,7 +254,33 @@ index e89fccf..867e084 100644
      BackpressureInc {
          instance: RuntimeComponentInstanceIndex,
      },
-@@ -965,6 +970,11 @@ impl LinearizeDfg<'_> {
+@@ -655,6 +660,17 @@ impl ComponentDfg {
+         // linearization are recorded into the `Component`. The number of
+         // runtime values used for each index space is used from the `linearize`
+         // result.
++        // enclave/SET: recorded before `trampoline_defs` is moved below.
++        let transcoder_memories = linearize
++            .trampoline_defs
++            .iter()
++            .filter_map(|(_, t)| match t {
++                info::Trampoline::Transcoder { from, to, .. } => Some([*from, *to]),
++                _ => None,
++            })
++            .flatten()
++            .collect();
++
+         Ok(ComponentTranslation {
+             trampolines: linearize.trampoline_defs,
+             component: Component {
+@@ -663,6 +679,7 @@ impl ComponentDfg {
+                 initializers: linearize.initializers,
+                 unsafe_intrinsics: linearize.unsafe_intrinsics,
+                 trampolines: linearize.trampolines,
++                transcoder_memories,
+                 num_lowerings: linearize.num_lowerings,
+                 options: linearize.options,
+ 
+@@ -965,6 +982,11 @@ impl LinearizeDfg<'_> {
                  instance: *instance,
                  ty: *ty,
              },
@@ -245,10 +293,27 @@ index e89fccf..867e084 100644
                  instance: *instance,
              },
 diff --git a/crates/environ/src/component/info.rs b/crates/environ/src/component/info.rs
-index 6f9386c..41ba29f 100644
+index 6f9386cc..ef0b32a2 100644
 --- a/crates/environ/src/component/info.rs
 +++ b/crates/environ/src/component/info.rs
-@@ -771,6 +771,19 @@ pub enum Trampoline {
+@@ -163,6 +163,16 @@ pub struct Component {
+     /// WebAssembly type signature of all trampolines.
+     pub trampolines: PrimaryMap<TrampolineIndex, ModuleInternedTypeIndex>,
+ 
++    /// enclave/SET: every runtime memory reached by a string-transcoding
++    /// trampoline of a fused adapter.
++    ///
++    /// Those transcoders run in the host (`libcalls::utf8_to_utf16` and
++    /// friends) over raw `from_raw_parts` slices of guest memory computed in
++    /// JIT code, which is a data race if the memory is `shared`. The
++    /// `Trampoline` descriptions themselves are compile-time only, so the
++    /// memories they touch are recorded here for instantiation to refuse.
++    pub transcoder_memories: Vec<RuntimeMemoryIndex>,
++
+     /// A map from a `UnsafeIntrinsic::index()` to that intrinsic's
+     /// module-interned type.
+     pub unsafe_intrinsics: [PackedOption<ModuleInternedTypeIndex>; UnsafeIntrinsic::len() as usize],
+@@ -771,6 +781,19 @@ pub enum Trampoline {
          ty: TypeResourceTableIndex,
      },
  
@@ -268,7 +333,7 @@ index 6f9386c..41ba29f 100644
      /// A `backpressure.inc` intrinsic.
      BackpressureInc {
          /// The specific component instance which is calling the intrinsic.
-@@ -1211,6 +1224,9 @@ impl Trampoline {
+@@ -1211,6 +1234,9 @@ impl Trampoline {
              ResourceNew { ty, .. } => format!("component-resource-new[{}]", ty.as_u32()),
              ResourceRep { ty, .. } => format!("component-resource-rep[{}]", ty.as_u32()),
              ResourceDrop { ty, .. } => format!("component-resource-drop[{}]", ty.as_u32()),
@@ -279,7 +344,7 @@ index 6f9386c..41ba29f 100644
              BackpressureDec { .. } => format!("backpressure-dec"),
              TaskReturn { .. } => format!("task-return"),
 diff --git a/crates/environ/src/component/translate.rs b/crates/environ/src/component/translate.rs
-index c4d7ed0..844f6c0 100644
+index c4d7ed00..844f6c07 100644
 --- a/crates/environ/src/component/translate.rs
 +++ b/crates/environ/src/component/translate.rs
 @@ -195,6 +195,17 @@ enum LocalInitializer<'data> {
@@ -352,7 +417,7 @@ index c4d7ed0..844f6c0 100644
                          wasmparser::CanonicalFunction::BackpressureInc => {
                              let core_type = self.core_func_signature(core_func_index)?;
 diff --git a/crates/environ/src/component/translate/inline.rs b/crates/environ/src/component/translate/inline.rs
-index d5e8c41..57afb9d 100644
+index d5e8c413..57afb9dd 100644
 --- a/crates/environ/src/component/translate/inline.rs
 +++ b/crates/environ/src/component/translate/inline.rs
 @@ -673,6 +673,35 @@ impl<'a> Inliner<'a> {
@@ -392,7 +457,7 @@ index d5e8c41..57afb9d 100644
                  let index = self.result.trampolines.push((
                      *func,
 diff --git a/crates/environ/src/module.rs b/crates/environ/src/module.rs
-index 98e5510..2157c04 100644
+index 98e55100..2157c041 100644
 --- a/crates/environ/src/module.rs
 +++ b/crates/environ/src/module.rs
 @@ -192,6 +192,17 @@ pub struct Module {
@@ -438,7 +503,7 @@ index 98e5510..2157c04 100644
              memory_initialization: _,
              passive_elements: _,
 diff --git a/crates/environ/src/types.rs b/crates/environ/src/types.rs
-index 099d425..57b054f 100644
+index 099d4250..57b054ff 100644
 --- a/crates/environ/src/types.rs
 +++ b/crates/environ/src/types.rs
 @@ -1426,28 +1426,36 @@ impl fmt::Display for WasmSubType {
@@ -540,8 +605,1639 @@ index 099d425..57b054f 100644
              wasmparser::HeapType::Abstract { ty, shared: false } => match ty {
                  wasmparser::AbstractHeapType::Extern => WasmHeapType::Extern,
                  wasmparser::AbstractHeapType::NoExtern => WasmHeapType::NoExtern,
+diff --git a/crates/wasmtime/src/runtime/component/component.rs b/crates/wasmtime/src/runtime/component/component.rs
+index c07ba7f6..c72c3aff 100644
+--- a/crates/wasmtime/src/runtime/component/component.rs
++++ b/crates/wasmtime/src/runtime/component/component.rs
+@@ -61,6 +61,19 @@ pub struct Component {
+     inner: Arc<ComponentInner>,
+ }
+ 
++impl Component {
++    /// Whether `a` and `b` are the very same component, not merely two
++    /// components with the same type.
++    ///
++    /// enclave/SET uses this to refuse a worker whose host instantiated a
++    /// different component than the one that spawned the thread: a start
++    /// function is named by `(RuntimeInstanceIndex, FuncIndex)`, which would
++    /// silently resolve to some other function in another component.
++    pub fn ptr_eq(a: &Component, b: &Component) -> bool {
++        Arc::ptr_eq(&a.inner, &b.inner)
++    }
++}
++
+ struct ComponentInner {
+     /// Unique id for this component within this process.
+     ///
+diff --git a/crates/wasmtime/src/runtime/component/concurrent.rs b/crates/wasmtime/src/runtime/component/concurrent.rs
+index 079ce49e..a883ba4b 100644
+--- a/crates/wasmtime/src/runtime/component/concurrent.rs
++++ b/crates/wasmtime/src/runtime/component/concurrent.rs
+@@ -3940,14 +3940,14 @@ impl Instance {
+                 }
+             }
+         };
+-        let memory = self.options_memory_mut(store, params.options);
++        let mut memory = self.options_memory_mut(store, params.options);
+         let ptr = crate::component::func::validate_inbounds_dynamic(
+             &CanonicalAbiInfo::POINTER_PAIR,
+-            memory,
++            memory.len(),
+             &ValRaw::u32(params.payload),
+         )?;
+-        memory[ptr + 0..][..4].copy_from_slice(&handle.to_le_bytes());
+-        memory[ptr + 4..][..4].copy_from_slice(&result.to_le_bytes());
++        memory.put::<4>(ptr, handle.to_le_bytes());
++        memory.put::<4>(ptr + 4, result.to_le_bytes());
+         Ok(ordinal)
+     }
+ 
+diff --git a/crates/wasmtime/src/runtime/component/concurrent/futures_and_streams.rs b/crates/wasmtime/src/runtime/component/concurrent/futures_and_streams.rs
+index 4daa4392..2b876218 100644
+--- a/crates/wasmtime/src/runtime/component/concurrent/futures_and_streams.rs
++++ b/crates/wasmtime/src/runtime/component/concurrent/futures_and_streams.rs
+@@ -268,7 +268,7 @@ fn lower<T: func::Lower + Send + 'static, B: WriteBuffer<T>, U: 'static>(
+         bail!("read pointer not aligned");
+     }
+     lower
+-        .as_slice_mut()
++        .as_slice_mut_unshared()?
+         .get_mut(address..)
+         .and_then(|b| b.get_mut(..T::SIZE32 * count))
+         .ok_or_else(|| crate::format_err!("read pointer out of bounds of memory"))?;
+@@ -309,7 +309,7 @@ fn lift<T: func::Lift + Send + 'static, B: ReadBuffer<T>>(
+         if address % usize::try_from(T::ALIGN32)? != 0 {
+             bail!("write pointer not aligned");
+         }
+-        lift.memory()
++        lift.memory_unshared()?
+             .get(address..)
+             .and_then(|b| b.get(..T::SIZE32 * count))
+             .ok_or_else(|| crate::format_err!("write pointer out of bounds of memory"))?;
+@@ -519,7 +519,7 @@ impl<D: 'static> DirectDestination<'_, D> {
+         };
+ 
+         let memory = instance
+-            .options_memory_mut(self.store.0, options)
++            .options_memory_unshared_mut(self.store.0, options)?
+             .get_mut((address + guest_offset.as_usize())..)
+             .and_then(|b| b.get_mut(..(count.as_usize() - guest_offset.as_usize())));
+         match memory {
+@@ -1029,7 +1029,7 @@ impl<D: 'static> DirectSource<'_, D> {
+         };
+ 
+         let memory = instance
+-            .options_memory(self.store.0, options)
++            .options_memory_unshared(self.store.0, options)?
+             .get((address + guest_offset.as_usize())..)
+             .and_then(|b| b.get(..(count.as_usize() - guest_offset.as_usize())));
+         match memory {
+@@ -3301,7 +3301,7 @@ impl Instance {
+                 bail!("write pointer not aligned");
+             }
+             write_instance
+-                .options_memory(store, write_options)
++                .options_memory_unshared(store, write_options)?
+                 .get(write_address..)
+                 .and_then(|b| b.get(..write_length_in_bytes))
+                 .ok_or_else(|| crate::format_err!("write pointer out of bounds"))?;
+@@ -3321,7 +3321,7 @@ impl Instance {
+                 bail!("read pointer not aligned");
+             }
+             read_instance
+-                .options_memory(store, read_options)
++                .options_memory_unshared(store, read_options)?
+                 .get(read_address..)
+                 .and_then(|b| b.get(..read_length_in_bytes))
+                 .ok_or_else(|| crate::format_err!("read pointer out of bounds"))?;
+@@ -3344,7 +3344,7 @@ impl Instance {
+                 let val = write_payload_ty
+                     .map(|ty| {
+                         let lift = &mut LiftContext::new(store, write_options, write_instance)?;
+-                        let bytes = &lift.memory()[write_address..][..write_length_in_bytes];
++                        let bytes = &lift.memory_unshared()?[write_address..][..write_length_in_bytes];
+                         Val::load(lift, *ty, bytes)
+                     })
+                     .transpose()?;
+@@ -3358,7 +3358,7 @@ impl Instance {
+                         &mut LowerContext::new(store.as_context_mut(), read_options, read_instance);
+                     let ptr = func::validate_inbounds_dynamic(
+                         read_abi,
+-                        lower.as_slice_mut(),
++                        lower.memory_len(),
+                         &ValRaw::u32(read_address.try_into()?),
+                     )?;
+                     let ty = match read_payload_ty {
+@@ -3388,22 +3388,22 @@ impl Instance {
+                     assert_eq!(read_length_in_bytes, write_length_in_bytes);
+ 
+                     if read_instance
+-                        .options_memory(store_opaque, read_options)
++                        .options_memory_unshared(store_opaque, read_options)?
+                         .as_ptr()
+                         == write_instance
+-                            .options_memory(store_opaque, write_options)
++                            .options_memory_unshared(store_opaque, write_options)?
+                             .as_ptr()
+                     {
+-                        let memory = read_instance.options_memory_mut(store_opaque, read_options);
++                        let memory = read_instance.options_memory_unshared_mut(store_opaque, read_options)?;
+                         memory.copy_within(
+                             write_address..write_address + write_length_in_bytes,
+                             read_address,
+                         );
+                     } else {
+-                        let src = write_instance.options_memory(store_opaque, write_options)
++                        let src = write_instance.options_memory_unshared(store_opaque, write_options)?
+                             [write_address..][..write_length_in_bytes]
+                             .as_ptr();
+-                        let dst = read_instance.options_memory_mut(store_opaque, read_options)
++                        let dst = read_instance.options_memory_unshared_mut(store_opaque, read_options)?
+                             [read_address..][..read_length_in_bytes]
+                             .as_mut_ptr();
+ 
+@@ -3423,7 +3423,7 @@ impl Instance {
+                 } else {
+                     let store_opaque = store.store_opaque_mut();
+                     let lift = &mut LiftContext::new(store_opaque, write_options, write_instance)?;
+-                    let bytes = &lift.memory()[write_address..][..write_length_in_bytes];
++                    let bytes = &lift.memory_unshared()?[write_address..][..write_length_in_bytes];
+                     lift.consume_fuel_array(count, size_of::<Val>())?;
+ 
+                     let values = (0..count)
+@@ -3478,7 +3478,7 @@ impl Instance {
+         )?;
+ 
+         if count > 0 && size > 0 {
+-            self.options_memory(store, options)
++            self.options_memory_unshared(store, options)?
+                 .get(address..)
+                 .and_then(|b| b.get(..size.checked_mul(count)?))
+                 .map(drop)
+@@ -4336,7 +4336,7 @@ impl Instance {
+         // memory, the ptr+length. This'll need to be updated when `memory64`
+         // comes along. (FIXME(#4311))
+         let offset = lower_cx
+-            .as_slice_mut()
++            .as_slice_mut_unshared()?
+             .get(debug_msg_address..)
+             .and_then(|b| b.get(..8))
+             .map(|_| debug_msg_address)
+diff --git a/crates/wasmtime/src/runtime/component/func.rs b/crates/wasmtime/src/runtime/component/func.rs
+index 5c7f07ba..40cc0447 100644
+--- a/crates/wasmtime/src/runtime/component/func.rs
++++ b/crates/wasmtime/src/runtime/component/func.rs
+@@ -640,11 +640,12 @@ impl Func {
+             bail!("return pointer not aligned");
+         }
+ 
+-        let bytes = cx
+-            .memory()
+-            .get(ptr..)
+-            .and_then(|b| b.get(..usize::try_from(results_ty.abi.size32).unwrap()))
+-            .ok_or_else(|| crate::format_err!("pointer out of bounds of memory"))?;
++        let size = usize::try_from(results_ty.abi.size32).unwrap();
++        match ptr.checked_add(size) {
++            Some(end) if end <= cx.memory().len() => {}
++            _ => bail!("pointer out of bounds of memory"),
++        }
++        let bytes = cx.memory().read(ptr, size);
+ 
+         let mut offset = 0;
+         Ok(results_ty.types.iter().map(move |ty| {
+diff --git a/crates/wasmtime/src/runtime/component/func/host.rs b/crates/wasmtime/src/runtime/component/func/host.rs
+index 3f38679e..c8764403 100644
+--- a/crates/wasmtime/src/runtime/component/func/host.rs
++++ b/crates/wasmtime/src/runtime/component/func/host.rs
+@@ -425,7 +425,7 @@ where
+             let ptr = unsafe { rest[0].assume_init_ref() };
+             Destination::Memory(validate_inbounds_dynamic(
+                 &result_tys.abi,
+-                lower.as_slice_mut(),
++                lower.memory_len(),
+                 ptr,
+             )?)
+         };
+@@ -468,7 +468,7 @@ where
+             // should be safe to use.
+             let ptr = unsafe { rest[0].assume_init_ref() };
+             let result_tys = &lower.types[fty.results];
+-            validate_inbounds_dynamic(&result_tys.abi, lower.as_slice_mut(), ptr)?
++            validate_inbounds_dynamic(&result_tys.abi, lower.memory_len(), ptr)?
+         } else {
+             // If there's no return pointer then `R` should have an
+             // empty flat representation. In this situation pretend the return
+@@ -545,7 +545,7 @@ where
+                 let ptr = unsafe { storage[0].assume_init_ref() };
+                 Source::Memory(validate_inbounds_dynamic(
+                     &param_tys.abi,
+-                    lift.memory(),
++                    lift.memory().len(),
+                     ptr,
+                 )?)
+             }
+@@ -659,7 +659,8 @@ where
+                 P::linear_lift_from_flat(cx, ty, storage)
+             }
+             Source::Memory(offset) => {
+-                P::linear_lift_from_memory(cx, ty, &cx.memory()[offset..][..P::SIZE32])
++                let bytes = cx.memory().read(offset, P::SIZE32);
++                P::linear_lift_from_memory(cx, ty, &bytes)
+             }
+         }
+     }
+@@ -750,8 +751,8 @@ where
+                 for ty in param_tys.types.iter() {
+                     let abi = cx.types.canonical_abi(ty);
+                     let size = usize::try_from(abi.size32).unwrap();
+-                    let memory = &cx.memory()[abi.next_field32_size(&mut offset)..][..size];
+-                    params.push(Val::load(cx, *ty, memory)?);
++                    let memory = cx.memory().read(abi.next_field32_size(&mut offset), size);
++                    params.push(Val::load(cx, *ty, &memory)?);
+                 }
+             }
+         }
+@@ -788,9 +789,11 @@ where
+     }
+ }
+ 
++/// enclave/SET: takes the memory LENGTH rather than a slice, so it is
++/// identical for a shared memory (over which no slice may be formed).
+ pub(crate) fn validate_inbounds_dynamic(
+     abi: &CanonicalAbiInfo,
+-    memory: &[u8],
++    memory_len: usize,
+     ptr: &ValRaw,
+ ) -> Result<usize> {
+     // FIXME(#4311): needs memory64 support
+@@ -802,7 +805,7 @@ pub(crate) fn validate_inbounds_dynamic(
+         Some(n) => n,
+         None => bail!("pointer size overflow"),
+     };
+-    if end > memory.len() {
++    if end > memory_len {
+         bail!("pointer out of bounds")
+     }
+     Ok(ptr)
+diff --git a/crates/wasmtime/src/runtime/component/func/options.rs b/crates/wasmtime/src/runtime/component/func/options.rs
+index ce4e9656..7e393074 100644
+--- a/crates/wasmtime/src/runtime/component/func/options.rs
++++ b/crates/wasmtime/src/runtime/component/func/options.rs
+@@ -4,7 +4,7 @@ use crate::component::concurrent::ConcurrentState;
+ use crate::component::matching::InstanceType;
+ use crate::component::resources::{HostResourceData, HostResourceIndex, HostResourceTables};
+ use crate::component::store::ComponentTaskState;
+-use crate::component::{Instance, ResourceType, RuntimeInstance};
++use crate::component::{GuestMemory, GuestMemoryMut, Instance, ResourceType, RuntimeInstance};
+ use crate::prelude::*;
+ use crate::runtime::vm::VMFuncRef;
+ use crate::runtime::vm::component::{ComponentInstance, HandleTable, ResourceTables};
+@@ -120,16 +120,52 @@ impl<'a, T: 'static> LowerContext<'a, T> {
+         &self.instance().component().env_component().options[self.options]
+     }
+ 
+-    /// Returns a view into memory as a mutable slice of bytes.
++    /// Returns the canonical ABI's write view of guest memory.
++    ///
++    /// enclave/SET: this is a `GuestMemoryMut`, not a `&mut [u8]`, because a
++    /// `shared` memory must never have a Rust reference formed over it — see
++    /// `component::guest_memory`.
+     ///
+     /// # Panics
+     ///
+     /// This will panic if memory has not been configured for this lowering
+     /// (e.g. it wasn't present during the specification of canonical options).
+-    pub fn as_slice_mut(&mut self) -> &mut [u8] {
++    pub fn memory_mut(&mut self) -> GuestMemoryMut<'_> {
+         self.instance.options_memory_mut(self.store.0, self.options)
+     }
+ 
++    /// Writes `bytes` into guest memory at `offset`.
++    #[inline]
++    pub fn write(&mut self, offset: usize, bytes: &[u8]) {
++        self.memory_mut().write(offset, bytes);
++    }
++
++    /// Writes a fixed-size value into guest memory at `offset`.
++    #[inline]
++    pub fn put<const N: usize>(&mut self, offset: usize, bytes: [u8; N]) {
++        self.memory_mut().put(offset, bytes);
++    }
++
++    /// Size of guest memory, in bytes.
++    #[inline]
++    pub fn memory_len(&mut self) -> usize {
++        self.memory_mut().len()
++    }
++
++    /// Guest memory as a mutable slice, refusing a `shared` memory.
++    ///
++    /// enclave/SET: the async/streams machinery hands guest buffers across
++    /// await points, which the copy-safe API cannot express without a design
++    /// of its own. Rather than race, those paths fail closed here. No guest
++    /// the SET toolchain produces uses them (wasip2 libc, no stream/future
++    /// types), and a component that both uses streams and carries a shared
++    /// memory gets a clear error instead of host UB.
++    #[cfg(feature = "component-model-async")]
++    pub fn as_slice_mut_unshared(&mut self) -> Result<&mut [u8]> {
++        self.instance
++            .options_memory_unshared_mut(self.store.0, self.options)
++    }
++
+     /// Invokes the memory allocation function (which is style after `realloc`)
+     /// with the specified parameters.
+     ///
+@@ -187,13 +223,11 @@ impl<'a, T: 'static> LowerContext<'a, T> {
+         }
+         let result = usize::try_from(result)?;
+ 
+-        if self
+-            .as_slice_mut()
+-            .get_mut(result..)
+-            .and_then(|s| s.get_mut(..new_size))
+-            .is_none()
+-        {
+-            bail!("realloc return: beyond end of memory")
++        // Bounds-check by length rather than by forming a slice, so this is
++        // identical for a shared memory.
++        match result.checked_add(new_size) {
++            Some(end) if end <= self.memory_len() => {}
++            _ => bail!("realloc return: beyond end of memory"),
+         }
+ 
+         // Note that this restoration isn't part of a `Drop` guard which works
+@@ -217,18 +251,17 @@ impl<'a, T: 'static> LowerContext<'a, T> {
+     ///
+     /// This will panic if memory has not been configured for this lowering
+     /// (e.g. it wasn't present during the specification of canonical options).
+-    pub fn get<const N: usize>(&mut self, offset: usize) -> &mut [u8; N] {
+-        // FIXME: this bounds check shouldn't actually be necessary, all
+-        // callers of `ComponentType::store` have already performed a bounds
+-        // check so we're guaranteed that `offset..offset+N` is in-bounds. That
+-        // being said we at least should do bounds checks in debug mode and
+-        // it's not clear to me how to easily structure this so that it's
+-        // "statically obvious" the bounds check isn't necessary.
+-        //
+-        // For now I figure we can leave in this bounds check and if it becomes
+-        // an issue we can optimize further later, probably with judicious use
+-        // of `unsafe`.
+-        self.as_slice_mut()[offset..].first_chunk_mut().unwrap()
++    /// Reads back `N` bytes previously written at `offset`.
++    ///
++    /// enclave/SET: this used to hand out `&mut [u8; N]` pointing into guest
++    /// memory for callers to assign through. That cannot be done for a shared
++    /// memory, so callers use `put` to write instead and this remains only for
++    /// the few places that need to read back.
++    pub fn get<const N: usize>(&mut self, offset: usize) -> [u8; N] {
++        let bytes = self.memory_mut().read(offset, N).into_owned();
++        let mut out = [0u8; N];
++        out.copy_from_slice(&bytes);
++        out
+     }
+ 
+     /// Lowers an `own` resource into the guest, converting the `rep` specified
+@@ -332,7 +365,7 @@ pub struct LiftContext<'a> {
+     /// Instance type information, like with lowering.
+     pub types: &'a Arc<ComponentTypes>,
+ 
+-    memory: &'a [u8],
++    memory: GuestMemory<'a>,
+ 
+     instance: Pin<&'a mut ComponentInstance>,
+     instance_handle: Instance,
+@@ -398,17 +431,28 @@ impl<'a> LiftContext<'a> {
+         self.options
+     }
+ 
+-    /// Returns the entire contents of linear memory for this set of lifting
+-    /// options.
++    /// Returns the canonical ABI's read view of linear memory.
++    ///
++    /// enclave/SET: this is a `GuestMemory`, not a `&[u8]`. Read ranges out of
++    /// it with `.read(offset, len)`, which copies for a `shared` memory so
++    /// that validation happens on bytes no other thread can change — see
++    /// `component::guest_memory`.
+     ///
+     /// # Panics
+     ///
+     /// This will panic if memory has not been configured for this lifting
+     /// operation.
+-    pub fn memory(&self) -> &'a [u8] {
++    pub fn memory(&self) -> GuestMemory<'a> {
+         self.memory
+     }
+ 
++    /// Guest memory as a slice, refusing a `shared` memory. See
++    /// [`LowerContext::as_slice_mut_unshared`].
++    #[cfg(feature = "component-model-async")]
++    pub fn memory_unshared(&self) -> Result<&'a [u8]> {
++        self.memory.as_unshared_slice()
++    }
++
+     /// Returns an identifier for the store from which this `LiftContext` was
+     /// created.
+     pub fn store_id(&self) -> StoreId {
+diff --git a/crates/wasmtime/src/runtime/component/func/typed.rs b/crates/wasmtime/src/runtime/component/func/typed.rs
+index 9cac53d7..bfe4c715 100644
+--- a/crates/wasmtime/src/runtime/component/func/typed.rs
++++ b/crates/wasmtime/src/runtime/component/func/typed.rs
+@@ -2,6 +2,7 @@ use crate::component::Instance;
+ use crate::component::func::{Func, LiftContext, LowerContext};
+ use crate::component::matching::InstanceType;
+ use crate::component::storage::{storage_as_slice, storage_as_slice_mut};
++use crate::component::GuestMemory;
+ use crate::hash_map::HashMap;
+ use crate::prelude::*;
+ use crate::{AsContextMut, StoreContext, StoreContextMut, ValRaw};
+@@ -347,12 +348,12 @@ where
+             bail!("return pointer not aligned");
+         }
+ 
+-        let bytes = cx
+-            .memory()
+-            .get(ptr..)
+-            .and_then(|b| b.get(..Return::SIZE32))
+-            .ok_or_else(|| crate::format_err!("pointer out of bounds of memory"))?;
+-        Return::linear_lift_from_memory(cx, ty, bytes)
++        match ptr.checked_add(Return::SIZE32) {
++            Some(end) if end <= cx.memory().len() => {}
++            _ => bail!("pointer out of bounds of memory"),
++        }
++        let bytes = cx.memory().read(ptr, Return::SIZE32);
++        Return::linear_lift_from_memory(cx, ty, &bytes)
+     }
+ 
+     #[doc(hidden)]
+@@ -826,14 +827,14 @@ macro_rules! forward_string_lifts {
+             fn linear_lift_from_flat(cx: &mut LiftContext<'_>, ty: InterfaceType, src: &Self::Lower) -> Result<Self> {
+                 let s = <WasmStr as Lift>::linear_lift_from_flat(cx, ty, src)?;
+                 let encoding = cx.options().string_encoding;
+-                Ok(s.to_str_from_memory(encoding, cx.memory())?.into())
++                Ok(s.to_str_from_memory(encoding, &cx.memory())?.into())
+             }
+ 
+             #[inline]
+             fn linear_lift_from_memory(cx: &mut LiftContext<'_>, ty: InterfaceType, bytes: &[u8]) -> Result<Self> {
+                 let s = <WasmStr as Lift>::linear_lift_from_memory(cx, ty, bytes)?;
+                 let encoding = cx.options().string_encoding;
+-                Ok(s.to_str_from_memory(encoding, cx.memory())?.into())
++                Ok(s.to_str_from_memory(encoding, &cx.memory())?.into())
+             }
+         }
+     )*)
+@@ -923,7 +924,7 @@ macro_rules! integers {
+             ) -> Result<()> {
+                 debug_assert!(matches!(ty, InterfaceType::$ty));
+                 debug_assert!(offset % Self::SIZE32 == 0);
+-                *cx.get(offset) = self.to_le_bytes();
++                cx.put(offset, self.to_le_bytes());
+                 Ok(())
+             }
+ 
+@@ -940,27 +941,25 @@ macro_rules! integers {
+                 // platforms.
+                 assert!((Self::ALIGN32 as usize) >= mem::align_of::<Self>());
+ 
+-                // Slice `cx`'s memory to the window that we'll be modifying.
+-                // This should all have already been verified in terms of
+-                // alignment and sizing meaning that these assertions here are
+-                // not truly necessary but are instead double-checks.
+-                //
+-                // Note that we're casting a `[u8]` slice to `[Self]` with
+-                // `align_to_mut` which is not safe in general but is safe in
+-                // our specific case as all `u8` patterns are valid `Self`
+-                // patterns since `Self` is an integral type.
+-                let dst = &mut cx.as_slice_mut()[offset..][..items.len() * Self::SIZE32];
+-                let (before, middle, end) = unsafe { dst.align_to_mut::<Self>() };
+-                assert!(before.is_empty() && end.is_empty());
+-                assert_eq!(middle.len(), items.len());
+-
+-                // And with all that out of the way perform the copying loop.
+-                // This is not a `copy_from_slice` because endianness needs to
+-                // be handled here, but LLVM should pretty easily transform this
+-                // into a memcpy on little-endian platforms.
+-                for (dst, src) in middle.iter_mut().zip(items) {
+-                    *dst = src.to_le();
++                // enclave/SET: the endianness fixup happens in a HOST buffer
++                // which is then copied into the guest in one shot, rather than
++                // by casting guest memory to `[Self]` and writing through it.
++                // A `shared` memory cannot have a Rust slice formed over it at
++                // all, and for an unshared one this is the same single memcpy
++                // LLVM produced before, just with a staging buffer.
++                let mut dst = vec![0u8; items.len() * Self::SIZE32];
++                {
++                    // Casting `[u8]` to `[Self]` is sound here specifically
++                    // because `Self` is an integral type, so every `u8` bit
++                    // pattern is a valid `Self`.
++                    let (before, middle, end) = unsafe { dst.align_to_mut::<Self>() };
++                    assert!(before.is_empty() && end.is_empty());
++                    assert_eq!(middle.len(), items.len());
++                    for (dst, src) in middle.iter_mut().zip(items) {
++                        *dst = src.to_le();
++                    }
+                 }
++                cx.write(offset, &dst);
+                 Ok(())
+             }
+         }
+@@ -992,9 +991,7 @@ macro_rules! integers {
+             where
+                 Self: Sized,
+             {
+-                dst.extend(list._as_le_slice(cx.memory())
+-                           .iter()
+-                           .map(|i| Self::from_le(*i)));
++                dst.extend(list._as_le_slice(&cx.memory()).iter().map(|i| Self::from_le(*i)));
+                 Ok(())
+             }
+         }
+@@ -1050,8 +1047,7 @@ macro_rules! floats {
+             ) -> Result<()> {
+                 debug_assert!(matches!(ty, InterfaceType::$ty));
+                 debug_assert!(offset % Self::SIZE32 == 0);
+-                let ptr = cx.get(offset);
+-                *ptr = self.to_bits().to_le_bytes();
++                cx.put(offset, self.to_bits().to_le_bytes());
+                 Ok(())
+             }
+ 
+@@ -1068,12 +1064,9 @@ macro_rules! floats {
+                 // platforms.
+                 assert!((Self::ALIGN32 as usize) >= mem::align_of::<Self>());
+ 
+-                // Slice `cx`'s memory to the window that we'll be modifying.
+-                // This should all have already been verified in terms of
+-                // alignment and sizing meaning that these assertions here are
+-                // not truly necessary but are instead double-checks.
+-                let dst = &mut cx.as_slice_mut()[offset..][..items.len() * Self::SIZE32];
+-                assert!(dst.as_ptr().cast::<Self>().is_aligned());
++                // enclave/SET: staged through a host buffer, then copied into
++                // the guest once. See the integer case above for why.
++                let mut dst = vec![0u8; items.len() * Self::SIZE32];
+ 
+                 // And with all that out of the way perform the copying loop.
+                 // This is not a `copy_from_slice` because endianness needs to
+@@ -1081,11 +1074,14 @@ macro_rules! floats {
+                 // into a memcpy on little-endian platforms.
+                 // TODO use `as_chunks` when https://github.com/rust-lang/rust/issues/74985
+                 // is stabilized
+-                let (dst, rest) = dst.as_chunks_mut::<{Self::SIZE32}>();
+-                debug_assert!(rest.is_empty());
+-                for (dst, src) in iter::zip(dst, items) {
+-                    *dst = src.to_le_bytes();
++                {
++                    let (chunks, rest) = dst.as_chunks_mut::<{Self::SIZE32}>();
++                    debug_assert!(rest.is_empty());
++                    for (chunk, src) in iter::zip(chunks, items) {
++                        *chunk = src.to_le_bytes();
++                    }
+                 }
++                cx.write(offset, &dst);
+                 Ok(())
+             }
+         }
+@@ -1107,7 +1103,7 @@ macro_rules! floats {
+             fn linear_lift_list_from_memory(cx: &mut LiftContext<'_>, list: &WasmList<Self>) -> Result<Vec<Self>> where Self: Sized {
+                 // See comments in `WasmList::get` for the panicking indexing
+                 let byte_size = list.len * mem::size_of::<Self>();
+-                let bytes = &cx.memory()[list.ptr..][..byte_size];
++                let bytes = cx.memory().read(list.ptr, byte_size);
+ 
+                 // The canonical ABI requires that everything is aligned to its
+                 // own size, so this should be an aligned array.
+@@ -1167,7 +1163,7 @@ unsafe impl Lower for bool {
+     ) -> Result<()> {
+         debug_assert!(matches!(ty, InterfaceType::Bool));
+         debug_assert!(offset % Self::SIZE32 == 0);
+-        cx.get::<1>(offset)[0] = *self as u8;
++        cx.put::<1>(offset, [*self as u8]);
+         Ok(())
+     }
+ }
+@@ -1236,7 +1232,7 @@ unsafe impl Lower for char {
+     ) -> Result<()> {
+         debug_assert!(matches!(ty, InterfaceType::Char));
+         debug_assert!(offset % Self::SIZE32 == 0);
+-        *cx.get::<4>(offset) = u32::from(*self).to_le_bytes();
++        cx.put::<4>(offset, u32::from(*self).to_le_bytes());
+         Ok(())
+     }
+ }
+@@ -1304,8 +1300,8 @@ fn lower_pointer_pair_to_memory<T>(
+     len: usize,
+ ) {
+     // FIXME(#4311): needs memory64 handling
+-    *cx.get(offset + 0) = u32::try_from(ptr).unwrap().to_le_bytes();
+-    *cx.get(offset + 4) = u32::try_from(len).unwrap().to_le_bytes();
++    cx.put::<4>(offset + 0, u32::try_from(ptr).unwrap().to_le_bytes());
++    cx.put::<4>(offset + 4, u32::try_from(len).unwrap().to_le_bytes());
+ }
+ 
+ // FIXME(#4311): these probably need different constants for memory64
+@@ -1383,13 +1379,20 @@ fn lower_string<T>(cx: &mut LowerContext<'_, T>, string: &str) -> Result<(usize,
+                 );
+             }
+             let ptr = cx.realloc(0, 0, 1, string.len())?;
+-            cx.as_slice_mut()[ptr..][..string.len()].copy_from_slice(string.as_bytes());
++            cx.write(ptr, string.as_bytes());
+             Ok((ptr, string.len()))
+         }
+ 
+         // This corresponds to `store_utf8_to_utf16` in the canonical ABI. Here
+         // an over-large allocation is performed and then shrunk afterwards if
+         // necessary.
++        //
++        // enclave/SET: the transcode happens into a HOST buffer and is copied
++        // into the guest once, instead of being written directly into guest
++        // memory a chunk at a time. Writing in place would mean holding a
++        // `&mut [u8]` into linear memory across the encode loop, which a
++        // `shared` memory does not allow. One copy of a string is not a cost
++        // worth a second code path.
+         StringEncoding::Utf16 => {
+             let size = string.len() * 2;
+             if size > MAX_STRING_BYTE_LENGTH {
+@@ -1398,38 +1401,39 @@ fn lower_string<T>(cx: &mut LowerContext<'_, T>, string: &str) -> Result<(usize,
+                     string.len()
+                 );
+             }
+-            let mut ptr = cx.realloc(0, 0, 2, size)?;
++            let mut encoded = Vec::with_capacity(size);
+             let mut copied = 0;
+-            let bytes = &mut cx.as_slice_mut()[ptr..][..size];
+-            for (u, bytes) in string.encode_utf16().zip(bytes.chunks_mut(2)) {
+-                let u_bytes = u.to_le_bytes();
+-                bytes[0] = u_bytes[0];
+-                bytes[1] = u_bytes[1];
++            for u in string.encode_utf16() {
++                encoded.extend_from_slice(&u.to_le_bytes());
+                 copied += 1;
+             }
+-            if (copied * 2) < size {
+-                ptr = cx.realloc(ptr, size, 2, copied * 2)?;
++            let mut ptr = cx.realloc(0, 0, 2, size)?;
++            if encoded.len() < size {
++                ptr = cx.realloc(ptr, size, 2, encoded.len())?;
+             }
++            cx.write(ptr, &encoded);
+             Ok((ptr, copied))
+         }
+ 
+         StringEncoding::CompactUtf16 => {
+-            // This corresponds to `store_string_to_latin1_or_utf16`
++            // This corresponds to `store_string_to_latin1_or_utf16`, again
++            // encoding into a host buffer first (see the note above).
+             let bytes = string.as_bytes();
++            let mut latin1 = Vec::with_capacity(bytes.len());
++            let mut utf16: Option<Vec<u8>> = None;
++
+             let mut iter = string.char_indices();
+-            let mut ptr = cx.realloc(0, 0, 2, bytes.len())?;
+-            let mut dst = &mut cx.as_slice_mut()[ptr..][..bytes.len()];
+-            let mut result = 0;
+             while let Some((i, ch)) = iter.next() {
+                 // Test if this `char` fits into the latin1 encoding.
+                 if let Ok(byte) = u8::try_from(u32::from(ch)) {
+-                    dst[result] = byte;
+-                    result += 1;
++                    latin1.push(byte);
+                     continue;
+                 }
+ 
+-                // .. if utf16 is forced to be used then the allocation is
+-                // bumped up to the maximum size.
++                // ...if utf16 is forced to be used then the allocation is
++                // bumped up to the maximum size, the latin1 bytes encoded so
++                // far are inflated to 16 bits, and the remainder of the string
++                // is encoded after them.
+                 let worst_case = bytes
+                     .len()
+                     .checked_mul(2)
+@@ -1437,35 +1441,39 @@ fn lower_string<T>(cx: &mut LowerContext<'_, T>, string: &str) -> Result<(usize,
+                 if worst_case > MAX_STRING_BYTE_LENGTH {
+                     bail!("byte length too large");
+                 }
+-                ptr = cx.realloc(ptr, bytes.len(), 2, worst_case)?;
+-                dst = &mut cx.as_slice_mut()[ptr..][..worst_case];
+-
+-                // Previously encoded latin1 bytes are inflated to their 16-bit
+-                // size for utf16
+-                for i in (0..result).rev() {
+-                    dst[2 * i] = dst[i];
+-                    dst[2 * i + 1] = 0;
++                let mut wide = Vec::with_capacity(worst_case);
++                for b in &latin1 {
++                    wide.push(*b);
++                    wide.push(0);
+                 }
++                for u in string[i..].encode_utf16() {
++                    wide.extend_from_slice(&u.to_le_bytes());
++                }
++                utf16 = Some(wide);
++                break;
++            }
+ 
+-                // and then the remainder of the string is encoded.
+-                for (u, bytes) in string[i..]
+-                    .encode_utf16()
+-                    .zip(dst[2 * result..].chunks_mut(2))
+-                {
+-                    let u_bytes = u.to_le_bytes();
+-                    bytes[0] = u_bytes[0];
+-                    bytes[1] = u_bytes[1];
+-                    result += 1;
++            match utf16 {
++                Some(wide) => {
++                    let worst_case = bytes.len() * 2;
++                    let result = wide.len() / 2;
++                    let mut ptr = cx.realloc(0, 0, 2, worst_case)?;
++                    if worst_case > wide.len() {
++                        ptr = cx.realloc(ptr, worst_case, 2, wide.len())?;
++                    }
++                    cx.write(ptr, &wide);
++                    Ok((ptr, result | UTF16_TAG))
+                 }
+-                if worst_case > 2 * result {
+-                    ptr = cx.realloc(ptr, worst_case, 2, 2 * result)?;
++                None => {
++                    let result = latin1.len();
++                    let mut ptr = cx.realloc(0, 0, 2, bytes.len())?;
++                    if result < bytes.len() {
++                        ptr = cx.realloc(ptr, bytes.len(), 2, result)?;
++                    }
++                    cx.write(ptr, &latin1);
++                    Ok((ptr, result))
+                 }
+-                return Ok((ptr, result | UTF16_TAG));
+             }
+-            if result < bytes.len() {
+-                ptr = cx.realloc(ptr, bytes.len(), 2, result)?;
+-            }
+-            Ok((ptr, result))
+         }
+     }
+ }
+@@ -1564,13 +1572,13 @@ impl WasmStr {
+         let store = store.into().0;
+         let memory = self.instance.options_memory(store, self.options);
+         let encoding = self.instance.options(store, self.options).string_encoding;
+-        self.to_str_from_memory(encoding, memory)
++        self.to_str_from_memory(encoding, &memory)
+     }
+ 
+     pub(crate) fn to_str_from_memory<'a>(
+         &self,
+         encoding: StringEncoding,
+-        memory: &'a [u8],
++        memory: &GuestMemory<'a>,
+     ) -> Result<Cow<'a, str>> {
+         match encoding {
+             StringEncoding::Utf8 => self.decode_utf8(memory),
+@@ -1585,16 +1593,25 @@ impl WasmStr {
+         }
+     }
+ 
+-    fn decode_utf8<'a>(&self, memory: &'a [u8]) -> Result<Cow<'a, str>> {
++    fn decode_utf8<'a>(&self, memory: &GuestMemory<'a>) -> Result<Cow<'a, str>> {
+         // Note that bounds-checking already happen in construction of `WasmStr`
+-        // so this is never expected to panic. This could theoretically be
+-        // unchecked indexing if we're feeling wild enough.
+-        Ok(str::from_utf8(&memory[self.ptr..][..self.len])?.into())
++        // so this is never expected to panic.
++        //
++        // enclave/SET: for a shared memory `read` hands back a host-owned
++        // copy, so validation and the resulting `str` refer to bytes no guest
++        // thread can change afterwards. For an unshared memory this is the
++        // same borrow as before.
++        match memory.read(self.ptr, self.len) {
++            Cow::Borrowed(bytes) => Ok(str::from_utf8(bytes)?.into()),
++            Cow::Owned(bytes) => Ok(Cow::Owned(String::from_utf8(bytes).map_err(|e| {
++                crate::format_err!("{}", e.utf8_error())
++            })?)),
++        }
+     }
+ 
+-    fn decode_utf16<'a>(&self, memory: &'a [u8], len: usize) -> Result<Cow<'a, str>> {
+-        // See notes in `decode_utf8` for why this is panicking indexing.
+-        let (chunks, rest) = &memory[self.ptr..][..len * 2].as_chunks::<2>();
++    fn decode_utf16<'a>(&self, memory: &GuestMemory<'a>, len: usize) -> Result<Cow<'a, str>> {
++        let bytes = memory.read(self.ptr, len * 2);
++        let (chunks, rest) = bytes.as_chunks::<2>();
+         debug_assert!(rest.is_empty());
+         Ok(
+             core::char::decode_utf16(chunks.iter().map(|chunk| u16::from_le_bytes(*chunk)))
+@@ -1603,10 +1620,12 @@ impl WasmStr {
+         )
+     }
+ 
+-    fn decode_latin1<'a>(&self, memory: &'a [u8]) -> Result<Cow<'a, str>> {
++    fn decode_latin1<'a>(&self, memory: &GuestMemory<'a>) -> Result<Cow<'a, str>> {
+         // See notes in `decode_utf8` for why this is panicking indexing.
+-        Ok(encoding_rs::mem::decode_latin1(
+-            &memory[self.ptr..][..self.len],
++        // latin1 always transcodes into a fresh `String`, so this is owned
++        // either way and the shared/unshared distinction does not appear.
++        Ok(Cow::Owned(
++            encoding_rs::mem::decode_latin1(&memory.read(self.ptr, self.len)).into_owned(),
+         ))
+     }
+ }
+@@ -1827,8 +1846,8 @@ impl<T: Lift> WasmList<T> {
+         // (and wasm memory can only grow). This could theoretically be
+         // unchecked indexing if we're confident enough and it's actually a perf
+         // issue one day.
+-        let bytes = &cx.memory()[self.ptr + index * T::SIZE32..][..T::SIZE32];
+-        Some(T::linear_lift_from_memory(cx, self.elem, bytes))
++        let bytes = cx.memory().read(self.ptr + index * T::SIZE32, T::SIZE32);
++        Some(T::linear_lift_from_memory(cx, self.elem, &bytes))
+     }
+ 
+     /// Returns an iterator over the elements of this list.
+@@ -1865,15 +1884,32 @@ macro_rules! raw_wasm_list_accessors {
+             ///
+             /// Panics if the `store` provided is not the one from which this
+             /// slice originated.
+-            pub fn as_le_slice<'a, T: 'static>(&self, store: impl Into<StoreContext<'a, T>>) -> &'a [$i] {
++            /// enclave/SET: this returns `Cow` rather than `&[$i]`. A `shared`
++            /// linear memory cannot have a Rust slice formed over it — another
++            /// thread may be writing it — so for one this hands back an owned
++            /// copy. For every other component it is still `Cow::Borrowed`
++            /// over the same bytes, with no copy.
++            pub fn as_le_slice<'a, T: 'static>(&self, store: impl Into<StoreContext<'a, T>>) -> Cow<'a, [$i]> {
+                 let memory = self.instance.options_memory(store.into().0, self.options);
+-                self._as_le_slice(memory)
++                self._as_le_slice(&memory)
+             }
+ 
+-            fn _as_le_slice<'a>(&self, all_of_memory: &'a [u8]) -> &'a [$i] {
++            fn _as_le_slice<'a>(&self, all_of_memory: &GuestMemory<'a>) -> Cow<'a, [$i]> {
+                 // See comments in `WasmList::get` for the panicking indexing
+                 let byte_size = self.len * mem::size_of::<$i>();
+-                let bytes = &all_of_memory[self.ptr..][..byte_size];
++                let bytes = match all_of_memory.read(self.ptr, byte_size) {
++                    Cow::Borrowed(b) => b,
++                    Cow::Owned(b) => {
++                        // Host-owned copy of a shared memory: realign into a
++                        // typed vector, since `align_to` on a fresh `Vec<u8>`
++                        // is not guaranteed to leave empty head/tail.
++                        let mut out = Vec::with_capacity(self.len);
++                        for chunk in b.chunks_exact(mem::size_of::<$i>()) {
++                            out.push(<$i>::from_le_bytes(chunk.try_into().unwrap()));
++                        }
++                        return Cow::Owned(out);
++                    }
++                };
+ 
+                 // The canonical ABI requires that everything is aligned to its
+                 // own size, so this should be an aligned array. Furthermore the
+@@ -1889,7 +1925,7 @@ macro_rules! raw_wasm_list_accessors {
+                 unsafe {
+                     let (head, body, tail) = bytes.align_to::<$i>();
+                     assert!(head.is_empty() && tail.is_empty());
+-                    body
++                    Cow::Borrowed(body)
+                 }
+             }
+         }
+@@ -2160,12 +2196,12 @@ where
+     for i in 0..len {
+         let entry_base = ptr + (i * usize::try_from(map.entry_abi.size32)?);
+ 
+-        let key_bytes = &cx.memory()[entry_base..][..K::SIZE32];
+-        let key = K::linear_lift_from_memory(cx, map.key, key_bytes)?;
++        let key_bytes = cx.memory().read(entry_base, K::SIZE32);
++        let key = K::linear_lift_from_memory(cx, map.key, &key_bytes)?;
+ 
+         let value_bytes =
+-            &cx.memory()[entry_base + usize::try_from(map.value_offset32)?..][..V::SIZE32];
+-        let value = V::linear_lift_from_memory(cx, map.value, value_bytes)?;
++            cx.memory().read(entry_base + usize::try_from(map.value_offset32)?, V::SIZE32);
++        let value = V::linear_lift_from_memory(cx, map.value, &value_bytes)?;
+ 
+         result.insert(key, value)?;
+     }
+@@ -2430,10 +2466,10 @@ where
+         };
+         match self {
+             None => {
+-                cx.get::<1>(offset)[0] = 0;
++                cx.put::<1>(offset, [0]);
+             }
+             Some(val) => {
+-                cx.get::<1>(offset)[0] = 1;
++                cx.put::<1>(offset, [1]);
+                 val.linear_lower_to_memory(
+                     cx,
+                     payload,
+@@ -2693,13 +2729,13 @@ where
+         let payload_offset = Self::INFO.payload_offset32 as usize;
+         match self {
+             Ok(e) => {
+-                cx.get::<1>(offset)[0] = 0;
++                cx.put::<1>(offset, [0]);
+                 if let Some(ok) = ok {
+                     e.linear_lower_to_memory(cx, ok, offset + payload_offset)?;
+                 }
+             }
+             Err(e) => {
+-                cx.get::<1>(offset)[0] = 1;
++                cx.put::<1>(offset, [1]);
+                 if let Some(err) = err {
+                     e.linear_lower_to_memory(cx, err, offset + payload_offset)?;
+                 }
+diff --git a/crates/wasmtime/src/runtime/component/guest_memory.rs b/crates/wasmtime/src/runtime/component/guest_memory.rs
+new file mode 100644
+index 00000000..39aa71f6
+--- /dev/null
++++ b/crates/wasmtime/src/runtime/component/guest_memory.rs
+@@ -0,0 +1,273 @@
++//! enclave/SET: copy-safe access to the canonical ABI's linear memory.
++//!
++//! # Why this exists
++//!
++//! Upstream's canonical ABI reaches guest memory by forming a Rust slice over
++//! it — `core::slice::from_raw_parts(base, len)` — and then validating bytes
++//! in place: `str::from_utf8(&memory[ptr..][..len])`, `decode_utf16`, and so
++//! on. That is sound exactly as long as no one else can write those bytes
++//! while the host holds the slice, which upstream guarantees by refusing a
++//! `shared` memory for the canonical ABI outright.
++//!
++//! Shared-everything-threads breaks that guarantee. A threaded component's
++//! only memory IS `shared` (the validator relaxation that lets it use the
++//! canonical ABI at all), and its worker threads run on real cores. So while
++//! the host lifts a string on one thread, a worker can be writing the same
++//! bytes on another. Two things then go wrong, and only one of them is
++//! theoretical:
++//!
++//! * it is a data race on a Rust reference, which is undefined behaviour
++//!   regardless of what the bytes turn out to be; and
++//! * `str::from_utf8` validates the bytes and hands back a `&str` *aliasing
++//!   them*, so a guest that flips a byte after validation and before use has
++//!   manufactured an invalid `str` inside safe host code — a violated library
++//!   invariant, i.e. UB with real consequences, not a wrong answer.
++//!
++//! "The base never moves" (true — shared memories are reserved to their
++//! maximum) rules out the pointer going stale. It says nothing about the
++//! contents, which is the actual hazard.
++//!
++//! # What this does instead
++//!
++//! For a shared memory, the host never forms a reference into it. Bytes are
++//! copied out into a host-owned buffer through `read_volatile`, and validated
++//! on the copy — so whatever the guest does afterwards cannot reach anything
++//! the host has already checked. Writes go the other way, byte at a time
++//! through `write_volatile`. The guest may still observe or produce torn
++//! values, which is its own affair: the ABI contract is that a racing guest
++//! gets garbage, not that the host does.
++//!
++//! For an unshared memory — every component on the fleet today — `read`
++//! returns `Cow::Borrowed` over the same slice upstream would have formed, and
++//! writes are a plain `copy_from_slice`. That path is unchanged, and
++//! deliberately so: it is the one that has to stay fast.
++//!
++//! # Why volatile and not atomics
++//!
++//! Rust has no "atomic memcpy". Per-byte `AtomicU8` loads would be defined
++//! under the memory model but compile to the same instructions as volatile
++//! byte loads while blocking vectorisation just as thoroughly, and the
++//! canonical ABI has no ordering requirement to express — the guest
++//! synchronises through its own atomics. `read_volatile` is what wasmtime's
++//! own `Memory::data` documentation points embedders at for exactly this
++//! situation, and it is what keeps the compiler from assuming the bytes are
++//! stable across the copy.
++
++use crate::prelude::*;
++use alloc::borrow::Cow;
++use crate::runtime::vm::VMMemoryDefinition;
++use core::marker::PhantomData;
++use core::ptr::NonNull;
++
++/// The canonical ABI's read view of guest linear memory.
++///
++/// Cheap to copy; carries no borrow of the memory itself, only the store
++/// lifetime that keeps the allocation alive.
++#[derive(Copy, Clone)]
++pub struct GuestMemory<'a> {
++    base: *mut u8,
++    len: usize,
++    shared: bool,
++    _marker: PhantomData<&'a [u8]>,
++}
++
++impl<'a> GuestMemory<'a> {
++    /// # Safety
++    ///
++    /// `memory` must point at a live `VMMemoryDefinition` owned by the store
++    /// whose borrow `'a` is derived from.
++    pub(crate) unsafe fn new(memory: NonNull<VMMemoryDefinition>, shared: bool) -> GuestMemory<'a> {
++        let (base, len) = unsafe {
++            let memory = memory.as_ref();
++            (memory.base.as_ptr(), memory.current_length())
++        };
++        GuestMemory {
++            base,
++            len,
++            shared,
++            _marker: PhantomData,
++        }
++    }
++
++    pub(crate) fn empty() -> GuestMemory<'a> {
++        GuestMemory {
++            base: core::ptr::null_mut(),
++            len: 0,
++            shared: false,
++            _marker: PhantomData,
++        }
++    }
++
++    /// Total size of linear memory, in bytes. This is what bounds checks are
++    /// performed against, exactly as before.
++    #[inline]
++    pub fn len(&self) -> usize {
++        self.len
++    }
++
++    /// Whether reads from this memory must be copied rather than borrowed.
++    #[inline]
++    pub fn is_shared(&self) -> bool {
++        self.shared
++    }
++
++    /// Reads `len` bytes at `offset`.
++    ///
++    /// Borrowed (zero-copy) for an unshared memory; an owned copy taken
++    /// through volatile reads for a shared one. Callers validate the RESULT,
++    /// which for a shared memory is a host-owned buffer no guest thread can
++    /// subsequently change.
++    ///
++    /// # Panics
++    ///
++    /// Panics if the range is out of bounds, matching the panicking indexing
++    /// this replaces (every caller has already bounds-checked against `len`).
++    #[inline]
++    pub fn read(&self, offset: usize, len: usize) -> Cow<'a, [u8]> {
++        let end = offset.checked_add(len).expect("guest memory range overflow");
++        assert!(end <= self.len, "guest memory range out of bounds");
++        if !self.shared {
++            // SAFETY: bounds-checked above, and `'a` keeps the allocation
++            // alive. Nothing else can write an unshared memory while the store
++            // is borrowed.
++            return Cow::Borrowed(unsafe {
++                core::slice::from_raw_parts(self.base.add(offset), len)
++            });
++        }
++        let mut out = Vec::with_capacity(len);
++        // SAFETY: bounds-checked above. Volatile keeps the compiler from
++        // assuming the bytes are stable across the loop or from merging this
++        // with later reads of the same addresses.
++        unsafe {
++            let src = self.base.add(offset);
++            for i in 0..len {
++                out.push(core::ptr::read_volatile(src.add(i)));
++            }
++        }
++        Cow::Owned(out)
++    }
++
++    /// The whole memory as a slice, for paths that cannot support a shared
++    /// memory and must refuse one.
++    pub fn as_unshared_slice(&self) -> Result<&'a [u8]> {
++        if self.shared {
++            bail!(
++                "this canonical-ABI operation does not support a `shared` linear \
++                 memory (shared-everything-threads): the host would have to hold \
++                 a reference into memory another thread can write"
++            );
++        }
++        if self.base.is_null() {
++            return Ok(&[]);
++        }
++        // SAFETY: not shared, so nothing else writes it while the store is
++        // borrowed; `'a` keeps the allocation alive.
++        Ok(unsafe { core::slice::from_raw_parts(self.base, self.len) })
++    }
++}
++
++/// The canonical ABI's write view of guest linear memory.
++pub struct GuestMemoryMut<'a> {
++    base: *mut u8,
++    len: usize,
++    shared: bool,
++    _marker: PhantomData<&'a mut [u8]>,
++}
++
++impl<'a> GuestMemoryMut<'a> {
++    /// # Safety
++    ///
++    /// As [`GuestMemory::new`], and additionally the caller must hold the
++    /// store mutably for `'a`.
++    pub(crate) unsafe fn new(
++        memory: NonNull<VMMemoryDefinition>,
++        shared: bool,
++    ) -> GuestMemoryMut<'a> {
++        let (base, len) = unsafe {
++            let memory = memory.as_ref();
++            (memory.base.as_ptr(), memory.current_length())
++        };
++        GuestMemoryMut {
++            base,
++            len,
++            shared,
++            _marker: PhantomData,
++        }
++    }
++
++    pub(crate) fn empty() -> GuestMemoryMut<'a> {
++        GuestMemoryMut {
++            base: core::ptr::null_mut(),
++            len: 0,
++            shared: false,
++            _marker: PhantomData,
++        }
++    }
++
++    /// Size of linear memory, in bytes.
++    #[inline]
++    pub fn len(&self) -> usize {
++        self.len
++    }
++
++    /// Writes `bytes` at `offset`.
++    ///
++    /// # Panics
++    ///
++    /// Panics if the range is out of bounds, matching the indexing it
++    /// replaces.
++    #[inline]
++    pub fn write(&mut self, offset: usize, bytes: &[u8]) {
++        let end = offset
++            .checked_add(bytes.len())
++            .expect("guest memory range overflow");
++        assert!(end <= self.len, "guest memory range out of bounds");
++        // SAFETY: bounds-checked above.
++        unsafe {
++            let dst = self.base.add(offset);
++            if !self.shared {
++                core::ptr::copy_nonoverlapping(bytes.as_ptr(), dst, bytes.len());
++                return;
++            }
++            for (i, b) in bytes.iter().enumerate() {
++                core::ptr::write_volatile(dst.add(i), *b);
++            }
++        }
++    }
++
++    /// Writes a fixed-size value at `offset`.
++    #[inline]
++    pub fn put<const N: usize>(&mut self, offset: usize, bytes: [u8; N]) {
++        self.write(offset, &bytes);
++    }
++
++    /// Reads back through a write view, for the few lowering paths that need
++    /// to inspect what they have written (and for `realloc` bounds checks).
++    #[inline]
++    pub fn read(&self, offset: usize, len: usize) -> Cow<'_, [u8]> {
++        GuestMemory {
++            base: self.base,
++            len: self.len,
++            shared: self.shared,
++            _marker: PhantomData,
++        }
++        .read(offset, len)
++    }
++
++    /// The whole memory as a mutable slice, for paths that cannot support a
++    /// shared memory and must refuse one.
++    pub fn into_unshared_slice(self) -> Result<&'a mut [u8]> {
++        if self.shared {
++            bail!(
++                "this canonical-ABI operation does not support a `shared` linear \
++                 memory (shared-everything-threads): the host would have to hold \
++                 a mutable reference into memory another thread can write"
++            );
++        }
++        if self.base.is_null() {
++            return Ok(&mut []);
++        }
++        // SAFETY: not shared, and the store is held mutably for `'a`.
++        Ok(unsafe { core::slice::from_raw_parts_mut(self.base, self.len) })
++    }
++}
+diff --git a/crates/wasmtime/src/runtime/component/instance.rs b/crates/wasmtime/src/runtime/component/instance.rs
+index 453b6dcf..9a47a048 100644
+--- a/crates/wasmtime/src/runtime/component/instance.rs
++++ b/crates/wasmtime/src/runtime/component/instance.rs
+@@ -5,7 +5,7 @@ use crate::component::{
+     Component, ComponentExportIndex, ComponentNamedList, Func, Lift, Lower, ResourceType,
+     TypedFunc, types::ComponentItem,
+ };
+-use crate::component::{ExportLookup, RuntimeInstance};
++use crate::component::{ExportLookup, GuestMemory, GuestMemoryMut, RuntimeInstance};
+ use crate::instance::OwnedImports;
+ use crate::linker::DefinitionType;
+ use crate::prelude::*;
+@@ -476,42 +476,78 @@ impl Instance {
+         Some(instance.runtime_memory(memory))
+     }
+ 
++    /// Whether this options' memory is `shared`, i.e. whether the canonical
++    /// ABI must avoid forming Rust slices over it.
++    fn options_memory_is_shared(&self, store: &StoreOpaque, options: OptionsIndex) -> bool {
++        let instance = self.id.get(store);
++        let options = &instance.component().env_component().options[options];
++        match options.data_model {
++            CanonicalOptionsDataModel::Gc { .. } => false,
++            CanonicalOptionsDataModel::LinearMemory(o) => match o.memory {
++                Some(m) => instance.runtime_memory_is_shared(m),
++                None => false,
++            },
++        }
++    }
++
++    /// The canonical ABI's view of guest memory for `options`.
++    ///
++    /// See [`GuestMemory`] for why this is not simply a `&[u8]`.
+     pub(crate) fn options_memory<'a>(
+         &self,
+         store: &'a StoreOpaque,
+         options: OptionsIndex,
+-    ) -> &'a [u8] {
+-        let memory = match self.options_memory_raw(store, options) {
+-            Some(m) => m,
+-            None => return &[],
+-        };
+-        // SAFETY: we're borrowing the entire `StoreOpaque` which owns the
+-        // memory allocation to return the result of memory. That means that the
+-        // lifetime connection here should be safe and the actual ptr/length are
+-        // trusted parts of the runtime here.
+-        unsafe {
+-            let memory = memory.as_ref();
+-            core::slice::from_raw_parts(memory.base.as_ptr(), memory.current_length())
++    ) -> GuestMemory<'a> {
++        let shared = self.options_memory_is_shared(store, options);
++        match self.options_memory_raw(store, options) {
++            // SAFETY: we're borrowing the entire `StoreOpaque` which owns the
++            // memory allocation, so the lifetime connection is sound, and the
++            // ptr/length are trusted parts of the runtime here.
++            Some(memory) => unsafe { GuestMemory::new(memory, shared) },
++            None => GuestMemory::empty(),
+         }
+     }
+ 
++    /// Mutable counterpart of [`Self::options_memory`].
+     pub(crate) fn options_memory_mut<'a>(
+         &self,
+         store: &'a mut StoreOpaque,
+         options: OptionsIndex,
+-    ) -> &'a mut [u8] {
+-        let memory = match self.options_memory_raw(store, options) {
+-            Some(m) => m,
+-            None => return &mut [],
+-        };
+-        // SAFETY: See `options_memory` comment above, and note that this is
+-        // taking `&mut StoreOpaque` to thread the lifetime through instead.
+-        unsafe {
+-            let memory = memory.as_ref();
+-            core::slice::from_raw_parts_mut(memory.base.as_ptr(), memory.current_length())
++    ) -> GuestMemoryMut<'a> {
++        let shared = self.options_memory_is_shared(store, options);
++        match self.options_memory_raw(store, options) {
++            // SAFETY: see `options_memory`; this threads the lifetime through
++            // `&mut StoreOpaque` instead.
++            Some(memory) => unsafe { GuestMemoryMut::new(memory, shared) },
++            None => GuestMemoryMut::empty(),
+         }
+     }
+ 
++    /// Guest memory as a plain slice, for the paths that genuinely cannot work
++    /// against a shared memory and must therefore refuse one.
++    ///
++    /// Used by the async/streams machinery, which hands guest buffers around
++    /// across await points; making those copy-safe is a separate project, so
++    /// they fail closed instead of racing.
++    #[cfg(feature = "component-model-async")]
++    pub(crate) fn options_memory_unshared<'a>(
++        &self,
++        store: &'a StoreOpaque,
++        options: OptionsIndex,
++    ) -> Result<&'a [u8]> {
++        self.options_memory(store, options).as_unshared_slice()
++    }
++
++    /// Mutable counterpart of [`Self::options_memory_unshared`].
++    #[cfg(feature = "component-model-async")]
++    pub(crate) fn options_memory_unshared_mut<'a>(
++        &self,
++        store: &'a mut StoreOpaque,
++        options: OptionsIndex,
++    ) -> Result<&'a mut [u8]> {
++        self.options_memory_mut(store, options).into_unshared_slice()
++    }
++
+     /// Helper function to simultaneously get a borrow to this instance's
+     /// component as well as the store that this component is contained within.
+     ///
+@@ -661,6 +697,23 @@ struct Instantiator<'a> {
+     id: ComponentInstanceId,
+     core_imports: OwnedImports,
+     imports: &'a PrimaryMap<RuntimeImportIndex, RuntimeImport>,
++
++    /// enclave/SET: when this instantiation is a WORKER's view of a component
++    /// already running on another thread, the plan describing which core
++    /// instance's defined memories must be re-pointed at the primary's
++    /// `SharedMemory` before that instance's startup function runs.
++    ///
++    /// `None` for every ordinary instantiation, and the code below is then
++    /// byte-identical to upstream's.
++    #[cfg(all(feature = "std", feature = "threads"))]
++    set_view: Option<&'a crate::runtime::vm::component::SetViewPlan>,
++
++    /// Count of `InstantiateModule` initializers processed so far, which is
++    /// also the `RuntimeInstanceIndex` the next one will be pushed at (they
++    /// are pushed in initializer order, from zero). Only read when `set_view`
++    /// is `Some`.
++    #[cfg(all(feature = "std", feature = "threads"))]
++    core_instances_seen: u32,
+ }
+ 
+ pub(crate) enum RuntimeImport {
+@@ -715,6 +768,10 @@ impl<'a> Instantiator<'a> {
+             imports,
+             core_imports: OwnedImports::empty(),
+             id,
++            #[cfg(all(feature = "std", feature = "threads"))]
++            set_view: None,
++            #[cfg(all(feature = "std", feature = "threads"))]
++            core_instances_seen: 0,
+         })
+     }
+ 
+@@ -789,6 +846,18 @@ impl<'a> Instantiator<'a> {
+             match initializer {
+                 GlobalInitializer::InstantiateModule(m, component_instance) => {
+                     let instance = self.id;
++                    // enclave/SET: taken before `build_imports` borrows `self`.
++                    // Core instances are pushed in initializer order from zero,
++                    // so this counter IS the `RuntimeInstanceIndex` this one
++                    // will land at.
++                    #[cfg(all(feature = "std", feature = "threads"))]
++                    let swap_here = {
++                        let here = wasmtime_environ::component::RuntimeInstanceIndex::from_u32(
++                            self.core_instances_seen,
++                        );
++                        self.core_instances_seen += 1;
++                        self.set_view.filter(|plan| plan.targets(here))
++                    };
+                     let module;
+                     let imports = match m {
+                         // Since upvars are statically know we know that the
+@@ -841,9 +910,34 @@ impl<'a> Instantiator<'a> {
+                     // already checked for asyncness and are running on a fiber
+                     // if required.
+ 
+-                    let i = unsafe {
+-                        crate::Instance::new_started(store, module, imports.as_ref(), asyncness)
++                    // enclave/SET: for a worker's view, this core instance may
++                    // be the one whose defined memories must BE the primary's
++                    // shared memories. The swap has to land before the module's
++                    // startup function runs (`wasm-ld --shared-memory` emits
++                    // `__wasm_init_memory` there, guarded by a once-flag that
++                    // lives in the shared memory itself), so it goes through
++                    // the `before_start` hook rather than after instantiation.
++                    #[cfg(not(all(feature = "std", feature = "threads")))]
++                    let swap_here: Option<()> = None;
++
++                    let i = match swap_here {
++                        None => unsafe {
++                            crate::Instance::new_started(store, module, imports.as_ref(), asyncness)
++                                .await?
++                        },
++                        #[cfg(all(feature = "std", feature = "threads"))]
++                        Some(plan) => unsafe {
++                            crate::Instance::new_started_with(
++                                store,
++                                module,
++                                imports.as_ref(),
++                                asyncness,
++                                |opaque, instance| plan.install(opaque, instance),
++                            )
+                             .await?
++                        },
++                        #[cfg(not(all(feature = "std", feature = "threads")))]
++                        Some(()) => unreachable!(),
+                     };
+ 
+                     if exit {
+@@ -864,7 +958,7 @@ impl<'a> Instantiator<'a> {
+ 
+                 GlobalInitializer::ExtractTable(table) => self.extract_table(store.0, table),
+ 
+-                GlobalInitializer::ExtractMemory(mem) => self.extract_memory(store.0, mem),
++                GlobalInitializer::ExtractMemory(mem) => self.extract_memory(store.0, mem)?,
+ 
+                 GlobalInitializer::ExtractRealloc(realloc) => {
+                     self.extract_realloc(store.0, realloc)
+@@ -881,6 +975,27 @@ impl<'a> Instantiator<'a> {
+                 GlobalInitializer::Resource(r) => self.resource(store.0, r)?,
+             }
+         }
++
++        // enclave/SET: a fused adapter's string transcoders run in the host
++        // over raw slices of guest memory whose pointers JIT code computed
++        // (`libcalls::utf8_to_utf16` and friends). Those cannot be made
++        // copy-safe from here — the libcall receives bare pointers with no way
++        // back to the memory's sharedness — so a component that would need one
++        // over a `shared` memory is refused outright rather than raced.
++        //
++        // Nothing the SET toolchain emits hits this: transcoders exist only
++        // between two core instances with different memories or string
++        // encodings, and a `clang -pthread` component has a single memory and
++        // utf8 throughout. Refusing keeps the guarantee independent of that.
++        for memory in env_component.transcoder_memories.iter() {
++            if self.instance_mut(store.0).runtime_memory_is_shared(*memory) {
++                bail!(
++                    "this component needs a string-transcoding adapter over a `shared` \
++                     linear memory, which is not supported: the host would have to read \
++                     memory another thread can write concurrently"
++                );
++            }
++        }
+         Ok(())
+     }
+ 
+@@ -906,14 +1021,20 @@ impl<'a> Instantiator<'a> {
+         Ok(())
+     }
+ 
+-    fn extract_memory(&mut self, store: &mut StoreOpaque, memory: &ExtractMemory) {
+-        let import = match lookup_vmexport(store, self.id, &memory.export) {
+-            crate::runtime::vm::Export::Memory(memory) => memory.vmimport(store),
+-            crate::runtime::vm::Export::SharedMemory(_, import) => import,
++    fn extract_memory(&mut self, store: &mut StoreOpaque, memory: &ExtractMemory) -> Result<()> {
++        // enclave/SET: this is the one place that knows whether the canonical
++        // ABI's memory is `shared`, so it is where that fact gets recorded.
++        let (import, shared) = match lookup_vmexport(store, self.id, &memory.export) {
++            crate::runtime::vm::Export::Memory(memory) => (memory.vmimport(store), false),
++            crate::runtime::vm::Export::SharedMemory(_, import) => (import, true),
+             _ => unreachable!(),
+         };
+-        self.instance_mut(store)
+-            .set_runtime_memory(memory.index, import.from.as_non_null());
++        self.instance_mut(store).set_runtime_memory(
++            memory.index,
++            import.from.as_non_null(),
++            shared,
++        )?;
++        Ok(())
+     }
+ 
+     fn extract_realloc(&mut self, store: &mut StoreOpaque, realloc: &ExtractRealloc) {
+@@ -1166,10 +1287,57 @@ impl<T: 'static> InstancePre<T> {
+         self._instantiate(store, Asyncness::Yes).await
+     }
+ 
++    /// enclave/SET: instantiate this component as a WORKER's execution view.
++    ///
++    /// Identical to `instantiate_async` except that the core instance named by
++    /// `plan` has its defined memories re-pointed at the primary thread's
++    /// `SharedMemory` before its startup function runs, so the worker's
++    /// component instance shares linear memory with the primary while owning
++    /// every other piece of execution state (its own store, vmctxs, tables,
++    /// globals, resource tables and WASI context).
++    ///
++    /// This is the ONLY sound way to run a spawned SET thread. Substituting a
++    /// view's imports does not work: Cranelift devirtualizes calls to
++    /// statically-known imports into direct calls to the callee's compiled
++    /// body (see `KnownFunc::FuncKey(FuncKey::DefinedWasmFunction(..))` in
++    /// `cranelift/src/func_environ.rs`), so a worker would execute the
++    /// primary's code against a substituted vmctx of an entirely different
++    /// type. Instantiating the whole component per worker means every such
++    /// direct call lands on code whose vmctx is the worker's own.
++    #[cfg(all(feature = "async", feature = "std", feature = "threads"))]
++    pub async fn instantiate_set_worker_async(
++        &self,
++        store: impl AsContextMut<Data = T>,
++        plan: &crate::runtime::vm::component::SetViewPlan,
++    ) -> Result<Instance> {
++        self._instantiate_with(store, Asyncness::Yes, Some(plan))
++            .await
++    }
++
+     async fn _instantiate(
++        &self,
++        store: impl AsContextMut<Data = T>,
++        asyncness: Asyncness,
++    ) -> Result<Instance> {
++        self._instantiate_with(
++            store,
++            asyncness,
++            #[cfg(all(feature = "std", feature = "threads"))]
++            None,
++            #[cfg(not(all(feature = "std", feature = "threads")))]
++            None,
++        )
++        .await
++    }
++
++    async fn _instantiate_with(
+         &self,
+         mut store: impl AsContextMut<Data = T>,
+         asyncness: Asyncness,
++        #[cfg(all(feature = "std", feature = "threads"))] set_view: Option<
++            &crate::runtime::vm::component::SetViewPlan,
++        >,
++        #[cfg(not(all(feature = "std", feature = "threads")))] set_view: Option<&()>,
+     ) -> Result<Instance> {
+         let store = store.as_context_mut();
+         store.0.set_async_required(self.asyncness);
+@@ -1187,6 +1355,12 @@ impl<T: 'static> InstancePre<T> {
+ 
+         let mut instantiator =
+             Instantiator::new(&self.component, decrement.store.0, &self.imports)?;
++        #[cfg(all(feature = "std", feature = "threads"))]
++        {
++            instantiator.set_view = set_view;
++        }
++        #[cfg(not(all(feature = "std", feature = "threads")))]
++        let _ = set_view;
+         instantiator.run(&mut decrement.store, asyncness).await?;
+ 
+         let instance = Instance::from_wasmtime(decrement.store.0, instantiator.id);
+diff --git a/crates/wasmtime/src/runtime/component/mod.rs b/crates/wasmtime/src/runtime/component/mod.rs
+index 7bf166b7..74fd6dd7 100644
+--- a/crates/wasmtime/src/runtime/component/mod.rs
++++ b/crates/wasmtime/src/runtime/component/mod.rs
+@@ -107,6 +107,7 @@ mod component;
+ pub(crate) mod concurrent;
+ mod func;
+ mod has_data;
++mod guest_memory;
+ mod instance;
+ mod linker;
+ mod matching;
+@@ -129,7 +130,11 @@ pub use self::func::{
+     ComponentNamedList, ComponentType, Func, Lift, Lower, TypedFunc, WasmList, WasmStr,
+ };
+ pub use self::has_data::*;
++pub use self::guest_memory::{GuestMemory, GuestMemoryMut};
+ pub use self::instance::{Instance, InstancePre};
++/// enclave/SET: the embedder-facing half of shared-everything-threads spawning.
++#[cfg(all(feature = "std", feature = "threads"))]
++pub use crate::runtime::vm::component::{SetWorkerHost, SetWorkerRequest};
+ pub use self::linker::{Linker, LinkerInstance};
+ pub use self::resource_table::{ResourceTable, ResourceTableError};
+ pub use self::resources::{Resource, ResourceAny, ResourceDynamic};
+diff --git a/crates/wasmtime/src/runtime/component/values.rs b/crates/wasmtime/src/runtime/component/values.rs
+index c3578e95..89ac78b9 100644
+--- a/crates/wasmtime/src/runtime/component/values.rs
++++ b/crates/wasmtime/src/runtime/component/values.rs
+@@ -604,8 +604,8 @@ impl Val {
+                 let ty = &cx.types[ty];
+                 let (ptr, len) = lower_list(cx, ty.element, values)?;
+                 // FIXME(#4311): needs memory64 handling
+-                *cx.get(offset + 0) = u32::try_from(ptr).unwrap().to_le_bytes();
+-                *cx.get(offset + 4) = u32::try_from(len).unwrap().to_le_bytes();
++                cx.put::<4>(offset + 0, u32::try_from(ptr).unwrap().to_le_bytes());
++                cx.put::<4>(offset + 4, u32::try_from(len).unwrap().to_le_bytes());
+                 Ok(())
+             }
+             (InterfaceType::List(_), _) => unexpected(ty, self),
+@@ -613,8 +613,8 @@ impl Val {
+                 let map_ty = &cx.types[ty_idx];
+                 let (ptr, len) = lower_map(cx, map_ty, values)?;
+                 // FIXME(#4311): needs memory64 handling
+-                *cx.get(offset + 0) = u32::try_from(ptr).unwrap().to_le_bytes();
+-                *cx.get(offset + 4) = u32::try_from(len).unwrap().to_le_bytes();
++                cx.put::<4>(offset + 0, u32::try_from(ptr).unwrap().to_le_bytes());
++                cx.put::<4>(offset + 4, u32::try_from(len).unwrap().to_le_bytes());
+                 Ok(())
+             }
+             (InterfaceType::Map(_), _) => unexpected(ty, self),
+@@ -1029,7 +1029,7 @@ fn load_list(cx: &mut LiftContext<'_>, ty: TypeListIndex, ptr: usize, len: usize
+                 Val::load(
+                     cx,
+                     elem,
+-                    &cx.memory()[ptr + (index * element_size)..][..element_size],
++                    &cx.memory().read(ptr + (index * element_size), element_size),
+                 )
+             })
+             .collect::<Result<_>>()?,
+@@ -1066,11 +1066,11 @@ fn load_map(cx: &mut LiftContext<'_>, ty: TypeMapIndex, ptr: usize, len: usize)
+     let mut map = Vec::with_capacity(len);
+     for index in 0..len {
+         let tuple_ptr = ptr + (index * tuple_size);
+-        let key = Val::load(cx, key_ty, &cx.memory()[tuple_ptr..][..key_size])?;
++        let key = Val::load(cx, key_ty, &cx.memory().read(tuple_ptr, key_size))?;
+         let value = Val::load(
+             cx,
+             value_ty,
+-            &cx.memory()[tuple_ptr + value_offset..][..value_size],
++            &cx.memory().read(tuple_ptr + value_offset, value_size),
+         )?;
+         map.push((key, value));
+     }
 diff --git a/crates/wasmtime/src/runtime/externals/global.rs b/crates/wasmtime/src/runtime/externals/global.rs
-index ede512d..d329405 100644
+index ede512da..d329405e 100644
 --- a/crates/wasmtime/src/runtime/externals/global.rs
 +++ b/crates/wasmtime/src/runtime/externals/global.rs
 @@ -375,6 +375,7 @@ impl Global {
@@ -553,7 +2249,7 @@ index ede512d..d329405 100644
                  &TY
              }
 diff --git a/crates/wasmtime/src/runtime/instance.rs b/crates/wasmtime/src/runtime/instance.rs
-index 53fd54f..10e721a 100644
+index 53fd54fa..10e721a3 100644
 --- a/crates/wasmtime/src/runtime/instance.rs
 +++ b/crates/wasmtime/src/runtime/instance.rs
 @@ -208,7 +208,7 @@ impl Instance {
@@ -605,10 +2301,10 @@ index 53fd54f..10e721a 100644
          // at this point in conjunction with analysis at compile time, the
          // instance gets started. Note that this isn't just the wasm start
 diff --git a/crates/wasmtime/src/runtime/store.rs b/crates/wasmtime/src/runtime/store.rs
-index 9cc49ea..de4b9d2 100644
+index 9cc49ea8..05ff53d4 100644
 --- a/crates/wasmtime/src/runtime/store.rs
 +++ b/crates/wasmtime/src/runtime/store.rs
-@@ -470,6 +470,24 @@ pub struct StoreOpaque {
+@@ -470,6 +470,33 @@ pub struct StoreOpaque {
  
      instances: TryPrimaryMap<InstanceId, StoreInstance>,
  
@@ -629,20 +2325,59 @@ index 9cc49ea..de4b9d2 100644
 +        std::sync::Arc<std::sync::atomic::AtomicBool>,
 +    )>,
 +
++    /// enclave/SET: the embedder hook that builds and runs a worker's store.
++    ///
++    /// A worker re-instantiates the whole component in a store of its own, and
++    /// building a store means building an embedder context of type `T` — which
++    /// the runtime layer cannot do generically. Absent this, `thread.spawn`
++    /// refuses with the ABI's `-1` and the guest takes its sequential fallback.
++    #[cfg(all(feature = "std", feature = "threads", feature = "component-model"))]
++    set_worker_host: Option<std::sync::Arc<dyn crate::runtime::vm::component::SetWorkerHost>>,
++
 +
      signal_handler: Option<SignalHandler>,
      modules: ModuleRegistry,
      func_refs: FuncRefs,
-@@ -731,6 +749,8 @@ impl<T> Store<T> {
+@@ -731,6 +758,10 @@ impl<T> Store<T> {
              #[cfg(feature = "stack-switching")]
              continuations: Vec::new(),
              instances: TryPrimaryMap::new(),
 +            #[cfg(all(feature = "std", feature = "threads"))]
 +            set_thread_joins: Vec::new(),
++            #[cfg(all(feature = "std", feature = "threads", feature = "component-model"))]
++            set_worker_host: None,
              signal_handler: None,
              gc_store: None,
              #[cfg(feature = "gc")]
-@@ -1657,6 +1677,66 @@ impl StoreOpaque {
+@@ -1112,6 +1143,27 @@ impl<T> Store<T> {
+         self.inner.epoch_deadline_trap();
+     }
+ 
++    /// enclave/SET: register the hook that builds and runs a shared-everything-
++    /// threads worker.
++    ///
++    /// A spawned SET thread re-instantiates the whole component in a `Store` of
++    /// its own so that linear memory is shared while all execution state,
++    /// including the WASI context and component resource tables, stays
++    /// per-thread. Creating that store means creating an embedder context of
++    /// type `T`, so the embedder has to supply it; without one, `thread.spawn`
++    /// refuses with the ABI's documented `-1` and the guest falls back to
++    /// running sequentially.
++    ///
++    /// The hook runs on the worker's own OS thread. See
++    /// [`SetWorkerRequest::run_async`](crate::component::SetWorkerRequest::run_async).
++    #[cfg(all(feature = "std", feature = "threads", feature = "component-model"))]
++    pub fn set_set_worker_host(
++        &mut self,
++        host: std::sync::Arc<dyn crate::component::SetWorkerHost>,
++    ) {
++        self.inner.set_set_worker_host(host);
++    }
++
+     /// Configures epoch-deadline expiration to invoke a custom callback
+     /// function.
+     ///
+@@ -1657,6 +1709,83 @@ impl StoreOpaque {
          (self.instances[id].handle.get_mut(), &self.modules)
      }
  
@@ -669,6 +2404,23 @@ index 9cc49ea..de4b9d2 100644
 +            }
 +        }
 +        self.set_thread_joins.push((handle, cancel));
++    }
++
++    /// enclave/SET: the embedder's worker host, if one was registered.
++    #[cfg(all(feature = "std", feature = "threads", feature = "component-model"))]
++    pub(crate) fn set_worker_host(
++        &self,
++    ) -> Option<std::sync::Arc<dyn crate::runtime::vm::component::SetWorkerHost>> {
++        self.set_worker_host.clone()
++    }
++
++    /// enclave/SET: register the embedder's worker host.
++    #[cfg(all(feature = "std", feature = "threads", feature = "component-model"))]
++    pub(crate) fn set_set_worker_host(
++        &mut self,
++        host: std::sync::Arc<dyn crate::runtime::vm::component::SetWorkerHost>,
++    ) {
++        self.set_worker_host = Some(host);
 +    }
 +
 +    /// enclave/SET: cancel and join every worker spawned from this store.
@@ -709,7 +2461,7 @@ index 9cc49ea..de4b9d2 100644
      /// Access multiple instances specified via `ids`.
      ///
      /// # Panics
-@@ -2408,6 +2488,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
+@@ -2408,6 +2537,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
  
  impl<T> Drop for Store<T> {
      fn drop(&mut self) {
@@ -729,7 +2481,7 @@ index 9cc49ea..de4b9d2 100644
          self.run_manual_drop_routines();
  
          // For documentation on this `unsafe`, see `into_data`.
-@@ -2423,6 +2516,14 @@ impl Drop for StoreOpaque {
+@@ -2423,6 +2565,14 @@ impl Drop for StoreOpaque {
          // NB it's important that this destructor does not access `self.data`.
          // That is deallocated by `Drop for Store<T>` above.
  
@@ -745,7 +2497,7 @@ index 9cc49ea..de4b9d2 100644
              let allocator = self.engine.allocator();
              let ondemand = OnDemandInstanceAllocator::default();
 diff --git a/crates/wasmtime/src/runtime/trampoline/global.rs b/crates/wasmtime/src/runtime/trampoline/global.rs
-index b1ac737..e6fd521 100644
+index b1ac7376..e6fd521e 100644
 --- a/crates/wasmtime/src/runtime/trampoline/global.rs
 +++ b/crates/wasmtime/src/runtime/trampoline/global.rs
 @@ -20,6 +20,7 @@ pub fn generate_global_export(
@@ -757,7 +2509,7 @@ index b1ac737..e6fd521 100644
              Mutability::Const => false,
              Mutability::Var => true,
 diff --git a/crates/wasmtime/src/runtime/type_registry.rs b/crates/wasmtime/src/runtime/type_registry.rs
-index 0d98863..c1da1d5 100644
+index 0d988636..c1da1d58 100644
 --- a/crates/wasmtime/src/runtime/type_registry.rs
 +++ b/crates/wasmtime/src/runtime/type_registry.rs
 @@ -1181,10 +1181,13 @@ impl TypeRegistryInner {
@@ -796,7 +2548,7 @@ index 0d98863..c1da1d5 100644
              let gc_layout = match &sub_ty.composite_type.inner {
                  wasmtime_environ::WasmCompositeInnerType::Func(_) => continue,
 diff --git a/crates/wasmtime/src/runtime/vm.rs b/crates/wasmtime/src/runtime/vm.rs
-index 2f503d1..e21782d 100644
+index 2f503d16..e21782d2 100644
 --- a/crates/wasmtime/src/runtime/vm.rs
 +++ b/crates/wasmtime/src/runtime/vm.rs
 @@ -73,7 +73,7 @@ mod traphandlers;
@@ -809,7 +2561,7 @@ index 2f503d1..e21782d 100644
  // Note that `debug_builtins` here is disabled with a feature or a lack of a
  // native compilation backend because it's only here to assist in debugging
 diff --git a/crates/wasmtime/src/runtime/vm/component.rs b/crates/wasmtime/src/runtime/vm/component.rs
-index de21c67..de86238 100644
+index de21c673..f727852f 100644
 --- a/crates/wasmtime/src/runtime/vm/component.rs
 +++ b/crates/wasmtime/src/runtime/vm/component.rs
 @@ -16,8 +16,8 @@ use crate::runtime::vm::instance::{InstanceLayout, OwnedInstance, OwnedVMContext
@@ -823,7 +2575,7 @@ index de21c67..de86238 100644
  };
  use crate::store::InstanceId;
  use crate::{Func, vm};
-@@ -38,9 +38,21 @@ use wasmtime_environ::{HostPtr, PrimaryMap, VMSharedTypeIndex};
+@@ -38,9 +38,23 @@ use wasmtime_environ::{HostPtr, PrimaryMap, VMSharedTypeIndex};
  )]
  const INVALID_PTR: usize = 0xdead_dead_beef_beef_u64 as usize;
  
@@ -842,10 +2594,30 @@ index de21c67..de86238 100644
  mod resources;
 +#[cfg(all(feature = "std", feature = "threads"))]
 +mod set_threads;
++#[cfg(all(feature = "std", feature = "threads"))]
++pub use set_threads::{SetViewPlan, SetWorkerHost, SetWorkerRequest};
  
  pub use self::handle_table::{HandleTable, RemovedResource};
  #[cfg(feature = "component-model-async")]
-@@ -258,6 +270,69 @@ impl ComponentInstance {
+@@ -136,6 +150,17 @@ pub struct ComponentInstance {
+     /// `Store` that this component belongs to.
+     instances: TryPrimaryMap<RuntimeInstanceIndex, InstanceId>,
+ 
++    /// enclave/SET: which runtime memories are `shared`.
++    ///
++    /// The canonical ABI must never form a Rust slice over a shared memory:
++    /// another thread can be writing it concurrently, so a `&[u8]`/`&mut [u8]`
++    /// there is a data race, and validating bytes through such a slice can
++    /// hand safe Rust an invalid `str`. Recording sharedness here — where
++    /// `extract_memory` already distinguishes the two cases — is what lets
++    /// lift/lower take the copy-safe path for exactly those memories and stay
++    /// byte-for-byte unchanged for every other component.
++    runtime_memory_shared: TryPrimaryMap<RuntimeMemoryIndex, bool>,
++
+     /// Storage for the type information about resources within this component
+     /// instance.
+     resource_types: Arc<TryPrimaryMap<ResourceIndex, ResourceType>>,
+@@ -258,6 +283,69 @@ impl ComponentInstance {
          // allocation which can go backwards to a `ComponentInstance`.
          let mut ptr = unsafe { Self::from_vmctx(vmctx) };
  
@@ -915,8 +2687,88 @@ index de21c67..de86238 100644
          // SAFETY: it's a contract of this function that it's safe to use `ptr`
          // as a mutable reference.
          let reference = unsafe { ptr.as_mut() };
+@@ -343,6 +431,7 @@ impl ComponentInstance {
+             offsets,
+             instance_states,
+             instances,
++            runtime_memory_shared: TryPrimaryMap::new(),
+             component: component.clone(),
+             resource_types,
+             imports: imports.clone(),
+@@ -518,16 +607,46 @@ impl ComponentInstance {
+     /// Note that it should be a property of the component model that the `ptr`
+     /// here is never needed prior to it being configured here in the instance.
+     pub fn set_runtime_memory(
+-        self: Pin<&mut Self>,
++        mut self: Pin<&mut Self>,
+         idx: RuntimeMemoryIndex,
+         ptr: NonNull<VMMemoryDefinition>,
+-    ) {
++        shared: bool,
++    ) -> Result<(), OutOfMemory> {
+         unsafe {
+             let offset = self.offsets.runtime_memory(idx);
+-            let storage = self.vmctx_plus_offset_mut::<VmPtr<VMMemoryDefinition>>(offset);
++            let storage = self
++                .as_mut()
++                .vmctx_plus_offset_mut::<VmPtr<VMMemoryDefinition>>(offset);
+             debug_assert!((*storage).as_ptr() as usize == INVALID_PTR);
+             *storage = ptr.into();
+         }
++        // Recorded in a parallel map rather than read back from the memory
++        // definition, because a `VMMemoryDefinition` does not say whether it is
++        // shared — only the export it came from does.
++        let map = self.runtime_memory_shared_mut();
++        while map.len() <= idx.as_u32() as usize {
++            map.push(false)?;
++        }
++        map[idx] = shared;
++        Ok(())
++    }
++
++    /// enclave/SET: whether the canonical ABI must take the copy-safe path for
++    /// this memory. Unset memories answer `false`, which is the unshared
++    /// (unchanged) behaviour.
++    pub fn runtime_memory_is_shared(&self, idx: RuntimeMemoryIndex) -> bool {
++        self.runtime_memory_shared
++            .get(idx)
++            .copied()
++            .unwrap_or(false)
++    }
++
++    fn runtime_memory_shared_mut(
++        self: Pin<&mut Self>,
++    ) -> &mut TryPrimaryMap<RuntimeMemoryIndex, bool> {
++        // SAFETY: we've chosen the `Pin` guarantee of `Self` to not apply to
++        // the map returned.
++        unsafe { &mut self.get_unchecked_mut().runtime_memory_shared }
+     }
+ 
+     /// Same as `set_runtime_memory` but for realloc function pointers.
+@@ -926,6 +1045,21 @@ impl ComponentInstance {
+         self.instances[idx]
+     }
+ 
++    /// enclave/SET: the inverse of `instance` — which runtime instance index
++    /// this core instance was pushed at, if any.
++    ///
++    /// Spawn needs this to describe the start function to a worker in terms
++    /// the worker's OWN component instantiation can resolve: a raw `InstanceId`
++    /// belongs to the primary store and is meaningless in another, but
++    /// `(RuntimeInstanceIndex, FuncIndex)` names the same function in every
++    /// instantiation of the same component.
++    pub fn runtime_instance_index_of(&self, id: InstanceId) -> Option<RuntimeInstanceIndex> {
++        self.instances
++            .iter()
++            .find(|(_, candidate)| **candidate == id)
++            .map(|(idx, _)| idx)
++    }
++
+     fn instances_mut(self: Pin<&mut Self>) -> &mut TryPrimaryMap<RuntimeInstanceIndex, InstanceId> {
+         // SAFETY: we've chosen the `Pin` guarantee of `Self` to not apply to
+         // the map returned.
 diff --git a/crates/wasmtime/src/runtime/vm/component/libcalls.rs b/crates/wasmtime/src/runtime/vm/component/libcalls.rs
-index f62ea58..ba4d8e8 100644
+index f62ea58d..7ed3b91d 100644
 --- a/crates/wasmtime/src/runtime/vm/component/libcalls.rs
 +++ b/crates/wasmtime/src/runtime/vm/component/libcalls.rs
 @@ -693,6 +693,127 @@ fn exit_sync_call(store: &mut dyn VMStore, instance: Instance) -> Result<()> {
@@ -999,11 +2851,11 @@ index f62ea58..ba4d8e8 100644
 +#[cfg(all(feature = "std", feature = "threads"))]
 +fn thread_spawn_ref(
 +    store: &mut dyn VMStore,
-+    _instance: Instance,
++    instance: Instance,
 +    funcref: *mut u8,
 +    arg: u32,
 +) -> Result<ThreadSpawnResult> {
-+    super::set_threads::spawn_ref(store, funcref, arg)
++    super::set_threads::spawn_ref(store, instance, funcref, arg)
 +}
 +
 +#[cfg(all(feature = "std", feature = "threads"))]
@@ -1047,8 +2899,858 @@ index f62ea58..ba4d8e8 100644
  #[cfg(feature = "component-model-async")]
  fn backpressure_modify(
      store: &mut dyn VMStore,
+diff --git a/crates/wasmtime/src/runtime/vm/component/set_threads.rs b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
+new file mode 100644
+index 00000000..d69ff8ed
+--- /dev/null
++++ b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
+@@ -0,0 +1,844 @@
++//! enclave/SET: real OS-thread spawning for the shared-everything-threads
++//! `thread.spawn-ref` / `thread.spawn-indirect` component intrinsics.
++//!
++//! # Design: per-thread execution views over shared instance state
++//!
++//! Wasmtime's execution model requires `&mut Store` to enter guest code, and
++//! per-execution state (stack limits, last-wasm entry/exit SP+FP, the epoch
++//! deadline, fuel) lives in the store's `VMStoreContext`, reached from the
++//! instance's vmctx. Two OS threads through one vmctx would therefore corrupt
++//! each other's execution state — that, not codegen, is what makes a naive
++//! "share the Store" implementation unsound, and `unsafe impl Sync for Store`
++//! would merely hide it.
++//!
++//! Instead each spawned thread gets its OWN `Store` (so the borrow checker
++//! keeps enforcing execution exclusivity everywhere, unchanged) holding an
++//! *execution view* of the primary instance:
++//!
++//! * the view is a fresh instantiation of the SAME module, with every
++//!   function import satisfied by a stub in the WORKER's store that traps
++//!   ("host APIs and sibling core instances are main-thread-only");
++//! * its defined shared memories are then re-pointed at the primary's
++//!   `SharedMemory` (an `Arc` whose `VMMemoryDefinition` all instances share,
++//!   with growth behind a lock — the exact mechanism wasmtime already uses
++//!   for shared memories between stores), so linear memory is PHYSICALLY the
++//!   same memory;
++//! * its plain (numeric/vector) globals are snapshotted from the primary at
++//!   spawn time;
++//! * the start function is invoked through the VIEW's own funcref, so all
++//!   code the thread runs enters through the view's vmctx and the worker
++//!   store's `VMStoreContext`. Traps, backtraces, signals and epochs work
++//!   because N threads × N stores is already-supported wasmtime usage.
++//!
++//! Sharedness of the state a *valid* SET guest can actually reach from a
++//! spawned function on this engine:
++//!
++//! * memory: physically shared (above);
++//! * tables: per-view, materialized from the same initializers. Cranelift
++//!   rejects `table.atomic.*` ("not yet implemented" upstream), so no guest
++//!   this engine can compile is able to express cross-thread table mutation;
++//! * globals: snapshot at spawn. `global.atomic.*` equally does not compile,
++//!   and modules with MUTABLE `shared` globals are refused at spawn (below)
++//!   rather than silently diverging.
++//!
++//! # Lifetime / soundness invariants
++//!
++//! A view deliberately holds NO raw pointers into the primary store: its
++//! imports are worker-store stubs, its shared memories are `Arc`s, and its
++//! globals are by-value snapshots (`SpawnPayload` is `Send` without a single
++//! `unsafe impl`). Two backstops remain:
++//!
++//! 1. every spawn registers its `JoinHandle` with the PRIMARY store, and both
++//!    `Drop for Store<T>` (before `T` dies) and `StoreOpaque::drop` join all
++//!    workers, so a store teardown never races a running view;
++//! 2. a worker thread never re-enters the primary store: BOTH
++//!    `Instance::enter_host_from_wasm` and
++//!    `ComponentInstance::enter_host_from_wasm` compare the executing
++//!    thread's `VMStoreContext` and TRAP the worker (on its own thread,
++//!    without touching the other store) on mismatch. With stubbed imports
++//!    this guard is defense in depth rather than the primary wall.
++//!
++//! A worker that calls ANY imported function gets a stub trap; a worker that
++//! spawns (nested spawn) reaches its view's table where the componentizer's
++//! patched slot holds the module's own `-1` stub again (tables re-materialize
++//! from element segments), so `pthread_create` on a worker fails with EAGAIN
++//! instead of trapping.
++//!
++//! Spawn refuses (returns the ABI's `-1` failure, with a diagnostic on
++//! stderr) any module shape whose view would NOT be faithful: non-shared
++//! defined memories, imported tables/globals/memories/tags, mutable `shared`
++//! globals, or GC use — and any spawn beyond the live-thread cap
++//! (`max_live_threads`), which is what bounds a hostile guest's thread
++//! creation. A guest `start` section is ALLOWED and runs once per view — the
++//! `wasm-ld --shared-memory` ABI (`__wasm_init_memory` behind an atomic
++//! once-flag in shared memory) is designed for exactly this
++//! instantiation-per-thread pattern; see the guard comment in
++//! `spawn_funcref`.
++
++use crate::prelude::*;
++use crate::runtime::component::RuntimeInstance;
++use crate::runtime::vm::component::libcalls::ThreadSpawnResult;
++use crate::runtime::vm::memory::SharedMemory;
++use crate::runtime::vm::{Instance as VmInstance, VMFuncRef, VMStore};
++use crate::store::StoreOpaque;
++use crate::{AsContextMut, Store, Val};
++use core::pin::Pin;
++use core::ptr::NonNull;
++use core::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
++use std::sync::Arc;
++use wasmtime_environ::component::{
++    RuntimeComponentInstanceIndex, RuntimeInstanceIndex, RuntimeTableIndex,
++};
++use wasmtime_environ::{DefinedMemoryIndex, FuncIndex, VMCONTEXT_MAGIC};
++
++/// How many workers one store may have running at once.
++///
++/// OS threads are a NODE-WIDE kernel resource (`threads-max`, pid space), and
++/// the cgroup controls this platform applies (`cpu.weight`, `cpu.max`) bound a
++/// tenant's CPU share but not its thread count — so an uncapped guest loop
++/// degrades every tenant on the box, not just its own. Measured before this
++/// cap existed: 200 spawn calls produced 234 live OS threads with no refusal,
++/// at ~2.3 MB of stack address space each; the binding resource is the thread
++/// count itself, not memory.
++///
++/// The bound is PROCESS-global, not per-store, and that matters: under
++/// `wasmtime serve` a fresh `Store` is created per HTTP request (wasip2
++/// reuses an instance once) with up to 1000 concurrent requests, so a
++/// per-store cap would have been a 1000x under-count of the real thread
++/// ceiling.
++///
++/// It is sized from `thread.available_parallelism`, which reports the
++/// tenant's purchased slice when the embedder sets
++/// `ENCLAVE_AVAILABLE_PARALLELISM` and the HOST core count otherwise. Note
++/// the platform does not set that variable today, so on-fleet this currently
++/// derives from the node's core count, not the tenant's share — wiring it up
++/// is a prerequisite for enabling SET, not an optimization. The 4x headroom
++/// is for pools whose threads block rather than compute.
++/// `ENCLAVE_MAX_SET_THREADS` overrides it; the floor of 4 keeps a
++/// single-core tenant able to express a small pool.
++///
++/// Exceeding it returns the ABI's documented `-1` ("spawn failed"), which SET
++/// guests are already required to handle — the same graceful path an
++/// unsupported module shape takes.
++fn max_live_threads() -> usize {
++    use std::sync::OnceLock;
++    static CACHED: OnceLock<usize> = OnceLock::new();
++    *CACHED.get_or_init(|| {
++        if let Ok(v) = std::env::var("ENCLAVE_MAX_SET_THREADS") {
++            if let Ok(n) = v.trim().parse::<usize>() {
++                if n > 0 {
++                    return n;
++                }
++            }
++        }
++        let par = super::libcalls::available_parallelism() as usize;
++        par.saturating_mul(4).max(4)
++    })
++}
++
++/// Epoch ticks a worker may run before it traps, when the embedder uses
++/// epoch interruption. See the rationale in `run_view`.
++fn set_worker_epoch_ticks() -> u64 {
++    use std::sync::OnceLock;
++    static CACHED: OnceLock<u64> = OnceLock::new();
++    *CACHED.get_or_init(|| {
++        std::env::var("ENCLAVE_SET_EPOCH_TICKS")
++            .ok()
++            .and_then(|v| v.trim().parse::<u64>().ok())
++            .filter(|n| *n > 0)
++            .unwrap_or(600)
++    })
++}
++
++/// Live SET workers in this PROCESS. See `max_live_threads`.
++static LIVE_SET_THREADS: AtomicUsize = AtomicUsize::new(0);
++
++/// Monotonic SET thread ids handed back to guests. Non-negative i32 range;
++/// starts at 1 (0 is reserved by convention for "the main thread").
++static NEXT_SET_THREAD_ID: AtomicU64 = AtomicU64::new(1);
++
++/// Which core instance of a worker's component view shares memory with the
++/// primary, and which memories those are.
++///
++/// A view is a full re-instantiation of the SAME component in the worker's own
++/// store. Everything in it is the worker's own except the linear memories named
++/// here, which are re-pointed at the primary's `SharedMemory` before that core
++/// instance's startup function runs.
++///
++/// `RuntimeInstanceIndex` is deliberately how the target is named: an
++/// `InstanceId` belongs to the primary store and means nothing in another one,
++/// while a runtime instance index names the same core instance in every
++/// instantiation of the same component.
++pub struct SetViewPlan {
++    instance_index: RuntimeInstanceIndex,
++    shared_memories: Vec<(DefinedMemoryIndex, SharedMemory)>,
++}
++
++impl SetViewPlan {
++    /// Whether the core instance about to be created is the one to swap.
++    pub(crate) fn targets(&self, idx: RuntimeInstanceIndex) -> bool {
++        self.instance_index == idx
++    }
++
++    /// Re-point the freshly allocated instance's defined memories at the
++    /// primary's shared memories. Runs BEFORE any compiled wasm executes in
++    /// this instance.
++    pub(crate) fn install(
++        &self,
++        opaque: &mut StoreOpaque,
++        instance: crate::Instance,
++    ) -> Result<()> {
++        let mut vminstance: Pin<&mut VmInstance> = opaque.instance_mut(instance.id());
++        for (index, shared) in &self.shared_memories {
++            // SAFETY: no guest code has run in this instance yet — this hook is
++            // invoked before the startup function — and the memory is declared
++            // shared (enforced at spawn), so the vmctx slot is the out-of-line
++            // pointer form.
++            unsafe {
++                vminstance
++                    .as_mut()
++                    .replace_defined_memory_with_shared(*index, shared.clone());
++            }
++        }
++        Ok(())
++    }
++}
++
++/// Everything a worker thread needs to build and run its execution view.
++///
++/// Deliberately contains NO raw pointers into the primary store: the component
++/// is a refcounted handle, and the shared memories are `Arc`s (the one piece of
++/// state a view genuinely shares). `SetWorkerRequest` is therefore `Send`
++/// without a single `unsafe impl` and the compiler proves it.
++///
++/// Handed to the embedder's [`SetWorkerHost`], because building a store means
++/// building an embedder context of type `T`, which the runtime layer cannot do
++/// generically.
++pub struct SetWorkerRequest {
++    component: crate::component::Component,
++    plan: SetViewPlan,
++    /// Where the start function lives, named so any instantiation can resolve
++    /// it: the core instance's runtime index plus the function's index within
++    /// that instance's module.
++    start_instance: RuntimeInstanceIndex,
++    /// The component instance owning `start_instance`, for the sync-call
++    /// bookkeeping a guest entry needs (mirrors what the primary does when it
++    /// runs a core instance's `start` function).
++    start_component_instance: Option<RuntimeComponentInstanceIndex>,
++    func_index: FuncIndex,
++    start_arg: i32,
++    thread_id: i64,
++    /// Teardown-cancellation flag. The primary store holds a clone and sets it
++    /// on `Drop`; the worker installs its own clone in the parking-spot
++    /// thread-local so a futex parked forever can be interrupted at teardown.
++    cancel: Arc<AtomicBool>,
++    /// The embedder hook itself, so a worker can spawn workers of its own.
++    host: Arc<dyn SetWorkerHost>,
++}
++
++/// Embedder hook that turns a [`SetWorkerRequest`] into a running thread.
++///
++/// A worker needs a `Store<T>` and an `InstancePre<T>` — both parameterised by
++/// the embedder's data type, which the runtime layer cannot construct. The
++/// embedder registers one of these on the primary store with
++/// [`Store::set_set_worker_host`](crate::Store::set_set_worker_host); spawn
++/// refuses (ABI `-1`) if none is registered, so an embedder that has not opted
++/// in gets the guest's sequential fallback rather than a broken thread.
++///
++/// The implementation runs on the WORKER's own OS thread and should:
++/// build a fresh embedder context, create a `Store` from it, and call
++/// [`SetWorkerRequest::run_async`] on its own async executor.
++pub trait SetWorkerHost: Send + Sync + 'static {
++    /// Run one worker to completion on the calling (worker) OS thread.
++    fn run_worker(&self, req: SetWorkerRequest) -> Result<()>;
++}
++
++/// `thread.spawn-ref`: `funcref` is the guest's `(ref null (shared func))`
++/// argument, passed by the trampoline as a raw pointer.
++pub(crate) fn spawn_ref(
++    store: &mut dyn VMStore,
++    instance: crate::component::Instance,
++    funcref: *mut u8,
++    arg: u32,
++) -> Result<ThreadSpawnResult> {
++    let Some(funcref) = NonNull::new(funcref.cast::<VMFuncRef>()) else {
++        // A null start function can never run; the ABI's failure result is
++        // reserved for resource exhaustion, so this is a guest bug => trap.
++        bail!("thread.spawn-ref: start function reference is null");
++    };
++    spawn_funcref(store.store_opaque_mut(), instance, funcref, arg)
++}
++
++/// `thread.spawn-indirect`: resolve `elem` in the canon-declared table, on
++/// the calling (store-owning) thread, then spawn like `spawn-ref`.
++pub(crate) fn spawn_indirect(
++    store: &mut dyn VMStore,
++    instance: crate::component::Instance,
++    table: RuntimeTableIndex,
++    elem: u32,
++    arg: u32,
++) -> Result<ThreadSpawnResult> {
++    let store = store.store_opaque_mut();
++    let func = {
++        let (component, registry) = instance.id().get_mut_and_registry(store);
++        component.index_runtime_func_table(registry, table, u64::from(elem))?
++    };
++    let Some(func) = func else {
++        bail!("thread.spawn-indirect: table element {elem} is uninitialized");
++    };
++    let funcref = func.vm_func_ref(store);
++    spawn_funcref(store, instance, funcref, arg)
++}
++
++/// Common spawn path. Runs on the thread that owns the primary store, with
++/// `&mut StoreOpaque` legally held — every read of primary state happens
++/// here, not on the worker.
++fn spawn_funcref(
++    store: &mut StoreOpaque,
++    instance: crate::component::Instance,
++    funcref: NonNull<VMFuncRef>,
++    arg: u32,
++) -> Result<ThreadSpawnResult> {
++    // The ABI's graceful failure: log why, hand the guest -1, let it take its
++    // sequential fallback.
++    //
++    // The stderr copy is printed once per REFUSAL REASON (the `static` lives
++    // in the macro body, so each expansion site gets its own). A guest whose
++    // module shape is unsupported typically calls spawn in a loop, and the
++    // diagnostic exists to tell a developer why their threads did not appear —
++    // not to reprint that answer thousands of times into a tenant's logs.
++    // `log::warn!` is likewise rate-limited, because an unbounded refusal loop
++    // is otherwise a free log-volume amplifier.
++    macro_rules! refuse {
++        ($($msg:tt)*) => {{
++            static ONCE: std::sync::Once = std::sync::Once::new();
++            ONCE.call_once(|| {
++                log::warn!($($msg)*);
++                eprintln!(
++                    "wasmtime: thread.spawn refused: {} (further identical refusals are silent)",
++                    format_args!($($msg)*)
++                );
++            });
++            return Ok(ThreadSpawnResult::FAILED);
++        }};
++    }
++
++    let fr = unsafe { funcref.as_ref() };
++
++    // The start function must be plain core wasm — a component trampoline or
++    // host function cannot be the body of a spawned thread.
++    let vmctx_magic = unsafe { *funcref.as_ref().vmctx.as_non_null().cast::<u32>().as_ref() };
++    if vmctx_magic != VMCONTEXT_MAGIC {
++        bail!("thread.spawn: start function is not a core wasm function");
++    }
++
++    // Signature check: the SET spawn ABI start type is `(func (param i32))`.
++    {
++        let ty = crate::FuncType::from_shared_type_index(store.engine(), fr.type_index);
++        let ok = ty.results().len() == 0
++            && ty.params().len() == 1
++            && matches!(ty.params().next(), Some(crate::ValType::I32));
++        if !ok {
++            bail!("thread.spawn: start function must have type (param i32) -> ()");
++        }
++    }
++
++    // SAFETY: the magic check above proved this is a core-module vmctx, and
++    // it belongs to this store's component (checked right below), so deriving
++    // a shared reference while we hold `&mut StoreOpaque` is sound.
++    let defining: NonNull<VmInstance> =
++        unsafe { VmInstance::from_vmctx(funcref.as_ref().vmctx.as_non_null().cast()) };
++    let defining = unsafe { defining.as_ref() };
++    if !defining.belongs_to_store(store) {
++        bail!("thread.spawn: start function belongs to a different store");
++    }
++
++    let Some(func_index) = defining.func_index_of_func_ref(funcref) else {
++        refuse!("start funcref is not one of its defining instance's escaped functions");
++    };
++
++    // ---- v1 module-shape guards: refuse any shape whose execution view ----
++    // ---- would not faithfully share state with the primary instance.  ----
++    let module = defining.env_module();
++
++    // A guest `start` section is ALLOWED, and runs once per execution view.
++    //
++    // This is a deliberate semantic choice, not an oversight. `wasm-ld
++    // --shared-memory` always emits `__wasm_init_memory` as the start
++    // function, and that ABI was designed for instantiation-per-thread
++    // hosts (wasi-threads): the initializer takes an atomic once-flag IN THE
++    // SHARED MEMORY, so the primary's run initializes and every view's re-run
++    // observes the flag and skips — a no-op by the very contract the linker
++    // emits it under. Refusing here (as an earlier revision did) would refuse
++    // every module `clang -pthread` can produce.
++    //
++    // The residual, stated plainly: a HAND-WRITTEN start section that mutates
++    // shared memory without such a guard re-runs per view and can corrupt the
++    // guest's own shared state. That is in-sandbox, self-inflicted, and the
++    // same contract wasi-threads (p1) already imposes on start sections in
++    // shared-memory modules. Start code cannot escape the view: component
++    // trampolines reached from it hit the cross-thread entry guard, and
++    // unshared state it touches is the view's own.
++    if module.needs_gc_heap {
++        refuse!("module requires a GC heap (unsupported on SET threads)");
++    }
++    // Refuse SEGMENTED memory initialization. wasmtime's synthesized startup
++    // applies active data segments through a compiled `memory.init` whose only
++    // guard is a null-check on the segment base, and that base is nulled only
++    // for a `Static` (CoW) image — NOT for a `Segmented` module. So a view's
++    // startup would re-copy active-segment bytes into the now-swapped-in
++    // SHARED memory on every spawn, clobbering data the primary (and live
++    // siblings) already wrote. `wasm-ld --shared-memory` output is NOT
++    // segmented — it uses passive segments driven by `__wasm_init_memory`
++    // behind the shared once-flag above — so the real toolchain is unaffected;
++    // a hand-written or non-lld guest with an active data segment (offset via
++    // `global.get`, extended-const arithmetic, or a >16 MiB sparse span) gets
++    // the sequential fallback rather than silent shared-memory corruption.
++    // This is the fail-closed posture the rest of these guards take: a shape
++    // whose view we cannot execute faithfully is refused, never approximated.
++    if module.memory_initialization.is_segmented() {
++        refuse!(
++            "module uses segmented memory initialization (active data segments); \
++             their re-init would clobber the shared memory on each spawn \
++             (unsupported on SET threads)"
++        );
++    }
++    for (idx, mem) in module.memories.iter() {
++        if !mem.shared {
++            refuse!(
++                "memory {} is not `shared`; every memory of a module spawning \
++                 SET threads must be shared",
++                idx.as_u32()
++            );
++        }
++    }
++    if module.num_imported_tables != 0 {
++        refuse!("module imports a table (unsupported on SET threads)");
++    }
++    if module.num_imported_globals != 0 {
++        refuse!("module imports a global (unsupported on SET threads)");
++    }
++    // An IMPORTED memory is the dangerous one, not merely unsupported:
++    // `memory.grow` and `memory.atomic.wait*`/`notify` on an imported memory
++    // are lowered to call the builtin with the DEFINING instance's vmctx, so
++    // a worker's futex wait would re-enter the primary store. The core-side
++    // guard in `Instance::enter_host_from_wasm` now catches that too, but
++    // refusing here means such a guest gets its sequential fallback instead
++    // of a trap on its first mutex acquisition.
++    if module.num_imported_memories != 0 {
++        refuse!(
++            "module imports a memory; memory operations on it resolve through \
++             the defining instance (unsupported on SET threads)"
++        );
++    }
++    if module.num_imported_tags != 0 {
++        refuse!("module imports a tag (unsupported on SET threads)");
++    }
++    // A worker's `Store` carries no `ResourceLimiter` — the primary's lives in
++    // its embedder data `T`, which the runtime layer cannot reach generically
++    // — so `table.grow` on a worker would escape the embedder's dynamic cap
++    // (`-W max-table-elements`). Requiring a DECLARED maximum bounds worker
++    // table growth to a static property of the module that was validated when
++    // the primary instantiated it. Residual, documented rather than hidden:
++    // that static max, not the embedder's dynamic cap, is the worker's bound.
++    for (idx, table) in module.tables.iter() {
++        if table.limits.max.is_none() {
++            refuse!(
++                "table {} has no declared maximum; unbounded growth on a worker \
++                 would escape the embedder's table limit",
++                idx.as_u32()
++            );
++        }
++    }
++    for (idx, global) in module.globals.iter() {
++        if global.shared && global.mutability {
++            refuse!(
++                "global {} is mutable and `shared`; cross-thread global \
++                 mutation is not implemented (guests coordinate through \
++                 shared memory)",
++                idx.as_u32()
++            );
++        }
++    }
++    if defining.runtime_module().is_none() {
++        refuse!("cannot spawn from a synthetic module");
++    }
++
++    // ---- locate the start function in COMPONENT-RELATIVE terms ----
++    //
++    // A worker re-instantiates the whole component in its own store, so the
++    // start function must be named by something that resolves in ANY
++    // instantiation: the core instance's `RuntimeInstanceIndex` plus the
++    // function's index inside that instance's module. An `InstanceId` would
++    // not do — it belongs to this store.
++    //
++    // Import SUBSTITUTION is not an option and this is worth stating where
++    // someone would otherwise reinvent it. An earlier revision gave the view
++    // stub imports that trapped, on the theory that a worker simply could not
++    // reach host APIs or sibling instances. That silently does not work:
++    // Cranelift devirtualizes a call to a statically-known import into a
++    // DIRECT call to the callee's compiled body (the
++    // `KnownFunc::FuncKey(FuncKey::DefinedWasmFunction(..))` arm of
++    // `cranelift/src/func_environ.rs`), while still loading the callee vmctx
++    // from the import slot. A worker therefore executed the PRIMARY's code
++    // with the stub's `VMArrayCallHostFuncContext` as its vmctx — wasm running
++    // against a vmctx of a different type entirely, reading memory bases,
++    // globals and `stack_limit` out of a host-function allocation. The
++    // "workers cannot do WASI, they trap with `call stack exhausted`" symptom
++    // was that confusion surfacing in a callee prologue.
++    // `tools/parallelism-probe/set-worker-import-foreign.wat` demonstrates it.
++    let component_instance = instance.id().get(store);
++    let component = component_instance.component().clone();
++    let Some(start_instance) = component_instance.runtime_instance_index_of(defining.id()) else {
++        refuse!("start function's core instance does not belong to this component instance");
++    };
++    // The component instance owning that core instance, for the same sync-call
++    // bookkeeping the primary performs when it runs a core `start` function.
++    let start_component_instance = {
++        let env = component.env_component();
++        env.initializers
++            .iter()
++            .filter_map(|init| match init {
++                wasmtime_environ::component::GlobalInitializer::InstantiateModule(_, ci) => {
++                    Some(*ci)
++                }
++                _ => None,
++            })
++            .nth(start_instance.as_u32() as usize)
++            .flatten()
++    };
++
++    // The embedder must have opted in: building a worker store means building
++    // an embedder context of type `T`, which this layer cannot do generically.
++    // Without a host, refuse (ABI `-1`) so the guest takes its sequential
++    // fallback — never a half-built thread.
++    let Some(host) = store.set_worker_host() else {
++        refuse!(
++            "no SET worker host is registered on this store; the embedder must call \
++             `Store::set_set_worker_host` to enable shared-everything-threads spawning"
++        );
++    };
++
++    // ---- reserve a slot under the live-thread cap ----
++    //
++    // A compare-exchange loop rather than a blind increment, so a refusal
++    // never leaves the counter above the cap (which would wedge the store
++    // into refusing forever).
++    let cap = max_live_threads();
++    loop {
++        let cur = LIVE_SET_THREADS.load(Ordering::Acquire);
++        if cur >= cap {
++            refuse!(
++                "live SET thread cap reached ({cap}); raise ENCLAVE_MAX_SET_THREADS \
++                 or lower the guest's pool size"
++            );
++        }
++        if LIVE_SET_THREADS
++            .compare_exchange_weak(cur, cur + 1, Ordering::AcqRel, Ordering::Acquire)
++            .is_ok()
++        {
++            break;
++        }
++    }
++    // From here on every early return MUST release the slot.
++    let slot = SlotGuard(true);
++
++    // ---- capture ----
++    let thread_id = NEXT_SET_THREAD_ID.fetch_add(1, Ordering::Relaxed) as i64;
++    if thread_id > i64::from(i32::MAX) {
++        return Ok(ThreadSpawnResult::FAILED);
++    }
++    // Teardown-cancellation flag: the primary store keeps a clone (set on
++    // `Drop`), the worker installs its own clone in the parking-spot
++    // thread-local so a futex parked forever is interruptible at teardown.
++    let cancel = Arc::new(AtomicBool::new(false));
++    let payload = SetWorkerRequest {
++        component,
++        plan: SetViewPlan {
++            instance_index: start_instance,
++            shared_memories: defining.defined_shared_memories_cloned(),
++        },
++        start_instance,
++        start_component_instance,
++        func_index,
++        start_arg: arg as i32,
++        thread_id,
++        cancel: cancel.clone(),
++        host,
++    };
++
++    // Size the worker stack from the engine's wasm-stack limit rather than
++    // taking Rust's 2 MiB default. The limit is computed as
++    // `stack_pointer - max_wasm_stack` at entry, so if an embedder raises
++    // `max_wasm_stack` above the thread's real stack, the guard-page check
++    // never fires and deep guest recursion runs off the end of the stack
++    // instead of trapping cleanly.
++    let stack_size = store
++        .engine()
++        .config()
++        .max_wasm_stack
++        .saturating_add(512 * 1024)
++        .max(2 * 1024 * 1024);
++    let handle = std::thread::Builder::new()
++        .name(format!("set-thread-{thread_id}"))
++        .stack_size(stack_size)
++        .spawn(move || worker_main(payload));
++    match handle {
++        Ok(handle) => {
++            // The worker owns the slot now and releases it when it exits.
++            slot.into_worker();
++            store.push_set_thread_join(handle, cancel);
++            Ok(ThreadSpawnResult(thread_id as i32))
++        }
++        Err(e) => {
++            // `slot` releases on drop, so a failed spawn does not leak a slot.
++            log::warn!("thread.spawn: OS thread creation failed: {e}");
++            Ok(ThreadSpawnResult::FAILED)
++        }
++    }
++}
++
++/// Clears the parking-spot cancellation thread-local when the worker exits, so
++/// a recycled OS thread (there are none today, but be defensive) never inherits
++/// a stale flag.
++struct ClearWorkerCancelOnDrop;
++impl Drop for ClearWorkerCancelOnDrop {
++    fn drop(&mut self) {
++        crate::runtime::vm::parking_spot::set_worker_cancel(None);
++    }
++}
++
++/// Releases a reserved slot unless ownership was handed to a worker. Exists so
++/// that every early return between reservation and a successful
++/// `thread::spawn` — including a `?` or a panic — cannot leak a slot and
++/// permanently shrink the cap.
++struct SlotGuard(bool);
++
++impl SlotGuard {
++    /// The worker thread now owns this slot and will release it on exit.
++    fn into_worker(mut self) {
++        self.0 = false;
++    }
++}
++
++impl Drop for SlotGuard {
++    fn drop(&mut self) {
++        if self.0 {
++            LIVE_SET_THREADS.fetch_sub(1, Ordering::AcqRel);
++        }
++    }
++}
++
++/// Body of a spawned SET thread: hand the request to the embedder's host,
++/// which builds a store and runs the worker's component view in it.
++fn worker_main(payload: SetWorkerRequest) {
++    let thread_id = payload.thread_id;
++    // Release this worker's slot under the live-thread cap however it exits —
++    // normal return, guest trap, or panic. Declared before the work so it
++    // drops last.
++    let _slot = SlotGuard(true);
++
++    // Install this worker's teardown-cancellation flag in the parking-spot
++    // thread-local, so a futex parked forever wakes and unwinds when the store
++    // teardown sets the flag. Cleared on the way out (thread-local, so it never
++    // outlives this thread, but be explicit).
++    crate::runtime::vm::parking_spot::set_worker_cancel(Some(payload.cancel.clone()));
++    let _clear_cancel = ClearWorkerCancelOnDrop;
++
++    // A guest TRAP is normal operation: it unwinds out of the worker's own
++    // store and arrives here as `Err`.
++    //
++    // A Rust PANIC is different: it means an engine bug, on a thread sharing
++    // linear memory with other live threads whose invariants are now unknown.
++    // Letting it unwind into `std::thread`'s backstop would leave the process
++    // running on state we have no story for, and would surface only as a
++    // warning at join time. Catch it and stop.
++    let host = payload.host.clone();
++    let result =
++        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| host.run_worker(payload)));
++    match result {
++        Ok(Ok(())) => {}
++        Ok(Err(e)) => {
++            // A guest TRAP kills only this worker. Earlier this called
++            // `process::exit(1)` on the wasi-threads precedent that a trapping
++            // thread ends the program — but that made a single `unreachable`,
++            // an out-of-bounds load, or a nested `thread.spawn` into a
++            // whole-process kill, and `exit` runs atexit handlers while sibling
++            // threads still hold the shared-memory lock and malloc arenas,
++            // which can hang instead of dying.
++            //
++            // Dying alone would strand any sibling parked on this thread's
++            // futex, so the worker's view is given a chance to run the guest's
++            // own thread-death hook before the store goes away — see
++            // `SetWorkerRequest::run_async`. If the guest has no such hook, the
++            // residual stands and is the guest's own bug to handle.
++            eprintln!("set-thread-{thread_id} trapped (thread ends; siblings continue): {e:?}");
++        }
++        Err(_) => {
++            // The default panic hook has already printed the payload and
++            // location by this point.
++            eprintln!(
++                "wasmtime: fatal: panic on shared-everything-threads worker \
++                 set-thread-{thread_id}; aborting"
++            );
++            std::process::abort();
++        }
++    }
++}
++
++impl SetWorkerRequest {
++    /// The component this worker is a view of. An embedder MUST instantiate
++    /// exactly this component (see `run_async`, which enforces it).
++    pub fn component(&self) -> &crate::component::Component {
++        &self.component
++    }
++
++    /// Guest-visible id of this thread, for diagnostics.
++    pub fn thread_id(&self) -> i64 {
++        self.thread_id
++    }
++
++    /// Build this worker's execution view in `store` and run its start
++    /// function to completion.
++    ///
++    /// The embedder supplies a fresh `Store<T>` and an `InstancePre<T>` for the
++    /// SAME component (a fresh embedder context per worker: its own WASI ctx,
++    /// its own resource tables). Everything else — the shared-memory swap, the
++    /// epoch policy, the nested-spawn registration, entering and leaving the
++    /// guest correctly, and the guest's thread-death hook on a trap — is done
++    /// here so no embedder has to get it right.
++    ///
++    /// Threads share LINEAR MEMORY, which is what pthreads needs. They do NOT
++    /// share a WASI context or a component resource table: those are per-store
++    /// by construction, and the guest libc is responsible for keeping its
++    /// descriptor state per-thread to match. An fd opened on one thread is not
++    /// usable from another — the same honest limitation the wasi-threads (p1)
++    /// path documents.
++    #[cfg(feature = "async")]
++    pub async fn run_async<T: Send + 'static>(
++        &self,
++        store: &mut Store<T>,
++        pre: &crate::component::InstancePre<T>,
++    ) -> Result<()> {
++        // The start function is named by `(RuntimeInstanceIndex, FuncIndex)`,
++        // which only resolves against the component it was captured from.
++        // Instantiating a DIFFERENT component here would silently run whatever
++        // function happened to sit at those indices, so this is a hard check,
++        // not a debug assertion.
++        if !crate::component::Component::ptr_eq(pre.component(), &self.component) {
++            bail!(
++                "SET worker host instantiated a different component than the one \
++                 that spawned this thread"
++            );
++        }
++
++        // Workers MUST stay epoch-interruptible. A fresh store's deadline is 0,
++        // i.e. "trap at the first epoch check", so it has to be set to
++        // something — but `u64::MAX` would make a worker uninterruptible while
++        // `Store::drop` joins workers, so one guest thread looping forever
++        // would wedge teardown permanently. Under `wasmtime serve` that burns a
++        // tokio worker per request, and the embedder's epoch-based
++        // `--wasm timeout` could not intervene. A finite deadline keeps that
++        // escape hatch open; `ENCLAVE_SET_EPOCH_TICKS` tunes it. An embedder
++        // that runs no epoch ticker still relies on process supervision, which
++        // is the honest residual.
++        store.set_epoch_deadline(set_worker_epoch_ticks());
++        store.epoch_deadline_trap();
++
++        // Nested spawn: a worker that calls `pthread_create` needs the same
++        // host on its own store, or its spawns would refuse for want of one.
++        store.set_set_worker_host(self.host.clone());
++
++        let instance = pre.instantiate_set_worker_async(&mut *store, &self.plan).await?;
++
++        // Resolve the start function through the VIEW's own instance, so every
++        // frame the worker runs — including the direct calls Cranelift baked in
++        // for statically-known imports — carries the worker's vmctx.
++        let (func, runtime_instance, core_id) = {
++            let opaque = store.as_context_mut().0.store_opaque_mut();
++            let component_instance = instance.id().get(opaque);
++            let core_id = component_instance.instance(self.start_instance);
++            let runtime_instance = self.start_component_instance.map(|index| RuntimeInstance {
++                instance: instance.id().instance(),
++                index,
++            });
++            let store_id = opaque.id();
++            let (vminstance, registry) = opaque.instance_and_module_registry_mut(core_id);
++            let funcref = vminstance
++                .get_func_ref(registry, self.func_index)
++                .ok_or_else(|| {
++                    crate::format_err!("SET worker: start function is not an escaped funcref")
++                })?;
++            // SAFETY: the funcref lives in an instance owned by this store.
++            (
++                unsafe { crate::Func::from_vm_func_ref(store_id, funcref) },
++                runtime_instance,
++                core_id,
++            )
++        };
++
++        // Enter the guest the way the primary does when it runs a core
++        // instance's `start`: the canonical-ABI machinery a lowered import
++        // touches (resource tables, scope ids, the current task) expects a
++        // guest call to be in progress.
++        if let Some(rt) = runtime_instance {
++            store.as_context_mut().0.enter_guest_sync_call(None, false, rt)?;
++        }
++        let args = [Val::I32(self.start_arg)];
++        let result = func.call_async(&mut *store, &args, &mut []).await;
++        if runtime_instance.is_some() && result.is_ok() {
++            store.as_context_mut().0.exit_guest_sync_call()?;
++        }
++
++        if let Err(e) = result {
++            // The guest's thread epilogue (release `__thread_list_lock`, set
++            // `detach_state`, wake joiners) runs only on the NORMAL return
++            // path, so a trapped worker would otherwise strand every sibling
++            // parked on its futex — including the main thread inside
++            // `pthread_join`, which hangs the whole process. Give the guest a
++            // chance to declare this thread dead. Best-effort by design: the
++            // export is optional, it runs on the worker's own (unwound but
++            // otherwise healthy) store, and any failure is reported without
++            // displacing the original trap.
++            notify_guest_thread_died(store, core_id, self.start_arg, self.thread_id).await;
++            return Err(e);
++        }
++        Ok(())
++    }
++}
++
++/// Call the guest's optional `__enclave_set_thread_died` export so that joiners
++/// of a TRAPPED worker are released instead of parking forever.
++///
++/// This is a plain CORE export of the module that defines the thread entry
++/// point, reached through the worker's own core instance — deliberately not a
++/// component export, so the componentizer needs no extra canon and a guest
++/// without the hook simply does not have it.
++#[cfg(feature = "async")]
++async fn notify_guest_thread_died<T: Send + 'static>(
++    store: &mut Store<T>,
++    core_id: crate::store::InstanceId,
++    start_arg: i32,
++    thread_id: i64,
++) {
++    let instance = {
++        let opaque = store.as_context_mut().0.store_opaque_mut();
++        crate::Instance::from_wasmtime(core_id, opaque)
++    };
++    let Some(func) = instance.get_func(&mut *store, GUEST_THREAD_DIED_EXPORT) else {
++        return;
++    };
++    let args = [Val::I32(start_arg)];
++    if let Err(e) = func.call_async(&mut *store, &args, &mut []).await {
++        eprintln!(
++            "set-thread-{thread_id}: guest `{GUEST_THREAD_DIED_EXPORT}` hook failed \
++             (siblings joining this thread may block): {e:?}"
++        );
++    }
++}
++
++/// Optional guest export called when a worker dies by TRAP rather than by
++/// returning. Takes the same `i32` the start function was given (the libc's
++/// `start_args` pointer), from which the guest can find the dying thread's
++/// `pthread_t` and release whatever a normal exit would have released.
++const GUEST_THREAD_DIED_EXPORT: &str = "__enclave_set_thread_died";
 diff --git a/crates/wasmtime/src/runtime/vm/instance.rs b/crates/wasmtime/src/runtime/vm/instance.rs
-index 06ba7e4..bfe0825 100644
+index 06ba7e44..bfe08254 100644
 --- a/crates/wasmtime/src/runtime/vm/instance.rs
 +++ b/crates/wasmtime/src/runtime/vm/instance.rs
 @@ -324,6 +324,60 @@ impl Instance {
@@ -1258,7 +3960,7 @@ index 06ba7e4..bfe0825 100644
      ///
      /// Returns both import and defined globals.
 diff --git a/crates/wasmtime/src/runtime/vm/memory/shared_memory.rs b/crates/wasmtime/src/runtime/vm/memory/shared_memory.rs
-index 9f0721b..6a0b88d 100644
+index 9f0721be..6a0b88d6 100644
 --- a/crates/wasmtime/src/runtime/vm/memory/shared_memory.rs
 +++ b/crates/wasmtime/src/runtime/vm/memory/shared_memory.rs
 @@ -158,7 +158,13 @@ impl SharedMemory {
@@ -1291,7 +3993,7 @@ index 9f0721b..6a0b88d 100644
      }
  
 diff --git a/crates/wasmtime/src/runtime/vm/parking_spot.rs b/crates/wasmtime/src/runtime/vm/parking_spot.rs
-index 7d4a655..ff841f5 100644
+index 7d4a655f..ff841f5d 100644
 --- a/crates/wasmtime/src/runtime/vm/parking_spot.rs
 +++ b/crates/wasmtime/src/runtime/vm/parking_spot.rs
 @@ -13,13 +13,59 @@
@@ -1411,7 +4113,7 @@ index 7d4a655..ff841f5 100644
  
              if timed_out {
 diff --git a/crates/wasmtime/src/runtime/vm/traphandlers.rs b/crates/wasmtime/src/runtime/vm/traphandlers.rs
-index 7ea34b1..9c156ae 100644
+index 7ea34b14..9c156aed 100644
 --- a/crates/wasmtime/src/runtime/vm/traphandlers.rs
 +++ b/crates/wasmtime/src/runtime/vm/traphandlers.rs
 @@ -98,6 +98,75 @@ pub(super) unsafe fn raise_preexisting_trap(store: &mut dyn VMStore) {
@@ -1523,8 +4225,21 @@ index 7ea34b1..9c156ae 100644
  }
  
  /// Trait used in conjunction with `HostResult for Result<T, E>` where this is
+diff --git a/crates/wizer/src/component/wasmtime.rs b/crates/wizer/src/component/wasmtime.rs
+index 93164dc4..a0de7f4c 100644
+--- a/crates/wizer/src/component/wasmtime.rs
++++ b/crates/wizer/src/component/wasmtime.rs
+@@ -156,7 +156,7 @@ impl<T: Send> ComponentInstanceState for WasmtimeWizerComponent<'_, T> {
+         contents: impl FnOnce(&[u8]) + Send,
+     ) {
+         self.call_func(instance, func, |store, list: WasmList<u8>| {
+-            contents(list.as_le_slice(&store));
++            contents(&list.as_le_slice(&store));
+         })
+         .await
+     }
 diff --git a/src/commands/run.rs b/src/commands/run.rs
-index 4159165..4da3973 100644
+index 4159165b..a73ace88 100644
 --- a/src/commands/run.rs
 +++ b/src/commands/run.rs
 @@ -11,6 +11,7 @@ use std::ffi::OsString;
@@ -1678,3 +4393,309 @@ index 4159165..4da3973 100644
                  Ok(CliInstance::Core(instance))
              }
              #[cfg(feature = "component-model")]
+@@ -813,6 +943,8 @@ impl RunCommand {
+             .with_context(|| format!("while interpreting parameters in invoke \"{invoke}\""))?;
+ 
+         let instance = linker.instantiate_async(&mut *store, component).await?;
++        #[cfg(feature = "threads")]
++        self.register_set_worker_host(&mut *store, component, linker)?;
+ 
+         let func = instance
+             .get_func(&mut *store, export)
+@@ -846,6 +978,91 @@ impl RunCommand {
+         Ok(())
+     }
+ 
++    /// enclave/SET: register the hook that runs shared-everything-threads
++    /// workers, so a spawned thread gets a full component instance of its own.
++    ///
++    /// A SET worker shares LINEAR MEMORY with the thread that spawned it and
++    /// nothing else: it re-instantiates the same component in its own `Store`,
++    /// with a fresh WASI context (same argv/env/preopens/stdio as the main
++    /// thread, and its own resource table). That is not a design preference, it
++    /// is forced: Cranelift bakes direct calls to statically-known imports into
++    /// compiled code, so a worker running anything less than a whole
++    /// instantiation of its own would execute the primary's code against a
++    /// foreign vmctx.
++    ///
++    /// The honest consequence, same as the wasi-threads (p1) path above:
++    /// threads do NOT share a descriptor table, so an fd opened on one thread
++    /// is not usable from another. Worker-local I/O — the point of the
++    /// exercise — works.
++    #[cfg(all(feature = "component-model", feature = "threads"))]
++    fn register_set_worker_host(
++        &self,
++        store: &mut Store<Host>,
++        component: &wasmtime::component::Component,
++        linker: &wasmtime::component::Linker<Host>,
++    ) -> Result<()> {
++        use wasmtime::component::{SetWorkerHost, SetWorkerRequest};
++
++        struct CliSetWorkerHost {
++            pre: wasmtime::component::InstancePre<Host>,
++            run: crate::common::RunCommon,
++            argv: Vec<String>,
++            engine: Engine,
++        }
++
++        impl CliSetWorkerHost {
++            /// A fresh embedder context per worker. Mirrors `set_wasi_ctx`,
++            /// which cannot be reused directly because it is `&self` on the
++            /// command while this must outlive it.
++            fn new_host(&self) -> Result<Host> {
++                let mut builder = wasmtime_wasi::WasiCtxBuilder::new();
++                builder.args(&self.argv);
++                if self.run.common.wasi.inherit_stdin.unwrap_or(true) {
++                    builder.inherit_stdin();
++                }
++                if self.run.common.wasi.inherit_stdout.unwrap_or(true) {
++                    builder.inherit_stdout();
++                }
++                if self.run.common.wasi.inherit_stderr.unwrap_or(true) {
++                    builder.inherit_stderr();
++                }
++                self.run.configure_wasip2(&mut builder)?;
++                let mut ctx = builder.build_p1();
++                if let Some(max) = self.run.common.wasi.max_resources {
++                    ctx.ctx().table.set_max_capacity(max);
++                }
++                let mut host = Host::default();
++                host.wasip1_ctx = Some(ctx);
++                host.limits = self.run.store_limits();
++                Ok(host)
++            }
++        }
++
++        impl SetWorkerHost for CliSetWorkerHost {
++            fn run_worker(&self, req: SetWorkerRequest) -> Result<()> {
++                let mut store = Store::new(&self.engine, self.new_host()?);
++                store.limiter(|host| &mut host.limits);
++                if let Some(fuel) = self.run.common.wasi.hostcall_fuel {
++                    store.set_hostcall_fuel(fuel);
++                }
++                // Drive the worker on this thread's own tokio context, the same
++                // way the wasi-threads (p1) rebuild does. `run_async` owns the
++                // rest: the shared-memory swap, the epoch policy, entering the
++                // guest correctly and the guest's thread-death hook on a trap.
++                wasmtime_wasi::runtime::in_tokio(req.run_async(&mut store, &self.pre))
++            }
++        }
++
++        let host = CliSetWorkerHost {
++            pre: linker.instantiate_pre(component)?,
++            run: self.run.clone(),
++            argv: self.compute_argv()?,
++            engine: store.engine().clone(),
++        };
++        store.set_set_worker_host(std::sync::Arc::new(host));
++        Ok(())
++    }
++
+     /// Execute the default behavior for components on the CLI, looking for
+     /// `wasi:cli`-based commands and running their exported `run` function.
+     #[cfg(feature = "component-model")]
+@@ -856,6 +1073,8 @@ impl RunCommand {
+         linker: &wasmtime::component::Linker<Host>,
+     ) -> Result<wasmtime::component::Instance> {
+         let instance = linker.instantiate_async(&mut *store, component).await?;
++        #[cfg(feature = "threads")]
++        self.register_set_worker_host(&mut *store, component, linker)?;
+ 
+         let mut result = None;
+         let _ = &mut result;
+diff --git a/src/commands/serve.rs b/src/commands/serve.rs
+index 64fbb49f..f42a4c3e 100644
+--- a/src/commands/serve.rs
++++ b/src/commands/serve.rs
+@@ -109,7 +109,7 @@ fn parse_duration(s: &str) -> Result<Duration, String> {
+ }
+ 
+ /// Runs a WebAssembly module
+-#[derive(Parser)]
++#[derive(Parser, Clone)]
+ pub struct ServeCommand {
+     #[command(flatten)]
+     run: RunCommon,
+@@ -606,6 +606,14 @@ impl ServeCommand {
+         let engine = linker.engine();
+         let request_headers = RequestHeaders::parse(&self.headers)?;
+         let instance = linker.instantiate_pre(&component)?;
++        // enclave/SET: the un-wrapped pre is what a spawned worker needs to
++        // build its own instantiation of this same component.
++        #[cfg(feature = "threads")]
++        let set_worker_shared = std::sync::Arc::new(SetWorkerShared {
++            cmd: self.clone(),
++            engine: engine.clone(),
++            pre: instance.clone(),
++        });
+         #[cfg(feature = "component-model-async")]
+         let instance = match wasmtime_wasi_http::p3::bindings::ServicePre::new(instance.clone()) {
+             Ok(pre) => ProxyPre::P3(pre),
+@@ -740,6 +748,8 @@ impl ServeCommand {
+         let sem_connections = Arc::new(Semaphore::new(max_concurrent_connections));
+ 
+         let handler = ProxyHandler::new(HostHandlerState {
++            #[cfg(feature = "threads")]
++            set_worker_shared,
+             sem_requests: Semaphore::new(max_concurrent_requests),
+             cmd: self,
+             component,
+@@ -906,6 +916,37 @@ impl WorkerState for HostWorkerState {
+     }
+ }
+ 
++/// enclave/SET: the parts every worker of this server needs, built once.
++#[cfg(feature = "threads")]
++struct SetWorkerShared {
++    cmd: ServeCommand,
++    engine: Engine,
++    pre: wasmtime::component::InstancePre<Host>,
++}
++
++/// enclave/SET: runs one spawned worker for `wasmtime serve`.
++///
++/// A worker gets a store built exactly the way a request's store is built —
++/// its own `WasiCtx`, resource table and HTTP context — because component
++/// resource handles are per-instance and cannot be shared across threads. What
++/// IS shared is linear memory, which is what pthreads needs.
++///
++/// Not carried into a worker: the guest profiler and the profile writer, which
++/// are per-request artifacts of the primary store.
++#[cfg(feature = "threads")]
++struct SetWorkerHostForServe {
++    shared: std::sync::Arc<SetWorkerShared>,
++}
++
++#[cfg(feature = "threads")]
++impl wasmtime::component::SetWorkerHost for SetWorkerHostForServe {
++    fn run_worker(&self, req: wasmtime::component::SetWorkerRequest) -> Result<()> {
++        let shared = &self.shared;
++        let mut store = shared.cmd.new_store(&shared.engine, None)?;
++        wasmtime_wasi::runtime::in_tokio(req.run_async(&mut store, &shared.pre))
++    }
++}
++
+ struct HostHandlerState {
+     cmd: ServeCommand,
+     component: Component,
+@@ -913,6 +954,8 @@ struct HostHandlerState {
+     max_instance_reuse_count: usize,
+     max_instance_concurrent_reuse_count: usize,
+     instance: ProxyPre<Host>,
++    #[cfg(feature = "threads")]
++    set_worker_shared: std::sync::Arc<SetWorkerShared>,
+     next_instance_id: AtomicU64,
+     next_request_id: AtomicU64,
+     sem_requests: Semaphore,
+@@ -923,6 +966,14 @@ impl HostHandlerState {
+     async fn instantiate_into(&self, store: &mut Store<Host>) -> Result<Proxy> {
+         let write_profile = setup_epoch_handler(&self.cmd, &mut *store, self.component.clone())?;
+         store.data_mut().write_profile = Some(write_profile);
++        // enclave/SET: let this request's guest spawn real threads. Each gets a
++        // full instantiation of the same component in a store of its own,
++        // sharing only linear memory. See `register_set_worker_host` in
++        // `run.rs` for why anything less is unsound.
++        #[cfg(feature = "threads")]
++        store.set_set_worker_host(std::sync::Arc::new(SetWorkerHostForServe {
++            shared: self.set_worker_shared.clone(),
++        }));
+         self.instance.instantiate_async(&mut *store).await
+     }
+ }
+diff --git a/src/common.rs b/src/common.rs
+index 0d49bd92..25f6b3ed 100644
+--- a/src/common.rs
++++ b/src/common.rs
+@@ -43,7 +43,7 @@ impl RunTarget {
+ }
+ 
+ /// Common command line arguments for run commands.
+-#[derive(Parser)]
++#[derive(Parser, Clone)]
+ pub struct RunCommon {
+     #[command(flatten)]
+     pub common: CommonOptions,
+diff --git a/tests/all/component_model/func.rs b/tests/all/component_model/func.rs
+index 038fc789..29ac5158 100644
+--- a/tests/all/component_model/func.rs
++++ b/tests/all/component_model/func.rs
+@@ -2346,6 +2346,7 @@ fn fancy_list() -> Result<()> {
+     ];
+     let ((ptr, len, list),) = func.call(&mut store, (&input,))?;
+     let memory = list.as_le_slice(&store);
++    let memory = &*memory;
+     let ptr = usize::try_from(ptr).unwrap();
+     let len = usize::try_from(len).unwrap();
+     let mut array = &memory[ptr..][..len * 16];
+@@ -2626,7 +2627,7 @@ fn raw_slice_of_various_types() -> Result<()> {
+         .call(&mut store, ())?
+         .0;
+     assert_eq!(
+-        list.as_le_slice(&store),
++        &*list.as_le_slice(&store),
+         [
+             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+             0x0e, 0x0f,
+@@ -2637,7 +2638,7 @@ fn raw_slice_of_various_types() -> Result<()> {
+         .call(&mut store, ())?
+         .0;
+     assert_eq!(
+-        list.as_le_slice(&store),
++        &*list.as_le_slice(&store),
+         [
+             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+             0x0e, 0x0f,
+@@ -2649,7 +2650,7 @@ fn raw_slice_of_various_types() -> Result<()> {
+         .call(&mut store, ())?
+         .0;
+     assert_eq!(
+-        list.as_le_slice(&store),
++        &*list.as_le_slice(&store),
+         [
+             u16::to_le(0x01_00),
+             u16::to_le(0x03_02),
+@@ -2666,7 +2667,7 @@ fn raw_slice_of_various_types() -> Result<()> {
+         .call(&mut store, ())?
+         .0;
+     assert_eq!(
+-        list.as_le_slice(&store),
++        &*list.as_le_slice(&store),
+         [
+             i16::to_le(0x01_00),
+             i16::to_le(0x03_02),
+@@ -2683,7 +2684,7 @@ fn raw_slice_of_various_types() -> Result<()> {
+         .call(&mut store, ())?
+         .0;
+     assert_eq!(
+-        list.as_le_slice(&store),
++        &*list.as_le_slice(&store),
+         [
+             u32::to_le(0x03_02_01_00),
+             u32::to_le(0x07_06_05_04),
+@@ -2696,7 +2697,7 @@ fn raw_slice_of_various_types() -> Result<()> {
+         .call(&mut store, ())?
+         .0;
+     assert_eq!(
+-        list.as_le_slice(&store),
++        &*list.as_le_slice(&store),
+         [
+             i32::to_le(0x03_02_01_00),
+             i32::to_le(0x07_06_05_04),
+@@ -2709,7 +2710,7 @@ fn raw_slice_of_various_types() -> Result<()> {
+         .call(&mut store, ())?
+         .0;
+     assert_eq!(
+-        list.as_le_slice(&store),
++        &*list.as_le_slice(&store),
+         [
+             u64::to_le(0x07_06_05_04_03_02_01_00),
+             u64::to_le(0x0f_0e_0d_0c_0b_0a_09_08),
+@@ -2720,7 +2721,7 @@ fn raw_slice_of_various_types() -> Result<()> {
+         .call(&mut store, ())?
+         .0;
+     assert_eq!(
+-        list.as_le_slice(&store),
++        &*list.as_le_slice(&store),
+         [
+             i64::to_le(0x07_06_05_04_03_02_01_00),
+             i64::to_le(0x0f_0e_0d_0c_0b_0a_09_08),
