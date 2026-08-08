@@ -90,6 +90,43 @@ index 0b9dc4f..3228f0f 100644
      return __wasilibc_write(&write, buf, nbyte);
    }
    if (entry.vtable->sendto)
+diff --git a/libc-bottom-half/headers/private/wasi/descriptor_table.h b/libc-bottom-half/headers/private/wasi/descriptor_table.h
+index b06b8e6..36051ca 100644
+--- a/libc-bottom-half/headers/private/wasi/descriptor_table.h
++++ b/libc-bottom-half/headers/private/wasi/descriptor_table.h
+@@ -3,6 +3,32 @@
+ 
+ #include <wasi/api.h>
+ 
++/// enclave/SET: state that must be PER-THREAD under shared-everything-threads.
++///
++/// A SET thread shares linear memory with its siblings but NOT the component
++/// instance it runs in: the engine gives each spawned thread its own
++/// instantiation, because Cranelift bakes direct calls to statically-known
++/// imports into compiled code and a thread running anything less would execute
++/// another thread's code against a foreign vmctx. Component resource handles
++/// (`own<descriptor>`, `own<output-stream>`, ...) are indices into the handle
++/// table of ONE instance, so a handle another thread cached in shared memory
++/// names nothing here: using it traps `unknown handle index`.
++///
++/// Everything that stores or derives such a handle therefore has to live in
++/// TLS: the descriptor table, the lazily-cached stdio streams, and the preopen
++/// table (whose entries are libc fds, i.e. descriptor-table indices). Each
++/// thread lazily rebuilds its own from its own instance's imports.
++///
++/// The honest consequence, identical to the wasi-threads (p1) model: file
++/// descriptors are NOT shared between threads. A thread can open, read, write
++/// and close its own; it cannot inherit a sibling's. Compute parallelism and
++/// per-thread I/O — the point of SET — are unaffected.
++#ifdef __wasilibc_set_threads__
++#define __wasilibc_thread_state _Thread_local
++#else
++#define __wasilibc_thread_state
++#endif
++
+ #ifndef __wasip1__
+ #include <assert.h>
+ #include <netinet/in.h>
 diff --git a/libc-bottom-half/headers/public/wasi/version.h.in b/libc-bottom-half/headers/public/wasi/version.h.in
 index d36ba8c..17a704a 100644
 --- a/libc-bottom-half/headers/public/wasi/version.h.in
@@ -108,6 +145,56 @@ index d36ba8c..17a704a 100644
  #cmakedefine __wasi_sdk_major__ @__wasi_sdk_major__@
  #cmakedefine __wasi_sdk_version__ "@__wasi_sdk_version__@"
  
+diff --git a/libc-bottom-half/sources/descriptor_table.c b/libc-bottom-half/sources/descriptor_table.c
+index 56d7816..89374f3 100644
+--- a/libc-bottom-half/sources/descriptor_table.c
++++ b/libc-bottom-half/sources/descriptor_table.c
+@@ -32,7 +32,7 @@ typedef struct {
+   size_t next_fd;
+ } descriptor_table_t;
+ 
+-static descriptor_table_t global_table = {0};
++static __wasilibc_thread_state descriptor_table_t global_table = {0};
+ 
+ /// Grows `table` to have capacity for at least `needed` entries, marking all
+ /// newly allocated entries as unoccupied. Returns -1 and sets `errno` on
+@@ -149,7 +149,7 @@ static void clear(descriptor_table_t *table) {
+   table->len = 0;
+ }
+ 
+-static bool stdio_initialized = false;
++static __wasilibc_thread_state bool stdio_initialized = false;
+ 
+ static int init_stdio() {
+   stdio_initialized = true;
+@@ -162,7 +162,7 @@ static void live_descriptors_dec() {}
+ #else
+ #include <stdio.h>
+ 
+-static unsigned live_descriptors = 0;
++static __wasilibc_thread_state unsigned live_descriptors = 0;
+ 
+ static void live_descriptors_inc() { live_descriptors += 1; }
+ 
+diff --git a/libc-bottom-half/sources/preopens.c b/libc-bottom-half/sources/preopens.c
+index b7301bd..3201c05 100644
+--- a/libc-bottom-half/sources/preopens.c
++++ b/libc-bottom-half/sources/preopens.c
+@@ -103,10 +103,10 @@ typedef struct preopen {
+ } preopen;
+ 
+ /// A simple growable array of `preopen`.
+-static _Atomic _Bool preopens_populated = false;
+-static preopen *preopens;
+-static size_t num_preopens;
+-static size_t preopen_capacity;
++static __wasilibc_thread_state _Atomic _Bool preopens_populated = false;
++static __wasilibc_thread_state preopen *preopens;
++static __wasilibc_thread_state size_t num_preopens;
++static __wasilibc_thread_state size_t preopen_capacity;
+ 
+ #ifdef NDEBUG
+ #define assert_invariants() // assertions disabled
 diff --git a/libc-bottom-half/sources/tcp.c b/libc-bottom-half/sources/tcp.c
 index 0ddeb07..bfde71b 100644
 --- a/libc-bottom-half/sources/tcp.c
@@ -326,7 +413,7 @@ index 0000000..9edf5bd
 +
 +	end_function
 diff --git a/libc-top-half/musl/src/thread/wasi-threads/pthread_create.c b/libc-top-half/musl/src/thread/wasi-threads/pthread_create.c
-index f6ff846..c43ac2a 100644
+index f6ff846..6a852c7 100644
 --- a/libc-top-half/musl/src/thread/wasi-threads/pthread_create.c
 +++ b/libc-top-half/musl/src/thread/wasi-threads/pthread_create.c
 @@ -16,6 +16,14 @@
@@ -344,7 +431,111 @@ index f6ff846..c43ac2a 100644
  static void dummy_0()
  {
  }
-@@ -267,6 +275,16 @@ struct start_args {
+@@ -73,6 +81,103 @@ static void process_map_base_deferred_free()
+ }
+ #endif
+ 
++#ifdef __wasilibc_set_threads__
++/* enclave/SET: engine-called epilogue for a thread that died by TRAP.
++ *
++ * `__pthread_exit` and the tail of `wasi_set_thread_start` run only when a
++ * thread RETURNS. A thread that traps skips both, so it never stores
++ * DT_EXITED, never wakes its joiner, and never releases __thread_list_lock —
++ * whose value is its own tid. Every joiner then blocks forever: first in
++ * __timedwait_cp on detach_state, and if that were fixed, again in __tl_sync
++ * on the thread list lock. In practice that hangs the whole program, because
++ * the main thread is usually the one in pthread_join.
++ *
++ * The engine calls this export on the dying thread's own execution view after
++ * the trap has unwound, so `__pthread_self()` here IS the dead thread. It does
++ * the parts of the normal epilogue that other threads depend on, and skips the
++ * parts that only the dying thread itself would have observed.
++ *
++ * Deliberately NOT done, and why:
++ *  - cancel buffers and TSD destructors: arbitrary guest code, on a thread
++ *    whose invariants we already know are broken. Running it could trap again.
++ *  - killlock: the normal path takes it and releases it. We do not know
++ *    whether the trap happened while it was held, and unlocking a lock we do
++ *    not hold is worse than leaving it. A concurrent pthread_kill against a
++ *    trapped thread may therefore block; it is a far narrower residual than
++ *    hanging every join.
++ *  - the `self->next == self` last-thread `exit(0)`: a trapped last thread
++ *    must not run atexit handlers.
++ *
++ * The argument is the same `start_args` pointer the entry point received. It
++ * is unused today (the thread's identity comes from TLS, which the view still
++ * has) and is passed for symmetry and future use.
++ */
++__attribute__((export_name("__enclave_set_thread_died")))
++void __enclave_set_thread_died(void *start_arg)
++{
++	(void)start_arg;
++	pthread_t self = __pthread_self();
++
++	/* Give joiners a defined result rather than whatever the trap left. */
++	self->result = PTHREAD_CANCELED;
++	self->canceldisable = 1;
++	self->cancelasync = 0;
++
++	int state = a_cas(&self->detach_state, DT_JOINABLE, DT_EXITING);
++	if (state == DT_EXITED)
++		return; /* already reaped; nothing to do */
++
++	/* If the trap happened while this thread held the thread list lock,
++	 * take ownership of it back so the unlock below actually releases it.
++	 * __tl_lock() itself would recurse (the lock word holds our tid) and
++	 * bump tl_lock_count, so force the count flat instead. */
++	if (__thread_list_lock == self->tid) {
++		tl_lock_count = 0;
++	} else {
++		__tl_lock();
++		tl_lock_count = 0;
++	}
++
++	/* Mark this thread's robust mutexes owner-died and wake their waiters,
++	 * or every sibling blocked on one stays blocked. */
++	volatile void *volatile *rp;
++	while ((rp = self->robust_list.head) && rp != &self->robust_list.head) {
++		pthread_mutex_t *m = (void *)((char *)rp
++			- offsetof(pthread_mutex_t, _m_next));
++		int waiters = m->_m_waiters;
++		int priv = (m->_m_type & 128) ^ 128;
++		self->robust_list.pending = rp;
++		self->robust_list.head = *rp;
++		int cont = a_swap(&m->_m_lock, 0x40000000);
++		self->robust_list.pending = 0;
++		if (cont < 0 || waiters)
++			__wake(&m->_m_lock, 1, priv);
++	}
++
++	__do_orphaned_stdio_locks();
++
++	self->tid = 0;
++	if (!--libc.threads_minus_1) libc.need_locks = -1;
++	self->next->prev = self->prev;
++	self->prev->next = self->next;
++	self->prev = self->next = self;
++
++	if (state == DT_DETACHED && self->map_base) {
++		/* Nobody will join, so nobody will free the stack. Defer it the
++		 * same way the normal detached path does. */
++		process_map_base_deferred_free();
++		map_base_deferred_free = self->map_base;
++	} else {
++		/* Release the joiner: it waits for detach_state to reach
++		 * DT_EXITED (0), then for the thread list lock to reach 0. */
++		a_store(&self->detach_state, DT_EXITED);
++		__wake(&self->detach_state, 1, 1);
++	}
++
++	__tl_unlock();
++}
++#endif
++
+ #ifdef __wasilibc_unmodified_upstream
+ _Noreturn void __pthread_exit(void *result)
+ #else
+@@ -267,6 +372,16 @@ struct start_args {
  	void *tls_base;
  	void *(*start_func)(void *);
  	void *start_arg;
@@ -361,7 +552,7 @@ index f6ff846..c43ac2a 100644
  #endif
  };
  
-@@ -301,6 +319,7 @@ static int start_c11(void *p)
+@@ -301,6 +416,7 @@ static int start_c11(void *p)
  }
  #else
  
@@ -369,7 +560,7 @@ index f6ff846..c43ac2a 100644
  /*
   * We want to ensure wasi_thread_start is linked whenever
   * pthread_create is used. The following reference is to ensure that.
-@@ -309,6 +328,7 @@ static int start_c11(void *p)
+@@ -309,6 +425,7 @@ static int start_c11(void *p)
   */
  void wasi_thread_start(int tid, void *p);
  hidden void *__dummy_reference = wasi_thread_start;
@@ -377,7 +568,7 @@ index f6ff846..c43ac2a 100644
  
  hidden void __wasi_thread_start_C(int tid, void *p)
  {
-@@ -537,6 +557,14 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
+@@ -537,6 +654,14 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
  	args->start_func = entry;
  	args->start_arg = arg;
  	args->tls_base = (void*)new_tls_base;
@@ -392,7 +583,7 @@ index f6ff846..c43ac2a 100644
  #endif
  
  	__tl_lock();
-@@ -566,6 +594,15 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
+@@ -566,6 +691,15 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
  		if (ret)
  			__wait(&args->control, 0, 3, 0);
  	}

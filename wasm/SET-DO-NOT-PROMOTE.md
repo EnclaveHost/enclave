@@ -12,11 +12,27 @@ The 2026-08-07 four-agent adversarial review found two BLOCKERS that must be
 fixed AND re-reviewed before this enters the measured TCB. Full write-up:
 `docs/wasm-parallelism.md` → "The 2026-08-07 adversarial review".
 
-1. **Worker threads cannot make component/WASI calls (CRITICAL).** A worker's
-   first canon-lowered import call traps `call stack exhausted`. Only
-   pure-compute workers work today. Fix = set up each spawned view's
-   component-call execution context (async/fiber + reentrance) so worker→host
-   calls don't spuriously exhaust.
+1. **Worker threads cannot make component/WASI calls (CRITICAL) — and the
+   2026-08-08 root cause is WORSE than the reported symptom.** The symptom is
+   that a worker's first canon-lowered import call traps `call stack
+   exhausted`. The cause is not stacks and not async/fiber context: it is that
+   **stubbing a view's imports does not work at all for component core
+   modules.** Cranelift devirtualizes a call to a statically-known import
+   (`KnownFunc::FuncKey(FuncKey::DefinedWasmFunction(..))` in
+   `crates/cranelift/src/func_environ.rs`) into a DIRECT call to the callee's
+   compiled body, while still loading the callee vmctx from the import slot.
+   So a worker executes the PRIMARY's compiled code with the stub's
+   `VMArrayCallHostFuncContext` as its vmctx — wasm running against a vmctx of
+   a completely different type. `call stack exhausted` is just what that
+   confusion produces when the callee's prologue reads a `stack_limit` that
+   isn't one. Proven by `tools/parallelism-probe/set-worker-import-foreign.wat`:
+   the worker's stub is installed (import slot magic = `ACHF`) and never runs,
+   while the primary's `divide by zero` in the imported function fires on the
+   worker thread. Any component whose core module imports a sibling's function
+   — i.e. anything `wasm-component-ld` emits — reaches this. Fix = give each
+   worker a full component instantiation in its own store, so every
+   statically-known direct call lands on code whose vmctx is the worker's own.
+   Import stubbing must be abandoned, not repaired.
 
 2. **Shared canonical-ABI memory is a host-TCB data race (HIGH).** The
    validator relaxation accepting a `shared` cabi memory (R4) lets a hostile
