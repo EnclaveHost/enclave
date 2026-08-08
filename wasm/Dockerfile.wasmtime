@@ -131,6 +131,25 @@ COPY wasmtime-vault-fs.patch /tmp/
 RUN git apply --check /tmp/wasmtime-vault-fs.patch \
  && git apply /tmp/wasmtime-vault-fs.patch
 
+# UPSTREAM BUG FIX — wasip2 outbound HTTP goes out with NO Host header.
+# Wasmtime 45 synthesized `host` from the request authority inside
+# `p2::default_send_request_handler`. 49 unified the p2/p3 send paths into
+# `default_send_request`, which rewrites the URI to origin-form and synthesizes
+# nothing — and only the p3 path was taught to add `host` (p3/request.rs, gated
+# on the `set_host_header` hook). hyper's http1 client conn does not add one
+# either. So from the 49-dev repin (e98d3299, 2026-08-07) every wasip2 guest's
+# outbound request left the enclave headerless and any RFC 9112 compliant server
+# answered 400: web search, fetch_url, vision delegation, image generation and
+# the in-app attestation relay all failed fleet-wide while inference (wasi:nn,
+# not wasi:http) kept working, which is what made it look like an app bug.
+# Guests cannot compensate — `host` is in DEFAULT_FORBIDDEN_HEADERS, so deriving
+# it from the authority is by contract the host's job. This restores the 45
+# behaviour at the p2 request-construction site, honouring the same hook p3 uses.
+# Still present on upstream main (3ebfbe5) — carry until upstream takes it.
+COPY wasmtime-p2-host-header.patch /tmp/
+RUN git apply --check /tmp/wasmtime-p2-host-header.patch \
+ && git apply /tmp/wasmtime-p2-host-header.patch
+
 # enclave transparent egress (phase 2 of dedicated-IP egress): `-S egress=<host>:<port>`
 # routes ALL guest outbound — wasi:sockets TCP connect AND the wasi:http outgoing
 # handler — through the enclave's loopback SOCKS5 front (egress.js), so an
