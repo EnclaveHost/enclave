@@ -226,6 +226,11 @@ enforced rather than hoped for:
   an fd carries the identity of the thread that owns it, so a cross-thread fd
   FAILS with `EBADF` instead of aliasing a different file of the same number.
 
+Thread CREATION is rate-limited as well as capped, because those are different
+quantities: the cap bounds how many threads exist at once, and a guest that
+spawns and immediately exits never approaches it while still costing the node a
+thread creation per iteration. See `max_spawn_rate` in `set_threads.rs`.
+
 Spawn returns the ABI's `-1` ("spawn failed", which guests are required to
 handle) with a rate-limited stderr diagnostic for any module shape whose worker
 would not faithfully share state: a non-shared defined memory, NO shared memory
@@ -269,9 +274,9 @@ turns both on automatically whenever `-W shared-everything-threads` is passed
 the first time it is asked on an engine that has not.
 
 The measured cost of that instrumentation, on the constant-total-work
-benchmark: ~0% at 1 thread, ~2% at 16, and ~17% at 32 (where SMT siblings
-compete for issue slots and the extra loop-backedge check is no longer free).
-15.8x became **15.5x** and 27.9x became **23.7x**. That is the price of a
+benchmark: ~0% at 1 thread, a few percent at 16, and ~12% at 32 (where SMT
+siblings compete for issue slots and the extra loop-backedge check is no longer
+free). 15.8x became **14.9x** and 27.9x became **24.9x**. That is the price of a
 worker that can be stopped, and the earlier numbers were measured on an engine
 where it could not be.
 
@@ -665,6 +670,14 @@ Every one of them is fixed here; the ones worth carrying forward as knowledge:
   inside `Component::new`. It is now a clean compile-time refusal in
   `partition_adapter_modules`, covering EVERY adapter that needs memory rather
   than only string transcoders.
+* **`wasmtime serve` could not run a SET guest at all**, and no reviewer found
+  it — verification did. `serve` defaults to the POOLING allocator, which
+  cannot allocate a `shared` memory, so every SET component failed to load with
+  "memory is shared which is not supported in the pooling allocator". `run` was
+  unaffected, which is why every probe missed it. The default is now off when
+  `-W shared-everything-threads` is on. End-to-end serving of a SET http guest
+  is still unproven: the blessed toolchain image builds `wasi:cli` commands and
+  carries no C `wasi:http` binding generator, so no such guest exists yet.
 * Also: per-store limits and fuel are per-WORKER (documented, and `--wasm
   fuel=N` no longer hangs — `run` used to give workers zero, so they trapped
   before reaching the libc epilogue that releases a joiner); the death hook
@@ -672,6 +685,59 @@ Every one of them is fixed here; the ones worth carrying forward as knowledge:
   exactly the path that needed it; the refusal diagnostic is time-rate-limited
   per site instead of `Once` per process; per-thread libc state is reclaimed at
   thread exit; and `SetViewPlan::install`'s preconditions are real checks.
+
+### 2026-08-08 (round 4): the cap counted the wrong thing, and other lessons
+
+A fourth adversarial pass on the round-3 design found 3 HIGH plus a
+resource-exhaustion escape. Every round so far has found real defects, which is
+the single most important fact about this project. The generalisable lessons:
+
+**A cap on how many exist is not a cap on how many are made.** The live-thread
+cap increments on spawn and decrements on exit, so `worker(){ spawn(worker);
+return; }` keeps the live count at 1-2 forever while creating threads as fast as
+the kernel allows: 35,187 create+exit pairs in 2 s, 2.6 s of CPU, and
+`ENCLAVE_MAX_SET_THREADS=4` changed nothing. Creation is now rate-limited
+separately (token bucket, `ENCLAVE_MAX_SET_SPAWN_RATE`): 2,112 spawns and 0.34 s
+of CPU for the same guest, with a clean `EAGAIN`. Whenever a resource is
+"capped", ask which of *stock* and *flow* the cap measures.
+
+**A recovery window is a renewable resource unless you say otherwise.** The
+guest's thread-death hook necessarily runs with every stop path disarmed. It had
+a 10-second budget, and it runs on the worker's own store — which has the worker
+host and the thread group installed — so a hook that spawns a thread that traps
+gets another hook, forever. The budget is now 0.2 s AND spawn refuses once the
+group is stopping.
+
+**A repro that exercises the wrong mechanism is worse than none.**
+`worker-block-teardown.c` blocks on a timer, which is asynchronous and therefore
+cancellable — so it "proved" a stop path that did not work for the blocking
+FILESYSTEM calls the platform actually runs, because `allow_blocking_current
+_thread` (on whenever `--wasm timeout` is absent, i.e. always on-fleet) runs
+those inline on the fiber where nothing can cancel them.
+
+**Recycling an identity re-creates the aliasing you removed.** Round 3 tagged
+each fd with its owning thread. The tag came from a recycled slot bitmap, and
+recycling is deterministic, so a dead thread's fd became valid again for the
+next worker — naming a different file. Monotonic ids, always.
+
+**And: a fix can make a latent bug reachable.** Giving the death hook a
+protected epoch budget is what made it possible for the hook to run at all when
+the trap happened before `wasi_set_thread_start` had installed TLS — at which
+point `__pthread_self()` is the MAIN thread's `struct pthread`, and the epilogue
+zeroes its tid (breaking `__tl_lock` and every FILE lock) and can drive
+`threads_minus_1` to zero, which sets `libc.need_locks = -1` and turns every
+lock in the process into a no-op.
+
+The full per-finding list, with the repro for each, is in
+`wasm/SET-DO-NOT-PROMOTE.md`.
+
+**One claim retracted:** nested spawn does NOT trap, and never should have been
+documented as doing so. A worker runs its own whole component instantiation, so
+`thread.spawn-*` from it enters through the worker's own vmctx and the
+cross-thread guard correctly sees a match. Nested spawn is supported — the
+design installs the host and the group on a worker's store precisely to make it
+work. The guard's real job is a worker reaching the PRIMARY's store through an
+imported memory's `memory.grow`/futex, which spawn also refuses outright.
 
 ### 2026-08-08: the CRITICAL blocker's real cause is vmctx type confusion
 
