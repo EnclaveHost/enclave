@@ -91,10 +91,10 @@ index 0b9dc4f..3228f0f 100644
    }
    if (entry.vtable->sendto)
 diff --git a/libc-bottom-half/headers/private/wasi/descriptor_table.h b/libc-bottom-half/headers/private/wasi/descriptor_table.h
-index b06b8e6..36051ca 100644
+index b06b8e6..eb4c5ee 100644
 --- a/libc-bottom-half/headers/private/wasi/descriptor_table.h
 +++ b/libc-bottom-half/headers/private/wasi/descriptor_table.h
-@@ -3,6 +3,32 @@
+@@ -3,6 +3,46 @@
  
  #include <wasi/api.h>
  
@@ -120,6 +120,20 @@ index b06b8e6..36051ca 100644
 +/// per-thread I/O — the point of SET — are unaffected.
 +#ifdef __wasilibc_set_threads__
 +#define __wasilibc_thread_state _Thread_local
++
++/// Release everything this thread's descriptor state holds: the table's
++/// entries (each owning a component resource handle in this thread's own
++/// instance), its `entries` array, the preopen prefixes, and the
++/// fd-namespace slot. Called from `__pthread_exit`.
++void __wasilibc_set_release_thread_state(void);
++
++/// Release only the fd-namespace slot. Called from the engine-invoked
++/// `__enclave_set_thread_died` hook, where making further component calls to
++/// drop resource handles would be unwise.
++void __wasilibc_set_release_thread_fd_slot(void);
++
++/// Drop this thread's preopen table (implemented in `preopens.c`).
++void __wasilibc_set_release_preopens(void);
 +#else
 +#define __wasilibc_thread_state
 +#endif
@@ -146,10 +160,155 @@ index d36ba8c..17a704a 100644
  #cmakedefine __wasi_sdk_version__ "@__wasi_sdk_version__@"
  
 diff --git a/libc-bottom-half/sources/descriptor_table.c b/libc-bottom-half/sources/descriptor_table.c
-index 56d7816..89374f3 100644
+index 56d7816..5179ca1 100644
 --- a/libc-bottom-half/sources/descriptor_table.c
 +++ b/libc-bottom-half/sources/descriptor_table.c
-@@ -32,7 +32,7 @@ typedef struct {
+@@ -15,6 +15,144 @@
+ 
+ #define MINSIZE 8
+ 
++#ifdef __wasilibc_set_threads__
++#include <stdatomic.h>
++#include <stdint.h>
++
++/* enclave/SET: per-thread file-descriptor NAMESPACES.
++ *
++ * Under shared-everything threads the descriptor table is thread-local (see
++ * <wasi/descriptor_table.h>): component resource handles index the handle
++ * table of ONE instance, and each thread has its own. But every thread's table
++ * used to hand out the lowest free INDEX, so thread A's fd 4 and thread B's
++ * fd 4 were different files with the same name — while musl's `FILE` objects,
++ * which live in the SHARED linear memory, stayed common to both. Passing an fd
++ * between threads therefore did not fail, it ALIASED: reproduced by writing a
++ * worker's buffered secret into the main thread's file, with every call
++ * returning success. Silent cross-thread data corruption is the worst failure
++ * mode available, and it was the default one.
++ *
++ * So an fd now carries the identity of the thread that owns it:
++ *
++ *     fd = (slot << SET_FD_SLOT_SHIFT) | index
++ *
++ * and a lookup whose slot is not this thread's returns EBADF. Two deliberate
++ * choices:
++ *
++ *  - Indices 0, 1 and 2 are NOT tagged. They are stdin/stdout/stderr on every
++ *    thread by construction — the same underlying streams — so aliasing them
++ *    is the correct semantics, not a bug. It also keeps `write(1, ...)` and
++ *    `STDOUT_FILENO` working on a worker.
++ *  - The MAIN thread takes slot 0, so its fds are numerically identical to a
++ *    single-threaded build's. Only workers get large numbers. That is safe
++ *    here because wasi-libc's `fd_set` stores fd VALUES in an array rather
++ *    than indexing a bitmap by them, so `FD_SETSIZE` bounds the COUNT of fds
++ *    in a set, not their magnitude.
++ *
++ * The layout leaves 22 bits of index (4 Mi, comfortably above the
++ * `MAX_DESCRIPTOR` of 1 Mi that `dup2` may name) and 9 bits of slot, and the
++ * largest representable fd is exactly `INT_MAX`.
++ */
++#define SET_FD_SLOT_SHIFT 22
++#define SET_FD_INDEX_MASK ((1 << SET_FD_SLOT_SHIFT) - 1)
++#define SET_FD_MAX_SLOTS 512
++#define SET_FD_UNTAGGED 3
++
++/* Which slots are taken. Ordinary (shared-memory) statics: this is the one
++   piece of descriptor state that MUST be common to all threads. */
++static _Atomic uint64_t set_fd_slots_taken[SET_FD_MAX_SLOTS / 64];
++
++/* This thread's slot, or -1 before it has claimed one. */
++static _Thread_local int set_fd_slot = -1;
++
++/* Set by `__wasi_thread_start_C` on every spawned SET thread, so the MAIN
++   thread — the one that never runs it — is the one that gets slot 0. */
++extern _Thread_local int __wasilibc_set_is_worker;
++
++/* Claim this thread's slot, or return -1 if all 512 are in use. Slots are
++   released at thread exit (`__wasilibc_set_release_thread_state`), so the
++   bound is on LIVE threads, which the engine caps far below 512. */
++static int set_fd_slot_claim(void) {
++  if (set_fd_slot >= 0)
++    return set_fd_slot;
++  if (!__wasilibc_set_is_worker) {
++    /* The main thread. Slot 0 is RESERVED for it — never handed to a worker —
++       so its descriptors keep the numbering they would have had without
++       threads at all. */
++    atomic_fetch_or(&set_fd_slots_taken[0], 1);
++    set_fd_slot = 0;
++    return 0;
++  }
++  const int words = (int)(sizeof set_fd_slots_taken / sizeof *set_fd_slots_taken);
++  for (int w = 0; w < words; w++) {
++    uint64_t cur = atomic_load(&set_fd_slots_taken[w]);
++    for (;;) {
++      /* Bit 0 of word 0 is the main thread's; mask it out of the candidates. */
++      uint64_t avail = ~(w == 0 ? (cur | 1) : cur);
++      if (avail == 0)
++        break;
++      int b = __builtin_ctzll(avail);
++      uint64_t want = cur | ((uint64_t)1 << b);
++      if (atomic_compare_exchange_weak(&set_fd_slots_taken[w], &cur, want)) {
++        set_fd_slot = w * 64 + b;
++        return set_fd_slot;
++      }
++      /* `cur` was refreshed by the failed exchange; retry this word. */
++    }
++  }
++  return -1;
++}
++
++static void set_fd_slot_release(void) {
++  if (set_fd_slot < 0)
++    return;
++  int w = set_fd_slot / 64;
++  uint64_t bit = (uint64_t)1 << (set_fd_slot % 64);
++  atomic_fetch_and(&set_fd_slots_taken[w], ~bit);
++  set_fd_slot = -1;
++}
++
++/* fd -> table index for THIS thread, or -1 with EBADF if the fd names another
++   thread's namespace (or none at all). */
++static int fd_to_index(int fd) {
++  if (fd < 0) {
++    errno = EBADF;
++    return -1;
++  }
++  if (fd < SET_FD_UNTAGGED)
++    return fd;
++  int slot = fd >> SET_FD_SLOT_SHIFT;
++  if (slot != set_fd_slot_claim()) {
++    /* Either another thread's descriptor or, if this thread could not claim a
++       slot at all, nothing this thread can name. Fail; never alias. */
++    errno = EBADF;
++    return -1;
++  }
++  return fd & SET_FD_INDEX_MASK;
++}
++
++/* table index -> the fd this thread hands to the program. */
++static int index_to_fd(size_t index) {
++  if (index < SET_FD_UNTAGGED)
++    return (int)index;
++  int slot = set_fd_slot_claim();
++  if (slot < 0) {
++    errno = EMFILE;
++    return -1;
++  }
++  if (index > SET_FD_INDEX_MASK) {
++    errno = EMFILE;
++    return -1;
++  }
++  return (slot << SET_FD_SLOT_SHIFT) | (int)index;
++}
++#define SET_DUP_UNTAGGED_LIMIT (1 << SET_FD_SLOT_SHIFT)
++#else
++#define fd_to_index(fd) (fd)
++#define index_to_fd(index) ((int)(index))
++#define SET_DUP_UNTAGGED_LIMIT MAX_DESCRIPTOR
++#endif
++
+ typedef struct {
+   bool occupied;
+   descriptor_table_entry_t entry;
+@@ -32,7 +170,7 @@ typedef struct {
    size_t next_fd;
  } descriptor_table_t;
  
@@ -158,7 +317,7 @@ index 56d7816..89374f3 100644
  
  /// Grows `table` to have capacity for at least `needed` entries, marking all
  /// newly allocated entries as unoccupied. Returns -1 and sets `errno` on
-@@ -149,7 +149,7 @@ static void clear(descriptor_table_t *table) {
+@@ -149,7 +287,7 @@ static void clear(descriptor_table_t *table) {
    table->len = 0;
  }
  
@@ -167,7 +326,7 @@ index 56d7816..89374f3 100644
  
  static int init_stdio() {
    stdio_initialized = true;
-@@ -162,7 +162,7 @@ static void live_descriptors_dec() {}
+@@ -162,7 +300,7 @@ static void live_descriptors_dec() {}
  #else
  #include <stdio.h>
  
@@ -176,8 +335,211 @@ index 56d7816..89374f3 100644
  
  static void live_descriptors_inc() { live_descriptors += 1; }
  
+@@ -185,7 +323,7 @@ void __wasilibc_assert_no_descriptor_leaks() {
+       if (i < 3) {
+         stdio_open++;
+       } else {
+-        int rc = descriptor_table_remove(i);
++        int rc = descriptor_table_remove(index_to_fd(i));
+         assert(rc == 0);
+         closed++;
+       }
+@@ -229,17 +367,34 @@ int descriptor_table_insert(descriptor_table_entry_t entry) {
+   STRONG_LOCK(global_table.lock);
+   defer STRONG_UNLOCK(global_table.lock);
+ 
+-  return descriptor_table_insert_entry(entry);
++  int index = descriptor_table_insert_entry(entry);
++  if (index < 0)
++    return -1;
++  int fd = index_to_fd((size_t)index);
++  if (fd < 0) {
++    /* No namespace slot: undo the allocation rather than hand back an fd this
++       thread could not name unambiguously. */
++    descriptor_table_entry_t removed;
++    if (table_remove(&global_table, index, &removed) == 0)
++      descriptor_table_entry_dec(removed);
++    errno = EMFILE;
++    return -1;
++  }
++  return fd;
+ }
+ 
+ int descriptor_table_get(int fd, descriptor_table_entry_t *entry) {
+   if (!stdio_initialized && init_stdio() < 0)
+     return -1;
+ 
++  int index = fd_to_index(fd);
++  if (index < 0)
++    return -1;
++
+   STRONG_LOCK(global_table.lock);
+   defer STRONG_UNLOCK(global_table.lock);
+ 
+-  descriptor_table_entry_t *slot = table_lookup(&global_table, fd);
++  descriptor_table_entry_t *slot = table_lookup(&global_table, index);
+   if (!slot)
+     return -1;
+   descriptor_table_entry_inc(*slot);
+@@ -254,19 +409,39 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
+   if (!stdio_initialized && init_stdio() < 0)
+     return -1;
+ 
++  // enclave/SET: `fd` and `arg` are both descriptors in THIS thread's
++  // namespace; the table is indexed by the untagged index. `arg` is translated
++  // per-op because `DUP_OP_DUPFD` takes a *lower bound* rather than a
++  // descriptor that must already exist.
++  int index = fd_to_index(fd);
++  if (index < 0)
++    return -1;
++
+   STRONG_LOCK(global_table.lock);
+   defer STRONG_UNLOCK(global_table.lock);
+ 
+-  descriptor_table_entry_t *entry_ptr = table_lookup(&global_table, fd);
++  descriptor_table_entry_t *entry_ptr = table_lookup(&global_table, index);
+   if (!entry_ptr)
+     return -1;
+ 
+   descriptor_table_entry_t entry = *entry_ptr;
+ 
+   switch (op) {
+-  case DUP_OP_DUP:
++  case DUP_OP_DUP: {
+     descriptor_table_entry_inc(entry);
+-    return descriptor_table_insert_entry(entry);
++    int newindex = descriptor_table_insert_entry(entry);
++    if (newindex < 0)
++      return -1;
++    int newfd = index_to_fd((size_t)newindex);
++    if (newfd < 0) {
++      descriptor_table_entry_t removed;
++      if (table_remove(&global_table, newindex, &removed) == 0)
++        descriptor_table_entry_dec(removed);
++      errno = EMFILE;
++      return -1;
++    }
++    return newfd;
++  }
+ 
+   case DUP_OP_DUP2:
+     if (fd == arg)
+@@ -277,11 +452,14 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
+       errno = EINVAL;
+       return -1;
+     }
+-    if (arg < 0 || arg >= MAX_DESCRIPTOR) {
++    int newindex = fd_to_index(arg);
++    if (newindex < 0)
++      return -1;
++    if (newindex >= MAX_DESCRIPTOR) {
+       errno = EBADF;
+       return -1;
+     }
+-    size_t newfd = arg;
++    size_t newfd = (size_t)newindex;
+ 
+     if (table_grow(&global_table, newfd + 1) < 0)
+       return -1;
+@@ -301,13 +479,27 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
+   }
+ 
+   case DUP_OP_DUPFD: {
+-    if (arg < 0 || arg >= MAX_DESCRIPTOR) {
++    // A LOWER BOUND, not an existing descriptor: translate it leniently, so a
++    // caller passing this thread's own tagged fd and one passing a bare index
++    // both mean the same index.
++    int lower;
++    if (arg < 0) {
++      errno = EINVAL;
++      return -1;
++    } else if (arg < SET_DUP_UNTAGGED_LIMIT) {
++      lower = arg;
++    } else {
++      lower = fd_to_index(arg);
++      if (lower < 0)
++        return -1;
++    }
++    if (lower >= MAX_DESCRIPTOR) {
+       errno = EINVAL;
+       return -1;
+     }
+-    // Search for the lowest unoccupied descriptor >= `arg`, starting at the
+-    // allocation hint if it's already past `arg`.
+-    size_t minfd = arg;
++    // Search for the lowest unoccupied descriptor >= `lower`, starting at the
++    // allocation hint if it's already past it.
++    size_t minfd = (size_t)lower;
+     if (minfd < global_table.next_fd)
+       minfd = global_table.next_fd;
+     while (minfd < global_table.len && global_table.entries[minfd].occupied)
+@@ -315,11 +507,15 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
+     if (table_grow(&global_table, minfd + 1) < 0)
+       return -1;
+ 
++    int newfd = index_to_fd(minfd);
++    if (newfd < 0)
++      return -1;
++
+     descriptor_table_entry_inc(entry);
+     global_table.entries[minfd].occupied = true;
+     global_table.entries[minfd].entry = entry;
+ 
+-    return minfd;
++    return newfd;
+   }
+ 
+   default:
+@@ -331,9 +527,13 @@ int descriptor_table_remove(int fd) {
+   if (!stdio_initialized && init_stdio() < 0)
+     return -1;
+ 
++  int index = fd_to_index(fd);
++  if (index < 0)
++    return -1;
++
+   descriptor_table_entry_t entry;
+   STRONG_LOCK(global_table.lock);
+-  int rc = table_remove(&global_table, fd, &entry);
++  int rc = table_remove(&global_table, index, &entry);
+   STRONG_UNLOCK(global_table.lock);
+   if (rc < 0)
+     return -1;
+@@ -357,3 +557,32 @@ void __wasilibc_descriptor_deallocate(descriptor_table_entry_t entry) {
+   errno = saved_errno;
+   live_descriptors_dec();
+ }
++
++#ifdef __wasilibc_set_threads__
++/* enclave/SET: release everything this thread's descriptor state holds.
++ *
++ * Called from `__pthread_exit`. Two things would otherwise leak per thread and
++ * never be reclaimed: the descriptor table's entries (each of which owns a
++ * component resource handle in this thread's own instance) and its `entries`
++ * array, plus the fd-namespace slot, of which there are only 512.
++ *
++ * NOT called from the trap path (`__enclave_set_thread_died`): dropping a
++ * resource handle is a component call, and a thread that has just trapped is
++ * the last one that should be making more of them. It releases only the
++ * namespace slot, which is a plain atomic. The table of a trapped thread is
++ * leaked, bounded by the live-thread cap.
++ */
++void __wasilibc_set_release_thread_state(void) {
++  if (stdio_initialized) {
++    STRONG_LOCK(global_table.lock);
++    clear(&global_table);
++    STRONG_UNLOCK(global_table.lock);
++    stdio_initialized = false;
++  }
++  __wasilibc_set_release_preopens();
++  set_fd_slot_release();
++}
++
++/* The slot only. See above. */
++void __wasilibc_set_release_thread_fd_slot(void) { set_fd_slot_release(); }
++#endif
 diff --git a/libc-bottom-half/sources/preopens.c b/libc-bottom-half/sources/preopens.c
-index b7301bd..3201c05 100644
+index b7301bd..9c6e424 100644
 --- a/libc-bottom-half/sources/preopens.c
 +++ b/libc-bottom-half/sources/preopens.c
 @@ -103,10 +103,10 @@ typedef struct preopen {
@@ -195,6 +557,33 @@ index b7301bd..3201c05 100644
  
  #ifdef NDEBUG
  #define assert_invariants() // assertions disabled
+@@ -129,6 +129,26 @@ static void assert_invariants(void) {
+ }
+ #endif
+ 
++#ifdef __wasilibc_set_threads__
++/// enclave/SET: drop this thread's preopen table.
++///
++/// The table is thread-local because its entries are libc fds — indices into
++/// THIS thread's descriptor table — so it is per-thread state that nothing
++/// reclaimed when a thread exited. The descriptor table's own `clear()`
++/// releases the underlying resource handles; this releases the prefixes and
++/// the array, and resets the populate-once flag so a recycled thread rebuilds
++/// from its own instance's imports.
++void __wasilibc_set_release_preopens(void) {
++  for (size_t i = 0; i < num_preopens; ++i)
++    free(preopens[i].prefix);
++  free(preopens);
++  preopens = NULL;
++  num_preopens = 0;
++  preopen_capacity = 0;
++  preopens_populated = false;
++}
++#endif
++
+ /// Allocate space for more preopens. Returns 0 on success and -1 on failure.
+ static int resize(void) {
+   size_t start_capacity = 4;
 diff --git a/libc-bottom-half/sources/sockets_utils.c b/libc-bottom-half/sources/sockets_utils.c
 index 9b7bc7b..da838e7 100644
 --- a/libc-bottom-half/sources/sockets_utils.c
@@ -272,6 +661,73 @@ index 39c175b..ee12695 100644
  elseif(ENABLE_COOP_THREADS)
    # cooperative threads implementation for WASI Preview 3
    list(APPEND top_half_sources
+diff --git a/libc-top-half/musl/src/stdio/__lockfile.c b/libc-top-half/musl/src/stdio/__lockfile.c
+index 96d16d1..8e173d5 100644
+--- a/libc-top-half/musl/src/stdio/__lockfile.c
++++ b/libc-top-half/musl/src/stdio/__lockfile.c
+@@ -30,17 +30,45 @@ int __lockfile(FILE *f)
+ 	if ((owner & ~MAYBE_WAITERS) == tid)
+ 		return 0;
+ 	owner = a_cas(&f->lock, 0, tid);
+-	if (!owner) return 1;
++	if (!owner) goto acquired;
+ 	while ((owner = a_cas(&f->lock, 0, tid|MAYBE_WAITERS))) {
+ 		if ((owner & MAYBE_WAITERS) ||
+ 		    a_cas(&f->lock, owner, owner|MAYBE_WAITERS)==owner)
+ 			__futexwait(&f->lock, owner|MAYBE_WAITERS, 1);
+ 	}
++acquired:
++#ifdef __wasilibc_set_threads__
++	/* enclave/SET: register the FILE on this thread's `stdio_locks` list, so
++	 * `__do_orphaned_stdio_locks` can release it if the thread dies holding
++	 * it.
++	 *
++	 * Upstream registers only in `ftrylockfile`/`flockfile` — the EXPLICIT
++	 * locking API — and never here, on the internal `FLOCK` path that every
++	 * `printf`, `fwrite` and `fflush` takes. Under wasi-threads that was
++	 * survivable because a thread dying took the process with it. Under SET
++	 * the siblings keep running, so a worker that trapped inside `printf`
++	 * left `f->lock` holding its dead tid and every later `printf` on ANY
++	 * thread — stderr included — blocked in `__futexwait` for good. The
++	 * orphan sweep could not help because it walks a list the FILE was never
++	 * on.
++	 *
++	 * `flockfile` correspondingly skips its own registration under SET (it
++	 * would double-link and turn the list into a cycle), and `__unlockfile`
++	 * unlinks. */
++	__register_locked_file(f, __pthread_self());
++#endif
+ 	return 1;
+ }
+ 
+ void __unlockfile(FILE *f)
+ {
++#ifdef __wasilibc_set_threads__
++	/* Symmetric with the registration above. A no-op when `funlockfile`
++	 * already unlisted (it zeroes `lockcount` first, which is what
++	 * `__unlist_locked_file` keys on). */
++	__unlist_locked_file(f);
++	f->lockcount = 0;
++#endif
+ 	if (a_swap(&f->lock, 0) & MAYBE_WAITERS)
+ 		__wake(&f->lock, 1, 1);
+ }
+diff --git a/libc-top-half/musl/src/stdio/flockfile.c b/libc-top-half/musl/src/stdio/flockfile.c
+index 8e22065..1116556 100644
+--- a/libc-top-half/musl/src/stdio/flockfile.c
++++ b/libc-top-half/musl/src/stdio/flockfile.c
+@@ -5,5 +5,11 @@ void flockfile(FILE *f)
+ {
+ 	if (!ftrylockfile(f)) return;
+ 	__lockfile(f);
++#ifndef __wasilibc_set_threads__
+ 	__register_locked_file(f, __pthread_self());
++#else
++	/* enclave/SET: `__lockfile` already registered it. Registering again
++	 * would link the FILE to itself and make `__do_orphaned_stdio_locks`
++	 * spin forever on the cycle. */
++#endif
+ }
 diff --git a/libc-top-half/musl/src/stdio/ftrylockfile.c b/libc-top-half/musl/src/stdio/ftrylockfile.c
 index e89f61c..cf940f3 100644
 --- a/libc-top-half/musl/src/stdio/ftrylockfile.c
@@ -462,10 +918,10 @@ index 0000000..9edf5bd
 +
 +	end_function
 diff --git a/libc-top-half/musl/src/thread/wasi-threads/pthread_create.c b/libc-top-half/musl/src/thread/wasi-threads/pthread_create.c
-index f6ff846..8222de1 100644
+index f6ff846..1cf8f48 100644
 --- a/libc-top-half/musl/src/thread/wasi-threads/pthread_create.c
 +++ b/libc-top-half/musl/src/thread/wasi-threads/pthread_create.c
-@@ -16,6 +16,14 @@
+@@ -16,6 +16,28 @@
  #include <assert.h>
  #include <wasi/api.h>
  
@@ -475,12 +931,42 @@ index f6ff846..8222de1 100644
 + * allocator (the SET spawn ABI cannot deliver a host tid to the child). */
 +int __wasi_thread_spawn(void *start_arg);
 +hidden int __wasilibc_set_next_tid(void);
++
++/* Per-thread descriptor state lives in TLS under SET (see
++ * <wasi/descriptor_table.h>) and nothing used to reclaim it: a spawn/exit loop
++ * leaked the table, its `entries` array and the preopen prefixes for the life
++ * of the instance. Released on the normal exit path; the trap path releases
++ * only the fd-namespace slot, because dropping a resource handle is a
++ * component call and a thread that has just trapped should not make more. */
++void __wasilibc_set_release_thread_state(void);
++void __wasilibc_set_release_thread_fd_slot(void);
++
++/* True on every SPAWNED thread, false on the main one. Read by the descriptor
++ * table to reserve fd-namespace slot 0 for the main thread, so its descriptors
++ * keep single-threaded numbering. */
++_Thread_local int __wasilibc_set_is_worker = 0;
 +#endif
 +
  static void dummy_0()
  {
  }
-@@ -267,9 +275,144 @@ struct start_args {
+@@ -95,6 +117,15 @@ static void __pthread_exit(void *result)
+ 
+ 	__pthread_tsd_run_dtors();
+ 
++#ifdef __wasilibc_set_threads__
++	/* After the destructors (which may still use this thread's descriptors)
++	 * and before the thread becomes unreachable. Only for a WORKER: the main
++	 * thread's exit runs `exit(0)` below, and closing its stdio here would
++	 * take stdout away from the atexit handlers. */
++	if (__wasilibc_set_is_worker)
++		__wasilibc_set_release_thread_state();
++#endif
++
+ #ifdef __wasilibc_unmodified_upstream
+ 	__block_app_sigs(&set);
+ #endif
+@@ -267,9 +298,150 @@ struct start_args {
  	void *tls_base;
  	void *(*start_func)(void *);
  	void *start_arg;
@@ -544,6 +1030,12 @@ index f6ff846..8222de1 100644
 +	 * spawn ABI puts the real tid in `start_args` for exactly this reason. */
 +	struct start_args *args = start_arg;
 +	int tid = args ? args->tid : self->tid;
++
++	/* Reclaim only the fd-namespace slot: it is a plain atomic, while
++	 * releasing the descriptor table would mean dropping resource handles,
++	 * i.e. more component calls on a thread that has just trapped. The table
++	 * itself is leaked for a trapped thread, bounded by the live-thread cap. */
++	__wasilibc_set_release_thread_fd_slot();
 +
 +	/* Give joiners a defined result rather than whatever the trap left. */
 +	self->result = PTHREAD_CANCELED;
@@ -625,7 +1117,7 @@ index f6ff846..8222de1 100644
  #ifdef __wasilibc_unmodified_upstream
  static int start(void *p)
  {
-@@ -301,6 +444,7 @@ static int start_c11(void *p)
+@@ -301,6 +473,7 @@ static int start_c11(void *p)
  }
  #else
  
@@ -633,7 +1125,7 @@ index f6ff846..8222de1 100644
  /*
   * We want to ensure wasi_thread_start is linked whenever
   * pthread_create is used. The following reference is to ensure that.
-@@ -309,6 +453,7 @@ static int start_c11(void *p)
+@@ -309,11 +482,17 @@ static int start_c11(void *p)
   */
  void wasi_thread_start(int tid, void *p);
  hidden void *__dummy_reference = wasi_thread_start;
@@ -641,7 +1133,17 @@ index f6ff846..8222de1 100644
  
  hidden void __wasi_thread_start_C(int tid, void *p)
  {
-@@ -537,6 +682,14 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
+ 	struct start_args *args = p;
+ 	pthread_t self = __pthread_self();
++#ifdef __wasilibc_set_threads__
++	/* Before anything can touch the descriptor table: this thread is a
++	 * worker, so it must not take fd-namespace slot 0. */
++	__wasilibc_set_is_worker = 1;
++#endif
+ 	// Set the thread ID (TID) on the pthread structure. The TID is stored
+ 	// atomically since it is also stored by the parent thread; this way,
+ 	// whichever thread (parent or child) reaches this point first can proceed
+@@ -537,6 +716,14 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
  	args->start_func = entry;
  	args->start_arg = arg;
  	args->tls_base = (void*)new_tls_base;
@@ -656,7 +1158,7 @@ index f6ff846..8222de1 100644
  #endif
  
  	__tl_lock();
-@@ -566,6 +719,15 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
+@@ -566,6 +753,15 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
  		if (ret)
  			__wait(&args->control, 0, 3, 0);
  	}

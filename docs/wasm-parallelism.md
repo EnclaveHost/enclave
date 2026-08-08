@@ -198,10 +198,9 @@ could not tell them apart); the machinery is
 `crates/wasmtime/src/runtime/vm/component/set_threads.rs` (new, ~330 lines
 with the design comment).
 
-**Cost note:** each spawn instantiates a view, which allocates a fresh shared
-memory that is immediately dropped when the primary's is swapped in. Measured
-at roughly 200µs per spawn/join cycle on this box (8000 cycles in 1.6s), so
-it is a thread-pool-at-startup mechanism, not something to call per work item.
+**Cost note:** each spawn is a full component instantiation. Measured at
+roughly 200µs per spawn/join cycle on this box (8000 cycles in 1.6s), so it is
+a thread-pool-at-startup mechanism, not something to call per work item.
 
 ### Sharedness, stated exactly
 
@@ -210,46 +209,90 @@ enforced rather than hoped for:
 
 - **memory: physically shared.** The thing SET guests actually coordinate
   through.
-- **tables: per-view**, materialized from the same initializers. Cranelift
+- **tables: per-worker**, materialized from the same initializers. Cranelift
   rejects `table.atomic.*` upstream ("not yet implemented"), so no guest this
   engine can compile is *able* to express cross-thread table mutation.
-- **globals: snapshot at spawn** — for `shared`, PLAIN (numeric/vector)
-  globals only. NON-shared globals are deliberately excluded: under SET an
-  unshared global is per-THREAD state, canonically `__stack_pointer`, and
-  copying the spawner's value would start a worker on the spawner's C shadow
-  stack with both pushing into the same region of shared memory.
-  Reference-typed globals are skipped too, their contents being pointers tied
-  to the primary instance. `global.atomic.*` equally does not
-  compile, and a module with a MUTABLE `shared` global is refused at spawn
-  rather than silently diverging.
-
-Worker execution is bounded rather than exempt: workers take a finite epoch
-deadline (`ENCLAVE_SET_EPOCH_TICKS`, default 600) and trap on it, so an
-epoch-using embedder can interrupt a runaway thread instead of having store
-teardown wedge on the unconditional join; fuel is left at the store default so
-a fuel-metering embedder is not silently bypassed. Spawn still costs a full
-instantiation, but the primary's memories are now swapped in BEFORE the module
-startup function runs, so a spawn no longer initializes a throwaway memory it
-immediately discards.
+- **globals: per-worker, at their INITIAL values.** Nothing is copied from the
+  spawner. Under SET an unshared global is per-THREAD state, canonically
+  `__stack_pointer`, and inheriting the spawner's value would start a worker on
+  the spawner's C shadow stack with both pushing into the same region of shared
+  memory. `global.atomic.*` does not compile, and a module with a MUTABLE
+  `shared` global is refused at spawn rather than silently diverging. (An
+  earlier revision snapshotted plain `shared` globals into a worker; that code
+  is gone along with the design that needed it.)
+- **WASI: per-worker.** Component resource handles are per-instance, so a
+  handle cached in shared memory names nothing in another thread; the libc
+  keeps its descriptor table, stdio streams and preopens in TLS to match, and
+  an fd carries the identity of the thread that owns it, so a cross-thread fd
+  FAILS with `EBADF` instead of aliasing a different file of the same number.
 
 Spawn returns the ABI's `-1` ("spawn failed", which guests are required to
-handle) with a stderr diagnostic for any module shape whose view would not be
-faithful: a non-shared defined memory, an imported table or global, an
-imported core-wasm function, a mutable shared global, a guest `start` section,
-or GC use. Guests take their sequential fallback. This is the fail-closed
-posture the attestation requires: a shape we cannot represent honestly gets
-refused, never approximated.
+handle) with a rate-limited stderr diagnostic for any module shape whose worker
+would not faithfully share state: a non-shared defined memory, NO shared memory
+at all, an imported table/global/memory/tag, a mutable shared global, segmented
+memory initialization, a table with no declared maximum, or GC use. Guests take
+their sequential fallback. This is the fail-closed posture the attestation
+requires: a shape we cannot represent honestly gets refused, never approximated.
 
-### The two soundness invariants, and how each is held
+### Stopping a worker: three paths, because each alone has a hole
 
-The worker holds raw pointers into the primary store (import records whose
-`vmctx`/`from` fields target the primary's instances). Two things keep that
-sound:
+A SET worker is an OS thread running guest code. Making it *stoppable* is the
+part that took three review rounds to get right, and the reason is that a
+thread can be in exactly one of three places, none of which the other two
+reach:
 
-1. **Lifetime.** Every spawn registers its `JoinHandle` with the primary
-   store, and `StoreOpaque::drop` joins them all *before* deallocating
-   anything. A worker parked forever hangs the drop, which is the correct
-   failure — process-level lifetime management owns that case.
+1. **Running compiled code.** Stopped at an EPOCH CHECK. The worker's store
+   takes a small epoch deadline whose callback reads the group's stop flag and
+   either traps or re-arms. Note what this is NOT: a run-time budget. An
+   earlier revision gave workers a deadline of `ENCLAVE_SET_EPOCH_TICKS` (600)
+   and trapped on it, which killed healthy long-running workers AND never fired
+   for the runaway one — because `wasmtime --wasm timeout` bumps the engine
+   epoch exactly ONCE, enough for a deadline of 1 and nothing larger. Measured
+   both ways with `-W timeout=2s`: the default hung at exit 124, and
+   `ENCLAVE_SET_EPOCH_TICKS=1` exited at 2.0s.
+2. **Parked in `memory.atomic.wait`** (every SET mutex and every
+   `pthread_join`). Stopped by the PARKING SPOT polling the same flag on a
+   bounded quantum. The flag now lives on the shared memory's parking spot, not
+   only in a worker thread-local, so the thread that most needs waking — a MAIN
+   thread parked in `pthread_join` after a worker exited — is reached too.
+3. **Blocked in a HOST call.** Reaches no epoch check and is in no parking
+   spot. Stopped by the embedder DROPPING the worker's guest future, which is
+   wasmtime's own cancellation path (`FiberFuture::drop` disposes the fiber).
+   Measured before this existed: 12 s of guest-controlled host block against a
+   1 s embedder timeout, at essentially zero CPU.
+
+**Epoch interruption is therefore a requirement, not a tuning knob.** Without
+`Config::epoch_interruption` the compiled code carries no epoch checks at all,
+and without a PERIODIC ticker nothing advances the epoch. The wasmtime CLI
+turns both on automatically whenever `-W shared-everything-threads` is passed
+(10 ms period); any other embedder must, and `thread.spawn` says so on stderr
+the first time it is asked on an engine that has not.
+
+The measured cost of that instrumentation, on the constant-total-work
+benchmark: ~0% at 1 thread, ~2% at 16, and ~17% at 32 (where SMT siblings
+compete for issue slots and the extra loop-backedge check is no longer free).
+15.8x became **15.5x** and 27.9x became **23.7x**. That is the price of a
+worker that can be stopped, and the earlier numbers were measured on an engine
+where it could not be.
+
+### The soundness invariants, and how each is held
+
+A worker holds **no** pointers into the store that spawned it: its component is
+a refcounted handle, its shared memories are `Arc`s, and its own store owns
+everything else — `SetWorkerRequest` is `Send` without a single `unsafe impl`,
+and the compiler proves it. Two things follow:
+
+1. **Teardown does not have to block, and must not.** `Drop for Store<T>` asks
+   the group to stop, drives all three stop paths, waits on the group's live
+   count with a bound (`ENCLAVE_SET_JOIN_TIMEOUT_MS`, default 2s), and DETACHES
+   a straggler with a loud diagnostic rather than wedging the process. The old
+   unbounded join was inherited from the revision where workers really did
+   borrow the primary's import records; keeping it afterwards meant any
+   non-returning worker wedged teardown forever and pinned a core — and an
+   ORDINARY program reaches that state, by detaching a compute thread and
+   returning from `main` (`tools/parallelism-probe/worker-spin-teardown.c`).
+   A detached worker keeps its process-wide cap slot until it really exits, so
+   leaking them costs the ability to spawn rather than accumulating silently.
 2. **No re-entry.** A worker must never call back into the primary store.
    Component intrinsics and canon-lowered host imports all funnel through
    `ComponentInstance::enter_host_from_wasm`, which now compares the
@@ -561,6 +604,75 @@ reports zero borrows and zero invalid `str`s — and, run against a deliberately
 reverted borrowing ABI, it reports 90 borrows and catches an actually-invalid
 `str`, which is what proves the harness detects rather than merely passing.
 
+### 2026-08-08 (round 3): stoppable workers, and the RAM gate that did not bind
+
+The four-reviewer pass on the round-2 design found **1 CRITICAL + 15 HIGH**.
+Every one of them is fixed here; the ones worth carrying forward as knowledge:
+
+* **A guest could abort the host process.** `wasmtime run` built a worker's
+  embedder context by hand, with only the wasip1 ctx and the store limits set,
+  while the worker instantiated against the PRIMARY's linker — whose accessors
+  `unwrap()` `wasi_nn_wit` / `wasi_http` / `wasi_config` / `wasi_keyvalue` /
+  `wasi_tls`. A worker touching any of them panicked, and `worker_main` turned
+  a panic into `std::process::abort()`. Both halves are fixed: `build_host` is
+  now the ONLY place a CLI `Host` is built, for the primary and every worker
+  alike, and a panic on a worker kills that worker exactly like a trap does.
+  The second half is regression-tested in
+  `tests/all/component_model/set_threads.rs` — a test whose failure mode is
+  that the test binary dies rather than reporting.
+* **Teardown could not stop a worker, and an ordinary program hit it.**
+  Rewritten around a `SetThreadGroup` and three stop paths; see "Stopping a
+  worker" above for why one path is never enough. `Store::drop` now bounds its
+  wait and detaches, which is sound because a worker holds nothing of the
+  store that spawned it.
+* **`-W max-memory-size` did not bind shared memory at all.** Upstream's
+  `SharedMemory::grow` passes no `ResourceLimiter`, so growth escaped it —
+  ~124 MB reached under a 16 MiB cap, even single-threaded. On this platform
+  that flag IS the tenant's purchased RAM ceiling and the SET toolchain links
+  every guest with `--max-memory=1073741824`, so a SET tenant could have grown
+  to 1 GiB whatever it bought. The limiter is now consulted on every shared
+  grow, before the write lock (it may await) with the approved size re-checked
+  under it, so a racing pair cannot exceed the largest approved size. Verified:
+  `worker-mem-grow.c` stops at exactly 16777216 bytes on both threads under
+  `-W max-memory-size=16777216`. **This was the open question for the platform
+  embedder; it is now closed, and it was a real hole.**
+* **A worker's `exit()` wedged the component.** `proc_exit` on a worker
+  unwinds only that worker's store, so the atexit handlers ran (poisoning every
+  FILE lock via `__stdio_exit`), the status vanished, and the main thread hung
+  in `pthread_join`. The engine now carries the status in the group and stops
+  the rest of it; the embedder recognises its own exit error through a new
+  `SetWorkerHost::exit_status`, because `wasmtime` cannot name
+  `wasmtime_wasi::I32Exit`. Note that the *status* is capped by wasip2:
+  `wasi:cli/exit` carries success/failure, not a code.
+* **Cross-thread fds ALIASED rather than failing.** Both threads' tables
+  allocated the lowest free index while musl's `FILE` objects stayed shared, so
+  a worker's fd 4 and main's fd 4 were different files with the same name.
+  Reproduced by writing a worker's buffered secret into main's file with every
+  call returning success. An fd now carries its owner's namespace slot
+  (`worker-fd-alias.c`: worker gets 4194308, main gets 4, cross-thread write
+  gives `EBADF`).
+* **A worker trapping inside `printf` wedged stdio for every thread.** musl
+  registers a FILE on `stdio_locks` only from the EXPLICIT locking API, never
+  from the internal `FLOCK` path that `printf` takes, so the orphan sweep
+  walked a list the FILE was never on. `__lockfile`/`__unlockfile` now register
+  and unregister under SET (and `flockfile` correspondingly does not, or the
+  list becomes a cycle).
+* **The fused-adapter refusal was unreachable AND mis-placed.** It ran after
+  the initializer loop — but core `start` sections run inside that loop — and
+  it could not fire anyway, because FACT emits a shared adapter memory with
+  `maximum: None`, which is invalid wasm, so such a component panicked in
+  `.expect("invalid adapter module generated")` first: a guest-controlled panic
+  inside `Component::new`. It is now a clean compile-time refusal in
+  `partition_adapter_modules`, covering EVERY adapter that needs memory rather
+  than only string transcoders.
+* Also: per-store limits and fuel are per-WORKER (documented, and `--wasm
+  fuel=N` no longer hangs — `run` used to give workers zero, so they trapped
+  before reaching the libc epilogue that releases a joiner); the death hook
+  gets a protected epoch budget, without which it trapped at its own entry on
+  exactly the path that needed it; the refusal diagnostic is time-rate-limited
+  per site instead of `Once` per process; per-thread libc state is reclaimed at
+  thread exit; and `SetViewPlan::install`'s preconditions are real checks.
+
 ### 2026-08-08: the CRITICAL blocker's real cause is vmctx type confusion
 
 The symptom below (`call stack exhausted` on a worker's first import) was
@@ -638,17 +750,26 @@ model for shared-memory threads.
 
 ### What is still NOT done
 
-- **Not in the Dockerfile patch chain, and now with named blockers.**
+- **Not in the Dockerfile patch chain until a fresh adversarial pass clears.**
   `wasm/wasmtime-set-threads.patch.wip` stays out of `wasm/Dockerfile.wasmtime`.
-  Before it can enter the measured TCB, the two BLOCKER findings above must be
-  fixed and re-reviewed: (1) the worker component-call context (so workers can
-  do WASI), and (2) the copy-safe canonical ABI for shared memory (so R4 is
-  sound against a hostile guest). The teardown-deadlock and clobber fixes are
-  landed in the `.wip`. The platform `set` capability plumbing IS wired and
-  tested (probe → `[set-spawn-indirect]` marker → publish stamp → claim gate →
-  per-tenant `-W` flag → fleet-AND, generalising the coop `coopThreads` shape;
-  tests in `test/wasm-set.test.mjs`), and inert until the repin, exactly like
-  the coop capability was — but a repin must wait on the two blockers.
+  The blockers from rounds 1-3 are fixed and the verification bar is met; the
+  engine enters the measured TCB only after a four-reviewer pass on THIS design,
+  which has caught real UB every single time it has been run. The platform `set`
+  capability plumbing IS wired and tested (probe → `[set-spawn-indirect]` marker
+  → publish stamp → claim gate → per-tenant `-W` flag → fleet-AND, generalising
+  the coop `coopThreads` shape; tests in `test/wasm-set.test.mjs`), and inert
+  until the repin, exactly like the coop capability was.
+- **Per-store limits are per-WORKER, and that is a multiplication.**
+  `max-instances`, `max-table-elements`, `max-resources` and `--wasm fuel` are
+  enforced on each worker's own store, so a group of N workers may use up to
+  (1 + N) times the configured amount, bounded by the live-thread cap. Linear
+  MEMORY is the exception and the one that matters on this platform: the shared
+  memory every SET thread actually works in is bound once, by
+  `-W max-memory-size`, from whichever thread grows it.
+- **The libc leaks a trapped thread's descriptor table.** A thread that exits
+  normally reclaims it; a thread that TRAPS releases only its fd-namespace slot,
+  because dropping a resource handle is a component call and a thread that has
+  just trapped should not be making more. Bounded by the live-thread cap.
 - **Rust is still gated on the same LLVM-23 event as coop threads.** The SET
   libc is C-buildable today (wasi-sdk 34's clang 23); `rustc` still emits
   LLVM-22 codegen, so `std::thread` over SET waits on the retirement event
@@ -818,7 +939,9 @@ The engine half is done and measured. The remaining sequence:
    stays out of `wasm/Dockerfile.wasmtime` until the concurrency design in
    `set_threads.rs` has been reviewed by someone who did not write it. It is
    entering a measured TCB; the TSan and soak evidence above is necessary,
-   not sufficient.
+   not sufficient. Three adversarial rounds have now been run and every one
+   found real UB, including a case where the previous round's fix was silently
+   ineffective. Treat a clean round as the bar, not as a formality.
 3. **Platform plumbing.** Already designed and shipped for coop threads, and
    it generalises directly: compile-probe → byte-marker sniff → publish stamp
    → claim gate → per-tenant engine flag → fleet-AND. Add a `set` capability
