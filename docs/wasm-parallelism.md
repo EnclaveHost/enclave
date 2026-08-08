@@ -467,6 +467,43 @@ that scribbles shared memory without a once-flag still re-runs per view — that
 one is in-sandbox, self-inflicted, and the same contract wasi-threads imposes;
 left as a documented residual.)
 
+### 2026-08-08: the CRITICAL blocker's real cause is vmctx type confusion
+
+The symptom below (`call stack exhausted` on a worker's first import) was
+diagnosed on 2026-08-08 and the cause is not what the text predicted. It is not
+stacks, and not a missing async/fiber context — driving the worker's entry
+through `call_async` changes nothing. **Stubbing a view's imports does not work
+at all for a component's core modules.**
+
+Cranelift devirtualizes a call to a statically-known import into a DIRECT call
+to the callee's compiled body, while still loading the callee vmctx out of the
+import slot (`crates/cranelift/src/func_environ.rs`, the
+`KnownFunc::FuncKey(FuncKey::DefinedWasmFunction(..))` arm — "The import is
+always satisfied with the given defined Wasm function, so do a direct call to
+that function!"). Substituting an import at instantiation time cannot redirect
+a call address that was baked in at compile time. So a SET worker runs the
+PRIMARY's compiled code with the stub's `VMArrayCallHostFuncContext` as its
+vmctx: wasm executing against a vmctx of an entirely different type, reading
+memory bases, globals and `stack_limit` out of a host-function allocation.
+`call stack exhausted` is simply what that produces when the callee's prologue
+reads a `stack_limit` that is not one.
+
+Proven, not inferred — `tools/parallelism-probe/set-worker-import-foreign.wat`:
+the view's import slot really does hold the stub (vmctx magic `ACHF`), the stub
+closure is never entered, and the `i32.div_s` by zero written into the
+*primary's* imported function traps on the worker thread. With an empty
+imported function the same probe returns a clean result, which is why every
+earlier probe missed this: they had no imports, and a zero-stack leaf callee
+skips the prologue check that turns the confusion into a visible trap.
+
+This raises the severity. The engine is not merely "sound for pure-compute
+workers"; a worker in any component whose core module imports a sibling's
+function — which is everything `wasm-component-ld` emits — performs wild
+accesses through a mistyped vmctx. Import stubbing has to be abandoned rather
+than repaired: the fix is a full component instantiation per worker, in the
+worker's own store, so that every statically-known direct call lands on code
+whose vmctx is the worker's own.
+
 **BLOCKER — worker threads cannot make component/WASI calls (CRITICAL).** A
 worker execution view can recurse thousands of frames in pure wasm, but its
 FIRST canon-lowered import call (stdout, clock, sockets — any WASI) traps `call
