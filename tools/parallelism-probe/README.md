@@ -79,6 +79,8 @@ wasmtime run $W -S cli worker-io.wasm
 | `worker-block-teardown.c` | a worker asleep 12s in a HOST call does not hold teardown (the third stop path) |
 | `worker-exit.c` | `exit()` on a worker ends the component instead of stranding the joiner |
 | `worker-file-io.c` | **two** file reads/writes with a second thread alive do not deadlock — the object lock `get_read_stream` takes is released |
+| `worker-dir-io-lock.c` | a FAILED stream lookup (`fopen` on a directory) releases that lock too |
+| `worker-ns-exhaust.c` | running out of fd namespaces fails that THREAD, instead of ending the component with no diagnostic |
 | `worker-dup2.c` | `dup2` on a worker returns a descriptor that is actually usable |
 | `worker-fd-alias.c` | a cross-thread fd FAILS with `EBADF` instead of silently aliasing another file |
 | `worker-fd-recycle.c` | a DEAD thread's fd does not become a LIVE thread's fd (namespaces are monotonic, not recycled) |
