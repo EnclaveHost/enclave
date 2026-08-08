@@ -3290,6 +3290,103 @@ def _threads_flags(needs_threads) -> list:
             if needs_threads and _threads_active() else [])
 
 
+# Shared-everything threads (SET ⚡): the OTHER threads model, and the one that
+# buys real cores. A SET guest (wasi-libc ENABLE_SET_THREADS + set-componentize,
+# built by Dockerfile.wasipsetc-build) spawns REAL OS threads that run in
+# PARALLEL inside one component instance over shared linear memory — measured
+# 15.8x on 16 cores. Coop threads (above) interleave on one core; these do not.
+# The distinction is kept sharp in docs/wasm-parallelism.md, and it drives a
+# SEPARATE capability because the engine surface, the toolchain and the
+# thread-count blast radius all differ.
+#
+# Serving one takes the enclave wasmtime with wasm/wasmtime-set-threads.patch
+# AND `-W shared-everything-threads` (plus the shared threads/component-model-
+# threading/shared-memory flags the spawn intrinsics ride on). Same HELP-IS-A-
+# LIAR discipline as coop: prove it by COMPILING the exact `thread.spawn-indirect`
+# construct the toolchain emits, never by grepping help text. Unproven ⇒ drop
+# the flag and refuse SET guests readably at launch (never exit-2 the box).
+_SET_ENV_ENABLED = os.environ.get("WASM_SET_THREADS", "1").lower() not in ("0", "false", "no")
+_SET_FLAG = None       # None = not probed yet; True/False = the binary's answer
+
+# The probe: a shared-memory core module and one `thread.spawn-indirect` canon
+# builtin over its exported plain funcref table — the exact construct
+# set-componentize wires and pthread_create lowers to. Text WAT (wasmtime parses
+# .wat natively): no binary artifact to ship or drift. If this compiles, the
+# engine carries the spawn path; a help-advertised-but-unpatched wasmtime fails
+# it (the intrinsic bails at translation without the patch).
+_SET_PROBE_WAT = """(component
+  (core type $start (func (param i32)))
+  (core module $m
+    (memory (export "memory") 1 1 shared)
+    (table (export "t") 1 1 funcref)
+  )
+  (core instance $i (instantiate $m))
+  (alias core export $i "t" (core table $tbl))
+  (core func $spawn (canon thread.spawn-indirect $start (table $tbl)))
+)
+"""
+
+
+def _set_supported() -> bool:
+    global _SET_FLAG
+    if _SET_FLAG is not None:
+        return _SET_FLAG
+    if MOCK:
+        _SET_FLAG = True
+        return _SET_FLAG
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            wat = pathlib.Path(td) / "set-probe.wat"
+            wat.write_text(_SET_PROBE_WAT)
+            r = subprocess.run([WASMTIME, "compile",
+                                "-W", "threads,shared-everything-threads,"
+                                      "component-model-threading,shared-memory",
+                                str(wat), "-o", str(pathlib.Path(td) / "probe.cwasm")],
+                               capture_output=True, text=True, timeout=30)
+        _SET_FLAG = r.returncode == 0
+    except Exception as e:
+        print(f"wasm-manager: could not probe shared-everything-threads support ({e}); "
+              f"launching without the flag", flush=True)
+        _SET_FLAG = False
+    if not _SET_FLAG:
+        print("wasm-manager: this wasmtime cannot compile the thread.spawn-indirect probe — "
+              "SET (shared-everything-threads) guests are refused at launch with a readable "
+              "error (/health carries `set`).", flush=True)
+    return _SET_FLAG
+
+
+def _set_active() -> bool:
+    """The box serves SET guests: the binary proved the spawn intrinsic and the
+    operator switch is on. Unlike coop threads, SET rides on wasip2 (its libc is
+    the wasip2 flavor), so it does NOT gate on p3 being live."""
+    return _SET_ENV_ENABLED and _set_supported()
+
+
+def _needs_set_threads(wasm) -> bool:
+    """Does this component spawn SET threads? set-componentize wires the spawn
+    canon under the import string `[set-spawn-indirect]`, which sits verbatim in
+    the component bytes — the same raw-scan exactness as the coop `[thread-`
+    marker and the wasi:-string world scan. A component that skipped
+    componentization carries the libc's `-1` stub instead and does NOT match, so
+    it correctly routes as a plain (single-threaded-fallback) app."""
+    try:
+        return b"[set-spawn-indirect]" in pathlib.Path(wasm).read_bytes()
+    except OSError:
+        return False
+
+
+def _set_flags(needs_set) -> list:
+    # per-tenant, not blanket: SET is experimental engine surface AND spawns
+    # node-wide OS threads, so only guests that carry the marker arm it. The
+    # four flags are the spawn intrinsics' full dependency set (threads +
+    # shared-everything-threads + component-model-threading + shared-memory);
+    # the engine's live-thread cap (ENCLAVE_MAX_SET_THREADS, derived from the
+    # tenant's ENCLAVE_AVAILABLE_PARALLELISM) is what bounds the blast radius.
+    return (["-W", "threads,shared-everything-threads,"
+             "component-model-threading,shared-memory"]
+            if needs_set and _set_active() else [])
+
+
 _SERVE_HELP = None
 
 
@@ -3316,7 +3413,7 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
                nn=False, enclave_config=None, vol_mounts=None, egress=None, egress_transparent=None,
                enc=None, gpu_share: float = 0.0, nn_report=None, secrets=None,
                cpu_share: float = 0.0, nn_resident_other: int = 0, hosts="", wasi_contract=None,
-               threads=False):
+               threads=False, set_threads=False):
     """The wasmtime invocation for a ports spec. Returns (cmd, host_port, wait_ports).
     `nn_report`, when a dict, is filled with the wasi-nn preload plan:
     {"emitted": [vol...], "skipped": {vol: why}, "stages": {vol: "kind::dir"},
@@ -3664,7 +3761,7 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     lb_args = ["-S", "loopback-allow=" + "+".join(str(p) for p in sorted(_lb))] if _loopback_flag_supported() else []
     if pspec["serve"]:
         return ([WASMTIME, "serve", "-Scli", "-Shttp", *_p3_flags(), *_p3_tuning(enclave_config, wasi_contract),
-                 *_threads_flags(threads),
+                 *_threads_flags(threads), *_set_flags(set_threads),
                  *nn_args, *fs_args, *cfg_args, *vol_args,
                  *egress_args, *lb_args, "-W", f"max-memory-size={mem_bytes}",
                  "--addr", f"{HOST_IP}:{serve_port}", str(wasm)],
@@ -3730,7 +3827,7 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     # off-box connect but refuses loopback outside this deployment's own set.
     # That is what keeps a port-serving app off its neighbours' sockets without
     # taking away the raw network it was granted.
-    cmd = [WASMTIME, "run", "-Scli", *_p3_flags(), *_threads_flags(threads), *nn_args, "-Stcp", "-Sudp",
+    cmd = [WASMTIME, "run", "-Scli", *_p3_flags(), *_threads_flags(threads), *_set_flags(set_threads), *nn_args, "-Stcp", "-Sudp",
            *net_args, *lb_args, "-Sallow-ip-name-lookup", *fs_args, *cfg_args, *vol_args,
            "-W", f"max-memory-size={mem_bytes}",
            "--env", "ENCLAVE_PORTS=" + enclave_ports, str(wasm)]
@@ -3860,6 +3957,20 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
         rec["status"] = "failed"
         rec["error"] = (f"app uses cooperative threads (wasip3 \U0001f9f5) but this box "
                         f"cannot serve them ({why}); a thread-capable enclave must claim it")
+        return rec
+    # Shared-everything threads (SET ⚡): same doctrine as coop, one model over.
+    # A SET-linked guest carries the `[set-spawn-indirect]` marker and needs the
+    # patched engine; on a box without it, spawning would refuse at runtime and
+    # the app would silently fall back to one thread — so fail HERE with the
+    # readable truth instead, the way p3 and coop do.
+    needs_set = _needs_set_threads(wasm)
+    rec["set"] = needs_set
+    if needs_set and not _set_active():
+        why = ("WASM_SET_THREADS=0 (operator switch)" if not _SET_ENV_ENABLED
+               else "this wasmtime cannot run the thread.spawn-indirect builtin")
+        rec["status"] = "failed"
+        rec["error"] = (f"app uses shared-everything threads (SET ⚡) but this box "
+                        f"cannot serve them ({why}); a SET-capable enclave must claim it")
         return rec
 
     # per-deployment config: the approved catalog version's config JSON, passed
@@ -4003,7 +4114,7 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
            "nn": nn, "enclave_config": enclave_config, "vol_mounts": vol_mounts, "gpu_share": gpu_share,
            "log_path": log_path, "egress": egress, "enc": enc, "secrets": secrets,
            "hosts": _validate_hosts(hosts), "wasi": contract["wasi"],
-           "threads": needs_threads}
+           "threads": needs_threads, "set": needs_set}
     return _spawn_and_wait(rec, ctx)
 
 
@@ -4145,7 +4256,8 @@ def _spawn_and_wait(rec, ctx):
                                             secrets=ctx.get("secrets"), cpu_share=cpu_share,
                                             nn_resident_other=_nn_resident_bytes(exclude=rec["id"]),
                                             hosts=ctx.get("hosts", ""), wasi_contract=ctx.get("wasi"),
-                                            threads=ctx.get("threads", False))
+                                            threads=ctx.get("threads", False),
+                                            set_threads=ctx.get("set", False))
     # the preload plan, public on the record: what the boot preload will
     # attempt (nnPreloads) and why the rest won't (nnSkipped). The watchdog
     # sweep compares this against what a launch would emit NOW; the log
@@ -4955,6 +5067,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                     # WASM_COOP_THREADS not switched off — same forwarding,
                                     # same claim-gate role, for versions marked `threads`
                                     "coopThreads": _threads_active(),
+                                    # this box serves shared-everything-thread (⚡) guests: the
+                                    # thread.spawn-indirect compile probe passed AND
+                                    # WASM_SET_THREADS not switched off. Unlike coopThreads it
+                                    # does NOT require p3 (SET rides wasip2). Forwarded and
+                                    # claim-gated for versions marked `set`.
+                                    "set": _set_active(),
                                     **({"gpuVramGb": GPU_VRAM_GB, "gpuVramSource": GPU_VRAM_SRC,
                                         # request-level GPU fair-share (nn-arb): enabled = the
                                         # operator knob; probe = whether the toolchain's client
@@ -5263,7 +5381,7 @@ def main():
     if NN_ARB_ENABLED and NODE_HAS_GPU and NN_ENABLED and not MOCK:
         _start_nn_arbiter()          # GPU work-conserving fair share (tenants connect at launch)
     print(f"wasm-manager on :{PORT} runtime=wasmtime mock={MOCK} apps_dir={APPS_DIR} "
-          f"p3={_p3_active()} coopThreads={_threads_active()} fs={FS_ENABLED} nn={_NN_PROBE['state']}", flush=True)
+          f"p3={_p3_active()} coopThreads={_threads_active()} set={_set_active()} fs={FS_ENABLED} nn={_NN_PROBE['state']}", flush=True)
     if not VMMGR_TOKEN:
         if VMMGR_ALLOW_UNAUTH:
             print("wasm-manager WARNING: no VMMGR_TOKEN/SECRET and VMMGR_ALLOW_UNAUTHENTICATED=1 — "

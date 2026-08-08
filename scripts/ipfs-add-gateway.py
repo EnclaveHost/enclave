@@ -108,7 +108,10 @@ def component_contract(data: bytes):
     # module imports `[thread-new-indirect-v0]` and siblings, length-prefixed
     # names sitting verbatim in the bytes (same raw-scan doctrine as the
     # wasi: strings below). Publish paths stamp it as `threads: true`.
-    out = {"wasi": None, "world": None, "threads": b"[thread-" in data}
+    # `set`: the shared-everything-threads (⚡) marker — set-componentize wires
+    # the spawn canon under `[set-spawn-indirect]`. Independent of `threads`.
+    out = {"wasi": None, "world": None, "threads": b"[thread-" in data,
+           "set": b"[set-spawn-indirect]" in data}
     if len(data) < 8 or data[0:4] != b"\x00asm" or (data[6] | (data[7] << 8)) != 1:
         return out
     exports = set()

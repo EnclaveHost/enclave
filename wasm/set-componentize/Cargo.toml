@@ -1,0 +1,16 @@
+[package]
+name = "set-componentize"
+version = "0.1.0"
+edition = "2021"
+description = "enclave/SET: wire thread.spawn-indirect + thread.available_parallelism canonical builtins into a wasm-component-ld-produced component"
+license = "MIT"
+
+[dependencies]
+anyhow = "1"
+wasmparser = "0.255.0"
+wasm-encoder = "0.255.0"
+wat = "1.255.0"
+
+[profile.release]
+opt-level = 2
+strip = true

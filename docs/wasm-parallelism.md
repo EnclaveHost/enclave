@@ -25,7 +25,7 @@ They get conflated constantly, so:
 |---|---|---|
 | **cooperative threads** (wasip3 🧵) | `pthread`/`std::thread` interleaved on one core — concurrency, thread-shaped code ports | **SHIPPED** 2026-08-07, see docs/wasip3-threads.md |
 | **wasi-threads** (p1) | real OS threads, shared linear memory, true parallelism | deleted upstream (b4b23fe583), **REBUILT here** in `src/commands/run.rs`; core modules only |
-| **shared-everything-threads** (SET) | true parallelism, reachable from a component | **BUILT AND MEASURED** — 27.9x, see below. Not in the Dockerfile chain yet |
+| **shared-everything-threads** (SET) | true parallelism, reachable from a component | **BUILT, MEASURED, AND `clang -pthread` TARGETS IT** — 27.9x; full guest toolchain shipped 2026-08-07, see "The guest toolchain exists now" below. Not in the Dockerfile chain yet (review gate) |
 
 ## UPDATE 2026-08-07 (later the same day): three of those layers turned out to
 ## be buildable, and I built them. The wall is somewhere else.
@@ -350,15 +350,178 @@ every path; live the moment spawn does real work. Fixed with a
 `ThreadSpawnResult` newtype whose sentinel is `u64::MAX - 1`, matching the
 trampoline.
 
-### What is NOT done
+## The guest toolchain exists now (2026-08-07): `clang -pthread` targets SET
 
-- **Guest toolchain (layer 5) is still missing.** wasi-libc has no SET thread
-  model, so today's SET guests are hand-written WAT. The engine is ready; a C
-  or Rust program cannot target it yet. That is the next piece of work and it
-  is large (porting musl's pthreads onto SET primitives).
-- **Not in the Dockerfile patch chain.** `wasm/wasmtime-set-threads.patch.wip`
-  stays out of `wasm/Dockerfile.wasmtime` pending review, per the constraint
-  on anything entering a measured TCB.
+The wall that was "no SET guest toolchain in any language" is down. A C or C++
+program built with `-pthread` now produces a component whose threads run on
+real cores, with no hand-written WAT. Three pieces, all in the repo:
+
+1. **wasi-libc SET thread model** (`wasm/wasi-libc-set-threads.patch`): a new
+   `ENABLE_SET_THREADS` flavor built for `wasm32-wasip2`. It is the
+   wasi-threads (posix) pthread implementation — real threads, shared memory,
+   `memory.atomic` futexes — with two swaps for the shared-everything world:
+
+   - **Spawn is not a host import.** wasi-threads calls the host's
+     `wasi.thread-spawn`; the component model has no such import. Instead
+     `pthread_create` calls through a VOLATILE function pointer
+     (`__enclave_set_spawn_fp`) that defaults to an in-module stub returning
+     -1. The componentizer (below) patches the real `thread.spawn-indirect`
+     builtin into that pointer's table slot. A component that skips
+     componentization still links and runs — single-threaded, because the stub
+     answers -1 and `pthread_create` reports EAGAIN.
+   - **Tids are libc-assigned, not host-assigned.** The SET spawn ABI carries a
+     single i32 context, so the host cannot hand the child a tid. The libc
+     assigns it before spawning and passes it in `start_args` (read by
+     `wasi_set_thread_start.s`), using the engine's spawn return only as a
+     success/failure signal.
+
+2. **set-componentize** (`wasm/set-componentize/`): after `wasm-component-ld`
+   links the core module into a component, this APPENDS the two canonical
+   builtins no linker can express — `thread.spawn-indirect` over the module's
+   `__indirect_function_table`, and `thread.available_parallelism` — plus a
+   static fixup module that `table.set`s them into the libc's spawn/ap slots.
+   It only appends, so no index inside the linked module moves.
+
+3. **The blessed image** `wasm/Dockerfile.wasipsetc-build`: wasi-sdk 34-rc.2
+   clang 23 + the SET-flavored libc + set-componentize, wrapped so
+   `docker run … app.c -o app.wasm` yields a wired component directly. Its
+   in-image smoke test asserts the output is a layer-1 component carrying the
+   `[set-spawn-indirect]` marker the publish path stamps `set: true` from.
+
+Measured end-to-end (a real `pthread_create`/`pthread_join` C program through
+the whole chain onto the SET engine): `user` CPU scales linearly with thread
+count while `real` stays flat — 15.8x on 16 cores, the same curve the
+hand-written WAT probe showed.
+
+### The three engine changes the toolchain forced
+
+Real toolchain output is not hand-tuned WAT, and three engine assumptions had
+to give (all in `wasm/wasmtime-set-threads.patch.wip`, and a small
+`wasm/wasmparser-set-relax.patch` fork):
+
+- **The validator accepts a PLAIN (unshared) spawn type and a plain funcref
+  table.** `clang` emits an ordinary `(func (param i32))` start function and an
+  ordinary `__indirect_function_table`. Upstream wasmparser requires the spawn
+  type and table to be `shared`, because in a one-instance SET implementation a
+  plain start function would race on unshared state. This engine gives every
+  worker its own execution VIEW, so unshared state is per-thread by
+  construction — the relaxation is sound *here* and nowhere the view model
+  doesn't hold. The synthesized spawn import's sharedness now follows the spawn
+  type so a plain-typed guest links against a plain-typed import.
+- **The canonical ABI accepts a SHARED memory.** A threaded component's only
+  memory is shared; refusing shared-memory canonical lowerings would mean no
+  threaded component could call or export anything. Every canon trampoline is
+  main-thread-only (a worker hitting one traps via the cross-thread entry
+  guard), and wasmtime reserves shared memories to their declared max up front,
+  so the base a trampoline copies through never moves under concurrent growth.
+- **Worker views stub every import instead of copying the primary's.** The
+  earlier design copied the primary store's resolved import records and
+  allow-listed component trampolines — which carried raw cross-store pointers
+  into the worker and, worse, broke on real wit-component output (whose shim
+  pattern makes the main module import plain functions of sibling instances).
+  Now `run_view` satisfies every function import with a stub host function in
+  the WORKER's own store that traps ("host APIs and sibling core instances are
+  main-thread-only"). `SpawnPayload` consequently holds NO raw pointers into
+  the primary and is `Send` without a single `unsafe impl`. A guest start
+  section is likewise now ALLOWED and runs once per view — `wasm-ld
+  --shared-memory` emits `__wasm_init_memory` behind an atomic once-flag in
+  shared memory for exactly this instantiation-per-thread pattern.
+
+## The 2026-08-07 adversarial review — and why the engine is NOT fleet-ready
+
+Four independent adversarial reviewers (fresh context, each told to REFUTE, plus
+hostile guests) went at the toolchain-forced engine changes. This is the same
+process that found real UB last time, and it earned its keep again: **one
+CRITICAL, two HIGH, one MEDIUM.** Two are fixed; two are the reason the engine
+stays out of the Dockerfile chain. The lesson holds — a change that needs this
+many fixes on first serious read must soak, and nothing on the fleet waits on
+it. Repro files were under a scratch dir; the mechanisms are recorded here.
+
+**FIXED — teardown deadlock (HIGH).** A SET worker parked in
+`memory.atomic.wait` (the primitive under every SET mutex) is invisible to
+epoch interruption, and `Store::drop` joined workers unconditionally — so a
+worker parked forever hung teardown forever, reachable by ordinary guest code (a
+lock handoff whose releaser traps before it notifies), and under `wasmtime
+serve` it leaked a tokio worker per request and pinned the process-global thread
+slot. The comment claiming epochs rescued this was simply false. Fixed the way
+the review's own key insight pointed: because a worker now holds NO pointers
+into the primary store (stubbed imports, `Arc<SharedMemory>`, by-value globals),
+the blocking join is not required for safety. Teardown now sets a per-worker
+cancellation flag (`parking_spot`) and unparks each worker; a parked futex wakes
+on a bounded poll, raises an interrupt trap, and unwinds out of its own store,
+freeing its slot. Non-worker threads never install the flag, so their wait path
+is byte-identical. Verified: the two hang repros now exit cleanly.
+
+**FIXED — active-data re-init clobber (MEDIUM).** For a module with SEGMENTED
+memory initialization (active data segments — offset via `global.get`,
+extended-const arithmetic, or a >16 MiB sparse span), wasmtime's synthesized
+startup re-applies the segments via a compiled `memory.init` on every spawn,
+into the now-swapped-in SHARED memory, clobbering data the primary and live
+siblings already wrote. The once-flag reasoning only covers `wasm-ld`'s PASSIVE
+segments; active segments were an unguarded path. Fixed fail-closed: spawn now
+refuses a module whose `memory_initialization.is_segmented()`. `wasm-ld
+--shared-memory` output is not segmented, so the real toolchain is unaffected
+(verified: `scale.wasm` still threads); a hand-written segmented guest takes the
+sequential fallback instead of silent corruption. (A hand-written guest `(start)`
+that scribbles shared memory without a once-flag still re-runs per view — that
+one is in-sandbox, self-inflicted, and the same contract wasi-threads imposes;
+left as a documented residual.)
+
+**BLOCKER — worker threads cannot make component/WASI calls (CRITICAL).** A
+worker execution view can recurse thousands of frames in pure wasm, but its
+FIRST canon-lowered import call (stdout, clock, sockets — any WASI) traps `call
+stack exhausted`. So a worker that does I/O fails; only the main thread can.
+Every real threaded program does I/O on workers, so today's toolchain is sound
+only for **pure-compute workers** (parallel number-crunching — exactly what the
+benchmarks are, which is why this hid). The libc compounds it: its thread
+epilogue (release `__thread_list_lock`, set `detach_state`) runs only on the
+normal return path, so a trapped worker used to hang a joining sibling or vanish
+with its result unwritten — the teardown-cancellation fix above turns the hang
+into a clean exit, but the worker's I/O is still lost. The real fix is engine
+work: set up each spawned view's component-call execution context (the
+async/fiber + reentrance state a core→component transition needs) so worker→host
+calls don't spuriously exhaust. Until then, do not advertise real-core threads
+for apps whose workers touch WASI.
+
+**BLOCKER — shared canonical-ABI memory is a host-TCB data race (HIGH).** To let
+a threaded component (whose only memory is `shared`) use the canonical ABI at
+all, the validator was relaxed to accept a shared cabi memory (R4 in the
+wasmparser fork). But the host's canon lift/lower borrows guest memory as Rust
+`&[u8]`/`&mut [u8]` and validates-then-copies — so a hostile guest that races a
+worker's writes against a main-thread canon lift produces an invalid Rust
+`String` (a violated library invariant = UB) and a genuine data race in the host
+TCB. "Base never moves" (true — shared memories are reserved to max) rules out
+OOB/UAF but NOT the race on the contents, which was the crux the original
+justification missed. Upstream refuses shared cabi memory for exactly this
+reason. The correct fix is a copy-safe canonical ABI for shared memory (eagerly
+copy the accessed bytes out through atomic/volatile reads into host-owned
+buffers and validate the copy, per wasmtime's own `Memory::data` doctrine) —
+a substantial, ~25-site change to the canonical lift/lower machinery that is its
+own measured-TCB project. R4 is kept in the out-of-chain `.wip` because without
+it the toolchain's components cannot do ANY canonical I/O (even main-thread
+`printf`), so it is required for the local/benchmark demonstration and is
+sound for the trusted guests that use it there — but it MUST NOT enter the fleet
+chain until the copy-safe path exists. This blocker and the worker-import one
+above both point at the same missing piece: a fully correct component execution
+model for shared-memory threads.
+
+### What is still NOT done
+
+- **Not in the Dockerfile patch chain, and now with named blockers.**
+  `wasm/wasmtime-set-threads.patch.wip` stays out of `wasm/Dockerfile.wasmtime`.
+  Before it can enter the measured TCB, the two BLOCKER findings above must be
+  fixed and re-reviewed: (1) the worker component-call context (so workers can
+  do WASI), and (2) the copy-safe canonical ABI for shared memory (so R4 is
+  sound against a hostile guest). The teardown-deadlock and clobber fixes are
+  landed in the `.wip`. The platform `set` capability plumbing IS wired and
+  tested (probe → `[set-spawn-indirect]` marker → publish stamp → claim gate →
+  per-tenant `-W` flag → fleet-AND, generalising the coop `coopThreads` shape;
+  tests in `test/wasm-set.test.mjs`), and inert until the repin, exactly like
+  the coop capability was — but a repin must wait on the two blockers.
+- **Rust is still gated on the same LLVM-23 event as coop threads.** The SET
+  libc is C-buildable today (wasi-sdk 34's clang 23); `rustc` still emits
+  LLVM-22 codegen, so `std::thread` over SET waits on the retirement event
+  documented in `Dockerfile.wasip3-build`.
 - Cross-instance spawn, mutable shared globals, and shared tables are refused
   rather than implemented. Each needs its own design; none is needed by the
   workloads that motivated this.

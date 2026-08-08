@@ -1,0 +1,126 @@
+--- a/src/validator/component.rs
++++ b/src/validator/component.rs
+@@ -2390,6 +2390,11 @@
+             offset,
+         )?;
+         let core_type_id = self.validate_spawn_type(func_ty_index, types, offset)?;
++        // enclave/SET: the synthesized spawn function's sharedness FOLLOWS the
++        // spawn type (see `validate_spawn_type`), so a spec-shaped guest
++        // (shared start type) and a toolchain-shaped guest (plain start type)
++        // both link against an import of the exact type they declared.
++        let spawn_shared = types[core_type_id].composite_type.shared;
+ 
+         // Insert the core function.
+         let packed_index = PackedIndex::from_id(core_type_id).ok_or_else(|| {
+@@ -2397,7 +2402,7 @@
+         })?;
+         let start_func_ref = RefType::concrete(true, packed_index);
+         let func_ty = FuncType::new([ValType::Ref(start_func_ref), ValType::I32], [ValType::I32]);
+-        let core_ty = SubType::func(func_ty, true);
++        let core_ty = SubType::func(func_ty, spawn_shared);
+         let id = types.intern_sub_type(core_ty, offset);
+         self.core_funcs.push(id);
+ 
+@@ -2416,7 +2421,10 @@
+             "`thread.spawn-indirect` requires the shared-everything-threads proposal",
+             offset,
+         )?;
+-        let _ = self.validate_spawn_type(func_ty_index, types, offset)?;
++        let core_type_id = self.validate_spawn_type(func_ty_index, types, offset)?;
++        // enclave/SET: synthesized sharedness follows the spawn type, as in
++        // `thread_spawn_ref` above.
++        let spawn_shared = types[core_type_id].composite_type.shared;
+ 
+         // Check this much like `call_indirect` (see
+         // `OperatorValidatorTemp::check_call_indirect_ty`), but loosen the
+@@ -2425,27 +2433,44 @@
+         // https://github.com/WebAssembly/component-model/blob/main/design/mvp/CanonicalABI.md#-canon-threadspawn-indirect.
+         let table = self.table_at(table_index, offset)?;
+ 
++        // enclave/SET: accept BOTH the spec shape (a shared table of
++        // `(ref null (shared func))`) and the toolchain shape (a plain
++        // `funcref` table — LLVM's own `__indirect_function_table`). On this
++        // engine "unshared" module state is per-execution-view, i.e.
++        // per-thread, so a plain table is sound here: the element is resolved
++        // once, on the spawning thread, which owns the store. The expected
++        // sharedness mirrors the actual table so exactly one of the two
++        // shapes is checked, never a mixture.
++        let expected_element = if table.shared {
++            RefType::FUNCREF
++                .shared()
++                .expect("a funcref can always be shared")
++        } else {
++            RefType::FUNCREF
++        };
+         SubtypeCx::table_type(
+             table,
+             &TableType {
+                 initial: 0,
+                 maximum: None,
+                 table64: false,
+-                shared: true,
+-                element_type: RefType::FUNCREF
+-                    .shared()
+-                    .expect("a funcref can always be shared"),
++                shared: table.shared,
++                element_type: expected_element,
+             },
+             offset,
+         )
+         .map_err(|mut e| {
+-            e.add_context("table is not a 32-bit shared table of (ref null (shared func))".into());
++            e.add_context(
++                "table is not a 32-bit table of (ref null func) or shared \
++                 (ref null (shared func))"
++                    .into(),
++            );
+             e
+         })?;
+ 
+         // Insert the core function.
+         let func_ty = FuncType::new([ValType::I32, ValType::I32], [ValType::I32]);
+-        let core_ty = SubType::func(func_ty, true);
++        let core_ty = SubType::func(func_ty, spawn_shared);
+         let id = types.intern_sub_type(core_ty, offset);
+         self.core_funcs.push(id);
+ 
+@@ -2469,9 +2494,14 @@
+             ComponentCoreTypeId::Module(_) => bail!(offset, "expected a core function type"),
+         };
+         let sub_ty = &types[core_type_id];
+-        if !sub_ty.composite_type.shared {
+-            bail!(offset, "spawn type must be shared");
+-        }
++        // enclave/SET: a PLAIN (unshared) spawn type is accepted in addition
++        // to the spec's shared one. The upstream requirement exists because in
++        // a one-instance SET implementation a spawned function races on all
++        // unshared state; this engine gives every spawned thread its own
++        // execution view, where unshared state is per-thread by construction,
++        // so a plain start function (what `clang -pthread` emits) is sound.
++        // The sharedness still propagates into the synthesized spawn import's
++        // type via the callers above.
+         match &sub_ty.composite_type.inner {
+             CompositeInnerType::Func(func_ty) => {
+                 if func_ty.params() != [ValType::I32] {
+@@ -4492,11 +4522,20 @@
+     /// memory. Notably this disallows shared memory.
+     fn cabi_memory_at(&self, idx: u32, offset: usize) -> Result<PtrSize> {
+         let ty = self.memory_at(idx, offset)?;
++        // enclave/SET: a SHARED canonical-ABI memory is accepted. Upstream
++        // disallows it out of CABI-on-shared-memory conservatism, but a SET
++        // (`wasm-ld --shared-memory`) component's ONLY memory is shared, so
++        // keeping the refusal means no threaded component could call or
++        // export any canonical function at all. On this engine every canon
++        // trampoline is main-thread-only (a worker entering one hits the
++        // cross-thread entry guard and traps), and wasmtime reserves shared
++        // memories to their declared maximum up front, so the base address a
++        // trampoline copies through never moves under concurrent growth.
+         let valid_memory_type = MemoryType {
+             initial: 0,
+             maximum: None,
+             memory64: ty.memory64,
+-            shared: false,
++            shared: ty.shared,
+             page_size_log2: ty.page_size_log2,
+         };
+         if ty.memory64 {

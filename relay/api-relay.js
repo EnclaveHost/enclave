@@ -1141,6 +1141,11 @@ function aggregateAvailability() {
     // probe (coopThreads on each runner's availability). Same fleet-AND
     // reasoning as p3, same per-box canary escape hatch.
     coopThreads: serving.length > 0 && serving.every((e) => e.availability?.coopThreads === true),
+    // Shared-everything threads (⚡), one more capability over: `set: true`
+    // versions route only to boxes whose engine passed the thread.spawn-indirect
+    // compile probe (`set` on each runner's availability). Same fleet-AND and
+    // per-box canary escape hatch as p3/coopThreads.
+    set: serving.length > 0 && serving.every((e) => e.availability?.set === true),
     // the CHEAPEST posted price across the claiming fleet, USDC 6dp/sec for a
     // whole node / whole card. Each enclave sets its own (registry entry), so
     // "what does this cost" is a fleet-minimum question now, not a contract

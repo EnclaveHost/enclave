@@ -1,3 +1,30 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index ebf27ee..a7f4620 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -4630,8 +4630,6 @@ dependencies = [
+ [[package]]
+ name = "wasmparser"
+ version = "0.254.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d5769a29f799fbab136aaf65b4fe5384cd7d93fe6fc9ba0dcb6c8382a1f16e27"
+ dependencies = [
+  "bitflags 2.11.1",
+  "hashbrown 0.17.0",
+diff --git a/Cargo.toml b/Cargo.toml
+index 6aafcf9..651816f 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -790,3 +790,9 @@ fpr = "fpr"
+ 
+ [workspace.metadata.typos.files]
+ extend-exclude = [ "docs/js/mermaid*.js", "crates/wasi-nn/**/*.txt", "*.isle" ]
++
++# enclave/SET: wasmparser fork — accepts a PLAIN spawn type/table for the
++# thread.spawn-* canon builtins (this engine gives workers per-thread views,
++# so unshared state is per-thread; see vendor/wasmparser edits + docs).
++[patch.crates-io]
++wasmparser = { path = "vendor/wasmparser" }
 diff --git a/crates/cli-flags/src/lib.rs b/crates/cli-flags/src/lib.rs
 index 2a2b0f6..9399114 100644
 --- a/crates/cli-flags/src/lib.rs
@@ -365,24 +392,28 @@ index d5e8c41..57afb9d 100644
                  let index = self.result.trampolines.push((
                      *func,
 diff --git a/crates/environ/src/module.rs b/crates/environ/src/module.rs
-index 98e5510..9d6213c 100644
+index 98e5510..2157c04 100644
 --- a/crates/environ/src/module.rs
 +++ b/crates/environ/src/module.rs
-@@ -192,6 +192,13 @@ pub struct Module {
+@@ -192,6 +192,17 @@ pub struct Module {
      /// Whether or not this module has a start function,
      pub startup: ModuleStartup,
  
 +    /// enclave/SET: whether the guest itself declared a `(start ...)`
 +    /// section. `startup` above conflates that with wasmtime-synthesized
-+    /// initialization (table segments, complex globals), and the SET spawn
-+    /// path must refuse modules with guest start code while still running the
-+    /// synthesized initialization in each execution view.
++    /// initialization (table segments, complex globals). The SET spawn path
++    /// used to refuse guest start sections outright; it now runs them once
++    /// per execution view — the `wasm-ld --shared-memory` ABI emits
++    /// `__wasm_init_memory` behind an atomic once-flag in shared memory for
++    /// exactly this instantiation-per-thread pattern (see the design comment
++    /// in `set_threads.rs`). The flag is kept for diagnostics and future
++    /// policy.
 +    pub has_guest_start: bool,
 +
      /// Precompute per-table static images, if applicable.
      ///
      /// This map tracks, for each defined table in this module, the initial
-@@ -305,6 +312,7 @@ impl Module {
+@@ -305,6 +316,7 @@ impl Module {
              initializers: Default::default(),
              exports: Default::default(),
              startup: ModuleStartup::None,
@@ -390,7 +421,7 @@ index 98e5510..9d6213c 100644
              table_initialization: Default::default(),
              memory_initialization: Default::default(),
              passive_elements: Default::default(),
-@@ -613,6 +621,7 @@ impl TypeTrace for Module {
+@@ -613,6 +625,7 @@ impl TypeTrace for Module {
              initializers: _,
              exports: _,
              startup,
@@ -398,7 +429,7 @@ index 98e5510..9d6213c 100644
              table_initialization: _,
              memory_initialization: _,
              passive_elements: _,
-@@ -665,6 +674,7 @@ impl TypeTrace for Module {
+@@ -665,6 +678,7 @@ impl TypeTrace for Module {
              initializers: _,
              exports: _,
              startup,
@@ -522,9 +553,18 @@ index ede512d..d329405 100644
                  &TY
              }
 diff --git a/crates/wasmtime/src/runtime/instance.rs b/crates/wasmtime/src/runtime/instance.rs
-index 53fd54f..4e4bf73 100644
+index 53fd54f..10e721a 100644
 --- a/crates/wasmtime/src/runtime/instance.rs
 +++ b/crates/wasmtime/src/runtime/instance.rs
+@@ -208,7 +208,7 @@ impl Instance {
+         unsafe { Instance::new_started(&mut store, module, imports.as_ref(), Asyncness::Yes).await }
+     }
+ 
+-    fn typecheck_externs(
++    pub(crate) fn typecheck_externs(
+         store: &mut StoreOpaque,
+         module: &Module,
+         imports: &[Extern],
 @@ -253,6 +253,29 @@ impl Instance {
          module: &Module,
          imports: Imports<'_>,
@@ -565,10 +605,10 @@ index 53fd54f..4e4bf73 100644
          // at this point in conjunction with analysis at compile time, the
          // instance gets started. Note that this isn't just the wasm start
 diff --git a/crates/wasmtime/src/runtime/store.rs b/crates/wasmtime/src/runtime/store.rs
-index 9cc49ea..1fc16b4 100644
+index 9cc49ea..de4b9d2 100644
 --- a/crates/wasmtime/src/runtime/store.rs
 +++ b/crates/wasmtime/src/runtime/store.rs
-@@ -470,6 +470,17 @@ pub struct StoreOpaque {
+@@ -470,6 +470,24 @@ pub struct StoreOpaque {
  
      instances: TryPrimaryMap<InstanceId, StoreInstance>,
  
@@ -579,14 +619,21 @@ index 9cc49ea..1fc16b4 100644
 +    ///
 +    /// Pruned of finished workers on each spawn, so a guest doing repeated
 +    /// spawn/join rounds does not accumulate handles without bound.
++    ///
++    /// Each entry carries the worker's teardown-cancellation flag alongside its
++    /// join handle: `join_set_threads` sets the flag and unparks the worker so a
++    /// futex parked forever is interrupted rather than blocking teardown.
 +    #[cfg(all(feature = "std", feature = "threads"))]
-+    set_thread_joins: Vec<std::thread::JoinHandle<()>>,
++    set_thread_joins: Vec<(
++        std::thread::JoinHandle<()>,
++        std::sync::Arc<std::sync::atomic::AtomicBool>,
++    )>,
 +
 +
      signal_handler: Option<SignalHandler>,
      modules: ModuleRegistry,
      func_refs: FuncRefs,
-@@ -731,6 +742,8 @@ impl<T> Store<T> {
+@@ -731,6 +749,8 @@ impl<T> Store<T> {
              #[cfg(feature = "stack-switching")]
              continuations: Vec::new(),
              instances: TryPrimaryMap::new(),
@@ -595,7 +642,7 @@ index 9cc49ea..1fc16b4 100644
              signal_handler: None,
              gc_store: None,
              #[cfg(feature = "gc")]
-@@ -1657,6 +1670,49 @@ impl StoreOpaque {
+@@ -1657,6 +1677,66 @@ impl StoreOpaque {
          (self.instances[id].handle.get_mut(), &self.modules)
      }
  
@@ -606,35 +653,52 @@ index 9cc49ea..1fc16b4 100644
 +    /// guest doing repeated spawn/join rounds does not grow this vector
 +    /// without bound. Joining a finished thread does not block.
 +    #[cfg(all(feature = "std", feature = "threads"))]
-+    pub(crate) fn push_set_thread_join(&mut self, handle: std::thread::JoinHandle<()>) {
++    pub(crate) fn push_set_thread_join(
++        &mut self,
++        handle: std::thread::JoinHandle<()>,
++        cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
++    ) {
 +        if self.set_thread_joins.len() >= 64 {
 +            let finished = mem::take(&mut self.set_thread_joins);
-+            for h in finished {
++            for (h, c) in finished {
 +                if h.is_finished() {
 +                    let _ = h.join();
 +                } else {
-+                    self.set_thread_joins.push(h);
++                    self.set_thread_joins.push((h, c));
 +                }
 +            }
 +        }
-+        self.set_thread_joins.push(handle);
++        self.set_thread_joins.push((handle, cancel));
 +    }
 +
-+    /// enclave/SET: block until every worker spawned from this store has
-+    /// finished.
++    /// enclave/SET: cancel and join every worker spawned from this store.
 +    ///
 +    /// Called from `Drop for Store<T>` BEFORE the embedder's `T` is destroyed,
 +    /// and again from `StoreOpaque::drop` for stores torn down by other paths.
 +    /// Draining makes the second call a no-op.
 +    ///
-+    /// This blocks indefinitely by design: a worker still holds raw pointers
-+    /// into this store's instances, so proceeding to deallocate would be a
-+    /// use-after-free. A guest that parks a worker forever therefore hangs its
-+    /// own teardown — see the epoch deadline in `set_threads::run_view`, which
-+    /// is what lets an epoch-using embedder interrupt such a worker.
++    /// The join is safe to block on because a worker holds NO pointers into
++    /// this store: its imports are stubbed in its own `Store<()>`, its shared
++    /// memories are `Arc`s, its globals are by-value snapshots (`SpawnPayload`
++    /// is `Send` with no `unsafe impl`). Still, a worker parked in
++    /// `memory.atomic.wait` would never observe an epoch and would block
++    /// teardown forever — so first set every worker's cancellation flag and
++    /// unpark it. A parked worker then wakes, its wait raises an interrupt trap
++    /// (see `parking_spot`), and it unwinds out of its own store and exits,
++    /// letting the join complete and freeing its live-thread slot. A worker
++    /// running compute (not parked) finishes normally; the flag it never reads
++    /// costs nothing.
 +    #[cfg(all(feature = "std", feature = "threads"))]
 +    pub(crate) fn join_set_threads(&mut self) {
-+        for handle in mem::take(&mut self.set_thread_joins) {
++        use std::sync::atomic::Ordering::Relaxed;
++        let joins = mem::take(&mut self.set_thread_joins);
++        // Signal + unpark everyone first, so parked workers wake concurrently
++        // rather than one-at-a-time behind each blocking join.
++        for (handle, cancel) in &joins {
++            cancel.store(true, Relaxed);
++            handle.thread().unpark();
++        }
++        for (handle, _) in joins {
 +            if let Err(e) = handle.join() {
 +                log::warn!("SET worker thread panicked: {e:?}");
 +            }
@@ -645,7 +709,7 @@ index 9cc49ea..1fc16b4 100644
      /// Access multiple instances specified via `ids`.
      ///
      /// # Panics
-@@ -2408,6 +2464,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
+@@ -2408,6 +2488,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
  
  impl<T> Drop for Store<T> {
      fn drop(&mut self) {
@@ -665,7 +729,7 @@ index 9cc49ea..1fc16b4 100644
          self.run_manual_drop_routines();
  
          // For documentation on this `unsafe`, see `into_data`.
-@@ -2423,6 +2492,14 @@ impl Drop for StoreOpaque {
+@@ -2423,6 +2516,14 @@ impl Drop for StoreOpaque {
          // NB it's important that this destructor does not access `self.data`.
          // That is deallocated by `Drop for Store<T>` above.
  
@@ -731,6 +795,19 @@ index 0d98863..c1da1d5 100644
  
              let gc_layout = match &sub_ty.composite_type.inner {
                  wasmtime_environ::WasmCompositeInnerType::Func(_) => continue,
+diff --git a/crates/wasmtime/src/runtime/vm.rs b/crates/wasmtime/src/runtime/vm.rs
+index 2f503d1..e21782d 100644
+--- a/crates/wasmtime/src/runtime/vm.rs
++++ b/crates/wasmtime/src/runtime/vm.rs
+@@ -73,7 +73,7 @@ mod traphandlers;
+ mod vmcontext;
+ 
+ #[cfg(feature = "threads")]
+-mod parking_spot;
++pub(crate) mod parking_spot;
+ 
+ // Note that `debug_builtins` here is disabled with a feature or a lack of a
+ // native compilation backend because it's only here to assist in debugging
 diff --git a/crates/wasmtime/src/runtime/vm/component.rs b/crates/wasmtime/src/runtime/vm/component.rs
 index de21c67..de86238 100644
 --- a/crates/wasmtime/src/runtime/vm/component.rs
@@ -970,615 +1047,8 @@ index f62ea58..ba4d8e8 100644
  #[cfg(feature = "component-model-async")]
  fn backpressure_modify(
      store: &mut dyn VMStore,
-diff --git a/crates/wasmtime/src/runtime/vm/component/set_threads.rs b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
-new file mode 100644
-index 0000000..4bdbfee
---- /dev/null
-+++ b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
-@@ -0,0 +1,601 @@
-+//! enclave/SET: real OS-thread spawning for the shared-everything-threads
-+//! `thread.spawn-ref` / `thread.spawn-indirect` component intrinsics.
-+//!
-+//! # Design: per-thread execution views over shared instance state
-+//!
-+//! Wasmtime's execution model requires `&mut Store` to enter guest code, and
-+//! per-execution state (stack limits, last-wasm entry/exit SP+FP, the epoch
-+//! deadline, fuel) lives in the store's `VMStoreContext`, reached from the
-+//! instance's vmctx. Two OS threads through one vmctx would therefore corrupt
-+//! each other's execution state — that, not codegen, is what makes a naive
-+//! "share the Store" implementation unsound, and `unsafe impl Sync for Store`
-+//! would merely hide it.
-+//!
-+//! Instead each spawned thread gets its OWN `Store` (so the borrow checker
-+//! keeps enforcing execution exclusivity everywhere, unchanged) holding an
-+//! *execution view* of the primary instance:
-+//!
-+//! * the view is a fresh instantiation of the SAME module, against the SAME
-+//!   already-resolved import records the primary was instantiated with;
-+//! * its defined shared memories are then re-pointed at the primary's
-+//!   `SharedMemory` (an `Arc` whose `VMMemoryDefinition` all instances share,
-+//!   with growth behind a lock — the exact mechanism wasmtime already uses
-+//!   for shared memories between stores), so linear memory is PHYSICALLY the
-+//!   same memory;
-+//! * its plain (numeric/vector) globals are snapshotted from the primary at
-+//!   spawn time;
-+//! * the start function is invoked through the VIEW's own funcref, so all
-+//!   code the thread runs enters through the view's vmctx and the worker
-+//!   store's `VMStoreContext`. Traps, backtraces, signals and epochs work
-+//!   because N threads × N stores is already-supported wasmtime usage.
-+//!
-+//! Sharedness of the state a *valid* SET guest can actually reach from a
-+//! spawned function on this engine:
-+//!
-+//! * memory: physically shared (above);
-+//! * tables: per-view, materialized from the same initializers. Cranelift
-+//!   rejects `table.atomic.*` ("not yet implemented" upstream), so no guest
-+//!   this engine can compile is able to express cross-thread table mutation;
-+//! * globals: snapshot at spawn. `global.atomic.*` equally does not compile,
-+//!   and modules with MUTABLE `shared` globals are refused at spawn (below)
-+//!   rather than silently diverging.
-+//!
-+//! # Lifetime / soundness invariants
-+//!
-+//! The worker holds raw pointers into the primary store (import records whose
-+//! `vmctx`/`from` pointers target the primary component and its instances).
-+//! Those stay valid because:
-+//!
-+//! 1. every spawn registers its `JoinHandle` with the PRIMARY store, and
-+//!    `StoreOpaque::drop` joins them before deallocating anything;
-+//! 2. a worker thread never calls back into the primary store: component
-+//!    intrinsics and canon-lowered host imports all enter through
-+//!    `ComponentInstance::enter_host_from_wasm`, which TRAPS the worker (on
-+//!    the worker's own thread, without touching the other store) if entered
-+//!    from a thread that does not own the component's store. The realistic
-+//!    way to reach it is a nested spawn — a worker spawning another thread —
-+//!    which is reasonable guest code and so must not take the host down.
-+//!
-+//! Spawn refuses (returns the ABI's `-1` failure, with a diagnostic on
-+//! stderr) any module shape whose view would NOT be faithful: non-shared
-+//! defined memories, imported tables/globals, imported core-wasm functions,
-+//! mutable `shared` globals, a wasm `start` section, or GC use — and any
-+//! spawn beyond the live-thread cap (`max_live_threads`), which is what
-+//! bounds a hostile guest's thread creation.
-+
-+use crate::prelude::*;
-+use crate::runtime::vm::component::libcalls::ThreadSpawnResult;
-+use crate::runtime::vm::instance::CopiedImports;
-+use crate::runtime::vm::memory::SharedMemory;
-+use crate::runtime::vm::{Instance as VmInstance, VMFuncRef, VMStore};
-+use crate::store::{Asyncness, StoreOpaque};
-+use crate::{AsContextMut, Engine, Module, Store, Val};
-+use core::pin::Pin;
-+use core::ptr::NonNull;
-+use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-+use wasmtime_environ::component::RuntimeTableIndex;
-+use wasmtime_environ::component::VMCOMPONENT_MAGIC;
-+use wasmtime_environ::{DefinedGlobalIndex, DefinedMemoryIndex, FuncIndex, VMCONTEXT_MAGIC};
-+
-+/// How many workers one store may have running at once.
-+///
-+/// OS threads are a NODE-WIDE kernel resource (`threads-max`, pid space), and
-+/// the cgroup controls this platform applies (`cpu.weight`, `cpu.max`) bound a
-+/// tenant's CPU share but not its thread count — so an uncapped guest loop
-+/// degrades every tenant on the box, not just its own. Measured before this
-+/// cap existed: 200 spawn calls produced 234 live OS threads with no refusal,
-+/// at ~2.3 MB of stack address space each; the binding resource is the thread
-+/// count itself, not memory.
-+///
-+/// The bound is PROCESS-global, not per-store, and that matters: under
-+/// `wasmtime serve` a fresh `Store` is created per HTTP request (wasip2
-+/// reuses an instance once) with up to 1000 concurrent requests, so a
-+/// per-store cap would have been a 1000x under-count of the real thread
-+/// ceiling.
-+///
-+/// It is sized from `thread.available_parallelism`, which reports the
-+/// tenant's purchased slice when the embedder sets
-+/// `ENCLAVE_AVAILABLE_PARALLELISM` and the HOST core count otherwise. Note
-+/// the platform does not set that variable today, so on-fleet this currently
-+/// derives from the node's core count, not the tenant's share — wiring it up
-+/// is a prerequisite for enabling SET, not an optimization. The 4x headroom
-+/// is for pools whose threads block rather than compute.
-+/// `ENCLAVE_MAX_SET_THREADS` overrides it; the floor of 4 keeps a
-+/// single-core tenant able to express a small pool.
-+///
-+/// Exceeding it returns the ABI's documented `-1` ("spawn failed"), which SET
-+/// guests are already required to handle — the same graceful path an
-+/// unsupported module shape takes.
-+fn max_live_threads() -> usize {
-+    use std::sync::OnceLock;
-+    static CACHED: OnceLock<usize> = OnceLock::new();
-+    *CACHED.get_or_init(|| {
-+        if let Ok(v) = std::env::var("ENCLAVE_MAX_SET_THREADS") {
-+            if let Ok(n) = v.trim().parse::<usize>() {
-+                if n > 0 {
-+                    return n;
-+                }
-+            }
-+        }
-+        let par = super::libcalls::available_parallelism() as usize;
-+        par.saturating_mul(4).max(4)
-+    })
-+}
-+
-+/// Epoch ticks a worker may run before it traps, when the embedder uses
-+/// epoch interruption. See the rationale in `run_view`.
-+fn set_worker_epoch_ticks() -> u64 {
-+    use std::sync::OnceLock;
-+    static CACHED: OnceLock<u64> = OnceLock::new();
-+    *CACHED.get_or_init(|| {
-+        std::env::var("ENCLAVE_SET_EPOCH_TICKS")
-+            .ok()
-+            .and_then(|v| v.trim().parse::<u64>().ok())
-+            .filter(|n| *n > 0)
-+            .unwrap_or(600)
-+    })
-+}
-+
-+/// Live SET workers in this PROCESS. See `max_live_threads`.
-+static LIVE_SET_THREADS: AtomicUsize = AtomicUsize::new(0);
-+
-+/// Monotonic SET thread ids handed back to guests. Non-negative i32 range;
-+/// starts at 1 (0 is reserved by convention for "the main thread").
-+static NEXT_SET_THREAD_ID: AtomicU64 = AtomicU64::new(1);
-+
-+/// Everything a worker thread needs to build and run its execution view.
-+struct SpawnPayload {
-+    engine: Engine,
-+    module: Module,
-+    imports: CopiedImports,
-+    shared_memories: Vec<(DefinedMemoryIndex, SharedMemory)>,
-+    global_snapshot: Vec<(DefinedGlobalIndex, [u8; 16])>,
-+    func_index: FuncIndex,
-+    start_arg: i32,
-+    thread_id: i64,
-+}
-+
-+// SAFETY: the raw pointers inside `imports` point at engine-lifetime data
-+// (compiled code, builtin arrays) and at the primary store's component and
-+// core instances. The primary store joins every spawned worker in its `Drop`
-+// before any of that is deallocated, and the cross-thread entry guard in
-+// `enter_host_from_wasm` prevents the worker from ever turning those pointers
-+// into `&mut` access of the primary store.
-+unsafe impl Send for SpawnPayload {}
-+
-+/// `thread.spawn-ref`: `funcref` is the guest's `(ref null (shared func))`
-+/// argument, passed by the trampoline as a raw pointer.
-+pub(crate) fn spawn_ref(
-+    store: &mut dyn VMStore,
-+    funcref: *mut u8,
-+    arg: u32,
-+) -> Result<ThreadSpawnResult> {
-+    let Some(funcref) = NonNull::new(funcref.cast::<VMFuncRef>()) else {
-+        // A null start function can never run; the ABI's failure result is
-+        // reserved for resource exhaustion, so this is a guest bug => trap.
-+        bail!("thread.spawn-ref: start function reference is null");
-+    };
-+    spawn_funcref(store.store_opaque_mut(), funcref, arg)
-+}
-+
-+/// `thread.spawn-indirect`: resolve `elem` in the canon-declared table, on
-+/// the calling (store-owning) thread, then spawn like `spawn-ref`.
-+pub(crate) fn spawn_indirect(
-+    store: &mut dyn VMStore,
-+    instance: crate::component::Instance,
-+    table: RuntimeTableIndex,
-+    elem: u32,
-+    arg: u32,
-+) -> Result<ThreadSpawnResult> {
-+    let store = store.store_opaque_mut();
-+    let func = {
-+        let (component, registry) = instance.id().get_mut_and_registry(store);
-+        component.index_runtime_func_table(registry, table, u64::from(elem))?
-+    };
-+    let Some(func) = func else {
-+        bail!("thread.spawn-indirect: table element {elem} is uninitialized");
-+    };
-+    let funcref = func.vm_func_ref(store);
-+    spawn_funcref(store, funcref, arg)
-+}
-+
-+/// Common spawn path. Runs on the thread that owns the primary store, with
-+/// `&mut StoreOpaque` legally held — every read of primary state happens
-+/// here, not on the worker.
-+fn spawn_funcref(
-+    store: &mut StoreOpaque,
-+    funcref: NonNull<VMFuncRef>,
-+    arg: u32,
-+) -> Result<ThreadSpawnResult> {
-+    // The ABI's graceful failure: log why, hand the guest -1, let it take its
-+    // sequential fallback.
-+    //
-+    // The stderr copy is printed once per REFUSAL REASON (the `static` lives
-+    // in the macro body, so each expansion site gets its own). A guest whose
-+    // module shape is unsupported typically calls spawn in a loop, and the
-+    // diagnostic exists to tell a developer why their threads did not appear —
-+    // not to reprint that answer thousands of times into a tenant's logs.
-+    // `log::warn!` is likewise rate-limited, because an unbounded refusal loop
-+    // is otherwise a free log-volume amplifier.
-+    macro_rules! refuse {
-+        ($($msg:tt)*) => {{
-+            static ONCE: std::sync::Once = std::sync::Once::new();
-+            ONCE.call_once(|| {
-+                log::warn!($($msg)*);
-+                eprintln!(
-+                    "wasmtime: thread.spawn refused: {} (further identical refusals are silent)",
-+                    format_args!($($msg)*)
-+                );
-+            });
-+            return Ok(ThreadSpawnResult::FAILED);
-+        }};
-+    }
-+
-+    let fr = unsafe { funcref.as_ref() };
-+
-+    // The start function must be plain core wasm — a component trampoline or
-+    // host function cannot be the body of a spawned thread.
-+    let vmctx_magic = unsafe { *funcref.as_ref().vmctx.as_non_null().cast::<u32>().as_ref() };
-+    if vmctx_magic != VMCONTEXT_MAGIC {
-+        bail!("thread.spawn: start function is not a core wasm function");
-+    }
-+
-+    // Signature check: the SET spawn ABI start type is `(func (param i32))`.
-+    {
-+        let ty = crate::FuncType::from_shared_type_index(store.engine(), fr.type_index);
-+        let ok = ty.results().len() == 0
-+            && ty.params().len() == 1
-+            && matches!(ty.params().next(), Some(crate::ValType::I32));
-+        if !ok {
-+            bail!("thread.spawn: start function must have type (param i32) -> ()");
-+        }
-+    }
-+
-+    // SAFETY: the magic check above proved this is a core-module vmctx, and
-+    // it belongs to this store's component (checked right below), so deriving
-+    // a shared reference while we hold `&mut StoreOpaque` is sound.
-+    let defining: NonNull<VmInstance> =
-+        unsafe { VmInstance::from_vmctx(funcref.as_ref().vmctx.as_non_null().cast()) };
-+    let defining = unsafe { defining.as_ref() };
-+    if !defining.belongs_to_store(store) {
-+        bail!("thread.spawn: start function belongs to a different store");
-+    }
-+
-+    let Some(func_index) = defining.func_index_of_func_ref(funcref) else {
-+        refuse!("start funcref is not one of its defining instance's escaped functions");
-+    };
-+
-+    // ---- v1 module-shape guards: refuse any shape whose execution view ----
-+    // ---- would not faithfully share state with the primary instance.  ----
-+    let module = defining.env_module();
-+
-+    if module.has_guest_start {
-+        refuse!("module has a wasm `start` section (unsupported on SET threads)");
-+    }
-+    if module.needs_gc_heap {
-+        refuse!("module requires a GC heap (unsupported on SET threads)");
-+    }
-+    for (idx, mem) in module.memories.iter() {
-+        if !mem.shared {
-+            refuse!(
-+                "memory {} is not `shared`; every memory of a module spawning \
-+                 SET threads must be shared",
-+                idx.as_u32()
-+            );
-+        }
-+    }
-+    if module.num_imported_tables != 0 {
-+        refuse!("module imports a table (unsupported on SET threads)");
-+    }
-+    if module.num_imported_globals != 0 {
-+        refuse!("module imports a global (unsupported on SET threads)");
-+    }
-+    // An IMPORTED memory is the dangerous one, not merely unsupported:
-+    // `memory.grow` and `memory.atomic.wait*`/`notify` on an imported memory
-+    // are lowered to call the builtin with the DEFINING instance's vmctx, so
-+    // a worker's futex wait would re-enter the primary store. The core-side
-+    // guard in `Instance::enter_host_from_wasm` now catches that too, but
-+    // refusing here means such a guest gets its sequential fallback instead
-+    // of a trap on its first mutex acquisition.
-+    if module.num_imported_memories != 0 {
-+        refuse!(
-+            "module imports a memory; memory operations on it resolve through \
-+             the defining instance (unsupported on SET threads)"
-+        );
-+    }
-+    if module.num_imported_tags != 0 {
-+        refuse!("module imports a tag (unsupported on SET threads)");
-+    }
-+    // A worker's `Store` carries no `ResourceLimiter` — the primary's lives in
-+    // its embedder data `T`, which the runtime layer cannot reach generically
-+    // — so `table.grow` on a worker would escape the embedder's dynamic cap
-+    // (`-W max-table-elements`). Requiring a DECLARED maximum bounds worker
-+    // table growth to a static property of the module that was validated when
-+    // the primary instantiated it. Residual, documented rather than hidden:
-+    // that static max, not the embedder's dynamic cap, is the worker's bound.
-+    for (idx, table) in module.tables.iter() {
-+        if table.limits.max.is_none() {
-+            refuse!(
-+                "table {} has no declared maximum; unbounded growth on a worker \
-+                 would escape the embedder's table limit",
-+                idx.as_u32()
-+            );
-+        }
-+    }
-+    for (idx, global) in module.globals.iter() {
-+        if global.shared && global.mutability {
-+            refuse!(
-+                "global {} is mutable and `shared`; cross-thread global \
-+                 mutation is not implemented (guests coordinate through \
-+                 shared memory)",
-+                idx.as_u32()
-+            );
-+        }
-+    }
-+    let Some(runtime_module) = defining.runtime_module() else {
-+        refuse!("cannot spawn from a synthetic module");
-+    };
-+    let runtime_module = runtime_module.clone();
-+
-+    let imports = defining.copy_raw_imports();
-+
-+    // Imported functions: ALLOW-LIST, not a deny-list. Only a component
-+    // trampoline may be imported — calling one from a worker fails closed via
-+    // the cross-thread entry guard, and SET validation stops valid guests
-+    // reaching it anyway.
-+    //
-+    // Everything else is refused, including host-function contexts
-+    // (`VM_ARRAY_CALL_HOST_FUNC_MAGIC`). That case would be worse than a
-+    // race: the array-call trampoline is monomorphized over the PRIMARY
-+    // store's data type `T` but would run against the worker's `Store<()>`,
-+    // reinterpreting `()` as `T` — a type confusion, and a use-after-free of
-+    // `T` besides, since `Drop for Store<T>` destroys `T` before the workers
-+    // are joined. I could not construct a component instantiation that puts
-+    // one here, which is exactly why the polarity must be allow-list: this
-+    // must not become reachable by a change elsewhere.
-+    for (i, import) in imports.functions.iter().enumerate() {
-+        let magic = unsafe { *import.vmctx.as_non_null().cast::<u32>().as_ref() };
-+        if magic != VMCOMPONENT_MAGIC {
-+            refuse!(
-+                "imported function {i} is not a component trampoline \
-+                 (cross-instance SET threads are unsupported)"
-+            );
-+        }
-+    }
-+
-+    // ---- reserve a slot under the live-thread cap ----
-+    //
-+    // A compare-exchange loop rather than a blind increment, so a refusal
-+    // never leaves the counter above the cap (which would wedge the store
-+    // into refusing forever).
-+    let cap = max_live_threads();
-+    loop {
-+        let cur = LIVE_SET_THREADS.load(Ordering::Acquire);
-+        if cur >= cap {
-+            refuse!(
-+                "live SET thread cap reached ({cap}); raise ENCLAVE_MAX_SET_THREADS \
-+                 or lower the guest's pool size"
-+            );
-+        }
-+        if LIVE_SET_THREADS
-+            .compare_exchange_weak(cur, cur + 1, Ordering::AcqRel, Ordering::Acquire)
-+            .is_ok()
-+        {
-+            break;
-+        }
-+    }
-+    // From here on every early return MUST release the slot.
-+    let slot = SlotGuard(true);
-+
-+    // ---- capture ----
-+    let thread_id = NEXT_SET_THREAD_ID.fetch_add(1, Ordering::Relaxed) as i64;
-+    if thread_id > i64::from(i32::MAX) {
-+        return Ok(ThreadSpawnResult::FAILED);
-+    }
-+    let payload = SpawnPayload {
-+        engine: store.engine().clone(),
-+        module: runtime_module,
-+        imports,
-+        shared_memories: defining.defined_shared_memories_cloned(),
-+        global_snapshot: defining.snapshot_plain_globals(),
-+        func_index,
-+        start_arg: arg as i32,
-+        thread_id,
-+    };
-+
-+    // Size the worker stack from the engine's wasm-stack limit rather than
-+    // taking Rust's 2 MiB default. The limit is computed as
-+    // `stack_pointer - max_wasm_stack` at entry, so if an embedder raises
-+    // `max_wasm_stack` above the thread's real stack, the guard-page check
-+    // never fires and deep guest recursion runs off the end of the stack
-+    // instead of trapping cleanly.
-+    let stack_size = store
-+        .engine()
-+        .config()
-+        .max_wasm_stack
-+        .saturating_add(512 * 1024)
-+        .max(2 * 1024 * 1024);
-+    let handle = std::thread::Builder::new()
-+        .name(format!("set-thread-{thread_id}"))
-+        .stack_size(stack_size)
-+        .spawn(move || worker_main(payload));
-+    match handle {
-+        Ok(handle) => {
-+            // The worker owns the slot now and releases it when it exits.
-+            slot.into_worker();
-+            store.push_set_thread_join(handle);
-+            Ok(ThreadSpawnResult(thread_id as i32))
-+        }
-+        Err(e) => {
-+            // `slot` releases on drop, so a failed spawn does not leak a slot.
-+            log::warn!("thread.spawn: OS thread creation failed: {e}");
-+            Ok(ThreadSpawnResult::FAILED)
-+        }
-+    }
-+}
-+
-+/// Releases a reserved slot unless ownership was handed to a worker. Exists so
-+/// that every early return between reservation and a successful
-+/// `thread::spawn` — including a `?` or a panic — cannot leak a slot and
-+/// permanently shrink the cap.
-+struct SlotGuard(bool);
-+
-+impl SlotGuard {
-+    /// The worker thread now owns this slot and will release it on exit.
-+    fn into_worker(mut self) {
-+        self.0 = false;
-+    }
-+}
-+
-+impl Drop for SlotGuard {
-+    fn drop(&mut self) {
-+        if self.0 {
-+            LIVE_SET_THREADS.fetch_sub(1, Ordering::AcqRel);
-+        }
-+    }
-+}
-+
-+/// Body of a spawned SET thread: build the execution view, run the start
-+/// function, tear the view down.
-+fn worker_main(payload: SpawnPayload) {
-+    let thread_id = payload.thread_id;
-+    // Release this worker's slot under the live-thread cap however it exits —
-+    // normal return, guest trap, or panic. Declared before the work so it
-+    // drops last.
-+    let _slot = SlotGuard(true);
-+
-+    // A guest TRAP is normal operation: it unwinds into `call` inside
-+    // `run_view` and arrives here as `Err`. wasi-threads precedent applies —
-+    // a thread that traps takes the program with it, the way a segfault
-+    // would, because its siblings are mid-computation over memory whose
-+    // invariants the trapping thread may have been halfway through
-+    // re-establishing.
-+    //
-+    // A Rust PANIC is different: it means an engine bug, on a thread holding
-+    // raw pointers into another store, with shared memory in an unknown
-+    // state. Letting it unwind into `std::thread`'s backstop would leave the
-+    // process running on state we have no story for, and would surface only
-+    // as a warning at join time. Catch it and stop.
-+    let result =
-+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_view(payload)));
-+    match result {
-+        Ok(Ok(())) => {}
-+        Ok(Err(e)) => {
-+            // A guest TRAP kills only this worker. Earlier this called
-+            // `process::exit(1)` on the wasi-threads precedent that a trapping
-+            // thread ends the program — but that made a single `unreachable`,
-+            // an out-of-bounds load, or a nested `thread.spawn` into a
-+            // whole-process kill, contradicting the guard's own promise that a
-+            // worker "dies alone", and `exit` runs atexit handlers while
-+            // sibling threads still hold the shared-memory lock and malloc
-+            // arenas, which can hang instead of dying.
-+            //
-+            // The honest cost of dying alone: siblings waiting on this
-+            // thread's futex are not woken, so a guest that loses a worker may
-+            // deadlock itself. That is the guest's own bug to handle, and it
-+            // is strictly better than taking down a runtime serving it and
-+            // (under `wasmtime serve`) its other in-flight requests.
-+            eprintln!("set-thread-{thread_id} trapped (thread ends; siblings continue): {e:?}");
-+        }
-+        Err(_) => {
-+            // The default panic hook has already printed the payload and
-+            // location by this point.
-+            eprintln!(
-+                "wasmtime: fatal: panic on shared-everything-threads worker \
-+                 set-thread-{thread_id}; aborting"
-+            );
-+            std::process::abort();
-+        }
-+    }
-+}
-+
-+fn run_view(payload: SpawnPayload) -> Result<()> {
-+    let mut store: Store<()> = Store::new(&payload.engine, ());
-+
-+    // Workers MUST stay epoch-interruptible. A fresh store's deadline is 0,
-+    // i.e. "trap at the first epoch check", so it has to be set to something
-+    // — but setting it to `u64::MAX` (as this first did) makes a worker
-+    // uninterruptible, and `Store::drop` joins workers unconditionally. One
-+    // guest thread looping forever would then wedge teardown permanently:
-+    // under `wasmtime serve` that consumes a tokio worker thread per request,
-+    // so a handful of requests stop the tenant serving entirely, and the
-+    // embedder's `--wasm timeout` (which is epoch-based) could not intervene.
-+    //
-+    // A finite deadline keeps that escape hatch open: if the embedder runs an
-+    // epoch ticker, runaway workers eventually trap and the join completes.
-+    // The tick count is deliberately generous — epoch semantics are the
-+    // embedder's, so there is no universally correct value — and
-+    // `ENCLAVE_SET_EPOCH_TICKS` tunes it. If the embedder does not use epochs
-+    // at all, no epoch checks are compiled in and process supervision remains
-+    // the backstop; that is the honest residual.
-+    store.set_epoch_deadline(set_worker_epoch_ticks());
-+    store.epoch_deadline_trap();
-+
-+    // Fuel is left at the store default rather than being handed a huge
-+    // budget: if an embedder metered the primary with fuel, silently exempting
-+    // workers would defeat exactly the control they configured.
-+    let _ = &mut store;
-+
-+    let mut ctx = store.as_context_mut();
-+
-+    // Re-instantiate the defining module against the primary's own resolved
-+    // import records, and swap in the primary's shared memories + seed the
-+    // globals BEFORE the module's startup function runs.
-+    //
-+    // The ordering is load-bearing, not tidiness. `needs_startup()` is true
-+    // for passive element/data segments and complex global initializers —
-+    // exactly what `wasm-ld --shared-memory` emits — so startup IS compiled
-+    // wasm, and running it before the swap would both initialize a throwaway
-+    // memory (a full allocation per spawn, reserved to the declared maximum)
-+    // and let initializers read globals that had not been seeded yet.
-+    //
-+    // SAFETY (new_started_with): the import records come verbatim from an
-+    // instantiation of this exact module, so they are type-correct by
-+    // construction; `Send`ing them here is covered by the invariants on
-+    // `SpawnPayload`.
-+    let shared_memories = payload.shared_memories;
-+    let global_snapshot = payload.global_snapshot;
-+    let instance = crate::runtime::vm::assert_ready(unsafe {
-+        crate::Instance::new_started_with(
-+            &mut ctx,
-+            &payload.module,
-+            payload.imports.as_imports(),
-+            Asyncness::No,
-+            move |opaque, instance| {
-+                let id = instance.id();
-+                let mut vminstance: Pin<&mut VmInstance> = opaque.instance_mut(id);
-+                for (index, shared) in shared_memories {
-+                    // SAFETY: no guest code has run in this view yet — this
-+                    // hook is invoked before the startup function — and the
-+                    // memory is declared shared (enforced at spawn), so the
-+                    // vmctx slot is the out-of-line pointer form.
-+                    unsafe {
-+                        vminstance
-+                            .as_mut()
-+                            .replace_defined_memory_with_shared(index, shared);
-+                    }
-+                }
-+                vminstance.write_plain_globals(&global_snapshot);
-+                Ok(())
-+            },
-+        )
-+    })?;
-+    let id = instance.id();
-+
-+    // Invoke the start function through the VIEW's funcref: same compiled
-+    // code as the primary, entered with the view's vmctx and this store's
-+    // execution state.
-+    let func = {
-+        let opaque = ctx.0.store_opaque_mut();
-+        let store_id = opaque.id();
-+        let (vminstance, registry) = opaque.instance_and_module_registry_mut(id);
-+        let funcref = vminstance
-+            .get_func_ref(registry, payload.func_index)
-+            .expect("escaped funcref must exist");
-+        // SAFETY: the funcref lives in an instance owned by this store.
-+        unsafe { crate::Func::from_vm_func_ref(store_id, funcref) }
-+    };
-+
-+    func.call(&mut store, &[Val::I32(payload.start_arg)], &mut [])?;
-+    Ok(())
-+}
 diff --git a/crates/wasmtime/src/runtime/vm/instance.rs b/crates/wasmtime/src/runtime/vm/instance.rs
-index 06ba7e4..11c17e8 100644
+index 06ba7e4..bfe0825 100644
 --- a/crates/wasmtime/src/runtime/vm/instance.rs
 +++ b/crates/wasmtime/src/runtime/vm/instance.rs
 @@ -324,6 +324,60 @@ impl Instance {
@@ -1642,7 +1112,7 @@ index 06ba7e4..11c17e8 100644
          // SAFETY: It's a contract of this function that `vmctx` is a valid
          // pointer with neither the store nor other instances actively in use
          // when this is called, so it should be safe to acquire a mutable
-@@ -506,6 +560,169 @@ impl Instance {
+@@ -506,6 +560,144 @@ impl Instance {
          unsafe { self.vmctx_plus_offset_raw(self.offsets().vmctx_vmglobal_definition(index)) }
      }
  
@@ -1683,31 +1153,6 @@ index 06ba7e4..11c17e8 100644
 +            }
 +        }
 +        None
-+    }
-+
-+    /// Copy this instance's already-resolved raw import records. These are
-+    /// exactly the records `initialize_vmctx` wrote at instantiation and are
-+    /// suitable for re-instantiating the same module against the same
-+    /// arguments.
-+    pub(crate) fn copy_raw_imports(&self) -> CopiedImports {
-+        let module = self.env_module();
-+        CopiedImports {
-+            functions: (0..module.num_imported_funcs)
-+                .map(|i| self.imported_function(FuncIndex::new(i)).clone())
-+                .collect(),
-+            tables: (0..module.num_imported_tables)
-+                .map(|i| self.imported_table(TableIndex::new(i)).clone())
-+                .collect(),
-+            memories: (0..module.num_imported_memories)
-+                .map(|i| self.imported_memory(MemoryIndex::new(i)).clone())
-+                .collect(),
-+            globals: (0..module.num_imported_globals)
-+                .map(|i| self.imported_global(GlobalIndex::new(i)).clone())
-+                .collect(),
-+            tags: (0..module.num_imported_tags)
-+                .map(|i| self.imported_tag(TagIndex::new(i)).clone())
-+                .collect(),
-+        }
 +    }
 +
 +    /// Clone handles to every defined shared memory of this instance.
@@ -1812,36 +1257,159 @@ index 06ba7e4..11c17e8 100644
      /// Get all globals within this instance.
      ///
      /// Returns both import and defined globals.
-@@ -1566,6 +1783,29 @@ unsafe impl InstanceLayout for Instance {
+diff --git a/crates/wasmtime/src/runtime/vm/memory/shared_memory.rs b/crates/wasmtime/src/runtime/vm/memory/shared_memory.rs
+index 9f0721b..6a0b88d 100644
+--- a/crates/wasmtime/src/runtime/vm/memory/shared_memory.rs
++++ b/crates/wasmtime/src/runtime/vm/memory/shared_memory.rs
+@@ -158,7 +158,13 @@ impl SharedMemory {
+ 
+         WAITER.with(|waiter| {
+             let mut waiter = waiter.borrow_mut();
+-            Ok(self.0.spot.wait32(atomic, expected, deadline, &mut waiter))
++            let r = self.0.spot.wait32(atomic, expected, deadline, &mut waiter);
++            // enclave/SET: a worker cancelled at store teardown unwinds via an
++            // interrupt trap instead of returning a wait result to the guest.
++            if crate::runtime::vm::parking_spot::take_worker_cancelled() {
++                return Err(Trap::Interrupt);
++            }
++            Ok(r)
+         })
      }
- }
  
-+/// enclave/SET: a by-value copy of an instance's resolved raw import records,
-+/// used to re-instantiate the same module (as a per-thread execution view)
-+/// against the same arguments. See `vm::component::set_threads`.
-+pub(crate) struct CopiedImports {
-+    pub functions: Vec<VMFunctionImport>,
-+    pub tables: Vec<VMTableImport>,
-+    pub memories: Vec<VMMemoryImport>,
-+    pub globals: Vec<VMGlobalImport>,
-+    pub tags: Vec<VMTagImport>,
+@@ -187,7 +193,12 @@ impl SharedMemory {
+ 
+         WAITER.with(|waiter| {
+             let mut waiter = waiter.borrow_mut();
+-            Ok(self.0.spot.wait64(atomic, expected, deadline, &mut waiter))
++            let r = self.0.spot.wait64(atomic, expected, deadline, &mut waiter);
++            // enclave/SET: see `atomic_wait32`.
++            if crate::runtime::vm::parking_spot::take_worker_cancelled() {
++                return Err(Trap::Interrupt);
++            }
++            Ok(r)
+         })
+     }
+ 
+diff --git a/crates/wasmtime/src/runtime/vm/parking_spot.rs b/crates/wasmtime/src/runtime/vm/parking_spot.rs
+index 7d4a655..ff841f5 100644
+--- a/crates/wasmtime/src/runtime/vm/parking_spot.rs
++++ b/crates/wasmtime/src/runtime/vm/parking_spot.rs
+@@ -13,13 +13,59 @@
+ 
+ use crate::prelude::*;
+ use crate::runtime::vm::{SendSyncPtr, WaitResult};
++use std::cell::{Cell, RefCell};
+ use std::collections::BTreeMap;
+ use std::ptr::NonNull;
+ use std::sync::Mutex;
+-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering::SeqCst};
++use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering::Relaxed, Ordering::SeqCst};
++use std::sync::Arc;
+ use std::thread::{self, Thread};
+ use std::time::{Duration, Instant};
+ 
++// enclave/SET: cancellation for shared-everything-threads workers.
++//
++// A SET worker parked in `memory.atomic.wait` (the primitive under every SET
++// mutex/condvar) is invisible to epoch interruption — epochs are only observed
++// at wasm execution checkpoints, and a parked thread is not executing. Store
++// teardown joins every worker, so a worker parked forever would hang teardown
++// forever (and, under `wasmtime serve`, leak the tokio worker driving it).
++//
++// The fix: while a SET worker runs, it installs a teardown-cancellation flag in
++// this thread-local. `wait()` polls it on a bounded quantum, so a parked worker
++// wakes within `SET_CANCEL_POLL` of the flag being set (teardown also unparks
++// it for immediacy), removes itself from the wait queue, and reports
++// cancellation to the caller, which turns it into an interrupt trap so the
++// worker unwinds out of its own store. Non-worker threads never install the
++// flag, so their wait path is byte-for-byte unchanged.
++const SET_CANCEL_POLL: Duration = Duration::from_millis(50);
++
++thread_local! {
++    /// The running SET worker's teardown-cancellation flag, or `None` on every
++    /// non-worker thread. Installed by `set_threads::run_view`.
++    static SET_WORKER_CANCEL: RefCell<Option<Arc<AtomicBool>>> = const { RefCell::new(None) };
++    /// Set by `wait()` when it returned because the cancel flag fired; read and
++    /// cleared by the atomic-wait caller, which maps it to an interrupt trap.
++    static SET_WORKER_CANCELLED: Cell<bool> = const { Cell::new(false) };
 +}
 +
-+impl CopiedImports {
-+    pub(crate) fn as_imports(&self) -> crate::runtime::vm::Imports<'_> {
-+        crate::runtime::vm::Imports {
-+            functions: &self.functions,
-+            tables: &self.tables,
-+            memories: &self.memories,
-+            globals: &self.globals,
-+            tags: &self.tags,
-+        }
-+    }
++/// enclave/SET: install (or clear, with `None`) this thread's teardown
++/// cancellation flag. A worker calls this around its guest execution.
++pub fn set_worker_cancel(flag: Option<Arc<AtomicBool>>) {
++    SET_WORKER_CANCEL.with(|c| *c.borrow_mut() = flag);
 +}
 +
- pub type InstanceHandle = OwnedInstance<Instance>;
++fn worker_cancel_flag() -> Option<Arc<AtomicBool>> {
++    SET_WORKER_CANCEL.with(|c| c.borrow().clone())
++}
++
++/// enclave/SET: read and clear the "the last wait was cancelled at teardown"
++/// flag. The atomic-wait host call turns a `true` here into an interrupt trap,
++/// so a cancelled worker unwinds out of its store instead of returning to the
++/// guest (which would re-check its condition and re-park).
++pub fn take_worker_cancelled() -> bool {
++    SET_WORKER_CANCELLED.with(|c| c.replace(false))
++}
++
+ #[derive(Default, Debug)]
+ struct Spot {
+     head: Option<SendSyncPtr<WaiterInner>>,
+@@ -153,17 +199,33 @@ impl ParkingSpot {
+             //
+             // To handle spurious wakeups if the thread wakes up but a
+             // notification wasn't received then the thread goes back to sleep.
++            //
++            // enclave/SET: a worker thread additionally polls its teardown
++            // cancellation flag on a bounded quantum (`SET_CANCEL_POLL`), so a
++            // futex parked forever can still be interrupted at store teardown.
++            // The quantum only shortens the park for worker threads; a real
++            // `deadline` still governs the return value, and a plain
++            // quantum-expiry with the condition unmet just re-parks (the guest
++            // asked to wait, so this is an internal spurious wakeup it never
++            // observes).
++            let cancel = worker_cancel_flag();
+             let timed_out = loop {
+                 let timeout = match deadline {
+                     Some(deadline) => {
+                         let now = Instant::now();
+                         if deadline <= now {
+                             break true;
+-                        } else {
+-                            deadline - now
++                        }
++                        let remaining = deadline - now;
++                        match &cancel {
++                            Some(_) => remaining.min(SET_CANCEL_POLL),
++                            None => remaining,
+                         }
+                     }
+-                    None => Duration::MAX,
++                    None => match &cancel {
++                        Some(_) => SET_CANCEL_POLL,
++                        None => Duration::MAX,
++                    },
+                 };
  
- /// A handle holding an `Instance` of a WebAssembly module.
+                 drop(inner);
+@@ -173,6 +235,17 @@ impl ParkingSpot {
+                 if ptr.as_ref().notified {
+                     break false;
+                 }
++                if let Some(flag) = &cancel {
++                    if flag.load(Relaxed) {
++                        // Cancelled at teardown: leave the queue and tell the
++                        // caller, which raises an interrupt trap so this worker
++                        // unwinds out of its store rather than returning to the
++                        // guest.
++                        inner.get_mut(&key).unwrap().remove(ptr);
++                        SET_WORKER_CANCELLED.with(|c| c.set(true));
++                        return WaitResult::TimedOut;
++                    }
++                }
+             };
+ 
+             if timed_out {
 diff --git a/crates/wasmtime/src/runtime/vm/traphandlers.rs b/crates/wasmtime/src/runtime/vm/traphandlers.rs
 index 7ea34b1..9c156ae 100644
 --- a/crates/wasmtime/src/runtime/vm/traphandlers.rs

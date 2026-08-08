@@ -1075,6 +1075,14 @@ function wasiOfConfig(cfg) {
 function threadsOfConfig(cfg) {
   try { return JSON.parse(String(cfg || "{}") || "{}").threads === true; } catch { return false; }
 }
+// Shared-everything threads (SET ⚡), same doctrine one key over: `set: true`
+// is stamped by the publish path when the binary carries the componentizer's
+// [set-spawn-indirect] import. Routing only — the manager re-sniffs the bytes
+// at launch. Undeclared = no SET (fail-open direction, any box serves a
+// non-SET guest). Independent of `threads`: a guest is coop OR SET, not both.
+function setOfConfig(cfg) {
+  try { return JSON.parse(String(cfg || "{}") || "{}").set === true; } catch { return false; }
+}
 function parseDepOptions(raw, gpuMilli) {
   const s = String(raw || "").trim();
   if (!s) return {};
@@ -3130,6 +3138,8 @@ app.get("/availability", async (_req, res) => {
     const p3 = PROVISION_BACKEND === "vm" && h.p3 !== undefined ? { p3: h.p3 === true } : {};
     // cooperative threads: same shape, same AND semantics at the relay
     const cth = PROVISION_BACKEND === "vm" && h.coopThreads !== undefined ? { coopThreads: h.coopThreads === true } : {};
+    // shared-everything threads (SET): same shape, same AND semantics
+    const setc = PROVISION_BACKEND === "vm" && h.set !== undefined ? { set: h.set === true } : {};
     // attached model volumes this enclave carries (Modelwrap): the console and
     // clients read this to know which volumes a deployment here can mount.
     const vols = PROVISION_BACKEND === "vm" && Array.isArray(h.volumes) ? { volumes: h.volumes } : {};
@@ -3158,7 +3168,7 @@ app.get("/availability", async (_req, res) => {
     // card allocator's plan - same contract as the RAM ledger above.
     const vram = PROVISION_BACKEND === "vm" && c.vramBudgetGb
       ? { vramBudgetGb: c.vramBudgetGb, vramCommittedGb: c.vramCommittedGb, vramLedgerFreeGb: c.vramFreeGb } : {};
-    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn, ...lbw, ...p3, ...cth, ...vols, ...ram, ...vram, ...sweep });
+    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn, ...lbw, ...p3, ...cth, ...setc, ...vols, ...ram, ...vram, ...sweep });
   } catch (e) {
     return res.json(shape(maxFreeCpu(), maxFreeGpuShare(), "fallback",
       `${PROVISION_BACKEND === "vm" ? "wasm" : "worker"} manager unreachable`));
@@ -6454,6 +6464,13 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     const th = await vmHealth().catch(() => null);
     if (!th) return "app uses cooperative threads and the app manager cannot be asked (unreachable)";
     if (th.coopThreads !== true) return "app uses cooperative threads and this box's runtime does not serve them";
+  }
+  // Shared-everything threads (⚡): gated exactly like coop threads, on the
+  // manager's own thread.spawn-indirect compile probe (`set` on /health).
+  if (setOfConfig(g.config)) {
+    const sh = await vmHealth().catch(() => null);
+    if (!sh) return "app uses shared-everything threads and the app manager cannot be asked (unreachable)";
+    if (sh.set !== true) return "app uses shared-everything threads and this box's runtime does not serve them";
   }
   // The firewall is the VERSION's declared ports — part of what approval
   // covered. The deployment's own ports field is ignored (create() still

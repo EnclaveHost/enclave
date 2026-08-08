@@ -1971,6 +1971,11 @@ async function cmdPublish(rest) {
   // boxes; the runner re-classifies the bytes at launch (routing, not trust).
   const needsThreads = bytes.includes("[thread-");
   if (needsThreads) say("detected cooperative threads (\u{1F9F5}): only thread-capable enclaves will claim it");
+  // shared-everything threads (⚡): set-componentize wires the spawn canon
+  // under `[set-spawn-indirect]` — same raw-scan doctrine. Stamped `set: true`
+  // so runners route claims to SET-capable boxes. Independent of `threads`.
+  const needsSet = bytes.includes("[set-spawn-indirect]");
+  if (needsSet) say("detected shared-everything threads (\u{26A1}): only SET-capable enclaves will claim it");
 
   // version defaults to the next integer for your app (labels are free-form, matched exactly on deploy)
   let version = f.version;
@@ -2037,6 +2042,12 @@ async function cmdPublish(rest) {
     else if (cfgObj.threads !== undefined) {
       say("--config declared threads but the binary carries no [thread- imports; dropping the key");
       delete cfgObj.threads;
+    }
+    // set: same binary-authoritative BOTH directions as threads.
+    if (needsSet) cfgObj.set = true;
+    else if (cfgObj.set !== undefined) {
+      say("--config declared set but the binary carries no [set-spawn-indirect] import; dropping the key");
+      delete cfgObj.set;
     }
     f.config = JSON.stringify(cfgObj);
     if (Buffer.byteLength(f.config) > 4096) throw new Error("--config too long after the wasi stamp (≤ 4096 bytes)");
