@@ -63,10 +63,10 @@ index 2e33448..f2329ec 100644
  endif()
  
 diff --git a/libc-bottom-half/cloudlibc/src/libc/sys/select/pselect.c b/libc-bottom-half/cloudlibc/src/libc/sys/select/pselect.c
-index 8c05041..afbab9d 100644
+index 8c05041..59c36f6 100644
 --- a/libc-bottom-half/cloudlibc/src/libc/sys/select/pselect.c
 +++ b/libc-bottom-half/cloudlibc/src/libc/sys/select/pselect.c
-@@ -43,8 +43,25 @@ int pselect(int nfds, fd_set *restrict readfds, fd_set *restrict writefds,
+@@ -43,8 +43,32 @@ int pselect(int nfds, fd_set *restrict readfds, fd_set *restrict writefds,
    for (size_t s = 0; s < 3; s++) {
      for (size_t i = 0; i < sets[s].set->__nfds; i++) {
        int fd = sets[s].set->__fds[i];
@@ -74,6 +74,13 @@ index 8c05041..afbab9d 100644
        if (fd >= nfds)
          continue;
 +#else
++      /* Only TAGGED descriptors are exempt. A namespace-0 fd (the main
++         thread's) is an ordinary small dense integer for which `nfds` means
++         exactly what POSIX says, and skipping the filter for those broke
++         `select(0, ...)` as a portable sleep and made lowering `nfds` stop
++         deselecting. */
++      if ((fd >> 13) == 0 && fd >= nfds)
++        continue;
 +      /* enclave/SET: `nfds` cannot be used to filter here.
 +       *
 +       * A descriptor carries its owning thread's namespace in its high bits
@@ -93,35 +100,44 @@ index 8c05041..afbab9d 100644
        while (j < poll_nfds && poll_fds[j].fd != fd)
          ++j;
 diff --git a/libc-bottom-half/cloudlibc/src/libc/unistd/read.c b/libc-bottom-half/cloudlibc/src/libc/unistd/read.c
-index 5ce69fe..82f70f0 100644
+index 5ce69fe..0915b31 100644
 --- a/libc-bottom-half/cloudlibc/src/libc/unistd/read.c
 +++ b/libc-bottom-half/cloudlibc/src/libc/unistd/read.c
-@@ -34,7 +34,9 @@ ssize_t read(int fildes, void *buf, size_t nbyte) {
+@@ -34,7 +34,15 @@ ssize_t read(int fildes, void *buf, size_t nbyte) {
      wasi_read_t read;
      if (entry.vtable->get_read_stream(entry.data, &read) < 0)
        return -1;
-+#ifndef __wasip2__ /* enclave/SET: no io-state lock in the wasip2 shape */
++#ifdef __wasip2__
++    /* enclave/SET: `get_read_stream` took the object's lock and this is the
++       caller that must release it. Deleting this (because the p2 shape has no
++       `state->lock`) is what made the second read on any file or socket
++       deadlock as soon as a second thread existed. */
++    defer { if (read.lock) STRONG_UNLOCK(*read.lock); }
++#else
      defer STRONG_UNLOCK(*read.state->lock);
 +#endif
      return __wasilibc_read(&read, buf, nbyte);
    }
    if (entry.vtable->recvfrom)
 diff --git a/libc-bottom-half/cloudlibc/src/libc/unistd/write.c b/libc-bottom-half/cloudlibc/src/libc/unistd/write.c
-index 0b9dc4f..3228f0f 100644
+index 0b9dc4f..0b1626c 100644
 --- a/libc-bottom-half/cloudlibc/src/libc/unistd/write.c
 +++ b/libc-bottom-half/cloudlibc/src/libc/unistd/write.c
-@@ -35,7 +35,9 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
+@@ -35,7 +35,12 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
      wasi_write_t write;
      if (entry.vtable->get_write_stream(entry.data, &write) < 0)
        return -1;
-+#ifndef __wasip2__ /* enclave/SET: no io-state lock in the wasip2 shape */
++#ifdef __wasip2__
++    /* enclave/SET: see read.c. */
++    defer { if (write.lock) STRONG_UNLOCK(*write.lock); }
++#else
      defer STRONG_UNLOCK(*write.state->lock);
 +#endif
      return __wasilibc_write(&write, buf, nbyte);
    }
    if (entry.vtable->sendto)
 diff --git a/libc-bottom-half/headers/private/wasi/descriptor_table.h b/libc-bottom-half/headers/private/wasi/descriptor_table.h
-index b06b8e6..3735bee 100644
+index b06b8e6..8338a32 100644
 --- a/libc-bottom-half/headers/private/wasi/descriptor_table.h
 +++ b/libc-bottom-half/headers/private/wasi/descriptor_table.h
 @@ -3,6 +3,41 @@
@@ -166,6 +182,55 @@ index b06b8e6..3735bee 100644
  #ifndef __wasip1__
  #include <assert.h>
  #include <netinet/in.h>
+@@ -143,6 +178,19 @@ typedef struct wasi_read_t {
+   // A required pointer to an owned pollable for `input`. This is lazily
+   // initialized as-necessary.
+   poll_own_pollable_t *pollable;
++  // enclave/SET: the object lock `get_read_stream` took and the CALLER must
++  // release, or NULL if it took none.
++  //
++  // The p3 shape carries this as `state->lock`, which is where the vtable
++  // contract's wording comes from. The p2 shape had nowhere to put it, so
++  // `file_get_read_stream` and `tcp_get_read_stream` took `file->lock` /
++  // `tcp->lock` and NOTHING ever released it. That is invisible until threads
++  // exist — `__lock()` returns immediately while `libc.need_locks == 0` — and
++  // becomes a permanent hold the moment the first `pthread_create` sets it, so
++  // the SECOND read or write on any file or socket deadlocks forever.
++  // `stdio_get_read_stream` takes no lock and leaves this NULL, which is why
++  // every `printf`-only probe passed.
++  volatile int *lock;
+ #else
+   wasip3_io_state_t *state;
+ 
+@@ -162,6 +210,8 @@ typedef struct wasi_write_t {
+ #ifdef __wasip2__
+   streams_borrow_output_stream_t output;
+   poll_own_pollable_t *pollable;
++  // enclave/SET: see `wasi_read_t::lock`.
++  volatile int *lock;
+ #else
+   wasip3_io_state_t *state;
+   // A callback/ptr pair to invoke when EOF is reached to set errno and return
+@@ -194,10 +244,15 @@ typedef struct descriptor_vtable_t {
+   /// used to implement the `read` syscall, for example, and is also used with
+   /// `poll` when waiting for readability.
+   ///
+-  /// When threading is enabled for WASIp3+ this additionally acquires the
+-  /// internal lock for the object and the caller must unlock the
+-  /// `read->state->lock` object on success. On failure no locks are held when
+-  /// this returns.
++  /// When threading is enabled this additionally acquires the internal lock
++  /// for the object and the caller must unlock it on success: through
++  /// `read->state->lock` on WASIp3+, and through `read->lock` (which is NULL
++  /// when no lock was taken) on WASIp2. On failure no locks are held when this
++  /// returns.
++  ///
++  /// enclave/SET: the WASIp2 `lock` field exists because SET is the first
++  /// configuration in which WASIp2 has threads at all. Without it the lock
++  /// these callbacks take was simply never released.
+   int (*get_read_stream)(void *, wasi_read_t *);
+   /// Same as `get_read_stream`, but for output streams.
+   int (*get_write_stream)(void *, wasi_write_t *);
 diff --git a/libc-bottom-half/headers/public/wasi/version.h.in b/libc-bottom-half/headers/public/wasi/version.h.in
 index d36ba8c..17a704a 100644
 --- a/libc-bottom-half/headers/public/wasi/version.h.in
@@ -217,10 +282,10 @@ index 44e0fd9..a6b53bd 100644
    // Find a preopen'd directory as well as a relative path we're anchored
    // from which we're changing directories to.
 diff --git a/libc-bottom-half/sources/descriptor_table.c b/libc-bottom-half/sources/descriptor_table.c
-index 56d7816..1119c6b 100644
+index 56d7816..b55b0a0 100644
 --- a/libc-bottom-half/sources/descriptor_table.c
 +++ b/libc-bottom-half/sources/descriptor_table.c
-@@ -15,6 +15,147 @@
+@@ -15,6 +15,155 @@
  
  #define MINSIZE 8
  
@@ -299,9 +364,17 @@ index 56d7816..1119c6b 100644
 +    set_fd_ns = 0;
 +    return 0;
 +  }
-+  uint32_t ns = atomic_fetch_add(&set_fd_next_ns, 1);
-+  if (ns >= SET_FD_MAX_NS)
-+    return -1;
++  /* Saturating CAS, not a bare fetch_add: an unconditional increment wraps at
++     2^32 and starts handing out namespace 0 — the MAIN thread's — which
++     restores the exact silent cross-thread aliasing this mechanism exists to
++     close. Fail closed at the ceiling instead. */
++  uint32_t ns = atomic_load(&set_fd_next_ns);
++  for (;;) {
++    if (ns >= SET_FD_MAX_NS)
++      return -1;
++    if (atomic_compare_exchange_weak(&set_fd_next_ns, &ns, ns + 1))
++      break;
++  }
 +  set_fd_ns = (int)ns;
 +  return set_fd_ns;
 +}
@@ -368,7 +441,7 @@ index 56d7816..1119c6b 100644
  typedef struct {
    bool occupied;
    descriptor_table_entry_t entry;
-@@ -32,7 +173,7 @@ typedef struct {
+@@ -32,7 +181,7 @@ typedef struct {
    size_t next_fd;
  } descriptor_table_t;
  
@@ -377,7 +450,7 @@ index 56d7816..1119c6b 100644
  
  /// Grows `table` to have capacity for at least `needed` entries, marking all
  /// newly allocated entries as unoccupied. Returns -1 and sets `errno` on
-@@ -149,7 +290,7 @@ static void clear(descriptor_table_t *table) {
+@@ -149,7 +298,7 @@ static void clear(descriptor_table_t *table) {
    table->len = 0;
  }
  
@@ -386,7 +459,7 @@ index 56d7816..1119c6b 100644
  
  static int init_stdio() {
    stdio_initialized = true;
-@@ -162,7 +303,7 @@ static void live_descriptors_dec() {}
+@@ -162,7 +311,7 @@ static void live_descriptors_dec() {}
  #else
  #include <stdio.h>
  
@@ -395,7 +468,7 @@ index 56d7816..1119c6b 100644
  
  static void live_descriptors_inc() { live_descriptors += 1; }
  
-@@ -185,7 +326,7 @@ void __wasilibc_assert_no_descriptor_leaks() {
+@@ -185,7 +334,7 @@ void __wasilibc_assert_no_descriptor_leaks() {
        if (i < 3) {
          stdio_open++;
        } else {
@@ -404,7 +477,7 @@ index 56d7816..1119c6b 100644
          assert(rc == 0);
          closed++;
        }
-@@ -229,17 +370,34 @@ int descriptor_table_insert(descriptor_table_entry_t entry) {
+@@ -229,17 +378,34 @@ int descriptor_table_insert(descriptor_table_entry_t entry) {
    STRONG_LOCK(global_table.lock);
    defer STRONG_UNLOCK(global_table.lock);
  
@@ -441,7 +514,7 @@ index 56d7816..1119c6b 100644
    if (!slot)
      return -1;
    descriptor_table_entry_inc(*slot);
-@@ -248,25 +406,51 @@ int descriptor_table_get(int fd, descriptor_table_entry_t *entry) {
+@@ -248,25 +414,51 @@ int descriptor_table_get(int fd, descriptor_table_entry_t *entry) {
  }
  
  // Some large but not too large value to allow `dup2` to dos this process.
@@ -496,7 +569,7 @@ index 56d7816..1119c6b 100644
  
    case DUP_OP_DUP2:
      if (fd == arg)
-@@ -277,11 +461,14 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
+@@ -277,11 +469,14 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
        errno = EINVAL;
        return -1;
      }
@@ -513,7 +586,18 @@ index 56d7816..1119c6b 100644
  
      if (table_grow(&global_table, newfd + 1) < 0)
        return -1;
-@@ -301,13 +488,21 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
+@@ -297,17 +492,31 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
+       table_entry->entry = entry;
+       table_entry->occupied = true;
+     }
+-    return arg;
++    /* enclave/SET: the caller's namespace, NOT the raw `arg`. Returning `arg`
++       made `dup2(fd, 9)` on a worker SUCCEED and hand back a descriptor that
++       is EBADF on every later use — silent success, which is strictly worse
++       than the EBADF it replaced — and left the slot unreachable and
++       uncloseable. `index_to_fd` also claims this thread's namespace if
++       `dup2` is the first call that ever needed one. */
++    return index_to_fd(newfd);
    }
  
    case DUP_OP_DUPFD: {
@@ -539,7 +623,7 @@ index 56d7816..1119c6b 100644
      if (minfd < global_table.next_fd)
        minfd = global_table.next_fd;
      while (minfd < global_table.len && global_table.entries[minfd].occupied)
-@@ -315,11 +510,15 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
+@@ -315,11 +524,15 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
      if (table_grow(&global_table, minfd + 1) < 0)
        return -1;
  
@@ -556,7 +640,7 @@ index 56d7816..1119c6b 100644
    }
  
    default:
-@@ -331,9 +530,13 @@ int descriptor_table_remove(int fd) {
+@@ -331,9 +544,13 @@ int descriptor_table_remove(int fd) {
    if (!stdio_initialized && init_stdio() < 0)
      return -1;
  
@@ -571,7 +655,7 @@ index 56d7816..1119c6b 100644
    STRONG_UNLOCK(global_table.lock);
    if (rc < 0)
      return -1;
-@@ -357,3 +560,31 @@ void __wasilibc_descriptor_deallocate(descriptor_table_entry_t entry) {
+@@ -357,3 +574,31 @@ void __wasilibc_descriptor_deallocate(descriptor_table_entry_t entry) {
    errno = saved_errno;
    live_descriptors_dec();
  }
@@ -603,11 +687,94 @@ index 56d7816..1119c6b 100644
 +     thread's fd naming a different object. */
 +}
 +#endif
+diff --git a/libc-bottom-half/sources/file.c b/libc-bottom-half/sources/file.c
+index 6e0c224..d903e6a 100644
+--- a/libc-bottom-half/sources/file.c
++++ b/libc-bottom-half/sources/file.c
+@@ -121,6 +121,7 @@ static int file_get_read_stream(void *data, wasi_read_t *read) {
+   }
+   read->input = streams_borrow_input_stream(file->read_stream);
+   read->pollable = &file->read_pollable;
++  read->lock = &file->lock;  /* enclave/SET: caller releases it */
+ #else
+   if (!wasip3_io_state_present(&file->read)) {
+     assert(!file->read_result);
+@@ -190,6 +191,7 @@ static int file_get_write_stream(void *data, wasi_write_t *write) {
+   }
+   write->output = streams_borrow_output_stream(file->write_stream);
+   write->pollable = &file->write_pollable;
++  write->lock = &file->lock;  /* enclave/SET: caller releases it */
+ #else
+   if (!wasip3_io_state_present(&file->write)) {
+     assert(file->write_result == 0);
+diff --git a/libc-bottom-half/sources/ppoll.c b/libc-bottom-half/sources/ppoll.c
+index 8ccd184..5fced6b 100644
+--- a/libc-bottom-half/sources/ppoll.c
++++ b/libc-bottom-half/sources/ppoll.c
+@@ -1,4 +1,5 @@
+ #define _GNU_SOURCE
++#include "lock.h"
+ #include <errno.h>
+ #include <poll.h>
+ #include <stdbool.h>
+@@ -242,8 +243,17 @@ static int ppoll_impl(struct pollfd *fds, size_t nfds,
+         wasi_read_t read;
+         if (entry.vtable->get_read_stream(entry.data, &read) < 0)
+           return -1;
+-        if (__wasilibc_poll_add_input_stream(&state, read.input,
+-                                             read.pollable) < 0)
++        /* enclave/SET: `get_read_stream` took the object's lock and this is
++           the caller that must release it (see descriptor_table.h). Missing
++           here as well, and once threads exist a second `poll` on the same
++           file deadlocks. */
++        int rc = __wasilibc_poll_add_input_stream(&state, read.input,
++                                                 read.pollable);
++#ifdef __wasip2__
++        if (read.lock)
++          STRONG_UNLOCK(*read.lock);
++#endif
++        if (rc < 0)
+           return -1;
+       } else {
+         errno = EOPNOTSUPP;
+@@ -256,8 +266,14 @@ static int ppoll_impl(struct pollfd *fds, size_t nfds,
+         wasi_write_t write;
+         if (entry.vtable->get_write_stream(entry.data, &write) < 0)
+           return -1;
+-        if (__wasilibc_poll_add_output_stream(&state, write.output,
+-                                              write.pollable) < 0)
++        /* enclave/SET: see the read side above. */
++        int rc = __wasilibc_poll_add_output_stream(&state, write.output,
++                                                  write.pollable);
++#ifdef __wasip2__
++        if (write.lock)
++          STRONG_UNLOCK(*write.lock);
++#endif
++        if (rc < 0)
+           return -1;
+       } else {
+         errno = EOPNOTSUPP;
 diff --git a/libc-bottom-half/sources/preopens.c b/libc-bottom-half/sources/preopens.c
-index b7301bd..9c6e424 100644
+index b7301bd..e96d10e 100644
 --- a/libc-bottom-half/sources/preopens.c
 +++ b/libc-bottom-half/sources/preopens.c
-@@ -103,10 +103,10 @@ typedef struct preopen {
+@@ -77,7 +77,14 @@ static void preopen_state_assert_open(const preopen_state_t *state) {
+ static int preopen_state_initialize(preopen_state_t *state, preopen_t fd) {
+   state->libc_fd = __wasilibc_add_file(fd, O_RDWR);
+   if (state->libc_fd < 0) {
+-    filesystem_descriptor_drop_own(fd);
++    /* enclave/SET: do NOT drop the handle here. `__wasilibc_add_file` goes
++       through `descriptor_table_insert`, which already ran the entry's
++       destructor on every failure path — dropping again traps `unknown handle
++       index`, and this runs with the process-global preopens lock held, so the
++       trap wedges filesystem access for EVERY thread. Upstream could only
++       reach it through OOM; SET adds two cheap deterministic triggers (an
++       out-of-range descriptor index and namespace exhaustion), so the
++       double-drop stopped being theoretical. */
+     return -1;
+   }
+   return 0;
+@@ -103,10 +110,10 @@ typedef struct preopen {
  } preopen;
  
  /// A simple growable array of `preopen`.
@@ -622,7 +789,7 @@ index b7301bd..9c6e424 100644
  
  #ifdef NDEBUG
  #define assert_invariants() // assertions disabled
-@@ -129,6 +129,26 @@ static void assert_invariants(void) {
+@@ -129,6 +136,26 @@ static void assert_invariants(void) {
  }
  #endif
  
@@ -678,29 +845,71 @@ index 9b7bc7b..da838e7 100644
  network_borrow_network_t __wasi_sockets_utils__borrow_network() {
    if (!global_network_initialized) {
 diff --git a/libc-bottom-half/sources/tcp.c b/libc-bottom-half/sources/tcp.c
-index 0ddeb07..bfde71b 100644
+index 0ddeb07..255ac6b 100644
 --- a/libc-bottom-half/sources/tcp.c
 +++ b/libc-bottom-half/sources/tcp.c
-@@ -944,7 +944,9 @@ static ssize_t tcp_recvfrom(void *data, void *buffer, size_t length, int flags,
+@@ -203,6 +203,7 @@ static int tcp_get_read_stream(void *data, wasi_read_t *read) {
+ #ifdef __wasip2__
+   read->input = streams_borrow_input_stream(state->input);
+   read->pollable = &state->input_pollable;
++  read->lock = &tcp->lock;  /* enclave/SET: caller releases it */
+ #else
+   read->state = &state->receive;
+   read->eof = tcp_read_eof;
+@@ -252,6 +253,7 @@ static int tcp_get_write_stream(void *data, wasi_write_t *write) {
+ #ifdef __wasip2__
+   write->output = streams_borrow_output_stream(state->output);
+   write->pollable = &state->output_pollable;
++  write->lock = &tcp->lock;  /* enclave/SET: caller releases it */
+ #else
+   write->state = &state->send;
+   write->eof = tcp_write_eof;
+@@ -944,7 +946,12 @@ static ssize_t tcp_recvfrom(void *data, void *buffer, size_t length, int flags,
    wasi_read_t read;
    if (tcp_get_read_stream(data, &read) < 0)
      return -1;
-+#ifndef __wasip2__ /* enclave/SET: no io-state lock in the wasip2 shape */
++#ifdef __wasip2__
++  /* enclave/SET: see cloudlibc/src/libc/unistd/read.c. */
++  defer { if (read.lock) STRONG_UNLOCK(*read.lock); }
++#else
    defer STRONG_UNLOCK(*read.state->lock);
 +#endif
  
    if ((flags & MSG_DONTWAIT) != 0)
      read.blocking = false;
-@@ -969,7 +971,9 @@ static ssize_t tcp_sendto(void *data, const void *buffer, size_t length,
+@@ -969,7 +976,12 @@ static ssize_t tcp_sendto(void *data, const void *buffer, size_t length,
    wasi_write_t write;
    if (tcp_get_write_stream(data, &write) < 0)
      return -1;
-+#ifndef __wasip2__ /* enclave/SET: no io-state lock in the wasip2 shape */
++#ifdef __wasip2__
++  /* enclave/SET: see cloudlibc/src/libc/unistd/read.c. */
++  defer { if (write.lock) STRONG_UNLOCK(*write.lock); }
++#else
    defer STRONG_UNLOCK(*write.state->lock);
 +#endif
  
    if ((flags & MSG_DONTWAIT) != 0)
      write.blocking = false;
+diff --git a/libc-bottom-half/sources/wasip2_stdio.c b/libc-bottom-half/sources/wasip2_stdio.c
+index 761c3d0..36f16a0 100644
+--- a/libc-bottom-half/sources/wasip2_stdio.c
++++ b/libc-bottom-half/sources/wasip2_stdio.c
+@@ -38,6 +38,7 @@ static void stdio_free(void *data) {
+ }
+ 
+ static int stdio_get_read_stream(void *data, wasi_read_t *read) {
++  read->lock = NULL;  /* enclave/SET: this one takes no object lock */
+   stdio_t *stdio = (stdio_t *)data;
+   if (stdio->fd != 0) {
+     errno = EOPNOTSUPP;
+@@ -54,6 +55,7 @@ static int stdio_get_read_stream(void *data, wasi_read_t *read) {
+ }
+ 
+ static int stdio_get_write_stream(void *data, wasi_write_t *write) {
++  write->lock = NULL;  /* enclave/SET: this one takes no object lock */
+   stdio_t *stdio = (stdio_t *)data;
+   if (stdio->output.__handle == 0) {
+     if (stdio->fd == 1) {
 diff --git a/libc-top-half/CMakeLists.txt b/libc-top-half/CMakeLists.txt
 index 39c175b..ee12695 100644
 --- a/libc-top-half/CMakeLists.txt
@@ -794,15 +1003,26 @@ index 8e22065..1116556 100644
 +#endif
  }
 diff --git a/libc-top-half/musl/src/stdio/ftrylockfile.c b/libc-top-half/musl/src/stdio/ftrylockfile.c
-index e89f61c..eac1d47 100644
+index e89f61c..0e9d03a 100644
 --- a/libc-top-half/musl/src/stdio/ftrylockfile.c
 +++ b/libc-top-half/musl/src/stdio/ftrylockfile.c
-@@ -6,8 +6,24 @@ void __do_orphaned_stdio_locks()
+@@ -4,10 +4,33 @@
+ 
+ void __do_orphaned_stdio_locks()
  {
-     FILE *f;
-     for (f=__pthread_self()->stdio_locks; f; f=f->next_locked) {
+-    FILE *f;
+-    for (f=__pthread_self()->stdio_locks; f; f=f->next_locked) {
 -		#ifdef __wasi_cooperative_threads__
 -		f->lock = 0;
++    FILE *f, *next;
++    /* enclave/SET: `next` is snapshotted BEFORE the FILE is released. `__wake`
++       is a real call, so a live thread can win `__lockfile`'s CAS inside it and
++       `__register_locked_file` overwrites `f->next_locked` — after which this
++       walk either stops early (leaving the rest of a dead thread's FILEs locked
++       under a dead tid, the very wedge this exists to prevent) or wanders onto
++       the live thread's list and force-unlocks a FILE it legitimately holds. */
++    for (f=__pthread_self()->stdio_locks; f; f=next) {
++        next = f->next_locked;
 +		/* enclave/SET takes the cooperative branch deliberately. Storing
 +		   0x40000000 (MAYBE_WAITERS with owner 0) leaves the FILE
 +		   permanently unlockable: __lockfile only ever CASes from 0, so
