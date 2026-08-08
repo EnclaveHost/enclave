@@ -517,6 +517,38 @@ machinery (`options_memory_unshared`), and fused-adapter string transcoders,
 which are refused at instantiation via a new compile-time `transcoder_memories`
 list. Neither is reachable from a `clang -pthread` component.
 
+#### ThreadSanitizer: read the reports before believing them
+
+The first TSan run on the new engine reported data races — all of them inside
+the fiber machinery (`Fiber::new` racing `Fiber::resume`), on the same address,
+between two different worker threads. It is a false positive, and the way that
+was established is worth keeping, because the same trap will be laid again:
+
+1. **Separate reuse from concurrency.** `run(200, 1, 2000)` runs 200 workers
+   ONE AT A TIME — no two ever run concurrently, so no data race is possible —
+   and reported 12 races. `run(1, 8, 2000)` runs 8 workers concurrently with no
+   stack reuse and reported 0. The reports track *address reuse*, not
+   concurrency.
+2. **Find the mechanism.** Fiber stacks are `mmap`ed and freed by
+   `rustix::mm::munmap` (`crates/fiber/src/unix.rs`). On Linux rustix defaults
+   to its `linux_raw` backend — direct syscalls, which TSan cannot intercept —
+   so TSan never clears its shadow memory for a freed stack. The next `mmap`
+   handing back the same address looks like a race with the thread that died.
+3. **Prove it.** Rebuilding with `--cfg rustix_use_libc` so `munmap` goes
+   through libc and TSan can see it: **every report disappears.**
+
+```sh
+CARGO_TARGET_DIR=target-tsan RUSTFLAGS="-Zsanitizer=thread --cfg rustix_use_libc" \
+  cargo +nightly build -Zbuild-std --target x86_64-unknown-linux-gnu --release -p wasmtime-cli
+```
+
+With that binary: `run(50, 8, 2000)` = 400, zero races; `set-spawn-indirect`,
+`set-spawn-parallel`, `set-worker-import`, `set-nested-spawn` and
+`set-cabi-race` all zero races; and the R4 harness at 20k lifts against 30.9M
+guest flips is clean too. **Do not run TSan on this engine without
+`--cfg rustix_use_libc`** — the results are noise, and the temptation to wave
+them away as "just fibers" is exactly how a real report would get missed.
+
 Measured after the change: `set-spawn-parallel.wat` 14.08s → 0.90s at 16
 threads (**15.6x**, `user` 14.1s against `real` 0.90s), soak
 `run(500,16,2000)` = 8000, 187 wasmtime unit tests, 648 enclave tests. Worker
