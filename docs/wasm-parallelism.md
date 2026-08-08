@@ -467,6 +467,68 @@ that scribbles shared memory without a once-flag still re-runs per view — that
 one is in-sandbox, self-inflicted, and the same contract wasi-threads imposes;
 left as a documented residual.)
 
+### 2026-08-08: both blockers fixed — one component instance per thread
+
+The two blockers really were one problem, and the fix is a single idea: **a
+spawned SET thread gets a full instantiation of the whole component in its own
+`Store`, and shares nothing with its spawner except linear memory.**
+
+*Execution.* `SetWorkerRequest::run_async` (in `set_threads.rs`) instantiates
+the same `Component` in the worker's store, with the spawning core instance's
+defined memories re-pointed at the primary's `SharedMemory` before that
+instance's startup function runs (`SetViewPlan`, threaded through the component
+`Instantiator`). The start function is then named component-relatively, as
+`(RuntimeInstanceIndex, FuncIndex)`, so it resolves in any instantiation, and
+entered with the same `enter_guest_sync_call` bookkeeping the primary uses for a
+core `start`. Every direct call Cranelift baked in now lands on code whose vmctx
+is the worker's own, which is what makes it sound. Building the store needs the
+embedder's `T`, so the embedder registers a `SetWorkerHost`
+(`Store::set_set_worker_host`); the CLI does this in both `run` and `serve`, and
+spawn REFUSES with the ABI's `-1` when no host is registered rather than
+half-building a thread.
+
+*WASI.* Because each thread has its own component instance, it has its own
+resource tables — and component resource handles are per-instance, so a handle
+cached in shared memory names nothing in another thread. The libc follows:
+the descriptor table, the lazily-cached stdio streams and the preopen table are
+now `_Thread_local` (`__wasilibc_thread_state`), and each thread lazily rebuilds
+its own from its own instance's imports. Threads share linear memory, which is
+what pthreads needs; they do NOT share a descriptor table, which is the same
+honest limitation the wasi-threads (p1) path documents.
+
+*Dying threads.* A thread that traps skips the entire libc epilogue, so joiners
+used to park forever on `detach_state` and then on `__thread_list_lock` — in
+practice hanging the process, since the main thread is usually the one in
+`pthread_join`. A new optional guest export `__enclave_set_thread_died` runs the
+parts of that epilogue other threads depend on, and the engine calls it on the
+worker's own store after a trap. `pthread_join` on a trapped worker now returns
+`PTHREAD_CANCELED` instead of hanging.
+
+*Canonical ABI.* The host no longer forms a Rust slice over guest memory that
+could be `shared`. `component/guest_memory.rs` introduces `GuestMemory` /
+`GuestMemoryMut`: for a shared memory, bytes are copied out through
+`read_volatile` into host-owned buffers and validated **on the copy**, so a
+guest cannot invalidate a `str` the host has already checked; for every other
+component the path is the same zero-copy borrow as before (`Cow::Borrowed`), by
+design, because that is the path that has to stay fast. Sharedness is recorded
+where `extract_memory` already distinguishes the two cases. Two paths that
+cannot be made copy-safe fail closed instead of racing: the async/streams
+machinery (`options_memory_unshared`), and fused-adapter string transcoders,
+which are refused at instantiation via a new compile-time `transcoder_memories`
+list. Neither is reachable from a `clang -pthread` component.
+
+Measured after the change: `set-spawn-parallel.wat` 14.08s → 0.90s at 16
+threads (**15.6x**, `user` 14.1s against `real` 0.90s), soak
+`run(500,16,2000)` = 8000, 187 wasmtime unit tests, 648 enclave tests. Worker
+`printf`/`fflush`, `clock_gettime` and `socket()` all work; a trapping worker no
+longer hangs its joiner. The R4 race is now a deterministic harness
+(`tools/parallelism-probe/set-cabi-race.wat` + `cabi_race.rs`): a worker flips a
+string between valid and invalid utf8 while the host lifts it 200k times, and
+the harness checks whether the host was handed a borrow into shared memory. It
+reports zero borrows and zero invalid `str`s — and, run against a deliberately
+reverted borrowing ABI, it reports 90 borrows and catches an actually-invalid
+`str`, which is what proves the harness detects rather than merely passing.
+
 ### 2026-08-08: the CRITICAL blocker's real cause is vmctx type confusion
 
 The symptom below (`call stack exhausted` on a worker's first import) was
