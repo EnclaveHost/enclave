@@ -416,6 +416,49 @@ test("api-relay: an ambiguous id prefix resolves to nobody, not to whoever answe
   assert.equal((await host("0fedcba9")).status, 200, "the uncontested one serves its app");
 });
 
+// ---------- abandoned stream: the enclave leg dies with the client ------------
+// pipe() stops the FLOW when its destination closes but never destroys its
+// source, so a client that abandoned an SSE stream used to leave the proxied
+// enclave request open forever: the paused pipe backpressured into the app,
+// which sat parked in a write that could neither finish nor fail. For llm-chat
+// that parked write pins one of ENCLAVE_GGML_MAX_SESSIONS inference slots, and
+// a handful of closed tabs wedged the deployment into [sessions_busy] until a
+// human restarted it (live 2026-08-08). The proxy must close its upstream leg
+// the moment the client goes away.
+test("api-relay: a client that dies mid-stream takes the enclave leg down with it", async (t) => {
+  const XID = "0x99" + "44".repeat(28);
+  const ledger = [
+    { id: XID, owner: OWNER, appRef: "ipfs://sse", active: true, isPublic: true, balance6: 5_000_000, spent6: 0 },
+  ];
+  let upstreamClosed = false;
+  const enclave = http.createServer((req, res) => {
+    if (req.url === "/availability") { res.setHeader("content-type", "application/json");
+      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32 })); }
+    if (req.method === "HEAD") { res.statusCode = 200; return res.end(); }  // the ownership probe
+    // the app: an endless SSE stream. Ticks every 25ms keep bytes MOVING so
+    // the relay's idle timeout can never be what cleans this up - only the
+    // eager close-propagation under test can.
+    res.writeHead(200, { "content-type": "text/event-stream" });
+    const timer = setInterval(() => res.write("data: tick\n\n"), 25);
+    res.on("close", () => { upstreamClosed = true; clearInterval(timer); });
+  });
+  enclave.listen(0, "127.0.0.1"); await once(enclave, "listening");
+  t.after(() => enclave.close());
+
+  const origin = await startRelay(t, { enclaves: `http://127.0.0.1:${enclave.address().port}`, ledger });
+
+  // open the stream, take one chunk to prove it flows, then die abruptly
+  const got = await new Promise((resolve, reject) => {
+    const creq = http.get(origin + `/x/${XID}/stream`, (cres) => {
+      cres.once("data", () => { creq.destroy(); resolve(true); });
+    });
+    creq.on("error", reject);
+  });
+  assert.equal(got, true, "the stream was flowing before the client died");
+  for (let i = 0; i < 120 && !upstreamClosed; i++) await delay(25);
+  assert.equal(upstreamClosed, true, "the relay must destroy its enclave request when the client dies");
+});
+
 // ---------- X-Forwarded-For: which entry is the rate-limit key -----------------
 
 test("api-relay: rate limits key on the PROXY-APPENDED address, not the caller's claim", async (t) => {
