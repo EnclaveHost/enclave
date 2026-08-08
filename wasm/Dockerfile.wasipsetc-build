@@ -26,6 +26,12 @@
 #     a host import — because there IS no host spawn import under the component
 #     model. The shipped SDK sysroot has no such flavor, so it is built from
 #     source, patched in-image.
+#   The libc build ASSERTS the three symbols the engine contract depends on:
+#   `wasi_set_thread_start` (the thread entry), `__enclave_set_thread_died` (the
+#   hook the engine calls after a worker TRAPS, without which a joining sibling
+#   parks forever) and `__wasilibc_set_release_thread_state` (per-thread
+#   descriptor reclamation). A silently-missing optional export is exactly the
+#   kind of drift that shows up later as a hang.
 #   - set-componentize (wasm/set-componentize): after wasm-component-ld links
 #     the core module into a component, this APPENDS the two canonical builtins
 #     no linker can express — `thread.spawn-indirect` over the module's
@@ -106,6 +112,10 @@ RUN git init -q /src/wasi-libc && cd /src/wasi-libc \
       | grep -q "T __enclave_set_spawn_slot" \
  && /opt/wasi-sdk/bin/llvm-nm build/sysroot/lib/wasm32-wasip2/libc.a 2>/dev/null \
       | grep -q "T wasi_set_thread_start" \
+ && /opt/wasi-sdk/bin/llvm-nm build/sysroot/lib/wasm32-wasip2/libc.a 2>/dev/null \
+      | grep -q "T __enclave_set_thread_died" \
+ && /opt/wasi-sdk/bin/llvm-nm build/sysroot/lib/wasm32-wasip2/libc.a 2>/dev/null \
+      | grep -q "T __wasilibc_set_release_thread_state" \
  && cp -a build/sysroot /opt/wasip2-set-sysroot \
  && cd / && rm -rf /src/wasi-libc
 

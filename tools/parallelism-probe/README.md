@@ -59,6 +59,33 @@ W="-W threads,shared-everything-threads,component-model-threading,shared-memory"
 | `set-nested-spawn.wat` | **negative probe.** A worker calling `thread.spawn-*` again must TRAP that worker (clean wasm backtrace, exit 1), never abort the process and never race | `wasmtime run $W --invoke 'run()' set-nested-spawn.wat` |
 | `set-spawn-fallback.wat` | historical: loads-and-runs probe from when spawn could only fail. Its counter now **races by design** (no join) — use `set-spawn-parallel.wat` for anything you intend to measure | |
 
+## The C probes: ordinary programs, through the real toolchain
+
+Build each with the blessed image and run it on the patched engine:
+
+```sh
+docker build -f wasm/Dockerfile.wasipsetc-build -t enclave-wasipsetc-build:local wasm/
+docker run --rm -v "$PWD":/src enclave-wasipsetc-build:local worker-io.c -O2 -o worker-io.wasm
+W="-W threads,shared-everything-threads,component-model-threading,shared-memory"
+wasmtime run $W -S cli worker-io.wasm
+```
+
+| file | what it proves |
+|---|---|
+| `pthread-scaling.c` | real `pthread_create` parallelism, the 15.8x measurement |
+| `worker-io.c` | a worker does real WASI: `printf`, `fflush`, `clock_gettime` |
+| `worker-trap.c` | a trapped worker does not hang its joiner (the death hook) |
+| `worker-spin-teardown.c` | **an ordinary program**: detach a compute thread, return from `main`. Used to wedge teardown forever and pin a core; now exits in ~0.2s |
+| `worker-block-teardown.c` | a worker asleep 12s in a HOST call does not hold teardown (the third stop path) |
+| `worker-exit.c` | `exit()` on a worker ends the component instead of stranding the joiner |
+| `worker-fd-alias.c` | a cross-thread fd FAILS with `EBADF` instead of silently aliasing another file |
+| `worker-stdio-orphan.c` | a worker trapping while holding stdout's lock (explicit `flockfile`) does not wedge stdio |
+| `worker-stdio-orphan-internal.c` | the same through the INTERNAL `FLOCK` path `printf` takes — the layer musl never registered |
+| `worker-mem-grow.c` | `-W max-memory-size` bounds SHARED-memory growth, from a worker thread |
+
+Each file's header comment states the old symptom and the expected new output,
+so a regression is visible without reading this table.
+
 Two ways to read `set-spawn-parallel.wat`, and the first is the one that
 cannot be faked:
 

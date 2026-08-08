@@ -174,12 +174,44 @@ Consequences worth knowing before changing anything:
 Re-measured: 15.6x at 16 threads, soak 8000, 187 wasmtime unit tests, 648
 enclave tests, R4 race harness clean with a negative control proving it detects.
 
+## UPDATE 2026-08-08 (round 3): workers you can stop, and a RAM gate that binds
+
+The round-3 pass found **1 CRITICAL + 15 HIGH**; all are fixed, with a repro
+each. The per-finding table lives in `wasm/SET-DO-NOT-PROMOTE.md`. What changes
+how you should think about the design:
+
+- **A worker is stopped at one of three places, and you need all three.**
+  Running compiled code → an epoch check. Parked in `memory.atomic.wait` (every
+  SET mutex, every `pthread_join`) → the parking spot polling the group's stop
+  flag, which now lives on the SHARED MEMORY's spot so a non-worker MAIN thread
+  is reached too. Blocked in a host call → the embedder dropping the guest
+  future. Any one alone leaves a hole a plain C program walks into.
+- **Epoch interruption is mandatory for SET, not optional.** Without
+  `Config::epoch_interruption` there are no epoch checks in the code at all, and
+  without a PERIODIC ticker nothing advances the epoch. `--wasm timeout` bumps
+  it exactly ONCE, which is why the old 600-tick worker deadline never fired for
+  the runaway worker it existed to stop. The CLI now configures both whenever
+  `-W shared-everything-threads` is passed. It costs ~2% at 16 threads and ~17%
+  at 32.
+- **`Store::drop`'s join is bounded and detaches**, which is sound because a
+  worker holds nothing of the store that spawned it. The unbounded join was
+  inherited from a design that no longer exists.
+- **`-W max-memory-size` now binds shared memory.** It did not before — at all,
+  even single-threaded — and on this platform it is the tenant's purchased RAM.
+- **One function builds every CLI `Host`.** `RunCommand::build_host` serves the
+  primary and every worker. A worker instantiates against the PRIMARY's linker,
+  so a context the primary has and a worker does not is a guest-triggerable
+  panic; it used to be a guest-triggerable `process::abort()`.
+- **An fd carries its owner's thread.** Cross-thread use is `EBADF`, not a
+  silent alias onto a different file.
+
 ## What is NOT done
 
 1. **Promotion is still gated on the fresh adversarial review clearing.** The
-   two blockers are fixed and the verification bar is met; the engine enters
+   round-3 findings are fixed and the verification bar is met; the engine enters
    `Dockerfile.wasmtime` only after a four-reviewer pass on THIS design, which
-   has caught real UB every time it has been run.
+   has caught real UB every time it has been run — including once where the
+   previous round's fix was silently ineffective.
 2. **Not in the Dockerfile chain** until then. The `.wip` suffix keeps it out
    of the patch-check glob.
 3. Cross-instance spawn, mutable shared globals and genuinely shared tables
