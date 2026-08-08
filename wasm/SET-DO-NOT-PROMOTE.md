@@ -252,6 +252,63 @@ CRITICAL**; the libc side found one, and it was the round-5 fix being half a fix
   refunded it; the deferred-stack-free comment understated the leak; and
   `maybe_spawn` was dead code.
 
+## Round 7 (2026-08-08): targeted pass over the round-6 delta — 1 CRITICAL + 4 HIGH
+
+Deliberately narrow: only the round-6 fixes. Two of the four libc fixes were
+wrong, and both engine HIGHs were about a mechanism that did not do what it
+claimed.
+
+* **CRITICAL: making `__wasilibc_populate_preopens` RETURN instead of
+  `_Exit` turned a fail-fast into an unbounded HOST leak.**
+  `filesystem_preopens_get_directories` mints one host resource handle per
+  preopen every call; the failure path dropped none of the tail and left
+  `preopens_populated` false, so every later path call re-entered. N-1 host
+  table slots per call — invisible to the tenant RAM gate — until wasmtime's
+  resource table filled at 1e6 and the guest trapped inside `get_directories`,
+  silently, with **exit status 0**. Measured 179 MB of host RSS for 140,000
+  failed opens. The failure path now drops what it minted, undoes the partial
+  registration (which otherwise re-registered preopen[0] as a duplicate every
+  retry, so a thread freeing descriptors never recovered), and is STICKY for
+  that thread. `worker-preopen-retry.c`: 200,000 retries, host RSS flat at
+  6 MB.
+* **HIGH: the spawn rate limiter made a retrying guest 3.6x MORE expensive.**
+  A refusal is far cheaper for the guest than a real spawn, so a chain that
+  retries spins on the host call instead of exiting: 50.3 CPU-seconds per 2
+  wall seconds (22.6 cores) with the limiter ON, against 13.8 (6.2) with it
+  OFF. It converted a spawn-and-exit bomb into a spawn-and-spin bomb. The
+  limiter now WAITS for a token rather than refusing, bounded and abandoned on
+  a stop request: same bomb, 2.97 CPU-seconds against 13.40 unlimited — 4.5x
+  better instead of 3.6x worse (`worker-spawn-retry-bomb.c`).
+* **HIGH: refusing also broke ordinary programs**, and no rate can avoid that,
+  because a tight thread-per-task loop reaches ~14,600 creations/s — faster
+  than any limit worth setting. Refusal % was a function of iteration count,
+  not of the limit: 67.5% at 20,000 iterations, 94% at 100,000, 18.5% for a
+  recycling 64-thread pool. Waiting fixes it by construction: those same shapes
+  are now **0 refused**.
+* **HIGH: `dup2` on a worker was wrong for the third round running** — first
+  refusing every ordinary target, then returning the raw `arg` (success, with a
+  descriptor that was EBADF on every later use), then returning a tagged fd a
+  caller using its own constant could not use. The contract now: targets a
+  thread can legitimately name (0/1/2, or one already in its namespace) behave
+  exactly as POSIX says on every thread — which covers
+  `dup2(fd, STDOUT_FILENO)`, the real use — and an arbitrary bare target on a
+  worker is REFUSED rather than half-served. The round-6 probe asserted the
+  buggy contract and has been rewritten.
+* Also: a panic between taking a rate token and spawning leaked it permanently
+  (now a `TokenGuard`); the "accounting limiter (which the platform has)"
+  justification is retracted in the code, not just in this file; `GROW_STALLS`
+  is documented as believed-unreachable rather than presented as the safety
+  argument; and the doubled `#ifdef` in `read.c`/`write.c` is patch residue.
+
+**Verified clean by this round** (evidence, not absence): the `file.c` lock fix
+is complete — both functions have exactly one early return on the p2 branch, the
+p3 arms have none, and a whole-tree `STRONG_LOCK` sweep found every other site
+`defer`-paired. The grow retry survived limit-escape, termination, livelock and
+`memory.grow(0)` attacks at up to 128 concurrent growers across five cap values.
+Refund accounting is exactly compensating (~199,900 refusals yielded exactly
+burst + elapsed x rate). `__WASILIBC_SET_FD_NS_SHIFT` cannot differ between
+translation units, and stock p2, p3 and coop-p3 all build.
+
 ### Verification bar met
 
 * 1305 wasmtime integration tests + 200 unit tests, 0 failures.
@@ -327,15 +384,19 @@ CRITICAL**; the libc side found one, and it was the round-5 fix being half a fix
 
 ## Why it is still not promotable
 
-**SIX rounds have now been run and not one has cleared.** Round 6 reviewed the round-5 fixes and found a CRITICAL (the round-5 lock fix
+**SEVEN rounds have now been run and not one has cleared.** Round 6 reviewed the round-5 fixes and found a CRITICAL (the round-5 lock fix
 was half a fix) plus another regression that fix introduced. The engine/CLI half
 of round 6 was CRITICAL-free, which is the first time either half has been.
 
-The round-6 fixes are themselves UNREVIEWED, and they are not small: the file
-lock error paths, the preopen exit path, the progress-based grow retry, the rate
-floor. The pattern for six rounds has been that each fix's new surface hides the
-next defect. The only evidence that would change the answer is a round that
-finds nothing.
+Round 7 was deliberately NARROW — only the round-6 delta — and still found a
+CRITICAL and four HIGHs, two of them in a mechanism (the spawn rate limiter)
+that turned out to make the problem it existed to solve measurably worse. The
+round-7 fixes are themselves unreviewed.
+
+Seven rounds, seven sets of real defects, and the majority of the recent ones
+have been the PREVIOUS round's fix. That is the single most important fact for
+whoever decides this. The only evidence that would change the answer is a round
+that finds nothing.
 
 ## Promotion sequence, when it is finally earned
 

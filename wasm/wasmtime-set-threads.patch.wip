@@ -2237,7 +2237,7 @@ index 453b6dc..8b29108 100644
  
          let instance = Instance::from_wasmtime(decrement.store.0, instantiator.id);
 diff --git a/crates/wasmtime/src/runtime/component/mod.rs b/crates/wasmtime/src/runtime/component/mod.rs
-index 7bf166b..d63c1ac 100644
+index 7bf166b..2afa29a 100644
 --- a/crates/wasmtime/src/runtime/component/mod.rs
 +++ b/crates/wasmtime/src/runtime/component/mod.rs
 @@ -107,6 +107,7 @@ mod component;
@@ -2279,7 +2279,7 @@ index 7bf166b..d63c1ac 100644
 +/// other thread-spawning path in the process (the CLI's wasi-threads p1 host)
 +/// must draw from this same bucket.
 +pub fn take_set_spawn_token() -> bool {
-+    crate::runtime::vm::component::take_spawn_token()
++    crate::runtime::vm::component::take_spawn_token(None)
 +}
 +
 +/// enclave/SET: put back a token taken by [`take_set_spawn_token`] for a spawn
@@ -3209,10 +3209,10 @@ index f62ea58..7ed3b91 100644
      store: &mut dyn VMStore,
 diff --git a/crates/wasmtime/src/runtime/vm/component/set_threads.rs b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
 new file mode 100644
-index 0000000..c859d9d
+index 0000000..dc8ac5d
 --- /dev/null
 +++ b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
-@@ -0,0 +1,1595 @@
+@@ -0,0 +1,1647 @@
 +//! enclave/SET: real OS-thread spawning for the shared-everything-threads
 +//! `thread.spawn-ref` / `thread.spawn-indirect` component intrinsics.
 +//!
@@ -3524,13 +3524,14 @@ index 0000000..c859d9d
 +/// Burst size: ONE second's worth, saturating.
 +///
 +/// Four seconds' worth made the limit invisible over any short window (a 2 s
-+/// fork bomb got 21,000 creations against a 4096/s limit, because the burst
++/// spawn bomb got 21,000 creations against a 4096/s limit, because the burst
 +/// dominated). A pool filling at startup needs at most `max_live_threads`
 +/// tokens — 128 on a 32-core node — so one second's worth is ample for every
-+/// real shape while making the sustained rate the thing that actually binds. `max_spawn_rate` takes an
-+/// arbitrary `u64` from the environment, so `rate * 4` in `u64` would wrap a
-+/// large value to a burst of 0 and refuse every spawn forever while reporting a
-+/// vast rate.
++/// real shape while making the sustained rate the thing that actually binds.
++///
++/// Saturating because `max_spawn_rate` takes an arbitrary `u64` from the
++/// environment: plain `u64` arithmetic would wrap a large value to a burst of 0
++/// and then refuse every spawn forever while reporting a vast rate.
 +fn spawn_burst(rate: u64) -> f64 {
 +    (rate as f64).min(u32::MAX as f64)
 +}
@@ -3552,22 +3553,73 @@ index 0000000..c859d9d
 +    f(&mut bucket, rate)
 +}
 +
-+/// Take one spawn token, or report that the rate limit is in force.
-+pub fn take_spawn_token() -> bool {
-+    if max_spawn_rate() == 0 {
-+        return true;
-+    }
++/// Try to take one spawn token without waiting. Returns the time until one
++/// would be available if there is none.
++fn try_take_spawn_token() -> Result<(), std::time::Duration> {
 +    with_spawn_bucket(|bucket, rate| {
 +        let now = std::time::Instant::now();
 +        let elapsed = now.duration_since(bucket.last).as_secs_f64();
 +        bucket.last = now;
 +        bucket.tokens = (bucket.tokens + elapsed * rate as f64).min(spawn_burst(rate));
 +        if bucket.tokens < 1.0 {
-+            return false;
++            let short_by = 1.0 - bucket.tokens;
++            return Err(std::time::Duration::from_secs_f64(short_by / rate as f64));
 +        }
 +        bucket.tokens -= 1.0;
-+        true
++        Ok(())
 +    })
++}
++
++/// Take one spawn token, WAITING for one if the rate limit is in force.
++///
++/// Waiting rather than refusing, and this is the whole design rather than a
++/// detail. A refusal has two failure modes that a wait does not:
++///
++/// * it is indistinguishable, to the guest, from "out of threads". A pool that
++///   recycles its workers is a perfectly ordinary shape and it was being handed
++///   `EAGAIN` for 18% of its `pthread_create`s — with a large enough iteration
++///   count, 94%. There is no rate that avoids this, because a tight
++///   thread-per-task loop reaches ~14,600 creations/s, faster than any limit
++///   worth setting.
++/// * it is CHEAPER for the guest than the thing it was refusing, so a guest
++///   that retries spins instead of making progress. Measured: with the
++///   refusing limiter on, a retrying spawn bomb pushed the host to 50 CPU
++///   seconds per 2 wall seconds (22.6 cores) against 13.8 (6.2 cores) with the
++///   limiter off — the limiter made a spawn-and-exit bomb into a
++///   spawn-and-spin bomb and TRIPLED the cost it existed to bound.
++///
++/// Waiting fixes both: a legitimate program is throttled rather than failed,
++/// and a hostile one is put to sleep rather than given a cheap loop. The wait
++/// is bounded (`SPAWN_WAIT_CAP`) so a guest cannot be parked indefinitely, and
++/// it is abandoned the moment the thread group is asked to stop, so teardown
++/// is never delayed by it.
++pub fn take_spawn_token(group: Option<&Arc<SetThreadGroup>>) -> bool {
++    /// The longest a `thread.spawn` will wait for a token before refusing.
++    const SPAWN_WAIT_CAP: std::time::Duration = std::time::Duration::from_millis(250);
++    /// Never sleep for less than this: a sleep far shorter than the scheduler's
++    /// resolution is a spin with extra steps.
++    const MIN_SLEEP: std::time::Duration = std::time::Duration::from_micros(200);
++
++    if max_spawn_rate() == 0 {
++        return true;
++    }
++    let deadline = std::time::Instant::now() + SPAWN_WAIT_CAP;
++    loop {
++        match try_take_spawn_token() {
++            Ok(()) => return true,
++            Err(wait) => {
++                if group.is_some_and(|g| g.stop_requested()) {
++                    return false;
++                }
++                let now = std::time::Instant::now();
++                if now >= deadline {
++                    return false;
++                }
++                let remaining = deadline - now;
++                std::thread::sleep(wait.max(MIN_SLEEP).min(remaining));
++            }
++        }
++    }
 +}
 +
 +/// Live SET workers in this PROCESS. See `max_live_threads`.
@@ -4231,11 +4283,11 @@ index 0000000..c859d9d
 +    }
 +
 +    // ---- rate-limit thread CREATION, which the live cap does not bound ----
-+    if !take_spawn_token() {
++    if !take_spawn_token(group_if_any(store).as_ref()) {
 +        refuse!(
-+            "SET thread creation rate limit reached ({}/s); a guest that spawns and \
-+             immediately exits is not bounded by the live-thread cap. Raise \
-+             ENCLAVE_MAX_SET_SPAWN_RATE, or 0 to disable",
++            "SET thread creation rate limit reached ({}/s) and the wait for a slot \
++             timed out; a guest that spawns and immediately exits is not bounded by \
++             the live-thread cap. Raise ENCLAVE_MAX_SET_SPAWN_RATE, or 0 to disable",
 +            max_spawn_rate()
 +        );
 +    }
@@ -5034,7 +5086,7 @@ index fce3c4a..0133235 100644
          match result {
              Some((old, _new)) => Ok(Some(old)),
 diff --git a/crates/wasmtime/src/runtime/vm/memory/shared_memory.rs b/crates/wasmtime/src/runtime/vm/memory/shared_memory.rs
-index 9f0721b..ef6d64e 100644
+index 9f0721b..41b3fca 100644
 --- a/crates/wasmtime/src/runtime/vm/memory/shared_memory.rs
 +++ b/crates/wasmtime/src/runtime/vm/memory/shared_memory.rs
 @@ -1,3 +1,4 @@
@@ -5071,7 +5123,7 @@ index 9f0721b..ef6d64e 100644
      /// Return the memory type for this [`SharedMemory`].
      pub fn ty(&self) -> &wasmtime_environ::Memory {
          &self.0.ty
-@@ -88,38 +111,170 @@ impl SharedMemory {
+@@ -88,38 +111,188 @@ impl SharedMemory {
      }
  
      /// Same as `RuntimeLinearMemory::grow`, except with `&self`.
@@ -5089,22 +5141,6 @@ index 9f0721b..ef6d64e 100644
 -            // weaker consistency is possible if we accept them seeing an older,
 -            // smaller memory size (assumption: memory only grows) but presently
 -            // we are aiming for accuracy.
--            //
--            // Note that it could be possible to access a memory address that is
--            // now-valid due to changes to the page flags in `grow` above but
--            // beyond the `memory.size` that we are about to assign to. In these
--            // and similar cases, discussion in the thread proposal concluded
--            // that: "multiple accesses in one thread racing with another
--            // thread's `memory.grow` that are in-bounds only after the grow
--            // commits may independently succeed or trap" (see
--            // https://github.com/WebAssembly/threads/issues/26#issuecomment-433930711).
--            // In other words, some non-determinism is acceptable when using
--            // `memory.size` on work being done by `memory.grow`.
--            self.0
--                .def
--                .0
--                .current_length
--                .store(new_size_in_bytes, Ordering::SeqCst);
 +    ///
 +    /// enclave/SET: `limiter` is the growing STORE's resource limiter. It has to
 +    /// be consulted OUTSIDE the write lock — a `ResourceLimiter` may be async,
@@ -5132,8 +5168,15 @@ index 9f0721b..ef6d64e 100644
 +        mut limiter: Option<&mut StoreResourceLimiter<'_>>,
 +    ) -> Result<Option<(usize, usize)>, Error> {
 +        /// How many times a grow may re-ask the limiter WITHOUT the memory
-+        /// having grown in between. A retry that follows real growth is not
-+        /// counted, so this bounds spinning, not contention.
++        /// having grown in between.
++        ///
++        /// Believed UNREACHABLE, and worth saying so rather than letting the
++        /// constant imply it is the safety argument: `current_length` is
++        /// published under the write lock and `byte_size()` is monotonic, so a
++        /// retry always follows real growth. The bound actually doing the work
++        /// is "total growth cannot exceed the declared maximum", which caps the
++        /// loop at the memory's page count. This exists so that an assumption
++        /// turning out to be wrong is a refusal instead of a hang.
 +        const GROW_STALLS: usize = 16;
 +
 +        // Wasm spec: growing by 0 always returns the current size. Never ask the
@@ -5217,10 +5260,36 @@ index 9f0721b..ef6d64e 100644
 +            // No limiter is passed down: it was already consulted above, and
 +            // `LocalMemory::grow` would await, which cannot happen under this
 +            // lock. Its own failures are therefore reported back to the limiter
-+            // here — a `memory_growing` that returned true and then did not
-+            // happen must be told, or an ACCOUNTING limiter (which the platform
-+            // has) drifts monotonically every time a guest asks for a grow the
-+            // declared maximum refuses.
++            // here: a `memory_growing` that returned true and then did not
++            // happen must be told, or a limiter that ACCOUNTS on approval
++            // drifts every time a guest asks for a grow the declared maximum
++            // refuses. (This platform installs `StoreLimits`, a stateless
++            // threshold, so that drift is not observable here — but the
++            // contract is the contract and an embedder may install any
++            // limiter. An earlier revision claimed the platform's own limiter
++            // was an accounting one; it is not.)
+             //
+-            // Note that it could be possible to access a memory address that is
+-            // now-valid due to changes to the page flags in `grow` above but
+-            // beyond the `memory.size` that we are about to assign to. In these
+-            // and similar cases, discussion in the thread proposal concluded
+-            // that: "multiple accesses in one thread racing with another
+-            // thread's `memory.grow` that are in-bounds only after the grow
+-            // commits may independently succeed or trap" (see
+-            // https://github.com/WebAssembly/threads/issues/26#issuecomment-433930711).
+-            // In other words, some non-determinism is acceptable when using
+-            // `memory.size` on work being done by `memory.grow`.
+-            self.0
+-                .def
+-                .0
+-                .current_length
+-                .store(new_size_in_bytes, Ordering::SeqCst);
++            // The RETRY path deliberately does NOT report. A retry is not a
++            // failed grow, and reporting it made `-W trap-on-grow-failure` turn
++            // ordinary contention into a guest trap. The residual, stated
++            // rather than hidden: an accounting limiter over-counts approvals
++            // that lost a race. That direction is conservative — it denies
++            // sooner, it never escapes.
 +            let grown = vm::assert_ready(memory.grow(delta_pages, None));
 +            let result = match grown {
 +                Ok(Some(r)) => Some(r),
@@ -5273,7 +5342,7 @@ index 9f0721b..ef6d64e 100644
      }
  
      /// Implementation of `memory.atomic.notify` for this shared memory.
-@@ -158,7 +313,13 @@ impl SharedMemory {
+@@ -158,7 +331,13 @@ impl SharedMemory {
  
          WAITER.with(|waiter| {
              let mut waiter = waiter.borrow_mut();
@@ -5288,7 +5357,7 @@ index 9f0721b..ef6d64e 100644
          })
      }
  
-@@ -187,7 +348,12 @@ impl SharedMemory {
+@@ -187,7 +366,12 @@ impl SharedMemory {
  
          WAITER.with(|waiter| {
              let mut waiter = waiter.borrow_mut();
