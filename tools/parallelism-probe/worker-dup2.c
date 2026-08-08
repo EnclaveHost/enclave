@@ -1,11 +1,13 @@
 /* enclave/SET repro: dup2 on a worker must return a USABLE descriptor.
  *
- * Round 4 made dup2's target translation lenient (it had been rejecting any
- * ordinary small target on a worker with EBADF) but still returned the raw
- * `arg` rather than a descriptor in the caller's namespace — so dup2 SUCCEEDED
- * and handed back something that was EBADF on every later use, and left the
- * table slot unreachable and uncloseable. Silent success is worse than the
- * failure it replaced.
+ * This has been wrong in three different ways across three rounds: rejecting
+ * every ordinary target on a worker; returning the raw `arg` so dup2 SUCCEEDED
+ * and handed back something EBADF on every later use; and returning a tagged
+ * descriptor that a caller using the constant it passed could not use.
+ * The contract now: targets a thread can legitimately name — 0/1/2, or a
+ * descriptor already in its own namespace — behave exactly as POSIX says, on
+ * every thread. That covers `dup2(fd, STDOUT_FILENO)`, which is the real use.
+ * An arbitrary bare target on a worker is REFUSED rather than half-served.
  *
  * Expected: "PASS" from both threads.
  */
@@ -18,17 +20,24 @@
 
 static int check(const char *who, const char *path) {
     int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (fd < 0) { printf("%s: open failed\n", who); return 1; }
-    int d = dup2(fd, 9);
-    if (d < 0) { printf("FAIL %s: dup2 -> %s\n", who, strerror(errno)); return 1; }
+    if (fd < 0) { fprintf(stderr, "%s: open failed\n", who); return 1; }
+    /* `dup2(fd, 1)` — redirecting a standard stream — is the whole real-world
+       use, and it must work identically on every thread. An arbitrary bare
+       target on a worker is refused rather than half-served; see
+       descriptor_table.c. */
+    int saved = dup(1);
+    int d = dup2(fd, 1);
+    if (d < 0) { fprintf(stderr, "FAIL %s: dup2 -> %s\n", who, strerror(errno)); return 1; }
+    if (d != 1) { fprintf(stderr, "FAIL %s: dup2(fd,1) returned %d, not 1\n", who, d); return 1; }
     ssize_t w = write(d, "xy", 2);
     int c = close(d);
+    if (saved >= 0) { dup2(saved, 1); close(saved); }
     if (w != 2 || c != 0) {
-        printf("FAIL %s: dup2 gave %d but write=%zd close=%d (%s)\n", who, d, w, c,
+        fprintf(stderr, "FAIL %s: dup2 gave %d but write=%zd close=%d (%s)\n", who, d, w, c,
                strerror(errno));
         return 1;
     }
-    printf("PASS %s: dup2 -> %d, write/close ok\n", who, d);
+    fprintf(stderr, "PASS %s: dup2(fd,1) -> %d, write/close ok\n", who, d);
     close(fd);
     return 0;
 }
