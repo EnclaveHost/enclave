@@ -56,7 +56,7 @@ W="-W threads,shared-everything-threads,component-model-threading,shared-memory"
 | `set-spawn-indirect.wat` | `thread.spawn-indirect` through a shared funcref table → `7` | `wasmtime run $W --invoke 'run()' set-spawn-indirect.wat` |
 | `set-spawn-stress.wat` | spawn/join churn + contended atomics + cross-thread `memory.grow`; the TSan and soak target | `wasmtime run $W --invoke 'run(500, 16, 20000)' set-spawn-stress.wat` → `8000` |
 | `set-available-parallelism.wat` | `thread.available_parallelism` answers the TENANT's slice | `ENCLAVE_AVAILABLE_PARALLELISM=8 wasmtime run $W --invoke 'run()' ...` → `8` |
-| `set-nested-spawn.wat` | **negative probe.** A worker calling `thread.spawn-*` again must TRAP that worker (clean wasm backtrace, exit 1), never abort the process and never race | `wasmtime run $W --invoke 'run()' set-nested-spawn.wat` |
+| `set-nested-spawn.wat` | a recursive spawn tree is BOUNDED (live cap + creation-rate limit) and the host survives. Nested spawn is supported, not refused — the older "must trap" description was wrong | `wasmtime run $W --invoke 'run()' set-nested-spawn.wat` → `1` |
 | `set-spawn-fallback.wat` | historical: loads-and-runs probe from when spawn could only fail. Its counter now **races by design** (no join) — use `set-spawn-parallel.wat` for anything you intend to measure | |
 
 ## The C probes: ordinary programs, through the real toolchain
@@ -79,6 +79,8 @@ wasmtime run $W -S cli worker-io.wasm
 | `worker-block-teardown.c` | a worker asleep 12s in a HOST call does not hold teardown (the third stop path) |
 | `worker-exit.c` | `exit()` on a worker ends the component instead of stranding the joiner |
 | `worker-fd-alias.c` | a cross-thread fd FAILS with `EBADF` instead of silently aliasing another file |
+| `worker-fd-recycle.c` | a DEAD thread's fd does not become a LIVE thread's fd (namespaces are monotonic, not recycled) |
+| `worker-spawn-churn.c` | thread CREATION is rate-limited, not just concurrency: spawn-then-exit used to churn 35k threads in 2s past any cap |
 | `worker-stdio-orphan.c` | a worker trapping while holding stdout's lock (explicit `flockfile`) does not wedge stdio |
 | `worker-stdio-orphan-internal.c` | the same through the INTERNAL `FLOCK` path `printf` takes — the layer musl never registered |
 | `worker-mem-grow.c` | `-W max-memory-size` bounds SHARED-memory growth, from a worker thread |

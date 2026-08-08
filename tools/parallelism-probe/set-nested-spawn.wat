@@ -1,15 +1,26 @@
-;; Negative probe: a SET worker calling thread.spawn-ref AGAIN (nested spawn).
-;; The worker cannot re-enter the primary component's store, so this must TRAP
-;; that worker with a clear message — never abort the process, never kill the
-;; host, and never silently race.
+;; NESTED SPAWN: a SET worker spawning another thread.
 ;;
-;; Expected on stderr:
-;;   set-thread-1 trapped (thread ends; siblings continue): ...
-;;   Caused by: a shared-everything-threads worker cannot call back into ...
-;; and then a CLEAN return of 1 from run(): the host survives the worker's
-;; death. The bounded wait below is the point — the worker never bumps the
-;; counter (it trapped), so this demonstrates that losing a worker is the
-;; guest's problem to handle, not the host's.
+;; What this used to claim, and it was wrong: that the worker TRAPS with
+;; "cannot call back into the component that spawned it". It does not, and it
+;; must not. A worker runs its own whole component instantiation, so a
+;; `thread.spawn-*` from it enters through the WORKER's vmctx; the cross-thread
+;; guard compares store contexts and correctly sees a match. Nested spawn is a
+;; SUPPORTED operation — `run_async` installs the worker host and the thread
+;; group on a worker's store precisely so `pthread_create` works from a pool
+;; thread, which real pools do.
+;;
+;; So what this probe actually demonstrates is the BOUND, which is the thing
+;; worth demonstrating: an unbounded recursive spawn tree is held by the
+;; live-thread cap and by the creation-RATE limiter (the cap alone does not
+;; bound a `spawn-then-exit` chain — see `max_spawn_rate` in `set_threads.rs`),
+;; the host survives, and `run()` returns 1 because the worker never bumps the
+;; counter. Losing a worker is the guest's problem to handle, not the host's.
+;;
+;;   wasmtime run -W threads,shared-everything-threads,component-model-threading,shared-memory \
+;;     --invoke 'run()' set-nested-spawn.wat
+;;
+;; Expect: `1`, a clean exit, a bounded number of `set-thread-N` lines on
+;; stderr, and no abort.
 (component
   (core type $start (shared (func (param i32))))
   (core func $spawn (canon thread.spawn-ref $start))

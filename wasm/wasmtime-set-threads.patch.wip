@@ -1622,10 +1622,10 @@ index 9cac53d..2717868 100644
                  }
 diff --git a/crates/wasmtime/src/runtime/component/guest_memory.rs b/crates/wasmtime/src/runtime/component/guest_memory.rs
 new file mode 100644
-index 0000000..39aa71f
+index 0000000..6a700ea
 --- /dev/null
 +++ b/crates/wasmtime/src/runtime/component/guest_memory.rs
-@@ -0,0 +1,273 @@
+@@ -0,0 +1,280 @@
 +//! enclave/SET: copy-safe access to the canonical ABI's linear memory.
 +//!
 +//! # Why this exists
@@ -1755,6 +1755,13 @@ index 0000000..39aa71f
 +        let end = offset.checked_add(len).expect("guest memory range overflow");
 +        assert!(end <= self.len, "guest memory range out of bounds");
 +        if !self.shared {
++            // An empty range is handled without touching `base`: a
++            // zero-length memory's base is the dangling `empty()` sentinel,
++            // and `from_raw_parts` requires a non-null, aligned pointer even
++            // when the length is 0.
++            if len == 0 {
++                return Cow::Borrowed(&[]);
++            }
 +            // SAFETY: bounds-checked above, and `'a` keeps the allocation
 +            // alive. Nothing else can write an unshared memory while the store
 +            // is borrowed.
@@ -2230,7 +2237,7 @@ index 453b6dc..8b29108 100644
  
          let instance = Instance::from_wasmtime(decrement.store.0, instantiator.id);
 diff --git a/crates/wasmtime/src/runtime/component/mod.rs b/crates/wasmtime/src/runtime/component/mod.rs
-index 7bf166b..9335930 100644
+index 7bf166b..7fcf832 100644
 --- a/crates/wasmtime/src/runtime/component/mod.rs
 +++ b/crates/wasmtime/src/runtime/component/mod.rs
 @@ -107,6 +107,7 @@ mod component;
@@ -2241,7 +2248,7 @@ index 7bf166b..9335930 100644
  mod instance;
  mod linker;
  mod matching;
-@@ -129,7 +130,11 @@ pub use self::func::{
+@@ -129,7 +130,22 @@ pub use self::func::{
      ComponentNamedList, ComponentType, Func, Lift, Lower, TypedFunc, WasmList, WasmStr,
  };
  pub use self::has_data::*;
@@ -2250,6 +2257,17 @@ index 7bf166b..9335930 100644
 +/// enclave/SET: the embedder-facing half of shared-everything-threads spawning.
 +#[cfg(all(feature = "std", feature = "threads"))]
 +pub use crate::runtime::vm::component::{SetThreadGroup, SetWorkerHost, SetWorkerRequest};
++
++/// enclave/SET: the PROCESS-wide live-thread ceiling shared-everything-threads
++/// spawning enforces.
++///
++/// Exposed because OS threads are a node-wide kernel resource, so any other
++/// thread-spawning path in the same process (the CLI's wasi-threads p1 host,
++/// for instance) must bound itself against the SAME number rather than
++/// inventing a second, independent one.
++pub fn max_live_set_threads() -> usize {
++    crate::runtime::vm::component::max_live_threads()
++}
  pub use self::linker::{Linker, LinkerInstance};
  pub use self::resource_table::{ResourceTable, ResourceTableError};
  pub use self::resources::{Resource, ResourceAny, ResourceDynamic};
@@ -2383,7 +2401,7 @@ index ab41825..40b94e0 100644
                  // For shared memory, the `VMMemoryDefinition` is updated inside
                  // the locked region.
 diff --git a/crates/wasmtime/src/runtime/store.rs b/crates/wasmtime/src/runtime/store.rs
-index 9cc49ea..906c834 100644
+index 9cc49ea..27ce8bb 100644
 --- a/crates/wasmtime/src/runtime/store.rs
 +++ b/crates/wasmtime/src/runtime/store.rs
 @@ -470,6 +470,47 @@ pub struct StoreOpaque {
@@ -2507,7 +2525,7 @@ index 9cc49ea..906c834 100644
      /// Configures epoch-deadline expiration to invoke a custom callback
      /// function.
      ///
-@@ -1657,6 +1757,178 @@ impl StoreOpaque {
+@@ -1657,6 +1757,205 @@ impl StoreOpaque {
          (self.instances[id].handle.get_mut(), &self.modules)
      }
  
@@ -2543,6 +2561,16 @@ index 9cc49ea..906c834 100644
 +            self.owns_set_thread_group = true;
 +        }
 +        self.set_thread_group.clone().unwrap()
++    }
++
++    /// enclave/SET: this store's group WITHOUT creating one, so the spawn path
++    /// can ask "is this group stopping?" without manufacturing a group for a
++    /// store that has never spawned.
++    #[cfg(all(feature = "std", feature = "threads", feature = "component-model"))]
++    pub(crate) fn set_thread_group_if_any(
++        &self,
++    ) -> Option<std::sync::Arc<crate::runtime::vm::component::SetThreadGroup>> {
++        self.set_thread_group.clone()
 +    }
 +
 +    /// enclave/SET: join an existing group rather than starting one. Used by a
@@ -2639,6 +2667,17 @@ index 9cc49ea..906c834 100644
 +            handle.thread().unpark();
 +        }
 +
++        #[cfg(feature = "component-model")]
++        fn live_is_zero(
++            group: &Option<std::sync::Arc<crate::runtime::vm::component::SetThreadGroup>>,
++        ) -> bool {
++            group.as_ref().map(|g| g.live_workers()).unwrap_or(0) == 0
++        }
++        #[cfg(not(feature = "component-model"))]
++        fn live_is_zero<T>(_: &T) -> bool {
++            false
++        }
++
 +        let timeout = crate::runtime::vm::component::set_join_timeout();
 +        let unbounded = timeout.is_zero();
 +        let deadline = std::time::Instant::now() + timeout;
@@ -2660,8 +2699,14 @@ index 9cc49ea..906c834 100644
 +            std::thread::sleep(std::time::Duration::from_millis(1));
 +        }
 +
++        // `live == 0` means every worker's `LiveGuard` has dropped, which happens
++        // inside `worker_main` a few instructions before the thread really ends.
++        // Racing `is_finished()` against that window used to report a cleanly
++        // exited worker as a leaked one — and drop its handle unjoined. Once the
++        // count is zero, join unconditionally: it cannot block meaningfully.
++        let all_done = live_is_zero(&self.set_thread_group);
 +        for handle in joins {
-+            if handle.is_finished() || unbounded {
++            if all_done || handle.is_finished() || unbounded {
 +                if let Err(e) = handle.join() {
 +                    log::warn!("SET worker thread panicked: {e:?}");
 +                }
@@ -2686,7 +2731,7 @@ index 9cc49ea..906c834 100644
      /// Access multiple instances specified via `ids`.
      ///
      /// # Panics
-@@ -2408,6 +2680,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
+@@ -2408,6 +2707,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
  
  impl<T> Drop for Store<T> {
      fn drop(&mut self) {
@@ -2706,15 +2751,20 @@ index 9cc49ea..906c834 100644
          self.run_manual_drop_routines();
  
          // For documentation on this `unsafe`, see `into_data`.
-@@ -2423,6 +2708,14 @@ impl Drop for StoreOpaque {
+@@ -2423,6 +2735,19 @@ impl Drop for StoreOpaque {
          // NB it's important that this destructor does not access `self.data`.
          // That is deallocated by `Drop for Store<T>` above.
  
-+        // enclave/SET: workers hold raw pointers into this store's component
-+        // and core instances (their import records). Join them BEFORE any
-+        // deallocation below. A worker parked forever makes this hang, which
-+        // is the sound outcome; process-level lifetime management (the CLI
-+        // exiting, the fleet watchdog) owns that case.
++        // enclave/SET: stop and (bounded-)join this store's workers before any
++        // deallocation below. `Drop for Store<T>` has normally already drained
++        // them; this covers stores torn down by other paths.
++        //
++        // A worker holds NOTHING of this store — see `join_set_threads`, which
++        // is also where the bound and the detach-on-timeout live. This comment
++        // used to say the opposite (that workers hold raw pointers into this
++        // store's instances, and that hanging here is the sound outcome); that
++        // was true of the import-substitution design and has not been true
++        // since a worker became a whole component instantiation.
 +        #[cfg(all(feature = "std", feature = "threads"))]
 +        self.join_set_threads();
 +
@@ -2786,7 +2836,7 @@ index 2f503d1..e21782d 100644
  // Note that `debug_builtins` here is disabled with a feature or a lack of a
  // native compilation backend because it's only here to assist in debugging
 diff --git a/crates/wasmtime/src/runtime/vm/component.rs b/crates/wasmtime/src/runtime/vm/component.rs
-index de21c67..9d5e406 100644
+index de21c67..83771d4 100644
 --- a/crates/wasmtime/src/runtime/vm/component.rs
 +++ b/crates/wasmtime/src/runtime/vm/component.rs
 @@ -16,8 +16,8 @@ use crate::runtime::vm::instance::{InstanceLayout, OwnedInstance, OwnedVMContext
@@ -2800,7 +2850,7 @@ index de21c67..9d5e406 100644
  };
  use crate::store::InstanceId;
  use crate::{Func, vm};
-@@ -38,9 +38,25 @@ use wasmtime_environ::{HostPtr, PrimaryMap, VMSharedTypeIndex};
+@@ -38,9 +38,26 @@ use wasmtime_environ::{HostPtr, PrimaryMap, VMSharedTypeIndex};
  )]
  const INVALID_PTR: usize = 0xdead_dead_beef_beef_u64 as usize;
  
@@ -2821,12 +2871,13 @@ index de21c67..9d5e406 100644
 +mod set_threads;
 +#[cfg(all(feature = "std", feature = "threads"))]
 +pub use set_threads::{
-+    set_join_timeout, SetThreadGroup, SetViewPlan, SetWorkerHost, SetWorkerRequest,
++    max_live_threads, set_join_timeout, SetThreadGroup, SetViewPlan, SetWorkerHost,
++    SetWorkerRequest,
 +};
  
  pub use self::handle_table::{HandleTable, RemovedResource};
  #[cfg(feature = "component-model-async")]
-@@ -136,6 +152,17 @@ pub struct ComponentInstance {
+@@ -136,6 +153,17 @@ pub struct ComponentInstance {
      /// `Store` that this component belongs to.
      instances: TryPrimaryMap<RuntimeInstanceIndex, InstanceId>,
  
@@ -2844,7 +2895,7 @@ index de21c67..9d5e406 100644
      /// Storage for the type information about resources within this component
      /// instance.
      resource_types: Arc<TryPrimaryMap<ResourceIndex, ResourceType>>,
-@@ -258,6 +285,69 @@ impl ComponentInstance {
+@@ -258,6 +286,79 @@ impl ComponentInstance {
          // allocation which can go backwards to a `ComponentInstance`.
          let mut ptr = unsafe { Self::from_vmctx(vmctx) };
  
@@ -2855,14 +2906,24 @@ index de21c67..9d5e406 100644
 +        // below would alias the owning thread's `&mut`, which is exactly the
 +        // data race the whole per-thread-Store design exists to prevent.
 +        //
-+        // Reachable in one realistic way: a spawned worker calling
-+        // `thread.spawn-*` again (nested spawn). That is legitimate guest code
-+        // to write, so it gets a TRAP on the worker's own thread rather than a
-+        // process abort — the worker unwinds through its own store and dies
-+        // alone. Only if the return type has no unwind sentinel (a libcall
-+        // that structurally cannot trap, none of which should be reachable
-+        // this way) is there nothing to hand back, and then stopping is the
-+        // only sound option left.
++        // What this does NOT catch, because a previous revision's comment here
++        // said it did and that was wrong: NESTED SPAWN. A worker runs its own
++        // whole component instantiation, so a `thread.spawn-*` from it enters
++        // through the WORKER's vmctx and the store contexts match — the guard
++        // is bypassed by construction, and correctly so, since nested spawn is
++        // a supported operation (`run_async` installs the host and the group on
++        // the worker's store precisely to make it work).
++        //
++        // What it does catch is a worker reaching the PRIMARY's store: core
++        // `memory.grow` / `memory.atomic.wait*` on an IMPORTED memory, which
++        // Cranelift lowers with the DEFINING instance's vmctx. Spawn also
++        // refuses imported memories, so this is the second wall rather than the
++        // first. It TRAPS on the worker's own thread rather than aborting — the
++        // worker unwinds through its own store and dies alone. Only if the
++        // return type has no unwind sentinel (a libcall that structurally
++        // cannot trap, none of which should be reachable this way) is there
++        // nothing to hand back, and then stopping is the only sound option
++        // left.
 +        //
 +        // Both the comparison and the trap read only this thread's TLS plus a
 +        // vmctx field this allocation owns: no borrow of the other store is
@@ -2914,7 +2975,7 @@ index de21c67..9d5e406 100644
          // SAFETY: it's a contract of this function that it's safe to use `ptr`
          // as a mutable reference.
          let reference = unsafe { ptr.as_mut() };
-@@ -343,6 +433,7 @@ impl ComponentInstance {
+@@ -343,6 +444,7 @@ impl ComponentInstance {
              offsets,
              instance_states,
              instances,
@@ -2922,7 +2983,7 @@ index de21c67..9d5e406 100644
              component: component.clone(),
              resource_types,
              imports: imports.clone(),
-@@ -518,16 +609,46 @@ impl ComponentInstance {
+@@ -518,16 +620,46 @@ impl ComponentInstance {
      /// Note that it should be a property of the component model that the `ptr`
      /// here is never needed prior to it being configured here in the instance.
      pub fn set_runtime_memory(
@@ -2972,7 +3033,7 @@ index de21c67..9d5e406 100644
      }
  
      /// Same as `set_runtime_memory` but for realloc function pointers.
-@@ -926,6 +1047,21 @@ impl ComponentInstance {
+@@ -926,6 +1058,21 @@ impl ComponentInstance {
          self.instances[idx]
      }
  
@@ -3128,10 +3189,10 @@ index f62ea58..7ed3b91 100644
      store: &mut dyn VMStore,
 diff --git a/crates/wasmtime/src/runtime/vm/component/set_threads.rs b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
 new file mode 100644
-index 0000000..d6ec9bd
+index 0000000..e5829c0
 --- /dev/null
 +++ b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
-@@ -0,0 +1,1246 @@
+@@ -0,0 +1,1463 @@
 +//! enclave/SET: real OS-thread spawning for the shared-everything-threads
 +//! `thread.spawn-ref` / `thread.spawn-indirect` component intrinsics.
 +//!
@@ -3197,9 +3258,18 @@ index 0000000..d6ec9bd
 +//! # Lifetime / soundness invariants
 +//!
 +//! A worker deliberately holds NO raw pointers into the primary store: the
-+//! component is a refcounted handle and the shared memories are `Arc`s
-+//! (`SetWorkerRequest` is `Send` without a single `unsafe impl`, and the
-+//! compiler proves it). That is what licenses everything below:
++//! component is a refcounted handle and the shared memories are `Arc`s, so
++//! `SetWorkerRequest` is `Send` without a single `unsafe impl`.
++//!
++//! Be precise about what that buys, because the next reader will lean on it:
++//! `Send` proves the REQUEST can cross a thread boundary. It says nothing about
++//! what the worker's `Store<T>`, its embedder data `T`, or the embedder's
++//! `SetWorkerHost` reach once teardown has DETACHED the worker. That is an
++//! EMBEDDER OBLIGATION, stated on [`SetWorkerHost`]: everything a detached
++//! worker can still touch must outlive it or be refcounted. Both CLI embedders
++//! satisfy it (the worker's store owns an `Engine` clone, the `Component` Arc
++//! and the `SharedMemory` Arcs; the primary frees nothing the worker reaches).
++//! With that obligation held, this follows:
 +//!
 +//! 1. **Teardown does not have to block.** `Drop for Store<T>` asks every
 +//!    worker to stop and joins with a bound; a worker that has still not
@@ -3276,18 +3346,19 @@ index 0000000..d6ec9bd
 +///
 +/// It is sized from `thread.available_parallelism`, which reports the
 +/// tenant's purchased slice when the embedder sets
-+/// `ENCLAVE_AVAILABLE_PARALLELISM` and the HOST core count otherwise. Note
-+/// the platform does not set that variable today, so on-fleet this currently
-+/// derives from the node's core count, not the tenant's share — wiring it up
-+/// is a prerequisite for enabling SET, not an optimization. The 4x headroom
-+/// is for pools whose threads block rather than compute.
++/// `ENCLAVE_AVAILABLE_PARALLELISM` and the HOST core count otherwise. The
++/// enclave platform sets it per launch from the purchased `cpuShare`
++/// (`wasm_manager.py::_available_parallelism_for`), so on-fleet this derives
++/// from the tenant's share; an embedder that does not set it gets the node's
++/// core count, which is a much weaker bound. The 4x headroom is for pools
++/// whose threads block rather than compute.
 +/// `ENCLAVE_MAX_SET_THREADS` overrides it; the floor of 4 keeps a
 +/// single-core tenant able to express a small pool.
 +///
 +/// Exceeding it returns the ABI's documented `-1` ("spawn failed"), which SET
 +/// guests are already required to handle — the same graceful path an
 +/// unsupported module shape takes.
-+fn max_live_threads() -> usize {
++pub fn max_live_threads() -> usize {
 +    use std::sync::OnceLock;
 +    static CACHED: OnceLock<usize> = OnceLock::new();
 +    *CACHED.get_or_init(|| {
@@ -3347,6 +3418,76 @@ index 0000000..d6ec9bd
 +    std::time::Duration::from_millis(ms)
 +}
 +
++/// `SetThreadGroup::exit_status` when no worker has called `proc_exit`. Out of
++/// `i32` range, so every possible exit code is representable.
++const NO_WORKER_EXIT: i64 = i64::MIN;
++
++/// Sustained thread CREATIONS per second this process will serve, and the size
++/// of the burst it will absorb.
++///
++/// The live-thread cap bounds CONCURRENCY, and a hostile guest simply does not
++/// hold threads concurrently: `worker(){ spawn(worker); return; }` keeps the
++/// live count at 1-2 forever while creating threads at the kernel's maximum
++/// rate. Measured on the shipped engine: 35,871 create+exit pairs in 1.5 s,
++/// ~0.9 of a core burnt in `clone`/exit — and `ENCLAVE_MAX_SET_THREADS=4` made
++/// no difference at all (35,463). Thread creation is a NODE-WIDE cost, so that
++/// is a noisy-neighbour denial of service against every other tenant, which is
++/// exactly what the concurrency cap's own comment claims to prevent.
++///
++/// So creation is rate-limited too, with a token bucket: a burst of
++/// `4 x max_live_threads()` (a pool filling at startup, several times over)
++/// refilled at the same number per second (~2% of one core in kernel time at
++/// the measured ~40 µs per create+exit). `ENCLAVE_MAX_SET_SPAWN_RATE` overrides
++/// the per-second figure; `0` disables the limiter.
++fn max_spawn_rate() -> u64 {
++    use std::sync::OnceLock;
++    static CACHED: OnceLock<u64> = OnceLock::new();
++    *CACHED.get_or_init(|| {
++        if let Ok(v) = std::env::var("ENCLAVE_MAX_SET_SPAWN_RATE") {
++            if let Ok(n) = v.trim().parse::<u64>() {
++                return n;
++            }
++        }
++        (max_live_threads() as u64).saturating_mul(4).max(16)
++    })
++}
++
++/// The token bucket behind `max_spawn_rate`. Process-global, because OS threads
++/// are.
++struct SpawnRate {
++    tokens: f64,
++    last: std::time::Instant,
++}
++
++/// Take one spawn token, or report that the rate limit is in force.
++fn take_spawn_token() -> bool {
++    use std::sync::{Mutex, OnceLock};
++    let rate = max_spawn_rate();
++    if rate == 0 {
++        return true;
++    }
++    static BUCKET: OnceLock<Mutex<SpawnRate>> = OnceLock::new();
++    let bucket = BUCKET.get_or_init(|| {
++        Mutex::new(SpawnRate {
++            tokens: (rate * 4) as f64,
++            last: std::time::Instant::now(),
++        })
++    });
++    let mut bucket = match bucket.lock() {
++        Ok(b) => b,
++        Err(e) => e.into_inner(),
++    };
++    let now = std::time::Instant::now();
++    let elapsed = now.duration_since(bucket.last).as_secs_f64();
++    bucket.last = now;
++    bucket.tokens = (bucket.tokens + elapsed * rate as f64).min((rate * 4) as f64);
++    if bucket.tokens < 1.0 {
++        return false;
++    }
++    bucket.tokens -= 1.0;
++    true
++}
++
 +/// Live SET workers in this PROCESS. See `max_live_threads`.
 +static LIVE_SET_THREADS: AtomicUsize = AtomicUsize::new(0);
 +
@@ -3364,9 +3505,16 @@ index 0000000..d6ec9bd
 +    /// thread-local takes; a worker parked in `memory.atomic.wait` polls it.
 +    stop: Arc<AtomicBool>,
 +
-+    /// The exit status of the first worker to call `proc_exit`, plus one, or 0
-+    /// for "no worker has exited". Read by the primary's embedder so a
-+    /// worker's `exit()` ends the component instead of silently wedging it.
++    /// The exit status of the first worker to call `proc_exit`, or
++    /// `NO_WORKER_EXIT` for "no worker has exited". Read by the primary's
++    /// embedder so a worker's `exit()` ends the component instead of silently
++    /// wedging it.
++    ///
++    /// An `i64` with an out-of-`i32`-range sentinel, NOT `code + 1` with 0
++    /// meaning none: `exit(-1)` is a perfectly ordinary thing for a program to
++    /// do, and encoding it as 0 silently downgraded it to "no exit" while the
++    /// group was still stopped — so the CLI reported "asked to stop" instead of
++    /// a status.
 +    exit_status: AtomicI64,
 +
 +    /// Workers spawned from this store that have not yet finished. Lets
@@ -3385,7 +3533,7 @@ index 0000000..d6ec9bd
 +    pub(crate) fn new_shared() -> Arc<SetThreadGroup> {
 +        Arc::new(SetThreadGroup {
 +            stop: Arc::new(AtomicBool::new(false)),
-+            exit_status: AtomicI64::new(0),
++            exit_status: AtomicI64::new(NO_WORKER_EXIT),
 +            live: AtomicUsize::new(0),
 +            memories: std::sync::Mutex::new(Vec::new()),
 +        })
@@ -3398,10 +3546,19 @@ index 0000000..d6ec9bd
 +        self.stop.store(true, Ordering::SeqCst);
 +        // Wake everything parked on the shared memories so the flag is seen
 +        // now rather than at the next polling quantum.
-+        if let Ok(memories) = self.memories.lock() {
-+            for memory in memories.iter() {
-+                memory.notify_all_waiters();
-+            }
++        //
++        // Poisoning is RECOVERED FROM, not skipped. `request_stop` runs from
++        // `Drop for Store<T>`; a poisoned lock there would silently stop
++        // unparking anything for the life of the group — a stop requested and
++        // then missed, which is the exact failure this whole mechanism exists
++        // to prevent. The `Vec` is only ever appended to under this lock, so a
++        // panic cannot have left it in a state iteration minds.
++        let memories = match self.memories.lock() {
++            Ok(m) => m,
++            Err(e) => e.into_inner(),
++        };
++        for memory in memories.iter() {
++            memory.notify_all_waiters();
 +        }
 +    }
 +
@@ -3431,8 +3588,8 @@ index 0000000..d6ec9bd
 +    /// The exit status a worker reported via `proc_exit`, if any.
 +    pub fn worker_exit_status(&self) -> Option<i32> {
 +        match self.exit_status.load(Ordering::Acquire) {
-+            0 => None,
-+            n => Some((n - 1) as i32),
++            NO_WORKER_EXIT => None,
++            n => Some(n as i32),
 +        }
 +    }
 +
@@ -3443,8 +3600,8 @@ index 0000000..d6ec9bd
 +    /// only the embedder can recognise its own exit error type.
 +    pub fn record_worker_exit(&self, code: i32) {
 +        let _ = self.exit_status.compare_exchange(
-+            0,
-+            i64::from(code) + 1,
++            NO_WORKER_EXIT,
++            i64::from(code),
 +            Ordering::AcqRel,
 +            Ordering::Relaxed,
 +        );
@@ -3612,6 +3769,17 @@ index 0000000..d6ec9bd
 +/// [`SetWorkerRequest::run_async`] on its own async executor.
 +pub trait SetWorkerHost: Send + Sync + 'static {
 +    /// Run one worker to completion on the calling (worker) OS thread.
++    ///
++    /// # Embedder obligation
++    ///
++    /// Store teardown BOUNDS its wait and then DETACHES a worker that has not
++    /// stopped (see `StoreOpaque::join_set_threads`). So everything this
++    /// function's `Store<T>`, its `T`, and this host itself can reach must
++    /// either outlive the primary store or be refcounted. Nothing in the type
++    /// system checks that: `SetWorkerRequest: Send` covers the hand-off, not
++    /// the lifetime afterwards. If your embedder cannot meet it, set
++    /// `ENCLAVE_SET_JOIN_TIMEOUT_MS=0` to restore an unbounded join and accept
++    /// that a non-returning guest thread wedges teardown.
 +    fn run_worker(&self, req: SetWorkerRequest) -> Result<()>;
 +
 +    /// Recognise the embedder's own "the guest called `proc_exit`" error.
@@ -3724,15 +3892,20 @@ index 0000000..d6ec9bd
 +        }
 +    }
 +
-+    // SAFETY: the magic check above proved this is a core-module vmctx, and
-+    // it belongs to this store's component (checked right below), so deriving
-+    // a shared reference while we hold `&mut StoreOpaque` is sound.
++    // SAFETY: the magic check above proved this is a core-module vmctx.
 +    let defining: NonNull<VmInstance> =
 +        unsafe { VmInstance::from_vmctx(funcref.as_ref().vmctx.as_non_null().cast()) };
-+    let defining = unsafe { defining.as_ref() };
-+    if !defining.belongs_to_store(store) {
++    // Ownership is established BEFORE any reference is formed. A funcref from a
++    // foreign store would belong to an allocation another thread may hold `&mut`
++    // to, so `as_ref()`-then-check would commit the very violation it reports —
++    // the same rule `ComponentInstance::enter_host_from_wasm` follows.
++    // SAFETY: the pointer is derived from a live vmctx of a core module.
++    if !unsafe { VmInstance::ptr_belongs_to_store(defining, store) } {
 +        bail!("thread.spawn: start function belongs to a different store");
 +    }
++    // SAFETY: it is this store's instance, and we hold `&mut StoreOpaque`, so no
++    // other thread can be executing in it.
++    let defining = unsafe { defining.as_ref() };
 +
 +    let Some(func_index) = defining.func_index_of_func_ref(funcref) else {
 +        refuse!("start funcref is not one of its defining instance's escaped functions");
@@ -3921,6 +4094,38 @@ index 0000000..d6ec9bd
 +        }
 +    }
 +
++    // ---- refuse once this group is stopping ----
++    //
++    // Two things depend on this, and both were reachable without it.
++    //
++    // Teardown asks the group to stop and then waits for its live count to
++    // reach zero. A worker that keeps spawning keeps that count above zero, so
++    // the wait can never be satisfied and every teardown ends on the detach
++    // path. Worse, the guest's thread-death hook runs on the WORKER's store,
++    // which has this same host and group registered — so a hook that spawns a
++    // thread that traps gets another hook, unboundedly, and a component can
++    // outlive the store that created it with a full complement of threads.
++    //
++    // Checked BEFORE the counters are touched, so a refusal leaves nothing to
++    // unwind, and last among the guards so a stopping group still reports the
++    // more informative reason for an unsupported module shape.
++    if group_if_any(store).is_some_and(|g| g.stop_requested()) {
++        refuse!(
++            "this component's thread group is stopping (store teardown, or another \
++             thread called `proc_exit`); no new threads are started"
++        );
++    }
++
++    // ---- rate-limit thread CREATION, which the live cap does not bound ----
++    if !take_spawn_token() {
++        refuse!(
++            "SET thread creation rate limit reached ({}/s); a guest that spawns and \
++             immediately exits is not bounded by the live-thread cap. Raise \
++             ENCLAVE_MAX_SET_SPAWN_RATE, or 0 to disable",
++            max_spawn_rate()
++        );
++    }
++
 +    // ---- reserve a slot under the live-thread cap ----
 +    //
 +    // A compare-exchange loop rather than a blind increment, so a refusal
@@ -3946,10 +4151,14 @@ index 0000000..d6ec9bd
 +    let slot = SlotGuard(true);
 +
 +    // ---- capture ----
-+    let thread_id = NEXT_SET_THREAD_ID.fetch_add(1, Ordering::Relaxed) as i64;
-+    if thread_id > i64::from(i32::MAX) {
-+        return Ok(ThreadSpawnResult::FAILED);
-+    }
++    // WRAPS rather than latching. The ABI wants a non-negative i32; it does not
++    // want uniqueness for the life of the process. An earlier revision let the
++    // counter run past `i32::MAX` and then refused EVERY spawn forever — a
++    // permanent, process-wide latch reachable by a long-lived `wasmtime serve`,
++    // and one no tenant could recover from.
++    let thread_id = i64::from(
++        (NEXT_SET_THREAD_ID.fetch_add(1, Ordering::Relaxed) % (i32::MAX as u64)) as i32 + 1,
++    );
 +    // This store's thread group: the stop flag every stop path drives, the
 +    // live count teardown waits on, and where a worker's `proc_exit` lands.
 +    // Created on the first spawn and shared by every worker of this store.
@@ -4005,6 +4214,13 @@ index 0000000..d6ec9bd
 +            Ok(ThreadSpawnResult::FAILED)
 +        }
 +    }
++}
++
++/// This store's thread group, WITHOUT creating one. Used by the spawn path to
++/// ask "is this group stopping?" without manufacturing a group for a store that
++/// has never spawned.
++fn group_if_any(store: &StoreOpaque) -> Option<Arc<SetThreadGroup>> {
++    store.set_thread_group_if_any()
 +}
 +
 +/// Clears the parking-spot cancellation thread-local when the worker exits, so
@@ -4105,8 +4321,12 @@ index 0000000..d6ec9bd
 +            // classifies it (only it knows the WASI error type) and calls
 +            // `SetThreadGroup::record_worker_exit`, which stops the rest of the
 +            // group; here we only stay quiet about it.
-+            if group.worker_exit_status().is_some() {
-+                log::debug!("set-thread-{thread_id} ended because the group is exiting: {e:?}");
++            // A stop request is ordinary shutdown, not a fault: at every clean
++            // store teardown every live worker ends this way, and on this
++            // platform stderr IS the tenant's log — a 32-thread program was
++            // printing 32 spurious "trapped" lines per run.
++            if group.stop_requested() {
++                log::debug!("set-thread-{thread_id} ended because the group is stopping: {e:?}");
 +                return;
 +            }
 +            // A guest TRAP kills only this worker. Earlier this called
@@ -4122,7 +4342,20 @@ index 0000000..d6ec9bd
 +            // thread-death hook before its store goes away — see
 +            // `SetWorkerRequest::run_async`. If the guest has no such hook, the
 +            // residual stands and is the guest's own bug to handle.
-+            eprintln!("set-thread-{thread_id} trapped (thread ends; siblings continue): {e:?}");
++            // Rate-limited for the same reason spawn refusals are: 20,000
++            // immediately-trapping workers produced 3.8 MB of stderr, and on
++            // this platform stderr is the tenant's log. The FIRST trap in each
++            // window carries the backtrace, which is what a developer needs.
++            static LAST_TRAP: AtomicU64 = AtomicU64::new(0);
++            if refusal_diagnostic_due(&LAST_TRAP) {
++                eprintln!(
++                    "set-thread-{thread_id} trapped (thread ends; siblings continue; \
++                     further traps are rate-limited to one per \
++                     {REFUSAL_DIAGNOSTIC_PERIOD_SECS}s): {e:?}"
++                );
++            } else {
++                log::debug!("set-thread-{thread_id} trapped: {e:?}");
++            }
 +        }
 +        Err(_) => {
 +            // The default panic hook has already printed the payload and
@@ -4151,14 +4384,12 @@ index 0000000..d6ec9bd
 +    /// The group this worker shares with the store that spawned it and with
 +    /// every sibling.
 +    ///
-+    /// An embedder needs it for exactly one thing, and MUST do it: when
-+    /// [`run_async`](Self::run_async) fails with the embedder's own
-+    /// "guest called `proc_exit`" error, call
-+    /// [`SetThreadGroup::record_worker_exit`]. Only the embedder knows that
-+    /// error type (`wasmtime_wasi::I32Exit` for the WASI ones), and without the
-+    /// call a worker's `exit()` is invisible: it surfaces as a per-thread trap,
-+    /// the siblings keep running on a libc whose `__stdio_exit` already poisoned
-+    /// every FILE lock, and the main thread hangs in `pthread_join`.
++    /// Recording a `proc_exit` is NOT one of them: [`run_async`](Self::run_async)
++    /// already does that, through [`SetWorkerHost::exit_status`]. Calling
++    /// [`SetThreadGroup::record_worker_exit`] as well is harmless (first writer
++    /// wins) but redundant. What an embedder legitimately wants this for is
++    /// [`SetThreadGroup::stop_requested`], to cancel a worker that is blocked in
++    /// a host call and so reaches no other stop checkpoint.
 +    pub fn thread_group(&self) -> &Arc<SetThreadGroup> {
 +        &self.group
 +    }
@@ -4181,6 +4412,27 @@ index 0000000..d6ec9bd
 +    /// path documents.
 +    #[cfg(feature = "async")]
 +    pub async fn run_async<T: Send + 'static>(
++        &self,
++        store: &mut Store<T>,
++        pre: &crate::component::InstancePre<T>,
++    ) -> Result<()> {
++        // Every error out of this worker is classified, not just the one from
++        // the start function's own call. A guest `start` section runs during
++        // `instantiate_set_worker_async` below and can call `proc_exit`; so can
++        // anything the sync-call bookkeeping touches. Those used to propagate
++        // with `?` before any classification, so the exit was lost, the group
++        // never stopped, and the primary hung exactly as if the fix were absent.
++        let result = self.run_inner(store, pre).await;
++        if let Err(e) = &result {
++            if let Some(code) = self.host.exit_status(e) {
++                self.group.record_worker_exit(code);
++            }
++        }
++        result
++    }
++
++    #[cfg(feature = "async")]
++    async fn run_inner<T: Send + 'static>(
 +        &self,
 +        store: &mut Store<T>,
 +        pre: &crate::component::InstancePre<T>,
@@ -4299,14 +4551,13 @@ index 0000000..d6ec9bd
 +
 +        if let Err(e) = result {
 +            // `exit()` on any thread ends the process under POSIX, and the
-+            // component instance is the process. Record the status, stop the
-+            // siblings, and — deliberately — do NOT run the death hook: it
-+            // would release a joiner, and the main thread would then sail past
-+            // an `exit()` that was supposed to end it. The main thread is
-+            // instead stopped where it actually is, by the group's stop flag
-+            // (parked in `pthread_join`) or by its epoch callback (running).
-+            if let Some(code) = self.host.exit_status(&e) {
-+                self.group.record_worker_exit(code);
++            // component instance is the process. `run_async` records the status;
++            // here we only decline to run the death hook, deliberately: it would
++            // release a joiner, and the main thread would then sail past an
++            // `exit()` that was supposed to end it. The main thread is instead
++            // stopped where it actually is, by the group's stop flag (parked in
++            // `pthread_join`) or by its epoch callback (running).
++            if self.host.exit_status(&e).is_some() {
 +                return Err(e);
 +            }
 +
@@ -4320,15 +4571,33 @@ index 0000000..d6ec9bd
 +            // otherwise healthy) store, and any failure is reported without
 +            // displacing the original trap.
 +            //
-+            // The hook gets a FRESH epoch budget. On the path that matters most
-+            // — a runaway worker being stopped at teardown — the store arrives
-+            // here with its deadline already expired and its callback armed to
-+            // stop again, so the hook used to trap at its own function entry and
-+            // do nothing at all. It is a bounded, non-looping epilogue; giving
-+            // it a budget that a stop request cannot immediately revoke is what
-+            // makes it able to run. It stays interruptible after that budget.
++            // The hook gets a FRESH, SMALL epoch budget that a stop request
++            // cannot immediately revoke. On the path that matters most — a
++            // runaway worker being stopped at teardown — the store arrives here
++            // with its deadline already expired and its callback armed to stop
++            // again, so the hook would trap at its own function entry and do
++            // nothing at all.
++            //
++            // The budget is deliberately tiny. This window is the ONE place
++            // where guest code runs with every stop path disarmed (the callback
++            // is replaced by a plain trap, the hook does not park, and a compute
++            // loop never yields to the executor), so its size is a hard bound on
++            // how long a trapping worker can ignore teardown. The epilogue it
++            // exists for — release the thread-list lock, wake joiners — is a few
++            // hundred instructions; anything beyond that is a guest abusing it.
++            // Spawning from the hook is separately refused (see `spawn_funcref`),
++            // which is what stops the window from being renewable.
 +            store.set_epoch_deadline(GUEST_THREAD_DIED_EPOCH_BUDGET);
 +            store.epoch_deadline_trap();
++            // Fuel needs the same treatment for the same reason, and missing it
++            // put the hang straight back: a worker that traps by EXHAUSTING its
++            // fuel arrives here with zero, so the hook traps out of fuel at its
++            // own entry, no joiner is released, and the main thread parks in
++            // `pthread_join` forever. `set_fuel` errors when the engine is not
++            // metering fuel at all, which is the common case and not a problem.
++            if store.get_fuel().is_ok() {
++                let _ = store.set_fuel(GUEST_THREAD_DIED_FUEL_BUDGET);
++            }
 +            notify_guest_thread_died(store, core_id, self.start_arg, self.thread_id).await;
 +            return Err(e);
 +        }
@@ -4367,11 +4636,20 @@ index 0000000..d6ec9bd
 +}
 +
 +/// Epoch ticks the guest's death hook is allowed, independent of any stop
-+/// request. It runs a fixed, non-looping epilogue (release the thread-list
-+/// lock, wake joiners), so a small fixed budget is enough — and without one it
-+/// would trap at its own entry on exactly the path where it is needed.
++/// request.
++///
++/// This is the only window in which guest code runs with every stop path
++/// disarmed, so it is a hard bound on how long a trapping worker can ignore
++/// teardown: `GUEST_THREAD_DIED_EPOCH_BUDGET x <the embedder's ticker period>`
++/// (0.2s with the wasmtime CLI's 10ms ticker). The epilogue it exists for is a
++/// few hundred instructions.
 +#[cfg(feature = "async")]
-+const GUEST_THREAD_DIED_EPOCH_BUDGET: u64 = 1_000;
++const GUEST_THREAD_DIED_EPOCH_BUDGET: u64 = 20;
++
++/// Fuel the guest's death hook is allowed when the embedder meters fuel. Sized
++/// for a fixed epilogue, not for guest logic.
++#[cfg(feature = "async")]
++const GUEST_THREAD_DIED_FUEL_BUDGET: u64 = 10_000_000;
 +
 +/// Optional guest export called when a worker dies by TRAP rather than by
 +/// returning. Takes the same `i32` the start function was given (the libc's
@@ -4379,7 +4657,7 @@ index 0000000..d6ec9bd
 +/// `pthread_t` and release whatever a normal exit would have released.
 +const GUEST_THREAD_DIED_EXPORT: &str = "__enclave_set_thread_died";
 diff --git a/crates/wasmtime/src/runtime/vm/instance.rs b/crates/wasmtime/src/runtime/vm/instance.rs
-index 06ba7e4..bfc43af 100644
+index 06ba7e4..51d06e5 100644
 --- a/crates/wasmtime/src/runtime/vm/instance.rs
 +++ b/crates/wasmtime/src/runtime/vm/instance.rs
 @@ -324,6 +324,60 @@ impl Instance {
@@ -4443,7 +4721,7 @@ index 06ba7e4..bfc43af 100644
          // SAFETY: It's a contract of this function that `vmctx` is a valid
          // pointer with neither the store nor other instances actively in use
          // when this is called, so it should be safe to acquire a mutable
-@@ -506,6 +560,97 @@ impl Instance {
+@@ -506,6 +560,128 @@ impl Instance {
          unsafe { self.vmctx_plus_offset_raw(self.offsets().vmctx_vmglobal_definition(index)) }
      }
  
@@ -4457,6 +4735,37 @@ index 06ba7e4..bfc43af 100644
 +    // view-side surgery for that. See `vm::component::set_threads`.
 +
 +    /// Does this instance belong to `store`?
++    /// Whether the instance at `ptr` belongs to `store`, WITHOUT forming a
++    /// `&Instance`.
++    ///
++    /// enclave/SET: the SET spawn path is handed a `VMFuncRef` by the guest and
++    /// has to establish that its defining instance is this store's before it
++    /// touches anything else about it. Forming the reference first and checking
++    /// second is the pattern this codebase treats as fatal elsewhere (see
++    /// `ComponentInstance::enter_host_from_wasm`): on the very path the check
++    /// exists to catch, another thread may hold `&mut` to that allocation, so
++    /// the shared reference would itself be the violation being reported.
++    ///
++    /// # Safety
++    ///
++    /// `ptr` must point at a live `Instance` allocation.
++    pub(crate) unsafe fn ptr_belongs_to_store(
++        ptr: core::ptr::NonNull<Instance>,
++        store: &StoreOpaque,
++    ) -> bool {
++        // SAFETY: `addr_of!` through a raw pointer never materializes a
++        // reference to the whole `Instance`; the field is written once when the
++        // instance is created and never mutated afterwards.
++        let owner = unsafe { core::ptr::addr_of!((*ptr.as_ptr()).store).read() };
++        match owner {
++            Some(ptr) => core::ptr::eq(
++                ptr.0.as_ptr() as *const u8,
++                store.traitobj().as_ptr() as *const u8,
++            ),
++            None => false,
++        }
++    }
++
 +    pub(crate) fn belongs_to_store(&self, store: &StoreOpaque) -> bool {
 +        match &self.store {
 +            Some(ptr) => core::ptr::eq(
@@ -4573,7 +4882,7 @@ index fce3c4a..0133235 100644
          match result {
              Some((old, _new)) => Ok(Some(old)),
 diff --git a/crates/wasmtime/src/runtime/vm/memory/shared_memory.rs b/crates/wasmtime/src/runtime/vm/memory/shared_memory.rs
-index 9f0721b..5292433 100644
+index 9f0721b..a030bf2 100644
 --- a/crates/wasmtime/src/runtime/vm/memory/shared_memory.rs
 +++ b/crates/wasmtime/src/runtime/vm/memory/shared_memory.rs
 @@ -1,3 +1,4 @@
@@ -4610,72 +4919,176 @@ index 9f0721b..5292433 100644
      /// Return the memory type for this [`SharedMemory`].
      pub fn ty(&self) -> &wasmtime_environ::Memory {
          &self.0.ty
-@@ -88,10 +111,61 @@ impl SharedMemory {
+@@ -88,38 +111,137 @@ impl SharedMemory {
      }
  
      /// Same as `RuntimeLinearMemory::grow`, except with `&self`.
 -    pub fn grow(&self, delta_pages: u64) -> Result<Option<(usize, usize)>, Error> {
+-        let mut memory = self.0.memory.write().unwrap();
+-        // Without a limiter being passed in this shouldn't have an await point,
+-        // so it should be safe to assert that it's ready.
+-        let result = vm::assert_ready(memory.grow(delta_pages, None))?;
+-        if let Some((_old_size_in_bytes, new_size_in_bytes)) = result {
+-            // Store the new size to the `VMMemoryDefinition` for JIT-generated
+-            // code (and runtime functions) to access. No other code can be
+-            // growing this memory due to the write lock, but code in other
+-            // threads could have access to this shared memory and we want them
+-            // to see the most consistent version of the `current_length`; a
+-            // weaker consistency is possible if we accept them seeing an older,
+-            // smaller memory size (assumption: memory only grows) but presently
+-            // we are aiming for accuracy.
+-            //
+-            // Note that it could be possible to access a memory address that is
+-            // now-valid due to changes to the page flags in `grow` above but
+-            // beyond the `memory.size` that we are about to assign to. In these
+-            // and similar cases, discussion in the thread proposal concluded
+-            // that: "multiple accesses in one thread racing with another
+-            // thread's `memory.grow` that are in-bounds only after the grow
+-            // commits may independently succeed or trap" (see
+-            // https://github.com/WebAssembly/threads/issues/26#issuecomment-433930711).
+-            // In other words, some non-determinism is acceptable when using
+-            // `memory.size` on work being done by `memory.grow`.
+-            self.0
+-                .def
+-                .0
+-                .current_length
+-                .store(new_size_in_bytes, Ordering::SeqCst);
 +    ///
-+    /// enclave/SET: `limiter` is the growing STORE's resource limiter, and it
-+    /// is consulted before the write lock is taken rather than under it —
-+    /// `ResourceLimiter` may be async, and an await while holding a
-+    /// `std::sync::RwLock` guard is not something this can do.
++    /// enclave/SET: `limiter` is the growing STORE's resource limiter. It has to
++    /// be consulted OUTSIDE the write lock — a `ResourceLimiter` may be async,
++    /// and an await while holding a `std::sync::RwLock` guard is not something
++    /// this can do — which makes the check and the growth two steps, and two
++    /// steps over a value another thread may change is a race.
 +    ///
-+    /// Splitting the check from the growth would be a race, so the value the
-+    /// limiter approved becomes a CEILING that is re-checked under the lock: a
-+    /// second grow that raced past it fails (returns `None`, the wasm-level
-+    /// "grow failed"), so the memory never ends up larger than the largest size
-+    /// the limiter actually said yes to. Any store in the group gives the same
-+    /// answer for `StoreLimits`, which compares a requested size against a
-+    /// configured maximum without accumulating.
++    /// So it retries rather than approximating. Each attempt reads the current
++    /// size, asks the limiter about `current + delta`, takes the lock, and
++    /// proceeds only if the size is still what it asked about; otherwise it
++    /// re-asks. An earlier revision instead treated the approved value as a
++    /// ceiling and re-checked it under the lock, which was safe against
++    /// EXCEEDING the limit but turned any concurrent grow into a spurious
++    /// allocation failure for the loser — including `memory.grow(0)`, which the
++    /// spec says must always return the current size. That is precisely the
++    /// workload SET exists for.
++    ///
++    /// The retry terminates: every retry means another thread really grew, and
++    /// growth is bounded by the declared maximum. It is bounded anyway, and a
++    /// worker that loses `GROW_RETRIES` times in a row gets the wasm-level
++    /// "grow failed", which is a legal outcome under contention.
 +    pub async fn grow(
 +        &self,
 +        delta_pages: u64,
-+        limiter: Option<&mut StoreResourceLimiter<'_>>,
++        mut limiter: Option<&mut StoreResourceLimiter<'_>>,
 +    ) -> Result<Option<(usize, usize)>, Error> {
-+        let mut ceiling = None;
-+        if let Some(limiter) = limiter {
-+            let page_size = usize::try_from(self.0.ty.page_size()).unwrap();
-+            let absolute_max = 0usize.wrapping_sub(page_size);
-+            let current = self.0.def.0.current_length.load(Ordering::SeqCst);
-+            let desired = usize::try_from(delta_pages)
-+                .unwrap_or(usize::MAX)
-+                .saturating_mul(page_size)
-+                .saturating_add(current)
-+                .min(absolute_max);
-+            let maximum = self
-+                .0
-+                .ty
-+                .maximum_byte_size()
-+                .ok()
-+                .and_then(|n| usize::try_from(n).ok());
-+            if !limiter.memory_growing(current, desired, maximum).await? {
-+                return Ok(None);
-+            }
-+            ceiling = Some(desired);
++        /// How many times a grow re-asks the limiter after losing a race.
++        const GROW_RETRIES: usize = 16;
++
++        // Wasm spec: growing by 0 always returns the current size. Never ask the
++        // limiter about it and never fail it.
++        if delta_pages == 0 {
++            let memory = self.0.memory.read().unwrap();
++            let size = memory.byte_size();
++            return Ok(Some((size, size)));
 +        }
 +
-         let mut memory = self.0.memory.write().unwrap();
--        // Without a limiter being passed in this shouldn't have an await point,
--        // so it should be safe to assert that it's ready.
-+        if let Some(ceiling) = ceiling {
-+            let page_size = usize::try_from(self.0.ty.page_size()).unwrap();
-+            let new_byte_size = usize::try_from(delta_pages)
-+                .unwrap_or(usize::MAX)
-+                .saturating_mul(page_size)
-+                .saturating_add(memory.byte_size());
-+            if new_byte_size > ceiling {
-+                // A concurrent grow got there first; this one was not approved
-+                // for the size it would now reach.
-+                return Ok(None);
++        let page_size = usize::try_from(self.0.ty.page_size()).unwrap();
++        let absolute_max = 0usize.wrapping_sub(page_size);
++        let maximum = self
++            .0
++            .ty
++            .maximum_byte_size()
++            .ok()
++            .and_then(|n| usize::try_from(n).ok());
++        let delta_bytes = usize::try_from(delta_pages)
++            .unwrap_or(usize::MAX)
++            .saturating_mul(page_size);
++
++        for _ in 0..GROW_RETRIES {
++            // The size the limiter is asked about. Read outside the lock, and
++            // re-validated under it.
++            let asked_from = self.0.def.0.current_length.load(Ordering::SeqCst);
++            if let Some(limiter) = limiter.as_deref_mut() {
++                let desired = asked_from.saturating_add(delta_bytes).min(absolute_max);
++                if !limiter.memory_growing(asked_from, desired, maximum).await? {
++                    return Ok(None);
++                }
 +            }
-+        }
-+        // No limiter is passed down: it was already consulted above, and
-+        // `LocalMemory::grow` would await, which cannot happen under this lock.
-         let result = vm::assert_ready(memory.grow(delta_pages, None))?;
-         if let Some((_old_size_in_bytes, new_size_in_bytes)) = result {
-             // Store the new size to the `VMMemoryDefinition` for JIT-generated
-@@ -158,7 +232,13 @@ impl SharedMemory {
++
++            let mut memory = self.0.memory.write().unwrap();
++            if limiter.is_some() && memory.byte_size() != asked_from {
++                // Somebody grew between the question and the answer. Ask again
++                // about the size that is actually there rather than failing a
++                // grow the limiter would have allowed.
++                drop(memory);
++                continue;
++            }
++            // No limiter is passed down: it was already consulted above, and
++            // `LocalMemory::grow` would await, which cannot happen under this
++            // lock. Its own failures are therefore reported back to the limiter
++            // here — a `memory_growing` that returned true and then did not
++            // happen must be told, or an ACCOUNTING limiter (which the platform
++            // has) drifts monotonically every time a guest asks for a grow the
++            // declared maximum refuses.
++            let grown = vm::assert_ready(memory.grow(delta_pages, None));
++            let result = match grown {
++                Ok(Some(r)) => Some(r),
++                Ok(None) => {
++                    drop(memory);
++                    if let Some(limiter) = limiter.as_deref_mut() {
++                        limiter.memory_grow_failed(crate::format_err!(
++                            "shared memory growth by {delta_pages} pages was refused by the \
++                             memory's own limits"
++                        ))?;
++                    }
++                    return Ok(None);
++                }
++                Err(e) => {
++                    drop(memory);
++                    if let Some(limiter) = limiter.as_deref_mut() {
++                        limiter.memory_grow_failed(e)?;
++                        return Ok(None);
++                    }
++                    return Err(e);
++                }
++            };
++            drop(memory);
++            if let Some((_old_size_in_bytes, new_size_in_bytes)) = result {
++                // Store the new size to the `VMMemoryDefinition` for JIT-generated
++                // code (and runtime functions) to access. No other code can be
++                // growing this memory due to the write lock, but code in other
++                // threads could have access to this shared memory and we want them
++                // to see the most consistent version of the `current_length`; a
++                // weaker consistency is possible if we accept them seeing an older,
++                // smaller memory size (assumption: memory only grows) but presently
++                // we are aiming for accuracy.
++                //
++                // Note that it could be possible to access a memory address that is
++                // now-valid due to changes to the page flags in `grow` above but
++                // beyond the `memory.size` that we are about to assign to. In these
++                // and similar cases, discussion in the thread proposal concluded
++                // that: "multiple accesses in one thread racing with another
++                // thread's `memory.grow` that are in-bounds only after the grow
++                // commits may independently succeed or trap" (see
++                // https://github.com/WebAssembly/threads/issues/26#issuecomment-433930711).
++                // In other words, some non-determinism is acceptable when using
++                // `memory.size` on work being done by `memory.grow`.
++                self.0
++                    .def
++                    .0
++                    .current_length
++                    .store(new_size_in_bytes, Ordering::SeqCst);
++            }
++            return Ok(result);
+         }
+-        Ok(result)
++
++        // Lost the race `GROW_RETRIES` times: report the wasm-level failure
++        // rather than spinning. Each loss means another thread grew, so this is
++        // contention, not starvation.
++        Ok(None)
+     }
+ 
+     /// Implementation of `memory.atomic.notify` for this shared memory.
+@@ -158,7 +280,13 @@ impl SharedMemory {
  
          WAITER.with(|waiter| {
              let mut waiter = waiter.borrow_mut();
@@ -4690,7 +5103,7 @@ index 9f0721b..5292433 100644
          })
      }
  
-@@ -187,7 +267,12 @@ impl SharedMemory {
+@@ -187,7 +315,12 @@ impl SharedMemory {
  
          WAITER.with(|waiter| {
              let mut waiter = waiter.borrow_mut();
@@ -5010,7 +5423,7 @@ index 93164dc..a0de7f4 100644
          .await
      }
 diff --git a/src/commands/run.rs b/src/commands/run.rs
-index 4159165..5b10ae8 100644
+index 4159165..aa15596 100644
 --- a/src/commands/run.rs
 +++ b/src/commands/run.rs
 @@ -11,9 +11,11 @@ use std::ffi::OsString;
@@ -5035,11 +5448,11 @@ index 4159165..5b10ae8 100644
 +            // when `-W shared-everything-threads` is off.
 +            #[cfg(all(feature = "component-model", feature = "threads"))]
 +            let _set_epoch_ticker =
-+                crate::common::SetEpochTicker::maybe_spawn(&self.run.common, &engine);
++                crate::common::SetEpochTicker::maybe_spawn(&self.run.common, &engine)?;
              let main = self.run.load_module(
                  &engine,
                  self.module_and_args[0].as_ref(),
-@@ -335,6 +343,18 @@ impl RunCommand {
+@@ -335,6 +343,23 @@ impl RunCommand {
          if self.run.common.wasm.timeout.is_some() {
              config.epoch_interruption(true);
          }
@@ -5051,14 +5464,50 @@ index 4159165..5b10ae8 100644
 +        // returning from `main`. So SET turns it on whether or not a timeout
 +        // was asked for, and `SetEpochTicker` supplies the periodic bump that
 +        // makes it fire. Non-SET runs are untouched and pay nothing.
-+        #[cfg(feature = "threads")]
++        // The cfg must match the block that installs a DEADLINE and a callback
++        // (`setup_epoch_handler`), or a build with `threads` but without
++        // `component-model` would turn epoch interruption on with the default
++        // deadline of 0 and no callback: every guest traps at its first epoch
++        // check.
++        #[cfg(all(feature = "component-model", feature = "threads"))]
 +        if self.run.common.wasm.shared_everything_threads == Some(true) {
 +            config.epoch_interruption(true);
 +        }
          match self.run.profile {
              Some(Profile::Native(s)) => {
                  config.profiler(s);
-@@ -579,6 +599,48 @@ impl RunCommand {
+@@ -561,9 +586,30 @@ impl RunCommand {
+             if self.run.common.wasm.timeout.is_some() {
+                 bail!("Cannot set timeout options together with debugging; they are incompatible");
+             }
++            // enclave/SET: the debugger owns the epoch deadline, so the SET
++            // stop-callback below cannot be installed and a worker's
++            // `proc_exit` would silently fail to end the component. Refused
++            // rather than left half-armed, the same way profiling is.
++            #[cfg(feature = "threads")]
++            if self.run.common.wasm.shared_everything_threads == Some(true) {
++                bail!(
++                    "Cannot use shared-everything-threads together with debugging; the \
++                     debugger owns the epoch deadline that stops worker threads"
++                );
++            }
+             store.epoch_deadline_async_yield_and_update(1);
+         } else {
+             if let Some(Profile::Guest { path, interval }) = &self.run.profile {
++                // enclave/SET: the profiler installs its own epoch callback, so
++                // the SET stop-callback below would be overwritten (or would
++                // overwrite it). Refused rather than left half-armed.
++                #[cfg(feature = "threads")]
++                if self.run.common.wasm.shared_everything_threads == Some(true) {
++                    bail!(
++                        "Cannot use shared-everything-threads together with guest profiling; \
++                         the profiler owns the epoch deadline that stops worker threads"
++                    );
++                }
+                 #[cfg(feature = "profiling")]
+                 return Ok(self.setup_guest_profiler(
+                     store,
+@@ -579,6 +625,48 @@ impl RunCommand {
                  }
              }
  
@@ -5107,7 +5556,7 @@ index 4159165..5b10ae8 100644
              if let Some(timeout) = self.run.common.wasm.timeout {
                  store.set_epoch_deadline(1);
                  let engine = store.engine().clone();
-@@ -715,6 +777,126 @@ impl RunCommand {
+@@ -715,6 +803,204 @@ impl RunCommand {
              }
          }
  
@@ -5149,12 +5598,43 @@ index 4159165..5b10ae8 100644
 +                         (link with -Wl,--import-memory,--shared-memory)"
 +                    );
 +                };
++                // The shared memory is created outside any store, so no
++                // `ResourceLimiter` sees it. Check the declared type against the
++                // embedder's memory limit HERE, or `-W max-memory-size` — the
++                // tenant's purchased RAM on this platform — is simply absent
++                // from this path: a module declaring `(memory 65536 65536
++                // shared)` would commit 4 GiB before running an instruction.
++                if let Some(limit) = self.run.common.wasm.max_memory_size {
++                    let page = mem_ty.page_size();
++                    let bytes = |pages: u64| {
++                        usize::try_from(pages.saturating_mul(page)).unwrap_or(usize::MAX)
++                    };
++                    let want = mem_ty
++                        .maximum()
++                        .map(bytes)
++                        .unwrap_or(usize::MAX)
++                        .max(bytes(mem_ty.minimum()));
++                    if want > limit {
++                        bail!(
++                            "this wasi-threads module's shared memory declares up to {want} \
++                             bytes, over the configured limit of {limit}; a shared memory is \
++                             not metered per store, so the whole declared size must fit"
++                        );
++                    }
++                }
 +                let shared = wasmtime::SharedMemory::new(&engine, mem_ty)?;
 +                linker.define(&mut *store, "env", "memory", shared.clone())?;
 +
 +                let pre: Arc<OnceLock<wasmtime::InstancePre<Host>>> = Arc::new(OnceLock::new());
 +                let tid = Arc::new(std::sync::atomic::AtomicI32::new(1));
 +                let argv = self.compute_argv()?;
++                let run_common = self.run.clone();
++                let cli_enabled = self.run.validate_cli_enabled()?;
++                // Same node-wide resource, same bound. Without this a
++                // `for(;;) __wasi_thread_spawn()` guest exhausts the box's pid
++                // space, which is the exact thing the SET cap exists to stop —
++                // and this path had none at all.
++                let live = Arc::new(std::sync::atomic::AtomicUsize::new(0));
 +                {
 +                    let pre = pre.clone();
 +                    let tid = tid.clone();
@@ -5166,23 +5646,70 @@ index 4159165..5b10ae8 100644
 +                            let Some(pre) = pre.get().cloned() else {
 +                                return -1;
 +                            };
++                            let cap = wasmtime::component::max_live_set_threads();
++                            if live.fetch_add(1, std::sync::atomic::Ordering::AcqRel) >= cap {
++                                live.fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
++                                return -1;
++                            }
 +                            let id = tid.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 +                            let engine = engine.clone();
 +                            let argv = argv.clone();
++                            let run_common = run_common.clone();
++                            let live = live.clone();
 +                            let spawned = std::thread::Builder::new()
 +                                .name(format!("wasi-thread-{id}"))
 +                                .spawn(move || {
-+                                    // a FRESH context for this thread
-+                                    let mut b = wasmtime_wasi::WasiCtxBuilder::new();
-+                                    b.args(&argv);
-+                                    b.inherit_stdin();
-+                                    b.inherit_stdout();
-+                                    b.inherit_stderr();
-+                                    let host = Host {
-+                                        wasip1_ctx: Some(b.build_p1()),
-+                                        ..Default::default()
++                                    struct Live(Arc<std::sync::atomic::AtomicUsize>);
++                                    impl Drop for Live {
++                                        fn drop(&mut self) {
++                                            self.0.fetch_sub(
++                                                1,
++                                                std::sync::atomic::Ordering::AcqRel,
++                                            );
++                                        }
++                                    }
++                                    let _live = Live(live);
++                                    // A FRESH context for this thread, built by
++                                    // the SAME function that builds the main
++                                    // one. Hand-rolling it here is what made the
++                                    // SET worker path a guest-triggerable
++                                    // `process::abort()`; this path had the same
++                                    // shape (a `..Default::default()` Host whose
++                                    // missing contexts the linker's accessors
++                                    // unwrap()) and none of the limits.
++                                    let host = match RunCommand::build_host(
++                                        &run_common,
++                                        &argv,
++                                        cli_enabled,
++                                    ) {
++                                        Ok(h) => h,
++                                        Err(e) => {
++                                            eprintln!("wasi-thread-{id}: host: {e:?}");
++                                            return;
++                                        }
 +                                    };
 +                                    let mut store = Store::new(&engine, host);
++                                    store.limiter(|h| &mut h.limits);
++                                    if let Some(fuel) = run_common.common.wasm.fuel {
++                                        if let Err(e) = store.set_fuel(fuel) {
++                                            eprintln!("wasi-thread-{id}: fuel: {e:?}");
++                                            return;
++                                        }
++                                    }
++                                    if let Some(fuel) = run_common.common.wasi.hostcall_fuel {
++                                        store.set_hostcall_fuel(fuel);
++                                    }
++                                    // A fresh store's epoch deadline is 0, i.e.
++                                    // "trap at the first check". With
++                                    // `--wasm timeout` or `--profile=guest`
++                                    // (either of which turns epoch interruption
++                                    // on) every spawned thread died instantly,
++                                    // and the trap below turned that into a
++                                    // whole-process exit(1).
++                                    if engine.get_epoch_interruption() {
++                                        store.set_epoch_deadline(u64::MAX / 2);
++                                        store.epoch_deadline_trap();
++                                    }
 +                                    // the CLI configures the engine for async, so the
 +                                    // sync entrypoints must NOT be used here — they
 +                                    // deadlock. Drive the async ones on this thread's
@@ -5234,7 +5761,7 @@ index 4159165..5b10ae8 100644
          let finish_epoch_handler =
              self.setup_epoch_handler(store, main_target, profiled_modules)?;
  
-@@ -753,6 +935,15 @@ impl RunCommand {
+@@ -753,6 +1039,15 @@ impl RunCommand {
                  if let Some(func) = func {
                      self.invoke_func(store, func).await?;
                  }
@@ -5250,7 +5777,7 @@ index 4159165..5b10ae8 100644
                  Ok(CliInstance::Core(instance))
              }
              #[cfg(feature = "component-model")]
-@@ -771,6 +962,17 @@ impl RunCommand {
+@@ -771,6 +1066,17 @@ impl RunCommand {
          };
          finish_epoch_handler(store);
  
@@ -5268,7 +5795,7 @@ index 4159165..5b10ae8 100644
          result
      }
  
-@@ -813,6 +1015,8 @@ impl RunCommand {
+@@ -813,6 +1119,8 @@ impl RunCommand {
              .with_context(|| format!("while interpreting parameters in invoke \"{invoke}\""))?;
  
          let instance = linker.instantiate_async(&mut *store, component).await?;
@@ -5277,7 +5804,7 @@ index 4159165..5b10ae8 100644
  
          let func = instance
              .get_func(&mut *store, export)
-@@ -846,6 +1050,133 @@ impl RunCommand {
+@@ -846,6 +1154,144 @@ impl RunCommand {
          Ok(())
      }
  
@@ -5337,6 +5864,17 @@ index 4159165..5b10ae8 100644
 +                // a live abort waiting for a guest to find it.
 +                let mut store = Store::new(&self.engine, self.run_host()?);
 +                store.limiter(|host| &mut host.limits);
++                // `--wasi max-resources` has TWO tables to cap: the WASI ctx's
++                // (done in `build_host`) and the component-model-async one,
++                // which lives on the store. The primary sets both; a worker
++                // that set only the first left its async resource table
++                // unbounded.
++                #[cfg(feature = "component-model-async")]
++                if let Some(max) = self.run.common.wasi.max_resources {
++                    if let Some(table) = store.concurrent_resource_table() {
++                        table.set_max_capacity(max);
++                    }
++                }
 +                if let Some(fuel) = self.run.common.wasi.hostcall_fuel {
 +                    store.set_hostcall_fuel(fuel);
 +                }
@@ -5411,7 +5949,7 @@ index 4159165..5b10ae8 100644
      /// Execute the default behavior for components on the CLI, looking for
      /// `wasi:cli`-based commands and running their exported `run` function.
      #[cfg(feature = "component-model")]
-@@ -856,6 +1187,8 @@ impl RunCommand {
+@@ -856,6 +1302,8 @@ impl RunCommand {
          linker: &wasmtime::component::Linker<Host>,
      ) -> Result<wasmtime::component::Instance> {
          let instance = linker.instantiate_async(&mut *store, component).await?;
@@ -5420,7 +5958,7 @@ index 4159165..5b10ae8 100644
  
          let mut result = None;
          let _ = &mut result;
-@@ -1167,14 +1500,12 @@ impl RunCommand {
+@@ -1167,14 +1615,12 @@ impl RunCommand {
                                  wasmtime_wasi::p0::add_to_linker_async(linker, |t| t.wasip1_ctx())?;
                              }
                              wasmtime_wasi::p1::add_to_linker_async(linker, |t| t.wasip1_ctx())?;
@@ -5435,7 +5973,7 @@ index 4159165..5b10ae8 100644
                  }
              }
          }
-@@ -1186,14 +1517,11 @@ impl RunCommand {
+@@ -1186,14 +1632,11 @@ impl RunCommand {
              }
              #[cfg(all(feature = "wasi-nn", feature = "component-model"))]
              {
@@ -5450,7 +5988,7 @@ index 4159165..5b10ae8 100644
                      }
                      #[cfg(feature = "component-model")]
                      CliLinker::Component(linker) => {
-@@ -1202,8 +1530,6 @@ impl RunCommand {
+@@ -1202,8 +1645,6 @@ impl RunCommand {
                              let nn_ctx = h.wasi_nn_wit.as_mut().unwrap();
                              WasiNnView::new(ctx.ctx().table, nn_ctx)
                          })?;
@@ -5459,7 +5997,7 @@ index 4159165..5b10ae8 100644
                      }
                  }
              }
-@@ -1223,19 +1549,9 @@ impl RunCommand {
+@@ -1223,19 +1664,9 @@ impl RunCommand {
                          bail!("Cannot enable wasi-config for core wasm modules");
                      }
                      CliLinker::Component(linker) => {
@@ -5479,7 +6017,7 @@ index 4159165..5b10ae8 100644
                      }
                  }
              }
-@@ -1255,22 +1571,10 @@ impl RunCommand {
+@@ -1255,22 +1686,10 @@ impl RunCommand {
                          bail!("Cannot enable wasi-keyvalue for core wasm modules");
                      }
                      CliLinker::Component(linker) => {
@@ -5502,7 +6040,7 @@ index 4159165..5b10ae8 100644
                      }
                  }
              }
-@@ -1299,8 +1603,7 @@ impl RunCommand {
+@@ -1299,8 +1718,7 @@ impl RunCommand {
                          }
                      }
                  }
@@ -5512,7 +6050,7 @@ index 4159165..5b10ae8 100644
              }
          }
  
-@@ -1325,59 +1628,151 @@ impl RunCommand {
+@@ -1325,59 +1743,161 @@ impl RunCommand {
                              wasmtime_wasi_tls::p3::add_to_linker(linker)?;
                          }
  
@@ -5581,7 +6119,9 @@ index 4159165..5b10ae8 100644
 +                ctx.ctx().table.set_max_capacity(max);
 +            }
 +            host.wasip1_ctx = Some(ctx);
-+        }
+         }
+-        if self.run.common.wasi.inherit_stdout.unwrap_or(true) {
+-            builder.inherit_stdout();
 +
 +        if run.common.wasi.nn == Some(true) {
 +            #[cfg(feature = "wasi-nn")]
@@ -5602,8 +6142,8 @@ index 4159165..5b10ae8 100644
 +                ));
 +            }
          }
--        if self.run.common.wasi.inherit_stdout.unwrap_or(true) {
--            builder.inherit_stdout();
+-        if self.run.common.wasi.inherit_stderr.unwrap_or(true) {
+-            builder.inherit_stderr();
 +
 +        if run.common.wasi.config == Some(true) {
 +            #[cfg(feature = "wasi-config")]
@@ -5617,8 +6157,13 @@ index 4159165..5b10ae8 100644
 +                ));
 +            }
          }
--        if self.run.common.wasi.inherit_stderr.unwrap_or(true) {
--            builder.inherit_stderr();
+-        self.run.configure_wasip2(&mut builder)?;
+-        let mut ctx = builder.build_p1();
+-        if let Some(max) = self.run.common.wasi.max_resources {
+-            ctx.ctx().table.set_max_capacity(max);
+-            #[cfg(feature = "component-model-async")]
+-            if let Some(table) = store.concurrent_resource_table() {
+-                table.set_max_capacity(max);
 +
 +        if run.common.wasi.keyvalue == Some(true) {
 +            #[cfg(feature = "wasi-keyvalue")]
@@ -5634,39 +6179,39 @@ index 4159165..5b10ae8 100644
 +                        )
 +                        .build(),
 +                );
-+            }
+             }
          }
--        self.run.configure_wasip2(&mut builder)?;
--        let mut ctx = builder.build_p1();
--        if let Some(max) = self.run.common.wasi.max_resources {
--            ctx.ctx().table.set_max_capacity(max);
--            #[cfg(feature = "component-model-async")]
--            if let Some(table) = store.concurrent_resource_table() {
--                table.set_max_capacity(max);
+-        if let Some(fuel) = self.run.common.wasi.hostcall_fuel {
+-            store.set_hostcall_fuel(fuel);
 +
 +        if run.common.wasi.http == Some(true) {
 +            #[cfg(feature = "wasi-http")]
 +            {
 +                host.wasi_http = Some(run.wasi_http_ctx()?);
 +                host.wasi_http_hooks = run.wasi_http_hooks();
-             }
++            }
          }
--        if let Some(fuel) = self.run.common.wasi.hostcall_fuel {
--            store.set_hostcall_fuel(fuel);
+-        store.data_mut().wasip1_ctx = Some(ctx);
+-        Ok(())
 +
 +        if run.common.wasi.tls == Some(true) {
 +            #[cfg(feature = "wasi-tls")]
 +            {
 +                host.wasi_tls = Some(wasmtime_wasi_tls::WasiTlsCtxBuilder::new().build());
 +            }
-         }
--        store.data_mut().wasip1_ctx = Some(ctx);
--        Ok(())
++        }
 +
 +        Ok(host)
      }
  
 +    /// The process-wide wasi-nn graph registry, loaded on first use.
++    ///
++    /// Process-wide and keyed on nothing, which is worth stating: the only way
++    /// to get a second `-S nn-graph` configuration into one process is the
++    /// debugger sub-command, whose debuggee always initializes this first, so a
++    /// debugger component would silently inherit the debuggee's graphs. Not
++    /// worth keying (the graphs are multi-GB and the debugger is a dev path),
++    /// but it should not surprise anyone.
      #[cfg(feature = "wasi-nn")]
 -    fn collect_preloaded_nn_graphs(
 -        &self,
@@ -5675,6 +6220,9 @@ index 4159165..5b10ae8 100644
 -            .run
 +    fn nn_registry(run: &RunCommon) -> Result<wasmtime_wasi_nn::InMemoryRegistry> {
 +        static PRELOAD: OnceLock<wasmtime_wasi_nn::InMemoryRegistry> = OnceLock::new();
++        // Checked before the load, not just before the store: `preload_registry`
++        // pulls every graph into memory (and, for GGUF, into VRAM), so a racing
++        // second caller must not pay for one only to throw it away.
 +        if let Some(registry) = PRELOAD.get() {
 +            return Ok(registry.clone());
 +        }
@@ -5694,7 +6242,7 @@ index 4159165..5b10ae8 100644
  
  /// The `T` in `Store<T>` for what the CLI is running.
 diff --git a/src/commands/serve.rs b/src/commands/serve.rs
-index 64fbb49..b699a06 100644
+index 64fbb49..1ac0c45 100644
 --- a/src/commands/serve.rs
 +++ b/src/commands/serve.rs
 @@ -109,7 +109,7 @@ fn parse_duration(s: &str) -> Result<Duration, String> {
@@ -5706,7 +6254,37 @@ index 64fbb49..b699a06 100644
  pub struct ServeCommand {
      #[command(flatten)]
      run: RunCommon,
-@@ -567,6 +567,16 @@ impl ServeCommand {
+@@ -557,16 +557,42 @@ impl ServeCommand {
+         #[cfg(feature = "debug")]
+         let debug_run = self.debugger_setup()?;
+ 
+-        let mut config = self
+-            .run
+-            .common
+-            .config(use_pooling_allocator_by_default().unwrap_or(None))?;
++        // enclave/SET: the pooling allocator cannot allocate a `shared` memory
++        // (`Memory::new_static` has a `todo!()` for it; instantiation bails with
++        // "memory is shared which is not supported in the pooling allocator").
++        // `serve` turns pooling on BY DEFAULT on any host with the address space
++        // for it, so without this a shared-everything-threads component fails to
++        // instantiate under `wasmtime serve` — which is how the platform runs
++        // every HTTP app. `run` was unaffected and hid it.
++        //
++        // This only changes the DEFAULT: `-O pooling-allocator=y` still wins, and
++        // then the tenant gets the clean refusal above rather than a surprise.
++        #[cfg(feature = "threads")]
++        let pooling_default = if self.run.common.wasm.shared_everything_threads == Some(true) {
++            None
++        } else {
++            use_pooling_allocator_by_default().unwrap_or(None)
++        };
++        #[cfg(not(feature = "threads"))]
++        let pooling_default = use_pooling_allocator_by_default().unwrap_or(None);
++
++        let mut config = self.run.common.config(pooling_default)?;
+         config.wasm_component_model(true);
+ 
+         if self.run.common.wasm.timeout.is_some() {
              config.epoch_interruption(true);
          }
  
@@ -5723,7 +6301,7 @@ index 64fbb49..b699a06 100644
          match self.run.profile {
              Some(Profile::Native(s)) => {
                  config.profiler(s);
-@@ -606,6 +616,14 @@ impl ServeCommand {
+@@ -606,6 +632,14 @@ impl ServeCommand {
          let engine = linker.engine();
          let request_headers = RequestHeaders::parse(&self.headers)?;
          let instance = linker.instantiate_pre(&component)?;
@@ -5738,7 +6316,7 @@ index 64fbb49..b699a06 100644
          #[cfg(feature = "component-model-async")]
          let instance = match wasmtime_wasi_http::p3::bindings::ServicePre::new(instance.clone()) {
              Ok(pre) => ProxyPre::P3(pre),
-@@ -704,6 +722,13 @@ impl ServeCommand {
+@@ -704,6 +738,13 @@ impl ServeCommand {
              Some(EPOCH_INTERRUPT_PERIOD.min(t))
          } else if debuggee_store.is_some() {
              Some(Duration::from_millis(1))
@@ -5752,7 +6330,7 @@ index 64fbb49..b699a06 100644
          } else {
              None
          };
-@@ -740,6 +765,8 @@ impl ServeCommand {
+@@ -740,6 +781,8 @@ impl ServeCommand {
          let sem_connections = Arc::new(Semaphore::new(max_concurrent_connections));
  
          let handler = ProxyHandler::new(HostHandlerState {
@@ -5761,7 +6339,7 @@ index 64fbb49..b699a06 100644
              sem_requests: Semaphore::new(max_concurrent_requests),
              cmd: self,
              component,
-@@ -906,6 +933,67 @@ impl WorkerState for HostWorkerState {
+@@ -906,6 +949,67 @@ impl WorkerState for HostWorkerState {
      }
  }
  
@@ -5829,7 +6407,7 @@ index 64fbb49..b699a06 100644
  struct HostHandlerState {
      cmd: ServeCommand,
      component: Component,
-@@ -913,6 +1001,8 @@ struct HostHandlerState {
+@@ -913,6 +1017,8 @@ struct HostHandlerState {
      max_instance_reuse_count: usize,
      max_instance_concurrent_reuse_count: usize,
      instance: ProxyPre<Host>,
@@ -5838,7 +6416,7 @@ index 64fbb49..b699a06 100644
      next_instance_id: AtomicU64,
      next_request_id: AtomicU64,
      sem_requests: Semaphore,
-@@ -923,6 +1013,14 @@ impl HostHandlerState {
+@@ -923,6 +1029,14 @@ impl HostHandlerState {
      async fn instantiate_into(&self, store: &mut Store<Host>) -> Result<Proxy> {
          let write_profile = setup_epoch_handler(&self.cmd, &mut *store, self.component.clone())?;
          store.data_mut().write_profile = Some(write_profile);
@@ -5853,19 +6431,39 @@ index 64fbb49..b699a06 100644
          self.instance.instantiate_async(&mut *store).await
      }
  }
-@@ -1069,6 +1167,27 @@ fn setup_epoch_handler(
-     if cmd.run.common.wasm.timeout.is_some() || cmd.run.common.debug.debugger.is_some() {
-         store.epoch_deadline_async_yield_and_update(1);
-         store.set_epoch_deadline(1);
-+        return Ok(Box::new(|_store| {}));
-+    }
-+
+@@ -1056,6 +1170,15 @@ fn setup_epoch_handler(
+ ) -> Result<WriteProfile> {
+     // Profiling Enabled
+     if let Some(Profile::Guest { interval, path }) = &cmd.run.profile {
++        // enclave/SET: the profiler owns the epoch deadline; refuse rather than
++        // leave the worker stop-check unarmed. Same call as `run.rs`.
++        #[cfg(feature = "threads")]
++        if cmd.run.common.wasm.shared_everything_threads == Some(true) {
++            bail!(
++                "Cannot use shared-everything-threads together with guest profiling; the \
++                 profiler owns the epoch deadline that stops worker threads"
++            );
++        }
+         #[cfg(feature = "profiling")]
+         return setup_guest_profiler(store, path.clone(), *interval, component.clone());
+         #[cfg(not(feature = "profiling"))]
+@@ -1065,6 +1188,38 @@ fn setup_epoch_handler(
+         }
+     }
+ 
 +    // enclave/SET: with shared-everything-threads this request's own guest call
 +    // has to observe the group's stop flag, so a WORKER's `proc_exit` ends the
 +    // request instead of leaving its main thread parked in `pthread_join`.
++    //
++    // This runs BEFORE the timeout/debugger branch below, and folds the yield
++    // that branch wanted into the same callback. Ordering it after was a real
++    // hole: `serve --wasm timeout=...` returned early and the SET callback was
++    // never installed at all.
 +    #[cfg(feature = "threads")]
 +    if cmd.run.common.wasm.shared_everything_threads == Some(true) {
 +        let group = store.set_thread_group();
++        let yielding =
++            cmd.run.common.wasm.timeout.is_some() || cmd.run.common.debug.debugger.is_some();
 +        store.set_epoch_deadline(1);
 +        store.epoch_deadline_callback(move |_| {
 +            if group.stop_requested() {
@@ -5876,13 +6474,20 @@ index 64fbb49..b699a06 100644
 +                    }
 +                };
 +            }
-+            Ok(wasmtime::UpdateDeadline::Continue(1))
++            if yielding {
++                Ok(wasmtime::UpdateDeadline::Yield(1))
++            } else {
++                Ok(wasmtime::UpdateDeadline::Continue(1))
++            }
 +        });
-     }
- 
-     Ok(Box::new(|_store| {}))
++        return Ok(Box::new(|_store| {}));
++    }
++
+     // Profiling disabled but there's a global request timeout
+     if cmd.run.common.wasm.timeout.is_some() || cmd.run.common.debug.debugger.is_some() {
+         store.epoch_deadline_async_yield_and_update(1);
 diff --git a/src/common.rs b/src/common.rs
-index 0d49bd9..b964118 100644
+index 0d49bd9..728f40f 100644
 --- a/src/common.rs
 +++ b/src/common.rs
 @@ -43,7 +43,7 @@ impl RunTarget {
@@ -5894,7 +6499,29 @@ index 0d49bd9..b964118 100644
  pub struct RunCommon {
      #[command(flatten)]
      pub common: CommonOptions,
-@@ -664,3 +664,69 @@ fn parse_vek(s: &str) -> Option<[u8; 32]> {
+@@ -320,7 +320,20 @@ impl RunCommon {
+         // However, do not set this if a timeout is configured, as that would
+         // cause the timeout to be ignored if the guest does, for example,
+         // something like `sleep(FOREVER)`.
+-        builder.allow_blocking_current_thread(self.common.wasm.timeout.is_none());
++        //
++        // enclave/SET: "we're the only thread in the program" stops being true
++        // the moment shared-everything-threads is on, and the consequence is
++        // not just performance. Blocking inline runs the WASI call ON THE
++        // FIBER, so the guest future never returns `Pending`, so the
++        // cancellation arm the embedder races it against is never polled — the
++        // third stop path (see `set_threads.rs`) silently does not work. A
++        // worker inside a `/data` read or an encrypted-volume fetch then runs
++        // to completion no matter what teardown wants, which on a
++        // network-backed volume is minutes. `--wasm timeout` happened to hide
++        // this in testing and is exactly what the platform does NOT pass.
++        let blocking_ok = self.common.wasm.timeout.is_none()
++            && self.common.wasm.shared_everything_threads != Some(true);
++        builder.allow_blocking_current_thread(blocking_ok);
+ 
+         if self.common.wasi.inherit_env == Some(true) {
+             for (k, v) in std::env::vars_os() {
+@@ -664,3 +677,79 @@ fn parse_vek(s: &str) -> Option<[u8; 32]> {
      }
      Some(out)
  }
@@ -5929,9 +6556,9 @@ index 0d49bd9..b964118 100644
 +impl SetEpochTicker {
 +    /// Start a ticker if `-W shared-everything-threads` is on, otherwise
 +    /// nothing: engines that cannot spawn SET workers pay no epoch cost.
-+    pub fn maybe_spawn(common: &CommonOptions, engine: &Engine) -> Option<SetEpochTicker> {
++    pub fn maybe_spawn(common: &CommonOptions, engine: &Engine) -> Result<Option<SetEpochTicker>> {
 +        if common.wasm.shared_everything_threads != Some(true) {
-+            return None;
++            return Ok(None);
 +        }
 +        let shutdown = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
 +        let handle = {
@@ -5945,12 +6572,22 @@ index 0d49bd9..b964118 100644
 +                        engine.increment_epoch();
 +                    }
 +                })
-+                .ok()?
++                // Fail CLOSED. Swallowing this left the engine with epoch
++                // interruption on and nothing advancing the epoch, so no
++                // worker's stop check ever fired and every one of them was
++                // detached at teardown to spin forever. And the condition that
++                // makes `spawn` fail is EAGAIN under thread pressure — which is
++                // precisely what a SET tenant creates.
++                .context(
++                    "shared-everything-threads needs a periodic epoch ticker and its thread \
++                     could not be created; without it a guest thread that does not yield \
++                     cannot be stopped",
++                )?
 +        };
-+        Some(SetEpochTicker {
++        Ok(Some(SetEpochTicker {
 +            shutdown,
 +            handle: Some(handle),
-+        })
++        }))
 +    }
 +}
 +
