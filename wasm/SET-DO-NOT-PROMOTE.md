@@ -134,6 +134,76 @@ store through an imported memory's futex instead. `set-nested-spawn.wat` and
 its README row said the opposite and now describe what they actually
 demonstrate: that a recursive spawn tree is bounded.
 
+## Round 5 (2026-08-08): did not clear either — a CRITICAL that four rounds of probes had walked past
+
+The round-5 pass reviewed THE FIXES rather than the design, which is where it
+found the worst thing in the whole project so far.
+
+* **CRITICAL: two file or socket I/O operations deadlocked once any second
+  thread existed.** `file_get_read_stream` / `tcp_get_read_stream` take the
+  object's lock and the CALLER must release it. The p2 shape of `wasi_read_t`
+  has nowhere to carry that lock, so an early revision of this patch DELETED
+  the release instead of replacing it. Single-threaded it is invisible —
+  `__lock()` returns immediately while `libc.need_locks == 0` — and it becomes
+  a permanent hold the instant the first `pthread_create` sets that flag. The
+  second `read`, `write`, `send` or `poll` on any file or socket then blocks
+  forever, as does a worker's own exit (its table `clear()` re-locks). Fixed by
+  giving the p2 metadata a `lock` field, publishing it from the producers that
+  take one, and releasing it in `read`/`write`/`tcp`/`ppoll`.
+  **Every previous probe missed it because `stdio_get_*_stream` takes no lock**
+  — so `printf`-only workers were fine, and nothing ever wrote a file twice.
+  `worker-file-io.c`.
+* **HIGH: the round-4 `SharedMemory::grow` rewrite failed 27–74% of legitimate
+  concurrent grows** — my regression. Publishing `current_length` outside the
+  write lock broke the retry loop's own termination argument: a loser could not
+  see the winner's growth, so retries were burnt with nobody having grown.
+  Publishing under the lock again: 16 threads × 200 grows now fails 57 of 3200
+  (1.8%), was 854 (27%). The RAM gate still binds exactly.
+* **HIGH: the p1 wasi-threads path got round 4's concurrency cap but not its
+  creation-rate limiter** — 20,000 OS threads in 0.66 s, i.e. round 4's own
+  headline lesson not applied to the path round 4 hardened. Both bounds now
+  come from the same process-wide bucket.
+* **HIGH: the rate limiter refused 87% of a strictly SEQUENTIAL create-then-join
+  loop** on a 1-core tenant — one thread alive at a time, the most ordinary
+  shape there is. The floor was 16/s against a shape that reaches ~250/s. Now
+  512/s with tokens refunded when a spawn is refused for another reason; the
+  fork-bomb is still cut ~9x.
+* **HIGH: `--wasm timeout` bounded nothing when the main thread was parked in a
+  join** — which is every pthread program. The wall-clock check lived in the
+  primary's epoch callback, and a parked thread runs no callbacks: measured 25 s
+  and two pinned cores against a 2 s timeout. The ticker thread now enforces the
+  deadline; the same case exits at 2.011 s.
+* **HIGH: `dup2` on a worker returned the raw target**, so it SUCCEEDED and
+  handed back a descriptor that was `EBADF` on every later use, and left the
+  slot unreachable — silent success replacing the failure round 4 fixed.
+  `worker-dup2.c`.
+* **HIGH: an EMFILE inside preopen population double-dropped a resource handle
+  and trapped with the process-global preopens lock held**, killing filesystem
+  access for every thread. Round 4's new exhaustion paths turned an
+  OOM-only defect into a reachable one.
+* **MEDIUM: `-W all-proposals=y` enabled SET with every CLI safety mechanism
+  off.** The `all` fallback is applied when flags become an engine `Config`, so
+  the engine got SET while the option stayed `None` and every
+  `== Some(true)` branch — epoch interruption, the ticker, the stop callback,
+  `allow_blocking_current_thread` — was skipped. One predicate now decides.
+* **MEDIUM: the fd-namespace counter wrapped fail-OPEN** back onto namespace 0
+  (the main thread's) after 2^32 claims. Saturating CAS.
+* Also: the death hook could still spawn (chained to depth 64) and is now
+  refused outright from inside it; `select`'s relaxation was scoped to tagged
+  fds so `select(0, …)` works again; the stdio orphan sweep snapshots `next`
+  before releasing a FILE; `unpark_all` recovered from poisoning one frame short
+  of a panic-in-drop; the p1 path leaked its live counter on a failed
+  `thread::Builder::spawn`; and the funcref ownership check formed a reference
+  before checking, which round 4 fixed for the `Instance` and not for the
+  funcref.
+
+**Claims corrected**: the death-hook budget bounds compiled code only (a hook
+that BLOCKS holds its thread and its cap slot until teardown, and is 1.0 s not
+0.2 s under `serve --wasm timeout`); the platform's limiter is a stateless
+threshold (`StoreLimits`), not an accounting one, so the "accounting limiter"
+justification was wrong even though the contract fix is right; per-thread I/O
+was NOT unaffected; and exhaustion did not fail closed.
+
 ### Verification bar met
 
 * 1305 wasmtime integration tests + 200 unit tests, 0 failures.
@@ -141,6 +211,8 @@ demonstrate: that a recursive spawn tree is bounded.
 * Soak `run(500,16,2000)` = 8000, no leaked cap slots.
 * Scaling, constant total work (14.4e9 iterations): 13.98s → 0.941s at 16
   threads (**14.9x**) and 0.562s at 32 (**24.9x**).
+* Concurrent `memory.grow`, 16 threads x 200: 57/3200 refusals (1.8%) with no
+  limit configured, and exactly the cap with one.
 * **R4 race harness**: 13.6M guest flips against 200k canonical-ABI lifts —
   0 borrows into shared memory, 0 invalid `str`s. (The negative control, on a
   deliberately-reverted borrowing ABI, reports both.)
@@ -169,9 +241,12 @@ demonstrate: that a recursive spawn tree is bounded.
 * **A worker's exit STATUS is capped by wasip2.** `wasi:cli/exit` carries
   success/failure, not a code, so `exit(7)` on a worker ends the component with
   a failure rather than 7.
-* **A trapped thread's descriptor table is leaked** (only its fd-namespace slot
-  is reclaimed): dropping a resource handle is a component call, and a thread
-  that has just trapped should not be making more. Bounded by the thread cap.
+* **A trapped thread leaks its descriptor table and, if it was DETACHED, its
+  stack.** Dropping a resource handle is a component call and `free()` is a
+  deadlock, so the death hook does neither. Bounded by thread CREATIONS (which
+  are rate-limited), not by the live cap — the same stock-vs-flow distinction
+  round 4 turned on. A guest choosing 4 MiB stacks leaks 4 MiB per trapped
+  detached thread.
 * **fds 0/1/2 are per-thread by construction** and deliberately untagged, so
   they are the same streams on every thread. A thread that closes fd 1 and
   opens a file gets a per-thread fd 1; a cross-thread use of it would not be
@@ -204,10 +279,11 @@ demonstrate: that a recursive spawn tree is bounded.
 
 ## Why it is still not promotable
 
-**The fresh adversarial pass has not been run against this design yet.** Three
-rounds have now been run and every single one found real UB — including a round
-where the previous round's fix was silently ineffective. A clean round is the
-gate, not a formality.
+**FIVE rounds have now been run and not one has cleared.** Round 5 reviewed the
+round-4 FIXES and found a CRITICAL that four rounds of probes had walked past,
+plus a regression one of those fixes introduced. Round 6 must review the round-5
+fixes; the pattern is that each fix's new surface hides the next defect, and the
+only evidence that would change the answer is a round that finds nothing.
 
 ## Promotion sequence, when it is finally earned
 

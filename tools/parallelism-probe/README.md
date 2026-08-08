@@ -78,6 +78,8 @@ wasmtime run $W -S cli worker-io.wasm
 | `worker-spin-teardown.c` | **an ordinary program**: detach a compute thread, return from `main`. Used to wedge teardown forever and pin a core; now exits in ~0.2s |
 | `worker-block-teardown.c` | a worker asleep 12s in a HOST call does not hold teardown (the third stop path) |
 | `worker-exit.c` | `exit()` on a worker ends the component instead of stranding the joiner |
+| `worker-file-io.c` | **two** file reads/writes with a second thread alive do not deadlock — the object lock `get_read_stream` takes is released |
+| `worker-dup2.c` | `dup2` on a worker returns a descriptor that is actually usable |
 | `worker-fd-alias.c` | a cross-thread fd FAILS with `EBADF` instead of silently aliasing another file |
 | `worker-fd-recycle.c` | a DEAD thread's fd does not become a LIVE thread's fd (namespaces are monotonic, not recycled) |
 | `worker-spawn-churn.c` | thread CREATION is rate-limited, not just concurrency: spawn-then-exit used to churn 35k threads in 2s past any cap |
