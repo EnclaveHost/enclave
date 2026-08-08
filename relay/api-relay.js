@@ -794,6 +794,7 @@ function proxyTo(origin, req, res, { path = req.url, setCors = true, idleMs = 30
     { hostname: target.hostname, port: target.port || (target.protocol === "https:" ? 443 : 80),
       path: target.pathname + target.search, method: req.method, headers, timeout: idleMs },
     (upRes) => {
+      if (res.destroyed) return up.destroy();
       const out = {};
       for (const [k, v] of Object.entries(upRes.headers)) {
         if (/^connection$|^transfer-encoding$/i.test(k)) continue;
@@ -807,6 +808,17 @@ function proxyTo(origin, req, res, { path = req.url, setCors = true, idleMs = 30
   up.on("timeout", () => up.destroy(new Error("upstream timeout")));
   up.on("error", (e) => { if (!res.headersSent) res.writeHead(502, { "Content-Type": "application/json", ...(setCors ? cors(req) : {}) });
                           res.end(JSON.stringify({ error: "upstream_error", message: e.message })); });
+  // A client that dies mid-stream must take the enclave leg down with it:
+  // pipe() stops the flow on destination close but never destroys its source,
+  // so an abandoned SSE stream held `up` open and backpressured into the
+  // enclave until the app sat parked in a write that could neither finish nor
+  // fail - for llm-chat that parked write pins an inference session slot, and
+  // a handful of them wedged the deployment into [sessions_busy] (live
+  // 2026-08-08). The idle timeout above reaps SOME of these after idleMs, but
+  // only once bytes stop moving; closing eagerly frees the slot in seconds.
+  // `writableEnded` tells a hangup from a response that simply finished.
+  res.on("close", () => { if (!res.writableEnded) up.destroy(); });
+  req.on("error", () => up.destroy());
   req.pipe(up);
 }
 

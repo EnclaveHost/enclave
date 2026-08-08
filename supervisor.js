@@ -2846,8 +2846,21 @@ app.use("/x/:id", async (req, res) => {
   const up = http.request(
     { host: target.hostname, port: target.port || 80, method: req.method,
       path: target.pathname + target.search, headers },
-    (upRes) => { res.writeHead(upRes.statusCode || 502, tenantHeaders(upRes.headers)); upRes.pipe(res); });
+    (upRes) => { if (res.destroyed) return up.destroy(); res.writeHead(upRes.statusCode || 502, tenantHeaders(upRes.headers)); upRes.pipe(res); });
   up.on("error", (e) => { if (!res.headersSent) res.writeHead(502); res.end("upstream error: " + e.message); });
+  // A client that dies mid-response must take the tenant leg down WITH it.
+  // pipe() only stops the FLOW when its destination closes - it never destroys
+  // the source - so an abandoned stream left `up` open: the paused pipe
+  // backpressured into the tenant's socket until the app sat parked in a
+  // blocking write that can neither finish nor fail. For an inference app
+  // that parked thread holds a session slot out of a small fixed pool, so a
+  // handful of closed tabs wedged the deployment into [sessions_busy] until a
+  // human restarted it (live 2026-08-08). Destroying `up` closes the tenant
+  // connection, the app's next write errors, and it releases what it holds.
+  // `writableEnded` distinguishes the client hanging up from a response that
+  // simply finished ('close' fires for both).
+  res.on("close", () => { if (!res.writableEnded) up.destroy(); });
+  req.on("error", () => up.destroy());
   // maxBodyMb, the counted half: Content-Length was checked in wafGate, but a
   // chunked (or lying) body only shows its size on the wire. Counting rides
   // alongside pipe's own data listener; on overflow kill both directions.
