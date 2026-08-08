@@ -131,14 +131,57 @@ fail-closed guard). Two are BLOCKERS to TCB entry, recorded in
 and shared canonical-ABI memory is a host-TCB data race under a hostile guest
 (needs a copy-safe canon ABI). The engine STAYS OUT of `Dockerfile.wasmtime`.
 
+## UPDATE 2026-08-08: both blockers fixed — a worker is a whole component instance
+
+The two blockers were one problem, and the design above is superseded in its
+most important respect: **an execution view is no longer a bare
+re-instantiation of one core module with stubbed imports.** That approach was
+not merely incomplete, it was silently unsound — Cranelift devirtualizes calls
+to statically-known imports into direct calls to the callee's compiled body
+while loading the callee vmctx from the import slot, so a worker executed the
+PRIMARY's code under a mistyped vmctx. Substituting imports at instantiation
+time cannot redirect an address baked in at compile time. See
+`docs/wasm-parallelism.md` → "2026-08-08".
+
+What a worker is now: a full instantiation of the same component, in its own
+`Store`, with the spawning core instance's defined memories re-pointed at the
+primary's `SharedMemory` before startup runs. It has its own vmctxs, tables,
+globals, resource tables and WASI context; it shares linear memory and nothing
+else. Building that store needs the embedder's `T`, so the embedder registers a
+`SetWorkerHost` via `Store::set_set_worker_host` (the CLI does, in both `run`
+and `serve`); with none registered, spawn refuses with the ABI's `-1`.
+
+Consequences worth knowing before changing anything:
+
+- **Workers do real WASI.** `printf`, `fflush`, `clock_gettime`, `socket()`
+  all work on a worker. Verified end-to-end through the toolchain.
+- **Threads do not share a descriptor table.** Component resource handles are
+  per-instance, so the libc's descriptor table, cached stdio streams and
+  preopens are now `_Thread_local`. An fd opened on one thread is not usable
+  from another — the same limitation the wasi-threads (p1) path has.
+- **Nested spawn now genuinely works** (a worker's view has live spawn slots),
+  bounded by the same process-global cap. `set-nested-spawn.wat` therefore hits
+  the cap rather than trapping; that is the new correct behaviour.
+- **A trapped worker no longer hangs its joiner.** The engine calls a new
+  optional guest export `__enclave_set_thread_died` on the worker's own store,
+  which runs the parts of the libc thread epilogue that other threads depend
+  on. `pthread_join` returns `PTHREAD_CANCELED`.
+- **The canonical ABI never borrows a `shared` memory.** `GuestMemory` /
+  `GuestMemoryMut` (`component/guest_memory.rs`) copy through `read_volatile`
+  and validate the copy; unshared memories keep the zero-copy borrow. Async
+  streams and fused-adapter transcoders fail closed instead of racing.
+
+Re-measured: 15.6x at 16 threads, soak 8000, 187 wasmtime unit tests, 648
+enclave tests, R4 race harness clean with a negative control proving it detects.
+
 ## What is NOT done
 
-1. **Two engine BLOCKERS before TCB entry** — see `wasm/SET-DO-NOT-PROMOTE.md`
-   and the review section in `docs/wasm-parallelism.md`. The toolchain (former
-   item 1) is done; these are what remain.
-2. **Not in the Dockerfile chain**, and after two reviews that is a firm call.
-   The `.wip` suffix keeps it out of the patch-check glob. Promotion waits on
-   the two blockers being fixed and re-reviewed.
+1. **Promotion is still gated on the fresh adversarial review clearing.** The
+   two blockers are fixed and the verification bar is met; the engine enters
+   `Dockerfile.wasmtime` only after a four-reviewer pass on THIS design, which
+   has caught real UB every time it has been run.
+2. **Not in the Dockerfile chain** until then. The `.wip` suffix keeps it out
+   of the patch-check glob.
 3. Cross-instance spawn, mutable shared globals and genuinely shared tables
    are refused, not implemented. Cranelift rejects `global.atomic.*` /
    `table.atomic.*` upstream anyway, so no compilable guest can express them.
