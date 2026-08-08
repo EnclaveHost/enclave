@@ -55,17 +55,45 @@ new surface hid the next bug. These must be fixed and re-reviewed.
 
 ### HIGH — engine / worker model
 
-2. **A worker blocked in a HOST call is unreachable by the cancel flag and the
-   epoch, and `Store::drop` blocks on it.** Measured: 12 s of guest-controlled
-   host block against a 1 s embedder timeout. Under `serve` the join runs on a
-   tokio worker thread, so this is executor starvation. The design's own
-   reasoning (workers hold no primary-store pointers) already licenses
-   detaching or bounding the join.
-3. **The worker epoch deadline bounds nothing on either CLI host.** `run
-   --wasm timeout` increments the epoch exactly once, so a 600-tick deadline
-   never trips; with no timeout there are no epoch checks at all; `serve` with a
-   timeout gives a 30 s floor per worker regardless of the timeout. A guest that
-   moves work onto a worker escapes the embedder's timeout entirely.
+2. **A worker that never returns wedges teardown forever and pins a core, and
+   `--wasm timeout` does not stop it.** Two reviewers hit this independently,
+   from both directions, and it is the most likely thing to bite in production
+   because **an ordinary program reproduces it** — repro
+   `tools/parallelism-probe/worker-spin-teardown.c` just detaches a compute
+   thread and returns from `main` without joining, which is what any worker
+   pool does. `Store::drop` joins unconditionally; the main thread parks in
+   `futex_do_wait` while the worker stays in state R burning a core, until
+   SIGKILL.
+
+   Neither escape hatch reaches it. The teardown cancel flag is read only by
+   the futex parking spot, and a busy loop never parks (a *parked* worker is
+   correctly woken — that part of the earlier fix works). The epoch deadline is
+   `ENCLAVE_SET_EPOCH_TICKS` **increments** (default 600), but `--wasm timeout`
+   bumps the engine epoch exactly **once** — enough for the main thread
+   (deadline 1), never for a worker. Confirmed both ways with `-W timeout=2s`:
+   default 600 hangs (exit 124); `ENCLAVE_SET_EPOCH_TICKS=1` exits at 2.0s with
+   the worker trapping `interrupt`.
+
+   The same hole swallows a worker blocked in a HOST call, which the "workers
+   can now do WASI" fix is precisely what enables: measured 12 s of
+   guest-controlled host block against a 1 s embedder timeout, with essentially
+   zero CPU. Under `serve` a Store is created per request on a tokio worker, so
+   each occurrence permanently consumes a tokio worker and a core; the
+   process-global cap bounds it at 128 per node — i.e. node-wide DoS from
+   ~6 lines of guest wasm, or from an unlucky ordinary program.
+
+   The design's own reasoning already licenses the fix: workers hold no
+   primary-store pointers, so the join need not be unconditional. Teardown
+   should actively drive interruption (bump the engine epoch until this store's
+   workers drain, or arm the deadline so a single embedder bump trips it),
+   bound or detach the join, and the docs must say that a *periodic* epoch
+   ticker is required — single-shot `--wasm timeout` is not enough.
+3. **The worker epoch deadline bounds nothing on either CLI host**, beyond the
+   above. With no timeout and no profiling, `epoch_interruption` is never
+   enabled at all, so compiled code carries no epoch checks and no ticker
+   exists — which is the fleet's configuration (`wasm_manager.py` passes
+   neither). `serve` with a timeout gives a 30 s floor per worker regardless of
+   the timeout value.
 4. **Every per-store resource limit is multiplied by the worker count** —
    `max-memory-size` (the RAM-budget gate on this platform), `max-instances`,
    `max-table-elements`, `max-resources` are enforced per worker, up to 129x.
@@ -129,6 +157,33 @@ core instance that defines no shared memory silently gets a PRIVATE memory
 instead of a refusal; big-endian double byte-swap on shared list lifts (FIXED);
 several stale safety comments in `set_threads.rs` and `store.rs` that describe
 the OLD design and would mislead the next reviewer.
+
+### Open question for the platform embedder (not reproducible on the CLI)
+
+A worker's `memory.grow` on the shared memory may escape the embedder's memory
+`ResourceLimiter`, bounded only by the module's *static* declared maximum (up to
+4 GiB on wasm32) rather than the tenant's purchased slice. This could not be
+settled from the CLI because `-W max-memory-size` does not bind shared-memory
+growth even for the primary (a probe grew to ~124 MB under a 16 MiB cap). Check
+it against `wasm_manager.py`'s real limiter before enabling SET — on this
+platform `-W max-memory-size` is the RAM-budget gate.
+
+### What the hostile-guest pass could NOT break (so these are known-good)
+
+No host panic, abort or segfault was achieved on the accepted-module path. The
+canonical ABI rejected every malformed pointer/length pair cleanly with peak
+host RSS ~3 MB: 4 GiB string and list lengths, `ptr+len` wrap-around, a
+`cabi_realloc` returning out of bounds, and a `cabi_realloc` that traps. A
+parked worker is woken correctly at teardown; worker stack overflow traps
+cleanly and dies alone; the death hook releases a joiner without upsetting the
+sync-call bookkeeping; a recursive spawn tree of parked workers held at exactly
+the cap with no slot leak; segmented memory init is refused as designed; cross-
+thread fd use from a *worker* to a main-thread fd gives `EBADF`; `_exit()` from
+a worker is contained; 8000 spawn/join cycles leak no cap slots.
+
+(Note the `EBADF` result and finding 12 above are not in conflict: they are
+different directions and different allocation orders. The aliasing case is
+reproducible and is the one that matters.)
 
 ## Promotion sequence, when it is finally earned
 
