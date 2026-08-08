@@ -160,7 +160,7 @@ containers:
   # Identical to the GPU flavor's wasm-manager except NODE_HAS_GPU=0: catalog
   # apps marked `gpu: true` are refused at launch (a CPU node cannot serve them).
   - name: "wasm-manager"
-    image: "ghcr.io/enclavehost/enclave-wasm-manager@sha256:351cfafa9652dfd2426cc2d6d237a490060555fd7e20bcf55ced2563c821c8d6"
+    image: "ghcr.io/enclavehost/enclave-wasm-manager@sha256:b2f2c409da63b26ab80f9b2cef95dc60a376927be286ca72a9cffec5100fa509"
     restart: always
     env:
       - WASM_MANAGER_PORT: "8091"
