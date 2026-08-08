@@ -4450,7 +4450,13 @@ function attestNonce(req, res) {
 // cached report (NVML generation is not free) and get freshness from the
 // TLS-bound CPU quote fetched over their own connection.
 app.get("/v1/deployments/:id/attestation", async (req, res) => {
-  const rec = deployments.get(req.params.id);
+  // Prefix-resolved, like /x/:id. GET /v1/deployments/<prefix> answers for a
+  // hex prefix (the relay falls back to the LEDGER when no enclave claims it,
+  // and the CLI/site pass prefixes everywhere), but attestation can only come
+  // from the enclave itself - there is no ledger fallback to paper over an
+  // exact-match miss, so the same prefix 404'd here while the base route
+  // worked. Unique match only, 8+ hex, same rule the app subdomains use.
+  const rec = depByIdOrPrefix(req.params.id);
   if (!rec) return fail(res, 404, "not_found", "No such deployment.");
   const isOwner = (await addrFromAuth(req)) === rec.owner;
   let nonce = null;
