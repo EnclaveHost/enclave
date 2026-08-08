@@ -1,0 +1,33 @@
+diff --git a/crates/wasi-http/src/p2/http_impl.rs b/crates/wasi-http/src/p2/http_impl.rs
+index 8ae075e..311296b 100644
+--- a/crates/wasi-http/src/p2/http_impl.rs
++++ b/crates/wasi-http/src/p2/http_impl.rs
+@@ -68,6 +68,28 @@ impl outgoing_handler::Host for WasiHttpCtxView<'_> {
+             builder = builder.header(k, v);
+         }
+ 
++        // Synthesize `host` from the authority, the way the p3 request path
++        // does (`p3/request.rs`, gated on the same hook).
++        //
++        // Wasmtime 45 did this in `p2::default_send_request_handler`; when 49
++        // unified the two send paths into `default_send_request` that insert
++        // was dropped, and the unified sender only rewrites the URI to
++        // origin-form -- it never synthesizes a header. `hyper`'s http1 client
++        // conn does not add one either (only the higher-level clients do), so
++        // without this a wasip2 guest's outbound request leaves with no Host
++        // header at all and any RFC 9112 compliant server answers 400. A guest
++        // cannot compensate: `host` is in `DEFAULT_FORBIDDEN_HEADERS`, so
++        // deriving it from the authority is by contract the host's job.
++        if self.hooks.set_host_header()
++            && !builder
++                .headers_ref()
++                .is_some_and(|headers| headers.contains_key(hyper::header::HOST))
++        {
++            if let Ok(value) = hyper::header::HeaderValue::from_str(&authority) {
++                builder = builder.header(hyper::header::HOST, value);
++            }
++        }
++
+         let body = req.body.unwrap_or_else(|| {
+             Empty::<Bytes>::new()
+                 .map_err(|_| unreachable!("Infallible error"))
