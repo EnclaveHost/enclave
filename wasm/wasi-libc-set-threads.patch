@@ -1,0 +1,410 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 2e33448..f2329ec 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -60,6 +60,7 @@ option(CHECK_SYMBOLS "Whether or not to check the exported symbols of libc.a" OF
+ set(WASI_SDK_VERSION "" CACHE STRING "Version information for wasi-sdk to embed in headers")
+ option(ENABLE_WERROR "Whether to compile with `-Werror`" OFF)
+ option(ENABLE_COOP_THREADS "Whether to compile with cooperative threads support" OFF)
++option(ENABLE_SET_THREADS "enclave: compile with shared-everything (SET) real-thread support" OFF)
+ 
+ if(TARGET_TRIPLE MATCHES "-threads$")
+   set(WASI p1)
+@@ -83,6 +84,13 @@ else()
+   message(FATAL_ERROR "Unknown WASI target triple: ${TARGET_TRIPLE}")
+ endif()
+ 
++if(ENABLE_SET_THREADS)
++  # enclave/SET: same constraint as the wasip1-threads triple above — the
++  # thread-start trampoline (set-threads/wasi_set_thread_start.s) is
++  # non-position-independent, so no shared libc for this flavor.
++  set(SHARED OFF)
++endif()
++
+ if(BUILD_SHARED)
+   if (NOT SHARED)
+     message(WARNING "Disabling shared library builds as target is incompatible with shared libs")
+@@ -96,6 +104,11 @@ endif()
+ 
+ if(TARGET_TRIPLE MATCHES "-threads$")
+   add_compile_options(-mthread-model posix -pthread -ftls-model=local-exec -matomics)
++elseif(ENABLE_SET_THREADS)
++  # enclave/SET: same atomics ABI as wasip1-threads — real threads over
++  # shared linear memory — with spawning routed through the component
++  # model's thread.spawn-indirect builtin instead of a host import.
++  add_compile_options(-mthread-model posix -pthread -ftls-model=local-exec -matomics -mbulk-memory)
+ elseif(ENABLE_COOP_THREADS)
+   add_compile_options(-mthread-model posix -pthread -ftls-model=local-exec)
+ else()
+@@ -178,6 +191,16 @@ if(ENABLE_COOP_THREADS)
+ else()
+ endif()
+ 
++if(ENABLE_SET_THREADS)
++  if(NOT WASI STREQUAL "p2")
++    message(FATAL_ERROR "enclave: SET threads are only supported on WASIp2")
++  endif()
++  if(ENABLE_COOP_THREADS)
++    message(FATAL_ERROR "enclave: SET threads and cooperative threads are mutually exclusive")
++  endif()
++  set(__wasilibc_set_threads__ ON)
++endif()
++
+ include(bindings)
+ include(builtins)
+ if (NOT (WASI STREQUAL "p1"))
+@@ -241,7 +264,7 @@ if (ENABLE_WERROR)
+ endif()
+ 
+ set(WASILIBC_MULTITHREADING OFF)
+-if (ENABLE_COOP_THREADS OR TARGET_TRIPLE MATCHES "-threads")
++if (ENABLE_COOP_THREADS OR ENABLE_SET_THREADS OR TARGET_TRIPLE MATCHES "-threads")
+   set(WASILIBC_MULTITHREADING ON)
+ endif()
+ 
+diff --git a/libc-bottom-half/cloudlibc/src/libc/unistd/read.c b/libc-bottom-half/cloudlibc/src/libc/unistd/read.c
+index 5ce69fe..82f70f0 100644
+--- a/libc-bottom-half/cloudlibc/src/libc/unistd/read.c
++++ b/libc-bottom-half/cloudlibc/src/libc/unistd/read.c
+@@ -34,7 +34,9 @@ ssize_t read(int fildes, void *buf, size_t nbyte) {
+     wasi_read_t read;
+     if (entry.vtable->get_read_stream(entry.data, &read) < 0)
+       return -1;
++#ifndef __wasip2__ /* enclave/SET: no io-state lock in the wasip2 shape */
+     defer STRONG_UNLOCK(*read.state->lock);
++#endif
+     return __wasilibc_read(&read, buf, nbyte);
+   }
+   if (entry.vtable->recvfrom)
+diff --git a/libc-bottom-half/cloudlibc/src/libc/unistd/write.c b/libc-bottom-half/cloudlibc/src/libc/unistd/write.c
+index 0b9dc4f..3228f0f 100644
+--- a/libc-bottom-half/cloudlibc/src/libc/unistd/write.c
++++ b/libc-bottom-half/cloudlibc/src/libc/unistd/write.c
+@@ -35,7 +35,9 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
+     wasi_write_t write;
+     if (entry.vtable->get_write_stream(entry.data, &write) < 0)
+       return -1;
++#ifndef __wasip2__ /* enclave/SET: no io-state lock in the wasip2 shape */
+     defer STRONG_UNLOCK(*write.state->lock);
++#endif
+     return __wasilibc_write(&write, buf, nbyte);
+   }
+   if (entry.vtable->sendto)
+diff --git a/libc-bottom-half/headers/public/wasi/version.h.in b/libc-bottom-half/headers/public/wasi/version.h.in
+index d36ba8c..17a704a 100644
+--- a/libc-bottom-half/headers/public/wasi/version.h.in
++++ b/libc-bottom-half/headers/public/wasi/version.h.in
+@@ -18,6 +18,13 @@
+ #cmakedefine __wasi_cooperative_threads__
+ #endif
+ 
++// enclave/SET: whether this build of wasi-libc targets shared-everything
++// (real OS) threads via the engine's `thread.spawn-indirect` builtin. Uses
++// the wasi-threads (posix) thread model over shared linear memory; spawning
++// goes through the componentizer-patched table slot (see
++// musl/src/thread/set-threads/set_spawn.c).
++#cmakedefine __wasilibc_set_threads__
++
+ #cmakedefine __wasi_sdk_major__ @__wasi_sdk_major__@
+ #cmakedefine __wasi_sdk_version__ "@__wasi_sdk_version__@"
+ 
+diff --git a/libc-bottom-half/sources/tcp.c b/libc-bottom-half/sources/tcp.c
+index 0ddeb07..bfde71b 100644
+--- a/libc-bottom-half/sources/tcp.c
++++ b/libc-bottom-half/sources/tcp.c
+@@ -944,7 +944,9 @@ static ssize_t tcp_recvfrom(void *data, void *buffer, size_t length, int flags,
+   wasi_read_t read;
+   if (tcp_get_read_stream(data, &read) < 0)
+     return -1;
++#ifndef __wasip2__ /* enclave/SET: no io-state lock in the wasip2 shape */
+   defer STRONG_UNLOCK(*read.state->lock);
++#endif
+ 
+   if ((flags & MSG_DONTWAIT) != 0)
+     read.blocking = false;
+@@ -969,7 +971,9 @@ static ssize_t tcp_sendto(void *data, const void *buffer, size_t length,
+   wasi_write_t write;
+   if (tcp_get_write_stream(data, &write) < 0)
+     return -1;
++#ifndef __wasip2__ /* enclave/SET: no io-state lock in the wasip2 shape */
+   defer STRONG_UNLOCK(*write.state->lock);
++#endif
+ 
+   if ((flags & MSG_DONTWAIT) != 0)
+     write.blocking = false;
+diff --git a/libc-top-half/CMakeLists.txt b/libc-top-half/CMakeLists.txt
+index 39c175b..ee12695 100644
+--- a/libc-top-half/CMakeLists.txt
++++ b/libc-top-half/CMakeLists.txt
+@@ -458,6 +458,20 @@ if (TARGET_TRIPLE MATCHES "wasip1-threads")
+     musl/src/thread/wasi-threads/wasi_thread_start.s
+     musl/src/thread/wasi-threads/__wasilibc_busywait.c
+   )
++elseif(ENABLE_SET_THREADS)
++  # enclave/SET: the wasi-threads (posix) pthread implementation — real
++  # threads, shared memory, memory.atomic futexes — with the spawn primitive
++  # and thread entry swapped for the shared-everything-threads shape (no host
++  # import, no host-delivered tid; see set-threads/set_spawn.c).
++  list(APPEND top_half_sources
++    musl/src/thread/wasi-threads/futex.c
++    musl/src/thread/wasi-threads/pthread_create.c
++    musl/src/thread/wasi-threads/pthread_detach.c
++    musl/src/thread/wasi-threads/pthread_join.c
++    musl/src/thread/set-threads/wasi_set_thread_start.s
++    musl/src/thread/set-threads/set_spawn.c
++    musl/src/thread/wasi-threads/__wasilibc_busywait.c
++  )
+ elseif(ENABLE_COOP_THREADS)
+   # cooperative threads implementation for WASI Preview 3
+   list(APPEND top_half_sources
+diff --git a/libc-top-half/musl/src/thread/set-threads/set_spawn.c b/libc-top-half/musl/src/thread/set-threads/set_spawn.c
+new file mode 100644
+index 0000000..d57ac1b
+--- /dev/null
++++ b/libc-top-half/musl/src/thread/set-threads/set_spawn.c
+@@ -0,0 +1,91 @@
++/* enclave/SET: thread spawning for shared-everything threads.
++ *
++ * wasi-threads spawns via a host import (`wasi.thread-spawn`). Under the
++ * component model there is no such import — spawning is the
++ * `thread.spawn-indirect` canonical builtin, and no linker today can wire a
++ * canonical builtin into a core module's import. So the libc calls spawn
++ * through a VOLATILE function pointer that initially targets an honest
++ * in-module stub returning -1 ("spawn failed": pthread_create reports EAGAIN
++ * and the program takes its single-threaded fallback).
++ *
++ * The enclave componentizer (`set-componentize`) then appends a fixup core
++ * module to the linked component which
++ *
++ *   1. calls the exported `__enclave_set_spawn_slot` / `__enclave_set_ap_slot`
++ *      getters — each returns the TABLE SLOT its stub occupies (a wasm C
++ *      function pointer IS its `__indirect_function_table` index), and
++ *   2. `table.set`s the real canonical builtins into those very slots.
++ *
++ * After that the same volatile-fp call reaches the engine's spawn. The
++ * pointer VALUE never changes — only the table slot's contents do. `volatile`
++ * exists so LTO cannot prove "never reassigned" and devirtualize the call
++ * back into the stub.
++ *
++ * A SET execution view rebuilds its tables from the module's own element
++ * segments, so on a SPAWNED thread the slot holds the stub again: a nested
++ * pthread_create fails cleanly with EAGAIN instead of trapping the worker.
++ * That is the intended semantic, not an accident.
++ */
++
++#include <stdint.h>
++#include <stddef.h>
++
++#include "pthread_impl.h"
++
++void wasi_set_thread_start(void *);
++
++static int __set_spawn_stub(uintptr_t slot, void *arg)
++{
++	(void)slot;
++	(void)arg;
++	return -1;
++}
++
++static int __set_ap_stub(void)
++{
++	return -1;
++}
++
++int (*volatile __enclave_set_spawn_fp)(uintptr_t, void *) = __set_spawn_stub;
++int (*volatile __enclave_set_ap_fp)(void) = __set_ap_stub;
++
++__attribute__((export_name("__enclave_set_spawn_slot")))
++uintptr_t __enclave_set_spawn_slot(void)
++{
++	return (uintptr_t)(void *)__enclave_set_spawn_fp;
++}
++
++__attribute__((export_name("__enclave_set_ap_slot")))
++uintptr_t __enclave_set_ap_slot(void)
++{
++	return (uintptr_t)(void *)__enclave_set_ap_fp;
++}
++
++int __wasi_thread_spawn(void *start_arg)
++{
++	return __enclave_set_spawn_fp((uintptr_t)(void *)&wasi_set_thread_start,
++	                              start_arg);
++}
++
++/* Libc-assigned TIDs. wasi-threads tids come from the HOST (range
++ * 1..0x1FFFFFFF; the main thread uses 0x3fffffff; 0 means "unlocked" to
++ * tid-based locks, and __lockfile needs the top two bits clear). A SET spawn
++ * returns the engine's thread id only to the PARENT, after the child may
++ * already be running — the child needs its tid immediately. So tids are
++ * assigned HERE, before spawn, and ride to the child in start_args; the
++ * engine's id is used only as a success/failure signal. Same numeric
++ * contract as the host range. */
++hidden int __wasilibc_set_next_tid(void)
++{
++	static volatile int next = 0;
++	return 1 + (a_fetch_add((int *)&next, 1) & 0x0FFFFFFF);
++}
++
++/* Engine-answered `thread.available_parallelism`, sized to the tenant's
++ * purchased share (ENCLAVE_AVAILABLE_PARALLELISM), through the same
++ * fixup-slot mechanism as spawn. Fallback: 1. */
++hidden int __wasilibc_set_available_parallelism(void)
++{
++	int n = __enclave_set_ap_fp();
++	return n > 0 ? n : 1;
++}
+diff --git a/libc-top-half/musl/src/thread/set-threads/wasi_set_thread_start.s b/libc-top-half/musl/src/thread/set-threads/wasi_set_thread_start.s
+new file mode 100644
+index 0000000..9edf5bd
+--- /dev/null
++++ b/libc-top-half/musl/src/thread/set-threads/wasi_set_thread_start.s
+@@ -0,0 +1,65 @@
++# enclave/SET thread entry.
++#
++# wasi-threads' `wasi_thread_start` is an EXPORT the host invokes with
++# `(tid, start_arg)`. A SET (shared-everything-threads) thread instead enters
++# through the engine's `thread.spawn-indirect` canonical builtin, whose start
++# ABI is a single i32 context argument — so the tid cannot come from the host.
++# It is assigned by the libc BEFORE spawning (see pthread_create.c) and rides
++# to the child inside the start_args block, at offset 16.
++#
++# Everything else matches wasi_thread_start.s: set up the stack pointer and
++# TLS base from start_args (this must be assembly — no C can run before the
++# stack pointer is valid, and in a fresh execution view `__stack_pointer`
++# still holds the module's initial value, i.e. the MAIN thread's stack), call
++# the C continuation, then release the thread list lock exactly as
++# CLONE_CHILD_CLEARTID would (safe only here in asm, after the C stack and
++# pthread_t are no longer in use — a joiner may free them the moment the lock
++# clears).
++
++	.text
++
++	.globaltype	__stack_pointer, i32
++	.globaltype	__tls_base, i32
++	.functype	__wasi_thread_start_C (i32, i32) -> ()
++
++	.hidden	wasi_set_thread_start
++	.globl	wasi_set_thread_start
++	.type	wasi_set_thread_start,@function
++
++wasi_set_thread_start:
++	.functype	wasi_set_thread_start (i32) -> ()
++
++	# Set up the minimum C environment.
++	# Note: offsetof(start_args, stack) == 0
++	local.get   0  # start_arg
++	i32.load    0  # stack
++	global.set  __stack_pointer
++
++	local.get   0  # start_arg
++	i32.load    4  # tls_base
++	global.set  __tls_base
++
++	# Make the C function do the rest of work.
++	local.get   0  # start_arg
++	i32.load    16 # tid (libc-assigned; see pthread_create.c)
++	local.get   0  # start_arg
++	call __wasi_thread_start_C
++
++	# Unlock thread list. (as CLONE_CHILD_CLEARTID would do for Linux)
++	#
++	# Note: once we unlock the thread list, our "map_base" can be freed
++	# by a joining thread. It's safe as we are in ASM and no longer use
++	# our C stack or pthread_t. It's impossible to do this safely in C
++	# because there is no way to tell the C compiler not to use C stack.
++	i32.const   __thread_list_lock
++	i32.const   0
++	i32.atomic.store 0
++	# As an optimization, we can check tl_lock_waiters here.
++	# But for now, simply wake up unconditionally as
++	# CLONE_CHILD_CLEARTID does.
++	i32.const   __thread_list_lock
++	i32.const   1
++	memory.atomic.notify 0
++	drop
++
++	end_function
+diff --git a/libc-top-half/musl/src/thread/wasi-threads/pthread_create.c b/libc-top-half/musl/src/thread/wasi-threads/pthread_create.c
+index f6ff846..c43ac2a 100644
+--- a/libc-top-half/musl/src/thread/wasi-threads/pthread_create.c
++++ b/libc-top-half/musl/src/thread/wasi-threads/pthread_create.c
+@@ -16,6 +16,14 @@
+ #include <assert.h>
+ #include <wasi/api.h>
+ 
++#ifdef __wasilibc_set_threads__
++/* enclave/SET: spawn is not a host import — it is provided by
++ * musl/src/thread/set-threads/set_spawn.c, along with the libc-side tid
++ * allocator (the SET spawn ABI cannot deliver a host tid to the child). */
++int __wasi_thread_spawn(void *start_arg);
++hidden int __wasilibc_set_next_tid(void);
++#endif
++
+ static void dummy_0()
+ {
+ }
+@@ -267,6 +275,16 @@ struct start_args {
+ 	void *tls_base;
+ 	void *(*start_func)(void *);
+ 	void *start_arg;
++#ifdef __wasilibc_set_threads__
++	/*
++	 * enclave/SET: the spawn builtin's start ABI carries only one i32, so
++	 * the tid cannot be delivered as a host argument the way wasi-threads
++	 * delivers it. It is assigned in __pthread_create BEFORE spawning and
++	 * read by wasi_set_thread_start (offset hardcoded there, like "stack"
++	 * and "tls_base" above).
++	 */
++	int tid;
++#endif
+ #endif
+ };
+ 
+@@ -301,6 +319,7 @@ static int start_c11(void *p)
+ }
+ #else
+ 
++#ifndef __wasilibc_set_threads__
+ /*
+  * We want to ensure wasi_thread_start is linked whenever
+  * pthread_create is used. The following reference is to ensure that.
+@@ -309,6 +328,7 @@ static int start_c11(void *p)
+  */
+ void wasi_thread_start(int tid, void *p);
+ hidden void *__dummy_reference = wasi_thread_start;
++#endif
+ 
+ hidden void __wasi_thread_start_C(int tid, void *p)
+ {
+@@ -537,6 +557,14 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
+ 	args->start_func = entry;
+ 	args->start_arg = arg;
+ 	args->tls_base = (void*)new_tls_base;
++#ifdef __wasilibc_set_threads__
++	/* enclave/SET: the tid is libc-assigned and must be visible to the
++	 * child (via args) and to this thread (via new->tid) BEFORE the spawn,
++	 * because the child can be running before spawn returns and the spawn
++	 * return value is the ENGINE's thread id, not this tid. */
++	args->tid = __wasilibc_set_next_tid();
++	atomic_store((atomic_int *) &(new->tid), args->tid);
++#endif
+ #endif
+ 
+ 	__tl_lock();
+@@ -566,6 +594,15 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
+ 		if (ret)
+ 			__wait(&args->control, 0, 3, 0);
+ 	}
++#elif defined(__wasilibc_set_threads__)
++	/* enclave/SET: the spawn return is the ENGINE's thread id (>= 0) or a
++	 * failure (< 0). The pthread tid was already assigned and stored before
++	 * the spawn (above), so the engine id is used purely as the
++	 * success/failure signal — storing it here would race the child's read
++	 * of the libc tid and disagree with it. */
++	if (ret < 0) {
++		ret = -EAGAIN;
++	}
+ #else
+ #define WASI_THREADS_MAX_TID 0x1FFFFFFF
+ 	/* `wasi_thread_spawn` will either return a host-provided thread ID (TID)

@@ -195,13 +195,13 @@ print(json.dumps(g.component_contract(open(${JSON.stringify(file)}, "rb").read()
 
 // the runner's coop-thread sniff for the same bytes (see wasm-threads.test.mjs
 // for its own doctrine tests; here it only anchors gateway lockstep)
-function sniffPy(file) {
+function sniffPy(file, fn = "_needs_coop_threads") {
   const code = `
 import importlib.util, sys, json, pathlib
 spec = importlib.util.spec_from_file_location("wm", ${JSON.stringify(MGR)})
 m = importlib.util.module_from_spec(spec); sys.modules["wm"] = m
 spec.loader.exec_module(m)
-print(json.dumps(m._needs_coop_threads(pathlib.Path(${JSON.stringify(file)}))))
+print(json.dumps(m.${fn}(pathlib.Path(${JSON.stringify(file)}))))
 `;
   const out = execFileSync("python3", ["-c", code], {
     env: { ...process.env, WASM_MANAGER_PORT: "8091", NODE_HAS_GPU: "0" },
@@ -255,14 +255,16 @@ test("the gateway's Python twin agrees with the runner's classifier", () => {
   const p3 = path.join(dir, "p3.wasm");
   writeFileSync(p3, syntheticComponent("wasi:http/handler@0.3.0-rc-2026-03-15"));
   for (const file of [path.join(FIXTURES, "egress-guest-http.wasm"), path.join(FIXTURES, "egress-guest-tcp.wasm"), p3]) {
-    // the gateway's dict additionally carries `threads` (the coop-thread
-    // marker sniff); the runner keeps that answer in _needs_coop_threads.
-    // Lockstep now means: contract keys agree, AND the gateway's threads
-    // answer matches the runner's sniff for the same bytes.
+    // the gateway's dict additionally carries `threads` (coop-thread marker)
+    // and `set` (shared-everything-threads marker); the runner keeps those
+    // answers in _needs_coop_threads / _needs_set_threads. Lockstep now means:
+    // contract keys agree, AND each gateway marker matches the runner's sniff
+    // for the same bytes.
     const gw = classifyPy(file, "gateway");
-    const { threads, ...contract } = gw;
+    const { threads, set, ...contract } = gw;
     assert.deepEqual(contract, classifyPy(file, "manager"), path.basename(file));
     assert.equal(threads, sniffPy(file), path.basename(file) + " threads sniff");
+    assert.equal(set, sniffPy(file, "_needs_set_threads"), path.basename(file) + " set sniff");
   }
 });
 
@@ -274,7 +276,7 @@ test("the CLI and browser classifiers are the same algorithm (string-pinned)", (
     const src = fs.readFileSync(path.join(REPO, ...rel), "utf8");
     for (const pin of ["wasi:http/handler@0.3.", "wasi:http/incoming-handler@0.2.",
                        "wasi:cli/run@0.3.", "wasi:cli/run@0.2.", "componentContract",
-                       "[thread-"]) {
+                       "[thread-", "[set-spawn-indirect]"]) {
       assert.ok(src.includes(pin), `${rel.join("/")} must carry ${pin}`);
     }
     assert.match(src, /sid === 11|sid === 11/, `${rel.join("/")} reads the export section`);

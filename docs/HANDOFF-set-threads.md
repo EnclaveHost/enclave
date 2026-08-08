@@ -114,17 +114,31 @@ when you extend it.
 - Regressions: `available_parallelism` still 32 (8 under
   `ENCLAVE_AVAILABLE_PARALLELISM`), plain core modules unaffected.
 
+## UPDATE 2026-08-07 (later): the guest toolchain now EXISTS, and a second review found more
+
+`clang -pthread` targets SET now — `wasi-libc-set-threads.patch` (wasi-libc SET
+thread model), `set-componentize/` (wires the spawn canon + fixup module), and
+`Dockerfile.wasipsetc-build` (the blessed image). Measured 15.8x on 16 cores
+from a real C `pthread_create` program. Platform `set` capability plumbing is
+wired + tested (`test/wasm-set.test.mjs`). Full story: `docs/wasm-parallelism.md`.
+
+A second four-agent adversarial review (on the changes real toolchain output
+forced) found **1 CRITICAL + 2 HIGH + 1 MEDIUM**. Two are FIXED in the `.wip`
+(teardown deadlock on a parked worker → cancellation; segmented-init clobber →
+fail-closed guard). Two are BLOCKERS to TCB entry, recorded in
+`wasm/SET-DO-NOT-PROMOTE.md`: worker threads cannot make component/WASI calls
+(`call stack exhausted` on the first import — only pure-compute workers work),
+and shared canonical-ABI memory is a host-TCB data race under a hostile guest
+(needs a copy-safe canon ABI). The engine STAYS OUT of `Dockerfile.wasmtime`.
+
 ## What is NOT done
 
-1. **Guest toolchain — the real remaining gap.** wasi-libc has no SET thread
-   model, so SET guests are hand-written WAT. `clang -pthread` cannot target
-   this. Porting musl's pthreads onto SET primitives is the next project and
-   it is large.
-2. **Not in the Dockerfile chain**, and after the 2026-08-07 review that is a
-   deliberate call rather than a placeholder — see below. The review found
-   real UB; it is fixed, but a change that needed five critical fixes on its
-   first serious read should soak, and nothing is waiting on it (no guest can
-   reach SET until the toolchain exists, item 1).
+1. **Two engine BLOCKERS before TCB entry** — see `wasm/SET-DO-NOT-PROMOTE.md`
+   and the review section in `docs/wasm-parallelism.md`. The toolchain (former
+   item 1) is done; these are what remain.
+2. **Not in the Dockerfile chain**, and after two reviews that is a firm call.
+   The `.wip` suffix keeps it out of the patch-check glob. Promotion waits on
+   the two blockers being fixed and re-reviewed.
 3. Cross-instance spawn, mutable shared globals and genuinely shared tables
    are refused, not implemented. Cranelift rejects `global.atomic.*` /
    `table.atomic.*` upstream anyway, so no compilable guest can express them.

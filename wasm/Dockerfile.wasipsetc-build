@@ -1,0 +1,168 @@
+# wasip2/SET C/C++ SHARED-EVERYTHING-THREADS build image: the reproducible
+# toolchain a publisher uses to build a threaded (pthread) component whose
+# threads run on REAL cores in parallel, inside ONE component instance over
+# shared linear memory. This is the answer to "no SET guest toolchain exists":
+# `clang -pthread` now targets it, in C and C++.
+#
+#   docker build -f wasm/Dockerfile.wasipsetc-build -t enclave-wasipsetc-build wasm/
+#   docker run --rm -v "$PWD":/src enclave-wasipsetc-build app.c -o app.wasm
+#   # -> a wasip2 component that spawns OS threads via thread.spawn-indirect
+#
+# It differs from the COOPERATIVE image (Dockerfile.wasip3c-build) in the one
+# way that matters: coop threads INTERLEAVE on one core (concurrency), SET
+# threads run on SEPARATE cores (parallelism, measured 15.8x on 16 cores).
+# The three threading models are kept distinct in docs/wasm-parallelism.md.
+#
+# The chain, every link pinned:
+#   - wasi-sdk-34.0-rc.2: clang 23 + wasm-ld 23. SET needs no new LLD flag
+#     (unlike coop's `--cooperative-threading`), just `-pthread` + atomics +
+#     shared memory, so any modern clang works; 34-rc.2 is reused for a single
+#     blessed clang across both thread images.
+#   - wasi-libc at the same rev the coop image pins, built here with
+#     -DTARGET_TRIPLE=wasm32-wasip2 -DENABLE_SET_THREADS=ON (the enclave SET
+#     thread model, wasm/wasi-libc-set-threads.patch): the wasi-threads
+#     (posix) pthread implementation over shared memory, with spawning routed
+#     through the component model's `thread.spawn-indirect` builtin instead of
+#     a host import — because there IS no host spawn import under the component
+#     model. The shipped SDK sysroot has no such flavor, so it is built from
+#     source, patched in-image.
+#   - set-componentize (wasm/set-componentize): after wasm-component-ld links
+#     the core module into a component, this APPENDS the two canonical builtins
+#     no linker can express — `thread.spawn-indirect` over the module's
+#     `__indirect_function_table`, and `thread.available_parallelism` — and a
+#     tiny fixup module that patches them into the libc's spawn/ap slots. The
+#     libc calls both through volatile function pointers that default to
+#     in-module -1 stubs, so a component that skips this step still LINKS and
+#     RUNS (single-threaded fallback), it just never gets threads.
+#
+# What comes out runs ONLY on a SET-capable engine (the enclave wasmtime with
+# wasm/wasmtime-set-threads.patch, `-W shared-everything-threads`). The publish
+# path stamps `set: true` from the `[set-spawn-indirect]` import string and
+# claim routing keeps it off engines without the patch, exactly like the
+# `threads` (coop) stamp.
+#
+# Base pinned by DIGEST (a repushed tag silently changes what "the same recipe"
+# builds).
+# --- set-componentize (host tool) built in a pinned rust stage ---------------
+# It shapes guest bytes; it is NOT in the measured TCB (the engine re-validates
+# every byte it emits), so a pinned rust base is reproducible enough here —
+# unlike the engine and libc, which are pinned by artifact digest.
+FROM rust:1.90-bookworm@sha256:3914072ca0c3b8aad871db9169a651ccfce30cf58303e5d6f2db16d1d8a7e58f AS componentize
+COPY set-componentize /src/set-componentize
+RUN cd /src/set-componentize && cargo build --release --locked && strip target/release/set-componentize
+
+# --- the guest toolchain -----------------------------------------------------
+FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241 AS build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl xz-utils git ninja-build python3 \
+ && rm -rf /var/lib/apt/lists/*
+
+# CMake by pinned release (wasi-libc floor 3.26; bookworm apt has 3.25)
+ARG CMAKE_URL=https://github.com/Kitware/CMake/releases/download/v3.31.7/cmake-3.31.7-linux-x86_64.tar.gz
+ARG CMAKE_SHA256=14e15d0b445dbeac686acc13fe13b3135e8307f69ccf4c5c91403996ce5aa2d4
+RUN curl -fsSL -o /tmp/cmake.tgz "${CMAKE_URL}" \
+ && echo "${CMAKE_SHA256}  /tmp/cmake.tgz" | sha256sum -c - \
+ && tar -xzf /tmp/cmake.tgz -C /opt && rm /tmp/cmake.tgz
+ENV PATH=/opt/cmake-3.31.7-linux-x86_64/bin:${PATH}
+
+# wasi-sdk 34 rc.2 — clang 23, wasm-ld 23, stock (no-threads) sysroot
+ARG WASI_SDK_URL=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34-rc.2/wasi-sdk-34.0-rc.2-x86_64-linux.tar.gz
+ARG WASI_SDK_SHA256=114ee5fe63cb5f2a6c0febcee446060267298158a409c7ab3ac0e06e6d4bd9ce
+RUN curl -fsSL -o /tmp/sdk.tgz "${WASI_SDK_URL}" \
+ && echo "${WASI_SDK_SHA256}  /tmp/sdk.tgz" | sha256sum -c - \
+ && mkdir -p /opt/wasi-sdk \
+ && tar -xzf /tmp/sdk.tgz -C /opt/wasi-sdk --strip-components=1 \
+ && rm /tmp/sdk.tgz \
+ && /opt/wasi-sdk/bin/clang --version | grep -q "clang version 23"
+
+# wasm-component-ld 0.5.28 REPLACES the SDK's 0.5.27 (same floor the coop
+# image documents; clang's driver invokes it by absolute path).
+ARG WCL_URL=https://github.com/bytecodealliance/wasm-component-ld/releases/download/v0.5.28/wasm-component-ld-v0.5.28-x86_64-linux.tar.gz
+ARG WCL_SHA256=b80fe75feb4621d1e3e538b7b8b2c3904eab18354626c7a5fef1d77c021b8b81
+RUN curl -fsSL -o /tmp/wcl.tgz "${WCL_URL}" \
+ && echo "${WCL_SHA256}  /tmp/wcl.tgz" | sha256sum -c - \
+ && tar -xzf /tmp/wcl.tgz -C /tmp \
+ && install -m755 /tmp/wasm-component-ld-v0.5.28-x86_64-linux/wasm-component-ld /opt/wasi-sdk/bin/wasm-component-ld \
+ && rm -rf /tmp/wcl.tgz /tmp/wasm-component-ld-v0.5.28-x86_64-linux \
+ && /opt/wasi-sdk/bin/wasm-component-ld --version | grep -q "0.5.28"
+
+# wasi-libc, SET flavor. Same rev as the coop image; patched with the enclave
+# SET thread model, then built -DTARGET_TRIPLE=wasm32-wasip2
+# -DENABLE_SET_THREADS=ON with the SDK's own clang 23.
+ARG WASI_LIBC_REV=6d8745c8cec1aaa82c24f2e3d7a544f7ea9c2089
+COPY wasi-libc-set-threads.patch /tmp/
+RUN git init -q /src/wasi-libc && cd /src/wasi-libc \
+ && git remote add origin https://github.com/WebAssembly/wasi-libc \
+ && git fetch -q --depth 1 origin "${WASI_LIBC_REV}" && git checkout -q FETCH_HEAD \
+ && git apply --check /tmp/wasi-libc-set-threads.patch \
+ && git apply /tmp/wasi-libc-set-threads.patch \
+ && CC=/opt/wasi-sdk/bin/clang AR=/opt/wasi-sdk/bin/llvm-ar NM=/opt/wasi-sdk/bin/llvm-nm \
+    cmake -G Ninja -S . -B build \
+      -DTARGET_TRIPLE=wasm32-wasip2 -DENABLE_SET_THREADS=ON \
+      -DCMAKE_LINK_DEPENDS_USE_LINKER=OFF \
+ && ninja -C build \
+ && /opt/wasi-sdk/bin/llvm-nm build/sysroot/lib/wasm32-wasip2/libc.a 2>/dev/null \
+      | grep -q "T __enclave_set_spawn_slot" \
+ && /opt/wasi-sdk/bin/llvm-nm build/sysroot/lib/wasm32-wasip2/libc.a 2>/dev/null \
+      | grep -q "T wasi_set_thread_start" \
+ && cp -a build/sysroot /opt/wasip2-set-sysroot \
+ && cd / && rm -rf /src/wasi-libc
+
+# set-componentize: the host tool that wires the canonical builtins in
+# (built in the pinned rust stage above).
+COPY --from=componentize /src/set-componentize/target/release/set-componentize /opt/wasi-sdk/bin/set-componentize
+
+# The build wrapper: clang → set-componentize, one command. Extracts `-o
+# <out>` (default a.out.wasm), forces the flags SET needs (shared memory,
+# exported table, atomics), links, then componentizes IN PLACE.
+RUN <<'WRAP'
+cat > /opt/wasi-sdk/bin/enclave-set-cc <<'SH'
+#!/bin/sh
+# enclave/SET build wrapper: clang -pthread against the SET sysroot, then
+# set-componentize. Threads run on real cores; see docs/wasm-parallelism.md.
+set -e
+out="a.out.wasm"
+prev=""
+for a in "$@"; do
+  if [ "$prev" = "-o" ]; then out="$a"; fi
+  prev="$a"
+done
+/opt/wasi-sdk/bin/clang \
+  --target=wasm32-wasip2 -pthread \
+  --sysroot=/opt/wasip2-set-sysroot \
+  -Wl,--shared-memory,--max-memory=1073741824,--export-table \
+  "$@"
+/opt/wasi-sdk/bin/set-componentize "$out" -o "$out"
+SH
+chmod 755 /opt/wasi-sdk/bin/enclave-set-cc
+WRAP
+
+# Smoke test: a real pthread program goes through the WHOLE chain at IMAGE
+# build — clang + SET libc + link + set-componentize — and the result must be
+# (a) a layer-1 component that (b) carries the `[set-spawn-indirect]` import
+# the publish path stamps `set: true` from.
+RUN <<'SMOKE'
+set -e
+cat > /tmp/smoke.c <<'EOF'
+#include <pthread.h>
+static void *w(void *a) { return a; }
+int main(void) {
+  pthread_t t; void *r;
+  if (pthread_create(&t, 0, w, (void *)7)) return 1;
+  pthread_join(t, &r);
+  return r == (void *)7 ? 0 : 1;
+}
+EOF
+/opt/wasi-sdk/bin/enclave-set-cc /tmp/smoke.c -O2 -o /tmp/smoke.wasm
+python3 - <<'PY'
+b = open("/tmp/smoke.wasm", "rb").read()
+assert b[0:4] == b"\x00asm" and (b[6] | (b[7] << 8)) == 1, "not a component"
+assert b"[set-spawn-indirect]" in b, "SET spawn canon not wired - set-componentize failed?"
+assert b"wasi_set_thread_start" not in b or b"pthread_create" in b, "libc thread model missing"
+PY
+rm /tmp/smoke.wasm /tmp/smoke.c
+SMOKE
+
+WORKDIR /src
+ENTRYPOINT ["/opt/wasi-sdk/bin/enclave-set-cc"]
