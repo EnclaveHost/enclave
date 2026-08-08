@@ -3,50 +3,137 @@
 `wasmtime-set-threads.patch.wip` + `wasmparser-set-relax.patch` are the
 shared-everything-threads (⚡) engine changes. The guest toolchain that targets
 them (`Dockerfile.wasipsetc-build`, `wasi-libc-set-threads.patch`,
-`set-componentize/`) is done and measured (15.8x on 16 cores). The platform
-`set` capability plumbing is wired and tested (`test/wasm-set.test.mjs`).
+`set-componentize/`) is done and measured. The platform `set` capability
+plumbing is wired and tested (`test/wasm-set.test.mjs`).
 
 **The engine patch is deliberately NOT in `Dockerfile.wasmtime`'s chain**, and
 the `.wip` suffix (which the patch-check CI glob does not match) enforces that.
-The 2026-08-07 four-agent adversarial review found two BLOCKERS that must be
-fixed AND re-reviewed before this enters the measured TCB. Full write-up:
-`docs/wasm-parallelism.md` → "The 2026-08-07 adversarial review".
 
-1. **Worker threads cannot make component/WASI calls (CRITICAL) — and the
-   2026-08-08 root cause is WORSE than the reported symptom.** The symptom is
-   that a worker's first canon-lowered import call traps `call stack
-   exhausted`. The cause is not stacks and not async/fiber context: it is that
-   **stubbing a view's imports does not work at all for component core
-   modules.** Cranelift devirtualizes a call to a statically-known import
-   (`KnownFunc::FuncKey(FuncKey::DefinedWasmFunction(..))` in
-   `crates/cranelift/src/func_environ.rs`) into a DIRECT call to the callee's
-   compiled body, while still loading the callee vmctx from the import slot.
-   So a worker executes the PRIMARY's compiled code with the stub's
-   `VMArrayCallHostFuncContext` as its vmctx — wasm running against a vmctx of
-   a completely different type. `call stack exhausted` is just what that
-   confusion produces when the callee's prologue reads a `stack_limit` that
-   isn't one. Proven by `tools/parallelism-probe/set-worker-import-foreign.wat`:
-   the worker's stub is installed (import slot magic = `ACHF`) and never runs,
-   while the primary's `divide by zero` in the imported function fires on the
-   worker thread. Any component whose core module imports a sibling's function
-   — i.e. anything `wasm-component-ld` emits — reaches this. Fix = give each
-   worker a full component instantiation in its own store, so every
-   statically-known direct call lands on code whose vmctx is the worker's own.
-   Import stubbing must be abandoned, not repaired.
+## Status 2026-08-08
 
-2. **Shared canonical-ABI memory is a host-TCB data race (HIGH).** The
-   validator relaxation accepting a `shared` cabi memory (R4) lets a hostile
-   guest race a worker's writes against the host's canon lift/lower → invalid
-   Rust `String` / data race in the host. Fix = copy-safe canonical ABI for
-   shared memory (copy accessed bytes out via atomic/volatile reads, validate
-   the copy), a ~25-site change to the lift/lower machinery. R4 is kept because
-   without it the toolchain can do no canonical I/O at all; it is sound for the
-   trusted local/benchmark guests, unsound for untrusted fleet tenants.
+The two blockers from the 2026-08-07 review are **FIXED**, and the root cause of
+the first one turned out to be worse than recorded — see
+`docs/wasm-parallelism.md` → "2026-08-08". Summary:
 
-Already FIXED in the `.wip` (landed + verified, still out-of-chain): the
-teardown deadlock on a parked worker, and the segmented-memory-init clobber.
+* **Worker threads can now do WASI.** The old "execution view" (one core module
+  re-instantiated with stubbed imports) was not merely incomplete, it was
+  silently unsound: Cranelift devirtualizes calls to statically-known imports
+  into direct calls to the callee's compiled body while loading the callee vmctx
+  from the import slot, so a worker ran the PRIMARY's code under a mistyped
+  vmctx. A worker is now a full instantiation of the whole component in its own
+  `Store`, sharing only linear memory. Proven by
+  `tools/parallelism-probe/set-worker-import-foreign.wat`.
+* **The canonical ABI no longer borrows a `shared` memory.** `GuestMemory` /
+  `GuestMemoryMut` copy through volatile reads and validate the copy. Proven by
+  `set-cabi-race.wat` + `cabi_race.rs`, with a negative control showing the
+  harness detects the old behaviour.
 
-When both blockers are fixed and re-reviewed: rename `.wip` → `.patch`, add the
-wasmparser vendor+relax step and the SET patch to `Dockerfile.wasmtime`, extend
-`wasmtime-patch-check.yml`, then the normal toolchain-dispatch → WASMTIME_IMAGE
-repin measurement event (Steven-gated). Not before.
+Verification bar met: worker `printf`/`clock_gettime`/`socket()`, trapping
+worker no longer hangs its joiner, 15.6x at 16 threads, soak 8000, 187 + 228
+wasmtime tests, 648 enclave tests, TSan clean (with `--cfg rustix_use_libc` —
+see the doc), patch regenerated and verified to rebuild a working engine from a
+fresh checkout.
+
+## Why it is STILL not promotable
+
+A fresh four-reviewer adversarial pass on the NEW design found **1 CRITICAL and
+14 HIGH**. The pattern the previous rounds established held again: each fix's
+new surface hid the next bug. These must be fixed and re-reviewed.
+
+### CRITICAL
+
+1. **A guest can abort the host process.** `CliSetWorkerHost::new_host`
+   (`src/commands/run.rs`) builds a worker's `Host` with only `wasip1_ctx` and
+   `limits` set, but workers instantiate against the PRIMARY's linker, whose
+   accessors `unwrap()` `wasi_nn_wit` / `wasi_http` / `wasi_config` /
+   `wasi_keyvalue` / `wasi_tls`. A worker calling any of them panics, and
+   `worker_main` turns a panic into `std::process::abort()`. Demonstrated with a
+   core dump under `-S http` in three guest instructions. Needs BOTH: the worker
+   context built the same way the primary's is, AND `worker_main` not converting
+   an embedder-side panic (raised before any guest state was touched) into a
+   process kill. `serve.rs` escapes only by accident.
+
+### HIGH — engine / worker model
+
+2. **A worker blocked in a HOST call is unreachable by the cancel flag and the
+   epoch, and `Store::drop` blocks on it.** Measured: 12 s of guest-controlled
+   host block against a 1 s embedder timeout. Under `serve` the join runs on a
+   tokio worker thread, so this is executor starvation. The design's own
+   reasoning (workers hold no primary-store pointers) already licenses
+   detaching or bounding the join.
+3. **The worker epoch deadline bounds nothing on either CLI host.** `run
+   --wasm timeout` increments the epoch exactly once, so a 600-tick deadline
+   never trips; with no timeout there are no epoch checks at all; `serve` with a
+   timeout gives a 30 s floor per worker regardless of the timeout. A guest that
+   moves work onto a worker escapes the embedder's timeout entirely.
+4. **Every per-store resource limit is multiplied by the worker count** —
+   `max-memory-size` (the RAM-budget gate on this platform), `max-instances`,
+   `max-table-elements`, `max-resources` are enforced per worker, up to 129x.
+   Fuel diverges both ways: `serve` gives each worker the full budget; `run`
+   gives workers zero, so `--wasm fuel=N` + SET is a guaranteed hang (measured).
+
+### HIGH — canonical ABI
+
+5. **Guest-triggerable host panic on an empty `list<f32>`/`list<f64>` over a
+   shared memory** — the alignment assert is invalid once the bytes are a
+   host-owned `Vec<u8>`. FIXED 2026-08-08 (assert removed; `chunks_exact` is
+   bytewise), needs re-review.
+6. **The `transcoder_memories` refusal is unreachable dead code.** FACT emits a
+   shared adapter memory with `maximum: None`, which is invalid wasm, so any
+   fused adapter over a shared memory panics in `adapt.rs`'s
+   `.expect("invalid adapter module generated")` — a guest-controlled panic in
+   `Component::from_file`, not a `bail!`. Applies to ANY adapter needing memory,
+   not just transcoders.
+7. **The refusal is also mis-placed**: it runs after the initializer loop, and
+   core `start` sections — which can call adapters and can spawn threads
+   (demonstrated) — execute inside that loop.
+
+### HIGH — guest libc
+
+8. **The death hook deadlocked when the trap landed in the tail of
+   `__pthread_exit`** (`self->tid` is already 0 there while the thread still
+   holds the thread-list lock). FIXED 2026-08-08: the tid now comes from
+   `start_args`, and the lock is taken without `__tl_lock()`. Needs re-review.
+9. **The `DT_EXITED` early return leaked the thread-list lock** — reproduced as a
+   whole-process deadlock. FIXED 2026-08-08 (single unlock on every path).
+10. **The hook runs with an already-expired epoch deadline**, so on the one path
+    that matters most — killing a runaway worker — it traps at its own function
+    entry and does nothing. Needs a protected budget; NOT fixed.
+11. **`global_network` was a component resource handle in a shared static**, so
+    any threaded network app trapped its workers (`unknown handle index`).
+    FIXED 2026-08-08 (thread-local). Needs re-review.
+12. **Silent cross-thread fd aliasing.** Both threads' tables allocate the
+    lowest free index, so a worker's fd 4 and main's fd 4 are different files
+    while musl's `FILE` objects stay shared: reproduced writing a worker's
+    buffered secret into main's file, with every call returning success. Needs
+    cross-thread fd use to FAIL, not alias. NOT fixed.
+13. **A worker trapping while holding a FILE lock wedged stdio for every
+    thread.** Two layers: the ordinary `printf` path never registers the FILE,
+    and the non-coop branch of `__do_orphaned_stdio_locks` stored a value
+    `__lockfile` can never CAS from. Second layer FIXED 2026-08-08 (SET now
+    takes the cooperative branch); the unregistered-FILE layer is NOT fixed.
+14. **`exit()` on a worker does not exit the component, it wedges it** —
+    atexit handlers run, `__stdio_exit` poisons every FILE lock, `proc_exit`
+    surfaces only as a per-thread trap, and the main thread then hangs. Needs
+    engine-side propagation of a worker's `I32Exit`. NOT fixed.
+
+### Also open (MEDIUM/LOW, see the reviews)
+
+Per-thread state leaks ~320 B/thread with no reclamation; the Dockerfile never
+asserts the death-hook export exists; `libc.threads_minus_1` double-decrement
+(FIXED alongside #8); `SetViewPlan::install` preconditions are `debug_assert`
+only and `Component::ptr_eq` does not cover imports; `exit_guest_sync_call` is
+skipped on the error path; the death hook does not run for pre-start worker
+failures; the `refuse!` diagnostic is silenced process-globally; spawning from a
+core instance that defines no shared memory silently gets a PRIVATE memory
+instead of a refusal; big-endian double byte-swap on shared list lifts (FIXED);
+several stale safety comments in `set_threads.rs` and `store.rs` that describe
+the OLD design and would mislead the next reviewer.
+
+## Promotion sequence, when it is finally earned
+
+Fix the above, re-run the verification bar, get a fresh adversarial pass that
+clears, then: rename `.wip` → `.patch`, add the wasmparser vendor+relax step and
+the SET patch to `Dockerfile.wasmtime`, extend `wasmtime-patch-check.yml`, then
+the toolchain-dispatch → `WASMTIME_IMAGE` repin measurement event
+(Steven-gated). Not before.
