@@ -403,6 +403,17 @@ containers:
       # forwards this + ENCLAVE_GGML_POOLED to guests so serve pricing
       # matches (llm-chat >=0.7.7 prices one persistent pool per model).
       - ENCLAVE_GGML_MAX_SESSIONS: "8"
+      # The one custom path that did NOT survive the 49-dev port: with the
+      # alt graph-slot ring armed, decode DECAYS under sustained churn
+      # (measured 2026-08-08 on production: 90 -> 35 tok/s over ~10 min of
+      # continuous traffic, healing to ~85 after a quiet beat - the idle
+      # reset clears the context and the ring rebuilds). Local CPU runs are
+      # flat, so the decay is CUDA-side; the ring caches CUDA graphs per
+      # batch shape and MTP's varying draft shapes thrash it. Stock slot
+      # handling holds steady; graphs, fusion, ptr-update and rs pinning
+      # stay armed. Re-arm only after the ring is re-validated under a
+      # sustained-churn soak on this engine.
+      - LLAMA_GRAPH_SLOT_ALT: "0"
       # each app's memory cap is its deployment's cpuShare × NODE_RAM_GB
       # (>= the mem_mb its specs declare); WASM_APP_MIN_MEM_MB (64) is the floor
       # friendly name -> the model's auto-mount path. Tinfoil mounts each
