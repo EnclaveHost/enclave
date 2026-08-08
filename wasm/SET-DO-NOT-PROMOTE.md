@@ -27,7 +27,7 @@ hand-written adversarial WAT.
 | `-W max-memory-size` did not bind shared memory **at all** | the limiter is consulted on every shared grow | `worker-mem-grow.c` stops at exactly 16777216 under a 16 MiB cap, on both threads |
 | a worker's `exit()` wedged the component | the status rides the group; `SetWorkerHost::exit_status` lets the embedder name its own exit error | `worker-exit.c`: main no longer sails past the exit |
 | the fused-adapter refusal was unreachable AND mis-placed | a clean compile-time refusal in `partition_adapter_modules`, covering every adapter that needs memory | the guest-controlled `.expect("invalid adapter module generated")` panic is gone |
-| cross-thread fds ALIASED instead of failing | per-thread fd namespaces (`fd = slot << 22 \| index`; main keeps slot 0 so its numbering is unchanged) | `worker-fd-alias.c`: worker gets 4194308, main gets 4, cross-thread write is `EBADF` |
+| cross-thread fds ALIASED instead of failing | per-thread fd namespaces (`fd = namespace << 13 \| index`; the main thread keeps namespace 0 so its numbering is unchanged) | `worker-fd-alias.c`: worker gets 8196, main gets 4, cross-thread write is `EBADF` |
 | a worker trapping inside `printf` wedged stdio for everyone | `__lockfile`/`__unlockfile` register on `stdio_locks` under SET | `worker-stdio-orphan{,-internal}.c` |
 | the death hook ran with an expired epoch, so it did nothing | a protected epoch budget before the hook | covered by `worker-trap.c` under teardown pressure |
 | per-thread libc state leaked ~320 B/thread | `__wasilibc_set_release_thread_state` from `__pthread_exit` | asserted present by the toolchain image build |
@@ -204,6 +204,54 @@ threshold (`StoreLimits`), not an accounting one, so the "accounting limiter"
 justification was wrong even though the contract fix is right; per-thread I/O
 was NOT unaffected; and exhaustion did not fail closed.
 
+## Round 6 (2026-08-08): one CRITICAL, from the libc reviewer
+
+Two reviewers over the round-5 fixes. The engine/CLI side came back with **no
+CRITICAL**; the libc side found one, and it was the round-5 fix being half a fix.
+
+* **CRITICAL: a failed `get_read_stream`/`get_write_stream` still leaked the
+  object lock.** Round 5 gave the wasip2 stream metadata a `lock` field so the
+  CALLER could release what the producer took — but `file_get_read_stream` and
+  `file_get_write_stream` also `return -1` on their own error path, above where
+  the field is set, with the lock held and no handle for the caller to release
+  it with. (`tcp_get_read_stream` already unlocked on failure; these two did
+  not.) Reached by `fopen("/some/dir","r")` + `fread`: every later
+  read/write/poll/lseek/close on that fd blocks forever, as does the thread's
+  own exit. `worker-dir-io-lock.c`.
+* **HIGH: fd-namespace exhaustion killed the whole component silently.** The
+  first thread refused a namespace (2^18 creations per instance) failed
+  `__wasilibc_populate_preopens`, which reaches `_Exit(EX_SOFTWARE)` — and
+  `_Exit` here is `proc_exit`. Status 1, nothing on either stream, every other
+  thread gone. This file claimed it yielded `EMFILE`; it did not. Now a
+  per-thread failure: `worker-ns-exhaust.c` runs 262,500 creations, the last
+  357 get a failed `open()`, and main prints its summary.
+* **HIGH: `-W trap-on-grow-failure=y` turned ordinary concurrent `memory.grow`
+  into a guest trap** — my round-5 regression. Reporting the retry to the
+  limiter meant an error under that flag, so 11 of 16 workers died on a program
+  doing nothing wrong, with a message that said "retrying". The retry loop is
+  now PROGRESS-based rather than budget-based: a retry that follows real growth
+  costs nothing, so contention never manufactures an allocation failure. All
+  three configurations verified — and the ~2% spurious refusal rate the round-5
+  code had is now **zero** (32 threads x 200 grows, 6400/6400, with and without
+  the flag), while the RAM gate still binds exactly.
+* **MEDIUM: the rate-limit floor was sized against a wrong measurement.** The
+  real sequential create-then-join rate is ~14,600/s, not the ~250/s the floor
+  assumed, so 512/s would refuse ~96% of a tight loop in steady state. Raised to
+  4096/s with a ONE-second burst (four seconds made the limit invisible over
+  short windows). And the reasoning is corrected rather than patched over: a
+  tight thread-per-task loop and a fork bomb are the SAME workload and no rate
+  separates them (~14.6k/s vs ~19k/s). The limiter is a backstop against a
+  pathological rate; what actually charges a tenant is the cgroup, since thread
+  creation is kernel time in its own `cpu.weight` share. Measured: 38,397
+  creations and 1.11 CPU-seconds per 2 s unlimited, versus 5,447 and 0.33.
+* Also: the patch had stopped compiling for the STOCK `wasm32-wasip2` target
+  (the `lock` field only exists where the build has real locks); `dup3` self-dup
+  compared raw fd values so a worker escaped the POSIX `EINVAL`; the `select`
+  shift constant was hand-copied into another translation unit and is now
+  shared through a header; the p1 wasi-threads path took a rate token and never
+  refunded it; the deferred-stack-free comment understated the leak; and
+  `maybe_spawn` was dead code.
+
 ### Verification bar met
 
 * 1305 wasmtime integration tests + 200 unit tests, 0 failures.
@@ -211,8 +259,8 @@ was NOT unaffected; and exhaustion did not fail closed.
 * Soak `run(500,16,2000)` = 8000, no leaked cap slots.
 * Scaling, constant total work (14.4e9 iterations): 13.98s → 0.941s at 16
   threads (**14.9x**) and 0.562s at 32 (**24.9x**).
-* Concurrent `memory.grow`, 16 threads x 200: 57/3200 refusals (1.8%) with no
-  limit configured, and exactly the cap with one.
+* Concurrent `memory.grow`, 32 threads x 200: **0** refusals with no limit
+  configured (and 0 under `-W trap-on-grow-failure=y`), exactly the cap with one.
 * **R4 race harness**: 13.6M guest flips against 200k canonical-ABI lifts —
   0 borrows into shared memory, 0 invalid `str`s. (The negative control, on a
   deliberately-reverted borrowing ABI, reports both.)
@@ -279,11 +327,15 @@ was NOT unaffected; and exhaustion did not fail closed.
 
 ## Why it is still not promotable
 
-**FIVE rounds have now been run and not one has cleared.** Round 5 reviewed the
-round-4 FIXES and found a CRITICAL that four rounds of probes had walked past,
-plus a regression one of those fixes introduced. Round 6 must review the round-5
-fixes; the pattern is that each fix's new surface hides the next defect, and the
-only evidence that would change the answer is a round that finds nothing.
+**SIX rounds have now been run and not one has cleared.** Round 6 reviewed the round-5 fixes and found a CRITICAL (the round-5 lock fix
+was half a fix) plus another regression that fix introduced. The engine/CLI half
+of round 6 was CRITICAL-free, which is the first time either half has been.
+
+The round-6 fixes are themselves UNREVIEWED, and they are not small: the file
+lock error paths, the preopen exit path, the progress-based grow retry, the rate
+floor. The pattern for six rounds has been that each fix's new surface hides the
+next defect. The only evidence that would change the answer is a round that
+finds nothing.
 
 ## Promotion sequence, when it is finally earned
 
