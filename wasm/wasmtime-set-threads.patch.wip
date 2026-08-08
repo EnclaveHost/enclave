@@ -1038,7 +1038,7 @@ index ce4e9656..7e393074 100644
      /// created.
      pub fn store_id(&self) -> StoreId {
 diff --git a/crates/wasmtime/src/runtime/component/func/typed.rs b/crates/wasmtime/src/runtime/component/func/typed.rs
-index 9cac53d7..bfe4c715 100644
+index 9cac53d7..27178689 100644
 --- a/crates/wasmtime/src/runtime/component/func/typed.rs
 +++ b/crates/wasmtime/src/runtime/component/func/typed.rs
 @@ -2,6 +2,7 @@ use crate::component::Instance;
@@ -1124,16 +1124,16 @@ index 9cac53d7..bfe4c715 100644
 +                // A `shared` memory cannot have a Rust slice formed over it at
 +                // all, and for an unshared one this is the same single memcpy
 +                // LLVM produced before, just with a staging buffer.
++                // Bytewise, not via `align_to_mut::<Self>()`: a fresh
++                // `Vec<u8>` is not guaranteed to be aligned for `Self`, so that
++                // cast could leave a non-empty head and trip its own assert
++                // under a different allocator.
 +                let mut dst = vec![0u8; items.len() * Self::SIZE32];
 +                {
-+                    // Casting `[u8]` to `[Self]` is sound here specifically
-+                    // because `Self` is an integral type, so every `u8` bit
-+                    // pattern is a valid `Self`.
-+                    let (before, middle, end) = unsafe { dst.align_to_mut::<Self>() };
-+                    assert!(before.is_empty() && end.is_empty());
-+                    assert_eq!(middle.len(), items.len());
-+                    for (dst, src) in middle.iter_mut().zip(items) {
-+                        *dst = src.to_le();
++                    let (chunks, rest) = dst.as_chunks_mut::<{Self::SIZE32}>();
++                    debug_assert!(rest.is_empty());
++                    for (chunk, src) in iter::zip(chunks, items) {
++                        *chunk = src.to_le_bytes();
 +                    }
                  }
 +                cx.write(offset, &dst);
@@ -1196,16 +1196,37 @@ index 9cac53d7..bfe4c715 100644
                  Ok(())
              }
          }
-@@ -1107,7 +1103,7 @@ macro_rules! floats {
+@@ -1100,18 +1096,24 @@ macro_rules! floats {
+             #[inline]
+             fn linear_lift_from_memory(_cx: &mut LiftContext<'_>, ty: InterfaceType, bytes: &[u8]) -> Result<Self> {
+                 debug_assert!(matches!(ty, InterfaceType::$ty));
+-                debug_assert!((bytes.as_ptr() as usize) % Self::SIZE32 == 0);
++                // enclave/SET: NO alignment assertion on `bytes`. Upstream
++                // could assume guest-memory alignment because `bytes` pointed
++                // INTO linear memory at a canonical-ABI-aligned offset. Over a
++                // `shared` memory `bytes` is a host-owned copy in a `Vec<u8>`,
++                // which only promises align-1, so the old assert fired on a
++                // two-instruction guest. Nothing here needs the alignment:
++                // `from_le_bytes` reads bytewise.
+                 Ok($float::from_le_bytes(*bytes.as_array().unwrap()))
+             }
+ 
              fn linear_lift_list_from_memory(cx: &mut LiftContext<'_>, list: &WasmList<Self>) -> Result<Vec<Self>> where Self: Sized {
                  // See comments in `WasmList::get` for the panicking indexing
                  let byte_size = list.len * mem::size_of::<Self>();
 -                let bytes = &cx.memory()[list.ptr..][..byte_size];
 +                let bytes = cx.memory().read(list.ptr, byte_size);
  
-                 // The canonical ABI requires that everything is aligned to its
-                 // own size, so this should be an aligned array.
-@@ -1167,7 +1163,7 @@ unsafe impl Lower for bool {
+-                // The canonical ABI requires that everything is aligned to its
+-                // own size, so this should be an aligned array.
+-                assert!(bytes.as_ptr().cast::<Self>().is_aligned());
++                // enclave/SET: no alignment assertion — see
++                // `linear_lift_from_memory` above. `chunks_exact` below is
++                // bytewise and does not care.
+ 
+                 // Copy the resulting slice to a new Vec, handling endianness
+                 // in the process
+@@ -1167,7 +1169,7 @@ unsafe impl Lower for bool {
      ) -> Result<()> {
          debug_assert!(matches!(ty, InterfaceType::Bool));
          debug_assert!(offset % Self::SIZE32 == 0);
@@ -1214,7 +1235,7 @@ index 9cac53d7..bfe4c715 100644
          Ok(())
      }
  }
-@@ -1236,7 +1232,7 @@ unsafe impl Lower for char {
+@@ -1236,7 +1238,7 @@ unsafe impl Lower for char {
      ) -> Result<()> {
          debug_assert!(matches!(ty, InterfaceType::Char));
          debug_assert!(offset % Self::SIZE32 == 0);
@@ -1223,7 +1244,7 @@ index 9cac53d7..bfe4c715 100644
          Ok(())
      }
  }
-@@ -1304,8 +1300,8 @@ fn lower_pointer_pair_to_memory<T>(
+@@ -1304,8 +1306,8 @@ fn lower_pointer_pair_to_memory<T>(
      len: usize,
  ) {
      // FIXME(#4311): needs memory64 handling
@@ -1234,7 +1255,7 @@ index 9cac53d7..bfe4c715 100644
  }
  
  // FIXME(#4311): these probably need different constants for memory64
-@@ -1383,13 +1379,20 @@ fn lower_string<T>(cx: &mut LowerContext<'_, T>, string: &str) -> Result<(usize,
+@@ -1383,13 +1385,20 @@ fn lower_string<T>(cx: &mut LowerContext<'_, T>, string: &str) -> Result<(usize,
                  );
              }
              let ptr = cx.realloc(0, 0, 1, string.len())?;
@@ -1256,7 +1277,7 @@ index 9cac53d7..bfe4c715 100644
          StringEncoding::Utf16 => {
              let size = string.len() * 2;
              if size > MAX_STRING_BYTE_LENGTH {
-@@ -1398,38 +1401,39 @@ fn lower_string<T>(cx: &mut LowerContext<'_, T>, string: &str) -> Result<(usize,
+@@ -1398,38 +1407,39 @@ fn lower_string<T>(cx: &mut LowerContext<'_, T>, string: &str) -> Result<(usize,
                      string.len()
                  );
              }
@@ -1312,7 +1333,7 @@ index 9cac53d7..bfe4c715 100644
                  let worst_case = bytes
                      .len()
                      .checked_mul(2)
-@@ -1437,35 +1441,39 @@ fn lower_string<T>(cx: &mut LowerContext<'_, T>, string: &str) -> Result<(usize,
+@@ -1437,35 +1447,39 @@ fn lower_string<T>(cx: &mut LowerContext<'_, T>, string: &str) -> Result<(usize,
                  if worst_case > MAX_STRING_BYTE_LENGTH {
                      bail!("byte length too large");
                  }
@@ -1376,7 +1397,7 @@ index 9cac53d7..bfe4c715 100644
          }
      }
  }
-@@ -1564,13 +1572,13 @@ impl WasmStr {
+@@ -1564,13 +1578,13 @@ impl WasmStr {
          let store = store.into().0;
          let memory = self.instance.options_memory(store, self.options);
          let encoding = self.instance.options(store, self.options).string_encoding;
@@ -1392,7 +1413,7 @@ index 9cac53d7..bfe4c715 100644
      ) -> Result<Cow<'a, str>> {
          match encoding {
              StringEncoding::Utf8 => self.decode_utf8(memory),
-@@ -1585,16 +1593,25 @@ impl WasmStr {
+@@ -1585,16 +1599,25 @@ impl WasmStr {
          }
      }
  
@@ -1425,7 +1446,7 @@ index 9cac53d7..bfe4c715 100644
          debug_assert!(rest.is_empty());
          Ok(
              core::char::decode_utf16(chunks.iter().map(|chunk| u16::from_le_bytes(*chunk)))
-@@ -1603,10 +1620,12 @@ impl WasmStr {
+@@ -1603,11 +1626,19 @@ impl WasmStr {
          )
      }
  
@@ -1434,14 +1455,22 @@ index 9cac53d7..bfe4c715 100644
          // See notes in `decode_utf8` for why this is panicking indexing.
 -        Ok(encoding_rs::mem::decode_latin1(
 -            &memory[self.ptr..][..self.len],
-+        // latin1 always transcodes into a fresh `String`, so this is owned
-+        // either way and the shared/unshared distinction does not appear.
-+        Ok(Cow::Owned(
-+            encoding_rs::mem::decode_latin1(&memory.read(self.ptr, self.len)).into_owned(),
-         ))
+-        ))
++        // Keep the borrowed fast path: `decode_latin1` returns
++        // `Cow::Borrowed` for pure-ASCII input, and over an unshared memory
++        // that borrow is into linear memory and costs nothing. Only the
++        // host-owned copy of a `shared` memory has to be re-owned, because its
++        // buffer dies with this function.
++        match memory.read(self.ptr, self.len) {
++            Cow::Borrowed(bytes) => Ok(encoding_rs::mem::decode_latin1(bytes)),
++            Cow::Owned(bytes) => Ok(Cow::Owned(
++                encoding_rs::mem::decode_latin1(&bytes).into_owned(),
++            )),
++        }
      }
  }
-@@ -1827,8 +1846,8 @@ impl<T: Lift> WasmList<T> {
+ 
+@@ -1827,8 +1858,8 @@ impl<T: Lift> WasmList<T> {
          // (and wasm memory can only grow). This could theoretically be
          // unchecked indexing if we're confident enough and it's actually a perf
          // issue one day.
@@ -1452,7 +1481,7 @@ index 9cac53d7..bfe4c715 100644
      }
  
      /// Returns an iterator over the elements of this list.
-@@ -1865,15 +1884,32 @@ macro_rules! raw_wasm_list_accessors {
+@@ -1865,15 +1896,39 @@ macro_rules! raw_wasm_list_accessors {
              ///
              /// Panics if the `store` provided is not the one from which this
              /// slice originated.
@@ -1479,9 +1508,16 @@ index 9cac53d7..bfe4c715 100644
 +                        // Host-owned copy of a shared memory: realign into a
 +                        // typed vector, since `align_to` on a fresh `Vec<u8>`
 +                        // is not guaranteed to leave empty head/tail.
++                        //
++                        // `from_ne_bytes`, NOT `from_le_bytes`: this function's
++                        // contract is to hand back the guest's LITTLE-ENDIAN
++                        // words raw, exactly as the borrowed branch's
++                        // reinterpretation does, and every caller applies
++                        // `from_le` itself. Converting here as well would
++                        // byte-swap twice on a big-endian host.
 +                        let mut out = Vec::with_capacity(self.len);
 +                        for chunk in b.chunks_exact(mem::size_of::<$i>()) {
-+                            out.push(<$i>::from_le_bytes(chunk.try_into().unwrap()));
++                            out.push(<$i>::from_ne_bytes(chunk.try_into().unwrap()));
 +                        }
 +                        return Cow::Owned(out);
 +                    }
@@ -1489,7 +1525,7 @@ index 9cac53d7..bfe4c715 100644
  
                  // The canonical ABI requires that everything is aligned to its
                  // own size, so this should be an aligned array. Furthermore the
-@@ -1889,7 +1925,7 @@ macro_rules! raw_wasm_list_accessors {
+@@ -1889,7 +1944,7 @@ macro_rules! raw_wasm_list_accessors {
                  unsafe {
                      let (head, body, tail) = bytes.align_to::<$i>();
                      assert!(head.is_empty() && tail.is_empty());
@@ -1498,7 +1534,7 @@ index 9cac53d7..bfe4c715 100644
                  }
              }
          }
-@@ -2160,12 +2196,12 @@ where
+@@ -2160,12 +2215,12 @@ where
      for i in 0..len {
          let entry_base = ptr + (i * usize::try_from(map.entry_abi.size32)?);
  
@@ -1515,7 +1551,7 @@ index 9cac53d7..bfe4c715 100644
  
          result.insert(key, value)?;
      }
-@@ -2430,10 +2466,10 @@ where
+@@ -2430,10 +2485,10 @@ where
          };
          match self {
              None => {
@@ -1528,7 +1564,7 @@ index 9cac53d7..bfe4c715 100644
                  val.linear_lower_to_memory(
                      cx,
                      payload,
-@@ -2693,13 +2729,13 @@ where
+@@ -2693,13 +2748,13 @@ where
          let payload_offset = Self::INFO.payload_offset32 as usize;
          match self {
              Ok(e) => {
