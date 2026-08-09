@@ -2423,7 +2423,7 @@ index ab41825..40b94e0 100644
                  // For shared memory, the `VMMemoryDefinition` is updated inside
                  // the locked region.
 diff --git a/crates/wasmtime/src/runtime/store.rs b/crates/wasmtime/src/runtime/store.rs
-index 9cc49ea..2943400 100644
+index 9cc49ea..c10beba 100644
 --- a/crates/wasmtime/src/runtime/store.rs
 +++ b/crates/wasmtime/src/runtime/store.rs
 @@ -470,6 +470,47 @@ pub struct StoreOpaque {
@@ -2547,7 +2547,7 @@ index 9cc49ea..2943400 100644
      /// Configures epoch-deadline expiration to invoke a custom callback
      /// function.
      ///
-@@ -1657,6 +1757,433 @@ impl StoreOpaque {
+@@ -1657,6 +1757,464 @@ impl StoreOpaque {
          (self.instances[id].handle.get_mut(), &self.modules)
      }
  
@@ -2798,18 +2798,49 @@ index 9cc49ea..2943400 100644
 +                //     `wasmtime::*` — i.e. exactly when someone turns SET
 +                //     logging on to investigate a live incident, which is when
 +                //     losing the reaper hurts most. That is what round 13 wrote
-+                //     335 lines up in SET-DO-NOT-PROMOTE.md, and it is the
-+                //     third time this comment has had to be walked back to it.
++                //     earlier in SET-DO-NOT-PROMOTE.md, and it is the third
++                //     time this comment has had to be walked back to it. (No
++                //     line number: round 18 copied "335 lines up" into two new
++                //     places where it was false, including into this .rs file
++                //     where a Markdown offset denotes nothing.)
 +                //
 +                //     Round 17 wrote "the EXPOSED configuration is
-+                //     `WASMTIME_LOG` UNSET". True of the ERROR site in
-+                //     `reaper::submit`, which is where its measurement came
-+                //     from — and that site is inside `catch_unwind` anyway, so
-+                //     the hazard does not apply there. Evidence taken from the
-+                //     one site where the rule does not bite, transferred to a
-+                //     site at a different LEVEL where the conclusion does not
-+                //     hold. Individually true facts, false conclusion: the same
-+                //     pathology round 17 correctly diagnosed in round 16.
++                //     `WASMTIME_LOG` UNSET" and took its measurement from an
++                //     ERROR-level macro, then applied the conclusion to this
++                //     WARN-level site. Individually true facts, false
++                //     conclusion — the pathology round 17 itself diagnosed in
++                //     round 16.
++                //
++                //     ROUND 19 CORRECTION, because round 18's attempt to say
++                //     that was itself wrong twice in one sentence. It claimed
++                //     the ERROR site was "in `reaper::submit`, which is inside
++                //     `catch_unwind` anyway, so the hazard does not apply
++                //     there". Both halves are false:
++                //       * the `log::error!` is in `reaper::FINISH`
++                //         (`set_threads.rs`), not `submit`;
++                //       * `submit` is NOT inside any `catch_unwind` —
++                //         `Drop for Store<T>` -> `join_set_threads` ->
++                //         `set_reaper_submit` -> `submit`, with nothing in
++                //         between. `set_threads.rs` says exactly that, at
++                //         length, as the whole justification for using
++                //         `writeln!` there.
++                //     `finish` IS inside `catch_unwind` (in the reaper thread's
++                //     `run`), which is why a `log::` macro is tolerable there
++                //     and not at `submit`.
++                //
++                //     AND THE DIRECTION MATTERS: unset caps the facade at
++                //     ERROR, so ERROR records DO pass. An ERROR macro at
++                //     `submit` would therefore be armed in the DEFAULT fleet
++                //     configuration — every CPU tenant and every 0-GPU nn
++                //     tenant — where the panic unwinds out of the first
++                //     statement of `Drop`, `TX` latches unset-as-failed, and
++                //     every later teardown detaches silently. Round 18's
++                //     sentence wrote that live hazard off as a non-issue, which
++                //     is precisely the reasoning that would license putting the
++                //     macro back. Under `serve` it is worse than the `run` exit
++                //     code suggests: tokio's task harness swallows the
++                //     Drop-path panic, which is the silent 457/457 shape round
++                //     13 measured.
 +                //
 +                //     Note also "SETTING `WASMTIME_LOG` suppresses this" is
 +                //     only true of the FLEET's value (`wasmtime_wasi_nn=debug`,
@@ -2981,7 +3012,7 @@ index 9cc49ea..2943400 100644
      /// Access multiple instances specified via `ids`.
      ///
      /// # Panics
-@@ -2408,6 +2935,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
+@@ -2408,6 +2966,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
  
  impl<T> Drop for Store<T> {
      fn drop(&mut self) {
@@ -3001,7 +3032,7 @@ index 9cc49ea..2943400 100644
          self.run_manual_drop_routines();
  
          // For documentation on this `unsafe`, see `into_data`.
-@@ -2423,6 +2963,19 @@ impl Drop for StoreOpaque {
+@@ -2423,6 +2994,19 @@ impl Drop for StoreOpaque {
          // NB it's important that this destructor does not access `self.data`.
          // That is deallocated by `Drop for Store<T>` above.
  
@@ -3480,10 +3511,10 @@ index f62ea58..7ed3b91 100644
      store: &mut dyn VMStore,
 diff --git a/crates/wasmtime/src/runtime/vm/component/set_threads.rs b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
 new file mode 100644
-index 0000000..25c4d23
+index 0000000..fc0f5c6
 --- /dev/null
 +++ b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
-@@ -0,0 +1,1961 @@
+@@ -0,0 +1,1962 @@
 +//! enclave/SET: real OS-thread spawning for the shared-everything-threads
 +//! `thread.spawn-ref` / `thread.spawn-indirect` component intrinsics.
 +//!
@@ -3947,7 +3978,8 @@ index 0000000..25c4d23
 +                    // that is false -- cli-flags builds through
 +                    // `SubscriberBuilder::default()`, which sets
 +                    // `log_internal_errors(true)`, and that arm `eprintln!`s.
-+                    // `--log-to-files` is a second panicking path, not a
++                    // The `-D log-to-files=y` debug KEY (there is no
++                    // `--log-to-files` flag) is a second panicking path, not a
 +                    // replacement. See the long note in `store.rs`.) `submit` is called from
 +                    // `join_set_threads`, which is called from `Drop for
 +                    // Store<T>`, with no `catch_unwind` anywhere on that stack.

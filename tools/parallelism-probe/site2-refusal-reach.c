@@ -11,8 +11,27 @@
  * This probe attacks the claim the only way the refusal can reach the byte
  * loop with `first == 0`: it makes the OWNER keep REFILLING the shared buffer
  * while a non-owner reads it, so the non-owner is refused, resumes on fresh
- * bytes, is refused again, hundreds of times, with the buffer boundary landing
- * at every offset inside a 3-byte character.  The file is entirely VALID
+ * bytes, is refused again.
+ *
+ * MEASURED SCALE, corrected in round 19 because this header said "hundreds of
+ * times ... at every offset inside a 3-byte character" and the README row
+ * committed alongside it said 6: it is SIX refusals out of 1,189 calls, stable
+ * across every image and run. Six sample events, not an exhaustive sweep.
+ *
+ * WHAT THIS PROBE DOES AND DOES NOT PROVE, also corrected in round 19. Its
+ * r14a FAIL is a SITE-1 signal — the same pass/fail signature as
+ * wide-read-poison.c (r13c/r14a FAIL, r14b+ PASS), and site 1 is what r14b
+ * fixed. At SITE 2 it has ZERO discriminating power: r14b and r14c are the only
+ * two images that differ at site 2 and differ in nothing else, and this probe
+ * produces byte-identical output on both. So its PASS on r14c is an unfalsified
+ * null, NOT a proof that a refusal cannot reach site 2.
+ *
+ * The reason is structural and is the real argument: site 2's flag branch needs
+ * `!first` AND an invalid byte, and a refusal returns EOF without consuming, so
+ * it cannot desync mid-character — the branch is unreachable by construction
+ * here, which is exactly what the r14b-equals-r14c identity measures. The probe
+ * that DOES discriminate at site 2 is wide-read-eilseq.c (r14b FAIL, everything
+ * else PASS).  The file is entirely VALID
  * UTF-8, so any `F_ERR` on the owner's stream can only have been manufactured
  * by the ownership split.
  *

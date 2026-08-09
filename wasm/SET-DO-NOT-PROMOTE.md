@@ -1740,14 +1740,34 @@ consulted. Measured on the real binary, stderr → `/dev/full`:
 | `warn` / `wasmtime=warn` | 2 | **101** |
 | `trace` | 2 | **101** |
 
-Round 17's measurement was taken from the `log::error!` in `reaper::submit` —
-which reproduces exactly, but which is inside `catch_unwind` and therefore the
-one site where the rule does not bite — and transferred to a site at a different
-LEVEL. Individually true facts, false conclusion: the exact pathology round 17
-diagnosed in round 16, committed by round 17.
+Round 17's measurement was taken from an ERROR-level macro and transferred to a
+site at a different LEVEL. Individually true facts, false conclusion: the exact
+pathology round 17 diagnosed in round 16, committed by round 17.
+
+**Round 19 correction — the sentence above originally said that measurement came
+from "the `log::error!` in `reaper::submit`, which is inside `catch_unwind` and
+therefore the one site where the rule does not bite". Both halves were false.**
+The `log::error!` is in `reaper::FINISH`, not `submit`; and `submit` is inside no
+`catch_unwind` at all (`Drop for Store<T>` → `join_set_threads` →
+`set_reaper_submit` → `submit`, nothing in between) — which `set_threads.rs`
+states at length, 470 lines away, as the entire justification for using
+`writeln!` there. `finish` IS wrapped (by the reaper thread's `run`), which is
+why a `log::` macro is tolerable there and not at `submit`.
+
+The direction matters and is the reason this is a HIGH and not a typo: unset
+caps the facade at ERROR, so ERROR records DO pass, and an ERROR macro at
+`submit` would be armed in the **default fleet configuration** — every CPU
+tenant and every 0-GPU nn tenant. Measured with an `log::error!` injected at
+`submit` on the real straggler path, stderr → `/dev/full`: unset → **rc 101**,
+`error` → **rc 101**, `wasmtime_wasi_nn=debug` → 0; the same injection at
+`finish` → 0, confirming which one is actually wrapped. Round 18's sentence
+wrote off a live hazard as a non-issue, which is exactly the reasoning that
+would license putting the macro back at the self-cascading site.
 
 **The operative risk is the inverse of what rounds 16 and 17 both wrote**, and it
-is what round 13 recorded 335 lines up: no default tenant is exposed at this
+is what round 13 recorded earlier in this file (round 19 note: the "335 lines"
+figure is correct for ROUND 16's sentence, not this one — round 18 copied the
+digit forward into places where it is false): no default tenant is exposed at this
 site; it is armed only when an OPERATOR raises `WASMTIME_LOG` to ≥WARN for
 `wasmtime::*` — i.e. precisely when someone turns SET logging on to investigate
 a live incident, which is when losing the reaper hurts most.
@@ -1776,9 +1796,100 @@ a live incident, which is when losing the reaper hurts most.
 * The dead-stack detach question, unchanged since round 14.
 * **Round 18's own fixes have not been reviewed.** Tenth consecutive round.
 
+## Round 19 (2026-08-09): the code held a THIRD time; the comment was wrong a sixth — and this one mattered
+
+Round 18's change set was prose plus one probe commit. Round 19 reviewed it and
+found six things. The headline correction round 18 made (the `warn!` level
+analysis) **reproduces exactly and is right**. The defect was in the sentence it
+added to dismiss round 17's evidence — and unlike the previous four, this one
+would have licensed a real regression.
+
+| finding | severity | status |
+|---|---|---|
+| "the ERROR site in `reaper::submit` … is inside `catch_unwind` anyway" — false twice in one clause | HIGH | FIXED |
+| the committed probe's README row claims a proof the probe cannot deliver | MEDIUM | FIXED |
+| the probe's header says "hundreds" of refusals; it is 6 | LOW | FIXED |
+| "335 lines up" copied into two new places where it is false | LOW | FIXED |
+| `set_threads.rs` still called `-D log-to-files=y` a flag | LOW (pre-existing) | FIXED |
+| under `serve` the Drop-path panic is SWALLOWED by tokio — worse than the `run` rc | INFO | documented |
+
+### The sentence that would have let the bug back in
+
+Round 18 wrote that round 17's measurement came from "the `log::error!` in
+`reaper::submit`, which is inside `catch_unwind` anyway, so the hazard does not
+apply there". Both halves are false:
+
+* the `log::error!` is in `reaper::**finish**`, not `submit`;
+* `submit` is inside no `catch_unwind` at all — `Drop for Store<T>` →
+  `join_set_threads` → `set_reaper_submit` → `submit`, nothing in between.
+  `set_threads.rs` says precisely that, at length, 470 lines away, as the ENTIRE
+  justification for using `writeln!` there rather than a macro.
+
+`finish` IS wrapped (by the reaper thread's `run`), which is why a `log::` macro
+is tolerable there and not at `submit`.
+
+**And the direction is what makes it a HIGH.** Unset caps the facade at ERROR,
+so ERROR records DO pass — an ERROR macro at `submit` is armed in the DEFAULT
+fleet configuration, every CPU tenant and every 0-GPU nn tenant. Measured with a
+`log::error!` injected at `submit` on the real straggler path, stderr →
+`/dev/full`: unset → **rc 101**, `error` → **rc 101**,
+`wasmtime_wasi_nn=debug` → 0; the same injection at `finish` → **0**, which is
+the control proving which one is actually wrapped. Round 18's sentence wrote a
+live hazard off as a non-issue at the one site where the failure is
+self-cascading (panic out of the first statement of `Drop`; `TX` latches
+unset-as-failed; every later teardown detaches silently).
+
+### I committed a probe and overstated what it proves
+
+`site2-refusal-reach.c`'s README row said it "proves a refusal cannot reach (or
+fake) the site-2 EILSEQ branch". It has **zero discriminating power at site 2**:
+r14b and r14c are the only two images that differ at site 2 — and (verified by
+diffing the libc patch between the two commits) differ in nothing else — and the
+probe's output on them is BYTE-IDENTICAL. Its r14a FAIL is a SITE-1 signal, the
+same signature as `wide-read-poison.c`.
+
+The structural argument is still sound and is the real one: site 2's flag branch
+needs `!first` AND an invalid byte, and a refusal returns EOF without consuming,
+so it cannot desync mid-character. The probe's r14b≡r14c identity is exactly
+what "unreachable by construction" looks like — an unfalsified null, not a
+proof. `wide-read-eilseq.c` is the probe that discriminates at site 2. Both the
+header and the row now say so.
+
+Also: the header claimed "hundreds" of refusals "at every offset inside a 3-byte
+character". It is **6**, out of 1,189 calls, stable across images — and the
+README row committed in the same commit already said 6. Two orders of magnitude
+apart, in one commit.
+
+### Verified clean by round 19 — the third consecutive clean CODE verdict
+
+* **The `warn!` mechanism is confirmed to the MECHANISM, not just the outcome**:
+  `tracing-subscriber`'s `util.rs` runs `LogTracer::builder().with_max_level(
+  LevelFilter::current().as_log())` AFTER `set_global_default`;
+  `tracing-log`'s `log_tracer.rs` does `log::set_max_level(self.filter)`;
+  `EnvFilter::from_env` installs `LevelFilter::ERROR` and `max_level_hint` is
+  `max(statics, dynamics)`. Measured IN-PROCESS on the real binary: unset →
+  `log::max_level()=Error`, `warn_enabled=false`. Empty string identical.
+* The whole table reproduces on the real binary, and **every configuration the
+  table omitted was checked**: `off` → 0/0; `wasmtime::runtime::store=warn` →
+  2/101; a dynamic value filter `wasmtime[x{a=1}]=info` opens the facade to
+  TRACE but still yields `warn_enabled=false` → 0 records. No omission changes
+  the conclusion.
+* The "doubly gated" correction is measured and true: `-D log-to-files=y` in a
+  read-only cwd gives rc 1 with `RUST_LOG` unset and **rc 101 with
+  `RUST_LOG=off`** — the filter does not gate the main thread's file open.
+* Every number in the probe README row reproduces (1,189 calls, 6 refusals,
+  r14a FAIL / r14c+r14d PASS, native PASS with `weof=0`).
+* The artifact claim reproduces independently: a fresh r14c vs r14d build
+  differs in exactly **1 byte** — offset 75044, `c`→`d`, the output filename.
+
+### Still open
+
+* The dead-stack detach question, unchanged since round 14.
+* **Round 19's own fixes have not been reviewed.** Eleventh consecutive round.
+
 ## Why it is still not promotable
 
-**EIGHTEEN review passes have now been run and not one has cleared.** Round 10 was
+**NINETEEN review passes have now been run and not one has cleared.** Round 10 was
 design work and found a CRITICAL in round 9's own fix; round 11 reviewed round
 10 and found two HIGHs, one of which was a hole in round 10's fix — and the
 first two attempts at fixing THAT were themselves wrong.
