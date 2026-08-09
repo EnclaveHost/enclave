@@ -445,7 +445,7 @@ index 44e0fd9..1639501 100644
  
  // Computes an absolute path for `path` based on the current working directory.
 diff --git a/libc-bottom-half/sources/descriptor_table.c b/libc-bottom-half/sources/descriptor_table.c
-index 56d7816..0940d5b 100644
+index 56d7816..a5f84e0 100644
 --- a/libc-bottom-half/sources/descriptor_table.c
 +++ b/libc-bottom-half/sources/descriptor_table.c
 @@ -15,6 +15,223 @@
@@ -811,7 +811,7 @@ index 56d7816..0940d5b 100644
    if (!slot)
      return -1;
    descriptor_table_entry_inc(*slot);
-@@ -248,44 +533,138 @@ int descriptor_table_get(int fd, descriptor_table_entry_t *entry) {
+@@ -248,44 +533,151 @@ int descriptor_table_get(int fd, descriptor_table_entry_t *entry) {
  }
  
  // Some large but not too large value to allow `dup2` to dos this process.
@@ -853,6 +853,19 @@ index 56d7816..0940d5b 100644
 +    int newindex = descriptor_table_insert_entry(entry);
 +    if (newindex < 0)
 +      return -1;
++#ifdef __wasilibc_set_threads__
++    /* THE THIRD DOOR. `dup()` reaches `table_allocate` through
++       `descriptor_table_insert_entry`, which is BELOW the claim in
++       `descriptor_table_insert` -- so a fresh descriptor landing on 0/1/2 here
++       left the shared FILE resolvable by every sibling, and a worker's
++       buffered write went to the operator's stream. Measured: a 38-byte tenant
++       secret on the operator's stderr through this door while the wired
++       `open()` door refused it. */
++    if (newindex < SET_FD_UNTAGGED && !set_stdio_populating) {
++      (void)set_fd_ns_claim(); /* see `descriptor_table_remove` */
++      __wasilibc_set_claim_std_stream(newindex);
++    }
++#endif
 +    int newfd = index_to_fd((size_t)newindex);
 +    if (newfd < 0) {
 +      descriptor_table_entry_t removed;
@@ -935,14 +948,14 @@ index 56d7816..0940d5b 100644
 +         `dup2(f, STDOUT_FILENO)`; allowing it leaks guest bytes into the host
 +         log, which is not a trade a TCB gets to make. Redirect on the main
 +         thread, or write to the descriptor directly. */
-+      errno = EBADF;
-+      return -1;
-+    }
-+    if (newindex >= MAX_DESCRIPTOR) {
        errno = EBADF;
        return -1;
      }
 -    size_t newfd = arg;
++    if (newindex >= MAX_DESCRIPTOR) {
++      errno = EBADF;
++      return -1;
++    }
 +    size_t newfd = (size_t)newindex;
  
      if (table_grow(&global_table, newfd + 1) < 0)
@@ -959,7 +972,7 @@ index 56d7816..0940d5b 100644
      descriptor_table_item_t *table_entry = &global_table.entries[newfd];
      descriptor_table_entry_inc(entry);
  
-@@ -297,29 +676,51 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
+@@ -297,29 +689,62 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
        table_entry->entry = entry;
        table_entry->occupied = true;
      }
@@ -1003,6 +1016,17 @@ index 56d7816..0940d5b 100644
      if (table_grow(&global_table, minfd + 1) < 0)
        return -1;
  
++#ifdef __wasilibc_set_threads__
++    /* THE FOURTH DOOR. `fcntl(fd, F_DUPFD, 0)` has its own free-index search
++       and never goes near `descriptor_table_insert`, so it needs its own
++       claim. Round 11's own prose named all four doors; only three were
++       wired. */
++    if (minfd < (size_t)SET_FD_UNTAGGED && !set_stdio_populating) {
++      (void)set_fd_ns_claim(); /* see `descriptor_table_remove` */
++      __wasilibc_set_claim_std_stream((int)minfd);
++    }
++#endif
++
 +    int newfd = index_to_fd(minfd);
 +    if (newfd < 0)
 +      return -1;
@@ -1016,7 +1040,7 @@ index 56d7816..0940d5b 100644
    }
  
    default:
-@@ -331,9 +732,56 @@ int descriptor_table_remove(int fd) {
+@@ -331,9 +756,56 @@ int descriptor_table_remove(int fd) {
    if (!stdio_initialized && init_stdio() < 0)
      return -1;
  
@@ -1074,7 +1098,7 @@ index 56d7816..0940d5b 100644
    STRONG_UNLOCK(global_table.lock);
    if (rc < 0)
      return -1;
-@@ -357,3 +805,39 @@ void __wasilibc_descriptor_deallocate(descriptor_table_entry_t entry) {
+@@ -357,3 +829,39 @@ void __wasilibc_descriptor_deallocate(descriptor_table_entry_t entry) {
    errno = saved_errno;
    live_descriptors_dec();
  }
@@ -1845,6 +1869,31 @@ index 96d16d1..8e173d5 100644
  	if (a_swap(&f->lock, 0) & MAYBE_WAITERS)
  		__wake(&f->lock, 1, 1);
  }
+diff --git a/libc-top-half/musl/src/stdio/__overflow.c b/libc-top-half/musl/src/stdio/__overflow.c
+index e65a594..466afdd 100644
+--- a/libc-top-half/musl/src/stdio/__overflow.c
++++ b/libc-top-half/musl/src/stdio/__overflow.c
+@@ -4,7 +4,19 @@ int __overflow(FILE *f, int _c)
+ {
+ 	unsigned char c = _c;
+ 	if (!f->wend && __towrite(f)) return EOF;
+-	if (f->wpos != f->wend && c != f->lbf) return *f->wpos++ = c;
++	/* enclave/SET: the same rule as `__fwritex`, and this is the path that
++	   rule was missing. `putc`/`putchar`/`fputc`/`puts`/`fputwc` never reach
++	   `__fwritex` -- they go through the `putc_unlocked` macro to here -- so a
++	   non-owning thread hitting the line-buffering sentinel took `f->write`
++	   unconditionally, `__stdio_write` refused it (correctly), and `__overflow`
++	   returned EOF: the byte was DISCARDED with room still in the buffer. That
++	   is verbatim the failure the `__fwritex` fix was written to stop.
++	   Measured with `setlinebuf` + `puts` on a stdout the main thread had
++	   redirected: three lines lost, and in the REACTOR shape every request lost
++	   a worker's newline so two workers' lines merged. A non-owner BUFFERS;
++	   only draining needs a descriptor. */
++	if (f->wpos != f->wend && (c != f->lbf || !__wasilibc_file_mine(f)))
++		return *f->wpos++ = c;
+ 	if (f->write(f, &c, 1)!=1) return EOF;
+ 	return c;
+ }
 diff --git a/libc-top-half/musl/src/stdio/__stdio_exit.c b/libc-top-half/musl/src/stdio/__stdio_exit.c
 index a5e42c6..afe4b10 100644
 --- a/libc-top-half/musl/src/stdio/__stdio_exit.c
@@ -1947,6 +1996,29 @@ index f2cd900..ab78b51 100644
  	struct iovec iovs[2] = {
  		{ .iov_base = f->wbase, .iov_len = f->wpos-f->wbase },
  		{ .iov_base = (void *)buf, .iov_len = len }
+diff --git a/libc-top-half/musl/src/stdio/__stdout_write.c b/libc-top-half/musl/src/stdio/__stdout_write.c
+index 8190ec5..d60f33f 100644
+--- a/libc-top-half/musl/src/stdio/__stdout_write.c
++++ b/libc-top-half/musl/src/stdio/__stdout_write.c
+@@ -10,7 +10,18 @@ size_t __stdout_write(FILE *f, const unsigned char *buf, size_t len)
+ #ifdef __wasilibc_unmodified_upstream // use isatty rather than manual ioctl
+ 	struct winsize wsz;
+ #endif
++	/* enclave/SET: `__isatty(f->fd)` RESOLVES `f->fd`, so a non-owning thread
++	   was probing its own descriptor table and then writing the answer into
++	   `f->lbf` on the SHARED FILE -- whichever thread reached `__overflow`
++	   first decided the OWNER's buffering discipline, using the wrong
++	   descriptor. This is the one site the round-10 "check wherever `f->fd`
++	   becomes a syscall" sweep missed, because `isatty` is not read, write or
++	   seek. A non-owner installs the real vtable entry (harmless and
++	   idempotent) and leaves the owner's discipline alone; `__stdio_write`
++	   below still refuses it. */
+ 	f->write = __stdio_write;
++	if (!__wasilibc_file_mine(f))
++		return __stdio_write(f, buf, len);
+ #ifdef __wasilibc_unmodified_upstream // use isatty rather than manual ioctl
+ 	if (!(f->flags & F_SVB) && __syscall(SYS_ioctl, f->fd, TIOCGWINSZ, &wsz))
+ #else
 diff --git a/libc-top-half/musl/src/stdio/fclose.c b/libc-top-half/musl/src/stdio/fclose.c
 index d594532..b8af070 100644
 --- a/libc-top-half/musl/src/stdio/fclose.c
@@ -2059,10 +2131,14 @@ index 8e22065..1116556 100644
 +#endif
  }
 diff --git a/libc-top-half/musl/src/stdio/ftrylockfile.c b/libc-top-half/musl/src/stdio/ftrylockfile.c
-index e89f61c..57d7d04 100644
+index e89f61c..76a2e61 100644
 --- a/libc-top-half/musl/src/stdio/ftrylockfile.c
 +++ b/libc-top-half/musl/src/stdio/ftrylockfile.c
-@@ -4,10 +4,45 @@
+@@ -1,13 +1,78 @@
+ #include "stdio_impl.h"
+ #include "pthread_impl.h"
+ #include <limits.h>
++#include <stdint.h>
  
  void __do_orphaned_stdio_locks()
  {
@@ -2088,9 +2164,38 @@ index e89f61c..57d7d04 100644
 +       component. `FOPEN_MAX`-ish ceiling: no thread can legitimately hold more
 +       FILEs locked than it has open. */
 +    int guard = 0;
-+    for (f=__pthread_self()->stdio_locks; f; f=next) {
++    pthread_t self = __pthread_self();
++#ifdef __wasilibc_set_threads__
++    /* enclave/SET: the dying thread may have trapped inside `vfprintf` on an
++       UNBUFFERED stream. `vfprintf` points the SHARED FILE's `buf` at an
++       80-byte `internal_buf` in ITS OWN STACK FRAME and restores it after the
++       write -- so a trap in between leaves `stderr` (and any
++       `setvbuf(_IONBF)` FILE) buffering into a frame that is freed and handed
++       to the next thread, while the release below deliberately lets siblings
++       straight into it.
++       Measured: 1,200-1,830 bytes of a LIVE thread's stack canary overwritten
++       by main's `fprintf(stderr, ...)`; 0 with the same probe and no trap, and
++       0 when the trap is on `stdout`, which has a static buffer and takes no
++       swap. The comment below calls the accepted residual "a torn stream ...
++       recoverable by the guest" -- a dangling pointer into a recycled stack is
++       not that, so that trade was made against a wrong characterisation.
++       Detach it, scoped to buffers really inside this thread's own frame so a
++       shared static buffer is left alone. */
++    uintptr_t stack_hi = (uintptr_t)self->stack;
++    uintptr_t stack_lo = stack_hi - self->stack_size;
++#endif
++    for (f=self->stdio_locks; f; f=next) {
 +        if (++guard > 4096) break;
 +        next = f->next_locked;
++#ifdef __wasilibc_set_threads__
++        if (f->buf && (uintptr_t)f->buf >= stack_lo &&
++            (uintptr_t)f->buf < stack_hi) {
++            f->buf = 0;
++            f->buf_size = 0;
++            f->wpos = f->wbase = f->wend = 0;
++            f->rpos = f->rend = 0;
++        }
++#endif
 +		/* enclave/SET takes the cooperative branch deliberately. Storing
 +		   0x40000000 (MAYBE_WAITERS with owner 0) leaves the FILE
 +		   permanently unlockable: __lockfile only ever CASes from 0, so
@@ -2170,10 +2275,10 @@ index 043f7da..d092391 100644
  	if (a_swap(&f->lock, 0) & MAYBE_WAITERS)
  		__wake(&f->lock, 1, 1);
 diff --git a/libc-top-half/musl/src/stdio/ofl.c b/libc-top-half/musl/src/stdio/ofl.c
-index f9f430b..0608a98 100644
+index f9f430b..8973f86 100644
 --- a/libc-top-half/musl/src/stdio/ofl.c
 +++ b/libc-top-half/musl/src/stdio/ofl.c
-@@ -15,3 +15,127 @@ void __ofl_unlock()
+@@ -15,3 +15,153 @@ void __ofl_unlock()
  {
  	STRONG_UNLOCK(ofl_lock);
  }
@@ -2298,6 +2403,32 @@ index f9f430b..0608a98 100644
 +		if (!victim) break;
 +		victim->write(victim, 0, 0);
 +		funlockfile(victim);
++	}
++
++	/* Now HAND THEM BACK. Namespaces are monotonic and never reused, so once
++	 * this thread is gone no thread can ever satisfy `__wasilibc_file_mine`
++	 * for a FILE it owned: `fclose` would be refused forever, `fflush(NULL)`
++	 * and `__stdio_exit` would skip it, and `__ofl` would grow without bound
++	 * with no API by which the guest could reclaim it. Measured at 1,212 bytes
++	 * per thread creation -- a regression against both the previous revision
++	 * and native, introduced by the (correct) `fclose` ownership check.
++	 *
++	 * Re-stamping SHARED is safe precisely BECAUSE the namespace is dead:
++	 * `f->fd` is a tagged descriptor no live thread can resolve, so
++	 * `fd_to_index` still fails EBADF and every write, read and seek still
++	 * refuses. What it restores is the ability to `fclose` and therefore free
++	 * the object. The bytes were already drained by the loop above.
++	 *
++	 * A thread that TRAPS runs neither the flush nor this, so its FILEs stay
++	 * owned and leak -- the residual already stated for its descriptors. */
++	for (;;) {
++		FILE **head = __ofl_lock();
++		FILE *f;
++		for (f = *head; f; f = f->next)
++			if (__wasilibc_file_owned_here(f)) break;
++		if (f) f->set_ns = __WASILIBC_FILE_SHARED;
++		__ofl_unlock();
++		if (!f) break;
 +	}
 +}
 +#endif

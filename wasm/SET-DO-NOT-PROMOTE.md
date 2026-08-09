@@ -956,9 +956,122 @@ borrowed-pointer `free()`.
   area, written in response to findings, which is precisely the shape that has
   produced the next round's worst finding four rounds running.
 
+## Round 12 (2026-08-09): two reviewers over round 11 — three HIGH, and it did NOT clear
+
+Round 11's fixes were written in response to round 11's findings and had never
+been reviewed. Two reviewers took the libc stdio/descriptor surface and the
+engine reaper. **Every finding is a gap in a round-10 or round-11 fix.**
+
+| finding | severity | status |
+|---|---|---|
+| `__overflow` has no ownership test: `putc`/`puts`/`fputc` discard a non-owner's line | HIGH | FIXED |
+| the claim is wired into 3 of the 4 doors — `dup()` and `fcntl(F_DUPFD)` are unclaimed | HIGH | FIXED |
+| a worker trapping in `vfprintf` leaves the shared FILE buffering into its DEAD STACK | HIGH | FIXED |
+| the reaper thread dies permanently the first time it cannot write its diagnostic | HIGH | FIXED |
+| `fclose` refusal made a dead thread's FILE unreclaimable — 1,212 B/thread | MEDIUM | FIXED |
+| `finish()` blocks the single global reaper in an unbounded `join()` (30.8 ms measured) | MEDIUM | FIXED |
+| the FAST path does the same unbounded join inline on a tokio worker (74-76% of requests) | MEDIUM | FIXED |
+| `__stdout_write` resolves `f->fd` for a non-owner via `isatty` | LOW | FIXED |
+| `ENCLAVE_SET_JOIN_TIMEOUT_MS=0` under `serve` is a total outage | MEDIUM | documented, not changed |
+| the claim is never released, so a save/restore idiom leaves stdout claimed forever | LOW | OPEN |
+
+### The line-buffered fix was applied to one of two paths
+
+Round 11 taught `__fwritex` that a non-owner must BUFFER and only draining is
+refused. `putc`/`putchar`/`fputc`/`puts` never reach `__fwritex` — they go
+through `putc_unlocked` to `__overflow`, which called `f->write` unconditionally
+at the line sentinel, got refused, and **discarded the byte with room still in
+the buffer**. Measured with `setlinebuf` + `puts`: three lines lost. **In the
+REACTOR shape every request lost a worker's newline, merging two workers' lines**
+— and the reactor is how the platform runs every HTTP app.
+
+### Two of the four doors were never wired
+
+Round 11's own prose names four doors; the claim was wired into three.
+`dup()` reaches `table_allocate` BELOW the claim in `descriptor_table_insert`,
+and `fcntl(F_DUPFD)` has its own free-index search. Measured, within one build:
+a 38-byte tenant secret on the operator's stderr through `dup()` and `F_DUPFD`
+while the wired `open()` door refused it.
+
+### The dead-stack finding is the most serious thing in this round, and it is pre-existing
+
+`vfprintf` points an UNBUFFERED stream's `f->buf` at an 80-byte buffer **in its
+own stack frame** and restores it after the write. A worker trapping in between
+leaves the SHARED `stderr` buffering into a frame that is freed and handed to
+the next thread — and the death hook then releases the lock by design, so
+siblings walk straight into it. Measured: **1,230 bytes of a LIVE thread's stack
+canary overwritten**; 0 with the same probe and no trap, and 0 when the trap is
+on `stdout`, which has a static buffer and takes no swap. Present on every build
+back to r8. `ftrylockfile.c`'s own comment accepted this as "a torn stream ...
+recoverable by the guest" — a dangling pointer into a recycled stack is not
+that, so the accepted trade was made against a wrong characterisation. Fixed by
+detaching a buffer that lies inside the dying thread's own stack range before
+releasing the lock: **1,230 → 0**.
+
+### The reaper died silently on a broken stderr, and my first fix did not fix it
+
+`eprintln!` PANICS when the write fails. The panic escaped the reaper's loop,
+the thread ended, and `TX` still held a live sender — so for the life of the
+process every teardown detached its workers with no wait and no diagnostic,
+`PENDING` leaked so `set_reaper_drain` always burned its full timeout, and the
+epoch bumps stopped. The trigger is operational, not hostile: a log-collector
+restart (EPIPE), a full disk, EIO. **On this platform wasmtime's stderr is the
+tenant's log.**
+
+Fixed with a non-panicking write, `catch_unwind` around the per-job work, and
+`PENDING` decremented on every arm. **The first attempt still died**, because
+the recovery arm itself called `log::error!` — which panics for the same reason,
+outside the `catch_unwind`. Measured: 60 detaches against a closed stderr, reaper
+alive, server still serving. That is the second time this round a fix for a
+finding was itself the next defect.
+
+### Both join paths now avoid blocking
+
+`finish()` used `all_done` and then `join()`, measured blocking the ONE global
+reaper for 30.8 ms at 8000 requests / 128-way, during which nothing else was
+dequeued or epoch-bumped. And the FAST path — **74-76% of requests** — was still
+calling `join()` inline on a tokio worker: 768 joins over 1 ms, worst 5.26 ms.
+Rounds 10 and 11 spent their whole budget moving the MINORITY path off the
+executor and left the majority path on it, on the strength of a claim the
+measurement contradicts. Both now join only what `is_finished()` reports and
+hand the rest to the reaper.
+
+### Verified clean this round
+
+* **TSan on the reaper under teardown churn** — round 11's top open item.
+  Spawn/join, detach-per-request, and 48 forced detaches: 16 warnings in every
+  arm, all tokio-internal, and a NON-SET control produced the same reports and
+  more of them (23). `wasmtime run` + spin-teardown: 0. **Zero SET-specific
+  races.**
+* The unbounded reaper queue is bounded in practice by `max_live_threads()`
+  (peaked at exactly 128); RSS 59-68 MB across 8000 requests at 128-way; thread
+  count returns to baseline.
+* `set_reaper_drain()` is on every exit path of `run`'s `execute()`.
+* The chdir weak-linkage argument is EMPIRICAL: a guest that never calls `chdir`
+  links neither `__wasilibc_find_relpath_alloc` nor the release hook.
+* Whole corpus green; HOLE swept 0..250 with no hangs; reactor 800 requests at
+  64-way with one reaper thread; non-SET guests unaffected.
+
+### Still open
+
+* `ENCLAVE_SET_JOIN_TIMEOUT_MS=0` under `serve` parks every tokio worker — a
+  total outage, measured (32 workers in `hrtimer_nanosleep`, 782 CPU-seconds).
+  It is NOT accidentally reachable (`""`, `"abc"`, `"0x0"`, `"-0"` all fall back
+  to 2000), and it is the documented opt-in for restoring the unbounded join, so
+  it is left as-is — but `SetWorkerHost::run_worker` recommends it as an escape
+  hatch without saying that it deadlocks `serve`.
+* The claim is never released, so the standard `saved=dup(1); …; dup2(saved,1)`
+  save/restore idiom leaves stdout claimed by main forever and a worker's
+  `fflush(stdout)` returns -1 permanently where native returns 0.
+* `f->set_ns` is a plain `int` in shared memory, written by the claim and read
+  by every `__wasilibc_file_mine`, with no atomics. TSan instruments the host,
+  not JIT'd guest code, so nothing in this harness can see it.
+* **Round 12's fixes have not been reviewed.** Fifth consecutive round in which
+  that sentence is the last one.
+
 ## Why it is still not promotable
 
-**TEN review rounds have now been run and not one has cleared.** Round 10 was
+**ELEVEN review rounds have now been run and not one has cleared.** Round 10 was
 design work and found a CRITICAL in round 9's own fix; round 11 reviewed round
 10 and found two HIGHs, one of which was a hole in round 10's fix — and the
 first two attempts at fixing THAT were themselves wrong.

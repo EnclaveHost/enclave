@@ -2423,7 +2423,7 @@ index ab41825..40b94e0 100644
                  // For shared memory, the `VMMemoryDefinition` is updated inside
                  // the locked region.
 diff --git a/crates/wasmtime/src/runtime/store.rs b/crates/wasmtime/src/runtime/store.rs
-index 9cc49ea..d3d3fd1 100644
+index 9cc49ea..8c78a87 100644
 --- a/crates/wasmtime/src/runtime/store.rs
 +++ b/crates/wasmtime/src/runtime/store.rs
 @@ -470,6 +470,47 @@ pub struct StoreOpaque {
@@ -2547,7 +2547,7 @@ index 9cc49ea..d3d3fd1 100644
      /// Configures epoch-deadline expiration to invoke a custom callback
      /// function.
      ///
-@@ -1657,6 +1757,282 @@ impl StoreOpaque {
+@@ -1657,6 +1757,306 @@ impl StoreOpaque {
          (self.instances[id].handle.get_mut(), &self.modules)
      }
  
@@ -2759,8 +2759,32 @@ index 9cc49ea..d3d3fd1 100644
 +        // path is a NORMAL path, not a pathological one, and it is sized
 +        // accordingly below.
 +        if live_is_zero(&group) {
++            // Join only what has ACTUALLY finished. Round 12 measured this
++            // path taking 74-76% of requests and still blocking the tokio
++            // worker: 768 inline joins over 1 ms, worst 5.26 ms, because the
++            // live count reaches zero a few instructions before the thread
++            // really ends. Rounds 10 and 11 spent their whole budget moving
++            // the MINORITY path off the executor and left the majority path
++            // on it, on the strength of a claim the measurement contradicts.
++            // Anything not yet finished goes to the reaper like everything
++            // else, so `Drop` never blocks here at all.
++            let mut stragglers = Vec::new();
 +            for handle in joins {
-+                join_finished_set_worker(handle);
++                if handle.is_finished() {
++                    join_finished_set_worker(handle);
++                } else {
++                    stragglers.push(handle);
++                }
++            }
++            if !stragglers.is_empty() {
++                let engine = self.engine().clone();
++                crate::runtime::vm::component::set_reaper_submit(
++                    group,
++                    engine,
++                    stragglers,
++                    std::time::Instant::now()
++                        + crate::runtime::vm::component::set_join_timeout(),
++                );
 +            }
 +            return;
 +        }
@@ -2830,7 +2854,7 @@ index 9cc49ea..d3d3fd1 100644
      /// Access multiple instances specified via `ids`.
      ///
      /// # Panics
-@@ -2408,6 +2784,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
+@@ -2408,6 +2808,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
  
  impl<T> Drop for Store<T> {
      fn drop(&mut self) {
@@ -2850,7 +2874,7 @@ index 9cc49ea..d3d3fd1 100644
          self.run_manual_drop_routines();
  
          // For documentation on this `unsafe`, see `into_data`.
-@@ -2423,6 +2812,19 @@ impl Drop for StoreOpaque {
+@@ -2423,6 +2836,19 @@ impl Drop for StoreOpaque {
          // NB it's important that this destructor does not access `self.data`.
          // That is deallocated by `Drop for Store<T>` above.
  
@@ -3292,10 +3316,10 @@ index f62ea58..7ed3b91 100644
      store: &mut dyn VMStore,
 diff --git a/crates/wasmtime/src/runtime/vm/component/set_threads.rs b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
 new file mode 100644
-index 0000000..bd4199c
+index 0000000..8397f60
 --- /dev/null
 +++ b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
-@@ -0,0 +1,1834 @@
+@@ -0,0 +1,1888 @@
 +//! enclave/SET: real OS-thread spawning for the shared-everything-threads
 +//! `thread.spawn-ref` / `thread.spawn-indirect` component intrinsics.
 +//!
@@ -3571,29 +3595,50 @@ index 0000000..bd4199c
 +    pub(super) static PENDING: AtomicUsize = AtomicUsize::new(0);
 +
 +    fn finish(job: Job) {
-+        let all_done = live_is_zero(&job.group);
 +        for handle in job.joins {
-+            if all_done || handle.is_finished() {
++            // `is_finished()` UNCONDITIONALLY, never a bare `all_done`. Round 12
++            // measured `join()` on the `all_done` path blocking this one thread
++            // for 30.8 ms at 8000 requests / 128-way -- and while it blocks, no
++            // other pending job is dequeued or epoch-bumped. The live count
++            // reaching zero happens a few instructions before the thread really
++            // ends, so "cannot block meaningfully" was not true at scale. A
++            // handle that is not finished yet is re-checked on the next pass;
++            // only at the deadline is it detached.
++            if handle.is_finished() {
++                if let Err(e) = handle.join() {
++                    log::warn!("SET worker thread panicked: {e:?}");
++                }
++            } else if live_is_zero(&job.group) {
++                // Re-read rather than reusing a snapshot: the last worker may
++                // have dropped its `LiveGuard` since. Reporting a cleanly
++                // exiting worker as leaked, and dropping its handle unjoined,
++                // is the race round 10 fixed on the fast path.
 +                if let Err(e) = handle.join() {
 +                    log::warn!("SET worker thread panicked: {e:?}");
 +                }
 +            } else {
 +                // Detached deliberately: nothing it can reach is being freed,
-+                // and the alternative is blocking forever. The handoff itself
-+                // is logged at `warn` by the caller, because THIS message
-+                // arrives at least a full timeout later and under
-+                // `wasmtime run` the process has usually exited by now.
++                // and the alternative is blocking forever.
 +                let name = handle.thread().name().unwrap_or("set-thread").to_string();
 +                log::error!(
 +                    "SET worker {name} did not stop within the teardown timeout and has \
-+                     been detached; it still holds a live-thread slot. This usually means \
-+                     the engine has no epoch ticker (see `Config::epoch_interruption`) and \
-+                     the guest thread never yields."
++                     been detached; it still holds a live-thread slot. The guest thread \
++                     is not reaching an epoch check -- typically a synchronous host call, \
++                     or an embedder without `Config::epoch_interruption`."
 +                );
-+                // Detaching a straggler must not depend on the embedder having
-+                // logging configured: this is the one outcome an operator has
-+                // to be able to see.
-+                eprintln!(
++                // NOT `eprintln!`: that PANICS if the write fails, and on this
++                // platform wasmtime's stderr is the tenant's log, so an EPIPE
++                // from a log-collector restart (or ENOSPC, or EIO) killed the
++                // reaper thread outright. `TX` still held a live sender, so
++                // every later teardown detached its workers with no wait and no
++                // diagnostic, `PENDING` leaked so `set_reaper_drain` always
++                // burned its full timeout, and the epoch bumps stopped -- for
++                // the life of the process, reported through the same broken
++                // stderr. Measured: one detach with stderr closed and the
++                // reaper was gone.
++                use std::io::Write;
++                let _ = writeln!(
++                    std::io::stderr(),
 +                    "wasmtime: warning: SET worker {name} did not stop at store teardown \
 +                     and was detached (it still holds a live-thread slot)"
 +                );
@@ -3627,8 +3672,35 @@ index 0000000..bd4199c
 +            while i < pending.len() {
 +                let done = live_is_zero(&pending[i].group) || now >= pending[i].deadline;
 +                if done {
-+                    finish(pending.swap_remove(i));
++                    let job = pending.swap_remove(i);
++                    // A panic here must not take the reaper down: it services
++                    // EVERY store for the life of the process, and there is no
++                    // supervisor to restart it. `finish` writes diagnostics and
++                    // drops guest-owned `Arc`s (the last `SetThreadGroup`
++                    // reference unmaps the guest's shared memory), so it is not
++                    // panic-free by construction. `PENDING` is decremented on
++                    // both arms or `set_reaper_drain` would block forever.
++                    let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
++                        finish(job);
++                    }));
 +                    PENDING.fetch_sub(1, Ordering::SeqCst);
++                    if r.is_err() {
++                        // Deliberately NOT `log::error!`. The overwhelmingly
++                        // likely reason a job panicked is that writing its
++                        // diagnostic failed -- a broken stderr, which is where
++                        // the log macro would also write, and a panic HERE is
++                        // outside the `catch_unwind` above and kills the reaper
++                        // exactly as the unguarded `eprintln!` did. Measured:
++                        // with this arm logging, the reaper still died on the
++                        // first detach against a closed stderr. A non-panicking
++                        // write is the only safe report, and if even that fails
++                        // there is nowhere left to say so.
++                        use std::io::Write;
++                        let _ = writeln!(
++                            std::io::stderr(),
++                            "wasmtime: warning: a SET teardown job panicked and was dropped"
++                        );
++                    }
 +                } else {
 +                    // Keep bumping: the worker's epoch callback re-arms every
 +                    // `ticks`, so one bump is not guaranteed to land while it
@@ -3667,10 +3739,16 @@ index 0000000..bd4199c
 +        match tx {
 +            Some(tx) => {
 +                PENDING.fetch_add(1, Ordering::SeqCst);
-+                if let Ok(tx) = tx.lock() {
-+                    // Send failure means the reaper thread is gone; detaching
-+                    // is the same outcome the timeout path already documents.
-+                    let _ = tx.send(job);
++                // `lock()` can be poisoned and `send` can fail if the reaper is
++                // gone; either way the job is detached, and `PENDING` has to
++                // come back down or `set_reaper_drain` blocks for its whole
++                // timeout on every later run.
++                let sent = match tx.lock() {
++                    Ok(tx) => tx.send(job).is_ok(),
++                    Err(_) => false,
++                };
++                if !sent {
++                    PENDING.fetch_sub(1, Ordering::SeqCst);
 +                }
 +            }
 +            // No reaper: drop the handles, i.e. detach. Silent on purpose --
