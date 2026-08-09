@@ -2423,7 +2423,7 @@ index ab41825..40b94e0 100644
                  // For shared memory, the `VMMemoryDefinition` is updated inside
                  // the locked region.
 diff --git a/crates/wasmtime/src/runtime/store.rs b/crates/wasmtime/src/runtime/store.rs
-index 9cc49ea..cdab988 100644
+index 9cc49ea..a9263d7 100644
 --- a/crates/wasmtime/src/runtime/store.rs
 +++ b/crates/wasmtime/src/runtime/store.rs
 @@ -470,6 +470,47 @@ pub struct StoreOpaque {
@@ -2547,7 +2547,7 @@ index 9cc49ea..cdab988 100644
      /// Configures epoch-deadline expiration to invoke a custom callback
      /// function.
      ///
-@@ -1657,6 +1757,387 @@ impl StoreOpaque {
+@@ -1657,6 +1757,410 @@ impl StoreOpaque {
          (self.instances[id].handle.get_mut(), &self.modules)
      }
  
@@ -2773,10 +2773,33 @@ index 9cc49ea..cdab988 100644
 +                //     `impl Default for fmt_layer::Layer` (false) -- a type
 +                //     cli-flags never constructs -- and on that basis
 +                //     contradicted round 13's recorded measurement of 457 of
-+                //     457 teardowns dying here, without re-running it. THE
-+                //     FLEET SETS `WASMTIME_LOG` UNCONDITIONALLY, so this is the
-+                //     arm that ships.
-+                //  2. `--log-to-files` is a SECOND path:
++                //     457 teardowns dying here, without re-running it.
++                //
++                //     WHICH TENANTS ARE EXPOSED, corrected in round 17 because
++                //     round 16 stated it backwards ("the fleet sets
++                //     WASMTIME_LOG unconditionally, so this is the arm that
++                //     ships" -- wrong in both clauses):
++                //       * SETTING `WASMTIME_LOG` is what SUPPRESSES this. The
++                //         fleet's only value is `wasmtime_wasi_nn=debug`, whose
++                //         filter excludes `wasmtime::*` entirely.
++                //       * It is set for a MINORITY of tenants:
++                //         `wasm_manager.py`'s `env.setdefault("WASMTIME_LOG",
++                //         ...)` lives in `_nn_tenant_env`, reached only for
++                //         `nn and NODE_HAS_GPU and gpu_share > 0`.
++                //       * So the EXPOSED configuration is `WASMTIME_LOG`
++                //         UNSET -- every CPU tenant and every 0-GPU nn tenant.
++                //         Unset makes `EnvFilter::from_env` install its default
++                //         `LevelFilter::ERROR` directive, and a `wasmtime::*`
++                //         ERROR record then reaches the panicking writer.
++                //     Measured on the real binary via the `log::error!` in
++                //     `set_threads.rs`: unset -> 1 tracing ERROR line and the
++                //     panic path armed; `wasmtime_wasi_nn=debug` -> 0.
++                //     (Round 13 already recorded the correct version 335 lines
++                //     up in SET-DO-NOT-PROMOTE.md; round 16 contradicted it in
++                //     the same file, which is the mistake round 16 had just
++                //     accused round 15 of making.)
++                //  2. The `-D log-to-files=y` debug key (NOT a `--log-to-files`
++                //     flag, as rounds 15/16 both wrote) is a SECOND path:
 +                //     `file_per_thread_logger` runs
 +                //     `File::create(path).expect("Can't open tracing file")` on
 +                //     the first log from any engine-created thread, and every
@@ -2935,7 +2958,7 @@ index 9cc49ea..cdab988 100644
      /// Access multiple instances specified via `ids`.
      ///
      /// # Panics
-@@ -2408,6 +2889,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
+@@ -2408,6 +2912,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
  
  impl<T> Drop for Store<T> {
      fn drop(&mut self) {
@@ -2955,7 +2978,7 @@ index 9cc49ea..cdab988 100644
          self.run_manual_drop_routines();
  
          // For documentation on this `unsafe`, see `into_data`.
-@@ -2423,6 +2917,19 @@ impl Drop for StoreOpaque {
+@@ -2423,6 +2940,19 @@ impl Drop for StoreOpaque {
          // NB it's important that this destructor does not access `self.data`.
          // That is deallocated by `Drop for Store<T>` above.
  
@@ -3434,10 +3457,10 @@ index f62ea58..7ed3b91 100644
      store: &mut dyn VMStore,
 diff --git a/crates/wasmtime/src/runtime/vm/component/set_threads.rs b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
 new file mode 100644
-index 0000000..d25e2c6
+index 0000000..25c4d23
 --- /dev/null
 +++ b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
-@@ -0,0 +1,1955 @@
+@@ -0,0 +1,1961 @@
 +//! enclave/SET: real OS-thread spawning for the shared-everything-threads
 +//! `thread.spawn-ref` / `thread.spawn-indirect` component intrinsics.
 +//!
@@ -3728,8 +3751,14 @@ index 0000000..d25e2c6
 +        let mut unresolved = Vec::new();
 +        for handle in core::mem::take(&mut job.joins) {
 +            if handle.is_finished() {
-+                let name = handle.thread().name().unwrap_or("set-thread").to_string();
++                // `Thread` clone (a refcount bump that never touches the
++                // allocator), NOT an eager `String`. Round 16 removed exactly
++                // this allocation from `store.rs` and added it HERE in the same
++                // commit -- measured 2000 allocs / 28,890 bytes per 2000 joins,
++                // moved from one site of the pair to the other.
++                let thread = handle.thread().clone();
 +                if let Err(e) = handle.join() {
++                    let name = thread.name().unwrap_or("set-thread");
 +                    // Downcast: `{e:?}` on a join payload renders as literally
 +                    // `Any { .. }`, losing the message. Round 15 fixed the FAST
 +                    // path in `store.rs` and its comment said it was doing this

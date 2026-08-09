@@ -1539,10 +1539,26 @@ That default belongs to `impl Default for fmt_layer::Layer` — **a type cli-fla
 never constructs**. `FmtSubscriber::builder()` goes through
 `SubscriberBuilder::default()`, which ends `.log_internal_errors(true)`
 (`fmt/mod.rs:470`), and that arm runs `eprintln!`, which panics. Verified
-directly against the vendored crate, and end-to-end on the real binary: with
-`WASMTIME_LOG=trace` and a broken stderr, wasmtime exits **101**; with
-`WASMTIME_LOG` unset, exit 0. **The fleet sets `WASMTIME_LOG` unconditionally**
-(`wasm_manager.py`), so the panicking arm is the one that ships.
+directly against the vendored crate.
+
+**Round 17 correction — round 16 then got the exposure backwards.** Round 16
+wrote "the fleet sets `WASMTIME_LOG` unconditionally, so this is the arm that
+ships". Both clauses are wrong, and the truth is the inverse: SETTING
+`WASMTIME_LOG` is what SUPPRESSES the panic (the fleet's only value,
+`wasmtime_wasi_nn=debug`, filters `wasmtime::*` out entirely), and it is set for
+a MINORITY of tenants — `env.setdefault("WASMTIME_LOG", ...)` lives in
+`_nn_tenant_env`, reached only under `nn and NODE_HAS_GPU and gpu_share > 0`.
+The EXPOSED configuration is `WASMTIME_LOG` **unset**: every CPU tenant and
+every 0-GPU nn tenant, where `EnvFilter::from_env` installs its default
+`LevelFilter::ERROR` directive and a `wasmtime::*` ERROR record reaches the
+panicking writer. Measured on the real binary: unset → the ERROR record lands
+and the panic path is armed; `wasmtime_wasi_nn=debug` → 0 records.
+
+Round 16 measured only `WASMTIME_LOG=trace` — the one setting that describes no
+tenant — and contradicted round 13's own correct sentence 335 lines above it in
+this file ("the fleet filters this target out … which is why the platform arm
+was clean"). That is precisely the mistake round 16 had just accused round 15
+of. Fourth consecutive round in which the regression is in the prose.
 
 So round 15 contradicted a recorded measurement without re-running it, and left
 the tree carrying two contradictory explanations in one file — with the true one
@@ -1588,9 +1604,99 @@ Round 15's fast-path downcast comment said it was doing this "the way
 * The dead-stack detach question, unchanged since round 14.
 * **Round 16's own fixes have not been reviewed.** Eighth consecutive round.
 
+## Round 17 (2026-08-09): the review of round 16's fixes — the CODE finally held, the PROSE did not
+
+First round in this sequence where a reviewer could not break the code changes.
+Round 16's two substantive fixes survived a direct attack, including an
+adversarial probe written specifically to defeat one of them. The regression was
+again in a comment — the fourth consecutive round, and the same comment for the
+third time.
+
+| finding | severity | status |
+|---|---|---|
+| the "WHY the macro had to go" comment states the fleet exposure BACKWARDS | HIGH | FIXED |
+| round 16 removed a per-join allocation from one path and added it to its pair | LOW/MED | FIXED |
+| round 16's hunk introduced the only whitespace errors in the 44-file libc patch | TRIVIAL | FIXED |
+
+### I had the exposed configuration inverted
+
+Round 16 wrote "**THE FLEET SETS `WASMTIME_LOG` UNCONDITIONALLY**, so this is
+the arm that ships." Wrong in both clauses:
+
+* **Setting it SUPPRESSES the panic.** The fleet's only value is
+  `wasmtime_wasi_nn=debug`, whose filter excludes `wasmtime::*` entirely.
+* **It is set for a MINORITY of tenants** — `env.setdefault("WASMTIME_LOG", …)`
+  is inside `_nn_tenant_env`, reached only under
+  `nn and NODE_HAS_GPU and gpu_share > 0`.
+* **The exposed configuration is UNSET** — every CPU tenant and every 0-GPU nn
+  tenant — because `EnvFilter::from_env` then installs its default
+  `LevelFilter::ERROR` directive and a `wasmtime::*` ERROR record reaches the
+  panicking writer.
+
+Measured two ways: a verbatim cli-flags builder against `/dev/full` (unset →
+exit 101 at ERROR level; `wasmtime_wasi_nn=debug` → 0 at every level;
+`trace` → 101 at every level), and the real binary driving the `log::error!` in
+`set_threads.rs` (unset → 1 tracing ERROR line, panic path armed;
+`wasmtime_wasi_nn=debug` → 0).
+
+Round 16 measured only the `trace` row — the one row that describes no tenant —
+and contradicted round 13's correct sentence 335 lines above it in this very
+file. That is exactly the mistake round 16 had just accused round 15 of making.
+Note the individual facts in round 16's rewrite were all TRUE
+(`SubscriberBuilder::default()` really ends `.log_internal_errors(true)`; that
+arm really `eprintln!`s; cli-flags really uses `FmtSubscriber::builder()`) — it
+assembled correct facts into a false conclusion, which is why three rounds of
+review did not catch it.
+
+Also corrected: there is no `--log-to-files` FLAG; it is a `-D`/`--debug` key,
+doubly gated (`RUST_LOG` early-return plus the filter), and only the file OPEN
+panics — writes there are `let _ = writeln!`. Rounds 15 and 16 both wrote it as
+a flag.
+
+### One of a pair, inverted
+
+Round 16 recorded a per-join `String` allocation as its own LOW finding, fixed
+it in `store.rs` with a `Thread` clone — and added the identical allocation to
+`reaper::finish` in the same commit. Measured with a counting allocator over
+2000 clean joins: round 15 `store.rs` 2000 allocs / 28,890 B and `finish` 0;
+round 16 `store.rs` 0 and `finish` 2000 / 28,890 B. Byte-for-byte the same cost,
+moved from one half of the pair to the other. Both now take the name only on the
+error arm.
+
+### What round 17 verified clean — the first such verdict on code in this sequence
+
+* **The `fgetwc` site-2 revert is correct, under attack.** `getc_unlocked` is
+  unchanged, so `c < 0` can only come from `__uflow` → `__toread`, which checks
+  ownership BEFORE `f->read`; site 2 therefore requires a byte that was really
+  read, and `mbrtowc == -1` on it is a real EILSEQ. A refusal cannot even
+  MANUFACTURE one: dropped bytes are always a prefix of a character, leaving
+  orphan continuation bytes that fail at `first == 1` with no flag set.
+  `ungetc` is harmless there (`f->rpos != NULL`, so its `__toread` never runs).
+  An adversarial probe interleaving an owner refilling the shared buffer with a
+  non-owner reading it — 1,189 `fgetwc` calls, 6 refusals, split landing at
+  every offset inside a 3-byte character, on entirely VALID UTF-8 — gives
+  `owner_ferror=0` on r14c and native, 1 on r14a. Round 16 did not re-arm it.
+* Full site-1/site-2 matrix with native glibc controls (all three PASS
+  natively): `wide-read-poison` FAIL on r13c/r14a, PASS r14b/r14c;
+  `wide-read-eilseq` and `wide-eilseq-fgetws` PASS everywhere EXCEPT r14b.
+  Exactly one build ever had each defect, and r14c has neither.
+* `join_finished_set_worker`'s `Thread` clone is a refcount bump that never
+  touches the allocator, the name stays valid after `join()`, and it compiles
+  only BECAUSE `Thread: Clone` — a wrong clone would have failed borrowck.
+* `reaper::finish` really is inside `catch_unwind`, so its `log::warn!` is
+  acceptable where the Drop-path ones were not.
+* The `robust-cycle.c` README row is now correct; `--env MODE=trap` is inert
+  (r14a hangs it) while argv `trap` passes on the same binary — which is exactly
+  how round 15 produced its mislabelled "hangs both arms".
+
+### Still open
+
+* The dead-stack detach question, unchanged since round 14.
+* **Round 17's own fixes have not been reviewed.** Ninth consecutive round.
+
 ## Why it is still not promotable
 
-**SIXTEEN review passes have now been run and not one has cleared.** Round 10 was
+**SEVENTEEN review passes have now been run and not one has cleared.** Round 10 was
 design work and found a CRITICAL in round 9's own fix; round 11 reviewed round
 10 and found two HIGHs, one of which was a hole in round 10's fix — and the
 first two attempts at fixing THAT were themselves wrong.
