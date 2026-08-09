@@ -445,10 +445,10 @@ index 44e0fd9..1639501 100644
  
  // Computes an absolute path for `path` based on the current working directory.
 diff --git a/libc-bottom-half/sources/descriptor_table.c b/libc-bottom-half/sources/descriptor_table.c
-index 56d7816..a5f84e0 100644
+index 56d7816..0a8c801 100644
 --- a/libc-bottom-half/sources/descriptor_table.c
 +++ b/libc-bottom-half/sources/descriptor_table.c
-@@ -15,6 +15,223 @@
+@@ -15,6 +15,237 @@
  
  #define MINSIZE 8
  
@@ -579,6 +579,20 @@ index 56d7816..a5f84e0 100644
 + * thread in the component can create a descriptor again. */
 +int __wasilibc_set_current_ns(void) { return set_fd_ns; }
 +
++/* Which namespace does `fd` NAME? `owner + 1`, or `__WASILIBC_FILE_SHARED` (0)
++ * for the three untagged standard descriptors, which name the same objects on
++ * every thread for the life of the component (the `table_allocate` floor and
++ * the `descriptor_table_remove` refusal are what buy that).
++ *
++ * A PURE READ, like `__wasilibc_set_current_ns`, and for the same reason: it is
++ * called from `__wasilibc_file_own` on paths that must not burn one of the 2^18
++ * monotonic ids. */
++int __wasilibc_set_fd_owner_ns(int fd) {
++  if (fd < SET_FD_UNTAGGED)
++    return 0; /* __WASILIBC_FILE_SHARED */
++  return (fd >> SET_FD_NS_SHIFT) + 1;
++}
++
 +/* fd -> table index for THIS thread, or -1 with EBADF if the fd names another
 +   thread's namespace (or none at all).
 + *
@@ -672,7 +686,7 @@ index 56d7816..a5f84e0 100644
  typedef struct {
    bool occupied;
    descriptor_table_entry_t entry;
-@@ -32,7 +249,7 @@ typedef struct {
+@@ -32,7 +263,7 @@ typedef struct {
    size_t next_fd;
  } descriptor_table_t;
  
@@ -681,7 +695,7 @@ index 56d7816..a5f84e0 100644
  
  /// Grows `table` to have capacity for at least `needed` entries, marking all
  /// newly allocated entries as unoccupied. Returns -1 and sets `errno` on
-@@ -69,9 +286,42 @@ static int table_allocate(descriptor_table_t *table,
+@@ -69,9 +300,42 @@ static int table_allocate(descriptor_table_t *table,
                            descriptor_table_entry_t entry) {
    STRONG_ASSERT_HELD(table->lock);
    size_t fd = table->next_fd;
@@ -725,7 +739,7 @@ index 56d7816..a5f84e0 100644
      return -1;
  
    table->entries[fd].occupied = true;
-@@ -149,11 +399,20 @@ static void clear(descriptor_table_t *table) {
+@@ -149,11 +413,20 @@ static void clear(descriptor_table_t *table) {
    table->len = 0;
  }
  
@@ -747,7 +761,7 @@ index 56d7816..a5f84e0 100644
  }
  
  #ifdef NDEBUG
-@@ -162,7 +421,7 @@ static void live_descriptors_dec() {}
+@@ -162,7 +435,7 @@ static void live_descriptors_dec() {}
  #else
  #include <stdio.h>
  
@@ -756,7 +770,7 @@ index 56d7816..a5f84e0 100644
  
  static void live_descriptors_inc() { live_descriptors += 1; }
  
-@@ -185,7 +444,7 @@ void __wasilibc_assert_no_descriptor_leaks() {
+@@ -185,7 +458,7 @@ void __wasilibc_assert_no_descriptor_leaks() {
        if (i < 3) {
          stdio_open++;
        } else {
@@ -765,7 +779,7 @@ index 56d7816..a5f84e0 100644
          assert(rc == 0);
          closed++;
        }
-@@ -229,17 +488,43 @@ int descriptor_table_insert(descriptor_table_entry_t entry) {
+@@ -229,17 +502,43 @@ int descriptor_table_insert(descriptor_table_entry_t entry) {
    STRONG_LOCK(global_table.lock);
    defer STRONG_UNLOCK(global_table.lock);
  
@@ -811,7 +825,7 @@ index 56d7816..a5f84e0 100644
    if (!slot)
      return -1;
    descriptor_table_entry_inc(*slot);
-@@ -248,44 +533,151 @@ int descriptor_table_get(int fd, descriptor_table_entry_t *entry) {
+@@ -248,44 +547,151 @@ int descriptor_table_get(int fd, descriptor_table_entry_t *entry) {
  }
  
  // Some large but not too large value to allow `dup2` to dos this process.
@@ -948,14 +962,14 @@ index 56d7816..a5f84e0 100644
 +         `dup2(f, STDOUT_FILENO)`; allowing it leaks guest bytes into the host
 +         log, which is not a trade a TCB gets to make. Redirect on the main
 +         thread, or write to the descriptor directly. */
++      errno = EBADF;
++      return -1;
++    }
++    if (newindex >= MAX_DESCRIPTOR) {
        errno = EBADF;
        return -1;
      }
 -    size_t newfd = arg;
-+    if (newindex >= MAX_DESCRIPTOR) {
-+      errno = EBADF;
-+      return -1;
-+    }
 +    size_t newfd = (size_t)newindex;
  
      if (table_grow(&global_table, newfd + 1) < 0)
@@ -972,7 +986,7 @@ index 56d7816..a5f84e0 100644
      descriptor_table_item_t *table_entry = &global_table.entries[newfd];
      descriptor_table_entry_inc(entry);
  
-@@ -297,29 +689,62 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
+@@ -297,29 +703,62 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
        table_entry->entry = entry;
        table_entry->occupied = true;
      }
@@ -989,16 +1003,16 @@ index 56d7816..a5f84e0 100644
 +    // both mean the same index.
 +    int lower = fd_target_to_index(arg);
 +    if (lower < 0) {
++      errno = EINVAL;
++      return -1;
++    }
++    if (lower >= MAX_DESCRIPTOR) {
        errno = EINVAL;
        return -1;
      }
 -    // Search for the lowest unoccupied descriptor >= `arg`, starting at the
 -    // allocation hint if it's already past `arg`.
 -    size_t minfd = arg;
-+    if (lower >= MAX_DESCRIPTOR) {
-+      errno = EINVAL;
-+      return -1;
-+    }
 +    // Search for the lowest unoccupied descriptor >= `lower`, starting at the
 +    // allocation hint if it's already past it.
 +    size_t minfd = (size_t)lower;
@@ -1040,7 +1054,7 @@ index 56d7816..a5f84e0 100644
    }
  
    default:
-@@ -331,9 +756,56 @@ int descriptor_table_remove(int fd) {
+@@ -331,9 +770,56 @@ int descriptor_table_remove(int fd) {
    if (!stdio_initialized && init_stdio() < 0)
      return -1;
  
@@ -1098,7 +1112,7 @@ index 56d7816..a5f84e0 100644
    STRONG_UNLOCK(global_table.lock);
    if (rc < 0)
      return -1;
-@@ -357,3 +829,39 @@ void __wasilibc_descriptor_deallocate(descriptor_table_entry_t entry) {
+@@ -357,3 +843,39 @@ void __wasilibc_descriptor_deallocate(descriptor_table_entry_t entry) {
    errno = saved_errno;
    live_descriptors_dec();
  }
@@ -1705,10 +1719,10 @@ index 39c175b..ee12695 100644
    # cooperative threads implementation for WASI Preview 3
    list(APPEND top_half_sources
 diff --git a/libc-top-half/musl/src/internal/stdio_impl.h b/libc-top-half/musl/src/internal/stdio_impl.h
-index 4bda1d2..36ddf8d 100644
+index 4bda1d2..bb37ce3 100644
 --- a/libc-top-half/musl/src/internal/stdio_impl.h
 +++ b/libc-top-half/musl/src/internal/stdio_impl.h
-@@ -57,8 +57,93 @@ struct _IO_FILE {
+@@ -57,8 +57,119 @@ struct _IO_FILE {
  	off_t shlim, shcnt;
  	FILE *prev_locked, *next_locked;
  	struct __locale_struct *locale;
@@ -1763,6 +1777,12 @@ index 4bda1d2..36ddf8d 100644
 +   `libc-bottom-half/sources/descriptor_table.c`. */
 +int __wasilibc_set_current_ns(void);
 +
++/* `owner_namespace + 1` for `fd`, or `__WASILIBC_FILE_SHARED` for 0/1/2 and
++   anything that names no namespace. Implemented next to the fd layout in
++   `libc-bottom-half/sources/descriptor_table.c` so the shift and the untagged
++   floor stay in one translation unit. Also a pure read. */
++int __wasilibc_set_fd_owner_ns(int fd);
++
 +/* May THIS thread resolve `f->fd`? */
 +static __inline int __wasilibc_file_mine(FILE *f)
 +{
@@ -1779,16 +1799,36 @@ index 4bda1d2..36ddf8d 100644
 +	return ns >= 0 && f->set_ns == ns + 1;
 +}
 +
-+/* Stamp the CREATING THREAD's namespace -- not the fd's. A worker holding a
-+   bare 0/1/2 would otherwise be indistinguishable from the shared streams,
-+   which is precisely how a worker's `fdopen` of a redirected descriptor got
-+   its bytes flushed to the operator's log by main. `ns < 0` means the thread
-+   has claimed no namespace, which it can only have done by never creating a
-+   descriptor -- so the fd really is one of the shared 0/1/2. */
++/* Stamp the CREATING THREAD's namespace when it has one -- not the fd's. A
++   worker holding a bare 0/1/2 would otherwise be indistinguishable from the
++   shared streams, which is precisely how a worker's `fdopen` of a redirected
++   descriptor got its bytes flushed to the operator's log by main.
++   When the thread has NO namespace, fall back to the namespace the fd names;
++   the body says why the obvious alternative is wrong. */
 +static __inline void __wasilibc_file_own(FILE *f)
 +{
 +	int ns = __wasilibc_set_current_ns();
-+	f->set_ns = ns < 0 ? __WASILIBC_FILE_SHARED : ns + 1;
++	if (ns >= 0) {
++		f->set_ns = ns + 1;
++		return;
++	}
++	/* The `ns < 0` fallback used to stamp SHARED, justified by "a thread that
++	   has claimed no namespace can only have done so by never creating a
++	   descriptor, so the fd really is one of the shared 0/1/2". That is an
++	   assumption about the GUEST, not an invariant: a thread does not have to
++	   CREATE a descriptor to hold one. `fdopen(fd_passed_from_main)` on a
++	   worker that has opened nothing stamped SHARED on a FILE whose fd belongs
++	   to namespace 0 -- so `__wasilibc_file_mine` was true on EVERY thread and
++	   the round-9 destruction came back: measured, a third thread's
++	   `fflush(NULL)` zeroing `wpos`/`wbase` after its own EBADF, 22 bytes lost
++	   where native keeps them.
++	   Attribute the FILE to the namespace the FD names instead. 0/1/2 still
++	   come out SHARED, so the standard streams are unchanged, and every
++	   `__wasilibc_set_claim_std_stream` caller claims a namespace first, so
++	   this branch never fires for them. (Stamping the fd's namespace
++	   UNCONDITIONALLY was tried and is wrong: stdout's fd is 1, so it made the
++	   claim a no-op and reopened the main-thread-redirect leak.) */
++	f->set_ns = __wasilibc_set_fd_owner_ns(f->fd);
 +}
 +
 +/* Flush the FILEs this thread owns. Called from `__pthread_exit` only; see
@@ -1919,10 +1959,10 @@ index a5e42c6..afe4b10 100644
  	close_file(__stdout_used);
  	close_file(__stderr_used);
 diff --git a/libc-top-half/musl/src/stdio/__stdio_read.c b/libc-top-half/musl/src/stdio/__stdio_read.c
-index d701188..5742ff8 100644
+index d701188..abd8c1c 100644
 --- a/libc-top-half/musl/src/stdio/__stdio_read.c
 +++ b/libc-top-half/musl/src/stdio/__stdio_read.c
-@@ -4,9 +4,18 @@
+@@ -4,9 +4,30 @@
  #endif
  #include "stdio_impl.h"
  #include <sys/uio.h>
@@ -1934,7 +1974,19 @@ index d701188..5742ff8 100644
 +	   reason it cannot set a flag: `F_EOF`/`F_ERR` on another thread's stream
 +	   are visible to its owner. `errno` and a zero count say it. */
 +	if (!__wasilibc_file_mine(f)) {
++		/* REVIEW FIX: F_ERR, not silence. Returning 0 with neither
++		   F_EOF nor F_ERR set makes `while (!feof(f) && !ferror(f))`
++		   -- the textbook drain loop -- spin forever: measured, a
++		   guest hang at full CPU where the round-9 libc terminated in
++		   48 ms. Stock `__stdio_read` sets F_EOF on 0 and F_ERR on -1
++		   precisely so that loop ends.
++		   This cannot poison a SHARED stream: `!__wasilibc_file_mine`
++		   implies `set_ns != __WASILIBC_FILE_SHARED`, and the standard
++		   streams are statically initialised to SHARED and never
++		   stamped, so the refusal is unreachable for them by
++		   construction. */
 +		errno = EBADF;
++		f->flags |= F_ERR;
 +		return 0;
 +	}
 +
@@ -2019,6 +2071,32 @@ index 8190ec5..d60f33f 100644
  #ifdef __wasilibc_unmodified_upstream // use isatty rather than manual ioctl
  	if (!(f->flags & F_SVB) && __syscall(SYS_ioctl, f->fd, TIOCGWINSZ, &wsz))
  #else
+diff --git a/libc-top-half/musl/src/stdio/__toread.c b/libc-top-half/musl/src/stdio/__toread.c
+index f142ff0..5cd47eb 100644
+--- a/libc-top-half/musl/src/stdio/__toread.c
++++ b/libc-top-half/musl/src/stdio/__toread.c
+@@ -1,7 +1,21 @@
+ #include <stdio_impl.h>
++#include <errno.h>
+ 
+ int __toread(FILE *f)
+ {
++	/* REVIEW FIX (enclave/SET): refuse BEFORE touching the buffer.
++	   The refusal in `__stdio_write` deliberately leaves the stream
++	   "exactly as it was", but the very next line here clears it anyway:
++	   `f->write(f,0,0)` returns 0 without draining and then
++	   `f->wpos = f->wbase = f->wend = 0` throws the owner's bytes away
++	   with nothing written. Any read op on another thread's FILE --
++	   fgetc/getc/fread/fgets/ungetc/scanf -- reached it. */
++	if (!__wasilibc_file_mine(f)) {
++		errno = EBADF;
++		f->flags |= F_ERR;
++		return EOF;
++	}
++
+ 	f->mode |= f->mode-1;
+ 	if (f->wpos != f->wbase) f->write(f, 0, 0);
+ 	f->wpos = f->wbase = f->wend = 0;
 diff --git a/libc-top-half/musl/src/stdio/fclose.c b/libc-top-half/musl/src/stdio/fclose.c
 index d594532..b8af070 100644
 --- a/libc-top-half/musl/src/stdio/fclose.c
@@ -2130,6 +2208,25 @@ index 8e22065..1116556 100644
 +	 * spin forever on the cycle. */
 +#endif
  }
+diff --git a/libc-top-half/musl/src/stdio/fseek.c b/libc-top-half/musl/src/stdio/fseek.c
+index 2794b7a..7a17729 100644
+--- a/libc-top-half/musl/src/stdio/fseek.c
++++ b/libc-top-half/musl/src/stdio/fseek.c
+@@ -9,6 +9,14 @@ int __fseeko_unlocked(FILE *f, off_t off, int whence)
+ 		return -1;
+ 	}
+ 
++	/* REVIEW FIX (enclave/SET): same shape as `__toread` -- the write
++	   refusal returns without draining and the "leave writing mode" line
++	   below then discards the owner's buffered bytes. Refuse first. */
++	if (!__wasilibc_file_mine(f)) {
++		errno = EBADF;
++		return -1;
++	}
++
+ 	/* Adjust relative offset for unread data in buffer, if any. */
+ 	if (whence == SEEK_CUR && f->rend) off -= f->rend - f->rpos;
+ 
 diff --git a/libc-top-half/musl/src/stdio/ftrylockfile.c b/libc-top-half/musl/src/stdio/ftrylockfile.c
 index e89f61c..76a2e61 100644
 --- a/libc-top-half/musl/src/stdio/ftrylockfile.c

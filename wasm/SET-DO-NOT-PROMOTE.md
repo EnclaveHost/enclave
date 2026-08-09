@@ -1069,6 +1069,76 @@ hand the rest to the reaper.
 * **Round 12's fixes have not been reviewed.** Fifth consecutive round in which
   that sentence is the last one.
 
+## Round 11's fourth reviewer, delivered late (7.4 h): four more HIGHs, one a regression I shipped
+
+This reviewer started against `:r10c`, discovered mid-run that the committed
+patch had moved under it (rounds 11 and 12 landed), rebuilt the real baseline
+and re-measured everything against it. Its process finding is worth keeping:
+**the round-10 section of this file did not describe five stdio mechanisms that
+were already in the committed patch**, so a reviewer briefed from the document
+alone reviews the wrong tree.
+
+| finding | severity | status |
+|---|---|---|
+| `__stdio_read`'s flagless refusal makes the textbook drain loop SPIN FOREVER | HIGH (regression) | FIXED |
+| `__toread` destroys the owner's write buffer with nothing written | HIGH | FIXED |
+| `fseek` is the second door to the same destruction | HIGH | FIXED |
+| `__wasilibc_file_own`'s `ns < 0 ⇒ SHARED` rests on a false invariant | HIGH | FIXED |
+| the thread-exit flush is silently defeated by an ordinary `flockfile()` | MEDIUM | OPEN |
+| a worker's `exit()` drops every other thread's buffered stdio | MEDIUM | OPEN |
+| `ofl.c` names a lifetime mechanism `fclose` does not have | LOW | doc only |
+
+### The class I got wrong, stated plainly
+
+Round 10's rule guards **where `f->fd` becomes a syscall**. That is not enough,
+because *the callers of `f->write` treat "returned" as "drained" and clear the
+buffer themselves*. `__toread` calls `f->write(f,0,0)`, my refusal returns 0
+without draining "leaving the stream exactly as it was", and the very next line
+does `f->wpos = f->wbase = f->wend = 0`. `fseek` has the identical shape. So any
+read operation on another thread's FILE — `fgetc`, `getc`, `fread`, `fgets`,
+`ungetc`, `scanf` — threw the owner's bytes away with nothing written. Measured:
+native keeps 22 bytes, r9c loses them with `ferror` set, and **round 10 lost
+them with `ferror` CLEAR and `fflush` returning success** — I converted a
+reported failure into a silent one. Refuse before touching the buffer.
+
+### The regression: a refusal with no flag is an infinite loop
+
+`__stdio_read` returning 0 with neither `F_EOF` nor `F_ERR` makes
+`while (!feof(f) && !ferror(f)) fread(...)` never terminate. Stock musl sets
+`F_EOF` on 0 and `F_ERR` on -1 precisely so it does. Measured: native 27
+iterations; r9c terminates in 48 ms; **round 10 killed at 30 s at full CPU after
+2,000,000 zero-progress iterations.** I had deliberately declined to set `F_ERR`
+to avoid poisoning a shared stream — that reasoning traded a recoverable sticky
+flag for an unrecoverable guest spin, which is the wrong way round.
+
+### The false invariant
+
+`__wasilibc_file_own` fell back to SHARED whenever the creating thread had no
+namespace, and my comment asserted the thread "can only have done so by never
+creating a descriptor, so the fd really is one of the shared 0/1/2". A thread
+does not have to CREATE a descriptor to hold one — fd numbers are ints. A worker
+whose first act is `fdopen(fd_from_main)` stamped SHARED on a FILE belonging to
+namespace 0, `__wasilibc_file_mine` became true on every thread, and the round-9
+destruction was reachable again (measured: 22 bytes lost to a third thread's
+`fflush(NULL)`). Now attributed to the namespace the FD names. Note the
+reviewer's own first cut of this was wrong — stamping the fd's namespace
+unconditionally makes `claim_std_stream` a no-op, because stdout's fd is 1 — and
+`worker-std-redirect.c` caught it.
+
+### Still open from this reviewer
+
+* The thread-exit flush uses `ftrylockfile`, so an ordinary `flockfile()` held by
+  another thread silently skips the FILE: measured 3/3, 0 of 16 bytes written,
+  no error anywhere. The `try` is load-bearing (a blocking acquire in
+  `__pthread_exit` is a new hang axis), so this is a real limit of the design,
+  not a bug to patch — but the guarantee is weaker than the comment implies.
+* `__stdio_exit`'s ownership skip means a worker calling `exit()` drops every
+  other thread's buffered stdio: native writes 29 bytes, we write 0 with status
+  0. Not a round-10 regression (r9c does it too) but undocumented.
+* Every worker exit now takes the process-global, ownerless `ofl_lock` N+1 times
+  on the normal path where it previously took it zero times. A worker trapping
+  in that window wedges every sibling's `fopen`/`fclose`/`exit`. Not reproduced.
+
 ## Why it is still not promotable
 
 **ELEVEN review rounds have now been run and not one has cleared.** Round 10 was
