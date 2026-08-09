@@ -475,10 +475,10 @@ index 2a06def819..77ea65b785 100644
                  for i in 0..self.outputs.len() {
                      let tensor = extract_output_tensor(&session_outputs[i])?;
 diff --git a/crates/wasi-nn/src/backend/sdcpp.rs b/crates/wasi-nn/src/backend/sdcpp.rs
-index d4db59b0f9..31c214fd65 100644
+index cf88385..2a7021c 100644
 --- a/crates/wasi-nn/src/backend/sdcpp.rs
 +++ b/crates/wasi-nn/src/backend/sdcpp.rs
-@@ -286,18 +286,74 @@ impl BackendFromDir for SdCppBackend {
+@@ -389,18 +389,72 @@ impl BackendFromDir for SdCppBackend {
                  last_error()
              )));
          }
@@ -510,10 +510,8 @@ index d4db59b0f9..31c214fd65 100644
      }
  }
  
-+// dlsym, for the OPTIONAL step-callback hook (in libc since glibc 2.34).
-+unsafe extern "C" {
-+    fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
-+}
++// The OPTIONAL step-callback hook resolves through the same dlsym declared
++// with the upscaler entry points above.
 +type EsdSetStepCb = unsafe extern "C" fn(unsafe extern "C" fn(*mut c_void), *mut c_void);
 +
 +static SD_STEP_HOOK: Once = Once::new();
@@ -553,7 +551,7 @@ index d4db59b0f9..31c214fd65 100644
  }
  impl Drop for SdModel {
      fn drop(&mut self) {
-@@ -395,8 +451,13 @@ impl SdExecutionContext {
+@@ -504,8 +558,13 @@ impl SdExecutionContext {
  
          let mut rgb = vec![0u8; (width * height * 3) as usize];
          let rc = {
@@ -568,7 +566,7 @@ index d4db59b0f9..31c214fd65 100644
                  esd_txt2img(
                      *raw as *mut c_void,
                      prompt_c.as_ptr(),
-@@ -410,7 +471,9 @@ impl SdExecutionContext {
+@@ -519,7 +578,9 @@ impl SdExecutionContext {
                      scheduler_c.as_ptr(),
                      rgb.as_mut_ptr(),
                  )
@@ -579,6 +577,36 @@ index d4db59b0f9..31c214fd65 100644
          };
          if rc != 0 {
              return Err(err(format!("txt2img failed (rc {rc}): {}", last_error())));
+@@ -598,6 +659,7 @@ fn load_upscaler(dir: &Path, model: &Path, use_gpu: bool) -> Result<Graph, Backe
+     let graph: Box<dyn BackendGraph> = Box::new(SdUpscalerGraph(Arc::new(SdUpscalerModel {
+         raw: Mutex::new(handle as usize),
+         scale: scale.clamp(1, 16) as u32,
++        gpu: use_gpu,
+     })));
+     Ok(graph.into())
+ }
+@@ -608,6 +670,8 @@ struct SdUpscalerModel {
+     raw: Mutex<usize>,
+     /// the model's native factor (1/2/4), read from the weights at load
+     scale: u32,
++    /// placed on the GPU — upscales take arbiter turns
++    gpu: bool,
+ }
+ impl Drop for SdUpscalerModel {
+     fn drop(&mut self) {
+@@ -690,7 +754,12 @@ impl SdUpscalerExecutionContext {
+         let syms = upscaler_syms().expect("resolved at load");
+         let mut rgb = vec![0u8; (out_w * out_h * 3) as usize];
+         let rc = {
++            // model mutex FIRST (this graph's own queue), then the card turn.
++            // The ESRGAN engine has no between-steps hook, so an upscale
++            // holds ONE turn for its whole (tiled) run — bounded by the
++            // arbiter's lease revoke, and short next to a generation anyway.
+             let raw = self.model.raw.lock().unwrap();
++            let _turn = crate::arbiter::turn(self.model.gpu);
+             unsafe {
+                 (syms.upscale)(
+                     *raw as *mut c_void,
 diff --git a/crates/wasi-nn/src/lib.rs b/crates/wasi-nn/src/lib.rs
 index 18444eefbb..b83ac9c41a 100644
 --- a/crates/wasi-nn/src/lib.rs

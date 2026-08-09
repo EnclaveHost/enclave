@@ -85,10 +85,10 @@ index b8d871003e..05697c5ed1 100644
  }
 diff --git a/crates/wasi-nn/src/backend/sdcpp.rs b/crates/wasi-nn/src/backend/sdcpp.rs
 new file mode 100644
-index 0000000000..d4db59b0f9
+index 0000000..cf88385
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/sdcpp.rs
-@@ -0,0 +1,453 @@
+@@ -0,0 +1,742 @@
 +//! A stable-diffusion.cpp backend for wasi-nn — image generation models
 +//! (safetensors/GGUF checkpoints) behind the standard `wasi:nn` interface.
 +//!
@@ -124,6 +124,18 @@ index 0000000000..d4db59b0f9
 +//!   input  "scheduler"        U8   [1, len]  sd.cpp name ("discrete", ...)
 +//!   output "image"            U8   [1, h, w, 3]  RGB row-major
 +//!
++//! UPSCALER volumes: a volume carrying the file named by
++//! ENCLAVE_SD_UPSCALE_FILE preloads as an ESRGAN super-resolution graph
++//! (RRDBNet family — Real-ESRGAN and finetunes; scale 1/2/4 read from the
++//! weights) instead of a generation pipeline, through sd.cpp's second
++//! engine. Same load_by_name delivery, one upscale per `compute()`:
++//!   input  "image"            U8   [1, h, w, 3]  RGB row-major
++//!   output "image"            U8   [1, h*s, w*s, 3]  (s = the model scale)
++//! The shim entry points behind this are dlsym-OPTIONAL (same doctrine as
++//! the ggml backend's vision verbs): a toolchain tarball predating them
++//! still serves txt2img, upscaler volumes just fail preload with a
++//! "rebuild the toolchain" error.
++//!
 +//! Tuning env (host process only, set per tenant by the wasm-manager):
 +//!   ENCLAVE_SD_USE_GPU     1 (default) = weights on the GPU, and a missing
 +//!                          GPU device is a LOUD preload failure (tenants buy
@@ -146,6 +158,18 @@ index 0000000000..d4db59b0f9
 +//!                          (Qwen-Image: Qwen2.5-VL; Z-Image: Qwen3-4B;
 +//!                          sd.cpp's --llm), relative to the volume dir;
 +//!                          combines with either mode above
++//!   ENCLAVE_SD_UPSCALE_FILE  the upscale model inside an UPSCALER volume.
++//!                          A DETECTOR, not a validator: the env is
++//!                          node-global like the component vars, but names a
++//!                          file only upscaler volumes carry — present, the
++//!                          volume preloads as an upscale graph and the
++//!                          component/checkpoint rules don't apply; absent,
++//!                          the volume is a generation volume as before.
++//!   ENCLAVE_SD_UPSCALE_TILE  upscale input tile size, px (default 256; 0 =
++//!                          whole image in one graph). Peak activation
++//!                          memory is O(tile^2) instead of O(image) — the
++//!                          knob that lets a 2048px input upscale inside a
++//!                          GPU share. Tiles blend with 0.25 overlap.
 +//!
 +//! Single-file convention (no env): model.gguf, else model.safetensors, else
 +//! exactly one top-level *.safetensors or *.gguf in the dir.
@@ -158,7 +182,7 @@ index 0000000000..d4db59b0f9
 +use crate::{ExecutionContext, Graph};
 +use std::ffi::{c_char, c_void, CStr, CString};
 +use std::path::{Path, PathBuf};
-+use std::sync::{Arc, Mutex, Once};
++use std::sync::{Arc, Mutex, Once, OnceLock};
 +
 +unsafe extern "C" {
 +    fn esd_init();
@@ -192,6 +216,62 @@ index 0000000000..d4db59b0f9
 +        rgb_out: *mut u8,
 +    ) -> i32;
 +    fn esd_last_error() -> *const c_char;
++}
++
++// dlsym, for the OPTIONAL upscaler entry points below (in libc since glibc
++// 2.34 — no extra link dependency).
++unsafe extern "C" {
++    fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
++}
++
++type EsdLoadUpscalerFn = unsafe extern "C" fn(*const c_char, i32, i32, i32) -> *mut c_void;
++type EsdFreeUpscalerFn = unsafe extern "C" fn(*mut c_void);
++type EsdUpscalerScaleFn = unsafe extern "C" fn(*mut c_void) -> i32;
++type EsdUpscaleFn = unsafe extern "C" fn(
++    *mut c_void, // handle
++    *const u8,   // rgb in, width*height*3
++    i32,         // width
++    i32,         // height
++    *mut u8,     // rgb out, (width*scale)*(height*scale)*3
++) -> i32;
++
++/// The upscaler entry points, resolved by dlsym instead of linked (same
++/// doctrine as the ggml backend's vision verbs): a toolchain tarball whose
++/// libenclave_sd predates them still builds, links and serves txt2img —
++/// upscaler volumes then fail preload with a "rebuild the toolchain" error
++/// instead of taking the whole node down.
++struct UpscalerSyms {
++    load: EsdLoadUpscalerFn,
++    free: EsdFreeUpscalerFn,
++    scale: EsdUpscalerScaleFn,
++    upscale: EsdUpscaleFn,
++}
++
++static UPSCALER_SYMS: OnceLock<Option<UpscalerSyms>> = OnceLock::new();
++
++fn upscaler_syms() -> Option<&'static UpscalerSyms> {
++    UPSCALER_SYMS
++        .get_or_init(|| {
++            let sym = |c: &CStr| unsafe { dlsym(std::ptr::null_mut(), c.as_ptr()) };
++            let (load, free, scale, upscale) = (
++                sym(c"esd_load_upscaler"),
++                sym(c"esd_free_upscaler"),
++                sym(c"esd_upscaler_scale"),
++                sym(c"esd_upscale"),
++            );
++            if load.is_null() || free.is_null() || scale.is_null() || upscale.is_null() {
++                return None;
++            }
++            unsafe {
++                Some(UpscalerSyms {
++                    load: std::mem::transmute::<*mut c_void, EsdLoadUpscalerFn>(load),
++                    free: std::mem::transmute::<*mut c_void, EsdFreeUpscalerFn>(free),
++                    scale: std::mem::transmute::<*mut c_void, EsdUpscalerScaleFn>(scale),
++                    upscale: std::mem::transmute::<*mut c_void, EsdUpscaleFn>(upscale),
++                })
++            }
++        })
++        .as_ref()
 +}
 +
 +static INIT: Once = Once::new();
@@ -231,6 +311,22 @@ index 0000000000..d4db59b0f9
 +        return Err(err(format!("{var}={rel} does not exist in {}", dir.display())));
 +    }
 +    Ok(Some(p))
++}
++
++/// Like `env_file`, but a DETECTOR: a set-but-absent file means "not this
++/// kind of volume" (None), never an error — the env is node-global and most
++/// volumes legitimately lack the file. Path hygiene still enforced.
++fn env_file_detect(dir: &Path, var: &str) -> Result<Option<PathBuf>, BackendError> {
++    let Ok(rel) = std::env::var(var) else { return Ok(None) };
++    let rel = rel.trim();
++    if rel.is_empty() {
++        return Ok(None);
++    }
++    if rel.starts_with('/') || rel.split('/').any(|c| c == "..") {
++        return Err(err(format!("{var} must be a relative path inside the volume, got '{rel}'")));
++    }
++    let p = dir.join(rel);
++    Ok(p.is_file().then_some(p))
 +}
 +
 +/// The single-file checkpoint in `dir` per the convention in the module doc.
@@ -313,6 +409,13 @@ index 0000000000..d4db59b0f9
 +                "sd: GPU requested (ENCLAVE_SD_USE_GPU != 0) but no ggml GPU device is \
 +                 available - CUDA backend module or driver missing",
 +            ));
++        }
++
++        // Upscaler volume? Decided FIRST: an upscaler volume carries exactly
++        // one model file, which the single-checkpoint convention below would
++        // otherwise happily misload as a generation checkpoint.
++        if let Some(upscale_model) = env_file_detect(dir, "ENCLAVE_SD_UPSCALE_FILE")? {
++            return load_upscaler(dir, &upscale_model, use_gpu);
 +        }
 +
 +        let diffusion = env_file(dir, "ENCLAVE_SD_DIFFUSION_FILE")?;
@@ -468,6 +571,12 @@ index 0000000000..d4db59b0f9
 +                "width" => width = scalar_i64(nt)?,
 +                "height" => height = scalar_i64(nt)?,
 +                "cfg" => cfg = scalar_f32(nt)?,
++                "image" => {
++                    return Err(err(
++                        "input \"image\" belongs to UPSCALER volumes - this volume is a \
++                         generation model (prompt in, image out)",
++                    ));
++                }
 +                other => return Err(err(format!("unknown input \"{other}\""))),
 +            }
 +        }
@@ -527,6 +636,186 @@ index 0000000000..d4db59b0f9
 +            return Err(err("the sd backend is WIT-only: pass named tensors to compute()"));
 +        };
 +        let image = self.generate(&inputs)?;
++        self.image = Some(image.clone());
++        Ok(Some(vec![NamedTensor { name: "image".to_string(), tensor: image }]))
++    }
++
++    fn get_output(&mut self, id: Id) -> Result<Tensor, BackendError> {
++        match id {
++            Id::Index(0) => {}
++            Id::Name(ref n) if n == "image" => {}
++            other => return Err(err(format!("unknown output {other:?} (expected \"image\")"))),
++        }
++        self.image
++            .clone()
++            .ok_or_else(|| err("no image available (has `compute` been called?)"))
++    }
++}
++
++// ------------------------------------------------------- upscaler volumes --
++
++/// Output pixel budget for one upscale: 8192x8192 RGB (a 2048px input at 4x)
++/// is ~201 MB of tensor either way; anything past that stops being a
++/// per-request payload and starts being a memory event.
++const MAX_UPSCALE_OUT_BYTES: u64 = 3 * 8192 * 8192;
++
++fn load_upscaler(dir: &Path, model: &Path, use_gpu: bool) -> Result<Graph, BackendError> {
++    let Some(syms) = upscaler_syms() else {
++        return Err(err(format!(
++            "sd: {} is an upscaler volume (ENCLAVE_SD_UPSCALE_FILE) but this \
++             toolchain's sd shim predates the upscaler entry points - rebuild \
++             the llamacpp toolchain tarball to serve it",
++            dir.display()
++        )));
++    };
++    let n_threads: i32 = std::env::var("ENCLAVE_SD_N_THREADS")
++        .ok()
++        .and_then(|v| v.parse().ok())
++        .unwrap_or(0);
++    let tile: i32 = std::env::var("ENCLAVE_SD_UPSCALE_TILE")
++        .ok()
++        .and_then(|v| v.trim().parse().ok())
++        .unwrap_or(256);
++    let model_c = cstring(model)?;
++    let handle = unsafe { (syms.load)(model_c.as_ptr(), n_threads, use_gpu as i32, tile) };
++    if handle.is_null() {
++        return Err(err(format!(
++            "stable-diffusion.cpp failed to load upscaler {}: {}",
++            model.display(),
++            last_error()
++        )));
++    }
++    let scale = unsafe { (syms.scale)(handle) };
++    let graph: Box<dyn BackendGraph> = Box::new(SdUpscalerGraph(Arc::new(SdUpscalerModel {
++        raw: Mutex::new(handle as usize),
++        scale: scale.clamp(1, 16) as u32,
++    })));
++    Ok(graph.into())
++}
++
++/// A loaded ESRGAN upscaler. Like generation, not documented thread-safe -
++/// the raw handle lives behind a Mutex, one upscale at a time per model.
++struct SdUpscalerModel {
++    raw: Mutex<usize>,
++    /// the model's native factor (1/2/4), read from the weights at load
++    scale: u32,
++}
++impl Drop for SdUpscalerModel {
++    fn drop(&mut self) {
++        // syms were resolved at load or this model would not exist
++        if let Some(syms) = upscaler_syms() {
++            let raw = *self.raw.lock().unwrap();
++            unsafe { (syms.free)(raw as *mut c_void) };
++        }
++    }
++}
++
++struct SdUpscalerGraph(Arc<SdUpscalerModel>);
++
++impl BackendGraph for SdUpscalerGraph {
++    fn init_execution_context(&self) -> Result<ExecutionContext, BackendError> {
++        let ctx: Box<dyn BackendExecutionContext> = Box::new(SdUpscalerExecutionContext {
++            model: self.0.clone(),
++            image: None,
++        });
++        Ok(ctx.into())
++    }
++}
++
++struct SdUpscalerExecutionContext {
++    model: Arc<SdUpscalerModel>,
++    image: Option<Tensor>, // last compute's output for get_output
++}
++
++impl SdUpscalerExecutionContext {
++    fn upscale(&mut self, inputs: &[NamedTensor]) -> Result<Tensor, BackendError> {
++        let mut image = None;
++        for nt in inputs {
++            match nt.name.as_str() {
++                "image" => image = Some(nt),
++                other => {
++                    return Err(err(format!(
++                        "unknown input \"{other}\" - this volume is an ESRGAN upscaler: \
++                         pass \"image\" U8 [1, h, w, 3] (prompts belong on the \
++                         generation volumes)"
++                    )));
++                }
++            }
++        }
++        let nt = image.ok_or_else(|| {
++            err("missing \"image\" input - this volume is an ESRGAN upscaler: \
++                 pass \"image\" U8 [1, h, w, 3] and read back the upscaled \"image\"")
++        })?;
++        if nt.tensor.ty != TensorType::U8 {
++            return Err(BackendError::UnsupportedTensorType(format!(
++                "{:?} (input \"image\" wants U8 RGB row-major)",
++                nt.tensor.ty
++            )));
++        }
++        let (h, w) = match nt.tensor.dimensions[..] {
++            [1, h, w, 3] | [h, w, 3] => (h as u64, w as u64),
++            ref d => {
++                return Err(err(format!(
++                    "input \"image\" wants dimensions [1, h, w, 3], got {d:?}"
++                )));
++            }
++        };
++        if !(16..=4096).contains(&w) || !(16..=4096).contains(&h) {
++            return Err(err(format!("image size {w}x{h} out of range 16..=4096")));
++        }
++        if nt.tensor.data.len() as u64 != w * h * 3 {
++            return Err(err(format!(
++                "input \"image\" carries {} bytes, expected {} ({w}x{h}x3)",
++                nt.tensor.data.len(),
++                w * h * 3
++            )));
++        }
++        let scale = self.model.scale as u64;
++        let (out_w, out_h) = (w * scale, h * scale);
++        if out_w * out_h * 3 > MAX_UPSCALE_OUT_BYTES {
++            return Err(err(format!(
++                "{w}x{h} at this model's {scale}x would be {out_w}x{out_h} - past the \
++                 8192x8192 output budget; downscale the input or tile it client-side"
++            )));
++        }
++        let syms = upscaler_syms().expect("resolved at load");
++        let mut rgb = vec![0u8; (out_w * out_h * 3) as usize];
++        let rc = {
++            let raw = self.model.raw.lock().unwrap();
++            unsafe {
++                (syms.upscale)(
++                    *raw as *mut c_void,
++                    nt.tensor.data.as_ptr(),
++                    w as i32,
++                    h as i32,
++                    rgb.as_mut_ptr(),
++                )
++            }
++        };
++        if rc != 0 {
++            return Err(err(format!("upscale failed (rc {rc}): {}", last_error())));
++        }
++        Ok(Tensor {
++            dimensions: vec![1, out_h as u32, out_w as u32, 3],
++            ty: TensorType::U8,
++            data: rgb,
++        })
++    }
++}
++
++impl BackendExecutionContext for SdUpscalerExecutionContext {
++    fn set_input(&mut self, _id: Id, _tensor: &Tensor) -> Result<(), BackendError> {
++        Err(err("the sd backend is WIT-only: pass named tensors to compute()"))
++    }
++
++    fn compute(
++        &mut self,
++        inputs: Option<Vec<NamedTensor>>,
++    ) -> Result<Option<Vec<NamedTensor>>, BackendError> {
++        let Some(inputs) = inputs else {
++            return Err(err("the sd backend is WIT-only: pass named tensors to compute()"));
++        };
++        let image = self.upscale(&inputs)?;
 +        self.image = Some(image.clone());
 +        Ok(Some(vec![NamedTensor { name: "image".to_string(), tensor: image }]))
 +    }

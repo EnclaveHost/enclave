@@ -294,6 +294,96 @@ int32_t esd_txt2img(void *handle,
 
 const char *esd_last_error(void) { return g_last_error; }
 
+/* ---- upscaler (see the header) ----------------------------------------- */
+
+typedef struct {
+    upscaler_ctx_t *ctx;
+    int32_t         scale; /* read once at load: 1, 2 or 4 */
+} esd_upscaler_t;
+
+void *esd_load_upscaler(const char *path,
+                        int32_t n_threads,
+                        int32_t use_gpu,
+                        int32_t tile_size) {
+    /* backend spec strings as in esd_load_model: NULL/"" = default device
+     * placement (GPU when one exists), "CPU" = everything on the CPU. The
+     * upscaler has one module, so no per-module split to worry about. */
+    upscaler_ctx_t *ctx = new_upscaler_ctx(path,
+                                           /*direct=*/false,
+                                           n_threads > 0 ? n_threads : sd_get_num_physical_cores(),
+                                           tile_size,
+                                           use_gpu ? NULL : "CPU",
+                                           NULL);
+    if (!ctx) {
+        return NULL;
+    }
+    esd_upscaler_t *u = malloc(sizeof(*u));
+    if (!u) {
+        free_upscaler_ctx(ctx);
+        snprintf(g_last_error, sizeof(g_last_error), "out of memory");
+        return NULL;
+    }
+    u->ctx   = ctx;
+    u->scale = get_upscale_factor(ctx);
+    if (u->scale < 1) {
+        u->scale = 1;
+    }
+    return u;
+}
+
+void esd_free_upscaler(void *handle) {
+    if (!handle) {
+        return;
+    }
+    esd_upscaler_t *u = (esd_upscaler_t *)handle;
+    free_upscaler_ctx(u->ctx);
+    free(u);
+}
+
+int32_t esd_upscaler_scale(void *handle) {
+    return handle ? ((esd_upscaler_t *)handle)->scale : 0;
+}
+
+int32_t esd_upscale(void *handle,
+                    const uint8_t *rgb_in,
+                    int32_t width,
+                    int32_t height,
+                    uint8_t *rgb_out) {
+    esd_upscaler_t *u = (esd_upscaler_t *)handle;
+    sd_image_t in = {
+        (uint32_t)width,
+        (uint32_t)height,
+        3,
+        (uint8_t *)rgb_in, /* upscale() reads it; the const is ours to keep */
+    };
+    sd_image_t *images = NULL;
+    int n_images = 0;
+    /* the factor argument is vestigial in sd.cpp (output = input x the
+     * model's native scale, always); pass the real scale for honesty */
+    if (!upscale(u->ctx, in, (uint32_t)u->scale, &images, &n_images)) {
+        return -2;
+    }
+    if (n_images < 1 || !images || !images[0].data) {
+        if (images) {
+            free_sd_images(images, n_images);
+        }
+        snprintf(g_last_error, sizeof(g_last_error), "upscale returned no image");
+        return -3;
+    }
+    uint32_t want_w = (uint32_t)width * (uint32_t)u->scale;
+    uint32_t want_h = (uint32_t)height * (uint32_t)u->scale;
+    if (images[0].width != want_w || images[0].height != want_h || images[0].channel != 3) {
+        snprintf(g_last_error, sizeof(g_last_error),
+                 "unexpected upscale geometry %ux%ux%u (wanted %ux%ux3)",
+                 images[0].width, images[0].height, images[0].channel, want_w, want_h);
+        free_sd_images(images, n_images);
+        return -4;
+    }
+    memcpy(rgb_out, images[0].data, (size_t)want_w * want_h * 3);
+    free_sd_images(images, n_images);
+    return 0;
+}
+
 /* step hook (see the header): bridge sd.cpp's progress callback - which
  * reports (step, steps, time) we do not need - down to the caller's plain
  * "a step finished" notification. Registered process-wide; generations are
