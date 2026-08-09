@@ -442,15 +442,50 @@ documents what turning it on costs.
 * Every SET safety mechanism is armed in the platform's ACTUAL launch config
   (`serve`/`run`, `-W max-memory-size`, no `--wasm timeout`).
 
-### The `serve` residual is half closed
+### Round 9, found while closing the `serve` residual: EVERY HTTP app was broken
+
+**CRITICAL, and eight rounds walked past it because no probe was ever the right
+shape.** wasi-libc's reactor entry point guards `_initialize` with a run-once
+flag and `__builtin_trap()`s on a second call. Under SET every spawned thread
+gets its own whole-component instantiation, so `_initialize` runs once per
+THREAD — while that flag lives in SHARED linear memory. The main instance sets
+it; the first worker's instantiation loses the CAS and traps.
+
+The observable failure is worse than a trap: main is blocked in `pthread_join`
+on a thread that will never arrive, so **the HTTP request never completes.**
+`wasmtime serve` holds the connection open forever (measured: no response at 20
+s, `hyper::Error(IncompleteMessage)`), the platform passes no `--wasm timeout`,
+and the tenant's store and tokio task are held for the life of the process.
+
+Reactors are how this platform runs every HTTP app. Every probe in
+`tools/parallelism-probe/` is a COMMAND component under `wasmtime run`, where a
+worker enters through `wasi_set_thread_start` and never re-runs `_start` — which
+is exactly why eight rounds of adversarial review, and every measurement in this
+file, missed it.
+
+Fixed by dropping the run-once ASSERTION under SET while keeping the run-once
+BEHAVIOUR: constructors run on whichever instantiation gets there first, every
+later one returns. A per-thread guard was tried first and does not work —
+`_initialize` runs during instantiation, before `__wasi_thread_start_C` sets up
+that thread's TLS, so a `_Thread_local` read there does not yet name per-thread
+storage. What is lost is the diagnostic for an embedder that calls `_initialize`
+twice on ONE instance; under SET that is indistinguishable from the legal case.
+
+`tools/parallelism-probe/set-http-handler.c` is the artifact that had never
+existed: a component that exports `wasi:http/incoming-handler` and spawns.
+
+### The `serve` residual is now CLOSED
 
 `wasmtime serve` now demonstrably serves real HTTP with the full tenant SET flag
 set: `p2_api_proxy.component.wasm` returns 200, and 600 requests at 32-way
 concurrency all succeed, identical to the same binary with SET off. So pooling
 being disabled, the 10 ms epoch ticker and `allow_blocking_current_thread(false)`
-cost an ordinary HTTP guest nothing measurable. **Still unproven: an HTTP guest
-that also SPAWNS** — no such component exists, because the blessed toolchain has
-no C `wasi:http` bindgen and Rust cannot emit SET spawn until rustc-LLVM-23.
+cost an ordinary HTTP guest nothing measurable. An HTTP guest that also SPAWNS now works too, once the
+`_initialize` bug above was fixed: 8 threads spawned and joined per request,
+HTTP 200 in 2.3 ms, and **200/200 requests at 16-way concurrency**. The bindings
+have to be generated with host `wit-bindgen` (the blessed toolchain image has no
+C `wasi:http` bindgen); `-S cli` is required because the SET libc imports
+`wasi:cli/exit`, which the bare proxy world does not provide.
 
 ### Known, and deliberately NOT fixed this round
 

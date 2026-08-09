@@ -94,6 +94,33 @@ wasmtime run $W -S cli worker-io.wasm
 Each file's header comment states the old symptom and the expected new output,
 so a regression is visible without reading this table.
 
+## `set-http-handler.c`: the shape the platform actually runs
+
+Every probe above is a **command** component under `wasmtime run`. The platform
+runs HTTP apps as **reactor** components under `wasmtime serve`, and until round
+9 nothing had ever been one — which is how eight adversarial rounds missed that
+`_initialize` traps on the first spawned thread and hangs the request forever.
+
+This one exports `wasi:http/incoming-handler` AND spawns. It needs bindings
+generated once (the toolchain image has no C `wasi:http` bindgen):
+
+```sh
+cp -r <wasmtime>/crates/wasi-http/wit ./wit
+sed -i '/import wasi:clocks\/timezone/d' wit/deps/cli.wit   # unresolved dep in that tree
+wit-bindgen c --world wasi:http/proxy ./wit --out-dir gen
+
+docker run --rm -v "$PWD":/src enclave-wasipsetc-build:local \
+    set-http-handler.c gen/proxy.c gen/proxy_component_type.o \
+    -mexec-model=reactor -O2 -o set-http.wasm
+
+wasmtime serve $W -S cli -W max-memory-size=268435456 --addr 127.0.0.1:8080 set-http.wasm
+curl http://127.0.0.1:8080/        # -> "spawned=8 joined=8"
+```
+
+`-S cli` is required: the SET libc imports `wasi:cli/exit`, which the bare proxy
+world does not provide. A hang with `hyper::Error(IncompleteMessage)` and a
+`_initialize` trap in the log is the round-9 bug; `spawned=8 joined=8` is the fix.
+
 Two ways to read `set-spawn-parallel.wat`, and the first is the one that
 cannot be faked:
 
