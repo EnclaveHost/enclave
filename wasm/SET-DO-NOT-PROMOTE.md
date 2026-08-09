@@ -1887,9 +1887,89 @@ apart, in one commit.
 * The dead-stack detach question, unchanged since round 14.
 * **Round 19's own fixes have not been reviewed.** Eleventh consecutive round.
 
+## Round 20 (2026-08-09): I stopped patching the comment and restructured it — the restructure needed fixing too
+
+Rounds 17, 18 and 19 each found the code clean and each found a defect in the
+SAME comment block above `join_finished_set_worker`'s `writeln!`. By round 19
+that block was **111 comment lines annotating ~10 lines of code** — an accreted
+round-by-round narrative living in a source file. That is the defect generator,
+not bad luck, so round 20 replaced it with ~34 lines stating the RULE, the
+MECHANISM and the level asymmetry, and moved the history here.
+
+The restructure then needed four fixes of its own, two of them from compressing
+too hard — which is the honest argument for having reviewed it rather than
+declaring victory.
+
+| finding | severity | status |
+|---|---|---|
+| "no `catch_unwind` on the stack" is FALSE under `serve` — the compression deleted round 19's qualifier | MEDIUM | FIXED |
+| "its ERROR-level sibling in `reaper::submit`" — there is no ERROR site there; round 19 had it as a counterfactual and I made it indicative | MEDIUM | FIXED |
+| "rounds 15-19 each introduced a false claim" — the enumeration lists r16/r17/r18 defects, omits r15's, and asserts an r19 defect nobody evidenced | LOW | FIXED |
+| the probe README row still asserted the "every offset inside a 3-byte character" claim its own header had just retracted | LOW | FIXED |
+| **the patch was never regenerated** — the shipped `.wip` still carried the 111-line version | (housekeeping) | FIXED |
+
+### Compression dropped the caveat that matters most
+
+`Drop for Store<T>` under **`serve`** runs inside a `tokio::task::spawn`, and
+tokio's task harness DOES `catch_unwind`. So the panic is swallowed, the request
+still returns 200, and the teardown is simply skipped — measured directly (a
+panicking `Drop` inside `tokio::task::spawn` → `JoinHandle` returns `Err`, main
+continues, **process rc 0**), and corroborated by this file's own round-13
+record: 457/457 teardowns died, ~110 kB leaked each, reaper never started,
+"all 2000 requests still returned 200 at unchanged throughput. Completely
+silent."
+
+`run` dies loudly at rc 101; `serve` dies silently. **`serve` is how the platform
+runs every HTTP app**, and the reactor blind spot is the one this record says hid
+a CRITICAL for eight rounds. The short version had the unqualified clause and
+none of that.
+
+### An indicative sentence where a counterfactual was needed
+
+Round 19 wrote "an ERROR macro at `submit` WOULD be armed in the default fleet
+configuration" — correct, and the reason `submit` uses `writeln!`. The
+restructure turned it into "its ERROR-level sibling in `reaper::submit` IS armed
+in the default configuration". There is no ERROR-level logging site in `submit`
+at all; its diagnostic is a `writeln!`. A reader who checks would find no
+`log::error!` in `submit` and one in `finish` that IS wrapped — which is exactly
+the evidence pattern that appears to vindicate round 18's retracted claim. Now
+stated as the counterfactual it is, with the `finish`-vs-`submit` confusion named
+explicitly.
+
+### Verified clean by round 20 — the FOURTH consecutive clean code verdict
+
+* Every mechanical link re-derived from the locked crate sources and measured
+  in-process: `SubscriberBuilder::default()` → `log_internal_errors(true)` →
+  that arm `eprintln!`s → `eprintln!` panics via `print_to`; `LogTracer` caps the
+  facade from `LevelFilter::current()`, itself set from the subscriber's
+  `max_level_hint`; `from_env` defaults to ERROR and `from_env_lossy` makes unset
+  ≡ empty.
+* **The warn/error asymmetry measured on the real binary, same binary same run**,
+  driving a REAL refusal for the WARN site and a REAL straggler detach for the
+  ERROR site: unset → 0 WARN / 1 ERROR; `error` → 0/1; `warn` → 1/1; `trace` →
+  1/1; `wasmtime_wasi_nn=debug` → 0/0.
+* **The dynamic value-filter case does not change the conclusion** and errs
+  conservative: `wasmtime[x{a=1}]=info` opens the facade to TRACE but yields
+  `warn_enabled=false` AND `error_enabled=false` — 0 records, no panic. It
+  DISARMS the ERROR site rather than arming the WARN one.
+* `writeln!` measured non-panicking in every configuration, against `/dev/full`
+  and a closed fd 2. Useful nuance: a closed fd 2 is swallowed for `eprintln!`
+  too, so `handle_ebadf` is not the differentiator — the `panic!` in `print_to`
+  is, which is what the comment now names.
+* Round 19's fixes all reproduce: `site2-refusal-reach` gives `calls=1189
+  weof=6` on all four images with r14b and r14c **byte-identical** (the
+  zero-discriminating-power claim is right); `wide-read-eilseq` FAILs on r14b
+  and passes everywhere else (it is the site-2 discriminator); native controls
+  pass under `bwrap` with `/d` bound.
+
+### Still open
+
+* The dead-stack detach question, unchanged since round 14.
+* **Round 20's own fixes have not been reviewed.** Twelfth consecutive round.
+
 ## Why it is still not promotable
 
-**NINETEEN review passes have now been run and not one has cleared.** Round 10 was
+**TWENTY review passes have now been run and not one has cleared.** Round 10 was
 design work and found a CRITICAL in round 9's own fix; round 11 reviewed round
 10 and found two HIGHs, one of which was a hole in round 10's fix — and the
 first two attempts at fixing THAT were themselves wrong.
