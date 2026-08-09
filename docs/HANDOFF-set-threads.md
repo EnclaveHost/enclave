@@ -1,5 +1,11 @@
 # Handoff: shared-everything-threads — DONE on the engine side
 
+> **STALE as a readiness claim (2026-08-09).** The parallelism measurements below
+> are still true and still reproducible. "DONE" is not: nine adversarial review
+> rounds have run since and none has cleared. Start from
+> `docs/HANDOFF-set-round10.md`, and treat `wasm/SET-DO-NOT-PROMOTE.md` as the
+> source of truth for what is open.
+
 ## Status: the requirement is met, and measured
 
 `thread.spawn-ref` and `thread.spawn-indirect` spawn **real OS threads that
