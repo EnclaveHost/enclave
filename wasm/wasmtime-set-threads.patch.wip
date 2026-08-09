@@ -2423,7 +2423,7 @@ index ab41825..40b94e0 100644
                  // For shared memory, the `VMMemoryDefinition` is updated inside
                  // the locked region.
 diff --git a/crates/wasmtime/src/runtime/store.rs b/crates/wasmtime/src/runtime/store.rs
-index 9cc49ea..c8254db 100644
+index 9cc49ea..76b1167 100644
 --- a/crates/wasmtime/src/runtime/store.rs
 +++ b/crates/wasmtime/src/runtime/store.rs
 @@ -470,6 +470,47 @@ pub struct StoreOpaque {
@@ -2547,7 +2547,7 @@ index 9cc49ea..c8254db 100644
      /// Configures epoch-deadline expiration to invoke a custom callback
      /// function.
      ///
-@@ -1657,6 +1757,403 @@ impl StoreOpaque {
+@@ -1657,6 +1757,420 @@ impl StoreOpaque {
          (self.instances[id].handle.get_mut(), &self.modules)
      }
  
@@ -2762,15 +2762,20 @@ index 9cc49ea..c8254db 100644
 +                // whose harness DOES `catch_unwind` — so the panic is swallowed,
 +                // the request still returns 200, and the teardown is simply
 +                // skipped. That is the shape round 13 measured: 457 of 457
-+                // teardowns died here, ~110 kB leaked each, reaper never
++                // teardowns died one frame up (in `join_set_threads`' own
++                // frame, which is the same `Drop`, the same pre-`submit`
++                // position and the same leak), ~110 kB each, reaper never
 +                // started, completely silent. `serve` is how the platform runs
 +                // every HTTP app.
 +                //
 +                // THE RULE: nothing reachable from a `Drop` may use a macro
 +                // that panics on a failed write. `writeln!(stderr(), ..)` is
 +                // safe — `Stderr`'s lock is non-poisoning, `write_fmt` returns
-+                // `io::Result` with no `unwrap` (unlike `eprintln!`), and a
-+                // closed fd 2 is swallowed by `handle_ebadf`.
++                // `io::Result` with no `unwrap`. The differentiator is
++                // `eprintln!`'s `print_to`, which PANICS on a write error;
++                // `writeln!` just returns it. (A CLOSED fd 2 is swallowed for
++                // both by `handle_ebadf`, so that is not what distinguishes
++                // them — a FAILING one, e.g. /dev/full, is.)
 +                //
 +                // THE MECHANISM, because it is not obvious: cli-flags builds
 +                // through `SubscriberBuilder::default()`, which sets
@@ -2785,6 +2790,18 @@ index 9cc49ea..c8254db 100644
 +                //     `WASMTIME_LOG` to >= WARN for `wasmtime::*` — i.e. while
 +                //     investigating an incident, when losing the reaper is
 +                //     worst.
++                //   * AND THE "OPERATOR" CASE CAN GO FLEET-WIDE. `wasm_manager`
++                //     builds `env = dict(os.environ)` and then
++                //     `env.setdefault("WASMTIME_LOG", "wasmtime_wasi_nn=debug")`
++                //     — so a `WASMTIME_LOG` set on the WASM-MANAGER CONTAINER is
++                //     inherited by every tenant and, being a setdefault, DEFEATS
++                //     the fleet value even for GPU ones. Nothing sets it today;
++                //     latent, and the one route by which "armed only during an
++                //     operator's debug session" becomes armed everywhere.
++                //     (Round 18 found this; round 20 deleted it while
++                //     compressing and the record still called it documented.
++                //     It is an operational fact, not history, so it belongs
++                //     here rather than in the record.)
 +                //   * an ERROR-level macro WOULD be armed in the default
 +                //     configuration. That is why `reaper::submit` — reached
 +                //     from this same `Drop`, and whose failure is
@@ -2951,7 +2968,7 @@ index 9cc49ea..c8254db 100644
      /// Access multiple instances specified via `ids`.
      ///
      /// # Panics
-@@ -2408,6 +2905,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
+@@ -2408,6 +2922,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
  
  impl<T> Drop for Store<T> {
      fn drop(&mut self) {
@@ -2971,7 +2988,7 @@ index 9cc49ea..c8254db 100644
          self.run_manual_drop_routines();
  
          // For documentation on this `unsafe`, see `into_data`.
-@@ -2423,6 +2933,19 @@ impl Drop for StoreOpaque {
+@@ -2423,6 +2950,19 @@ impl Drop for StoreOpaque {
          // NB it's important that this destructor does not access `self.data`.
          // That is deallocated by `Drop for Store<T>` above.
  
@@ -3450,10 +3467,10 @@ index f62ea58..7ed3b91 100644
      store: &mut dyn VMStore,
 diff --git a/crates/wasmtime/src/runtime/vm/component/set_threads.rs b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
 new file mode 100644
-index 0000000..fc0f5c6
+index 0000000..9086a98
 --- /dev/null
 +++ b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
-@@ -0,0 +1,1962 @@
+@@ -0,0 +1,1973 @@
 +//! enclave/SET: real OS-thread spawning for the shared-everything-threads
 +//! `thread.spawn-ref` / `thread.spawn-indirect` component intrinsics.
 +//!
@@ -3919,9 +3936,20 @@ index 0000000..fc0f5c6
 +                    // `log_internal_errors(true)`, and that arm `eprintln!`s.
 +                    // The `-D log-to-files=y` debug KEY (there is no
 +                    // `--log-to-files` flag) is a second panicking path, not a
-+                    // replacement. See the long note in `store.rs`.) `submit` is called from
-+                    // `join_set_threads`, which is called from `Drop for
-+                    // Store<T>`, with no `catch_unwind` anywhere on that stack.
++                    // replacement. See the note in `store.rs`.)
++                    //
++                    // `submit` is called from `join_set_threads`, which is
++                    // called from `Drop for Store<T>`. Under `run` there is no
++                    // `catch_unwind` anywhere on that stack, so a panic here
++                    // kills the process. Under `serve` the per-request store is
++                    // dropped inside a tokio task whose harness DOES
++                    // `catch_unwind` — so the panic is SWALLOWED, the request
++                    // still returns 200, and the teardown is silently skipped
++                    // (round 13 measured 457/457 that way). Silent is worse,
++                    // and `serve` is how the platform runs every HTTP app.
++                    // Either way the macro must not come back: unset caps the
++                    // facade at ERROR, so an ERROR macro HERE — unlike the WARN
++                    // site in `store.rs` — is armed in the default config.
 +                    // Round 12 hardened the reaper's own writes and round 13
 +                    // hardened `join_set_threads`' frame -- and both left this
 +                    // one, in the function round 13's fix DELEGATES TO.
