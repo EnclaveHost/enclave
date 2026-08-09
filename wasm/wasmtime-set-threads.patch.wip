@@ -2423,7 +2423,7 @@ index ab41825..40b94e0 100644
                  // For shared memory, the `VMMemoryDefinition` is updated inside
                  // the locked region.
 diff --git a/crates/wasmtime/src/runtime/store.rs b/crates/wasmtime/src/runtime/store.rs
-index 9cc49ea..91366b0 100644
+index 9cc49ea..0e7cdb2 100644
 --- a/crates/wasmtime/src/runtime/store.rs
 +++ b/crates/wasmtime/src/runtime/store.rs
 @@ -470,6 +470,47 @@ pub struct StoreOpaque {
@@ -2547,7 +2547,7 @@ index 9cc49ea..91366b0 100644
      /// Configures epoch-deadline expiration to invoke a custom callback
      /// function.
      ///
-@@ -1657,6 +1757,333 @@ impl StoreOpaque {
+@@ -1657,6 +1757,350 @@ impl StoreOpaque {
          (self.instances[id].handle.get_mut(), &self.modules)
      }
  
@@ -2744,7 +2744,24 @@ index 9cc49ea..91366b0 100644
 +        /// is zero this join cannot block meaningfully, so it is unconditional.
 +        fn join_finished_set_worker(handle: std::thread::JoinHandle<()>) {
 +            if let Err(e) = handle.join() {
-+                log::warn!("SET worker thread panicked: {e:?}");
++                // NOT `log::warn!`. This helper is called INLINE from
++                // `join_set_threads`, i.e. from `Drop for Store<T>`, with no
++                // `catch_unwind` on the stack -- and it is on the FAST path,
++                // which round 11 measured as the common one. Round 13 removed
++                // the panicking macro from `join_set_threads`' own frame and
++                // left this one, which the same function calls two lines later.
++                //
++                // The trigger is not exotic: a worker only reaches `Err` here by
++                // having panicked, and `worker_main` catches guest and embedder
++                // panics -- so the panics that get this far are its own stderr
++                // diagnostics failing. The same broken stderr then makes this
++                // macro panic, and ONE panicked worker aborts its whole store's
++                // teardown.
++                use std::io::Write;
++                let _ = writeln!(
++                    std::io::stderr(),
++                    "wasmtime: warning: SET worker thread panicked: {e:?}"
++                );
 +            }
 +        }
 +
@@ -2881,7 +2898,7 @@ index 9cc49ea..91366b0 100644
      /// Access multiple instances specified via `ids`.
      ///
      /// # Panics
-@@ -2408,6 +2835,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
+@@ -2408,6 +2852,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
  
  impl<T> Drop for Store<T> {
      fn drop(&mut self) {
@@ -2901,7 +2918,7 @@ index 9cc49ea..91366b0 100644
          self.run_manual_drop_routines();
  
          // For documentation on this `unsafe`, see `into_data`.
-@@ -2423,6 +2863,19 @@ impl Drop for StoreOpaque {
+@@ -2423,6 +2880,19 @@ impl Drop for StoreOpaque {
          // NB it's important that this destructor does not access `self.data`.
          // That is deallocated by `Drop for Store<T>` above.
  
@@ -2986,7 +3003,7 @@ index 2f503d1..e21782d 100644
  // Note that `debug_builtins` here is disabled with a feature or a lack of a
  // native compilation backend because it's only here to assist in debugging
 diff --git a/crates/wasmtime/src/runtime/vm/component.rs b/crates/wasmtime/src/runtime/vm/component.rs
-index de21c67..12626b5 100644
+index de21c67..4886a52 100644
 --- a/crates/wasmtime/src/runtime/vm/component.rs
 +++ b/crates/wasmtime/src/runtime/vm/component.rs
 @@ -16,8 +16,8 @@ use crate::runtime::vm::instance::{InstanceLayout, OwnedInstance, OwnedVMContext
@@ -3187,7 +3204,43 @@ index de21c67..12626b5 100644
      }
  
      /// Same as `set_runtime_memory` but for realloc function pointers.
-@@ -926,6 +1062,21 @@ impl ComponentInstance {
+@@ -695,6 +831,35 @@ impl ComponentInstance {
+         // SAFETY: it's safe to initialize the vmctx in this function and this
+         // is also the right type of value to store in the vmctx.
+         let offset = self.offsets.vm_store_context();
++        // enclave/SET: THE ASSERTION THE CONSTANT'S COMMENT PROMISED. Until now
++        // it did not exist -- `SET_VMCOMPONENT_STORE_CONTEXT_OFFSET` had exactly
++        // two references, its definition and its use, while the comment beside
++        // it said "asserted against `VMComponentOffsets` below so a layout
++        // change breaks the build rather than the guard". It was correct only by
++        // coincidence.
++        //
++        // What rests on it: that constant is the SOLE input to the component
++        // half of the cross-thread guard, which is what stops a SET worker
++        // materialising `&mut` to the primary's store from the wrong thread. Get
++        // it wrong and the guard either false-positives on every component host
++        // call (the no-sentinel arm aborts) or, worse, silently admits the
++        // worker -- the round-4 aliasing UB, re-armed. Its core-path twin in
++        // `Instance::enter_host_from_wasm` reads `HostPtr.vmctx_store_context()`
++        // dynamically and is layout-robust by construction; only this one
++        // hardcodes, and only this one claimed to be checked.
++        //
++        // A runtime `assert!` at init rather than a `const` one:
++        // `VMComponentOffsets::vm_store_context()` is not `const`, so
++        // `const _: () = assert!(..)` is not available. Not a `debug_assert!`
++        // either -- the release build is exactly where a silent layout drift
++        // would re-arm the UB, and this runs once per component instantiation.
++        assert_eq!(
++            usize::try_from(offset).unwrap(),
++            SET_VMCOMPONENT_STORE_CONTEXT_OFFSET,
++            "enclave/SET: VMComponentContext layout moved; the cross-thread \
++             entry guard in `enter_host_from_wasm` reads `vm_store_context` at a \
++             hardcoded offset and would now read the wrong field"
++        );
+         unsafe {
+             *self.as_mut().vmctx_plus_offset_mut(offset) =
+                 VmPtr::from(self.store.0.as_ref().vm_store_context_ptr());
+@@ -926,6 +1091,21 @@ impl ComponentInstance {
          self.instances[idx]
      }
  
@@ -3210,10 +3263,10 @@ index de21c67..12626b5 100644
          // SAFETY: we've chosen the `Pin` guarantee of `Self` to not apply to
          // the map returned.
 diff --git a/crates/wasmtime/src/runtime/vm/component/libcalls.rs b/crates/wasmtime/src/runtime/vm/component/libcalls.rs
-index f62ea58..7ed3b91 100644
+index f62ea58..353b548 100644
 --- a/crates/wasmtime/src/runtime/vm/component/libcalls.rs
 +++ b/crates/wasmtime/src/runtime/vm/component/libcalls.rs
-@@ -693,6 +693,127 @@ fn exit_sync_call(store: &mut dyn VMStore, instance: Instance) -> Result<()> {
+@@ -693,6 +693,134 @@ fn exit_sync_call(store: &mut dyn VMStore, instance: Instance) -> Result<()> {
      store.exit_guest_sync_call()
  }
  
@@ -3241,10 +3294,17 @@ index f62ea58..7ed3b91 100644
 +            Err(_) => 0,
 +        };
 +        if n > 0 {
-+            return n;
++            // enclave/SET: never hand back `u32::MAX`. This intrinsic's
++            // trampoline uses `TrapSentinel::NegativeOne`, so an ABI value of
++            // 0xFFFF_FFFF means "the host trapped" -- an embedder setting
++            // ENCLAVE_AVAILABLE_PARALLELISM=4294967295 would TRAP the guest at
++            // `thread.available_parallelism` instead of answering it. The
++            // trampoline's comment says "a core count is never -1"; this is what
++            // makes that true rather than assumed.
++            return n.min(u32::MAX - 1);
 +        }
 +        std::thread::available_parallelism()
-+            .map(|n| n.get() as u32)
++            .map(|n| (n.get() as u32).min(u32::MAX - 1))
 +            .unwrap_or(1)
 +    })
 +}
@@ -3343,10 +3403,10 @@ index f62ea58..7ed3b91 100644
      store: &mut dyn VMStore,
 diff --git a/crates/wasmtime/src/runtime/vm/component/set_threads.rs b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
 new file mode 100644
-index 0000000..3d2565b
+index 0000000..3819a1b
 --- /dev/null
 +++ b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
-@@ -0,0 +1,1925 @@
+@@ -0,0 +1,1936 @@
 +//! enclave/SET: real OS-thread spawning for the shared-everything-threads
 +//! `thread.spawn-ref` / `thread.spawn-indirect` component intrinsics.
 +//!
@@ -3785,16 +3845,27 @@ index 0000000..3d2565b
 +                    // trigger, opposite decisions; this one is the weaker and
 +                    // is left as-is only because failing closed here would
 +                    // mean refusing to tear a store down, which is worse.
-+                    log::error!(
-+                        "could not start the SET teardown reaper ({e}); for the REST OF \
-+                         THIS PROCESS, SET workers that outlive their store will be \
-+                         detached without being joined, stopped or reported"
-+                    );
++                    // NOT `log::error!`, and this is the THIRD time the rule has
++                    // had to be applied: `submit` is called from
++                    // `join_set_threads`, which is called from `Drop for
++                    // Store<T>`, with no `catch_unwind` anywhere on that stack.
++                    // Round 12 hardened the reaper's own writes and round 13
++                    // hardened `join_set_threads`' frame -- and both left this
++                    // one, in the function round 13's fix DELEGATES TO.
++                    //
++                    // It fails worse here than either: the panic unwinds out of
++                    // the first statement of `Drop`, so the store is never torn
++                    // down AND the reaper is never created, so `TX` stays
++                    // unset-as-failed and every later teardown in the process
++                    // detaches its workers silently. Self-cascading, and
++                    // triggered by exactly the EAGAIN-under-thread-pressure the
++                    // comment above says a SET tenant guarantees.
 +                    use std::io::Write;
 +                    let _ = writeln!(
 +                        std::io::stderr(),
 +                        "wasmtime: warning: could not start the SET teardown reaper ({e}); \
-+                         stragglers will be detached silently from now on"
++                         for the REST OF THIS PROCESS, SET workers that outlive their \
++                         store will be detached without being joined, stopped or reported"
 +                    );
 +                    None
 +                }
@@ -7484,10 +7555,10 @@ index 038fc78..29ac515 100644
              i64::to_le(0x0f_0e_0d_0c_0b_0a_09_08),
 diff --git a/tests/all/component_model/set_threads.rs b/tests/all/component_model/set_threads.rs
 new file mode 100644
-index 0000000..dd3f313
+index 0000000..4f01687
 --- /dev/null
 +++ b/tests/all/component_model/set_threads.rs
-@@ -0,0 +1,170 @@
+@@ -0,0 +1,184 @@
 +//! enclave/SET: tests for the shared-everything-threads worker model that a
 +//! guest probe cannot reach.
 +//!
@@ -7591,9 +7662,23 @@ index 0000000..dd3f313
 +    let (tid,) = run.call_async(&mut store, ()).await?;
 +    assert!(tid >= 0, "spawn should have succeeded, got {tid}");
 +
-+    // Teardown joins (and, if it must, detaches) the worker. Reaching the end
-+    // of this function at all is the assertion.
++    // Teardown asks the worker to stop and joins with a BOUND, detaching a
++    // straggler rather than blocking (that is the whole point of the design
++    // this file also tests). So `drop` returning says nothing about whether the
++    // worker has been entered yet, and asserting on `entered` straight
++    // afterwards is a race against that design -- it failed 3/3 serially,
++    // reading 0.
++    //
++    // Wait for the observation instead of assuming teardown produced it. The
++    // property under test is unchanged and is still the important one: a PANIC
++    // on a worker must not take the process down, so reaching the end of this
++    // function at all is the assertion. The wait only makes the secondary check
++    // ("the host really was entered") deterministic.
 +    drop(store);
++    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
++    while entered.load(Ordering::SeqCst) == 0 && std::time::Instant::now() < deadline {
++        std::thread::yield_now();
++    }
 +    assert_eq!(entered.load(Ordering::SeqCst), 1);
 +    Ok(())
 +}
