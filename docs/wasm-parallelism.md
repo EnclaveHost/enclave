@@ -696,10 +696,13 @@ the single most important fact about this project. The generalisable lessons:
 cap increments on spawn and decrements on exit, so `worker(){ spawn(worker);
 return; }` keeps the live count at 1-2 forever while creating threads as fast as
 the kernel allows: 35,187 create+exit pairs in 2 s, 2.6 s of CPU, and
-`ENCLAVE_MAX_SET_THREADS=4` changed nothing. Creation is now rate-limited
-separately (token bucket, `ENCLAVE_MAX_SET_SPAWN_RATE`): 2,112 spawns and 0.34 s
-of CPU for the same guest, with a clean `EAGAIN`. Whenever a resource is
-"capped", ask which of *stock* and *flow* the cap measures.
+`ENCLAVE_MAX_SET_THREADS=4` changed nothing. Whenever a resource is "capped",
+ask which of *stock* and *flow* the cap measures.
+
+The token bucket this round added (`ENCLAVE_MAX_SET_SPAWN_RATE`) is, four
+rounds later, **off by default** — see round 8 below. Both implementations of it
+made things worse, and the cgroup was already charging the tenant for the
+creation cost.
 
 **A recovery window is a renewable resource unless you say otherwise.** The
 guest's thread-death hook necessarily runs with every stop path disarmed. It had

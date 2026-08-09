@@ -14,9 +14,16 @@
  *       worker-spawn-churn.c -o worker-spawn-churn.wasm
  *   time timeout 10 wasmtime run <SET flags> -S cli worker-spawn-churn.wasm
  *
- * Expected now: the chain stops at the creation-rate limit
- * (`ENCLAVE_MAX_SET_SPAWN_RATE`), the guest sees pthread_create fail with
- * EAGAIN, and it reports how many it got.
+ * Expected now: the chain runs to its own iteration limit and reports how many
+ * threads it created (~35,000 in 2 s here). It does NOT stop, because the
+ * creation-rate limiter is OFF by default -- see `max_spawn_rate` in
+ * set_threads.rs for why two implementations of it were both withdrawn. What
+ * bounds this guest is the cgroup: the create/exit cost is kernel time in the
+ * tenant's own `cpu.weight` share.
+ *
+ * With `ENCLAVE_MAX_SET_SPAWN_RATE=4096` the chain instead stops at the first
+ * refusal and the guest sees `pthread_create` fail with EAGAIN; that is the
+ * operator opt-in, and `worker-spawn-retry-bomb.c` is what it costs.
  */
 #include <pthread.h>
 #include <stdatomic.h>

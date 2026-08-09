@@ -9,8 +9,14 @@
  * 50.3 CPU-seconds per 2 wall seconds (22.6 cores) versus 13.8 (6.2 cores)
  * with the limiter off — 3.6x WORSE than no limiter at all.
  *
- * The limiter now WAITS for a token instead of refusing, so a throttled guest
- * sleeps rather than spins.
+ * Waiting for a token instead of refusing was tried and withdrawn: it moved
+ * the cost from CPU to the EXECUTOR, blocking the tokio worker that polls the
+ * guest's fiber, so under `wasmtime serve` the whole HTTP server stalled at
+ * 0.00 CPU seconds -- invisible to `cpu.weight`, `cpu.max` and any CPU-based
+ * watchdog. The limiter is now OFF by default and REFUSES when an operator
+ * turns it on, so this probe measures what that opt-in costs rather than a
+ * default. Run it with `ENCLAVE_MAX_SET_SPAWN_RATE=4096` to see the refusing
+ * behaviour; with the default (0) it measures the unlimited baseline.
  *
  *   docker run --rm -v "$PWD":/src enclave-wasipsetc-build:local \
  *       worker-spawn-retry-bomb.c -o worker-spawn-retry-bomb.wasm

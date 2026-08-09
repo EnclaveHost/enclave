@@ -314,10 +314,10 @@ index 44e0fd9..a6b53bd 100644
    // Find a preopen'd directory as well as a relative path we're anchored
    // from which we're changing directories to.
 diff --git a/libc-bottom-half/sources/descriptor_table.c b/libc-bottom-half/sources/descriptor_table.c
-index 56d7816..0076544 100644
+index 56d7816..1ebb94a 100644
 --- a/libc-bottom-half/sources/descriptor_table.c
 +++ b/libc-bottom-half/sources/descriptor_table.c
-@@ -15,6 +15,158 @@
+@@ -15,6 +15,179 @@
  
  #define MINSIZE 8
  
@@ -429,7 +429,19 @@ index 56d7816..0076544 100644
 +    errno = EBADF;
 +    return -1;
 +  }
-+  return fd & SET_FD_INDEX_MASK;
++  int index = fd & SET_FD_INDEX_MASK;
++  if (index < SET_FD_UNTAGGED) {
++    /* `index_to_fd` returns 0/1/2 BARE and never tags them, so `(ns << 13) | 1`
++       is not a descriptor number this thread was ever handed. Masking it back
++       to index 1 gave the standard streams a second spelling that only the
++       lenient paths could reach: `dup2(f, 8193)` on a worker silently
++       redirected that thread's stdout, and `fcntl(fd, F_DUPFD, 8192)` had its
++       LOWER BOUND read as 0, so it could return a descriptor far below the
++       minimum the caller asked for. */
++    errno = EBADF;
++    return -1;
++  }
++  return index;
 +}
 +
 +/* table index -> the fd this thread hands to the program. */
@@ -465,9 +477,18 @@ index 56d7816..0076544 100644
 +  return fd_to_index(fd);
 +}
 +#else
-+#define fd_to_index(fd) (fd)
++/* Not macros: the new `if (index < 0) return -1;` callers would otherwise
++   return without touching `errno`, where stock fell through to `table_lookup`
++   and got EBADF. A non-SET build has to be behaviourally identical to stock. */
++static inline int fd_to_index(int fd) {
++  if (fd < 0) {
++    errno = EBADF;
++    return -1;
++  }
++  return fd;
++}
 +#define index_to_fd(index) ((int)(index))
-+#define fd_target_to_index(fd) (fd)
++#define fd_target_to_index(fd) fd_to_index(fd)
 +#define SET_FD_UNTAGGED 3
 +#define SET_FD_NS_SHIFT 31
 +#define set_fd_ns 0
@@ -476,7 +497,7 @@ index 56d7816..0076544 100644
  typedef struct {
    bool occupied;
    descriptor_table_entry_t entry;
-@@ -32,7 +184,7 @@ typedef struct {
+@@ -32,7 +205,7 @@ typedef struct {
    size_t next_fd;
  } descriptor_table_t;
  
@@ -485,7 +506,7 @@ index 56d7816..0076544 100644
  
  /// Grows `table` to have capacity for at least `needed` entries, marking all
  /// newly allocated entries as unoccupied. Returns -1 and sets `errno` on
-@@ -149,7 +301,7 @@ static void clear(descriptor_table_t *table) {
+@@ -149,7 +322,7 @@ static void clear(descriptor_table_t *table) {
    table->len = 0;
  }
  
@@ -494,7 +515,7 @@ index 56d7816..0076544 100644
  
  static int init_stdio() {
    stdio_initialized = true;
-@@ -162,7 +314,7 @@ static void live_descriptors_dec() {}
+@@ -162,7 +335,7 @@ static void live_descriptors_dec() {}
  #else
  #include <stdio.h>
  
@@ -503,7 +524,7 @@ index 56d7816..0076544 100644
  
  static void live_descriptors_inc() { live_descriptors += 1; }
  
-@@ -185,7 +337,7 @@ void __wasilibc_assert_no_descriptor_leaks() {
+@@ -185,7 +358,7 @@ void __wasilibc_assert_no_descriptor_leaks() {
        if (i < 3) {
          stdio_open++;
        } else {
@@ -512,7 +533,7 @@ index 56d7816..0076544 100644
          assert(rc == 0);
          closed++;
        }
-@@ -229,17 +381,34 @@ int descriptor_table_insert(descriptor_table_entry_t entry) {
+@@ -229,17 +402,34 @@ int descriptor_table_insert(descriptor_table_entry_t entry) {
    STRONG_LOCK(global_table.lock);
    defer STRONG_UNLOCK(global_table.lock);
  
@@ -549,7 +570,7 @@ index 56d7816..0076544 100644
    if (!slot)
      return -1;
    descriptor_table_entry_inc(*slot);
-@@ -248,40 +417,89 @@ int descriptor_table_get(int fd, descriptor_table_entry_t *entry) {
+@@ -248,40 +438,124 @@ int descriptor_table_get(int fd, descriptor_table_entry_t *entry) {
  }
  
  // Some large but not too large value to allow `dup2` to dos this process.
@@ -610,35 +631,70 @@ index 56d7816..0076544 100644
 -    if (fd == arg) {
 +    /* enclave/SET: `dup2`/`dup3` name a TARGET descriptor number, and under
 +       per-thread namespaces there is no honest answer for an arbitrary bare
-+       one on a worker.
-+       Returning the raw `arg` (what an earlier revision did, twice) reports
-+       SUCCESS and hands back an integer that is EBADF on every later use —
-+       silent success, the worst outcome available. Returning the tagged fd
-+       instead is usable, but only for a caller that reads the return value,
-+       and `dup2(fd, N); write(N, ...)` is the whole idiom.
-+       So: targets this thread can legitimately name (0/1/2, or a descriptor
-+       already in its own namespace) behave exactly as POSIX says, which covers
-+       every real use — `dup2(fd, STDOUT_FILENO)` and friends. Anything else is
-+       REFUSED on a worker rather than half-served. The main thread is
-+       namespace 0, so nothing changes there at all. */
++       one on a worker. Four revisions have been wrong here, so the contract is
++       stated once, plainly:
++
++         MAIN thread   — unchanged from a stock wasip2 build, all targets.
++         WORKER, target already in its own namespace — POSIX.
++         WORKER, target 0/1/2 — REFUSED (EBADF). Shared stdio, see below.
++         WORKER, any other bare target — REFUSED (EBADF).
++
++       Returning the raw `arg` without establishing that this thread can name
++       it (two earlier revisions) reports SUCCESS and hands back an integer
++       that is EBADF on every later use — silent success, the worst outcome
++       available. Returning a tagged fd instead (a third) is usable only by a
++       caller that reads the return value, and `dup2(fd, N); write(N, ...)` is
++       the whole idiom. A refusal is the only remaining honest answer. */
++    /* Claim this thread's namespace BEFORE deciding anything. `set_fd_ns > 0`
++       was standing in for "am I a worker" and is not that predicate: a
++       namespace is claimed lazily by `index_to_fd`, which returns 0/1/2
++       WITHOUT claiming, so EVERY thread — the main thread included — has
++       `set_fd_ns == -1` until it first creates a descriptor at index >= 3.
++       Inside that window the guard below was skipped, a bare target was
++       accepted, and `dup2` returned an `arg` that `fd_to_index` then rejected:
++       EBADF on every later use, uncloseable on a worker, and a divergence from
++       a stock wasip2 build ON THE MAIN THREAD of a program with no threads. */
++    int ns = set_fd_ns_claim();
++    if (ns < 0) {
++      errno = EMFILE;
++      return -1;
++    }
 +    int newindex = fd_target_to_index(arg);
 +    if (newindex < 0)
 +      return -1;
-+    if (arg >= SET_FD_UNTAGGED && (arg >> SET_FD_NS_SHIFT) == 0 &&
-+        set_fd_ns > 0) {
-       errno = EINVAL;
-       return -1;
-     }
--    if (arg < 0 || arg >= MAX_DESCRIPTOR) {
++    if (arg >= SET_FD_UNTAGGED && (arg >> SET_FD_NS_SHIFT) != ns) {
++      /* EBADF, not EINVAL: POSIX defines no EINVAL for `dup2`, Linux uses
++         EBADF for a target outside the valid range, and "that descriptor
++         number is not yours" is honestly EBADF. */
++      errno = EBADF;
++      return -1;
++    }
++    if (__wasilibc_set_is_worker && arg < SET_FD_UNTAGGED) {
++      /* A WORKER may not redirect 0/1/2 — a real refusal, not the "behaves
++         exactly as POSIX says" an earlier revision claimed. The fd TABLE is
++         per-thread but musl's `stdout` is ONE `FILE` in shared memory: one
++         buffer, one `f->fd == 1`, and two threads for which "1" names
++         different descriptors. A worker doing `dup2(f, 1); printf(secret)`
++         wrote into the shared buffer, and MAIN's exit-time flush delivered it
++         through MAIN's fd 1 — the operator-collected process stdout — while
++         the file the guest redirected to stayed empty. Measured, and exactly
++         inverted from the same source built natively. Refusing costs a worker
++         `dup2(f, STDOUT_FILENO)`; allowing it leaks guest bytes into the host
++         log, which is not a trade a TCB gets to make. Redirect on the main
++         thread, or write to the descriptor directly. */
++      errno = EBADF;
++      return -1;
++    }
 +    if (newindex == index) {
 +      /* dup2 of a descriptor onto itself is a no-op returning it; dup3 is
 +         EINVAL. Compared as INDICES so a worker's tagged fd and the bare
 +         index that names the same slot agree. */
 +      if (op == DUP_OP_DUP2)
 +        return arg;
-+      errno = EINVAL;
-+      return -1;
-+    }
+       errno = EINVAL;
+       return -1;
+     }
+-    if (arg < 0 || arg >= MAX_DESCRIPTOR) {
 +    if (newindex >= MAX_DESCRIPTOR) {
        errno = EBADF;
        return -1;
@@ -648,18 +704,13 @@ index 56d7816..0076544 100644
  
      if (table_grow(&global_table, newfd + 1) < 0)
        return -1;
-@@ -297,17 +515,33 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
+@@ -297,17 +571,28 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
        table_entry->entry = entry;
        table_entry->occupied = true;
      }
-+    /* enclave/SET: the caller's namespace, NOT the raw `arg`. Returning `arg`
-+       made `dup2(fd, 9)` on a worker SUCCEED and hand back a descriptor that
-+       is EBADF on every later use — silent success, which is strictly worse
-+       than the EBADF it replaced — and left the slot unreachable and
-+       uncloseable. `index_to_fd` also claims this thread's namespace if
-+       `dup2` is the first call that ever needed one. */
-+    /* `arg` verbatim: it is this thread's own descriptor number (checked
-+       above), which is what POSIX says `dup2` returns. */
++    /* `arg` verbatim, which is what POSIX says `dup2` returns — and it is
++       resolvable now, because every path to here has established that `arg`
++       names a slot in THIS thread's claimed namespace. */
      return arg;
    }
  
@@ -686,7 +737,7 @@ index 56d7816..0076544 100644
      if (minfd < global_table.next_fd)
        minfd = global_table.next_fd;
      while (minfd < global_table.len && global_table.entries[minfd].occupied)
-@@ -315,11 +549,15 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
+@@ -315,11 +600,15 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
      if (table_grow(&global_table, minfd + 1) < 0)
        return -1;
  
@@ -703,7 +754,7 @@ index 56d7816..0076544 100644
    }
  
    default:
-@@ -331,9 +569,13 @@ int descriptor_table_remove(int fd) {
+@@ -331,9 +620,13 @@ int descriptor_table_remove(int fd) {
    if (!stdio_initialized && init_stdio() < 0)
      return -1;
  
@@ -718,7 +769,7 @@ index 56d7816..0076544 100644
    STRONG_UNLOCK(global_table.lock);
    if (rc < 0)
      return -1;
-@@ -357,3 +599,31 @@ void __wasilibc_descriptor_deallocate(descriptor_table_entry_t entry) {
+@@ -357,3 +650,31 @@ void __wasilibc_descriptor_deallocate(descriptor_table_entry_t entry) {
    errno = saved_errno;
    live_descriptors_dec();
  }
@@ -843,7 +894,7 @@ index 8ccd184..4ca8feb 100644
        } else {
          errno = EOPNOTSUPP;
 diff --git a/libc-bottom-half/sources/preopens.c b/libc-bottom-half/sources/preopens.c
-index b7301bd..fc75233 100644
+index b7301bd..6beeab1 100644
 --- a/libc-bottom-half/sources/preopens.c
 +++ b/libc-bottom-half/sources/preopens.c
 @@ -77,7 +77,14 @@ static void preopen_state_assert_open(const preopen_state_t *state) {
@@ -882,7 +933,7 @@ index b7301bd..fc75233 100644
  
  #ifdef NDEBUG
  #define assert_invariants() // assertions disabled
-@@ -129,6 +141,26 @@ static void assert_invariants(void) {
+@@ -129,6 +141,27 @@ static void assert_invariants(void) {
  }
  #endif
  
@@ -903,13 +954,37 @@ index b7301bd..fc75233 100644
 +  num_preopens = 0;
 +  preopen_capacity = 0;
 +  preopens_populated = false;
++  preopens_failed = false;
 +}
 +#endif
 +
  /// Allocate space for more preopens. Returns 0 on success and -1 on failure.
  static int resize(void) {
    size_t start_capacity = 4;
-@@ -311,6 +343,13 @@ void __wasilibc_populate_preopens(void) {
+@@ -193,8 +226,22 @@ static int internal_register_preopened_fd_unlocked(preopen_t fd,
+   return 0;
+ 
+ err_free_prefix:
++  /* Consumed: `preopen_state_initialize` goes through
++     `descriptor_table_insert`, which runs the entry's destructor on every one
++     of its own failure paths. */
+   free(prefix);
++  return -1;
+ err:
++#ifndef __wasip1__
++  /* enclave/SET: NOT consumed — `resize` and `strdup` both fail before
++     anything has taken `fd`, so this function still owns it. Drop it, so that
++     "a failed registration consumed the descriptor" holds on every path.
++     `__wasilibc_populate_preopens`'s cleanup skips entry `i` on the strength
++     of exactly that claim, and it was true on only one of the three paths --
++     the other two are the `malloc` failures a tenant reaches under its own
++     `-W max-memory-size` gate. */
++  filesystem_descriptor_drop_own(fd);
++#endif
+   return -1;
+ }
+ 
+@@ -311,6 +358,13 @@ void __wasilibc_populate_preopens(void) {
    if (preopens_populated) {
      return;
    }
@@ -923,7 +998,7 @@ index b7301bd..fc75233 100644
  
    STRONG_LOCK(lock);
  
-@@ -356,12 +395,15 @@ void __wasilibc_populate_preopens(void) {
+@@ -356,12 +410,15 @@ void __wasilibc_populate_preopens(void) {
      }
    }
  #elif defined(__wasip2__) || defined(__wasip3__)
@@ -943,7 +1018,7 @@ index b7301bd..fc75233 100644
      char *prefix = strndup((const char *)name_and_descriptor.f1.ptr,
                             name_and_descriptor.f1.len);
  #ifdef __wasip2__
-@@ -371,13 +413,22 @@ void __wasilibc_populate_preopens(void) {
+@@ -371,13 +428,22 @@ void __wasilibc_populate_preopens(void) {
  #endif
      if (prefix == NULL) {
        filesystem_descriptor_drop_own(name_and_descriptor.f0);
@@ -967,7 +1042,7 @@ index b7301bd..fc75233 100644
    }
  
  #else
-@@ -395,7 +446,53 @@ oserr:
+@@ -395,7 +461,66 @@ oserr:
    _Exit(EX_OSERR);
  #endif
  software:
@@ -1001,17 +1076,30 @@ index b7301bd..fc75233 100644
 +#endif
 +    filesystem_descriptor_drop_own(got.ptr[j].f0);
 +  }
-+  if (num_preopens) {
-+    for (size_t j = 0; j < num_preopens; ++j) {
-+      free((void *)preopens[j].prefix);
-+      preopen_state_close(&preopens[j].state);
-+    }
-+    free(preopens);
-+  }
++  /* Go sticky and take the table PRIVATE before closing anything.
++     `preopen_state_close` is `close()`, and `close()` opens with
++     `__wasilibc_populate_preopens()`. On this path `preopens_populated` is
++     still false and, until this assignment, so was `preopens_failed` — so the
++     re-entrant call took neither early-out and walked back into
++     `STRONG_LOCK(lock)`. musl's lock is not recursive: a component with any
++     live sibling thread deadlocked there, at zero CPU with nothing on either
++     stream, and every later path call on every thread deadlocked behind it. A
++     component with no sibling yet (locks are no-ops until `need_locks`) instead
++     recursed, re-minting the whole preopen list per level and double-freeing
++     each prefix, until the call stack was exhausted. Upstream's
++     `__wasilibc_reset_preopens` runs this same loop safely only because
++     `preopens_populated` is still TRUE while it runs. */
++  preopens_failed = true;
++  preopen *doomed = preopens;
++  size_t doomed_len = num_preopens;
 +  preopens = NULL;
 +  num_preopens = 0;
 +  preopen_capacity = 0;
-+  preopens_failed = true;
++  for (size_t j = 0; j < doomed_len; ++j) {
++    free((void *)doomed[j].prefix);
++    preopen_state_close(&doomed[j].state);
++  }
++  free(doomed);
 +  STRONG_UNLOCK(lock);
 +  errno = EMFILE;
 +  return;
@@ -1021,6 +1109,19 @@ index b7301bd..fc75233 100644
  }
  
  void __wasilibc_reset_preopens(void) {
+@@ -410,6 +535,12 @@ void __wasilibc_reset_preopens(void) {
+   }
+ 
+   preopens_populated = false;
++#ifdef __wasilibc_set_threads__
++  /* A full reset must be a full reset: leaving the sticky flag set made
++     `__wasilibc_reset_preopens` unable to restore a thread that had failed,
++     which is the one thing it exists to do. */
++  preopens_failed = false;
++#endif
+   preopens = NULL;
+   num_preopens = 0;
+   preopen_capacity = 0;
 diff --git a/libc-bottom-half/sources/sockets_utils.c b/libc-bottom-half/sources/sockets_utils.c
 index 9b7bc7b..da838e7 100644
 --- a/libc-bottom-half/sources/sockets_utils.c
