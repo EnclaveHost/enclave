@@ -389,7 +389,34 @@ containers:
       # (name:path:file.gguf) picks WHICH gguf preloads as the wasi-nn graph
       # when the repo ships several quantizations - the manager stages the
       # pick as a symlink dir, so the mpk-<hash> mount name never matters.
-      - MODEL_VOLUMES: "qwen2.5-0.5b:/tinfoil/mpk/mpk-e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4,qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-d02f1afc0eee60adc4da2a541c8e095c9cff347b4f3996c2950ff84c676c1c70:qwen2.5-0.5b-instruct-q4_k_m.gguf,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen3.5-0.8b-gguf:/tinfoil/mpk/mpk-d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8,qwen3.5-0.8b-mtp-gguf:/tinfoil/mpk/mpk-b515a1868c9f8bea7e8578e7ce06ac8e0546040dd623aad1d7b6c3dd98a9e6aa,qwen3.6-27b-mtp-gguf:/tinfoil/mpk/mpk-bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9,fable-fusion-27b-mtp-gguf:/tinfoil/mpk/mpk-cf2030ea6070202555fa2d8b762fa4b1c94a3b636dd3d0f587d3f9fafddf4415,fable-fusion-27b-mtp-q4-gguf:/tinfoil/mpk/mpk-13f6f4245454958735336168c1d128794fe349563471640521ed325951fefbdb,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2,qwen3-vl-8b-gguf:/tinfoil/mpk/mpk-3f7dafb23d0491e0f25b6136320ed91e990cb9fdc5a464ce07271b4aff2e279e:Qwen3VL-8B-Instruct-Q8_0.gguf"
+      - MODEL_VOLUMES: "qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-bb5cace1df1795f9dde1b6da38b2b9edfaaa56f4574a5d6270c1295b192c81c1,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.5-9b-gguf:/tinfoil/mpk/mpk-b70cb1b66baaf59542b5d478f952fcb4085dfb681deedf9e0420452e2fe6e6be,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen3.5-0.8b-gguf:/tinfoil/mpk/mpk-d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8,qwen3.5-0.8b-mtp-gguf:/tinfoil/mpk/mpk-b515a1868c9f8bea7e8578e7ce06ac8e0546040dd623aad1d7b6c3dd98a9e6aa,qwen3.6-27b-mtp-gguf:/tinfoil/mpk/mpk-bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9,fable-fusion-27b-mtp-gguf:/tinfoil/mpk/mpk-cf2030ea6070202555fa2d8b762fa4b1c94a3b636dd3d0f587d3f9fafddf4415,fable-fusion-27b-mtp-q4-gguf:/tinfoil/mpk/mpk-13f6f4245454958735336168c1d128794fe349563471640521ed325951fefbdb,sd-turbo:/tinfoil/mpk/mpk-df0919ea85c829fb62c61029ac130f7e4a98bc6a57fe52dfb777a7426d5b36fc,sd-turbo-full:/tinfoil/mpk/mpk-e787b81d664922c08ac69bb0952b436404bbb150f6f7b71971431d0c3ff4ef60,z-image-turbo-sd:/tinfoil/mpk/mpk-2b646ec9773d4dba7227656826627de606a86d98790b0e806a62e548b6c581f5,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2,realesrgan-x4plus-sd:/tinfoil/mpk/mpk-e0690ebe660661664262455da17ffc8588ffa13dda14accc787c1d712bb529f4,qwen3-vl-8b-gguf:/tinfoil/mpk/mpk-3f7dafb23d0491e0f25b6136320ed91e990cb9fdc5a464ce07271b4aff2e279e:Qwen3VL-8B-Instruct-Q8_0.gguf"
+      # Volumes preloaded through the stable-diffusion.cpp wasi-nn backend,
+      # and the node-global component/serving envs they resolve against -
+      # IDENTICAL to the gpu flavor, which carries the full rationale for
+      # every value here (why the component filenames are generic, why the
+      # VAE tiling is 64:0.25, why flash attention is required above 1024px,
+      # why the compute type is TF32-via-f32 and not f16/bf16). Keep the two
+      # flavors' SD blocks in lockstep: these envs are node-global and the
+      # preload validates them against EVERY listed generation volume, so a
+      # partial copy fails volumes rather than degrading them.
+      # realesrgan-x4plus-sd is the UPSCALER volume (detected by
+      # ENCLAVE_SD_UPSCALE_FILE, exempt from the component validators);
+      # it needs a >= mm29 sd shim in the toolchain, and on an older tarball
+      # only THIS volume fails preload, loudly.
+      - MODEL_VOLUMES_SD: "z-image-turbo-sd,qwen-image-2512-sd,realesrgan-x4plus-sd"
+      - ENCLAVE_SD_DIFFUSION_FILE: "diffusion.gguf"
+      - ENCLAVE_SD_LLM_FILE: "llm.gguf"
+      - ENCLAVE_SD_VAE_FILE: "vae.safetensors"
+      - ENCLAVE_SD_UPSCALE_FILE: "upscaler.safetensors"
+      - ENCLAVE_SD_VAE_TILING: "64:0.25"
+      - ENCLAVE_SD_FLASH_ATTN: "1"
+      - ENCLAVE_SD_VAE_ON_CPU: "0"
+      - GGML_CUDA_CUBLAS_COMPUTE_TYPE: "f32"
+      - GGML_CUDA_PDL: "0"
+      # Fused-attention quarantine, ORT/onnx volumes only: sd-turbo's Olive
+      # fp16 UNet returns 100% NaN epsilon (black images) under MPS on sm_90
+      # with the fused defaults. sdcpp/ggml tenants are untouched.
+      - ENCLAVE_ONNX_UNFUSED_VOLUMES: "sd-turbo"
     # SECRET SEEDS the manager's control-plane token: both sides derive
     # HMAC(SECRET,"enclave vmmgr v1") - the raw master is never the bearer,
     # since this token rides on every control call while SECRET is what the
@@ -419,17 +446,24 @@ containers:
 # attach these by name (via the console volume picker or their configCid JSON
 # `volumes` field); the wasm-manager mounts each into the guest at /models/<name>.
 models:
-  - name: "qwen2.5-0.5b"
-    repo: "onnx-community/Qwen2.5-0.5B-Instruct@cc5cc01a65cc3ff17bdb73a7de33d879f62599b0"
-    mpk: "e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4_6571900928_4f334276-d275-54dc-9abe-d458e80adf97"
-  # Official Qwen GGUF repo (the ggml/llama.cpp wasi-nn path). The repo ships
-  # NINE quantizations - MODEL_VOLUMES above picks q4_k_m (sha256 74a4da8c...,
-  # verified 2026-07-08) as the preloaded graph - and NO tokenizer.json, so
-  # llm-chat's catalog reads the tokenizer cross-volume from qwen2.5-0.5b:
-  # deployments using this volume should attach BOTH.
+  # THIS LIST IS THE GPU FLAVOR'S, VERBATIM - same names, same pinned repos,
+  # same mpks, same order. The two flavors differ in node SIZE (cpus/memory/
+  # NODE_*/GPU_COUNT), never in what a tenant can attach: a deployment that
+  # serves on one must serve on the other, since a volume is addressed BY NAME
+  # and a missing name is an unservable deployment, not a slower one. When
+  # either flavor gains or repins a volume, mirror it here in the same commit.
+  #
+  # Slim curated re-wrap of Qwen/Qwen2.5-0.5B-Instruct-GGUF (which ships NINE
+  # quantizations and no tokenizer): ONLY the q4_k_m gguf PLUS tokenizer.json,
+  # so it is self-contained - ~490 MB vs the official repo's 5.4 GB, and no
+  # cross-volume tokenizer attach. It KEEPS the retired official-repo volume's
+  # NAME, so catalog configs attaching qwen2.5-0.5b-gguf keep working.
+  # The (also retired) onnx volume qwen2.5-0.5b has no successor name and is
+  # gone from both flavors - it was the tokenizer donor this rewrap absorbed.
+  # Single gguf = no MODEL_VOLUMES third field.
   - name: "qwen2.5-0.5b-gguf"
-    repo: "Qwen/Qwen2.5-0.5B-Instruct-GGUF@9217f5db79a29953eb74d5343926648285ec7e67"
-    mpk: "d02f1afc0eee60adc4da2a541c8e095c9cff347b4f3996c2950ff84c676c1c70_5372555264_5600f8a0-1cd0-5dc9-a32c-7a110e14da28"
+    repo: "EnclaveHost/qwen2.5-0.5b-gguf@28ee3c6a09ba2c4b7447c53d3cddad0bdefcf186"
+    mpk: "bb5cace1df1795f9dde1b6da38b2b9edfaaa56f4574a5d6270c1295b192c81c1_498454528_3b7bbfae-47ec-55ce-8c30-951d1874a293"
   # Qwen3.5-122B-A10B at 4-bit (unsloth UD-IQ4_XS, ~60 GB) for the ggml/llama.cpp
   # wasi-nn path - the big-model tenant option (~45% of an H200's VRAM). The repo
   # ships THREE split GGUF parts (Qwen3.5-122B-A10B-UD-IQ4_XS-0000N-of-00003.gguf)
@@ -442,6 +476,15 @@ models:
   - name: "qwen3.5-122b-gguf"
     repo: "EnclaveHost/qwen3.5-122b-gguf@8beb6427d807c9d2cf185ea22c149f8c63668815"
     mpk: "1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c_60242325504_b8673ecf-afc3-5051-8093-f2bf785fe93a"
+  # Qwen3.5-9B (dense hybrid-SSM, GGUF arch qwen35) at unsloth Dynamic Q4_K_XL
+  # (~6 GB): the small Qwen3.5 tenant option, ~8 GB VRAM + KV. Slim curated
+  # single-file re-wrap (served gguf sha256 6f5d3066... + the official Qwen3.5
+  # tokenizer.json, byte-identical to the 122b's) - full provenance and
+  # serving notes on the gpu flavor's entry. No toolchain dependency: arch
+  # qwen35 is in the pinned LLAMA_COMMIT. Single gguf = no third field.
+  - name: "qwen3.5-9b-gguf"
+    repo: "EnclaveHost/qwen3.5-9b-gguf@b42dbc5ad0fa4c9e23d466b8e7138c2cbf5397cf"
+    mpk: "b70cb1b66baaf59542b5d478f952fcb4085dfb681deedf9e0420452e2fe6e6be_5978923008_a7a7944b-b900-52c6-a03e-dfb907fe623d"
   # Qwen3.6-27B at unsloth Dynamic Q4_K_XL (~17.6 GB): the mid-size tenant
   # option. Slim curated single-file re-wrap (served gguf sha256 ff6941de...
   # + the official Qwen/Qwen3.6-27B tokenizer.json) - full provenance and
@@ -546,13 +589,47 @@ models:
   - name: "qwen3-vl-8b-gguf"
     repo: "EnclaveHost/qwen3-vl-8b-gguf@f3632f227678b6d7f35178c061d3aff184d695f0"
     mpk: "3f7dafb23d0491e0f25b6136320ed91e990cb9fdc5a464ce07271b4aff2e279e_9875603456_8d1a2496-f2c7-5ca8-a8a2-9d348475d613"
+  # SD-Turbo (distilled SD 2.1, 512x512 txt2img in 1-4 steps), the Olive fp16
+  # ONNX export fused for the CUDA EP - the image-generator app's default
+  # config, loaded per request by the guest (~2.5 GB of lifts). GPU-only: the
+  # CPU EP has no kernels for the com.microsoft ops. Quarantined out of the
+  # fused attention kernels by ENCLAVE_ONNX_UNFUSED_VOLUMES above. See the
+  # gpu flavor's entry.
+  - name: "sd-turbo"
+    repo: "onnxruntime/sd-turbo@80d4d2e238a7c61a83053b931f2354ab43dd3688"
+    mpk: "df0919ea85c829fb62c61029ac130f7e4a98bc6a57fe52dfb777a7426d5b36fc_2582355968_83bded1a-e8eb-56cb-b8e2-3905863340bf"
+  # The ORIGINAL stabilityai SD-Turbo release (13 GB), whose top-level
+  # sd_turbo.safetensors is what serves through the stable-diffusion.cpp
+  # path ({"backend":"sdcpp"}). See the gpu flavor's entry.
+  - name: "sd-turbo-full"
+    repo: "stabilityai/sd-turbo@b261bac6fd2cf515557d5d0707481eafa0485ec2"
+    mpk: "e787b81d664922c08ac69bb0952b436404bbb150f6f7b71971431d0c3ff4ef60_12957339648_7214a717-20cd-5a86-9bc3-dd3eac7676c0"
+  # Z-Image-Turbo (Tongyi-MAI, Apache-2.0) as a curated sd.cpp bundle: Q8_0
+  # transformer + Qwen3-4B Q8_0 text encoder + FLUX AE under the generic
+  # component filenames the ENCLAVE_SD_*_FILE envs above name. In
+  # MODEL_VOLUMES_SD; ~13 GB peak VRAM at 1024px with VAE tiling, gpu >= 0.10.
+  # See the gpu flavor's entry (incl. the z-image-turbo rename).
+  - name: "z-image-turbo-sd"
+    repo: "EnclaveHost/z-image-turbo-sd@d7aeefc33a479d183cedf4dce3c294ea71db29ab"
+    mpk: "2b646ec9773d4dba7227656826627de606a86d98790b0e806a62e548b6c581f5_11193159680_474e22f4-e109-5cd2-81c5-3e98c40643f4"
   # Qwen-Image-2512 + Lightning 8-step merge (Q8_0), curated for the sdcpp
-  # backend - see the gpu flavor's entry for component/serving notes. This
-  # flavor has no MODEL_VOLUMES_SD preload, so the volume is mount-only for
-  # guests here (two ggufs and no selection = no accidental LLM preload).
+  # backend - see the gpu flavor's entry for component/serving notes. Same
+  # generic component filenames as z-image-turbo-sd, so the one node-global
+  # ENCLAVE_SD_*_FILE set resolves in both; in MODEL_VOLUMES_SD, preloads
+  # alongside z-image. 8 steps, cfg 1.0, ~34 GB peak VRAM at 1024px.
   - name: "qwen-image-2512-sd"
     repo: "EnclaveHost/qwen-image-2512-sd@a82dcb53ef8ff3c675dd0b636788ebb332fa973f"
     mpk: "f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2_30075547648_8c18a205-f8c1-5a49-82d7-f0c367f603a1"
+  # Real-ESRGAN x4plus (BSD-3, RRDBNet 23-block 4x) as an UPSCALER volume:
+  # one 64 MB upscaler.safetensors whose presence (ENCLAVE_SD_UPSCALE_FILE
+  # above) makes the sdcpp backend preload it as an ESRGAN upscale graph
+  # instead of a checkpoint - the image-generator app's /upscale route.
+  # Needs the >= mm29 toolchain (sd upscaler verb); older tarballs fail
+  # THIS volume's preload loudly, txt2img unaffected. See the gpu flavor's
+  # entry for provenance.
+  - name: "realesrgan-x4plus-sd"
+    repo: "EnclaveHost/realesrgan-x4plus-sd@f7b73b7949e01f9129c9be9f27337b87dceee51c"
+    mpk: "e0690ebe660661664262455da17ffc8588ffa13dda14accc787c1d712bb529f4_66867200_7f170abb-ec0d-5554-969d-b3aab5f8d282"
 
 # Single ingress → supervisor. Only these paths are reachable from outside.
 # PROBE-PATH NOTE: this shim exposes "/health", but the supervisor serves its
