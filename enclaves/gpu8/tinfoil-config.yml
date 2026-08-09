@@ -110,7 +110,7 @@ containers:
       # version (setApproval tx signed by the catalog's deployer key). Empty =
       # nothing can deploy (the image ships no deployable apps; the one baked
       # .wasm is the boot probe's fixture, not reachable through the API).
-      - APP_CATALOG_ADDRESS: "0xaB0462E55c18E295A221e4Eaa8738F25eB0696D7"                          # set after deploying EnclaveAppCatalog.sol (must be on CHAIN_ID's chain, read via BASE_RPC)
+      - APP_CATALOG_ADDRESS: "0x23f5AE678977B37293D18444346483F5c1e052df"                          # set after deploying EnclaveAppCatalog.sol (must be on CHAIN_ID's chain, read via BASE_RPC)
       - PAYMENT_WINDOW_SEC: "600"                        # unpaid deployments release the reservation
       - GRACE_SEC: "90"                                  # grace after expiry before teardown (top-up window)
       - PAY_POLL_SEC: "12"
@@ -140,7 +140,7 @@ containers:
       # never a request Host header. (Pin it with PUBLIC_URL only if you must.)
       - REGISTRY_ENABLED: "1"
       - ADDRESS_BOOK_ADDRESS: "0xab214342d5A490150A4A977063A2f88E21F80907"                                                            # set by scripts/deploy-address-book.mjs; "" = baked addresses only; when set the supervisor resolves + polls the contract addresses below from the on-chain EnclaveAddressBook
-      - REGISTRY_ADDRESS: "0xCB65f487eba6564D57FfB860cF9aE701584cB4a2"                             # set by scripts/deploy-registry.mjs
+      - REGISTRY_ADDRESS: "0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC"                             # set by scripts/deploy-registry.mjs
       # - REGISTRY_HEARTBEAT_SEC: "900"                  # optional, default 15 min
       # Portable deployments (contracts/DEPLOYMENTS.md): with CLAIM_ENABLED the
       # enclave polls the EnclaveDeployments ledger and claims funded, unleased
@@ -149,7 +149,7 @@ containers:
       # registry entry's operator), so registry advertising above is a hard
       # prerequisite, as is PROVISION_BACKEND=vm (claims run catalog wasm apps).
       - CLAIM_ENABLED: "1"
-      - DEPLOYMENTS_ADDRESS: "0x0A7dE5D205c10B812AbaF0b89f3A243466bCEe01"                          # set by scripts/deploy-deployments.mjs
+      - DEPLOYMENTS_ADDRESS: "0x9F7C617807c5565EF26aA9139a73EfC792279Dc8"                          # set by scripts/deploy-deployments.mjs
       # Where this box's runner earnings sweep to. The supervisor's hourly
       # payoutTick withdraws earned6[REGISTRY_PRIVATE_KEY's EOA] once it clears
       # EARNINGS_MIN_USDC and sends it here. Leaving it UNSET is a silent no-op:

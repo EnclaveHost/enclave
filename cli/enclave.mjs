@@ -58,9 +58,9 @@ const DEFAULTS = {
   chainId: 8453,
   rpcs: ["https://base-rpc.publicnode.com", "https://base.drpc.org",
          "https://1rpc.io/base", "https://mainnet.base.org"],
-  DEPLOYMENTS_ADDRESS: "0x0A7dE5D205c10B812AbaF0b89f3A243466bCEe01",
-  APP_CATALOG_ADDRESS: "0xaB0462E55c18E295A221e4Eaa8738F25eB0696D7",
-  REGISTRY_ADDRESS: "0xCB65f487eba6564D57FfB860cF9aE701584cB4a2",
+  DEPLOYMENTS_ADDRESS: "0x9F7C617807c5565EF26aA9139a73EfC792279Dc8",
+  APP_CATALOG_ADDRESS: "0x23f5AE678977B37293D18444346483F5c1e052df",
+  REGISTRY_ADDRESS: "0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC",
   ADDRESS_BOOK_ADDRESS: "0xab214342d5A490150A4A977063A2f88E21F80907",     // EnclaveAddressBook; written by scripts/deploy-address-book.mjs — when set, the CLI resolves the addresses above from it at start ("" = baked only)
   USDC_ADDRESS: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
   ipfsUpload: env.ENCLAVE_IPFS_UPLOAD || "https://ipfs.enclave.host/add-wasm",
