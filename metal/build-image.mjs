@@ -69,9 +69,27 @@ const pinnedRef = (containerName) => {
   } catch { /* no config (a bare checkout): fall through to the tag */ }
   return null;
 };
-const SUPERVISOR_REF = arg('supervisor', RELEASE
+// Any TAG is resolved to the digest it names right now, BEFORE the pull, so
+// the manifest records exactly what went into the measurement and a rebuild is
+// byte-identical. Without this a `--release` build is reproducible only by
+// luck: metal/update.mjs runs unattended on a timer, and every run would
+// re-resolve the tag and quietly produce a different, unpinnable image.
+// oci-pull --resolve hashes the manifest body itself, so this pins to bytes we
+// checked. A failure here is not fatal — the pull that follows reports the
+// real error, and a dev pointing at a local registry should not be blocked.
+const resolvePinned = (ref) => {
+  if (/@sha256:[0-9a-f]{64}$/.test(ref)) return ref;
+  try {
+    const out = execFileSyncCapture('node', [path.join(HERE, 'oci-pull.mjs'), ref, '--resolve']);
+    const line = out.trim().split('\n').pop().trim();
+    if (/^\S+@sha256:[0-9a-f]{64}$/.test(line)) { console.log(`[build] pinned ${ref} -> ${line.split('@')[1]}`); return line; }
+  } catch { /* fall through */ }
+  console.error(`[build] WARNING: could not resolve ${ref} to a digest; the build will not be reproducible`);
+  return ref;
+};
+const SUPERVISOR_REF = resolvePinned(arg('supervisor', RELEASE
   ? `ghcr.io/enclavehost/enclave-supervisor:${RELEASE}`
-  : 'ghcr.io/enclavehost/enclave-supervisor:latest');
+  : 'ghcr.io/enclavehost/enclave-supervisor:latest'));
 // KEEP IN STEP WITH THE SUPERVISOR. These are two independently-tagged images
 // that share a loopback control plane, and its token derivation changed in
 // c1b7352c (raw fleet SECRET → HMAC(SECRET, "enclave vmmgr v1")). Pair a
@@ -79,7 +97,7 @@ const SUPERVISOR_REF = arg('supervisor', RELEASE
 // SILENTLY in the only direction that looks healthy: /health falls back to its
 // unauthenticated liveness subset, so the enclave keeps answering while
 // advertising no volumes, no capacity and no nn probe.
-const WASM_REF = arg('wasm', pinnedRef('wasm-manager') || 'ghcr.io/enclavehost/enclave-wasm-manager:040ab777');
+const WASM_REF = resolvePinned(arg('wasm', pinnedRef('wasm-manager') || 'ghcr.io/enclavehost/enclave-wasm-manager:040ab777'));
 
 console.log(`[build] kernel=${KERNEL} kver=${KVER}`);
 console.log(`[build] supervisor=${SUPERVISOR_REF}`);

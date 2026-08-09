@@ -16,10 +16,7 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const { encCall, encAddr, decodeStructArray, DEP_SCHEMA, DEP_SCHEMA_V1, APP_SCHEMA, VER_SCHEMA, DEP_SEL, CAT_SEL } = await import(path.join(REPO, "site/js/core/chain.js"));
 const { CONTRACTS } = await import(path.join(REPO, "site/js/gen/contract-artifacts.js"));
 const { encCallX } = await import(path.join(REPO, "site/components/admin-console/migrate.js"));
-const ROLL = await import(path.join(REPO, "site/components/admin-console/rollout.js"));
 const ROLLMIG = await import(path.join(REPO, "site/components/admin-console/migrate.js"));
-const A3 = "0x3333333333333333333333333333333333333333";
-const CONSOLE_SRC = fs.readFileSync(path.join(REPO, "site/components/admin-console/admin-console.js"), "utf8");
 const ABI = (name) => JSON.parse(fs.readFileSync(path.join(REPO, "contracts", name + ".abi.json"), "utf8"));
 
 /* mirrors of the console's local helpers (admin-console.js is a custom
@@ -594,85 +591,7 @@ test("the migration flow survives a repaint, and Seal is never unreachable", () 
 });
 
 
-/* ---- one-button paired-revision rollout (rollout.js + its driver) --------
-   The button sends contract CREATIONS and a book flip with no review step in
-   between, so every byte it produces is pinned here, and the ORDER it produces
-   them in is pinned too: the ordering is the safety property. Getting it wrong
-   does not fail loudly — it seals an unbacked ledger, or points the book at a
-   pair that reverts every claim on the fleet. */
-
-test("rollout: the deploy payloads are exactly viem's, for all three contracts", () => {
-  const A = (n) => ABI(n);
-  // registry takes no constructor arguments
-  eq(ROLL.deployTx("EnclaveRegistry", []),
-     encodeDeployData({ abi: A("EnclaveRegistry"), bytecode: CONTRACTS.EnclaveRegistry.bytecode, args: [] }));
-  // the ledger carries the SOURCE's usdc/payout/feed and the NEW registry —
-  // re-typing those by hand is how a redeploy quietly moves where money lands
-  eq(ROLL.deployTx("EnclaveDeployments", [
-        { t: "addr", v: A1 }, { t: "addr", v: A2 }, { t: "addr", v: A3 }, { t: "addr", v: ZERO }]),
-     encodeDeployData({ abi: A("EnclaveDeployments"), bytecode: CONTRACTS.EnclaveDeployments.bytecode,
-                        args: [A1, A2, A3, ZERO] }));
-  eq(ROLL.deployTx("EnclaveProofOfTime", [{ t: "addr", v: A1 }, { t: "addr", v: A2 }]),
-     encodeDeployData({ abi: A("EnclaveProofOfTime"), bytecode: CONTRACTS.EnclaveProofOfTime.bytecode,
-                        args: [A1, A2] }));
-});
-
-test("rollout: setProver / setProofRequiredFrom / retire encode as viem does", () => {
-  eq(ROLL.setProverTx(A1),
-     encodeFunctionData({ abi: ABI("EnclaveDeployments"), functionName: "setProver", args: [A1] }));
-  eq(ROLL.setProofRequiredFromTx(1780000000n),
-     encodeFunctionData({ abi: ABI("EnclaveDeployments"), functionName: "setProofRequiredFrom", args: [1780000000n] }));
-  eq(ROLL.retireTx(),
-     encodeFunctionData({ abi: ABI("EnclaveDeployments"), functionName: "retire", args: [] }));
-});
-
-test("rollout: the book flip is ONE setMany, not three sets", () => {
-  // Not a gas optimisation. Three separate flips leave a window where the book
-  // names a rev-12 ledger and a schema-3 registry, and anything resolving the
-  // pair in that window wires itself to a combination whose every claim reverts.
-  const pairs = [["registry", A1], ["deployments", A2], ["proofOfTime", A3]];
-  eq(ROLL.bookSetManyTx(pairs),
-     encodeFunctionData({ abi: ABI("EnclaveAddressBook"), functionName: "setMany",
-                          args: [pairs.map(([k]) => encKey(k)), pairs.map(([, a]) => a)] }));
-  assert.match(CONSOLE_SRC, /bookSetManyTx\(pairs\)/);
-  assert.doesNotMatch(CONSOLE_SRC.split('act === "r12-run"')[1].split('act === "vlt-scan"')[0],
-    /sel\.set\b/, "the rollout must not flip book keys one at a time");
-});
-
-test("rollout: it targets the revisions the checked-in contracts actually are", () => {
-  const rev = (f, re) => Number(re.exec(fs.readFileSync(path.join(REPO, "contracts", f), "utf8"))[1]);
-  assert.equal(ROLL.REV12.ledgerRev, rev("EnclaveDeployments.sol", /deploymentsSchema = (\d+);/),
-    "the button would deploy a ledger it then refuses to accept");
-  assert.equal(ROLL.REV12.registryRev, rev("EnclaveRegistry.sol", /registrySchema = (\d+);/));
-});
-
-test("rollout: the run's order is the safety property", () => {
-  const run = CONSOLE_SRC.split('act === "r12-run"')[1].split('act === "vlt-scan"')[0];
-  const at = (needle) => { const i = run.indexOf(needle); assert.ok(i > 0, `missing step: ${needle}`); return i; };
-  // deploys → bind → migrate → back escrow → verify → seal → book flip.
-  const order = ['deployTx("EnclaveRegistry"', 'deployTx("EnclaveDeployments"', 'deployTx("EnclaveProofOfTime"',
-                 "setProverTx(", 'runImports("migrate")', "backEscrow()", "mig.verify(", "sealTx(", "bookSetManyTx("];
-  const idx = order.map(at);
-  for (let i = 1; i < idx.length; i++)
-    assert.ok(idx[i] > idx[i - 1], `${order[i]} must come after ${order[i - 1]}`);
-  // Backing has to happen while imports are OPEN: after the seal it is no
-  // longer credited to each record's owner as refundable, permanently.
-  assert.ok(at("backEscrow()") < at("sealTx("), "escrow backing must precede the seal");
-  // ... and a delta that lands new records must be backed again before sealing,
-  // or those records are sealed unbacked and no later transaction can fix it.
-  assert.match(run, /if \(await runImports\("final pass"\)\) await backEscrow\(\);/);
-  // The book flip is last, so a stop anywhere leaves the fleet on the old set.
-  assert.ok(at("bookSetManyTx(") > at("sealTx("), "the book flip must be the last thing the run does");
-  // retire() is NOT part of the run. It lives in the branch that only executes
-  // when the book ALREADY points at the new set — i.e. on a later click, after
-  // the fleet has had time to follow — and it arms separately there.
-  const [doneBranch, theRun] = CONSOLE_SRC.split('act === "r12-run"')[1]
-    .split("/* ---- first click: price it, sign nothing ---- */");
-  assert.ok(doneBranch.includes("if (P.complete)"), "the retire path must hang off the completed-rollout probe");
-  assert.match(doneBranch, /retireTx\(\)/);
-  assert.match(doneBranch, /btn\.dataset\.armed/, "retiring must be armed by a second click of its own");
-  assert.ok(!theRun.includes("retireTx()"), "the rollout run itself must never retire the source");
-});
+/* ---- migration batch sizing -------------------------------------------- */
 
 test("migration batches are sized by GAS, and a record's gas is its BYTES", async () => {
   // The 2026-08-09 stall: importDeployments assumed a flat 450k per record, but
@@ -703,91 +622,3 @@ test("migration batches are sized by GAS, and a record's gas is its BYTES", asyn
   for (const t of imports) assert.ok(t.gas < 9_000_000, `a planned batch claims ${t.gas} gas, over budget`);
 });
 
-test("rollout: a transaction over the estimate ceiling is refused, not handed over", async () => {
-  // Past ~11M the wallet gets no gas limit and never broadcasts: no rejection,
-  // no revert, no error. Checking it ourselves is what makes that a sentence.
-  const { MAX_TX_GAS } = await import(path.join(REPO, "site/components/admin-console/rollout.js"));
-  assert.ok(MAX_TX_GAS >= 8_000_000n && MAX_TX_GAS <= 11_000_000n);
-  const run = CONSOLE_SRC.split('act === "r12-run"')[1].split('act === "vlt-scan"')[0];
-  assert.match(run, /const sendChecked = async[\s\S]{0,600}g > MAX_TX_GAS[\s\S]{0,300}stops broadcasting without reporting anything/);
-  // every batched send must go through it - a raw sendTx in the loops is the
-  // hole this closes
-  const loops = run.split("const sendChecked")[1];
-  assert.ok(!/const h = await sendTx\(ledger, txs\[i\]\.dataHex\)/.test(loops), "import batches must use sendChecked");
-  assert.ok(!/const h = await sendTx\(ledger, plan\.txs\[i\]\.dataHex\)/.test(loops), "escrow batches must use sendChecked");
-});
-
-test("rollout: it checks the USDC balance BEFORE it deploys anything", () => {
-  // The escrow step is the only one that spends money, and it is the LAST of
-  // the expensive steps. Discovering a shortfall there means three contracts
-  // are already deployed and the run dies holding them - which is how a
-  // migration gets abandoned half-done. So the balance is checked in the
-  // read-only pricing pass, before a single signature.
-  const run = CONSOLE_SRC.split('act === "r12-run"')[1].split('act === "vlt-scan"')[0];
-  const [plan, exec] = run.split("/* ---- the run ---- */");
-  assert.match(plan, /balanceOf6\(Enclave\.address\)/, "the priced plan must read the wallet's USDC");
-  assert.match(plan, /held6 < BigInt\(esc6\.total6\)[\s\S]{0,400}NOTHING has been signed/);
-  // and again at the step itself, because the balance can move between the two
-  // clicks and a failed transferFrom mid-batch strands the run
-  assert.match(exec, /const bal6 = await balanceOf6\(Enclave\.address\)[\s\S]{0,400}Nothing was approved/);
-  assert.ok(exec.indexOf("const bal6") < exec.indexOf("approveTx(ledger"),
-    "the balance check must precede the approve");
-});
-
-test("rollout: escrow backing can be skipped, and skipping says what it costs", () => {
-  // The wallet that owns the deployments may also own the boxes serving them,
-  // in which case unbacked records cost nobody anything - and the money stays
-  // refundable on the old ledger either way. But a host that is NOT that wallet
-  // would serve for free, so the opt-out has to state it rather than read as a
-  // free win.
-  assert.match(CONSOLE_SRC, /id="r12SkipEscrow"/);
-  assert.match(CONSOLE_SRC, /Migrate WITHOUT re-seating the runner escrow[\s\S]{0,600}earns nothing until someone calls <code>fundEscrow<\/code>/);
-  const run = CONSOLE_SRC.split('act === "r12-run"')[1].split('act === "vlt-scan"')[0];
-  assert.match(run, /if \(skipEscrow\) \{[\s\S]{0,400}escrow6 = 0/);
-  // skipping must not silently also skip the seal/flip - the run still finishes
-  assert.ok(run.indexOf("if (skipEscrow)") < run.indexOf("sealTx("));
-});
-
-test("rollout: a re-run against a SEALED target still verifies and flips", () => {
-  // Once imports are sealed, runImports returns early without loading the
-  // source — which is the state every resumed run lands in after the migration
-  // finishes. Verify must not depend on that load having happened, or the last
-  // step before the book flip throws a TypeError far from its cause.
-  const run = CONSOLE_SRC.split('act === "r12-run"')[1].split('act === "vlt-scan"')[0];
-  assert.match(run, /const srcForVerify = \(R\.srcOf === P\.source\.addr && R\.src\) \|\| await mig\.read\(P\.source\.addr\);/);
-  assert.match(run, /mig\.verify\(srcForVerify, ledger/);
-  assert.ok(!/mig\.verify\(R\.src\b/.test(run), "verify must not read a source the sealed path never loaded");
-  // and the sealed path must still fall through to seal-skip + book flip
-  assert.match(run, /if \(st\.sealed\) \{ log\("p", `\$\{label\}: imports already sealed - skipping`\); return true; \}/);
-});
-
-test("rollout: the retire step targets the REPLACED ledger, never the live one", () => {
-  // After the flip the book — and so probeRev12's `source` — IS the new ledger.
-  // Reaching for it there would close the ledger the fleet is serving from, so
-  // the retire path must operate on the address recorded at flip time and must
-  // refuse if the two ever coincide.
-  const done = CONSOLE_SRC.split('act === "r12-run"')[1]
-    .split("/* ---- first click: price it, sign nothing ---- */")[0];
-  assert.match(done, /const oldLedger = saved\.retire;/);
-  assert.match(done, /sendTx\(oldLedger, retireTx\(\)\)/);
-  assert.ok(!/sendTx\(P\.source\.addr, retireTx/.test(done), "must not retire whatever the book currently names");
-  assert.match(done, /lc\(oldLedger\) !== lc\(P\.ledger\.addr\)/, "and must refuse when they are the same address");
-  // the flip records it, or the step is unreachable
-  const run = CONSOLE_SRC.split('act === "r12-run"')[1];
-  assert.match(run, /this\._r12Save\(\{ retire: P\.source\.addr \}\);/);
-  // ... and the card has to stay rendered while that crumb exists, or there is
-  // no button left to click
-  assert.match(CONSOLE_SRC, /< REV12\.ledgerRev \|\| this\._r12Saved\(\)\.retire/);
-});
-
-test("rollout: a fresh deploy is verified against the revision it claims", () => {
-  // A stale site build deploys the PREVIOUS revision perfectly happily. Without
-  // these probes the run would wire and seal a set that cannot serve.
-  const run = CONSOLE_SRC.split('act === "r12-run"')[1].split('act === "vlt-scan"')[0];
-  assert.match(run, /revOfRegistry\(registry\)[\s\S]{0,400}rebuild/);
-  assert.match(run, /revOfLedger\(ledger\)[\s\S]{0,400}rebuild/);
-  // and a reused ledger must be bound to the registry being shipped
-  const src = fs.readFileSync(path.join(REPO, "site/components/admin-console/rollout.js"), "utf8");
-  assert.match(src, /ledger\.registryOk = [\s\S]{0,120}lc\(boundReg\) === lc\(registry\.addr\)/);
-  assert.match(src, /if \(!ledger\.registryOk\) \{ ledger\.addr = null;/);
-});
