@@ -269,6 +269,42 @@ const CHUNK = { deployments: 6, apps: 10, fees: 40, escrow: 12,     // fees: 3 w
                                                        // suspend: one SSTORE + event, cheap
 const VER_TX_BYTES = 6 * 1024;   // max calldata for a single importVersions call
 
+/* What importing ONE record actually costs. A deployment is mostly STRINGS -
+   appRef, ports, and the deployment-options envelope in configCid, which rev 5
+   widened from CID-sized (100 bytes) to 4096 - and a cold SSTORE is 20k per
+   32-byte word, so a 4 KB envelope is ~3M gas on its own. A flat per-record
+   figure is therefore not a rough estimate, it is a different number entirely:
+   the 450k this used to assume is ~7x under for an envelope-carrying record,
+   which packed six of them into one 15.7M-gas transaction. That is over the
+   ~11M ceiling below, where the wallet never broadcasts and reports nothing -
+   the failure this whole budget exists to avoid.
+
+   Calibrated on Base against the live ledger (n = 1,2,3,4,6 records,
+   80..3990 string bytes each): gas ~= 12k + 270k*n + 730*bytes, within 0.2%
+   across that range. Carries a 20% margin on top, because the number that
+   matters is never being UNDER the real cost. */
+const strBytes = (v) => new TextEncoder().encode(String(v ?? "")).length;
+export const recordImportGas = (d) =>
+  Math.ceil(1.2 * (270_000 + 730 * (strBytes(d.appRef) + strBytes(d.ports) + strBytes(d.configCid))));
+
+/* Split by COST, not by count. `max` still caps a batch (a sanity bound on
+   calldata and on how much one failed confirmation costs), but the gas budget
+   is what actually decides, so a batch of small records stays big and a batch
+   of envelope-carrying ones shrinks to two. */
+function chunkByGas(items, gasOf, budget, max) {
+  if (!items.length) return [];
+  const out = [[]];
+  let used = 0;
+  for (const it of items) {
+    const g = gasOf(it);
+    const cur = out[out.length - 1];
+    if (cur.length && (used + g > budget || cur.length >= max)) { out.push([]); used = 0; }
+    out[out.length - 1].push(it);
+    used += g;
+  }
+  return out;
+}
+
 /* -- deployments -- */
 // Struct-schema revision sniff (same idea as the catalog's): rev-1 sources
 // have no deploymentsSchema getter (the call reverts) and their Deployment
@@ -453,6 +489,10 @@ function packPlan(contractName, txs) {
   }
   return groups.map((g) => g.length === 1 ? g[0] : {
     label: `multicall · ${g.length} calls (${g.map((t) => t.label.split(" ·")[0]).filter((v, i, a) => a.indexOf(v) === i).join(", ")})`,
+    // carry the summed estimate: a packed tx with no declared gas is invisible
+    // to every budget check downstream, which is precisely how one lands over
+    // the ceiling and fails without a word
+    gas: g.reduce((n, t) => n + (t.gas || 1_000_000), 0),
     dataHex: encCallX(sel.multicall, [{ t: "bytes[]", v: g.map((t) => t.dataHex) }]),
   });
 }
@@ -474,9 +514,9 @@ export const MIG_KINDS = {
       const sel = CONTRACTS.EnclaveDeployments.sel;
       const have = new Set(after.map((d) => d.id.toLowerCase()));
       const todo = data.filter((d) => !have.has(d.id.toLowerCase())).map(depClean);
-      const txs = chunked(todo, CHUNK.deployments).map((c, i) => ({
+      const txs = chunkByGas(todo, recordImportGas, GAS_BUDGET, CHUNK.deployments).map((c, i) => ({
         label: `importDeployments · batch ${i + 1} (${c.length})`,
-        gas: 120_000 + 450_000 * c.length,
+        gas: 120_000 + c.reduce((s, d) => s + recordImportGas(d), 0),
         dataHex: encCallX(sel.importDeployments, [{ t: "tuple[]", schema: DEP_SCHEMA, v: c }]),
       }));
       // fee snapshots ride AFTER the record imports (importFees requires the

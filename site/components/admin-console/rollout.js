@@ -153,6 +153,23 @@ export async function sourceEscrowTotal6(source) {
   return { total6: total.toString(), records: ids };
 }
 
+/* The wall a migration dies against without saying so. Public Base RPCs cap
+   eth_estimateGas around 11M; past it the estimate errors, the wallet never
+   receives a gas limit, and the transaction simply never broadcasts - no
+   rejection, no revert, no console error. The run just stops on "confirm in
+   your wallet…" forever. Checking the number OURSELVES before handing it over
+   is the only way that failure becomes a sentence instead of a silence. */
+export const MAX_TX_GAS = 10_000_000n;
+
+/* null = could not estimate (a reverting call, or a flaky RPC). The caller
+   treats that as "proceed and let the wallet decide": refusing to send on an
+   unreadable estimate would make a transient RPC blip look like a dead button,
+   which is the failure mode we are removing, not adding. */
+export async function estimateGas(from, to, data) {
+  try { return BigInt(await baseRpc("eth_estimateGas", [{ from, to, data }])); }
+  catch { return null; }
+}
+
 /* ---- ready-to-send calldata for the steps that are not migrate/escrow ---- */
 
 export const deployTx = (name, args) => CONTRACTS[name].bytecode + encCall("", args).slice(2);

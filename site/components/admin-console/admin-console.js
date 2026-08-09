@@ -25,7 +25,7 @@ import { CONTRACTS } from "../../js/gen/contract-artifacts.js";
 import { MIG_KINDS, importState, sealTx, encCallX, escrowPlan, approveTx, refundSweepPlan } from "./migrate.js";
 import { vaultImplCurrent, scanVaults, planVaultMigration, oldTreasury, balanceOf6 } from "./vaultmig.js";
 import { REV12, probeRev12, sourceEscrowTotal6, deployTx, setProverTx, setProofRequiredFromTx,
-         retireTx, bookSetManyTx, revOfLedger, revOfRegistry } from "./rollout.js";
+         retireTx, bookSetManyTx, revOfLedger, revOfRegistry, estimateGas, MAX_TX_GAS } from "./rollout.js";
 import { metricsPanel, paintMetrics, paintHistory, loadMetrics, redrawPlots } from "./metrics.js";
 
 const EXPLORER = "https://basescan.org";
@@ -1078,6 +1078,21 @@ class AdminConsole extends EnclaveElement {
           await this._connect();
           const keep = { ...saved };
           const remember = (k, v) => { keep[k] = v; this._r12Save(keep); };
+          /* Every batched send goes through here. A transaction over the RPC's
+             estimate ceiling is the one failure that reports NOTHING - the
+             wallet never broadcasts and the run hangs on "confirm in your
+             wallet…" - so it is checked before the wallet ever sees it, and
+             named as a planning bug rather than something to retry. */
+          const sendChecked = async (to, dataHex, label) => {
+            const g = await estimateGas(Enclave.address, to, dataHex);
+            if (g !== null && g > MAX_TX_GAS)
+              throw new Error(`"${label}" needs ${g.toLocaleString()} gas, past the ~${MAX_TX_GAS / 1000000n}M ceiling where the wallet stops broadcasting without reporting anything. `
+                + "That is a planning bug, not something to retry - the batch needs splitting further.");
+            const h = await sendTx(to, dataHex);
+            log("p", `  sent ${h.slice(0, 14)}…${g !== null ? ` (${g.toLocaleString()} gas)` : ""} waiting…`);
+            await waitReceipt(h, 90);
+            return h;
+          };
 
           /* 1. registry */
           let registry = P.registry.addr;
@@ -1159,8 +1174,7 @@ class AdminConsole extends EnclaveElement {
             log("p", `${label}: ${txs.length} transaction${txs.length === 1 ? "" : "s"}`);
             for (let i = 0; i < txs.length; i++) {
               log("p", `  [${i + 1}/${txs.length}] ${txs[i].label} - confirm in your wallet…`);
-              const h = await sendTx(ledger, txs[i].dataHex);
-              await waitReceipt(h, 90);
+              await sendChecked(ledger, txs[i].dataHex, txs[i].label);
               log("ok", `    ✓ ${txs[i].label}`);
             }
             return true;
@@ -1195,8 +1209,7 @@ class AdminConsole extends EnclaveElement {
             await waitReceipt(ah, 90);
             for (let i = 0; i < plan.txs.length; i++) {
               log("p", `  [${i + 1}/${plan.txs.length}] ${plan.txs[i].label} - confirm in your wallet…`);
-              const h = await sendTx(ledger, plan.txs[i].dataHex);
-              await waitReceipt(h, 90);
+              await sendChecked(ledger, plan.txs[i].dataHex, plan.txs[i].label);
               log("ok", `    ✓ ${plan.txs[i].label}`);
             }
             log("ok", `  escrow re-seated with ${usd(plan.total6)} ✓`);
