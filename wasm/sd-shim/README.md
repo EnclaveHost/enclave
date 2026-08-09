@@ -8,9 +8,10 @@ in guest memory — the big-model image path (SD-Turbo full checkpoints, SDXL,
 FLUX gguf quants).
 
 **Pinned revision**: `leejet/stable-diffusion.cpp@b5d812008eb7082a238fc589444544b3278187ae`
-(header layout is shim-internal; the Rust FFI binds only enclave_sd's seven
-pointer/scalar functions, so an sd.cpp bump recompiles the shim, not the
-patch).
+(header layout is shim-internal; the Rust FFI binds only enclave_sd's
+pointer/scalar functions - seven txt2img ones by link, the step hook and
+the four upscaler ones by dlsym - so an sd.cpp bump recompiles the shim,
+not the patch).
 
 ## Build
 
@@ -67,6 +68,19 @@ ESD_LIB_LOCATION=<dir with both .so> cargo build --release -p wasmtime-cli \
   decode stays on the GPU and the quantized diffusion model is untouched.
   Override with `ENCLAVE_SD_TENSOR_TYPE_RULES` for a VAE whose tensors use a
   different prefix, or to relax/widen the pin, without a shim rebuild.
+- **Upscaler volumes** (ESRGAN): a volume carrying the file named by
+  `ENCLAVE_SD_UPSCALE_FILE` (fleet convention: `upscaler.safetensors`)
+  preloads as a super-resolution graph through sd.cpp's second engine
+  instead of a generation pipeline — RRDBNet family (Real-ESRGAN and
+  finetunes), scale 1/2/4 read from the weights. The env is a DETECTOR, not
+  a validator: generation volumes simply don't carry the file, so it
+  coexists with the component vars on one node. `ENCLAVE_SD_UPSCALE_TILE`
+  (px, default 256, 0 = untiled) tiles the INPUT with 0.25 blended overlap,
+  capping activation memory at O(tile²). The four shim entry points behind
+  this (`esd_load_upscaler`/`esd_free_upscaler`/`esd_upscaler_scale`/
+  `esd_upscale`) resolve by dlsym — a toolchain tarball predating them
+  keeps serving txt2img, upscaler volumes just fail preload with a
+  "rebuild the toolchain" error.
 - Tuning env (per node / per tenant): `ENCLAVE_SD_USE_GPU` (default 1,
   strict — no silent CPU fallback), `ENCLAVE_SD_WTYPE` (e.g. `f16` to halve
   an f32 checkpoint on load), `ENCLAVE_SD_N_THREADS`, `ENCLAVE_SD_FLASH_ATTN`
@@ -101,3 +115,13 @@ image:
 Generation blocks inside `compute()`; one generation at a time per model
 (mutex — requests queue). Guest fuel cost per image: prompt in, ~h·w·3 bytes
 out.
+
+An UPSCALER volume's graph takes one named tensor instead:
+
+| tensor | type | meaning |
+|---|---|---|
+| `image` (req.) | U8 [1,h,w,3] | RGB row-major, 16..4096 a side |
+| → `image` | U8 [1,h·s,w·s,3] | s = the model's scale; output capped at 8192×8192 |
+
+Same mutex/queueing; prompts against an upscaler volume (and images against
+a generation volume) refuse with an error saying which volume kind was hit.

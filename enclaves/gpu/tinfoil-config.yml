@@ -433,13 +433,18 @@ containers:
       # (wasmtime-nn-sdcpp.patch on top of nn-ggml + libenclave_sd/
       # libstable-diffusion from wasm/sd-shim) - rebuild the "Wasmtime
       # Toolchain" and repin WASMTIME_IMAGE before deployments can serve it.
-      # Both SD volumes preload (image models only - sd-turbo/sd-turbo-full
+      # SD volumes preload (image models only - sd-turbo/sd-turbo-full
       # stay mounted for guests but out of the SD preload). The
       # ENCLAVE_SD_*_FILE envs below are node-global and the preload
-      # validates them against EVERY listed SD volume, so both volumes carry
-      # GENERIC component filenames (diffusion.gguf/llm.gguf/vae.safetensors):
-      # z-image-turbo-sd@d7aeefc3 (rename of 07cb261e) and qwen-image-2512-sd.
-      - MODEL_VOLUMES_SD: "z-image-turbo-sd,qwen-image-2512-sd"
+      # validates them against EVERY listed SD volume, so both GEN volumes
+      # carry GENERIC component filenames (diffusion.gguf/llm.gguf/
+      # vae.safetensors): z-image-turbo-sd@d7aeefc3 (rename of 07cb261e)
+      # and qwen-image-2512-sd. realesrgan-x4plus-sd is an UPSCALER volume:
+      # its upscaler.safetensors (ENCLAVE_SD_UPSCALE_FILE below) marks it,
+      # the component validators don't apply to it, and it preloads as an
+      # ESRGAN upscale graph (needs a >= mm29 sd shim in the toolchain; on
+      # an older tarball only this volume fails preload, loudly).
+      - MODEL_VOLUMES_SD: "z-image-turbo-sd,qwen-image-2512-sd,realesrgan-x4plus-sd"
       # Generic component layout, shared by every SD volume above. Each
       # volume brings its OWN diffusion/llm/vae under these names (z-image:
       # Z-Image 6B + Qwen3-4B; qwen: Qwen-Image-2512 20B + Qwen2.5-VL-7B).
@@ -452,6 +457,11 @@ containers:
       - ENCLAVE_SD_DIFFUSION_FILE: "diffusion.gguf"
       - ENCLAVE_SD_LLM_FILE: "llm.gguf"
       - ENCLAVE_SD_VAE_FILE: "vae.safetensors"
+      # upscaler-volume DETECTOR (not a validator): only upscaler volumes
+      # carry the file, generation volumes must never. Inert until an
+      # upscaler volume is attached. Input tile size stays at the backend
+      # default (ENCLAVE_SD_UPSCALE_TILE=256px, O(tile^2) activations).
+      - ENCLAVE_SD_UPSCALE_FILE: "upscaler.safetensors"
       # tiled VAE decode: caps the 1024px decode spike (~6 GB -> ~1.5 GB).
       # 64:0.25 = 64-latent (512px) tiles, 0.25 overlap: <=512px decodes
       # SINGLE-TILE (byte-identical to untiled - verified), 1024px is a 3x3
@@ -753,6 +763,22 @@ models:
   - name: "qwen-image-2512-sd"
     repo: "EnclaveHost/qwen-image-2512-sd@a82dcb53ef8ff3c675dd0b636788ebb332fa973f"
     mpk: "f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2_30075547648_8c18a205-f8c1-5a49-82d7-f0c367f603a1"
+  # Real-ESRGAN x4plus (BSD-3, RRDBNet 23-block 4x) as an UPSCALER volume:
+  # one 64 MB upscaler.safetensors whose presence (ENCLAVE_SD_UPSCALE_FILE
+  # above) makes the sdcpp backend preload it as an ESRGAN upscale graph
+  # instead of a checkpoint - the image-generator app's /upscale route.
+  # Curated from the official v0.1.0 release .pth, converted torch-free and
+  # deterministically (provenance + both sha256s in the repo README; rebuild
+  # bit-for-bit with enclave-apps image-generator/fetch-model.sh).
+  # In MODEL_VOLUMES_SD above. Needs the >= mm29 toolchain (sd upscaler
+  # verb); older tarballs fail THIS volume's preload loudly, txt2img
+  # unaffected. TODO(steven): generate the mpk in the Tinfoil Models tab
+  # from the pinned repo, paste it below, and add
+  # realesrgan-x4plus-sd:/tinfoil/mpk/mpk-<root_hash> to MODEL_VOLUMES -
+  # until then this entry stays commented and the volume cannot attach.
+  # - name: "realesrgan-x4plus-sd"
+  #   repo: "EnclaveHost/realesrgan-x4plus-sd@f7b73b7949e01f9129c9be9f27337b87dceee51c"
+  #   mpk: "<Tinfoil Models tab>"
 
 # Single ingress → supervisor. Only these paths are reachable from outside.
 # PROBE-PATH NOTE: this shim exposes "/health", but the supervisor serves its

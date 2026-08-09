@@ -1121,6 +1121,12 @@ _SD_COMPONENT_ENV_VARS = (
     "ENCLAVE_SD_LLM_FILE", "ENCLAVE_SD_VAE_FILE",
 )
 
+# NOT in _SD_COMPONENT_ENV_VARS on purpose: the component vars are
+# VALIDATORS (every set one must resolve in a generation volume), while the
+# upscale var is a DETECTOR - the file only exists in upscaler volumes, and
+# its presence is what marks one (mirrors the sdcpp backend exactly).
+_SD_UPSCALE_ENV = "ENCLAVE_SD_UPSCALE_FILE"
+
 
 def _sd_component_files() -> dict:
     return {var: v for var in _SD_COMPONENT_ENV_VARS
@@ -1129,15 +1135,22 @@ def _sd_component_files() -> dict:
 
 def _sd_layout(name: str, host_path):
     """How an MODEL_VOLUMES_SD volume preloads on this node, mirroring the
-    sdcpp backend exactly: ("components", None) when
+    sdcpp backend exactly: ("upscaler", None) when ENCLAVE_SD_UPSCALE_FILE
+    resolves inside the volume (an ESRGAN upscale volume - decided FIRST,
+    because its single model file would otherwise misread as a
+    single-checkpoint generation volume), ("components", None) when
     ENCLAVE_SD_DIFFUSION_FILE selects component mode, ("checkpoint", path)
     for the single-file convention, (None, None) when the backend would
     refuse - the manager then mounts WITHOUT preloading instead of aborting
-    the tenant launch. Every SET ENCLAVE_SD_*_FILE env must resolve inside
-    the volume in EITHER mode (the backend validates all of them, and they
-    are node-global - which is why a component-layout volume and a
-    single-checkpoint volume cannot both preload on one node yet)."""
+    the tenant launch. Every SET ENCLAVE_SD_*_FILE component env must
+    resolve inside a GENERATION volume (the backend validates all of them,
+    and they are node-global - which is why a component-layout volume and a
+    single-checkpoint volume cannot both preload on one node yet; upscaler
+    volumes are exempt, the component rules don't apply to them)."""
     p = pathlib.Path(host_path)
+    upscale_rel = os.environ.get(_SD_UPSCALE_ENV, "").strip()
+    if upscale_rel and (p / upscale_rel).is_file():
+        return ("upscaler", None)
     comps = _sd_component_files()
     if not all((p / rel).is_file() for rel in comps.values()):
         return (None, None)
@@ -3624,10 +3637,11 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
                     print(f"[nn-graph] sd volume '{name}': toolchain lacks sd preload - mounting only", flush=True)
                     continue
                 mode, ckpt = _sd_layout(name, host_path)
-                if mode == "components":
-                    # split-component volumes (Z-Image/Qwen-Image-class)
-                    # stage WHOLE-DIR: the backend resolves the env-named
-                    # files inside it - same one-symlink shape as onnx
+                if mode in ("components", "upscaler"):
+                    # split-component volumes (Z-Image/Qwen-Image-class) and
+                    # upscaler volumes (ESRGAN) stage WHOLE-DIR: the backend
+                    # resolves the env-named files inside it - same
+                    # one-symlink shape as onnx
                     stage = _stage_onnx_dir(name, host_path)
                     if stage:
                         vram_stages.append((_staged_bytes(stage), name, "sd", stage))

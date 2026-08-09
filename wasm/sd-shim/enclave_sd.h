@@ -4,8 +4,9 @@
  * their layout shifts between revisions - hand-rolled Rust FFI against them
  * would be layout-roulette on every bump. This shim pins the boundary to
  * pointers and scalars only, compiled against the PINNED sd.cpp checkout and
- * shipped next to libstable-diffusion, so the Rust side binds seven trivial
- * functions that cannot drift.
+ * shipped next to libstable-diffusion, so the Rust side binds a dozen
+ * trivial functions that cannot drift (the seven txt2img ones by link, the
+ * step hook and the four upscaler ones by dlsym).
  *
  * Threading/session model: one esd model handle per preloaded volume, created
  * at server startup (weights land on the device ONCE). generate_image is not
@@ -90,6 +91,42 @@ const char *esd_last_error(void);
  * NULL unregisters. */
 typedef void (*esd_step_cb_t)(void *ud);
 void esd_set_step_cb(esd_step_cb_t cb, void *ud);
+
+/* ---- upscaler (ESRGAN family) ------------------------------------------
+ * sd.cpp's second engine: RRDBNet/ESRGAN super-resolution (Real-ESRGAN and
+ * finetunes; scale 1/2/4 read from the weights). Separate handle type from
+ * esd_load_model - an upscaler volume carries ONLY the SR weights (~65 MB)
+ * and none of the diffusion stack. Like esd_set_step_cb, ALL FOUR symbols
+ * are resolved by DLSYM on the Rust side: a toolchain tarball predating
+ * them still serves txt2img, upscaler volumes just fail to preload with a
+ * "rebuild the toolchain" error. */
+
+/* Load an upscale model (.safetensors/.pth/.gguf, RRDBNet arch).
+ * n_threads <= 0 = all physical cores; use_gpu as in esd_load_model
+ * (callers enforce GPU strictness BEFORE calling). tile_size > 0 tiles the
+ * INPUT into tile_size x tile_size squares (0.25 overlap, seam-blended):
+ * peak activation memory is O(tile^2), the knob that lets a 2048px input
+ * upscale inside a share. <= 0 = no tiling (whole image in one graph).
+ * Returns an opaque handle, or NULL (see esd_last_error). */
+void *esd_load_upscaler(const char *path,
+                        int32_t n_threads,
+                        int32_t use_gpu,
+                        int32_t tile_size);
+void esd_free_upscaler(void *handle);
+
+/* The model's native scale factor (1, 2 or 4), read from the weights. */
+int32_t esd_upscaler_scale(void *handle);
+
+/* Upscale one RGB image (row-major, width*height*3 bytes) by the model's
+ * native factor. rgb_out must hold (width*scale)*(height*scale)*3 bytes.
+ * Blocking; one upscale at a time per handle (the caller serializes, same
+ * as esd_txt2img). Returns 0 on success, nonzero on failure (see
+ * esd_last_error). */
+int32_t esd_upscale(void *handle,
+                    const uint8_t *rgb_in,
+                    int32_t width,
+                    int32_t height,
+                    uint8_t *rgb_out);
 
 #ifdef __cplusplus
 }
