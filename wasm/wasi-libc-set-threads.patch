@@ -1719,10 +1719,26 @@ index 39c175b..ee12695 100644
    # cooperative threads implementation for WASI Preview 3
    list(APPEND top_half_sources
 diff --git a/libc-top-half/musl/src/internal/stdio_impl.h b/libc-top-half/musl/src/internal/stdio_impl.h
-index 4bda1d2..bb37ce3 100644
+index 4bda1d2..194b9a2 100644
 --- a/libc-top-half/musl/src/internal/stdio_impl.h
 +++ b/libc-top-half/musl/src/internal/stdio_impl.h
-@@ -57,8 +57,119 @@ struct _IO_FILE {
+@@ -23,6 +23,15 @@
+ #define F_ERR 32
+ #define F_SVB 64
+ #define F_APP 128
++/* enclave/SET: "a thread that cannot resolve this FILE's descriptor was
++   refused here". Set ONLY by the SET ownership refusals; never set on a
++   non-SET build. It is a property of the CALLER, not of the stream, but
++   `flags` lives in the shared `FILE`, so the owner discards it on sight --
++   see `ferror.c`. Reported by `ferror` (and cleared by `clearerr`) so the
++   textbook `while (!feof(f) && !ferror(f))` drain loop terminates on the
++   thread that cannot use the stream, which is what native does for an
++   unusable descriptor (measured: fread=0 errno=EBADF ferror=1 feof=0). */
++#define F_XERR 256
+ 
+ struct _IO_FILE {
+ 	unsigned flags;
+@@ -57,8 +66,119 @@ struct _IO_FILE {
  	off_t shlim, shcnt;
  	FILE *prev_locked, *next_locked;
  	struct __locale_struct *locale;
@@ -1842,6 +1858,19 @@ index 4bda1d2..bb37ce3 100644
  extern hidden FILE *volatile __stdin_used;
  extern hidden FILE *volatile __stdout_used;
  extern hidden FILE *volatile __stderr_used;
+@@ -109,7 +229,11 @@ hidden void __do_orphaned_stdio_locks(void);
+ hidden void __getopt_msg(const char *, const char *, const char *, size_t);
+ 
+ #define feof(f) ((f)->flags & F_EOF)
+-#define ferror(f) ((f)->flags & F_ERR)
++#define ferror(f) ((f)->flags & F_ERR)  /* enclave/SET: internal only, and
++   currently unused inside libc. It deliberately does NOT see `F_XERR`: that
++   bit is per-caller and only the real `ferror()` knows whether to report or
++   discard it. Anything internal that needs the caller-visible answer must
++   call `ferror()`. */
+ 
+ #define getc_unlocked(f) \
+ 	( ((f)->rpos != (f)->rend) ? *(f)->rpos++ : __uflow((f)) )
 diff --git a/libc-top-half/musl/src/stdio/__fdopen.c b/libc-top-half/musl/src/stdio/__fdopen.c
 index e37ae0d..6d82f02 100644
 --- a/libc-top-half/musl/src/stdio/__fdopen.c
@@ -1959,10 +1988,10 @@ index a5e42c6..afe4b10 100644
  	close_file(__stdout_used);
  	close_file(__stderr_used);
 diff --git a/libc-top-half/musl/src/stdio/__stdio_read.c b/libc-top-half/musl/src/stdio/__stdio_read.c
-index d701188..4a35429 100644
+index d701188..4a3ce27 100644
 --- a/libc-top-half/musl/src/stdio/__stdio_read.c
 +++ b/libc-top-half/musl/src/stdio/__stdio_read.c
-@@ -4,9 +4,50 @@
+@@ -4,9 +4,18 @@
  #endif
  #include "stdio_impl.h"
  #include <sys/uio.h>
@@ -1970,43 +1999,11 @@ index d701188..4a35429 100644
  
  size_t __stdio_read(FILE *f, unsigned char *buf, size_t len)
  {
-+	/* enclave/SET: the read-side backstop. Same rule as `__stdio_write`, same
-+	   reason it cannot set a flag: `F_EOF`/`F_ERR` on another thread's stream
-+	   are visible to its owner. `errno` and a zero count say it. */
++	/* enclave/SET: the read-side backstop, and the flag it may set is
++	   `F_XERR` -- see `__toread.c` for the whole argument. */
 +	if (!__wasilibc_file_mine(f)) {
-+		/* REVIEW FIX: F_ERR, not silence. Returning 0 with neither
-+		   F_EOF nor F_ERR set makes `while (!feof(f) && !ferror(f))`
-+		   -- the textbook drain loop -- spin forever: measured, a
-+		   guest hang at full CPU where the round-9 libc terminated in
-+		   48 ms. Stock `__stdio_read` sets F_EOF on 0 and F_ERR on -1
-+		   precisely so that loop ends.
-+		   This cannot poison a SHARED stream: `!__wasilibc_file_mine`
-+		   implies `set_ns != __WASILIBC_FILE_SHARED`, and the standard
-+		   streams are statically initialised to SHARED and never
-+		   stamped, so the refusal is unreachable for them by
-+		   construction. */
 +		errno = EBADF;
-+		/* A FLAG IS REQUIRED -- returning 0 with neither `F_EOF` nor `F_ERR`
-+		   makes `while (!feof(f) && !ferror(f))` spin forever (measured:
-+		   2,000,000 zero-progress iterations at full CPU where the round-9
-+		   libc terminated in 48 ms). But WHICH flag matters, because the
-+		   flags live in the SHARED `FILE`.
-+		   `F_ERR` on one of the three standard streams poisons it for its
-+		   OWNER: measured, main claims `stdin` by rebinding its own fd 0, a
-+		   worker reads it, and main's `ferror(stdin)` is stuck at 1 where
-+		   both native and the previous revision give 0. The justification
-+		   recorded for setting `F_ERR` unconditionally -- "the standard
-+		   streams are SHARED and never stamped" -- stopped being true when
-+		   `__wasilibc_set_claim_std_stream` began stamping them.
-+		   So: `F_ERR` for a PRIVATE foreign FILE, where the only party
-+		   harmed is the owner that should not be sharing it and a silent
-+		   short read would be worse; `F_EOF` for the shared standard
-+		   streams, which terminates the loop just as well and is what native
-+		   produces in the reachable case. */
-+		if (f == __stdin_used || f == __stdout_used || f == __stderr_used)
-+			f->flags |= F_EOF;
-+		else
-+			f->flags |= F_ERR;
++		f->flags |= F_XERR;
 +		return 0;
 +	}
 +
@@ -2092,10 +2089,10 @@ index 8190ec5..d60f33f 100644
  	if (!(f->flags & F_SVB) && __syscall(SYS_ioctl, f->fd, TIOCGWINSZ, &wsz))
  #else
 diff --git a/libc-top-half/musl/src/stdio/__toread.c b/libc-top-half/musl/src/stdio/__toread.c
-index f142ff0..c05f174 100644
+index f142ff0..4cd1bf4 100644
 --- a/libc-top-half/musl/src/stdio/__toread.c
 +++ b/libc-top-half/musl/src/stdio/__toread.c
-@@ -1,7 +1,41 @@
+@@ -1,7 +1,40 @@
  #include <stdio_impl.h>
 +#include <errno.h>
  
@@ -2110,33 +2107,48 @@ index f142ff0..c05f174 100644
 +	   fgetc/getc/fread/fgets/ungetc/scanf -- reached it. */
 +	if (!__wasilibc_file_mine(f)) {
 +		errno = EBADF;
-+		/* A FLAG IS REQUIRED -- returning 0 with neither `F_EOF` nor `F_ERR`
-+		   makes `while (!feof(f) && !ferror(f))` spin forever (measured:
-+		   2,000,000 zero-progress iterations at full CPU where the round-9
-+		   libc terminated in 48 ms). But WHICH flag matters, because the
-+		   flags live in the SHARED `FILE`.
-+		   `F_ERR` on one of the three standard streams poisons it for its
-+		   OWNER: measured, main claims `stdin` by rebinding its own fd 0, a
-+		   worker reads it, and main's `ferror(stdin)` is stuck at 1 where
-+		   both native and the previous revision give 0. The justification
-+		   recorded for setting `F_ERR` unconditionally -- "the standard
-+		   streams are SHARED and never stamped" -- stopped being true when
-+		   `__wasilibc_set_claim_std_stream` began stamping them.
-+		   So: `F_ERR` for a PRIVATE foreign FILE, where the only party
-+		   harmed is the owner that should not be sharing it and a silent
-+		   short read would be worse; `F_EOF` for the shared standard
-+		   streams, which terminates the loop just as well and is what native
-+		   produces in the reachable case. */
-+		if (f == __stdin_used || f == __stdout_used || f == __stderr_used)
-+			f->flags |= F_EOF;
-+		else
-+			f->flags |= F_ERR;
++		/* A FLAG IS REQUIRED, and it may not be one the OWNER reads.
++		   Setting nothing hangs the caller: `while (!feof(f) &&
++		   !ferror(f)) fread(...)` made 2,000,000 zero-progress
++		   iterations at full CPU (measured, r10f and r12a).
++		   `F_ERR` terminates that loop but is sticky in the SHARED
++		   `FILE`, so the owner's `ferror` reads 1 where native reads 0
++		   -- measured on r13a for BOTH a claimed standard stream and an
++		   ordinary private FILE, and `worker-file-owner.c` already
++		   asserts the owner's `ferror` stays 0.
++		   `F_EOF` is worse, not better: musl's last line here is
++		   `return (f->flags & F_EOF) ? EOF : 0;`, so F_EOF SUPPRESSES
++		   EVERY LATER READ on that stream for every thread -- measured
++		   on r13b, main's own `fgets(stdin)` returned NULL with data
++		   still in the file. Native reports an unusable descriptor as
++		   ferror=1/feof=0 (measured), never as end of input.
++		   `F_XERR` is the same report, addressed to the caller: every
++		   thread that cannot resolve `f->fd` sees it through `ferror`
++		   and terminates, and the owner discards it in `ferror.c`
++		   because it is not the owner's error. */
++		f->flags |= F_XERR;
 +		return EOF;
 +	}
 +
  	f->mode |= f->mode-1;
  	if (f->wpos != f->wbase) f->write(f, 0, 0);
  	f->wpos = f->wbase = f->wend = 0;
+diff --git a/libc-top-half/musl/src/stdio/clearerr.c b/libc-top-half/musl/src/stdio/clearerr.c
+index 3bf94d3..4190b6c 100644
+--- a/libc-top-half/musl/src/stdio/clearerr.c
++++ b/libc-top-half/musl/src/stdio/clearerr.c
+@@ -3,7 +3,10 @@
+ void clearerr(FILE *f)
+ {
+ 	FLOCK(f);
+-	f->flags &= ~(F_EOF|F_ERR);
++	/* enclave/SET: `F_XERR` is cleared here too. It is not defined on a
++	   non-SET build's refusal paths and is never set there, so this is a
++	   no-op outside SET. */
++	f->flags &= ~(F_EOF|F_ERR|F_XERR);
+ 	FUNLOCK(f);
+ }
+ 
 diff --git a/libc-top-half/musl/src/stdio/fclose.c b/libc-top-half/musl/src/stdio/fclose.c
 index d594532..b8af070 100644
 --- a/libc-top-half/musl/src/stdio/fclose.c
@@ -2184,6 +2196,29 @@ index d594532..b8af070 100644
  	FLOCK(f);
  	r = fflush(f);
  	r |= f->close(f);
+diff --git a/libc-top-half/musl/src/stdio/ferror.c b/libc-top-half/musl/src/stdio/ferror.c
+index d692eed..f183906 100644
+--- a/libc-top-half/musl/src/stdio/ferror.c
++++ b/libc-top-half/musl/src/stdio/ferror.c
+@@ -5,7 +5,18 @@
+ int ferror(FILE *f)
+ {
+ 	FLOCK(f);
++#ifdef __wasilibc_set_threads__
++	/* enclave/SET: `F_XERR` records that a thread which cannot resolve this
++	   FILE's descriptor was refused. That is the CALLER's error, not the
++	   stream's -- but `flags` lives in the shared `FILE`, so the OWNER (and
++	   any thread for which the FILE is usable) discards it here rather than
++	   reporting an error it does not have. The refusing thread still sees it
++	   and its drain loop still terminates. */
++	if (__wasilibc_file_mine(f)) f->flags &= ~F_XERR;
++	int ret = !!(f->flags & (F_ERR|F_XERR));
++#else
+ 	int ret = !!(f->flags & F_ERR);
++#endif
+ 	FUNLOCK(f);
+ 	return ret;
+ }
 diff --git a/libc-top-half/musl/src/stdio/fflush.c b/libc-top-half/musl/src/stdio/fflush.c
 index b009437..3bb16d3 100644
 --- a/libc-top-half/musl/src/stdio/fflush.c
@@ -2412,10 +2447,10 @@ index 043f7da..d092391 100644
  	if (a_swap(&f->lock, 0) & MAYBE_WAITERS)
  		__wake(&f->lock, 1, 1);
 diff --git a/libc-top-half/musl/src/stdio/ofl.c b/libc-top-half/musl/src/stdio/ofl.c
-index f9f430b..8973f86 100644
+index f9f430b..84a6f02 100644
 --- a/libc-top-half/musl/src/stdio/ofl.c
 +++ b/libc-top-half/musl/src/stdio/ofl.c
-@@ -15,3 +15,153 @@ void __ofl_unlock()
+@@ -15,3 +15,165 @@ void __ofl_unlock()
  {
  	STRONG_UNLOCK(ofl_lock);
  }
@@ -2549,6 +2584,18 @@ index f9f430b..8973f86 100644
 +	 * with no API by which the guest could reclaim it. Measured at 1,212 bytes
 +	 * per thread creation -- a regression against both the previous revision
 +	 * and native, introduced by the (correct) `fclose` ownership check.
++	 *
++	 * HONEST LIMIT, because the previous comment here asserted otherwise:
++	 * the flush loop above SKIPS any FILE another thread holds `flockfile`d
++	 * (the try-lock is load-bearing -- a blocking acquire in `__pthread_exit`
++	 * is a new hang axis), and this loop re-stamps unconditionally, dirty or
++	 * not. So a contended FILE is handed back with its bytes still buffered
++	 * and they are then lost: measured, native keeps the worker's 21 bytes and
++	 * every SET build loses all 21, `fclose` returning EOF. Nothing is
++	 * MISDELIVERED -- the dead tagged fd fails EBADF on every live thread, so
++	 * no stray bytes reach another stream -- so this is loss, not leak. The
++	 * previous wording, "the bytes were already drained by the loop above",
++	 * was simply false.
 +	 *
 +	 * Re-stamping SHARED is safe precisely BECAUSE the namespace is dead:
 +	 * `f->fd` is a tagged descriptor no live thread can resolve, so
