@@ -748,6 +748,19 @@ test("rollout: escrow backing can be skipped, and skipping says what it costs", 
   assert.ok(run.indexOf("if (skipEscrow)") < run.indexOf("sealTx("));
 });
 
+test("rollout: a re-run against a SEALED target still verifies and flips", () => {
+  // Once imports are sealed, runImports returns early without loading the
+  // source — which is the state every resumed run lands in after the migration
+  // finishes. Verify must not depend on that load having happened, or the last
+  // step before the book flip throws a TypeError far from its cause.
+  const run = CONSOLE_SRC.split('act === "r12-run"')[1].split('act === "vlt-scan"')[0];
+  assert.match(run, /const srcForVerify = \(R\.srcOf === P\.source\.addr && R\.src\) \|\| await mig\.read\(P\.source\.addr\);/);
+  assert.match(run, /mig\.verify\(srcForVerify, ledger/);
+  assert.ok(!/mig\.verify\(R\.src\b/.test(run), "verify must not read a source the sealed path never loaded");
+  // and the sealed path must still fall through to seal-skip + book flip
+  assert.match(run, /if \(st\.sealed\) \{ log\("p", `\$\{label\}: imports already sealed - skipping`\); return true; \}/);
+});
+
 test("rollout: the retire step targets the REPLACED ledger, never the live one", () => {
   // After the flip the book — and so probeRev12's `source` — IS the new ledger.
   // Reaching for it there would close the ledger the fleet is serving from, so

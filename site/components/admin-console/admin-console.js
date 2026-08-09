@@ -1223,7 +1223,13 @@ class AdminConsole extends EnclaveElement {
           if (await runImports("final pass")) await backEscrow();
           log("p", "verifying: re-reading the target and diffing field-by-field…");
           const runnerBps = Number(await rdUintSoft(ledger, CONTRACTS.EnclaveDeployments.sel.runnerBps) ?? 0);
-          const v = await mig.verify(R.src, ledger, { grantRates: true, runnerBps });
+          // Read the source here if we have not already. runImports returns
+          // EARLY on an already-sealed target without ever loading it, which is
+          // exactly the state a re-run lands in once the imports are done - and
+          // verifying `undefined` throws a TypeError several steps from its
+          // cause, right before the book flip.
+          const srcForVerify = (R.srcOf === P.source.addr && R.src) || await mig.read(P.source.addr);
+          const v = await mig.verify(srcForVerify, ledger, { grantRates: true, runnerBps });
           if (v.bad.length) {
             log("err", `${v.ok}/${v.total} records match; mismatched: ${v.bad.slice(0, 10).join(", ")}${v.bad.length > 10 ? " …" : ""}`);
             log("err", "STOPPING before the seal and the book flip - nothing is live yet, and the old ledger is still serving. Investigate with the Migrate panel (source and target are prefilled below), then re-run.");
