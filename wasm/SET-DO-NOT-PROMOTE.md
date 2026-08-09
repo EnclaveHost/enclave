@@ -295,7 +295,12 @@ claimed.
   worker is REFUSED rather than half-served. The round-6 probe asserted the
   buggy contract and has been rewritten.
 * Also: a panic between taking a rate token and spawning leaked it permanently
-  (now a `TokenGuard`); the "accounting limiter (which the platform has)"
+  (**RETRACTED in round 8: the `TokenGuard` this claimed was never written.**
+  Two reviewers grepped for it independently and found it in neither the tree
+  nor the patch. The refunds are two explicit calls, and no reachable panic
+  sits between them, so nothing leaks -- but the record named a mechanism that
+  did not exist, which is the exact failure mode this file exists to catch);
+  the "accounting limiter (which the platform has)"
   justification is retracted in the code, not just in this file; `GROW_STALLS`
   is documented as believed-unreachable rather than presented as the safety
   argument; and the doubled `#ifdef` in `read.c`/`write.c` is patch residue.
@@ -382,21 +387,99 @@ translation units, and stock p2, p3 and coop-p3 all build.
   PERIODIC ticker cannot stop a spinning worker. `thread.spawn` says so on
   stderr; the wasmtime CLI configures both automatically.
 
+## Round 8 (2026-08-09): did not clear — 2 CRITICAL + 5 HIGH, every one reproduced
+
+Four reviewers over the round-7 delta. Both round-7 CRITICAL-area fixes were
+themselves wrong, and the spawn rate limiter has now been withdrawn entirely
+rather than fixed a third time.
+
+| finding | severity | what it actually did | fixed by |
+|---|---|---|---|
+| the waiting spawn limiter parked the tokio worker running the guest's fiber | CRITICAL | `std::thread::sleep` inside the `thread.spawn` libcall, on the fiber, i.e. on a tokio worker under `serve`. Measured 101 of 2207 expected timer wakeups over a 2.2 s window, 2 s of timer lateness — no accepts, no response writes, no timeouts, no ctrl-c — at **0.00 CPU seconds**, so `cpu.weight` charged nothing and no CPU-based watchdog could see it. It also defeated `allow_blocking_current_thread(false)`, which exists in `common.rs` for precisely this reason, and on a store's FIRST spawn the wait was entirely unabandonable (the group is created *after* the token is taken, so the stop check saw `None`) | the limiter is **off by default** and, when an operator enables it, REFUSES rather than waits. `take_spawn_token` can no longer sleep, and says so |
+| the preopen failure path re-entered `__wasilibc_populate_preopens` through `close()` | CRITICAL | round 7's cleanup loop ran *before* `preopens_failed = true`, and `preopen_state_close` is `close()`, which opens with `__wasilibc_populate_preopens()`. With a sibling thread alive: deadlock on musl's non-recursive lock — zero CPU, no output, no exit, every thread's filesystem dead, holding a lease forever. Without one: unbounded recursion re-minting the whole preopen list per level and double-freeing each prefix. Reachable by OOM at preopen ≥1, not just by a hostile guest | go sticky and take the table private BEFORE closing anything, so the re-entrant call takes the early-out |
+| `dup2` returned a permanently-EBADF descriptor, on the MAIN thread | HIGH | `set_fd_ns > 0` was standing in for "am I a worker" and is not that predicate: a namespace is claimed lazily by `index_to_fd`, which returns 0/1/2 *without* claiming. Before its first descriptor at index ≥3, every thread — main included — fell into the round-6 hole. A strict regression against a stock wasip2 build, in a program with no threads | claim the namespace first; refuse on `__wasilibc_set_is_worker` |
+| a worker's `dup2(f, 1)` leaked guest bytes to the operator's log | HIGH | the fd table is per-thread but musl's `stdout` is ONE `FILE` in shared memory: one buffer, one `f->fd == 1`, two threads for which "1" names different descriptors. A worker redirecting into its own sandbox had its bytes delivered by main's exit-time flush through main's fd 1 — the container log. Measured, and exactly inverted from the same source built natively | a worker may not redirect 0/1/2 (EBADF). Round 7 had explicitly blessed this call |
+| a tagged spelling of 0/1/2 was honoured | HIGH | `index_to_fd` never emits `(ns<<13)\|1`, but `fd_to_index` masked it back to index 1, giving the standard streams a second name. `dup2(f, 8193)` on a worker silently redirected that thread's stdout; `fcntl(fd, F_DUPFD, 8192)` had its lower bound read as 0 | `fd_to_index` refuses a tagged spelling of an untagged index |
+| a failed registration did not always consume the descriptor | HIGH | the cleanup skipped entry `i` because "the registration consumed this descriptor even on failure". True on one of three paths; the other two are the `malloc` failures a tenant reaches under its own `-W max-memory-size` | the two paths now drop it, so the claim holds everywhere |
+| `worker-dup2.c` asserted the contract the tree no longer implements | HIGH | the probe required a worker's `dup2(fd, 1)` to succeed — the call that leaks. It also `open()`ed first, so it structurally could not see the finding above it. Fourth round in which this probe encoded a bug as the spec | rewritten with real assertions and an exit code; **verified to fail 4/4 against the round-7 libc and pass against this one** |
+
+Retracted rather than fixed: `TokenGuard` (never existed, see above) and the
+round-7 claim that a hostile guest "is put to sleep rather than given a cheap
+loop" — false whenever the live cap binds, because the cap refusal refunded the
+token. Measured 2.3 million refused spawns per second in that shape. The cap
+check now runs before the token is taken.
+
+### Why the rate limiter is gone rather than fixed
+
+Its own doc comment already conceded the decisive point: a legitimate tight
+thread-per-task loop and a hostile fork bomb are the same workload, differing by
+less than 30%, so no rate separates them. Both implementations then failed in
+opposite directions — refusing is *cheaper for the guest than the spawn it
+refuses*, so a retrying guest spins (measured this round at 45.1 CPU-seconds per
+2 wall seconds against 13.5 with the limiter off, a 3.3x amplification); waiting
+moves the cost off the CPU accounting entirely and onto the executor. What
+actually bounds this is the cgroup, which charges creation to the tenant that
+caused it, and the live cap, which bounds the memory. `ENCLAVE_MAX_SET_SPAWN_RATE`
+remains as an operator knob, defaulting to 0, and `worker-spawn-retry-bomb.c`
+documents what turning it on costs.
+
+### Verified clean this round, which is evidence rather than absence
+
+* The `.wip` patch is complete and faithful: all 48 post-image blob hashes match
+  `git hash-object` of the corresponding tree file. The "missing the entire
+  mechanism" failure cannot recur silently.
+* `GROW_STALLS` is genuinely unreachable, proven from the lock discipline rather
+  than asserted; `delta_pages == 0` returns before the limiter.
+* The `file.c` lock fix is complete, INCLUDING the half round 7 did not state:
+  `wasi_read_t`/`wasi_write_t` are declared uninitialised, so `if (read.lock)`
+  would dereference garbage unless every p2 producer writes the field. All four
+  do; all five consumers release.
+* Rounds 3-6 fixes all still hold on the rebuilt artifacts: `worker-fd-alias`,
+  `worker-fd-recycle`, `worker-file-io`, `worker-dir-io-lock`, both
+  `worker-stdio-orphan` probes, `worker-io`, `worker-trap`, `worker-mem-grow`
+  (binds at exactly 16777216 from a worker), `worker-preopen-retry` (200,000
+  retries), `worker-spin-teardown` 0.18 s, `worker-block-teardown` 0.14 s.
+* Every SET safety mechanism is armed in the platform's ACTUAL launch config
+  (`serve`/`run`, `-W max-memory-size`, no `--wasm timeout`).
+
+### The `serve` residual is half closed
+
+`wasmtime serve` now demonstrably serves real HTTP with the full tenant SET flag
+set: `p2_api_proxy.component.wasm` returns 200, and 600 requests at 32-way
+concurrency all succeed, identical to the same binary with SET off. So pooling
+being disabled, the 10 ms epoch ticker and `allow_blocking_current_thread(false)`
+cost an ordinary HTTP guest nothing measurable. **Still unproven: an HTTP guest
+that also SPAWNS** — no such component exists, because the blessed toolchain has
+no C `wasi:http` bindgen and Rust cannot emit SET spawn until rustc-LLVM-23.
+
+### Known, and deliberately NOT fixed this round
+
+A worker's buffered `FILE` that is never `fclose`d is silently discarded at exit
+(`fopen` on a worker, `fprintf`, return, main exits → zero bytes written, status
+0). POSIX would flush it at exit. The fix is a thread-exit flush of the FILEs in
+`__ofl` belonging to this thread, and it was NOT attempted here on purpose: it
+is a new cross-layer teardown mechanism taking two locks, in the area that has
+produced a teardown deadlock in two separate rounds, and adding it unreviewed at
+round 8 is exactly the pattern that has generated a new CRITICAL every round.
+A guest avoids it with `fclose`. It should be designed and reviewed, not slipped in.
+
 ## Why it is still not promotable
 
-**SEVEN rounds have now been run and not one has cleared.** Round 6 reviewed the round-5 fixes and found a CRITICAL (the round-5 lock fix
-was half a fix) plus another regression that fix introduced. The engine/CLI half
-of round 6 was CRITICAL-free, which is the first time either half has been.
+**EIGHT rounds have now been run and not one has cleared.**
 
-Round 7 was deliberately NARROW — only the round-6 delta — and still found a
-CRITICAL and four HIGHs, two of them in a mechanism (the spawn rate limiter)
-that turned out to make the problem it existed to solve measurably worse. The
-round-7 fixes are themselves unreviewed.
+Round 7 was deliberately narrow — only the round-6 delta — and still found a
+CRITICAL and four HIGHs. Round 8 was narrower still, over only the round-7
+delta, and found **two CRITICALs and five HIGHs**, every one reproduced on
+shipping artifacts. Both of round 7's headline fixes were themselves defective:
+the preopen fix deadlocked the component, and the spawn limiter it introduced
+stalled the entire HTTP server at zero CPU cost.
 
-Seven rounds, seven sets of real defects, and the majority of the recent ones
-have been the PREVIOUS round's fix. That is the single most important fact for
+Eight rounds, eight sets of real defects, and the majority of the recent ones
+have been the PREVIOUS round's fix. Two areas have now been wrong four rounds
+running: the `dup2` contract, and thread-creation limiting — the latter has been
+withdrawn rather than fixed again. That is the single most important fact for
 whoever decides this. The only evidence that would change the answer is a round
-that finds nothing.
+that finds nothing, and no round yet has.
 
 ## Promotion sequence, when it is finally earned
 

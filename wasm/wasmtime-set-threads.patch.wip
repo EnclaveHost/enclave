@@ -2237,7 +2237,7 @@ index 453b6dc..8b29108 100644
  
          let instance = Instance::from_wasmtime(decrement.store.0, instantiator.id);
 diff --git a/crates/wasmtime/src/runtime/component/mod.rs b/crates/wasmtime/src/runtime/component/mod.rs
-index 7bf166b..2afa29a 100644
+index 7bf166b..d63c1ac 100644
 --- a/crates/wasmtime/src/runtime/component/mod.rs
 +++ b/crates/wasmtime/src/runtime/component/mod.rs
 @@ -107,6 +107,7 @@ mod component;
@@ -2279,7 +2279,7 @@ index 7bf166b..2afa29a 100644
 +/// other thread-spawning path in the process (the CLI's wasi-threads p1 host)
 +/// must draw from this same bucket.
 +pub fn take_set_spawn_token() -> bool {
-+    crate::runtime::vm::component::take_spawn_token(None)
++    crate::runtime::vm::component::take_spawn_token()
 +}
 +
 +/// enclave/SET: put back a token taken by [`take_set_spawn_token`] for a spawn
@@ -3209,7 +3209,7 @@ index f62ea58..7ed3b91 100644
      store: &mut dyn VMStore,
 diff --git a/crates/wasmtime/src/runtime/vm/component/set_threads.rs b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
 new file mode 100644
-index 0000000..dc8ac5d
+index 0000000..b9487d5
 --- /dev/null
 +++ b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
 @@ -0,0 +1,1647 @@
@@ -3470,8 +3470,27 @@ index 0000000..dc8ac5d
 +/// So creation is rate-limited too, with a token bucket: a burst of
 +/// `4 x max_live_threads()` (a pool filling at startup, several times over)
 +/// refilled at the same number per second (~2% of one core in kernel time at
-+/// the measured ~40 µs per create+exit). `ENCLAVE_MAX_SET_SPAWN_RATE` overrides
-+/// the per-second figure; `0` disables the limiter.
++/// the measured ~40 µs per create+exit). `ENCLAVE_MAX_SET_SPAWN_RATE` sets the
++/// per-second figure; `0`, THE DEFAULT, disables the limiter entirely.
++///
++/// **Off by default, after two implementations of it each made things worse.**
++/// A REFUSING limiter is cheaper for the guest than the spawn it refuses, so a
++/// guest that retries spins instead of exiting: 50.3 CPU-seconds per 2 wall
++/// seconds against 13.8 with it off, i.e. it turned a spawn-and-exit bomb into
++/// a spawn-and-spin bomb and TRIPLED the cost it existed to bound. A WAITING
++/// limiter (which replaced it) blocks inside the host call on the guest's
++/// fiber -- under `serve` that is a tokio worker: measured 101 of 2207 expected
++/// timer wakeups over a 2.2 s window, 2 s of timer lateness, and, because
++/// sleeping is not kernel time, **0.00 CPU seconds**. So `cpu.weight` charges
++/// nothing, `cpu.max` throttles nothing, and a CPU-based watchdog sees an idle,
++/// healthy process while the server answers no requests at all.
++///
++/// Both failures follow from the admission above: no rate separates the
++/// legitimate shape from the hostile one, so this can only ever be a backstop,
++/// and neither backstop was worth its price. The cgroup already charges
++/// creation to the tenant that caused it and the live cap already bounds the
++/// memory. An operator who wants the backstop anyway sets the variable; it
++/// then REFUSES, never waits, and the spin amplification is what they bought.
 +fn max_spawn_rate() -> u64 {
 +    use std::sync::OnceLock;
 +    static CACHED: OnceLock<u64> = OnceLock::new();
@@ -3498,7 +3517,7 @@ index 0000000..dc8ac5d
 +        // the share it already bought. Against the unlimited fork bomb
 +        // (~19,000/s, 1.3 CPU-seconds per wall second) it is still a ~4.6x cut,
 +        // and the burst absorbs any real pool.
-+        (max_live_threads() as u64).saturating_mul(32).max(4096)
++        0
 +    })
 +}
 +
@@ -3570,56 +3589,22 @@ index 0000000..dc8ac5d
 +    })
 +}
 +
-+/// Take one spawn token, WAITING for one if the rate limit is in force.
++/// Take one spawn token, or report that the limit is in force. NEVER BLOCKS.
 +///
-+/// Waiting rather than refusing, and this is the whole design rather than a
-+/// detail. A refusal has two failure modes that a wait does not:
-+///
-+/// * it is indistinguishable, to the guest, from "out of threads". A pool that
-+///   recycles its workers is a perfectly ordinary shape and it was being handed
-+///   `EAGAIN` for 18% of its `pthread_create`s — with a large enough iteration
-+///   count, 94%. There is no rate that avoids this, because a tight
-+///   thread-per-task loop reaches ~14,600 creations/s, faster than any limit
-+///   worth setting.
-+/// * it is CHEAPER for the guest than the thing it was refusing, so a guest
-+///   that retries spins instead of making progress. Measured: with the
-+///   refusing limiter on, a retrying spawn bomb pushed the host to 50 CPU
-+///   seconds per 2 wall seconds (22.6 cores) against 13.8 (6.2 cores) with the
-+///   limiter off — the limiter made a spawn-and-exit bomb into a
-+///   spawn-and-spin bomb and TRIPLED the cost it existed to bound.
-+///
-+/// Waiting fixes both: a legitimate program is throttled rather than failed,
-+/// and a hostile one is put to sleep rather than given a cheap loop. The wait
-+/// is bounded (`SPAWN_WAIT_CAP`) so a guest cannot be parked indefinitely, and
-+/// it is abandoned the moment the thread group is asked to stop, so teardown
-+/// is never delayed by it.
-+pub fn take_spawn_token(group: Option<&Arc<SetThreadGroup>>) -> bool {
-+    /// The longest a `thread.spawn` will wait for a token before refusing.
-+    const SPAWN_WAIT_CAP: std::time::Duration = std::time::Duration::from_millis(250);
-+    /// Never sleep for less than this: a sleep far shorter than the scheduler's
-+    /// resolution is a spin with extra steps.
-+    const MIN_SLEEP: std::time::Duration = std::time::Duration::from_micros(200);
-+
++/// Not sleeping here is a hard constraint, not a preference. This runs in the
++/// `thread.spawn` libcall, on the guest's fiber -- under `wasmtime serve` that
++/// fiber is resumed inline on a tokio worker, so a sleep removes a worker from
++/// the runtime along with the I/O, timers and accepts it was about to poll. It
++/// is also invisible to all three stop paths: the epoch only traps compiled
++/// wasm, the parking spot only reaches a thread in `memory.atomic.wait`, and
++/// the guest future cannot be dropped while it is inside `poll`. `common.rs`
++/// disables `allow_blocking_current_thread` for precisely this reason; a host
++/// call that blocks inline defeats that decision from the inside.
++pub fn take_spawn_token() -> bool {
 +    if max_spawn_rate() == 0 {
 +        return true;
 +    }
-+    let deadline = std::time::Instant::now() + SPAWN_WAIT_CAP;
-+    loop {
-+        match try_take_spawn_token() {
-+            Ok(()) => return true,
-+            Err(wait) => {
-+                if group.is_some_and(|g| g.stop_requested()) {
-+                    return false;
-+                }
-+                let now = std::time::Instant::now();
-+                if now >= deadline {
-+                    return false;
-+                }
-+                let remaining = deadline - now;
-+                std::thread::sleep(wait.max(MIN_SLEEP).min(remaining));
-+            }
-+        }
-+    }
++    try_take_spawn_token().is_ok()
 +}
 +
 +/// Live SET workers in this PROCESS. See `max_live_threads`.
@@ -4283,11 +4268,26 @@ index 0000000..dc8ac5d
 +    }
 +
 +    // ---- rate-limit thread CREATION, which the live cap does not bound ----
-+    if !take_spawn_token(group_if_any(store).as_ref()) {
++    //
++    // A fast cap check runs FIRST, deliberately. A guest parked at its
++    // concurrency cap is also the one most likely to find the bucket empty,
++    // and taking a token only to hand it straight back at the cap made the
++    // "a hostile guest is throttled" claim false for exactly the shape that
++    // reaches the cap: measured 2.3 MILLION refused spawns per second, with
++    // the limiter contributing 18%. The authoritative compare-exchange below
++    // still decides; this only avoids paying for a token first.
++    if LIVE_SET_THREADS.load(Ordering::Acquire) >= max_live_threads() {
 +        refuse!(
-+            "SET thread creation rate limit reached ({}/s) and the wait for a slot \
-+             timed out; a guest that spawns and immediately exits is not bounded by \
-+             the live-thread cap. Raise ENCLAVE_MAX_SET_SPAWN_RATE, or 0 to disable",
++            "live SET thread cap reached ({}); raise ENCLAVE_MAX_SET_THREADS \
++             or lower the guest's pool size",
++            max_live_threads()
++        );
++    }
++    if !take_spawn_token() {
++        refuse!(
++            "SET thread creation rate limit reached ({}/s); a guest that spawns and \
++             immediately exits is not bounded by the live-thread cap. Raise \
++             ENCLAVE_MAX_SET_SPAWN_RATE, or 0 to disable (0 is the default)",
 +            max_spawn_rate()
 +        );
 +    }

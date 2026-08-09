@@ -11,7 +11,11 @@
  *   timeout 15 wasmtime run -W threads,shared-everything-threads,\
  *       component-model-threading,shared-memory -S cli worker-exit.wasm; echo $?
  *
- * Expected: exits promptly with status 7. A hang (124) is the old behaviour.
+ * Expected: exits PROMPTLY -- that is the property under test, and a hang
+ * (124) is the old behaviour. The status is 1, not the 7 the guest asked for:
+ * under wasip2 the CLI maps a worker's `proc_exit` to a generic failure. That
+ * is a known residual recorded in wasm/SET-DO-NOT-PROMOTE.md, not a
+ * regression. A worker calling exit(0) does end the component with status 0.
  */
 #include <pthread.h>
 #include <stdio.h>

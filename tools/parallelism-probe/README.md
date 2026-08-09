@@ -81,10 +81,12 @@ wasmtime run $W -S cli worker-io.wasm
 | `worker-file-io.c` | **two** file reads/writes with a second thread alive do not deadlock — the object lock `get_read_stream` takes is released |
 | `worker-dir-io-lock.c` | a FAILED stream lookup (`fopen` on a directory) releases that lock too |
 | `worker-ns-exhaust.c` | running out of fd namespaces fails that THREAD, instead of ending the component with no diagnostic |
-| `worker-dup2.c` | `dup2` on a worker returns a descriptor that is actually usable |
+| `worker-dup2.c` | the whole `dup2`/`dup3` target contract, asserted rather than printed: wrong in four different ways across four rounds, so this one exits non-zero |
 | `worker-fd-alias.c` | a cross-thread fd FAILS with `EBADF` instead of silently aliasing another file |
 | `worker-fd-recycle.c` | a DEAD thread's fd does not become a LIVE thread's fd (namespaces are monotonic, not recycled) |
-| `worker-spawn-churn.c` | thread CREATION is rate-limited, not just concurrency: spawn-then-exit used to churn 35k threads in 2s past any cap |
+| `worker-spawn-churn.c` | thread CREATION is not bounded by the concurrency cap: spawn-then-exit churns ~35k threads in 2s past any `ENCLAVE_MAX_SET_THREADS`. The rate limiter that answered this is now OFF by default — set `ENCLAVE_MAX_SET_SPAWN_RATE=4096` to see it stop the chain |
+| `worker-spawn-retry-bomb.c` | what the rate limiter COSTS when an operator turns it on: a guest that retries a refusal spins, 45.1 CPU-seconds per 2 wall seconds against 13.5 with it off |
+| `worker-preopen-retry.c` | a thread that cannot build its preopen table fails alone, without killing the component and without leaking a host resource handle per retry |
 | `worker-stdio-orphan.c` | a worker trapping while holding stdout's lock (explicit `flockfile`) does not wedge stdio |
 | `worker-stdio-orphan-internal.c` | the same through the INTERNAL `FLOCK` path `printf` takes — the layer musl never registered |
 | `worker-mem-grow.c` | `-W max-memory-size` bounds SHARED-memory growth, from a worker thread |
