@@ -2044,12 +2044,25 @@ measured — the second property is the one doing the work.
 
 ### Not established either way
 
-* **No committed probe reaches `set_threads.rs`'s `log::error!`** — the detach
-  path. `worker-block-teardown`, `worker-spin-teardown` and `worker-spawn-churn`
-  at every `ENCLAVE_SET_JOIN_TIMEOUT_MS` tried all give 0 ERROR records: the stop
-  paths now work too well for the existing probes to force a past-deadline
-  detach. The conclusion that arm supports is independently confirmed by the
-  facade measurement, but the probe gap is real and worth closing.
+* ~~No committed probe reaches the detach `log::error!`~~ — **CLOSED, same day.**
+  The gap was a RACE, not a missing probe: the worker's cancellation poll is
+  5 ms, so at any `ENCLAVE_SET_JOIN_TIMEOUT_MS >= 5` the worker finishes before
+  the reaper's deadline and is joined cleanly. Only `=1` wins.
+  `ENCLAVE_SET_JOIN_TIMEOUT_MS=1` on `worker-block-teardown` reaches it every
+  time, and turns the central claim from analysis into measurement:
+
+  | `WASMTIME_LOG` | detach `log::error!` | the raw `writeln!` |
+  |---|---|---|
+  | **unset** (every CPU tenant, every 0-GPU nn tenant) | **1 — ARMED** | 1 |
+  | `error` | 1 | 1 |
+  | `wasmtime_wasi_nn=debug` (the fleet's only value) | 0 — suppressed | 1 |
+  | `off` | 0 | 1 |
+
+  This is the first END-TO-END confirmation, on a real detach rather than a
+  facade replica, that the ERROR arm is reachable AND armed in the default
+  configuration while the fleet's GPU value suppresses it — and that the
+  `writeln!` reports in every column, which is why it is a `writeln!`. Recipe in
+  `tools/parallelism-probe/README.md`.
 
 ### Still open
 
