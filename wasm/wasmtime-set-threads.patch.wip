@@ -3209,10 +3209,10 @@ index f62ea58..7ed3b91 100644
      store: &mut dyn VMStore,
 diff --git a/crates/wasmtime/src/runtime/vm/component/set_threads.rs b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
 new file mode 100644
-index 0000000..b9487d5
+index 0000000..621b380
 --- /dev/null
 +++ b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
-@@ -0,0 +1,1647 @@
+@@ -0,0 +1,1634 @@
 +//! enclave/SET: real OS-thread spawning for the shared-everything-threads
 +//! `thread.spawn-ref` / `thread.spawn-indirect` component intrinsics.
 +//!
@@ -3325,8 +3325,8 @@ index 0000000..b9487d5
 +//! non-shared defined memories, no shared memory at all, imported
 +//! tables/globals/memories/tags, mutable `shared` globals, segmented memory
 +//! initialization, or GC use — and any spawn beyond the live-thread cap
-+//! (`max_live_threads`), which is what bounds a hostile guest's thread
-+//! creation. A guest `start` section is ALLOWED and runs once per worker — the
++//! (`max_live_threads`), which bounds how many threads EXIST but not how many
++//! are MADE — nothing bounds creation by default, see `max_spawn_rate`. A guest `start` section is ALLOWED and runs once per worker — the
 +//! `wasm-ld --shared-memory` ABI (`__wasm_init_memory` behind an atomic
 +//! once-flag in shared memory) is designed for exactly this
 +//! instantiation-per-thread pattern; see the guard comment in
@@ -3467,10 +3467,9 @@ index 0000000..b9487d5
 +/// is a noisy-neighbour denial of service against every other tenant, which is
 +/// exactly what the concurrency cap's own comment claims to prevent.
 +///
-+/// So creation is rate-limited too, with a token bucket: a burst of
-+/// `4 x max_live_threads()` (a pool filling at startup, several times over)
-+/// refilled at the same number per second (~2% of one core in kernel time at
-+/// the measured ~40 µs per create+exit). `ENCLAVE_MAX_SET_SPAWN_RATE` sets the
++/// So creation CAN be rate-limited too, with a token bucket whose burst is one
++/// second's worth of tokens (`spawn_burst`) — but it is OFF by default and the
++/// paragraphs below explain why. `ENCLAVE_MAX_SET_SPAWN_RATE` sets the
 +/// per-second figure; `0`, THE DEFAULT, disables the limiter entirely.
 +///
 +/// **Off by default, after two implementations of it each made things worse.**
@@ -3500,23 +3499,11 @@ index 0000000..b9487d5
 +                return n;
 +            }
 +        }
-+        // The floor matters more than the multiple, and it is sized from a
-+        // MEASUREMENT of the shape it must not break rather than a guess.
-+        //
-+        // A strictly sequential create-then-join loop — one thread alive at a
-+        // time, the most ordinary shape there is — reaches ~14,600
-+        // creations/s on this hardware. Two earlier floors were sized against
-+        // an estimate of ~250/s and were therefore far too tight: 16/s refused
-+        // 87% of that loop and 512/s refuses ~96% of it in steady state. A
-+        // guest cannot tell "retry later" from "out of threads", so an
-+        // over-tight limiter is indistinguishable from a broken runtime.
-+        //
-+        // 4096/s is ~16% of ONE core in kernel time at the measured ~40 µs per
-+        // create+exit, and the cgroup's `cpu.weight` charges that to the tenant
-+        // that caused it — so the residual noisy-neighbour cost is bounded by
-+        // the share it already bought. Against the unlimited fork bomb
-+        // (~19,000/s, 1.3 CPU-seconds per wall second) it is still a ~4.6x cut,
-+        // and the burst absorbs any real pool.
++        // No floor, because there is no default limit to floor. The
++        // sizing analysis that used to live here (4096/s, from the ~14,600
++        // creations/s a legitimate thread-per-task loop reaches) is kept in
++        // the doc comment above as the reason an operator's chosen value has
++        // to be large, not as a default this function returns.
 +        0
 +    })
 +}
@@ -5684,7 +5671,7 @@ index 93164dc..a0de7f4 100644
          .await
      }
 diff --git a/src/commands/run.rs b/src/commands/run.rs
-index 4159165..7025e7d 100644
+index 4159165..845aa36 100644
 --- a/src/commands/run.rs
 +++ b/src/commands/run.rs
 @@ -11,9 +11,11 @@ use std::ffi::OsString;
@@ -5834,7 +5821,7 @@ index 4159165..7025e7d 100644
              if let Some(timeout) = self.run.common.wasm.timeout {
                  store.set_epoch_deadline(1);
                  let engine = store.engine().clone();
-@@ -715,6 +814,226 @@ impl RunCommand {
+@@ -715,6 +814,228 @@ impl RunCommand {
              }
          }
  
@@ -5925,23 +5912,25 @@ index 4159165..7025e7d 100644
 +                                return -1;
 +                            };
 +                            // The SAME two bounds the SET path uses, because
-+                            // they bound the same node-wide resource. The RATE
-+                            // limiter is the one that matters: this path had
-+                            // only the concurrency cap, and a
-+                            // spawn-then-exit chain sailed past it at 20,000
-+                            // threads in 0.66s.
-+                            if !wasmtime::component::take_set_spawn_token() {
-+                                return -1;
-+                            }
++                            // they bound the same node-wide resource, and in
++                            // the SAME ORDER: cap first, token second. Taking
++                            // the token first and refunding it at the cap is
++                            // what round 8 removed from the SET path, and this
++                            // copy was left behind — inert while the rate
++                            // limiter defaults to off, wrong the moment an
++                            // operator turns it on.
++                            //
++                            // Note the rate limiter is OFF by default now (see
++                            // `max_spawn_rate`), so what bounds this path by
++                            // default is the concurrency cap alone. An earlier
++                            // comment here claimed the opposite.
 +                            let cap = wasmtime::component::max_live_set_threads();
 +                            if live.fetch_add(1, std::sync::atomic::Ordering::AcqRel) >= cap {
 +                                live.fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
-+                                // The token goes back: no thread was created,
-+                                // so it cost the node nothing. The SET path
-+                                // refunds on both of its refusal paths and this
-+                                // one must too, or a guest sitting at its
-+                                // concurrency cap drains its creation budget.
-+                                wasmtime::component::refund_set_spawn_token();
++                                return -1;
++                            }
++                            if !wasmtime::component::take_set_spawn_token() {
++                                live.fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
 +                                return -1;
 +                            }
 +                            let id = tid.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -6061,7 +6050,7 @@ index 4159165..7025e7d 100644
          let finish_epoch_handler =
              self.setup_epoch_handler(store, main_target, profiled_modules)?;
  
-@@ -753,6 +1072,15 @@ impl RunCommand {
+@@ -753,6 +1074,15 @@ impl RunCommand {
                  if let Some(func) = func {
                      self.invoke_func(store, func).await?;
                  }
@@ -6077,7 +6066,7 @@ index 4159165..7025e7d 100644
                  Ok(CliInstance::Core(instance))
              }
              #[cfg(feature = "component-model")]
-@@ -771,6 +1099,17 @@ impl RunCommand {
+@@ -771,6 +1101,17 @@ impl RunCommand {
          };
          finish_epoch_handler(store);
  
@@ -6095,7 +6084,7 @@ index 4159165..7025e7d 100644
          result
      }
  
-@@ -813,6 +1152,8 @@ impl RunCommand {
+@@ -813,6 +1154,8 @@ impl RunCommand {
              .with_context(|| format!("while interpreting parameters in invoke \"{invoke}\""))?;
  
          let instance = linker.instantiate_async(&mut *store, component).await?;
@@ -6104,7 +6093,7 @@ index 4159165..7025e7d 100644
  
          let func = instance
              .get_func(&mut *store, export)
-@@ -846,6 +1187,144 @@ impl RunCommand {
+@@ -846,6 +1189,144 @@ impl RunCommand {
          Ok(())
      }
  
@@ -6249,7 +6238,7 @@ index 4159165..7025e7d 100644
      /// Execute the default behavior for components on the CLI, looking for
      /// `wasi:cli`-based commands and running their exported `run` function.
      #[cfg(feature = "component-model")]
-@@ -856,6 +1335,8 @@ impl RunCommand {
+@@ -856,6 +1337,8 @@ impl RunCommand {
          linker: &wasmtime::component::Linker<Host>,
      ) -> Result<wasmtime::component::Instance> {
          let instance = linker.instantiate_async(&mut *store, component).await?;
@@ -6258,7 +6247,7 @@ index 4159165..7025e7d 100644
  
          let mut result = None;
          let _ = &mut result;
-@@ -1167,14 +1648,12 @@ impl RunCommand {
+@@ -1167,14 +1650,12 @@ impl RunCommand {
                                  wasmtime_wasi::p0::add_to_linker_async(linker, |t| t.wasip1_ctx())?;
                              }
                              wasmtime_wasi::p1::add_to_linker_async(linker, |t| t.wasip1_ctx())?;
@@ -6273,7 +6262,7 @@ index 4159165..7025e7d 100644
                  }
              }
          }
-@@ -1186,14 +1665,11 @@ impl RunCommand {
+@@ -1186,14 +1667,11 @@ impl RunCommand {
              }
              #[cfg(all(feature = "wasi-nn", feature = "component-model"))]
              {
@@ -6288,7 +6277,7 @@ index 4159165..7025e7d 100644
                      }
                      #[cfg(feature = "component-model")]
                      CliLinker::Component(linker) => {
-@@ -1202,8 +1678,6 @@ impl RunCommand {
+@@ -1202,8 +1680,6 @@ impl RunCommand {
                              let nn_ctx = h.wasi_nn_wit.as_mut().unwrap();
                              WasiNnView::new(ctx.ctx().table, nn_ctx)
                          })?;
@@ -6297,7 +6286,7 @@ index 4159165..7025e7d 100644
                      }
                  }
              }
-@@ -1223,19 +1697,9 @@ impl RunCommand {
+@@ -1223,19 +1699,9 @@ impl RunCommand {
                          bail!("Cannot enable wasi-config for core wasm modules");
                      }
                      CliLinker::Component(linker) => {
@@ -6317,7 +6306,7 @@ index 4159165..7025e7d 100644
                      }
                  }
              }
-@@ -1255,22 +1719,10 @@ impl RunCommand {
+@@ -1255,22 +1721,10 @@ impl RunCommand {
                          bail!("Cannot enable wasi-keyvalue for core wasm modules");
                      }
                      CliLinker::Component(linker) => {
@@ -6340,7 +6329,7 @@ index 4159165..7025e7d 100644
                      }
                  }
              }
-@@ -1299,8 +1751,7 @@ impl RunCommand {
+@@ -1299,8 +1753,7 @@ impl RunCommand {
                          }
                      }
                  }
@@ -6350,7 +6339,7 @@ index 4159165..7025e7d 100644
              }
          }
  
-@@ -1325,59 +1776,161 @@ impl RunCommand {
+@@ -1325,59 +1778,161 @@ impl RunCommand {
                              wasmtime_wasi_tls::p3::add_to_linker(linker)?;
                          }
  
