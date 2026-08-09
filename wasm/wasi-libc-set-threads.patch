@@ -1719,7 +1719,7 @@ index 39c175b..ee12695 100644
    # cooperative threads implementation for WASI Preview 3
    list(APPEND top_half_sources
 diff --git a/libc-top-half/musl/src/internal/stdio_impl.h b/libc-top-half/musl/src/internal/stdio_impl.h
-index 4bda1d2..b0a566d 100644
+index 4bda1d2..fa553bd 100644
 --- a/libc-top-half/musl/src/internal/stdio_impl.h
 +++ b/libc-top-half/musl/src/internal/stdio_impl.h
 @@ -23,6 +23,15 @@
@@ -1858,7 +1858,7 @@ index 4bda1d2..b0a566d 100644
  extern hidden FILE *volatile __stdin_used;
  extern hidden FILE *volatile __stdout_used;
  extern hidden FILE *volatile __stderr_used;
-@@ -109,7 +229,23 @@ hidden void __do_orphaned_stdio_locks(void);
+@@ -109,7 +229,39 @@ hidden void __do_orphaned_stdio_locks(void);
  hidden void __getopt_msg(const char *, const char *, const char *, size_t);
  
  #define feof(f) ((f)->flags & F_EOF)
@@ -1872,14 +1872,30 @@ index 4bda1d2..b0a566d 100644
 +   macro rather than the function, and four of them use it: `vfprintf.c`,
 +   `vfwprintf.c`, `fgetws.c` and the drain-loop example in `__toread.c`.
 +
-+   That is benign on the WRITE paths, which is why nothing has broken: the
-+   byte-write refusal in `__stdio_write` sets no flag at all, so there is
-+   nothing for the macro to miss, and `vfprintf`/`vfwprintf` decide by return
-+   value. The one place it bites is `fgetws.c`, where a non-owner's refused
-+   read sets `F_XERR`, the macro does not see it, and `fgetws` returns its
-+   partial buffer where native -- which would have `F_ERR` for an unusable
-+   descriptor -- returns NULL. Narrow, wide-char-only, and recorded here rather
-+   than papered over. */
++   Its consequences, measured rather than asserted -- the previous version of
++   this paragraph claimed the write paths were "benign … nothing for the macro
++   to miss" and that "vfprintf/vfwprintf decide by return value", and BOTH were
++   falsified by the same round-14 change that wrote them:
++
++     - `fputwc.c` now sets `F_XERR` on a non-owner's refused write, so there IS
++       something for the macro to miss on a write path.
++     - `vfprintf.c` and `vfwprintf.c` do NOT decide by return value; both end
++       `if (ferror(f)) ret = -1;` using THIS MACRO.
++
++   So `fwprintf` on a foreign stream returns a success count (8192) where
++   r12a/r13c returned -1. That is the same answer the NARROW path has always
++   given (`fprintf` returns 8192 with 1024 bytes buffered and `ferror` 0 on
++   every build) and it matches native's return value, so it is accepted as
++   consistency rather than treated as a regression. The honest wart: `fputws`
++   on the same stream in the same thread still returns -1, so a guest can get
++   contradictory reports from two calls that both dropped everything.
++
++   `fgetws.c` is the one place the blindness costs correctness: a non-owner's
++   refused read sets `F_XERR`, the macro does not see it, and `fgetws` returns
++   its partial buffer where native -- which would have `F_ERR` for an unusable
++   descriptor -- returns NULL. Narrow, wide-char-only, recorded rather than
++   papered over.
++*/
  
  #define getc_unlocked(f) \
  	( ((f)->rpos != (f)->rend) ? *(f)->rpos++ : __uflow((f)) )
@@ -2279,6 +2295,39 @@ index b009437..3bb16d3 100644
  	FLOCK(f);
  
  	/* If writing, flush output */
+diff --git a/libc-top-half/musl/src/stdio/fgetwc.c b/libc-top-half/musl/src/stdio/fgetwc.c
+index aa10b81..93eed7e 100644
+--- a/libc-top-half/musl/src/stdio/fgetwc.c
++++ b/libc-top-half/musl/src/stdio/fgetwc.c
+@@ -26,7 +26,17 @@ static wint_t __fgetwc_unlocked_internal(FILE *f)
+ 		b = c = getc_unlocked(f);
+ 		if (c < 0) {
+ 			if (!first) {
+-				f->flags |= F_ERR;
++				/* enclave/SET: same rule as `__fputwc_unlocked`, and this
++				   is the READ half the round-14 fix left behind. A
++				   non-owner can consume the first byte(s) of a multibyte
++				   character straight out of the SHARED buffer -- no
++				   descriptor needed -- and only then have `getc_unlocked`
++				   refused, arriving here with `first == 0`. Writing
++				   `F_ERR` puts the refusing thread's error on the OWNER's
++				   stream, which is the exact poisoning F_XERR exists to
++				   stop. Measured with a file of split 3-byte characters:
++				   owner ferror 0 natively, 1 on r13c AND r14a. */
++				f->flags |= __wasilibc_file_mine(f) ? F_ERR : F_XERR;
+ 				errno = EILSEQ;
+ 			}
+ 			return WEOF;
+@@ -34,7 +44,8 @@ static wint_t __fgetwc_unlocked_internal(FILE *f)
+ 		l = mbrtowc(&wc, (void *)&b, 1, &st);
+ 		if (l == -1) {
+ 			if (!first) {
+-				f->flags |= F_ERR;
++				/* enclave/SET: see above. */
++				f->flags |= __wasilibc_file_mine(f) ? F_ERR : F_XERR;
+ 				ungetc(b, f);
+ 			}
+ 			return WEOF;
 diff --git a/libc-top-half/musl/src/stdio/flockfile.c b/libc-top-half/musl/src/stdio/flockfile.c
 index 8e22065..1116556 100644
 --- a/libc-top-half/musl/src/stdio/flockfile.c
@@ -2885,7 +2934,7 @@ index 0000000..9edf5bd
 +
 +	end_function
 diff --git a/libc-top-half/musl/src/thread/wasi-threads/pthread_create.c b/libc-top-half/musl/src/thread/wasi-threads/pthread_create.c
-index f6ff846..20b5d2e 100644
+index f6ff846..647d12d 100644
 --- a/libc-top-half/musl/src/thread/wasi-threads/pthread_create.c
 +++ b/libc-top-half/musl/src/thread/wasi-threads/pthread_create.c
 @@ -16,6 +16,37 @@
@@ -2951,7 +3000,34 @@ index f6ff846..20b5d2e 100644
  #ifdef __wasilibc_unmodified_upstream
  	__block_app_sigs(&set);
  #endif
-@@ -267,9 +316,210 @@ struct start_args {
+@@ -155,8 +204,26 @@ static void __pthread_exit(void *result)
+ 	 * be invalid when the kernel would process it. */
+ 	__vm_lock();
+ #endif
++	/* enclave/SET: BOUNDED, and this is the twin the round-14 fix missed.
++	 * Round 14 bounded the identical walk in `__enclave_set_thread_died`
++	 * (the TRAP path) and left this one -- which is the path every
++	 * NORMALLY EXITING thread takes, i.e. the common one. Same
++	 * `__thread_list_lock` held, same guest-writable `_m_next` pointers, so
++	 * a forged or torn self-cycle spins here with the lock held and wedges
++	 * every sibling's `pthread_create`/`pthread_join`.
++	 *
++	 * Note the list is NOT exotic: musl links every non-`NORMAL` mutex into
++	 * `robust_list` (see `pthread_mutex_trylock.c` after `success:`), so an
++	 * ordinary `PTHREAD_MUTEX_RECURSIVE` populates it. That
++	 * `pthread_mutexattr_setrobust` returns EINVAL under wasi-libc does not
++	 * make this dead code.
++	 *
++	 * Measured before this: `robust-cycle.c exit` hung on r14a (the `trap`
++	 * arm already passed, because that half was fixed). */
+ 	volatile void *volatile *rp;
++	int robust_guard = 0;
+ 	while ((rp=self->robust_list.head) && rp != &self->robust_list.head) {
++		if (++robust_guard > 4096) break;
+ 		pthread_mutex_t *m = (void *)((char *)rp
+ 			- offsetof(pthread_mutex_t, _m_next));
+ 		int waiters = m->_m_waiters;
+@@ -267,9 +334,210 @@ struct start_args {
  	void *tls_base;
  	void *(*start_func)(void *);
  	void *start_arg;
@@ -3162,7 +3238,7 @@ index f6ff846..20b5d2e 100644
  #ifdef __wasilibc_unmodified_upstream
  static int start(void *p)
  {
-@@ -301,6 +551,7 @@ static int start_c11(void *p)
+@@ -301,6 +569,7 @@ static int start_c11(void *p)
  }
  #else
  
@@ -3170,7 +3246,7 @@ index f6ff846..20b5d2e 100644
  /*
   * We want to ensure wasi_thread_start is linked whenever
   * pthread_create is used. The following reference is to ensure that.
-@@ -309,11 +560,17 @@ static int start_c11(void *p)
+@@ -309,11 +578,17 @@ static int start_c11(void *p)
   */
  void wasi_thread_start(int tid, void *p);
  hidden void *__dummy_reference = wasi_thread_start;
@@ -3188,7 +3264,7 @@ index f6ff846..20b5d2e 100644
  	// Set the thread ID (TID) on the pthread structure. The TID is stored
  	// atomically since it is also stored by the parent thread; this way,
  	// whichever thread (parent or child) reaches this point first can proceed
-@@ -537,6 +794,14 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
+@@ -537,6 +812,14 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
  	args->start_func = entry;
  	args->start_arg = arg;
  	args->tls_base = (void*)new_tls_base;
@@ -3203,7 +3279,7 @@ index f6ff846..20b5d2e 100644
  #endif
  
  	__tl_lock();
-@@ -566,6 +831,15 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
+@@ -566,6 +849,15 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
  		if (ret)
  			__wait(&args->control, 0, 3, 0);
  	}

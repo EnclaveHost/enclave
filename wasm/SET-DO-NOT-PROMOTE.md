@@ -1412,9 +1412,91 @@ a finer allocation granularity than 48 bytes to widen the window back.
 * **Round 14's own fixes have not been reviewed.** Sixth consecutive round
   ending on that sentence, and the reason this round does not clear either.
 
+## Round 15 (2026-08-09): two reviewers over ROUND 14's OWN FIXES — six findings, and one of my fixes was itself a defect
+
+For six consecutive rounds this file ended on "round N's fixes have not been
+reviewed." Round 15 is that review, and it is the first time the step has
+actually been taken. It found six things, including the outcome the pattern
+predicts: **a round-14 fix that fixed nothing, corrupted a value, and planted a
+false comment — in the same round whose headline finding was a false comment.**
+
+| finding | severity | status |
+|---|---|---|
+| `fgetwc.c` still poisons the owner — the round-14 wide fix covered only the WRITE half | HIGH | FIXED |
+| the robust-mutex walk in `__pthread_exit` is unbounded — round 14 bounded only the TRAP twin | HIGH | FIXED |
+| the `available_parallelism` clamp fixes a bug that does not exist and corrupts its one value | MEDIUM | **REVERTED** |
+| the new `assert_eq!` is missing the `#[cfg]` its constant carries | MEDIUM | FIXED |
+| the round-14 diagnostic rewrite reduced the message to `Any { .. }` | MEDIUM | FIXED |
+| the comments justifying the Drop hardening name a mechanism that is off by default | MEDIUM | FIXED |
+| the test's `yield_now()` spin burns a core and adds CI flakiness | LOW | FIXED |
+
+### The clamp was a fix for a bug that does not exist
+
+Round 14 clamped `available_parallelism` to `u32::MAX - 1`, "because" the
+`NegativeOne` trampoline would read `u32::MAX` as a trap. Traced end to end,
+that is false: `impl HostResultHasUnwindSentinel for u32` ZERO-EXTENDS into
+`u64`, while `raise_if_negative_one` builds its `-1` at the value's own type —
+I64 — so a zero-extended `u32` tops out at `0x0000_0000_FFFF_FFFF` and can never
+equal `0xFFFF_FFFF_FFFF_FFFF`. The sentinel lives in the upper 32 bits precisely
+because only the unwind path writes it. Proven with a probe component:
+with the clamp `ENCLAVE_AVAILABLE_PARALLELISM=4294967295` yields **4294967294**;
+without it, **4294967295** and no trap.
+
+So the clamp had zero benefit, silently corrupted the one value it touched, and
+shipped a comment asserting a trap that does not occur — the exact defect class
+that round's own headline finding (`SET_VMCOMPONENT_STORE_CONTEXT_OFFSET`) was
+written to remove. Reverted in full.
+
+### Both wide-character halves, and both robust walks
+
+Round 14 fixed `__fputwc_unlocked` (write) and left `fgetwc.c` (read), where a
+non-owner that has consumed the first bytes of a multibyte character **out of the
+shared buffer** — no descriptor needed — arrives with `first == 0` and writes
+`F_ERR` into the shared `FILE`. Measured on a file of split 3-byte characters:
+owner `ferror` 0 natively, 1 on r13c AND r14a, 0 on r14b.
+
+Round 14 likewise bounded the robust-list walk in `__enclave_set_thread_died`
+(the TRAP path) and left the identical walk in `__pthread_exit` — **the path
+every normally exiting thread takes**. `robust-cycle.c`: r14a hangs, r14b passes
+both arms. Note the list is not exotic — musl links every non-`NORMAL` mutex into
+`robust_list`, so an ordinary `PTHREAD_MUTEX_RECURSIVE` populates it.
+
+### The Drop-hardening was right; its stated reason was wrong
+
+Rounds 12-14 all justified removing panicking log macros from `Drop` with
+"`tracing_subscriber`'s stderr writer PANICS when the write fails". Its
+`log_internal_errors` defaults to FALSE and `cli-flags` never enables it, so
+under the default CLI logger a failed stderr write is silently DISCARDED. The
+real panicking path is `--log-to-files`, whose `file_per_thread_logger` runs
+`File::create(path).expect("Can't open tracing file")` on the first log from any
+engine-created thread — and every SET worker and the reaper are engine-created.
+The hardening stands; the comments now name the mechanism that actually fires.
+
+### Verified clean by this round
+
+* The `assert_eq!` is load-bearing AND correct: set to `3 * size_of`, it fires on
+  all three SET tests with `left: 16, right: 24`; restored, 231/231. The layout
+  argument was checked against the `fields!` macro and holds on 32- and 64-bit
+  for every component shape — nothing between `magic` and `vm_store_context`
+  depends on the component.
+* `writeln!(std::io::stderr(), …)` genuinely cannot panic: `Stderr`'s lock is
+  **non-poisoning**, `write_fmt` returns `io::Result` with no `unwrap` (unlike
+  `eprintln!`), and a CLOSED fd 2 is swallowed as success by `handle_ebadf`.
+* **There is no unhardened fourth Drop site.** Every remaining `log::` macro is
+  either inside a `catch_unwind` or off the Drop path; all four `impl Drop`
+  bodies are macro-free.
+* The round-14 test change does not weaken the test — if the worker is never
+  entered the assertion still fails; the bound only delays failure.
+* Corpus 21/21 on r14b, unchanged. Engine 231/231.
+
+### Still open
+
+* The dead-stack detach question from round 14, unchanged.
+* **Round 15's own fixes have not been reviewed.** Seventh consecutive round.
+
 ## Why it is still not promotable
 
-**FOURTEEN review passes have now been run and not one has cleared.** Round 10 was
+**FIFTEEN review passes have now been run and not one has cleared.** Round 10 was
 design work and found a CRITICAL in round 9's own fix; round 11 reviewed round
 10 and found two HIGHs, one of which was a hole in round 10's fix — and the
 first two attempts at fixing THAT were themselves wrong.
