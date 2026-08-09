@@ -1649,9 +1649,18 @@ assembled correct facts into a false conclusion, which is why three rounds of
 review did not catch it.
 
 Also corrected: there is no `--log-to-files` FLAG; it is a `-D`/`--debug` key,
-doubly gated (`RUST_LOG` early-return plus the filter), and only the file OPEN
-panics — writes there are `let _ = writeln!`. Rounds 15 and 16 both wrote it as
-a flag.
+gated on `RUST_LOG`, and only the file OPEN panics — writes there are
+`let _ = writeln!`. Rounds 15 and 16 both wrote it as a flag.
+
+(Round 18 correction: this section originally said "doubly gated — `RUST_LOG`
+early-return PLUS the filter". The filter half is false. `init_logging` opens
+the MAIN thread's file unconditionally once `RUST_LOG` is set, whatever the
+filter says; only the per-engine-thread opens inside `log()` are filter-gated.
+Measured with `-D log-to-files=y` in a read-only cwd: `RUST_LOG` unset -> rc 0;
+`RUST_LOG=off` -> **rc 101**, panicking at `file-per-thread-logger/src/lib.rs`
+"Can't open tracing file", even though the filter excludes everything. The
+`store.rs` comment did not make this error — it says only "returns early unless
+RUST_LOG is set", which is correct.)
 
 ### One of a pair, inverted
 
@@ -1694,9 +1703,82 @@ error arm.
 * The dead-stack detach question, unchanged since round 14.
 * **Round 17's own fixes have not been reviewed.** Ninth consecutive round.
 
+## Round 18 (2026-08-09): the code held a second time; the comment was wrong a FIFTH
+
+Round 17's two code changes survived a second independent attack, one of them
+settled at the artifact level. The comment was wrong again — but for the first
+time every MECHANISM claim in it was verified true to the digit, and only the
+CONCLUSION failed.
+
+| finding | severity | status |
+|---|---|---|
+| "the EXPOSED configuration is `WASMTIME_LOG` UNSET" is false AT THIS SITE — it is a `warn!`, and unset drops WARN | HIGH | FIXED |
+| "SETTING `WASMTIME_LOG` suppresses this" is true only of the fleet's value | MEDIUM | FIXED |
+| "doubly gated (`RUST_LOG` plus the filter)" — the filter half is false | LOW | FIXED |
+| the operator/inheritance path (`setdefault` over `dict(os.environ)`) is not covered | LOW | FIXED (documented) |
+| round 17's strongest evidence — its adversarial `fgetwc` probe — was never committed | INFO | FIXED |
+
+### The level, not the mechanism
+
+Every claim (a)-(e) of round 17's comment survived independent re-derivation,
+several to the exact digit: `from_env` really does default to `LevelFilter::ERROR`
+and applies it only when statics+dynamics are empty; unset and empty-string
+really are identical (`from_env_lossy` → `unwrap_or_default`); the fleet gate
+really is `nn and NODE_HAS_GPU and gpu_share > 0` and `WASMTIME_LOG` appears
+exactly once in the repo; the md line distance really is exactly 335.
+
+And the conclusion was still false, because **the site the comment annotates is
+`log::warn!`, not `log::error!`**. With `WASMTIME_LOG` unset, `LogTracer` caps
+the `log` facade at ERROR, so a WARN record is discarded before tracing is
+consulted. Measured on the real binary, stderr → `/dev/full`:
+
+| `WASMTIME_LOG` | WARN records | rc |
+|---|---|---|
+| *unset* | 0 | 0 |
+| `wasmtime_wasi_nn=debug` | 0 | 0 |
+| `error` | 0 | 0 |
+| `warn` / `wasmtime=warn` | 2 | **101** |
+| `trace` | 2 | **101** |
+
+Round 17's measurement was taken from the `log::error!` in `reaper::submit` —
+which reproduces exactly, but which is inside `catch_unwind` and therefore the
+one site where the rule does not bite — and transferred to a site at a different
+LEVEL. Individually true facts, false conclusion: the exact pathology round 17
+diagnosed in round 16, committed by round 17.
+
+**The operative risk is the inverse of what rounds 16 and 17 both wrote**, and it
+is what round 13 recorded 335 lines up: no default tenant is exposed at this
+site; it is armed only when an OPERATOR raises `WASMTIME_LOG` to ≥WARN for
+`wasmtime::*` — i.e. precisely when someone turns SET logging on to investigate
+a live incident, which is when losing the reaper hurts most.
+
+### Verified clean — the second consecutive clean CODE verdict
+
+* **The `reaper::finish` Thread-clone is correct**: counting allocator over 2000
+  joins gives round-16 shape 2000 allocs / 28,890 B (round 17's figure
+  reproduced to the byte) and round-17 shape **0 / 0**; the name survives
+  `join()` (`Some("set-thread-42")`, re-readable); `finish` is still inside
+  `catch_unwind`; and the `Thread: Clone` borrowck argument holds — without it
+  `.clone()` would auto-ref and `handle.join()` would not compile.
+* **The fgetwc whitespace change is provably inert AT THE ARTIFACT LEVEL**:
+  `fgetwc.c.obj` is byte-identical between r14c and r14d (sha256 `1773f4c6…`),
+  and the full compiled `.wasm` modules differ in exactly **one byte** — the
+  output filename. Object-hash history also corroborates the narrative:
+  r13c == r14a, r14b distinct, r14c == r14d.
+* The whole site-1/site-2 probe matrix reproduced **with native glibc controls**
+  (run under `bwrap` with `/d` bound, since the probes hardcode `/d` — a naive
+  native run reports a false FAIL). `robust-cycle`'s argv-vs-env claim confirmed
+  again: on r14a `--env MODE=trap` hangs 25 s (inert; default arm is `exit`)
+  while argv `trap` passes in 310 ms.
+
+### Still open
+
+* The dead-stack detach question, unchanged since round 14.
+* **Round 18's own fixes have not been reviewed.** Tenth consecutive round.
+
 ## Why it is still not promotable
 
-**SEVENTEEN review passes have now been run and not one has cleared.** Round 10 was
+**EIGHTEEN review passes have now been run and not one has cleared.** Round 10 was
 design work and found a CRITICAL in round 9's own fix; round 11 reviewed round
 10 and found two HIGHs, one of which was a hole in round 10's fix — and the
 first two attempts at fixing THAT were themselves wrong.
