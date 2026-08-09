@@ -38,7 +38,32 @@ function arg(name, dflt) { const i = process.argv.indexOf('--' + name); return i
 const KVER = arg('kver', os.release());
 const KERNEL = arg('kernel', '/boot/vmlinuz-linux');
 const MODROOT = arg('modroot', `/usr/lib/modules/${KVER}`);
-const SUPERVISOR_REF = arg('supervisor', 'ghcr.io/enclavehost/enclave-supervisor:latest');
+// DEFAULT TO THE FLAVOR'S PINS, not to a moving tag. enclaves/cpu/tinfoil-config.yml
+// is the same file this build already reads its flavor env from, and it carries
+// the exact digests the CPU fleet is running — so defaulting to them makes a
+// plain `--release <tag>` build both reproducible AND the same code the fleet
+// attests to. A moving `:latest` default did neither: on 2026-08-09 the metal
+// updater built "v0.5.424-cpu" out of whatever `latest` happened to be
+// (57a458ea… pinned by the release vs e548cea6… actually pulled), so the box
+// ran a supervisor no release described, its measurement was not reproducible,
+// and the next push to that tag would have silently changed it again.
+// An explicit --supervisor/--wasm still wins, for dev builds off a local push.
+const FLAVOR_YML = path.join(HERE, '..', 'enclaves', 'cpu', 'tinfoil-config.yml');
+const pinnedRef = (containerName) => {
+  try {
+    const lines = fs.readFileSync(FLAVOR_YML, 'utf8').split('\n');
+    let inContainer = false;
+    for (const line of lines) {
+      const n = line.match(/^\s*-\s*name:\s*"?([\w-]+)"?/);
+      if (n) { inContainer = n[1] === containerName; continue; }
+      if (!inContainer) continue;
+      const m = line.match(/^\s*image:\s*"?([^"\s]+)"?/);
+      if (m) return m[1];
+    }
+  } catch { /* no config (a bare checkout): fall through to the tag */ }
+  return null;
+};
+const SUPERVISOR_REF = arg('supervisor', pinnedRef('supervisor') || 'ghcr.io/enclavehost/enclave-supervisor:latest');
 // KEEP IN STEP WITH THE SUPERVISOR. These are two independently-tagged images
 // that share a loopback control plane, and its token derivation changed in
 // c1b7352c (raw fleet SECRET → HMAC(SECRET, "enclave vmmgr v1")). Pair a
@@ -46,7 +71,7 @@ const SUPERVISOR_REF = arg('supervisor', 'ghcr.io/enclavehost/enclave-supervisor
 // SILENTLY in the only direction that looks healthy: /health falls back to its
 // unauthenticated liveness subset, so the enclave keeps answering while
 // advertising no volumes, no capacity and no nn probe.
-const WASM_REF = arg('wasm', 'ghcr.io/enclavehost/enclave-wasm-manager:040ab777');
+const WASM_REF = arg('wasm', pinnedRef('wasm-manager') || 'ghcr.io/enclavehost/enclave-wasm-manager:040ab777');
 
 console.log(`[build] kernel=${KERNEL} kver=${KVER}`);
 console.log(`[build] supervisor=${SUPERVISOR_REF}`);
