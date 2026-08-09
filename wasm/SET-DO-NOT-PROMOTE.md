@@ -1138,13 +1138,29 @@ Measured: main claims `stdin` by rebinding its own fd 0, a worker reads it, and
 main's `ferror(stdin)` is stuck at **1** where both native and the previous
 revision give **0**. The owner's own stream, poisoned by a sibling.
 
-Resolved by choosing the flag by stream KIND rather than unconditionally:
-`F_ERR` for a private foreign FILE (the only party harmed is the owner that
-should not be sharing it, and a silent short read there is the failure mode this
-whole class is about), `F_EOF` for the three shared standard streams — which
-terminates the drain loop just as well and is what native produces in the
-reachable case. Verified: no poisoning (native-identical), no spin, and a
-private foreign FILE still reports an error rather than silence.
+My first repair of this was WORSE THAN THE BUG, and shipped. I chose the flag
+by stream kind — `F_ERR` for a private foreign FILE, `F_EOF` for the shared
+standard streams — reasoning that EOF "terminates the drain loop just as well".
+It does not just terminate the loop: musl's `__toread` ends
+`return (f->flags & F_EOF) ? EOF : 0;`, so `F_EOF` **suppresses every later read
+on that stream, for every thread, until `clearerr`**. Measured on that build:
+main's own `fgets(stdin)` returned NULL with data still in the file, and under
+`serve` the handler got zero input, SILENTLY. F_ERR was a loud flag with data
+still flowing; F_EOF was silent truncation. Native reports an unusable
+descriptor as `ferror=1 feof=0` — an error, never end-of-input.
+
+I also had the scope wrong: the poisoning was never limited to the standard
+streams. It reproduces on an ordinary private FILE too, and
+`worker-file-owner.c` already asserts the owner's `ferror` stays 0 after exactly
+this — so the trade I wrote down contradicted the corpus's own spec.
+
+**Resolved with `F_XERR` (bit 256): a refusal bit the OWNER discards.** Both read
+refusals set it; `ferror()` clears it when `__wasilibc_file_mine(f)` and reports
+`F_ERR|F_XERR`; `clearerr()` clears it. A refusal is the CALLER's error, not the
+stream's — so the refusing thread sees it and its drain loop terminates, while
+the owner never reads an error it does not have. Verified against native on all
+three probes (poisoned standard stream, poisoned private FILE, spin-drain);
+**no other build passes all three**, and the 19-probe corpus is byte-identical.
 
 ### Still open from this reviewer
 
