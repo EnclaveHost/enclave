@@ -2296,7 +2296,7 @@ index b009437..3bb16d3 100644
  
  	/* If writing, flush output */
 diff --git a/libc-top-half/musl/src/stdio/fgetwc.c b/libc-top-half/musl/src/stdio/fgetwc.c
-index aa10b81..93eed7e 100644
+index aa10b81..1c6128e 100644
 --- a/libc-top-half/musl/src/stdio/fgetwc.c
 +++ b/libc-top-half/musl/src/stdio/fgetwc.c
 @@ -26,7 +26,17 @@ static wint_t __fgetwc_unlocked_internal(FILE *f)
@@ -2318,16 +2318,31 @@ index aa10b81..93eed7e 100644
  				errno = EILSEQ;
  			}
  			return WEOF;
-@@ -34,7 +44,8 @@ static wint_t __fgetwc_unlocked_internal(FILE *f)
+@@ -34,6 +44,24 @@ static wint_t __fgetwc_unlocked_internal(FILE *f)
  		l = mbrtowc(&wc, (void *)&b, 1, &st);
  		if (l == -1) {
  			if (!first) {
--				f->flags |= F_ERR;
-+				/* enclave/SET: see above. */
-+				f->flags |= __wasilibc_file_mine(f) ? F_ERR : F_XERR;
++				/* enclave/SET: UNCONDITIONAL `F_ERR`, unlike the site
++				   above, and the difference is the whole point.
++				
++				   This branch is a GENUINE encoding error (EILSEQ):
++				   `getc_unlocked` SUCCEEDED -- the byte came out of the
++				   shared buffer with no descriptor resolved -- and
++				   `mbrtowc` then rejected the sequence. An ownership
++				   refusal cannot land here: a refused `__uflow` returns
++				   EOF, so it takes the `c < 0` branch above.
++				
++				   Round 15 applied the "a refusal is the caller's error"
++				   rule to both sites on a `see above`, which downgraded a
++				   real stream error to a bit `ferror()` DISCARDS for the
++				   owner. Measured on a FILE containing `E2 41`: native,
++				   r13c and r14a all give owner ferror=1 and
++				   `fgetws`=NULL; r14b gave ferror=0 and a SILENTLY
++				   TRUNCATED string. Silent truncation on a wide read is
++				   worse than either bug the F_XERR work was about. */
+ 				f->flags |= F_ERR;
  				ungetc(b, f);
  			}
- 			return WEOF;
 diff --git a/libc-top-half/musl/src/stdio/flockfile.c b/libc-top-half/musl/src/stdio/flockfile.c
 index 8e22065..1116556 100644
 --- a/libc-top-half/musl/src/stdio/flockfile.c

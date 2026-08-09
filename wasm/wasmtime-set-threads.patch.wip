@@ -2423,7 +2423,7 @@ index ab41825..40b94e0 100644
                  // For shared memory, the `VMMemoryDefinition` is updated inside
                  // the locked region.
 diff --git a/crates/wasmtime/src/runtime/store.rs b/crates/wasmtime/src/runtime/store.rs
-index 9cc49ea..7f31237 100644
+index 9cc49ea..cdab988 100644
 --- a/crates/wasmtime/src/runtime/store.rs
 +++ b/crates/wasmtime/src/runtime/store.rs
 @@ -470,6 +470,47 @@ pub struct StoreOpaque {
@@ -2547,7 +2547,7 @@ index 9cc49ea..7f31237 100644
      /// Configures epoch-deadline expiration to invoke a custom callback
      /// function.
      ///
-@@ -1657,6 +1757,376 @@ impl StoreOpaque {
+@@ -1657,6 +1757,387 @@ impl StoreOpaque {
          (self.instances[id].handle.get_mut(), &self.modules)
      }
  
@@ -2743,15 +2743,14 @@ index 9cc49ea..7f31237 100644
 +        /// worker as a leaked one and drop its handle unjoined; once the count
 +        /// is zero this join cannot block meaningfully, so it is unconditional.
 +        fn join_finished_set_worker(handle: std::thread::JoinHandle<()>) {
-+            // Capture the name BEFORE `join` consumes the handle -- the same
-+            // pattern the reaper already uses. Without it the message names
-+            // neither which worker died nor why.
-+            let name = handle
-+                .thread()
-+                .name()
-+                .unwrap_or("set-thread")
-+                .to_string();
++            // Keep the `Thread` handle (an `Arc` bump), not an eagerly
++            // allocated `String`: `join` consumes the JoinHandle, but the
++            // name is only ever needed on the error arm. Round 15 allocated
++            // unconditionally here, on the path round 13 measured at 48,774
++            // inline joins in one 4.0 s run.
++            let thread = handle.thread().clone();
 +            if let Err(e) = handle.join() {
++                let name = thread.name().unwrap_or("set-thread");
 +                // NOT `log::warn!`. This helper is called INLINE from
 +                // `join_set_threads`, i.e. from `Drop for Store<T>`, with no
 +                // `catch_unwind` on the stack -- and it is on the FAST path,
@@ -2759,25 +2758,37 @@ index 9cc49ea..7f31237 100644
 +                // the panicking macro from `join_set_threads`' own frame and
 +                // left this one, which the same function calls two lines later.
 +                //
-+                // WHY the macro had to go, corrected in round 15 -- the
-+                // mechanism this project keeps re-deriving from comments, so
-+                // getting it wrong here is a live hazard:
++                // WHY the macro had to go. Round 15 "corrected" this and got
++                // it BACKWARDS; round 16 caught that. Both mechanisms are real
++                // and both are recorded here, because this project keeps
++                // re-deriving the rule from the comment:
 +                //
-+                // it is NOT that `tracing_subscriber`'s stderr writer panics on
-+                // a failed write. Its `log_internal_errors` defaults to FALSE
-+                // and `cli-flags` never enables it, so under the default CLI
-+                // logger a failed stderr write is silently DISCARDED. The real
-+                // panicking path is `wasmtime --log-to-files`, whose
-+                // `file_per_thread_logger` runs
-+                // `File::create(path).expect("Can't open tracing file")` on the
-+                // FIRST log from any engine-created thread -- and every SET
-+                // worker and the reaper are engine-created. Read-only rootfs,
-+                // ENOSPC or EMFILE then panics inside `Drop`.
-+                //
-+                // The hardening stands; only the reason was wrong.
++                //  1. THE ORIGINAL CLAIM WAS TRUE AND MEASURED.
++                //     `tracing_subscriber`'s stderr writer really does panic on
++                //     a failed write on the path cli-flags takes:
++                //     `FmtSubscriber::builder()` goes through
++                //     `SubscriberBuilder::default()`, which ends
++                //     `.log_internal_errors(true)` (fmt/mod.rs:470), and that
++                //     arm runs `eprintln!`, which panics. Round 15 read
++                //     `impl Default for fmt_layer::Layer` (false) -- a type
++                //     cli-flags never constructs -- and on that basis
++                //     contradicted round 13's recorded measurement of 457 of
++                //     457 teardowns dying here, without re-running it. THE
++                //     FLEET SETS `WASMTIME_LOG` UNCONDITIONALLY, so this is the
++                //     arm that ships.
++                //  2. `--log-to-files` is a SECOND path:
++                //     `file_per_thread_logger` runs
++                //     `File::create(path).expect("Can't open tracing file")` on
++                //     the first log from any engine-created thread, and every
++                //     SET worker and the reaper are engine-created. Narrower
++                //     than it looks -- it returns early unless RUST_LOG (not
++                //     WASMTIME_LOG) is set -- but real.
 +                // `{e:?}` on the join payload renders as literally
-+                // `Any { .. }` -- the panic message is lost. Downcast it, the
-+                // way `reaper::finish` does.
++                // `Any { .. }` -- the panic message is lost, so downcast it.
++                // (Round 15's comment here said "the way `reaper::finish`
++                // does". It did not; `finish` had the same defect and round 16
++                // caught that the pair had again been half-fixed. Both sites
++                // now downcast.)
 +                let msg = e
 +                    .downcast_ref::<&str>()
 +                    .map(|s| (*s).to_string())
@@ -2924,7 +2935,7 @@ index 9cc49ea..7f31237 100644
      /// Access multiple instances specified via `ids`.
      ///
      /// # Panics
-@@ -2408,6 +2878,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
+@@ -2408,6 +2889,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
  
  impl<T> Drop for Store<T> {
      fn drop(&mut self) {
@@ -2944,7 +2955,7 @@ index 9cc49ea..7f31237 100644
          self.run_manual_drop_routines();
  
          // For documentation on this `unsafe`, see `into_data`.
-@@ -2423,6 +2906,19 @@ impl Drop for StoreOpaque {
+@@ -2423,6 +2917,19 @@ impl Drop for StoreOpaque {
          // NB it's important that this destructor does not access `self.data`.
          // That is deallocated by `Drop for Store<T>` above.
  
@@ -3423,10 +3434,10 @@ index f62ea58..7ed3b91 100644
      store: &mut dyn VMStore,
 diff --git a/crates/wasmtime/src/runtime/vm/component/set_threads.rs b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
 new file mode 100644
-index 0000000..945e7e8
+index 0000000..d25e2c6
 --- /dev/null
 +++ b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
-@@ -0,0 +1,1941 @@
+@@ -0,0 +1,1955 @@
 +//! enclave/SET: real OS-thread spawning for the shared-everything-threads
 +//! `thread.spawn-ref` / `thread.spawn-indirect` component intrinsics.
 +//!
@@ -3717,8 +3728,21 @@ index 0000000..945e7e8
 +        let mut unresolved = Vec::new();
 +        for handle in core::mem::take(&mut job.joins) {
 +            if handle.is_finished() {
++                let name = handle.thread().name().unwrap_or("set-thread").to_string();
 +                if let Err(e) = handle.join() {
-+                    log::warn!("SET worker thread panicked: {e:?}");
++                    // Downcast: `{e:?}` on a join payload renders as literally
++                    // `Any { .. }`, losing the message. Round 15 fixed the FAST
++                    // path in `store.rs` and its comment said it was doing this
++                    // "the way `reaper::finish` does" -- `finish` did no such
++                    // thing, and this is the SLOW path, which round 11 measured
++                    // as 10-41% of ordinary spawn-and-join requests. One of a
++                    // pair again.
++                    let msg = e
++                        .downcast_ref::<&str>()
++                        .map(|s| (*s).to_string())
++                        .or_else(|| e.downcast_ref::<String>().cloned())
++                        .unwrap_or_else(|| "<non-string panic payload>".to_string());
++                    log::warn!("SET worker {name} panicked: {msg}");
 +                }
 +            } else if past_deadline {
 +                // Detached deliberately: nothing it can reach is being freed,
@@ -3866,12 +3890,13 @@ index 0000000..945e7e8
 +                    // is left as-is only because failing closed here would
 +                    // mean refusing to tear a store down, which is worse.
 +                    // NOT `log::error!`, and this is the THIRD time the rule has
-+                    // had to be applied. (Round 15 correction: the panicking
-+                    // path is `--log-to-files`' `file_per_thread_logger`, which
-+                    // `.expect()`s `File::create` on the first log from any
-+                    // engine-created thread -- NOT the default `tracing`
-+                    // stderr writer, whose `log_internal_errors` is false by
-+                    // default and silently discards a failed write.) `submit` is called from
++                    // had to be applied. (Round 15 claimed the default
++                    // `tracing` stderr writer does NOT panic; round 16 showed
++                    // that is false -- cli-flags builds through
++                    // `SubscriberBuilder::default()`, which sets
++                    // `log_internal_errors(true)`, and that arm `eprintln!`s.
++                    // `--log-to-files` is a second panicking path, not a
++                    // replacement. See the long note in `store.rs`.) `submit` is called from
 +                    // `join_set_threads`, which is called from `Drop for
 +                    // Store<T>`, with no `catch_unwind` anywhere on that stack.
 +                    // Round 12 hardened the reaper's own writes and round 13
