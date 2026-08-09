@@ -17,6 +17,7 @@ const { encCall, encAddr, decodeStructArray, DEP_SCHEMA, DEP_SCHEMA_V1, APP_SCHE
 const { CONTRACTS } = await import(path.join(REPO, "site/js/gen/contract-artifacts.js"));
 const { encCallX } = await import(path.join(REPO, "site/components/admin-console/migrate.js"));
 const ROLL = await import(path.join(REPO, "site/components/admin-console/rollout.js"));
+const ROLLMIG = await import(path.join(REPO, "site/components/admin-console/migrate.js"));
 const A3 = "0x3333333333333333333333333333333333333333";
 const CONSOLE_SRC = fs.readFileSync(path.join(REPO, "site/components/admin-console/admin-console.js"), "utf8");
 const ABI = (name) => JSON.parse(fs.readFileSync(path.join(REPO, "contracts", name + ".abi.json"), "utf8"));
@@ -671,6 +672,49 @@ test("rollout: the run's order is the safety property", () => {
   assert.match(doneBranch, /retireTx\(\)/);
   assert.match(doneBranch, /btn\.dataset\.armed/, "retiring must be armed by a second click of its own");
   assert.ok(!theRun.includes("retireTx()"), "the rollout run itself must never retire the source");
+});
+
+test("migration batches are sized by GAS, and a record's gas is its BYTES", async () => {
+  // The 2026-08-09 stall: importDeployments assumed a flat 450k per record, but
+  // a record is mostly strings — and rev 5 widened configCid from 100 bytes to
+  // 4096. Six envelope-carrying records were planned as 2.82M gas and actually
+  // cost 15.7M, past the ~11M ceiling where the wallet silently never
+  // broadcasts. The run hung on "confirm in your wallet…" with no error at all.
+  const { recordImportGas } = await import(path.join(REPO, "site/components/admin-console/migrate.js"));
+  const big = { appRef: "catalog://" + "a".repeat(70), ports: "", configCid: "x".repeat(3900) };
+  const small = { appRef: "catalog://" + "a".repeat(70), ports: "", configCid: "" };
+  // measured on Base against the live ledger: ~3.0M for a ~3.9KB record
+  assert.ok(recordImportGas(big) > 3_000_000 && recordImportGas(big) < 4_200_000,
+    `a 3.9KB record should cost ~3M gas, model says ${recordImportGas(big)}`);
+  assert.ok(recordImportGas(small) < 600_000, "a record with no envelope stays cheap");
+  // the model must be dominated by bytes, not by the record count
+  assert.ok(recordImportGas(big) > 5 * recordImportGas(small),
+    "a flat per-record cost is exactly the bug this replaced");
+
+  // and the planner must SPLIT on that cost, not merely group by count
+  const mk = (i, cfg) => ({ id: "0x" + String(i).padStart(64, "0"), owner: A1, appRef: "catalog://x/1",
+    ports: "", configCid: cfg, gpuMilli: 0, cpuMilli: 100, appPort: 8080, isPublic: true, active: true,
+    createdAt: 1, rate: 100, balance6: 0, spent6: 0, runner: "0x" + "0".repeat(64),
+    runnerOperator: ZERO, leaseUntil: 0, cap6: "100", earn: { rate6: "80" }, fee: { rate6: "0", recipient: ZERO } });
+  const heavy = Array.from({ length: 6 }, (_, i) => mk(i + 1, "x".repeat(3900)));
+  const txs = ROLLMIG.MIG_KINDS.deployments.plan(heavy, [], { grantRates: false, runnerBps: 0 });
+  const imports = txs.filter((t) => /importDeployments/.test(t.label));
+  assert.ok(imports.length >= 3, `six 3.9KB records must not ride one transaction (got ${imports.length} import txs)`);
+  for (const t of imports) assert.ok(t.gas < 9_000_000, `a planned batch claims ${t.gas} gas, over budget`);
+});
+
+test("rollout: a transaction over the estimate ceiling is refused, not handed over", async () => {
+  // Past ~11M the wallet gets no gas limit and never broadcasts: no rejection,
+  // no revert, no error. Checking it ourselves is what makes that a sentence.
+  const { MAX_TX_GAS } = await import(path.join(REPO, "site/components/admin-console/rollout.js"));
+  assert.ok(MAX_TX_GAS >= 8_000_000n && MAX_TX_GAS <= 11_000_000n);
+  const run = CONSOLE_SRC.split('act === "r12-run"')[1].split('act === "vlt-scan"')[0];
+  assert.match(run, /const sendChecked = async[\s\S]{0,600}g > MAX_TX_GAS[\s\S]{0,300}stops broadcasting without reporting anything/);
+  // every batched send must go through it - a raw sendTx in the loops is the
+  // hole this closes
+  const loops = run.split("const sendChecked")[1];
+  assert.ok(!/const h = await sendTx\(ledger, txs\[i\]\.dataHex\)/.test(loops), "import batches must use sendChecked");
+  assert.ok(!/const h = await sendTx\(ledger, plan\.txs\[i\]\.dataHex\)/.test(loops), "escrow batches must use sendChecked");
 });
 
 test("rollout: it checks the USDC balance BEFORE it deploys anything", () => {
