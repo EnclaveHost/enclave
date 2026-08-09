@@ -24,6 +24,8 @@ import { esc, on, short, showToast } from "../../js/core/util.js";
 import { CONTRACTS } from "../../js/gen/contract-artifacts.js";
 import { MIG_KINDS, importState, sealTx, encCallX, escrowPlan, approveTx, refundSweepPlan } from "./migrate.js";
 import { vaultImplCurrent, scanVaults, planVaultMigration, oldTreasury, balanceOf6 } from "./vaultmig.js";
+import { REV12, probeRev12, sourceEscrowTotal6, deployTx, setProverTx, setProofRequiredFromTx,
+         retireTx, bookSetManyTx, revOfLedger, revOfRegistry } from "./rollout.js";
 import { metricsPanel, paintMetrics, paintHistory, loadMetrics, redrawPlots } from "./metrics.js";
 
 const EXPLORER = "https://basescan.org";
@@ -491,6 +493,23 @@ class AdminConsole extends EnclaveElement {
 
     }
 
+    /* -- one-button paired-revision rollout (ledger rev 12 + registry schema 4) -- */
+    if (S.dep && (Number(S.dep.schema || 0) < REV12.ledgerRev || this._r12Saved().retire)) {
+      const saved = this._r12Saved();
+      const onlyRetire = Number(S.dep.schema || 0) >= REV12.ledgerRev && saved.retire;
+      const usd = (v6) => "$" + (Number(v6) / 1e6).toFixed(2);
+      parts.push(`<section class="ac-panel"><h3>Roll out ${esc(REV12.title)} <span class="ac-hint">ledger rev ${REV12.ledgerRev} · registry schema ${REV12.registryRev}</span></h3>
+        ${onlyRetire ? `<p class="ac-sub"><b>Rev ${REV12.ledgerRev} is live</b> - the book points at ${mono(S.dep.addr)}. One step remains: retiring the previous ledger ${mono(saved.retire)}, which is one-way and should wait until the fleet is demonstrably serving from the new one. Click below when you have checked a running deployment.</p><p class="ac-sub" hidden>` : `<p class="ac-sub">`}${esc(REV12.summary)} The live ledger ${mono(S.dep.addr)} is rev ${esc(String(S.dep.schema))}, so this needs the whole set: the ledger reads a field only a schema-${REV12.registryRev} registry carries, and <code>EnclaveProofOfTime</code> holds both as immutables. <b>One button does all of it</b> - deploy registry, ledger and prover (skipping any this flow already deployed), bind the prover, carry the proof cutover across, migrate every deployment record, re-seat the runner escrow, verify field-by-field, seal the imports, and point the book at all three in a single <code>setMany</code>. Re-click after any interruption: every step re-probes live chain state and resumes at the first thing that is not already true.</p>
+        <p class="ac-sub"><b>It spends real USDC once.</b> Runner escrow is a balance the old ledger HOLDS and keeps, so it cannot be imported - every migrated record lands unbacked, and until it is re-seated from this wallet a seller serving it earns nothing and its owner's refund pays nothing. The first click prices that exactly and signs nothing; the second runs. The one destructive step, <b>retiring the old ledger</b>, is deliberately left out of the run: it is offered on a later click, once the fleet has actually followed the book (~10 min).</p>
+        ${saved.ledger || saved.registry ? `<p class="ac-sub warn">A previous run left ${[saved.registry ? "registry " + short(saved.registry) : null, saved.ledger ? "ledger " + short(saved.ledger) : null, saved.prover ? "prover " + short(saved.prover) : null].filter(Boolean).join(", ")} deployed but not yet live. The run reuses them rather than paying to deploy again.</p>` : ""}
+        <div class="ac-mig-actions">
+          <button class="btn btn-primary btn-sm ac-danger-btn" data-act="r12-run">${onlyRetire ? `Retire the old ledger` : `Roll out rev ${REV12.ledgerRev}`}</button>
+          <button class="btn btn-sm" data-act="r12-forget">Forget saved deploys</button>
+        </div>
+        <div class="ac-mig-log" id="r12Log" role="log" aria-label="Rollout log" hidden></div>
+      </section>`);
+    }
+
     /* -- migrate -- */
     {
       parts.push(`<section class="ac-panel"><h3>Migrate data</h3>
@@ -657,6 +676,37 @@ class AdminConsole extends EnclaveElement {
     // buffered so a repaint can replay it (see _migPrefill)
     if (this._mig) (this._mig.log = this._mig.log || []).push({ cls, txt });
     this._logTo("migLog", cls, txt);
+  }
+
+  /* Hand a stopped rollout over to the manual Migrate panel with both
+     addresses already in place: a verify that disagrees is exactly when an
+     operator needs the step-by-step tools, and re-typing a 42-character
+     address at that moment is how the wrong contract gets sealed. */
+  _migHandoff(source, target) {
+    const src = this._body && this._body.querySelector("#migSource");
+    const tgt = this._body && this._body.querySelector("#migTarget");
+    if (!src || !tgt) return;
+    this._mig = { kind: "deployments", data: null };
+    const kindSel = this._body.querySelector("#migKind");
+    if (kindSel) kindSel.value = "deployments";
+    src.value = source; tgt.value = target;
+    src.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  /* ---------- paired-revision rollout (rollout.js plans, this drives) ------- */
+
+  _r12Log(cls, txt) {
+    const R = this._r12 || (this._r12 = {});
+    (R.log = R.log || []).push({ cls, txt });
+    this._logTo("r12Log", cls, txt);
+  }
+  /* Addresses deployed by a run that then stopped (a closed tab, a rejected
+     signature, an RPC wobble). Without this the next click pays to deploy them
+     all over again and orphans the first set. */
+  _r12Saved() { try { return JSON.parse(localStorage.getItem(REV12.storeKey) || "{}"); } catch { return {}; } }
+  _r12Save(o) {
+    try { Object.keys(o).length ? localStorage.setItem(REV12.storeKey, JSON.stringify(o)) : localStorage.removeItem(REV12.storeKey); }
+    catch {}
   }
 
   /* ---------- credit-vault factory migration (vaultmig.js drives) ---------- */
@@ -931,6 +981,245 @@ class AdminConsole extends EnclaveElement {
         } finally { btn.disabled = false; }
         return;
       }
+      /* ---- one-button paired-revision rollout ------------------------------
+         Ordered so that a stop anywhere leaves the fleet on the OLD set, which
+         still works: nothing the run does is visible to a runner until the book
+         flips, and the flip is one transaction covering all three keys. */
+      if (act === "r12-forget") { this._r12Save({}); this._r12Log("p", "forgot the saved deploys - the next run starts from the book's current set"); return; }
+      if (act === "r12-run") {
+        const R = this._r12 || (this._r12 = {});
+        const log = (cls, txt) => this._r12Log(cls, txt);
+        const needR = (cond, msg) => { if (!cond) log("err", msg); return cond; };
+        const usd = (v6) => "$" + (Number(v6) / 1e6).toFixed(2);
+        const mig = MIG_KINDS.deployments;
+        btn.disabled = true;
+        try {
+          const saved = this._r12Saved();
+          log("p", "probing the live set…");
+          const P = await probeRev12(S, saved);
+
+          if (P.complete) {
+            // Everything is live, so `P.source` is now the NEW ledger - the book
+            // is what probeRev12 reads. The thing to retire is the ledger this
+            // run REPLACED, recorded at the flip, and nothing else: retiring
+            // P.source here would close the ledger the fleet is serving from.
+            log("ok", `the book already points at rev ${REV12.ledgerRev}: registry ${P.registry.addr}, ledger ${P.ledger.addr}, prover ${P.prover.addr}`);
+            const oldLedger = saved.retire;
+            if (!oldLedger) {
+              log("ok", "rollout complete. No earlier ledger is recorded here to retire - if one still needs it, use the Migrate panel's \"Retire source ledger\" with its address.");
+              return;
+            }
+            if (!needR(lc(oldLedger) !== lc(P.ledger.addr), "refusing to retire the LIVE ledger - the recorded predecessor is the same address, which should never happen; clear it with Forget saved deploys")) return;
+            // null = the read failed; only a definite 1 means retired. Guessing
+            // here would either hide the last step or offer to redo it.
+            const srcRetired = await rdUintSoft(oldLedger, CONTRACTS.EnclaveDeployments.sel.retired);
+            if (!needR(srcRetired !== null, "could not read the old ledger's retired flag - retry in a moment")) return;
+            if (srcRetired === 1n) { log("ok", `${oldLedger} is already retired - this rollout is finished.`); this._r12Save({}); this.refresh(); return; }
+            const oldOwner = await rdAddrSoft(oldLedger, CONTRACTS.EnclaveDeployments.sel.owner);
+            if (!needR(lc(Enclave.address) === lc(oldOwner), `retiring ${oldLedger} must come from its owner ${oldOwner}`)) return;
+            if (!btn.dataset.armed) {
+              btn.dataset.armed = "1"; btn.textContent = "Click again to RETIRE the old ledger";
+              log("err", `last step: retire ${oldLedger}. One-way. Claims, renewals and funding close on it forever, and refund() opens to any caller (still paying each record's own owner, so nobody's money can be trapped). Only do this once the fleet is serving from the NEW ledger - check a running deployment first. Click again to retire.`);
+              return;
+            }
+            delete btn.dataset.armed; btn.textContent = "Retire the old ledger";
+            await this._connect();
+            log("p", `retiring ${oldLedger} - confirm in your wallet…`);
+            const rh = await sendTx(oldLedger, retireTx());
+            await waitReceipt(rh, 90);
+            log("ok", "retired ✓ - rollout complete. Run scripts/sync-contract-addresses.sh and ship a release so the CLI's baked defaults follow the book.");
+            this._r12Save({});
+            this.refresh();
+            return;
+          }
+
+          /* ---- first click: price it, sign nothing ---- */
+          if (!btn.dataset.armed) {
+            const esc6 = await sourceEscrowTotal6(P.source.addr);
+            const src = await mig.read(P.source.addr);
+            log("p", `source ledger ${P.source.addr} · rev ${P.source.rev} · ${mig.counts(src)}`);
+            log("p", `  usdc ${P.source.usdc} · payout ${P.source.payout} · feed ${isZero(P.source.feed) ? "(none)" : P.source.feed}`);
+            log("p", "plan:");
+            log("p", `  1. registry   ${P.registry.addr ? "reuse " + P.registry.addr : "DEPLOY (schema " + REV12.registryRev + ")"}`);
+            log("p", `  2. ledger     ${P.ledger.addr ? "reuse " + P.ledger.addr : "DEPLOY (rev " + REV12.ledgerRev + ", same usdc/payout/feed)"}`);
+            log("p", `  3. prover     ${P.prover.addr ? "reuse " + P.prover.addr : "DEPLOY + setProver"}`);
+            log("p", `  4. cutover    carry proofRequiredFrom = ${String(P.source.proofFrom ?? 0)} across, unchanged`);
+            log("p", `  5. migrate    ${src.length} record${src.length === 1 ? "" : "s"} (delta - skips anything already there)`);
+            log("p", `  6. escrow     re-seat ~${usd(esc6.total6)} of USDC across ${esc6.records} record${esc6.records === 1 ? "" : "s"} FROM THIS WALLET`);
+            log("p", "  7. verify, then seal the imports");
+            log("p", "  8. book       setMany(registry, deployments, proofOfTime) - one transaction");
+            log("p", "  (records THIS wallet owns can be refunded on the source first - Migrate panel, \"Refund sweep\" - which suspends those apps briefly and cuts the bill above by their share. Not done here: taking your own deployments down is not a side effect a rollout button should have.)");
+            log("err", `this will spend about ${usd(esc6.total6)} of USDC plus gas. Click again to run it.`);
+            btn.dataset.armed = "1"; btn.textContent = `Run it (${usd(esc6.total6)} + gas)`;
+            R.src = src; R.srcOf = P.source.addr;
+            return;
+          }
+          delete btn.dataset.armed; btn.textContent = `Roll out rev ${REV12.ledgerRev}`;
+
+          /* ---- the run ---- */
+          if (!needR(lc(Enclave.address) === lc(S.book.owner), `the book flip must come from its owner ${S.book.owner} - connect that wallet (everything already deployed is kept)`)) return;
+          await this._connect();
+          const keep = { ...saved };
+          const remember = (k, v) => { keep[k] = v; this._r12Save(keep); };
+
+          /* 1. registry */
+          let registry = P.registry.addr;
+          if (!registry) {
+            log("p", `deploying EnclaveRegistry (schema ${REV12.registryRev}) - confirm in your wallet…`);
+            const h = await sendTx(null, deployTx("EnclaveRegistry", []));
+            log("p", `  sent ${h.slice(0, 14)}… waiting…`);
+            registry = (await waitReceipt(h, 90)).contractAddress;
+            if (!needR(registry && ADDR_RE.test(registry), "confirmed, but no contract address in the receipt - check basescan, then re-run")) return;
+            // A stale site build would silently deploy the PREVIOUS revision and
+            // the run would wire a set that cannot claim. Prove it, don't hope.
+            const rv = await revOfRegistry(registry);
+            if (!needR(rv >= REV12.registryRev, `the fresh deploy reports registrySchema ${rv}, not ${REV12.registryRev} - this site build predates the revision: rebuild (build-contract-artifacts.mjs), redeploy the site, re-run`)) return;
+            remember("registry", registry);
+            log("ok", `  registry ${registry} ✓`);
+          } else log("p", `registry: reusing ${registry}`);
+
+          /* 2. ledger - same usdc/payout/feed as the source, new registry */
+          let ledger = P.ledger.addr;
+          if (!ledger) {
+            log("p", `deploying EnclaveDeployments (rev ${REV12.ledgerRev}) - confirm in your wallet…`);
+            const h = await sendTx(null, deployTx("EnclaveDeployments", [
+              { t: "addr", v: P.source.usdc }, { t: "addr", v: P.source.payout },
+              { t: "addr", v: registry }, { t: "addr", v: P.source.feed || ZERO }]));
+            log("p", `  sent ${h.slice(0, 14)}… waiting…`);
+            ledger = (await waitReceipt(h, 90)).contractAddress;
+            if (!needR(ledger && ADDR_RE.test(ledger), "confirmed, but no contract address in the receipt - check basescan, then re-run")) return;
+            const lv = await revOfLedger(ledger);
+            if (!needR(lv >= REV12.ledgerRev, `the fresh deploy reports deploymentsSchema ${lv}, not ${REV12.ledgerRev} - this site build predates the revision: rebuild, redeploy the site, re-run`)) return;
+            remember("ledger", ledger);
+            log("ok", `  ledger ${ledger} ✓ (bound to registry ${registry})`);
+          } else log("p", `ledger: reusing ${ledger}`);
+
+          /* 3. prover + binding. setProver is ONE-SHOT on the ledger, so a
+                second run must not try to rebind a ledger that already has one. */
+          let prover = P.prover.addr;
+          if (!prover) {
+            log("p", "deploying EnclaveProofOfTime - confirm in your wallet…");
+            const h = await sendTx(null, deployTx("EnclaveProofOfTime", [{ t: "addr", v: ledger }, { t: "addr", v: registry }]));
+            log("p", `  sent ${h.slice(0, 14)}… waiting…`);
+            prover = (await waitReceipt(h, 90)).contractAddress;
+            if (!needR(prover && ADDR_RE.test(prover), "confirmed, but no contract address in the receipt - check basescan, then re-run")) return;
+            remember("prover", prover);
+            log("ok", `  prover ${prover} ✓`);
+          } else log("p", `prover: reusing ${prover}`);
+          const bound = await rdAddrSoft(ledger, CONTRACTS.EnclaveDeployments.sel.prover);
+          if (isZero(bound)) {
+            log("p", "binding the prover to the ledger (one-shot, then frozen) - confirm in your wallet…");
+            const h = await sendTx(ledger, setProverTx(prover));
+            await waitReceipt(h, 90);
+            log("ok", "  bound ✓");
+          } else if (!needR(lc(bound) === lc(prover), `the ledger is already bound to a DIFFERENT prover (${bound}) and that binding is frozen - deploy a fresh ledger (Forget saved deploys, then re-run)`)) return;
+
+          /* 4. carry the proof cutover across verbatim. A fresh ledger starts a
+                new 14-day grace, which would silently put every host back on
+                held-time metering; whatever policy the source is running is the
+                policy that should survive a redeploy. */
+          const wantFrom = P.source.proofFrom ?? 0n;
+          const haveFrom = await rdUintSoft(ledger, CONTRACTS.EnclaveDeployments.sel.proofRequiredFrom);
+          if (!needR(haveFrom !== null, "could not read the new ledger's proofRequiredFrom - retry in a moment")) return;
+          if (haveFrom !== wantFrom) {
+            log("p", `carrying proofRequiredFrom ${String(haveFrom)} → ${String(wantFrom)} - confirm in your wallet…`);
+            const h = await sendTx(ledger, setProofRequiredFromTx(wantFrom));
+            await waitReceipt(h, 90);
+            log("ok", "  cutover carried ✓");
+          }
+
+          /* 5. migrate every record (delta) */
+          const st = await importState(ledger, "EnclaveDeployments");
+          if (!needR(st.capable, "the target ledger has no import surface")) return;
+          const runImports = async (label) => {
+            if (st.sealed) { log("p", `${label}: imports already sealed - skipping`); return true; }
+            const src = (R.srcOf === P.source.addr && R.src) || await mig.read(P.source.addr);
+            R.src = src; R.srcOf = P.source.addr;
+            const after = await mig.read(ledger);
+            const runnerBps = Number(await rdUintSoft(ledger, CONTRACTS.EnclaveDeployments.sel.runnerBps) ?? 0);
+            const txs = mig.plan(src, after, { grantRates: true, runnerBps });
+            if (!txs.length) { log("ok", `${label}: nothing left to import`); return false; }
+            log("p", `${label}: ${txs.length} transaction${txs.length === 1 ? "" : "s"}`);
+            for (let i = 0; i < txs.length; i++) {
+              log("p", `  [${i + 1}/${txs.length}] ${txs[i].label} - confirm in your wallet…`);
+              const h = await sendTx(ledger, txs[i].dataHex);
+              await waitReceipt(h, 90);
+              log("ok", `    ✓ ${txs[i].label}`);
+            }
+            return true;
+          };
+          /* 6. re-seat the runner escrow. MUST be before the seal: while imports
+                are open the backing is credited to each record's OWNER as
+                refundable money they already paid, and after sealing it is not,
+                permanently. Idempotent, and re-run after any delta that lands
+                new records - importing a record after the backing pass would
+                otherwise seal it unbacked, which no later transaction can fix. */
+          const backEscrow = async () => {
+            if (st.sealed) return;
+            log("p", "working out the escrow backing that is still missing…");
+            const plan = await escrowPlan(ledger);
+            for (const sk of plan.skipped) log("err", `  skipped ${sk.id.slice(0, 12)}… - ${sk.why}`);
+            if (!plan.items.length) { log("ok", "  every record is already backed"); return; }
+            log("p", `  ${plan.items.length} record${plan.items.length === 1 ? "" : "s"} need ${usd(plan.total6)} of USDC`);
+            log("p", `  approving ${usd(plan.total6)} to the ledger - confirm in your wallet…`);
+            const ah = await sendTx(USDC_BASE, approveTx(ledger, plan.total6));
+            await waitReceipt(ah, 90);
+            for (let i = 0; i < plan.txs.length; i++) {
+              log("p", `  [${i + 1}/${plan.txs.length}] ${plan.txs[i].label} - confirm in your wallet…`);
+              const h = await sendTx(ledger, plan.txs[i].dataHex);
+              await waitReceipt(h, 90);
+              log("ok", `    ✓ ${plan.txs[i].label}`);
+            }
+            log("ok", `  escrow re-seated with ${usd(plan.total6)} ✓`);
+          };
+
+          await runImports("migrate");
+          await backEscrow();
+
+          /* 7. one last delta (records created on the source while we worked),
+                backed again if it found any, then verify and seal */
+          if (await runImports("final pass")) await backEscrow();
+          log("p", "verifying: re-reading the target and diffing field-by-field…");
+          const runnerBps = Number(await rdUintSoft(ledger, CONTRACTS.EnclaveDeployments.sel.runnerBps) ?? 0);
+          const v = await mig.verify(R.src, ledger, { grantRates: true, runnerBps });
+          if (v.bad.length) {
+            log("err", `${v.ok}/${v.total} records match; mismatched: ${v.bad.slice(0, 10).join(", ")}${v.bad.length > 10 ? " …" : ""}`);
+            log("err", "STOPPING before the seal and the book flip - nothing is live yet, and the old ledger is still serving. Investigate with the Migrate panel (source and target are prefilled below), then re-run.");
+            this._migHandoff(P.source.addr, ledger);
+            return;
+          }
+          log("ok", `  all ${v.total} records match the source exactly`);
+          if (!(await importState(ledger, "EnclaveDeployments")).sealed) {
+            log("p", "sealing the target's imports (permanent) - confirm in your wallet…");
+            const h = await sendTx(ledger, sealTx("EnclaveDeployments"));
+            await waitReceipt(h, 90);
+            log("ok", "  sealed ✓");
+          }
+
+          /* 8. the flip. All three keys in ONE transaction: a book that named a
+                rev-12 ledger and a schema-3 registry, even for one block, is a
+                pairing that reverts every claim. */
+          const pairs = [["registry", registry], ["deployments", ledger], ["proofOfTime", prover]]
+            .filter(([k, a]) => lc(S.book.entries[k] || "") !== lc(a));
+          if (pairs.length) {
+            log("p", `pointing the book at ${pairs.map(([k]) => k).join(", ")} - confirm in your wallet…`);
+            const h = await sendTx(S.book.addr, bookSetManyTx(pairs));
+            await waitReceipt(h, 90);
+            log("ok", "  book repointed ✓");
+          }
+          // Keep exactly one crumb: the ledger this run replaced. It is what the
+          // remaining (destructive) step operates on, and clearing it here would
+          // put the retire out of the button's reach entirely.
+          this._r12Save({ retire: P.source.addr });
+          log("ok", `rev ${REV12.ledgerRev} is LIVE. Enclaves, relays and the site follow the book within ~5-10 min; the old ledger ${P.source.addr} keeps serving until they do.`);
+          log("p", "then: check a running deployment, run scripts/sync-contract-addresses.sh and ship a release (the CLI's defaults are baked), and re-click this button to retire the old ledger.");
+          this.refresh();
+        } catch (err) {
+          log("err", friendly(err) + " - nothing is stranded: re-click to resume from live chain state (deployed addresses are remembered).");
+        } finally { btn.disabled = false; }
+        return;
+      }
+
       /* credit-vault factory migration (scan → one run that deploys/repoints/
          re-mints/fronts whatever live chain state still needs) */
       if (act === "vlt-scan" || act === "vlt-run") {
