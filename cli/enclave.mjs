@@ -286,7 +286,8 @@ const APPROVAL_WORD = ["pending", "approved", "rejected"];
 
 // ---- global flags + config ---------------------------------------------------
 // Parsed once, up front; command args are whatever remains.
-const opt = { json: false, trace: false, base: null, rpc: null, yes: false };
+const opt = { json: false, trace: false, base: null, rpc: null, yes: false,
+              unsigned: false, signer: null, from: null };
 const args = [];
 {
   const a = argv.slice(2);
@@ -296,6 +297,17 @@ const args = [];
     else if (a[i] === "--yes" || a[i] === "-y") opt.yes = true;
     else if (a[i] === "--base") opt.base = a[++i];
     else if (a[i] === "--rpc") opt.rpc = a[++i];
+    // ---- signing somewhere other than this machine ----------------------
+    // The CLI's own key is a hot key in a file. These two let it drive a
+    // wallet that is not: --unsigned prints the transaction for you to sign
+    // wherever you like (a browser wallet with a Ledger behind it, a Safe, an
+    // air-gapped box), and --signer hands it to a local JSON-RPC signer —
+    // Frame, Clef — that talks to the hardware wallet itself. Neither can be a
+    // bundled Ledger transport: this CLI ships as ONE esbuild'd file and
+    // node-hid is a native module with per-platform binaries.
+    else if (a[i] === "--unsigned") opt.unsigned = true;
+    else if (a[i] === "--signer") opt.signer = a[++i];
+    else if (a[i] === "--from") opt.from = a[++i];
     else args.push(a[i]);
   }
 }
@@ -336,7 +348,38 @@ const numFlag = (v, name) => {
 
 // ---- key management -----------------------------------------------------------
 const KEY_FILE = path.join(CONF_DIR, "key");
+/* --signer / --unsigned mean the private key is somewhere this process cannot
+   reach, so there is nothing to load — but the rest of the CLI still needs to
+   know WHICH address it is acting as (ownership gates, `?owner=` reads, the
+   from field of the transaction it prints). This stands in for the account:
+   same `.address`, and the two signing methods throw something that names the
+   real problem instead of "cannot read properties of undefined".
+   MESSAGE signing genuinely cannot be delegated this way — `enclave login`
+   (SIWE), uploads and encrypted-volume unlocks need a signature over a string,
+   which Frame/Clef will do but an unsigned run cannot represent at all. */
+const externalAccount = (address) => ({
+  address: getAddress(address),
+  _external: true,
+  signMessage: async () => { throw new Error(EXTERNAL_SIGN_HINT); },
+  signTypedData: async () => { throw new Error(EXTERNAL_SIGN_HINT); },
+});
+const EXTERNAL_SIGN_HINT =
+  "this command needs a SIGNED MESSAGE, not a transaction, so --unsigned cannot express it. "
+  + "Use --signer <url> (Frame/Clef sign messages too), or run it with a local key";
 function loadKey({ required = true } = {}) {
+  // an address is enough when something else holds the key
+  if (opt.unsigned || opt.signer) {
+    if (opt.from) {
+      if (!/^0x[0-9a-fA-F]{40}$/.test(opt.from)) throw new Error(`--from is not a 0x…40-hex address: ${opt.from}`);
+      return externalAccount(opt.from);
+    }
+    // Asked for rather than discovered: a signer may hold several accounts, and
+    // every ownership gate in this CLI keys on the address — guessing one would
+    // silently act as the wrong wallet, which is the failure that cost a
+    // payout-wallet declaration on 2026-08-09.
+    if (required) throw new Error(`--${opt.unsigned ? "unsigned" : "signer"} needs --from 0x… — the wallet this is for`);
+    return null;
+  }
   let pk = (env.ENCLAVE_KEY || "").trim();
   if (!pk && fs.existsSync(KEY_FILE)) pk = fs.readFileSync(KEY_FILE, "utf8").trim();
   if (!pk) {
@@ -393,15 +436,40 @@ function pub() {
   return _pub;
 }
 function wallet(account) {
-  if (!_wallet) _wallet = createWalletClient({ account, chain: base, transport: fallback(RPCS.map((u) => viemHttp(u))) });
+  if (_wallet) return _wallet;
+  // With --signer the key lives in Frame/Clef/a node, so the account is just an
+  // ADDRESS and viem sends eth_sendTransaction to that endpoint — which is
+  // where the hardware-wallet prompt comes from. Without it, the local account
+  // signs and we broadcast through the normal RPC pool.
+  _wallet = opt.signer
+    ? createWalletClient({ account: getAddress(account.address), chain: base, transport: viemHttp(opt.signer) })
+    : createWalletClient({ account, chain: base, transport: fallback(RPCS.map((u) => viemHttp(u))) });
   return _wallet;
 }
 const read = (address, abi, functionName, a = []) =>
   pub().readContract({ address, abi, functionName, args: a });
+/* Print the transaction and STOP. Stopping is the honest part: a flow like
+   deploy is create-then-fund, and the second call needs the first one's logs,
+   so pretending to continue would emit a transaction built on state that does
+   not exist yet. Same contract as the MCP tools, which hand back unsigned
+   transactions to be signed and sent IN ORDER — this is that surface, in the
+   terminal. Re-run the command once the printed one has mined. */
+function emitUnsigned({ account, to, data, value, label }) {
+  const tx = { chainId: DEFAULTS.chainId, from: account?.address || opt.from || null,
+               to: getAddress(to), data, value: "0x" + BigInt(value || 0).toString(16) };
+  if (opt.json) { jout({ unsigned: tx, label }); exit(0); }
+  say(`\n${label} — UNSIGNED. Sign and send this, then re-run if the command has more steps.\n`);
+  kv([["chainId", String(tx.chainId)], ...(tx.from ? [["from", tx.from]] : []),
+      ["to", tx.to], ["value", tx.value === "0x0" ? "0" : tx.value], ["data", tx.data]]);
+  exit(0);
+}
 async function sendTx(account, { address, abi, functionName, args: a, value }) {
   const name = { [DEFAULTS.DEPLOYMENTS_ADDRESS]: "EnclaveDeployments",
                  [DEFAULTS.APP_CATALOG_ADDRESS]: "EnclaveAppCatalog" }[address] || address;
   trace(`tx ${name}.${functionName}(${a.map(fmtArg).join(", ")})${value ? ` value=${formatUnits(value, 18)} ETH` : ""}`);
+  if (opt.unsigned) return emitUnsigned({ account, to: address,
+    data: encodeFunctionData({ abi, functionName, args: a }), value,
+    label: `${name}.${functionName}` });
   const hash = await wallet(account).writeContract({ address, abi, functionName, args: a, ...(value ? { value } : {}) });
   trace(`tx sent ${hash}, waiting for receipt`);
   const rcpt = await pub().waitForTransactionReceipt({ hash });
@@ -2472,6 +2540,7 @@ credentials - no S3 fields to enter, after any restart.\n`);
 const HELP = `enclave ${VERSION} · confidential compute from your terminal (https://enclave.host)
 
 usage: enclave <command> [args]  [--json] [-x] [-y|--yes] [--base URL] [--rpc URL]
+                                 [--unsigned --from 0x…] [--signer URL --from 0x…]
 
 identity
   key new [--force]          generate a wallet key -> ${KEY_FILE}
@@ -2623,6 +2692,22 @@ platform
        deploy: a CID names bytes, not a version; config differs per version)
 <id>   is  the bytes32 deployment id (0x…), any unique 0x-prefix of it, or a legacy dep_… id
 
+Signing without a key on this machine (hardware wallets, Safes, air-gapped):
+  --unsigned --from 0x…      print the transaction {chainId,to,data,value} and
+                             stop, instead of sending it. Sign it wherever the
+                             key lives - a browser wallet with a Ledger behind
+                             it, a Safe, a cold box. Multi-step commands print
+                             the FIRST transaction; re-run once it has mined.
+                             Same shape the MCP build_* tools return.
+  --signer URL --from 0x…    send eth_sendTransaction to a local signer that
+                             holds the key - Frame (http://127.0.0.1:1248) or
+                             Clef - which drives the Ledger/Trezor itself and
+                             pops the approval. Reads still use --rpc.
+  Both need --from: a signer may hold several accounts, and every ownership
+  gate here keys on the address, so guessing would act as the wrong wallet.
+  Message-signing commands (login, upload, encvol) need --signer; --unsigned
+  cannot represent a signature over a string.
+
 Global: --json machine output · -x print every REST call + transaction ·
 --base/--rpc (ENCLAVE_API_BASE/ENCLAVE_RPC) target an enclave or your own RPC ·
 ENCLAVE_KEY overrides the key file. Auth is SIWE (wallet) or an Enclave account
@@ -2640,7 +2725,7 @@ transactions - deploying and funding by credit stays on enclave.host for now.`;
 // not a payment; earnings sweep to payoutAddress (default: this CLI wallet).
 async function cmdHost(rest) {
   const sub = rest.shift();
-  const f = flags(rest, { val: ["--config", "--name", "--payout", "--eth", "--address", "--mode", "--cpus", "--mem", "--eab-kid", "--eab-hmac", "--price-cpu", "--price-gpu", "--gpu", "--repo", "--supervisor", "--wasm", "--kernel"] });
+  const f = flags(rest, { val: ["--config", "--name", "--payout", "--eth", "--address", "--mode", "--cpus", "--mem", "--eab-kid", "--eab-hmac", "--price-cpu", "--price-gpu", "--gpu", "--repo", "--supervisor", "--wasm", "--kernel", "--url"] });
   const cfgPath = f.config || path.join("metal", "config.json");
   const readCfg = () => { try { return JSON.parse(fs.readFileSync(cfgPath, "utf8")); } catch { return null; } };
   const operatorOf = (cfg) => {
@@ -2721,6 +2806,7 @@ the box hides itself until its registration confirms, then appears as serving.`)
     if (bal < value) throw new Error(`your CLI wallet ${account.address} holds ${formatUnits(bal, 18)} ETH on Base — less than ${ethAmt}. Bridge/buy Base ETH first.`);
     say(`gassing operator ${to} with ${ethAmt} ETH from ${account.address}`);
     say(`(a gas tank for its register/heartbeat/claim transactions — not a payment; earnings never touch this key)`);
+    if (opt.unsigned) emitUnsigned({ account, to, data: "0x", value, label: "ETH transfer" });
     const hash = await wallet(account).sendTransaction({ to, value });
     trace(`tx sent ${hash}, waiting for receipt`);
     const rcpt = await pub().waitForTransactionReceipt({ hash });

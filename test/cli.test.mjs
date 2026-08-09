@@ -12,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { encodeFunctionData, keccak256, toHex } from "viem";
 import { decodeFunctionData, encodeFunctionResult, parseTransaction, verifyMessage, recoverMessageAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
@@ -60,6 +61,8 @@ const cliDefault = (key) => {
 };
 const DEPLOYMENTS = cliDefault("DEPLOYMENTS_ADDRESS");
 const CATALOG = cliDefault("APP_CATALOG_ADDRESS");
+const REGISTRY = cliDefault("REGISTRY_ADDRESS");
+const REG_ABI = JSON.parse(fs.readFileSync(path.join(REPO, "contracts", "EnclaveRegistry.abi.json"), "utf8"));
 const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913".toLowerCase();
 const DEP_CREATED_TOPIC = "0x3b201eb11e77934b296f908775fc0a82679683fd83a1232579f1014bcf7d3239";
 const ID = "0x" + "ab".repeat(32);                     // the id the stub chain mints
@@ -84,7 +87,9 @@ const S = {
   numVersions: 0n,
   versionCount: 1,                             // catalog versions the stub app lists
   v2: null,                                    // overrides for the second version (upgrade tests)
-  depRev: 3n,                                  // deploymentsSchema the stub plays (3 = the live pre-fee ledger)
+  depRev: 3n,
+                                               // deploymentsSchema the stub plays (3 = the live pre-fee ledger)
+  regRev: 4n,                                  // registrySchema (4 = payout wallets are declarable)
   device: null,                                // the in-flight device-flow login (`enclave login`)
   evilNonce: null,                             // when set, /v1/auth/nonce returns THIS instead of a SIWE message
   catRev: 4n,                                  // catalogSchema the stub plays (4 = the live pre-fee catalog)
@@ -216,7 +221,7 @@ function rpcServer() {
                     config: "" };   // rev-3 Version tuple carries the default config
   const version2 = () => ({ ...version, version: "2", ...S.v2 });   // the upgrade target (S.v2 shapes it per test)
   function call(to, data) {
-    const abi = to === DEPLOYMENTS ? DEP_ABI : to === CATALOG ? CAT_ABI
+    const abi = to === DEPLOYMENTS ? DEP_ABI : to === CATALOG ? CAT_ABI : to === REGISTRY ? REG_ABI
       : [{ type: "function", name: "balanceOf", stateMutability: "view",
            inputs: [{ name: "a", type: "address" }], outputs: [{ type: "uint256" }] }];
     const { functionName, args } = decodeFunctionData({ abi, data });
@@ -231,6 +236,7 @@ function rpcServer() {
       appCount: () => [1n],
       catalogSchema: () => [S.catRev],       // default: the live (rev-4) catalog; fee tests flip to 5
       deploymentsSchema: () => [S.depRev],   // default: the live rev-3 ledger; fee tests flip to 4
+      registrySchema: () => [S.regRev],      // schema 4 = the registry carries a declarable payout wallet
       versionFee: () => [S.verFee],          // rev-5 surface (the CLI never calls it below rev 5)
       maxFeePerSec6: () => [1389n],          // the publish-time cap (~$5.00/hour)
       feeOf: () => [OWNER, S.verFee],        // rev-4 surface: the deployment's fee snapshot
@@ -859,4 +865,40 @@ test("login: a challenge that is not a SIWE message for this wallet is refused, 
   assert.doesNotMatch(ok.err + ok.out, /refusing to sign/, "the real SIWE message is accepted");
   assert.ok(S.logins > before, "the real SIWE message signs and logs in");
   fs.rmSync(fresh, { recursive: true, force: true });
+});
+
+/* ---- signing somewhere other than this machine --------------------------
+   The CLI's key is a hot key in a file. --unsigned prints the transaction to
+   be signed elsewhere (a browser wallet with a hardware wallet behind it, a
+   Safe, a cold box) and --signer hands it to Frame/Clef, which drive the
+   device. A Ledger transport cannot be bundled: this CLI ships as ONE esbuild
+   file and node-hid is a native module. */
+
+test("--unsigned prints the exact transaction a signer would broadcast, and sends nothing", async () => {
+  const GOV = "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61";
+  const URL_ = "https://kryptos.enclave.containers.tinfoil.dev";
+  const r = await run(["host", "declare-payout", "--unsigned", "--from", GOV, "--url", URL_, "--json"]);
+  assert.equal(r.code, 0, r.err);
+  const out = JSON.parse(r.out.slice(r.out.indexOf("{")));
+  assert.equal(out.unsigned.chainId, 8453);
+  assert.equal(out.unsigned.from.toLowerCase(), GOV.toLowerCase());
+  assert.equal(out.unsigned.value, "0x0");
+  // the calldata must equal what viem encodes for the call the command names —
+  // an unsigned transaction nobody can verify is worse than no feature
+  const abi = [{ type: "function", name: "setPayoutWallet", stateMutability: "nonpayable",
+                 inputs: [{ name: "id", type: "bytes32" }], outputs: [] }];
+  assert.equal(out.unsigned.data,
+    encodeFunctionData({ abi, functionName: "setPayoutWallet", args: [keccak256(toHex(URL_))] }));
+});
+
+test("--unsigned and --signer refuse to guess which wallet they are acting as", async () => {
+  // Every ownership gate in the CLI keys on the address. Defaulting to the
+  // local key, or to a signer's first account, would silently act as the wrong
+  // wallet — which is exactly how a payout-wallet declaration goes to an
+  // address that owns none of the deployments it was meant to free.
+  for (const flags of [["--unsigned"], ["--signer", "http://127.0.0.1:1248"]]) {
+    const r = await run(["host", "declare-payout", ...flags, "--url", "https://x.example"]);
+    assert.notEqual(r.code, 0);
+    assert.match(r.err, /needs --from/);
+  }
 });
