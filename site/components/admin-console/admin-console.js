@@ -502,6 +502,7 @@ class AdminConsole extends EnclaveElement {
         ${onlyRetire ? `<p class="ac-sub"><b>Rev ${REV12.ledgerRev} is live</b> - the book points at ${mono(S.dep.addr)}. One step remains: retiring the previous ledger ${mono(saved.retire)}, which is one-way and should wait until the fleet is demonstrably serving from the new one. Click below when you have checked a running deployment.</p><p class="ac-sub" hidden>` : `<p class="ac-sub">`}${esc(REV12.summary)} The live ledger ${mono(S.dep.addr)} is rev ${esc(String(S.dep.schema))}, so this needs the whole set: the ledger reads a field only a schema-${REV12.registryRev} registry carries, and <code>EnclaveProofOfTime</code> holds both as immutables. <b>One button does all of it</b> - deploy registry, ledger and prover (skipping any this flow already deployed), bind the prover, carry the proof cutover across, migrate every deployment record, re-seat the runner escrow, verify field-by-field, seal the imports, and point the book at all three in a single <code>setMany</code>. Re-click after any interruption: every step re-probes live chain state and resumes at the first thing that is not already true.</p>
         <p class="ac-sub"><b>It spends real USDC once.</b> Runner escrow is a balance the old ledger HOLDS and keeps, so it cannot be imported - every migrated record lands unbacked, and until it is re-seated from this wallet a seller serving it earns nothing and its owner's refund pays nothing. The first click prices that exactly and signs nothing; the second runs. The one destructive step, <b>retiring the old ledger</b>, is deliberately left out of the run: it is offered on a later click, once the fleet has actually followed the book (~10 min).</p>
         ${saved.ledger || saved.registry ? `<p class="ac-sub warn">A previous run left ${[saved.registry ? "registry " + short(saved.registry) : null, saved.ledger ? "ledger " + short(saved.ledger) : null, saved.prover ? "prover " + short(saved.prover) : null].filter(Boolean).join(", ")} deployed but not yet live. The run reuses them rather than paying to deploy again.</p>` : ""}
+        <label class="ac-ctor-l ac-mig-opt"><input type="checkbox" id="r12SkipEscrow" /> Migrate WITHOUT re-seating the runner escrow <span class="ac-hint">costs no USDC and takes nothing offline, but every migrated record lands with <code>escrow6 = 0</code>: a host serving it earns nothing until someone calls <code>fundEscrow</code>, and its owner's refund on the NEW ledger pays nothing. The money is not lost - it stays refundable on the OLD ledger - so this is the right choice when the same wallet owns the deployments AND the boxes serving them, or when you intend to refund the old ledger afterwards and back the new one with that. Back it BEFORE the seal or the backing is never credited as the owners' refundable escrow.</span></label>
         <div class="ac-mig-actions">
           <button class="btn btn-primary btn-sm ac-danger-btn" data-act="r12-run">${onlyRetire ? `Retire the old ledger` : `Roll out rev ${REV12.ledgerRev}`}</button>
           <button class="btn btn-sm" data-act="r12-forget">Forget saved deploys</button>
@@ -1045,11 +1046,27 @@ class AdminConsole extends EnclaveElement {
             log("p", `  3. prover     ${P.prover.addr ? "reuse " + P.prover.addr : "DEPLOY + setProver"}`);
             log("p", `  4. cutover    carry proofRequiredFrom = ${String(P.source.proofFrom ?? 0)} across, unchanged`);
             log("p", `  5. migrate    ${src.length} record${src.length === 1 ? "" : "s"} (delta - skips anything already there)`);
-            log("p", `  6. escrow     re-seat ~${usd(esc6.total6)} of USDC across ${esc6.records} record${esc6.records === 1 ? "" : "s"} FROM THIS WALLET`);
+            const skipEsc = !!this._body.querySelector("#r12SkipEscrow")?.checked;
+            const held6 = await balanceOf6(Enclave.address).catch(() => null);
+            log("p", `  6. escrow     ${skipEsc ? "SKIPPED by the checkbox - records land unbacked (see below)"
+              : `re-seat ~${usd(esc6.total6)} of USDC across ${esc6.records} record${esc6.records === 1 ? "" : "s"} FROM THIS WALLET`}`);
             log("p", "  7. verify, then seal the imports");
             log("p", "  8. book       setMany(registry, deployments, proofOfTime) - one transaction");
             log("p", "  (records THIS wallet owns can be refunded on the source first - Migrate panel, \"Refund sweep\" - which suspends those apps briefly and cuts the bill above by their share. Not done here: taking your own deployments down is not a side effect a rollout button should have.)");
-            log("err", `this will spend about ${usd(esc6.total6)} of USDC plus gas. Click again to run it.`);
+            // Checked BEFORE anything is signed. Discovering a shortfall at the
+            // approve means three contracts are already deployed and the run
+            // dies holding them - which is exactly how a migration gets
+            // abandoned half-done.
+            if (!skipEsc && held6 !== null && held6 < BigInt(esc6.total6)) {
+              log("err", `this wallet holds ${usd(held6)} of USDC but the escrow step needs ~${usd(esc6.total6)}. NOTHING has been signed.`);
+              log("p", "  three ways forward, all of which end with the same money in the same place:");
+              log("p", `  a) refund your own records on the source first (Migrate panel, "Refund sweep"): pays this wallet ~${usd(esc6.total6)}, zeroes those records so they migrate empty, and the escrow step then costs $0. Costs you their prepaid runtime and a few minutes of downtime.`);
+              log("p", "  b) tick \"Migrate WITHOUT re-seating the runner escrow\" above: no USDC, no downtime. Then, once the fleet is on the new ledger, refund the old one and use that to fundEscrow the new one.");
+              log("p", "  c) top this wallet up and re-run.");
+              return;
+            }
+            log("err", `this will spend about ${skipEsc ? "$0.00 (escrow backing skipped)" : usd(esc6.total6)} of USDC plus gas`
+              + (held6 !== null ? ` · this wallet holds ${usd(held6)}` : "") + ". Click again to run it.");
             btn.dataset.armed = "1"; btn.textContent = `Run it (${usd(esc6.total6)} + gas)`;
             R.src = src; R.srcOf = P.source.addr;
             return;
@@ -1154,13 +1171,25 @@ class AdminConsole extends EnclaveElement {
                 permanently. Idempotent, and re-run after any delta that lands
                 new records - importing a record after the backing pass would
                 otherwise seal it unbacked, which no later transaction can fix. */
+          const skipEscrow = !!this._body.querySelector("#r12SkipEscrow")?.checked;
           const backEscrow = async () => {
             if (st.sealed) return;
+            if (skipEscrow) {
+              log("err", "escrow backing SKIPPED - migrated records land with escrow6 = 0. Until fundEscrow is called, a host serving one earns nothing and its owner's refund on this ledger pays nothing. The money is still refundable on the OLD ledger.");
+              return;
+            }
             log("p", "working out the escrow backing that is still missing…");
             const plan = await escrowPlan(ledger);
             for (const sk of plan.skipped) log("err", `  skipped ${sk.id.slice(0, 12)}… - ${sk.why}`);
             if (!plan.items.length) { log("ok", "  every record is already backed"); return; }
             log("p", `  ${plan.items.length} record${plan.items.length === 1 ? "" : "s"} need ${usd(plan.total6)} of USDC`);
+            // Re-checked here, not just in the plan: the balance can move between
+            // the two clicks, and a failed transferFrom mid-batch leaves the run
+            // stopped with contracts deployed and an allowance standing.
+            const bal6 = await balanceOf6(Enclave.address).catch(() => null);
+            if (bal6 !== null && bal6 < BigInt(plan.total6))
+              throw new Error(`this wallet holds ${usd(bal6)} of USDC, ${usd(plan.total6)} is needed to re-seat the escrow. `
+                + `Nothing was approved. Re-run with "Migrate WITHOUT re-seating the runner escrow" ticked, or refund your own records on the source first`);
             log("p", `  approving ${usd(plan.total6)} to the ledger - confirm in your wallet…`);
             const ah = await sendTx(USDC_BASE, approveTx(ledger, plan.total6));
             await waitReceipt(ah, 90);
