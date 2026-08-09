@@ -28,6 +28,20 @@ pragma solidity ^0.8.20;
 ///     a live lease was bought at the price in force when it was claimed.
 ///   - Liveness is advisory: operators heartbeat; readers treat entries whose
 ///     lastSeen is older than a window of their choosing (e.g. 1h) as down.
+///   - PAYOUT WALLET (schema 4): the seller's own wallet — where this box's
+///     earnings are swept (metal/config.json `payoutAddress`), published here
+///     so it is part of the enclave's public record rather than private
+///     supervisor config. It is DECLARED BY THAT WALLET, not by the operator:
+///     setPayoutWallet takes no address argument and simply records msg.sender.
+///     That direction is load-bearing, not a style choice. EnclaveDeployments
+///     rev 12 hosts a deployment for FREE when this wallet is the deployment's
+///     owner (a seller running their own app on their own box), and a free
+///     lease is one the tenant's rate cap can no longer evict — so if an
+///     operator could name any address here, it could push a stranger's
+///     deployment into the free tier and squat its lease at zero cost. Making
+///     the declaration a transaction FROM the wallet means the only address a
+///     box can put here is one whose owner agreed, and clearPayoutWallet lets
+///     that owner revoke it at any time.
 ///   - PROOF KEY (schema 3): the address half of a secp256k1 keypair MINTED
 ///     INSIDE the CVM at boot (like the TLS-bridge key and the ES256 session
 ///     key - the operator never sees the private half). EnclaveProofOfTime
@@ -62,6 +76,10 @@ contract EnclaveRegistry {
         address proofKey;         // in-CVM secp256k1 signer for EnclaveProofOfTime checkpoints
                                   // (0x0 = this enclave posts no proofs and, once the ledger's
                                   // proof cutover has passed, cannot claim work)
+        // ---- payout wallet (schema 4; APPENDED, same reason as the others) --
+        address payoutWallet;     // the seller's own wallet, SET BY THAT WALLET (setPayoutWallet).
+                                  // 0x0 = undeclared. Never written by register(): the operator
+                                  // cannot set it, so re-registering at every boot leaves it alone.
     }
 
     /// @dev Struct-shape revision, sniffed by consumers exactly as
@@ -73,7 +91,13 @@ contract EnclaveRegistry {
     ///      enclave states WHICH in-CVM key signs its proof-of-time
     ///      checkpoints. A rev-9 EnclaveDeployments requires this field; the
     ///      two contracts deploy as a pair, exactly as rev 2 / rev 8 did.
-    uint256 public constant registrySchema = 3;
+    ///      Rev 4 appends the seller's payoutWallet and grows the surface by
+    ///      setPayoutWallet/clearPayoutWallet — register() is UNCHANGED, since
+    ///      the operator is deliberately not the party that may set it. A
+    ///      rev-12 EnclaveDeployments requires this field (it charges nothing
+    ///      when the wallet is the deployment's owner); the pair ships together
+    ///      once more.
+    uint256 public constant registrySchema = 4;
 
     bytes32[] private _ids;                       // all endpoint ids ever registered
     mapping(bytes32 => Enclave) private _enclaves;
@@ -83,6 +107,7 @@ contract EnclaveRegistry {
     event Updated(bytes32 indexed id, string repo, bytes32 measurement);
     event PricesSet(bytes32 indexed id, uint64 cpuPricePerSec6, uint64 gpuPricePerSec6);
     event ProofKeySet(bytes32 indexed id, address indexed proofKey);
+    event PayoutWalletSet(bytes32 indexed id, address indexed payoutWallet);
     event Heartbeat(bytes32 indexed id, uint64 at);
     event Deregistered(bytes32 indexed id);
 
@@ -160,6 +185,43 @@ contract EnclaveRegistry {
         e.proofKey = proofKey;
         e.lastSeen = uint64(block.timestamp);
         emit ProofKeySet(id, proofKey);
+    }
+
+    /// @notice Declare that this enclave pays the CALLER — the seller's own
+    ///         wallet, on-chain (schema 4). One transaction from that wallet
+    ///         per box; the supervisor keeps sweeping earnings to it exactly as
+    ///         before (this contract moves no money and redirects none).
+    /// @dev Deliberately takes NO address parameter and does NOT check
+    ///      msg.sender against the operator. Both follow from what the field is
+    ///      for: EnclaveDeployments rev 12 stops charging a deployment whose
+    ///      owner is this wallet, so the field is a consent record. Recording
+    ///      msg.sender is what makes it unforgeable — an operator cannot name a
+    ///      wallet it does not control, and therefore cannot pull a stranger's
+    ///      deployment into the free (rate-cap-immune) tier. The mirror risk —
+    ///      declaring for a box you do not operate, or once sold — is undone by
+    ///      clearPayoutWallet below, which the declaring wallet may always call.
+    ///
+    ///      Callable before the entry has ever been claimed by anyone else's
+    ///      declaration: a second wallet simply overwrites the first, which is
+    ///      correct, because only the OPERATOR chooses which box carries the
+    ///      declaration and only the WALLET chooses to be named. Neither can
+    ///      act alone: a box with a hostile declaration earns the declaring
+    ///      wallet nothing and can be cleared by its operator.
+    function setPayoutWallet(bytes32 id) external {
+        require(_exists[id], "unknown");
+        _enclaves[id].payoutWallet = msg.sender;
+        emit PayoutWalletSet(id, msg.sender);
+    }
+
+    /// @notice Withdraw the declaration. Either side may: the wallet (revoking
+    ///         its consent — the escape hatch above) or the operator (a box
+    ///         changing hands, or clearing a declaration it never wanted).
+    function clearPayoutWallet(bytes32 id) external {
+        Enclave storage e = _enclaves[id];
+        require(_exists[id], "unknown");
+        require(e.payoutWallet == msg.sender || e.operator == msg.sender, "not payee");
+        e.payoutWallet = address(0);
+        emit PayoutWalletSet(id, address(0));
     }
 
     /// @notice Re-price this enclave without re-registering. Affects FUTURE

@@ -136,6 +136,33 @@ pre-signature in all three clients, and the number they received is exactly
 what `refundableOf` returned. Making customers whole beyond that is a §3b
 discretionary refund and needs finance like any other.
 
+### 3c. "I'm being charged to run my own app on my own box"
+
+Since ledger rev 12 they should not be, but only once they have published the
+wallet. The exemption is `EnclaveRegistry.payoutWallet == deployment.owner`,
+and that field is set **only** by a transaction from the wallet itself
+(`setPayoutWallet` takes no address; `enclave host declare-payout` sends it).
+Two things therefore make a self-hosting seller pay when they expect not to,
+and both are self-serve:
+
+- **never declared.** `metal/config.json`'s `payoutAddress` is where the box
+  sweeps earnings; the chain has never seen it. `enclave host status` shows the
+  on-chain answer, and the supervisor logs `no payout wallet declared on-chain`
+  at every heartbeat. Fix: `enclave host declare-payout`.
+- **declared, but the deployment is owned by a different wallet.** The
+  exemption follows the OWNER, so a deployment created from another address —
+  or one that has since been transferred — is charged normally. Fix: deploy
+  from the declared wallet, or declare the wallet that deploys.
+
+Nothing here is refundable as an exception. Money already forwarded at funding
+time is gone the same way §3a describes, and the seller's remedy is to declare
+the wallet and stop funding: a free deployment needs no balance at all, and
+`refund(id)` returns whatever escrow the earlier paid fundings still back.
+
+One thing that is NOT a fault: a paid app still charges its publisher fee on a
+free box. The waiver covers what the host and the platform would take; the fee
+is a third party's money in a third party's wallet and no ledger rev touches it.
+
 ### 3b. Everything else (manual, finance-approved, no exceptions)
 
 There is no other refund code path anywhere, deliberately. All such refunds:

@@ -195,6 +195,12 @@ the hosted fleet.
   registers, claims funded deployments, and the rev-7 `EnclaveDeployments`
   ledger pays the runner share from escrow, auto-swept to `payoutAddress`
   (see PROTOCOL.md, "How payout works")
+- running **your own** apps here for free: off until that wallet is published
+  on-chain with `enclave host declare-payout` (one transaction, from the wallet
+  itself). A rev-12 ledger then charges nothing for deployments that wallet
+  owns — no balance needed, none burned — while a paid app's publisher fee is
+  untouched. `metal/config.json`'s `payoutAddress` alone does NOT do this: it
+  only tells the supervisor where to sweep, and the chain cannot see it
 - `SECRET`/`ADMIN_TOKEN` are minted **in-guest per boot**, so the host operator
   cannot read them (stronger than vault injection)
 

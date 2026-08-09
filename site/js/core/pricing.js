@@ -50,6 +50,24 @@ export function adoptFleetPrice(a){
   PRICE = next;
   return changed;
 }
+/* FREE SELF-HOSTING (ledger rev 12 + registry schema 4). A seller who runs a box
+   declares their payout wallet on-chain — EnclaveRegistry.setPayoutWallet, sent
+   BY that wallet, which is what makes the declaration unforgeable — and the
+   ledger then charges that wallet's own deployments NOTHING to run there. The
+   console has to know: quoting somebody $3.00/hr and asking them to fund it,
+   when they will be charged nothing, is the exact confusion the feature exists
+   to remove. Rows come from the relay's /enclaves table (each carries its
+   declared wallet); a fleet on an older registry simply reports none, which
+   reads as "everything is charged" — the safe direction.
+   Only SERVING boxes count: one that cannot take work would not host it free
+   either. */
+export function freeEnclavesFor(address, rows){
+  const a = String(address || "").toLowerCase();
+  if (!a || !Array.isArray(rows)) return [];
+  return rows.filter((e) => e && e.serving !== false && e.payoutWallet
+                            && String(e.payoutWallet).toLowerCase() === a);
+}
+
 // Back-compat aliases for call sites that read a plain number. These follow
 // the adopted price, so a module that imported them once still shows the
 // current one only if it re-reads via fleetPrice() — prefer that.

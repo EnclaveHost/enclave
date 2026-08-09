@@ -98,7 +98,10 @@ const ABI = [
     outputs: [{ type: "tuple[]", components: ENCLAVE_TUPLE_V1 }] },
 ];
 // Registry schema 2 APPENDED the operator's per-machine prices to the entry.
-// Schema 3 appended the PROOF KEY. Appended fields keep every earlier field's
+// Schema 3 appended the PROOF KEY, schema 4 the seller's declared PAYOUT WALLET
+// (the wallet whose own deployments a rev-12 ledger hosts here for free — set
+// only by that wallet, so a 0x0 here is a box that charges everyone).
+// Appended fields keep every earlier field's
 // offset, so a short decode drops the tail rather than misreading it — but the
 // shape is still sniffed per address (cached; the address book can repoint us
 // mid-flight) so callers SEE the newer fields. Schema-1 registries have no
@@ -108,11 +111,13 @@ const ABI = [
 // service lagged.
 const ENCLAVE_TUPLE = [...ENCLAVE_TUPLE_V1,
   { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" },
-  { name: "proofKey", type: "address" }];
+  { name: "proofKey", type: "address" }, { name: "payoutWallet", type: "address" }];
+const ENCLAVE_TUPLE_V3 = ENCLAVE_TUPLE.slice(0, 10);  // schema 3: proof key, no payout wallet
 const ENCLAVE_TUPLE_V2 = ENCLAVE_TUPLE.slice(0, 9);   // schema 2: priced, no proof key
 const abiForRev = (rev) => [ABI[0], { ...ABI[1],
   outputs: [{ type: "tuple[]", components:
-    rev >= 3 ? ENCLAVE_TUPLE : rev >= 2 ? ENCLAVE_TUPLE_V2 : ENCLAVE_TUPLE_V1 }] }];
+    rev >= 4 ? ENCLAVE_TUPLE : rev >= 3 ? ENCLAVE_TUPLE_V3
+             : rev >= 2 ? ENCLAVE_TUPLE_V2 : ENCLAVE_TUPLE_V1 }] }];
 const SCHEMA_ABI = [{ type: "function", name: "registrySchema", stateMutability: "view",
   inputs: [], outputs: [{ type: "uint256" }] }];
 

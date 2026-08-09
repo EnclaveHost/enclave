@@ -78,6 +78,23 @@ pragma solidity ^0.8.20;
 ///     other. Lowering the cap under a running deployment's rate lets the paid
 ///     lease finish and then stops it — the cap is a spend ceiling, not just a
 ///     placement filter.
+///   - SELF-HOSTING IS FREE (rev 12): when the claiming enclave's declared
+///     payout wallet (EnclaveRegistry schema 4) IS the deployment's owner, the
+///     host component of the rate is zero — a seller running their own app on
+///     their own box pays nothing to run it. The publisher fee is untouched and
+///     still funded and forwarded exactly as below: this waives what the host
+///     and the platform would have charged, not what a third party is owed. A
+///     free deployment needs no balance at all (claim burns nothing), earns its
+///     runner nothing (the runner cut is a slice of the host component, so it
+///     is zero too), and escrows nothing.
+///
+///     The registry is what makes this safe: that wallet is recorded only by a
+///     transaction FROM it, so no operator can name a stranger and drag their
+///     deployment into the free tier. That matters because the tenant's usual
+///     defence against a squatting runner — dropping maxRate6 under its price —
+///     cannot bite a rate of zero. The owner's remaining lever is setActive
+///     (renew() refuses on an inactive record, so a squatted lease lapses
+///     within leaseSec) and, on the registry side, clearPayoutWallet.
 ///   - Publisher fee: a catalog version may declare a per-second publisher fee
 ///     (EnclaveAppCatalog.versionFee, capped at publish). A deployment SNAPSHOTS
 ///     that fee and its payee at create — rate = platform shares + fee — and
@@ -105,7 +122,8 @@ pragma solidity ^0.8.20;
 ///     entry point that advances it. See EnclaveProofOfTime for what a proof
 ///     is and why it cannot be forged, pre-signed, hoarded or compressed.
 ///
-///     WHY TWO CONTRACTS: this one is ~100 bytes under the EIP-170 limit. It is
+///     WHY TWO CONTRACTS: this one is a few dozen bytes under the EIP-170
+///     limit. It is
 ///     not a layering preference - the verification simply does not fit here,
 ///     and putting it behind a sealed immutable binding was the only way to
 ///     ship proof of time without cutting something else out of the ledger.
@@ -116,6 +134,20 @@ pragma solidity ^0.8.20;
 ///     those clamps is enforced HERE, below, on money this contract holds. A
 ///     broken prover degrades this ledger to rev-8 held-time metering at
 ///     worst; it can never overpay beyond what a rev-8 ledger already would.
+///
+/// BUILD SETTING, not a preference: this contract compiles at optimizer
+///         runs=100, every other contract in the repo at the usual 200. Rev 12
+///         costs 177 bytes of runtime code and rev 11 had 78 free, so the
+///         choice was to spend the optimizer's size/gas dial or delete
+///         something already shipped (sweepEscrow is 518 bytes, the claim-bond
+///         family 1443). runs=100 changes no behaviour whatsoever - it only
+///         tells solc to weight deploy size over per-call gas - and leaves
+///         ~120 bytes free. scripts/deploy-deployments.mjs,
+///         scripts/build-contract-artifacts.mjs and foundry.toml all pin it;
+///         they must move together or the deployed bytecode stops being
+///         reproducible from this source. Anything that needs materially more
+///         room than that should go behind a companion binding, the way proof
+///         of time did.
 ///
 /// Fairness bounds (the cost of decentralized failover):
 ///   - a runner that dies mid-lease has already burned that lease: the TENANT
@@ -146,9 +178,10 @@ interface IERC20Auth {
 }
 
 /// @dev Field order MUST match EnclaveRegistry.Enclave exactly (ABI-decoded struct).
-///      The two price fields are registrySchema 2 and `proofKey` is schema 3;
-///      this ledger requires both (an older registry decodes short and every
-///      claim reverts), which is why they are deployed as a set.
+///      The two price fields are registrySchema 2, `proofKey` is schema 3 and
+///      `payoutWallet` is schema 4; this ledger requires all of them (an older
+///      registry decodes short and every claim reverts), which is why they are
+///      deployed as a set.
 interface IEnclaveRegistry {
     struct Enclave {
         string  endpoint;
@@ -161,6 +194,7 @@ interface IEnclaveRegistry {
         uint64  cpuPricePerSec6;
         uint64  gpuPricePerSec6;
         address proofKey;
+        address payoutWallet;
     }
     function get(bytes32 id) external view returns (Enclave memory);
 }
@@ -299,7 +333,16 @@ contract EnclaveDeployments {
     // OWNER — so no ledger after this one can strand user funds at a
     // migration (see retire()). New surface: transferDeployment,
     // DeploymentTransferred, and retire/retired. The feature gates on >= 11.
-    uint256 public constant deploymentsSchema = 11;
+    // Rev 12 keeps the struct byte-for-byte one more time and makes
+    // SELF-HOSTING FREE: an enclave whose registry-declared payout wallet is
+    // the deployment's own owner charges it nothing, so `rate` collapses to
+    // the publisher fee (0 for a free app) and claim/renew burn nothing. No
+    // new surface here at all — the whole feature is in what claim() prices
+    // and what _burnLease() does at rate 0 — so clients gate on >= 12 only to
+    // know that a rate of 0 is a legal, expected answer rather than a bug.
+    // A rev-12 ledger REQUIRES a schema-4 registry (its rate reads
+    // payoutWallet out of the entry it already fetches).
+    uint256 public constant deploymentsSchema = 12;
 
     /// @dev Publisher-fee snapshot, taken at create from the catalog version
     ///      the deployment references (recipient = the app's publisher wallet).
@@ -630,35 +673,50 @@ contract EnclaveDeployments {
         emit Created(d.id, msg.sender, appRef, gpuMilli, cpuMilli, d.rate);
     }
 
-    /// @dev What `enclaveId` charges for `gpuMilli`/`cpuMilli` thousandths of
-    ///      its machine, per second: its registered whole-machine prices scaled
-    ///      by the shares, ceil'd so a 1-milli deployment still pays >= 1
-    ///      unit/sec. The publisher fee is added by callers (it is the
+    /// @dev What `e` charges THIS deployment for `gpuMilli`/`cpuMilli`
+    ///      thousandths of its machine, per second: its registered whole-machine
+    ///      prices scaled by the shares, ceil'd so a 1-milli deployment still
+    ///      pays >= 1 unit/sec. The publisher fee is added by callers (it is the
     ///      deployment's, not the host's).
-    function _hostRate(IEnclaveRegistry.Enclave memory e, uint16 gpuMilli, uint16 cpuMilli)
-        private pure returns (uint256)
+    ///
+    ///      ZERO when the box's declared payout wallet IS this deployment's
+    ///      owner (rev 12): a seller's own app on a seller's own box is free.
+    ///      That comparison is the whole feature; everything else it touches is
+    ///      just arithmetic that must not divide by the zero it produces.
+    function _hostRate(IEnclaveRegistry.Enclave memory e, Deployment storage d,
+                       uint16 gpuMilli, uint16 cpuMilli) private view returns (uint256)
     {
+        if (e.payoutWallet == d.owner) return 0;
         return (uint256(e.gpuPricePerSec6) * gpuMilli + uint256(e.cpuPricePerSec6) * cpuMilli + 999) / 1000;
     }
 
     /// @notice What this deployment would cost per second on `enclaveId` — the
     ///         exact number claim() would snapshot. Runners and clients
-    ///         pre-check with it (a claim over the cap reverts).
+    ///         pre-check with it (a claim over the cap reverts). 0 is a legal
+    ///         answer from rev 12 on: a free app self-hosted by its own owner.
     function rateFor(bytes32 id, bytes32 enclaveId) public view returns (uint256) {
         require(_exists[id], "unknown");
         Deployment storage d = _deployments[id];
-        return _hostRate(registry.get(enclaveId), d.gpuMilli, d.cpuMilli) + _fees[id].rate6;
+        return _hostRate(registry.get(enclaveId), d, d.gpuMilli, d.cpuMilli) + _fees[id].rate6;
     }
 
-    /// @notice True iff `enclaveId` could claim `id` right now: claimable at
-    ///         all, priced at or under the cap, and funded for at least one
-    ///         second at THAT enclave's price.
+    /// @notice True iff `enclaveId` could claim `id` right now: open (active,
+    ///         no live lease), priced at or under the cap, and funded at THAT
+    ///         enclave's price — which a self-hosted deployment satisfies with
+    ///         an empty balance, since its price is zero.
+    /// @dev Deliberately does NOT go through claimable(), whose funded test is
+    ///      against the record's own (worst-case) rate: that reads a free
+    ///      deployment as unclaimable and would hide it from the very host that
+    ///      hosts it for nothing.
+    /// @dev _open FIRST, and not merely for the short-circuit: rateFor reverts
+    ///      "unknown" on an id that does not exist, and this call answered
+    ///      `false` there before rev 12. A view that starts reverting is a
+    ///      client outage, not a nicety.
     function claimableBy(bytes32 id, bytes32 enclaveId) external view returns (bool) {
-        if (!claimable(id)) return false;
+        if (!_open(id)) return false;
         uint256 r = rateFor(id, enclaveId);
         uint256 cap = _maxRate6[id];
-        if (cap > 0 && r > cap) return false;
-        return r > 0 && _deployments[id].balance6 >= r;
+        return (cap == 0 || r <= cap) && _deployments[id].balance6 >= r;
     }
 
     /// @notice Repoint the deployment at another catalog version — the owner's
@@ -724,7 +782,8 @@ contract EnclaveDeployments {
             uint256 refund = tail * d.rate;          // settle the unserved tail at the rate it was burned at
             d.balance6 += refund;
             d.spent6 -= refund;
-            uint256 secs = d.balance6 / newRate;     // re-burn the same window at the new rate
+            uint256 secs = newRate == 0 ? tail       // self-hosted: the window costs nothing to keep
+                                        : d.balance6 / newRate;   // re-burn it at the new rate
             if (secs > tail) secs = tail;            // a lease never EXTENDS from a resize
             require(secs > 0, "unfunded at the new rate");
             uint256 burned = secs * newRate;
@@ -749,15 +808,22 @@ contract EnclaveDeployments {
 
     /// @dev What a resize re-buys the shares at: the SERVING enclave's posted
     ///      price plus the fee snapshot. Falls back to the unleased basis (the
-    ///      ceiling) when nothing is serving it, or when the serving entry
-    ///      prices at zero — a deregistered or schema-1 runner must not make a
-    ///      deployment nearly free while it keeps serving out its lease.
+    ///      ceiling) when nothing is serving it, or when its runner id is not a
+    ///      registered entry — an UNPRICED runner (the zero struct) must not
+    ///      make a deployment free while it keeps serving out its lease.
+    ///      Rev 12 moves that test from "priced at zero" to "no entry": a
+    ///      registered enclave always prices above zero (register/setPrices
+    ///      both require cpuPricePerSec6 > 0, and every deployment buys at
+    ///      least 1 cpuMilli), so the only zero left is the SELF-HOSTED one —
+    ///      which is meant, and must survive a resize instead of bouncing the
+    ///      deployment back up to its cap.
     function _resizeRate(bytes32 id, Deployment storage d, uint16 gpuMilli, uint16 cpuMilli)
         private view returns (uint256)
     {
         if (d.leaseUntil <= block.timestamp) return _unleasedRate(id, d);
-        uint256 host = _hostRate(registry.get(d.runner), gpuMilli, cpuMilli);
-        return host > 0 ? host + _fees[id].rate6 : _unleasedRate(id, d);
+        IEnclaveRegistry.Enclave memory e = registry.get(d.runner);
+        if (e.operator == address(0)) return _unleasedRate(id, d);
+        return _hostRate(e, d, gpuMilli, cpuMilli) + _fees[id].rate6;
     }
 
     /// @dev The spend ceiling, enforced everywhere time is BOUGHT (claim /
@@ -968,7 +1034,7 @@ contract EnclaveDeployments {
         }
         _creditRunner(d);                        // settle the PREVIOUS runner's expired-lease tail at ITS rate
 
-        uint256 newRate = _hostRate(e, d.gpuMilli, d.cpuMilli) + _fees[id].rate6;
+        uint256 newRate = _hostRate(e, d, d.gpuMilli, d.cpuMilli) + _fees[id].rate6;
         _requireUnderCap(id, newRate);
         d.rate = newRate;                        // the price in force for this lease
         _snapRunnerRate(d);                      // this host earns runnerBps of its OWN ask
@@ -1046,14 +1112,25 @@ contract EnclaveDeployments {
     /// @dev Burn one lease quantum starting at `from`: as many seconds as the
     ///      balance affords, capped at leaseSec. Reverts if the balance can't buy
     ///      a single second ("no more time left" — the queue drops the item).
+    ///      Rate 0 is the self-hosted case (rev 12): a full quantum, nothing
+    ///      burned, and no balance required — which is also why this returns
+    ///      before the division rather than relying on it.
     function _burnLease(Deployment storage d, uint64 from) private returns (uint64 until, uint256 burned) {
-        uint256 secs = d.balance6 / d.rate;
+        uint256 rate = d.rate;
+        uint256 secs = rate == 0 ? leaseSec : d.balance6 / rate;
         if (secs > leaseSec) secs = leaseSec;
         require(secs > 0, "unfunded");
-        burned = secs * d.rate;
+        burned = secs * rate;
         d.balance6 -= burned;
         d.spent6 += burned;
-        until = from + uint64(secs);
+        // A PAID renew extends from leaseUntil, because the time up to there is
+        // already bought and must be honoured. A FREE one may not: nothing is
+        // bought, so `from` would let a runner stack quantum after quantum in a
+        // single multicall and pin a deployment months into the future at no
+        // cost — outliving any eviction its owner has. A free lease is always
+        // exactly one quantum from NOW, which is what makes setActive(false)
+        // (renew then reverts "inactive") a bound of leaseSec and not a wish.
+        until = (rate == 0 ? uint64(block.timestamp) : from) + uint64(secs);
     }
 
     // ========================================================================
@@ -1637,8 +1714,15 @@ contract EnclaveDeployments {
     ///         afford work this reads as unfundable; claimableBy(id, enclaveId)
     ///         answers that exactly, and claim() itself is the authority.
     function claimable(bytes32 id) public view returns (bool) {
+        return _open(id) && _deployments[id].balance6 >= _deployments[id].rate;
+    }
+
+    /// @dev The half of claimable() that is not about money: a live record,
+    ///      switched on, with no lease running. Shared with claimableBy, which
+    ///      applies the funded test at the asking enclave's price instead.
+    function _open(bytes32 id) private view returns (bool) {
         Deployment storage d = _deployments[id];
-        return _exists[id] && d.active && block.timestamp > d.leaseUntil && d.balance6 >= d.rate;
+        return _exists[id] && d.active && block.timestamp > d.leaseUntil;
     }
 
     /// @notice Funded runtime left OUTSIDE the current lease (what future claims

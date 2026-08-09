@@ -360,7 +360,9 @@ const REGISTRY_ABI_V2 = [
              { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }],
     outputs: [{ name: "id", type: "bytes32" }] },
 ];
-// 3 = the entry carries a proof key; 2 = prices only; 1 = neither (the getter reverts there)
+// 4 = the entry also carries the seller's declared PAYOUT WALLET (what makes a
+// deployment free on its owner's own box); 3 = proof key; 2 = prices only;
+// 1 = none of it (the getter reverts there)
 let _registryRev = 0;
 let _registryRevOf = null;        // WHICH registry _registryRev was sniffed against
 async function registryRev() {
@@ -462,9 +464,11 @@ async function registerOnChain(endpoint) {
       if (registryRepointed()) return void registerFromShimCert().catch(() => {});
       await syncRegisteredPrice(id).catch(() => {});
       await syncRegisteredProofKey(id).catch(() => {});
+      await syncDeclaredPayoutWallet(id).catch(() => {});
     }, Math.max(60, HEARTBEAT_SEC) * 1000).unref();
     syncRegisteredPrice(id).catch(() => {});
     syncRegisteredProofKey(id).catch(() => {});
+    syncDeclaredPayoutWallet(id).catch(() => {});
   } catch (e) {
     _registered = false; _registeredOn = null;              // let a later request retry
     console.warn(`[registry] self-registration failed: ${e.shortMessage || e.message}`);
@@ -480,17 +484,22 @@ const REGISTRY_GET_ABI = [{ type: "function", name: "get", stateMutability: "vie
     { name: "endpoint", type: "string" }, { name: "repo", type: "string" }, { name: "measurement", type: "bytes32" },
     { name: "operator", type: "address" }, { name: "registeredAt", type: "uint64" }, { name: "lastSeen", type: "uint64" },
     { name: "active", type: "bool" }, { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" },
-    { name: "proofKey", type: "address" }] }] }];
-// Same shape without the schema-3 field: a pre-schema-3 registry decodes SHORT
-// and viem throws on the tuple, so the price sync must fall back or it would
-// spam failures on an older registry mid-migration.
-const REGISTRY_GET_ABI_V2 = [{ type: "function", name: "get", stateMutability: "view",
+    { name: "proofKey", type: "address" }, { name: "payoutWallet", type: "address" }] }] }];
+// The same shape truncated to each older schema: a registry that predates a
+// field decodes SHORT and viem throws on the tuple, so every read must ask for
+// exactly what the deployed registry answers or it would spam failures on an
+// older contract mid-migration. 11 fields = schema 4 (payout wallet), 10 =
+// schema 3 (proof key), 9 = schema 2 (prices only).
+const REGISTRY_GET_ABI_AT = (n) => [{ type: "function", name: "get", stateMutability: "view",
   inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components:
-    REGISTRY_GET_ABI[0].outputs[0].components.slice(0, 9) }] }];
+    REGISTRY_GET_ABI[0].outputs[0].components.slice(0, n) }] }];
+const REGISTRY_GET_ABI_V3 = REGISTRY_GET_ABI_AT(10);
+const REGISTRY_GET_ABI_V2 = REGISTRY_GET_ABI_AT(9);
 async function registryEntry(id) {
   const rev = await registryRev();
   return chainClient.readContract({ address: getAddress(REGISTRY_ADDRESS),
-    abi: rev >= 3 ? REGISTRY_GET_ABI : REGISTRY_GET_ABI_V2, functionName: "get", args: [id] });
+    abi: rev >= 4 ? REGISTRY_GET_ABI : rev >= 3 ? REGISTRY_GET_ABI_V3 : REGISTRY_GET_ABI_V2,
+    functionName: "get", args: [id] });
 }
 
 async function syncRegisteredPrice(id) {
@@ -525,6 +534,48 @@ async function syncRegisteredProofKey(id) {
   if (e.proofKey && getAddress(e.proofKey) === want) return;
   const h = await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "setProofKey", [id, want]);
   console.log(`[proof] proof key published: ${want} (was ${e.proofKey || "unset"}) tx=${h}`);
+}
+
+// ---- the seller's declared payout wallet (registry schema 4) ---------------
+// A rev-12 ledger charges NOTHING for a deployment whose owner is this box's
+// declared payout wallet: a seller's own app on a seller's own box is free.
+// This box cannot declare it. That is the point — setPayoutWallet records
+// msg.sender, so only the wallet itself can consent, and no operator can drag a
+// stranger's deployment into a free tier their rate cap could not evict. All we
+// do here is MIRROR what the chain says, because the claim loop has to price
+// exactly the way claim() will, and tell the operator when the two views of
+// "their wallet" disagree.
+let _declaredPayout = null;         // the on-chain declaration, checksummed (null = none)
+let _payoutNagged = null;           // last state we complained about, so this logs on change only
+async function syncDeclaredPayoutWallet(id) {
+  if (await registryRev() < 4) return;                      // nowhere to declare one yet
+  let e;
+  try { e = await registryEntry(id); }
+  catch { return; }                                         // transient read: try again next heartbeat
+  const ZERO = "0x0000000000000000000000000000000000000000";
+  const declared = e.payoutWallet && e.payoutWallet !== ZERO ? getAddress(e.payoutWallet) : null;
+  if (declared !== _declaredPayout) {
+    _declaredPayout = declared;
+    console.log(declared
+      ? `[registry] payout wallet declared on-chain: ${declared} — its own deployments run free here`
+      : `[registry] no payout wallet declared on-chain: every deployment here is charged`);
+  }
+  // The wallet the supervisor SWEEPS to is config (PAYOUT_ADDRESS); the wallet
+  // the ledger prices against is the declaration. They are usually the same
+  // address and the seller expects them to be, so say so when they aren't —
+  // silently charging a seller to run their own app is exactly the confusion
+  // this feature exists to remove.
+  if (!PAYOUT_ADDRESS) return;
+  const want = getAddress(PAYOUT_ADDRESS);
+  const state = declared || "none";
+  if (state === _payoutNagged || declared === want) { _payoutNagged = state; return; }
+  _payoutNagged = state;
+  console.warn(declared
+    ? `[registry] earnings sweep to ${want} but the on-chain payout wallet is ${declared}: `
+      + `deployments owned by ${want} are CHARGED here. Send EnclaveRegistry.setPayoutWallet(${id}) from ${want} to change that.`
+    : `[registry] earnings sweep to ${want}, but no payout wallet is declared on-chain — so this box charges `
+      + `even its own owner. One transaction fixes it: EnclaveRegistry.setPayoutWallet(${id}) sent FROM ${want} `
+      + `(the operator key cannot send it; that is deliberate).`);
 }
 
 // Boot-time hostname discovery: the shim terminates TLS inside this CVM, and
@@ -3088,6 +3139,15 @@ app.get("/availability", async (_req, res) => {
     customDomains: !!DOMAINS_API,   // this build pulls a deployment's owner-attached hostnames, mints their certificates in-CVM (dns-01 through the delegated challenge alias) and hands the guest ENCLAVE_HOSTS; fleet-AND'd with the relay's domainsEnabled() before clients see it — a lease landing on a runner without it would leave the customer's own domain refusing handshakes with nothing on the dashboard to explain why
     devDeploy: true,   // this build's approval gate admits PENDING catalog versions for PRIVATE deployments (publisher dev-mode testing); public deploys of pending versions stay refused — same fleet-AND rule, clients only offer the option when every live runner honors it
     rateCap: true,   // this build honors per-deployment rate caps (ledger rev 8): it prices claims off its own registry entry and treats a cap-blocked renew as "stop at lease end", not an error to retry — same fleet-AND rule, so clients only offer cap edits when every live runner would behave
+    // FREE SELF-HOSTING (ledger rev 12): this build prices a claim at ZERO when
+    // its registry-declared payout wallet owns the deployment, so it will take
+    // such work with an EMPTY BALANCE. Advertised per box, not fleet-AND'd by
+    // meaning: it is a property of one seller's own box, and the only thing an
+    // older runner does wrong is decline its owner's unfunded deployment as
+    // "out of funded time" — the tenant sees Queued rather than a wrong charge.
+    // Clients read it to explain that, and `payoutWallet` says WHOSE.
+    selfHostFree: true,
+    payoutWallet: _declaredPayout,   // null until the wallet declares itself on-chain
     // PROVES its service (ledger rev 9): it mints an in-CVM proof key, publishes
     // it to the registry, and posts block-anchored checkpoints for every tenant
     // it is serving — including a final one at teardown so a partial period
@@ -3364,7 +3424,15 @@ app.get("/v1/account", authed, (req, res) => {
 const timeRemainingSec = (rec) => {
   if (rec.remainingMs == null) return null;
   const lease = Math.max(0, Math.round(rec.remainingMs / 1000));
-  if (!rec._onchain || !(rec.rate > 0)) return lease;
+  if (!rec._onchain) return lease;
+  // Rate 0 on a chain record means the rev-12 waiver: this box hosts its own
+  // payout wallet's app for nothing. There is no funded time to run down and
+  // its lease renews at zero cost, so a countdown would be a fiction that
+  // reads "28m left" forever. null is the API's existing "unlimited".
+  // Gated on this box having a declaration at all, so that on a fleet where the
+  // waiver cannot exist a rate we simply failed to read keeps reporting the
+  // lease tail exactly as it always did, rather than claiming "unlimited".
+  if (!(rec.rate > 0)) return _declaredPayout ? null : lease;
   return lease + Math.max(0, Math.round((rec._balance6 || 0) / (rec.rate * 1e6)));
 };
 const spentOf = (rec) => (((rec.consumedMs || 0) / 1000) * (rec.rate || 0)).toFixed(2);
@@ -3606,6 +3674,24 @@ const FEE_OF_ABI = [{ type: "function", name: "feeOf", stateMutability: "view",
 const hostRate6 = (gpuMilli, cpuMilli) =>
   Math.ceil((SELL_GPU_PRICE6 * (Number(gpuMilli) || 0) + SELL_CPU_PRICE6 * (Number(cpuMilli) || 0)) / 1000);
 const usdPerHour = (perSec6) => "$" + (perSec6 * 3600 / 1e6).toFixed(2) + "/hr";
+
+// FREE SELF-HOSTING (ledger rev 12 + registry schema 4): the ledger waives this
+// box's entire charge when our on-chain DECLARED payout wallet owns the
+// deployment — the seller's own app on the seller's own box. The claim loop has
+// to price exactly the way claim() will, in both directions: price it high and
+// we refuse funded-looking work the chain would give us for nothing; price it
+// low on an older ledger and we take work we are then charged for. So this is
+// gated on BOTH schema revs and on the declaration the chain actually carries
+// (never on the configured PAYOUT_ADDRESS — that is this box's private opinion,
+// and the ledger has never heard of it).
+async function hostChargeWaived(d) {
+  if (!_declaredPayout || !d || !d.owner) return false;
+  try {
+    if (await registryRev() < 4) return false;
+    if ((await depsAbi()).rev < 12) return false;
+  } catch { return false; }                             // unreadable schema: assume we charge
+  try { return getAddress(d.owner) === _declaredPayout; } catch { return false; }
+}
 const CAP_OF_ABI = [{ type: "function", name: "capOf", stateMutability: "view",
   inputs: [{ name: "id", type: "bytes32" }], outputs: [{ name: "maxRate6", type: "uint256" }] }];
 
@@ -3628,7 +3714,8 @@ async function rateCapRefusal(d, g) {
   } catch {
     return "could not read the deployment's rate cap from the ledger; try again shortly";
   }
-  return capVerdict({ mine6: hostRate6(d.gpuMilli, d.cpuMilli), fee6: Number((g && g.feePerSec6) || 0),
+  const mine6 = (await hostChargeWaived(d)) ? 0 : hostRate6(d.gpuMilli, d.cpuMilli);
+  return capVerdict({ mine6, fee6: Number((g && g.feePerSec6) || 0),
                       cap6, balance6: Number(d.balance6) });
 }
 
@@ -3645,7 +3732,9 @@ function capVerdict({ mine6, fee6 = 0, cap6 = 0, balance6 = 0 }) {
          + (fee6 ? ` (incl. ${usdPerHour(fee6)} publisher fee)` : "")
          + `, above the owner's rate cap of ${usdPerHour(cap6)}`;
   if (balance6 < total6)
-    return `out of funded time at this enclave's price (${usdPerHour(total6)}) - fund it and retry`;
+    return `out of funded time at this enclave's price (${usdPerHour(total6)}`
+         + (mine6 === 0 && fee6 > 0 ? ", the publisher's fee alone - hosting here is free" : "")
+         + `) - fund it and retry`;
   return null;
 }
 
@@ -3656,7 +3745,8 @@ function capVerdict({ mine6, fee6 = 0, cap6 = 0, balance6 = 0 }) {
 // enclave's own price set through SELL_CPU_PRICE6 / SELL_GPU_PRICE6).
 if (process.env.PRICE_SELFTEST) {
   const out = JSON.parse(process.env.PRICE_SELFTEST).map((c) => {
-    const mine6 = hostRate6(c.gpuMilli || 0, c.cpuMilli || 0);
+    // `free: true` = the rev-12 waiver (our declared payout wallet owns it)
+    const mine6 = c.free ? 0 : hostRate6(c.gpuMilli || 0, c.cpuMilli || 0);
     return { mine6, refusal: capVerdict({ mine6, fee6: c.fee6 || 0, cap6: c.cap6 || 0, balance6: c.balance6 || 0 }) };
   });
   console.log(JSON.stringify(out));
@@ -6351,7 +6441,13 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   const leaseLive = Number(d.leaseUntil) * 1000 > Date.now();
   const resume = leaseLive && d.runner === _enclaveId;
   if (leaseLive && !resume) return "another enclave holds a live lease";
-  if (!resume && d.balance6 < d.rate) return "out of funded time - fund it and retry";
+  // The record's own `rate` is the WORST case (its ceiling, until a host prices
+  // it), so this is only a cheap pre-filter; rateCapRefusal below decides
+  // exactly, at our price. A deployment we host for free has no funding to run
+  // out of, so it must skip this or it would sit queued on the one box that
+  // would run it for nothing.
+  if (!resume && d.balance6 < d.rate && !(await hostChargeWaived(d)))
+    return "out of funded time - fund it and retry";
   // configCid as a CID is retired: the field carries only the deployment-
   // options envelope (waf, config, …) — parsed strictly; anything this build
   // doesn't recognize is refused, never ignored: silently dropping an option

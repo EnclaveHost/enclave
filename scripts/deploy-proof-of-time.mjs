@@ -156,6 +156,10 @@ if (Number(schema) < 9) die(`the ledger at ${DEPLOYMENTS} is schema rev ${schema
   + `Deploy the rev-9 EnclaveDeployments first (scripts/deploy-deployments.mjs).`);
 if (Number(regSchema) < 3) die(`the registry at ${REGISTRY} is schema ${regSchema}; proof of time needs schema 3 `
   + `(it reads each enclave's proofKey). Deploy the schema-3 EnclaveRegistry first — the two go together.`);
+// This contract holds the registry AND the ledger as immutables, so it is
+// redeployed whenever either moves — which is why a registry bump never
+// strands it, and why the pair below must be the pair that is going live.
+if (Number(regSchema) > 3) console.log(`  (registry is schema ${regSchema}; proof of time reads only proofKey, which is schema 3 and never moves)`);
 if (!/^0x0{40}$/i.test(boundProver)) die(`the ledger already has a prover bound: ${boundProver}. `
   + `setProver is ONE-SHOT and cannot be changed — a new prover needs a new ledger.`);
 
