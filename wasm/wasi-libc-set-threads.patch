@@ -62,6 +62,23 @@ index 2e33448..f2329ec 100644
    set(WASILIBC_MULTITHREADING ON)
  endif()
  
+diff --git a/libc-bottom-half/CMakeLists.txt b/libc-bottom-half/CMakeLists.txt
+index 8ed306b..46d6867 100644
+--- a/libc-bottom-half/CMakeLists.txt
++++ b/libc-bottom-half/CMakeLists.txt
+@@ -224,6 +224,12 @@ foreach(file crt/crt1-command.c
+   set_pic(${stem})
+   target_compile_options(${stem} PRIVATE -fvisibility=default -fno-lto)
+   target_include_directories(${stem} PRIVATE headers/private)
++  if(__wasilibc_set_threads__)
++    # enclave/SET: `crt1-reactor.c` needs to know, because `_initialize` runs
++    # once per THREAD under SET (one whole-component instantiation each) while
++    # its run-once guard lives in shared linear memory.
++    target_compile_definitions(${stem} PRIVATE __wasilibc_set_threads__)
++  endif()
+ endforeach()
+ 
+ set(crt_sysroot ${SYSROOT}/lib/${TARGET_TRIPLE})
 diff --git a/libc-bottom-half/cloudlibc/src/libc/sys/select/pselect.c b/libc-bottom-half/cloudlibc/src/libc/sys/select/pselect.c
 index 8c05041..da0a633 100644
 --- a/libc-bottom-half/cloudlibc/src/libc/sys/select/pselect.c
@@ -157,6 +174,63 @@ index 0b9dc4f..6265bcb 100644
      return __wasilibc_write(&write, buf, nbyte);
    }
    if (entry.vtable->sendto)
+diff --git a/libc-bottom-half/crt/crt1-reactor.c b/libc-bottom-half/crt/crt1-reactor.c
+index 293d1e5..9871c67 100644
+--- a/libc-bottom-half/crt/crt1-reactor.c
++++ b/libc-bottom-half/crt/crt1-reactor.c
+@@ -1,12 +1,50 @@
+-#if defined(_REENTRANT)
++#if defined(_REENTRANT) || defined(__wasilibc_set_threads__)
+ #include <stdatomic.h>
+ #endif
++#ifdef __wasilibc_set_threads__
++#include <wasi/descriptor_table.h>
++#endif
+ extern void __wasm_call_ctors(void);
+ 
+ #include "wasip3_symbol_references.h"
+ 
+ __attribute__((export_name("_initialize"))) void _initialize(void) {
+-#if defined(_REENTRANT)
++#if defined(__wasilibc_set_threads__)
++  /* enclave/SET: a spawned thread gets its own WHOLE-COMPONENT instantiation,
++     so `_initialize` runs once per THREAD, not once per process -- while the
++     guard below lives in SHARED linear memory. The main instance set it, so
++     every worker's instantiation lost the CAS and hit `__builtin_trap()`.
++     Measured: a `wasi:http/incoming-handler` guest that spawns traps in
++     `_initialize` on its first worker, and because main is then blocked in
++     `pthread_join` on a thread that will never arrive, the REQUEST NEVER
++     COMPLETES -- `wasmtime serve` holds the connection open forever, and the
++     platform passes no `--wasm timeout`. Reactors are how every HTTP app on
++     this platform runs; no probe had ever been one, so eight rounds missed it.
++
++     So the run-exactly-once ASSERTION is dropped under SET and only the
++     run-exactly-once BEHAVIOUR is kept: the constructors run on whichever
++     instantiation gets there first and every later one returns. That is
++     deliberately the same shape a command component already has -- `_start`
++     runs `__wasm_call_ctors` on the main thread and a worker enters through
++     `wasi_set_thread_start` without re-running it, initialising its own libc
++     state lazily instead.
++
++     The guard cannot simply be made per-thread: `_initialize` runs during
++     INSTANTIATION, before `__wasi_thread_start_C` has set up this thread's
++     TLS, so a `_Thread_local` read here does not yet name per-thread storage.
++     Tried, measured, still trapped.
++
++     What is lost is the diagnostic for an embedder that calls `_initialize`
++     twice on ONE instance. Under SET that is indistinguishable from the legal
++     case, and a hung HTTP request is a far worse failure than a missing
++     assertion. */
++  static volatile atomic_int ctors_done = 0;
++  int ctors_expected = 0;
++  if (atomic_compare_exchange_strong(&ctors_done, &ctors_expected, 1)) {
++    __wasm_call_ctors();
++  }
++  return;
++#elif defined(_REENTRANT)
+   static volatile atomic_int initialized = 0;
+   int expected = 0;
+   if (!atomic_compare_exchange_strong(&initialized, &expected, 1)) {
 diff --git a/libc-bottom-half/headers/private/wasi/descriptor_table.h b/libc-bottom-half/headers/private/wasi/descriptor_table.h
 index b06b8e6..dcfcbb4 100644
 --- a/libc-bottom-half/headers/private/wasi/descriptor_table.h
