@@ -2423,7 +2423,7 @@ index ab41825..40b94e0 100644
                  // For shared memory, the `VMMemoryDefinition` is updated inside
                  // the locked region.
 diff --git a/crates/wasmtime/src/runtime/store.rs b/crates/wasmtime/src/runtime/store.rs
-index 9cc49ea..c10beba 100644
+index 9cc49ea..c8254db 100644
 --- a/crates/wasmtime/src/runtime/store.rs
 +++ b/crates/wasmtime/src/runtime/store.rs
 @@ -470,6 +470,47 @@ pub struct StoreOpaque {
@@ -2547,7 +2547,7 @@ index 9cc49ea..c10beba 100644
      /// Configures epoch-deadline expiration to invoke a custom callback
      /// function.
      ///
-@@ -1657,6 +1757,464 @@ impl StoreOpaque {
+@@ -1657,6 +1757,403 @@ impl StoreOpaque {
          (self.instances[id].handle.get_mut(), &self.modules)
      }
  
@@ -2751,121 +2751,60 @@ index 9cc49ea..c10beba 100644
 +            let thread = handle.thread().clone();
 +            if let Err(e) = handle.join() {
 +                let name = thread.name().unwrap_or("set-thread");
-+                // NOT `log::warn!`. This helper is called INLINE from
-+                // `join_set_threads`, i.e. from `Drop for Store<T>`, with no
-+                // `catch_unwind` on the stack -- and it is on the FAST path,
-+                // which round 11 measured as the common one. Round 13 removed
-+                // the panicking macro from `join_set_threads`' own frame and
-+                // left this one, which the same function calls two lines later.
++                // NOT `log::warn!`: this runs from `Drop for Store<T>` (via
++                // `join_set_threads`), and a panicking log macro there aborts
++                // the teardown.
 +                //
-+                // WHY the macro had to go. Round 15 "corrected" this and got
-+                // it BACKWARDS; round 16 caught that. Both mechanisms are real
-+                // and both are recorded here, because this project keeps
-+                // re-deriving the rule from the comment:
++                // WHERE IT LANDS DEPENDS ON THE COMMAND, and the quiet one is
++                // the dangerous one. Under `run` nothing catches, so the panic
++                // reaches `main` and the process dies loudly. Under `serve` the
++                // per-request store is dropped inside a `tokio::task::spawn`,
++                // whose harness DOES `catch_unwind` — so the panic is swallowed,
++                // the request still returns 200, and the teardown is simply
++                // skipped. That is the shape round 13 measured: 457 of 457
++                // teardowns died here, ~110 kB leaked each, reaper never
++                // started, completely silent. `serve` is how the platform runs
++                // every HTTP app.
 +                //
-+                //  1. THE ORIGINAL CLAIM WAS TRUE AND MEASURED.
-+                //     `tracing_subscriber`'s stderr writer really does panic on
-+                //     a failed write on the path cli-flags takes:
-+                //     `FmtSubscriber::builder()` goes through
-+                //     `SubscriberBuilder::default()`, which ends
-+                //     `.log_internal_errors(true)` (fmt/mod.rs:470), and that
-+                //     arm runs `eprintln!`, which panics. Round 15 read
-+                //     `impl Default for fmt_layer::Layer` (false) -- a type
-+                //     cli-flags never constructs -- and on that basis
-+                //     contradicted round 13's recorded measurement of 457 of
-+                //     457 teardowns dying here, without re-running it.
++                // THE RULE: nothing reachable from a `Drop` may use a macro
++                // that panics on a failed write. `writeln!(stderr(), ..)` is
++                // safe — `Stderr`'s lock is non-poisoning, `write_fmt` returns
++                // `io::Result` with no `unwrap` (unlike `eprintln!`), and a
++                // closed fd 2 is swallowed by `handle_ebadf`.
 +                //
-+                //     WHICH CONFIGURATIONS ARE EXPOSED — corrected in round
-+                //     18, because rounds 16 AND 17 both got this wrong and in
-+                //     the same direction. The MECHANISM below is verified; the
-+                //     CONCLUSION is what kept being false.
++                // THE MECHANISM, because it is not obvious: cli-flags builds
++                // through `SubscriberBuilder::default()`, which sets
++                // `log_internal_errors(true)`; that arm `eprintln!`s on a failed
++                // write, and `eprintln!` panics. Whether a given site can reach
++                // it depends on the site's LEVEL, because `LogTracer` caps the
++                // `log` facade at the subscriber's max-level hint:
++                //   * `WASMTIME_LOG` unset  -> hint is ERROR (EnvFilter's
++                //     default directive). WARN is dropped at the facade; ERROR
++                //     is not.
++                //   * so THIS (warn) site is armed only when an operator raises
++                //     `WASMTIME_LOG` to >= WARN for `wasmtime::*` — i.e. while
++                //     investigating an incident, when losing the reaper is
++                //     worst.
++                //   * an ERROR-level macro WOULD be armed in the default
++                //     configuration. That is why `reaper::submit` — reached
++                //     from this same `Drop`, and whose failure is
++                //     self-cascading — uses a `writeln!` and not a macro. It
++                //     contains no `log::error!` today, and must not acquire
++                //     one. (The file's only `log::error!` is in
++                //     `reaper::finish`, which IS inside `catch_unwind`;
++                //     confusing those two is what round 18 did.)
++                // `-D log-to-files=y` (a debug key, not a flag) is a second
++                // panicking path, gated on `RUST_LOG`.
 +                //
-+                //     THIS SITE IS `warn!`, AND THAT DECIDES IT. With
-+                //     `WASMTIME_LOG` unset, `LogTracer` caps the `log` facade's
-+                //     global max level at ERROR, so a WARN record is discarded
-+                //     BEFORE tracing is consulted and never reaches the writer.
-+                //     Measured on the real binary, stderr -> /dev/full:
-+                //
-+                //       WASMTIME_LOG            WARN recs   rc
-+                //       <unset>                 0           0    <- NOT exposed
-+                //       wasmtime_wasi_nn=debug  0           0
-+                //       error                   0           0
-+                //       warn / wasmtime=warn    2           101  <- exposed
-+                //       trace                   2           101
-+                //
-+                //     So the exposing configuration for THIS site is an
-+                //     OPERATOR raising `WASMTIME_LOG` to >= WARN for
-+                //     `wasmtime::*` — i.e. exactly when someone turns SET
-+                //     logging on to investigate a live incident, which is when
-+                //     losing the reaper hurts most. That is what round 13 wrote
-+                //     earlier in SET-DO-NOT-PROMOTE.md, and it is the third
-+                //     time this comment has had to be walked back to it. (No
-+                //     line number: round 18 copied "335 lines up" into two new
-+                //     places where it was false, including into this .rs file
-+                //     where a Markdown offset denotes nothing.)
-+                //
-+                //     Round 17 wrote "the EXPOSED configuration is
-+                //     `WASMTIME_LOG` UNSET" and took its measurement from an
-+                //     ERROR-level macro, then applied the conclusion to this
-+                //     WARN-level site. Individually true facts, false
-+                //     conclusion — the pathology round 17 itself diagnosed in
-+                //     round 16.
-+                //
-+                //     ROUND 19 CORRECTION, because round 18's attempt to say
-+                //     that was itself wrong twice in one sentence. It claimed
-+                //     the ERROR site was "in `reaper::submit`, which is inside
-+                //     `catch_unwind` anyway, so the hazard does not apply
-+                //     there". Both halves are false:
-+                //       * the `log::error!` is in `reaper::FINISH`
-+                //         (`set_threads.rs`), not `submit`;
-+                //       * `submit` is NOT inside any `catch_unwind` —
-+                //         `Drop for Store<T>` -> `join_set_threads` ->
-+                //         `set_reaper_submit` -> `submit`, with nothing in
-+                //         between. `set_threads.rs` says exactly that, at
-+                //         length, as the whole justification for using
-+                //         `writeln!` there.
-+                //     `finish` IS inside `catch_unwind` (in the reaper thread's
-+                //     `run`), which is why a `log::` macro is tolerable there
-+                //     and not at `submit`.
-+                //
-+                //     AND THE DIRECTION MATTERS: unset caps the facade at
-+                //     ERROR, so ERROR records DO pass. An ERROR macro at
-+                //     `submit` would therefore be armed in the DEFAULT fleet
-+                //     configuration — every CPU tenant and every 0-GPU nn
-+                //     tenant — where the panic unwinds out of the first
-+                //     statement of `Drop`, `TX` latches unset-as-failed, and
-+                //     every later teardown detaches silently. Round 18's
-+                //     sentence wrote that live hazard off as a non-issue, which
-+                //     is precisely the reasoning that would license putting the
-+                //     macro back. Under `serve` it is worse than the `run` exit
-+                //     code suggests: tokio's task harness swallows the
-+                //     Drop-path panic, which is the silent 457/457 shape round
-+                //     13 measured.
-+                //
-+                //     Note also "SETTING `WASMTIME_LOG` suppresses this" is
-+                //     only true of the FLEET's value (`wasmtime_wasi_nn=debug`,
-+                //     which excludes `wasmtime::*`). `warn`, `debug`, `trace`
-+                //     and `wasmtime=warn` all ARM it.
-+                //
-+                //     And the gate is `setdefault` over `dict(os.environ)`, so
-+                //     a `WASMTIME_LOG` set on the wasm-manager container would
-+                //     propagate to EVERY tenant and override the fleet value
-+                //     even for GPU ones. Nothing sets it today; latent.
-+                //
-+                //  2. The `-D log-to-files=y` debug key (NOT a `--log-to-files`
-+                //     flag, as rounds 15/16 both wrote) is a SECOND path:
-+                //     `file_per_thread_logger` runs
-+                //     `File::create(path).expect("Can't open tracing file")` on
-+                //     the first log from any engine-created thread, and every
-+                //     SET worker and the reaper are engine-created. Narrower
-+                //     than it looks -- it returns early unless RUST_LOG (not
-+                //     WASMTIME_LOG) is set -- but real.
-+                // `{e:?}` on the join payload renders as literally
-+                // `Any { .. }` -- the panic message is lost, so downcast it.
-+                // (Round 15's comment here said "the way `reaper::finish`
-+                // does". It did not; `finish` had the same defect and round 16
-+                // caught that the pair had again been half-fixed. Both sites
-+                // now downcast.)
++                // The round-by-round history of this comment lives in
++                // wasm/SET-DO-NOT-PROMOTE.md. It is kept there deliberately:
++                // rounds 15, 16, 17 and 18 each rewrote this block HERE and each
++                // introduced a new false claim — denying the panic, then
++                // inverting which configuration is exposed (twice), then naming
++                // the wrong function and asserting a `catch_unwind` that does
++                // not exist. A narrative that long does not belong at a call
++                // site, which is why this one states the rule and the mechanism
++                // and stops.
 +                let msg = e
 +                    .downcast_ref::<&str>()
 +                    .map(|s| (*s).to_string())
@@ -3012,7 +2951,7 @@ index 9cc49ea..c10beba 100644
      /// Access multiple instances specified via `ids`.
      ///
      /// # Panics
-@@ -2408,6 +2966,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
+@@ -2408,6 +2905,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
  
  impl<T> Drop for Store<T> {
      fn drop(&mut self) {
@@ -3032,7 +2971,7 @@ index 9cc49ea..c10beba 100644
          self.run_manual_drop_routines();
  
          // For documentation on this `unsafe`, see `into_data`.
-@@ -2423,6 +2994,19 @@ impl Drop for StoreOpaque {
+@@ -2423,6 +2933,19 @@ impl Drop for StoreOpaque {
          // NB it's important that this destructor does not access `self.data`.
          // That is deallocated by `Drop for Store<T>` above.
  
