@@ -2421,7 +2421,7 @@ index ab41825..40b94e0 100644
                  // For shared memory, the `VMMemoryDefinition` is updated inside
                  // the locked region.
 diff --git a/crates/wasmtime/src/runtime/store.rs b/crates/wasmtime/src/runtime/store.rs
-index 9cc49ea..27ce8bb 100644
+index 9cc49ea..7727b96 100644
 --- a/crates/wasmtime/src/runtime/store.rs
 +++ b/crates/wasmtime/src/runtime/store.rs
 @@ -470,6 +470,47 @@ pub struct StoreOpaque {
@@ -2545,7 +2545,7 @@ index 9cc49ea..27ce8bb 100644
      /// Configures epoch-deadline expiration to invoke a custom callback
      /// function.
      ///
-@@ -1657,6 +1757,205 @@ impl StoreOpaque {
+@@ -1657,6 +1757,318 @@ impl StoreOpaque {
          (self.instances[id].handle.get_mut(), &self.modules)
      }
  
@@ -2657,6 +2657,24 @@ index 9cc49ea..27ce8bb 100644
 +    /// its process-wide cap slot until it really exits, so a process leaking
 +    /// workers this way stops being able to spawn new ones rather than silently
 +    /// accumulating them.
++    ///
++    /// **This function does not block.** It is reached from `Drop for Store`,
++    /// which under `wasmtime serve` runs INLINE ON A TOKIO WORKER for every
++    /// request whose guest spawned. The wait used to be a
++    /// `std::thread::sleep(1ms)` loop right here, bounded only by the join
++    /// timeout — the same shape round 8 called CRITICAL and removed from
++    /// `take_spawn_token`, where a `sleep` on a fiber parked the executor
++    /// thread running it. `Drop` cannot `await`, so the wait cannot be made
++    /// cooperative; it has to move off this thread instead. It does, to a
++    /// reaper (see `spawn_set_reaper`), and only in the case that would
++    /// actually have waited.
++    ///
++    /// Honest scope: I could not measure a stall from the old shape. With the
++    /// stop flag and the epoch bumps both landing, workers stop in
++    /// microseconds, and 400 requests at 128-way concurrency against a guest
++    /// that detaches a spinning worker per request ran in 0.508 s with zero
++    /// detach diagnostics. What is fixed here is the shape — an unbounded-ish
++    /// blocking wait on an executor thread — not a demonstrated outage.
 +    #[cfg(all(feature = "std", feature = "threads"))]
 +    pub(crate) fn join_set_threads(&mut self) {
 +        let joins = mem::take(&mut self.set_thread_joins);
@@ -2674,10 +2692,19 @@ index 9cc49ea..27ce8bb 100644
 +            return;
 +        }
 +
++        // Whatever the reaper has to hold to answer "is anything still live?".
++        // With the component model that is the group; without it there is no
++        // group and `live_is_zero` is always false, so the reaper simply runs
++        // out its timeout.
++        #[cfg(feature = "component-model")]
++        type SetReaperGroup = Option<std::sync::Arc<crate::runtime::vm::component::SetThreadGroup>>;
++        #[cfg(not(feature = "component-model"))]
++        type SetReaperGroup = Option<core::convert::Infallible>;
++
 +        #[cfg(feature = "component-model")]
 +        let group = self.set_thread_group.clone();
 +        #[cfg(not(feature = "component-model"))]
-+        let group: Option<core::convert::Infallible> = None;
++        let group: SetReaperGroup = None;
 +
 +        #[cfg(feature = "component-model")]
 +        if let Some(group) = &group {
@@ -2698,60 +2725,146 @@ index 9cc49ea..27ce8bb 100644
 +            false
 +        }
 +
-+        let timeout = crate::runtime::vm::component::set_join_timeout();
-+        let unbounded = timeout.is_zero();
-+        let deadline = std::time::Instant::now() + timeout;
-+        let engine = self.engine().clone();
-+        loop {
-+            #[cfg(feature = "component-model")]
-+            let live = group.as_ref().map(|g| g.live_workers()).unwrap_or(0);
-+            #[cfg(not(feature = "component-model"))]
-+            let live = joins.iter().filter(|h| !h.is_finished()).count();
-+            if live == 0 {
-+                break;
++        /// Join a worker the live count says has already dropped its
++        /// `LiveGuard`.
++        ///
++        /// The count reaching zero happens inside `worker_main` a few
++        /// instructions before the thread really ends, so `is_finished()` can
++        /// still be false here. Racing the two used to report a cleanly exited
++        /// worker as a leaked one and drop its handle unjoined; once the count
++        /// is zero this join cannot block meaningfully, so it is unconditional.
++        fn join_finished_set_worker(handle: std::thread::JoinHandle<()>) {
++            if let Err(e) = handle.join() {
++                log::warn!("SET worker thread panicked: {e:?}");
 +            }
-+            if !unbounded && std::time::Instant::now() >= deadline {
-+                break;
-+            }
-+            // Keep bumping: the callback re-arms the deadline every `ticks`, so
-+            // one bump is not guaranteed to land while the worker is executing.
-+            engine.increment_epoch();
-+            std::thread::sleep(std::time::Duration::from_millis(1));
 +        }
 +
-+        // `live == 0` means every worker's `LiveGuard` has dropped, which happens
-+        // inside `worker_main` a few instructions before the thread really ends.
-+        // Racing `is_finished()` against that window used to report a cleanly
-+        // exited worker as a leaked one — and drop its handle unjoined. Once the
-+        // count is zero, join unconditionally: it cannot block meaningfully.
-+        let all_done = live_is_zero(&self.set_thread_group);
-+        for handle in joins {
-+            if all_done || handle.is_finished() || unbounded {
-+                if let Err(e) = handle.join() {
-+                    log::warn!("SET worker thread panicked: {e:?}");
++        /// Take the stop-and-join wait OFF the caller's thread.
++        ///
++        /// Everything here used to run inline in `Drop`. It owns everything it
++        /// touches — `Arc`s and `JoinHandle`s, no borrow of the store — which
++        /// is what makes moving it sound, and which was already implied by the
++        /// existing behaviour: the default timeout DETACHES a straggler after
++        /// 2 s, so "a worker outlives its store" is a state this design
++        /// accepted long before this change. The reaper does not weaken an
++        /// invariant that was being held; it stops an executor thread from
++        /// waiting to reach the same conclusion.
++        ///
++        /// If the reaper thread cannot be spawned, the handles are dropped
++        /// unjoined — which is exactly what the timeout path already calls
++        /// "detached" — and we say so. Falling back to waiting inline would
++        /// reintroduce the executor-blocking this exists to remove, at the one
++        /// moment (thread exhaustion) when the process can least afford a
++        /// parked worker. `request_stop` has already been issued either way,
++        /// and the CLI's periodic epoch ticker keeps bumping, so a spinning
++        /// worker still gets trapped without our bumps.
++        fn spawn_set_reaper(
++            group: SetReaperGroup,
++            engine: crate::Engine,
++            joins: Vec<std::thread::JoinHandle<()>>,
++        ) {
++            let reap = move || {
++                let timeout = crate::runtime::vm::component::set_join_timeout();
++                let unbounded = timeout.is_zero();
++                let deadline = std::time::Instant::now() + timeout;
++                loop {
++                    if live_is_zero(&group) {
++                        break;
++                    }
++                    if !unbounded && std::time::Instant::now() >= deadline {
++                        break;
++                    }
++                    // Keep bumping: the callback re-arms the deadline every
++                    // `ticks`, so one bump is not guaranteed to land while the
++                    // worker is executing.
++                    engine.increment_epoch();
++                    std::thread::sleep(std::time::Duration::from_millis(1));
 +                }
-+            } else {
-+                // Detached deliberately: nothing it can reach is being freed,
-+                // and the alternative is blocking this thread forever.
-+                let name = handle.thread().name().unwrap_or("set-thread").to_string();
-+                log::error!(
-+                    "SET worker {name} did not stop within the teardown timeout and \
-+                     has been detached; it still holds a live-thread slot. This \
-+                     usually means the engine has no epoch ticker (see \
-+                     `Config::epoch_interruption`) and the guest thread never yields."
-+                );
-+                eprintln!(
-+                    "wasmtime: warning: SET worker {name} did not stop at store \
-+                     teardown and was detached (it still holds a live-thread slot)"
-+                );
++
++                let all_done = live_is_zero(&group);
++                for handle in joins {
++                    if all_done || handle.is_finished() || unbounded {
++                        join_finished_set_worker(handle);
++                    } else {
++                        // Detached deliberately: nothing it can reach is being
++                        // freed, and the alternative is blocking forever.
++                        let name = handle.thread().name().unwrap_or("set-thread").to_string();
++                        log::error!(
++                            "SET worker {name} did not stop within the teardown timeout and \
++                             has been detached; it still holds a live-thread slot. This \
++                             usually means the engine has no epoch ticker (see \
++                             `Config::epoch_interruption`) and the guest thread never yields."
++                        );
++                        eprintln!(
++                            "wasmtime: warning: SET worker {name} did not stop at store \
++                             teardown and was detached (it still holds a live-thread slot)"
++                        );
++                    }
++                }
++            };
++
++            match std::thread::Builder::new()
++                .name("wasmtime-set-reaper".to_string())
++                .spawn(reap)
++            {
++                Ok(_handle) => {} // detached on purpose: nothing waits for it
++                Err(e) => {
++                    // The closure — and with it the handles — is dropped by the
++                    // failed spawn, so every worker is detached. Same outcome
++                    // as the timeout path, reached for a different reason, and
++                    // it must not be silent.
++                    log::error!(
++                        "could not spawn the SET teardown reaper ({e}); this store's workers \
++                         have been detached and still hold their live-thread slots"
++                    );
++                    eprintln!(
++                        "wasmtime: warning: could not spawn the SET teardown reaper ({e}); \
++                         workers detached"
++                    );
++                }
 +            }
 +        }
++
++        // FAST PATH, and the one that matters for throughput: every worker has
++        // already dropped its `LiveGuard`, so there is nothing to wait for.
++        // `join()` on a finished thread does not block, so this stays inline
++        // and costs no thread. A guest that joins its own threads before
++        // returning — which is what an ordinary program and every HTTP handler
++        // in the probe corpus does — lands here every time.
++        if live_is_zero(&group) {
++            for handle in joins {
++                join_finished_set_worker(handle);
++            }
++            return;
++        }
++
++        // SLOW PATH: something is still running. Waiting for it HERE is what
++        // this function must never do (see the doc comment), so the wait, the
++        // epoch bumps, the timeout and the detach diagnostic all move to a
++        // reaper thread that owns everything it touches.
++        //
++        // Cost, stated rather than hidden: one short-lived OS thread per store
++        // teardown that still has a live worker. That is the already-pathological
++        // case — a guest detaching a thread it never joins — and it is bounded
++        // by the request rate and by the process-wide live-thread cap. It buys
++        // a hard guarantee that no executor thread is ever parked here.
++        let engine = self.engine().clone();
++        // Observable on purpose. The reaper finishes in microseconds whenever
++        // the stop flag lands, which makes "was the slow path taken at all?"
++        // impossible to answer by sampling threads — and an unexercised
++        // teardown path in this area is exactly what previous rounds shipped.
++        // `WASMTIME_LOG=wasmtime::runtime::store=debug` shows it.
++        log::debug!(
++            "SET teardown: {} worker handle(s) still live, handed to a reaper thread",
++            joins.len()
++        );
++        spawn_set_reaper(group, engine, joins);
 +    }
 +
      /// Access multiple instances specified via `ids`.
      ///
      /// # Panics
-@@ -2408,6 +2707,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
+@@ -2408,6 +2820,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
  
  impl<T> Drop for Store<T> {
      fn drop(&mut self) {
@@ -2771,7 +2884,7 @@ index 9cc49ea..27ce8bb 100644
          self.run_manual_drop_routines();
  
          // For documentation on this `unsafe`, see `into_data`.
-@@ -2423,6 +2735,19 @@ impl Drop for StoreOpaque {
+@@ -2423,6 +2848,19 @@ impl Drop for StoreOpaque {
          // NB it's important that this destructor does not access `self.data`.
          // That is deallocated by `Drop for Store<T>` above.
  

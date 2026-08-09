@@ -621,9 +621,190 @@ produced a teardown deadlock in two separate rounds, and adding it unreviewed at
 round 8 is exactly the pattern that has generated a new CRITICAL every round.
 A guest avoids it with `fclose`. It should be designed and reviewed, not slipped in.
 
+## Round 10 (2026-08-09): DESIGN work, not a review round — and it found a CRITICAL of its own
+
+Rounds 8 and 9 both concluded the *class* was wrong rather than the instance, so
+this round did the two design items instead of a tenth pass. Both landed. A
+third defect fell out of building an honest probe for the first one, and it is
+the most serious thing in this file since round 9's `_initialize` finding.
+
+### Design 1: per-thread stdio / `FILE` ownership
+
+Four reproduced findings were one finding: `FILE` objects and the `__ofl` list
+live in SHARED memory, but `f->fd` is a PER-THREAD name. The fix is an owner,
+not a fifth per-call refusal.
+
+* **`FILE` carries its owner.** `f->set_ns` is `owner_namespace + 1`, so `0`
+  means SHARED — and `0` is what every constructor already leaves behind
+  (`memset` in `__fdopen`, whole-struct memsets in
+  `fmemopen`/`open_memstream`/`open_wmemstream`/`fopencookie`, the static
+  initialisers in `stdout.c`/`stdin.c`/`stderr.c`). A missed constructor fails
+  SAFE. Only `__fdopen` stamps, and it stamps the CREATING THREAD's namespace,
+  not the fd's — a worker holding a bare 0/1/2 would otherwise be
+  indistinguishable from the shared streams, which was entrance 2b of the leak.
+* **Checked where `f->fd` becomes a syscall**, not per call site: `fflush(NULL)`
+  skips what it cannot name, explicit `fflush` refuses BEFORE touching the
+  buffer, `__stdio_exit` skips, and `__stdio_write`/`__stdio_read`/`__stdio_seek`
+  are the backstop for paths nobody enumerated (`fwrite` straight into another
+  thread's FILE reaches none of the others).
+* **A worker may neither acquire nor destroy 0/1/2.** `table_allocate` floors a
+  worker's fresh index at 3 and `descriptor_table_remove` refuses 0/1/2, which
+  is what makes `SHARED` sound: the three standard streams name the same objects
+  on every thread for the life of the component, so `write(1, ...)` and
+  `STDOUT_FILENO` keep working on a worker. This generalises round 8's `dup2`
+  refusal to the doors it missed — `open`, `dup`, `socket`, `accept`, `pipe`,
+  `fcntl(F_DUPFD)`.
+* **Thread-exit flush** (`__wasilibc_set_flush_owned_files`, ofl.c), because once
+  `__stdio_exit` stops flushing what it cannot name, a worker's own buffered
+  FILE would be discarded in silence. Lock order `ofl` → `f->lock` with
+  `f->lock` taken UNDER `ofl_lock` (the order `fflush(NULL)` and `__stdio_exit`
+  already use, so no new edge), `ofl_lock` released before the host call,
+  `ftrylockfile` never `__lockfile` (a blocking acquire in `__pthread_exit` is a
+  new hang axis before `__tl_lock`, and it registers so a trap mid-write is
+  still recoverable), one victim per pass, and it runs BEFORE
+  `__wasilibc_set_release_thread_state` or every write would be EBADF.
+
+Measured, worker's 19 unflushed bytes: **r8/r9c put them on the operator's
+stdout with the guest's file at 0 bytes; the new build puts them in the guest's
+file with the operator's stdout clean.** `fflush(NULL)` from a worker: main's 19
+buffered bytes destroyed with `F_ERR` set and exit 0 → intact, `ferror` 0.
+`freopen` on a worker: `F_ERR` stuck for every thread and the worker's `printf`
+returning -1 → refused cleanly, both threads' stdout intact.
+
+**A first cut of this broke every worker's stderr** and the probe caught it: a
+worker's own stdin/stdout/stderr are handed out by the same `table_allocate`, so
+an unconditional floor put them at indices 3/4/5 and the shared `stderr` FILE's
+`f->fd == 2` named nothing. The floor now excepts the stdio-population window.
+That is why `worker-stdio-leak.c` asserts the worker's stderr ARRIVES and not
+merely that the secret does not leak — a probe checking only the latter passes
+brilliantly on a build where workers cannot print at all.
+
+**Deliberate, measured divergence from native.** A cross-thread `fwrite` that
+fits in the buffer still lands (no descriptor is resolved — native writes 48
+bytes, so does this). One that must DRAIN on the wrong thread is refused: native
+writes 40000 and gets a 40005-byte file, this returns 0 and leaves the owner's 5
+bytes intact. r8/r9c did the third thing — returned 0, set `F_ERR`, and left the
+file at **0 bytes**, having destroyed the owner's buffer.
+
+### Design 2: store teardown no longer blocks an executor thread
+
+`join_set_threads` did `increment_epoch()` + `std::thread::sleep(1ms)` in a loop
+under `Drop for Store`, which runs inline on a tokio worker for every `serve`
+request whose guest spawned — the shape round 8 called CRITICAL in
+`take_spawn_token`. `Drop` cannot `await`, so the wait moved off the thread
+instead: if the live count is already zero the handles are joined inline (no
+thread, and this is the common case — any guest that joins its own threads), and
+only a store with a still-live worker hands the wait, the epoch bumps, the
+timeout and the detach diagnostic to a reaper thread.
+
+Sound for the same reason the existing code was: the default timeout already
+DETACHES a straggler after 2s, so "a worker outlives its store" is a state this
+design accepted long ago. Both paths are proven, not assumed —
+`WASMTIME_LOG=wasmtime::runtime::store=debug` shows the reaper line for
+`worker-spin-teardown` (detached spinner) and zero mentions for `worker-io`
+(joins its threads).
+
+**Honest scope: no stall was ever measured.** With the stop flag and epoch bumps
+both landing, workers stop in microseconds; 400 requests at 128-way concurrency
+against a guest that detaches a spinning worker per request ran in 0.508s with
+zero detach diagnostics, before and after. What is fixed is the shape, not a
+demonstrated outage.
+
+### The CRITICAL: round 9's leak fix `free()`d a pointer it did not own
+
+Found by building the probe that can actually reach the preopen failure path.
+**Present in the shipping round-9 libc**, on the NORMAL exit path of every
+worker that ever opened a file in a guest that does not call `chdir`.
+
+`__wasilibc_find_relpath_alloc` is a WEAK symbol defined only by `chdir.c`. A
+guest that never calls `chdir` does not link it, and `__wasilibc_find_relpath`
+then delegates to `__wasilibc_find_abspath` — which documents in
+`libc-find-relpath.h` that `relative_path` "may be an interior pointer to the
+`abspath` string". So the cached buffer is BORROWED from the guest's own path
+argument and `*_len` is never set. Round 9's new
+`__wasilibc_set_release_path_bufs` freed it unconditionally, putting `dlfree` on
+a chunk header made of string bytes:
+
+```
+0: dlfree            2: __wasilibc_set_release_path_bufs
+1: free              3: __wasilibc_set_release_thread_state
+memory fault at wasm address 0x2f326451 in linear memory of size 0x800000
+```
+
+That is inside `__pthread_exit`, so the worker died mid-teardown and never woke
+its joiner — main blocked in `pthread_join` forever. Silent heap corruption
+whenever those bytes happened to look plausible; an out-of-bounds trap when they
+did not. Two independent reproductions:
+
+| probe | round-9 libc | fixed |
+|---|---|---|
+| `worker-preopen-oom.c` `HOLE=9,10,11` | hang (12s timeout, trace above) | pass |
+| `worker-ns-exhaust.c` | 500s timeout, out-of-bounds trap | **exit 0 in 26s**, `SURVIVED: ran=262500 failed_open=357` |
+
+Fixed by freeing only what the ALLOC path owns: `*_len` is the ownership marker
+(`__wasilibc_find_relpath_alloc` is its only writer and the borrowed path never
+touches it), plus the weak-symbol check that says the same thing one level up.
+
+**A reviewed MEDIUM leak fix became a CRITICAL on the normal exit path.** That is
+the fourth round running in which the previous round's fix was the next round's
+worst finding, and it is the strongest argument in this file for not promoting.
+
+### Probe-integrity work
+
+* `worker-preopen-retry.c` **cannot reach the bug it names** — it fails at
+  preopen index 0, so the cleanup loop never runs, and it passes identically
+  against the libc it regression-tests. `worker-preopen-oom.c` added, and it is
+  what found the CRITICAL above. The `HOLE` value is a byte offset into
+  dlmalloc's layout and MOVES when any libc struct changes: sweep it.
+* `worker-mem-grow.c` now ASSERTS the tenant's RAM ceiling instead of printing
+  it (verified it can fail: with no engine cap it reaches 1 GiB and exits
+  non-zero, where it used to exit 0).
+* Four new probes, each verified to FAIL against `:r8`/`:r9c` and pass here:
+  `worker-stdio-leak.c`, `worker-file-owner.c`, `worker-stdio-freopen.c`,
+  `worker-preopen-oom.c`.
+* **Exit codes are pass/fail only.** WASIp2's `wasi:cli/exit` carries a `result`,
+  not a number, so every non-zero guest exit reaches the host as `1`. The detail
+  is on stderr. Do not build a harness that switches on the number.
+* **A probe encoded a bug as the spec for the SIXTH time** — the first draft of
+  `worker-file-owner.c`, mine, asserting a cross-thread `fwrite` must write 0
+  bytes. The native control said otherwise. Build the same source with gcc
+  before deciding what correct means.
+
+### Verified clean this round
+
+* Whole corpus green on the new libc: `worker-io`, `worker-trap`,
+  `worker-file-io`, `worker-dir-io-lock`, `worker-dup2`, `worker-fd-alias`,
+  `worker-fd-recycle`, both `worker-stdio-orphan`, `worker-connect`,
+  `worker-spin-teardown` (0.18s), `worker-block-teardown` (0.13s),
+  `worker-mem-grow` (binds at 16777216), `worker-ns-exhaust` (26s).
+* **The reactor/HTTP shape, which is how the platform runs every HTTP app** —
+  the blind spot that hid a CRITICAL for eight rounds. `wasmtime serve` with the
+  full tenant flag set: `spawned=8 joined=8`, 200/200 at 16-way concurrency,
+  clean log, on the final libc.
+* Both toolchain configurations build: the image still compiles the patch with
+  `ENABLE_SET_THREADS=OFF` as a guard.
+* Patch integrity re-verified all three documented ways: 48 `diff --git`
+  entries, 48/48 post-image blob hashes match `git hash-object` of the tree
+  file, and `git apply --check` passes against a fresh 9-patch baseline
+  worktree.
+
+### Still open
+
+* The fleet cgroup configuration (`WASM_CPU_WEIGHT: "100"`, `cpu.max` commented
+  out, no `pids.max`, placement fails open). Unchanged, and Steven's call — see
+  the round-9 section. This is the enforcement half of the reason the spawn rate
+  limiter was withdrawn, and it is still not true as deployed.
+* A worker that TRAPS reaches neither the thread-exit flush nor `__stdio_exit`,
+  so its buffered bytes are still lost. Inherent: a trapped thread cannot be
+  made to run a host call safely.
+* No round has yet been run against this work. **Round 10 was design, not
+  review** — everything above is new code that four adversarial reviewers have
+  not seen, in the area that has produced a CRITICAL every round.
+
 ## Why it is still not promotable
 
-**EIGHT rounds have now been run and not one has cleared.**
+**NINE review rounds have now been run and not one has cleared**, and the tenth
+pass was design work that found a CRITICAL in the ninth round's own fix.
 
 Round 7 was deliberately narrow — only the round-6 delta — and still found a
 CRITICAL and four HIGHs. Round 8 was narrower still, over only the round-7
@@ -632,12 +813,15 @@ shipping artifacts. Both of round 7's headline fixes were themselves defective:
 the preopen fix deadlocked the component, and the spawn limiter it introduced
 stalled the entire HTTP server at zero CPU cost.
 
-Eight rounds, eight sets of real defects, and the majority of the recent ones
+Nine rounds, nine sets of real defects, and the majority of the recent ones
 have been the PREVIOUS round's fix. Two areas have now been wrong four rounds
 running: the `dup2` contract, and thread-creation limiting — the latter has been
-withdrawn rather than fixed again. That is the single most important fact for
-whoever decides this. The only evidence that would change the answer is a round
-that finds nothing, and no round yet has.
+withdrawn rather than fixed again. Round 10 did not review, and still found that
+round 9's MEDIUM leak fix had become a CRITICAL heap corruption on the normal
+worker-exit path. That is the single most important fact for whoever decides
+this. The only evidence that would change the answer is a round that finds
+nothing, and no round yet has — and round 10's own code has not been reviewed at
+all.
 
 ## Promotion sequence, when it is finally earned
 

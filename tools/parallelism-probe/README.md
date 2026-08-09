@@ -80,19 +80,38 @@ wasmtime run $W -S cli worker-io.wasm
 | `worker-exit.c` | `exit()` on a worker ends the component instead of stranding the joiner |
 | `worker-file-io.c` | **two** file reads/writes with a second thread alive do not deadlock — the object lock `get_read_stream` takes is released |
 | `worker-dir-io-lock.c` | a FAILED stream lookup (`fopen` on a directory) releases that lock too |
-| `worker-ns-exhaust.c` | running out of fd namespaces fails that THREAD, instead of ending the component with no diagnostic |
+| `worker-ns-exhaust.c` | running out of fd namespaces fails that THREAD, instead of ending the component with no diagnostic. Also the second reproduction of the round-9 borrowed-`free()` CRITICAL: it went from a 500s hang with an out-of-bounds trap to 26s and `SURVIVED: ran=262500 failed_open=357` |
 | `worker-dup2.c` | the whole `dup2`/`dup3` target contract, asserted rather than printed: wrong in four different ways across four rounds, so this one exits non-zero |
 | `worker-fd-alias.c` | a cross-thread fd FAILS with `EBADF` instead of silently aliasing another file |
 | `worker-fd-recycle.c` | a DEAD thread's fd does not become a LIVE thread's fd (namespaces are monotonic, not recycled) |
 | `worker-spawn-churn.c` | thread CREATION is not bounded by the concurrency cap: spawn-then-exit churns ~35k threads in 2s past any `ENCLAVE_MAX_SET_THREADS`. The rate limiter that answered this is now OFF by default — set `ENCLAVE_MAX_SET_SPAWN_RATE=4096` to see it stop the chain |
 | `worker-spawn-retry-bomb.c` | what the rate limiter COSTS when an operator turns it on: a guest that retries a refusal spins, 45.1 CPU-seconds per 2 wall seconds against 13.5 with it off |
-| `worker-preopen-retry.c` | a thread that cannot build its preopen table fails alone, without killing the component and without leaking a host resource handle per retry |
+| `worker-preopen-retry.c` | a thread that cannot build its preopen table fails alone, without leaking a host resource handle per retry. **Cannot reach the bug it names** — it fails at preopen index 0, so the cleanup loop never runs and it passes identically against the libc it claims to regression-test. Kept for the retry/leak half; `worker-preopen-oom.c` is what actually covers the failure path |
+| `worker-preopen-oom.c` | the probe that DOES reach it: an allocation failure at preopen index >= 1 with a live sibling. Two different defects hide at two different `HOLE` sizes — the round-7 re-entrancy deadlock at 8, and the round-9 `free()` of a borrowed pointer at 9..11. Sweep the hole; it is a byte offset into dlmalloc's layout and moves when any libc struct changes |
+| `worker-stdio-leak.c` | a worker cannot acquire a standard descriptor (`close(1); open()` used to hand back bare fd 1, and main's exit flush delivered the guest's bytes to the OPERATOR's log) — and still has a working stderr, which the first attempt at the fix silently took away |
+| `worker-file-owner.c` | a `FILE` may only be RESOLVED by the thread whose namespace its `fd` names, while everything that does not resolve it stays native-identical. Covers `fflush(NULL)`, explicit `fflush`, buffered and over-buffer cross-thread `fwrite`, and the thread-exit flush |
+| `worker-stdio-freopen.c` | a failed `freopen` on a worker does not wedge the shared stdout for every other thread (its failure path is `fclose(stdout)`) |
 | `worker-stdio-orphan.c` | a worker trapping while holding stdout's lock (explicit `flockfile`) does not wedge stdio |
 | `worker-stdio-orphan-internal.c` | the same through the INTERNAL `FLOCK` path `printf` takes — the layer musl never registered |
-| `worker-mem-grow.c` | `-W max-memory-size` bounds SHARED-memory growth, from a worker thread |
+| `worker-mem-grow.c` | `-W max-memory-size` bounds SHARED-memory growth, from a worker thread. Now ASSERTS it: pass the cap in via `--env MAX_MEMORY_SIZE=<same value>`. It used to `return 0` whatever it measured, so it would have reported success on the very build whose bug it exists to catch |
 
 Each file's header comment states the old symptom and the expected new output,
 so a regression is visible without reading this table.
+
+**Exit codes are pass/fail only, not a code.** WASIp2's `wasi:cli/exit` carries a
+`result`, not a number, so every non-zero guest exit arrives at the host as `1`
+(verified: a guest returning 3 shows up as exit 1). The specific code is in the
+probe's stderr line. Do not write a harness that switches on the number.
+
+**Prove a fix against the previous image, always.** A probe encoding a bug as the
+spec has now happened six times in this directory — most recently in the first
+draft of `worker-file-owner.c`, which asserted that a cross-thread `fwrite` must
+write zero bytes. It must not: `fwrite` copies into the FILE's shared buffer and
+only resolves `f->fd` when that buffer drains, so a small cross-thread write
+followed by the owner's flush is correct, and native does exactly that. Build the
+same source with gcc and run it before deciding what "correct" means.
+`enclave-wasipsetc-build:r8` (round-7 libc) and `:r9c` (round-9 libc) are kept
+for these A/Bs.
 
 ## `set-http-handler.c`: the shape the platform actually runs
 
