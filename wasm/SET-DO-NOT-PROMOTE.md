@@ -801,10 +801,167 @@ worst finding, and it is the strongest argument in this file for not promoting.
   review** — everything above is new code that four adversarial reviewers have
   not seen, in the area that has produced a CRITICAL every round.
 
+## Round 11 (2026-08-09): four adversarial reviewers over round 10 — it did NOT clear
+
+Round 10 was design work, so its ~500 lines of new TCB code had never been
+reviewed. Four reviewers went at it. **Two HIGHs, one of them a hole in round
+10's own fix, plus a MEDIUM leak round 9's leak fix had missed.** Every finding
+below is reproduced on shipping artifacts with a native `gcc` control where a
+semantic claim is involved.
+
+| finding | severity | status |
+|---|---|---|
+| the MAIN thread can still redirect 0/1/2, and a worker's `printf` then reaches the operator's log | HIGH | FIXED |
+| the claim hook that fixes the above silently does NOTHING in the state that makes it reachable | HIGH | FIXED |
+| `fclose` on another thread's FILE destroys its bytes and frees it underneath the owner | HIGH | FIXED |
+| `chdir`'s per-thread path cache is never released — the third cache, missed by round 9 | MEDIUM | FIXED |
+| per-teardown reaper threads are unbounded and invisible to every limiter | MEDIUM | FIXED |
+| `ENCLAVE_SET_JOIN_TIMEOUT_MS=0` did the OPPOSITE of what it documents | MEDIUM | FIXED |
+| a detached straggler was reported into a process that had already exited | MEDIUM | FIXED |
+| the reaper's spawn-failure diagnostic was guest-reachable and un-rate-limited | MEDIUM | FIXED |
+| `live_is_zero(&None)` was TRUE, i.e. fail-OPEN | LOW | FIXED |
+| a refused `close(0/1/2)` on a worker still burns a namespace id | LOW | OPEN, see below |
+
+### The ownership rule was applied to workers only, and the handler is not a worker
+
+Round 10 stopped a WORKER acquiring or freeing indices 0/1/2 and concluded that
+`__WASILIBC_FILE_SHARED` was therefore sound. It is not, for the MAIN thread —
+which under `wasmtime serve` is **the request handler**. The ordinary two-line
+idiom `close(1); open("/d/private.txt", ...)` left the shared `stdout` FILE with
+`f->fd == 1` naming the handler's private file on the handler and the SERVER'S
+REAL STDOUT on every worker. Measured on a reactor: three requests, three tenant
+secrets in the server's stdout. All four doors do it (`dup2`, `close`+`open`,
+`F_DUPFD`, `freopen`), and it is byte-for-byte inverted from native.
+
+Fixed by making a rebind of 0/1/2 CLAIM the shared `FILE` for the rebinding
+thread, so every other thread's write is refused rather than misdelivered. The
+redirecting thread keeps native behaviour; siblings lose `stdout`, which is the
+honest trade — native can redirect a process-wide fd and per-thread descriptor
+tables cannot.
+
+**The first cut of that fix was itself wrong, twice**, which is why this round
+did not clear even after fixing the HIGH:
+
+* It refused the non-owning thread's WRITE, so the line-buffered path called
+  `f->write` on the newline, `__stdio_write` refused, and `__fwritex` returned
+  early — **silently discarding the whole line**. `printf("AAAA\n")` vanished
+  while `printf("BBBB")` survived. A non-owning thread must BUFFER (which needs
+  no descriptor) and let the owner drain; only draining is refused.
+* The claim stamped `__wasilibc_set_current_ns()`, which is a PURE READ and
+  returns -1 for a thread that has never created a tagged descriptor — and -1
+  stamps SHARED, i.e. the claim did nothing. That is not a corner: a thread
+  reaches the claim without a namespace exactly when its own 0/1/2 are free,
+  which is the partially-failed-`init_stdio` state, which is the state the leak
+  is reachable from. **Measured: the fix leaked at every heap hole until the
+  claim was made to claim.**
+
+### `fclose` was the door the ownership rule missed, and it is memory-unsafe
+
+`fclose` unlinks the FILE from `__ofl` and `free()`s it even when `fflush` and
+`f->close` both correctly refused. So the owner loses its buffered bytes AND is
+left with a dangling `FILE *`. Worse than data loss: measured, main buffers 21
+bytes and a worker `fclose`s it —
+
+* r8/r9c: file 4 B, then **main TRAPS** in `fclose` (`uninitialized element`);
+* r10c: file 0 B, then **main TRAPS inside a HOST call** — a freed FILE's
+  buffer pointer/length handed to the host, caught by the engine's bounds check
+  (`list pointer/length out of bounds of memory`);
+* fixed: file 21 B, foreign `fclose` refused, owner closes cleanly.
+
+### Store teardown: one reaper for the process, not one per teardown
+
+Round 10's claim that the fast path is "what an ordinary program and every HTTP
+handler does" is FALSE, measured: **10-41% of ordinary spawn-AND-JOIN HTTP
+requests take the slow path** (23.5% at 32-way here), because a worker's
+`LiveGuard` is released only after its whole `Store` is torn down, long after
+the guest's `pthread_join` returned. With a thread per teardown that measured
+~1950 engine-created OS threads/second against a detaching guest — invisible to
+`ENCLAVE_MAX_SET_THREADS`, to `ENCLAVE_MAX_SET_SPAWN_RATE` and to the RAM
+ledger. Round 4's lesson is that thread CREATION is a node-wide cost that must
+be bounded; a guest-drivable creation path no limiter can see is that lesson
+unlearned.
+
+Now one process-global reaper fed by a queue: **verified 1 reaper thread after
+96 handoffs across 300 requests.** `ENCLAVE_SET_JOIN_TIMEOUT_MS=0` waits INLINE
+again (the knob documents an unbounded join; handing that to a shared reaper
+would park it for every other store, and returning immediately freed the store
+while the worker ran — the opposite of the knob's purpose). `wasmtime run`
+drains the reaper before exiting, so a detached straggler is reported again
+instead of being lost to process exit; `serve` never drains.
+
+**Round 10 was too modest about what this fixes.** Against a guest detaching an
+unstoppable worker per request, a reviewer measured the OLD inline wait at 51
+rps / 2006 ms worst latency and the reaper at **2236 rps / 60 ms** — 44x
+throughput, 33x tail. That is the round-8 CRITICAL shape, and it was real.
+
+### The third path cache
+
+`chdir`'s per-thread `relative_buf` was never released — the cache round 9's
+leak fix missed while fixing posix.c's two. Measured 1,147 B/thread at
+1,091-character paths and 8,192 B/thread at 8,191, per THREAD CREATION, linear
+in a guest-chosen length, unbounded by the live-thread cap. **0 B/thread after
+the fix.** The release is called WEAKLY and that is load-bearing: a hard call
+would link `chdir.o` into every program, and `chdir.o` also defines the weak
+`__wasilibc_find_relpath_alloc` — which would flip `find_relpath2` onto its
+other branch for every guest that never calls `chdir` and re-arm round 10's
+borrowed-pointer `free()`.
+
+### Verified clean this round, by the reviewers rather than by me
+
+* **The non-SET build is behaviourally identical to stock — RUN, not merely
+  compiled.** A 27-door contract probe across four sysroots built from the same
+  rev (stock, round-10 with `ENABLE_SET_THREADS=OFF`, and the candidates)
+  produces byte-identical output. As far as this file records, that arm had
+  never actually been executed before.
+* No door hands a WORKER an untagged 0/1/2: `open`, `openat`, `dup`, `dup2`,
+  `dup3`, `F_DUPFD`, `socket`, `accept`, `opendir`, `fopen`, `freopen` and
+  preopen registration all tagged; 8 threads x 300 rounds → 0 untagged, 0
+  namespace drift, 0 cross-thread aliasing.
+* The `set_stdio_populating` window is exactly right, including all three
+  partial-failure states driven directly.
+* `*_len != 0` really is the ownership marker for posix.c's buffers, argued from
+  the only writer and confirmed by the HOLE sweep.
+* Reactor shape under `serve`: 600 requests at 32-way, 0 failures, 600 unique
+  ids, all 4800 files byte-exact, no cross-request contamination; fd namespaces
+  are per-INSTANCE so a long-lived `serve` does not walk toward the 2^18 ceiling.
+* The TSan `signal-unsafe call inside of a signal` lint is **pre-existing
+  upstream and NOT SET-specific** — a reviewer built the control I could not (a
+  hand-written `.wat` that traps, no flags, single-threaded, no SET libc) and
+  got the identical stack with MORE reports than the SET case. My flag
+  bisection was wrong; its no-flag arms never reached a trap. Recorded so round
+  12 does not re-litigate it.
+* `fd >= table->len` in `table_allocate` turns out to be REQUIRED, not
+  defensive: with `len == 0` and `stdio_initialized` true (reachable when
+  `stdio_add(0)`'s `calloc` fails), the original `==` wrote index 3 through a
+  NULL `entries` pointer.
+
+### Still open
+
+* A refused `close(0/1/2)` on a worker still burns one of the 2^18 namespace
+  ids, because `close()` calls `__wasilibc_populate_preopens()` before the
+  refusal. LOW: exhaustion already fails the THREAD rather than the component
+  (`worker-ns-exhaust`), and the fix means duplicating the worker rule into
+  `close()`, which is the kind of drift this area punishes.
+* **The structurally right answer to the redirect problem is still not on the
+  table.** Both the claim and the refusal variants patch a symptom. Process-wide
+  0/1/2 under SET — a shared three-entry table for the standard descriptors — is
+  what would make `__WASILIBC_FILE_SHARED` sound by construction and make a
+  redirect apply to every thread as POSIX says. That is a design item the size
+  of round 10's two.
+* A worker that TRAPS, and a worker still RUNNING at exit, both lose buffered
+  FILEs; and in a REACTOR nothing drains a handler's unflushed FILE at request
+  end, because `__stdio_exit` never runs. Round 10's stated residual mentioned
+  only trapped threads.
+* **None of round 11's fixes have been reviewed.** They are new code in the same
+  area, written in response to findings, which is precisely the shape that has
+  produced the next round's worst finding four rounds running.
+
 ## Why it is still not promotable
 
-**NINE review rounds have now been run and not one has cleared**, and the tenth
-pass was design work that found a CRITICAL in the ninth round's own fix.
+**TEN review rounds have now been run and not one has cleared.** Round 10 was
+design work and found a CRITICAL in round 9's own fix; round 11 reviewed round
+10 and found two HIGHs, one of which was a hole in round 10's fix — and the
+first two attempts at fixing THAT were themselves wrong.
 
 Round 7 was deliberately narrow — only the round-6 delta — and still found a
 CRITICAL and four HIGHs. Round 8 was narrower still, over only the round-7
