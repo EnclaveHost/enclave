@@ -454,6 +454,86 @@ documents what turning it on costs.
 | a worker's `fflush(NULL)` destroys every other thread's buffered stdio | HIGH | **OPEN — see below** |
 | `freopen(path, "w", stdout)` on a worker closes the shared stdout and wedges `F_ERR` for every thread | MEDIUM | **OPEN — see below** |
 
+### Round 9, part two: two more CRITICALs, one of them in the round-3 fixes
+
+| finding | severity | status |
+|---|---|---|
+| the round-3 stdio-orphan fix is UNPAIRED on musl's `putc`/`getc` fast path | CRITICAL | FIXED |
+| `__wasilibc_populate_preopens` holds a PROCESS-GLOBAL lock across a host call that can trap | CRITICAL | FIXED structurally |
+| ~4,150 bytes leaked per THREAD CREATION, guest-sized and unbounded by the live cap | MEDIUM | FIXED |
+| the preopens lock was process-global while everything it guards is thread-local | MEDIUM | FIXED |
+| `worker-preopen-retry.c` cannot reach the bug it is cited as testing | HIGH | probe gap, see below |
+| `join_set_threads` still blocks a tokio worker in `std::thread::sleep` | MEDIUM | OPEN |
+| the cgroup justification for withdrawing the rate limiter is false AS DEPLOYED | HIGH | OPEN, platform config |
+| the p1 wasi-threads path kept the token-before-cap ordering round 8 removed | MEDIUM | FIXED |
+| `max_spawn_rate`'s doc contradicted its own body; the module header contradicted both | MEDIUM | FIXED |
+
+**The `putc` CRITICAL had been in the tree since ROUND 3.** `__lockfile` was
+taught to register the FILE on this thread's `stdio_locks`, but musl's
+`locking_putc`/`locking_getc` release with a raw `a_swap` and never call
+`__unlockfile`, which is what unlists. So a contended `putchar` left the FILE on
+the list after its lock was gone, the next `__lockfile` set
+`f->next_locked = f`, and `__do_orphaned_stdio_locks` — which runs in the death
+hook **holding `__thread_list_lock`** — looped on that cycle forever. The epoch
+budget trapped it out of the loop, so `__tl_unlock` never ran and every
+sibling's `pthread_create`/`pthread_join` blocked permanently. Measured: an 8 s
+hang at 0.21 s of CPU, i.e. another wedge no CPU-based watchdog can see. Fixed
+by pairing the contended branch, and INDEPENDENTLY by bounding the orphan walk —
+because any unbounded loop in that hook is a whole-component wedge whatever
+causes it, and the bound turns the next such defect into leaked locks instead.
+
+Verified: 12 s timeout → 0.029 s, and the deterministic variant 20 s → 0.08 s.
+
+The preopens CRITICAL is the same shape one frame earlier:
+`filesystem_preopens_get_directories` runs UNDER the lock and allocates through
+`cabi_realloc`, which is `abort()` on failure — a trap, which under SET ends
+only that thread and orphans the lock for everyone. Closed structurally by
+making the lock thread-local, which is correct because every byte it guards is
+already `__wasilibc_thread_state`. **Honest limit: I could not reproduce the
+reviewer's hang with my own invocation, so that one is argued, not measured.**
+
+The leak is per CREATION, not per live thread, so the live-thread cap does not
+bound it — 4,150 B/thread at 4 KB paths, ~146 MB in two seconds at round 4's
+measured churn rate, inside the tenant's own RAM gate. Measured after the fix:
+4,150 → 218 B/thread. The 218 B residual is the shared-cwd leak below.
+
+### Two probe-integrity findings, which matter more than any single bug
+
+* **`worker-preopen-retry.c` passes identically against the round-7 libc it is
+  cited as regression-testing.** It induces failure by namespace exhaustion,
+  which fails at preopen index 0, so the cleanup loop that contained the
+  round-8 CRITICAL never runs. A reviewer wrote one that does reach it (OOM with
+  a tuned heap hole, `-W max-memory-size=8388608`): round-7 libc hangs at 25 s,
+  round-8 libc survives. So the fix is right and the evidence for it was not.
+* **Only three probes carry an exit code.** Everything else `return 0`s and
+  reports by printing, so a human has to read the number. `worker-mem-grow.c` is
+  the worst case: it guards the tenant's purchased RAM ceiling and would exit 0
+  even if growth escaped the cap entirely.
+
+### The rate-limiter withdrawal was right for a reason that is not true as shipped
+
+Round 8 withdrew the limiter on the grounds that the cgroup already charges
+thread creation to the tenant. The ACCOUNTING half is measured and holds. The
+ENFORCEMENT half does not, as deployed:
+
+* `WASM_CPU_WEIGHT: "100"` is pinned in all three fleet configs, which overrides
+  the proportional `round(cpu_share * 10000)`. **Every tenant gets an equal 1/N
+  share regardless of what it bought** — a 2%-share tenant that fork-bombs a
+  two-tenant node gets 50% of it.
+* `cpu.max` is implemented but `WASM_CPU_MAX_PCT` is commented out everywhere,
+  so nothing caps an UNCONTENDED node — which is the exact scenario the
+  limiter's own doc said it existed for.
+* `pids.max` is absent; only `+cpu` is written to `cgroup.subtree_control`.
+* cgroup placement fails OPEN with a log line ("tenant runs uncapped").
+
+The recommendation is `cpu.max`, not a new limiter: it is kernel-enforced
+outside the guest, so it charges the spawn AND the retry-spin (which is what
+defeated the refusing limiter) and cannot be evaded by moving cost off CPU
+(which is what defeated the waiting one). **This is fleet configuration, not a
+patch, and it is Steven's call.**
+
+### Still open, and the reason this is a design problem and not a bug list
+
 ### The open findings are one finding, and it is a DESIGN problem
 
 Round 8 refused a worker's `dup2(f, 1)` because the fd table is per-thread while

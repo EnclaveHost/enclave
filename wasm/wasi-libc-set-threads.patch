@@ -232,10 +232,10 @@ index 293d1e5..9871c67 100644
    int expected = 0;
    if (!atomic_compare_exchange_strong(&initialized, &expected, 1)) {
 diff --git a/libc-bottom-half/headers/private/wasi/descriptor_table.h b/libc-bottom-half/headers/private/wasi/descriptor_table.h
-index b06b8e6..dcfcbb4 100644
+index b06b8e6..9c913e1 100644
 --- a/libc-bottom-half/headers/private/wasi/descriptor_table.h
 +++ b/libc-bottom-half/headers/private/wasi/descriptor_table.h
-@@ -3,6 +3,48 @@
+@@ -3,6 +3,51 @@
  
  #include <wasi/api.h>
  
@@ -275,6 +275,9 @@ index b06b8e6..dcfcbb4 100644
 +/// fd-namespace slot. Called from `__pthread_exit`.
 +void __wasilibc_set_release_thread_state(void);
 +
++/// Free this thread's relative-path caches (implemented in `posix.c`).
++void __wasilibc_set_release_path_bufs(void);
++
 +/// Drop this thread's preopen table (implemented in `preopens.c`).
 +void __wasilibc_set_release_preopens(void);
 +#else
@@ -284,7 +287,7 @@ index b06b8e6..dcfcbb4 100644
  #ifndef __wasip1__
  #include <assert.h>
  #include <netinet/in.h>
-@@ -143,6 +185,21 @@ typedef struct wasi_read_t {
+@@ -143,6 +188,21 @@ typedef struct wasi_read_t {
    // A required pointer to an owned pollable for `input`. This is lazily
    // initialized as-necessary.
    poll_own_pollable_t *pollable;
@@ -306,7 +309,7 @@ index b06b8e6..dcfcbb4 100644
  #else
    wasip3_io_state_t *state;
  
-@@ -162,6 +219,10 @@ typedef struct wasi_write_t {
+@@ -162,6 +222,10 @@ typedef struct wasi_write_t {
  #ifdef __wasip2__
    streams_borrow_output_stream_t output;
    poll_own_pollable_t *pollable;
@@ -317,7 +320,7 @@ index b06b8e6..dcfcbb4 100644
  #else
    wasip3_io_state_t *state;
    // A callback/ptr pair to invoke when EOF is reached to set errno and return
-@@ -194,10 +255,15 @@ typedef struct descriptor_vtable_t {
+@@ -194,10 +258,15 @@ typedef struct descriptor_vtable_t {
    /// used to implement the `read` syscall, for example, and is also used with
    /// `poll` when waiting for readability.
    ///
@@ -356,10 +359,10 @@ index d36ba8c..17a704a 100644
  #cmakedefine __wasi_sdk_version__ "@__wasi_sdk_version__@"
  
 diff --git a/libc-bottom-half/sources/chdir.c b/libc-bottom-half/sources/chdir.c
-index 44e0fd9..a6b53bd 100644
+index 44e0fd9..7d85cd2 100644
 --- a/libc-bottom-half/sources/chdir.c
 +++ b/libc-bottom-half/sources/chdir.c
-@@ -7,16 +7,24 @@
+@@ -7,16 +7,41 @@
  #include <string.h>
  #include <sys/stat.h>
  #include <unistd.h>
@@ -370,9 +373,26 @@ index 44e0fd9..a6b53bd 100644
  DECLARE_WEAK_LOCK(__wasilibc_cwd_lock, extern);
  extern char *__wasilibc_cwd;
 -static int __wasilibc_cwd_mallocd = 0;
-+/* enclave/SET: read and written OUTSIDE `__wasilibc_cwd_lock` below, so under
-+   shared-everything threads two concurrent first-ever `chdir()`s would both see
-+   0 and both `free()` the static initial cwd string. Per-thread instead. */
++/* enclave/SET: per-thread, and the reason first stated here was BACKWARDS --
++   two threads both seeing 0 would both SKIP the free, not both take it. The
++   real shared-flag hazard is the other ordering: thread A completes a `chdir`
++   and sets the flag; thread B, whose `prev_cwd` is still the static `"/"`
++   literal, then reads 1 and calls `free()` on a `.rodata` address.
++
++   Per-thread closes that, and analysis over every interleaving confirms the
++   literal can now never be freed (a thread's flag is 1 only after its own
++   `chdir` completed, which implies its `prev_cwd` came from the heap) -- so
++   there is no use-after-free and no double-free here.
++
++   What per-thread does NOT fix, stated rather than left implied: the flag
++   describes a property of the SHARED `__wasilibc_cwd` ("is it heap
++   allocated?"), so scoping it per-thread is a category error that leaks. Every
++   thread's FIRST `chdir` declines to free the string some other thread
++   allocated, so N threads doing one `chdir` each leak N-1 cwd strings. The
++   honest fix is to move the flag back into the data it describes -- one
++   `struct { char *s; int mallocd; }` under `__wasilibc_cwd_lock` -- which is a
++   change to shared cwd ownership and belongs with the FILE-ownership work, not
++   bolted on at the end of a round. */
 +static __wasilibc_thread_state int __wasilibc_cwd_mallocd = 0;
  
  int chdir(const char *path) {
@@ -388,7 +408,7 @@ index 44e0fd9..a6b53bd 100644
    // Find a preopen'd directory as well as a relative path we're anchored
    // from which we're changing directories to.
 diff --git a/libc-bottom-half/sources/descriptor_table.c b/libc-bottom-half/sources/descriptor_table.c
-index 56d7816..4970a33 100644
+index 56d7816..61cb5a8 100644
 --- a/libc-bottom-half/sources/descriptor_table.c
 +++ b/libc-bottom-half/sources/descriptor_table.c
 @@ -15,6 +15,186 @@
@@ -852,7 +872,7 @@ index 56d7816..4970a33 100644
    STRONG_UNLOCK(global_table.lock);
    if (rc < 0)
      return -1;
-@@ -357,3 +659,31 @@ void __wasilibc_descriptor_deallocate(descriptor_table_entry_t entry) {
+@@ -357,3 +659,32 @@ void __wasilibc_descriptor_deallocate(descriptor_table_entry_t entry) {
    errno = saved_errno;
    live_descriptors_dec();
  }
@@ -879,6 +899,7 @@ index 56d7816..4970a33 100644
 +    stdio_initialized = false;
 +  }
 +  __wasilibc_set_release_preopens();
++  __wasilibc_set_release_path_bufs();
 +  /* The NAMESPACE is deliberately not released: ids are monotonic and never
 +     reused, which is what keeps a dead thread's fd from becoming a live
 +     thread's fd naming a different object. */
@@ -929,6 +950,71 @@ index 6e0c224..b18b720 100644
  #else
    if (!wasip3_io_state_present(&file->write)) {
      assert(file->write_result == 0);
+diff --git a/libc-bottom-half/sources/posix.c b/libc-bottom-half/sources/posix.c
+index 47761d7..693606e 100644
+--- a/libc-bottom-half/sources/posix.c
++++ b/libc-bottom-half/sources/posix.c
+@@ -26,25 +26,50 @@ static int find_relpath2(const char *path, char **relative,
+ // pointer for the `relative` path. This function is not reentrant since the
+ // `relative` pointer will point to static data that cannot be reused until
+ // `relative` is no longer used.
++/* enclave/SET: these caches were function-scope statics, which nothing could
++   reach to free. `__wasilibc_find_relpath_alloc` grows each to the length of
++   the LONGEST relative path this thread ever passed, so a thread that touched
++   one long path left it allocated until the component died: measured 4,150
++   bytes leaked per THREAD CREATION for a guest using 4 KB paths, linear in the
++   guest-chosen length. Per CREATION, not per live thread, so the live-thread
++   cap does not bound it -- at round 4's measured 35,187 create+exit pairs per
++   2 s that is ~146 MB of linear memory in two seconds, inside
++   `-W max-memory-size`, so the tenant OOMs itself and a correct guest has no
++   API to prevent it. File scope so `__wasilibc_set_release_path_bufs` can. */
++static __thread char *find_relpath_buf = NULL;
++static __thread size_t find_relpath_buf_len = 0;
++static __thread char *find_relpath_alt_buf = NULL;
++static __thread size_t find_relpath_alt_buf_len = 0;
++
+ static int find_relpath(const char *path, char **relative) {
+-  static __thread char *relative_buf = NULL;
+-  static __thread size_t relative_buf_len = 0;
+-  int fd = find_relpath2(path, &relative_buf, &relative_buf_len);
+-  // find_relpath2 can update relative_buf, so assign it after the call
+-  *relative = relative_buf;
++  int fd = find_relpath2(path, &find_relpath_buf, &find_relpath_buf_len);
++  // find_relpath2 can update the buffer, so assign it after the call
++  *relative = find_relpath_buf;
+   return fd;
+ }
+ 
+ // same as `find_relpath`, but uses another set of static variables to cache
+ static int find_relpath_alt(const char *path, char **relative) {
+-  static __thread char *relative_buf = NULL;
+-  static __thread size_t relative_buf_len = 0;
+-  int fd = find_relpath2(path, &relative_buf, &relative_buf_len);
+-  // find_relpath2 can update relative_buf, so assign it after the call
+-  *relative = relative_buf;
++  int fd =
++      find_relpath2(path, &find_relpath_alt_buf, &find_relpath_alt_buf_len);
++  // find_relpath2 can update the buffer, so assign it after the call
++  *relative = find_relpath_alt_buf;
+   return fd;
+ }
+ 
++#ifdef __wasilibc_set_threads__
++/// Free this thread's path caches. Called from `__pthread_exit` via
++/// `__wasilibc_set_release_thread_state`.
++void __wasilibc_set_release_path_bufs(void) {
++  free(find_relpath_buf);
++  find_relpath_buf = NULL;
++  find_relpath_buf_len = 0;
++  free(find_relpath_alt_buf);
++  find_relpath_alt_buf = NULL;
++  find_relpath_alt_buf_len = 0;
++}
++#endif
++
+ int open(const char *path, int oflag, ...) {
+   // WASI libc's `openat` ignores the mode argument, so call a special
+   // entrypoint which avoids the varargs calling convention.
 diff --git a/libc-bottom-half/sources/ppoll.c b/libc-bottom-half/sources/ppoll.c
 index 8ccd184..4ca8feb 100644
 --- a/libc-bottom-half/sources/ppoll.c
@@ -977,10 +1063,31 @@ index 8ccd184..4ca8feb 100644
        } else {
          errno = EOPNOTSUPP;
 diff --git a/libc-bottom-half/sources/preopens.c b/libc-bottom-half/sources/preopens.c
-index b7301bd..6beeab1 100644
+index b7301bd..e21baff 100644
 --- a/libc-bottom-half/sources/preopens.c
 +++ b/libc-bottom-half/sources/preopens.c
-@@ -77,7 +77,14 @@ static void preopen_state_assert_open(const preopen_state_t *state) {
+@@ -23,7 +23,19 @@
+ 
+ /// Access to the the above preopen must be protected in the presence of
+ /// threads.
+-DECLARE_STRONG_LOCK(lock, static);
++///
++/// enclave/SET: THREAD-LOCAL, because everything it guards is. `preopens`,
++/// `num_preopens`, `preopen_capacity`, `preopens_populated` and
++/// `preopens_failed` are all `__wasilibc_thread_state`, so a process-global
++/// lock over them bought nothing and cost two things: every `open`/`stat`/
++/// `unlink`/`mkdir` on every thread serialised through one `__lock()`, against
++/// the per-thread I/O that is a point of SET; and the lock is OWNERLESS, so a
++/// worker trapping anywhere inside the guarded region killed filesystem access
++/// for every thread, permanently, with no death-hook recovery. The round-8
++/// CRITICAL was a deadlock on this very lock; making it per-thread removes the
++/// class rather than the one path. Same pattern as `global_table.lock`, which
++/// is per-thread by virtue of living inside the thread-local struct.
++DECLARE_STRONG_LOCK(lock, static __wasilibc_thread_state);
+ 
+ #if defined(__wasip1__)
+ typedef struct {
+@@ -77,7 +89,14 @@ static void preopen_state_assert_open(const preopen_state_t *state) {
  static int preopen_state_initialize(preopen_state_t *state, preopen_t fd) {
    state->libc_fd = __wasilibc_add_file(fd, O_RDWR);
    if (state->libc_fd < 0) {
@@ -996,7 +1103,7 @@ index b7301bd..6beeab1 100644
      return -1;
    }
    return 0;
-@@ -103,10 +110,15 @@ typedef struct preopen {
+@@ -103,10 +122,15 @@ typedef struct preopen {
  } preopen;
  
  /// A simple growable array of `preopen`.
@@ -1016,7 +1123,7 @@ index b7301bd..6beeab1 100644
  
  #ifdef NDEBUG
  #define assert_invariants() // assertions disabled
-@@ -129,6 +141,27 @@ static void assert_invariants(void) {
+@@ -129,6 +153,27 @@ static void assert_invariants(void) {
  }
  #endif
  
@@ -1044,7 +1151,7 @@ index b7301bd..6beeab1 100644
  /// Allocate space for more preopens. Returns 0 on success and -1 on failure.
  static int resize(void) {
    size_t start_capacity = 4;
-@@ -193,8 +226,22 @@ static int internal_register_preopened_fd_unlocked(preopen_t fd,
+@@ -193,8 +238,22 @@ static int internal_register_preopened_fd_unlocked(preopen_t fd,
    return 0;
  
  err_free_prefix:
@@ -1067,7 +1174,7 @@ index b7301bd..6beeab1 100644
    return -1;
  }
  
-@@ -311,6 +358,13 @@ void __wasilibc_populate_preopens(void) {
+@@ -311,6 +370,13 @@ void __wasilibc_populate_preopens(void) {
    if (preopens_populated) {
      return;
    }
@@ -1081,7 +1188,7 @@ index b7301bd..6beeab1 100644
  
    STRONG_LOCK(lock);
  
-@@ -356,12 +410,15 @@ void __wasilibc_populate_preopens(void) {
+@@ -356,12 +422,15 @@ void __wasilibc_populate_preopens(void) {
      }
    }
  #elif defined(__wasip2__) || defined(__wasip3__)
@@ -1101,7 +1208,7 @@ index b7301bd..6beeab1 100644
      char *prefix = strndup((const char *)name_and_descriptor.f1.ptr,
                             name_and_descriptor.f1.len);
  #ifdef __wasip2__
-@@ -371,13 +428,22 @@ void __wasilibc_populate_preopens(void) {
+@@ -371,13 +440,22 @@ void __wasilibc_populate_preopens(void) {
  #endif
      if (prefix == NULL) {
        filesystem_descriptor_drop_own(name_and_descriptor.f0);
@@ -1125,7 +1232,7 @@ index b7301bd..6beeab1 100644
    }
  
  #else
-@@ -395,7 +461,66 @@ oserr:
+@@ -395,7 +473,66 @@ oserr:
    _Exit(EX_OSERR);
  #endif
  software:
@@ -1192,7 +1299,7 @@ index b7301bd..6beeab1 100644
  }
  
  void __wasilibc_reset_preopens(void) {
-@@ -410,6 +535,12 @@ void __wasilibc_reset_preopens(void) {
+@@ -410,6 +547,12 @@ void __wasilibc_reset_preopens(void) {
    }
  
    preopens_populated = false;
@@ -1404,10 +1511,10 @@ index 8e22065..1116556 100644
 +#endif
  }
 diff --git a/libc-top-half/musl/src/stdio/ftrylockfile.c b/libc-top-half/musl/src/stdio/ftrylockfile.c
-index e89f61c..0e9d03a 100644
+index e89f61c..57d7d04 100644
 --- a/libc-top-half/musl/src/stdio/ftrylockfile.c
 +++ b/libc-top-half/musl/src/stdio/ftrylockfile.c
-@@ -4,10 +4,33 @@
+@@ -4,10 +4,45 @@
  
  void __do_orphaned_stdio_locks()
  {
@@ -1422,7 +1529,19 @@ index e89f61c..0e9d03a 100644
 +       walk either stops early (leaving the rest of a dead thread's FILEs locked
 +       under a dead tid, the very wedge this exists to prevent) or wanders onto
 +       the live thread's list and force-unlocks a FILE it legitimately holds. */
++    /* enclave/SET: BOUNDED. This walk runs inside `__enclave_set_thread_died`
++       while `__thread_list_lock` is held, so any unbounded loop here — from a
++       list cycle, a torn pointer, whatever the next defect turns out to be —
++       wedges every sibling's `pthread_create`/`pthread_join` permanently, at
++       zero CPU, because the epoch budget traps out of the loop before
++       `__tl_unlock` runs. A cycle is exactly what an unpaired `__lockfile`
++       produced (fixed in putc.h/getc.h), and the point of this bound is that
++       the NEXT such defect degrades to leaked locks rather than a dead
++       component. `FOPEN_MAX`-ish ceiling: no thread can legitimately hold more
++       FILEs locked than it has open. */
++    int guard = 0;
 +    for (f=__pthread_self()->stdio_locks; f; f=next) {
++        if (++guard > 4096) break;
 +        next = f->next_locked;
 +		/* enclave/SET takes the cooperative branch deliberately. Storing
 +		   0x40000000 (MAYBE_WAITERS with owner 0) leaves the FILE
@@ -1445,6 +1564,63 @@ index e89f61c..0e9d03a 100644
  		__wake(&f->lock, -1, 1);
  		#else
          a_store(&f->lock, 0x40000000);
+diff --git a/libc-top-half/musl/src/stdio/getc.h b/libc-top-half/musl/src/stdio/getc.h
+index 043f7da..d092391 100644
+--- a/libc-top-half/musl/src/stdio/getc.h
++++ b/libc-top-half/musl/src/stdio/getc.h
+@@ -13,7 +13,17 @@ static int locking_getc(FILE *f)
+     __unlockfile(f);
+ 	return c;
+ #else
+-	if (a_cas(&f->lock, 0, MAYBE_WAITERS-1)) __lockfile(f);
++	/* enclave/SET: see the matching comment in putc.h. `__lockfile`
++	   registers the FILE on this thread's `stdio_locks`, so the contended
++	   branch must release through `__unlockfile`, which unlists it —
++	   otherwise the list self-cycles and the death hook spins on it forever
++	   while holding `__thread_list_lock`. */
++	if (a_cas(&f->lock, 0, MAYBE_WAITERS-1)) {
++		__lockfile(f);
++		int c = getc_unlocked(f);
++		__unlockfile(f);
++		return c;
++	}
+ 	int c = getc_unlocked(f);
+ 	if (a_swap(&f->lock, 0) & MAYBE_WAITERS)
+ 		__wake(&f->lock, 1, 1);
+diff --git a/libc-top-half/musl/src/stdio/putc.h b/libc-top-half/musl/src/stdio/putc.h
+index 7ef38ca..eb56068 100644
+--- a/libc-top-half/musl/src/stdio/putc.h
++++ b/libc-top-half/musl/src/stdio/putc.h
+@@ -13,7 +13,28 @@ static int locking_putc(int c, FILE *f)
+ 	__unlockfile(f);
+ 	return c;
+ #else
+-	if (a_cas(&f->lock, 0, MAYBE_WAITERS-1)) __lockfile(f);
++	/* enclave/SET: `__lockfile` REGISTERS the FILE on this thread's
++	   `stdio_locks` (see __lockfile.c), so the contended branch must release
++	   through `__unlockfile`, which unlists it. Releasing with the raw
++	   `a_swap` below left the FILE on the list with the lock already gone;
++	   the next `__lockfile` on the same thread then set
++	   `f->next_locked = f`, and `__do_orphaned_stdio_locks` — which runs in
++	   the death hook HOLDING `__thread_list_lock` — looped on that cycle
++	   forever. The epoch budget trapped it out of the loop, so `__tl_unlock`
++	   was skipped and every sibling's `pthread_create`/`pthread_join` blocked
++	   for good: measured an 8 s hang at 0.21 s of CPU, i.e. a wedge no
++	   CPU-based watchdog can see. Upstream is right to use the raw release,
++	   because upstream's `__lockfile` does not register. Ours does.
++	   The UNCONTENDED fast path below stays raw and unregistered, which is
++	   the deliberate trade: a push/pop per `putc` would cost every character,
++	   and a trap inside that few-instruction window is a far narrower target
++	   than the contended path that was cycling. */
++	if (a_cas(&f->lock, 0, MAYBE_WAITERS-1)) {
++		__lockfile(f);
++		c = putc_unlocked(c, f);
++		__unlockfile(f);
++		return c;
++	}
+ 	c = putc_unlocked(c, f);
+ 	if (a_swap(&f->lock, 0) & MAYBE_WAITERS)
+ 		__wake(&f->lock, 1, 1);
 diff --git a/libc-top-half/musl/src/thread/set-threads/set_spawn.c b/libc-top-half/musl/src/thread/set-threads/set_spawn.c
 new file mode 100644
 index 0000000..2512a28
