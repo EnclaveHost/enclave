@@ -1139,9 +1139,90 @@ unconditionally makes `claim_std_stream` a no-op, because stdout's fd is 1 — a
   on the normal path where it previously took it zero times. A worker trapping
   in that window wedges every sibling's `fopen`/`fclose`/`exit`. Not reproduced.
 
+## Round 13 (2026-08-09), engine half: six findings, and the worst is again one frame up from the last fix
+
+Round 12 hardened every write the REAPER makes. Round 13 found the unprotected
+write **one frame up, in `Drop`, on the same path** — where it fails worse.
+
+| finding | severity | status |
+|---|---|---|
+| `join_set_threads`' own `log::debug!` panics inside `Drop` on a broken stderr | HIGH | FIXED |
+| `finish()` had NO deadline and could block the one global reaper indefinitely | MEDIUM/HIGH | FIXED |
+| the round-12 fast-path fix is a no-op in the measured shape, and its claim was false | MEDIUM | FIXED (claim corrected) |
+| `ENCLAVE_SET_JOIN_TIMEOUT_MS=0` on the fast path parked the SHARED reaper | MEDIUM | FIXED |
+| `wasmtime` does not compile with `std,threads,runtime` and no `component-model` | MEDIUM | FIXED |
+| the reaper fails OPEN and latches, on the condition a SET tenant creates | MEDIUM | documented, loud |
+| the reaper bumped the epoch once per JOB rather than per engine | LOW | FIXED |
+
+### The rule this has now cost twice
+
+`tracing_subscriber`'s stderr writer PANICS when the write fails, and
+`log::debug!("SET teardown: … handed to the reaper")` sat **before**
+`set_reaper_submit`, outside any `catch_unwind`, as the FIRST statement of
+`Drop for Store<T>`. So on a broken stderr the workers were never handed over at
+all — no stop wait, no epoch bumps, no timeout, no detach — and
+`run_manual_drop_routines()` and the store's own destructor never ran.
+
+Measured with counters bracketing only the macro, `serve` + reactor, 2000
+requests at 64-way, stderr broken mid-run: **457 of 457 teardowns died in the
+log macro, 0 submits, the reaper thread never started, RSS 24.3 → 90.2 MB
+(~110 kB leaked per abandoned teardown)** — and all 2000 requests still returned
+200 at unchanged throughput. Completely silent.
+
+The fleet filters this target out (`WASMTIME_LOG=wasmtime_wasi_nn=debug`), which
+is why the platform arm was clean — and is exactly how it would have shipped and
+then fired for whoever turned SET teardown logging on to investigate something
+else. **NOTHING reachable from a `Drop` may use a macro that panics on a failed
+write.** Verified after the fix: 800 teardowns with a broken stderr AND this
+target at `debug`, reaper alive, 800/800 requests served.
+
+### A comment I wrote described a mechanism that did not exist
+
+Round 12's `finish()` joined unconditionally whenever the group read zero live
+workers — no deadline on that arm, no requeue — while the comment beside it
+claimed "a handle that is not finished yet is re-checked on the next pass; only
+at the deadline is it detached". Measured with the OS thread held alive past its
+`LiveGuard` drop: **the one reaper serving every store blocked 5.000 s against a
+2.000 s deadline**, during which nothing else was dequeued, no other deadline was
+honoured and no epoch was bumped. `finish` now takes the deadline, returns what
+it could not resolve, and the loop requeues it; detach happens at the deadline in
+both arms. Verified: detach still fires at 2.18 s by default and 0.67 s with
+`ENCLAVE_SET_JOIN_TIMEOUT_MS=500`.
+
+### The fast-path claim was false, and the honest version is now in the code
+
+"`Drop` never blocks here at all" was wrong: `is_finished()` goes true when the
+closure drops its result packet, but `join()` still waits for the OS thread.
+Round 13 measured **48,774 inline joins totalling 9.27 s over a 4.0 s wall,
+3,429 over 1 ms** — against the 768-over-1-ms round 12 cited as the defect it was
+fixing — and the `stragglers` branch it added took **zero** hits in that shape.
+Kept anyway, because an A/B handing everything to the reaper moved the cost
+rather than removing it (2008 vs 2013 rps) and concentrating it on the single
+reaper is worse. The comment now says all of that.
+
+### The configuration nobody had ever built
+
+`cargo check -p wasmtime --no-default-features --features runtime,std,threads,…`
+failed with 4 × E0433 — two of them added by round 12 — while
+`join_set_threads` carried deliberate `#[cfg(not(feature = "component-model"))]`
+fallbacks written for a configuration that could not compile. This is round 9's
+libc finding on the engine side, and no round had run the check. Now compiles.
+
+### Verified clean this round
+
+* **TSan, rebuilt from current source**: `serve` + reactor 200 req/16-way = 16
+  warnings, all tokio-internal, **zero frames in `set_threads`, `join_set_threads`
+  or the reaper**; `run` + spin-teardown 0 races.
+* `catch_unwind` is real — no `panic = "abort"` in any profile the platform builds.
+* `set_reaper_drain`'s bound holds with the reaper deliberately blocked 5 s:
+  `wasmtime run` exited in 2.093 s (`timeout + 50 ms`).
+* No double handover; the reaper cannot unmap memory a live worker uses, nor free
+  JIT code under a detached worker; queue depth bounded by concurrently-detaching
+  stores (measured max 40), not guest-inflatable.
+
 ## Why it is still not promotable
 
-**ELEVEN review rounds have now been run and not one has cleared.** Round 10 was
+**THIRTEEN review passes have now been run and not one has cleared.** Round 10 was
 design work and found a CRITICAL in round 9's own fix; round 11 reviewed round
 10 and found two HIGHs, one of which was a hole in round 10's fix — and the
 first two attempts at fixing THAT were themselves wrong.
