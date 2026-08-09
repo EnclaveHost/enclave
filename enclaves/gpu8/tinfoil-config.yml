@@ -389,7 +389,7 @@ containers:
       # (name:path:file.gguf) picks WHICH gguf preloads as the wasi-nn graph
       # when the repo ships several quantizations - the manager stages the
       # pick as a symlink dir, so the mpk-<hash> mount name never matters.
-      - MODEL_VOLUMES: "qwen2.5-0.5b:/tinfoil/mpk/mpk-e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4,qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-d02f1afc0eee60adc4da2a541c8e095c9cff347b4f3996c2950ff84c676c1c70:qwen2.5-0.5b-instruct-q4_k_m.gguf,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen3.5-0.8b-gguf:/tinfoil/mpk/mpk-d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8,qwen3.6-27b-mtp-gguf:/tinfoil/mpk/mpk-bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9,fable-fusion-27b-mtp-gguf:/tinfoil/mpk/mpk-cf2030ea6070202555fa2d8b762fa4b1c94a3b636dd3d0f587d3f9fafddf4415,fable-fusion-27b-mtp-q4-gguf:/tinfoil/mpk/mpk-13f6f4245454958735336168c1d128794fe349563471640521ed325951fefbdb,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2,qwen3-vl-8b-gguf:/tinfoil/mpk/mpk-3f7dafb23d0491e0f25b6136320ed91e990cb9fdc5a464ce07271b4aff2e279e:Qwen3VL-8B-Instruct-Q8_0.gguf"
+      - MODEL_VOLUMES: "qwen2.5-0.5b:/tinfoil/mpk/mpk-e8e9414bf9f999b44ecd86524627b4a912f17a79d7f191280092af3513688da4,qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-d02f1afc0eee60adc4da2a541c8e095c9cff347b4f3996c2950ff84c676c1c70:qwen2.5-0.5b-instruct-q4_k_m.gguf,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen3.5-0.8b-gguf:/tinfoil/mpk/mpk-d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8,qwen3.5-0.8b-mtp-gguf:/tinfoil/mpk/mpk-b515a1868c9f8bea7e8578e7ce06ac8e0546040dd623aad1d7b6c3dd98a9e6aa,qwen3.6-27b-mtp-gguf:/tinfoil/mpk/mpk-bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9,fable-fusion-27b-mtp-gguf:/tinfoil/mpk/mpk-cf2030ea6070202555fa2d8b762fa4b1c94a3b636dd3d0f587d3f9fafddf4415,fable-fusion-27b-mtp-q4-gguf:/tinfoil/mpk/mpk-13f6f4245454958735336168c1d128794fe349563471640521ed325951fefbdb,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2,qwen3-vl-8b-gguf:/tinfoil/mpk/mpk-3f7dafb23d0491e0f25b6136320ed91e990cb9fdc5a464ce07271b4aff2e279e:Qwen3VL-8B-Instruct-Q8_0.gguf"
     # SECRET SEEDS the manager's control-plane token: both sides derive
     # HMAC(SECRET,"enclave vmmgr v1") - the raw master is never the bearer,
     # since this token rides on every control call while SECRET is what the
@@ -468,6 +468,17 @@ models:
   - name: "qwen3.5-0.8b-gguf"
     repo: "EnclaveHost/qwen3.5-0.8b-gguf@f1b8cab689624ae5bdcae39808655788f9720ca3"
     mpk: "d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8_824672256_42679e63-4ee1-5717-9738-69ef21bf025a"
+  # Qwen3.5-0.8B-MTP at Q8_0 (~795 MB): the SELF-DRAFTING 0.8b - same trunk as
+  # qwen3.5-0.8b-gguf plus the trained MTP head, for when the 0.8B is the model
+  # being SERVED rather than drafting for something bigger (a draft's own head
+  # is never consulted, so this does NOT replace the entry above). Slim curated
+  # single-file re-wrap, text-only despite the multimodal upstream - full
+  # provenance and serving notes on the gpu flavor's entry. Needs the batch4
+  # MTP toolchain (shim ell_mtp_*); older hosts serve it as a plain 0.8b.
+  # Single gguf = no MODEL_VOLUMES third field.
+  - name: "qwen3-5-0-8b-mtp-gguf"
+    repo: "EnclaveHost/qwen3.5-0.8b-mtp-gguf@c4a384e2483ac2db7e3592211cc3161209305ea1"
+    mpk: "b515a1868c9f8bea7e8578e7ce06ac8e0546040dd623aad1d7b6c3dd98a9e6aa_846422016_8382e459-71aa-528b-b488-2bb4dea0867b"
   # Qwen3.6-27B-MTP at unsloth Dynamic Q4_K_XL (~17.9 GB): the SELF-DRAFTING
   # 27b - same trunk as qwen3.6-27b-gguf plus the model's trained
   # multi-token-prediction head (1 dense-attention layer). llm-chat's
