@@ -50,8 +50,15 @@
 // adding a field to a libc struct moves it. Sweep, do not assume: a build that
 // passes at one hole size may hang two sizes over.
 //
-// A/B: :r8 hangs at HOLE=8; :r9c hangs at HOLE=9,10,11; the fixed build passes
-// at every hole size.
+// A/B, corrected by round 12 after two rounds of getting it wrong: :r8 hangs at
+// HOLE=8 and only there; :r9c hangs at HOLE=10 through 20 CONTINUOUSLY (9
+// passes, and the example loop below used to stop at 16, which is how "9,10,11"
+// got written down); the fixed build has no hang anywhere in 0..250.
+//
+// HOLE=0 FAILS ON EVERY BUILD, including the fixed one, and always has. Total
+// OOM reaches `cabi_realloc`, which is `abort()` -- a wasip2 bindings property,
+// not a SET defect. Do not read that one as a regression, and do not repeat the
+// claim that the fixed build "passes at every hole size": it does not.
 //
 // Build/run (note the TWO preopens and the tenant-sized memory cap):
 //   docker run --rm -v "$PWD":/src enclave-wasipsetc-build:<tag> \
