@@ -1257,9 +1257,133 @@ libc finding on the engine side, and no round had run the check. Now compiles.
   JIT code under a detached worker; queue depth bounded by concurrently-detaching
   stores (measured max 40), not guest-inflatable.
 
+## Round 14 (2026-08-09): six reviewers over the whole surface — it did NOT clear
+
+First round to review the libc F_XERR work (commits 283e45a7, 4e24f6e7 landed
+after round 13's engine pass) and round 13's own engine fixes. Six reviewers:
+stdio ownership, descriptor table, thread lifecycle, engine spawn/guards, engine
+teardown, and a cross-cutting fresh-eyes pass.
+
+| finding | severity | status |
+|---|---|---|
+| `__fputwc_unlocked` writes `F_ERR` into the SHARED FILE on a non-owner's refused write | HIGH | FIXED |
+| `reaper::submit`'s spawn-failure arm uses `log::error!` — Drop-reachable, and it is the function round 13's fix DELEGATES TO | HIGH | FIXED |
+| `join_finished_set_worker` uses `log::warn!` — Drop-reachable on the FAST path | HIGH | FIXED |
+| `SET_VMCOMPONENT_STORE_CONTEXT_OFFSET`'s comment claims an assertion that exists nowhere | HIGH (latent) | FIXED |
+| the engine's own SET test suite FAILS, deterministically | MEDIUM | FIXED |
+| the robust-mutex walk in the death hook is unbounded, unlike its sibling loop | MEDIUM | FIXED |
+| `available_parallelism` can collide with the `NegativeOne` trap sentinel | LOW | FIXED |
+| three more false comments (`set_spawn.c` nested spawn, `ofl.c` re-stamp, the `ferror` macro) | LOW/doc | FIXED |
+| the round-12 dead-stack detach may be incomplete (`f->buf = 0` with `buf_size == 0`) | claimed HIGH | **OPEN, UNRESOLVED** |
+
+### The wide-character path was never swept, and it re-opened the F_XERR bug
+
+Rounds 11-13 fought one defect three times: a per-caller refusal written into the
+shared `FILE` poisons the OWNER. F_XERR resolved it for byte reads. Nobody swept
+the WIDE output path, and `__fputwc_unlocked` ends with `if (c==WEOF) f->flags |=
+F_ERR;` — so a non-owner's `fputwc` loop, whose write `__stdio_write` correctly
+refused WITHOUT setting a flag, had that refusal turned back into `F_ERR` one
+layer up, on the shared stream. Measured: owner's `ferror` is 1 on r12a, r13a and
+r13c; **0 natively**; 0 after the fix. `fputwc.c` is not touched by the patch at
+all, which is exactly why the sweep missed it.
+
+### "Nothing reachable from a Drop may use a panicking macro" — the rule cost a THIRD round
+
+Round 12 hardened the reaper's writes. Round 13 found the same defect one frame
+up in `join_set_threads` and hardened that. Round 14 found it in **both functions
+round 13's fix delegates to** — `reaper::submit` (slow path) and
+`join_finished_set_worker` (fast path, the common one). In `submit` it fails
+worst: the panic aborts the teardown AND prevents the reaper from ever being
+created, so every later teardown in the process detaches silently — and its
+trigger is the EAGAIN-under-thread-pressure that the comment three lines above it
+says a SET tenant guarantees.
+
+### A comment claiming a mechanism that does not exist, for the third time
+
+`SET_VMCOMPONENT_STORE_CONTEXT_OFFSET` is the sole input to the component half of
+the cross-thread guard — the thing that stops a worker materialising `&mut` to
+the primary's store. Its comment says "Asserted against `VMComponentOffsets`
+below so a layout change breaks the build rather than the guard." **The constant
+has exactly two references: its definition and its use.** There is no assertion
+anywhere; it is correct today by coincidence. Its core-path twin reads the offset
+dynamically and is layout-robust by construction. Now asserted for real, at the
+one site that already computes the true offset.
+
+Four false comments were found this round by four different reviewers. That rate
+is itself the signal: the record has twice traced a shipped defect to a comment
+that was simply false.
+
+### The engine's own test suite did not pass
+
+`component_model::set_threads::worker_panic_does_not_abort_the_process` failed
+3/3 serially, reading `entered == 0`. It asserts a synchronous side effect of a
+worker that round 13's design deliberately DETACHES — the test raced its own
+design. The briefing for this round said "engine tests 3/3"; the tree said
+otherwise. Now 231/231.
+
+### What round 14 did NOT settle
+
+The claim that round 12's dead-stack detach is incomplete (setting `f->buf = 0`
+while `buf_size == 0` violates musl's "an unbuffered stream has a non-NULL buf",
+so `vfprintf` skips both its terminal flush and its restore). The mechanism is
+plausible on a reading of musl. The evidence is contradictory:
+
+* the reviewer's first probe discriminated NOTHING — marker PRESENT on r13c,
+  r12a and r10f alike;
+* its replacement, `worker-stderr-vfprintf-state.c`, was reported as losing bytes
+  on all three images — but as committed it measures the OPPOSITE: PRESENT on
+  r14a and r13c, LOST only on r10f, i.e. the detach FIXED this.
+
+Left OPEN with both measurements recorded in the probe's header rather than
+"fixed" on an unreproduced claim. Rewriting musl's shared-stderr buffer handling
+on a static argument is precisely how this patch has acquired defects before. The
+decisive A/B for round 15 is a libc with ONLY the detach hunk reverted — not
+r10f, which differs in many other ways.
+
+### Verified clean this round
+
+* **The libc F_XERR work now HAS a probe** — it shipped without one.
+  `worker-xerr-owner.c` asserts only native-true properties, and discriminates
+  five ways: native PASS, r13c PASS, r13b FAIL x3 (owner's `feof` set, owner's
+  own `fgets` returns NULL with data still in the file), r13a FAIL x2 (owner's
+  `ferror` poisoned on both stream kinds), r12a/r10f FAIL (drain loop spins).
+  Two arms had to be restructured because the first draft masked its own
+  F_EOF check with a `clearerr` and would have left NATIVE at end-of-input —
+  the eighth "probe encodes a bug as the spec" instance, caught before shipping.
+* Corpus 21/21 on r14a, unchanged from r13c. Reactor `spawned=8 joined=8`,
+  400/400 at 32-way and 2000/2000 at 64-way (1.26 s, zero workers left alive,
+  zero reaper handoffs, zero detach diagnostics).
+* Engine suite 231/231. `.wat` corpus all as documented;
+  `run(8, 300000000)` = 0.311 s real / 2.347 s user (~7.5x).
+* The four "verified clean" claims re-examined independently and still true —
+  with one correction: "the non-SET build is BYTE-FOR-BYTE stock" is false
+  (`clearerr.c`, `__stdio_exit.c`, `__overflow.c`, `fwrite.c` and four
+  `#include <errno.h>` are unconditional textual changes). All provably inert:
+  F_XERR=256 collides with no live flag and is never set with SET off.
+  Behavioural identity holds.
+* Round 11's OPEN "a refused `close(0/1/2)` on a worker burns a namespace id" is
+  no longer present — the worker refusal now precedes the only claim site.
+* The 0/1/2 door enumeration CLOSES: 10 paths, every one covered, no 5th
+  unwired door. The case for the shared three-entry table is now purely
+  structural (~19 coordinated sites vs 1 invariant), not that anything is
+  currently broken — a weaker promote-blocker than rounds 9-12 had.
+* libc<->engine seam clean: tid offset 16, start type `(i32)->()`, the fixup
+  slot getters, the death-hook export name and its argument, and the failure
+  sentinel all agree on both sides.
+* Promotion gates intact: 9 patches, no SET in `Dockerfile.wasmtime`, `.wip`
+  outside the glob, and the image still builds the SET-OFF guard config.
+
+### Still open
+
+* The dead-stack detach question above.
+* The two design items, unchanged: process-wide 0/1/2, and the `ftrylockfile`
+  thread-exit flush that an ordinary `flockfile()` silently defeats.
+* **Round 14's own fixes have not been reviewed.** Sixth consecutive round
+  ending on that sentence, and the reason this round does not clear either.
+
 ## Why it is still not promotable
 
-**THIRTEEN review passes have now been run and not one has cleared.** Round 10 was
+**FOURTEEN review passes have now been run and not one has cleared.** Round 10 was
 design work and found a CRITICAL in round 9's own fix; round 11 reviewed round
 10 and found two HIGHs, one of which was a hole in round 10's fix — and the
 first two attempts at fixing THAT were themselves wrong.

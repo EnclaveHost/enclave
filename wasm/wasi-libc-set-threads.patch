@@ -1719,7 +1719,7 @@ index 39c175b..ee12695 100644
    # cooperative threads implementation for WASI Preview 3
    list(APPEND top_half_sources
 diff --git a/libc-top-half/musl/src/internal/stdio_impl.h b/libc-top-half/musl/src/internal/stdio_impl.h
-index 4bda1d2..194b9a2 100644
+index 4bda1d2..b0a566d 100644
 --- a/libc-top-half/musl/src/internal/stdio_impl.h
 +++ b/libc-top-half/musl/src/internal/stdio_impl.h
 @@ -23,6 +23,15 @@
@@ -1858,16 +1858,28 @@ index 4bda1d2..194b9a2 100644
  extern hidden FILE *volatile __stdin_used;
  extern hidden FILE *volatile __stdout_used;
  extern hidden FILE *volatile __stderr_used;
-@@ -109,7 +229,11 @@ hidden void __do_orphaned_stdio_locks(void);
+@@ -109,7 +229,23 @@ hidden void __do_orphaned_stdio_locks(void);
  hidden void __getopt_msg(const char *, const char *, const char *, size_t);
  
  #define feof(f) ((f)->flags & F_EOF)
 -#define ferror(f) ((f)->flags & F_ERR)
-+#define ferror(f) ((f)->flags & F_ERR)  /* enclave/SET: internal only, and
-+   currently unused inside libc. It deliberately does NOT see `F_XERR`: that
-+   bit is per-caller and only the real `ferror()` knows whether to report or
-+   discard it. Anything internal that needs the caller-visible answer must
-+   call `ferror()`. */
++#define ferror(f) ((f)->flags & F_ERR)  /* enclave/SET: this macro deliberately
++   does NOT see `F_XERR`: that bit is per-caller, and only the real `ferror()`
++   knows whether to report or discard it.
++
++   It is NOT "currently unused inside libc", which is what this comment claimed
++   until round 14. Every translation unit that includes this header gets the
++   macro rather than the function, and four of them use it: `vfprintf.c`,
++   `vfwprintf.c`, `fgetws.c` and the drain-loop example in `__toread.c`.
++
++   That is benign on the WRITE paths, which is why nothing has broken: the
++   byte-write refusal in `__stdio_write` sets no flag at all, so there is
++   nothing for the macro to miss, and `vfprintf`/`vfwprintf` decide by return
++   value. The one place it bites is `fgetws.c`, where a non-owner's refused
++   read sets `F_XERR`, the macro does not see it, and `fgetws` returns its
++   partial buffer where native -- which would have `F_ERR` for an unusable
++   descriptor -- returns NULL. Narrow, wide-char-only, and recorded here rather
++   than papered over. */
  
  #define getc_unlocked(f) \
  	( ((f)->rpos != (f)->rend) ? *(f)->rpos++ : __uflow((f)) )
@@ -2283,6 +2295,34 @@ index 8e22065..1116556 100644
 +	 * spin forever on the cycle. */
 +#endif
  }
+diff --git a/libc-top-half/musl/src/stdio/fputwc.c b/libc-top-half/musl/src/stdio/fputwc.c
+index 789fe9c..b17e9ad 100644
+--- a/libc-top-half/musl/src/stdio/fputwc.c
++++ b/libc-top-half/musl/src/stdio/fputwc.c
+@@ -23,7 +23,22 @@ wint_t __fputwc_unlocked(wchar_t c, FILE *f)
+ 		l = wctomb(mbc, c);
+ 		if (l < 0 || __fwritex((void *)mbc, l, f) < l) c = WEOF;
+ 	}
+-	if (c==WEOF) f->flags |= F_ERR;
++	/* enclave/SET: choose the flag by WHOSE error this is, exactly as the
++	   read side does. `putc_unlocked`/`__fwritex` above end in `f->write`,
++	   which for a thread that cannot resolve `f->fd` is refused by
++	   `__stdio_write` -- deliberately WITHOUT setting a flag, so the owner's
++	   stream is "left exactly as it was". That guarantee was then undone one
++	   layer up, here: the refusal surfaces as `WEOF` and this line wrote
++	   `F_ERR` into the SHARED `FILE`, so the OWNER's `ferror()` read 1 where
++	   native reads 0 -- the byte/read-side poisoning of rounds 11-13, alive on
++	   the wide path the F_XERR sweep never reached. `ferror()` discards
++	   `F_XERR` for the owner and reports it to the refusing caller, which is
++	   the right answer for both.
++	   Measured: a sibling's `fputwc` loop on main's wide FILE gives owner
++	   ferror=1 on r12a/r13a/r13c and 0 natively; 0 here.
++	   Non-SET builds are unchanged: `__wasilibc_file_mine(f)` is `1`, so this
++	   is `f->flags |= F_ERR` verbatim. */
++	if (c==WEOF) f->flags |= __wasilibc_file_mine(f) ? F_ERR : F_XERR;
+ 	*ploc = loc;
+ 	return c;
+ }
 diff --git a/libc-top-half/musl/src/stdio/fseek.c b/libc-top-half/musl/src/stdio/fseek.c
 index 2794b7a..7a17729 100644
 --- a/libc-top-half/musl/src/stdio/fseek.c
@@ -2447,10 +2487,10 @@ index 043f7da..d092391 100644
  	if (a_swap(&f->lock, 0) & MAYBE_WAITERS)
  		__wake(&f->lock, 1, 1);
 diff --git a/libc-top-half/musl/src/stdio/ofl.c b/libc-top-half/musl/src/stdio/ofl.c
-index f9f430b..84a6f02 100644
+index f9f430b..d08299f 100644
 --- a/libc-top-half/musl/src/stdio/ofl.c
 +++ b/libc-top-half/musl/src/stdio/ofl.c
-@@ -15,3 +15,165 @@ void __ofl_unlock()
+@@ -15,3 +15,171 @@ void __ofl_unlock()
  {
  	STRONG_UNLOCK(ofl_lock);
  }
@@ -2601,7 +2641,13 @@ index f9f430b..84a6f02 100644
 +	 * `f->fd` is a tagged descriptor no live thread can resolve, so
 +	 * `fd_to_index` still fails EBADF and every write, read and seek still
 +	 * refuses. What it restores is the ability to `fclose` and therefore free
-+	 * the object. The bytes were already drained by the loop above.
++	 * the object.
++	 *
++	 * (The sentence "The bytes were already drained by the loop above" stood
++	 * here until round 14. It is the exact claim the paragraph above labels
++	 * "simply false" -- round 12 appended the correction without deleting what
++	 * it corrected, so the file asserted both. Read top-down you got the
++	 * truth; grep for the safety argument and you got the falsehood.)
 +	 *
 +	 * A thread that TRAPS runs neither the flush nor this, so its FILEs stay
 +	 * owned and leak -- the residual already stated for its descriptors. */
@@ -2652,10 +2698,10 @@ index 7ef38ca..eb56068 100644
  		__wake(&f->lock, 1, 1);
 diff --git a/libc-top-half/musl/src/thread/set-threads/set_spawn.c b/libc-top-half/musl/src/thread/set-threads/set_spawn.c
 new file mode 100644
-index 0000000..2512a28
+index 0000000..899d9ca
 --- /dev/null
 +++ b/libc-top-half/musl/src/thread/set-threads/set_spawn.c
-@@ -0,0 +1,95 @@
+@@ -0,0 +1,111 @@
 +/* enclave/SET: thread spawning for shared-everything threads.
 + *
 + * wasi-threads spawns via a host import (`wasi.thread-spawn`). Under the
@@ -2679,10 +2725,26 @@ index 0000000..2512a28
 + * exists so LTO cannot prove "never reassigned" and devirtualize the call
 + * back into the stub.
 + *
-+ * A SET execution view rebuilds its tables from the module's own element
-+ * segments, so on a SPAWNED thread the slot holds the stub again: a nested
-+ * pthread_create fails cleanly with EAGAIN instead of trapping the worker.
-+ * That is the intended semantic, not an accident.
++ * NESTED SPAWN WORKS, and this comment used to say the opposite -- that a
++ * worker's tables are rebuilt from the module's element segments so the slot
++ * holds the stub again and a nested `pthread_create` fails cleanly with
++ * EAGAIN, "the intended semantic, not an accident". That is wrong. A worker is
++ * a whole re-instantiation of the SAME component, so the engine replays every
++ * initializer, INCLUDING the appended fixup module, whose `start` re-runs the
++ * `table.set` of the real builtins into these slots. On a worker the slot holds
++ * the BUILTIN, not the stub.
++ *
++ * Three artifacts in this tree already said so while this file denied it:
++ * `set_threads.rs` adopts the thread group on a worker's store precisely so
++ * nested workers are visible to teardown; `worker-spawn-churn.c` exists to
++ * measure a worker-spawned chain (round 4 measured ~35,900 create+exit pairs);
++ * and the probe README states it outright. Round 4 corrected the claim in the
++ * record and the correction never reached this file.
++ *
++ * It matters because it is a DESIGN RATIONALE: a reader who believes workers
++ * cannot spawn concludes the live-thread cap, the group stop-check and the
++ * in-death-hook spawn refusal are redundant. They are not -- they are what
++ * bounds the recursion this comment claimed was impossible.
 + */
 +
 +#include <stdint.h>
@@ -2823,7 +2885,7 @@ index 0000000..9edf5bd
 +
 +	end_function
 diff --git a/libc-top-half/musl/src/thread/wasi-threads/pthread_create.c b/libc-top-half/musl/src/thread/wasi-threads/pthread_create.c
-index f6ff846..7046ce5 100644
+index f6ff846..20b5d2e 100644
 --- a/libc-top-half/musl/src/thread/wasi-threads/pthread_create.c
 +++ b/libc-top-half/musl/src/thread/wasi-threads/pthread_create.c
 @@ -16,6 +16,37 @@
@@ -2889,7 +2951,7 @@ index f6ff846..7046ce5 100644
  #ifdef __wasilibc_unmodified_upstream
  	__block_app_sigs(&set);
  #endif
-@@ -267,9 +316,195 @@ struct start_args {
+@@ -267,9 +316,210 @@ struct start_args {
  	void *tls_base;
  	void *(*start_func)(void *);
  	void *start_arg;
@@ -3016,8 +3078,23 @@ index f6ff846..7046ce5 100644
 +	if (state != DT_EXITED) {
 +		/* Mark this thread's robust mutexes owner-died and wake their
 +		 * waiters, or every sibling blocked on one stays blocked. */
++		/* BOUNDED, for the same reason `__do_orphaned_stdio_locks` is (see
++		 * the `guard` there): this walk runs inside the death hook while
++		 * `__thread_list_lock` is HELD, and it follows `_m_next` pointers
++		 * that live in GUEST-WRITABLE shared memory. A cycle -- forged, or
++		 * merely torn by a trap mid-update -- would spin here forever and
++		 * wedge every sibling's `pthread_create`/`pthread_join` permanently
++		 * at zero CPU, which no CPU-based watchdog can see. The adjacent
++		 * loop was given a ceiling for exactly this; this one was left
++		 * unbounded, which is the unfinished half of that fix.
++		 * Degrading to "some robust mutexes are not marked owner-died" is
++		 * strictly better than a dead component: a waiter on an unmarked
++		 * mutex blocks, where a cycle blocks EVERYONE including threads that
++		 * never touched it. */
 +		volatile void *volatile *rp;
++		int robust_guard = 0;
 +		while ((rp = self->robust_list.head) && rp != &self->robust_list.head) {
++			if (++robust_guard > 4096) break;
 +			pthread_mutex_t *m = (void *)((char *)rp
 +				- offsetof(pthread_mutex_t, _m_next));
 +			int waiters = m->_m_waiters;
@@ -3085,7 +3162,7 @@ index f6ff846..7046ce5 100644
  #ifdef __wasilibc_unmodified_upstream
  static int start(void *p)
  {
-@@ -301,6 +536,7 @@ static int start_c11(void *p)
+@@ -301,6 +551,7 @@ static int start_c11(void *p)
  }
  #else
  
@@ -3093,7 +3170,7 @@ index f6ff846..7046ce5 100644
  /*
   * We want to ensure wasi_thread_start is linked whenever
   * pthread_create is used. The following reference is to ensure that.
-@@ -309,11 +545,17 @@ static int start_c11(void *p)
+@@ -309,11 +560,17 @@ static int start_c11(void *p)
   */
  void wasi_thread_start(int tid, void *p);
  hidden void *__dummy_reference = wasi_thread_start;
@@ -3111,7 +3188,7 @@ index f6ff846..7046ce5 100644
  	// Set the thread ID (TID) on the pthread structure. The TID is stored
  	// atomically since it is also stored by the parent thread; this way,
  	// whichever thread (parent or child) reaches this point first can proceed
-@@ -537,6 +779,14 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
+@@ -537,6 +794,14 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
  	args->start_func = entry;
  	args->start_arg = arg;
  	args->tls_base = (void*)new_tls_base;
@@ -3126,7 +3203,7 @@ index f6ff846..7046ce5 100644
  #endif
  
  	__tl_lock();
-@@ -566,6 +816,15 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
+@@ -566,6 +831,15 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
  		if (ret)
  			__wait(&args->control, 0, 3, 0);
  	}
