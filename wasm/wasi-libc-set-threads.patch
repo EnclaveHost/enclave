@@ -388,10 +388,10 @@ index 44e0fd9..a6b53bd 100644
    // Find a preopen'd directory as well as a relative path we're anchored
    // from which we're changing directories to.
 diff --git a/libc-bottom-half/sources/descriptor_table.c b/libc-bottom-half/sources/descriptor_table.c
-index 56d7816..1ebb94a 100644
+index 56d7816..4970a33 100644
 --- a/libc-bottom-half/sources/descriptor_table.c
 +++ b/libc-bottom-half/sources/descriptor_table.c
-@@ -15,6 +15,179 @@
+@@ -15,6 +15,186 @@
  
  #define MINSIZE 8
  
@@ -566,12 +566,19 @@ index 56d7816..1ebb94a 100644
 +#define SET_FD_UNTAGGED 3
 +#define SET_FD_NS_SHIFT 31
 +#define set_fd_ns 0
++/* The DUP2/DUP3 arm calls both of these unconditionally. Round 8 added those
++   calls without an `#else` definition, so the CANONICAL PATCH DID NOT COMPILE
++   in its default configuration (`ENABLE_SET_THREADS` is OFF by default) --
++   under a comment, three lines up, asserting that the non-SET build is
++   identical to stock. Nobody had built that arm. */
++static inline int set_fd_ns_claim(void) { return 0; }
++#define __wasilibc_set_is_worker 0
 +#endif
 +
  typedef struct {
    bool occupied;
    descriptor_table_entry_t entry;
-@@ -32,7 +205,7 @@ typedef struct {
+@@ -32,7 +212,7 @@ typedef struct {
    size_t next_fd;
  } descriptor_table_t;
  
@@ -580,7 +587,7 @@ index 56d7816..1ebb94a 100644
  
  /// Grows `table` to have capacity for at least `needed` entries, marking all
  /// newly allocated entries as unoccupied. Returns -1 and sets `errno` on
-@@ -149,7 +322,7 @@ static void clear(descriptor_table_t *table) {
+@@ -149,7 +329,7 @@ static void clear(descriptor_table_t *table) {
    table->len = 0;
  }
  
@@ -589,7 +596,7 @@ index 56d7816..1ebb94a 100644
  
  static int init_stdio() {
    stdio_initialized = true;
-@@ -162,7 +335,7 @@ static void live_descriptors_dec() {}
+@@ -162,7 +342,7 @@ static void live_descriptors_dec() {}
  #else
  #include <stdio.h>
  
@@ -598,7 +605,7 @@ index 56d7816..1ebb94a 100644
  
  static void live_descriptors_inc() { live_descriptors += 1; }
  
-@@ -185,7 +358,7 @@ void __wasilibc_assert_no_descriptor_leaks() {
+@@ -185,7 +365,7 @@ void __wasilibc_assert_no_descriptor_leaks() {
        if (i < 3) {
          stdio_open++;
        } else {
@@ -607,7 +614,7 @@ index 56d7816..1ebb94a 100644
          assert(rc == 0);
          closed++;
        }
-@@ -229,17 +402,34 @@ int descriptor_table_insert(descriptor_table_entry_t entry) {
+@@ -229,17 +409,34 @@ int descriptor_table_insert(descriptor_table_entry_t entry) {
    STRONG_LOCK(global_table.lock);
    defer STRONG_UNLOCK(global_table.lock);
  
@@ -644,7 +651,7 @@ index 56d7816..1ebb94a 100644
    if (!slot)
      return -1;
    descriptor_table_entry_inc(*slot);
-@@ -248,40 +438,124 @@ int descriptor_table_get(int fd, descriptor_table_entry_t *entry) {
+@@ -248,40 +445,126 @@ int descriptor_table_get(int fd, descriptor_table_entry_t *entry) {
  }
  
  // Some large but not too large value to allow `dup2` to dos this process.
@@ -719,30 +726,42 @@ index 56d7816..1ebb94a 100644
 +       available. Returning a tagged fd instead (a third) is usable only by a
 +       caller that reads the return value, and `dup2(fd, N); write(N, ...)` is
 +       the whole idiom. A refusal is the only remaining honest answer. */
-+    /* Claim this thread's namespace BEFORE deciding anything. `set_fd_ns > 0`
-+       was standing in for "am I a worker" and is not that predicate: a
-+       namespace is claimed lazily by `index_to_fd`, which returns 0/1/2
-+       WITHOUT claiming, so EVERY thread — the main thread included — has
-+       `set_fd_ns == -1` until it first creates a descriptor at index >= 3.
-+       Inside that window the guard below was skipped, a bare target was
-+       accepted, and `dup2` returned an `arg` that `fd_to_index` then rejected:
-+       EBADF on every later use, uncloseable on a worker, and a divergence from
-+       a stock wasip2 build ON THE MAIN THREAD of a program with no threads. */
-+    int ns = set_fd_ns_claim();
-+    if (ns < 0) {
-+      errno = EMFILE;
-+      return -1;
-+    }
++    /* The MAIN thread claims (which is free -- it takes namespace 0 without
++       touching the global counter), a WORKER only reads. `set_fd_ns > 0` used
++       to stand in for "am I a worker" and is not that predicate: a namespace
++       is claimed lazily by `index_to_fd`, which returns 0/1/2 WITHOUT
++       claiming, so every thread has `set_fd_ns == -1` until it first creates a
++       descriptor at index >= 3, and inside that window a bare target was
++       accepted and handed back as an `arg` that `fd_to_index` then rejected.
++       Claiming for a WORKER here is equally wrong in the other direction: a
++       worker can only legitimately name a TAGGED target, which presupposes a
++       namespace it already has, so the claim was pure loss -- measured 64 of
++       the 2^18 monotonic, never-reused ids consumed by 64 throwaway threads
++       whose only action was a `dup2` that returned EBADF. At the ceiling no
++       thread in the component can create a descriptor again. */
++    int ns = __wasilibc_set_is_worker ? set_fd_ns : set_fd_ns_claim();
 +    int newindex = fd_target_to_index(arg);
 +    if (newindex < 0)
 +      return -1;
-+    if (arg >= SET_FD_UNTAGGED && (arg >> SET_FD_NS_SHIFT) != ns) {
++    if (arg >= SET_FD_UNTAGGED && (ns < 0 || (arg >> SET_FD_NS_SHIFT) != ns)) {
 +      /* EBADF, not EINVAL: POSIX defines no EINVAL for `dup2`, Linux uses
 +         EBADF for a target outside the valid range, and "that descriptor
 +         number is not yours" is honestly EBADF. */
 +      errno = EBADF;
 +      return -1;
 +    }
++    if (newindex == index) {
++      /* dup2 of a descriptor onto itself is a no-op returning it; dup3 is
++         EINVAL. Compared as INDICES so a worker's tagged fd and the bare
++         index that names the same slot agree. Decided BEFORE the worker
++         refusal below: `dup2(1, 1)` on a worker changes nothing, so refusing
++         it was a gratuitous divergence from POSIX. */
++      if (op == DUP_OP_DUP2)
++        return arg;
+       errno = EINVAL;
+       return -1;
+     }
+-    if (arg < 0 || arg >= MAX_DESCRIPTOR) {
 +    if (__wasilibc_set_is_worker && arg < SET_FD_UNTAGGED) {
 +      /* A WORKER may not redirect 0/1/2 — a real refusal, not the "behaves
 +         exactly as POSIX says" an earlier revision claimed. The fd TABLE is
@@ -759,16 +778,6 @@ index 56d7816..1ebb94a 100644
 +      errno = EBADF;
 +      return -1;
 +    }
-+    if (newindex == index) {
-+      /* dup2 of a descriptor onto itself is a no-op returning it; dup3 is
-+         EINVAL. Compared as INDICES so a worker's tagged fd and the bare
-+         index that names the same slot agree. */
-+      if (op == DUP_OP_DUP2)
-+        return arg;
-       errno = EINVAL;
-       return -1;
-     }
--    if (arg < 0 || arg >= MAX_DESCRIPTOR) {
 +    if (newindex >= MAX_DESCRIPTOR) {
        errno = EBADF;
        return -1;
@@ -778,7 +787,7 @@ index 56d7816..1ebb94a 100644
  
      if (table_grow(&global_table, newfd + 1) < 0)
        return -1;
-@@ -297,17 +571,28 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
+@@ -297,17 +580,28 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
        table_entry->entry = entry;
        table_entry->occupied = true;
      }
@@ -811,7 +820,7 @@ index 56d7816..1ebb94a 100644
      if (minfd < global_table.next_fd)
        minfd = global_table.next_fd;
      while (minfd < global_table.len && global_table.entries[minfd].occupied)
-@@ -315,11 +600,15 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
+@@ -315,11 +609,15 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
      if (table_grow(&global_table, minfd + 1) < 0)
        return -1;
  
@@ -828,7 +837,7 @@ index 56d7816..1ebb94a 100644
    }
  
    default:
-@@ -331,9 +620,13 @@ int descriptor_table_remove(int fd) {
+@@ -331,9 +629,13 @@ int descriptor_table_remove(int fd) {
    if (!stdio_initialized && init_stdio() < 0)
      return -1;
  
@@ -843,7 +852,7 @@ index 56d7816..1ebb94a 100644
    STRONG_UNLOCK(global_table.lock);
    if (rc < 0)
      return -1;
-@@ -357,3 +650,31 @@ void __wasilibc_descriptor_deallocate(descriptor_table_entry_t entry) {
+@@ -357,3 +659,31 @@ void __wasilibc_descriptor_deallocate(descriptor_table_entry_t entry) {
    errno = saved_errno;
    live_descriptors_dec();
  }

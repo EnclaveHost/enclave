@@ -442,6 +442,49 @@ documents what turning it on costs.
 * Every SET safety mechanism is armed in the platform's ACTUAL launch config
   (`serve`/`run`, `-W max-memory-size`, no `--wasm timeout`).
 
+## Round 9 (2026-08-09): did not clear — and three of round 8's own fixes were the bugs
+
+| finding | severity | what it did | status |
+|---|---|---|---|
+| every HTTP app was broken (`_initialize` traps on the first worker, request hangs forever) | CRITICAL | see the section below | FIXED |
+| **the canonical patch did not compile in its DEFAULT configuration** | HIGH | round 8 added `set_fd_ns_claim()` / `__wasilibc_set_is_worker` calls to the `dup2` arm outside any `#ifdef`, with no `#else` definitions. `ENABLE_SET_THREADS` defaults to OFF, so `descriptor_table.c` failed to compile for anyone building the patch normally — under a comment, three lines away, asserting the non-SET build is identical to stock. Nobody had built that arm since round 8 | FIXED, and the image now BUILDS the non-SET configuration as a guard so it cannot recur silently |
+| a REFUSED `dup2` permanently burned one of the 2^18 namespace ids | MEDIUM | round 8 claimed the namespace before deciding. Measured: 64 throwaway threads whose only action was a `dup2` returning EBADF consumed 64 ids; the same threads doing nothing consumed 0. Ids are monotonic and never reused, and at the ceiling no thread in the component can create a descriptor again | FIXED — the main thread claims (free, namespace 0), a worker only reads |
+| `dup2(1, 1)` on a worker was EBADF | LOW | round 8 put the worker 0/1/2 refusal before the self-dup check, so a POSIX no-op was refused | FIXED — self-dup is decided first |
+| **a worker reaches the shared `stdout` through three doors round 8 did not close** | HIGH | **OPEN — see below** |
+| a worker's `fflush(NULL)` destroys every other thread's buffered stdio | HIGH | **OPEN — see below** |
+| `freopen(path, "w", stdout)` on a worker closes the shared stdout and wedges `F_ERR` for every thread | MEDIUM | **OPEN — see below** |
+
+### The open findings are one finding, and it is a DESIGN problem
+
+Round 8 refused a worker's `dup2(f, 1)` because the fd table is per-thread while
+musl's `stdout` is one `FILE` in shared memory. That fix was correct and
+useless: `dup2` is one of four doors into the same room.
+
+`table_allocate` hands out the LOWEST free index, and `index_to_fd` returns
+0/1/2 BARE. So a worker that calls `close(1)` and then `open`, `dup`, `socket`,
+`accept`, `pipe` or `fcntl(F_DUPFD)` simply *receives* bare fd 1, with no check
+anywhere. Measured: worker does `close(1); open("/d/x")` → fd 1 →
+`printf(secret)` into the shared buffer → main's exit flush delivers it to the
+**operator's container log**, while the guest's file stays empty. Byte for byte
+the same observable round 8 rated HIGH, reached without `dup2` at all, and
+exactly inverted from the same source built natively.
+
+The same mismatch runs the other way: a worker calling `fflush(NULL)` walks the
+process-global `__ofl` list and writes each `FILE` through `f->fd` — which on
+that thread names something else, or nothing. Measured: main's 19 buffered bytes
+are DESTROYED (`F_ERR` set, file 0 bytes, exit status 0, nothing on either
+stream). And `freopen` on a worker closes the shared `stdout` on its failure
+path, leaving a dead `FILE` on `__ofl` with `F_ERR` stuck for every thread,
+while `printf` keeps returning success.
+
+**Per-thread fd namespaces and shared musl `FILE` objects are not compatible,
+and no amount of per-call refusal reconciles them.** The two coherent options
+are (a) make the standard `FILE`s, and `__ofl`, per-thread under SET, or
+(b) tag 0/1/2 for workers as well, which breaks `write(1, ...)` and
+`STDOUT_FILENO` on a worker. Neither is a patch to `dup2`, and neither should be
+attempted unreviewed at the end of a round — this is the third round in a row
+where a narrowly-scoped fix in this area created the next round's finding.
+
 ### Round 9, found while closing the `serve` residual: EVERY HTTP app was broken
 
 **CRITICAL, and eight rounds walked past it because no probe was ever the right

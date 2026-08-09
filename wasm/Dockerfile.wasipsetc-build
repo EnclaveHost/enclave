@@ -119,6 +119,25 @@ RUN git init -q /src/wasi-libc && cd /src/wasi-libc \
  && cp -a build/sysroot /opt/wasip2-set-sysroot \
  && cd / && rm -rf /src/wasi-libc
 
+# The SAME patch, built with SET OFF. This is a guard, not a product: nothing
+# consumes this sysroot. `ENABLE_SET_THREADS` defaults to OFF, so this is the
+# patch's DEFAULT configuration -- and round 9 found that round 8 had broken it
+# (`set_fd_ns_claim`/`__wasilibc_set_is_worker` referenced outside the `#ifdef`,
+# with no `#else` definitions), under a comment asserting the non-SET build is
+# identical to stock. Nobody had ever built that arm. Now the image cannot be
+# produced unless it compiles.
+COPY wasi-libc-set-threads.patch /tmp/nonset.patch
+RUN git init -q /src/wasi-libc-nonset && cd /src/wasi-libc-nonset \
+ && git remote add origin https://github.com/WebAssembly/wasi-libc \
+ && git fetch -q --depth 1 origin "${WASI_LIBC_REV}" && git checkout -q FETCH_HEAD \
+ && git apply /tmp/nonset.patch \
+ && CC=/opt/wasi-sdk/bin/clang AR=/opt/wasi-sdk/bin/llvm-ar NM=/opt/wasi-sdk/bin/llvm-nm \
+    cmake -G Ninja -S . -B build \
+      -DTARGET_TRIPLE=wasm32-wasip2 \
+      -DCMAKE_LINK_DEPENDS_USE_LINKER=OFF \
+ && ninja -C build \
+ && cd / && rm -rf /src/wasi-libc-nonset
+
 # set-componentize: the host tool that wires the canonical builtins in
 # (built in the pinned rust stage above).
 COPY --from=componentize /src/set-componentize/target/release/set-componentize /opt/wasi-sdk/bin/set-componentize
