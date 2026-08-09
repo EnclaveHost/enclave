@@ -1715,7 +1715,7 @@ CONCLUSION failed.
 | "the EXPOSED configuration is `WASMTIME_LOG` UNSET" is false AT THIS SITE — it is a `warn!`, and unset drops WARN | HIGH | FIXED |
 | "SETTING `WASMTIME_LOG` suppresses this" is true only of the fleet's value | MEDIUM | FIXED |
 | "doubly gated (`RUST_LOG` plus the filter)" — the filter half is false | LOW | FIXED |
-| the operator/inheritance path (`setdefault` over `dict(os.environ)`) is not covered | LOW | FIXED (documented) |
+| the operator/inheritance path (`setdefault` over `dict(os.environ)`) is not covered | LOW | **RE-BROKEN by round 20, re-fixed in round 21** |
 | round 17's strongest evidence — its adversarial `fgetwc` probe — was never committed | INFO | FIXED |
 
 ### The level, not the mechanism
@@ -1893,8 +1893,13 @@ Rounds 17, 18 and 19 each found the code clean and each found a defect in the
 SAME comment block above `join_finished_set_worker`'s `writeln!`. By round 19
 that block was **111 comment lines annotating ~10 lines of code** — an accreted
 round-by-round narrative living in a source file. That is the defect generator,
-not bad luck, so round 20 replaced it with ~34 lines stating the RULE, the
-MECHANISM and the level asymmetry, and moved the history here.
+not bad luck, so round 20 replaced it with a block stating the RULE, the
+MECHANISM and the level asymmetry, and moved the history here. (Round 21
+correction: the commit and this section said "~34 lines". That describes the
+PRE-FIX draft; the shipped block is **54** comment lines, because the four fixes
+below added the serve caveat and the provenance paragraph back. The reduction is
+114 -> 54, i.e. 53%, not 69%. Same class as round 19's "hundreds vs 6" — a
+figure checkable in one command, stated from memory of an earlier draft.)
 
 The restructure then needed four fixes of its own, two of them from compressing
 too hard — which is the honest argument for having reviewed it rather than
@@ -1967,9 +1972,93 @@ explicitly.
 * The dead-stack detach question, unchanged since round 14.
 * **Round 20's own fixes have not been reviewed.** Twelfth consecutive round.
 
+## Round 21 (2026-08-09): code clean a FIFTH time; patch integrity finally proven end-to-end; and I had deleted a real hazard while compressing
+
+Round 20's change set was the smallest yet. Round 21 confirmed the code clean
+for the fifth consecutive round and, for the first time, verified patch
+integrity **end to end on both patches**: 48/48 and 44/44, **pre-image AND
+post-image**, `git apply --check` against fresh baselines, reverse-applies
+cleanly, and the applied `store.rs` proven to contain the new comment and none
+of the old markers. The libc patch's sha256 is byte-identical to the copy baked
+into `enclave-wasipsetc-build:r14d`.
+
+| finding | severity | status |
+|---|---|---|
+| I compressed away a REAL operational hazard (the `setdefault`/`os.environ` inheritance) and the record still called it documented | LOW-MED | FIXED |
+| `set_threads.rs` still carried the unqualified "no `catch_unwind` anywhere on that stack" — fixed in `store.rs` only | LOW-MED | FIXED |
+| "~34 lines" describes a draft, not the shipped block | LOW | FIXED |
+| "457/457 died **here**" — round 13's counters were one frame up | cosmetic | FIXED |
+| `handle_ebadf` cited as what makes `writeln!` safe — it is not the differentiator | cosmetic | FIXED |
+
+### Compression deleted an operational fact, not history
+
+Round 18 found that `wasm_manager` builds `env = dict(os.environ)` and then
+`env.setdefault("WASMTIME_LOG", ...)` — so a `WASMTIME_LOG` set on the
+WASM-MANAGER CONTAINER is inherited by every tenant and, being a `setdefault`,
+DEFEATS the fleet value even for GPU ones. Round 20's restructure deleted it, and
+after that it existed **nowhere**: not in the patch (`grep setdefault` → 0), not
+in this file's prose — while the round-18 finding row still read "FIXED
+(documented)".
+
+It matters because it is the one route by which the comment's "armed only when
+an operator raises `WASMTIME_LOG`" stops being a per-debug-session risk and
+becomes fleet-wide. That is an operational fact about the deployment, not
+round-by-round history, so it belongs at the call site. Restored there.
+
+### One of a pair, for the fourth time in this sequence
+
+`set_threads.rs`'s own note still said `submit` is reached "with no
+`catch_unwind` anywhere on that stack" — the exact unqualified claim round 20
+rated MEDIUM and fixed only in `store.rs`. Under `serve` it is false. Both sites
+now carry the `run`-vs-`serve` split, and the `set_threads.rs` one additionally
+notes that its ERROR level makes it the site that IS armed by default, unlike
+the WARN site in `store.rs`.
+
+### On the shrinking that did not shrink
+
+The restructure was 114 → 54 comment lines. Reviewers then correctly required the
+`serve` caveat, the provenance paragraph and the `setdefault` hazard back, so the
+shipped block is now **71** lines (measured, not remembered — round 21's third
+finding was precisely a line count stated from memory of an earlier draft). The
+honest conclusion is that the compression bought less than it looked like: what
+made rounds 15-19 fail was not length, it was asserting things without checking
+them. The block is shorter and every claim in it has now been independently
+measured — the second property is the one doing the work.
+
+### Verified clean by round 21
+
+* The `serve` claim reproduced structurally AND by measurement: the store is
+  dropped inside `tokio::spawn`'s future (`wasi-http/src/handler.rs`), tokio's
+  harness `catch_unwind`s the poll, and a modelled panic gives **all requests
+  200, connection closed normally, process rc 0**. `run` uses `block_on`, no
+  harness.
+* `join_set_threads()` really is the FIRST statement of `Drop for Store<T>`, and
+  `self.inner` is `ManuallyDrop` — so a panic there really does skip
+  `run_manual_drop_routines()` and leak the store.
+* The warn/error asymmetry re-measured on the real binary with a real refusal,
+  and the `wasmtime[x{a=1}]=info` value-filter case again errs conservative
+  (disarms both).
+* `writeln!` rc 0 on `/dev/full` AND on a closed fd 2; `eprintln!` rc 101 on
+  `/dev/full`, rc 0 on a closed fd 2 — which is why `print_to`'s panic, not
+  `handle_ebadf`, is the differentiator.
+
+### Not established either way
+
+* **No committed probe reaches `set_threads.rs`'s `log::error!`** — the detach
+  path. `worker-block-teardown`, `worker-spin-teardown` and `worker-spawn-churn`
+  at every `ENCLAVE_SET_JOIN_TIMEOUT_MS` tried all give 0 ERROR records: the stop
+  paths now work too well for the existing probes to force a past-deadline
+  detach. The conclusion that arm supports is independently confirmed by the
+  facade measurement, but the probe gap is real and worth closing.
+
+### Still open
+
+* The dead-stack detach question, unchanged since round 14.
+* **Round 21's own fixes have not been reviewed.** Thirteenth consecutive round.
+
 ## Why it is still not promotable
 
-**TWENTY review passes have now been run and not one has cleared.** Round 10 was
+**TWENTY-ONE review passes have now been run and not one has cleared.** Round 10 was
 design work and found a CRITICAL in round 9's own fix; round 11 reviewed round
 10 and found two HIGHs, one of which was a hole in round 10's fix — and the
 first two attempts at fixing THAT were themselves wrong.
