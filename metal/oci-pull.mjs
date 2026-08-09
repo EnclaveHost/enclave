@@ -15,8 +15,15 @@ import { Writable } from 'node:stream';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const [ref, dest] = process.argv.slice(2);
-if (!ref || !dest) { console.error('usage: oci-pull.mjs <registry/repo[@sha256:...|:tag]> <destdir>'); process.exit(2); }
+const rawArgs = process.argv.slice(2);
+// --resolve: print the pinnable ref this reference names RIGHT NOW and stop,
+// without downloading a blob. Exists so callers can turn a TAG into a digest
+// BEFORE building, which is what makes a build reproducible — and it resolves
+// it through getManifest below, which hashes the body itself, so what you pin
+// is bytes this tool verified rather than the registry's word for them.
+const RESOLVE = rawArgs.includes('--resolve');
+const [ref, dest] = rawArgs.filter((a) => a !== '--resolve');
+if (!ref || (!dest && !RESOLVE)) { console.error('usage: oci-pull.mjs <registry/repo[@sha256:...|:tag]> <destdir>\n       oci-pull.mjs <ref> --resolve'); process.exit(2); }
 const m = ref.match(/^([^/]+)\/(.+)@(sha256:[0-9a-f]{64})$/) || ref.match(/^([^/]+)\/(.+):([\w.-]+)$/);
 if (!m) { console.error('bad ref'); process.exit(2); }
 const [, registry, repo, reference] = m;
@@ -82,6 +89,10 @@ async function getBlob(dgst) {
 }
 
 let { json: manifest, digest: resolvedDigest } = await getManifest(reference);
+// Resolve to the digest of THIS reference (the index, for a multi-arch tag) —
+// the same thing the flavor configs pin — before descending into a platform
+// sub-manifest below. Last stderr line stays the machine-readable one.
+if (RESOLVE) { console.error(`${registry}/${repo}@${resolvedDigest}`); process.exit(0); }
 if (manifest.manifests) {                                   // multi-arch index → linux/amd64
   const e = manifest.manifests.find((x) => x.platform?.architecture === 'amd64' && x.platform?.os === 'linux');
   if (!e) throw new Error('no linux/amd64 in index');
