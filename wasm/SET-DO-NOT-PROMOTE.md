@@ -1494,9 +1494,103 @@ The hardening stands; the comments now name the mechanism that actually fires.
 * The dead-stack detach question from round 14, unchanged.
 * **Round 15's own fixes have not been reviewed.** Seventh consecutive round.
 
+## Round 16 (2026-08-09): the review of round 15's fixes — and my "correction" was the false one
+
+Round 15 was itself the review of round 14's fixes. Round 16 reviewed round 15.
+Four findings, three CONFIRMED, and the worst is the same shape a third time:
+**round 15 "corrected" a comment and the correction was false, overwriting a
+claim that was true AND measured.**
+
+| finding | severity | status |
+|---|---|---|
+| `fgetwc.c` site 2 is a REAL encoding error, not a refusal — round 15 downgraded it | HIGH | FIXED |
+| the "corrected" Drop-hardening mechanism is false; the original was true and measured | HIGH | FIXED |
+| the slow-path panic diagnostic still renders `Any { .. }` — one of a pair, again | MEDIUM | FIXED |
+| a `String` allocated per join on the fast teardown path | LOW | FIXED |
+
+### I downgraded a real error to a bit the owner discards
+
+`fgetwc` has two `!first` sites. Site 1 is reached when `getc_unlocked` FAILS —
+an ownership refusal, correctly F_XERR since round 15. **Site 2 is reached when
+`getc_unlocked` SUCCEEDED** (the byte came out of the shared buffer, no
+descriptor resolved) **and `mbrtowc` then rejected the sequence** — a genuine
+EILSEQ. A refusal cannot land there: a refused `__uflow` returns EOF and takes
+site 1.
+
+Round 15 applied the refusal rule to both on a `see above`. Measured on a FILE
+containing `E2 41`:
+
+| | native | r13c | r14a | r14b | r14c |
+|---|---|---|---|---|---|
+| owner `ferror` | 1 | 1 | 1 | **0** | 1 |
+| `fgetws` | NULL | NULL | NULL | **truncated string** | NULL |
+
+Silent truncation on a wide read is worse than either bug the F_XERR work was
+about, and only the build I produced had it.
+
+### The mechanism I "corrected" was the true one
+
+Rounds 12-14 justified removing panicking log macros from `Drop` with
+"`tracing_subscriber`'s stderr writer PANICS when the write fails", backed by
+round 13's measurement of **457 of 457 teardowns dying there**. Round 15
+declared that false, citing `log_internal_errors: false`.
+
+That default belongs to `impl Default for fmt_layer::Layer` — **a type cli-flags
+never constructs**. `FmtSubscriber::builder()` goes through
+`SubscriberBuilder::default()`, which ends `.log_internal_errors(true)`
+(`fmt/mod.rs:470`), and that arm runs `eprintln!`, which panics. Verified
+directly against the vendored crate, and end-to-end on the real binary: with
+`WASMTIME_LOG=trace` and a broken stderr, wasmtime exits **101**; with
+`WASMTIME_LOG` unset, exit 0. **The fleet sets `WASMTIME_LOG` unconditionally**
+(`wasm_manager.py`), so the panicking arm is the one that ships.
+
+So round 15 contradicted a recorded measurement without re-running it, and left
+the tree carrying two contradictory explanations in one file — with the true one
+still sitting 120 lines below the false one. Both mechanisms are now recorded:
+the original, plus `--log-to-files` (which is real but narrower than round 15
+claimed — it returns early unless `RUST_LOG`, a different variable from
+`WASMTIME_LOG`, is set).
+
+### One of a pair, for the third round running
+
+Round 15's fast-path downcast comment said it was doing this "the way
+`reaper::finish` does". `finish` did no downcast — it still had the identical
+`Any { .. }` message-loss defect, on the SLOW path that round 11 measured as
+10-41% of ordinary spawn-and-join requests. Both sites now downcast.
+
+### Verified clean by this round
+
+* The `available_parallelism` revert is correct and complete, re-derived
+  independently, and **no other u32-returning component libcall has the same
+  hazard** (the only same-width sentinel impls are `NonZeroU32`, `bool` and
+  `*mut u8`, none of which can collide).
+* The robust-walk bound is safe: `robust_list.pending` is 0 at the `break`, and
+  `pthread_mutexattr_setrobust` returns EINVAL unconditionally under wasi-libc,
+  so the walk cannot hand out `EOWNERDEAD` and cannot trade a wedge for a wedge.
+  Reproduced: r14a passes `trap`, HANGS `exit`; r14b/r14c pass both.
+* The `#[cfg]` on the assertion matches its constant exactly and cannot be
+  compiled out in a config that still runs SET.
+* Every numeric claim in the rewritten `ferror` macro comment is correct
+  (`fwprintf` 8192 vs -1, `fprintf` 8192 everywhere, `fputws` -1, four TUs).
+* **No third unfixed `F_ERR` site in the wide-read family** — every remaining
+  one is a genuine stream property, a narrow-path error, or a memory stream.
+* Corpus 21/21 on r14c, engine 231/231.
+
+### Corrections to my own earlier reporting
+
+* I ran `robust-cycle.c` with `--env MODE=`, which it ignores (it selects on
+  `argv[1]`), so my "r14a hangs both arms" was the `exit` arm run twice. The
+  README row I wrote had the same error; both are fixed.
+* I read my own self-matching `pgrep` waiter loops as reviewer build activity.
+
+### Still open
+
+* The dead-stack detach question, unchanged since round 14.
+* **Round 16's own fixes have not been reviewed.** Eighth consecutive round.
+
 ## Why it is still not promotable
 
-**FIFTEEN review passes have now been run and not one has cleared.** Round 10 was
+**SIXTEEN review passes have now been run and not one has cleared.** Round 10 was
 design work and found a CRITICAL in round 9's own fix; round 11 reviewed round
 10 and found two HIGHs, one of which was a hole in round 10's fix — and the
 first two attempts at fixing THAT were themselves wrong.
