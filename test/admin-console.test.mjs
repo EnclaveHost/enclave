@@ -673,6 +673,37 @@ test("rollout: the run's order is the safety property", () => {
   assert.ok(!theRun.includes("retireTx()"), "the rollout run itself must never retire the source");
 });
 
+test("rollout: it checks the USDC balance BEFORE it deploys anything", () => {
+  // The escrow step is the only one that spends money, and it is the LAST of
+  // the expensive steps. Discovering a shortfall there means three contracts
+  // are already deployed and the run dies holding them - which is how a
+  // migration gets abandoned half-done. So the balance is checked in the
+  // read-only pricing pass, before a single signature.
+  const run = CONSOLE_SRC.split('act === "r12-run"')[1].split('act === "vlt-scan"')[0];
+  const [plan, exec] = run.split("/* ---- the run ---- */");
+  assert.match(plan, /balanceOf6\(Enclave\.address\)/, "the priced plan must read the wallet's USDC");
+  assert.match(plan, /held6 < BigInt\(esc6\.total6\)[\s\S]{0,400}NOTHING has been signed/);
+  // and again at the step itself, because the balance can move between the two
+  // clicks and a failed transferFrom mid-batch strands the run
+  assert.match(exec, /const bal6 = await balanceOf6\(Enclave\.address\)[\s\S]{0,400}Nothing was approved/);
+  assert.ok(exec.indexOf("const bal6") < exec.indexOf("approveTx(ledger"),
+    "the balance check must precede the approve");
+});
+
+test("rollout: escrow backing can be skipped, and skipping says what it costs", () => {
+  // The wallet that owns the deployments may also own the boxes serving them,
+  // in which case unbacked records cost nobody anything - and the money stays
+  // refundable on the old ledger either way. But a host that is NOT that wallet
+  // would serve for free, so the opt-out has to state it rather than read as a
+  // free win.
+  assert.match(CONSOLE_SRC, /id="r12SkipEscrow"/);
+  assert.match(CONSOLE_SRC, /Migrate WITHOUT re-seating the runner escrow[\s\S]{0,600}earns nothing until someone calls <code>fundEscrow<\/code>/);
+  const run = CONSOLE_SRC.split('act === "r12-run"')[1].split('act === "vlt-scan"')[0];
+  assert.match(run, /if \(skipEscrow\) \{[\s\S]{0,400}escrow6 = 0/);
+  // skipping must not silently also skip the seal/flip - the run still finishes
+  assert.ok(run.indexOf("if (skipEscrow)") < run.indexOf("sealTx("));
+});
+
 test("rollout: the retire step targets the REPLACED ledger, never the live one", () => {
   // After the flip the book — and so probeRev12's `source` — IS the new ledger.
   // Reaching for it there would close the ledger the fleet is serving from, so
