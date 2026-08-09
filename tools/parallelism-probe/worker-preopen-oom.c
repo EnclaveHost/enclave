@@ -1,3 +1,30 @@
+/* ROUND 14 WARNING: THIS SWEEP IS NOW MOSTLY VACUOUS. Round 13 added `int
+ * set_ns` to `struct _IO_FILE`, which moved dlmalloc's layout and with it the
+ * window this probe's HOLE was tuned for. Measured on r13c/r14a across the
+ * documented sweep:
+ *
+ *   HOLE=0..6   the worker prints NOTHING -- its own stdio init half-failed, so
+ *               write(2) is EBADF -- yet the probe reports PASS, because it
+ *               gates only on the shared-memory `worker_reported` atomic.
+ *   HOLE=7..8   open=-1 (Out of memory). THE ONLY VALUES THAT BITE.
+ *   HOLE=9..16  open=8196 (ok). The OOM does not land; nothing is tested.
+ *
+ * So this probe currently guards the preopen `software:` cleanup path -- home
+ * of the round-8 re-entrancy deadlock AND the round-9 borrowed-free() CRITICAL,
+ * two of the worst defects in this record -- at exactly two sweep values, and
+ * passes green at seven others while the worker is stdio-dead.
+ *
+ * Before trusting a green run: re-anchor on HOLE=7..8, and harden the probe the
+ * way `worker-stdio-leak.c` was hardened -- gate PASS on the worker's own
+ * write(2) SUCCEEDING, so a stdio-dead worker fails instead of passing. Eating
+ * memory at a finer granularity than 48 bytes would widen the window back.
+ *
+ * (The orchestrator's own round-14 baseline claimed this sweep was "not
+ * vacuous" on the strength of a SECOND open failing at HOLE>=9. That is a
+ * weaker condition than the preopen-cleanup path and was the wrong
+ * discriminator -- recorded here because misreading which condition a probe
+ * actually tests is the single most repeated mistake in this directory.)
+ */
 // enclave/SET probe: an ALLOCATION FAILURE while a thread builds its preopen
 // table, and the thread exit that follows it, must not wedge the component.
 //

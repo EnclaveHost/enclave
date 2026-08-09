@@ -1340,6 +1340,37 @@ on a static argument is precisely how this patch has acquired defects before. Th
 decisive A/B for round 15 is a libc with ONLY the detach hunk reverted — not
 r10f, which differs in many other ways.
 
+### A probe that guards two CRITICALs stopped reaching them, and I misread it too
+
+`worker-preopen-oom.c` guards the preopen `software:` cleanup path — home of the
+round-8 re-entrancy deadlock AND the round-9 borrowed-`free()` CRITICAL. Round
+13 added `int set_ns` to `struct _IO_FILE`, which moved dlmalloc's layout and
+with it the window the probe's `HOLE` was tuned for. Measured across the
+documented sweep on r13c/r14a:
+
+| HOLE | what actually happens |
+|---|---|
+| 0-6 | the worker prints NOTHING — its own stdio init half-failed, so `write(2)` is EBADF — and the probe reports **PASS** anyway, because it gates only on a shared-memory atomic |
+| 7-8 | `open=-1 (Out of memory)` — **the only two values that bite** |
+| 9-16 | `open=8196 (ok)` — the OOM never lands; nothing is tested |
+
+So a probe standing guard over two of the worst defects in this record now
+exercises them at two sweep values and passes green at seven others while the
+worker is stdio-dead. The record's advice ("sweep it, the offset moves") was
+right and still not enough, because a moved offset does not fail — it passes.
+
+**I got this wrong in my own round-14 baseline**, and the mistake is worth
+recording because it is the one this directory keeps repeating: I wrote that the
+sweep was "NOT vacuous" on the strength of a SECOND `open` failing at HOLE>=9.
+That is a weaker condition than the preopen-cleanup path, and it is not what the
+probe exists to test. Misreading which condition a probe actually exercises is
+the same error as encoding a bug as the spec, one level up.
+
+Not fixed this round, annotated in the probe's header instead: the hardening
+wanted is the one `worker-stdio-leak.c` already got — gate PASS on the worker's
+own `write(2)` SUCCEEDING, so a stdio-dead worker fails instead of passing — plus
+a finer allocation granularity than 48 bytes to widen the window back.
+
 ### Verified clean this round
 
 * **The libc F_XERR work now HAS a probe** — it shipped without one.
