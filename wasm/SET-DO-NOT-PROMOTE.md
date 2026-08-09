@@ -2064,6 +2064,23 @@ measured — the second property is the one doing the work.
   `writeln!` reports in every column, which is why it is a `writeln!`. Recipe in
   `tools/parallelism-probe/README.md`.
 
+### The non-SET regression question, finally answered at full scope
+
+Every round so far has verified the engine with `cargo test … component_model`
+(231 tests). That is the SET-adjacent subset, and it leaves the question that
+actually matters for PROMOTION unanswered: the patch rewrites the canonical ABI's
+lift/lower path — `GuestMemory`/`GuestMemoryMut`, every `cx.get`→`cx.put`, the
+string transcoders, `as_le_slice`'s `Cow` — for **every component on the fleet**,
+shared memory or not. A regression there hits tenants who have never heard of
+SET.
+
+**Full integration suite on the round-21 engine: `1305 passed; 0 failed;
+26 ignored`.** That is the whole `tests/all` target, not a filter — core wasm,
+the component model, async, GC, the CLI, wasi. It is the strongest evidence in
+this file that the copy-safe ABI rewrite is behaviour-preserving for the
+unshared path, and it should be re-run (not just the 231) before any future
+promote.
+
 ### Still open
 
 * The dead-stack detach question, unchanged since round 14.
