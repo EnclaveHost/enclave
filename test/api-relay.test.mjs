@@ -245,6 +245,38 @@ test("api-relay: a leased deployment whose runner is live reads as running, even
   assert.equal(bare.body.status, "running", "the tokenless bare read agrees");
 });
 
+// ---------- free self-hosting: the status a seller's own row must NOT get ----
+// SOURCE-PINNED, deliberately. Reaching hostedFree() for real needs a live
+// enclave discovered from the on-chain REGISTRY (only those rows carry a
+// payoutWallet), and discoverRegistry drops any endpoint on a loopback/private
+// host — the SSRF guard that exists so a permissionless registry can never make
+// this relay dial its own localhost. Every harness here therefore runs on
+// STATIC_ENCLAVES, which have no registry entry at all. So pin the logic where
+// it can be seen; the money-side behaviour is proven in
+// contracts/foundry/test/EnclaveDeployments.selfHost.t.sol and the runner side
+// in test/rate-cap.test.mjs.
+test("api-relay: a free self-hosted row reads queued, never awaiting_payment or unfunded", () => {
+  const src = fs.readFileSync(path.join(RELAY_DIR, "api-relay.js"), "utf8");
+  // the verdict itself: an ANSWERING enclave that has declared this owner
+  assert.match(src, /const hostedFree = \(owner\) => \{[\s\S]{0,400}live\.some\(\(e\) => e\.payoutWallet/,
+    "hostedFree must be decided from the live fleet's declared payout wallets");
+  // both money-shaped statuses have to yield to it, or a seller who owes
+  // nothing is told to pay: "awaiting_payment" before the first claim (a free
+  // record never gets a balance) and "unfunded" between leases
+  assert.match(src, /if \(!free && !\(d\.balance6 > 0n \|\| d\.spent6 > 0n\)\) return "awaiting_payment";/);
+  assert.match(src, /return free \|\| d\.balance6 >= d\.rate \? "queued" : "unfunded";/);
+  // and the row says so, because before its first claim the record still
+  // carries its worst-case CEILING as the rate it would otherwise quote
+  assert.match(src, /\.\.\.\(free \? \{ hostedFree: true \} : \{\}\),/);
+  assert.match(src, /timeRemainingSec: rate6 > 0 && !free \?/,
+    "a free deployment has no funded-time horizon to count down");
+  // the plumbing that feeds all of the above: schema 4's field must survive
+  // discoverRegistry's projection, or hostedFree is false
+  assert.match(src, /payoutWallet: e\.payoutWallet \|\| null/);
+  assert.match(src, /\{ name: "payoutWallet", type: "address" \}\]/,
+    "the registry tuple must decode schema 4");
+});
+
 // ---------- fleet refuses the token: surface the 401, don't mask it ----------
 test("api-relay: a fleet-wide 401 propagates instead of falling back to ledger rows", async (t) => {
   const enclave = http.createServer((req, res) => {

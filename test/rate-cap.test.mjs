@@ -49,6 +49,47 @@ test("the price is the enclave's own, scaled by the shares and ceil'd like the l
   for (const v of [full, half, tiny, cpuOnly]) assert.equal(v.refusal, null);
 });
 
+test("free self-hosting: the box charges its own payout wallet nothing", async () => {
+  // Ledger rev 12 waives the HOST component when the claiming box's declared
+  // payout wallet owns the deployment. The supervisor has to price it the same
+  // way or it refuses, as "out of funded time", the one deployment it would run
+  // for nothing — with an empty balance, which is the normal state of a
+  // self-hosted record.
+  const [charged, free] = await verdicts([
+    { gpuMilli: 0, cpuMilli: 1000, balance6: 0 },
+    { gpuMilli: 0, cpuMilli: 1000, balance6: 0, free: true },
+  ]);
+  assert.equal(charged.mine6, 834);
+  assert.match(charged.refusal, /out of funded time/, "an empty balance at a real price is not claimable");
+  assert.equal(free.mine6, 0, "our own tenant pays us nothing");
+  assert.equal(free.refusal, null, "and needs no balance to be claimable");
+});
+
+test("free self-hosting waives OUR charge, never the publisher's fee", async () => {
+  // The fee is another party's money in another party's wallet; the waiver has
+  // nothing to say about it. A free deployment of a PAID app still has to be
+  // funded for the fee, and still runs out when it is not.
+  const fee6 = 100;
+  const [broke, funded] = await verdicts([
+    { gpuMilli: 0, cpuMilli: 1000, balance6: fee6 - 1, fee6, free: true },
+    { gpuMilli: 0, cpuMilli: 1000, balance6: fee6, fee6, free: true },
+  ]);
+  assert.equal(broke.mine6, 0);
+  assert.match(broke.refusal, /out of funded time/);
+  assert.match(broke.refusal, /publisher's fee alone - hosting here is free/,
+    "the refusal must not read as though this box were charging for the hosting");
+  assert.equal(funded.refusal, null);
+});
+
+test("a rate cap can never exclude a free deployment (documented consequence)", async () => {
+  // 0 <= any ceiling, so the owner's spend cap stops being an eviction lever in
+  // the free tier. That is exactly why the registry only lets the payout WALLET
+  // declare itself — pinned here so the reasoning cannot quietly stop being true.
+  const [v] = await verdicts([{ gpuMilli: 1000, cpuMilli: 1000, balance6: 0, cap6: 1, free: true }]);
+  assert.equal(v.mine6, 0);
+  assert.equal(v.refusal, null);
+});
+
 test("a cheaper enclave takes work the dear one may not — the failover gate", async () => {
   const shares = { gpuMilli: 0, cpuMilli: 400, balance6: RICH };
   // the owner signed up for the cheap host's price (834 * 400 / 1000 = 334)

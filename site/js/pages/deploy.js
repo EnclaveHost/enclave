@@ -21,7 +21,7 @@ import { $, $$, esc, short, wait, fmtNum, fmtDur, hlJson, hlCode, copyText, show
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS, BASE_CHAIN, ACCOUNTS_ENABLED } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
 import { vaultOp, getVault } from "../core/vault.js";
-import { minPctsOf, startSharesFor, serverSpec, shareRates, pickEnclaveFor, rankEnclavesFor } from "../core/pricing.js";
+import { minPctsOf, startSharesFor, serverSpec, shareRates, pickEnclaveFor, rankEnclavesFor, freeEnclavesFor } from "../core/pricing.js";
 import { encCall, DEP_SEL, DEP_CREATED_TOPIC, APPROVAL, depGet, depRate6, depPrices6, depSchemaRev, depMaxGpuMilli, rate6Of, waitReceipt, catVersionFee } from "../core/chain.js";
 
 // create()'s shape on the live contract (rev 1 carried a removed sshPubKey
@@ -709,11 +709,24 @@ export async function deployOnChain(spec){
     // best-effort with a hard cap so a slow RPC can never stall the deploy
     let rate6 = 0n;
     try { rate6 = await Promise.race([depRate6(spec.gpuMilli, spec.cpuMilli), wait(6000).then(() => 0n)]); } catch(e){}
+    // Does the deployer run their own enclave? A box that has declared THIS
+    // wallet as its payout wallet hosts this deployment for nothing (ledger
+    // rev 12), so the quote above is the price everywhere ELSE — worth saying
+    // before somebody funds runtime they will never burn.
+    let freeBoxes = [];
+    try { freeBoxes = freeEnclavesFor(Enclave.address, await Enclave.getEnclaves()); } catch(e){}
     if (rate6 > 0n){
       const rate = Number(rate6 + fee6) / 1e6;   // the publisher's cut rides on top, exactly as create() adds it
       w.line("info", "    " + fund + " USDC ≈ " + fmtDur(fund / rate) + " of runtime at $" + (rate * 3600).toFixed(2) + "/hr");
       if (fee6 > 0n)
         w.line("info", "    includes the app's publisher fee: $" + (Number(fee6) * 3600 / 1e6).toFixed(2) + "/hr, paid to " + short(feeTo) + " out of each funding");
+    }
+    if (freeBoxes.length){
+      const names = freeBoxes.map(e => e.name || e.endpoint).join(", ");
+      w.line("ok", "[✓] you host this yourself: " + names + " pays out to this wallet, so running it there costs you nothing"
+        + (fee6 > 0n ? " beyond the app's publisher fee" : " at all") + " - the rate above is what any OTHER enclave would charge");
+      if (fee6 <= 0n && fund > 0)
+        w.line("info", "    you can fund it anyway (it buys runtime on other enclaves if yours is ever down), or fund $0 and let your own box take it");
     }
 
     // 1) create: one tx from YOUR wallet - msg.sender owns the on-chain record.

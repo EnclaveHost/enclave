@@ -17,6 +17,21 @@ optimizer_runs = 200
 via_ir = true
 fs_permissions = [{ access = "read", path = "contracts/foundry/test/fixtures" }]
 
+# The ledger alone builds at runs=100, mirroring scripts/deploy-deployments.mjs
+# and scripts/build-contract-artifacts.mjs. It is the one contract at the EIP-170
+# wall (see its BUILD SETTING header note), and at 200 rev 12 does not fit — so
+# without this restriction every EnclaveDeployments test would fail in setUp on a
+# contract that deploys fine in production. Keep all three in lockstep.
+[[profile.default.additional_compiler_profiles]]
+name = "ledger"
+optimizer = true
+optimizer_runs = 100
+via_ir = true
+
+[[profile.default.compilation_restrictions]]
+paths = "contracts/EnclaveDeployments.sol"
+optimizer_runs = 100
+
 [fuzz]
 runs = 512
 

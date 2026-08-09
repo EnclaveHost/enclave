@@ -318,7 +318,10 @@ const ABI = [
     outputs: [{ type: "tuple[]", components: ENCLAVE_TUPLE_V1 }] },
 ];
 // Registry schema 2 APPENDED the operator's per-machine prices to the entry.
-// Schema 3 appended the PROOF KEY. Appended fields keep every earlier field's
+// Schema 3 appended the PROOF KEY, schema 4 the seller's declared PAYOUT WALLET
+// (the wallet whose own deployments a rev-12 ledger hosts here for free — set
+// only by that wallet, so a 0x0 here is a box that charges everyone).
+// Appended fields keep every earlier field's
 // offset, so a short decode drops the tail rather than misreading it — but the
 // shape is still sniffed per address (cached; the address book can repoint us
 // mid-flight) so callers SEE the newer fields. Schema-1 registries have no
@@ -328,11 +331,13 @@ const ABI = [
 // service lagged.
 const ENCLAVE_TUPLE = [...ENCLAVE_TUPLE_V1,
   { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" },
-  { name: "proofKey", type: "address" }];
+  { name: "proofKey", type: "address" }, { name: "payoutWallet", type: "address" }];
+const ENCLAVE_TUPLE_V3 = ENCLAVE_TUPLE.slice(0, 10);  // schema 3: proof key, no payout wallet
 const ENCLAVE_TUPLE_V2 = ENCLAVE_TUPLE.slice(0, 9);   // schema 2: priced, no proof key
 const abiForRev = (rev) => [ABI[0], { ...ABI[1],
   outputs: [{ type: "tuple[]", components:
-    rev >= 3 ? ENCLAVE_TUPLE : rev >= 2 ? ENCLAVE_TUPLE_V2 : ENCLAVE_TUPLE_V1 }] }];
+    rev >= 4 ? ENCLAVE_TUPLE : rev >= 3 ? ENCLAVE_TUPLE_V3
+             : rev >= 2 ? ENCLAVE_TUPLE_V2 : ENCLAVE_TUPLE_V1 }] }];
 const SCHEMA_ABI = [{ type: "function", name: "registrySchema", stateMutability: "view",
   inputs: [], outputs: [{ type: "uint256" }] }];
 // Single-entry read (tunnelNameOwner). The v1 tuple is a PREFIX of the v2 one
@@ -444,8 +449,12 @@ async function discoverRegistry() {
     // register https://127.0.0.1/ or https://169.254.169.254/ and make this relay
     // dial its own localhost / cloud metadata. (Real enclaves are public domains.)
     .filter(({ endpoint }) => { let h; try { h = new URL(endpoint).hostname; } catch { return false; } const ok = !isBlockedHost(h); if (!ok) console.error(`[api-relay] skipping non-global registry endpoint: ${endpoint}`); return ok; })
+    // payoutWallet (schema 4) rides along because ledgerStatus needs it: it is
+    // what tells a self-hosted row from an unfunded one. Undefined on an older
+    // registry, which reads as "nobody hosts anything free" — the safe default.
     .map(async ({ e, endpoint }) =>
-      ({ endpoint, id: await endpointId(endpoint), name: endpointName(endpoint), repo: e.repo, lastSeen: Number(e.lastSeen) })));
+      ({ endpoint, id: await endpointId(endpoint), name: endpointName(endpoint), repo: e.repo,
+         lastSeen: Number(e.lastSeen), payoutWallet: e.payoutWallet || null })));
 }
 
 // --- EnclaveDeployments ledger (the source of truth for a wallet's work) --------
@@ -547,6 +556,9 @@ async function ledgerRows() {
 // funded below the rate): no enclave will claim it until the owner tops up —
 // the boundary mirrors the contract's claimable() (balance6 >= rate) and the
 // supervisor's own sweep gate, so "queued" always means "will start by itself".
+// "free" (ledger rev 12) sits outside all of that: an answering enclave has
+// declared this owner as its payout wallet, so the deployment's price THERE is
+// zero and it never needs money at all.
 const ZERO32 = /^0x0+$/;
 const runnerIsLive = (runner) => {
   runner = String(runner).toLowerCase();
@@ -561,12 +573,25 @@ function enclaveNameOf(runner) {
   const hit = [...registry, ...live].find((e) => e.id && e.id.toLowerCase() === runner);
   return hit ? (hit.name || endpointName(hit.endpoint)) : null;
 }
+// Is some ANSWERING enclave hosting this owner for free — i.e. has it declared
+// this very wallet as its payout wallet (registry schema 4)? Then the ledger
+// charges it nothing there, and the two money-shaped statuses below would both
+// libel it: "awaiting_payment" before its first claim (it will never have a
+// balance) and "unfunded" between leases (nothing is owed). `live` rather than
+// the full registry, because the promise "queued means it will start by itself"
+// is only true of a box that is actually answering.
+const hostedFree = (owner) => {
+  owner = String(owner || "").toLowerCase();
+  if (!owner || ZERO32.test(owner)) return false;
+  return live.some((e) => e.payoutWallet && String(e.payoutWallet).toLowerCase() === owner);
+};
 function ledgerStatus(d) {
   if (!d.active) return "stopped";
-  if (!(d.balance6 > 0n || d.spent6 > 0n)) return "awaiting_payment";
+  const free = hostedFree(d.owner);
+  if (!free && !(d.balance6 > 0n || d.spent6 > 0n)) return "awaiting_payment";
   if (!ZERO32.test(d.runner) && Number(d.leaseUntil) * 1000 > Date.now())
     return runnerIsLive(d.runner) ? "running" : "claimed";
-  return d.balance6 >= d.rate ? "queued" : "unfunded";
+  return free || d.balance6 >= d.rate ? "queued" : "unfunded";
 }
 // Dedicated per-deployment IPv6, synthesized from PUBLIC data (mirrors the
 // supervisor's depAddrFor exactly: sha256(id) low 64 host bits into the routed
@@ -635,8 +660,13 @@ function ledgerView(d) {
   // name the serving box while a lease is live (running or claimed) — the
   // dashboard row answers "where is this app?" without another lookup
   const enclave = (status === "running" || status === "claimed") ? enclaveNameOf(d.runner) : null;
+  // Before its first claim a free deployment still carries its CEILING as the
+  // rate (no host has priced it yet), so the row would quote a price it will
+  // never pay. Say so explicitly rather than leave clients to infer it.
+  const free = hostedFree(d.owner);
   return {
     id: d.id, owner: d.owner.toLowerCase(), status, public: d.isPublic,
+    ...(free ? { hostedFree: true } : {}),
     ...(enclave ? { enclave } : {}),
     ...(network ? { network } : {}),
     image: { reference: d.appRef },
@@ -645,7 +675,7 @@ function ledgerView(d) {
     ratePerSecondUsdc: (rate6 / 1e6).toFixed(7),
     spentUsdc: (Number(d.spent6) / 1e6).toFixed(2),
     paidUsdc: ((Number(d.balance6) + Number(d.spent6)) / 1e6).toFixed(2),
-    timeRemainingSec: rate6 > 0 ? leaseTail + Math.floor(Number(d.balance6) / rate6) : null,
+    timeRemainingSec: rate6 > 0 && !free ? leaseTail + Math.floor(Number(d.balance6) / rate6) : null,
     onchain: { contract: DEPLOYMENTS_ADDRESS, id: d.id,
                leaseUntil: Number(d.leaseUntil) ? new Date(Number(d.leaseUntil) * 1000).toISOString() : null },
     ledger: true,

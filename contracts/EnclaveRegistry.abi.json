@@ -41,6 +41,25 @@
         "type": "bytes32"
       },
       {
+        "indexed": true,
+        "internalType": "address",
+        "name": "payoutWallet",
+        "type": "address"
+      }
+    ],
+    "name": "PayoutWalletSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
         "indexed": false,
         "internalType": "uint64",
         "name": "cpuPricePerSec6",
@@ -132,6 +151,19 @@
     "type": "event"
   },
   {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      }
+    ],
+    "name": "clearPayoutWallet",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "count",
     "outputs": [
@@ -218,6 +250,11 @@
             "internalType": "address",
             "name": "proofKey",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "payoutWallet",
+            "type": "address"
           }
         ],
         "internalType": "struct EnclaveRegistry.Enclave",
@@ -293,6 +330,11 @@
           {
             "internalType": "address",
             "name": "proofKey",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "payoutWallet",
             "type": "address"
           }
         ],
@@ -431,6 +473,19 @@
       }
     ],
     "name": "setMeasurement",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      }
+    ],
+    "name": "setPayoutWallet",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

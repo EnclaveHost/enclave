@@ -149,16 +149,55 @@ test("registry schema 3 carries the proof key, and register() carries it too", (
   const abi = ABI("EnclaveRegistry");
   const entry = abi.find((f) => f.type === "function" && f.name === "get").outputs[0].components;
   // APPENDED, not inserted: every earlier field must keep its offset or every
-  // consumer that sniffs the schema and decodes the tuple misreads it
-  assert.deepEqual(entry.map((c) => c.name),
+  // consumer that sniffs the schema and decodes the tuple misreads it. Pin the
+  // known PREFIX rather than the whole list — appending a later schema's field
+  // is then not a test edit, while INSERTING one still is.
+  assert.deepEqual(entry.slice(0, 11).map((c) => c.name),
     ["endpoint", "repo", "measurement", "operator", "registeredAt", "lastSeen", "active",
-     "cpuPricePerSec6", "gpuPricePerSec6", "proofKey"]);
-  assert.equal(entry.at(-1).type, "address");
+     "cpuPricePerSec6", "gpuPricePerSec6", "proofKey", "payoutWallet"]);
+  assert.equal(entry.find((c) => c.name === "proofKey").type, "address");
   const reg = abi.find((f) => f.type === "function" && f.name === "register");
   assert.equal(reg.inputs.at(-1).name, "proofKey");
   assert.equal("0x" + toFunctionSelector("function register(string,string,bytes32,uint64,uint64,address) returns (bytes32)").slice(2),
     toFunctionSelector(reg));
   assert.ok(abi.some((f) => f.type === "function" && f.name === "setProofKey"));
+});
+
+test("the payout wallet can only be declared BY that wallet (schema 4)", () => {
+  // THE anti-grief property of free self-hosting. A rev-12 ledger charges
+  // nothing for a deployment whose owner is the claiming box's payoutWallet,
+  // and a zero rate is beyond the reach of the owner's rate cap — so if an
+  // operator could name any address here, it could pull a stranger's deployment
+  // into a free tier they cannot evict by lowering their cap. setPayoutWallet
+  // therefore takes NO address and records msg.sender. If either of these ever
+  // grows an address parameter, that whole argument collapses.
+  const abi = ABI("EnclaveRegistry");
+  const set = abi.find((f) => f.type === "function" && f.name === "setPayoutWallet");
+  const clear = abi.find((f) => f.type === "function" && f.name === "clearPayoutWallet");
+  assert.ok(set && clear, "the registry must expose both halves of the declaration");
+  assert.deepEqual(set.inputs.map((i) => i.type), ["bytes32"], "setPayoutWallet takes the enclave id ALONE");
+  assert.deepEqual(clear.inputs.map((i) => i.type), ["bytes32"]);
+  // register() is the operator's call, and it must never be able to carry one
+  const reg = abi.find((f) => f.type === "function" && f.name === "register");
+  assert.ok(!reg.inputs.some((i) => /payout/i.test(i.name)), "register() must not set the payout wallet");
+  const sol = fs.readFileSync(path.join(REPO, "contracts", "EnclaveRegistry.sol"), "utf8");
+  assert.match(sol, /function setPayoutWallet\(bytes32 id\) external \{[^}]*payoutWallet = msg\.sender/,
+    "setPayoutWallet must record msg.sender, never an argument");
+  assert.equal(Number(/registrySchema = (\d+);/.exec(sol)[1]), 4);
+});
+
+test("a rev-12 ledger prices self-hosting at zero and never divides by it", () => {
+  const sol = LEDGER_SOL;
+  assert.ok(Number(/deploymentsSchema = (\d+);/.exec(sol)[1]) >= 12);
+  // the whole feature: one comparison in the rate path
+  assert.match(sol, /if \(e\.payoutWallet == d\.owner\) return 0;/);
+  // ... and the two places a zero rate would otherwise be a divisor. These are
+  // the crash the feature would ship if either guard were dropped.
+  assert.match(sol, /rate == 0 \? leaseSec : d\.balance6 \/ rate/);
+  assert.match(sol, /newRate == 0 \? tail/);
+  // the ledger must decode the schema-4 entry, or payoutWallet reads as garbage
+  const iface = /interface IEnclaveRegistry \{[\s\S]*?\n\}/.exec(sol)[0];
+  assert.match(iface, /address proofKey;\s*\n\s*address payoutWallet;/);
 });
 
 test("the ledger's Deployment tuple is still byte-for-byte the rev-2 shape", () => {

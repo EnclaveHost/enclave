@@ -215,11 +215,38 @@ node metal/build-image.mjs \
 # dollars of Base ETH (gas for register/claim/renew), payoutAddress to YOUR
 # wallet, and publicUrl to the relay-routed https://api.enclave.host/t/<name>
 node metal/enclave-metal.mjs --config metal/config.json   # attaches, registers, earns
+enclave host declare-payout                   # optional, once: run your OWN apps here free
 ```
 
 That is the entire onboarding. No account, no approval. Earnings accrue on
 `EnclaveDeployments` (`earned6(operator)`, visible in the enclave's
 `/v1/health` as `earnings`) and auto-sweep to `payoutAddress`.
+
+### Running your own apps on your own box, free
+
+`payoutAddress` in `metal/config.json` only tells the supervisor where to sweep
+earnings — the chain has never heard of it. Publishing it makes the box's own
+tenancy free: from a rev-12 ledger on, a deployment whose **owner** is the
+enclave's declared `payoutWallet` (EnclaveRegistry schema 4) is charged nothing
+to run there. Not a discount — the host component of the rate is zero, so the
+deployment needs no balance at all and burns none. A paid app's publisher fee
+is untouched and still has to be funded; it is somebody else's money.
+
+`enclave host declare-payout` sends the one transaction, from your CLI wallet:
+
+```
+enclave host declare-payout          # EnclaveRegistry.setPayoutWallet(idOf(publicUrl))
+enclave host status                  # "payout wallet" shows what the chain now says
+enclave host clear-payout            # withdraw it again
+```
+
+It has to come **from that wallet**: `setPayoutWallet` takes no address and
+records `msg.sender`. The box's operator key cannot send it, which is the whole
+point — a zero rate is beyond the reach of a deployment's rate cap, so if an
+operator could name any wallet it could drag a stranger's deployment into a
+free tier they cannot evict by lowering their ceiling. Deploy your apps from
+the same wallet you declared and they land on your box for nothing; every other
+enclave still charges its posted price, which is what their rate cap bounds.
 
 ## Delivery phases
 
@@ -231,7 +258,9 @@ That is the entire onboarding. No account, no approval. Earnings accrue on
 - **C, permissionless earning (built; activation is operator-gated):** the
   rev-7 `EnclaveDeployments` pays the runner share to the seller EOA from
   in-contract escrow (gate 2), the Metal config carries the seller's
-  `registryKey`/`payoutAddress`, and the supervisor auto-sweeps earnings; the
+  `registryKey`/`payoutAddress`, and the supervisor auto-sweeps earnings; a
+  rev-12 ledger additionally hosts the seller's OWN deployments for free once
+  that wallet is declared on-chain (`enclave host declare-payout`); the
   optional claim bond (gate 4) is in the contract, off by default. What
   remains is operational: the platform redeploying the rev-7 ledger (and
   migrating records), publishing the measurement allowlist, and the seller

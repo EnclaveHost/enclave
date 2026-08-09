@@ -129,7 +129,12 @@ function compile() {
     language: "Solidity",
     sources: { "EnclaveDeployments.sol": { content: source } },
     settings: {
-      optimizer: { enabled: true, runs: 200 },
+      // runs=100, NOT the repo-wide 200: rev 12 (free self-hosting) costs 177
+      // bytes and rev 11 had 78 free, so the size/gas dial buys the room that
+      // deleting a shipped feature would otherwise have to. Behaviour is
+      // identical either way. build-contract-artifacts.mjs and foundry.toml
+      // pin the same number — see the BUILD SETTING note in the contract.
+      optimizer: { enabled: true, runs: 100 },
       // rev 7 (runner payout) outgrew legacy codegen's EIP-170 headroom;
       // viaIR keeps it deployable. build-contract-artifacts.mjs mirrors this.
       viaIR: true,
@@ -346,6 +351,24 @@ async function main() {
 
   const bal = await readWithRetry("getBalance", () => pub.getBalance({ address: account.address })).catch(() => 0n);
 
+  // PREFLIGHT, not a note: this rev ABI-decodes the registry's Enclave struct
+  // and reads payoutWallet out of it (schema 4 — free self-hosting). Point it
+  // at an older registry and the tuple decodes SHORT, which does not fail here
+  // or at deploy: it fails inside every single claim(), fleet-wide, the first
+  // time a runner tries to take work. That is a silent outage bought with a
+  // mainnet deploy, so refuse it while refusing is still free.
+  const REG_SCHEMA_ABI = [{ type: "function", name: "registrySchema", stateMutability: "view",
+                            inputs: [], outputs: [{ type: "uint256" }] }];
+  let regSchema = null;
+  try {
+    regSchema = Number(await readWithRetry("registrySchema", () =>
+      pub.readContract({ address: getAddress(registry), abi: REG_SCHEMA_ABI, functionName: "registrySchema" })));
+  } catch { regSchema = 1; }              // rev 1 has no getter at all: the call reverts
+  if (!(regSchema >= 4))
+    die(`the registry at ${registry} is schema ${regSchema}; this ledger (rev 12) needs schema 4 — `
+      + `it reads each enclave's payoutWallet to price self-hosting at zero, and an older entry decodes short, `
+      + `reverting EVERY claim. Deploy the schema-4 EnclaveRegistry first: the two ship as a set.`);
+
   console.log("\n========================  DEPLOY PLAN  ========================");
   console.log(`  network        ${netName}  (chainId ${net.chain.id})${isMainnet ? "   *** MAINNET / REAL FUNDS ***" : "   (testnet)"}`);
   console.log(`  rpc            ${rpc}`);
@@ -356,7 +379,7 @@ async function main() {
   console.log(`  payout  (arg2) ${payout}   <- funds land here`);
   console.log(`  registry(arg3) ${registry}   <- claims gated to its operators`);
   console.log(`  feed    (arg4) ${feed === ZERO ? "(none - ETH funding disabled)" : feed}`);
-  console.log(`  registry(arg3) must be schema 2 (priced entries) - claims read the host's price from it`);
+  console.log(`  registry(arg3) schema ${regSchema} - claims read the host's price AND payout wallet from it (needs >= 4)`);
   console.log(`  pricing        per enclave, not per platform (no setPrice on this rev)`);
   console.log(`  bytecode       ${(bytecode.length / 2 - 1)} bytes`);
   console.log("===============================================================\n");

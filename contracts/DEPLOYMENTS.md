@@ -331,6 +331,67 @@ each imported record's cap to the rate it arrives with — same price, same
 economics, no dearer enclave can take it — and `importCaps` overrides that
 while the window is open (0 = uncapped, the pre-rev-8 behaviour).
 
+### Free self-hosting (rev 12)
+
+A seller running **their own app on their own box** pays no hosting charge.
+`EnclaveRegistry` (schema 4) carries a `payoutWallet` per entry — the seller's
+own wallet, the one the supervisor already sweeps earnings to
+(`metal/config.json` `payoutAddress`), now stated on-chain. When `claim` reads
+the entry it already reads for the operator check, and that wallet **is** the
+deployment's `owner`, the host component of the rate is zero:
+
+    rate = (payoutWallet == owner ? 0 : hostRate × shares / 1000) + publisherFee
+
+Everything that follows is a consequence of a `rate` that can legitimately be
+zero. A free deployment needs **no balance at all** (`claim` and `renew` burn
+nothing and take a full `leaseSec` quantum), escrows nothing, and earns its
+runner nothing — the runner cut is a slice of the host component, so it is zero
+too. Nobody pays, so nobody is paid; the platform's share of a free deployment
+is zero as well.
+
+**The publisher fee is untouched.** It is another party's money in another
+party's wallet, and the waiver has nothing to say about it: a free deployment
+of a paid app still costs `fee` per second, still has to be funded for it, and
+still forwards the publisher's pro-rata cut on every funding — where, the rate
+now being the fee alone, that cut is 100% of it.
+
+#### Why only the wallet may declare it
+
+`setPayoutWallet(bytes32 id)` takes **no address**. It records `msg.sender`, so
+the only wallet a box can name is one whose owner sent a transaction saying so;
+`clearPayoutWallet` lets either side (the wallet, revoking; the operator, on a
+box that changed hands) withdraw it. The operator's own `register` cannot set
+it and never overwrites it, so a metal box re-registering at every boot keeps
+the declaration.
+
+That direction is load-bearing rather than stylistic. A rate of zero is
+**beyond the reach of the owner's rate cap** — `_requireUnderCap` is
+`rate <= cap` and `setMaxRate` will not accept a ceiling at or under the fee,
+so no cap value excludes a free claim — and a zero-rate record is claimable
+with an empty balance, which no record was before. If an operator could type
+any address into that field it could pull a stranger's deployment into a tier
+their usual eviction lever cannot touch, and squat the lease indefinitely at
+zero cost. Requiring the declaration to come *from* the wallet makes that
+impossible rather than merely unprofitable.
+
+The owner's remaining lever, and the one to reach for if a free lease is ever
+held by a box you did not intend: `setActive(id, false)`. `renew` refuses on an
+inactive record, so the lease lapses within one `leaseSec`; `clearPayoutWallet`
+on the registry side removes the exemption itself.
+
+#### What clients have to know
+
+`rate == 0` is a legal answer from rev 12 on, and `deploymentsSchema >= 12` is
+how a client knows to expect it rather than treat it as a failed read.
+`rateFor(id, enclaveId)` returns 0 for the pair, and `claimableBy` deliberately
+does **not** go through `claimable()`: the enclave-agnostic view tests the
+balance against the record's own worst-case ceiling, which reads a free
+deployment as unclaimable and would hide it from the one box that hosts it for
+nothing. Off-chain, the relay marks such rows `hostedFree` and reports no
+`timeRemainingSec` (there is no funded time to count down), the runner prices
+the waiver in its own claim gate before it spends gas, and
+`enclave host declare-payout` sends the one transaction that starts it.
+
 ### Proof of time (rev 9)
 
 Through rev 8 a **held lease paid by itself**. `_creditRunner` credited

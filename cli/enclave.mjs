@@ -36,7 +36,8 @@ import crypto from "node:crypto";
 import rlSync from "node:readline";
 import { stdin, stdout, stderr, argv, env, exit } from "node:process";
 import { createPublicClient, createWalletClient, http as viemHttp, fallback,
-         parseEther, formatUnits, encodeFunctionData, getAddress } from "viem";
+         parseEther, formatUnits, encodeFunctionData, getAddress,
+         keccak256, toHex } from "viem";
 import { base } from "viem/chains";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 
@@ -1005,7 +1006,11 @@ async function cmdStatus(rest) {
   const leased = chainRec && Number(chainRec.leaseUntil) * 1000 > Date.now();
   // queued vs unfunded is the contract's claimable() boundary (balance6 >= rate):
   // below it no enclave will ever claim, so "queued" would be a lie
-  const claimable = chainRec && chainRec.balance6 >= chainRec.rate;
+  // ... unless an enclave hosts this owner for FREE (ledger rev 12): its price
+  // there is zero, so there is no balance to be short of. The relay's row
+  // carries that verdict; the arithmetic above cannot see it, because an
+  // unclaimed record still carries its worst-case ceiling as `rate`.
+  const claimable = !!(rec && rec.hostedFree) || (chainRec && chainRec.balance6 >= chainRec.rate);
   kv([
     ["id", id],
     ["app", rec?.image?.reference || chainRec?.appRef],
@@ -2604,6 +2609,12 @@ sell hosting (run an enclave on your own TEE hardware — metal/PROTOCOL.md)
                              transfer: it pays the box's register/heartbeat/claim
                              transaction fees — it is not a payment to anyone
   host status                gas left · listed/serving · accrued USDC earnings
+  host declare-payout [--url https://…]
+                             publish THIS wallet as the box's payout wallet, so
+                             deployments you own run there for nothing (a paid
+                             app's publisher fee still applies). Must be sent
+                             from that wallet — the box cannot declare it
+  host clear-payout          withdraw the declaration again
 
 platform
   pricing | availability | gpu | account
@@ -2689,6 +2700,8 @@ async function cmdHost(rest) {
         ["endpoint", cfg.publicUrl]]);
     say(`next:
   enclave host fund --eth 0.002              gas the operator from this CLI wallet
+  enclave host declare-payout                publish your payout wallet on-chain, so your
+                                             OWN apps run on this box for free (optional)
   node metal/build-image.mjs                 reproducible guest image
   sudo bash metal/host-setup.sh              one-time /dev/sev perms
   node metal/enclave-metal.mjs --config ${cfgPath}    (or metal/systemd/)
@@ -2718,6 +2731,45 @@ the box hides itself until its registration confirms, then appears as serving.`)
     return;
   }
 
+  // `enclave host declare-payout` — the one transaction that makes this box
+  // host YOUR OWN apps for free (ledger rev 12). EnclaveRegistry.setPayoutWallet
+  // takes no address: it records msg.sender, so the declaration can only ever
+  // come from the wallet being named. That is what stops any operator from
+  // naming a stranger and hosting their deployment for free out of reach of its
+  // rate cap — and it is why the box's own operator key cannot send this. It
+  // goes from THIS CLI wallet, which is the wallet your deployments come from.
+  if (sub === "declare-payout" || sub === "clear-payout") {
+    const cfg = readCfg();
+    const url = f.url || (cfg && cfg.publicUrl);
+    if (!url) throw new Error("no enclave endpoint: pass --url https://…, or run `enclave host init` first");
+    const account = loadKey();
+    const id = keccak256(toHex(String(url).replace(/\/+$/, "")));   // EnclaveRegistry.idOf(endpoint)
+    const abi = [{ type: "function", name: "setPayoutWallet", stateMutability: "nonpayable",
+                   inputs: [{ name: "id", type: "bytes32" }], outputs: [] },
+                 { type: "function", name: "clearPayoutWallet", stateMutability: "nonpayable",
+                   inputs: [{ name: "id", type: "bytes32" }], outputs: [] }];
+    const clearing = sub === "clear-payout";
+    // Preflight: on a pre-schema-4 registry neither function exists, and the
+    // tx would revert with nothing to explain why. Say it before spending gas.
+    const regRev = await read(DEFAULTS.REGISTRY_ADDRESS,
+      [{ type: "function", name: "registrySchema", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }],
+      "registrySchema").then(Number).catch(() => 1);
+    if (regRev < 4)
+      throw new Error(`the registry at ${DEFAULTS.REGISTRY_ADDRESS} is schema ${regRev}; declaring a payout wallet `
+        + `needs schema 4. This platform has not deployed it yet - until then every deployment is charged, `
+        + `including your own on your own box.`);
+    say(clearing
+      ? `withdrawing ${account.address} as the payout wallet of ${url}`
+      : `declaring ${account.address} as the payout wallet of ${url}`);
+    if (!clearing)
+      say("(from then on, deployments owned by this wallet run on that box for free — the publisher fee of a paid app still applies)");
+    const rcpt = await sendTx(account, { address: DEFAULTS.REGISTRY_ADDRESS, abi,
+      functionName: clearing ? "clearPayoutWallet" : "setPayoutWallet", args: [id] });
+    say(`✓ ${clearing ? "cleared" : "declared"} (tx ${rcpt.transactionHash})`);
+    if (!clearing) say("check it landed: enclave host status");
+    return;
+  }
+
   if (sub === "status") {
     const cfg = readCfg();
     const name = f.name || (cfg && cfg.name) || "metal0";
@@ -2731,6 +2783,13 @@ the box hides itself until its registration confirms, then appears as serving.`)
       if (row) rows.push(["serving", row.serving === true ? "yes (registered + claiming)"
         : "no — " + (row.availability && row.availability.claimEnabled === false
             ? "not registered yet (needs selling config + a gassed operator)" : "not claiming")]);
+      // The on-chain declaration, which is what the ledger actually prices
+      // against — NOT metal/config.json's payoutAddress, which only says where
+      // this box sweeps its earnings. They are usually the same wallet and a
+      // seller assumes they are, so show the chain's answer plainly.
+      if (row) rows.push(["payout wallet", row.payoutWallet && !/^0x0+$/.test(row.payoutWallet)
+        ? `${row.payoutWallet}   (its own deployments run here free)`
+        : "(undeclared — this box charges even its owner; fix with `enclave host declare-payout`)"]);
     } catch (e) { rows.push(["listed", `unknown (${e.message})`]); }
     if (op) {
       try {
@@ -2851,7 +2910,7 @@ stop:   systemctl --user disable --now enclave-metal`);
     return;
   }
 
-  throw new Error("usage: enclave host init | build | run | install | check | fund | status");
+  throw new Error("usage: enclave host init | build | run | install | check | fund | status | declare-payout | clear-payout");
 }
 
 const COMMANDS = {

@@ -2346,8 +2346,13 @@ class Deployments extends EnclaveElement {
         .then(r => r.json())
         .then(h => { if (h && h.accepted === false && h.reason) showToast("the fleet declined the resume nudge: " + h.reason); })
         .catch(() => {});
-      // the contract's claimable() boundary: below it no enclave ever claims
-      const drained = dep && !(dep.balance6 >= dep.rate);
+      // the contract's claimable() boundary: below it no enclave ever claims —
+      // EXCEPT a box that hosts this owner for free (ledger rev 12), where the
+      // price is zero and there is no balance to be short of. The relay row
+      // carries that verdict (hostedFree); trust it over the arithmetic, which
+      // compares against the record's worst-case ceiling until a host prices it.
+      const free = !!(this._list || []).find(x => String(x.id) === String(id) && x.hostedFree);
+      const drained = !free && dep && !(dep.balance6 >= dep.rate);
       showToast(drained
         ? "re-queued " + id.slice(0, 10) + "… - but its balance is spent, so no enclave will claim it: Top up to relaunch"
         : "resumed " + id.slice(0, 10) + "… - re-queued; an enclave picks it up shortly");
