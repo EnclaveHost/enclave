@@ -359,10 +359,10 @@ index d36ba8c..17a704a 100644
  #cmakedefine __wasi_sdk_version__ "@__wasi_sdk_version__@"
  
 diff --git a/libc-bottom-half/sources/chdir.c b/libc-bottom-half/sources/chdir.c
-index 44e0fd9..7d85cd2 100644
+index 44e0fd9..1639501 100644
 --- a/libc-bottom-half/sources/chdir.c
 +++ b/libc-bottom-half/sources/chdir.c
-@@ -7,16 +7,41 @@
+@@ -7,16 +7,69 @@
  #include <string.h>
  #include <sys/stat.h>
  #include <unistd.h>
@@ -394,24 +394,61 @@ index 44e0fd9..7d85cd2 100644
 +   change to shared cwd ownership and belongs with the FILE-ownership work, not
 +   bolted on at the end of a round. */
 +static __wasilibc_thread_state int __wasilibc_cwd_mallocd = 0;
++
++/* enclave/SET: `__wasilibc_find_relpath_alloc` REALLOCs this buffer and the
++   caller then reads through it, all outside the cwd lock — a shared-memory
++   use-after-free for two concurrent `chdir()`s. Per-thread, which is also the
++   right scope: it is scratch space for one call.
++
++   FILE SCOPE so it can be RELEASED. This is the third such cache, and the one
++   round 9's leak fix missed while fixing posix.c's two: it grows to the longest
++   relative path this thread ever passed to `chdir`, and it leaked per THREAD
++   CREATION — measured 2,294 bytes/thread at 1,091-character paths, linear in a
++   guest-chosen length, unbounded by the live-thread cap and charged to the
++   tenant's own `-W max-memory-size`. */
++static __wasilibc_thread_state char *chdir_relative_buf = NULL;
++static __wasilibc_thread_state size_t chdir_relative_buf_len = 0;
++
++#ifdef __wasilibc_set_threads__
++/* Released from `__wasilibc_set_release_thread_state`, which calls this
++   WEAKLY. The weakness is load-bearing: a hard call would link `chdir.o` into
++   every program, and `chdir.o` is also what defines the weak
++   `__wasilibc_find_relpath_alloc`. Linking it unconditionally would flip
++   `find_relpath2` onto its other branch for every guest that never calls
++   `chdir`, and would make `__wasilibc_set_release_path_bufs`' weak-symbol test
++   always true — re-arming the round-10 CRITICAL where a borrowed interior
++   pointer was passed to `free()`. */
++void __wasilibc_set_release_cwd_bufs(void) {
++  free(chdir_relative_buf);
++  chdir_relative_buf = NULL;
++  chdir_relative_buf_len = 0;
++}
++#endif
  
  int chdir(const char *path) {
 -  static char *relative_buf = NULL;
 -  static size_t relative_buf_len = 0;
-+  /* enclave/SET: `__wasilibc_find_relpath_alloc` REALLOCs this buffer and the
-+     caller then reads through it, all outside the cwd lock — a shared-memory
-+     use-after-free for two concurrent `chdir()`s. Per-thread, which is also the
-+     right scope: it is scratch space for one call. */
-+  static __wasilibc_thread_state char *relative_buf = NULL;
-+  static __wasilibc_thread_state size_t relative_buf_len = 0;
++  char **const relative_buf_p = &chdir_relative_buf;
++  size_t *const relative_buf_len_p = &chdir_relative_buf_len;
++#define relative_buf (*relative_buf_p)
++#define relative_buf_len (*relative_buf_len_p)
  
    // Find a preopen'd directory as well as a relative path we're anchored
    // from which we're changing directories to.
+@@ -68,6 +121,8 @@ int chdir(const char *path) {
+     free(prev_cwd);
+   __wasilibc_cwd_mallocd = 1;
+   return 0;
++#undef relative_buf
++#undef relative_buf_len
+ }
+ 
+ // Computes an absolute path for `path` based on the current working directory.
 diff --git a/libc-bottom-half/sources/descriptor_table.c b/libc-bottom-half/sources/descriptor_table.c
-index 56d7816..7719ce1 100644
+index 56d7816..0940d5b 100644
 --- a/libc-bottom-half/sources/descriptor_table.c
 +++ b/libc-bottom-half/sources/descriptor_table.c
-@@ -15,6 +15,213 @@
+@@ -15,6 +15,223 @@
  
  #define MINSIZE 8
  
@@ -504,6 +541,16 @@ index 56d7816..7719ce1 100644
 +  set_fd_ns = (int)ns;
 +  return set_fd_ns;
 +}
++
++/* enclave/SET: implemented in `musl/src/stdio/ofl.c`. Called whenever a thread
++ * rebinds one of ITS OWN indices 0/1/2, so the corresponding shared `FILE`
++ * stops being resolvable by any other thread. See that function for why the
++ * worker-only rule was not enough. */
++void __wasilibc_set_claim_std_stream(int index);
++
++/* Defined by `chdir.c` only when that object is linked; see the call site in
++   `__wasilibc_set_release_thread_state` for why this must stay weak. */
++void __wasilibc_set_release_cwd_bufs(void) __attribute__((__weak__));
 +
 +/* True only while `__wasilibc_init_stdio` is laying this thread's OWN 0/1/2
 + * into its table. The worker floor in `table_allocate` has to stand aside for
@@ -625,7 +672,7 @@ index 56d7816..7719ce1 100644
  typedef struct {
    bool occupied;
    descriptor_table_entry_t entry;
-@@ -32,7 +239,7 @@ typedef struct {
+@@ -32,7 +249,7 @@ typedef struct {
    size_t next_fd;
  } descriptor_table_t;
  
@@ -634,7 +681,7 @@ index 56d7816..7719ce1 100644
  
  /// Grows `table` to have capacity for at least `needed` entries, marking all
  /// newly allocated entries as unoccupied. Returns -1 and sets `errno` on
-@@ -69,9 +276,38 @@ static int table_allocate(descriptor_table_t *table,
+@@ -69,9 +286,42 @@ static int table_allocate(descriptor_table_t *table,
                            descriptor_table_entry_t entry) {
    STRONG_ASSERT_HELD(table->lock);
    size_t fd = table->next_fd;
@@ -666,15 +713,19 @@ index 56d7816..7719ce1 100644
    while (fd < table->len && table->entries[fd].occupied)
      fd++;
 -  if (fd == table->len && table_grow(table, table->len + 1) < 0)
-+  /* `>=`, not `==`: the SET bump above can put `fd` past `len` when the table
-+     is shorter than 3 entries, and growing to `len + 1` would then hand back
-+     an index outside the array. Identical to the original for every non-SET
-+     path, where the loop cannot leave `fd` above `len`. */
++  /* `>=`, not `==`, and this is REQUIRED rather than defensive. `table_grow`
++     never yields a length between 1 and 7, so the reachable state is `len == 0`
++     with `stdio_initialized` already true -- produced by `stdio_add(0)`'s
++     `calloc` failing under the tenant's own memory cap. The worker floor then
++     puts `fd` at 3 over a zero-length table, and the original `==` would call
++     `table_grow(table, 1)` and write index 3 through a NULL `entries` pointer.
++     Reached deliberately with a tuned heap hole. Identical to the original for
++     every non-SET path, where the loop cannot leave `fd` above `len`. */
 +  if (fd >= table->len && table_grow(table, fd + 1) < 0)
      return -1;
  
    table->entries[fd].occupied = true;
-@@ -149,11 +385,20 @@ static void clear(descriptor_table_t *table) {
+@@ -149,11 +399,20 @@ static void clear(descriptor_table_t *table) {
    table->len = 0;
  }
  
@@ -696,7 +747,7 @@ index 56d7816..7719ce1 100644
  }
  
  #ifdef NDEBUG
-@@ -162,7 +407,7 @@ static void live_descriptors_dec() {}
+@@ -162,7 +421,7 @@ static void live_descriptors_dec() {}
  #else
  #include <stdio.h>
  
@@ -705,7 +756,7 @@ index 56d7816..7719ce1 100644
  
  static void live_descriptors_inc() { live_descriptors += 1; }
  
-@@ -185,7 +430,7 @@ void __wasilibc_assert_no_descriptor_leaks() {
+@@ -185,7 +444,7 @@ void __wasilibc_assert_no_descriptor_leaks() {
        if (i < 3) {
          stdio_open++;
        } else {
@@ -714,7 +765,7 @@ index 56d7816..7719ce1 100644
          assert(rc == 0);
          closed++;
        }
-@@ -229,17 +474,34 @@ int descriptor_table_insert(descriptor_table_entry_t entry) {
+@@ -229,17 +488,43 @@ int descriptor_table_insert(descriptor_table_entry_t entry) {
    STRONG_LOCK(global_table.lock);
    defer STRONG_UNLOCK(global_table.lock);
  
@@ -722,6 +773,15 @@ index 56d7816..7719ce1 100644
 +  int index = descriptor_table_insert_entry(entry);
 +  if (index < 0)
 +    return -1;
++#ifdef __wasilibc_set_threads__
++  /* A FRESH descriptor landing on 0/1/2 is a redirect: `close(1); open(...)`.
++     Not during stdio population, which is the stream being established rather
++     than replaced. */
++  if (index < SET_FD_UNTAGGED && !set_stdio_populating) {
++    (void)set_fd_ns_claim(); /* see `descriptor_table_remove` */
++    __wasilibc_set_claim_std_stream(index);
++  }
++#endif
 +  int fd = index_to_fd((size_t)index);
 +  if (fd < 0) {
 +    /* No namespace slot: undo the allocation rather than hand back an fd this
@@ -751,7 +811,7 @@ index 56d7816..7719ce1 100644
    if (!slot)
      return -1;
    descriptor_table_entry_inc(*slot);
-@@ -248,40 +510,126 @@ int descriptor_table_get(int fd, descriptor_table_entry_t *entry) {
+@@ -248,44 +533,138 @@ int descriptor_table_get(int fd, descriptor_table_entry_t *entry) {
  }
  
  // Some large but not too large value to allow `dup2` to dos this process.
@@ -875,19 +935,31 @@ index 56d7816..7719ce1 100644
 +         `dup2(f, STDOUT_FILENO)`; allowing it leaks guest bytes into the host
 +         log, which is not a trade a TCB gets to make. Redirect on the main
 +         thread, or write to the descriptor directly. */
++      errno = EBADF;
++      return -1;
++    }
++    if (newindex >= MAX_DESCRIPTOR) {
        errno = EBADF;
        return -1;
      }
 -    size_t newfd = arg;
-+    if (newindex >= MAX_DESCRIPTOR) {
-+      errno = EBADF;
-+      return -1;
-+    }
 +    size_t newfd = (size_t)newindex;
  
      if (table_grow(&global_table, newfd + 1) < 0)
        return -1;
-@@ -297,29 +645,51 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
+ 
++#ifdef __wasilibc_set_threads__
++    /* `dup2(fd, 1)` is the other spelling of the same redirect. */
++    if (newfd < (size_t)SET_FD_UNTAGGED) {
++      (void)set_fd_ns_claim(); /* see `descriptor_table_remove` */
++      __wasilibc_set_claim_std_stream((int)newfd);
++    }
++#endif
++
+     descriptor_table_item_t *table_entry = &global_table.entries[newfd];
+     descriptor_table_entry_inc(entry);
+ 
+@@ -297,29 +676,51 @@ int descriptor_table_dup(int fd, enum dup_op_t op, int arg) {
        table_entry->entry = entry;
        table_entry->occupied = true;
      }
@@ -904,16 +976,16 @@ index 56d7816..7719ce1 100644
 +    // both mean the same index.
 +    int lower = fd_target_to_index(arg);
 +    if (lower < 0) {
-+      errno = EINVAL;
-+      return -1;
-+    }
-+    if (lower >= MAX_DESCRIPTOR) {
        errno = EINVAL;
        return -1;
      }
 -    // Search for the lowest unoccupied descriptor >= `arg`, starting at the
 -    // allocation hint if it's already past `arg`.
 -    size_t minfd = arg;
++    if (lower >= MAX_DESCRIPTOR) {
++      errno = EINVAL;
++      return -1;
++    }
 +    // Search for the lowest unoccupied descriptor >= `lower`, starting at the
 +    // allocation hint if it's already past it.
 +    size_t minfd = (size_t)lower;
@@ -944,7 +1016,7 @@ index 56d7816..7719ce1 100644
    }
  
    default:
-@@ -331,9 +701,35 @@ int descriptor_table_remove(int fd) {
+@@ -331,9 +732,56 @@ int descriptor_table_remove(int fd) {
    if (!stdio_initialized && init_stdio() < 0)
      return -1;
  
@@ -974,6 +1046,27 @@ index 56d7816..7719ce1 100644
 +  }
 +#endif
 +
++#ifdef __wasilibc_set_threads__
++  /* Claim BEFORE the removal, so no window exists in which the stream is both
++     closed here and still writable from a sibling. Only reachable for the main
++     thread: a worker was refused above. */
++  if (index < SET_FD_UNTAGGED && !set_stdio_populating) {
++    /* CLAIM FIRST. `__wasilibc_file_own` stamps `__wasilibc_set_current_ns()`,
++       which is a PURE READ and returns -1 for a thread that has never created a
++       tagged descriptor -- and -1 stamps SHARED, i.e. the claim silently does
++       NOTHING. That is not a corner case: a thread reaches here without a
++       namespace exactly when its own 0/1/2 are free, which is the
++       partially-failed-`init_stdio` state, which is the state that makes the
++       redirect leak reachable in the first place. Measured: with the claim
++       unclaimed, an OOM inside main's stdio init still put the guest's secret
++       on the operator's stdout with the guest's file at 0 bytes.
++       Free for the only thread that can get here: main claims namespace 0
++       without touching the monotonic counter (0 extra ids measured). */
++    (void)set_fd_ns_claim();
++    __wasilibc_set_claim_std_stream(index);
++  }
++#endif
++
    descriptor_table_entry_t entry;
    STRONG_LOCK(global_table.lock);
 -  int rc = table_remove(&global_table, fd, &entry);
@@ -981,7 +1074,7 @@ index 56d7816..7719ce1 100644
    STRONG_UNLOCK(global_table.lock);
    if (rc < 0)
      return -1;
-@@ -357,3 +753,32 @@ void __wasilibc_descriptor_deallocate(descriptor_table_entry_t entry) {
+@@ -357,3 +805,39 @@ void __wasilibc_descriptor_deallocate(descriptor_table_entry_t entry) {
    errno = saved_errno;
    live_descriptors_dec();
  }
@@ -1009,6 +1102,13 @@ index 56d7816..7719ce1 100644
 +  }
 +  __wasilibc_set_release_preopens();
 +  __wasilibc_set_release_path_bufs();
++  /* WEAK: only defined when `chdir.o` is linked. Calling it unconditionally
++     would drag `chdir.o` into every program, which also defines the weak
++     `__wasilibc_find_relpath_alloc` -- flipping `find_relpath2` onto its other
++     branch for guests that never chdir, and re-arming the round-10 borrowed-
++     pointer `free()`. See `__wasilibc_set_release_cwd_bufs` in chdir.c. */
++  if (__wasilibc_set_release_cwd_bufs)
++    __wasilibc_set_release_cwd_bufs();
 +  /* The NAMESPACE is deliberately not released: ids are monotonic and never
 +     reused, which is what keeps a dead thread's fd from becoming a live
 +     thread's fd naming a different object. */
@@ -1847,6 +1947,53 @@ index f2cd900..ab78b51 100644
  	struct iovec iovs[2] = {
  		{ .iov_base = f->wbase, .iov_len = f->wpos-f->wbase },
  		{ .iov_base = (void *)buf, .iov_len = len }
+diff --git a/libc-top-half/musl/src/stdio/fclose.c b/libc-top-half/musl/src/stdio/fclose.c
+index d594532..b8af070 100644
+--- a/libc-top-half/musl/src/stdio/fclose.c
++++ b/libc-top-half/musl/src/stdio/fclose.c
+@@ -1,5 +1,6 @@
+ #include "stdio_impl.h"
+ #include <stdlib.h>
++#include <errno.h>
+ 
+ static void dummy(FILE *f) { }
+ weak_alias(dummy, __unlist_locked_file);
+@@ -7,7 +8,34 @@ weak_alias(dummy, __unlist_locked_file);
+ int fclose(FILE *f)
+ {
+ 	int r;
+-	
++
++	/* enclave/SET: `fclose` is the destructive member of the family, and the
++	 * ownership rule has to cover it or it undoes the rest. Reaching the code
++	 * below on another thread's FILE:
++	 *
++	 *   - `fflush(f)` correctly refuses (the buffer is left intact), so the
++	 *     owner's bytes are never written;
++	 *   - `f->close(f)` resolves `f->fd` in THIS thread's namespace and fails
++	 *     EBADF;
++	 *   - and then the FILE is unlisted from `__ofl` and `free()`d anyway.
++	 *
++	 * So the owner loses its buffered bytes AND is left holding a dangling
++	 * `FILE *`. Measured: main opens a file and buffers 20 bytes, a worker
++	 * `fclose`s it, the file ends at 0 bytes -- where native flushes all 20.
++	 * That is exactly the "owner's buffered bytes destroyed" condition
++	 * `worker-file-owner.c` exists to catch, reached through the one call the
++	 * round-10 rule did not cover.
++	 *
++	 * Refusing loses the close rather than the data, which is the same trade
++	 * made for the over-buffer cross-thread `fwrite`: under per-thread
++	 * descriptor tables the underlying descriptor is simply not reachable from
++	 * here, so there is no correct way to honour the call. The owner can still
++	 * flush and close its own stream. */
++	if (!__wasilibc_file_mine(f)) {
++		errno = EBADF;
++		return EOF;
++	}
++
+ 	FLOCK(f);
+ 	r = fflush(f);
+ 	r |= f->close(f);
 diff --git a/libc-top-half/musl/src/stdio/fflush.c b/libc-top-half/musl/src/stdio/fflush.c
 index b009437..3bb16d3 100644
 --- a/libc-top-half/musl/src/stdio/fflush.c
@@ -1965,6 +2112,40 @@ index e89f61c..57d7d04 100644
  		__wake(&f->lock, -1, 1);
  		#else
          a_store(&f->lock, 0x40000000);
+diff --git a/libc-top-half/musl/src/stdio/fwrite.c b/libc-top-half/musl/src/stdio/fwrite.c
+index 7a567b2..b5009d3 100644
+--- a/libc-top-half/musl/src/stdio/fwrite.c
++++ b/libc-top-half/musl/src/stdio/fwrite.c
+@@ -9,7 +9,28 @@ size_t __fwritex(const unsigned char *restrict s, size_t l, FILE *restrict f)
+ 
+ 	if (l > f->wend - f->wpos) return f->write(f, s, l);
+ 
+-	if (f->lbf >= 0) {
++	/* enclave/SET: a thread that cannot NAME this FILE's descriptor must not
++	 * take the line-buffered early flush -- it must BUFFER, and let the owner
++	 * drain it.
++	 *
++	 * Buffering costs nothing here: `memcpy` into the shared buffer needs no
++	 * descriptor, so a cross-thread write followed by the owner's flush is
++	 * correct end-to-end and is exactly what native does. Only draining needs
++	 * an fd. Without this test the line-buffered branch called `f->write` on
++	 * the newline, `__stdio_write` refused it (correctly -- resolving `f->fd`
++	 * here is the misdelivery the ownership rule exists to stop), and
++	 * `__fwritex` returned early: the whole line was DISCARDED. Measured, a
++	 * worker writing to a stdout the main thread had redirected:
++	 * `printf("AAAA\n")` vanished while `printf("BBBB")` survived and was
++	 * flushed by main, so the guest silently lost exactly the data it had
++	 * terminated properly.
++	 *
++	 * Suppressing the early flush degrades a non-owning thread's stream from
++	 * line-buffered to fully-buffered, which is a latency change the guest can
++	 * observe, not a data change. The over-buffer case above is untouched and
++	 * is still refused: once the buffer must drain there is no honest answer
++	 * on this thread. */
++	if (f->lbf >= 0 && __wasilibc_file_mine(f)) {
+ 		/* Match /^(.*\n|)/ */
+ 		for (i=l; i && s[i-1] != '\n'; i--);
+ 		if (i) {
 diff --git a/libc-top-half/musl/src/stdio/getc.h b/libc-top-half/musl/src/stdio/getc.h
 index 043f7da..d092391 100644
 --- a/libc-top-half/musl/src/stdio/getc.h
@@ -1989,15 +2170,63 @@ index 043f7da..d092391 100644
  	if (a_swap(&f->lock, 0) & MAYBE_WAITERS)
  		__wake(&f->lock, 1, 1);
 diff --git a/libc-top-half/musl/src/stdio/ofl.c b/libc-top-half/musl/src/stdio/ofl.c
-index f9f430b..63f9128 100644
+index f9f430b..0608a98 100644
 --- a/libc-top-half/musl/src/stdio/ofl.c
 +++ b/libc-top-half/musl/src/stdio/ofl.c
-@@ -15,3 +15,79 @@ void __ofl_unlock()
+@@ -15,3 +15,127 @@ void __ofl_unlock()
  {
  	STRONG_UNLOCK(ofl_lock);
  }
 +
 +#ifdef __wasilibc_set_threads__
++/* enclave/SET: a thread has just REBOUND its own index 0/1/2 (a `close`, or an
++ * `open`/`dup2` that landed there). Give the corresponding shared `FILE` to
++ * that thread, so no other thread can resolve it any more.
++ *
++ * WHY THIS EXISTS. Round 10 stopped a WORKER acquiring or freeing a standard
++ * descriptor, and asserted that this made `__WASILIBC_FILE_SHARED` sound
++ * because "0/1/2 name the same three streams on every thread for the life of
++ * the component". That is false for the MAIN thread, which was left with stock
++ * behaviour on purpose -- and under `wasmtime serve` the request HANDLER runs
++ * on the main thread. A handler doing the ordinary two-line idiom
++ *
++ *     close(1); open("/d/private.txt", ...);      // returns bare fd 1
++ *
++ * left the shared `stdout` (still `SHARED`, so every thread was waved through)
++ * with `f->fd == 1` naming the handler's private file on the handler and the
++ * SERVER'S REAL STDOUT on every worker. A worker's `printf` then went to the
++ * operator's container log -- byte for byte the leak round 10 was written to
++ * close, reached through the one thread the platform actually runs handlers on,
++ * with no worker acquiring a standard descriptor at all. Measured on a reactor:
++ * three requests, three tenant secrets in the server's stdout.
++ *
++ * Claiming the FILE reconciles it with the rule already in place instead of
++ * adding a fifth special case: the redirecting thread keeps native behaviour
++ * (its own `printf` follows its redirect), and every other thread's write is
++ * REFUSED by `__wasilibc_file_mine` rather than delivered somewhere the guest
++ * did not ask for. The cost is that a sibling's `stdout` writes start failing
++ * after an unrelated thread redirects, which is a real divergence from native
++ * and the honest trade: native can redirect a process-wide fd, and under
++ * per-thread descriptor tables nothing can.
++ *
++ * Claimed on `close` as well as on rebind, deliberately. A thread that closes
++ * its stdout and never reopens has told us the stream is gone; letting
++ * siblings keep writing to the real one is the same misdelivery one step
++ * smaller. */
++void __wasilibc_set_claim_std_stream(int index)
++{
++	FILE *f = index == 0 ? __stdin_used
++	        : index == 1 ? __stdout_used
++	        : index == 2 ? __stderr_used
++	                     : 0;
++	if (!f) return;
++	/* Only ever NARROWS: a stream already owned by some thread stays with it.
++	   Two threads racing to redirect the same stream is a guest bug either
++	   way, and the first claim is the one that keeps the others out. */
++	if (f->set_ns != __WASILIBC_FILE_SHARED) return;
++	__wasilibc_file_own(f);
++}
++
 +/* enclave/SET: flush the FILEs THIS thread owns, from `__pthread_exit`.
 + *
 + * Once `__stdio_exit` stopped flushing FILEs it cannot name -- which it had to,

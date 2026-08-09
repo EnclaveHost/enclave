@@ -91,6 +91,8 @@ wasmtime run $W -S cli worker-io.wasm
 | `worker-stdio-leak.c` | a worker cannot acquire a standard descriptor (`close(1); open()` used to hand back bare fd 1, and main's exit flush delivered the guest's bytes to the OPERATOR's log) — and still has a working stderr, which the first attempt at the fix silently took away |
 | `worker-file-owner.c` | a `FILE` may only be RESOLVED by the thread whose namespace its `fd` names, while everything that does not resolve it stays native-identical. Covers `fflush(NULL)`, explicit `fflush`, buffered and over-buffer cross-thread `fwrite`, and the thread-exit flush |
 | `worker-stdio-freopen.c` | a failed `freopen` on a worker does not wedge the shared stdout for every other thread (its failure path is `fclose(stdout)`) |
+| `worker-std-redirect.c` | the MAIN thread (= the request handler under `serve`) redirecting fd 1 does not send a worker's `printf` to the operator's log — the door round 10's worker-only rule left open — AND the non-owning thread's line-buffered write is BUFFERED rather than discarded |
+| `worker-fclose-owner.c` | `fclose` on another thread's FILE is refused, not performed: performing it destroys the owner's buffered bytes and frees the FILE underneath it, which trapped the component (on one build from inside a HOST call) |
 | `worker-stdio-orphan.c` | a worker trapping while holding stdout's lock (explicit `flockfile`) does not wedge stdio |
 | `worker-stdio-orphan-internal.c` | the same through the INTERNAL `FLOCK` path `printf` takes — the layer musl never registered |
 | `worker-mem-grow.c` | `-W max-memory-size` bounds SHARED-memory growth, from a worker thread. Now ASSERTS it: pass the cap in via `--env MAX_MEMORY_SIZE=<same value>`. It used to `return 0` whatever it measured, so it would have reported success on the very build whose bug it exists to catch |
@@ -112,6 +114,14 @@ followed by the owner's flush is correct, and native does exactly that. Build th
 same source with gcc and run it before deciding what "correct" means.
 `enclave-wasipsetc-build:r8` (round-7 libc) and `:r9c` (round-9 libc) are kept
 for these A/Bs.
+
+**Two more instances since**, both caught by a native control rather than by
+review: `worker-file-owner.c`'s first draft asserted a cross-thread `fwrite`
+must write zero bytes (it must not — `fwrite` buffers, and only draining needs
+an fd), and `worker-fclose-owner.c`'s first draft used the FILE after a foreign
+`fclose`, which made the NATIVE arm abort with "double free or corruption". In
+both cases the probe was wrong, not the libc. Build the same source with gcc
+before deciding what correct means — every time.
 
 ## `set-http-handler.c`: the shape the platform actually runs
 

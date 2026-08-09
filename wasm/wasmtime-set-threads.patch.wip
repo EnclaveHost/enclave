@@ -2237,7 +2237,7 @@ index 453b6dc..8b29108 100644
  
          let instance = Instance::from_wasmtime(decrement.store.0, instantiator.id);
 diff --git a/crates/wasmtime/src/runtime/component/mod.rs b/crates/wasmtime/src/runtime/component/mod.rs
-index 7bf166b..d63c1ac 100644
+index 7bf166b..06ac245 100644
 --- a/crates/wasmtime/src/runtime/component/mod.rs
 +++ b/crates/wasmtime/src/runtime/component/mod.rs
 @@ -107,6 +107,7 @@ mod component;
@@ -2248,7 +2248,7 @@ index 7bf166b..d63c1ac 100644
  mod instance;
  mod linker;
  mod matching;
-@@ -129,7 +130,42 @@ pub use self::func::{
+@@ -129,7 +130,44 @@ pub use self::func::{
      ComponentNamedList, ComponentType, Func, Lift, Lower, TypedFunc, WasmList, WasmStr,
  };
  pub use self::has_data::*;
@@ -2256,7 +2256,9 @@ index 7bf166b..d63c1ac 100644
  pub use self::instance::{Instance, InstancePre};
 +/// enclave/SET: the embedder-facing half of shared-everything-threads spawning.
 +#[cfg(all(feature = "std", feature = "threads"))]
-+pub use crate::runtime::vm::component::{SetThreadGroup, SetWorkerHost, SetWorkerRequest};
++pub use crate::runtime::vm::component::{
++    set_reaper_drain, SetThreadGroup, SetWorkerHost, SetWorkerRequest,
++};
 +
 +/// enclave/SET: the PROCESS-wide live-thread ceiling shared-everything-threads
 +/// spawning enforces.
@@ -2421,7 +2423,7 @@ index ab41825..40b94e0 100644
                  // For shared memory, the `VMMemoryDefinition` is updated inside
                  // the locked region.
 diff --git a/crates/wasmtime/src/runtime/store.rs b/crates/wasmtime/src/runtime/store.rs
-index 9cc49ea..7727b96 100644
+index 9cc49ea..d3d3fd1 100644
 --- a/crates/wasmtime/src/runtime/store.rs
 +++ b/crates/wasmtime/src/runtime/store.rs
 @@ -470,6 +470,47 @@ pub struct StoreOpaque {
@@ -2545,7 +2547,7 @@ index 9cc49ea..7727b96 100644
      /// Configures epoch-deadline expiration to invoke a custom callback
      /// function.
      ///
-@@ -1657,6 +1757,318 @@ impl StoreOpaque {
+@@ -1657,6 +1757,282 @@ impl StoreOpaque {
          (self.instances[id].handle.get_mut(), &self.modules)
      }
  
@@ -2694,8 +2696,8 @@ index 9cc49ea..7727b96 100644
 +
 +        // Whatever the reaper has to hold to answer "is anything still live?".
 +        // With the component model that is the group; without it there is no
-+        // group and `live_is_zero` is always false, so the reaper simply runs
-+        // out its timeout.
++        // group at all and `live_is_zero` is always false, so the reaper simply
++        // runs out its timeout.
 +        #[cfg(feature = "component-model")]
 +        type SetReaperGroup = Option<std::sync::Arc<crate::runtime::vm::component::SetThreadGroup>>;
 +        #[cfg(not(feature = "component-model"))]
@@ -2718,7 +2720,14 @@ index 9cc49ea..7727b96 100644
 +        fn live_is_zero(
 +            group: &Option<std::sync::Arc<crate::runtime::vm::component::SetThreadGroup>>,
 +        ) -> bool {
-+            group.as_ref().map(|g| g.live_workers()).unwrap_or(0) == 0
++            // `is_some_and`, NOT `map(..).unwrap_or(0) == 0`: with no group
++            // there is nothing that can report progress, and answering "zero
++            // live" would send a store with live handles down the fast path to
++            // an unbounded, unbumped, undetachable inline `join()` -- the exact
++            // wedge this mechanism exists to remove. Unreachable today (every
++            // caller of `push_set_thread_join` sets the group first), which is
++            // precisely why it must not fail OPEN if that ever changes.
++            group.as_ref().is_some_and(|g| g.live_workers() == 0)
 +        }
 +        #[cfg(not(feature = "component-model"))]
 +        fn live_is_zero<T>(_: &T) -> bool {
@@ -2739,99 +2748,41 @@ index 9cc49ea..7727b96 100644
 +            }
 +        }
 +
-+        /// Take the stop-and-join wait OFF the caller's thread.
-+        ///
-+        /// Everything here used to run inline in `Drop`. It owns everything it
-+        /// touches — `Arc`s and `JoinHandle`s, no borrow of the store — which
-+        /// is what makes moving it sound, and which was already implied by the
-+        /// existing behaviour: the default timeout DETACHES a straggler after
-+        /// 2 s, so "a worker outlives its store" is a state this design
-+        /// accepted long before this change. The reaper does not weaken an
-+        /// invariant that was being held; it stops an executor thread from
-+        /// waiting to reach the same conclusion.
-+        ///
-+        /// If the reaper thread cannot be spawned, the handles are dropped
-+        /// unjoined — which is exactly what the timeout path already calls
-+        /// "detached" — and we say so. Falling back to waiting inline would
-+        /// reintroduce the executor-blocking this exists to remove, at the one
-+        /// moment (thread exhaustion) when the process can least afford a
-+        /// parked worker. `request_stop` has already been issued either way,
-+        /// and the CLI's periodic epoch ticker keeps bumping, so a spinning
-+        /// worker still gets trapped without our bumps.
-+        fn spawn_set_reaper(
-+            group: SetReaperGroup,
-+            engine: crate::Engine,
-+            joins: Vec<std::thread::JoinHandle<()>>,
-+        ) {
-+            let reap = move || {
-+                let timeout = crate::runtime::vm::component::set_join_timeout();
-+                let unbounded = timeout.is_zero();
-+                let deadline = std::time::Instant::now() + timeout;
-+                loop {
-+                    if live_is_zero(&group) {
-+                        break;
-+                    }
-+                    if !unbounded && std::time::Instant::now() >= deadline {
-+                        break;
-+                    }
-+                    // Keep bumping: the callback re-arms the deadline every
-+                    // `ticks`, so one bump is not guaranteed to land while the
-+                    // worker is executing.
-+                    engine.increment_epoch();
-+                    std::thread::sleep(std::time::Duration::from_millis(1));
-+                }
-+
-+                let all_done = live_is_zero(&group);
-+                for handle in joins {
-+                    if all_done || handle.is_finished() || unbounded {
-+                        join_finished_set_worker(handle);
-+                    } else {
-+                        // Detached deliberately: nothing it can reach is being
-+                        // freed, and the alternative is blocking forever.
-+                        let name = handle.thread().name().unwrap_or("set-thread").to_string();
-+                        log::error!(
-+                            "SET worker {name} did not stop within the teardown timeout and \
-+                             has been detached; it still holds a live-thread slot. This \
-+                             usually means the engine has no epoch ticker (see \
-+                             `Config::epoch_interruption`) and the guest thread never yields."
-+                        );
-+                        eprintln!(
-+                            "wasmtime: warning: SET worker {name} did not stop at store \
-+                             teardown and was detached (it still holds a live-thread slot)"
-+                        );
-+                    }
-+                }
-+            };
-+
-+            match std::thread::Builder::new()
-+                .name("wasmtime-set-reaper".to_string())
-+                .spawn(reap)
-+            {
-+                Ok(_handle) => {} // detached on purpose: nothing waits for it
-+                Err(e) => {
-+                    // The closure — and with it the handles — is dropped by the
-+                    // failed spawn, so every worker is detached. Same outcome
-+                    // as the timeout path, reached for a different reason, and
-+                    // it must not be silent.
-+                    log::error!(
-+                        "could not spawn the SET teardown reaper ({e}); this store's workers \
-+                         have been detached and still hold their live-thread slots"
-+                    );
-+                    eprintln!(
-+                        "wasmtime: warning: could not spawn the SET teardown reaper ({e}); \
-+                         workers detached"
-+                    );
-+                }
++        // FAST PATH: every worker has already dropped its `LiveGuard`, so
++        // there is nothing to wait for and `join()` cannot block.
++        //
++        // Round 11 measured how often this is actually taken, and the honest
++        // answer is "less often than it looks": 10-41% of ordinary
++        // spawn-AND-JOIN HTTP requests take the SLOW path instead, because a
++        // worker's `LiveGuard` is released only after its whole `Store` is torn
++        // down, well after the guest's `pthread_join` returned. So the slow
++        // path is a NORMAL path, not a pathological one, and it is sized
++        // accordingly below.
++        if live_is_zero(&group) {
++            for handle in joins {
++                join_finished_set_worker(handle);
 +            }
++            return;
 +        }
 +
-+        // FAST PATH, and the one that matters for throughput: every worker has
-+        // already dropped its `LiveGuard`, so there is nothing to wait for.
-+        // `join()` on a finished thread does not block, so this stays inline
-+        // and costs no thread. A guest that joins its own threads before
-+        // returning — which is what an ordinary program and every HTTP handler
-+        // in the probe corpus does — lands here every time.
-+        if live_is_zero(&group) {
++        // `ENCLAVE_SET_JOIN_TIMEOUT_MS=0` is documented as restoring the
++        // unbounded join, and `SetWorkerHost::run_worker` names it as the
++        // escape hatch for an embedder that cannot meet its obligation. That
++        // promise is only kept by waiting HERE: handing an unbounded wait to
++        // the shared reaper would park the reaper for every other store, and
++        // returning immediately would free the store while the worker runs,
++        // which is the exact opposite of what the knob is for. So the caller's
++        // thread is re-parked, deliberately and only when an operator asked
++        // for it.
++        let timeout = crate::runtime::vm::component::set_join_timeout();
++        if timeout.is_zero() {
++            loop {
++                if live_is_zero(&group) {
++                    break;
++                }
++                self.engine().increment_epoch();
++                std::thread::sleep(std::time::Duration::from_millis(1));
++            }
 +            for handle in joins {
 +                join_finished_set_worker(handle);
 +            }
@@ -2840,31 +2791,46 @@ index 9cc49ea..7727b96 100644
 +
 +        // SLOW PATH: something is still running. Waiting for it HERE is what
 +        // this function must never do (see the doc comment), so the wait, the
-+        // epoch bumps, the timeout and the detach diagnostic all move to a
-+        // reaper thread that owns everything it touches.
++        // epoch bumps, the timeout and the detach diagnostic go to the
++        // process-global reaper.
 +        //
-+        // Cost, stated rather than hidden: one short-lived OS thread per store
-+        // teardown that still has a live worker. That is the already-pathological
-+        // case — a guest detaching a thread it never joins — and it is bounded
-+        // by the request rate and by the process-wide live-thread cap. It buys
-+        // a hard guarantee that no executor thread is ever parked here.
-+        let engine = self.engine().clone();
-+        // Observable on purpose. The reaper finishes in microseconds whenever
-+        // the stop flag lands, which makes "was the slow path taken at all?"
-+        // impossible to answer by sampling threads — and an unexercised
-+        // teardown path in this area is exactly what previous rounds shipped.
-+        // `WASMTIME_LOG=wasmtime::runtime::store=debug` shows it.
++        // ONE reaper for the process, not one thread per teardown. The
++        // per-teardown version measured ~1950 engine-created OS threads per
++        // second against a guest that detaches a worker per request, and those
++        // threads were counted by NOTHING: not `ENCLAVE_MAX_SET_THREADS`, not
++        // `ENCLAVE_MAX_SET_SPAWN_RATE`, not the RAM ledger. Round 4's lesson
++        // was that thread CREATION is a node-wide cost that has to be bounded,
++        // and a creation path the guest can drive but no limiter can see is
++        // that lesson unlearned. A queue push costs nothing and is bounded by
++        // construction.
++        //
++        // DEBUG, not warn. Measured: 23.5% of ordinary spawn-AND-join HTTP
++        // requests reach this line (94 of 400, and the same shape gives 10-41%
++        // across concurrencies), because a worker's `LiveGuard` is released
++        // only after its whole `Store` is torn down. Warning on a path a
++        // NORMAL guest takes a quarter of the time would put ~1 line per 4
++        // requests on the tenant's log, which is the same log-flooding defect
++        // rounds 4 and 5 recorded for the trap diagnostics. The exceptional
++        // outcome -- an actual DETACH -- is reported by the reaper at `error`
++        // plus an unconditional `eprintln!`, and `wasmtime run` drains the
++        // reaper before exiting so that report is not lost to process exit.
 +        log::debug!(
-+            "SET teardown: {} worker handle(s) still live, handed to a reaper thread",
++            "SET teardown: {} worker handle(s) still live, handed to the reaper",
 +            joins.len()
 +        );
-+        spawn_set_reaper(group, engine, joins);
++        let engine = self.engine().clone();
++        crate::runtime::vm::component::set_reaper_submit(
++            group,
++            engine,
++            joins,
++            std::time::Instant::now() + timeout,
++        );
 +    }
 +
      /// Access multiple instances specified via `ids`.
      ///
      /// # Panics
-@@ -2408,6 +2820,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
+@@ -2408,6 +2784,19 @@ impl<T: fmt::Debug> fmt::Debug for Store<T> {
  
  impl<T> Drop for Store<T> {
      fn drop(&mut self) {
@@ -2884,7 +2850,7 @@ index 9cc49ea..7727b96 100644
          self.run_manual_drop_routines();
  
          // For documentation on this `unsafe`, see `into_data`.
-@@ -2423,6 +2848,19 @@ impl Drop for StoreOpaque {
+@@ -2423,6 +2812,19 @@ impl Drop for StoreOpaque {
          // NB it's important that this destructor does not access `self.data`.
          // That is deallocated by `Drop for Store<T>` above.
  
@@ -2969,7 +2935,7 @@ index 2f503d1..e21782d 100644
  // Note that `debug_builtins` here is disabled with a feature or a lack of a
  // native compilation backend because it's only here to assist in debugging
 diff --git a/crates/wasmtime/src/runtime/vm/component.rs b/crates/wasmtime/src/runtime/vm/component.rs
-index de21c67..17251e3 100644
+index de21c67..12626b5 100644
 --- a/crates/wasmtime/src/runtime/vm/component.rs
 +++ b/crates/wasmtime/src/runtime/vm/component.rs
 @@ -16,8 +16,8 @@ use crate::runtime::vm::instance::{InstanceLayout, OwnedInstance, OwnedVMContext
@@ -2983,7 +2949,7 @@ index de21c67..17251e3 100644
  };
  use crate::store::InstanceId;
  use crate::{Func, vm};
-@@ -38,9 +38,26 @@ use wasmtime_environ::{HostPtr, PrimaryMap, VMSharedTypeIndex};
+@@ -38,9 +38,30 @@ use wasmtime_environ::{HostPtr, PrimaryMap, VMSharedTypeIndex};
  )]
  const INVALID_PTR: usize = 0xdead_dead_beef_beef_u64 as usize;
  
@@ -3004,13 +2970,17 @@ index de21c67..17251e3 100644
 +mod set_threads;
 +#[cfg(all(feature = "std", feature = "threads"))]
 +pub use set_threads::{
-+    max_live_threads, refund_spawn_token, set_join_timeout, take_spawn_token, SetThreadGroup,
++    max_live_threads, refund_spawn_token, set_join_timeout, set_reaper_drain, take_spawn_token,
++    SetThreadGroup,
 +    SetViewPlan, SetWorkerHost, SetWorkerRequest,
 +};
++
++#[cfg(all(feature = "std", feature = "threads"))]
++pub(crate) use set_threads::set_reaper_submit;
  
  pub use self::handle_table::{HandleTable, RemovedResource};
  #[cfg(feature = "component-model-async")]
-@@ -136,6 +153,17 @@ pub struct ComponentInstance {
+@@ -136,6 +157,17 @@ pub struct ComponentInstance {
      /// `Store` that this component belongs to.
      instances: TryPrimaryMap<RuntimeInstanceIndex, InstanceId>,
  
@@ -3028,7 +2998,7 @@ index de21c67..17251e3 100644
      /// Storage for the type information about resources within this component
      /// instance.
      resource_types: Arc<TryPrimaryMap<ResourceIndex, ResourceType>>,
-@@ -258,6 +286,79 @@ impl ComponentInstance {
+@@ -258,6 +290,79 @@ impl ComponentInstance {
          // allocation which can go backwards to a `ComponentInstance`.
          let mut ptr = unsafe { Self::from_vmctx(vmctx) };
  
@@ -3108,7 +3078,7 @@ index de21c67..17251e3 100644
          // SAFETY: it's a contract of this function that it's safe to use `ptr`
          // as a mutable reference.
          let reference = unsafe { ptr.as_mut() };
-@@ -343,6 +444,7 @@ impl ComponentInstance {
+@@ -343,6 +448,7 @@ impl ComponentInstance {
              offsets,
              instance_states,
              instances,
@@ -3116,7 +3086,7 @@ index de21c67..17251e3 100644
              component: component.clone(),
              resource_types,
              imports: imports.clone(),
-@@ -518,16 +620,46 @@ impl ComponentInstance {
+@@ -518,16 +624,46 @@ impl ComponentInstance {
      /// Note that it should be a property of the component model that the `ptr`
      /// here is never needed prior to it being configured here in the instance.
      pub fn set_runtime_memory(
@@ -3166,7 +3136,7 @@ index de21c67..17251e3 100644
      }
  
      /// Same as `set_runtime_memory` but for realloc function pointers.
-@@ -926,6 +1058,21 @@ impl ComponentInstance {
+@@ -926,6 +1062,21 @@ impl ComponentInstance {
          self.instances[idx]
      }
  
@@ -3322,10 +3292,10 @@ index f62ea58..7ed3b91 100644
      store: &mut dyn VMStore,
 diff --git a/crates/wasmtime/src/runtime/vm/component/set_threads.rs b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
 new file mode 100644
-index 0000000..621b380
+index 0000000..bd4199c
 --- /dev/null
 +++ b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
-@@ -0,0 +1,1634 @@
+@@ -0,0 +1,1834 @@
 +//! enclave/SET: real OS-thread spawning for the shared-everything-threads
 +//! `thread.spawn-ref` / `thread.spawn-indirect` component intrinsics.
 +//!
@@ -3549,6 +3519,206 @@ index 0000000..621b380
 +            .unwrap_or(2_000)
 +    });
 +    std::time::Duration::from_millis(ms)
++}
++
++/// enclave/SET: the PROCESS-GLOBAL teardown reaper.
++///
++/// `StoreOpaque::join_set_threads` runs from `Drop`, which under
++/// `wasmtime serve` is a tokio worker, and `Drop` cannot `await`. So a store
++/// that still has a live worker hands the wait here instead of performing it
++/// inline. Measured: against a guest that detaches an unstoppable worker per
++/// request, moving the wait off the caller took throughput from 51 to 2236
++/// rps and the worst latency from 2006 ms to 60 ms.
++///
++/// ONE thread for the process, not one per teardown. The first version of this
++/// spawned a reaper per store and measured ~1950 engine-created OS threads per
++/// second under an ordinary load — and every one of them was invisible to
++/// `ENCLAVE_MAX_SET_THREADS`, to `ENCLAVE_MAX_SET_SPAWN_RATE` and to the RAM
++/// ledger, because the ENGINE created them rather than the guest. Round 4
++/// established that thread creation is a node-wide cost that must be bounded;
++/// a guest-drivable creation path that no limiter can see is that lesson
++/// unlearned. It also made the spawn-failure diagnostic guest-reachable and
++/// un-rate-limited, i.e. a way to flood the tenant's log.
++///
++/// The queue is unbounded, which is the right trade here: an entry is three
++/// pointers and a deadline, entries drain at their own timeout, and dropping
++/// one would leak the thread it was meant to reap. Backpressure would have to
++/// block the caller, which is the thing this exists to stop.
++#[cfg(all(feature = "std", feature = "threads"))]
++mod reaper {
++    use super::SetThreadGroup;
++    // `Vec`/`ToString` come from the crate prelude: this crate is no_std-capable.
++    use crate::prelude::*;
++    use core::sync::atomic::{AtomicUsize, Ordering};
++    use std::sync::mpsc::{Receiver, Sender};
++    use std::sync::{Arc, Mutex, OnceLock};
++    use std::thread::JoinHandle;
++    use std::time::{Duration, Instant};
++
++    pub(super) struct Job {
++        pub group: Option<Arc<SetThreadGroup>>,
++        pub engine: crate::Engine,
++        pub joins: Vec<JoinHandle<()>>,
++        pub deadline: Instant,
++    }
++
++    fn live_is_zero(group: &Option<Arc<SetThreadGroup>>) -> bool {
++        group.as_ref().is_some_and(|g| g.live_workers() == 0)
++    }
++
++    /// Jobs submitted but not yet finished. Lets `wasmtime run` wait for the
++    /// reaper before the process exits (see `drain`); `serve` never does.
++    pub(super) static PENDING: AtomicUsize = AtomicUsize::new(0);
++
++    fn finish(job: Job) {
++        let all_done = live_is_zero(&job.group);
++        for handle in job.joins {
++            if all_done || handle.is_finished() {
++                if let Err(e) = handle.join() {
++                    log::warn!("SET worker thread panicked: {e:?}");
++                }
++            } else {
++                // Detached deliberately: nothing it can reach is being freed,
++                // and the alternative is blocking forever. The handoff itself
++                // is logged at `warn` by the caller, because THIS message
++                // arrives at least a full timeout later and under
++                // `wasmtime run` the process has usually exited by now.
++                let name = handle.thread().name().unwrap_or("set-thread").to_string();
++                log::error!(
++                    "SET worker {name} did not stop within the teardown timeout and has \
++                     been detached; it still holds a live-thread slot. This usually means \
++                     the engine has no epoch ticker (see `Config::epoch_interruption`) and \
++                     the guest thread never yields."
++                );
++                // Detaching a straggler must not depend on the embedder having
++                // logging configured: this is the one outcome an operator has
++                // to be able to see.
++                eprintln!(
++                    "wasmtime: warning: SET worker {name} did not stop at store teardown \
++                     and was detached (it still holds a live-thread slot)"
++                );
++            }
++        }
++    }
++
++    fn run(rx: Receiver<Job>) {
++        let mut pending: Vec<Job> = Vec::new();
++        loop {
++            if pending.is_empty() {
++                match rx.recv() {
++                    Ok(job) => pending.push(job),
++                    // Every sender is gone, which cannot happen while the
++                    // process lives (the sender is a `OnceLock` static), but
++                    // exiting is the only correct answer if it ever does.
++                    Err(_) => return,
++                }
++            } else {
++                // Poll at the same 1 ms cadence the inline wait used, picking
++                // up new work in the same breath.
++                match rx.recv_timeout(Duration::from_millis(1)) {
++                    Ok(job) => pending.push(job),
++                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
++                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
++                }
++            }
++
++            let now = Instant::now();
++            let mut i = 0;
++            while i < pending.len() {
++                let done = live_is_zero(&pending[i].group) || now >= pending[i].deadline;
++                if done {
++                    finish(pending.swap_remove(i));
++                    PENDING.fetch_sub(1, Ordering::SeqCst);
++                } else {
++                    // Keep bumping: the worker's epoch callback re-arms every
++                    // `ticks`, so one bump is not guaranteed to land while it
++                    // is executing.
++                    pending[i].engine.increment_epoch();
++                    i += 1;
++                }
++            }
++        }
++    }
++
++    /// `None` once we have tried and failed to start the thread, so a process
++    /// that cannot spawn does not retry on every teardown (and does not log on
++    /// every teardown either — that is guest-drivable).
++    static TX: OnceLock<Option<Mutex<Sender<Job>>>> = OnceLock::new();
++
++    pub(super) fn submit(job: Job) {
++        let tx = TX.get_or_init(|| {
++            let (tx, rx) = std::sync::mpsc::channel();
++            match std::thread::Builder::new()
++                .name("wasmtime-set-reaper".to_string())
++                .spawn(move || run(rx))
++            {
++                Ok(_handle) => Some(Mutex::new(tx)),
++                Err(e) => {
++                    // Once per process, so not rate-limited and not
++                    // guest-reachable as a log-flooding path.
++                    log::error!(
++                        "could not start the SET teardown reaper ({e}); SET workers that \
++                         outlive their store will be detached without being joined"
++                    );
++                    None
++                }
++            }
++        });
++        match tx {
++            Some(tx) => {
++                PENDING.fetch_add(1, Ordering::SeqCst);
++                if let Ok(tx) = tx.lock() {
++                    // Send failure means the reaper thread is gone; detaching
++                    // is the same outcome the timeout path already documents.
++                    let _ = tx.send(job);
++                }
++            }
++            // No reaper: drop the handles, i.e. detach. Silent on purpose --
++            // the one-time error above already said why.
++            None => drop(job),
++        }
++    }
++}
++
++/// Wait for the process-global reaper to finish everything already submitted.
++///
++/// For SINGLE-SHOT embedders (`wasmtime run`) only. `Drop` deliberately does not
++/// wait, which under `wasmtime run` meant the process exited before the reaper
++/// could report anything: a straggler was detached in SILENCE, while the module
++/// header advertised a loud diagnostic. Blocking here is correct for a CLI that
++/// is about to exit anyway and wrong for `serve`, which never calls it.
++///
++/// Bounded by the same join timeout, so a wedged worker cannot hold the process
++/// open indefinitely.
++#[cfg(all(feature = "std", feature = "threads"))]
++pub fn set_reaper_drain() {
++    use core::sync::atomic::Ordering;
++    let deadline = std::time::Instant::now() + set_join_timeout() + std::time::Duration::from_millis(50);
++    while reaper::PENDING.load(Ordering::SeqCst) != 0 {
++        if std::time::Instant::now() >= deadline {
++            break;
++        }
++        std::thread::sleep(std::time::Duration::from_millis(1));
++    }
++}
++
++/// Hand a store's still-live SET workers to the process-global reaper.
++///
++/// See the `reaper` module above for why this is one thread for the process
++/// rather than one per teardown.
++#[cfg(all(feature = "std", feature = "threads"))]
++pub(crate) fn set_reaper_submit(
++    group: Option<Arc<SetThreadGroup>>,
++    engine: crate::Engine,
++    joins: Vec<std::thread::JoinHandle<()>>,
++    deadline: std::time::Instant,
++) {
++    reaper::submit(reaper::Job {
++        group,
++        engine,
++        joins,
++        deadline,
++    });
 +}
 +
 +/// `SetThreadGroup::exit_status` when no worker has called `proc_exit`. Out of
@@ -5784,7 +5954,7 @@ index 93164dc..a0de7f4 100644
          .await
      }
 diff --git a/src/commands/run.rs b/src/commands/run.rs
-index 4159165..845aa36 100644
+index 4159165..4c1e725 100644
 --- a/src/commands/run.rs
 +++ b/src/commands/run.rs
 @@ -11,9 +11,11 @@ use std::ffi::OsString;
@@ -5800,7 +5970,15 @@ index 4159165..845aa36 100644
      error::Context as _, format_err,
  };
  use wasmtime_wasi::{WasiCtxView, WasiView};
-@@ -246,12 +248,29 @@ impl RunCommand {
+@@ -239,19 +241,36 @@ impl RunCommand {
+             .enable_io()
+             .build()?;
+ 
+-        runtime.block_on(async {
++        let result = runtime.block_on(async {
+             self.run.common.init_logging()?;
+ 
+             #[cfg(feature = "debug")]
              let debug_run = self.debugger_run()?;
  
              let engine = self.new_engine()?;
@@ -5830,7 +6008,29 @@ index 4159165..845aa36 100644
  
              #[cfg(feature = "debug")]
              if let Some(mut debug_run) = debug_run {
-@@ -335,6 +354,23 @@ impl RunCommand {
+@@ -325,7 +344,20 @@ impl RunCommand {
+             self.instantiate_and_run(&engine, &mut linker, &main, &mut store)
+                 .await?;
+             Ok(())
+-        })
++        });
++
++        // enclave/SET: `Drop for Store` deliberately does not wait for SET
++        // workers -- it hands them to the process-global reaper, because under
++        // `wasmtime serve` that Drop runs on a tokio worker. `run` is
++        // single-shot and about to exit, so it is the one embedder that SHOULD
++        // wait: without this the process exited first and a straggler was
++        // DETACHED IN SILENCE, while the module header advertised a loud
++        // diagnostic. Bounded by the join timeout, so a wedged worker cannot
++        // hold the CLI open indefinitely.
++        #[cfg(all(feature = "component-model", feature = "threads"))]
++        wasmtime::component::set_reaper_drain();
++
++        result
+     }
+ 
+     /// Creates a new `Engine` with the configuration for this command.
+@@ -335,6 +367,23 @@ impl RunCommand {
          if self.run.common.wasm.timeout.is_some() {
              config.epoch_interruption(true);
          }
@@ -5854,7 +6054,7 @@ index 4159165..845aa36 100644
          match self.run.profile {
              Some(Profile::Native(s)) => {
                  config.profiler(s);
-@@ -561,9 +597,30 @@ impl RunCommand {
+@@ -561,9 +610,30 @@ impl RunCommand {
              if self.run.common.wasm.timeout.is_some() {
                  bail!("Cannot set timeout options together with debugging; they are incompatible");
              }
@@ -5885,7 +6085,7 @@ index 4159165..845aa36 100644
                  #[cfg(feature = "profiling")]
                  return Ok(self.setup_guest_profiler(
                      store,
-@@ -579,6 +636,48 @@ impl RunCommand {
+@@ -579,6 +649,48 @@ impl RunCommand {
                  }
              }
  
@@ -5934,7 +6134,7 @@ index 4159165..845aa36 100644
              if let Some(timeout) = self.run.common.wasm.timeout {
                  store.set_epoch_deadline(1);
                  let engine = store.engine().clone();
-@@ -715,6 +814,228 @@ impl RunCommand {
+@@ -715,6 +827,228 @@ impl RunCommand {
              }
          }
  
@@ -6163,7 +6363,7 @@ index 4159165..845aa36 100644
          let finish_epoch_handler =
              self.setup_epoch_handler(store, main_target, profiled_modules)?;
  
-@@ -753,6 +1074,15 @@ impl RunCommand {
+@@ -753,6 +1087,15 @@ impl RunCommand {
                  if let Some(func) = func {
                      self.invoke_func(store, func).await?;
                  }
@@ -6179,7 +6379,7 @@ index 4159165..845aa36 100644
                  Ok(CliInstance::Core(instance))
              }
              #[cfg(feature = "component-model")]
-@@ -771,6 +1101,17 @@ impl RunCommand {
+@@ -771,6 +1114,17 @@ impl RunCommand {
          };
          finish_epoch_handler(store);
  
@@ -6197,7 +6397,7 @@ index 4159165..845aa36 100644
          result
      }
  
-@@ -813,6 +1154,8 @@ impl RunCommand {
+@@ -813,6 +1167,8 @@ impl RunCommand {
              .with_context(|| format!("while interpreting parameters in invoke \"{invoke}\""))?;
  
          let instance = linker.instantiate_async(&mut *store, component).await?;
@@ -6206,7 +6406,7 @@ index 4159165..845aa36 100644
  
          let func = instance
              .get_func(&mut *store, export)
-@@ -846,6 +1189,144 @@ impl RunCommand {
+@@ -846,6 +1202,144 @@ impl RunCommand {
          Ok(())
      }
  
@@ -6351,7 +6551,7 @@ index 4159165..845aa36 100644
      /// Execute the default behavior for components on the CLI, looking for
      /// `wasi:cli`-based commands and running their exported `run` function.
      #[cfg(feature = "component-model")]
-@@ -856,6 +1337,8 @@ impl RunCommand {
+@@ -856,6 +1350,8 @@ impl RunCommand {
          linker: &wasmtime::component::Linker<Host>,
      ) -> Result<wasmtime::component::Instance> {
          let instance = linker.instantiate_async(&mut *store, component).await?;
@@ -6360,7 +6560,7 @@ index 4159165..845aa36 100644
  
          let mut result = None;
          let _ = &mut result;
-@@ -1167,14 +1650,12 @@ impl RunCommand {
+@@ -1167,14 +1663,12 @@ impl RunCommand {
                                  wasmtime_wasi::p0::add_to_linker_async(linker, |t| t.wasip1_ctx())?;
                              }
                              wasmtime_wasi::p1::add_to_linker_async(linker, |t| t.wasip1_ctx())?;
@@ -6375,7 +6575,7 @@ index 4159165..845aa36 100644
                  }
              }
          }
-@@ -1186,14 +1667,11 @@ impl RunCommand {
+@@ -1186,14 +1680,11 @@ impl RunCommand {
              }
              #[cfg(all(feature = "wasi-nn", feature = "component-model"))]
              {
@@ -6390,7 +6590,7 @@ index 4159165..845aa36 100644
                      }
                      #[cfg(feature = "component-model")]
                      CliLinker::Component(linker) => {
-@@ -1202,8 +1680,6 @@ impl RunCommand {
+@@ -1202,8 +1693,6 @@ impl RunCommand {
                              let nn_ctx = h.wasi_nn_wit.as_mut().unwrap();
                              WasiNnView::new(ctx.ctx().table, nn_ctx)
                          })?;
@@ -6399,7 +6599,7 @@ index 4159165..845aa36 100644
                      }
                  }
              }
-@@ -1223,19 +1699,9 @@ impl RunCommand {
+@@ -1223,19 +1712,9 @@ impl RunCommand {
                          bail!("Cannot enable wasi-config for core wasm modules");
                      }
                      CliLinker::Component(linker) => {
@@ -6419,7 +6619,7 @@ index 4159165..845aa36 100644
                      }
                  }
              }
-@@ -1255,22 +1721,10 @@ impl RunCommand {
+@@ -1255,22 +1734,10 @@ impl RunCommand {
                          bail!("Cannot enable wasi-keyvalue for core wasm modules");
                      }
                      CliLinker::Component(linker) => {
@@ -6442,7 +6642,7 @@ index 4159165..845aa36 100644
                      }
                  }
              }
-@@ -1299,8 +1753,7 @@ impl RunCommand {
+@@ -1299,8 +1766,7 @@ impl RunCommand {
                          }
                      }
                  }
@@ -6452,7 +6652,7 @@ index 4159165..845aa36 100644
              }
          }
  
-@@ -1325,59 +1778,161 @@ impl RunCommand {
+@@ -1325,59 +1791,161 @@ impl RunCommand {
                              wasmtime_wasi_tls::p3::add_to_linker(linker)?;
                          }
  
