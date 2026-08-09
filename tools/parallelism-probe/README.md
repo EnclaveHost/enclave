@@ -76,7 +76,7 @@ wasmtime run $W -S cli worker-io.wasm
 | `worker-io.c` | a worker does real WASI: `printf`, `fflush`, `clock_gettime` |
 | `worker-trap.c` | a trapped worker does not hang its joiner (the death hook) |
 | `worker-spin-teardown.c` | **an ordinary program**: detach a compute thread, return from `main`. Used to wedge teardown forever and pin a core; now exits in ~0.2s |
-| `worker-block-teardown.c` | a worker asleep 12s in a HOST call does not hold teardown (the third stop path) |
+| `worker-block-teardown.c` | a worker asleep 12s in a HOST call does not hold teardown (the third stop path). **Also the only way to reach the detach path's `log::error!`** — see the recipe below |
 | `worker-exit.c` | `exit()` on a worker ends the component instead of stranding the joiner |
 | `worker-file-io.c` | **two** file reads/writes with a second thread alive do not deadlock — the object lock `get_read_stream` takes is released |
 | `worker-dir-io-lock.c` | a FAILED stream lookup (`fopen` on a directory) releases that lock too |
@@ -128,6 +128,34 @@ an fd), and `worker-fclose-owner.c`'s first draft used the FILE after a foreign
 `fclose`, which made the NATIVE arm abort with "double free or corruption". In
 both cases the probe was wrong, not the libc. Build the same source with gcc
 before deciding what correct means — every time.
+
+## Forcing a past-deadline DETACH (the `log::error!` in `reaper::finish`)
+
+Rounds 13-21 all reasoned about this arm and none could reach it: every attempt
+with `worker-block-teardown`, `worker-spin-teardown` and `worker-spawn-churn` at
+the default, 5 ms and 500 ms timeouts produced **zero** ERROR records. The reason
+is a race, not a broken probe — the worker's cancellation poll is **5 ms**, so at
+any `ENCLAVE_SET_JOIN_TIMEOUT_MS >= 5` the worker finishes before the reaper's
+deadline and is joined cleanly. Only `=1` wins:
+
+```sh
+ENCLAVE_SET_JOIN_TIMEOUT_MS=1 wasmtime run $W -S cli --dir d::/d worker-block-teardown.wasm
+```
+
+Measured on r14d, and this is the empirical version of the claim the `store.rs`
+and `set_threads.rs` comments make about which configuration is armed:
+
+| `WASMTIME_LOG` | `log::error!` detach line | the raw `writeln!` |
+|---|---|---|
+| **unset** (every CPU tenant, every 0-GPU nn tenant) | **1 — ARMED** | 1 |
+| `error` | 1 | 1 |
+| `wasmtime_wasi_nn=debug` (the fleet's only value, GPU nn tenants) | 0 — suppressed | 1 |
+| `off` | 0 | 1 |
+
+Two things this establishes that analysis alone did not: the ERROR arm really is
+reachable, and it really is armed in the DEFAULT configuration while the fleet's
+GPU value suppresses it. The `writeln!` fires in every column — which is the
+whole point of using one there.
 
 ## `set-http-handler.c`: the shape the platform actually runs
 
