@@ -1125,6 +1125,27 @@ reviewer's own first cut of this was wrong — stamping the fd's namespace
 unconditionally makes `claim_std_stream` a no-op, because stdout's fd is 1 — and
 `worker-std-redirect.c` caught it.
 
+### And the F_ERR fix was itself a regression, found within hours
+
+Setting `f->flags |= F_ERR` on the read refusals was justified in the record by
+"this cannot poison a SHARED stream, because the standard streams are
+statically initialised to SHARED and never stamped". **That stopped being true
+when `__wasilibc_set_claim_std_stream` began stamping them** — which is a change
+in the SAME patch. I noticed the contradiction when applying the fix, wrote it
+down, and shipped it anyway without testing.
+
+Measured: main claims `stdin` by rebinding its own fd 0, a worker reads it, and
+main's `ferror(stdin)` is stuck at **1** where both native and the previous
+revision give **0**. The owner's own stream, poisoned by a sibling.
+
+Resolved by choosing the flag by stream KIND rather than unconditionally:
+`F_ERR` for a private foreign FILE (the only party harmed is the owner that
+should not be sharing it, and a silent short read there is the failure mode this
+whole class is about), `F_EOF` for the three shared standard streams — which
+terminates the drain loop just as well and is what native produces in the
+reachable case. Verified: no poisoning (native-identical), no spin, and a
+private foreign FILE still reports an error rather than silence.
+
 ### Still open from this reviewer
 
 * The thread-exit flush uses `ftrylockfile`, so an ordinary `flockfile()` held by

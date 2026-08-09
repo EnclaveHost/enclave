@@ -1959,10 +1959,10 @@ index a5e42c6..afe4b10 100644
  	close_file(__stdout_used);
  	close_file(__stderr_used);
 diff --git a/libc-top-half/musl/src/stdio/__stdio_read.c b/libc-top-half/musl/src/stdio/__stdio_read.c
-index d701188..abd8c1c 100644
+index d701188..4a35429 100644
 --- a/libc-top-half/musl/src/stdio/__stdio_read.c
 +++ b/libc-top-half/musl/src/stdio/__stdio_read.c
-@@ -4,9 +4,30 @@
+@@ -4,9 +4,50 @@
  #endif
  #include "stdio_impl.h"
  #include <sys/uio.h>
@@ -1986,7 +1986,27 @@ index d701188..abd8c1c 100644
 +		   stamped, so the refusal is unreachable for them by
 +		   construction. */
 +		errno = EBADF;
-+		f->flags |= F_ERR;
++		/* A FLAG IS REQUIRED -- returning 0 with neither `F_EOF` nor `F_ERR`
++		   makes `while (!feof(f) && !ferror(f))` spin forever (measured:
++		   2,000,000 zero-progress iterations at full CPU where the round-9
++		   libc terminated in 48 ms). But WHICH flag matters, because the
++		   flags live in the SHARED `FILE`.
++		   `F_ERR` on one of the three standard streams poisons it for its
++		   OWNER: measured, main claims `stdin` by rebinding its own fd 0, a
++		   worker reads it, and main's `ferror(stdin)` is stuck at 1 where
++		   both native and the previous revision give 0. The justification
++		   recorded for setting `F_ERR` unconditionally -- "the standard
++		   streams are SHARED and never stamped" -- stopped being true when
++		   `__wasilibc_set_claim_std_stream` began stamping them.
++		   So: `F_ERR` for a PRIVATE foreign FILE, where the only party
++		   harmed is the owner that should not be sharing it and a silent
++		   short read would be worse; `F_EOF` for the shared standard
++		   streams, which terminates the loop just as well and is what native
++		   produces in the reachable case. */
++		if (f == __stdin_used || f == __stdout_used || f == __stderr_used)
++			f->flags |= F_EOF;
++		else
++			f->flags |= F_ERR;
 +		return 0;
 +	}
 +
@@ -2072,10 +2092,10 @@ index 8190ec5..d60f33f 100644
  	if (!(f->flags & F_SVB) && __syscall(SYS_ioctl, f->fd, TIOCGWINSZ, &wsz))
  #else
 diff --git a/libc-top-half/musl/src/stdio/__toread.c b/libc-top-half/musl/src/stdio/__toread.c
-index f142ff0..5cd47eb 100644
+index f142ff0..c05f174 100644
 --- a/libc-top-half/musl/src/stdio/__toread.c
 +++ b/libc-top-half/musl/src/stdio/__toread.c
-@@ -1,7 +1,21 @@
+@@ -1,7 +1,41 @@
  #include <stdio_impl.h>
 +#include <errno.h>
  
@@ -2090,7 +2110,27 @@ index f142ff0..5cd47eb 100644
 +	   fgetc/getc/fread/fgets/ungetc/scanf -- reached it. */
 +	if (!__wasilibc_file_mine(f)) {
 +		errno = EBADF;
-+		f->flags |= F_ERR;
++		/* A FLAG IS REQUIRED -- returning 0 with neither `F_EOF` nor `F_ERR`
++		   makes `while (!feof(f) && !ferror(f))` spin forever (measured:
++		   2,000,000 zero-progress iterations at full CPU where the round-9
++		   libc terminated in 48 ms). But WHICH flag matters, because the
++		   flags live in the SHARED `FILE`.
++		   `F_ERR` on one of the three standard streams poisons it for its
++		   OWNER: measured, main claims `stdin` by rebinding its own fd 0, a
++		   worker reads it, and main's `ferror(stdin)` is stuck at 1 where
++		   both native and the previous revision give 0. The justification
++		   recorded for setting `F_ERR` unconditionally -- "the standard
++		   streams are SHARED and never stamped" -- stopped being true when
++		   `__wasilibc_set_claim_std_stream` began stamping them.
++		   So: `F_ERR` for a PRIVATE foreign FILE, where the only party
++		   harmed is the owner that should not be sharing it and a silent
++		   short read would be worse; `F_EOF` for the shared standard
++		   streams, which terminates the loop just as well and is what native
++		   produces in the reachable case. */
++		if (f == __stdin_used || f == __stdout_used || f == __stderr_used)
++			f->flags |= F_EOF;
++		else
++			f->flags |= F_ERR;
 +		return EOF;
 +	}
 +
