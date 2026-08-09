@@ -1,29 +1,57 @@
-# Handoff: SET (shared-everything-threads), after round 10
+# Handoff: SET (shared-everything-threads), after round 12
 
 **Read this before touching anything.** `docs/HANDOFF-set-threads.md` is older and
 its "DONE on the engine side" framing is stale — the parallelism numbers in it
 are still true, the readiness claim is not.
 
+## READ THE PATCH, NOT THIS FILE, FOR WHAT THE CODE DOES
+
+Round 11's fourth reviewer briefed itself from `wasm/SET-DO-NOT-PROMOTE.md`,
+reviewed the image that document implied was current, and discovered SIX HOURS IN
+that the committed patch had moved and contained five stdio mechanisms the
+document never described. **The authority is `wasm/wasi-libc-set-threads.patch`
+and `wasm/wasmtime-set-threads.patch.wip`.** Diff them against whatever image you
+are about to review, before you start. This file and the record are narrative;
+they lag.
+
 ## Where this actually stands
 
-Nine adversarial review rounds have run against the SET patch stack. **Not one
-has cleared.** Round 10 was deliberately NOT a review round: rounds 8 and 9 both
-concluded the *class* was wrong rather than the instance, so it did the two
-design items instead. Both landed, with probes that fail against the previous
-image and pass against the new one.
+TWELVE review passes have run and **not one has cleared**. Rounds 10-12 plus a
+late fourth reviewer from round 11 have all landed; the current toolchain image
+is `enclave-wasipsetc-build:r13a`, built from the committed patch (40 files).
 
-**Round 10 also found a CRITICAL in round 9's own fix, without reviewing for
-it** — it fell out of building an honest probe. Round 9's MEDIUM leak fix
-(`__wasilibc_set_release_path_bufs`) called `free()` on a pointer borrowed from
-the guest's path string, on the NORMAL exit path of every worker that opened a
-file in a guest without `chdir`. Heap corruption when the bytes looked
-plausible; an out-of-bounds trap inside `__pthread_exit` when they did not,
-which killed the worker mid-teardown so its joiner blocked forever. That is the
-fourth round running in which the previous round's fix was the next round's
-worst finding.
+The severity trend is real and worth knowing: **no new CRITICAL in the last
+three passes.** Rounds 3-9 produced component wedges, heap corruption and
+guest-bytes-to-operator-log leaks. Rounds 11, 12 and late-11 produced HIGHs that
+are mostly cross-thread stdio semantics diverging from native — with two
+exceptions that were NOT benign: a teardown thread that died permanently on an
+EPIPE, and `vfprintf` leaving a shared FILE buffering into a dead thread's stack.
 
-The running record is `wasm/SET-DO-NOT-PROMOTE.md`. Read its round 8, 9 and 10
-sections in full before forming an opinion.
+What has NOT improved is the pattern this record exists to track: **in five
+consecutive rounds the worst finding was the previous round's fix**, and twice
+the fix for a finding was itself the next defect within the same round.
+
+## What rounds 10-12 changed, in one place
+
+* **`FILE` ownership.** `f->set_ns` = `owner_ns + 1`, 0 = SHARED (what every
+  constructor already leaves). Checked in `fflush`, `__stdio_exit`, the
+  `__stdio_write`/`read`/`seek` vtable, `fclose`, `__toread`, `fseek`,
+  `__stdout_write`. Non-owners BUFFER rather than drain in `__fwritex` and
+  `__overflow` — draining is the only thing that needs a descriptor.
+* **A thread rebinding its own 0/1/2 CLAIMS the shared FILE**
+  (`__wasilibc_set_claim_std_stream`), wired at all four doors plus `close`,
+  each preceded by `(void)set_fd_ns_claim()`. This exists because the request
+  handler under `wasmtime serve` runs on the MAIN thread, and the worker-only
+  rule left it able to send a worker's `printf` to the operator's log.
+* **Thread-exit flush** of a worker's own FILEs, then a re-stamp to SHARED so a
+  dead thread's FILEs stay reclaimable.
+* **The orphan-lock walk detaches a FILE buffer inside the dying thread's stack**
+  (`vfprintf` puts an unbuffered stream's buffer in its caller's frame).
+* **Store teardown never blocks**: one process-global reaper thread, both join
+  paths gated on `is_finished()`, `wasmtime run` drains before exit, and the
+  reaper is panic-proof (a failed stderr write used to kill it permanently).
+* **Leaks fixed**: `chdir`'s path cache (released weakly — the weakness is
+  load-bearing), and round 9's borrowed-pointer `free()`.
 
 ## The standing constraints — do not violate these
 
@@ -38,13 +66,24 @@ sections in full before forming an opinion.
    working tree carries unrelated in-flight work (contracts, relay, site,
    supervisor). Stage the SET files explicitly.
 
-## Do this next: a review round, and it should be a hard one
+## Do this next
 
-The two design items the round-9 handoff asked for are **done**. What blocks
-promotion now is that **round 10's own code has never been reviewed.** It is
-roughly 500 lines of new logic in exactly the area that has produced a CRITICAL
-in every round: musl stdio internals, the descriptor table, thread exit, and
-store teardown.
+Round 13 was in flight when this was written. Beyond it, the two things the
+reviewers keep pointing at are DESIGN items, not patches, and both are the
+reason the HIGH rate is not falling:
+
+1. **Process-wide 0/1/2 under SET.** A shared three-entry table for the standard
+   descriptors is what would make `__WASILIBC_FILE_SHARED` sound *by
+   construction* and make a redirect apply to every thread as POSIX says.
+   Everything shipped so far — the worker floor, the claim, the per-call
+   refusals — patches symptoms of not having it.
+2. **The thread-exit flush is defeated by an ordinary `flockfile()`.** It uses
+   `ftrylockfile` because a blocking acquire in `__pthread_exit` is a new hang
+   axis, so a FILE another thread has locked is silently skipped: measured 3/3,
+   zero bytes written, no error anywhere. That is a limit of the design, not a
+   bug to patch.
+
+Also still true: **round 12's and late-11's fixes have not been reviewed.**
 
 Give reviewers:
 
@@ -54,10 +93,11 @@ Give reviewers:
   and the README section next to it are the working recipe.
 * A requirement that every claimed fix comes with a probe that demonstrably
   fails without it, AND a native (`gcc`) control for anything that asserts what
-  "correct" means. A probe encoding a bug as the spec has happened **six** times
-  now; the sixth was round 10's own first draft of `worker-file-owner.c`.
+  "correct" means. A probe encoding a bug as the spec has happened **seven**
+  times now, most recently in round 10's and round 11's own first drafts — each
+  caught only by the native control, never by review.
 
-Areas round 10 touched, i.e. where to look hardest:
+Areas rounds 10-12 touched, i.e. where to look hardest:
 
 * **`FILE` ownership** (`stdio_impl.h`, `__fdopen.c`, `fflush.c`,
   `__stdio_exit.c`, `__stdio_write/read/seek.c`). `f->set_ns` is
@@ -73,10 +113,13 @@ Areas round 10 touched, i.e. where to look hardest:
   Lock order, the try-lock, restart-from-head, termination, and the fact that it
   must run before `__wasilibc_set_release_thread_state`. This is a new
   cross-layer teardown mechanism in the area that has deadlocked twice.
-* **The store-teardown reaper** (`crates/wasmtime/src/runtime/store.rs`). One
-  detached OS thread per teardown that still has a live worker. Is the fast-path
-  `live_is_zero` check racy in a way that matters? Is spawning a thread in
-  `Drop` safe on every path that reaches it?
+* **The store-teardown reaper** (`crates/wasmtime/src/runtime/store.rs` +
+  `vm/component/set_threads.rs`). Now ONE process-global reaper thread, not one
+  per teardown — the per-teardown version measured ~1950 engine-created OS
+  threads/second that no limiter could see. Both join paths are gated on
+  `is_finished()` because both were blocking (the fast path is 74-76% of
+  requests). It is panic-proof because a failed stderr write used to kill it
+  permanently, and `wasmtime run` drains it before exit.
 * **`__wasilibc_set_release_path_bufs`** — now guarded, but the whole function is
   the one that turned a MEDIUM into a CRITICAL. Is `*_len != 0` genuinely the
   ownership marker on every path?
