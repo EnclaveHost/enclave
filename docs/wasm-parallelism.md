@@ -475,6 +475,37 @@ to give (all in `wasm/wasmtime-set-threads.patch.wip`, and a small
   --shared-memory` emits `__wasm_init_memory` behind an atomic once-flag in
   shared memory for exactly this instantiation-per-thread pattern.
 
+### 2026-08-10: the fork has a SECOND consumer — the upload gateway
+
+Forking the validator forked it for everyone who validates, and the publish
+path was still on stock. The first real SET app (risc-box) could not be
+uploaded at all:
+
+```
+upload rejected: wasm validation failed:
+error: mismatch in the shared flag for memories (at offset 0x30b8d2)
+```
+
+That is the `cabi_memory_at` relaxation above, seen from the other side: the
+gateway's Tier 2 check (`scripts/ipfs-add-gateway.py`, `WASM_TOOLS`) ran an
+upstream `wasm-tools`, whose `cabi_memory_at` compares the component's shared
+canonical-ABI memory against a hardcoded `shared: false`. Nothing was wrong with
+the component — the engine launches it.
+
+The general shape: **Tier 2 is only meaningful as a preview of the engine, so it
+has to be the same validator.** Stricter than the engine = false refusals at
+publish; looser = pins that will never launch. `scripts/build-wasm-tools-set.sh`
+builds `wasm-tools` at the tag whose `crates/wasmparser` IS the engine's pinned
+crate (it diffs the git tag against the sha-pinned crates.io tarball and aborts
+if they ever diverge), applies the same `wasmparser-set-relax.patch`, and emits
+a static musl binary; `scripts/deploy-wasm-tools-set.sh` installs it and points
+`WASM_TOOLS` at it. Both must be re-run whenever the patch or
+`WASMPARSER_VERSION` in `wasm/Dockerfile.wasmtime` moves.
+
+Worth generalising past wasm-tools: an engine fork silently creates a
+consistency obligation everywhere else the same parser runs. Grep for the other
+copies before shipping the next one.
+
 ## The 2026-08-07 adversarial review — and why the engine is NOT fleet-ready
 
 Four independent adversarial reviewers (fresh context, each told to REFUTE, plus

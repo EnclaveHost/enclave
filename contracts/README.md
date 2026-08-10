@@ -287,6 +287,17 @@ size + the wasm/component preamble server-side, optionally runs `wasm-tools vali
 (set `WASM_TOOLS`), then adds+pins with hardcoded params and returns `{cid}`. Set
 `IPFS_UPLOAD_URL` to that gateway (empty => users paste a CID they pinned themselves).
 
+`WASM_TOOLS` must point at the **SET-relaxed** `wasm-tools`, not a stock release.
+Tier 2 is only worth running as a *preview of the engine*, and the engine vendors
+`wasm/wasmparser-set-relax.patch` (see `wasm/Dockerfile.wasmtime`); a stock
+`wasm-tools validate` rejects every shared-everything-threads component with
+`mismatch in the shared flag for memories`, which is a false refusal of an app the
+runner launches fine. `scripts/build-wasm-tools-set.sh` builds the matching binary
+(pinned tag + the same patch, verified against the engine's sha-pinned wasmparser
+crate) and `scripts/deploy-wasm-tools-set.sh` installs it. Rebuild + redeploy
+whenever that patch or `WASMPARSER_VERSION` moves — otherwise publishing and
+launching disagree about what is valid.
+
 **Defense in depth, by layer:**
 - Browser (`validateWasm`): extension, size (`MAX_WASM_MB`, default 2048), magic `\0asm`
   + component layer field. UX only — fast feedback, catches honest mistakes.

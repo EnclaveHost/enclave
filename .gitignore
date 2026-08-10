@@ -19,6 +19,9 @@ wasm/apps/*/assets/
 wasm/*-shim/*.so
 # enclave CLI: bundled single-file build (cli/install.sh or npm run build)
 cli/dist/
+# SET-relaxed wasm-tools for the upload gateway (scripts/build-wasm-tools-set.sh
+# rebuilds it reproducibly from a pinned tag + wasm/wasmparser-set-relax.patch)
+/dist/
 # Foundry build artifacts (test-only toolchain; forge-std under
 # contracts/foundry/lib IS committed - vendored, no submodules)
 contracts/foundry/out/
