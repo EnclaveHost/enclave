@@ -630,3 +630,37 @@ test("migration batches are sized by GAS, and a record's gas is its BYTES", asyn
   for (const t of imports) assert.ok(t.gas < GAS_BUDGET, `a planned batch claims ${t.gas} gas, over the ${GAS_BUDGET} budget`);
 });
 
+test("a smaller gas budget re-plans into more, smaller batches (the refusal retry)", async () => {
+  // How large a batch an RPC will RELAY is that provider's policy and is not
+  // knowable from the app: 9M relayed, 15.9M and 60M were both refused at
+  // broadcast. So the console halves and re-plans instead of stopping, and that
+  // only works if the planners actually honour a budget passed in.
+  const { MIG_KINDS, GAS_BUDGET, MIN_GAS_BUDGET } = await import(path.join(REPO, "site/components/admin-console/migrate.js"));
+  assert.ok(MIN_GAS_BUDGET < GAS_BUDGET, "the floor must be below the starting budget or halving can never run");
+
+  const mkVer = (i) => ({ cid: "bafy" + String(i).padStart(55, "a"), version: String(i), ports: "",
+    config: "x".repeat(3800), vramMb: 0, gpuGflops: 0, memMb: 256, cpuGflops: 10,
+    createdAt: 1, verified: false, yanked: false, approval: 1, fee6: "0", cfgCid: "" });
+  const app = { appId: "0x" + "1".repeat(64), publisher: A1, slug: "big", name: "Big", description: "",
+    versionCount: 12, createdAt: 1, updatedAt: 1, active: true,
+    versions: Array.from({ length: 12 }, (_, i) => mkVer(i + 1)) };
+
+  const plan = (gasBudget) => MIG_KINDS.catalog
+    .plan([app], [], { gasBudget, dataBudget: Math.round(gasBudget / 375) })
+    .filter((t) => /importVersions|multicall/.test(t.label));
+
+  const big = plan(GAS_BUDGET), small = plan(Math.floor(GAS_BUDGET / 4));
+  assert.ok(small.length > big.length,
+    `a quartered budget must produce more transactions (got ${small.length} vs ${big.length})`);
+
+  // The real invariant, and the limit of the whole retry strategy: a batch is
+  // under budget UNLESS it is one indivisible call. A single 3.8KB version
+  // costs ~3.8M gas and cannot be split, so halving bottoms out at the largest
+  // SINGLE record — if an RPC refuses that, no amount of re-planning helps and
+  // the console has to say so rather than grind toward MIN_GAS_BUDGET.
+  const reduced = Math.floor(GAS_BUDGET / 4);
+  for (const t of small)
+    assert.ok(t.gas <= reduced + 200_000 || /\(1[,)]/.test(t.label) || t.calls === 1,
+      `a re-planned batch claims ${t.gas} over the ${reduced} budget and is not a single indivisible call (${t.label})`);
+});
+

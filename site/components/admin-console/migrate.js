@@ -533,9 +533,20 @@ const chunkBySizeAndGas = (arr, maxBytes, sizeOf, maxGas, gasOf) => {
 // Over-providing gas is free — unused gas is refunded — and being SHORT only
 // costs the burned gas of a reverted tx (~$0.50 at Base's current base fee),
 // so the estimates below deliberately carry margin rather than run lean.
-export const GAS_BUDGET  = 60_000_000;   // per packed tx - bounded by block inclusion, not by estimateGas
-const DATA_BUDGET = 96 * 1024;    // per packed tx (sum of inner calls) - secondary guard
-function packPlan(contractName, txs) {
+// MEASURED, not reasoned: 9M works, 15.9M was dropped, 60M was dropped. The
+// provider refuses on SEND, not only on estimate, so passing an explicit gas
+// limit does NOT buy headroom the way the comment above hoped — it only removes
+// the estimator from the path. Start where we have evidence and let the console
+// discover the rest (it halves on a refusal and keeps going), because the true
+// ceiling belongs to whichever RPC the signer's wallet is pointed at and is not
+// knowable from here.
+export const GAS_BUDGET  = 9_000_000;    // per packed tx - the last size observed to relay
+const DATA_BUDGET = 24 * 1024;    // per packed tx (sum of inner calls) - secondary guard
+// Never subdivide below this: past it the batches are tiny, the signature count
+// explodes, and a still-failing send is a different problem that halving will
+// not solve. Stop and say so instead of grinding.
+export const MIN_GAS_BUDGET = 2_000_000;
+function packPlan(contractName, txs, budget, dataBudget) {
   if (txs.length <= 1) return txs;
   const sel = CONTRACTS[contractName].sel;
   const bytesOf = (t) => (t.dataHex.length - 2) / 2;
@@ -543,7 +554,7 @@ function packPlan(contractName, txs) {
   let usedGas = 0, usedBytes = 0;
   for (const t of txs) {
     const g = t.gas || 1_000_000, b = bytesOf(t);
-    if (groups[groups.length - 1].length && (usedGas + g > GAS_BUDGET || usedBytes + b > DATA_BUDGET)) { groups.push([]); usedGas = 0; usedBytes = 0; }
+    if (groups[groups.length - 1].length && (usedGas + g > (budget || GAS_BUDGET) || usedBytes + b > (dataBudget || DATA_BUDGET))) { groups.push([]); usedGas = 0; usedBytes = 0; }
     groups[groups.length - 1].push(t); usedGas += g; usedBytes += b;
   }
   return groups.map((g) => g.length === 1 ? g[0] : {
@@ -573,7 +584,7 @@ export const MIG_KINDS = {
       const sel = CONTRACTS.EnclaveDeployments.sel;
       const have = new Set(after.map((d) => d.id.toLowerCase()));
       const todo = data.filter((d) => !have.has(d.id.toLowerCase())).map(depClean);
-      const txs = chunkByGas(todo, recordImportGas, GAS_BUDGET, CHUNK.deployments).map((c, i) => ({
+      const txs = chunkByGas(todo, recordImportGas, opts.gasBudget || GAS_BUDGET, CHUNK.deployments).map((c, i) => ({
         label: `importDeployments · batch ${i + 1} (${c.length})`,
         gas: 120_000 + c.reduce((s, d) => s + recordImportGas(d), 0),
         dataHex: encCallX(sel.importDeployments, [{ t: "tuple[]", schema: DEP_SCHEMA, v: c }]),
@@ -635,7 +646,7 @@ export const MIG_KINDS = {
           { t: "uint[]", v: c.map((d) => d.cap6) },
         ]),
       })));
-      return packPlan("EnclaveDeployments", txs);
+      return packPlan("EnclaveDeployments", txs, opts.gasBudget, opts.dataBudget);
     },
     async verify(data, target, opts = {}) {
       const after = await readDeployments(target);
@@ -672,7 +683,8 @@ export const MIG_KINDS = {
       return `${d.length} app${d.length === 1 ? "" : "s"}, ${d.reduce((n, a) => n + a.versions.length, 0)} versions`
         + (fees ? ` (${fees} fee-bearing)` : "");
     },
-    plan(data, after) {
+    plan(data, after, opts = {}) {
+      const gasBudget = opts.gasBudget || GAS_BUDGET, dataBudget = opts.dataBudget || DATA_BUDGET;
       const sel = CONTRACTS.EnclaveAppCatalog.sel;
       const have = Object.fromEntries(after.map((a) => [a.appId.toLowerCase(), a]));
       const newApps = data.filter((a) => !have[a.appId.toLowerCase()]);
@@ -685,8 +697,8 @@ export const MIG_KINDS = {
         // versions are append-only in publish order: the target holds a prefix
         const tgt = have[a.appId.toLowerCase()];
         const done = tgt ? tgt.versions.length : 0;
-        for (const [i, c] of chunkBySizeAndGas(a.versions.slice(done), VER_TX_BYTES, verSize,
-                                                VER_TX_GAS, versionImportGas).entries())
+        for (const [i, c] of chunkBySizeAndGas(a.versions.slice(done), Math.min(VER_TX_BYTES, dataBudget), verSize,
+                                                Math.min(VER_TX_GAS, gasBudget), versionImportGas).entries())
           txs.push({ label: `importVersions · ${a.slug} (${c.length}${done || i ? ", cont." : ""})`,
             // the REAL cost, per version, from its own string bytes — packPlan
             // packs on this number, so a flat guess here is a dropped tx there
@@ -722,7 +734,7 @@ export const MIG_KINDS = {
           ]),
         })));
       }
-      return packPlan("EnclaveAppCatalog", txs);
+      return packPlan("EnclaveAppCatalog", txs, gasBudget, dataBudget);
     },
     async verify(data, target) {
       const after = await readCatalog(target);
