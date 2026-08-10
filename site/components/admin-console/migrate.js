@@ -18,7 +18,7 @@
    plans; the component drives the wallet and paints progress.
    ============================================================ */
 import { baseRpc, pad32, encUint, encStr, encBytesTail, hexBig,
-         decodeStructArray, DEP_SCHEMA, DEP_SCHEMA_V1, APP_SCHEMA, VER_SCHEMA } from "../../js/core/chain.js";
+         decodeStructArray, decodeStringArray, DEP_SCHEMA, DEP_SCHEMA_V1, APP_SCHEMA, VER_SCHEMA } from "../../js/core/chain.js";
 import { CONTRACTS } from "../../js/gen/contract-artifacts.js";
 
 /* ---- codec: tuples + arrays on top of chain.js's word encoders ---- */
@@ -443,6 +443,15 @@ async function readCatalog(source) {
         }));
       }
     } else for (const v of a.versions) v.fee6 = "0";
+    // Config CIDs are a SIDE MAPPING too (rev >= 7), and dropping one is worse
+    // than dropping a fee: the version would migrate with its on-chain ROUTING
+    // MANIFEST intact and its actual config gone, so it would still deploy and
+    // still look healthy while serving the manifest as its config. One batched
+    // read for the whole history, carried as the non-schema key `cfgCid`.
+    if (rev >= 7) {
+      const cids = decodeStringArray(await call(source, encCallX(sel.versionConfigCids, [{ t: "bytes32", v: a.appId }])));
+      a.versions.forEach((v, i) => { v.cfgCid = cids[i] || ""; });
+    } else for (const v of a.versions) v.cfgCid = "";
   }
   return apps;
 }
@@ -646,6 +655,19 @@ export const MIG_KINDS = {
             { t: "uint[]", v: c.map((x) => x.fee6) },
           ]),
         })));
+        // ...and the config CIDs, same delta rule (a CID is immutable at the
+        // source, so a non-empty one at the target means it is already carried)
+        const cidTodo = a.versions.map((v, i) => ({ i, cid: v.cfgCid || "" }))
+          .filter((x) => x.cid && (tgt && tgt.versions[x.i] ? !(tgt.versions[x.i].cfgCid || "") : true));
+        txs.push(...chunked(cidTodo, CHUNK.fees).map((c, i) => ({
+          label: `importVersionConfigCids · ${a.slug} (${c.length}${i ? ", cont." : ""})`,
+          gas: 100_000 + 60_000 * c.length,
+          dataHex: encCallX(sel.importVersionConfigCids, [
+            { t: "bytes32", v: a.appId },
+            { t: "uint[]", v: c.map((x) => x.i) },
+            { t: "str[]", v: c.map((x) => x.cid) },
+          ]),
+        })));
       }
       return packPlan("EnclaveAppCatalog", txs);
     },
@@ -659,7 +681,12 @@ export const MIG_KINDS = {
         if (a.versions.length !== t.versions.length || !a.versions.every((v, i) => verCmp(v, t.versions[i])))
           { bad.push(a.slug + " (versions)"); continue; }
         if (!a.versions.every((v, i) => (v.fee6 || "0") === (t.versions[i].fee6 || "0")))
-          bad.push(a.slug + " (fees)");
+          { bad.push(a.slug + " (fees)"); continue; }
+        // A missed config CID leaves a version that still deploys and still
+        // looks healthy while serving its routing manifest as its config — so
+        // verify it explicitly rather than trusting the plan ran.
+        if (!a.versions.every((v, i) => (v.cfgCid || "") === (t.versions[i].cfgCid || "")))
+          bad.push(a.slug + " (config CIDs)");
       }
       return { total: data.length, ok: data.length - bad.length, bad };
     },

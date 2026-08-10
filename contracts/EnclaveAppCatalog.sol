@@ -142,7 +142,26 @@ contract EnclaveAppCatalog {
     ///         transfers >= 6. importApps also accepts transferred lineages
     ///         (appId != keccak(publisher, slug)) from a rev-6 source and
     ///         recreates their redirect.
-    uint256 public constant catalogSchema = 6;
+    ///         Revision 7 keeps every tuple byte-for-byte AGAIN (the config CID
+    ///         is a side mapping, like fees and the transfer redirect before
+    ///         it) and marks the LARGE-CONFIG surface: `publishVersionCfg`
+    ///         publishes a version whose ENCLAVE_CONFIG lives at an IPFS CID
+    ///         instead of inline in `config`, lifting the 4096-byte inline
+    ///         ceiling without putting a megabyte in storage. Exactly like the
+    ///         wasm `cid`, the CID is publisher-supplied, immutable, and
+    ///         covered by the version's approval — the runner fetches it
+    ///         through the same untrusted-gateway path that hash-verifies
+    ///         every block, so the bytes it runs are the bytes the owner
+    ///         approved.
+    ///         Resolution rule for readers: `configCid` empty (every pre-rev-7
+    ///         version, and anything published through plain publishVersion)
+    ///         means the inline `config` IS the app's config, exactly as
+    ///         before. `configCid` set means the FETCHED content is the app's
+    ///         config, and the inline field is the small on-chain routing
+    ///         manifest a runner needs before it can fetch anything (see
+    ///         publishVersionCfg). Gates: struct reads >= 4, fees >= 5,
+    ///         transfers >= 6, config CIDs >= 7.
+    uint256 public constant catalogSchema = 7;
 
     uint256 private constant MAX_SLUG = 40;
     uint256 private constant MAX_NAME = 80;
@@ -186,11 +205,22 @@ contract EnclaveAppCatalog {
     ///      unambiguous.
     mapping(bytes32 => bytes32) private _slugRef;
 
+    /// @dev Large-config indirection (rev 7): appId -> version index -> the IPFS
+    ///      CID holding this version's ENCLAVE_CONFIG JSON. SIDE MAPPING, so
+    ///      rev-4 Version tuples stay byte-for-byte and every existing decoder
+    ///      keeps decoding. Set only by publishVersionCfg (and carried by
+    ///      importVersionConfigCids), never edited afterwards — immutable and
+    ///      approval-covered exactly like the inline `config` it replaces.
+    ///      Unset (empty) for every inline-config version, which is what makes
+    ///      "resolve the CID, else fall back to config" unambiguous.
+    mapping(bytes32 => mapping(uint256 => string)) private _versionConfigCid;
+
     event AppCreated(bytes32 indexed appId, address indexed publisher, string slug, string name);
     event AppTransferred(bytes32 indexed appId, address indexed from, address indexed to);
     event AppEdited(bytes32 indexed appId, string name, string description);
     event VersionPublished(bytes32 indexed appId, uint256 indexed index, string version, string cid);
     event VersionFeeSet(bytes32 indexed appId, uint256 indexed index, uint256 feePerSec6);
+    event VersionConfigCidSet(bytes32 indexed appId, uint256 indexed index, string configCid);
     event MaxFeeSet(uint256 maxFeePerSec6);
     event VersionVerified(bytes32 indexed appId, uint256 indexed index, bool verified);
     event VersionApprovalSet(bytes32 indexed appId, uint256 indexed index, uint8 status);
@@ -253,6 +283,88 @@ contract EnclaveAppCatalog {
         string calldata config,
         uint256 feePerSec6
     ) external returns (bytes32 appId, uint256 index) {
+        require(bytes(config).length <= MAX_CONFIG, "config length");
+        (appId, index) = _publish(slug, name, description, version, cid, res, ports);
+        // written here, not in _publish: threading the config through as an
+        // extra argument is what tips viaIR into stack-too-deep (see the
+        // field-by-field note below — this function sits right at that edge).
+        if (bytes(config).length > 0) _versions[appId][index].config = config;
+        _setFee(appId, index, feePerSec6);
+    }
+
+    /// @notice Publish a version whose ENCLAVE_CONFIG lives at an IPFS CID
+    ///         instead of inline (rev 7). Identical to publishVersion in every
+    ///         other respect — same invariants, same Pending approval, same
+    ///         immutability — except `configCid` replaces `config`: the record
+    ///         stores the CID (~60 bytes) and the runner fetches the JSON
+    ///         through its hash-verifying, untrusted-gateway path, so a config
+    ///         can be megabytes without a megabyte of storage.
+    /// @dev Why this is NOT the retired deployer-side configCid indirection:
+    ///      that one let the DEPLOYER pin any CID at deploy time, so the bytes
+    ///      the runner loaded were never the bytes the owner ruled on. Here the
+    ///      CID is a field of the version record — publisher-set, immutable,
+    ///      and covered by that version's approval, exactly like the wasm `cid`
+    ///      right beside it. Changing the config still means a new version and
+    ///      a fresh Pending ruling, because a different config is a different
+    ///      CID.
+    /// @param config On this path the inline field is NOT the app's config —
+    ///      it is the ROUTING MANIFEST. Runners pick a box for a deployment
+    ///      before any IPFS fetch happens, reading four keys straight off the
+    ///      chain record: `wasi` (0.2/0.3 world), `threads`, `set`, and
+    ///      `gpuOptional`. Those must stay on-chain or a p3/threaded app routes
+    ///      to a box that cannot run it. Everything else — the bulk the 4096
+    ///      ceiling was blocking — lives at `configCid` and is what the guest
+    ///      receives as ENCLAVE_CONFIG. The publish path derives this manifest
+    ///      from the component's own exports and the full config, so it is not
+    ///      hand-maintained; and it is advisory in exactly the way it already
+    ///      was — the manager re-classifies the real bytes at launch, so a
+    ///      manifest that lies fails there with a readable error rather than
+    ///      silently mis-serving.
+    function publishVersionCfg(
+        string calldata slug,
+        string calldata name,
+        string calldata description,
+        string calldata version,
+        string calldata cid,
+        uint32[4] calldata res,
+        string calldata ports,
+        string calldata config,
+        string calldata configCid,
+        uint256 feePerSec6
+    ) external returns (bytes32 appId, uint256 index) {
+        require(bytes(configCid).length > 0 && bytes(configCid).length <= MAX_CID, "configCid length");
+        require(bytes(config).length <= MAX_CONFIG, "config length");
+        (appId, index) = _publish(slug, name, description, version, cid, res, ports);
+        if (bytes(config).length > 0) _versions[appId][index].config = config;
+        _versionConfigCid[appId][index] = configCid;
+        emit VersionConfigCidSet(appId, index, configCid);
+        _setFee(appId, index, feePerSec6);
+    }
+
+    /// @dev The publish-time fee write, shared by both entry points. Split out
+    ///      for the same reason `config` is: every value that stays live across
+    ///      _publish's tail costs a stack slot it does not have.
+    function _setFee(bytes32 appId, uint256 index, uint256 feePerSec6) private {
+        require(feePerSec6 <= maxFeePerSec6, "fee > max");
+        if (feePerSec6 > 0) {
+            _versionFee6[appId][index] = feePerSec6;
+            emit VersionFeeSet(appId, index, feePerSec6);
+        }
+    }
+
+    /// @dev Everything both publish paths share. Takes one FEWER argument than
+    ///      the external entry points (no config): each caller writes its own
+    ///      config field afterwards, which keeps this under the viaIR stack
+    ///      ceiling that a ninth argument breaks.
+    function _publish(
+        string calldata slug,
+        string calldata name,
+        string calldata description,
+        string calldata version,
+        string calldata cid,
+        uint32[4] calldata res,
+        string calldata ports
+    ) private returns (bytes32 appId, uint256 index) {
         require(bytes(version).length > 0 && bytes(version).length <= MAX_VER, "version length");
         require(bytes(cid).length > 0 && bytes(cid).length <= MAX_CID, "cid length");
         require(res[0] <= MAX_MB, "vramMb range");
@@ -260,8 +372,6 @@ contract EnclaveAppCatalog {
         require(res[2] > 0 && res[2] <= MAX_MB, "memMb range");
         require(res[3] <= MAX_GFLOPS, "cpuGflops range");
         require(bytes(ports).length <= MAX_PORTS, "ports length");
-        require(bytes(config).length <= MAX_CONFIG, "config length");
-        require(feePerSec6 <= maxFeePerSec6, "fee > max");
 
         appId = _touchApp(slug, name, description);
         bytes32 cidKey = _reserveCid(cid, appId);
@@ -276,7 +386,10 @@ contract EnclaveAppCatalog {
 
         Version[] storage vs = _versions[appId];
         // field-by-field (not a struct literal): 10 fields with 3 dynamic strings
-        // overflow the Yul stack even under viaIR; verified/yanked default false
+        // overflow the Yul stack even under viaIR; verified/yanked default false.
+        // `config` is deliberately absent — the caller writes it (see _publish's
+        // note); it defaults empty, which is exactly right for a CID-config
+        // version.
         Version storage v = vs.push();
         v.cid = cid;
         v.version = version;
@@ -287,13 +400,8 @@ contract EnclaveAppCatalog {
         v.createdAt = uint64(block.timestamp);
         v.ports = ports;
         v.approval = APPROVAL_PENDING;
-        v.config = config;
         index = vs.length - 1;
         _cidRefs[cidKey] = CidRef({ appId: appId, index1: uint32(index + 1) });
-        if (feePerSec6 > 0) {
-            _versionFee6[appId][index] = feePerSec6;
-            emit VersionFeeSet(appId, index, feePerSec6);
-        }
 
         App storage a = _apps[appId];
         a.versionCount = uint32(vs.length);
@@ -590,6 +698,27 @@ contract EnclaveAppCatalog {
         }
     }
 
+    /// @notice Migrate one app's per-version config CIDs (rev-7 sources only —
+    ///         earlier versions carry their config inline in the Version tuple,
+    ///         which importVersions already moves verbatim). Aligned by version
+    ///         index; call after the app's importVersions chunks, exactly like
+    ///         importVersionFees. Verbatim carry: the source enforced the
+    ///         publish-time length check, and the CID is approval-covered
+    ///         history that must migrate unchanged or the imported version
+    ///         would resolve to a different config than the one ruled on.
+    function importVersionConfigCids(bytes32 appId, uint256[] calldata indices, string[] calldata cids) external {
+        require(msg.sender == owner, "!owner");
+        require(!importsSealed, "sealed");
+        require(_exists[appId], "unknown app");
+        require(indices.length == cids.length, "length mismatch");
+        uint256 len = _versions[appId].length;
+        for (uint256 i = 0; i < indices.length; i++) {
+            require(indices[i] < len, "bad index");
+            _versionConfigCid[appId][indices[i]] = cids[i];
+            if (bytes(cids[i]).length > 0) emit VersionConfigCidSet(appId, indices[i], cids[i]);
+        }
+    }
+
     /// @notice Permanently close the import window (there is no re-open).
     function sealImports() external {
         require(msg.sender == owner, "!owner");
@@ -632,6 +761,21 @@ contract EnclaveAppCatalog {
         return _versionFee6[appId][index];
     }
 
+    /// @notice The IPFS CID holding this version's ENCLAVE_CONFIG, or "" when
+    ///         the config is inline in the version's `config` field (every
+    ///         pre-rev-7 version, and every rev-7 version published through
+    ///         plain publishVersion). A reader resolves the effective config as
+    ///         "fetch this CID if non-empty, else use getVersion().config".
+    ///         When it IS set, the inline field is the routing manifest, not
+    ///         the app's config — do not hand it to a guest.
+    /// @dev Like the wasm CID, this names bytes a runner must verify: fetch it
+    ///      only through a path that checks the content hashes back to the CID.
+    ///      An unverified gateway fetch would hand a tenant config the owner
+    ///      never approved.
+    function versionConfigCid(bytes32 appId, uint256 index) external view returns (string memory) {
+        return _versionConfigCid[appId][index];
+    }
+
     /// @notice Publish-time CID resolver: which lineage owns these bytes, and the
     ///         newest listing's flags. Publishers pre-flight "is this CID already
     ///         listed, and by whom" before a publishVersion tx (which would revert
@@ -659,6 +803,18 @@ contract EnclaveAppCatalog {
         uint256 end = start + n; if (end > len) end = len;
         page = new App[](end - start);
         for (uint256 i = start; i < end; i++) page[i - start] = _apps[_appIds[i]];
+    }
+
+    /// @notice Every config CID for one app's release history, aligned by index
+    ///         with getVersionsPage(appId, 0, n). "" for versions whose config
+    ///         is inline. Batched deliberately: the side mapping is invisible to
+    ///         the tuple decoders, and without this a browser rendering a
+    ///         catalog would need one eth_call per version to find out where
+    ///         each config lives.
+    function versionConfigCids(bytes32 appId) external view returns (string[] memory out) {
+        uint256 len = _versions[appId].length;
+        out = new string[](len);
+        for (uint256 i = 0; i < len; i++) out[i] = _versionConfigCid[appId][i];
     }
 
     /// @notice Paginated release history for one app.

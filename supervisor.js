@@ -2077,7 +2077,7 @@ function toBytes(s) {
   const n = +m[1], u = m[2].toLowerCase();
   return u === "g" ? n*1073741824 : u === "m" ? n*1048576 : u === "k" ? n*1024 : n;
 }
-async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort, ports, config, secrets, hosts }) {
+async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort, ports, config, configCid, secrets, hosts }) {
   // Two backends. "vm": hand the app reference to the app manager on VMMGR_URL
   // (the wasm-manager runs it as a `wasmtime serve` process; cpuShare is its
   // admission unit and sets the guest memory cap — cpuShare × node RAM;
@@ -2106,6 +2106,12 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort
         // (already validated by the publish path; the manager re-parses and
         // passes it to the tenant as ENCLAVE_CONFIG; empty = app defaults)
         config: config || "",
+        // rev-7 large config: the manager fetches this CID and accepts the
+        // bytes only because they re-hash to it. When set, `config` above is
+        // the routing manifest, not what the guest receives. A manager that
+        // predates the field ignores it — which is why the claim path gates on
+        // the fleet advertising config_cid before taking such a deployment.
+        configCid: configCid || "",
         // dedicated-IP egress: a per-deployment SOCKS URL the manager forwards
         // verbatim as the guest's ENCLAVE_EGRESS (empty when egress is off). The
         // token in it is minted from the enclave SECRET, so the manager never
@@ -3200,6 +3206,15 @@ app.get("/availability", async (_req, res) => {
     const cth = PROVISION_BACKEND === "vm" && h.coopThreads !== undefined ? { coopThreads: h.coopThreads === true } : {};
     // shared-everything threads (SET): same shape, same AND semantics
     const setc = PROVISION_BACKEND === "vm" && h.set !== undefined ? { set: h.set === true } : {};
+    // catalog rev-7 large configs: the manager fetches a version's configCid and
+    // accepts the bytes only because they re-hash to it, then delivers past the
+    // argv ceiling by file. Same shape and AND semantics as p3 — absent means a
+    // manager too old to have an opinion, which the AND correctly reads as
+    // false. `configMaxBytes` is the spam ceiling it will actually honor, so
+    // the publish UI can size its own check off the fleet rather than guess.
+    const ccid = PROVISION_BACKEND === "vm" && h.configCid !== undefined
+      ? { configCid: h.configCid === true,
+          ...(h.configMaxBytes ? { configMaxBytes: Number(h.configMaxBytes) } : {}) } : {};
     // attached model volumes this enclave carries (Modelwrap): the console and
     // clients read this to know which volumes a deployment here can mount.
     const vols = PROVISION_BACKEND === "vm" && Array.isArray(h.volumes) ? { volumes: h.volumes } : {};
@@ -3228,7 +3243,7 @@ app.get("/availability", async (_req, res) => {
     // card allocator's plan - same contract as the RAM ledger above.
     const vram = PROVISION_BACKEND === "vm" && c.vramBudgetGb
       ? { vramBudgetGb: c.vramBudgetGb, vramCommittedGb: c.vramCommittedGb, vramLedgerFreeGb: c.vramFreeGb } : {};
-    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn, ...lbw, ...p3, ...cth, ...setc, ...vols, ...ram, ...vram, ...sweep });
+    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn, ...lbw, ...p3, ...cth, ...setc, ...ccid, ...vols, ...ram, ...vram, ...sweep });
   } catch (e) {
     return res.json(shape(maxFreeCpu(), maxFreeGpuShare(), "fallback",
       `${PROVISION_BACKEND === "vm" ? "wasm" : "worker"} manager unreachable`));
@@ -3447,6 +3462,7 @@ const VIEW_FIELDS = ["id", "owner", "status", "public", "firewall", "image", "co
   "createdAt", "startedAt", "paused", "pauseReason", "payDeadline", "digest",
   "payRef", "paidUsdc", "portMap", "error", "waf", "configOverride", "versionChange",
   "configChange",  // an envelope edit (setConfig) this runner deferred/refused - the owner's evidence, versionChange's twin
+  "appConfigCid",  // catalog rev 7: where this version's config actually lives, when `config` above is only the routing manifest. Public on purpose — otherwise an owner reading the record would see the manifest and think it was their app's config
   "secretsRev"];   // which relay secrets snapshot the running instance was launched with (names/values never leave the guest)
 const view = (rec) => {
   const o = {};
@@ -3553,6 +3569,13 @@ const CATALOG_ABI = [
   { type: "function", name: "versionFee", stateMutability: "view",
     inputs: [{ name: "appId", type: "bytes32" }, { name: "index", type: "uint256" }],
     outputs: [{ type: "uint256" }] },
+  // rev-7 surface (side mapping too): the CID holding a large config. Empty
+  // means the inline `config` IS the app's config, exactly as on every earlier
+  // rev; set means the inline field is the routing manifest and the FETCHED
+  // content is what the guest gets. Only CALLED when the catalog sniffs >= 7.
+  { type: "function", name: "versionConfigCid", stateMutability: "view",
+    inputs: [{ name: "appId", type: "bytes32" }, { name: "index", type: "uint256" }],
+    outputs: [{ type: "string" }] },
   { type: "function", name: "catalogSchema", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
 ];
 // Which feature surface the catalog at APP_CATALOG_ADDRESS speaks. Same live
@@ -3642,7 +3665,22 @@ async function gateAppReference(reference, opts = {}) {
       return deny(503, "catalog_unreachable", "Could not verify this app's publisher fee against the on-chain catalog; try again shortly.");
     }
   }
-  return { ref, wasmRef: "ipfs://" + v.cid, config: v.config || "", ports: v.ports || "", feePerSec6,
+  // rev-7 large configs: the version may keep its ENCLAVE_CONFIG at a CID
+  // instead of inline. Read it here so every consumer of the gate carries it,
+  // same fail-closed posture as the fee — not knowing whether a config CID
+  // exists is NOT the same as there being none, because launching without it
+  // would serve the app with its routing manifest as its config.
+  let configCid = "";
+  if (catRev >= 7) {
+    try {
+      configCid = await chainClient.readContract({ address: getAddress(APP_CATALOG_ADDRESS),
+        abi: CATALOG_ABI, functionName: "versionConfigCid", args: [appId, BigInt(index)] }) || "";
+    } catch (e) {
+      console.warn(`[approval] versionConfigCid(${appId}, ${index}) failed: ${e.shortMessage || e.message}`);
+      return deny(503, "catalog_unreachable", "Could not read this app's config reference from the on-chain catalog; try again shortly.");
+    }
+  }
+  return { ref, wasmRef: "ipfs://" + v.cid, config: v.config || "", configCid, ports: v.ports || "", feePerSec6,
            pending: Number(v.approval) !== 1,   // true only on the forPrivate dev-mode path
            app: { appId, index, slug: a.slug, version: v.version, publisher: a.publisher },
            min: { vramMb: Number(v.vramMb) || 0, gpuGflops: Number(v.gpuGflops) || 0,
@@ -4148,7 +4186,7 @@ async function provisionTenant(rec) {
       gpuShare: rec.resources.gpuShare || 0, cpuShare: rec.resources.cpuShare,
       image: { reference: rec.appWasm || (rec.image && rec.image.reference) },
       appPort: rec.network.port, ports: rec.firewall,
-      config: rec.config || "",
+      config: rec.config || "", configCid: rec.appConfigCid || "",
       secrets: sec && Object.keys(sec.env).length ? sec.env : null,
       hosts: hostsFor(rec) });
     rec._port = sp.internalPort;
@@ -4327,7 +4365,7 @@ async function respawnTenant(rec) {
       gpuShare: rec.resources.gpuShare || 0, cpuShare: rec.resources.cpuShare,
       image: { reference: rec.appWasm || (rec.image && rec.image.reference) },
       appPort: rec.network.port, ports: rec.firewall,
-      config: rec.config || "" });
+      config: rec.config || "", configCid: rec.appConfigCid || "" });
     rec._port = sp.internalPort;
     if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; }
     if (sp.portMap) rec.portMap = sp.portMap;
@@ -6021,8 +6059,14 @@ async function switchTenantVersion(rec, d) {
     const o = parseDepOptions(d.configCid, d.gpuMilli);
     rec.config = "config" in o ? JSON.stringify(o.config) : (g.config || "");
     if ("config" in o) rec.configOverride = true; else delete rec.configOverride;
+    // appConfigCid tracks rec.config and must be rewritten in BOTH directions:
+    // an override still wins over the new version's CID, and a version switch
+    // away from a CID config must clear the old one. Leaving it stale would
+    // serve the previous version's config, or (switching TO a CID version
+    // without setting it) hand the guest the routing manifest as its config.
+    rec.appConfigCid = "config" in o ? "" : (g.configCid || "");
     rec._envelope = String(d.configCid || "");   // the envelope watch must not re-restart for what this switch just applied
-  } catch { rec.config = g.config || ""; }
+  } catch { rec.config = g.config || ""; rec.appConfigCid = g.configCid || ""; }
   rec.firewall = firewall;
   rec.network.port = httpFw ? +httpFw.slice(5) : 8080;
   delete rec.portMap;              // the new version's spawn recomputes its own mapping
@@ -6073,19 +6117,26 @@ async function applyEnvelopeEdit(rec, d, verdict) {
     saveStateSoon();
     return;
   }
-  let cfg;
-  if ("config" in o) cfg = JSON.stringify(o.config);
-  else {
-    // override removed: back to the version's own config
+  let cfg, cfgCid;
+  if ("config" in o) {
+    cfg = JSON.stringify(o.config);
+    // an override replaces the version's config WHEREVER it lives: clear the
+    // CID too, or the manager would fetch the version's config and the
+    // override the owner just signed would be silently ignored
+    cfgCid = "";
+  } else {
+    // override removed: back to the version's own config — which on a rev-7
+    // version means restoring its CID, not just its (manifest-only) inline field
     let g;
     try { g = await gateAppReference(d.appRef, { forPrivate: !d.isPublic }); }
     catch (e) { g = { error: { msg: e.shortMessage || e.message } }; }
     if (g.error) return refuse("couldn't resolve the version's config to fall back to: " + g.error.msg);
-    cfg = g.config || "";
+    cfg = g.config || ""; cfgCid = g.configCid || "";
   }
   console.log(`[claim] ${rec.id} owner changed the deployment config on-chain; restarting in place`);
   try { await stopContainer(rec); } catch {}
   rec.config = cfg;
+  rec.appConfigCid = cfgCid;
   if ("config" in o) rec.configOverride = true; else delete rec.configOverride;
   rec._envelope = cur;
   delete rec.configChange;
@@ -6584,6 +6635,17 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     if (!p3h) return "app targets WASIp3 and the app manager cannot be asked (unreachable)";
     if (p3h.p3 !== true) return "app targets WASIp3 and this box's runtime does not serve it";
   }
+  // A rev-7 CID config is gated the same way, and it is the case where failing
+  // OPEN is worst: an older manager ignores the configCid field entirely and
+  // launches the app with the inline field — which on this path is the routing
+  // manifest, not the config. The app would come up "healthy" serving the
+  // wrong configuration, with nothing in any log to say so. Refuse instead and
+  // let a capable box take it.
+  if (g.configCid) {
+    const ch = await vmHealth().catch(() => null);
+    if (!ch) return "app keeps its config at a CID and the app manager cannot be asked (unreachable)";
+    if (ch.configCid !== true) return "app keeps its config at a CID and this box's manager cannot fetch it";
+  }
   // Cooperative threads (🧵): gated exactly like p3 — the manager probed its
   // own engine (coopThreads on /health: the thread.new-indirect compile
   // probe), and a box that can't serve them could only claim-fail-release.
@@ -6730,16 +6792,22 @@ async function adopt(d, g, firewall, slice) {
     // is only the manager's fetch address
     image: { reference: g.ref }, command: [],
     app: g.app, appWasm: g.wasmRef, config: g.config || "",
+    // rev-7: when the version keeps its config at a CID, `config` above is only
+    // the routing manifest and this is where the real one lives (the manager
+    // fetches and hash-checks it). Empty on every inline version.
+    ...(g.configCid ? { appConfigCid: g.configCid } : {}),
     // deployer's envelope options: considerClaim validated this exact string
     // before any adopt path (claim or resume), so the catch is unreachable —
     // kept so a hypothetical stale record degrades to the version's config and
     // no waf, not a crash. A `config` override REPLACES the version's config
     // (the spread lands after config: above on purpose); configOverride marks
     // the record so the owner can see their override is what's serving.
+    // It also replaces a CID config: appConfigCid is cleared, or the manager
+    // would fetch the version's config and ignore the override entirely.
     ...(() => { try {
       const o = parseDepOptions(d.configCid, d.gpuMilli);
       return { ...(o.waf ? { waf: o.waf } : {}),
-               ...("config" in o ? { config: JSON.stringify(o.config), configOverride: true } : {}) };
+               ...("config" in o ? { config: JSON.stringify(o.config), configOverride: true, appConfigCid: "" } : {}) };
     } catch { return {}; } })(),
     // the two shares the deployment bought on-chain — _shares keeps the exact
     // ledger millis so the audit can tell an owner resize (setShares) from

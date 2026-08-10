@@ -612,12 +612,67 @@ def _resolve_cid(cid: str) -> pathlib.Path:
 
 
 # Per-deployment config (ENCLAVE_CONFIG): the approved catalog version's config
-# JSON, sent inline on /vms by the supervisor (the chain record is the source —
-# the old configCid IPFS indirection is retired: a deployer-pinned CID could
-# carry ANY config, which defeated per-version approval). Must parse as JSON and
-# fit the ceiling, or the launch fails loudly rather than silently serving app
-# defaults with the wrong shape.
-CONFIG_MAX_BYTES = int(os.environ.get("ENCLAVE_CONFIG_MAX_BYTES", str(256 * 1024)))
+# JSON. Two shapes reach us, and the chain record is the source of both:
+#
+#   inline  - the version's `config` field, sent verbatim on /vms (<= 4096 bytes,
+#             the catalog's on-chain ceiling).
+#   by CID  - rev-7 `configCid`, sent as `configCid` on /vms and fetched HERE
+#             through the same hash-verifying path as the wasm bytes.
+#
+# The CID form is NOT the retired deployer-pinned configCid. That one let the
+# DEPLOYER name the bytes at deploy time, so what ran was never what the owner
+# ruled on. This CID is a field of the version RECORD — publisher-set,
+# immutable, approval-covered — and fetch_verified re-hashes every block back to
+# it, so the config the guest sees is the config the owner approved, exactly as
+# with the wasm. It exists because the inline field physically cannot grow: a
+# 1MB string is 32,768 SSTOREs (~655M gas) against a 400M block limit.
+#
+# Must parse as JSON and fit the ceiling, or the launch fails loudly rather than
+# silently serving app defaults with the wrong shape.
+CONFIG_MAX_BYTES = int(os.environ.get("ENCLAVE_CONFIG_MAX_BYTES", str(1024 * 1024)))
+
+# How much config may ride the guest's ENCLAVE_CONFIG env var. This is a KERNEL
+# limit, not a policy one: the value goes to wasmtime as one argv string, and
+# execve refuses any single argument over MAX_ARG_STRLEN = 32 pages = 131072
+# bytes with E2BIG. Anything larger is delivered by FILE only (see
+# CONFIG_GUEST_PATH). Held well under the wall so the "ENCLAVE_CONFIG=" prefix,
+# the secrets substitution (which can grow the text) and any page-size
+# difference cannot creep over it.
+#
+# Before rev 7 this could not be reached — the chain capped configs at 4096 —
+# so CONFIG_MAX_BYTES sat at 256KB, twice the kernel wall, and a config between
+# 128KB and 256KB would have passed validation and then died at spawn with a
+# bare E2BIG. Raising the ceiling is what makes that reachable, hence the split.
+CONFIG_ENV_MAX_BYTES = int(os.environ.get("ENCLAVE_CONFIG_ENV_MAX_BYTES", str(64 * 1024)))
+
+# Where a config too big for the env var shows up inside the guest. The file is
+# written for EVERY config, whatever its size, so an app has one mechanism that
+# always works; ENCLAVE_CONFIG stays populated whenever it fits, so every app
+# written before rev 7 keeps working untouched.
+CONFIG_GUEST_PATH = os.environ.get("WASM_CONFIG_GUEST", "/config")
+CONFIG_FILE_NAME = "config.json"
+# How far past the staged config /config may grow before the audit calls it
+# abuse. Zero would be right in principle (the dir is 0500 and its contents are
+# fixed at launch), but a filesystem can round a file's block usage, so leave
+# one block of slack rather than killing a healthy tenant over du arithmetic.
+CONFIG_DIR_SLACK_BYTES = 4096
+
+
+def _rm_tree_rw(path):
+    """rmtree a dir we deliberately made read-only (/config is 0500 so a tenant
+    cannot write there). rmtree needs WRITE on the directory to unlink its
+    children, so restore the bit first — without this the cleanup silently
+    fails under ignore_errors and a config holding substituted secrets outlives
+    the deployment that was entitled to them."""
+    try:
+        os.chmod(path, 0o700)
+        for root, dirs, files in os.walk(path):
+            for d in dirs:
+                try: os.chmod(os.path.join(root, d), 0o700)
+                except OSError: pass
+    except OSError:
+        pass
+    shutil.rmtree(path, ignore_errors=True)
 
 
 def _validate_config(text: str) -> str:
@@ -628,6 +683,31 @@ def _validate_config(text: str) -> str:
     except Exception as e:
         raise ValueError(f"config is not valid JSON: {e}")
     return text
+
+
+def _resolve_config_cid(cid: str) -> str:
+    """Fetch a rev-7 version's config JSON from IPFS and verify it hashes to `cid`.
+
+    Same trust rule as _resolve_cid for the wasm: the gateway is untrusted, so
+    the bytes are only accepted because they reproduce the CID the approved
+    version record names. Bounded by CONFIG_MAX_BYTES *during* reconstruction,
+    so a hostile gateway cannot make us materialize a huge DAG before the check.
+    """
+    if not re.fullmatch(r"[A-Za-z0-9]{10,100}", cid or ""):
+        raise ValueError(f"bad config cid '{cid}' (a CID is 10-100 alphanumeric characters)")
+    if ipfs_fetch is None:
+        raise ValueError("config-by-CID not available in this build (ipfs_fetch missing)")
+    try:
+        data = ipfs_fetch.fetch_verified(cid, IPFS_GATEWAY, CONFIG_MAX_BYTES, IPFS_TIMEOUT)
+    except ValueError:
+        raise                                       # verification / size errors already read clearly
+    except Exception as e:
+        raise ValueError(f"ipfs fetch failed for config {cid}: {e}")
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as e:
+        raise ValueError(f"config at {cid} is not UTF-8: {e}")
+    return _validate_config(text)
 
 
 # Per-deployment secrets (relay-staged owner env vars, fetched by the
@@ -3426,7 +3506,7 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
                nn=False, enclave_config=None, vol_mounts=None, egress=None, egress_transparent=None,
                enc=None, gpu_share: float = 0.0, nn_report=None, secrets=None,
                cpu_share: float = 0.0, nn_resident_other: int = 0, hosts="", wasi_contract=None,
-               threads=False, set_threads=False):
+               threads=False, set_threads=False, cfgdir=None):
     """The wasmtime invocation for a ports spec. Returns (cmd, host_port, wait_ports).
     `nn_report`, when a dict, is filled with the wasi-nn preload plan:
     {"emitted": [vol...], "skipped": {vol: why}, "stages": {vol: "kind::dir"},
@@ -3467,7 +3547,31 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     # what to do with it). Value is the verified config JSON; only forwarded to
     # the GUEST, never to the wasmtime process env (that carries the CUDA/ORT
     # knobs). Kept out of the log line: a config may hold an API key.
-    cfg_args = ["--env", "ENCLAVE_CONFIG=" + enclave_config] if enclave_config else []
+    #
+    # Two channels, because one argv string cannot hold more than
+    # MAX_ARG_STRLEN (128KiB) and a rev-7 config CID can carry up to
+    # CONFIG_MAX_BYTES:
+    #   ENCLAVE_CONFIG      the JSON itself, whenever it fits CONFIG_ENV_MAX_BYTES.
+    #                       Every app written before rev 7 reads only this, so it
+    #                       stays populated for every config that can fit.
+    #   ENCLAVE_CONFIG_FILE the path to the same JSON inside the guest, ALWAYS
+    #                       set when there is a config. This is the only channel
+    #                       for a config past the env ceiling, so an app that
+    #                       wants large configs reads the file and gets both.
+    # An app checking the file first and the env second works at every size.
+    cfg_args = []
+    if enclave_config:
+        if len(enclave_config.encode("utf-8")) <= CONFIG_ENV_MAX_BYTES:
+            cfg_args += ["--env", "ENCLAVE_CONFIG=" + enclave_config]
+        if cfgdir:
+            cfg_args += ["--dir", f"{cfgdir}::{CONFIG_GUEST_PATH}",
+                         "--env", f"ENCLAVE_CONFIG_FILE={CONFIG_GUEST_PATH}/{CONFIG_FILE_NAME}"]
+        elif len(enclave_config.encode("utf-8")) > CONFIG_ENV_MAX_BYTES:
+            # Refuse rather than start an app that would silently see no config
+            # at all: past the env ceiling the file IS the only channel.
+            raise ValueError(
+                f"config is {len(enclave_config.encode('utf-8'))} bytes, over the "
+                f"{CONFIG_ENV_MAX_BYTES}-byte env ceiling, and no config dir could be created")
     # per-deployment secrets: owner-staged env vars (_validate_secrets), one
     # guest --env each, sorted for a deterministic cmdline. Same discipline as
     # ENCLAVE_CONFIG: guest-only, never the process env, never a log line (the
@@ -3857,7 +3961,7 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
 
 def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
            mem_mb: int = 0, pspec=None, storage_mb=None, config="", volumes=None,
-           egress="", secrets=None, hosts="") -> dict:
+           egress="", secrets=None, hosts="", config_cid="") -> dict:
     pspec = pspec or _parse_ports([])
     if storage_mb is None:
         storage_mb = DEF_STORAGE_MB
@@ -3987,12 +4091,26 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
                         f"cannot serve them ({why}); a SET-capable enclave must claim it")
         return rec
 
-    # per-deployment config: the approved catalog version's config JSON, passed
-    # INLINE by the supervisor (it read the record straight off the chain — no
-    # IPFS hop, nothing deployer-controlled). Re-validated here so a malformed
-    # record fails the launch cleanly, not the tenant on first request.
+    # per-deployment config: the approved catalog version's config JSON. The
+    # supervisor passes it one of two ways, both read straight off the chain
+    # record and neither deployer-controlled:
+    #   config     - inline, the version's own field (<= 4096 bytes on-chain)
+    #   config_cid - rev 7, the version's configCid; fetched here and accepted
+    #                only because the bytes re-hash to the CID the approved
+    #                record names (see _resolve_config_cid)
+    # Re-validated either way, so a malformed record fails the launch cleanly
+    # rather than the tenant on first request. If both arrive the CID wins and
+    # the inline field is ignored — the catalog cannot produce that pairing
+    # (publishVersionCfg leaves `config` empty), so it means a confused caller,
+    # and the CID is the more specific claim.
     enclave_config = None
-    if config:
+    if config_cid:
+        try:
+            enclave_config = _resolve_config_cid(config_cid)
+        except ValueError as e:
+            rec["status"], rec["error"] = "failed", str(e)
+            return rec
+    elif config:
         try:
             enclave_config = _validate_config(config)
         except ValueError as e:
@@ -4017,6 +4135,45 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
     # ENCLAVE_CONFIG, encVolumes creds fields, warmup, volume lists.
     if enclave_config and secrets:
         enclave_config = _subst_secrets(enclave_config, secrets)
+
+    # Config drop: a private dir holding just the RESOLVED config JSON (post
+    # substitution — the guest must see the same text either way), preopened as
+    # the guest's /config. Staged here, after every transform, so the file and
+    # ENCLAVE_CONFIG can never disagree.
+    #
+    # Separate from /data on purpose: /data is the app's own writable scratch
+    # with a quota, and the config must not be something the app can fill up,
+    # delete, or lose to a storage sweep. Unlike /data, a failure here is FATAL
+    # for a config past the env ceiling — there is no other channel — which
+    # _build_cmd enforces; below the ceiling the env var still carries it.
+    cfgdir, cfg_bytes = None, 0
+    if enclave_config:
+        cand = FS_DIR / f"{vid}-cfg"
+        try:
+            cand.mkdir(parents=True, exist_ok=True)
+            cand.chmod(0o700)
+            # 0400, and written before the preopen exists: a resolved config can
+            # hold substituted secrets, the same exposure class as the argv value
+            f = cand / CONFIG_FILE_NAME
+            f.write_text(enclave_config, encoding="utf-8")
+            f.chmod(0o400)
+            cfg_bytes = f.stat().st_size
+            # 0500 LAST: the guest's /config is configuration, not scratch, and
+            # dropping the write bit is what actually makes it read-only —
+            # wasmtime's --dir has no read-only mode, so like the model volumes
+            # this leans on the filesystem. _audit_storage is the backstop for a
+            # runtime running as root, where the mode bits are advisory.
+            cand.chmod(0o500)
+            cfgdir = cand
+        except OSError as e:
+            # a failure AFTER write_text leaves a secret-substituted file on
+            # disk that nothing would ever clean up (_cfgdir stays None, so
+            # teardown skips it) — remove the whole dir on any partial stage
+            _rm_tree_rw(cand)
+            cfgdir, cfg_bytes = None, 0
+            print(f"[cfg] {vid} could not stage the config dir: {e}", flush=True)
+    rec["_cfgdir"] = str(cfgdir) if cfgdir else None
+    rec["_cfgBytes"] = cfg_bytes
 
     # attached model volumes: the request may name them two ways - an explicit
     # /vms `volumes` list (direct callers) and/or a `volumes` array in the
@@ -4264,14 +4421,25 @@ def _spawn_and_wait(rec, ctx):
     # can grow) - the real per-app memory ceiling, enforced by the runtime.
     mem_bytes = max(rec["mem_mb"], 1) * 1024 * 1024
     nn_report = {}
-    cmd, host_port, wait_ports = _build_cmd(pspec, wasm, port, mem_bytes, port_map, fsdir, nn,
-                                            enclave_config, vol_mounts, egress, egress_transparent,
-                                            ctx.get("enc"), gpu_share=gpu_share, nn_report=nn_report,
-                                            secrets=ctx.get("secrets"), cpu_share=cpu_share,
-                                            nn_resident_other=_nn_resident_bytes(exclude=rec["id"]),
-                                            hosts=ctx.get("hosts", ""), wasi_contract=ctx.get("wasi"),
-                                            threads=ctx.get("threads", False),
-                                            set_threads=ctx.get("set", False))
+    # _build_cmd refuses rather than assembling a command it knows is wrong (a
+    # config past the env ceiling with no file channel). Turn that into a FAILED
+    # record like every other launch refusal — uncaught it would escape to the
+    # HTTP handler as a traceback and a dropped connection, and the supervisor
+    # would see a transport error instead of the reason.
+    try:
+        cmd, host_port, wait_ports = _build_cmd(pspec, wasm, port, mem_bytes, port_map, fsdir, nn,
+                                                enclave_config, vol_mounts, egress, egress_transparent,
+                                                ctx.get("enc"), gpu_share=gpu_share, nn_report=nn_report,
+                                                secrets=ctx.get("secrets"), cpu_share=cpu_share,
+                                                nn_resident_other=_nn_resident_bytes(exclude=rec["id"]),
+                                                hosts=ctx.get("hosts", ""), wasi_contract=ctx.get("wasi"),
+                                                threads=ctx.get("threads", False),
+                                                set_threads=ctx.get("set", False),
+                                                cfgdir=rec.get("_cfgdir"))
+    except ValueError as e:
+        rec["status"], rec["error"] = "failed", str(e)
+        print(f"[launch] {rec['id']} refused: {e}", flush=True)
+        return rec
     # the preload plan, public on the record: what the boot preload will
     # attempt (nnPreloads) and why the rest won't (nnSkipped). The watchdog
     # sweep compares this against what a launch would emit NOW; the log
@@ -4689,6 +4857,25 @@ def _audit_storage(rec):
     """Enforce the per-app /data ceiling. We can't mount a sized tmpfs (the
     enclave blocks mounts), so -- like the port firewall -- we measure and kill
     on breach. `storageBytes` is refreshed each sweep so callers can see usage."""
+    # /config is policed FIRST and on its own terms, because it exists even when
+    # /data does not (storage_mb 0, or WASM_FS off) — so folding it into the
+    # /data cap would leave it unmeasured in exactly the configurations that
+    # have no cap at all. It is a preopen on the shared ramdisk, and the dir is
+    # mode 0500 so a tenant should not be able to write there anyway; this is
+    # the measure-and-kill backstop for when it can (a root-run runtime ignores
+    # the mode bits). Its legitimate size is fixed at launch, so anything past
+    # a slack margin over what we staged is the app writing into it.
+    cfgdir, staged = rec.get("_cfgdir"), rec.get("_cfgBytes") or 0
+    if cfgdir:
+        cfg_used = _dir_size(cfgdir)
+        if cfg_used > staged + CONFIG_DIR_SLACK_BYTES:
+            rec["status"] = "failed"
+            rec["error"] = (f"storage: /config is read-only and holds the app's configuration; "
+                            f"it grew to {cfg_used} bytes (staged {staged}). App killed.")
+            print(f"[audit] {rec['id']} killed: /config grew to {cfg_used} bytes (staged {staged})", flush=True)
+            _kill(rec)
+            return
+
     fsdir, cap_mb = rec.get("_fsdir"), rec.get("storageMb") or 0
     if not fsdir or cap_mb <= 0:
         return
@@ -4878,6 +5065,12 @@ def _rm_fsdir(rec):
     d = rec.get("_fsdir")
     if d:
         shutil.rmtree(d, ignore_errors=True)   # ephemeral scratch: nothing to preserve
+    c = rec.get("_cfgdir")
+    if c:
+        # the staged config dies with the deployment: post-substitution it can
+        # hold secrets, so it must not outlive the tenant that was entitled to
+        # them. _rm_tree_rw because we made the dir read-only on purpose.
+        _rm_tree_rw(c)
     enc = rec.get("_enc")
     if enc:
         # plaintext + any retained rclone credentials die with the deployment
@@ -5087,6 +5280,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                     # does NOT require p3 (SET rides wasip2). Forwarded and
                                     # claim-gated for versions marked `set`.
                                     "set": _set_active(),
+                                    # catalog rev 7: this box resolves a version's configCid —
+                                    # fetching the config from IPFS and accepting it only
+                                    # because it re-hashes to the CID the approved record
+                                    # names — and delivers past the argv ceiling by file.
+                                    # Forwarded to /availability and claim-gated: an older
+                                    # manager ignores the field and would serve the routing
+                                    # manifest as the config, so this has to be sayable.
+                                    "configCid": ipfs_fetch is not None,
+                                    "configMaxBytes": CONFIG_MAX_BYTES,
+                                    "configEnvMaxBytes": CONFIG_ENV_MAX_BYTES,
                                     **({"gpuVramGb": GPU_VRAM_GB, "gpuVramSource": GPU_VRAM_SRC,
                                         # request-level GPU fair-share (nn-arb): enabled = the
                                         # operator knob; probe = whether the toolchain's client
@@ -5315,13 +5518,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json(422, {"error": f"app '{app_ref}' declares a minimum of {min_ggf / 1000} GPU TFLOPS; the request asks for less"})
         storage_mb = int(meta.get("storage_mb", DEF_STORAGE_MB))   # per-app /data cap; 0 opts out
         config = str(b.get("config") or "").strip()                # per-deployment ENCLAVE_CONFIG (the version's config, inline; validated in launch)
+        config_cid = str(b.get("configCid") or "").strip()         # rev-7 alternative to `config`: the CID holding it (fetched + hash-checked in launch)
         egress = str(b.get("egress") or "").strip()                # per-deployment ENCLAVE_EGRESS (opaque SOCKS URL, forwarded verbatim)
         secrets = b.get("secrets") or None                         # relay-staged owner secrets (guest --env; validated in launch, never logged)
         hosts = str(b.get("hosts") or "").strip()                  # every hostname this deployment answers on -> guest ENCLAVE_HOSTS
         req_vols = b.get("volumes") or []                          # attached model volumes by name
         if not isinstance(req_vols, list):
             return self._json(400, {"error": "volumes must be a list of volume names"})
-        rec = launch(app_ref, name, cpu_share, gpu_share, mem_mb, pspec, storage_mb, config, req_vols, egress, secrets, hosts)
+        rec = launch(app_ref, name, cpu_share, gpu_share, mem_mb, pspec, storage_mb, config, req_vols, egress, secrets, hosts,
+                     config_cid)
         code = 201 if rec["status"] in ("starting", "running") else 500
         return self._json(code, _public(rec))
 
@@ -5358,6 +5563,12 @@ def _debug_env() -> dict:
            "nn_probe": dict(_NN_PROBE), "gpu_vram_gb": GPU_VRAM_GB, "gpu_vram_source": GPU_VRAM_SRC,
            "mps_pipe": MPS_PIPE_DIR if (NN_ENABLED and NODE_HAS_GPU) else None,
            "fs": FS_ENABLED, "fs_guest": FS_GUEST_PATH if FS_ENABLED else None,
+           # rev-7 large configs (this is the snake_case operator surface; the
+           # camelCase twin on /health is what the supervisor reads)
+           "config_cid": ipfs_fetch is not None,
+           "config_max_bytes": CONFIG_MAX_BYTES,
+           "config_env_max_bytes": CONFIG_ENV_MAX_BYTES,
+           "config_guest": CONFIG_GUEST_PATH,
            "default_storage_mb": DEF_STORAGE_MB if FS_ENABLED else 0,
            "enc": ENC_ENABLED and shutil.which(RCLONE_BIN) is not None,
            "enc_guest": ENC_GUEST_ROOT if ENC_ENABLED else None,
@@ -5380,10 +5591,13 @@ def _debug_env() -> dict:
 def main():
     # Clear stale scratch dirs from a previous run: /data is strictly ephemeral,
     # and a manager restart has already lost track of any prior deployments.
-    if FS_ENABLED:
-        for child in FS_DIR.iterdir() if FS_DIR.exists() else []:
-            if child.is_dir():
-                shutil.rmtree(child, ignore_errors=True)
+    # NOT gated on FS_ENABLED: the staged <vid>-cfg config drops are written
+    # whenever a deployment HAS a config, /data or no /data, and a resolved
+    # config can hold substituted secrets. Gating this sweep the way the /data
+    # one is gated would let those outlive the tenant across a restart.
+    for child in FS_DIR.iterdir() if FS_DIR.exists() else []:
+        if child.is_dir():
+            _rm_tree_rw(child)      # the -cfg drops are 0500; a plain rmtree would leave them
     if ENC_ENABLED:
         for child in ENC_DIR.iterdir() if ENC_DIR.exists() else []:
             if child.is_dir():

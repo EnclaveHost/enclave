@@ -64,8 +64,28 @@ const DEFAULTS = {
   ADDRESS_BOOK_ADDRESS: "0xab214342d5A490150A4A977063A2f88E21F80907",     // EnclaveAddressBook; written by scripts/deploy-address-book.mjs — when set, the CLI resolves the addresses above from it at start ("" = baked only)
   USDC_ADDRESS: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
   ipfsUpload: env.ENCLAVE_IPFS_UPLOAD || "https://ipfs.enclave.host/add-wasm",
+  ipfsJsonUpload: env.ENCLAVE_IPFS_JSON_UPLOAD || "https://ipfs.enclave.host/add-json",
   appDomain: "app.enclave.host",
 };
+
+// App-config ceilings. INLINE_MAX is the catalog's on-chain limit on the
+// version's `config` field — a hard contract constant, not a policy dial. Above
+// it the config is pinned to IPFS and the version carries the CID instead
+// (catalog rev 7, publishVersionCfg), which is what CONFIG_MAX_BYTES bounds:
+// the runner refuses anything larger at launch, and the pin gateway at upload.
+// Keep all three in lockstep — wasm_manager CONFIG_MAX_BYTES, the gateway's
+// MAX_CONFIG_BYTES, and this.
+const CONFIG_INLINE_MAX = 4096;
+const CONFIG_MAX_BYTES  = 1024 * 1024;
+// The keys read straight off the CHAIN RECORD by readers with no CID to fetch
+// yet. When the config moves to a CID these stay behind in the inline field:
+// wasi/threads/set/gpuOptional place the deployment (a runner picks a box
+// before it fetches anything), and _media is the catalog grid's tile art. They
+// stay in the PINNED config too, so the delivered ENCLAVE_CONFIG remains the
+// whole document — the manifest is a projection, not a split. Derived, never
+// hand-written: publish stamps wasi/threads/set from the binary's own exports.
+// Mirrors ROUTING_KEYS in site/js/core/chain.js — keep them in lockstep.
+const ROUTING_KEYS = ["wasi", "threads", "set", "gpuOptional", "volumes", "_media"];
 
 // Minimal ABIs — mirror contracts/*.abi.json (checked in, re-emitted by the
 // deploy scripts); embedded so the installed binary is self-contained.
@@ -248,10 +268,24 @@ const CATALOG_ABI = [
              { name: "ports", type: "string" }, { name: "config", type: "string" },
              { name: "feePerSec6", type: "uint256" }],
     outputs: [{ type: "bytes32" }, { type: "uint256" }] },
+  // rev-7: a version whose config lives at a CID. `config` here is the ROUTING
+  // MANIFEST (wasi/threads/set/gpuOptional — what a runner reads off the chain
+  // before it can fetch anything), and configCid names the real config.
+  { type: "function", name: "publishVersionCfg", stateMutability: "nonpayable",
+    inputs: [{ name: "slug", type: "string" }, { name: "name", type: "string" },
+             { name: "description", type: "string" }, { name: "version", type: "string" },
+             { name: "cid", type: "string" }, { name: "res", type: "uint32[4]" },
+             { name: "ports", type: "string" }, { name: "config", type: "string" },
+             { name: "configCid", type: "string" }, { name: "feePerSec6", type: "uint256" }],
+    outputs: [{ type: "bytes32" }, { type: "uint256" }] },
   // rev-5 surface (side mapping, so version tuples decode on every rev)
   { type: "function", name: "versionFee", stateMutability: "view",
     inputs: [{ name: "appId", type: "bytes32" }, { name: "index", type: "uint256" }],
     outputs: [{ type: "uint256" }] },
+  // rev-7 surface (side mapping too): "" = the inline config IS the config
+  { type: "function", name: "versionConfigCid", stateMutability: "view",
+    inputs: [{ name: "appId", type: "bytes32" }, { name: "index", type: "uint256" }],
+    outputs: [{ type: "string" }] },
   { type: "function", name: "maxFeePerSec6", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "catalogSchema", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
 ];
@@ -1991,6 +2025,34 @@ function componentContract(bytes) {
   return none;
 }
 
+// Pin bytes through the validating gateway. Every pin route is WALLET-AUTHORIZED
+// (it closes the open-pin storage DoS): sign enclave-upload:<sha256>:<expiry>,
+// trade the signature at the API for a one-time token bound to those exact
+// bytes, then upload carrying it. The token also spends against a per-wallet
+// daily byte budget, which is what actually bounds the pin surface.
+async function pinBytes(account, bytes, url, contentType, label) {
+  const hash = crypto.createHash("sha256").update(bytes).digest("hex");
+  const expiry = Math.floor(Date.now() / 1000) + 300;
+  const signature = await account.signMessage({ message: `enclave-upload:${hash}:${expiry}` });
+  const tok = await api("POST", "/v1/apps/upload-token", { body: { hash, expiry, signature } });
+  if (!tok || !tok.token) throw new Error("upload authorization failed");
+  trace(`curl -sX POST ${url} -H 'content-type: ${contentType}' -H 'x-upload-token: …' --data-binary @${label}`);
+  const up = await fetch(url, { method: "POST", body: bytes, headers: { "content-type": contentType,
+    "x-upload-address": tok.address, "x-upload-expiry": String(expiry), "x-upload-token": tok.token } });
+  const body = await up.text();
+  if (!up.ok) throw new Error(`IPFS upload failed (${up.status}): ${body.slice(0, 200)}`);
+  const cid = JSON.parse(body).cid;
+  if (!cid) throw new Error("IPFS upload returned no CID");
+  return cid;
+}
+
+// An app config, for a version that keeps it at a CID rather than inline. The
+// gateway re-parses the JSON and caps the size; the enclave re-fetches and
+// hash-verifies against this CID, so a bad pin fails at publish rather than
+// becoming a version that cannot launch.
+const pinJson = (account, buf) =>
+  pinBytes(account, buf, DEFAULTS.ipfsJsonUpload, "application/json", "config.json");
+
 async function cmdPublish(rest) {
   const account = loadKey();
   const f = flags(rest, { val: ["--slug", "--name", "--desc", "--version", "--mem", "--cpu-gflops",
@@ -2010,7 +2072,8 @@ async function cmdPublish(rest) {
   // live (`volumes`) - no catalog redeploy, and it ships the day it is pushed.
   if (f.config || f["gpu-optional"]){
     const raw = f.config || "{}";
-    if (Buffer.byteLength(raw) > 4096) throw new Error("--config too long (≤ 4096 bytes)");
+    if (Buffer.byteLength(raw) > CONFIG_MAX_BYTES)
+      throw new Error(`--config too long (≤ ${CONFIG_MAX_BYTES} bytes)`);
     let o; try { o = JSON.parse(raw); } catch (e) { throw new Error("--config isn't valid JSON: " + e.message); }
     if (!o || Array.isArray(o) || typeof o !== "object") throw new Error("--config must be a JSON object");
     if (f["gpu-optional"]){
@@ -2079,18 +2142,7 @@ async function cmdPublish(rest) {
   // 1. pin to IPFS. The gateway requires a WALLET-AUTHORIZED token (closes the
   //    open-pin storage DoS): sign enclave-upload:<sha256>:<expiry>, trade it at
   //    the API for a one-time token, then upload the bytes carrying it.
-  const upUrl = DEFAULTS.ipfsUpload;
-  const hash = crypto.createHash("sha256").update(bytes).digest("hex");
-  const expiry = Math.floor(Date.now() / 1000) + 300;
-  const signature = await account.signMessage({ message: `enclave-upload:${hash}:${expiry}` });
-  const tok = await api("POST", "/v1/apps/upload-token", { body: { hash, expiry, signature } });
-  if (!tok || !tok.token) throw new Error("upload authorization failed");
-  trace(`curl -sX POST ${upUrl} -H 'content-type: application/wasm' -H 'x-upload-token: …' --data-binary @${file}`);
-  const up = await fetch(upUrl, { method: "POST", body: bytes, headers: { "content-type": "application/wasm",
-    "x-upload-address": tok.address, "x-upload-expiry": String(expiry), "x-upload-token": tok.token } });
-  const upBody = await up.text();
-  if (!up.ok) throw new Error(`IPFS upload failed (${up.status}): ${upBody.slice(0, 200)}`);
-  const cid = JSON.parse(upBody).cid;
+  const cid = await pinBytes(account, bytes, DEFAULTS.ipfsUpload, "application/wasm", file);
   say(`pinned ipfs://${cid}`);
 
   // 2. cut the catalog version (publisher = your address; appId = keccak(publisher, slug))
@@ -2123,13 +2175,41 @@ async function cmdPublish(rest) {
       delete cfgObj.set;
     }
     f.config = JSON.stringify(cfgObj);
-    if (Buffer.byteLength(f.config) > 4096) throw new Error("--config too long after the wasi stamp (≤ 4096 bytes)");
+    if (Buffer.byteLength(f.config) > CONFIG_MAX_BYTES)
+      throw new Error(`--config too long after the wasi stamp (≤ ${CONFIG_MAX_BYTES} bytes)`);
+  }
+  // A config past the on-chain ceiling rides a CID instead (catalog rev 7). The
+  // chain record then keeps only the ROUTING MANIFEST — the handful of keys a
+  // runner needs before it can fetch anything — and the pinned JSON is what the
+  // guest receives as ENCLAVE_CONFIG.
+  let configCid = "";
+  const cfgBytes = Buffer.byteLength(f.config || "");
+  if (cfgBytes > CONFIG_INLINE_MAX) {
+    if (rev < 7) throw new Error(
+      `--config is ${cfgBytes} bytes; this catalog (rev ${rev}) stores configs inline and caps them at ${CONFIG_INLINE_MAX}. `
+      + `A rev-7 catalog keeps large configs at a CID.`);
+    // what stays on-chain: only the derived routing keys, never the body.
+    // Derived and size-checked BEFORE the pin — pinning is irreversible and
+    // spends the publisher's daily byte budget, so a manifest that would revert
+    // publishVersionCfg has to fail here rather than after.
+    const cfgBuf = Buffer.from(f.config, "utf8");
+    const full = JSON.parse(f.config);
+    const manifest = {};
+    for (const k of ROUTING_KEYS) if (full[k] !== undefined) manifest[k] = full[k];
+    const onchain = Object.keys(manifest).length ? JSON.stringify(manifest) : "";
+    if (Buffer.byteLength(onchain) > CONFIG_INLINE_MAX) throw new Error(
+      `the on-chain routing manifest (${ROUTING_KEYS.join(", ")}) is ${Buffer.byteLength(onchain)} bytes, `
+      + `over the ${CONFIG_INLINE_MAX}-byte record limit - shorten \`volumes\` or \`_media\``);
+    configCid = await pinJson(account, cfgBuf);
+    say(`pinned config ipfs://${configCid} (${cfgBytes} bytes)`);
+    f.config = onchain;
   }
   const args = [f.slug, f.name || f.slug, f.desc || "", version, cid, res, f.ports || ""];
   if (rev >= 3) args.push(f.config || "");   // rev 3+ take the 8-arg form (rev 3 stores it app-level; we always pass "")
+  if (configCid) args.push(configCid);       // rev 7 publishVersionCfg: the config's CID sits between config and fee
   if (rev >= 5) args.push(feePerSec6);       // rev 5+ take the 9-arg form (the version's publisher fee; 0 = free)
   const rcpt = await sendTx(account, { address: DEFAULTS.APP_CATALOG_ADDRESS, abi: CATALOG_ABI,
-    functionName: "publishVersion", args });
+    functionName: configCid ? "publishVersionCfg" : "publishVersion", args });
   if (opt.json) return jout({ slug: f.slug, version, cid, appId, tx: rcpt.transactionHash, approval: "pending" });
   say(`published ${f.slug}:${version} (tx ${rcpt.transactionHash})`);
   say(`approval is pending. Test it NOW as a private deployment (owner-only data path,`);

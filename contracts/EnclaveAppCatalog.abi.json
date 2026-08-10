@@ -216,6 +216,31 @@
       },
       {
         "indexed": false,
+        "internalType": "string",
+        "name": "configCid",
+        "type": "string"
+      }
+    ],
+    "name": "VersionConfigCidSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "appId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "index",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
         "internalType": "uint256",
         "name": "feePerSec6",
         "type": "uint256"
@@ -891,6 +916,29 @@
         "type": "uint256[]"
       },
       {
+        "internalType": "string[]",
+        "name": "cids",
+        "type": "string[]"
+      }
+    ],
+    "name": "importVersionConfigCids",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "appId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "indices",
+        "type": "uint256[]"
+      },
+      {
         "internalType": "uint256[]",
         "name": "fees",
         "type": "uint256[]"
@@ -1136,6 +1184,75 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "slug",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "description",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "version",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "cid",
+        "type": "string"
+      },
+      {
+        "internalType": "uint32[4]",
+        "name": "res",
+        "type": "uint32[4]"
+      },
+      {
+        "internalType": "string",
+        "name": "ports",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "config",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "configCid",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "feePerSec6",
+        "type": "uint256"
+      }
+    ],
+    "name": "publishVersionCfg",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "appId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "index",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "sealImports",
     "outputs": [],
@@ -1248,6 +1365,49 @@
     "name": "transferOwnership",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "appId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "index",
+        "type": "uint256"
+      }
+    ],
+    "name": "versionConfigCid",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "appId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "versionConfigCids",
+    "outputs": [
+      {
+        "internalType": "string[]",
+        "name": "out",
+        "type": "string[]"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {

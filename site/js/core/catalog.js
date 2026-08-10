@@ -35,11 +35,19 @@ export function validPortsCsv(s){
 // The last good catalog is cached in localStorage (stale-while-revalidate):
 // paint it instantly, refresh behind it, and a failed refresh keeps the page
 // usable instead of replacing it with an error wall.
+// Bumped whenever a cached version object gains a field the UI now depends on.
+// A cache written by an OLDER site build is not merely stale, it is missing
+// that field — and the site deploys independently of the catalog contract, so
+// the address in the key does not change when the site does. Rev 7 is the live
+// example: without `configCid`, a large-config version reads as though its
+// config were the small on-chain routing manifest, and the deploy console would
+// offer that manifest as the app's config for the user to "override".
+const CAT_CACHE_V = 2;
 export function catCacheGet(){
   try { const c = JSON.parse(lsGet("enclave_catalog_" + APP_CATALOG_ADDRESS) || "null");
-        return (c && Array.isArray(c.apps)) ? c : null; } catch(e){ return null; }
+        return (c && c.v === CAT_CACHE_V && Array.isArray(c.apps)) ? c : null; } catch(e){ return null; }
 }
-export function catCacheSet(apps){ lsSet("enclave_catalog_" + APP_CATALOG_ADDRESS, JSON.stringify({ at: Date.now(), apps })); }
+export function catCacheSet(apps){ lsSet("enclave_catalog_" + APP_CATALOG_ADDRESS, JSON.stringify({ v: CAT_CACHE_V, at: Date.now(), apps })); }
 
 // A loaded store older than this re-reads (in the background, behind the
 // current paint) on the next loadCatalog() - i.e. the next page boot. The
@@ -210,6 +218,42 @@ export function volumesOfConfig(cfg){
   } catch { return []; }        // an unparseable config constrains nothing; the runner still gates the claim
 }
 export const CONFIG_CACHE = {}; // friendly "slug:version" -> that VERSION's default/template config JSON (pre-fills the deploy form)
+export const CONFIG_CID_CACHE = {}; // friendly "slug:version" -> the CID that config lives at ("" = it is inline, and CONFIG_CACHE already has it)
+/* friendly "slug:version" -> the version's INLINE on-chain field, verbatim.
+   Below rev 7 that IS the config; from rev 7 a large-config version keeps only
+   the routing manifest there. Either way it is the one place the placement keys
+   (wasi/threads/set/volumes/gpuOptional) are guaranteed to be readable WITHOUT
+   a network fetch — so every gate that decides which box can run this app reads
+   THIS, never CONFIG_CACHE. CONFIG_CACHE answers a different question ("what
+   will the app receive"), and for a CID version it is empty until a fetch
+   lands, which would silently turn a hard placement refusal into a pass. */
+export const MANIFEST_CACHE = {};
+
+/* A rev-7 version keeps its config at an IPFS CID; this reads it for DISPLAY
+   (the deploy console's prefill and its override diff). Display only — nothing
+   here is a trust boundary: the enclave re-fetches the same CID and verifies
+   the content hashes back to it before any of it reaches a guest, so the worst
+   a lying gateway does to this path is show the operator the wrong text.
+   Returns null when unreadable, which callers render as empty rather than
+   wrong. Cached by CID: it is content-addressed, so it can never go stale. */
+const _cfgCidCache = {};
+export async function fetchConfigCid(cid){
+  if (cid in _cfgCidCache) return _cfgCidCache[cid];
+  let out = null;
+  try {
+    const r = await fetch(IPFS_IMG_GATEWAY + encodeURIComponent(cid), { signal: AbortSignal.timeout(15000) });
+    if (r.ok) {
+      const text = await r.text();
+      JSON.parse(text);                     // must parse, or it is not a config
+      out = text;
+    }
+  } catch(e){ out = null; }
+  // only a SUCCESS is memoized: content addressing makes a hit permanently
+  // valid, but a gateway hiccup is transient and caching it would kill the
+  // prefill for the rest of the page session
+  if (out !== null) _cfgCidCache[cid] = out;
+  return out;
+}
 export function looksFriendly(s){ return s.includes(":") && !s.startsWith("ipfs://"); }
 /* opts.allowPending: admit a version still AWAITING approval — the dev-mode
    path (PRIVATE deployments on a fleet advertising devDeploy; the caller owns
@@ -250,7 +294,26 @@ export function resolveAppRef(input, opts = {}){
   if (!awaiting) REF_CACHE[input] = catalogRef(apps[0].appId, vi);
   PORTS_CACHE[input] = v.ports || "";
   SPECS_CACHE[input] = specOf(v);         // raw specs; floors are computed at read time
-  CONFIG_CACHE[input] = stripMedia(v.config || "");   // the version's default config template (store media stripped: _media never reaches an app, and an override built from this prefill must not carry it)
+  // The version's default config template (store media stripped: _media never
+  // reaches an app, and an override built from this prefill must not carry it).
+  // On a rev-7 version `v.config` is only the on-chain manifest, so the real
+  // config is fetched from its CID — otherwise the deploy console would prefill
+  // the manifest and treat the user's first keystroke as an override against
+  // the wrong baseline. Best effort: a gateway that won't answer leaves the
+  // box empty rather than wrong, and the ENCLAVE_CONFIG the app receives is
+  // resolved in-enclave regardless of what this display path managed to read.
+  MANIFEST_CACHE[input] = v.config || "";
+  CONFIG_CACHE[input] = stripMedia(v.config || "");
+  // On a rev-7 version the line above cached only the ON-CHAIN MANIFEST. The
+  // real config is at a CID and reading it is a network fetch, so it is not
+  // done here (this resolver is synchronous and called from render paths):
+  // CONFIG_CID_CACHE records where to get it and the deploy console fills the
+  // box once it lands. Until then the box shows the manifest-stripped empty
+  // string rather than the manifest itself, which would read as the app's
+  // config and make the user's first keystroke an override against a baseline
+  // that was never the config.
+  CONFIG_CID_CACHE[input] = v.configCid || "";
+  if (v.configCid) CONFIG_CACHE[input] = "";
   return { reference: catalogRef(apps[0].appId, vi), label: input, mins: minPctsOf(SPECS_CACHE[input]),
            ...(awaiting ? { awaitingApproval: true } : {}) };
 }

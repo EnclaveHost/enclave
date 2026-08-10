@@ -28,7 +28,7 @@ import { encCall, DEP_SEL, DEP_CREATED_TOPIC, APPROVAL, depGet, depRate6, depPri
 // string): sniffed once at init; the samples and the real encode both use it.
 let depRev = 2;
 import { connectWallet, refreshWallet, ensureBaseChain, sendTx, usdcBalanceOf, ethBalanceOf } from "../core/wallet.js";
-import { STORE, loadCatalog, REF_CACHE, PORTS_CACHE, SPECS_CACHE, CONFIG_CACHE, looksFriendly, resolveAppRef, catalogRef, parseCatalogRef, publisherOfRef } from "../core/catalog.js";
+import { STORE, loadCatalog, REF_CACHE, PORTS_CACHE, SPECS_CACHE, CONFIG_CACHE, CONFIG_CID_CACHE, MANIFEST_CACHE, fetchConfigCid, stripMedia, looksFriendly, resolveAppRef, catalogRef, parseCatalogRef, publisherOfRef } from "../core/catalog.js";
 
 /* component handles (assigned in initDeploy) */
 let fleetList = null, volPicker = null;
@@ -40,7 +40,7 @@ const depsPanel = () => document.querySelector("c-deployments");
 /* ============================================================
    Console state + request rendering
    ============================================================ */
-const dep = { gpuPct: 25, cpuPct: 5, minGpuPct: 0, minCpuPct: 1, asset: "USDC", public: true, gpuEnclave: true, volumes: new Set(), waf: false, wafAvail: false, gpuOptional: false, gpuOptAvail: false, cfgAvail: false, devAvail: false, p3Avail: false, targetPick: "" };  // targetPick: the user's explicit enclave choice from the target dropdown ("" = auto, the recommended head of the ranking)  // gpuEnclave: from /availability (gpu:false = CPU-only enclave); volumes: the picker's ticks - a MIRROR of the App config JSON's `volumes` key, never a second source; wafAvail: fleet aggregate advertises the options envelope (waf:true = every live runner enforces it - the Protection field only shows then); cfgAvail: the aggregate's configOverride flag (true = every live runner honors the envelope's `config` namespace - only then is the App config box editable)
+const dep = { gpuPct: 25, cpuPct: 5, minGpuPct: 0, minCpuPct: 1, asset: "USDC", public: true, gpuEnclave: true, volumes: new Set(), waf: false, wafAvail: false, gpuOptional: false, gpuOptAvail: false, cfgAvail: false, devAvail: false, p3Avail: false, cfgCidAvail: false, targetPick: "" };  // targetPick: the user's explicit enclave choice from the target dropdown ("" = auto, the recommended head of the ranking)  // gpuEnclave: from /availability (gpu:false = CPU-only enclave); volumes: the picker's ticks - a MIRROR of the App config JSON's `volumes` key, never a second source; wafAvail: fleet aggregate advertises the options envelope (waf:true = every live runner enforces it - the Protection field only shows then); cfgAvail: the aggregate's configOverride flag (true = every live runner honors the envelope's `config` namespace - only then is the App config box editable)
 
 /* The Protection controls -> the create() options envelope's `waf` object
    (null = off/unavailable). Mirrors the runner's parse rules (supervisor
@@ -147,6 +147,21 @@ function syncCfgFromVersion(){
   const c = CONFIG_CACHE[raw] || "";
   try { ta.value = c ? JSON.stringify(JSON.parse(c), null, 2) : ""; } catch(e){ ta.value = c; }
   syncVolsFromCfg();
+  // A rev-7 version keeps its config at a CID, so the record alone cannot fill
+  // the box. Fetch it and fill in when it lands, unless the user has started
+  // typing by then (their text is an override in progress and must not be
+  // clobbered) or moved to another version. Display only: the enclave resolves
+  // and hash-verifies the same CID itself, so a gateway that never answers
+  // costs a prefill, not a correct deploy.
+  const cid = CONFIG_CID_CACHE[raw] || "";
+  if (!cid) return;
+  fetchConfigCid(cid).then((full) => {
+    if (full === null || cfgFilledFor !== ref || cfgDirty || ta.value.trim()) return;
+    const shown = stripMedia(full);
+    try { ta.value = shown ? JSON.stringify(JSON.parse(shown), null, 2) : ""; } catch(e){ ta.value = shown; }
+    CONFIG_CACHE[raw] = shown;      // so cfgOverride() diffs against the REAL config, not ""
+    syncVolsFromCfg(); renderDeploy();
+  });
 }
 /* The box vs the version's record: null = no override (empty box, or content
    that matches the version's config - reformatting is not an override), { err }
@@ -496,8 +511,22 @@ async function runDeploy(){
   // unrecoverable — with one carve-out: an explicitly PICKED target box that
   // itself advertises p3 (availability.p3) is the canary flow, allowed with a
   // warning, because the ledger stays an open queue and that box will claim it.
+  // MANIFEST_CACHE, not CONFIG_CACHE: the placement keys always live in the
+  // record's inline field, whereas CONFIG_CACHE is the app's effective config
+  // and is empty for a CID version until its fetch lands — reading that would
+  // turn this hard refusal into a silent pass exactly when it matters.
   let verWasi3 = false;
-  try { verWasi3 = JSON.parse(CONFIG_CACHE[raw] || "{}").wasi === "0.3"; } catch(e){}
+  try { verWasi3 = JSON.parse(MANIFEST_CACHE[raw] || "{}").wasi === "0.3"; } catch(e){}
+  // A version whose config lives at a CID needs a fleet that can fetch it.
+  // Same shape as the p3 refusal and for the same reason: a box without the
+  // capability refuses the claim, so the deployment would sit Queued with its
+  // funding tied up. Same per-box canary escape hatch.
+  if (CONFIG_CID_CACHE[raw] && !dep.cfgCidAvail){
+    const boxCfg = !!(target && target.picked && target.row && target.row.availability?.configCid === true);
+    if (!boxCfg)
+      return note([["warn", "[!] " + raw + " keeps its app config off-chain and not every live runner reads that yet - it could sit Queued. Pick a capable enclave from the target list explicitly (canary), or wait for the fleet to advertise it."]]);
+    note([["info", "[*] Large-config canary: " + target.name + " reads this app's config CID and your pick sends the claim hint there first."]]);
+  }
   if (verWasi3 && !dep.p3Avail){
     const boxP3 = !!(target && target.picked && target.row && target.row.availability?.p3 === true);
     if (!boxP3)
@@ -1183,6 +1212,7 @@ async function refreshAvailability(){
     // false is legitimate, so runDeploy warns rather than refuses when the
     // picked target box itself serves p3.
     dep.p3Avail = a.p3 === true;
+    dep.cfgCidAvail = a.configCid === true;   // rev-7 large configs: every live runner fetches + hash-verifies the version's config CID
     // App config override (envelope `config` namespace): the box unlocks only
     // when EVERY live runner honors it - on a mixed/older fleet an overridden
     // deployment would be refused at claim and sit Queued forever - AND the
@@ -1394,6 +1424,12 @@ function applyUseInDeploy(){
     PORTS_CACHE[friendly] = stash.ports || "";
     SPECS_CACHE[friendly] = stash.spec;
     CONFIG_CACHE[friendly] = stash.config || "";
+    MANIFEST_CACHE[friendly] = stash.manifest || stash.config || "";
+    CONFIG_CID_CACHE[friendly] = stash.configCid || "";
+    // a stashed CID version carries only its manifest: blank the config box
+    // rather than offering the manifest as the app's config (an edit to it
+    // would ride the create envelope as an override and REPLACE the real one)
+    if (stash.configCid) CONFIG_CACHE[friendly] = "";
     applyMins(minPctsOf(stash.spec), stash.ports, stash.config);
   } else {
     // shared / bookmarked link: resolve the ref from the catalog. allowPending

@@ -12,9 +12,12 @@
 #
 # Routes:
 #   POST /add-wasm  - a wasm component (validated), for app publishing.
-#   POST /add-json  - a small JSON object, for deployment config (the console
-#                     pins a {"volumes":[...], ...} config and uses the CID as
-#                     the deployment's configCid). Enclaves re-verify the CID.
+#   POST /add-json  - an app-config JSON object, for catalog rev-7 large configs:
+#                     the publisher pins the config and the CID goes in the
+#                     VERSION RECORD (publishVersionCfg), where it is immutable
+#                     and covered by that version's approval. Wallet-signed like
+#                     /add-wasm. Enclaves re-fetch and hash-verify the CID, so
+#                     this route is availability, never trust.
 #   POST /add-image - an app thumbnail/banner: raster (magic-checked) or SVG
 #                     (strictly validated, see svg_error). Answers {"cid", "svg"}.
 #
@@ -178,10 +181,14 @@ def wasm_tools_error(data: bytes):
     return None
 
 
-# Cap for /add-json config pins: a deployment config is small (volume names,
-# a system prompt, an API key). Keep it well under the wasm cap so this path
-# can't be abused to pin large blobs.
-MAX_JSON_BYTES = int(os.environ.get("MAX_CONFIG_BYTES", str(256 * 1024)))
+# Cap for /add-json config pins. This is the app-config ceiling, and it is the
+# ONLY thing bounding config size now that catalog rev 7 keeps large configs at
+# a CID instead of inline: the 4096-byte on-chain limit no longer applies, so
+# whatever this route will pin is what a version can carry. Kept in lockstep
+# with the runner's ENCLAVE_CONFIG_MAX_BYTES (wasm_manager CONFIG_MAX_BYTES) —
+# a config this pins but the runner refuses is a version that publishes and
+# then fails every launch.
+MAX_JSON_BYTES = int(os.environ.get("MAX_CONFIG_BYTES", str(1024 * 1024)))
 
 # Cap for /add-image pins (app thumbnail + detail banner). Small, wallet-signed
 # like /add-wasm; raster, or SVG that passes the strict validator below.
@@ -402,9 +409,12 @@ class Handler(BaseHTTPRequestHandler):
         # 127.0.0.1, so there is always exactly one), which means the first entry
         # is whatever the sender typed. Keying the /add-json bucket on it let
         # anyone mint a fresh rate-limit bucket per request by varying a header -
-        # and /add-json is the ONE pin route with no upload token, so that bucket
-        # is the only thing standing between the internet and unbounded pinned
-        # storage on the Kubo node. Same fix, same reasoning as api-relay's
+        # and /add-json was then the ONE pin route with no upload token, so that
+        # bucket was the only thing standing between the internet and unbounded
+        # pinned storage on the Kubo node. It is wallet-signed now (the rev-7
+        # cap raise made the unsigned trade indefensible) and the bucket is the
+        # pre-filter, but the header is still client-written either way — keep
+        # reading the LAST entry. Same fix, same reasoning as api-relay's
         # clientIp (2fc10a34); this file was the sibling that never got it.
         xs = [x.strip() for x in (self.headers.get("X-Forwarded-For") or "").split(",") if x.strip()]
         return xs[-1] if xs else self.client_address[0]
@@ -454,8 +464,17 @@ class Handler(BaseHTTPRequestHandler):
         # enclave re-fetches + hash-verifies it, so this is UX/availability,
         # not trust - but validate the shape so a bad pin fails here.
         if route == "/add-json":
+            # Wallet-signed, exactly like /add-wasm. It did not used to be: the
+            # per-IP bucket was the only thing between the internet and
+            # unbounded pinned storage, which was a defensible trade at a
+            # 256 KB cap and is not at 1 MB (IPs are cheap; wallets with a
+            # per-address daily byte budget are not). The bucket STAYS as the
+            # cheap pre-filter so an unsigned flood costs no HMAC work.
             if not json_pin_rate_ok(self._client_ip()):
                 return self._json(429, {"error": "too many config pins from your network; retry shortly"})
+            auth = upload_auth_error(self.headers, data)
+            if auth:
+                return self._json(auth[0], {"error": auth[1]})
             try:
                 obj = json.loads(data.decode("utf-8"))
             except Exception as e:

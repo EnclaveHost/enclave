@@ -12,14 +12,14 @@ import "../../components/app-card/app-card.js";
 import "../../components/app-detail/app-detail.js";
 import "../../components/app-reviews/app-reviews.js";
 import { $, $$, esc, short, blen, fmtDur, fmtNum, showToast, on, tosAccepted, setTosAccepted } from "../core/util.js";
-import { APP_CATALOG_ADDRESS, APP_CATALOG_CHAIN, FEATURED_ADDRESS, REVIEWS_ADDRESS, USDC_BASE, IPFS_UPLOAD_URL, IPFS_IMAGE_UPLOAD_URL, IPFS_GATEWAY, MAX_WASM_MB, MAX_WASM_BYTES, MAX_IMAGE_MB, MAX_IMAGE_BYTES, BASE_CHAIN, ACCOUNTS_ENABLED } from "../core/config.js";
+import { APP_CATALOG_ADDRESS, APP_CATALOG_CHAIN, FEATURED_ADDRESS, REVIEWS_ADDRESS, USDC_BASE, IPFS_UPLOAD_URL, IPFS_IMAGE_UPLOAD_URL, IPFS_JSON_UPLOAD_URL, IPFS_GATEWAY, MAX_WASM_MB, MAX_WASM_BYTES, MAX_IMAGE_MB, MAX_IMAGE_BYTES, BASE_CHAIN, ACCOUNTS_ENABLED } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
-import { catConfigured, catExplorer, encCall, CAT_SEL, CAT_MAX, APPROVAL, depPrices6, depMaxGpuMilli, rate6Of, waitReceipt, catSchemaRev, catMaxFeePerSec6, catVersionFee, featConfigured, featMaxBid, FEAT_SEL, revConfigured, REV_SEL } from "../core/chain.js";
+import { catConfigured, catExplorer, encCall, CAT_SEL, CAT_MAX, ROUTING_KEYS, APPROVAL, depPrices6, depMaxGpuMilli, rate6Of, waitReceipt, catSchemaRev, catMaxFeePerSec6, catVersionFee, featConfigured, featMaxBid, FEAT_SEL, revConfigured, REV_SEL } from "../core/chain.js";
 import { FEATURED, loadCampaigns, pickFeatured, beaconView } from "../core/featured.js";
 import { loadTallies, loadReviews, confirmReceipt } from "../core/reviews.js";
 import { payForRuntime } from "../core/fund.js";
 import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf } from "../core/wallet.js";
-import { STORE, loadCatalog, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, REF_CACHE, PORTS_CACHE, SPECS_CACHE, specOf, CONFIG_CACHE, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia } from "../core/catalog.js";
+import { STORE, loadCatalog, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, REF_CACHE, PORTS_CACHE, SPECS_CACHE, specOf, CONFIG_CACHE, CONFIG_CID_CACHE, MANIFEST_CACHE, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia } from "../core/catalog.js";
 import { minPctsOf, startSharesFor, shareRates, pickEnclaveFor, rankEnclavesFor } from "../core/pricing.js";
 import { navigate } from "../boot.js";
 
@@ -340,14 +340,25 @@ function useInDeploy(app, v, idx){
   REF_CACHE[friendly] = catalogRef(app.appId, idx);
   PORTS_CACHE[friendly] = v.ports || "";
   SPECS_CACHE[friendly] = specOf(v);
-  const cfgPreview = stripMedia(v.config || "");    // hide the _media block from the deploy config preview
-  CONFIG_CACHE[friendly] = cfgPreview;               // the VERSION's config -> shown read-only on the deploy form
+  const manifest = v.config || "";
+  const cfgPreview = stripMedia(manifest);          // hide the _media block from the deploy config preview
+  // A rev-7 version keeps its real config at a CID and only the ROUTING
+  // MANIFEST on-chain. Handing that manifest over as the config would put
+  // {"wasi":…,"volumes":…} in the deploy console's App config box, where it
+  // diffs against the version's (empty) cached config and rides the create
+  // envelope as an override — the deployment would run with the manifest as
+  // its ENCLAVE_CONFIG and never see the publisher's real config. Pass the CID
+  // instead and let the deploy console fetch it.
+  CONFIG_CACHE[friendly] = v.configCid ? "" : cfgPreview;   // the VERSION's config -> shown read-only on the deploy form
+  MANIFEST_CACHE[friendly] = manifest;               // placement keys: always the record's inline field
+  CONFIG_CID_CACHE[friendly] = v.configCid || "";
   try {
     // the RAW specs ride along - the deploy page derives the dial floors from
     // them against the fleet hardware IT has adopted (percents minted here
     // could divide by a different, staler server spec)
     sessionStorage.setItem("enclave_use_in_deploy", JSON.stringify({
-      friendly, appId: app.appId, index: idx, ports: v.ports || "", spec: SPECS_CACHE[friendly], config: cfgPreview }));
+      friendly, appId: app.appId, index: idx, ports: v.ports || "", spec: SPECS_CACHE[friendly],
+      config: CONFIG_CACHE[friendly], manifest, configCid: v.configCid || "" }));
   } catch(e){}
   // the console's own URL, share-friendly: /deploy?app=hello-world_1.0.0
   // (the "_" form keeps the query un-percent-encoded; deploy.js normalizes it
@@ -779,6 +790,27 @@ async function signedUploadToken(bytes){
   }
 }
 
+/* Pin an app config too large to sit on-chain (catalog rev 7). Wallet-signed
+   like the wasm and the images — the gateway re-parses the JSON, caps the size
+   and pins; the CID then goes into the VERSION RECORD, where it is immutable
+   and covered by that version's approval. Enclaves re-fetch and hash-verify it,
+   so this pin is availability, never trust: a gateway that served different
+   bytes would fail the check, not change what runs. */
+async function putConfig(text){
+  if (!IPFS_JSON_UPLOAD_URL) throw new EnclaveError("Large app configs aren’t configured here (no config pin gateway).", 0);
+  const buf = new TextEncoder().encode(text);
+  if (buf.byteLength > CAT_MAX.configMax)
+    throw new EnclaveError("app config too long (≤ " + CAT_MAX.configMax + " bytes)", 0);
+  const { token, address, expiry } = await signedUploadToken(buf);
+  const r = await fetch(IPFS_JSON_UPLOAD_URL, { method: "POST", headers: {
+    "content-type": "application/json",
+    "x-upload-address": address, "x-upload-expiry": String(expiry), "x-upload-token": token,
+  }, body: buf });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.cid) throw new EnclaveError("config pin rejected: " + (j.error || ("HTTP " + r.status)), 0);
+  return j.cid;
+}
+
 /* Upload an app image (thumbnail/banner) to the validating gateway; returns
    { cid, svg }. Small + wallet-signed like the wasm; the gateway re-checks the
    bytes (raster magic, or the strict SVG validator) and pins. `svg` is the
@@ -978,7 +1010,14 @@ async function publishApp(){
   const thumbSvg = !!($("#pubThumbCid") && $("#pubThumbCid").dataset.svg);
   const bannerSvg = !!($("#pubBannerCid") && $("#pubBannerCid").dataset.svg);
   const finalConfig = withMedia(cfg.val, thumbCid, bannerCid, thumbSvg, bannerSvg);
-  if (blen(finalConfig) > CAT_MAX.config) return pubStatus("app config + image references exceed " + CAT_MAX.config + " bytes - shorten the config", true);
+  // The live catalog's struct revision decides both the publish encoding and
+  // the config ceiling, so it is read HERE rather than after the wallet
+  // connect: past the inline limit a rev-7 catalog pins the config and stores
+  // its CID, while an older one has nowhere to put a CID and the inline limit
+  // is still the real one.
+  const rev = await catSchemaRev();
+  const cfgCeiling = rev >= 7 ? CAT_MAX.configMax : CAT_MAX.config;
+  if (blen(finalConfig) > cfgCeiling) return pubStatus("app config + image references exceed " + cfgCeiling + " bytes - shorten the config", true);
   // Pre-flight against the loaded catalog. Both cases REVERT on-chain, which a
   // wallet surfaces as a gas-estimation hang and the form as a bare timeout -
   // refuse here with the actual reason instead.
@@ -1030,11 +1069,10 @@ async function publishApp(){
   try {
     if (!Enclave.provider) await connectWallet();
     await ensureCatalogChain();
-    // the live catalog's struct revision decides the publish encoding (the
-    // site ships ahead of the contract cutover; all revisions must keep
-    // working). Version-level config needs rev 4 - rev 3 (the retired
-    // app-level layout) would silently store it where nothing reads it.
-    const rev = await catSchemaRev();
+    // `rev` was read above (it also sets the config ceiling). The site ships
+    // ahead of the contract cutover, so all revisions must keep working:
+    // version-level config needs rev 4 - rev 3 (the retired app-level layout)
+    // would silently store it where nothing reads it.
     if (rev < 4 && finalConfig){
       pubStatus("this catalog revision doesn't store per-version configs - clear the App config box and images (or publish after the rev-4 catalog cutover)", true);
       btn.disabled = false; btn.textContent = lbl; return;
@@ -1052,6 +1090,27 @@ async function publishApp(){
         btn.disabled = false; btn.textContent = lbl; return;
       }
     }
+    // A config past the on-chain ceiling is pinned instead, and the record keeps
+    // only the ROUTING MANIFEST — the keys a runner reads before it can fetch
+    // anything. Done BEFORE the wallet prompt so a rejected pin doesn't leave a
+    // half-finished publish.
+    let onchainConfig = finalConfig, configCid = "";
+    if (blen(finalConfig) > CAT_MAX.config){
+      // Derive and size-check the manifest BEFORE the pin: pinning is
+      // irreversible and costs the publisher's daily byte budget, so a manifest
+      // that would revert publishVersionCfg must be caught first, not after.
+      const full = JSON.parse(finalConfig);
+      const manifest = {};
+      for (const k of ROUTING_KEYS) if (full[k] !== undefined) manifest[k] = full[k];
+      onchainConfig = Object.keys(manifest).length ? JSON.stringify(manifest) : "";
+      if (blen(onchainConfig) > CAT_MAX.config){
+        pubStatus("the on-chain routing manifest (" + ROUTING_KEYS.join(", ") + ") is "
+                  + blen(onchainConfig) + " bytes, over the " + CAT_MAX.config + "-byte record limit - shorten `volumes` or `_media`", true);
+        btn.disabled = false; btn.textContent = lbl; return;
+      }
+      pubStatus("pinning the app config…");
+      configCid = await putConfig(finalConfig);
+    }
     pubStatus("confirm the transaction in your wallet…");
     // uint32[4] is a STATIC array: it ABI-encodes as four inline words, exactly
     // like four consecutive uint params, so the hand-rolled encoder just takes them in order
@@ -1059,10 +1118,12 @@ async function publishApp(){
       {t:"str",v:slug},{t:"str",v:name},{t:"str",v:desc},{t:"str",v:version},{t:"str",v:cid},
       {t:"uint",v:vramMb},{t:"uint",v:gpuGflops},{t:"uint",v:memMb},{t:"uint",v:cpuGflops},{t:"str",v:ports},
     ];
-    const data = rev >= 5
-      ? encCall(CAT_SEL.publishVersion, [...args, {t:"str",v:finalConfig}, {t:"uint",v:feePerSec6}])
+    const data = configCid
+      ? encCall(CAT_SEL.publishVersionCfg, [...args, {t:"str",v:onchainConfig}, {t:"str",v:configCid}, {t:"uint",v:feePerSec6}])
+      : rev >= 5
+      ? encCall(CAT_SEL.publishVersion, [...args, {t:"str",v:onchainConfig}, {t:"uint",v:feePerSec6}])
       : rev >= 3
-      ? encCall(CAT_SEL.publishVersionV4, [...args, {t:"str",v:finalConfig}])
+      ? encCall(CAT_SEL.publishVersionV4, [...args, {t:"str",v:onchainConfig}])
       : encCall(CAT_SEL.publishVersionV2, args);
     const hash = await sendTx(APP_CATALOG_ADDRESS, data);
     pubStatus("sent · " + hash + " · waiting for confirmation…");
@@ -1161,7 +1222,9 @@ function readPubConfig(){
   // measure the minified form - withMedia re-serializes before publishing, so
   // pretty-printed whitespace in the editor never counts against the ceiling
   const val = JSON.stringify(o);
-  if (blen(val) > CAT_MAX.config) return { err: "app config too long (≤ " + CAT_MAX.config + " bytes)" };
+  // the hard ceiling: above CAT_MAX.config the publish path pins the config and
+  // the record carries its CID, so only the pin/runner limit still binds
+  if (blen(val) > CAT_MAX.configMax) return { err: "app config too long (≤ " + CAT_MAX.configMax + " bytes)" };
   return { val };
 }
 // pretty-print a config JSON string for the editor (on-chain configs are
