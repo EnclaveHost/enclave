@@ -511,12 +511,24 @@ const chunkBySizeAndGas = (arr, maxBytes, sizeOf, maxGas, gasOf) => {
    rough per-call gas estimates against a per-tx budget (well under Base's
    block limit; the wallet still estimates the real number before signing).
    Inner auth is untouched - multicall delegatecalls self, msg.sender holds. */
-// The binding limit is GAS, not size: public Base RPCs cap eth_estimateGas at
-// ~11M gas (measured), and if the estimate errors the wallet never gets a gas
-// limit and the tx silently fails to broadcast. Keep each packed tx a safe
-// margin under that (~9M), with a generous byte cap as a secondary guard.
-const GAS_BUDGET  = 9_000_000;    // per packed tx - stays under the ~11M RPC estimateGas ceiling
-const DATA_BUDGET = 24 * 1024;    // per packed tx (sum of inner calls) - secondary guard
+// The binding limit is GAS, not size. It USED to be the ~11M eth_estimateGas
+// ceiling on public Base RPCs — above that the estimate errors, the wallet gets
+// no limit, and the tx is silently dropped at broadcast. The console now sends
+// these with an EXPLICIT gas limit (the number computed right here), so nothing
+// estimates and that ceiling no longer applies. What binds instead is Base's
+// real block limit, 400M, and how much of a block a builder will give one tx.
+//
+// This matters for one human reason: a migration is signed on a hardware
+// wallet, one confirmation per transaction. At the old 9M budget a 351-version
+// catalog came to 56 confirmations, which is not a thing a person can be asked
+// to do. 30M is ~7% of a Base block (blocks run ~28M used against a 400M
+// limit), comfortably includable, and cuts that to a handful.
+//
+// Over-providing gas is free — unused gas is refunded — and being SHORT only
+// costs the burned gas of a reverted tx (~$0.50 at Base's current base fee),
+// so the estimates below deliberately carry margin rather than run lean.
+export const GAS_BUDGET  = 30_000_000;   // per packed tx - bounded by block inclusion, not by estimateGas
+const DATA_BUDGET = 96 * 1024;    // per packed tx (sum of inner calls) - secondary guard
 function packPlan(contractName, txs) {
   if (txs.length <= 1) return txs;
   const sel = CONTRACTS[contractName].sel;

@@ -1178,7 +1178,12 @@ class AdminConsole extends EnclaveElement {
             await this._connect();
             for (let i = 0; i < txs.length; i++) {
               log("p", `[${i + 1}/${txs.length}] ${txs[i].label} - confirm in your wallet…`);
-              const hash = await sendTx(tgt, txs[i].dataHex);
+              // pass the planner's own gas figure: these batches run past the
+              // ~11M eth_estimateGas ceiling, where estimation ERRORS rather
+              // than returning a big number, and the tx is then dropped at
+              // broadcast with a hash already handed back (see sendTx).
+              // Undefined falls back to estimation, unchanged.
+              const hash = await sendTx(tgt, txs[i].dataHex, undefined, txs[i].gas);
               log("p", `  sent ${hash.slice(0, 14)}… waiting…`);
               await waitReceipt(hash, 90);
               log("ok", `  ✓ ${txs[i].label}`);
@@ -1215,7 +1220,12 @@ class AdminConsole extends EnclaveElement {
             log("ok", "  ✓ approved");
             for (let i = 0; i < txs.length; i++) {
               log("p", `[${i + 1}/${txs.length}] ${txs[i].label} - confirm in your wallet…`);
-              const hash = await sendTx(tgt, txs[i].dataHex);
+              // pass the planner's own gas figure: these batches run past the
+              // ~11M eth_estimateGas ceiling, where estimation ERRORS rather
+              // than returning a big number, and the tx is then dropped at
+              // broadcast with a hash already handed back (see sendTx).
+              // Undefined falls back to estimation, unchanged.
+              const hash = await sendTx(tgt, txs[i].dataHex, undefined, txs[i].gas);
               log("p", `  sent ${hash.slice(0, 14)}… waiting…`);
               await waitReceipt(hash, 90);
               log("ok", `  ✓ ${txs[i].label}`);
