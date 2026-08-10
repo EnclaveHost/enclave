@@ -268,6 +268,10 @@ const CHUNK = { deployments: 6, apps: 10, fees: 40, escrow: 12,     // fees: 3 w
                 suspend: 60, refund: 12 };             // escrow/refund: each moves USDC + SSTOREs, ~90k gas;
                                                        // suspend: one SSTORE + event, cheap
 const VER_TX_BYTES = 6 * 1024;   // max calldata for a single importVersions call
+// ...and its gas twin. 4M leaves packPlan room to still batch two version
+// calls under its 9M budget, while keeping any SINGLE call far enough under
+// the ~11M estimateGas ceiling that it broadcasts even unpacked.
+const VER_TX_GAS = 4_000_000;
 
 /* What importing ONE record actually costs. A deployment is mostly STRINGS -
    appRef, ports, and the deployment-options envelope in configCid, which rev 5
@@ -286,6 +290,21 @@ const VER_TX_BYTES = 6 * 1024;   // max calldata for a single importVersions cal
 const strBytes = (v) => new TextEncoder().encode(String(v ?? "")).length;
 export const recordImportGas = (d) =>
   Math.ceil(1.2 * (270_000 + 730 * (strBytes(d.appRef) + strBytes(d.ports) + strBytes(d.configCid))));
+
+/* The same calibrated model for a catalog VERSION, and for the same reason.
+   This path used a flat 300k per version, which is the exact mistake the note
+   above describes: a Version is mostly STRINGS — cid, label, ports, and a
+   config blob the record still allows up to 4096 bytes — so a config-carrying
+   version is ~3.3M gas, over 10x the flat figure. Chunking bounded CALLDATA
+   (6 KB) but reported that flat number to packPlan, which then folded four
+   such calls into one multicall costing ~20M: signed, handed back a hash, and
+   silently dropped at broadcast. Live symptom, 2026-08-10, migrating 32 apps /
+   351 versions: "[1/24] multicall · 4 calls (importVersions) — sent … waiting"
+   forever. Under-reporting gas here does not make a tx cheap, it makes it
+   un-broadcastable. */
+export const versionImportGas = (v) =>
+  Math.ceil(1.2 * (270_000 + 730 * (strBytes(v.cid) + strBytes(v.version)
+                                    + strBytes(v.ports) + strBytes(v.config))));
 
 /* Split by COST, not by count. `max` still caps a batch (a sanity bound on
    calldata and on how much one failed confirmation costs), but the gas budget
@@ -473,6 +492,19 @@ const chunkBySize = (arr, maxBytes, sizeOf) => {
   if (cur.length) out.push(cur);
   return out;
 };
+// Split on BOTH axes at once. Bytes alone is not enough for versions: 6 KB of
+// strings is ~4.4M gas on its own, so a chunk can be well inside the calldata
+// cap and still be the thing that blows the broadcast ceiling.
+const chunkBySizeAndGas = (arr, maxBytes, sizeOf, maxGas, gasOf) => {
+  const out = []; let cur = [], b = 0, g = 0;
+  for (const it of arr) {
+    const s = sizeOf(it), q = gasOf(it);
+    if (cur.length && (b + s > maxBytes || g + q > maxGas)) { out.push(cur); cur = []; b = 0; g = 0; }
+    cur.push(it); b += s; g += q;
+  }
+  if (cur.length) out.push(cur);
+  return out;
+};
 
 /* Fold the planned import calls into multicall(bytes[]) transactions so a
    whole migration usually rides ONE wallet confirmation. Greedy packing by
@@ -635,9 +667,12 @@ export const MIG_KINDS = {
         // versions are append-only in publish order: the target holds a prefix
         const tgt = have[a.appId.toLowerCase()];
         const done = tgt ? tgt.versions.length : 0;
-        for (const [i, c] of chunkBySize(a.versions.slice(done), VER_TX_BYTES, verSize).entries())
+        for (const [i, c] of chunkBySizeAndGas(a.versions.slice(done), VER_TX_BYTES, verSize,
+                                                VER_TX_GAS, versionImportGas).entries())
           txs.push({ label: `importVersions · ${a.slug} (${c.length}${done || i ? ", cont." : ""})`,
-            gas: 100_000 + 300_000 * c.length,
+            // the REAL cost, per version, from its own string bytes — packPlan
+            // packs on this number, so a flat guess here is a dropped tx there
+            gas: 100_000 + c.reduce((t, v) => t + versionImportGas(v), 0),
             dataHex: encCallX(sel.importVersions, [{ t: "bytes32", v: a.appId }, { t: "tuple[]", schema: VER_SCHEMA, v: c }]) });
         // per-version fee snapshots ride AFTER the app's version imports
         // (importVersionFees bounds-checks the index against the target's
