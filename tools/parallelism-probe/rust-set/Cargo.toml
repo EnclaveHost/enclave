@@ -1,0 +1,14 @@
+# enclave/SET: Rust guest crate. Built as a STATICLIB and linked by the SET
+# clang wrapper, which owns the sysroot, the shared-memory link flags and the
+# `set-componentize` step. See README.md next to this file.
+[package]
+name = "set-demo"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "lib.rs"
+crate-type = ["staticlib"]
+
+[profile.release]
+opt-level = 2
