@@ -3,7 +3,7 @@
 > **STALE as a readiness claim (2026-08-09).** The parallelism measurements below
 > are still true and still reproducible. "DONE" is not: nine adversarial review
 > rounds have run since and none has cleared. Start from
-> `docs/HANDOFF-set-round10.md`, and treat `wasm/SET-DO-NOT-PROMOTE.md` as the
+> `docs/HANDOFF-set-round10.md`, and treat `wasm/SET-REVIEW-HISTORY.md` as the
 > source of truth for what is open.
 
 ## Status: the requirement is met, and measured
@@ -132,7 +132,7 @@ A second four-agent adversarial review (on the changes real toolchain output
 forced) found **1 CRITICAL + 2 HIGH + 1 MEDIUM**. Two are FIXED in the `.wip`
 (teardown deadlock on a parked worker → cancellation; segmented-init clobber →
 fail-closed guard). Two are BLOCKERS to TCB entry, recorded in
-`wasm/SET-DO-NOT-PROMOTE.md`: worker threads cannot make component/WASI calls
+`wasm/SET-REVIEW-HISTORY.md`: worker threads cannot make component/WASI calls
 (`call stack exhausted` on the first import — only pure-compute workers work),
 and shared canonical-ABI memory is a host-TCB data race under a hostile guest
 (needs a copy-safe canon ABI). The engine STAYS OUT of `Dockerfile.wasmtime`.
@@ -183,7 +183,7 @@ enclave tests, R4 race harness clean with a negative control proving it detects.
 ## UPDATE 2026-08-08 (round 3): workers you can stop, and a RAM gate that binds
 
 The round-3 pass found **1 CRITICAL + 15 HIGH**; all are fixed, with a repro
-each. The per-finding table lives in `wasm/SET-DO-NOT-PROMOTE.md`. What changes
+each. The per-finding table lives in `wasm/SET-REVIEW-HISTORY.md`. What changes
 how you should think about the design:
 
 - **A worker is stopped at one of three places, and you need all three.**

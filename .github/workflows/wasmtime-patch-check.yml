@@ -1,10 +1,18 @@
-# Integrity check for the wasmtime patch stack. The 9 patches only ever get
+# Integrity check for the wasmtime patch stack. The 10 patches only ever get
 # applied for real inside a MANUAL "Wasmtime Toolchain" dispatch, so a patch
 # edited out of sync with its siblings (they share files - nn-ggml applies
 # 5th, the arbiter LAST, both touch ggml.rs) would sit broken on main until
 # the next dispatch failed mid-cascade. This applies the full stack in
 # Dockerfile order against the pinned wasmtime tag on every patch change -
 # minutes-cheap, catches bitrot at the PR/push instead of the build.
+#
+# wasmparser-set-relax.patch is NOT in that loop and must not be added to it:
+# it is a PLAIN unified diff against the vendored wasmparser crate root, not a
+# git-format diff against the wasmtime tree, so `git apply` in /tmp/wasmtime
+# would fail on a path that does not exist there. It gets its own step below,
+# which vendors the pinned crate (sha256-checked) and dry-runs `patch -p1`.
+# That step also has to run BEFORE the SET patch would be meaningful, because
+# the SET patch's Cargo.toml points [patch.crates-io] at vendor/wasmparser.
 name: wasmtime patch stack
 
 on:
@@ -43,9 +51,47 @@ jobs:
           for p in wasmtime-onnx-gpu-strict wasmtime-vault-fs \
                    wasmtime-p2-host-header wasmtime-egress \
                    wasmtime-loopback wasmtime-nn-ggml wasmtime-nn-sdcpp \
-                   wasmtime-nn-onnx-preload wasmtime-nn-arbiter; do
+                   wasmtime-nn-onnx-preload wasmtime-nn-arbiter \
+                   wasmtime-set-threads; do
             git apply --check "$GITHUB_WORKSPACE/wasm/$p.patch" \
               || { echo "::error::$p.patch no longer applies (stack order or upstream drift)"; exit 1; }
             git apply "$GITHUB_WORKSPACE/wasm/$p.patch"
             echo "applied $p"
           done
+      - name: Vendor the wasmparser fork and check its patch
+        run: |
+          cd /tmp/wasmtime
+          # Pinned + hash-checked, mirroring wasm/Dockerfile.wasmtime. If these
+          # drift apart the image build is the thing that breaks, so keep both.
+          V=0.254.0
+          SHA=d5769a29f799fbab136aaf65b4fe5384cd7d93fe6fc9ba0dcb6c8382a1f16e27
+          curl -sSLf -o /tmp/wasmparser.crate \
+            "https://static.crates.io/crates/wasmparser/wasmparser-$V.crate"
+          echo "$SHA  /tmp/wasmparser.crate" | sha256sum -c -
+          mkdir -p vendor/wasmparser
+          tar -xzf /tmp/wasmparser.crate -C vendor/wasmparser --strip-components=1
+          patch -p1 -d vendor/wasmparser --dry-run \
+            < "$GITHUB_WORKSPACE/wasm/wasmparser-set-relax.patch" \
+            || { echo "::error::wasmparser-set-relax.patch no longer applies to wasmparser $V"; exit 1; }
+          patch -p1 -d vendor/wasmparser \
+            < "$GITHUB_WORKSPACE/wasm/wasmparser-set-relax.patch"
+          echo "applied wasmparser-set-relax to vendored wasmparser $V"
+      - name: Resolve the graph (proves [patch.crates-io] points somewhere real)
+        run: |
+          cd /tmp/wasmtime
+          # The SET patch redirects wasmparser to vendor/wasmparser. A wrong or
+          # missing vendor dir fails at RESOLVE time with a confusing error, so
+          # catch it here rather than 40 minutes into an image build.
+          cargo metadata --format-version 1 > /tmp/meta.json
+          python3 - <<'EOF'
+          import json, sys
+          m = json.load(open('/tmp/meta.json'))
+          v = [p for p in m['packages']
+               if p['name'] == 'wasmparser' and p['version'] == '0.254.0']
+          if not v:
+              sys.exit("::error::wasmparser 0.254.0 absent from the resolved graph")
+          if v[0]['source'] is not None:
+              sys.exit("::error::wasmparser 0.254.0 resolved from %s, not the vendored path"
+                       % v[0]['source'])
+          print("wasmparser 0.254.0 resolves to the vendored path")
+          EOF

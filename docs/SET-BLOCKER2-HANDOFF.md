@@ -11,7 +11,7 @@ real UB that self-review missed.
 Read first, in this order:
 1. `docs/wasm-parallelism.md` → section "The 2026-08-07 adversarial review" (the
    authoritative write-up of all four findings and the two fixes already landed).
-2. `wasm/SET-DO-NOT-PROMOTE.md` (the short blocker list + promotion procedure).
+2. `wasm/SET-REVIEW-HISTORY.md` (the short blocker list + promotion procedure).
 3. `docs/HANDOFF-set-threads.md` (the engine design: per-thread execution views,
    the soundness invariants, stub imports).
 4. The design comment at the top of `crates/wasmtime/src/runtime/vm/component/set_threads.rs`.
@@ -202,7 +202,7 @@ legitimately call host functions). Design them together.
 4. Extend `.github/workflows/wasmtime-patch-check.yml`'s patch list with
    `wasmtime-set-threads` (and, if you keep the vendor step out of the loop,
    verify the check still represents the real build).
-5. Delete `wasm/SET-DO-NOT-PROMOTE.md`.
+5. Delete `wasm/SET-REVIEW-HISTORY.md`.
 6. The fleet cutover is a MEASUREMENT EVENT and Steven-gated: manual "Wasmtime
    Toolchain" workflow dispatch @ the pinned commit → new image digest → repin
    `WASMTIME_IMAGE` in `wasm/Dockerfile.wasm` → that commit triggers the

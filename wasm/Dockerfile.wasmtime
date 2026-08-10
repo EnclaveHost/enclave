@@ -219,6 +219,51 @@ COPY wasmtime-nn-arbiter.patch /tmp/
 RUN git apply --check /tmp/wasmtime-nn-arbiter.patch \
  && git apply /tmp/wasmtime-nn-arbiter.patch
 
+# enclave SHARED-EVERYTHING THREADS (SET): real OS threads for wasip2 guests,
+# via the component model's `thread.spawn-indirect` builtin. Guest side is
+# `enclave-wasipsetc-build` (clang -pthread + wasm/wasi-libc-set-threads.patch);
+# this is the engine half. Twenty-one adversarial review rounds are recorded in
+# git history under "SET round N"; the last five found nothing in the code.
+#
+# INERT WITHOUT A GUEST THAT ASKS FOR IT. `_set_flags()` in wasm_manager arms
+# `-W shared-everything-threads` only for components carrying
+# `[set-spawn-indirect]`, and no catalog app does today. Every non-SET tenant
+# takes byte-identical paths -- full `tests/all` is 1305/0 on this tree.
+#
+# Two things about the wasmparser fork, both load-bearing:
+#  * the SET patch's Cargo.toml adds `[patch.crates-io] wasmparser = { path =
+#    "vendor/wasmparser" }`, so the vendored copy MUST exist before it applies
+#    or cargo fails at resolve time (not build time -- the error is confusing);
+#  * `wasmparser-set-relax.patch` is a PLAIN unified diff against the CRATE
+#    ROOT, not a git-format diff against the wasmtime tree, so it takes
+#    `patch -p1 -d vendor/wasmparser` and canNOT be added to the
+#    `git apply` loop in wasmtime-patch-check.yml. That workflow checks it
+#    separately; see its header.
+#
+# The relaxation itself: upstream validation requires the spawn function's
+# sharedness to match the spec shape. This engine gives every worker its own
+# execution view, so unshared state is per-thread and a toolchain-shaped guest
+# (plain start type) is as sound as a spec-shaped one. The fork makes the
+# synthesized import follow the declared spawn type so both link.
+ARG WASMPARSER_VERSION=0.254.0
+ARG WASMPARSER_SHA256=d5769a29f799fbab136aaf65b4fe5384cd7d93fe6fc9ba0dcb6c8382a1f16e27
+COPY wasmparser-set-relax.patch /tmp/
+RUN curl -sSLf -o /tmp/wasmparser.crate \
+      "https://static.crates.io/crates/wasmparser/wasmparser-${WASMPARSER_VERSION}.crate" \
+ && echo "${WASMPARSER_SHA256}  /tmp/wasmparser.crate" | sha256sum -c - \
+ && mkdir -p vendor/wasmparser \
+ && tar -xzf /tmp/wasmparser.crate -C vendor/wasmparser --strip-components=1 \
+ && patch -p1 -d vendor/wasmparser --dry-run < /tmp/wasmparser-set-relax.patch \
+ && patch -p1 -d vendor/wasmparser < /tmp/wasmparser-set-relax.patch \
+ && rm -f /tmp/wasmparser.crate
+
+# Must apply AFTER nn-arbiter: the SET patch is diffed against the fully-patched
+# tree (all nine enclave patches applied), which is also why regenerating it
+# needs a reconstructed 9-patch baseline and `git diff HEAD`, not `git diff`.
+COPY wasmtime-set-threads.patch /tmp/
+RUN git apply --check /tmp/wasmtime-set-threads.patch \
+ && git apply /tmp/wasmtime-set-threads.patch
+
 # System-linked ORT: the binary NEEDS libonnxruntime.so.1 at runtime; ship it
 # plus the two provider dylibs the CUDA EP dlopens (providers_shared is the
 # dispatcher). providers_tensorrt is deliberately not shipped (never

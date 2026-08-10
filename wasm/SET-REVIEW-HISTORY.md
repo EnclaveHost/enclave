@@ -1,4 +1,33 @@
-# SET threads: DO NOT add to Dockerfile.wasmtime yet
+# SET threads: the review record (21 rounds)
+
+> **STATUS: PROMOTED.** As of 2026-08-09 the engine patch is
+> `wasm/wasmtime-set-threads.patch` (no longer `.wip`), it is in
+> `wasm/Dockerfile.wasmtime`'s chain after `wasmtime-nn-arbiter`, and
+> `wasmtime-patch-check.yml` covers 10 patches plus the vendored wasmparser
+> fork. This file used to be called `SET-DO-NOT-PROMOTE.md`; that name is gone
+> because the assertion in it is gone.
+>
+> **It is kept, not deleted, because the content is the valuable part.** Twenty-one
+> adversarial rounds are recorded below with the measurement behind each finding.
+> Read it before changing anything in the SET surface — several traps here cost
+> multiple rounds to find and are invisible from the code:
+>
+> * `worker-preopen-oom.c`'s `HOLE` bites at **7..8 only** on r13c+; 0..6 pass
+>   green while the worker is stdio-dead. A moved offset PASSES rather than fails.
+> * The reaper's detach `log::error!` needs `ENCLAVE_SET_JOIN_TIMEOUT_MS=1` —
+>   the worker's cancel poll is 5 ms, so anything larger lets it finish first.
+>   Nine rounds could not reach that arm.
+> * Run the FULL `tests/all` target (1305), not the `component_model` filter
+>   (231). The canonical-ABI rewrite touches every component on the fleet.
+> * A probe encoding a bug as the spec has happened **eight** times; every one
+>   was caught by a native `gcc` control, never by review.
+> * Prose here is load-bearing: this record twice traces a shipped code defect
+>   to a false comment.
+>
+> The promotion decision was Steven's, taken with the gate as written unmet
+> (no round ever "found nothing") but the code clean for the last five rounds
+> against a green full suite and end-to-end patch verification.
+
 
 `wasmtime-set-threads.patch.wip` + `wasmparser-set-relax.patch` are the
 shared-everything-threads (⚡) engine changes. The guest toolchain that targets
