@@ -23,6 +23,8 @@
 #                    (0 = core module -> reject; 1 = component -> ok). Version-proof.
 #   Tier 2 (if WASM_TOOLS is set to a `wasm-tools` binary): also run
 #                    `wasm-tools validate` — authoritative structural validation.
+#                    It must be the SET-relaxed build (see WASM_TOOLS below), or
+#                    it refuses components the fleet can actually run.
 #
 # Pure stdlib, no pip deps. Runs on the VM next to Kubo.
 #
@@ -34,7 +36,19 @@
 #                   matching request Origin is echoed back (default
 #                   "https://enclave.host,https://nan.host": both work during
 #                   a domain transition; trim to one when the old dies)
-#   WASM_TOOLS      path to a `wasm-tools` binary to enable Tier 2 (default: off)
+#   WASM_TOOLS      path to a `wasm-tools` binary to enable Tier 2 (default: off).
+#                   Point it at the SET-relaxed build, NOT a stock release:
+#                   scripts/build-wasm-tools-set.sh compiles wasm-tools from the
+#                   same wasm/wasmparser-set-relax.patch the engine vendors
+#                   (wasm/Dockerfile.wasmtime), and
+#                   scripts/deploy-wasm-tools-set.sh installs it + sets this var.
+#                   Tier 2 is only useful as a PREVIEW OF THE ENGINE, so the two
+#                   validators must be the same one. A stock wasm-tools rejects
+#                   every shared-everything-threads component with "mismatch in
+#                   the shared flag for memories" (its `cabi_memory_at` compares
+#                   the component's shared canonical-ABI memory against a
+#                   hardcoded `shared: false`) — components the runner launches
+#                   fine, so the refusal is purely a false negative at publish.
 
 import json, os, subprocess, tempfile, urllib.request, uuid, hashlib, hmac, time, re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -150,7 +164,9 @@ def component_contract(data: bytes):
 
 
 def wasm_tools_error(data: bytes):
-    """Tier 2: authoritative validation via `wasm-tools validate` (if configured)."""
+    """Tier 2: authoritative validation via `wasm-tools validate` (if configured).
+    WASM_TOOLS must be the SET-relaxed build (see the header) — it has to be the
+    same validator the engine runs, or publishing refuses runnable apps."""
     if not WASM_TOOLS:
         return None
     with tempfile.NamedTemporaryFile(suffix=".wasm") as tf:
