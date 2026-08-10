@@ -22,7 +22,11 @@ import { baseRpc, waitReceipt, encCall, hexBig, decodeStructArray, CAMPAIGN_SCHE
 import { ADDRESS_BOOK_ADDRESS, USDC_BASE, DEFAULT_API_BASE } from "../../js/core/config.js";
 import { esc, on, short, showToast } from "../../js/core/util.js";
 import { CONTRACTS } from "../../js/gen/contract-artifacts.js";
-import { MIG_KINDS, importState, sealTx, encCallX, escrowPlan, approveTx, refundSweepPlan } from "./migrate.js";
+import { MIG_KINDS, importState, sealTx, encCallX, escrowPlan, approveTx, refundSweepPlan, GAS_BUDGET, MIN_GAS_BUDGET } from "./migrate.js";
+// Keep the two budgets in the ratio the defaults ship with (9M gas / 24KB), so
+// halving the gas budget shrinks calldata by the same factor. Both axes matter:
+// a provider can refuse on either, and we do not know which one it refused on.
+const GAS_PER_BYTE_BUDGET = 375;
 import { vaultImplCurrent, scanVaults, planVaultMigration, oldTreasury, balanceOf6 } from "./vaultmig.js";
 import { metricsPanel, paintMetrics, paintHistory, loadMetrics, redrawPlots } from "./metrics.js";
 
@@ -1168,28 +1172,60 @@ class AdminConsole extends EnclaveElement {
             const opts = await migOpts();
             if (opts.grantRates && !opts.runnerBps)
               log("p", "  note: target reports runnerBps 0 - no rates can be granted");
-            const txs = m.plan(M.data, after, opts);
-            if (!txs.length) {
-              log("ok", "nothing to import - target already holds everything. Back escrow next, then Verify and seal.");
-              M.ranImport = true; enable("mig-escrow", true);
-              return;
-            }
-            log("p", `${txs.length} import transaction${txs.length === 1 ? "" : "s"} to send`);
+            /* How big a batch this wallet's RPC will actually relay is NOT
+               knowable from here - it is that provider's policy, and it refuses
+               on SEND, not just on estimate. So plan optimistically, and when a
+               batch is refused, HALVE and re-plan rather than stopping: a
+               refusal costs a signature but spends nothing, and the delta plan
+               re-reads the target, so everything already imported is skipped.
+               Without this the operator re-clicks Migrate by hand after every
+               refusal, on a run that is already dozens of confirmations. */
+            let gasBudget = opts.gasBudget || GAS_BUDGET;
             await this._connect();
-            for (let i = 0; i < txs.length; i++) {
-              log("p", `[${i + 1}/${txs.length}] ${txs[i].label} - confirm in your wallet…`);
-              // pass the planner's own gas figure: these batches run past the
-              // ~11M eth_estimateGas ceiling, where estimation ERRORS rather
-              // than returning a big number, and the tx is then dropped at
-              // broadcast with a hash already handed back (see sendTx).
-              // Undefined falls back to estimation, unchanged.
-              const hash = await sendTx(tgt, txs[i].dataHex, undefined, txs[i].gas);
-              log("p", `  sent ${hash.slice(0, 14)}… waiting…`);
-              await waitReceipt(hash, 90);
-              log("ok", `  ✓ ${txs[i].label}`);
+            for (let pass = 0; ; pass++) {
+              const state = pass === 0 ? after : await m.read(tgt);   // re-read: skip what landed
+              const txs = m.plan(M.data, state, { ...opts, gasBudget, dataBudget: Math.round(gasBudget / GAS_PER_BYTE_BUDGET) });
+              if (!txs.length) {
+                log("ok", pass === 0
+                  ? "nothing to import - target already holds everything. Back escrow next, then Verify and seal."
+                  : "migration pass complete - Back escrow next, then Verify (Migrate again later to pick up new source records).");
+                M.ranImport = true; enable("mig-escrow", true);
+                return;
+              }
+              log("p", `${txs.length} import transaction${txs.length === 1 ? "" : "s"} to send`
+                     + (pass ? ` (retrying at ${Math.round(gasBudget / 1e6)}M gas per batch)` : ""));
+              let dropped = false;
+              for (let i = 0; i < txs.length; i++) {
+                log("p", `[${i + 1}/${txs.length}] ${txs[i].label} - confirm in your wallet…`);
+                const hash = await sendTx(tgt, txs[i].dataHex, undefined, txs[i].gas);
+                log("p", `  sent ${hash.slice(0, 14)}… waiting…`);
+                try {
+                  await waitReceipt(hash, 90);
+                } catch (e) {
+                  if (!/never received this transaction/.test(e.message || "")) throw e;
+                  // Halving has a FLOOR that is not MIN_GAS_BUDGET: one record
+                  // cannot be split, so once a batch is a single call, smaller
+                  // budgets change nothing and retrying just burns signatures.
+                  const single = txs[i].gas;
+                  if (gasBudget <= MIN_GAS_BUDGET || single > Math.floor(gasBudget / 2))
+                    throw new Error(`this RPC refused a ${Math.round(single / 1e6)}M-gas batch that cannot be split any further `
+                      + `(one record costs that much on its own), so smaller batches will not help. `
+                      + `Point your wallet at an RPC that relays larger transactions and click Migrate again - `
+                      + `everything already imported is skipped.`);
+                  gasBudget = Math.max(MIN_GAS_BUDGET, Math.floor(gasBudget / 2));
+                  log("p", `  this RPC refused that batch - halving to ${Math.round(gasBudget / 1e6)}M gas and re-planning `
+                         + `(nothing was sent or spent; imports already done are skipped)`);
+                  dropped = true;
+                  break;
+                }
+                log("ok", `  ✓ ${txs[i].label}`);
+              }
+              if (!dropped) {
+                log("ok", "migration pass complete - Back escrow next, then Verify (Migrate again later to pick up new source records).");
+                M.ranImport = true; enable("mig-escrow", true);
+                return;
+              }
             }
-            log("ok", "migration pass complete - Back escrow next, then Verify (Migrate again later to pick up new source records).");
-            M.ranImport = true; enable("mig-escrow", true);
           } catch (err) { log("err", friendly(err) + " - fix and click Migrate again; the delta plan resumes where it stopped."); }
           finally { btn.disabled = false; }
           return;
