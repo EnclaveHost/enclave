@@ -489,13 +489,25 @@ export async function ensureBaseChain(){
   try { await Enclave.provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: BASE_CHAIN_HEX }] }); }
   catch(e){ throw new EnclaveError("Switch your wallet to Base to pay.", 0); }
 }
-export async function sendTx(to, data, value){
+export async function sendTx(to, data, value, gasLimit){
   const tx = { from: Enclave.address, data, value: value || "0x0" };
   if (to) tx.to = to; // omitted = contract creation
-  // Injected wallets accept a provided limit: estimate (provider first, public
-  // Base RPC as fallback) and pad 25% so a wallet that trusts our limit never
-  // under-provisions. A failed estimate falls through - the wallet estimates
-  // for itself.
+  // A caller that KNOWS the cost passes it and we skip estimation entirely.
+  // This is not an optimization, it is the only way to send a big transaction:
+  // public Base RPCs cap eth_estimateGas at ~11M gas, and above that the
+  // estimate does not come back large — it ERRORS. The fallback below then
+  // leaves `gas` unset, the wallet estimates for itself, hits the same ceiling,
+  // and the tx is dropped at broadcast with a hash already handed back. Base's
+  // real block limit is 400M, so the ceiling is the estimator's, not the
+  // chain's, and a caller with a calibrated number should not be held to it.
+  // (Over-providing is free — unused gas is refunded — so callers pad.)
+  if (gasLimit) {
+    tx.gas = "0x" + BigInt(gasLimit).toString(16);
+    return await Enclave.provider.request({ method: "eth_sendTransaction", params: [tx] });
+  }
+  // Otherwise: estimate (provider first, public Base RPC as fallback) and pad
+  // 25% so a wallet that trusts our limit never under-provisions. A failed
+  // estimate falls through - the wallet estimates for itself.
   let est = null;
   try { est = await Enclave.provider.request({ method: "eth_estimateGas", params: [tx] }); }
   catch(_){ try { est = await baseRpc("eth_estimateGas", [tx]); } catch(_2){} }

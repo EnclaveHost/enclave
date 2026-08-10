@@ -599,7 +599,7 @@ test("migration batches are sized by GAS, and a record's gas is its BYTES", asyn
   // 4096. Six envelope-carrying records were planned as 2.82M gas and actually
   // cost 15.7M, past the ~11M ceiling where the wallet silently never
   // broadcasts. The run hung on "confirm in your wallet…" with no error at all.
-  const { recordImportGas } = await import(path.join(REPO, "site/components/admin-console/migrate.js"));
+  const { recordImportGas, GAS_BUDGET } = await import(path.join(REPO, "site/components/admin-console/migrate.js"));
   const big = { appRef: "catalog://" + "a".repeat(70), ports: "", configCid: "x".repeat(3900) };
   const small = { appRef: "catalog://" + "a".repeat(70), ports: "", configCid: "" };
   // measured on Base against the live ledger: ~3.0M for a ~3.9KB record
@@ -615,10 +615,18 @@ test("migration batches are sized by GAS, and a record's gas is its BYTES", asyn
     ports: "", configCid: cfg, gpuMilli: 0, cpuMilli: 100, appPort: 8080, isPublic: true, active: true,
     createdAt: 1, rate: 100, balance6: 0, spent6: 0, runner: "0x" + "0".repeat(64),
     runnerOperator: ZERO, leaseUntil: 0, cap6: "100", earn: { rate6: "80" }, fee: { rate6: "0", recipient: ZERO } });
-  const heavy = Array.from({ length: 6 }, (_, i) => mk(i + 1, "x".repeat(3900)));
+  // Enough heavy records to exceed the budget outright, so this asserts the
+  // SPLIT and not an incidental count. Sized off GAS_BUDGET rather than a
+  // literal: the budget moved once already (9M -> 30M, when the console started
+  // sending an explicit gas limit and stopped being held to the ~11M
+  // eth_estimateGas ceiling), and a hardcoded copy silently stops testing the
+  // split the moment it moves again.
+  const perRecord = recordImportGas({ appRef: "catalog://x/1", ports: "", configCid: "x".repeat(3900) });
+  const n = Math.ceil((GAS_BUDGET * 2.5) / perRecord);
+  const heavy = Array.from({ length: n }, (_, i) => mk(i + 1, "x".repeat(3900)));
   const txs = ROLLMIG.MIG_KINDS.deployments.plan(heavy, [], { grantRates: false, runnerBps: 0 });
   const imports = txs.filter((t) => /importDeployments/.test(t.label));
-  assert.ok(imports.length >= 3, `six 3.9KB records must not ride one transaction (got ${imports.length} import txs)`);
-  for (const t of imports) assert.ok(t.gas < 9_000_000, `a planned batch claims ${t.gas} gas, over budget`);
+  assert.ok(imports.length >= 3, `${n} heavy records (~${Math.round(n * perRecord / 1e6)}M gas) must not ride one transaction (got ${imports.length})`);
+  for (const t of imports) assert.ok(t.gas < GAS_BUDGET, `a planned batch claims ${t.gas} gas, over the ${GAS_BUDGET} budget`);
 });
 

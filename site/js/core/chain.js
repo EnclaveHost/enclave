@@ -556,10 +556,23 @@ export async function catOwner(){ const r = await ethCall("0x" + CAT_SEL.owner);
 
 export async function waitReceipt(hash, tries){
   tries = tries || 45;
+  let seen = false;                 // has any node ever admitted knowing this tx
   for (let i = 0; i < tries; i++){
     let rec = null;
     try { rec = await baseRpc("eth_getTransactionReceipt", [hash]); } catch(e){}
     if (rec){ if (hexBig(rec.status) === 0n) throw new EnclaveError("transaction reverted", 0); return rec; }
+    // A signed tx the chain has never HEARD OF is not a slow tx, it is a
+    // DROPPED one — the wallet handed back a hash and the RPC refused it at
+    // broadcast (classically: too much gas for that provider to relay). Waiting
+    // out the full timeout on that looks identical to congestion and has burned
+    // two migration runs, so say it as soon as it is knowable.
+    if (!seen){
+      try { seen = !!(await baseRpc("eth_getTransactionByHash", [hash])); } catch(e){ seen = true; }  // an RPC error is not evidence of a drop
+      if (!seen && i >= 5)
+        throw new EnclaveError("the network never received this transaction: your wallet signed it and returned a hash, "
+          + "but the RPC dropped it at broadcast (usually too large to relay). Nothing was sent and nothing was spent — "
+          + "retry with a smaller batch.", 0);
+    }
     await new Promise(res => setTimeout(res, 2000));
   }
   throw new EnclaveError("timed out waiting for confirmation (it may still land; hit refresh shortly)", 0);
