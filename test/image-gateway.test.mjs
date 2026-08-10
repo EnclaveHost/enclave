@@ -144,12 +144,15 @@ test("the image size cap still applies to SVG", async () => {
   assert.equal(added.length, before, "nothing may reach Kubo");
 });
 
-// ---- /add-json: the one pin route with NO upload token ----------------------
-// Its per-IP bucket is therefore the only thing between the internet and
-// unbounded pinned storage on the Kubo node — so the bucket's KEY has to be a
-// value the caller cannot pick. X-Forwarded-For is written by the client and
-// APPENDED to by the proxy in front of this gateway (it binds 127.0.0.1), so
-// the first entry is whatever the sender typed and the last is the real peer.
+// ---- /add-json: the app-config pin route -----------------------------------
+// It is wallet-signed now (catalog rev 7 raised its cap to 1 MB, which made the
+// old unsigned trade indefensible), but the per-IP bucket stays in FRONT of the
+// auth as the cheap pre-filter — so the bucket's KEY still has to be a value
+// the caller cannot pick. X-Forwarded-For is written by the client and APPENDED
+// to by the proxy in front of this gateway (it binds 127.0.0.1), so the first
+// entry is whatever the sender typed and the last is the real peer.
+// (This harness runs with UPLOAD_KEY unset = auth disabled, which is what lets
+// the bucket be exercised on its own; the signed path is covered below.)
 test("the /add-json rate limit keys on the proxy-appended address, not the caller's claim", async () => {
   const pin = (xff) => fetch(`http://127.0.0.1:${gwPort}/add-json`, {
     method: "POST", body: JSON.stringify({ a: 1 }),

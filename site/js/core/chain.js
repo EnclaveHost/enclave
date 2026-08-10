@@ -79,6 +79,9 @@ export const CAT_SEL = {
   publishVersionV4:"ffd9de8f", // rev-4 catalogs: same without the fee arg (kept until the cutover)
   publishVersionV2:"adbf439a", // rev-2 catalogs: same without the config arg (kept until the cutover)
   versionFee:"82869209",       // rev >= 5: the per-version publisher fee (side mapping - tuples decode on every rev)
+  publishVersionCfg:"7e2b4404",// rev >= 7: ...,string ports,string config,string configCid,uint256 feePerSec6 — `config` is the routing manifest here, configCid names the real one
+  versionConfigCid:"637d5777", // rev >= 7: where a version's config lives ("" = it is inline in `config`, as on every earlier rev)
+  versionConfigCids:"5ea1708a",// rev >= 7: all of one app's config CIDs at once, index-aligned with getVersionsPage
   maxFeePerSec6:"95b957d7",    // rev >= 5: publish-time cap on that fee
   catalogSchema:"18cccf57",    // struct-schema revision marker: 5 = rev-4 tuples + the publisher-fee
                                // surface; 4 = Version carries config; 3 = the short-lived
@@ -90,14 +93,38 @@ export const CAT_SEL = {
 };
 // Version.approval: the owner's deploy-gating ruling (unlike `verified`, a curation signal)
 export const APPROVAL = { pending:0, approved:1, rejected:2 };
-export const CAT_MAX = { slug:40, name:80, desc:500, version:32, cid:100, mb:1048576, gflops:10000000, config:4096 };
+// `config` is the catalog's INLINE ceiling — a hard on-chain constant
+// (MAX_CONFIG), not a dial. `configMax` is what a config may total once it
+// stops riding the record: past the inline limit the publish path pins the JSON
+// and the version stores its CID instead (rev 7), so this is the pin gateway's
+// and the runner's shared ceiling rather than the chain's.
+export const CAT_MAX = { slug:40, name:80, desc:500, version:32, cid:100, mb:1048576, gflops:10000000,
+                         config:4096, configMax:1048576 };
+// The keys read straight off the CHAIN RECORD, by readers that have no CID to
+// fetch yet or no business fetching one. When a config moves to a CID these
+// stay behind in the inline field as the on-chain manifest; everything else
+// moves. Derived at publish, never hand-typed.
+//   wasi/threads/set/gpuOptional - a runner PLACES a deployment on these before
+//     it fetches anything; lose them and a p3/threaded/GPU-optional app routes
+//     to a box that cannot run it.
+//   volumes - the same, for attested model volumes: volumeGate refuses a box
+//     that doesn't carry the named volume, and a box that claims one it lacks
+//     can only claim-fail-release in a loop.
+//   _media - the catalog grid reads tile art from the record while rendering
+//     hundreds of versions; lose it and every large-config app loses its
+//     artwork, or the grid starts doing an IPFS fetch per tile.
+// They stay in the PINNED config too (the app ignores keys it doesn't know), so
+// the delivered ENCLAVE_CONFIG is still the complete document the publisher
+// wrote — the manifest is a projection, not a split.
+export const ROUTING_KEYS = ["wasi", "threads", "set", "gpuOptional", "volumes", "_media"];
 export const APP_SCHEMA = [
   {k:"appId",t:"bytes32"},{k:"publisher",t:"addr"},{k:"slug",t:"str"},{k:"name",t:"str"},
   {k:"description",t:"str"},{k:"versionCount",t:"uint"},{k:"createdAt",t:"uint"},{k:"updatedAt",t:"uint"},{k:"active",t:"bool"},
 ];
 export const VER_SCHEMA = [
   {k:"cid",t:"str"},{k:"version",t:"str"},{k:"vramMb",t:"uint"},{k:"gpuGflops",t:"uint"},{k:"memMb",t:"uint"},{k:"cpuGflops",t:"uint"},{k:"createdAt",t:"uint"},{k:"verified",t:"bool"},{k:"yanked",t:"bool"},{k:"ports",t:"str"},{k:"approval",t:"uint"},
-  {k:"config",t:"str"},   // default/template ENCLAVE_CONFIG JSON - IMMUTABLE, covered by the version's approval (schema rev 3; appended last)
+  {k:"config",t:"str"},   // default/template ENCLAVE_CONFIG JSON - IMMUTABLE, covered by the version's approval (schema rev 3; appended last).
+                          // rev 7: when versionConfigCid() is non-empty this is the ROUTING MANIFEST instead, and the fetched CID is the app's config.
 ];
 
 export function catConfigured(){ return APP_CATALOG_ADDRESS && !/^0x0+$/i.test(APP_CATALOG_ADDRESS); }
@@ -402,6 +429,26 @@ export function decodeStruct(hex, schema){
   });
   return obj;
 }
+// decode a bare top-level `string` return (offset word, then length + bytes)
+export function decodeString(hex){
+  const buf = (hex || "").replace(/^0x/, "");
+  if (buf.length < 128) return "";                             // no offset+length pair: treat as empty
+  const ru = (o) => Number(BigInt("0x" + buf.slice(o * 2, o * 2 + 64)));
+  const so = ru(0), len = ru(so);
+  return len ? hexToUtf8(buf.slice((so + 32) * 2, (so + 32) * 2 + len * 2)) : "";
+}
+// decode a bare top-level `string[]`
+export function decodeStringArray(hex){
+  const buf = (hex || "").replace(/^0x/, "");
+  if (buf.length < 128) return [];
+  const ru = (o) => Number(BigInt("0x" + buf.slice(o * 2, o * 2 + 64)));
+  const arrOff = ru(0), len = ru(arrOff), elems = arrOff + 32, out = [];
+  for (let k = 0; k < len; k++){
+    const so = elems + ru(elems + k * 32), n = ru(so);
+    out.push(n ? hexToUtf8(buf.slice((so + 32) * 2, (so + 32) * 2 + n * 2)) : "");
+  }
+  return out;
+}
 // decode a dynamic T[] where T is a tuple of str|uint|bool|addr|bytes32 fields (per `schema`).
 export function decodeStructArray(hex, schema){
   const buf = (hex || "").replace(/^0x/, "");
@@ -458,6 +505,24 @@ export async function catVersionFee(appId, index){
   const r = await ethCall(encCall(CAT_SEL.versionFee, [{ t:"bytes32", v:appId }, { t:"uint", v:index }]));
   return (_verFee[key] = hexBig(r));
 }
+// Where a version's config actually lives (rev-7 catalogs only): "" means it
+// is inline in the version's `config` field, as on every earlier rev; a CID
+// means `config` is the on-chain manifest and the real one is at that CID.
+// Side mapping, so Version tuples decode unchanged either way.
+//
+// Read ONE VERSION AT A TIME, on the deploy path only. The catalog grid must
+// never call this per tile: it renders hundreds of versions, and the two things
+// it needs off a record — tile art (_media) and the routing keys — are exactly
+// what the manifest keeps on-chain for this reason. Cached per record: a
+// version's config reference is immutable once published.
+const _verCfgCid = {};
+export async function catVersionConfigCid(appId, index){
+  const key = appId + "/" + index;
+  if (_verCfgCid[key] != null) return _verCfgCid[key];
+  if ((await catSchemaRev()) < 7) return (_verCfgCid[key] = "");
+  const r = await ethCall(encCall(CAT_SEL.versionConfigCid, [{ t:"bytes32", v:appId }, { t:"uint", v:index }]));
+  return (_verCfgCid[key] = decodeString(r));
+}
 // The catalog's publish-time cap on that fee (rev >= 5; earlier catalogs
 // take no fee at all, surfaced as 0).
 export async function catMaxFeePerSec6(){
@@ -474,6 +539,17 @@ export async function catGetVersions(appId, count){
   for (let s = 0; s < count; s += PAGE)
     vs.push(...decodeStructArray(await ethCall(encCall(CAT_SEL.getVersionsPage, [{t:"bytes32",v:appId},{t:"uint",v:s},{t:"uint",v:PAGE}])), schema));
   if (rev < 4) for (const v of vs) v.config = "";
+  // rev 7: where each version's config lives. ONE call for the whole history
+  // (the side mapping is invisible to the tuple decoder, and a per-version read
+  // would be an eth_call per tile). "" = inline, which is every version on
+  // every earlier rev — so the field is simply absent below rev 7 and every
+  // existing reader is unaffected.
+  if (rev >= 7 && vs.length){
+    try {
+      const cids = decodeStringArray(await ethCall(encCall(CAT_SEL.versionConfigCids, [{t:"bytes32",v:appId}])));
+      vs.forEach((v, i) => { v.configCid = cids[i] || ""; });
+    } catch(e){ /* leave configCid unset: readers fall back to the inline field */ }
+  }
   return vs;
 }
 export async function catOwner(){ const r = await ethCall("0x" + CAT_SEL.owner); return "0x" + (r || "").replace(/^0x/, "").slice(24).padStart(40, "0"); }

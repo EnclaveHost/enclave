@@ -193,6 +193,11 @@ const VERSION_TUPLE = [
   { name: "approval", type: "uint8" },
 ];
 const VERSION_TUPLE_V3 = [...VERSION_TUPLE, { name: "config", type: "string" }];
+// The only keys the on-chain manifest may carry when a version's real config
+// lives at a CID: what a runner reads off the record to PLACE the deployment,
+// plus the catalog grid's tile art. Mirrors ROUTING_KEYS in
+// site/js/core/chain.js and cli/enclave.mjs — keep the three in lockstep.
+const ROUTING_KEYS = ["wasi", "threads", "set", "gpuOptional", "volumes", "_media"];
 const publishInputsFor = (rev) => [
   { name: "slug", type: "string" }, { name: "name", type: "string" },
   { name: "description", type: "string" }, { name: "version", type: "string" },
@@ -213,6 +218,16 @@ const catAbiFor = (rev) => [
   { type: "function", name: "versionFee", stateMutability: "view",
     inputs: [{ type: "bytes32" }, { type: "uint256" }], outputs: [{ type: "uint256" }] },
   { type: "function", name: "publishVersion", stateMutability: "nonpayable", inputs: publishInputsFor(rev), outputs: [{ type: "bytes32" }, { type: "uint256" }] },
+  // rev-7 large-config publish: publishInputsFor with configCid spliced in
+  // before the fee. Only encodable when the caller supplied one, so its
+  // presence in the ABI on older revs is harmless.
+  { type: "function", name: "publishVersionCfg", stateMutability: "nonpayable",
+    inputs: [...publishInputsFor(rev).filter((i) => i.name !== "feePerSec6"),
+             { name: "configCid", type: "string" },
+             ...(rev >= 5 ? [{ name: "feePerSec6", type: "uint256" }] : [])],
+    outputs: [{ type: "bytes32" }, { type: "uint256" }] },
+  { type: "function", name: "versionConfigCid", stateMutability: "view",
+    inputs: [{ type: "bytes32" }, { type: "uint256" }], outputs: [{ type: "string" }] },
 ];
 let _catRev = { at: 0, rev: 2 };
 async function catRev() {
@@ -241,9 +256,22 @@ async function catalogApps() {
 }
 async function readVersions(appId, count) {
   const { appCatalog } = await addresses();
-  const abi = catAbiFor(await catRev());
+  const rev = await catRev();
+  const abi = catAbiFor(rev);
   const versions = await read(appCatalog, abi, "getVersionsPage", [appId, 0n, BigInt(Math.max(1, Number(count)))]);
-  return versions.map((v) => ({ config: "", ...v }));
+  const out = versions.map((v) => ({ config: "", ...v, configCid: "" }));
+  // rev 7: on a large-config version the tuple's `config` is only the routing
+  // manifest. Stamp the CID here — this is the one read path every catalog
+  // tool shares, and a caller told "config: {…}" without being told it is a
+  // manifest will round-trip it into a setConfig override and REPLACE the
+  // app's real config with it.
+  if (rev >= 7 && out.length) {
+    try {
+      const cids = await read(appCatalog, abi, "versionConfigCids", [appId]);
+      out.forEach((v, i) => { v.configCid = cids[i] || ""; });
+    } catch { /* leave empty: readers fall back to the inline field */ }
+  }
+  return out;
 }
 // ---- EnclaveReviews (1-5 stars + comments, gated on a funded deployment) ------
 const REVIEW_TUPLE = [
@@ -487,11 +515,16 @@ export function encodeSetConfigTx({ deployments, id, envelope }) {
   return tx(deployments, encodeFunctionData({ abi: depsAbiFor(2), functionName: "setConfig", args: [id, envelope] }), 0n,
     `EnclaveDeployments.setConfig(${id.slice(0, 10)}…, ${envelope ? envelope.length + "-byte envelope" : "empty envelope"})`);
 }
-export function encodePublishTx({ rev, appCatalog, slug, name, description, version, cid, res, ports, config, feePerSec6 }) {
+export function encodePublishTx({ rev, appCatalog, slug, name, description, version, cid, res, ports, config, configCid, feePerSec6 }) {
+  // rev-7 large config: publishVersionCfg takes the same arguments with the
+  // config's CID inserted before the fee, and `config` demoted to the routing
+  // manifest the runner reads before it can fetch anything.
+  const fn = configCid ? "publishVersionCfg" : "publishVersion";
   const args = [slug, name, description, version, cid, res, ports,
-                ...(rev >= 3 ? [config || ""] : []), ...(rev >= 5 ? [feePerSec6] : [])];
-  return tx(appCatalog, encodeFunctionData({ abi: catAbiFor(rev), functionName: "publishVersion", args }), 0n,
-    `EnclaveAppCatalog.publishVersion(${slug}:${version})`);
+                ...(rev >= 3 ? [config || ""] : []), ...(configCid ? [configCid] : []),
+                ...(rev >= 5 ? [feePerSec6] : [])];
+  return tx(appCatalog, encodeFunctionData({ abi: catAbiFor(rev), functionName: fn, args }), 0n,
+    `EnclaveAppCatalog.${fn}(${slug}:${version})`);
 }
 
 // ---- self-calls (the relay's own public gateway, loopback) ---------------------
@@ -808,7 +841,12 @@ const TOOLS = [
         appId: a.appId, active: a.active,
         versions: versions.map((v, i) => ({
           index: i, version: v.version, cid: v.cid, approval: APPROVAL_WORD[Number(v.approval)] || String(v.approval),
-          yanked: v.yanked, ports: v.ports, config: v.config || "",
+          yanked: v.yanked, ports: v.ports,
+          // with configCid set, `config` is the on-chain routing manifest and
+          // NOT what the app receives — name the two things separately so a
+          // caller cannot mistake one for the other
+          ...(v.configCid ? { configCid: v.configCid, routingManifest: v.config || "" }
+                          : { config: v.config || "" }),
           specs: { vramMb: Number(v.vramMb), gpuGflops: Number(v.gpuGflops), memMb: Number(v.memMb), cpuGflops: Number(v.cpuGflops) },
           publisherFeePerHour: fees[i] > 0n ? usdHr(fees[i]) : null,
         })),
@@ -1284,12 +1322,28 @@ const TOOLS = [
       let cur = {};
       if (raw.startsWith("{")) { try { cur = JSON.parse(raw); } catch {} }
       if (!cur || Array.isArray(cur) || typeof cur !== "object") cur = {};
-      let versionConfig = null;
+      let versionConfig = null, versionConfigCid = "";
       const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(d.appRef || "");
-      if (m) { try { versionConfig = ((await readVersions(m[1], Number(m[2]) + 1))[Number(m[2])] || {}).config || ""; } catch {} }
+      if (m) {
+        try {
+          const v = (await readVersions(m[1], Number(m[2]) + 1))[Number(m[2])] || {};
+          versionConfigCid = v.configCid || "";
+          // On a rev-7 version the inline field is the routing manifest, not
+          // the config. Reporting it as `versionConfig` would be a trap: the
+          // obvious next move is to edit it and pass it to build_set_config,
+          // which would REPLACE the app's real config with its manifest. Say
+          // where the config lives instead of pretending it is here.
+          versionConfig = versionConfigCid ? null : (v.config || "");
+        } catch {}
+      }
+      const effective = "config" in cur ? JSON.stringify(cur.config)
+                      : versionConfigCid ? null : (versionConfig || "");
       return { id: full, envelope: raw, waf: cur.waf ?? null,
         configOverride: "config" in cur ? cur.config : null, versionConfig,
-        effectiveConfig: "config" in cur ? JSON.stringify(cur.config) : (versionConfig || ""),
+        ...(versionConfigCid ? { versionConfigCid,
+          note: `this version keeps its config at ipfs://${versionConfigCid} (too large for the record); fetch that CID to read it. `
+              + `The version's inline field is only the routing manifest and must NOT be used as a config override.` } : {}),
+        effectiveConfig: effective,
         hint: "build_set_config edits the envelope; set_secrets stores the private values $NAME placeholders resolve from" };
     },
   },
@@ -1365,7 +1419,8 @@ const TOOLS = [
       vramMb: { type: "number" }, gpuGflops: { type: "number" },
       memMb: { type: "number", description: "default 256" }, cpuGflops: { type: "number", description: "default 10" },
       ports: { type: "string", description: "CSV, e.g. \"http:8080,tcp:25565\"" },
-      config: { type: "string", description: "Default/template ENCLAVE_CONFIG JSON (≤4096 bytes, immutable per version)" },
+      config: { type: "string", description: "Default/template ENCLAVE_CONFIG JSON (≤4096 bytes, immutable per version). With configCid set this is instead the small ROUTING MANIFEST kept on-chain (wasi/threads/set/gpuOptional), not the app's config." },
+      configCid: { type: "string", description: "Catalog rev 7: the IPFS CID of a config too large to store inline (up to 1 MB). Pin it yourself first (POST /add-json, wallet-signed) — this server holds no keys and cannot pin for you. The CID becomes part of the immutable, approval-covered version record, and enclaves re-fetch and hash-verify it." },
       feeUsdPerHour: { type: "number", description: "Publisher fee in USD per hour (0 = free; platform-capped)" },
     }, ["publisher", "slug", "cid"]),
     handler: async (a) => {
@@ -1376,8 +1431,30 @@ const TOOLS = [
         let o; try { o = JSON.parse(a.config); } catch (e) { throw new Error("config isn't valid JSON: " + e.message); }
         if (!o || Array.isArray(o) || typeof o !== "object") throw new Error("config must be a JSON object");
       }
+      if (a.configCid && !/^[A-Za-z0-9]{10,100}$/.test(a.configCid))
+        throw new Error("configCid must be a bare IPFS CID (10-100 alphanumeric characters, no ipfs:// prefix)");
       const rev = await catRev();
       if (a.config && rev < 4) throw new Error("config needs the rev-4 catalog");
+      if (a.configCid && rev < 7) throw new Error("configCid needs the rev-7 catalog; inline configs cap at 4096 bytes");
+      // With the config behind a CID, `config` is the on-chain routing manifest
+      // and it is NOT optional bookkeeping: runners place a deployment on
+      // wasi/threads/set/volumes/gpuOptional before they fetch anything. This
+      // server signs nothing and never sees the wasm, so it cannot derive the
+      // manifest the way `enclave publish` does — say so rather than encode a
+      // tx that strands a p3/threaded/volume-mounting app on the wrong box.
+      if (a.configCid) {
+        let m; try { m = JSON.parse(a.config || "{}"); } catch { m = null; }
+        const carried = m && typeof m === "object" && !Array.isArray(m)
+          ? Object.keys(m).filter((k) => ROUTING_KEYS.includes(k)) : [];
+        const extra = m && typeof m === "object" && !Array.isArray(m)
+          ? Object.keys(m).filter((k) => !ROUTING_KEYS.includes(k)) : [];
+        if (extra.length) throw new Error(
+          `with configCid set, config is the on-chain routing manifest and may only carry ${ROUTING_KEYS.join("/")} — `
+          + `move ${extra.join(", ")} into the pinned config (the guest receives that, not this)`);
+        if (!carried.length) throw new Error(
+          "config is empty of routing keys; if the app targets wasip3, uses threads/set, mounts volumes, or is gpuOptional, "
+          + "those keys must ride the record or runners will place it on a box that cannot run it");
+      }
       const feeUsdHr = Number(a.feeUsdPerHour) || 0;
       if (feeUsdHr < 0) throw new Error("feeUsdPerHour can't be negative");
       const feePerSec6 = BigInt(Math.round(feeUsdHr * 1e6 / 3600));
@@ -1397,7 +1474,7 @@ const TOOLS = [
         publisherFeePerHour: feePerSec6 > 0n ? usdHr(feePerSec6) : null,
         transactions: [encodePublishTx({ rev, appCatalog, slug: a.slug, name: a.name || a.slug,
           description: a.description || "", version, cid: a.cid, res, ports: a.ports || "",
-          config: a.config || "", feePerSec6 })],
+          config: a.config || "", configCid: a.configCid || "", feePerSec6 })],
         next: `sign+send with ${a.publisher} (the publisher identity). Approval starts pending; deploy once approved: plan_deploy { app: "${a.slug}:${version}" }`,
       };
     },

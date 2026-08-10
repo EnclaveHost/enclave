@@ -1176,6 +1176,18 @@ function aggregateAvailability() {
     // compile probe (`set` on each runner's availability). Same fleet-AND and
     // per-box canary escape hatch as p3/coopThreads.
     set: serving.length > 0 && serving.every((e) => e.availability?.set === true),
+    // Catalog rev-7 large configs, same fleet-AND and same per-box canary
+    // escape hatch: a version whose config lives at a CID routes only to boxes
+    // that fetch and hash-verify it. A box without it REFUSES the claim rather
+    // than serving the routing manifest as the config — correct, but it means
+    // an un-rolled-out fleet leaves such a deployment Queued with its funding
+    // tied up, so clients must be able to see this before they create one.
+    configCid: serving.length > 0 && serving.every((e) => e.availability?.configCid === true),
+    // The smallest config the whole fleet will accept — a config over this
+    // publishes fine and then fails every launch, so the publish UI sizes its
+    // own check off the fleet rather than a hardcoded guess.
+    configMaxBytes: serving.length > 0
+      ? Math.min(...serving.map((e) => Number(e.availability?.configMaxBytes) || 0)) : 0,
     // the CHEAPEST posted price across the claiming fleet, USDC 6dp/sec for a
     // whole node / whole card. Each enclave sets its own (registry entry), so
     // "what does this cost" is a fleet-minimum question now, not a contract
