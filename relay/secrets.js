@@ -301,9 +301,18 @@ export async function handleSecrets(req, res, u, ctx) {
       // without its secrets until the enclaves catch up. So the missing case is
       // loud and has an operator lever (REQUIRE=0) to unblock a bad rollout
       // order; enforcing is the default, and the log names exactly what to fix.
-      if (signer && signer !== owner)
+      if (signer && signer !== owner) {
+        // Logged for the same reason the missing-signature case below is, and
+        // the omission cost a real investigation: a WRONG key and a MISSING
+        // one produce the same end state (an app running with unresolved
+        // $NAME placeholders), but only one of them said so. Silence here made
+        // "the enclave never asked" and "the enclave asked and was refused"
+        // indistinguishable from this side.
+        console.error(`[secrets] ${endpoint} fetch REFUSED: signed by ${signer}, `
+          + `but the endpoint is registered to ${owner} (deployment ${id})`);
         return bad(ctx, res, req, 403, "wrong_operator",
           `The fetch is signed by ${signer}, but ${endpoint} is registered to ${owner}.`);
+      }
       if (!signer) {
         console.error(`[secrets] ${endpoint} fetched WITHOUT an operator signature `
           + `(registered to ${owner}) — its supervisor predates the per-enclave check`
@@ -331,10 +340,13 @@ export async function handleSecrets(req, res, u, ctx) {
     // box that key would sit in an operator-readable config file outside the
     // CVM, so the enclave boundary would not protect it. No third-party seller
     // can ever be given it, and no first-party box should have to be.
-    if (!fleetOk && !opOk)
+    if (!fleetOk && !opOk) {
+      console.error(`[secrets] ${endpoint} fetch REFUSED for ${id}: no valid fleet HMAC`
+        + (owner ? ` and no signature by its registered operator ${owner}` : " and no registry entry to authorize it"));
       return bad(ctx, res, req, 401, "bad_fetch_sig",
         owner ? "The fetch carries neither a valid fleet HMAC nor a signature by this endpoint's registered operator."
               : "The fetch HMAC does not verify, and this endpoint has no on-chain registry entry to authorize it instead.");
+    }
     // the chain says who holds the lease; a fresh re-read covers a claim tx
     // newer than the 10s ledger cache (the supervisor fetches right after it)
     const epId = String(await ctx.endpointIdOf(endpoint)).toLowerCase();
@@ -343,8 +355,22 @@ export async function handleSecrets(req, res, u, ctx) {
       && String(row.runner).toLowerCase() === epId;
     if (!holds(d)) d = await rowOf(ctx, id, { fresh: true });
     if (!d) return bad(ctx, res, req, 404, "not_found", `No deployment ${id} on the ledger.`);
-    if (!holds(d)) return bad(ctx, res, req, 409, "not_lease_holder", "This endpoint does not hold the deployment's live lease.");
+    if (!holds(d)) {
+      console.error(`[secrets] ${endpoint} fetch REFUSED for ${id}: not the live lease holder `
+        + `(ledger runner ${d.runner}, leaseUntil ${d.leaseUntil})`);
+      return bad(ctx, res, req, 409, "not_lease_holder", "This endpoint does not hold the deployment's live lease.");
+    }
     const { rev, env } = readSecrets(id);
+    // SUCCESS is logged too, and that is the point of this pair rather than a
+    // nicety. A launch that comes up without its secrets looks identical from
+    // the relay whether the fetch was refused, or never arrived at all — and
+    // "never arrived" is a real failure mode here (an enclave that cannot
+    // reach this relay outbound). With every outcome logged, SILENCE for a
+    // deployment that just launched means the request did not get here, which
+    // points at the enclave's egress instead of at this plane. Names and
+    // values stay out of it; the count is enough to tell "served nothing"
+    // from "served three".
+    console.log(`[secrets] ${endpoint} fetch OK for ${id}: rev ${rev}, ${Object.keys(env).length} name(s)`);
     return ctx.json(res, 200, { id, rev, env }, req);
   }
 
