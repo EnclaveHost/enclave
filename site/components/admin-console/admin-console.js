@@ -1202,7 +1202,7 @@ class AdminConsole extends EnclaveElement {
                 try {
                   await waitReceipt(hash, 90);
                 } catch (e) {
-                  if (!/never received this transaction/.test(e.message || "")) throw e;
+                  if (!/does not have this transaction/.test(e.message || "")) throw e;
                   // Halving has a FLOOR that is not MIN_GAS_BUDGET: one record
                   // cannot be split, so once a batch is a single call, smaller
                   // budgets change nothing and retrying just burns signatures.
@@ -1213,8 +1213,8 @@ class AdminConsole extends EnclaveElement {
                       + `Point your wallet at an RPC that relays larger transactions and click Migrate again - `
                       + `everything already imported is skipped.`);
                   gasBudget = Math.max(MIN_GAS_BUDGET, Math.floor(gasBudget / 2));
-                  log("p", `  this RPC refused that batch - halving to ${Math.round(gasBudget / 1e6)}M gas and re-planning `
-                         + `(nothing was sent or spent; imports already done are skipped)`);
+                  log("p", `  your wallet's RPC did not relay that batch - halving to ${Math.round(gasBudget / 1e6)}M gas and `
+                         + `re-planning (the target is re-read, so anything that DID land is skipped)`);
                   dropped = true;
                   break;
                 }
