@@ -5,7 +5,7 @@
    No web3 library loads on the site.
    ============================================================ */
 import { APP_CATALOG_ADDRESS, DEPLOYMENTS_ADDRESS, FEATURED_ADDRESS, REVIEWS_ADDRESS, HOST_REVIEWS_ADDRESS, APP_CATALOG_CHAIN, APP_CATALOG_RPCS } from "./config.js";
-import { EnclaveError } from "./api.js";
+import { EnclaveError, Enclave } from "./api.js";
 import { wait } from "./util.js";
 import { fleetPrice } from "./pricing.js";
 
@@ -554,24 +554,36 @@ export async function catGetVersions(appId, count){
 }
 export async function catOwner(){ const r = await ethCall("0x" + CAT_SEL.owner); return "0x" + (r || "").replace(/^0x/, "").slice(24).padStart(40, "0"); }
 
+/* Wait for a receipt, and tell a DROPPED transaction from a slow one.
+   Only ONE node can answer that: the one the wallet submitted through. A
+   pending tx lives in THAT node's mempool and gossips to independent nodes on
+   its own schedule, so "a public RPC has not heard of it" is not evidence of
+   anything — least of all within a few seconds, and least of all from a
+   ROTATING pool where each check may land on a different node. An earlier
+   version of this asked exactly that question and aborted healthy migrations
+   on the answer, while claiming nothing had been sent. Absence of evidence
+   from a node that never accepted the transaction is not evidence of absence. */
 export async function waitReceipt(hash, tries){
   tries = tries || 45;
-  let seen = false;                 // has any node ever admitted knowing this tx
+  const DROP_AFTER = 20;            // ~40s: long enough that a live tx is in its own node's pool
+  let seen = false;
   for (let i = 0; i < tries; i++){
     let rec = null;
     try { rec = await baseRpc("eth_getTransactionReceipt", [hash]); } catch(e){}
     if (rec){ if (hexBig(rec.status) === 0n) throw new EnclaveError("transaction reverted", 0); return rec; }
-    // A signed tx the chain has never HEARD OF is not a slow tx, it is a
-    // DROPPED one — the wallet handed back a hash and the RPC refused it at
-    // broadcast (classically: too much gas for that provider to relay). Waiting
-    // out the full timeout on that looks identical to congestion and has burned
-    // two migration runs, so say it as soon as it is knowable.
-    if (!seen){
-      try { seen = !!(await baseRpc("eth_getTransactionByHash", [hash])); } catch(e){ seen = true; }  // an RPC error is not evidence of a drop
-      if (!seen && i >= 5)
-        throw new EnclaveError("the network never received this transaction: your wallet signed it and returned a hash, "
-          + "but the RPC dropped it at broadcast (usually too large to relay). Nothing was sent and nothing was spent — "
-          + "retry with a smaller batch.", 0);
+    if (!seen && i >= DROP_AFTER){
+      // Ask the SUBMITTING provider. No provider (or an errored one) means we
+      // cannot know, and we keep waiting rather than guess.
+      let known = null;
+      try {
+        if (Enclave.provider)
+          known = await Enclave.provider.request({ method: "eth_getTransactionByHash", params: [hash] });
+      } catch(e){ known = undefined; }          // undefined = unknowable, not absent
+      if (known) seen = true;
+      else if (known === null && Enclave.provider)
+        throw new EnclaveError("your wallet's RPC does not have this transaction " + Math.round(DROP_AFTER * 2) + "s after signing it: "
+          + "it returned a hash but never relayed it (typically the batch was too large for that endpoint). "
+          + "Confirm on the explorer before retrying — if it is genuinely absent, nothing was spent.", 0);
     }
     await new Promise(res => setTimeout(res, 2000));
   }
