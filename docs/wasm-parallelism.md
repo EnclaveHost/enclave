@@ -732,7 +732,7 @@ zeroes its tid (breaking `__tl_lock` and every FILE lock) and can drive
 lock in the process into a no-op.
 
 The full per-finding list, with the repro for each, is in
-`wasm/SET-DO-NOT-PROMOTE.md`.
+`wasm/SET-REVIEW-HISTORY.md`.
 
 **One claim retracted:** nested spawn does NOT trap, and never should have been
 documented as doing so. A worker runs its own whole component instantiation, so

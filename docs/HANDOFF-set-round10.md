@@ -1,4 +1,4 @@
-# Handoff: SET (shared-everything-threads), after round 21
+# Handoff: SET (shared-everything-threads) — PROMOTED, after round 21
 
 *(The filename says round10 and is now historical — `docs/HANDOFF-set-threads.md`
 points here by that name, so it stays. This file is kept current; the filename
@@ -10,7 +10,7 @@ it are still true, the readiness claim is not.
 
 ## READ THE PATCHES, NOT THIS FILE, FOR WHAT THE CODE DOES
 
-Round 11's fourth reviewer briefed itself from `wasm/SET-DO-NOT-PROMOTE.md`,
+Round 11's fourth reviewer briefed itself from `wasm/SET-REVIEW-HISTORY.md`,
 reviewed the image that document implied was current, and discovered SIX HOURS IN
 that the committed patch had moved. **The authority is
 `wasm/wasi-libc-set-threads.patch` (44 files) and
@@ -57,10 +57,17 @@ component on the fleet**, shared or not.
 
 ## The standing constraints — do not violate these
 
-1. **Do not promote until a round finds nothing.** The engine patch stays
-   `.wip`; that suffix keeps it out of `wasmtime-patch-check.yml`'s `wasm/*.patch`
-   glob and out of `wasm/Dockerfile.wasmtime`'s chain. Verified intact at round
-   21: 9 patches in the workflow, zero SET references in the Dockerfile.
+1. ~~Do not promote until a round finds nothing.~~ **PROMOTED 2026-08-09, on
+   Steven's explicit instruction.** The engine patch is now
+   `wasm/wasmtime-set-threads.patch` (no `.wip`), applied in
+   `wasm/Dockerfile.wasmtime` after `wasmtime-nn-arbiter`, and
+   `wasmtime-patch-check.yml` covers 10 patches plus a separate vendored-
+   wasmparser step. The gate as written was never met (21 rounds, none found
+   nothing); the code was clean for the last five against `tests/all` 1305/0 and
+   end-to-end patch verification. **Still inert for tenants**: `_set_flags()`
+   arms `-W shared-everything-threads` only for components carrying
+   `[set-spawn-indirect]`, and no catalog app has it — so promotion changes the
+   shared binary but not any tenant's behaviour until a SET app ships.
 2. **The fleet `WASMTIME_IMAGE` repin is a MEASUREMENT EVENT and is
    Steven-gated.** Do not dispatch the toolchain workflow or repin
    `wasm/Dockerfile.wasm` unprompted. Note Steven repinned it independently on
@@ -172,6 +179,6 @@ root, NOT a git-format patch against the wasmtime tree — it cannot simply be
 appended to the patch-check loop) + the SET patch after
 `wasmtime-nn-arbiter.patch` in `wasm/Dockerfile.wasmtime`; extend
 `.github/workflows/wasmtime-patch-check.yml` from 9 to 10 and update its header;
-delete `wasm/SET-DO-NOT-PROMOTE.md` and fix its references here and in
+delete `wasm/SET-REVIEW-HISTORY.md` and fix its references here and in
 `docs/wasm-parallelism.md`. **Then stop** — the fleet repin is a separate,
 Steven-gated step.

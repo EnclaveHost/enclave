@@ -10,7 +10,7 @@ silently ineffective.
 
 ## Read first
 
-- `wasm/SET-DO-NOT-PROMOTE.md` — the authoritative open-findings list. Start here.
+- `wasm/SET-REVIEW-HISTORY.md` — the authoritative open-findings list. Start here.
 - `docs/wasm-parallelism.md` → the two `2026-08-08` sections (the new design, and
   why the old one was unsound).
 - `docs/HANDOFF-set-threads.md` → `UPDATE 2026-08-08` (what a worker is now).
@@ -63,7 +63,7 @@ rig `set-cabi-race.wat` + `cabi_race.rs`). Caps tests `test/wasm-set.test.mjs`,
 
 ## What to fix, in priority order
 
-Full detail, with repros, is in `wasm/SET-DO-NOT-PROMOTE.md`. Summary:
+Full detail, with repros, is in `wasm/SET-REVIEW-HISTORY.md`. Summary:
 
 1. **CRITICAL — a guest can abort the host process.** Worker stores are built by
    a different code path than the primary's, so a worker's `Host` lacks
@@ -137,6 +137,6 @@ unit + component-model suites, and TSan.
 
 Regenerate both patch files, rename `.wip` → `.patch`, add the SET patch +
 wasmparser vendor/relax step to `Dockerfile.wasmtime`, extend
-`wasmtime-patch-check.yml`, delete `wasm/SET-DO-NOT-PROMOTE.md`. The fleet
+`wasmtime-patch-check.yml`, delete `wasm/SET-REVIEW-HISTORY.md`. The fleet
 cutover (toolchain dispatch → `WASMTIME_IMAGE` repin → fleet-op stop→start) is a
 Steven-gated measurement event — do not do it unprompted.
