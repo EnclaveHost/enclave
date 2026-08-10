@@ -3970,9 +3970,26 @@ app.post("/v1/deployments", authed, async (req, res) => {
 const SECRETS_API = (process.env.SECRETS_API ?? "https://api.enclave.host").trim().replace(/\/+$/, "");
 const SECRETS_FETCH_KEY = createHmac("sha256", SECRET).update("enclave secrets v1").digest("hex");
 const _secretsCache = new Map();                 // dep id -> { rev, env } (RAM only)
+// Skips are announced ONCE per reason. A skip here is indistinguishable from a
+// relay refusal downstream — both end with the app running and its $NAME
+// placeholders unresolved — but only this side knows the request was never
+// sent. Staying quiet about it cost a full investigation: every gate on the
+// relay and on chain checked out (secrets stored, capability true, correct
+// operator key, live lease held), which is exactly the evidence you get when
+// nobody asked.
+const _secretsSkipSaid = new Set();
+function _secretsSkip(why) {
+  if (_secretsSkipSaid.has(why)) return;
+  _secretsSkipSaid.add(why);
+  console.error(`[secrets] NOT fetching per-deployment secrets: ${why}. `
+    + "Deployments whose config uses $NAME placeholders will launch with them UNRESOLVED.");
+}
 async function fetchDepSecrets(id) {
-  if (!SECRETS_API || !_advertisedEndpoint || /^(1|true|on)$/i.test(process.env.MOCK_SPAWN || ""))
+  if (!SECRETS_API || !_advertisedEndpoint || /^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) {
+    if (!SECRETS_API) _secretsSkip("SECRETS_API is empty");
+    else if (!_advertisedEndpoint) _secretsSkip("this enclave has not registered its endpoint yet");
     return _secretsCache.get(id) || null;
+  }
   const idL = String(id).toLowerCase();
   let last = "";
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -5467,7 +5484,15 @@ const CLAIM_ENABLED    = /^(1|true|on)$/i.test(process.env.CLAIM_ENABLED || "");
 // the explicit opt-out for a box that has neither.
 // (Kept env-driven so an operator can still switch it off explicitly; the
 // metal guest computes it from whichever credential that box actually holds.)
-const SECRETS_CAPABLE  = !/^(0|false|off)$/i.test(process.env.SECRETS_CAPABLE || "1");
+// ...AND the pull has to be configured at all. Without `&& !!SECRETS_API` this
+// flag is a claim about the BUILD while the fleet reads it as a claim about the
+// BOX: a box with SECRETS_API="" advertises `secrets: true`, the relay's
+// fleet-AND keeps the feature on, the console offers it, and the
+// `/v1/secrets/exists` gate — which exists precisely so a secret-bearing
+// deployment is "never claimed by a box that would launch it without its env"
+// — is defeated by the box's own answer. The deployment then runs, forever,
+// with unresolved placeholders and nothing anywhere saying why.
+const SECRETS_CAPABLE  = !/^(0|false|off)$/i.test(process.env.SECRETS_CAPABLE || "1") && !!SECRETS_API;
 const CLAIM_POLL_SEC   = parseInt(process.env.CLAIM_POLL_SEC || "60", 10);    // sweep + audit + renew cadence
 const RENEW_MARGIN_SEC = parseInt(process.env.RENEW_MARGIN_SEC || "600", 10); // renew when less lease than this remains (early renewal is FREE: the contract extends FROM leaseUntil, so a wide margin only buys more attempts)
 const CLAIM_MAX_PER_SWEEP = parseInt(process.env.CLAIM_MAX_PER_SWEEP || "3", 10); // new adoptions kicked off per pass (resumes uncapped)
