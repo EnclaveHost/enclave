@@ -520,14 +520,20 @@ const chunkBySizeAndGas = (arr, maxBytes, sizeOf, maxGas, gasOf) => {
 //
 // This matters for one human reason: a migration is signed on a hardware
 // wallet, one confirmation per transaction. At the old 9M budget a 351-version
-// catalog came to 56 confirmations, which is not a thing a person can be asked
-// to do. 30M is ~7% of a Base block (blocks run ~28M used against a 400M
-// limit), comfortably includable, and cuts that to a handful.
+// catalog (509M gas, measured) came to 56 confirmations, which is not a thing a
+// person can be asked to do. 60M is ~15% of a Base block — blocks run ~28M used
+// against a 400M limit, so this is a large transaction but not an exotic one —
+// and it brings that down to roughly a dozen.
+//
+// If a batch this size is ever refused by a relay, it is now LOUD: waitReceipt
+// tells a dropped tx from a slow one and reports it in seconds, having spent
+// nothing. So the failure mode of aiming high is a retry, not another silent
+// hang. Lower this if that ever happens; the plan is delta-resumable.
 //
 // Over-providing gas is free — unused gas is refunded — and being SHORT only
 // costs the burned gas of a reverted tx (~$0.50 at Base's current base fee),
 // so the estimates below deliberately carry margin rather than run lean.
-export const GAS_BUDGET  = 30_000_000;   // per packed tx - bounded by block inclusion, not by estimateGas
+export const GAS_BUDGET  = 60_000_000;   // per packed tx - bounded by block inclusion, not by estimateGas
 const DATA_BUDGET = 96 * 1024;    // per packed tx (sum of inner calls) - secondary guard
 function packPlan(contractName, txs) {
   if (txs.length <= 1) return txs;
