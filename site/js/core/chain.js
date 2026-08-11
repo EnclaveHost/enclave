@@ -582,7 +582,9 @@ export async function waitReceipt(hash, tries){
       if (known) seen = true;
       else if (known === null && Enclave.provider)
         throw new EnclaveError("your wallet's RPC does not have this transaction " + Math.round(DROP_AFTER * 2) + "s after signing it: "
-          + "it returned a hash but never relayed it (typically the batch was too large for that endpoint). "
+          + "it returned a hash but never relayed it. Check the wallet's own activity log for the reason — "
+          + "\"FAILED_WOULD_REVERT\" there means the transaction would have reverted (usually an under-provisioned "
+          + "gas limit, not an oversized batch), which MetaMask cancels before broadcast. "
           + "Confirm on the explorer before retrying — if it is genuinely absent, nothing was spent.", 0);
     }
     await new Promise(res => setTimeout(res, 2000));

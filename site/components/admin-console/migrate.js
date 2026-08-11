@@ -302,6 +302,18 @@ export const recordImportGas = (d) =>
    351 versions: "[1/24] multicall · 4 calls (importVersions) — sent … waiting"
    forever. Under-reporting gas here does not make a tx cheap, it makes it
    un-broadcastable. */
+/* And for an APP record. Same model, same reason, and this one bit hardest:
+   apps carry slug + name + a description up to 500 bytes, so a real app is
+   ~600k gas against the flat 250k this used to assume — 2.8x under for a batch
+   of ten. That was survivable while the WALLET estimated the gas, and became
+   fatal the moment the console started passing an explicit limit: the limit was
+   simply too small, the batch would have run out of gas, and MetaMask's
+   smart-transaction simulation cancelled it before broadcast
+   (FAILED_WOULD_REVERT). Which then looked exactly like an RPC refusing an
+   oversized transaction, and sent me chasing a size ceiling that was not there. */
+export const appImportGas = (a) =>
+  Math.ceil(1.2 * (270_000 + 730 * (strBytes(a.slug) + strBytes(a.name) + strBytes(a.description))));
+
 export const versionImportGas = (v) =>
   Math.ceil(1.2 * (270_000 + 730 * (strBytes(v.cid) + strBytes(v.version)
                                     + strBytes(v.ports) + strBytes(v.config))));
@@ -533,15 +545,24 @@ const chunkBySizeAndGas = (arr, maxBytes, sizeOf, maxGas, gasOf) => {
 // Over-providing gas is free — unused gas is refunded — and being SHORT only
 // costs the burned gas of a reverted tx (~$0.50 at Base's current base fee),
 // so the estimates below deliberately carry margin rather than run lean.
-// MEASURED, not reasoned: 9M works, 15.9M was dropped, 60M was dropped. The
-// provider refuses on SEND, not only on estimate, so passing an explicit gas
-// limit does NOT buy headroom the way the comment above hoped — it only removes
-// the estimator from the path. Start where we have evidence and let the console
-// discover the rest (it halves on a refusal and keeps going), because the true
-// ceiling belongs to whichever RPC the signer's wallet is pointed at and is not
-// knowable from here.
-export const GAS_BUDGET  = 9_000_000;    // per packed tx - the last size observed to relay
-const DATA_BUDGET = 24 * 1024;    // per packed tx (sum of inner calls) - secondary guard
+// What the failures here actually were, since two of the three were self-
+// inflicted and sent me hunting a size ceiling that does not exist:
+//   15.9M  a REAL drop — this predates explicit gas limits, so eth_estimateGas
+//          was asked, errored above its ~11M cap, left `gas` unset, and the tx
+//          died at broadcast.
+//   60M    NOT a size refusal. The batch carried an under-provisioned limit
+//          (importApps was costed flat at 250k/app against a real ~600k), so it
+//          would have run out of gas; MetaMask's smart-transaction simulation
+//          cancelled it pre-broadcast as FAILED_WOULD_REVERT.
+//   8M     the same thing again, smaller.
+// With byte-accurate estimates and a padded send limit, there is no evidence of
+// any relay ceiling. This is the size Steven picked for the human axis (~12
+// hardware-wallet confirmations for a 509M-gas catalog) — set as the budget
+// BEFORE sendTx's 50% padding, so the transaction that actually goes out is
+// ~60M, ~15% of a Base block. If a relay ever does refuse one, the console
+// halves and re-plans on its own.
+export const GAS_BUDGET  = 40_000_000;   // per packed tx, pre-padding (~60M sent)
+const DATA_BUDGET = 96 * 1024;    // per packed tx (sum of inner calls) - secondary guard
 // Never subdivide below this: past it the batches are tiny, the signature count
 // explodes, and a still-failing send is a different problem that halving will
 // not solve. Stop and say so instead of grinding.
@@ -688,9 +709,9 @@ export const MIG_KINDS = {
       const sel = CONTRACTS.EnclaveAppCatalog.sel;
       const have = Object.fromEntries(after.map((a) => [a.appId.toLowerCase(), a]));
       const newApps = data.filter((a) => !have[a.appId.toLowerCase()]);
-      const txs = chunked(newApps, CHUNK.apps).map((c, i) => ({
+      const txs = chunkByGas(newApps, appImportGas, gasBudget, CHUNK.apps).map((c, i) => ({
         label: `importApps · batch ${i + 1} (${c.length})`,
-        gas: 100_000 + 250_000 * c.length,
+        gas: 100_000 + c.reduce((t, a) => t + appImportGas(a), 0),
         dataHex: encCallX(sel.importApps, [{ t: "tuple[]", schema: APP_SCHEMA, v: c }]),
       }));
       for (const a of data) {
@@ -726,7 +747,7 @@ export const MIG_KINDS = {
           .filter((x) => x.cid && (tgt && tgt.versions[x.i] ? !(tgt.versions[x.i].cfgCid || "") : true));
         txs.push(...chunked(cidTodo, CHUNK.fees).map((c, i) => ({
           label: `importVersionConfigCids · ${a.slug} (${c.length}${i ? ", cont." : ""})`,
-          gas: 100_000 + 60_000 * c.length,
+          gas: 100_000 + c.reduce((t, x) => t + Math.ceil(1.2 * (40_000 + 730 * strBytes(x.cid))), 0),
           dataHex: encCallX(sel.importVersionConfigCids, [
             { t: "bytes32", v: a.appId },
             { t: "uint[]", v: c.map((x) => x.i) },
