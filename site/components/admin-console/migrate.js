@@ -444,8 +444,12 @@ const depKey = (d) => d.id;
    paid enclave can take it — the deployment is stranded on a host that no
    longer exists. (importDeployments refuses rate 0 outright for a related
    reason, which is how this surfaced: 4 of 17 live records.)
-   A record with no cap AND no rate has expressed no willingness to pay at all;
-   there is nothing to substitute, and it is caught before planning. */
+   The substitution also seeds the cap correctly: import does
+   `_maxRate6[id] = d.rate`, so carrying a 0 across would leave the record
+   momentarily UNCAPPED (cap 0 means uncapped) until importCaps lands. Setting
+   it to the cap makes that write right the first time instead of depending on
+   a later batch. A record with no cap AND no rate is free forever by choice —
+   nothing to substitute, and nothing wrong with it. */
 const depClean = (d) => ({ ...d, runner: "0x" + "0".repeat(64), runnerOperator: "0x" + "0".repeat(40), leaseUntil: 0,
   rate: BigInt(d.rate || 0) === 0n && BigInt(d.cap6 || 0) > 0n ? d.cap6 : d.rate });
 const depCmp = (a, b) => DEP_SCHEMA.every((f) => ["runner", "runnerOperator", "leaseUntil"].includes(f.k)
@@ -648,13 +652,15 @@ export const MIG_KINDS = {
       const sel = CONTRACTS.EnclaveDeployments.sel;
       const have = new Set(after.map((d) => d.id.toLowerCase()));
       const todo = data.filter((d) => !have.has(d.id.toLowerCase())).map(depClean);
-      // Refuse loudly rather than letting importDeployments revert "range" on
-      // transaction N of a run that already spent gas on N-1.
+      // A record with neither rate nor cap is FREE FOREVER by its owner's
+      // choice, and imports fine on a ledger built after the rate>0 guard came
+      // out. On an older target importDeployments still reverts "range", which
+      // is worth saying before the run rather than on transaction N.
       const rateless = todo.filter((d) => BigInt(d.rate || 0) === 0n);
       if (rateless.length)
-        throw new Error(`${rateless.length} deployment(s) carry neither a rate nor a spend cap, so nothing could ever be paid to serve them: `
+        console.warn(`[migrate] ${rateless.length} deployment(s) have no rate and no cap (free forever): `
           + rateless.map((d) => d.id.slice(0, 10) + "…").join(", ")
-          + `. Set a cap (setMaxRate) on each before migrating.`);
+          + ` — these need a target that accepts rate-0 imports.`);
       const txs = chunkByGas(todo, recordImportGas, opts.gasBudget || GAS_BUDGET, CHUNK.deployments).map((c, i) => ({
         label: `importDeployments · batch ${i + 1} (${c.length})`,
         gas: 120_000 + c.reduce((s, d) => s + recordImportGas(d), 0),

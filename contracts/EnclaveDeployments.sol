@@ -1437,11 +1437,23 @@ contract EnclaveDeployments {
             bytes32 id = items[i].id;
             require(id != bytes32(0), "range");
             require(!_exists[id], "exists");
-            // create() always yields rate >= 1 (cpuMilli >= 1, cpuPrice > 0), but
-            // import copies rate verbatim from the source record. A rate==0 record
-            // would divide-by-zero in _burnLease (balance6 / rate) the moment the
-            // fleet tries to claim it — permanently unclaimable. Refuse it here.
-            require(items[i].rate > 0, "range");
+            // rate == 0 is ALLOWED. This used to refuse it, on the grounds that
+            // "a rate==0 record would divide-by-zero in _burnLease (balance6 /
+            // rate)". That was true when it was written and stopped being true
+            // in rev 12, which added FREE SELF-HOSTING and taught _burnLease the
+            // case outright (`secs = rate == 0 ? leaseSec : balance6 / rate`).
+            //
+            // Leaving the guard up made this contract refuse to import a state
+            // it happily CREATES: a host willing to serve for nothing and a
+            // deployer willing to pay nothing is a real arrangement, and 4 of
+            // the 17 live records are exactly that. It made a rev-12 -> rev-13
+            // migration impossible while any free deployment existed.
+            //
+            // Free is not the same as unprotected. What lets such a deployment
+            // survive its host disappearing is its CAP — the rate it would pay
+            // someone else — which _unleasedRate falls back to the moment no
+            // one is serving it. A record with no cap AND no rate has chosen to
+            // be free forever, and that is its owner's call to make.
             _exists[id] = true;
             // reserve the hostname label too, so a later create() cannot be
             // ground onto an IMPORTED record's prefix. Idempotent on purpose: a
