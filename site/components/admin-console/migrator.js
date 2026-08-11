@@ -131,7 +131,12 @@ export async function feeData() {
   const blk = await baseRpc("eth_getBlockByNumber", ["latest", false]);
   const base = BigInt(blk?.baseFeePerGas || "0x0");
   const tip = 1_000_000n;                          // 0.001 gwei is ample on Base
-  return { maxPriorityFeePerGas: tip, maxFeePerGas: base * 4n + tip };
+  // 2x, not 4x. EIP-1559 RESERVES maxFee x gas up front, so padding is not free
+  // here: at 4x a 28-batch catalog reserves ~$24 for a run that spends ~$5, and
+  // the console would refuse to start on a perfectly adequate balance. The loop
+  // re-prices every ten transactions, so a genuine climb is picked up in flight
+  // rather than needing to be pre-bought.
+  return { maxPriorityFeePerGas: tip, maxFeePerGas: base * 2n + tip };
 }
 
 /* Measure, then clamp. estimateGas is authoritative when it answers, and it
@@ -166,4 +171,15 @@ export async function waitMined(hash, tries = 90) {
     await new Promise((r) => setTimeout(r, 2000));
   }
   throw new EnclaveError(`timed out waiting for ${hash}`, 0);
+}
+
+/* What a planned run can RESERVE, not what it will spend: EIP-1559 locks
+   maxFee x gas per transaction and refunds the difference, so this is the
+   balance the migrator must actually hold. Typically ~4x the real cost at
+   Base's base fee, which is the point — a run that starts must be able to
+   finish. */
+export async function runCost(txs) {
+  const { maxFeePerGas } = await feeData();
+  const gas = txs.reduce((n, t) => n + BigInt(Math.min(Math.round((t.gas || 1e6) * 1.25), Number(MAX_TX_GAS))), 0n);
+  return gas * maxFeePerGas;
 }
