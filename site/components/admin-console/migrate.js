@@ -434,7 +434,20 @@ function grantedRate6(d, runnerBps) {
 }
 
 const depKey = (d) => d.id;
-const depClean = (d) => ({ ...d, runner: "0x" + "0".repeat(64), runnerOperator: "0x" + "0".repeat(40), leaseUntil: 0 });
+/* An imported record arrives with NO HOST — the lease is stripped right here —
+   so its `rate` must be what create() gives a hostless record: the CAP.
+   create() says it outright ("No host has priced this yet, so the working rate
+   is the CAP: the most it could ever cost"), and carrying a stale one across is
+   wrong in both directions. It matters most for a FREE self-hosted deployment,
+   whose rate is 0 because its owner's own enclave is serving it: import that 0
+   and the record lands willing to pay nothing, so when that host goes away no
+   paid enclave can take it — the deployment is stranded on a host that no
+   longer exists. (importDeployments refuses rate 0 outright for a related
+   reason, which is how this surfaced: 4 of 17 live records.)
+   A record with no cap AND no rate has expressed no willingness to pay at all;
+   there is nothing to substitute, and it is caught before planning. */
+const depClean = (d) => ({ ...d, runner: "0x" + "0".repeat(64), runnerOperator: "0x" + "0".repeat(40), leaseUntil: 0,
+  rate: BigInt(d.rate || 0) === 0n && BigInt(d.cap6 || 0) > 0n ? d.cap6 : d.rate });
 const depCmp = (a, b) => DEP_SCHEMA.every((f) => ["runner", "runnerOperator", "leaseUntil"].includes(f.k)
   || String(a[f.k]).toLowerCase() === String(b[f.k]).toLowerCase());
 
@@ -635,6 +648,13 @@ export const MIG_KINDS = {
       const sel = CONTRACTS.EnclaveDeployments.sel;
       const have = new Set(after.map((d) => d.id.toLowerCase()));
       const todo = data.filter((d) => !have.has(d.id.toLowerCase())).map(depClean);
+      // Refuse loudly rather than letting importDeployments revert "range" on
+      // transaction N of a run that already spent gas on N-1.
+      const rateless = todo.filter((d) => BigInt(d.rate || 0) === 0n);
+      if (rateless.length)
+        throw new Error(`${rateless.length} deployment(s) carry neither a rate nor a spend cap, so nothing could ever be paid to serve them: `
+          + rateless.map((d) => d.id.slice(0, 10) + "…").join(", ")
+          + `. Set a cap (setMaxRate) on each before migrating.`);
       const txs = chunkByGas(todo, recordImportGas, opts.gasBudget || GAS_BUDGET, CHUNK.deployments).map((c, i) => ({
         label: `importDeployments · batch ${i + 1} (${c.length})`,
         gas: 120_000 + c.reduce((s, d) => s + recordImportGas(d), 0),
