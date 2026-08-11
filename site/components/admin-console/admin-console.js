@@ -503,7 +503,10 @@ class AdminConsole extends EnclaveElement {
           <select class="ac-in ac-in-key" id="migKind" aria-label="Migration kind">${Object.entries(MIG_KINDS).map(([k, m]) => `<option value="${k}">${esc(m.label)}</option>`).join("")}</select>
           <input class="ac-in" id="migSource" aria-label="Source contract address" placeholder="source 0x…" spellcheck="false" autocomplete="off" />
           <input class="ac-in" id="migTarget" aria-label="Target contract address" placeholder="target 0x… (the new deploy)" spellcheck="false" autocomplete="off" />
+          <input class="ac-in ac-in-key" id="migBudget" aria-label="Gas budget per transaction, in millions"
+                 placeholder="batch MGas (default ${Math.round(GAS_BUDGET / 1e6)})" spellcheck="false" autocomplete="off" inputmode="numeric" />
         </div>
+        <p class="ac-sub">How much gas one confirmation may carry. Bigger batches mean FEWER hardware-wallet signatures and the same total cost, so raise it if your wallet will send them. Lower it if transactions are refused: MetaMask <b>Smart Transactions</b> pre-simulates and cancels anything it cannot itself estimate (public RPCs stop estimating around 11M), which surfaces in the wallet as <code>FAILED_WOULD_REVERT</code> even though the transaction is valid. Turning Smart Transactions off (MetaMask → Settings → Advanced) is what makes large batches send; with it on, stay under ~8.</p>
         <p class="ac-sub"><b>Refund sweep first</b> (deployments ledger only): before the snapshot, suspend and refund every record the CONNECTED wallet owns <em>on the source</em> - each refund pays this wallet back and zeroes the record, so it migrates empty: nothing for Back escrow to front, and nothing left pullable twice (a rev-10 source keeps a live <code>refund()</code> forever). Batched via <code>multicall</code>: typically one Suspend confirmation, a ~minute wait while the fleet releases, then one Refund confirmation - re-scan to collect lease tails that were still reserved. On a rev-10 source <code>refund()</code> is owner-gated, so third-party records are only counted; their owners collect there themselves. A rev-11 source can instead be <b>retired</b> (one-way, AFTER the fleet points at the successor): claims, renewals and funding close forever, <code>refund()</code> opens to any caller <em>still paying each record's own wallet</em>, and the sweep widens to every user's records - nobody's funds can be trapped by the redeploy.</p>
         <div class="ac-mig-actions">
           <button class="btn btn-sm" data-act="mig-swp-scan">Scan source</button>
@@ -1180,7 +1183,9 @@ class AdminConsole extends EnclaveElement {
                re-reads the target, so everything already imported is skipped.
                Without this the operator re-clicks Migrate by hand after every
                refusal, on a run that is already dozens of confirmations. */
-            let gasBudget = opts.gasBudget || GAS_BUDGET;
+            const mb = parseFloat(val("migBudget"));
+            let gasBudget = (mb > 0 ? Math.round(mb * 1e6) : null) || opts.gasBudget || GAS_BUDGET;
+            log("p", `batching at ${Math.round(gasBudget / 1e6)}M gas per confirmation`);
             await this._connect();
             for (let pass = 0; ; pass++) {
               const state = pass === 0 ? after : await m.read(tgt);   // re-read: skip what landed
