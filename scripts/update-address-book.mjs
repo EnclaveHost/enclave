@@ -74,6 +74,47 @@ const abi = [
     inputs: [{ name: "keys_", type: "bytes32[]" }, { name: "values", type: "address[]" }], outputs: [] },
 ];
 
+/* `deployments` and `proofOfTime` are not two independent keys — they are one
+   binding, spelled twice, and getting the pair wrong is the quietest money bug
+   on the platform. A ledger meters its runners against a watermark only its
+   BOUND prover may advance (setProver, one-shot); EnclaveProofOfTime holds its
+   ledger as an IMMUTABLE. So a prover that belongs to a different ledger is not
+   degraded, it is inert: every checkpoint a host posts reverts, provenUntil
+   never moves, and past the ledger's proofRequiredFrom every seller earns
+   exactly zero while the fleet reports itself healthy.
+   Neither address looks wrong on its own, which is why nothing else catches it.
+   Checked against the state this setMany would LEAVE (both keys may move in the
+   same transaction, and that is the normal cutover), and only ever advisory
+   before the confirm prompt — retiring to address(0) and staging a not-yet-bound
+   ledger are both legitimate. */
+async function checkProverPair(after, pub, output) {
+  const led = after.deployments, pot = after.proofOfTime;
+  if (!led || /^0x0{40}$/i.test(led)) return;
+  const one = (address, name, outs) => pub.readContract({ address, functionName: name, args: [],
+    abi: [{ type: "function", name, stateMutability: "view", inputs: [], outputs: [{ type: outs }] }] }).catch(() => null);
+  const [bound, at] = await Promise.all([one(led, "prover", "address"), one(led, "proofRequiredFrom", "uint64")]);
+  if (bound === null) return;                       // pre-rev-9 ledger: no proof of time at all
+  const warn = (s) => output.write(`  !! ${s}\n`);
+  const when = Number(at || 0) ? new Date(Number(at) * 1000).toISOString().slice(0, 16).replace("T", " ") + "Z" : null;
+  const dead = when ? `from ${when} it pays every host NOTHING` : "hosts stay on held-time metering";
+  output.write("\n");
+  if (/^0x0{40}$/i.test(bound)) {
+    warn(`the ledger ${led} has NO prover bound — ${dead}.`);
+    warn(`   bind one built against THIS ledger first: scripts/deploy-proof-of-time.mjs --bind`);
+  } else if (!pot || /^0x0{40}$/i.test(pot)) {
+    warn(`the ledger's prover is ${bound} but the book has no \`proofOfTime\` — running enclaves`);
+    warn(`   cannot find it and will not prove. Add --set proofOfTime=${bound}`);
+  } else if (pot.toLowerCase() !== bound.toLowerCase()) {
+    warn(`\`proofOfTime\` ${pot} is NOT the prover this ledger accepts (${bound}) — every`);
+    warn(`   checkpoint would revert. The ledger's binding is frozen; the book must match it.`);
+  } else {
+    const its = await one(pot, "deployments", "address");
+    if (its && its.toLowerCase() !== led.toLowerCase())
+      warn(`prover ${pot} was built against ledger ${its}, not ${led} — it can credit nothing here.`);
+    else output.write(`  proof of time  ${pot}  bound to this ledger ✓${when ? `  (cutover ${when})` : ""}\n`);
+  }
+}
+
 async function main() {
   const netName = await chooseNetwork();
   const net = NETWORKS[netName]; if (!net) die(`unknown network "${netName}"`);
@@ -138,6 +179,8 @@ async function main() {
         + `Check for a typo, or pass --allow-codeless if you really mean to point at a future deployment.`);
     output.write("  (--allow-codeless: proceeding anyway)\n");
   }
+
+  await checkProverPair({ ...live, ...desired }, pub, output);
 
   if (!ASSUME_YES) {
     if (!input.isTTY) die("not a terminal — pass --yes to confirm non-interactively");

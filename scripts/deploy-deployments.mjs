@@ -337,7 +337,9 @@ async function main() {
       if (!/^y(es)?$/i.test(ans)) { console.log("Skipped (re-run with --finish when ready)."); return; }
     }
     await ensurePrice(pub, wallet, abi, addr);
-    console.log("\nNext:  rebuild+repin the supervisor:  ./scripts/release.sh enclave-supervisor");
+    console.log("\nNext:");
+    console.log("  1. Rebuild+repin the supervisor:  ./scripts/release.sh enclave-supervisor");
+    await proverNext(pub, abi, addr, resolveRegistry(), net, 2);
     return;
   }
 
@@ -430,7 +432,46 @@ async function main() {
   console.log("\nNext:");
   console.log(`  1. Ensure DEPLOYMENTS_ADDRESS in tinfoil-config.yml is ${addr} (written above)`);
   console.log("  2. Rebuild+repin the supervisor (CLAIM_ENABLED is on in tinfoil-config.yml):  ./scripts/release.sh enclave-supervisor");
-  if (!isMainnet) console.log("  3. Exercise create/fund/claim/renew/release on testnet, THEN re-run with NETWORK=base.");
+  await proverNext(pub, abi, addr, registry, net);
+  if (!isMainnet) console.log("  Then exercise create/fund/claim/renew/release on testnet, THEN re-run with NETWORK=base.");
+}
+
+// A rev-9+ ledger is born with prover == 0 and a 14-day fuse, and NOTHING else
+// in this script ever mentions it. That gap is not theoretical: the ledger this
+// replaces shipped with no prover and the omission was only caught by reading
+// the field by hand. Until a prover is bound, hosts are metered on HELD time
+// (rev-8 behaviour, harmless); from proofRequiredFrom onward `proofRequired()`
+// flips and _creditRunner clamps every runner's credit to the provenUntil
+// watermark, which nothing can advance - so every seller on this ledger earns
+// exactly nothing, silently, on a date chosen at deploy time.
+//
+// The binding is also the one mistake here that cannot be undone. setProver
+// refuses to overwrite, and EnclaveProofOfTime holds its ledger as an
+// IMMUTABLE - so the prover already bound to the ledger you are replacing can
+// never credit this one, and pointing this one at it would be permanent. A new
+// ledger needs a NEW prover, deployed after it, against it.
+async function proverNext(pub, abi, addr, registry, net, n = 3) {
+  const rd = (fn) => readWithRetry(fn, () => pub.readContract({ address: addr, abi, functionName: fn }));
+  const [at, bound] = await Promise.all([rd("proofRequiredFrom").catch(() => 0n),
+                                         rd("prover").catch(() => ZERO)]);
+  const cutover = Number(at) ? new Date(Number(at) * 1000).toISOString().replace("T", " ").slice(0, 16) + "Z"
+                             : "(unset - metering stays on held time)";
+  if (bound && bound !== ZERO) {
+    console.log(`  ${n}. Prover ${bound} is already bound (frozen) - cutover ${cutover}.`);
+    console.log(`       Check the address book's \`proofOfTime\` key matches it, or running enclaves send`);
+    console.log(`       checkpoints to a contract this ledger does not accept.`);
+    return;
+  }
+  console.log(`  ${n}. Deploy a prover FOR THIS LEDGER and bind it - one-shot, and the deadline is real.`);
+  console.log(`       proofRequiredFrom  ${cutover}   <- after this, an unbound ledger pays every host NOTHING`);
+  console.log(`       DEPLOYER_PRIVATE_KEY=0x… NETWORK=${net.chain.id === 8453 ? "base" : "base-sepolia"} \\`);
+  console.log(`         DEPLOYMENTS_ADDRESS=${addr} REGISTRY_ADDRESS=${registry} \\`);
+  console.log(`         node scripts/deploy-proof-of-time.mjs --bind`);
+  console.log(`       (--bind needs THIS ledger's owner; without it the script prints the setProver`);
+  console.log(`        calldata for admin.html to send. Do NOT reuse an existing EnclaveProofOfTime:`);
+  console.log(`        its ledger is immutable, so an old one bound here could never credit anything.)`);
+  console.log(`  ${n + 1}. Publish it so RUNNING enclaves find it with no release:`);
+  console.log(`       node scripts/update-address-book.mjs --set proofOfTime=<the new prover>`);
 }
 
 main().catch((e) => die(e.stack || e.message));
