@@ -74,7 +74,7 @@
 
 .ac-danger-btn { border-color: var(--danger-deep); color: var(--danger); }
 
-.ac-mig-ctl { display: grid; grid-template-columns: minmax(130px, auto) 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.ac-mig-ctl { display: grid; grid-template-columns: minmax(130px, auto) 1fr 1fr minmax(150px, auto); gap: 10px; margin-bottom: 10px; }
 .ac-xfer-ctl { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 10px 0; }
 .ac-mig-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 /* the migrate panel's checkbox options sit between the address inputs and the
