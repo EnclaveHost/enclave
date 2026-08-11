@@ -27,6 +27,7 @@
 import { secp256k1 } from "@noble/curves/secp256k1";
 import { keccak_256 } from "@noble/hashes/sha3";
 import { baseRpc } from "../../js/core/chain.js";
+import { APP_CATALOG_RPCS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { EnclaveError } from "../../js/core/api.js";
 
@@ -133,17 +134,24 @@ export async function feeData() {
   return { maxPriorityFeePerGas: tip, maxFeePerGas: base * 4n + tip };
 }
 
-/* Measure, then clamp. estimateGas is authoritative when it answers and refuses
-   above its own cap, where the planner's figure stands. Never ask for more than
-   the chain will include. */
+/* Measure, then clamp. estimateGas is authoritative when it answers, and it
+   REFUSES above its own (~11M) cap — which our batches sit right on top of, so
+   refusal is the common case, not the exception. That is why this does NOT go
+   through baseRpc: baseRpc rotates the whole endpoint pool on error, so every
+   over-cap batch would burn eight round-trips before falling back. One shot,
+   short timeout, then trust the planner's (measured, padded) figure. */
 export async function gasFor({ from, to, data }, fallback) {
-  let g;
+  let g = BigInt(Math.round(fallback * 1.25));
   try {
-    const est = await baseRpc("eth_estimateGas", [{ from, ...(to ? { to } : {}), data }]);
-    g = BigInt(est) * 5n / 4n;
-  } catch (_) {
-    g = BigInt(Math.round(fallback * 1.25));
-  }
+    const r = await fetch(APP_CATALOG_RPCS[0], {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_estimateGas",
+                             params: [{ from, ...(to ? { to } : {}), data }] }),
+      signal: AbortSignal.timeout(6000),
+    });
+    const j = await r.json();
+    if (j && j.result) g = BigInt(j.result) * 5n / 4n;
+  } catch (_) { /* over the cap or unreachable: the model stands */ }
   return g > MAX_TX_GAS ? MAX_TX_GAS : g;
 }
 
