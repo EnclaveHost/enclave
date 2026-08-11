@@ -747,3 +747,22 @@ test("the migrator address derives deterministically from a signature", async ()
   // and it is a pure function of the signature: fund-once depends on this
   assert.equal(hexs(keccak_256(bytes(sig))), hexs(priv), "derivation must be deterministic");
 });
+
+/* Both migratable contracts implement the SAME two-step ownership handoff under
+   DIFFERENT names — the catalog has transferOwnership(address), the ledger has
+   setOwner(address) — and both then require acceptOwnership(). The delegated
+   migration hands over as its LAST step, so hardcoding one name fails only
+   after every import has already landed, which is the worst possible place to
+   discover it. */
+test("every migratable contract exposes an ownership handoff and accept", async () => {
+  const { CONTRACTS } = await import(path.join(REPO, "site/js/gen/contract-artifacts.js"));
+  const { MIG_KINDS } = await import(path.join(REPO, "site/components/admin-console/migrate.js"));
+  for (const [name, m] of Object.entries(MIG_KINDS)) {
+    const sel = CONTRACTS[m.contractName].sel;
+    assert.ok(sel.transferOwnership || sel.setOwner,
+      `${name} (${m.contractName}) has neither transferOwnership nor setOwner - the migrator could not hand it back`);
+    assert.ok(sel.acceptOwnership, `${name} (${m.contractName}) has no acceptOwnership`);
+    assert.ok(sel.owner, `${name} (${m.contractName}) has no owner() to check against`);
+    assert.ok(sel.sealImports && sel.importsSealed, `${name} (${m.contractName}) is not import-sealable`);
+  }
+});
