@@ -103,7 +103,7 @@ containers:
       # version (setApproval tx signed by the catalog's deployer key). Empty =
       # nothing can deploy (the image ships no deployable apps; the one baked
       # .wasm is the boot probe's fixture, not reachable through the API).
-      - APP_CATALOG_ADDRESS: "0x23f5AE678977B37293D18444346483F5c1e052df"                          # set after deploying EnclaveAppCatalog.sol (must be on CHAIN_ID's chain, read via BASE_RPC)
+      - APP_CATALOG_ADDRESS: "0xAc5270C57f3118F0b37d4f493198bb6863eDDDdF"                          # set after deploying EnclaveAppCatalog.sol (must be on CHAIN_ID's chain, read via BASE_RPC)
       - PAYMENT_WINDOW_SEC: "600"                        # unpaid deployments release the reservation
       - GRACE_SEC: "90"                                  # grace after expiry before teardown (top-up window)
       - PAY_POLL_SEC: "12"
