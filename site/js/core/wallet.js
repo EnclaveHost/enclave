@@ -502,7 +502,14 @@ export async function sendTx(to, data, value, gasLimit){
   // chain's, and a caller with a calibrated number should not be held to it.
   // (Over-providing is free — unused gas is refunded — so callers pad.)
   if (gasLimit) {
-    tx.gas = "0x" + BigInt(gasLimit).toString(16);
+    // Pad hard. The two directions are NOT symmetric: unused gas is refunded,
+    // so over-providing costs nothing, while under-providing means the batch
+    // runs out of gas and reverts — and with MetaMask smart transactions that
+    // is caught in simulation and CANCELLED before broadcast
+    // (FAILED_WOULD_REVERT), which is indistinguishable from an endpoint
+    // refusing the transaction. A caller's estimate being 2.8x low is exactly
+    // how that happened, so do not send an estimate at face value.
+    tx.gas = "0x" + (BigInt(gasLimit) + BigInt(gasLimit) / 2n).toString(16);
     return await Enclave.provider.request({ method: "eth_sendTransaction", params: [tx] });
   }
   // Otherwise: estimate (provider first, public Base RPC as fallback) and pad
