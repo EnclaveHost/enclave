@@ -1258,15 +1258,18 @@ class AdminConsole extends EnclaveElement {
             let bal = await MG.migratorBalance(mig.address);
             log("ok", `migrator ${mig.address} · ${(Number(bal) / 1e18).toFixed(5)} ETH`);
 
-            // the migrator must own the target to import into it
+            // The migrator must own the target to import into it. Decide that
+            // NOW (both are free reads) but do not act on it yet: accepting is
+            // a transaction, and the migrator is not funded until the plan
+            // below says how much it needs. Accepting first would fail on an
+            // empty balance, which is exactly the state a first run is in.
             const owner = await ownerOf(tgt);
             if (!owner) { log("err", "couldn't read the target's owner"); return; }
+            let mustAccept = false;
             if (lc(owner) !== lc(mig.address)) {
               const pend = await pendingOwnerOf(tgt);
-              if (lc(pend) === lc(mig.address)) {
-                log("p", "accepting ownership as the migrator…");
-                await runAsMigrator(mig, tgt, [{ label: "acceptOwnership", dataHex: "0x" + CONTRACTS[m.contractName].sel.acceptOwnership, gas: 80_000 }], log);
-              } else {
+              if (lc(pend) === lc(mig.address)) mustAccept = true;
+              else {
                 log("err", `the target is owned by ${owner}, so the migrator cannot import into it. `
                          + `Hand it over once with the Migrate button's wallet (transferOwnership(${mig.address})), `
                          + `or deploy a fresh target from the migrator.`);
@@ -1280,28 +1283,32 @@ class AdminConsole extends EnclaveElement {
             const mb = parseFloat(val("migBudget"));
             const gasBudget = (mb > 0 ? Math.round(mb * 1e6) : null) || GAS_BUDGET;
             const txs = m.plan(M.data, after, { ...opts, gasBudget, dataBudget: Math.round(gasBudget / GAS_PER_BYTE_BUDGET) });
-            if (!txs.length) log("ok", "nothing to import - target already holds everything.");
-            else {
-              // Check funding for the WHOLE run before starting. EIP-1559
-              // reserves maxFee x gas per transaction, so this is what the
-              // migrator must actually hold; running out at transaction 20
-              // leaves a half-migrated target and a cryptic error, when the
-              // shortfall was knowable before the first one.
+            // Funding and the ownership accept happen REGARDLESS of whether
+            // there is anything left to import: a target that is already
+            // complete but still pending to the migrator must still be
+            // accepted, or the handover below reverts.
+            const need = await MG.runCost(mustAccept ? [...txs, { gas: 80_000 }] : txs);
+            if (need > 0n && bal < need) {
               // Top the migrator up FROM HERE rather than making the operator
               // copy an address and guess an amount. The cost is only knowable
               // once the plan exists, which is why this sits after planning.
               // EIP-1559 reserves maxFee x gas, so that reservation — not the
               // expected spend — is what has to be covered.
-              const need = await MG.runCost(txs);
-              if (bal < need) {
-                const top = need - bal + need / 5n;          // 20% over, for the re-price and the tail
-                log("p", `funding the migrator with ${(Number(top) / 1e18).toFixed(5)} ETH - approve the transfer `
-                       + `(reserves ${(Number(need) / 1e18).toFixed(5)}; the unspent remainder comes back at the end)…`);
-                const fh = await sendTx(mig.address, "0x", "0x" + top.toString(16));
-                await waitReceipt(fh, 90);
-                bal = await MG.migratorBalance(mig.address);
-                log("ok", `  ✓ migrator funded · ${(Number(bal) / 1e18).toFixed(5)} ETH`);
-              }
+              const top = need - bal + need / 5n;          // 20% over, for the re-price and the tail
+              log("p", `funding the migrator with ${(Number(top) / 1e18).toFixed(5)} ETH - approve the transfer `
+                     + `(reserves ${(Number(need) / 1e18).toFixed(5)}; the unspent remainder comes back at the end)…`);
+              const fh = await sendTx(mig.address, "0x", "0x" + top.toString(16));
+              await waitReceipt(fh, 90);
+              bal = await MG.migratorBalance(mig.address);
+              log("ok", `  ✓ migrator funded · ${(Number(bal) / 1e18).toFixed(5)} ETH`);
+            }
+            if (mustAccept) {
+              log("p", "accepting ownership as the migrator…");
+              await runAsMigrator(mig, tgt, [{ label: "acceptOwnership", gas: 80_000,
+                dataHex: "0x" + CONTRACTS[m.contractName].sel.acceptOwnership }], log);
+            }
+            if (!txs.length) log("ok", "nothing to import - target already holds everything.");
+            else {
               log("p", `${txs.length} transaction${txs.length === 1 ? "" : "s"}, sent by the migrator - no further approvals`);
               await runAsMigrator(mig, tgt, txs, log);
             }
