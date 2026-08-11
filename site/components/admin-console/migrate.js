@@ -288,6 +288,19 @@ const VER_TX_GAS = 4_000_000;
    across that range. Carries a 20% margin on top, because the number that
    matters is never being UNDER the real cost. */
 const strBytes = (v) => new TextEncoder().encode(String(v ?? "")).length;
+/* Per-record and per-byte cost, MEASURED against a live empty catalog with
+   eth_estimateGas rather than reasoned about (importApps at n = 1, 4, 8:
+   0.27M / 1.33M / 2.75M for 52 / 694 / 1574 string bytes, which solves to
+   243k*n + 510*bytes within 0.4%). The previous 270k + 730 carried a 1.2x
+   margin on top and came out ~1.43x high, and over-estimating is not free
+   here: the planner packs on these numbers, so inflated ones mean smaller
+   batches and MORE hardware-wallet confirmations. Keep a 15% margin, no more,
+   and let the console's pre-send eth_estimateGas be the real safety net. */
+const G_PER_RECORD = 280_000, G_PER_BYTE = 590;
+// ...and these are the CATALOG's numbers only. recordImportGas below keeps its
+// own 270k/730, measured separately against the live LEDGER — a Deployment is a
+// different struct in a different contract, and one path's calibration is not
+// evidence about another's.
 export const recordImportGas = (d) =>
   Math.ceil(1.2 * (270_000 + 730 * (strBytes(d.appRef) + strBytes(d.ports) + strBytes(d.configCid))));
 
@@ -312,11 +325,11 @@ export const recordImportGas = (d) =>
    (FAILED_WOULD_REVERT). Which then looked exactly like an RPC refusing an
    oversized transaction, and sent me chasing a size ceiling that was not there. */
 export const appImportGas = (a) =>
-  Math.ceil(1.2 * (270_000 + 730 * (strBytes(a.slug) + strBytes(a.name) + strBytes(a.description))));
+  Math.ceil(G_PER_RECORD + G_PER_BYTE * (strBytes(a.slug) + strBytes(a.name) + strBytes(a.description)));
 
 export const versionImportGas = (v) =>
-  Math.ceil(1.2 * (270_000 + 730 * (strBytes(v.cid) + strBytes(v.version)
-                                    + strBytes(v.ports) + strBytes(v.config))));
+  Math.ceil(G_PER_RECORD + G_PER_BYTE * (strBytes(v.cid) + strBytes(v.version)
+                                         + strBytes(v.ports) + strBytes(v.config)));
 
 /* Split by COST, not by count. `max` still caps a batch (a sanity bound on
    calldata and on how much one failed confirmation costs), but the gas budget
@@ -570,7 +583,14 @@ const chunkBySizeAndGas = (arr, maxBytes, sizeOf, maxGas, gasOf) => {
 // for the 509M-gas catalog. A provider with a higher cap takes bigger batches
 // and fewer signatures -- and the console now reads the cap out of the
 // provider's own error and re-plans to fit, so it adapts without being told.
-export const GAS_BUDGET  = 16_000_000;   // per packed tx, pre-padding (~24M sent, inside Infura's 25M)
+/* What a single transaction may ask for. Infura's API refuses over 25M and says
+   so, but that is NOT the binding limit: sampling 3,569 transactions across 30
+   recent Base blocks, the largest gas limit anything actually gets INCLUDED
+   with is 15.0M, and nothing above 16M appears at all. A 24M transaction is
+   therefore accepted by the RPC and then simply never mined — which reads as
+   "stuck" and is what happened on 0xed641d15. Clamp to what the chain takes. */
+export const MAX_TX_GAS = 15_000_000;
+export const GAS_BUDGET  = 11_000_000;   // per packed tx, pre-padding (~13.8M sent, inside MAX_TX_GAS)
 export const SEND_PAD_NUM = 3n, SEND_PAD_DEN = 2n;   // sendTx's 1.5x, named so callers can invert it
 const DATA_BUDGET = 96 * 1024;    // per packed tx (sum of inner calls) - secondary guard
 // Never subdivide below this: past it the batches are tiny, the signature count
@@ -757,7 +777,7 @@ export const MIG_KINDS = {
           .filter((x) => x.cid && (tgt && tgt.versions[x.i] ? !(tgt.versions[x.i].cfgCid || "") : true));
         txs.push(...chunked(cidTodo, CHUNK.fees).map((c, i) => ({
           label: `importVersionConfigCids · ${a.slug} (${c.length}${i ? ", cont." : ""})`,
-          gas: 100_000 + c.reduce((t, x) => t + Math.ceil(1.2 * (40_000 + 730 * strBytes(x.cid))), 0),
+          gas: 100_000 + c.reduce((t, x) => t + Math.ceil(60_000 + G_PER_BYTE * strBytes(x.cid)), 0),
           dataHex: encCallX(sel.importVersionConfigCids, [
             { t: "bytes32", v: a.appId },
             { t: "uint[]", v: c.map((x) => x.i) },
