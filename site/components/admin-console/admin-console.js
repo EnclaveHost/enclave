@@ -1287,6 +1287,26 @@ class AdminConsole extends EnclaveElement {
             const txs = m.plan(M.data, after, { ...opts, gasBudget, dataBudget: Math.round(gasBudget / GAS_PER_BYTE_BUDGET) });
             if (!txs.length) log("ok", "nothing to import - target already holds everything.");
             else {
+              // Check funding for the WHOLE run before starting. EIP-1559
+              // reserves maxFee x gas per transaction, so this is what the
+              // migrator must actually hold; running out at transaction 20
+              // leaves a half-migrated target and a cryptic error, when the
+              // shortfall was knowable before the first one.
+              const need = await MG.runCost(txs);
+              if (bal * BigInt(txs.length) < need) {
+                // can't even cover a few batches: stopping now is kinder than
+                // a half-migrated target
+                log("err", `the migrator holds ${(Number(bal) / 1e18).toFixed(5)} ETH, nowhere near the `
+                         + `${(Number(need) / 1e18).toFixed(5)} ETH this run reserves. Fund ${mig.address} and click again.`);
+                return;
+              }
+              if (bal < need)
+                // WARN, do not block: the reservation is a worst case (actual
+                // spend is roughly a third), and the plan is delta-resumable —
+                // if it does run dry, topping up and clicking again continues
+                // from wherever it stopped.
+                log("p", `heads up: this run reserves up to ${(Number(need) / 1e18).toFixed(5)} ETH and the migrator holds `
+                       + `${(Number(bal) / 1e18).toFixed(5)}. Actual spend is usually well under that; if it runs dry, top up and click again.`);
               log("p", `${txs.length} transaction${txs.length === 1 ? "" : "s"}, sent by the migrator - no further approvals`);
               await runAsMigrator(mig, tgt, txs, log);
             }
