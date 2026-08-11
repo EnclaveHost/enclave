@@ -5634,6 +5634,12 @@ const depsAbiFor = (components) => [
     inputs: [{ name: "id", type: "bytes32" }], outputs: [] },
   { type: "function", name: "claimable", stateMutability: "view",
     inputs: [{ name: "id", type: "bytes32" }], outputs: [{ type: "bool" }] },
+  // "could THIS enclave claim it", at the rate WE would charge — see the
+  // openForUs() note by tryClaim for why claimable() alone is the wrong
+  // question on a free-hosted deployment. rev >= 8; older ledgers revert.
+  { type: "function", name: "claimableBy", stateMutability: "view",
+    inputs: [{ name: "id", type: "bytes32" }, { name: "enclaveId", type: "bytes32" }],
+    outputs: [{ type: "bool" }] },
   { type: "function", name: "get", stateMutability: "view",
     inputs: [{ name: "id", type: "bytes32" }],
     outputs: [{ type: "tuple", components }] },
@@ -6706,6 +6712,37 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   return null;
 }
 
+/* "Is this still open TO US?" — the last check before spending gas, and it has
+   to be asked at OUR price, not at the record's.
+
+   claimable(id) is `_open(id) && balance6 >= rate`, where `rate` is whatever
+   the record currently stores. That is the right question for a stranger and
+   the WRONG one for a deployment this box hosts for free: _hostRate returns 0
+   when the enclave's payoutWallet is the deployment's owner, so we would charge
+   nothing and the balance is irrelevant — but the stored rate is whatever the
+   last host (or an import) left behind, and `0 >= 481` is false. The claim
+   would have succeeded: claim() overwrites d.rate with OUR price before
+   _burnLease ever runs. We just never sent it.
+
+   It cost three free self-hosted apps a silent outage on 2026-08-11, after a
+   ledger migration seeded their rate from their cap and turned a 0 into a 481.
+   considerClaim already knew better (hostChargeWaived); this call didn't.
+
+   claimableBy(id, enclaveId) asks the ledger the question we actually mean:
+   it prices the record with rateFor(id, enclaveId) — our price — and checks the
+   balance against THAT. Pre-rev-8 ledgers have no such function; they also have
+   no per-enclave pricing, so claimable() is exactly right there. Reverts and
+   unreachable RPCs fall back to it rather than blocking the claim. */
+async function openForUs(id) {
+  try {
+    return await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
+      abi: CLAIM_TX_ABI, functionName: "claimableBy", args: [id, _enclaveId] });
+  } catch (e) {
+    return await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
+      abi: CLAIM_TX_ABI, functionName: "claimable", args: [id] });
+  }
+}
+
 // Jitter de-syncs enclaves that saw the same queue state; the claimable()
 // re-check catches a claim that landed during the wait without paying for a
 // reverted tx. Losing the race anyway costs one reverted tx (cents on Base).
@@ -6739,9 +6776,12 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false 
     await adopt(d, g, firewall, slice);
     return;
   }
-  const open = await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
-    abi: CLAIM_TX_ABI, functionName: "claimable", args: [d.id] });
-  if (!open) return;
+  const open = await openForUs(d.id);
+  // Silence here reads as "queued forever": every gate above this point returns
+  // a REASON that reaches the console's why-probe, but a false here used to
+  // just return — no record, no backoff, no log — so the hint kept cheerfully
+  // answering "claiming" while nothing ever happened. Say it out loud.
+  if (!open) { console.log(`[claim] ${d.id} no longer open to us (claimableBy=false); skipping`); return; }
   let rcpt;
   try {
     const sent = sendClaimTx("claim", [d.id, _enclaveId]);
