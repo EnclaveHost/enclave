@@ -2077,6 +2077,48 @@ function toBytes(s) {
   const n = +m[1], u = m[2].toLowerCase();
   return u === "g" ? n*1073741824 : u === "m" ? n*1048576 : u === "k" ? n*1024 : n;
 }
+// EVERY input a launch hands the guest, derived in ONE place, because there are
+// two launch sites (provisionTenant and respawnTenant) and they must not
+// disagree about what a launch is.
+//
+// They disagreed for three weeks. Per-deployment secrets (and later the
+// deployment's own hostnames) were wired into provisionTenant only;
+// respawnTenant predates both and kept its own literal spawn argument object,
+// so it relaunched tenants with their $NAME config placeholders LITERAL and no
+// ENCLAVE_HOSTS. Both paths recover a died app or a restarted manager — the
+// billing ticker every 15s, the claim loop's crash recovery every 60s — so
+// they RACE, and which one gets there decides whether the app comes back with
+// its secrets. That is why it read as intermittent and unreproducible.
+//
+// Nothing said so, either: the relay logs a fetch, and a respawn never asked
+// for one, so the evidence read as "the enclave never even requested its
+// secrets" and pointed a two-day investigation at egress. A respawn IS a
+// launch. Same inputs.
+//
+// Pure on purpose (the caller does the awaiting): the seam below pins the
+// contract, and `launchSpec` is the only thing that builds one.
+function launchSpecFrom(rec, sec, hosts) {
+  return { deploymentId: rec.id,
+    gpuShare: rec.resources.gpuShare || 0, cpuShare: rec.resources.cpuShare,
+    image: { reference: rec.appWasm || (rec.image && rec.image.reference) },
+    appPort: rec.network.port, ports: rec.firewall,
+    config: rec.config || "", configCid: rec.appConfigCid || "",
+    secrets: sec && Object.keys(sec.env).length ? sec.env : null,
+    hosts: hosts || [] };
+}
+
+// LAUNCH_SPEC_SELFTEST='{"cases":[{"rec":{…},"sec":{"rev":1,"env":{…}},"hosts":[…]},…]}'
+// prints each spec as one JSON line with the secret NAMES in place of the map
+// (values never travel through a log or a test fixture) and exits — same seam
+// contract as CFG_EDIT_SELFTEST et al.
+if (process.env.LAUNCH_SPEC_SELFTEST) {
+  const c = JSON.parse(process.env.LAUNCH_SPEC_SELFTEST);
+  console.log(JSON.stringify((c.cases || []).map(({ rec, sec, hosts }) => {
+    const spec = launchSpecFrom(rec, sec, hosts);
+    return { ...spec, secrets: spec.secrets ? Object.keys(spec.secrets).sort() : null };
+  })));
+  process.exit(0);
+}
 async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort, ports, config, configCid, secrets, hosts }) {
   // Two backends. "vm": hand the app reference to the app manager on VMMGR_URL
   // (the wasm-manager runs it as a `wasmtime serve` process; cpuShare is its
@@ -4172,23 +4214,24 @@ function hostsFor(rec) {
   return names;
 }
 
+// The relay-held half of a launch: the owner's secrets and the deployment's
+// own hostnames, both pulled FRESH. A launch is when the guest learns them, so
+// `enclave restart` after a secrets change applies it, and an app that was
+// down while a hostname was attached comes back knowing about it. Failures
+// never block the launch (fetchDepSecrets falls back to its snapshot and says
+// so) — a relay outage must not take provisioning down with it.
+async function launchSpec(rec) {
+  const relayHeld = PROVISION_BACKEND === "vm" && rec._onchain;
+  const sec = relayHeld ? await fetchDepSecrets(rec.id) : null;
+  if (sec) { if (sec.rev > 0) rec.secretsRev = sec.rev; else delete rec.secretsRev; }
+  if (relayHeld) await fetchDepDomains(rec.id).catch(() => {});
+  return launchSpecFrom(rec, sec, hostsFor(rec));
+}
+
 // Spawn the tenant's MPS-capped worker process (called once, on first payment).
 async function provisionTenant(rec) {
   try {
-    // relay-staged owner secrets ride into the guest env on every (re)launch,
-    // so `enclave restart` after a secrets change applies it
-    const sec = PROVISION_BACKEND === "vm" && rec._onchain ? await fetchDepSecrets(rec.id) : null;
-    if (sec) { if (sec.rev > 0) rec.secretsRev = sec.rev; else delete rec.secretsRev; }
-    // …and the same for the deployment's own hostnames: a launch is when the
-    // guest learns which names are its own, so pull the current list first
-    if (PROVISION_BACKEND === "vm" && rec._onchain) await fetchDepDomains(rec.id).catch(() => {});
-    const sp = await spawnContainer({ deploymentId: rec.id,
-      gpuShare: rec.resources.gpuShare || 0, cpuShare: rec.resources.cpuShare,
-      image: { reference: rec.appWasm || (rec.image && rec.image.reference) },
-      appPort: rec.network.port, ports: rec.firewall,
-      config: rec.config || "", configCid: rec.appConfigCid || "",
-      secrets: sec && Object.keys(sec.env).length ? sec.env : null,
-      hosts: hostsFor(rec) });
+    const sp = await spawnContainer(await launchSpec(rec));
     rec._port = sp.internalPort;
     if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; }
     if (sp.portMap) rec.portMap = sp.portMap;   // logical -> actual (public: clients see their mapping)
@@ -4357,15 +4400,14 @@ function resumeRec(rec) {
 // Respawn a still-funded app whose instance vanished (e.g. the manager container
 // restarted). Never marks the record failed - the user keeps their frozen
 // balance; retries back off so a broken image can't hammer the manager.
+// Launches through launchSpec like every other path: this one used to build its
+// own argument object, which is how it came to relaunch tenants without their
+// secrets or hostnames.
 async function respawnTenant(rec) {
   if (rec._respawning || Date.now() < (rec._respawnAt || 0)) return false;
   rec._respawning = true;
   try {
-    const sp = await spawnContainer({ deploymentId: rec.id,
-      gpuShare: rec.resources.gpuShare || 0, cpuShare: rec.resources.cpuShare,
-      image: { reference: rec.appWasm || (rec.image && rec.image.reference) },
-      appPort: rec.network.port, ports: rec.firewall,
-      config: rec.config || "", configCid: rec.appConfigCid || "" });
+    const sp = await spawnContainer(await launchSpec(rec));
     rec._port = sp.internalPort;
     if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; }
     if (sp.portMap) rec.portMap = sp.portMap;

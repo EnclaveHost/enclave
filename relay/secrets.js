@@ -366,10 +366,15 @@ export async function handleSecrets(req, res, u, ctx) {
     // the relay whether the fetch was refused, or never arrived at all — and
     // "never arrived" is a real failure mode here (an enclave that cannot
     // reach this relay outbound). With every outcome logged, SILENCE for a
-    // deployment that just launched means the request did not get here, which
-    // points at the enclave's egress instead of at this plane. Names and
-    // values stay out of it; the count is enough to tell "served nothing"
-    // from "served three".
+    // deployment that just launched means the request did not get here.
+    //
+    // Read that carefully: it says the request was never SENT, not that egress
+    // ate it. Both were live causes. The supervisor's respawn path used to
+    // relaunch tenants without ever asking (see launchSpec in supervisor.js),
+    // so silence pointed at the network when the truth was that nobody dialled;
+    // now every launch path fetches, and silence really does mean the wire.
+    // Names and values stay out of it; the count is enough to tell "served
+    // nothing" from "served three".
     console.log(`[secrets] ${endpoint} fetch OK for ${id}: rev ${rev}, ${Object.keys(env).length} name(s)`);
     return ctx.json(res, 200, { id, rev, env }, req);
   }
