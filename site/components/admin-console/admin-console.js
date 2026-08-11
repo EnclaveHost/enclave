@@ -57,10 +57,14 @@ const pendingOwnerOf = (to) => _addrRead(to, CONTRACTS.EnclaveAppCatalog.sel.pen
    and clamped to what Base actually mines. */
 async function runAsMigrator(mig, to, txs, log) {
   const MG = await import("./migrator.js");
-  const fees = await MG.feeData();
   const chainId = BASE_CHAIN;
+  let fees = await MG.feeData();
   let nonce = await MG.migratorNonce(mig.address);
   for (const [i, t] of txs.entries()) {
+    // Re-price periodically: a long run can outlive its fee quote, and a base
+    // fee that climbs past maxFeePerGas leaves the remaining transactions
+    // sitting unmined — indistinguishable, from the log, from being stuck.
+    if (i && i % 10 === 0) fees = await MG.feeData();
     const gas = await MG.gasFor({ from: mig.address, to, data: t.dataHex }, t.gas || 1_000_000);
     log("p", `[${i + 1}/${txs.length}] ${t.label} …`);
     const hash = await mig.send({ to, data: t.dataHex, gas, nonce: nonce++, chainId, ...fees });
