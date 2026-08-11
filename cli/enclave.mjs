@@ -781,15 +781,27 @@ function minShares(ver, pricing) {
 // box could claim the record next.
 async function hostPricing(d, pricing) {
   const runner = String(d?.runner || "").toLowerCase();
-  if (!/^0x[0-9a-f]{64}$/.test(runner) || /^0x0+$/.test(runner)) return { pricing, host: null, hostAsk: null };
-  if (!(Number(d.leaseUntil) * 1000 > Date.now())) return { pricing, host: null, hostAsk: null };
+  const none = { pricing, host: null, hostAsk: null, hostFree: false };
+  if (!/^0x[0-9a-f]{64}$/.test(runner) || /^0x0+$/.test(runner)) return none;
+  if (!(Number(d.leaseUntil) * 1000 > Date.now())) return none;
   const rows = await api("GET", "/enclaves").then((j) => j?.enclaves || []).catch(() => []);
   const row = rows.find((e) => String(e?.id || "").toLowerCase() === runner);
   const a = row?.availability;
-  if (!a) return { pricing, host: null, hostAsk: null };
+  if (!a) return none;
   const pick = (v, fallback) => (Number(v) > 0 ? Number(v) : fallback);
+  const owner = String(d?.owner || "").toLowerCase();
   return {
     host: row.name || "the enclave holding the lease",
+    // FREE SELF-HOSTING (ledger rev 12): this box waives its whole charge when
+    // its DECLARED payout wallet owns the deployment - EnclaveDeployments
+    // ._hostRate, which _resizeRate goes through too. Callers gate it on the
+    // ledger rev; without it a self-hosted record (correctly empty balance) is
+    // priced at the box's ask and refused as unfunded. The row's top-level
+    // field only: the relay projects that from the on-chain registry entry,
+    // where the ledger reads it too. The copy inside /availability is the box
+    // talking, and a box must not be able to quote itself free.
+    hostFree: /^0x[0-9a-f]{40}$/.test(owner) && !/^0x0+$/.test(owner)
+              && String(row.payoutWallet || "").toLowerCase() === owner,
     // its posted price (rev-8 ledgers): a resize re-buys from THIS box
     hostAsk: { name: row.name, cpu6: Number(a.askCpuPricePerSec6) || 0, gpu6: Number(a.askGpuPricePerSec6) || 0 },
     pricing: { ...pricing,
@@ -1592,8 +1604,8 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
   // would leave the app dark on a still-billing lease
   let pricing = null;
   try { pricing = await api("GET", "/v1/pricing"); } catch {}
-  let host = null, hostAsk = null;
-  ({ pricing, host, hostAsk } = await hostPricing(d, pricing));
+  let host = null, hostAsk = null, hostFree = false;
+  ({ pricing, host, hostAsk, hostFree } = await hostPricing(d, pricing));
   const where = host ? `on ${host}` : "on the fleet's hardware";
   const mins = minShares(ver, pricing);
   let gpuMilli = f.gpu !== undefined ? Math.round(numFlag(f.gpu, "--gpu") * 1000) : Number(d.gpuMilli);
@@ -1641,7 +1653,11 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
     if (gpuMilli > maxGpu)
       throw new Error(`--gpu ${gpuMilli / 10}% is over the platform's per-deployment GPU cap of ${maxGpu / 10}% of a card - lower --gpu`);
     const snapFee6 = rev >= 4 ? (await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "feeOf", [id]))[1] : 0n;
-    newRate = rate6Of(prices, gpuMilli, cpuMilli) + snapFee6;
+    // free self-hosting (rev 12): the serving box charges its own payout wallet
+    // nothing, so the re-buy costs the publisher fee and nothing else - see
+    // hostPricing. The fee is never waived; it is the publisher's money.
+    const freeHere = rev >= 12 && hostFree;
+    newRate = (freeHere ? 0n : rate6Of(prices, gpuMilli, cpuMilli)) + snapFee6;
     if (rev >= 8) {
       // a resize BUYS time, so the ceiling applies: the contract reverts
       // "over rate cap" above it
@@ -1672,7 +1688,9 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
         throw new Error(`the remaining balance can't fund even one second at the new rate (${usd6(newRate * 3600n)}/h) - top it up first, then resize`);
     }
     shareNote = ` at gpu ${Number(d.gpuMilli) / 10}%->${gpuMilli / 10}% / cpu ${Number(d.cpuMilli) / 10}%->${cpuMilli / 10}% `
-              + `(rate ${usd6(d.rate * 3600n)}/h -> ${usd6(newRate * 3600n)}/h, balance buys ≈ ${dur(Number(d.balance6) / Number(newRate))})`;
+              + `(rate ${usd6(d.rate * 3600n)}/h -> ${usd6(newRate * 3600n)}/h`
+              + (newRate > 0n ? `, balance buys ≈ ${dur(Number(d.balance6) / Number(newRate))})`
+                              : `, and ${host || "your own enclave"} hosts this owner for free - no balance needed)`);
   }
   const doing = vi !== curIdx
     ? `switch ${short(id)} from ${from} to ${app.slug}:${ver.version}${shareNote}`

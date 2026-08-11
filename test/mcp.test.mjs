@@ -135,6 +135,25 @@ test("mcp encoders: setConfig decodes against the ledger ABI (envelope and empty
   assert.deepEqual(clr.args, [ID, ""]);
 });
 
+// SOURCE-PINNED (build_upgrade's money math needs a chain, which this file
+// deliberately never touches — see the header). Free self-hosting, ledger rev
+// 12: the box holding the lease charges its own payout wallet nothing, so a
+// resize re-buys the bigger slice at zero and a free record's EMPTY balance is
+// not a reason to refuse. Priced any other way, build_upgrade tells a seller to
+// build_fund a deployment that costs nothing (2026-08-11, risc-box on kryptos).
+test("mcp: build_upgrade prices a self-hosted resize at zero, and only on rev 12", () => {
+  const src = fs.readFileSync(path.join(RELAY_DIR, "mcp.js"), "utf8");
+  // the declaration, read off the lease holder's /enclaves row - the top-level
+  // (registry-projected) field, never the box's own /availability copy - and
+  // compared against the DEPLOYMENT's owner
+  assert.match(src, /hostFree: \/\^0x\[0-9a-f\]\{40\}\$\/\.test\(owner\)[\s\S]{0,200}String\(row\.payoutWallet \|\| ""\)\.toLowerCase\(\) === owner/);
+  // gated on the ledger rev, and the publisher fee still rides on top
+  assert.match(src, /const freeHere = rev >= 12 && hostFree;/);
+  assert.match(src, /const newRate = \(freeHere \? 0n : [\s\S]{0,140}\)\s*\+ BigInt\(snap\[1\]\);/);
+  // the funding gate itself stays: it is right for every deployment that IS charged
+  assert.match(src, /the remaining balance can't fund even one second at the new rate/);
+});
+
 test("mcp encoders: publishVersion (rev 5) decodes against contracts/EnclaveAppCatalog.abi.json", () => {
   const tx = encodePublishTx({ rev: 5, appCatalog: C, slug: "my-app", name: "My App",
     description: "d", version: "3", cid: "bafy" + "a".repeat(46), res: [0, 0, 256, 10],

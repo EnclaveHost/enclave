@@ -24,7 +24,7 @@ import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, 
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
-import { shareRates, minPctsOf, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf } from "../../js/core/pricing.js";
+import { shareRates, minPctsOf, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf, hostChargeWaived } from "../../js/core/pricing.js";
 
 // The app's reachable URL. Through the gateway each deployment gets its OWN
 // origin: a per-deployment subdomain (<id>.app.enclave.host, the base36 part of
@@ -1040,6 +1040,17 @@ class Deployments extends EnclaveElement {
     // every newer version behind a resize it doesn't need. Unleased rows keep
     // the aggregate - any box may claim them next, so over-asking is right.
     const hw = leaseHostOf(d, fleet);          // null = size on the aggregate
+    // FREE SELF-HOSTING (ledger rev 12). The same box decides the PRICE of the
+    // change, and it charges this owner nothing when its declared payout wallet
+    // is the deployment's owner - _resizeRate goes through the very _hostRate
+    // that claim() does, so a resize re-buys the bigger slice at zero. Priced
+    // any other way, a self-hosted record refuses its own owner: its correct
+    // state is an empty balance, and the box's posted price then reads as "the
+    // remaining balance can't fund even one second at the new rate" for a
+    // transaction the ledger accepts (2026-08-11, risc-box on kryptos).
+    // Only the LEASE HOLDER's waiver counts, exactly as on-chain: an unleased
+    // record is re-priced at whichever box claims it next.
+    const freeHere = rev >= 12 && !!hw && hostChargeWaived(hw.row, d.owner);
     const bought = { gpuMilli: Number(d.gpuMilli) || 0, cpuMilli: Number(d.cpuMilli) || 0 };
     const rows = app.versions
       .map((v, i) => ({ v, i, mins: minPctsOf(specOf(v), hw && hw.spec) }))
@@ -1087,7 +1098,11 @@ class Deployments extends EnclaveElement {
     const paint = (cls, txt) => paintLine(st, cls, txt);
     const intro = () => {
       paint("info", "// paid time carries over: the runner restarts the app in place (~a minute); the endpoint and balance don’t change, app state is ephemeral");
-      if (resizable)
+      if (resizable && freeHere)
+        paint("dimln", "// the dials re-buy this deployment’s shares in the same transaction - " + hw.name
+          + " pays out to this deployment’s owner, so the bigger slice is re-bought at $0.00/h too"
+          + (snapFee > 0n ? " (the app’s publisher fee is never waived)" : " and no balance is needed"));
+      else if (resizable)
         paint("dimln", "// the dials re-buy this deployment’s shares in the same transaction - the hourly rate is recalculated at "
           + (rev >= 8 ? (hw ? hw.name + "’s posted price" : "the price of whichever enclave claims it") : "the CURRENT list prices")
           + ", and a live lease settles at the old rate first");
@@ -1113,10 +1128,12 @@ class Deployments extends EnclaveElement {
       cpuMilli: cIn ? Math.round(Number(cIn.value || 0)) * 10 : bought.cpuMilli,
     });
     // the rate this size would run at, priced at the box that will serve it:
-    // its lease holder's posted price (rev 8), else the fleet/list price
-    const rateOf = t => rate6Of(hw && hw.price
+    // its lease holder's posted price (rev 8), else the fleet/list price - and
+    // zero for the host half when that box hosts this owner for free, leaving
+    // the publisher fee, which no waiver ever touches
+    const rateOf = t => (freeHere ? 0n : rate6Of(hw && hw.price
       ? { gpu: BigInt(Math.round(hw.price.full * 1e6)), cpu: BigInt(Math.round(hw.price.node * 1e6)) }
-      : prices, t.gpuMilli, t.cpuMilli) + snapFee;
+      : prices, t.gpuMilli, t.cpuMilli)) + snapFee;
     // EVERY rule the transaction must satisfy, in one place. Returns "" when
     // the dials are good. Shown as a live hint while you type - a hint only:
     // it neither rewrites the field nor disables the button. The click runs the
@@ -1181,7 +1198,8 @@ class Deployments extends EnclaveElement {
           const newRate = rateOf(t), oldRate = Math.round(Number(d.rate) || 0), bal = Number(d.balance6 || 0);
           paint("dimln", "// rate $" + (oldRate * 3600 / 1e6).toFixed(2)
             + "/h -> $" + (Number(newRate) * 3600 / 1e6).toFixed(2) + "/h"
-            + (hw ? " at " + hw.name + "’s price" : "")
+            + (freeHere ? " - you host it on " + hw.name + ", which charges its own payout wallet nothing"
+                        : hw ? " at " + hw.name + "’s price" : "")
             + (bal > 0 && Number(newRate) > 0 ? " · remaining balance buys ≈ " + fmtDur(bal / Number(newRate)) : ""));
         }
       } else {
