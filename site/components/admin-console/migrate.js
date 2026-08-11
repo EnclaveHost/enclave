@@ -435,37 +435,42 @@ function grantedRate6(d, runnerBps) {
 
 const depKey = (d) => d.id;
 /* An imported record arrives with NO HOST — the lease is stripped right here —
-   so its `rate` must be what create() gives a hostless record: the CAP.
-   create() says it outright ("No host has priced this yet, so the working rate
-   is the CAP: the most it could ever cost"), and carrying a stale one across is
-   wrong in both directions. It matters most for a FREE self-hosted deployment,
-   whose rate is 0 because its owner's own enclave is serving it: import that 0
-   and the record lands willing to pay nothing, so when that host goes away no
-   paid enclave can take it — the deployment is stranded on a host that no
-   longer exists. (importDeployments refuses rate 0 outright for a related
-   reason, which is how this surfaced: 4 of 17 live records.)
-   The substitution also seeds the cap correctly: import does
-   `_maxRate6[id] = d.rate`, so carrying a 0 across would leave the record
-   momentarily UNCAPPED (cap 0 means uncapped) until importCaps lands. Setting
-   it to the cap makes that write right the first time instead of depending on
-   a later batch. A record with no cap AND no rate is free forever by choice —
-   nothing to substitute, and nothing wrong with it. */
-const depClean = (d) => ({ ...d, runner: "0x" + "0".repeat(64), runnerOperator: "0x" + "0".repeat(40), leaseUntil: 0,
-  rate: BigInt(d.rate || 0) === 0n && BigInt(d.cap6 || 0) > 0n ? d.cap6 : d.rate });
-/* `a` = the SOURCE record, `b` = what the target now holds.
-   runner/runnerOperator/leaseUntil are cleared by import on purpose. `rate` is
-   the other deliberate difference: depClean seeds a hostless record's rate from
-   its cap, so a free deployment (source rate 0) legitimately lands carrying its
-   cap. Encode that here rather than leaving verify to report it as corruption —
-   this is the gate in front of an IRREVERSIBLE seal, and a gate that always
-   cries wolf is one the operator learns to override. Any OTHER rate difference
-   is still a mismatch. */
-const depCmp = (a, b) => DEP_SCHEMA.every((f) => {
-  if (["runner", "runnerOperator", "leaseUntil"].includes(f.k)) return true;
-  if (f.k === "rate" && BigInt(a.rate || 0) === 0n)
-    return BigInt(b.rate || 0) === 0n || BigInt(b.rate || 0) === BigInt(a.cap6 || 0);
-  return String(a[f.k]).toLowerCase() === String(b[f.k]).toLowerCase();
-});
+   and its economics migrate VERBATIM. `rate` in particular: a free self-hosted
+   deployment carries 0 because its owner's own enclave serves it, and that 0 is
+   the record, not a gap to be filled in.
+
+   This briefly did fill it in, substituting the CAP for a rate of 0, on two
+   arguments that both looked good and were both wrong:
+
+     "a hostless record's working rate should be its cap, like create()" —
+   create() seeds a rate for a record no host has EVER priced. A migrated record
+   has a price history; claim() overwrites d.rate with the new host's price
+   before _burnLease runs, so the imported value is what the record REPORTS
+   until then, and reporting $1.73/hr for a free app is simply false.
+
+     "carrying 0 across leaves the record momentarily UNCAPPED until importCaps
+   lands (cap 0 means uncapped), because import does _maxRate6[id] = d.rate" —
+   true, and harmless: a migration target is unreferenced until governance
+   flips the address book, so there is no enclave that can see the record, let
+   alone claim it, during that window. importCaps closes it well before cutover
+   (its own diff below picks these rows up precisely BECAUSE cap6 != rate now).
+
+   What the substitution actually did, on 2026-08-11: three free self-hosted
+   apps went dark for ~40 minutes after the cutover. claimable(id) is
+   `balance6 >= rate`, so a free record that arrived carrying 481 against a zero
+   balance read as unclaimable to every enclave on the fleet — including the one
+   that hosts it for nothing. The supervisor now asks claimableBy(id, enclaveId)
+   instead (see openForUs in supervisor.js), which prices the record at the
+   asking enclave's own rate and gets this right whatever the stored rate says.
+   Both halves were real bugs. This is the other one. */
+const depClean = (d) => ({ ...d, runner: "0x" + "0".repeat(64), runnerOperator: "0x" + "0".repeat(40), leaseUntil: 0 });
+/* `a` = the SOURCE record, `b` = what the target now holds. Only
+   runner/runnerOperator/leaseUntil may differ — import clears them on purpose.
+   Everything else, `rate` included, migrates byte-for-byte, so any difference
+   is corruption and this is the gate in front of an IRREVERSIBLE seal. */
+const depCmp = (a, b) => DEP_SCHEMA.every((f) =>
+  ["runner", "runnerOperator", "leaseUntil"].includes(f.k) ||
+  String(a[f.k]).toLowerCase() === String(b[f.k]).toLowerCase());
 
 /* -- catalog -- */
 // Struct-schema revision sniff: rev-4 catalogs' VERSION tuples carry
