@@ -452,8 +452,20 @@ const depKey = (d) => d.id;
    nothing to substitute, and nothing wrong with it. */
 const depClean = (d) => ({ ...d, runner: "0x" + "0".repeat(64), runnerOperator: "0x" + "0".repeat(40), leaseUntil: 0,
   rate: BigInt(d.rate || 0) === 0n && BigInt(d.cap6 || 0) > 0n ? d.cap6 : d.rate });
-const depCmp = (a, b) => DEP_SCHEMA.every((f) => ["runner", "runnerOperator", "leaseUntil"].includes(f.k)
-  || String(a[f.k]).toLowerCase() === String(b[f.k]).toLowerCase());
+/* `a` = the SOURCE record, `b` = what the target now holds.
+   runner/runnerOperator/leaseUntil are cleared by import on purpose. `rate` is
+   the other deliberate difference: depClean seeds a hostless record's rate from
+   its cap, so a free deployment (source rate 0) legitimately lands carrying its
+   cap. Encode that here rather than leaving verify to report it as corruption —
+   this is the gate in front of an IRREVERSIBLE seal, and a gate that always
+   cries wolf is one the operator learns to override. Any OTHER rate difference
+   is still a mismatch. */
+const depCmp = (a, b) => DEP_SCHEMA.every((f) => {
+  if (["runner", "runnerOperator", "leaseUntil"].includes(f.k)) return true;
+  if (f.k === "rate" && BigInt(a.rate || 0) === 0n)
+    return BigInt(b.rate || 0) === 0n || BigInt(b.rate || 0) === BigInt(a.cap6 || 0);
+  return String(a[f.k]).toLowerCase() === String(b[f.k]).toLowerCase();
+});
 
 /* -- catalog -- */
 // Struct-schema revision sniff: rev-4 catalogs' VERSION tuples carry
