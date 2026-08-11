@@ -62,10 +62,28 @@ export function adoptFleetPrice(a){
    Only SERVING boxes count: one that cannot take work would not host it free
    either. */
 export function freeEnclavesFor(address, rows){
-  const a = String(address || "").toLowerCase();
-  if (!a || !Array.isArray(rows)) return [];
-  return rows.filter((e) => e && e.serving !== false && e.payoutWallet
-                            && String(e.payoutWallet).toLowerCase() === a);
+  if (!Array.isArray(rows)) return [];
+  return rows.filter((e) => e && e.serving !== false && hostChargeWaived(e, address));
+}
+
+/* Does THIS box charge THIS wallet nothing? The ledger's own test, mirrored
+   exactly (EnclaveDeployments._hostRate: `if (e.payoutWallet == d.owner) return 0`).
+   Read the row's TOP-LEVEL payoutWallet only — the relay projects that one out
+   of the on-chain registry entry, which is the same place the ledger reads it.
+   A box also repeats it in its own /availability, and that copy is the box
+   TALKING: believing it would let an enclave quote itself as free to a wallet
+   the chain will still charge. Two rules ride with this and callers must keep
+   them: gate on ledger rev >= 12 (an older ledger never heard of the waiver),
+   and compare against the deployment's OWNER, not the connected wallet (a
+   vault-owned row is owned by the vault). The publisher fee is never waived —
+   it is a third party's money.
+   Getting this wrong is not cosmetic: a self-hosted deployment's correct,
+   normal state is an EMPTY balance, so pricing it at the box's posted price
+   makes every money gate read it as unfundable. */
+export function hostChargeWaived(row, owner){
+  const a = String(owner || "").toLowerCase();
+  if (!/^0x[0-9a-f]{40}$/.test(a) || /^0x0+$/.test(a)) return false;
+  return String((row && row.payoutWallet) || "").toLowerCase() === a;
 }
 
 // Back-compat aliases for call sites that read a plain number. These follow

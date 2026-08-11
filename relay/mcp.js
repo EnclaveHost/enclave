@@ -414,15 +414,25 @@ async function livePrices(at) {
 // claim the record next. Mirrors cli/enclave.mjs hostPricing.
 async function hostPricing(d, pricing) {
   const runner = String(d?.runner || "").toLowerCase();
-  if (!/^0x[0-9a-f]{64}$/.test(runner) || /^0x0+$/.test(runner)) return { pricing, host: null, hostAsk: null };
-  if (!(Number(d.leaseUntil) * 1000 > Date.now())) return { pricing, host: null, hostAsk: null };
+  const none = { pricing, host: null, hostAsk: null, hostFree: false };
+  if (!/^0x[0-9a-f]{64}$/.test(runner) || /^0x0+$/.test(runner)) return none;
+  if (!(Number(d.leaseUntil) * 1000 > Date.now())) return none;
   const rows = await self("GET", "/enclaves").then((j) => j?.enclaves || []).catch(() => []);
   const row = rows.find((e) => String(e?.id || "").toLowerCase() === runner);
   const av = row?.availability;
-  if (!av) return { pricing, host: null, hostAsk: null };
+  if (!av) return none;
   const pick = (v, fallback) => (Number(v) > 0 ? Number(v) : fallback);
+  const owner = String(d?.owner || "").toLowerCase();
   return {
     host: row.name || "the enclave holding the lease",
+    // FREE SELF-HOSTING (ledger rev 12): the box waives its whole charge when
+    // its declared payout wallet owns the deployment (EnclaveDeployments
+    // ._hostRate, which _resizeRate also goes through), so the re-buy is free.
+    // Gated on the ledger rev by the caller. Top-level field only - that one is
+    // the relay's projection of the on-chain registry entry; /availability's
+    // copy is the box talking, and a box must not quote itself free.
+    hostFree: /^0x[0-9a-f]{40}$/.test(owner) && !/^0x0+$/.test(owner)
+              && String(row.payoutWallet || "").toLowerCase() === owner,
     // its POSTED price (rev 8): a resize is re-bought from this box, not from
     // the fleet's cheapest
     hostAsk: { name: row.name, askCpuPricePerSec6: av.askCpuPricePerSec6, askGpuPricePerSec6: av.askGpuPricePerSec6 },
@@ -614,7 +624,7 @@ async function upgradeOrResize(a, resizeOnly) {
   }
   // sized on the box that will APPLY the change (its lease holder), not the
   // fleet's best box - see hostPricing
-  const { pricing, host, hostAsk } = await hostPricing(d, await self("GET", "/v1/pricing").catch(() => null));
+  const { pricing, host, hostAsk, hostFree } = await hostPricing(d, await self("GET", "/v1/pricing").catch(() => null));
   const where = host ? `on ${host}` : "on the fleet's hardware";
   const mins = minShares(ver, pricing);
   let gpuMilli = a.gpuShare !== undefined ? Math.round(Number(a.gpuShare) * 1000) : Number(d.gpuMilli);
@@ -650,7 +660,11 @@ async function upgradeOrResize(a, resizeOnly) {
     ]);
     if (gpuMilli > maxGpu)
       throw new Error(`gpuShare ${gpuMilli / 1000} is over the platform's per-deployment GPU cap of ${maxGpu / 1000} of a card`);
-    const newRate = (BigInt(p6) * BigInt(gpuMilli) + BigInt(c6) * BigInt(cpuMilli) + 999n) / 1000n + BigInt(snap[1]);
+    // free self-hosting (rev 12): the serving box charges its own payout wallet
+    // nothing, so only the publisher fee (never waived) survives the re-buy
+    const freeHere = rev >= 12 && hostFree;
+    const newRate = (freeHere ? 0n : (BigInt(p6) * BigInt(gpuMilli) + BigInt(c6) * BigInt(cpuMilli) + 999n) / 1000n)
+                  + BigInt(snap[1]);
     if (rev >= 8) {
       // the resize is a purchase, so it is capped like a claim: the contract
       // reverts "over rate cap" above the owner's ceiling
@@ -671,6 +685,8 @@ async function upgradeOrResize(a, resizeOnly) {
     if (av && av.aggregate && av.shareResize !== true)
       throw new Error("the live fleet doesn't apply share resizes to running deployments yet (availability.shareResize is not true) - retry after the fleet updates");
     rateInfo = { oldRatePerHour: usdHr(d.rate), newRatePerHour: usdHr(newRate),
+      ...(freeHere ? { hostedFree: true,
+        note: `${host} pays out to this deployment's owner, so the bigger slice is re-bought at no host charge (the publisher fee, if any, still applies)` } : {}),
       ...(av && av.aggregate ? {} : { warning: "couldn't read fleet availability to confirm resize support; if a runner predates it, the new rate applies but the slice only changes at the next re-claim" }) };
   }
   const appRef = `catalog://${app.appId}/${vi}`;

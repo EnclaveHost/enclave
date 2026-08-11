@@ -98,6 +98,7 @@ const S = {
   cap6: 0n,                                    // capOf() (rev-8 ledgers): the deployment's hourly ceiling
   fleetRateCap: true,                          // availability.rateCap (fleet-AND for cap edits)
   fleet: null,                                 // GET /enclaves rows (per-box hardware; null = no fleet view)
+  money: null,                                 // get(ID) rate/balance6 override ({rate,balance6}); null = the paid default
 };
 
 function apiServer() {
@@ -210,8 +211,11 @@ function rpcServer() {
   const depRecord = () => ({
     id: ID, owner: OWNER, appRef: "catalog://" + "0x" + "cd".repeat(32) + "/0", ports: "http:8088", configCid: "",
     gpuMilli: 0, cpuMilli: 10, appPort: 8088, isPublic: true, active: S.active,
-    createdAt: BigInt(Math.floor(Date.now() / 1000) - 60), rate: 6n,
-    balance6: 2_000000n, spent6: 0n,
+    createdAt: BigInt(Math.floor(Date.now() / 1000) - 60),
+    // a free self-hosted record (rev 12) carries rate 0 and, correctly, an
+    // empty balance — S.money is how a test says so
+    rate: S.money ? S.money.rate : 6n,
+    balance6: S.money ? S.money.balance6 : 2_000000n, spent6: 0n,
     runner: S.claimed ? "0x" + "ee".repeat(32) : "0x" + "0".repeat(64),
     runnerOperator: S.claimed ? "0x" + "ee".repeat(20) : "0x" + "0".repeat(40),
     leaseUntil: S.claimed ? BigInt(Math.floor(Date.now() / 1000) + 1800) : 0n,
@@ -573,6 +577,52 @@ test("resize: setShares alone, staying on the current version", async () => {
   assert.ok(!S.txs.some((t) => t.functionName === "setAppRef"), "no version change");
   assert.match(r.out, /resized at gpu 0% \/ cpu 50%/);
   S.depRev = 3n;
+});
+
+/* Free self-hosting (ledger rev 12): the box holding the lease charges its own
+   payout wallet nothing, so a resize re-buys the bigger slice at zero — and a
+   free record's correct state is an EMPTY balance. Pricing it at the box's ask
+   instead made the console refuse its own owner ("the remaining balance can't
+   fund even one second at the new rate") for a transaction the ledger accepts:
+   _resizeRate goes through the same _hostRate the claim did (2026-08-11,
+   risc-box on kryptos). The chain side is pinned in
+   contracts/foundry/test/EnclaveDeployments.selfHost.t.sol. */
+const SELF_HOSTED = { ...BIG_BOX, askCpuPricePerSec6: 834, askGpuPricePerSec6: 1667 };
+
+test("resize: a self-hosted deployment re-buys at $0.00/h with an empty balance", async () => {
+  S.txs.length = 0; S.depRev = 12n; S.claimed = true; S.money = { rate: 0n, balance6: 0n };
+  S.fleet = [{ ...fleetRow("kryptos", SELF_HOSTED), payoutWallet: OWNER }];
+  const r = await run(["resize", ID, "--cpu", "0.25"]);
+  assert.equal(r.code, 0, r.err);
+  const tx = S.txs.find((t) => t.functionName === "setShares");
+  assert.ok(tx, "setShares tx sent - the funding gate must not fire on a free deployment");
+  assert.equal(tx.args[2], 250);
+  assert.match(r.out, /\$0\.00\/h/, "the new rate is zero, not the box's posted price");
+  S.txs.length = 0; S.depRev = 3n; S.claimed = false; S.money = null; S.fleet = null;
+});
+
+test("resize: an empty balance still refuses when the box hosts this owner for money", async () => {
+  // same record, same box - only the declaration differs, and that is the
+  // whole feature. The gate has to keep biting everywhere it is not waived.
+  S.txs.length = 0; S.depRev = 12n; S.claimed = true; S.money = { rate: 0n, balance6: 0n };
+  S.fleet = [{ ...fleetRow("kryptos", SELF_HOSTED), payoutWallet: "0x" + "9".repeat(40) }];
+  const r = await run(["resize", ID, "--cpu", "0.25"]);
+  assert.notEqual(r.code, 0, "must refuse before any signature");
+  assert.ok(!S.txs.length, "no tx sent");
+  assert.match(r.err, /can't fund even one second/);
+  S.txs.length = 0; S.depRev = 3n; S.claimed = false; S.money = null; S.fleet = null;
+});
+
+test("resize: an older ledger never waives the host charge, whatever the registry says", async () => {
+  // the waiver is rev 12's; a rev-6 ledger charges this box's ask for the
+  // bigger slice, and an empty balance genuinely cannot buy it
+  S.txs.length = 0; S.depRev = 6n; S.claimed = true; S.money = { rate: 0n, balance6: 0n };
+  S.fleet = [{ ...fleetRow("kryptos", SELF_HOSTED), payoutWallet: OWNER }];
+  const r = await run(["resize", ID, "--cpu", "0.25"]);
+  assert.notEqual(r.code, 0, "must refuse: this ledger has never heard of free self-hosting");
+  assert.ok(!S.txs.length, "no tx sent");
+  assert.match(r.err, /can't fund even one second/);
+  S.txs.length = 0; S.depRev = 3n; S.claimed = false; S.money = null; S.fleet = null;
 });
 
 test("resize refuses a fleet that doesn't re-slice live deployments (fail closed)", async () => {

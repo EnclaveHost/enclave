@@ -14,8 +14,12 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, enclavePriceOf, pickEnclaveFor, rankEnclavesFor, leaseHostOf,
-  moveTargetsFor, moveBlockReason, wantedGpuPct, startSharesFor, gpuUpgradeForMove, gpuDowngradeForMove, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE } from "../site/js/core/pricing.js";
+  moveTargetsFor, moveBlockReason, wantedGpuPct, startSharesFor, gpuUpgradeForMove, gpuDowngradeForMove, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE,
+  hostChargeWaived, freeEnclavesFor } from "../site/js/core/pricing.js";
 
 // Reference copy of the RUNNER's minimum-share math (supervisor.js: pctCeil,
 // gpuShareOf, cpuShareOf, minSharesOf with MIN_COMPUTE_PCT=1). Keep in sync.
@@ -296,6 +300,58 @@ test("enclavePriceOf: a row's own posted price, the fleet's when it posts none",
   assert.equal(priced.full, 0.003334);
   const silent = enclavePriceOf(row("old", { gpu: true, claimEnabled: true }));
   assert.deepEqual(silent, { full: 0.0016670, node: 0.000834 });
+});
+
+/* ---- free self-hosting (ledger rev 12): who charges this wallet nothing ----
+   The ledger waives an enclave's WHOLE charge when its declared payout wallet
+   is the deployment's owner (EnclaveDeployments._hostRate). Every console money
+   gate has to agree, because a free deployment's correct state is an EMPTY
+   balance: price it at the box's ask and the console refuses its own owner a
+   resize the chain would accept (2026-08-11, risc-box on kryptos). */
+const OWNER = "0x" + "0b".repeat(20);
+
+test("hostChargeWaived: the registry's declaration, never the box's own word for it", () => {
+  assert.equal(hostChargeWaived(row("mine", { gpu: true }, { payoutWallet: OWNER }), OWNER), true);
+  assert.equal(hostChargeWaived(row("mine", { gpu: true }, { payoutWallet: OWNER.toUpperCase().replace("0X", "0x") }), OWNER),
+    true, "checksummed on the wire, lowercase from the ledger decoder");
+  // the row's top-level field is the relay's projection of the on-chain
+  // registry entry - the same place the ledger reads it. /availability's copy
+  // is the ENCLAVE talking, so it can never buy a waiver the chain won't give
+  assert.equal(hostChargeWaived(row("liar", { gpu: true, payoutWallet: OWNER }), OWNER), false);
+  // and every way it must NOT hold: another seller's box, an undeclared one,
+  // the zero wallet, a missing owner
+  assert.equal(hostChargeWaived(row("theirs", { gpu: true }, { payoutWallet: "0x" + "99".repeat(20) }), OWNER), false);
+  assert.equal(hostChargeWaived(row("silent", { gpu: true }), OWNER), false);
+  assert.equal(hostChargeWaived(row("zero", { gpu: true }, { payoutWallet: "0x" + "0".repeat(40) }), "0x" + "0".repeat(40)), false);
+  assert.equal(hostChargeWaived(row("mine", { gpu: true }, { payoutWallet: OWNER }), ""), false);
+  assert.equal(hostChargeWaived(null, OWNER), false);
+});
+
+test("freeEnclavesFor: only boxes that are SERVING host you for free", () => {
+  const rows = [row("mine", { gpu: true }, { payoutWallet: OWNER }),
+                row("mine-but-down", { gpu: true }, { payoutWallet: OWNER, serving: false }),
+                row("theirs", { gpu: true }, { payoutWallet: "0x" + "99".repeat(20) })];
+  assert.deepEqual(freeEnclavesFor(OWNER, rows).map((e) => e.name), ["mine"]);
+  assert.deepEqual(freeEnclavesFor("0x" + "99".repeat(20), rows).map((e) => e.name), ["theirs"]);
+  assert.deepEqual(freeEnclavesFor(OWNER, null), []);
+});
+
+// SOURCE-PINNED: the change-version panel is a custom element with a live DOM
+// and a wallet behind it, so pin the three lines that decide the money. The
+// runner side is test/rate-cap.test.mjs, the ledger side selfHost.t.sol, the
+// CLI's copy of this gate test/cli.test.mjs.
+test("the console's version/resize panel prices a self-hosted deployment at zero", () => {
+  const src = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)),
+    "..", "site", "components", "deployments", "deployments.js"), "utf8");
+  // the verdict: rev 12, the LEASE HOLDER's row (not the fleet's), the
+  // deployment's OWNER (not the connected wallet - a vault-owned row is owned
+  // by the vault)
+  assert.match(src, /const freeHere = rev >= 12 && !!hw && hostChargeWaived\(hw\.row, d\.owner\);/);
+  // and it has to reach the rate the funding + cap gates are computed from,
+  // with the publisher fee still riding on top (never waived)
+  assert.match(src, /const rateOf = t => \(freeHere \? 0n : rate6Of\([\s\S]{0,240}\)\) \+ snapFee;/);
+  assert.match(src, /the remaining balance can’t fund even one second at the new rate/,
+    "the gate itself must stay - it is right for every deployment that IS charged");
 });
 
 test("rankEnclavesFor puts the CHEAPEST box for this app first, not just the biggest", () => {
