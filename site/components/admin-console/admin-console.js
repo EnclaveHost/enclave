@@ -36,6 +36,17 @@ const _addrRead = async (to, sel) => {
     return (r && r !== "0x") ? "0x" + r.replace(/^0x/, "").slice(24) : null;
   } catch (_) { return null; }
 };
+/* The two contracts spell the SAME two-step handoff differently: the catalog
+   has transferOwnership(address), the ledger has setOwner(address). Both then
+   require the receiver to acceptOwnership(). Resolving it per contract matters
+   because the handover is the LAST step of a migration — hardcoding one name
+   fails after every import has already landed. */
+const handoverSel = (name) => {
+  const sel = CONTRACTS[name].sel;
+  const s = sel.transferOwnership || sel.setOwner;
+  if (!s) throw new Error(`${name} exposes no ownership handoff (transferOwnership/setOwner)`);
+  return s;
+};
 const ownerOf = (to) => _addrRead(to, CONTRACTS.EnclaveAppCatalog.sel.owner);
 const pendingOwnerOf = (to) => _addrRead(to, CONTRACTS.EnclaveAppCatalog.sel.pendingOwner);
 
@@ -1287,8 +1298,8 @@ class AdminConsole extends EnclaveElement {
             enable("mig-escrow", true); enable("mig-seal", true);
 
             log("p", `offering ownership to ${Enclave.address}…`);
-            await runAsMigrator(mig, tgt, [{ label: "transferOwnership", gas: 80_000,
-              dataHex: encCallX(CONTRACTS[m.contractName].sel.transferOwnership, [{ t: "addr", v: Enclave.address }]) }], log);
+            await runAsMigrator(mig, tgt, [{ label: "hand ownership over", gas: 80_000,
+              dataHex: encCallX(handoverSel(m.contractName), [{ t: "addr", v: Enclave.address }]) }], log);
 
             log("p", "one approval left - confirm acceptOwnership in your wallet…");
             const h = await sendTx(tgt, "0x" + CONTRACTS[m.contractName].sel.acceptOwnership);
