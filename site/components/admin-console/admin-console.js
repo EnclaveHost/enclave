@@ -1202,7 +1202,26 @@ class AdminConsole extends EnclaveElement {
               let dropped = false;
               for (let i = 0; i < txs.length; i++) {
                 log("p", `[${i + 1}/${txs.length}] ${txs[i].label} - confirm in your wallet…`);
-                const hash = await sendTx(tgt, txs[i].dataHex, undefined, txs[i].gas);
+                let hash;
+                try {
+                  hash = await sendTx(tgt, txs[i].dataHex, undefined, txs[i].gas);
+                } catch (e) {
+                  // Providers cap per-transaction gas and NAME the cap when they
+                  // refuse (Infura: "exceeds maximum per-tx gas limit: A > B").
+                  // Take them at their word and re-plan to fit rather than
+                  // making the operator work it out: B is the sent limit, so the
+                  // budget is B less sendTx's padding, with a little margin.
+                  const m = /exceeds maximum per-tx gas limit:\s*\d+\s*>\s*(\d+)/i.exec(e.message || "");
+                  if (!m) throw e;
+                  const cap = Number(m[1]);
+                  const fit = Math.floor(cap * 0.95 * 2 / 3);
+                  if (fit >= gasBudget) throw e;          // not the budget's fault; do not loop
+                  gasBudget = fit;
+                  log("p", `  this RPC caps a transaction at ${Math.round(cap / 1e6)}M gas - re-planning at `
+                         + `${Math.round(gasBudget / 1e6)}M per batch to fit (nothing was sent)`);
+                  dropped = true;
+                  break;
+                }
                 log("p", `  sent ${hash.slice(0, 14)}… waiting…`);
                 try {
                   await waitReceipt(hash, 90);

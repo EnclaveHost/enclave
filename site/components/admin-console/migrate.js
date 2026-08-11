@@ -561,7 +561,17 @@ const chunkBySizeAndGas = (arr, maxBytes, sizeOf, maxGas, gasOf) => {
 // BEFORE sendTx's 50% padding, so the transaction that actually goes out is
 // ~60M, ~15% of a Base block. If a relay ever does refuse one, the console
 // halves and re-plans on its own.
-export const GAS_BUDGET  = 40_000_000;   // per packed tx, pre-padding (~60M sent)
+// Infura -- MetaMask's default Base endpoint -- caps a single transaction at
+// 25M gas and says so plainly once Smart Transactions is out of the way:
+//   "eth_sendRawTransaction: exceeds maximum per-tx gas limit: 59786022 > 25000000"
+// THAT is the ceiling this whole saga was about. Not the chain (400M blocks),
+// not eth_estimateGas, not transaction size. sendTx pads 50%, so the budget has
+// to leave room for that: 16M -> 24M sent, just inside 25M, ~39 confirmations
+// for the 509M-gas catalog. A provider with a higher cap takes bigger batches
+// and fewer signatures -- and the console now reads the cap out of the
+// provider's own error and re-plans to fit, so it adapts without being told.
+export const GAS_BUDGET  = 16_000_000;   // per packed tx, pre-padding (~24M sent, inside Infura's 25M)
+export const SEND_PAD_NUM = 3n, SEND_PAD_DEN = 2n;   // sendTx's 1.5x, named so callers can invert it
 const DATA_BUDGET = 96 * 1024;    // per packed tx (sum of inner calls) - secondary guard
 // Never subdivide below this: past it the batches are tiny, the signature count
 // explodes, and a still-failing send is a different problem that halving will
