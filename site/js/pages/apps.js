@@ -19,7 +19,7 @@ import { FEATURED, loadCampaigns, pickFeatured, beaconView } from "../core/featu
 import { loadTallies, loadReviews, confirmReceipt } from "../core/reviews.js";
 import { payForRuntime } from "../core/fund.js";
 import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf } from "../core/wallet.js";
-import { STORE, loadCatalog, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, REF_CACHE, PORTS_CACHE, SPECS_CACHE, specOf, CONFIG_CACHE, CONFIG_CID_CACHE, MANIFEST_CACHE, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia } from "../core/catalog.js";
+import { STORE, loadCatalog, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, REF_CACHE, PORTS_CACHE, SPECS_CACHE, specOf, CONFIG_CACHE, CONFIG_CID_CACHE, MANIFEST_CACHE, fetchConfigCid, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia } from "../core/catalog.js";
 import { minPctsOf, startSharesFor, shareRates, pickEnclaveFor, rankEnclavesFor } from "../core/pricing.js";
 import { navigate } from "../boot.js";
 
@@ -1333,26 +1333,48 @@ function nextFreeVersion(app, from){
 // The "add version" prefill for one of an app's versions, as a plain object -
 // built both by the button (which stashes it) and by a refresh of
 // /apps/publish?app=… (which re-derives it from the catalog).
-function publishPrefillOf(app, vi){
+/* One rule governs this function: on a rev-7 version, `v.config` IS NOT THE
+   CONFIG. It is the ROUTING MANIFEST — {wasi, threads, set, gpuOptional,
+   volumes, _media}, ~269 bytes — and the real config lives at v.configCid.
+   Prefilling from the inline field therefore hands "add version" a stub, and
+   because the form is the publish payload, pressing Publish writes that stub
+   as the new version's config. Not a display glitch: a silent downgrade that
+   ships. eyesoff-ai 1.0.13 was published that way on 2026-08-11 — 269 bytes of
+   manifest where 1.0.12 had a 6,996-byte config — and nothing in the flow said
+   a word.
+
+   So the CID is resolved here, and a resolution FAILURE is never allowed to
+   degrade into the manifest. An empty box with a loud note costs the publisher
+   a retry; a manifest silently costs them their config. */
+async function publishPrefillOf(app, vi){
   const v = app.versions[vi] || app.versions[app.versions.length - 1] || {};
   const media = mediaOf(v);
+  let config = v.config || "", lost = "";
+  if (v.configCid){
+    const real = await fetchConfigCid(v.configCid);
+    if (real == null){
+      config = "";
+      lost = " ⚠ could not load this version's config from " + v.configCid
+           + " — the box below is EMPTY, not the real config. Reload before publishing, or the new version ships without it.";
+    } else config = real;
+  }
   return {
     slug: app.slug, name: app.name || "", desc: app.description || "",
     version: nextFreeVersion(app, v.version), cid: v.cid || "",
     vram: String((Number(v.vramMb) || 0) / 1024), gpuT: String((Number(v.gpuGflops) || 0) / 1000),
     mem: String(Number(v.memMb) || 128), cpuG: String(Math.max(1, Number(v.cpuGflops) || 1)),
-    ports: v.ports || "", config: prettyConfig(stripMedia(v.config || "")),
-    gpuOptional: (() => { try { return JSON.parse(v.config || "{}").gpuOptional === true; } catch { return false; } })(),
+    ports: v.ports || "", config: prettyConfig(stripMedia(config)),
+    gpuOptional: (() => { try { return JSON.parse(config || "{}").gpuOptional === true; } catch { return false; } })(),
     thumb: media.thumbnail || "", banner: media.banner || "",
     thumbSvg: !!media.thumbnailSvg, bannerSvg: !!media.bannerSvg,
     note: "pre-filled from " + app.slug + " " + (v.version || "") + " - fix specs/ports and publish (same bytes), or pick a new .wasm if the code changed"
-          + (app.active ? "" : " · publishing relists the app"),
+          + (app.active ? "" : " · publishing relists the app") + lost,
   };
 }
 // "add version": open the publish form pre-filled from an app's current
 // version - INCLUDING its CID. Re-listing your own CID is the metadata-fix
 // path (same bytes, corrected specs/ports); picking a new .wasm replaces it.
-function prefillPublish(app){
+async function prefillPublish(app){
   const vi = selIdx(app);
   // stash, then navigate: "add version" fires from the app's own page
   // (apps?app=…), whose URL search differs from /apps/publish, so the router
@@ -1361,7 +1383,7 @@ function prefillPublish(app){
   // The app + picked version ALSO ride the URL (?app=<appId>&v=<idx>): the
   // stash is single-use, so a refresh/back/shared link rebuilds the same
   // prefill from the catalog off the URL instead.
-  try { sessionStorage.setItem("enclave_prefill_publish", JSON.stringify(publishPrefillOf(app, vi))); } catch(e){}
+  try { sessionStorage.setItem("enclave_prefill_publish", JSON.stringify(await publishPrefillOf(app, vi))); } catch(e){}
   openPublish(app.appId, vi);
 }
 // Fill the form from a prefill: the stashed one when "add version" just
@@ -1369,7 +1391,7 @@ function prefillPublish(app){
 // back/forward, shared link). Applied once per publish-view ENTRY - catalog/
 // wallet repaints while the view is up must never wipe what the user typed.
 let appliedPubKey = null;   // the ?app|v this entry already applied (cleared on leave)
-function applyPrefillPublish(){
+async function applyPrefillPublish(){
   if (!$("#pubSlug")) return;
   let s; try { s = JSON.parse(sessionStorage.getItem("enclave_prefill_publish") || "null"); } catch(e){}
   const q = new URLSearchParams(location.search);
@@ -1383,7 +1405,12 @@ function applyPrefillPublish(){
     if (!app){ appliedPubKey = key; return; }   // unknown app: keep the blank form, stop retrying
     let vi = parseInt(q.get("v") ?? "", 10);
     if (!(Number.isInteger(vi) && vi >= 0 && vi < app.versions.length)) vi = selIdx(app);
-    s = publishPrefillOf(app, vi);
+    // claim the key BEFORE the await: the config fetch is a network round trip
+    // and renderActiveView fires again on enclave:catalog, which would
+    // otherwise start a second prefill and race this one into the form.
+    appliedPubKey = key;
+    s = await publishPrefillOf(app, vi);
+    if (!$("#pubSlug")) return;            // navigated away mid-fetch
   }
   appliedPubKey = key;
   resetPublish();
@@ -1433,7 +1460,7 @@ function applyView(){
   document.title = view === "publish" ? "Publish · Enclave" : view === "deploy" ? "Deploy · Enclave" : "Apps · Enclave";
   if (view !== "publish") appliedPubKey = null;         // next publish entry applies its prefill fresh
   if (view === "deploy") ensureDeployBooted();
-  else if (view === "publish") applyPrefillPublish();   // stashed "add version" prefill, or one rebuilt from ?app=<appId>&v=<idx>
+  else if (view === "publish") applyPrefillPublish().catch(() => {});   // stashed "add version" prefill, or one rebuilt from ?app=<appId>&v=<idx>
   else if (detail) renderDetail(appId);
   else renderApps();   // the page size depends on the grid's real width - re-slice now that the store view is visible
   scrollTo(0, 0);
@@ -1470,7 +1497,7 @@ function renderActiveView(){
   const sub = location.pathname.split("/").pop();
   // publish entered by URL (refresh/shared link): the ?app prefill may have
   // been waiting on this catalog read - idempotent via appliedPubKey
-  if (sub === "publish") return applyPrefillPublish();
+  if (sub === "publish") return void applyPrefillPublish().catch(() => {});
   const onStore = sub !== "deploy";
   const appId = onStore ? new URLSearchParams(location.search).get("app") : null;
   if (appId) renderDetail(appId); else { renderApps(); renderFeatured(); }
@@ -1585,7 +1612,7 @@ function onCardAction(e){
   if (act === "deploy") quickDeploy(app, app.versions[idx], idx);
   else if (act === "delist"){ if (confirm("Delist this whole app? It stays on-chain but is hidden from the store - you (and the catalog owner) still see it here, with a relist button.")) setActiveTx(app.slug, false); }
   else if (act === "relist") setActiveTx(app.slug, true);
-  else if (act === "newver") prefillPublish(app);
+  else if (act === "newver") prefillPublish(app).catch(() => {});
   else if (act === "yank"){ if (confirm("Yank version " + app.versions[idx].version + "? It stays on-chain but readers hide it.")) yankTx(app.slug, idx); }
   else if (act === "verify") setVerifiedTx(app.appId, idx, verified);
   else if (act === "approve") setApprovalTx(app.appId, idx, APPROVAL.approved);
