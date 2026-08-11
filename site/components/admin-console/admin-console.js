@@ -27,6 +27,31 @@ import { MIG_KINDS, importState, sealTx, encCallX, escrowPlan, approveTx, refund
 // halving the gas budget shrinks calldata by the same factor. Both axes matter:
 // a provider can refuse on either, and we do not know which one it refused on.
 const GAS_PER_BYTE_BUDGET = 375;
+
+/* Wait until the SIGNER'S OWN RPC agrees the last transaction is mined.
+   waitReceipt watches a public pool, which can see a receipt before the
+   wallet's endpoint does — and the wallet picks the next nonce from ITS view.
+   Send too soon and it hands out a nonce the chain has already consumed:
+     Infura eth_sendRawTransaction: nonce=273 minNonce=274: nonce too low
+   which aborted a run that was otherwise succeeding. Cheap to wait, and it is
+   the wallet's number that has to move, not ours. */
+async function awaitNonce(after) {
+  for (let i = 0; i < 30; i++) {
+    try {
+      const n = Number(BigInt(await Enclave.provider.request({
+        method: "eth_getTransactionCount", params: [Enclave.address, "latest"] })));
+      if (n > after) return n;
+    } catch (_) { return after + 1; }        // cannot ask: do not block the run
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  return after + 1;
+}
+const walletNonce = async () => {
+  try {
+    return Number(BigInt(await Enclave.provider.request({
+      method: "eth_getTransactionCount", params: [Enclave.address, "latest"] })));
+  } catch (_) { return null; }
+};
 import { vaultImplCurrent, scanVaults, planVaultMigration, oldTreasury, balanceOf6 } from "./vaultmig.js";
 import { metricsPanel, paintMetrics, paintHistory, loadMetrics, redrawPlots } from "./metrics.js";
 
@@ -1203,9 +1228,19 @@ class AdminConsole extends EnclaveElement {
               for (let i = 0; i < txs.length; i++) {
                 log("p", `[${i + 1}/${txs.length}] ${txs[i].label} - confirm in your wallet…`);
                 let hash;
+                const nonceBefore = await walletNonce();
                 try {
                   hash = await sendTx(tgt, txs[i].dataHex, undefined, txs[i].gas);
                 } catch (e) {
+                  // The wallet handed out a nonce the chain had already used —
+                  // its view lagged ours. Nothing was sent; let it catch up and
+                  // retry the SAME batch rather than failing the whole run.
+                  if (/nonce too low|minNonce/i.test(e.message || "")) {
+                    log("p", "  the wallet reused a nonce (its view lagged the chain) - waiting for it to catch up and retrying");
+                    if (nonceBefore != null) await awaitNonce(nonceBefore - 1);
+                    i--;                     // same batch again
+                    continue;
+                  }
                   // Providers cap per-transaction gas and NAME the cap when they
                   // refuse (Infura: "exceeds maximum per-tx gas limit: A > B").
                   // Take them at their word and re-plan to fit rather than
@@ -1225,6 +1260,9 @@ class AdminConsole extends EnclaveElement {
                 log("p", `  sent ${hash.slice(0, 14)}… waiting…`);
                 try {
                   await waitReceipt(hash, 90);
+                  // …and let the wallet see it land before asking for the next
+                  // nonce, or it will hand out this one again
+                  if (nonceBefore != null) await awaitNonce(nonceBefore);
                 } catch (e) {
                   if (!/does not have this transaction/.test(e.message || "")) throw e;
                   // Halving has a FLOOR that is not MIN_GAS_BUDGET: one record
