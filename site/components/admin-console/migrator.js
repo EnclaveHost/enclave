@@ -183,3 +183,20 @@ export async function runCost(txs) {
   const gas = txs.reduce((n, t) => n + BigInt(Math.min(Math.round((t.gas || 1e6) * 1.25), Number(MAX_TX_GAS))), 0n);
   return gas * maxFeePerGas;
 }
+
+/* Return whatever the run did not spend. The migrator signs this itself, so it
+   costs the operator no approval — and it means funding the migrator is a loan
+   for the length of a migration rather than money parked in a side account.
+   A plain transfer is 21000 gas; anything at or below that is dust and not
+   worth a transaction, so it just stays for next time. */
+export async function sweepTo(mig, to, chainId) {
+  const bal = await migratorBalance(mig.address);
+  const { maxFeePerGas, maxPriorityFeePerGas } = await feeData();
+  const cost = 21_000n * maxFeePerGas;
+  if (bal <= cost) return 0n;
+  const value = bal - cost;
+  const nonce = await migratorNonce(mig.address);
+  const hash = await mig.send({ to, data: "0x", gas: 21_000n, nonce, chainId, maxFeePerGas, maxPriorityFeePerGas, value });
+  await waitMined(hash);
+  return value;
+}

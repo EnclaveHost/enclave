@@ -1255,13 +1255,8 @@ class AdminConsole extends EnclaveElement {
             const MG = await import("./migrator.js");
             log("p", "deriving the migrator identity - approve the signature (no gas, no transaction)…");
             const mig = await MG.deriveMigrator();
-            const bal = await MG.migratorBalance(mig.address);
+            let bal = await MG.migratorBalance(mig.address);
             log("ok", `migrator ${mig.address} · ${(Number(bal) / 1e18).toFixed(5)} ETH`);
-            if (bal === 0n) {
-              log("err", `fund ${mig.address} with a little Base ETH (~$5 covers a full catalog) and click again. `
-                       + `This is the same address every time - fund it once and it is reused for every migration.`);
-              return;
-            }
 
             // the migrator must own the target to import into it
             const owner = await ownerOf(tgt);
@@ -1292,21 +1287,21 @@ class AdminConsole extends EnclaveElement {
               // migrator must actually hold; running out at transaction 20
               // leaves a half-migrated target and a cryptic error, when the
               // shortfall was knowable before the first one.
+              // Top the migrator up FROM HERE rather than making the operator
+              // copy an address and guess an amount. The cost is only knowable
+              // once the plan exists, which is why this sits after planning.
+              // EIP-1559 reserves maxFee x gas, so that reservation — not the
+              // expected spend — is what has to be covered.
               const need = await MG.runCost(txs);
-              if (bal * BigInt(txs.length) < need) {
-                // can't even cover a few batches: stopping now is kinder than
-                // a half-migrated target
-                log("err", `the migrator holds ${(Number(bal) / 1e18).toFixed(5)} ETH, nowhere near the `
-                         + `${(Number(need) / 1e18).toFixed(5)} ETH this run reserves. Fund ${mig.address} and click again.`);
-                return;
+              if (bal < need) {
+                const top = need - bal + need / 5n;          // 20% over, for the re-price and the tail
+                log("p", `funding the migrator with ${(Number(top) / 1e18).toFixed(5)} ETH - approve the transfer `
+                       + `(reserves ${(Number(need) / 1e18).toFixed(5)}; the unspent remainder comes back at the end)…`);
+                const fh = await sendTx(mig.address, "0x", "0x" + top.toString(16));
+                await waitReceipt(fh, 90);
+                bal = await MG.migratorBalance(mig.address);
+                log("ok", `  ✓ migrator funded · ${(Number(bal) / 1e18).toFixed(5)} ETH`);
               }
-              if (bal < need)
-                // WARN, do not block: the reservation is a worst case (actual
-                // spend is roughly a third), and the plan is delta-resumable —
-                // if it does run dry, topping up and clicking again continues
-                // from wherever it stopped.
-                log("p", `heads up: this run reserves up to ${(Number(need) / 1e18).toFixed(5)} ETH and the migrator holds `
-                       + `${(Number(bal) / 1e18).toFixed(5)}. Actual spend is usually well under that; if it runs dry, top up and click again.`);
               log("p", `${txs.length} transaction${txs.length === 1 ? "" : "s"}, sent by the migrator - no further approvals`);
               await runAsMigrator(mig, tgt, txs, log);
             }
@@ -1324,6 +1319,14 @@ class AdminConsole extends EnclaveElement {
             log("p", `offering ownership to ${Enclave.address}…`);
             await runAsMigrator(mig, tgt, [{ label: "hand ownership over", gas: 80_000,
               dataHex: encCallX(handoverSel(m.contractName), [{ t: "addr", v: Enclave.address }]) }], log);
+
+            // hand the unspent gas money back before the last approval; the
+            // migrator signs it, so it costs nothing and the funding above
+            // becomes a loan rather than a balance parked somewhere
+            try {
+              const back = await MG.sweepTo(mig, Enclave.address, BASE_CHAIN);
+              if (back > 0n) log("ok", `returned ${(Number(back) / 1e18).toFixed(5)} ETH of unspent gas to you`);
+            } catch (e) { log("p", `(could not return the unspent gas: ${friendly(e)} - it stays with the migrator for next time)`); }
 
             log("p", "one approval left - confirm acceptOwnership in your wallet…");
             const h = await sendTx(tgt, "0x" + CONTRACTS[m.contractName].sel.acceptOwnership);
