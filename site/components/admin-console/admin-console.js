@@ -55,11 +55,17 @@ const pendingOwnerOf = (to) => _addrRead(to, CONTRACTS.EnclaveAppCatalog.sel.pen
    what produced the "nonce too low" aborts in the wallet-driven path, because
    two parties then disagree about what has landed. Gas is measured per batch
    and clamped to what Base actually mines. */
-async function runAsMigrator(mig, to, txs, log) {
+async function runAsMigrator(mig, to, txs, log, seq) {
   const MG = await import("./migrator.js");
   const chainId = BASE_CHAIN;
   let fees = await MG.feeData();
-  let nonce = await MG.migratorNonce(mig.address);
+  // The nonce is counted ONCE for the whole migration and carried across every
+  // call, never re-read between them. Re-reading is the bug that broke the
+  // wallet-driven path: waitMined confirms a receipt on one pool member while
+  // the next read can land on another that has not caught up, hand back a
+  // stale count, and reuse a nonce. We are the only sender here, so counting
+  // is exact and asking can only be wrong.
+  if (seq.nonce == null) seq.nonce = await MG.migratorNonce(mig.address);
   for (const [i, t] of txs.entries()) {
     // Re-price periodically: a long run can outlive its fee quote, and a base
     // fee that climbs past maxFeePerGas leaves the remaining transactions
@@ -67,7 +73,7 @@ async function runAsMigrator(mig, to, txs, log) {
     if (i && i % 10 === 0) fees = await MG.feeData();
     const gas = await MG.gasFor({ from: mig.address, to, data: t.dataHex }, t.gas || 1_000_000);
     log("p", `[${i + 1}/${txs.length}] ${t.label} …`);
-    const hash = await mig.send({ to, data: t.dataHex, gas, nonce: nonce++, chainId, ...fees });
+    const hash = await mig.send({ to, data: t.dataHex, gas, nonce: seq.nonce++, chainId, ...fees });
     const rc = await MG.waitMined(hash);
     log("ok", `  ✓ ${t.label} · ${(Number(BigInt(rc.gasUsed)) / 1e6).toFixed(1)}M gas`);
   }
@@ -1255,6 +1261,7 @@ class AdminConsole extends EnclaveElement {
             const MG = await import("./migrator.js");
             log("p", "deriving the migrator identity - approve the signature (no gas, no transaction)…");
             const mig = await MG.deriveMigrator();
+            const seq = {};                       // the migrator's nonce, counted across the whole run
             let bal = await MG.migratorBalance(mig.address);
             log("ok", `migrator ${mig.address} · ${(Number(bal) / 1e18).toFixed(5)} ETH`);
 
@@ -1305,12 +1312,12 @@ class AdminConsole extends EnclaveElement {
             if (mustAccept) {
               log("p", "accepting ownership as the migrator…");
               await runAsMigrator(mig, tgt, [{ label: "acceptOwnership", gas: 80_000,
-                dataHex: "0x" + CONTRACTS[m.contractName].sel.acceptOwnership }], log);
+                dataHex: "0x" + CONTRACTS[m.contractName].sel.acceptOwnership }], log, seq);
             }
             if (!txs.length) log("ok", "nothing to import - target already holds everything.");
             else {
               log("p", `${txs.length} transaction${txs.length === 1 ? "" : "s"}, sent by the migrator - no further approvals`);
-              await runAsMigrator(mig, tgt, txs, log);
+              await runAsMigrator(mig, tgt, txs, log, seq);
             }
 
             // verify EVERYTHING before handing it over; a bad copy must not be
@@ -1325,7 +1332,7 @@ class AdminConsole extends EnclaveElement {
 
             log("p", `offering ownership to ${Enclave.address}…`);
             await runAsMigrator(mig, tgt, [{ label: "hand ownership over", gas: 80_000,
-              dataHex: encCallX(handoverSel(m.contractName), [{ t: "addr", v: Enclave.address }]) }], log);
+              dataHex: encCallX(handoverSel(m.contractName), [{ t: "addr", v: Enclave.address }]) }], log, seq);
 
             // hand the unspent gas money back before the last approval; the
             // migrator signs it, so it costs nothing and the funding above
