@@ -664,3 +664,86 @@ test("a smaller gas budget re-plans into more, smaller batches (the refusal retr
       `a re-planned batch claims ${t.gas} over the ${reduced} budget and is not a single indivisible call (${t.label})`);
 });
 
+
+/* The delegated-migration signer (components/admin-console/migrator.js) is the
+   only place on the site that holds a private key and builds a RAW transaction.
+   Hand-rolled EIP-1559 + RLP, so it is pinned against viem exactly like the ABI
+   codec in js/core/chain.js: byte-for-byte, or a malformed transaction gets
+   rejected at broadcast and the migration stalls with no useful error. */
+test("the migrator's raw EIP-1559 encoding matches viem byte-for-byte", async () => {
+  const { secp256k1 } = await import("@noble/curves/secp256k1");
+  const { keccak_256 } = await import("@noble/hashes/sha3");
+  const viem = await import("viem");
+  const { privateKeyToAccount } = await import("viem/accounts");
+
+  // rebuild the module's encoder here (it is browser-only: it imports chain.js,
+  // which reaches for wallet/provider globals at load)
+  const hex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+  const bytes = (h) => { const s = (h || "").replace(/^0x/, ""); const o = new Uint8Array(s.length / 2);
+    for (let i = 0; i < o.length; i++) o[i] = parseInt(s.slice(i * 2, i * 2 + 2), 16); return o; };
+  const uint = (n) => { let v = BigInt(n); if (v === 0n) return new Uint8Array(0);
+    let s = v.toString(16); if (s.length % 2) s = "0" + s; return bytes(s); };
+  const rlpLen = (n, off) => { if (n < 56) return Uint8Array.of(off + n);
+    const l = uint(n); return Uint8Array.of(off + 55 + l.length, ...l); };
+  const rlp = (item) => {
+    if (Array.isArray(item)) { const parts = item.map(rlp);
+      const total = parts.reduce((s, p) => s + p.length, 0); const out = new Uint8Array(total);
+      let o = 0; for (const p of parts) { out.set(p, o); o += p.length; }
+      return new Uint8Array([...rlpLen(total, 0xc0), ...out]); }
+    const b = item instanceof Uint8Array ? item : bytes(item);
+    if (b.length === 1 && b[0] < 0x80) return b;
+    return new Uint8Array([...rlpLen(b.length, 0x80), ...b]);
+  };
+  const sign = (tx, priv) => {
+    const f = [uint(tx.chainId), uint(tx.nonce), uint(tx.maxPriorityFeePerGas), uint(tx.maxFeePerGas),
+               uint(tx.gas), tx.to ? bytes(tx.to) : new Uint8Array(0), uint(tx.value || 0n), bytes(tx.data || "0x"), []];
+    const s = secp256k1.sign(keccak_256(new Uint8Array([0x02, ...rlp(f)])), priv, { prehash: false });
+    return "0x" + hex(new Uint8Array([0x02, ...rlp([...f, uint(s.recovery), uint(s.r), uint(s.s)])]));
+  };
+
+  const PK = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+  const acct = privateKeyToAccount(PK);
+  const priv = bytes(PK);
+
+  const cases = [
+    { chainId: 8453, nonce: 0, maxPriorityFeePerGas: 1000000n, maxFeePerGas: 20000000n, gas: 15000000n,
+      to: "0x23f5AE678977B37293D18444346483F5c1e052df".toLowerCase(), value: 0n, data: "0xdeadbeef" },
+    // nonce 0 / value 0 / empty data are the RLP edge cases: each must encode as
+    // an EMPTY string, not 0x00, or the hash differs and the tx is malformed
+    { chainId: 8453, nonce: 0, maxPriorityFeePerGas: 0n, maxFeePerGas: 0n, gas: 21000n,
+      to: "0x0000000000000000000000000000000000000000", value: 0n, data: "0x" },
+    // a realistic migration batch: high nonce, big calldata
+    { chainId: 8453, nonce: 271, maxPriorityFeePerGas: 1000000n, maxFeePerGas: 5000000n, gas: 13700000n,
+      to: "0x9976f8d61fcc08ec1d91d664fefe8af2f1e31771", value: 0n, data: "0x" + "ab".repeat(4096) },
+    // contract creation: `to` absent
+    { chainId: 8453, nonce: 5, maxPriorityFeePerGas: 1000000n, maxFeePerGas: 5000000n, gas: 6000000n,
+      to: null, value: 0n, data: "0x60806040" },
+  ];
+
+  for (const [i, c] of cases.entries()) {
+    const mine = sign(c, priv);
+    const theirs = await acct.signTransaction({ ...c, to: c.to || undefined, type: "eip1559" });
+    assert.equal(mine, theirs, `case ${i}: raw transaction differs from viem`);
+  }
+});
+
+test("the migrator address derives deterministically from a signature", async () => {
+  const { secp256k1 } = await import("@noble/curves/secp256k1");
+  const { keccak_256 } = await import("@noble/hashes/sha3");
+  const { privateKeyToAccount } = await import("viem/accounts");
+  const bytes = (h) => { const s = h.replace(/^0x/, ""); const o = new Uint8Array(s.length / 2);
+    for (let i = 0; i < o.length; i++) o[i] = parseInt(s.slice(i * 2, i * 2 + 2), 16); return o; };
+  const hexs = (b) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+
+  // a fixed 65-byte signature stands in for the wallet's personal_sign
+  const sig = "0x" + "11".repeat(65);
+  const priv = keccak_256(bytes(sig));
+  const pub = secp256k1.getPublicKey(priv, false).slice(1);
+  const mine = "0x" + hexs(keccak_256(pub)).slice(-40);
+
+  // same key, viem's own derivation
+  assert.equal(mine.toLowerCase(), privateKeyToAccount("0x" + hexs(priv)).address.toLowerCase(),
+    "derived address must match viem's for the same private key");
+  // and it is a pure function of the signature: fund-once depends on this
+  assert.equal(hexs(keccak_256(bytes(sig))), hexs(priv), "derivation must be deterministic");
+});

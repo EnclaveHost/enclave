@@ -19,7 +19,7 @@ import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { Enclave } from "../../js/core/api.js";
 import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
 import { baseRpc, waitReceipt, encCall, hexBig, decodeStructArray, CAMPAIGN_SCHEMA, APP_SCHEMA, DEP_SEL } from "../../js/core/chain.js";
-import { ADDRESS_BOOK_ADDRESS, USDC_BASE, DEFAULT_API_BASE } from "../../js/core/config.js";
+import { ADDRESS_BOOK_ADDRESS, USDC_BASE, DEFAULT_API_BASE, BASE_CHAIN } from "../../js/core/config.js";
 import { esc, on, short, showToast } from "../../js/core/util.js";
 import { CONTRACTS } from "../../js/gen/contract-artifacts.js";
 import { MIG_KINDS, importState, sealTx, encCallX, escrowPlan, approveTx, refundSweepPlan, GAS_BUDGET, MIN_GAS_BUDGET } from "./migrate.js";
@@ -27,6 +27,36 @@ import { MIG_KINDS, importState, sealTx, encCallX, escrowPlan, approveTx, refund
 // halving the gas budget shrinks calldata by the same factor. Both axes matter:
 // a provider can refuse on either, and we do not know which one it refused on.
 const GAS_PER_BYTE_BUDGET = 375;
+
+/* Read an ownable contract's owner / pendingOwner without an ABI: both are
+   plain address getters, so the answer is the last 20 bytes of one word. */
+const _addrRead = async (to, sel) => {
+  try {
+    const r = await baseRpc("eth_call", [{ to, data: "0x" + sel }, "latest"], { emptyRetry: true });
+    return (r && r !== "0x") ? "0x" + r.replace(/^0x/, "").slice(24) : null;
+  } catch (_) { return null; }
+};
+const ownerOf = (to) => _addrRead(to, CONTRACTS.EnclaveAppCatalog.sel.owner);
+const pendingOwnerOf = (to) => _addrRead(to, CONTRACTS.EnclaveAppCatalog.sel.pendingOwner);
+
+/* Run a planned batch AS THE MIGRATOR: sign locally, broadcast raw, wait, next.
+   One sender and a locally counted nonce — asking the chain between sends is
+   what produced the "nonce too low" aborts in the wallet-driven path, because
+   two parties then disagree about what has landed. Gas is measured per batch
+   and clamped to what Base actually mines. */
+async function runAsMigrator(mig, to, txs, log) {
+  const MG = await import("./migrator.js");
+  const fees = await MG.feeData();
+  const chainId = BASE_CHAIN;
+  let nonce = await MG.migratorNonce(mig.address);
+  for (const [i, t] of txs.entries()) {
+    const gas = await MG.gasFor({ from: mig.address, to, data: t.dataHex }, t.gas || 1_000_000);
+    log("p", `[${i + 1}/${txs.length}] ${t.label} …`);
+    const hash = await mig.send({ to, data: t.dataHex, gas, nonce: nonce++, chainId, ...fees });
+    const rc = await MG.waitMined(hash);
+    log("ok", `  ✓ ${t.label} · ${(Number(BigInt(rc.gasUsed)) / 1e6).toFixed(1)}M gas`);
+  }
+}
 
 /* Wait until the SIGNER'S OWN RPC agrees the last transaction is mined.
    waitReceipt watches a public pool, which can see a receipt before the
@@ -544,6 +574,7 @@ class AdminConsole extends EnclaveElement {
         <div class="ac-mig-actions">
           <button class="btn btn-sm" data-act="mig-read">Read source</button>
           <button class="btn btn-primary btn-sm" data-act="mig-run" disabled>Migrate</button>
+          <button class="btn btn-sm" data-act="mig-run1" disabled>Migrate · one approval</button>
           <button class="btn btn-sm" data-act="mig-escrow" disabled>Back escrow (USDC)</button>
           <button class="btn btn-sm" data-act="mig-verify" disabled>Verify</button>
           <button class="btn btn-sm ac-danger-btn" data-act="mig-seal" disabled>Seal target imports</button>
@@ -660,13 +691,13 @@ class AdminConsole extends EnclaveElement {
     if (keep && M.target) this._body.querySelector("#migTarget").value = M.target;
     if (!keep) this._mig = { kind: kindSel.value, data: null };
     const st = this._mig;
-    for (const a of ["mig-run", "mig-escrow", "mig-verify", "mig-seal"]) {
+    for (const a of ["mig-run", "mig-run1", "mig-escrow", "mig-verify", "mig-seal"]) {
       const b = this._body.querySelector(`[data-act="${a}"]`);
       if (!b) continue;
       // restore what the flow had unlocked: a source read unlocks run+verify,
       // a migrate pass unlocks the escrow step, and seal unlocks once verify
       // has RUN (clean or not - the warning lives at the seal, not the gate)
-      b.disabled = !(keep && st.data && (a === "mig-run" || a === "mig-verify"
+      b.disabled = !(keep && st.data && (a === "mig-run" || a === "mig-run1" || a === "mig-verify"
         || (a === "mig-escrow" && st.ranImport) || (a === "mig-seal" && st.verified)));
       if (a === "mig-seal") { delete b.dataset.armed; b.textContent = "Seal target imports"; }
     }
@@ -1188,6 +1219,85 @@ class AdminConsole extends EnclaveElement {
         if (!needMig(ADDR_RE.test(tgt), "enter the target contract address (the new deploy)")) return;
         if (!needMig(lc(tgt) !== lc(src), "source and target are the same contract")) return;
         M.target = tgt;
+
+        /* One approval for the whole migration. Every import gates on
+           msg.sender == owner and nothing else, so a MIGRATOR identity derived
+           from one wallet signature owns the target and does the work
+           unattended; governance signs only acceptOwnership at the end, which
+           is the moment it takes the finished contract on. Until then the
+           target is unreferenced — no address book points at it.
+
+           The derivation is deterministic (see migrator.js), so this is the
+           SAME migrator address every time: fund it once and reuse it. */
+        if (act === "mig-run1") {
+          btn.disabled = true;
+          try {
+            const st = await importState(tgt, m.contractName);
+            if (!need(st.capable, "target has no import surface - deploy a fresh " + m.contractName + " from the card above")) return;
+            if (!need(!st.sealed, "target's imports are permanently sealed - deploy a fresh target")) return;
+            await this._connect();
+
+            const MG = await import("./migrator.js");
+            log("p", "deriving the migrator identity - approve the signature (no gas, no transaction)…");
+            const mig = await MG.deriveMigrator();
+            const bal = await MG.migratorBalance(mig.address);
+            log("ok", `migrator ${mig.address} · ${(Number(bal) / 1e18).toFixed(5)} ETH`);
+            if (bal === 0n) {
+              log("err", `fund ${mig.address} with a little Base ETH (~$5 covers a full catalog) and click again. `
+                       + `This is the same address every time - fund it once and it is reused for every migration.`);
+              return;
+            }
+
+            // the migrator must own the target to import into it
+            const owner = await ownerOf(tgt);
+            if (!owner) { log("err", "couldn't read the target's owner"); return; }
+            if (lc(owner) !== lc(mig.address)) {
+              const pend = await pendingOwnerOf(tgt);
+              if (lc(pend) === lc(mig.address)) {
+                log("p", "accepting ownership as the migrator…");
+                await runAsMigrator(mig, tgt, [{ label: "acceptOwnership", dataHex: "0x" + CONTRACTS[m.contractName].sel.acceptOwnership, gas: 80_000 }], log);
+              } else {
+                log("err", `the target is owned by ${owner}, so the migrator cannot import into it. `
+                         + `Hand it over once with the Migrate button's wallet (transferOwnership(${mig.address})), `
+                         + `or deploy a fresh target from the migrator.`);
+                return;
+              }
+            }
+
+            log("p", "reading the target to plan the delta…");
+            const after = await m.read(tgt);
+            const opts = await migOpts();
+            const mb = parseFloat(val("migBudget"));
+            const gasBudget = (mb > 0 ? Math.round(mb * 1e6) : null) || GAS_BUDGET;
+            const txs = m.plan(M.data, after, { ...opts, gasBudget, dataBudget: Math.round(gasBudget / GAS_PER_BYTE_BUDGET) });
+            if (!txs.length) log("ok", "nothing to import - target already holds everything.");
+            else {
+              log("p", `${txs.length} transaction${txs.length === 1 ? "" : "s"}, sent by the migrator - no further approvals`);
+              await runAsMigrator(mig, tgt, txs, log);
+            }
+
+            // verify EVERYTHING before handing it over; a bad copy must not be
+            // something governance is invited to accept
+            log("p", "verifying the target against the source, field by field…");
+            const v = await m.verify(M.data, tgt);
+            log(v.bad.length ? "err" : "ok", `${v.ok}/${v.total} records verified`
+              + (v.bad.length ? ` · MISMATCHED: ${v.bad.join(", ")}` : ""));
+            if (v.bad.length) { log("err", "not handing over a target that does not match the source."); return; }
+            M.ranImport = true; M.verified = true;
+            enable("mig-escrow", true); enable("mig-seal", true);
+
+            log("p", `offering ownership to ${Enclave.address}…`);
+            await runAsMigrator(mig, tgt, [{ label: "transferOwnership", gas: 80_000,
+              dataHex: encCallX(CONTRACTS[m.contractName].sel.transferOwnership, [{ t: "addr", v: Enclave.address }]) }], log);
+
+            log("p", "one approval left - confirm acceptOwnership in your wallet…");
+            const h = await sendTx(tgt, "0x" + CONTRACTS[m.contractName].sel.acceptOwnership);
+            await waitReceipt(h, 90);
+            log("ok", "✓ you own the migrated contract. Back escrow if this is the ledger, then Verify and Seal.");
+          } catch (err) { log("err", friendly(err)); }
+          finally { btn.disabled = false; }
+          return;
+        }
 
         if (act === "mig-run") {
           btn.disabled = true;
