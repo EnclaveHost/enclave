@@ -17,6 +17,10 @@
 import { BASE_CHAIN, BASE_CHAIN_HEX, USDC_BASE } from "./config.js";
 import { Enclave, EnclaveError } from "./api.js";
 import { baseRpc } from "./chain.js";
+// Measured from what Base actually includes (3,569 txs / 30 blocks: largest
+// per-tx gas limit 15.0M, nothing over 16M). Asking for more is accepted by
+// some RPCs and then never mined.
+const MAX_TX_GAS = 15_000_000n;
 import { $, $$, esc, short, lsGet, lsSet, fmtDur, copyText, showToast, emit } from "./util.js";
 import { qrSvg } from "../lib/qr.js";
 import { runlog } from "./runlog.js";
@@ -509,7 +513,19 @@ export async function sendTx(to, data, value, gasLimit){
     // (FAILED_WOULD_REVERT), which is indistinguishable from an endpoint
     // refusing the transaction. A caller's estimate being 2.8x low is exactly
     // how that happened, so do not send an estimate at face value.
-    tx.gas = "0x" + (BigInt(gasLimit) + BigInt(gasLimit) / 2n).toString(16);
+    // MEASURE before trusting the caller. A model can be wrong in either
+    // direction and both hurt: too low reverts (or gets cancelled by a wallet
+    // pre-flight), too high inflates batches past what the chain will include.
+    // eth_estimateGas is authoritative when it answers; it refuses above its
+    // own cap, and then the caller's number stands.
+    let use = BigInt(gasLimit);
+    try {
+      const est = await baseRpc("eth_estimateGas", [{ ...tx, from: tx.from }]);
+      if (est) use = BigInt(est);
+    } catch(_){ /* over the estimator's cap, or unreachable: keep the estimate */ }
+    use = use + use / 4n;                       // 25% headroom on a measured number
+    if (use > MAX_TX_GAS) use = MAX_TX_GAS;     // never ask for more than the chain includes
+    tx.gas = "0x" + use.toString(16);
     return await Enclave.provider.request({ method: "eth_sendTransaction", params: [tx] });
   }
   // Otherwise: estimate (provider first, public Base RPC as fallback) and pad
