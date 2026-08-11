@@ -1209,7 +1209,7 @@ class AdminConsole extends EnclaveElement {
             M.data = await m.read(src);
             M.source = src;
             log("ok", `source holds ${m.counts(M.data)}`);
-            enable("mig-run", true); enable("mig-verify", true);
+            enable("mig-run", true); enable("mig-run1", true); enable("mig-verify", true);
           } catch (err) { log("err", "read failed: " + friendly(err)); }
           finally { btn.disabled = false; }
           return;
