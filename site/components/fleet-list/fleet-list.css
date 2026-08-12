@@ -9,6 +9,11 @@ c-fleet-list{display:contents;}
 .fleet-head{display:flex;align-items:center;gap:12px;}
 .fleet-name{color:var(--text);font-size:.76rem;overflow-wrap:anywhere;}
 
+/* a relay row has no pools to meter — it gets its region beside the name and a
+   one-line statement of what it does, in place of the CPU/GPU grid */
+.fleet-relay-region{font-family:var(--font-mono);font-size:.7rem;color:var(--text-dim);}
+.fleet-relay-note{display:block;margin-top:6px;font-family:var(--font-mono);font-size:.7rem;color:var(--text-dim);}
+
 /* one pool = a [label | meter | pct] grid line with the stat cells underneath;
    the meter flexes so the header line fits any aside width, the stats wrap */
 .fleet-pool{display:grid;grid-template-columns:48px minmax(48px,1fr) auto;align-items:center;column-gap:10px;row-gap:6px;}   /* label column fits "$2.50/hr" so the price can live under the label */

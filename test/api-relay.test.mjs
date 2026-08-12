@@ -273,8 +273,8 @@ test("api-relay: a free self-hosted row reads queued, never awaiting_payment or 
   // the plumbing that feeds all of the above: schema 4's field must survive
   // discoverRegistry's projection, or hostedFree is false
   assert.match(src, /payoutWallet: e\.payoutWallet \|\| null/);
-  assert.match(src, /\{ name: "payoutWallet", type: "address" \}\]/,
-    "the registry tuple must decode schema 4");
+  assert.match(src, /\{ name: "payoutWallet", type: "address" \},\n\s*\{ name: "caps", type: "uint64" \}, \{ name: "region", type: "string" \}\]/,
+    "the registry tuple must decode schema 4's payout wallet and schema 5's capability pair");
 });
 
 // ---------- fleet refuses the token: surface the 401, don't mask it ----------

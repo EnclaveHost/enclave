@@ -61,6 +61,19 @@ class FleetList extends EnclaveElement {
           // "metal0"); the endpoint-derived fallback covers older relays — and
           // strips ANY scheme, so a tunnel:// row never renders as a pseudo-URL
           const name = e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "enclave";
+          // A relay CARRIES traffic rather than running it (registry schema 5).
+          // It has no pools to meter and posts no price, so the row says what it
+          // is and where it is and stops: empty CPU/GPU meters would read as a
+          // box that is full, which is the opposite of the truth.
+          if (a.relay === true || e.relay === true)
+            return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
+              + '<span class="fleet-head">'
+              + '<span class="ap-badge">relay</span>'
+              + '<span class="fleet-name">' + esc(name) + '</span>'
+              + (a.region ? '<span class="fleet-relay-region">' + esc(a.region) + '</span>' : '')
+              + '</span>'
+              + '<span class="fleet-relay-note">carries traffic · runs no tenants</span>'
+              + '</div>';
           const s = serverSpec();   // adopted fleet hardware; display fallback for rows that omit their own
           const vramGb = a.cardVramGb || s.cardVramGb, tflops = a.cardTflops || s.cardTflops;
           const ramGb = a.nodeRamGb || s.nodeRamGb, vcpus = a.nodeVcpus || s.nodeVcpus;
