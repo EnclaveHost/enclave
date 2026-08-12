@@ -160,6 +160,25 @@ test("origins() follows enclaves and legacy rows, never relays", async (t) => {
     "the relay row is discovered, decoded, and deliberately not followed");
 });
 
+/* THE FOURTH COPY. The three getPage decoders are pinned byte-identical below,
+   which is why it is easy to forget that supervisor.js decodes the same struct
+   through get() with a shape of its own — and its own comment demands that
+   every read "ask for exactly what the deployed registry answers", because a
+   mismatched tuple throws in viem rather than degrading. A copy that lags a
+   schema bump is a cutover outage in whichever service lagged, and the
+   supervisor is the one that would stop being able to read its OWN entry. */
+test("supervisor.js decodes the registry entry at every schema it may meet", () => {
+  const sup = fs.readFileSync(path.join(REPO, "supervisor.js"), "utf8");
+  assert.match(sup, /\{ name: "caps", type: "uint64" \}, \{ name: "region", type: "string" \}\] \}\] \}\];/,
+    "the get() tuple must carry schema 5's capability pair");
+  // one truncation per schema it can still meet, and a chooser that reaches the
+  // newest first — `rev >= 4` alone would ask a schema-5 registry for 11 fields
+  for (const n of [11, 10, 9])
+    assert.ok(sup.includes(`REGISTRY_GET_ABI_AT(${n})`), `no truncation for a ${n}-field registry`);
+  assert.match(sup, /rev >= 5 \? REGISTRY_GET_ABI : rev >= 4 \? REGISTRY_GET_ABI_V4/,
+    "the ABI chooser must test the newest schema first");
+});
+
 test("relay/fleet.mjs and relay/api-relay.js carry the same sniff and tuple", () => {
   // the three copies are separate services with their own ABIs; a drift here
   // is a cutover outage in whichever one lagged, so pin the shared shape
