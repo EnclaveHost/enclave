@@ -484,21 +484,29 @@ const REGISTRY_GET_ABI = [{ type: "function", name: "get", stateMutability: "vie
     { name: "endpoint", type: "string" }, { name: "repo", type: "string" }, { name: "measurement", type: "bytes32" },
     { name: "operator", type: "address" }, { name: "registeredAt", type: "uint64" }, { name: "lastSeen", type: "uint64" },
     { name: "active", type: "bool" }, { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" },
-    { name: "proofKey", type: "address" }, { name: "payoutWallet", type: "address" }] }] }];
+    { name: "proofKey", type: "address" }, { name: "payoutWallet", type: "address" },
+    { name: "caps", type: "uint64" }, { name: "region", type: "string" }] }] }];
 // The same shape truncated to each older schema: a registry that predates a
 // field decodes SHORT and viem throws on the tuple, so every read must ask for
 // exactly what the deployed registry answers or it would spam failures on an
-// older contract mid-migration. 11 fields = schema 4 (payout wallet), 10 =
-// schema 3 (proof key), 9 = schema 2 (prices only).
+// older contract mid-migration. 13 fields = schema 5 (caps + region), 11 =
+// schema 4 (payout wallet), 10 = schema 3 (proof key), 9 = schema 2 (prices
+// only). This is the FOURTH copy of the registry entry shape — the other three
+// (scripts/enclave-discover.mjs, relay/fleet.mjs, relay/api-relay.js) decode
+// getPage and are pinned byte-identical by test/registry-schema.test.mjs; this
+// one decodes get() and is pinned by its own assertion there. A copy that lags
+// a schema bump is a cutover outage in whichever service lagged.
 const REGISTRY_GET_ABI_AT = (n) => [{ type: "function", name: "get", stateMutability: "view",
   inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components:
     REGISTRY_GET_ABI[0].outputs[0].components.slice(0, n) }] }];
+const REGISTRY_GET_ABI_V4 = REGISTRY_GET_ABI_AT(11);
 const REGISTRY_GET_ABI_V3 = REGISTRY_GET_ABI_AT(10);
 const REGISTRY_GET_ABI_V2 = REGISTRY_GET_ABI_AT(9);
 async function registryEntry(id) {
   const rev = await registryRev();
   return chainClient.readContract({ address: getAddress(REGISTRY_ADDRESS),
-    abi: rev >= 4 ? REGISTRY_GET_ABI : rev >= 3 ? REGISTRY_GET_ABI_V3 : REGISTRY_GET_ABI_V2,
+    abi: rev >= 5 ? REGISTRY_GET_ABI : rev >= 4 ? REGISTRY_GET_ABI_V4
+       : rev >= 3 ? REGISTRY_GET_ABI_V3 : REGISTRY_GET_ABI_V2,
     functionName: "get", args: [id] });
 }
 
