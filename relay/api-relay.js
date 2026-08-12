@@ -796,6 +796,111 @@ async function pollAvailability() {
   updatedAt = new Date().toISOString();
 }
 
+// ---- the relay roster, and which deployment chose which relay --------------
+//
+// Two questions with one answer, because they have to agree. The console's
+// Network tab asks "which relays can this deployment pick"; DNS asks "what
+// address does <label>.app.enclave.host answer with". Both are computed here
+// from the same two facts — a relay's own /availability block, and the
+// deployment's on-chain options envelope — so every name the picker offers is a
+// name the zone can actually resolve, and a name it can't resolve is never
+// offered.
+//
+// A relay is named by its fleet row: an endpoint's first hostname label, or its
+// tunnel name. Those names must be unambiguous, so two relays answering to the
+// same name are BOTH dropped — the same rule zone 1 already applies to an
+// ambiguous id prefix, and for the same reason: a choice nobody can resolve is
+// worse than no choice at all.
+//
+// Membership here is "declares an address it relays on", NOT the `relay` badge.
+// The badge means a box sells no compute, which is a presentation rule; ANY
+// host may also carry network, and one that does is a legitimate choice — an
+// app placed on the same box as its relay is the shortest inbound path there
+// is. The badge rides along as `relayOnly` for surfaces that want to say which
+// kind of box it is.
+const RELAY_NAME_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;   // byte-for-byte the supervisor's envelope rule
+const RELAY_SERVICES = ["sni", "tcp", "udp", "egress", "tunnelHub"];
+// Last-good row per relay NAME. A relay that misses one availability poll drops
+// out of `live`, and rebuilding the roster from `live` alone would blank its
+// address and swing every deployment that chose it back to the default relay
+// for a whole DNS TTL. dns-relay already applies this rule to its net-map poll,
+// for the same reason: a flaky box must not blank its own names. The removal
+// signal is DEREGISTRATION — the name leaving the registry altogether — never a
+// failed poll.
+const relayMemo = new Map();
+const fleetName = (e) => String(e.name || endpointName(e.endpoint) || "").toLowerCase();
+function relayRowOf(e) {
+  const r = e.availability?.relay;
+  if (!r || typeof r !== "object" || Array.isArray(r)) return null;
+  const name = fleetName(e);
+  if (!RELAY_NAME_RE.test(name)) return null;        // unnameable in an envelope = unpickable
+  // A malformed or missing address leaves the row listed with address:null
+  // rather than dropping it: the box is still a fleet member worth seeing, and
+  // an addressless relay is simply one nothing can be pointed at (relayLabels
+  // requires an address, so no deployment can end up aimed at nowhere).
+  const addr  = String(r.address  || "").trim();
+  const addr6 = String(r.address6 || "").trim();
+  return {
+    name, endpoint: e.endpoint, relayOnly: e.relay === true,
+    address:  net.isIPv4(addr)  ? addr  : null,
+    address6: net.isIPv6(addr6) ? addr6 : null,
+    region: typeof r.region === "string" ? r.region.slice(0, 64) : null,
+    ports:  typeof r.ports  === "string" ? r.ports.slice(0, 64)  : null,
+    v6Prefix: typeof r.v6Prefix === "string" ? r.v6Prefix.slice(0, 64) : null,
+    services: Object.fromEntries(RELAY_SERVICES.map((k) => [k, r[k] === true])),
+  };
+}
+function relayRoster() {
+  const seen = new Map(), dup = new Set();
+  for (const e of live) {
+    const row = relayRowOf(e);                       // any box that declares one, badge or not
+    if (!row) continue;
+    if (seen.has(row.name)) { dup.add(row.name); continue; }
+    seen.set(row.name, row);
+  }
+  for (const n of dup) { seen.delete(n); relayMemo.delete(n); }
+  for (const [n, row] of seen) relayMemo.set(n, row);
+  const known = new Set([...registry, ...live].map(fleetName));
+  for (const n of [...relayMemo.keys()]) if (!known.has(n)) relayMemo.delete(n);
+  return [...relayMemo.values()]
+    .map((r) => ({ ...r, live: seen.has(r.name) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+// The subdomain label for a deployment id — the first 8 hex chars, the same
+// rule the site's appLabel and the enclaves' prefix resolution use.
+const appLabelOf = (id) => String(id).slice(2, 10).toLowerCase();
+// The `network.relay` a deployment's envelope names, or null. Deliberately
+// forgiving where the supervisor is strict: this reads a record that is already
+// on-chain, and a malformed one has already been refused by whatever tried to
+// run it — there is nothing left to fail closed about, and throwing here would
+// take the whole zone's answers down with one bad record.
+function relayChoiceOf(configCid) {
+  const s = String(configCid || "").trim();
+  if (!s.startsWith("{")) return null;
+  let o; try { o = JSON.parse(s); } catch { return null; }
+  const n = o && o.network;
+  if (!n || typeof n !== "object" || Array.isArray(n)) return null;
+  const r = String(n.relay || "").trim().toLowerCase();
+  return RELAY_NAME_RE.test(r) ? r : null;
+}
+// label -> the address its chosen relay answers on. A choice that names a relay
+// the fleet no longer has, or one that doesn't splice SNI, is simply ABSENT
+// here: the zone default carries it, which keeps the app reachable instead of
+// pointing its name at a box that cannot serve it. The preference is a
+// preference; reachability wins.
+function relayLabels(rows, roster) {
+  const by = new Map(roster.filter((r) => r.services.sni && (r.address || r.address6)).map((r) => [r.name, r]));
+  const out = {};
+  for (const d of rows) {
+    if (!/^0x[0-9a-f]{64}$/i.test(String(d.id || ""))) continue;
+    const r = by.get(relayChoiceOf(d.configCid));
+    if (!r) continue;
+    out[appLabelOf(d.id)] = { relay: r.name,
+      ...(r.address ? { a: r.address } : {}), ...(r.address6 ? { aaaa: r.address6 } : {}) };
+  }
+  return out;
+}
+
 // Share-based routing — same rule as enclave-discover.mjs. Deployments buy two
 // shares, so callers route on the shares they intend to buy (the app's specs
 // only set the MINIMUM shares — compute those from /availability's
@@ -1317,6 +1422,26 @@ async function gateway(u, req, res) {
   if (p === "/v1/deployments" && req.method === "GET") return listDeployments(u, req, res);
   const bare = p.match(/^\/v1\/deployments\/([A-Za-z0-9_-]+)$/);
   if (bare && req.method === "GET") return getDeployment(bare[1], u, req, res);
+
+  // The relay roster + the per-deployment choices made against it. Sits with
+  // the ledger reads ABOVE the fleet-down guard deliberately: this is DNS's
+  // input, and the app zone must not lose its per-deployment answers because
+  // the enclaves blinked. `relays: []` with zero live relays is the honest
+  // answer — every name falls back to the zone default, which is where it was.
+  if (p === "/v1/relays" && req.method === "GET") {
+    const relays = relayRoster();
+    let rows;
+    try { rows = await ledgerRows(); }
+    catch (e) {
+      // 503, NOT 200-with-empty-labels: an empty map is indistinguishable from
+      // "nobody chose a relay", and a consumer that believed it would move every
+      // deployment back to the default relay on one bad RPC read. The error
+      // makes the caller keep its last good map instead.
+      return json(res, 503, { error: "ledger_unavailable", relays, updatedAt,
+        message: "Could not read the deployments ledger just now; the relay roster is current but the per-deployment choices are not." }, req);
+    }
+    return json(res, 200, { updatedAt, relays, labels: relayLabels(rows, relays) }, req);
+  }
 
   if (!live.length) {
     // fleet-down answers that tell the truth about WHAT is down: the API
@@ -1862,7 +1987,7 @@ function handleRequest(req, res) {
     return gateway(u, req, res).catch((e) =>
       json(res, 502, { error: "gateway_error", message: e.message, updatedAt }, req));
 
-  json(res, 404, { error: "not_found", routes: ["/health", "/enclaves", "/route?gpuShare=0.25&cpuShare=0.05", "/v1/* /x/* /availability (fleet-routed to the enclaves)"] }, req);
+  json(res, 404, { error: "not_found", routes: ["/health", "/enclaves", "/v1/relays", "/route?gpuShare=0.25&cpuShare=0.05", "/v1/* /x/* /availability (fleet-routed to the enclaves)"] }, req);
 }
 
 // WebSocket upgrades. Node hands Upgrade requests to an 'upgrade' listener, not

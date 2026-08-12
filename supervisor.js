@@ -3213,8 +3213,17 @@ const RELAY_SERVICES = (() => {
   const region = (process.env.RELAY_REGION || "").trim();
   const prefix = (process.env.RELAY_V6_PREFIX || "").trim();   // the routed /64 the dedicated-IP features hand out of
   const ports  = (process.env.RELAY_PORTS || "").trim();       // the public port range this box will bind, as configured
+  // What the app zone answers with for a deployment that CHOOSES this box as
+  // its relay ({"network":{"relay":"…"}}). Without it the box still relays for
+  // the fleet default, but it cannot be picked: there is no address to point a
+  // name at. Declare the v6 half only if the passthrough listener really binds
+  // one — a chosen relay answers only from its own addresses, so an unbacked
+  // AAAA here is a black hole for every v6-preferring client.
+  const addr   = (process.env.RELAY_PUBLIC_ADDRESS  || "").trim();
+  const addr6  = (process.env.RELAY_PUBLIC_ADDRESS6 || "").trim();
   if (!Object.values(svc).some(Boolean)) return null;          // declares no service = not a relay, say nothing
-  return { ...svc, ...(region ? { region } : {}), ...(prefix ? { v6Prefix: prefix } : {}),
+  return { ...svc, ...(addr ? { address: addr } : {}), ...(addr6 ? { address6: addr6 } : {}),
+           ...(region ? { region } : {}), ...(prefix ? { v6Prefix: prefix } : {}),
            ...(ports ? { ports } : {}) };
 })();
 if (RELAY_SERVICES)

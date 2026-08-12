@@ -767,3 +767,104 @@ test("api-relay: a stale row on an ex-runner never shadows the ledger's live one
     "a box the chain says is not the runner must not declare the deployment dead");
   assert.equal(rows[0].ledger, true, "the ledger row answers instead of the ex-runner's copy");
 });
+
+/* ---------- /v1/relays: the roster, and the choices made against it ----------
+   One endpoint answers both halves of the same question, because they only mean
+   anything together. The console asks "which relays can this deployment pick";
+   DNS asks "what address does <label>.app.enclave.host answer with". A name the
+   picker offers that the zone cannot resolve is a trap, so both are derived here
+   from the same two facts: the relay's own /availability block, and the
+   deployment's on-chain options envelope.
+
+   Note the names. A fleet row is named by its endpoint's first hostname label,
+   so every box in this file - reached over loopback - is called "127". That is
+   not a quirk of the test: it is exactly the collision the roster has to handle,
+   and the second case below leans on it deliberately. */
+const relayBoxWith = (relay) => http.createServer((req, res) => {
+  res.setHeader("content-type", "application/json");
+  if (req.url === "/availability") return res.end(JSON.stringify({
+    gpu: false, type: "cpu", cpuShareFree: 0, gpuShareFree: 0, maxShare: 0,
+    nodeVcpus: 0, nodeRamGb: 0, claimEnabled: false, relay }));
+  res.statusCode = 404; res.end("{}");
+});
+
+test("api-relay: /v1/relays publishes the roster and resolves each deployment's choice to an address", async (t) => {
+  const box = relayBoxWith({ sni: true, tcp: false, udp: false, egress: false, tunnelHub: false,
+                             address: "198.51.100.9", region: "us-west", ports: "1-49999" });
+  box.listen(0, "127.0.0.1"); await once(box, "listening");
+  t.after(() => box.close());
+
+  // "127" is what this box is called (loopback's first hostname label), so that
+  // is the name a deployment has to write in its envelope to choose it.
+  const ledger = [
+    { id: ID("11"), owner: OWNER, appRef: "ipfs://a", active: true, balance6: 5_000_000,
+      configCid: JSON.stringify({ network: { relay: "127" } }) },
+    { id: ID("22"), owner: OWNER, appRef: "ipfs://b", active: true, balance6: 5_000_000,
+      configCid: JSON.stringify({ waf: { rps: 10 }, network: { relay: "nowhere" } }) },   // names a relay the fleet doesn't have
+    { id: ID("33"), owner: OWNER, appRef: "ipfs://c", active: true, balance6: 5_000_000 }, // no envelope at all
+  ];
+  const origin = await startRelay(t, { enclaves: `http://127.0.0.1:${box.address().port}`, ledger });
+
+  const { status, body } = await getJson(origin, "/v1/relays");
+  assert.equal(status, 200);
+  assert.equal(body.relays.length, 1);
+  const r = body.relays[0];
+  assert.equal(r.name, "127");
+  assert.equal(r.address, "198.51.100.9");
+  assert.equal(r.region, "us-west");
+  assert.equal(r.live, true);
+  assert.equal(r.relayOnly, true, "a box with no resources only relays - the console badges it as one");
+  assert.equal(r.services.sni, true);
+  assert.equal(r.services.egress, false, "services it did not declare are false, never absent");
+
+  // the choice, resolved: label -> the address the zone must answer with
+  assert.deepEqual(body.labels["11111111"], { relay: "127", a: "198.51.100.9" });
+  // a choice naming a relay the fleet no longer has is simply ABSENT: the zone
+  // default carries that app, which keeps it reachable. A preference is a
+  // preference; pointing a live app at a box that cannot serve it is not a
+  // stricter reading of the owner's wishes, it is an outage.
+  assert.equal(body.labels["22222222"], undefined);
+  assert.equal(body.labels["33333333"], undefined, "no envelope, no override");
+  assert.equal(Object.keys(body.labels).length, 1);
+});
+
+test("api-relay: two relays answering to one name are both dropped, and no deployment resolves to either", async (t) => {
+  const a = relayBoxWith({ sni: true, address: "198.51.100.9",  region: "us-west" });
+  const b = relayBoxWith({ sni: true, address: "198.51.100.10", region: "eu-north" });
+  for (const s of [a, b]) { s.listen(0, "127.0.0.1"); await once(s, "listening"); }
+  t.after(() => { a.close(); b.close(); });
+
+  const ledger = [{ id: ID("11"), owner: OWNER, appRef: "ipfs://a", active: true, balance6: 5_000_000,
+                    configCid: JSON.stringify({ network: { relay: "127" } }) }];
+  const origin = await startRelay(t, { enclaves:
+    `http://127.0.0.1:${a.address().port},http://127.0.0.1:${b.address().port}`, ledger });
+
+  const { body } = await getJson(origin, "/v1/relays");
+  // Zone 1 already NXDOMAINs an ambiguous id prefix rather than guessing, and
+  // the same rule holds here: a name that could mean two boxes means neither.
+  // Dropping both is also what makes the name safe to hand an owner - if a
+  // colliding row could win, registering a box would be a way to hijack, or
+  // simply to deny, a name someone else's app already points at.
+  assert.deepEqual(body.relays, [], "an ambiguous name is no name");
+  assert.deepEqual(body.labels, {}, "and the deployment that chose it falls back to the zone default");
+});
+
+test("api-relay: a relay that does not splice SNI is listed but cannot front an app subdomain", async (t) => {
+  // egress + dedicated-IP TCP are real relay services; neither can answer an
+  // app's name. Listing it and refusing to point a name at it is the honest
+  // split - the box exists, it just isn't an answer to THIS question.
+  const box = relayBoxWith({ sni: false, tcp: true, egress: true, address: "198.51.100.9",
+                             v6Prefix: "2a01:4f9:c013:9b52::/64" });
+  box.listen(0, "127.0.0.1"); await once(box, "listening");
+  t.after(() => box.close());
+
+  const ledger = [{ id: ID("11"), owner: OWNER, appRef: "ipfs://a", active: true, balance6: 5_000_000,
+                    configCid: JSON.stringify({ network: { relay: "127" } }) }];
+  const origin = await startRelay(t, { enclaves: `http://127.0.0.1:${box.address().port}`, ledger });
+
+  const { body } = await getJson(origin, "/v1/relays");
+  assert.equal(body.relays.length, 1, "still a fleet member worth seeing");
+  assert.equal(body.relays[0].services.sni, false);
+  assert.equal(body.relays[0].v6Prefix, "2a01:4f9:c013:9b52::/64");
+  assert.deepEqual(body.labels, {}, "but nothing resolves to it, so no app is pointed at a black hole");
+});

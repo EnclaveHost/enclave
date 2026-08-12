@@ -15,6 +15,8 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import net from "node:net";
+import http from "node:http";
+import { once } from "node:events";
 import { createHmac } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,6 +26,15 @@ const KEY = "11".repeat(32);                       // the DERIVED DNS_TXT_KEY, 6
 const APP_ZONE = "app.test", IP_ZONE = "ip.test";
 
 let proc, dnsPort, apiPort;
+
+// The API relay's /v1/relays, stubbed: which deployments chose a relay, and the
+// address that relay answers on. "chosen4" took a v4-only relay, "chosen6" a
+// v6-only one; every other label in the zone made no choice at all.
+const RELAY_MAP = { labels: {
+  chosen4: { relay: "us-west", a: "198.51.100.9" },
+  chosen6: { relay: "v6only",  aaaa: "2001:db8:beef::9" },
+} };
+let mapServer, mapPort;
 
 const freePort = () => new Promise((res) => {
   const s = net.createServer().listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => res(p)); });
@@ -42,7 +53,8 @@ async function boot() {
   const p = spawn(process.execPath, [path.join(ROOT, "relay", "dns-relay.js")], {
     env: { ...process.env, IP_ZONE, APP_ZONE, NS_NAME: "ns1.test", ENCLAVES: "https://example.invalid",
            DNS_PORT: String(dnsPort), DNS_API_PORT: String(apiPort), DNS_API_BIND: "127.0.0.1",
-           DNS_TXT_KEY: KEY, APP_A: "203.0.113.7" },
+           DNS_TXT_KEY: KEY, APP_A: "203.0.113.7", APP_AAAA: "2001:db8::7",
+           RELAY_MAP_URL: `http://127.0.0.1:${mapPort}/v1/relays` },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let log = "";
@@ -52,7 +64,10 @@ async function boot() {
     try {
       const r = await fetch(`http://127.0.0.1:${apiPort}/health`);
       const j = r.ok ? await r.json().catch(() => null) : null;
-      if (j && j.zones && j.zones.app === APP_ZONE) return { p, log: () => log };
+      // the relay map is fetched in the same poll the daemon runs at boot, but
+      // the API is listening before that poll returns - wait for the labels or
+      // the zone tests race the first fetch
+      if (j && j.zones && j.zones.app === APP_ZONE && j.relayLabels === 2) return { p, log: () => log };
     } catch {}
     await new Promise((r) => setTimeout(r, 100));
   }
@@ -61,13 +76,19 @@ async function boot() {
 }
 
 before(async () => {
+  mapServer = http.createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify(req.url.startsWith("/v1/relays") ? RELAY_MAP : {}));
+  });
+  mapServer.listen(0, "127.0.0.1"); await once(mapServer, "listening");
+  mapPort = mapServer.address().port;
   for (let attempt = 0; attempt < 3; attempt++) {
     const r = await boot();
     if (r.p) { proc = r.p; return; }
     if (attempt === 2) throw new Error(`dns-relay did not come up on its own port after 3 tries:\n${r.log()}`);
   }
 });
-after(() => { try { proc.kill("SIGKILL"); } catch {} });
+after(() => { try { proc.kill("SIGKILL"); } catch {} try { mapServer.close(); } catch {} });
 
 // ---- challenge-push API ------------------------------------------------------
 
@@ -211,4 +232,53 @@ test("resolver: an unknown deployment prefix is NXDOMAIN, never a guess", async 
   assert.equal(parse(await ask("deadbeefdeadbeef." + IP_ZONE, 28)).rcode, 3);
   assert.equal(parse(await ask("zz." + IP_ZONE, 28)).rcode, 3);           // not hex
   assert.equal(parse(await ask("abc." + IP_ZONE, 28)).rcode, 3);          // shorter than 8
+});
+
+/* ---- zone 2: the wildcard is the DEFAULT answer, not the only one -----------
+   A deployment may choose which relay carries its traffic ({"network":{"relay":
+   "us-west"}} on-chain). Nothing inside a CVM acts on that: it is consumed
+   HERE. The API relay resolves the choices to label -> address and this server
+   answers the app's own name with it instead of the zone-wide one. */
+
+test("resolver: a deployment that chose a relay gets that relay's address, not the wildcard", async () => {
+  const { rcode, records } = parse(await ask("chosen4." + APP_ZONE, 1));
+  assert.equal(rcode, 0);
+  assert.equal(records.length, 1);
+  assert.equal([...records[0].rdata].join("."), "198.51.100.9");
+  // …and everything that did NOT choose still answers from the wildcard
+  const other = parse(await ask("anything-else." + APP_ZONE, 1));
+  assert.equal([...other.records[0].rdata].join("."), "203.0.113.7");
+});
+
+test("resolver: a chosen relay answers only from ITS OWN addresses, never the zone's other family", async () => {
+  // The trap this exists to avoid: falling back per family would send every
+  // v6-preferring client to the DEFAULT relay while v4 clients used the chosen
+  // one — not a fallback, a silent half-undo of the owner's choice, and the
+  // hardest kind of routing bug to see from outside.
+  const v6 = parse(await ask("chosen4." + APP_ZONE, 28));
+  assert.equal(v6.rcode, 0, "the name exists");
+  assert.equal(v6.records.length, 0, "…but its relay declares no IPv6, so AAAA is empty - NOT the zone's 2001:db8::7");
+  // the zone-wide AAAA is real, which is what makes the assertion above mean something
+  const wild = parse(await ask("no-choice-here." + APP_ZONE, 28));
+  assert.equal(wild.records.length, 1);
+  assert.equal(wild.records[0].rdata.length, 16);
+
+  // and the mirror image: a v6-only relay answers AAAA and leaves A empty
+  const v6only = parse(await ask("chosen6." + APP_ZONE, 28));
+  assert.equal(v6only.records.length, 1);
+  assert.equal(v6only.records[0].rdata.readUInt16BE(0), 0x2001);
+  assert.equal(parse(await ask("chosen6." + APP_ZONE, 1)).records.length, 0);
+});
+
+test("resolver: choosing a relay changes nothing else about the zone", async () => {
+  // dns-01 issuance runs against the app's own name, so a deployment that moved
+  // relays must still be able to mint its certificate. The challenge name is a
+  // label deeper than the choice and is unaffected by it.
+  assert.equal((await push({ name: chal("chosen4"), value: "tok" })).status, 200);
+  assert.deepEqual(await txtQuery(chal("chosen4")), ["tok"]);
+  // the apex is still the apex
+  assert.equal(parse(await ask(APP_ZONE, 6)).records[0].type, 6);
+  // and a deeper name under a chosen label is wildcard territory, as before
+  const deep = parse(await ask("sub.chosen4." + APP_ZONE, 1));
+  assert.equal([...deep.records[0].rdata].join("."), "203.0.113.7");
 });
