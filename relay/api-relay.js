@@ -92,6 +92,12 @@ installProcessGuards("api-relay");
 // is routing-only; clients still verify each enclave's attestation end-to-end.
 const DEFAULT_METAL_ALLOW = [
   { name: "metal0", tokenSha256: "3b28c8d9564f47b1f5031e519c8f6e7bbfaca99e41884b2740e7958e83acec81" },
+  // us-west-relay (5.78.85.108) — an app-zone SNI relay, not an enclave. It
+  // attaches for one reason: to serve its own /availability, so the fleet can
+  // list it and a deployment can name it in {"network":{"relay":"us-west"}}.
+  // It runs relay/relay-agent.mjs, which has no upstream and refuses stream
+  // frames, so this name can never carry tenant traffic through the hub.
+  { name: "us-west", tokenSha256: "925605cee3a4a257c2bd87f499b69676fdaf183f283cb34dd656ed46c077964f" },
 ];
 const ENV_METAL_ALLOW = (process.env.METAL_TUNNEL_TOKENS || "").split(",").map((s) => s.trim()).filter(Boolean)
   .map((pair) => { const i = pair.indexOf(":"); const name = pair.slice(0, i), token = pair.slice(i + 1);
