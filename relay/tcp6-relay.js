@@ -120,6 +120,12 @@ function splice(client, L) {
   connCount++;
   client.once("close", () => connCount--);
   client.on("error", () => client.destroy());
+  // Same one-Nagle-hop bug the app-zone relay had (relay.js `handle`), and it
+  // bites harder here: these are the DECLARED tcp ports — game streaming, input
+  // events, ssh — where every payload is small and latency IS the product. A
+  // raw net.createServer socket keeps Nagle on, so a small write following an
+  // unacked small write waited a whole client round trip.
+  client.setNoDelay(true);
   client.pause();
 
   const ws = new WebSocket(`${wsOrigin(L.origin)}/x/${encodeURIComponent(L.id)}/tcp/${L.port}`, { perMessageDeflate: false });
