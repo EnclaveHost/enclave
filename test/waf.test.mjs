@@ -189,3 +189,56 @@ test("an unknown namespace still names what this runner knows, now including gpu
   const [r] = await parse(JSON.stringify({ nope: {} }));
   assert.match(r.err, /this runner knows: waf, config, gpu/);
 });
+
+/* ---- the `network` namespace: which relay carries this deployment --------
+   The odd one out: nothing in the CVM acts on it. The choice is consumed at
+   the DNS layer, which answers <label>.app.enclave.host with the chosen
+   relay's address instead of the zone-wide default. The supervisor validates
+   it anyway and REFUSES rather than ignores, for the reason the whole envelope
+   is fail-closed — an owner who typo'd their relay would otherwise be told
+   nothing and quietly keep the default, which is the exact silence this
+   design exists to avoid.
+
+   It stores a NAME, never an address: relays get replaced and re-addressed,
+   and a deployment should follow the relay it chose rather than pin the
+   machine it happened to be on. */
+test("network.relay takes a relay NAME, and refuses anything that is not one", async () => {
+  const [ok] = await parse(JSON.stringify({ network: { relay: "us-west" } }));
+  assert.deepEqual(ok, { ok: { relay: "us-west" } });
+
+  // "" and null are expressible on purpose: back to the fleet default
+  const [empty] = await parse(JSON.stringify({ network: { relay: "" } }));
+  assert.deepEqual(empty, { ok: { relay: "" } });
+  const [nulled] = await parse(JSON.stringify({ network: { relay: null } }));
+  assert.deepEqual(nulled, { ok: { relay: "" } });
+
+  // an ADDRESS is the tempting mistake, and it pins a machine rather than a role
+  const [addr] = await parse(JSON.stringify({ network: { relay: "5.78.85.108" } }));
+  assert.match(addr.err, /must be a relay name/);
+
+  for (const bad of ["UPPER", "-leading", "has space", "a".repeat(64), "semi;colon"]) {
+    const [r] = await parse(JSON.stringify({ network: { relay: bad } }));
+    assert.ok(r.err, `${JSON.stringify(bad)} must be refused, not accepted`);
+  }
+});
+
+test("the network namespace is shape-checked like every other option", async () => {
+  const [notObj] = await parse(JSON.stringify({ network: "us-west" }));
+  assert.match(notObj.err, /network must be a JSON object/);
+  const [arr] = await parse(JSON.stringify({ network: ["us-west"] }));
+  assert.match(arr.err, /network must be a JSON object/);
+  const [unknown] = await parse(JSON.stringify({ network: { region: "us-west" } }));
+  assert.match(unknown.err, /unknown network option "region"/);
+  assert.match(unknown.err, /this runner knows: relay/);
+});
+
+/* The envelope is fail-closed, so the set of namespaces a runner knows is a
+   compatibility contract, not a detail: a deployment carrying a namespace the
+   claiming runner predates is REFUSED, and the refusal text is what tells the
+   owner why. Pin that `network` is in the list — and that the message names
+   every namespace, since that is the only place an owner learns them. */
+test("an unknown namespace is refused, and names the ones this runner knows", async () => {
+  const [r] = await parse(JSON.stringify({ nope: {} }));
+  assert.match(r.err, /unknown option namespace "nope"/);
+  assert.match(r.err, /this runner knows: waf, config, gpu, network/);
+});
