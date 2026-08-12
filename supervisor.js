@@ -3162,6 +3162,38 @@ app.post("/v1/claim-hint", async (req, res) => {
   } finally { _hintBusy.delete(id); }
 });
 
+// --- relay services: the NETWORK this box carries, beside the compute it sells --
+// Any host may also relay; the two are independent, and a box with no capacity
+// at all is simply one that ONLY relays (which is what the console renders as a
+// "relay" row — the badge is read from having no resources, not from this
+// block). What differs between relays is which of the fleet's network services
+// they actually offer, and that is a per-BOX fact about which daemons run
+// alongside this supervisor and how the machine is wired — a routed /64, a
+// bindable port range, a public address that CGNAT boxes can dial in to. None
+// of it is discoverable from in here, so it is declared, and broadcast on
+// /availability like every other capability the fleet ANDs or routes on.
+// Absent entirely = this box carries nothing for anyone but itself.
+const RELAY_SERVICES = (() => {
+  const on = (k) => /^(1|true|yes|on)$/i.test((process.env[k] || "").trim());
+  const svc = {
+    sni:       on("RELAY_SNI"),        // app-zone 443 passthrough (relay/relay.js) — the data path every app subdomain crosses
+    tcp:       on("RELAY_TCP"),        // per-deployment dedicated-IPv6 raw TCP (relay/tcp6-relay.js)
+    udp:       on("RELAY_UDP"),        // per-deployment dedicated-IPv6 datagrams (relay/udp-relay.js)
+    egress:    on("RELAY_EGRESS"),     // per-deployment outbound source address (relay/egress-relay.js)
+    tunnelHub: on("RELAY_TUNNEL_HUB"), // accepts reverse tunnels — the only way onto the network for a seller behind CGNAT
+  };
+  const region = (process.env.RELAY_REGION || "").trim();
+  const prefix = (process.env.RELAY_V6_PREFIX || "").trim();   // the routed /64 the dedicated-IP features hand out of
+  const ports  = (process.env.RELAY_PORTS || "").trim();       // the public port range this box will bind, as configured
+  if (!Object.values(svc).some(Boolean)) return null;          // declares no service = not a relay, say nothing
+  return { ...svc, ...(region ? { region } : {}), ...(prefix ? { v6Prefix: prefix } : {}),
+           ...(ports ? { ports } : {}) };
+})();
+if (RELAY_SERVICES)
+  console.log(`[relay-services] carrying ${Object.entries(RELAY_SERVICES)
+    .filter(([, v]) => v === true).map(([k]) => k).join(", ")}`
+    + (RELAY_SERVICES.region ? ` · ${RELAY_SERVICES.region}` : ""));
+
 app.get("/availability", async (_req, res) => {
   // Every enclave reports BOTH pools: gpuShareFree (the largest slice one card
   // can still take; 0 on a CPU-only enclave) and cpuShareFree (the node's
@@ -3185,6 +3217,7 @@ app.get("/availability", async (_req, res) => {
     gpuTflopsFree: IS_GPU ? round1(gpuFree * CARD_TFLOPS) : 0,
     cardVramGb: IS_GPU ? CARD_VRAM_GB : 0, cardTflops: IS_GPU ? CARD_TFLOPS : 0, cards: GPU_COUNT,
     ...(IS_GPU ? { cardVramSource: CARD_VRAM_SRC } : {}),   // "nvidia-smi"/"manager"/"worker" = probed hardware; "env"/"default" = config fallback
+    ...(RELAY_SERVICES ? { relay: RELAY_SERVICES } : {}),   // network this box carries for the fleet; see the block above
     waf: true,   // this build accepts + enforces the deployment-options envelope (waf); the relay ANDs this across the fleet and the console shows the Protection controls only then
     configOverride: true,   // this build accepts the envelope's `config` namespace (per-deployment app-config override); same fleet-AND rule — the console unlocks the App config box only when every live runner honors it
     configEdit: true,   // this build's audit re-applies an owner's setConfig to LIVE deployments (waf live-swapped, config = restart in place); without it an edit only lands at the next re-claim — same fleet-AND rule

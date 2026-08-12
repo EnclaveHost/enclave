@@ -182,6 +182,82 @@ test("api-relay: zero live enclaves — list returns every on-chain deployment t
   assert.match(nonce.body.message, /enclave-issued/);
 });
 
+/* A RELAY is a host that carries network but sells no compute — same registry,
+   same registration, no contract change. "No resources at all" is the whole
+   definition, and it has to do two jobs at once:
+
+     - presentation: the console badges the row as a relay and lists the network
+       services it declared, instead of drawing empty capacity bars that would
+       read as a box that is FULL;
+     - safety: it must stay out of the serving set. That set decides the
+       fleet-minimum spec* fields and every fleet-AND capability flag, so one box
+       advertising zero vCPUs inside it collapses the minima and turns the
+       feature flags false FLEET-WIDE. That is the metal0 sizing incident, and a
+       resourceless relay reproduces it exactly unless it is excluded. */
+test("api-relay: a resourceless box reads as a relay, and never as capacity", async (t) => {
+  const relayBox = http.createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    if (req.url === "/availability") return res.end(JSON.stringify({
+      gpu: false, type: "cpu", cpuShareFree: 0, gpuShareFree: 0, maxShare: 0,
+      nodeVcpus: 0, nodeRamGb: 0, claimEnabled: false,
+      relay: { sni: true, tcp: true, udp: false, egress: true, tunnelHub: false,
+               region: "eu-north", v6Prefix: "2a01:4f9:c013:9b52::/64", ports: "1-49999" },
+    }));
+    res.statusCode = 404; res.end("{}");
+  });
+  const hostBox = http.createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    if (req.url === "/availability") return res.end(JSON.stringify({
+      gpu: false, type: "cpu", cpuShareFree: 0.5, maxShare: 0.5, nodeVcpus: 8, nodeRamGb: 32 }));
+    res.statusCode = 404; res.end("{}");
+  });
+  for (const s of [relayBox, hostBox]) { s.listen(0, "127.0.0.1"); await once(s, "listening"); }
+  t.after(() => { relayBox.close(); hostBox.close(); });
+
+  const origin = await startRelay(t, { enclaves:
+    `http://127.0.0.1:${relayBox.address().port},http://127.0.0.1:${hostBox.address().port}` });
+  const { status, body } = await getJson(origin, "/enclaves");
+  assert.equal(status, 200);
+
+  const rows = Object.fromEntries(body.enclaves.map((r) => [r.availability.nodeVcpus, r]));
+  const relayRow = rows[0], hostRow = rows[8];
+  assert.ok(relayRow && hostRow, "both boxes are listed — a relay is still a fleet member");
+  assert.equal(relayRow.relay, true, "no resources ⇒ relay");
+  assert.equal(relayRow.serving, false, "and never in the set that sizes the fleet");
+  assert.equal(hostRow.relay, false, "a box with capacity is not a relay, whatever else it carries");
+  assert.equal(hostRow.serving, true);
+
+  assert.equal(body.aggregate.enclaves, 2, "listed");
+  assert.equal(body.aggregate.serving, 1, "but only one of them can take work");
+  assert.equal(body.aggregate.totalCpuShareFree, 0.5, "the relay adds no buyable capacity");
+
+  // the declared network services survive the trip — this is the payload the
+  // console renders in place of capacity bars
+  assert.equal(relayRow.availability.relay.sni, true);
+  assert.equal(relayRow.availability.relay.region, "eu-north");
+  assert.equal(relayRow.availability.relay.v6Prefix, "2a01:4f9:c013:9b52::/64");
+});
+
+/* The fail-safe half of the same rule. "No resources" must mean DECLARED zero,
+   never a field the box didn't send: an older enclave that omits nodeVcpus is a
+   host of unknown size, and reading it as a relay would quietly pull real
+   capacity out of the serving set — the fleet shrinking with nothing logged. */
+test("api-relay: an enclave that omits its size is a host, not a relay", async (t) => {
+  const terse = http.createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    if (req.url === "/availability")               // no nodeVcpus, no nodeRamGb
+      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5 }));
+    res.statusCode = 404; res.end("{}");
+  });
+  terse.listen(0, "127.0.0.1"); await once(terse, "listening");
+  t.after(() => terse.close());
+
+  const origin = await startRelay(t, { enclaves: `http://127.0.0.1:${terse.address().port}` });
+  const { body } = await getJson(origin, "/enclaves");
+  assert.equal(body.enclaves[0].relay, false, "silence is not a claim of emptiness");
+  assert.equal(body.enclaves[0].serving, true, "and it keeps taking work");
+});
+
 // ---------- fleet UP: hosted rows win, ledger fills the gaps -----------------
 test("api-relay: live enclave rows merge with ledger-only rows, deduped by id", async (t) => {
   const hosted = { id: ID("33"), status: "running", owner: OWNER, image: { reference: "ipfs://claimed" },

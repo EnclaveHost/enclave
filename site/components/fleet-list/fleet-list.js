@@ -61,19 +61,29 @@ class FleetList extends EnclaveElement {
           // "metal0"); the endpoint-derived fallback covers older relays — and
           // strips ANY scheme, so a tunnel:// row never renders as a pseudo-URL
           const name = e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "enclave";
-          // A relay CARRIES traffic rather than running it (registry schema 5).
-          // It has no pools to meter and posts no price, so the row says what it
-          // is and where it is and stops: empty CPU/GPU meters would read as a
-          // box that is full, which is the opposite of the truth.
-          if (a.relay === true || e.relay === true)
+          // Any host may also CARRY traffic; one with no resources at all only
+          // carries it, and that is what this badge reads — no capacity, so
+          // nothing to sell and nothing to meter. Empty CPU/GPU bars would say
+          // "full", which is the opposite of the truth, so the row lists the
+          // network services the box offers instead.
+          if (e.relay === true) {
+            const r = a.relay || {};
+            const svc = [["sni", "app traffic"], ["tcp", "tcp ports"], ["udp", "udp ports"],
+                         ["egress", "outbound ip"], ["tunnelHub", "tunnel hub"]]
+              .filter(([k]) => r[k] === true).map(([, label]) => label);
             return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
               + '<span class="fleet-head">'
               + '<span class="ap-badge">relay</span>'
               + '<span class="fleet-name">' + esc(name) + '</span>'
-              + (a.region ? '<span class="fleet-relay-region">' + esc(a.region) + '</span>' : '')
+              + (r.region ? '<span class="fleet-relay-region">' + esc(r.region) + '</span>' : '')
               + '</span>'
-              + '<span class="fleet-relay-note">carries traffic · runs no tenants</span>'
+              + '<span class="fleet-relay-note">'
+              + (svc.length ? 'carries ' + svc.map(esc).join(" · ") : 'carries no declared services')
+              + (r.ports ? ' · ports ' + esc(r.ports) : '')
+              + (r.v6Prefix ? ' · ' + esc(r.v6Prefix) : '')
+              + '</span>'
               + '</div>';
+          }
           const s = serverSpec();   // adopted fleet hardware; display fallback for rows that omit their own
           const vramGb = a.cardVramGb || s.cardVramGb, tflops = a.cardTflops || s.cardTflops;
           const ramGb = a.nodeRamGb || s.nodeRamGb, vcpus = a.nodeVcpus || s.nodeVcpus;

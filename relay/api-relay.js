@@ -449,13 +449,7 @@ async function discoverRegistry() {
   const now = Math.floor(Date.now() / 1000);
   warnIfUnauthenticated();
   return Promise.all(out
-    // Staleness is a proxy for "is it up", and it only has to be a proxy for a
-    // box we can't otherwise see. An enclave is reachable only by dialling it,
-    // so a cold lastSeen is the one hint we get. A RELAY we probe directly every
-    // cycle (pollAvailability below), and that probe is both fresher and more
-    // truthful than a heartbeat — so relay rows are exempt, which is what lets a
-    // relay be registered once from governance and never hold a signing key.
-    .filter((e) => e.active && (isRelayRow(e) || now - Number(e.lastSeen) <= STALE_AFTER_SEC))
+    .filter((e) => e.active && now - Number(e.lastSeen) <= STALE_AFTER_SEC)
     // B2: only vetted operators (baked default, or the env allowlist). Pass-all
     // ONLY under the explicit TRUSTED_OPERATORS=* opt-in — never by omission.
     .filter((e) => OPERATORS_UNRESTRICTED || TRUSTED_OPERATORS.includes(String(e.operator || "").toLowerCase()))
@@ -470,13 +464,14 @@ async function discoverRegistry() {
     // payoutWallet (schema 4) rides along because ledgerStatus needs it: it is
     // what tells a self-hosted row from an unfunded one. Undefined on an older
     // registry, which reads as "nobody hosts anything free" — the safe default.
-    // caps/region (schema 5) ride along the same way: they are what tells a box
-    // that RUNS work from one that only carries it, and every consumer below
-    // branches on them rather than assuming a registered row is an enclave.
+    // caps/region (schema 5) ride along the same way, for whenever that registry
+    // deploys. Nothing routes on them today: which box RELAYS is read from its
+    // /availability (hasNoResources + the `relay` service block), so the feature
+    // needs no contract and no migration to work.
     .map(async ({ e, endpoint }) =>
       ({ endpoint, id: await endpointId(endpoint), name: endpointName(endpoint), repo: e.repo,
          lastSeen: Number(e.lastSeen), payoutWallet: e.payoutWallet || null,
-         caps: Number(capsOf(e)), relay: isRelayRow(e) && !isHostRow(e), region: e.region || null })));
+         caps: Number(capsOf(e)), region: e.region || null })));
 }
 
 // --- EnclaveDeployments ledger (the source of truth for a wallet's work) --------
@@ -745,34 +740,25 @@ async function pollRegistry() {
 // A fixed worker pool caps in-flight probes regardless of registry size.
 const AVAIL_POLL_CONCURRENCY = parseInt(process.env.AVAIL_POLL_CONCURRENCY || "32", 10);
 
-// A relay serves no /availability, and should not have to. It has no capacity
-// to report and terminates nothing, so there is no in-enclave surface to ask —
-// and everything the listing needs (caps, region) is already on-chain. Its
-// liveness question is only ever "does it still accept connections", which a
-// TCP connect answers directly: fresher than a heartbeat, and something a stale
-// registry row cannot fake. That is what lets a relay be registered once from
-// governance and never hold a signing key.
-const RELAY_PROBE_MS = parseInt(process.env.RELAY_PROBE_MS || "4000", 10);
-function tcpAlive(host, port) {
-  return new Promise((resolve) => {
-    const s = net.connect({ host, port });
-    const done = (ok) => { try { s.destroy(); } catch {} resolve(ok); };
-    s.setTimeout(RELAY_PROBE_MS, () => done(false));
-    s.once("connect", () => done(true));
-    s.once("error", () => done(false));
-  });
-}
-async function relayAvailability(e) {
-  let u; try { u = new URL(e.endpoint); } catch { return null; }
-  if (!(await tcpAlive(u.hostname, u.port ? Number(u.port) : 443))) return null;
-  // claimEnabled:false is load-bearing, not decoration — servingEnclaves() reads
-  // a MISSING flag on a non-tunnel row as "claiming", and a box with no vCPUs or
-  // RAM in that set collapses the fleet-minimum spec* fields and turns every
-  // fleet-AND capability flag false. That is the metal0 sizing incident, and a
-  // relay would reproduce it exactly.
-  return { type: "relay", relay: true, claimEnabled: false,
-           region: e.region || null, caps: e.caps || 0 };
-}
+// A RELAY is a host that carries network but sells no compute. There is no
+// separate kind of box and no separate registration: any enclave may also relay
+// (it says which services on /availability), and one with NO RESOURCES AT ALL is
+// simply a box that only relays. That is the whole rule — the console badges it
+// from this, and nothing else has to agree on a definition.
+//
+// It is also a safety rule, not just presentation. servingEnclaves() decides the
+// fleet-minimum spec* fields and every fleet-AND capability flag, so a box
+// advertising zero vCPUs inside that set would collapse the minima and turn the
+// feature flags false fleet-wide. That is the metal0 sizing incident exactly,
+// and a resourceless relay reproduces it unless it is excluded here.
+// DECLARED zero, never merely absent. An enclave that omits these fields (an
+// older build, a minimal stub) must read as a host with unknown size, not as a
+// box with nothing — the failure mode of the looser test is that real capacity
+// silently leaves the serving set and the fleet shrinks with nothing logged.
+// Note `maxShare` is deliberately not consulted: it reports what is FREE, so a
+// fully-booked enclave publishes 0 there while still being a host.
+const hasNoResources = (a) =>
+  !!a && a.gpu !== true && a.nodeVcpus === 0 && a.nodeRamGb === 0;
 async function pollAvailability() {
   const src = registry, rows = new Array(src.length);
   let i = 0;
@@ -781,10 +767,10 @@ async function pollAvailability() {
       const idx = i++;
       if (idx >= src.length) return;
       const e = src[idx];
-      const a = e.relay  ? await relayAvailability(e)
-              : e.tunnel ? await tunnelHub.fetchJson(e.endpoint, "/availability").catch(() => null)
+      const a = e.tunnel ? await tunnelHub.fetchJson(e.endpoint, "/availability").catch(() => null)
                          : await fetchJson(`${e.endpoint}/availability`);
-      rows[idx] = a ? { ...e, availability: a, checkedAt: new Date().toISOString() } : null;
+      rows[idx] = a ? { ...e, availability: a, relay: hasNoResources(a),
+                        checkedAt: new Date().toISOString() } : null;
     }
   };
   await Promise.all(Array.from({ length: Math.min(AVAIL_POLL_CONCURRENCY, src.length || 1) }, worker));
