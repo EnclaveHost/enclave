@@ -491,8 +491,6 @@ class AdminConsole extends EnclaveElement {
         EnclavePay: { usdc: USDC_BASE, payout: (S.pay && S.pay.payout) || payoutAddr },
         EnclaveDeployments: { usdc: USDC_BASE, payout: payoutAddr, registry: S.book.entries.registry, ethUsdFeed: S.dep && S.dep.feed },
         EnclaveFeatured: { usdc: USDC_BASE, payout: (S.feat && S.feat.payout) || payoutAddr },
-        // the relays that CARRY traffic: bond custody + where a slash lands, same pair as the other bonded contracts
-        EnclaveRelayRegistry: { usdc: USDC_BASE, payout: payoutAddr },
         EnclaveReviews: { book: S.book.addr, ledgerFallback: S.book.entries.deployments || (S.dep && S.dep.addr) },
         // host ratings take ONE ctor arg: the book (no fallback by design)
         EnclaveHostReviews: { book: S.book.addr },

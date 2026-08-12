@@ -381,6 +381,10 @@ contract EnclaveDeploymentsSelfHostTest is Test {
 
     function test_schemaMarksTheFreeHostingSurface() public view {
         assertEq(dep.deploymentsSchema(), 12);
-        assertEq(reg.registrySchema(), 4);
+        // schema 5 APPENDED caps+region. The ledger still reads this registry
+        // through an 11-field IEnclaveRegistry.Enclave and every assertion in
+        // this suite passes, which is the property that matters: appending
+        // leaves the earlier fields exactly where a stale decoder expects them.
+        assertEq(reg.registrySchema(), 5);
     }
 }

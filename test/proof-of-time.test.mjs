@@ -183,7 +183,11 @@ test("the payout wallet can only be declared BY that wallet (schema 4)", () => {
   const sol = fs.readFileSync(path.join(REPO, "contracts", "EnclaveRegistry.sol"), "utf8");
   assert.match(sol, /function setPayoutWallet\(bytes32 id\) external \{[^}]*payoutWallet = msg\.sender/,
     "setPayoutWallet must record msg.sender, never an argument");
-  assert.equal(Number(/registrySchema = (\d+);/.exec(sol)[1]), 4);
+  // a FLOOR, like the ledger check below: the property under test is the
+  // direction of the declaration, and later revisions keep appending (schema 5
+  // added caps+region). Pinning the exact number here only ever fails the wrong
+  // test.
+  assert.ok(Number(/registrySchema = (\d+);/.exec(sol)[1]) >= 4);
 });
 
 test("a rev-12 ledger prices self-hosting at zero and never divides by it", () => {

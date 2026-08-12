@@ -435,8 +435,7 @@ test("artifacts stay in sync with contracts/*.sol (regenerate check)", () => {
   assert.deepEqual(Object.keys(CONTRACTS).sort(), [
     "EnclaveAddressBook", "EnclaveAppCatalog", "EnclaveCreditVaultFactory",
     "EnclaveDeployments", "EnclaveFeatured", "EnclaveHostReviews", "EnclavePay",
-    "EnclaveProofOfTime", "EnclaveRegistry", "EnclaveRelayRegistry",
-    "EnclaveReviews", "PaymentRouter"]);
+    "EnclaveProofOfTime", "EnclaveRegistry", "EnclaveReviews", "PaymentRouter"]);
   for (const [name, c] of Object.entries(CONTRACTS)) {
     assert.match(c.bytecode, /^0x[0-9a-f]{100,}$/i, name + " bytecode");
     // the console's deploy encoder handles exactly these; anything else needs
@@ -447,7 +446,7 @@ test("artifacts stay in sync with contracts/*.sol (regenerate check)", () => {
   }
   assert.deepEqual(
     Object.values(CONTRACTS).map((c) => c.bookKey).filter(Boolean).sort(),
-    ["appCatalog", "deployments", "enclavePay", "featured", "hostReviews", "paymentRouter", "proofOfTime", "registry", "relayRegistry", "reviews", "vaultFactory"]);
+    ["appCatalog", "deployments", "enclavePay", "featured", "hostReviews", "paymentRouter", "proofOfTime", "registry", "reviews", "vaultFactory"]);
 });
 
 /* ---- migration escrow backing + the proof-of-time bindings (rev 9/10) ----

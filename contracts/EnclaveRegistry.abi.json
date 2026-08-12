@@ -7,6 +7,31 @@
         "internalType": "bytes32",
         "name": "id",
         "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "caps",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "region",
+        "type": "string"
+      }
+    ],
+    "name": "CapsSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
       }
     ],
     "name": "Deregistered",
@@ -151,6 +176,84 @@
     "type": "event"
   },
   {
+    "inputs": [],
+    "name": "CAP_APP_SNI",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "CAP_HOST",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "CAP_RELAY_ANY",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "CAP_TCP_PORTS",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "CAP_TUNNEL_HUB",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "CAP_UDP",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -255,6 +358,16 @@
             "internalType": "address",
             "name": "payoutWallet",
             "type": "address"
+          },
+          {
+            "internalType": "uint64",
+            "name": "caps",
+            "type": "uint64"
+          },
+          {
+            "internalType": "string",
+            "name": "region",
+            "type": "string"
           }
         ],
         "internalType": "struct EnclaveRegistry.Enclave",
@@ -336,6 +449,16 @@
             "internalType": "address",
             "name": "payoutWallet",
             "type": "address"
+          },
+          {
+            "internalType": "uint64",
+            "name": "caps",
+            "type": "uint64"
+          },
+          {
+            "internalType": "string",
+            "name": "region",
+            "type": "string"
           }
         ],
         "internalType": "struct EnclaveRegistry.Enclave[]",
@@ -442,6 +565,35 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "endpoint",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "region",
+        "type": "string"
+      },
+      {
+        "internalType": "uint64",
+        "name": "caps",
+        "type": "uint64"
+      }
+    ],
+    "name": "registerRelay",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "registrySchema",
     "outputs": [
@@ -452,6 +604,29 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint64",
+        "name": "caps",
+        "type": "uint64"
+      },
+      {
+        "internalType": "string",
+        "name": "region",
+        "type": "string"
+      }
+    ],
+    "name": "setCaps",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

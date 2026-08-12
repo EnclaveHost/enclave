@@ -55,6 +55,19 @@ pragma solidity ^0.8.20;
 ///     relaunch, because the CVM has no persistent disk to keep it on: the
 ///     enclave re-publishes with setProofKey at boot, and checkpoints are
 ///     always verified against the CURRENT entry.
+///   - CAPABILITIES (schema 5): a registered box is no longer assumed to run
+///     code. `caps` says what it does — CAP_HOST for an enclave that runs
+///     tenants, the relay bits for one that carries traffic to them. A RELAY
+///     NEED NOT BE A TEE, and that is not a compromise: it terminates nothing
+///     and holds no key, so the browser's TLS still ends inside the enclave
+///     that holds the lease and a relay is never handed anything to betray.
+///     Demanding attestation of relays would shrink the relay set and buy no
+///     privacy. What a relay unavoidably sees is the pair (client address,
+///     SNI) — who you talk to, never what you say — so a relay that IS measured
+///     is strictly better and says so by carrying CAP_HOST's neighbours plus a
+///     real `measurement`. Routers may prefer those; nothing requires them.
+///     Region is the latency lever: a relay is only worth using near the
+///     enclave it fronts.
 ///   - Open registration (anyone may register). Sybil resistance via
 ///     stake-to-register + slashing is a deliberate FUTURE addition (see notes);
 ///     it is not needed for correctness because attestation, not registration,
@@ -80,7 +93,29 @@ contract EnclaveRegistry {
         address payoutWallet;     // the seller's own wallet, SET BY THAT WALLET (setPayoutWallet).
                                   // 0x0 = undeclared. Never written by register(): the operator
                                   // cannot set it, so re-registering at every boot leaves it alone.
+        // ---- capabilities (schema 5; APPENDED, same reason as the others) ---
+        uint64  caps;             // what this box DOES — see CAP_* below. 0 on every pre-schema-5
+                                  // row, which is why 0 MUST read as CAP_HOST: those entries
+                                  // predate the question and every one of them runs code.
+        string  region;           // free-form routing hint ("us-west"), only meaningful to relays
     }
+
+    // What a box does. Registering says WHERE you are; these say WHAT you are,
+    // and the two are no longer the same question — a box with no TEE at all
+    // can still carry the network's traffic, and one registry is where the
+    // network looks for both.
+    //
+    // Read 0 as CAP_HOST. Every row written before schema 5 has caps == 0 and
+    // every one of them is a running enclave, so a consumer that treats 0 as
+    // "no capabilities" would silently empty the fleet the moment this deploys.
+    uint64 public constant CAP_HOST       = 1 << 0;  // runs tenant code (needs a TEE; the thing `measurement` is about)
+    uint64 public constant CAP_APP_SNI    = 1 << 1;  // carries app-zone traffic: SNI passthrough on the 443 data path
+    uint64 public constant CAP_TCP_PORTS  = 1 << 2;  // carries declared raw tcp ports
+    uint64 public constant CAP_UDP        = 1 << 3;  // carries declared udp ports
+    uint64 public constant CAP_TUNNEL_HUB = 1 << 4;  // accepts reverse tunnels from boxes with no inbound
+                                                     // (a CGNAT seller's only way onto the network)
+    /// @dev every bit that makes a box a RELAY rather than a host.
+    uint64 public constant CAP_RELAY_ANY  = CAP_APP_SNI | CAP_TCP_PORTS | CAP_UDP | CAP_TUNNEL_HUB;
 
     /// @dev Struct-shape revision, sniffed by consumers exactly as
     ///      EnclaveDeployments.deploymentsSchema is: rev 1 (no getter — the
@@ -97,7 +132,13 @@ contract EnclaveRegistry {
     ///      rev-12 EnclaveDeployments requires this field (it charges nothing
     ///      when the wallet is the deployment's owner); the pair ships together
     ///      once more.
-    uint256 public constant registrySchema = 4;
+    ///      Rev 5 appends `caps` + `region` and grows the surface by
+    ///      registerRelay/setCaps. register() is UNCHANGED and now also sets
+    ///      CAP_HOST, so a box that re-registers at boot declares what it is
+    ///      without anyone editing a call site. This is the revision that stops
+    ///      assuming a registered box runs code: a relay has no measurement, no
+    ///      proof key and no price, and belongs in this registry anyway.
+    uint256 public constant registrySchema = 5;
 
     bytes32[] private _ids;                       // all endpoint ids ever registered
     mapping(bytes32 => Enclave) private _enclaves;
@@ -108,6 +149,7 @@ contract EnclaveRegistry {
     event PricesSet(bytes32 indexed id, uint64 cpuPricePerSec6, uint64 gpuPricePerSec6);
     event ProofKeySet(bytes32 indexed id, address indexed proofKey);
     event PayoutWalletSet(bytes32 indexed id, address indexed payoutWallet);
+    event CapsSet(bytes32 indexed id, uint64 caps, string region);
     event Heartbeat(bytes32 indexed id, uint64 at);
     event Deregistered(bytes32 indexed id);
 
@@ -157,9 +199,79 @@ contract EnclaveRegistry {
         e.cpuPricePerSec6 = cpuPricePerSec6;
         e.gpuPricePerSec6 = gpuPricePerSec6;
         e.proofKey = proofKey;
+        e.caps |= CAP_HOST;                          // OR, never assign: a box that also relays
+                                                     // re-registers every boot and must not lose it
         emit Updated(id, repo, measurement);
+        emit CapsSet(id, e.caps, e.region);
         emit PricesSet(id, cpuPricePerSec6, gpuPricePerSec6);
         emit ProofKeySet(id, proofKey);
+    }
+
+    /// @notice Join the network as a RELAY — a box that carries traffic rather
+    ///         than running it. No price, no measurement, no proof key: none of
+    ///         them mean anything for this job, and demanding them is what a
+    ///         separate relay registry existed to avoid.
+    /// @dev Deliberately a distinct name rather than an overload of register():
+    ///      the artifact builder refuses overloaded selectors, and the two calls
+    ///      genuinely say different things. A box that does BOTH calls both —
+    ///      register() ORs in CAP_HOST and leaves the relay bits alone, this ORs
+    ///      in the relay bits and leaves CAP_HOST alone — so the order it boots
+    ///      in cannot cost it a role.
+    ///
+    ///      A relay does not have to be a TEE and this function is where that is
+    ///      enforced by omission: it never touches `measurement`. It CAN be one,
+    ///      and then it registers both ways, and a router reading this row sees a
+    ///      relay whose routing code is measured — the only kind that cannot log
+    ///      the (client address, SNI) pair it necessarily sees.
+    /// @param region free-form routing hint, e.g. "us-west". Free-form because
+    ///        the useful granularity is "near which enclaves", which no enum
+    ///        survives; a wrong value costs the operator traffic, which is the
+    ///        right incentive.
+    /// @param caps which relay bits this box serves. At least one is required —
+    ///        a relay that carries nothing is not a relay.
+    function registerRelay(string calldata endpoint, string calldata region, uint64 caps)
+        external
+        returns (bytes32 id)
+    {
+        require(bytes(endpoint).length > 0, "endpoint required");
+        require(caps & CAP_RELAY_ANY != 0, "relay caps required");
+        require(caps & ~CAP_RELAY_ANY == 0, "relay caps only");   // CAP_HOST is register()'s to give
+        id = keccak256(bytes(endpoint));
+        Enclave storage e = _enclaves[id];
+        if (_exists[id]) {
+            require(e.operator == msg.sender, "not operator");
+        } else {
+            _exists[id] = true;
+            _ids.push(id);
+            e.operator = msg.sender;
+            e.registeredAt = uint64(block.timestamp);
+            e.endpoint = endpoint;
+            emit Registered(id, msg.sender, endpoint, "");
+        }
+        e.caps |= caps;
+        e.region = region;
+        e.lastSeen = uint64(block.timestamp);
+        e.active = true;
+        emit CapsSet(id, e.caps, region);
+    }
+
+    /// @notice Set this box's capabilities and region ABSOLUTELY — the way to
+    ///         give a role up. register()/registerRelay() only ever OR bits in,
+    ///         because a box re-announcing one role must never silently drop the
+    ///         other; dropping is a deliberate act and this is it.
+    /// @dev Clearing CAP_HOST does not retract the measurement or the price, and
+    ///      should not: they stay as the public record of what this box claimed
+    ///      while it was hosting. What changes is that placement stops
+    ///      considering it, which is the only thing the bit controls.
+    function setCaps(bytes32 id, uint64 caps, string calldata region) external {
+        Enclave storage e = _enclaves[id];
+        require(_exists[id], "unknown");
+        require(e.operator == msg.sender, "not operator");
+        require(caps != 0, "caps required");          // 0 reads as CAP_HOST fleet-wide; deregister() is how you leave
+        e.caps = caps;
+        e.region = region;
+        e.lastSeen = uint64(block.timestamp);
+        emit CapsSet(id, caps, region);
     }
 
     /// @notice Publish the in-CVM key that signs this enclave's proof-of-time

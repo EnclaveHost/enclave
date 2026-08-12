@@ -35,11 +35,6 @@ const OUT = path.join(REPO, "site", "js", "gen", "contract-artifacts.js");
 const DEFS = [
   { name: "EnclaveAddressBook",  bookKey: null },
   { name: "EnclaveRegistry",     bookKey: "registry" },
-  // the relays that CARRY traffic, as opposed to the enclaves that run code.
-  // INERT: nothing is deployed and the address book has no `relayRegistry` key
-  // yet, so the console lists it as deployable and every consumer still reads
-  // the single static relay the app zone points at.
-  { name: "EnclaveRelayRegistry", bookKey: "relayRegistry" },
   { name: "EnclaveAppCatalog",   bookKey: "appCatalog", viaIR: true },
   { name: "EnclavePay",          bookKey: "enclavePay" },
   // runs=100 is NOT a typo and NOT a default: the ledger is the one contract
