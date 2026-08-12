@@ -111,13 +111,25 @@ const ABI = [
 // service lagged.
 const ENCLAVE_TUPLE = [...ENCLAVE_TUPLE_V1,
   { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" },
-  { name: "proofKey", type: "address" }, { name: "payoutWallet", type: "address" }];
+  { name: "proofKey", type: "address" }, { name: "payoutWallet", type: "address" },
+  { name: "caps", type: "uint64" }, { name: "region", type: "string" }];
+const ENCLAVE_TUPLE_V4 = ENCLAVE_TUPLE.slice(0, 11);  // schema 4: payout wallet, no caps
 const ENCLAVE_TUPLE_V3 = ENCLAVE_TUPLE.slice(0, 10);  // schema 3: proof key, no payout wallet
 const ENCLAVE_TUPLE_V2 = ENCLAVE_TUPLE.slice(0, 9);   // schema 2: priced, no proof key
 const abiForRev = (rev) => [ABI[0], { ...ABI[1],
   outputs: [{ type: "tuple[]", components:
-    rev >= 4 ? ENCLAVE_TUPLE : rev >= 3 ? ENCLAVE_TUPLE_V3
+    rev >= 5 ? ENCLAVE_TUPLE : rev >= 4 ? ENCLAVE_TUPLE_V4 : rev >= 3 ? ENCLAVE_TUPLE_V3
              : rev >= 2 ? ENCLAVE_TUPLE_V2 : ENCLAVE_TUPLE_V1 }] }];
+// Schema 5 capability bits (EnclaveRegistry CAP_*): what a registered box DOES,
+// now that being listed no longer implies running code. caps === 0 is every row
+// written before schema 5 and every one of them IS an enclave, so 0 MUST read as
+// CAP_HOST — a reader that takes it for "no capabilities" empties the fleet the
+// day the new registry deploys.
+const CAP_HOST = 1n, CAP_APP_SNI = 2n, CAP_TCP_PORTS = 4n, CAP_UDP = 8n, CAP_TUNNEL_HUB = 16n;
+const CAP_RELAY_ANY = CAP_APP_SNI | CAP_TCP_PORTS | CAP_UDP | CAP_TUNNEL_HUB;
+const capsOf = (e) => { try { return BigInt(e.caps ?? 0); } catch { return 0n; } };
+const isHostRow = (e) => { const c = capsOf(e); return c === 0n || (c & CAP_HOST) !== 0n; };
+const isRelayRow = (e) => (capsOf(e) & CAP_RELAY_ANY) !== 0n;
 const SCHEMA_ABI = [{ type: "function", name: "registrySchema", stateMutability: "view",
   inputs: [], outputs: [{ type: "uint256" }] }];
 
@@ -401,6 +413,11 @@ export function createFleet(cfg, log = () => {}) {
       .filter((ep) => isHttpsEndpoint(ep))
       .filter((ep) => { let h; try { h = new URL(ep).hostname; } catch { return false; } return !isBlockedHost(h); });
     return fresh
+      // This list is the DATA-PLANE fleet: the origins a relay polls /v1/net-map
+      // on and splices tenant traffic to. A relay row is not one of those — it
+      // runs no tenants, answers no net-map, and holds no lease. Following one
+      // here would point the data path at a box that has nothing to serve.
+      .filter((e) => isHostRow(e))
       // B2: only vetted operators (baked default, or the env allowlist). Pass-all
       // ONLY under the explicit TRUSTED_OPERATORS=* opt-in — never by omission.
       .filter((e) => cfg.operatorsUnrestricted || ops.includes(String(e.operator || "").toLowerCase()))
@@ -412,6 +429,8 @@ export function createFleet(cfg, log = () => {}) {
       // plane relays dial the relay box's own localhost / cloud metadata.
       .filter((ep) => { let h; try { h = new URL(ep).hostname; } catch { return false; } const ok = !isBlockedHost(h); if (!ok) log(`skipping non-global registry endpoint: ${ep}`); return ok; });
   }
+
+  let pollTimer = null;
 
   async function refresh() {
     try {
@@ -436,8 +455,17 @@ export function createFleet(cfg, log = () => {}) {
       log(`on-chain fleet: ${cfg.addressBook ? "EnclaveAddressBook " + cfg.addressBook + " -> registry" : "EnclaveRegistry " + cfg.registryAddress}`
           + (cfg.operatorsUnrestricted ? " · UNAUTHENTICATED (TRUSTED_OPERATORS=*)" : ` · trusted operators: ${cfg.trustedOperators.length}`));
       await refresh();
-      setInterval(refresh, cfg.registryPollSec * 1000);
+      // NOT unref'd, deliberately. egress-relay has no listener of its own — it
+      // only dials out — so when the fleet is momentarily empty this interval is
+      // the only thing holding its event loop open. Unref it and that daemon
+      // exits silently instead of retrying, which looks exactly like a crash
+      // that never logged. Callers that want the process to end call stop().
+      pollTimer = setInterval(refresh, cfg.registryPollSec * 1000);
     },
+    /// Stop polling and let the process end. No daemon calls this — see the note
+    /// in start(); it exists for tests and one-shot tooling that want a single
+    /// registry read without hanging on the interval afterwards.
+    stop() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } },
   };
 }
 

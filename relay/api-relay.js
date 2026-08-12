@@ -331,13 +331,25 @@ const ABI = [
 // service lagged.
 const ENCLAVE_TUPLE = [...ENCLAVE_TUPLE_V1,
   { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" },
-  { name: "proofKey", type: "address" }, { name: "payoutWallet", type: "address" }];
+  { name: "proofKey", type: "address" }, { name: "payoutWallet", type: "address" },
+  { name: "caps", type: "uint64" }, { name: "region", type: "string" }];
+const ENCLAVE_TUPLE_V4 = ENCLAVE_TUPLE.slice(0, 11);  // schema 4: payout wallet, no caps
 const ENCLAVE_TUPLE_V3 = ENCLAVE_TUPLE.slice(0, 10);  // schema 3: proof key, no payout wallet
 const ENCLAVE_TUPLE_V2 = ENCLAVE_TUPLE.slice(0, 9);   // schema 2: priced, no proof key
 const abiForRev = (rev) => [ABI[0], { ...ABI[1],
   outputs: [{ type: "tuple[]", components:
-    rev >= 4 ? ENCLAVE_TUPLE : rev >= 3 ? ENCLAVE_TUPLE_V3
+    rev >= 5 ? ENCLAVE_TUPLE : rev >= 4 ? ENCLAVE_TUPLE_V4 : rev >= 3 ? ENCLAVE_TUPLE_V3
              : rev >= 2 ? ENCLAVE_TUPLE_V2 : ENCLAVE_TUPLE_V1 }] }];
+// Schema 5 capability bits (EnclaveRegistry CAP_*): what a registered box DOES,
+// now that being listed no longer implies running code. caps === 0 is every row
+// written before schema 5 and every one of them IS an enclave, so 0 MUST read as
+// CAP_HOST — a reader that takes it for "no capabilities" empties the fleet the
+// day the new registry deploys.
+const CAP_HOST = 1n, CAP_APP_SNI = 2n, CAP_TCP_PORTS = 4n, CAP_UDP = 8n, CAP_TUNNEL_HUB = 16n;
+const CAP_RELAY_ANY = CAP_APP_SNI | CAP_TCP_PORTS | CAP_UDP | CAP_TUNNEL_HUB;
+const capsOf = (e) => { try { return BigInt(e.caps ?? 0); } catch { return 0n; } };
+const isHostRow = (e) => { const c = capsOf(e); return c === 0n || (c & CAP_HOST) !== 0n; };
+const isRelayRow = (e) => (capsOf(e) & CAP_RELAY_ANY) !== 0n;
 const SCHEMA_ABI = [{ type: "function", name: "registrySchema", stateMutability: "view",
   inputs: [], outputs: [{ type: "uint256" }] }];
 // Single-entry read (tunnelNameOwner). The v1 tuple is a PREFIX of the v2 one
@@ -437,7 +449,13 @@ async function discoverRegistry() {
   const now = Math.floor(Date.now() / 1000);
   warnIfUnauthenticated();
   return Promise.all(out
-    .filter((e) => e.active && now - Number(e.lastSeen) <= STALE_AFTER_SEC)
+    // Staleness is a proxy for "is it up", and it only has to be a proxy for a
+    // box we can't otherwise see. An enclave is reachable only by dialling it,
+    // so a cold lastSeen is the one hint we get. A RELAY we probe directly every
+    // cycle (pollAvailability below), and that probe is both fresher and more
+    // truthful than a heartbeat — so relay rows are exempt, which is what lets a
+    // relay be registered once from governance and never hold a signing key.
+    .filter((e) => e.active && (isRelayRow(e) || now - Number(e.lastSeen) <= STALE_AFTER_SEC))
     // B2: only vetted operators (baked default, or the env allowlist). Pass-all
     // ONLY under the explicit TRUSTED_OPERATORS=* opt-in — never by omission.
     .filter((e) => OPERATORS_UNRESTRICTED || TRUSTED_OPERATORS.includes(String(e.operator || "").toLowerCase()))
@@ -452,9 +470,13 @@ async function discoverRegistry() {
     // payoutWallet (schema 4) rides along because ledgerStatus needs it: it is
     // what tells a self-hosted row from an unfunded one. Undefined on an older
     // registry, which reads as "nobody hosts anything free" — the safe default.
+    // caps/region (schema 5) ride along the same way: they are what tells a box
+    // that RUNS work from one that only carries it, and every consumer below
+    // branches on them rather than assuming a registered row is an enclave.
     .map(async ({ e, endpoint }) =>
       ({ endpoint, id: await endpointId(endpoint), name: endpointName(endpoint), repo: e.repo,
-         lastSeen: Number(e.lastSeen), payoutWallet: e.payoutWallet || null })));
+         lastSeen: Number(e.lastSeen), payoutWallet: e.payoutWallet || null,
+         caps: Number(capsOf(e)), relay: isRelayRow(e) && !isHostRow(e), region: e.region || null })));
 }
 
 // --- EnclaveDeployments ledger (the source of truth for a wallet's work) --------
@@ -722,6 +744,35 @@ async function pollRegistry() {
 // concurrent socket PER row every cycle (unbounded fan-out / self-driving SSRF).
 // A fixed worker pool caps in-flight probes regardless of registry size.
 const AVAIL_POLL_CONCURRENCY = parseInt(process.env.AVAIL_POLL_CONCURRENCY || "32", 10);
+
+// A relay serves no /availability, and should not have to. It has no capacity
+// to report and terminates nothing, so there is no in-enclave surface to ask —
+// and everything the listing needs (caps, region) is already on-chain. Its
+// liveness question is only ever "does it still accept connections", which a
+// TCP connect answers directly: fresher than a heartbeat, and something a stale
+// registry row cannot fake. That is what lets a relay be registered once from
+// governance and never hold a signing key.
+const RELAY_PROBE_MS = parseInt(process.env.RELAY_PROBE_MS || "4000", 10);
+function tcpAlive(host, port) {
+  return new Promise((resolve) => {
+    const s = net.connect({ host, port });
+    const done = (ok) => { try { s.destroy(); } catch {} resolve(ok); };
+    s.setTimeout(RELAY_PROBE_MS, () => done(false));
+    s.once("connect", () => done(true));
+    s.once("error", () => done(false));
+  });
+}
+async function relayAvailability(e) {
+  let u; try { u = new URL(e.endpoint); } catch { return null; }
+  if (!(await tcpAlive(u.hostname, u.port ? Number(u.port) : 443))) return null;
+  // claimEnabled:false is load-bearing, not decoration — servingEnclaves() reads
+  // a MISSING flag on a non-tunnel row as "claiming", and a box with no vCPUs or
+  // RAM in that set collapses the fleet-minimum spec* fields and turns every
+  // fleet-AND capability flag false. That is the metal0 sizing incident, and a
+  // relay would reproduce it exactly.
+  return { type: "relay", relay: true, claimEnabled: false,
+           region: e.region || null, caps: e.caps || 0 };
+}
 async function pollAvailability() {
   const src = registry, rows = new Array(src.length);
   let i = 0;
@@ -730,7 +781,8 @@ async function pollAvailability() {
       const idx = i++;
       if (idx >= src.length) return;
       const e = src[idx];
-      const a = e.tunnel ? await tunnelHub.fetchJson(e.endpoint, "/availability").catch(() => null)
+      const a = e.relay  ? await relayAvailability(e)
+              : e.tunnel ? await tunnelHub.fetchJson(e.endpoint, "/availability").catch(() => null)
                          : await fetchJson(`${e.endpoint}/availability`);
       rows[idx] = a ? { ...e, availability: a, checkedAt: new Date().toISOString() } : null;
     }
@@ -1061,8 +1113,13 @@ function sendForwarded(res, r, req) {
 // always claimed, tunnel boxes count only when they SAY they claim (Phase C
 // sellers with registryKey set report true).
 function servingEnclaves() {
-  return live.filter((e) => e.availability?.claimEnabled === true
-    || (e.availability?.claimEnabled == null && !e.tunnel));
+  // A relay is never in this set. It says so itself (claimEnabled:false), but
+  // the row is checked here too: this function decides the fleet-minimum spec*
+  // fields and every fleet-AND capability flag, so one box that reports no vCPUs
+  // slipping in is a fleet-wide sizing and feature outage. Belt and braces on
+  // the one filter that has already failed that way once.
+  return live.filter((e) => !e.relay && (e.availability?.claimEnabled === true
+    || (e.availability?.claimEnabled == null && !e.tunnel)));
 }
 function aggregateAvailability() {
   const serving = servingEnclaves();

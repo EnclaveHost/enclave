@@ -17,6 +17,7 @@ import path from "node:path";
 import { once } from "node:events";
 import { fileURLToPath } from "node:url";
 import { encodeFunctionResult, decodeFunctionData, toFunctionSelector } from "viem";
+import { createFleet, fleetConfig } from "../relay/fleet.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OP = "0x" + "ab".repeat(20);
@@ -28,6 +29,12 @@ const TUPLE_V1 = [
   { name: "active", type: "bool" }];
 const TUPLE_V2 = [...TUPLE_V1,
   { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }];
+// schema 5: proof key + payout wallet + the capability pair. `caps` is what
+// stopped a registered row from implying "runs code", so the decode has to
+// survive a page that mixes an enclave and a relay.
+const TUPLE_V5 = [...TUPLE_V2,
+  { name: "proofKey", type: "address" }, { name: "payoutWallet", type: "address" },
+  { name: "caps", type: "uint64" }, { name: "region", type: "string" }];
 const abiFor = (tuple) => [
   { type: "function", name: "count", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "getPage", stateMutability: "view",
@@ -45,9 +52,16 @@ const entry = (now, priced) => ({
 
 // A registry that speaks `schema`. schema 1 REVERTS registrySchema(), exactly
 // as the deployed one does (it has no such function).
+// a schema-5 page: one enclave that runs code, one relay that only carries it
+const entry5 = (now, { endpoint, caps, region }) => ({
+  ...entry(now, true), endpoint,
+  proofKey: "0x" + "22".repeat(20), payoutWallet: "0x" + "00".repeat(20),
+  caps: BigInt(caps), region,
+});
+
 async function stubRegistry(schema) {
   const now = Math.floor(Date.now() / 1000);
-  const tuple = schema >= 2 ? TUPLE_V2 : TUPLE_V1;
+  const tuple = schema >= 5 ? TUPLE_V5 : schema >= 2 ? TUPLE_V2 : TUPLE_V1;
   const abi = abiFor(tuple);
   const sel = { schema: toFunctionSelector("function registrySchema() view returns (uint256)"),
                 count: toFunctionSelector("function count() view returns (uint256)") };
@@ -58,15 +72,19 @@ async function stubRegistry(schema) {
       const answer = (m) => {
         if (m.method === "eth_chainId") return { result: "0x2105" };
         const data = m.params?.[0]?.data || "";
+        const rows = schema >= 5
+          ? [entry5(now, { endpoint: "https://kryptos.example", caps: 1, region: "" }),
+             entry5(now, { endpoint: "https://relay-sjc.example", caps: 2, region: "us-west" })]
+          : [entry(now, schema >= 2)];
         if (data.startsWith(sel.schema)) {
           if (schema < 2) return { error: { code: 3, message: "execution reverted" } };
-          return { result: encodeFunctionResult({ abi, functionName: "registrySchema", result: 2n }) };
+          return { result: encodeFunctionResult({ abi, functionName: "registrySchema", result: BigInt(schema) }) };
         }
         if (data.startsWith(sel.count))
-          return { result: encodeFunctionResult({ abi, functionName: "count", result: 1n }) };
+          return { result: encodeFunctionResult({ abi, functionName: "count", result: BigInt(rows.length) }) };
         const { functionName, args } = decodeFunctionData({ abi, data });
         assert.equal(functionName, "getPage");
-        const page = Number(args[0]) === 0 ? [entry(now, schema >= 2)] : [];
+        const page = Number(args[0]) === 0 ? rows : [];
         return { result: encodeFunctionResult({ abi, functionName: "getPage", result: page }) };
       };
       const one = (m) => ({ jsonrpc: "2.0", id: m.id, ...answer(m) });
@@ -106,6 +124,40 @@ test("an UNPRICED registry (schema 1, the getter reverts) still decodes", async 
   assert.equal(rows.length, 1);
   assert.equal(rows[0].endpoint, "https://kryptos.example");
   assert.equal(rows[0].cpuPricePerSec6, undefined, "no price on the old shape - callers fall back");
+});
+
+test("a schema-5 registry decodes the capability pair on both kinds of row", async (t) => {
+  const { srv, url } = await stubRegistry(5);
+  t.after(() => srv.close());
+  const rows = await readVia(url);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].endpoint, "https://kryptos.example", "the strings still land past four appended fields");
+  assert.equal(rows[0].caps, 1n, "CAP_HOST");
+  assert.equal(rows[1].caps, 2n, "CAP_APP_SNI — a relay");
+  assert.equal(rows[1].region, "us-west");
+  assert.equal(rows[0].cpuPricePerSec6, 834n, "and schema 2's fields are where they always were");
+});
+
+/* THE cutover hazard of schema 5. `caps` made "is this box an enclave" an
+   explicit question, and the answer for every row written before it is a zero
+   — so a reader that takes 0 for "no capabilities" unfollows the entire live
+   fleet the moment the new registry deploys. The rule is 0 === CAP_HOST, and
+   the contract holds up its half by never leaving caps at 0 on register().
+
+   The other half of the same rule: a RELAY must not enter this list. It runs no
+   tenants, answers no /v1/net-map and holds no lease, so a data-plane relay that
+   followed one would poll a box with nothing to serve and could splice traffic
+   at it. */
+test("origins() follows enclaves and legacy rows, never relays", async (t) => {
+  const { srv, url } = await stubRegistry(5);
+  t.after(() => srv.close());
+  const fleet = createFleet(fleetConfig({
+    REGISTRY_ADDRESS: "0x" + "ef".repeat(20), BASE_RPC: url, TRUSTED_OPERATORS: OP,
+  }));
+  await fleet.start();
+  t.after(() => fleet.stop());
+  assert.deepEqual(fleet.origins(), ["https://kryptos.example"],
+    "the relay row is discovered, decoded, and deliberately not followed");
 });
 
 test("relay/fleet.mjs and relay/api-relay.js carry the same sniff and tuple", () => {

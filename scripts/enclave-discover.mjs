@@ -53,13 +53,25 @@ const ABI = [
 // past its cutover will not sell it work.
 const ENCLAVE_TUPLE = [...ENCLAVE_TUPLE_V1,
   { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" },
-  { name: "proofKey", type: "address" }, { name: "payoutWallet", type: "address" }];
+  { name: "proofKey", type: "address" }, { name: "payoutWallet", type: "address" },
+  { name: "caps", type: "uint64" }, { name: "region", type: "string" }];
+const ENCLAVE_TUPLE_V4 = ENCLAVE_TUPLE.slice(0, 11);  // schema 4: payout wallet, no caps
 const ENCLAVE_TUPLE_V3 = ENCLAVE_TUPLE.slice(0, 10);  // schema 3: proof key, no payout wallet
 const ENCLAVE_TUPLE_V2 = ENCLAVE_TUPLE.slice(0, 9);   // schema 2: priced, no proof key
 const abiForRev = (rev) => [ABI[0], { ...ABI[1],
   outputs: [{ type: "tuple[]", components:
-    rev >= 4 ? ENCLAVE_TUPLE : rev >= 3 ? ENCLAVE_TUPLE_V3
+    rev >= 5 ? ENCLAVE_TUPLE : rev >= 4 ? ENCLAVE_TUPLE_V4 : rev >= 3 ? ENCLAVE_TUPLE_V3
              : rev >= 2 ? ENCLAVE_TUPLE_V2 : ENCLAVE_TUPLE_V1 }] }];
+// Schema 5 capability bits (EnclaveRegistry CAP_*): what a registered box DOES,
+// now that being listed no longer implies running code. caps === 0 is every row
+// written before schema 5 and every one of them IS an enclave, so 0 MUST read as
+// CAP_HOST — a reader that takes it for "no capabilities" empties the fleet the
+// day the new registry deploys.
+const CAP_HOST = 1n, CAP_APP_SNI = 2n, CAP_TCP_PORTS = 4n, CAP_UDP = 8n, CAP_TUNNEL_HUB = 16n;
+const CAP_RELAY_ANY = CAP_APP_SNI | CAP_TCP_PORTS | CAP_UDP | CAP_TUNNEL_HUB;
+const capsOf = (e) => { try { return BigInt(e.caps ?? 0); } catch { return 0n; } };
+const isHostRow = (e) => { const c = capsOf(e); return c === 0n || (c & CAP_HOST) !== 0n; };
+const isRelayRow = (e) => (capsOf(e) & CAP_RELAY_ANY) !== 0n;
 const SCHEMA_ABI = [{ type: "function", name: "registrySchema", stateMutability: "view",
   inputs: [], outputs: [{ type: "uint256" }] }];
 
