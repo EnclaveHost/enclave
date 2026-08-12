@@ -72,6 +72,58 @@ produce identical silence, and a metadata harvester produces no evidence at all.
 Slashing **prices** misbehavior; it cannot detect it. Read the events as
 testimony.
 
+## Choosing a relay: what shipped
+
+The registry schema above is still inert, and the feature did not wait for it.
+Which box relays is read from its **`/availability`**, not from `caps` — a box
+declares a `relay:` block naming the services it carries and the address it
+answers on, and a box with no resources at all is the one the console badges as
+a relay. That needed no contract and no migration, which is why it is live and
+`caps` is not.
+
+The choice is **per deployment, and explicit**. Not a fleet-wide cutover (one
+DNS edit moves everyone, including apps that were fine), and not
+nearest-to-the-lease-holder (a lease moves; an owner's users do not). The owner
+names a relay in the options envelope:
+
+```json
+{"network": {"relay": "us-west"}}
+```
+
+Three parts carry it, and each has one job:
+
+- **`supervisor.js`** validates the namespace and otherwise ignores it. Nothing
+  in a CVM acts on the choice. It is validated anyway, and *refused* rather than
+  dropped, because the envelope is fail-closed: an owner who typos a relay name
+  must be told, not quietly left on the default. That refusal is also why
+  `networkOptions` is a fleet-AND flag — an envelope carrying `network` lands
+  unclaimable on a runner that predates it, so the console hides the tab until
+  every live runner reports true.
+- **`api-relay.js`** (`GET /v1/relays`) answers both halves of the question at
+  once: the roster a picker can offer, and `labels` — the choices already made,
+  resolved to addresses. One endpoint on purpose, because a name the picker
+  offers that the zone cannot resolve is a trap. Two relays answering to one
+  name are **both** dropped, the same rule zone 1 applies to an ambiguous id
+  prefix.
+- **`dns-relay.js`** polls that map (`RELAY_MAP_URL`) and answers
+  `<label>.app.enclave.host` with the chosen address instead of the wildcard.
+
+Two rules in there are load-bearing:
+
+**Reachability outranks the preference.** A choice naming a relay that has left
+the fleet, or one that does not splice SNI, resolves to the zone default. The
+alternative — honouring the record exactly — points a live app at a box that
+cannot serve it, which is not a stricter reading of the owner's wishes, it is an
+outage.
+
+**A chosen relay answers only from its own addresses.** If it declares no IPv6,
+`AAAA` is empty for that name rather than the zone-wide one. Falling back per
+family would send v6-preferring clients to the *default* relay while v4 clients
+used the chosen one: not a fallback, a silent half-undo, and near-invisible from
+outside.
+
+`RELAY_MAP_URL` unset = the app zone is the pure wildcard it always was.
+
 ## Three decisions still open
 
 **1. Browsers can only be steered by DNS.** A native client can read the registry
@@ -108,22 +160,36 @@ the supervisor doing it, not a sidecar the operator can attach to.
 
 ## Rollout order
 
-1. Redeploy `EnclaveRegistry` at schema 5, migrate the two live rows, flip the
-   address book key.
-2. Teach `fleet.mjs` to read `caps`, **fail-closed** exactly as enclave discovery
-   already is — and to read `0` as `CAP_HOST`.
-3. Register a relay. Nothing changes yet; it is discoverable rather than assumed.
-4. Make zone 2 of the dns-relay ownership-aware, answering with the nearest
-   registered `CAP_APP_SNI` box for the enclave holding the lease. **This is
-   where the ~175 ms in `inbound-latency-handoff.md` dies.**
-5. Then the XFF fix.
+Done, in this order:
 
-Steps 1-3 change no traffic. Step 4 needs a second relay to exist somewhere
-useful — and on Tinfoil hosting it cannot be an existing host, because the shim
-is path-based HTTPS and raw TCP only ever arrives as WebSocket upgrades over
-`/x/*`, which a browser does not speak. Host-as-relay is real on metal-style
-self-hosted boxes with public inbound, which is where `metal/PROTOCOL.md` was
-already heading.
+1. ~~A second relay somewhere useful.~~ `us-west` (5.78.85.108, 15 ms from
+   kryptos vs 171 ms from Finland) attaches over the fleet tunnel by **on-chain
+   operator signature** — it signs the hub's challenge with the key that
+   registered its endpoint. Adding or removing a relay is a registry
+   transaction, not a commit.
+2. ~~Zone 2 per-deployment instead of one wildcard.~~ See above. **This is where
+   the ~175 ms in `inbound-latency-handoff.md` dies** — measured 355 → 76 ms
+   warm, 1.43 → 0.22 s fresh TTFB, for a deployment that chooses it.
+
+Still to do:
+
+3. Set `RELAY_MAP_URL` in `/etc/nan-relay/dns.env` on nan-relay. Until then the
+   app zone answers the wildcard for everyone and the tab writes records nothing
+   reads.
+4. Redeploy `EnclaveRegistry` at schema 5, migrate the live rows, flip the
+   address book key — and land it **with** the next `EnclaveDeployments`
+   redeploy, since the ledger's `registry` pointer is `immutable` with no
+   setter and sits on the money path.
+5. Teach `fleet.mjs` to read `caps`, **fail-closed** exactly as enclave discovery
+   already is — and to read `0` as `CAP_HOST`.
+6. Then the XFF fix.
+
+One constraint worth keeping in view: on Tinfoil hosting a relay cannot be an
+existing host, because the shim is path-based HTTPS and raw TCP only ever
+arrives as WebSocket upgrades over `/x/*`, which a browser does not speak.
+Host-as-relay is real on metal-style self-hosted boxes with public inbound —
+`/v1/relays` already offers those (membership is "declares an address it relays
+on", not the relay badge), which is where `metal/PROTOCOL.md` was heading.
 
 For a host that *can* take inbound, note the better outcome: it does not need a
 relay at all. Point `<label>.app.enclave.host` at it and it terminates its own

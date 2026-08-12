@@ -26,10 +26,17 @@
 //                                   names in {"network":{"relay":"…"}}
 //   RELAY_TUNNEL_TOKEN    required  attach secret; its sha256 is what the hub allowlists
 //   RELAY_HUB             optional  wss://api.enclave.host/v1/fleet-tunnel (default)
-//   RELAY_PUBLIC_ADDRESS  required  the address DNS should answer for deployments
+//   RELAY_PUBLIC_ADDRESS  required  the IPv4 DNS should answer for deployments
 //                                   that choose this relay. The whole point of the
 //                                   row: a name the picker shows, an address the
 //                                   zone serves.
+//   RELAY_PUBLIC_ADDRESS6 optional  the IPv6 half, if this box accepts inbound on
+//                                   one. Only declare it if the passthrough
+//                                   listener actually binds v6: a chosen relay
+//                                   answers ONLY from its own addresses (the zone
+//                                   default is not a fallback per family), so a v6
+//                                   record here that nothing listens on is a
+//                                   black hole for every v6-preferring client.
 //   RELAY_REGION          optional  routing hint shown beside the name
 //   RELAY_SNI/_TCP/_UDP/_EGRESS/_TUNNEL_HUB   which services this box actually runs
 //   RELAY_PORTS           optional  the public port range it binds
@@ -95,6 +102,7 @@ const availability = () => ({
     egress:    on("RELAY_EGRESS"),
     tunnelHub: on("RELAY_TUNNEL_HUB"),
     address: ADDRESS,                        // what the zone answers for deployments that pick this relay
+    ...(process.env.RELAY_PUBLIC_ADDRESS6 ? { address6: process.env.RELAY_PUBLIC_ADDRESS6.trim() } : {}),
     ...(process.env.RELAY_REGION ? { region: process.env.RELAY_REGION.trim() } : {}),
     ...(process.env.RELAY_PORTS ? { ports: process.env.RELAY_PORTS.trim() } : {}),
     ...(process.env.RELAY_V6_PREFIX ? { v6Prefix: process.env.RELAY_V6_PREFIX.trim() } : {}),

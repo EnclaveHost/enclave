@@ -15,10 +15,17 @@
 // "dep-"/"dep_" is tolerated); unknown or AMBIGUOUS prefixes are NXDOMAIN.
 // v6-only by design: A queries on these names get an empty NOERROR.
 //
-// ZONE 2 (app): the current wildcard, replicated (A/AAAA straight from env) so
-// the zone can be delegated here without behavior change — plus
-// _acme-challenge TXT records the enclaves push over the authenticated HTTP
-// API below, which is what makes DNS-01 issuance for app names possible.
+// ZONE 2 (app): the wildcard (A/AAAA straight from env) is the DEFAULT answer,
+// not the only one. A deployment may choose which relay carries its traffic
+// ({"network":{"relay":"us-west"}} in its on-chain options envelope), and that
+// choice is consumed HERE — nothing inside a CVM acts on it. The relay's API
+// resolves the choices into label -> address (RELAY_MAP_URL, /v1/relays) and
+// this server answers <label>.app.enclave.host with that address instead of the
+// zone-wide one. Everything else in the zone, the wildcard included, is
+// unchanged; a label with no choice, or one whose relay has gone, falls back to
+// the wildcard, so a preference can never make an app unreachable.
+// Plus _acme-challenge TXT records the enclaves push over the authenticated
+// HTTP API below, which is what makes DNS-01 issuance for app names possible.
 // Entries expire on their own; the store is memory-only (a restart loses at
 // most an in-flight order, which retries).
 //
@@ -46,6 +53,11 @@
 //   ENCLAVES          required*  *instead: static comma list of enclave origins
 //   BASE_RPC / REGISTRY_POLL_SEC / STALE_AFTER_SEC   registry mode knobs (fleet.mjs)
 //   NET_POLL_SEC      optional   /v1/net-map poll cadence (default 15)
+//   RELAY_MAP_URL     optional   the API relay's /v1/relays, e.g.
+//                                https://api.enclave.host/v1/relays. UNSET = the
+//                                app zone is the pure wildcard it always was, so
+//                                the feature arrives by configuring this and
+//                                nothing else changes until it is set.
 
 import dgram from "node:dgram";
 import net from "node:net";
@@ -183,7 +195,45 @@ if (process.env.TCP_AAAA && !TCP_AAAA) { console.error("fatal: TCP_AAAA is not a
 const perOrigin = new Map();   // origin -> [{ hex, address, tcp }]
 let deployments = [];          // flattened fleet view the resolver reads
 
+// ---- zone 2's per-deployment relay choices ---------------------------------
+//
+// label -> { a, aaaa } for the deployments that named a relay. Built by the API
+// relay (it holds both halves: the ledger envelopes and each relay's declared
+// address) and read here as one map, because a name is only answerable when
+// BOTH halves agree — a choice whose relay has gone must resolve to the zone
+// default, and deciding that needs both facts at once.
+//
+// LAST-GOOD, like the net-map poll above and for the same reason: a failed read
+// keeps the previous map. Blanking it on one bad fetch would move every
+// deployment that chose a relay back onto the default relay, which is a
+// fleet-wide traffic shift caused by an HTTP hiccup.
+const RELAY_MAP_URL = (process.env.RELAY_MAP_URL || "").trim();
+const RELAY_TTL = 60;   // shorter than the wildcard's 300: a relay change is an
+                        // owner action, and a fallback to the default after a
+                        // relay leaves should not stay cached for five minutes
+let appRelays = new Map();   // label -> { a: Buffer|null, aaaa: Buffer|null, relay: string }
+
+async function pollRelayMap() {
+  if (!RELAY_MAP_URL) return;
+  const j = await fetchJson(RELAY_MAP_URL);
+  if (!j || !j.labels || typeof j.labels !== "object") {
+    console.error(`[dns-relay] relay-map poll failed: ${RELAY_MAP_URL} (keeping ${appRelays.size} label(s))`);
+    return;
+  }
+  const next = new Map();
+  for (const [label, v] of Object.entries(j.labels)) {
+    if (!/^[0-9a-z]{1,63}$/.test(label) || !v || typeof v !== "object") continue;
+    const a    = v.a    ? ipv4Bytes(String(v.a))     : null;
+    const aaaa = v.aaaa ? ipv6Bytes(String(v.aaaa))  : null;
+    if (!a && !aaaa) continue;                 // nothing to answer with: leave it on the wildcard
+    next.set(label, { a, aaaa, relay: String(v.relay || "") });
+  }
+  if (next.size !== appRelays.size) console.log(`[dns-relay] relay map: ${next.size} label(s) on a chosen relay`);
+  appRelays = next;
+}
+
 async function poll() {
+  await pollRelayMap();
   const origins = fleet.origins();
   const results = await Promise.all(origins.map(async (origin) =>
     ({ origin, map: await fetchJson(origin + "/v1/net-map") })));
@@ -317,11 +367,31 @@ function resolveWildcard(qname, qtype, zone, a4, a6) {
   return an.length ? HIT(an) : NODATA(zone);   // wildcard zone: every name exists
 }
 
+// Zone 2. One deployment label deep (<label>.APP_ZONE) MAY have chosen its own
+// relay; everything else in the zone — the apex, _acme-challenge TXT, any
+// deeper name — is the wildcard exactly as before.
+//
+// A chosen label answers ONLY from that relay's own addresses. If the relay
+// declares no IPv6 the AAAA is NODATA rather than the zone-wide one: falling
+// back per family would hand every v6-preferring client to the DEFAULT relay
+// while v4 clients used the chosen one, which is not a fallback but a silent
+// half-undo of the choice, and the hardest kind of routing bug to see.
+function resolveApp(qname, qtype) {
+  if (qname === APP_ZONE) return apex(APP_ZONE, qtype);
+  const sub = qname.slice(0, -(APP_ZONE.length + 1));
+  const pick = sub.includes(".") ? null : appRelays.get(sub);
+  if (!pick) return resolveWildcard(qname, qtype, APP_ZONE, APP_A, APP_AAAA);
+  const an = [];
+  if ((qtype === T.A    || qtype === T.ANY) && pick.a)    an.push(rr(qname, T.A,    RELAY_TTL, pick.a));
+  if ((qtype === T.AAAA || qtype === T.ANY) && pick.aaaa) an.push(rr(qname, T.AAAA, RELAY_TTL, pick.aaaa));
+  return an.length ? HIT(an) : NODATA(APP_ZONE);
+}
+
 function answer(q) {
   if (q.opcode !== 0) return EMPTY(RC.NOTIMP);
   if (q.qclass !== 1 && q.qclass !== T.ANY) return EMPTY(RC.REFUSED);
   if (q.qname === IP_ZONE  || q.qname.endsWith("." + IP_ZONE))  return resolveIp(q.qname, q.qtype);
-  if (q.qname === APP_ZONE || q.qname.endsWith("." + APP_ZONE)) return resolveWildcard(q.qname, q.qtype, APP_ZONE, APP_A, APP_AAAA);
+  if (q.qname === APP_ZONE || q.qname.endsWith("." + APP_ZONE)) return resolveApp(q.qname, q.qtype);
   if (TCP_ZONE && (q.qname === TCP_ZONE || q.qname.endsWith("." + TCP_ZONE)))
     return resolveWildcard(q.qname, q.qtype, TCP_ZONE, TCP_A, TCP_AAAA);
   if (BOX_ZONE && (q.qname === BOX_ZONE || q.qname.endsWith("." + BOX_ZONE)))
@@ -559,7 +629,8 @@ function apiHandler(req, res) {
     let txtRecords = 0;
     for (const name of [...txtStore.keys()]) txtRecords += txtValues(name).length;
     return json(200, { ok: true, zones: { ip: IP_ZONE, app: APP_ZONE, tcp: TCP_ZONE, box: BOX_ZONE },
-                       deployments: deployments.length, txtRecords });
+                       deployments: deployments.length, txtRecords,
+                       relayLabels: appRelays.size, relayMap: RELAY_MAP_URL || null });
   }
   if (u.pathname !== "/v1/txt" || (req.method !== "POST" && req.method !== "DELETE"))
     return json(404, { error: "not_found", routes: ["GET /health", "POST /v1/txt", "DELETE /v1/txt"] });
@@ -641,4 +712,6 @@ await fleet.start();
 await poll();
 setInterval(poll, POLL_MS);
 console.log(`[dns-relay] authoritative for ${IP_ZONE} + ${APP_ZONE}${TCP_ZONE ? " + " + TCP_ZONE : ""} (ns ${NS_NAME}, serial ${SERIAL}); ` +
-            `polling /v1/net-map across the fleet every ${POLL_MS / 1000}s`);
+            `polling /v1/net-map across the fleet every ${POLL_MS / 1000}s` +
+            (RELAY_MAP_URL ? ` + per-deployment relay choices from ${RELAY_MAP_URL}`
+                           : "; app zone is the wildcard only (RELAY_MAP_URL unset)"));

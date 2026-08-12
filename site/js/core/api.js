@@ -155,6 +155,20 @@ export const Enclave = {
       return r.json();
     }).then(j => (j && j.enclaves) || []);
   },
+  // The relays a deployment may choose between ({"network":{"relay":"…"}} in
+  // its options envelope) plus the choices already made, as label -> address.
+  // Relay-only, like /enclaves. Rows carry `live:false` when the box is in the
+  // roster but not answering right now - a real state the picker must show
+  // rather than hide, since a deployment already pointed at it stays pointed at
+  // it. `services.sni` is the one that matters for the app zone: a relay
+  // without it carries other traffic and cannot front an app subdomain.
+  getRelays(){
+    const url = (this.base || "").replace(/\/v1\/?$/, "") + "/v1/relays";
+    return fetch(url, { headers: { "Accept": "application/json" } }).then(r => {
+      if (!r.ok) throw new EnclaveError("relays: HTTP " + r.status, r.status);
+      return r.json();
+    }).then(j => (j && j.relays) || []);
+  },
   /* Deployments. List/get are PUBLIC ledger reads: a session token gives the
      enclaves' live view (status/network), but a connected wallet alone is
      enough - the relay scopes by ?owner= (on-chain records are public data;

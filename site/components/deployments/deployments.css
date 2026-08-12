@@ -169,6 +169,27 @@ c-deployments{display:contents;}
 .enc-waf-status{padding:0 18px 10px;min-height:0;}
 .enc-waf-status:empty{display:none;}
 
+/* per-row Network (the options envelope's network namespace; setConfig).
+   A radio list, not a select: the relays differ in more than a name - region,
+   address, whether they answer - and every one of those has to be readable at
+   the moment of choosing, not one at a time behind a dropdown. */
+.enc-net{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:var(--well);}
+.enc-net-body{display:flex;flex-direction:column;gap:10px;padding:12px 18px;align-items:flex-start;}
+.en-intro{margin:0;font-size:.78rem;color:var(--text-dim);max-width:72ch;}
+.en-list{display:flex;flex-direction:column;gap:6px;width:100%;}
+.en-opt{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:.8rem;cursor:pointer;
+        padding:6px 10px;border:1px solid transparent;border-radius:8px;}
+.en-opt:hover{background:var(--bg-1);}
+.en-opt:has(input:checked){border-color:var(--line);background:var(--bg-1);}
+.en-opt input{margin:0;accent-color:var(--jade);}
+.en-opt b{font-family:var(--font-mono);font-weight:600;}
+.en-sub{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);}
+.en-sub .dim{color:var(--text-dim);opacity:.75;}
+.en-sub .warn{color:var(--amber);}
+.enc-net-status{padding:0 18px 10px;min-height:0;}
+.enc-net-status:empty{display:none;}
+.ap-badge.ep-relay{font-family:var(--font-mono);}
+
 /* per-row Transfer (transferDeployment: hand the record to another wallet) */
 .enc-xfer{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:var(--well);}
 .enc-xfer-body{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;}

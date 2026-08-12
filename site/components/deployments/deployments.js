@@ -620,6 +620,7 @@ class Deployments extends EnclaveElement {
           '<span class="ap-badge ' + statusCls(st) + '">' + esc(st) + '</span>' +
           '<span class="ap-badge ' + (d.public ? 'ep-public' : 'ep-private') + '" title="' + (d.public ? 'anyone can reach the app endpoint' : 'only your wallet token can reach the app') + '">' + (d.public ? 'public' : 'private') + '</span>' +
           '<span class="ap-badge info ep-waf" data-wafb="' + esc(d.id) + '" hidden>protected</span>' +
+          '<span class="ap-badge ep-relay" data-relayb="' + esc(d.id) + '" hidden></span>' +
           '<button class="enc-id" data-copy="' + esc(d.id) + '" title="' + esc(d.id) + '" aria-label="copy deployment id">' + esc(idShort) + ' ⧉</button>' +
           '<span class="enc-br" aria-hidden="true"></span>' +
           '<span class="enc-meta">' + esc(encTier(d))
@@ -660,6 +661,7 @@ class Deployments extends EnclaveElement {
           (live && ctl !== "order" ? '<button class="btn btn-sm enc-fundbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="' + (ctl === "vault" ? 'Add runtime from your credit balance - one passkey tap' : 'Add runtime - a gas-free USDC signature credits the deployment’s on-chain balance') + '">Top up</button>' : '') +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-upgbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Switch to another approved version of this app - paid time carries over; the app restarts in place on the new version">Version</button>' : '') +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-wafbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Per-IP rate limit + request filter, enforced inside the enclave at the app’s front door - add, tune or remove it any time; a running app picks the change up live">Protect</button>' : '') +
+          (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-netbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Which relay carries this app’s inbound traffic. The relay splices encrypted bytes on the app’s name and never terminates TLS - picking one nearer your users (or nearer the enclave) shortens the network path, and changes nothing about who can read the traffic">Network</button>' : '') +
           (onchain && st === "running" && ctl === "wallet" ? '<button class="btn btn-sm enc-movebtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Run this app on a different enclave - the current one hands its lease back (unused lease time is refunded to the balance) and the box you pick claims it. Same URL, version and balance">Move</button>' : '') +
           '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '" aria-expanded="false">Verify</button>' +
           (mobileOffer(d, ep) ? '<button class="btn btn-sm enc-mobbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Install this app on a phone - the mobile build verifies the enclave on the device before the app loads">Downloads</button>' : '') +
@@ -677,6 +679,7 @@ class Deployments extends EnclaveElement {
         '<div class="enc-upg" hidden></div>' +
         '<div class="enc-move" hidden></div>' +
         '<div class="enc-waf" hidden></div>' +
+        '<div class="enc-net" hidden></div>' +
         '<div class="enc-mob" hidden></div>' +
         '<div class="enc-xfer" hidden></div>' +
         (onchain && (live || resumable) && ctl === "wallet" ? secretsSection(d.id) : '') +
@@ -702,6 +705,7 @@ class Deployments extends EnclaveElement {
     $$(".enc-upgbtn", body).forEach(b => b.addEventListener("click", () => this._upgrade(b.dataset.id, b)));
     $$(".enc-movebtn", body).forEach(b => b.addEventListener("click", () => this._move(b.dataset.id, b)));
     $$(".enc-wafbtn", body).forEach(b => b.addEventListener("click", () => this._waf(b.dataset.id, b)));
+    $$(".enc-netbtn", body).forEach(b => b.addEventListener("click", () => this._network(b.dataset.id, b)));
     $$(".enc-xferbtn", body).forEach(b => b.addEventListener("click", () => this._transfer(b.dataset.id, b)));
     $$(".enc-sec[data-id]", body).forEach(el => this._secretsWire(el));
     $$(".enc-dom[data-id]", body).forEach(el => this._domainsWire(el));
@@ -714,7 +718,7 @@ class Deployments extends EnclaveElement {
     this._fillWhy();               // cached decline reasons repaint instantly with the rows
     this._probeWhy(pageRows);      // then refresh them (throttled per row)
     this._probeTls(pageRows);      // TLS-gate the Open controls (throttled per row)
-    this._probeWaf(pageRows);      // "protected" badges off the options envelope (cached per row)
+    this._probeEnv(pageRows);      // "protected" / "via <relay>" badges off the options envelope (cached per row)
     this._renderPager(pages, shown.length, PER_PAGE);
     // finished runs' strips yield to their rows the moment those render
     [...this._strips.keys()].forEach(r => this._retireStrip(r));
@@ -780,48 +784,63 @@ class Deployments extends EnclaveElement {
      Throttle: pending rows retry each ~10s poll; a green row re-verifies
      every 5 min (an enclave release re-mints every cert, so green can regress)
      and only flips back on an actual failed probe - never while in flight. ---- */
-  /* ---- per-row "protected" badge: does the options envelope carry a waf?
-     The list rows (supervisor live view / relay ledger view) don't carry the
-     envelope, so visible on-chain rows get ONE cached ledger read each - an
-     envelope only changes via an owner tx, so the cache lives until the
-     Protect panel itself rewrites it (which flips the badge in place). ---- */
-  async _probeWaf(rows) {
+  /* ---- per-row envelope badges: what does the options envelope carry?
+     Two of its namespaces are visible on the row itself - `waf` ("protected")
+     and `network.relay` ("via <relay>"). The list rows (supervisor live view /
+     relay ledger view) don't carry the envelope, so visible on-chain rows get
+     ONE cached ledger read each - an envelope only changes via an owner tx, so
+     the cache lives until a panel rewrites it (which flips its badge in
+     place). ---- */
+  async _probeEnv(rows) {
     this._env = this._env || new Map();
     for (const d of rows) {
       const id = d.id;
       if (!/^0x[0-9a-f]{64}$/i.test(id || "")) continue;
       const c = this._env.get(id);
-      if (c) { this._wafPaint(id); continue; }
-      this._env.set(id, { waf: false, summary: "" });   // stamp before the await: overlapping polls must not double-read
+      if (c) { this._envPaint(id); continue; }
+      this._env.set(id, { waf: false, summary: "", relay: "" });   // stamp before the await: overlapping polls must not double-read
       try {
         const dd = await depGet(id);
-        this._wafLearn(id, dd && dd.configCid);
+        this._envLearn(id, dd && dd.configCid);
       } catch (e) { this._env.delete(id); }             // unread: a later repaint retries
     }
   }
-  /* parse an envelope string into the cache + repaint that row's badge -
-     shared by the probe, the Protect panel's open (fresh read) and its apply
-     (optimistic), so the badge always says what the ledger says */
-  _wafLearn(id, envelope) {
+  /* parse an envelope string into the cache + repaint that row's badges -
+     shared by the probe, each panel's open (fresh read) and its apply
+     (optimistic), so the badges always say what the ledger says */
+  _envLearn(id, envelope) {
     this._env = this._env || new Map();
-    let w = null;
+    let w = null, o = null;
     const raw = String(envelope || "").trim();
-    if (raw.startsWith("{")) { try { const o = JSON.parse(raw); if (o && o.waf && typeof o.waf === "object" && !Array.isArray(o.waf)) w = o.waf; } catch (e) {} }
+    if (raw.startsWith("{")) { try { const p = JSON.parse(raw); if (p && typeof p === "object" && !Array.isArray(p)) o = p; } catch (e) {} }
+    if (o && o.waf && typeof o.waf === "object" && !Array.isArray(o.waf)) w = o.waf;
     const summary = w ? [
       w.rps != null ? w.rps + " r/s per IP" : null,
       w.burst != null ? "burst " + w.burst : null,
       w.maxBodyMb != null ? "max body " + w.maxBodyMb + " MB" : null,
       w.blockScanners ? "scanner paths blocked" : null,
     ].filter(Boolean).join(" \u00b7 ") : "";
-    this._env.set(id, { waf: !!w, summary });
-    this._wafPaint(id);
+    const n = o && o.network && typeof o.network === "object" && !Array.isArray(o.network) ? o.network : null;
+    const relay = n && typeof n.relay === "string" ? n.relay.trim().toLowerCase() : "";
+    this._env.set(id, { waf: !!w, summary, relay });
+    this._envPaint(id);
   }
-  _wafPaint(id) {
+  _envPaint(id) {
     const c = this._env && this._env.get(id);
+    if (!c) return;
     const b = this.querySelector('.ep-waf[data-wafb="' + id + '"]');
-    if (!b || !c) return;
-    b.hidden = !c.waf;
-    if (c.waf) b.title = "Protection is on: " + c.summary + " - the Protect button tunes or removes it";
+    if (b) {
+      b.hidden = !c.waf;
+      if (c.waf) b.title = "Protection is on: " + c.summary + " - the Protect button tunes or removes it";
+    }
+    const r = this.querySelector('.ep-relay[data-relayb="' + id + '"]');
+    if (r) {
+      r.hidden = !c.relay;
+      if (c.relay) {
+        r.textContent = "via " + c.relay;
+        r.title = "Inbound traffic for this app is carried by the " + c.relay + " relay - the Network button changes it";
+      }
+    }
   }
 
   async _probeTls(rows) {
@@ -1342,7 +1361,7 @@ class Deployments extends EnclaveElement {
     // the current envelope: waf + config namespaces; anything unparseable
     // reads as empty (setConfig replaces it wholesale, which also heals it)
     const raw = String(d.configCid || "").trim();
-    this._wafLearn(id, raw);                       // freshest ledger truth: sync the row badge
+    this._envLearn(id, raw);                       // freshest ledger truth: sync the row badge
     let cur = {};
     if (raw.startsWith("{")) { try { cur = JSON.parse(raw); } catch(e){} }
     if (!cur || Array.isArray(cur) || typeof cur !== "object") cur = {};
@@ -1424,7 +1443,144 @@ class Deployments extends EnclaveElement {
         }
         paint("ok", "[✓] " + doneWord + " - " + applyWord);
         showToast(doneWord + " on " + id.slice(0, 10) + "…");
-        this._wafLearn(id, envelope);          // the row badge reflects the new envelope immediately
+        this._envLearn(id, envelope);          // the row badge reflects the new envelope immediately
+        setTimeout(() => { if (box.isConnected && !box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); } }, 3500);
+      } catch(e){
+        const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
+        paint("warn", rejected ? (via ? "[x] cancelled - nothing changed" : "[x] rejected in wallet - nothing changed") : "[x] " + (e.message || String(e)));
+        go.disabled = false;
+      } finally { if (!via) refreshWallet(); }
+    });
+  }
+
+  /* ---- per-row Network: which relay carries this app's inbound traffic ----
+     A relay splices ENCRYPTED bytes on the app's name; browser TLS terminates
+     inside the enclave and the relay holds no key, so this choice is about
+     PLACEMENT and nothing else - it can shorten the network path and cannot
+     widen who can read the traffic. That is worth saying plainly in the panel,
+     because "pick who carries my traffic" reads like a trust decision and is
+     not one.
+
+     The mechanism is the options envelope's `network` namespace, written by the
+     same owner setConfig tx as Protect (other namespaces PRESERVED verbatim).
+     Nothing in a CVM acts on it: DNS does. The relay's /v1/relays resolves
+     name -> address and the app zone answers <label>.app.enclave.host with it,
+     so the effect arrives at DNS cadence, not at claim time.
+
+     Fails closed on the fleet flag like Protect: the envelope is refused whole
+     by a runner that predates the namespace, so offering the control against a
+     mixed fleet would strand the deployment unclaimable on the next lease. ---- */
+  async _network(id, btn) {
+    const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-net"); if (!box) return;
+    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
+    btn.setAttribute("aria-expanded", "true");
+    box.hidden = false;
+    const bar = '<div class="ap-attbar">network · ' + esc(id) + '</div>';
+    box.innerHTML = bar + '<div class="term enc-net-status" role="status" aria-live="polite"><span class="ln dimln">// reading the ledger + relay roster…</span></div>';
+    let d = null, rev = 1, avail = null, relays = [];
+    try { [rev, d] = await Promise.all([depSchemaRev(), depGet(id)]); } catch(e){ d = null; }
+    try { avail = await Enclave.getAvailability(); } catch(e){}
+    try { relays = await Enclave.getRelays(); } catch(e){}
+    if (box.hidden || !box.isConnected) return;              // closed while loading
+    const fail = (msg) => { box.querySelector(".enc-net-status").innerHTML = ""; paintLine(box.querySelector(".enc-net-status"), "warn", msg); };
+    if (!d) return fail("[x] couldn’t read this deployment from the ledger - try again shortly");
+    if (avail && avail.networkOptions !== true)
+      return fail("[!] the live fleet doesn’t read the network envelope yet - choosing a relay now could strand this deployment on its next claim; try again after the fleet updates");
+    const raw = String(d.configCid || "").trim();
+    this._envLearn(id, raw);                       // freshest ledger truth: sync the row badge
+    let cur = {};
+    if (raw.startsWith("{")) { try { cur = JSON.parse(raw); } catch(e){} }
+    if (!cur || Array.isArray(cur) || typeof cur !== "object") cur = {};
+    const n0 = (cur.network && typeof cur.network === "object" && !Array.isArray(cur.network)) ? cur.network : null;
+    const cur0 = n0 && typeof n0.relay === "string" ? n0.relay.trim().toLowerCase() : "";
+    // Only a relay that splices SNI can front an app subdomain; one that carries
+    // only dedicated-IP TCP or egress is a real fleet member and a wrong answer
+    // here, so it is not offered.
+    const opts = (Array.isArray(relays) ? relays : []).filter(r => r && r.name && r.services && r.services.sni);
+    // A relay this deployment already NAMES but the roster no longer offers has
+    // to appear anyway, selected and labelled: the record says so, the panel
+    // must not silently redraw it as "fleet default" and turn a reload into an
+    // unintended change. (DNS has already fallen back to the default for it -
+    // that is the fail-safe, and the note below says so.)
+    const gone = !!cur0 && !opts.some(r => r.name === cur0);
+    if (gone) opts.push({ name: cur0, missing: true, live: false, services: { sni: true } });
+    const fid = "en" + appLabel(id);
+    const optLine = (r) => {
+      const bits = [
+        r.region ? esc(r.region) : null,
+        r.address ? '<span class="dim">' + esc(r.address) + '</span>' : null,
+        r.relayOnly === false ? '<span class="dim">also hosts apps</span>' : null,
+        r.missing ? '<span class="warn">not in the fleet roster right now - the zone default is carrying this app</span>'
+                  : (r.live === false ? '<span class="warn">not answering right now</span>' : null),
+      ].filter(Boolean);
+      return '<label class="en-opt"><input type="radio" name="' + fid + '" value="' + esc(r.name) + '"'
+        + (r.name === cur0 ? " checked" : "") + '> <b>' + esc(r.name) + '</b>'
+        + (bits.length ? ' <span class="en-sub">' + bits.join(" · ") + '</span>' : '') + '</label>';
+    };
+    box.innerHTML = bar
+      + '<div class="enc-net-body">'
+      +   '<p class="en-intro">Which relay carries inbound traffic for <b>' + esc(appLabel(id)) + '.' + esc(APP_DOMAIN) + '</b>. '
+      +     'The relay splices encrypted bytes on the name and never terminates TLS - your app’s certificate is minted inside the enclave and stays there, '
+      +     'so this changes the path, never who can read it.</p>'
+      +   '<div class="en-list" role="radiogroup" aria-label="relay for this deployment">'
+      +     '<label class="en-opt"><input type="radio" name="' + fid + '" value=""' + (cur0 ? "" : " checked") + '> <b>Fleet default</b>'
+      +       ' <span class="en-sub">whichever relay the app zone points at - the right answer unless you have a reason</span></label>'
+      +     opts.map(optLine).join("")
+      +   '</div>'
+      +   (opts.length ? '' : '<p class="en-intro dim">No relay is publishing an address to choose from yet, so the fleet default is the only option.</p>')
+      +   '<button class="btn btn-sm btn-primary en-go" type="button">Apply</button>'
+      + '</div>'
+      + '<div class="term enc-net-status" role="status" aria-live="polite"></div>';
+    const st = box.querySelector(".enc-net-status"), go = box.querySelector(".en-go");
+    const paint = (cls, txt) => paintLine(st, cls, txt);
+    const chosen = () => (box.querySelector('input[name="' + fid + '"]:checked') || {}).value || "";
+    const envelopeFor = (name) => {
+      const next = { ...cur };
+      if (name) next.network = { ...(n0 || {}), relay: name };
+      else delete next.network;
+      return Object.keys(next).length ? JSON.stringify(next) : "";
+    };
+    const intro = () => {
+      st.innerHTML = "";
+      paint("info", "// the choice rides one owner signature; new connections follow it at DNS cadence - "
+        + "about a minute between relays, up to five when moving off the fleet default. Open connections stay where they are.");
+      if ("waf" in cur) paint("dimln", "// this deployment’s protection settings are preserved untouched");
+      if ("config" in cur) paint("dimln", "// its app-config override is preserved untouched");
+      // custom domains: a CNAME resolves THROUGH the app name and follows this
+      // choice by itself; an apex pinned straight at our edge addresses does not
+      paint("dimln", "// a custom domain CNAME’d at this app follows the choice - an apex pinned to our edge by A/AAAA keeps its own path");
+      if (gone) paint("warn", "[!] this deployment names “" + cur0 + "”, which no relay in the fleet answers to - the app is reachable on the fleet default meanwhile");
+    };
+    const sync = () => { go.disabled = envelopeFor(chosen()) === raw;
+      go.textContent = chosen() ? (chosen() === cur0 ? "Apply" : "Use " + chosen()) : "Use the fleet default"; };
+    $$('input[name="' + fid + '"]', box).forEach(el => el.addEventListener("change", sync));
+    intro(); sync();
+    go.addEventListener("click", async () => {
+      const name = chosen(), envelope = envelopeFor(name);
+      if (envelope === raw) return;
+      const cap = rev >= 5 ? 4096 : 100;
+      if (new TextEncoder().encode(envelope).length > cap)
+        return paint("warn", "[x] the options envelope is over this ledger’s " + cap + "-byte cap - trim the config override first");
+      go.disabled = true;
+      const via = ctlOf((this._list || []).find(x => x.id === id)) === "vault";
+      const doneWord = name ? "inbound now goes through " + name : "inbound is back on the fleet default";
+      try {
+        if (via){
+          paint("info", "[*] confirm with your passkey…");
+          const { vaultOp } = await import("../../js/core/vault.js");
+          await vaultOp("control", { id, action: "options", envelope });
+        } else {
+          if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
+          await ensureBaseChain();
+          paint("info", "[*] confirm the transaction in your wallet…");
+          const th = await sendTx(DEPLOYMENTS_ADDRESS,
+            encCall(DEP_SEL.setConfig, [{ t: "bytes32", v: id }, { t: "str", v: envelope }]));
+          paint("dimln", "  ↳ sent " + th + " · waiting for confirmation…");
+          await waitReceipt(th);
+        }
+        paint("ok", "[✓] " + doneWord + " - DNS picks it up within a minute or so");
+        showToast(doneWord);
+        this._envLearn(id, envelope);          // the row badge reflects the new envelope immediately
         setTimeout(() => { if (box.isConnected && !box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); } }, 3500);
       } catch(e){
         const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
@@ -2414,7 +2570,7 @@ class Deployments extends EnclaveElement {
      rebuilds the row and strands the reveal in detached DOM (the dropdown
      "closes" under the wallet popup). The poll catches up once it clears. */
   _panelPinned() {
-    return !!this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-mob:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden]), .enc-sec[data-busy], .enc-dom[data-busy]");
+    return !!this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-net:not([hidden]), .enc-mob:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden]), .enc-sec[data-busy], .enc-dom[data-busy]");
   }
   _startPoll() {
     if (this._poll) return;
