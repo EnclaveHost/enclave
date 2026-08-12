@@ -371,6 +371,7 @@ test("tunnel: a relay attaches by signing with the operator that owns its name o
     allow: [{ name: "metal0", tokenSha256: TOKEN_SHA }],
     operatorFor: async (name) => (name === "us-west" ? owner.address : null),
     operatorAttach: true,
+    trustedOperators: [owner.address],        // proving the name is not the same as being welcome
   });
   const server = http.createServer((_q, r) => r.end("ok"));
   server.on("upgrade", (q, s, h) => hub.handleUpgrade(q, s, h));
@@ -441,5 +442,43 @@ test("tunnel: operator attach is refused unless it is switched on", async (t) =>
   const res = await dial(`ws://127.0.0.1:${server.address().port}/v1/fleet-tunnel`,
     { "x-metal-name": "us-west", "x-metal-attach": "operator" });
   assert.equal(res.state, 401, "off by default: a tunnel row bypasses the dial-time allowlist");
+  assert.equal(hub.count(), 0);
+});
+
+/* Proving a name is not the same as being welcome. EnclaveRegistry is
+   permissionless, so ownership alone would make the operator path the LEAST
+   gated of the three: a stranger registers https://<relay>/t/<name>, signs for
+   it, and lands in the fleet listing — and a row that claims capacity joins the
+   set that sizes the fleet and takes placement. A token needs a committed hash
+   and a quote needs an allowlisted measurement; this needs the same operator
+   bar the dial path already applies, enforced here because a tunnel row skips
+   that filter entirely. */
+test("tunnel: owning the name on chain is not enough — the operator must be trusted", async (t) => {
+  const { privateKeyToAccount } = await import("viem/accounts");
+  const stranger = privateKeyToAccount(`0x${"33".repeat(32)}`);
+  const hub = createTunnelHub({
+    operatorFor: async () => stranger.address,     // genuinely owns it on chain
+    operatorAttach: true,
+    trustedOperators: ["0x390e2e0e0bc34b7f428f1e31c9b6770d5028ecc1"],   // but not ours
+  });
+  const server = http.createServer((_q, r) => r.end("ok"));
+  server.on("upgrade", (q, s, h) => hub.handleUpgrade(q, s, h));
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  t.after(() => new Promise((r) => server.close(r)));
+  const url = `ws://127.0.0.1:${server.address().port}/v1/fleet-tunnel`;
+
+  const verdict = await new Promise((resolve) => {
+    const ws = new WebSocket(url, { headers: { "x-metal-name": "rogue", "x-metal-attach": "operator" } });
+    ws.on("message", async (d) => {
+      const f = JSON.parse(d);
+      if (f.t === "challenge")
+        ws.send(JSON.stringify({ t: "attach",
+          operatorSig: await stranger.signMessage({ message: `enclave-tunnel-attach:rogue:${f.nonce}` }) }));
+      else if (f.t === "attest-result") { try { ws.close(); } catch {} resolve(f); }
+    });
+    ws.on("error", () => resolve({ error: true }));
+  });
+  assert.equal(verdict.ok, false, "a valid signature over a genuinely owned name still does not attach");
+  assert.match(verdict.reason, /not a trusted operator/);
   assert.equal(hub.count(), 0);
 });

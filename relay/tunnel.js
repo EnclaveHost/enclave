@@ -83,8 +83,18 @@ function selfRoutedUrl(url, name) {
 //   is authorized here instead), so turning this on lets anyone who registers
 //   https://<relay>/t/<name> appear in the fleet listing under that name. That
 //   is a deliberate widening and it should be a deliberate switch.
+// trustedOperators / operatorsUnrestricted — the SAME fail-closed operator set
+//   the dial-based discovery applies, enforced here because a tunnel row does
+//   NOT go through it. Without this the operator path would be the least gated
+//   of the three: the registry is permissionless, so anyone could register
+//   https://<relay>/t/<name>, sign for it, and appear in the fleet listing —
+//   and a row that claims capacity lands in the set that sizes the fleet and
+//   takes placement. A token needs a committed hash and a quote needs an
+//   allowlisted measurement; proving a name from chain has to clear a bar too.
 export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 30000, onChange = () => {},
-                                  operatorFor = null, operatorAttach = false } = {}) {
+                                  operatorFor = null, operatorAttach = false,
+                                  trustedOperators = [], operatorsUnrestricted = false } = {}) {
+  const trusted = new Set(trustedOperators.map((a) => String(a).toLowerCase()));
   const allowByName = new Map(allow.filter((a) => a && a.name && a.tokenSha256).map((a) => [a.name, a.tokenSha256.toLowerCase()]));
   const attestOn = !!(attest && attest.allowedMeasurements && attest.allowedMeasurements.length);
   const wss = new WebSocketServer({ noServer: true });
@@ -247,6 +257,12 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             if (!signer) return deny("operatorSig is not a valid personal_sign of "
                                    + "\"enclave-tunnel-attach:<name>:<nonce b64>\"");
             if (signer !== owner) return deny(`${name} is registered on chain to ${owner}, not ${signer}`);
+            // Proving the name is not the same as being welcome on this relay.
+            // Registration is permissionless, so ownership alone would let any
+            // stranger into the fleet listing — the same reason the dial path
+            // filters on this set, applied here because a tunnel row skips it.
+            if (!operatorsUnrestricted && !trusted.has(owner))
+              return deny(`${owner} owns ${name} on chain but is not a trusted operator of this relay`);
             // A live holder is only displaceable by the same on-chain owner —
             // which this signature just proved. Two boxes sharing one operator
             // key is the operator's own business; a stranger cannot get here.

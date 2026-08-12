@@ -122,6 +122,14 @@ const TUNNEL_ORIGIN = (process.env.TUNNEL_PUBLIC_ORIGIN || "https://api.enclave.
 // Inactive entries are treated as unowned: a deregistered seller has given the
 // name up. Errors propagate — the hub decides how to fail, and it fails closed
 // against an owner it has already seen.
+const DEFAULT_TRUSTED_OPERATORS = ["0x390e2e0e0bc34b7f428f1e31c9b6770d5028ecc1"]; // canonical Enclave fleet operator
+const _rawOperators = (process.env.TRUSTED_OPERATORS ?? "").trim();
+const OPERATORS_UNRESTRICTED = /^(\*|any|all)$/i.test(_rawOperators);
+const TRUSTED_OPERATORS = OPERATORS_UNRESTRICTED ? []
+  : (_rawOperators
+      ? _rawOperators.toLowerCase().split(",").map((s) => s.trim()).filter(Boolean)
+      : DEFAULT_TRUSTED_OPERATORS.slice());
+
 async function tunnelNameOwner(name) {
   if (!REGISTRY_ADDRESS) return null;
   const c = await chain();
@@ -145,6 +153,9 @@ const tunnelHub = createTunnelHub({
   // allowlist, so this lets anyone who registers /t/<name> appear in the fleet
   // listing under that name — a deliberate widening, behind a deliberate switch.
   operatorAttach: /^(1|true|yes|on)$/i.test((process.env.TUNNEL_OPERATOR_ATTACH || "").trim()),
+  // and the owner still has to clear the same operator bar the dial path uses —
+  // a tunnel row bypasses that filter, so it is enforced at attach instead
+  trustedOperators: TRUSTED_OPERATORS, operatorsUnrestricted: OPERATORS_UNRESTRICTED,
   // when an enclave attaches/detaches, refresh discovery + availability now so it
   // enters/leaves `live` immediately rather than on the slow (5 min) registry poll
   onChange: () => { pollRegistry().then(pollAvailability).catch(() => {}); },
@@ -185,13 +196,6 @@ if (!REGISTRY_ADDRESS && !ADDRESS_BOOK && !STATIC_ENCLAVES.length) {
 // unset/empty we fall back to the BAKED canonical operator set below (not "trust
 // everyone"). Running a genuinely unrestricted relay is still possible but only
 // as an explicit, auditable opt-in: TRUSTED_OPERATORS=* (or "any"/"all").
-const DEFAULT_TRUSTED_OPERATORS = ["0x390e2e0e0bc34b7f428f1e31c9b6770d5028ecc1"]; // canonical Enclave fleet operator
-const _rawOperators = (process.env.TRUSTED_OPERATORS ?? "").trim();
-const OPERATORS_UNRESTRICTED = /^(\*|any|all)$/i.test(_rawOperators);
-const TRUSTED_OPERATORS = OPERATORS_UNRESTRICTED ? []
-  : (_rawOperators
-      ? _rawOperators.toLowerCase().split(",").map((s) => s.trim()).filter(Boolean)
-      : DEFAULT_TRUSTED_OPERATORS.slice());
 const isHttpsEndpoint = (ep) => { try { return new URL(ep).protocol === "https:"; } catch { return false; } };
 let _warnedUnauth = false;
 function warnIfUnauthenticated() {
