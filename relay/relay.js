@@ -257,6 +257,18 @@ function handle(client, logicalPort) {
   conns++;
   client.once("close", () => conns--);
   client.on("error", () => client.destroy());
+  // A splice must not re-Nagle bytes that were already framed upstream. Node
+  // leaves Nagle ON for net.createServer sockets (http.Server turns it off for
+  // you; a raw listener gets no such favor), and `ws` already clears it on the
+  // enclave leg — so this client socket was the ONE Nagle-enabled hop in the
+  // whole path. The cost was a full CLIENT round trip, not a small one: the
+  // enclave answers a request in two writes (headers, then body) or answers two
+  // pipelined requests a millisecond apart, the first write goes out, and the
+  // second is held hostage until the client ACKs the first. Measured 2026-08-11
+  // from a box 171 ms from this relay: two pipelined /ping responses generated
+  // 1 ms apart in the enclave arrived 170 ms apart. Every header/body split, SSE
+  // frame and HID input event paid it.
+  client.setNoDelay(true);
 
   // buffer until the ClientHello is complete, route on its SNI, then splice
   let buf = Buffer.alloc(0);
