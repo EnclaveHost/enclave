@@ -137,6 +137,14 @@ const tunnelHub = createTunnelHub({
   allow: [...DEFAULT_METAL_ALLOW, ...ENV_METAL_ALLOW],
   attest: METAL_ALLOWED_MEASUREMENTS.length ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK } : null,
   operatorFor: tunnelNameOwner,
+  // TUNNEL_OPERATOR_ATTACH=1 — let a box prove its tunnel name with the operator
+  // key that registered its endpoint on chain, instead of a token whose hash
+  // someone committed here. It is how a RELAY attaches: not a TEE by design, so
+  // it has no measurement to quote, but it does have an on-chain identity.
+  // OFF by default because a tunnel row bypasses the dial-time operator
+  // allowlist, so this lets anyone who registers /t/<name> appear in the fleet
+  // listing under that name — a deliberate widening, behind a deliberate switch.
+  operatorAttach: /^(1|true|yes|on)$/i.test((process.env.TUNNEL_OPERATOR_ATTACH || "").trim()),
   // when an enclave attaches/detaches, refresh discovery + availability now so it
   // enters/leaves `live` immediately rather than on the slow (5 min) registry poll
   onChange: () => { pollRegistry().then(pollAvailability).catch(() => {}); },
