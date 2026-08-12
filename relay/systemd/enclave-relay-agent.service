@@ -8,6 +8,14 @@ StartLimitIntervalSec=0
 [Service]
 EnvironmentFile=/etc/nan-relay/relay-agent.env
 WorkingDirectory=/opt/nan-relay
+# The attach key is the one secret this box holds. DynamicUser cannot read a
+# root-owned 0600 file, and putting the key in the EnvironmentFile instead would
+# publish it to anything that can read the process environment. LoadCredential
+# is the seam for exactly this: systemd opens it as root and exposes a copy to
+# this service alone, under $CREDENTIALS_DIRECTORY (%d). Absent file = the unit
+# refuses to start rather than silently falling back to a weaker path.
+LoadCredential=operator-key:/etc/nan-relay/relay-operator.key
+Environment=RELAY_OPERATOR_KEY_FILE=%d/operator-key
 ExecStart=/usr/bin/node /opt/nan-relay/relay-agent.mjs
 Restart=always
 RestartSec=2

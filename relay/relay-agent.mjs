@@ -35,6 +35,7 @@
 //   RELAY_PORTS           optional  the public port range it binds
 
 import WebSocket from "ws";
+import { readFileSync } from "node:fs";
 
 const need = (k) => { const v = (process.env[k] || "").trim();
   if (!v) { console.error(`fatal: ${k} is required`); process.exit(1); } return v; };
@@ -50,7 +51,12 @@ const ADDRESS = need("RELAY_PUBLIC_ADDRESS");
 //   RELAY_TUNNEL_TOKEN — bootstrap. Its sha256 has to be committed to the hub's
 //     allowlist, which hardcodes fleet membership into source and reserves the
 //     name against every other path. Fine to start with, worth leaving behind.
-const OPERATOR_KEY = (process.env.RELAY_OPERATOR_KEY || "").trim();
+// RELAY_OPERATOR_KEY_FILE is preferred over the inline value: an env var is
+// readable from /proc and `systemctl show`, a 0600 file is not, and the key
+// never has to be pasted anywhere to be installed.
+const OPERATOR_KEY = (process.env.RELAY_OPERATOR_KEY_FILE
+  ? readFileSync(process.env.RELAY_OPERATOR_KEY_FILE.trim(), "utf8")
+  : (process.env.RELAY_OPERATOR_KEY || "")).trim();
 const TOKEN        = (process.env.RELAY_TUNNEL_TOKEN || "").trim();
 if (!OPERATOR_KEY && !TOKEN) {
   console.error("fatal: set RELAY_OPERATOR_KEY (attach by on-chain ownership) or RELAY_TUNNEL_TOKEN (bootstrap)");
