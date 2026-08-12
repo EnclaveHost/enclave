@@ -1150,9 +1150,37 @@ function parseDepOptions(raw, gpuMilli) {
     throw new Error("configCid is retired: a CID names bytes nobody validated — this field may only carry a deployment-options JSON envelope like {\"waf\":{…},\"config\":{…}} (config = an inline app-config override for this deployment); recreate the deployment without a config reference");
   let o; try { o = JSON.parse(s); } catch (e) { throw new Error("options envelope is not valid JSON: " + e.message); }
   if (!o || Array.isArray(o) || typeof o !== "object") throw new Error("options envelope must be a JSON object");
-  const unknown = Object.keys(o).filter((k) => k !== "waf" && k !== "config" && k !== "gpu");
-  if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: waf, config, gpu)`);
+  const unknown = Object.keys(o).filter((k) => k !== "waf" && k !== "config" && k !== "gpu" && k !== "network");
+  if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: waf, config, gpu, network)`);
   const opts = {};
+  if ("network" in o) {
+    // WHICH RELAY carries this deployment's traffic. Unlike every other
+    // namespace here, nothing in this CVM acts on it: the choice is consumed at
+    // the DNS layer, which answers <label>.app.enclave.host with the chosen
+    // relay's address instead of the zone-wide default. It is validated here
+    // anyway, and refused rather than ignored, for the reason the whole
+    // envelope is fail-closed — an owner who typo'd their relay would otherwise
+    // be told nothing and quietly keep the default, which is exactly the class
+    // of silence this field exists to avoid.
+    //
+    // A NAME, not an address: the relay set moves (a box is replaced, an
+    // address changes) and a deployment should follow the relay it chose rather
+    // than pin the machine it happened to be on. Resolution name -> address is
+    // the fleet's job, not this record's.
+    const n = o.network;
+    if (!n || Array.isArray(n) || typeof n !== "object")
+      throw new Error("network must be a JSON object like {\"relay\":\"us-west\"}");
+    const badN = Object.keys(n).filter((k) => k !== "relay");
+    if (badN.length) throw new Error(`unknown network option ${JSON.stringify(badN[0])} (this runner knows: relay)`);
+    if ("relay" in n) {
+      const r = n.relay;
+      // "" / null is a deliberate, expressible choice: back to the zone default.
+      if (r === null || r === "") opts.relay = "";
+      else if (typeof r !== "string" || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(r))
+        throw new Error("network.relay must be a relay name: lowercase letters, digits and dashes, up to 63 characters (or \"\" for the fleet default)");
+      else opts.relay = r;
+    }
+  }
   if ("gpu" in o) {
     // The card requirement, softened. `optional: true` says the deployment
     // PREFERS a GPU enclave (it bought a slice and pays for one where a card
@@ -3218,6 +3246,7 @@ app.get("/availability", async (_req, res) => {
     cardVramGb: IS_GPU ? CARD_VRAM_GB : 0, cardTflops: IS_GPU ? CARD_TFLOPS : 0, cards: GPU_COUNT,
     ...(IS_GPU ? { cardVramSource: CARD_VRAM_SRC } : {}),   // "nvidia-smi"/"manager"/"worker" = probed hardware; "env"/"default" = config fallback
     ...(RELAY_SERVICES ? { relay: RELAY_SERVICES } : {}),   // network this box carries for the fleet; see the block above
+    networkOptions: true,   // this build accepts the envelope's `network` namespace (per-deployment relay choice). SAME FLEET-AND RULE as waf/config/gpuOptional and for the sharpest reason: the envelope is fail-closed, so a deployment carrying {"network":…} that lands on a runner which predates this is REFUSED OUTRIGHT, not degraded. The console must keep the Network tab hidden until every live runner reports true
     waf: true,   // this build accepts + enforces the deployment-options envelope (waf); the relay ANDs this across the fleet and the console shows the Protection controls only then
     configOverride: true,   // this build accepts the envelope's `config` namespace (per-deployment app-config override); same fleet-AND rule — the console unlocks the App config box only when every live runner honors it
     configEdit: true,   // this build's audit re-applies an owner's setConfig to LIVE deployments (waf live-swapped, config = restart in place); without it an edit only lands at the next re-claim — same fleet-AND rule

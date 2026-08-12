@@ -1168,6 +1168,12 @@ function aggregateAvailability() {
     // strand the deployment unclaimable on that box. So the console must not
     // offer the control until every live runner knows the word.
     gpuOptional: serving.length > 0 && serving.every((e) => e.availability?.gpuOptional === true),
+    // per-deployment relay choice (the envelope's `network` namespace). Nothing
+    // in a CVM acts on it — DNS does — but the ENVELOPE is fail-closed, so a
+    // deployment carrying {"network":…} that lands on a runner predating it is
+    // refused outright. Same fleet-AND rule, same reason: the console must keep
+    // the Network tab hidden until every live runner knows the word.
+    networkOptions: serving.length > 0 && serving.every((e) => e.availability?.networkOptions === true),
     // per-deployment secrets (relay-stored, injected as guest env by the lease
     // holder): needs BOTH this relay configured (SECRETS_KEY + data dir) and a
     // fleet-AND of runners that fetch+inject — a mixed fleet would run the same
