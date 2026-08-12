@@ -392,7 +392,12 @@ against your enclaves.
    with the ACME envs configured it also issues real per-name certs in-CVM —
    either way no key ever exists outside the CVM, let alone on the relay box.
 2. **DNS**: the app zone is served by the platform DNS daemon (`dns-relay.js`
-   above) — its `APP_A` points at this relay.
+   above) — its `APP_A` points at this relay. That is the zone's DEFAULT, not
+   its only answer: set `RELAY_MAP_URL=https://api.enclave.host/v1/relays` in
+   `dns.env` and a deployment that named a relay in its options envelope
+   (`{"network":{"relay":"us-west"}}`, the console's Network tab) gets that
+   relay's address for its own name instead. Unset = pure wildcard, exactly as
+   before. See [`docs/relay-registry.md`](../docs/relay-registry.md).
 3. **Relay**:
 
 ```bash
@@ -470,7 +475,8 @@ TLS on 6697 while the app declares `tcp:6667`) and for colocated testing.
   `udp-relay.env` carry `ENCLAVE_URL` plus the `TCP6_PREFIX` / `UDP_PREFIX` for
   the AnyIP route (same /64); `egress-relay.env` carries `EGRESS_RELAY_TOKEN` +
   `EGRESS_PREFIX`; `dns.env` carries `IP_ZONE` / `APP_ZONE` / `NS_NAME` +
-  `DNS_TXT_KEY` (the DERIVED TXT-push HMAC key — see the DNS note below);
+  `DNS_TXT_KEY` (the DERIVED TXT-push HMAC key — see the DNS note below) and
+  optionally `RELAY_MAP_URL` (per-deployment relay choices; unset = wildcard);
   `deploy.sh` never touches the env files (host state). Each unit sets
   `MemoryMax` / `TasksMax` and `StartLimitIntervalSec=0` (a crash-loop must not
   permanently stop a shared relay).
