@@ -39,6 +39,14 @@ everywhere.
 | **warm request** | **349 ms** | **29-35 ms** |
 | pipelined gap | 0 ms (risc-box) | 1 ms |
 
+**The right-hand column is a measuring instrument, not a route.** It exists to
+prove where the time goes, and that is all it is for. App traffic goes through
+the relay — that is the design, not an accident of it: the relay is the stable
+name a deployment keeps when it migrates between enclaves, and the SNI splice
+is what lets a browser's TLS terminate inside the CVM with nothing in between
+holding a key. Pointing a client at an enclave origin trades both away to buy
+latency. Don't; fix the placement instead.
+
 The accounting closes to within a few ms:
 
 - warm 349 ms = 171 (client↔relay) + ~175 (relay↔enclave). Nothing else.
@@ -124,8 +132,11 @@ good for everyone at once; that is what (2) is for.
 ## Reproducing
 
 ```sh
-# the two vantages, same deployment
+# the real data path
 curl -sso /dev/null -w 'via relay  ttfb %{time_starttransfer}s\n' https://e64f7cba.app.enclave.host/ping
+
+# the same deployment with the relay taken out of the picture — DIAGNOSTIC
+# ONLY, to attribute the difference. Never a route to point a client at.
 ID=0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b
 curl -sso /dev/null -w 'direct     ttfb %{time_starttransfer}s\n' \
   "https://kryptos.enclave.containers.tinfoil.dev/x/$ID/ping"
