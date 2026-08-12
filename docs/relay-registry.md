@@ -110,11 +110,13 @@ Three parts carry it, and each has one job:
 
 Two rules in there are load-bearing:
 
-**Reachability outranks the preference.** A choice naming a relay that has left
-the fleet, or one that does not splice SNI, resolves to the zone default. The
-alternative — honouring the record exactly — points a live app at a box that
-cannot serve it, which is not a stricter reading of the owner's wishes, it is an
-outage.
+**Reachability outranks the preference.** A choice naming a relay that is not
+answering right now, or one that does not splice SNI, resolves to the zone
+default. The roster is deliberately not remembered across a missed poll, because
+the two errors are not the same size: forgetting a relay that is fine costs one
+DNS TTL of traffic on the default relay — *slower*; remembering one that is gone
+points every app that chose it at a black hole for as long as the memory lasts —
+*down*. A latency feature must not be able to cause an outage.
 
 **A chosen relay answers only from its own addresses.** If it declares no IPv6,
 `AAAA` is empty for that name rather than the zone-wide one. Falling back per

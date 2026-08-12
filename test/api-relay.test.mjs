@@ -812,7 +812,6 @@ test("api-relay: /v1/relays publishes the roster and resolves each deployment's 
   assert.equal(r.name, "127");
   assert.equal(r.address, "198.51.100.9");
   assert.equal(r.region, "us-west");
-  assert.equal(r.live, true);
   assert.equal(r.relayOnly, true, "a box with no resources only relays - the console badges it as one");
   assert.equal(r.services.sni, true);
   assert.equal(r.services.egress, false, "services it did not declare are false, never absent");
@@ -867,4 +866,57 @@ test("api-relay: a relay that does not splice SNI is listed but cannot front an 
   assert.equal(body.relays[0].services.sni, false);
   assert.equal(body.relays[0].v6Prefix, "2a01:4f9:c013:9b52::/64");
   assert.deepEqual(body.labels, {}, "but nothing resolves to it, so no app is pointed at a black hole");
+});
+
+test("api-relay: a relay that stops answering leaves the roster, and its apps fall back to the default", async (t) => {
+  // The asymmetry this encodes: forgetting a relay that is fine costs one DNS
+  // TTL of traffic on the default relay - slower, never down. Remembering one
+  // that is gone points every app that chose it at a black hole for as long as
+  // the memory lasts. A latency feature must not be able to cause an outage.
+  const box = relayBoxWith({ sni: true, address: "198.51.100.9", region: "us-west" });
+  box.listen(0, "127.0.0.1"); await once(box, "listening");
+  let closed = false;
+  t.after(() => { if (!closed) box.close(); });
+
+  const ledger = [{ id: ID("11"), owner: OWNER, appRef: "ipfs://a", active: true, balance6: 5_000_000,
+                    configCid: JSON.stringify({ network: { relay: "127" } }) }];
+  const origin = await startRelay(t, { enclaves: `http://127.0.0.1:${box.address().port}`,
+                                       ledger, env: { AVAIL_POLL_SEC: "1" } });
+  assert.equal((await getJson(origin, "/v1/relays")).body.labels["11111111"].a, "198.51.100.9");
+
+  box.close(); closed = true;                      // the relay's box goes away
+  for (let i = 0; i < 60; i++) {
+    const { body } = await getJson(origin, "/v1/relays");
+    if (!body.relays.length) {
+      assert.deepEqual(body.labels, {}, "and nothing is still pointed at it");
+      return;
+    }
+    await delay(100);
+  }
+  assert.fail("a relay that stopped answering never left the roster");
+});
+
+test("api-relay: two deployments sharing an app-zone label get no override, not one of them silently winning", async (t) => {
+  // Ids sharing their first 8 hex chars share one name - there is no answer
+  // that serves both. The name is already ambiguous with or without this
+  // feature; what must not happen is one deployment quietly deciding where the
+  // other's traffic goes.
+  const box = relayBoxWith({ sni: true, address: "198.51.100.9" });
+  box.listen(0, "127.0.0.1"); await once(box, "listening");
+  t.after(() => box.close());
+
+  const twinA = "0x" + "11".repeat(4) + "aa".repeat(28);
+  const twinB = "0x" + "11".repeat(4) + "bb".repeat(28);
+  const ledger = [
+    { id: twinA, owner: OWNER, appRef: "ipfs://a", active: true, balance6: 5_000_000,
+      configCid: JSON.stringify({ network: { relay: "127" } }) },
+    { id: twinB, owner: OWNER, appRef: "ipfs://b", active: true, balance6: 5_000_000 },   // no choice at all
+    { id: ID("77"), owner: OWNER, appRef: "ipfs://c", active: true, balance6: 5_000_000,
+      configCid: JSON.stringify({ network: { relay: "127" } }) },
+  ];
+  const origin = await startRelay(t, { enclaves: `http://127.0.0.1:${box.address().port}`, ledger });
+
+  const { body } = await getJson(origin, "/v1/relays");
+  assert.equal(body.labels["11111111"], undefined, "the contested label gets no answer from either twin");
+  assert.equal(body.labels["77777777"].a, "198.51.100.9", "an uncontested label is unaffected");
 });

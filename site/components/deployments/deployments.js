@@ -1497,21 +1497,22 @@ class Deployments extends EnclaveElement {
     // only dedicated-IP TCP or egress is a real fleet member and a wrong answer
     // here, so it is not offered.
     const opts = (Array.isArray(relays) ? relays : []).filter(r => r && r.name && r.services && r.services.sni);
-    // A relay this deployment already NAMES but the roster no longer offers has
-    // to appear anyway, selected and labelled: the record says so, the panel
+    // A relay this deployment already NAMES but the roster does not offer has to
+    // appear anyway, selected and labelled: the record says so, and the panel
     // must not silently redraw it as "fleet default" and turn a reload into an
-    // unintended change. (DNS has already fallen back to the default for it -
-    // that is the fail-safe, and the note below says so.)
+    // unintended change. The roster is only what is answering right now, so
+    // this covers both a relay that is briefly down and one that is gone for
+    // good - and DNS is doing the same thing in either case, which is what the
+    // label says.
     const gone = !!cur0 && !opts.some(r => r.name === cur0);
-    if (gone) opts.push({ name: cur0, missing: true, live: false, services: { sni: true } });
+    if (gone) opts.push({ name: cur0, missing: true, services: { sni: true } });
     const fid = "en" + appLabel(id);
     const optLine = (r) => {
       const bits = [
         r.region ? esc(r.region) : null,
         r.address ? '<span class="dim">' + esc(r.address) + '</span>' : null,
         r.relayOnly === false ? '<span class="dim">also hosts apps</span>' : null,
-        r.missing ? '<span class="warn">not in the fleet roster right now - the zone default is carrying this app</span>'
-                  : (r.live === false ? '<span class="warn">not answering right now</span>' : null),
+        r.missing ? '<span class="warn">not answering right now - the fleet default is carrying this app meanwhile</span>' : null,
       ].filter(Boolean);
       return '<label class="en-opt"><input type="radio" name="' + fid + '" value="' + esc(r.name) + '"'
         + (r.name === cur0 ? " checked" : "") + '> <b>' + esc(r.name) + '</b>'
