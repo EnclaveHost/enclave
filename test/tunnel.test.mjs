@@ -347,3 +347,99 @@ test("relay-agent: attaches, describes itself as resourceless, and proxies nothi
   assert.equal(await hub.fetchJson("tunnel://us-west", "/v1/deployments"), null,
     "no tenant surface is exposed");
 });
+
+/* ---- attach by ON-CHAIN OWNERSHIP: the path a relay can actually use ------
+   A token says someone put a hash in a file; a quote says "I am a published
+   Metal release". A relay can offer neither — it is not a TEE, deliberately,
+   because it terminates nothing and holds no keys, so there is no measurement
+   to publish and a quote would add nothing. What it does have is the operator
+   key that registered its endpoint on chain, and that is a better identity than
+   a token: it can be rotated with a transaction instead of a code push, and
+   nothing about the fleet's membership has to be hardcoded here.
+
+   The properties: the signature must recover to the address the REGISTRY names
+   for that endpoint; a name with no registration proves nothing and is refused
+   (unlike the attest path, where the quote still proved something); a name on
+   the token allowlist stays reserved; and the whole path is OFF unless switched
+   on, because a tunnel row bypasses the dial-time operator allowlist. */
+test("tunnel: a relay attaches by signing with the operator that owns its name on chain", async (t) => {
+  const { privateKeyToAccount } = await import("viem/accounts");
+  const owner = privateKeyToAccount(`0x${"11".repeat(32)}`);
+  const stranger = privateKeyToAccount(`0x${"22".repeat(32)}`);
+
+  const hub = createTunnelHub({
+    allow: [{ name: "metal0", tokenSha256: TOKEN_SHA }],
+    operatorFor: async (name) => (name === "us-west" ? owner.address : null),
+    operatorAttach: true,
+  });
+  const server = http.createServer((_q, r) => r.end("ok"));
+  server.on("upgrade", (q, s, h) => hub.handleUpgrade(q, s, h));
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const url = `ws://127.0.0.1:${server.address().port}/v1/fleet-tunnel`;
+
+  // drive the exchange by hand: challenge in, signature out, verdict back
+  const open = [];
+  // ORDER MATTERS: server.close() does not resolve while a socket is still
+  // attached, so the held sockets have to go first — one hook, not two racing.
+  t.after(async () => {
+    for (const w of open) { try { w.close(); } catch {} }
+    await new Promise((r) => setTimeout(r, 50));
+    await new Promise((r) => server.close(r));
+  });
+  // `keep` holds a successful socket open: closing on the verdict would unbind
+  // the tunnel before the assertion could see it.
+  const attach = async (name, account, keep = false) => {
+    const ws = new WebSocket(url, { headers: { "x-metal-name": name, "x-metal-attach": "operator" } });
+    if (keep) open.push(ws);
+    return await new Promise((resolve) => {
+      const done = (v) => { if (!keep) { try { ws.close(); } catch {} } resolve(v); };
+      ws.on("unexpected-response", (_q, res) => done({ http: res.statusCode }));
+      ws.on("error", () => done({ error: true }));
+      ws.on("message", async (d) => {
+        const f = JSON.parse(d);
+        if (f.t === "challenge") {
+          if (!account) return;                       // prove nothing, wait for the timeout
+          const operatorSig = await account.signMessage({
+            message: `enclave-tunnel-attach:${name}:${f.nonce}` });
+          ws.send(JSON.stringify({ t: "attach", operatorSig }));
+        } else if (f.t === "attest-result") done(f);
+      });
+    });
+  };
+
+  const ok = await attach("us-west", owner, true);
+  assert.equal(ok.ok, true, "the registered operator's signature attaches the name");
+  await settle();
+  assert.equal(hub.count(), 1);
+
+  const wrong = await attach("us-west", stranger);
+  assert.equal(wrong.ok, false);
+  assert.match(wrong.reason, /registered on chain to/, "a stranger's signature names the mismatch");
+
+  // no registration = nothing to prove against. The attest path lets an
+  // unregistered name stay first-come because the QUOTE still proved something;
+  // a bare signature over an unowned name proves only that someone holds a key.
+  const unowned = await attach("nobody", owner);
+  assert.equal(unowned.ok, false);
+  assert.match(unowned.reason, /no active on-chain registration/);
+
+  // a token-allowlisted name is claimed, and stays claimed
+  assert.equal((await attach("metal0", owner)).http, 401, "reserved for token attach");
+});
+
+test("tunnel: operator attach is refused unless it is switched on", async (t) => {
+  const { privateKeyToAccount } = await import("viem/accounts");
+  const owner = privateKeyToAccount(`0x${"11".repeat(32)}`);
+  // operatorFor resolves, but the switch is off — the default, and what
+  // production runs until someone decides otherwise
+  const hub = createTunnelHub({ operatorFor: async () => owner.address });
+  const server = http.createServer((_q, r) => r.end("ok"));
+  server.on("upgrade", (q, s, h) => hub.handleUpgrade(q, s, h));
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  t.after(() => new Promise((r) => server.close(r)));
+
+  const res = await dial(`ws://127.0.0.1:${server.address().port}/v1/fleet-tunnel`,
+    { "x-metal-name": "us-west", "x-metal-attach": "operator" });
+  assert.equal(res.state, 401, "off by default: a tunnel row bypasses the dial-time allowlist");
+  assert.equal(hub.count(), 0);
+});

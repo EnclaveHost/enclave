@@ -68,8 +68,23 @@ function selfRoutedUrl(url, name) {
 //   that registered it, so when this resolves an owner for the name, the
 //   attaching box must sign the attach challenge with that key. Names with no
 //   on-chain entry stay first-come: there is nothing yet to take.
+// operatorAttach: true — ATTACH BY ON-CHAIN OWNERSHIP ALONE, no quote.
+//   The two paths above both assume the box can prove what it runs: a token
+//   says "someone put my hash in a file", a quote says "I am a published Metal
+//   release". A RELAY can do neither. It is not a TEE — deliberately, because it
+//   terminates nothing and holds no keys, so there is no measurement to publish
+//   and nothing a quote would add. Yet it still has an identity worth proving:
+//   the operator key that registered its endpoint on chain.
+//   So: the hub challenges, the box signs with that key, and the hub checks the
+//   recovered signer against the registry. Nothing is hardcoded and nothing is
+//   host state — adding or removing a relay is a registry transaction, which is
+//   the whole point of putting the fleet on chain in the first place.
+//   OFF by default. A tunnel row bypasses the dial-time operator allowlist (it
+//   is authorized here instead), so turning this on lets anyone who registers
+//   https://<relay>/t/<name> appear in the fleet listing under that name. That
+//   is a deliberate widening and it should be a deliberate switch.
 export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 30000, onChange = () => {},
-                                  operatorFor = null } = {}) {
+                                  operatorFor = null, operatorAttach = false } = {}) {
   const allowByName = new Map(allow.filter((a) => a && a.name && a.tokenSha256).map((a) => [a.name, a.tokenSha256.toLowerCase()]));
   const attestOn = !!(attest && attest.allowedMeasurements && attest.allowedMeasurements.length);
   const wss = new WebSocketServer({ noServer: true });
@@ -182,6 +197,69 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
 
     // Token path (bootstrap / first-party): authorize before the handshake.
     if (tokenOk(name, token)) return wss.handleUpgrade(req, socket, head, (ws) => bind(name, ws, { via: "token" }));
+
+    // Operator path: prove the NAME from the chain, with no quote at all. For a
+    // relay this is the only identity that exists — it runs no measured image —
+    // and it is a stronger one than a token, because it is the same key that
+    // registered the endpoint and it can be rotated on chain without touching
+    // this repo or any box's env.
+    const wantsOperator = req.headers["x-metal-attach"] === "operator";
+    if (wantsOperator) {
+      if (!operatorAttach || !operatorFor) {
+        socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
+        return socket.destroy();
+      }
+      // Same reservation the attest path enforces, same reason: a name someone
+      // put on the token allowlist is claimed, and must not be takeable by
+      // whoever gets to the registry first.
+      if (allowByName.has(name)) {
+        console.log(`[tunnel] ${name} operator-attach REFUSED: the name is reserved for token attach`);
+        socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
+        return socket.destroy();
+      }
+      return wss.handleUpgrade(req, socket, head, (ws) => {
+        const nonce = randomBytes(32);
+        let settled = false, checking = false;
+        const deny = (why) => {
+          if (settled) return; settled = true;
+          console.log(`[tunnel] ${name} operator-attach REJECTED: ${why}`);
+          try { ws.send(JSON.stringify({ t: "attest-result", ok: false, reason: why })); } catch {}
+          setTimeout(() => { try { ws.close(); } catch {} }, 100);
+        };
+        const timer = setTimeout(() => deny("attach timeout"), 15000);
+        timer.unref?.();
+        ws.on("message", async (data) => {
+          if (settled || checking) return;
+          let f; try { f = JSON.parse(data); } catch { return; }
+          if (f.t !== "attach" || !f.operatorSig) return;
+          checking = true;
+          try {
+            const owner = await ownerOf(name);
+            if (settled) return;
+            // No on-chain entry = nothing to prove against. Unlike the attest
+            // path (where an unregistered name stays first-come because the
+            // QUOTE still proved something), a signature over an unowned name
+            // proves only that the peer holds some key. Refuse, and say so.
+            if (!owner) return deny(`${name} has no active on-chain registration `
+                                  + `(the registry entry for this relay's /t/${name} endpoint) — register it first, then attach`);
+            const signer = await signerOf(attachMessage(name, nonce), f.operatorSig);
+            if (settled) return;
+            if (!signer) return deny("operatorSig is not a valid personal_sign of "
+                                   + "\"enclave-tunnel-attach:<name>:<nonce b64>\"");
+            if (signer !== owner) return deny(`${name} is registered on chain to ${owner}, not ${signer}`);
+            // A live holder is only displaceable by the same on-chain owner —
+            // which this signature just proved. Two boxes sharing one operator
+            // key is the operator's own business; a stranger cannot get here.
+            clearTimeout(timer); settled = true;
+            try { ws.send(JSON.stringify({ t: "attest-result", ok: true })); } catch {}
+            bind(name, ws, { via: "operator" });
+          } catch (e) { deny(`attach error: ${e.message}`); }
+          finally { checking = false; }
+        });
+        ws.on("error", () => { try { ws.terminate(); } catch {} });
+        try { ws.send(JSON.stringify({ t: "challenge", nonce: nonce.toString("base64") })); } catch {}
+      });
+    }
 
     // Attestation path (permissionless): complete the handshake unauthorized, run
     // a challenge → quote → verify exchange, and only then bind (or close).

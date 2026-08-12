@@ -41,8 +41,21 @@ const need = (k) => { const v = (process.env[k] || "").trim();
 const on = (k) => /^(1|true|yes|on)$/i.test((process.env[k] || "").trim());
 
 const NAME    = need("RELAY_NAME");
-const TOKEN   = need("RELAY_TUNNEL_TOKEN");
 const ADDRESS = need("RELAY_PUBLIC_ADDRESS");
+// Two ways to prove the name, and the second is the one to prefer.
+//   RELAY_OPERATOR_KEY — the private half of the key that registered this
+//     relay's endpoint in EnclaveRegistry. The hub challenges, we sign, it
+//     recovers and checks the chain. Nothing about this box is written down
+//     anywhere else: rotating the relay is a registry transaction.
+//   RELAY_TUNNEL_TOKEN — bootstrap. Its sha256 has to be committed to the hub's
+//     allowlist, which hardcodes fleet membership into source and reserves the
+//     name against every other path. Fine to start with, worth leaving behind.
+const OPERATOR_KEY = (process.env.RELAY_OPERATOR_KEY || "").trim();
+const TOKEN        = (process.env.RELAY_TUNNEL_TOKEN || "").trim();
+if (!OPERATOR_KEY && !TOKEN) {
+  console.error("fatal: set RELAY_OPERATOR_KEY (attach by on-chain ownership) or RELAY_TUNNEL_TOKEN (bootstrap)");
+  process.exit(1);
+}
 const HUB     = (process.env.RELAY_HUB || "wss://api.enclave.host/v1/fleet-tunnel").trim();
 // The hub only honours a publicUrl that is its OWN /t/<name> route
 // (selfRoutedUrl), so derive the origin from the dial URL rather than
@@ -99,23 +112,53 @@ function answer(frame, send) {
   reply(status, body);
 }
 
+// personal_sign over the hub's challenge, with the key that owns this name on
+// chain. Imported lazily so a token-only box never loads viem at all.
+async function signAttach(nonceB64) {
+  const { privateKeyToAccount } = await import("viem/accounts");
+  const account = privateKeyToAccount(OPERATOR_KEY.startsWith("0x") ? OPERATOR_KEY : `0x${OPERATOR_KEY}`);
+  return account.signMessage({ message: `enclave-tunnel-attach:${NAME}:${nonceB64}` });
+}
+
 let ws = null, alive = false, backoff = 2000;
 function dial() {
-  log(`dialing ${HUB} as ${NAME}`);
-  ws = new WebSocket(HUB, { headers: { "x-metal-name": NAME, "x-metal-token": TOKEN } });
+  const via = OPERATOR_KEY ? "operator key" : "token";
+  log(`dialing ${HUB} as ${NAME} (${via})`);
+  const headers = OPERATOR_KEY
+    ? { "x-metal-name": NAME, "x-metal-attach": "operator" }
+    : { "x-metal-name": NAME, "x-metal-token": TOKEN };
+  ws = new WebSocket(HUB, { headers });
   const send = (o) => { try { ws.send(JSON.stringify(o)); } catch {} };
-  ws.on("open", () => {
-    alive = true; backoff = 2000;
+  const hello = () => {
     // publicUrl must be THIS tunnel's own route or the hub ignores it
     // (selfRoutedUrl); it is how the fleet stamps an identity on the row.
-    send({ t: "hello", name: NAME, mode: "relay", token: TOKEN,
+    send({ t: "hello", name: NAME, mode: "relay", ...(TOKEN ? { token: TOKEN } : {}),
            publicUrl: `${HUB_ORIGIN}/t/${NAME}` });
-    log("tunnel open");
+  };
+  ws.on("open", () => {
+    alive = true; backoff = 2000;
+    // On the operator path the socket is open but NOT yet authorized: the hub
+    // sends a challenge first and only binds once the signature checks out, so
+    // hello waits for the accept. On the token path it was authorized before the
+    // handshake, so it can go now.
+    if (!OPERATOR_KEY) { hello(); log("tunnel open"); }
+    else log("tunnel open, awaiting challenge");
   });
   ws.on("message", (data) => {
     let f; try { f = JSON.parse(data); } catch { return; }
     if (f.t === "req") return answer(f, send);
     if (f.t === "ping") return send({ t: "pong" });
+    if (f.t === "challenge" && OPERATOR_KEY) {
+      signAttach(String(f.nonce || ""))
+        .then((operatorSig) => send({ t: "attach", operatorSig }))
+        .catch((e) => log(`could not sign the attach challenge: ${e.message}`));
+      return;
+    }
+    if (f.t === "attest-result") {
+      if (!f.ok) return log(`attach REJECTED: ${f.reason}`);
+      log("attach accepted (on-chain operator)");
+      return hello();                       // authorized now — claim the identity
+    }
     // Raw streams carry app traffic into a supervisor. There is no supervisor
     // here and there is no tenant here, so the only correct answer is no — a
     // relay that spliced hub streams into its own network would be exactly the
