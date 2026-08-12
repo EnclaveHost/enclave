@@ -81,7 +81,7 @@ contract EnclaveDeploymentsRateCapTest is Test {
     // ---- registry: the enclave states its price ----------------------------
 
     function test_registryCarriesPrices_andOnlyTheOperatorRePricesThem() public {
-        assertEq(reg.registrySchema(), 4);
+        assertEq(reg.registrySchema(), 5);
         IEnclaveRegistry.Enclave memory e = _entry(cheapId);
         assertEq(e.cpuPricePerSec6, CPU_CHEAP);
         assertEq(e.gpuPricePerSec6, GPU_CHEAP);
