@@ -157,11 +157,12 @@ export const Enclave = {
   },
   // The relays a deployment may choose between ({"network":{"relay":"…"}} in
   // its options envelope) plus the choices already made, as label -> address.
-  // Relay-only, like /enclaves. Rows carry `live:false` when the box is in the
-  // roster but not answering right now - a real state the picker must show
-  // rather than hide, since a deployment already pointed at it stays pointed at
-  // it. `services.sni` is the one that matters for the app zone: a relay
-  // without it carries other traffic and cannot front an app subdomain.
+  // Relay-only, like /enclaves. The roster is what is ANSWERING right now: a
+  // relay that stops responding leaves it, and the apps that chose it fall back
+  // to the fleet default until it returns (slower, never down - that asymmetry
+  // is the whole reason the roster isn't remembered). `services.sni` is the one
+  // that matters for the app zone: a relay without it carries other traffic and
+  // cannot front an app subdomain.
   getRelays(){
     const url = (this.base || "").replace(/\/v1\/?$/, "") + "/v1/relays";
     return fetch(url, { headers: { "Accept": "application/json" } }).then(r => {

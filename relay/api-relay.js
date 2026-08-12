@@ -818,16 +818,16 @@ async function pollAvailability() {
 // app placed on the same box as its relay is the shortest inbound path there
 // is. The badge rides along as `relayOnly` for surfaces that want to say which
 // kind of box it is.
+// LIVE ONLY, deliberately, and not a last-good memo. The temptation is to
+// remember a relay's address across a missed poll so a blip doesn't move
+// traffic; the arithmetic says otherwise, because the two errors are not the
+// same size. Forgetting a relay that is actually fine costs one DNS TTL of
+// traffic on the DEFAULT relay — slower, never down. Remembering one that is
+// actually gone points every app that chose it at a black hole for as long as
+// the memory lasts — down, not slower. A latency feature must not be able to
+// cause an outage, so the doubt resolves toward the default every time.
 const RELAY_NAME_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;   // byte-for-byte the supervisor's envelope rule
 const RELAY_SERVICES = ["sni", "tcp", "udp", "egress", "tunnelHub"];
-// Last-good row per relay NAME. A relay that misses one availability poll drops
-// out of `live`, and rebuilding the roster from `live` alone would blank its
-// address and swing every deployment that chose it back to the default relay
-// for a whole DNS TTL. dns-relay already applies this rule to its net-map poll,
-// for the same reason: a flaky box must not blank its own names. The removal
-// signal is DEREGISTRATION — the name leaving the registry altogether — never a
-// failed poll.
-const relayMemo = new Map();
 const fleetName = (e) => String(e.name || endpointName(e.endpoint) || "").toLowerCase();
 function relayRowOf(e) {
   const r = e.availability?.relay;
@@ -858,13 +858,8 @@ function relayRoster() {
     if (seen.has(row.name)) { dup.add(row.name); continue; }
     seen.set(row.name, row);
   }
-  for (const n of dup) { seen.delete(n); relayMemo.delete(n); }
-  for (const [n, row] of seen) relayMemo.set(n, row);
-  const known = new Set([...registry, ...live].map(fleetName));
-  for (const n of [...relayMemo.keys()]) if (!known.has(n)) relayMemo.delete(n);
-  return [...relayMemo.values()]
-    .map((r) => ({ ...r, live: seen.has(r.name) }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  for (const n of dup) seen.delete(n);
+  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 // The subdomain label for a deployment id — the first 8 hex chars, the same
 // rule the site's appLabel and the enclaves' prefix resolution use.
@@ -890,14 +885,22 @@ function relayChoiceOf(configCid) {
 // preference; reachability wins.
 function relayLabels(rows, roster) {
   const by = new Map(roster.filter((r) => r.services.sni && (r.address || r.address6)).map((r) => [r.name, r]));
-  const out = {};
+  const out = {}, clash = new Set();
   for (const d of rows) {
     if (!/^0x[0-9a-f]{64}$/i.test(String(d.id || ""))) continue;
+    const label = appLabelOf(d.id);
+    // Two deployments whose ids share the first 8 hex chars share one app-zone
+    // NAME, so there is no answer that serves both. That name is already
+    // ambiguous with or without this feature; what must not happen is one of
+    // them silently deciding where the other's traffic goes. Neither gets an
+    // override — the zone default carries the name, exactly as it does today.
+    if (label in out || clash.has(label)) { delete out[label]; clash.add(label); continue; }
     const r = by.get(relayChoiceOf(d.configCid));
-    if (!r) continue;
-    out[appLabelOf(d.id)] = { relay: r.name,
+    if (!r) { out[label] = null; continue; }         // placeholder: claims the label, answers nothing
+    out[label] = { relay: r.name,
       ...(r.address ? { a: r.address } : {}), ...(r.address6 ? { aaaa: r.address6 } : {}) };
   }
+  for (const [k, v] of Object.entries(out)) if (v === null) delete out[k];
   return out;
 }
 
