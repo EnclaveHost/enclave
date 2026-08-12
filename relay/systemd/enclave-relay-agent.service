@@ -1,0 +1,26 @@
+[Unit]
+Description=Enclave relay agent (fleet tunnel: publishes this relay's /availability)
+After=network-online.target
+Wants=network-online.target
+# a relay that cannot describe itself must keep retrying, not give up
+StartLimitIntervalSec=0
+
+[Service]
+EnvironmentFile=/etc/nan-relay/relay-agent.env
+WorkingDirectory=/opt/nan-relay
+ExecStart=/usr/bin/node /opt/nan-relay/relay-agent.mjs
+Restart=always
+RestartSec=2
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+# dials out only: no listener, no bind capability, nothing to reach in
+RestrictAddressFamilies=AF_INET AF_INET6
+CapabilityBoundingSet=
+MemoryMax=128M
+TasksMax=32
+
+[Install]
+WantedBy=multi-user.target

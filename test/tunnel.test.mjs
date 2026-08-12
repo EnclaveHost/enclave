@@ -281,3 +281,69 @@ test("tunnel: the signature is bound to THIS attach's nonce and name", async () 
     assert.equal(stale.ok, false, "a replayed signature must not attach");
   } finally { await h.close(); }
 });
+
+/* ---- the RELAY agent: how a box that terminates nothing gets listed --------
+   A relay carries traffic and runs no tenants, so it has no TLS surface of its
+   own — that is the point of the SNI splice, and giving it a certificate would
+   put an ACME key on the one box whose security argument is that it holds none.
+   So it dials the same fleet tunnel the CGNAT sellers use and the hub answers
+   for it at /t/<name>.
+
+   Three properties, and the third is the one that matters most: this agent has
+   NO upstream. metal/guest/agent.mjs forwards tunnel requests into a real
+   supervisor and splices raw streams into it; a relay must never become a
+   generic proxy into its own network, least of all one reachable from a public
+   hub. It answers a fixed self-description and refuses everything else. */
+test("relay-agent: attaches, describes itself as resourceless, and proxies nothing", async (t) => {
+  const { spawn } = await import("node:child_process");
+  const path = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+  const hub = createTunnelHub({ allow: [{ name: "us-west", tokenSha256: TOKEN_SHA }] });
+  const server = http.createServer((_req, res) => res.end("ok"));
+  server.on("upgrade", (req, socket, head) => hub.handleUpgrade(req, socket, head));
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+
+  const agent = spawn(process.execPath, [path.join(REPO, "relay", "relay-agent.mjs")], {
+    env: { ...process.env,
+      RELAY_NAME: "us-west", RELAY_TUNNEL_TOKEN: TOKEN,
+      RELAY_HUB: `ws://127.0.0.1:${server.address().port}/v1/fleet-tunnel`,
+      RELAY_PUBLIC_ADDRESS: "5.78.85.108", RELAY_REGION: "us-west",
+      RELAY_SNI: "1", RELAY_TCP: "0", RELAY_PORTS: "1-49999" },
+    stdio: "ignore",
+  });
+  // ORDER MATTERS: the agent holds a live websocket, and server.close() does not
+  // resolve until every connection is gone — closing first hangs the suite.
+  t.after(async () => {
+    try { agent.kill("SIGKILL"); } catch {}
+    await new Promise((r) => setTimeout(r, 50));
+    await new Promise((r) => server.close(r));
+  });
+
+  for (let i = 0; i < 60 && hub.count() === 0; i++) await new Promise((r) => setTimeout(r, 100));
+  assert.equal(hub.count(), 1, "the agent attached with its token");
+
+  const a = await hub.fetchJson("tunnel://us-west", "/availability");
+  // DECLARED zeros are the claim that makes this a relay — api-relay reads them
+  // (never absent fields) as "carries traffic, sells nothing", badges the row,
+  // and keeps it out of the set that sizes the fleet.
+  assert.equal(a.gpu, false);
+  assert.equal(a.nodeVcpus, 0);
+  assert.equal(a.nodeRamGb, 0);
+  assert.equal(a.claimEnabled, false, "it must never be routed work");
+  // and the part the per-deployment picker needs: a name's address and region
+  assert.equal(a.relay.sni, true);
+  assert.equal(a.relay.tcp, false, "it does not run the dedicated-IPv6 relays");
+  assert.equal(a.relay.address, "5.78.85.108");
+  assert.equal(a.relay.region, "us-west");
+
+  const health = await hub.fetchJson("tunnel://us-west", "/v1/health");
+  assert.equal(health.ok, true);
+  assert.equal(health.role, "relay");
+
+  // anything else 404s — fetchJson maps a non-200 to null. There is no
+  // upstream to reach, by construction.
+  assert.equal(await hub.fetchJson("tunnel://us-west", "/v1/deployments"), null,
+    "no tenant surface is exposed");
+});
