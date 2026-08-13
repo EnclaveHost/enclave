@@ -1142,6 +1142,14 @@ function threadsOfConfig(cfg) {
 function setOfConfig(cfg) {
   try { return JSON.parse(String(cfg || "{}") || "{}").set === true; } catch { return false; }
 }
+// wasm64 (memory64 — the >4 GiB guests), same doctrine one key over:
+// `mem64: true` is stamped by the publish path when the module's memory
+// section carries the 64-bit flag. Routing only — the manager re-sniffs the
+// bytes at launch. Undeclared = wasm32 (fail-open direction: any box serves
+// a wasm32 guest).
+function mem64OfConfig(cfg) {
+  try { return JSON.parse(String(cfg || "{}") || "{}").mem64 === true; } catch { return false; }
+}
 function parseDepOptions(raw, gpuMilli) {
   const s = String(raw || "").trim();
   if (!s) return {};
@@ -3327,6 +3335,9 @@ app.get("/availability", async (_req, res) => {
     const cth = PROVISION_BACKEND === "vm" && h.coopThreads !== undefined ? { coopThreads: h.coopThreads === true } : {};
     // shared-everything threads (SET): same shape, same AND semantics
     const setc = PROVISION_BACKEND === "vm" && h.set !== undefined ? { set: h.set === true } : {};
+    // wasm64 (memory64) core modules — the >4 GiB guests: same shape, same
+    // AND semantics. Absent = a manager too old to have an opinion = false.
+    const m64 = PROVISION_BACKEND === "vm" && h.mem64 !== undefined ? { mem64: h.mem64 === true } : {};
     // catalog rev-7 large configs: the manager fetches a version's configCid and
     // accepts the bytes only because they re-hash to it, then delivers past the
     // argv ceiling by file. Same shape and AND semantics as p3 — absent means a
@@ -3364,7 +3375,7 @@ app.get("/availability", async (_req, res) => {
     // card allocator's plan - same contract as the RAM ledger above.
     const vram = PROVISION_BACKEND === "vm" && c.vramBudgetGb
       ? { vramBudgetGb: c.vramBudgetGb, vramCommittedGb: c.vramCommittedGb, vramLedgerFreeGb: c.vramFreeGb } : {};
-    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn, ...lbw, ...p3, ...cth, ...setc, ...ccid, ...vols, ...ram, ...vram, ...sweep });
+    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn, ...lbw, ...p3, ...cth, ...setc, ...m64, ...ccid, ...vols, ...ram, ...vram, ...sweep });
   } catch (e) {
     return res.json(shape(maxFreeCpu(), maxFreeGpuShare(), "fallback",
       `${PROVISION_BACKEND === "vm" ? "wasm" : "worker"} manager unreachable`));
@@ -6787,6 +6798,14 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     const sh = await vmHealth().catch(() => null);
     if (!sh) return "app uses shared-everything threads and the app manager cannot be asked (unreachable)";
     if (sh.set !== true) return "app uses shared-everything threads and this box's runtime does not serve them";
+  }
+  // wasm64 (memory64): gated exactly the same, on the manager's own flagless
+  // memory64 compile probe (`mem64` on /health). A box whose engine cannot
+  // parse a 64-bit memory could only claim-fail-release in a loop.
+  if (mem64OfConfig(g.config)) {
+    const mh = await vmHealth().catch(() => null);
+    if (!mh) return "app is a wasm64 (memory64) module and the app manager cannot be asked (unreachable)";
+    if (mh.mem64 !== true) return "app is a wasm64 (memory64) module and this box's runtime does not serve it";
   }
   // The firewall is the VERSION's declared ports — part of what approval
   // covered. The deployment's own ports field is ignored (create() still

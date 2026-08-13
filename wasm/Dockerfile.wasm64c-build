@@ -1,0 +1,220 @@
+# wasm64 (memory64) C/C++ build image: the reproducible toolchain a publisher
+# uses to build a guest that can address MORE THAN 4 GiB of linear memory —
+# the answer to "wasm32's 4 GiB ceiling". What comes out is a wasm64-wasip1
+# CORE MODULE (layer 0), not a component: there is no memory64 component
+# toolchain anywhere. These apps are COMPUTE guests — published portless,
+# run under `wasmtime run` with no socket surface (preview1 has no socket
+# API on the engine; probed): their interface is /data, attached volumes,
+# ENCLAVE_CONFIG and stdio/logs. The big-heap batch/dataset class.
+#
+#   docker build -f wasm/Dockerfile.wasm64c-build -t enclave-wasm64c-build wasm/
+#   docker run --rm -v "$PWD":/src enclave-wasm64c-build app.c -o app.wasm
+#   # -> a wasm64 module; malloc() heaps grow past 4 GiB (bounded by the
+#   #    deployment's RAM slice, -W max-memory-size at launch)
+#
+# HOW IT CAN WORK AT ALL. There is no 64-bit WASI: the engine's preview1 is
+# typed for wasm32 (i32 pointers, u32 sizes, wasm32 struct layouts). But a
+# memory64 module may still IMPORT those i32-typed functions, and the engine
+# indexes the 64-bit memory through the i32 offsets — verified against the
+# enclave wasmtime 49 build (memory64 is default-on there; the manager's
+# _mem64_supported probe re-proves it per box). So the libc keeps natural
+# LP64 types and translates at one boundary: wasm/wasi-libc-mem64.patch
+# replaces the truncating-cast bottom half with a marshalling shim
+# (__wasilibc_real_wasm64.inc) — low buffers pass through, >4 GiB buffers
+# bounce through a static low arena in legal short-count chunks, and every
+# pointer-width'd layout (iovecs, size_t out-params, argv tables, prestat)
+# is rebuilt in wasm32 shape. wasm-ld keeps data + stack low; only the heap
+# crosses the line, which is exactly what the shim handles.
+#
+# The chain, every link pinned:
+#   - wasi-sdk-34.0-rc.2: clang 23 + wasm-ld 23 — the same blessed clang the
+#     coop/SET thread images pin; clang has full wasm64 codegen.
+#   - compiler-rt builtins for wasm64, built from the EXACT llvm-project
+#     commit the SDK's clang came from (the SDK ships wasm32 builtins only).
+#   - wasi-libc at the same rev the thread images pin, patched with
+#     wasi-libc-mem64.patch, built -DTARGET_TRIPLE=wasm64-wasip1
+#     -DBUILD_SHARED=OFF (static only: enclave guests are statically linked,
+#     and wasm64 shared objects are unsupported upstream anyway).
+#   - a guard build of the wasm32-wasip1 flavor WITH the patch applied: the
+#     patch's default arm must stay stock (same lesson as the SET image's
+#     non-SET guard — an untested #else arm is how drift ships).
+#
+# What comes out runs ONLY on a memory64-capable engine (the wasmtime 49 pin
+# qualifies; older engines refuse at parse). The publish path stamps
+# `mem64: true` from the module's memory-section flag and claim routing keeps
+# it off engines without the capability (`mem64` on /health → /availability →
+# the relay AND), exactly like the `threads`/`set` stamps. The 4 GiB memory
+# clamp in wasm_manager.launch() lifts to the deployment's full RAM slice for
+# these guests — a deployment that wants 16 GiB buys the cpuShare that
+# carries 16 GiB.
+#
+# Base pinned by DIGEST (a repushed tag silently changes what "the same
+# recipe" builds).
+FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241 AS build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl xz-utils git ninja-build python3 \
+ && rm -rf /var/lib/apt/lists/*
+
+# CMake by pinned release (wasi-libc floor 3.26; bookworm apt has 3.25)
+ARG CMAKE_URL=https://github.com/Kitware/CMake/releases/download/v3.31.7/cmake-3.31.7-linux-x86_64.tar.gz
+ARG CMAKE_SHA256=14e15d0b445dbeac686acc13fe13b3135e8307f69ccf4c5c91403996ce5aa2d4
+RUN curl -fsSL -o /tmp/cmake.tgz "${CMAKE_URL}" \
+ && echo "${CMAKE_SHA256}  /tmp/cmake.tgz" | sha256sum -c - \
+ && tar -xzf /tmp/cmake.tgz -C /opt && rm /tmp/cmake.tgz
+ENV PATH=/opt/cmake-3.31.7-linux-x86_64/bin:${PATH}
+
+# wasi-sdk 34 rc.2 — clang 23, wasm-ld 23 (same pin as the thread images)
+ARG WASI_SDK_URL=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34-rc.2/wasi-sdk-34.0-rc.2-x86_64-linux.tar.gz
+ARG WASI_SDK_SHA256=114ee5fe63cb5f2a6c0febcee446060267298158a409c7ab3ac0e06e6d4bd9ce
+RUN curl -fsSL -o /tmp/sdk.tgz "${WASI_SDK_URL}" \
+ && echo "${WASI_SDK_SHA256}  /tmp/sdk.tgz" | sha256sum -c - \
+ && mkdir -p /opt/wasi-sdk \
+ && tar -xzf /tmp/sdk.tgz -C /opt/wasi-sdk --strip-components=1 \
+ && rm /tmp/sdk.tgz \
+ && /opt/wasi-sdk/bin/clang --version | grep -q "clang version 23"
+
+# wasi-libc, wasm64 flavor: same rev the coop/SET images pin, patched with
+# the enclave mem64 marshalling patch, built for wasm64-wasip1 (static only).
+# The llvm-nm asserts pin the marshalling shim's presence: __wasi_fd_write
+# must exist (the shim compiles) and the staging helpers with it — a sysroot
+# whose libc silently fell back to the truncating-cast arm corrupts >4 GiB
+# I/O at RUNTIME, which is exactly the class of drift a build must refuse.
+ARG WASI_LIBC_REV=6d8745c8cec1aaa82c24f2e3d7a544f7ea9c2089
+COPY wasi-libc-mem64.patch /tmp/
+RUN git init -q /src/wasi-libc && cd /src/wasi-libc \
+ && git remote add origin https://github.com/WebAssembly/wasi-libc \
+ && git fetch -q --depth 1 origin "${WASI_LIBC_REV}" && git checkout -q FETCH_HEAD \
+ && git apply --check /tmp/wasi-libc-mem64.patch \
+ && git apply /tmp/wasi-libc-mem64.patch \
+ && CC=/opt/wasi-sdk/bin/clang AR=/opt/wasi-sdk/bin/llvm-ar NM=/opt/wasi-sdk/bin/llvm-nm \
+    cmake -G Ninja -S . -B build \
+      -DTARGET_TRIPLE=wasm64-wasip1 -DBUILD_SHARED=OFF \
+      -DCMAKE_LINK_DEPENDS_USE_LINKER=OFF \
+ && ninja -C build \
+ && /opt/wasi-sdk/bin/llvm-nm build/sysroot/lib/wasm64-wasip1/libc.a 2>/dev/null \
+      | grep -q "T __wasi_fd_write" \
+ && test -f build/sysroot/lib/wasm64-wasip1/crt1-command.o \
+ && cp -a build/sysroot /opt/wasm64-sysroot \
+ && cd / && rm -rf /src/wasi-libc
+
+# The SAME patch, built for wasm32-wasip1 (the patch's DEFAULT arm). A guard,
+# not a product: nothing consumes this sysroot. The mem64 patch guards every
+# change behind __wasm64__ so a wasm32 build must remain stock — and the SET
+# image's history (round 9) is the proof that an arm nobody builds is an arm
+# that breaks under a comment asserting it cannot.
+COPY wasi-libc-mem64.patch /tmp/nonm64.patch
+RUN git init -q /src/wasi-libc-32 && cd /src/wasi-libc-32 \
+ && git remote add origin https://github.com/WebAssembly/wasi-libc \
+ && git fetch -q --depth 1 origin "${WASI_LIBC_REV}" && git checkout -q FETCH_HEAD \
+ && git apply /tmp/nonm64.patch \
+ && CC=/opt/wasi-sdk/bin/clang AR=/opt/wasi-sdk/bin/llvm-ar NM=/opt/wasi-sdk/bin/llvm-nm \
+    cmake -G Ninja -S . -B build \
+      -DTARGET_TRIPLE=wasm32-wasip1 -DBUILD_SHARED=OFF \
+      -DCMAKE_LINK_DEPENDS_USE_LINKER=OFF \
+ && ninja -C build \
+ && cd / && rm -rf /src/wasi-libc-32
+
+# compiler-rt builtins for wasm64: the SDK ships wasm32 builtins only, and
+# wasm-ld hard-requires libclang_rt.builtins.a for the target. Built from the
+# EXACT llvm-project commit the SDK clang identifies itself with (its
+# --version string carries the sha), sparse-checkouted so the fetch is the
+# builtins and cmake support, not the monorepo.
+ARG LLVM_REV=278c31bfb8ceb7ea17dbfd11a4fb21e6634af957
+RUN git init -q /src/llvm-project && cd /src/llvm-project \
+ && git remote add origin https://github.com/llvm/llvm-project \
+ && git sparse-checkout set compiler-rt cmake llvm/cmake \
+ && git fetch -q --depth 1 --filter=blob:none origin "${LLVM_REV}" \
+ && git checkout -q FETCH_HEAD \
+ && cmake -G Ninja -S compiler-rt/lib/builtins -B /tmp/rt64 \
+      -DLLVM_MAIN_SRC_DIR=/src/llvm-project/llvm \
+      -DCMAKE_SYSTEM_NAME=WASI -DCMAKE_SYSTEM_PROCESSOR=wasm64 \
+      -DCMAKE_C_COMPILER=/opt/wasi-sdk/bin/clang \
+      -DCMAKE_C_COMPILER_TARGET=wasm64-unknown-wasip1 \
+      -DCMAKE_AR=/opt/wasi-sdk/bin/llvm-ar -DCMAKE_NM=/opt/wasi-sdk/bin/llvm-nm \
+      -DCMAKE_RANLIB=/opt/wasi-sdk/bin/llvm-ranlib \
+      -DCMAKE_C_FLAGS="--sysroot=/opt/wasm64-sysroot -O2" \
+      -DCMAKE_C_COMPILER_WORKS=ON -DCMAKE_SIZEOF_VOID_P=8 \
+      -DCOMPILER_RT_BAREMETAL_BUILD=ON -DCOMPILER_RT_DEFAULT_TARGET_ONLY=ON \
+      -DCOMPILER_RT_OS_DIR=wasm64-unknown-wasip1 \
+      -DCOMPILER_RT_INCLUDE_TESTS=OFF -DCOMPILER_RT_HAS_FPIC_FLAG=OFF \
+ && ninja -C /tmp/rt64 \
+ && mkdir -p /opt/wasi-sdk/lib/clang/23/lib/wasm64-unknown-wasip1 \
+ && install -m644 /tmp/rt64/lib/wasm64-unknown-wasip1/libclang_rt.builtins-wasm64.a \
+      /opt/wasi-sdk/lib/clang/23/lib/wasm64-unknown-wasip1/libclang_rt.builtins.a \
+ && rm -rf /tmp/rt64 /src/llvm-project
+
+# The build wrapper: one command, correct target + sysroot.
+RUN <<'WRAP'
+cat > /opt/wasi-sdk/bin/enclave-wasm64-cc <<'SH'
+#!/bin/sh
+# enclave/wasm64 build wrapper: clang against the mem64-marshalled sysroot.
+# Output is a wasm64-wasip1 core module; publish stamps `mem64: true` and the
+# platform runs it in port mode with its memory ceiling lifted past 4 GiB.
+exec /opt/wasi-sdk/bin/clang \
+  --target=wasm64-wasip1 \
+  --sysroot=/opt/wasm64-sysroot \
+  "$@"
+SH
+chmod 755 /opt/wasi-sdk/bin/enclave-wasm64-cc
+WRAP
+
+# Smoke test: a real malloc-past-4GiB program goes through the WHOLE chain at
+# IMAGE build — clang + mem64 libc + builtins + link — and the result must be
+# (a) a LAYER-0 core module whose (b) memory section carries the 64-bit flag
+# (the exact structural check every publish path and the runner key on) with
+# (c) the marshalled fd_write import typed i32 (validated by asserting the
+# module parses as plain wasm — a 64-bit-pointer import set would still parse,
+# so the flag check is the load-bearing one; runtime >4 GiB proof lives in
+# the enclave repo's test suite, which runs the twin of this program on the
+# pinned engine).
+RUN <<'SMOKE'
+set -e
+cat > /tmp/smoke.c <<'EOF'
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+int main(void) {
+  size_t five_gib = 5ull * 1024 * 1024 * 1024;
+  unsigned char *p = malloc(five_gib);
+  if (!p) return 1;
+  p[five_gib - 1] = 42;
+  printf("%u\n", p[five_gib - 1]);
+  return 0;
+}
+EOF
+/opt/wasi-sdk/bin/enclave-wasm64-cc /tmp/smoke.c -O2 -o /tmp/smoke.wasm
+python3 - <<'PY'
+b = open("/tmp/smoke.wasm", "rb").read()
+assert b[0:4] == b"\x00asm" and (b[6] | (b[7] << 8)) == 0, "not a core module"
+# memory section (id 5): first memory's limits flags must carry 0x04 —
+# the same parser the publish gateway/CLI/site/runner keep in lockstep
+def uleb(d, i):
+    r = s = 0
+    while True:
+        x = d[i]; i += 1
+        r |= (x & 0x7F) << s
+        if not (x & 0x80):
+            return r, i
+        s += 7
+i = 8
+found = False
+while i < len(b):
+    sid = b[i]
+    size, i = uleb(b, i + 1)
+    if sid == 5:
+        n, j = uleb(b, i)
+        assert n >= 1, "no memory declared"
+        flags, j = uleb(b, j)
+        assert flags & 0x04, "memory is not 64-bit — wrong target?"
+        found = True
+        break
+    i += size
+assert found, "no memory section"
+assert b"wasi_snapshot_preview1" in b, "preview1 imports missing"
+PY
+rm /tmp/smoke.wasm /tmp/smoke.c
+SMOKE
+
+WORKDIR /src
+ENTRYPOINT ["/opt/wasi-sdk/bin/enclave-wasm64-cc"]

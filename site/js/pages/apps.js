@@ -660,10 +660,48 @@ async function validateWasm(file){
     throw new EnclaveError("Not a WebAssembly file (missing the \\0asm magic bytes).", 0);
   // Preamble after the magic is version:u16 + layer:u16. Key on the layer, which is
   // stable across component-version bumps: 0 = core module, 1 = component.
+  // One core-module class passes: wasm64 (a 64-bit linear memory — the >4 GiB
+  // guests, run portless as compute guests) — needs the full bytes, not just the preamble.
   const layer = h[6] | (h[7] << 8);
-  if (layer === 0) throw new EnclaveError("This is a core wasm module, but Enclave runs wasi:http *components*. Rebuild for wasm32-wasip2 (cargo-component) or wasm32-wasip3 (see the develop guide).", 0);
+  if (layer === 0){
+    const u8 = new Uint8Array(await file.arrayBuffer());
+    if (moduleMem64(u8)) return true;
+    throw new EnclaveError("This is a core wasm module, but Enclave runs wasi:http *components*. Rebuild for wasm32-wasip2 (cargo-component), wasm32-wasip3 (see the develop guide), or wasm64-wasip1 for >4 GiB memory.", 0);
+  }
   if (layer !== 1) throw new EnclaveError("Unrecognized wasm preamble (layer " + layer + "); expected a wasi:http component.", 0);
   return true;
+}
+// wasm64 detection: does this CORE module (layer 0) declare a 64-bit linear
+// memory? Reads the memory section (id 5) — the first memory's limits flags
+// carry the memory64 bit (0x04). Structural, not a byte scan (there is no
+// import string to key on). Lockstep with the CLI's moduleMem64 and the
+// runner's wasm_manager._module_mem64 (the launch authority).
+function moduleMem64(u8){
+  if (u8.length < 8 || !(u8[0] === 0 && u8[1] === 0x61 && u8[2] === 0x73 && u8[3] === 0x6d) || (u8[6] | (u8[7] << 8)) !== 0) return false;
+  const uleb = (buf, i) => {
+    let r = 0, s = 0;
+    for (;;){
+      const b = buf[i++];
+      if (b === undefined) throw new Error("truncated");
+      r += (b & 0x7f) * 2 ** s;
+      if (!(b & 0x80)) return [r, i];
+      s += 7; if (s > 35) throw new Error("uleb too long");
+    }
+  };
+  try {
+    for (let i = 8; i < u8.length; ){
+      const sid = u8[i];
+      const [size, j] = uleb(u8, i + 1);
+      if (sid === 5){                             // memory section
+        const [count, k] = uleb(u8, j);
+        if (count === 0) return false;
+        const [flags] = uleb(u8, k);
+        return (flags & 0x04) !== 0;              // limits flag bit 2: 64-bit index
+      }
+      i = j + size;
+    }
+  } catch(_){ return false; }
+  return false;
 }
 // Which wasi world contract does the picked component target? Same classifier
 // as the CLI (componentContract in cli/enclave.mjs) and the runner
@@ -730,7 +768,7 @@ function hasBytes(bytes, ascii){
 // In-flight publish upload (XHR so we get upload progress - fetch can't report
 // it). Tracked module-wide: a new file pick aborts the old upload, and the
 // publish path refuses to run while one is active.
-let pubXhr = null, pubSeq = 0, pubWasi = null, pubThreads = false, pubSet = false;
+let pubXhr = null, pubSeq = 0, pubWasi = null, pubThreads = false, pubSet = false, pubMem64 = false;
 async function putWasm(file, onProgress){
   if (!IPFS_UPLOAD_URL) throw new EnclaveError("Direct upload isn’t configured here; paste a CID you’ve pinned (e.g. `ipfs add app.wasm`).", 0);
   if (file.size > MAX_WASM_BYTES) throw new EnclaveError("Too large: max " + MAX_WASM_MB + " MB.", 0);
@@ -909,11 +947,14 @@ async function onPubFile(e){
     // shared-everything threads (⚡): set-componentize's `[set-spawn-indirect]`
     // marker — same raw byte scan (publishApp stamps `set: true`)
     pubSet = hasBytes(pubBytes, "[set-spawn-indirect]");
-  } catch(_){ pubWasi = null; pubThreads = false; pubSet = false; }
+    // wasm64 (memory64): structural memory-section sniff, not a marker scan
+    // (publishApp stamps `mem64: true` — claim routing to mem64 engines)
+    pubMem64 = moduleMem64(pubBytes);
+  } catch(_){ pubWasi = null; pubThreads = false; pubSet = false; pubMem64 = false; }
   if (seq !== pubSeq) return;
   setPubUploading(true);
   if (bar){ bar.hidden = false; bar.firstElementChild.style.width = "0%"; bar.setAttribute("aria-valuenow", "0"); }
-  pubStatus("valid " + (pubWasi === "0.3" ? "WASIp3 " : pubWasi === "0.2" ? "WASIp2 " : "") + (pubThreads ? "threaded " : "") + (pubSet ? "parallel " : "") + "component · uploading to IPFS… 0%");
+  pubStatus("valid " + (pubWasi === "0.3" ? "WASIp3 " : pubWasi === "0.2" ? "WASIp2 " : "") + (pubThreads ? "threaded " : "") + (pubSet ? "parallel " : "") + (pubMem64 ? "wasm64 (>4 GiB) module" : "component") + " · uploading to IPFS… 0%");
   try {
     const cid = await putWasm(f, (done, total) => {
       if (seq !== pubSeq || !total) return;
@@ -988,7 +1029,7 @@ async function publishApp(){
   // the authority over anything typed in the config box (claim routing:
   // runners send wasip3 versions only to p3-capable boxes). A hand-pasted
   // CID has no bytes to classify and publishes without the key.
-  if (pubWasi || pubThreads || pubSet){
+  if (pubWasi || pubThreads || pubSet || pubMem64){
     try {
       const o = JSON.parse(cfg.val || "{}");
       if (o && typeof o === "object" && !Array.isArray(o)){
@@ -998,10 +1039,18 @@ async function publishApp(){
         if (pubThreads) o.threads = true; else delete o.threads;
         // set: same binary-authoritative both directions
         if (pubSet) o.set = true; else delete o.set;
+        // mem64: same binary-authoritative both directions (claim routing to
+        // engines that can parse a 64-bit memory)
+        if (pubMem64) o.mem64 = true; else delete o.mem64;
         cfg.val = JSON.stringify(o);
       }
     } catch(_){ /* readPubConfig already validated shape; never block on the stamp */ }
   }
+  // wasm64 apps are COMPUTE guests (preview1 has no socket surface on the
+  // engine, so declared ports can never be served): refuse a port-declaring
+  // publish HERE, before an immutable catalog slot is spent — the same rule
+  // the runner enforces at launch. They get /data, volumes, config, stdio.
+  if (pubMem64 && ports) return pubStatus("wasm64 apps are compute guests: ports can never be served from a preview1 module — clear the ports field", true);
   // fold the (already-uploaded) thumbnail/banner CIDs into the version config
   // under _media - they ride in the config since the catalog contract has no
   // media field. Re-check the ceiling: media adds ~150 bytes over the app config.

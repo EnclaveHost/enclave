@@ -255,16 +255,18 @@ test("the gateway's Python twin agrees with the runner's classifier", () => {
   const p3 = path.join(dir, "p3.wasm");
   writeFileSync(p3, syntheticComponent("wasi:http/handler@0.3.0-rc-2026-03-15"));
   for (const file of [path.join(FIXTURES, "egress-guest-http.wasm"), path.join(FIXTURES, "egress-guest-tcp.wasm"), p3]) {
-    // the gateway's dict additionally carries `threads` (coop-thread marker)
-    // and `set` (shared-everything-threads marker); the runner keeps those
-    // answers in _needs_coop_threads / _needs_set_threads. Lockstep now means:
-    // contract keys agree, AND each gateway marker matches the runner's sniff
-    // for the same bytes.
+    // the gateway's dict additionally carries `threads` (coop-thread marker),
+    // `set` (shared-everything-threads marker) and `mem64` (the wasm64
+    // memory-section sniff); the runner keeps those answers in
+    // _needs_coop_threads / _needs_set_threads / _needs_mem64. Lockstep now
+    // means: contract keys agree, AND each gateway marker matches the
+    // runner's sniff for the same bytes.
     const gw = classifyPy(file, "gateway");
-    const { threads, set, ...contract } = gw;
+    const { threads, set, mem64, ...contract } = gw;
     assert.deepEqual(contract, classifyPy(file, "manager"), path.basename(file));
     assert.equal(threads, sniffPy(file), path.basename(file) + " threads sniff");
     assert.equal(set, sniffPy(file, "_needs_set_threads"), path.basename(file) + " set sniff");
+    assert.equal(mem64, sniffPy(file, "_needs_mem64"), path.basename(file) + " mem64 sniff");
   }
 });
 
@@ -276,10 +278,11 @@ test("the CLI and browser classifiers are the same algorithm (string-pinned)", (
     const src = fs.readFileSync(path.join(REPO, ...rel), "utf8");
     for (const pin of ["wasi:http/handler@0.3.", "wasi:http/incoming-handler@0.2.",
                        "wasi:cli/run@0.3.", "wasi:cli/run@0.2.", "componentContract",
-                       "[thread-", "[set-spawn-indirect]"]) {
+                       "[thread-", "[set-spawn-indirect]", "moduleMem64"]) {
       assert.ok(src.includes(pin), `${rel.join("/")} must carry ${pin}`);
     }
     assert.match(src, /sid === 11|sid === 11/, `${rel.join("/")} reads the export section`);
+    assert.match(src, /sid === 5/, `${rel.join("/")} reads the memory section (mem64)`);
   }
 });
 

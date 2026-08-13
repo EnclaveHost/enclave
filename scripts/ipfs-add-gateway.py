@@ -82,17 +82,54 @@ JSON_RL_PER_HR  = int(os.environ.get("ADDJSON_PER_IP_HOURLY", "60"))  # /add-jso
 
 
 def preamble_error(b: bytes):
-    """Tier 1: return an error string if the bytes aren't a wasm component, else None."""
+    """Tier 1: return an error string if the bytes aren't a wasm component,
+    else None. One core-module class is admitted: wasm64 (a 64-bit linear
+    memory — the >4 GiB guests), which the runner launches portless as a
+    COMPUTE guest under `wasmtime run` (preview1 has no socket surface).
+    Keep in lockstep with wasm_manager._check_component."""
     if len(b) < 8:
         return "too small to be a WebAssembly module"
     if b[0:4] != b"\x00asm":
         return "not a WebAssembly file (missing the \\0asm magic bytes)"
     layer = b[6] | (b[7] << 8)   # preamble after magic is version:u16 + layer:u16
     if layer == 0:
+        if module_mem64(b):
+            return None
         return "this is a core wasm module, but Enclave runs wasi:http components"
     if layer != 1:
         return "unrecognized wasm layer %d — expected a component" % layer
     return None
+
+
+def module_mem64(data: bytes) -> bool:
+    """Does this CORE module (layer 0) declare a 64-bit linear memory? Reads
+    the memory section (id 5): the first memory's limits flags carry the
+    memory64 bit (0x04). Structural, not a byte scan — there is no import
+    string to key on. Lockstep with wasm_manager._module_mem64 (the launch
+    authority); components and anything unparseable return False."""
+    if len(data) < 8 or data[0:4] != b"\x00asm" or (data[6] | (data[7] << 8)) != 0:
+        return False
+    i = 8
+    while i < len(data):
+        sid = data[i]
+        try:
+            size, i = _uleb(data, i + 1)
+        except (IndexError, ValueError):
+            return False
+        if sid == 5:                       # memory section
+            try:
+                count, j = _uleb(data, i)
+                if count == 0:
+                    return False
+            except (IndexError, ValueError):
+                return False
+            try:
+                flags, j = _uleb(data, j)
+            except (IndexError, ValueError):
+                return False
+            return bool(flags & 0x04)      # limits flag bit 2: 64-bit index
+        i += size
+    return False
 
 
 # Which wasi world contract does the component target? Same classifier as the
@@ -127,8 +164,12 @@ def component_contract(data: bytes):
     # wasi: strings below). Publish paths stamp it as `threads: true`.
     # `set`: the shared-everything-threads (⚡) marker — set-componentize wires
     # the spawn canon under `[set-spawn-indirect]`. Independent of `threads`.
+    # `mem64`: a wasm64 CORE module (64-bit linear memory, admitted by
+    # preamble_error's one core-module carve-out). Publish paths stamp it as
+    # `mem64: true` so claim routing keeps it on mem64-capable engines.
     out = {"wasi": None, "world": None, "threads": b"[thread-" in data,
-           "set": b"[set-spawn-indirect]" in data}
+           "set": b"[set-spawn-indirect]" in data,
+           "mem64": module_mem64(data)}
     if len(data) < 8 or data[0:4] != b"\x00asm" or (data[6] | (data[7] << 8)) != 1:
         return out
     exports = set()
