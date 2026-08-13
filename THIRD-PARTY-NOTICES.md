@@ -8,7 +8,9 @@ under its own license; this file carries the copyright and permission notices
 that minified bundles cannot. Regenerate with `node scripts/build-notices.mjs`
 after any dependency change.
 
-Packages: 128 · Licenses: MIT ×118 · Apache-2.0 ×3 · ISC ×3 · BSD-3-Clause ×2 · 0BSD ×2
+Packages: 278 · Licenses: MIT ×228 · Apache-2.0 ×24 · ISC ×13 · BSD-3-Clause ×8 · 0BSD ×2 · BlueOak-1.0.0 ×1 · (Apache-2.0 AND MIT) ×1 · BSD-2-Clause ×1
+
+Portions © 2025 Reown, Inc. All Rights Reserved
 
 ## MIT
 
@@ -17,10 +19,15 @@ Packages: 128 · Licenses: MIT ×118 · Apache-2.0 ×3 · ISC ×3 · BSD-3-Claus
 - **@freedomofpress/tuf-browser@0.1.11** — Copyright (c) 2025 TUF Browser Contributors
 - **@hexagon/base64@1.1.28** — Copyright (c) 2021-2022 Hexagon <github.com/Hexagon>
 - **@levischuck/tiny-cbor@0.2.11** — Copyright (c) 2025 Levi
+- **@noble/ciphers@1.2.1** — Copyright (c) 2022 Paul Miller (https://paulmillr.com) · Copyright (c) 2016 Thomas Pornin <pornin@bolet.org>
 - **@noble/ciphers@1.3.0** — Copyright (c) 2022 Paul Miller (https://paulmillr.com) · Copyright (c) 2016 Thomas Pornin <pornin@bolet.org>
+- **@noble/curves@1.8.0** — Copyright (c) 2022 Paul Miller (https://paulmillr.com)
+- **@noble/curves@1.8.1** — Copyright (c) 2022 Paul Miller (https://paulmillr.com)
 - **@noble/curves@1.9.1** — Copyright (c) 2022 Paul Miller (https://paulmillr.com)
 - **@noble/curves@1.9.7** — Copyright (c) 2022 Paul Miller (https://paulmillr.com)
 - **@noble/curves@2.2.0** — Copyright (c) 2022 Paul Miller (https://paulmillr.com)
+- **@noble/hashes@1.7.0** — Copyright (c) 2022 Paul Miller (https://paulmillr.com)
+- **@noble/hashes@1.7.1** — Copyright (c) 2022 Paul Miller (https://paulmillr.com)
 - **@noble/hashes@1.8.0** — Copyright (c) 2022 Paul Miller (https://paulmillr.com)
 - **@noble/hashes@2.2.0** — Copyright (c) 2022 Paul Miller (https://paulmillr.com)
 - **@peculiar/asn1-android@2.8.0** — Copyright (c) 2020
@@ -37,57 +44,112 @@ Packages: 128 · Licenses: MIT ×118 · Apache-2.0 ×3 · ISC ×3 · BSD-3-Claus
 - **@peculiar/utils@2.0.3** — Copyright (c) 2017-2026 Peculiar Ventures, LLC
 - **@peculiar/x509@1.14.3** — Copyright (c) Peculiar Ventures. All rights reserved.
 - **@scure/base@1.2.6** — Copyright (c) 2022 Paul Miller (https://paulmillr.com)
+- **@scure/bip32@1.6.2** — Copyright (c) 2022 Patricio Palladino, Paul Miller (paulmillr.com)
 - **@scure/bip32@1.7.0** — Copyright (c) 2022 Patricio Palladino, Paul Miller (paulmillr.com)
+- **@scure/bip39@1.5.4** — Copyright (c) 2022 Patricio Palladino, Paul Miller (paulmillr.com)
 - **@scure/bip39@1.6.0** — Copyright (c) 2022 Patricio Palladino, Paul Miller (paulmillr.com)
 - **@simplewebauthn/browser@13.1.0** — Copyright (c) 2020 Matthew Miller
 - **@simplewebauthn/server@13.3.2** — Copyright (c) 2020 Matthew Miller
+- **@types/trusted-types@2.0.7** — Copyright (c) Microsoft Corporation.
+- **@walletconnect/environment@1.0.1** — Copyright (c) 2022 WalletConnect, Inc.
+- **@walletconnect/events@1.0.1** — Copyright (c) 2022 WalletConnect, Inc.
+- **@walletconnect/heartbeat@1.2.2** — Copyright (c) 2022 WalletConnect, Inc.
+- **@walletconnect/jsonrpc-http-connection@1.0.8** — Copyright (c) 2022 WalletConnect, Inc.
+- **@walletconnect/jsonrpc-provider@1.0.14** — Copyright (c) 2022 WalletConnect, Inc.
+- **@walletconnect/jsonrpc-types@1.0.4** — Copyright (c) 2022 WalletConnect, Inc.
+- **@walletconnect/jsonrpc-utils@1.0.8** — Copyright (c) 2022 WalletConnect, Inc.
+- **@walletconnect/jsonrpc-ws-connection@1.0.16** — Copyright (c) 2022 WalletConnect, Inc.
+- **@walletconnect/keyvaluestorage@1.1.1** — Copyright (c) 2022 WalletConnect
+- **@walletconnect/logger@2.1.2** — Copyright (c) 2022 WalletConnect, Inc.
+- **@walletconnect/relay-api@1.0.11** — Copyright (c) 2022 WalletConnect, Inc.
+- **@walletconnect/relay-auth@1.1.0** — Copyright (c) 2022 WalletConnect, Inc.
+- **@walletconnect/safe-json@1.0.2** — Copyright (c) 2022 WalletConnect, Inc.
+- **@walletconnect/time@1.0.2** — Copyright (c) 2022 WalletConnect, Inc.
+- **@walletconnect/window-getters@1.0.1** — Copyright (c) 2022 WalletConnect, Inc.
+- **@walletconnect/window-metadata@1.0.1** — Copyright (c) 2022 WalletConnect, Inc.
+- **abitype@1.0.8** — Copyright (c) 2022-present weth, LLC
 - **abitype@1.2.3** — Copyright (c) 2022-present weth, LLC
 - **accepts@1.3.8** — Copyright (c) 2014 Jonathan Ong <me@jongleberry.com> · Copyright (c) 2015 Douglas Christopher Wilson <doug@somethingdoug.com>
+- **ansi-regex@5.0.1** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+- **ansi-styles@4.3.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 - **array-flatten@1.1.1** — Copyright (c) 2014 Blake Embrey (hello@blakeembrey.com)
-- **body-parser@1.20.5** — Copyright (c) 2014 Jonathan Ong <me@jongleberry.com> · Copyright (c) 2014-2015 Douglas Christopher Wilson <doug@somethingdoug.com>
+- **atomic-sleep@1.0.0** — Copyright (c) 2020 David Mark Clements
+- **base-x@5.0.1** — Copyright (c) 2018 base-x contributors · Copyright (c) 2014-2018 The Bitcoin Core developers
+- **base64-js@1.5.1** — Copyright (c) 2014 Jameson Little
+- **big.js@6.2.2** — Copyright © `<2024>` `Michael Mclaughlin`
+- **body-parser@1.20.6** — Copyright (c) 2014 Jonathan Ong <me@jongleberry.com> · Copyright (c) 2014-2015 Douglas Christopher Wilson <doug@somethingdoug.com>
+- **bs58@6.0.0** — Copyright (c) 2018 cryptocoinjs
+- **buffer@6.0.3** — Copyright (c) Feross Aboukhadijeh, and other contributors.
 - **bytes@3.1.2** — Copyright (c) 2012-2014 TJ Holowaychuk <tj@vision-media.ca> · Copyright (c) 2015 Jed Watson <jed.watson@me.com>
 - **call-bind-apply-helpers@1.0.2** — Copyright (c) 2024 Jordan Harband
 - **call-bound@1.0.4** — Copyright (c) 2024 Jordan Harband
-- **command-exists@1.2.9** — Copyright (c) 2014 Matthew Conlen
-- **commander@8.3.0** — Copyright (c) 2011 TJ Holowaychuk <tj@vision-media.ca>
+- **camelcase@5.3.1** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+- **chokidar@5.0.0** — Copyright (c) 2012 Paul Miller (https://paulmillr.com), Elan Shanker
+- **color-convert@2.0.1** — Copyright (c) 2011-2016 Heather Arthur <fayearthur@gmail.com>
+- **color-name@1.1.4** — Copyright (c) 2015 Dmitry Ivanov
 - **content-disposition@0.5.4** — Copyright (c) 2014-2017 Douglas Christopher Wilson
 - **content-type@1.0.5** — Copyright (c) 2015 Douglas Christopher Wilson
+- **cookie-es@1.2.3** — Copyright (c) 2012-2014 Roman Shtylman <shtylman@gmail.com> · Copyright (c) 2015 Douglas Christopher Wilson <doug@somethingdoug.com> · Copyright (c) 2015 Nathan Friedly <nathan@nfriedly.com> (http://nfriedly.com/)
 - **cookie-signature@1.0.7** — Copyright (c) TJ Holowaychuk <tj@learnboost.com>
 - **cookie@0.7.2** — Copyright (c) 2012-2014 Roman Shtylman <shtylman@gmail.com> · Copyright (c) 2015 Douglas Christopher Wilson <doug@somethingdoug.com>
 - **cors@2.8.6** — Copyright (c) 2013 Troy Goode <troygoode@gmail.com>
+- **cross-fetch@3.2.0** — Copyright (c) 2017 Leonardo Quixadá
+- **crossws@0.3.5** — Copyright (c) Pooya Parsa <pooya@pi0.io> · Copyright (c) 2011 Einar Otto Stangvik <einaros@gmail.com> · Copyright (c) 2013 Arnout Kazemier and contributors · Copyright (c) 2016 Luigi Pinca and contributors
+- **dayjs@1.11.13** — Copyright (c) 2018-present, iamkun
 - **debug@2.6.9** — Copyright (c) 2014 TJ Holowaychuk <tj@vision-media.ca>
+- **decamelize@1.2.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+- **decode-uri-component@0.2.2** — Copyright (c) 2017, Sam Verschueren <sam.verschueren@gmail.com> (github.com/SamVerschueren)
+- **defu@6.1.7** — Copyright (c) Pooya Parsa <pooya@pi0.io>
 - **depd@2.0.0** — Copyright (c) 2014-2018 Douglas Christopher Wilson
+- **derive-valtio@0.1.0** — Copyright (c) 2023 Poimandres
+- **destr@2.0.5** — Copyright (c) Pooya Parsa <pooya@pi0.io>
 - **destroy@1.2.0** — Copyright (c) 2014 Jonathan Ong me@jongleberry.com · Copyright (c) 2015-2022 Douglas Christopher Wilson doug@somethingdoug.com
+- **detect-browser@5.3.0** — Copyright (c) 2019 Damon Oehlman <damon.oehlman@gmail.com>
+- **dijkstrajs@1.0.3** — Copyright (C) 2008
 - **dunder-proto@1.0.1** — Copyright (c) 2024 ECMAScript Shims
+- **duplexify@4.1.3** — Copyright (c) 2014 Mathias Buus
 - **ee-first@1.1.1** — Copyright (c) 2014 Jonathan Ong me@jongleberry.com
+- **emoji-regex@8.0.0** — Copyright (c) Mathias Bynens
+- **encode-utf8@1.0.3**
 - **encodeurl@2.0.0** — Copyright (c) 2016 Douglas Christopher Wilson
+- **end-of-stream@1.4.5** — Copyright (c) 2014 Mathias Buus
 - **es-define-property@1.0.1** — Copyright (c) 2024 Jordan Harband
 - **es-errors@1.3.0** — Copyright (c) 2024 Jordan Harband
 - **es-object-atoms@1.1.2** — Copyright (c) 2024 Jordan Harband
+- **es-toolkit@1.33.0** — Copyright (c) 2024 Viva Republica, Inc
 - **escape-html@1.0.3** — Copyright (c) 2012-2013 TJ Holowaychuk · Copyright (c) 2015 Andreas Lubbe · Copyright (c) 2015 Tiancheng "Timothy" Gu
 - **etag@1.8.1** — Copyright (c) 2014-2016 Douglas Christopher Wilson
 - **eventemitter3@5.0.1** — Copyright (c) 2014 Arnout Kazemier
+- **events@3.3.0** — Copyright Joyent, Inc. and other Node contributors.
 - **express@4.22.2** — Copyright (c) 2009-2014 TJ Holowaychuk <tj@vision-media.ca> · Copyright (c) 2013-2014 Roman Shtylman <shtylman+expressjs@gmail.com> · Copyright (c) 2014-2015 Douglas Christopher Wilson <doug@somethingdoug.com>
+- **fast-redact@3.5.0** — Copyright (c) 2019-2020 David Mark Clements
 - **fflate@0.8.2** — Copyright (c) 2023 Arjun Barrett
+- **filter-obj@1.1.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 - **finalhandler@1.3.2** — Copyright (c) 2014-2022 Douglas Christopher Wilson <doug@somethingdoug.com>
-- **follow-redirects@1.16.0** — Copyright 2014–present Olivier Lalonde <olalonde@gmail.com>, James Talmage <james@talmage.io>, Ruben Verborgh
+- **find-up@4.1.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 - **forwarded@0.2.0** — Copyright (c) 2014-2017 Douglas Christopher Wilson
 - **fresh@0.5.2** — Copyright (c) 2012 TJ Holowaychuk <tj@vision-media.ca> · Copyright (c) 2016-2017 Douglas Christopher Wilson <doug@somethingdoug.com>
 - **function-bind@1.1.2** — Copyright (c) 2013 Raynos.
 - **get-intrinsic@1.3.0** — Copyright (c) 2020 Jordan Harband
 - **get-proto@1.0.1** — Copyright (c) 2025 Jordan Harband
 - **gopd@1.2.0** — Copyright (c) 2022 Jordan Harband
+- **h3@1.15.11** — Copyright (c) Pooya Parsa <pooya@pi0.io>
 - **has-symbols@1.1.0** — Copyright (c) 2016 Jordan Harband
 - **hasown@2.0.4** — Copyright (c) Jordan Harband and contributors
 - **http-errors@2.0.1** — Copyright (c) 2014 Jonathan Ong me@jongleberry.com · Copyright (c) 2016 Douglas Christopher Wilson doug@somethingdoug.com
 - **iconv-lite@0.4.24** — Copyright (c) 2011 Alexander Shtuchkin
 - **ipaddr.js@1.9.1** — Copyright (C) 2011-2017 whitequark <whitequark@whitequark.org>
+- **iron-webcrypto@1.2.1** — Copyright (c) 2021 Divyansh Singh · COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+- **is-fullwidth-code-point@3.0.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+- **isows@1.0.6** — Copyright (c) 2023-present weth, LLC
 - **isows@1.0.7** — Copyright (c) 2023-present weth, LLC
 - **jose@5.10.0** — Copyright (c) 2018 Filip Skokan
-- **js-sha3@0.8.0** — Copyright 2015-2018 Chen, Yi-Cyuan
+- **js-tokens@4.0.0** — Copyright (c) 2014, 2015, 2016, 2017, 2018 Simon Lydell
+- **keyvaluestorage-interface@1.0.0** — Copyright (c) 2020 Pedro Gomes
+- **locate-path@5.0.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+- **loose-envify@1.4.0** — Copyright (c) 2015 Andres Suarez <zertosh@gmail.com>
 - **math-intrinsics@1.1.0** — Copyright (c) 2024 ECMAScript Shims
 - **media-typer@0.3.0** — Copyright (c) 2014 Douglas Christopher Wilson
-- **memorystream@0.3.1** — Copyright (C) 2011 Dmitry Nizovtsev
 - **merge-descriptors@1.0.3** — Copyright (c) 2013 Jonathan Ong <me@jongleberry.com> · Copyright (c) 2015 Douglas Christopher Wilson <doug@somethingdoug.com>
 - **methods@1.1.2** — Copyright (c) 2013-2014 TJ Holowaychuk <tj@vision-media.ca> · Copyright (c) 2015-2016 Douglas Christopher Wilson <doug@somethingdoug.com>
 - **mime-db@1.52.0** — Copyright (c) 2014 Jonathan Ong <me@jongleberry.com> · Copyright (c) 2015-2022 Douglas Christopher Wilson <doug@somethingdoug.com>
@@ -96,20 +158,48 @@ Packages: 128 · Licenses: MIT ×118 · Apache-2.0 ×3 · ISC ×3 · BSD-3-Claus
 - **ms@2.0.0** — Copyright (c) 2016 Zeit, Inc.
 - **ms@2.1.3** — Copyright (c) 2020 Vercel, Inc.
 - **negotiator@0.6.3** — Copyright (c) 2012-2014 Federico Romero · Copyright (c) 2012-2014 Isaac Z. Schlueter · Copyright (c) 2014-2015 Douglas Christopher Wilson
+- **node-fetch-native@1.6.7** — Copyright (c) Pooya Parsa <pooya@pi0.io> · Copyright (c) 2016 - 2020 Node Fetch Team · Copyright (c) 2017 Toru Nagashima · Copyright (c) 2013 Nathan Rajlich <nathan@tootallnate.net>
+- **node-fetch@2.7.0** — Copyright (c) 2016 David Frank
+- **node-mock-http@1.0.5** — Copyright (c)
+- **normalize-path@3.0.0** — Copyright (c) 2014-2018, Jon Schlinkert.
 - **object-assign@4.1.1** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 - **object-inspect@1.13.4** — Copyright (c) 2013 James Halliday
+- **ofetch@1.5.1** — Copyright (c) Pooya Parsa <pooya@pi0.io>
+- **on-exit-leak-free@0.2.0** — Copyright (c) 2021 Matteo Collina
 - **on-finished@2.4.1** — Copyright (c) 2013 Jonathan Ong <me@jongleberry.com> · Copyright (c) 2014 Douglas Christopher Wilson <doug@somethingdoug.com>
-- **os-tmpdir@1.0.2** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 - **ox@0.14.29** — Copyright (c) 2023-present wevm
 - **ox@0.14.30** — Copyright (c) 2023-present wevm
+- **ox@0.14.33** — Copyright (c) 2023-present wevm
+- **ox@0.6.7** — Copyright (c) 2023-present wevm
+- **p-limit@2.3.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+- **p-locate@4.1.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+- **p-try@2.2.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 - **parseurl@1.3.3** — Copyright (c) 2014 Jonathan Ong <me@jongleberry.com> · Copyright (c) 2014-2017 Douglas Christopher Wilson <doug@somethingdoug.com>
+- **path-exists@4.0.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 - **path-to-regexp@0.1.13** — Copyright (c) 2014 Blake Embrey (hello@blakeembrey.com)
+- **picomatch@2.3.2** — Copyright (c) 2017-present, Jon Schlinkert.
+- **pino-abstract-transport@0.5.0** — Copyright (c) 2021 pino
+- **pino-std-serializers@4.0.0** — Copyright Mateo Collina, David Mark Clements, James Sumners
+- **pino@7.11.0** — Copyright (c) 2016-2019 Matteo Collina, David Mark Clements and the Pino contributors
+- **pngjs@5.0.0**
+- **process-warning@1.0.0** — Copyright (c) Fastify
 - **proxy-addr@2.0.7** — Copyright (c) 2014-2016 Douglas Christopher Wilson
+- **proxy-compare@2.6.0** — Copyright (c) 2020 Daishi Kato
 - **pvtsutils@1.3.6** — Copyright (c) 2017-2024 Peculiar Ventures, LLC
 - **pvutils@1.1.5** — Copyright (c) 2016-2019, Peculiar Ventures
+- **qrcode@1.5.3** — Copyright (c) 2012 Ryan Day
+- **query-string@7.1.3** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (http://sindresorhus.com)
+- **quick-format-unescaped@4.0.4** — Copyright (c) 2016-2019 David Mark Clements
+- **radix3@1.1.2** — Copyright (c) Pooya Parsa <pooya@pi0.io>
 - **range-parser@1.2.1** — Copyright (c) 2012-2014 TJ Holowaychuk <tj@vision-media.ca> · Copyright (c) 2015-2016 Douglas Christopher Wilson <doug@somethingdoug.com
 - **raw-body@2.5.3** — Copyright (c) 2013-2014 Jonathan Ong <me@jongleberry.com> · Copyright (c) 2014-2022 Douglas Christopher Wilson <doug@somethingdoug.com>
+- **react@18.3.1** — Copyright (c) Facebook, Inc. and its affiliates.
+- **readable-stream@3.6.2** — Copyright Node.js contributors. All rights reserved. · Copyright Joyent, Inc. and other Node contributors. All rights reserved.
+- **readdirp@5.1.1** — Copyright (c) 2012-2019 Thorsten Lorenz, Paul Miller (https://paulmillr.com)
+- **real-require@0.1.0** — Copyright (c) 2021 pino
+- **require-directory@2.1.1** — Copyright (c) 2011 Troy Goode <troygoode@gmail.com>
 - **safe-buffer@5.2.1** — Copyright (c) Feross Aboukhadijeh
+- **safe-stable-stringify@2.5.0** — Copyright (c) Ruben Bridgewater
 - **safer-buffer@2.1.2** — Copyright (c) 2018 Nikita Skovoroda <chalkerx@gmail.com>
 - **send@0.19.2** — Copyright (c) 2012 TJ Holowaychuk · Copyright (c) 2014-2022 Douglas Christopher Wilson
 - **serve-static@1.16.3** — Copyright (c) 2010 Sencha Inc. · Copyright (c) 2011 LearnBoost · Copyright (c) 2011 TJ Holowaychuk · Copyright (c) 2014-2016 Douglas Christopher Wilson
@@ -117,19 +207,41 @@ Packages: 128 · Licenses: MIT ×118 · Apache-2.0 ×3 · ISC ×3 · BSD-3-Claus
 - **side-channel-map@1.0.1** — Copyright (c) 2024 Jordan Harband
 - **side-channel-weakmap@1.0.2** — Copyright (c) 2019 Jordan Harband
 - **side-channel@1.1.1** — Copyright (c) 2019 Jordan Harband
-- **solc@0.8.35** — Copyright (c) 2016
+- **sonic-boom@2.8.0** — Copyright (c) 2017 Matteo Collina
+- **split-on-first@1.1.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 - **statuses@2.0.2** — Copyright (c) 2014 Jonathan Ong <me@jongleberry.com> · Copyright (c) 2016 Douglas Christopher Wilson <doug@somethingdoug.com>
-- **tmp@0.0.33** — Copyright (c) 2014 KARASZI István
+- **stream-shift@1.0.3** — Copyright (c) 2016 Mathias Buus
+- **strict-uri-encode@2.0.0** — Copyright (c) Kevin Martensson <kevinmartensson@gmail.com> (github.com/kevva)
+- **string_decoder@1.3.0** — Copyright Node.js contributors. All rights reserved. · Copyright Joyent, Inc. and other Node contributors. All rights reserved.
+- **string-width@4.2.3** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+- **strip-ansi@6.0.1** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+- **thread-stream@0.15.2** — Copyright (c) 2021 Matteo Collina
 - **toidentifier@1.0.1** — Copyright (c) 2016 Douglas Christopher Wilson <doug@somethingdoug.com>
+- **tr46@0.0.3** — Copyright (c) Sebastian Mayr <npm@smayr.name>
 - **tsyringe@4.10.0** — Copyright (c) Microsoft Corporation. All rights reserved.
 - **type-is@1.6.18** — Copyright (c) 2014 Jonathan Ong <me@jongleberry.com> · Copyright (c) 2014-2015 Douglas Christopher Wilson <doug@somethingdoug.com>
+- **ufo@1.6.4** — Copyright (c) Pooya Parsa <pooya@pi0.io>
+- **uint8arrays@3.1.0** — Copyright (c) Alex Potsides <alex@achingbrain.net>
+- **uncrypto@0.1.3** — Copyright (c) Pooya Parsa <pooya@pi0.io>
 - **unpipe@1.0.0** — Copyright (c) 2015 Douglas Christopher Wilson <doug@somethingdoug.com>
+- **unstorage@1.17.5** — Copyright (c) Pooya Parsa <pooya@pi0.io>
+- **use-sync-external-store@1.2.0** — Copyright (c) Facebook, Inc. and its affiliates.
+- **util-deprecate@1.0.2** — Copyright (c) 2014 Nathan Rajlich <nathan@tootallnate.net>
 - **utils-merge@1.0.1** — Copyright (c) 2013-2017 Jared Hanson · COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+- **valtio@1.13.2** — Copyright (c) 2020-2023 Poimandres
 - **vary@1.1.2** — Copyright (c) 2014-2017 Douglas Christopher Wilson
+- **viem@2.23.2** — Copyright (c) 2023-present weth, LLC
 - **viem@2.53.1** — Copyright (c) 2023-present weth, LLC
 - **viem@2.54.3** — Copyright (c) 2023-present weth, LLC
-- **ws@8.20.1** — Copyright (c) 2011 Einar Otto Stangvik <einaros@gmail.com> · Copyright (c) 2013 Arnout Kazemier and contributors · Copyright (c) 2016 Luigi Pinca and contributors · COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+- **viem@2.55.13** — Copyright (c) 2023-present weth, LLC
+- **whatwg-url@5.0.0** — Copyright (c) 2015–2016 Sebastian Mayr
+- **wrap-ansi@6.2.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+- **ws@7.5.13** — Copyright (c) 2011 Einar Otto Stangvik <einaros@gmail.com>
+- **ws@8.18.0** — Copyright (c) 2011 Einar Otto Stangvik <einaros@gmail.com> · Copyright (c) 2013 Arnout Kazemier and contributors · Copyright (c) 2016 Luigi Pinca and contributors · COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 - **ws@8.21.0** — Copyright (c) 2011 Einar Otto Stangvik <einaros@gmail.com> · Copyright (c) 2013 Arnout Kazemier and contributors · Copyright (c) 2016 Luigi Pinca and contributors · COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+- **ws@8.21.1** — Copyright (c) 2011 Einar Otto Stangvik <einaros@gmail.com> · Copyright (c) 2013 Arnout Kazemier and contributors · Copyright (c) 2016 Luigi Pinca and contributors · COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+- **yargs@15.4.1** — Copyright 2010 James Halliday (mail@substack.net); Modified work Copyright 2014 Contributors (ben@npmjs.com)
+- **zod@3.22.4** — Copyright (c) 2020 Colin McDonnell
 
 <details><summary>MIT license text</summary>
 
@@ -164,7 +276,28 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ## Apache-2.0
 
 - **@freedomofpress/crypto-browser@0.1.7** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of,
+- **@reown/appkit-common@1.7.8** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2024 reown inc.
+- **@reown/appkit-controllers@1.7.8** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2024 reown inc.
+- **@reown/appkit-pay@1.7.8** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2024 reown inc.
+- **@reown/appkit-polyfills@1.7.8** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2024 reown inc.
+- **@reown/appkit-scaffold-ui@1.7.8** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2024 reown inc.
+- **@reown/appkit-ui@1.7.8** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2024 reown inc.
+- **@reown/appkit-utils@1.7.8** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2024 reown inc.
+- **@reown/appkit-wallet@1.7.8** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2024 reown inc.
+- **@reown/appkit@1.7.8** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2024 reown inc.
 - **@tinfoilsh/verifier@1.1.10** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2026 Tinfoil
+- **@walletconnect/core@2.21.0** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2021 WalletConnect, Inc.
+- **@walletconnect/core@2.21.1** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2021 WalletConnect, Inc.
+- **@walletconnect/ethereum-provider@2.21.1** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2021 WalletConnect, Inc.
+- **@walletconnect/sign-client@2.21.0** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2021 WalletConnect, Inc.
+- **@walletconnect/sign-client@2.21.1** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2021 WalletConnect, Inc.
+- **@walletconnect/types@2.21.0** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2021 WalletConnect, Inc.
+- **@walletconnect/types@2.21.1** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2021 WalletConnect, Inc.
+- **@walletconnect/universal-provider@2.21.0** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2021 WalletConnect, Inc.
+- **@walletconnect/universal-provider@2.21.1** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2021 WalletConnect, Inc.
+- **@walletconnect/utils@2.21.0** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2021 WalletConnect, Inc.
+- **@walletconnect/utils@2.21.1** — copyright notice that is included in or attached to the work · copyright license to reproduce, prepare Derivative Works of, · Copyright 2021 WalletConnect, Inc.
+- **idb-keyval@6.3.0** — Copyright 2016, Jake Archibald
 - **reflect-metadata@0.2.2** — Copyright (c) Ron Buckton
 
 <details><summary>Apache-2.0 license text</summary>
@@ -376,9 +509,19 @@ Apache License
 
 ## ISC
 
+- **anymatch@3.1.3** — Copyright (c) 2019 Elan Shanker, Paul Miller (https://paulmillr.com) · copyright notice and this permission notice appear in all copies.
+- **cliui@6.0.0** — Copyright (c) 2015, Contributors
+- **get-caller-file@2.0.5** — Copyright 2018 Stefan Penner
 - **inherits@2.0.4** — Copyright (c) Isaac Z. Schlueter · copyright notice and this permission notice appear in all copies.
-- **semver@5.7.2** — Copyright (c) Isaac Z. Schlueter and Contributors · copyright notice and this permission notice appear in all copies.
+- **once@1.4.0** — Copyright (c) Isaac Z. Schlueter and Contributors · copyright notice and this permission notice appear in all copies.
+- **require-main-filename@2.0.0** — Copyright (c) 2016, Contributors
+- **set-blocking@2.0.0** — Copyright (c) 2016, Contributors
 - **setprototypeof@1.2.0** — Copyright (c) 2015, Wes Todd · copyright notice and this permission notice appear in all copies.
+- **split2@4.2.0** — Copyright (c) 2014-2018, Matteo Collina <hello@matteocollina.com> · copyright notice and this permission notice appear in all copies.
+- **which-module@2.0.1** — Copyright (c) 2016, Contributors
+- **wrappy@1.0.2** — Copyright (c) Isaac Z. Schlueter and Contributors · copyright notice and this permission notice appear in all copies.
+- **y18n@4.0.3** — Copyright (c) 2015, Contributors
+- **yargs-parser@18.1.3** — Copyright (c) 2016, Contributors
 
 <details><summary>ISC license text</summary>
 
@@ -403,7 +546,13 @@ IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ## BSD-3-Clause
 
+- **@lit-labs/ssr-dom-shim@1.6.0** — Copyright (c) Google LLC
+- **@lit/reactive-element@2.1.2** — Copyright (c) 2017 Google LLC. All rights reserved.
 - **asn1js@3.0.10** — Copyright (c) 2014, GMO GlobalSign · Copyright (c) 2015-2022, Peculiar Ventures
+- **ieee754@1.2.1** — Copyright 2008 Fair Oaks Labs, Inc.
+- **lit-element@4.2.2** — Copyright (c) 2017 Google LLC. All rights reserved.
+- **lit-html@3.3.3** — Copyright (c) 2017 Google LLC. All rights reserved.
+- **lit@3.3.0** — Copyright (c) 2017 Google LLC. All rights reserved.
 - **qs@6.15.3** — Copyright (c) 2014, Nathan LaFreniere and other [contributors](https://github.com/ljharb/qs/graphs/contributors)
 
 (For the full BSD-3-Clause text, see the LICENSE file shipped inside each package above.)
@@ -414,4 +563,22 @@ IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 - **tslib@2.8.1** — Copyright (c) Microsoft Corporation.
 
 (For the full 0BSD text, see the LICENSE file shipped inside each package above.)
+
+## BlueOak-1.0.0
+
+- **lru-cache@11.5.2** — copyright in it.
+
+(For the full BlueOak-1.0.0 text, see the LICENSE file shipped inside each package above.)
+
+## (Apache-2.0 AND MIT)
+
+- **multiformats@9.9.0** — Copyright (c) Mikeal Rogers <mikeal.rogers@gmail.com> (https://www.mikealrogers.com/)
+
+(For the full (Apache-2.0 AND MIT) text, see the LICENSE file shipped inside each package above.)
+
+## BSD-2-Clause
+
+- **webidl-conversions@3.0.1** — Copyright (c) 2014, Domenic Denicola
+
+(For the full BSD-2-Clause text, see the LICENSE file shipped inside each package above.)
 

@@ -23,6 +23,13 @@
        by site/js/core/account.js for passkey sign-in/creation;
        lazy-imported, so no WebAuthn bytes load until a user
        actually picks the passkey option).
+     • site/vendor/walletconnect.js -> @walletconnect/ethereum-provider
+       (used by site/js/core/wallet.js for the WalletConnect
+       transport - the only way to reach a wallet that is not a
+       browser extension, e.g. a Trezor Safe 7 held over Bluetooth
+       by Trezor Suite). By far the largest bundle here (~1.3MB),
+       so it is lazy-imported too: a user who signs in with an
+       injected wallet never downloads a byte of it.
 
    Deps install into scripts/.vendor-build/ (gitignored), pinned
    below; bump the pins and re-run to upgrade. The output
@@ -44,6 +51,12 @@ const DEPS = {
   "@tinfoilsh/verifier": "1.1.10",   // 1.1.9+ is Apache-2.0 (≤1.1.8 was AGPL — a license conflict with ours; keep ≥1.1.9)
   "@simplewebauthn/browser": "13.1.0",   // MIT; passkey client (startRegistration/startAuthentication)
   "fflate": "0.8.2",           // browser gunzipSync shim for the verifier's zlib use
+  // Apache-2.0, and its @walletconnect/* tree is MIT - NOT the Reown "community"
+  // license that build-notices.mjs has to inline verbatim. That holds only while
+  // we bundle the bare EIP-1193 provider; pulling @reown/appkit (the modal UI)
+  // would change the license story AND the CSP, and we render the pairing QR
+  // ourselves with site/js/lib/qr.js instead. Keep it that way.
+  "@walletconnect/ethereum-provider": "2.21.1",
 };
 
 fs.mkdirSync(WORK, { recursive: true });
@@ -85,11 +98,19 @@ await build({
   outfile: path.join(OUT, "webauthn.js"),
 });
 
+console.log("[vendor] esbuild @walletconnect/ethereum-provider -> site/vendor/walletconnect.js");
+await build({
+  ...shared,
+  entryPoints: [nm("@walletconnect/ethereum-provider")],
+  outfile: path.join(OUT, "walletconnect.js"),
+});
+
 // Fail loud if an upgrade ever drops an export the callers destructure, so a
 // broken bundle can never ship silently to the verify/auth paths.
 const must = [
   ["verifier.js", ["Verifier", "assembleAttestationBundle"]],
   ["webauthn.js", ["startRegistration", "startAuthentication"]],
+  ["walletconnect.js", ["EthereumProvider"]],
 ];
 for (const [file, names] of must) {
   const src = fs.readFileSync(path.join(OUT, file), "utf8");

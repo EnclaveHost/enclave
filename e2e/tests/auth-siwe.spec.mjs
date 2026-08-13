@@ -9,7 +9,15 @@ test("SIWE: connect a wallet, sign the relay message, account session lands", as
   await injectWallet(context, stack.payer);
 
   await page.goto("/index.html");
-  await page.click("#walletBtn");                              // wallet detected -> straight to SIWE, no chooser
+  await page.click("#walletBtn");
+  // One transport (injected only) auto-connects the single wallet; once
+  // config.js carries a WalletConnect project id there are two, so a chooser
+  // appears instead. Handle both, so this test stays honest either way -
+  // picking the injected entry, never the QR one (no wallet would answer it).
+  const pick = page.locator("#walletPick");
+  await pick.waitFor({ state: "visible", timeout: 2000 }).catch(() => {});
+  if (await pick.isVisible().catch(() => false))
+    await pick.locator(".wp-item", { hasNotText: "WalletConnect" }).first().click();
   await expect(page.locator("#walletBtn")).toContainText(new RegExp(stack.payer.slice(0, 6), "i"));   // short() keeps checksum casing
   // the header paints on wallet CONNECT; the relay SIWE roundtrip lands a
   // beat later - poll for the stored account session, don't race it
