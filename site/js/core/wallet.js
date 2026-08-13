@@ -6,15 +6,19 @@
    `enclave:wallet`; sign-in/out edges also emit `enclave:auth`. Pages
    never get called into directly - they subscribe.
 
-   Wallets here are the user's OWN (injected extensions). There is no
-   embedded/custodial wallet and no card-to-crypto purchase on this
-   site: cards go through the order checkout (hosted Stripe page,
-   zero crypto exposure) and crypto payments come from the user's
-   wallet. Account-level sign-in (passkeys + SIWE against the relay)
-   lives in account.js; this module keeps the ENCLAVE session (the
+   Wallets here are the user's OWN - injected extensions, plus
+   WalletConnect when config.js carries a project id (the only way
+   to reach a wallet that is NOT an extension: a Trezor Safe 7 on
+   Bluetooth lives behind Trezor Suite, a native app). Still the
+   user's own keys either way. There is no embedded/custodial
+   wallet and no card-to-crypto purchase on this site: cards go
+   through the order checkout (hosted Stripe page, zero crypto
+   exposure) and crypto payments come from the user's wallet.
+   Account-level sign-in (passkeys + SIWE against the relay) lives
+   in account.js; this module keeps the ENCLAVE session (the
    in-CVM SIWE token that gates deployment-private reads).
    ============================================================ */
-import { BASE_CHAIN, BASE_CHAIN_HEX, USDC_BASE } from "./config.js";
+import { BASE_CHAIN, BASE_CHAIN_HEX, USDC_BASE, WALLETCONNECT_PROJECT_ID } from "./config.js";
 import { Enclave, EnclaveError } from "./api.js";
 import { baseRpc } from "./chain.js";
 // Measured from what Base actually includes (3,569 txs / 30 blocks: largest
@@ -59,6 +63,89 @@ export const Wallet = {
     return arr;
   }
 };
+
+/* ---- WalletConnect: the transport for wallets that aren't extensions ----
+   EIP-6963/1193 discovery above can only ever find browser extensions, and an
+   extension reaches a Trezor over WebUSB or the bridge — both USB. A Safe 7's
+   Bluetooth link is held by Trezor Suite (a native app), so the ONLY way it
+   signs here is WalletConnect: Suite is the wallet, this page is the dApp.
+
+   Deliberately kept out of Wallet.list(): that list answers "is an extension
+   present?" for walletDetected() and for the silent restore, and neither
+   question should be answered "yes" by a transport that needs a QR scan. It is
+   appended in pickWallet() (a human is choosing) and re-opened in
+   restoreSession() only when the SAVED session was itself WalletConnect — so
+   the 1.3MB bundle never loads for an injected-wallet user. */
+export const WC_RDNS = "org.walletconnect";
+const WC_ENTRY = { info: { uuid: "walletconnect", name: "WalletConnect", rdns: WC_RDNS, icon: null }, wc: true };
+
+let _wcInit = null;
+function wcProvider(){
+  // one in-flight init shared by every caller: pickWallet and restoreSession
+  // must never race two providers onto the same relay session
+  if (_wcInit) return _wcInit;
+  _wcInit = (async () => {
+    const { EthereumProvider } = await import("/vendor/walletconnect.js");
+    const p = await EthereumProvider.init({
+      projectId: WALLETCONNECT_PROJECT_ID,
+      chains: [BASE_CHAIN],            // Base only: this site signs nothing else
+      showQrModal: false,              // we render the pairing code ourselves (qr.js)
+      rpcMap: { [BASE_CHAIN]: "https://mainnet.base.org" },
+      metadata: {
+        name: "Enclave",
+        description: "Verifiable confidential compute",
+        url: location.origin,
+        icons: [location.origin + "/assets/logo-512.png"],
+      },
+    });
+    p._enclaveWc = true;   // marks the transport for disconnect/event handling
+    return p;
+  })().catch((e) => { _wcInit = null; throw e; });
+  return _wcInit;
+}
+
+/* the pairing code. Same overlay as the wallet chooser, but every dismissal
+   path (backdrop, Cancel, Escape) has to reach onCancel — an abandoned modal
+   that left connect() hanging would look like a frozen Sign in button. */
+function wcQrModal(uri, onCancel){
+  const host = $("#walletPick"); if (!host) return null;
+  host.innerHTML = '<div class="wp-card">' +
+    '<div class="wp-h">Scan to connect</div>' +
+    '<div class="wp-note">Open <b>Trezor Suite</b>, or any WalletConnect wallet, and scan this code. Suite holds the Bluetooth link to a Safe 7, which is how it signs here without a cable.</div>' +
+    '<div class="wp-qr" aria-label="WalletConnect pairing code as a QR code">' + qrSvg(uri) + '</div>' +
+    '<button class="wp-item wp-go" id="wcCopy" type="button">Copy pairing link</button>' +
+    '<button class="wp-cancel" type="button">Cancel</button></div>';
+  host.hidden = false;
+  let done = false;
+  const close = () => { if (done) return; done = true; unmodal(); host.hidden = true; host.innerHTML = ""; host.onclick = null; host.onpointerdown = null; };
+  const dismiss = () => { close(); onCancel(); };
+  const unmodal = modalize(host, dismiss);
+  host.onpointerdown = (e) => { if (e.target === host) dismiss(); };
+  host.onclick = (e) => { if (e.target.closest(".wp-cancel")) dismiss(); };
+  const b = $("#wcCopy"); if (b) b.addEventListener("click", () => copyText(uri, b));
+  return { close };
+}
+
+// connect over WalletConnect: show the QR, wait for the wallet, hand back the
+// same {provider, accounts} shape the injected path produces.
+async function wcConnect(){
+  const provider = await wcProvider();
+  let modal = null, onCancel;
+  const cancelled = new Promise((_, rej) => {
+    onCancel = () => rej(new EnclaveError("WalletConnect connection cancelled.", 0));
+  });
+  const onUri = (uri) => { modal = wcQrModal(uri, onCancel); };
+  provider.on("display_uri", onUri);
+  try {
+    // enable() resolves instantly when a session is already live (no QR shown)
+    const accounts = await Promise.race([provider.enable(), cancelled]);
+    if (!accounts || !accounts.length) throw new EnclaveError("WalletConnect returned no accounts.", 0);
+    return { provider, accounts };
+  } finally {
+    try { provider.removeListener("display_uri", onUri); } catch(e){}
+    if (modal) modal.close();
+  }
+}
 
 /* ---- the server's challenge, checked before a wallet ever sees it ----
    The endpoint hands us a string and we ask the user's key to sign it. A wallet
@@ -220,6 +307,8 @@ export async function walletDetected(){
 async function pickWallet(){
   let wallets = Wallet.list();
   if (!wallets.length) wallets = await Wallet.discover();
+  // WalletConnect is offered to a HUMAN choosing, never to auto-detection
+  if (WALLETCONNECT_PROJECT_ID) wallets = wallets.concat([WC_ENTRY]);
   if (!wallets.length) throw new EnclaveError(noWalletReason(), 0);
   if (wallets.length === 1) return wallets[0];
   return await new Promise((resolve, reject) => {
@@ -273,12 +362,22 @@ function wireProviderEvents(provider){
     else { Enclave.address = acc[0]; Enclave.token = null; Enclave.tokenBase = null; saveSession(); refreshWallet(); }
   });
   provider.on("chainChanged", (c) => { Enclave.chainId = parseInt(c, 16); refreshWallet(); });
+  // WalletConnect only: the session can be ended from the WALLET side (closing
+  // Suite, revoking the pairing), and nothing else would tell us. Not wired for
+  // injected providers - there EIP-1193 "disconnect" means lost chain
+  // connectivity, not a revoked wallet, and signing the user out on it is wrong.
+  if (provider._enclaveWc) provider.on("disconnect", () => { disconnectWallet(); });
 }
 
 export async function connectWallet(){
   const chosen = await pickWallet();
-  const provider = chosen.provider;
-  const accounts = await provider.request({ method: "eth_requestAccounts" });
+  let provider, accounts;
+  if (chosen.wc){
+    ({ provider, accounts } = await wcConnect());
+  } else {
+    provider = chosen.provider;
+    accounts = await provider.request({ method: "eth_requestAccounts" });
+  }
   if (!accounts || !accounts.length) throw new EnclaveError("Wallet returned no accounts.", 0);
   await ensureBaseChainOnConnect(provider);
   let cid; try { cid = await provider.request({ method: "eth_chainId" }); } catch(e){}
@@ -319,6 +418,10 @@ export async function authenticate(opts){
 }
 
 export function disconnectWallet(){
+  // end the relay session too, or "Sign out" leaves the pairing live in the
+  // wallet and the next sign-in silently reuses it
+  try { if (Enclave.provider && Enclave.provider._enclaveWc) Enclave.provider.disconnect(); } catch(e){}
+  _wcInit = null;
   Enclave.token = null; Enclave.tokenBase = null; Enclave.enclaveTokens = {}; Enclave.address = null; Enclave.provider = null; Enclave.chainId = null; Enclave.walletRdns = null;
   clearSession();
   Enclave.clearAccountSession();   // "Sign out" means BOTH domains: wallet/enclave session and the relay account
@@ -370,9 +473,19 @@ export async function restoreSession(){
     early.innerHTML = '<span class="wdot"></span>' + esc(short(s.address));
   }
   try {
-  let wallets = Wallet.list(); if (!wallets.length) wallets = await Wallet.discover();
-  let chosen = s.rdns ? wallets.find(w => w.info && w.info.rdns === s.rdns) : null;
-  if (!chosen && wallets.length === 1) chosen = wallets[0];
+  let chosen = null;
+  if (s.rdns === WC_RDNS){
+    // the saved session WAS WalletConnect: re-open it only if the relay session
+    // is still alive, and never fall through to an extension. Gated on the
+    // saved rdns, so an injected-wallet user never loads the 1.3MB bundle.
+    if (!WALLETCONNECT_PROJECT_ID) return;
+    try { const p = await wcProvider(); if (p && p.session) chosen = { info: { rdns: WC_RDNS }, provider: p }; } catch(e){}
+    if (!chosen) return;
+  } else {
+    let wallets = Wallet.list(); if (!wallets.length) wallets = await Wallet.discover();
+    chosen = s.rdns ? wallets.find(w => w.info && w.info.rdns === s.rdns) : null;
+    if (!chosen && wallets.length === 1) chosen = wallets[0];
+  }
   if (!chosen) return;                                          // can't reconnect silently; leave it to a manual Connect
   const provider = chosen.provider;
   let accounts = []; try { accounts = await provider.request({ method: "eth_accounts" }); } catch(e){ return; }

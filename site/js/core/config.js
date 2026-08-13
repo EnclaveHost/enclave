@@ -15,6 +15,37 @@ export const APP_DOMAIN = "app.enclave.host";
 export const BASE_CHAIN = 8453, BASE_CHAIN_HEX = "0x2105";
 export const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
+/* ---- WalletConnect (optional second transport) -----------------------------
+   Injected extensions cannot reach a wallet that is not a browser extension.
+   A Trezor Safe 7 on Bluetooth is held by Trezor Suite - a native app - so no
+   extension, and no WebUSB, ever sees it; WalletConnect is the only transport
+   that does. Set this to a project id from dashboard.reown.com to offer it in
+   the wallet chooser. EMPTY = the option is not shown and site/vendor/
+   walletconnect.js is never fetched, so the injected path is untouched.
+
+   Not a secret: a WalletConnect project id is a public client identifier that
+   ships in every dApp's bundle (it scopes relay rate limits, nothing more). It
+   is baked here rather than fetched so the chooser can decide synchronously.
+
+   What it costs, stated plainly: session traffic is carried by Reown's relay,
+   a third party. It cannot alter what gets signed - assertSiweLogin() checks
+   the challenge grammar client-side BEFORE the wallet ever sees it, on every
+   transport - but it does see that a session exists and relays its ciphertext.
+   That is a deliberate trade for reaching non-extension wallets at all.
+
+   SETTING THIS ALSO NEEDS A CSP EDIT, or pairing fails with nothing in the UI
+   to explain it. site/deploy.sh syncs script-src only; connect-src is hand-held
+   in /etc/caddy/Caddyfile on nan. Exactly one host is required:
+
+       connect-src … wss://relay.walletconnect.org
+
+   Nothing else has to be allowed. The bundle also references
+   rpc.walletconnect.org (unused - rpcMap pins Base to mainnet.base.org),
+   pulse.walletconnect.org (telemetry) and verify/secure.walletconnect.org
+   (iframes, and frame-src not connect-src). All degrade silently when blocked,
+   so leave them out and keep the surface small. */
+export const WALLETCONNECT_PROJECT_ID = "";
+
 /* ---- loopback-only override gate -------------------------------------------
    Two reads below (enclave_addressbook, enclave_rpc) exist ONLY so the e2e
    suite can point the site at its local anvil - there the site is served from
