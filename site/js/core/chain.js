@@ -116,7 +116,7 @@ export const CAT_MAX = { slug:40, name:80, desc:500, version:32, cid:100, mb:104
 // They stay in the PINNED config too (the app ignores keys it doesn't know), so
 // the delivered ENCLAVE_CONFIG is still the complete document the publisher
 // wrote — the manifest is a projection, not a split.
-export const ROUTING_KEYS = ["wasi", "threads", "set", "gpuOptional", "volumes", "_media"];
+export const ROUTING_KEYS = ["wasi", "threads", "set", "mem64", "gpuOptional", "volumes", "_media"];
 export const APP_SCHEMA = [
   {k:"appId",t:"bytes32"},{k:"publisher",t:"addr"},{k:"slug",t:"str"},{k:"name",t:"str"},
   {k:"description",t:"str"},{k:"versionCount",t:"uint"},{k:"createdAt",t:"uint"},{k:"updatedAt",t:"uint"},{k:"active",t:"bool"},

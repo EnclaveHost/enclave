@@ -85,7 +85,7 @@ const CONFIG_MAX_BYTES  = 1024 * 1024;
 // whole document — the manifest is a projection, not a split. Derived, never
 // hand-written: publish stamps wasi/threads/set from the binary's own exports.
 // Mirrors ROUTING_KEYS in site/js/core/chain.js — keep them in lockstep.
-const ROUTING_KEYS = ["wasi", "threads", "set", "gpuOptional", "volumes", "_media"];
+const ROUTING_KEYS = ["wasi", "threads", "set", "mem64", "gpuOptional", "volumes", "_media"];
 
 // Minimal ABIs — mirror contracts/*.abi.json (checked in, re-emitted by the
 // deploy scripts); embedded so the installed binary is self-contained.
@@ -2000,6 +2000,40 @@ async function cmdDeploy(rest) {
 // 0.2/0.3 IMPORTS are normal (rustc's wasm32-wasip3 std still imports WASIp2
 // APIs), so only the top-level export section (id 11) is read: section walk,
 // then a scan for length-prefixed `wasi:` names inside that one payload.
+// wasm64 detection: does this CORE module (layer 0) declare a 64-bit linear
+// memory? Reads the memory section (id 5) — the first memory's limits flags
+// carry the memory64 bit (0x04). Structural, not a byte scan (there is no
+// import string to key on). Lockstep with wasm_manager._module_mem64, the
+// launch authority; components and anything unparseable return false.
+function moduleMem64(bytes) {
+  if (bytes.length < 8 || bytes.readUInt32LE(0) !== 0x6d736100 || (bytes[6] | (bytes[7] << 8)) !== 0) return false;
+  const uleb = (buf, i) => {
+    let r = 0, s = 0;
+    for (;;) {
+      const b = buf[i++];
+      if (b === undefined) throw new Error("truncated uleb128");
+      r += (b & 0x7f) * 2 ** s;
+      if (!(b & 0x80)) return [r, i];
+      s += 7;
+      if (s > 35) throw new Error("uleb128 too long");
+    }
+  };
+  try {
+    for (let i = 8; i < bytes.length; ) {
+      const sid = bytes[i];
+      const [size, j] = uleb(bytes, i + 1);
+      if (sid === 5) {                    // memory section
+        const [count, k] = uleb(bytes, j);
+        if (count === 0) return false;
+        const [flags] = uleb(bytes, k);
+        return (flags & 0x04) !== 0;      // limits flag bit 2: 64-bit index
+      }
+      i = j + size;
+    }
+  } catch { return false; }
+  return false;
+}
+
 function componentContract(bytes) {
   const none = { wasi: null, world: null };
   if (bytes.length < 8 || bytes.readUInt32LE(0) !== 0x6d736100 || (bytes[6] | (bytes[7] << 8)) !== 1) return none;
@@ -2103,12 +2137,24 @@ async function cmdPublish(rest) {
     }
   }
   const bytes = fs.readFileSync(file);
-  // same gate the IPFS gateway and runners apply: a wasi:http *component*
+  // same gate the IPFS gateway and runners apply: a wasi:http *component* —
+  // with the one core-module carve-out: wasm64 (a 64-bit linear memory, the
+  // >4 GiB guests), which runs in PORT mode under `wasmtime run`
   if (bytes.length < 8 || bytes.readUInt32LE(0) !== 0x6d736100)
     throw new Error(`${file} is not a wasm binary (bad magic)`);
   const layer = bytes[6] | (bytes[7] << 8);
-  if (layer === 0) throw new Error(`${file} is a core wasm module, not a component; build for wasm32-wasip2 (cargo component / componentize) or wasm32-wasip3 (see the develop guide's WASIp3 chapter)`);
-  if (layer !== 1) throw new Error(`${file} has unrecognized wasm layer ${layer} (expected a component)`);
+  const needsMem64 = layer === 0 && moduleMem64(bytes);
+  if (layer === 0 && !needsMem64) throw new Error(`${file} is a core wasm module, not a component; build for wasm32-wasip2 (cargo component / componentize), wasm32-wasip3 (see the develop guide's WASIp3 chapter), or wasm64-wasip1 for >4 GiB memory (Dockerfile.wasm64c-build)`);
+  if (layer !== 0 && layer !== 1) throw new Error(`${file} has unrecognized wasm layer ${layer} (expected a component)`);
+  if (needsMem64) {
+    say("detected wasm64 (memory64): a COMPUTE guest — only mem64-capable enclaves will claim it, and its memory ceiling is the deployment's full RAM slice instead of the 4 GiB wasm32 clamp");
+    // compute guests only: preview1 has no socket surface on the engine, so
+    // a port-declaring wasm64 version promises an interface the guest cannot
+    // provide and every launch would fail waiting for the bind — refuse
+    // HERE, before an immutable catalog slot is spent, with the same words
+    // the runner uses. It gets /data, volumes, config and stdio.
+    if (f.ports) throw new Error("wasm64 apps are compute guests: preview1 has no socket surface, so --ports can never be served — publish without --ports");
+  }
   // world contract, read from the binary (never asked of the publisher): a
   // wasip3 component publishes `wasi: "0.3"` in its version config so runners
   // route claims to p3-capable boxes; the runner re-classifies the bytes at
@@ -2171,7 +2217,7 @@ async function cmdPublish(rest) {
   // is immutable per version and approval-covered, the same envelope pattern
   // as gpuOptional/_media — no catalog schema change). A publisher-supplied
   // `wasi` never survives: the binary is the authority.
-  if ((contract.wasi || needsThreads) && rev >= 4) {
+  if ((contract.wasi || needsThreads || needsMem64) && rev >= 4) {
     let cfgObj; try { cfgObj = JSON.parse(f.config || "{}"); } catch { cfgObj = {}; }
     if (contract.wasi) {
       if (cfgObj.wasi !== undefined && cfgObj.wasi !== contract.wasi)
@@ -2191,6 +2237,14 @@ async function cmdPublish(rest) {
     else if (cfgObj.set !== undefined) {
       say("--config declared set but the binary carries no [set-spawn-indirect] import; dropping the key");
       delete cfgObj.set;
+    }
+    // mem64: same binary-authoritative BOTH directions — an over-declared
+    // `mem64` would route claims to mem64 boxes for nothing, and a missing
+    // one would let a wasm64 module land on an engine that cannot parse it.
+    if (needsMem64) cfgObj.mem64 = true;
+    else if (cfgObj.mem64 !== undefined) {
+      say("--config declared mem64 but the binary's memory section is not 64-bit; dropping the key");
+      delete cfgObj.mem64;
     }
     f.config = JSON.stringify(cfgObj);
     if (Buffer.byteLength(f.config) > CONFIG_MAX_BYTES)

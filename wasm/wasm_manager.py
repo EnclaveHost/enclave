@@ -473,16 +473,54 @@ def _load_catalog() -> dict:
 
 
 def _check_component(data: bytes):
-    """Reject anything that isn't a wasi:http *component* before we try to run it
-    (same preamble check as the upload gateway; gives a clear error vs a wasmtime
-    crash). Layer field: 0 = core module, 1 = component."""
+    """Reject anything that isn't runnable before we try to run it (same
+    preamble check as the upload gateway; gives a clear error vs a wasmtime
+    crash). Layer field: 0 = core module, 1 = component. Components pass;
+    the ONE core-module class that passes is wasm64 (a 64-bit linear
+    memory, the >4 GiB story) — those run portless as COMPUTE guests under
+    `wasmtime run`, which speaks preview1 to core modules natively. A wasm32
+    core module keeps the historical refusal: nothing on the platform runs
+    it."""
     if len(data) < 8 or data[0:4] != b"\x00asm":
         raise ValueError("fetched bytes are not a WebAssembly file")
     layer = data[6] | (data[7] << 8)
     if layer == 0:
+        if _module_mem64(data):
+            return
         raise ValueError("fetched a core wasm module, not a wasi:http component")
     if layer != 1:
         raise ValueError(f"unrecognized wasm layer {layer} (expected a component)")
+
+
+def _module_mem64(data: bytes) -> bool:
+    """Does this CORE module (layer 0) declare a 64-bit linear memory? Reads
+    the memory section (id 5): the first memory's limits flags carry the
+    memory64 bit (0x04). A real section walk, not a byte scan — unlike the
+    thread markers there is no import-name string to key on, and the flag
+    byte sits at a grammar-determined offset. Components return False (their
+    memories live in nested core modules; a component that is mem64 inside
+    still speaks the component ABI outside, which is not this feature).
+    Anything unparseable returns False and flows to the existing refusals."""
+    if len(data) < 8 or data[0:4] != b"\x00asm" or (data[6] | (data[7] << 8)) != 0:
+        return False
+    i = 8
+    while i < len(data):
+        sid = data[i]
+        try:
+            size, i = _uleb(data, i + 1)
+        except (IndexError, ValueError):
+            return False
+        if sid == 5:                       # memory section
+            try:
+                count, j = _uleb(data, i)
+                if count == 0:
+                    return False
+                flags, j = _uleb(data, j)
+            except (IndexError, ValueError):
+                return False
+            return bool(flags & 0x04)      # limits flag bit 2: 64-bit index
+        i += size
+    return False
 
 
 # Which wasi world contract does a component target? Read from the BINARY —
@@ -3480,6 +3518,77 @@ def _set_flags(needs_set) -> list:
             if needs_set and _set_active() else [])
 
 
+# wasm64 / memory64: 64-bit linear memory, the only guest class allowed past
+# the 4 GiB line. A wasm64 guest is a preview1 CORE MODULE (layer 0), not a
+# component — there is no memory64 component toolchain — built by
+# Dockerfile.wasm64c-build: clang --target=wasm64-wasip1 against the
+# enclave-patched wasi-libc whose bottom half marshals the wasm32 preview1
+# ABI (see wasm/wasi-libc-mem64.patch). It is a COMPUTE guest, run portless
+# under `wasmtime run` with no socket surface (_build_cmd's mem64 arm):
+# preview1 has no socket API on this engine, so its interface is /data,
+# volumes, config and stdio — the big-heap batch/dataset class.
+#
+# No launch flag is armed for it ON PURPOSE: memory64 is default-enabled in
+# the pinned engine (proven by the probe below, which compiles the construct
+# with NO flags), and the exit-2 doctrine says a flag that is not needed is a
+# flag that is not passed. If a future engine flips the default off, the
+# probe fails and mem64 guests are refused readably — the repin re-proves it.
+_MEM64_ENV_ENABLED = os.environ.get("WASM_MEM64", "1").lower() not in ("0", "false", "no")
+_MEM64_FLAG = None     # None = not probed yet; True/False = the binary's answer
+
+# The probe: a 64-bit memory plus a load through a 64-bit address — the exact
+# construct every wasm64 guest opens with. Compiled with NO feature flags:
+# passing proves the default engine configuration serves these guests, which
+# is precisely what launch does.
+_MEM64_PROBE_WAT = """(module
+  (memory i64 1)
+  (func (export "_start") (drop (i64.load (i64.const 0))))
+)
+"""
+
+
+def _mem64_supported() -> bool:
+    global _MEM64_FLAG
+    if _MEM64_FLAG is not None:
+        return _MEM64_FLAG
+    if MOCK:
+        _MEM64_FLAG = True
+        return _MEM64_FLAG
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            wat = pathlib.Path(td) / "mem64-probe.wat"
+            wat.write_text(_MEM64_PROBE_WAT)
+            r = subprocess.run([WASMTIME, "compile", str(wat),
+                                "-o", str(pathlib.Path(td) / "probe.cwasm")],
+                               capture_output=True, text=True, timeout=30)
+        _MEM64_FLAG = r.returncode == 0
+    except Exception as e:
+        print(f"wasm-manager: could not probe memory64 support ({e}); "
+              f"wasm64 guests will be refused", flush=True)
+        _MEM64_FLAG = False
+    if not _MEM64_FLAG:
+        print("wasm-manager: this wasmtime cannot compile the memory64 probe — "
+              "wasm64 guests are refused at launch with a readable error "
+              "(/health carries `mem64`).", flush=True)
+    return _MEM64_FLAG
+
+
+def _mem64_active() -> bool:
+    """The box serves wasm64 guests: the binary proved memory64 under its
+    default configuration and the operator switch is on."""
+    return _MEM64_ENV_ENABLED and _mem64_supported()
+
+
+def _needs_mem64(wasm) -> bool:
+    """Is this a wasm64 core module? Same launch-time-truth doctrine as the
+    thread sniffs, but structural: the memory section's limits flag, not a
+    marker string (see _module_mem64)."""
+    try:
+        return _module_mem64(pathlib.Path(wasm).read_bytes())
+    except OSError:
+        return False
+
+
 _SERVE_HELP = None
 
 
@@ -3506,7 +3615,7 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
                nn=False, enclave_config=None, vol_mounts=None, egress=None, egress_transparent=None,
                enc=None, gpu_share: float = 0.0, nn_report=None, secrets=None,
                cpu_share: float = 0.0, nn_resident_other: int = 0, hosts="", wasi_contract=None,
-               threads=False, set_threads=False, cfgdir=None):
+               threads=False, set_threads=False, cfgdir=None, mem64=False):
     """The wasmtime invocation for a ports spec. Returns (cmd, host_port, wait_ports).
     `nn_report`, when a dict, is filled with the wasi-nn preload plan:
     {"emitted": [vol...], "skipped": {vol: why}, "stages": {vol: "kind::dir"},
@@ -3522,6 +3631,15 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
                 bind the actual). The grant is coarse (wasmtime can't allowlist
                 per port), so the audit sweep enforces the firewall: bind an
                 unassigned low port and the app is killed.
+    mem64 mode: `wasmtime run` with NO socket surface at all. A wasm64 guest
+                is a preview1 CORE module and preview1 has no socket API on
+                this engine (the legacy tcplisten/listenfd implementation is
+                deleted in the 49 line — probed: `-Spreview2=n` is refused),
+                so granting -Stcp/-Sinherit-network would hand capabilities
+                nothing inside the guest can reach. It gets compute + /data +
+                /config + volumes + stdio, nothing else — which also means a
+                wasm64 tenant physically cannot dial a sibling's loopback
+                port (the wall the run-mode note below worries about).
     Both modes add -Sp3 (when this binary proves it and WASM_P3 is not 0) so
     apps may target the WASIp3 async APIs as well as wasip2; socket
     permissions are identical either way. `wasi_contract` is the launch-time
@@ -3877,6 +3995,13 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
             pass
     # '+'-joined, NOT comma: `-S` eats commas (see _loopback_flag_supported)
     lb_args = ["-S", "loopback-allow=" + "+".join(str(p) for p in sorted(_lb))] if _loopback_flag_supported() else []
+    if mem64:
+        # wasm64 compute guest (see the docstring): no listener, no sockets,
+        # no ENCLAVE_PORTS — and no p3/thread flags either, those are
+        # component surfaces a core module cannot import. Readiness is the
+        # udp-only shape: no waitable port, alive after the grace = running.
+        return ([WASMTIME, "run", "-Scli", *nn_args, *fs_args, *cfg_args, *vol_args,
+                 "-W", f"max-memory-size={mem_bytes}", str(wasm)], 0, [])
     if pspec["serve"]:
         return ([WASMTIME, "serve", "-Scli", "-Shttp", *_p3_flags(), *_p3_tuning(enclave_config, wasi_contract),
                  *_threads_flags(threads), *_set_flags(set_threads),
@@ -3967,16 +4092,20 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
         storage_mb = DEF_STORAGE_MB
     # the guest memory ceiling is the deployment's slice of the node's RAM
     # (cpuShare × NODE_RAM_GB); an explicit memMb (direct callers) caps lower.
-    # Clamped to 4 GiB: wasm32 linear memory is hard-limited to 4 GiB, and
-    # wasmtime refuses `-W max-memory-size` above its memory reservation
-    # ("maximum memory size ... exceeds the configured memory reservation"),
-    # which killed every launch with cpuShare > ~6% of a 64 GB node. Larger
-    # CPU shares still buy proportional vCPU time — the guest just can't
-    # address more than 4 GiB of linear memory.
+    # Clamped to 4 GiB for wasm32: its linear memory is hard-limited there
+    # anyway, and the wasmtime generation before the 49 pin also refused
+    # `-W max-memory-size` above its memory reservation ("maximum memory size
+    # ... exceeds the configured memory reservation"), which killed every
+    # launch with cpuShare > ~6% of a 64 GB node. Larger CPU shares still buy
+    # proportional vCPU time. A wasm64 guest is the one class the clamp does
+    # NOT apply to — mem_mb_raw (its full slice) replaces the ceiling after
+    # the launch-time sniff proves the bytes really carry a 64-bit memory
+    # (the 49 engine accepts >4 GiB caps; probed live before this shipped).
     WASM32_MAX_MEM_MB = 4096
     if not mem_mb or mem_mb <= 0:
         mem_mb = int(cpu_share * NODE_RAM_GB * 1024)
-    mem_mb = min(WASM32_MAX_MEM_MB, max(MIN_MEM_MB, int(mem_mb)))
+    mem_mb_raw = max(MIN_MEM_MB, int(mem_mb))
+    mem_mb = min(WASM32_MAX_MEM_MB, mem_mb_raw)
     port = _free_port() if pspec["serve"] else 0
     port_map = {} if pspec["serve"] else _alloc_ports(pspec)   # logical entry -> actual bind
     vid = "app_" + uuid.uuid4().hex[:9]
@@ -4090,6 +4219,36 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
         rec["error"] = (f"app uses shared-everything threads (SET ⚡) but this box "
                         f"cannot serve them ({why}); a SET-capable enclave must claim it")
         return rec
+    # wasm64 / memory64: same doctrine, structural sniff. Two extra rules of
+    # its own: (a) it is a COMPUTE guest — a preview1 core module can neither
+    # serve wasi:http (no component ABI) nor open sockets (the engine's
+    # legacy p1 socket surface is deleted; probed), so a version that
+    # declared ports promises an interface the guest cannot provide and its
+    # launch would sit waiting for a bind that never comes. Refuse that in
+    # words; the portless shape runs via _build_cmd's mem64 arm (no
+    # listener, no socket grants, udp-style readiness). (b) it is the ONE
+    # class whose memory ceiling is its full RAM slice rather than the
+    # wasm32 4 GiB clamp — that lift happens HERE, after the bytes proved
+    # the 64-bit memory and before the RAM-budget admission reads
+    # rec["mem_mb"], so what the ledger charges is what the guest gets.
+    needs_mem64 = _needs_mem64(wasm)
+    rec["mem64"] = needs_mem64
+    if needs_mem64 and not pspec["serve"]:
+        rec["status"] = "failed"
+        rec["error"] = ("wasm64 apps are compute guests: preview1 has no socket "
+                        "surface on this engine, so declared tcp:/udp: ports can "
+                        "never be served — publish the version without ports "
+                        "(it gets /data, volumes, config and stdio)")
+        return rec
+    if needs_mem64 and not _mem64_active():
+        why = ("WASM_MEM64=0 (operator switch)" if not _MEM64_ENV_ENABLED
+               else "this wasmtime cannot run memory64 modules")
+        rec["status"] = "failed"
+        rec["error"] = (f"app is a wasm64 (memory64) module but this box cannot "
+                        f"serve it ({why}); a mem64-capable enclave must claim it")
+        return rec
+    if needs_mem64 and mem_mb_raw > rec["mem_mb"]:
+        rec["mem_mb"] = mem_mb_raw
 
     # per-deployment config: the approved catalog version's config JSON. The
     # supervisor passes it one of two ways, both read straight off the chain
@@ -4285,7 +4444,7 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
            "nn": nn, "enclave_config": enclave_config, "vol_mounts": vol_mounts, "gpu_share": gpu_share,
            "log_path": log_path, "egress": egress, "enc": enc, "secrets": secrets,
            "hosts": _validate_hosts(hosts), "wasi": contract["wasi"],
-           "threads": needs_threads, "set": needs_set}
+           "threads": needs_threads, "set": needs_set, "mem64": needs_mem64}
     return _spawn_and_wait(rec, ctx)
 
 
@@ -4435,7 +4594,8 @@ def _spawn_and_wait(rec, ctx):
                                                 hosts=ctx.get("hosts", ""), wasi_contract=ctx.get("wasi"),
                                                 threads=ctx.get("threads", False),
                                                 set_threads=ctx.get("set", False),
-                                                cfgdir=rec.get("_cfgdir"))
+                                                cfgdir=rec.get("_cfgdir"),
+                                                mem64=ctx.get("mem64", False))
     except ValueError as e:
         rec["status"], rec["error"] = "failed", str(e)
         print(f"[launch] {rec['id']} refused: {e}", flush=True)
@@ -5280,6 +5440,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                     # does NOT require p3 (SET rides wasip2). Forwarded and
                                     # claim-gated for versions marked `set`.
                                     "set": _set_active(),
+                                    # this box serves wasm64 (memory64) core modules — the
+                                    # >4 GiB guests: the flagless compile probe passed AND
+                                    # WASM_MEM64 not switched off. Forwarded and claim-gated
+                                    # for versions marked `mem64`.
+                                    "mem64": _mem64_active(),
                                     # catalog rev 7: this box resolves a version's configCid —
                                     # fetching the config from IPFS and accepting it only
                                     # because it re-hashes to the CID the approved record

@@ -1351,6 +1351,11 @@ function aggregateAvailability() {
     // compile probe (`set` on each runner's availability). Same fleet-AND and
     // per-box canary escape hatch as p3/coopThreads.
     set: serving.length > 0 && serving.every((e) => e.availability?.set === true),
+    // wasm64 (memory64) core modules — the >4 GiB guests: `mem64: true`
+    // versions route only to boxes whose engine passed the flagless memory64
+    // compile probe (`mem64` on each runner's availability). Same fleet-AND
+    // and per-box canary escape hatch as the rest.
+    mem64: serving.length > 0 && serving.every((e) => e.availability?.mem64 === true),
     // Catalog rev-7 large configs, same fleet-AND and same per-box canary
     // escape hatch: a version whose config lives at a CID routes only to boxes
     // that fetch and hash-verify it. A box without it REFUSES the claim rather

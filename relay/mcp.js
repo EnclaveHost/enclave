@@ -197,7 +197,7 @@ const VERSION_TUPLE_V3 = [...VERSION_TUPLE, { name: "config", type: "string" }];
 // lives at a CID: what a runner reads off the record to PLACE the deployment,
 // plus the catalog grid's tile art. Mirrors ROUTING_KEYS in
 // site/js/core/chain.js and cli/enclave.mjs — keep the three in lockstep.
-const ROUTING_KEYS = ["wasi", "threads", "set", "gpuOptional", "volumes", "_media"];
+const ROUTING_KEYS = ["wasi", "threads", "set", "mem64", "gpuOptional", "volumes", "_media"];
 const publishInputsFor = (rev) => [
   { name: "slug", type: "string" }, { name: "name", type: "string" },
   { name: "description", type: "string" }, { name: "version", type: "string" },
