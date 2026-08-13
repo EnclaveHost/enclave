@@ -110,8 +110,12 @@ function wcProvider(){
 function wcQrModal(uri, onCancel){
   const host = $("#walletPick"); if (!host) return null;
   host.innerHTML = '<div class="wp-card">' +
-    '<div class="wp-h">Scan to connect</div>' +
-    '<div class="wp-note">Open <b>Trezor Suite</b>, or any WalletConnect wallet, and scan this code. Suite holds the Bluetooth link to a Safe 7, which is how it signs here without a cable.</div>' +
+    '<div class="wp-h">Connect a wallet</div>' +
+    // Desktop wallets PASTE, they do not scan - Trezor Suite takes the link at
+    // Settings > Connected apps. Saying "scan this code" sends the one user
+    // this was built for (Suite on this machine, holding a Safe 7 over
+    // Bluetooth) looking for a phone they do not need.
+    '<div class="wp-note"><b>On a phone:</b> scan this code.<br><b>Trezor Suite on this computer:</b> use <i>Copy pairing link</i> below, then in Suite open <b>Settings → Connected apps → Add with WalletConnect</b> and paste it. Suite holds the Bluetooth link to a Safe 7, so it signs with no cable and no phone.</div>' +
     '<div class="wp-qr" aria-label="WalletConnect pairing code as a QR code">' + qrSvg(uri) + '</div>' +
     '<button class="wp-item wp-go" id="wcCopy" type="button">Copy pairing link</button>' +
     '<button class="wp-cancel" type="button">Cancel</button></div>';
