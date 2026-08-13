@@ -33,18 +33,17 @@ export const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
    transport - but it does see that a session exists and relays its ciphertext.
    That is a deliberate trade for reaching non-extension wallets at all.
 
-   SETTING THIS ALSO NEEDS A CSP EDIT, or pairing fails with nothing in the UI
-   to explain it. site/deploy.sh syncs script-src only; connect-src is hand-held
-   in /etc/caddy/Caddyfile on nan. Exactly one host is required:
-
-       connect-src … wss://relay.walletconnect.org
-
-   Nothing else has to be allowed. The bundle also references
-   rpc.walletconnect.org (unused - rpcMap pins Base to mainnet.base.org),
+   CSP: the relay socket needs wss://relay.walletconnect.org to be reachable.
+   The apex vhost currently serves `connect-src 'self' https: wss:` (checked
+   live 2026-08-12), which already permits it — nothing to do. But site/
+   deploy.sh syncs script-src ONLY, so connect-src is hand-held in
+   /etc/caddy/Caddyfile on nan: if it is ever tightened to a host allowlist,
+   that one host has to be carried across or pairing breaks with nothing in the
+   UI to explain it. Nothing else needs allowing — the bundle also references
+   rpc.walletconnect.org (unused; rpcMap pins Base to mainnet.base.org),
    pulse.walletconnect.org (telemetry) and verify/secure.walletconnect.org
-   (iframes, and frame-src not connect-src). All degrade silently when blocked,
-   so leave them out and keep the surface small. */
-export const WALLETCONNECT_PROJECT_ID = "";
+   (iframes, so frame-src not connect-src), and all degrade silently. */
+export const WALLETCONNECT_PROJECT_ID = "e935970def12ab5d05b6b8ff7abd8d75";
 
 /* ---- loopback-only override gate -------------------------------------------
    Two reads below (enclave_addressbook, enclave_rpc) exist ONLY so the e2e
