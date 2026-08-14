@@ -524,10 +524,13 @@ What it establishes today:
 domain vs TEE reference; documented tolerance vs fp16 baseline. KV q8 in TEE RAM; context
 buckets {1k, 2k, 4k, 8k} padded.
 
-**STT.** Log-mel in TEE (trivial). Whisper large-v3 CPU-in-TEE feasibility FIRST (1.55B —
-small-model rule); expected to pass RTF ≤ 0.5 on an EPYC slice, in which case STT never
-touches the GPU and its leakage surface is just padded duration buckets (bucket sizes to be
-fixed in Phase 3's report; strawman: 15s steps to 60s, then 60s steps).
+**STT.** Log-mel in TEE (trivial). **MEASURED and settled: whisper large-v3 q8_0 runs
+CPU-in-TEE at RTF 0.168 single-stream (3x margin) and passes at 3 concurrent streams per
+16-core CVM.** STT therefore never touches the GPU, and its accelerator-side leakage surface
+is nothing at all rather than bucketed. Config: q8_0 (2x f16's throughput at equal quality
+here), -t 16 per stream, cap 3 streams, ~2.7 GiB RSS each; never -t == nproc. Duration
+buckets still apply to the relay/timing surface. Caveats: bare metal (no SEV-SNP memory
+encryption overhead) and only 16% margin at N=3.
 
 **TTS.** Pick: **Pocket TTS (kyutai) via llama.cpp's native mtmd path**, with
 **Qwen3-TTS-12Hz-1.7B as the quality/multilingual fallback** — same code path. Evaluation
@@ -612,4 +615,8 @@ arrival. On any kill: stop and write up why, with measurements.
 5. **CPU attention at 32k context** — resolved for 2k/8k GQA by the capacity model (~9 ms/
    token at 8k); 32k is where GQA models hit ~36 ms/token and 53% of MACs, and needs its
    own bucket decision before any 32k shielded offering.
+5b. **Field-form weights inflate VRAM ~5x** (RNS-3 is 3 B/param vs q4_K's ~0.57), so an 8B
+   model needs ~24 GB and does not fit a commodity 8 GB card. The fix is to keep weights in
+   native GGUF form and derive residues in-kernel; unverified, and the largest open claim in
+   `shielded/REPORT.md`.
 6. **T5-xxl** breaks the tidy "encoders in TEE" story for Flux-class models.
