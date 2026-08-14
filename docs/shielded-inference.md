@@ -331,7 +331,11 @@ ratio. Per-token KV streamed at 8k context, q8: Llama-3-8B (GQA 4:1) 537 MB → 
   context buckets, or not at all. This is a concrete, measured admission rule, not taste.
 - Context buckets {2k, 8k} for GQA models; 32k is where GQA hits the same wall MHA hits at
   8k (attention becomes 53% of MACs, ~36 ms/token streaming) and needs its own decision.
-- q8 KV (already the fleet default) is load-bearing, not an optimisation.
+- q8 KV is a **capacity lever with a throughput cost**, not a free win. Measured on this
+  box: CPU decode at 8k drops 36% for the 8B (10.48 -> 6.72 t/s) and 45% for the 1.5B,
+  against a 47% KV memory saving; on GPU the cost is only 3-4%. Since shielded KV lives in
+  TEE RAM on the CPU path, that is the expensive side. Spend it for concurrency/context
+  reach, not for speed.
 
 ### The cache changes the integrity rules
 
