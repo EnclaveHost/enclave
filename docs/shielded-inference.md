@@ -174,12 +174,14 @@ by TEE mask-refill rate, not by the GPU. Three things rescue this:
    latency-bound single-token decode, and embarrassingly parallel across idle CVM cores.
 2. Banks convert off-peak CPU into peak GPU throughput (store GBs of `u` encrypted on the
    untrusted side).
-3. Back-of-envelope for one EPYC-class CVM slice sustaining ~1 T-MAC/s of int GEMM:
-   ~7 G-MAC of linear work per 7B-model token ⇒ ~140 masked tokens/s of continuous refill —
-   roughly 10× what CPU-only *inference* of the same model achieves (which is latency-bound
-   and pays attention+nonlinears at request time). So: masked offload ≈ GPU latency at
-   ~10× CPU-only sustained throughput, NOT GPU-native throughput. Phase 1 measures this
-   refill rate; the capacity model and the bank-sizing policy go in the final report.
+3. The arithmetic is int8-shaped (byte-sized RNS residues, int32 accumulate), which is
+   exactly what AVX-512 VNNI accelerates — and `torch._int_mm` reaches it through
+   FBGEMM/oneDNN on CPU today, verified exact for byte primes. That path is roughly an
+   order of magnitude faster than stock fp64 BLAS, and it is the difference between an 8B
+   model being servable and not.
+
+Measured numbers, per-model ceilings, and the core-count scaling live in
+`shielded/REPORT.md`; treat that file as authoritative over any figure quoted here.
 
 Mask banking is per-(model, layer, shape-bucket), and decode masks for step t+1 are staged
 during the GPU compute of step t so mask handling never sits on the token critical path.
@@ -369,24 +371,25 @@ Three ceilings, and the honest answer is that they are all in the same order of 
   linear MACs the GPU performs, multiplied by the number of RNS channels. **Now measured
   (`shielded/bench/refill_bench.py`) and it is worse than this document previously
   estimated.** On 16 physical EPYC 9115 cores the best *verified-exact* GEMM is fp64 at
-  159 G-MAC/s, sustaining only **7.1 tok/s** for an 8B model at RNS-3 (1.7 tok/s at 32B,
-  48 tok/s at 1.5B). bf16 reaches 1.25 T-MAC/s but the exactness probe says it is **not**
-  exact, so that rate is unusable. An AVX-512 VNNI int8 GEMM projects to ~1.2 T-MAC/s
-  (53 tok/s at 8B) but does not exist in any stock CPU GEMM library we can call.
+  159 G-MAC/s, which sustains only ~7 tok/s for an 8B model at RNS-3. bf16 is faster but
+  the exactness probe says it is **not** exact, so that rate is unusable. The path that
+  rescues it is int8 via `torch._int_mm` (FBGEMM/oneDNN, AVX-512 VNNI), verified exact for
+  byte primes and roughly an order of magnitude faster than fp64 — so refill is a solved
+  *engineering* problem, not an open research one, but it must actually be built into the
+  TEE side. Current figures in `shielded/REPORT.md`.
 - **GPU**: linear MACs in field arithmetic with limb inflation.
 
-**Refill is the binding constraint, and it is not close.** The GPU leg costs 2.6–3.6× fp16
-and TEE attention costs ~9 ms/token at 8k, but refill on a 16-core box caps an 8B model at
-7 tok/s with stock exact arithmetic. Two things have to be true for the tier to work, and
-neither is optional:
+**Refill is the binding constraint.** The GPU leg costs 2.6-3.6x fp16 and TEE attention
+costs ~9 ms/token at 8k, but refill sets the sustained ceiling. Two things have to be true,
+and neither is optional:
 
-1. **An AVX-512 VNNI int8 GEMM on the TEE side.** This is now the single highest-priority
-   engineering dependency of the whole tier — ahead of the GPU kernel, which is already
-   fast enough. Refill numbers are reported per-physical-core (0.44 tok/s/core at 8B, fp64)
-   precisely so they extrapolate.
-2. **A wide CVM.** Refill parallelises cleanly, so a 64–128 core fleet box is worth 4–8× this
-   development machine. 8B at RNS-3 needs roughly 16 cores *with* VNNI, or ~110 cores
-   without it.
+1. **An int8/VNNI GEMM on the TEE side.** This is the single highest-priority engineering
+   dependency of the whole tier, ahead of the GPU kernel, which is already fast enough.
+   The primitive exists and is verified exact (`torch._int_mm` via FBGEMM/oneDNN); what does
+   not exist is its integration into the executor.
+2. **A wide CVM.** Refill parallelises cleanly, so a 64-128 core fleet box is worth 4-8x the
+   16-core development machine. Ceilings are reported per-physical-core in
+   `shielded/REPORT.md` precisely so they extrapolate.
 
 Model-size policy follows directly: 1.5B-class models are comfortable today, 8B is viable
 with VNNI or a wide CVM, and 32B-class models are out of reach on anything resembling this
@@ -584,9 +587,10 @@ arrival. On any kill: stop and write up why, with measurements.
 
 ## Open risks, ranked
 
-0. **Mask refill on the TEE side is the tier's ceiling and currently misses.** Measured
-   7.1 tok/s for 8B on 16 cores with the best verified-exact GEMM. Needs a VNNI int8 GEMM
-   (projected 53 tok/s) and/or a wide CVM. Everything else on this list is secondary to it.
+0. **Mask refill on the TEE side is the tier's throughput ceiling.** It costs one TEE MAC
+   per GPU MAC and cannot be offloaded (a GPU computing `r·W` learns the pad). The fast
+   exact primitive exists (int8/VNNI, verified); integrating it is the top task. Everything
+   else on this list is secondary to it. Figures: `shielded/REPORT.md`.
 
 
 1. **Field-GEMM throughput on commodity GPUs** — the whole tier's economics. int8-limb
