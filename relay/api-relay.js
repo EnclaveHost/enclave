@@ -1278,6 +1278,14 @@ function aggregateAvailability() {
     // fleet-AND — a mixed fleet would strand an overridden deploy on a runner
     // that refuses the namespace, so the console only unlocks the box on true
     configOverride: serving.length > 0 && serving.every((e) => e.availability?.configOverride === true),
+    // envelope `configCid` namespace: the SAME override, split the way catalog
+    // rev 7 splits a version's config — bulk at a pinned CID, the inline field
+    // demoted to the routing manifest (volumes). It exists because the whole
+    // envelope shares one 4096-byte ledger field, so an app whose config is
+    // larger than that has no override without it. Same fleet-AND, and it is
+    // strictly narrower than configOverride: a runner that knows the split
+    // necessarily knows the inline form, never the reverse.
+    configCidOverride: serving.length > 0 && serving.every((e) => e.availability?.configCidOverride === true),
     // setConfig reaches LIVE deployments (audit envelope watch: waf swaps in
     // place, a config change restarts the app on the new value): fleet-AND -
     // on false an edit still lands on-chain but only applies at re-claim

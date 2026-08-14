@@ -1090,10 +1090,36 @@ if (process.env.SWITCH_SELFTEST) {
 //   (volumes key included). The catalog version's config stays the
 //   approval-covered default every other deployment gets; the override rides
 //   the deployment record only, and a version switch (setAppRef) keeps it.
-//   Inline (not a CID) so the claim gate validates the exact bytes it will
-//   serve, with no second fetch to trust.
+//   `configCid` — the same override, split the way catalog rev 7 splits a
+//   VERSION's config: the bulk lives at a pinned CID and `config` above becomes
+//   the inline ROUTING MANIFEST. It exists because this envelope shares one
+//   4096-byte ledger field with waf/network, so an app whose config is larger
+//   than that had no override available at all.
+//     The BARE-CID form of this field stays retired (see the refusal below):
+//   that one was the entire config reference, resolved before there was a
+//   fail-closed schema to check it against. Here the CID is one validated key
+//   of the envelope, and the bytes are accepted at launch only because they
+//   re-hash to it — wasm_manager._resolve_config_cid, the same untrusted-
+//   gateway path a rev-7 version's config already rides — so the indirection
+//   costs integrity nothing. What it costs is a FETCH, and that is what the
+//   manifest is for: `volumes` is the one key this runner reads off a
+//   deployment's config before launch (volumeGate picks the box on it), so
+//   hoisting it keeps the claim and resume gates exactly as I/O-free as they
+//   are today. wasi/threads/set/mem64 are read off the VERSION's config and
+//   never an override's — they describe the binary, which no override changes.
 const DEP_OPTIONS_MAX_BYTES = 4096;
 const WAF_KEYS = ["rps", "burst", "maxConcurrent", "maxBodyMb", "methods", "pathBlock", "blockScanners", "uaBlock"];
+// The only keys a deployment's inline `config` may carry once `configCid` holds
+// the real one: what THIS runner reads off a deployment's config to PLACE it.
+// Deliberately shorter than the catalog's ROUTING_KEYS — wasi/threads/set/mem64
+// describe the binary (read off the version record, and no override can change
+// which bytes the guest is), `gpuOptional` has its own `gpu` namespace here, and
+// `_media` is refused outright below.
+const DEP_MANIFEST_KEYS = ["volumes"];
+// A bare CID, no ipfs:// prefix — mirrors wasm_manager._resolve_config_cid's own
+// check, so a CID this parser accepts is one that path can still refuse to trust
+// (it verifies the bytes) but can never fail to PARSE.
+const DEP_CONFIG_CID_RE = /^[A-Za-z0-9]{10,100}$/;
 // blockScanners preset: root-anchored prefixes of the paths bulk scanners
 // probe on every host they meet. Prefix-matched on the DECODED, lowercased
 // path so %2e%65nv doesn't slip past; deliberately short and boring — an app
@@ -1158,8 +1184,8 @@ function parseDepOptions(raw, gpuMilli) {
     throw new Error("configCid is retired: a CID names bytes nobody validated — this field may only carry a deployment-options JSON envelope like {\"waf\":{…},\"config\":{…}} (config = an inline app-config override for this deployment); recreate the deployment without a config reference");
   let o; try { o = JSON.parse(s); } catch (e) { throw new Error("options envelope is not valid JSON: " + e.message); }
   if (!o || Array.isArray(o) || typeof o !== "object") throw new Error("options envelope must be a JSON object");
-  const unknown = Object.keys(o).filter((k) => k !== "waf" && k !== "config" && k !== "gpu" && k !== "network");
-  if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: waf, config, gpu, network)`);
+  const unknown = Object.keys(o).filter((k) => k !== "waf" && k !== "config" && k !== "configCid" && k !== "gpu" && k !== "network");
+  if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: waf, config, configCid, gpu, network)`);
   const opts = {};
   if ("network" in o) {
     // WHICH RELAY carries this deployment's traffic. Unlike every other
@@ -1210,6 +1236,13 @@ function parseDepOptions(raw, gpuMilli) {
       opts.gpuOptional = g.optional;
     }
   }
+  // BEFORE `config`: it decides what that field means (real config vs manifest)
+  if ("configCid" in o) {
+    const cid = o.configCid;
+    if (typeof cid !== "string" || !DEP_CONFIG_CID_RE.test(cid))
+      throw new Error("configCid must be a bare IPFS CID (10-100 alphanumeric characters, no ipfs:// prefix) naming this deployment's pinned ENCLAVE_CONFIG");
+    opts.configCid = cid;
+  }
   if ("config" in o) {
     // the app-config override: shape-checked only (object, no reserved keys) —
     // the CONTENT is the app's own contract with its deployer, exactly like a
@@ -1219,6 +1252,17 @@ function parseDepOptions(raw, gpuMilli) {
       throw new Error("config must be a JSON object — it replaces the version's config as this deployment's ENCLAVE_CONFIG (use {} for an explicitly empty config)");
     if ("_media" in c)
       throw new Error("config._media is reserved for the catalog's store media and never reaches an app — remove it from the override");
+    // With configCid set this field is NOT the app's config — it is the routing
+    // manifest, and the manager takes the CID and ignores it. Anything else here
+    // would be a key the owner believes their app receives and never does.
+    // Refused rather than trimmed, for the reason the whole envelope is
+    // fail-closed: that silence is exactly what this field exists to avoid.
+    if (opts.configCid) {
+      const extra = Object.keys(c).filter((k) => !DEP_MANIFEST_KEYS.includes(k));
+      if (extra.length) throw new Error(
+        `with configCid set, config is the routing manifest and may only carry ${DEP_MANIFEST_KEYS.join("/")} — `
+        + `move ${extra.join(", ")} into the pinned config (the guest receives that document, not this one)`);
+    }
     opts.config = c;
   }
   if (!("waf" in o)) return opts;
@@ -1264,6 +1308,29 @@ function parseDepOptions(raw, gpuMilli) {
   return opts;
 }
 
+// What an options envelope contributes to a record's CONFIG fields — the two
+// that decide what the guest receives as ENCLAVE_CONFIG, and where it comes
+// from. `g` is the resolved version (the fallback when the envelope overrides
+// nothing). One function because three paths must agree byte-for-byte — first
+// claim/adopt, a version switch (setAppRef), and an owner's live setConfig edit
+// — and any disagreement between them serves one config while the owner's
+// record claims another.
+//   Both fields are rewritten in BOTH directions on purpose. An override must
+// clear the version's appConfigCid or the manager would fetch that and silently
+// ignore what the owner signed; dropping an override must restore it, or a
+// rev-7 version would hand its guest the routing manifest as its config.
+//   With `configCid` the inline object is the MANIFEST: it stays on the record
+// (the owner's view, and volumeGate's input) while the manager takes the CID and
+// ignores it — the exact pairing a rev-7 VERSION already produces, which is why
+// nothing downstream of here needs to know which of the two set it.
+function overrideConfigFields(o, g) {
+  if (!("config" in o) && !("configCid" in o))
+    return { config: (g && g.config) || "", appConfigCid: (g && g.configCid) || "", configOverride: false };
+  return { config: "config" in o ? JSON.stringify(o.config) : "",
+           appConfigCid: o.configCid || "",
+           configOverride: true };
+}
+
 // ---- owner envelope change (setConfig): does the serving record re-apply? ---
 // Pure core of the audit's envelope watch. The options envelope is mutable
 // on-chain (EnclaveDeployments.setConfig) but was only ever read at claim -
@@ -1286,8 +1353,12 @@ function envelopeEditVerdict(rec, chainCid) {
   try { oldO = parseDepOptions(rec._envelope); } catch {}    // a stale-unparsable stamp reads as "no options"
   try { newO = parseDepOptions(cur); } catch { return "error"; }
   // "config absent" (version default) and "config: {}" (explicitly empty) are
-  // different owner intents - null vs "{}" keeps them distinct here too
-  const cfg = (o) => "config" in o ? JSON.stringify(o.config) : null;
+  // different owner intents - null vs "{}" keeps them distinct here too. The CID
+  // rides the same key: repointing it at a different pinned document is a config
+  // change even when the inline manifest is byte-identical, and swapping an
+  // inline override for a CID one is too.
+  const cfg = (o) => ("config" in o || "configCid" in o)
+    ? JSON.stringify([o.configCid || "", "config" in o ? o.config : null]) : null;
   return cfg(newO) === cfg(oldO) ? "waf" : "restart";
 }
 
@@ -3375,7 +3446,19 @@ app.get("/availability", async (_req, res) => {
     // card allocator's plan - same contract as the RAM ledger above.
     const vram = PROVISION_BACKEND === "vm" && c.vramBudgetGb
       ? { vramBudgetGb: c.vramBudgetGb, vramCommittedGb: c.vramCommittedGb, vramLedgerFreeGb: c.vramFreeGb } : {};
-    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn, ...lbw, ...p3, ...cth, ...setc, ...m64, ...ccid, ...vols, ...ram, ...vram, ...sweep });
+    // The envelope's `configCid` namespace (a per-deployment config override
+    // SPLIT the way catalog rev 7 splits a version's: bulk at a pinned CID,
+    // `config` demoted to the routing manifest). It needs BOTH halves — this
+    // build to parse the namespace, and the MANAGER to fetch and hash-verify the
+    // pinned body — so it is derived from ccid rather than declared, and stays
+    // false on a box whose manager is too old or unreachable. A box that
+    // understood the namespace but could not resolve a CID would take the claim
+    // and then fail every launch on the fetch, which is worse than refusing it.
+    // Same fleet-AND rule as the rest of the envelope, and for the sharp reason
+    // the whole thing is fail-closed: a deployment carrying {"configCid":…} that
+    // lands on a runner without it is REFUSED OUTRIGHT, not degraded.
+    const ccidOv = { configCidOverride: ccid.configCid === true };
+    return res.json({ ...shape(cpuFree, gpuFree, PROVISION_BACKEND === "vm" ? "vmmanager" : "worker"), ...nn, ...lbw, ...p3, ...cth, ...setc, ...m64, ...ccid, ...ccidOv, ...vols, ...ram, ...vram, ...sweep });
   } catch (e) {
     return res.json(shape(maxFreeCpu(), maxFreeGpuShare(), "fallback",
       `${PROVISION_BACKEND === "vm" ? "wasm" : "worker"} manager unreachable`));
@@ -3594,7 +3677,7 @@ const VIEW_FIELDS = ["id", "owner", "status", "public", "firewall", "image", "co
   "createdAt", "startedAt", "paused", "pauseReason", "payDeadline", "digest",
   "payRef", "paidUsdc", "portMap", "error", "waf", "configOverride", "versionChange",
   "configChange",  // an envelope edit (setConfig) this runner deferred/refused - the owner's evidence, versionChange's twin
-  "appConfigCid",  // catalog rev 7: where this version's config actually lives, when `config` above is only the routing manifest. Public on purpose — otherwise an owner reading the record would see the manifest and think it was their app's config
+  "appConfigCid",  // where the config above ACTUALLY lives when `config` is only the routing manifest: a version's own configCid (catalog rev 7), or — when configOverride is set beside it — the DEPLOYER's, from the options envelope's configCid namespace. Public on purpose either way: otherwise an owner reading the record would see the manifest and think it was their app's config
   "secretsRev"];   // which relay secrets snapshot the running instance was launched with (names/values never leave the guest)
 const view = (rec) => {
   const o = {};
@@ -6194,15 +6277,10 @@ async function switchTenantVersion(rec, d) {
   // override-free deployment follows the new version's config. The envelope
   // was validated at claim; a stale-unparsable one degrades like adopt's.
   try {
-    const o = parseDepOptions(d.configCid, d.gpuMilli);
-    rec.config = "config" in o ? JSON.stringify(o.config) : (g.config || "");
-    if ("config" in o) rec.configOverride = true; else delete rec.configOverride;
-    // appConfigCid tracks rec.config and must be rewritten in BOTH directions:
-    // an override still wins over the new version's CID, and a version switch
-    // away from a CID config must clear the old one. Leaving it stale would
-    // serve the previous version's config, or (switching TO a CID version
-    // without setting it) hand the guest the routing manifest as its config.
-    rec.appConfigCid = "config" in o ? "" : (g.configCid || "");
+    const f = overrideConfigFields(parseDepOptions(d.configCid, d.gpuMilli), g);
+    rec.config = f.config;
+    rec.appConfigCid = f.appConfigCid;
+    if (f.configOverride) rec.configOverride = true; else delete rec.configOverride;
     rec._envelope = String(d.configCid || "");   // the envelope watch must not re-restart for what this switch just applied
   } catch { rec.config = g.config || ""; rec.appConfigCid = g.configCid || ""; }
   rec.firewall = firewall;
@@ -6255,27 +6333,20 @@ async function applyEnvelopeEdit(rec, d, verdict) {
     saveStateSoon();
     return;
   }
-  let cfg, cfgCid;
-  if ("config" in o) {
-    cfg = JSON.stringify(o.config);
-    // an override replaces the version's config WHEREVER it lives: clear the
-    // CID too, or the manager would fetch the version's config and the
-    // override the owner just signed would be silently ignored
-    cfgCid = "";
-  } else {
+  let g = null;
+  if (!("config" in o) && !("configCid" in o)) {
     // override removed: back to the version's own config — which on a rev-7
     // version means restoring its CID, not just its (manifest-only) inline field
-    let g;
     try { g = await gateAppReference(d.appRef, { forPrivate: !d.isPublic }); }
     catch (e) { g = { error: { msg: e.shortMessage || e.message } }; }
     if (g.error) return refuse("couldn't resolve the version's config to fall back to: " + g.error.msg);
-    cfg = g.config || ""; cfgCid = g.configCid || "";
   }
+  const f = overrideConfigFields(o, g);
   console.log(`[claim] ${rec.id} owner changed the deployment config on-chain; restarting in place`);
   try { await stopContainer(rec); } catch {}
-  rec.config = cfg;
-  rec.appConfigCid = cfgCid;
-  if ("config" in o) rec.configOverride = true; else delete rec.configOverride;
+  rec.config = f.config;
+  rec.appConfigCid = f.appConfigCid;
+  if (f.configOverride) rec.configOverride = true; else delete rec.configOverride;
   rec._envelope = cur;
   delete rec.configChange;
   rec._deaths = 0;                 // an owner-initiated relaunch earns a fresh crash budget (the version-switch rule)
@@ -6627,7 +6698,13 @@ async function volumeGate(d, g){
   let cfgStr = g.config || "";
   try {
     const o = parseDepOptions(d.configCid, d.gpuMilli);  // strict; considerClaim already accepted it
-    if (o && o.config) cfgStr = JSON.stringify(o.config);   // the override REPLACES the version's config
+    // the override REPLACES the version's config — its volumes included. With
+    // configCid the body sits at a CID this gate deliberately does NOT fetch
+    // (placing a deployment must stay I/O-free), so the inline manifest is the
+    // whole declaration: no manifest means the override declares NO volumes,
+    // never the version's. Falling back there would gate the box on a config
+    // that is not the one about to run.
+    if (o && (o.config || o.configCid)) cfgStr = o.config ? JSON.stringify(o.config) : "{}";
   } catch { /* unreachable: parsed earlier in considerClaim */ }
   let need = [];
   try { const c = JSON.parse(cfgStr || "{}"); if (Array.isArray(c.volumes)) need = c.volumes.map(String); } catch {}
@@ -6979,15 +7056,15 @@ async function adopt(d, g, firewall, slice) {
     // deployer's envelope options: considerClaim validated this exact string
     // before any adopt path (claim or resume), so the catch is unreachable —
     // kept so a hypothetical stale record degrades to the version's config and
-    // no waf, not a crash. A `config` override REPLACES the version's config
-    // (the spread lands after config: above on purpose); configOverride marks
-    // the record so the owner can see their override is what's serving.
-    // It also replaces a CID config: appConfigCid is cleared, or the manager
-    // would fetch the version's config and ignore the override entirely.
+    // no waf, not a crash. An override REPLACES the version's config wherever
+    // that lives (the spread lands after config:/appConfigCid: above on
+    // purpose — overrideConfigFields rewrites BOTH); configOverride marks the
+    // record so the owner can see their override is what's serving.
     ...(() => { try {
       const o = parseDepOptions(d.configCid, d.gpuMilli);
+      const f = overrideConfigFields(o, g);
       return { ...(o.waf ? { waf: o.waf } : {}),
-               ...("config" in o ? { config: JSON.stringify(o.config), configOverride: true, appConfigCid: "" } : {}) };
+               ...(f.configOverride ? { config: f.config, appConfigCid: f.appConfigCid, configOverride: true } : {}) };
     } catch { return {}; } })(),
     // the two shares the deployment bought on-chain — _shares keeps the exact
     // ledger millis so the audit can tell an owner resize (setShares) from

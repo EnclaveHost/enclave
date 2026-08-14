@@ -2549,10 +2549,16 @@ async function cmdConfig(rest) {
     const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(d.appRef || "");
     if (m) { try { verCfg = ((await readVersions(m[1], Number(m[2]) + 1))[Number(m[2])] || {}).config || ""; } catch {} }
     if (opt.json) return jout({ id, envelope: raw, waf: cur.waf ?? null,
-      config: "config" in cur ? cur.config : null, versionConfig: verCfg });
+      config: "config" in cur ? cur.config : null, configCid: cur.configCid ?? null, versionConfig: verCfg });
     say(`deployment ${short(id)} options envelope (${Buffer.byteLength(raw)} bytes of ${rev >= 5 ? 4096 : 100})`);
     say(cur.waf ? `waf: ${JSON.stringify(cur.waf)}` : "waf: (none)");
-    if ("config" in cur) say(`config: ${JSON.stringify(cur.config)}   <- per-deployment override: this deployment's ENCLAVE_CONFIG`);
+    // a pinned override: the inline field beside it is only the routing manifest,
+    // so printing it as "the config" would misreport what the app receives
+    if (cur.configCid) {
+      say(`config: pinned at ipfs://${cur.configCid}   <- per-deployment override: this deployment's ENCLAVE_CONFIG (too large for the envelope)`);
+      say(`        routing manifest on-chain: ${"config" in cur ? JSON.stringify(cur.config) : "(none)"}`);
+    }
+    else if ("config" in cur) say(`config: ${JSON.stringify(cur.config)}   <- per-deployment override: this deployment's ENCLAVE_CONFIG`);
     else if (verCfg) say(`config: the version's applies (no override): ${verCfg.length > 200 ? verCfg.slice(0, 197) + "…" : verCfg}`);
     else say(`config: (none - ${m ? "this version publishes no config and" : ""} no override is set)`);
     return;
@@ -2580,15 +2586,43 @@ async function cmdConfig(rest) {
   } else {                                                   // clear
     const what = (f._[1] || "config").toLowerCase();
     if (!["config", "waf", "all"].includes(what)) throw new Error(usage);
-    if (what !== "waf") delete next.config;
+    if (what !== "waf") { delete next.config; delete next.configCid; }
     if (what !== "config") delete next.waf;
   }
-  const envelope = Object.keys(next).length ? JSON.stringify(next) : "";
-  if (envelope === raw) return say("nothing to change - the envelope already reads exactly that");
+  let envelope = Object.keys(next).length ? JSON.stringify(next) : "";
   const cap = rev >= 5 ? 4096 : 100;
+  if (envelope === raw) return say("nothing to change - the envelope already reads exactly that");
+  // Too big to sit in the ledger's one options field: pin the body and keep the
+  // reference plus the routing manifest on-chain (DEP_MANIFEST_KEYS in
+  // supervisor.js — `volumes` is what a runner reads off a DEPLOYMENT's config
+  // to place it). Same projection rule as a version's split: the routing keys
+  // stay in the PINNED document too, so the delivered ENCLAVE_CONFIG is still
+  // the whole thing. Pin BEFORE signing — an envelope naming a CID nobody
+  // pinned claims fine and then fails every launch on the fetch.
+  if (Buffer.byteLength(envelope) > cap && rev >= 5 && next.config && !next.configCid) {
+    const body = JSON.stringify(next.config);
+    if (Buffer.byteLength(body) > CONFIG_MAX_BYTES)
+      throw new Error(`the config is ${Buffer.byteLength(body)} bytes; enclaves refuse anything over ${CONFIG_MAX_BYTES} at launch`);
+    let av = null; try { av = await api("GET", "/availability"); } catch {}
+    if (av && av.aggregate && av.configCidOverride !== true)
+      throw new Error("this config needs to be pinned off-chain to fit the ledger's options field, but the live fleet doesn't support pinned overrides yet "
+                    + "(availability.configCidOverride is not true) - the deployment would be unclaimable at its next claim. Trim the config, or wait for the fleet to update");
+    const manifest = {};
+    if (next.config.volumes !== undefined) manifest.volumes = next.config.volumes;
+    say(`config is ${Buffer.byteLength(body)} bytes - too big for the envelope; pinning it and keeping the reference on-chain`);
+    const cid = await pinJson(account, Buffer.from(body, "utf8"));
+    say(`  pinned ${cid}`);
+    next.configCid = cid;
+    if (Object.keys(manifest).length) next.config = manifest; else delete next.config;
+    envelope = JSON.stringify(next);
+    // content addressing makes a re-pin of unchanged bytes reproduce the same
+    // CID, so this catches "set the same large config twice" after the pin
+    if (envelope === raw) return say("nothing to change - the envelope already reads exactly that");
+  }
   if (Buffer.byteLength(envelope) > cap)
     throw new Error(rev >= 5
-      ? `the options envelope (waf + config) is ${Buffer.byteLength(envelope)} bytes; the ledger caps it at 4096 - trim the config`
+      ? `the options envelope is ${Buffer.byteLength(envelope)} bytes; the ledger caps it at 4096 - `
+        + `even with the config pinned off-chain, the routing manifest and protection settings must fit. Trim the volumes list`
       : `this ledger (deploymentsSchema ${rev}) caps the envelope at 100 bytes (got ${Buffer.byteLength(envelope)}) - config overrides need the rev-5 ledger`);
   // the deploy --config fail-closed rule: a `config` namespace no runner
   // accepts makes the deployment unclaimable at its NEXT claim; configEdit
