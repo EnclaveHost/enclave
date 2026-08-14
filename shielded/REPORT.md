@@ -192,14 +192,53 @@ rest of the wasmtime patch stack.
 This is not a confidentiality boundary. Confidentiality comes from the masks; these rules
 stop the worker being a general-purpose execution and exfiltration primitive on the GPU host.
 
-## 6. Engine baselines
+## 6. Engine baselines (unprotected llama.cpp, same box)
 
-Run separately on the same box; see §8 for what is still missing. These are the denominators
-for any future end-to-end overhead claim, and they are engine baselines (unprotected
-llama.cpp / whisper.cpp), not shielded measurements.
+llama.cpp `885c5bbe`, built from source for CPU and — since no Linux CUDA prebuilt exists —
+for CUDA 13.3 via a pip-wheel nvcc. Models: Meta-Llama-3.1-8B-Instruct (32L, d=4096, 32 heads
+/ 8 KV heads, GQA 4:1, n_ff 14336) and Qwen2.5-1.5B-Instruct (28L, d=1536, GQA 6:1).
+Best CPU thread count is **24**, not 32; at `-t == nproc` decode collapses ~10× reproducibly.
 
-*(Chat and STT baseline tables are appended when those runs complete; the STT result decides
-whether speech-to-text ever touches the GPU under the small-model rule.)*
+| config | pp512 | tg128 @d0 | tg128 @d8192 |
+|---|---|---|---|
+| CPU, 8B Q8_0 | 98.0 | 13.8 | 10.4 |
+| CPU, 8B Q4_K_M | 144.7 | 22.1 | 14.7 |
+| CPU, 1.5B Q8_0 | 493.8 | 61.2 | 42.9 |
+| **GPU, 8B Q4_K_M (full offload)** | **3268** | **79.3** | **65.5** |
+| **GPU, 1.5B Q8_0 (full offload)** | **11431** | **193.6** | **173.3** |
+
+Batching (parallel sequences, total throughput): CPU 8B goes 43 → 78 → 92 t/s at B=1/4/16;
+GPU 8B Q4_K_M goes 352 → 887 → 1907. Prefill throughput is flat in batch on both.
+
+8B Q8_0 on GPU is **partial offload only** (20 of 33 layers; 7.95 GiB of weights against
+6991 MiB free VRAM) and is not quoted as a baseline.
+
+### Two corrections these baselines force
+
+**1. q8_0 KV is slower than f16 everywhere measured — it is a memory win, not a speed win.**
+The design doc called q8 KV "load-bearing, not an optimisation" for making TEE-resident
+attention affordable. Measured: CPU 8B at d8192 drops 10.48 → 6.72 t/s (**−36%**), CPU 1.5B
+at d8192 drops 42.6 → 23.4 (**−45%**), GPU only −3 to −4%. It buys a 47% KV memory reduction
+(1024 → 544 MiB at 8k for the 8B) *at a throughput cost*, and the cost lands hardest on
+exactly the CPU path where our KV cache lives. Corrected in the design doc: q8 KV is a
+capacity lever to spend deliberately, not a free win.
+
+**2. Field-form weights do not fit, and the fix is to not store them.** [our analysis]
+RNS-3 at 3 B/param means 8B ≈ 24 GB of weights — against 8 GB of VRAM on this card, and
+5.3× the 4.58 GiB that q4_K needs. Storing field-form weights would restrict this card to
+~1.5–2B models and inflate VRAM fleet-wide.
+
+It is avoidable. Weights are **public**, so the worker can keep them in their native q4_K/q8
+GGUF form and derive the field residues **in-kernel** (dequantise → fixed point → reduce mod
+each prime) inside the same fused epilogue the CRT already requires. Weight bandwidth and
+VRAM then equal the baseline, and only the activation side — kilobytes against gigabytes at
+decode — carries RNS overhead. That collapses the 6×-vs-q4_K decode penalty in §2 toward
+~1×, and it is the single highest-leverage kernel decision available.
+
+The requirement it imposes is determinism: the TEE computes `u = r·W` and the GPU computes
+`(x+r)·W`, so both must derive **bit-identical** field elements from the same GGUF bytes. A
+shared, versioned dequantise-and-encode routine, not two implementations that agree by
+inspection.
 
 ## 7. Kill criteria: current standing
 
