@@ -136,6 +136,42 @@ Three things made the difference, in order of size:
 3. **Weights never materialise in field form.** 8B needs 8.53 GB in q8_0 rather than 24.09 GB
    as RNS-3 planes.
 
+### The 4-bit weight path
+
+Decode is bandwidth-bound, so bytes per weight is the design variable. Adding a q4_0 path
+(0.5625 B/weight against q8_0's 1.0625, in a split-half nibble packing so one byte tile
+feeds two k-tiles) **takes an 8B model to 4.52 GB — under the 8 GB line of a commodity
+card**, which q8_0 at 8.53 GB does not clear. Masked round-trip verified exact.
+
+Three dequantisation strategies were tried and **all three tie within 3%** on an idle card:
+subtract-then-convert, an FMA-folded bias, and a pure-integer int16 scale. The ALU is not the
+bottleneck; the byte count is. Two of those variants initially appeared to differ, but they
+returned byte-identical timings across every shape — the signature of GPU contention from
+overlapping sweeps, not of the kernels. Same error as the CPU contention in §1, caught the
+same way: a number that is too neat.
+
+q4 is not a free win. It costs more at prefill (M=512) than q8 does, because the extra
+nibble-unpack ALU bites once the shape is compute-bound rather than bandwidth-bound. Since
+only one weight format can be resident, the choice is workload-dependent, with a crossover at
+roughly **generated_tokens > prompt_tokens / 17**: q4 for generation-heavy serving (chat needs
+only >30 generated tokens at a 512-token prompt), q8 for prefill-heavy work (an 8k-prompt
+summarizer needs >483 generated tokens before q4 pays off). That is a per-endpoint catalog
+decision, not a single global default.
+
+### Two modelled terms replaced with measurements
+
+The end-to-end estimate in §7 previously guessed at both non-GPU terms. Measured:
+
+- **Transport: 1.54 ms/token**, against a modelled 6.4–19.2 ms. TCP loopback RTT is 7.2 us
+  for a ping and 10–16 us carrying real masked-activation payloads, so ~4 exchanges/layer
+  over 32 layers costs 1.54 ms. Transport is no longer a material term.
+- **CPU read bandwidth: 101 GB/s** at 8 threads, against a modelled 60. (16 threads is
+  *worse*, at 93.5 — the same hyperthreading cliff both engine baselines hit independently.)
+  That cuts 8k TEE attention from 8.95 ms to ~5.4 ms.
+
+Together these move batch-1 decode from the earlier 2.6–4.1x estimate to roughly **2.0–2.3x**,
+and the GPU leg is now the only large term left.
+
 ### Chasing the remaining bandwidth
 
 The first version left bandwidth efficiency at 0.40–0.59, implying ~2× on the table. Two

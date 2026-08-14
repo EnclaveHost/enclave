@@ -66,6 +66,17 @@ test("in-kernel dequantisation avoids materialising field weights", { skip: !HAV
   assert.equal(run().bytes_per_weight.q8_0_in_kernel, 1.0625);
 });
 
+test("4-bit weight path is exact and fits a commodity card", { skip: !HAVE_CUDA && "no CUDA/Triton" }, () => {
+  // Decode is bandwidth-bound, so bytes/weight is the design variable. q4_0 also
+  // takes an 8B model under the 8 GB line, which q8_0 does not.
+  const r = run();
+  assert.equal(r.q4_masked_roundtrip_exact, true);
+  assert.equal(r.q4_weights_fit_byte, true);
+  assert.equal(r.bytes_per_weight.q4_0_in_kernel, 0.5625);
+  assert.ok(r.vram_8B_model_GB.q4_0_in_kernel < 8,
+    `8B must fit an 8 GB card: ${r.vram_8B_model_GB.q4_0_in_kernel} GB`);
+});
+
 test("oracle-level gate passes", { skip: !HAVE_CUDA && "no CUDA/Triton" }, () => {
   assert.equal(run().ok, true);
 });
