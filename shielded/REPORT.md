@@ -6,9 +6,11 @@ Date: 2026-08-14. Companion to [docs/shielded-inference.md](../docs/shielded-inf
 **Bottom line up front.** The confidentiality design holds and is proven in an executable
 oracle, and no measured cost currently kills it.
 
-- **GPU**: an exact field GEMM (RNS-3 over byte primes, int8 tensor cores) costs **2.7–3.6×
-  fp16 at prefill including fused CRT** — inside the 5× budget. The CRT *must* be fused;
-  unfused it alone pushes the total to 5.5–7.3× and fails.
+- **GPU**: with the fused kernel now written (`kernels/fused_field_gemm.py`), an exact field
+  GEMM costs **0.90–1.32× fp16** — at decode it is *faster* than the baseline, because it
+  reads 1.06 B/weight of q8_0 rather than 2 B/weight of fp16. Against the fleet's real q4_K
+  baseline it is ~3.2× at decode, still inside the 5× budget. The unfused path this replaces
+  was 2.7–3.7×, and naive recombination alone was 5.3–7.5× and failed.
 - **TEE refill** (`u = r·W`, which cannot be offloaded without handing the accelerator the
   pad) sustains **214 tok/s for an 8B model** on 16 EPYC cores using int8/VNNI — against a
   measured GPU baseline of 79 tok/s for the same model. **Refill is not the binding
@@ -18,9 +20,11 @@ oracle, and no measured cost currently kills it.
   are corrected here. It is a good argument for re-measuring on an idle machine before
   drawing a strategic conclusion.
 
-What remains open is not a wall but two kernel-engineering requirements (fused CRT, and
-in-kernel dequantisation so field weights don't inflate VRAM 5×) plus the absence of any
-end-to-end run.
+The two kernel requirements this report previously listed as blocking — fused CRT and
+in-kernel dequantisation — are now implemented and measured. What remains open is a q4_K
+unpack (to beat the fleet's real baseline and fit 8B on an 8 GB card) and, above all, the
+absence of any end-to-end run: every number here is a primitive or arithmetic over
+primitives.
 
 Nothing here has shipped. No engine code exists; these are measurements of primitives and
 proofs of constructions.
@@ -85,10 +89,47 @@ understates the tier by enough to flip the verdict:
 
 Naive CRT (≈10 separate elementwise kernels, each a full int64 memory round trip) costs
 *more than the GEMMs themselves* and puts the tier through the 5× kill line. Fusing the chain
-into one kernel — demonstrated here with `torch.compile`, 10–18× faster — brings it back to
-~0.13–0.44 ms, a few percent of the GEMM. **The fused CRT epilogue is therefore an
+into one kernel brings it back to a few percent of the GEMM. **The fused CRT epilogue is an
 implementation requirement of the same rank as the masking itself**, not an optimisation to
-defer. A real worker fuses it into the GEMM epilogue rather than calling a compiler.
+defer.
+
+### The fused kernel, written and measured (`kernels/fused_field_gemm.py`)
+
+The report previously recommended fusing the CRT *and* dequantising weights in-kernel, and
+called the latter its largest unverified claim. Both are now implemented in one Triton
+kernel and verified exact end-to-end (mask → in-kernel dequantise → RNS accumulate → fused
+CRT → TEE unmask reproduces the plaintext product bit-for-bit at every shape below).
+
+| shape | fp16 | fused | **vs fp16** | vs q4_K (est.) | bandwidth eff. |
+|---|---|---|---|---|---|
+| M=1, K=4096, N=4096 (decode) | 0.107 ms | 0.096 ms | **0.90×** | 3.15× | 0.59 |
+| M=1, K=14336, N=4096 (decode) | 0.304 ms | 0.276 ms | **0.91×** | 3.18× | 0.58 |
+| M=64, K=4096, N=4096 | 0.095 ms | 0.126 ms | **1.32×** | 4.65× | 0.40 |
+| M=512, K=4096, N=4096 (prefill) | 0.519 ms | 0.657 ms | **1.27×** | 4.45× | 0.42 |
+
+Against fp16 the exact field GEMM is now **free to 1.3×** — at decode it is *faster* than the
+baseline, because it reads 1.0625 B/weight of q8_0 rather than 2 B/weight of fp16. Compare
+the unfused path this replaces: 2.7–3.7× at prefill with weights materialised at 3 B/weight.
+
+Three things made the difference, in order of size:
+
+1. **The weight needs no RNS decomposition at all.** Only the masked activation is a large
+   field element; the fixed-point weight is tiny (measured max |w_fixed| = 13–68 against a
+   119 byte-range limit), so `w mod qᵢ == w` for every prime. One dequantisation feeds all
+   three channels and six integer modulos per weight disappear. The first version of this
+   kernel kept them and was ALU-bound at 3.9–8.5× — worse than not fusing at all.
+2. **Tensor cores win even at M=1.** Routing decode through the padded `tl.dot` kernel with
+   `BLOCK_M=16` — computing 16 rows and discarding 15 — measures 0.90× fp16, against 3.7–4.9×
+   for a hand-rolled reduction. Decode is bandwidth-bound, so the wasted MACs are free.
+3. **Weights never materialise in field form.** 8B needs 8.53 GB in q8_0 rather than 24.09 GB
+   as RNS-3 planes.
+
+Honest limits. The q4_K column is an estimate scaled by the byte ratio, not a measurement;
+the kernel reads q8_0, and supporting q4_K in-kernel (the same technique, a different unpack)
+is what would take decode from ~3.2× to roughly ~1.7× against the fleet's real baseline —
+and it is also what makes an 8B model fit an 8 GB card at all, since 8.53 GB still does not.
+Bandwidth efficiency of 0.40–0.59 says there is roughly another 2× available from tuning that
+was not pursued. This is a correctness-first kernel, not an autotuned one.
 
 RNS-3 gives 23.8 bits of dynamic range, RNS-4 gives 31.6. Since the accumulator was
 measured to need ~18.7 bits nominal and ~22.8 under 10³× outlier channels, **RNS-3 is the
@@ -299,9 +340,9 @@ open for want of an end-to-end implementation, not because a measured cost excee
    arithmetic on primitives. Transport, mask staging, and verification are modelled, not
    observed.
 2. **No stock ggml-rpc remote-GPU baseline**, so transport cost is not isolated.
-3. **In-kernel dequantisation is analysis, not measurement.** The claim that decode overhead
-   collapses from 6× to ~1× by keeping weights in GGUF form rests on a bandwidth argument,
-   not a kernel. It is the single largest unverified claim in this report.
+3. **The q4_K comparison is still an estimate.** The kernel reads q8_0 and the q4_K column is
+   scaled by the byte ratio. Against fp16 the numbers are measured; against the fleet's
+   actual baseline they are not.
 4. **No fleet hardware.** The 3070 is representative of the target *class*; datacenter parts
    have very different fp64 and int8 ratios. The EPYC has 16 cores against a fleet CVM's
    likely 64–128.
@@ -325,4 +366,4 @@ open for want of an end-to-end implementation, not because a measured cost excee
    reference, and get a first end-to-end shielded token.
 5. **Land the per-tensor magnitude guard, failing closed**, before any real model runs — a
    silent field wrap corrupts output with no error signal.
-6. Only then: sd.cpp DiT, the mm30 engine bump for TTS, and fleet integration.
+7. Only then: sd.cpp DiT, the mm30 engine bump for TTS, and fleet integration.
