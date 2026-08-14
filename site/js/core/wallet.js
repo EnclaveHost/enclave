@@ -79,12 +79,34 @@ export const Wallet = {
 export const WC_RDNS = "org.walletconnect";
 const WC_ENTRY = { info: { uuid: "walletconnect", name: "WalletConnect", rdns: WC_RDNS, icon: null }, wc: true };
 
-let _wcInit = null;
+let _wcInit = null, _wcLockRelease = null;
+/* One WC provider per ORIGIN, not per tab. Every tab that inits a provider on
+   the same saved pairing subscribes to the same relay topic, and whichever
+   tab's socket consumes a response first wins it: the tab that actually sent
+   eth_sendTransaction then waits forever (the click looks dead - "I can't
+   approve apps") while a sibling tab logs "emitting session_request:<id>
+   without any listeners". A reload mid-request orphans the response the same
+   way. The Web Lock makes ownership explicit: the first tab holds it until
+   sign-out or close; any other tab is told to go sign there. No Locks API
+   (very old browsers) falls back to the racy-but-working single-tab behavior. */
+async function wcOwnerLock(){
+  if (typeof navigator === "undefined" || !navigator.locks) return true;
+  if (_wcLockRelease) return true;                 // this tab already owns the session
+  return await new Promise((resolve) => {
+    navigator.locks.request("enclave.wc-owner", { ifAvailable: true }, (lock) => {
+      if (!lock){ resolve(false); return; }        // another tab owns it
+      resolve(true);
+      return new Promise((release) => { _wcLockRelease = release; });   // held until sign-out / tab close
+    }).catch(() => resolve(true));                 // a Locks hiccup must not block the wallet
+  });
+}
 function wcProvider(){
   // one in-flight init shared by every caller: pickWallet and restoreSession
   // must never race two providers onto the same relay session
   if (_wcInit) return _wcInit;
   _wcInit = (async () => {
+    if (!(await wcOwnerLock()))
+      throw new EnclaveError("Your WalletConnect session is live in another enclave.host tab - sign there, or close that tab and try again here.", 0);
     const { EthereumProvider } = await import("/vendor/walletconnect.js");
     const p = await EthereumProvider.init({
       projectId: WALLETCONNECT_PROJECT_ID,
@@ -406,6 +428,7 @@ export async function authenticate(opts){
   const message = assertSiweLogin((ch && ch.message) ? ch.message : buildSiwe(ch), Enclave.address);
   let signature;
   try {
+    wcNudge();
     signature = await Enclave.provider.request({ method: "personal_sign", params: [message, Enclave.address] });
   } catch(e){
     throw new EnclaveError((e && e.code === 4001) ? "Signature rejected." : ("Could not sign in: " + (e.message || e)), 0);
@@ -426,6 +449,7 @@ export function disconnectWallet(){
   // wallet and the next sign-in silently reuses it
   try { if (Enclave.provider && Enclave.provider._enclaveWc) Enclave.provider.disconnect(); } catch(e){}
   _wcInit = null;
+  if (_wcLockRelease){ try { _wcLockRelease(); } catch(e){} _wcLockRelease = null; }   // hand the WC session to the next tab that wants it
   Enclave.token = null; Enclave.tokenBase = null; Enclave.enclaveTokens = {}; Enclave.address = null; Enclave.provider = null; Enclave.chainId = null; Enclave.walletRdns = null;
   clearSession();
   Enclave.clearAccountSession();   // "Sign out" means BOTH domains: wallet/enclave session and the relay account
@@ -603,6 +627,16 @@ export async function renderWalletPop(){
 }
 
 /* ---- on-chain tx helpers used by both the deploy console and the store ---- */
+// A WalletConnect wallet lives in ANOTHER APP (Trezor Suite, or a phone): the
+// pending request is invisible until the user goes there, and this page shows
+// nothing while it waits - a silent wait reads as a dead button, and the
+// natural response (reload, retry in a second tab) orphans the in-flight
+// request, which is exactly the "session_request … without any listeners"
+// failure. Say where to look and what not to do.
+export function wcNudge(){
+  if (Enclave.provider && Enclave.provider._enclaveWc)
+    showToast("Sent to your wallet - open Trezor Suite (or your WalletConnect wallet) to confirm. Keep this tab open until it answers.");
+}
 export async function ensureBaseChain(){
   let cur;
   try { cur = await Enclave.provider.request({ method: "eth_chainId" }); } catch { cur = null; }
@@ -643,6 +677,7 @@ export async function sendTx(to, data, value, gasLimit){
     use = use + use / 4n;                       // 25% headroom on a measured number
     if (use > MAX_TX_GAS) use = MAX_TX_GAS;     // never ask for more than the chain includes
     tx.gas = "0x" + use.toString(16);
+    wcNudge();
     return await Enclave.provider.request({ method: "eth_sendTransaction", params: [tx] });
   }
   // Otherwise: estimate (provider first, public Base RPC as fallback) and pad
@@ -652,5 +687,6 @@ export async function sendTx(to, data, value, gasLimit){
   try { est = await Enclave.provider.request({ method: "eth_estimateGas", params: [tx] }); }
   catch(_){ try { est = await baseRpc("eth_estimateGas", [tx]); } catch(_2){} }
   if (est) tx.gas = "0x" + (BigInt(est) + BigInt(est) / 4n).toString(16);
+  wcNudge();
   return await Enclave.provider.request({ method: "eth_sendTransaction", params: [tx] });
 }

@@ -55,13 +55,32 @@ export function catCacheSet(apps){ lsSet("enclave_catalog_" + APP_CATALOG_ADDRES
 // stale heals on the next visit to the Apps/Deploy page instead of holding
 // until a hard refresh.
 const FRESH_MS = 120000;
+/* The owner read gates ALL moderation UI: approve/reject/verify and the
+   Pending/Rejected/Delisted queues key off STORE.owner, and "owner unknown"
+   renders identically to "not the owner". A swallowed one-shot failure
+   therefore stripped the owner's controls for the whole page view with no
+   error and no retry - and the burst right after a publish (receipt polling +
+   the catalog reload) is exactly when the public-RPC pool rate-limits, so it
+   read as "I can't approve apps" moments after a successful publish. Retry
+   with backoff until it lands; the emit re-renders whichever view is up. */
+let _ownerBusy = false, _ownerWait = 4000;
+function loadOwner(){
+  if (_ownerBusy || STORE.owner !== null) return;
+  _ownerBusy = true;
+  catOwner().then(o => {
+    STORE.owner = o.toLowerCase(); _ownerBusy = false; _ownerWait = 4000;
+    emit("enclave:catalog", { type: "loaded" });
+  }).catch(() => {
+    setTimeout(() => { _ownerBusy = false; loadOwner(); }, _ownerWait);
+    _ownerWait = Math.min(_ownerWait * 2, 60000);
+  });
+}
 export async function loadCatalog(force){
   if (!catConfigured()){ STORE.loaded = true; emit("enclave:catalog", { type: "loaded" }); return; }
   // the owner read rides every boot until it lands - ABOVE the freshness
   // early-return, so one rate-limited miss can't leave badges/official
   // fallbacks ownerless for as long as the catalog stays fresh
-  if (STORE.owner === null)
-    catOwner().then(o => { STORE.owner = o.toLowerCase(); emit("enclave:catalog", { type: "loaded" }); }).catch(() => {});
+  if (STORE.owner === null) loadOwner();
   if (STORE.loading || (STORE.loaded && !force && Date.now() - STORE.at < FRESH_MS)) return;
   STORE.loading = true;
   if (!STORE.loaded){
