@@ -4250,18 +4250,24 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
     if needs_mem64 and mem_mb_raw > rec["mem_mb"]:
         rec["mem_mb"] = mem_mb_raw
 
-    # per-deployment config: the approved catalog version's config JSON. The
-    # supervisor passes it one of two ways, both read straight off the chain
-    # record and neither deployer-controlled:
-    #   config     - inline, the version's own field (<= 4096 bytes on-chain)
-    #   config_cid - rev 7, the version's configCid; fetched here and accepted
-    #                only because the bytes re-hash to the CID the approved
-    #                record names (see _resolve_config_cid)
+    # per-deployment config: the JSON the guest receives as ENCLAVE_CONFIG. The
+    # supervisor passes it one of two ways, both read off the chain record:
+    #   config     - inline (<= 4096 bytes on-chain): the version's own field,
+    #                or a deployer's inline override from the options envelope
+    #   config_cid - fetched here and accepted only because the bytes re-hash to
+    #                the CID the record names (see _resolve_config_cid); either
+    #                the VERSION's configCid (catalog rev 7) or the DEPLOYER's
+    #                (the options envelope's configCid — same split, deployment
+    #                side, so an override can exceed that 4096-byte field)
+    # Who chose the CID changes nothing here: the gateway is untrusted either
+    # way, and the hash is what makes the bytes acceptable. A deployer-chosen
+    # one reaches only its own deployment's guest, exactly like the inline
+    # override it replaces.
     # Re-validated either way, so a malformed record fails the launch cleanly
     # rather than the tenant on first request. If both arrive the CID wins and
-    # the inline field is ignored — the catalog cannot produce that pairing
-    # (publishVersionCfg leaves `config` empty), so it means a confused caller,
-    # and the CID is the more specific claim.
+    # the inline field is ignored — which is precisely the envelope's split
+    # (there `config` is the routing manifest, never the guest's document) and,
+    # from the catalog, a pairing publishVersionCfg cannot produce.
     enclave_config = None
     if config_cid:
         try:

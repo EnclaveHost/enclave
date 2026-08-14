@@ -1368,9 +1368,10 @@ const TOOLS = [
     description: "Unsigned setConfig transaction rewriting a deployment's options envelope: `config` (the per-deployment app-config override that becomes its ENCLAVE_CONFIG) and/or `waf` (per-IP protection). A namespace you don't pass is PRESERVED — editing the config never wipes the waf and vice versa; clearConfig falls the app back to the version's approved config. On a fleet advertising configEdit the holding runner re-applies the envelope to the LIVE app within ~a minute (waf swaps live; a config change restarts the app in place — same lease, balance and endpoint; app state is ephemeral).",
     inputSchema: S({
       id: P.id,
-      config: { type: "object", description: "New app-config override ({} = explicitly empty config). Omit to leave the current override untouched.", additionalProperties: true },
+      config: { type: "object", description: "New app-config override ({} = explicitly empty config). Omit to leave the current override untouched. With configCid set this is instead the small ROUTING MANIFEST kept on-chain (volumes), not the app's config.", additionalProperties: true },
+      configCid: { type: "string", description: "The IPFS CID of an override too large for the ledger's 4096-byte options field (up to 1 MB) — the same split catalog rev 7 uses for a version's config, deployment side. Pin it yourself first (POST /add-json, wallet-signed): this server holds no keys and cannot pin for you. Enclaves re-fetch and hash-verify it, so the pin is availability, never trust. Needs a fleet advertising configCidOverride." },
       waf: { type: "object", description: "New waf namespace, e.g. {\"rps\":10,\"blockScanners\":true}. Omit to leave the current waf untouched.", additionalProperties: true },
-      clearConfig: { type: "boolean", description: "Remove the config override — the version's approved config applies again" },
+      clearConfig: { type: "boolean", description: "Remove the config override (inline or pinned) — the version's approved config applies again" },
       clearWaf: { type: "boolean", description: "Remove the waf namespace" },
     }, ["id"]),
     handler: async (a) => {
@@ -1380,18 +1381,33 @@ const TOOLS = [
       let cur = {};
       if (raw.startsWith("{")) { try { cur = JSON.parse(raw); } catch {} }
       if (!cur || Array.isArray(cur) || typeof cur !== "object") cur = {};
-      if (a.config === undefined && a.waf === undefined && !a.clearConfig && !a.clearWaf)
-        throw new Error("nothing to change: pass config and/or waf (or clearConfig/clearWaf)");
-      if (a.config !== undefined && a.clearConfig) throw new Error("config and clearConfig are mutually exclusive");
+      if (a.config === undefined && a.configCid === undefined && a.waf === undefined && !a.clearConfig && !a.clearWaf)
+        throw new Error("nothing to change: pass config, configCid and/or waf (or clearConfig/clearWaf)");
+      if ((a.config !== undefined || a.configCid !== undefined) && a.clearConfig)
+        throw new Error("config/configCid and clearConfig are mutually exclusive");
       if (a.waf !== undefined && a.clearWaf) throw new Error("waf and clearWaf are mutually exclusive");
       const next = { ...cur };
+      if (a.configCid !== undefined) {
+        if (typeof a.configCid !== "string" || !/^[A-Za-z0-9]{10,100}$/.test(a.configCid))
+          throw new Error("configCid must be a bare IPFS CID (10-100 alphanumeric characters, no ipfs:// prefix)");
+        next.configCid = a.configCid;
+      }
       if (a.config !== undefined) {
         if (!a.config || Array.isArray(a.config) || typeof a.config !== "object")
           throw new Error("config must be a JSON object ({} = explicitly empty)");
         if ("_media" in a.config) throw new Error("config._media is reserved for the catalog's store media and never reaches an app — remove it");
         next.config = a.config;
       }
-      if (a.clearConfig) delete next.config;
+      // mirrors the supervisor's DEP_MANIFEST_KEYS: with the body at a CID the
+      // inline field is only what a runner reads to PLACE the deployment, and a
+      // key left here is one the owner believes their app receives and never does
+      if (next.configCid && next.config) {
+        const extra = Object.keys(next.config).filter((k) => k !== "volumes");
+        if (extra.length) throw new Error(
+          `with configCid set, config is the routing manifest and may only carry volumes — `
+          + `move ${extra.join(", ")} into the pinned config (the guest receives that document, not this one)`);
+      }
+      if (a.clearConfig) { delete next.config; delete next.configCid; }
       if (a.waf !== undefined) {
         if (!a.waf || Array.isArray(a.waf) || typeof a.waf !== "object" || !Object.keys(a.waf).length)
           throw new Error("waf must be a non-empty object, e.g. {\"rps\":10} (use clearWaf to remove it)");
@@ -1403,7 +1419,8 @@ const TOOLS = [
       const cap = rev >= 5 ? 4096 : 100;
       if (envelope.length > cap)
         throw new Error(rev >= 5
-          ? `the options envelope (waf + config) is ${envelope.length} bytes; the ledger caps it at 4096 — trim the config`
+          ? `the options envelope (waf + config) is ${envelope.length} bytes; the ledger caps it at 4096 — `
+            + `pin the config (POST /add-json) and pass it as configCid instead, which keeps only the reference and the routing manifest on-chain`
           : `this ledger (deploymentsSchema ${rev}) caps the envelope at 100 bytes — config overrides need the rev-5 ledger`);
       // the plan_deploy fail-closed rule: a config namespace no runner accepts
       // makes the deployment unclaimable at its NEXT claim; configEdit only
@@ -1411,6 +1428,8 @@ const TOOLS = [
       const av = await self("GET", "/availability").catch(() => null);
       if ("config" in next && !("config" in cur) && av && av.aggregate && av.configOverride !== true)
         throw new Error("the live fleet doesn't support per-deployment config overrides (availability.configOverride is not true) — the deployment would be unclaimable at its next relaunch");
+      if ("configCid" in next && !("configCid" in cur) && av && av.aggregate && av.configCidOverride !== true)
+        throw new Error("the live fleet doesn't support pinned config overrides (availability.configCidOverride is not true) — the envelope's configCid namespace would be refused outright at the next claim, leaving the deployment unclaimable");
       const leased = Number(d.leaseUntil) * 1000 > Date.now();
       const liveEdit = !!(av && av.aggregate && av.configEdit === true);
       const { deployments } = await addresses();

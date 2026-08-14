@@ -10,11 +10,12 @@
    Load progress is announced with `enclave:catalog` events (detail.type:
    loading | loaded | error) - pages render, this module doesn't.
    ============================================================ */
-import { APP_CATALOG_ADDRESS, IPFS_IMG_GATEWAY } from "./config.js";
-import { catConfigured, appCount, catGetAppsPage, catGetVersions, catOwner, APPROVAL } from "./chain.js";
+import { APP_CATALOG_ADDRESS, IPFS_IMG_GATEWAY, IPFS_JSON_UPLOAD_URL } from "./config.js";
+import { catConfigured, appCount, catGetAppsPage, catGetVersions, catOwner, APPROVAL, CAT_MAX } from "./chain.js";
 import { lsGet, lsSet, emit, on, esc } from "./util.js";
 import { minPctsOf } from "./pricing.js";
-import { Enclave } from "./api.js";
+import { Enclave, EnclaveError } from "./api.js";
+import { connectWallet, personalSign } from "./wallet.js";
 
 export const STORE = { apps:[], byId:{}, sel:{}, owner:null, filter:"approved", loaded:false, loading:false, at:0 };
 
@@ -273,6 +274,50 @@ export async function fetchConfigCid(cid){
   if (out !== null) _cfgCidCache[cid] = out;
   return out;
 }
+/* Wallet-authorize a pin: sign enclave-upload:<sha256(bytes)>:<expiry>, trade it
+   at the API for a one-time HMAC token bound to exactly these bytes. Shared by
+   the wasm upload, the images, and both config pins (a publisher's version
+   config and a deployer's per-deployment override). */
+export async function signedUploadToken(bytes){
+  if (!Enclave.address){ try { await connectWallet(); } catch(_){} }
+  if (!Enclave.address || !Enclave.provider) throw new EnclaveError("Connect your wallet to upload; your signature authorizes the pin.", 0);
+  const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(b => b.toString(16).padStart(2, "0")).join("");
+  const expiry = Math.floor(Date.now() / 1000) + 300;
+  try {
+    const signature = await personalSign(`enclave-upload:${hash}:${expiry}`);
+    const r = await fetch(Enclave.base + "/apps/upload-token", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ hash, expiry, signature }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.token) throw new EnclaveError("upload authorization failed: " + (j.message || j.error || ("HTTP " + r.status)), 0);
+    return { token: j.token, address: j.address, expiry };
+  } catch(err){
+    if (err && (err.code === 4001 || /reject|denied|declin|cancell/i.test(err.message || ""))) throw new EnclaveError("upload canceled: you declined the wallet signature.", 0);
+    throw (err instanceof EnclaveError) ? err : new EnclaveError("upload authorization failed: " + (err.message || err), 0);
+  }
+}
+
+/* Pin a config too large to sit on-chain. Wallet-signed like the wasm and the
+   images — the gateway re-parses the JSON, caps the size and pins; the CID then
+   goes into a VERSION RECORD (catalog rev 7, immutable and approval-covered) or
+   into a DEPLOYMENT's options envelope (the same split, deployment side).
+   Enclaves re-fetch and hash-verify either one, so this pin is AVAILABILITY,
+   never trust: a gateway that served different bytes would fail the check, not
+   change what runs. */
+export async function putConfig(text){
+  if (!IPFS_JSON_UPLOAD_URL) throw new EnclaveError("Large configs aren’t configured here (no config pin gateway).", 0);
+  const buf = new TextEncoder().encode(text);
+  if (buf.byteLength > CAT_MAX.configMax)
+    throw new EnclaveError("config too long (≤ " + CAT_MAX.configMax + " bytes)", 0);
+  const { token, address, expiry } = await signedUploadToken(buf);
+  const r = await fetch(IPFS_JSON_UPLOAD_URL, { method: "POST", headers: {
+    "content-type": "application/json",
+    "x-upload-address": address, "x-upload-expiry": String(expiry), "x-upload-token": token,
+  }, body: buf });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.cid) throw new EnclaveError("config pin rejected: " + (j.error || ("HTTP " + r.status)), 0);
+  return j.cid;
+}
+
 export function looksFriendly(s){ return s.includes(":") && !s.startsWith("ipfs://"); }
 /* opts.allowPending: admit a version still AWAITING approval — the dev-mode
    path (PRIVATE deployments on a fleet advertising devDeploy; the caller owns

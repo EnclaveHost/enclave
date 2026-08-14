@@ -61,6 +61,28 @@ test("waf-only edits swap live; config edits restart", async () => {
   assert.deepEqual(v, ["waf", "waf", "waf", "waf", "restart", "restart", "restart", "restart", "restart"]);
 });
 
+/* The split override (envelope `configCid`) rides the same verdict. The trap it
+   has to dodge: the inline half is only the routing manifest, so repointing the
+   CID at a different pinned document can leave every inline byte identical —
+   and if the verdict keyed on the inline half alone, the owner's edit would be
+   read as "nothing changed" and never reach the app. */
+test("a config change behind the CID restarts, even with the manifest untouched", async () => {
+  const CID_A = '{"configCid":"bafkreiaaaaaaaaaaaaaaaaaaaa","config":{"volumes":["m"]}}';
+  const CID_B = '{"configCid":"bafkreibbbbbbbbbbbbbbbbbbbb","config":{"volumes":["m"]}}';
+  const v = await verdicts([
+    { rec: { ...RUN, _envelope: CID_A }, chainCid: CID_B },   // repinned body, identical manifest -> restart
+    { rec: { ...RUN, _envelope: CID_A }, chainCid: CID_A },   // nothing changed                   -> skip
+    { rec: { ...RUN, _envelope: CFG_A }, chainCid: CID_A },   // inline override -> split override  -> restart
+    { rec: { ...RUN, _envelope: CID_A }, chainCid: "" },      // override removed (version config)  -> restart
+    { rec: { ...RUN, _envelope: "" }, chainCid: CID_A },      // override added                     -> restart
+    // the manifest still counts: same body, a volume added is a placement change
+    { rec: { ...RUN, _envelope: CID_A }, chainCid: '{"configCid":"bafkreiaaaaaaaaaaaaaaaaaaaa","config":{"volumes":["m","n"]}}' },
+    // and waf still swaps live when neither half of the config moved
+    { rec: { ...RUN, _envelope: CID_A }, chainCid: '{"waf":{"rps":10},' + CID_A.slice(1) },
+  ]);
+  assert.deepEqual(v, ["restart", "skip", "restart", "restart", "restart", "restart", "waf"]);
+});
+
 test("an envelope this build can't parse never restarts the app: verdict error", async () => {
   const v = await verdicts([
     { rec: { ...RUN, _envelope: WAF10 }, chainCid: "QmSomeLegacyCid" },          // CID-shaped: refused namespace

@@ -19,7 +19,7 @@ import { FEATURED, loadCampaigns, pickFeatured, beaconView } from "../core/featu
 import { loadTallies, loadReviews, confirmReceipt } from "../core/reviews.js";
 import { payForRuntime } from "../core/fund.js";
 import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf, personalSign } from "../core/wallet.js";
-import { STORE, loadCatalog, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, REF_CACHE, PORTS_CACHE, SPECS_CACHE, specOf, CONFIG_CACHE, CONFIG_CID_CACHE, MANIFEST_CACHE, fetchConfigCid, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia } from "../core/catalog.js";
+import { STORE, loadCatalog, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, REF_CACHE, PORTS_CACHE, SPECS_CACHE, specOf, CONFIG_CACHE, CONFIG_CID_CACHE, MANIFEST_CACHE, fetchConfigCid, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia, signedUploadToken, putConfig } from "../core/catalog.js";
 import { minPctsOf, startSharesFor, shareRates, pickEnclaveFor, rankEnclavesFor } from "../core/pricing.js";
 import { navigate } from "../boot.js";
 
@@ -807,47 +807,6 @@ async function putWasm(file, onProgress){
   });
 }
 
-/* Wallet-authorize a pin: sign enclave-upload:<sha256(bytes)>:<expiry>, trade it
-   at the API for a one-time HMAC token bound to exactly these bytes. Shared by
-   the wasm upload and the image (thumbnail/banner) uploads. */
-async function signedUploadToken(bytes){
-  if (!Enclave.address){ try { await connectWallet(); } catch(_){} }
-  if (!Enclave.address || !Enclave.provider) throw new EnclaveError("Connect your wallet to upload; your signature authorizes the pin.", 0);
-  const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(b => b.toString(16).padStart(2, "0")).join("");
-  const expiry = Math.floor(Date.now() / 1000) + 300;
-  try {
-    const signature = await personalSign(`enclave-upload:${hash}:${expiry}`);
-    const r = await fetch(Enclave.base + "/apps/upload-token", { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ hash, expiry, signature }) });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.token) throw new EnclaveError("upload authorization failed: " + (j.message || j.error || ("HTTP " + r.status)), 0);
-    return { token: j.token, address: j.address, expiry };
-  } catch(err){
-    if (err && (err.code === 4001 || /reject|denied|declin|cancell/i.test(err.message || ""))) throw new EnclaveError("upload canceled: you declined the wallet signature.", 0);
-    throw (err instanceof EnclaveError) ? err : new EnclaveError("upload authorization failed: " + (err.message || err), 0);
-  }
-}
-
-/* Pin an app config too large to sit on-chain (catalog rev 7). Wallet-signed
-   like the wasm and the images — the gateway re-parses the JSON, caps the size
-   and pins; the CID then goes into the VERSION RECORD, where it is immutable
-   and covered by that version's approval. Enclaves re-fetch and hash-verify it,
-   so this pin is availability, never trust: a gateway that served different
-   bytes would fail the check, not change what runs. */
-async function putConfig(text){
-  if (!IPFS_JSON_UPLOAD_URL) throw new EnclaveError("Large app configs aren’t configured here (no config pin gateway).", 0);
-  const buf = new TextEncoder().encode(text);
-  if (buf.byteLength > CAT_MAX.configMax)
-    throw new EnclaveError("app config too long (≤ " + CAT_MAX.configMax + " bytes)", 0);
-  const { token, address, expiry } = await signedUploadToken(buf);
-  const r = await fetch(IPFS_JSON_UPLOAD_URL, { method: "POST", headers: {
-    "content-type": "application/json",
-    "x-upload-address": address, "x-upload-expiry": String(expiry), "x-upload-token": token,
-  }, body: buf });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok || !j.cid) throw new EnclaveError("config pin rejected: " + (j.error || ("HTTP " + r.status)), 0);
-  return j.cid;
-}
 
 /* Upload an app image (thumbnail/banner) to the validating gateway; returns
    { cid, svg }. Small + wallet-signed like the wasm; the gateway re-checks the

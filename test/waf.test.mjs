@@ -187,7 +187,52 @@ test("the gpu namespace is shape-checked like every other option", async () => {
 
 test("an unknown namespace still names what this runner knows, now including gpu", async () => {
   const [r] = await parse(JSON.stringify({ nope: {} }));
-  assert.match(r.err, /this runner knows: waf, config, gpu/);
+  assert.match(r.err, /this runner knows: waf, config, configCid, gpu/);
+});
+
+/* ---- the `configCid` namespace: the override, split ----------------------
+   The envelope shares ONE 4096-byte ledger field, so an app whose config is
+   bigger than that had no override at all. This is catalog rev 7's split
+   applied deployment-side: bulk at a pinned CID, `config` demoted to the
+   inline ROUTING MANIFEST. The manifest is the load-bearing half — `volumes`
+   is the one key the claim gate reads off a deployment's config to pick a
+   box, so hoisting it is what keeps placement I/O-free while the body moves
+   behind a fetch. Pin that the demotion is ENFORCED: a key left inline under
+   a CID is one the owner believes their app receives and never would. */
+test("configCid must be a bare CID, and demotes config to the routing manifest", async () => {
+  const cid = "bafkreiabcdefghij1234567890";
+  const [alone] = await parse(JSON.stringify({ configCid: cid }));
+  assert.deepEqual(alone, { ok: { configCid: cid } });
+
+  // the manifest may carry the routing keys this runner reads before launch
+  const [withVols] = await parse(JSON.stringify({ configCid: cid, config: { volumes: ["qwen3-8b"] } }));
+  assert.deepEqual(withVols.ok.configCid, cid);
+  assert.deepEqual(withVols.ok.config, { volumes: ["qwen3-8b"] });
+
+  // ...and nothing else: refused, not trimmed, naming what to move where
+  const [extra] = await parse(JSON.stringify({ configCid: cid, config: { volumes: ["v"], api_key: "x" } }));
+  assert.match(extra.err, /config is the routing manifest and may only carry volumes/);
+  assert.match(extra.err, /move api_key into the pinned config/);
+
+  // without a CID the same inline object keeps its old meaning: the whole config
+  const [inline] = await parse(JSON.stringify({ config: { volumes: ["v"], api_key: "x" } }));
+  assert.deepEqual(inline.ok.config, { volumes: ["v"], api_key: "x" });
+});
+
+test("a malformed configCid is refused rather than carried to the fetch", async () => {
+  const bad = (v) => JSON.stringify({ configCid: v });
+  for (const v of ["ipfs://bafkreiabcdefghij", "bafkrei!!!", "short", "a".repeat(101), 42, null])
+    assert.match((await parse(bad(v)))[0].err, /configCid must be a bare IPFS CID/);
+});
+
+/* The BARE-cid form of the whole field stays retired — that one WAS the entire
+   config reference, resolved before any fail-closed schema existed to check it.
+   The namespaced key is not a reopening of it, and the refusal must keep
+   pointing at the envelope. */
+test("a bare CID in the field is still retired, even now that the namespace exists", async () => {
+  const [r] = await parse("bafkreiabcdefghij1234567890");
+  assert.match(r.err, /configCid is retired/);
+  assert.match(r.err, /deployment-options JSON envelope/);
 });
 
 /* ---- the `network` namespace: which relay carries this deployment --------
@@ -240,5 +285,5 @@ test("the network namespace is shape-checked like every other option", async () 
 test("an unknown namespace is refused, and names the ones this runner knows", async () => {
   const [r] = await parse(JSON.stringify({ nope: {} }));
   assert.match(r.err, /unknown option namespace "nope"/);
-  assert.match(r.err, /this runner knows: waf, config, gpu, network/);
+  assert.match(r.err, /this runner knows: waf, config, configCid, gpu, network/);
 });
