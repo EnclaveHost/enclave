@@ -27,6 +27,20 @@ proofs of constructions.
 Every GPU rung below was verified **bit-exact against an int64 reference before being
 timed**. An unverified rung is reported as a failure, never as a speed.
 
+### Measurement methodology, and a contention caveat
+
+Rates are medians of per-iteration timings after warmup, not the mean of a short burst.
+This matters more than it sounds: the same CPU int8 GEMM measured 954, 1800, and 2756
+G-MAC/s across attempts, and since that number decides whether an 8B model is servable, the
+timing method had to become the boring reliable one.
+
+Part of that spread was **CPU contention**: the first CPU pass was taken while two agents
+were compiling llama.cpp and whisper.cpp at load average 32 on a 16-core box — contending for
+exactly the resource the refill benchmark measures. CPU figures in §3 are therefore re-taken
+on an idle machine, and any CPU number not marked "clean" should be treated as a lower bound.
+GPU figures are less affected (the GPU sat near idle during the CPU builds) but were re-taken
+alongside.
+
 ## 2. GPU: exact field GEMM (`bench/field_gemm_bench.py`)
 
 ### The kernel plan changed
