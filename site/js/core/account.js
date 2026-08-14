@@ -22,7 +22,7 @@
    ============================================================ */
 import { ACCOUNTS_ENABLED, WALLETCONNECT_PROJECT_ID } from "./config.js";
 import { Enclave, EnclaveError } from "./api.js";
-import { modalize, buildSiwe, assertSiweLogin, jwtExp, connectWallet, refreshWallet, walletDetected, wcNudge } from "./wallet.js";
+import { modalize, buildSiwe, assertSiweLogin, jwtExp, connectWallet, refreshWallet, walletDetected, personalSign } from "./wallet.js";
 import { $, esc, lsGet, lsSet, showToast, emit } from "./util.js";
 import { qrSvg } from "../lib/qr.js";
 
@@ -106,8 +106,7 @@ export async function signInWalletAccount(){
   const message = assertSiweLogin((ch && ch.message) ? ch.message : buildSiwe(ch), Enclave.address);
   let signature;
   try {
-    wcNudge();
-    signature = await Enclave.provider.request({ method: "personal_sign", params: [message, Enclave.address] });
+    signature = await personalSign(message);
   } catch(e){
     throw new EnclaveError((e && e.code === 4001) ? "Signature rejected." : ("Could not sign in: " + (e.message || e)), 0);
   }

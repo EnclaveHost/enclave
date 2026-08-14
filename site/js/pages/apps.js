@@ -18,7 +18,7 @@ import { catConfigured, catExplorer, encCall, CAT_SEL, CAT_MAX, ROUTING_KEYS, AP
 import { FEATURED, loadCampaigns, pickFeatured, beaconView } from "../core/featured.js";
 import { loadTallies, loadReviews, confirmReceipt } from "../core/reviews.js";
 import { payForRuntime } from "../core/fund.js";
-import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf, wcNudge } from "../core/wallet.js";
+import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf, personalSign } from "../core/wallet.js";
 import { STORE, loadCatalog, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, REF_CACHE, PORTS_CACHE, SPECS_CACHE, specOf, CONFIG_CACHE, CONFIG_CID_CACHE, MANIFEST_CACHE, fetchConfigCid, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia } from "../core/catalog.js";
 import { minPctsOf, startSharesFor, shareRates, pickEnclaveFor, rankEnclavesFor } from "../core/pricing.js";
 import { navigate } from "../boot.js";
@@ -816,8 +816,7 @@ async function signedUploadToken(bytes){
   const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(b => b.toString(16).padStart(2, "0")).join("");
   const expiry = Math.floor(Date.now() / 1000) + 300;
   try {
-    wcNudge();
-    const signature = await Enclave.provider.request({ method: "personal_sign", params: [`enclave-upload:${hash}:${expiry}`, Enclave.address] });
+    const signature = await personalSign(`enclave-upload:${hash}:${expiry}`);
     const r = await fetch(Enclave.base + "/apps/upload-token", { method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ hash, expiry, signature }) });
     const j = await r.json().catch(() => ({}));
