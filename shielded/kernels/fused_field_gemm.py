@@ -296,6 +296,108 @@ def field_gemv_q8(x_res, wq, wd, N, fast=True):
     return y
 
 
+# ---------------------------------------------------------------------------
+# 4-bit weight path
+# ---------------------------------------------------------------------------
+# Decode is bandwidth-bound, so the dominant term is bytes per weight. q4_0 is
+# 0.5625 B/weight against q8_0's 1.0625 -- close to half the traffic.
+#
+# Packing (ours, not llama.cpp's in-block order; we control both sides):
+#   wq4[i, n] low nibble  = weight (i,       n)
+#             high nibble = weight (i + K/2, n)      for i in [0, K/2)
+# so one byte tile feeds two k-tiles half a K apart and the kernel issues two
+# dots per loaded byte. Avoids any nibble interleave.
+#
+# MEASURED, and worth not re-litigating: the dequantisation strategy does not
+# matter. Subtract-then-convert, an FMA-folded bias, and a pure-integer scale all
+# land within 3% of each other when measured on an idle card. The ALU is not the
+# bottleneck; the byte count is. (Two of those variants first appeared to differ,
+# but that was GPU contention -- they returned byte-identical timings, which is
+# not something two different kernels do.)
+def make_weights_q4(K, N, rng):
+    """q4_0-shaped public weight in the split-half packing above."""
+    assert K % 64 == 0, "K must be a multiple of 64 for the split-half packing"
+    q = rng.integers(0, 16, size=(K, N)).astype(np.uint8)
+    scale = (1.0 / math.sqrt(K)) / 8.0 * 4.0
+    d = (rng.uniform(0.5, 1.5, size=(K // QK, N)) * scale).astype(np.float16)
+    half = K // 2
+    return (q[:half] | (q[half:] << 4)).astype(np.uint8), d, q
+
+
+def encode_weight_fixed_q4(d, q):
+    """THE shared encoding for the 4-bit path -- host side of the same contract
+    `encode_weight_fixed` provides for q8_0. TEE and GPU must both use this."""
+    d256 = d.astype(np.float32) * np.float32(256.0)
+    d256_full = np.repeat(d256, QK, axis=0)[: q.shape[0]]
+    return np.floor(d256_full * (q.astype(np.float32) - 8.0) + np.float32(0.5)).astype(np.int64)
+
+
+@triton.jit
+def field_gemm_q4_kernel(
+    X0, X1, X2, WP, WD, Y, M, K, N,
+    sxm, sxk, swpk, swpn, swdk, swdn, sym, syn,
+    q0: tl.constexpr, q1: tl.constexpr, q2: tl.constexpr,
+    inv01: tl.constexpr, inv012: tl.constexpr, mmod: tl.constexpr, qk: tl.constexpr,
+    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K2: tl.constexpr,
+):
+    pid_m = tl.program_id(0); pid_n = tl.program_id(1)
+    om = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)
+    on = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
+    mm = om < M; mn = on < N; half = K // 2
+    a0 = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.int32)
+    a1 = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.int32)
+    a2 = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.int32)
+    NB: tl.constexpr = BLOCK_K2 // qk
+    for i0 in range(0, half, BLOCK_K2):
+        oi = i0 + tl.arange(0, BLOCK_K2); oj = half + oi; mi = oi < half
+        pk = tl.load(WP + oi[:, None] * swpk + on[None, :] * swpn,
+                     mask=mi[:, None] & mn[None, :], other=0)
+        lo = (pk & 0xF).to(tl.int32) - 8
+        hi = ((pk >> 4) & 0xF).to(tl.int32) - 8
+        bl = (i0 // qk) + tl.arange(0, NB); bh = ((half + i0) // qk) + tl.arange(0, NB)
+        dl = tl.load(WD + bl[:, None] * swdk + on[None, :] * swdn,
+                     mask=(bl[:, None] < (K // qk)) & mn[None, :], other=0.0).to(tl.float32) * 256.0
+        dh = tl.load(WD + bh[:, None] * swdk + on[None, :] * swdn,
+                     mask=(bh[:, None] < (K // qk)) & mn[None, :], other=0.0).to(tl.float32) * 256.0
+        DL = tl.reshape(tl.broadcast_to(dl[:, None, :], (NB, qk, BLOCK_N)), (BLOCK_K2, BLOCK_N))
+        DH = tl.reshape(tl.broadcast_to(dh[:, None, :], (NB, qk, BLOCK_N)), (BLOCK_K2, BLOCK_N))
+        wl = tl.floor(DL * lo.to(tl.float32) + 0.5).to(tl.int8)
+        wh = tl.floor(DH * hi.to(tl.float32) + 0.5).to(tl.int8)
+        xl = om[:, None] * sxm + oi[None, :] * sxk
+        xh = om[:, None] * sxm + oj[None, :] * sxk
+        xm = mm[:, None] & mi[None, :]
+        a0 += tl.dot(tl.load(X0 + xl, mask=xm, other=0), wl, out_dtype=tl.int32)
+        a0 += tl.dot(tl.load(X0 + xh, mask=xm, other=0), wh, out_dtype=tl.int32)
+        a1 += tl.dot(tl.load(X1 + xl, mask=xm, other=0), wl, out_dtype=tl.int32)
+        a1 += tl.dot(tl.load(X1 + xh, mask=xm, other=0), wh, out_dtype=tl.int32)
+        a2 += tl.dot(tl.load(X2 + xl, mask=xm, other=0), wl, out_dtype=tl.int32)
+        a2 += tl.dot(tl.load(X2 + xh, mask=xm, other=0), wh, out_dtype=tl.int32)
+    r0 = ((a0 % q0) + q0) % q0; r1 = ((a1 % q1) + q1) % q1; r2 = ((a2 % q2) + q2) % q2
+    t1 = (((r1 - r0) * inv01) % q1 + q1) % q1; x = r0 + q0 * t1
+    t2 = (((r2 - x) * inv012) % q2 + q2) % q2; x = x + (q0 * q1) * t2
+    x = tl.where(x > mmod // 2, x - mmod, x)
+    tl.store(Y + om[:, None] * sym + on[None, :] * syn, x, mask=mm[:, None] & mn[None, :])
+
+
+def pick_blocks_q4(M):
+    """Measured on sm_86, correctness-gated. BLOCK_K2 must be a multiple of QK."""
+    if M <= 16:
+        return (16, 128, 64, 4, 3)
+    return (64, 128, 128, 8, 2)
+
+
+def field_gemm_q4(x_res, wp, wd, M, K, N):
+    bm, bn, bk2, nw, ns = pick_blocks_q4(M)
+    y = torch.empty((M, N), dtype=torch.int32, device="cuda")
+    field_gemm_q4_kernel[(triton.cdiv(M, bm), triton.cdiv(N, bn))](
+        x_res[0], x_res[1], x_res[2], wp, wd, y, M, K, N,
+        x_res[0].stride(0), x_res[0].stride(1), wp.stride(0), wp.stride(1),
+        wd.stride(0), wd.stride(1), y.stride(0), y.stride(1),
+        Q0, Q1, Q2, INV_Q0_MOD_Q1, INV_Q0Q1_MOD_Q2, M_MOD, QK,
+        BLOCK_M=bm, BLOCK_N=bn, BLOCK_K2=bk2, num_warps=nw, num_stages=ns)
+    return y
+
+
 def pick_blocks(M):
     """Route by M. Values from a correctness-gated sweep on an RTX 3070 (sm_86);
     every config in that sweep had to reproduce the plaintext product exactly
@@ -416,9 +518,24 @@ def main():
     want = np.where(want > M_MOD // 2, want - M_MOD, want)
     out["kernel_encoding_matches_host"] = bool(np.array_equal(got, want))
 
-    out["bytes_per_weight"] = {"q8_0_in_kernel": 1 + 2 / QK, "materialised_rns3": 3, "fp16": 2}
+    # ---- 4-bit path: same masked round-trip, half the weight bytes ----
+    K4, N4 = 4096, 256
+    packed, d4, q4 = make_weights_q4(K4, N4, rng)
+    wf4 = encode_weight_fixed_q4(d4, q4)
+    x4, r4, res4 = make_masked_activation(1, K4, rng)
+    d_res4 = [torch.from_numpy(p).contiguous().cuda() for p in res4]
+    got4 = field_gemm_q4(d_res4, torch.from_numpy(packed).cuda(),
+                         torch.from_numpy(d4).cuda(), 1, K4, N4).cpu().numpy().astype(np.int64)
+    y4 = np.mod(got4 - np.mod(r4 @ wf4, M_MOD), M_MOD)
+    y4 = np.where(y4 > M_MOD // 2, y4 - M_MOD, y4)
+    out["q4_masked_roundtrip_exact"] = bool(np.array_equal(y4, x4 @ wf4))
+    out["q4_weights_fit_byte"] = weights_fit_byte(wf4)
+
+    out["bytes_per_weight"] = {"q8_0_in_kernel": 1 + 2 / QK, "q4_0_in_kernel": 0.5 + 2 / QK,
+                               "materialised_rns3": 3, "fp16": 2}
     out["vram_8B_model_GB"] = {
         "q8_0_in_kernel": round(8.03e9 * (1 + 2 / QK) / 1e9, 2),
+        "q4_0_in_kernel": round(8.03e9 * (0.5 + 2 / QK) / 1e9, 2),
         "materialised_rns3": round(8.03e9 * 3 / 1e9, 2),
     }
 
@@ -426,7 +543,7 @@ def main():
         out["bench"] = run_bench(rng)
 
     out["ok"] = bool(ok_gemv and ok_gemm and out["kernel_encoding_matches_host"]
-                     and out["in_range"])
+                     and out["in_range"] and out["q4_masked_roundtrip_exact"])
     print(json.dumps(out, indent=2 if args.verbose else None,
                      separators=None if args.verbose else (",", ":")))
     return 0 if out["ok"] else 1
