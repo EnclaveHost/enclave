@@ -36,7 +36,18 @@ jobs:
           # it. ubuntu-latest ships GNU tar only. A single red test made the
           # whole suite read as failing on every push, which is how a real
           # regression hides — cheaper to install the tool than to lose the signal.
-          sudo apt-get update -qq && sudo apt-get install -y -qq libarchive-tools
+          #
+          # python3-numpy: shielded/reference/shielded_ref.py imports it, and
+          # shielded-reference.test.mjs drives that script as the OFFLOAD ORACLE
+          # (bit-exact recovery, adversary-transcript independence, the Freivalds
+          # check). Without it those 15 tests fail rather than skip, which is the
+          # same signal-loss the paragraph above bought off — and worse here,
+          # because the thing going unverified is a correctness oracle. Installed
+          # rather than skipped for that reason. Distro numpy is deliberate: the
+          # script uses only long-stable array APIs, and apt avoids PEP 668's
+          # externally-managed-environment refusal that plain `pip install` hits
+          # on current runner images.
+          sudo apt-get update -qq && sudo apt-get install -y -qq libarchive-tools python3-numpy
           npm ci --no-audit --no-fund
           (cd relay && npm ci --no-audit --no-fund)
       - name: node --test
