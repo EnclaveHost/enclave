@@ -190,6 +190,24 @@ c-deployments{display:contents;}
 .enc-net-status:empty{display:none;}
 .ap-badge.ep-relay{font-family:var(--font-mono);}
 
+/* per-row Config (the options envelope's config namespace; setConfig).
+   The editor is one honest textarea - the config is arbitrary publisher JSON,
+   so no form can know its fields - flanked by a live meta line (verdict +
+   envelope bytes) and the variations shelf. */
+.enc-cfg{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:var(--well);}
+.enc-cfg-body{display:flex;flex-direction:column;gap:10px;padding:12px 18px;align-items:flex-start;}
+.ec-ta{width:100%;min-height:11em;background:var(--bg-1);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:.8rem;line-height:1.5;padding:.6em .8em;resize:vertical;tab-size:2;}
+.ec-ta:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
+.ec-meta{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);min-height:1em;}
+.ec-meta.warn{color:var(--amber);}
+.ec-acts,.ec-vars{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.ec-vars label{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);}
+.ec-sel,.ec-name{background:var(--bg-1);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:.8rem;padding:.4em .6em;max-width:14em;}
+.ec-sel:focus,.ec-name:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
+.enc-cfg-status{padding:0 18px 10px;min-height:0;}
+.enc-cfg-status:empty{display:none;}
+.ap-badge.ep-cfg{font-family:var(--font-mono);}
+
 /* per-row Transfer (transferDeployment: hand the record to another wallet) */
 .enc-xfer{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:var(--well);}
 .enc-xfer-body{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;}
