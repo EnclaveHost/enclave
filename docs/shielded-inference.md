@@ -118,19 +118,34 @@ assumption this document previously carried:
   arithmetic, not cryptography — the one-time-pad argument is per-channel identical to
   Slalom's, so it adds no security assumption. Carry it for outlier-heavy models.
 
-GPU kernel plan for field GEMM, in order, each gated by measurement:
+### GPU kernel: measured, and the plan changed
 
-1. **v1 correctness: cuBLAS fp64** with K-chunked periodic reduction (53-bit mantissa
-   holds 48-bit products; reduce mod p every ~2^10 accumulations — Slalom's Appendix F
-   recipe, near-zero custom CUDA). Fine on datacenter parts; slow (1/32–1/64 rate) on
-   commodity GeForce.
-2. **v1.5: 12-bit limb split into fp32 GEMMs** (4 GEMMs, exact in fp32 with chunked
-   reduction; plain fp32, never TF32 — TF32's 10-bit mantissa is inexact).
-3. **v2 throughput: 8-bit limb decomposition on int8 tensor cores** (9 limb GEMMs into
-   int32 accumulators, recombine+reduce in the epilogue; cutlass has the kernels). On
-   RTX-class parts int8 TC throughput makes the ~9× limb inflation land near ~4–5×
-   effective vs fp16 — inside the kill budget, but this is the number Phase 1 must measure,
-   not assume.
+Measured on an RTX 3070 (`shielded/bench/field_gemm_bench.py`), every rung verified
+bit-exact against an int64 reference before being timed. **The original limb plan is
+superseded**: RNS over byte-sized primes needs one int8 tensor-core GEMM *per prime*
+instead of N² limb cross-products, and measures ~10× faster.
+
+| rung | prefill (M=512–2048) | notes |
+|---|---|---|
+| **RNS-3, int8 TC** | **2.6–3.6× fp16** | 3 primes, ~23.8 bits of range. The design point. |
+| RNS-4, int8 TC | 3.4–4.9× fp16 | 31.6 bits; the outlier-safe fallback. |
+| limb-int8 (old plan) | 25–33× fp16 | 16 cross-product GEMMs. Abandoned. |
+| fp64-RNS | 200–800× fp16 | Exact and simple, but 1/64 fp64 rate on consumer parts. |
+
+Two hard constraints fell out of the measurement rather than the design:
+
+- **int8 tensor cores refuse M ≤ 16** (`torch._int_mm` requires M > 16), so batch-1 decode
+  cannot use them at all and needs a bespoke kernel.
+- **fp16 cannot hold the accumulator**: it saturates at 65504 and represents integers
+  exactly only to 2048. fp64-RNS with byte primes is exact with no chunking at all
+  (products ≤ 15625, K=14336 accumulation ~2.2e8, far inside 2^53); fp32 would need 5-bit
+  primes and 5–6 channels.
+
+At decode the GEMM is bandwidth-bound, so the cost is **bytes per weight**, not FLOPs.
+Measured read bandwidth 322–387 GB/s; RNS-3 at 3 B/weight projects to **1.5× fp16 but 6× a
+q4_K baseline** — and q4_K is what the fleet actually serves. That is the honest decode
+denominator, and it sits at the kill line rather than comfortably inside it. Batching
+amortises the weight read, which is why the criterion is stated at batch ≥ 4.
 
 Weights are converted once at worker start: GGUF → dequant → fixed-point field
 representation (per-limb planes for the kernel in use). This inflates weight VRAM vs q4/q8;
@@ -351,16 +366,31 @@ Three ceilings, and the honest answer is that they are all in the same order of 
 - **TEE serial** (bandwidth-bound): KV streaming for attention, ~9 ms/token at 8k GQA →
   ~110 tok/s.
 - **TEE background** (throughput-bound): mask refill costs `u = r·W`, i.e. *exactly* the
-  linear MACs the GPU performs. At ~1 T-MAC/s that is ~133 tok/s for Llama-3-8B, ~31 tok/s
-  for a 32B-class model. This works only because refill is a big batched offline GEMM (near
-  peak) while decode is a latency-bound serial chain — but note it competes with TEE
-  attention for the same CVM cores, so the real budget is the sum.
+  linear MACs the GPU performs, multiplied by the number of RNS channels. **Now measured
+  (`shielded/bench/refill_bench.py`) and it is worse than this document previously
+  estimated.** On 16 physical EPYC 9115 cores the best *verified-exact* GEMM is fp64 at
+  159 G-MAC/s, sustaining only **7.1 tok/s** for an 8B model at RNS-3 (1.7 tok/s at 32B,
+  48 tok/s at 1.5B). bf16 reaches 1.25 T-MAC/s but the exactness probe says it is **not**
+  exact, so that rate is unusable. An AVX-512 VNNI int8 GEMM projects to ~1.2 T-MAC/s
+  (53 tok/s at 8B) but does not exist in any stock CPU GEMM library we can call.
 - **GPU**: linear MACs in field arithmetic with limb inflation.
 
-So the shielded tier is roughly **GPU-class latency at ~10× CPU-only sustained throughput**,
-not GPU-class throughput. The 32B-class refill number (31 tok/s) is the one to watch: for
-large models, mask refill — not the GPU, not attention — is the binding constraint, and that
-directly shapes which models the tier should carry.
+**Refill is the binding constraint, and it is not close.** The GPU leg costs 2.6–3.6× fp16
+and TEE attention costs ~9 ms/token at 8k, but refill on a 16-core box caps an 8B model at
+7 tok/s with stock exact arithmetic. Two things have to be true for the tier to work, and
+neither is optional:
+
+1. **An AVX-512 VNNI int8 GEMM on the TEE side.** This is now the single highest-priority
+   engineering dependency of the whole tier — ahead of the GPU kernel, which is already
+   fast enough. Refill numbers are reported per-physical-core (0.44 tok/s/core at 8B, fp64)
+   precisely so they extrapolate.
+2. **A wide CVM.** Refill parallelises cleanly, so a 64–128 core fleet box is worth 4–8× this
+   development machine. 8B at RNS-3 needs roughly 16 cores *with* VNNI, or ~110 cores
+   without it.
+
+Model-size policy follows directly: 1.5B-class models are comfortable today, 8B is viable
+with VNNI or a wide CVM, and 32B-class models are out of reach on anything resembling this
+hardware. That is a catalog decision the measurement makes for us.
 
 ### The per-token loop
 
@@ -522,22 +552,30 @@ shares chat. The input image and everything derived from it is secret.
 
 ## Phases
 
-0. **Baselines** (denominators for every overhead number): each interface on (a) local
-   unmasked GPU, (b) stock ggml-rpc remote GPU — isolates transport cost, (c) CPU-in-TEE.
-   Batch 1/4/16 where applicable; 1k and 8k context for chat.
-1. **Masked backend v1**: field GEMM kernels (cuBLAS fp64 first), Slalom masking + banked
-   precompute + preprocessed Freivalds, hardened worker, sched-pinned executor driving
-   llama.cpp chat end-to-end with equivalence checks. Plus the KV-Shield-style permuted
-   pipeline as plumbing validation (then retired as a security mechanism).
-2. **Extend to whisper.cpp and sd.cpp (DiT)**; deliver the CPU-in-TEE feasibility report
-   for STT and TTS under the small-model rule.
-3. **TwinShield v2**: prefill/batched attention + (contingent on the numeric analysis)
-   softmax offload for chat and vision. Gated on an adversarial security review of the
-   decode-degradation analysis above.
-4. **TTS integration (mm30 engine bump) and the SDXL conv path.**
-5. **Final report**: overhead multiplier per interface per bucket, TEE CPU/memory
-   footprint, mask-bank capacity model, SECURITY.md with per-op leakage arguments and
-   per-interface residual leakage (shapes, buckets, timing).
+Status as of 2026-08-14. "Modelled" means arithmetic on measured primitives, not an
+end-to-end run: no engine exists yet, so no phase is closed in the shipping sense.
+
+0. **Baselines** — PARTIAL. GPU field-GEMM ladder and CPU refill rate measured on an
+   RTX 3070 + EPYC 9115 (`shielded/bench/`). Chat and STT engine baselines were run
+   separately; see `shielded/REPORT.md`. Still missing: a stock ggml-rpc remote-GPU run to
+   isolate transport cost, and anything on real fleet hardware.
+1. **Masked backend v1** — DESIGNED + REFERENCED. Constructions proven in the oracle
+   (Slalom masking, banked precompute, preprocessed Freivalds); worker admission rules
+   implemented and tested (`shielded/protocol.py`); kernel choice settled by measurement
+   (RNS-3 int8). NOT built: the CUDA worker, the sched-pinned executor, the VNNI refill
+   GEMM. The KV-Shield permuted pipeline was analysed and deliberately not built — it is
+   void against public weights, so it would validate plumbing while teaching a wrong habit.
+2. **whisper.cpp / sd.cpp (DiT)** — PARTIAL. Conv masking and a ViT block are oracle-proven;
+   the STT CPU-in-TEE feasibility measurement is in `shielded/REPORT.md`. sd.cpp itself is
+   untouched.
+3. **TwinShield v2** — ANALYSED + BOUNDED. Prefill offload implemented and exact at m=64
+   and m=256; decode offload proven unsafe and permanently excluded. Softmax offload
+   remains refused pending the real-vs-field numeric analysis. The adversarial review this
+   phase was gated on has effectively happened, and its outcome was to shrink the phase.
+4. **TTS + SDXL conv** — PARTIAL. TTS pick made (Pocket TTS via mtmd) and blocked on an
+   mm30 engine bump; the conv masking path it shares with SDXL is oracle-proven.
+5. **Final report** — `shielded/REPORT.md`, plus `shielded/SECURITY.md` for the per-op
+   leakage argument and per-interface residual leakage.
 
 Kill criteria (from the brief, unchanged): chat/vision >5× at batch ≥4 after optimization;
 image gen >3× per-image wall clock at batch ≥4; STT/TTS failing realtime on both CPU-in-TEE
@@ -546,13 +584,16 @@ arrival. On any kill: stop and write up why, with measurements.
 
 ## Open risks, ranked
 
+0. **Mask refill on the TEE side is the tier's ceiling and currently misses.** Measured
+   7.1 tok/s for 8B on 16 cores with the best verified-exact GEMM. Needs a VNNI int8 GEMM
+   (projected 53 tok/s) and/or a wide CVM. Everything else on this list is secondary to it.
+
+
 1. **Field-GEMM throughput on commodity GPUs** — the whole tier's economics. int8-limb
    kernels are the load-bearing bet; Phase 1 measures before more is built on it.
-2. **Mask-bank refill is the binding constraint for large models** — measured at ~31 tok/s
-   equivalent for a 32B-class model (vs ~133 for 8B). The CPU-side refill GEMM rate is
-   arithmetic, not measurement; if real refill lands below estimate, the tier is a
-   latency/burst product and pricing must say so. This has displaced attention as risk #1
-   for big models.
+2. **Decode against a q4_K baseline sits at the kill line** — RNS-3 is 1.5x fp16 but 6x
+   q4_K on weight bandwidth, and q4_K is what the fleet serves. Batching amortises it;
+   batch-1 decode does not. Needs the bespoke small-M kernel (int8 TC refuses M<=16).
 3. **Field magnitude guard** — (p, l) = (2^24−3, 8) holds at production *width* but has
    ~1 bit of margin against 10^3× outlier channels. The fail-closed per-tensor guard is
    mandatory, not optional; a silent wrap corrupts output with no error signal. RNS is the

@@ -15,16 +15,24 @@ scrubbing.
 ## What is here now
 
 ```
-reference/shielded_ref.py   executable oracle for the constructions (numpy, no CUDA)
+reference/shielded_ref.py     executable oracle for the constructions (numpy, no CUDA)
+protocol.py                   worker admission rules: framing, op allowlist, output gating
+bench/field_gemm_bench.py     GPU field-GEMM kernel ladder (needs a CUDA torch)
+bench/refill_bench.py         CPU mask-refill ceiling -- the tier's binding constraint
+SECURITY.md                   per-op leakage argument, per-interface residual leakage
+REPORT.md                     measured results and what they mean for the tier
 ```
 
-Nothing in this directory ships, runs on the fleet, or touches a GPU yet. The oracle is a
-correctness and security artifact: it executes the claims the design rests on so they can be
-re-run rather than re-read, and it is the reference the engine will be validated against.
+Nothing here ships or runs on the fleet. The oracle and protocol modules are correctness and
+security artifacts: they execute the claims the design rests on so they can be re-run rather
+than re-read, and they are the reference the engine will be validated against.
 
 ```
-python3 reference/shielded_ref.py --verbose      # human-readable
-node --test ../test/shielded-reference.test.mjs  # the assertions we must not regress
+python3 reference/shielded_ref.py --verbose      # human-readable oracle dump
+python3 protocol.py                              # worker admission selftest
+python3 bench/field_gemm_bench.py --quick        # GPU ladder (CUDA required)
+python3 bench/refill_bench.py --verbose          # CPU refill ceiling
+node --test ../test/shielded-*.test.mjs          # assertions we must not regress
 ```
 
 ## What is coming (and where it plugs in)
