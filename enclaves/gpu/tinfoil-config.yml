@@ -424,7 +424,7 @@ containers:
       # (name:path:file.gguf) picks WHICH gguf preloads as the wasi-nn graph
       # when the repo ships several quantizations - the manager stages the
       # pick as a symlink dir, so the mpk-<hash> mount name never matters.
-      - MODEL_VOLUMES: "qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-bb5cace1df1795f9dde1b6da38b2b9edfaaa56f4574a5d6270c1295b192c81c1,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.5-9b-gguf:/tinfoil/mpk/mpk-b70cb1b66baaf59542b5d478f952fcb4085dfb681deedf9e0420452e2fe6e6be,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen3.5-0.8b-gguf:/tinfoil/mpk/mpk-d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8,qwen3.5-0.8b-mtp-gguf:/tinfoil/mpk/mpk-b515a1868c9f8bea7e8578e7ce06ac8e0546040dd623aad1d7b6c3dd98a9e6aa,qwen3.6-27b-mtp-gguf:/tinfoil/mpk/mpk-bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9,fable-fusion-27b-mtp-gguf:/tinfoil/mpk/mpk-cf2030ea6070202555fa2d8b762fa4b1c94a3b636dd3d0f587d3f9fafddf4415,fable-fusion-27b-mtp-q4-gguf:/tinfoil/mpk/mpk-13f6f4245454958735336168c1d128794fe349563471640521ed325951fefbdb,sd-turbo:/tinfoil/mpk/mpk-df0919ea85c829fb62c61029ac130f7e4a98bc6a57fe52dfb777a7426d5b36fc,sd-turbo-full:/tinfoil/mpk/mpk-e787b81d664922c08ac69bb0952b436404bbb150f6f7b71971431d0c3ff4ef60,z-image-turbo-sd:/tinfoil/mpk/mpk-2b646ec9773d4dba7227656826627de606a86d98790b0e806a62e548b6c581f5,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2,realesrgan-x4plus-sd:/tinfoil/mpk/mpk-e0690ebe660661664262455da17ffc8588ffa13dda14accc787c1d712bb529f4,qwen3-vl-8b-gguf:/tinfoil/mpk/mpk-3f7dafb23d0491e0f25b6136320ed91e990cb9fdc5a464ce07271b4aff2e279e:Qwen3VL-8B-Instruct-Q8_0.gguf"
+      - MODEL_VOLUMES: "qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-bb5cace1df1795f9dde1b6da38b2b9edfaaa56f4574a5d6270c1295b192c81c1,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.5-9b-gguf:/tinfoil/mpk/mpk-b70cb1b66baaf59542b5d478f952fcb4085dfb681deedf9e0420452e2fe6e6be,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen3.5-0.8b-gguf:/tinfoil/mpk/mpk-d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8,qwen3.5-0.8b-mtp-gguf:/tinfoil/mpk/mpk-b515a1868c9f8bea7e8578e7ce06ac8e0546040dd623aad1d7b6c3dd98a9e6aa,qwen3.6-27b-mtp-gguf:/tinfoil/mpk/mpk-bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9,qwen3.8-27b-mtp-gguf:/tinfoil/mpk/mpk-bedb4ba0c8d465ebcd2333ff7d58b5faca80eab833cffc76c66d78035b4628f2,fable-fusion-27b-mtp-gguf:/tinfoil/mpk/mpk-cf2030ea6070202555fa2d8b762fa4b1c94a3b636dd3d0f587d3f9fafddf4415,fable-fusion-27b-mtp-q4-gguf:/tinfoil/mpk/mpk-13f6f4245454958735336168c1d128794fe349563471640521ed325951fefbdb,sd-turbo:/tinfoil/mpk/mpk-df0919ea85c829fb62c61029ac130f7e4a98bc6a57fe52dfb777a7426d5b36fc,sd-turbo-full:/tinfoil/mpk/mpk-e787b81d664922c08ac69bb0952b436404bbb150f6f7b71971431d0c3ff4ef60,z-image-turbo-sd:/tinfoil/mpk/mpk-2b646ec9773d4dba7227656826627de606a86d98790b0e806a62e548b6c581f5,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2,realesrgan-x4plus-sd:/tinfoil/mpk/mpk-e0690ebe660661664262455da17ffc8588ffa13dda14accc787c1d712bb529f4,qwen3-vl-8b-gguf:/tinfoil/mpk/mpk-3f7dafb23d0491e0f25b6136320ed91e990cb9fdc5a464ce07271b4aff2e279e:Qwen3VL-8B-Instruct-Q8_0.gguf"
       # Volumes preloaded through the stable-diffusion.cpp wasi-nn backend
       # (image txt2img: the guest load_by_name()s the volume and one
       # compute() runs the whole pipeline host-side; weights never enter
@@ -653,6 +653,49 @@ models:
   - name: "qwen3.6-27b-mtp-gguf"
     repo: "EnclaveHost/qwen3.6-27b-mtp-gguf@e6af0316e51eaf3e12982a566941be224c26ed50"
     mpk: "bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9_17921925120_624a9548-dcee-5aa1-8eaa-6d12d0a368a3"
+  # Qwen3.8-27B at unsloth Dynamic Q6_K_XL (~25.9 GB): the CODE-WORK 27b, and the
+  # first Q6 language volume on the fleet. Same qwen35 hybrid arch as the 3.6
+  # volumes (48 gated-DeltaNet + 16 full-attention of 64, full_attention_interval
+  # 4) plus the model's trained MTP head - which Qwen3.8 ships INSIDE the base
+  # model rather than as a separate variant, so every quant carries it (GGUF
+  # block_count 65 / nextn_predict_layers 1, blk.64.nextn.* present beside a full
+  # dense block 64) and there is no non-MTP counterpart to wrap. "draft": "mtp"
+  # self-drafts; hosts predating the batch4 MTP toolchain (shim ell_mtp_*) serve
+  # it as a plain 27b, a speed difference and never a correctness one.
+  # CPU e2e smoke-tested on the pinned LLAMA_COMMIT ddd4ec14 (2026-08-14): arch
+  # qwen35, the 65th (MTP) block and the interleaved M-RoPE sections
+  # ([11, 11, 10, 0], new in 3.8 - it is a VL-capable base) all load and generate
+  # unchanged, so this volume needs no toolchain bump.
+  # Q6 not Q4, deliberately: a wrong token in code is a broken program, not a
+  # clumsy sentence. It costs ~34.1 GB to serve at the 176K q8_0 node window
+  # (25.9 weights + 6.7 KV including the lazily-created MTP head context +
+  # working set), so it asks gpu 0.26-0.27, NOT the 0.19-0.21 the Q4 27b volumes
+  # take: a 0.25 share holds 35.1 GB, and because the head context is allocated
+  # on the first speculative session rather than at boot, too thin a share
+  # preloads fine, answers /warmup in 100 ms and then stalls the first real chat
+  # request (a025ed60, 2026-07-28). unsloth also ships a plain Q6_K (22.9 GB,
+  # ~31.1 GB to serve, gpu 0.23-0.24) if that margin is worth more than the last
+  # increment of accuracy.
+  # TOKENIZER IS A SUPERSET, NOT A MATCH: the 248044-entry vocab and all 247587
+  # merges are byte-identical to the Qwen3.5/3.6 family copy (5f9e4d49...), as
+  # are the normalizer, pre-tokenizer, post-processor and decoder, but Qwen3.8
+  # adds seven audio/TTS ids (248070-248076) so the file hash differs
+  # (0997f410...). Ordinary text tokenizes identically; the app's cross-model
+  # draft gate is byte-equality, so it REFUSES qwen3.5-0.8b-gguf as a draft here.
+  # The built-in head is the draft, and the better one.
+  # Slim curated re-wrap of unsloth/Qwen3.8-27B-GGUF (22 quants + BF16 + vision
+  # mmproj + imatrix, and NO tokenizer): ONLY the served gguf (sha256
+  # 739202186f..., verified 2026-08-14) PLUS the official Qwen/Qwen3.8-27B
+  # tokenizer.json; provenance + per-file sha256 in the repo README. Upstream is
+  # image-text-to-text and ships mmproj-F16/BF16; this volume is TEXT-ONLY (no
+  # projector, no `vision` on the catalog entry, no vision tensors in the gguf).
+  # Single gguf = no MODEL_VOLUMES third field. eyesoff-ai catalog entry lives in
+  # the app repo's deploy-config.template.json (chatml, eos [248046, 248044],
+  # kv_layers 17 counting the head's own dense block).
+  # mpk generated in the Tinfoil Models tab 2026-08-14 (25936986112 bytes).
+  - name: "qwen3.8-27b-mtp-gguf"
+    repo: "EnclaveHost/qwen3.8-27b-mtp-gguf@ac8bf372b42e8a11274cc51771005e418c3fb3d7"
+    mpk: "bedb4ba0c8d465ebcd2333ff7d58b5faca80eab833cffc76c66d78035b4628f2_25936986112_4e2752c3-12a6-572e-9d40-1ef04a972fd1"
   # DavidAU Fable-Fusion-27B fine-tune (Qwen3.6-27B-MTP architecture) at Q5_K_M
   # (~19.7 GB): uncensored creative variant of the MTP 27b. Same geometry as
   # qwen3.6-27b-mtp-gguf (qwen35 arch, 64+1 MTP layers, 4 KV heads, 176K
