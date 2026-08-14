@@ -8,9 +8,10 @@ oracle, and no measured cost currently kills it.
 
 - **GPU**: with the fused kernel now written (`kernels/fused_field_gemm.py`), an exact field
   GEMM costs **0.90–1.32× fp16** — at decode it is *faster* than the baseline, because it
-  reads 1.06 B/weight of q8_0 rather than 2 B/weight of fp16. Against the fleet's real q4_K
-  baseline it is ~3.2× at decode, still inside the 5× budget. The unfused path this replaces
-  was 2.7–3.7×, and naive recombination alone was 5.3–7.5× and failed.
+  reads 1.06 B/weight of q8_0 rather than 2 B/weight of fp16, and after tuning it runs within
+  19% of the memory roof at K=14336. Against the fleet's real q4_K baseline decode is ~2.2–2.5×
+  by byte ratio, well inside the 5× budget. The unfused path this replaces was 2.7–3.7×, and
+  naive recombination alone was 5.3–7.5× and failed.
 - **TEE refill** (`u = r·W`, which cannot be offloaded without handing the accelerator the
   pad) sustains **214 tok/s for an 8B model** on 16 EPYC cores using int8/VNNI — against a
   measured GPU baseline of 79 tok/s for the same model. **Refill is not the binding
@@ -100,16 +101,27 @@ called the latter its largest unverified claim. Both are now implemented in one 
 kernel and verified exact end-to-end (mask → in-kernel dequantise → RNS accumulate → fused
 CRT → TEE unmask reproduces the plaintext product bit-for-bit at every shape below).
 
-| shape | fp16 | fused | **vs fp16** | vs q4_K (est.) | bandwidth eff. |
-|---|---|---|---|---|---|
-| M=1, K=4096, N=4096 (decode) | 0.107 ms | 0.096 ms | **0.90×** | 3.15× | 0.59 |
-| M=1, K=14336, N=4096 (decode) | 0.304 ms | 0.276 ms | **0.91×** | 3.18× | 0.58 |
-| M=64, K=4096, N=4096 | 0.095 ms | 0.126 ms | **1.32×** | 4.65× | 0.40 |
-| M=512, K=4096, N=4096 (prefill) | 0.519 ms | 0.657 ms | **1.27×** | 4.45× | 0.42 |
+| shape | fp16 | fused | **vs fp16** | vs roof |
+|---|---|---|---|---|
+| M=1, K=4096, N=4096 (decode) | 0.107 ms | 0.075 ms | **0.70×** | 1.63× |
+| M=1, K=14336, N=4096 (decode) | 0.304 ms | 0.192 ms | **0.63×** | **1.19×** |
+| M=16, K=4096, N=4096 | 0.114 ms | 0.076 ms | **0.66×** | 1.65× |
+| M=32, K=4096, N=4096 | 0.094 ms | 0.085 ms | **0.91×** | 1.86× |
+| M=64, K=4096, N=4096 | 0.095 ms | 0.116 ms | 1.22× | 2.52× |
+| M=128, K=4096, N=4096 | 0.206 ms | 0.195 ms | **0.95×** | — |
+| M=512, K=4096, N=4096 (prefill) | 0.518 ms | 0.539 ms | **1.04×** | — |
+| M=512, K=4096, N=14336 (prefill) | 1.478 ms | 1.744 ms | **1.18×** | — |
+| M=2048, K=4096, N=4096 | 1.760 ms | 2.327 ms | **1.32×** | — |
 
-Against fp16 the exact field GEMM is now **free to 1.3×** — at decode it is *faster* than the
-baseline, because it reads 1.0625 B/weight of q8_0 rather than 2 B/weight of fp16. Compare
-the unfused path this replaces: 2.7–3.7× at prefill with weights materialised at 3 B/weight.
+The "vs roof" column is bandwidth-bound only and is meaningless once the shape is
+compute-bound, which is why it stops at M=64. At K=14336 decode runs within **19% of the
+memory roof**. Against the fleet's q4_K baseline the decode rows scale to roughly **2.2–2.5×**
+by byte ratio (0.57 vs 1.0625 B/weight) — an estimate, not a measurement.
+
+Against fp16 the exact field GEMM now costs **0.63–1.32×** across every shape measured — at
+decode it is 30–37% *faster* than the baseline, because it reads 1.0625 B/weight of q8_0
+rather than 2 B/weight of fp16. Compare the unfused path this replaces: 2.7–3.7× at prefill,
+with weights materialised at 3 B/weight.
 
 Three things made the difference, in order of size:
 
@@ -124,12 +136,30 @@ Three things made the difference, in order of size:
 3. **Weights never materialise in field form.** 8B needs 8.53 GB in q8_0 rather than 24.09 GB
    as RNS-3 planes.
 
-Honest limits. The q4_K column is an estimate scaled by the byte ratio, not a measurement;
-the kernel reads q8_0, and supporting q4_K in-kernel (the same technique, a different unpack)
-is what would take decode from ~3.2× to roughly ~1.7× against the fleet's real baseline —
-and it is also what makes an 8B model fit an 8 GB card at all, since 8.53 GB still does not.
-Bandwidth efficiency of 0.40–0.59 says there is roughly another 2× available from tuning that
-was not pursued. This is a correctness-first kernel, not an autotuned one.
+### Chasing the remaining bandwidth
+
+The first version left bandwidth efficiency at 0.40–0.59, implying ~2× on the table. Two
+candidate limiters, both measured rather than argued:
+
+**Scale traffic — the real one.** The kernel loaded the fp16 scale as a full
+`(BLOCK_K, BLOCK_N)` tile, issuing a read per weight for a value shared by 32 weights: up to
+2 extra bytes per weight against an intended 0.0625. The measured 0.096 ms sat between the
+0.046 ms ideal roof and the 0.130 ms scale-gather roof, which is exactly what partial L2
+rescue looks like. Loading a `(BLOCK_K/32, BLOCK_N)` tile and broadcasting it in registers
+fixed it.
+
+**Occupancy / split-K — not the limiter.** At M=1 the grid is only 32 programs against 46
+SMs, which looks like the obvious problem. A split-K variant was built and measured (partial
+int32 accumulators via order-independent atomic add, CRT demoted to a second pass over the
+M×N output, which at M=1 is 4096 elements). It came out **slower**: 0.79× against 0.70× at
+K=4096, and a wash at K=14336. The atomics and the extra launch cost more than the added
+parallelism buys. Recorded as a dead end so it does not get rebuilt.
+
+**A routing regression, found by widening the sweep.** The first block table jumped from
+`BLOCK_M=16` straight to 64, so at M=32 the kernel computed two rows of padding for every
+real one and measured 1.75×. Padding is nearly free at M=1, where the card is bandwidth-bound
+and the wasted MACs cost nothing; it is expensive as soon as there is real work to displace.
+`BLOCK_M` now tracks M.
 
 RNS-3 gives 23.8 bits of dynamic range, RNS-4 gives 31.6. Since the accumulator was
 measured to need ~18.7 bits nominal and ~22.8 under 10³× outlier channels, **RNS-3 is the
