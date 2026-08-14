@@ -1,6 +1,9 @@
 # Shielded inference — masked GGML offload to untrusted GPUs
 
-Status: DESIGN (2026-08-14). No code yet. This document is the synthesis of the required
+Status: DESIGN (2026-08-14), with an executable reference oracle in `shielded/reference/`
+(`test/shielded-reference.test.mjs`). No engine code, no CUDA, nothing on the fleet: the
+oracle exists to prove the constructions and to be the thing the engine is validated
+against. This document is the synthesis of the required
 reading (TwinShield arXiv:2507.03278, KV-Shield arXiv:2409.04040, permutation equivariance
 arXiv:2304.07735, Slalom arXiv:1806.03287, Amulet arXiv:2512.07495, and the ggml-rpc source)
 against this repo's actual plumbing. It exists so that implementation starts from settled
@@ -93,6 +96,27 @@ load-bearing move — inherited by TwinShield — is fixed-point embedding into 
   documented tolerance versus the fp16 GPU baseline (quantization-class noise: Slalom
   measured <0.5% accuracy cost; TwinShield +0.21 ppl on LLaMA-7B at these parameters —
   comparable to a GGUF q8 step. Our catalog already serves q4/q8 quants).
+
+Measured in `shielded/reference/` (see "Reference oracle" below), correcting an
+assumption this document previously carried:
+
+- **Width is not the risk.** The matmul accumulator sits at scale 2^2l and was expected
+  to grow with the inner dimension. It does not: standard 1/sqrt(d) init is
+  variance-preserving, so a normalised activation yields an O(1) output at any width.
+  Measured bit requirement is flat at ~18.7 bits from d=64 through d=14336, leaving
+  ~5 bits of headroom under p/2. (p, l) = (2^24−3, 8) therefore holds at production width.
+- **Magnitude is the risk.** LLMs carry massive-activation channels. Measured overflow
+  appears around 10^4× outlier channels (27.6 bits needed vs 23 available); 10^3× still
+  fits at 22.8 bits. Known outliers run 10^2–10^3×, so we sit inside the envelope with
+  roughly one bit to spare. Mitigation is mandatory and cheap: a **per-tensor magnitude
+  guard that fails closed** before encode (never silently wrap — a wrap decodes to noise
+  and would corrupt output with no error signal), plus per-tensor rescaling in the GGUF
+  per-block-scale style.
+- **Escape hatch, proven exact: RNS.** Two coprime ~24-bit primes with CRT recombination
+  gives 48 bits of dynamic range while keeping both limbs fp64-friendly, so the kernel
+  plan below is untouched. Verified bit-exact at d=4096 in the oracle. This is
+  arithmetic, not cryptography — the one-time-pad argument is per-channel identical to
+  Slalom's, so it adds no security assumption. Carry it for outlier-heavy models.
 
 GPU kernel plan for field GEMM, in order, each gated by measurement:
 
@@ -223,10 +247,10 @@ explicitly.
 | QKV / O / FFN up,gate,down / lm_head matmuls | GPU, masked | Slalom OTP + Freivalds; bulk of FLOPs |
 | Conv1d/conv2d (UNet, whisper front convs if offloaded) | GPU, masked (Phase 4/5) | Slalom conv masking, `u = Conv(r,W)` |
 | Embedding lookup | TEE | it's a gather keyed by the secret token id; as-matmul would cost n_vocab·d |
-| QK^T, attn·V | TEE (v1); GPU masked for prefill (v2, TwinShield) | activation×activation; see decode caveat |
+| QK^T, attn·V | TEE at decode, PERMANENTLY; GPU masked for prefill only (v2, TwinShield) | activation×activation; TwinShield is recoverable at m≤4, proven in the oracle |
 | softmax, RMSNorm/LayerNorm, SiLU/GELU, RoPE, residual adds | TEE | nonlinear / cheap / position-secret |
 | Sampling, scheduler math, noise schedules | TEE | secret state, trivially cheap |
-| KV cache | TEE RAM (plaintext inside CVM) | v1; grows per token; q8 KV to bound footprint |
+| KV cache | TEE RAM (plaintext inside CVM), permanently | GQA + q8 make it affordable; see "Decode and the KV cache" |
 | Logits | GPU produces masked, TEE unmasks | lm_head is just another masked matmul; sampling never leaves |
 | VAE decode, vocoders, text encoders ≤2B, mel spectrograms, phonemization, image pre/post | TEE CPU | small-model rule: CPU-in-TEE is strictly stronger; take it whenever the budget allows |
 
@@ -240,7 +264,105 @@ Small-model rule concretized (≤ ~2B params q8 defaults to full CPU-in-TEE):
   masked-offload it, or serve SD3-medium's no-T5 degraded mode where acceptable. Decide
   per catalog model in Phase 3.
 
-## The decode loop (the part no paper wrote down)
+## Decode and the KV cache (the part no paper wrote down)
+
+Every source paper stops at a single forward pass. TwinShield's benchmarks are perplexity
+and encoder workloads; Slalom is CNNs; Amulet is classification and full-sequence scoring;
+KV-Shield names the cache but assumes secret weights. None of them state where a KV cache
+lives, how masks compose across decode steps, or what a cache does to integrity. That gap
+is the reason this section exists, and the short version is: **the natural constructions
+are provably inadequate at decode, so the answer is not a cleverer mask — it is a placement
+rule plus the architectural facts that make it affordable.**
+
+### Why decode attention cannot be offloaded (proven, not asserted)
+
+The two attention products are `s = q·K^T` and `o = p·V`. Both are activation×activation,
+so Slalom does not apply (its whole leverage is that W is public and fixed, making `r·W`
+precomputable). The cited option is TwinShield's OutAttnMult. It fails here, and the
+failure is structural:
+
+At decode m=1. The GPU receives two rows — `u = q + R_q` and `v = a·R_q` — in secret order.
+Whichever the order, `q = u − c·v` for a single unknown scalar `c = a^-1`. **q is therefore
+confined to a line in Z_p^d.** The paper's security accounting (log(d·(2m)!) bits) counts a
+brute-force space, but no brute force is needed: real activations are small while `u − c·v`
+for wrong `c` is uniform over the field, so enumerating plausible values of *one* coordinate
+pins `c` to a few thousand candidates and any second coordinate filters to a unique answer.
+
+The oracle implements this attack and it recovers q exactly. It also recovers **m=4**, which
+matters because 4 is a real GQA group size — the obvious rescue of batching a decode step's
+query heads against their shared KV head does not work. Measured search space (pairings ×
+plausible-scalar candidates): m=1 → 14 bits, m=4 → 24 bits, m=8 → 42, m=16 → 86,
+m=512 → 4907. **Safe regime is prefill/batched only, at m in the hundreds.** Decode
+attention stays in the TEE permanently; this is not a v1 simplification to revisit.
+
+Inventing a construction to close the gap is out of scope by instruction ("no custom
+cryptography beyond the cited constructions") and would be reckless in a TCB regardless.
+
+### What we do instead, and why it is not a compromise
+
+Keep attention and the KV cache in the TEE; offload every linear. That still offloads the
+large majority of decode FLOPs under a sound, cited construction. Measured on real geometry
+(`capacity()` in the oracle), attention is **6.7% of decode MACs at 2k context and 22% at
+8k** for Llama-3-8B — so masked offload of the linears alone covers 93% / 78% of the work.
+
+The affordability of TEE attention rests on an architectural fact, not on optimism: decode
+attention is **bandwidth-bound, not compute-bound**, and GQA cuts the bandwidth by the group
+ratio. Per-token KV streamed at 8k context, q8: Llama-3-8B (GQA 4:1) 537 MB → ~9 ms at
+60 GB/s; Llama-2-7B (MHA 1:1) 2.1 GB → ~36 ms. That is the whole policy:
+
+- **GQA is a shielded-tier catalog requirement.** MHA models are admitted only at short
+  context buckets, or not at all. This is a concrete, measured admission rule, not taste.
+- Context buckets {2k, 8k} for GQA models; 32k is where GQA hits the same wall MHA hits at
+  8k (attention becomes 53% of MACs, ~36 ms/token streaming) and needs its own decision.
+- q8 KV (already the fleet default) is load-bearing, not an optimisation.
+
+### The cache changes the integrity rules
+
+K and V arrive from an **offloaded** matmul and then persist for the rest of the session.
+This is qualitatively different from a corrupted activation: a bad activation costs one
+token, a **bad cache entry poisons every future token that attends to it**. So:
+
+> KV-producing matmuls are verified strictly, per step, before insertion. No deferral, no
+> batching of the check across steps.
+
+Other matmuls could in principle defer verification to amortise; KV projections may not.
+The oracle exercises this: a worker that tampers only with the key projection is caught and
+the request aborts with nothing inserted. No source paper states this rule because no source
+paper has a cache.
+
+### Mask lifecycle across steps
+
+One-time means one-time, and decode consumes masks continuously. Per-token mask
+consumption is ~3.7 MB of unblinding factors for Llama-3-8B, ~11.4 MB for a Qwen3-32B-class
+model (measured in the capacity model). The bank is per-(model, shape-bucket), shared across
+sessions, with a strict monotonic issuance counter.
+
+> **Bank exhaustion stalls the request. It never wraps.** A wraparound is not a slowdown, it
+> is OTP reuse across two activations, which hands the adversary their difference. The
+> oracle asserts both halves (no reuse, exhaustion raises).
+
+Masks for step t+1 are staged during the GPU compute of step t, so mask handling never sits
+on the token critical path.
+
+### What actually binds throughput
+
+Three ceilings, and the honest answer is that they are all in the same order of magnitude:
+
+- **TEE serial** (bandwidth-bound): KV streaming for attention, ~9 ms/token at 8k GQA →
+  ~110 tok/s.
+- **TEE background** (throughput-bound): mask refill costs `u = r·W`, i.e. *exactly* the
+  linear MACs the GPU performs. At ~1 T-MAC/s that is ~133 tok/s for Llama-3-8B, ~31 tok/s
+  for a 32B-class model. This works only because refill is a big batched offline GEMM (near
+  peak) while decode is a latency-bound serial chain — but note it competes with TEE
+  attention for the same CVM cores, so the real budget is the sum.
+- **GPU**: linear MACs in field arithmetic with limb inflation.
+
+So the shielded tier is roughly **GPU-class latency at ~10× CPU-only sustained throughput**,
+not GPU-class throughput. The 32B-class refill number (31 tok/s) is the one to watch: for
+large models, mask refill — not the GPU, not attention — is the binding constraint, and that
+directly shapes which models the tier should carry.
+
+### The per-token loop
 
 Per token, v1, with installed per-segment graphs on the worker:
 
@@ -333,6 +455,32 @@ commodity box.
 - Docs: this file is the design; `SECURITY.md` (final deliverable) carries the per-op
   leakage arguments and per-interface residual-leakage sections.
 
+## Reference oracle
+
+`shielded/reference/shielded_ref.py` is the executable form of everything above, driven by
+`test/shielded-reference.test.mjs` (`python3 shielded/reference/shielded_ref.py --verbose`
+for the human-readable dump). It is a correctness and security oracle, not a performance
+model: toy dimensions, pure numpy, no CUDA. It exists so the engine has something to be
+validated against, and so the security argument can be re-run instead of re-read.
+
+What it establishes today:
+
+- Fixed-point field round-trip within one quantum; exact field matmul; the int64 bound.
+- Slalom offload recovers **bit-exactly**, and the worker's transcript never contains a
+  plaintext input.
+- Mask bank: no reuse, and exhaustion raises rather than wrapping.
+- Preprocessed Freivalds catches a **single-element** lie in 64/64 trials with no false
+  positives, at 40 bits of soundness per check.
+- TwinShield recovery at m ∈ {1, 2, 4}; search-space table out to m=512.
+- A 3-layer GQA decoder generating 12 tokens with tiered placement produces output
+  **identical** to the same arithmetic run entirely in-TEE, across 352 boundary crossings.
+- Leakage assertions against the adversary transcript: uniformity (chi-square 54.4 vs 117
+  threshold) and pooled correlation 0.0007 against a 3-sigma null of 0.019. Per-tensor
+  correlations are reported with their null bound so small-sample noise is not misread as
+  a leak — a trap this suite hit and now guards against.
+- KV poisoning caught before insertion.
+- Field scaling vs width and outlier magnitude; RNS exactness at d=4096.
+
 ## Per-interface notes
 
 **Chat.** GGUF models, streaming decode as above. Output equivalence: bit-exact in field
@@ -400,13 +548,19 @@ arrival. On any kill: stop and write up why, with measurements.
 
 1. **Field-GEMM throughput on commodity GPUs** — the whole tier's economics. int8-limb
    kernels are the load-bearing bet; Phase 1 measures before more is built on it.
-2. **Mask-bank refill as the sustained-throughput ceiling** — the capacity model above is
-   arithmetic, not measurement; if real refill lands ≪ estimate, the tier is a
-   latency/burst product, and pricing must say so.
-3. **TwinShield v2 security at small m** and OutSoftMax numerics — adversarial review
-   gate; worst case, v2 stays prefill-only and softmax stays in-TEE forever (survivable:
-   v1 already meets the confidentiality bar, v2 is a performance upgrade).
-4. **CPU attention at 8k context** in decode (v1) — may dominate token latency; flash-attn
-   CPU + q8 KV mitigations first, v2 prefill offload helps TTFT, but long-context decode
-   throughput is the number to watch against the kill line.
-5. **T5-xxl** breaks the tidy "encoders in TEE" story for Flux-class models.
+2. **Mask-bank refill is the binding constraint for large models** — measured at ~31 tok/s
+   equivalent for a 32B-class model (vs ~133 for 8B). The CPU-side refill GEMM rate is
+   arithmetic, not measurement; if real refill lands below estimate, the tier is a
+   latency/burst product and pricing must say so. This has displaced attention as risk #1
+   for big models.
+3. **Field magnitude guard** — (p, l) = (2^24−3, 8) holds at production *width* but has
+   ~1 bit of margin against 10^3× outlier channels. The fail-closed per-tensor guard is
+   mandatory, not optional; a silent wrap corrupts output with no error signal. RNS is the
+   proven fallback.
+4. **TwinShield v2 OutSoftMax numerics** — the real-valued exponential versus field masks
+   is unresolved in the paper; softmax stays in-TEE until analysed. v2's attention half is
+   now settled as prefill-only by measurement rather than by review.
+5. **CPU attention at 32k context** — resolved for 2k/8k GQA by the capacity model (~9 ms/
+   token at 8k); 32k is where GQA models hit ~36 ms/token and 53% of MACs, and needs its
+   own bucket decision before any 32k shielded offering.
+6. **T5-xxl** breaks the tidy "encoders in TEE" story for Flux-class models.
