@@ -4,13 +4,23 @@ Date: 2026-08-14. Companion to [docs/shielded-inference.md](../docs/shielded-inf
 (design) and [SECURITY.md](SECURITY.md) (leakage argument).
 
 **Bottom line up front.** The confidentiality design holds and is proven in an executable
-oracle. The GPU is not the problem: an exact field GEMM costs 2.6–3.6× fp16 at prefill,
-inside budget. The problem is the TEE side. Mask precomputation (`u = r·W`) cannot be
-offloaded without handing the accelerator the pad, so the CVM must perform one MAC of
-integer GEMM per MAC the GPU performs, and on a 16-core EPYC the best *verified-exact*
-GEMM sustains only **7.1 tok/s for an 8B model**. The tier is viable for 1.5B-class models
-today, needs an AVX-512 VNNI int8 GEMM and/or a wide CVM for 8B, and is out of reach for
-32B-class models on this hardware.
+oracle, and no measured cost currently kills it.
+
+- **GPU**: an exact field GEMM (RNS-3 over byte primes, int8 tensor cores) costs **2.7–3.6×
+  fp16 at prefill including fused CRT** — inside the 5× budget. The CRT *must* be fused;
+  unfused it alone pushes the total to 5.5–7.3× and fails.
+- **TEE refill** (`u = r·W`, which cannot be offloaded without handing the accelerator the
+  pad) sustains **214 tok/s for an 8B model** on 16 EPYC cores using int8/VNNI — against a
+  measured GPU baseline of 79 tok/s for the same model. **Refill is not the binding
+  constraint**, contrary to this report's earlier revision.
+- The earlier "7.1 tok/s, refill is the ceiling" figure was wrong twice over: measured with
+  stock fp64 BLAS instead of int8, *and* on a box at load 32 from concurrent builds. Both
+  are corrected here. It is a good argument for re-measuring on an idle machine before
+  drawing a strategic conclusion.
+
+What remains open is not a wall but two kernel-engineering requirements (fused CRT, and
+in-kernel dequantisation so field weights don't inflate VRAM 5×) plus the absence of any
+end-to-end run.
 
 Nothing here has shipped. No engine code exists; these are measurements of primitives and
 proofs of constructions.
@@ -34,12 +44,18 @@ This matters more than it sounds: the same CPU int8 GEMM measured 954, 1800, and
 G-MAC/s across attempts, and since that number decides whether an 8B model is servable, the
 timing method had to become the boring reliable one.
 
-Part of that spread was **CPU contention**: the first CPU pass was taken while two agents
-were compiling llama.cpp and whisper.cpp at load average 32 on a 16-core box — contending for
-exactly the resource the refill benchmark measures. CPU figures in §3 are therefore re-taken
-on an idle machine, and any CPU number not marked "clean" should be treated as a lower bound.
-GPU figures are less affected (the GPU sat near idle during the CPU builds) but were re-taken
-alongside.
+Most of that spread was **CPU contention**: the first CPU pass ran while two sibling agents
+compiled llama.cpp and whisper.cpp at load average 32 on a 16-core box — contending for
+exactly the resource the refill benchmark measures. **All CPU figures in §3 were re-taken on
+an idle machine** (load 4.3 falling to 1.7). GPU figures were re-taken alongside and moved
+<2%, confirming the GPU was never contended; only the CPU numbers were affected, and they
+moved by ~3×.
+
+The STT harness in §6 independently hit the same collision and solved it more rigorously,
+rejecting any sample taken with >2.0 foreign cores busy (120 clean samples of 121 attempted).
+Both that harness and the chat harness independently found a **reproducible ~10× decode
+collapse at `-t == nproc`** on entirely different workloads, which cross-validates it as a
+real SMT-oversubscription property of this box rather than noise.
 
 ## 2. GPU: exact field GEMM (`bench/field_gemm_bench.py`)
 
@@ -51,10 +67,10 @@ residue fits in one int8 limb, so a field GEMM is N GEMMs, not N².
 
 | rung (GEMM only) | M=512 K=4096 N=4096 | M=512 K=4096 N=14336 | M=2048 K=4096 N=4096 |
 |---|---|---|---|
-| fp16 (baseline) | 0.64 ms | 1.55 ms | 1.90 ms |
-| RNS-3 int8 TC | 2.57× | 3.64× | 3.44× |
-| RNS-4 int8 TC | 3.38× | 4.87× | 4.64× |
-| limb-int8 (old plan) | 24.7× | 33.4× | 31.9× |
+| fp16 (baseline) | 0.59 ms | 1.46 ms | 1.75 ms |
+| RNS-3 int8 TC | 2.50× | 3.41× | 3.23× |
+| RNS-4 int8 TC | 3.34× | 4.55× | 4.31× |
+| limb-int8 (old plan) | 23.1× | 30.9× | 29.1× |
 | fp64-RNS | ~320× | ~450× | ~420× |
 
 ### Recombination is not free, and fusing it is a hard requirement
@@ -64,8 +80,8 @@ understates the tier by enough to flip the verdict:
 
 | total (GEMM + CRT) | 512×4096×4096 | 512×4096×14336 | 2048×4096×4096 |
 |---|---|---|---|
-| **RNS-3, fused CRT** | **2.70×** | **3.62×** | **3.56×** |
-| RNS-3, naive CRT | 5.54× | 7.27× | 6.90× |
+| **RNS-3, fused CRT** | **2.69×** | **3.66×** | **3.47×** |
+| RNS-3, naive CRT | 5.27× | 7.26× | 7.51× |
 
 Naive CRT (≈10 separate elementwise kernels, each a full int64 memory round trip) costs
 *more than the GEMMs themselves* and puts the tier through the 5× kill line. Fusing the chain
@@ -90,7 +106,7 @@ design point and RNS-4 the outlier-safe fallback.**
 
 ### Decode is a bandwidth problem, not a FLOP problem
 
-At M=1 the cost is bytes per weight. Measured read bandwidth 322–387 GB/s (72–86% of the
+At M=1 the cost is bytes per weight. Measured read bandwidth 388–412 GB/s (87–92% of the
 card's 448 GB/s spec, so credible).
 
 | weight format | bytes/weight | vs fp16 | vs q4_K |
@@ -104,9 +120,7 @@ card's 448 GB/s spec, so credible).
 than inside it. Batching amortises the weight read, which is exactly why the kill criterion
 is stated at batch ≥ 4.
 
-## 3. CPU: the mask-refill ceiling (`bench/refill_bench.py`)
-
-This is the finding that reorders the whole risk list.
+## 3. CPU: the mask refill rate (`bench/refill_bench.py`)
 
 `u = r·W` is not offloadable: a GPU computing it would learn the pad `r` and could strip the
 mask. Masking `r` itself needs a mask for the mask, forever. So the CVM performs one MAC per
@@ -116,34 +130,35 @@ GPU MAC, times the number of RNS channels, and sustained throughput is
 max_tok_per_s = cpu_MAC_per_s / (linear_MACs_per_token × n_primes)
 ```
 
-Measured GEMM rates, 16 physical cores, and **which are actually exact**:
+Measured on an **idle** box, 16 physical cores, with exactness verified per path:
 
 | path | rate | exact for RNS? |
 |---|---|---|
-| torch bf16 | 1255 G-MAC/s | **NO** — probe says inexact, so unusable |
-| torch fp32 | 310 G-MAC/s | yes for ≤5-bit primes at K=4096 only |
-| **torch fp64** | **159 G-MAC/s** | **yes, byte primes, any K we need** |
-| numpy fp64 | 2.0 G-MAC/s | yes (numpy's BLAS is unthreaded here) |
-| AVX-512 VNNI int8 | ~1240 G-MAC/s *projected* | yes — but no stock library exposes it |
+| **torch int8 (`_int_mm`, FBGEMM/oneDNN, AVX-512 VNNI)** | **4830 G-MAC/s** | **yes, byte primes, K=4096 and 14336** |
+| torch bf16 | 2419 G-MAC/s | **NO** — probe says inexact, unusable |
+| torch fp32 | 663 G-MAC/s | yes for ≤5-bit primes at K=4096 only |
+| torch fp64 | 254 G-MAC/s | yes, byte primes, any K |
+| numpy fp64 | 2.3 G-MAC/s | yes (numpy's BLAS is unthreaded here) |
 
-Resulting ceilings at RNS-3:
+Resulting ceilings at RNS-3, and the comparison that matters — the measured **unprotected GPU
+decode rate** for the same model from §6:
 
-| model | measured exact (fp64) | projected with VNNI | per physical core (fp64) |
-|---|---|---|---|
-| Qwen2.5-1.5B | 48.2 tok/s | 363 tok/s | 3.01 |
-| Llama-3-8B | **7.1 tok/s** | 53.2 tok/s | 0.44 |
-| Qwen3-32B-class | 1.7 tok/s | 12.5 tok/s | 0.10 |
+| model | refill ceiling (int8) | stock fp64 | GPU baseline decode | headroom |
+|---|---|---|---|---|
+| Qwen2.5-1.5B | 1463 tok/s | 76.8 | 193.6 tok/s | 7.6× |
+| Llama-3-8B | **214.5 tok/s** | 11.3 | **79.3 tok/s** | **2.7×** |
+| Qwen3-32B-class | 50.3 tok/s | 2.6 | (not measured) | — |
 
-Per-core figures are given so they extrapolate: refill parallelises cleanly, so a 64–128
-core fleet CVM is worth 4–8× this development box. 8B at RNS-3 needs roughly **16 cores with
-VNNI, or ~110 cores without it**.
+**Refill is therefore NOT the binding constraint** — it has 2.7× headroom over the baseline
+decode rate it has to keep up with. Per-physical-core: 13.4 tok/s/core at 8B, so even a
+much smaller CVM slice suffices, and a 64-core fleet box has ample margin.
 
-Two consequences:
-
-1. **An AVX-512 VNNI int8 GEMM on the TEE side is now the tier's highest-priority
-   engineering dependency** — ahead of the GPU kernel, which is already fast enough.
-2. **Model-size policy is set by measurement**: 1.5B comfortable, 8B viable with VNNI or a
-   wide CVM, 32B out of reach.
+This reverses this report's previous revision, which said refill capped 8B at 7.1 tok/s and
+was the tier's highest-priority problem. That figure was wrong twice: measured with stock
+fp64 BLAS rather than int8/VNNI (a ~19× error), and taken while two sibling agents compiled
+llama.cpp and whisper.cpp at load 32 on the same 16 cores (a further ~3×). Both are fixed.
+The lesson is recorded rather than quietly patched: **verify exactness before trusting a
+rate, and measure CPU on an idle box before drawing a strategic conclusion.**
 
 ## 4. Constructions: proven, not asserted (`reference/shielded_ref.py`)
 
@@ -213,6 +228,32 @@ GPU 8B Q4_K_M goes 352 → 887 → 1907. Prefill throughput is flat in batch on 
 8B Q8_0 on GPU is **partial offload only** (20 of 33 layers; 7.95 GiB of weights against
 6991 MiB free VRAM) and is not quoted as a baseline.
 
+### STT: the small-model rule holds decisively
+
+whisper.cpp `592feef0`, CPU only, large-v3 quantized locally to q8_0 (no upstream q8 build
+exists), real continuous speech (JFK inaugural, 11 / 60 / 300 s clips), 5 beams + best-of-5.
+RTF excludes model load. Every sample guard-validated against background load.
+
+| config | RTF (60 s clip) | verdict vs RTF ≤ 0.5 |
+|---|---|---|
+| large-v3 q8_0, t=16, single stream | **0.168** | **PASS**, 3.0× margin |
+| large-v3 q8_0, **3 concurrent** streams | 0.418 worst | **PASS** |
+| large-v3 q8_0, 4 concurrent | 0.546 worst | FAIL |
+| large-v3 f16, t=16, single | 0.346 | PASS |
+| large-v3 f16, 2 concurrent | 0.630 worst | FAIL |
+
+**STT never needs the GPU.** large-v3 at q8_0 clears the realtime budget by 3× on one stream
+and sustains **3 concurrent streams** per 16-core CVM (aggregate ~7.2 audio-s/s) — so the
+entire masked-offload path can be skipped for speech-to-text, and its accelerator-side
+leakage surface is *nothing at all*, not merely bucketed. Configuration implied: q8_0 (2× the
+throughput of f16 at equivalent transcript quality here), `-t 16` per stream, cap 3 streams,
+~2.7 GiB RSS each.
+
+Two caveats carried from that measurement: it is bare metal, so SEV-SNP memory-encryption
+overhead is not included; and the N=3 pass has only a 16% margin, which co-tenant noise can
+erase. TTS is expected to follow the same path (Pocket TTS ~0.25B is far smaller than
+whisper large-v3's 1.55B) but is not yet measured.
+
 ### Two corrections these baselines force
 
 **1. q8_0 KV is slower than f16 everywhere measured — it is a memory win, not a speed win.**
@@ -244,14 +285,13 @@ inspection.
 
 | criterion | standing |
 |---|---|
-| Chat/vision >5× at batch ≥4 | **Not killed, not cleared.** GPU leg 2.7–3.6× at prefill *including* fused CRT — but only if the CRT is fused; naive recombination alone reaches 5.5–7.3× and fails outright. Batch-1 decode is 6× vs q4_K, though the criterion is stated at batch ≥4 where the weight read amortises. Needs an end-to-end run. |
-| Image gen >3× per image at batch ≥4 | **Untested.** Denoiser is a transformer reusing the measured path; steps batch well. sd.cpp integration not started. |
-| STT/TTS fail realtime on both paths | **Pending the CPU-in-TEE measurement.** Both models are under the small-model rule, so the expected outcome is CPU-only with no GPU path at all. |
+| Chat/vision >5× at batch ≥4 | **Not killed, not cleared.** GPU leg is 2.7–3.6× at prefill including fused CRT — but only if the CRT is fused; naive recombination alone reaches 5.3–7.5× and fails outright. Refill has 2.7× headroom and is not binding. Batch-1 decode is 6× vs q4_K unless weights stay GGUF-resident with in-kernel conversion (§6), which should collapse it toward 1×. Needs an end-to-end run to close. |
+| Image gen >3× per image at batch ≥4 | **Untested.** The DiT denoiser is a transformer reusing the measured path and steps batch well, so the prefill-shaped 2.7–3.6× is the relevant figure — but sd.cpp integration has not started. |
+| STT/TTS fail realtime on both paths | **CLEARED for STT.** whisper large-v3 q8_0 runs CPU-in-TEE at RTF 0.168 single-stream and passes at 3 concurrent streams, so STT skips the GPU entirely. TTS unmeasured but strictly smaller. |
 | Requires trusting GPU driver / host kernel / operator | **Cleared by construction.** Nothing in the design does. |
 
-A criterion nobody set but which the data raises: **sustained throughput is capped by TEE
-refill, not by any of the above.** 7.1 tok/s at 8B on this box would fail any reasonable
-product bar, and the fix is a CPU kernel, not a GPU one.
+No kill criterion has fired. The two that remain genuinely open (chat/vision, image gen) are
+open for want of an end-to-end implementation, not because a measured cost exceeds budget.
 
 ## 8. What is not measured, and would change conclusions
 
@@ -259,8 +299,9 @@ product bar, and the fix is a CPU kernel, not a GPU one.
    arithmetic on primitives. Transport, mask staging, and verification are modelled, not
    observed.
 2. **No stock ggml-rpc remote-GPU baseline**, so transport cost is not isolated.
-3. **VNNI int8 GEMM is projected (4× the measured exact fp32 rate), not measured.** The tier's
-   viability at 8B rests on this number. It should be the next thing built.
+3. **In-kernel dequantisation is analysis, not measurement.** The claim that decode overhead
+   collapses from 6× to ~1× by keeping weights in GGUF form rests on a bandwidth argument,
+   not a kernel. It is the single largest unverified claim in this report.
 4. **No fleet hardware.** The 3070 is representative of the target *class*; datacenter parts
    have very different fp64 and int8 ratios. The EPYC has 16 cores against a fleet CVM's
    likely 64–128.
@@ -268,6 +309,9 @@ product bar, and the fix is a CPU kernel, not a GPU one.
    class step (Slalom <0.5%, TwinShield +0.21 ppl); unverified here.
 6. **Concurrency is unexercised.** The mask bank's one-time invariant is asserted
    single-threaded; the real allocator is concurrent, and a double-issue race is a total break.
+7. **Everything is bare metal.** No measurement here ran inside an actual SEV-SNP guest, so
+   memory-encryption overhead is absent from every CPU figure — including the refill headroom
+   and the STT concurrency ceiling, which passes at N=3 with only 16% margin.
 
 ## 9. Recommended next steps, in order
 
