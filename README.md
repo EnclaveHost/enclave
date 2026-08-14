@@ -26,6 +26,7 @@ Beyond plain web apps: GPU inference via `wasi-nn` (ONNX, GGUF through a bundled
 | `wasm/` | wasm-manager sidecar: the wasmtime sandbox that runs tenant apps, incl. `wasi-nn` inference (ONNX Runtime + llama.cpp/GGUF + stable-diffusion.cpp) on MPS-capped GPU slices |
 | `worker/` | GPU worker: per-tenant MPS-capped GPU processes for raw PTX submission |
 | `mps-daemon/` | NVIDIA MPS control daemon (fractional GPU shares) |
+| `shielded/` | design-stage masked-offload tier: inference on an *untrusted* GPU host, where activations and KV cache never leave the CVM in plaintext. Reference oracle, worker admission rules, and benchmarks only — no engine code yet ([docs](docs/shielded-inference.md)) |
 | `contracts/` | Solidity on Base: `EnclaveRegistry`, `EnclaveAppCatalog`, `EnclaveDeployments` |
 | `relay/` | SNI relay + dedicated-IP relay (TLS passthrough to enclaves, IPv6 ingress/egress) + the API gateway with the MCP server for coding agents (`mcp.enclave.host`) |
 | `egress.js` / `net-guard.mjs` | outbound egress shim and network guard |
