@@ -821,6 +821,180 @@ def check_cache_poisoning(rng):
     }
 
 
+# ---------------------------------------------------------------------------
+# Phase 3: TwinShield OutAttnMult for PREFILL (the regime where it is sound)
+# ---------------------------------------------------------------------------
+def twinshield_attnmult(Q, KT, rng):
+    """Full OutAttnMult: offload Q*K^T with BOTH operands secret.
+
+    TwinShield arXiv:2507.03278 Eqs. 6-8. The GPU performs one 2m x 2p matmul on
+    blocks it cannot attribute; the TEE recovers Q*K^T with block algebra. Costs
+    4x the FLOPs of the bare product, which the paper never states.
+
+    Sound only at large m -- see twinshield_recover for why decode (m=1) is not.
+    """
+    m, n = Q.shape
+    n2, p = KT.shape
+    assert n == n2
+    R_Q = rng.integers(0, P, size=(m, n), dtype=np.int64)
+    R_K = rng.integers(0, P, size=(n, p), dtype=np.int64)
+    a = int(rng.integers(2, P))
+    b = int(rng.integers(2, P))
+
+    top = np.mod(Q + R_Q, P)
+    bot = np.mod(a * R_Q, P)
+    left = np.mod(KT + R_K, P)
+    right = np.mod(b * R_K, P)
+
+    lam1 = rng.permutation(2 * m)
+    lam2 = rng.permutation(2 * p)
+    Qt = np.concatenate([top, bot], axis=0)[lam1]
+    Kt = np.concatenate([left, right], axis=1)[:, lam2]
+
+    prod = fmatmul(Qt, Kt)  # the single GPU matmul
+
+    # TEE: undo the permutations, then the block algebra
+    inv1, inv2 = np.argsort(lam1), np.argsort(lam2)
+    G = prod[inv1][:, inv2]
+    TL, TR = G[:m, :p], G[:m, p:]
+    BL, BR = G[m:, :p], G[m:, p:]
+
+    # Scalar bookkeeping: `a` scales the mask ROWS and `b` the mask COLUMNS, so
+    # the top-right block (data rows x mask cols) carries b and the bottom-left
+    # (mask rows x data cols) carries a. Swapping these still type-checks and
+    # still produces plausible field elements -- it just silently returns the
+    # wrong product, which is why this is verified against fmatmul, not eyeballed.
+    ia, ib = pow(a, -1, P), pow(b, -1, P)
+    RQ_RK = np.mod(BR * (ia * ib % P), P)
+    Q_RK = np.mod(TR * ib - RQ_RK, P)
+    RQ_KT = np.mod(BL * ia - RQ_RK, P)
+    QKT = np.mod(TL - Q_RK - RQ_KT - RQ_RK, P)
+    return QKT, {"gpu_rows": 2 * m, "gpu_cols": 2 * p, "flop_inflation": 4.0}
+
+
+def check_twinshield_prefill(rng):
+    """Correct at prefill sizes, and the decode attack must FAIL there."""
+    out = {}
+    for m, p, d in ((64, 64, 32), (256, 256, 64)):
+        Q = to_field(rng.normal(0, 1.0, size=(m, d)))
+        KT = to_field(rng.normal(0, 1.0, size=(d, p)))
+        got, meta = twinshield_attnmult(Q, KT, rng)
+        out[f"m{m}_exact"] = bool(np.array_equal(got, fmatmul(Q, KT)))
+        out[f"m{m}_flop_inflation"] = meta["flop_inflation"]
+
+    # The attack that breaks decode must not break prefill. Run it with a real
+    # budget and confirm it fails, rather than only citing the search-space size.
+    m = 32
+    Q = to_field(rng.normal(0, 1.0, size=(m, 24)))
+    rows, _ = twinshield_pack(Q, rng)
+    rec = twinshield_recover(rows, m, max_pairings=20000)
+    out["attack_fails_at_m32"] = bool(rec is None)
+    out["attack_budget_pairings"] = 20000
+    out["search_bits_m32"] = round(twinshield_search_bits(32), 1)
+    out["policy"] = "prefill/batched only; decode (m=1) offload is forbidden"
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: convolution masking (SDXL UNet path, Slalom lineage)
+# ---------------------------------------------------------------------------
+def conv2d_field(x, w, pad=1):
+    """Exact 2D convolution in Z_p via im2col. x: (C,H,W), w: (F,C,kh,kw)."""
+    C, H, W = x.shape
+    F, C2, kh, kw = w.shape
+    assert C == C2
+    xp = np.zeros((C, H + 2 * pad, W + 2 * pad), dtype=np.int64)
+    xp[:, pad : pad + H, pad : pad + W] = x
+    cols = np.empty((C * kh * kw, H * W), dtype=np.int64)
+    idx = 0
+    for c in range(C):
+        for i in range(kh):
+            for j in range(kw):
+                cols[idx] = xp[c, i : i + H, j : j + W].reshape(-1)
+                idx += 1
+    return np.mod(w.reshape(F, -1) @ cols, P).reshape(F, H, W)
+
+
+def check_conv_masking(rng):
+    """Slalom masking transfers to convolutions unchanged: u = Conv(r, W).
+
+    Convolution is linear in the input, so the same additive OTP works with the
+    unblinding factor computed by convolving the MASK with the public kernel. This
+    is the SDXL/UNet path; DiT reuses the transformer path instead.
+    """
+    C, H, W, F, k = 4, 8, 8, 6, 3
+    x = to_field(rng.normal(0, 1.0, size=(C, H, W)))
+    w = to_field(rng.normal(0, 0.2, size=(F, C, k, k)))
+    r = rng.integers(0, P, size=(C, H, W), dtype=np.int64)
+
+    truth = conv2d_field(x, w)
+    u = conv2d_field(r, w)                       # banked offline
+    masked = conv2d_field(np.mod(x + r, P), w)   # what the GPU computes
+    got = np.mod(masked - u, P)
+    return {
+        "conv_offload_exact": bool(np.array_equal(got, truth)),
+        "mask_is_input_shaped": list(r.shape) == [C, H, W],
+        "note": "linearity in the input is all the construction needs; kernel is public",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: vision (ViT encoder block) end to end
+# ---------------------------------------------------------------------------
+def check_vit_block(rng):
+    """A ViT block with masked offload must match the in-TEE reference exactly.
+
+    Vision matters here because the permutation-equivariance literature covers ViT
+    and might tempt someone into using bare permutation. Weights are public, so
+    additive masks it is -- this checks the masked path is exact for the patch
+    pipeline (patchify -> qkv -> attention -> mlp).
+    """
+    n_patch, d, heads, d_ff = 16, 32, 4, 64
+    gpu = UntrustedGPU()
+    bank = MaskBank(b"vit", capacity=1 << 16)
+    scale = 1.0 / math.sqrt(d)
+    Wqkv = to_field(rng.normal(0, scale, size=(d, 3 * d)))
+    Wo = to_field(rng.normal(0, scale, size=(d, d)))
+    W1 = to_field(rng.normal(0, scale, size=(d, d_ff)))
+    W2 = to_field(rng.normal(0, scale, size=(d_ff, d)))
+    lins = {
+        n: ShieldedLinear(n, W, bank, rng, gpu)
+        for n, W in (("qkv", Wqkv), ("o", Wo), ("fc1", W1), ("fc2", W2))
+    }
+
+    img = rng.normal(0, 1.0, size=(n_patch, d))  # already patchified in the TEE
+
+    def block(offload):
+        x = img.copy()
+        h = np.stack([rms_norm(row) for row in x])
+        xf = to_field(h)
+        qkv = (lins["qkv"](xf) if offload else fmatmul(xf, Wqkv))
+        qkv = from_field(qkv, frac=2 * FRAC)
+        q, k, v = qkv[:, :d], qkv[:, d : 2 * d], qkv[:, 2 * d :]
+        heads_out = []
+        hd = d // heads
+        for hh in range(heads):
+            sl = slice(hh * hd, (hh + 1) * hd)
+            s = (q[:, sl] @ k[:, sl].T) / math.sqrt(hd)
+            heads_out.append(np.stack([softmax(row) for row in s]) @ v[:, sl])
+        attn = np.concatenate(heads_out, axis=1)
+        af = to_field(attn)
+        x = x + from_field(lins["o"](af) if offload else fmatmul(af, Wo), frac=2 * FRAC)
+        h2 = to_field(np.stack([rms_norm(row) for row in x]))
+        f1 = from_field(lins["fc1"](h2) if offload else fmatmul(h2, W1), frac=2 * FRAC)
+        act = to_field(f1 * (1.0 / (1.0 + np.exp(-f1))))
+        return x + from_field(lins["fc2"](act) if offload else fmatmul(act, W2), frac=2 * FRAC)
+
+    a = block(True)
+    seen = len(gpu.view)
+    b = block(False)
+    return {
+        "vit_offload_matches_reference": bool(np.allclose(a, b, rtol=0, atol=0)),
+        "tensors_crossing_boundary": seen,
+        "patches": n_patch,
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--selftest", action="store_true")
@@ -837,6 +1011,9 @@ def main():
         "twinshield": check_twinshield(rng),
         "decode": check_decode(rng),
         "poisoning": check_cache_poisoning(rng),
+        "twinshield_prefill": check_twinshield_prefill(rng),
+        "conv_masking": check_conv_masking(rng),
+        "vit": check_vit_block(rng),
         "capacity_2k": capacity(2048),
         "capacity_8k": capacity(8192),
         "capacity_32k": capacity(32768),
@@ -857,6 +1034,11 @@ def main():
         and result["decode"]["leak_pooled_ok"]
         and result["poisoning"]["kv_poisoning_caught"]
         and result["rns"]["exact_at_d4096"]
+        and result["twinshield_prefill"]["m64_exact"]
+        and result["twinshield_prefill"]["m256_exact"]
+        and result["twinshield_prefill"]["attack_fails_at_m32"]
+        and result["conv_masking"]["conv_offload_exact"]
+        and result["vit"]["vit_offload_matches_reference"]
     )
     result["ok"] = bool(ok)
 
