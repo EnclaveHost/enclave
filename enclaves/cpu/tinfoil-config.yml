@@ -193,9 +193,9 @@ containers:
       #   - the 122b (60 GB) exceeds this node's whole RAM; it mounts, and any
       #     tenant attaching it gets the skip.
       # DISK: these are dm-verity images fetched and measured at CVM boot -
-      # ~210 GB of them. Size the CPU box's disk for the FULL list, not for
+      # ~236 GB of them. Size the CPU box's disk for the FULL list, not for
       # what a 64 GiB node can preload.
-      - MODEL_VOLUMES: "qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-bb5cace1df1795f9dde1b6da38b2b9edfaaa56f4574a5d6270c1295b192c81c1,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.5-9b-gguf:/tinfoil/mpk/mpk-b70cb1b66baaf59542b5d478f952fcb4085dfb681deedf9e0420452e2fe6e6be,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen3.5-0.8b-gguf:/tinfoil/mpk/mpk-d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8,qwen3.5-0.8b-mtp-gguf:/tinfoil/mpk/mpk-b515a1868c9f8bea7e8578e7ce06ac8e0546040dd623aad1d7b6c3dd98a9e6aa,qwen3.6-27b-mtp-gguf:/tinfoil/mpk/mpk-bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9,fable-fusion-27b-mtp-gguf:/tinfoil/mpk/mpk-cf2030ea6070202555fa2d8b762fa4b1c94a3b636dd3d0f587d3f9fafddf4415,fable-fusion-27b-mtp-q4-gguf:/tinfoil/mpk/mpk-13f6f4245454958735336168c1d128794fe349563471640521ed325951fefbdb,sd-turbo:/tinfoil/mpk/mpk-df0919ea85c829fb62c61029ac130f7e4a98bc6a57fe52dfb777a7426d5b36fc,sd-turbo-full:/tinfoil/mpk/mpk-e787b81d664922c08ac69bb0952b436404bbb150f6f7b71971431d0c3ff4ef60,z-image-turbo-sd:/tinfoil/mpk/mpk-2b646ec9773d4dba7227656826627de606a86d98790b0e806a62e548b6c581f5,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2,realesrgan-x4plus-sd:/tinfoil/mpk/mpk-e0690ebe660661664262455da17ffc8588ffa13dda14accc787c1d712bb529f4,qwen3-vl-8b-gguf:/tinfoil/mpk/mpk-3f7dafb23d0491e0f25b6136320ed91e990cb9fdc5a464ce07271b4aff2e279e:Qwen3VL-8B-Instruct-Q8_0.gguf"
+      - MODEL_VOLUMES: "qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-bb5cace1df1795f9dde1b6da38b2b9edfaaa56f4574a5d6270c1295b192c81c1,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.5-9b-gguf:/tinfoil/mpk/mpk-b70cb1b66baaf59542b5d478f952fcb4085dfb681deedf9e0420452e2fe6e6be,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen3.5-0.8b-gguf:/tinfoil/mpk/mpk-d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8,qwen3.5-0.8b-mtp-gguf:/tinfoil/mpk/mpk-b515a1868c9f8bea7e8578e7ce06ac8e0546040dd623aad1d7b6c3dd98a9e6aa,qwen3.6-27b-mtp-gguf:/tinfoil/mpk/mpk-bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9,qwen3.8-27b-mtp-gguf:/tinfoil/mpk/mpk-bedb4ba0c8d465ebcd2333ff7d58b5faca80eab833cffc76c66d78035b4628f2,fable-fusion-27b-mtp-gguf:/tinfoil/mpk/mpk-cf2030ea6070202555fa2d8b762fa4b1c94a3b636dd3d0f587d3f9fafddf4415,fable-fusion-27b-mtp-q4-gguf:/tinfoil/mpk/mpk-13f6f4245454958735336168c1d128794fe349563471640521ed325951fefbdb,sd-turbo:/tinfoil/mpk/mpk-df0919ea85c829fb62c61029ac130f7e4a98bc6a57fe52dfb777a7426d5b36fc,sd-turbo-full:/tinfoil/mpk/mpk-e787b81d664922c08ac69bb0952b436404bbb150f6f7b71971431d0c3ff4ef60,z-image-turbo-sd:/tinfoil/mpk/mpk-2b646ec9773d4dba7227656826627de606a86d98790b0e806a62e548b6c581f5,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2,realesrgan-x4plus-sd:/tinfoil/mpk/mpk-e0690ebe660661664262455da17ffc8588ffa13dda14accc787c1d712bb529f4,qwen3-vl-8b-gguf:/tinfoil/mpk/mpk-3f7dafb23d0491e0f25b6136320ed91e990cb9fdc5a464ce07271b4aff2e279e:Qwen3VL-8B-Instruct-Q8_0.gguf"
       # ggml context tuning, same values as both GPU flavors - the KV cache is
       # allocated up front from the SAME window, so keeping it in lockstep is
       # what makes a deployment's sizing portable between a GPU and a CPU box.
@@ -297,6 +297,17 @@ models:
   - name: "qwen3.6-27b-mtp-gguf"
     repo: "EnclaveHost/qwen3.6-27b-mtp-gguf@e6af0316e51eaf3e12982a566941be224c26ed50"
     mpk: "bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9_17921925120_624a9548-dcee-5aa1-8eaa-6d12d0a368a3"
+  # Qwen3.8-27B Dynamic Q6_K_XL, ~25.9 GB: the CODE-WORK 27b and the first Q6
+  # language volume. Qwen3.8 ships the MTP head inside the base model, so
+  # "draft":"mtp" self-drafts with no paired draft volume - and its tokenizer is
+  # a SUPERSET of the family copy, so the byte-equality draft gate refuses
+  # qwen3.5-0.8b-gguf against it anyway. ~34.1 GB to serve at the 176K window:
+  # unlike the 122b that FITS this node's RAM, so a tenant who buys most of the
+  # box does preload it - on 16 cores, at 16 cores' speed. See the gpu flavor's
+  # entry for the sizing arithmetic and provenance.
+  - name: "qwen3.8-27b-mtp-gguf"
+    repo: "EnclaveHost/qwen3.8-27b-mtp-gguf@ac8bf372b42e8a11274cc51771005e418c3fb3d7"
+    mpk: "bedb4ba0c8d465ebcd2333ff7d58b5faca80eab833cffc76c66d78035b4628f2_25936986112_4e2752c3-12a6-572e-9d40-1ef04a972fd1"
   # Fable-Fusion-27B (Qwen3.6-27B-MTP arch) at Q5_K_M, ~19.7 GB.
   - name: "fable-fusion-27b-mtp-gguf"
     repo: "EnclaveHost/fable-fusion-27b-mtp-gguf@00b1e5483d5457fe32c0dd82f2d24a19ef0dc957"
