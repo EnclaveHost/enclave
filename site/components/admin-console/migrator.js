@@ -27,7 +27,7 @@
 import { secp256k1 } from "@noble/curves/secp256k1";
 import { keccak_256 } from "@noble/hashes/sha3";
 import { baseRpc } from "../../js/core/chain.js";
-import { wcNudge } from "../../js/core/wallet.js";
+import { personalSign } from "../../js/core/wallet.js";
 import { APP_CATALOG_RPCS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { EnclaveError } from "../../js/core/api.js";
@@ -92,8 +92,7 @@ export async function deriveMigrator() {
     throw new EnclaveError("Connect the governance wallet first.", 0);
   let sig;
   try {
-    wcNudge();
-    sig = await Enclave.provider.request({ method: "personal_sign", params: [DERIVE_MSG, Enclave.address] });
+    sig = await personalSign(DERIVE_MSG);
   } catch (e) {
     if (e && (e.code === 4001 || /reject|denied|declin|cancell/i.test(e.message || "")))
       throw new EnclaveError("derivation canceled: you declined the signature.", 0);

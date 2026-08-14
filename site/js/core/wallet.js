@@ -428,8 +428,7 @@ export async function authenticate(opts){
   const message = assertSiweLogin((ch && ch.message) ? ch.message : buildSiwe(ch), Enclave.address);
   let signature;
   try {
-    wcNudge();
-    signature = await Enclave.provider.request({ method: "personal_sign", params: [message, Enclave.address] });
+    signature = await personalSign(message);
   } catch(e){
     throw new EnclaveError((e && e.code === 4001) ? "Signature rejected." : ("Could not sign in: " + (e.message || e)), 0);
   }
@@ -445,11 +444,25 @@ export async function authenticate(opts){
 }
 
 export function disconnectWallet(){
+  const wasWc = !!(Enclave.provider && Enclave.provider._enclaveWc) || Enclave.walletRdns === WC_RDNS;
   // end the relay session too, or "Sign out" leaves the pairing live in the
   // wallet and the next sign-in silently reuses it
   try { if (Enclave.provider && Enclave.provider._enclaveWc) Enclave.provider.disconnect(); } catch(e){}
   _wcInit = null;
   if (_wcLockRelease){ try { _wcLockRelease(); } catch(e){} _wcLockRelease = null; }   // hand the WC session to the next tab that wants it
+  // A DEAD relay session survives sign-out inside WalletConnect's own
+  // IndexedDB: disconnect() ends the live session, but a session that already
+  // desynced (Suite restarted; a pre-lock sibling tab consumed its keys) is
+  // exactly the one disconnect() can't reach - and the next connect's
+  // enable() restores it silently, skips the pairing code, and then errors
+  // every request. Sign-out means "forget the pairing": delete the WC
+  // databases outright so the next connect starts from a fresh code. Delayed
+  // a beat so disconnect()'s own storage writes land first; best-effort on
+  // browsers without indexedDB.databases().
+  if (wasWc) setTimeout(() => {
+    try { indexedDB.databases().then(dbs => (dbs || []).forEach(d =>
+      d && /wallet_?connect/i.test(d.name || "") && indexedDB.deleteDatabase(d.name))).catch(() => {}); } catch(e){}
+  }, 400);
   Enclave.token = null; Enclave.tokenBase = null; Enclave.enclaveTokens = {}; Enclave.address = null; Enclave.provider = null; Enclave.chainId = null; Enclave.walletRdns = null;
   clearSession();
   Enclave.clearAccountSession();   // "Sign out" means BOTH domains: wallet/enclave session and the relay account
@@ -636,6 +649,20 @@ export async function renderWalletPop(){
 export function wcNudge(){
   if (Enclave.provider && Enclave.provider._enclaveWc)
     showToast("Sent to your wallet - open Trezor Suite (or your WalletConnect wallet) to confirm. Keep this tab open until it answers.");
+}
+/* personal_sign, spec-shaped. EIP-1193 defines params[0] as the 0x-hex of the
+   message BYTES; MetaMask accepts a bare string as a courtesy and every
+   extension followed suit, so the site sent text for years. The first
+   spec-strict signer to arrive (Trezor Suite over WalletConnect) answers a
+   bare-string request with "personal_sign error" - same reason the e2e wallet
+   stub already hex-normalizes before handing anvil the message. The signature
+   covers the same bytes either way, so no verifier anywhere notices. Every
+   message-signature call site goes through here; the nudge rides along
+   because a message signature is a trip to another app on WalletConnect. */
+export async function personalSign(message){
+  wcNudge();
+  const hex = "0x" + [...new TextEncoder().encode(message)].map(b => b.toString(16).padStart(2, "0")).join("");
+  return await Enclave.provider.request({ method: "personal_sign", params: [hex, Enclave.address] });
 }
 export async function ensureBaseChain(){
   let cur;

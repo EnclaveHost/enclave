@@ -19,7 +19,7 @@ import { $$, esc, hlJson, fmtDur, statusCls, copyText, showToast, lsGet, lsSet }
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { pad32, encUint, encCall, hexBig, DEP_SEL, APPROVAL, depPrices6, rate6Of, depMaxGpuMilli, depGet, depSchemaRev, depFeeOf, depCapOf, depRefundableOf, depCall, catVersionFee, waitReceipt } from "../../js/core/chain.js";
-import { authenticate, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx, wcNudge } from "../../js/core/wallet.js";
+import { authenticate, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx, personalSign } from "../../js/core/wallet.js";
 import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, STORE } from "../../js/core/catalog.js";
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
@@ -1625,8 +1625,7 @@ class Deployments extends EnclaveElement {
       .map(b => b.toString(16).padStart(2, "0")).join("");
     const sign = async (message) => {
       if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
-      wcNudge();
-      return Enclave.provider.request({ method: "personal_sign", params: [message, Enclave.address] });
+      return personalSign(message);
     };
     const call = async (path, body) => {
       const r = await fetch(Enclave.base + path, { method: "POST",
@@ -1741,8 +1740,7 @@ class Deployments extends EnclaveElement {
     const paint = (cls, txt) => paintLine(st, cls, txt);
     const sign = async (message) => {
       if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
-      wcNudge();
-      return Enclave.provider.request({ method: "personal_sign", params: [message, Enclave.address] });
+      return personalSign(message);
     };
     const call = async (path, body) => {
       const r = await fetch(Enclave.base + path, { method: "POST",
