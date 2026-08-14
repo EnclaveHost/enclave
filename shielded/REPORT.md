@@ -49,13 +49,30 @@ The design originally called for splitting a 24-bit prime into 8-bit limbs, whic
 N² cross-product GEMMs. Measurement says use **RNS over byte-sized primes** instead: each
 residue fits in one int8 limb, so a field GEMM is N GEMMs, not N².
 
-| rung | M=512 K=4096 N=4096 | M=512 K=4096 N=14336 | M=2048 K=4096 N=4096 |
+| rung (GEMM only) | M=512 K=4096 N=4096 | M=512 K=4096 N=14336 | M=2048 K=4096 N=4096 |
 |---|---|---|---|
 | fp16 (baseline) | 0.64 ms | 1.55 ms | 1.90 ms |
-| **RNS-3 int8 TC** | **2.57×** | **3.64×** | **3.44×** |
+| RNS-3 int8 TC | 2.57× | 3.64× | 3.44× |
 | RNS-4 int8 TC | 3.38× | 4.87× | 4.64× |
 | limb-int8 (old plan) | 24.7× | 33.4× | 31.9× |
 | fp64-RNS | ~320× | ~450× | ~420× |
+
+### Recombination is not free, and fusing it is a hard requirement
+
+An RNS field GEMM is N GEMMs **plus a CRT pass over the M×N output**. Timing only the GEMMs
+understates the tier by enough to flip the verdict:
+
+| total (GEMM + CRT) | 512×4096×4096 | 512×4096×14336 | 2048×4096×4096 |
+|---|---|---|---|
+| **RNS-3, fused CRT** | **2.70×** | **3.62×** | **3.56×** |
+| RNS-3, naive CRT | 5.54× | 7.27× | 6.90× |
+
+Naive CRT (≈10 separate elementwise kernels, each a full int64 memory round trip) costs
+*more than the GEMMs themselves* and puts the tier through the 5× kill line. Fusing the chain
+into one kernel — demonstrated here with `torch.compile`, 10–18× faster — brings it back to
+~0.13–0.44 ms, a few percent of the GEMM. **The fused CRT epilogue is therefore an
+implementation requirement of the same rank as the masking itself**, not an optimisation to
+defer. A real worker fuses it into the GEMM epilogue rather than calling a compiler.
 
 RNS-3 gives 23.8 bits of dynamic range, RNS-4 gives 31.6. Since the accumulator was
 measured to need ~18.7 bits nominal and ~22.8 under 10³× outlier channels, **RNS-3 is the
@@ -188,7 +205,7 @@ whether speech-to-text ever touches the GPU under the small-model rule.)*
 
 | criterion | standing |
 |---|---|
-| Chat/vision >5× at batch ≥4 | **Not killed, not cleared.** GPU leg 2.6–3.6× at prefill. Batch-1 decode is 6× vs q4_K, but the criterion is stated at batch ≥4 where the weight read amortises. Needs an end-to-end run. |
+| Chat/vision >5× at batch ≥4 | **Not killed, not cleared.** GPU leg 2.7–3.6× at prefill *including* fused CRT — but only if the CRT is fused; naive recombination alone reaches 5.5–7.3× and fails outright. Batch-1 decode is 6× vs q4_K, though the criterion is stated at batch ≥4 where the weight read amortises. Needs an end-to-end run. |
 | Image gen >3× per image at batch ≥4 | **Untested.** Denoiser is a transformer reusing the measured path; steps batch well. sd.cpp integration not started. |
 | STT/TTS fail realtime on both paths | **Pending the CPU-in-TEE measurement.** Both models are under the small-model rule, so the expected outcome is CPU-only with no GPU path at all. |
 | Requires trusting GPU driver / host kernel / operator | **Cleared by construction.** Nothing in the design does. |
@@ -217,10 +234,12 @@ product bar, and the fix is a CPU kernel, not a GPU one.
 
 1. **Write the VNNI int8 GEMM for the TEE side and measure it.** Single highest-value item;
    it decides whether 8B is servable.
-2. **Write the small-M CUDA kernel** (int8 tensor cores refuse M ≤ 16) so decode has a fast
+2. **Fuse the CRT into the GEMM epilogue.** Measured as the difference between 2.7× and
+   5.5×, i.e. between passing and failing the kill criterion.
+3. **Write the small-M CUDA kernel** (int8 tensor cores refuse M ≤ 16) so decode has a fast
    path, and re-measure decode against a q4_K baseline.
-3. **Build the sched-pinned executor** against llama.cpp with the oracle as its equivalence
+4. **Build the sched-pinned executor** against llama.cpp with the oracle as its equivalence
    reference, and get a first end-to-end shielded token.
-4. **Land the per-tensor magnitude guard, failing closed**, before any real model runs — a
+5. **Land the per-tensor magnitude guard, failing closed**, before any real model runs — a
    silent field wrap corrupts output with no error signal.
-5. Only then: sd.cpp DiT, the mm30 engine bump for TTS, and fleet integration.
+6. Only then: sd.cpp DiT, the mm30 engine bump for TTS, and fleet integration.

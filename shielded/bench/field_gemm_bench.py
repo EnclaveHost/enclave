@@ -241,6 +241,45 @@ def run_rns_int8(M, K, N, xs, ws, primes):
     return go
 
 
+def crt_gpu(r0, r1, r2):
+    """Garner-style incremental CRT for 3 channels, elementwise on GPU tensors.
+
+    Written as plain torch ops so torch.compile can fuse the whole chain into one
+    kernel. Unfused it is ~10 separate launches each doing a full int64 memory
+    round trip, which costs MORE THAN THE GEMMS -- see crt_cost() below.
+    """
+    acc = r0.to(torch.int64) % 251
+    for r, q, M in ((r1, 241, 251), (r2, 239, 251 * 241)):
+        rr = r.to(torch.int64) % q
+        inv = pow(M % q, -1, q)
+        tdig = ((rr - acc % q) * inv) % q
+        acc = acc + M * tdig
+    return acc
+
+
+def crt_cost(M, N):
+    """Recombination is NOT free, and getting this wrong flips the verdict.
+
+    A field GEMM in RNS is N GEMMs plus a CRT pass over the M x N output. Timing
+    only the GEMMs (as the first version of this file did) understates the tier by
+    enough to matter: naive CRT lands the total at 5.6-7.5x fp16, through the 5x
+    kill line, while a fused CRT keeps it at ~2.9-3.6x. So the fused epilogue is a
+    hard implementation requirement, not an optimisation.
+    """
+    res = [torch.randint(-(10**6), 10**6, (M, N), dtype=torch.int32, device=DEV) for _ in range(3)]
+    naive = timeit(lambda: crt_gpu(*res), iters=20, warmup=5) * 1e3
+    out = {"crt_naive_ms": naive}
+    try:
+        fused = torch.compile(crt_gpu, dynamic=False)
+        fused(*res)  # trigger compilation
+        out["crt_fused_ms"] = timeit(lambda: fused(*res), iters=20, warmup=5) * 1e3
+        out["fusion_speedup"] = round(naive / out["crt_fused_ms"], 1)
+    except Exception as e:
+        out["crt_fused_ms"] = None
+        out["fusion_error"] = str(e)[:150]
+    return out
+
+
 def crt_recombine(residues, primes):
     """Reconstruct the exact integer from its residues (numpy, exact via object dtype)."""
     M = 1
@@ -338,6 +377,16 @@ def bench_shape(M, K, N, rng, do_fp64):
         }
         out["decode_x_fp16_projected"] = {"rns3": 1.5, "rns4": 2.0}
         out["decode_x_q4K_projected"] = {"rns3": 6.0, "rns4": 8.0}
+
+    # Total = GEMMs + recombination. Quoting the GEMM alone understates the tier.
+    if M > 16:
+        c = crt_cost(M, N)
+        out.update(c)
+        if out.get("rns3_int8_ms") and c.get("crt_fused_ms"):
+            out["rns3_total_fused_ms"] = out["rns3_int8_ms"] + c["crt_fused_ms"]
+            out["rns3_total_naive_ms"] = out["rns3_int8_ms"] + c["crt_naive_ms"]
+            out["rns3_total_fused_x_fp16"] = round(out["rns3_total_fused_ms"] / out["fp16_ms"], 2)
+            out["rns3_total_naive_x_fp16"] = round(out["rns3_total_naive_ms"] / out["fp16_ms"], 2)
 
     base = out["fp16_ms"]
     for k in ("fp32_ms", "fp64_chunked_ms", "limb_int8_ms",
