@@ -116,6 +116,27 @@ test("RNS escape hatch is exact and doubles dynamic range", () => {
   assert.ok(r.dynamic_range_bits >= 47);
 });
 
+test("TwinShield prefill offload is exact and resists the decode attack", () => {
+  // The construction is only used where it is sound. Correctness at prefill sizes
+  // AND failure of the decode attack at m=32 are both required before v2 ships.
+  const t = run().twinshield_prefill;
+  assert.equal(t.m64_exact, true);
+  assert.equal(t.m256_exact, true);
+  assert.equal(t.attack_fails_at_m32, true);
+  assert.equal(t.m256_flop_inflation, 4, "offloaded product is 4x the bare FLOPs");
+});
+
+test("convolution offload is exact (SDXL UNet path)", () => {
+  const c = run().conv_masking;
+  assert.equal(c.conv_offload_exact, true);
+});
+
+test("ViT block offload matches the in-TEE reference", () => {
+  const v = run().vit;
+  assert.equal(v.vit_offload_matches_reference, true);
+  assert.ok(v.tensors_crossing_boundary > 0);
+});
+
 test("capacity model reflects the GQA catalog policy", () => {
   // GQA is what makes TEE-resident decode attention affordable. MHA at the same
   // context streams n_head/n_kv_head times more KV per token.
