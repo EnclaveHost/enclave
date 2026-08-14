@@ -41,10 +41,27 @@ operation for operation:
 Any future port must use this routine, not reimplement it. `test_encode_matches_kernel`
 is the tripwire.
 
-NOT A PRODUCTION KERNEL. This is a correctness-first Triton implementation written
-to test the claim; it is not autotuned and does not try to beat cutlass at raw GEMM
-throughput. What it is meant to demonstrate is the FUSION win and the BANDWIDTH
-win, both of which are properties of the memory traffic, not of the inner loop.
+WHAT LIMITED IT, AND WHAT DID NOT
+---------------------------------
+Two candidate limiters were measured rather than guessed:
+
+  * Scale traffic -- REAL, and the whole gap. The first version loaded the fp16
+    scale as a full (BLOCK_K, BLOCK_N) tile, issuing a read per weight for a value
+    shared by 32 weights: up to 2 extra bytes per weight against an intended
+    0.0625. Loading a (BLOCK_K/32, BLOCK_N) tile and broadcasting in registers took
+    decode from 0.90x to 0.70x fp16 and K=14336 to within 16% of the memory roof.
+  * Occupancy / split-K -- NOT the limiter. At M=1 the grid is only 32 programs
+    against 46 SMs, which looks like the obvious problem, so a split-K variant was
+    built (partial int32 accumulators via atomic add, CRT demoted to a second pass
+    over M x N). It measured SLOWER: 0.79x vs 0.70x at K=4096 and a wash at
+    K=14336. The atomics and the extra launch cost more than the extra parallelism
+    buys. Recorded so nobody spends the afternoon rebuilding it.
+
+NOT A PRODUCTION KERNEL. This is a correctness-first Triton implementation; it is
+tuned by a correctness-gated sweep on one card (sm_86), not autotuned per shape,
+and it does not try to beat cutlass at raw GEMM throughput. What it demonstrates is
+the FUSION win and the BANDWIDTH win, both properties of the memory traffic rather
+than of the inner loop.
 """
 
 import argparse
@@ -212,6 +229,8 @@ def field_gemm_q8_kernel(
     acc1 = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.int32)
     acc2 = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.int32)
 
+    NBLK: tl.constexpr = BLOCK_K // qk   # scale rows per K-tile; BLOCK_K % qk == 0
+
     for k0 in range(0, K, BLOCK_K):
         offs_k = k0 + tl.arange(0, BLOCK_K)
         mask_k = offs_k < K
@@ -223,9 +242,17 @@ def field_gemm_q8_kernel(
 
         wptr = WQ + offs_k[:, None] * stride_wqk + offs_n[None, :] * stride_wqn
         wq = tl.load(wptr, mask=mask_k[:, None] & mask_n[None, :], other=0)
-        dptr = WD + (offs_k[:, None] // qk) * stride_wdk + offs_n[None, :] * stride_wdn
-        d = tl.load(dptr, mask=mask_k[:, None] & mask_n[None, :], other=0.0)
-        d256 = d.to(tl.float32) * 256.0
+
+        # ONE scale per 32 weight rows, loaded as a (BLOCK_K/qk, BLOCK_N) tile and
+        # broadcast in registers. Loading it per element instead -- which the first
+        # version did -- issues an fp16 read for every weight, i.e. 2 extra bytes
+        # per weight against an intended 0.0625, and it dominated the decode path.
+        offs_b = (k0 // qk) + tl.arange(0, NBLK)
+        dblk = tl.load(WD + offs_b[:, None] * stride_wdk + offs_n[None, :] * stride_wdn,
+                       mask=(offs_b[:, None] < (K // qk)) & mask_n[None, :], other=0.0)
+        d256 = tl.reshape(
+            tl.broadcast_to(dblk[:, None, :], (NBLK, qk, BLOCK_N)),
+            (BLOCK_K, BLOCK_N)).to(tl.float32) * 256.0
 
         r0, r1, r2 = _dequant_to_residues(wq, d256, q0, q1, q2, fast)
         w8 = r0.to(tl.int8)
@@ -270,26 +297,44 @@ def field_gemv_q8(x_res, wq, wd, N, fast=True):
 
 
 def pick_blocks(M):
-    """Route by M. The tensor-core kernel wins even at M=1, where 15 of every 16
-    rows it computes are masked away: a padded tl.dot still beats a hand-rolled
-    reduction because decode is bandwidth-bound and the wasted MACs are free.
-    `field_gemv_q8` below is kept only as the comparison that establishes this
-    (it measures 3.7-4.9x fp16 against the padded GEMM's 0.9x)."""
+    """Route by M. Values from a correctness-gated sweep on an RTX 3070 (sm_86);
+    every config in that sweep had to reproduce the plaintext product exactly
+    before it was allowed to be timed.
+
+    The tensor-core kernel wins even at M=1, where 15 of every 16 rows it computes
+    are masked away: a padded tl.dot beats a hand-rolled reduction ~4x because
+    decode is bandwidth-bound and the wasted MACs are free. `field_gemv_q8` is kept
+    only as the comparison that establishes this.
+
+    BLOCK_M must track M. An earlier table jumped straight from 16 to 64 and cost
+    1.75x at M=32, where the kernel computed two rows of padding for every real
+    one -- cheap at M=1 where the card is bandwidth-bound, expensive once there is
+    real work to displace.
+
+    Returns (BLOCK_M, BLOCK_N, BLOCK_K, num_warps, num_stages). BLOCK_K must be a
+    multiple of QK so the scale broadcast divides evenly.
+    """
     if M <= 16:
-        return (16, 128, 64)
-    if M <= 128:
-        return (64, 128, 64)
-    return (64, 128, 64)
+        return (16, 128, 256, 8, 3)      # decode: big BLOCK_K amortises the scale tile
+    if M <= 32:
+        return (32, 128, 128, 8, 3)
+    if M <= 64:
+        return (32, 64, 64, 4, 3)
+    return (64, 128, 64, 4, 3)           # prefill/batched
 
 
 def field_gemm(x_res, wq, wd, M, N, fast=True):
     """The entry point. Handles every M, including decode."""
-    return field_gemm_q8(x_res, wq, wd, M, N, block=pick_blocks(M), fast=fast)
+    bm, bn, bk, nw, ns = pick_blocks(M)
+    return field_gemm_q8(x_res, wq, wd, M, N, block=(bm, bn, bk), fast=fast,
+                         num_warps=nw, num_stages=ns)
 
 
-def field_gemm_q8(x_res, wq, wd, M, N, block=(64, 128, 64), fast=True):
+def field_gemm_q8(x_res, wq, wd, M, N, block=(64, 128, 64), fast=True,
+                  num_warps=4, num_stages=3):
     y = torch.empty((M, N), dtype=torch.int32, device="cuda")
     BM, BN, BK = block
+    assert BK % QK == 0, "BLOCK_K must be a multiple of the q8_0 block size"
     grid = (triton.cdiv(M, BM), triton.cdiv(N, BN))
     field_gemm_q8_kernel[grid](
         x_res[0], x_res[1], x_res[2], wq, wd, y,
@@ -298,7 +343,7 @@ def field_gemm_q8(x_res, wq, wd, M, N, block=(64, 128, 64), fast=True):
         wq.stride(0), wq.stride(1), wd.stride(0), wd.stride(1),
         y.stride(0), y.stride(1),
         Q0, Q1, Q2, INV_Q0_MOD_Q1, INV_Q0Q1_MOD_Q2, M_MOD, QK, fast,
-        BLOCK_M=BM, BLOCK_N=BN, BLOCK_K=BK, num_warps=8, num_stages=3,
+        BLOCK_M=BM, BLOCK_N=BN, BLOCK_K=BK, num_warps=num_warps, num_stages=num_stages,
     )
     return y
 
