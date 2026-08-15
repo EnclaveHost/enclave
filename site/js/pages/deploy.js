@@ -64,7 +64,7 @@ function renderAccessNote(){
   const el = $("#accessNote"); if (!el) return;
   el.innerHTML = dep.public
     ? "anyone can reach the app endpoint, for websites, APIs, servers; management stays owner-only."
-    : "only your wallet (SIWE token) can reach the app, for private/confidential jobs.";
+    : "only your wallet can reach the app, for private/confidential jobs; open it in a browser and it asks you to sign in first.";
 }
 
 // The relay's /enclaves rows (refreshFleet keeps them fresh; null = no fleet

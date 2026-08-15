@@ -1129,7 +1129,7 @@ async function cmdStatus(rest) {
     ["id", id],
     ["app", rec?.image?.reference || chainRec?.appRef],
     ["status", rec?.status || (chainRec ? (!chainRec.active ? "stopped" : leased ? "claimed (no live enclave record yet)" : claimable ? "queued: waiting for an enclave to claim" : "unfunded: spent its funding; a top-up re-queues it (enclave fund)") : null)],
-    ["visibility", (rec ? rec.public : chainRec?.isPublic) ? "public" : "private (owner bearer required)"],
+    ["visibility", (rec ? rec.public : chainRec?.isPublic) ? "public" : "private (owner only: bearer here, wallet sign-in in a browser)"],
     rec?.resources ? ["shares", `gpu ${Math.round((rec.resources.gpuShare || 0) * 100)}% · cpu ${Math.round((rec.resources.cpuShare || 0) * 100)}%`]
                    : chainRec ? ["shares", `gpu ${Number(chainRec.gpuMilli) / 10}% · cpu ${Number(chainRec.cpuMilli) / 10}%`] : null,
     chainRec ? ["rate", `${usd6(chainRec.rate)}/s (${usd6(chainRec.rate * 3600n)}/h)`

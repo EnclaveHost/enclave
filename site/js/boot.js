@@ -29,6 +29,7 @@ const PAGES = {
   privacy:   () => import("./pages/privacy.js"),   // Privacy Policy - linked from the footer + deploy gates
   checkout:  () => import("./pages/checkout.js"),  // order checkout: card (hosted Stripe) or USDC (PaymentRouter)
   link:      () => import("./pages/link.js"),      // device-flow approval: the phone side of "Use your phone"
+  authorize: () => import("./pages/authorize.js"), // wallet hand-off for a PRIVATE app - the enclave bounces navigations here
   host:      () => import("./pages/host.js"),   // seller pitch + the PUBLIC live-fleet panel
 };
 // URL aliases: pathnames that render ANOTHER page's document. /apps/deploy
@@ -226,7 +227,7 @@ const initial = pageOf(location.pathname) || "overview";
 bootPage(initial);
 setTimeout(() => {
   for (const p of Object.keys(PAGES)) {
-    if (p === "admin" || p === "terms" || p === "privacy" || p === "checkout" || p === "link") continue;   // nobody navigates to these by accident - don't warm them
+    if (p === "admin" || p === "terms" || p === "privacy" || p === "checkout" || p === "link" || p === "authorize") continue;   // nobody navigates to these by accident - don't warm them
     if (initial !== p) fetchPage(p).catch(() => {});
   }
 }, 1500);

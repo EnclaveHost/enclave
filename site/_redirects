@@ -9,6 +9,7 @@
 /dashboard  /dashboard.html  200
 /checkout   /checkout.html   200
 /link       /link.html       200
+/authorize  /authorize.html  200
 /host       /host.html       200
 /admin      /admin.html      200
 /terms      /terms.html      200

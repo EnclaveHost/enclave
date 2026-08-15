@@ -185,6 +185,14 @@ export const Enclave = {
     if (this.token) return this._req("GET", path, { auth: true });
     return this._req("GET", path, { query: this.address ? { owner: this.address } : {} });
   },
+  /* Trade this box's session for an app-origin one, so a PRIVATE deployment can
+     be opened in a browser: a top-level navigation carries no Authorization
+     header, so the enclave takes the same owner proof as a cookie instead. The
+     token comes back audience-bound to this one deployment and opens no
+     control-plane route, which is what makes it safe to hand to a page on the
+     tenant's own origin. `enclave` names the box hosting it - sessions are
+     per-box, and only the host can mint for its own deployments. */
+  appToken(id, enclave){ return this._req("POST", "/deployments/" + encodeURIComponent(id) + "/app-token", { auth: true, enclave }); },
   /* `evacuate` = the owner is MOVING off this box: the enclave hands the lease
      back AND stands down from re-claiming it for a short window. Without it the
      source re-claims its own release within seconds (it still has the app
