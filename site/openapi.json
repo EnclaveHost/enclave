@@ -456,6 +456,75 @@
         }
       }
     },
+    "/deployments/{id}/app-token": {
+      "post": {
+        "tags": [
+          "Deployments"
+        ],
+        "operationId": "appToken",
+        "summary": "Token for opening a private app in a browser",
+        "description": "Trades this enclave's session for an app-origin one, so the owner can open a PRIVATE deployment in a browser: a top-level navigation cannot carry an Authorization header, so the enclave accepts the same owner proof as an HttpOnly cookie on the app's own origin instead. The returned token is audience-bound to this one deployment and is NOT a session - it opens no control-plane route, which is what makes it safe to hand to a page served on the tenant's origin. Redeem it by POSTing it as a bearer to /__enclave/session at the app origin, which sets the cookie. Owner-only; 400 if the deployment is public (open those directly). The site does this for you at /authorize?d=<id>.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A short-lived, deployment-scoped token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string",
+                      "description": "ES256 JWT, aud = \"app:<id>\"."
+                    },
+                    "tokenType": {
+                      "type": "string",
+                      "example": "Cookie"
+                    },
+                    "deployment": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The deployment is public - open it directly.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such deployment, or not yours.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/deployments/{id}/topup": {
       "post": {
         "tags": [

@@ -170,8 +170,85 @@ async function verifySessionToken(token) {
   let hdr;
   try { hdr = JSON.parse(Buffer.from(token.split(".")[0] || "", "base64url").toString("utf8")); } catch { return null; }
   if (!hdr || hdr.alg !== "ES256" || hdr.kid !== SESSION_KID) return null;
-  try { const { payload } = await jwtVerify(token, SESSION_PUB, { algorithms: ["ES256"], issuer: SESSION_KID }); return getAddress(payload.sub); }
+  try {
+    const { payload } = await jwtVerify(token, SESSION_PUB, { algorithms: ["ES256"], issuer: SESSION_KID });
+    // A CONTROL-PLANE session carries no audience. App-origin cookie tokens
+    // (mintAppToken) are signed by this same key and would otherwise verify
+    // here identically — and that token lives in a cookie on a TENANT origin,
+    // reachable by any app bug that can make the browser issue a same-origin
+    // request. Refusing every token that names an audience keeps the blast
+    // radius of a leaked app cookie at "that one app", instead of handing over
+    // deployment listing, logs, secrets and every other `authed` route.
+    if (payload.aud !== undefined) return null;
+    return getAddress(payload.sub);
+  }
   catch { return null; }
+}
+
+// ---- app-origin session (private deployments in a browser) -----------------
+// A browser's top-level navigation cannot carry `Authorization: Bearer`, so a
+// private deployment was unreachable by clicking a link even AS ITS OWNER — the
+// gate below answered a bare 401 JSON blob. The fix is a second carriage (a
+// cookie on the app origin) for the SAME owner check, never a second rule.
+//
+// It is deliberately NOT the control-plane session token:
+//   • `aud` binds it to ONE deployment, so it opens nothing else on this box;
+//   • the TTL is short next to SESSION_TTL's 7 days;
+//   • verifySessionToken above refuses it outright.
+// The cookie is HttpOnly (app JS can never read it) and stripped back off the
+// request before we proxy (see the /x/:id handler), so the tenant never sees it.
+const APP_COOKIE  = "enclave_app";
+const APP_TTL_SEC = 12 * 3600;
+const appAud = (id) => "app:" + id;
+
+async function mintAppToken(subject, id) {
+  return new SignJWT({}).setProtectedHeader({ alg: "ES256", kid: SESSION_KID })
+    .setIssuer(SESSION_KID).setSubject(subject).setAudience(appAud(id))
+    .setExpirationTime((Date.now() / 1000 | 0) + APP_TTL_SEC).sign(SESSION_PRIV);
+}
+
+// Verify an app cookie for THIS deployment -> checksummed address, or null.
+// `audience` is passed to jwtVerify rather than compared afterwards so the
+// check cannot be skipped by a payload shape we did not anticipate; a token
+// minted for another deployment on this same enclave fails closed here.
+async function verifyAppToken(token, id) {
+  if (!token || typeof token !== "string" || !SESSION_PUB || !id) return null;
+  let hdr;
+  try { hdr = JSON.parse(Buffer.from(token.split(".")[0] || "", "base64url").toString("utf8")); } catch { return null; }
+  if (!hdr || hdr.alg !== "ES256" || hdr.kid !== SESSION_KID) return null;
+  try {
+    const { payload } = await jwtVerify(token, SESSION_PUB,
+      { algorithms: ["ES256"], issuer: SESSION_KID, audience: appAud(id) });
+    return getAddress(payload.sub);
+  } catch { return null; }
+}
+
+// Minimal RFC 6265 cookie read, returning EVERY value sent under `name`.
+// Values we mint are base64url JWTs, so no quoted-string or percent-decoding
+// case can arise; anything unparseable reads as absent and the caller falls
+// through to the login bounce.
+//
+// All of them, not the first, because a browser will happily send several
+// pairs of the same name and the server cannot tell which came from where.
+// `app.enclave.host` is not on the Public Suffix List, so a hostile tenant at
+// hostile.app.enclave.host can set `enclave_app=junk; Domain=app.enclave.host`
+// and have it delivered to a VICTIM's app origin alongside the real host-only
+// cookie. RFC 6265 §5.4 sorts by longer path then earlier creation — both of
+// which the attacker chooses — so reading only the first pair let a stranger
+// lock an owner out of their own paid app indefinitely (each re-login lands
+// behind the planted pair, and the loop-breaker then reports a hard refusal).
+// No token of theirs can ever VERIFY for someone else's deployment — the
+// audience forbids it — so this was always denial of access, never access.
+function cookieVals(req, name) {
+  const raw = req.headers.cookie;
+  if (!raw) return [];
+  const out = [];
+  for (const part of String(raw).split(";")) {
+    const eq = part.indexOf("=");
+    if (eq < 0) continue;
+    if (part.slice(0, eq).trim() === name) out.push(part.slice(eq + 1).trim());
+  }
+  return out;
 }
 // This enclave's on-chain identity is bound to its OWN attested shim-cert SAN
 // (see registerFromShimCert), never to the request Host/x-forwarded-host header —
@@ -1404,6 +1481,69 @@ if (process.env.WAF_SELFTEST) {
 // (tenantHeaders is a hoisted function declaration, so it is reachable here.)
 if (process.env.TENANT_HEADERS_SELFTEST) {
   console.log(JSON.stringify(JSON.parse(process.env.TENANT_HEADERS_SELFTEST).map((h) => tenantHeaders(h))));
+  process.exit(0);
+}
+
+// APPAUTH_SELFTEST='{"ids":["0x…","0x…"],"addrs":["0x…"],"cookies":[…],"reqs":[…]}'
+// prints what the private-app browser path would decide, same seam contract as
+// WAF_SELFTEST (test/private-app-auth.test.mjs drives it).
+//
+// The property that matters most here is NEGATIVE and cannot be seen by reading
+// one function: the app cookie and the control-plane session are signed by the
+// SAME in-enclave key, so only the audience keeps a token that lives on a
+// tenant origin from opening /v1/deployments, logs and secrets. That crossing
+// is what this seam exists to pin.
+if (process.env.APPAUTH_SELFTEST) {
+  const c = JSON.parse(process.env.APPAUTH_SELFTEST);
+  initSessionKey();
+  const [idA, idB] = c.ids || [];
+  const addr = (c.addrs || [])[0];
+  const appTok  = await mintAppToken(addr, idA);
+  const sessTok = await mintSession(addr, new Date(Date.now() + 3600e3));
+  console.log(JSON.stringify({
+    // the app token opens ITS deployment, and nothing else
+    appForOwnId:   await verifyAppToken(appTok, idA),
+    appForOtherId: await verifyAppToken(appTok, idB),
+    // …and is not a control-plane session, though the same key signed it
+    appAsSession:  await verifySessionToken(appTok),
+    // …while a real session still is one, and is not an app cookie
+    sessAsSession: await verifySessionToken(sessTok),
+    sessAsApp:     await verifyAppToken(sessTok, idA),
+    cookies: (c.cookies || []).map((raw) => ({ read: cookieVals({ headers: { cookie: raw } }, APP_COOKIE),
+                                               kept: stripAppCookie(raw) })),
+    reqs: (c.reqs || []).map((r) => wantsHtml({ method: r.method || "GET", headers: r.headers || {} })),
+    // What the hand-off route DECIDES, driven with stand-ins: which paths it
+    // claims (an unclaimed one falls through to the owner gate), and what it
+    // actually sets. `tok`/`sess` in a case substitute the real tokens above.
+    routes: await Promise.all((c.routes || []).map(async (r) => {
+      // Checksummed, as a live record is (view() builds owner via getAddress):
+      // both sides of the ownership compare must be in the same case.
+      const rec = { id: r.id || idA, owner: getAddress(r.owner || addr), public: !!r.public };
+      const auth = r.auth === "tok" ? "Bearer " + appTok
+                 : r.auth === "sess" ? "Bearer " + sessTok
+                 : r.auth;
+      const out = { status: 0, cookie: "", body: "" };
+      let done; const settled = new Promise((s) => { done = s; });
+      const res = {
+        headersSent: false,
+        setHeader(k, v) { if (/^set-cookie$/i.test(k)) out.cookie = v; },
+        status(s) { out.status = s; return res; },
+        json(o) { out.body = JSON.stringify(o); res.headersSent = true; done(); return res; },
+        end(b) { if (b) out.body = String(b).slice(0, 120); res.headersSent = true; done(); return res; },
+      };
+      const req = { method: r.method || "GET", url: r.url || "/",
+                    headers: auth ? { authorization: auth } : {} };
+      const handled = appSessionRoute(rec, req, res);
+      if (handled) await Promise.race([settled, new Promise((s) => setTimeout(s, 250))]);
+      // Report the cookie's NAME, ATTRIBUTES and whether it carries a value —
+      // never the token itself, so a failing assertion cannot print a credential.
+      const [pair, ...attrs] = out.cookie.split(";").map((s) => s.trim());
+      const name = pair ? pair.slice(0, pair.indexOf("=")) : "";
+      return { handled, status: out.status, name, attrs,
+               set: !out.cookie ? "" : /(^|;)\s*Max-Age=0\s*(;|$)/.test(out.cookie) ? "cleared"
+                    : pair.slice(pair.indexOf("=") + 1) ? "set" : "empty" };
+    })),
+  }));
   process.exit(0);
 }
 
@@ -2729,7 +2869,12 @@ app.use((req, res, next) => {
   next();
 });
 
-const fail = (res, status, code, message) => res.status(status).json({ code, message });
+// A hoisted declaration, not a const arrow: the selftest seams call handlers
+// that fail() from far earlier in the module, where a module-level const is
+// still in its temporal dead zone — and the ReferenceError surfaces as a
+// handler that silently never responds, not as an error. Same reason
+// tenantHeaders is written this way.
+function fail(res, status, code, message) { return res.status(status).json({ code, message }); }
 // Prefer our attested SAN once known; fall back to the request Host only during
 // early boot before the shim cert is read (client verifies attestation over its
 // own TLS, so a reflected Host there is not trusted for identity).
@@ -3012,6 +3157,207 @@ function tenantHeaders(upstream) {
   return h;
 }
 
+// ---- private-app browser access -------------------------------------------
+// Who is calling a private deployment? The bearer is the machine path (CLI,
+// fetch, MCP) and stays FIRST so nothing about it changes. The cookie is the
+// browser path, and is accepted only for THIS deployment (audience-bound).
+async function addrForApp(req, rec) {
+  const bearer = await addrFromAuth(req);
+  if (bearer) return bearer;
+  // Try EVERY pair sent under our name: a planted duplicate (see cookieVals)
+  // must not shadow the real one. Bounded by how many a browser will send, and
+  // each miss is one cheap ES256 verify.
+  for (const tok of cookieVals(req, APP_COOKIE)) {
+    const addr = await verifyAppToken(tok, rec.id);
+    if (addr) return addr;
+  }
+  return null;
+}
+
+// Is this a browser NAVIGATION (as opposed to an API call)? Only navigations
+// get HTML back; everything else keeps the JSON error it already parses, so no
+// existing client can be broken by this. `sec-fetch-dest` is the precise
+// signal where it exists; the Accept sniff covers browsers that omit it.
+//
+// A hoisted declaration, not a const arrow: the APPAUTH_SELFTEST seam calls it
+// from far earlier in the module, where a module-level const is still in its
+// temporal dead zone (the same trap tenantHeaders documents above).
+function wantsHtml(req) {
+  return req.method === "GET" &&
+    (req.headers["sec-fetch-dest"] === "document" ||
+     (!req.headers["sec-fetch-dest"] && /\btext\/html\b/i.test(req.headers.accept || "")));
+}
+
+// Drop OUR cookie pairs from a Cookie header, preserving the app's own. ALL of
+// them, matching cookieVals — a planted duplicate must not survive into the
+// tenant either. Returns the header UNCHANGED when we set none of it, so a
+// public deployment's request bytes are exactly what they always were.
+function stripAppCookie(raw) {
+  if (!raw) return "";
+  const s = String(raw);
+  if (!s.includes(APP_COOKIE)) return s;
+  return s.split(";")
+    .filter((p) => { const eq = p.indexOf("="); return eq < 0 || p.slice(0, eq).trim() !== APP_COOKIE; })
+    .map((p) => p.trim()).filter(Boolean).join("; ");
+}
+
+// A self-contained page with NO external references, served under a nonce CSP
+// that forbids everything else. It runs at a TENANT origin, so it deliberately
+// carries no wallet code and asks for no signature: the only wallet prompt in
+// this whole flow happens on enclave.host, an origin the tenant cannot serve.
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+// Embed an untrusted value as a JS string literal inside an inline <script>.
+// JSON.stringify handles quotes, backslashes and control characters; the "<"
+// rewrite handles the HTML tokenizer, which does not care that it is looking at
+// a string: "<!--<script" inside one flips it into script-data-double-escaped
+// state and it then swallows our own </script>, blanking the page. < is a
+// legal escape INSIDE a string literal (it would not be as an operator, which
+// is why this belongs here and not over the whole script).
+const jsStr = (v) => JSON.stringify(String(v)).replace(/</g, "\\u003c");
+
+function htmlPage(res, status, title, body, script) {
+  const nonce = randomBytes(16).toString("base64");
+  const js = script ? `<script nonce="${nonce}">${String(script).replace(/<\//g, "<\\/")}</script>` : "";
+  res.status(status);
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Content-Security-Policy",
+    `default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'; ` +
+    `connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`);
+  res.end(`<!doctype html><html lang="en"><head><meta charset="utf-8">` +
+    `<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">` +
+    `<title>${title}</title><style nonce="${nonce}">` +
+    `:root{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;` +
+    `font:15px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;` +
+    `background:#0b0d10;color:#e6e8eb}main{max-width:32rem;padding:2rem;text-align:center}` +
+    `h1{font-size:1.15rem;font-weight:600;margin:0 0 .5rem}p{margin:0 0 1rem;color:#9aa4b2}` +
+    `a{color:#e6e8eb}code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9em}` +
+    `@media (prefers-color-scheme:light){body{background:#fff;color:#11151a}p{color:#5a6572}a{color:#11151a}}` +
+    `</style></head><body><main>${body}</main>${js}</body></html>`);
+}
+
+// The 401 a browser gets instead of a JSON blob: bounce to enclave.host, which
+// holds the wallet code, and come back with a token. `p` is the path the user
+// actually asked for, computed in the page (see the `root` subtraction) so it
+// survives both access modes — the app subdomain, where the relay rewrites
+// /x/<id> away, and a direct https://<enclave>/x/<id>/… hit, where it does not.
+function loginBounce(rec, req, res, wrongAddr) {
+  const authorize = `${SIWE_URI}/authorize?d=${encodeURIComponent(rec.id)}`;
+  // `root` is the app's base path as the BROWSER sees it, recovered by
+  // subtracting the sub-path we were asked for. It is "" behind the app
+  // subdomain (the relay rewrites /x/<id> away) and "/x/<id>" on a direct
+  // enclave hit; the two must not be confused, and trimming a path segment
+  // instead would land on "/a/b" for a request to "/a/b/c".
+  const rootJs =
+    `var SUB=${jsStr(req.url || "/")};` +
+    `var here=location.pathname+location.search;` +
+    `var root=here.length>=SUB.length&&here.slice(here.length-SUB.length)===SUB?here.slice(0,here.length-SUB.length):"";`;
+  // A WRONG wallet is a dead end, not a step: bouncing would send the user to a
+  // page that can only tell them the same thing, and back again. Say it here
+  // and make the next move a deliberate click. 403, matching the JSON path.
+  if (wrongAddr)
+    return htmlPage(res, 403, "Wrong wallet &middot; Enclave",
+      `<h1>Wrong wallet</h1><p>This app is private. You are signed in as <code>${esc(wrongAddr)}</code>, ` +
+      `which does not own it. Switch wallets, then sign in again.</p>` +
+      `<p><a href="${esc(authorize)}">Sign in with a different wallet</a></p>`,
+      // Drop the stale cookie, or every later navigation repeats this page.
+      rootJs + `fetch(root+"/__enclave/signout",{method:"POST"}).catch(function(){});`);
+
+  htmlPage(res, 401, "Sign in &middot; Enclave",
+    `<h1>This app is private</h1><p>Sign in with the wallet that owns it. Redirecting&hellip;</p>` +
+    `<p><a id="go" href="${esc(authorize)}">Continue to enclave.host</a></p>`,
+    rootJs +
+    `var u=${jsStr(authorize)}+"#p="+encodeURIComponent(here.slice(root.length)||"/");` +
+    `document.getElementById("go").href=u;` +
+    // Loop breaker. If we just came BACK from a successful hand-off and are
+    // still being refused, redirecting again spins forever — a JS bounce gets
+    // no "too many redirects" from the browser. Stop and say so instead.
+    `var t=0;try{t=+sessionStorage.getItem("enclave_az")||0;sessionStorage.removeItem("enclave_az");}catch(e){}` +
+    `if(Date.now()-t<15000){document.querySelector("p").textContent=` +
+    `"You signed in, but this enclave still refuses the app. Its owner may have changed, or the deployment moved. Try again from your dashboard.";}` +
+    `else location.replace(u);`);
+}
+
+// The hand-off, served at the app origin. GET renders the page that lifts the
+// token out of the fragment (never the query — a fragment reaches no server log
+// and no Referer); POST carries it back in a header and is what actually sets
+// the cookie. Returns true when it handled the request.
+function appSessionRoute(rec, req, res) {
+  const path = (req.url || "").split("?")[0].replace(/\/+$/, "") || "/";
+  if (path === "/__enclave/signout") {
+    if (req.method !== "POST") return false;
+    res.setHeader("Set-Cookie", `${APP_COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`);
+    res.status(204).end();
+    return true;
+  }
+  if (path !== "/__enclave/session") return false;
+
+  if (req.method === "POST") {
+    // Token arrives as a bearer so this needs no body parser — the data path is
+    // mounted ahead of express.json() on purpose (bodies stream untouched).
+    (async () => {
+      const m = (req.headers.authorization || "").match(/^Bearer\s+(.+)$/i);
+      // Shape-check BEFORE this value can reach a response header. Node would
+      // throw on a CR/LF in setHeader, and a doctored token should fail the
+      // signature anyway — but base64 decoding is lenient about junk
+      // characters, so "verified" is a thin thing to rest a header-injection
+      // argument on. A compact JWS is three base64url segments and nothing else.
+      const tok = m && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(m[1]) ? m[1] : "";
+      const addr = tok ? await verifyAppToken(tok, rec.id) : null;
+      // Re-check ownership at REDEMPTION, not just at mint: a deployment can
+      // change hands inside the token's lifetime, and the old owner's token
+      // must stop opening it the moment it does.
+      if (!addr || rec.owner !== addr) return fail(res, 401, "unauthorized", "Invalid or expired sign-in.");
+      // Host-only (no Domain=) so it never reaches enclave.host or a sibling
+      // subdomain. Path=/ covers the direct /x/<id>/… mode too; a sibling
+      // deployment on this box rejects it anyway (the audience is bound to one
+      // id) and the tenant never sees it (stripAppCookie on the proxy leg).
+      //
+      // STRICT, not Lax. A cookie is ambient where a bearer was not, so Lax
+      // would have handed every site on the internet the ability to navigate an
+      // owner's browser into an authenticated GET on their private app — and
+      // the tenant cannot defend itself, because we strip the cookie before
+      // proxying and leave it no signal to gate on. Strict costs nothing here:
+      // the dashboard's "open" link points at /authorize, so the only cross-site
+      // navigation in the flow is enclave.host -> /__enclave/session, which
+      // carries the token in a fragment and needs no cookie; the POST below and
+      // the redirect after it are both same-origin. Address-bar hits and
+      // bookmarks are same-site and unaffected.
+      res.setHeader("Set-Cookie",
+        `${APP_COOKIE}=${tok}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${APP_TTL_SEC}`);
+      res.status(204).end();
+    })().catch(() => { if (!res.headersSent) fail(res, 500, "error", "Sign-in failed."); });
+    return true;
+  }
+  if (req.method !== "GET") return false;
+
+  htmlPage(res, 200, "Signing in &middot; Enclave",
+    `<h1>Signing you in&hellip;</h1><p id="m">One moment.</p>`,
+    `var h=new URLSearchParams(location.hash.slice(1));` +
+    `var t=h.get("t")||"",p=h.get("p")||"/";` +
+    // Resolve and compare ORIGINS rather than pattern-match the string. A
+    // leading-slash regex looks sufficient and is not: the URL parser folds
+    // backslashes into slashes, so "/\\evil.com" passes /^\/(?!\/)/ and then
+    // resolves to https://evil.com/. Whatever the parser will actually DO with
+    // this value is the only thing worth asking.
+    `try{var _u=new URL(p,location.href);p=_u.origin===location.origin?_u.pathname+_u.search:"/";}catch(e){p="/";}` +
+    `var root=location.pathname.replace(/\\/__enclave\\/session\\/?$/,"");` +
+    `function bad(x){document.getElementById("m").textContent=x;}` +
+    `if(!t)bad("This sign-in link is incomplete. Start again from enclave.host.");else{` +
+    `fetch(location.pathname,{method:"POST",headers:{Authorization:"Bearer "+t},cache:"no-store"})` +
+    `.then(function(r){if(!r.ok)throw 0;` +
+    // Mark the hand-off so a bounce arriving right back here is recognised as a
+    // LOOP rather than redirected onward (see loginBounce's loop breaker).
+    `try{sessionStorage.setItem("enclave_az",String(Date.now()));}catch(e){}` +
+    // Scrub the token out of history BEFORE leaving, so Back cannot resurrect it.
+    `history.replaceState(null,"",root+p);location.replace(root+p);})` +
+    `.catch(function(){bad("That sign-in expired. Start again from enclave.host.");});}`);
+  return true;
+}
+
 app.use("/x/:id", async (req, res) => {
   const rec = depByIdOrPrefix(req.params.id);
   if (!rec) return fail(res, 404, "not_found", "Unknown deployment.");
@@ -3029,12 +3375,22 @@ app.use("/x/:id", async (req, res) => {
   // bare-root HEAD probe above stays exempt - that's infrastructure, not
   // app traffic.
   if (!wafGate(rec, req, res)) return;
+  // The session hand-off, served BY US at the app origin. Scoped to private
+  // deployments alone: a public app keeps its entire path space, so this can
+  // never shadow a route a tenant already serves.
+  if (!rec.public && appSessionRoute(rec, req, res)) return;
   // Public deployments serve anyone (websites/APIs). Private ones require the owner's
   // token (checked before status so a private deployment's state isn't leaked).
   if (!rec.public) {
-    const addr = await addrFromAuth(req);
-    if (!addr) return fail(res, 401, "unauthorized", "Missing or invalid token.");
-    if (rec.owner !== addr) return fail(res, 403, "forbidden", "Not your deployment.");
+    const addr = await addrForApp(req, rec);
+    // A browser cannot put a bearer on a top-level navigation, so answering
+    // JSON here is what made private apps unreachable by clicking a link. Send
+    // navigations to the sign-in bounce; every other caller (CLI, fetch, API)
+    // keeps the machine-readable 401 it already parses.
+    if (!addr) return wantsHtml(req) ? loginBounce(rec, req, res)
+                                     : fail(res, 401, "unauthorized", "Missing or invalid token.");
+    if (rec.owner !== addr) return wantsHtml(req) ? loginBounce(rec, req, res, addr)
+                                                  : fail(res, 403, "forbidden", "Not your deployment.");
   }
   if (rec.status !== "running") return fail(res, 409, "not_running", `Deployment is ${rec.status}.`);
 
@@ -3065,6 +3421,13 @@ app.use("/x/:id", async (req, res) => {
   }
   const headers = { ...req.headers, host: target.host };
   delete headers.authorization; // the Enclave token stays at the supervisor; the worker never sees it
+  // Same invariant for the app-origin cookie, which rides an ORDINARY header
+  // the browser attaches to every request: without this the tenant would read
+  // its owner's session token straight out of `Cookie` and could replay it
+  // against this deployment for the rest of its 12h life. Only OUR pair is
+  // dropped — an app's own cookies are its business.
+  const kept = stripAppCookie(headers.cookie);
+  if (kept) headers.cookie = kept; else delete headers.cookie;
   const up = http.request(
     { host: target.hostname, port: target.port || 80, method: req.method,
       path: target.pathname + target.search, headers },
@@ -4665,6 +5028,23 @@ app.get("/v1/deployments/:id", authed, (req, res) => {
   res.json(view(rec));
 });
 
+// Trade a control-plane session for an app-origin one, so the owner can open a
+// PRIVATE deployment in a browser (a navigation cannot carry a bearer). The
+// caller already proved the wallet by SIWE; this only narrows what it holds.
+//
+// The returned token is useless anywhere else: `aud` pins it to this one
+// deployment and verifySessionToken refuses any token that names an audience,
+// so it opens no control-plane route even on the enclave that minted it. That
+// is the whole point — it is handed to a page on a TENANT origin.
+app.post("/v1/deployments/:id/app-token", authed, async (req, res) => {
+  const rec = depByIdOrPrefix(req.params.id);
+  if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
+  if (rec.public) return fail(res, 400, "not_private", "This deployment is public — open it directly.");
+  const token = await mintAppToken(req.address, rec.id);
+  res.json({ token, tokenType: "Cookie", deployment: rec.id,
+             expiresAt: new Date(Date.now() + APP_TTL_SEC * 1000).toISOString() });
+});
+
 // Operator-only: provision an awaiting_payment deployment WITHOUT a payment.
 // Gated by ADMIN_TOKEN (x-admin-token header); returns 404 if the token is unset
 // or wrong, so the endpoint is invisible without it. Use for manually-billed deploys.
@@ -5439,7 +5819,14 @@ function acmeReconcile() {
     // Cost of being early: a claim that then fails to provision has spent one
     // issuance on a name it will not serve. Bounded (two CAs, and a failed
     // claim is rare) and far cheaper than serialising every move behind a load.
-    if (!(r.public && (r.status === "running" || r.status === "claimed"))) continue;
+    // PRIVATE deployments get a name too, since they became browser-reachable:
+    // the certificate proves control of a NAME, never a right to the content
+    // behind it, and the owner gate on /x/:id is what withholds that. Without a
+    // cert here sniSelect fails the handshake closed and the owner cannot reach
+    // their own app in a browser at all. No new disclosure: the label is 8 hex
+    // of an id that is already public on-chain, and HEAD /x/<id> has always
+    // answered 204 to anyone.
+    if (r.status !== "running" && r.status !== "claimed") continue;
     for (const name of desiredCertNames(r)) {
       if (acmeCerts.get(name)?.renewAt > now) continue;       // held and still fresh
       if (acmeRetry.get(name)?.nextAt > now)  continue;       // failing; wait out the backoff
@@ -5643,13 +6030,22 @@ server.on("upgrade", async (req, socket, head) => {
   // ---- app HTTPS: /x/:id/https — the browser's TLS, terminated IN-ENCLAVE ----
   // The passthrough relay tunnels the raw TLS bytes of <label>.APP_CERT_DOMAIN
   // sessions here. Prefix ids resolve like the HTTP path (the subdomain label
-  // IS a prefix); public websites only — private deployments keep the
-  // token-gated relay-terminated path, so nothing is lost by the 403.
+  // IS a prefix).
+  //
+  // This once refused every private deployment outright, on the reasoning that
+  // they "keep the token-gated relay-terminated path, so nothing is lost by the
+  // 403". Nothing was lost for curl; everything was lost for a browser, because
+  // appEndpoint hands out the app-subdomain form and a top-level navigation
+  // cannot carry a bearer — so an owner's own private app was simply
+  // unreachable from a browser. The refusal was also redundant: this bridge
+  // terminates TLS in-enclave and feeds the decrypted request into the SAME
+  // express app (internalAppServer rewrites req.url to /x/<id>/…), so the WAF
+  // and the owner gate on /x/:id judge it exactly as they judge every other
+  // request. Access is decided there, once, not twice.
   const hx = (req.url || "").match(/^\/x\/([^/?]+)\/https(?:\?|$)/);
   if (hx) {
     const rec = depByIdOrPrefix(hx[1]);
     if (!rec)                                   return deny("404 Not Found");
-    if (!rec.public)                            return deny("403 Forbidden");
     if (rec.status !== "running")               return deny("409 Conflict");
     if (!TLS_BRIDGE_CTX && !acmeCerts.size)     return deny("503 Service Unavailable"); // no context could complete a handshake
     return wsHttpsBridge(req, socket, head, rec.id);

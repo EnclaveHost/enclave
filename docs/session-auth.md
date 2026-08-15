@@ -62,6 +62,83 @@ other `alg` (e.g. an `HS256` token they hope will be verified against the EC
 public key as an HMAC secret — the classic alg-confusion) accepted. There is no
 `HS256`/`SECRET` verification path at all.
 
+## The second carriage: opening a private app in a browser
+
+A private deployment (`isPublic = false` on-chain) serves only its owner, and the
+proof was a bearer header. A browser's **top-level navigation cannot send one**,
+so clicking a link to your own private app answered a bare `401` JSON blob — the
+app was reachable by `curl` and by the CLI, and not by the person who paid for it.
+
+The fix adds a second *carriage* for the same owner check, never a second *rule*:
+an `enclave_app` cookie on the app's own origin. `POST /v1/deployments/:id/app-token`
+trades a session for it (owner-only), and the site's `/authorize` page drives the
+round trip.
+
+**Wallet code never runs at the app origin.** A tenant serves that origin, and the
+supervisor already treats it as hostile — `tenantHeaders` kills WebAuthn there so
+a hostile app cannot invoke `enclave.host`'s passkeys. A "connect your wallet"
+page at `<label>.app.enclave.host` would both train users to sign on
+tenant-controlled origins and hand every tenant a same-origin template to
+imitate. So the enclave bounces a navigation to `enclave.host`, which holds the
+wallet code and which no tenant can serve; the app origin only ever receives an
+already-minted token, in a URL **fragment** (no server log, no `Referer`).
+
+**The audience is the whole security boundary.** The app token is signed by the
+same in-enclave key, with the same `iss`/`kid`, as a control-plane session — only
+`aud = "app:<id>"` separates them. So:
+
+- `verifySessionToken` rejects **any** token that carries an `aud`. Without that,
+  a token sitting in a cookie on a tenant origin would also open
+  `/v1/deployments`, `/logs` and `/secrets`.
+- `verifyAppToken(token, id)` pins `audience` at verification, so a token minted
+  for one deployment cannot open a sibling on the same enclave.
+- Both sides compute the audience from the **resolved** `rec.id`, never the raw
+  URL parameter — ids are addressable by 8-hex prefix, and a prefix-derived
+  audience would not match a full-id one.
+
+That crossing cannot be seen by reading either verifier alone, so
+`test/private-app-auth.test.mjs` pins it from both directions.
+
+The cookie is `HttpOnly; Secure; SameSite=Strict`, host-only (no `Domain=`, so it
+never reaches `enclave.host`), and **stripped from the request before proxying**
+alongside `Authorization` — the tenant must never read its owner's token out of
+`Cookie` and replay it. TTL is 12h, against a session's 7 days.
+
+`Strict`, not `Lax`, because a cookie is *ambient* where a bearer was not. Under
+`Lax` any site could navigate an owner's browser into an authenticated GET on
+their private app, and the tenant could not defend itself — we strip the cookie
+before proxying, so the app has no signal to distinguish that request from any
+other. Strict costs nothing here: the dashboard's "open" control points at
+`/authorize`, so the only cross-site navigation in the flow carries its token in
+a fragment and needs no cookie; address-bar hits and bookmarks are same-site.
+
+Two consequences worth knowing:
+
+- **Every value sent under the cookie name is tried, not the first.**
+  `app.enclave.host` is not a public suffix, so a hostile tenant can set
+  `enclave_app=junk; Domain=app.enclave.host` and have the browser deliver it to
+  a *victim's* app origin, ordered ahead of the real host-only cookie. It can
+  never verify for someone else's deployment — the audience forbids it — so this
+  was only ever denial of access, but reading the first pair alone made that
+  lockout permanent.
+- **There is no revocation list.** The token is stateless with no `jti`, so a
+  leaked cookie is live until `exp` or the next container relaunch (which mints
+  a fresh signing key and invalidates everything). Ownership, by contrast, *is*
+  re-checked on every request and at redemption, so a transfer cuts off the old
+  owner immediately.
+
+### What this changed about app-zone TLS
+
+Private deployments now mint an app-zone certificate and are served over the
+in-enclave TLS bridge like public ones. Both gates that refused them
+(`/x/:id/https` and the ACME desired-set) predate any browser auth path, and the
+`/https` refusal was redundant besides: that bridge terminates TLS in-enclave and
+feeds the decrypted request into the **same** express app, so the WAF and the
+owner gate judge it exactly as they judge every other request. Access is decided
+once, at `/x/:id`, not twice. A certificate proves control of a *name*, never a
+right to the content behind it — and the name is 8 hex of an id that is already
+public on-chain, which `HEAD /x/<id>` has always confirmed to anyone.
+
 ## No legacy path
 
 There was never a live session to migrate, so this shipped as a hard cut: the old

@@ -72,9 +72,21 @@ const LOCK_OPEN = '<svg class="enc-lock" viewBox="0 0 24 24" width="11" height="
 const LOCK_SHUT = '<svg class="enc-lock" viewBox="0 0 24 24" width="11" height="11" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M9 11V7a3.5 3.5 0 0 1 7 0v4"/></svg>';
 function openCtl(d, ep, tls){
   const href = safeHref(ep);
-  if (!(d && d.public && (d.status || "") === "running" && href)) return "";
+  if (!(d && (d.status || "") === "running" && href)) return "";
+  /* PRIVATE rows are offered too. They were suppressed entirely while a private
+     app had no browser-reachable form at all; now the enclave mints their
+     app-zone certificate like any other and answers a navigation with a wallet
+     sign-in, so the only difference left is WHERE the link points: /authorize
+     trades this wallet's session for an app-origin cookie first, because a
+     top-level navigation cannot carry a bearer. The TLS gate below still
+     applies - the certificate is minted in-enclave either way, and clicking
+     before it exists lands on a handshake failure just the same. */
+  const to = d.public ? esc(href) + "/" : "authorize?d=" + esc(encodeURIComponent(d.id));
+  const why = d.public
+    ? 'title="TLS certificate valid - issued inside the enclave, verified by this browser"'
+    : 'title="private - opens after a wallet sign-in, which authorizes no transaction"';
   return (tls && tls.state === "ok")
-    ? '<a class="enc-open" data-tls="' + esc(d.id) + '" href="' + esc(href) + '/" target="_blank" rel="noopener" aria-label="Open app (new tab) - TLS certificate valid" title="TLS certificate valid - issued inside the enclave, verified by this browser">' + LOCK_SHUT + ' open ↗</a>'
+    ? '<a class="enc-open" data-tls="' + esc(d.id) + '" href="' + to + '" target="_blank" rel="noopener" aria-label="Open app (new tab)' + (d.public ? " - TLS certificate valid" : " - sign in with your wallet") + '" ' + why + '>' + LOCK_SHUT + ' open ↗</a>'
     : '<button class="enc-open" data-tls="' + esc(d.id) + '" type="button" disabled aria-label="Open app - waiting for its TLS certificate" title="waiting for the app’s TLS certificate - minted inside the enclave, usually ready within a minute">' + LOCK_OPEN + ' open ↗</button>';
 }
 
@@ -880,7 +892,11 @@ class Deployments extends EnclaveElement {
   async _probeTls(rows) {
     this._tls = this._tls || new Map();
     for (const d of rows) {
-      if (!(d.public && (d.status || "") === "running")) { this._tls.delete(d.id); continue; }
+      // private rows are probed too: they now mint an app-zone certificate like
+      // any other, and the probe reads the HANDSHAKE - `no-cors` resolves on a
+      // 401 just as happily as on a 200, so the owner gate never reads as "no
+      // certificate yet".
+      if ((d.status || "") !== "running") { this._tls.delete(d.id); continue; }
       const href = safeHref(appEndpoint(d));
       if (!/^https:\/\//i.test(href)) continue;   // only absolute https origins render an Open control
       const c = this._tls.get(d.id);
@@ -2190,7 +2206,7 @@ class Deployments extends EnclaveElement {
     const d = (this._list || []).find(x => x.id === id);
     if (info && d){
       const ep = appEndpoint(d);
-      if (ep) paintLine(info, "ok", "→ reachable at " + ep + (d.public ? "" : "   (private · owner token required)"), scroller);
+      if (ep) paintLine(info, "ok", "→ reachable at " + ep + (d.public ? "" : "   (private · opens after a wallet sign-in)"), scroller);
       const net = d.network || {};
       const tcp = (net.tcp && net.tcp.ports) || [], udp = (net.udp && net.udp.ports) || [];
       if (net.address)
