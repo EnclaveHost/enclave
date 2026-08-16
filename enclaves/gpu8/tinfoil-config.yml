@@ -149,7 +149,7 @@ containers:
       # registry entry's operator), so registry advertising above is a hard
       # prerequisite, as is PROVISION_BACKEND=vm (claims run catalog wasm apps).
       - CLAIM_ENABLED: "1"
-      - DEPLOYMENTS_ADDRESS: "0x9F7C617807c5565EF26aA9139a73EfC792279Dc8"                          # set by scripts/deploy-deployments.mjs
+      - DEPLOYMENTS_ADDRESS: "0xF9e71385C5cB49844F2457ba6567De0742f8B89a"                          # set by scripts/deploy-deployments.mjs
       # Where this box's runner earnings sweep to. The supervisor's hourly
       # payoutTick withdraws earned6[REGISTRY_PRIVATE_KEY's EOA] once it clears
       # EARNINGS_MIN_USDC and sends it here. Leaving it UNSET is a silent no-op:
