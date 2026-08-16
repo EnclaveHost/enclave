@@ -21,7 +21,7 @@ import { $, $$, esc, short, wait, fmtNum, fmtDur, hlJson, hlCode, copyText, show
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS, BASE_CHAIN, ACCOUNTS_ENABLED } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
 import { vaultOp, getVault } from "../core/vault.js";
-import { minPctsOf, startSharesFor, serverSpec, shareRates, pickEnclaveFor, rankEnclavesFor, freeEnclavesFor } from "../core/pricing.js";
+import { minPctsOf, startSharesFor, serverSpec, shareRates, pickEnclaveFor, rankEnclavesFor, freeEnclavesFor, sharesLegalOn, liftSharesForLedger } from "../core/pricing.js";
 import { encCall, DEP_SEL, DEP_CREATED_TOPIC, APPROVAL, depGet, depRate6, depPrices6, depSchemaRev, depMaxGpuMilli, rate6Of, waitReceipt, catVersionFee } from "../core/chain.js";
 
 // create()'s shape on the live contract (rev 1 carried a removed sshPubKey
@@ -373,8 +373,12 @@ function renderDeploy(){
     rate = 0; readout = "✕ this app needs at least a " + mins.cpuPct + "% CPU share (its specs: that much RAM/compute on "
       + (target ? target.name + "'s" : "the fleet's") + " " + spec.nodeRamGb + " GB / " + spec.nodeGflops + " GFLOPS node)";
   }
-  else if (gpuPct > 0 && Math.round(cpuPct) > Math.round(gpuPct)) {
-    rate = 0; readout = "✕ CPU share (" + Math.round(cpuPct) + "%) can't exceed GPU share (" + Math.round(gpuPct) + "%) - a GPU app's CPU slice rides on its card's node";
+  // From ledger rev 13 the two dials are independent — a small slice of card
+  // beside most of a node is a legal, correctly-priced deployment. Older
+  // ledgers revert create(), so keep refusing there instead of burning gas.
+  else if (!sharesLegalOn(Math.round(gpuPct), Math.round(cpuPct), depRev)) {
+    rate = 0; readout = "✕ this ledger (deploymentsSchema " + depRev + ") won't take a CPU share (" + Math.round(cpuPct)
+      + "%) above the GPU share (" + Math.round(gpuPct) + "%) - the rev-13 ledger drops that rule";
   }
   else {
     const g = shareRates(gpuPct, cpuPct, spec);
@@ -1394,7 +1398,9 @@ function applyUseInDeploy(){
     // version the GPU floor is 0 and opening there turned "GPU preferred" into
     // "GPU never" - the handoff pre-filled 0% GPU and the app ran its model on
     // cores. `min` stays the real floor, so dialling down is still allowed.
-    const start = startSharesFor(SPECS_CACHE[friendly]);
+    // liftSharesForLedger is the identity on rev 13+; on an older ledger it
+    // rounds the card up to the CPU dial so the pre-filled pair can be created
+    const start = liftSharesForLedger(startSharesFor(SPECS_CACHE[friendly]), depRev);
     const startGpu = Math.max(start.gpuPct, mins.gpuPct);
     dep.minGpuPct = mins.gpuPct; dep.minCpuPct = mins.cpuPct;
     dep.gpuPct = startGpu; dep.cpuPct = mins.cpuPct;

@@ -5653,8 +5653,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         cpu_share = _share("cpuShare", "share",
                            default=min(1.0, mem_mb / (NODE_RAM_GB * 1024.0)) if mem_mb else 0.05)
         gpu_share = _share("gpuShare")
-        if gpu_share > 0 and gpu_share < cpu_share - 1e-9:
-            return self._json(422, {"error": "derived gpuShare must be at least cpuShare (too much RAM for that VRAM ask)"})
+        # The two shares are INDEPENDENT (ledger rev 13). This used to 422 any
+        # gpuShare under the cpuShare, mirroring the old create() rule; the
+        # pools are separate (this card's VRAM+compute vs the node's vCPU+RAM)
+        # and the supervisor reserves them separately, so a CPU-heavy GPU app
+        # buying a sliver of card is a legal record and must launch here.
         # An in-place restart / version switch must never DUPLICATE a tenant:
         # the supervisor tears the old instance down before re-creating, but
         # that teardown is best-effort over HTTP. If it was missed, the OLD

@@ -1612,7 +1612,9 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
   let cpuMilli = f.cpu !== undefined ? Math.round(numFlag(f.cpu, "--cpu") * 1000) : Number(d.cpuMilli);
   if (gpuMilli > 1000 || cpuMilli > 1000) throw new Error("--gpu/--cpu are fractions of one card/node (0..1)");
   if (cpuMilli < 1) cpuMilli = 10;
-  if (gpuMilli > 0 && gpuMilli < cpuMilli) gpuMilli = cpuMilli;    // contract: gpuMilli >= cpuMilli
+  // pre-13 setShares reverts on a GPU share under the CPU one, so round the
+  // card up there; rev 13+ buys exactly the two shares that were asked for
+  if (rev < 13 && gpuMilli > 0 && gpuMilli < cpuMilli) gpuMilli = cpuMilli;
   if (gpuMilli < mins.gpuMilli || cpuMilli < mins.cpuMilli) {
     const dial = `--gpu ${mins.gpuMilli / 1000} --cpu ${mins.cpuMilli / 1000}`;
     if (wantShares)
@@ -1768,7 +1770,9 @@ async function cmdDeploy(rest) {
   let cpuMilli = f.cpu !== undefined ? Math.round(numFlag(f.cpu, "--cpu") * 1000) : Math.max(mins.cpuMilli, 10);
   if (gpuMilli > 1000 || cpuMilli > 1000) throw new Error("--gpu/--cpu are fractions of one card/node (0..1)");
   if (cpuMilli < 1) cpuMilli = 10;
-  if (gpuMilli > 0 && gpuMilli < cpuMilli) gpuMilli = cpuMilli; // contract: gpuMilli >= cpuMilli
+  // ditto on create: the lift survives only as pre-13 ledger compatibility, so
+  // `--gpu 0.05 --cpu 0.5` buys a sliver of card beside half a node on rev 13+
+  if ((await depAbi()).rev < 13 && gpuMilli > 0 && gpuMilli < cpuMilli) gpuMilli = cpuMilli;
   if (f.gpu === undefined && f.cpu === undefined && ver)
     trace(`shares from app specs: gpu ${gpuMilli / 10}% cpu ${cpuMilli / 10}% (override with --gpu/--cpu)`);
 

@@ -96,9 +96,12 @@ via transaction instead of via one enclave's API).
   catalog default and every other deployment are untouched). The whole string is
   public on-chain — no secrets. A deployment BUYS two shares, both in
   1/1000ths: `gpuMilli` of one GPU card (VRAM + compute together; `0` = a
-  CPU-only deployment) and `cpuMilli` of a node's vCPU+RAM (1..1000). The
-  contract enforces `gpuMilli == 0 || gpuMilli >= cpuMilli` — a GPU app's CPU
-  slice rides on the same node as its card. The app's exact specs in
+  CPU-only deployment) and `cpuMilli` of a node's vCPU+RAM (1..1000). The two
+  are **independent** (schema 13): they draw on different pools and are priced
+  additively, so a CPU-heavy app may buy a sliver of a card beside most of a
+  node. Schema <= 12 additionally required `gpuMilli == 0 || gpuMilli >= cpuMilli`,
+  which only forced such a tenant to over-buy card; clients that build a
+  `create`/`setShares` against an older ledger still have to satisfy it. The app's exact specs in
   EnclaveAppCatalog (vramMb, gpuGflops, memMb, cpuGflops) set its MINIMUM shares: each RUNNER
   re-derives them against its own hardware (spec / server spec, the larger of
   the memory and compute axes, ceil to the percent grain) and skips

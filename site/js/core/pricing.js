@@ -142,10 +142,30 @@ export function minPctsOf(v, spec){
   // A version whose publisher marked the card OPTIONAL sets no GPU floor: the
   // app starts without one. Mirrors the runner's minSharesOf exactly — this
   // floor may never sit below the runner's or the deployment is unclaimable.
-  const gpu0 = (!(v && v.gpuOptional) && (vramMb > 0 || gpuGf > 0))
+  // Each axis floors on its own hardware and nothing else: before rev 13 the
+  // GPU floor was also lifted to the CPU floor, which only ever encoded the
+  // ledger's gpuMilli >= cpuMilli rule, never a real requirement of the app.
+  const gpu = (!(v && v.gpuOptional) && (vramMb > 0 || gpuGf > 0))
     ? pctCeil(Math.max(vramMb / 1024 / s.cardVramGb, gpuGf / 1000 / s.cardTflops)) : 0;
-  return { gpuPct: gpu0 > 0 ? Math.max(gpu0, cpu) : 0, cpuPct: cpu };
+  return { gpuPct: gpu, cpuPct: cpu };
 }
+/* THE LEDGER REV THAT FREED THE TWO DIALS. Revs <= 12 reverted create() and
+   setShares() whenever a non-zero gpuMilli sat below cpuMilli, so every client
+   that builds one of those transactions had to lift the GPU dial to match — a
+   silent up-sell to whole percents of card the deployer never asked for.
+
+   Rev 13 drops the rule. The lift therefore survives ONLY as compatibility
+   with a ledger that has not been redeployed yet, which is why it takes a live
+   rev instead of being deleted outright: on rev 13 it is the identity, and the
+   dials mean exactly what they say. Callers that hold a rev pass it here;
+   `sharesLegalOn` is the matching pre-flight check for the ones that refuse
+   rather than rewrite. */
+export const SPLIT_SHARES_REV = 13;
+export const liftSharesForLedger = (s, rev) =>
+  Number(rev) >= SPLIT_SHARES_REV || !(s.gpuPct > 0) || s.gpuPct >= s.cpuPct
+    ? s : { ...s, gpuPct: s.cpuPct };
+export const sharesLegalOn = (gpuPct, cpuPct, rev) =>
+  Number(rev) >= SPLIT_SHARES_REV || !(gpuPct > 0) || gpuPct >= cpuPct;
 // What a deployer SHOULD buy to get the card on a gpuOptional version: the
 // slice its declared axes ask for. Not a floor — a recommendation the deploy
 // dials start at, so "GPU preferred" doesn't quietly become "GPU never".
@@ -161,17 +181,21 @@ export function wantedGpuPct(v, spec){
    purchase. On a gpuOptional version the two differ by an entire card: the GPU
    floor is 0, so buying the floor deployed a model app onto CPU cores with
    nothing on screen saying the card had been skipped. Start at the slice the
-   version declares instead, lifted to the CPU share (the contract requires
-   gpuMilli >= cpuMilli). The floors are unchanged and still gate the dials, so
-   dialling back down to CPU-only stays available — deliberately, not by
+   version declares instead. The floors are unchanged and still gate the dials,
+   so dialling back down to CPU-only stays available — deliberately, not by
    default. `cap` (the on-chain per-deployment GPU cap, in percent) trims a soft
    slice rather than making the app undeployable: the card is a preference, and
-   create() would refuse anything above the cap. */
+   create() would refuse anything above the cap.
+
+   The slice is what the version asks for and nothing more: a CPU-heavy soft-GPU
+   app starts at its small declared card slice beside its large node slice. On a
+   pre-13 ledger the caller runs the result through liftSharesForLedger, which
+   is the only thing that will still round the card up to clear create(). */
 export function startSharesFor(v, spec, cap){
   const mins = minPctsOf(v, spec);
   let want = wantedGpuPct(v, spec);
   if (Number(cap) > 0) want = Math.min(want, Math.floor(Number(cap)));
-  return want > mins.gpuPct ? { gpuPct: Math.max(want, mins.cpuPct), cpuPct: mins.cpuPct } : mins;
+  return want > mins.gpuPct ? { gpuPct: want, cpuPct: mins.cpuPct } : mins;
 }
 // What the two dials buy on this server spec, and cost per second. `price`
 // pins a specific enclave's posted rates ({full, node} USDC/sec, e.g. from
@@ -433,8 +457,10 @@ export function moveBlockReason(v, rows, currentRunnerId){
    card requirement was never optional (a hard-GPU deployment could not have
    been on a CPU box in the first place).
 
-   The contract's own invariant is applied here rather than discovered on
-   revert: gpuMilli >= cpuMilli, so a big CPU share lifts the GPU one. */
+   The slice is sized purely from the version's declared axes — a CPU-heavy app
+   moving onto a card buys the small slice it actually wants. On a pre-13 ledger
+   the caller passes the result through liftSharesForLedger first, since that
+   create()/setShares still refuses a GPU share under the CPU one. */
 /* The other direction: moving a GPU-holding deployment onto a CARD-LESS box.
 
    The shares stay legal there (a soft-GPU record may run on cores) and the
@@ -463,5 +489,5 @@ export function gpuUpgradeForMove(v, target, boughtGpuMilli, boughtCpuMilli){
   const want = wantedGpuPct(v, target.spec);
   if (!(want > 0)) return null;                              // no declared axes to size from
   const cpuPct = Math.max(1, Math.round(Number(boughtCpuMilli || 0) / 10));
-  return { gpuPct: Math.max(want, cpuPct), cpuPct };
+  return { gpuPct: want, cpuPct };
 }

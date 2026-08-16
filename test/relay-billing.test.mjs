@@ -220,7 +220,10 @@ test("billing: quote matches the ledger's ceil formula; spec gates mirror create
   // gates that mirror the ledger's own requires
   const bad = async (patch, dur) => (await api(origin, "POST", "/v1/billing/orders",
     { token, body: { spec: { ...SPEC, ...patch }, seconds: dur ?? 3600 } })).status;
-  assert.equal(await bad({ gpuShare: 0.05, cpuShare: 0.1 }), 422);   // gpu < cpu
+  // gpu < cpu: refused because this stub plays a rev-3 ledger, whose create()
+  // reverts on it. Ledger rev 13 removes that rule and this same spec is then
+  // a legal, correctly-priced order — see sharesLegalOn in core/pricing.js.
+  assert.equal(await bad({ gpuShare: 0.05, cpuShare: 0.1 }), 422);
   assert.equal(await bad({ cpuShare: 0 }), 422);
   assert.equal(await bad({ appRef: "" }), 422);
   assert.equal(await bad({}, 60), 422);                              // under ORDER_MIN_SECONDS

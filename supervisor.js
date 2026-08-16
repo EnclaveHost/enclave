@@ -1604,8 +1604,10 @@ if (process.env.SNIFF_SELFTEST) {
 //                     The MPS compute % and the VRAM cap both follow it.
 //   cpuShare (0..1) — max(memMb / node RAM, cpuGflops / NODE_GFLOPS); the
 //                     node's vCPUs come along; the wasm guest is capped at memMb.
-// Invariant: a GPU app's CPU slice rides on the same node as its card, so
-// gpuShare >= cpuShare whenever gpuShare > 0. The leftovers are a feature: a
+// The two are INDEPENDENT (ledger rev 13 dropped the old gpuShare >= cpuShare
+// rule): different pools, reserved separately, priced additively. A CPU-heavy
+// app may hold most of a node beside a sliver of a card, and a card-heavy one
+// the reverse. The leftovers are a feature: a
 // tenant taking a whole card + 10% of the node's RAM leaves 90% of the CPU/RAM,
 // which GPU enclaves rent to CPU-only apps (CPU-only enclaves get first claim;
 // see the claim loop). CC disables MIG, so a card is ONE trust domain sliced in
@@ -1663,20 +1665,25 @@ const gpuShareOf = (vramGb, gpuTflops = 0) => (vramGb > 0 || gpuTflops > 0)
 const cpuShareOf = (memMb, cpuGflops = 0) =>
   pctCeil(Math.max(memMb / (NODE_RAM_GB * 1024), cpuGflops / NODE_GFLOPS)) / 100;
 // An app's catalog specs -> the minimum shares a deployment must buy here.
-// Zero-guarded: axes the app didn't declare add no minimum. A GPU app's CPU
-// minimum also lifts its GPU minimum, or the gpuShare >= cpuShare invariant
-// could never be satisfied at the floor.
+// Zero-guarded: axes the app didn't declare add no minimum. Each axis floors on
+// its own hardware and nothing else.
 // `min.gpuOptional` (the publisher's word, from the version config) turns the
 // declared GPU axes from a REQUIREMENT into a preference: the app runs without
 // a card, and would use one if given it. The floor then stops forcing a GPU
 // dial, so the deployment may buy 0% GPU and any enclave can serve it. It does
 // NOT stop the specs meaning something - they still size the slice a deployer
 // who wants the card should buy, and the console recommends exactly that.
+// Each axis floors on its OWN hardware: the GPU minimum from the card, the CPU
+// minimum from the node. Before rev 13 the GPU floor was additionally lifted to
+// the CPU floor, purely to keep the derived minimums legal under the ledger's
+// gpuMilli >= cpuMilli rule — it was never a statement about what the app
+// needs. site/js/core/pricing.js:minPctsOf mirrors this EXACTLY; a console
+// floor below this one sells a deployment no runner will claim.
 function minSharesOf(min) {
   const cpu = (min.memMb || min.cpuGflops) ? cpuShareOf(min.memMb || 0, min.cpuGflops || 0) : 0;
-  const gpu0 = (!min.gpuOptional && (min.vramMb || min.gpuGflops))
+  const gpu = (!min.gpuOptional && (min.vramMb || min.gpuGflops))
     ? gpuShareOf((min.vramMb || 0) / 1024, (min.gpuGflops || 0) / 1000) : 0;
-  return { gpuShare: gpu0 > 0 ? Math.max(gpu0, cpu) : 0, cpuShare: cpu };
+  return { gpuShare: gpu, cpuShare: cpu };
 }
 
 // per-card free pools (vram + compute). With CC on there is exactly one whole
@@ -1725,12 +1732,17 @@ const normalizeCpuReq = (share) => { const pct = quantizePct(share); return { cp
 // the CPU slice at the whole-node rate (mirrors EnclaveDeployments' rate formula).
 const rateFor = (gpuShare, cpuShare) => FULL_RATE * gpuShare + CPU_RATE * cpuShare;
 // normalize a GPU request: quantize both shares to the integer-percent grain
-// (the MPS cap grain — the true allocatable unit), clamp cpuShare to the
-// invariant cpuShare <= gpuShare, and derive the VRAM cap from the GPU share
-// (rounded UP to granularity — the tenant gets the round-up for free).
+// (the MPS cap grain — the true allocatable unit) and derive the VRAM cap from
+// the GPU share (rounded UP to granularity — the tenant gets the round-up for
+// free). The two shares are INDEPENDENT: they come from different pools (this
+// card's VRAM+compute, the node's vCPU+RAM) and allocGpu reserves them
+// separately. This used to clamp cpuShare down to gpuShare to mirror the
+// pre-rev-13 ledger rule; a rev-13 record may legitimately buy most of a node
+// beside a sliver of a card, and clamping would have silently starved it of
+// the CPU it paid for.
 function normalizeGpuReq(gpuShare, cpuShare) {
   const gpct = quantizePct(gpuShare);
-  const cpct = Math.min(quantizePct(cpuShare), gpct);
+  const cpct = quantizePct(cpuShare);
   const v = Math.ceil((gpct / 100) * CARD_VRAM_GB / GRANULARITY_GB) * GRANULARITY_GB;
   return { gpuShare: gpct / 100, cpuShare: cpct / 100, vramGb: v,
            computeShare: gpct / 100, computePct: gpct };
@@ -4495,7 +4507,8 @@ app.post("/v1/deployments", authed, async (req, res) => {
   // (0..1 of the node's vCPU+RAM). The app's exact specs in the catalog set the
   // MINIMUM shares (spec / this server's spec, the larger of the memory and
   // compute axes, rounded up to the percent grain) — a request below either
-  // minimum is refused. A GPU app's gpuShare must be >= its cpuShare. Routing:
+  // minimum is refused. The two shares are otherwise independent: a GPU app may
+  // buy more node than card (rev-13 ledgers; earlier ones refused it). Routing:
   // GPU work needs a GPU enclave; CPU-only work runs on either flavor — a GPU
   // enclave serves it from LEFTOVER cpu pool.
   const r0 = b.resources || {};
@@ -4514,8 +4527,6 @@ app.post("/v1/deployments", authed, async (req, res) => {
     return fail(res, 422, "invalid_spec", "resources.cpuShare must be in (0, 1].");
   if (gpuShare0 < mins.gpuShare - 1e-9 || cpuShare0 < mins.cpuShare - 1e-9)
     return fail(res, 422, "invalid_spec", `Below this app's minimum shares: its declared specs need at least gpuShare ${round3(mins.gpuShare)} and cpuShare ${round3(mins.cpuShare)} on this hardware.`);
-  if (gpuShare0 > 0 && gpuShare0 < cpuShare0 - 1e-9)
-    return fail(res, 422, "invalid_spec", `gpuShare must be at least cpuShare: a GPU app's CPU slice rides on the same node as its card (got gpuShare ${round3(gpuShare0)} < cpuShare ${round3(cpuShare0)}).`);
 
   let slice, gpu, rate;
   if (!(gpuShare0 > 0)) {

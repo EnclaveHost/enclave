@@ -14,13 +14,13 @@ import "../../components/app-reviews/app-reviews.js";
 import { $, $$, esc, short, blen, fmtDur, fmtNum, showToast, on, tosAccepted, setTosAccepted } from "../core/util.js";
 import { APP_CATALOG_ADDRESS, APP_CATALOG_CHAIN, FEATURED_ADDRESS, REVIEWS_ADDRESS, USDC_BASE, IPFS_UPLOAD_URL, IPFS_IMAGE_UPLOAD_URL, IPFS_JSON_UPLOAD_URL, IPFS_GATEWAY, MAX_WASM_MB, MAX_WASM_BYTES, MAX_IMAGE_MB, MAX_IMAGE_BYTES, BASE_CHAIN, ACCOUNTS_ENABLED } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
-import { catConfigured, catExplorer, encCall, CAT_SEL, CAT_MAX, ROUTING_KEYS, APPROVAL, depPrices6, depMaxGpuMilli, rate6Of, waitReceipt, catSchemaRev, catMaxFeePerSec6, catVersionFee, featConfigured, featMaxBid, FEAT_SEL, revConfigured, REV_SEL } from "../core/chain.js";
+import { catConfigured, catExplorer, encCall, CAT_SEL, CAT_MAX, ROUTING_KEYS, APPROVAL, depPrices6, depMaxGpuMilli, depSchemaRev, rate6Of, waitReceipt, catSchemaRev, catMaxFeePerSec6, catVersionFee, featConfigured, featMaxBid, FEAT_SEL, revConfigured, REV_SEL } from "../core/chain.js";
 import { FEATURED, loadCampaigns, pickFeatured, beaconView } from "../core/featured.js";
 import { loadTallies, loadReviews, confirmReceipt } from "../core/reviews.js";
 import { payForRuntime } from "../core/fund.js";
 import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf, personalSign } from "../core/wallet.js";
 import { STORE, loadCatalog, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, REF_CACHE, PORTS_CACHE, SPECS_CACHE, specOf, CONFIG_CACHE, CONFIG_CID_CACHE, MANIFEST_CACHE, fetchConfigCid, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia, signedUploadToken, putConfig } from "../core/catalog.js";
-import { minPctsOf, startSharesFor, shareRates, pickEnclaveFor, rankEnclavesFor } from "../core/pricing.js";
+import { minPctsOf, startSharesFor, shareRates, pickEnclaveFor, rankEnclavesFor, liftSharesForLedger } from "../core/pricing.js";
 import { navigate } from "../boot.js";
 
 /* ---- render: filter + sort the catalog into <c-app-card>s ---- */
@@ -395,7 +395,14 @@ function quickDeploy(app, v, idx){
   // the full console ("Advanced →") is where someone chooses CPU-only instead.
   // Recomputed with `mins` on every target change - the slice sizes against the
   // box this actually lands on, like the floors do.
-  let buy = startSharesFor(vspec);
+  // A pre-13 ledger still refuses a GPU share under the CPU one, so every
+  // start slice goes through liftSharesForLedger on the way out. Starting at 0
+  // keeps that lift on until the sniff lands: the quick-deploy modal must never
+  // offer a pair the live create() would revert on. It is the identity on 13+,
+  // where a CPU-heavy app buys the small card slice it actually declared.
+  let ledgerRev = 0;
+  const startBuy = (hw, cap) => liftSharesForLedger(startSharesFor(vspec, hw, cap), ledgerRev);
+  let buy = startBuy();
   let target = null;
   // constants first paint; the CONTRACT's live prices (incl. its ceil-to-a-
   // micro-USDC floor) replace them the moment the cached read lands - the
@@ -478,8 +485,14 @@ function quickDeploy(app, v, idx){
   };
   depMaxGpuMilli().then(cap => {
     gpuCap = cap;
-    buy = startSharesFor(vspec, target && !target.none ? target.spec : undefined, cap / 10);
+    buy = startBuy(target && !target.none ? target.spec : undefined, cap / 10);
     capCheck(); recalc(); est();
+  }).catch(() => {});
+  // whether this ledger takes the two dials independently (rev 13+)
+  depSchemaRev().then(r => {
+    ledgerRev = r;
+    buy = startBuy(target && !target.none ? target.spec : undefined, gpuCap != null ? gpuCap / 10 : 0);
+    recalc(); est();
   }).catch(() => {});
   // the short-on-funds "Add credit" link: boot's interceptor does the SPA
   // navigation, the modal just has to get out of the way first (modified
@@ -558,7 +571,7 @@ function quickDeploy(app, v, idx){
     }
     capTarget = null;
     mins = t.mins;
-    buy = startSharesFor(vspec, t.spec, gpuCap != null ? gpuCap / 10 : 0);
+    buy = startBuy(t.spec, gpuCap != null ? gpuCap / 10 : 0);
     if (tEl){
       const ranked = t.ranked || [t];
       // one row per enclave; the ranking head IS the auto row (value "" =
@@ -631,7 +644,7 @@ function quickDeploy(app, v, idx){
     // aggregate. The SHARES BOUGHT are these, not the floors: created shares
     // are immutable, so a soft-GPU app minted at its 0% floor would need a
     // resize (a second tx) before it ever touched the card it asked for.
-    const m2 = t2 && !t2.none ? buy : startSharesFor(vspec, undefined, gpuCap != null ? gpuCap / 10 : 0);
+    const m2 = t2 && !t2.none ? buy : startBuy(undefined, gpuCap != null ? gpuCap / 10 : 0);
     // full box? the queue-confirm overlay stacks over this modal; cancel
     // keeps the user here with their amount intact
     if (!(await m.confirmQueuedDeploy(m2.gpuPct, m2.cpuPct, t2))) return;

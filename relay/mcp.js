@@ -631,7 +631,9 @@ async function upgradeOrResize(a, resizeOnly) {
   let cpuMilli = a.cpuShare !== undefined ? Math.round(Number(a.cpuShare) * 1000) : Number(d.cpuMilli);
   if (!(gpuMilli >= 0 && gpuMilli <= 1000) || !(cpuMilli >= 1 && cpuMilli <= 1000))
     throw new Error("gpuShare/cpuShare are fractions of one card/node (0..1)");
-  if (gpuMilli > 0 && gpuMilli < cpuMilli) gpuMilli = cpuMilli;      // contract: gpuMilli >= cpuMilli
+  // pre-13 setShares reverts on a GPU share under the CPU one; rev 13+ takes
+  // the dials exactly as asked (see the create path for the same lift)
+  if (rev < 13 && gpuMilli > 0 && gpuMilli < cpuMilli) gpuMilli = cpuMilli;
   if (gpuMilli < mins.gpuMilli || cpuMilli < mins.cpuMilli) {
     const dial = `gpuShare ${mins.gpuMilli / 1000} / cpuShare ${mins.cpuMilli / 1000}`;
     if (wantShares)
@@ -1083,7 +1085,11 @@ const TOOLS = [
       if (!(gpuMilli >= 0 && gpuMilli <= 1000) || !(cpuMilli >= 0 && cpuMilli <= 1000))
         throw new Error("gpuShare/cpuShare are fractions of one card/node (0..1)");
       if (cpuMilli < 1) cpuMilli = 10;
-      if (gpuMilli > 0 && gpuMilli < cpuMilli) gpuMilli = cpuMilli;      // contract: gpuMilli >= cpuMilli
+      // The two shares are independent from rev 13 on, so a CPU-heavy app gets
+      // exactly the card slice it asked for. Pre-13 create() reverts on a GPU
+      // share under the CPU one, so round it up there rather than plan a tx
+      // that cannot mine - the only reason this lift still exists.
+      if ((await depRev()) < 13 && gpuMilli > 0 && gpuMilli < cpuMilli) gpuMilli = cpuMilli;
       const portsCsv = a.ports !== undefined ? String(a.ports) : (ver.ports || "");
       const httpEntry = portsCsv.split(",").map((s) => s.trim()).find((s) => /^http:/i.test(s));
       const appPort = a.appPort !== undefined ? Math.round(Number(a.appPort))
