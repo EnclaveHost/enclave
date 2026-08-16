@@ -380,7 +380,7 @@ contract EnclaveDeploymentsSelfHostTest is Test {
     }
 
     function test_schemaMarksTheFreeHostingSurface() public view {
-        assertEq(dep.deploymentsSchema(), 12);
+        assertEq(dep.deploymentsSchema(), 13);   // >= 12 is what free self-hosting gates on
         // schema 5 APPENDED caps+region. The ledger still reads this registry
         // through an 11-field IEnclaveRegistry.Enclave and every assertion in
         // this suite passes, which is the property that matters: appending

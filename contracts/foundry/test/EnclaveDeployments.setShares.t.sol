@@ -82,8 +82,8 @@ contract EnclaveDeploymentsSetSharesTest is Test {
 
     // ---- schema marker ----------------------------------------------------
 
-    function test_schemaIsTwelve() public view {
-        assertEq(dep.deploymentsSchema(), 12);
+    function test_schemaIsThirteen() public view {
+        assertEq(dep.deploymentsSchema(), 13);
     }
 
     // ---- unleased resizes -------------------------------------------------
@@ -306,14 +306,44 @@ contract EnclaveDeploymentsSetSharesTest is Test {
         dep.setShares(id, 0, 1001);
         vm.expectRevert("range");
         dep.setShares(id, 1001, 1000);
-        vm.expectRevert("gpuShare < cpuShare");
-        dep.setShares(id, 100, 200);
         vm.stopPrank();
 
         dep.setMaxGpuMilli(400);
         vm.prank(user);
         vm.expectRevert("gpuShare > max");
         dep.setShares(id, 500, 250); // the create-time cap re-applies to resizes
+    }
+
+    /// Rev 13: cpuMilli may exceed a non-zero gpuMilli. Revs <= 12 reverted
+    /// "gpuShare < cpuShare" here, which forced a CPU-heavy app wanting a small
+    /// slice of card to buy card at card prices just to clear the check. The
+    /// two shares come from separate pools and have always been priced
+    /// additively, so the rate must be exactly that sum and nothing else.
+    function test_cpuShareMayExceedGpuShare() public {
+        // create() takes it: 10% of a card beside 80% of a node
+        bytes32 id = _create(100, 800, 100e6);
+        EnclaveDeployments.Deployment memory d0 = dep.get(id);
+        assertEq(d0.gpuMilli, 100, "create kept the small card slice as asked");
+        assertEq(d0.cpuMilli, 800, "create kept the large node slice as asked");
+        // and a claim prices them additively, with no phantom card lifted in to
+        // clear a check — the whole cost of the old rule
+        _claim(id);
+        assertEq(dep.get(id).rate, _rate(100, 800));
+        assertLt(dep.get(id).rate, _rate(800, 800), "the old rule's forced lift cost this much more");
+
+        // setShares takes it too, pushing the gap wider mid-lease
+        vm.prank(user);
+        dep.setShares(id, 50, 1000);
+        EnclaveDeployments.Deployment memory d1 = dep.get(id);
+        assertEq(d1.gpuMilli, 50);
+        assertEq(d1.cpuMilli, 1000);
+        assertEq(d1.rate, _rate(50, 1000));
+
+        // the floors that DO remain still bite
+        vm.startPrank(user);
+        vm.expectRevert("range");
+        dep.setShares(id, 50, 0);      // cpuMilli >= 1 is untouched
+        vm.stopPrank();
     }
 
     // ---- the intended combined flow ---------------------------------------

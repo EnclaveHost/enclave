@@ -19,7 +19,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, enclavePriceOf, pickEnclaveFor, rankEnclavesFor, leaseHostOf,
   moveTargetsFor, moveBlockReason, wantedGpuPct, startSharesFor, gpuUpgradeForMove, gpuDowngradeForMove, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE,
-  hostChargeWaived, freeEnclavesFor } from "../site/js/core/pricing.js";
+  hostChargeWaived, freeEnclavesFor, liftSharesForLedger, sharesLegalOn, SPLIT_SHARES_REV } from "../site/js/core/pricing.js";
 
 // Reference copy of the RUNNER's minimum-share math (supervisor.js: pctCeil,
 // gpuShareOf, cpuShareOf, minSharesOf with MIN_COMPUTE_PCT=1). Keep in sync.
@@ -27,9 +27,10 @@ function runnerMins(v, hw) {
   const pc = (x) => Math.min(100, Math.max(1, Math.ceil(x * 100 - 1e-9)));
   const cpu = (v.memMb || v.cpuGflops)
     ? pc(Math.max((v.memMb || 0) / (hw.nodeRamGb * 1024), (v.cpuGflops || 0) / hw.nodeGflops)) : 0;
-  const gpu0 = (v.vramMb || v.gpuGflops)
+  // each axis floors on its OWN hardware — no cross-lift since ledger rev 13
+  const gpu = (v.vramMb || v.gpuGflops)
     ? pc(Math.max((v.vramMb || 0) / 1024 / hw.cardVramGb, (v.gpuGflops || 0) / 1000 / hw.cardTflops)) : 0;
-  return { gpuPct: gpu0 > 0 ? Math.max(gpu0, cpu) : 0, cpuPct: cpu };
+  return { gpuPct: gpu, cpuPct: cpu };
 }
 
 // image-generator 1.0.2 — the version that produced the stuck deployment
@@ -508,12 +509,26 @@ test("start shares buy a publisher-optional version's declared card, not its 0% 
   assert.equal(minPctsOf(soft).gpuPct, 0, "start shares must not become a new floor");
 });
 
-test("a soft start slice respects gpuMilli >= cpuMilli and the on-chain GPU cap", () => {
+/* Ledger rev 13 dropped the gpuMilli >= cpuMilli rule, so a start slice is
+   whatever the version declared and no more. The lift survives ONLY as
+   compatibility with a ledger that has not been redeployed: liftSharesForLedger
+   is the identity on 13+, and the old rounding-up below that. This is the whole
+   behavioural difference between the two ledgers, so pin both sides. */
+test("a soft start slice buys the declared card, lifting only for a pre-13 ledger", () => {
   adoptServerSpec({ gpu: true, ...H200 });
-  // a small card ask under a big CPU ask: create() refuses gpuMilli < cpuMilli
+  // a small card ask beside a big CPU ask: exactly what the old rule forbade
   const cpuHeavy = { vramMb: 1024, gpuGflops: 1, memMb: 32768, cpuGflops: 10, gpuOptional: true };
   const s = startSharesFor(cpuHeavy);
-  assert.ok(s.gpuPct >= s.cpuPct, `gpu ${s.gpuPct}% must not sit below cpu ${s.cpuPct}%`);
+  assert.ok(s.gpuPct < s.cpuPct, "the declared slice is genuinely CPU-heavy, or this pins nothing");
+  assert.deepEqual(liftSharesForLedger(s, 13), s, "rev 13 buys the small card slice as declared");
+  assert.deepEqual(liftSharesForLedger(s, 12), { ...s, gpuPct: s.cpuPct },
+    "a pre-13 ledger still rounds the card up to clear its create()");
+  // and the predicate the refusing callers use agrees with the rewriting one
+  assert.equal(sharesLegalOn(s.gpuPct, s.cpuPct, 13), true);
+  assert.equal(sharesLegalOn(s.gpuPct, s.cpuPct, 12), false);
+  assert.equal(sharesLegalOn(0, 90, 12), true, "CPU-only was never subject to the rule");
+  assert.equal(sharesLegalOn(90, 5, 12), true, "GPU above CPU always cleared it");
+
   // the cap TRIMS a preference rather than making the app undeployable — the
   // card was never required, and create() reverts above the cap
   const soft = { vramMb: 20000, gpuGflops: 1000, memMb: 512, cpuGflops: 10, gpuOptional: true };
@@ -556,8 +571,10 @@ test("gpuUpgradeForMove sizes the slice from the version's declared axes", () =>
   // deployment-level flag softens a slice already bought, so such a deployment
   // is never at 0% GPU in the first place.
   assert.equal(gpuUpgradeForMove({ ...v, gpuOptional: false, depGpuOptional: true }, gpuT, 0, 80), null);
-  // the contract invariant gpuMilli >= cpuMilli is applied here, not discovered on revert
-  assert.deepEqual(gpuUpgradeForMove(v, gpuT, 0, 300), { gpuPct: 30, cpuPct: 30 });
+  // the slice is the version's declared axes and nothing more; a pre-13 ledger
+  // gets the old rounding-up put back by the CALLER, via liftSharesForLedger
+  assert.deepEqual(gpuUpgradeForMove(v, gpuT, 0, 300), { gpuPct: 14, cpuPct: 30 });
+  assert.deepEqual(liftSharesForLedger(gpuUpgradeForMove(v, gpuT, 0, 300), 12), { gpuPct: 30, cpuPct: 30 });
 });
 
 test("gpuDowngradeForMove gives the card back when the destination has none", () => {

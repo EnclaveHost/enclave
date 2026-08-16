@@ -520,7 +520,12 @@ async function validateDeploySpec(b, ctx, res, req) {
   if (!appRef || appRef.length > 100) { err(ctx, res, req, 422, "bad_app_ref", "spec.appRef is required (catalog://... or ipfs://...), max 100 chars."); return null; }
   if (!(cpuMilli >= 1 && cpuMilli <= 1000)) { err(ctx, res, req, 422, "bad_cpu", "cpuShare must be within (0, 1]."); return null; }
   if (!(gpuMilli >= 0 && gpuMilli <= rates.maxGpuMilli)) { err(ctx, res, req, 422, "bad_gpu", `gpuShare must be within [0, ${rates.maxGpuMilli / 1000}].`); return null; }
-  if (gpuMilli > 0 && gpuMilli < cpuMilli) { err(ctx, res, req, 422, "bad_shares", "gpuShare must be at least cpuShare (ledger rule)."); return null; }
+  // Rev 13 dropped the gpuShare >= cpuShare rule: the two shares come from
+  // different pools and are priced additively, so a CPU-heavy app may buy a
+  // sliver of a card. Older ledgers still revert create(), and this endpoint
+  // exists so nothing paid-for is unconvertible - so keep refusing there.
+  // (written as !(rev >= 13) so an unknown rev refuses rather than waves through)
+  if (!(Number(rates.rev) >= 13) && gpuMilli > 0 && gpuMilli < cpuMilli) { err(ctx, res, req, 422, "bad_shares", `gpuShare must be at least cpuShare on this ledger (deploymentsSchema ${rates.rev}; rev 13 removes the rule).`); return null; }
   if (!(appPort > 0 && appPort < 65536)) { err(ctx, res, req, 422, "bad_port", "appPort must be a valid port."); return null; }
   if (ports.length > 96 || configCid.length > 100) { err(ctx, res, req, 422, "bad_spec", "ports/configCid exceed the ledger's limits."); return null; }
   // the deploy console thinks in a DOLLAR budget: convert through the live rate
@@ -881,8 +886,12 @@ export async function handleBilling(req, res, u, ctx) {
         // revert anyway); ref is optional - present = version change + resize
         // in one multicall, one passkey signature
         const g = Number(b.gpuMilli), c = Number(b.cpuMilli);
-        if (!Number.isInteger(g) || !Number.isInteger(c) || g < 0 || g > 1000 || c < 1 || c > 1000 || (g > 0 && g < c))
-          return err(ctx, res, req, 422, "bad_params", "resize needs integer share millis: gpuMilli 0..1000, cpuMilli 1..1000, gpuMilli >= cpuMilli when set.");
+        if (!Number.isInteger(g) || !Number.isInteger(c) || g < 0 || g > 1000 || c < 1 || c > 1000)
+          return err(ctx, res, req, 422, "bad_params", "resize needs integer share millis: gpuMilli 0..1000, cpuMilli 1..1000.");
+        // the shares are independent from rev 13 on; before that setShares reverts
+        const srev = await ledgerRates().then(r => r.rev).catch(() => 0);
+        if (!(Number(srev) >= 13) && g > 0 && g < c)
+          return err(ctx, res, req, 422, "bad_params", `this ledger (deploymentsSchema ${srev || "unknown"}) needs gpuMilli >= cpuMilli when gpuMilli is set; rev 13 removes the rule.`);
         if (b.ref !== undefined && !(typeof b.ref === "string" && b.ref.length > 0 && b.ref.length <= 100))
           return err(ctx, res, req, 422, "bad_params", "ref must be a catalog ref (max 100 chars).");
         shares = { gpuMilli: g, cpuMilli: c };

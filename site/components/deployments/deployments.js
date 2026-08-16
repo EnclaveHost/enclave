@@ -24,7 +24,7 @@ import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, 
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
-import { shareRates, minPctsOf, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf, hostChargeWaived } from "../../js/core/pricing.js";
+import { shareRates, minPctsOf, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf, hostChargeWaived, sharesLegalOn, liftSharesForLedger } from "../../js/core/pricing.js";
 
 // The app's reachable URL. Through the gateway each deployment gets its OWN
 // origin: a per-deployment subdomain (<id>.app.enclave.host, the base36 part of
@@ -1220,9 +1220,12 @@ class Deployments extends EnclaveElement {
         return "// " + ver + " needs at least " + Math.max(1, r.mins.cpuPct) + "% CPU" + (hw ? " on " + hw.name : "");
       if (t.cpuMilli > 1000) return "// the CPU share can’t be more than 100% of the node";
       if (t.gpuMilli > maxGpu) return "// GPU over the platform’s per-deployment cap of " + (maxGpu / 10) + "%";
-      if (t.gpuMilli > 0 && t.gpuMilli < t.cpuMilli)
-        return "// a GPU deployment’s GPU share can’t sit below its CPU share - raise GPU to "
-          + (t.cpuMilli / 10) + "% or more, or lower CPU";
+      // The two dials are independent from ledger rev 13 on. Older ledgers
+      // revert setShares outright, so keep saying so there rather than letting
+      // the click burn gas on a bare "gpuShare < cpuShare".
+      if (!sharesLegalOn(t.gpuMilli / 10, t.cpuMilli / 10, rev))
+        return "// this ledger (deploymentsSchema " + rev + ") still needs GPU ≥ CPU - raise GPU to "
+          + (t.cpuMilli / 10) + "% or more, or lower CPU (the rev-13 ledger drops the rule)";
       if (!resized) return "";
       const newRate = rateOf(t);
       if (cap6 > 0n && newRate > cap6)
@@ -1253,8 +1256,10 @@ class Deployments extends EnclaveElement {
           // land in the middle of a number being typed
           if (Math.round(Number(gIn.value || 0)) < r.mins.gpuPct) gIn.value = r.mins.gpuPct;
           if (Math.round(Number(cIn.value || 0)) < Math.max(1, r.mins.cpuPct)) cIn.value = Math.max(1, r.mins.cpuPct);
+          // pre-13 ledgers refuse a GPU dial under the CPU one; on 13+ the
+          // prefill leaves both exactly where the app's floors put them
           const p = dials();
-          if (p.gpuMilli > 0 && p.gpuMilli < p.cpuMilli) gIn.value = p.cpuMilli / 10;  // contract: gpuMilli >= cpuMilli
+          if (!sharesLegalOn(p.gpuMilli / 10, p.cpuMilli / 10, rev)) gIn.value = p.cpuMilli / 10;
         }
         const t = dials();
         const resized = t.gpuMilli !== bought.gpuMilli || t.cpuMilli !== bought.cpuMilli;
@@ -2600,9 +2605,9 @@ class Deployments extends EnclaveElement {
       + '<div class="term enc-move-status" role="status" aria-live="polite"><span class="ln dimln">// reading the ledger + fleet…</span></div>';
     const stEl = () => box.querySelector(".enc-move-status");
     const fail = (msg) => { const s = stEl(); if (s){ s.innerHTML = ""; paintLine(s, "warn", msg); } };
-    let d = null, fleet = null;
+    let d = null, fleet = null, rev = 1;
     try {
-      [d, fleet] = await Promise.all([depGet(id), Enclave.getEnclaves().catch(() => null)]);
+      [d, fleet, rev] = await Promise.all([depGet(id), Enclave.getEnclaves().catch(() => null), depSchemaRev().catch(() => 1)]);
       await loadCatalog();
       await Enclave.getAvailability().then(a => adoptServerSpec(a)).catch(() => null);
     } catch(e){ d = null; }
@@ -2658,7 +2663,10 @@ class Deployments extends EnclaveElement {
     const syncUpg = () => {
       const t = targets.find((x) => x.name === sel.value);
       const vv = { ...spec, depGpuOptional: depSoftGpu };
-      const up = t ? gpuUpgradeForMove(vv, t, bought.gpuMilli, bought.cpuMilli) : null;
+      // the upgrade buys the slice the version declares; a pre-13 ledger still
+      // rounds it up to the CPU share, because its setShares would revert
+      const up0 = t ? gpuUpgradeForMove(vv, t, bought.gpuMilli, bought.cpuMilli) : null;
+      const up = up0 ? liftSharesForLedger(up0, rev) : null;
       const down = t && !up ? gpuDowngradeForMove(vv, t, bought.gpuMilli, bought.cpuMilli) : null;
       const act = up || down;
       this._mvUpgrade = act ? { ...act, target: t, dir: up ? "up" : "down" } : null;

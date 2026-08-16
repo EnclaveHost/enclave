@@ -78,6 +78,17 @@ pragma solidity ^0.8.20;
 ///     other. Lowering the cap under a running deployment's rate lets the paid
 ///     lease finish and then stops it — the cap is a spend ceiling, not just a
 ///     placement filter.
+///   - THE TWO SHARES ARE INDEPENDENT (rev 13): revs <= 12 refused any
+///     deployment whose cpuMilli exceeded a non-zero gpuMilli, on the reasoning
+///     that a GPU app's CPU slice "rides along" on its card's node. It never
+///     followed: the two shares are drawn from separate pools (a card's
+///     VRAM+compute, the node's vCPU+RAM), a runner reserves them separately,
+///     and the rate has always summed them independently. All the rule
+///     achieved was forcing a CPU-heavy app that wants a small slice of card —
+///     one model, plenty of pre/post-processing — to buy card it did not want,
+///     at card prices. The floors that remain are the real ones: cpuMilli >= 1,
+///     both <= 1000, gpuMilli <= maxGpuMilli, and the app's own catalog-derived
+///     minimums (runner-enforced).
 ///   - SELF-HOSTING IS FREE (rev 12): when the claiming enclave's declared
 ///     payout wallet (EnclaveRegistry schema 4) IS the deployment's owner, the
 ///     host component of the rate is zero — a seller running their own app on
@@ -141,8 +152,10 @@ pragma solidity ^0.8.20;
 ///         choice was to spend the optimizer's size/gas dial or delete
 ///         something already shipped (sweepEscrow is 518 bytes, the claim-bond
 ///         family 1443). runs=100 changes no behaviour whatsoever - it only
-///         tells solc to weight deploy size over per-call gas - and leaves
-///         ~120 bytes free. scripts/deploy-deployments.mjs,
+///         tells solc to weight deploy size over per-call gas. Rev 13 gave
+///         ~130 bytes back by DELETING the gpuMilli >= cpuMilli rule from
+///         create and setShares, so the headroom is ~250 bytes.
+///         scripts/deploy-deployments.mjs,
 ///         scripts/build-contract-artifacts.mjs and foundry.toml all pin it;
 ///         they must move together or the deployed bytecode stops being
 ///         reproducible from this source. Anything that needs materially more
@@ -223,9 +236,12 @@ contract EnclaveDeployments {
                                 // Must be >= the app's minimum share: runners derive minimums from the
                                 // app's exact specs in EnclaveAppCatalog (spec / their hardware, the larger
                                 // of the memory and compute axes) and refuse under-provisioned claims.
-        uint16  cpuMilli;       // CPU/RAM share bought, in 1/1000ths of a node (1..1000). A GPU
-                                // deployment's CPU share rides along on the same node, so it may never
-                                // exceed the GPU share: gpuMilli == 0 || gpuMilli >= cpuMilli.
+        uint16  cpuMilli;       // CPU/RAM share bought, in 1/1000ths of a node (1..1000). INDEPENDENT of
+                                // gpuMilli since rev 13: the two draw on different pools (a card's
+                                // VRAM+compute vs the node's vCPU+RAM) and are priced additively, so a
+                                // CPU-heavy GPU app may buy a sliver of a card beside most of a node.
+                                // Revs <= 12 required gpuMilli == 0 || gpuMilli >= cpuMilli, which only
+                                // ever forced tenants to over-buy card they had not asked for.
         uint32  appPort;        // guest HTTP port the app serves on
         bool    isPublic;       // anyone may hit the data path (vs owner-only)
         bool    active;         // owner-set; inactive is not claimable/fundable (kept for history)
@@ -342,7 +358,11 @@ contract EnclaveDeployments {
     // know that a rate of 0 is a legal, expected answer rather than a bug.
     // A rev-12 ledger REQUIRES a schema-4 registry (its rate reads
     // payoutWallet out of the entry it already fetches).
-    uint256 public constant deploymentsSchema = 12;
+    // Rev 13 REMOVES a rule rather than adding surface: create/setShares no
+    // longer require gpuMilli >= cpuMilli. Nothing changed shape, so a client
+    // that never dials CPU above GPU cannot tell 12 from 13 — clients gate on
+    // >= 13 only to know that offering the wider dial will not revert here.
+    uint256 public constant deploymentsSchema = 13;
 
     /// @dev Publisher-fee snapshot, taken at create from the catalog version
     ///      the deployment references (recipient = the app's publisher wallet).
@@ -590,7 +610,6 @@ contract EnclaveDeployments {
         require(bytes(appRef).length > 0 && bytes(appRef).length <= MAX_APPREF, "length");
         require(cpuMilli > 0 && cpuMilli <= 1000, "range");
         require(gpuMilli <= 1000, "range");
-        require(gpuMilli == 0 || gpuMilli >= cpuMilli, "gpuShare < cpuShare");
         require(appPort > 0, "range");
         require(bytes(ports).length <= MAX_PORTS, "length");
         require(bytes(configCid).length <= MAX_CFG, "length");
@@ -772,7 +791,6 @@ contract EnclaveDeployments {
         Deployment storage d = _requireOwned(id);
         require(cpuMilli > 0 && cpuMilli <= 1000, "range");
         require(gpuMilli <= 1000, "range");
-        require(gpuMilli == 0 || gpuMilli >= cpuMilli, "gpuShare < cpuShare");
         require(gpuMilli <= maxGpuMilli, "gpuShare > max");
         uint256 newRate = _resizeRate(id, d, gpuMilli, cpuMilli);
         _requireUnderCap(id, newRate);
