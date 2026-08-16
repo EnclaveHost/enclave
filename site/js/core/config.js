@@ -107,7 +107,7 @@ export const ADDRESS_BOOK_ADDRESS = _book || "0xab214342d5A490150A4A977063A2f88E
 // Observed 2026-07-28: 0xa025ed60… read active:true/cpu 80/lease live on the
 // live contract and active:false/cpu 10/no lease on the baked one.
 export let APP_CATALOG_ADDRESS = "0xac5270c57f3118f0b37d4f493198bb6863eddddf"; // EnclaveAppCatalog on Base; written automatically by scripts/deploy-app-catalog.mjs
-export let DEPLOYMENTS_ADDRESS = "0x9f7c617807c5565ef26aa9139a73efc792279dc8"; // EnclaveDeployments on Base; written automatically by scripts/deploy-deployments.mjs
+export let DEPLOYMENTS_ADDRESS = "0xf9e71385c5cb49844f2457ba6567de0742f8b89a"; // EnclaveDeployments on Base; written automatically by scripts/deploy-deployments.mjs
 export let REGISTRY_ADDRESS    = "";                            // EnclaveRegistry (fleet membership); resolved from the address book only
 export let FEATURED_ADDRESS    = "";                            // EnclaveFeatured (featured-slot view bids); resolved from the address book only - "" = editorial featured pick, no bidding UI
 export let REVIEWS_ADDRESS     = "";                            // EnclaveReviews (1-5 star ratings + comments); resolved from the address book only - "" = the store shows no ratings at all

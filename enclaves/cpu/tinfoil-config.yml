@@ -78,7 +78,7 @@ containers:
       # Portable deployments: the claim loop adopts ONLY CPU deployments
       # (EnclaveDeployments records created with gpu=false).
       - CLAIM_ENABLED: "1"
-      - DEPLOYMENTS_ADDRESS: "0x9F7C617807c5565EF26aA9139a73EfC792279Dc8"
+      - DEPLOYMENTS_ADDRESS: "0xF9e71385C5cB49844F2457ba6567De0742f8B89a"
       # Where this box's runner earnings sweep to. The supervisor's hourly
       # payoutTick withdraws earned6[REGISTRY_PRIVATE_KEY's EOA] once it clears
       # EARNINGS_MIN_USDC and sends it here. Leaving it UNSET is a silent no-op:

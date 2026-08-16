@@ -63,6 +63,18 @@ set_key() { # $1=file $2=env key $3=address — only where the file already carr
   grep -qE "$2: \"$ADDR\"" "$1" || return 0
   sed -i -E "s/($2: \")$ADDR(\")/\1$3\2/" "$1"
 }
+# site/js/core/config.js writes the same constants in JS (`export let KEY = "0x…"`),
+# which set_key's `KEY: "0x…"` regex does not match — so for two rollouts the
+# script reported success while leaving the BROWSER pointed at a retired ledger.
+# That is the worst file to miss: config.js's own comment ("KEEP THESE CURRENT")
+# records why — a retired ledger still answers get() with a plausible stale
+# record (active:false, old shares, no lease) instead of failing, and any write
+# goes to the dead contract. Addresses are lowercased to match the file's style.
+set_js_key() { # $1=file $2=exported name $3=address
+  [ -n "$3" ] || return 0
+  grep -qE "$2 = \"$ADDR\"" "$1" || return 0
+  sed -i -E "s/($2 = \")$ADDR(\")/\1$(printf '%s' "$3" | tr 'A-Z' 'a-z')\2/" "$1"
+}
 # cli/enclave.mjs pins the same addresses in its DEFAULTS block, in the same
 # KEY: "0x…" shape the yaml uses — one regex serves both.
 # gpu8 was missing from this list and sat three revisions behind on every
@@ -77,4 +89,7 @@ for f in "$GPU" "$CPU" "$GPU8" "$REPO/cli/enclave.mjs"; do
   set_key "$f" FORWARDER_ADDRESS     "$FORWARDER"
   set_key "$f" APP_CATALOG_ADDRESS   "$CATALOG"
 done
+# the site's JS fallbacks (same values, different syntax — see set_js_key)
+set_js_key "$SITE" DEPLOYMENTS_ADDRESS  "$DEPLOYMENTS"
+set_js_key "$SITE" APP_CATALOG_ADDRESS  "$CATALOG"
 echo "[sync] registry=${REGISTRY:-?} deployments=${DEPLOYMENTS:-?} enclavepay=${FORWARDER:-?} catalog=${CATALOG:-?}"
