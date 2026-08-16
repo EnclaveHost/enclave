@@ -295,6 +295,16 @@ containers:
     ipc: host
     restart: always
     env:
+      # WITHOUT `video` there is no libnvidia-encode.so.1 in this container and
+      # the nvenc verb cannot work, on a card that supports it perfectly well.
+      # The NVIDIA container runtime injects driver libraries by CAPABILITY, not
+      # wholesale: the default (compute,utility) covers CUDA and nvidia-smi and
+      # deliberately omits the encoder. The failure is not a missing device — the
+      # GPU is right there — it is a dlopen that finds nothing, which the shim
+      # reports as "no hardware video encoder on this host". Encode also needs
+      # `utility` kept for nvidia-smi, which the manager probes at boot for the
+      # card's VRAM total.
+      - NVIDIA_DRIVER_CAPABILITIES: "compute,utility,video"
       - WASM_MANAGER_PORT: "8091"   # same port the supervisor's VMMGR_URL already targets
       - NODE_VCPUS: "16"
       - NODE_RAM_GB: "64"
@@ -667,15 +677,21 @@ models:
   # ([11, 11, 10, 0], new in 3.8 - it is a VL-capable base) all load and generate
   # unchanged, so this volume needs no toolchain bump.
   # Q6 not Q4, deliberately: a wrong token in code is a broken program, not a
-  # clumsy sentence. It costs ~34.1 GB to serve at the 176K q8_0 node window
-  # (25.9 weights + 6.7 KV including the lazily-created MTP head context +
-  # working set), so it asks gpu 0.26-0.27, NOT the 0.19-0.21 the Q4 27b volumes
-  # take: a 0.25 share holds 35.1 GB, and because the head context is allocated
-  # on the first speculative session rather than at boot, too thin a share
-  # preloads fine, answers /warmup in 100 ms and then stalls the first real chat
-  # request (a025ed60, 2026-07-28). unsloth also ships a plain Q6_K (22.9 GB,
-  # ~31.1 GB to serve, gpu 0.23-0.24) if that margin is worth more than the last
-  # increment of accuracy.
+  # clumsy sentence. MEASURED on a real preload (2026-08-14, 9.1s, 66/66 layers
+  # offloaded): CUDA0 model buffer 23718.09 MiB = 24.87 GB, NOT the 25.92 GB the
+  # file weighs, because token_embd.weight is q6_K and the CUDA_Host pinned
+  # buffer path will not take that type, so 994.63 MiB of embedding stays
+  # CPU_Mapped and never enters VRAM (output.weight, the lm_head that decode
+  # actually leans on, IS offloaded - "offloading output layer to GPU"). That
+  # makes it ~33.0 GB to serve at the 176K q8_0 node window (24.87 VRAM weights +
+  # 6.7 KV including the lazily-created MTP head context + working set), so a
+  # 0.25 share (35.1 GB) holds it with ~2 GB of margin and 0.26 is comfortable.
+  # Still well above the 0.19-0.21 the Q4 27b volumes take. Do not cut below
+  # 0.25: the head context is allocated on the first speculative session rather
+  # than at boot, so too thin a share preloads fine, answers /warmup in 100 ms
+  # and then stalls the first real chat request (a025ed60, 2026-07-28). unsloth
+  # also ships a plain Q6_K (22.9 GB, ~30 GB to serve, gpu 0.23) if that margin
+  # is worth more than the last increment of accuracy.
   # TOKENIZER IS A SUPERSET, NOT A MATCH: the 248044-entry vocab and all 247587
   # merges are byte-identical to the Qwen3.5/3.6 family copy (5f9e4d49...), as
   # are the normalizer, pre-tokenizer, post-processor and decoder, but Qwen3.8
