@@ -1,0 +1,585 @@
+diff --git a/crates/wasi-nn/Cargo.toml b/crates/wasi-nn/Cargo.toml
+index f6edc2a..0a82b5c 100644
+--- a/crates/wasi-nn/Cargo.toml
++++ b/crates/wasi-nn/Cargo.toml
+@@ -77,6 +77,11 @@ ggml = []
+ # shim (ESD_LIB_LOCATION at build time) - no cargo dependencies at all.
+ # Preload-only ("-S nn-graph=sd::<dir>" + load_by_name).
+ sdcpp = []
++# NVENC video-encode backend: pure FFI against the system-linked enclave_nvenc
++# shim (ENV_LIB_LOCATION at build time) - no cargo dependencies at all. The
++# shim dlopens the driver, so this links nothing NVIDIA and builds anywhere.
++# Preload-only ("-S nn-graph=nvenc::<dir>" + load_by_name).
++nvenc = []
+ # Use prebuilt ONNX Runtime binaries from ort.
+ onnx-download = ["onnx", "ort/download-binaries"]
+ # CUDA execution provider for NVIDIA GPU support (requires CUDA toolkit)
+diff --git a/crates/wasi-nn/build.rs b/crates/wasi-nn/build.rs
+index cac6b1e..22b59f5 100644
+--- a/crates/wasi-nn/build.rs
++++ b/crates/wasi-nn/build.rs
+@@ -23,6 +23,17 @@ fn main() {
+         println!("cargo:rustc-link-lib=dylib=stable-diffusion");
+     }
+ 
++    // nvenc backend links the enclave_nvenc shim from ENV_LIB_LOCATION. Only
++    // the shim - CUDA and libnvidia-encode are dlopened inside it, so a build
++    // host needs no driver and a GPU-less node still loads the library.
++    if std::env::var("CARGO_FEATURE_NVENC").is_ok() {
++        println!("cargo:rerun-if-env-changed=ENV_LIB_LOCATION");
++        if let Ok(dir) = std::env::var("ENV_LIB_LOCATION") {
++            println!("cargo:rustc-link-search=native={dir}");
++        }
++        println!("cargo:rustc-link-lib=dylib=enclave_nvenc");
++    }
++
+     let cwd = std::env::current_dir().unwrap();
+     let wasi_root = cwd.join("witx");
+ 
+diff --git a/crates/wasi-nn/src/backend/mod.rs b/crates/wasi-nn/src/backend/mod.rs
+index 05697c5..e45d7d5 100644
+--- a/crates/wasi-nn/src/backend/mod.rs
++++ b/crates/wasi-nn/src/backend/mod.rs
+@@ -6,6 +6,8 @@
+ pub mod ggml;
+ #[cfg(feature = "onnx")]
+ pub mod onnx;
++#[cfg(feature = "nvenc")]
++pub mod nvenc;
+ #[cfg(feature = "sdcpp")]
+ pub mod sdcpp;
+ #[cfg(all(feature = "openvino", target_pointer_width = "64"))]
+@@ -19,6 +21,8 @@ pub mod winml;
+ use self::ggml::GgmlBackend;
+ #[cfg(feature = "onnx")]
+ use self::onnx::OnnxBackend;
++#[cfg(feature = "nvenc")]
++use self::nvenc::NvencBackend;
+ #[cfg(feature = "sdcpp")]
+ use self::sdcpp::SdCppBackend;
+ #[cfg(all(feature = "openvino", target_pointer_width = "64"))]
+@@ -60,6 +64,10 @@ pub fn list() -> Vec<Backend> {
+     {
+         backends.push(Backend::from(SdCppBackend::default()));
+     }
++    #[cfg(feature = "nvenc")]
++    {
++        backends.push(Backend::from(NvencBackend::default()));
++    }
+     #[cfg(feature = "pytorch")]
+     {
+         backends.push(Backend::from(PytorchBackend::default()));
+diff --git a/crates/wasi-nn/src/backend/nvenc.rs b/crates/wasi-nn/src/backend/nvenc.rs
+new file mode 100644
+index 0000000..be33985
+--- /dev/null
++++ b/crates/wasi-nn/src/backend/nvenc.rs
+@@ -0,0 +1,508 @@
++//! An NVENC backend for wasi-nn — hardware video encode behind the standard
++//! `wasi:nn` interface.
++//!
++//! The work happens in the system-linked `enclave_nvenc` shim (a flat
++//! pointer/scalar C ABI over NvEncodeAPI — see wasm/nvenc-shim in the platform
++//! repo). Same discipline as the ggml and sdcpp backends: std + FFI only, no
++//! new crates.
++//!
++//! This exists so that an app which produces frames can stream them without
++//! the pixels leaving the enclave. The alternative in production today is a
++//! native sidecar beside the CVM that pulls plaintext framebuffers out over
++//! HTTP and encodes them on the host, which puts the desktop's pixels, the
++//! user's keystrokes and the session keys outside the trust boundary and
++//! outside the deployment's attestation. Software encode in wasm is not an
++//! option at desktop resolution and frame rate, and the GPU is reachable only
++//! through these shims.
++//!
++//! ## Encode is stateful, and that is the one structural difference
++//!
++//! Every other backend here is a pure function of its inputs: a graph plus a
++//! tensor in, a tensor out, reconstructible per call. Frame N of a video
++//! references frame N-1, so an encoder cannot be rebuilt per call — the
++//! reference frame, the rate-control state and the sequence header all persist
++//! between them.
++//!
++//! Rather than invent a session handle in the tensor namespace, that state
++//! lives where wasi-nn already has a place for per-stream state: the execution
++//! context. One context is one encoder session; dropping it closes the session;
++//! a guest that wants two streams inits two contexts.
++//!
++//! The session opens on the first `config` (which carries the resolution the
++//! encoder must be built around) rather than in `init_execution_context`, since
++//! nothing before that call knows the frame size. `init_execution_context`
++//! itself is free and infallible.
++//!
++//! ## Preload
++//!
++//! `-S nn-graph=nvenc::<dir>` + `load_by_name`, like sdcpp. There is no model
++//! file and the directory is not read: the graph IS the encoder. It is still a
++//! preload rather than a `load()` from guest bytes because that is what grants
++//! a tenant the capability at launch, and because the failure to report — no
++//! GPU, no NVENC, driver too old — belongs at startup where an operator sees
++//! it.
++//!
++//! ## Verbs (WIT named tensors)
++//!
++//!   input  "config"     U8  [n]  JSON, once per context before the first
++//!                                frame; passing it again reconfigures
++//!   input  "frame"      U8  [n]  one raw frame in the session's pixel format
++//!   input  "idr"        I32 [1]  optional, beside "frame": force an IDR
++//!   input  "caps"       I32 [1]  probe; needs no session and no config
++//!   output "bitstream"  U8  [n]  exactly one access unit (Annex-B for
++//!                                H.264/HEVC, OBUs for AV1)
++//!   output "keyframe"   I32 [1]  1 if that unit is an IDR
++//!   output "caps"       I32 [1]  bit0 h264, bit1 hevc, bit2 av1
++//!
++//! `config` keys: `codec` ("h264" default, "hevc", "av1"), `format` ("nv12"
++//! default, "iyuv", "argb", "abgr"), `width`, `height`, `fps`, `bitrate`,
++//! `gop` (0 = no automatic IDRs, the streaming default: a keyframe is a
++//! bandwidth spike and should happen when the client asks for one).
++//!
++//! A guest reads a missing `caps` bit as "no" and reports streaming as
++//! unavailable, the same way the ggml probe degrades, so an older host without
++//! this backend fails honestly instead of trapping.
++//!
++//! **NV12, not RGB.** A frame crosses the sandbox boundary on every call. At
++//! 1080p that is 3.1 MB as NV12 against 6.2 MB as RGB24, which at 60 fps is
++//! 185 MB/s against 370 MB/s of copy.
++
++use super::{
++    BackendError, BackendExecutionContext, BackendFromDir, BackendGraph, BackendInner, Id,
++    NamedTensor,
++};
++use crate::wit::types::{ExecutionTarget, GraphEncoding, Tensor, TensorType};
++use crate::{ExecutionContext, Graph};
++use std::ffi::{c_char, c_int, c_void, CStr, CString};
++use std::path::Path;
++use std::sync::Mutex;
++
++#[repr(C)]
++struct EnvConfig {
++    codec: *const c_char,
++    format: *const c_char,
++    width: u32,
++    height: u32,
++    fps_num: u32,
++    fps_den: u32,
++    bitrate: u32,
++    gop: u32,
++}
++
++unsafe extern "C" {
++    fn env_caps() -> u32;
++    fn env_open(cfg: *const EnvConfig) -> *mut c_void;
++    fn env_encode(
++        s: *mut c_void,
++        frame: *const u8,
++        len: usize,
++        force_idr: c_int,
++        out: *mut u8,
++        out_cap: usize,
++        out_len: *mut usize,
++        is_keyframe: *mut c_int,
++    ) -> c_int;
++    fn env_close(s: *mut c_void);
++    fn env_last_error() -> *const c_char;
++}
++
++fn err(msg: impl Into<String>) -> BackendError {
++    BackendError::BackendAccess(wasmtime::format_err!("{}", msg.into()))
++}
++
++fn shim_error(what: &str) -> BackendError {
++    let detail = unsafe {
++        let p = env_last_error();
++        if p.is_null() {
++            String::new()
++        } else {
++            CStr::from_ptr(p).to_string_lossy().into_owned()
++        }
++    };
++    match detail.is_empty() {
++        true => err(format!("nvenc: {what}")),
++        false => err(format!("nvenc: {what}: {detail}")),
++    }
++}
++
++#[derive(Default)]
++pub struct NvencBackend();
++
++impl BackendInner for NvencBackend {
++    fn encoding(&self) -> GraphEncoding {
++        // Preload-only, like sdcpp: reachable via `-S nn-graph=nvenc::<dir>`.
++        // Autodetect is unclaimed by real backends, so a guest `load()` with
++        // model bytes can never land here by accident.
++        GraphEncoding::Autodetect
++    }
++
++    fn preload_kind(&self) -> &'static str {
++        "nvenc"
++    }
++
++    fn load(&mut self, _builders: &[&[u8]], _target: ExecutionTarget) -> Result<Graph, BackendError> {
++        Err(err(
++            "the nvenc backend has no model to load; grant it with \
++             -S nn-graph=nvenc::<dir> and reach it with load_by_name",
++        ))
++    }
++
++    fn as_dir_loadable<'a>(&'a mut self) -> Option<&'a mut dyn BackendFromDir> {
++        Some(self)
++    }
++}
++
++impl BackendFromDir for NvencBackend {
++    fn load_from_dir(&mut self, _dir: &Path, _target: ExecutionTarget) -> Result<Graph, BackendError> {
++        // The directory is not read — there is no model. What preload buys is
++        // that a host with no encoder says so HERE, at startup, in front of an
++        // operator, instead of at the first frame in front of a user.
++        if unsafe { env_caps() } == 0 {
++            return Err(shim_error(
++                "no hardware video encoder on this host (no GPU, no NVENC, or the \
++                 driver predates the NVENCAPI this was built against)",
++            ));
++        }
++        let graph: Box<dyn BackendGraph> = Box::new(NvencGraph());
++        Ok(graph.into())
++    }
++}
++
++struct NvencGraph();
++
++impl BackendGraph for NvencGraph {
++    fn init_execution_context(&self) -> Result<ExecutionContext, BackendError> {
++        // Cheap and infallible: the session cannot open until a `config`
++        // arrives with the frame size to build the encoder around.
++        let ctx: Box<dyn BackendExecutionContext> = Box::new(NvencExecutionContext {
++            session: Mutex::new(Session(std::ptr::null_mut())),
++            config: None,
++            bitstream: None,
++            keyframe: 0,
++            caps: None,
++        });
++        Ok(ctx.into())
++    }
++}
++
++/// An open encoder. The pointer is owned; `Drop` closes it.
++struct Session(*mut c_void);
++
++// The shim serializes on its own CUDA context and the pointer never escapes
++// the Mutex that holds it.
++unsafe impl Send for Session {}
++
++impl Drop for Session {
++    fn drop(&mut self) {
++        if !self.0.is_null() {
++            unsafe { env_close(self.0) };
++            self.0 = std::ptr::null_mut();
++        }
++    }
++}
++
++struct NvencExecutionContext {
++    session: Mutex<Session>,
++    /// The config the live session was opened with, so a repeated identical
++    /// `config` does not needlessly tear down the encoder and force an IDR.
++    config: Option<EncodeConfig>,
++    bitstream: Option<Tensor>,
++    keyframe: i32,
++    caps: Option<i32>,
++}
++
++#[derive(Clone, PartialEq)]
++struct EncodeConfig {
++    codec: String,
++    format: String,
++    width: u32,
++    height: u32,
++    fps: u32,
++    bitrate: u32,
++    gop: u32,
++}
++
++impl EncodeConfig {
++    /// Bytes in one frame of this configuration — the size the guest's `frame`
++    /// tensor must be, checked here so a mismatch is a clear error rather than
++    /// a sheared picture.
++    fn frame_bytes(&self) -> usize {
++        let px = self.width as usize * self.height as usize;
++        match self.format.as_str() {
++            "argb" | "abgr" => px * 4,
++            _ => px * 3 / 2,
++        }
++    }
++}
++
++/// Read one value out of a flat JSON object without pulling in a parser.
++///
++/// The config is a handful of scalars written by our own guest library; a
++/// dependency to read it would be a poor trade in a crate that deliberately
++/// has none.
++fn json_str(obj: &str, key: &str) -> Option<String> {
++    let pat = format!("\"{key}\"");
++    let rest = &obj[obj.find(&pat)? + pat.len()..];
++    let rest = rest.trim_start().strip_prefix(':')?.trim_start();
++    let rest = rest.strip_prefix('"')?;
++    let end = rest.find('"')?;
++    Some(rest[..end].to_string())
++}
++
++fn json_num(obj: &str, key: &str) -> Option<u32> {
++    let pat = format!("\"{key}\"");
++    let rest = &obj[obj.find(&pat)? + pat.len()..];
++    let rest = rest.trim_start().strip_prefix(':')?.trim_start();
++    let end = rest
++        .find(|c: char| !c.is_ascii_digit())
++        .unwrap_or(rest.len());
++    rest[..end].parse().ok()
++}
++
++fn parse_config(json: &str) -> Result<EncodeConfig, BackendError> {
++    let width = json_num(json, "width")
++        .ok_or_else(|| err("nvenc: config needs a \"width\""))?;
++    let height = json_num(json, "height")
++        .ok_or_else(|| err("nvenc: config needs a \"height\""))?;
++    if width < 16 || height < 16 || width > 8192 || height > 8192 {
++        return Err(err(format!(
++            "nvenc: {width}x{height} is outside the 16..8192 an encoder will take"
++        )));
++    }
++    if width % 2 != 0 || height % 2 != 0 {
++        return Err(err(format!(
++            "nvenc: {width}x{height} — 4:2:0 encoding needs even dimensions"
++        )));
++    }
++    let codec = json_str(json, "codec").unwrap_or_else(|| "h264".to_string());
++    let format = json_str(json, "format").unwrap_or_else(|| "nv12".to_string());
++    if !matches!(codec.as_str(), "h264" | "hevc" | "h265" | "av1") {
++        return Err(err(format!("nvenc: unknown codec {codec:?}")));
++    }
++    if !matches!(format.as_str(), "nv12" | "iyuv" | "i420" | "argb" | "abgr") {
++        return Err(err(format!("nvenc: unknown pixel format {format:?}")));
++    }
++    Ok(EncodeConfig {
++        codec,
++        format,
++        width,
++        height,
++        fps: json_num(json, "fps").unwrap_or(60).max(1),
++        bitrate: json_num(json, "bitrate").unwrap_or(8_000_000),
++        gop: json_num(json, "gop").unwrap_or(0),
++    })
++}
++
++fn utf8_input(nt: &NamedTensor) -> Result<String, BackendError> {
++    if nt.tensor.ty != TensorType::U8 {
++        return Err(BackendError::UnsupportedTensorType(format!(
++            "{:?} (input \"{}\" wants U8 utf-8 bytes)",
++            nt.tensor.ty, nt.name
++        )));
++    }
++    String::from_utf8(nt.tensor.data.clone())
++        .map_err(|_| err(format!("input \"{}\" is not valid utf-8", nt.name)))
++}
++
++fn scalar_i32(nt: &NamedTensor) -> Result<i32, BackendError> {
++    let d = &nt.tensor.data;
++    match (nt.tensor.ty, d.len()) {
++        (TensorType::I32, 4) => Ok(i32::from_le_bytes([d[0], d[1], d[2], d[3]])),
++        _ => Err(err(format!(
++            "input \"{}\" wants a single I32 scalar, got {:?} x{} bytes",
++            nt.name,
++            nt.tensor.ty,
++            d.len()
++        ))),
++    }
++}
++
++fn i32_tensor(v: i32) -> Tensor {
++    Tensor {
++        dimensions: vec![1],
++        ty: TensorType::I32,
++        data: v.to_le_bytes().to_vec(),
++    }
++}
++
++impl NvencExecutionContext {
++    /// (Re)open the session for `cfg`, unless one identical to it is already
++    /// open. Reconfiguring is a real teardown, so the no-op case matters: a
++    /// guest that sends its config beside every frame should not pay a new
++    /// encoder and a forced IDR per frame for the privilege.
++    fn configure(&mut self, cfg: EncodeConfig) -> Result<(), BackendError> {
++        if self.config.as_ref() == Some(&cfg) && !self.session.lock().unwrap().0.is_null() {
++            return Ok(());
++        }
++        let codec = CString::new(cfg.codec.clone()).map_err(|_| err("nvenc: codec has a NUL"))?;
++        let format = CString::new(cfg.format.clone()).map_err(|_| err("nvenc: format has a NUL"))?;
++        let raw = EnvConfig {
++            codec: codec.as_ptr(),
++            format: format.as_ptr(),
++            width: cfg.width,
++            height: cfg.height,
++            fps_num: cfg.fps,
++            fps_den: 1,
++            bitrate: cfg.bitrate,
++            gop: cfg.gop,
++        };
++        let s = unsafe { env_open(&raw) };
++        if s.is_null() {
++            return Err(shim_error("could not open an encoder session"));
++        }
++        // Assign through the guard so the previous session's Drop runs here.
++        *self.session.lock().unwrap() = Session(s);
++        self.config = Some(cfg);
++        Ok(())
++    }
++
++    fn encode(&mut self, frame: &[u8], force_idr: bool) -> Result<(), BackendError> {
++        let cfg = self
++            .config
++            .clone()
++            .ok_or_else(|| err("nvenc: send a \"config\" before the first \"frame\""))?;
++        if frame.len() != cfg.frame_bytes() {
++            return Err(err(format!(
++                "nvenc: frame is {} bytes; {}x{} {} wants {}",
++                frame.len(),
++                cfg.width,
++                cfg.height,
++                cfg.format,
++                cfg.frame_bytes()
++            )));
++        }
++
++        // An access unit is never larger than the raw frame in any regime that
++        // is not pathological, and a keyframe of a noisy 4K desktop is the
++        // worst realistic case. Sizing the buffer at the frame is therefore
++        // generous and, more usefully, bounded by something the guest already
++        // paid for.
++        let mut out = vec![0u8; cfg.frame_bytes().max(256 * 1024)];
++        let mut out_len: usize = 0;
++        let mut is_key: c_int = 0;
++
++        let guard = self.session.lock().unwrap();
++        let rc = unsafe {
++            env_encode(
++                guard.0,
++                frame.as_ptr(),
++                frame.len(),
++                force_idr as c_int,
++                out.as_mut_ptr(),
++                out.len(),
++                &mut out_len,
++                &mut is_key,
++            )
++        };
++        drop(guard);
++        if rc != 0 {
++            return Err(shim_error("encode failed"));
++        }
++        out.truncate(out_len);
++
++        self.keyframe = is_key;
++        self.bitstream = Some(Tensor {
++            dimensions: vec![out.len() as u32],
++            ty: TensorType::U8,
++            data: out,
++        });
++        Ok(())
++    }
++}
++
++impl BackendExecutionContext for NvencExecutionContext {
++    fn set_input(&mut self, _id: Id, _tensor: &Tensor) -> Result<(), BackendError> {
++        Err(err("the nvenc backend is WIT-only: pass named tensors to compute()"))
++    }
++
++    fn compute(
++        &mut self,
++        inputs: Option<Vec<NamedTensor>>,
++    ) -> Result<Option<Vec<NamedTensor>>, BackendError> {
++        let Some(inputs) = inputs else {
++            return Err(err("the nvenc backend is WIT-only: pass named tensors to compute()"));
++        };
++
++        let mut frame: Option<Vec<u8>> = None;
++        let mut force_idr = false;
++        let mut config: Option<EncodeConfig> = None;
++        let mut probe = false;
++
++        for nt in &inputs {
++            match nt.name.as_str() {
++                "config" => config = Some(parse_config(&utf8_input(nt)?)?),
++                "frame" => {
++                    if nt.tensor.ty != TensorType::U8 {
++                        return Err(BackendError::UnsupportedTensorType(format!(
++                            "{:?} (input \"frame\" wants U8)",
++                            nt.tensor.ty
++                        )));
++                    }
++                    frame = Some(nt.tensor.data.clone());
++                }
++                "idr" => force_idr = scalar_i32(nt)? != 0,
++                "caps" => probe = true,
++                other => return Err(err(format!("nvenc: unknown input {other:?}"))),
++            }
++        }
++
++        // The probe answers without a session, so a guest can ask what this
++        // host can do before committing to a stream.
++        if probe {
++            let caps = unsafe { env_caps() } as i32;
++            self.caps = Some(caps);
++            return Ok(Some(vec![NamedTensor {
++                name: "caps".to_string(),
++                tensor: i32_tensor(caps),
++            }]));
++        }
++
++        if let Some(cfg) = config {
++            self.configure(cfg)?;
++        }
++
++        let Some(frame) = frame else {
++            // A config-only call is legitimate: open the encoder now, pay the
++            // session setup before the first frame rather than inside it.
++            if self.config.is_some() {
++                return Ok(Some(vec![]));
++            }
++            return Err(err("nvenc: compute() needs a \"frame\", a \"config\" or \"caps\""));
++        };
++
++        self.encode(&frame, force_idr)?;
++        let bitstream = self
++            .bitstream
++            .clone()
++            .expect("encode sets bitstream on success");
++        Ok(Some(vec![
++            NamedTensor { name: "bitstream".to_string(), tensor: bitstream },
++            NamedTensor { name: "keyframe".to_string(), tensor: i32_tensor(self.keyframe) },
++        ]))
++    }
++
++    fn get_output(&mut self, id: Id) -> Result<Tensor, BackendError> {
++        match id {
++            Id::Index(0) => {}
++            Id::Name(ref n) if n == "bitstream" => {}
++            Id::Index(1) | Id::Name(_) if matches!(&id, Id::Index(1)) => {
++                return Ok(i32_tensor(self.keyframe))
++            }
++            Id::Name(ref n) if n == "keyframe" => return Ok(i32_tensor(self.keyframe)),
++            Id::Name(ref n) if n == "caps" => {
++                return self
++                    .caps
++                    .map(i32_tensor)
++                    .ok_or_else(|| err("no caps available (has `compute` been called?)"))
++            }
++            other => {
++                return Err(err(format!(
++                    "unknown output {other:?} (expected \"bitstream\", \"keyframe\" or \"caps\")"
++                )))
++            }
++        }
++        self.bitstream
++            .clone()
++            .ok_or_else(|| err("no bitstream available (has `compute` been called?)"))
++    }
++}

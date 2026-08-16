@@ -1470,7 +1470,8 @@ _ONNX_PROBE_MODEL = bytes.fromhex(
     "120570726f62655a0f0a0178120a0a08080112040a020801620f0a0179120a0a0808011204"
     "0a02080142040a00100d"
 )
-_PRELOAD_SUPPORT = {"state": "unprobed", "onnx": False, "sd": False, "detail": ""}
+_PRELOAD_SUPPORT = {"state": "unprobed", "onnx": False, "sd": False, "nvenc": False,
+                    "detail": ""}
 _PRELOAD_PROBE_LOCK = threading.Lock()
 
 
@@ -1548,9 +1549,24 @@ def _preload_support() -> dict:
                                 {"ENCLAVE_SD_USE_GPU": "0"})
         sd_ok = bool(s) and "unknown graph encoding" not in s and "expected model" in s
         detail.append(f"sd: {'ok' if sd_ok else (s or 'no fixture/mock').splitlines()[-1][:120]}")
+        # nvenc reads no directory at all - the graph IS the encoder - so an
+        # empty dir is the real fixture rather than a stand-in. Two answers mean
+        # the backend is THERE: "preload done" on a node with an encoder, and
+        # its own "no hardware video encoder" where there is none. Only
+        # "unknown graph encoding" means this toolchain lacks the feature.
+        # Distinguishing them matters: a GPU node that answers the second way
+        # has a driver problem, not a rollout problem.
+        n = _probe_serve_output(["-S", f"nn-graph=nvenc::{empty}"], {})
+        nvenc_ok = bool(n) and "unknown graph encoding" not in n and (
+            "preload done" in n or "no hardware video encoder" in n)
+        nvenc_here = bool(n) and "preload done" in n
+        detail.append(f"nvenc: {'ok' if nvenc_ok else (n or 'no fixture/mock').splitlines()[-1][:120]}"
+                      + ("" if nvenc_here or not nvenc_ok else " (backend present, no encoder on this node)"))
         _PRELOAD_SUPPORT.update(state="probed", onnx=onnx_ok, sd=sd_ok,
+                                nvenc=nvenc_ok and nvenc_here,
                                 detail="; ".join(detail))
-        print(f"[preload-probe] onnx={onnx_ok} sd={sd_ok} ({_PRELOAD_SUPPORT['detail']})", flush=True)
+        print(f"[preload-probe] onnx={onnx_ok} sd={sd_ok} nvenc={_PRELOAD_SUPPORT['nvenc']} "
+              f"({_PRELOAD_SUPPORT['detail']})", flush=True)
         return _PRELOAD_SUPPORT
 
 
@@ -3931,6 +3947,32 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
             vol_args += ["-S", f"nn-graph={kind}::{stage}"]
             emitted.append(_name)
             stages[_name] = f"{kind}::{stage}"
+        # Video encode, for a tenant that bought a GPU share. Not a volume:
+        # there is no model, the graph IS an encoder session, so this rides the
+        # -Snn grant and gpuShare the tenant already has rather than adding a
+        # launch flag of its own. It costs nothing until the guest calls
+        # load_by_name("nvenc") - opening no session, holding no VRAM - so
+        # granting it to every GPU tenant is cheaper than making it a purchase.
+        #
+        # NOT wrapped in the MPS arbiter, deliberately. The arbiter exists
+        # because MPS statically partitions SMs; NVENC is a separate
+        # fixed-function engine, and one 720p stream measured 4-5% encoder
+        # utilization against 8-9% overall. Taking an arbiter turn per frame
+        # would queue encodes behind inference tenants that are not competing
+        # for the same silicon. OPEN: whether encode wants its own arbiter
+        # class, and what the per-card concurrent-session cap should be - it is
+        # a real limit (unrestricted on datacenter parts, capped on consumer
+        # ones) and it bounds how many streaming deployments fit on a node.
+        if gpu_tenant and support.get("nvenc"):
+            try:
+                nvdir = FS_DIR / "preload-probe" / "empty"
+                nvdir.mkdir(parents=True, exist_ok=True)
+                vol_args += ["-S", f"nn-graph=nvenc::{nvdir}"]
+                emitted.append("nvenc")
+            except OSError as e:
+                skipped["nvenc"] = f"staging failed: {e}"
+        elif gpu_tenant:
+            skipped["nvenc"] = "no hardware encoder on this node, or toolchain lacks the nvenc backend"
         # The guest can't see wasmtime's graph registry, so tell it what the
         # host PRELOADED: the volume names whose graphs went on the cmdline.
         # A load_by_name() NotFound then has an honest reading app-side -
