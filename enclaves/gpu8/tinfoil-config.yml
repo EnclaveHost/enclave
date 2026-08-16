@@ -302,6 +302,12 @@ containers:
     ipc: host
     restart: always
     env:
+      # `video` is what puts libnvidia-encode.so.1 in this container; without it
+      # the nvenc verb cannot work on cards that support it perfectly well. The
+      # NVIDIA container runtime injects driver libraries by CAPABILITY, and the
+      # default (compute,utility) deliberately omits the encoder. See the GPU
+      # flavor for the full note.
+      - NVIDIA_DRIVER_CAPABILITIES: "compute,utility,video"
       - WASM_MANAGER_PORT: "8091"   # same port the supervisor's VMMGR_URL already targets
       - NODE_VCPUS: "128"
       - NODE_RAM_GB: "512"

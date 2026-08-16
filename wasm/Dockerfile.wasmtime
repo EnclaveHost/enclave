@@ -12,6 +12,13 @@
 #                                      host-side (-S nn-graph=ggml::<dir>) and
 #                                      load_by_name()'d by guests - the BIG-model
 #                                      path (weights never enter guest memory).
+#   - `wasmtime-wasi-nn/nvenc`         NVENC backend: hardware VIDEO ENCODE
+#                                      (-S nn-graph=nvenc::<dir>), one execution
+#                                      context per encoder session. Lets an app
+#                                      stream its screen without the pixels
+#                                      leaving the enclave. Needs the `video`
+#                                      driver capability on the node - see
+#                                      nvenc-shim/README.md.
 #   - ONNX Runtime itself is the OFFICIAL Microsoft GPU build (system-linked
 #     via ORT_LIB_LOCATION, pinned by version + sha256). NOT pyke's prebuilt
 #     (ort's download-binaries): that one ships SASS only up to sm_89 plus
@@ -88,6 +95,24 @@ RUN curl -fsSL -o /tmp/ell.tgz "${ELL_URL}" \
 ENV ELL_LIB_LOCATION=/opt/enclave-llamacpp-linux-x64-gpu/lib
 # sd.cpp + its shim live in the same tarball/dir (one ggml - see above)
 ENV ESD_LIB_LOCATION=/opt/enclave-llamacpp-linux-x64-gpu/lib
+
+# enclave_nvenc: the video-encode shim (wasm/nvenc-shim), built HERE rather than
+# shipped in a tarball like the ggml stack. It can be, because it has no engine
+# behind it: libcuda and libnvidia-encode are dlopened at runtime and the CUDA
+# driver entry points are declared rather than included, so this compiles with
+# nothing but libc and needs no CUDA toolkit, no driver, and no GPU on the build
+# host. One cc invocation is cheaper and more auditable than a release artifact.
+# The three sources by name, not the directory: this image is MEASURED, and a
+# COPY of the whole dir would bake whatever a developer happens to have built
+# there (libenclave_nvenc.so, the selftest binary) into a layer, so the same
+# commit would not produce the same image from a working tree as from CI.
+COPY nvenc-shim/enclave_nvenc.c nvenc-shim/enclave_nvenc.h nvenc-shim/nvEncodeAPI.h /tmp/nvenc-shim/
+RUN mkdir -p /opt/enclave-nvenc/lib \
+ && cc -shared -fPIC -O2 -Wall -Wextra -Wl,-soname,libenclave_nvenc.so \
+      -I/tmp/nvenc-shim /tmp/nvenc-shim/enclave_nvenc.c -ldl -lpthread \
+      -o /opt/enclave-nvenc/lib/libenclave_nvenc.so \
+ && rm -rf /tmp/nvenc-shim
+ENV ENV_LIB_LOCATION=/opt/enclave-nvenc/lib
 
 # Enclave patches (see the .patch header): 1) strict ExecutionTarget::Gpu - the
 # CUDA provider initializes or load() fails, never ORT's silent CPU fallback
@@ -196,6 +221,21 @@ COPY wasmtime-nn-sdcpp.patch /tmp/
 RUN git apply --check /tmp/wasmtime-nn-sdcpp.patch \
  && git apply /tmp/wasmtime-nn-sdcpp.patch
 
+# enclave nvenc wasi-nn backend: hardware VIDEO ENCODE behind wasi:nn -
+# `-S nn-graph=nvenc::<dir>` preloads (no model; the graph IS the encoder),
+# guests load_by_name("nvenc") and one compute() encodes one frame into one
+# access unit. This is what lets an app stream its own screen without the
+# pixels leaving the enclave - the alternative is a native sidecar beside the
+# CVM holding plaintext framebuffers, outside the attestation. Encode is
+# STATEFUL (frame N references N-1), so one execution context is one encoder
+# session. Links libenclave_nvenc (ENV_LIB_LOCATION above) and nothing else -
+# the driver is dlopened, so this backend is safe to compile into every build
+# and reports "no hardware video encoder" on a node without one. MUST apply
+# after sdcpp: it reuses the preload_kind lookup that patch adds.
+COPY wasmtime-nn-nvenc.patch /tmp/
+RUN git apply --check /tmp/wasmtime-nn-nvenc.patch \
+ && git apply /tmp/wasmtime-nn-nvenc.patch
+
 # enclave onnx named-graph preload: `-S nn-graph=onnx::<volume dir>`
 # registers EVERY *.onnx in the volume as "<volume>/<component>" at server
 # startup (diffusers layouts carry several models per volume); guests
@@ -270,13 +310,14 @@ RUN git apply --check /tmp/wasmtime-set-threads.patch \
 # requested; would need TensorRT libs). ldconfig in the consuming image
 # creates the soname link from the versioned file.
 RUN cargo build --release \
-      --features "wasi-nn,wasmtime-wasi-nn/onnx-cuda,wasmtime-wasi-nn/ggml,wasmtime-wasi-nn/sdcpp" \
+      --features "wasi-nn,wasmtime-wasi-nn/onnx-cuda,wasmtime-wasi-nn/ggml,wasmtime-wasi-nn/sdcpp,wasmtime-wasi-nn/nvenc" \
  && mkdir -p /out/bin /out/lib \
  && cp -a target/release/wasmtime /out/bin/ \
  && cp -L "${ORT_LIB_LOCATION}/lib/libonnxruntime.so.${ORT_VERSION}" /out/lib/ \
  && cp -L "${ORT_LIB_LOCATION}/lib/libonnxruntime_providers_shared.so" /out/lib/ \
  && cp -L "${ORT_LIB_LOCATION}/lib/libonnxruntime_providers_cuda.so" /out/lib/ \
  && cp -a "${ELL_LIB_LOCATION}"/lib*.so* /out/lib/ \
+ && cp -a "${ENV_LIB_LOCATION}"/libenclave_nvenc.so /out/lib/ \
  && ls -laR /out/
 
 # artifact-only image: /bin/wasmtime + /lib/<ORT dylibs>, nothing else
