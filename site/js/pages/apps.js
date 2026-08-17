@@ -19,7 +19,7 @@ import { FEATURED, loadCampaigns, pickFeatured, beaconView } from "../core/featu
 import { loadTallies, loadReviews, confirmReceipt } from "../core/reviews.js";
 import { payForRuntime } from "../core/fund.js";
 import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf, personalSign } from "../core/wallet.js";
-import { STORE, loadCatalog, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, REF_CACHE, PORTS_CACHE, SPECS_CACHE, specOf, CONFIG_CACHE, CONFIG_CID_CACHE, MANIFEST_CACHE, fetchConfigCid, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia, signedUploadToken, putConfig } from "../core/catalog.js";
+import { STORE, loadCatalog, noteCatalogWrite, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, REF_CACHE, PORTS_CACHE, SPECS_CACHE, specOf, CONFIG_CACHE, CONFIG_CID_CACHE, MANIFEST_CACHE, fetchConfigCid, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia, signedUploadToken, putConfig } from "../core/catalog.js";
 import { minPctsOf, startSharesFor, shareRates, pickEnclaveFor, rankEnclavesFor, liftSharesForLedger } from "../core/pricing.js";
 import { navigate } from "../boot.js";
 
@@ -1255,20 +1255,34 @@ function prettyConfig(s){
   try { return JSON.stringify(JSON.parse(s), null, 2); } catch(e){ return s; }
 }
 
-async function catTx(data, verb){
+/* `write` names the record field this transaction sets ({appId, idx, field,
+   value}; idx null = the app row itself). Once the receipt lands that value is
+   what the chain holds, so it is painted from the receipt - not from the
+   re-read, which at that instant is the likeliest read in the whole session to
+   fail or answer from an unindexed replica (see noteCatalogWrite). */
+async function catTx(data, verb, write){
   try {
     if (!Enclave.provider) await connectWallet();
     await ensureCatalogChain();
     const hash = await sendTx(APP_CATALOG_ADDRESS, data);
     showToast(verb + " · " + hash.slice(0, 12) + "…");
-    await waitReceipt(hash); await loadCatalog(true);
+    await waitReceipt(hash);
+    if (write) noteCatalogWrite(write.appId, write.idx, write.field, write.value);   // repaints on the spot
+    // the re-read is now a background reconciliation: it picks up anything else
+    // that moved, and its failure costs the owner nothing worth a toast
+    if (!(await loadCatalog(true, { quiet: !!write })) && write)
+      setTimeout(() => loadCatalog(true, { quiet: true }), 8000);
   } catch(e){ showToast(e.message || String(e)); }
 }
-const setActiveTx   = (slug, active) => catTx(encCall(CAT_SEL.setActive,   [{t:"str",v:slug},{t:"bool",v:active}]), active ? "relisting" : "delisting");
-const yankTx        = (slug, idx)    => catTx(encCall(CAT_SEL.yankVersion, [{t:"str",v:slug},{t:"uint",v:idx}]),   "yanking");
-const setVerifiedTx = (appId, idx, v) => catTx(encCall(CAT_SEL.setVerified, [{t:"bytes32",v:appId},{t:"uint",v:idx},{t:"bool",v:v}]), v ? "verifying" : "unverifying");
+const setActiveTx   = (app, active)  => catTx(encCall(CAT_SEL.setActive,   [{t:"str",v:app.slug},{t:"bool",v:active}]), active ? "relisting" : "delisting",
+                                              { appId: app.appId, idx: null, field: "active", value: active });
+const yankTx        = (app, idx)     => catTx(encCall(CAT_SEL.yankVersion, [{t:"str",v:app.slug},{t:"uint",v:idx}]),   "yanking",
+                                              { appId: app.appId, idx, field: "yanked", value: true });
+const setVerifiedTx = (appId, idx, v) => catTx(encCall(CAT_SEL.setVerified, [{t:"bytes32",v:appId},{t:"uint",v:idx},{t:"bool",v:v}]), v ? "verifying" : "unverifying",
+                                              { appId, idx, field: "verified", value: v });
 // owner-only deploy gate: the wallet signature on this tx IS the approval/rejection
-const setApprovalTx = (appId, idx, st) => catTx(encCall(CAT_SEL.setApproval, [{t:"bytes32",v:appId},{t:"uint",v:idx},{t:"uint",v:st}]), st === APPROVAL.approved ? "approving" : "rejecting");
+const setApprovalTx = (appId, idx, st) => catTx(encCall(CAT_SEL.setApproval, [{t:"bytes32",v:appId},{t:"uint",v:idx},{t:"uint",v:st}]), st === APPROVAL.approved ? "approving" : "rejecting",
+                                              { appId, idx, field: "approval", value: st });
 
 /* ---- reviews (EnclaveReviews) ----
    Same shape as catTx, against the reviews contract: the wallet signature IS
@@ -1631,10 +1645,10 @@ function onCardAction(e){
   const { app, act, idx, verified } = e.detail;
   if (act === "open"){ navigate("apps?app=" + encodeURIComponent(app.appId), { push: true }); return; }
   if (act === "deploy") quickDeploy(app, app.versions[idx], idx);
-  else if (act === "delist"){ if (confirm("Delist this whole app? It stays on-chain but is hidden from the store - you (and the catalog owner) still see it here, with a relist button.")) setActiveTx(app.slug, false); }
-  else if (act === "relist") setActiveTx(app.slug, true);
+  else if (act === "delist"){ if (confirm("Delist this whole app? It stays on-chain but is hidden from the store - you (and the catalog owner) still see it here, with a relist button.")) setActiveTx(app, false); }
+  else if (act === "relist") setActiveTx(app, true);
   else if (act === "newver") prefillPublish(app).catch(() => {});
-  else if (act === "yank"){ if (confirm("Yank version " + app.versions[idx].version + "? It stays on-chain but readers hide it.")) yankTx(app.slug, idx); }
+  else if (act === "yank"){ if (confirm("Yank version " + app.versions[idx].version + "? It stays on-chain but readers hide it.")) yankTx(app, idx); }
   else if (act === "verify") setVerifiedTx(app.appId, idx, verified);
   else if (act === "approve") setApprovalTx(app.appId, idx, APPROVAL.approved);
   else if (act === "reject"){ if (confirm("Reject version " + app.versions[idx].version + "? The enclave will refuse to deploy it until you approve it.")) setApprovalTx(app.appId, idx, APPROVAL.rejected); }
@@ -1645,6 +1659,10 @@ function onCardAction(e){
    ============================================================ */
 on("enclave:catalog", (d) => {
   if (d.type === "error"){
+    // a background reconciliation behind a write we already painted from its
+    // receipt: the page is showing the confirmed state, so a failed read here
+    // is nothing the owner has to act on (it retries on its own)
+    if (d.quiet) return;
     if (STORE.apps && STORE.apps.length)          // stale view beats an error wall
       showToast("catalog refresh failed (" + d.message + ") · showing the last good read");
     else {

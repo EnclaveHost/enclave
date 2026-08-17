@@ -140,6 +140,8 @@ export function copyText(text, btn) {
    enclave:auth - sign-in/out edges: detail.authed, detail.spinner
    enclave:account - relay account session edges (account.js): detail.authed, detail.method
    enclave:catalog - app-catalog load lifecycle: detail.type = loading|loaded|error
+     (an error carries detail.quiet when the read was a background reconciliation
+      behind an already-painted confirmed write - nothing for the user to act on)
    enclave:toast - show a toast: detail.message */
 export function emit(name, detail){ document.dispatchEvent(new CustomEvent(name, { detail: detail || {} })); }
 export function on(name, fn){ document.addEventListener(name, (e) => fn(e.detail || {}, e)); }
