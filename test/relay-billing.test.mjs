@@ -17,7 +17,7 @@ import os from "node:os";
 import { createHmac } from "node:crypto";
 import { privateKeyToAccount } from "viem/accounts";
 import { toFunctionSelector } from "viem";
-import { evaluatePayment, verifyStripeSignature, topupPlan } from "../relay/billing.js";
+import { evaluatePayment, verifyStripeSignature, topupPlan, reservedTopup6 } from "../relay/billing.js";
 
 const RELAY_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "relay");
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -59,6 +59,23 @@ test("topupPlan: hash write-ahead decides retry vs verify vs review, never a bli
   assert.equal(topupPlan({ step: "depositing", txHash: null }, true), "wait");
   // settled records never re-enter the pipeline
   assert.equal(topupPlan({ step: "done", txHash: "0xabc" }, false), "wait");
+});
+
+test("reservedTopup6: every open top-up claims the float; settled/dead top-ups and spec orders never do", () => {
+  const o = (kind, state, amount6) => ({ kind, state, quote: { amount6 } });
+  const all = {
+    a: o("topup", "awaiting_payment", "10000000"),        // Stripe link live: card can charge
+    b: o("topup", "pending_confirmations", "5000000"),
+    c: o("topup", "crediting", "20000000"),               // charged: deposit owed
+    d: o("topup", "under_review", "7000000"),             // a reviewer may re-arm crediting
+    e: o("topup", "complete", "99000000"),                // terminal: no claim
+    f: o("topup", "expired", "99000000"),
+    g: o("topup", "rejected", "99000000"),
+    h: o("spec", "awaiting_payment", "99000000"),         // spec orders draw the provisioner's own guard
+    i: o(undefined, "awaiting_payment", "99000000"),      // legacy pre-kind order = spec
+  };
+  assert.equal(reservedTopup6(all), 42_000000n);
+  assert.equal(reservedTopup6({}), 0n);
 });
 
 test("verifyStripeSignature: HMAC, timestamp window, constant-time", () => {

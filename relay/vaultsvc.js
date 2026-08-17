@@ -70,7 +70,7 @@ const OP = {
   refund:  "EnclaveVault.refundToTreasury.v1",
 };
 
-let cfg = null;            // { usdc, addressBook, chainId, alert? }
+let cfg = null;            // { usdc, addressBook, chainId, alert?, reserved6? }
 let account = null, wallet = null;
 let factoryEnv = "";
 let _factory = { addr: null, at: 0 };
@@ -115,6 +115,16 @@ export async function vaultAddressFor(key) {
   const pub = await rpcPool();
   return pub.readContract({ address: await factoryAddress(), abi: FACTORY_ABI,
     functionName: "vaultFor", args: [BigInt(key.x), BigInt(key.y)] });
+}
+
+// the provisioner/relayer float's current USDC balance - billing.js gates
+// top-up CREATION on it: credit is never sold beyond what this wallet can
+// actually deposit. Throws when the relayer is disabled or the read fails;
+// the caller fails CLOSED (refuses the purchase), never open.
+export async function relayerUsdc6() {
+  if (!wallet) throw new Error("vault relayer disabled");
+  const pub = await rpcPool();
+  return BigInt(await pub.readContract({ address: cfg.usdc, abi: ERC20_ABI, functionName: "balanceOf", args: [account.address] }));
 }
 
 export async function vaultInfo(key) {
@@ -310,10 +320,16 @@ const FLOAT_MIN_ETH_WEI = BigInt(process.env.FLOAT_MIN_ETH_WEI || "2000000000000
 const FLOAT_SWEEP_SEC = parseInt(process.env.FLOAT_SWEEP_SEC || "300", 10);
 
 // how much a sweep moves to treasury: everything above the ceiling, down to
-// the target; zero otherwise. Pure - unit tested directly.
-export function floatSweepAmount(balance6, target6 = FLOAT_TARGET_6, ceiling6 = FLOAT_CEILING_6) {
-  balance6 = BigInt(balance6);
-  return balance6 > ceiling6 ? balance6 - target6 : 0n;
+// the target - but never below reserved6, the credit already SOLD against
+// this float (open top-ups whose card can still charge or whose deposit is
+// still owed; billing.js sums them). The creation-time float gate promises
+// every accepted purchase is deposit-backed; a sweep that dipped under the
+// reserved sum would quietly break that promise minutes later. Pure - unit
+// tested directly.
+export function floatSweepAmount(balance6, target6 = FLOAT_TARGET_6, ceiling6 = FLOAT_CEILING_6, reserved6 = 0n) {
+  balance6 = BigInt(balance6); reserved6 = BigInt(reserved6);
+  const keep6 = reserved6 > target6 ? reserved6 : target6;
+  return balance6 > ceiling6 && balance6 > keep6 ? balance6 - keep6 : 0n;
 }
 
 // the company treasury, resolved ON-CHAIN: factory -> implementation ->
@@ -344,13 +360,17 @@ async function floatPass() {
     if (ethBal < FLOAT_MIN_ETH_WEI) {
       if (!_low.eth) { _low.eth = true; cfg.alert?.("float_low_gas", { wallet: account.address, balanceWei: String(ethBal), minWei: String(FLOAT_MIN_ETH_WEI) }); }
     } else _low.eth = false;
-    if (floatSweepAmount(usdcBal) === 0n) return;
+    // owed credit stays behind; if the sum is unreadable, move no money
+    let reserved6;
+    try { reserved6 = BigInt(cfg.reserved6?.() ?? 0n); } catch { return; }
+    if (floatSweepAmount(usdcBal, FLOAT_TARGET_6, FLOAT_CEILING_6, reserved6) === 0n) return;
     const treasury = await treasuryAddress();
     await serial(async () => {
       // recompute INSIDE the serial queue: a vault deposit may have spent
-      // part of the balance between the read above and our turn to send
+      // part of the balance (and a new top-up grown the reserve) between the
+      // read above and our turn to send
       const now6 = await pub.readContract({ address: cfg.usdc, abi: ERC20_ABI, functionName: "balanceOf", args: [account.address] });
-      const excess = floatSweepAmount(now6);
+      const excess = floatSweepAmount(now6, FLOAT_TARGET_6, FLOAT_CEILING_6, BigInt(cfg.reserved6?.() ?? 0n));
       if (excess === 0n) return;
       const hash = await wallet.writeContract({ address: cfg.usdc, abi: ERC20_ABI,
         functionName: "transfer", args: [treasury, excess] });
