@@ -13,8 +13,18 @@ test("device flow: passkey-less desktop signs in via phone approval", async ({ p
   await page.click("#walletBtn");
   await page.click("#authPhone");                              // "Use your phone"
   await expect(page.locator("#walletPick .wp-qr svg")).toBeVisible();
+  const first = (await page.locator("#walletPick code.wp-code").textContent()).replace(/[^A-Z2-9]/g, "");
+
+  // Cancel on the phone view is "back", not "close": the chooser card
+  // returns, and going in again mints a FRESH code (the first view's poll
+  // died with it)
+  await page.click("#walletPick .wp-cancel");
+  await expect(page.locator("#walletPick .wp-h")).toHaveText("Sign in to Enclave");
+  await page.click("#authPhone");
+  await expect(page.locator("#walletPick .wp-qr svg")).toBeVisible();
   const code = (await page.locator("#walletPick code.wp-code").textContent()).replace(/[^A-Z2-9]/g, "");
   expect(code).toMatch(/^[A-HJ-NP-Z2-9]{8}$/);
+  expect(code).not.toBe(first);
 
   // the phone is a different browser: fresh context, passkey-capable
   const phoneCtx = await browser.newContext({ baseURL: testInfo.project.use.baseURL });

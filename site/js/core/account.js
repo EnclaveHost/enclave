@@ -138,24 +138,44 @@ export function openAuthModal(){
   }
   const pk = passkeySupported();
   return new Promise((resolve, reject) => {
-    host.innerHTML = '<div class="wp-card"><div class="wp-h">Sign in to Enclave</div>' +
-      '<div class="wp-note">A wallet is the recommended way to use Enclave: it gives you direct, on-chain control of your deployments. No wallet? A passkey account works for card checkout.</div>' +
-      (pk ? '<button class="wp-item wp-go" id="authPasskey" type="button">Continue with passkey</button>' +
-            '<div class="wp-or"><span>or</span></div>'
-          : '<div class="wp-note">This browser does not support passkeys - use your phone below.</div>') +
-      '<button class="wp-item wp-center" id="authPhone" type="button">Use your phone</button>' +
-      // Always offered: an installed extension answers it directly, and
-      // WalletConnect reaches wallets that aren't extensions - a phone
-      // wallet, or Trezor Suite holding a Safe 7 over Bluetooth. With
-      // neither present the click explains what to install (noWalletReason)
-      // rather than this modal hiding the path.
-      '<button class="wp-item wp-center" id="authWallet" type="button">Connect a wallet</button>' +
-      '<div class="wp-err" id="authErr" role="alert" hidden></div>' +
-      '<button class="wp-cancel" type="button">Cancel</button></div>';
+    let done = false, stopPhone = null, inPhone = false, passkeyDirect = false;
+    // the chooser card is a render FUNCTION, not a one-shot innerHTML: the
+    // phone view backs out to it, and the passkey button must come back in
+    // whatever state passkeyFlow left it (passkeyDirect below)
+    const mainView = () => {
+      inPhone = false;
+      host.innerHTML = '<div class="wp-card"><div class="wp-h">Sign in to Enclave</div>' +
+        '<div class="wp-note">A wallet is the recommended way to use Enclave: it gives you direct, on-chain control of your deployments. No wallet? A passkey account works for card checkout.</div>' +
+        (pk ? '<button class="wp-item wp-go" id="authPasskey" type="button">' + (passkeyDirect ? "Create a passkey" : "Continue with passkey") + '</button>' +
+              '<div class="wp-or"><span>or</span></div>'
+            : '<div class="wp-note">This browser does not support passkeys - use your phone below.</div>') +
+        '<button class="wp-item wp-center" id="authPhone" type="button">Use your phone</button>' +
+        // Always offered: an installed extension answers it directly, and
+        // WalletConnect reaches wallets that aren't extensions - a phone
+        // wallet, or Trezor Suite holding a Safe 7 over Bluetooth. With
+        // neither present the click explains what to install (noWalletReason)
+        // rather than this modal hiding the path.
+        '<button class="wp-item wp-center" id="authWallet" type="button">Connect a wallet</button>' +
+        '<div class="wp-err" id="authErr" role="alert" hidden></div>' +
+        '<button class="wp-cancel" type="button">Cancel</button></div>';
+    };
+    mainView();
     host.hidden = false;
-    let done = false, stopPhone = null;
     const close = () => { if (stopPhone) stopPhone(); unmodal(); host.hidden = true; host.innerHTML = ""; host.onclick = null; host.onpointerdown = null; };
-    const cancel = () => { if (done) return; done = true; close(); reject(new EnclaveError("Sign-in cancelled.", 0)); };
+    // Dismissal is view-aware, matching the wallet flow: from the phone view
+    // Cancel/Escape/backdrop mean "back" - stop the poll, land on the
+    // chooser, move focus there (the re-render destroyed the button holding
+    // it) - and only from the chooser itself do they close and reject.
+    const cancel = () => {
+      if (done) return;
+      if (inPhone){
+        if (stopPhone) stopPhone();
+        mainView();
+        const f = host.querySelector("button"); if (f) f.focus();
+        return;
+      }
+      done = true; close(); reject(new EnclaveError("Sign-in cancelled.", 0));
+    };
     const unmodal = modalize(host, cancel);
     host.onpointerdown = (e) => { if (e.target === host) cancel(); };
     const fail = (e) => {
@@ -180,12 +200,15 @@ export function openAuthModal(){
     const phoneView = async () => {
       if (done) return;
       const card = host.querySelector(".wp-card"); if (!card) return;
+      inPhone = true;
       let dead = false, timer = 0;
       stopPhone = () => { dead = true; clearTimeout(timer); stopPhone = null; };
       card.innerHTML = '<div class="wp-h">Sign in with your phone</div><div class="wp-note">Starting…</div>';
       let d;
       try { d = await Enclave.accountDeviceStart(); }
-      catch(e){ if (!dead){ stopPhone(); fail(e); } return; }
+      // start failed: land BACK on the chooser and say why there - the
+      // "Starting…" card has no buttons, so erroring on it strands the user
+      catch(e){ if (!dead){ stopPhone(); mainView(); fail(e); } return; }
       if (dead) return;
       const url = location.origin + "/link?code=" + encodeURIComponent(d.code);
       card.innerHTML =
@@ -217,7 +240,6 @@ export function openAuthModal(){
     // Safari grants ONE user activation per tap and the failed get() can eat
     // it, so when the whole chain dies the button converts to a direct
     // "Create a passkey" - the next tap runs register alone, fresh activation.
-    let passkeyDirect = false;
     const passkeyFlow = async () => {
       if (passkeyDirect) return registerPasskey();
       try { return await signInWithPasskey(); }
