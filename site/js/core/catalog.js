@@ -76,17 +76,99 @@ function loadOwner(){
     _ownerWait = Math.min(_ownerWait * 2, 60000);
   });
 }
-export async function loadCatalog(force){
-  if (!catConfigured()){ STORE.loaded = true; emit("enclave:catalog", { type: "loaded" }); return; }
+/* ---- confirmed writes the read side hasn't caught up to ----
+   A moderation transaction (approve / reject / verify / yank / delist) is
+   SETTLED the moment its receipt lands: the chain holds the new state. What
+   the UI shows next used to be a different question, and often the wrong one.
+   The post-tx re-read goes to the rotating pool of public Base RPCs at exactly
+   the moment our own receipt polling has been bursting against them, so it
+   either fails outright ("catalog refresh failed - showing the last good
+   read", the store keeping its PRE-approval paint) or lands on a replica that
+   hasn't indexed the block yet and faithfully repaints the old ruling. Either
+   way the owner approved a version and watched nothing happen until a manual
+   page refresh minutes later.
+
+   So a write whose receipt has landed is recorded here and re-applied over
+   every catalog read until a FRESH read agrees with it (the replicas caught
+   up - drop it) or it ages out. The receipt is the authority; a lagging
+   replica is not evidence against it. Persisted, because the page refresh
+   that used to be the workaround must not be the thing that loses the state.
+   A read showing a THIRD value (neither ours nor what we overwrote) means the
+   chain moved on without us - someone else's later write - and retires the
+   entry too; the TTL is only the backstop under that. */
+const WRITE_TTL = 900000;                  // 15 min: far past replica lag, far short of a real divergence
+const WRITE_KEY = "enclave_catalog_writes_" + APP_CATALOG_ADDRESS;
+let WRITES = null;
+function writesLoad(){
+  if (WRITES) return WRITES;
+  WRITES = {};
+  let dropped = false;
+  try {
+    const o = JSON.parse(lsGet(WRITE_KEY) || "{}"), now = Date.now();
+    for (const k in o){
+      if (o[k] && now - (o[k].at || 0) < WRITE_TTL) WRITES[k] = o[k];
+      else dropped = true;
+    }
+  } catch(e){ WRITES = {}; dropped = true; }
+  if (dropped) writesSave();               // expired entries leave for good, not just for this page
+  return WRITES;
+}
+function writesSave(){ lsSet(WRITE_KEY, JSON.stringify(WRITES || {})); }
+/* Re-apply the live writes over an apps[] (in place). `fresh` marks a read
+   straight off the chain: only THAT can retire an entry, by agreeing with it
+   (or by having moved past it). A cached/already-patched paint agrees with
+   itself, so retiring on one would hand the next lagging replica the old
+   value back. */
+export function applyCatalogWrites(apps, fresh){
+  const w = writesLoad(), now = Date.now();
+  let changed = false;
+  for (const k in w){
+    const e = w[k];
+    if (now - (e.at || 0) >= WRITE_TTL){ delete w[k]; changed = true; continue; }
+    const app = (apps || []).find(a => a.appId === e.appId);
+    // an app (or version) this read doesn't carry yet - nothing to write over,
+    // and nothing to conclude either: hold the entry until a read shows it
+    const tgt = !app ? null : (e.idx == null ? app : app.versions[e.idx]);
+    if (!tgt) continue;
+    // the read caught up, or it moved somewhere neither we nor the value we
+    // overwrote put it (a later write from another tab/wallet) - either way
+    // the chain is authoritative again and this entry stops speaking for it
+    if (fresh && (tgt[e.field] === e.value || ("was" in e && tgt[e.field] !== e.was))){ delete w[k]; changed = true; }
+    else tgt[e.field] = e.value;
+  }
+  if (changed) writesSave();
+  return apps;
+}
+/* Record a confirmed write and show it at once: the store is patched in place,
+   re-cached and announced, so the badge and the Pending/Approved queues move
+   on the RECEIPT rather than on the next catalog read that happens to land. */
+export function noteCatalogWrite(appId, idx, field, value){
+  const w = writesLoad();
+  const app = STORE.apps.find(a => a.appId === appId);
+  const tgt = !app ? null : (idx == null ? app : app.versions[idx]);
+  w[appId + "|" + (idx == null ? "app" : idx) + "|" + field] =
+    { appId, idx: idx == null ? null : idx, field, value, at: Date.now(),
+      ...(tgt && tgt[field] !== value ? { was: tgt[field] } : {}) };   // what a read still showing this hasn't seen yet
+  writesSave();
+  applyCatalogWrites(STORE.apps, false);
+  if (STORE.loaded) catCacheSet(STORE.apps);
+  emit("enclave:catalog", { type: "loaded" });
+}
+/* Resolves true when a fresh chain read landed. opts.quiet marks a read whose
+   failure is not load-bearing (the caller has already painted a confirmed
+   write): the error still emits, flagged, so pages can skip the alarm. */
+export async function loadCatalog(force, opts){
+  if (!catConfigured()){ STORE.loaded = true; emit("enclave:catalog", { type: "loaded" }); return true; }
   // the owner read rides every boot until it lands - ABOVE the freshness
   // early-return, so one rate-limited miss can't leave badges/official
   // fallbacks ownerless for as long as the catalog stays fresh
   if (STORE.owner === null) loadOwner();
-  if (STORE.loading || (STORE.loaded && !force && Date.now() - STORE.at < FRESH_MS)) return;
+  if (STORE.loading || (STORE.loaded && !force && Date.now() - STORE.at < FRESH_MS)) return false;
   STORE.loading = true;
   if (!STORE.loaded){
     const cached = catCacheGet();
     if (cached){
+      applyCatalogWrites(cached.apps, false);
       STORE.apps = cached.apps; STORE.byId = {}; cached.apps.forEach(a => STORE.byId[a.appId] = a);
       STORE.loaded = true; STORE.at = cached.at || 0;
       emit("enclave:catalog", { type: "loaded", stale: true });
@@ -97,14 +179,16 @@ export async function loadCatalog(force){
     const apps = []; const PAGE = 50;
     for (let s = 0; s < n; s += PAGE) apps.push(...await catGetAppsPage(s, PAGE));
     await Promise.all(apps.map(async a => { a.versions = await catGetVersions(a.appId, a.versionCount); }));
+    applyCatalogWrites(apps, true);            // a confirmed ruling outranks a lagging replica
     STORE.apps = apps; STORE.byId = {}; apps.forEach(a => STORE.byId[a.appId] = a);
     STORE.loaded = true; STORE.at = Date.now();
     catCacheSet(apps);
   } catch(e){
-    emit("enclave:catalog", { type: "error", message: e.message || String(e) });
-    STORE.loading = false; return;
+    emit("enclave:catalog", { type: "error", message: e.message || String(e), quiet: !!(opts && opts.quiet) });
+    STORE.loading = false; return false;
   }
   STORE.loading = false; emit("enclave:catalog", { type: "loaded" });
+  return true;
 }
 
 /* ---- version selection helpers ---- */
