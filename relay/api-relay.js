@@ -998,9 +998,18 @@ function proxyTo(origin, req, res, { path = req.url, setCors = true, idleMs = 30
       if (setCors) Object.assign(out, cors(req));
       res.writeHead(upRes.statusCode || 502, out);
       upRes.pipe(res);
+      // An enclave leg that dies mid-response must take the client leg down
+      // with it — pipe() forwards only a clean 'end', and an aborted upstream
+      // otherwise leaves the client socket open and silent until the idle
+      // timeout (the supervisor's copy of this proxy had no timeout at all,
+      // and the silence was the SSE wedge; same fix there, 2026-08-16).
+      // destroy(), not end(): truncation must stay visible on the wire.
+      upRes.on("error", () => res.destroy());
+      upRes.on("close", () => { if (!upRes.complete && !res.destroyed) res.destroy(); });
     });
   up.on("timeout", () => up.destroy(new Error("upstream timeout")));
-  up.on("error", (e) => { if (!res.headersSent) res.writeHead(502, { "Content-Type": "application/json", ...(setCors ? cors(req) : {}) });
+  up.on("error", (e) => { if (res.headersSent) return res.destroy();
+                          res.writeHead(502, { "Content-Type": "application/json", ...(setCors ? cors(req) : {}) });
                           res.end(JSON.stringify({ error: "upstream_error", message: e.message })); });
   // A client that dies mid-stream must take the enclave leg down with it:
   // pipe() stops the flow on destination close but never destroys its source,
