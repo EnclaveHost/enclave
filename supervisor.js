@@ -3443,8 +3443,29 @@ app.use("/x/:id", async (req, res) => {
   const up = http.request(
     { host: target.hostname, port: target.port || 80, method: req.method,
       path: target.pathname + target.search, headers },
-    (upRes) => { if (res.destroyed) return up.destroy(); res.writeHead(upRes.statusCode || 502, tenantHeaders(upRes.headers)); upRes.pipe(res); });
-  up.on("error", (e) => { if (!res.headersSent) res.writeHead(502); res.end("upstream error: " + e.message); });
+    (upRes) => {
+      if (res.destroyed) return up.destroy();
+      res.writeHead(upRes.statusCode || 502, tenantHeaders(upRes.headers));
+      upRes.pipe(res);
+      // The mirror of the res 'close' rule below: a tenant leg that dies
+      // mid-response must take the CLIENT leg down WITH it. pipe() forwards
+      // only a CLEAN end ('end' -> res.end()); an ABORTED upstream — the app
+      // reaped the connection, the tenant restarted, the socket reset — emits
+      // 'close' with `complete` false, the pipe simply stops, and the client
+      // socket sat ESTABLISHED and silent forever: no FIN, no error, so an
+      // EventSource could not tell it from a still screen and never redialed.
+      // That silence WAS the SSE wedge (live 2026-08-16, risc-box /display).
+      // destroy(), not end(): an abnormal upstream end must stay abnormal on
+      // the wire, or a truncated body reads as a complete one.
+      upRes.on("error", () => res.destroy());
+      upRes.on("close", () => { if (!upRes.complete && !res.destroyed) res.destroy(); });
+    });
+  // Mid-response request errors follow the same rule: with headers already on
+  // the wire the only honest signal left is tearing the connection down.
+  up.on("error", (e) => {
+    if (res.headersSent) return res.destroy();
+    res.writeHead(502); res.end("upstream error: " + e.message);
+  });
   // A client that dies mid-response must take the tenant leg down WITH it.
   // pipe() only stops the FLOW when its destination closes - it never destroys
   // the source - so an abandoned stream left `up` open: the paused pipe
