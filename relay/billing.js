@@ -36,7 +36,7 @@ import { verifyAccountSession, accountsEnabled, vaultKeyOf } from "./auth.js";
 import { initOfac, screenAddress } from "./ofac.js";
 import { startIndexer } from "./indexer.js";
 import { initProvisioner, enqueueProvision, recoverProvisioning } from "./provisioner.js";
-import { initVault, vaultEnabled, vaultInfo, ensureVault, depositToVault, opDigest, buildCreateCall, buildControlCall, submitOp, vaultAddressFor } from "./vaultsvc.js";
+import { initVault, vaultEnabled, vaultInfo, ensureVault, depositToVault, opDigest, buildCreateCall, buildControlCall, submitOp, vaultAddressFor, relayerUsdc6 } from "./vaultsvc.js";
 import { publisherFee6 } from "./mcp.js";
 import { createHmac, timingSafeEqual, randomBytes } from "node:crypto";
 
@@ -119,7 +119,8 @@ export async function initBilling(ctx) {
   });
   recoverProvisioning();
 
-  await initVault({ usdc: USDC, addressBook: BOOK, chainId: CHAIN_ID, alert });
+  await initVault({ usdc: USDC, addressBook: BOOK, chainId: CHAIN_ID, alert,
+    reserved6: () => reservedTopup6(orders.data.orders) });
   sweepCrediting();   // boot recovery: crash-interrupted top-ups re-plan immediately
   setInterval(sweepCrediting, ORDER_SWEEP_SEC * 1000).unref?.();
 
@@ -178,6 +179,19 @@ function openReview(order, reason, detail) {
   orders.saveSoon();
   alert("review_opened", { orderId: order.id, reason, detail });
   return id;
+}
+
+// The float claims already standing against the provisioner wallet: every
+// non-terminal top-up is one - its Stripe link can still charge the card
+// (awaiting_payment), or the charge landed and the company-USDC deposit is
+// still owed (crediting / under_review). Terminal orders (complete, expired,
+// rejected) hold no claim; legacy spec orders never do (the provisioner has
+// its own underfunded hold). Pure - unit tested directly.
+export function reservedTopup6(allOrders) {
+  let s = 0n;
+  for (const o of Object.values(allOrders))
+    if (o.kind === "topup" && !TERMINAL.has(o.state)) s += BigInt(o.quote.amount6);
+  return s;
 }
 
 // Tolerance policy on the CONFIRMED total. Pure - unit tested directly.
@@ -787,6 +801,23 @@ export async function handleBilling(req, res, u, ctx) {
     catch (e) { return err(ctx, res, req, 502, "vault_error", e.message); }
     if (BigInt(info.balance6) + amount6 > VAULT_CAP_6)
       return err(ctx, res, req, 422, "over_cap", `Credit is capped at $${Number(VAULT_CAP_6) / 1e6} per account.`);
+    // FLOAT GATE (operator hard rule): never sell credit exceeding what the
+    // provisioner wallet can actually deposit. Every open top-up still counts
+    // against the balance - its card can charge at any moment - so concurrent
+    // purchases cannot jointly oversell the float. Fail CLOSED on a read
+    // error: charging a card the float cannot back is exactly the failure
+    // mode this gate exists to prevent.
+    let float6;
+    try { float6 = await relayerUsdc6(); }
+    catch { return err(ctx, res, req, 503, "float_unavailable", "Credit purchases are unavailable right now; try again shortly."); }
+    const available6 = float6 - reservedTopup6(orders.data.orders);
+    if (amount6 > available6) {
+      alert("topup_float_refused", { accountId: sess.accountId, requested6: amount6.toString(),
+        available6: (available6 > 0n ? available6 : 0n).toString(), float6: float6.toString() });
+      return err(ctx, res, req, 422, "insufficient_float", available6 >= TOPUP_MIN_6
+        ? `Credit purchases are limited to $${(Number(available6) / 1e6).toFixed(2)} right now; try a smaller amount.`
+        : "Credit purchases are temporarily unavailable; try again later.");
+    }
     const now = new Date();
     const order = {
       id: rid("ord_"), ref: "0x" + randomBytes(32).toString("hex"), kind: "topup",

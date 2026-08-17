@@ -80,6 +80,16 @@ test("floatSweepAmount: hysteresis band, sweep-to-target above the ceiling", () 
   assert.equal(floatSweepAmount("1000000000", T, C), 800_000000n);    // string balances (JSON) coerce
 });
 
+test("floatSweepAmount: sold-but-undeposited credit stays behind, whatever the target says", () => {
+  const T = 200_000000n, C = 400_000000n;
+  assert.equal(floatSweepAmount(1_000_000000n, T, C, 0n), 800_000000n);            // no claims: plain sweep-to-target
+  assert.equal(floatSweepAmount(1_000_000000n, T, C, 150_000000n), 800_000000n);   // claims under target: target already covers them
+  assert.equal(floatSweepAmount(1_000_000000n, T, C, 600_000000n), 400_000000n);   // $600 owed: only the true excess moves
+  assert.equal(floatSweepAmount(1_000_000000n, T, C, 1_000_000000n), 0n);          // fully spoken for: move nothing
+  assert.equal(floatSweepAmount(1_000_000000n, T, C, 1_500_000000n), 0n);          // oversold (should be impossible): still move nothing
+  assert.equal(floatSweepAmount(1_000_000000n, T, C, "600000000"), 400_000000n);   // string reserves coerce
+});
+
 test("derToRS round-trips real ECDSA signatures incl. leading-zero trims", () => {
   for (let i = 0; i < 20; i++) {
     const { privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
