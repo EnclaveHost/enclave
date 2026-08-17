@@ -71,11 +71,11 @@ export const Wallet = {
    signs here is WalletConnect: Suite is the wallet, this page is the dApp.
 
    Deliberately kept out of Wallet.list(): that list answers "is an extension
-   present?" for walletDetected() and for the silent restore, and neither
-   question should be answered "yes" by a transport that needs a QR scan. It is
-   appended in pickWallet() (a human is choosing) and re-opened in
-   restoreSession() only when the SAVED session was itself WalletConnect — so
-   the 1.3MB bundle never loads for an injected-wallet user. */
+   present?" for the silent restore, and that question should never be
+   answered "yes" by a transport that needs a QR scan. It is appended in
+   pickWallet() (a human is choosing) and re-opened in restoreSession() only
+   when the SAVED session was itself WalletConnect — so the 1.3MB bundle
+   never loads for an injected-wallet user. */
 export const WC_RDNS = "org.walletconnect";
 const WC_ENTRY = { info: { uuid: "walletconnect", name: "WalletConnect", rdns: WC_RDNS, icon: null }, wc: true };
 
@@ -158,7 +158,9 @@ async function wcConnect(){
   const provider = await wcProvider();
   let modal = null, onCancel;
   const cancelled = new Promise((_, rej) => {
-    onCancel = () => rej(new EnclaveError("WalletConnect connection cancelled.", 0));
+    // `cancelled` = human backed out of the pairing (see pickWallet): the
+    // sign-in modal reopens itself on it
+    onCancel = () => rej(Object.assign(new EnclaveError("WalletConnect connection cancelled.", 0), { cancelled: true }));
   });
   const onUri = (uri) => { modal = wcQrModal(uri, onCancel); };
   provider.on("display_uri", onUri);
@@ -323,13 +325,6 @@ export async function ethBalanceOf(addr){
   return (hex && hex !== "0x") ? Number(BigInt(hex)) / 1e18 : 0;
 }
 
-// is any extension wallet present? (announced already, or answers a re-ask)
-export async function walletDetected(){
-  let wallets = Wallet.list();
-  if (!wallets.length) wallets = await Wallet.discover();
-  return wallets.length > 0;
-}
-
 async function pickWallet(){
   let wallets = Wallet.list();
   if (!wallets.length) wallets = await Wallet.discover();
@@ -339,6 +334,9 @@ async function pickWallet(){
   if (wallets.length === 1) return wallets[0];
   return await new Promise((resolve, reject) => {
     const host = $("#walletPick"); if (!host){ resolve(wallets[0]); return; }
+    // `cancelled` marks a human backing out, as opposed to a failure: the
+    // sign-in modal (account.js) reopens itself on it instead of erroring
+    const bail = () => reject(Object.assign(new EnclaveError("Wallet selection cancelled.", 0), { cancelled: true }));
     host.innerHTML = '<div class="wp-card"><div class="wp-h">Choose a wallet</div>' +
       wallets.map((w, i) => '<button class="wp-item" data-i="' + i + '">' +
         (w.info.icon ? '<img src="' + esc(w.info.icon) + '" alt=""/>' : '<span class="wp-dot"></span>') +
@@ -346,16 +344,16 @@ async function pickWallet(){
       '<button class="wp-cancel">Cancel</button></div>';
     host.hidden = false;
     const close = () => { unmodal(); host.hidden = true; host.innerHTML = ""; };
-    const unmodal = modalize(host, () => { close(); reject(new EnclaveError("Wallet selection cancelled.", 0)); });
+    const unmodal = modalize(host, () => { close(); bail(); });
     // backdrop dismissal on pointerDOWN (see fundModal): selection drags out
     // of the card must not cancel the wallet pick
     host.onpointerdown = (e) => {
-      if (e.target === host){ close(); reject(new EnclaveError("Wallet selection cancelled.", 0)); }
+      if (e.target === host){ close(); bail(); }
     };
     host.onclick = (e) => {
       const it = e.target.closest(".wp-item");
       if (it && it.dataset.i != null){ const w = wallets[+it.dataset.i]; close(); resolve(w); return; }
-      if (e.target.closest(".wp-cancel")){ close(); reject(new EnclaveError("Wallet selection cancelled.", 0)); }
+      if (e.target.closest(".wp-cancel")){ close(); bail(); }
     };
   });
 }

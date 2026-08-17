@@ -20,9 +20,9 @@
    DIFFERENT key from "enclave_session" (the enclave token):
    the two trust domains never share storage.
    ============================================================ */
-import { ACCOUNTS_ENABLED, WALLETCONNECT_PROJECT_ID } from "./config.js";
+import { ACCOUNTS_ENABLED } from "./config.js";
 import { Enclave, EnclaveError } from "./api.js";
-import { modalize, buildSiwe, assertSiweLogin, jwtExp, connectWallet, refreshWallet, walletDetected, personalSign } from "./wallet.js";
+import { modalize, buildSiwe, assertSiweLogin, jwtExp, connectWallet, refreshWallet, personalSign } from "./wallet.js";
 import { $, esc, lsGet, lsSet, showToast, emit } from "./util.js";
 import { qrSvg } from "../lib/qr.js";
 
@@ -114,12 +114,11 @@ export async function signInWalletAccount(){
 }
 
 /* ---- the sign-in entry point ----
-   The pre-accounts behavior, kept: an extension wallet present means the
-   user chose their auth the day they installed it - connect and SIWE
-   directly, no chooser. The modal (passkey primary, phone secondary) is
-   for everyone else; it has no wallet button. */
-export async function openSignIn(){
-  if (await walletDetected()) return signInWalletAccount();
+   Always the chooser. Auto-SIWE for extension users predates accounts -
+   back then MetaMask was the only way in, so a detected wallet WAS the
+   choice. Now every path starts at the same modal, and "Connect a wallet"
+   there runs the wallet flow. */
+export function openSignIn(){
   return openAuthModal();
 }
 
@@ -140,18 +139,17 @@ export function openAuthModal(){
   const pk = passkeySupported();
   return new Promise((resolve, reject) => {
     host.innerHTML = '<div class="wp-card"><div class="wp-h">Sign in to Enclave</div>' +
-      '<div class="wp-note">A wallet is the recommended way to use Enclave: it gives you direct, on-chain control of your deployments, and this button uses one automatically when it is an installed extension. No wallet? A passkey account works for card checkout.</div>' +
+      '<div class="wp-note">A wallet is the recommended way to use Enclave: it gives you direct, on-chain control of your deployments. No wallet? A passkey account works for card checkout.</div>' +
       (pk ? '<button class="wp-item wp-go" id="authPasskey" type="button">Continue with passkey</button>' +
             '<div class="wp-or"><span>or</span></div>'
           : '<div class="wp-note">This browser does not support passkeys - use your phone below.</div>') +
       '<button class="wp-item wp-center" id="authPhone" type="button">Use your phone</button>' +
-      // This modal only opens when NO extension was found, so before
-      // WalletConnect existed there was genuinely no wallet to offer here. Now
-      // there is one that needs nothing installed - a phone wallet, or Trezor
-      // Suite holding a Safe 7 over Bluetooth - and without this button it
-      // would be unreachable for exactly the people who need it.
-      (WALLETCONNECT_PROJECT_ID
-        ? '<button class="wp-item wp-center" id="authWallet" type="button">Connect a wallet</button>' : '') +
+      // Always offered: an installed extension answers it directly, and
+      // WalletConnect reaches wallets that aren't extensions - a phone
+      // wallet, or Trezor Suite holding a Safe 7 over Bluetooth. With
+      // neither present the click explains what to install (noWalletReason)
+      // rather than this modal hiding the path.
+      '<button class="wp-item wp-center" id="authWallet" type="button">Connect a wallet</button>' +
       '<div class="wp-err" id="authErr" role="alert" hidden></div>' +
       '<button class="wp-cancel" type="button">Cancel</button></div>';
     host.hidden = false;
@@ -239,12 +237,17 @@ export function openAuthModal(){
     // nesting: tear this modal down first, then run the flow. Not attempt(),
     // which would keep this card up and let the QR clobber it mid-flight -
     // leaving a cancelled pairing with no card left to show the error in.
+    // Cancel inside that flow (`cancelled` on the error) means "back", not
+    // "give up": reopen this modal so the user lands where they started.
     const walletFlow = () => {
       if (done) return;
       done = true;
       if (stopPhone) stopPhone();
       close();
-      signInWalletAccount().then(resolve, reject);
+      signInWalletAccount().then(resolve, (e) => {
+        if (e && e.cancelled) openAuthModal().then(resolve, reject);
+        else reject(e);
+      });
     };
     host.onclick = (e) => {
       if (e.target.closest("#authPasskey")) return attempt(passkeyFlow)();
