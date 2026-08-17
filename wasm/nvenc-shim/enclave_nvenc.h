@@ -55,6 +55,22 @@ typedef struct {
  */
 uint32_t env_caps(void);
 
+/*
+ * Is there an encoder on this host at all? Cheap: dlopens the driver and
+ * resolves the NVENC entry points, and STOPS there — no CUDA context, no
+ * encoder session, no MPS client.
+ *
+ * That distinction is the whole point. `env_caps` has to open a session to ask
+ * which codecs the card supports, and opening one means a CUDA context inside
+ * the calling process. A preload that wants only "can this node encode?" must
+ * not pay that: it runs in every GPU tenant, including the ones that never
+ * encode anything, and a CUDA context is not free to a process that is other-
+ * wise CPU-bound.
+ *
+ * Returns 1 if an encoder is plausibly present, 0 if not (and sets the error).
+ */
+int env_probe(void);
+
 /* Open one encoder session. NULL on failure; see env_last_error(). */
 env_session *env_open(const env_config *cfg);
 

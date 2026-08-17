@@ -214,6 +214,16 @@ static int open_session(CUcontext *ctx, void **enc) {
     return 0;
 }
 
+int env_probe(void) {
+    g_err[0] = 0;
+    /* `ready()` dlopens both libraries, resolves the entry points and calls
+       cuInit. cuInit talks to the driver but creates no context and joins no
+       MPS server, so it is cheap and leaves nothing behind. Everything past
+       this point — cuCtxCreate, a session, the GUID list — is what env_caps
+       pays for, and a preload has no business paying it. */
+    return ready() ? 1 : 0;
+}
+
 uint32_t env_caps(void) {
     static uint32_t caps;
     static int probed;

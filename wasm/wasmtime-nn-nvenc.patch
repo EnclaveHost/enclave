@@ -71,10 +71,10 @@ index 05697c5..e45d7d5 100644
          backends.push(Backend::from(PytorchBackend::default()));
 diff --git a/crates/wasi-nn/src/backend/nvenc.rs b/crates/wasi-nn/src/backend/nvenc.rs
 new file mode 100644
-index 0000000..be33985
+index 0000000..7ad06c0
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/nvenc.rs
-@@ -0,0 +1,508 @@
+@@ -0,0 +1,517 @@
 +//! An NVENC backend for wasi-nn — hardware video encode behind the standard
 +//! `wasi:nn` interface.
 +//!
@@ -168,6 +168,7 @@ index 0000000..be33985
 +
 +unsafe extern "C" {
 +    fn env_caps() -> u32;
++    fn env_probe() -> c_int;
 +    fn env_open(cfg: *const EnvConfig) -> *mut c_void;
 +    fn env_encode(
 +        s: *mut c_void,
@@ -234,7 +235,15 @@ index 0000000..be33985
 +        // The directory is not read — there is no model. What preload buys is
 +        // that a host with no encoder says so HERE, at startup, in front of an
 +        // operator, instead of at the first frame in front of a user.
-+        if unsafe { env_caps() } == 0 {
++        //
++        // `env_probe`, NOT `env_caps`: asking which codecs the card supports
++        // means opening a session, and a session means a CUDA context and an
++        // MPS client inside this process. This runs in EVERY GPU tenant,
++        // including every one that will never encode a frame, and a tenant
++        // that is otherwise CPU-bound pays for that context in scheduler time
++        // it needed elsewhere. The codec list is a question for the guest that
++        // actually asks, so it waits for the `caps` verb.
++        if unsafe { env_probe() } == 0 {
 +            return Err(shim_error(
 +                "no hardware video encoder on this host (no GPU, no NVENC, or the \
 +                 driver predates the NVENCAPI this was built against)",
