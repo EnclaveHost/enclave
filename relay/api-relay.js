@@ -60,6 +60,15 @@
 //                                  follow every registered enclave (+ loud warning).
 //   CORS_ORIGINS       optional    comma-separated allowed browser origins
 //                                  (default https://enclave.host,https://www.enclave.host)
+//   SSO_SIGNER_KEY     optional    secp256k1 private key (0x-hex) for minting
+//                                  Sign-in-with-Enclave (EST1) tokens - a
+//                                  DEDICATED key, never one that signs
+//                                  transactions (relay/sso.js). Unset = the
+//                                  /v1/sso/* endpoints answer 503. Prefer
+//                                  SSO_SIGNER_KEY_FILE (systemd LoadCredential,
+//                                  see enclave-relay-agent.service) over the
+//                                  EnvironmentFile for the same reason the
+//                                  operator key does.
 //   FANOUT_MAX_INFLIGHT optional   global cap on concurrent upstream fan-out (256)
 //   AVAIL_POLL_SEC     optional    availability poll cadence (default 10)
 //   REGISTRY_POLL_SEC  optional    registry re-read cadence (default 300)
@@ -78,6 +87,7 @@ import { readCappedText, MAX_BODY_BYTES, installProcessGuards } from "./fleet.mj
 import { isBlockedHost } from "./net-guard.mjs";
 import { isMcpHost, handleMcp } from "./mcp.js";
 import { handleAccount, initAccounts } from "./auth.js";
+import { handleSso, initSso } from "./sso.js";
 import { handleBilling, initBilling } from "./billing.js";
 import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep } from "./secrets.js";
 import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDeployment, tlsAskAllowed } from "./domains.js";
@@ -1955,6 +1965,12 @@ function handleRequest(req, res) {
   if (u.pathname.startsWith("/v1/account/"))
     return handleAccount(req, res, u, relayCtx).catch((e) =>
       json(res, 500, { error: "account_error", message: e.message }, req));
+  // Sign in with Enclave (sso.js): mints audience-bound EST1 tokens for
+  // tenant apps against the relay ACCOUNT session. Relay-owned like accounts:
+  // answers with zero live enclaves.
+  if (u.pathname === "/v1/sso" || u.pathname.startsWith("/v1/sso/"))
+    return handleSso(req, res, u, relayCtx).catch((e) =>
+      json(res, 500, { error: "sso_error", message: e.message }, req));
   if (u.pathname === "/v1/billing" || u.pathname.startsWith("/v1/billing/"))
     return handleBilling(req, res, u, relayCtx).catch((e) =>
       json(res, 500, { error: "billing_error", message: e.message }, req));
@@ -2097,6 +2113,7 @@ await pollRegistry();
 await resolveDeployments();
 await pollAvailability();
 await initAccounts();          // no data dir/deps => disabled with one log line
+await initSso();               // SSO_SIGNER_KEY unset => disabled with one log line
 await initBilling(relayCtx);   // needs accounts; degrades the same way
 await initSecrets();           // needs SECRETS_KEY + the same data dir; degrades the same way
 startSecretsSweep(relayCtx);   // hourly off-ledger purge (no-op while disabled)

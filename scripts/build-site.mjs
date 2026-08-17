@@ -61,6 +61,7 @@ const inlineTemplates = {
 console.log("[build] clean dist/");
 fs.rmSync(DIST, { recursive: true, force: true });
 fs.mkdirSync(path.join(DIST, "css"), { recursive: true });
+fs.mkdirSync(path.join(DIST, "sso"), { recursive: true });   // /sso/authorize ships as a nested source document
 
 console.log("[build] contract artifacts (admin console deploy bytecode + selectors)");
 execFileSync("node", [path.join(ROOT, "scripts", "build-contract-artifacts.mjs")],
@@ -186,17 +187,17 @@ const chunksOf = (outFile, seen = new Set()) => {
   return seen;
 };
 const bootOut = Object.keys(outs).find(f => outs[f].entryPoint && outs[f].entryPoint.endsWith("js/boot.js"));
-const PAGE_HTML = { overview: "index.html", apps: "apps.html", develop: "develop.html", dashboard: "dashboard.html", admin: "admin.html", terms: "terms.html", checkout: "checkout.html", link: "link.html", host: "host.html", authorize: "authorize.html" };   // deploy.html is a redirect stub now
+const PAGE_HTML = { overview: "index.html", apps: "apps.html", develop: "develop.html", dashboard: "dashboard.html", admin: "admin.html", terms: "terms.html", checkout: "checkout.html", link: "link.html", host: "host.html", authorize: "authorize.html", "sso-authorize": "sso/authorize.html" };   // deploy.html is a redirect stub now
 const preloads = {};
 for (const [outFile, o] of Object.entries(outs)) {
-  const page = o.entryPoint && /js[\\/]pages[\\/](\w+)\.js$/.exec(o.entryPoint)?.[1];
+  const page = o.entryPoint && /js[\\/]pages[\\/]([\w-]+)\.js$/.exec(o.entryPoint)?.[1];
   if (!page) continue;
   const files = new Set([...chunksOf(bootOut), ...chunksOf(outFile)]);
   files.delete(bootOut);                       // the <script src> itself needs no preload
   preloads[PAGE_HTML[page]] = [...files]
     .map(c => `<link rel="modulepreload" href="${path.relative(DIST, path.resolve(ROOT, c)).replace(/\\/g, "/")}" />`).join("\n");
 }
-for (const f of ["index.html", "deploy.html", "apps.html", "develop.html", "dashboard.html", "admin.html", "terms.html", "privacy.html", "checkout.html", "link.html", "host.html", "authorize.html", "404.html", "openapi.json"]) {
+for (const f of ["index.html", "deploy.html", "apps.html", "develop.html", "dashboard.html", "admin.html", "terms.html", "privacy.html", "checkout.html", "link.html", "host.html", "authorize.html", "sso/authorize.html", "404.html", "openapi.json"]) {
   let s = fs.readFileSync(path.join(SITE, f), "utf8");
   if (f.endsWith(".html")) {
     s = bake(s);

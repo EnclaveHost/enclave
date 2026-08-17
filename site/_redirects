@@ -10,6 +10,10 @@
 /checkout   /checkout.html   200
 /link       /link.html       200
 /authorize  /authorize.html  200
+# tenant-app sign-in (Sign in with Enclave): a NESTED document so it can
+# coexist with /authorize above (the private-app hand-off) - boot.js pageOf
+# keys it as "sso-authorize" from the parent segment
+/sso/authorize /sso/authorize.html 200
 /host       /host.html       200
 /admin      /admin.html      200
 /terms      /terms.html      200
