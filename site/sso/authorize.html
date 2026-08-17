@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="../" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#070A0F" />
+<title>Sign in with Enclave</title>
+<!-- sign-in hand-off for a tenant app: nothing here is worth indexing -->
+<meta name="robots" content="noindex" />
+<meta name="description" content="Sign in with your Enclave account to continue to an app." />
+<link rel="icon" href="favicon.ico" sizes="48x48 32x32 16x16" />
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+<script>
+/* Cross-document view transitions are skipped by Chromium when extensions
+   inject content scripts (MetaMask et al): the old page sees pageswap with
+   no viewTransition. Flag it, and the NEXT page (this script runs pre-paint)
+   plays the same settle-in itself (html.soft-enter, see base.css) - content
+   only, the static header stays put. */
+(function(){
+  try { if (sessionStorage.getItem("enclave_novt")) { sessionStorage.removeItem("enclave_novt"); document.documentElement.classList.add("soft-enter"); } } catch(e){}
+  addEventListener("pageswap", function(e){
+    try { if (!e.viewTransition && e.activation) sessionStorage.setItem("enclave_novt", "1"); } catch(e){}
+  });
+})();
+</script>
+<link rel="stylesheet" href="css/site.css" />
+<script type="module" blocking="render" src="js/boot.js"></script>
+</head>
+<body>
+<c-header current=""></c-header>
+<main id="main" tabindex="-1">
+<h1 class="sr-only">Sign in with Enclave</h1>
+<section id="sso-authorize" data-view="sso-authorize" aria-label="Sign in with Enclave">
+  <div class="wrap">
+    <c-section-head eyebrow="Sign in" heading="Continue with your Enclave account.">
+      <p>An app is asking you to sign in with Enclave - the same passkey or wallet you use here. Approve, and you will be sent straight back holding a short-lived note that names only your account address. It authorizes no transaction and moves no funds.</p>
+    </c-section-head>
+    <div id="ssoBody" class="co-body">
+      <p class="co-note">Loading…</p>
+    </div>
+  </div>
+</section>
+</main>
+<c-footer></c-footer>
+<c-toast></c-toast>
+</body>
+</html>

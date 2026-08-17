@@ -219,6 +219,11 @@ export const Enclave = {
   accountSiweVerify(message, signature){ return this._req("POST", "/account/siwe/verify", { body: { message, signature } }); },
   accountLinkSiwe(message, signature){ return this._req("POST", "/account/link/siwe", { body: { message, signature }, accountAuth: true }); },
   accountMe(){ return this._req("GET", "/account/me", { accountAuth: true }); },
+  accountLinkSiwe(message, signature){ return this._req("POST", "/account/link/siwe", { body: { message, signature }, accountAuth: true }); },
+  /* Sign in with Enclave (relay sso.js): mint an audience-bound EST1 token
+     naming a wallet already linked to the signed-in account. */
+  ssoToken(aud, address, ttl){ return this._req("POST", "/sso/token", { body: { aud, address, ...(ttl ? { ttl } : {}) }, accountAuth: true }); },
+  ssoSigner(){ return this._req("GET", "/sso/signer"); },
   // device flow: a passkey-less browser signs in via a phone (QR -> /link)
   accountDeviceStart(){ return this._req("POST", "/account/device/start", { body: {} }); },
   accountDeviceInfo(code){ return this._req("GET", "/account/device/info", { query: { code } }); },

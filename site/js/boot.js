@@ -31,6 +31,7 @@ const PAGES = {
   link:      () => import("./pages/link.js"),      // device-flow approval: the phone side of "Use your phone"
   authorize: () => import("./pages/authorize.js"), // wallet hand-off for a PRIVATE app - the enclave bounces navigations here
   host:      () => import("./pages/host.js"),   // seller pitch + the PUBLIC live-fleet panel
+  "sso-authorize": () => import("./pages/sso-authorize.js"), // Sign in with Enclave for TENANT apps - EST1 hand-off (relay/sso.js)
 };
 // URL aliases: pathnames that render ANOTHER page's document. /apps/deploy
 // and /apps/publish are the canonical console/form URLs (share links read
@@ -45,6 +46,10 @@ const pageOf = (pathname) => {
   const segs = pathname.split("/");
   const base = (segs.pop() || segs.pop()) || "index.html";   // trailing-slash tolerant
   const name = base.replace(/\.html$/, "");
+  // nested page documents (/sso/authorize) key on "parent-name", so they can
+  // coexist with a root page whose last segment matches (/authorize)
+  const parent = (segs[segs.length - 1] || "").replace(/\.html$/, "");
+  if (parent && PAGES[parent + "-" + name]) return parent + "-" + name;
   return name === "" || name === "index" ? "overview" : ((PAGES[name] || PAGE_ALIAS[name]) ? name : null);
 };
 // Pretty URLs: the address bar shows extensionless paths (/apps, /dashboard) - 
@@ -227,7 +232,7 @@ const initial = pageOf(location.pathname) || "overview";
 bootPage(initial);
 setTimeout(() => {
   for (const p of Object.keys(PAGES)) {
-    if (p === "admin" || p === "terms" || p === "privacy" || p === "checkout" || p === "link" || p === "authorize") continue;   // nobody navigates to these by accident - don't warm them
+    if (p === "admin" || p === "terms" || p === "privacy" || p === "checkout" || p === "link" || p === "authorize" || p === "sso-authorize") continue;   // nobody navigates to these by accident - don't warm them
     if (initial !== p) fetchPage(p).catch(() => {});
   }
 }, 1500);
