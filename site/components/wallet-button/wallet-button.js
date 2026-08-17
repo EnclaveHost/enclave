@@ -36,7 +36,7 @@ class WalletButton extends EnclaveElement {
     wb.addEventListener("click", async () => {
       if (Enclave.address || Enclave.accountAuthed()){ toggleWalletPop(); return; }
       if (ACCOUNTS_ENABLED){
-        // wallet detected -> direct SIWE; otherwise the passkey/phone chooser
+        // the sign-in chooser (passkey / phone / wallet), wallet or not
         try { await openSignIn(); navigate("dashboard", { push: true }); }
         catch(e){ if (!/cancelled/i.test((e && e.message) || "")) showToast((e && e.message) || String(e)); }
         return;
