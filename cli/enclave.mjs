@@ -192,6 +192,12 @@ const depsAbiFor = (tuple, rev) => [
              { name: "appRef", type: "string" }, { name: "gpuMilli", type: "uint16" },
              { name: "cpuMilli", type: "uint16" }, { name: "rate", type: "uint256" }] },
 ];
+// Only a REVERT means "the marker getter isn't there" = a genuinely old
+// contract. Anything else (transport trouble, or "returned no data" - an RPC
+// that has no code for the address yet, seen live right after a cutover) is
+// UNKNOWN: falling back silently decodes the live contract with the wrong
+// schema and rev-gates every feature off. Same rule as the site's sniffs.
+const isRevertErr = (e) => /revert/i.test(String((e && (e.shortMessage || e.message)) || ""));
 // sniff once per run which shape the live contract speaks (mirrors catRev)
 let _depAbi = null;
 async function depAbi() {
@@ -200,7 +206,7 @@ async function depAbi() {
   try { rev = Number(await read(DEFAULTS.DEPLOYMENTS_ADDRESS,
     [{ type: "function", name: "deploymentsSchema", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }],
     "deploymentsSchema", [])) || 2; }
-  catch (e) { rev = 1; }   // pre-getter contract: the call reverts
+  catch (e) { if (!isRevertErr(e)) throw e; rev = 1; }   // pre-getter contract: the call reverts
   _depAbi = { rev, abi: depsAbiFor(rev >= 2 ? DEPLOYMENT_TUPLE : DEPLOYMENT_TUPLE_V1, rev) };
   return _depAbi;
 }
@@ -301,7 +307,7 @@ let _catRev = null;
 async function catRev() {
   if (_catRev) return _catRev;
   try { _catRev = Number(await read(DEFAULTS.APP_CATALOG_ADDRESS, CATALOG_ABI, "catalogSchema", [])) || 2; }
-  catch (e) { _catRev = 2; }
+  catch (e) { if (!isRevertErr(e)) throw e; _catRev = 2; }   // revert = pre-marker catalog; else unknown, don't cache
   return _catRev;
 }
 // one versions read for all revisions: only rev-4 versions carry config
@@ -3029,7 +3035,7 @@ the box hides itself until its registration confirms, then appears as serving.`)
     // tx would revert with nothing to explain why. Say it before spending gas.
     const regRev = await read(DEFAULTS.REGISTRY_ADDRESS,
       [{ type: "function", name: "registrySchema", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }],
-      "registrySchema").then(Number).catch(() => 1);
+      "registrySchema").then(Number).catch((e) => { if (!isRevertErr(e)) throw e; return 1; });
     if (regRev < 4)
       throw new Error(`the registry at ${DEFAULTS.REGISTRY_ADDRESS} is schema ${regRev}; declaring a payout wallet `
         + `needs schema 4. This platform has not deployed it yet - until then every deployment is charged, `

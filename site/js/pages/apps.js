@@ -1036,7 +1036,9 @@ async function publishApp(){
   // connect: past the inline limit a rev-7 catalog pins the config and stores
   // its CID, while an older one has nowhere to put a CID and the inline limit
   // is still the real one.
-  const rev = await catSchemaRev();
+  let rev;
+  try { rev = await catSchemaRev(); }
+  catch(_){ return pubStatus("couldn't read the catalog's revision (RPC trouble) - nothing was sent; try again in a moment", true); }
   const cfgCeiling = rev >= 7 ? CAT_MAX.configMax : CAT_MAX.config;
   if (blen(finalConfig) > cfgCeiling) return pubStatus("app config + image references exceed " + cfgCeiling + " bytes - shorten the config", true);
   // Pre-flight against the loaded catalog. Both cases REVERT on-chain, which a

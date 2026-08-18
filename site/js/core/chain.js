@@ -64,11 +64,21 @@ export const DEP_SCHEMA = [   // mirrors EnclaveDeployments.Deployment field ord
 export const DEP_SCHEMA_V1 = [...DEP_SCHEMA.slice(0, 4), {k:"sshPubKey",t:"str"}, ...DEP_SCHEMA.slice(4)];
 // Which struct/create shape the (book-resolved) deployments contract speaks:
 // one cached eth_call to deploymentsSchema(); rev-1 contracts revert -> 1.
+//
+// Only a REVERT may take that fallback: the getters never legitimately return
+// empty (emptyRetry rotates the pool and throws), so a transport failure is
+// UNKNOWN, and caching a legacy rev off one poisons the whole session — the
+// live ledger decodes with the wrong schema and every rev-gated feature
+// vanishes. Seen live on the catalog sniff right after the rev-8 cutover
+// (fresh address + lagging public RPCs -> "rev 2" -> publishes refused).
+// Callers already handle throws: the uncached path (depCall/ethCall) throws
+// on the same RPC trouble today.
+const isRevertErr = (e) => /revert/i.test((e && e.message) || "");
 let _depRev = null;
 export async function depSchemaRev(){
   if (_depRev) return _depRev;
   try { const r = await depCall("0x" + DEP_SEL.deploymentsSchema); _depRev = Number(hexBig(r)) || 1; }
-  catch { _depRev = 1; }
+  catch(e){ if (!isRevertErr(e)) throw e; _depRev = 1; }
   return _depRev;
 }
 
@@ -353,7 +363,11 @@ let _maxGpu = null;
 export async function depMaxGpuMilli(){
   if (_maxGpu != null) return _maxGpu;
   try { const r = await depCall("0x" + DEP_SEL.maxGpuMilli); _maxGpu = (!r || r === "0x") ? 1000 : Number(hexBig(r)); }
-  catch { _maxGpu = 1000; }
+  // revert = no getter = pre-cap contract = genuinely uncapped. Transport
+  // trouble must not cache "uncapped": the check exists to refuse BEFORE the
+  // wallet signature, and a poisoned 1000 waves through a create the chain
+  // then rejects as a gas-estimation hang (same rule as the schema sniffs).
+  catch(e){ if (!isRevertErr(e)) throw e; _maxGpu = 1000; }
   return _maxGpu;
 }
 // The contract's exact per-second rate (6dp USDC) for two share dials in
@@ -489,7 +503,12 @@ let _catRev = null;
 export async function catSchemaRev(){
   if (_catRev) return _catRev;
   try { _catRev = Number(hexBig(await ethCall("0x" + CAT_SEL.catalogSchema))) || 2; }
-  catch(e){ _catRev = 2; }
+  // revert = the marker getter isn't there = a genuine rev-2 catalog. Anything
+  // else is transport trouble and must PROPAGATE, not cache: one failed read
+  // here once made a freshly cut-over catalog look rev 2 for the whole
+  // session (config publishes refused, fees read 0, configs dropped from the
+  // version decode) - see depSchemaRev's note.
+  catch(e){ if (!isRevertErr(e)) throw e; _catRev = 2; }
   return _catRev;
 }
 // Per-version publisher fee (USDC 6dp per SECOND), rev-5 catalogs only. The
