@@ -419,6 +419,16 @@ VRAM_RESERVE_GB      = float(os.environ.get("WASM_VRAM_RESERVE_GB", "0")) # node
 VRAM_DEV_GATE        = os.environ.get("WASM_VRAM_DEV_GATE", "1") == "1"   # 0 = report only, never refuse on the device's word
 VRAM_DEV_TTL_S       = float(os.environ.get("WASM_VRAM_DEV_TTL_S", "5"))
 VRAM_DIVERGE_WARN_GB = float(os.environ.get("WASM_VRAM_DIVERGE_WARN_GB", "8"))
+# MPS bounce orders: the recovery lever for the residue the gate above only
+# DETECTS. The mps-control container consumes a request file off the shared
+# pipe-dir volume (it has no HTTP surface) and bounces the whole MPS stack -
+# every live GPU tenant's CUDA context dies and the supervisor respawns them,
+# so ordering one is never free. Boot is the one moment it is nearly free:
+# this process just started, its tenant table is empty, so device memory
+# beyond VRAM_RESERVE_GB belongs to a generation that no longer exists -
+# exactly what an in-place container update strands.
+MPS_BOOT_BOUNCE      = os.environ.get("WASM_MPS_BOOT_BOUNCE", "1") == "1"
+MPS_BOOT_BOUNCE_GB   = float(os.environ.get("WASM_MPS_BOOT_BOUNCE_GB", "8"))
 if FS_ENABLED:
     FS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -2922,6 +2932,60 @@ def _gpu_dev_procs() -> list:
         return procs
     except Exception:                                    # noqa: BLE001
         return []
+
+
+def _request_mps_bounce(reason: str) -> bool:
+    """Order the mps-control container to bounce the MPS stack: write the
+    request file it polls off the shared pipe-dir volume (atomically - the
+    consumer must never read a half-written order). The answer lands beside
+    it in enclave-bounce-result within seconds. Costly by design: a bounce
+    kills every live GPU tenant's CUDA context (their watchdogs abort, the
+    supervisor respawns them onto the fresh daemon); the daemon's own
+    cooldown refuses back-to-back orders."""
+    try:
+        d = pathlib.Path(MPS_PIPE_DIR)
+        d.mkdir(parents=True, exist_ok=True)
+        tmp = d / ".enclave-bounce-request.tmp"
+        tmp.write_text(json.dumps({"at": time.time(), "reason": reason[:400]}))
+        tmp.replace(d / "enclave-bounce-request")
+        print(f"[mps] bounce ordered: {reason}", flush=True)
+        return True
+    except OSError as e:
+        print(f"[mps] bounce order FAILED to write: {e}", flush=True)
+        return False
+
+
+def _mps_bounce_result() -> str | None:
+    """The daemon's answer to the last consumed order ('<ts> ok' /
+    'refused-cooldown' / 'failed-daemon-down'), or None before any."""
+    try:
+        txt = (pathlib.Path(MPS_PIPE_DIR) / "enclave-bounce-result").read_text().strip()
+        return txt or None
+    except OSError:
+        return None
+
+
+def _boot_bounce_check():
+    """One look at the device as this process starts: the tenant table is
+    empty, so anything the card holds beyond VRAM_RESERVE_GB belongs to a
+    generation that no longer exists - the residue an in-place container
+    update strands (2026-08-18: ~104 GiB on kryptos, reclaimed only by a
+    full CVM restart because nothing ordered a bounce). Order one now,
+    BEFORE the first launch admits against memory the card cannot deliver.
+    Documented caveat: a bounce also kills PTX-worker tenants that survived
+    a wasm-only update - WASM_MPS_BOOT_BOUNCE=0 opts out for a fleet that
+    runs long-lived worker tenants."""
+    dev = _gpu_dev_mem()
+    if not dev:
+        return
+    with _lock:
+        if _apps:
+            return
+    held = dev["vramDevTotalGb"] - dev["vramDevFreeGb"] - VRAM_RESERVE_GB
+    if held <= MPS_BOOT_BOUNCE_GB:
+        return
+    _request_mps_bounce(f"boot: {held:.1f} GB held with an empty tenant table "
+                        f"(orphaned generation from an in-place update?)")
 
 
 _diverge_last = {"at": 0.0}
@@ -5644,7 +5708,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                            for r in _apps.values()
                            if float(r.get("gpuShare") or 0) > 0]
             return self._json(200, {"dev": _gpu_dev_mem(), "procs": _gpu_dev_procs(),
-                                    "ledger": _vram_budget(), "tenants": tenants})
+                                    "ledger": _vram_budget(), "tenants": tenants,
+                                    "bounce": _mps_bounce_result()})
         if self.path == "/volumes":
             return self._json(200, {"volumes": _volumes_public()})
         if self.path == "/catalog":
@@ -5707,6 +5772,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return None
         if not self._ctrl_authed():
             return self._json(401, {"error": "control token required"})
+        # Order an MPS bounce (operator lever, proxied by the supervisor at
+        # POST /v1/admin/gpu/bounce-mps): the reclaim for device memory a dead
+        # tenant generation's MPS servers still hold. 202 = the order is on
+        # the shared volume; the daemon consumes it within seconds and its
+        # cooldown refuses back-to-back orders. Every live GPU tenant's CUDA
+        # context dies with the bounce - the supervisor respawns them.
+        if self.path == "/gpu/bounce-mps":
+            if not NODE_HAS_GPU or MOCK:
+                return self._json(422, {"error": "no GPU on this node"})
+            b = self._body()
+            ok = _request_mps_bounce("operator: " + str(b.get("reason") or "admin api")[:300])
+            return self._json(202 if ok else 500, {
+                "requested": ok,
+                "note": ("consumed by the mps-control daemon within seconds; every live GPU "
+                         "tenant's CUDA context dies with the bounce and the supervisor "
+                         "respawns them - a recovery action, not a free one"),
+                "lastResult": _mps_bounce_result()})
         # Prefetch: resolve + verify + cache an app's bytes WITHOUT launching.
         # The supervisor calls this before claiming an on-chain deployment so
         # a lease is never burned racing a 100MB+ IPFS fetch against the spawn
@@ -5969,6 +6051,8 @@ def main():
         threading.Thread(target=_nn_probe_loop, daemon=True).start()   # gates GPU launches
     if NN_ARB_ENABLED and NODE_HAS_GPU and NN_ENABLED and not MOCK:
         _start_nn_arbiter()          # GPU work-conserving fair share (tenants connect at launch)
+    if MPS_BOOT_BOUNCE and NODE_HAS_GPU and not MOCK:
+        _boot_bounce_check()         # reclaim a stranded generation BEFORE the first launch
     print(f"wasm-manager on :{PORT} runtime=wasmtime mock={MOCK} apps_dir={APPS_DIR} "
           f"p3={_p3_active()} coopThreads={_threads_active()} set={_set_active()} fs={FS_ENABLED} nn={_NN_PROBE['state']}", flush=True)
     if not VMMGR_TOKEN:

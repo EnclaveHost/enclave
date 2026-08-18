@@ -29,7 +29,24 @@ export CUDA_MPS_LOG_DIRECTORY="${CUDA_MPS_LOG_DIRECTORY:-/tmp/nvidia-mps-log}"
 PROBE_TIMEOUT="${MPS_PROBE_TIMEOUT_S:-90}"
 PROBE_INTERVAL="${MPS_PROBE_INTERVAL_S:-30}"
 HEALTH_FILE="${MPS_HEALTH_FILE:-/tmp/mps-attach-ok}"
+PROBE_BIN="${MPS_PROBE_BIN:-/mps-probe}"
+# Ordered bounces (2026-08-18): this container has no HTTP surface, but it
+# shares the pipe directory with the wasm-manager - so a bounce ORDER rides
+# that volume as a request file the manager writes and this loop consumes,
+# answered in a result file beside it. Why orders exist at all: an in-place
+# container update replaces the tenant containers while this one (and the
+# CVM, and the GPU) stays hot, and the MPS servers here can retain a dead
+# generation's device memory - ~104 GiB of it on kryptos - which no attach
+# probe will ever flag because attaching still works. The cooldown bounds a
+# flapping (or hostile loopback) requester: a bounce kills every live
+# tenant's CUDA context, so back-to-back orders must not turn one recovery
+# into a denial of service.
+REQUEST_FILE="$CUDA_MPS_PIPE_DIRECTORY/enclave-bounce-request"
+RESULT_FILE="$CUDA_MPS_PIPE_DIRECTORY/enclave-bounce-result"
+BOUNCE_COOLDOWN_S="${MPS_BOUNCE_COOLDOWN_S:-60}"
+last_bounce=0
 mkdir -p "$CUDA_MPS_PIPE_DIRECTORY" "$CUDA_MPS_LOG_DIRECTORY"
+rm -f "$REQUEST_FILE"    # never honor an order that predates this daemon
 
 echo "[mps] starting control daemon (pipe=$CUDA_MPS_PIPE_DIRECTORY)"
 nvidia-cuda-mps-control -d || { echo "[mps] FAILED to start daemon"; exit 1; }
@@ -59,20 +76,55 @@ bounce() {
   fi
 }
 
+# Consume one bounce order, if present. hangs resets with the fresh daemon.
+check_bounce_request() {
+  [ -f "$REQUEST_FILE" ] || return 0
+  reason=$(head -c 512 "$REQUEST_FILE" 2>/dev/null || true)
+  rm -f "$REQUEST_FILE"
+  now=$(date +%s)
+  if [ $((now - last_bounce)) -lt "$BOUNCE_COOLDOWN_S" ]; then
+    echo "[mps] bounce order REFUSED (cooldown ${BOUNCE_COOLDOWN_S}s): $reason"
+    echo "$(date -u +%FT%TZ) refused-cooldown" > "$RESULT_FILE"
+    return 0
+  fi
+  echo "[mps] bounce ordered: $reason"
+  last_bounce=$now
+  bounce
+  if echo get_server_list | timeout 10 nvidia-cuda-mps-control >/dev/null 2>&1; then
+    echo "$(date -u +%FT%TZ) ok" > "$RESULT_FILE"
+  else
+    echo "$(date -u +%FT%TZ) failed-daemon-down" > "$RESULT_FILE"
+  fi
+  hangs=0
+}
+
+# Sleep in short slices so an order lands in seconds, not at the far end of a
+# probe interval.
+nap() {
+  _left="$1"
+  while [ "$_left" -gt 0 ]; do
+    check_bounce_request
+    _s=5; [ "$_left" -lt 5 ] && _s="$_left"
+    sleep "$_s"
+    _left=$((_left - _s))
+  done
+}
+
 hangs=0
 while true; do
+  check_bounce_request
   # Liveness, BOUNDED: the old unguarded `echo | nvidia-cuda-mps-control`
   # could itself block forever on a wedged pipe and take this loop with it.
   if ! echo get_server_list | timeout 10 nvidia-cuda-mps-control >/dev/null 2>&1; then
     echo "[mps] daemon not answering — restarting"
     bounce
     hangs=0
-    sleep "$PROBE_INTERVAL"
+    nap "$PROBE_INTERVAL"
     continue
   fi
   # Health: a real attach.
   set +e
-  timeout -k 5 "$PROBE_TIMEOUT" /mps-probe >/dev/null 2>&1
+  timeout -k 5 "$PROBE_TIMEOUT" "$PROBE_BIN" >/dev/null 2>&1
   rc=$?
   set -e
   case "$rc" in
@@ -88,5 +140,5 @@ while true; do
       fi
       ;;
   esac
-  sleep "$PROBE_INTERVAL"
+  nap "$PROBE_INTERVAL"
 done
