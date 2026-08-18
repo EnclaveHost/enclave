@@ -295,6 +295,10 @@ const CATALOG_ABI = [
   { type: "function", name: "maxFeePerSec6", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "catalogSchema", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
 ];
+// VersionApprovalSet(bytes32 indexed appId, uint256 indexed index, uint8 status):
+// emitted inside the publish tx itself when the catalog auto-approves an
+// owner publish (rev 9) — the receipt is the authority on whether review is done
+const APPROVAL_SET_TOPIC = keccak256(toHex("VersionApprovalSet(bytes32,uint256,uint8)"));
 // per-version publisher fee: 0 for every pre-rev-5 catalog (no getter there)
 async function versionFee6(appId, index) {
   if ((await catRev()) < 5) return 0n;
@@ -2292,8 +2296,20 @@ async function cmdPublish(rest) {
   if (rev >= 5) args.push(feePerSec6);       // rev 5+ take the 9-arg form (the version's publisher fee; 0 = free)
   const rcpt = await sendTx(account, { address: DEFAULTS.APP_CATALOG_ADDRESS, abi: CATALOG_ABI,
     functionName: configCid ? "publishVersionCfg" : "publishVersion", args });
-  if (opt.json) return jout({ slug: f.slug, version, cid, appId, tx: rcpt.transactionHash, approval: "pending" });
+  // rev 9: the catalog owner's own publishes are approved ON PUBLISH (the
+  // publish signature is the approval signature). The receipt says which way
+  // it went — the contract emits the VersionApprovalSet it minted — so read
+  // that instead of assuming Pending or racing a fresh eth_call.
+  const approvedNow = (rcpt.logs || []).some((l) =>
+    l.topics?.[0] === APPROVAL_SET_TOPIC && BigInt(l.data) === 1n);
+  if (opt.json) return jout({ slug: f.slug, version, cid, appId, tx: rcpt.transactionHash,
+                              approval: approvedNow ? "approved" : "pending" });
   say(`published ${f.slug}:${version} (tx ${rcpt.transactionHash})`);
+  if (approvedNow) {
+    say(`approved on publish (catalog-owner releases skip review). Deploy it:`);
+    say(`  enclave deploy ${f.slug}:${version} --fund 2`);
+    return;
+  }
   say(`approval is pending. Test it NOW as a private deployment (owner-only data path,`);
   say(`no approval needed - approval only gates public visibility):`);
   say(`  enclave deploy ${f.slug}:${version} --private --fund 2`);

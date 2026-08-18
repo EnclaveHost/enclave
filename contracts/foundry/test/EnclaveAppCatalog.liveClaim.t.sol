@@ -46,8 +46,8 @@ contract EnclaveAppCatalogLiveClaimTest is Test {
 
     /* ---- the schema gate pre-flights key off ---- */
 
-    function test_schemaIsEight() public view {
-        assertEq(cat.catalogSchema(), 8);
+    function test_schemaIsNine() public view {
+        assertEq(cat.catalogSchema(), 9);
     }
 
     /* ---- liveness conditions of the claim ---- */

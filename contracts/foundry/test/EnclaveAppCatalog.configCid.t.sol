@@ -31,8 +31,8 @@ contract EnclaveAppCatalogConfigCidTest is Test {
 
     /* ---- the schema gate readers key off ---- */
 
-    function test_schemaIsEight() public view {
-        assertEq(cat.catalogSchema(), 8);
+    function test_schemaIsNine() public view {
+        assertEq(cat.catalogSchema(), 9);
     }
 
     /* ---- publishing through the CID path ---- */
