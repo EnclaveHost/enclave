@@ -12,22 +12,24 @@
    PLATFORM-sso.md; the verifier is that repo's sso.rs.
 
    Token: EST1.<b64url(claims JSON)>.<b64url(65-byte r||s||v)>
-   Claims {v:1, sub:<0x40-hex address>, aud:<0x64-hex deployment>,
-   iat, exp}, keys SORTED so a token minted here for the spec
-   vector's claims is byte-identical to the one pinned in the
-   app's test suite. The signature is EIP-191 personal_sign over
+   Claims {v:1, sub:<acct_<hex> account id>, aud:<0x64-hex
+   deployment>, iat, exp}, keys SORTED so a token minted here for
+   the spec vector's claims is byte-identical to the one pinned in
+   the app's test suite (the vector predates account subs and
+   carries an address; the verifier takes both shapes). The signature is EIP-191 personal_sign over
    the token's own first two segments ("EST1.<b64>"), byte exact -
    no canonical-JSON step for two implementations to disagree on.
 
-   WHO may mint WHAT: a relay ACCOUNT session (passkey or SIWE,
-   auth.js) plus a wallet address ALREADY LINKED to that account.
-   The sub is an address because addresses are the platform's only
-   identity; a passkey-only account with zero linked wallets has
-   nothing to assert yet, and the /sso/authorize page walks the
-   user through linking one. Audience is caller-chosen and NOT
-   validated against the ledger on purpose: binding is the
-   protection (a token for deployment X opens only X), and a token
-   for a nonexistent deployment opens nothing.
+   WHO the token names: the relay ACCOUNT (auth.js) - sub is the
+   account id (acct_<hex>), whatever proved it (passkey or wallet
+   SIWE). The passkey IS the identity; a wallet is just one way an
+   account authenticates, so no wallet is required, asserted, or
+   even mentioned. SIWE find-or-create keys accounts by wallet, so
+   a wallet user's account id is stable across browsers too.
+   Audience is caller-chosen and NOT validated against the ledger
+   on purpose: binding is the protection (a token for deployment X
+   opens only X), and a token for a nonexistent deployment opens
+   nothing.
 
    The key: SSO_SIGNER_KEY (or SSO_SIGNER_KEY_FILE), a DEDICATED
    secp256k1 key - never the provisioner or any key that signs
@@ -40,7 +42,7 @@
    ============================================================ */
 import fs from "node:fs";
 import { makeRateLimiter } from "./store.js";
-import { accountsEnabled, getAccount, verifyAccountSession } from "./auth.js";
+import { accountsEnabled, verifyAccountSession } from "./auth.js";
 
 const TTL_DEFAULT = 86400, TTL_MIN = 300, TTL_MAX = 604800;
 
@@ -71,10 +73,13 @@ export const ssoEnabled = () => enabled;
 export const ssoSignerAddress = () => (enabled ? signer.address : null);
 
 /* Mint one token. Exported bare (not just via HTTP) so the test suite can
-   pin the byte-exact spec vector against the app repo's. */
+   pin the byte-exact spec vector against the app repo's. Hex addresses
+   canonicalize to lowercase; account ids pass through as minted. */
 export async function mintEst1({ sub, aud, iat, exp }) {
   if (!enabled) throw new Error("sso disabled");
-  const claims = { aud: String(aud).toLowerCase(), exp, iat, sub: String(sub).toLowerCase(), v: 1 };
+  const s = String(sub);
+  const claims = { aud: String(aud).toLowerCase(), exp, iat,
+                   sub: /^0x/i.test(s) ? s.toLowerCase() : s, v: 1 };
   const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
   const message = "EST1." + payload;
   const sigHex = await signer.signMessage({ message });   // EIP-191, r||s||v with v 27/28
@@ -111,27 +116,17 @@ export async function handleSso(req, res, u, ctx) {
     const aud = String(b.aud || "").trim();
     if (!/^0x[0-9a-fA-F]{64}$/.test(aud))
       return err(ctx, res, req, 400, "bad_aud", "aud must be a bytes32 deployment id (0x + 64 hex).");
-    const address = String(b.address || "").trim();
-    if (!/^0x[0-9a-fA-F]{40}$/.test(address))
-      return err(ctx, res, req, 400, "bad_address", "address must be a wallet address (0x + 40 hex).");
-
-    // the address must ALREADY belong to the signed-in account: this endpoint
-    // asserts identity, it never establishes it (link/siwe does that, with a
-    // signature from the wallet itself)
-    const acct = getAccount(sess.accountId);
-    const wallets = ((acct && acct.wallets) || []).map((w) => String(w).toLowerCase());
-    if (!wallets.includes(address.toLowerCase()))
-      return err(ctx, res, req, 403, "wallet_not_linked",
-        "That wallet is not linked to this account. Link it first, then sign in again.");
 
     let ttl = parseInt(b.ttl, 10);
     if (!Number.isFinite(ttl)) ttl = TTL_DEFAULT;
     ttl = Math.max(TTL_MIN, Math.min(TTL_MAX, ttl));
     const iat = Math.floor(Date.now() / 1000);
-    const token = await mintEst1({ sub: address, aud, iat, exp: iat + ttl });
+    // the session IS the identity: whoever this account proved itself to be
+    // (passkey or wallet), that is who the app is told showed up
+    const token = await mintEst1({ sub: sess.accountId, aud, iat, exp: iat + ttl });
     return ctx.json(res, 200, {
       token, signer: signer.address,
-      sub: address.toLowerCase(), aud: aud.toLowerCase(), iat, exp: iat + ttl,
+      sub: sess.accountId, aud: aud.toLowerCase(), iat, exp: iat + ttl,
     }, req);
   }
 

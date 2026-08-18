@@ -5,8 +5,9 @@
    their enclave.host login. This page authenticates them with the
    relay ACCOUNT session (passkey or wallet SIWE - openSignIn), has
    the relay mint a short-lived, audience-bound EST1 token naming
-   one of the account's LINKED wallet addresses (relay/sso.js), and
-   returns them to the app with the token in the URL fragment. The
+   the ACCOUNT itself (sub = acct id; the passkey IS the identity,
+   relay/sso.js), and returns them to the app with the token in
+   the URL fragment. The
    app verifies it inside its own enclave against the published
    signer address; the contract is enclave-apps/eyesoff-ai/
    PLATFORM-sso.md.
@@ -32,9 +33,8 @@
    A SIGNED-IN visitor passes through with no interaction at all:
    the operator's explicit decision (2026-08-17). Deployments are
    this platform's trust unit, so an app learning a signed-in
-   visitor's address is accepted, not gated on a click. Interaction
-   remains only where something genuinely forks: signing in at all,
-   linking a first wallet, choosing among several.
+   visitor's account id is accepted, not gated on a click. The only
+   interaction left is signing in when there is no session.
    ============================================================ */
 import "../../components/header/header.js";
 import "../../components/footer/footer.js";
@@ -44,10 +44,8 @@ import { Enclave } from "../core/api.js";
 import { APP_DOMAIN } from "../core/config.js";
 import { $, esc, showToast } from "../core/util.js";
 import { openSignIn, restoreAccountSession } from "../core/account.js";
-import { connectWallet, personalSign, buildSiwe, assertSiweLogin } from "../core/wallet.js";
 
 const card = (html) => '<div class="lk-card">' + html + '</div>';
-const short = (a) => a.slice(0, 6) + "…" + a.slice(-4);
 
 /* Failure UX: the person came FROM an app, so every failure card leads back
    to it. `back` is only ever an origin DERIVED from the aud (the canonical
@@ -123,41 +121,11 @@ async function mount(){
       await openSignIn();
     }
 
-    body.innerHTML = card('<p class="co-note">Checking your account…</p>');
-    let me = await Enclave.accountMe();
-    if (!me.wallets || !me.wallets.length){
-      // A passkey-only account has no wallet address yet, and the address is
-      // the identity apps receive. Link one once; the passkey signs from then on.
-      await go("Link a wallet", "Apps identify you by a wallet address, and this account has none linked yet. Connect a wallet and sign one message to link it - after this once, your passkey alone signs you in everywhere.");
-      body.innerHTML = card('<p class="co-note">Linking your wallet…</p>');
-      await connectWallet();
-      const ch = await Enclave.accountSiweNonce(Enclave.address);
-      const message = assertSiweLogin((ch && ch.message) ? ch.message : buildSiwe(ch), Enclave.address);
-      const signature = await personalSign(message);
-      await Enclave.accountLinkSiwe(message, signature);
-      me = await Enclave.accountMe();
-      if (!me.wallets || !me.wallets.length) return fatal(body, "The wallet did not link. Try again.", target);
-    }
-
-    // No consent interstitial - the operator's explicit call (2026-08-17):
-    // every return origin is one of this platform's own deployments, and the
-    // platform accepts its apps learning a signed-in visitor's address
-    // without a click. The only interactive step left on this path is the one
-    // that genuinely forks: which identity, when the account holds several.
-    let address = me.wallets[0];
-    if (me.wallets.length > 1){
-      body.innerHTML = card(
-        '<p class="co-note">Continue to <b>' + esc(appHost) + '</b> as</p>' +
-        '<p class="co-note"><select id="ssoAddr">' +
-        me.wallets.map((w) => '<option value="' + esc(w) + '">' + esc(short(w)) + '</option>').join("") +
-        '</select></p>' +
-        '<button class="btn btn-primary" id="ssoApprove" type="button">Continue</button>');
-      await new Promise((r) => $("#ssoApprove").addEventListener("click", r, { once: true }));
-      address = $("#ssoAddr").value;
-    }
-
+    // No consent interstitial and no wallet anywhere on this path - the
+    // account IS the identity (sub = acct id), however it authenticates.
+    // A signed-in visitor passes straight through.
     body.innerHTML = card('<p class="co-note">Signing you in to ' + esc(appHost) + '…</p>');
-    const out = await Enclave.ssoToken(aud, address, ttl);
+    const out = await Enclave.ssoToken(aud, ttl);
     if (!out || !out.token) return fatal(body, "The relay did not return a token. Try again.", target);
 
     // FRAGMENT handoff: reaches no server log and no Referer

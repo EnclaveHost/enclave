@@ -92,32 +92,29 @@ test("sso endpoints: signer, mint, and every refusal", async (t) => {
   assert.equal(String(s.body.signer).toLowerCase(), SSO_ADDR);
 
   // no session -> 401; the endpoint asserts identity, it never invents one
-  const anon = await api(origin, "POST", "/v1/sso/token", { body: { aud: VEC_AUD, address: signer.address } });
+  const anon = await api(origin, "POST", "/v1/sso/token", { body: { aud: VEC_AUD } });
   assert.equal(anon.status, 401);
 
   const login = await siweLogin(origin, signer);
   assert.equal(login.status, 200);
   const tok = login.body.token;
+  const acctId = login.body.accountId;
 
-  // malformed audience and address are named, not signed
-  assert.equal((await api(origin, "POST", "/v1/sso/token", { token: tok, body: { aud: "0x1234", address: signer.address } })).status, 400);
-  assert.equal((await api(origin, "POST", "/v1/sso/token", { token: tok, body: { aud: VEC_AUD, address: "0xnope" } })).status, 400);
+  // a malformed audience is named, not signed
+  assert.equal((await api(origin, "POST", "/v1/sso/token", { token: tok, body: { aud: "0x1234" } })).status, 400);
 
-  // a wallet the account never linked cannot be asserted, however valid the session
-  const stranger = privateKeyToAccount("0x" + "43".repeat(32));
-  const not = await api(origin, "POST", "/v1/sso/token", { token: tok, body: { aud: VEC_AUD, address: stranger.address } });
-  assert.equal(not.status, 403);
-  assert.equal(not.body.error, "wallet_not_linked");
-
-  // the real mint: shape, claims, and a signature that recovers to the signer
-  const out = await api(origin, "POST", "/v1/sso/token", { token: tok, body: { aud: VEC_AUD, address: signer.address } });
+  // the real mint: shape, claims, and a signature that recovers to the
+  // signer. sub is the ACCOUNT id - the passkey (or here, wallet) IS the
+  // identity, and no wallet address is asserted or required.
+  const out = await api(origin, "POST", "/v1/sso/token", { token: tok, body: { aud: VEC_AUD } });
   assert.equal(out.status, 200);
   const token = out.body.token;
   const [tag, payloadB64, sigB64] = token.split(".");
   assert.equal(tag, "EST1");
   const claims = JSON.parse(Buffer.from(payloadB64, "base64url").toString());
   assert.equal(claims.v, 1);
-  assert.equal(claims.sub, signer.address.toLowerCase());
+  assert.equal(claims.sub, acctId);
+  assert.match(claims.sub, /^acct_[0-9a-f]{24}$/);
   assert.equal(claims.aud, VEC_AUD.toLowerCase());
   assert.equal(claims.exp - claims.iat, 86400);              // default TTL
   const sig = Buffer.from(sigB64, "base64url");
