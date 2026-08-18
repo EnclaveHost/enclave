@@ -405,6 +405,20 @@ _lease_last_beat = None    # None = never heard one: the lease is INERT until th
 ACCOUNT_VRAM         = os.environ.get("WASM_ACCOUNT_VRAM", "1") == "1"
 VRAM_CTX_OVERHEAD_GB = float(os.environ.get("CTX_OVERHEAD_GB", "0.5"))    # same env the supervisor prices per slice
 VRAM_RESERVE_GB      = float(os.environ.get("WASM_VRAM_RESERVE_GB", "0")) # node-global device users the planner never sees (SD preloads)
+# The ledger above is ARITHMETIC: it sums the shares this process handed out.
+# Memory held by anything it did not spawn - a tenant generation orphaned by an
+# in-place container update, a wedged MPS server retaining dead clients'
+# allocations - is invisible to it, and on 2026-08-18 ~104 GiB of exactly that
+# let a 51 GB tenant pass every fit check and die at its first generation
+# (kryptos H200: ledger said 27 GB unreserved, the card had 35 GB total free).
+# So the ledger now carries the DEVICE's own count beside its arithmetic
+# (nvidia-smi memory.free), logs when the two views drift apart, and the
+# admission gate refuses a launch the card physically cannot hold even when
+# the arithmetic says it fits. Probe failure fails OPEN to ledger-only
+# admission - a missing nvidia-smi must not refuse a whole node's launches.
+VRAM_DEV_GATE        = os.environ.get("WASM_VRAM_DEV_GATE", "1") == "1"   # 0 = report only, never refuse on the device's word
+VRAM_DEV_TTL_S       = float(os.environ.get("WASM_VRAM_DEV_TTL_S", "5"))
+VRAM_DIVERGE_WARN_GB = float(os.environ.get("WASM_VRAM_DIVERGE_WARN_GB", "8"))
 if FS_ENABLED:
     FS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -2853,18 +2867,104 @@ def _rec_vram_gb(rec) -> float:
     return share * GPU_VRAM_GB + VRAM_CTX_OVERHEAD_GB if share > 0 else 0.0
 
 
+_dev_mem_cache = {"at": 0.0, "val": None}
+
+
+def _gpu_dev_mem() -> dict | None:
+    """The device's OWN memory count: nvidia-smi memory.free/memory.total
+    summed across cards, in GB. Cached VRAM_DEV_TTL_S - /availability polls
+    land every few seconds and admission must not fork a probe per launch.
+    None on CPU nodes, in mock mode, and on probe failure."""
+    if not NODE_HAS_GPU or MOCK:
+        return None
+    now = time.time()
+    if now - _dev_mem_cache["at"] < VRAM_DEV_TTL_S:
+        return _dev_mem_cache["val"]
+    val = None
+    try:
+        r = subprocess.run(["nvidia-smi", "--query-gpu=memory.free,memory.total",
+                            "--format=csv,noheader,nounits"],
+                           capture_output=True, text=True, timeout=10)
+        rows = [ln.split(",") for ln in r.stdout.strip().splitlines() if "," in ln]
+        free = sum(float(a) for a, _ in rows) / 1024
+        total = sum(float(b) for _, b in rows) / 1024
+        if rows and 0 <= free <= total:
+            val = {"vramDevFreeGb": round(free, 2), "vramDevTotalGb": round(total, 2)}
+    except Exception:                                    # noqa: BLE001
+        val = None
+    _dev_mem_cache.update(at=now, val=val)
+    return val
+
+
+def _gpu_dev_procs() -> list:
+    """Per-PID device attribution (nvidia-smi compute-apps): what is ACTUALLY
+    holding the card, whether or not any ledger sold it. Control-plane only.
+    This is the table the 2026-08-18 incident could not produce without a
+    shell nobody has on a CVM. usedMiB is None where the driver withholds it
+    (MPS/CC report [N/A] for some clients - the row still names the holder)."""
+    if not NODE_HAS_GPU or MOCK:
+        return []
+    try:
+        r = subprocess.run(["nvidia-smi",
+                            "--query-compute-apps=pid,process_name,used_gpu_memory",
+                            "--format=csv,noheader,nounits"],
+                           capture_output=True, text=True, timeout=10)
+        procs = []
+        for ln in r.stdout.strip().splitlines():
+            parts = [p.strip() for p in ln.split(",")]
+            if len(parts) >= 3 and parts[0].isdigit():
+                try:
+                    used = int(float(parts[-1]))
+                except ValueError:
+                    used = None
+                procs.append({"pid": int(parts[0]),
+                              "name": ",".join(parts[1:-1]), "usedMiB": used})
+        return procs
+    except Exception:                                    # noqa: BLE001
+        return []
+
+
+_diverge_last = {"at": 0.0}
+
+
+def _warn_divergence(div_gb: float):
+    """A large positive divergence = the device holds memory this ledger never
+    sold: THE signature of an orphaned tenant generation or a wedged MPS
+    server (2026-08-18). Logged with the per-PID table, rate-limited; the
+    admission gate is the enforcement - this line is how an operator finds
+    out before a tenant does."""
+    if div_gb <= VRAM_DIVERGE_WARN_GB:
+        return
+    now = time.time()
+    if now - _diverge_last["at"] < 300:
+        return
+    _diverge_last["at"] = now
+    print(f"[vram] device/ledger divergence: ledger-free exceeds device-free by "
+          f"{div_gb:.1f} GB (warn threshold {VRAM_DIVERGE_WARN_GB} GB) - something "
+          f"outside the tenant table is holding the card; compute-apps: "
+          f"{json.dumps(_gpu_dev_procs())}", flush=True)
+
+
 def _vram_budget() -> dict | None:
     """The VRAM-reservation ledger (WASM_ACCOUNT_VRAM): worst-case GB pinned
     by starting/running GPU tenants vs the node's device memory - the SAME
     sum the admission check at create time enforces. None when the accounting
-    is off or the node has no GPU."""
+    is off or the node has no GPU. Carries the device-measured count beside
+    the arithmetic when the card answers; vramDivergenceGb > 0 means the card
+    holds memory this ledger never sold."""
     if not (ACCOUNT_VRAM and NODE_HAS_GPU):
         return None
     committed = round(sum(_rec_vram_gb(r) for r in _apps.values()
                           if r["status"] in ("starting", "running")), 2)
     budget = round(GPU_VRAM_GB * GPU_CARDS - VRAM_RESERVE_GB, 2)
-    return {"vramBudgetGb": budget, "vramCommittedGb": committed,
-            "vramFreeGb": round(max(0.0, budget - committed), 2)}
+    out = {"vramBudgetGb": budget, "vramCommittedGb": committed,
+           "vramFreeGb": round(max(0.0, budget - committed), 2)}
+    dev = _gpu_dev_mem()
+    if dev:
+        out.update(dev)
+        out["vramDivergenceGb"] = round(out["vramFreeGb"] - dev["vramDevFreeGb"], 2)
+        _warn_divergence(out["vramDivergenceGb"])
+    return out
 
 
 def _capacity() -> dict:
@@ -2895,11 +2995,17 @@ def _capacity() -> dict:
     # slice THIS ledger still admits (net of the per-slice context overhead);
     # the supervisor folds min(its card allocator, this) into /availability,
     # so a physical-vs-planned divergence surfaces as reduced capacity
-    # instead of a claim that fails at provision time.
+    # instead of a claim that fails at provision time. The DEVICE's own count
+    # bounds it from below for the same reason (2026-08-18): a card holding
+    # orphaned memory must advertise what it can actually take, not what the
+    # arithmetic wishes it could.
     vram = _vram_budget()
     if vram:
         cap.update(vram)
-        slice_gb = vram["vramFreeGb"] - VRAM_CTX_OVERHEAD_GB
+        eff_gb = vram["vramFreeGb"]
+        if VRAM_DEV_GATE and vram.get("vramDevFreeGb") is not None:
+            eff_gb = min(eff_gb, vram["vramDevFreeGb"])
+        slice_gb = eff_gb - VRAM_CTX_OVERHEAD_GB
         cap["gpuShareFree"] = round(min(1.0, max(0.0, slice_gb / GPU_VRAM_GB)) if GPU_VRAM_GB else 0.0, 4)
     cap["tenantLease"] = _lease_public()
     return cap
@@ -5523,6 +5629,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json(401, {"error": "control token required"})
         if self.path == "/capacity":
             return self._json(200, _capacity())
+        # The attribution table for a VRAM incident, in one authenticated GET:
+        # the device's own memory count, the per-PID compute-app list, the
+        # reservation ledger and every tenant's pin. The 2026-08-18 hunt for
+        # ~104 GiB of orphaned device memory had to be reconstructed from
+        # share arithmetic because none of this was reachable from outside;
+        # the supervisor now proxies it at /v1/admin/gpu (ADMIN_TOKEN).
+        if self.path == "/gpu":
+            with _lock:
+                tenants = [{"id": r["id"], "name": r.get("name"),
+                            "status": r.get("status"),
+                            "gpuShare": float(r.get("gpuShare") or 0),
+                            "pinnedGb": round(_rec_vram_gb(r), 2)}
+                           for r in _apps.values()
+                           if float(r.get("gpuShare") or 0) > 0]
+            return self._json(200, {"dev": _gpu_dev_mem(), "procs": _gpu_dev_procs(),
+                                    "ledger": _vram_budget(), "tenants": tenants})
         if self.path == "/volumes":
             return self._json(200, {"volumes": _volumes_public()})
         if self.path == "/catalog":
@@ -5692,6 +5814,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return self._json(429, {
                         "error": (f"insufficient device memory: this launch would pin {ask_gb:.1f} GB "
                                   f"but only {v['vramFreeGb']:.1f} GB of {v['vramBudgetGb']:.1f} GB is unreserved"),
+                        "capacity": _capacity()})
+                # The device's own count outranks the arithmetic when it says
+                # LESS. Ledger-free counts only what THIS process handed out;
+                # memory held by anything else - an orphaned tenant generation,
+                # a wedged MPS server - is invisible to it and very visible to
+                # the tenant that later dies allocating against it
+                # (2026-08-18: a 51 GB spec passed every arithmetic check onto
+                # a card with 35 GB physically free, loaded its weights, and
+                # SIGABRT'd at the first lazy context allocation). Device-free
+                # can only over-admit (a reserved-but-not-yet-loaded sibling
+                # hasn't touched the card yet) - the ledger check above already
+                # covers that direction, so the pair is safe from both sides.
+                dev_free = v.get("vramDevFreeGb") if VRAM_DEV_GATE else None
+                if dev_free is not None and ask_gb > dev_free + 1e-6:
+                    print(f"[vms] refusing GPU launch for {name}: asks {ask_gb:.1f} GB but the "
+                          f"device reports {dev_free:.1f} GB physically free (ledger thought "
+                          f"{v['vramFreeGb']:.1f} GB; divergence {v.get('vramDivergenceGb')} GB)",
+                          flush=True)
+                    return self._json(429, {
+                        "error": (f"insufficient device memory: this launch would pin {ask_gb:.1f} GB "
+                                  f"but the device reports only {dev_free:.1f} GB physically free "
+                                  f"(the ledger's {v['vramFreeGb']:.1f} GB says something untracked "
+                                  f"holds the card)"),
                         "capacity": _capacity()})
         try:
             pspec = _parse_ports(b.get("ports") or [])
