@@ -3839,9 +3839,16 @@ app.get("/availability", async (_req, res) => {
           ...(c.sharePoolFree !== undefined ? { sharePoolFree: c.sharePoolFree } : {}) } : {};
     // VRAM-reservation ledger passthrough (vm backend with accounting on):
     // the physical constraint behind gpuShareFree when it is tighter than the
-    // card allocator's plan - same contract as the RAM ledger above.
+    // card allocator's plan - same contract as the RAM ledger above. Beside
+    // the arithmetic rides the DEVICE's own count (manager nvidia-smi) and
+    // the divergence between the two - a positive divergence is memory the
+    // card holds that no ledger sold, which is exactly the 2026-08-18
+    // incident (~104 GiB orphaned by an in-place update, every ledger blind
+    // to it), so it must be visible from outside without a shell.
     const vram = PROVISION_BACKEND === "vm" && c.vramBudgetGb
-      ? { vramBudgetGb: c.vramBudgetGb, vramCommittedGb: c.vramCommittedGb, vramLedgerFreeGb: c.vramFreeGb } : {};
+      ? { vramBudgetGb: c.vramBudgetGb, vramCommittedGb: c.vramCommittedGb, vramLedgerFreeGb: c.vramFreeGb,
+          ...(c.vramDevFreeGb != null ? { vramDevFreeGb: c.vramDevFreeGb, vramDevTotalGb: c.vramDevTotalGb,
+                                          vramDivergenceGb: c.vramDivergenceGb } : {}) } : {};
     // The envelope's `configCid` namespace (a per-deployment config override
     // SPLIT the way catalog rev 7 splits a version's: bulk at a pinned CID,
     // `config` demoted to the routing manifest). It needs BOTH halves — this
@@ -3863,14 +3870,33 @@ app.get("/availability", async (_req, res) => {
 
 // External proof that MPS caps are live: each running tenant's granted SM count
 // (sanitized - no tenant ids). A 25% tenant should report ~33 of 132 SMs.
+//
+// HISTORY WARNING (2026-08-18): this endpoint asks the WORKER manager, which
+// serves only the PTX-submission path. On a vm-backend box every LLM tenant
+// lives in the WASM manager instead, so the worker's "capacity" here read
+// {vramFreeGb: 140.4, tenants: []} while the card physically had ~35 GB free
+// and eleven instances were live - and the MCP `gpu_capacity` tool repeated
+// that emptiness as the box's truth. The response now carries the serving
+// backend's ledger AND the device-measured count beside the worker view, so
+// no caller can mistake one container's empty ledger for an empty card.
 app.get("/v1/gpu", async (_req, res) => {
   if (!IS_GPU) return fail(res, 404, "no_gpu", "This is a CPU-only enclave: no GPU is attached.");
   try {
     const h = await mgrHealth(5000);
-    res.json({
+    const out = {
       ok: true, role: h.role, mpsActive: !!h.mps_pipe, capacity: h.capacity, smTotal: SM_TOTAL,
       tenants: (h.tenants || []).map((t) => ({ pct: t.pct, status: t.status, smGranted: t.sm_granted })),
-    });
+    };
+    if (PROVISION_BACKEND === "vm") {
+      const vc = await vmHealth(5000).then((v) => v.capacity || {}).catch(() => null);
+      if (vc) out.vm = {
+        apps: vc.apps, usedGpuShare: round3(1 - (vc.gpuShareFree ?? 1)),
+        vramBudgetGb: vc.vramBudgetGb, vramCommittedGb: vc.vramCommittedGb, vramLedgerFreeGb: vc.vramFreeGb,
+        ...(vc.vramDevFreeGb != null ? { vramDevFreeGb: vc.vramDevFreeGb, vramDevTotalGb: vc.vramDevTotalGb,
+                                         vramDivergenceGb: vc.vramDivergenceGb } : {}),
+      };
+    }
+    res.json(out);
   } catch (e) {
     res.status(503).json({ ok: false, error: `worker manager unreachable: ${e.message}` });
   }
@@ -5121,6 +5147,27 @@ app.post("/v1/admin/deployments/:id/release", async (req, res) => {
   saveStateSoon();
   console.log(`[admin] ${rec.id} released by operator (consolidation)`);
   res.json(view(rec));
+});
+
+// The attribution table for a VRAM incident, one authenticated GET away: the
+// manager's device-measured memory, the per-PID compute-app list, the
+// reservation ledger and each tenant's pin. On 2026-08-18 ~104 GiB of device
+// memory orphaned by an in-place update had to be reconstructed from share
+// arithmetic and boot-log fragments because a Tinfoil CVM offers no shell;
+// this is the lever that makes the next such hunt a single request. Gated
+// like the other admin levers (404 when the token is unset).
+app.get("/v1/admin/gpu", async (req, res) => {
+  if (!ADMIN_TOKEN || !safeEqStr(req.headers["x-admin-token"], ADMIN_TOKEN))
+    return fail(res, 404, "not_found", "Not found.");
+  if (!IS_GPU) return fail(res, 404, "no_gpu", "This is a CPU-only enclave: no GPU is attached.");
+  if (PROVISION_BACKEND !== "vm") return fail(res, 404, "no_vm_backend", "No wasm-manager on this backend.");
+  try {
+    const r = await vmReq("GET", "/gpu", null, 15000);
+    if (r.status !== 200) return fail(res, 502, "manager_error", `wasm-manager /gpu ${r.status}`);
+    res.json(r.body);
+  } catch (e) {
+    fail(res, 502, "manager_unreachable", e.message);
+  }
 });
 
 app.delete("/v1/deployments/:id", authed, async (req, res) => {
@@ -7246,6 +7293,22 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     slice = normalizeGpuReq(gpuShare, cpuShare);
     if (slice.vramGb > maxFreeVram() + 1e-9 || slice.cpuShare > maxFreeCpu() + 1e-9)
       return "no free capacity for those shares here right now";
+    // The card's own count outranks the share arithmetic when it says LESS.
+    // Every check above is a ledger: it knows what was handed out, never what
+    // the device actually holds - and on 2026-08-18 ~104 GiB orphaned by an
+    // in-place update was invisible to all of them, so a 51 GB spec passed
+    // every fit check, loaded its weights and SIGABRT'd at first generation,
+    // burning the owner's lease on a claim/crash loop. The manager reports
+    // nvidia-smi memory.free in its capacity; a claim that cannot physically
+    // fit is refused HERE, before a lease is burned. Absent field (older
+    // manager, probe failure) skips the check - the ledgers above still hold.
+    const devFreeGb = Number(h && h.capacity && h.capacity.vramDevFreeGb);
+    if (Number.isFinite(devFreeGb) && slice.vramGb + CTX_OVERHEAD_GB > devFreeGb + 1e-9) {
+      console.warn(`[claim] ${d.id}: needs ${slice.vramGb} GB VRAM but the device physically has `
+        + `${devFreeGb} GB free (ledger free ${h.capacity.vramFreeGb ?? "?"} GB, divergence `
+        + `${h.capacity.vramDivergenceGb ?? "?"} GB) - refusing the claim`);
+      return "the card physically lacks the VRAM for those shares right now (device-measured; the share ledger disagrees, which is itself the incident signature)";
+    }
   } else {
     // asCpuFallback lands here too: a GPU-dialled deployment served on cores
     // takes exactly the CPU path - the cpu slice it bought, no card, and the
