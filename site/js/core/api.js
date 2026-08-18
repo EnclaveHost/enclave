@@ -219,10 +219,10 @@ export const Enclave = {
   accountSiweVerify(message, signature){ return this._req("POST", "/account/siwe/verify", { body: { message, signature } }); },
   accountLinkSiwe(message, signature){ return this._req("POST", "/account/link/siwe", { body: { message, signature }, accountAuth: true }); },
   accountMe(){ return this._req("GET", "/account/me", { accountAuth: true }); },
-  accountLinkSiwe(message, signature){ return this._req("POST", "/account/link/siwe", { body: { message, signature }, accountAuth: true }); },
   /* Sign in with Enclave (relay sso.js): mint an audience-bound EST1 token
-     naming a wallet already linked to the signed-in account. */
-  ssoToken(aud, address, ttl){ return this._req("POST", "/sso/token", { body: { aud, address, ...(ttl ? { ttl } : {}) }, accountAuth: true }); },
+     naming the signed-in ACCOUNT - the passkey (or wallet) IS the identity,
+     so nothing beyond the session travels. */
+  ssoToken(aud, ttl){ return this._req("POST", "/sso/token", { body: { aud, ...(ttl ? { ttl } : {}) }, accountAuth: true }); },
   ssoSigner(){ return this._req("GET", "/sso/signer"); },
   /* Custom domains (public): hostname -> deployment id for every verified row */
   domainsMap(){ return this._req("GET", "/domains/map"); },
