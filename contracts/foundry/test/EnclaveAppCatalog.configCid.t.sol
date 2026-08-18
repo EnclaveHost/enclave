@@ -31,8 +31,8 @@ contract EnclaveAppCatalogConfigCidTest is Test {
 
     /* ---- the schema gate readers key off ---- */
 
-    function test_schemaIsSeven() public view {
-        assertEq(cat.catalogSchema(), 7);
+    function test_schemaIsEight() public view {
+        assertEq(cat.catalogSchema(), 8);
     }
 
     /* ---- publishing through the CID path ---- */
@@ -109,7 +109,13 @@ contract EnclaveAppCatalogConfigCidTest is Test {
 
     function test_cidPathKeepsGlobalWasmCidOwnership() public {
         vm.prank(PUB);
-        cat.publishVersionCfg("big", "Big", "", "1", "bafyBIG1", RES, "", "", CFG_CID, 0);
+        (bytes32 id, uint256 idx) =
+            cat.publishVersionCfg("big", "Big", "", "1", "bafyBIG1", RES, "", "", CFG_CID, 0);
+        // rev 8: the claim binds only while the listing is LIVE, so the block
+        // needs the owner's approval first (a pending listing blocks no one)
+        uint8 approved = cat.APPROVAL_APPROVED();
+        vm.prank(OWNER);
+        cat.setApproval(id, idx, approved);
         vm.prank(OTHER);
         vm.expectRevert(bytes("cid listed by another app"));
         cat.publishVersionCfg("other", "Other", "", "1", "bafyBIG1", RES, "", "", CFG_CID, 0);

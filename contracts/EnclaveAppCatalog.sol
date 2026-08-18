@@ -35,9 +35,15 @@ pragma solidity ^0.8.20;
 ///     memory- and compute-derived share. Versions are append-only history; you
 ///     don't edit a released version, you publish a new one. A publisher can `yankVersion` a bad release (kept for
 ///     history, hidden by readers) and `editApp` the display metadata.
-///   - CID ownership: a wasm artifact belongs to the app that FIRST listed it —
-///     no other app (any publisher, any slug) can ever list the same CID, so a
-///     CID unambiguously maps into one lineage. The owning app MAY re-list its
+///   - CID ownership (rev 8): a wasm artifact belongs to its NEWEST listing,
+///     and that claim binds only while the listing is LIVE — owner-Approved
+///     and not yanked. No other app can list bytes that are currently part of
+///     a live release; but a listing the owner rejected, the publisher
+///     yanked, or that still awaits review does not lock its bytes away from
+///     everyone else forever. Exclusivity is MINTED by the owner's approval
+///     (the same signature that already gates deploys), which also makes
+///     rejection the everyday squat remedy: rejecting a squatter's version
+///     releases the CID with no grant needed. The owning app MAY re-list its
 ///     CID in a later version: that is the metadata fix (same bytes, new
 ///     config/specs/ports). A CID is NOT a version identity — versions sharing
 ///     bytes can differ entirely in approved config — which is why deployments
@@ -159,9 +165,18 @@ contract EnclaveAppCatalog {
     ///         before. `configCid` set means the FETCHED content is the app's
     ///         config, and the inline field is the small on-chain routing
     ///         manifest a runner needs before it can fetch anything (see
-    ///         publishVersionCfg). Gates: struct reads >= 4, fees >= 5,
-    ///         transfers >= 6, config CIDs >= 7.
-    uint256 public constant catalogSchema = 7;
+    ///         publishVersionCfg).
+    ///         Revision 8 keeps every tuple AND every selector byte-for-byte
+    ///         (no layout or ABI change at all) and changes only the CID-claim
+    ///         RULE: a claim binds while its newest listing is LIVE
+    ///         (owner-Approved and not yanked) — a rejected, yanked, or
+    ///         still-pending listing no longer blocks another app from
+    ///         publishing the same bytes (see _reserveCid). Publish
+    ///         pre-flights that mirror the claim client-side must gate the
+    ///         lenient rule on >= 8, or they will wave through a publish an
+    ///         older catalog reverts. Gates: struct reads >= 4, fees >= 5,
+    ///         transfers >= 6, config CIDs >= 7, live claims >= 8.
+    uint256 public constant catalogSchema = 8;
 
     uint256 private constant MAX_SLUG = 40;
     uint256 private constant MAX_NAME = 80;
@@ -410,19 +425,28 @@ contract EnclaveAppCatalog {
         emit VersionPublished(appId, index, version, cid);
     }
 
-    /// @dev A CID belongs to the app that FIRST listed it, forever: no other app
-    ///      can ever list the same artifact, so a CID always maps into exactly
-    ///      one lineage. The owning app may list it AGAIN in a later version —
-    ///      how metadata (config/specs/ports) gets fixed without touching the bytes —
-    ///      and the reverse-lookup entry is then overwritten so `cidStatus`
-    ///      follows the newest listing (the superseded version stays as history).
+    /// @dev A CID belongs to its NEWEST listing, and the claim binds only while
+    ///      that listing is LIVE — owner-Approved and not yanked (rev 8). A
+    ///      rejected, yanked, or still-pending listing does not block anyone:
+    ///      exclusivity over bytes is minted by the owner's approval, the same
+    ///      signature that already gates deploys, so rejecting a squatter's
+    ///      version releases the CID with no grant needed (and a squatter
+    ///      gains nothing by re-grabbing a ref — an unapproved claim never
+    ///      binds). The owning app may always list its CID AGAIN in a later
+    ///      version — how metadata (config/specs/ports) gets fixed without
+    ///      touching the bytes — and the reverse-lookup entry is then
+    ///      overwritten so `cidStatus` follows the newest listing (the
+    ///      superseded version stays as history).
     function _reserveCid(string calldata cid, bytes32 appId) private view returns (bytes32 cidKey) {
         cidKey = keccak256(bytes(cid));
         CidRef storage r = _cidRefs[cidKey];
-        // ...unless the owner has granted THIS app override rights (anti-squat
-        // remedy, see grantCid). appId is never 0, so an unset grant never matches.
-        require(r.index1 == 0 || r.appId == appId || _cidGrant[cidKey] == appId,
-                "cid listed by another app");
+        // your own re-list, an unlisted CID, or an owner grant (anti-squat
+        // remedy, see grantCid; appId is never 0, so an unset grant never
+        // matches) all pass unconditionally
+        if (r.index1 == 0 || r.appId == appId || _cidGrant[cidKey] == appId) return cidKey;
+        // another app holds the ref: it blocks only while that listing is live
+        Version storage v = _versions[r.appId][r.index1 - 1];
+        require(v.yanked || v.approval != APPROVAL_APPROVED, "cid listed by another app");
     }
 
     /// @dev Create the app on first use, then refresh its display metadata. Returns appId.
@@ -510,17 +534,21 @@ contract EnclaveAppCatalog {
         emit VersionApprovalSet(appId, index, status);
     }
 
-    /// @notice Anti-squat remedy (owner-only). A CID belongs to the FIRST app to
-    ///         list it, so an attacker could list an honest publisher's CID first
-    ///         and permanently block them from ever publishing it. This authorizes
-    ///         one specific app — `appIdOf(publisher, slug)`, computable before the
-    ///         app even exists — to override a squatted reservation on its NEXT
-    ///         publishVersion. Race-free: only the granted appId may use the grant,
-    ///         and once it publishes, the reverse-lookup (`cidStatus`) points at the
-    ///         honest lineage; the squatter's row stays as dead history (a squatted
-    ///         version sits at Pending forever and can never deploy). Purely
-    ///         additive — touches no version bytes, approval, or struct layout, and
-    ///         changes nothing for CIDs no one has squatted.
+    /// @notice Surgical claim override (owner-only). Since rev 8 an unapproved
+    ///         or yanked listing never blocks anyone, so the everyday squat
+    ///         remedy is simply rejecting (or never approving) the squatter's
+    ///         version — the CID frees itself. This grant remains for the one
+    ///         case rejection can't reach cleanly: the claim-holding version is
+    ///         a LIVE release of a legitimate app, and a second app should get
+    ///         to list the same bytes without killing the first one's
+    ///         deployability. It authorizes one specific app —
+    ///         `appIdOf(publisher, slug)`, computable before the app even
+    ///         exists — to override the reservation on its NEXT publishVersion.
+    ///         Race-free: only the granted appId may use the grant, and once it
+    ///         publishes, the reverse-lookup (`cidStatus`) points at the granted
+    ///         lineage; the prior holder's row stays as history. Purely
+    ///         additive — touches no version bytes, approval, or struct layout,
+    ///         and changes nothing for unclaimed CIDs.
     function grantCid(string calldata cid, bytes32 appId) external {
         require(msg.sender == owner, "!owner");
         require(appId != bytes32(0), "appId=0");
@@ -646,11 +674,14 @@ contract EnclaveAppCatalog {
     }
 
     /// @notice Migrate one app's release history, in order, appending to whatever
-    ///         is already imported (chunkable). Replays the same invariants
-    ///         publishVersion enforces — per-app version-label uniqueness and
-    ///         global CID ownership — so the migrated catalog can't hold state
-    ///         the permissionless path couldn't have produced (timestamps,
-    ///         verified flags and approval rulings carry over verbatim).
+    ///         is already imported (chunkable). Replays per-app version-label
+    ///         uniqueness; CID rows carry VERBATIM — a rev-8 source can
+    ///         legitimately hold the same CID across apps (a claim binds only
+    ///         while its newest listing is live, and approval flips after
+    ///         publish make every combination reachable), so re-running the
+    ///         publish-time claim check here would brick a faithful import.
+    ///         Timestamps, verified flags and approval rulings carry over
+    ///         verbatim as before.
     function importVersions(bytes32 appId, Version[] calldata items) external {
         require(msg.sender == owner, "!owner");
         require(!importsSealed, "sealed");
@@ -661,11 +692,17 @@ contract EnclaveAppCatalog {
             require(!_verUsed[vk], "version exists");
             _verUsed[vk] = true;
             bytes32 cidKey = keccak256(bytes(items[i].cid));
+            // the reverse-lookup must land on the NEWEST listing no matter
+            // which order apps get imported in, so newest-createdAt wins the
+            // ref rather than last-imported (>= keeps a same-app re-list — the
+            // later index at the same timestamp — on top, matching the
+            // publish path's unconditional overwrite)
             CidRef storage r = _cidRefs[cidKey];
-            require(r.index1 == 0 || r.appId == appId, "cid listed by another app");
+            bool takesRef = r.index1 == 0
+                || items[i].createdAt >= _versions[r.appId][r.index1 - 1].createdAt;
             vs.push(items[i]);
             uint256 idx = vs.length - 1;
-            _cidRefs[cidKey] = CidRef({ appId: appId, index1: uint32(vs.length) });
+            if (takesRef) _cidRefs[cidKey] = CidRef({ appId: appId, index1: uint32(vs.length) });
             emit VersionPublished(appId, idx, items[i].version, items[i].cid);
             // re-emit the per-version state so a LOG-ONLY indexer doesn't show an
             // imported Approved/Rejected/verified/yanked version as a fresh Pending
@@ -778,8 +815,10 @@ contract EnclaveAppCatalog {
 
     /// @notice Publish-time CID resolver: which lineage owns these bytes, and the
     ///         newest listing's flags. Publishers pre-flight "is this CID already
-    ///         listed, and by whom" before a publishVersion tx (which would revert
-    ///         on another app's CID). NOT the deploy gate: deployments reference a
+    ///         listed, and by whom" before a publishVersion tx — which since rev 8
+    ///         reverts only while that listing is LIVE (approved, not yanked;
+    ///         the returned flags are exactly what a pre-flight needs to mirror
+    ///         the rule). NOT the deploy gate: deployments reference a
     ///         version RECORD (appId + index) and runners gate on getVersion/getApp
     ///         directly — a CID names bytes, and versions sharing bytes can differ
     ///         entirely in approved config. A CID its own app re-listed resolves to
