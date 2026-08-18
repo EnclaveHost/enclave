@@ -712,6 +712,24 @@ export async function sendTx(to, data, value, gasLimit){
   try { est = await Enclave.provider.request({ method: "eth_estimateGas", params: [tx] }); }
   catch(_){ try { est = await baseRpc("eth_estimateGas", [tx]); } catch(_2){} }
   if (est) tx.gas = "0x" + (BigInt(est) + BigInt(est) / 4n).toString(16);
+  else {
+    // Both estimators refused a tx we have no calibrated number for. On this
+    // branch (small, ordinary txs - the big-batch callers pass gasLimit) that
+    // near-always means WOULD REVERT, and handing it to the wallet buries the
+    // reason: the wallet's own estimate fails too, some (Trezor Suite) fall
+    // back to the BLOCK gas limit (140M on Base), and their backend then
+    // refuses the broadcast on a per-tx gas cap - a gas error for a tx whose
+    // problem was never gas (exactly how a sealImports "!owner" surfaced as
+    // "exceeds maximum per-tx gas limit: 140000000 > 25000000"). eth_call the
+    // same payload: a revert throws its actual reason here instead; only a tx
+    // that calls clean (the estimators were just unreachable) still falls
+    // through to the wallet's estimator.
+    try { await baseRpc("eth_call", [tx, "latest"]); }
+    catch(e){
+      throw new EnclaveError("this transaction would revert - nothing was sent ("
+        + ((e && e.message) || e) + ")", 0);
+    }
+  }
   wcNudge();
   return await Enclave.provider.request({ method: "eth_sendTransaction", params: [tx] });
 }

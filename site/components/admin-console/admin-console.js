@@ -1600,6 +1600,23 @@ class AdminConsole extends EnclaveElement {
           btn.disabled = true;
           try {
             await this._connect();
+            // Seal is owner-only, and a one-approval run that died between
+            // the imports and the handover leaves the target owned by the
+            // MIGRATOR - the revert would otherwise reach the wallet and
+            // surface as a nonsense gas-limit broadcast error. Name the
+            // actual state and the way forward instead.
+            const sealOwner = await ownerOf(tgt);
+            if (sealOwner && lc(sealOwner) !== lc(Enclave.address)) {
+              const pend = await pendingOwnerOf(tgt);
+              if (lc(pend) === lc(Enclave.address))
+                log("err", "the target is offering YOU ownership - accept it first (Ownership panel above), then seal.");
+              else
+                log("err", `the target is owned by ${sealOwner}, not your wallet. If that is the migrator, re-run `
+                         + "Migrate · one approval: it resumes where it stopped (already-imported records are skipped), "
+                         + "hands ownership back to you, and returns the unspent gas - then seal.");
+              btn.disabled = false;
+              return;
+            }
             log("p", "sealImports - confirm in your wallet…");
             const hash = await sendTx(tgt, sealTx(m.contractName));
             await waitReceipt(hash);
