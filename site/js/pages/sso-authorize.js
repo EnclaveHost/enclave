@@ -107,16 +107,13 @@ async function mount(){
     return fatal(body, "This link wants to send your sign-in somewhere that does not belong to that app, so nothing was signed. Open the app itself and use its sign-in button.", canonical);
   const appHost = new URL(target).host;
 
-  const go = (label, note) => {
-    body.innerHTML = card('<p class="co-note">' + esc(note) + '</p>' +
-      '<button class="btn btn-primary" id="ssoGo" type="button">' + esc(label) + '</button>');
-    return new Promise((r) => $("#ssoGo").addEventListener("click", r, { once: true }));
-  };
-
   try {
     restoreAccountSession();
     if (!Enclave.accountAuthed()){
-      await go("Sign in", "Sign in with your Enclave account - passkey or wallet - to continue to " + appHost + ".");
+      // straight into the chooser (or a detected wallet's SIWE) - no
+      // interstitial button: the app's own Sign in click brought them here,
+      // and the ceremonies' buttons inside the modal carry the user
+      // activation the credentials need
       body.innerHTML = card('<p class="co-note">Waiting for sign-in…</p>');
       await openSignIn();
     }
