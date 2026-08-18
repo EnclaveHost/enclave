@@ -224,6 +224,8 @@ export const Enclave = {
      naming a wallet already linked to the signed-in account. */
   ssoToken(aud, address, ttl){ return this._req("POST", "/sso/token", { body: { aud, address, ...(ttl ? { ttl } : {}) }, accountAuth: true }); },
   ssoSigner(){ return this._req("GET", "/sso/signer"); },
+  /* Custom domains (public): hostname -> deployment id for every verified row */
+  domainsMap(){ return this._req("GET", "/domains/map"); },
   // device flow: a passkey-less browser signs in via a phone (QR -> /link)
   accountDeviceStart(){ return this._req("POST", "/account/device/start", { body: {} }); },
   accountDeviceInfo(code){ return this._req("GET", "/account/device/info", { query: { code } }); },

@@ -42,9 +42,17 @@ import { connectWallet, personalSign, buildSiwe, assertSiweLogin } from "../core
 const card = (html) => '<div class="lk-card">' + html + '</div>';
 const short = (a) => a.slice(0, 6) + "…" + a.slice(-4);
 
-function fatal(body, msg){
-  body.innerHTML = card('<p class="co-note">' + esc(msg) + '</p>' +
-    '<a class="btn" href=".">Go to enclave.host</a>');
+/* Failure UX: the person came FROM an app, so every failure card leads back
+   to it. `back` is only ever an origin DERIVED from the aud (the canonical
+   subdomain) or the already-VALIDATED return target - never the raw
+   redirect_uri parameter, which on the validation-failure path is exactly
+   the thing that could not be trusted. */
+function fatal(body, msg, back){
+  const links = back
+    ? '<a class="btn btn-primary" href="' + esc(back) + '">Back to ' + esc(new URL(back).host) + '</a> ' +
+      '<a class="btn" href=".">enclave.host</a>'
+    : '<a class="btn" href=".">Go to enclave.host</a>';
+  body.innerHTML = card('<p class="co-note">' + esc(msg) + '</p>' + links);
 }
 
 /* Return origins this aud may receive a token at: the canonical subdomain,
@@ -53,9 +61,8 @@ function fatal(body, msg){
 async function allowedOrigins(aud){
   const set = new Set(["https://" + aud.slice(2, 10).toLowerCase() + "." + APP_DOMAIN]);
   try {
-    const r = await fetch(Enclave.base + "/v1/domains/map", { mode: "cors" });
-    const m = await r.json();
-    for (const [host, dep] of Object.entries(m.domains || {}))
+    const m = await Enclave.domainsMap();
+    for (const [host, dep] of Object.entries((m && m.domains) || {}))
       if (String(dep).toLowerCase() === aud.toLowerCase())
         set.add("https://" + String(host).toLowerCase());
   } catch(e){ /* canonical subdomain remains */ }
@@ -72,6 +79,8 @@ async function mount(){
 
   if (!/^0x[0-9a-fA-F]{64}$/.test(aud))
     return fatal(body, "This sign-in link names no app. Open the app itself and use its sign-in button.");
+  // id-derived, so it is a safe "back" destination even when redirect_uri is not
+  const canonical = "https://" + aud.slice(2, 10).toLowerCase() + "." + APP_DOMAIN;
 
   body.innerHTML = card('<p class="co-note">Checking the app…</p>');
   const allowed = await allowedOrigins(aud);
@@ -81,7 +90,7 @@ async function mount(){
     if (u.protocol === "https:" && allowed.has(u.origin)) target = u.origin + u.pathname + u.search;
   } catch(e){}
   if (!target)
-    return fatal(body, "This link wants to send your sign-in somewhere that does not belong to that app, so nothing was signed. Open the app itself and use its sign-in button.");
+    return fatal(body, "This link wants to send your sign-in somewhere that does not belong to that app, so nothing was signed. Open the app itself and use its sign-in button.", canonical);
   const appHost = new URL(target).host;
 
   const go = (label, note) => {
@@ -111,7 +120,7 @@ async function mount(){
       const signature = await personalSign(message);
       await Enclave.accountLinkSiwe(message, signature);
       me = await Enclave.accountMe();
-      if (!me.wallets || !me.wallets.length) return fatal(body, "The wallet did not link. Try again.");
+      if (!me.wallets || !me.wallets.length) return fatal(body, "The wallet did not link. Try again.", target);
     }
 
     // Consent: name the app origin and the address about to be asserted. One
@@ -131,16 +140,16 @@ async function mount(){
 
     body.innerHTML = card('<p class="co-note">Signing you in…</p>');
     const out = await Enclave.ssoToken(aud, address, ttl);
-    if (!out || !out.token) return fatal(body, "The relay did not return a token. Try again.");
+    if (!out || !out.token) return fatal(body, "The relay did not return a token. Try again.", target);
 
     // FRAGMENT handoff: reaches no server log and no Referer
     body.innerHTML = card('<p class="co-note">Returning to ' + esc(appHost) + '…</p>');
     location.replace(target + "#sso=" + encodeURIComponent(out.token) +
       (state ? "&state=" + encodeURIComponent(state) : ""));
   } catch(e){
-    if (/rejected|cancelled|cancel/i.test((e && e.message) || "")) return fatal(body, "Cancelled. Nothing was signed.");
+    if (/rejected|cancelled|cancel/i.test((e && e.message) || "")) return fatal(body, "Cancelled. Nothing was signed.", target);
     showToast((e && e.message) || String(e));
-    fatal(body, (e && e.message) || String(e));
+    fatal(body, (e && e.message) || String(e), target);
   }
 }
 
