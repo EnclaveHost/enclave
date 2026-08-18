@@ -28,6 +28,13 @@
    started the flow, so a crafted link cannot sign a visitor into
    an account they never chose. Token travels in the FRAGMENT -
    no server log, no Referer.
+
+   A SIGNED-IN visitor passes through with no interaction at all:
+   the operator's explicit decision (2026-08-17). Deployments are
+   this platform's trust unit, so an app learning a signed-in
+   visitor's address is accepted, not gated on a click. Interaction
+   remains only where something genuinely forks: signing in at all,
+   linking a first wallet, choosing among several.
    ============================================================ */
 import "../../components/header/header.js";
 import "../../components/footer/footer.js";
@@ -123,22 +130,24 @@ async function mount(){
       if (!me.wallets || !me.wallets.length) return fatal(body, "The wallet did not link. Try again.", target);
     }
 
-    // Consent: name the app origin and the address about to be asserted. One
-    // account can hold several wallets; the choice is which identity the app
-    // sees, so it is the user's, not the first row's.
-    const pick = me.wallets.length > 1
-      ? '<p class="co-note"><label for="ssoAddr">Sign in as </label><select id="ssoAddr">' +
+    // No consent interstitial - the operator's explicit call (2026-08-17):
+    // every return origin is one of this platform's own deployments, and the
+    // platform accepts its apps learning a signed-in visitor's address
+    // without a click. The only interactive step left on this path is the one
+    // that genuinely forks: which identity, when the account holds several.
+    let address = me.wallets[0];
+    if (me.wallets.length > 1){
+      body.innerHTML = card(
+        '<p class="co-note">Continue to <b>' + esc(appHost) + '</b> as</p>' +
+        '<p class="co-note"><select id="ssoAddr">' +
         me.wallets.map((w) => '<option value="' + esc(w) + '">' + esc(short(w)) + '</option>').join("") +
-        '</select></p>'
-      : '<p class="co-note">Sign in as <code title="' + esc(me.wallets[0]) + '">' + esc(short(me.wallets[0])) + '</code>.</p>';
-    body.innerHTML = card(
-      '<p class="co-note">Sign in to <b>' + esc(appHost) + '</b> with your Enclave account?</p>' + pick +
-      '<p class="co-note">The app receives a short-lived signed note naming that address and this app alone - not your passkey, not your wallet, and it can authorize no transaction.</p>' +
-      '<button class="btn btn-primary" id="ssoApprove" type="button">Sign in to ' + esc(appHost) + '</button>');
-    await new Promise((r) => $("#ssoApprove").addEventListener("click", r, { once: true }));
-    const address = me.wallets.length > 1 ? $("#ssoAddr").value : me.wallets[0];
+        '</select></p>' +
+        '<button class="btn btn-primary" id="ssoApprove" type="button">Continue</button>');
+      await new Promise((r) => $("#ssoApprove").addEventListener("click", r, { once: true }));
+      address = $("#ssoAddr").value;
+    }
 
-    body.innerHTML = card('<p class="co-note">Signing you in…</p>');
+    body.innerHTML = card('<p class="co-note">Signing you in to ' + esc(appHost) + '…</p>');
     const out = await Enclave.ssoToken(aud, address, ttl);
     if (!out || !out.token) return fatal(body, "The relay did not return a token. Try again.", target);
 
