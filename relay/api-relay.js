@@ -893,6 +893,17 @@ function relayChoiceOf(configCid) {
 // here: the zone default carries it, which keeps the app reachable instead of
 // pointing its name at a box that cannot serve it. The preference is a
 // preference; reachability wins.
+// RELAY_DEFAULT_LABEL: the relay every deployment WITHOUT an explicit
+// network.relay choice resolves to. Unset preserves today's behavior (the
+// zone wildcard, i.e. whichever box serves DNS) — which is measurably wrong
+// whenever that box is far from the fleet: a request through a far relay
+// pays the relay<->enclave distance per round trip, measured at +280ms/req
+// from nan-relay (Finland) to kryptos against 58ms via the us-west relay
+// beside it. The whole fleet is one region today, so one default label is
+// the honest fix; when enclaves span regions this becomes a per-enclave map
+// keyed by the deployment's holder.
+const RELAY_DEFAULT_LABEL = (process.env.RELAY_DEFAULT_LABEL || "").trim();
+
 function relayLabels(rows, roster) {
   const by = new Map(roster.filter((r) => r.services.sni && (r.address || r.address6)).map((r) => [r.name, r]));
   const out = {}, clash = new Set();
@@ -905,7 +916,7 @@ function relayLabels(rows, roster) {
     // them silently deciding where the other's traffic goes. Neither gets an
     // override — the zone default carries the name, exactly as it does today.
     if (label in out || clash.has(label)) { delete out[label]; clash.add(label); continue; }
-    const r = by.get(relayChoiceOf(d.configCid));
+    const r = by.get(relayChoiceOf(d.configCid)) || by.get(RELAY_DEFAULT_LABEL);
     if (!r) { out[label] = null; continue; }         // placeholder: claims the label, answers nothing
     out[label] = { relay: r.name,
       ...(r.address ? { a: r.address } : {}), ...(r.address6 ? { aaaa: r.address6 } : {}) };
