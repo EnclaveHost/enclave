@@ -84,6 +84,15 @@ async function mount(){
   const state = String(q.get("state") || "");
   const ttl = parseInt(q.get("ttl") || "", 10) || undefined;
 
+  // display=popup: the app opened this page in a small window whose frame IS
+  // the chrome - drop the site's own, the card carries the whole story
+  if (q.get("display") === "popup"){
+    for (const t of ["c-header", "c-footer"]){
+      const el = document.querySelector(t);
+      if (el) el.style.display = "none";
+    }
+  }
+
   if (!/^0x[0-9a-fA-F]{64}$/.test(aud))
     return fatal(body, "This sign-in link names no app. Open the app itself and use its sign-in button.");
   // id-derived, so it is a safe "back" destination even when redirect_uri is not
