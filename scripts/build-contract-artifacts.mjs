@@ -82,8 +82,16 @@ function compile(name, viaIR, fileBase, alsoAbi, runs) {
     if (!e) throw new Error(`${file} has no contract ${also}`);
     extraAbis[also] = e.abi;
   }
+  // the struct-schema marker constant, when the contract declares one
+  // (catalogSchema, deploymentsSchema, ...). Carried into the artifact so the
+  // console can refuse migrating into a target whose ON-CHAIN marker differs
+  // from the source it just compiled - the silent failure otherwise is a
+  // target deployed from a stale tab: same selectors, previous rules, and the
+  // migration faithfully populates the wrong contract.
+  const sm = source.match(/uint256\s+public\s+constant\s+(\w*[Ss]chema\w*)\s*=\s*(\d+)/);
   return { abi: c.abi, bytecode: "0x" + c.evm.bytecode.object,
-           runtime: c.evm.deployedBytecode.object.length / 2, extraAbis };
+           runtime: c.evm.deployedBytecode.object.length / 2, extraAbis,
+           schema: sm ? { fn: sm[1], rev: Number(sm[2]) } : null };
 }
 
 // EIP-170: a contract whose RUNTIME code exceeds this cannot be deployed at all
@@ -96,7 +104,7 @@ const EIP170 = 24576;
 
 const artifacts = {};
 for (const def of DEFS) {
-  const { abi, bytecode, runtime, extraAbis } = compile(def.name, def.viaIR, def.file, def.alsoAbi, def.runs);
+  const { abi, bytecode, runtime, extraAbis, schema } = compile(def.name, def.viaIR, def.file, def.alsoAbi, def.runs);
   fs.writeFileSync(path.join(REPO, "contracts", def.name + ".abi.json"),
     JSON.stringify(abi, null, 2) + "\n");
   for (const [also, alsoAbiJson] of Object.entries(extraAbis))
@@ -117,6 +125,8 @@ for (const def of DEFS) {
     sel,
     evt,
     bytecode,
+    schemaFn: schema ? schema.fn : null,     // marker getter name (also in sel)
+    schemaRev: schema ? schema.rev : null,   // the revision THIS bytecode carries
   };
   const free = EIP170 - runtime;
   if (free < 0) throw new Error(

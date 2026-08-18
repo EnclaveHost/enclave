@@ -50,6 +50,27 @@ const handoverSel = (name) => {
 const ownerOf = (to) => _addrRead(to, CONTRACTS.EnclaveAppCatalog.sel.owner);
 const pendingOwnerOf = (to) => _addrRead(to, CONTRACTS.EnclaveAppCatalog.sel.pendingOwner);
 
+/* A migration target must run THIS console's revision of the contract. A
+   target deployed from a stale tab carries the previous bytecode silently -
+   same selectors, old rules - and the migration would faithfully populate the
+   wrong contract (it happened: a rev-7 catalog deployed and fully imported
+   minutes after rev 8 shipped). The artifact carries the schema-marker value
+   its bytecode compiled with; the target must report exactly that. */
+const targetRevOk = async (tgt, name, fail) => {
+  const c = CONTRACTS[name];
+  if (!c.schemaFn || c.schemaRev == null) return true;   // no marker on this contract
+  let rev = null;
+  try {
+    const r = await baseRpc("eth_call", [{ to: tgt, data: "0x" + c.sel[c.schemaFn] }, "latest"], { emptyRetry: true });
+    if (r && r !== "0x") rev = Number(hexBig(r));
+  } catch (_) { /* revert = no marker getter = an older revision; rev stays null */ }
+  if (rev === c.schemaRev) return true;
+  fail(`the target reports ${c.schemaFn} ${rev ?? "(no marker)"} but this console's ${name} source is revision ${c.schemaRev} - `
+     + `it was deployed from different bytecode (usually a stale tab predating the current contract). `
+     + `Hard-refresh the console, deploy a fresh target from the card above, and re-run; abandon the mismatched one.`);
+  return false;
+};
+
 /* Run a planned batch AS THE MIGRATOR: sign locally, broadcast raw, wait, next.
    One sender and a locally counted nonce — asking the chain between sends is
    what produced the "nonce too low" aborts in the wallet-driven path, because
@@ -1256,6 +1277,7 @@ class AdminConsole extends EnclaveElement {
             const st = await importState(tgt, m.contractName);
             if (!need(st.capable, "target has no import surface - deploy a fresh " + m.contractName + " from the card above")) return;
             if (!need(!st.sealed, "target's imports are permanently sealed - deploy a fresh target")) return;
+            if (!(await targetRevOk(tgt, m.contractName, (msg) => log("err", msg)))) return;
             await this._connect();
 
             const MG = await import("./migrator.js");
@@ -1276,10 +1298,29 @@ class AdminConsole extends EnclaveElement {
             if (lc(owner) !== lc(mig.address)) {
               const pend = await pendingOwnerOf(tgt);
               if (lc(pend) === lc(mig.address)) mustAccept = true;
-              else {
+              else if (lc(owner) === lc(Enclave.address)) {
+                // the CONNECTED wallet owns the target (it deployed it from
+                // the card above) - offer the one-time handover right here
+                // instead of dead-ending on instructions there is no button
+                // for. Two-step everywhere (transferOwnership/setOwner both
+                // only set pendingOwner), so nothing is lost until the
+                // migrator accepts below - and the run's last step hands
+                // ownership straight back.
+                if (!confirm(`the target is owned by your connected wallet, and the migrator must own it to import. `
+                    + `Hand it to the migrator ${mig.address} now? (two-step: it takes effect when the migrator accepts `
+                    + `in this same run, and ownership comes back to you at the end)`)) {
+                  log("err", "cancelled - the one-approval path needs the migrator to own the target");
+                  return;
+                }
+                log("p", "handing the target to the migrator - approve transferOwnership…");
+                const th = await sendTx(tgt, encCallX(handoverSel(m.contractName), [{ t: "addr", v: mig.address }]));
+                await waitReceipt(th, 90);
+                log("ok", "  ✓ handover pending - the migrator accepts it after funding");
+                mustAccept = true;
+              } else {
                 log("err", `the target is owned by ${owner}, so the migrator cannot import into it. `
-                         + `Hand it over once with the Migrate button's wallet (transferOwnership(${mig.address})), `
-                         + `or deploy a fresh target from the migrator.`);
+                         + `Hand it over once with that owner's wallet (transferOwnership(${mig.address})), `
+                         + `or deploy a fresh target and re-run.`);
                 return;
               }
             }
@@ -1360,6 +1401,7 @@ class AdminConsole extends EnclaveElement {
             const st = await importState(tgt, m.contractName);
             if (!need(st.capable, "target has no import surface - deploy a fresh " + m.contractName + " from the card above")) return;
             if (!need(!st.sealed, "target's imports are permanently sealed - deploy a fresh target")) return;
+            if (!(await targetRevOk(tgt, m.contractName, (msg) => log("err", msg)))) return;
             log("p", "reading the target to plan the delta…");
             const after = await m.read(tgt);
             const opts = await migOpts();
