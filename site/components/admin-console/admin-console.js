@@ -1294,16 +1294,19 @@ class AdminConsole extends EnclaveElement {
             // there is anything left to import: a target that is already
             // complete but still pending to the migrator must still be
             // accepted, or the handover below reverts.
-            const need = await MG.runCost(mustAccept ? [...txs, { gas: 80_000 }] : txs);
-            if (need > 0n && bal < need) {
+            // `cost`, NOT `need`: a `const need` here would shadow the panel's
+            // need() helper across this WHOLE block (hoisted TDZ), so the
+            // guard calls at the top would throw before-initialization
+            const cost = await MG.runCost(mustAccept ? [...txs, { gas: 80_000 }] : txs);
+            if (cost > 0n && bal < cost) {
               // Top the migrator up FROM HERE rather than making the operator
               // copy an address and guess an amount. The cost is only knowable
               // once the plan exists, which is why this sits after planning.
               // EIP-1559 reserves maxFee x gas, so that reservation — not the
               // expected spend — is what has to be covered.
-              const top = need - bal + need / 5n;          // 20% over, for the re-price and the tail
+              const top = cost - bal + cost / 5n;          // 20% over, for the re-price and the tail
               log("p", `funding the migrator with ${(Number(top) / 1e18).toFixed(5)} ETH - approve the transfer `
-                     + `(reserves ${(Number(need) / 1e18).toFixed(5)}; the unspent remainder comes back at the end)…`);
+                     + `(reserves ${(Number(cost) / 1e18).toFixed(5)}; the unspent remainder comes back at the end)…`);
               const fh = await sendTx(mig.address, "0x", "0x" + top.toString(16));
               await waitReceipt(fh, 90);
               bal = await MG.migratorBalance(mig.address);
