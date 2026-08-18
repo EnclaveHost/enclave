@@ -65,6 +65,7 @@ const REGISTRY = cliDefault("REGISTRY_ADDRESS");
 const REG_ABI = JSON.parse(fs.readFileSync(path.join(REPO, "contracts", "EnclaveRegistry.abi.json"), "utf8"));
 const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913".toLowerCase();
 const DEP_CREATED_TOPIC = "0x3b201eb11e77934b296f908775fc0a82679683fd83a1232579f1014bcf7d3239";
+const APPROVAL_SET_TOPIC = keccak256(toHex("VersionApprovalSet(bytes32,uint256,uint8)"));
 const ID = "0x" + "ab".repeat(32);                     // the id the stub chain mints
 const CID = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
 const APP_ID = "0x" + "cd".repeat(32);
@@ -284,6 +285,13 @@ function rpcServer() {
           const tx = S.txs.find((t) => t.hash === params[0]);
           const logs = tx?.functionName === "create"
             ? [{ address: DEPLOYMENTS, topics: [DEP_CREATED_TOPIC, ID, dep32(OWNER)], data: "0x",
+                 blockNumber: "0x100", blockHash: "0x" + "12".repeat(32), transactionHash: params[0],
+                 transactionIndex: "0x0", logIndex: "0x0", removed: false }]
+            // rev-9 catalog: an owner publish emits the VersionApprovalSet it
+            // minted inside the publish tx (the CLI reads approval off the receipt)
+            : tx?.functionName?.startsWith("publishVersion") && S.autoApprove
+            ? [{ address: CATALOG, topics: [APPROVAL_SET_TOPIC, APP_ID, "0x" + "0".repeat(64)],
+                 data: "0x" + "1".padStart(64, "0"),
                  blockNumber: "0x100", blockHash: "0x" + "12".repeat(32), transactionHash: params[0],
                  transactionIndex: "0x0", logIndex: "0x0", removed: false }]
             : [];
@@ -738,6 +746,17 @@ test("publish: validates the component, pins, cuts a catalog version", async () 
   assert.deepEqual([...res], [0, 0, 256, 10]);              // default resource spec
   assert.equal(ports, "");
   assert.match(r.out, /approval is pending/);
+});
+
+test("publish: reads an owner publish's auto-approval off the receipt (catalog rev 9)", async () => {
+  S.txs.length = 0; S.numVersions = 0n; S.autoApprove = true;
+  const wasm = path.join(confDir, "app.wasm");
+  fs.writeFileSync(wasm, Buffer.from([0x00, 0x61, 0x73, 0x6d, 0x0d, 0x00, 0x01, 0x00]));
+  const r = await run(["publish", wasm, "--slug", "hello-world"]);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /approved on publish/);
+  assert.ok(!/approval is pending/.test(r.out), "must not tell the owner to wait for review");
+  S.autoApprove = false;
 });
 
 /* ---- the publisher-fee surface (rev-4 ledger + rev-5 catalog) ------------ */

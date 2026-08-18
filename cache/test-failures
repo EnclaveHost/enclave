@@ -1,1 +1,1 @@
-test_cidPathKeepsGlobalWasmCidOwnership|test_grantOverridesLiveClaim
+test_autoApprovalNeverBypassesTheClaimCheck|test_ownerCanStillUnwindTheirOwnRuling

@@ -59,6 +59,9 @@ pragma solidity ^0.8.20;
 ///     signs a setApproval(..., Approved) transaction; Rejected is a standing
 ///     "no". A new release starts Pending again — approval is of a specific
 ///     VERSION (its bytes, config, and ports together), never of a lineage.
+///     ONE exception (rev 9): a version the owner THEMSELVES publish starts
+///     Approved — the publish tx is the same key signing the same record, so
+///     a separate ruling on their own release added no trust, only ceremony.
 ///   - Deployments reference a chosen version as its on-chain RECORD:
 ///     `appRef = catalog://<appId>/<versionIndex>`. Runners resolve it with
 ///     `getApp` + `getVersion` and take EVERYTHING approval covered from the
@@ -174,9 +177,24 @@ contract EnclaveAppCatalog {
     ///         publishing the same bytes (see _reserveCid). Publish
     ///         pre-flights that mirror the claim client-side must gate the
     ///         lenient rule on >= 8, or they will wave through a publish an
-    ///         older catalog reverts. Gates: struct reads >= 4, fees >= 5,
-    ///         transfers >= 6, config CIDs >= 7, live claims >= 8.
-    uint256 public constant catalogSchema = 8;
+    ///         older catalog reverts.
+    ///         Revision 9 keeps every tuple AND selector byte-for-byte once
+    ///         more (no layout or ABI change) and changes only publish-time
+    ///         STATE: a version the OWNER publishes starts Approved instead
+    ///         of Pending, emitting the VersionApprovalSet it minted so
+    ///         log-only indexers stay honest (see importVersions' re-emit
+    ///         note). The publish signature and the approval signature were
+    ///         the same key ruling on the same record — the separate
+    ///         setApproval tap was pure ceremony, and skipping it moves no
+    ///         trust boundary; every other publisher still starts Pending.
+    ///         Because approval also binds CID claims (rev 8), an owner
+    ///         publish mints its claim in the same transaction — but
+    ///         _reserveCid runs BEFORE the ruling is written, so the owner
+    ///         still cannot list bytes another app holds live (grantCid
+    ///         remains that override). Gates: struct reads >= 4, fees >= 5,
+    ///         transfers >= 6, config CIDs >= 7, live claims >= 8, owner
+    ///         auto-approval >= 9.
+    uint256 public constant catalogSchema = 9;
 
     uint256 private constant MAX_SLUG = 40;
     uint256 private constant MAX_NAME = 80;
@@ -414,7 +432,12 @@ contract EnclaveAppCatalog {
         v.cpuGflops = res[3];
         v.createdAt = uint64(block.timestamp);
         v.ports = ports;
-        v.approval = APPROVAL_PENDING;
+        // rev 9: the owner's publish IS the owner's ruling — the key that
+        // would sign setApproval(Approved) just signed these exact bytes,
+        // config, and ports, so their own release skips the Pending ceremony
+        // (and its CID claim binds from this block; _reserveCid already ran).
+        // Everyone else still lands Pending until the owner rules.
+        v.approval = msg.sender == owner ? APPROVAL_APPROVED : APPROVAL_PENDING;
         index = vs.length - 1;
         _cidRefs[cidKey] = CidRef({ appId: appId, index1: uint32(index + 1) });
 
@@ -423,6 +446,9 @@ contract EnclaveAppCatalog {
         a.updatedAt = uint64(block.timestamp);
         a.active = true;
         emit VersionPublished(appId, index, version, cid);
+        // log-only indexers replay approval from events (importVersions has
+        // the same duty) — an auto-approved publish must emit the ruling it minted
+        if (msg.sender == owner) emit VersionApprovalSet(appId, index, APPROVAL_APPROVED);
     }
 
     /// @dev A CID belongs to its NEWEST listing, and the claim binds only while
@@ -524,7 +550,10 @@ contract EnclaveAppCatalog {
     ///      VERSION — the ruling covers its bytes, config, and ports together,
     ///      and a new release of the same app starts Pending and must be
     ///      re-approved (even a re-list of the same bytes: config changes
-    ///      behavior, so it is re-reviewed like any release).
+    ///      behavior, so it is re-reviewed like any release). The owner's own
+    ///      releases are the rev-9 exception — they publish pre-Approved (the
+    ///      publish signature IS this signature) — and this call remains the
+    ///      way to unwind that ruling (Pending/Rejected) like any other.
     function setApproval(bytes32 appId, uint256 index, uint8 status) external {
         require(msg.sender == owner, "!owner");
         require(_exists[appId], "unknown app");
@@ -823,7 +852,8 @@ contract EnclaveAppCatalog {
     ///         directly — a CID names bytes, and versions sharing bytes can differ
     ///         entirely in approved config. A CID its own app re-listed resolves to
     ///         the NEWEST listing (each re-list starts approval at Pending again —
-    ///         a metadata change is re-reviewed like any release).
+    ///         a metadata change is re-reviewed like any release; owner-published
+    ///         re-lists excepted, rev 9).
     function cidStatus(string calldata cid) external view returns (
         bool listed, bytes32 appId, uint256 index, uint8 approval, bool yanked, bool appActive,
         uint32[4] memory res
