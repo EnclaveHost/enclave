@@ -5170,6 +5170,28 @@ app.get("/v1/admin/gpu", async (req, res) => {
   }
 });
 
+// Order an MPS bounce: the reclaim lever for device memory a dead tenant
+// generation's MPS servers still hold (the 2026-08-18 residue took a full CVM
+// restart only because nothing could order this). The manager drops the order
+// on the shared pipe-dir volume; the mps-control daemon consumes it within
+// seconds, with its own cooldown against back-to-back orders. EVERY live GPU
+// tenant's CUDA context dies with the bounce and this supervisor respawns
+// them - an incident action, gated like the other admin levers.
+app.post("/v1/admin/gpu/bounce-mps", async (req, res) => {
+  if (!ADMIN_TOKEN || !safeEqStr(req.headers["x-admin-token"], ADMIN_TOKEN))
+    return fail(res, 404, "not_found", "Not found.");
+  if (!IS_GPU) return fail(res, 404, "no_gpu", "This is a CPU-only enclave: no GPU is attached.");
+  if (PROVISION_BACKEND !== "vm") return fail(res, 404, "no_vm_backend", "No wasm-manager on this backend.");
+  try {
+    const r = await vmReq("POST", "/gpu/bounce-mps",
+      { reason: (req.body && req.body.reason) || "admin api" }, 15000);
+    console.log(`[admin] MPS bounce ordered (${r.status})`);
+    res.status(r.status).json(r.body);
+  } catch (e) {
+    fail(res, 502, "manager_unreachable", e.message);
+  }
+});
+
 app.delete("/v1/deployments/:id", authed, async (req, res) => {
   const rec = deployments.get(req.params.id);
   if (!rec || rec.owner !== req.address) return fail(res, 404, "not_found", "No such deployment.");
