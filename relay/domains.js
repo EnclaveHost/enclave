@@ -447,15 +447,35 @@ async function edgeAddrs() {
   return _edge.addrs;
 }
 
-// One record's three lookups, then the pure verdict.
+// The zone answers PER-DEPLOYMENT now (a fleet-near relay default moves
+// deployment labels to a different box without moving synthetic ones), so
+// "our edge" for one record is wherever ITS OWN subdomain answers. The
+// global probe label alone learned the old relay and struck every apex
+// that followed a moved deployment - eyesoff.ai went dark exactly this way
+// on 2026-08-17, demoted while its DNS pointed at the RIGHT box. The probe
+// stays in the union so a domain still pointed at the previous relay keeps
+// verifying through a migration.
+const _tgtAddrs = new Map();                               // target -> { addrs, at }
+async function targetAddrs(target) {
+  const hit = _tgtAddrs.get(target);
+  if (hit && Date.now() - hit.at < EDGE_TTL_MS && hit.addrs.length) return hit.addrs;
+  const [a4, a6] = await Promise.all([doh(target, TYPE.A), doh(target, TYPE.AAAA)]);
+  const addrs = [...dataOf(a4?.answers, TYPE.A), ...dataOf(a6?.answers, TYPE.AAAA)];
+  if (addrs.length) { _tgtAddrs.set(target, { addrs, at: Date.now() }); return addrs; }
+  return hit ? hit.addrs : [];                             // keep the last known set, edgeAddrs-style
+}
+
+// One record's lookups, then the pure verdict.
 async function checkRecord(rec) {
   const target = routingTarget(labelFor(rec.deploymentId));
-  const [txt, route, caa, edge] = await Promise.all([
+  const [txt, route, caa, probe, tgt] = await Promise.all([
     doh(challengeHost(rec.hostname), TYPE.TXT),
     doh(rec.hostname, TYPE.A),                 // the answer carries the CNAME chain too
     doh(rec.hostname, TYPE.CAA),
     edgeAddrs(),
+    targetAddrs(target),
   ]);
+  const edge = [...new Set([...probe, ...tgt])];
   // A null here means every resolver errored — OUR problem, not the customer's.
   // NXDOMAIN comes back as a real answer, so a genuinely missing record still
   // counts; only an unreachable resolver is indeterminate. Either lookup is
