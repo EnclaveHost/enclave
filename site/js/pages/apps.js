@@ -1042,44 +1042,57 @@ async function publishApp(){
   // Pre-flight against the loaded catalog. Both cases REVERT on-chain, which a
   // wallet surfaces as a gas-estimation hang and the form as a bare timeout -
   // refuse here with the actual reason instead.
-  // 1) A CID belongs to the app that FIRST listed it: no other app can ever
-  //    list the same bytes. The owning app re-listing its own CID is the
-  //    metadata-fix path (same bytes, new config/specs/ports) and is allowed;
-  //    each version is its own deployable record (deploys reference it as
-  //    catalog://appId/index, so shared bytes never make versions ambiguous).
+  // 1) The CID claim, mirrored at THIS catalog's revision. Since rev 8 a claim
+  //    binds only while its NEWEST listing is LIVE - owner-approved and not
+  //    yanked - so a rejected, yanked, or still-pending listing blocks nothing
+  //    and the error must not fire on it (the chain consults only the listing
+  //    its reverse-lookup points at, which is the newest one). Below rev 8 the
+  //    claim is absolute: the first lister owns the bytes forever. Either way
+  //    the owning app re-listing its own CID is the metadata-fix path (same
+  //    bytes, new config/specs/ports) and is allowed; each version is its own
+  //    deployable record (deploys reference it as catalog://appId/index, so
+  //    shared bytes never make versions ambiguous).
   if (STORE.apps){
     const me = (Enclave.address || "").toLowerCase();
-    for (const a of STORE.apps){
-      const hit = (a.versions || []).find(v => v.cid === cid);
-      if (!hit) continue;
-      const sameApp = a.slug === slug && me && (a.publisher || "").toLowerCase() === me;
-      if (!sameApp){
-        const claim = "this exact .wasm is already on-chain as " + a.slug + " " + hit.version
+    // find the newest listing of these bytes across every app - the one the
+    // chain's reverse-lookup points at (pre-rev-8 catalogs cannot hold
+    // cross-app duplicates, so newest and first coincide there)
+    let holder = null, hit = null;
+    for (const a of STORE.apps)
+      for (const v of a.versions || [])
+        if (v.cid === cid && (!hit || Number(v.createdAt) >= Number(hit.createdAt))){ holder = a; hit = v; }
+    const sameApp = hit && holder.slug === slug && me && (holder.publisher || "").toLowerCase() === me;
+    const claimLive = hit && (rev < 8 || (!hit.yanked && Number(hit.approval) === APPROVAL.approved));
+    if (hit && !sameApp && claimLive){
+      const claim = rev >= 8
+        ? "this exact .wasm is already live on-chain as " + holder.slug + " " + hit.version
+          + " - bytes stay claimed while an approved release of another app lists them."
+        : "this exact .wasm is already on-chain as " + holder.slug + " " + hit.version
           + " - a CID belongs to the app that first listed it.";
-        // The catalog owner holds the on-chain remedy: grantCid authorizes ONE
-        // other app to list an already-claimed CID (bench builds and squatters
-        // both land here). There is no grant getter, so the chain stays the
-        // arbiter - an ungranted publish still reverts with the clear message
-        // in the catch below. Offered only when the TARGET app already exists
-        // under the connected wallet (its appId is on-chain; a brand-new slug
-        // has none yet - publish it once with different bytes first).
-        const mineApp = STORE.apps.find(x => x.slug === slug && me && (x.publisher || "").toLowerCase() === me);
-        if (STORE.owner && me === STORE.owner && mineApp && mineApp.appId){
-          if (!confirm(claim + "\n\nAs catalog owner you can grant this CID to " + slug
-              + " and publish these exact bytes (grantCid, one tx), or cancel and rebuild so the bytes change.\n\nSend the grant now, then continue publishing?"))
-            return pubStatus(claim + " Publish the fix as a new version of that app, or rebuild so the bytes (and CID) change.", true);
-          pubStatus("granting CID to " + slug + "…");
-          await ensureCatalogChain();
-          const gh = await sendTx(APP_CATALOG_ADDRESS,
-            encCall(CAT_SEL.grantCid, [{t:"str",v:cid},{v:mineApp.appId}]));
-          pubStatus("grant sent · " + gh + " · waiting for confirmation…");
-          await waitReceipt(gh);
-          pubStatus("CID granted ✓ continuing publish…");
-        } else {
+      // The catalog owner holds the on-chain remedy: grantCid authorizes ONE
+      // other app to list an already-claimed CID (bench builds and squatters
+      // both land here; since rev 8 rejecting/yanking the holding release
+      // also frees the bytes, so the grant is for when that release should
+      // stay live). There is no grant getter, so the chain stays the
+      // arbiter - an ungranted publish still reverts with the clear message
+      // in the catch below. Offered only when the TARGET app already exists
+      // under the connected wallet (its appId is on-chain; a brand-new slug
+      // has none yet - publish it once with different bytes first).
+      const mineApp = STORE.apps.find(x => x.slug === slug && me && (x.publisher || "").toLowerCase() === me);
+      if (STORE.owner && me === STORE.owner && mineApp && mineApp.appId){
+        if (!confirm(claim + "\n\nAs catalog owner you can grant this CID to " + slug
+            + " and publish these exact bytes (grantCid, one tx), or cancel and rebuild so the bytes change.\n\nSend the grant now, then continue publishing?"))
           return pubStatus(claim + " Publish the fix as a new version of that app, or rebuild so the bytes (and CID) change.", true);
-        }
+        pubStatus("granting CID to " + slug + "…");
+        await ensureCatalogChain();
+        const gh = await sendTx(APP_CATALOG_ADDRESS,
+          encCall(CAT_SEL.grantCid, [{t:"str",v:cid},{v:mineApp.appId}]));
+        pubStatus("grant sent · " + gh + " · waiting for confirmation…");
+        await waitReceipt(gh);
+        pubStatus("CID granted ✓ continuing publish…");
+      } else {
+        return pubStatus(claim + " Publish the fix as a new version of that app, or rebuild so the bytes (and CID) change.", true);
       }
-      break;
     }
     // 2) version labels are immutable history within an app (your namespace)
     const mine = STORE.apps.find(a => a.slug === slug && Enclave.address && (a.publisher || "").toLowerCase() === Enclave.address.toLowerCase());
@@ -1156,7 +1169,9 @@ async function publishApp(){
   } catch(e){
     const m = e.message || String(e);
     pubStatus(/cid (already listed|listed by another app)/i.test(m)
-      ? "rejected on-chain: this CID already belongs to another app (a CID is owned by the app that first listed it) - publish the fix under that app, or rebuild so the bytes change"
+      ? (rev >= 8
+        ? "rejected on-chain: a live (approved, not yanked) release of another app claims this CID - publish the fix under that app, ask the catalog owner to free or grant the bytes, or rebuild so the bytes change"
+        : "rejected on-chain: this CID already belongs to another app (a CID is owned by the app that first listed it) - publish the fix under that app, or rebuild so the bytes change")
       : m, true);
   }
   finally { btn.disabled = false; btn.textContent = lbl; }
