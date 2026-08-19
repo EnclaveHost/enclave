@@ -33,6 +33,34 @@ CID="$(ipfs add -r --hidden -Q --cid-version 1 "$SITE")"        # CIDv1/base32 f
 ipfs pin add "$CID" >/dev/null
 echo "[deploy] pinned $CID"
 
+# --- hand the new root to the enclave ipns-publisher ------------------------
+# The site IPNS record is now ALSO signed + republished from inside an attested
+# enclave, whose in-TEE key custody is meant to replace this box's plaintext
+# key. That app PULLS the current root from https://ipfs.enclave.host/site-root
+# (a file only this pipeline writes), so drop the pointer here. The nudge makes
+# it refresh immediately instead of on its own republish timer; without the
+# nudge env it still catches up on that timer. Best-effort: a publisher that is
+# unreachable must never fail an otherwise-good site deploy. Once the enclave
+# publisher is proven across a few deploys, the `ipfs name publish` below can be
+# retired so the key lives only in attestation. See enclave-ipfs-host-cutover.
+SITEROOT_FILE="${SITEROOT_FILE:-/opt/enclave-gateway/pub/site-root.txt}"
+if printf '/ipfs/%s\n' "$CID" > "$SITEROOT_FILE" 2>/dev/null; then
+  echo "[deploy] site-root pointer -> $SITEROOT_FILE (/ipfs/$CID)"
+else
+  echo "[deploy] WARN could not write $SITEROOT_FILE; the enclave publisher keeps its last root" >&2
+fi
+[ -r /etc/nan-deploy.env ] && . /etc/nan-deploy.env
+if [ -n "${IPNSPUB_ORIGIN:-}" ] && [ -n "${IPNSPUB_KEY:-}" ]; then
+  if curl -fsS -m 20 -X POST "https://${IPNSPUB_ORIGIN}/publish?key=${IPNSPUB_KEY}" >/dev/null 2>&1; then
+    echo "[deploy] nudged enclave ipns-publisher ($IPNSPUB_ORIGIN)"
+  else
+    echo "[deploy] WARN enclave ipns-publisher nudge failed; it will refresh on its own timer" >&2
+  fi
+fi
+
+# NOTE (transition): kubo still signs+publishes the same name below. Both
+# publishers carry the SAME current root, so they agree; retire this block only
+# once the enclave publisher is confirmed to track deploys on its own.
 echo "[deploy] publishing /ipfs/$CID -> /ipns/$IPNS_NAME (can take ~30-60s) ..."
 ipfs name publish --key="$KEY" --lifetime=72h --ttl=30s "/ipfs/$CID"
 
