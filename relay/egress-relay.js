@@ -142,12 +142,25 @@ function handleOpen(control, origin, { cid, host, port, source }) {
       const ws = new WebSocket(`${wsOrigin(origin)}/x/egress/${cid}`, { headers: AUTH, perMessageDeflate: false });
       const wsStream = createWebSocketStream(ws);
       const hs = setTimeout(() => { try { ws.terminate(); } catch {} }, DIAL_MS);
-      const close = () => { clearTimeout(hs); try { dst.destroy(); } catch {} try { ws.terminate(); } catch {} };
-      dst.once("close", () => { connCount--; close(); });
-      dst.on("error", close);
-      wsStream.on("error", close); wsStream.on("close", close);
-      ws.on("error", close);
-      ws.on("unexpected-response", (_q, res) => { console.error(`[egress-relay] data WS ${cid} refused (HTTP ${res.statusCode})`); close(); });
+      let counted = true;
+      const uncount = () => { if (counted) { counted = false; connCount--; } };
+      // Hard teardown is for ERRORS ONLY. On a *clean* close, pipe()'s graceful
+      // end() has already flushed the buffered payload, so we must let the WS
+      // drain — never ws.terminate() it. terminate() on a clean dst close dropped
+      // whatever response bytes were still queued in the WS, truncating R2 reads
+      // mid-body ("short body: X of Y") every time R2 closed (connection: close)
+      // with data still in flight to the enclave. That's the fleet-egress → S3
+      // truncation that broke the s3-ipfs-adapter's index.
+      const abort = () => { clearTimeout(hs); uncount(); try { dst.destroy(); } catch {} try { ws.terminate(); } catch {} };
+      dst.on("error", abort);
+      wsStream.on("error", abort);
+      ws.on("error", abort);
+      ws.on("unexpected-response", (_q, res) => { console.error(`[egress-relay] data WS ${cid} refused (HTTP ${res.statusCode})`); abort(); });
+      // Clean closes: dst end already end()ed wsStream (flush + graceful WS close),
+      // ws end already end()ed dst. Just account, and reap the far side once the
+      // graceful close has completed.
+      dst.once("close", uncount);
+      ws.on("close", () => { uncount(); try { dst.destroy(); } catch {} });
       ws.on("open", () => { clearTimeout(hs); dst.pipe(wsStream); wsStream.pipe(dst); dst.resume(); });
     });
   }).catch(() => fail("denied"));
