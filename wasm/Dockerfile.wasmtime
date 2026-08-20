@@ -304,6 +304,28 @@ COPY wasmtime-set-threads.patch /tmp/
 RUN git apply --check /tmp/wasmtime-set-threads.patch \
  && git apply /tmp/wasmtime-set-threads.patch
 
+# enclave socket level-check: kernel truth beats a stale readiness cache — THE
+# tunnel-stall fix (risc-box, 2026-08-20; full evidence in the .patch header).
+# tokio's edge-cached readiness can lose an edge and then say "not ready"
+# indefinitely about a socket the kernel would serve — a socket that STAYS
+# writable generates no new edges, so nothing self-heals — freezing a sync
+# guest's whole socket set 0.5-14s while its event loop stays healthy. On the
+# paths a sync guest spins on (tcp send/recv and their readiness polls), when
+# the cache says "not ready", ask the kernel directly (nonblocking send/recv,
+# zero-timeout poll(2)) before believing it; the cache stays the fast path and
+# the extra syscall happens only where the old code stalled. Measured locally:
+# SET-guest probe stalls went 59/10min (worst 1.2s) -> 0 (worst 14ms), with
+# 2,098 write + 64 read cache-vs-kernel divergences absorbed in 5 minutes.
+# Also ships the ENCLAVE_SOCKDBG=1 gauges (host env, off by default): the
+# divergence counters, empty-read streaks with a FIONREAD verdict, and a 10ms
+# runtime heartbeat that logs scheduling gaps — fleet diagnosis without ss or
+# strace inside a CVM. No new deps (rustix event/net were already enabled).
+# Order-independent of the SET patch (verified applying both ways); kept last
+# so its diff context matches the fully-patched tree it was measured on.
+COPY wasmtime-socket-level-check.patch /tmp/
+RUN git apply --check /tmp/wasmtime-socket-level-check.patch \
+ && git apply /tmp/wasmtime-socket-level-check.patch
+
 # System-linked ORT: the binary NEEDS libonnxruntime.so.1 at runtime; ship it
 # plus the two provider dylibs the CUDA EP dlopens (providers_shared is the
 # dispatcher). providers_tensorrt is deliberately not shipped (never
