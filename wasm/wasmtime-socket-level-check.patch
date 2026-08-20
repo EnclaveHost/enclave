@@ -34,11 +34,22 @@ truth cannot lie, spurious readiness just costs one syscall, and both the
 sync (noop-waker) and async (real-waker) callers keep their contracts: the
 waker is always registered before the fallback answers Ready.
 
-Observed oddity, recorded honestly: poll_write_ready(noop) reports Pending
-while try_write microseconds later succeeds - tokio's two readiness views
-disagree with EACH OTHER, not just with the kernel. The level check
-sidesteps whichever internal inconsistency that is; upstreaming a tokio-
-level diagnosis is follow-up work, this patch makes the fleet honest now.
+THE NAMED MECHANISM (proven by re-polling under tokio::task::unconstrained
+at each divergence - the sockdbg write-ready line carries the verdict):
+coop_was_the_blocker=true in 1,004 of 1,006 divergences. The CLI runs the
+whole guest inside one runtime.block_on, so every sync hostcall shares that
+poll's tokio COOP BUDGET (128); tokio's Registration::poll_ready - the path
+under p2 check-write - gates on coop::poll_proceed BEFORE consulting
+readiness, so an exhausted budget makes EVERY socket's check-write report
+"not ready" collectively until the next fiber yield resets the budget
+(that's the whole-socket-set freeze and the same-instant release).
+try_read/try_write have no coop gate, which is why reads kept working and
+why the kernel always disagreed. The remaining ~0.2% (and the read-side
+cases) are genuine cache lag - an edge awaiting driver dispatch. The level
+check neutralizes BOTH classes; wrapping the sync shims in unconstrained
+would only fix the first. Upstream-report material for wasmtime: sync-mode
+host shims poll coop-gated tokio APIs with noop wakers from inside the
+CLI's block_on budget.
 
 Also carries ENCLAVE_SOCKDBG=1 (host process env, off by default, zero cost
 when off): logs read/write divergences, >=200ms empty-read streaks with a
@@ -156,7 +167,7 @@ index 4d072d5..29aae2d 100644
  
  /// A helper struct which implements [`HasData`] for the `wasi:sockets` APIs.
 diff --git a/crates/wasi/src/sockets/tcp.rs b/crates/wasi/src/sockets/tcp.rs
-index e913116..2b29f6b 100644
+index e913116..7ae4872 100644
 --- a/crates/wasi/src/sockets/tcp.rs
 +++ b/crates/wasi/src/sockets/tcp.rs
 @@ -369,6 +369,8 @@ impl TcpSocket {
@@ -168,7 +179,7 @@ index e913116..2b29f6b 100644
                  })
              }
              TcpState::Closed(err) => Err(*err),
-@@ -613,12 +615,63 @@ impl TcpListenStream {
+@@ -613,12 +615,76 @@ impl TcpListenStream {
      }
  }
  
@@ -217,9 +228,22 @@ index e913116..2b29f6b 100644
 +            Poll::Pending => {
 +                if kernel_ready(&*self.inner, rustix::event::PollFlags::OUT) {
 +                    if sockdbg() {
++                        // Diagnosis of WHICH lie this is: re-poll with tokio's
++                        // coop budget bypassed. Ready here = the Pending came
++                        // from coop::poll_proceed (the guest's block_on budget
++                        // exhausted), not from the readiness cache itself.
++                        let coop_was_the_blocker = {
++                            let inner = self.inner.clone();
++                            let fut = tokio::task::unconstrained(std::future::poll_fn(
++                                move |cx| inner.poll_write_ready(cx),
++                            ));
++                            let mut fut = std::pin::pin!(fut);
++                            fut.as_mut().poll(&mut crate::sockets::noop_cx()).is_ready()
++                        };
 +                        eprintln!(
-+                            "[sockdbg {}] write-ready DIVERGENCE: kernel POLLOUT, cache pending peer={}",
++                            "[sockdbg {}] write-ready DIVERGENCE: kernel POLLOUT, cache pending coop_was_the_blocker={} peer={}",
 +                            now_ms(),
++                            coop_was_the_blocker,
 +                            self.dbg_peer(),
 +                        );
 +                    }
@@ -233,7 +257,7 @@ index e913116..2b29f6b 100644
      }
  
      pub(crate) fn poll_write(
-@@ -630,6 +683,35 @@ impl TcpSendStream {
+@@ -630,6 +696,35 @@ impl TcpSendStream {
              return match self.inner.try_write(buf) {
                  Ok(n) => Poll::Ready(Ok(n)),
                  Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
@@ -269,7 +293,7 @@ index e913116..2b29f6b 100644
                      match self.inner.poll_write_ready(cx) {
                          Poll::Ready(Ok(())) => continue,
                          Poll::Ready(Err(e)) => Poll::Ready(Err(e.into())),
-@@ -657,12 +739,129 @@ impl Drop for TcpSendStream {
+@@ -657,12 +752,129 @@ impl Drop for TcpSendStream {
      }
  }
  
@@ -400,7 +424,7 @@ index e913116..2b29f6b 100644
      }
  
      pub(crate) fn poll_read(
-@@ -676,12 +875,48 @@ impl TcpReceiveStream {
+@@ -676,12 +888,48 @@ impl TcpReceiveStream {
          loop {
              return match self.inner.try_read(buf) {
                  Ok(0) => Poll::Ready(Ok(0)),
