@@ -42,7 +42,34 @@ export const Enclave = {
      calls the relay routes to a specific enclave. Nothing is interchangeable —
      presenting the wrong one reads as "Missing or invalid session". */
   enclaveTokens: {},
-  sessionFor(name){ return this.enclaveTokens[String(name || "").toLowerCase()] || null; },
+  /* A session also names ONE WALLET (its JWT `sub`), and that binding is the
+     dangerous one to drop: after an account switch in the wallet, a cached
+     token still VERIFIES on its box — so presenting it doesn't fail as
+     unauthorized, it succeeds as the PREVIOUS account, and every owner gate
+     then answers 404 "No such deployment." for records the connected account
+     owns (found 2026-08-20: /authorize skipped the sign-in because a stale
+     session existed for the box, minted an app token as the old wallet, and
+     the enclave refused the owner's own private app). A token whose sub can't
+     be read is treated as wallet-agnostic — the guard rejects only a PROVEN
+     mismatch, so opaque legacy tokens keep working. */
+  _tokenSub(tok){
+    try {
+      let s = String(tok).split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      s += "=".repeat((4 - s.length % 4) % 4);
+      const p = JSON.parse(atob(s));
+      return typeof p.sub === "string" ? p.sub.toLowerCase() : null;
+    } catch(e){ return null; }
+  },
+  _forWallet(tok){
+    const sub = this._tokenSub(tok);
+    return !sub || !this.address || sub === String(this.address).toLowerCase();
+  },
+  sessionFor(name){
+    const s = this.enclaveTokens[String(name || "").toLowerCase()] || null;
+    // another wallet's session reads as signed-out, NOT as an error: the
+    // caller then runs SIWE with the connected wallet and overwrites it
+    return s && s.token && !this._forWallet(s.token) ? null : s;
+  },
   authedFor(name){ const s = this.sessionFor(name); return !!(s && s.token && this._sendable(s.base)); },
   setSessionFor(name, token){
     const k = String(name || "").toLowerCase();
@@ -78,7 +105,10 @@ export const Enclave = {
       // a call the relay routes to a specific box needs THAT box's session.
       // `opts.enclave` names it; without one we're on the sticky box's session,
       // which is right for fleet-wide calls and wrong for per-deployment ones.
-      const tok = opts.enclave ? this.sessionFor(opts.enclave) : { token: this.token, base: this.tokenBase };
+      // Either way it must belong to the CONNECTED wallet (_forWallet): the
+      // previous account's token verifies fine and acts as that account.
+      const tok = opts.enclave ? this.sessionFor(opts.enclave)
+                : this._forWallet(this.token) ? { token: this.token, base: this.tokenBase } : null;
       if (!tok || !tok.token) throw new EnclaveError(opts.enclave
         ? `Not signed in to ${opts.enclave}. Sessions are per-enclave — sign in again to act on a deployment hosted there.`
         : "Not signed in. Connect your wallet first.", 401);
@@ -176,13 +206,15 @@ export const Enclave = {
      SIWE stays for what's actually private: logs, attestation, private apps). */
   createDeployment(body){ return this._req("POST", "/deployments", { auth: true, body }); },
   listDeployments(query){
-    if (this.token) return this._req("GET", "/deployments", { auth: true, query });
+    // a sticky session minted for another account would scope the fan-out AND
+    // the ledger merge to THAT wallet - fall back to the public ?owner= read
+    if (this.token && this._forWallet(this.token)) return this._req("GET", "/deployments", { auth: true, query });
     if (!this.address) throw new EnclaveError("Connect your wallet first.", 401);
     return this._req("GET", "/deployments", { query: { ...(query || {}), owner: this.address } });
   },
   getDeployment(id){
     const path = "/deployments/" + encodeURIComponent(id);
-    if (this.token) return this._req("GET", path, { auth: true });
+    if (this.token && this._forWallet(this.token)) return this._req("GET", path, { auth: true });
     return this._req("GET", path, { query: this.address ? { owner: this.address } : {} });
   },
   /* Trade this box's session for an app-origin one, so a PRIVATE deployment can
