@@ -1,0 +1,453 @@
+enclave socket level-check: kernel truth beats a stale readiness cache
+======================================================================
+
+THE DEFECT (the "tunnel stall" / engine freeze, risc-box 2026-08-20): under
+load, a tenant's ENTIRE socket set intermittently freezes 0.5-14s on the
+fleet (0.2-1.2s reproduced locally) while the guest's own event loop stays
+healthy. The guest is a sync wasip2 app doing nonblocking reads/writes every
+main-loop turn; the engine serves those from tokio's per-socket readiness
+CACHE (`try_read`/`try_write`/`poll_*_ready` short-circuit on cached bits,
+no syscall). The cache is refreshed only by edge-triggered epoll dispatch,
+and an edge consumed at the wrong moment never re-fires: a socket that
+STAYS writable/readable generates no new edges. Result: the engine tells
+the guest "not ready" about a socket the kernel would serve immediately,
+for as long as nothing else resyncs the cache.
+
+MEASURED, instrumented locally (risc-box SET build, 1-CPU pin, 2 video
+streams + 7/s status probe; ENCLAVE_SOCKDBG=1):
+  - all active sockets went check_write=0 with state=Ready SIMULTANEOUSLY
+    for up to 935ms, releasing at the same millisecond (one dispatch frees
+    the set at once - exactly the fleet's whole-socket-set freeze shape);
+  - a 10ms heartbeat task on the runtime logged ZERO gaps >100ms through
+    every stall: the tokio workers and drivers were healthy and scheduled;
+  - with the fix live, 2,098 write-side and 64 read-side divergences in 5
+    minutes (kernel POLLOUT/bytes vs cache "not ready"), every one absorbed
+    by the fallback: probes went 59 stalls/10min worst 1.2s -> 0 stalls,
+    worst 14ms. The plain (non-SET) build shows the same defect at ~1/7th
+    the rate - two SET guest threads just multiply the trigger interleavings.
+
+THE FIX: on the three guest-facing paths (send, recv, readiness polls),
+when the CACHED path says "not ready", ask the KERNEL before believing it -
+a direct nonblocking send/recv, or a zero-timeout poll(2). The cache stays
+the fast path; the syscall only happens where the old code stalled. Level
+truth cannot lie, spurious readiness just costs one syscall, and both the
+sync (noop-waker) and async (real-waker) callers keep their contracts: the
+waker is always registered before the fallback answers Ready.
+
+Observed oddity, recorded honestly: poll_write_ready(noop) reports Pending
+while try_write microseconds later succeeds - tokio's two readiness views
+disagree with EACH OTHER, not just with the kernel. The level check
+sidesteps whichever internal inconsistency that is; upstreaming a tokio-
+level diagnosis is follow-up work, this patch makes the fleet honest now.
+
+Also carries ENCLAVE_SOCKDBG=1 (host process env, off by default, zero cost
+when off): logs read/write divergences, >=200ms empty-read streaks with a
+direct FIONREAD verdict, >=200ms check_write=0 streaks with the write-state
+variant, and a 10ms runtime heartbeat that logs scheduling gaps >100ms -
+the exact gauges that separated "driver starved" from "cache lied" without
+needing ss/strace inside a CVM.
+
+Touches crates/wasi/src/sockets/tcp.rs (mechanism + instrumentation),
+crates/wasi/src/p2/tcp.rs (check_write instrumentation), sockets/mod.rs
+(re-exports). No new dependencies: rustix event/net features were already
+enabled for wasmtime-wasi. UDP and accept keep the old behavior (no stall
+observed there yet); if a UDP-shaped stall ever shows, apply the same
+pattern to sockets/udp.rs.
+diff --git a/crates/wasi/src/p2/tcp.rs b/crates/wasi/src/p2/tcp.rs
+index f779f0a..4b59d51 100644
+--- a/crates/wasi/src/p2/tcp.rs
++++ b/crates/wasi/src/p2/tcp.rs
+@@ -282,11 +282,61 @@ impl WriteState {
+     }
+ }
+ 
++/// sockdbg: tracks how long check_write has been returning 0 budget.
++#[derive(Default)]
++struct WDbg {
++    zero_since: Option<std::time::Instant>,
++    last_log: Option<std::time::Instant>,
++}
++impl WDbg {
++    fn note(&mut self, budget: &StreamResult<usize>, variant: &'static str, peer: &str) {
++        let now = std::time::Instant::now();
++        match budget {
++            Ok(0) => {
++                let since = *self.zero_since.get_or_insert(now);
++                let ms = now.duration_since(since).as_millis();
++                if ms < 200 {
++                    return;
++                }
++                if let Some(last) = self.last_log {
++                    if now.duration_since(last).as_millis() < 500 {
++                        return;
++                    }
++                }
++                self.last_log = Some(now);
++                eprintln!(
++                    "[sockdbg {}] check_write=0 for {ms}ms state={variant} peer={peer}",
++                    crate::sockets::now_ms()
++                );
++            }
++            Ok(_) => {
++                if let Some(since) = self.zero_since.take() {
++                    let ms = since.elapsed().as_millis();
++                    if ms >= 200 {
++                        eprintln!(
++                            "[sockdbg {}] write-unblocked after {ms}ms state={variant} peer={peer}",
++                            crate::sockets::now_ms()
++                        );
++                    }
++                }
++                self.last_log = None;
++            }
++            Err(_) => {
++                self.zero_since = None;
++                self.last_log = None;
++            }
++        }
++    }
++}
++
+ #[derive(Clone)]
+-struct TcpWriter(Arc<Mutex<WriteState>>);
++struct TcpWriter(Arc<Mutex<WriteState>>, Arc<Mutex<WDbg>>);
+ impl TcpWriter {
+     fn new(stream: TcpSendStream) -> Self {
+-        Self(Arc::new(Mutex::new(WriteState::Ready(stream, 0))))
++        Self(
++            Arc::new(Mutex::new(WriteState::Ready(stream, 0))),
++            Arc::new(Mutex::new(WDbg::default())),
++        )
+     }
+ }
+ 
+@@ -301,7 +351,19 @@ impl OutputStream for TcpWriter {
+     }
+ 
+     fn check_write(&mut self) -> StreamResult<usize> {
+-        self.0.lock().unwrap().check_write()
++        let mut st = self.0.lock().unwrap();
++        let r = st.check_write();
++        if crate::sockets::sockdbg() {
++            let (variant, peer) = match &*st {
++                WriteState::Ready(stream, ..) => ("Ready", stream.dbg_peer()),
++                WriteState::Writing(..) => ("Writing", String::new()),
++                WriteState::Closing(..) => ("Closing", String::new()),
++                WriteState::Closed(..) => ("Closed", String::new()),
++            };
++            drop(st);
++            self.1.lock().unwrap().note(&r, variant, &peer);
++        }
++        r
+     }
+ 
+     async fn cancel(&mut self) {
+diff --git a/crates/wasi/src/sockets/mod.rs b/crates/wasi/src/sockets/mod.rs
+index 4d072d5..29aae2d 100644
+--- a/crates/wasi/src/sockets/mod.rs
++++ b/crates/wasi/src/sockets/mod.rs
+@@ -15,7 +15,7 @@ pub(crate) mod ip_name_lookup;
+ mod tcp;
+ mod udp;
+ pub use tcp::TcpSocket;
+-pub(crate) use tcp::{TcpListenStream, TcpReceiveStream, TcpSendStream};
++pub(crate) use tcp::{TcpListenStream, TcpReceiveStream, TcpSendStream, now_ms, sockdbg};
+ pub use udp::UdpSocket;
+ 
+ /// A helper struct which implements [`HasData`] for the `wasi:sockets` APIs.
+diff --git a/crates/wasi/src/sockets/tcp.rs b/crates/wasi/src/sockets/tcp.rs
+index e913116..2b29f6b 100644
+--- a/crates/wasi/src/sockets/tcp.rs
++++ b/crates/wasi/src/sockets/tcp.rs
+@@ -369,6 +369,8 @@ impl TcpSocket {
+                 *receive_taken = true;
+                 Ok(TcpReceiveStream {
+                     inner: stream.clone(),
++                    dbg_pending_since: None,
++                    dbg_last_log: None,
+                 })
+             }
+             TcpState::Closed(err) => Err(*err),
+@@ -613,12 +615,63 @@ impl TcpListenStream {
+     }
+ }
+ 
++/// Does the KERNEL consider this socket ready for `flags` right now?
++///
++/// tokio's `try_read`/`try_write`/`poll_*_ready` consult a readiness CACHE
++/// that is only refreshed when the runtime's I/O driver dispatches an
++/// edge-triggered epoll event. A readiness edge consumed at the wrong moment
++/// (an interleaving the sync-mode guest surface makes likely: guest threads
++/// clear readiness from `try_io` EAGAINs concurrently with driver dispatch)
++/// never re-fires — a socket that stays writable generates no new edges — so
++/// the cache can say "not ready" for an arbitrarily long time about a socket
++/// the kernel would happily serve. Measured on risc-box under load: 0.2-1s
++/// collective write stalls locally, 0.5-14s on a contended fleet box.
++///
++/// This is the level-triggered escape hatch: one non-blocking poll(2). Used
++/// only on the paths a sync guest spins on, and only after the cached path
++/// has already said "not ready" — the cache stays the fast path.
++fn kernel_ready(fd: &impl rustix::fd::AsFd, flags: rustix::event::PollFlags) -> bool {
++    use rustix::event::{PollFd, poll};
++    let mut fds = [PollFd::new(fd, flags)];
++    // Zero timeout: a level check, never a wait.
++    match poll(&mut fds, Some(&rustix::time::Timespec::default())) {
++        Ok(n) => n > 0 && !fds[0].revents().is_empty(),
++        Err(_) => false,
++    }
++}
++
+ pub(crate) struct TcpSendStream {
+     inner: Arc<tokio::net::TcpStream>,
+ }
+ impl TcpSendStream {
++    /// sockdbg: this stream's peer, for log correlation.
++    pub(crate) fn dbg_peer(&self) -> String {
++        self.inner.peer_addr().map(|a| a.to_string()).unwrap_or_default()
++    }
++
+     pub(crate) fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> Poll<()> {
+-        self.inner.poll_write_ready(cx).map(|_| ())
++        match self.inner.poll_write_ready(cx) {
++            // The cache says "not writable". A lost writable edge looks
++            // exactly like this forever, so ask the kernel before parking.
++            // The waker is already registered, so returning Ready here (a
++            // level-truth answer) is sound and a later spurious wake is fine.
++            #[cfg(not(windows))]
++            Poll::Pending => {
++                if kernel_ready(&*self.inner, rustix::event::PollFlags::OUT) {
++                    if sockdbg() {
++                        eprintln!(
++                            "[sockdbg {}] write-ready DIVERGENCE: kernel POLLOUT, cache pending peer={}",
++                            now_ms(),
++                            self.dbg_peer(),
++                        );
++                    }
++                    Poll::Ready(())
++                } else {
++                    Poll::Pending
++                }
++            }
++            r => r.map(|_| ()),
++        }
+     }
+ 
+     pub(crate) fn poll_write(
+@@ -630,6 +683,35 @@ impl TcpSendStream {
+             return match self.inner.try_write(buf) {
+                 Ok(n) => Poll::Ready(Ok(n)),
+                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
++                    // `try_write` short-circuits on the cached readiness
++                    // without a syscall. Before trusting it, offer the bytes
++                    // to the kernel directly: a stale not-writable cache
++                    // (lost edge) otherwise wedges every write on this
++                    // socket until an unrelated event resyncs it.
++                    #[cfg(not(windows))]
++                    {
++                        use rustix::net::{SendFlags, send};
++                        match send(&*self.inner, buf, SendFlags::DONTWAIT | SendFlags::NOSIGNAL) {
++                            Ok(n) if n > 0 => {
++                                if sockdbg() {
++                                    eprintln!(
++                                        "[sockdbg {}] write DIVERGENCE: kernel took {n}B, cache said WouldBlock peer={}",
++                                        now_ms(),
++                                        self.dbg_peer(),
++                                    );
++                                }
++                                return Poll::Ready(Ok(n));
++                            }
++                            Ok(_) => {}
++                            Err(Errno::AGAIN) | Err(Errno::INTR) => {}
++                            Err(Errno::PIPE) => {
++                                return Poll::Ready(Err(ErrorCode::ConnectionBroken));
++                            }
++                            Err(errno) => {
++                                return Poll::Ready(Err(std::io::Error::from(errno).into()));
++                            }
++                        }
++                    }
+                     match self.inner.poll_write_ready(cx) {
+                         Poll::Ready(Ok(())) => continue,
+                         Poll::Ready(Err(e)) => Poll::Ready(Err(e.into())),
+@@ -657,12 +739,129 @@ impl Drop for TcpSendStream {
+     }
+ }
+ 
++/// ENCLAVE_SOCKDBG=1 instrumentation: is the tunnel-stall debug on?
++pub(crate) fn sockdbg() -> bool {
++    static ON: std::sync::LazyLock<bool> =
++        std::sync::LazyLock::new(|| std::env::var("ENCLAVE_SOCKDBG").is_ok());
++    if *ON {
++        sockdbg_ticker();
++    }
++    *ON
++}
++
++/// sockdbg: a 10ms heartbeat task on the ambient runtime. A logged gap means
++/// the runtime's workers (and so its I/O + time drivers) went unscheduled for
++/// that long — separating "driver starved" from "readiness cache anomaly".
++fn sockdbg_ticker() {
++    static ONCE: std::sync::Once = std::sync::Once::new();
++    ONCE.call_once(|| {
++        let handle = crate::runtime::spawn(async {
++            let mut last = std::time::Instant::now();
++            loop {
++                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
++                let now = std::time::Instant::now();
++                let gap = now.duration_since(last).as_millis();
++                if gap > 100 {
++                    eprintln!("[sockdbg {}] runtime-tick gap {}ms", now_ms(), gap);
++                }
++                last = now;
++            }
++        });
++        std::mem::forget(handle);
++    });
++}
++
++pub(crate) fn now_ms() -> u128 {
++    std::time::SystemTime::now()
++        .duration_since(std::time::UNIX_EPOCH)
++        .unwrap()
++        .as_millis()
++}
++
+ pub(crate) struct TcpReceiveStream {
+     inner: Arc<tokio::net::TcpStream>,
++    /// sockdbg: start of the current run of empty reads, and last log emit.
++    dbg_pending_since: Option<std::time::Instant>,
++    dbg_last_log: Option<std::time::Instant>,
+ }
+ impl TcpReceiveStream {
++    /// sockdbg: an empty (WouldBlock) read. If the streak is long, ask the
++    /// KERNEL directly whether it holds bytes the readiness cache is hiding.
++    fn dbg_pending(&mut self) {
++        if !sockdbg() {
++            return;
++        }
++        let now = std::time::Instant::now();
++        let since = *self.dbg_pending_since.get_or_insert(now);
++        if now.duration_since(since).as_millis() < 200 {
++            return;
++        }
++        if let Some(last) = self.dbg_last_log {
++            if now.duration_since(last).as_millis() < 500 {
++                return;
++            }
++        }
++        self.dbg_last_log = Some(now);
++        let kernel_bytes: i64 = {
++            use std::os::fd::{AsRawFd, BorrowedFd};
++            let bfd = unsafe { BorrowedFd::borrow_raw(self.inner.as_raw_fd()) };
++            rustix::io::ioctl_fionread(bfd).map(|v| v as i64).unwrap_or(-1)
++        };
++        // An idle keep-alive conn legitimately reads empty forever; only the
++        // combination "kernel holds bytes, cache says empty" indicts the engine.
++        if kernel_bytes > 0 {
++            let peer = self.inner.peer_addr().map(|a| a.to_string()).unwrap_or_default();
++            eprintln!(
++                "[sockdbg {}] read-pending {}ms peer={} kernel_bytes={}  <== KERNEL HAS BYTES, CACHE SAYS EMPTY",
++                now_ms(),
++                now.duration_since(since).as_millis(),
++                peer,
++                kernel_bytes,
++            );
++        }
++    }
++
++    /// sockdbg: data finally lifted; log how long the empty-read streak was.
++    fn dbg_data(&mut self, n: usize) {
++        if !sockdbg() {
++            return;
++        }
++        if let Some(since) = self.dbg_pending_since.take() {
++            let ms = since.elapsed().as_millis();
++            if ms >= 200 {
++                let peer = self.inner.peer_addr().map(|a| a.to_string()).unwrap_or_default();
++                eprintln!(
++                    "[sockdbg {}] read-lifted after {}ms n={} peer={}",
++                    now_ms(), ms, n, peer
++                );
++            }
++        }
++        self.dbg_last_log = None;
++    }
+     pub(crate) fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> Poll<()> {
+-        self.inner.poll_read_ready(cx).map(|_| ())
++        match self.inner.poll_read_ready(cx) {
++            // Same lost-edge escape hatch as the send side: the cache can say
++            // "nothing to read" indefinitely about a socket whose readable
++            // edge was consumed at the wrong moment. Level-check the kernel
++            // (POLLIN also reports EOF/errors via HUP/ERR) before parking.
++            #[cfg(not(windows))]
++            Poll::Pending => {
++                if kernel_ready(&*self.inner, rustix::event::PollFlags::IN) {
++                    if sockdbg() {
++                        let peer =
++                            self.inner.peer_addr().map(|a| a.to_string()).unwrap_or_default();
++                        eprintln!(
++                            "[sockdbg {}] read-ready DIVERGENCE: kernel POLLIN, cache pending peer={peer}",
++                            now_ms(),
++                        );
++                    }
++                    Poll::Ready(())
++                } else {
++                    Poll::Pending
++                }
++            }
++            r => r.map(|_| ()),
++        }
+     }
+ 
+     pub(crate) fn poll_read(
+@@ -676,12 +875,48 @@ impl TcpReceiveStream {
+         loop {
+             return match self.inner.try_read(buf) {
+                 Ok(0) => Poll::Ready(Ok(0)),
+-                Ok(n) => Poll::Ready(Ok(n)),
++                Ok(n) => {
++                    self.dbg_data(n);
++                    Poll::Ready(Ok(n))
++                }
+                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
++                    // `try_read` short-circuits on the cached readiness with
++                    // no syscall; a stale cache hides bytes the kernel holds.
++                    // Ask the kernel directly before reporting "nothing".
++                    #[cfg(not(windows))]
++                    {
++                        use rustix::net::{RecvFlags, recv};
++                        match recv(&*self.inner, &mut *buf, RecvFlags::DONTWAIT) {
++                            Ok((n, _)) if n > 0 => {
++                                if sockdbg() {
++                                    let peer = self
++                                        .inner
++                                        .peer_addr()
++                                        .map(|a| a.to_string())
++                                        .unwrap_or_default();
++                                    eprintln!(
++                                        "[sockdbg {}] read DIVERGENCE: kernel gave {n}B, cache said empty peer={peer}",
++                                        now_ms(),
++                                    );
++                                }
++                                self.dbg_data(n);
++                                return Poll::Ready(Ok(n));
++                            }
++                            // A direct recv of 0 is EOF, same as try_read's.
++                            Ok(_) => return Poll::Ready(Ok(0)),
++                            Err(Errno::AGAIN) | Err(Errno::INTR) => {}
++                            Err(errno) => {
++                                return Poll::Ready(Err(std::io::Error::from(errno).into()));
++                            }
++                        }
++                    }
+                     match self.inner.poll_read_ready(cx) {
+                         Poll::Ready(Ok(())) => continue,
+                         Poll::Ready(Err(e)) => Poll::Ready(Err(e.into())),
+-                        Poll::Pending => Poll::Pending,
++                        Poll::Pending => {
++                            self.dbg_pending();
++                            Poll::Pending
++                        }
+                     }
+                 }
+                 Err(e) => Poll::Ready(Err(e.into())),

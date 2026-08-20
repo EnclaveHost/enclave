@@ -1,4 +1,4 @@
-# Integrity check for the wasmtime patch stack. The 10 patches only ever get
+# Integrity check for the wasmtime patch stack. The 11 patches only ever get
 # applied for real inside a MANUAL "Wasmtime Toolchain" dispatch, so a patch
 # edited out of sync with its siblings (they share files - nn-ggml applies
 # 5th, the arbiter LAST, both touch ggml.rs) would sit broken on main until
@@ -52,7 +52,7 @@ jobs:
                    wasmtime-p2-host-header wasmtime-egress \
                    wasmtime-loopback wasmtime-nn-ggml wasmtime-nn-sdcpp \
                    wasmtime-nn-onnx-preload wasmtime-nn-arbiter \
-                   wasmtime-set-threads; do
+                   wasmtime-set-threads wasmtime-socket-level-check; do
             git apply --check "$GITHUB_WORKSPACE/wasm/$p.patch" \
               || { echo "::error::$p.patch no longer applies (stack order or upstream drift)"; exit 1; }
             git apply "$GITHUB_WORKSPACE/wasm/$p.patch"
