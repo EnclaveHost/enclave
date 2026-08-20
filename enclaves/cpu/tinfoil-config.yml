@@ -87,7 +87,7 @@ containers:
       # nothing is being collected (2026-07-29: $61.26 sat unwithdrawn this way).
       # Not a secret; a public destination. Nothing here can redirect anyone
       # else's money: withdrawEarnings only ever pays the caller's own accrual.
-      - PAYOUT_ADDRESS: "0x271A59B4B1Ee756e0E46D84aA4C9c26a8d48F44D"
+      - PAYOUT_ADDRESS: "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61"
       # - EARNINGS_MIN_USDC: "5"                         # optional: sweep once accrual clears this
       # - EARNINGS_CHECK_SEC: "3600"                     # optional: how often to check
       # Proof of time (rev-9 ledgers). NOT baked: the address book's `proofOfTime`
