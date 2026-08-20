@@ -144,3 +144,67 @@ test("siwe gate: anything that is not a SIWE login for this wallet is refused", 
   for (const [what, msg] of Object.entries(cases))
     assert.throws(() => assertSiweLogin(msg, ME), /Refusing to sign/, what);
 });
+
+// ---- a session travels only FOR the wallet that minted it ----------------------
+// Sessions are keyed by BOX name, but each one names a wallet (its JWT sub).
+// After an account switch the cached token still VERIFIES on its box — so a
+// call presenting it doesn't fail as unauthorized, it succeeds as the PREVIOUS
+// account, and every owner gate answers 404 "No such deployment." for records
+// the connected account owns. Found 2026-08-20: /authorize saw a cached kryptos
+// session, skipped the sign-in, minted an app token as the old wallet, and the
+// enclave refused the owner's own private app with exactly that message.
+const b64u = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
+const jwtFor = (sub) => `${b64u({ alg: "ES256", kid: "k" })}.${b64u({ sub, exp: Math.floor(Date.now() / 1000) + 3600 })}.sig`;
+
+test("another wallet's per-enclave session reads as signed-out, never as that wallet", async () => {
+  seen = [];
+  Enclave.base = DEFAULT_API_BASE;
+  Enclave.token = null; Enclave.tokenBase = null;
+  Enclave.address = ME;
+  Enclave.setSessionFor("kryptos", jwtFor(ME));
+  assert.equal(Enclave.authedFor("kryptos"), true, "the minting wallet keeps its session");
+  await Enclave._req("GET", "/anything", { auth: true, enclave: "kryptos" });
+  assert.match(authHeader(), /^Bearer /);
+
+  Enclave.address = THEM;                                   // account switched in the wallet
+  assert.equal(Enclave.authedFor("kryptos"), false, "the other wallet's session reads as signed-out");
+  seen = [];
+  await assert.rejects(() => Enclave._req("GET", "/anything", { auth: true, enclave: "kryptos" }),
+    (e) => e instanceof EnclaveError && e.status === 401 && /Not signed in to kryptos/.test(e.message));
+  assert.equal(seen.length, 0, "the stale session never left the page");
+
+  Enclave.address = ME;                                     // switching back restores it
+  assert.equal(Enclave.authedFor("kryptos"), true, "the session survives for a switch-back");
+  Enclave.setSessionFor("kryptos", null);
+});
+
+test("a sticky session for another wallet falls back to the public ?owner= read", async () => {
+  seen = [];
+  Enclave.base = DEFAULT_API_BASE;
+  Enclave.token = jwtFor(ME); Enclave.tokenBase = DEFAULT_API_BASE;
+  Enclave.address = THEM;
+  await Enclave.getDeployment("0xabc123");
+  assert.equal(authHeader(), undefined, "the old account's token is not presented");
+  assert.match(seen.at(-1).url, new RegExp("owner=" + THEM), "the read scopes to the CONNECTED wallet");
+  await Enclave.listDeployments();
+  assert.equal(authHeader(), undefined);
+  assert.match(seen.at(-1).url, new RegExp("owner=" + THEM));
+  // and a demanded auth without a usable session is an error, not a wrong-wallet call
+  seen = [];
+  await assert.rejects(() => Enclave.getAccount(), (e) => e.status === 401);
+  assert.equal(seen.length, 0);
+  Enclave.token = null; Enclave.tokenBase = null;
+});
+
+test("an opaque (non-JWT) token stays wallet-agnostic, exactly as before", async () => {
+  seen = [];
+  Enclave.base = DEFAULT_API_BASE;
+  Enclave.address = THEM;
+  Enclave.token = "legacy-opaque"; Enclave.tokenBase = DEFAULT_API_BASE;
+  await Enclave.getDeployment("0xabc123");
+  assert.equal(authHeader(), "Bearer legacy-opaque", "no sub to check means no mismatch to refuse");
+  Enclave.setSessionFor("kryptos", "also-opaque");
+  assert.equal(Enclave.authedFor("kryptos"), true);
+  Enclave.setSessionFor("kryptos", null);
+  Enclave.token = null; Enclave.tokenBase = null;
+});
