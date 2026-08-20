@@ -695,6 +695,74 @@ test("api-relay: the on-chain runner outranks a cached owner, so a moved deploym
   assert.equal(att.body.who, "newhost", "the ledger's runner decides the route, not whatever was cached first");
 });
 
+// ---- a box-local miss must not unexist an on-chain record --------------------
+// GET /v1/deployments/:id with a session used to STREAM the runner's answer
+// through verbatim. A box that verifies the token but holds no local record
+// (state wiped by a release restart, a claim not yet re-adopted) answers 404
+// "No such deployment." — and the owner's sign-in page repeated it while the
+// dashboard, which merges ledger rows, showed the same app running (found
+// 2026-08-19, /authorize on a private app). A session minted by a DIFFERENT
+// box reads as 401 here for the same non-reason. Both now fall back to the
+// ledger row; a 200 is stamped with the box's fleet name, because /authorize
+// signs in to dep.enclave and supervisors don't know their own registry name.
+test("api-relay: a runner's 404/401 on a bare record read falls back to the ledger row", async (t) => {
+  const ID66 = ID("66");
+  let answer = "miss";                       // miss | badsession | hosted
+  const box = http.createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    if (req.url === "/availability")
+      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32 }));
+    if (req.url.split("?")[0] === `/v1/deployments/${ID66}`) {
+      if (answer === "miss")       { res.statusCode = 404; return res.end(JSON.stringify({ code: "not_found", message: "No such deployment." })); }
+      if (answer === "badsession") { res.statusCode = 401; return res.end(JSON.stringify({ code: "unauthorized", message: "Missing or invalid session." })); }
+      return res.end(JSON.stringify({ id: ID66, status: "running", public: false }));   // a supervisor row: no `enclave` field
+    }
+    if (req.url.split("?")[0] === "/v1/deployments")
+      return res.end(JSON.stringify({ data: [], cursor: null }));
+    res.statusCode = 404; res.end("{}");
+  });
+  box.listen(0, "127.0.0.1"); await once(box, "listening"); t.after(() => box.close());
+  const boxUrl = `http://127.0.0.1:${box.address().port}`;
+
+  const { keccak256, stringToBytes } = await import("viem");
+  const ledger = [{ id: ID66, owner: OWNER, appRef: "ipfs://private", active: true, balance6: 2_000_000, spent6: 100_000,
+                    runner: keccak256(stringToBytes(boxUrl)), leaseUntil: FUTURE }];
+  const origin = await startRelay(t, { enclaves: boxUrl, ledger });
+
+  // the runner box lost its record: the on-chain row answers, not the box's 404
+  const missed = await getJson(origin, `/v1/deployments/${ID66}`, jwt(OWNER));
+  assert.equal(missed.status, 200, "a box-local miss must not 404 an on-chain record");
+  assert.equal(missed.body.ledger, true, "the ledger row answers in its place");
+  assert.equal(missed.body.status, "running", "lease live + runner answering = running");
+  assert.ok(missed.body.enclave, "the ledger row still names the serving box");
+
+  // a session the box refuses (minted elsewhere) is a fact about the session,
+  // not the deployment: same fallback
+  answer = "badsession";
+  const foreignSession = await getJson(origin, `/v1/deployments/${ID66}`, jwt(OWNER));
+  assert.equal(foreignSession.status, 200, "another box's session must not 401 a public record read");
+  assert.equal(foreignSession.body.ledger, true);
+
+  // the box's own answer is preferred when it has one — stamped with the fleet
+  // name its row lacks (only the LIST fan-out used to add it, and /authorize
+  // needs it on this read too, or a running private app reads as down)
+  answer = "hosted";
+  const hosted = await getJson(origin, `/v1/deployments/${ID66}`, jwt(OWNER));
+  assert.equal(hosted.status, 200);
+  assert.equal(hosted.body.status, "running");
+  assert.notEqual(hosted.body.ledger, true, "the box's live view answers when it has the record");
+  assert.ok(hosted.body.enclave, "the relay stamps the serving box's name onto the box's own row");
+
+  // and the two kinds of tokenless missing say different things: an existing
+  // record outside the ?owner= scope is a wrong-wallet story, not a no-such-id one
+  const foreign = await getJson(origin, `/v1/deployments/${ID66}?owner=${OTHER}`);
+  assert.equal(foreign.status, 404);
+  assert.match(foreign.body.message, /different wallet/i, "scoped-out records name the real reason");
+  const unknown = await getJson(origin, `/v1/deployments/${ID("99")}?owner=${OTHER}`);
+  assert.equal(unknown.status, 404);
+  assert.match(unknown.body.message, /no deployment under it/i);
+});
+
 // ---- one deployment, one row, even when two boxes claim it ------------------
 // Releasing does not delete the ex-runner's local record, so after a Move both
 // the new host and the old one answer for the same id. The list pushed both,
