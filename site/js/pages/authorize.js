@@ -106,8 +106,12 @@ async function mount(){
     let dep;
     try { dep = await Enclave.getDeployment(id); }
     catch(e){
+      // The relay's 404 says which kind of missing this is (unknown id vs a
+      // record scoped to another wallet) - repeat it rather than guess. This
+      // page used to answer every 404 with "switch wallets", which read as a
+      // lie to an owner whose hosting box had merely lost its local record.
       return fatal(body, e && e.status === 404
-        ? "No such deployment, or this wallet does not own it. Switch wallets and try again."
+        ? ((e.message && !/^HTTP\b/.test(e.message)) ? e.message : "No deployment with this id was found.")
         : ("Could not look up the app: " + ((e && e.message) || String(e))));
     }
     if (!dep) return fatal(body, "No such deployment.");

@@ -1750,11 +1750,43 @@ async function listDeployments(u, req, res) {
 // (status transitions, network) - prefer it; tokenless reads (and any id
 // no live enclave hosts) answer from the ledger, so watchers keep working
 // across enclave restarts, for still-queued work, and with no session at all.
+//
+// The enclave leg is BUFFERED (forward), not streamed, because the box's
+// answer is not always the truth about the DEPLOYMENT, and two of its answers
+// must not reach the caller:
+//   - 404: the box verified the token but holds no local record under the id
+//     (state wiped by a release restart, a claim not yet re-adopted, a prefix
+//     its exact-id GET can't resolve) while the on-chain record still exists.
+//     Forwarding it told signed-in owners their own running app didn't exist,
+//     while the dashboard - which merges ledger rows - showed it fine (found
+//     2026-08-19, /authorize on a private app).
+//   - 401: sessions are per-enclave, so a token minted by any OTHER box reads
+//     as invalid here. That is a fact about the session, not the deployment.
+// Both fall through to the ledger, exactly like a tokenless read: these are
+// public on-chain rows (see listDeployments), so the fallback serves nothing
+// a bare ?owner= read wouldn't.
+// A 200 leaves stamped with the serving box's fleet name: supervisors don't
+// know their own registry name, so the list fan-out adds `enclave` to every
+// row - and this read has to match, because /authorize signs in to
+// dep.enclave, and a running app without it reads as down.
 async function getDeployment(id, u, req, res) {
   const auth = req.headers.authorization;
   if (live.length && auth) {
     const owner = await v1OwnerOf(id, auth);
-    if (owner) return proxyTo(owner, req, res, { idleMs: 180000 });
+    if (owner) {
+      let r = null;
+      try { r = await forward(owner, req, null); } catch {}   // box died mid-read: the ledger still answers
+      if (r && r.status !== 404 && r.status !== 401) {
+        if (r.status === 200) try {
+          const row = JSON.parse(r.text);
+          if (row && row.id && row.enclave == null) {
+            const e = live.find((x) => x.endpoint === owner);
+            if (e) { row.enclave = e.name || endpointName(e.endpoint); r.text = JSON.stringify(row); }
+          }
+        } catch {}
+        return sendForwarded(res, r, req);
+      }
+    }
   }
   const addr = ownerScope(u, req);
   let rows;
@@ -1764,10 +1796,17 @@ async function getDeployment(id, u, req, res) {
   // full ids and unique prefixes both resolve (the CLI passes prefixes); an
   // ?owner=/token scope disambiguates, but isn't required - records are public
   const hits = rows.filter((d) => (!addr || d.owner.toLowerCase() === addr) && d.id.toLowerCase().startsWith(want));
-  if (hits.length !== 1)
+  if (hits.length !== 1) {
+    // Say WHICH kind of missing: a scope that filtered out an existing record
+    // is a wrong-wallet story, and sharing one message with "no such id" made
+    // the sign-in page tell owners to switch wallets for records a box had
+    // merely lost. Naming the split leaks nothing - the unscoped read answers.
+    const others = !hits.length && addr && rows.some((d) => d.id.toLowerCase().startsWith(want));
     return json(res, 404, { error: "not_found",
       message: hits.length ? `${id} is ambiguous (${hits.length} deployments match).`
-                           : `No live enclave has ${id}, and the ledger has no deployment under it.`, updatedAt }, req);
+             : others     ? `${id} belongs to a different wallet than ${addr}. Switch wallets and try again.`
+                          : `No live enclave has ${id}, and the ledger has no deployment under it.`, updatedAt }, req);
+  }
   return json(res, 200, ledgerView(hits[0]), req);
 }
 
