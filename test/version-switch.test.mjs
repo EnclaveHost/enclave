@@ -79,3 +79,37 @@ test("only a RUNNING record whose ledger row carries different shares re-slices"
   ] });
   assert.deepEqual(r.resize, ["skip", "resize", "resize", "resize", "skip", "stamp", "skip", "skip"]);
 });
+
+test("a held id's decline names the stage and the error, keeping the legacy prefix", async () => {
+  const cid = "bafybeiedonoeo54wtykum2pytiwnmmnvp55v4y75txmervqy4elxnkqrfm";
+  const r = await selftest({ decline: [
+    { entry: { n: 2, until: NOW + 5 * 60_000, ref: V1, stage: "prefetch",
+               why: `ipfs fetch failed for ${cid}: HTTP 404`, cid }, nowMs: NOW },
+    { entry: { n: 1, until: NOW + 60 * 60_000, ref: V1, stage: "provision",
+               why: "wasmtime exited 2" }, nowMs: NOW },
+    { entry: { n: 1, until: NOW + 5 * 60_000, ref: V1 }, nowMs: NOW },   // legacy entry: no stage/why recorded
+  ] });
+  // the 2026-08-20 catalog-wasm outage read as a bare "backing off" for hours;
+  // the decline must carry the cause so a queued row diagnoses itself
+  assert.match(r.decline[0], /^provisioning failed here recently \(prefetch: ipfs fetch failed for bafybeie.*HTTP 404\); backing off ~5min$/);
+  assert.match(r.decline[1], /^provisioning failed here recently \(provision: wasmtime exited 2\); backing off ~60min$/);
+  assert.equal(r.decline[2], "provisioning failed here recently; backing off ~5min");
+});
+
+test("only prefetch-stage holds re-probe the gateway, at most once a minute", async () => {
+  const cid = "bafybeiedonoeo54wtykum2pytiwnmmnvp55v4y75txmervqy4elxnkqrfm";
+  const pf = { n: 1, until: NOW + 30 * 60_000, ref: V1, stage: "prefetch", why: "HTTP 404", cid };
+  const r = await selftest({ probe: [
+    { entry: { ...pf, probedAt: 0 }, nowMs: NOW },                         // never probed: due
+    { entry: { ...pf, probedAt: NOW - 10_000 }, nowMs: NOW },              // probed 10s ago: wait
+    { entry: { ...pf, probedAt: NOW - 120_000 }, nowMs: NOW },             // probed 2min ago: due again
+    { entry: { ...pf, stage: "provision" }, nowMs: NOW },                  // crash-loop guard: NEVER probes
+    { entry: { ...pf, cid: null }, nowMs: NOW },                           // legacy entry without a cid: can't probe
+    { entry: { n: 1, until: NOW + 60_000, ref: V1 }, nowMs: NOW },         // pre-upgrade entry: no stage at all
+    { entry: { ...pf, probeClears: 2 }, nowMs: NOW },                      // cleared twice already: one more chance
+    // a byte-serving CID that keeps failing the full verified prefetch must
+    // not clear-and-redownload forever: after 3 rounds the ladder rules
+    { entry: { ...pf, probeClears: 3 }, nowMs: NOW },
+  ] });
+  assert.deepEqual(r.probe, [true, false, true, false, false, false, true, false]);
+});
