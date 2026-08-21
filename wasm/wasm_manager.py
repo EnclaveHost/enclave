@@ -4994,6 +4994,20 @@ def _spawn_and_wait(rec, ctx):
         if isinstance(dtk, int) and not isinstance(dtk, bool) and 16 <= dtk <= 4096:
             env = env if env is not None else dict(os.environ)
             env["ENCLAVE_GGML_DEV_TOPK"] = str(dtk)
+        # Cohort batching window (`nnCohortMs`, mm30): how long a decode
+        # leader holds the batch for the OTHER sequences that are stepping,
+        # so the ubatch's participating-sequence set stays identical step to
+        # step - the precondition for llama reusing its graph and hence for
+        # ggml-cuda replaying a captured one. Without it two concurrent chats
+        # each ran ~5x slower than one chat alone. Per-deployment because the
+        # right window is the guest's per-token turnaround, which depends on
+        # the app and on how many vCPUs the deployment bought; 0 restores the
+        # pre-mm30 merge-whatever-is-queued behaviour. Inert on engines
+        # predating mm30, like every knob here.
+        cms = _nn_cfg_int(enclave_config, "nnCohortMs", 0, 200)
+        if cms is not None:
+            env = env if env is not None else dict(os.environ)
+            env["ENCLAVE_GGML_COHORT_MS"] = str(cms)
     if egress_env:
         # SOCKS credential for transparent egress: wasmtime PROCESS env only
         # (guest-invisible — no -Sinherit-env,
