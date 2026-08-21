@@ -1131,7 +1131,8 @@ function shareResizeVerdict(status, localShares, chainGpuMilli, chainCpuMilli) {
 }
 
 // SWITCH_SELFTEST='{"switch":[{status,localRef,chainRef}],"backoff":[{entry,nowMs,appRef}],
-//                   "resize":[{status,localShares,gpuMilli,cpuMilli}]}'
+//                   "resize":[{status,localShares,gpuMilli,cpuMilli}],
+//                   "decline":[{entry,nowMs}],"probe":[{entry,nowMs}]}'
 // prints each helper mapped over its inputs as one JSON line and exits — same
 // contract as the seams above (test/version-switch.test.mjs drives it).
 // (Function declarations hoist, so provisionBackoffHolds resolves from here.)
@@ -1141,6 +1142,8 @@ if (process.env.SWITCH_SELFTEST) {
     switch: (c.switch || []).map((x) => needsVersionSwitch(x.status, x.localRef, x.chainRef)),
     backoff: (c.backoff || []).map((x) => provisionBackoffHolds(x.entry, x.nowMs, x.appRef)),
     resize: (c.resize || []).map((x) => shareResizeVerdict(x.status, x.localShares, x.gpuMilli, x.cpuMilli)),
+    decline: (c.decline || []).map((x) => provisionDeclineReason(x.entry, x.nowMs)),
+    probe: (c.probe || []).map((x) => prefetchProbeDue(x.entry, x.nowMs)),
   }));
   process.exit(0);
 }
@@ -6550,12 +6553,18 @@ const CLAIM_TERMINAL = TERMINAL_STATUSES;   // claim/resume may re-adopt exactly
 
 // ids that failed provisioning here — exponential claim cooldown (see
 // considerClaim). In-memory on purpose: a reboot is a fresh chance.
-const _provisionBackoff = new Map();          // id -> { n, until, ref }
-function noteProvisionFailure(id, ref) {
+// stage/why/cid ride along so the decline names the cause (a bare "backing
+// off" hid a gateway-wide outage for hours — the 2026-08-20 catalog-wasm
+// incident) and so prefetch-stage holds can clear themselves (see
+// prefetchProbeDue).
+const _provisionBackoff = new Map();          // id -> { n, until, ref, stage, why, cid, probedAt, probeClears }
+function noteProvisionFailure(id, ref, stage, why, cid) {
   const prev = _provisionBackoff.get(id);
   const n = (prev?.n || 0) + 1;
   const coolMs = Math.min(60 * 60_000, 5 * 60_000 * 2 ** (n - 1));   // 5m, 10m, 20m … cap 1h
-  _provisionBackoff.set(id, { n, until: Date.now() + coolMs, ref: ref ?? prev?.ref ?? null });
+  _provisionBackoff.set(id, { n, until: Date.now() + coolMs, ref: ref ?? prev?.ref ?? null,
+    stage: stage ?? prev?.stage ?? null, why: why ? String(why).slice(0, 200) : prev?.why ?? null,
+    cid: cid ?? prev?.cid ?? null, probedAt: prev?.probedAt || 0, probeClears: prev?.probeClears || 0 });
   return coolMs;
 }
 // A cooldown binds to the appRef that failed: the owner repointing the
@@ -6565,6 +6574,50 @@ function noteProvisionFailure(id, ref) {
 function provisionBackoffHolds(entry, nowMs, appRef) {
   if (!entry || nowMs >= entry.until) return false;
   return !entry.ref || entry.ref === appRef;
+}
+// The decline a held id answers to claim-hints. The legacy prefix stays
+// verbatim (humans and notes match on it); the parenthetical names the stage
+// and the actual error, so a queued row's why-probe line reads as a diagnosis
+// instead of a shrug. Keyword classifiers (WHY_TERMINAL in the console) key
+// on structural words this string only carries if the underlying error does.
+function provisionDeclineReason(entry, nowMs) {
+  const min = Math.max(1, Math.round((entry.until - nowMs) / 60_000));
+  const detail = entry.why ? ` (${entry.stage || "provision"}: ${entry.why})` : "";
+  return `provisioning failed here recently${detail}; backing off ~${min}min`;
+}
+// A prefetch failure never burned a claim tx (prefetch runs BEFORE the claim,
+// and its cooldown exists to save bandwidth, not the chain), so its hold may
+// clear EARLY once the gateway serves the CID again — that is what turns a
+// repaired gateway back into a working fleet without anyone clicking Resume.
+// Post-claim ("provision") holds never probe: those are the crash-loop guard.
+// probedAt gates the network probe to one per id per minute across the sweep
+// and every hint source. probeClears caps how often a byte-serving CID may
+// clear its own hold: a CID that answers a ranged byte but keeps failing the
+// FULL verified prefetch (truncated DAG, size cap) would otherwise clear and
+// re-download forever — after 3 cleared-then-failed rounds the plain ladder
+// rules again, and only an owner's forced Resume retries early. A repaired
+// gateway needs exactly one clear.
+function prefetchProbeDue(entry, nowMs) {
+  return entry.stage === "prefetch" && !!entry.cid && (entry.probeClears || 0) < 3
+      && nowMs - (entry.probedAt || 0) >= 60_000;
+}
+// One cheap ranged read against the SAME gateway the manager prefetches from
+// (same env, same default — wasm_manager.py's IPFS_GATEWAY). 200/206 = the
+// bytes are addressable again; the full prefetch+verify still runs on the
+// claim path, so a lying gateway only buys itself another verified failure.
+// A network-level failure (down, unreachable) marks the gateway bad for a
+// minute — one probe may stall its 10s, but a queue of held ids must not each
+// pay that stall on every sweep pass.
+const IPFS_GATEWAY = (process.env.IPFS_GATEWAY || "https://ipfs.enclave.host").replace(/\/+$/, "");
+let _gatewayDownUntil = 0;
+async function gatewayServes(cid) {
+  if (Date.now() < _gatewayDownUntil) return false;
+  try {
+    const r = await fetch(`${IPFS_GATEWAY}/ipfs/${cid}`, { headers: { range: "bytes=0-0" },
+                          signal: AbortSignal.timeout(10_000) });
+    try { await r.body?.cancel(); } catch {}
+    return r.status === 200 || r.status === 206;
+  } catch { _gatewayDownUntil = Date.now() + 60_000; return false; }
 }
 
 // Release with retries, in the background. A failed release strands the lease
@@ -7267,8 +7320,22 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   // fan-out design already accepts).
   const pf = _provisionBackoff.get(d.id);
   if (provisionBackoffHolds(pf, Date.now(), d.appRef)) {
-    if (!forced) return "provisioning failed here recently; backing off";
-    console.log(`[claim] ${d.id} provision backoff (failure ${pf.n}, ${Math.max(1, Math.round((pf.until - Date.now()) / 60000))}min left) overridden by owner resume`);
+    // Prefetch-stage holds self-clear when the gateway serves the CID again.
+    // until:0 (not delete) keeps the failure count: a CID that answers a
+    // ranged byte but still fails the full verified prefetch re-notes and
+    // climbs the same ladder instead of resetting to 5min forever.
+    let cleared = false;
+    if (!forced && prefetchProbeDue(pf, Date.now())) {
+      pf.probedAt = Date.now();
+      if (await gatewayServes(pf.cid)) {
+        pf.until = 0; pf.probeClears = (pf.probeClears || 0) + 1; cleared = true;
+        console.log(`[claim] ${d.id} prefetch backoff cleared: gateway serves ${pf.cid} again (after ${pf.n} failure${pf.n === 1 ? "" : "s"})`);
+      }
+    }
+    if (!cleared) {
+      if (!forced) return provisionDeclineReason(pf, Date.now());
+      console.log(`[claim] ${d.id} provision backoff (failure ${pf.n}, ${Math.max(1, Math.round((pf.until - Date.now()) / 60000))}min left) overridden by owner resume`);
+    }
   }
   const ev = _evacuated.get(d.id);
   if (ev && Date.now() < ev) return "evacuated from here for consolidation; leaving it for another enclave";
@@ -7493,7 +7560,7 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false 
       if (r.status !== 200) throw new Error((r.body && (r.body.error || r.body.message)) || `HTTP ${r.status}`);
       if (r.body && r.body.seconds > 1) console.log(`[claim] ${d.id} prefetched ${r.body.bytes} bytes in ${r.body.seconds}s`);
     } catch (e) {
-      const coolMs = noteProvisionFailure(d.id, d.appRef);
+      const coolMs = noteProvisionFailure(d.id, d.appRef, "prefetch", e.message, g.wasmRef.slice("ipfs://".length));
       console.warn(`[claim] ${d.id} prefetch failed (${e.message}); not claiming, backing off ${Math.round(coolMs / 60000)}min`);
       return;
     }
@@ -7612,6 +7679,8 @@ async function adopt(d, g, firewall, slice) {
   // doing it here hides the whole issuance behind provisioning.
   acmeReconcileSoon();
   if (await provisionTenant(rec)) {
+    // a real success retires the ladder: the next unrelated failure starts at 5min
+    _provisionBackoff.delete(rec.id);
     console.log(`[claim] ${rec.id} adopted: app=${g.app.slug}:${g.app.version} (${g.ref}) gpuShare=${round3(slice.gpuShare || 0)} cpuShare=${round3(slice.cpuShare)} `
               + `lease until ${new Date(rec._leaseUntil * 1000).toISOString()}`);
   } else {
@@ -7620,7 +7689,7 @@ async function adopt(d, g, firewall, slice) {
     // provisionTenant stamped status "failed" + rec.error, and that record is
     // the owner's only evidence of WHY (the console polls it). "failed" is in
     // CLAIM_TERMINAL, so any enclave (this one included) may still re-adopt.
-    const coolMs = noteProvisionFailure(rec.id, rec.image && rec.image.reference);
+    const coolMs = noteProvisionFailure(rec.id, rec.image && rec.image.reference, "provision", rec.error);
     console.warn(`[claim] provision failed for ${rec.id} (${rec.error || "?"}); backing off ${Math.round(coolMs / 60000)}min here`);
     releaseLease(rec.id, "provision failed").catch(() => {});   // never served here: no proof, we earn nothing
   }
