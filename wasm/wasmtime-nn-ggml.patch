@@ -222,7 +222,7 @@ new file mode 100644
 index 0000000..dc098cf
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,2540 @@
+@@ -0,0 +1,2597 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -1171,6 +1171,15 @@ index 0000000..dc098cf
 +    )
 +}
 +
++/// A refusal the speculative guest is expected to HANDLE, not report: drop
++/// to plain decode for the rest of the request, and its steps then merge with
++/// the other chat's instead of alternating against them. Tagged so it can
++/// never be mistaken for a real failure.
++const SHARED_ERR: &str =
++    "[mtp_shared] another chat is generating on this model - a speculative round takes the decode \
++     turn alone, so while shared it is slower than the merged batch; decode plain and the streams \
++     merge into one pass";
++
 +fn decode_err(rc: i32) -> String {
 +    if rc == 1 {
 +        "[kv_pool_full] the shared KV pool cannot hold this step right now — too many (or too \
@@ -1182,6 +1191,38 @@ index 0000000..dc098cf
 +}
 +
 +impl GgmlServer {
++    /// mm31: is some OTHER sequence generating right now?
++    ///
++    /// Speculation is a SINGLE-STREAM optimisation on this engine. A round
++    /// takes the decode turn exclusively (the verify is one sequence's
++    /// all-positions pass), so two speculating chats both serialise AND lose
++    /// llama's graph reuse to the alternating sequence id - measured on a 27b
++    /// hybrid, a round costs 26 ms alone and 99 ms with two chats, of which
++    /// 45 ms is waiting out the other one's turn and most of the rest is the
++    /// rebuilt graph. Merged plain decode has the opposite shape: a
++    /// two-sequence step costs what a one-sequence step costs, because the
++    /// weights are read once for both. So the moment a second chat arrives
++    /// speculation is the wrong trade, and the MTP verbs refuse with
++    /// SHARED_ERR so the guest drops onto the batched path instead.
++    fn shared_with(&self, seq_id: i32) -> bool {
++        let mut q = self.q.lock().unwrap();
++        let now = Instant::now();
++        let ttl = cohort_ttl();
++        q.stepping.retain(|_, t| now.duration_since(*t) < ttl);
++        q.stepping.keys().any(|s| *s != seq_id)
++    }
++
++    /// Record that `seq_id` is generating - a speculative round counts, the
++    /// same as a plain step - and answer whether anyone else is too.
++    fn mark_and_share(&self, seq_id: i32) -> bool {
++        let mut q = self.q.lock().unwrap();
++        let now = Instant::now();
++        let ttl = cohort_ttl();
++        q.stepping.retain(|_, t| now.duration_since(*t) < ttl);
++        q.stepping.insert(seq_id, now);
++        q.stepping.keys().any(|s| *s != seq_id)
++    }
++
 +    fn new(model: &Arc<GgmlModel>) -> Result<Arc<GgmlServer>, BackendError> {
 +        let n_ctx = env_u32("ENCLAVE_GGML_N_CTX", 8192);
 +        let n_batch = env_u32("ENCLAVE_GGML_N_BATCH", 512);
@@ -1593,6 +1634,10 @@ index 0000000..dc098cf
 +                self.n_batch
 +            ));
 +        }
++        // mm31: speculate only while this chat has the model to itself
++        if self.mark_and_share(seq_id) {
++            return Err(SHARED_ERR.into());
++        }
 +        let ph_t0 = std::time::Instant::now();
 +        let mut q = self.q.lock().unwrap();
 +        while q.decoding {
@@ -1860,6 +1905,11 @@ index 0000000..dc098cf
 +                 obs: Option<(i32, &[i32])>)
 +        -> Result<Vec<i32>, String>
 +    {
++        // mm31: same rule as the fused round - a lone chat drafts, a shared
++        // one decodes plain so its steps can merge with the other's
++        if self.mark_and_share(seq) {
++            return Err(SHARED_ERR.into());
++        }
 +        let mtp = self.mtp.lock().unwrap();
 +        let h = mtp.as_ref().ok_or("[mtp_unavailable] no MTP state (prefill with mtp first)")?;
 +        let mut out = vec![0i32; k.max(0) as usize];
@@ -2358,6 +2408,13 @@ index 0000000..dc098cf
 +                        // device top-k: the K this engine is armed with
 +                        // (mm26, nnDevTopk); 0 = host-side topk_rows
 +                        self.server.dev_topk,
++                        // mm31: another sequence is generating right now, so
++                        // the MTP verbs would refuse (SHARED_ERR). A guest
++                        // that reads this opens PLAIN instead of opening a
++                        // speculative rig and downgrading one round later.
++                        // Advisory only - the refusal is the authority, and
++                        // it is re-evaluated every round.
++                        self.server.shared_with(self.seq_id) as i32,
 +                    ];
 +                    let mut data = Vec::with_capacity(vals.len() * 4);
 +                    for v in vals {
