@@ -222,7 +222,7 @@ new file mode 100644
 index 0000000..dc098cf
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,2597 @@
+@@ -0,0 +1,2620 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -1180,6 +1180,21 @@ index 0000000..dc098cf
 +     turn alone, so while shared it is slower than the merged batch; decode plain and the streams \
 +     merge into one pass";
 +
++/// mm31 opt-in: does this caller understand [mtp_shared]? A guest that sends
++/// `{"shared_ok": 1}` beside a speculative verb is telling the host it will
++/// finish the turn on plain decode if the round is refused. Everything else -
++/// every app built before mm31 - is served exactly as it always was, because
++/// refusing a guest that treats the error as fatal would trade a slow answer
++/// for a failed one.
++fn shared_ok(inputs: &[NamedTensor]) -> bool {
++    inputs
++        .iter()
++        .find(|nt| nt.name == "shared_ok")
++        .and_then(|nt| nt.tensor.data.get(0..4))
++        .map(|b| i32::from_le_bytes([b[0], b[1], b[2], b[3]]) != 0)
++        .unwrap_or(false)
++}
++
 +fn decode_err(rc: i32) -> String {
 +    if rc == 1 {
 +        "[kv_pool_full] the shared KV pool cannot hold this step right now — too many (or too \
@@ -1622,6 +1637,7 @@ index 0000000..dc098cf
 +        p_min: f32,
 +        obs: Option<(i32, &[i32])>,
 +        pending: &[i32],
++        shared_ok: bool,
 +    ) -> Result<(Vec<i32>, RowsOut, i64), String> {
 +        if pending.is_empty() {
 +            return Err("mtp_round needs at least one pending token".into());
@@ -1634,8 +1650,13 @@ index 0000000..dc098cf
 +                self.n_batch
 +            ));
 +        }
-+        // mm31: speculate only while this chat has the model to itself
-+        if self.mark_and_share(seq_id) {
++        // mm31: speculate only while this chat has the model to itself.
++        // OPT-IN: refusing a guest that does not know how to downgrade would
++        // turn a slow answer into a failed one, so the round is only refused
++        // when the caller said it can handle it (`shared_ok`). The sequence
++        // is marked either way - it IS generating, and its neighbour needs
++        // to know that whatever this guest does about it.
++        if self.mark_and_share(seq_id) && shared_ok {
 +            return Err(SHARED_ERR.into());
 +        }
 +        let ph_t0 = std::time::Instant::now();
@@ -1902,12 +1923,12 @@ index 0000000..dc098cf
 +    /// folded observe yields 0 drafts - the round degrades to plain decode
 +    /// and the next explicit observe resynchronizes the head.
 +    fn mtp_draft(&self, seq: i32, id_last: i32, n_past: i32, k: i32, p_min: f32,
-+                 obs: Option<(i32, &[i32])>)
++                 obs: Option<(i32, &[i32])>, shared_ok: bool)
 +        -> Result<Vec<i32>, String>
 +    {
-+        // mm31: same rule as the fused round - a lone chat drafts, a shared
-+        // one decodes plain so its steps can merge with the other's
-+        if self.mark_and_share(seq) {
++        // mm31: same rule (and the same opt-in) as the fused round - a lone
++        // chat drafts, a shared one decodes plain so its steps can merge
++        if self.mark_and_share(seq) && shared_ok {
 +            return Err(SHARED_ERR.into());
 +        }
 +        let mtp = self.mtp.lock().unwrap();
@@ -2556,7 +2577,8 @@ index 0000000..dc098cf
 +                        .ok_or_else(|| err("mtp_round needs a \"topk\" input"))?;
 +                    let (drafts, flat, draft_us) = self
 +                        .server
-+                        .mtp_round(self.seq_id, id_last, self.n_past, k, p_min, obs, &pending)
++                        .mtp_round(self.seq_id, id_last, self.n_past, k, p_min, obs, &pending,
++                                   shared_ok(&inputs))
 +                        .map_err(err)?;
 +                    let n_rows = pending.len() + drafts.len();
 +                    self.n_past += n_rows as i32;
@@ -2624,7 +2646,8 @@ index 0000000..dc098cf
 +                    };
 +                    let toks = self
 +                        .server
-+                        .mtp_draft(self.seq_id, id_last, self.n_past, k, p_min, obs)
++                        .mtp_draft(self.seq_id, id_last, self.n_past, k, p_min, obs,
++                                   shared_ok(&inputs))
 +                        .map_err(err)?;
 +                    let mut data = Vec::with_capacity(toks.len() * 4);
 +                    for t in &toks {
