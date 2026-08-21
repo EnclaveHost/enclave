@@ -222,7 +222,7 @@ new file mode 100644
 index 0000000..dc098cf
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,2401 @@
+@@ -0,0 +1,2540 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -354,6 +354,7 @@ index 0000000..dc098cf
 +use std::ffi::{c_char, c_void, CString};
 +use std::path::{Path, PathBuf};
 +use std::sync::{Arc, Condvar, Mutex, Once, OnceLock};
++use std::time::{Duration, Instant};
 +
 +unsafe extern "C" {
 +    fn ell_init();
@@ -566,6 +567,48 @@ index 0000000..dc098cf
 +
 +/// KV-cache element type string -> the shim's `ell_kv_type` code (0 F16 default,
 +/// 1 Q8_0, 2 Q4_0, 3 F32). Empty/unknown = F16, i.e. current behavior.
++/// mm30 COHORT BATCHING. How long a decode leader may wait for the other
++/// sequences that are also stepping, before it decodes without them
++/// (`ENCLAVE_GGML_COHORT_MS`, 0 = off = pre-mm30 opportunistic merging).
++///
++/// Why waiting is FASTER than not waiting, which is the whole point: llama
++/// only reuses a built graph when the next ubatch has the same shape AND the
++/// same participating sequence ids, and ggml-cuda only replays a captured
++/// CUDA graph while llama keeps reusing (a rebuild changes cgraph->uid, and
++/// re-capture needs several property-stable passes). Merging whatever happens
++/// to be queued makes the set oscillate — {0,1}, {0}, {1} — so the graph is
++/// rebuilt EVERY step and every decode runs as thousands of individual kernel
++/// launches, which under SEV-SNP costs ~50-90 ms against a ~16 ms replayed
++/// step. Two sequences that are both generating arrive within a couple of ms
++/// of each other, so a small window buys a stable set almost for free.
++fn cohort_ms() -> u64 {
++    static V: OnceLock<u64> = OnceLock::new();
++    *V.get_or_init(|| {
++        std::env::var("ENCLAVE_GGML_COHORT_MS")
++            .ok()
++            .and_then(|v| v.trim().parse::<u64>().ok())
++            .unwrap_or(12)
++            .min(200)
++    })
++}
++
++/// How long since its last step a sequence is still counted as "stepping",
++/// and so still worth waiting for (`ENCLAVE_GGML_COHORT_TTL_MS`). A sequence
++/// that stops (finished, or its guest went off to run a tool) ages out of the
++/// cohort and the survivors stop paying for it. A single missed window drops
++/// it immediately — this bound is only the backstop for a sequence that never
++/// comes back at all.
++fn cohort_ttl() -> Duration {
++    static V: OnceLock<u64> = OnceLock::new();
++    Duration::from_millis(*V.get_or_init(|| {
++        std::env::var("ENCLAVE_GGML_COHORT_TTL_MS")
++            .ok()
++            .and_then(|v| v.trim().parse::<u64>().ok())
++            .unwrap_or(500)
++            .clamp(50, 10_000)
++    }))
++}
++
 +fn kv_type_code(s: &str) -> i32 {
 +    match s.trim().to_ascii_lowercase().as_str() {
 +        "q8_0" | "q8" => 1,
@@ -987,6 +1030,14 @@ index 0000000..dc098cf
 +    /// a leader is inside ell_decode_batch — exactly one at a time, and
 +    /// seq removal (Drop) must also wait on this
 +    decoding: bool,
++    /// mm30 COHORT: seq_id -> when it last submitted a single-token step.
++    /// The leader waits a short window for this whole set before decoding,
++    /// which is what keeps the ubatch's participating-sequence set IDENTICAL
++    /// from step to step — the precondition llama checks before it reuses a
++    /// graph (`llm_graph_params::allow_reuse` compares n_seqs AND the seq
++    /// ids; `llm_graph_input_rs::can_reuse` compares the recurrent head,
++    /// which is min(tails) over exactly that set). See cohort_wait().
++    stepping: HashMap<i32, Instant>,
 +}
 +
 +/// The shared serving context for one graph: one llama context whose unified
@@ -1184,6 +1235,7 @@ index 0000000..dc098cf
 +                pending: VecDeque::new(),
 +                results: HashMap::new(),
 +                decoding: false,
++                stepping: HashMap::new(),
 +            }),
 +            cv: Condvar::new(),
 +            n_ctx,
@@ -1202,10 +1254,18 @@ index 0000000..dc098cf
 +    /// sits at position `pos0`) and return the last token's logits row.
 +    /// Concurrent callers MERGE: whoever finds the queue idle becomes the
 +    /// leader, drains everything that fits one llama batch, runs the single
-+    /// FFI decode, posts every item's result, and wakes the rest —
-+    /// continuous batching by natural queueing, no artificial delay window
-+    /// (requests that arrive while a batch is on the GPU merge into the
-+    /// next one).
++    /// FFI decode, posts every item's result, and wakes the rest.
++    ///
++    /// mm30: the leader first holds the batch a few ms for the OTHER
++    /// sequences that are stepping (cohort_wait) and decodes them in seq_id
++    /// order. Before mm30 it merged whatever happened to be queued, so the
++    /// participating set oscillated ({0,1}, {0}, {1}, …) — llama will not
++    /// reuse a graph whose sequence set changed, and ggml-cuda only replays
++    /// a captured CUDA graph while llama keeps reusing one, so EVERY
++    /// concurrent decode fell back to thousands of individual kernel
++    /// launches. Measured on the fleet (27b hybrid, two chats): ~50-90 ms a
++    /// step against ~16 ms for the replayed single-sequence one, i.e. two
++    /// users were slower together than one user alone.
 +    fn submit(&self, seq_id: i32, pos0: i32, tokens: Vec<i32>) -> Result<RowOut, String> {
 +        if tokens.is_empty() {
 +            return Err("empty token batch".into());
@@ -1217,19 +1277,37 @@ index 0000000..dc098cf
 +                self.n_batch
 +            ));
 +        }
++        let single = tokens.len() == 1;
 +        let ticket = {
 +            let mut q = self.q.lock().unwrap();
 +            let t = q.next_ticket;
 +            q.next_ticket += 1;
 +            q.pending.push_back(PendingItem { ticket: t, seq_id, pos0, tokens });
++            if single {
++                // a plain one-token step: this sequence is generating, so it
++                // belongs to the cohort the leader holds the batch for
++                q.stepping.insert(seq_id, Instant::now());
++            }
 +            t
 +        };
++        // wake a leader sitting in its cohort window. Nothing notified on
++        // submit before mm30, because nobody ever waited for an arrival.
++        self.cv.notify_all();
 +        let mut q = self.q.lock().unwrap();
 +        loop {
 +            if let Some(r) = q.results.remove(&ticket) {
 +                return r;
 +            }
 +            if !q.decoding && !q.pending.is_empty() {
++                // mm30: hold the batch for the rest of the cohort. This
++                // RELEASES the lock, so re-test both conditions afterwards.
++                q = self.cohort_wait(q);
++                if q.decoding || q.pending.is_empty() {
++                    continue;
++                }
++                if let Some(r) = q.results.remove(&ticket) {
++                    return r;
++                }
 +                // become the leader: take from the front while it fits the
 +                // batch, one item per sequence (positions within one call
 +                // are per-item contiguous)
@@ -1244,7 +1322,17 @@ index 0000000..dc098cf
 +                    }
 +                    let it = q.pending.pop_front().unwrap();
 +                    total += it.tokens.len();
-+                    items.push(it);
++                    // mm30: keep the batch ASCENDING by seq_id. Recurrent
++                    // cells are pinned at index == seq_id
++                    // (LLAMA_RS_PIN_CELLS), so an ascending batch already
++                    // satisfies the contiguity llama's find_slot packs for:
++                    // it swaps nothing, the recurrent head stays at
++                    // min(seq_ids), and llm_graph_input_rs::can_reuse keeps
++                    // passing. It also makes ubatch.seq_id_unq deterministic
++                    // for llm_graph_params::allow_reuse, which compares it
++                    // element by element.
++                    let at = items.partition_point(|p| p.seq_id < it.seq_id);
++                    items.insert(at, it);
 +                }
 +                q.decoding = true;
 +                drop(q);
@@ -1266,6 +1354,53 @@ index 0000000..dc098cf
 +                continue; // our own result may be among them
 +            }
 +            q = self.cv.wait(q).unwrap();
++        }
++    }
++
++    /// Hold a would-be decode leader until every sequence that is currently
++    /// stepping has an item queued, or `ENCLAVE_GGML_COHORT_MS` elapses.
++    /// Returns the lock; the caller MUST re-test `decoding` and `pending`,
++    /// because this releases it while waiting.
++    ///
++    /// Only single-token steps are held. A prefill chunk is a one-off shape
++    /// nobody can join, and holding it would add the window to every
++    /// request's time-to-first-token for nothing.
++    ///
++    /// On timeout the absent sequences are dropped from the cohort rather
++    /// than waited for again: whatever they are doing (a tool call, a
++    /// finished answer, a speculative round that never reaches this queue)
++    /// they are not in lockstep with us, and the ones that are must not pay
++    /// the window on every token to keep discovering it. They rejoin on
++    /// their next submit, at a cost of exactly one rebuilt graph.
++    fn cohort_wait<'a>(
++        &'a self,
++        mut q: std::sync::MutexGuard<'a, DecodeQueue>,
++    ) -> std::sync::MutexGuard<'a, DecodeQueue> {
++        let window = cohort_ms();
++        if window == 0 || q.stepping.len() < 2 {
++            return q; // nothing to wait for: one generator, or switched off
++        }
++        let ttl = cohort_ttl();
++        let deadline = Instant::now() + Duration::from_millis(window);
++        loop {
++            if q.pending.iter().any(|p| p.tokens.len() != 1) {
++                return q; // a prefill is queued - never hold that up
++            }
++            let now = Instant::now();
++            q.stepping.retain(|_, t| now.duration_since(*t) < ttl);
++            let queued: Vec<i32> = q.pending.iter().map(|p| p.seq_id).collect();
++            if q.stepping.keys().all(|s| queued.contains(s)) {
++                return q; // the whole cohort is here
++            }
++            let Some(left) = deadline.checked_duration_since(now) else {
++                q.stepping.retain(|s, _| queued.contains(s));
++                return q;
++            };
++            let (nq, _) = self.cv.wait_timeout(q, left).unwrap();
++            q = nq;
++            if q.decoding {
++                return q; // someone else took the batch while we waited
++            }
 +        }
 +    }
 +
@@ -1924,6 +2059,10 @@ index 0000000..dc098cf
 +            q = self.server.cv.wait(q).unwrap();
 +        }
 +        unsafe { ell_seq_remove(self.server.raw, self.seq_id) };
++        // mm30: it is not stepping any more, so nobody should hold a batch
++        // waiting for it. The TTL would notice eventually; doing it here
++        // means the sequences that remain never miss even one window.
++        q.stepping.remove(&self.seq_id);
 +        // the MTP head keeps per-seq state (KV + draft seed); slots get
 +        // reused by other streams, so forget this one before the slot frees
 +        self.server.mtp_reset(self.seq_id);

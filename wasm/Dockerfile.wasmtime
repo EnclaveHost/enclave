@@ -207,6 +207,12 @@ RUN git apply --check /tmp/wasmtime-loopback.patch \
 # against the enclave_llama shim above - no Cargo.lock delta. MUST apply
 # after the other patches (diffed against the patched tree - onnx-gpu-strict
 # touches the same files).
+# mm30 COHORT BATCHING (2026-08-20): a decode leader holds the batch a few ms
+# for the other sequences that are stepping, and decodes them in seq_id order.
+# Merging whatever happened to be queued made the participating-sequence set
+# oscillate ({0,1}, {0}, {1}, ...) and llama will not reuse a graph whose
+# sequence set changed - so every CONCURRENT decode ran un-captured, ~50-90 ms
+# against ~16 ms for a replayed one. ENCLAVE_GGML_COHORT_MS=0 is the rollback.
 COPY wasmtime-nn-ggml.patch /tmp/
 RUN git apply --check /tmp/wasmtime-nn-ggml.patch \
  && git apply /tmp/wasmtime-nn-ggml.patch
