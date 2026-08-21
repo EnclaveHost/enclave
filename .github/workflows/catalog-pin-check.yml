@@ -1,0 +1,39 @@
+# Catalog pin check — every approved, non-yanked catalog version's wasm CID
+# (and config CID, when it keeps one) must answer on the pin gateway. The
+# 2026-08-20 incident is the whole rationale: 27 of 29 approved apps' wasm
+# silently 404'd on ipfs.enclave.host after the S3 cutover, nothing alarmed,
+# and the first symptom was deployments dying at the claim prefetch step with
+# no record. A red run here IS the alarm, months before a cache wipe makes it
+# an outage. scripts/catalog-pin-sweep.mjs prints exactly which CID is gone
+# and what to do (re-pin the exact bytes, or yank the version).
+#
+# Read-only and secretless like test.yml: it reads the public catalog through
+# the CLI (address book -> chain) and range-GETs the public gateway.
+name: Catalog pin check
+
+on:
+  schedule:
+    - cron: "23 */6 * * *"   # every 6 hours; a lost CID is an outage fuse, not a fire
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: catalog-pin-check
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 22
+      - name: Install CLI dependencies
+        run: npm ci --omit=dev
+        working-directory: cli
+      - name: Sweep approved catalog CIDs against the pin gateway
+        run: node scripts/catalog-pin-sweep.mjs | tee "$GITHUB_STEP_SUMMARY"
