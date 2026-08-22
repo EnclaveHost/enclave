@@ -1,0 +1,313 @@
+enclave shared-base mirror: one-load heap base for defined shared memories
+==========================================================================
+
+THE COST: a DEFINED shared memory's VMMemoryDefinition lives out-of-line
+(an Arc the SharedMemory owns), so compiled code reached the heap base by
+chasing vmctx -> *mut VMMemoryDefinition -> base: two dependent loads,
+where a plain (owned) memory takes one. Both loads are readonly and hoist
+out of call-free loops — but every CALL forces a rederivation, and an
+interpreter-shaped guest calls in its per-instruction path. Measured on a
+call-per-iteration microbench (callee does 3 loads, call_indirect so it
+cannot inline): plain 0.780s, shared 0.833s = +6.4%. On risc-box (DOOM
+demo, guest MIPS): the same mechanism is most of the gap that remained
+after -W set-epochs=n.
+
+THE FIX: a new per-defined-memory vmctx area, `defined_shared_memory_bases`,
+holding a copy of the base pointer, written at instantiation. Sound because
+a shared memory's base can NEVER move (allocated at its max reservation;
+grow only mprotects). Codegen (make_heap_base_bound, defined+shared) takes
+the base from that mirror — ONE readonly load, byte-identical shape to an
+owned memory — while the LENGTH still goes through the out-of-line
+definition, because concurrent growth must stay visible across instances
+(with bounds-check elision on, loads/stores never read it anyway; memory.size
+and the slow paths still do, through the unchanged pointer).
+
+THE TWO WRITERS, and why both matter:
+  - initialize_vmctx: writes the mirror beside the definition pointer for
+    every defined shared memory (and initializes the dead slot for owned
+    memories so no vmctx bytes are undefined — dead because compiled code
+    only reads the mirror for `shared` memories, whose base is immutable).
+  - replace_defined_memory_with_shared (the SET worker re-point): a worker
+    view re-pointed at the primary's SharedMemory MUST get the primary's
+    base mirrored, or the worker would run on its own discarded memory.
+    Runs before the view executes any guest code, same as the pointer write.
+
+VERIFIED: shared/unshared minimal pair objdump — load sites now identical
+(movq 0xNN(%rdi),%rsi; access) both ways; callloop microbench 0.780 vs
+0.781s (parity, was +6.4%); risc-box SET 121.7 MIPS vs plain 129.2 on the
+same rig (was 105.8 under the epoch-armed engine two patches ago); SET
+probes spawn-indirect=7, parallel(8)=8, stress(50x8)=400, nested=1, spin/
+park teardown probes correct in both epoch modes; tests/all 1305/0.
+
+Applies LAST, after wasmtime-set-epochs (diffed against the fully-patched
+tree).
+
+ADVERSARIAL REVIEW ROUND (2026-08-22, two independent reviewers): the
+runtime/codegen soundness survived every attack (single lockstep writer
+pair, immutable shared base with a RELEASE-mode assert upstream, write-
+before-execute ordering incl. the SET worker re-point, index discipline,
+winch/pulley staying on the still-correct two-load path). ONE confirmed
+latent hazard, fixed in this revision: this is the first fleet patch to
+CHANGE VMCTX LAYOUT, and upstream's artifact fence is only the MAJOR
+version ("49") — a pre-mirror .cwasm, or a ~/.cache/wasmtime entry (the
+CLI caches by default), would deserialize cleanly and index every field
+after owned_memories at stale offsets: calls through garbage pointers.
+So the patch now also stamps ENCLAVE_VMCTX_LAYOUT_EPOCH ("49+enclave-
+vmctx1") into the serialized version string AND the cache-key hash
+(config.rs) — stale artifacts are refused loudly in both directions
+("Module was compiled with incompatible version '49'", verified), costing
+one recompile instead of memory corruption. BUMP THE EPOCH STRING ON EVERY
+FUTURE PATCH THAT CHANGES VMCTX LAYOUT.
+
+--- a/crates/environ/src/vmoffsets.rs
++++ b/crates/environ/src/vmoffsets.rs
+@@ -23,6 +23,15 @@
+ //      imported_memories: [VMMemoryImport; module.num_imported_memories],
+ //      memories: [*mut VMMemoryDefinition; module.num_defined_memories],
+ //      owned_memories: [VMMemoryDefinition; module.num_owned_memories],
++//      // enclave/SET: for each defined SHARED memory, a copy of its base
++//      // pointer written at instantiation. A shared memory's base can never
++//      // move, so this mirror is immutable and lets compiled code reach the
++//      // heap base in ONE vmctx load — the same shape as an owned memory —
++//      // instead of chasing the out-of-line `*mut VMMemoryDefinition` with
++//      // two dependent loads on every post-call rederivation (measured 6% on
++//      // a call-per-iteration guest loop). Slots for non-shared memories are
++//      // dead (zero).
++//      defined_shared_memory_bases: [*mut u8; module.num_defined_memories],
+ //      imported_functions: [VMFunctionImport; module.num_imported_functions],
+ //      imported_tables: [VMTableImport; module.num_imported_tables],
+ //      imported_globals: [VMGlobalImport; module.num_imported_globals],
+@@ -371,6 +380,7 @@
+     defined_tables: u32,
+     defined_memories: u32,
+     owned_memories: u32,
++    defined_shared_memory_bases: u32,
+     defined_globals: u32,
+     defined_tags: u32,
+     defined_func_refs: u32,
+@@ -879,6 +889,7 @@
+             imported_globals: "imported globals",
+             imported_tables: "imported tables",
+             imported_functions: "imported functions",
++            defined_shared_memory_bases: "defined shared memory base mirrors",
+             owned_memories: "owned memories",
+             defined_memories: "defined memories",
+             imported_memories: "imported memories",
+@@ -920,6 +931,7 @@
+             defined_tables: 0,
+             defined_memories: 0,
+             owned_memories: 0,
++            defined_shared_memory_bases: 0,
+             defined_globals: 0,
+             defined_tags: 0,
+             defined_func_refs: 0,
+@@ -965,6 +977,11 @@
+                 = cmul(ret.num_defined_memories, ret.ptr.size_of_vmmemory_pointer()),
+             size(owned_memories)
+                 = cmul(ret.num_owned_memories, ret.ptr.vm_memory_definition().size()),
++            // enclave/SET: base mirrors for defined shared memories (see the
++            // vmctx layout comment above). Sized by num_defined_memories so
++            // indexing stays DefinedMemoryIndex; non-shared slots are dead.
++            size(defined_shared_memory_bases)
++                = cmul(ret.num_defined_memories, ret.ptr.size_of_vmmemory_pointer()),
+             size(imported_functions)
+                 = cmul(ret.num_imported_functions, ret.ptr.vm_function_import().size()),
+             size(imported_tables)
+@@ -1075,6 +1092,12 @@
+         self.owned_memories
+     }
+ 
++    /// enclave/SET: the offset of the `defined_shared_memory_bases` array.
++    #[inline]
++    pub fn vmctx_defined_shared_memory_bases_begin(&self) -> u32 {
++        self.defined_shared_memory_bases
++    }
++
+     /// The offset of the `globals` array.
+     #[inline]
+     pub fn vmctx_globals_begin(&self) -> u32 {
+@@ -1167,6 +1190,18 @@
+             + index.as_u32() * u32::from(self.ptr.size_of_vmmemory_pointer())
+     }
+ 
++    /// enclave/SET: return the offset to the base-pointer mirror of the
++    /// defined SHARED memory at `index`. Written once at instantiation (a
++    /// shared memory's base never moves), read by compiled code as the ONE-
++    /// load path to the heap base. Dead (zero) for non-shared memories —
++    /// their base lives in the owned `VMMemoryDefinition` already.
++    #[inline]
++    pub fn vmctx_vmmemory_shared_base(&self, index: DefinedMemoryIndex) -> u32 {
++        assert!(index.as_u32() < self.num_defined_memories);
++        self.vmctx_defined_shared_memory_bases_begin()
++            + index.as_u32() * u32::from(self.ptr.size_of_vmmemory_pointer())
++    }
++
+     /// Return the offset to the owned `VMMemoryDefinition` at index `index`.
+     #[inline]
+     pub fn vmctx_vmmemory_definition(&self, index: OwnedMemoryIndex) -> u32 {
+--- a/crates/wasmtime/src/runtime/vm/instance.rs
++++ b/crates/wasmtime/src/runtime/vm/instance.rs
+@@ -673,10 +673,20 @@
+         });
+         let def_ptr = shared.vmmemory_ptr();
+         let offset = self.offsets().vmctx_vmmemory_pointer(index);
++        // enclave/SET: the base MIRROR must follow the definition pointer —
++        // compiled code reads the mirror as its one-load path to the heap
++        // base, so a re-pointed view with a stale mirror would run the worker
++        // on the wrong (its own discarded) memory. Safe for the same reason
++        // as the pointer write: this runs before the view executes any guest
++        // code, and the primary's shared base never moves afterwards.
++        let mirror = self.offsets().vmctx_vmmemory_shared_base(index);
+         unsafe {
+             self.as_mut()
+                 .vmctx_plus_offset_raw::<VmPtr<VMMemoryDefinition>>(offset)
+                 .write(VmPtr::from(def_ptr));
++            self.as_mut()
++                .vmctx_plus_offset_raw::<VmPtr<u8>>(mirror)
++                .write((*def_ptr.as_ptr()).base);
+         }
+         let entry = &mut self.memories_mut()[index];
+         entry.1 = Memory::Shared(shared);
+@@ -1475,6 +1485,11 @@
+             let mut ptr = instance.vmctx_plus_offset_raw(offsets.vmctx_memories_begin());
+             let mut owned_ptr =
+                 instance.vmctx_plus_offset_raw(offsets.vmctx_owned_memories_begin());
++            // enclave/SET: the base-mirror array walks in lockstep with `ptr`
++            // (both are indexed by DefinedMemoryIndex).
++            let mut mirror_ptr = instance.vmctx_plus_offset_raw::<VmPtr<u8>>(
++                offsets.vmctx_defined_shared_memory_bases_begin(),
++            );
+             let memories = instance.as_mut().memories_mut();
+             for i in 0..module.num_defined_memories() {
+                 let defined_memory_index = DefinedMemoryIndex::new(i);
+@@ -1486,12 +1501,24 @@
+                         .unwrap()
+                         .vmmemory_ptr();
+                     ptr.write(VmPtr::from(def_ptr));
++                    // enclave/SET: mirror the shared memory's base into the
++                    // vmctx so compiled code reaches the heap base in ONE
++                    // load (see vmoffsets' vmctx layout comment). Sound to
++                    // write once: a shared memory's base never moves.
++                    mirror_ptr.write((*def_ptr.as_ptr()).base);
+                 } else {
+                     owned_ptr.write(memories[defined_memory_index].1.vmmemory());
+                     ptr.write(VmPtr::from(owned_ptr));
+                     owned_ptr = owned_ptr.add(1);
++                    // The mirror slot for a non-shared memory is DEAD: compiled
++                    // code never reads it (the base lives in the owned
++                    // definition, which tracks growth). Initialize it anyway so
++                    // no vmctx bytes are left undefined — with the current base,
++                    // which may go stale on grow precisely because it is unread.
++                    mirror_ptr.write(memories[defined_memory_index].1.vmmemory().base);
+                 }
+                 ptr = ptr.add(1);
++                mirror_ptr = mirror_ptr.add(1);
+             }
+         }
+ 
+--- a/crates/cranelift/src/alias_region.rs
++++ b/crates/cranelift/src/alias_region.rs
+@@ -1244,6 +1244,28 @@
+         }
+     }
+ 
++    /// enclave/SET: load the base-pointer MIRROR of the defined SHARED memory
++    /// at `memory` out of the `*mut VMContext`. One load to the heap base —
++    /// the same shape owned memories get — instead of chasing the out-of-line
++    /// `*mut VMMemoryDefinition` with two dependent loads. Written once at
++    /// instantiation; a shared memory's base never moves, hence readonly.
++    pub fn vmctx_vmmemory_shared_base_load(
++        &mut self,
++        func: &mut ir::Function,
++        memory: DefinedMemoryIndex,
++    ) -> Load {
++        let offset = self.offsets.vmctx_vmmemory_shared_base(memory);
++        let region = self.vmctx_region(func, offset);
++        Load {
++            offset,
++            flags: ir::MemFlagsData::trusted()
++                .with_readonly()
++                .with_can_move()
++                .with_alias_region(Some(region)),
++            ty: self.pointer_type,
++        }
++    }
++
+     /// Load the base of the given runtime data out of the `*mut VMContext`.
+     pub fn vmctx_runtime_data_base(
+         &mut self,
+--- a/crates/wasmtime/src/config.rs
++++ b/crates/wasmtime/src/config.rs
+@@ -102,10 +102,23 @@
+     }
+ }
+ 
++/// enclave: the vmctx-layout epoch, appended to the artifact version string
++/// and the cache-key hash. The shared-base-mirror patch adds a per-defined-
++/// memory array to the vmctx, shifting every field after `owned_memories`
++/// for EVERY module with a defined memory — while upstream's version fence
++/// is only the MAJOR version ("49"), under which a pre-mirror `.cwasm` (or a
++/// `~/.cache/wasmtime` entry; the CLI caches by default) deserializes
++/// cleanly on this engine and indexes functions at stale offsets: calls
++/// through garbage pointers. Bump this ON EVERY FUTURE PATCH THAT CHANGES
++/// VMCTX LAYOUT so stale artifacts are refused loudly ("incompatible
++/// version") in BOTH directions, costing one recompile instead of memory
++/// corruption.
++const ENCLAVE_VMCTX_LAYOUT_EPOCH: &str = "49+enclave-vmctx1";
++
+ impl core::hash::Hash for ModuleVersionStrategy {
+     fn hash<H: core::hash::Hasher>(&self, hasher: &mut H) {
+         match self {
+-            Self::WasmtimeVersion => env!("CARGO_PKG_VERSION").hash(hasher),
++            Self::WasmtimeVersion => ENCLAVE_VMCTX_LAYOUT_EPOCH.hash(hasher),
+             Self::Custom(s) => s.hash(hasher),
+             Self::None => {}
+         };
+@@ -116,7 +129,7 @@
+     /// Get the string-encoding version of the module.
+     pub fn as_str(&self) -> &str {
+         match &self {
+-            Self::WasmtimeVersion => env!("CARGO_PKG_VERSION_MAJOR"),
++            Self::WasmtimeVersion => ENCLAVE_VMCTX_LAYOUT_EPOCH,
+             Self::Custom(c) => c,
+             Self::None => "",
+         }
+--- a/crates/cranelift/src/func_environ.rs
++++ b/crates/cranelift/src/func_environ.rs
+@@ -1635,22 +1635,29 @@
+                 // shared memory is stored elsewhere. We store a `*mut
+                 // VMMemoryDefinition` to it and dereference that when
+                 // atomically growing it.
++                //
++                // enclave/SET: the BASE, however, comes from the one-load
++                // vmctx mirror (written at instantiation; a shared memory's
++                // base never moves), not from chasing that pointer — two
++                // dependent loads rederived after every call cost a measured
++                // 6% on a call-per-iteration guest loop. Only the LENGTH
++                // still goes through the out-of-line definition, because
++                // concurrent growth must stay visible across instances; with
++                // bounds-check elision on, loads and stores never read it.
++                let base = self
++                    .alias_regions
++                    .vmctx_vmmemory_shared_base_load(func, def_index);
+                 let mem = self
+                     .alias_regions
+                     .vmctx_vmmemory_pointer_load(func, def_index);
+-                let mut base = self.alias_regions.vm_memory_definition().base();
+-                base.can_move();
+-                if base_readonly {
+-                    base.readonly();
+-                }
+-                let base = base.to_deferred_load(func);
++                debug_assert!(base_readonly, "a shared memory's base cannot move");
+                 let len = self
+                     .alias_regions
+                     .vm_memory_definition()
+                     .current_length()
+                     .to_deferred_load(func);
+                 (
+-                    VmctxLoadChain::new(smallvec![mem, base]),
++                    VmctxLoadChain::new(smallvec![base]),
+                     VmctxLoadChain::new(smallvec![mem, len]),
+                 )
+             } else {

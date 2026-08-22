@@ -56,6 +56,23 @@ tests/all after: 1305 passed / 0 failed - identical to the SET promotion
 baseline. Applies LAST, after wasmtime-socket-level-check (diffed against
 the fully-patched tree).
 
+ADVERSARIAL REVIEW ROUND (2026-08-22, two independent reviewers) — three
+findings, all fixed in this revision:
+  - the per-store SET epoch callback now gates on set_threads_enabled AND
+    the ENGINE actually having epoch interruption, not on which flag asked:
+    an epoch source outside SET's control (explicit -W epoch-interruption=y,
+    the serve debugger implication) previously left the store's deadline at
+    its default 0, and the FIRST epoch check trapped the guest at startup;
+  - serve's epoch ticker branch had kept the old set_threads_enabled gate,
+    so a set-epochs=n serve tenant still carried a 100-wakeups/sec thread
+    bumping an epoch nothing checks;
+  - spawn's "engine WITHOUT epoch_interruption" warning claimed the CLI
+    "enables epochs automatically" — false under the deliberate opt-out;
+    reworded to name both the misconfiguration and the configured trade.
+Verified after: tests/all 1305/0; -W epoch-interruption=y + set-epochs=n +
+SET runs clean (deadline-1 shield restored); spin/park teardown probes and
+spawn/parallel/stress probes green in both modes.
+
 --- a/crates/cli-flags/src/lib.rs
 +++ b/crates/cli-flags/src/lib.rs
 @@ -426,6 +426,16 @@
@@ -150,19 +167,26 @@ the fully-patched tree).
              config.epoch_interruption(true);
          }
          match self.run.profile {
-@@ -661,8 +668,14 @@
+@@ -661,8 +668,21 @@
              // which trips a deadline of 1 and nothing larger, while the SET
              // ticker bumps at its own period. Wall-clock does not care which
              // bump woke it.
-+            // With `-W set-epochs=n` (and no timeout) the engine compiled no
-+            // epoch checks, so this callback could never fire: skip installing
-+            // it rather than leaving a deadline armed that nothing services.
-+            // The consequences are documented on `set_epochs_enabled`: a
-+            // worker's `proc_exit` reaches a primary that is spinning in pure
-+            // compute only at its next park or host call.
++            // Gate on what the ENGINE actually compiled, not on which flag
++            // asked for it: if epoch interruption is armed by ANY source —
++            // SET's own default, `--wasm timeout`, or an explicit
++            // `-W epoch-interruption=y` alongside `-W set-epochs=n` — a SET
++            // store still needs this callback and its deadline of 1, or the
++            // store's default deadline of 0 makes the FIRST epoch check trap
++            // the guest at startup. And when the engine compiled no checks at
++            // all, installing it would just arm a deadline nothing services;
++            // the consequences of that mode are documented on
++            // `set_epochs_enabled` (a worker's `proc_exit` reaches a primary
++            // spinning in pure compute only at its next park or host call).
              #[cfg(all(feature = "component-model", feature = "threads"))]
 -            if crate::common::set_threads_enabled(&self.run.common) {
-+            if crate::common::set_epochs_enabled(&self.run.common) {
++            if crate::common::set_threads_enabled(&self.run.common)
++                && store.engine().get_epoch_interruption()
++            {
                  let group = store.set_thread_group();
                  let timeout_at = self.run.common.wasm.timeout.map(|t| Instant::now() + t);
                  store.set_epoch_deadline(1);
@@ -187,16 +211,65 @@ the fully-patched tree).
              config.epoch_interruption(true);
          }
  
-@@ -1196,8 +1205,11 @@
+@@ -739,11 +748,15 @@
+         } else if debuggee_store.is_some() {
+             Some(Duration::from_millis(1))
+         } else if cfg!(feature = "threads")
+-            && crate::common::set_threads_enabled(&self.run.common)
++            && crate::common::set_epochs_enabled(&self.run.common)
+         {
+             // enclave/SET: a ticker is REQUIRED here, not an optimisation —
+             // it is the only thing that makes a spinning worker reach its stop
+             // check. `--wasm timeout`'s single bump is not a substitute.
++            // Gated on set_epochs_enabled, not set_threads_enabled: under
++            // `-W set-epochs=n` the compiled code carries no epoch checks, so
++            // this thread would wake 100 times a second to bump a counter
++            // nothing reads.
+             Some(crate::common::SET_EPOCH_PERIOD)
+         } else {
+             None
+@@ -1196,8 +1209,16 @@
      // that branch wanted into the same callback. Ordering it after was a real
      // hole: `serve --wasm timeout=...` returned early and the SET callback was
      // never installed at all.
-+    // With `-W set-epochs=n` (and no timeout) the engine compiled no epoch
-+    // checks, so this callback could never fire — skip it and take the plain
-+    // branches below, exactly as a non-SET run would.
++    // Gate on what the ENGINE actually compiled, not on which flag asked for
++    // it — same reasoning as `run.rs::setup_epoch_handler`: any armed epoch
++    // source (SET default, timeout, explicit `-W epoch-interruption=y`) needs
++    // this callback and its deadline of 1, or the store's default deadline of
++    // 0 traps the request at its first epoch check; and with no checks
++    // compiled, the install would be a deadline nothing services.
      #[cfg(feature = "threads")]
 -    if crate::common::set_threads_enabled(&cmd.run.common) {
-+    if crate::common::set_epochs_enabled(&cmd.run.common) {
++    if crate::common::set_threads_enabled(&cmd.run.common)
++        && store.engine().get_epoch_interruption()
++    {
          let group = store.set_thread_group();
          let yielding =
              cmd.run.common.wasm.timeout.is_some() || cmd.run.common.debug.debugger.is_some();
+--- a/crates/wasmtime/src/runtime/vm/component/set_threads.rs
++++ b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
+@@ -1324,11 +1324,19 @@
+     if !store.engine().get_epoch_interruption() {
+         static LAST: AtomicU64 = AtomicU64::new(0);
+         if refusal_diagnostic_due(&LAST) {
+-            let msg = "shared-everything-threads is spawning workers on an engine \
+-                       WITHOUT `Config::epoch_interruption`; a worker that never \
+-                       yields cannot be interrupted, and store teardown will detach \
+-                       it rather than block. Enable epoch interruption and run a \
+-                       periodic `Engine::increment_epoch` ticker.";
++            // Worded for BOTH audiences: the embedder who forgot epochs (the
++            // original bug this caught) and the operator who chose `-W
++            // set-epochs=n` deliberately — the earlier text told the latter
++            // to undo a documented trade, and claimed the CLI "enables epochs
++            // automatically", which the opt-out makes false.
++            let msg = "shared-everything-threads workers are running WITHOUT \
++                       epoch interruption: one that spins in pure compute \
++                       cannot be interrupted, and store teardown will DETACH \
++                       it after a bounded join rather than block. If this is \
++                       the deliberate `-W set-epochs=n` trade under process \
++                       supervision, it is working as configured; otherwise \
++                       enable `Config::epoch_interruption` and run a periodic \
++                       `Engine::increment_epoch` ticker.";
+             log::warn!("{msg}");
+             eprintln!("wasmtime: warning: {msg}");
+         }

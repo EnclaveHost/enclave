@@ -346,6 +346,19 @@ COPY wasmtime-set-epochs.patch /tmp/
 RUN git apply --check /tmp/wasmtime-set-epochs.patch \
  && git apply /tmp/wasmtime-set-epochs.patch
 
+# enclave shared-base mirror: defined SHARED memories get their base pointer
+# mirrored into a per-memory vmctx slot at instantiation (a shared base can
+# never move), and codegen reads THAT — one load to the heap base, the same
+# shape owned memories get, instead of two dependent loads through the
+# out-of-line VMMemoryDefinition rederived after every call. Measured +6.4%
+# on a call-per-iteration guest loop, and most of risc-box's residual SET
+# gap. The SET worker re-point updates the mirror too — a stale mirror there
+# would run the worker on the wrong memory. Evidence in the .patch header.
+# Applies LAST: diffed against the fully-patched tree.
+COPY wasmtime-shared-base-mirror.patch /tmp/
+RUN git apply --check /tmp/wasmtime-shared-base-mirror.patch \
+ && git apply /tmp/wasmtime-shared-base-mirror.patch
+
 # System-linked ORT: the binary NEEDS libonnxruntime.so.1 at runtime; ship it
 # plus the two provider dylibs the CUDA EP dlopens (providers_shared is the
 # dispatcher). providers_tensorrt is deliberately not shipped (never
