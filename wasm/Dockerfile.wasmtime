@@ -332,6 +332,20 @@ COPY wasmtime-socket-level-check.patch /tmp/
 RUN git apply --check /tmp/wasmtime-socket-level-check.patch \
  && git apply /tmp/wasmtime-socket-level-check.patch
 
+# enclave SET epochs opt-out: `-W set-epochs=n` removes the epoch-interruption
+# codegen (a check per function entry + loop back-edge) that SET otherwise
+# forces on — the LAST engine-side cost of declaring shared-everything-threads
+# (~10% guest MIPS on risc-box; bounds checks on shared memories were already
+# elided upstream). Promptness trade, not soundness: parked workers still stop
+# via the parking spot, host-blocked workers via future drop, and spinning
+# workers hit the bounded join + reaper detach; `--wasm timeout` re-arms the
+# full epoch machinery. Armed per-tenant by wasm_manager._set_flags (probed).
+# Evidence + probes in the .patch header. Applies LAST: diffed against the
+# fully-patched tree.
+COPY wasmtime-set-epochs.patch /tmp/
+RUN git apply --check /tmp/wasmtime-set-epochs.patch \
+ && git apply /tmp/wasmtime-set-epochs.patch
+
 # System-linked ORT: the binary NEEDS libonnxruntime.so.1 at runtime; ship it
 # plus the two provider dylibs the CUDA EP dlopens (providers_shared is the
 # dispatcher). providers_tensorrt is deliberately not shipped (never
