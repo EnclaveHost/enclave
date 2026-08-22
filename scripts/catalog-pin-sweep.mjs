@@ -27,9 +27,13 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 
 const pexec = promisify(execFile);
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+// viem resolved exactly as the CLI resolves it (the workflow installs cli/
+// deps); decoding getPage's dynamic tuples by hand is not worth owning.
+const viem = createRequire(path.join(REPO, "cli", "package.json"))("viem");
 
 const GATEWAY = (process.env.GATEWAY || "https://ipfs.enclave.host").replace(/\/+$/, "");
 const SKIP = new Set((process.env.SKIP_CIDS || "").split(",").map((s) => s.trim()).filter(Boolean));
@@ -73,15 +77,56 @@ function decodeString(hex) {
   return Buffer.from(hex.slice(2 + (off + 1) * 64, 2 + (off + 1) * 64 + len * 2), "hex").toString("utf8");
 }
 
-async function catalogAddress() {
+async function bookAddress(wantKey) {
   const hex = await ethCall(ADDRESS_BOOK, SEL_ALL);
   const [keysOff, addrsOff] = [num(hex, 0) / 32, num(hex, 1) / 32];
   const n = num(hex, keysOff);
   for (let i = 0; i < n; i++) {
     const key = Buffer.from(word(hex, keysOff + 1 + i), "hex").toString("utf8").replace(/\0+$/, "");
-    if (key === "appCatalog") return "0x" + word(hex, addrsOff + 1 + i).slice(24);
+    if (key === wantKey) return "0x" + word(hex, addrsOff + 1 + i).slice(24);
   }
-  throw new Error("the address book has no appCatalog entry");
+  throw new Error(`the address book has no ${wantKey} entry`);
+}
+
+// A deployment's options envelope may pin its app config at a CID
+// (`{"configCid": "…"}`), and the LAUNCH fetches those bytes — a lost
+// envelope config CID strands its deployment exactly like lost wasm (found
+// live 2026-08-22: eyesoff-ai failed provision on "ipfs fetch failed for
+// config bafkreicl…" — a CID no catalog row references). Rows that are
+// inactive with nothing left to spend are skipped: nothing can launch them.
+const DEP_PAGE_ABI = [{ type: "function", name: "getPage", stateMutability: "view",
+  inputs: [{ name: "start", type: "uint256" }, { name: "n", type: "uint256" }],
+  outputs: [{ type: "tuple[]", components: [
+    { name: "id", type: "bytes32" }, { name: "owner", type: "address" },
+    { name: "appRef", type: "string" }, { name: "ports", type: "string" },
+    { name: "configCid", type: "string" },
+    { name: "gpuMilli", type: "uint16" }, { name: "cpuMilli", type: "uint16" },
+    { name: "appPort", type: "uint32" }, { name: "isPublic", type: "bool" },
+    { name: "active", type: "bool" }, { name: "createdAt", type: "uint64" },
+    { name: "rate", type: "uint256" }, { name: "balance6", type: "uint256" },
+    { name: "spent6", type: "uint256" }, { name: "runner", type: "bytes32" },
+    { name: "runnerOperator", type: "address" }, { name: "leaseUntil", type: "uint64" },
+  ] }] }];
+async function deploymentEnvelopeCids() {
+  const ledger = await bookAddress("deployments");
+  const out = [];
+  for (let start = 0; ; start += 100) {
+    const data = viem.encodeFunctionData({ abi: DEP_PAGE_ABI, functionName: "getPage",
+      args: [BigInt(start), 100n] });
+    const page = viem.decodeFunctionResult({ abi: DEP_PAGE_ABI, functionName: "getPage",
+      data: await ethCall(ledger, data) });
+    for (const d of page) {
+      if (!d.active && d.balance6 === 0n) continue;
+      const s = String(d.configCid || "").trim();
+      if (!s.startsWith("{")) continue;
+      let cid = null;
+      try { cid = JSON.parse(s).configCid; } catch { continue; }
+      if (typeof cid === "string" && /^[a-zA-Z0-9]{10,100}$/.test(cid.trim()))
+        out.push({ cid: cid.trim(), label: `deployment ${d.id.slice(0, 10)} (envelope config)` });
+    }
+    if (page.length < 100) break;
+  }
+  return out;
 }
 
 // One ranged read per CID. 200/206 = served; 404/410 (or the adapter's
@@ -129,7 +174,7 @@ async function main() {
   // rev-7 large configs live at their own CID: a launch fetches those bytes
   // too, so a lost config CID strands its versions exactly like lost wasm.
   try {
-    const catalog = await catalogAddress();
+    const catalog = await bookAddress("appCatalog");
     const rev = num(await ethCall(catalog, SEL_CATALOG_SCHEMA), 0);
     if (rev >= 7) {
       for (const v of approvedVersions) {
@@ -138,6 +183,7 @@ async function main() {
         want(decodeString(await ethCall(catalog, data)).trim(), `${v.slug}:${v.version} (config)`);
       }
     }
+    for (const d of await deploymentEnvelopeCids()) want(d.cid, d.label);
   } catch (e) {
     // the catalog itself unreadable is its own alarm — do not report "all served"
     console.error(`config-CID reads failed: ${e.message}`);
