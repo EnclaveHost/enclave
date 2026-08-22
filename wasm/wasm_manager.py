@@ -3625,6 +3625,19 @@ def _threads_flags(needs_threads) -> list:
 _SET_ENV_ENABLED = os.environ.get("WASM_SET_THREADS", "1").lower() not in ("0", "false", "no")
 _SET_FLAG = None       # None = not probed yet; True/False = the binary's answer
 
+# SET epoch machinery: `-W set-epochs=n` (wasm/wasmtime-set-epochs.patch) drops
+# the epoch-interruption codegen that SET otherwise compiles into every guest
+# function entry and loop back-edge — measured ~10% guest MIPS on risc-box, the
+# last engine-side cost of declaring SET. The platform's stop of last resort is
+# killing the tenant's process, parked workers still stop via the parking spot,
+# and a spinning worker's teardown is bounded by the join timeout + reaper
+# detach, so per-tenant epoch checks buy stop PROMPTNESS the fleet does not
+# need. WASM_SET_EPOCHS=1 is the kill-switch back to epoch-armed SET. The flag
+# is PROBED (old engine ⇒ omitted, launches keep working), so manager and
+# engine can be released in either order.
+_SET_EPOCHS_ENV_KEEP = os.environ.get("WASM_SET_EPOCHS", "0").lower() in ("1", "true", "yes")
+_SET_EPOCHS_FLAG = None  # None = not probed yet; True/False = the binary's answer
+
 # The probe: a shared-memory core module and one `thread.spawn-indirect` canon
 # builtin over its exported plain funcref table — the exact construct
 # set-componentize wires and pthread_create lowers to. Text WAT (wasmtime parses
@@ -3672,6 +3685,37 @@ def _set_supported() -> bool:
     return _SET_FLAG
 
 
+def _set_epochs_flag_supported() -> bool:
+    """Does this wasmtime parse `-W set-epochs`? Same probe-not-help discipline
+    as `_set_supported`: compile the spawn-intrinsic probe WITH the flag. An
+    engine without wasmtime-set-epochs.patch rejects the unknown option before
+    it looks at the module, so the failure direction is safe — unproven means
+    the flag is OMITTED and SET tenants launch epoch-armed as before, never a
+    fleet of launches dying on an unrecognized option."""
+    global _SET_EPOCHS_FLAG
+    if _SET_EPOCHS_FLAG is not None:
+        return _SET_EPOCHS_FLAG
+    if MOCK:
+        _SET_EPOCHS_FLAG = True
+        return _SET_EPOCHS_FLAG
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            wat = pathlib.Path(td) / "set-epochs-probe.wat"
+            wat.write_text(_SET_PROBE_WAT)
+            r = subprocess.run([WASMTIME, "compile",
+                                "-W", "threads,shared-everything-threads,"
+                                      "component-model-threading,shared-memory,"
+                                      "set-epochs=n",
+                                str(wat), "-o", str(pathlib.Path(td) / "probe.cwasm")],
+                               capture_output=True, text=True, timeout=30)
+        _SET_EPOCHS_FLAG = r.returncode == 0
+    except Exception as e:
+        print(f"wasm-manager: could not probe -W set-epochs support ({e}); "
+              f"SET tenants launch epoch-armed", flush=True)
+        _SET_EPOCHS_FLAG = False
+    return _SET_EPOCHS_FLAG
+
+
 def _set_active() -> bool:
     """The box serves SET guests: the binary proved the spawn intrinsic and the
     operator switch is on. Unlike coop threads, SET rides on wasip2 (its libc is
@@ -3699,9 +3743,17 @@ def _set_flags(needs_set) -> list:
     # shared-everything-threads + component-model-threading + shared-memory);
     # the engine's live-thread cap (ENCLAVE_MAX_SET_THREADS, derived from the
     # tenant's ENCLAVE_AVAILABLE_PARALLELISM) is what bounds the blast radius.
-    return (["-W", "threads,shared-everything-threads,"
-             "component-model-threading,shared-memory"]
-            if needs_set and _set_active() else [])
+    #
+    # set-epochs=n on top: SET without the per-backedge epoch-check tax (see
+    # the _SET_EPOCHS_FLAG comment above). Probed, and WASM_SET_EPOCHS=1
+    # restores epoch-armed SET fleet-wide without a release.
+    if not (needs_set and _set_active()):
+        return []
+    flags = ("threads,shared-everything-threads,"
+             "component-model-threading,shared-memory")
+    if not _SET_EPOCHS_ENV_KEEP and _set_epochs_flag_supported():
+        flags += ",set-epochs=n"
+    return ["-W", flags]
 
 
 # wasm64 / memory64: 64-bit linear memory, the only guest class allowed past

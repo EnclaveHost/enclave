@@ -87,6 +87,36 @@ test("a proven engine + a SET tenant = the four spawn flags, in both modes", () 
   }
 });
 
+// engine accepts the spawn probe but rejects `-W set-epochs` — the shape of a
+// box whose wasmtime predates wasmtime-set-epochs.patch. The manager must
+// OMIT the flag there, not kill every SET launch with an unrecognized option.
+const BIN_SET_OK_NO_EPOCHS_FLAG = `case "$*" in *set-epochs*) echo "unknown -W option: set-epochs" >&2; exit 1;; esac; ${BIN_SET_OK}`;
+
+test("a proven engine gets set-epochs=n on the same -W: SET without the epoch-check tax", () => {
+  const bin = FAKE(BIN_SET_OK);
+  const { cmd, hasSet } = probe({ set_threads: true }, { env: { WASMTIME_BIN: bin } });
+  assert.ok(hasSet);
+  assert.ok(cmd.join(" ").includes("set-epochs=n"),
+    "a SET tenant on an engine that parses -W set-epochs must launch with set-epochs=n");
+});
+
+test("an engine that rejects -W set-epochs gets the four flags WITHOUT it (either release order works)", () => {
+  const bin = FAKE(BIN_SET_OK_NO_EPOCHS_FLAG);
+  const { cmd, hasSet, active } = probe({ set_threads: true }, { env: { WASMTIME_BIN: bin } });
+  assert.equal(active, true, "the spawn probe itself still passes");
+  assert.ok(hasSet, "SET flags still emitted");
+  assert.ok(!cmd.join(" ").includes("set-epochs"),
+    "but set-epochs must be omitted so launches keep working on the old engine");
+});
+
+test("WASM_SET_EPOCHS=1 is the kill-switch back to epoch-armed SET", () => {
+  const bin = FAKE(BIN_SET_OK);
+  const { cmd, hasSet } = probe({ set_threads: true }, { env: { WASMTIME_BIN: bin, WASM_SET_EPOCHS: "1" } });
+  assert.ok(hasSet);
+  assert.ok(!cmd.join(" ").includes("set-epochs"),
+    "the kill-switch must suppress set-epochs=n without a release");
+});
+
 test("a tenant WITHOUT the marker never gets the SET flags, even on a capable box", () => {
   const bin = FAKE(BIN_SET_OK);
   const { hasSet, active } = probe({ set_threads: false }, { env: { WASMTIME_BIN: bin } });

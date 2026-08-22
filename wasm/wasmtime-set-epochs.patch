@@ -1,0 +1,202 @@
+enclave SET epochs opt-out: -W set-epochs=n removes SET's last engine tax
+=========================================================================
+
+THE COST (measured 2026-08-22, doom fb machine, local minio rig, guest MIPS
+as /status instret delta over 20s, same-revision guest builds, engine at
+this patch stack): declaring shared-everything-threads costs a tenant ~16%
+of its hot-loop throughput, and NONE of it is the shared memory itself:
+
+    plain build, plain flags           122.4 / 127.9 MIPS
+    plain build, epoch codegen on      110.2 / 114.5   (--wasm timeout)
+    SET build, SET flags (today)       105.8 / 107.5
+    SET build, SET flags, set-epochs=n         117.9   (this patch)
+
+Bounds checks were the SUSPECT, and they are INNOCENT: wasmtime 49 already
+elides them for shared memories (the elision branch in
+crates/cranelift/src/bounds_checks.rs and Memory::can_elide_bounds_check
+never test `shared`; verified by objdump on a shared/unshared minimal pair
+and on risc-box-set's Mmu hot functions - load sites are direct guard-page
+accesses either way). The measured tax is the EPOCH INTERRUPTION the SET
+patch forces on (a check at every function entry and loop back-edge:
+27-40% on a bare memory loop, ~10% on risc-box's interpreter), plus a ~6%
+residual attributable to the SET guest toolchain, not the engine.
+
+THE OPT-OUT: `-W set-epochs=n` (default y keeps today's behavior exactly).
+With it, run/serve skip the epoch-interruption Config bit, the
+SetEpochTicker, and the per-store SET epoch callbacks. What still works,
+and why this is a PROMPTNESS trade rather than a soundness one (module
+header of vm/component/set_threads.rs is the contract):
+
+  - a worker parked in memory.atomic.wait stops instantly (parking-spot
+    group stop flag; probe: set-park-teardown, 9ms clean exit);
+  - a worker blocked in a host call stops (its guest future is dropped);
+  - teardown of a worker SPINNING in pure compute is still bounded: join
+    times out (ENCLAVE_SET_JOIN_TIMEOUT_MS, default 2s) and the reaper
+    DETACHES it with the existing loud diagnostic - sound because workers
+    hold no raw pointers into the primary store (probe: set-spin-teardown,
+    2.0s exit with the detach warning; with epochs it is 20ms clean);
+  - `--wasm timeout` OVERRIDES the opt-out (its worker enforcement runs
+    through the epoch deadline callback), so set-epochs=n can never
+    silently weaken a requested timeout: verified, the timeout run stays
+    at epoch-armed speed and traps on schedule.
+
+What is LOST: prompt interruption of pure-compute spinners (they burn CPU
+inside the tenant's cgroup weight until process exit - the platform's stop
+is SIGKILL anyway) and prompt cross-thread proc_exit propagation to a
+spinning primary (delayed to its next park or host call). Under `serve`
+the detach-per-request shape can accumulate; the process-global live-thread
+cap bounds it (further spawns refuse into the sequential fallback). The
+one-time "engine WITHOUT Config::epoch_interruption" stderr warning from
+spawn still fires: the operator chose this, but the log should say so.
+
+Wired per-tenant by wasm_manager._set_flags (probed, so a new manager on an
+old engine omits the flag instead of failing every SET launch).
+
+tests/all after: 1305 passed / 0 failed - identical to the SET promotion
+baseline. Applies LAST, after wasmtime-socket-level-check (diffed against
+the fully-patched tree).
+
+--- a/crates/cli-flags/src/lib.rs
++++ b/crates/cli-flags/src/lib.rs
+@@ -426,6 +426,16 @@
+         pub shared_memory: Option<bool>,
+         /// Configure support for the shared-everything-threads proposal.
+         pub shared_everything_threads: Option<bool>,
++        /// enclave/SET: arm the epoch machinery (interruption codegen +
++        /// periodic ticker) for shared-everything-threads runs. Default: y.
++        /// `-W set-epochs=n` removes the epoch checks SET otherwise compiles
++        /// into ALL guest code (measured ~10% on interpreter-shaped hot
++        /// loops); worker stop then relies on parking-spot wakes, guest-future
++        /// drops and bounded-join detach, with process supervision owning the
++        /// spinning-in-pure-compute case. `--wasm timeout` overrides the
++        /// opt-out: its enforcement on workers runs through the epoch
++        /// deadline. No effect unless shared-everything-threads is on.
++        pub set_epochs: Option<bool>,
+         /// Configure support for the memory64 proposal.
+         pub memory64: Option<bool>,
+         /// Configure support for the component-model proposal.
+@@ -1521,6 +1531,9 @@
+                 shared_everything_threads: Some(
+                     features.contains(WasmFeatures::SHARED_EVERYTHING_THREADS),
+                 ),
++                // enclave/SET: CLI-level behavior (whether run/serve arm the
++                // epoch machinery for SET), not a property an `Engine` records.
++                set_epochs: None,
+                 simd: Some(features.contains(WasmFeatures::SIMD)),
+                 stack_switching: Some(features.contains(WasmFeatures::STACK_SWITCHING)),
+                 tail_call: Some(features.contains(WasmFeatures::TAIL_CALL)),
+--- a/src/common.rs
++++ b/src/common.rs
+@@ -694,6 +694,31 @@
+         == Some(true)
+ }
+ 
++/// enclave/SET: whether this SET run arms the epoch machinery — interruption
++/// codegen on the engine plus the periodic ticker.
++///
++/// On by default. `-W set-epochs=n` is the deliberate opt-out for embedders
++/// that accept process supervision as the stop of last resort: the epoch
++/// checks SET otherwise compiles into every function entry and loop back-edge
++/// are the whole compile-time cost of declaring SET (measured ~10% guest MIPS
++/// on risc-box's interpreter loop, 27-40% on a bare memory loop). Without
++/// them a worker parked in `memory.atomic.wait` still stops (parking-spot
++/// wake), a worker blocked in a host call still stops (its guest future is
++/// dropped), and teardown still terminates (bounded join, then the reaper
++/// detaches with a diagnostic — sound because workers hold no raw pointers
++/// into the primary store). What is LOST is prompt interruption of a worker
++/// spinning in pure compute, and prompt `proc_exit` propagation to a primary
++/// spinning in pure compute; both then wait for the next park/host call or
++/// for process exit.
++///
++/// `--wasm timeout` overrides the opt-out rather than silently weakening:
++/// its enforcement on workers runs through the epoch deadline callback, so a
++/// requested timeout re-arms the full machinery.
++pub fn set_epochs_enabled(common: &CommonOptions) -> bool {
++    set_threads_enabled(common)
++        && (common.wasm.set_epochs.unwrap_or(true) || common.wasm.timeout.is_some())
++}
++
+ /// enclave/SET: how often the shared-everything-threads epoch ticker bumps the
+ /// engine epoch.
+ ///
+@@ -742,7 +767,10 @@
+             std::sync::Arc<wasmtime::component::SetThreadGroup>,
+         )>,
+     ) -> Result<Option<SetEpochTicker>> {
+-        if !set_threads_enabled(common) {
++        // enclave/SET: `-W set-epochs=n` skips the ticker along with the
++        // epoch codegen — a bump nobody checks for is pure cacheline traffic.
++        // A requested `--wasm timeout` re-arms both (see `set_epochs_enabled`).
++        if !set_epochs_enabled(common) {
+             return Ok(None);
+         }
+         let shutdown = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+--- a/src/commands/run.rs
++++ b/src/commands/run.rs
+@@ -380,8 +380,15 @@
+         // `component-model` would turn epoch interruption on with the default
+         // deadline of 0 and no callback: every guest traps at its first epoch
+         // check.
++        //
++        // `-W set-epochs=n` is the measured-cost opt-out: the checks this
++        // arms are compiled into EVERY function entry and loop back-edge of
++        // guest code, and for a run-mode tenant whose stop of last resort is
++        // the supervisor killing the process they buy stop PROMPTNESS, not
++        // stop soundness (teardown is bounded by the join timeout + reaper
++        // detach either way). See `set_epochs_enabled` for what degrades.
+         #[cfg(all(feature = "component-model", feature = "threads"))]
+-        if crate::common::set_threads_enabled(&self.run.common) {
++        if crate::common::set_epochs_enabled(&self.run.common) {
+             config.epoch_interruption(true);
+         }
+         match self.run.profile {
+@@ -661,8 +668,14 @@
+             // which trips a deadline of 1 and nothing larger, while the SET
+             // ticker bumps at its own period. Wall-clock does not care which
+             // bump woke it.
++            // With `-W set-epochs=n` (and no timeout) the engine compiled no
++            // epoch checks, so this callback could never fire: skip installing
++            // it rather than leaving a deadline armed that nothing services.
++            // The consequences are documented on `set_epochs_enabled`: a
++            // worker's `proc_exit` reaches a primary that is spinning in pure
++            // compute only at its next park or host call.
+             #[cfg(all(feature = "component-model", feature = "threads"))]
+-            if crate::common::set_threads_enabled(&self.run.common) {
++            if crate::common::set_epochs_enabled(&self.run.common) {
+                 let group = store.set_thread_group();
+                 let timeout_at = self.run.common.wasm.timeout.map(|t| Instant::now() + t);
+                 store.set_epoch_deadline(1);
+--- a/src/commands/serve.rs
++++ b/src/commands/serve.rs
+@@ -588,8 +588,17 @@
+         // in `run.rs::new_engine`; under `serve` the stakes are higher, because
+         // a store is created per REQUEST on a tokio worker, so each
+         // unstoppable worker permanently consumes a tokio worker and a core.
++        //
++        // `-W set-epochs=n` (see `set_epochs_enabled`) is honoured here too,
++        // but the caveat above is sharper under serve: a request whose worker
++        // spins is DETACHED at teardown and burns a thread until process
++        // exit, and that accumulates per request. What bounds it is the
++        // process-global live-thread cap (further spawns refuse, the guest
++        // takes its sequential fallback) and the process's cgroup weight —
++        // acceptable for a supervised single-tenant process, wrong for an
++        // embedder without process-level supervision.
+         #[cfg(feature = "threads")]
+-        if crate::common::set_threads_enabled(&self.run.common) {
++        if crate::common::set_epochs_enabled(&self.run.common) {
+             config.epoch_interruption(true);
+         }
+ 
+@@ -1196,8 +1205,11 @@
+     // that branch wanted into the same callback. Ordering it after was a real
+     // hole: `serve --wasm timeout=...` returned early and the SET callback was
+     // never installed at all.
++    // With `-W set-epochs=n` (and no timeout) the engine compiled no epoch
++    // checks, so this callback could never fire — skip it and take the plain
++    // branches below, exactly as a non-SET run would.
+     #[cfg(feature = "threads")]
+-    if crate::common::set_threads_enabled(&cmd.run.common) {
++    if crate::common::set_epochs_enabled(&cmd.run.common) {
+         let group = store.set_thread_group();
+         let yielding =
+             cmd.run.common.wasm.timeout.is_some() || cmd.run.common.debug.debugger.is_some();
