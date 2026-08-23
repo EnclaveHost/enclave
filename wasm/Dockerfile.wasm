@@ -69,12 +69,20 @@ WORKDIR /opt/enclave
 # caught the sm_90 PTX-JIT hang). It is launched only by the manager itself;
 # the supervisor's approval gate refuses non-CID references, so it is not
 # deployable through the API.
-COPY apps/nn-demo.wasm /opt/enclave/apps/nn-demo.wasm
+#
+# It lives in /opt/enclave/fixtures, NOT /opt/enclave/apps: the flavors mount
+# the persistent wasm-cache volume over /opt/enclave/apps, and on 2026-08-23
+# (v0.5.486) the initially empty mount shadowed the fixture baked there — the
+# arbiter capability probe read the missing file as "toolchain unproven" and
+# hard-capped every GPU tenant to its share-sized SM slice (eyesoff 70->45
+# tok/s). A capability gate must never depend on a path a mount can shadow.
+COPY apps/nn-demo.wasm /opt/enclave/fixtures/nn-demo.wasm
 COPY wasm_manager.py /opt/enclave/wasm_manager.py
 COPY ipfs_fetch.py /opt/enclave/ipfs_fetch.py
 
 ENV WASM_MANAGER_PORT=8091 \
     WASM_APPS_DIR=/opt/enclave/apps \
+    WASM_FIXTURES_DIR=/opt/enclave/fixtures \
     WASMTIME_BIN=/usr/local/bin/wasmtime
 
 EXPOSE 8091
