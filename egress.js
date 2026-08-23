@@ -82,12 +82,55 @@ function socksReply(rep, bndAddr) {
 //   sourceAddrFor  (id) => the deployment's dedicated IPv6 (depAddrFor)
 //   isKnown        optional (id) => bool — extra check the id is a live deployment
 //   log            (msg) => void
-export function createEgress({ secret, socksPort, relayToken, sourceAddrFor, isKnown, log = () => {} }) {
+// relayFor    optional (id) => the relay NAME this deployment's network.relay
+//             envelope chose, or null for "the default relay". Outbound follows
+//             the SAME relay as inbound so a deployment routed through a nearby
+//             relay pays that relay's short hop in both directions instead of
+//             tromboning egress to the default relay's box.
+// defaultRelay the name the default egress relay attaches as (the one that owns
+//             the dedicated-IP /64); a deployment with no choice, or whose chosen
+//             relay is not attached, uses it. A control channel that attaches
+//             without a ?relay= name registers under this, so a relay that
+//             predates this change is the default automatically.
+// dedicatedRelay the name of the relay that OWNS the /64 (source-binds each
+//             deployment's dedicated IPv6). Defaults to defaultRelay — today the
+//             default relay is the one with the /64. Naming them separately lets
+//             the fleet default egress to a NEARBY plain relay while dedicated-IP
+//             egress stays available on the /64 owner by explicit choice.
+export function createEgress({ secret, socksPort, relayToken, sourceAddrFor, relayFor, defaultRelay, dedicatedRelay, isKnown, log = () => {} }) {
   const relayTokenBuf = enc(relayToken);
+  const DEFAULT_RELAY = (String(defaultRelay || "").trim()) || "default";
+  const DEDICATED_RELAY = (String(dedicatedRelay || "").trim()) || DEFAULT_RELAY;
+  const relayChoice = relayFor || (() => null);
   const pending = new Map();          // cid -> { sock, source, host, port, timer }
   const conns = new Set();            // live SOCKS client sockets (for clean shutdown)
   const wss = new WebSocketServer({ noServer: true });
-  let controlWs = null;               // the single live relay control socket
+  // relay NAME -> its live control socket. Multiple relays attach at once; an
+  // `open` goes to the one the deployment chose. The default relay owns the /64
+  // and source-binds; any other does plain egress from its own IP.
+  const controlByRelay = new Map();
+  // The routing decision, factored out for the routing test. Given the chosen
+  // relay name, the set of attached relay names, and whether a dedicated source
+  // exists, returns { relay, dedicated } or null (no relay to carry it).
+  // - the chosen relay if attached; else the default if attached; else null
+  // - dedicated (source-bound) ONLY through the relay that owns the /64
+  function routeEgress(chosen, attached, hasSource) {
+    const want = chosen || DEFAULT_RELAY;
+    // chosen -> default -> the /64 owner: never black-hole a deployment because
+    // its preferred relay is momentarily unattached (e.g. us-west egress not up
+    // yet during a rollout — everything falls back to the dedicated relay and
+    // keeps working, exactly as before this change).
+    const relay = attached.has(want)            ? want
+                : attached.has(DEFAULT_RELAY)   ? DEFAULT_RELAY
+                : attached.has(DEDICATED_RELAY) ? DEDICATED_RELAY
+                : null;
+    if (!relay) return null;                    // nothing attached to carry it
+    if (relay === DEDICATED_RELAY) {
+      if (!hasSource) return null;              // the /64 owner, but addressing is off
+      return { relay, dedicated: true };
+    }
+    return { relay, dedicated: false };        // any other relay: plain egress from its own IP
+  }
 
   const tokenOk = (id, tok) => {
     const want = enc(egressToken(secret, id)), got = enc(tok || "");
@@ -183,9 +226,14 @@ export function createEgress({ secret, socksPort, relayToken, sourceAddrFor, isK
     // before they ever leave the enclave. Hostname targets are re-checked at the
     // relay after DNS. "localhost" is blocked here too.
     if (isBlockedHost(host)) { sock.end(socksReply(REP.DENIED)); return; }
-    if (!controlWs) { sock.end(socksReply(REP.NET_UNREACH)); return; }  // no relay attached
-    const source = sourceAddrFor(id);
-    if (!source) { sock.end(socksReply(REP.NET_UNREACH)); return; }     // dedicated addressing off
+    // Route to the relay this deployment chose (its inbound relay), falling back
+    // to the default; the default owns the /64 and source-binds, others go plain.
+    const dedicatedSource = sourceAddrFor(id);
+    const route = routeEgress(relayChoice(id), controlByRelay, !!dedicatedSource);
+    if (!route) { sock.end(socksReply(REP.NET_UNREACH)); return; }   // no relay attached / addressing off
+    const ws = controlByRelay.get(route.relay);
+    if (!ws) { sock.end(socksReply(REP.NET_UNREACH)); return; }      // raced a drop
+    const source = route.dedicated ? dedicatedSource : null;        // null => plain egress from the relay's own IP
     // GUARDRAIL 3: unguessable, single-use connection id.
     const cid = randomBytes(16).toString("hex");
     const timer = setTimeout(() => { log(`[egress] ${id} ${host}:${port} timed out waiting for relay`);
@@ -193,7 +241,12 @@ export function createEgress({ secret, socksPort, relayToken, sourceAddrFor, isK
     pending.set(cid, { sock, source, host, port, timer });
     sock.on("close", () => { if (pending.has(cid)) failPending(cid, REP.GENERAL); });
     try {
-      controlWs.send(JSON.stringify({ type: "open", cid, host, port, source }));
+      // source is OMITTED for plain egress; the relay then dials without
+      // source-binding (from its own address). The chosen relay never sees a
+      // source it doesn't own — the enclave, not the relay, makes that call.
+      const msg = { type: "open", cid, host, port };
+      if (source) msg.source = source;
+      ws.send(JSON.stringify(msg));
     } catch (e) { log(`[egress] control send failed: ${e.message}`); failPending(cid, REP.NET_UNREACH); }
   }
 
@@ -208,16 +261,23 @@ export function createEgress({ secret, socksPort, relayToken, sourceAddrFor, isK
 
     if (url.startsWith("/v1/egress-control")) {
       if (!relayOk(tok)) { socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n"); socket.destroy(); return true; }
+      // Which relay is this? `?relay=<name>` names it; a relay that predates
+      // this change sends no name and registers as the default. The name only
+      // steers routing — auth is the shared relay token, same as before.
+      const rq = (url.split("?")[1] || "").split("&").map((kv) => kv.split("="))
+                    .find(([k]) => k === "relay");
+      const rname = (rq && decodeURIComponent(rq[1] || "").trim()) || DEFAULT_RELAY;
       wss.handleUpgrade(req, socket, head, (ws) => {
-        if (controlWs) { try { controlWs.close(); } catch {} }   // one relay at a time; newest wins
-        controlWs = ws;
-        log("[egress] relay control channel attached");
+        const prev = controlByRelay.get(rname);
+        if (prev) { try { prev.close(); } catch {} }   // one control per relay NAME; newest wins
+        controlByRelay.set(rname, ws);
+        log(`[egress] relay control channel attached: ${rname}`);
         ws.on("message", (raw) => {
           let m; try { m = JSON.parse(raw.toString()); } catch { return; }
           if (m && m.type === "close" && m.cid)                  // relay couldn't dial
             failPending(m.cid, m.reason === "denied" ? REP.DENIED : REP.HOST_UNREACH);
         });
-        const drop = () => { if (controlWs === ws) { controlWs = null; log("[egress] relay control channel dropped"); } };
+        const drop = () => { if (controlByRelay.get(rname) === ws) { controlByRelay.delete(rname); log(`[egress] relay control channel dropped: ${rname}`); } };
         ws.on("close", drop); ws.on("error", drop);
       });
       return true;
@@ -249,7 +309,7 @@ export function createEgress({ secret, socksPort, relayToken, sourceAddrFor, isK
     // resolves once the SOCKS front is listening (port 0 -> OS-assigned)
     start() { return new Promise((res) => socks.listen(socksPort, "127.0.0.1", () => {
       log(`[egress] SOCKS5 on 127.0.0.1:${socks.address().port}`); res(); })); },
-    stop() { try { socks.close(); } catch {} if (controlWs) { try { controlWs.close(); } catch {} }
+    stop() { try { socks.close(); } catch {} for (const ws of controlByRelay.values()) { try { ws.close(); } catch {} }
       for (const c of wss.clients) { try { c.terminate(); } catch {} }
       for (const s of conns) { try { s.destroy(); } catch {} }
       for (const cid of [...pending.keys()]) failPending(cid, REP.GENERAL); },
@@ -259,7 +319,11 @@ export function createEgress({ secret, socksPort, relayToken, sourceAddrFor, isK
     // the ENCLAVE_EGRESS value handed to a guest: SOCKS5h so DNS resolves at the
     // relay (remote-side), giving the app the deployment's egress identity.
     envFor(id) { return `socks5h://${id}:${egressToken(secret, id)}@127.0.0.1:${socks.address()?.port ?? socksPort}`; },
-    connected: () => !!controlWs,
+    // egress is available once ANY relay is attached (routeEgress falls back
+    // through default -> the /64 owner, so one live relay can carry the fleet).
+    connected: () => controlByRelay.size > 0,
+    relaysAttached: () => [...controlByRelay.keys()],
+    routeEgress,         // test hook (pure)
     _pending: pending,   // test hook
   };
 }

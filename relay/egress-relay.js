@@ -60,6 +60,12 @@ if (!CFG.registryAddress && !CFG.staticList.length) {
 const fleet     = createFleet(CFG, (m) => console.log("[egress-relay]", m));
 const TOKEN     = need("EGRESS_RELAY_TOKEN");
 const ALLOW_V4  = /^(1|true|on)$/i.test(process.env.EGRESS_ALLOW_V4 || "");
+// This relay's NAME — the enclave routes a deployment's egress here when its
+// network.relay chose this name (matching its inbound relay). Unset attaches
+// nameless, which the enclave treats as the DEFAULT relay (the pre-multi-relay
+// box that owns the /64). A relay with no EGRESS_PREFIX serves PLAIN egress
+// (the enclave sends no source; we dial from this box's own address).
+const RELAY_NAME = (process.env.RELAY_NAME || "").trim();
 
 // SECURITY (fix 9): the control channel supplies the outbound SOURCE address.
 // The enclave derives it from the authenticated deployment id, but the relay
@@ -107,23 +113,28 @@ async function pickTarget(host) {
 }
 
 function handleOpen(control, origin, { cid, host, port, source }) {
-  if (!cid || !host || !port || !source) return;
-  // reject a source outside this box's routed /64 before we ever dial (fix 9)
-  const badSource = sourceRefusal(source);
-  if (badSource) {
-    console.error(`[egress-relay] refused source ${source}: ${badSource}`);
-    try { control.send(JSON.stringify({ type: "close", cid, reason: "denied" })); } catch {}
-    return;
+  if (!cid || !host || !port) return;
+  // `source` present => dedicated-IP egress: source-bind, and reject a source
+  // outside this box's routed /64 before we ever dial (fix 9). `source` absent
+  // => PLAIN egress (the enclave routed this deployment to a relay that doesn't
+  // own its /64): dial from this box's own address, no bind, no gate to apply.
+  if (source) {
+    const badSource = sourceRefusal(source);
+    if (badSource) {
+      console.error(`[egress-relay] refused source ${source}: ${badSource}`);
+      try { control.send(JSON.stringify({ type: "close", cid, reason: "denied" })); } catch {}
+      return;
+    }
   }
   if (connCount >= MAX_CONNS) { control.send(JSON.stringify({ type: "close", cid, reason: "error" })); return; }
 
   const fail = (reason) => { try { control.send(JSON.stringify({ type: "close", cid, reason })); } catch {} };
 
   pickTarget(host).then(({ addr, family }) => {
-    // v6 destination -> bind the deployment's dedicated source; v4 (opt-in) ->
-    // box default source (no per-deployment identity, documented).
+    // v6 destination + a source -> bind the deployment's dedicated address;
+    // plain egress (no source) or v4 (opt-in) -> box default source.
     const opts = { host: addr, port, family };
-    if (family === 6) opts.localAddress = source;
+    if (family === 6 && source) opts.localAddress = source;
     const dst = net.connect(opts);
     connCount++;
     let settled = false;
@@ -177,7 +188,8 @@ function ensureControl(origin) {
   controls.set(origin, slot);
   const connect = () => {
     if (slot.stopped) return;
-    const ws = new WebSocket(`${wsOrigin(origin)}/v1/egress-control`, { headers: AUTH, perMessageDeflate: false });
+    const qs = RELAY_NAME ? `?relay=${encodeURIComponent(RELAY_NAME)}` : "";
+    const ws = new WebSocket(`${wsOrigin(origin)}/v1/egress-control${qs}`, { headers: AUTH, perMessageDeflate: false });
     slot.ws = ws;
     ws.on("open", () => console.log(`[egress-relay] control channel up -> ${origin}`));
     ws.on("message", (raw) => {

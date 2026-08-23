@@ -495,3 +495,39 @@ test("loopback policy: UNSET leaves the old behaviour (a hand-run wasmtime is un
   assert.match(r.out, /^OK sibling-data/, `unset must not restrict, got ${JSON.stringify(r.out)}`);
   nb.close(); h.teardown();
 });
+
+// ---- multi-relay routing: outbound follows the deployment's chosen relay ----
+// routeEgress(chosen, attachedSet, hasSource) -> { relay, dedicated } | null.
+// The default relay owns the /64 (dedicated source-bind); any other relay does
+// plain egress from its own IP. Never black-hole: an unattached choice falls
+// back to the default.
+test("egress routing follows the chosen relay, dedicated only through the /64 owner", () => {
+  // default == dedicated == nan (today's single-relay shape)
+  const e = createEgress({ secret: SECRET, socksPort: 0, relayToken: RELAY_TOKEN,
+    sourceAddrFor, relayFor: () => null, defaultRelay: "nan" });
+  const R = e.routeEgress;
+  const both = new Set(["nan", "us-west"]);
+  assert.deepEqual(R(null, both, true), { relay: "nan", dedicated: true });   // no choice -> default, dedicated
+  assert.deepEqual(R("", both, true), { relay: "nan", dedicated: true });
+  assert.deepEqual(R("nan", both, true), { relay: "nan", dedicated: true });  // chose the /64 owner
+  assert.deepEqual(R("us-west", both, true), { relay: "us-west", dedicated: false });   // chose us-west -> plain
+  assert.deepEqual(R("us-west", new Set(["nan"]), true), { relay: "nan", dedicated: true }); // unattached -> fall back, never black-hole
+  assert.deepEqual(R("us-west", both, false), { relay: "us-west", dedicated: false });  // plain needs no source
+  assert.equal(R(null, both, false), null);   // default is the /64 owner, addressing off -> can't carry
+  assert.equal(R("nan", both, false), null);
+  assert.equal(R("us-west", new Set(), true), null);   // nothing attached
+  assert.equal(R(null, new Set(), true), null);
+
+  // SEPARATED: default egress = us-west (nearby, plain), dedicated = nan (the /64 owner)
+  const e2 = createEgress({ secret: SECRET, socksPort: 0, relayToken: RELAY_TOKEN,
+    sourceAddrFor, relayFor: () => null, defaultRelay: "us-west", dedicatedRelay: "nan" });
+  const R2 = e2.routeEgress;
+  assert.deepEqual(R2(null, both, true), { relay: "us-west", dedicated: false });   // no choice -> us-west, PLAIN
+  assert.deepEqual(R2("nan", both, true), { relay: "nan", dedicated: true });       // opt in to dedicated on the /64 owner
+  assert.deepEqual(R2("us-west", both, true), { relay: "us-west", dedicated: false });
+  assert.deepEqual(R2(null, new Set(["us-west"]), true), { relay: "us-west", dedicated: false }); // nan down, still plain via us-west
+  // rollout safety: default=us-west but us-west egress not up yet -> fall back
+  // to the /64 owner (nan), egress keeps working exactly as before
+  assert.deepEqual(R2(null, new Set(["nan"]), true), { relay: "nan", dedicated: true });
+  assert.deepEqual(R2("us-west", new Set(["nan"]), true), { relay: "nan", dedicated: true });
+});
