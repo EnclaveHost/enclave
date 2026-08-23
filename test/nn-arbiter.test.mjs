@@ -18,13 +18,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MGR = path.join(REPO, "wasm", "wasm_manager.py");
 
-function run(pyBody) {
+// Fixture-layout scaffolding for the _fixture_wasm() tests: resolution only
+// cares that a file named nn-demo.wasm exists, so a stub byte suffices.
+function mkdtempEmpty() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), "nn-fix-"));
+}
+function mkdtempWithFixture() {
+  const d = mkdtempEmpty();
+  fs.writeFileSync(path.join(d, "nn-demo.wasm"), "\0asm");
+  return d;
+}
+
+function run(pyBody, envExtra = {}) {
   const code = `
 import importlib.util, sys, json, os, socket, tempfile, threading, time
 spec = importlib.util.spec_from_file_location("wm", ${JSON.stringify(MGR)})
@@ -34,7 +47,8 @@ ${pyBody}
 `;
   const out = execFileSync("python3", ["-c", code], {
     env: { ...process.env, NODE_HAS_GPU: "1", WASM_NN: "1",
-           CUDA_MPS_PIPE_DIRECTORY: "/tmp/nvidia-mps", GPU_VRAM_GB: "141" },
+           CUDA_MPS_PIPE_DIRECTORY: "/tmp/nvidia-mps", GPU_VRAM_GB: "141",
+           ...envExtra },
     encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
   });
   return JSON.parse(out.trim().split("\n").pop());
@@ -260,4 +274,51 @@ print(json.dumps({"first": first, "blocked": blocked, "handoff": handoff,
   assert.equal(r.recordWeight, 0.5,
     "the deployment record's gpuShare outranks the hello weight");
   assert.equal(r.grants, 2);
+});
+
+// The v0.5.486 regression (2026-08-23): the persistent wasm-cache volume
+// mounts an initially EMPTY dir over APPS_DIR, which shadowed the baked
+// nn-demo.wasm — _arbiter_support() read the missing fixture as "toolchain
+// unproven" and hard-capped every GPU tenant to its share-sized SM slice
+// (eyesoff 70->45 tok/s). The fixture now lives in FIXTURES_DIR, which no
+// tenant-facing volume may ever mount over.
+
+test("fixture survives an empty mount over APPS_DIR (the v0.5.486 regression)", () => {
+  const r = run(`
+fixtures = os.environ["WASM_FIXTURES_DIR"] # baked, outside the mount
+p = m._fixture_wasm()
+print(json.dumps({"path": str(p), "found": p.is_file(),
+                  "inFixtures": str(p).startswith(fixtures)}))
+`, {
+    WASM_APPS_DIR: mkdtempEmpty(),
+    WASM_FIXTURES_DIR: mkdtempWithFixture(),
+  });
+  assert.ok(r.found, "an empty cache mount must not hide the probe fixture");
+  assert.ok(r.inFixtures, "the fixture resolves from FIXTURES_DIR");
+});
+
+test("legacy layout: no fixtures dir falls back to the APPS_DIR copy", () => {
+  const r = run(`
+p = m._fixture_wasm()
+print(json.dumps({"found": p.is_file(),
+                  "inApps": str(p).startswith(os.environ["WASM_APPS_DIR"])}))
+`, {
+    WASM_APPS_DIR: mkdtempWithFixture(),
+    WASM_FIXTURES_DIR: path.join(os.tmpdir(), `nn-fix-none-${process.pid}`),
+  });
+  assert.ok(r.found, "a pre-move image still finds its APPS_DIR fixture");
+  assert.ok(r.inApps);
+});
+
+test("no fixture anywhere: arbiter probe reports it and keeps hard caps", () => {
+  const r = run(`
+s = m._arbiter_support()
+print(json.dumps({"supported": s["supported"], "detail": s["detail"]}))
+`, {
+    WASM_APPS_DIR: mkdtempEmpty(),
+    WASM_FIXTURES_DIR: mkdtempEmpty(),
+  });
+  assert.equal(r.supported, false, "no fixture = unproven = hard caps");
+  assert.equal(r.detail, "no nn-demo.wasm fixture",
+    "the fallback must be SAYABLE, not a silent cap");
 });

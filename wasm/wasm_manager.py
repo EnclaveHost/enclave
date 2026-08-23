@@ -31,7 +31,8 @@ Notes:
       The verified CID is what the supervisor folds into attestation.
     * a catalog id — only if a catalog file exists (WASM_CATALOG; none ships in
       the image: the only baked .wasm is nn-demo.wasm, the boot probe's fixture,
-      which the probe launches directly without going through this resolution).
+      baked under FIXTURES_DIR — outside the wasm-cache mount — and launched
+      by the probes directly without going through this resolution).
     * an absolute path to a .wasm already under APPS_DIR (internal/debug; the
       supervisor's approval gate never forwards these).
 - Apps must be wasi:http components (what `wasmtime serve` runs). A WASIX/wasmer
@@ -125,6 +126,23 @@ HEALTH_MINIMAL = os.environ.get("WASM_HEALTH_MINIMAL", "1").lower() in ("1", "tr
 WASMTIME     = os.environ.get("WASMTIME_BIN", "wasmtime")
 APPS_DIR     = pathlib.Path(os.environ.get("WASM_APPS_DIR", "/opt/enclave/apps"))
 CATALOG_PATH = pathlib.Path(os.environ.get("WASM_CATALOG", str(APPS_DIR / "catalog.json")))
+# The baked probe fixture lives OUTSIDE APPS_DIR: the persistent wasm-cache
+# volume mounts over APPS_DIR, and on 2026-08-23 (v0.5.486) the initially
+# empty mount shadowed the baked nn-demo.wasm — the arbiter capability probe
+# read that as "toolchain unproven" and silently hard-capped every GPU tenant
+# to its share-sized SM slice. Nothing a tenant mount can shadow may ever
+# gate a capability, so the fixture gets its own un-mounted directory.
+FIXTURES_DIR = pathlib.Path(os.environ.get("WASM_FIXTURES_DIR", "/opt/enclave/fixtures"))
+
+
+def _fixture_wasm() -> pathlib.Path:
+    """The boot/capability probes' fixture. Prefer the un-shadowable
+    FIXTURES_DIR copy; fall back to the legacy APPS_DIR location so this
+    manager still finds the fixture inside a pre-move image (dev checkouts,
+    metal's separately-pinned manager). Callers keep their own is_file()
+    check — with neither copy present the fallback path simply won't exist."""
+    p = FIXTURES_DIR / "nn-demo.wasm"
+    return p if p.is_file() else APPS_DIR / "nn-demo.wasm"
 HOST_IP      = os.environ.get("WASM_HOST_IP", "127.0.0.1")
 NODE_VCPUS   = int(os.environ.get("NODE_VCPUS", "16"))
 NODE_RAM_GB  = int(os.environ.get("NODE_RAM_GB", "64"))
@@ -1504,7 +1522,7 @@ def _probe_serve_output(extra_args, env_extra, timeout=45.0):
     fixture and return its combined stdout+stderr until exit, preload-done,
     or timeout. Only used by _preload_support."""
     import select
-    wasm = APPS_DIR / "nn-demo.wasm"
+    wasm = _fixture_wasm()
     if MOCK or not wasm.is_file():
         return None
     port = _free_port()
@@ -2024,7 +2042,7 @@ def _arbiter_support() -> dict:
     with _NN_ARB_PROBE_LOCK:
         if _NN_ARB_SUPPORT["state"] != "unprobed":
             return _NN_ARB_SUPPORT
-        wasm = APPS_DIR / "nn-demo.wasm"
+        wasm = _fixture_wasm()
         if MOCK or not wasm.is_file():
             _NN_ARB_SUPPORT.update(state="probed", supported=False,
                                    detail="mock" if MOCK else "no nn-demo.wasm fixture")
@@ -2361,7 +2379,7 @@ def _nn_probe_e2e(env, targets=("cpu", "gpu"), timeout=None, extra_args=()) -> t
     Each call is a FRESH wasmtime process = a fresh CUDA init. On a hang, the
     detail carries a thread dump of the wedged process (state + kernel wchan)."""
     timeout = timeout or NN_PROBE_TIMEOUT
-    wasm = APPS_DIR / "nn-demo.wasm"
+    wasm = _fixture_wasm()
     if not wasm.is_file():
         return ({t: True for t in targets}, "e2e skipped (nn-demo.wasm not baked in)")
     port = _free_port()
@@ -2501,7 +2519,7 @@ def _nn_probe_gdb(env, extra_args=()) -> str:
     CUDA/ORT-relevant frames come back for the public trail."""
     if not shutil.which("gdb"):
         return "gdb not in image"
-    wasm = APPS_DIR / "nn-demo.wasm"
+    wasm = _fixture_wasm()
     if not wasm.is_file():
         return "no nn-demo.wasm"
     port = _free_port()
