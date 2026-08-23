@@ -3003,10 +3003,29 @@ const netMap = () => [...deployments.values()]
 // data channels are the real relay, not a random client hitting the shim).
 const EGRESS_RELAY_TOKEN = (process.env.EGRESS_RELAY_TOKEN || "").trim();
 const EGRESS_SOCKS_PORT  = parseInt(process.env.EGRESS_SOCKS_PORT || "1080", 10);
+// The relay name the DEFAULT egress relay attaches as (it owns DEP_ADDR_PREFIX's
+// /64 and source-binds). A deployment with no network.relay choice, or one whose
+// chosen relay isn't attached, egresses through it. Must match that relay's
+// RELAY_NAME. Unset preserves the pre-multi-relay default ("default").
+const EGRESS_DEFAULT_RELAY = (process.env.EGRESS_DEFAULT_RELAY || "").trim();
+// The relay that owns DEP_ADDR_PREFIX's /64 and can source-bind a dedicated IP.
+// Defaults to the default relay (today they're the same box). Set this when the
+// default egress relay is a NEARBY plain relay but dedicated-IP egress should
+// still be reachable on the /64 owner by explicit network.relay choice.
+const EGRESS_DEDICATED_RELAY = (process.env.EGRESS_DEDICATED_RELAY || "").trim();
+// A deployment's chosen relay (network.relay), so its OUTBOUND follows the same
+// relay as its inbound. "" / unset / unparseable => the default relay.
+function egressRelayFor(id) {
+  const r = deployments.get(id);
+  if (!r) return null;
+  try { return parseDepOptions(r._envelope, r.gpuMilli).relay || null; }
+  catch { return null; }
+}
 const egress = (DEP_ADDR_PREFIX && EGRESS_RELAY_TOKEN)
   ? createEgress({
       secret: SECRET, socksPort: EGRESS_SOCKS_PORT, relayToken: EGRESS_RELAY_TOKEN,
-      sourceAddrFor: depAddrFor,
+      sourceAddrFor: depAddrFor, relayFor: egressRelayFor,
+      defaultRelay: EGRESS_DEFAULT_RELAY, dedicatedRelay: EGRESS_DEDICATED_RELAY,
       // "claimed" is mid-provision on THIS enclave: the app process starts
       // (and may dial out — its very first S3 fetch) fractionally before the
       // provision path flips the record to "running", and the egress token in

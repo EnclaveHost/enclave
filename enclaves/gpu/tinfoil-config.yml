@@ -193,6 +193,15 @@ containers:
       # env, which would pin it empty and shadow the injected secret). Unset =
       # egress off. See relay/README.md.
       - EGRESS_SOCKS_PORT: "1080"
+      # Egress follows the deployment's relay choice, same as inbound. A
+      # deployment with no network.relay choice egresses through EGRESS_DEFAULT_
+      # RELAY (us-west, ~15ms from the GPU box) instead of tromboning to the /64
+      # owner in Finland; dedicated-IP egress stays available on the /64 owner
+      # (EGRESS_DEDICATED_RELAY=nan) by choosing network.relay:"nan". The relay
+      # names must match each egress-relay box's RELAY_NAME. If us-west egress is
+      # down the enclave falls back to nan, so egress never black-holes.
+      - EGRESS_DEFAULT_RELAY: "us-west"
+      - EGRESS_DEDICATED_RELAY: "nan"
       # manual-billing / pilot: boot deployments without an on-chain payment.
       # AUTO_PROVISION="1" provisions EVERY deploy for free (use only for a closed
       # pilot). Leave "" and use the ADMIN_TOKEN-gated provision endpoint instead to
