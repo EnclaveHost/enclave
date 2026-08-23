@@ -435,6 +435,11 @@ containers:
       - SECRET
     volumes:
       - /mnt/ramdisk/nvidia-mps:/tmp/nvidia-mps          # join the MPS daemon (SM%/VRAM caps)
+      # Wasm/config cache OUTLIVES the container (see the gpu flavor's note):
+      # a restarted box re-provisions every app it already ran without needing
+      # ipfs.enclave.host — which is itself a tenant, and deadlocked the fleet
+      # on 2026-08-23 when a restart wiped every cache.
+      - /mnt/ramdisk/wasm-apps:/opt/enclave/apps
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8091/health || exit 1"]
       interval: 15s
