@@ -352,5 +352,38 @@ start('metal-agent', ['/usr/local/bin/node', '/opt/metal/agent.mjs'], {
   SECRET,
 });
 
+// --- shielded GPU: prove the path at boot, then get out of the way -----------
+// If the host advertises a shielded worker, run one real masked field GEMM
+// against it and log the verdict. This is a PROBE, not a service: it exits, and a
+// failure is never fatal to the box. A CPU enclave that cannot reach the card
+// must keep serving CPU work rather than refusing to boot, and the fleet learns
+// the shielded path is down from the probe's verdict, not from a dead box.
+//
+// It is deliberately at boot rather than on demand. The failure this catches --
+// a worker that is absent, wrong-version, or quietly returning garbage -- is one
+// you want to find before a tenant's request depends on it.
+if (fw.shieldedWorker && fw.shieldedWorker.port) {
+  const { host = '10.0.2.2', port } = fw.shieldedWorker;
+  const probe = spawn('/usr/local/bin/node',
+    ['/opt/metal/shielded-probe.mjs', '--host', String(host), '--port', String(port)],
+    { stdio: ['ignore', 'pipe', 'pipe'] });
+  let buf = '';
+  probe.stdout.on('data', (d) => { buf += d; });
+  probe.stderr.on('data', (d) => log(`shielded-probe: ${String(d).trim()}`));
+  probe.on('error', (e) => log(`shielded-probe spawn failed: ${e.message}`));
+  probe.on('exit', (code) => {
+    let v = null;
+    try { v = JSON.parse(buf); } catch {}
+    if (code === 0 && v) {
+      log(`shielded GPU OK: ${v.worker?.device} at ${host}:${port} — exact=${v.exact} `
+        + `verified=${v.verified} lie_rejected=${v.lie_rejected} denylist=${v.denylist_refused} `
+        + `corr=${v.transcript_correlation} chi2=${v.transcript_chi2} `
+        + `rt=${v.round_trip_ms}ms warm (${v.cold_round_trip_ms}ms cold, kernel compile)`);
+    } else {
+      log(`shielded GPU UNAVAILABLE (probe exit ${code}); the box keeps serving CPU work`);
+    }
+  });
+}
+
 process.on('SIGTERM', () => { log('SIGTERM; stopping'); for (const { child } of children.values()) { try { process.kill(-child.pid, 'SIGTERM'); } catch {} } setTimeout(() => process.exit(0), 1500); });
 log('all services launched');

@@ -1,9 +1,15 @@
 # Shielded inference — masked GGML offload to untrusted GPUs
 
-Status: DESIGN (2026-08-14), with an executable reference oracle in `shielded/reference/`
-(`test/shielded-reference.test.mjs`). No engine code, no CUDA, nothing on the fleet: the
-oracle exists to prove the constructions and to be the thing the engine is validated
-against. This document is the synthesis of the required
+Status: DESIGN (2026-08-14), **RUNNING END TO END (2026-08-25)**, nothing on the fleet.
+
+The oracle in `shielded/reference/` still exists to prove the constructions. Since 2026-08-25
+there is also a working implementation: `shielded/worker.py` (the untrusted GPU half),
+`shielded/tee.py` + `shielded/model.py` (the trusted half), and `metal/guest/shielded.mjs`
+(the CVM's client). A real GGUF model generates real tokens with every linear op masked and
+executed on an untrusted RTX 3070, and the output is bit-identical to the same model run
+entirely in-TEE. Results and the two design changes it forced are in `shielded/REPORT.md`
+§10. `model.py` is not an engine -- it is the specification and the equivalence reference the
+C++ ELL backend must reproduce bit for bit. This document is the synthesis of the required
 reading (TwinShield arXiv:2507.03278, KV-Shield arXiv:2409.04040, permutation equivariance
 arXiv:2304.07735, Slalom arXiv:1806.03287, Amulet arXiv:2512.07495, and the ggml-rpc source)
 against this repo's actual plumbing. It exists so that implementation starts from settled
@@ -568,13 +574,19 @@ end-to-end run: no engine exists yet, so no phase is closed in the shipping sens
 0. **Baselines** — PARTIAL. GPU field-GEMM ladder and CPU refill rate measured on an
    RTX 3070 + EPYC 9115 (`shielded/bench/`). Chat and STT engine baselines were run
    separately; see `shielded/REPORT.md`. Still missing: a stock ggml-rpc remote-GPU run to
-   isolate transport cost, and anything on real fleet hardware.
-1. **Masked backend v1** — DESIGNED + REFERENCED. Constructions proven in the oracle
-   (Slalom masking, banked precompute, preprocessed Freivalds); worker admission rules
-   implemented and tested (`shielded/protocol.py`); kernel choice settled by measurement
-   (RNS-3 int8). NOT built: the CUDA worker, the sched-pinned executor, the VNNI refill
-   GEMM. The KV-Shield permuted pipeline was analysed and deliberately not built — it is
-   void against public weights, so it would validate plumbing while teaching a wrong habit.
+   isolate transport cost, and anything on real fleet hardware. **Transport is no longer
+   modelled**: a masked exchange over the host<->guest loopback measures 0.56 ms warm
+   (REPORT.md §10.1).
+1. **Masked backend v1** — **BUILT AND PROVEN, in reference form.** Constructions proven in
+   the oracle; worker admission rules implemented and enforced over a real socket
+   (`shielded/worker.py`, `test/shielded-gpu.test.mjs`); kernel choice settled by measurement
+   (RNS-3 int8); the TEE side, the wire protocol, the mask bank, the refill and the
+   verifier all exist and run (`shielded/tee.py`). A real model runs end to end and matches
+   an in-TEE reference exactly. NOT built: the C++/CUDA fleet worker, and the sched-pinned
+   executor inside wasmtime -- `shielded/model.py` is its specification, not its
+   replacement. The KV-Shield permuted pipeline was analysed and deliberately not built --
+   it is void against public weights, so it would validate plumbing while teaching a wrong
+   habit.
 2. **whisper.cpp / sd.cpp (DiT)** — PARTIAL. Conv masking and a ViT block are oracle-proven;
    the STT CPU-in-TEE feasibility measurement is in `shielded/REPORT.md`. sd.cpp itself is
    untouched.
@@ -584,8 +596,14 @@ end-to-end run: no engine exists yet, so no phase is closed in the shipping sens
    phase was gated on has effectively happened, and its outcome was to shrink the phase.
 4. **TTS + SDXL conv** — PARTIAL. TTS pick made (Pocket TTS via mtmd) and blocked on an
    mm30 engine bump; the conv masking path it shares with SDXL is oracle-proven.
-5. **Final report** — `shielded/REPORT.md`, plus `shielded/SECURITY.md` for the per-op
-   leakage argument and per-interface residual leakage.
+5. **Final report** — `shielded/REPORT.md` (§10 is the end-to-end revision), plus
+   `shielded/SECURITY.md` for the per-op leakage argument and per-interface residual leakage.
+6. **Self-hosted exposure** — **DONE for metal.** `metal/` can put a card on the untrusted
+   host and let the CVM use it: `shieldedWorker` in the box config launches the worker on
+   127.0.0.1, the guest reaches it at 10.0.2.2, and `metal/guest/shielded-probe.mjs` runs one
+   real masked GEMM at boot and asserts exactness, verification, lie rejection and denylist
+   enforcement before the box advertises the path. Proven on a live SEV-SNP guest
+   (REPORT.md §10.5).
 
 Kill criteria (from the brief, unchanged): chat/vision >5× at batch ≥4 after optimization;
 image gen >3× per-image wall clock at batch ≥4; STT/TTS failing realtime on both CPU-in-TEE
@@ -596,8 +614,9 @@ arrival. On any kill: stop and write up why, with measurements.
 
 0. **Mask refill on the TEE side is the tier's throughput ceiling.** It costs one TEE MAC
    per GPU MAC and cannot be offloaded (a GPU computing `r·W` learns the pad). The fast
-   exact primitive exists (int8/VNNI, verified); integrating it is the top task. Everything
-   else on this list is secondary to it. Figures: `shielded/REPORT.md`.
+   exact primitive exists (int8/VNNI, verified) and is now integrated and exactness-probed
+   (`tee.refill`, one stacked GEMM over the three residue planes). Figures:
+   `shielded/REPORT.md`.
 
 
 1. **Field-GEMM throughput on commodity GPUs** — the whole tier's economics. int8-limb
@@ -605,18 +624,25 @@ arrival. On any kill: stop and write up why, with measurements.
 2. **Decode against a q4_K baseline sits at the kill line** — RNS-3 is 1.5x fp16 but 6x
    q4_K on weight bandwidth, and q4_K is what the fleet serves. Batching amortises it;
    batch-1 decode does not. Needs the bespoke small-M kernel (int8 TC refuses M<=16).
-3. **Field magnitude guard** — (p, l) = (2^24−3, 8) holds at production *width* but has
-   ~1 bit of margin against 10^3× outlier channels. The fail-closed per-tensor guard is
-   mandatory, not optional; a silent wrap corrupts output with no error signal. RNS is the
-   proven fallback.
+3. ~~**Field magnitude guard**~~ — **RESOLVED 2026-08-25, and the margin was not there.**
+   At the design's fixed `l = 8`, `ffn_down` on a real model reaches 1.81× M/2 and WRAPS
+   (REPORT.md §10.2). Two changes, both implemented: detection is now Freivalds over the
+   integers modulo an unrelated prime, which catches a wrap and a lying worker in the same
+   two dot products (a mod-M check cannot catch a wrap at all — the wrapped value is
+   congruent); and prevention is **outlier splitting**, where the TEE keeps the top-k
+   activation channels and computes their contribution in int64. `k = 4` takes ffn_down from
+   1.81× to 0.12×, at 0.08% of that site's multiplies. The activation exponent becomes a
+   per-site public constant calibrated offline (`shielded/calibrate.py`), never adapted per
+   request — an adaptive one would leak activation magnitude.
 4. **TwinShield v2 OutSoftMax numerics** — the real-valued exponential versus field masks
    is unresolved in the paper; softmax stays in-TEE until analysed. v2's attention half is
    now settled as prefill-only by measurement rather than by review.
 5. **CPU attention at 32k context** — resolved for 2k/8k GQA by the capacity model (~9 ms/
    token at 8k); 32k is where GQA models hit ~36 ms/token and 53% of MACs, and needs its
    own bucket decision before any 32k shielded offering.
-5b. **Field-form weights inflate VRAM ~5x** (RNS-3 is 3 B/param vs q4_K's ~0.57), so an 8B
-   model needs ~24 GB and does not fit a commodity 8 GB card. The fix is to keep weights in
-   native GGUF form and derive residues in-kernel; unverified, and the largest open claim in
-   `shielded/REPORT.md`.
+5b. ~~**Field-form weights inflate VRAM ~5x**~~ — **CLOSED.** Weights stay in native q8_0
+   and the residues are derived in-kernel; verified exact, and measured end to end at 501 MiB
+   resident for a 0.5B model. The same identity applies on the TEE side: a byte-limited weight
+   satisfies `w mod q_i == w` for every prime, so one int8 plane serves all three channels
+   there too.
 6. **T5-xxl** breaks the tidy "encoders in TEE" story for Flux-class models.

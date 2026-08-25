@@ -73,50 +73,17 @@ import torch
 import triton
 import triton.language as tl
 
-# Byte-sized RNS primes: each residue fits one int8 lane, so a field GEMM is N
-# GEMMs rather than the N^2 cross-products a single 24-bit prime would need.
-Q0, Q1, Q2 = 251, 241, 239
-M_MOD = Q0 * Q1 * Q2          # 14,458,349 ~ 2^23.8 of dynamic range
-QK = 32                       # q8_0 block size: one fp16 scale per 32 weights
-FRAC = 8                      # l = 8 fractional bits, per the design doc
-
-# Garner constants, precomputed on the host (the kernel takes them as scalars).
-INV_Q0_MOD_Q1 = pow(Q0 % Q1, -1, Q1)
-INV_Q0Q1_MOD_Q2 = pow((Q0 * Q1) % Q2, -1, Q2)
-
-
-# ---------------------------------------------------------------------------
-# The shared encoding. TEE and GPU MUST agree bit-for-bit.
-# ---------------------------------------------------------------------------
-def encode_weight_fixed(wd_fp16, wq_int8):
-    """q8_0 (scale, quant) -> exact fixed-point field integer, as int64.
-
-    THE reference. The Triton kernel mirrors this operation for operation, and
-    the TEE-side `u = r*W` precomputation must call this and nothing else.
-    """
-    d256 = wd_fp16.astype(np.float32) * np.float32(256.0)   # exact
-    q = wq_int8.astype(np.float32)
-    d256_full = np.repeat(d256, QK, axis=0)[: q.shape[0]]   # broadcast per 32-block
-    return np.floor(d256_full * q + np.float32(0.5)).astype(np.int64)
-
-
-def to_residues(a):
-    """Balanced residues mod each prime, int8-safe."""
-    out = []
-    for q in (Q0, Q1, Q2):
-        r = np.mod(a, q)
-        out.append(np.where(r > q // 2, r - q, r).astype(np.int8))
-    return out
-
-
-def crt_host(r0, r1, r2):
-    """Garner reconstruction on the host, for the reference path."""
-    x = np.mod(r0.astype(np.int64), Q0)
-    t1 = np.mod((np.mod(r1.astype(np.int64), Q1) - x) * INV_Q0_MOD_Q1, Q1)
-    x = x + Q0 * t1
-    t2 = np.mod((np.mod(r2.astype(np.int64), Q2) - x) * INV_Q0Q1_MOD_Q2, Q2)
-    x = x + (Q0 * Q1) * t2
-    return np.where(x > M_MOD // 2, x - M_MOD, x)
+# The field, the shared weight encoding, and the CRT all live in shielded/field.py
+# now -- numpy only, no torch, no triton. The TEE has to call the identical
+# encoding routine (that is the determinism requirement) and it runs in a CPU-only
+# CVM, so importing this module to get a rounding rule would have dragged CUDA into
+# the enclave's dependency set. The names are re-exported here unchanged so every
+# existing caller and test keeps working.
+import os as _os
+import sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+from field import (FRAC, INV_Q0_MOD_Q1, INV_Q0Q1_MOD_Q2, M_MOD, Q0, Q1, Q2, QK,
+                   crt_host, encode_weight_fixed, to_residues, weights_fit_byte)
 
 
 # ---------------------------------------------------------------------------
@@ -275,13 +242,6 @@ def field_gemm_q8_kernel(
 # ---------------------------------------------------------------------------
 # Host wrappers
 # ---------------------------------------------------------------------------
-def weights_fit_byte(w_fixed):
-    """Host-side decision for the fast path. A weight whose fixed-point value
-    exceeds the byte range would silently wrap in the int8 cast, so this is a
-    correctness gate, not a tuning hint."""
-    return bool(np.max(np.abs(w_fixed)) <= 119)
-
-
 def field_gemv_q8(x_res, wq, wd, N, fast=True):
     y = torch.empty((N,), dtype=torch.int32, device="cuda")
     BLOCK_N, BLOCK_K = 256, 128

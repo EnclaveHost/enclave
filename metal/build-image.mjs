@@ -173,7 +173,13 @@ fs.writeFileSync(path.join(ROOT, 'opt/metal/wasm-env.json'), JSON.stringify(wasm
 // --- 4. metal guest files ----------------------------------------------------
 console.log('[build] installing metal guest files…');
 const md = path.join(ROOT, 'opt/metal'); fs.mkdirSync(md, { recursive: true });
-for (const f of ['gsup.mjs', 'agent.mjs']) fs.copyFileSync(path.join(HERE, 'guest', f), path.join(md, f));
+// shielded.mjs + shielded-probe.mjs are the CVM's client for an untrusted GPU on
+// the host. They go INSIDE the measurement like everything else in /opt/metal --
+// the guest half of the shielded tier is trusted code and must be attested. The
+// worker it talks to is not, and is not shipped here: it runs on the host, is
+// assumed hostile, and its address arrives unmeasured over fw_cfg.
+for (const f of ['gsup.mjs', 'agent.mjs', 'shielded.mjs', 'shielded-probe.mjs'])
+  fs.copyFileSync(path.join(HERE, 'guest', f), path.join(md, f));
 // init (PID1), with the kernel version substituted in
 let init = fs.readFileSync(path.join(HERE, 'guest', 'init'), 'utf8').replaceAll('__KVER__', KVER);
 fs.writeFileSync(path.join(ROOT, 'init'), init, { mode: 0o755 });

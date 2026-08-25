@@ -3,8 +3,16 @@
 Date: 2026-08-14. Companion to [docs/shielded-inference.md](../docs/shielded-inference.md)
 (design) and [SECURITY.md](SECURITY.md) (leakage argument).
 
-**Bottom line up front.** The confidentiality design holds and is proven in an executable
-oracle, and no measured cost currently kills it.
+**Bottom line up front.** The confidentiality design holds, and as of 2026-08-25 it also
+RUNS: a real GGUF model generates real tokens with every linear op masked and executed on
+an untrusted GPU, and the output is bit-identical to the same model run entirely in-TEE.
+No measured cost kills the tier.
+
+**Revision 2026-08-25 (§10) supersedes this section's "what remains open".** The two items
+this report called out as missing -- the absence of any end-to-end run, and the fail-closed
+magnitude guard -- are both closed, and closing the second turned up a finding that changes
+the design: at real activations the field DOES overflow, driven entirely by a handful of
+outlier channels, and the fix is to keep those channels in the TEE.
 
 - **GPU**: with the fused kernel now written (`kernels/fused_field_gemm.py`), an exact field
   GEMM costs **0.90–1.32× fp16** — at decode it is *faster* than the baseline, because it
@@ -402,9 +410,11 @@ open for want of an end-to-end implementation, not because a measured cost excee
 
 ## 8. What is not measured, and would change conclusions
 
-1. **No end-to-end shielded run.** Every overhead figure is a primitive measurement or
-   arithmetic on primitives. Transport, mask staging, and verification are modelled, not
-   observed.
+1. ~~**No end-to-end shielded run.**~~ **CLOSED 2026-08-25, see §10.** Transport, mask
+   staging, refill and verification are now observed rather than modelled. What is still
+   modelled is the PRODUCTION cost: the end-to-end implementation is Python/numpy driving
+   the same Triton kernel, so its wall-clock is an upper bound with a large interpreter
+   term, not an engine measurement.
 2. **No stock ggml-rpc remote-GPU baseline**, so transport cost is not isolated.
 3. **The q4_K comparison is still an estimate.** The kernel reads q8_0 and the q4_K column is
    scaled by the byte ratio. Against fp16 the numbers are measured; against the fleet's
@@ -412,10 +422,15 @@ open for want of an end-to-end implementation, not because a measured cost excee
 4. **No fleet hardware.** The 3070 is representative of the target *class*; datacenter parts
    have very different fp64 and int8 ratios. The EPYC has 16 cores against a fleet CVM's
    likely 64–128.
-5. **No real model, no accuracy measurement.** Fixed-point l=8 is expected to cost a GGUF-q8-
-   class step (Slalom <0.5%, TwinShield +0.21 ppl); unverified here.
+5. ~~**No real model, no accuracy measurement.**~~ **PARTLY CLOSED, see §10.** A real model
+   runs, and the shielded and in-TEE paths agree exactly. Accuracy against the unquantised
+   model is still unmeasured: §10 establishes that the shielded path costs NOTHING beyond
+   the fixed-point encoding it shares with the in-TEE reference, not that the encoding is
+   free. Fixed-point l=8 turned out NOT to be usable as a global constant -- see §10.2.
 6. **Concurrency is unexercised.** The mask bank's one-time invariant is asserted
    single-threaded; the real allocator is concurrent, and a double-issue race is a total break.
+   `tee.MaskBank` now takes a lock around issuance and asserts monotonicity, which is
+   necessary but not a substitute for a concurrent test.
 7. **Everything is bare metal.** No measurement here ran inside an actual SEV-SNP guest, so
    memory-encryption overhead is absent from every CPU figure — including the refill headroom
    and the STT concurrency ceiling, which passes at N=3 with only 16% margin.
@@ -433,3 +448,193 @@ open for want of an end-to-end implementation, not because a measured cost excee
 5. **Land the per-tensor magnitude guard, failing closed**, before any real model runs — a
    silent field wrap corrupts output with no error signal.
 7. Only then: sd.cpp DiT, the mm30 engine bump for TTS, and fleet integration.
+
+---
+
+# 10. The end-to-end run (revision 2026-08-25)
+
+Everything above §9 is a primitive measurement or arithmetic over primitives. This section
+is the tier actually running: `shielded/worker.py` holding an RTX 3070 on an untrusted host,
+`shielded/model.py` inside the enclave, a real GGUF model, real tokens.
+
+**Headline.** Qwen2.5-0.5B-Instruct, 24 layers, 169 linear tensors, 501 MiB of public
+weights resident on the card. Three prompts, greedy decode. **Every generated token is
+identical to the same model run entirely in-TEE**, across 6402 round trips and 48.7 GMAC of
+offloaded work, with **0 verification failures**. Peak |y| reached 2.1e6 against M/2 = 7.2e6.
+
+Equivalence is the test, and it is not the same as plausibility. A masking bug that perturbs
+activations slightly still produces fluent text; a wrapped field product produces confident
+nonsense that reads like a small model having a bad day. Slalom recovery is exact in Z_M, so
+the claim is bit-equality and the harness asserts bit-equality.
+
+## 10.1 What it cost, and what that number is worth
+
+Per generated token, measured, 371.8 offload exchanges per token across ~6400 round trips:
+
+| term | ms/token | what it is |
+|---|---|---|
+| mask staging | 30.2 | pad issuance (SHAKE-256) + residue split |
+| transport + GPU | 91.6 | the whole exchange: 3 SET_TENSOR + doorbell + GET_TENSOR |
+| refill `u = r*W` | 94.2 | the term that cannot be offloaded |
+| verification | 15.6 | preprocessed Freivalds, both failure modes |
+
+**Do not read these as engine numbers.** This implementation is Python and numpy around the
+same Triton kernel §2 benchmarks; the interpreter dominates every row. What the table
+establishes is the SHAPE of the budget -- refill and transport are comparable, verification
+is under 10%, and masking is not free -- not the magnitude. The magnitudes that matter are
+still §2's kernel measurements and §3's refill ceiling.
+
+The one number here that IS a measurement rather than an artifact is the round trip. A
+single masked exchange over the host<->guest loopback, pipelined into one write, is **0.44
+-0.70 ms warm** (median 0.56). The first exchange against a fresh worker is **327 ms**,
+which is Triton compiling the kernel for that shape and has nothing to do with the network;
+the probe reports both, because quoting either alone either hides the compile or libels the
+transport. §2's modelled transport of 1.54 ms/token over 32 layers survives contact.
+
+## 10.2 The finding that changes the design: outlier channels, not width
+
+REPORT.md's open risk #3 said (p, l) = (2^24-3, 8) "holds at production *width* but has ~1
+bit of margin against 10^3x outlier channels". That is exactly what happened, and it is worse
+than 1 bit. Measured on a real forward pass, at the design's fixed l = 8:
+
+| site | rms &#124;x&#124; | max &#124;x&#124; | peak &#124;y&#124; vs M/2 |
+|---|---|---|---|
+| attn_q | 1.45 | 89.3 | 0.38x |
+| attn_output | 0.32 | 9.6 | 0.10x |
+| ffn_gate | 1.34 | 382.5 | 0.54x |
+| **ffn_down** | **0.39** | **443.5** | **1.81x — WRAPS** |
+| output | 10.05 | 162.6 | 0.38x |
+
+`ffn_down` overflows Z_M outright. The model still produces fluent English while doing it --
+the first end-to-end attempt returned `" ( and ( and and. and. and. 1"` -- which is the
+failure mode a magnitude guard exists to catch and a fluency check never will.
+
+The peak is not a width effect. It is **one band of outlier channels**: ffn_down's activation
+has a median channel magnitude of 1.5 against a max of 443, a 300x outlier. Removing the top
+few channels collapses it:
+
+| channels held back | 0 | 4 | 16 | 64 |
+|---|---|---|---|---|
+| attn_q | 0.38x | 0.26x | 0.19x | 0.18x |
+| attn_output | 0.10x | 0.08x | 0.07x | 0.04x |
+| ffn_gate | 0.54x | 0.28x | 0.28x | 0.21x |
+| **ffn_down** | **1.81x** | **0.12x** | **0.10x** | **0.09x** |
+| output | 0.38x | 0.31x | 0.25x | 0.17x |
+
+**Four channels take ffn_down from 1.81x to 0.12x — a 15x reduction.** So the design gains a
+third mechanism alongside the field and the mask: the TEE keeps the outlier channels and
+computes their contribution itself, in plain int64 where nothing can wrap, and adds it to the
+GPU's partial product. At k=4 and K=4864 that is 0.08% of the site's multiplies moved back
+into the enclave.
+
+This costs nothing in confidentiality, and the direction of travel is the safe one:
+
+- The outlier channel **indices** are a static property of the public weights, calibrated
+  offline on public text and shipped like a GGUF imatrix. They are identical for every prompt
+  and every user, so they carry no information about anyone's input.
+- The **values** in those channels never leave the TEE at all -- strictly less is offloaded
+  than before, not more.
+- The **activation exponent** is chosen the same way, per site, offline, from public text.
+  It is deliberately NOT adapted per request: an exponent computed from the activation in
+  hand would be a public parameter derived from secret data, i.e. a real magnitude leak, and
+  the extra headroom is not worth buying with one.
+
+Calibration also revealed that the design's single l = 8 was leaving precision unspent
+elsewhere. With outliers held back, the chosen per-site exponents run from **7 to 14**, with
+>=4x field headroom everywhere -- so most sites get more activation resolution than l = 8,
+not less, and `attn_output` gets 64x more.
+
+## 10.3 The guard has to be exact, and it can be free
+
+The a-priori guard tried first was Cauchy-Schwarz: |y_j| <= ||x||_2 ||w_j||_2, with column
+norms precomputed. It is sound and it is useless -- it assumes perfect alignment, so it
+rejected an ordinary random-weight GEMM whose true peak sat 30x below the limit.
+
+The construction that works is Freivalds over the integers. The TEE's recovered y_hat is
+congruent to the true product mod M by construction, so any discrepancy is y_hat - y = c*M
+for an integer vector c, nonzero exactly where the product wrapped. Checking the Freivalds
+identity modulo an unrelated prime P2 makes that term visible:
+
+```
+y_hat*s - x*(W*s)  ==  (c*s)*M   (mod P2)
+```
+
+which vanishes only if c*s == 0 mod P2, i.e. with probability <= 1/|S| per repetition. So the
+same two dot products that catch a lying worker also catch a field wrap, at the same cost,
+and the check strictly subsumes the mod-M version in `reference/shielded_ref.py`. The
+selftest asserts both halves, including that the wrapped value is genuinely indistinguishable
+mod M -- otherwise the test would be vacuous.
+
+## 10.4 Determinism across three implementations
+
+The design's determinism requirement -- the TEE's `u = r*W` and the GPU's `(x+r)*W` must
+derive bit-identical field elements from the same q8_0 bytes -- now has three implementations
+to hold together: the Triton kernel, `shielded/field.py`, and `metal/guest/shielded.mjs` in
+float32 via `Math.fround`. It is tested rather than inspected: 512 vectors including fp16
+subnormals and near-limit scales, and the JS encoder reproduces every one.
+
+The shared arithmetic was moved into `shielded/field.py`, numpy-only, for a reason worth
+recording: the TEE runs in a CPU-only CVM, and the kernel module imports torch and triton at
+module scope. Importing the GPU half to obtain a rounding rule would have put CUDA in the
+enclave's dependency set to serve code that must never touch a GPU.
+
+**A note on fp16 subnormals.** Per-tensor exponents scale the q8_0 block scales by a power of
+two, and on real tensors that pushes some blocks into fp16 subnormals. The first
+implementation rejected that outright and refused every tensor in the model. It was guarding
+the wrong thing: the bits lost are below the fixed-point quantum (those weights encode to
+zero anyway), and both sides read the same fp16 array through the same routine regardless. The
+check is now on what matters -- that the encoded weight still represents the true weight to
+within its own quantum.
+
+## 10.5 Inside a real CVM, against a real untrusted host
+
+The tier's threat model is a GPU whose host operator is hostile. `metal/` is where that
+becomes concrete: the card stays on the host, outside the enclave and outside the launch
+measurement, and the guest reaches the worker at `10.0.2.2:<port>` over the same slirp path
+the egress helper already uses.
+
+Run on a SEV-SNP guest launched by `metal/enclave-metal.mjs`, from inside the CVM:
+
+```
+[gsup] shielded GPU OK: NVIDIA GeForce RTX 3070 at 10.0.2.2:9500 — exact=true
+       verified=true lie_rejected=true denylist=true corr=-0.053 chi2=74.8
+       rt=0.563ms warm (327ms cold, kernel compile)
+```
+
+Four assertions, made against the bytes that actually crossed the boundary rather than
+argued: the unmasked product is exact; Freivalds accepts the honest result and rejects a
+single-element lie; the worker refuses a denylisted op **on the wire**; and the transcript is
+uncorrelated with the secret (|corr| 0.053 against a 3-sigma null of 0.133) and uniform over
+Z_M (chi2 74.8 against a 103.4 threshold).
+
+The worker's address arrives over fw_cfg, which the launch measurement does not cover, and
+that is correct rather than sloppy. A host that redirects it to a worker it wrote gains
+nothing: the pad never crosses and Freivalds rejects any product that is not the real one.
+The worst it can do is refuse to answer, and availability is the one thing this design
+explicitly does not promise. **The GPU's address is ordinary configuration, not a trust
+anchor -- which is precisely why the GPU can sit outside the enclave at all.**
+
+## 10.6 Kill criteria, restated
+
+| criterion | standing after §10 |
+|---|---|
+| Chat/vision >5x at batch >=4 | **Still not killed, still not cleared.** The tier now runs end to end and is exact, so the remaining question is purely the production engine's constant factor. The Python reference cannot answer it. |
+| Image gen >3x per image at batch >=4 | **Untested.** Unchanged. |
+| STT/TTS fail realtime on both paths | **CLEARED for STT** (§6). Unchanged. |
+| Requires trusting GPU driver / host kernel / operator | **Cleared, now by demonstration rather than by construction.** A CVM drove a GPU on an untrusted host through a hostile-by-assumption worker and got an exactly verifiable answer. |
+
+## 10.7 What is still open
+
+1. **The production engine.** `model.py` is a specification and an equivalence reference, not
+   an engine. The C++ shielded ggml backend in `wasm/` is the real work, and it must reproduce
+   `model.py`'s output bit for bit.
+2. **Accuracy against the unquantised model** is unmeasured. §10 shows the shielded path costs
+   nothing beyond the encoding; it does not show the encoding is free.
+3. **Calibration coverage.** Exponents and outlier sets come from 203 tokens of public text.
+   That is enough to find systematic outlier bands and not enough to bound the tail. The
+   runtime detector is what makes this a margin rather than a hope, but a prompt that
+   overflows anyway aborts, and abort frequency on real traffic is unmeasured.
+4. **Concurrency**, still (§8.6).
+5. **A larger model.** 0.5B at K<=4864 exercises the field comfortably. The report's own
+   ~18.7-bit accumulator estimate was flat in width, so the risk at 8B is outlier magnitude
+   rather than K, and that is now instrumented -- but not measured.

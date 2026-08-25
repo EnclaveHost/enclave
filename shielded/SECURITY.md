@@ -146,21 +146,60 @@ step, before insertion**, with no deferral — even where other matmuls could am
 checks. No source paper states this because none of them has a cache. Oracle: a worker
 tampering only with the key projection is caught with nothing inserted.
 
-**Silent-wrap guard.** A field value exceeding `p/2` wraps and decodes to noise with no error
+**Silent-wrap guard.** A field value exceeding `M/2` wraps and decodes to noise with no error
 signal, which would corrupt output indistinguishably from a numerics bug. Measured: the
 accumulator requirement is flat at ~18.7 bits from d=64 to d=14336 (1/√d init is
-variance-preserving, so width is *not* the risk), with ~5 bits of headroom under p/2;
-overflow appears near 10⁴× outlier channels while 10³× still fits. Known LLM
-massive-activation channels run 10²–10³×, so the margin is roughly one bit. A **per-tensor
-magnitude guard that fails closed** is therefore mandatory, and RNS over coprime primes
-(oracle-verified exact) is the escape hatch. RNS changes representation, not the OTP
-argument: masking independently mod each prime is a perfect pad per channel.
+variance-preserving, so width is *not* the risk); overflow appears near 10⁴× outlier
+channels while 10³× still fits. Known LLM massive-activation channels run 10²–10³×, so the
+margin is roughly one bit.
+
+**2026-08-25: the margin was not there.** On a real forward pass (Qwen2.5-0.5B, REPORT.md
+§10.2) `ffn_down` reaches **1.81× M/2 and wraps** at the design's fixed `l = 8`, and the
+model goes on producing fluent English while doing it. Two changes follow, both implemented:
+
+- **Detection is exact and free.** The Freivalds check is run over the integers, modulo a
+  prime unrelated to `M`, instead of mod `M`. A wrapped `ŷ` differs from the true product by
+  `c·M`, so the identity `ŷ·s == x·(W·s)` fails mod `P2` with probability ≥ 1 − 1/|S| per
+  repetition. The same two dot products now catch a lying worker *and* a field wrap, and the
+  construction strictly subsumes the mod-`M` version. A mod-`M` check cannot catch a wrap at
+  all — the wrapped value is congruent — which is why the previous formulation of this
+  paragraph asked for a separate guard.
+- **Prevention is outlier splitting, and it moves work INTO the enclave.** The overflow is
+  driven by a handful of channels (`ffn_down`: median channel 1.5, max 443). The TEE keeps the
+  top-k channels and computes their contribution in plain int64 where nothing can wrap;
+  `k = 4` takes that site from 1.81× to 0.12×, at 0.08% of its multiplies.
+
+**Leakage consequence: none, and strictly negative.** The outlier channel *indices* and the
+per-site activation exponent are static properties of the public weights, calibrated offline
+on public text (`shielded/calibrate.py`) and shipped like a GGUF imatrix — identical for every
+prompt and every user, so they carry no information about anyone's input. The *values* in
+those channels are never offloaded at all, so the accelerator sees strictly less than before.
+
+**What is deliberately NOT done:** adapting the activation exponent per request. It would buy
+field headroom, and it would make a public parameter a function of secret activation
+magnitude — a real leak. The exponent is fixed offline and the runtime never touches it. An
+input that overflows anyway aborts the request, which is an availability event and is already
+conceded in §1.
+
+RNS over coprime primes (oracle-verified exact) remains the escape hatch for a tensor that
+outlier splitting cannot rescue. RNS changes representation, not the OTP argument: masking
+independently mod each prime is a perfect pad per channel.
 
 ## 6. Residual leakage, per interface
 
 Common to all: request timing and duration, request count, model identity, graph topology
 (hence architecture — public anyway), and total offloaded byte volume. The worker also learns
 the *sizes* of everything, since shapes are not padded beyond the buckets below.
+
+It also learns which channels of each activation are always zero, because outlier splitting
+zeroes the held-back channels before masking. That set is the calibrated outlier set: a public,
+static property of the public weights, the same for every request. It reveals nothing about
+any input, and the accelerator could have computed it itself from the weights it already holds.
+
+**A request that aborts is visible.** The magnitude detector and the integrity check both fail
+closed, and a host watching the socket can tell that a request stopped early. It cannot tell
+which of the two fired, and it cannot learn anything about the input beyond "this one was
+unusual enough to overflow, or I was caught lying".
 
 | Interface | Residual leakage | Buckets |
 |---|---|---|
