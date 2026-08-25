@@ -498,3 +498,11 @@ ggml_backend_reg_t ggml_backend_shielded_reg(void) {
 ggml_backend_t ggml_backend_shielded_init(void) {
     return sh_dev_init_backend(sh_reg_get_device(ggml_backend_shielded_reg(), 0), NULL);
 }
+
+/* Loadable as a module, so an engine picks the tier up as launch configuration
+ * rather than a rebuild -- ggml_backend_load_all() finds it beside the binary or
+ * on GGML_BACKEND_PATH. Only compiled in for the shared-library build; the static
+ * one links ggml_backend_shielded_reg() directly. */
+#ifdef GGML_BACKEND_DL
+GGML_BACKEND_DL_IMPL(ggml_backend_shielded_reg)
+#endif
