@@ -86,12 +86,11 @@ c-fleet-list{display:contents;}
 .fleet-cta a{color:var(--jade);text-decoration:none;white-space:nowrap;}
 .fleet-cta a:hover,.fleet-cta a:focus-visible{text-decoration:underline;}
 
-/* a card on the box's UNTRUSTED host, used by masked offload. It gets its own
-   badge rather than the `gpu` one on purpose: an in-enclave card and a shielded
-   card are different things to buy, and a buyer who cannot tell them apart is
-   being misled about where their activations run. Amber, because this is the
-   "read the label" state, not the "something is wrong" state. */
-.ap-badge.shielded{color:var(--amber);background:#ff914d12;border-color:#ff914d66;}
-/* the shielded pool posts no rate yet, so the label column's price slot names
-   the pool instead of standing empty */
-.fleet-pool-note{grid-column:1;font-size:.62rem;letter-spacing:.06em;white-space:nowrap;color:var(--amber-dim);align-self:start;}
+/* The two card badges reuse the shared palette rather than inventing one: jade
+   (.ok) for a card INSIDE the measured enclave, iris (.info) for an ordinary one
+   on the untrusted host reached by masked offload. Green is the colour this page
+   already uses for capacity you are getting; keeping the TEE card green and the
+   outside card blue means the distinction reads before the words do.
+   the shielded pool posts no rate yet, so the label column's price slot names
+   the pool instead of standing empty — tinted to its badge, not to a warning */
+.fleet-pool-note{grid-column:1;font-size:.62rem;letter-spacing:.06em;white-space:nowrap;color:var(--iris);align-self:start;}
