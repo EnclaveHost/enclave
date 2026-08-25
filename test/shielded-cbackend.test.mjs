@@ -55,6 +55,70 @@ test("the C field encoding matches Python, subnormals included", (t) => {
     `${bad}/${got.length} encodings differ between wasm/ggml-shielded and shielded/field.py`);
 });
 
+// The scales are half of THE encoding, so their fp32->fp16 conversion is part of
+// the contract too. Truncating instead of rounding to nearest-even lands one ulp
+// low on about half of all blocks and fails NOWHERE -- the two sides simply derive
+// different weights and unmasking returns noise. Caught exactly once, here.
+test("the C fp16 conversion rounds like numpy, subnormals and overflow included", (t) => {
+  if (!build()) return t.skip("no toolchain for the C backend");
+  const out = execFileSync("python3", ["-c", `
+import json, subprocess, sys
+import numpy as np
+rng = np.random.default_rng(3)
+vals = np.concatenate([
+    rng.uniform(-0.05, 0.05, 20000),
+    rng.uniform(-1e-6, 1e-6, 20000),          # subnormal in fp16
+    rng.uniform(-70000, 70000, 4000),         # overflows fp16
+    np.array([0.0, -0.0, 6e-8, 5.96e-8, 6.104e-5, 0.00390625, 65504.0, 65520.0]),
+]).astype(np.float64)
+p = subprocess.run([${JSON.stringify(join(dir, "half-selftest"))}],
+                   input=chr(10).join(repr(float(v)) for v in vals),
+                   capture_output=True, text=True, timeout=600)
+c = np.array([int(x) for x in p.stdout.split()], dtype=np.uint16)
+with np.errstate(over="ignore"):
+    ref = vals.astype(np.float32).astype(np.float16).view(np.uint16)
+print(json.dumps({"checked": int(c.size), "mismatch": int((c != ref).sum())}))
+`], { encoding: "utf8", timeout: 900_000 }).trim().split("\n").pop();
+  const v = JSON.parse(out);
+  assert.ok(v.checked > 40000, "sample shrank");
+  assert.equal(v.mismatch, 0, `${v.mismatch}/${v.checked} fp16 conversions differ from numpy`);
+});
+
+// Picking the per-tensor exponent is where "it compiles" and "it is the same
+// arithmetic" diverge: sh_encode_weight_fixed multiplies by 256, so it is only THE
+// encoding when the scales already carry f_w. Hand it raw GGUF scales and every
+// tensor silently encodes at f_w = 8.
+test("the C picks the same weight exponent and encodes the same bytes as tee.py", (t) => {
+  if (!build()) return t.skip("no toolchain for the C backend");
+  const out = execFileSync("python3", ["-c", `
+import json, subprocess, sys
+sys.path.insert(0, ${JSON.stringify(join(repo, "shielded"))})
+import numpy as np
+from tee import PublicWeight, QK
+rng = np.random.default_rng(11)
+bad = []
+for trial, (K, N) in enumerate([(64, 32), (128, 64), (256, 48), (512, 16)]):
+    wd = (rng.uniform(1e-6, 0.02, size=(K // QK, N))
+          * (10.0 ** rng.integers(-2, 1, size=(K // QK, N)))).astype(np.float16)
+    wq = rng.integers(-127, 128, size=(K, N)).astype(np.int8)
+    pw = PublicWeight("t%d" % trial, wq, wd)
+    nl = chr(10)
+    inp = ("%d %d" % (K, N) + nl
+           + " ".join(str(int(x)) for x in wd.view(np.uint16).ravel()) + nl
+           + " ".join(str(int(x)) for x in wq.ravel()) + nl)
+    p = subprocess.run([${JSON.stringify(join(dir, "prepare-selftest"))}],
+                       input=inp, capture_output=True, text=True, timeout=600)
+    tok = p.stdout.split()
+    c_fw = int(tok[0])
+    c_w = np.array([int(x) for x in tok[1:]], dtype=np.int64).reshape(K, N)
+    if c_fw != pw.f_w or not np.array_equal(c_w, pw.w_fixed_i8.astype(np.int64)):
+        bad.append({"K": K, "N": N, "py_fw": int(pw.f_w), "c_fw": c_fw})
+print(json.dumps({"bad": bad}))
+`], { encoding: "utf8", timeout: 900_000 }).trim().split("\n").pop();
+  assert.deepEqual(JSON.parse(out).bad, [],
+    "the C and tee.py disagree on the weight exponent or the encoded weights");
+});
+
 const reachable = (host, port) => new Promise((res) => {
   const s = net.connect({ host, port });
   const done = (v) => { s.destroy(); res(v); };

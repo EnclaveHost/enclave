@@ -11,7 +11,7 @@ LDLIBS  += -lm
 CORE_SRC := shielded-field.c shielded-wire.c shielded-tee.c
 CORE_OBJ := $(CORE_SRC:.c=.o)
 
-all: shielded-probe field-selftest
+all: shielded-probe field-selftest prepare-selftest half-selftest
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -22,7 +22,13 @@ shielded-probe: shielded-probe.c $(CORE_OBJ)
 field-selftest: field-selftest.c shielded-field.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
+prepare-selftest: prepare-selftest.c shielded-field.o
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+
+half-selftest: half-selftest.c shielded-field.o
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+
 clean:
-	rm -f $(CORE_OBJ) shielded-probe field-selftest ggml-shielded.o
+	rm -f $(CORE_OBJ) shielded-probe field-selftest prepare-selftest half-selftest ggml-shielded.o
 
 .PHONY: all clean
