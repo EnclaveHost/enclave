@@ -6,3 +6,5 @@ prepare-selftest
 half-selftest
 ggml-test
 test.calib
+shielded-run
+libggml-shielded.so

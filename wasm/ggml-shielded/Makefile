@@ -26,6 +26,9 @@ all: shielded-probe field-selftest prepare-selftest half-selftest
 # Built only where an engine checkout exists; `make ggml` opts in.
 ggml: ggml-test
 
+# Whole-model runner; needs libllama as well as ggml.
+run: shielded-run
+
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -48,7 +51,15 @@ ggml-test: ggml-test.cpp ggml-shielded.o $(CORE_OBJ)
 	$(CXX) $(CXXFLAGS) $(GGML_INC) -o $@ $^ \
 	  -L$(GGML_LIB) -lggml -lggml-base -lggml-cpu $(LDLIBS) -Wl,-rpath,$(GGML_LIB)
 
-clean:
-	rm -f $(CORE_OBJ) shielded-probe field-selftest prepare-selftest half-selftest ggml-shielded.o ggml-test
+libggml-shielded.so: ggml-shielded.cpp $(CORE_SRC)
+	$(CXX) $(CXXFLAGS) -shared -DGGML_BACKEND_DL -DGGML_BACKEND_SHARED $(GGML_INC) \
+	  -o $@ $^ -L$(GGML_LIB) -lggml-base $(LDLIBS) -Wl,-rpath,$(GGML_LIB)
 
-.PHONY: all clean ggml
+shielded-run: shielded-run.cpp libggml-shielded.so
+	$(CXX) $(CXXFLAGS) -I$(GGML_SRC)/include $(GGML_INC) -o $@ $< \
+	  -L$(GGML_LIB) -lllama -lggml -lggml-base -ldl -Wl,-rpath,$(GGML_LIB)
+
+clean:
+	rm -f $(CORE_OBJ) shielded-probe field-selftest prepare-selftest half-selftest ggml-shielded.o ggml-test shielded-run libggml-shielded.so
+
+.PHONY: all clean ggml run

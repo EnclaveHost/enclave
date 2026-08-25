@@ -639,8 +639,36 @@ anchor -- which is precisely why the GPU can sit outside the enclave at all.**
    through this. Accuracy against ggml's own f32 matmul is ~1.5% peak relative on a random
    q8_0 tensor, dominated by the weight fixed-point quantum at `f_w = 10` rather than by the
    masking, which is exact.
-2. **Accuracy against the unquantised model** is unmeasured. §10 shows the shielded path costs
-   nothing beyond the encoding; it does not show the encoding is free.
+2. **Accuracy against the unquantised model.** ~~Unmeasured.~~ **MEASURED 2026-08-25, and the
+   encoding is NOT free -- this is now the tier's largest open problem.** Qwen2.5-0.5B (q8_0),
+   same model, same prompt, greedy:
+
+   | path | completion of "The capital of France is" |
+   |---|---|
+   | ggml CPU | ` Paris. It is the largest city in Europe and the second` |
+   | shielded, offloaded to the 3070 | ` the capital of the country. The capital of a number is` |
+   | shielded, no worker (local int64) | ` the capital of the country. The capital of a number is` |
+
+   The second and third are CHARACTER-IDENTICAL, which is the load-bearing part: **the masked
+   offload contributes exactly zero error** (2197 nodes, 7.8 GMAC, 0 verification failures).
+   All of the loss is the fixed-point encoding, and it is enough to lose the answer.
+
+   The mechanism is `f_w`, and it is structural rather than a tuning miss. `encode_weight_fixed`
+   applies ONE exponent per tensor, chosen so the largest weight still fits the ±119 byte lane
+   -- and that lane is what buys the kernel its speed, since `|w| <= min(q)/2` is exactly why
+   the weight needs no RNS decomposition. But q8_0's whole structure is a scale PER 32-WEIGHT
+   BLOCK, and folding a single global exponent over it discards that: a block whose scale is
+   small has every weight rounded to zero. Across the model's 169 tensors, **13.5% of all
+   nonzero weights encode to zero**, reaching 39-41% on `blk.0.attn_q` and `blk.0.attn_k`
+   (f_w = 5, peak |w_fixed| = 71-91 against the 119 limit -- the exponent is not conservative,
+   the tensor's weight dynamic range simply does not fit one byte lane).
+
+   Note what this does NOT invalidate: `e2e.py`'s bit-identical result stands, because it
+   compares the shielded GPU path against a shielded LOCAL path -- both encoded. Neither was
+   ever compared against the real model, which is why this went unnoticed.
+
+   The fix direction is a per-block or per-column exponent, which preserves q8_0's structure at
+   the cost of the residue identity the fast kernel depends on. That trade has not been costed.
 3. **Calibration coverage.** Exponents and outlier sets come from 203 tokens of public text.
    That is enough to find systematic outlier bands and not enough to bound the tail. The
    runtime detector is what makes this a margin rather than a hope, but a prompt that
