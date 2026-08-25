@@ -1,0 +1,4 @@
+*.o
+shielded-probe
+field-selftest
+ggml-shielded.o
