@@ -74,9 +74,23 @@ int64_t sh_crt(int32_t r0, int32_t r1, int32_t r2);
  * weights are so small that w * 2^f_w rounds to zero anyway, so the bits lost were
  * already below the fixed-point quantum, and both sides read the same array
  * through the same routine either way. An earlier Python version rejected them and
- * refused every real tensor in the model. */
+ * refused every real tensor in the model.
+ *
+ * THE EXPONENT IS PER OUTPUT COLUMN, not per tensor, and that is a correctness
+ * decision rather than a tuning one. One exponent for a whole tensor has to be
+ * sized for its single largest weight, and a tensor with one big weight then
+ * quantises every small one to nothing: measured on Qwen2.5-0.5B, a per-tensor
+ * exponent rounds 13.5% of all nonzero weights to ZERO, and 39-41% on
+ * blk.0.attn_q / blk.0.attn_k. Per column it is 0.7%. Each output column is its
+ * own accumulation -- y[j] sums only over k -- so it can carry its own exponent
+ * without the sum ever mixing two of them, and |w_fixed| <= 119 still holds per
+ * element, which is what keeps the residue identity and the fused kernel intact.
+ * The WORKER never learns about this: it multiplies the same wd_scaled/wq arrays
+ * it always did, and only the TEE's final descale is per column.
+ *
+ * f_w_out receives N exponents, one per output column. */
 int sh_prepare_weight(const uint16_t *wd_raw, const int8_t *wq,
-                      int64_t K, int64_t N, uint16_t *wd_scaled_out);
+                      int64_t K, int64_t N, uint16_t *wd_scaled_out, int *f_w_out);
 
 /* fp32 -> fp16 bits, round-to-nearest, subnormals handled. */
 uint16_t sh_float_to_half(float v);

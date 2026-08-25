@@ -11,12 +11,22 @@ extern "C" {
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cstdint>
 #include <map>
 #include <mutex>
 #include <string>
 #include <vector>
 
 #define SH_LOG(...) do { if (sh_verbose()) fprintf(stderr, "[shielded] " __VA_ARGS__); } while (0)
+
+/* A global shift on the calibrated activation exponent, for measuring the
+ * weight-vs-activation split of the field budget. Not per-request: it is a
+ * constant for the process, exactly as the calibrated exponent is. */
+static int sh_af_delta() {
+    static int d = INT32_MIN;
+    if (d == INT32_MIN) { const char *e = getenv("SHIELDED_AF_DELTA"); d = (e && *e) ? atoi(e) : 0; }
+    return d;
+}
 
 static bool sh_verbose() {
     static int v = -1;
@@ -79,7 +89,7 @@ struct sh_state {
     /* Weight tensor name -> everything needed to run and to check it. */
     struct entry {
         int node = -1;
-        int f_w = 0;
+        std::vector<int> f_w;           /* one exponent per output column */
         int64_t K = 0, N = 0;
         const sh_calib_site *site = nullptr;
         std::vector<int8_t> out_rows;   /* encoded weights for the TEE-side outlier term */
@@ -176,6 +186,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     const int64_t nb = K / SH_QK;
     std::vector<int8_t>   wq((size_t)K * N);
     std::vector<uint16_t> wd_raw((size_t)nb * N), wd_scaled((size_t)nb * N);
+    std::vector<int> f_w((size_t)N);
 
     /* ggml stores row i as nb consecutive blocks; the worker wants channel-major
      * planes. One transpose here, once, at registration. */
@@ -188,8 +199,10 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
                 wq[(size_t)(b * SH_QK + t) * N + i] = bl.qs[t];
         }
 
-    const int f_w = sh_prepare_weight(wd_raw.data(), wq.data(), K, N, wd_scaled.data());
-    if (f_w < 0) { SH_LOG("%s: no weight exponent fits the int8 lane; staying on CPU\n", name.c_str()); return false; }
+    if (sh_prepare_weight(wd_raw.data(), wq.data(), K, N, wd_scaled.data(), f_w.data()) < 0) {
+        SH_LOG("%s: no weight exponent fits the int8 lane; staying on CPU\n", name.c_str());
+        return false;
+    }
 
     if (!s.link) {
         int err = SH_OK;
@@ -198,7 +211,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     }
     /* sh_link borrows wq/wd, so they have to outlive it: park them in the entry. */
     sh_state::entry e;
-    e.K = K; e.N = N; e.f_w = f_w; e.site = site;
+    e.K = K; e.N = N; e.f_w = std::move(f_w); e.site = site;
 
     static std::vector<std::vector<int8_t>>   wq_store;
     static std::vector<std::vector<uint16_t>> wd_store;
@@ -222,10 +235,14 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
         memcpy(&e.out_rows[r * (size_t)N], wf + k * N, (size_t)N);
     }
 
+    {   /* Read the range BEFORE the move; `e` is empty afterwards. */
+        int lo = e.f_w[0], hi = e.f_w[0];
+        for (int64_t j = 1; j < N; j++) { if (e.f_w[j] < lo) lo = e.f_w[j]; if (e.f_w[j] > hi) hi = e.f_w[j]; }
+        SH_LOG("registered %s K=%lld N=%lld f_w=%d..%d act_frac=%d outliers=%zu\n",
+               name.c_str(), (long long)K, (long long)N, lo, hi, site->act_frac, site->outliers.size());
+    }
     s.weights[name] = std::move(e);
     s.dirty = true;
-    SH_LOG("registered %s K=%lld N=%lld f_w=%d act_frac=%d outliers=%zu\n",
-           name.c_str(), (long long)K, (long long)N, f_w, site->act_frac, site->outliers.size());
     return true;
 }
 
@@ -297,7 +314,13 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
 
         const int64_t K = e.K, N = e.N;
         const int32_t m = (int32_t)a->ne[1];
-        const int af = e.site->act_frac;
+        /* The field holds ~23.8 bits and both exponents spend from it. A
+         * per-column weight exponent lets EVERY column use the full byte lane
+         * where a per-tensor one left most of them near zero, so the products
+         * grow and the activation has to give bits back. SHIELDED_AF_DELTA is
+         * how that trade gets measured rather than guessed; calibration should
+         * ultimately fix it per site, offline, from public text. */
+        const int af = e.site->act_frac + sh_af_delta();
 
         /* x_field = round(x * 2^af), with the outlier channels held back. The
          * exponent is a public model constant; deriving it from the activation in
@@ -361,9 +384,16 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
             }
         }
 
+        /* Per-column descale: each output column carries its own exponent, which
+         * is what stops one outlier weight quantising a whole tensor to nothing. */
         float *dst = (float *)node->data;
-        const double inv = ldexp(1.0, -(af + e.f_w));
-        for (int64_t t = 0; t < (int64_t)m * N; t++) dst[t] = (float)((double)y[t] * inv);
+        std::vector<double> inv((size_t)N);
+        for (int64_t j = 0; j < N; j++) inv[j] = ldexp(1.0, -(af + e.f_w[j]));
+        for (int32_t r = 0; r < m; r++) {
+            const int64_t *yr = y.data() + (size_t)r * N;
+            float *dr = dst + (size_t)r * N;
+            for (int64_t j = 0; j < N; j++) dr[j] = (float)((double)yr[j] * inv[j]);
+        }
         s.macs += (uint64_t)m * (uint64_t)K * (uint64_t)N;
     }
     return GGML_STATUS_SUCCESS;

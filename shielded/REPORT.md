@@ -667,8 +667,35 @@ anchor -- which is precisely why the GPU can sit outside the enclave at all.**
    compares the shielded GPU path against a shielded LOCAL path -- both encoded. Neither was
    ever compared against the real model, which is why this went unnoticed.
 
-   The fix direction is a per-block or per-column exponent, which preserves q8_0's structure at
-   the cost of the residue identity the fast kernel depends on. That trade has not been costed.
+   **FIXED, and the fix reveals what the field budget actually costs.** A per-COLUMN exponent
+   takes the wipeout from 13.5% to **0.7%**, and it costs nothing structurally: each output
+   column is its own accumulation, so it can carry its own exponent without the sum ever mixing
+   two, `|w_fixed| <= 119` still holds per element (residue identity and fused kernel intact),
+   and the worker never learns about it -- it multiplies the same arrays and only the TEE's
+   final descale changes. A per-BLOCK exponent, which would match q8_0 exactly, does NOT work:
+   blocks run along K, so one accumulation would have to sum terms at different exponents.
+
+   But it is not free, and the wrap detector said so immediately. With a per-tensor exponent
+   most columns held tiny `w_fixed` and tiny products; per column, EVERY column uses the full
+   byte lane, so the products grow and the field overflows at the calibrated activation
+   exponent. The ~23.8 bits are a shared budget and both exponents spend from it. Measured on
+   Qwen2.5-0.5B, the activation exponent has to give back **5 bits** for the products to fit --
+   and at that point the shielded path reproduces ggml's CPU output:
+
+   | prompt | ggml CPU | shielded, per-column, on the 3070 |
+   |---|---|---|
+   | "The capital of France is" | ` Paris. It is the largest city in Europe and the second largest in` | identical |
+   | "The three primary colours are" | ` red, green, and blue. If you mix these three colors,` | identical for 11 tokens, then ` colors in` |
+   | "Water boils at a temperature of" | ` 100 degrees Celsius. If the temperature of a substance is` | identical for 10 tokens, then ` a certain liquid` |
+
+   2535 offloaded nodes, 0 verification failures. Tail divergence after ~10 tokens is the
+   expected consequence of a fixed-point path: tiny logit differences eventually flip a greedy
+   argmax. The facts survive, which the per-tensor encoding could not manage.
+
+   The 5 bits are currently a measured constant (`SHIELDED_AF_DELTA`), not a calibrated one.
+   The principled version is to re-run `calibrate.py` against the per-column encoding so each
+   site gets its own exponent again; that needs the per-column change ported to `tee.py` first,
+   and until it is, `model.py` and `e2e.py` still use the per-tensor encoding.
 3. **Calibration coverage.** Exponents and outlier sets come from 203 tokens of public text.
    That is enough to find systematic outlier bands and not enough to bound the tail. The
    runtime detector is what makes this a margin rather than a hope, but a prompt that
