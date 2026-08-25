@@ -102,12 +102,21 @@ class FleetList extends EnclaveElement {
           const price = enclavePriceOf(e);   // this box's posted ask; the fleet price where it posts none
           return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
             + '<span class="fleet-head">'
-            + '<span class="ap-badge ' + (gpu ? "info" : "") + '">' + (gpu ? "gpu" : "cpu") + '</span>'
-            + (sh ? '<span class="ap-badge shielded" title="' + esc(sh.card || "gpu")
+            // Two kinds of card, and the badge has to say which. Jade for a card
+            // INSIDE the measured enclave — the same green the meters use for
+            // capacity you are getting — and iris for an ordinary one that is
+            // not. A buyer who cannot tell them apart is being misled about
+            // where their activations run, and the colour is the first thing
+            // they read.
+            + '<span class="ap-badge ' + (gpu ? "ok" : "") + '"'
+            + (gpu ? ' title="This card is INSIDE the confidential enclave and covered by'
+                     + ' its attestation."' : '')
+            + '>' + (gpu ? "tee gpu" : "cpu") + '</span>'
+            + (sh ? '<span class="ap-badge info" title="' + esc(sh.card || "gpu")
                     + ' on this box\u2019s untrusted host, used by masked offload: it receives '
                     + 'public weights and one-time-padded activations, and every result is '
                     + 'verified. The card is outside the enclave and outside its measurement.">'
-                    + 'shielded gpu</span>' : '')
+                    + 'gpu</span>' : '')
             + '<span class="fleet-name">' + esc(name) + '</span>'
             + this._ratingHtml(e)
             + '</span>'
