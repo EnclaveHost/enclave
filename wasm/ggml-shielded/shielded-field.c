@@ -105,16 +105,16 @@ uint16_t sh_float_to_half(float v) {
 }
 
 int sh_prepare_weight(const uint16_t *wd_raw, const int8_t *wq,
-                      int64_t K, int64_t N, uint16_t *wd_scaled_out) {
+                      int64_t K, int64_t N, uint16_t *wd_scaled_out, int *f_w_out) {
     if (K % SH_QK != 0) return -1;
     const int64_t nb = K / SH_QK;
 
-    /* Largest f_w by construction, then VERIFIED against the real encoder below:
-     * deriving it from max|w| alone is not enough, because rounding can push the
-     * encoded peak over the limit. */
-    double peak = 0.0;
-    for (int64_t b = 0; b < nb; b++)
-        for (int64_t j = 0; j < N; j++) {
+    /* Per-column peak: the largest |w| this output column actually contains. A
+     * per-TENSOR peak would let one outlier column set the exponent for all of
+     * them, which is the 13.5%-of-weights-to-zero effect this exists to avoid. */
+    for (int64_t j = 0; j < N; j++) {
+        double peak = 0.0;
+        for (int64_t b = 0; b < nb; b++) {
             const double d = fabs((double)sh_half_to_float(wd_raw[b * N + j]));
             if (d == 0.0) continue;
             for (int64_t t = 0; t < SH_QK; t++) {
@@ -122,25 +122,30 @@ int sh_prepare_weight(const uint16_t *wd_raw, const int8_t *wq,
                 if (a > peak) peak = a;
             }
         }
-    int f_w = SH_FRAC;
-    if (peak > 0.0) f_w = (int)floor(log2((double)SH_WEIGHT_BYTE_LIMIT / peak));
+        int f_w = SH_FRAC;
+        if (peak > 0.0) f_w = (int)floor(log2((double)SH_WEIGHT_BYTE_LIMIT / peak));
 
-    for (int cand = f_w; cand > f_w - 8; cand--) {
-        bool fits = true;
-        const float mul = ldexpf(1.0f, cand - SH_FRAC);
-        for (int64_t i = 0; i < nb * N && fits; i++) {
-            const float sc = sh_half_to_float(wd_raw[i]) * mul;
-            if (!isfinite(sc)) { fits = false; break; }
-            wd_scaled_out[i] = sh_float_to_half(sc);
-        }
-        if (!fits) continue;
-        for (int64_t k = 0; k < K && fits; k++)
-            for (int64_t j = 0; j < N; j++) {
+        /* By construction, then VERIFIED against the real encoder: rounding can
+         * push the encoded peak over a limit the estimate said would fit. */
+        int chosen = -1;
+        for (int cand = f_w; cand > f_w - 8 && chosen < 0; cand--) {
+            const float mul = ldexpf(1.0f, cand - SH_FRAC);
+            bool fits = true;
+            for (int64_t b = 0; b < nb && fits; b++) {
+                const float sc = sh_half_to_float(wd_raw[b * N + j]) * mul;
+                if (!isfinite(sc)) { fits = false; break; }
+                wd_scaled_out[b * N + j] = sh_float_to_half(sc);
+            }
+            if (!fits) continue;
+            for (int64_t k = 0; k < K && fits; k++) {
                 const int64_t v = sh_encode_weight_fixed(wd_scaled_out[(k / SH_QK) * N + j],
                                                          wq[k * N + j]);
-                if (v > SH_WEIGHT_BYTE_LIMIT || v < -SH_WEIGHT_BYTE_LIMIT) { fits = false; break; }
+                if (v > SH_WEIGHT_BYTE_LIMIT || v < -SH_WEIGHT_BYTE_LIMIT) fits = false;
             }
-        if (fits) return cand;
+            if (fits) chosen = cand;
+        }
+        if (chosen < 0) return -1;
+        f_w_out[j] = chosen;
     }
-    return -1;
+    return 0;
 }

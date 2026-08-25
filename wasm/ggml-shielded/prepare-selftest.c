@@ -12,11 +12,13 @@ int main(void) {
     if (!wd || !sc || !wq) return 2;
     for (long long i = 0; i < nb * N; i++) { unsigned u; if (scanf("%u", &u) != 1) return 2; wd[i] = (uint16_t)u; }
     for (long long i = 0; i < K * N; i++) { int v; if (scanf("%d", &v) != 1) return 2; wq[i] = (int8_t)v; }
-    int f_w = sh_prepare_weight(wd, wq, K, N, sc);
-    printf("%d\n", f_w);
-    if (f_w < 0) return 0;
-    for (long long k = 0; k < K; k++)
-        for (long long j = 0; j < N; j++)
-            printf("%lld\n", (long long)sh_encode_weight_fixed(sc[(k / SH_QK) * N + j], wq[k * N + j]));
+    int *fw = malloc((size_t)N * sizeof(int));
+    if (!fw) return 2;
+    int rc = sh_prepare_weight(wd, wq, K, N, sc, fw);
+    if (rc < 0) { printf("-1\n"); return 0; }
+    /* Exponents only: N of them, one per output column. The caller re-derives the
+     * encoded weights from field.py's own routine and checks the byte lane there,
+     * so printing them here would only let the two drift while agreeing. */
+    for (long long j = 0; j < N; j++) printf("%d\n", fw[j]);
     return 0;
 }

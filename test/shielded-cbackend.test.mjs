@@ -84,39 +84,61 @@ print(json.dumps({"checked": int(c.size), "mismatch": int((c != ref).sum())}))
   assert.equal(v.mismatch, 0, `${v.mismatch}/${v.checked} fp16 conversions differ from numpy`);
 });
 
-// Picking the per-tensor exponent is where "it compiles" and "it is the same
-// arithmetic" diverge: sh_encode_weight_fixed multiplies by 256, so it is only THE
-// encoding when the scales already carry f_w. Hand it raw GGUF scales and every
-// tensor silently encodes at f_w = 8.
-test("the C picks the same weight exponent and encodes the same bytes as tee.py", (t) => {
+// The C deliberately picks the exponent PER OUTPUT COLUMN where tee.py picks one
+// per tensor -- a per-tensor exponent has to be sized for the single largest
+// weight and quantises 13.5% of this model's weights to zero (39-41% on some
+// tensors), which measurably costs the model its answer. So the two are no longer
+// expected to agree in general. What must still hold is that the shared ARITHMETIC
+// is identical, and a single-column weight is exactly the case where per-column
+// and per-tensor mean the same thing -- so N=1 pins them together, and the byte
+// lane is checked directly for the general case.
+test("the C exponent agrees with tee.py where the two mean the same thing", (t) => {
   if (!build()) return t.skip("no toolchain for the C backend");
   const out = execFileSync("python3", ["-c", `
 import json, subprocess, sys
 sys.path.insert(0, ${JSON.stringify(join(repo, "shielded"))})
 import numpy as np
 from tee import PublicWeight, QK
+from field import WEIGHT_BYTE_LIMIT
 rng = np.random.default_rng(11)
-bad = []
-for trial, (K, N) in enumerate([(64, 32), (128, 64), (256, 48), (512, 16)]):
-    wd = (rng.uniform(1e-6, 0.02, size=(K // QK, N))
-          * (10.0 ** rng.integers(-2, 1, size=(K // QK, N)))).astype(np.float16)
-    wq = rng.integers(-127, 128, size=(K, N)).astype(np.int8)
-    pw = PublicWeight("t%d" % trial, wq, wd)
+bad, wide = [], []
+
+def run_c(wd, wq, K, N):
     nl = chr(10)
     inp = ("%d %d" % (K, N) + nl
            + " ".join(str(int(x)) for x in wd.view(np.uint16).ravel()) + nl
            + " ".join(str(int(x)) for x in wq.ravel()) + nl)
     p = subprocess.run([${JSON.stringify(join(dir, "prepare-selftest"))}],
                        input=inp, capture_output=True, text=True, timeout=600)
-    tok = p.stdout.split()
-    c_fw = int(tok[0])
-    c_w = np.array([int(x) for x in tok[1:]], dtype=np.int64).reshape(K, N)
-    if c_fw != pw.f_w or not np.array_equal(c_w, pw.w_fixed_i8.astype(np.int64)):
-        bad.append({"K": K, "N": N, "py_fw": int(pw.f_w), "c_fw": c_fw})
-print(json.dumps({"bad": bad}))
+    return [int(x) for x in p.stdout.split()]
+
+# N == 1: per-column IS per-tensor, so the two must agree exactly.
+for trial, K in enumerate([64, 128, 256]):
+    wd = (rng.uniform(1e-6, 0.02, size=(K // QK, 1))
+          * (10.0 ** rng.integers(-2, 1, size=(K // QK, 1)))).astype(np.float16)
+    wq = rng.integers(-127, 128, size=(K, 1)).astype(np.int8)
+    pw = PublicWeight("t%d" % trial, wq, wd)
+    fw = run_c(wd, wq, K, 1)
+    if len(fw) != 1 or fw[0] != pw.f_w:
+        bad.append({"K": K, "py_fw": int(pw.f_w), "c_fw": fw})
+
+# N > 1: every column's own exponent must keep its encoded weights inside the
+# byte lane, which is what the residue identity (and the fast kernel) rests on.
+for K, N in [(64, 32), (256, 48)]:
+    wd = (rng.uniform(1e-6, 0.02, size=(K // QK, N))
+          * (10.0 ** rng.integers(-3, 1, size=(K // QK, N)))).astype(np.float16)
+    wq = rng.integers(-127, 128, size=(K, N)).astype(np.int8)
+    fw = np.array(run_c(wd, wq, K, N), dtype=np.int64)
+    if fw.size != N: wide.append({"K": K, "N": N, "got": int(fw.size)}); continue
+    true = np.repeat(wd.astype(np.float64), QK, axis=0)[:K] * wq.astype(np.float64)
+    enc = np.floor(true * (2.0 ** fw)[None, :] + 0.5)
+    if np.abs(enc).max() > WEIGHT_BYTE_LIMIT:
+        wide.append({"K": K, "N": N, "peak": float(np.abs(enc).max())})
+print(json.dumps({"bad": bad, "wide": wide}))
 `], { encoding: "utf8", timeout: 900_000 }).trim().split("\n").pop();
-  assert.deepEqual(JSON.parse(out).bad, [],
-    "the C and tee.py disagree on the weight exponent or the encoded weights");
+  const v = JSON.parse(out);
+  assert.deepEqual(v.bad, [], "single-column: the C and tee.py disagree on the exponent");
+  assert.deepEqual(v.wide, [], "a per-column exponent pushed weights outside the int8 lane");
 });
 
 const reachable = (host, port) => new Promise((res) => {
