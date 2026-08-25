@@ -3392,6 +3392,19 @@ function appSessionRoute(rec, req, res) {
   return true;
 }
 
+// How long the TENANT leg may move NOTHING before we cut it. An inactivity
+// bound, not a total cap: this path carries SSE and long completions that are
+// legitimately open for hours, and they re-arm this on every byte (risc-box
+// heartbeats its SSE every 15 s precisely so silence stays diagnostic).
+//
+// What it catches is the tenant that ACCEPTS the socket and then never answers.
+// With no timeout at all — which is what this proxy had — such a request hung
+// the client FOREVER: no headers, no error, no log, nothing on the wire to tell
+// a stalled app from a dead network. That invisibility is what made a stalled
+// risc-box read as a Moonlight UDP fault for hours (2026-08-24). Matches the
+// 180 s idle allowance internalAppServer already keeps.
+const TENANT_IDLE_MS = parseInt(process.env.TENANT_IDLE_MS || "180000", 10);
+
 app.use("/x/:id", async (req, res) => {
   const rec = depByIdOrPrefix(req.params.id);
   if (!rec) return fail(res, 404, "not_found", "Unknown deployment.");
@@ -3462,6 +3475,7 @@ app.use("/x/:id", async (req, res) => {
   // dropped — an app's own cookies are its business.
   const kept = stripAppCookie(headers.cookie);
   if (kept) headers.cookie = kept; else delete headers.cookie;
+  let timedOut = false;
   const up = http.request(
     { host: target.hostname, port: target.port || 80, method: req.method,
       path: target.pathname + target.search, headers },
@@ -3482,9 +3496,24 @@ app.use("/x/:id", async (req, res) => {
       upRes.on("error", () => res.destroy());
       upRes.on("close", () => { if (!upRes.complete && !res.destroyed) res.destroy(); });
     });
+  // The tenant leg's inactivity bound — see TENANT_IDLE_MS. Fires only when the
+  // socket has moved nothing for that long, so a live stream re-arms it forever
+  // and a silent one does not. LOG it: a stall that leaves no trace is the bug
+  // this whole timeout exists to make visible.
+  up.setTimeout(TENANT_IDLE_MS, () => {
+    timedOut = true;
+    console.warn(`[proxy] ${rec.id} tenant idle ${TENANT_IDLE_MS}ms `
+      + `${res.headersSent ? "mid-response" : "before headers"} ${req.method} ${req.url} - cutting`);
+    // Same honesty rule as the abort paths below: once headers are on the wire,
+    // tearing the connection down is the only truthful signal left.
+    if (res.headersSent) res.destroy();
+    else fail(res, 504, "tenant_timeout", "The app accepted the connection but did not respond.");
+    up.destroy();
+  });
   // Mid-response request errors follow the same rule: with headers already on
   // the wire the only honest signal left is tearing the connection down.
   up.on("error", (e) => {
+    if (timedOut) return;  // the timeout above already answered; do not truncate it
     if (res.headersSent) return res.destroy();
     res.writeHead(502); res.end("upstream error: " + e.message);
   });
