@@ -220,7 +220,12 @@ export function enclavePriceOf(row){
   const a = (row && row.availability) || {};
   const f = fleetPrice();
   const per = (x, fb) => { const v = Number(x); return Number.isFinite(v) && v > 0 ? v / 1e6 : fb; };
-  return { full: per(a.askGpuPricePerSec6, f.full), node: per(a.askCpuPricePerSec6, f.node) };
+  // `shielded` has no fleet fallback on purpose: a shielded card is a seller's
+  // own hardware at a price only that seller sets, so there is no list price to
+  // fall back to. Absent ask -> undefined -> the pool renders without a rate,
+  // which is the honest reading of "this box has not posted one".
+  return { full: per(a.askGpuPricePerSec6, f.full), node: per(a.askCpuPricePerSec6, f.node),
+           shielded: per(a.askShieldedPricePerSec6, undefined) };
 }
 
 // One enclave row's sizing hardware: its own advertised numbers per axis, the

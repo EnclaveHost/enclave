@@ -387,9 +387,16 @@ if (fw.shieldedWorker && fw.shieldedWorker.port) {
       // Only a PASSING probe posts capacity. Advertising a card whose masked
       // round trip did not come back exact, or whose worker did not refuse a
       // denylisted op, would sell something we have not shown works.
+      // The ask travels with the verdict, not beside it, for the same reason the
+      // verdict gates the capacity: a price is only meaningful for hardware the
+      // box has shown it can actually drive. No pass, no file, no price.
+      const priceSec6 = usdHrToSec6(Number(fw.shieldedWorker.priceUsdHr));
+      if (!priceSec6)
+        log('shielded GPU has no priceUsdHr — its card sells at the supervisor default');
       try {
         fs.writeFileSync(VERDICT, JSON.stringify({
           ...v.card, endpoint: `${host}:${port}`,
+          ...(priceSec6 ? { pricePerSec6: priceSec6 } : {}),
           exact: v.exact, verified: v.verified, lie_rejected: v.lie_rejected,
           denylist_refused: v.denylist_refused,
           round_trip_ms: v.round_trip_ms, at: new Date().toISOString(),

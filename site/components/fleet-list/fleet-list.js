@@ -42,16 +42,14 @@ class FleetList extends EnclaveElement {
     const perHr = (v) => "$" + (v * 3600).toFixed(2).replace(/\.00$/, "");
     // one pool = a [label | meter | pct] header line, the price under the
     // label, stat cells underneath
-    const pool = (label, pct, stats, price, note) =>
+    const pool = (label, pct, stats, price) =>
       '<div class="fleet-pool">'
       + '<span class="fleet-pool-label">' + label + '</span>'
       + meter(pct)
       + '<span class="fleet-pool-pct"><b>' + pct + '%</b> available</span>'
-      // the label column's second row holds the pool's rate. A shielded pool has
-      // no posted ask yet, so the same slot names what the pool IS instead of
-      // leaving a gap where a price should be.
-      + (price != null ? '<span class="fleet-pool-price"><b>' + perHr(price) + '</b>/hr</span>'
-         : note ? '<span class="fleet-pool-note">' + note + '</span>' : '')
+      // the label column's second row holds the pool's rate. A pool whose seller
+      // has posted no ask simply leaves it empty rather than inventing one.
+      + (price != null ? '<span class="fleet-pool-price"><b>' + perHr(price) + '</b>/hr</span>' : '')
       + '<span class="fleet-stats">' + stats + '</span>'
       + '</div>';
     list.innerHTML = (!rows.length
@@ -103,21 +101,23 @@ class FleetList extends EnclaveElement {
           const price = enclavePriceOf(e);   // this box's posted ask; the fleet price where it posts none
           return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
             + '<span class="fleet-head">'
-            // Two kinds of card, and the badge has to say which. Jade for a card
-            // INSIDE the measured enclave — the same green the meters use for
-            // capacity you are getting — and iris for an ordinary one that is
-            // not. A buyer who cannot tell them apart is being misled about
-            // where their activations run, and the colour is the first thing
-            // they read.
-            + '<span class="ap-badge ' + (gpu ? "ok" : "") + '"'
-            + (gpu ? ' title="This card is INSIDE the confidential enclave and covered by'
-                     + ' its attestation."' : '')
-            + '>' + (gpu ? "tee gpu" : "cpu") + '</span>'
-            + (sh ? '<span class="ap-badge info" title="' + esc(sh.card || "gpu")
-                    + ' on this box\u2019s untrusted host, used by masked offload: it receives '
-                    + 'public weights and one-time-padded activations, and every result is '
-                    + 'verified. The card is outside the enclave and outside its measurement.">'
-                    + 'gpu</span>' : '')
+            // ONE badge, naming what the box is. Jade "TEE GPU" for a card INSIDE
+            // the measured enclave, iris "GPU" for one on the untrusted host
+            // reached by masked offload, and plain "CPU" only when there is no
+            // card at all — a box with a GPU is not a CPU box that happens to
+            // have one, and badging it both ways buries the thing a buyer came
+            // to look for. Every row still shows its CPU POOL underneath; the
+            // badge answers what the box is, the pools answer what it has.
+            + (gpu
+                ? '<span class="ap-badge ok" title="This card is INSIDE the confidential'
+                  + ' enclave and covered by its attestation.">tee gpu</span>'
+                : sh
+                ? '<span class="ap-badge info" title="' + esc(sh.card || "gpu")
+                  + ' on this box\u2019s untrusted host, used by masked offload: it receives '
+                  + 'public weights and one-time-padded activations, and every result is '
+                  + 'verified. The card is outside the enclave and outside its measurement.">'
+                  + 'gpu</span>'
+                : '<span class="ap-badge">cpu</span>')
             + '<span class="fleet-name">' + esc(name) + '</span>'
             + this._ratingHtml(e)
             + '</span>'
@@ -143,7 +143,7 @@ class FleetList extends EnclaveElement {
                            + "here, converted at 2 FLOP per MAC. A GPU pool's tflops figure is "
                            + "the card's vendor peak, so the two are not directly comparable.")
                     : stat(esc(sh.card || "gpu"), "", "", "card")),
-                null, "shielded") : "")
+                price.shielded) : "")
             + (gpu ? pool("GPU", gPct,
                 stat(fmtNum(a.vramFreeGb != null ? a.vramFreeGb : gFree * vramGb), fmtNum(vramGb), "GB", "vram available")
                 + stat(Math.round(gFree * tflops), Math.round(tflops), "", "tflops available"), price.full) : "")

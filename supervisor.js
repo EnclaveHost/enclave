@@ -3824,6 +3824,7 @@ function shieldedCapacity() {
         roundTripMs: Number(v.round_trip_ms) || 0,
         verifiedAt: String(v.at || ""),
         endpoint: String(v.endpoint || ""),
+        pricePerSec6: Number(v.pricePerSec6) || 0,
       };
     }
   } catch { val = null; }        // absent on every box that has no shielded card
@@ -3854,7 +3855,15 @@ app.get("/availability", async (_req, res) => {
     gpuTflopsFree: IS_GPU ? round1(gpuFree * CARD_TFLOPS) : 0,
     cardVramGb: IS_GPU ? CARD_VRAM_GB : 0, cardTflops: IS_GPU ? CARD_TFLOPS : 0, cards: GPU_COUNT,
     ...(IS_GPU ? { cardVramSource: CARD_VRAM_SRC } : {}),   // "nvidia-smi"/"manager"/"worker" = probed hardware; "env"/"default" = config fallback
-    ...(() => { const sh = shieldedCapacity(); return sh ? { shielded: sh } : {}; })(),   // a card on the UNTRUSTED host, reached by masked offload; NOT `gpu` — see shieldedCapacity()
+    ...(() => {
+      const sh = shieldedCapacity();
+      if (!sh) return {};
+      // askShieldedPricePerSec6 sits at the TOP level beside askGpu/askCpu, not
+      // inside the block, because that is where every price consumer already
+      // looks. The block carries what the card IS; the ask is what it costs.
+      return { shielded: sh,
+               ...(sh.pricePerSec6 > 0 ? { askShieldedPricePerSec6: sh.pricePerSec6 } : {}) };
+    })(),   // a card on the UNTRUSTED host, reached by masked offload; NOT `gpu` — see shieldedCapacity()
     ...(RELAY_SERVICES ? { relay: RELAY_SERVICES } : {}),   // network this box carries for the fleet; see the block above
     networkOptions: true,   // this build accepts the envelope's `network` namespace (per-deployment relay choice). SAME FLEET-AND RULE as waf/config/gpuOptional and for the sharpest reason: the envelope is fail-closed, so a deployment carrying {"network":…} that lands on a runner which predates this is REFUSED OUTRIGHT, not degraded. The console must keep the Network tab hidden until every live runner reports true
     waf: true,   // this build accepts + enforces the deployment-options envelope (waf); the relay ANDs this across the fleet and the console shows the Protection controls only then

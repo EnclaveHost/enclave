@@ -194,7 +194,10 @@ if (cfg.shieldedWorker) {
   };
   startWorker();
   console.log(`[enclave-metal] shielded worker on 127.0.0.1:${port} (guest reaches it at 10.0.2.2:${port})`);
-  runtimeCfg.shieldedWorker = { host: '10.0.2.2', port };
+  runtimeCfg.shieldedWorker = { host: '10.0.2.2', port,
+    // the box's ask for a WHOLE shielded card, USD/hour. Config, not a probe
+    // result, but it rides with the endpoint so the guest sees one object.
+    ...(Number(sw.priceUsdHr) > 0 ? { priceUsdHr: Number(sw.priceUsdHr) } : {}) };
 }
 
 const fwCfgPath = path.join(os.tmpdir(), `metal-fwcfg-${process.pid}.json`);
