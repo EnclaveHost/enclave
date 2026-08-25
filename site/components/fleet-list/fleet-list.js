@@ -30,8 +30,9 @@ class FleetList extends EnclaveElement {
     const meter = (pct) => '<i class="fleet-meter" aria-hidden="true"><b style="width:' + Math.max(0, Math.min(100, pct)) + '%"></b></i>';
     // one stat cell: bright available amount, then the "≈"/"/ total" context and
     // the label in dim ink so the number is what the eye lands on
-    const stat = (avail, total, unit, label) =>
-      '<span class="fleet-stat"><b><i>≈</i>' + avail + '<i> / ' + total + '</i>' + (unit ? " " + unit : "") + '</b>'
+    const stat = (avail, total, unit, label, title) =>
+      '<span class="fleet-stat"' + (title ? ' title="' + esc(title) + '"' : '') + '>'
+      + '<b><i>≈</i>' + avail + '<i> / ' + total + '</i>' + (unit ? " " + unit : "") + '</b>'
       + '<small>' + label + '</small></span>';
     // the price sits directly under the pool's GPU/CPU label - bright number,
     // dim "/hr" - in the label column's otherwise-empty second row, so it
@@ -122,9 +123,25 @@ class FleetList extends EnclaveElement {
             + '</span>'
             + (sh ? pool("GPU", shPct,
                 stat(fmtNum(sh.vramFreeGb), fmtNum(sh.vramGb), "GB", "vram available")
+                // The box reports what it measured -- G-MAC/s of the masked field
+                // GEMM -- and the cell shows tflops, because that is the unit the
+                // pool above it uses and a customer should not have to convert
+                // between two throughput units to compare two boxes. One MAC is a
+                // multiply and an add, so the factor is exactly 2; nothing is
+                // being flattered here.
+                //
+                // The two numbers are NOT like for like, and the tooltip says so.
+                // A GPU pool's tflops is the card's vendor peak; this one is a
+                // sustained rate measured on the kernel that actually runs. The
+                // honest fix is to measure both, not to quote a peak for this one
+                // so the columns look comparable.
                 + (sh.gmacPerSec > 0
-                    ? stat(Math.round(shFree * sh.gmacPerSec), Math.round(sh.gmacPerSec), "",
-                           "G-MAC/s masked")
+                    ? stat(Math.round(shFree * sh.gmacPerSec * 2 / 1000),
+                           Math.round(sh.gmacPerSec * 2 / 1000), "", "tflops available",
+                           "Measured on this box: " + Math.round(sh.gmacPerSec)
+                           + " G-MAC/s sustained by the masked field GEMM that actually runs "
+                           + "here, converted at 2 FLOP per MAC. A GPU pool's tflops figure is "
+                           + "the card's vendor peak, so the two are not directly comparable.")
                     : stat(esc(sh.card || "gpu"), "", "", "card")),
                 null, "shielded") : "")
             + (gpu ? pool("GPU", gPct,
