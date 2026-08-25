@@ -441,7 +441,16 @@ class WorkerLink:
         self.host, self.port = host, port
         self.pipe = None
         self.bank = MaskBank(seed=seed)
-        self.rng = rng if rng is not None else np.random.default_rng(1234)
+        # The Freivalds secret s is drawn from THIS generator, and s is the one
+        # value a lying worker must never predict: knowing it, the worker solves
+        # d.s == 0 (mod P2) over any three outputs and returns y + d, which the
+        # check accepts while the value decodes to garbage. A fixed seed here --
+        # the previous default -- put s in the public source, so the integrity
+        # guarantee held only against accidents, not against the untrusted
+        # operator the whole tier is built to survive. Seed from the OS CSPRNG
+        # unless a caller deliberately pins one for a reproducible test.
+        self.rng = rng if rng is not None else np.random.default_rng(
+            int.from_bytes(os.urandom(32), "big"))
         self.verify = verify
         self.weights = []          # PublicWeight, in node order
         self.nodes = []            # dict per node, filled at register()
