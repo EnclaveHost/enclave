@@ -1,0 +1,34 @@
+# Standalone shielded GPU worker.
+#
+# Only needed when the worker should run INDEPENDENTLY of a metal box — a
+# dedicated GPU host serving an enclave elsewhere, or a card you want up before
+# any CVM starts. A normal metal box does not use this unit: setting
+# "shieldedWorker" in its config makes enclave-metal.mjs launch and supervise the
+# worker itself, so the two lifecycles stay tied together.
+#
+# This process is UNTRUSTED by design. It holds public weights and one-time-padded
+# activations and nothing else, so it is not hardened as a confidentiality
+# boundary — the hardening it does have (fail-closed admission, an op allowlist,
+# output gating) protects the HOST from becoming an attacker's execution
+# primitive, not the tenant whose tokens pass through.
+#
+#   cp metal/systemd/enclave-shielded-worker.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now enclave-shielded-worker
+
+[Unit]
+Description=Enclave shielded GPU worker (untrusted host side)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Projects/enclave
+ExecStart=/usr/bin/python3 shielded/worker.py --host 127.0.0.1 --port 9500
+Restart=always
+RestartSec=5
+# Bound to loopback: a slirp guest reaches it at 10.0.2.2, and nothing off-box
+# should. Exposing it publicly would not leak plaintext — there is none — but it
+# would hand strangers a compute and VRAM-allocation primitive on this card.
+Environment=SHIELDED_PORT=9500
+
+[Install]
+WantedBy=default.target

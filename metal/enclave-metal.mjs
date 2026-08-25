@@ -25,6 +25,8 @@ function arg(name, dflt) { const i = process.argv.indexOf('--' + name); return i
 const cfgPath = arg('config', path.join(HERE, 'config.json'));
 const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
 
+let stopping = false;      // hoisted: the shielded-worker supervisor reads it too
+
 const MODE = cfg.mode || 'snp';
 const NAME = cfg.name || 'metal0';
 const CPUS = String(cfg.cpus || 8);
@@ -155,6 +157,46 @@ if (cfg.egressHelper && cfg.relayUrl) {
   runtimeCfg.relayHost = targetHost;
 }
 
+// Optional shielded GPU worker. The card stays on the HOST, outside the enclave
+// and outside the measurement, and the guest reaches it at 10.0.2.2:<port> over
+// the same slirp path the egress helper uses. That is the whole point of the
+// shielded tier: docs/shielded-inference.md assumes the GPU's operator is hostile
+// and gives it only public weights and one-time-padded activations, so a box can
+// sell GPU work without the GPU ever entering the TCB.
+//
+// The endpoint rides fw_cfg, which is NOT covered by the launch measurement, and
+// that is correct rather than sloppy. A host that redirects this to a worker it
+// wrote gains nothing -- the pad never crosses, and Freivalds rejects any product
+// that is not the real one. The worst it can do is refuse to answer, and
+// availability is explicitly not something this design promises.
+let shieldedChild = null;
+if (cfg.shieldedWorker) {
+  const sw = cfg.shieldedWorker;
+  const port = sw.port || 9500;
+  const python = sw.python || 'python3';
+  const script = sw.script || path.join(HERE, '..', 'shielded', 'worker.py');
+  const swArgs = [script, '--host', '127.0.0.1', '--port', String(port)];
+  if (sw.vramGb) swArgs.push('--vram-gb', String(sw.vramGb));
+  let swRestarts = 0;
+  const startWorker = () => {
+    shieldedChild = spawn(python, swArgs, { stdio: ['ignore', 'inherit', 'inherit'] });
+    shieldedChild.on('exit', (code, sig) => {
+      if (stopping) return;
+      swRestarts++;
+      const delay = Math.min(2000 * swRestarts, 30000);
+      // A dead worker must NEVER take the box down with it. The enclave keeps
+      // serving; it just has no GPU to offload to, and the shielded flavor's
+      // health probe is what tells the fleet so.
+      console.error(`[enclave-metal] shielded worker exited code=${code} sig=${sig}; restart in ${delay}ms (#${swRestarts})`);
+      setTimeout(startWorker, delay);
+    });
+    shieldedChild.on('error', (e) => console.error(`[enclave-metal] shielded worker spawn error: ${e.message}`));
+  };
+  startWorker();
+  console.log(`[enclave-metal] shielded worker on 127.0.0.1:${port} (guest reaches it at 10.0.2.2:${port})`);
+  runtimeCfg.shieldedWorker = { host: '10.0.2.2', port };
+}
+
 const fwCfgPath = path.join(os.tmpdir(), `metal-fwcfg-${process.pid}.json`);
 fs.writeFileSync(fwCfgPath, JSON.stringify(runtimeCfg));
 
@@ -226,7 +268,7 @@ function netdev() {
   return `user,id=net0${fwds}`;
 }
 
-let child = null, stopping = false, restarts = 0;
+let child = null, restarts = 0;
 function launch() {
   const args = baseArgs();
   console.log(`[enclave-metal] launching ${NAME} mode=${MODE} ${CPUS}vcpu/${MEM}MiB`);
@@ -246,5 +288,9 @@ function launch() {
   });
   child.on('error', (e) => console.error(`[enclave-metal] spawn error: ${e.message}`));
 }
-for (const s of ['SIGTERM', 'SIGINT']) process.on(s, () => { stopping = true; if (child) { try { child.kill('SIGTERM'); } catch {} } setTimeout(() => process.exit(0), 2000); });
+for (const s of ['SIGTERM', 'SIGINT']) process.on(s, () => {
+  stopping = true;
+  for (const c of [child, shieldedChild]) if (c) { try { c.kill('SIGTERM'); } catch {} }
+  setTimeout(() => process.exit(0), 2000);
+});
 launch();

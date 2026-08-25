@@ -147,6 +147,49 @@ than ggml; the guest passes both through to the wasm-manager as `MODEL_VOLUMES`
 / `MODEL_VOLUMES_SD`, which is how deployments then attach them by name
 (console volume picker, or `volumes` in the deployment's config CID).
 
+## Shielded GPU: sell the card without putting it in the enclave
+
+A metal box can offer GPU work with the card **outside** the confidential VM, outside the
+launch measurement, and outside the trust boundary entirely. This is the shielded tier
+(`docs/shielded-inference.md`, `shielded/README.md`): the guest sends the GPU public weights
+and one-time-padded activations, and verifies every product it gets back. The GPU's operator
+is assumed hostile, so the GPU does not have to be trusted, attested, or passed through.
+
+That is a different trust shape from the GPU flavor, which passes a card INTO the CVM and
+relies on NVIDIA confidential computing. Shielded needs neither CC-capable hardware nor
+passthrough, so it works with a consumer card — the reference measurements are on an RTX 3070.
+
+```json
+"shieldedWorker": { "port": 9500, "vramGb": 6.5 }
+```
+
+With that set, `enclave-metal.mjs` starts `shielded/worker.py` on `127.0.0.1:<port>` and
+supervises it, and hands the guest the address over fw_cfg. The guest reaches it at
+`10.0.2.2:<port>` — the same slirp path the egress helper uses. Requires `python3` with torch
+and triton **on the host**; the guest needs nothing but the measured image.
+
+**A dead worker never takes the box down.** It is restarted with backoff, and the enclave
+keeps serving CPU work meanwhile. What tells you the path is healthy is the boot probe:
+
+```
+[gsup] shielded GPU OK: NVIDIA GeForce RTX 3070 at 10.0.2.2:9500 — exact=true
+       verified=true lie_rejected=true denylist=true corr=-0.053 chi2=74.8
+       rt=0.563ms warm (327ms cold, kernel compile)
+```
+
+`metal/guest/shielded-probe.mjs` runs one real masked field GEMM at boot and asserts four
+things against the bytes that actually crossed: the unmasked product is exact; Freivalds
+accepts the honest result and rejects a single-element lie; the worker refuses a denylisted op
+on the wire; and the transcript is uncorrelated with the secret and uniform over the field.
+It exits, it is not a service, and a failure is logged rather than fatal.
+
+**Why the worker's address is not measured, and does not need to be.** It arrives over fw_cfg,
+which the host controls. A host that redirects it to a worker it wrote itself gains nothing:
+the pad never crosses the boundary, and Freivalds rejects any product that is not the real
+one. The worst it can do is refuse to answer — denial of service, which this design explicitly
+does not promise to prevent. The GPU's address is ordinary configuration, not a trust anchor,
+and that is exactly why the GPU can sit outside the enclave at all.
+
 ## RAD format
 
 The metal-agent serves `/.well-known/enclave-attestation` (and the supervisor
