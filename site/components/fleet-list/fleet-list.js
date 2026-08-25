@@ -41,12 +41,16 @@ class FleetList extends EnclaveElement {
     const perHr = (v) => "$" + (v * 3600).toFixed(2).replace(/\.00$/, "");
     // one pool = a [label | meter | pct] header line, the price under the
     // label, stat cells underneath
-    const pool = (label, pct, stats, price) =>
+    const pool = (label, pct, stats, price, note) =>
       '<div class="fleet-pool">'
       + '<span class="fleet-pool-label">' + label + '</span>'
       + meter(pct)
       + '<span class="fleet-pool-pct"><b>' + pct + '%</b> available</span>'
-      + (price != null ? '<span class="fleet-pool-price"><b>' + perHr(price) + '</b>/hr</span>' : '')
+      // the label column's second row holds the pool's rate. A shielded pool has
+      // no posted ask yet, so the same slot names what the pool IS instead of
+      // leaving a gap where a price should be.
+      + (price != null ? '<span class="fleet-pool-price"><b>' + perHr(price) + '</b>/hr</span>'
+         : note ? '<span class="fleet-pool-note">' + note + '</span>' : '')
       + '<span class="fleet-stats">' + stats + '</span>'
       + '</div>';
     list.innerHTML = (!rows.length
@@ -84,6 +88,14 @@ class FleetList extends EnclaveElement {
               + '</span>'
               + '</div>';
           }
+          // A card on the box's UNTRUSTED host, reached by masked offload — the
+          // enclave uses it without trusting it, so the row must not read as an
+          // in-enclave GPU. It gets its own badge and its own pool, and it is
+          // deliberately NOT folded into `gpu`: that flag means the card is
+          // inside the measured enclave, which is a different thing to buy.
+          const sh = a.shielded && a.shielded.vramGb > 0 ? a.shielded : null;
+          const shFree = sh ? Math.max(0, Math.min(1, sh.vramFreeGb / sh.vramGb)) : 0;
+          const shPct = Math.floor(shFree * 100);
           const s = serverSpec();   // adopted fleet hardware; display fallback for rows that omit their own
           const vramGb = a.cardVramGb || s.cardVramGb, tflops = a.cardTflops || s.cardTflops;
           const ramGb = a.nodeRamGb || s.nodeRamGb, vcpus = a.nodeVcpus || s.nodeVcpus;
@@ -91,9 +103,21 @@ class FleetList extends EnclaveElement {
           return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
             + '<span class="fleet-head">'
             + '<span class="ap-badge ' + (gpu ? "info" : "") + '">' + (gpu ? "gpu" : "cpu") + '</span>'
+            + (sh ? '<span class="ap-badge shielded" title="' + esc(sh.card || "gpu")
+                    + ' on this box\u2019s untrusted host, used by masked offload: it receives '
+                    + 'public weights and one-time-padded activations, and every result is '
+                    + 'verified. The card is outside the enclave and outside its measurement.">'
+                    + 'shielded gpu</span>' : '')
             + '<span class="fleet-name">' + esc(name) + '</span>'
             + this._ratingHtml(e)
             + '</span>'
+            + (sh ? pool("GPU", shPct,
+                stat(fmtNum(sh.vramFreeGb), fmtNum(sh.vramGb), "GB", "vram available")
+                + (sh.gmacPerSec > 0
+                    ? stat(Math.round(shFree * sh.gmacPerSec), Math.round(sh.gmacPerSec), "",
+                           "G-MAC/s masked")
+                    : stat(esc(sh.card || "gpu"), "", "", "card")),
+                null, "shielded") : "")
             + (gpu ? pool("GPU", gPct,
                 stat(fmtNum(a.vramFreeGb != null ? a.vramFreeGb : gFree * vramGb), fmtNum(vramGb), "GB", "vram available")
                 + stat(Math.round(gFree * tflops), Math.round(tflops), "", "tflops available"), price.full) : "")

@@ -3786,6 +3786,51 @@ if (RELAY_SERVICES)
     .filter(([, v]) => v === true).map(([k]) => k).join(", ")}`
     + (RELAY_SERVICES.region ? ` · ${RELAY_SERVICES.region}` : ""));
 
+// ---- shielded GPU: a card this enclave uses but does NOT trust ---------------
+//
+// A metal box can offer GPU work with the card on the untrusted HOST, outside the
+// CVM and outside the launch measurement, reached over a masked-offload protocol
+// that sends it public weights and one-time pads and verifies everything it sends
+// back (docs/shielded-inference.md). The guest's boot probe writes this file after
+// one real masked GEMM comes back exact, verified, and with the op denylist
+// enforced on the wire; it deletes the file when the probe does not pass.
+//
+// IT IS DELIBERATELY NOT `gpu: true`. That flag means "this enclave has a card
+// INSIDE it", and it is what the router uses to place ordinary GPU deployments.
+// A shielded box has no such card: every GPU deployment routed here on that flag
+// would land on an enclave with no wasi-nn device and fail. So shielded capacity
+// is advertised in its own namespace, visible to anything that asks for it and
+// invisible to a router asking the old question.
+const SHIELDED_VERDICT = process.env.SHIELDED_VERDICT || "/run/shielded-gpu.json";
+let _shieldedCache = { at: 0, val: null };
+function shieldedCapacity() {
+  const now = Date.now();
+  if (now - _shieldedCache.at < 10_000) return _shieldedCache.val;
+  let val = null;
+  try {
+    const v = JSON.parse(readFileSync(SHIELDED_VERDICT, "utf8"));
+    // Every claim the probe makes must hold. A partial pass is not a pass: a card
+    // whose product came back exact but whose worker accepted a denylisted op is
+    // not one this box should be selling access to.
+    if (v && v.exact && v.verified && v.lie_rejected && v.denylist_refused && v.vram_total_gb > 0) {
+      val = {
+        card: String(v.name || "gpu").slice(0, 64),
+        vramGb: Number(v.vram_total_gb) || 0,
+        vramFreeGb: Number(v.vram_free_gb) || 0,
+        vramBudgetGb: Number(v.vram_budget_gb) || 0,
+        gmacPerSec: Number(v.field_gmac_per_s) || 0,
+        smCount: Number(v.sm_count) || 0,
+        capability: String(v.capability || "").slice(0, 8),
+        roundTripMs: Number(v.round_trip_ms) || 0,
+        verifiedAt: String(v.at || ""),
+        endpoint: String(v.endpoint || ""),
+      };
+    }
+  } catch { val = null; }        // absent on every box that has no shielded card
+  _shieldedCache = { at: now, val };
+  return val;
+}
+
 app.get("/availability", async (_req, res) => {
   // Every enclave reports BOTH pools: gpuShareFree (the largest slice one card
   // can still take; 0 on a CPU-only enclave) and cpuShareFree (the node's
@@ -3809,6 +3854,7 @@ app.get("/availability", async (_req, res) => {
     gpuTflopsFree: IS_GPU ? round1(gpuFree * CARD_TFLOPS) : 0,
     cardVramGb: IS_GPU ? CARD_VRAM_GB : 0, cardTflops: IS_GPU ? CARD_TFLOPS : 0, cards: GPU_COUNT,
     ...(IS_GPU ? { cardVramSource: CARD_VRAM_SRC } : {}),   // "nvidia-smi"/"manager"/"worker" = probed hardware; "env"/"default" = config fallback
+    ...(() => { const sh = shieldedCapacity(); return sh ? { shielded: sh } : {}; })(),   // a card on the UNTRUSTED host, reached by masked offload; NOT `gpu` — see shieldedCapacity()
     ...(RELAY_SERVICES ? { relay: RELAY_SERVICES } : {}),   // network this box carries for the fleet; see the block above
     networkOptions: true,   // this build accepts the envelope's `network` namespace (per-deployment relay choice). SAME FLEET-AND RULE as waf/config/gpuOptional and for the sharpest reason: the envelope is fail-closed, so a deployment carrying {"network":…} that lands on a runner which predates this is REFUSED OUTRIGHT, not degraded. The console must keep the Network tab hidden until every live runner reports true
     waf: true,   // this build accepts + enforces the deployment-options envelope (waf); the relay ANDs this across the fleet and the console shows the Protection controls only then

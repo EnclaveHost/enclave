@@ -371,15 +371,41 @@ if (fw.shieldedWorker && fw.shieldedWorker.port) {
   probe.stdout.on('data', (d) => { buf += d; });
   probe.stderr.on('data', (d) => log(`shielded-probe: ${String(d).trim()}`));
   probe.on('error', (e) => log(`shielded-probe spawn failed: ${e.message}`));
+  // Where the supervisor looks for the verdict. A FILE rather than an env var,
+  // deliberately: the supervisor is already running by the time the probe
+  // finishes (the probe waits for a worker that spends ~10 s importing torch),
+  // so an env var would have to be set before the answer existed. A file also
+  // means the box stops advertising the card the moment the probe stops passing,
+  // instead of carrying a boot-time claim until the next restart.
+  const VERDICT = '/run/shielded-gpu.json';
+  const clearVerdict = () => { try { fs.unlinkSync(VERDICT); } catch {} };
+  clearVerdict();
   probe.on('exit', (code) => {
     let v = null;
     try { v = JSON.parse(buf); } catch {}
+    if (code === 0 && v && v.ok && v.card) {
+      // Only a PASSING probe posts capacity. Advertising a card whose masked
+      // round trip did not come back exact, or whose worker did not refuse a
+      // denylisted op, would sell something we have not shown works.
+      try {
+        fs.writeFileSync(VERDICT, JSON.stringify({
+          ...v.card, endpoint: `${host}:${port}`,
+          exact: v.exact, verified: v.verified, lie_rejected: v.lie_rejected,
+          denylist_refused: v.denylist_refused,
+          round_trip_ms: v.round_trip_ms, at: new Date().toISOString(),
+        }));
+      } catch (e) { log(`shielded verdict not written: ${e.message}`); }
+    } else {
+      clearVerdict();
+    }
     if (code === 0 && v) {
       log(`shielded GPU OK: ${v.worker?.device} at ${host}:${port} — exact=${v.exact} `
         + `verified=${v.verified} lie_rejected=${v.lie_rejected} denylist=${v.denylist_refused} `
         + `corr=${v.transcript_correlation} chi2=${v.transcript_chi2} `
         + `rt=${v.round_trip_ms}ms warm (${v.cold_round_trip_ms}ms cold, kernel compile)`
-        + (v.waited_ms > 1000 ? ` after waiting ${(v.waited_ms / 1000).toFixed(1)}s for the worker` : ''));
+        + (v.waited_ms > 1000 ? ` after waiting ${(v.waited_ms / 1000).toFixed(1)}s for the worker` : '')
+        + (v.card ? ` — advertising ${v.card.vram_free_gb}/${v.card.vram_total_gb} GB, `
+                    + `${Math.round(v.card.field_gmac_per_s)} G-MAC/s` : ''));
     } else {
       log(`shielded GPU UNAVAILABLE (probe exit ${code}); the box keeps serving CPU work`);
     }
