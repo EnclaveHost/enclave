@@ -25,6 +25,7 @@ model.py                      TEE-side executor: a real transformer, linears off
 tokenizer.py                  byte-level BPE, TEE-side (it consumes the prompt)
 pack.py                       GGUF -> shielded pack (host-side, offline, public)
 calibrate.py                  per-site activation exponent + outlier set (public, offline)
+export-calib.py               that .npz -> the flat text the engine backend reads
 e2e.py                        the end-to-end run, and the equivalence test
 kernels/fused_field_gemm.py   GPU field-GEMM kernel (fused CRT, in-kernel dequant)
 bench/field_gemm_bench.py     GPU field-GEMM kernel ladder (needs a CUDA torch)
@@ -41,6 +42,16 @@ metal/guest/shielded.mjs        the CVM's client: field, pads, refill, Freivalds
 metal/guest/shielded-probe.mjs  one real masked GEMM, asserted four ways, at boot
 ```
 
+And the engine-side half lives with the engine, because it is linked into it:
+
+```
+wasm/ggml-shielded/shielded-field.c   the field + THE encoding, in C
+wasm/ggml-shielded/shielded-wire.c    the protocol, pipelined into one RTT
+wasm/ggml-shielded/shielded-tee.c     pads, refill, Freivalds, the worker link
+wasm/ggml-shielded/ggml-shielded.cpp  the ggml backend: claims linear ops, nothing else
+wasm/ggml-shielded/shielded-probe.c   the C probe, same four assertions as the JS one
+```
+
 ```
 python3 field.py                                 # cross-language encoding vectors
 python3 reference/shielded_ref.py --verbose      # human-readable oracle dump
@@ -50,6 +61,11 @@ python3 worker.py --port 9500                    # the worker (needs CUDA)
 python3 bench/field_gemm_bench.py --quick        # GPU ladder (CUDA required)
 python3 bench/refill_bench.py --verbose          # CPU refill ceiling
 node --test ../test/shielded-*.test.mjs          # assertions we must not regress
+
+python3 export-calib.py model.calib.npz > model.calib   # for the engine backend
+make -C ../wasm/ggml-shielded                            # field/wire/tee + the C probe
+make -C ../wasm/ggml-shielded ggml                       # + the backend (needs a ggml checkout)
+SHIELDED_CALIB=model.calib ../wasm/ggml-shielded/ggml-test
 ```
 
 ## Running it end to end
@@ -78,11 +94,12 @@ every prompt. Peak |y| reached 2.1e6 against M/2 = 7.2e6.
   single box. A fleet worker is the same protocol in C++/CUDA with a digest-pinned
   base image, following `worker/Dockerfile`, registered in `scripts/release.sh` and
   the `deploy.yml` detect case.
-- **The TEE-side executor for the real engine** does NOT land here -- it belongs in
-  the wasmtime patch stack (`wasm/`) and the ELL shim, because that is where the
-  ggml graph lives. `model.py` is its specification and its equivalence reference:
-  it is a working implementation of the same op placement, and the C++ backend has
-  to reproduce its output bit for bit.
+- **The TEE-side executor for the real engine** does NOT land here -- it lives in
+  `wasm/ggml-shielded/`, because that is where the ggml graph lives. `model.py` is
+  its specification and its equivalence reference: it is a working implementation
+  of the same op placement, and the C backend has to reproduce its output bit for
+  bit. That backend now EXISTS and is verified against a live worker; what it has
+  not yet done is drive a whole model through the ELL engine.
 
 The worker is deliberately outside the measurement and runs no TEE. The operator can
 replace it wholesale; its honesty is enforced by Freivalds verification, not by

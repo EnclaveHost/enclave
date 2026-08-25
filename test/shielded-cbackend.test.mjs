@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import net from "node:net";
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -147,4 +147,48 @@ test("one real masked GEMM through the C stack, asserted four ways", async (t) =
   assert.equal(v.denylist_refused, true, "the worker ran a denylisted op");
   assert.equal(v.verify_fail, 0);
   assert.ok(v.field_headroom > 1, `field wrapped: peak |y| ${v.peak_abs_y}`);
+});
+
+// The integration this whole tier exists for: an ordinary ggml graph, split by
+// ggml_backend_sched, with the linear ops executing on an untrusted GPU under
+// one-time pads and the nonlinear ones staying in the enclave. Needs an engine
+// checkout AND a live worker, so it skips rather than fails without them.
+test("ggml_backend_sched offloads the matmuls and keeps the rest in the enclave", async (t) => {
+  const ggmlSrc = process.env.GGML_SRC || join(process.env.HOME || "", "Projects", "llama.cpp");
+  const ggmlLib = process.env.GGML_LIB || join(process.env.HOME || "", "Projects", "llamacpp-lib");
+  if (!existsSync(join(ggmlSrc, "ggml", "include", "ggml.h")) || !existsSync(ggmlLib))
+    return t.skip("no ggml checkout to build the backend against");
+
+  const mk = spawnSync("make", ["-s", "ggml"], {
+    cwd: dir, encoding: "utf8", timeout: 600_000,
+    env: { ...process.env, GGML_SRC: ggmlSrc, GGML_LIB: ggmlLib } });
+  if (mk.status !== 0) return t.skip(`ggml backend did not build: ${(mk.stderr || "").slice(0, 300)}`);
+
+  const host = process.env.SHIELDED_HOST || "127.0.0.1";
+  const port = Number(process.env.SHIELDED_PORT || 9500);
+  const live = await reachable(host, port);
+
+  const calib = join(repo, "wasm", "ggml-shielded", "test.calib");
+  writeFileSync(calib,
+    "# shielded-calib 1\nsite blk.0.ffn_gate.weight 8 0\nsite blk.0.ffn_down.weight 8 0\n");
+
+  const out = execFileSync(join(dir, "ggml-test"), [], {
+    encoding: "utf8", timeout: 900_000,
+    env: { ...process.env, SHIELDED_CALIB: calib, SHIELDED_HOST: host, SHIELDED_PORT: String(port) },
+  }).trim().split("\n").pop();
+  const v = JSON.parse(out);
+
+  // The split is the assertion. Two matmuls on the shielded backend and nothing
+  // else there -- a run where sched quietly put everything on the CPU would
+  // otherwise read as a pass, and so would one where SiLU leaked onto the GPU.
+  assert.equal(v.sched_ok, true, "a non-matmul landed on the shielded backend");
+  assert.equal(v.sched_shielded_nodes, 2, "sched did not place both matmuls on the shielded backend");
+  assert.equal(v.verify_fail, 0, "a product failed verification");
+  if (live) assert.ok(v.offloaded_nodes > 0, "a worker was reachable but nothing was offloaded");
+  else assert.ok(v.local_nodes > 0, "no worker, so the nodes should have run locally");
+
+  // Against ggml's own f32 matmul the shielded path is a fixed-point
+  // approximation, so the bound comes from the encoding rather than from taste:
+  // the weight quantum dominates, and this stays far inside it.
+  assert.ok(v.rel < 0.05, `shielded result drifted ${v.rel} from the CPU backend`);
 });

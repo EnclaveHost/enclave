@@ -4,3 +4,5 @@ field-selftest
 ggml-shielded.o
 prepare-selftest
 half-selftest
+ggml-test
+test.calib
