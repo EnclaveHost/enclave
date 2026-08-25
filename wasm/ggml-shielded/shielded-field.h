@@ -60,6 +60,27 @@ int8_t sh_residue(int64_t a, int q);
 /* Garner reconstruction from the three balanced residues. */
 int64_t sh_crt(int32_t r0, int32_t r1, int32_t r2);
 
+/* Pick the largest f_w whose encoding still fits the int8 lane, and produce the
+ * SCALED fp16 block scales the encoder expects.
+ *
+ * The subtlety worth stating once: sh_encode_weight_fixed multiplies by 256, so
+ * it is only THE encoding when handed scales that already carry the per-tensor
+ * exponent -- wd_scaled = fp16(wd * 2^(f_w - FRAC)), which makes the product
+ * floor(wd * 2^f_w * q + 0.5). Handing it raw GGUF scales silently encodes every
+ * tensor at f_w = 8, which is not what the reference does and not what the worker
+ * will assume. Returns f_w, or negative if no exponent fits.
+ *
+ * Scaling into fp16 SUBNORMALS is fine and must not be rejected: it happens where
+ * weights are so small that w * 2^f_w rounds to zero anyway, so the bits lost were
+ * already below the fixed-point quantum, and both sides read the same array
+ * through the same routine either way. An earlier Python version rejected them and
+ * refused every real tensor in the model. */
+int sh_prepare_weight(const uint16_t *wd_raw, const int8_t *wq,
+                      int64_t K, int64_t N, uint16_t *wd_scaled_out);
+
+/* fp32 -> fp16 bits, round-to-nearest, subnormals handled. */
+uint16_t sh_float_to_half(float v);
+
 /* Correctness gate, not a tuning hint: a fixed-point weight above the byte limit
  * wraps silently in the int8 cast, so the fast path must refuse the tensor. */
 bool sh_weights_fit_byte(const int64_t *w_fixed, int64_t n);

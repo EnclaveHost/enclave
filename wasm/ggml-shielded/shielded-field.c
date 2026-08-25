@@ -1,5 +1,6 @@
 #include "shielded-field.h"
 #include <math.h>
+#include <string.h>
 
 const int sh_primes[3] = { SH_Q0, SH_Q1, SH_Q2 };
 
@@ -65,4 +66,81 @@ bool sh_weights_fit_byte(const int64_t *w_fixed, int64_t n) {
         if (a > SH_WEIGHT_BYTE_LIMIT) return false;
     }
     return true;
+}
+
+uint16_t sh_float_to_half(float v) {
+    /* Round-to-nearest-EVEN, because numpy's astype(float16) does and the scales
+     * this produces are half of THE shared encoding. Truncating instead -- the
+     * obvious shift-and-mask -- silently lands one ulp low on roughly half of all
+     * blocks, which does not fail anywhere: it just makes the TEE and the GPU
+     * derive different weights, and the unmasking subtraction returns noise. */
+    uint32_t x; memcpy(&x, &v, 4);
+    const uint32_t sign = (x >> 16) & 0x8000u;
+    const uint32_t biased = (x >> 23) & 0xffu;
+    const uint32_t man = x & 0x7fffffu;
+
+    if (biased == 0xff) return (uint16_t)(sign | (man ? 0x7e00u : 0x7c00u));
+
+    const int32_t exp = (int32_t)biased - 127;
+    if (exp > 15) return (uint16_t)(sign | 0x7c00u);        /* overflow to inf */
+
+    if (exp >= -14) {                                        /* normal half */
+        const uint32_t lsb   = (man >> 13) & 1u;
+        const uint32_t rem   = man & 0x1fffu;
+        const uint32_t inc   = (rem > 0x1000u) || (rem == 0x1000u && lsb);
+        uint32_t h = ((uint32_t)(exp + 15) << 10) | (man >> 13);
+        h += inc;                    /* a carry out of the mantissa bumps the exponent, correctly */
+        return (uint16_t)(sign | h);
+    }
+    if (exp < -25) return (uint16_t)sign;                    /* underflow to zero */
+
+    /* Subnormal half. Real GGUF scales reach here and must not be refused. */
+    const uint32_t m = man | 0x800000u;
+    const uint32_t total_shift = 13u + (uint32_t)(-14 - exp);
+    if (total_shift > 31) return (uint16_t)sign;
+    const uint32_t q    = m >> total_shift;
+    const uint32_t rem  = m & ((1u << total_shift) - 1u);
+    const uint32_t half = 1u << (total_shift - 1);
+    return (uint16_t)(sign | (q + ((rem > half) || (rem == half && (q & 1u)))));
+}
+
+int sh_prepare_weight(const uint16_t *wd_raw, const int8_t *wq,
+                      int64_t K, int64_t N, uint16_t *wd_scaled_out) {
+    if (K % SH_QK != 0) return -1;
+    const int64_t nb = K / SH_QK;
+
+    /* Largest f_w by construction, then VERIFIED against the real encoder below:
+     * deriving it from max|w| alone is not enough, because rounding can push the
+     * encoded peak over the limit. */
+    double peak = 0.0;
+    for (int64_t b = 0; b < nb; b++)
+        for (int64_t j = 0; j < N; j++) {
+            const double d = fabs((double)sh_half_to_float(wd_raw[b * N + j]));
+            if (d == 0.0) continue;
+            for (int64_t t = 0; t < SH_QK; t++) {
+                const double a = d * fabs((double)wq[(b * SH_QK + t) * N + j]);
+                if (a > peak) peak = a;
+            }
+        }
+    int f_w = SH_FRAC;
+    if (peak > 0.0) f_w = (int)floor(log2((double)SH_WEIGHT_BYTE_LIMIT / peak));
+
+    for (int cand = f_w; cand > f_w - 8; cand--) {
+        bool fits = true;
+        const float mul = ldexpf(1.0f, cand - SH_FRAC);
+        for (int64_t i = 0; i < nb * N && fits; i++) {
+            const float sc = sh_half_to_float(wd_raw[i]) * mul;
+            if (!isfinite(sc)) { fits = false; break; }
+            wd_scaled_out[i] = sh_float_to_half(sc);
+        }
+        if (!fits) continue;
+        for (int64_t k = 0; k < K && fits; k++)
+            for (int64_t j = 0; j < N; j++) {
+                const int64_t v = sh_encode_weight_fixed(wd_scaled_out[(k / SH_QK) * N + j],
+                                                         wq[k * N + j]);
+                if (v > SH_WEIGHT_BYTE_LIMIT || v < -SH_WEIGHT_BYTE_LIMIT) { fits = false; break; }
+            }
+        if (fits) return cand;
+    }
+    return -1;
 }
