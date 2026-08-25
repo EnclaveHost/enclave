@@ -3405,6 +3405,34 @@ function appSessionRoute(rec, req, res) {
 // 180 s idle allowance internalAppServer already keeps.
 const TENANT_IDLE_MS = parseInt(process.env.TENANT_IDLE_MS || "180000", 10);
 
+// The tenant leg gets its OWN connection, never a pooled one.
+//
+// This path carries two things that must not share a socket pool: ordinary
+// bounded requests, and SSE streams that are abandoned mid-flight every time a
+// viewer closes a tab or a Moonlight session ends. With Node's default
+// globalAgent (keepAlive, 256 free sockets) an abandoned stream leaves the
+// pool holding a socket that is not at a clean request/response boundary; the
+// next request is handed that socket, writes onto it, and never sees response
+// headers. The caller cannot tell that from a hung app -- gs-bridge reports it
+// as EAGAIN, the browser as a stream that goes silent forever.
+//
+// That is not hypothetical: gs-bridge's own source records it as "a single
+// unrelated request to the same deployment silences an open /display stream
+// permanently, with the socket still ESTABLISHED and its receive queue empty"
+// (the SSE wedge, 2026-08-16), and it is why reconnecting to a RISC Box
+// deployment used to fail until it was left alone for minutes.
+//
+// Pooling buys almost nothing here anyway: the tenant is on 127.0.0.1, where a
+// fresh connect costs microseconds. Correctness is worth far more than that.
+const tenantAgent = new http.Agent({ keepAlive: false, maxSockets: Infinity });
+
+// Hop-by-hop headers are the proxy's own business and must never be forwarded
+// (RFC 9110 7.6.1). Forwarding a client's `Connection: keep-alive` onto a leg
+// we deliberately do not keep alive is exactly the kind of contradiction that
+// leaves a socket in a state neither end agrees about.
+const HOP_BY_HOP = ["connection", "keep-alive", "proxy-authenticate",
+                    "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"];
+
 app.use("/x/:id", async (req, res) => {
   const rec = depByIdOrPrefix(req.params.id);
   if (!rec) return fail(res, 404, "not_found", "Unknown deployment.");
@@ -3475,10 +3503,11 @@ app.use("/x/:id", async (req, res) => {
   // dropped — an app's own cookies are its business.
   const kept = stripAppCookie(headers.cookie);
   if (kept) headers.cookie = kept; else delete headers.cookie;
+  for (const h of HOP_BY_HOP) delete headers[h];
   let timedOut = false;
   const up = http.request(
     { host: target.hostname, port: target.port || 80, method: req.method,
-      path: target.pathname + target.search, headers },
+      path: target.pathname + target.search, headers, agent: tenantAgent },
     (upRes) => {
       if (res.destroyed) return up.destroy();
       res.writeHead(upRes.statusCode || 502, tenantHeaders(upRes.headers));
