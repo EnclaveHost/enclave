@@ -223,6 +223,15 @@ export function refill(r, wFixed, K, N) {
   return u;
 }
 
+/** Uniform [0,1) from the OS CSPRNG -- the default source for the Freivalds secret. */
+function secureUnitRandom() {
+  // 53 bits, the mantissa a double carries exactly, so the draw is uniform
+  // rather than quantised the way a 32-bit source would be. Take the TOP 53 of
+  // 64 random bits and scale: 2^53 is exact in a double, so the quotient is too.
+  const bits = randomBytes(8).readBigUInt64BE() >> 11n;
+  return Number(bits) / 2 ** 53;
+}
+
 /**
  * Preprocessed Freivalds over an UNRELATED prime, so one check catches both a
  * lying worker and a field wrap. See shielded/tee.py Freivalds for the argument:
@@ -233,7 +242,13 @@ export class Freivalds {
   static S_RANGE = 1 << 20;
   static REPS = 2;
 
-  constructor(wFixed, K, N, rnd = Math.random) {
+  // s is the ONE value a lying worker must never predict: knowing it, the worker
+  // solves d.s == 0 (mod P2) over any three outputs and returns y + d, which
+  // check() accepts while the value decodes to garbage. Math.random is not a
+  // CSPRNG and was the wrong default -- a caller that forgot the argument got a
+  // forgeable secret with no error anywhere. Callers that need reproducibility
+  // (the boot probe's fixture) pass their own generator explicitly.
+  constructor(wFixed, K, N, rnd = secureUnitRandom) {
     this.K = K; this.N = N;
     this.s = [];
     this.sTilde = [];

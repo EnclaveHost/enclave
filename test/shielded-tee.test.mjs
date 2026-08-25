@@ -118,3 +118,51 @@ test("the guest's field constants match the kernel's", async () => {
   assert.equal(js.WEIGHT_BYTE_LIMIT, f.WEIGHT_BYTE_LIMIT);
   assert.deepEqual(js.Q, f.primes);
 });
+
+// The Freivalds secret is the tier's whole integrity story: the worker is
+// untrusted BY DESIGN and its honesty rests on not being able to predict s. A
+// fixed default seed (which both halves once shipped) let a worker that had read
+// the public source recover s, solve d.s == 0 (mod P2) over three outputs and
+// return y + d -- accepted by the check, decoded as garbage. These two tests
+// pin the fix on both sides; they fail the moment a default becomes reproducible.
+test("the guest draws its Freivalds secret from a source it cannot repeat", async () => {
+  const js = await import(join(repo, "metal", "guest", "shielded.mjs"));
+  const K = 32, N = 8;
+  const wFixed = new Float64Array(K * N);
+  for (let i = 0; i < wFixed.length; i++) wFixed[i] = (i % 17) - 8;
+  // Pinning Math.random is what makes this decisive rather than merely
+  // suggestive: it fails for BOTH bad defaults -- a fixed seed (every secret
+  // identical) and Math.random itself (identical once pinned) -- and passes only
+  // for a generator the caller cannot influence.
+  const realRandom = Math.random;
+  Math.random = () => 0.42;
+  try {
+    const secrets = new Set();
+    for (let t = 0; t < 8; t++) {
+      const fv = new js.Freivalds(wFixed, K, N);        // no rnd argument
+      secrets.add(Array.from(fv.s[0]).join(","));
+    }
+    assert.equal(secrets.size, 8,
+      "the default Freivalds secret tracks Math.random or a fixed seed -- s is predictable");
+  } finally {
+    Math.random = realRandom;
+  }
+});
+
+test("the TEE draws its Freivalds secret from a source it cannot repeat", () => {
+  const out = execFileSync("python3", ["-c", `
+import json, sys
+sys.path.insert(0, ${JSON.stringify(join(repo, "shielded"))})
+import numpy as np
+from tee import WorkerLink, Freivalds, PublicWeight, QK
+K, N = 64, 32
+rs = np.random.default_rng(7)
+wq = rs.integers(-100, 100, size=(K, N)).astype(np.int8)
+wd = np.full((K // QK, N), 0.002, dtype=np.float32)
+w = PublicWeight("t", wq, wd)
+seen = {Freivalds(w, WorkerLink().rng).s.tobytes() for _ in range(8)}
+print(json.dumps({"distinct": len(seen)}))
+`], { encoding: "utf8", timeout: 300_000 });
+  assert.equal(JSON.parse(out.trim().split("\n").pop()).distinct, 8,
+    "two default WorkerLink rngs produced the same Freivalds secret -- s is predictable");
+});

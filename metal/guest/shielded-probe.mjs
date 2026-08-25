@@ -194,7 +194,12 @@ async function main() {
   out.peak_abs_y = peakY;
   out.field_headroom = +(HALF_M / peakY).toFixed(2);
 
-  const fv = new Freivalds(wFixed, K, N, rnd);
+  // The FIXTURE is deterministic so a failure reproduces from the log, but the
+  // Freivalds secret is not part of the fixture: this probe's verdict is what
+  // lets the box advertise shielded capacity, and "lie_rejected" is only a
+  // security claim if the secret was unpredictable to the worker that answered.
+  // So s comes from the class default (the OS CSPRNG), not from `rnd`.
+  const fv = new Freivalds(wFixed, K, N);
   out.verified = fv.check(x, y);
   const lied = Float64Array.from(y); lied[N >> 1] += 1;      // single-element lie
   out.lie_rejected = !fv.check(x, lied);

@@ -135,6 +135,16 @@ at batch 1, where naive Freivalds would cost as much as recomputing. Soundness ~
 Reuse of `s` across layers/steps decays soundness only linearly (union bound), so resample
 periodically rather than per-op. Oracle: 64/64 single-element lies caught, no false positives.
 
+**`s` must come from a CSPRNG, and this is a live footgun rather than a formality.** Both
+halves once defaulted to a reproducible generator -- `np.random.default_rng(1234)` in
+`tee.py`, `Math.random` in `metal/guest/shielded.mjs` -- which is the same thing as publishing
+`s`, because the worker is assumed to have read this repository. Given `s`, forging is not
+even hard: two check repetitions are two linear constraints, so solving `d·s == 0 (mod P2)`
+over any THREE outputs yields a `d` with `y + d` accepted and decoded as garbage. The soundness
+bound above describes a worker that must guess; it says nothing about one that can read.
+Both defaults now seed from the OS CSPRNG, and `test/shielded-tee.test.mjs` fails if either
+becomes reproducible again -- including the case where a caller merely forgets the argument.
+
 **Policy.** Every offloaded product for a token is verified before that token is sampled or
 streamed. There is no stream-now-verify-later window. On failure the request aborts, the
 event is logged as a worker-integrity incident, and the box is quarantined from the tier.
