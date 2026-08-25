@@ -94,6 +94,21 @@ int main(int argc, char **argv) {
     int exact = 1;
     for (int i = 0; i < m * N; i++) if (y[i] != sh_balanced(want[i])) { exact = 0; break; }
 
+    /* The local path must be numerically IDENTICAL, not merely close -- that is
+     * what lets a graph mix offloaded and local nodes without changing its
+     * output. A tolerance here would hide exactly the divergence it exists to
+     * catch. */
+    int64_t *ylocal = malloc((size_t)m * N * sizeof(int64_t));
+    int local_same = 0;
+    if (ylocal) {
+        int64_t *lo[1] = { ylocal };
+        if (sh_link_gemm_local(l, nodes, 1, x, m, lo) == SH_OK) {
+            local_same = 1;
+            for (int i = 0; i < m * N; i++) if (ylocal[i] != y[i]) { local_same = 0; break; }
+        }
+        free(ylocal);
+    }
+
     /* Both directions, against the same checker the online path uses. Asserting
      * only that it ACCEPTS the honest product would pass just as happily if the
      * check were `return true`. */
@@ -128,11 +143,11 @@ int main(int argc, char **argv) {
     }
 
     printf("{\"exact\":%s,\"verified\":%s,\"lie_rejected\":%s,\"denylist_refused\":%s,"
-           "\"peak_abs_y\":%lld,\"field_headroom\":%.2f,\"K\":%d,\"N\":%d,"
+           "\"local_identical\":%s,\"peak_abs_y\":%lld,\"field_headroom\":%.2f,\"K\":%d,\"N\":%d,"
            "\"exchanges\":%llu,\"macs\":%llu,\"verify_fail\":%llu}\n",
            exact ? "true" : "false", verified ? "true" : "false",
            lie_rejected ? "true" : "false", denylist ? "true" : "false",
-           (long long)peak, (double)SH_HALF_M / (double)(peak ? peak : 1), K, N,
+           local_same ? "true" : "false", (long long)peak, (double)SH_HALF_M / (double)(peak ? peak : 1), K, N,
            (unsigned long long)ex, (unsigned long long)macs, (unsigned long long)vf);
-    return (exact && verified && lie_rejected && denylist && vf == 0) ? 0 : 1;
+    return (exact && verified && lie_rejected && denylist && local_same && vf == 0) ? 0 : 1;
 }

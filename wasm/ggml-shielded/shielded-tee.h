@@ -67,6 +67,23 @@ int sh_link_start(sh_link *l);
 int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
                  const int64_t *x_field, int32_t m, int64_t **y_out);
 
+/* The same product, computed in the TEE in plain int64, with no worker involved.
+ *
+ * Numerically IDENTICAL to sh_link_gemm -- the offloaded path is exact, not an
+ * approximation -- which is what makes it usable as a fallback rather than a
+ * degraded mode: a graph that runs some nodes locally and some offloaded produces
+ * the same tokens either way. Used before the link is up (weights are discovered
+ * as the graph runs, but the worker's buffers are sized once) and as the honest
+ * answer when no worker is reachable at all. */
+int sh_link_gemm_local(sh_link *l, const int *nodes, size_t n_nodes,
+                       const int64_t *x_field, int32_t m, int64_t **y_out);
+
+/* True once the worker is connected and the graph installed. */
+bool sh_link_is_live(const sh_link *l);
+
+/* Rows of the encoded weight, for the caller's TEE-side outlier term. */
+const int8_t *sh_link_weight_rows(const sh_link *l, int node);
+
 /* Run the integrity check directly on a candidate (x, y) pair. Exposed so the
  * probe can assert BOTH directions -- accepts the honest product, rejects a
  * single-element corruption -- against the same code the online path uses. A

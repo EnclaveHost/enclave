@@ -263,6 +263,12 @@ static int json_append(char **buf, size_t *len, size_t *cap, const char *fmt, ..
 
 int sh_link_start(sh_link *l) {
     int err = SH_OK;
+    /* Restartable on purpose. The worker sizes its buffers once and installs its
+     * graph once, but the engine only learns which weights exist as graphs run, so
+     * a newly seen tensor means a fresh connection carrying the whole set. In
+     * practice this settles after the first graph or two and then never fires
+     * again -- and until it does, the local path returns the same numbers. */
+    if (l->pipe) { sh_pipe_close(l->pipe); l->pipe = NULL; }
     l->pipe = sh_pipe_open(l->host, l->port, &err);
     if (!l->pipe) { snprintf(l->err, sizeof l->err, "connect %s:%d failed", l->host, l->port); return err; }
 
@@ -319,12 +325,24 @@ int sh_link_start(sh_link *l) {
             (long long)nd->x_off, (long long)nd->y_off,
             (long long)nd->K, (long long)nd->N, nd->max_m);
     }
+    /* One output region PER BUCKET, not one for max_m. GET_TENSOR matches the
+     * (bid, offset, nbytes) triple exactly -- deliberately, since a worker that
+     * accepted any sub-range of a declared output would be back to arbitrary
+     * activation read-out -- so a read of m*N*4 against a declaration of
+     * max_m*N*4 is refused, correctly, and the tier silently falls back to
+     * computing everything in the enclave. */
     json_append(&js, &jl, &jc, "],\"outputs\":[");
+    bool first_out = true;
     for (size_t i = 0; i < l->n_nodes; i++) {
         sh_node *nd = &l->nodes[i];
-        json_append(&js, &jl, &jc, "%s{\"bid\":2,\"offset\":%lld,\"nbytes\":%lld}",
-                    i ? "," : "", (long long)nd->y_off,
-                    (long long)((int64_t)nd->max_m * nd->N * 4));
+        for (int32_t b = 1; ; b = b * 2) {
+            const int32_t mb = b > nd->max_m ? nd->max_m : b;
+            json_append(&js, &jl, &jc, "%s{\"bid\":2,\"offset\":%lld,\"nbytes\":%lld}",
+                        first_out ? "" : ",", (long long)nd->y_off,
+                        (long long)((int64_t)mb * nd->N * 4));
+            first_out = false;
+            if (mb >= nd->max_m) break;
+        }
     }
     json_append(&js, &jl, &jc, "]}");
     rc = sh_pipe_call(l->pipe, SH_CMD_GRAPH_INSTALL, js, jl, &rep);
@@ -391,6 +409,36 @@ static bool fv_check(const sh_node *nd, const int64_t *x, const int64_t *y, int3
     return true;
 }
 
+int sh_link_gemm_local(sh_link *l, const int *nodes, size_t n_nodes,
+                       const int64_t *x_field, int32_t m, int64_t **y_out) {
+    for (size_t i = 0; i < n_nodes; i++) {
+        const sh_node *nd = &l->nodes[nodes[i]];
+        const int64_t K = nd->K, N = nd->N;
+        int64_t *y = y_out[i];
+        for (int32_t row = 0; row < m; row++) {
+            const int64_t *xr = x_field + (int64_t)row * K;
+            int64_t *yr = y + (int64_t)row * N;
+            for (int64_t j = 0; j < N; j++) yr[j] = 0;
+            for (int64_t k = 0; k < K; k++) {
+                const int64_t xv = xr[k];
+                if (!xv) continue;
+                const int8_t *wrow = nd->w_fixed + k * N;
+                for (int64_t j = 0; j < N; j++) yr[j] += xv * wrow[j];
+            }
+            for (int64_t j = 0; j < N; j++) yr[j] = sh_balanced(yr[j]);
+        }
+        l->macs += (uint64_t)m * (uint64_t)K * (uint64_t)N;
+    }
+    return SH_OK;
+}
+
+bool sh_link_is_live(const sh_link *l) { return l && l->pipe; }
+
+const int8_t *sh_link_weight_rows(const sh_link *l, int node) {
+    if (!l || node < 0 || (size_t)node >= l->n_nodes) return NULL;
+    return l->nodes[node].w_fixed;
+}
+
 bool sh_link_verify(const sh_link *l, int node, const int64_t *x, const int64_t *y, int32_t m) {
     if (!l || node < 0 || (size_t)node >= l->n_nodes) return false;
     return fv_check(&l->nodes[node], x, y, m);
@@ -413,24 +461,40 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
             snprintf(l->err, sizeof l->err, "grouped nodes disagree on K"); return SH_ERR_PROTO;
         }
 
+    /* Shapes are PUBLIC and bucketed: the worker's readable regions are declared
+     * at install time, so a batch size is rounded up to the next power of two and
+     * the extra rows are zero. Zero rows produce zero outputs and are discarded,
+     * and bucketing is what keeps the declaration finite -- one entry per m from
+     * 1..512 per node would be tens of thousands of regions in the install. */
+    int32_t mb = 1;
+    while (mb < m) mb *= 2;
+    if (mb > l->nodes[nodes[0]].max_m) {
+        snprintf(l->err, sizeof l->err, "m=%d exceeds this node's max_m=%d", m, l->nodes[nodes[0]].max_m);
+        return SH_ERR_PROTO;
+    }
+
     int64_t maxN = 0;
     for (size_t i = 0; i < n_nodes; i++) if (l->nodes[nodes[i]].N > maxN) maxN = l->nodes[nodes[i]].N;
     int rc;
-    if ((rc = ensure((void **)&l->pad,    &l->pad_cap,    (size_t)m * K * sizeof(int64_t))) != SH_OK) return rc;
-    if ((rc = ensure((void **)&l->planes, &l->planes_cap, (size_t)m * K * 3)) != SH_OK) return rc;
-    if ((rc = ensure((void **)&l->u,      &l->u_cap,      (size_t)m * maxN * sizeof(int64_t))) != SH_OK) return rc;
-    if ((rc = ensure((void **)&l->acc,    &l->acc_cap,    (size_t)m * maxN * sizeof(int32_t))) != SH_OK) return rc;
+    if ((rc = ensure((void **)&l->pad,    &l->pad_cap,    (size_t)mb * K * sizeof(int64_t))) != SH_OK) return rc;
+    if ((rc = ensure((void **)&l->planes, &l->planes_cap, (size_t)mb * K * 3)) != SH_OK) return rc;
+    if ((rc = ensure((void **)&l->u,      &l->u_cap,      (size_t)mb * maxN * sizeof(int64_t))) != SH_OK) return rc;
+    if ((rc = ensure((void **)&l->acc,    &l->acc_cap,    (size_t)mb * maxN * sizeof(int32_t))) != SH_OK) return rc;
 
     /* ONE pad for ONE plaintext -- rule 2. Shared-x nodes reuse this pad by
      * construction, because they read the same uploaded x region. */
-    if ((rc = maskbank_issue(&l->bank, l->pad, (size_t)m * K)) != SH_OK) {
+    if ((rc = maskbank_issue(&l->bank, l->pad, (size_t)mb * K)) != SH_OK) {
         snprintf(l->err, sizeof l->err, "pad bank exhausted; stall the request"); return rc;
     }
     for (int p = 0; p < 3; p++) {
         const int q = sh_primes[p];
-        int8_t *pl = l->planes + (size_t)p * m * K;
-        for (int64_t i = 0; i < (int64_t)m * K; i++) {
-            int64_t v = (x_field[i] + l->pad[i]) % SH_M_MOD;
+        int8_t *pl = l->planes + (size_t)p * mb * K;
+        for (int64_t i = 0; i < (int64_t)mb * K; i++) {
+            /* Padding rows are masked too, not left as plaintext zeros: an
+             * unmasked block would tell the worker exactly where the real batch
+             * ends, which is public here but is a habit worth not forming. */
+            const int64_t xv = i < (int64_t)m * K ? x_field[i] : 0;
+            int64_t v = (xv + l->pad[i]) % SH_M_MOD;
             if (v < 0) v += SH_M_MOD;
             pl[i] = sh_residue(v, q);
         }
@@ -454,22 +518,22 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
         const int64_t stride = (int64_t)nd->max_m * K;
         for (int p = 0; p < 3; p++) {
             uint8_t *h = hdrs + nf * 24;
-            sh_pack_set_tensor_header(h, 2, (uint64_t)(nd->x_off + p * stride), (uint64_t)m * K);
+            sh_pack_set_tensor_header(h, 2, (uint64_t)(nd->x_off + p * stride), (uint64_t)mb * K);
             frames[nf].cmd = SH_CMD_SET_TENSOR; frames[nf].payload = h; frames[nf].len = 24;
-            frames[nf].payload2 = l->planes + (size_t)p * m * K; frames[nf].len2 = (size_t)m * K;
+            frames[nf].payload2 = l->planes + (size_t)p * mb * K; frames[nf].len2 = (size_t)mb * K;
             nf++;
         }
     }
     for (size_t i = 0; i < n_nodes; i++) {
         uint8_t *h = hdrs + nf * 24;
-        sh_pack_recompute(h, (uint32_t)nodes[i], (uint32_t)m);
+        sh_pack_recompute(h, (uint32_t)nodes[i], (uint32_t)mb);
         frames[nf].cmd = SH_CMD_GRAPH_RECOMPUTE; frames[nf].payload = h; frames[nf].len = 8;
         frames[nf].payload2 = NULL; frames[nf].len2 = 0; nf++;
     }
     for (size_t i = 0; i < n_nodes; i++) {
         sh_node *nd = &l->nodes[nodes[i]];
         uint8_t *h = hdrs + nf * 24;
-        sh_pack_region(h, 2, (uint64_t)nd->y_off, (uint64_t)m * nd->N * 4);
+        sh_pack_region(h, 2, (uint64_t)nd->y_off, (uint64_t)mb * nd->N * 4);
         frames[nf].cmd = SH_CMD_GET_TENSOR; frames[nf].payload = h; frames[nf].len = 24;
         frames[nf].payload2 = NULL; frames[nf].len2 = 0; nf++;
     }
@@ -487,13 +551,13 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
     for (size_t i = 0; i < n_nodes; i++) {
         sh_node *nd = &l->nodes[nodes[i]];
         sh_reply *r = &reps[nf - n_nodes + i];
-        if (r->len != (size_t)m * nd->N * 4) {
+        if (r->len != (size_t)mb * nd->N * 4) {
             snprintf(l->err, sizeof l->err, "%s: worker returned %zu bytes, expected %lld",
-                     nd->name, r->len, (long long)((int64_t)m * nd->N * 4));
+                     nd->name, r->len, (long long)((int64_t)mb * nd->N * 4));
             result = SH_ERR_PROTO; break;
         }
         const int32_t *ym = (const int32_t *)r->data;
-        refill(l->pad, m, nd, l->planes, l->acc, l->u);
+        refill(l->pad, mb, nd, l->planes, l->acc, l->u);
         int64_t *y = y_out[i];
         for (int64_t t = 0; t < (int64_t)m * nd->N; t++)
             y[t] = sh_balanced((int64_t)ym[t] - l->u[t]);

@@ -625,9 +625,20 @@ anchor -- which is precisely why the GPU can sit outside the enclave at all.**
 
 ## 10.7 What is still open
 
-1. **The production engine.** `model.py` is a specification and an equivalence reference, not
-   an engine. The C++ shielded ggml backend in `wasm/` is the real work, and it must reproduce
-   `model.py`'s output bit for bit.
+1. **The production engine.** ~~`model.py` is a specification and an equivalence reference, not
+   an engine.~~ **BUILT 2026-08-25**, in `wasm/ggml-shielded/`: a `ggml_backend_i` that claims
+   q8_0 matmuls it has calibration for and lets `ggml_backend_sched` route everything else to
+   the CPU backend inside the enclave. Verified against a live worker on the 3070 -- a
+   matmul -> SiLU -> matmul graph places both matmuls on the shielded backend and the SiLU on
+   the CPU, with 0 verification failures, and the offloaded result is bit-identical to the
+   same graph computed locally.
+
+   What is NOT yet done, and is the honest remainder of this item: it has not been linked into
+   the ELL engine build or run against a whole model, so "a real GGUF generates tokens through
+   the ggml backend" is still owed -- `e2e.py` does that through the Python executor, not
+   through this. Accuracy against ggml's own f32 matmul is ~1.5% peak relative on a random
+   q8_0 tensor, dominated by the weight fixed-point quantum at `f_w = 10` rather than by the
+   masking, which is exact.
 2. **Accuracy against the unquantised model** is unmeasured. §10 shows the shielded path costs
    nothing beyond the encoding; it does not show the encoding is free.
 3. **Calibration coverage.** Exponents and outlier sets come from 203 tokens of public text.
