@@ -2239,6 +2239,58 @@ def _nn_cfg_int(enclave_config, key: str, lo: int, hi: int):
     return v if lo <= v <= hi else None
 
 
+# Where the shielded ggml backend and its calibration live inside the guest
+# image. Both are ordinary files in the measured image, not secrets: the backend
+# is code we ship, and calibration is two public constants per site derived from
+# the public weights.
+SHIELDED_BACKEND_SO = os.environ.get("SHIELDED_BACKEND_SO", "/opt/enclave/shielded/libggml-shielded.so")
+SHIELDED_CALIB_DIR  = os.environ.get("SHIELDED_CALIB_DIR", "/opt/enclave/shielded/calib")
+
+
+def _shielded_tenant_env(spec: dict, model_volume: str = "") -> dict:
+    """The env a tenant runs with when its GPU share is a SHIELDED card.
+
+    The sibling of _nn_tenant_env, and deliberately none of the same things: there
+    is no local CUDA device to cap, no MPS pipe to join, and no VRAM limit to pin,
+    because the card is on the untrusted host and the tenant reaches it over the
+    masked-offload protocol. What it gets instead is the worker's address and the
+    shielded ggml backend, which the engine loads through GGML_BACKEND_PATH --
+    already honoured by ggml_backend_load_all_from_path(), which enclave_llama.c
+    calls at init, so no engine change is involved.
+
+    ENCLAVE_GGML_N_GPU_LAYERS is explicitly ZERO here, and that is load-bearing
+    rather than tidy. The ggml backend's whole job is to claim matmuls through
+    ggml_backend_sched; a nonzero offload count would tell llama.cpp to move whole
+    layers to a CUDA device that does not exist on this box, and the tenant would
+    fail to launch instead of quietly using the shielded path.
+    """
+    env = dict(os.environ)
+    env.pop("CUDA_MPS_PIPE_DIRECTORY", None)
+    env.pop("CUDA_MPS_ACTIVE_THREAD_PERCENTAGE", None)
+    env.pop("CUDA_MPS_PINNED_DEVICE_MEM_LIMIT", None)
+    env["CUDA_VISIBLE_DEVICES"] = ""          # there is no local card; do not let one be found
+    env["ENCLAVE_GGML_N_GPU_LAYERS"] = "0"
+
+    endpoint = str((spec or {}).get("endpoint") or "")
+    host, _, port = endpoint.rpartition(":")
+    env["SHIELDED_HOST"] = host or "10.0.2.2"
+    env["SHIELDED_PORT"] = port or "9500"
+    env["GGML_BACKEND_PATH"] = SHIELDED_BACKEND_SO
+
+    # Calibration is per MODEL, so it is named after the volume the tenant serves.
+    # Without it the backend claims nothing and every matmul stays in the enclave:
+    # correct, and slow, rather than wrong.
+    if model_volume:
+        cal = os.path.join(SHIELDED_CALIB_DIR, f"{model_volume}.calib")
+        if os.path.exists(cal):
+            env["SHIELDED_CALIB"] = cal
+        else:
+            log(f"[shielded] no calibration for {model_volume} at {cal}; "
+                f"the tenant will run its matmuls in the enclave")
+    env.setdefault("WASMTIME_LOG", "wasmtime_wasi_nn=debug")
+    return env
+
+
 def _nn_tenant_env(gpu_share: float, pinned: bool) -> dict:
     """The MPS cap env a GPU tenant's wasmtime process runs with. `pinned`
     adds the per-client VRAM limit; dropped when the probe found it poisonous
@@ -4368,7 +4420,7 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
 
 def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
            mem_mb: int = 0, pspec=None, storage_mb=None, config="", volumes=None,
-           egress="", secrets=None, hosts="", config_cid="") -> dict:
+           egress="", secrets=None, hosts="", config_cid="", shielded=None) -> dict:
     pspec = pspec or _parse_ports([])
     if storage_mb is None:
         storage_mb = DEF_STORAGE_MB
@@ -4423,6 +4475,11 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
     nn = NN_ENABLED
     rec = {"id": vid, "name": name or vid, "app": app_ref,
            "cpuShare": cpu_share, "gpuShare": gpu_share, "nn": nn,
+           # A GPU share served by a card on the UNTRUSTED host, reached by masked
+           # offload. Recorded rather than inferred so /vms says plainly which kind
+           # of card a tenant got -- the two are priced the same and are not the
+           # same thing.
+           **({"shielded": shielded} if shielded else {}),
            "hostPort": port,
            "endpoint": f"http://{HOST_IP}:{port}" if port else None, "status": "starting",
            "createdAt": time.time(), "_proc": None, "_log": str(log_path),
@@ -4904,7 +4961,18 @@ def _spawn_and_wait(rec, ctx):
     # GPU tenants: the wasmtime process itself is the CUDA process (ORT holds the
     # context), so the MPS caps go in ITS environment (SM% + VRAM from the share).
     env = None
-    if nn and NODE_HAS_GPU and gpu_share > 0:
+    shielded_spec = rec.get("shielded")
+    if gpu_share > 0 and shielded_spec:
+        # The card is on the untrusted host: no device to cap, no MPS pipe to
+        # join. Checked BEFORE the CUDA branch because NODE_HAS_GPU is false here
+        # and the two must never both apply.
+        vol = (vol_mounts[0]["name"] if vol_mounts else "")
+        env = _shielded_tenant_env(shielded_spec, vol)
+        rec["shieldedEndpoint"] = shielded_spec.get("endpoint")
+        log(f"[shielded] {rec['id']}: gpuShare={gpu_share} served by the shielded card at "
+            f"{shielded_spec.get('endpoint')}"
+            + (f", calibration for {vol}" if env.get("SHIELDED_CALIB") else ", NO calibration"))
+    elif nn and NODE_HAS_GPU and gpu_share > 0:
         # MPS caps belong to tenants that BOUGHT a card slice. A 0-GPU nn
         # tenant gets none - on a CPU box there is no card at all, and on a GPU
         # box it runs on cores by choice, so handing it CUDA_MPS_* (SM 1%, a
@@ -6052,8 +6120,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         req_vols = b.get("volumes") or []                          # attached model volumes by name
         if not isinstance(req_vols, list):
             return self._json(400, {"error": "volumes must be a list of volume names"})
+        shielded = b.get("shielded") if isinstance(b.get("shielded"), dict) else None
         rec = launch(app_ref, name, cpu_share, gpu_share, mem_mb, pspec, storage_mb, config, req_vols, egress, secrets, hosts,
-                     config_cid)
+                     config_cid, shielded=shielded)
         code = 201 if rec["status"] in ("starting", "running") else 500
         return self._json(code, _public(rec))
 
