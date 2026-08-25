@@ -104,6 +104,29 @@ def measure_field_throughput(m=32, K=4096, N=4096, iters=12):
         return 0.0
 
 
+# A CUDA context, once broken, stays broken: every later call on it fails the same
+# way. These are the signatures of that, as opposed to a bad request we should
+# merely refuse. Matched on TEXT because torch surfaces them through several
+# exception types (RuntimeError, AcceleratorError) whose names have moved between
+# versions, and a missed match here costs a restart while a false match costs
+# nothing but one.
+_FATAL_DEVICE_MARKERS = (
+    "mps server",                 # cudaErrorMpsRpcFailure and friends
+    "mps client",
+    "cuda error",
+    "device-side assert",
+    "unspecified launch failure",
+    "illegal memory access",
+    "no cuda gpus are available",
+    "initialization error",
+)
+
+
+def _is_fatal_device_error(e: BaseException) -> bool:
+    text = f"{type(e).__name__}: {e}".lower()
+    return any(m in text for m in _FATAL_DEVICE_MARKERS)
+
+
 class Node:
     """A resolved, validated FIELD_GEMM. Resolution happens once at install; the
     per-token doorbell then does no parsing at all, which is both the fast path
@@ -308,6 +331,21 @@ class Connection:
                     self.log(f"INTERNAL from {self.addr}: {type(e).__name__}: {e}")
                     self.sock.sendall(wire.build_response(
                         wire.STATUS_VIOLATION, f"internal: {type(e).__name__}: {e}".encode()))
+                    # A DEAD CUDA CONTEXT IS FATAL TO THE PROCESS, not just to this
+                    # connection. Observed on 2026-08-25: the MPS server went away,
+                    # every subsequent request failed with cudaErrorMpsRpcFailure,
+                    # and the worker went on accepting connections and failing all
+                    # of them for hours. Its launcher already restarts it on exit
+                    # (metal/enclave-metal.mjs) -- that supervision was simply
+                    # unreachable, because the process never died. A context cannot
+                    # be repaired in place, so the honest response is to stop and
+                    # let a fresh process rebuild one. Availability is the thing
+                    # this tier explicitly does not promise; serving garbage
+                    # forever is worse than a restart.
+                    if _is_fatal_device_error(e):
+                        self.log(f"FATAL: the CUDA context is gone ({type(e).__name__}). "
+                                 f"Exiting so the launcher can restart with a fresh one.")
+                        os._exit(70)          # EX_SOFTWARE; bypasses threads holding GPU_LOCK
                     break
                 self.sock.sendall(wire.build_response(wire.STATUS_OK, resp))
         finally:

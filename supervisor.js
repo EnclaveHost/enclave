@@ -1615,17 +1615,22 @@ if (process.env.SNIFF_SELFTEST) {
 // which GPU enclaves rent to CPU-only apps (CPU-only enclaves get first claim;
 // see the claim loop). CC disables MIG, so a card is ONE trust domain sliced in
 // SOFTWARE: isolation comes from the process boundary, not the slice size.
-const GPU_COUNT       = parseInt(process.env.GPU_COUNT || "1", 10);     // cards in this enclave; 0 = CPU-only enclave
+let GPU_COUNT         = parseInt(process.env.GPU_COUNT || "1", 10);     // cards in this enclave; 0 = CPU-only enclave
 // GPU work (gpuShare > 0) runs ONLY on GPU-enabled enclaves. CPU-only work runs
 // on CPU-only enclaves first, and on GPU enclaves out of leftover cpu pool.
-const IS_GPU          = GPU_COUNT > 0;
+//
+// NOT const, and not boot-time, because a SHIELDED card arrives late: the box
+// only learns it has one when the guest's boot probe finishes a real masked GEMM,
+// which happens after this process is already serving. adoptShieldedCard() below
+// is what flips it, and it is the whole reason these four are `let`.
+let IS_GPU            = GPU_COUNT > 0;
 const NODE_VCPUS      = parseInt(process.env.NODE_VCPUS || "16", 10);   // node size, for CPU pricing/readouts
 const NODE_RAM_GB     = parseInt(process.env.NODE_RAM_GB || "64", 10);
 const NODE_GFLOPS     = parseFloat(process.env.NODE_GFLOPS || "")       // CPU compute per node in GFLOPS (16 vCPU ≈ 1000)
                      || parseFloat(process.env.NODE_TFLOPS || "1") * 1000; // legacy env name (was TFLOPS-denominated)
 let CARD_VRAM_GB      = parseFloat(process.env.GPU_VRAM_GB || "141");   // usable VRAM per card (fallback until the card itself is probed - see adoptCardVram)
 let CARD_VRAM_SRC     = process.env.GPU_VRAM_GB ? "env" : "default";
-const CARD_TFLOPS     = parseFloat(process.env.GPU_TFLOPS || "989");    // GPU compute per card (H200 FP16 dense)
+let CARD_TFLOPS       = parseFloat(process.env.GPU_TFLOPS || "989");    // GPU compute per card (H200 FP16 dense)
 // --- this enclave's PRICE (ledger rev 8; metal/PROTOCOL.md) ------------------
 // What renting THIS machine costs, in USDC 6dp per second for a FULL node
 // (vCPU+RAM) and a FULL card (GPU+VRAM). It is not a floor or a hint: it is the
@@ -1637,7 +1642,7 @@ const CARD_TFLOPS     = parseFloat(process.env.GPU_TFLOPS || "989");    // GPU c
 // card, so an enclave that says nothing prices exactly as it always has. A
 // CPU-only enclave has no card to sell (0).
 const SELL_CPU_PRICE6 = Math.max(1, Math.round(parseFloat(process.env.SELL_CPU_PRICE6 || "") || 834));
-const SELL_GPU_PRICE6 = IS_GPU ? Math.max(0, Math.round(parseFloat(process.env.SELL_GPU_PRICE6 || "") || 1667)) : 0;
+let SELL_GPU_PRICE6   = IS_GPU ? Math.max(0, Math.round(parseFloat(process.env.SELL_GPU_PRICE6 || "") || 1667)) : 0;
 // Whether the operator STATED that price or inherited the default. Only the
 // pre-rev-8 floor cares: on those ledgers the price is global and a record may
 // have been created at an older, lower one, so applying our default as a floor
@@ -1648,7 +1653,7 @@ const PRICE_IS_EXPLICIT = !!(process.env.SELL_CPU_PRICE6 || process.env.SELL_GPU
 const CPU_RATE        = SELL_CPU_PRICE6 / 1e6;   // the WHOLE node's vCPU+RAM
 const FULL_RATE       = SELL_GPU_PRICE6 / 1e6;   // a WHOLE card
 const CTX_OVERHEAD_GB = parseFloat(process.env.CTX_OVERHEAD_GB || "0.5"); // per-worker context cost, reserved on top of the cap
-const SM_TOTAL        = parseInt(process.env.SM_TOTAL || "132", 10);   // SMs per card (H200=132); for reporting granted SMs
+let SM_TOTAL          = parseInt(process.env.SM_TOTAL || "132", 10);   // SMs per card (H200=132); for reporting granted SMs
 const MIN_COMPUTE_PCT = parseInt(process.env.MIN_COMPUTE_PCT || "1", 10); // floor; CUDA_MPS_ACTIVE_THREAD_PERCENTAGE is an integer 1..100
 const GRANULARITY_GB  = parseFloat(process.env.VRAM_GRANULARITY_GB || "1"); // request rounding; 1 GB ≈ arbitrary
 
@@ -2408,8 +2413,18 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort
     const ref = image && image.reference;
     if (!ref) throw new Error("VM backend requires an image reference.");
     const c = (cpuShare != null) ? cpuShare : 0.05, g = gpuShare || 0;
+    // A shielded card is reached over the masked-offload protocol, not through a
+    // local CUDA device, so the manager must NOT try to MPS-cap this tenant: there
+    // is no device to cap and no MPS pipe to join. It gets the worker's address
+    // instead, and the tenant's engine loads the shielded ggml backend. Sending
+    // the flag unconditionally is safe -- a manager that predates it ignores an
+    // unknown field, and on such a manager gpuShare would simply fail to launch,
+    // which is the correct outcome rather than a silently unshielded tenant.
+    const shieldedCard = g > 0 ? shieldedCapacity() : null;
     const r = await vmReq("POST", "/vms",
       { image: ref, cpuShare: c, gpuShare: g,
+        ...(shieldedCard ? { shielded: { endpoint: shieldedCard.endpoint,
+                                         vramGb: round1(g * CARD_VRAM_GB) } } : {}),
         gpuTflops: round1(g * CARD_TFLOPS), cpuGflops: Math.round(c * NODE_GFLOPS),
         // cpuTflops: legacy field for managers pinned before the GFLOPS switch
         cpuTflops: round3(c * NODE_GFLOPS / 1000),
@@ -2439,8 +2454,9 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort
         ...(hosts && hosts.length ? { hosts: hosts.join(",") } : {}) }, SPAWN_TIMEOUT_MS);
     if (r.status !== 201)
       throw new Error(`vmmanager: ${r.body.error || r.body.message || r.status}`);
-    console.log(`[spawn-vm] ${deploymentId} image=${ref} cpuShare=${c} gpuShare=${g} `
-              + `vm=${r.body.id} hostPort=${r.body.hostPort} status=${r.body.status}`);
+    console.log(`[spawn-vm] ${deploymentId} image=${ref} cpuShare=${c} gpuShare=${g}`
+              + (shieldedCard ? ` shielded=${shieldedCard.endpoint}` : "")
+              + ` vm=${r.body.id} hostPort=${r.body.hostPort} status=${r.body.status}`);
     // The VM boots asynchronously; the data path 502s until its server is up.
     // status carries the manager's state.
     return { internalPort: r.body.hostPort || 0, vmId: r.body.id, hostPort: r.body.hostPort,
@@ -3795,12 +3811,46 @@ if (RELAY_SERVICES)
 // one real masked GEMM comes back exact, verified, and with the op denylist
 // enforced on the wire; it deletes the file when the probe does not pass.
 //
-// IT IS DELIBERATELY NOT `gpu: true`. That flag means "this enclave has a card
-// INSIDE it", and it is what the router uses to place ordinary GPU deployments.
-// A shielded box has no such card: every GPU deployment routed here on that flag
-// would land on an enclave with no wasi-nn device and fail. So shielded capacity
-// is advertised in its own namespace, visible to anything that asks for it and
-// invisible to a router asking the old question.
+// IT REPORTS `gpu: true`, and this reverses an earlier decision worth recording.
+// The first version kept shielded capacity in its own namespace so that a router
+// placing ordinary GPU work could not land on a box whose card sits outside the
+// enclave. The effect was a pool nothing could buy: every GPU consumer in the
+// stack -- the router, the ledger's gpuMilli, the console -- asks `gpu`, so a
+// card that answered only to a new question was unreachable, and the box
+// advertised a price for hardware no deployment could rent.
+//
+// So a shielded card is a card. It is metered, priced and sold as one, and the
+// `shielded` block below still says WHERE it is, which is the part a buyer
+// actually needs: the badge, the attestation and this block all keep saying that
+// the silicon is on an untrusted host and the tenant reaches it through masked
+// offload. What changed is that saying so no longer costs the card its market.
+// A shielded card becomes THIS ENCLAVE'S card the first time the probe passes.
+// One-way on purpose: a verdict that later disappears stops us advertising FREE
+// capacity (availability reads the live verdict every time), but it must not
+// retract a card that live leases are already running on -- that would strand
+// tenants mid-lease over a probe that may simply be restarting.
+let _shieldedAdopted = false;
+function adoptShieldedCard(v) {
+  if (_shieldedAdopted || !v) return;
+  _shieldedAdopted = true;
+  GPU_COUNT = 1;
+  IS_GPU = true;
+  CARD_VRAM_GB = v.vramBudgetGb > 0 ? v.vramBudgetGb : v.vramGb;
+  CARD_VRAM_SRC = "shielded-probe";
+  // TFLOPS from the worker's MEASURED masked throughput, not the card's vendor
+  // number: 1 MAC is 2 FLOPs, and what a tenant can actually buy here is the
+  // field GEMM the worker performs, not an fp16 tensor-core figure describing an
+  // operation this path never runs.
+  if (v.gmacPerSec > 0) CARD_TFLOPS = round1(v.gmacPerSec * 2 / 1000);
+  if (v.smCount > 0) SM_TOTAL = v.smCount;
+  if (v.pricePerSec6 > 0) SELL_GPU_PRICE6 = v.pricePerSec6;
+  if (gpuCards.length === 0)
+    gpuCards.push({ id: 0, uuid: null, vramFree: CARD_VRAM_GB, computeFree: 1 });
+  console.log(`[gpu] adopting the SHIELDED card as this enclave's card: ${v.card} `
+            + `${CARD_VRAM_GB} GB, ${CARD_TFLOPS} TFLOPS masked (${v.gmacPerSec} G-MAC/s measured), `
+            + `at ${v.endpoint} on the untrusted host`);
+}
+
 const SHIELDED_VERDICT = process.env.SHIELDED_VERDICT || "/run/shielded-gpu.json";
 let _shieldedCache = { at: 0, val: null };
 function shieldedCapacity() {
@@ -3828,11 +3878,17 @@ function shieldedCapacity() {
       };
     }
   } catch { val = null; }        // absent on every box that has no shielded card
+  if (val) adoptShieldedCard(val);
   _shieldedCache = { at: now, val };
   return val;
 }
 
 app.get("/availability", async (_req, res) => {
+  // FIRST, before anything reads IS_GPU: a shielded card is adopted by this call,
+  // and the object below captures IS_GPU as it builds. Without this the first
+  // /availability after boot would publish a CPU-only box and the relay would
+  // cache exactly the answer this whole change exists to stop it giving.
+  shieldedCapacity();
   // Every enclave reports BOTH pools: gpuShareFree (the largest slice one card
   // can still take; 0 on a CPU-only enclave) and cpuShareFree (the node's
   // leftover vCPU+RAM share — on a GPU enclave that leftover is rentable by
@@ -3913,7 +3969,18 @@ app.get("/availability", async (_req, res) => {
     // allocator's plan - a physical-vs-planned divergence (leaked process,
     // out-of-band device users) then surfaces as reduced advertised capacity
     // instead of a claim that fails at provision time.
+    // A SHIELDED card is not in the manager's VRAM ledger -- the manager owns no
+    // CUDA device here, so its gpuShareFree is 0 and folding it in would
+    // advertise nothing. The honest source is the probe's own reading of the
+    // card, taken from the driver on the untrusted host, so it already accounts
+    // for whatever else that host is doing with it (on a desktop, an X server).
+    // A verdict that has gone away means the path is not provable right now:
+    // advertise no free capacity, without retracting the card itself.
+    const shNow = shieldedCapacity();
     const gpuFree = !IS_GPU ? 0
+      : shNow ? Math.min(maxFreeGpuShare(),
+                         CARD_VRAM_GB > 0 ? shNow.vramFreeGb / CARD_VRAM_GB : 0)
+      : _shieldedAdopted ? 0
       : PROVISION_BACKEND === "vm" ? Math.min(maxFreeGpuShare(), c.gpuShareFree ?? Infinity)
       : (c.gpuShareFree ?? c.maxShare ?? maxFreeGpuShare());
     // wasi-nn readiness rides along (vm backend): `nn` says whether GPU
