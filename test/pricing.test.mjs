@@ -300,7 +300,25 @@ test("enclavePriceOf: a row's own posted price, the fleet's when it posts none",
   assert.equal(priced.node, 0.001668);
   assert.equal(priced.full, 0.003334);
   const silent = enclavePriceOf(row("old", { gpu: true, claimEnabled: true }));
-  assert.deepEqual(silent, { full: 0.0016670, node: 0.000834 });
+  assert.deepEqual(silent, { full: 0.0016670, node: 0.000834, shielded: undefined });
+});
+
+// A shielded card is the seller's own hardware at a price only that seller sets,
+// so unlike full/node it has NO fleet list price to fall back on. The absence has
+// to stay undefined rather than borrow the GPU ask: a box with no shielded card
+// that reported the fleet's card rate would be quoting for hardware it cannot
+// serve, and a shielded box quoting the in-enclave GPU price would be selling an
+// H200's rate for a masked 3070.
+test("enclavePriceOf: the shielded ask is the seller's own, and never inherited", () => {
+  adoptFleetPrice({ cheapestCpuPricePerSec6: 834, cheapestGpuPricePerSec6: 1667 });
+  const posted = enclavePriceOf(row("metal0", {
+    gpu: false, claimEnabled: true, askCpuPricePerSec6: 834, askShieldedPricePerSec6: 56 }));
+  assert.equal(posted.shielded, 0.000056);
+  assert.equal(posted.node, 0.000834);
+
+  const noCard = enclavePriceOf(row("cpu-only", { gpu: false, claimEnabled: true }));
+  assert.equal(noCard.shielded, undefined,
+    "a box with no shielded card must post no shielded rate, not the fleet's");
 });
 
 /* ---- free self-hosting (ledger rev 12): who charges this wallet nothing ----
