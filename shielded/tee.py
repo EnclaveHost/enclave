@@ -58,7 +58,18 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "kernels"))
 
 import numpy as np
-import torch
+
+# torch is a SPEED lever here, not a dependency of correctness: it supplies
+# `_int_mm` (int8/VNNI) for the mask refill, and refill already carries an exact
+# integer fallback for the builds whose _int_mm refuses a shape. Importing it at
+# module scope made the whole trusted half unimportable without it, which is the
+# wrong shape for a component whose own design note says the TEE runs in a
+# CPU-only CVM and must not drag the GPU stack in. Absent torch the refill is
+# slower and just as exact, and the tests still run.
+try:
+    import torch
+except ImportError:                    # pragma: no cover - exercised by CI
+    torch = None
 
 import wire
 from protocol import (CMD_ALLOC_BUFFER, CMD_GET_TENSOR, CMD_GRAPH_INSTALL,
@@ -241,6 +252,8 @@ class PublicWeight:
     def residue_torch(self):
         """The weight as a CPU int8 torch tensor for the refill GEMM. One plane,
         not three -- see the identity asserted in __init__."""
+        if torch is None:
+            raise RuntimeError("residue_torch needs torch; refill() falls back on its own")
         if self._res_t is None:
             self._res_t = torch.from_numpy(np.ascontiguousarray(self.w_fixed_i8))
         return self._res_t
@@ -393,14 +406,20 @@ def refill(r_field, weight: PublicWeight):
     for qi, q in enumerate(PRIMES):
         rr = np.mod(r_field, q)
         planes[qi * m:(qi + 1) * m] = np.where(rr > q // 2, rr - q, rr)
-    a = torch.from_numpy(planes)
-    b = weight.residue_torch()
-    try:
-        prod = torch._int_mm(a, b).numpy()
-    except RuntimeError:
-        # _int_mm has shape restrictions that vary by build; the int32 fallback is
-        # exact and merely slower, and correctness is not negotiable here.
-        prod = a.numpy().astype(np.int32) @ b.numpy().astype(np.int32)
+    wf = weight.w_fixed_i8
+    if torch is None:
+        # No torch: the same product in int32. Exact, merely slower -- and
+        # correctness is not negotiable here.
+        prod = planes.astype(np.int32) @ wf.astype(np.int32)
+    else:
+        a = torch.from_numpy(planes)
+        b = weight.residue_torch()
+        try:
+            prod = torch._int_mm(a, b).numpy()
+        except RuntimeError:
+            # _int_mm has shape restrictions that vary by build; the int32
+            # fallback is exact and merely slower.
+            prod = a.numpy().astype(np.int32) @ b.numpy().astype(np.int32)
     acc = [np.mod(prod[qi * m:(qi + 1) * m].astype(np.int64), q)
            for qi, q in enumerate(PRIMES)]
     return crt(acc[0], acc[1], acc[2])
