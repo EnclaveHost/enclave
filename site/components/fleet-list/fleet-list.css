@@ -91,6 +91,4 @@ c-fleet-list{display:contents;}
    on the untrusted host reached by masked offload. Green is the colour this page
    already uses for capacity you are getting; keeping the TEE card green and the
    outside card blue means the distinction reads before the words do.
-   the shielded pool posts no rate yet, so the label column's price slot names
-   the pool instead of standing empty — tinted to its badge, not to a warning */
-.fleet-pool-note{grid-column:1;font-size:.62rem;letter-spacing:.06em;white-space:nowrap;color:var(--iris);align-self:start;}
+   A shielded pool posts its own ask like any other, in the same price slot. */

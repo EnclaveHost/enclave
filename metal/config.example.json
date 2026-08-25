@@ -41,8 +41,8 @@
   "qemu": "qemu-system-x86_64",
   "dist": "metal/dist",
 
-    "_shieldedWorker_optional": { "port": 9500, "vramGb": 6.5 },
-  "_comment_shielded": "Sell GPU work WITHOUT putting the GPU in the enclave. The card stays on the host, outside the measurement; the guest reaches the worker at 10.0.2.2:<port> and sends it public weights and one-time-padded activations only. See docs/shielded-inference.md and shielded/README.md. Requires python3 + torch + triton on the HOST, not in the guest. Omit unless the box has a CUDA card.",
+    "_shieldedWorker_optional": { "port": 9500, "vramGb": 6.5, "priceUsdHr": 0.20 },
+  "_comment_shielded": "Sell GPU work WITHOUT putting the GPU in the enclave. priceUsdHr is this box's ask for a WHOLE shielded card per hour, and it is only advertised once the boot probe passes: no pass, no capacity, no price. The card stays on the host, outside the measurement; the guest reaches the worker at 10.0.2.2:<port> and sends it public weights and one-time-padded activations only. See docs/shielded-inference.md and shielded/README.md. Requires python3 + torch + triton on the HOST, not in the guest. Omit unless the box has a CUDA card.",
 "_egressHelper_optional": { "port": 9443 },
 
   "_comment": "mode: snp | tdx | dev. dev = plain KVM (no attestation) for bring-up. hostfwd exposes guest ports on host loopback for local testing; production reachability is the fleet tunnel (relayUrl), so hostfwd can be empty. AUTH: set tunnelToken to attach via the relay's committed token allowlist (first-party boxes); OR leave tunnelToken empty to attach PERMISSIONLESSLY by proving your SEV-SNP measurement is on the relay's METAL_ALLOWED_MEASUREMENTS allowlist (metal/PROTOCOL.md). egressHelper (rename to \"egressHelper\") is only needed on sandboxed hosts whose user-net can't NAT externally; a normal seller box dials the relay directly.",
