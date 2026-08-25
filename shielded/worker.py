@@ -65,6 +65,44 @@ from fused_field_gemm import QK, field_gemm
 
 GPU_LOCK = threading.Lock()
 
+# Measured once at startup and reported in HELLO. The box advertises this to the
+# fleet, and it has to be a MEASUREMENT of the field GEMM on this card, not a spec
+# sheet: the shielded tier's throughput is the fused masked kernel's, which reads
+# 1.0625 B/weight of q8_0 and is bandwidth-bound at the shapes that matter. A
+# vendor FP16 tensor-core figure would overstate it by a wide margin and would be
+# describing an operation this worker never performs.
+FIELD_GMACS = 0.0
+
+
+def measure_field_throughput(m=32, K=4096, N=4096, iters=12):
+    """Field GEMM throughput on this card, in G-MAC/s. Best-effort: a failure
+    here must never stop the worker serving, it just leaves the figure unposted
+    and the box advertises capacity without a throughput claim."""
+    try:
+        import numpy as _np
+        from fused_field_gemm import make_masked_activation, make_weights
+        rng = _np.random.default_rng(0)
+        wq, wd = make_weights(K, N, rng)
+        _, _, x_res = make_masked_activation(m, K, rng)
+        wq_t = torch.from_numpy(wq).cuda()
+        wd_t = torch.from_numpy(wd).cuda()
+        xr = [torch.from_numpy(p).cuda() for p in x_res]
+        for _ in range(3):
+            field_gemm(xr, wq_t, wd_t, m, N)      # warm up, and compile the shape
+        torch.cuda.synchronize()
+        t0 = time.perf_counter()
+        for _ in range(iters):
+            field_gemm(xr, wq_t, wd_t, m, N)
+        torch.cuda.synchronize()
+        dt = time.perf_counter() - t0
+        del wq_t, wd_t, xr
+        torch.cuda.empty_cache()
+        return (m * K * N * iters) / dt / 1e9 if dt > 0 else 0.0
+    except Exception as e:                                   # noqa: BLE001
+        print(f"[shielded-worker] throughput probe failed ({type(e).__name__}: {e}); "
+              f"serving anyway, capacity posts without a throughput figure", flush=True)
+        return 0.0
+
 
 class Node:
     """A resolved, validated FIELD_GEMM. Resolution happens once at install; the
@@ -128,11 +166,22 @@ class Connection:
         res = self.state.handle(cmd, payload)
 
         if cmd == CMD_HELLO:
+            # vram_free is read from the driver, not from our own accounting. The
+            # box advertises this number to the fleet, and the honest figure is
+            # what the card actually has -- including whatever the host operator
+            # is doing with it behind our back, which on a desktop is a running
+            # X server. Our ledger cannot see that; mem_get_info can.
+            free_b, total_b = torch.cuda.mem_get_info(0)
+            props = torch.cuda.get_device_properties(0)
             info = {
                 "version": list(PROTO_VERSION),
-                "device": torch.cuda.get_device_name(0),
-                "vram_total": torch.cuda.get_device_properties(0).total_memory,
+                "device": props.name,
+                "vram_total": props.total_memory,
+                "vram_free": int(free_b),
                 "vram_budget": self.state.vram_bytes,
+                "sm_count": props.multi_processor_count,
+                "capability": f"{props.major}.{props.minor}",
+                "field_gmac_per_s": round(FIELD_GMACS, 1),
                 "worker": "shielded/worker.py",
             }
             return json.dumps(info).encode()
@@ -284,6 +333,11 @@ def serve(host, port, vram_gb, quiet=False):
     budget = int(vram_gb * (1 << 30)) if vram_gb else int(props.total_memory * 0.85)
     log(f"{props.name}, sm_{props.major}{props.minor}, "
         f"{props.total_memory / 2**30:.1f} GiB total, budget {budget / 2**30:.1f} GiB")
+
+    global FIELD_GMACS
+    FIELD_GMACS = measure_field_throughput()
+    if FIELD_GMACS:
+        log(f"field GEMM throughput {FIELD_GMACS:.0f} G-MAC/s (measured, masked path)")
 
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
