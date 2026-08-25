@@ -66,8 +66,22 @@ async function main() {
   const x = new Float64Array(K);
   for (let k = 0; k < K; k++) x[k] = Math.round((rnd() * 2 - 1) * 900);
 
+  // Wait for the worker rather than racing it. The guest reaches userspace in a
+  // few seconds; the worker spends ~10 s importing torch before it binds. On a
+  // cold boot the probe would therefore hit ECONNREFUSED and report the card
+  // missing when it is merely still starting -- a false negative that would take
+  // a healthy box out of the shielded tier. Bounded, so a genuinely absent worker
+  // still fails rather than hanging boot.
+  const DEADLINE_MS = Number(arg('wait-ms', 90000));
   const link = new ShieldedLink(HOST, PORT);
-  await link.connect();
+  const t_wait0 = Date.now();
+  for (let attempt = 0; ; attempt++) {
+    try { await link.connect(); break; } catch (e) {
+      if (Date.now() - t_wait0 > DEADLINE_MS) throw e;
+      await new Promise((r) => setTimeout(r, Math.min(1000 * (attempt + 1), 5000)));
+    }
+  }
+  out.waited_ms = Date.now() - t_wait0;
   const hello = JSON.parse((await link.call(CMD.HELLO, Buffer.from([1, 0, 0, 0]))).toString());
   out.worker = { device: hello.device, version: hello.version };
 
@@ -85,7 +99,7 @@ async function main() {
   // ---- the worker refuses a denylisted op, on the wire ---------------------
   {
     const probe = new ShieldedLink(HOST, PORT);
-    await probe.connect();
+    await probe.connect();      // the worker is already up; no retry needed here
     await probe.call(CMD.HELLO, Buffer.from([1, 0, 0, 0]));
     await probe.call(CMD.ALLOC_BUFFER, packAlloc(4096, 'activations'));
     const bad = JSON.stringify({ nodes: [{ op: 'SOFT_MAX' }], outputs: [{ bid: 1, offset: 0, nbytes: 64 }] });

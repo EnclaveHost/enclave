@@ -378,7 +378,8 @@ if (fw.shieldedWorker && fw.shieldedWorker.port) {
       log(`shielded GPU OK: ${v.worker?.device} at ${host}:${port} — exact=${v.exact} `
         + `verified=${v.verified} lie_rejected=${v.lie_rejected} denylist=${v.denylist_refused} `
         + `corr=${v.transcript_correlation} chi2=${v.transcript_chi2} `
-        + `rt=${v.round_trip_ms}ms warm (${v.cold_round_trip_ms}ms cold, kernel compile)`);
+        + `rt=${v.round_trip_ms}ms warm (${v.cold_round_trip_ms}ms cold, kernel compile)`
+        + (v.waited_ms > 1000 ? ` after waiting ${(v.waited_ms / 1000).toFixed(1)}s for the worker` : ''));
     } else {
       log(`shielded GPU UNAVAILABLE (probe exit ${code}); the box keeps serving CPU work`);
     }
