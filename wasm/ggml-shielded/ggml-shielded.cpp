@@ -14,6 +14,7 @@ extern "C" {
 #include <cstdint>
 #include <map>
 #include <mutex>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -273,6 +274,45 @@ static bool sh_claimable(const ggml_tensor *op) {
     return sh_site_for(s, nm) != nullptr;
 }
 
+/* The escape hatch: q8_0 x f32 in the clear, in the enclave.
+ *
+ * A backend that claims an op and then returns GGML_STATUS_FAILED does not
+ * degrade, it kills the graph -- llama_decode turns that into rc -3 and the
+ * request dies. That is the right behaviour for a VERIFICATION failure, where
+ * continuing would mean sampling a value a hostile worker chose. It is the wrong
+ * behaviour for "this weight never registered", which is our own bookkeeping
+ * problem and has a correct answer sitting right there in the tensor.
+ *
+ * So every reason to fail EXCEPT a failed integrity check now falls back here.
+ * It is unmasked and in-enclave, so it is slower and offloads nothing -- but it
+ * is the same arithmetic ggml would have done, and a tenant that quietly runs a
+ * few sites on the CPU is strictly better than one that 500s.
+ */
+static void sh_plain_mul_mat(const ggml_tensor *w, const ggml_tensor *a, ggml_tensor *dst) {
+    const int64_t K = w->ne[0], N = w->ne[1], m = a->ne[1];
+    const int64_t nb = K / SH_QK;
+    const sh_block_q8_0 *blocks = (const sh_block_q8_0 *)w->data;
+    const float *src = (const float *)a->data;
+    float *out = (float *)dst->data;
+    for (int64_t r = 0; r < m; r++) {
+        const float *xr = src + r * K;
+        float *orow = out + r * N;
+        for (int64_t i = 0; i < N; i++) {
+            double acc = 0.0;
+            const sh_block_q8_0 *row = blocks + i * nb;
+            for (int64_t b = 0; b < nb; b++) {
+                const float d = sh_half_to_float(row[b].d);
+                const int8_t *q = row[b].qs;
+                const float *xb = xr + b * SH_QK;
+                double blk = 0.0;
+                for (int t = 0; t < SH_QK; t++) blk += (double)xb[t] * (double)q[t];
+                acc += blk * (double)d;
+            }
+            orow[i] = (float)acc;
+        }
+    }
+}
+
 static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml_cgraph *cgraph) {
     sh_state &s = sh_get();
     std::lock_guard<std::mutex> lk(s.mu);
@@ -303,13 +343,28 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
                 continue;
             case GGML_OP_MUL_MAT: break;
             default:
-                return GGML_STATUS_FAILED;      /* fail closed: we claimed only matmuls */
+                // supports_op claims only matmuls and metadata ops, so this is
+                // unreachable unless sched changes its mind about what we take.
+                fprintf(stderr, "[shielded] refusing an op we never claimed (%s); failing the graph\n",
+                        ggml_op_name(node->op));
+                return GGML_STATUS_FAILED;
         }
 
         const ggml_tensor *w  = node->src[0];
         const ggml_tensor *a  = node->src[1];
         auto it = s.weights.find(ggml_get_name(w));
-        if (it == s.weights.end()) return GGML_STATUS_FAILED;
+        if (it == s.weights.end()) {
+            // We claimed it in supports_op and then failed to register it. Compute
+            // it honestly rather than killing the graph, and say so once.
+            static std::set<std::string> told;
+            const std::string nm = ggml_get_name(w);
+            if (told.insert(nm).second)
+                fprintf(stderr, "[shielded] %s: claimed but not registered; computing it "
+                                "in the enclave (nothing offloaded for this site)\n", nm.c_str());
+            sh_plain_mul_mat(w, a, node);
+            s.local_nodes++;
+            continue;
+        }
         sh_state::entry &e = it->second;
 
         const int64_t K = e.K, N = e.N;
@@ -369,7 +424,15 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
             rc = sh_link_gemm_local(s.link, nodes, 1, x_gpu.data(), m, yp);
             s.local_nodes++;
         }
-        if (rc != SH_OK) return GGML_STATUS_FAILED;
+        if (rc != SH_OK) {
+            // Not a verification failure (that returned above) -- a transport or
+            // bookkeeping problem. The honest answer is still available locally.
+            fprintf(stderr, "[shielded] %s: offload and local path both failed (%d); "
+                            "computing it in the enclave\n", ggml_get_name(w), rc);
+            sh_plain_mul_mat(w, a, node);
+            s.local_nodes++;
+            continue;
+        }
 
         /* The outlier term, in the TEE, outside the field. */
         if (nout) {
