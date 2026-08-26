@@ -117,8 +117,10 @@ class FleetList extends EnclaveElement {
             + '<span class="fleet-head">'
             // ONE badge, naming what the box is. Jade "TEE GPU" for a card INSIDE
             // the measured enclave, iris "GPU" for one on the untrusted host
-            // reached by masked offload, and plain "CPU" only when there is no
-            // card at all — a box with a GPU is not a CPU box that happens to
+            // reached by masked offload -- the ABSENCE of "tee" is the signal,
+            // and the tooltip says outright that this card is outside the
+            // enclave and outside its measurement. Plain "CPU" only when there
+            // is no card at all — a box with a GPU is not a CPU box that happens to
             // have one, and badging it both ways buries the thing a buyer came
             // to look for. Every row still shows its CPU POOL underneath; the
             // badge answers what the box is, the pools answer what it has.
@@ -131,9 +133,7 @@ class FleetList extends EnclaveElement {
                   + 'public weights and one-time-padded activations, and every result is '
                   + 'verified. The card is outside the enclave and outside its measurement, '
                   + 'so this is NOT a TEE GPU \u2014 your activations are protected by the '
-                  + 'masking, not by the card.">shielded gpu</span>'
-                : gpu
-                ? '<span class="ap-badge ok">gpu</span>'
+                  + 'masking, not by the card.">gpu</span>'
                 : '<span class="ap-badge">cpu</span>')
             + '<span class="fleet-name">' + esc(name) + '</span>'
             + this._ratingHtml(e)
