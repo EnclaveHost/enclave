@@ -211,16 +211,105 @@ sh('gcc', ['-static', '-Os', '-o', path.join(md, 'mverity'), path.join(HERE, 'gu
 // the tier. The WORKER stays outside and unmeasured, because it is assumed
 // hostile and its honesty is enforced by verification rather than attestation.
 //
-// The overlay is a plain directory the operator prepares (build it with
-// `make -C wasm/ggml-shielded` against the engine's pinned ggml, plus one
-// <volume>.calib per model from shielded/export-calib.py). Its contents are
-// hashed into the manifest, so "what shielded code is in this image" is a
-// question the image answers about itself rather than one you have to trust the
-// builder on.
+// THE BACKEND IS COMPILED HERE, FROM SOURCE, and this is a supply-chain
+// property rather than a convenience. It used to ship as a prebuilt
+// libggml-shielded.so committed to the repo, which gave the single most
+// security-critical binary in the image two bad properties: a reviewer
+// approving a change to it saw only `Bin 76040 -> 145344 bytes`, so no human
+// ever read what went in; and anyone who compromised the workstation or the
+// toolchain that produced it could put code holding the pads, the Freivalds
+// secret and every plaintext activation INSIDE the measurement without ever
+// touching this repo's source. Deriving the bytes here from reviewable C, with
+// ggml's headers vendored (wasm/ggml-shielded/vendor/ggml) and its library
+// taken from the digest-pinned engine image, removes both.
+//
+// It FAILS THE BUILD rather than falling back. A missing compiler or a header
+// that disagrees with the pinned engine must not silently produce an image that
+// serves a shielded card with stale or mismatched code -- and the old fallback,
+// "copy whatever .so is lying in the overlay directory", is exactly the thing
+// being removed.
+//
+// The overlay directory now carries DATA only: one <volume>.calib per model
+// from shielded/export-calib.py. Those are public per-site constants (activation
+// exponent + outlier channel indices) derived from public weights, they are
+// text, and they are hashed into the manifest like everything else.
 const SHIELDED_SRC = path.resolve(arg('shielded', path.join(HERE, 'shielded-overlay')));
+const SHIELDED_CODE = path.resolve(arg('shielded-src', path.join(HERE, '..', 'wasm', 'ggml-shielded')));
 const shieldedFiles = [];
+let shieldedBuild = null;
+
+// Compile wasm/ggml-shielded into the wasm chroot. Returns the build record for
+// the manifest, or throws with a reason a human can act on.
+function buildShieldedBackend(dstRoot) {
+  const vendorDir = path.join(SHIELDED_CODE, 'vendor', 'ggml');
+  const libDir = path.join(WASM_ROOT, 'usr/local/lib');
+  if (!fs.existsSync(path.join(vendorDir, 'ggml-backend-impl.h')))
+    throw new Error(`shielded: no vendored ggml headers at ${vendorDir}`);
+
+  // The headers are vendored but the library comes from the pinned engine
+  // image, so the two can drift apart at exactly one moment: an engine repin.
+  // A header/library mismatch is undefined behaviour rather than an error, so
+  // check it by name here instead of discovering it as a corrupt tenant later.
+  const want = fs.readFileSync(path.join(vendorDir, 'VERSION'), 'utf8').trim();
+  const soname = fs.existsSync(libDir)
+    ? fs.readdirSync(libDir).find((f) => /^libggml-base\.so\.\d+\.\d+\.\d+$/.test(f)) : null;
+  if (!soname)
+    throw new Error(`shielded: the engine image ships no libggml-base.so.X.Y.Z under ${libDir}`);
+  const have = soname.replace('libggml-base.so.', '');
+  if (have !== want)
+    throw new Error(`shielded: vendored ggml headers are ${want} but the pinned engine image ships ${have}. `
+                  + `Refresh wasm/ggml-shielded/vendor/ggml (see its README) and rebuild.`);
+
+  const objDir = path.join(BUILD, 'shielded-obj');
+  fs.rmSync(objDir, { recursive: true, force: true });
+  fs.mkdirSync(objDir, { recursive: true });
+  const inc = ['-I' + vendorDir, '-I' + SHIELDED_CODE];
+  const base = ['-O2', '-Wall', '-Wextra', '-fPIC'];
+  // Flags mirror wasm/ggml-shielded/Makefile. Two are load-bearing rather than
+  // taste: -ffp-contract=off on the field encoder, because the worker runs the
+  // same source and an FMA would round differently on one side, making the
+  // unmasking subtraction return noise; and the SIMD file compiled TWICE, since
+  // the .so must load on any x86-64 (a SIGILL inside the engine is not a
+  // degraded mode) and picks its kernels at run time after checking the two
+  // builds agree.
+  const units = [
+    { src: 'shielded-field.c', obj: 'shielded-field.o', cc: 'cc',  flags: [...base, '-ffp-contract=off'] },
+    { src: 'shielded-wire.c',  obj: 'shielded-wire.o',  cc: 'cc',  flags: base },
+    { src: 'shielded-tee.c',   obj: 'shielded-tee.o',   cc: 'cc',  flags: base },
+    { src: 'shielded-simd.c',  obj: 'shielded-simd-avx512.o', cc: 'cc',
+      flags: [...base, '-O3', '-mavx512f', '-mavx512bw', '-mavx512dq', '-mavx512vl', '-mavx512vnni', '-DSH_SIMD_AVX512'] },
+    { src: 'shielded-simd.c',  obj: 'shielded-simd-generic.o', cc: 'cc', flags: [...base, '-O3'] },
+    { src: 'ggml-shielded.cpp', obj: 'ggml-shielded.o', cc: 'c++',
+      flags: [...base, '-std=c++17', '-DGGML_BACKEND_DL', '-DGGML_BACKEND_SHARED'] },
+  ];
+  const sources = [];
+  for (const u of units) {
+    const src = path.join(SHIELDED_CODE, u.src);
+    if (!fs.existsSync(src)) throw new Error(`shielded: missing source ${src}`);
+    sh(u.cc, [...u.flags, ...inc, '-c', src, '-o', path.join(objDir, u.obj)]);
+    if (!sources.some((x) => x.name === u.src))
+      sources.push({ name: u.src, sha256: sha256File(src) });
+  }
+  for (const h of fs.readdirSync(SHIELDED_CODE).filter((f) => /\.h$/.test(f)).sort())
+    sources.push({ name: h, sha256: sha256File(path.join(SHIELDED_CODE, h)) });
+
+  // rpath is the IN-CHROOT path, not the builder's. The prebuilt binary this
+  // replaces carried a RUNPATH into the scratch directory it happened to be
+  // compiled in, which resolved only because the engine had already loaded ggml.
+  fs.mkdirSync(dstRoot, { recursive: true });
+  const so = path.join(dstRoot, 'libggml-shielded.so');
+  sh('c++', ['-shared', '-o', so, ...units.map((u) => path.join(objDir, u.obj)),
+             '-L' + libDir, '-lggml-base', '-lpthread', '-lm',
+             '-Wl,-rpath,/usr/local/lib']);
+  fs.chmodSync(so, 0o755);
+  const ver = (c) => { try { return out(c, ['--version']).split('\n')[0].trim(); } catch { return 'unknown'; } };
+  return { ggml: have, cc: ver('cc'), cxx: ver('c++'), sources,
+           vendoredHeaders: fs.readdirSync(vendorDir).filter((f) => /\.h$/.test(f)).sort()
+             .map((f) => ({ name: f, sha256: sha256File(path.join(vendorDir, f)) })) };
+}
+
 if (fs.existsSync(SHIELDED_SRC)) {
-  console.log('[build] installing the shielded engine backend…');
+  console.log('[build] compiling the shielded engine backend from source…');
   // INTO THE WASM CHROOT, not the guest root. The manager and every tenant's
   // wasmtime run chrooted into /opt/roots/wasm, so that is the filesystem the
   // paths in _shielded_tenant_env resolve against -- GGML_BACKEND_PATH and
@@ -231,18 +320,33 @@ if (fs.existsSync(SHIELDED_SRC)) {
   // -- which looks like a working deployment that has quietly stopped using the
   // card it is paying for.
   const dstRoot = path.join(WASM_ROOT, 'opt/enclave/shielded');
+  const record = (to, r) => shieldedFiles.push({
+    path: `/opt/roots/wasm/opt/enclave/shielded/${r}`,
+    tenantPath: `/opt/enclave/shielded/${r}`,
+    bytes: fs.statSync(to).size, sha256: sha256File(to),
+  });
+
+  shieldedBuild = buildShieldedBackend(dstRoot);          // throws rather than shipping stale code
+  record(path.join(dstRoot, 'libggml-shielded.so'), 'libggml-shielded.so');
+  console.log(`[build]   built from source against ggml ${shieldedBuild.ggml} (${shieldedBuild.cc})`);
+
+  // DATA ONLY from the overlay directory. A .so found here is ignored and said
+  // out loud: it is the artifact this build step exists to stop shipping, and
+  // silently preferring either one would make "which backend is in the image"
+  // unanswerable from the source.
   const walk = (src, rel = '') => {
     for (const ent of fs.readdirSync(src, { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) {
       const from = path.join(src, ent.name), r = rel ? `${rel}/${ent.name}` : ent.name;
       if (ent.isDirectory()) { walk(from, r); continue; }
       if (!ent.isFile()) continue;
+      if (/\.so$/.test(r)) {
+        console.log(`[build]   (ignoring prebuilt ${r}; the backend is compiled from source)`);
+        continue;
+      }
       const to = path.join(dstRoot, r);
       fs.mkdirSync(path.dirname(to), { recursive: true });
       fs.copyFileSync(from, to);
-      if (/\.so$/.test(r)) fs.chmodSync(to, 0o755);
-      shieldedFiles.push({ path: `/opt/roots/wasm/opt/enclave/shielded/${r}`,
-                           tenantPath: `/opt/enclave/shielded/${r}`,
-                           bytes: fs.statSync(to).size, sha256: sha256File(to) });
+      record(to, r);
     }
   };
   walk(SHIELDED_SRC);
@@ -317,13 +421,28 @@ const manifest = {
   // reproduce each measurement", metal/PROTOCOL.md). Only a build whose every
   // input is digest-pinned can carry that claim, so it is recorded per build
   // instead of asserted in prose.
-  reproducible: isPinned(SUPERVISOR_REF) && isPinned(WASM_REF),
+  // A prebuilt binary inside the measurement cannot carry this claim either: the
+  // shielded backend is the most security-critical code in the image, and if it
+  // were copied in rather than compiled from the source recorded below, nobody
+  // could rebuild this measurement and check it. `shieldedBuild` is non-null
+  // exactly when it was compiled here.
+  reproducible: isPinned(SUPERVISOR_REF) && isPinned(WASM_REF)
+                && (shieldedFiles.length === 0 || shieldedBuild !== null),
   kernel: { path: KERNEL, kver: KVER, sha256: kernelSha },
   modules: modList,
   // Every shielded file baked in, by hash. Empty on a box with no shielded card.
   // In the manifest rather than only in the build log because these bytes are
   // inside the launch measurement and a reader should be able to enumerate them.
   shielded: shieldedFiles,
+  // How the backend in `shielded` came to exist: the ggml it was compiled
+  // against, the toolchain that did it, and the hash of every source file that
+  // went in. Two builders comparing measurements can see WHICH input differed
+  // instead of only that the answer did. The toolchain is recorded rather than
+  // pinned, and that is the honest remaining gap: same source and same ggml on
+  // a different compiler yields different bytes and therefore a different
+  // measurement. Pinning it needs the toolchain in a digest-pinned image, which
+  // is a larger change than this one.
+  ...(shieldedBuild ? { shieldedBuild } : {}),
   cmdlineTemplate,
   // How attached model volumes are bound to the hardware. The launcher puts the
   // digest of the volume table in HOST_DATA (SEV-SNP) / MRCONFIGID (TDX), which

@@ -65,3 +65,8 @@ e2e/playwright-report/
 !.impeccable/design.json
 !.impeccable/live/
 !.impeccable/live/config.json
+
+# The shielded backend is compiled from source during the image build
+# (metal/build-image.mjs); a committed binary is exactly what that replaced.
+metal/shielded-overlay/*.so
+wasm/ggml-shielded/*.so

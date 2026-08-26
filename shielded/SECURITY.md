@@ -265,7 +265,21 @@ a CSPRNG; partial keystream does not predict the rest.
 
 No plaintext prompt or response was recovered, and the ground-truth likelihood test shows why
 it is not a matter of effort: the transcript is equally consistent with every input of the
-same shape. The throughput work (pad pool, one-frame CUDA worker, vsock, shared-x grouping,
+same shape.
+
+**Where extraction IS possible, and what that says about where to spend effort.** Given the
+pad key, extraction is total: regenerating the ChaCha20 keystream and subtracting recovers
+every activation bit-for-bit (147/147 exchanges, verified). So the tier's confidentiality
+reduces entirely to one 32-byte value that is generated per link inside the CVM, exists only
+as a ChaCha20 input in the engine's address space, dies with the process, and appears nowhere
+in the 2.8 MB the worker received -- not the whole key, not any 8-byte fragment. Every real
+path to it therefore runs through the ENCLAVE, not the GPU: code placed inside the measured
+image, a break of SEV-SNP itself, or a memory-disclosure bug in the engine process. The GPU
+operator, which is this tier's stated adversary, has none of them. That is the design working
+as intended rather than a caveat -- but it does mean the image's supply chain, not the masking,
+is where further hardening pays. The shielded backend is compiled from source during the image
+build for exactly this reason (see `metal/README.md`); it used to ship as a committed binary,
+which put "whoever built that .so" inside the TCB with no reviewable record. The throughput work (pad pool, one-frame CUDA worker, vsock, shared-x grouping,
 decode-only placement) changed WHEN the pad is drawn and HOW FAST it ships, never WHAT crosses.
 
 **The one thing the operator does learn is shape metadata**, which §1's model already treats as
