@@ -135,6 +135,12 @@ jobs:
               mps-daemon/*)            mps=true ;;
               wasm/__pycache__/*) ;;
               wasm/Dockerfile.wasmtime|wasm/wasmtime-onnx-gpu-strict.patch) ;;   # toolchain-image inputs, built by toolchain.yml, pinned into Dockerfile.wasm by digest
+              # Ignore rules are not build inputs. `wasm/*` matches at any depth,
+              # so adding wasm/nvenc-shim/.gitignore rebuilt the wasm-manager
+              # image, repinned its digest, and was about to cut a measured
+              # release and repoint the fleet (run 32983352553, cancelled) for a
+              # file nothing in the image reads.
+              wasm/.gitignore|wasm/*/.gitignore) ;;
               wasm/*)                  wasm=true ;;
               enclaves/*)              config_touched=true ;;
             esac
