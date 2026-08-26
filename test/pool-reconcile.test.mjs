@@ -123,3 +123,38 @@ test("legacy handle without _needV falls back to vramGb + overhead", async () =>
   });
   assert.equal(r.cards[0].vramFree, 126.9);           // 140.4 - (13 + default 0.5 CTX_OVERHEAD_GB)
 });
+
+// The shielded card's overhead accounting. CTX_OVERHEAD_GB is a per-WORKER CUDA
+// context cost, and a shielded tenant opens no context at all -- it runs in the
+// CVM with CUDA_VISIBLE_DEVICES="" while one worker process on the untrusted
+// host serves the whole box. Charging it per tenant booked it twice and made an
+// 85% lease advertise a completely full card.
+test("a shielded card does not charge per-tenant CUDA context overhead", async () => {
+  // metal0 as observed 2026-08-26: 6.5 GB budget, one 85% lease. normalizeGpuReq
+  // books ceil(0.85*6.5)=6 GB; the old code added 0.5 GB on top (the whole
+  // budget) and then charged the next tenant another 0.5 to look at it.
+  const lease = { cardId: 0, vramGb: 6, computeShare: 0.85, cpuShare: 0.2, _needV: 6 };
+  const shielded = await reconcile({
+    cardVramGb: 6.5, shielded: true,
+    cards: [{ vramFree: 0.5, computeFree: 0.15 }],
+    cpuShareFree: 0.8,
+    records: [{ id: "eyesoff", status: "running", _gpu: lease }],
+  });
+  assert.equal(shielded.cards[0].vramFree, 0.5);
+  assert.equal(shielded.cards[0].computeFree, 0.15);
+  assert.ok(shielded.maxFreeGpuShare > 0,
+    "the unsold remainder of a shielded card must be sellable, not swallowed by a context reserve");
+  assert.ok(Math.abs(shielded.maxFreeGpuShare - 0.077) < 0.002,
+    `expected ~7.7% (0.5 GB of a 6.5 GB budget), got ${shielded.maxFreeGpuShare}`);
+
+  // A passed-through card is unchanged: there the per-worker context is real,
+  // and the same 0.5 GB leftover genuinely cannot host another worker.
+  const passthrough = await reconcile({
+    cardVramGb: 6.5,
+    cards: [{ vramFree: 0.5, computeFree: 0.15 }],
+    cpuShareFree: 0.8,
+    records: [{ id: "eyesoff", status: "running", _gpu: { ...lease, _needV: 6.5 } }],
+  });
+  assert.equal(passthrough.maxFreeGpuShare, 0,
+    "a real card must still reserve a context for the next worker");
+});

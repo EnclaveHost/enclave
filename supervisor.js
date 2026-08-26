@@ -1755,11 +1755,32 @@ function normalizeGpuReq(gpuShare, cpuShare) {
   return { gpuShare: gpct / 100, cpuShare: cpct / 100, vramGb: v,
            computeShare: gpct / 100, computePct: gpct };
 }
+// CTX_OVERHEAD_GB is a PER-WORKER CUDA context cost, and a shielded card has no
+// per-TENANT worker to charge it to. A shielded tenant runs inside the CVM with
+// CUDA_VISIBLE_DEVICES="" and opens no context at all; the single worker process
+// on the untrusted host holds one context for the whole box, however many
+// tenants are offloading to it. Charging it per tenant books it TWICE -- once on
+// top of the tenant's own slice, and again as the next tenant's entry cost in
+// maxFreeGpuShare -- which on a 6.5 GB card makes any share above ~84.6%
+// advertise a completely full card. Measured on metal0 2026-08-26: an 85% lease
+// booked the entire 6.5 GB budget while the card actually held 736 MiB.
+//
+// The share-proportional VRAM reservation itself is KEPT. It over-reserves for
+// this tier too (a shielded tenant's real VRAM is its model's encoded weights,
+// not a fraction of the card), but it is the only thing bounding how many models
+// land on one card, and erring high there costs advertised capacity rather than
+// a tenant that fails to launch.
+// Set one-way by adoptShieldedCard() below. Declared HERE rather than beside it
+// because the pool math reads it and the POOL_SELFTEST seam evaluates during
+// module init, which a later `let` would put in its temporal dead zone.
+let _shieldedAdopted = false;
+const ctxOverheadGb = () => (_shieldedAdopted ? 0 : CTX_OVERHEAD_GB);
+
 // reserve an arbitrary slice on a single card (best-fit on VRAM) PLUS the
 // deployment's cpuShare from the node pool — both or neither. VRAM overhead is
 // reserved on top of the cap so the sum of live workers never exceeds physical.
 function allocGpu(vramGb, computeShare, cpuShare) {
-  const needV = vramGb + CTX_OVERHEAD_GB;
+  const needV = vramGb + ctxOverheadGb();
   if (cpuPool.shareFree < cpuShare - 1e-9) return null;
   const fit = gpuCards
     .filter(c => c.vramFree >= needV - 1e-9 && c.computeFree >= computeShare - 1e-9)
@@ -1779,11 +1800,11 @@ function releaseGpu(h) {
   card.computeFree = Math.min(1, card.computeFree + h.computeShare);
 }
 // largest slice a single card can still take (VRAM net of overhead; compute share)
-const maxFreeVram    = () => Math.max(0, ...gpuCards.map(c => c.vramFree - CTX_OVERHEAD_GB));
+const maxFreeVram    = () => Math.max(0, ...gpuCards.map(c => c.vramFree - ctxOverheadGb()));
 const maxFreeCompute = () => Math.max(0, ...gpuCards.map(c => c.computeFree));
 // largest GPU share a single card can still take (vram + compute must fit together)
 const maxFreeGpuShare = () => !IS_GPU ? 0 : Math.max(0, ...gpuCards.map(c =>
-  Math.min(c.computeFree, (c.vramFree - CTX_OVERHEAD_GB) / CARD_VRAM_GB)));
+  Math.min(c.computeFree, (c.vramFree - ctxOverheadGb()) / CARD_VRAM_GB)));
 
 const _applyGpu = (text) => {
   let got = 0; const totals = [];
@@ -2042,6 +2063,7 @@ function startPoolReconciler() {
 if (process.env.POOL_SELFTEST) {
   const c = JSON.parse(process.env.POOL_SELFTEST);
   if (c.cardVramGb > 0) CARD_VRAM_GB = c.cardVramGb;
+  if (c.shielded) { _shieldedAdopted = true; IS_GPU = true; }
   gpuCards.length = 0;
   (c.cards || []).forEach((k, i) => gpuCards.push({ id: i, uuid: null, vramFree: k.vramFree, computeFree: k.computeFree }));
   if (c.cpuShareFree != null) cpuPool.shareFree = c.cpuShareFree;
@@ -2050,6 +2072,7 @@ if (process.env.POOL_SELFTEST) {
   console.log(JSON.stringify({ fixed, fixedAgain,
     cpuShareFree: round3(cpuPool.shareFree),
     cards: gpuCards.map((k) => ({ vramFree: round1(k.vramFree), computeFree: round3(k.computeFree) })),
+    maxFreeGpuShare: round3(maxFreeGpuShare()),
     dropped: [...deployments.values()].filter((r) => !r._gpu).map((r) => r.id) }));
   process.exit(0);
 }
@@ -3831,7 +3854,8 @@ if (RELAY_SERVICES)
 // capacity (availability reads the live verdict every time), but it must not
 // retract a card that live leases are already running on -- that would strand
 // tenants mid-lease over a probe that may simply be restarting.
-let _shieldedAdopted = false;
+// (`_shieldedAdopted` is declared with the card pool above, because the pool
+// math reads it and the POOL_SELFTEST seam runs before this point.)
 function adoptShieldedCard(v) {
   if (_shieldedAdopted || !v) return;
   _shieldedAdopted = true;
