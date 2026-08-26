@@ -3863,17 +3863,27 @@ function adoptShieldedCard(v) {
   IS_GPU = true;
   CARD_VRAM_GB = v.vramBudgetGb > 0 ? v.vramBudgetGb : v.vramGb;
   CARD_VRAM_SRC = "shielded-probe";
-  // TFLOPS from the worker's MEASURED masked throughput, not the card's vendor
-  // number: 1 MAC is 2 FLOPs, and what a tenant can actually buy here is the
-  // field GEMM the worker performs, not an fp16 tensor-core figure describing an
-  // operation this path never runs.
-  if (v.gmacPerSec > 0) CARD_TFLOPS = round1(v.gmacPerSec * 2 / 1000);
+  // CARD_TFLOPS is a SIZING UNIT, not a performance claim: gpuShareOf divides an
+  // app's declared TFLOPS by it to decide what share the app must buy. So it has
+  // to be on the SAME BASIS as every other box, all of which quote the vendor's
+  // dense fp16 tensor figure (GPU_TFLOPS, 989 for an H200).
+  //
+  // It used to be the worker's MEASURED masked throughput, which is ~25x smaller
+  // and made this box uncomparable AND unusable: at 1.6 TFLOPS an app declaring
+  // 5 computed a 312% share and could not be placed here at all, while the fleet
+  // saw a card 600x weaker than kryptos rather than the ~25x it really is.
+  //
+  // The measured figure has not gone anywhere -- it rides in the shielded block
+  // as gmacPerSec, where it describes what the masked path actually delivers.
+  // These are two different questions and they now have two different fields.
+  if (v.cardTflops > 0) CARD_TFLOPS = round1(v.cardTflops);
+  else if (v.gmacPerSec > 0) CARD_TFLOPS = round1(v.gmacPerSec * 2 / 1000);   // older probe: no rated figure
   if (v.smCount > 0) SM_TOTAL = v.smCount;
   if (v.pricePerSec6 > 0) SELL_GPU_PRICE6 = v.pricePerSec6;
   if (gpuCards.length === 0)
     gpuCards.push({ id: 0, uuid: null, vramFree: CARD_VRAM_GB, computeFree: 1 });
   console.log(`[gpu] adopting the SHIELDED card as this enclave's card: ${v.card} `
-            + `${CARD_VRAM_GB} GB, ${CARD_TFLOPS} TFLOPS masked (${v.gmacPerSec} G-MAC/s measured), `
+            + `${CARD_VRAM_GB} GB, ${CARD_TFLOPS} TFLOPS rated (masked path measured ${v.gmacPerSec} G-MAC/s), `
             + `at ${v.endpoint} on the untrusted host`);
 }
 
@@ -3895,6 +3905,7 @@ function shieldedCapacity() {
         vramFreeGb: Number(v.vram_free_gb) || 0,
         vramBudgetGb: Number(v.vram_budget_gb) || 0,
         gmacPerSec: Number(v.field_gmac_per_s) || 0,
+        cardTflops: Number(v.card_tflops) || 0,
         smCount: Number(v.sm_count) || 0,
         capability: String(v.capability || "").slice(0, 8),
         roundTripMs: Number(v.round_trip_ms) || 0,

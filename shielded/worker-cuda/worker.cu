@@ -125,6 +125,46 @@ static void logf(const char *f, ...) {
 }
 
 /* ---------------------------------------------------------------------------
+ * The card's RATED FP16 tensor throughput, derived rather than declared.
+ *
+ * This is the SIZING unit -- the number an app's declared TFLOPS requirement is
+ * divided by to decide what share of the card it must buy -- and it therefore
+ * has to be on the same basis as every other box in the fleet, which quotes the
+ * vendor's dense FP16 tensor figure. It is NOT a claim about what the masked
+ * path delivers; that is `field_gmac_per_s`, measured, reported separately, and
+ * roughly 25x smaller. Conflating the two is what broke placement on metal0: at
+ * a masked 1.6 TFLOPS, an app declaring 5 TFLOPS computed a 312% share and
+ * could not be placed on the box at all.
+ *
+ * Rated dense FP16 = SMs x (FLOP per SM per clock, an architecture constant) x
+ * clock. Checked against the published figures: RTX 3070 40.6, 2080 Ti 53.8,
+ * A100 312, RTX 4090 165.2, H100 SXM 989.4 -- the last being exactly the
+ * fleet's own GPU_TFLOPS default, so a shielded box lands on the same scale as
+ * a passed-through one by construction.
+ *
+ * Two honest caveats, both recorded rather than smoothed over. cudaDeviceProp
+ * reports the MAX boost clock while vendor spec sheets quote the REFERENCE
+ * boost, so this reads a little above the sticker (a 3070 measures 2100 MHz
+ * against a rated 1725, i.e. 49 rather than 40.6). And an architecture missing
+ * from the table returns 0, which the supervisor treats as "no rated figure"
+ * and falls back rather than inventing one.
+ * ------------------------------------------------------------------------ */
+static int fp16_flops_per_sm_clock(int major, int minor) {
+    switch (major) {
+        case 7:  return minor == 0 ? 1024 : 512;      /* Volta / Turing */
+        case 8:  return minor == 0 ? 2048 : 512;      /* A100 / Ampere consumer + Ada */
+        case 9:  return 4096;                          /* Hopper */
+        case 10: case 12: return 4096;                 /* Blackwell; refine when one is measured */
+        default: return 0;                             /* unknown: say so, do not guess */
+    }
+}
+static double rated_fp16_tflops(const cudaDeviceProp &p) {
+    const int per = fp16_flops_per_sm_clock(p.major, p.minor);
+    if (!per) return 0.0;
+    return (double)p.multiProcessorCount * per * ((double)p.clockRate * 1e3) / 1e12;
+}
+
+/* ---------------------------------------------------------------------------
  * CUDA errors. A bad request is refused; a broken context kills the process.
  * ------------------------------------------------------------------------ */
 static bool fatal_cuda(cudaError_t e) {
@@ -548,12 +588,18 @@ struct Conn {
         hello_done = true;
         size_t freeb = 0, totalb = 0;
         cudaMemGetInfo(&freeb, &totalb);
+        /* card_tflops is the RATED sizing figure; field_gmac_per_s is the MEASURED
+         * masked throughput. Both cross, because they answer different
+         * questions, and the inputs to the derived one cross too so a reader can
+         * recompute it instead of trusting an untrusted worker's arithmetic. */
         return fmt("{\"version\":[%d,%d,%d],\"device\":\"%s\",\"vram_total\":%llu,\"vram_free\":%llu,"
                    "\"vram_budget\":%lld,\"sm_count\":%d,\"capability\":\"%d.%d\","
+                   "\"clock_khz\":%d,\"card_tflops\":%.1f,"
                    "\"field_gmac_per_s\":%.1f,\"worker\":\"shielded/worker-cuda\"}",
                    PROTO_MAJOR, PROTO_MINOR, PROTO_PATCH, g_props.name,
                    (unsigned long long)g_props.totalGlobalMem, (unsigned long long)freeb,
-                   g_vram_budget, g_props.multiProcessorCount, g_props.major, g_props.minor, g_gmacs);
+                   g_vram_budget, g_props.multiProcessorCount, g_props.major, g_props.minor,
+                   g_props.clockRate, rated_fp16_tflops(g_props), g_gmacs);
     }
 
     std::string alloc(const uint8_t *p, size_t n) {
@@ -895,8 +941,10 @@ int main(int argc, char **argv) {
     cudaSetDeviceFlags(cudaDeviceScheduleSpin);
     cudaGetDeviceProperties(&g_props, 0);
     g_vram_budget = vram_gb > 0 ? (long long)(vram_gb * (double)(1ull << 30)) : (long long)(g_props.totalGlobalMem * 0.85);
-    logf("%s, sm_%d%d, %.1f GiB total, budget %.1f GiB", g_props.name, g_props.major, g_props.minor,
-         g_props.totalGlobalMem / 1073741824.0, g_vram_budget / 1073741824.0);
+    logf("%s, sm_%d%d, %.1f GiB total, budget %.1f GiB, %d SMs @ %.2f GHz -> %.1f TFLOPS fp16 rated",
+         g_props.name, g_props.major, g_props.minor,
+         g_props.totalGlobalMem / 1073741824.0, g_vram_budget / 1073741824.0,
+         g_props.multiProcessorCount, g_props.clockRate / 1e6, rated_fp16_tflops(g_props));
     kernel_init();
     try {
         if (!selftest()) return 1;

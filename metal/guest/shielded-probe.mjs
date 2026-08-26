@@ -95,6 +95,12 @@ async function main() {
     vram_budget_gb: hello.vram_budget ? +(hello.vram_budget / GB).toFixed(1) : 0,
     sm_count: hello.sm_count || 0,
     capability: hello.capability || "",
+    // The RATED fp16 figure (SMs x arch constant x clock) is the SIZING unit and
+    // is on the same basis as every other box in the fleet. It is not a claim
+    // about the masked path, which is field_gmac_per_s below and ~25x smaller.
+    // Its inputs cross too, so the number can be recomputed rather than trusted.
+    clock_khz: hello.clock_khz || 0,
+    card_tflops: hello.card_tflops || 0,
     field_gmac_per_s: hello.field_gmac_per_s || 0,
   };
 
