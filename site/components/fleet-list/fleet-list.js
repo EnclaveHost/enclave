@@ -106,9 +106,21 @@ class FleetList extends EnclaveElement {
           // two differently-sized GPU rows on one single-card box.
           const shPool = shieldedPoolOf(e);
           const shTotal = shPool ? shPool.total : 0;
-          const shFreeGb = shPool ? shPool.freeGb : 0;
+          // LEASABLE, not resident. A shielded worker keeps only the model's
+          // encoded weights on the card, so the silicon reads nearly empty while
+          // the card is fully booked; showing that reading as "available" quoted
+          // capacity the allocator would refuse to sell. The physical number is
+          // still true and still worth saying, so it moves into the tooltip.
+          const shLeasableGb = shPool ? shPool.leasableGb : 0;
+          const shPhysFreeGb = shPool ? shPool.freeGb : 0;
           const shFree = shPool ? shPool.frac : 0;
           const shPct = Math.floor(shFree * 100);
+          const shVramTitle = shPool
+            ? fmtNum(shPhysFreeGb) + ' GB of the ' + fmtNum(shTotal) + ' GB budget is physically free on the card'
+              + ', but ' + shPct + '% is available to lease. A shielded worker holds only the'
+              + ' model\u2019s encoded weights and the masked activations are transient, so a'
+              + ' leased card still reads nearly empty.'
+            : '';
           const s = serverSpec();   // adopted fleet hardware; display fallback for rows that omit their own
           const vramGb = a.cardVramGb || s.cardVramGb, tflops = a.cardTflops || s.cardTflops;
           const ramGb = a.nodeRamGb || s.nodeRamGb, vcpus = a.nodeVcpus || s.nodeVcpus;
@@ -139,7 +151,7 @@ class FleetList extends EnclaveElement {
             + this._ratingHtml(e)
             + '</span>'
             + (sh ? pool("GPU", shPct,
-                stat(fmtNum(shFreeGb), fmtNum(shTotal), "GB", "vram available")
+                stat(fmtNum(shLeasableGb), fmtNum(shTotal), "GB", "vram available", shVramTitle)
                 // The box reports what it measured -- G-MAC/s of the masked field
                 // GEMM -- and the cell shows tflops, because that is the unit the
                 // pool above it uses and a customer should not have to convert

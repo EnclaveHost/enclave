@@ -250,13 +250,34 @@ export function enclaveClassOf(row){
 // The VRAM a shielded card actually sells: the worker's budget, not the physical
 // total. The untrusted host keeps the rest (on a desktop, an X server), and
 // quoting the physical number would advertise capacity no tenant can have.
+//
+// `frac` is what can be LEASED, and on this tier that is NOT what is resident.
+// A shielded worker holds only the model's encoded weights -- a 0.5B model is
+// ~0.7 GB of a 6.5 GB budget -- and masked activations are transient kilobytes
+// that arrive and leave with each exchange. So the card reads ~96% physically
+// free while it is fully leased at an 85% share, and quoting that reading told
+// a buyer they could rent a card the allocator would refuse them. A tenant's
+// share here is a scheduling and billing reservation, not VRAM occupancy, which
+// is exactly how it differs from a passed-through card.
+//
+// `gpuShareFree` is the seller's own allocator answering that question, so it
+// is the headline. The physical reading stays available as `freeGb`/`vramFrac`
+// for anyone who wants to show what the silicon is doing -- it is honest and
+// useful, just not an answer to "how much can I buy". Rows too old to report
+// gpuShareFree fall back to the physical ratio rather than showing nothing.
 export function shieldedPoolOf(row){
   const a = (row && row.availability) || {};
   const sh = a.shielded;
   if (!sh || !(sh.vramGb > 0)) return null;
   const total = sh.vramBudgetGb > 0 ? sh.vramBudgetGb : sh.vramGb;
   const freeGb = Math.min(sh.vramFreeGb, total);
-  return { total, freeGb, frac: total > 0 ? Math.max(0, Math.min(1, freeGb / total)) : 0 };
+  const clamp = (v) => Math.max(0, Math.min(1, v));
+  const vramFrac = total > 0 ? clamp(freeGb / total) : 0;
+  // Number.isFinite, not truthiness: 0 is the value this whole change exists to
+  // report, and `||` would silently swap a fully-leased card back to 96%.
+  const lease = Number(a.gpuShareFree);
+  const frac = Number.isFinite(lease) ? clamp(lease) : vramFrac;
+  return { total, freeGb, vramFrac, frac, leasableGb: total * frac };
 }
 
 // One enclave row's sizing hardware: its own advertised numbers per axis, the
