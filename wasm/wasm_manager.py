@@ -2288,6 +2288,11 @@ def _shielded_tenant_env(spec: dict, model_volume: str = "") -> dict:
             print(f"[shielded] no calibration for {model_volume} at {cal}; "
                   f"the tenant will run its matmuls in the enclave", flush=True)
     env.setdefault("WASMTIME_LOG", "wasmtime_wasi_nn=debug")
+    # The backend says what it registered and what it claimed. Cheap -- a line per
+    # weight at graph build, nothing per token -- and without it a shielded tenant
+    # that silently claims NOTHING is indistinguishable from one that is working:
+    # both serve tokens, one just quietly ignores the card it is billing for.
+    env.setdefault("SHIELDED_VERBOSE", "1")
     return env
 
 
