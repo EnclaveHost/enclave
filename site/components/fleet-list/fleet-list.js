@@ -152,26 +152,36 @@ class FleetList extends EnclaveElement {
             + '</span>'
             + (sh ? pool("GPU", shPct,
                 stat(fmtNum(shLeasableGb), fmtNum(shTotal), "GB", "vram available", shVramTitle)
-                // The box reports what it measured -- G-MAC/s of the masked field
-                // GEMM -- and the cell shows tflops, because that is the unit the
-                // pool above it uses and a customer should not have to convert
-                // between two throughput units to compare two boxes. One MAC is a
-                // multiply and an add, so the factor is exactly 2; nothing is
-                // being flattered here.
+                // The card's RATED figure, which is what every other row quotes and
+                // what a share is sized against. This cell used to show the MEASURED
+                // masked rate instead -- honest in isolation, and unreadable in a
+                // list: an RTX 3070 drew "0 / 2 tflops" beside an H200's "175 / 989",
+                // so the columns implied a 500x gap where the real one is ~23x, and
+                // the number did not match the basis the same row's share was
+                // computed from.
                 //
-                // The two numbers are NOT like for like, and the tooltip says so.
-                // A GPU pool's tflops is the card's vendor peak; this one is a
-                // sustained rate measured on the kernel that actually runs. The
-                // honest fix is to measure both, not to quote a peak for this one
-                // so the columns look comparable.
-                + (sh.gmacPerSec > 0
-                    ? stat(Math.round(shFree * sh.gmacPerSec * 2 / 1000),
-                           Math.round(sh.gmacPerSec * 2 / 1000), "", "tflops available",
-                           "Measured on this box: " + Math.round(sh.gmacPerSec)
-                           + " G-MAC/s sustained by the masked field GEMM that actually runs "
-                           + "here, converted at 2 FLOP per MAC. A GPU pool's tflops figure is "
-                           + "the card's vendor peak, so the two are not directly comparable.")
-                    : stat(esc(sh.card || "gpu"), "", "", "card")),
+                // The measured rate has not been dropped, it has moved to the
+                // tooltip, which is the only place the two can sit together without
+                // being read as one scale. Rows too old to report a rated figure
+                // keep the previous behaviour.
+                + (a.cardTflops > 0
+                    ? stat(fmtNum(a.gpuTflopsFree), fmtNum(a.cardTflops), "", "tflops available",
+                           "Rated dense fp16 for this card, the same basis every other box "
+                           + "quotes, so boxes and shares compare like for like."
+                           + (sh.gmacPerSec > 0
+                               ? " The masked path itself sustains " + Math.round(sh.gmacPerSec)
+                                 + " G-MAC/s here, about " + fmtNum(sh.gmacPerSec * 2 / 1000)
+                                 + " TFLOPS at 2 FLOP per MAC -- that is what this tier delivers, "
+                                 + "and it is measured rather than rated."
+                               : ""))
+                    : sh.gmacPerSec > 0
+                      ? stat(Math.round(shFree * sh.gmacPerSec * 2 / 1000),
+                             Math.round(sh.gmacPerSec * 2 / 1000), "", "tflops available",
+                             "Measured on this box: " + Math.round(sh.gmacPerSec)
+                             + " G-MAC/s sustained by the masked field GEMM that actually runs "
+                             + "here, converted at 2 FLOP per MAC. This box reports no rated "
+                             + "figure, so the two columns are not directly comparable.")
+                      : stat(esc(sh.card || "gpu"), "", "", "card")),
                 price.shielded) : "")
             // ONLY when the card is in the enclave. A shielded card already drew its
             // pool above, from the numbers the probe actually measured; drawing
