@@ -221,7 +221,16 @@ const SHIELDED_SRC = path.resolve(arg('shielded', path.join(HERE, 'shielded-over
 const shieldedFiles = [];
 if (fs.existsSync(SHIELDED_SRC)) {
   console.log('[build] installing the shielded engine backend…');
-  const dstRoot = path.join(ROOT, 'opt/enclave/shielded');
+  // INTO THE WASM CHROOT, not the guest root. The manager and every tenant's
+  // wasmtime run chrooted into /opt/roots/wasm, so that is the filesystem the
+  // paths in _shielded_tenant_env resolve against -- GGML_BACKEND_PATH and
+  // SHIELDED_CALIB are read by the tenant process, not by the guest's PID 1.
+  // Installed at the guest root instead, the files are present, hashed into the
+  // manifest, and invisible to the only code that opens them: the tenant simply
+  // logs "NO calibration", claims nothing, and runs every matmul in the enclave
+  // -- which looks like a working deployment that has quietly stopped using the
+  // card it is paying for.
+  const dstRoot = path.join(WASM_ROOT, 'opt/enclave/shielded');
   const walk = (src, rel = '') => {
     for (const ent of fs.readdirSync(src, { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) {
       const from = path.join(src, ent.name), r = rel ? `${rel}/${ent.name}` : ent.name;
@@ -231,12 +240,14 @@ if (fs.existsSync(SHIELDED_SRC)) {
       fs.mkdirSync(path.dirname(to), { recursive: true });
       fs.copyFileSync(from, to);
       if (/\.so$/.test(r)) fs.chmodSync(to, 0o755);
-      shieldedFiles.push({ path: `/opt/enclave/shielded/${r}`, bytes: fs.statSync(to).size, sha256: sha256File(to) });
+      shieldedFiles.push({ path: `/opt/roots/wasm/opt/enclave/shielded/${r}`,
+                           tenantPath: `/opt/enclave/shielded/${r}`,
+                           bytes: fs.statSync(to).size, sha256: sha256File(to) });
     }
   };
   walk(SHIELDED_SRC);
   for (const f of shieldedFiles)
-    console.log(`[build]   ${f.path}  ${(f.bytes / 1e6).toFixed(2)} MB  sha256:${f.sha256.slice(0, 16)}…`);
+    console.log(`[build]   ${f.tenantPath} (in the wasm chroot)  ${(f.bytes / 1e6).toFixed(2)} MB  sha256:${f.sha256.slice(0, 16)}…`);
 } else {
   console.log('[build] (no shielded overlay at ' + SHIELDED_SRC + '; this image serves no shielded GPU)');
 }
