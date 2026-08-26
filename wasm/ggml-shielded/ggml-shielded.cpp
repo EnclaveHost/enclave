@@ -20,12 +20,31 @@ extern "C" {
 
 #define SH_LOG(...) do { if (sh_verbose()) fprintf(stderr, "[shielded] " __VA_ARGS__); } while (0)
 
-/* A global shift on the calibrated activation exponent, for measuring the
- * weight-vs-activation split of the field budget. Not per-request: it is a
- * constant for the process, exactly as the calibrated exponent is. */
+/* The calibrated activation exponent, corrected for the per-column weight
+ * encoding. NOT per-request: a constant for the process, exactly as the
+ * calibrated exponent is -- adapting it to the activation in hand would buy
+ * field headroom by leaking activation magnitude, and is refused.
+ *
+ * Why it defaults to -5 rather than 0. calibrate.py chose each site's exponent
+ * against the PER-TENSOR weight encoding, where most columns held tiny w_fixed
+ * and therefore tiny products. This backend encodes per COLUMN (per-tensor
+ * quantises 13.5% of a real model's weights to zero and loses the answer), so
+ * every column now uses the full byte lane, the products grow, and the ~23.8-bit
+ * field cannot hold both exponents at their old values. Measured on
+ * Qwen2.5-0.5B: the activation has to give back 5 bits for the products to fit,
+ * and at that point the shielded path reproduces ggml's CPU output.
+ *
+ * Leaving it at 0 does not silently corrupt anything -- the Freivalds check runs
+ * over the integers and catches the wrap -- but it fails EVERY request, which is
+ * how this shipped: verified locally with the flag set, deployed without it, and
+ * the tenant died in llama_decode with the wrap detector doing its job.
+ *
+ * This is a measured constant standing in for a calibrated one. The proper fix
+ * is to re-run calibrate.py against the per-column encoding so each site gets
+ * its own exponent again; when that lands this default becomes 0. */
 static int sh_af_delta() {
     static int d = INT32_MIN;
-    if (d == INT32_MIN) { const char *e = getenv("SHIELDED_AF_DELTA"); d = (e && *e) ? atoi(e) : 0; }
+    if (d == INT32_MIN) { const char *e = getenv("SHIELDED_AF_DELTA"); d = (e && *e) ? atoi(e) : -5; }
     return d;
 }
 
