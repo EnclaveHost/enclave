@@ -19,7 +19,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, enclavePriceOf, pickEnclaveFor, rankEnclavesFor, leaseHostOf,
   moveTargetsFor, moveBlockReason, wantedGpuPct, startSharesFor, gpuUpgradeForMove, gpuDowngradeForMove, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE,
-  hostChargeWaived, freeEnclavesFor, liftSharesForLedger, sharesLegalOn, SPLIT_SHARES_REV } from "../site/js/core/pricing.js";
+  hostChargeWaived, freeEnclavesFor, liftSharesForLedger, sharesLegalOn, SPLIT_SHARES_REV,
+  enclaveClassOf, shieldedPoolOf } from "../site/js/core/pricing.js";
 
 // Reference copy of the RUNNER's minimum-share math (supervisor.js: pctCeil,
 // gpuShareOf, cpuShareOf, minSharesOf with MIN_COMPUTE_PCT=1). Keep in sync.
@@ -607,4 +608,44 @@ test("gpuDowngradeForMove gives the card back when the destination has none", ()
   // the two directions are mutually exclusive for a given destination
   assert.equal(gpuUpgradeForMove(v, cpuT, 0, 80), null);
   assert.ok(gpuUpgradeForMove(v, gpuT, 0, 80));
+});
+
+/* ---- where the card physically IS, which is a trust claim, not a label ----
+   A shielded box reports `gpu: true` because its card is real and is sold as
+   one. That made `gpu` stop meaning "inside the enclave", and for one commit the
+   fleet row still read it that way and badged a card sitting on an untrusted
+   host as TEE GPU -- telling a buyer their activations were covered by an
+   attestation that does not cover them. Caught by a human looking at the page,
+   which is not a control. These are. */
+test("a shielded card is never badged as being inside the enclave", () => {
+  const shielded = { availability: { gpu: true, shielded: {
+    card: "NVIDIA GeForce RTX 3070", vramGb: 7.7, vramFreeGb: 6.9, vramBudgetGb: 6.5, gmacPerSec: 7536 } } };
+  const c = enclaveClassOf(shielded);
+  assert.equal(c.kind, "shielded-gpu");
+  assert.equal(c.inTee, false, "a card on an untrusted host must never read as in-TEE");
+  assert.equal(c.shielded, true);
+
+  // and the real thing still does
+  const inTee = enclaveClassOf({ availability: { gpu: true } });
+  assert.equal(inTee.kind, "tee-gpu");
+  assert.equal(inTee.inTee, true);
+
+  assert.equal(enclaveClassOf({ availability: { gpu: false } }).kind, "cpu");
+  assert.equal(enclaveClassOf({}).kind, "cpu");            // a row with no availability is not a GPU
+});
+
+test("a shielded card is one pool, sized by what it can actually sell", () => {
+  // The physical card is 7.7 GB; the worker's budget is 6.5. Quoting 7.7 would
+  // advertise VRAM the untrusted host keeps for itself -- and quoting it BESIDE
+  // the GPU pool's 6.5 is what drew two differently-sized GPU rows on a box with
+  // one card in it.
+  const p = shieldedPoolOf({ availability: { shielded: {
+    vramGb: 7.7, vramFreeGb: 6.9, vramBudgetGb: 6.5 } } });
+  assert.equal(p.total, 6.5, "the pool must be the sellable budget, not the physical card");
+  assert.equal(p.freeGb, 6.5, "free is clamped to the budget, never the card's free VRAM");
+  assert.ok(p.frac > 0 && p.frac <= 1);
+
+  // no budget reported (older probe) -> fall back to the physical total
+  assert.equal(shieldedPoolOf({ availability: { shielded: { vramGb: 8, vramFreeGb: 4 } } }).total, 8);
+  assert.equal(shieldedPoolOf({ availability: {} }), null);
 });
