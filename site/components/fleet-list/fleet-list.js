@@ -194,11 +194,15 @@ class FleetList extends EnclaveElement {
                 // which is what actually gates admission) over the folded
                 // fraction — same precedence the VRAM cell above uses
                 stat(fmtNum(a.ramGbFree != null ? a.ramGbFree : cFree * ramGb), fmtNum(ramGb), "GB", "ram available")
-                + stat(fmtNum(cFree * vcpus), fmtNum(vcpus), "", "vcpu available")
-                // a box carrying model volumes can read ~85% used with every
-                // tenant idle: preloaded weights are held, not free. Name that
-                // term or the meter looks broken.
-                + (a.ramNnResidentMb ? stat(fmtNum(a.ramNnResidentMb / 1024), fmtNum(ramGb), "GB", "held by models") : ""),
+                + stat(fmtNum(cFree * vcpus), fmtNum(vcpus), "", "vcpu available"),
+                // A "held by models" cell used to sit here, reading
+                // ramNnResidentMb against the node's RAM. It was written for a box
+                // whose preloaded weights make the meter read ~85% used while every
+                // tenant is idle -- worth naming, at that size. In practice the only
+                // boxes reporting the field hold a fraction of a percent (metal0:
+                // 0.6 of 64 GB), so it explained nothing and spent a third row of the
+                // CPU pool saying so. The field still crosses the wire, so bring the
+                // cell back if a box ever carries enough resident weight to need it.
                 price.node)
             + '<div class="fleet-rateform" data-form="' + esc(e.id || "") + '" hidden></div>'
             + '</div>';
