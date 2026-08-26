@@ -466,6 +466,7 @@ function startShieldedRefresh(host, port, VERDICT, clearVerdict) {
       if (Number.isFinite(hello.vram_total)) next.vram_total_gb = +(hello.vram_total / GB).toFixed(2);
       if (Number.isFinite(hello.vram_budget)) next.vram_budget_gb = +(hello.vram_budget / GB).toFixed(2);
       if (Number.isFinite(hello.field_gmac_per_s)) next.field_gmac_per_s = hello.field_gmac_per_s;
+      if (Number.isFinite(hello.card_tflops)) next.card_tflops = hello.card_tflops;
       // A budget the host can no longer honour is not capacity: cap what we
       // advertise at what the driver says is actually there.
       if (next.vram_budget_gb > 0 && next.vram_free_gb >= 0)
