@@ -56,10 +56,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "ker
 import numpy as np
 import torch
 
-from protocol import (CMD_ALLOC_BUFFER, CMD_FREE_BUFFER, CMD_GET_TENSOR,
-                      CMD_GRAPH_INSTALL, CMD_GRAPH_RECOMPUTE, CMD_HELLO,
-                      CMD_SET_TENSOR, PROTO_VERSION, ProtocolViolation,
+from protocol import (CMD_ALLOC_BUFFER, CMD_FIELD_GEMM, CMD_FREE_BUFFER,
+                      CMD_GET_TENSOR, CMD_GRAPH_INSTALL, CMD_GRAPH_RECOMPUTE,
+                      CMD_HELLO, CMD_SET_TENSOR, PROTO_VERSION, ProtocolViolation,
                       ShieldedWorkerState)
+from field import M_MOD, Q0, Q1, Q2, crt_host
 import wire
 from fused_field_gemm import QK, field_gemm
 
@@ -133,11 +134,37 @@ class Node:
     and the safe one -- there is no attacker-supplied structure left to
     misinterpret at compute time."""
 
-    __slots__ = ("nid", "wq", "wd", "xs", "y", "K", "N", "max_m")
+    __slots__ = ("nid", "wq", "wd", "wf", "xs", "y", "K", "N", "max_m")
 
-    def __init__(self, nid, wq, wd, xs, y, K, N, max_m):
+    def __init__(self, nid, wq, wd, xs, y, K, N, max_m, wf=None):
         self.nid, self.wq, self.wd, self.xs, self.y = nid, wq, wd, xs, y
         self.K, self.N, self.max_m = K, N, max_m
+        self.wf = wf     # pre-encoded (N,K) int8, when the peer sent "w"
+
+    def gemm(self, xr, m):
+        """(m,N) int32 products of the residue planes xr (3 x (m,K) int8)."""
+        if self.wf is None:
+            return field_gemm(xr, self.wq, self.wd, m, self.N)
+        # The pre-encoded path, exact in float64 (K * 125 * 119 << 2^53), then
+        # CRT on the device. Reference speed, not production speed: the C++
+        # worker is where the (N,K) layout is fast.
+        w = self.wf.to(torch.float64).t()
+        res = []
+        for p, q in zip(xr, (Q0, Q1, Q2)):
+            a = (p[:m].to(torch.float64) @ w).to(torch.int64)
+            res.append(torch.remainder(a, q))
+        return crt_torch(res[0], res[1], res[2]).to(torch.int32)
+
+
+def crt_torch(r0, r1, r2):
+    """Garner recombination on device tensors, balanced in (-M/2, M/2]."""
+    inv01 = pow(Q0 % Q1, -1, Q1)
+    inv012 = pow((Q0 * Q1) % Q2, -1, Q2)
+    t1 = torch.remainder((r1 - r0) * inv01, Q1)
+    x = r0 + Q0 * t1
+    t2 = torch.remainder((r2 - torch.remainder(x, Q2)) * inv012, Q2)
+    x = x + (Q0 * Q1) * t2
+    return torch.where(x > M_MOD // 2, x - M_MOD, x)
 
 
 class Connection:
@@ -251,6 +278,21 @@ class Connection:
             node_idx, m = wire.unpack_recompute(payload)
             return self._recompute(node_idx, m)
 
+        if cmd == CMD_FIELD_GEMM:
+            ids, m, K, at = res["nodes"], res["m"], res["K"], res["planes_at"]
+            planes = torch.frombuffer(bytearray(payload[at:]), dtype=torch.int8).view(3, m, K).cuda()
+            xr = [planes[p] for p in range(3)]
+            outs = []
+            t0 = time.perf_counter()
+            with GPU_LOCK:
+                for i in ids:
+                    node = self.nodes[i]
+                    outs.append(node.gemm(xr, m).contiguous())
+                torch.cuda.synchronize()
+            self.gemm_ms += (time.perf_counter() - t0) * 1e3
+            self.recomputes += len(ids)
+            return b"".join(o.cpu().numpy().tobytes() for o in outs)
+
         return b""
 
     # -- graph resolution --------------------------------------------------
@@ -279,8 +321,17 @@ class Connection:
                 raise ProtocolViolation(f"node {i}: K={K} is not a multiple of {QK}")
             if max_m > 4096:
                 raise ProtocolViolation(f"node {i}: max_m={max_m} exceeds 4096")
-            wq = self._typed(n["wq"]["bid"], n["wq"]["offset"], (K, N), torch.int8, "weights")
-            wd = self._typed(n["wd"]["bid"], n["wd"]["offset"], (K // QK, N), torch.float16, "weights")
+            if "w" in n:
+                # Pre-encoded (N,K) int8 -- what the engine backend sends. The
+                # int8 lane bound is a correctness gate, not a style check.
+                wf = self._typed(n["w"]["bid"], n["w"]["offset"], (N, K), torch.int8, "weights")
+                if int(wf.abs().max()) > 119:
+                    raise ProtocolViolation(f"node {i}: a fixed weight exceeds the int8 lane")
+                wq = wd = None
+            else:
+                wq = self._typed(n["wq"]["bid"], n["wq"]["offset"], (K, N), torch.int8, "weights")
+                wd = self._typed(n["wd"]["bid"], n["wd"]["offset"], (K // QK, N), torch.float16, "weights")
+                wf = None
             xs = []
             xoff = n["x"]["offset"]
             plane = max_m * K
@@ -288,7 +339,7 @@ class Connection:
                 xs.append(self._typed(n["x"]["bid"], xoff + p * plane, (max_m, K),
                                       torch.int8, "activations"))
             y = self._typed(n["y"]["bid"], n["y"]["offset"], (max_m, N), torch.int32, "activations")
-            self.nodes.append(Node(n.get("id", f"node{i}"), wq, wd, xs, y, K, N, max_m))
+            self.nodes.append(Node(n.get("id", f"node{i}"), wq, wd, xs, y, K, N, max_m, wf))
         if not any(nd is not None for nd in self.nodes):
             raise ProtocolViolation("graph contains no computable node")
 
@@ -303,7 +354,7 @@ class Connection:
         t0 = time.perf_counter()
         with GPU_LOCK:
             xr = [p[:m] for p in node.xs]
-            out = field_gemm(xr, node.wq, node.wd, m, node.N)
+            out = node.gemm(xr, m)
             node.y[:m].copy_(out)
             torch.cuda.synchronize()
         self.gemm_ms += (time.perf_counter() - t0) * 1e3

@@ -56,8 +56,9 @@ int main(int argc, char **argv) {
     int64_t  *x  = malloc((size_t)m * K * sizeof(int64_t));
     int64_t  *y  = malloc((size_t)m * N * sizeof(int64_t));
     int64_t  *want = malloc((size_t)m * N * sizeof(int64_t));
-    int8_t   *wf = malloc((size_t)K * N);
-    if (!wq || !wd || !x || !y || !want || !wf) { fprintf(stderr, "oom\n"); return 2; }
+    int8_t   *wf = malloc((size_t)K * N);          /* (K,N), for the reference below */
+    int8_t   *wr = malloc((size_t)N * K);          /* (N,K), what the link takes */
+    if (!wq || !wd || !x || !y || !want || !wf || !wr) { fprintf(stderr, "oom\n"); return 2; }
 
     for (int i = 0; i < (K / SH_QK) * N; i++) wd[i] = float_to_half((float)(0.001 + rnd() * 0.0025));
     for (int i = 0; i < K * N; i++) wq[i] = (int8_t)lrint((rnd() * 2 - 1) * 127);
@@ -65,9 +66,11 @@ int main(int argc, char **argv) {
 
     /* Independent reference: recompute the encoding and the product in int64. */
     for (int k = 0; k < K; k++)
-        for (int j = 0; j < N; j++)
+        for (int j = 0; j < N; j++) {
             wf[(size_t)k * N + j] = (int8_t)sh_encode_weight_fixed(wd[(size_t)(k / SH_QK) * N + j],
                                                                    wq[(size_t)k * N + j]);
+            wr[(size_t)j * K + k] = wf[(size_t)k * N + j];
+        }
     int64_t peak = 0;
     for (int i = 0; i < m; i++)
         for (int j = 0; j < N; j++) {
@@ -81,7 +84,7 @@ int main(int argc, char **argv) {
     int err = SH_OK;
     sh_link *l = sh_link_open(host, port, true, &err);
     if (!l) { fprintf(stderr, "open failed\n"); return 2; }
-    int node = sh_link_add_weight(l, "probe", wq, wd, K, N, m, -1);
+    int node = sh_link_add_weight(l, "probe", wr, K, N, m, -1);
     if (node < 0) { fprintf(stderr, "add_weight: %s\n", sh_link_last_error(l)); return 2; }
     if ((err = sh_link_start(l)) != SH_OK) { fprintf(stderr, "start: %s\n", sh_link_last_error(l)); return 2; }
 

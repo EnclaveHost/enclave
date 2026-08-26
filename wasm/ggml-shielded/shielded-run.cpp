@@ -16,6 +16,7 @@
  */
 #include "llama.h"
 #include "ggml-backend.h"
+#include "ggml.h"
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -32,6 +33,13 @@ int main(int argc, char **argv) {
     int n_predict = argc > 3 ? atoi(argv[3]) : 8;
     if (!model_path) { fprintf(stderr, "usage: shielded-run <model.gguf> [prompt] [n]\n"); return 2; }
 
+    /* The CPU backend is a separate module in a shared-library build of ggml, and
+     * once any module is registered ggml_backend_load_all() stops looking. Load
+     * it explicitly, first, so the in-enclave half of the graph has somewhere
+     * to run. */
+    if (const char *cpu_so = getenv("GGML_CPU_SO")) {
+        fprintf(stderr, "[run] cpu backend: %s\n", ggml_backend_load(cpu_so) ? "loaded" : "FAILED TO LOAD");
+    }
     if (backend) {
         ggml_backend_reg_t r = ggml_backend_load(backend);
         fprintf(stderr, "[run] shielded backend: %s\n", r ? "loaded" : "FAILED TO LOAD");
@@ -65,10 +73,14 @@ int main(int argc, char **argv) {
     fprintf(stderr, "[run] %d prompt tokens\n", n);
 
     llama_batch batch = llama_batch_get_one(toks.data(), n);
+    const int64_t t_pp0 = ggml_time_us();
     if (llama_decode(ctx, batch)) { fprintf(stderr, "decode(prompt) failed\n"); return 2; }
+    const int64_t t_pp1 = ggml_time_us();
 
     std::string out;
     llama_token cur = 0;
+    int n_gen = 0;
+    const int64_t t_tg0 = ggml_time_us();
     for (int i = 0; i < n_predict; i++) {
         const float *logits = llama_get_logits_ith(ctx, -1);
         const int n_vocab = llama_vocab_n_tokens(vocab);
@@ -81,7 +93,9 @@ int main(int argc, char **argv) {
         if (L > 0) out.append(buf, L);
         llama_batch b1 = llama_batch_get_one(&cur, 1);
         if (llama_decode(ctx, b1)) { fprintf(stderr, "decode failed at %d\n", i); break; }
+        n_gen++;
     }
+    const int64_t t_tg1 = ggml_time_us();
 
     uint64_t off = 0, loc = 0, macs = 0, vf = 0;
     if (shielded_stats) shielded_stats(&off, &loc, &macs, &vf);
@@ -92,6 +106,11 @@ int main(int argc, char **argv) {
     printf("local       : %llu nodes\n", (unsigned long long)loc);
     printf("GMAC        : %.2f\n", (double)macs / 1e9);
     printf("verify fail : %llu\n", (unsigned long long)vf);
+    printf("prefill     : %d tokens in %.1f ms (%.1f tok/s)\n", n,
+           (t_pp1 - t_pp0) / 1e3, n * 1e6 / (double)(t_pp1 - t_pp0));
+    if (n_gen)
+        printf("decode      : %d tokens in %.1f ms = %.1f ms/tok (%.2f tok/s)\n", n_gen,
+               (t_tg1 - t_tg0) / 1e3, (t_tg1 - t_tg0) / 1e3 / n_gen, n_gen * 1e6 / (double)(t_tg1 - t_tg0));
     llama_free(ctx); llama_model_free(model);
     return vf == 0 ? 0 : 1;
 }

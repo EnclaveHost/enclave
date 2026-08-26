@@ -420,7 +420,13 @@ Per token, v1, with installed per-segment graphs on the worker:
 
 Budget at 7B/32 layers: ~128 blocking RTs/token; at 50–150µs CVM↔host loopback RTT that is
 a 6–19ms/token transport floor plus ~5–10MB/token of masked activation traffic (fits
-loopback/virtio comfortably). Ceiling ≈ 40–100 tok/s before GPU compute — against the
+loopback/virtio comfortably). MEASURED 2026-08-26 (`shielded/REPORT.md` §11): the engine
+backend does ~2 exchanges per layer (gate+up share one, down is one; the attention
+projections stay on the CPU below a size floor), one frame each way, and the CVM reaches
+the worker over AF_VSOCK rather than slirp — Qwen2.5-0.5B decodes at ~100 tok/s on
+metal0's deployed app, 154 tok/s on the host loopback. Refill is off the critical path
+entirely (a background-filled pad pool), which this section's budget assumed and the
+first engine implementation did not do. Ceiling ≈ 40–100 tok/s before GPU compute — against the
 kill criterion (≤5× vs baseline at batch ≥4) this is tight but credible, and batching
 amortizes RTs across concurrent requests. Amulet's two-RT-per-request discipline is the
 bar we hold prefill and image-gen to; decode is structurally per-token and the brief

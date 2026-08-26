@@ -19,7 +19,9 @@ field.py                      the RNS field + THE shared weight encoding (numpy 
 reference/shielded_ref.py     executable oracle for the constructions (numpy, no CUDA)
 protocol.py                   worker admission rules: framing, op allowlist, output gating
 wire.py                       the socket layer: framing, pipelined exchanges
-worker.py                     THE WORKER. Untrusted host, holds the card.
+worker.py                     the REFERENCE worker (Python + Triton). Untrusted host, holds the card.
+worker-cuda/worker.cu         THE PRODUCTION WORKER (C++/CUDA): same protocol, same admission
+                              rules, one frame per exchange, ~80 us per exchange on loopback
 tee.py                        the trusted half: weights, mask bank, refill, Freivalds
 model.py                      TEE-side executor: a real transformer, linears offloaded
 tokenizer.py                  byte-level BPE, TEE-side (it consumes the prompt)
@@ -45,11 +47,53 @@ metal/guest/shielded-probe.mjs  one real masked GEMM, asserted four ways, at boo
 And the engine-side half lives with the engine, because it is linked into it:
 
 ```
-wasm/ggml-shielded/shielded-field.c   the field + THE encoding, in C
-wasm/ggml-shielded/shielded-wire.c    the protocol, pipelined into one RTT
-wasm/ggml-shielded/shielded-tee.c     pads, refill, Freivalds, the worker link
-wasm/ggml-shielded/ggml-shielded.cpp  the ggml backend: claims linear ops, nothing else
+wasm/ggml-shielded/shielded-field.c   the field + THE encoding, in C (native q8_0 row layout)
+wasm/ggml-shielded/shielded-wire.c    the protocol: FIELD_GEMM, one frame each way; TCP or vsock
+wasm/ggml-shielded/shielded-tee.c     the pad POOL (background refill threads), Freivalds, the link
+wasm/ggml-shielded/shielded-simd.c    the hot loops, built twice (AVX-512 VNNI / generic), self-checked
+wasm/ggml-shielded/ggml-shielded.cpp  the ggml backend: groups shared-x matmuls, places by policy
 wasm/ggml-shielded/shielded-probe.c   the C probe, same four assertions as the JS one
+```
+
+## How it goes fast, and what the numbers are
+
+Decode is a chain of ~2 exchanges per layer that cannot be pipelined (each layer's
+input is a nonlinear function of the previous layer's output), so the token cost is
+`exchanges x cost-per-exchange` plus whatever else sits on that chain. The first
+end-to-end engine run measured **612 ms/token**; the same model, same card, now
+decodes at **6.5 ms/token (154 tok/s) on the host loopback**, against 7.0 ms/token
+for plain llama.cpp on 8 CPU threads. Four changes, in order of size:
+
+1. **Refill left the critical path.** `u = r.W` costs the TEE three residue planes of
+   work per offloaded MAC, and it was computed AFTER each reply, scalar: 90% of the
+   token. It does not depend on the activation, so `shielded-tee.c` now keeps a pool
+   of (r, r.W) pairs per activation group, filled by background threads with an
+   AVX-512 VNNI kernel (`vpdpbusd`, u8 residues x s8 weights). Steady-state pool
+   misses on the request path: 4 in 4707 exchanges.
+2. **One frame per exchange, no interpreter.** The Python worker took five framed
+   commands per exchange through torch and a Triton launch: 0.35 ms each. The C++
+   worker takes one `FIELD_GEMM` frame, one H2D copy, one dp4a GEMV per node with the
+   CRT fused in the epilogue, one D2H copy: ~80 us. Weights live on the card as the
+   encoded int8 matrix in GGUF's own row-per-output layout, so nobody transposes.
+3. **Shared-activation matmuls are one exchange.** gate/up (and q/k/v) read the
+   same x, so they share one pad by rule and now share one round trip by
+   construction: 49 exchanges per token instead of 169.
+4. **Placement is a policy, not a reflex.** A round trip has a floor cost, so a
+   matmul under `SHIELDED_MIN_MACS` (2M) stays on the CPU (Qwen2.5-0.5B's attention
+   projections), and a batch wider than `SHIELDED_MAX_M` (8) stays in the enclave:
+   prefill in the clear costs one pass over the weights, prefill offloaded costs the
+   TEE three. Offload is a decode accelerator; it removes the weight-bandwidth term
+   from the latency chain and nothing else.
+
+Inside the CVM the link prefers AF_VSOCK to the host (CID 2, same port) when the
+guest has `/dev/vsock`, and falls back to slirp TCP. On metal0's deployed eyesoff.ai
+instance that measures **99-105 tok/s decode, 2.2 s to first token**, from 1.7 tok/s
+and 28 s before (REPORT.md section 11).
+
+```
+make -C shielded/worker-cuda                      # the CUDA worker (clang++ as the CUDA compiler)
+shielded/worker-cuda/shielded-worker --port 9500 --vsock-port 9500
+SHIELDED_PROFILE=1 wasm/ggml-shielded/shielded-run model.gguf "prompt" 32   # per-phase ms
 ```
 
 ```
@@ -89,11 +133,10 @@ every prompt. Peak |y| reached 2.1e6 against M/2 = 7.2e6.
 
 ## What is coming (and where it plugs in)
 
-- **The production worker**: this one is Python driving a Triton kernel, which is
-  the same code path the report benchmarked and is fine for a reference and for a
-  single box. A fleet worker is the same protocol in C++/CUDA with a digest-pinned
-  base image, following `worker/Dockerfile`, registered in `scripts/release.sh` and
-  the `deploy.yml` detect case.
+- **The production worker** exists (`worker-cuda/`); what it still lacks is a
+  digest-pinned fleet image, following `worker/Dockerfile`, registered in
+  `scripts/release.sh` and the `deploy.yml` detect case. `worker.py` stays as the
+  reference and the test fixture; both speak protocol 1.1.
 - **The TEE-side executor for the real engine** does NOT land here -- it lives in
   `wasm/ggml-shielded/`, because that is where the ggml graph lives. `model.py` is
   its specification and its equivalence reference: it is a working implementation

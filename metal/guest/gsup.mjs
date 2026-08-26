@@ -394,8 +394,17 @@ if (fw.shieldedWorker && fw.shieldedWorker.port) {
       if (!priceSec6)
         log('shielded GPU has no priceUsdHr — its card sells at the supervisor default');
       try {
+        // vsock rides with the endpoint only if THIS guest has the device: the
+        // modules are in the image, but a kernel without them, or a host that
+        // did not attach one, must leave tenants on TCP rather than on an
+        // address nothing answers.
+        const vsockPort = Number(fw.shieldedWorker.vsockPort) > 0 && fs.existsSync('/dev/vsock')
+          ? Number(fw.shieldedWorker.vsockPort) : 0;
+        if (Number(fw.shieldedWorker.vsockPort) > 0 && !vsockPort)
+          log('shielded worker offers vsock but this guest has no /dev/vsock; tenants stay on TCP');
         fs.writeFileSync(VERDICT, JSON.stringify({
           ...v.card, endpoint: `${host}:${port}`,
+          ...(vsockPort ? { vsockPort } : {}),
           ...(priceSec6 ? { pricePerSec6: priceSec6 } : {}),
           exact: v.exact, verified: v.verified, lie_rejected: v.lie_rejected,
           denylist_refused: v.denylist_refused,

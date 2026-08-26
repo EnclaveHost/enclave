@@ -173,13 +173,28 @@ let shieldedChild = null;
 if (cfg.shieldedWorker) {
   const sw = cfg.shieldedWorker;
   const port = sw.port || 9500;
+  // The C++/CUDA worker when it has been built (make -C shielded/worker-cuda),
+  // the Python reference otherwise. Same protocol, same admission rules; the
+  // difference is ~80 us against ~350 us per exchange, which at ~50 exchanges
+  // per decoded token is the difference between 150 tok/s and 30.
+  const cudaWorker = sw.binary || path.join(HERE, '..', 'shielded', 'worker-cuda', 'shielded-worker');
+  const useCuda = sw.python === undefined && sw.script === undefined && fs.existsSync(cudaWorker);
+  // vsock: the guest reaches the host at CID 2 without slirp in the path. Needs
+  // /dev/vhost-vsock on the host and the vsock modules in the guest image; the
+  // guest probe checks the second and tells tenants only when both hold.
+  const vsockOn = sw.vsock !== false && fs.existsSync('/dev/vhost-vsock');
+  const vsockPort = vsockOn ? (sw.vsockPort || port) : 0;
+  const guestCid = sw.guestCid || 3;
   const python = sw.python || 'python3';
   const script = sw.script || path.join(HERE, '..', 'shielded', 'worker.py');
-  const swArgs = [script, '--host', '127.0.0.1', '--port', String(port)];
+  const swArgs = useCuda ? ['--host', '127.0.0.1', '--port', String(port)]
+                         : [script, '--host', '127.0.0.1', '--port', String(port)];
   if (sw.vramGb) swArgs.push('--vram-gb', String(sw.vramGb));
+  if (useCuda && vsockPort) swArgs.push('--vsock-port', String(vsockPort));
+  const swExe = useCuda ? cudaWorker : python;
   let swRestarts = 0;
   const startWorker = () => {
-    shieldedChild = spawn(python, swArgs, { stdio: ['ignore', 'inherit', 'inherit'] });
+    shieldedChild = spawn(swExe, swArgs, { stdio: ['ignore', 'inherit', 'inherit'] });
     shieldedChild.on('exit', (code, sig) => {
       if (stopping) return;
       swRestarts++;
@@ -193,8 +208,10 @@ if (cfg.shieldedWorker) {
     shieldedChild.on('error', (e) => console.error(`[enclave-metal] shielded worker spawn error: ${e.message}`));
   };
   startWorker();
-  console.log(`[enclave-metal] shielded worker on 127.0.0.1:${port} (guest reaches it at 10.0.2.2:${port})`);
+  console.log(`[enclave-metal] shielded worker (${useCuda ? 'cuda' : 'python'}) on 127.0.0.1:${port} `
+    + `(guest reaches it at 10.0.2.2:${port}${useCuda && vsockPort ? `, vsock CID 2 port ${vsockPort}` : ''})`);
   runtimeCfg.shieldedWorker = { host: '10.0.2.2', port,
+    ...(useCuda && vsockPort ? { vsockPort, guestCid } : {}),
     // the box's ask for a WHOLE shielded card, USD/hour. Config, not a probe
     // result, but it rides with the endpoint so the guest sees one object.
     ...(Number(sw.priceUsdHr) > 0 ? { priceUsdHr: Number(sw.priceUsdHr) } : {}) };
@@ -224,6 +241,10 @@ function baseArgs() {
       + 'host_ufo=off,guest_ufo=off',
     '-serial', 'mon:stdio',
   ];
+  // The shielded worker's vsock. Host CID 2 is implicit; the guest's own CID is
+  // whatever the config says (3 by default) and is never used for anything.
+  if (runtimeCfg.shieldedWorker && runtimeCfg.shieldedWorker.vsockPort)
+    a.push('-device', `vhost-vsock-pci,guest-cid=${runtimeCfg.shieldedWorker.guestCid || 3}`);
   // model volumes: one read-only virtio-blk disk each. cache=none keeps the
   // host page cache out of it — the guest caches what it reads (verified), and
   // a second copy of a 60 GB model in host RAM only steals memory from the CVM.

@@ -196,7 +196,10 @@ test("ggml_backend_sched offloads the matmuls and keeps the rest in the enclave"
 
   const out = execFileSync(join(dir, "ggml-test"), [], {
     encoding: "utf8", timeout: 900_000,
-    env: { ...process.env, SHIELDED_CALIB: calib, SHIELDED_HOST: host, SHIELDED_PORT: String(port) },
+    // The size floor is a placement policy for real models; this graph's
+    // 512x256 matmuls would sit under it and the split would say nothing.
+    env: { ...process.env, SHIELDED_CALIB: calib, SHIELDED_HOST: host, SHIELDED_PORT: String(port),
+           SHIELDED_MIN_MACS: "0" },
   }).trim().split("\n").pop();
   const v = JSON.parse(out);
 

@@ -45,7 +45,7 @@ because the failure mode of guessing is running an attacker's graph.
 import json
 import struct
 
-PROTO_VERSION = (1, 0, 0)
+PROTO_VERSION = (1, 1, 0)   # 1.1: FIELD_GEMM, the one-frame exchange
 
 # Commands kept from ggml-rpc's allocation plane, plus our two compute verbs.
 CMD_HELLO = 0
@@ -60,7 +60,8 @@ CMD_SET_TENSOR = 8       # weights at load; masked activations at run
 CMD_GET_TENSOR = 9       # declared outputs ONLY
 CMD_GRAPH_INSTALL = 10   # replaces GRAPH_COMPUTE; allowlisted, install-once
 CMD_GRAPH_RECOMPUTE = 11 # the per-step doorbell; no topology
-CMD_COUNT = 12
+CMD_FIELD_GEMM = 12      # one frame in, one frame out: masked planes -> products
+CMD_COUNT = 13
 
 COMMAND_NAMES = {
     CMD_HELLO: "HELLO", CMD_ALLOC_BUFFER: "ALLOC_BUFFER", CMD_FREE_BUFFER: "FREE_BUFFER",
@@ -68,7 +69,7 @@ COMMAND_NAMES = {
     CMD_GET_MAX_SIZE: "GET_MAX_SIZE", CMD_GET_DEVICE_MEMORY: "GET_DEVICE_MEMORY",
     CMD_DEVICE_COUNT: "DEVICE_COUNT", CMD_SET_TENSOR: "SET_TENSOR",
     CMD_GET_TENSOR: "GET_TENSOR", CMD_GRAPH_INSTALL: "GRAPH_INSTALL",
-    CMD_GRAPH_RECOMPUTE: "GRAPH_RECOMPUTE",
+    CMD_GRAPH_RECOMPUTE: "GRAPH_RECOMPUTE", CMD_FIELD_GEMM: "FIELD_GEMM",
 }
 
 # Commands that exist in stock ggml-rpc and are deliberately absent here. Named
@@ -200,6 +201,8 @@ class ShieldedWorkerState:
             return self._graph_install(payload)
         if cmd == CMD_GRAPH_RECOMPUTE:
             return self._graph_recompute(payload)
+        if cmd == CMD_FIELD_GEMM:
+            return self._field_gemm(payload)
         if cmd in (CMD_BUFFER_GET_BASE, CMD_GET_ALIGNMENT, CMD_GET_MAX_SIZE,
                    CMD_GET_DEVICE_MEMORY, CMD_DEVICE_COUNT):
             return {"ok": True}
@@ -301,6 +304,42 @@ class ShieldedWorkerState:
             raise ProtocolViolation("RECOMPUTE with no installed graph")
         return {"ok": True, "nodes": len(self.graph.nodes)}
 
+    def _field_gemm(self, payload):
+        """| n u32 | m u32 | node u32[n] | planes int8[3][m][K] | -> the products of
+        exactly those nodes, in order. Every node must be an installed
+        FIELD_GEMM sharing one K (they share the activation), and the payload
+        must be exactly the size the header implies. The reply is defined by
+        the request, so there is nothing for GET_TENSOR's declared-output rule
+        to gate: a worker cannot be asked for any region it did not compute."""
+        if self.graph is None:
+            raise ProtocolViolation("FIELD_GEMM with no installed graph")
+        n, off = _u32(payload, 0)
+        m, off = _u32(payload, off)
+        if n < 1 or n > 64:
+            raise ProtocolViolation(f"FIELD_GEMM names {n} nodes")
+        ids = []
+        for _ in range(n):
+            i, off = _u32(payload, off)
+            ids.append(i)
+        K = None
+        for i in ids:
+            if i >= len(self.graph.nodes):
+                raise ProtocolViolation(f"FIELD_GEMM of node {i}, graph has {len(self.graph.nodes)}")
+            node = self.graph.nodes[i]
+            if node.get("op") != "FIELD_GEMM":
+                raise ProtocolViolation(f"node {i} is metadata-only; nothing to compute")
+            k = int(node.get("K", 0))
+            if K is None:
+                K = k
+            elif k != K:
+                raise ProtocolViolation("FIELD_GEMM nodes disagree on K")
+            if m < 1 or m > int(node.get("max_m", 0)):
+                raise ProtocolViolation(f"m={m} outside [1,{node.get('max_m')}] for node {i}")
+        want = off + 3 * m * K
+        if len(payload) != want:
+            raise ProtocolViolation(f"FIELD_GEMM payload is {len(payload)} bytes, expected {want}")
+        return {"ok": True, "nodes": ids, "m": m, "K": K, "planes_at": off}
+
 
 def selftest():
     """Exercised by test/shielded-protocol.test.mjs."""
@@ -372,6 +411,35 @@ def selftest():
 
     # recompute is the only compute trigger after install
     out["recompute_ok"] = st.handle(*parse_frame(build_frame(CMD_GRAPH_RECOMPUTE, b"")))["ok"]
+
+    # the one-frame exchange: refused before install (on a fresh state), sized exactly
+    st2 = ShieldedWorkerState()
+    st2.handle(*parse_frame(build_frame(CMD_HELLO, struct.pack("<I", 1))))
+    try:
+        st2.handle(*parse_frame(build_frame(CMD_FIELD_GEMM, struct.pack("<II", 1, 1) + struct.pack("<I", 0) + bytes(96))))
+        out["gemm_before_install_refused"] = False
+    except ProtocolViolation:
+        out["gemm_before_install_refused"] = True
+    wb2 = st2.handle(*parse_frame(build_frame(CMD_ALLOC_BUFFER, struct.pack("<Q", 1 << 16) + struct.pack("<I", 7) + b"weights")))["bid"]
+    ab2 = st2.handle(*parse_frame(build_frame(CMD_ALLOC_BUFFER, struct.pack("<Q", 1 << 16) + struct.pack("<I", 11) + b"activations")))["bid"]
+    spec = json.dumps({
+        "nodes": [{"op": "FIELD_GEMM", "w": {"bid": wb2, "offset": 0}, "x": {"bid": ab2, "offset": 0},
+                   "y": {"bid": ab2, "offset": 1024}, "K": 32, "N": 4, "max_m": 2}],
+        "outputs": [{"bid": ab2, "offset": 1024, "nbytes": 16}],
+    }).encode()
+    st2.handle(*parse_frame(build_frame(CMD_GRAPH_INSTALL, spec)))
+    r = st2.handle(*parse_frame(build_frame(CMD_FIELD_GEMM, struct.pack("<II", 1, 2) + struct.pack("<I", 0) + bytes(3 * 2 * 32))))
+    out["gemm_ok"] = r["ok"] and r["m"] == 2 and r["K"] == 32
+    try:
+        st2.handle(*parse_frame(build_frame(CMD_FIELD_GEMM, struct.pack("<II", 1, 2) + struct.pack("<I", 0) + bytes(3 * 2 * 32 - 1))))
+        out["gemm_short_refused"] = False
+    except ProtocolViolation:
+        out["gemm_short_refused"] = True
+    try:
+        st2.handle(*parse_frame(build_frame(CMD_FIELD_GEMM, struct.pack("<II", 1, 3) + struct.pack("<I", 0) + bytes(3 * 3 * 32))))
+        out["gemm_over_max_m_refused"] = False
+    except ProtocolViolation:
+        out["gemm_over_max_m_refused"] = True
 
     # a second install on the same connection is refused
     try:
