@@ -416,7 +416,65 @@ if (fw.shieldedWorker && fw.shieldedWorker.port) {
     } else {
       log(`shielded GPU UNAVAILABLE (probe exit ${code}); the box keeps serving CPU work`);
     }
+    if (code === 0 && v && v.ok && v.card) startShieldedRefresh(host, port, VERDICT, clearVerdict);
   });
+}
+
+// --- keeping the advertised card HONEST between probes ------------------------
+// The probe proves the path once; free VRAM is not a property of the path, it is
+// a property of a machine we do not control. The host keeps using its own card
+// -- observed live 2026-08-26: 6.5 of 7.7 GB went to a game, the box correctly
+// advertised 0.4 GB free, the game exited, and the box went on advertising 0.4 GB
+// because the verdict was written once at boot and never rewritten. A frozen
+// number is wrong in both directions: it strands a card that has come free, and
+// it oversells one that has since been taken.
+//
+// So the LIVE numbers get refreshed and the PROOF does not. HELLO returns the
+// driver's own mem_get_info plus the worker's measured throughput, which costs
+// one round trip and no GPU work -- re-running the full masked GEMM every minute
+// to learn a memory figure would burn the card to answer a question it is
+// already answering for free. exact/verified/lie_rejected/denylist_refused are
+// properties of the worker's CODE, not of this minute, and are carried forward
+// untouched; if the worker is replaced the connection breaks and we stop
+// advertising, which is the outcome that matters.
+const SHIELDED_REFRESH_MS = Number(process.env.SHIELDED_REFRESH_MS || 30_000);
+const SHIELDED_REFRESH_STRIKES = 3;   // ~90 s of silence before the card comes down
+function startShieldedRefresh(host, port, VERDICT, clearVerdict) {
+  let strikes = 0;
+  const tick = async () => {
+    let link = null;
+    try {
+      const { ShieldedLink, CMD } = await import('/opt/metal/shielded.mjs');
+      link = new ShieldedLink(host, port, { timeoutMs: 10_000 });
+      await link.connect();
+      const hello = JSON.parse((await link.call(CMD.HELLO, (() => {
+        const b = Buffer.alloc(4); b.writeUInt32LE(1, 0); return b;   // protocol major
+      })())).toString());
+      const cur = JSON.parse(fs.readFileSync(VERDICT, 'utf8'));
+      const GB = 1 << 30;
+      const next = { ...cur, at: new Date().toISOString() };
+      if (Number.isFinite(hello.vram_free))  next.vram_free_gb  = +(hello.vram_free / GB).toFixed(2);
+      if (Number.isFinite(hello.vram_total)) next.vram_total_gb = +(hello.vram_total / GB).toFixed(2);
+      if (Number.isFinite(hello.vram_budget)) next.vram_budget_gb = +(hello.vram_budget / GB).toFixed(2);
+      if (Number.isFinite(hello.field_gmac_per_s)) next.field_gmac_per_s = hello.field_gmac_per_s;
+      // A budget the host can no longer honour is not capacity: cap what we
+      // advertise at what the driver says is actually there.
+      if (next.vram_budget_gb > 0 && next.vram_free_gb >= 0)
+        next.vram_free_gb = Math.min(next.vram_free_gb, next.vram_budget_gb);
+      fs.writeFileSync(VERDICT, JSON.stringify(next));
+      strikes = 0;
+    } catch (e) {
+      if (++strikes >= SHIELDED_REFRESH_STRIKES) {
+        clearVerdict();
+        log(`shielded GPU withdrawn after ${strikes} failed refreshes (${e.message}); `
+          + `the box keeps serving CPU work`);
+        strikes = 0;
+      }
+    } finally { try { link?.close(); } catch {} }
+  };
+  const t = setInterval(tick, SHIELDED_REFRESH_MS);
+  t.unref?.();
+  tick();
 }
 
 process.on('SIGTERM', () => { log('SIGTERM; stopping'); for (const { child } of children.values()) { try { process.kill(-child.pid, 'SIGTERM'); } catch {} } setTimeout(() => process.exit(0), 1500); });
