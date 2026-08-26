@@ -4966,7 +4966,10 @@ def _spawn_and_wait(rec, ctx):
         # The card is on the untrusted host: no device to cap, no MPS pipe to
         # join. Checked BEFORE the CUDA branch because NODE_HAS_GPU is false here
         # and the two must never both apply.
-        vol = (vol_mounts[0]["name"] if vol_mounts else "")
+        # vol_mounts is {name: host_path}, not a list of records. Calibration is
+        # per MODEL and this tenant attaches one volume in the shielded case; take
+        # the first NAME in attach order rather than indexing a dict by 0.
+        vol = next(iter(vol_mounts), "") if vol_mounts else ""
         env = _shielded_tenant_env(shielded_spec, vol)
         rec["shieldedEndpoint"] = shielded_spec.get("endpoint")
         print(f"[shielded] {rec['id']}: gpuShare={gpu_share} served by the shielded card at "
