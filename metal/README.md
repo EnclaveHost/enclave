@@ -193,6 +193,21 @@ accepts the honest result and rejects a single-element lie; the worker refuses a
 on the wire; and the transcript is uncorrelated with the secret and uniform over the field.
 It exits, it is not a service, and a failure is logged rather than fatal.
 
+**The TEE-side backend is compiled from source during the image build**, not copied in. It
+holds the one-time pads, the Freivalds secret and every plaintext activation, so it is the one
+binary in the image whose provenance matters most — and as a committed `.so` it had two bad
+properties: a reviewer approving a change to it saw only `Bin 76040 -> 145344 bytes`, and
+anyone who compromised the workstation or toolchain that produced it could put code inside the
+measurement without touching this repo's source. `build-image.mjs` now compiles
+`wasm/ggml-shielded` against vendored ggml headers (`vendor/ggml`, text, reviewable) and the
+`libggml-base.so` inside the digest-pinned engine image, records every source hash and the
+toolchain in the manifest under `shieldedBuild`, and **fails the build** rather than falling
+back — including when the vendored headers disagree with the engine the image ships, which is
+the moment an engine repin would otherwise introduce silent UB. `metal/shielded-overlay/`
+therefore carries calibration data only. The remaining gap is honest and recorded: the
+compiler is *recorded*, not pinned, so two builders on different toolchains get different
+bytes and different measurements.
+
 **Why the worker's address is not measured, and does not need to be.** It arrives over fw_cfg,
 which the host controls. A host that redirects it to a worker it wrote itself gains nothing:
 the pad never crosses the boundary, and Freivalds rejects any product that is not the real
