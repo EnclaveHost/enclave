@@ -692,10 +692,12 @@ anchor -- which is precisely why the GPU can sit outside the enclave at all.**
    expected consequence of a fixed-point path: tiny logit differences eventually flip a greedy
    argmax. The facts survive, which the per-tensor encoding could not manage.
 
-   The 5 bits are currently a measured constant (`SHIELDED_AF_DELTA`), not a calibrated one.
-   The principled version is to re-run `calibrate.py` against the per-column encoding so each
-   site gets its own exponent again; that needs the per-column change ported to `tee.py` first,
-   and until it is, `model.py` and `e2e.py` still use the per-tensor encoding.
+   The 5 bits were a measured constant (`SHIELDED_AF_DELTA`), not a calibrated one, until
+   `shielded-calib` (C, engine-observed, weights encoded with the backend's own per-column
+   routine) replaced the calibration files. Per site the per-tensor exponents were 1-6 bits too
+   generous (median 2); the blanket -5 was sized for the worst site, so the median site now
+   keeps 3 more bits than it did, and the default is 0. `model.py` and `e2e.py` still use the
+   per-tensor encoding and `calibrate.py`.
 3. **Calibration coverage.** Exponents and outlier sets come from 203 tokens of public text.
    That is enough to find systematic outlier bands and not enough to bound the tail. The
    runtime detector is what makes this a margin rather than a hope, but a prompt that
@@ -871,3 +873,268 @@ rows, which is what a tenant holding 20% of a 16-vCPU node should see.
 
 Not measured: the same app deployed WITHOUT shielding on the same box. That needs
 a second funded lease, and would close the last cell of this table.
+
+---
+
+# 13. Round two: the round trip, the kernel, and the model-size axis (revision 2026-08-26, evening)
+
+Section 12 ended with two claims: that the tier's overhead was the round trip and not the
+cryptography, and that its value would be in models too big for a CVM's CPU -- the second
+stated as a prediction, because only one model had a calibration. This section acts on the
+first and measures the second. Same box, same engine (ELL libllama/libggml 0.18), same
+harness as section 12 (one process, backend modules by path, only the backend differs
+between rows), every row a median of three on an idle box, every row's completion text
+checked against its siblings.
+
+## 13.1 Where the round trip actually went
+
+Section 12's 76 us per exchange was measured as "wire". Timed from the worker's side it
+splits differently: the socket is ~9-15 us of it and the worker's GPU path is ~60 us, of
+which the kernel itself -- the two gate/up products -- is 21 us. The other ~40 us was the
+DMA latency of an H2D copy, two dependent kernel launches, a D2H copy and the stream
+synchronisation around them, per exchange, 49 times per token: 1.9 ms of a 6.3 ms token
+spent waiting for the card to start and stop doing 21 us of work. The kernel, meanwhile,
+was fine at m=1 (400-465 GB/s of weight bandwidth against the card's 448) and broken at
+m>=4 (91 GB/s at m=8), because every block re-staged all 3*m*K bytes of the activation
+into shared memory, which at m=8 is several times the weight bytes it then reads.
+
+## 13.2 What changed
+
+| term | before | after | how |
+|---|---|---|---|
+| worker GPU path per exchange, beyond the kernel | ~40 us | ~4 us | the frame is read straight into pinned memory; upload + one fused multi-node kernel + output written by the kernel into MAPPED host memory are captured once per (m, node list) as a CUDA graph and replayed with one launch; the reply is one writev from where the products landed |
+| kernel at m=4 / m=8 (0.5B gate\|up) | 180 / 91 GB/s | 299 / 215 GB/s | four weight rows per warp share every activation load; the activation is read through L1 rather than staged per block; one launch covers up to 8 nodes; 4B shapes reach 330-410 GB/s at every m |
+| TEE per exchange | pads memcpy'd out of the ring; malloc'd reply; per-node std::vectors; unmask then two verify passes | pads used in place (ring with held/reserved regions); link-owned reply buffer; scratch kept across calls; unmask fused with the Freivalds lhs pass | `shielded-tee.c`, `shielded-wire.c`, `shielded-simd.c` |
+| pool warm-up | first token generated 49 pads on the request path | `sh_link_start` waits (bounded) for one pad per group | |
+| refill threads | fixed 2 | derived from the registered MACs (0.5B: 2; 4B: 10-11) | `derive_threads` |
+| outlier term | int64 scalar (0.6 ms/token once lm_head held back 32 channels) | exact double accumulate, vectorised | `outlier_add` |
+| calibration | `calibrate.py`, qwen2 only, per-tensor exponents, `SHIELDED_AF_DELTA=-5` | `shielded-calib` (C, `cb_eval`), any q8_0 GGUF libllama runs, per-column exponents, delta 0, format version 2 | 13.4 |
+| shared-activation group split by ggml_backend_sched | one round trip and one pad per visible member | the first member's exchange fetches the whole group; the later split is served from a cache keyed on the exact activation | 13.5 |
+| worker restart | the tenant fell to the int64 path for the rest of its life | link down, retry with 1-60 s backoff, in-enclave compute meanwhile | |
+
+## 13.3 Measured: Qwen2.5-0.5B q8_0, host loopback, medians of three
+
+| backend | threads | decode tok/s | ms/token | vs unmasked |
+|---|---|---|---|---|
+| unmasked GPU (CUDA, full offload) | 8 | 422.7 | 2.37 | 1.00x |
+| CPU in the enclave | 8 | 172.2 | 5.81 | 2.45x |
+| shielded, section 12 build (same run) | 8 | 172.1 | 5.81 | 2.45x |
+| **shielded, this revision** | 8 | **216.2** | **4.63** | **1.95x** |
+| CPU in the enclave | 4 | 135.7 | 7.37 | |
+| shielded, this revision | 4 | 215.1 | 4.65 | |
+| CPU in the enclave | 16 | 166.3 | 6.01 | |
+| shielded, this revision | 16 | 191.7 | 5.22 | |
+
+Same completion text across the three runs of every row; the shielded rows at 4, 8 and 16
+threads produce the same text as each other; 0 verification failures; 3139 exchanges and
+4676 offloaded nodes per 64-token run, unchanged. (The "before" row differs textually from
+the "after" rows because the exponents changed -- 13.4 -- and both match their own int64
+in-enclave computation character for character, which is the exactness check.)
+
+Shielding now costs **1.95x against the same card unmasked**, from 2.45x, and the
+shielded path beats the enclave's own CPU at every thread count instead of tying it --
+by 26% at 8 threads and by 59% at the 4 threads an in-CVM tenant actually gets. The
+shielded row barely moves between 4 and 8 threads (215 vs 216): the matmuls are off the
+CPU, so what the threads are left with is attention and norms.
+
+Per token after (from `SHIELDED_PROFILE`, 4.63 ms):
+
+| term | ms/token | before (section 12) |
+|---|---|---|
+| wire (49 round trips, 46 us each) | 2.24 | 3.79 |
+| CPU half of the graph | ~1.5 | 1.24 |
+| post (outlier term + descale) | 0.55 | 0.17 (0 outliers on lm_head then) |
+| unmask + Freivalds lhs / rhs | 0.31 | 0.97 (unmask + verify) |
+| mask (pad take + residue split) | 0.13 | 0.54 |
+| encode | 0.02 | 0.20 |
+| refill on the request path | 0 | 0.31 |
+
+The exchange floor by shape (`xtimer`, TCP loopback, us per exchange, old worker + old TEE
+objects on the left, new on the right):
+
+| shape | before us/exchange | after us/exchange |
+|---|---|---|
+| 0.5B-gate|up (K=896, N=4864, 2 nodes, m=1) | 66.5 | 46.8 |
+| 0.5B-down (K=4864, N=896, 1 node, m=1) | 37.6 | 29.8 |
+| 0.5B-lm_head (K=896, N=151936, 1 node, m=1) | 773.5 | 495.5 |
+| 0.5B-gate|up-m4 (K=896, N=4864, 2 nodes, m=4) | 147.9 | 89.5 |
+| 0.5B-gate|up-m8 (K=896, N=4864, 2 nodes, m=8) | 259.4 | 149.3 |
+| tiny (K=256, N=256, 1 node, m=1) | 26.4 | 17.3 |
+| 4B-gate|up (K=2560, N=9728, 2 nodes, m=1) | 190.2 | 166.6 |
+| 4B-down (K=9728, N=2560, 1 node, m=1) | 115.5 | 104.6 |
+
+## 13.4 Calibration for any model, and the 5 bits back
+
+`shielded-calib` (`wasm/ggml-shielded/shielded-calib.cpp`) replaces `calibrate.py` for the
+engine backend. It sets `llama_context_params.cb_eval` -- the hook llama-imatrix uses --
+prefills the same four calibration texts through the real engine on the CPU backend,
+captures the activation of every matmul the backend could claim, encodes every weight with
+the backend's own `sh_prepare_weight_rows` (per output column, the same object file), and
+chooses `(act_frac, outliers)` by `calibrate.py`'s rule. Two consequences:
+
+- It calibrates whatever libllama can prefill. Three files ship now: Qwen2.5-0.5B (97
+  sites), Qwen3-4B-Instruct (144 sites) and Qwen3.5-0.8B-MTP, a hybrid deltanet
+  architecture with fused `attn_qkv` and `ssm_*` linears (97 sites). Each regenerates
+  byte-for-byte (determinism was checked by an independent build).
+- Its exponents are for the product the runtime forms, so `SHIELDED_AF_DELTA` defaults to
+  0. Against the per-column encoding the old per-tensor exponents were 1-6 bits too
+  generous per site (median 2); the blanket -5 had been sized for the worst site, so the
+  median site now keeps 3 more bits. The file carries a format version and the backend
+  applies the historical -5 to a version-1 file itself.
+
+A site that cannot reach the 4x headroom target even at the smallest exponent is left
+out and stays in the enclave (Qwen3-4B's last-layer `ffn_down`, 3.61x): a wider input than
+the calibration text would otherwise wrap the field there and abort the request.
+
+The calibrator also reports, from the graph rather than from names, which sites share one
+activation. That is how it found that qwen35's deltanet layers feed `attn_qkv`,
+`attn_gate`, `ssm_alpha` and `ssm_beta` from one norm output while the backend was
+exchanging two of them as two groups -- one plaintext under two pads, and 18 exchanges per
+token more than needed. `sh_group_key` folds them now, in both places.
+
+## 13.5 The model-size axis, measured
+
+Qwen3-4B-Instruct q8_0 (36 layers, 4.0 GB of int8 weights on the card):
+
+| backend | threads | decode tok/s | ms/token | runs |
+|---|---|---|---|---|
+| unmasked GPU (CUDA, full offload) | 8 | 84.6 | 11.81 | n=3, 1 text |
+| CPU in the enclave | 16 | 25.6 | 38.98 | n=3, 1 text |
+| CPU in the enclave | 8 | 25.4 | 39.41 | n=2, 1 text |
+| **shielded** | 16 | 43.1 | 23.22 | n=3, 1 text |
+| shielded | 8 | 45.8 | 21.82 | n=2, 1 text |
+
+Qwen3.5-0.8B-MTP q8_0 (hybrid deltanet):
+
+| backend | threads | decode tok/s | ms/token | runs |
+|---|---|---|---|---|
+| unmasked GPU (CUDA, full offload) | 8 | 277.6 | 3.60 | n=3, 1 text |
+| CPU in the enclave | 8 | 87.5 | 11.43 | n=3, 1 text |
+| **shielded** | 8 | 97.2 | 10.29 | n=3, 1 text |
+
+The prediction held, with numbers. At 4B the enclave's CPU decodes at 25 tok/s and the
+shielded path at 45.8 tok/s (8 threads; 16 threads is slower at 43.1, the engine's threads and the 11 refill threads contending for 16 cores): the card pays for itself 1.8x over, and sits
+1.8x behind the same card unmasked -- about where the 0.5B sits (1.95x), not
+worse, because a 4B token is 4 GB of weight bandwidth that both paths pay and 145 round
+trips that only one does. Per 4B token: 144 exchanges (104 us each, 14.9 ms), 72 members served from the completion cache, mask 0.75 ms, unmask+Freivalds 1.80 ms, outlier term + descale 1.42 ms, encode 0.16 ms, refill on the path 0.00 ms; the rest is the CPU half of the graph.
+
+Two things the 4B needed that the 0.5B never exercised. Its q/k/v projections are big
+enough to offload, and `ggml_backend_sched` puts a CPU op (Qwen3's q_norm) between them,
+so the backend saw the group one member at a time: 181 exchanges per token where 145 were
+due, and a pad per member for one activation. An exchange for a partial group now asks
+the worker for every member's product and keeps the invisible ones in a cache keyed on the
+exact field-encoded activation; the later split is served from it when its activation is
+byte-identical (which it is, since it is the same tensor), and re-exchanged if not. 4643
+exchanges for 32 tokens, from 5795; texts identical. Nothing new crosses the wire: the
+extra products are functions of the same masked planes and the public weights, verified
+like every other. And refill: 4B needs ~48 core-ms of `u = r.W` per token against the
+0.5B's 5.4, which is why the thread count is now derived from the registered weights
+(11 threads here) rather than fixed at 2.
+
+The first request of a 4B tenant pays ~3 s to ship 4 GB of public weights to the worker
+and warm the pool; that is once per process, not per request.
+
+## 13.6 Batch width and speculative decoding
+
+The two ways to amortise the round trip, measured with `bench-batch` and `bench-spec`
+(`make -C wasm/ggml-shielded bench`):
+
+Batch width -- one `llama_decode` of m rows per step, the cost of a verify pass of m-1
+drafts or of m concurrent users (0.5B, ms per step, tok/s-equivalent = m / step):
+
+| m | CPU ms (tok/s-eq) | unmasked CUDA ms (tok/s-eq) | shielded ms (tok/s-eq) |
+|---|---|---|---|
+| 1 | 5.68 (176) | 2.21 (452) | 4.92 (203) |
+| 2 | 9.97 (201) | 2.53 (789) | 7.48 (268) |
+| 3 | 13.59 (221) | 2.67 (1122) | 9.41 (319) |
+| 4 | 11.50 (348) | 2.79 (1434) | 11.30 (354) |
+| 6 | 14.32 (419) | 3.23 (1859) | 16.18 (371) |
+| 8 | 15.82 (506) | 3.75 (2134) | 19.13 (418) |
+
+With the kernel fixed the shielded step grows sub-linearly in m (3.9x at
+m=8), so eight concurrent users of one 0.5B tenant would see 418 tok/s in
+aggregate -- the throughput argument the kill criterion is stated in terms of. Pool depth
+must scale with m (`SHIELDED_POOL_DEPTH >= 4m`; these rows used 64 and 8 refill threads).
+
+Speculative decoding -- real self-drafting through the engine's own MTP verbs on
+Qwen3.5-0.8B-MTP (draft k, verify k+1 rows in one pass, greedy accept, rewind), 64 tokens,
+P_MIN=0, text asserted identical to plain greedy decode:
+
+| backend | k | tokens/round | acceptance | draft ms | verify ms | spec tok/s | plain tok/s (bench-run) | speedup | text |
+|---|---|---|---|---|---|---|---|---|---|
+| cpu | 1 | 1.70 | 70% | 3.6 | 17.0 | 76.4 | 87.5 | 0.87x | identical |
+| cuda | 1 | 1.70 | 70% | 1.5 | 4.2 | 231.2 | 277.6 | 0.83x | identical |
+| shielded | 1 | 1.75 | 75% | 2.0 | 13.8 | 99.4 | 97.2 | 1.02x | identical |
+| cpu | 2 | 1.97 | 48% | 6.7 | 23.5 | 60.6 | 87.5 | 0.69x | identical |
+| cuda | 2 | 1.97 | 48% | 2.7 | 4.6 | 206.5 | 277.6 | 0.74x | DIFFERS |
+| shielded | 2 | 1.97 | 48% | 3.6 | 17.8 | 83.1 | 97.2 | 0.85x | identical |
+| cpu | 4 | 2.17 | 29% | 12.7 | 28.6 | 49.5 | 87.5 | 0.57x | identical |
+| cuda | 4 | 2.17 | 29% | 5.2 | 5.3 | 166.2 | 277.6 | 0.60x | DIFFERS |
+| shielded | 4 | 2.25 | 31% | 6.5 | 23.0 | 69.8 | 97.2 | 0.72x | identical |
+
+It is not the lever the handoff hoped for, and the reason is not the shielded path: the
+MTP head's acceptance is 75% at k=1 and falls from there, so a round yields
+~1.8 tokens for a verify pass that costs ~1.5 plain steps plus a draft, and every backend
+lands near break-even at k=1 and below it beyond. (The `plain` column of `bench-spec` runs
+the ell server path at its default thread count; compare its speculative rows against
+`bench-run`'s plain figure for the same backend, which is what the speedup column does.)
+Batching wins; speculation waits for a draft head that is accepted more often.
+
+## 13.7 What it took to keep it honest
+
+Three reviewers were pointed at the diff with instructions to refute it, and a red-team
+re-ran every transcript attack of SECURITY.md section 7b against the new stack (section
+7c there). The invariants held -- 63,338 masked plane-rows with no pad reused, including
+depth-1 rings under 8 refill threads and m=8 batches; every corruption aborted; the
+known-pad positions carry no structure -- and the reviews found what reviews are for:
+
+- A weight registered after the pool started changed the refill threads' row stride
+  under them (an ASan-confirmed heap overflow that no measured run had hit, because every
+  weight of these models shows up in the first graph). The pool now stops and drops its
+  rings before any group changes.
+- A worker that answers a `FIELD_GEMM` with an oversize or wrong-length frame was being
+  classified as "this node's shape" rather than as a misbehaving peer, so a tenant would
+  keep shipping a pad per group per token to a worker whose replies it could not use, and
+  never reconnect (787 wasted exchanges in the reviewer's fake-worker run). Worker-originated
+  errors now take the link down.
+- Five hand-written frames killed the worker process outright (a 2^64-1 allocation,
+  a 2^62-wide install, reads of a weights buffer after install, two million nested
+  brackets). It refuses them now; a crash was never a refusal, and the launcher's 2-second
+  restart had been covering for it.
+- The Freivalds rhs accumulator's documented bound was wrong (it needs |x| < 2^24, which a
+  legal activation satisfies; chunks are 32 now, good to 2^26).
+
+## 13.8 What deploying it costs, and a mistake worth recording
+
+The launcher on a metal box runs the worker straight from `shielded/worker-cuda/
+shielded-worker`, so `make` there IS a deploy -- and linking over the live binary rewrote
+the pages the running worker was executing. It died mid-exchange, the launcher restarted
+it on the new build within two seconds, and the CVM's tenant -- running the section-12
+backend, which had no reconnect -- spent the next 25 minutes on the int64 path at 6 tok/s
+until the service was restarted (one app-hostname certificate issuance, the box's seventh
+that day). The Makefile now links to a temporary name and renames it into place, so a
+running worker keeps its inode; and the backend in this revision reconnects, so the same
+event would cost a tenant a few seconds. The guest half of that fix reaches the fleet only
+through a release and `metal/update.mjs`, which builds from the tag.
+
+Measured from outside after the restart, with the new worker under the old guest backend:
+100.8 tok/s decode on the live app, from 99-105 before; the in-CVM figure for the new
+backend is the next measurement, and needs the release.
+
+## 13.9 Open
+
+- **In the CVM.** Everything here is host loopback. The vsock exchange is dearer than
+  loopback TCP and the tenant's CPU half runs on 4 vCPUs; the deployed number for this
+  revision is unmeasured until the image carries it.
+- **The remaining 46 us.** ~9-15 us is the socket, ~24 us the fused kernel at K=896, the
+  rest launch and sync. Short K at m>=4 (0.5B shapes) still runs at ~215 GB/s against 400+
+  for the 4B shapes: a different block shape for short K is the next kernel lever.
+- **lm_head is 30% of the bytes and 15% of the token** at 0.5B (136 MB per token, one
+  exchange, 32 outlier channels held back). A vocabulary-pruned or int4 lm_head is the
+  obvious target if the token has to get shorter at this size.
+- **Refill at 8B+.** ~100 core-ms per token; a 16-vCPU CVM can spend half its cores on it
+  and still fit, but the policy that decides which cores belongs to the supervisor, not
+  the backend.
+- **Two contexts, one link.** The backend assumes one caller (graph_compute holds
+  `sh_state::mu`, so it is serialised, not concurrent); an engine that ever ran two
+  contexts' graphs on two threads would queue on that mutex.

@@ -25,10 +25,18 @@ worker.o: worker.cu $(FIELD_DIR)/shielded-field.h
 
 # libcudart.so.12 is copied beside the binary (rpath $ORIGIN first) so the
 # deployed worker carries its own runtime; the toolkit dir is the dev fallback.
+# Linked to a temporary name and moved into place ATOMICALLY. On a metal host
+# the launcher runs the worker straight from this path; linking over the live
+# binary rewrites the pages a running process is executing and it dies in the
+# middle of an exchange (2026-08-26: SIGSEGV in a symbol from the NEW build,
+# the tenant's link gone, the app on the int64 path at 6 tok/s until relaunch).
+# A rename keeps the old inode alive for the old process; the launcher picks
+# up the new binary on its next (re)start.
 shielded-worker: worker.o shielded-field.o
-	cp -f $(CUDA_HOME)/lib64/libcudart.so.12 .
-	$(CUDACXX) -o $@ worker.o shielded-field.o -L$(CUDA_HOME)/lib64 -lcudart -ldl -lrt -lpthread \
+	cp -f $(CUDA_HOME)/lib64/libcudart.so.12 libcudart.so.12.tmp && mv -f libcudart.so.12.tmp libcudart.so.12
+	$(CUDACXX) -o $@.tmp worker.o shielded-field.o -L$(CUDA_HOME)/lib64 -lcudart -ldl -lrt -lpthread \
 	  -Wl,-rpath,'$$ORIGIN' -Wl,-rpath,$(CUDA_HOME)/lib64
+	mv -f $@.tmp $@
 
 clean:
 	rm -f shielded-worker worker.o shielded-field.o libcudart.so.12

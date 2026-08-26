@@ -33,33 +33,34 @@ static int sh_env_int(const char *name, int dflt) {
     return (e && *e) ? atoi(e) : dflt;
 }
 
-/* The calibrated activation exponent, corrected for the per-column weight
- * encoding. NOT per-request: a constant for the process, exactly as the
- * calibrated exponent is -- adapting it to the activation in hand would buy
- * field headroom by leaking activation magnitude, and is refused.
+/* A process-wide correction to every site's calibrated activation exponent.
+ * NOT per-request: a constant, exactly as the calibrated exponent is --
+ * adapting it to the activation in hand would buy field headroom by leaking
+ * activation magnitude, and is refused.
  *
- * Why it defaults to -5 rather than 0. calibrate.py chose each site's exponent
- * against the PER-TENSOR weight encoding, where most columns held tiny w_fixed
- * and therefore tiny products. This backend encodes per COLUMN (per-tensor
- * quantises 13.5% of a real model's weights to zero and loses the answer), so
- * every column now uses the full byte lane, the products grow, and the ~23.8-bit
- * field cannot hold both exponents at their old values. Measured on
- * Qwen2.5-0.5B: the activation has to give back 5 bits for the products to fit,
- * and at that point the shielded path reproduces ggml's CPU output.
+ * It defaults to 0 because the calibration files are now produced by
+ * shielded-calib, which encodes each weight with the very sh_prepare_weight_rows
+ * this backend calls -- per OUTPUT COLUMN -- so the exponent it chooses is for
+ * the product the runtime actually forms. The knob exists for history and for
+ * experiments: the first calibrations came from calibrate.py, which measured
+ * against tee.py's PER-TENSOR encoding, where most columns held tiny w_fixed and
+ * tiny products; against per-column weights those exponents were 1-6 bits too
+ * generous (Qwen2.5-0.5B, per site) and a blanket -5, sized for the worst site,
+ * was what made them fit. Per-site calibration gives the median site 3 of those
+ * bits back. A calibrate.py file still needs SHIELDED_AF_DELTA=-5.
  *
- * Leaving it at 0 does not silently corrupt anything -- the Freivalds check runs
- * over the integers and catches the wrap -- but it fails EVERY request, which is
- * how this shipped: verified locally with the flag set, deployed without it, and
- * the tenant died in llama_decode with the wrap detector doing its job.
- *
- * This is a measured constant standing in for a calibrated one. The proper fix
- * is to re-run calibrate.py against the per-column encoding so each site gets
- * its own exponent again; when that lands this default becomes 0. */
-static int sh_af_delta() {
+ * Getting this wrong does not silently corrupt anything -- the Freivalds check
+ * runs over the integers and catches the wrap -- but it fails EVERY request,
+ * which is how the -5 once shipped: verified locally with the flag set, deployed
+ * without it, and the tenant died in llama_decode with the wrap detector doing
+ * its job. */
+static int sh_af_delta_env() {
     static int d = INT32_MIN;
-    if (d == INT32_MIN) d = sh_env_int("SHIELDED_AF_DELTA", -5);
+    if (d == INT32_MIN) d = sh_env_int("SHIELDED_AF_DELTA", 0);
     return d;
 }
+struct sh_state;
+static int sh_af_delta(const sh_state &s);
 
 /* --------------------------------------------------------------------------
  * Placement policy.
@@ -105,11 +106,21 @@ struct sh_calib_site {
  * activation -- and therefore share one exponent, one outlier set and, at run
  * time, ONE PAD and ONE EXCHANGE. That is not a bandwidth optimisation: masking
  * the same x three times under three pads would hand the adversary three
- * encryptions of one value for no benefit. */
+ * encryptions of one value for no benefit.
+ *
+ * qwen35's gated-deltanet layers feed FOUR linears from one norm output:
+ * attn_qkv, attn_gate, ssm_alpha and ssm_beta all read the same tensor
+ * (shielded-calib reports it from the graph). Without the last three rows the
+ * backend exchanged attn_qkv and attn_gate as two groups, i.e. one plaintext
+ * under two pads and one exchange per layer more than needed. A name that
+ * matches here but whose model has no attn_qkv simply finds no calibration and
+ * stays in the enclave. */
 static std::string sh_group_key(const std::string &name) {
     static const std::pair<const char *, const char *> members[] = {
-        { "attn_k",   "attn_q" }, { "attn_v",  "attn_q" },
-        { "ffn_up",   "ffn_gate" },
+        { "attn_k",    "attn_q" },   { "attn_v",    "attn_q" },
+        { "ffn_up",    "ffn_gate" },
+        { "attn_gate", "attn_qkv" }, { "ssm_alpha", "attn_qkv" }, { "ssm_beta", "attn_qkv" },
+        { "ssm_ba",    "attn_qkv" },   /* qwen3next: the same norm output */
     };
     for (const auto &m : members) {
         const size_t p = name.find(m.first);
@@ -129,7 +140,20 @@ struct sh_state {
     std::string calib_path;
     bool configured = false;
     bool calib_loaded = false;
+    /* "# shielded-calib N" on the file's first line. 1 = calibrate.py's
+     * exponents, chosen against tee.py's per-TENSOR weight encoding, which
+     * need the historical -5 against this backend's per-column products;
+     * 2 = shielded-calib's, chosen against the very encoding this backend
+     * applies. A file with no header is 1. The env delta is added on top. */
+    int calib_version = 1;
     bool link_failed = false;
+    /* Reconnect policy after a transport failure: the link is retried at the
+     * next graph once `link_retry_at` has passed, with the wait doubling from
+     * 1 s to 60 s. Until then every claimed matmul is computed in the enclave,
+     * exactly and slowly. Before this the first socket error was PERMANENT:
+     * a worker restart on the host left the tenant on the int64 path (6 tok/s
+     * on the 0.5B) until the tenant itself was restarted. */
+    double link_retry_at = 0, link_backoff_ms = 1000;
     std::map<std::string, sh_calib_site> calib;
 
     sh_link *link = nullptr;
@@ -137,6 +161,7 @@ struct sh_state {
      * never move, so the link may borrow `w` for its lifetime. */
     struct entry {
         int node = -1;
+        std::string name;
         std::vector<int> f_w;           /* one exponent per output column */
         int64_t K = 0, N = 0;
         const sh_calib_site *site = nullptr;
@@ -147,14 +172,57 @@ struct sh_state {
     };
     std::map<std::string, entry> weights;
     std::map<std::string, int> group_first;   /* group key -> first node in it */
+    /* Every registered weight of each group, in registration order.
+     *
+     * ggml_backend_sched cuts the graph wherever the backend changes, and a
+     * CPU op between two members of a group -- Qwen3's q_norm between attn_q
+     * and attn_k -- puts them in different splits, so graph_compute sees the
+     * group one member at a time. Exchanged naively that is one round trip and
+     * one pad PER MEMBER for the same activation (Qwen3-4B: 181 exchanges per
+     * token instead of 145). Instead, an exchange for a partial group asks the
+     * worker for the WHOLE group's products and keeps the invisible members'
+     * results here; the later split is served from that cache when its
+     * activation is byte-identical to the one exchanged. One plaintext, one
+     * pad, one round trip -- rule 2 held by construction across splits too.
+     * Nothing new crosses the wire: the extra products are functions of the
+     * same masked planes and the public weights, verified like every other. */
+    std::map<std::string, std::vector<std::string>> group_members;
+    struct gcache { int32_t m = 0; std::vector<int64_t> x; std::map<std::string, std::vector<int64_t>> y; };
+    std::map<std::string, gcache> completion;
+    std::vector<entry *> xents;               /* the exchange set of the current node */
+    uint64_t completed = 0, served = 0;       /* group completions issued / members served from one */
     std::set<std::string> refused;            /* names that failed registration, said once */
     bool dirty = false;                       /* new weights since the last start() */
 
     uint64_t offloaded_nodes = 0, local_nodes = 0, macs = 0, verify_fail = 0, exchanges = 0;
     double t_encode = 0, t_link = 0, t_post = 0, t_graph = 0;
+
+    /* graph_compute scratch, kept across calls: resize() never shrinks a
+     * vector's capacity, so after the first token these are plain pointer
+     * arithmetic. Bounded by max_m x Kmax (x) and max_m x sum N of the widest
+     * group (y) -- for the 0.5B that is 8 x 151936 int64 = 9.7 MB at most.
+     * Before this every exchange constructed and destroyed x_gpu, x_tee, one
+     * vector per member and the bookkeeping vectors around them. */
+    std::vector<int64_t> x_gpu, x_tee, ys;
+    std::vector<int64_t *> yp;
+    std::vector<int> nodes;
+    std::vector<char> done;
+    std::vector<ggml_tensor *> members;
+    std::vector<entry *> ents;
+
+    /* The link borrows `weights[*].w` for its lifetime and its refill threads
+     * read them from the background. Static destruction order would free the
+     * map first and let a thread mid-refill read freed memory (a real segfault
+     * at process exit, seen on bench-batch); close the link -- which joins the
+     * threads -- before any member goes. */
+    ~sh_state() { if (link) { sh_link_close(link); link = nullptr; } }
 };
 
 static sh_state &sh_get() { static sh_state s; return s; }
+
+/* The correction every site's calibrated exponent gets: the file format's own
+ * (see calib_version) plus the process-wide SHIELDED_AF_DELTA. */
+static int sh_af_delta(const sh_state &s) { return (s.calib_version == 1 ? -5 : 0) + sh_af_delta_env(); }
 
 void ggml_backend_shielded_configure(const char *host, int port, const char *calib_path) {
     sh_state &s = sh_get();
@@ -172,13 +240,14 @@ void ggml_backend_shielded_stats(uint64_t *off, uint64_t *loc, uint64_t *macs, u
     if (getenv("SHIELDED_PROFILE")) {
         uint64_t used = 0, missed = 0;
         if (s.link) sh_link_pool_stats(s.link, &used, &missed);
-        fprintf(stderr, "[shielded] profile: exchanges=%llu nodes=%llu | link: mask=%.1fms wire=%.1fms "
-                        "refill-on-path=%.1fms unmask=%.1fms verify=%.1fms | backend: encode=%.1fms "
-                        "post=%.1fms graph_compute=%.1fms | pads used=%llu missed=%llu | simd=%s\n",
+        fprintf(stderr, "[shielded] profile: exchanges=%llu nodes=%llu (completions=%llu served=%llu) | link: mask=%.1fms wire=%.1fms "
+                        "refill-on-path=%.1fms unmask+lhs=%.1fms rhs=%.1fms total=%.1fms | backend: encode=%.1fms "
+                        "post=%.1fms graph_compute=%.1fms | pads used=%llu missed=%llu | simd=%s refill_threads=%d\n",
                 (unsigned long long)s.exchanges, (unsigned long long)s.offloaded_nodes,
-                sh_prof[0], sh_prof[1], sh_prof[2], sh_prof[3], sh_prof[4],
+                (unsigned long long)s.completed, (unsigned long long)s.served,
+                sh_prof[0], sh_prof[1], sh_prof[2], sh_prof[3], sh_prof[4], s.t_link,
                 s.t_encode, s.t_post, s.t_graph, (unsigned long long)used, (unsigned long long)missed,
-                sh_link_simd()->name);
+                sh_link_simd()->name, s.link ? sh_link_refill_threads(s.link) : 0);
     }
     if (off)  *off  = s.offloaded_nodes;
     if (loc)  *loc  = s.local_nodes;
@@ -211,7 +280,9 @@ static void sh_load_calib(sh_state &s) {
     FILE *f = fopen(s.calib_path.c_str(), "r");
     if (!f) { SH_LOG("calibration %s unreadable; nothing will be offloaded\n", s.calib_path.c_str()); return; }
     char line[8192];
+    bool first = true;
     while (fgets(line, sizeof line, f)) {
+        if (first) { int v = 0; if (sscanf(line, "# shielded-calib %d", &v) == 1) s.calib_version = v; first = false; }
         if (line[0] == '#' || line[0] == '\n') continue;
         char name[512]; int af = 0, nout = 0; int pos = 0;
         if (sscanf(line, "site %511s %d %d%n", name, &af, &nout, &pos) < 3) continue;
@@ -227,8 +298,14 @@ static void sh_load_calib(sh_state &s) {
         s.calib[name] = std::move(site);
     }
     fclose(f);
-    SH_LOG("calibration: %zu sites from %s (policy: min %lld MAC, max m %d, simd %s)\n",
-           s.calib.size(), s.calib_path.c_str(), (long long)sh_min_macs(), sh_max_m(), sh_link_simd()->name);
+    if (s.calib_version != 1 && s.calib_version != 2) {
+        fprintf(stderr, "[shielded] %s: calibration format %d is unknown; nothing will be offloaded\n", s.calib_path.c_str(), s.calib_version);
+        s.calib.clear();
+    }
+    SH_LOG("calibration: %zu sites from %s, format %d%s (policy: min %lld MAC, max m %d, simd %s)\n",
+           s.calib.size(), s.calib_path.c_str(), s.calib_version,
+           s.calib_version == 1 ? " (calibrate.py exponents: applying the -5 per-column correction)" : "",
+           (long long)sh_min_macs(), sh_max_m(), sh_link_simd()->name);
 }
 
 static const sh_calib_site *sh_site_for(sh_state &s, const char *name) {
@@ -274,7 +351,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
         if (k < 0 || k >= K) { SH_LOG("%s: outlier channel %lld out of range\n", name.c_str(), (long long)k); s.refused.insert(name); return false; }
         for (int64_t j = 0; j < N; j++) e.out_cols[c * (size_t)N + j] = e.w[(size_t)j * K + k];
     }
-    const int af = site->act_frac + sh_af_delta();
+    const int af = site->act_frac + sh_af_delta(s);
     e.inv.resize((size_t)N);
     for (int64_t j = 0; j < N; j++) e.inv[j] = ldexpf(1.0f, -(af + e.f_w[j]));
 
@@ -288,6 +365,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
 
     sh_state::entry &stored = s.weights[name];
     stored = std::move(e);
+    stored.name = name;
     auto gf = s.group_first.find(stored.group);
     const int share = gf == s.group_first.end() ? -1 : gf->second;
     const int node = sh_link_add_weight(s.link, name.c_str(), stored.w.data(), K, N, sh_max_m(), share);
@@ -298,6 +376,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     }
     stored.node = node;
     if (share < 0) s.group_first[stored.group] = node;
+    s.group_members[stored.group].push_back(name);
     s.dirty = true;
     SH_LOG("registered %s K=%lld N=%lld f_w=%d..%d act_frac=%d outliers=%zu group=%s (%.0f ms)\n",
            name.c_str(), (long long)K, (long long)N, lo, hi, site->act_frac, nout, stored.group.c_str(), sh_now_ms() - t0);
@@ -384,6 +463,15 @@ static bool sh_is_meta(const ggml_tensor *t) {
     }
 }
 
+/* The link is down (socket error, worker refused us, or start failed): stop
+ * using it and arm the retry. Pads are unaffected -- the bank's counter never
+ * rewinds and the pools are rebuilt from fresh issuance on reconnect. */
+static void sh_link_down(sh_state &s) {
+    s.link_failed = true;
+    s.link_retry_at = sh_now_ms() + s.link_backoff_ms;
+    s.link_backoff_ms = s.link_backoff_ms < 60000 ? s.link_backoff_ms * 2 : 60000;
+}
+
 static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml_cgraph *cgraph) {
     sh_state &s = sh_get();
     std::lock_guard<std::mutex> lk(s.mu);
@@ -395,20 +483,26 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
         ggml_tensor *node = ggml_graph_node(cgraph, i);
         if (node->op == GGML_OP_MUL_MAT && node->src[0] && node->src[0]->data) sh_register(s, node->src[0]);
     }
+    /* A failed link is retried once its backoff has passed: the same start
+     * path as the first connection, carrying the whole weight set again. */
+    if (s.link_failed && s.link && sh_now_ms() >= s.link_retry_at) { s.link_failed = false; s.dirty = true; }
     if (s.dirty && s.link && !s.link_failed) {
         const double t0 = sh_now_ms();
         const int rc = sh_link_start(s.link);
         if (rc != SH_OK) {
-            SH_LOG("worker unavailable (%s); computing in the enclave instead\n", sh_link_last_error(s.link));
-            s.link_failed = true;
+            SH_LOG("worker unavailable (%s); computing in the enclave, retrying in %.0f s\n",
+                   sh_link_last_error(s.link), s.link_backoff_ms / 1000);
+            sh_link_down(s);
         } else {
-            SH_LOG("worker live over %s with %zu weights (%.0f ms to upload and install)\n",
-                   sh_link_transport(s.link), s.weights.size(), sh_now_ms() - t0);
+            SH_LOG("worker live over %s with %zu weights, %d refill threads (%.0f ms to upload, install and warm the pool)\n",
+                   sh_link_transport(s.link), s.weights.size(), sh_link_refill_threads(s.link), sh_now_ms() - t0);
+            s.link_backoff_ms = 1000;
         }
         s.dirty = false;
     }
 
-    std::vector<char> done((size_t)n, 0);
+    std::vector<char> &done = s.done;
+    done.assign((size_t)n, 0);
     for (int i = 0; i < n; i++) {
         if (done[i]) continue;
         ggml_tensor *node = ggml_graph_node(cgraph, i);
@@ -437,8 +531,10 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
         /* Gather every later matmul in this split that reads the SAME activation
          * and belongs to the same group: gate with up, q with k and v. They are
          * one exchange under one pad. */
-        std::vector<ggml_tensor *> members = { node };
-        std::vector<sh_state::entry *> ents = { &it->second };
+        std::vector<ggml_tensor *> &members = s.members;
+        std::vector<sh_state::entry *> &ents = s.ents;
+        members.clear(); ents.clear();
+        members.push_back(node); ents.push_back(&it->second);
         for (int j = i + 1; j < n && members.size() < SH_GROUP_MAX; j++) {
             ggml_tensor *o = ggml_graph_node(cgraph, j);
             if (done[j] || sh_is_meta(o)) continue;
@@ -452,17 +548,23 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
         const sh_state::entry &e0 = *ents[0];
         const int64_t K = e0.K;
         const int32_t m = (int32_t)a->ne[1];
-        const int af = e0.site->act_frac + sh_af_delta();
+        /* A zero-row matmul has a zero-element output and nothing to exchange.
+         * The MTP head context issues one against the tied lm_head; sending it
+         * was refused as m outside [1,max_m] and, worse, that refusal used to
+         * mark the link dead for the rest of the process. */
+        if (m == 0) continue;
+        const int af = e0.site->act_frac + sh_af_delta(s);
 
         /* x_field = round(x * 2^af), with the outlier channels held back. The
          * exponent is a public model constant; deriving it from the activation in
          * hand would buy field headroom by leaking activation magnitude. */
         const double te0 = sh_now_ms();
-        std::vector<int64_t> x_gpu((size_t)m * K), x_tee;
+        std::vector<int64_t> &x_gpu = s.x_gpu, &x_tee = s.x_tee;
+        if (x_gpu.size() < (size_t)m * K) x_gpu.resize((size_t)m * K);
         simd->encode((const float *)a->data, (size_t)m * K, ldexpf(1.0f, af), x_gpu.data());
         const size_t nout = e0.site->outliers.size();
         if (nout) {
-            x_tee.resize((size_t)m * nout);
+            if (x_tee.size() < (size_t)m * nout) x_tee.resize((size_t)m * nout);
             for (int32_t r = 0; r < m; r++)
                 for (size_t c = 0; c < nout; c++) {
                     const int64_t k = e0.site->outliers[c];
@@ -472,15 +574,54 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
         }
         s.t_encode += sh_now_ms() - te0;
 
-        std::vector<std::vector<int64_t>> ys(members.size());
-        std::vector<int64_t *> yp(members.size());
-        std::vector<int> nodes(members.size());
-        for (size_t t = 0; t < members.size(); t++) {
-            ys[t].resize((size_t)m * ents[t]->N); yp[t] = ys[t].data(); nodes[t] = ents[t]->node;
+        /* The exchange set. Normally the visible members; when the group has
+         * members this split cannot see (see group_members), either the whole
+         * group is exchanged now and the rest cached, or the visible members
+         * are served from the cache an earlier split filled for this very
+         * activation. The cache is keyed on the exact field-encoded x that
+         * crossed (outliers already held back): a match means the worker would
+         * return the identical product, so it is not asked again. */
+        const bool live = s.link && !s.link_failed && sh_link_is_live(s.link);
+        std::vector<sh_state::entry *> &xents = s.xents;
+        xents.clear();
+        const std::vector<std::string> &gm = s.group_members[e0.group];
+        sh_state::gcache *gc = nullptr;
+        bool served = false;
+        if (live && gm.size() > members.size()) {
+            gc = &s.completion[e0.group];
+            if (gc->m == m && gc->x.size() == (size_t)m * K &&
+                memcmp(gc->x.data(), x_gpu.data(), (size_t)m * K * sizeof(int64_t)) == 0) {
+                served = true;
+                for (size_t t = 0; t < ents.size() && served; t++) served = gc->y.count(ents[t]->name) > 0;
+            }
+            if (!served) for (const std::string &nm : gm) xents.push_back(&s.weights[nm]);
+        }
+        if (xents.empty()) xents = ents;          /* served, or no invisible members: the visible set */
+
+        /* One flat y buffer for the exchange set; yp[t] is member t's rows within it. */
+        std::vector<int64_t *> &yp = s.yp;
+        std::vector<int> &nodes = s.nodes;
+        yp.resize(xents.size()); nodes.resize(xents.size());
+        size_t ytot = 0;
+        for (size_t t = 0; t < xents.size(); t++) ytot += (size_t)m * xents[t]->N;
+        if (s.ys.size() < ytot) s.ys.resize(ytot);
+        for (size_t t = 0, off = 0; t < xents.size(); t++) {
+            yp[t] = s.ys.data() + off; nodes[t] = xents[t]->node;
+            off += (size_t)m * xents[t]->N;
         }
         const double tl0 = sh_now_ms();
         int rc;
-        if (s.link && !s.link_failed && sh_link_is_live(s.link)) {
+        if (served) {
+            /* Copied out rather than pointed at: the post-processing below
+             * adds the outlier term in place, and a member may be served again
+             * if ggml asks for it twice. */
+            for (size_t t = 0; t < xents.size(); t++) {
+                const std::vector<int64_t> &src = gc->y[xents[t]->name];
+                memcpy(yp[t], src.data(), src.size() * sizeof(int64_t));
+            }
+            rc = SH_OK;
+            s.offloaded_nodes += members.size(); s.served += members.size();
+        } else if (live) {
             rc = sh_link_gemm(s.link, nodes.data(), nodes.size(), x_gpu.data(), m, yp.data());
             if (rc == SH_ERR_VERIFY) {
                 /* A corrupted product must never reach the caller: it would be
@@ -491,13 +632,42 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
                 return GGML_STATUS_FAILED;
             }
             if (rc != SH_OK) {
-                SH_LOG("%s: offload failed (%s); falling back to the enclave\n",
-                       ggml_get_name(node->src[0]), sh_link_last_error(s.link));
-                s.link_failed = true;
+                /* Two different failures. A transport error (socket died, or
+                 * the worker refused the frame and closed) takes the link down
+                 * until the retry fires. A bookkeeping refusal from our own
+                 * link (SH_ERR_PROTO: m outside the group's range, a node set
+                 * that does not share a group) is a property of THIS node, not
+                 * of the connection -- it is computed here and the link stays
+                 * up. Conflating the two once turned one odd matmul into a
+                 * permanent 15x slowdown. */
+                if (rc == SH_ERR_PROTO) {
+                    static std::set<std::string> told;
+                    const std::string nm = ggml_get_name(node->src[0]);
+                    if (told.insert(nm).second)
+                        fprintf(stderr, "[shielded] %s: not offloadable as shaped (%s); computing it in the enclave\n",
+                                nm.c_str(), sh_link_last_error(s.link));
+                } else {
+                    fprintf(stderr, "[shielded] %s: offload failed (%s); computing in the enclave, retrying the worker in %.0f s\n",
+                            ggml_get_name(node->src[0]), sh_link_last_error(s.link), s.link_backoff_ms / 1000);
+                    sh_link_down(s);
+                }
                 rc = sh_link_gemm_local(s.link, nodes.data(), nodes.size(), x_gpu.data(), m, yp.data());
                 s.local_nodes += members.size();
             } else {
                 s.offloaded_nodes += members.size(); s.exchanges++;
+                if (xents.size() > members.size()) {
+                    /* Keep the invisible members' products for the split that
+                     * asks for them, with the x they belong to. */
+                    s.completed++;
+                    gc->m = m;
+                    gc->x.assign(x_gpu.begin(), x_gpu.begin() + (size_t)m * K);
+                    gc->y.clear();
+                    for (size_t t = 0; t < xents.size(); t++) {
+                        bool visible = false;
+                        for (size_t v = 0; v < ents.size(); v++) visible = visible || ents[v] == xents[t];
+                        if (!visible) gc->y[xents[t]->name].assign(yp[t], yp[t] + (size_t)m * xents[t]->N);
+                    }
+                }
             }
         } else {
             rc = sh_link_gemm_local(s.link, nodes.data(), nodes.size(), x_gpu.data(), m, yp.data());
@@ -519,8 +689,10 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
             const sh_state::entry &e = *ents[t];
             const int64_t N = e.N;
             float *dst = (float *)members[t]->data;
+            size_t xi = 0;
+            while (xi < xents.size() && xents[xi] != ents[t]) xi++;
             for (int32_t r = 0; r < m; r++) {
-                int64_t *yr = ys[t].data() + (size_t)r * N;
+                int64_t *yr = yp[xi] + (size_t)r * N;
                 /* The outlier term, in the TEE, outside the field. */
                 if (nout) simd->outlier_add(x_tee.data() + (size_t)r * nout, e.out_cols.data(), (int)nout, N, yr);
                 /* Per-column descale: each output column carries its own exponent,

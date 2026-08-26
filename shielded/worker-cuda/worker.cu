@@ -19,8 +19,13 @@
  * through the interpreter, torch's dispatcher and a Triton launch -- measured
  * 0.35 ms on loopback. At ~50 exchanges per token that is 17 ms before the GPU
  * has done any work, against a whole-token budget of 14 ms. This worker does one
- * exchange in one frame, one H2D copy, one kernel per node, one D2H copy, and
- * one send, with no interpreter anywhere on the path.
+ * exchange in one frame read straight into pinned memory, one captured graph
+ * (the upload and one fused kernel for every node of the exchange, writing
+ * the products into mapped host memory), and one send from where they landed,
+ * with no interpreter anywhere on the path. Measured on the 0.5B gate|up
+ * exchange over TCP loopback: 67 us round trip with a memcpy, an H2D copy, a
+ * kernel per node, a D2H copy and a stream sync; 42.5 us this way, of which
+ * 24 is the kernel itself.
  *
  * WHAT IT COMPUTES
  * ----------------
@@ -56,6 +61,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <sys/socket.h>
+#include <sys/uio.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -118,6 +124,14 @@ static std::string fmt(const char *f, ...) {
 #define VIOLATE(...) throw Violation(fmt(__VA_ARGS__))
 
 static bool g_quiet = false;
+#ifdef SH_XPROF
+static double g_xp[16]; static uint64_t g_xpn; static std::chrono::steady_clock::time_point g_xpt;
+#define XP(i) do { auto _t = std::chrono::steady_clock::now(); if (i) g_xp[i] += std::chrono::duration<double, std::micro>(_t - g_xpt).count(); g_xpt = _t; } while (0)
+#define XPN() (g_xpn++)
+#else
+#define XP(i) do {} while (0)
+#define XPN() do {} while (0)
+#endif
 static void logf(const char *f, ...) {
     if (g_quiet) return;
     char buf[1024]; va_list ap; va_start(ap, f); vsnprintf(buf, sizeof buf, f, ap); va_end(ap);
@@ -194,12 +208,39 @@ static void ck(cudaError_t e, const char *what) {
 /* ---------------------------------------------------------------------------
  * The kernel.
  *
- * One warp per output row j. Lanes stride over K in 16-byte steps, so a warp
- * pulls 512 contiguous bytes of W per iteration -- the coalesced, bandwidth-
- * saturating shape. The masked activation rows (up to ROWS of them, three
- * planes each) sit in shared memory, loaded once per block. Each lane keeps
- * 3 x ROWS int32 accumulators fed by dp4a; a shuffle reduction and the CRT
- * finish the row.
+ * One launch covers up to 8 nodes of the exchange (gate|up is 2, q|k|v is 3):
+ * the node table travels in the launch parameters and each block finds its
+ * node by blockIdx. Fusing matters because the card's gap between two
+ * dependent launches is ~3-4 us, which at two launches per exchange and 49
+ * exchanges per token was 0.3 ms of a 6 ms token spent on nothing. The table
+ * is in PARAMETER space on purpose: an earlier form read it from device memory
+ * and the dependent load sat in front of every weight load, which on the
+ * K=896 decode shapes (two loop iterations per warp) cost 40% of the kernel.
+ *
+ * A block is 8 warps and owns RB = WR x G consecutive output rows: G row
+ * groups of WR rows each, and the KS = 8/G warps of a group split K between
+ * them in interleaved 512-byte chunks. A warp therefore streams WR weight rows
+ * AT ONCE and applies every activation value it loads to all WR rows. That is
+ * the m >= 2 fix: the old kernel had one warp per output row, so every 4 bytes
+ * of weight cost 3m x 4 bytes of shared-memory reads of X -- at m = 8 that is
+ * 24 bytes of shared memory per weight byte, 10.7 TB/s at the card's 448 GB/s,
+ * i.e. the card's ENTIRE shared-memory bandwidth, so m = 8 ran at 91 GB/s.
+ * Register-blocking WR rows divides that traffic by WR.
+ *
+ * The activation is read through L1 (__ldg) rather than staged in shared
+ * memory: it is small (3mK bytes), every block on an SM shares the same L1
+ * lines, and not staging it removes the per-block copy that was the OTHER
+ * m = 8 cost (N/8 blocks x 3mK bytes) as well as the shared-memory cap on K.
+ * Any K that is a multiple of 16 works: lanes past the last 16-byte chunk
+ * simply drop out of the loop.
+ *
+ * G is chosen per launch so there are enough blocks to cover the SMs while
+ * each block's output write is as wide as possible: the product goes STRAIGHT
+ * INTO MAPPED HOST MEMORY (no D2H copy, no copy-engine latency), as one
+ * contiguous RB x 4-byte write per activation row per block. Measured, the
+ * mapped destination costs the same as device memory on every shape here
+ * (lm_head, 608 KB of output: 331 vs 329 us), which is what makes the copy
+ * free to drop.
  *
  * Accumulator range: |x_p| <= 125, |w| <= 119, so K terms reach K * 14875 --
  * under 2^31 for any K below 144k. No chunking, no saturation.
@@ -211,115 +252,268 @@ static void ck(cudaError_t e, const char *what) {
 #define KINV01  217   /* inv(251 mod 241) mod 241 -- checked against the host at startup */
 #define KINV012 10    /* inv(251*241 mod 239) mod 239 */
 
+/* Garner, entirely in int32: r0 + 251*t1 < 60491 and the final value is
+ * below M = 14457349, so nothing here needs 64 bits (a 64-bit remainder is a
+ * ~100-instruction library call on the card, and this runs once per output). */
 __device__ __forceinline__ int32_t crt3(int32_t a0, int32_t a1, int32_t a2) {
     int r0 = a0 % KQ0; if (r0 < 0) r0 += KQ0;
     int r1 = a1 % KQ1; if (r1 < 0) r1 += KQ1;
     int r2 = a2 % KQ2; if (r2 < 0) r2 += KQ2;
     int t1 = (r1 - r0) % KQ1; if (t1 < 0) t1 += KQ1;
     t1 = (t1 * KINV01) % KQ1;
-    long long x = r0 + (long long)KQ0 * t1;
-    int t2 = (int)((r2 - x) % KQ2); if (t2 < 0) t2 += KQ2;
+    int x = r0 + KQ0 * t1;
+    int t2 = (r2 - x) % KQ2; if (t2 < 0) t2 += KQ2;
     t2 = (t2 * KINV012) % KQ2;
-    x += (long long)KQ0 * KQ1 * t2;
-    if (x > KM / 2) x -= KM;
-    return (int32_t)x;
+    x += KQ0 * KQ1 * t2;
+    if (x > (int)(KM / 2)) x -= (int)KM;
+    return x;
 }
 
-template <int ROWS>
-__global__ void __launch_bounds__(256)
-field_gemv_kernel(const int8_t *__restrict__ W, int K, int N,
-                  const int8_t *__restrict__ X, long long xstride, long long pstride,
-                  int32_t *__restrict__ Y, long long ystride) {
-    extern __shared__ int4 xs[];                 /* [3][ROWS][K/16] */
-    const int K16 = K >> 4;
-    for (int i = threadIdx.x; i < 3 * ROWS * K16; i += blockDim.x) {
-        const int p = i / (ROWS * K16);
-        const int rem = i - p * ROWS * K16;
-        const int r = rem / K16, k16 = rem - r * K16;
-        xs[i] = *reinterpret_cast<const int4 *>(X + p * pstride + r * xstride + (long long)k16 * 16);
+/* The nodes of one launch, by value in parameter space. blk0[i] is the first
+ * block belonging to node i. Indexed only with compile-time constants inside
+ * the kernel (see the unrolled selects) so nothing is copied to local memory. */
+static const int GEMM_TAB_NODES = 8;
+struct GemmTab {
+    const int8_t *W[GEMM_TAB_NODES];   /* (N,K) int8 */
+    int32_t *Y[GEMM_TAB_NODES];        /* [m][N] destination */
+    int N[GEMM_TAB_NODES];
+    int blk0[GEMM_TAB_NODES];
+    int n;
+};
+
+/* Row-blocking per activation-row count: WR = 4 weight rows per warp at once
+ * for every m (swept 1/2/4/8 per class on the 0.5B and 4B shapes; 4 won or
+ * tied everywhere), 3 x MR x 4 accumulators. The launch bound asks for two
+ * resident blocks per SM (<= 128 registers) up to m = 4; at m = 5..8 the 60-96
+ * accumulators need the whole register file and a forced cap only spills
+ * (m = 8 gate|up: 40 us at one block per SM, 44 with two). */
+static const int GEMM_WR = 4;
+template <int MR> struct RowsFor {
+    static const int WR = GEMM_WR;
+    static const int MINB = MR <= 4 ? 2 : 1;
+};
+static inline int gemm_rows_per_block(int mr, int g) { (void)mr; return GEMM_WR * g; }
+
+/* Reduce NV (a power of two, <= 32) per-lane partial sums across the warp
+ * at once. Each stage swaps half of the live values with the partner lane and
+ * halves the live count, so 32 values cost 16+8+4+2+1 = 31 shuffles instead of
+ * 32 x 5 = 160. Afterwards lane l holds the warp total of value l / (32/NV).
+ * This is not a nicety: at m = 8 a warp carries 96 partial sums, and the
+ * straightforward per-value butterfly (480 shuffles per warp, at one warp-
+ * shuffle per clock per SM) cost MORE than the whole K = 896 dot-product loop
+ * -- 67 us vs 33 us for the loop alone on the 0.5B gate|up x2 m = 8 shape. */
+template <int OFF, int C, int O, int NVP>
+__device__ __forceinline__ void warp_reduce_stage(int (&v)[NVP], int lane) {
+    /* Every index below is a compile-time constant, which is what keeps v in
+     * registers: a runtime-indexed local array lands in local memory. */
+    if constexpr (O >= 1) {
+        if constexpr (C > 1) {
+            constexpr int h = C / 2;
+            const bool up = (lane & O) != 0;
+#pragma unroll
+            for (int i = 0; i < h; i++) {
+                const int send = up ? v[OFF + i] : v[OFF + i + h];
+                const int keep = up ? v[OFF + i + h] : v[OFF + i];
+                v[OFF + i] = keep + __shfl_xor_sync(0xffffffffu, send, O);
+            }
+            warp_reduce_stage<OFF, h, O / 2>(v, lane);
+        } else {
+            v[OFF] += __shfl_xor_sync(0xffffffffu, v[OFF], O);
+            warp_reduce_stage<OFF, 1, O / 2>(v, lane);
+        }
     }
-    __syncthreads();
+}
+template <int CH, int OFF, int NVP>
+__device__ __forceinline__ void warp_reduce_chunk(int (&v)[NVP], int lane) {
+    warp_reduce_stage<OFF, CH, 16>(v, lane);
+}
+template <int N> struct Pow2Ceil { static const int v = N <= 1 ? 1 : 2 * Pow2Ceil<(N + 1) / 2>::v; };
+template <> struct Pow2Ceil<1> { static const int v = 1; };
+
+template <int MR, int WR, int G>
+__global__ void __launch_bounds__(256, RowsFor<MR>::MINB)
+field_gemm_kernel(const GemmTab tab, int K,
+                  const int8_t *__restrict__ X, long long xstride, long long pstride) {
+    constexpr int KS = 8 / G, RB = WR * G;
+    __shared__ int red[8][3 * MR * WR];
 
     const int warp = threadIdx.x >> 5, lane = threadIdx.x & 31;
-    const int j = blockIdx.x * 8 + warp;
-    if (j >= N) return;
-    const int4 *wrow = reinterpret_cast<const int4 *>(W + (size_t)j * K);
+    const int rg = warp / KS, ks = warp - rg * KS;
 
-    int acc[3][ROWS];
+    /* Which node is this block's? Selects over parameter-space constants. */
+    int ni = 0;
 #pragma unroll
-    for (int p = 0; p < 3; p++)
+    for (int i = 1; i < GEMM_TAB_NODES; i++) if (i < tab.n && (int)blockIdx.x >= tab.blk0[i]) ni = i;
+    const int8_t *W = tab.W[0]; int32_t *Y = tab.Y[0]; int N = tab.N[0]; int blk0 = 0;
 #pragma unroll
-        for (int r = 0; r < ROWS; r++) acc[p][r] = 0;
+    for (int i = 1; i < GEMM_TAB_NODES; i++)
+        if (ni == i) { W = tab.W[i]; Y = tab.Y[i]; N = tab.N[i]; blk0 = tab.blk0[i]; }
 
-    for (int k16 = lane; k16 < K16; k16 += 32) {
-        const int4 w = __ldg(wrow + k16);
+    const int jbase = (blockIdx.x - blk0) * RB;
+    const int j0 = jbase + rg * WR;                       /* this warp's first row */
+    const int K16 = K >> 4;
+
+    const int4 *wrow[WR];
+#pragma unroll
+    for (int w = 0; w < WR; w++) {
+        const int j = min(j0 + w, N - 1);                 /* clamp: a row past N is computed and dropped */
+        wrow[w] = reinterpret_cast<const int4 *>(W + (size_t)j * K);
+    }
+    const int4 *xp = reinterpret_cast<const int4 *>(X);
+    const int xs16 = (int)(xstride >> 4), ps16 = (int)(pstride >> 4);
+
+    /* Partial sums, flat and padded so they reduce in chunks of <= 32. */
+    constexpr int NV = 3 * MR * WR;
+    constexpr int NVP = NV > 32 ? ((NV + 31) / 32) * 32 : Pow2Ceil<NV>::v;
+    constexpr int CH = NVP > 32 ? 32 : NVP;             /* chunk size */
+    int acc[NVP];
+#pragma unroll
+    for (int i = 0; i < NVP; i++) acc[i] = 0;
+
+    if constexpr (MR <= 4) {
+        /* Two K chunks per trip with every load issued before any dp4a: on
+         * the K=896 decode shapes a warp has only two chunks, so without this
+         * the second chunk's loads wait behind the first chunk's arithmetic
+         * (0.5B gate|up m=4: 30.0 -> 29.1 us). Not at m >= 5: the extra
+         * registers push those instantiations into spills. */
+        for (int k16 = lane + 32 * ks; k16 < K16; k16 += 64 * KS) {
+            const int k16b = k16 + 32 * KS;
+            const bool two = k16b < K16;
+            int4 wv[WR], wv2[WR];
+#pragma unroll
+            for (int w = 0; w < WR; w++) {
+                wv[w] = __ldg(wrow[w] + k16);
+                wv2[w] = two ? __ldg(wrow[w] + k16b) : make_int4(0, 0, 0, 0);
+            }
+#pragma unroll
+            for (int p = 0; p < 3; p++)
+#pragma unroll
+                for (int r = 0; r < MR; r++) {
+                    const int4 x = __ldg(xp + p * ps16 + r * xs16 + k16);
+                    const int4 x2 = two ? __ldg(xp + p * ps16 + r * xs16 + k16b) : make_int4(0, 0, 0, 0);
+#pragma unroll
+                    for (int w = 0; w < WR; w++) {
+                        int a = acc[(p * MR + r) * WR + w];
+                        a = __dp4a(wv[w].x, x.x, a); a = __dp4a(wv[w].y, x.y, a);
+                        a = __dp4a(wv[w].z, x.z, a); a = __dp4a(wv[w].w, x.w, a);
+                        a = __dp4a(wv2[w].x, x2.x, a); a = __dp4a(wv2[w].y, x2.y, a);
+                        a = __dp4a(wv2[w].z, x2.z, a); a = __dp4a(wv2[w].w, x2.w, a);
+                        acc[(p * MR + r) * WR + w] = a;
+                    }
+                }
+        }
+    } else
+    for (int k16 = lane + 32 * ks; k16 < K16; k16 += 32 * KS) {
+        int4 wv[WR];
+#pragma unroll
+        for (int w = 0; w < WR; w++) wv[w] = __ldg(wrow[w] + k16);
 #pragma unroll
         for (int p = 0; p < 3; p++)
 #pragma unroll
-            for (int r = 0; r < ROWS; r++) {
-                const int4 x = xs[(p * ROWS + r) * K16 + k16];
-                int a = acc[p][r];
-                a = __dp4a(w.x, x.x, a); a = __dp4a(w.y, x.y, a);
-                a = __dp4a(w.z, x.z, a); a = __dp4a(w.w, x.w, a);
-                acc[p][r] = a;
+            for (int r = 0; r < MR; r++) {
+                const int4 x = __ldg(xp + p * ps16 + r * xs16 + k16);
+#pragma unroll
+                for (int w = 0; w < WR; w++) {
+                    int a = acc[(p * MR + r) * WR + w];
+                    a = __dp4a(wv[w].x, x.x, a); a = __dp4a(wv[w].y, x.y, a);
+                    a = __dp4a(wv[w].z, x.z, a); a = __dp4a(wv[w].w, x.w, a);
+                    acc[(p * MR + r) * WR + w] = a;
+                }
             }
     }
+    /* Warp totals into shared memory: after reducing chunk c, lane l holds
+     * value c*CH + l/(32/CH). At most three chunks (NV <= 96). */
+    static_assert(NVP <= 96, "accumulator count");
+    warp_reduce_chunk<CH, 0>(acc, lane);
+    if (lane % (32 / CH) == 0 && lane / (32 / CH) < NV) red[warp][lane / (32 / CH)] = acc[0];
+    if constexpr (NVP > 32) {
+        warp_reduce_chunk<32, 32>(acc, lane);
+        if (32 + lane < NV) red[warp][32 + lane] = acc[32];
+    }
+    if constexpr (NVP > 64) {
+        warp_reduce_chunk<32, 64>(acc, lane);
+        if (64 + lane < NV) red[warp][64 + lane] = acc[64];
+    }
+    __syncthreads();
+
+    /* Epilogue: thread t -> (activation row r, block row jj); consecutive
+     * threads write consecutive outputs, so each (r, block) is one contiguous
+     * RB x 4-byte write. */
+    for (int t = threadIdx.x; t < MR * RB; t += 256) {
+        const int r = t / RB, jj = t - r * RB;
+        const int g = jj / WR, w = jj - g * WR;
+        const int j = jbase + jj;
+        if (j >= N) continue;
+        int s0 = 0, s1 = 0, s2 = 0;
 #pragma unroll
-    for (int p = 0; p < 3; p++)
-#pragma unroll
-        for (int r = 0; r < ROWS; r++) {
-            int a = acc[p][r];
-            for (int o = 16; o > 0; o >>= 1) a += __shfl_xor_sync(0xffffffffu, a, o);
-            acc[p][r] = a;
+        for (int k = 0; k < KS; k++) {
+            s0 += red[g * KS + k][(0 * MR + r) * WR + w];
+            s1 += red[g * KS + k][(1 * MR + r) * WR + w];
+            s2 += red[g * KS + k][(2 * MR + r) * WR + w];
         }
-    if (lane == 0) {
-#pragma unroll
-        for (int r = 0; r < ROWS; r++)
-            Y[r * ystride + j] = crt3(acc[0][r], acc[1][r], acc[2][r]);
+        Y[(long long)r * N + j] = crt3(s0, s1, s2);
     }
 }
 
-static size_t g_smem_limit = 48 * 1024;
-
-template <int ROWS>
-static void launch_rows(const int8_t *W, int K, int N, const int8_t *X, long long xstride,
-                        long long pstride, int32_t *Y, long long ystride, cudaStream_t s) {
-    const size_t smem = (size_t)3 * ROWS * K;
-    const dim3 grid((N + 7) / 8);
-    field_gemv_kernel<ROWS><<<grid, 256, smem, s>>>(W, K, N, X, xstride, pstride, Y, ystride);
+template <int MR, int G>
+static void launch_g(const GemmTab &tab, int nblocks, int K, const int8_t *X,
+                     long long xstride, long long pstride, cudaStream_t s) {
+    field_gemm_kernel<MR, RowsFor<MR>::WR, G><<<nblocks, 256, 0, s>>>(tab, K, X, xstride, pstride);
 }
 
-/* y[m][N] = (planes . W) for m rows. Rows are processed in passes of up to 8,
- * as many as the activation fits in shared memory for this K. */
+/* One planned launch: <= 8 nodes, <= 8 activation rows, a common G. */
+struct GemmPlan { int mr, g, blocks; GemmTab tab; };
+
+/* The G every node of a launch shares: the largest of {8,4,2,1} that still
+ * gives the launch at least one block per SM. Measured on the 0.5B down shape
+ * (N=896): G=4 (56 blocks) beat G=1 (224 blocks) 8.4 vs 9.7 us at m=1 and 21.7
+ * vs 28 us at m=8; the wider block writes wider output rows and splits K less. */
+static int g_sm_count = 46;
+static GemmPlan gemm_plan(const int8_t *const *W, int32_t *const *Y, const int *N, int nn, int mr) {
+    GemmPlan pl; pl.mr = mr; pl.g = 1; pl.blocks = 0;
+    for (int g = 8; g >= 1; g >>= 1) {
+        const int rpb = gemm_rows_per_block(mr, g);
+        int blocks = 0;
+        for (int i = 0; i < nn; i++) blocks += (N[i] + rpb - 1) / rpb;
+        pl.g = g; pl.blocks = blocks;
+        if (blocks >= g_sm_count || g == 1) break;
+    }
+    const int rpb = gemm_rows_per_block(mr, pl.g);
+    int blocks = 0;
+    for (int i = 0; i < GEMM_TAB_NODES; i++) {
+        if (i < nn) {
+            pl.tab.W[i] = W[i]; pl.tab.Y[i] = Y[i]; pl.tab.N[i] = N[i]; pl.tab.blk0[i] = blocks;
+            blocks += (N[i] + rpb - 1) / rpb;
+        } else { pl.tab.W[i] = nullptr; pl.tab.Y[i] = nullptr; pl.tab.N[i] = 0; pl.tab.blk0[i] = 0x7fffffff; }
+    }
+    pl.tab.n = nn;
+    return pl;
+}
+static void gemm_launch_planned(const GemmPlan &pl, int K, const int8_t *X,
+                                long long xstride, long long pstride, cudaStream_t s) {
+#define LG(MR) case MR: switch (pl.g) { \
+        case 8: launch_g<MR, 8>(pl.tab, pl.blocks, K, X, xstride, pstride, s); break; \
+        case 4: launch_g<MR, 4>(pl.tab, pl.blocks, K, X, xstride, pstride, s); break; \
+        case 2: launch_g<MR, 2>(pl.tab, pl.blocks, K, X, xstride, pstride, s); break; \
+        default: launch_g<MR, 1>(pl.tab, pl.blocks, K, X, xstride, pstride, s); break; } break;
+    switch (pl.mr) { LG(1) LG(2) LG(3) LG(4) LG(5) LG(6) LG(7) LG(8) default: break; }
+#undef LG
+    ck(cudaGetLastError(), "kernel launch");
+}
+
+/* y[m][N] = (planes . W) for m rows of one node, in passes of up to 8 rows.
+ * Used by the legacy doorbell, the self-test and the throughput probe; the
+ * exchange path plans its own launches. Completion is the stream's: a kernel-
+ * raised flag in mapped memory was measured and bought nothing over
+ * cudaStreamSynchronize with the driver spinning (45.6 vs 45.1 us/exchange),
+ * and the system-scope fence it needs is expensive on the card. */
 static void field_gemm_launch(const int8_t *W, int K, int N, const int8_t *X, int m,
-                              long long xstride, long long pstride, int32_t *Y, long long ystride,
-                              cudaStream_t s) {
-    int row0 = 0;
-    while (row0 < m) {
-        const int left = m - row0;
-        const int8_t *x = X + row0 * xstride;
-        int32_t *y = Y + row0 * ystride;
-        int rows;
-        if (left >= 8 && (size_t)3 * 8 * K <= g_smem_limit) { rows = 8; launch_rows<8>(W, K, N, x, xstride, pstride, y, ystride, s); }
-        else if (left >= 4 && (size_t)3 * 4 * K <= g_smem_limit) { rows = 4; launch_rows<4>(W, K, N, x, xstride, pstride, y, ystride, s); }
-        else if (left >= 2 && (size_t)3 * 2 * K <= g_smem_limit) { rows = 2; launch_rows<2>(W, K, N, x, xstride, pstride, y, ystride, s); }
-        else { rows = 1; launch_rows<1>(W, K, N, x, xstride, pstride, y, ystride, s); }
-        ck(cudaGetLastError(), "kernel launch");
-        row0 += rows;
-    }
-}
-
-static void kernel_init() {
-    int dev = 0; ck(cudaGetDevice(&dev), "cudaGetDevice");
-    int optin = 0;
-    cudaDeviceGetAttribute(&optin, cudaDevAttrMaxSharedMemoryPerBlockOptin, dev);
-    if (optin > 48 * 1024) {
-        const int want = std::min(optin, 96 * 1024);
-        cudaFuncSetAttribute(field_gemv_kernel<8>, cudaFuncAttributeMaxDynamicSharedMemorySize, want);
-        cudaFuncSetAttribute(field_gemv_kernel<4>, cudaFuncAttributeMaxDynamicSharedMemorySize, want);
-        cudaFuncSetAttribute(field_gemv_kernel<2>, cudaFuncAttributeMaxDynamicSharedMemorySize, want);
-        cudaFuncSetAttribute(field_gemv_kernel<1>, cudaFuncAttributeMaxDynamicSharedMemorySize, want);
-        g_smem_limit = (size_t)want;
+                              long long xstride, long long pstride, int32_t *Y, cudaStream_t s) {
+    for (int row0 = 0; row0 < m; row0 += 8) {
+        const int mr = std::min(m - row0, 8);
+        int32_t *y = Y + (size_t)row0 * N;
+        const GemmPlan pl = gemm_plan(&W, &y, &N, 1, mr);
+        gemm_launch_planned(pl, K, X + row0 * xstride, xstride, pstride, s);
     }
 }
 
@@ -328,32 +522,48 @@ static void kernel_init() {
  * constants against the host's. A worker whose arithmetic is wrong is caught by
  * Freivalds in the TEE anyway -- but it would be caught on every request, which
  * is a very expensive way to learn about a typo in KINV01.
+ *
+ * Covers every MR instantiation the exchange path can pick (m = 1..5, 8), K
+ * across the shapes the fleet serves (96 exercises lanes past the end of K,
+ * 896/2560/4864 the 0.5B and 4B models), N that is not a multiple of any block
+ * size, multi-node fused launches through the same table path the exchange
+ * uses, and an m > 8 two-pass case.
  * ------------------------------------------------------------------------ */
-static bool selftest() {
-    const int K = 96, N = 37, m = 5;
-    std::vector<int8_t> W((size_t)N * K), X((size_t)3 * m * K);
+static bool selftest_one(int K, int N, int m, int nn, cudaStream_t s, uint64_t &seed) {
+    std::vector<int8_t> W((size_t)nn * N * K), X((size_t)3 * m * K);
     std::vector<int64_t> xr((size_t)m * K);
-    uint64_t seed = 0x9e3779b97f4a7c15ull;
     auto rnd = [&]() { seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17; return seed; };
     for (auto &w : W) w = (int8_t)((int)(rnd() % 239) - 119);
     for (int i = 0; i < m * K; i++) {
         xr[i] = (int64_t)(rnd() % (uint64_t)SH_M_MOD);
         for (int p = 0; p < 3; p++) X[(size_t)p * m * K + i] = sh_residue(xr[i], sh_primes[p]);
     }
-    std::vector<int32_t> ref((size_t)m * N);
-    for (int r = 0; r < m; r++)
-        for (int j = 0; j < N; j++) {
-            int64_t acc = 0;
-            for (int k = 0; k < K; k++) acc += xr[(size_t)r * K + k] * W[(size_t)j * K + k];
-            ref[(size_t)r * N + j] = (int32_t)sh_balanced(acc);
-        }
+    std::vector<int32_t> ref((size_t)nn * m * N);
+    for (int q = 0; q < nn; q++)
+        for (int r = 0; r < m; r++)
+            for (int j = 0; j < N; j++) {
+                int64_t acc = 0;
+                for (int k = 0; k < K; k++) acc += xr[(size_t)r * K + k] * W[((size_t)q * N + j) * K + k];
+                ref[((size_t)q * m + r) * N + j] = (int32_t)sh_balanced(acc);
+            }
     int8_t *dW = nullptr, *dX = nullptr; int32_t *dY = nullptr;
     ck(cudaMalloc(&dW, W.size()), "selftest malloc");
     ck(cudaMalloc(&dX, X.size()), "selftest malloc");
     ck(cudaMalloc(&dY, ref.size() * 4), "selftest malloc");
     ck(cudaMemcpy(dW, W.data(), W.size(), cudaMemcpyHostToDevice), "selftest copy");
     ck(cudaMemcpy(dX, X.data(), X.size(), cudaMemcpyHostToDevice), "selftest copy");
-    field_gemm_launch(dW, K, N, dX, m, K, (long long)m * K, dY, N, 0);
+    ck(cudaMemset(dY, 0x7f, ref.size() * 4), "selftest clear");
+    /* The memset runs on the legacy stream; the launches below do not wait for it. */
+    ck(cudaDeviceSynchronize(), "selftest sync");
+    /* The exchange path's shape: fused launches per pass of <= 8 rows. */
+    for (int row0 = 0; row0 < m; row0 += 8) {
+        const int mr = std::min(m - row0, 8);
+        const int8_t *Ws[GEMM_TAB_NODES]; int32_t *Ys[GEMM_TAB_NODES]; int Ns[GEMM_TAB_NODES];
+        for (int q = 0; q < nn; q++) { Ws[q] = dW + (size_t)q * N * K; Ys[q] = dY + ((size_t)q * m + row0) * N; Ns[q] = N; }
+        const GemmPlan pl = gemm_plan(Ws, Ys, Ns, nn, mr);
+        gemm_launch_planned(pl, K, dX + (size_t)row0 * K, K, (long long)m * K, s);
+    }
+    ck(cudaStreamSynchronize(s), "selftest sync");
     std::vector<int32_t> got(ref.size());
     ck(cudaMemcpy(got.data(), dY, got.size() * 4, cudaMemcpyDeviceToHost), "selftest readback");
     cudaFree(dW); cudaFree(dX); cudaFree(dY);
@@ -361,9 +571,33 @@ static bool selftest() {
      * exactly what the GPU's residue arithmetic does implicitly. */
     for (size_t i = 0; i < ref.size(); i++)
         if (got[i] != ref[i]) {
-            fprintf(stderr, "[shielded-worker] SELFTEST FAILED at %zu: gpu %d ref %d\n", i, got[i], ref[i]);
+            fprintf(stderr, "[shielded-worker] SELFTEST FAILED K=%d N=%d m=%d nodes=%d at %zu: gpu %d ref %d\n",
+                    K, N, m, nn, i, got[i], ref[i]);
             return false;
         }
+    return true;
+}
+
+static bool selftest() {
+    uint64_t seed = 0x9e3779b97f4a7c15ull;
+    auto rnd = [&]() { seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17; return seed; };
+    cudaStream_t s; ck(cudaStreamCreateWithFlags(&s, cudaStreamNonBlocking), "selftest stream");
+    bool ok = true;
+    const int Ks[] = { 32, 96, 896, 2560, 4864 }, ms[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+    for (int K : Ks)
+        for (int m : ms)
+            if (ok) ok = selftest_one(K, 37, m, 1, s, seed);
+    /* Fused launches: N large enough to pick G > 1 with a ragged tail, the
+     * full 8-node table, and an m > 8 two-pass case. */
+    if (ok) ok = selftest_one(96, 1234, 1, 2, s, seed);
+    if (ok) ok = selftest_one(96, 1234, 8, 3, s, seed);
+    if (ok) ok = selftest_one(96, 4103, 3, 2, s, seed);
+    if (ok) ok = selftest_one(96, 301, 2, 8, s, seed);
+    if (ok) ok = selftest_one(96, 37, 11, 2, s, seed);
+    if (ok) ok = selftest_one(32, 1, 7, 1, s, seed);      /* smallest K, N below a warp's rows, MR=7 */
+    if (ok) ok = selftest_one(96, 3, 6, 3, s, seed);
+    cudaStreamDestroy(s);
+    if (!ok) return false;
     /* CRT constants vs the host's Garner. */
     for (int t = 0; t < 1000; t++) {
         const int64_t v = (int64_t)(rnd() % (uint64_t)SH_M_MOD);
@@ -383,15 +617,70 @@ static double measure_gmacs() {
     if (cudaMalloc(&dX, (size_t)3 * m * K) != cudaSuccess) { cudaFree(dW); return 0.0; }
     if (cudaMalloc(&dY, (size_t)m * N * 4) != cudaSuccess) { cudaFree(dW); cudaFree(dX); return 0.0; }
     cudaMemset(dW, 1, (size_t)N * K); cudaMemset(dX, 1, (size_t)3 * m * K);
-    for (int i = 0; i < 3; i++) field_gemm_launch(dW, K, N, dX, m, K, (long long)m * K, dY, N, 0);
     cudaDeviceSynchronize();
+    cudaStream_t s; cudaStreamCreateWithFlags(&s, cudaStreamNonBlocking);
+    for (int i = 0; i < 3; i++) field_gemm_launch(dW, K, N, dX, m, K, (long long)m * K, dY, s);
+    cudaStreamSynchronize(s);
     const auto t0 = std::chrono::steady_clock::now();
-    for (int i = 0; i < iters; i++) field_gemm_launch(dW, K, N, dX, m, K, (long long)m * K, dY, N, 0);
-    cudaDeviceSynchronize();
+    for (int i = 0; i < iters; i++) field_gemm_launch(dW, K, N, dX, m, K, (long long)m * K, dY, s);
+    cudaStreamSynchronize(s);
     const double dt = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+    cudaStreamDestroy(s);
     cudaFree(dW); cudaFree(dX); cudaFree(dY);
     return dt > 0 ? (double)m * K * N * iters / dt / 1e9 : 0.0;
 }
+
+#ifdef SH_XPROF
+/* Temporary: --kbench times the kernel alone (cudaEvents) per shape, per G,
+ * with Y in device memory and in mapped host memory. Compiled out of the
+ * shipped worker. */
+static int kbench() {
+    struct Shape { int K, N, m, nn; const char *name; };
+    std::vector<Shape> shapes = {
+        {896,4864,1,2,"0.5B gate|up x2"},{4864,896,1,1,"0.5B down"},{896,151936,1,1,"0.5B lm_head"},
+        {896,4864,2,2,"0.5B gate|up x2 m2"},{896,4864,4,2,"0.5B gate|up x2 m4"},{896,4864,8,2,"0.5B gate|up x2 m8"},
+        {4864,896,4,1,"0.5B down m4"},{4864,896,8,1,"0.5B down m8"},
+        {2560,9728,1,2,"4B gate|up x2"},{9728,2560,1,1,"4B down"},{2560,151936,1,1,"4B lm_head"},
+        {2560,9728,4,2,"4B gate|up x2 m4"},{2560,9728,8,2,"4B gate|up x2 m8"},
+        {9728,2560,4,1,"4B down m4"},{9728,2560,8,1,"4B down m8"},
+        {4096,4096,8,1,"4096^2 m8 (HELLO shape)"}};
+    cudaStream_t s; cudaStreamCreateWithFlags(&s, cudaStreamNonBlocking);
+    cudaEvent_t e0, e1; cudaEventCreate(&e0); cudaEventCreate(&e1);
+    printf("%-26s %6s %4s | %28s | %28s\n", "shape", "MB", "m", "Y device: us (GB/s) G=1/2/4/8", "Y mapped: us (GB/s) G=1/2/4/8");
+    for (auto &sh : shapes) {
+        const size_t wb = (size_t)sh.K * sh.N * sh.nn;
+        int8_t *dW, *dX; int32_t *dY; int32_t *hY, *dhY;
+        if (cudaMalloc(&dW, wb) != cudaSuccess) { printf("%-26s alloc fail\n", sh.name); continue; }
+        cudaMalloc(&dX, (size_t)3 * sh.m * sh.K); cudaMalloc(&dY, (size_t)sh.m * sh.N * sh.nn * 4);
+        cudaHostAlloc((void **)&hY, (size_t)sh.m * sh.N * sh.nn * 4, cudaHostAllocMapped);
+        cudaHostGetDevicePointer((void **)&dhY, hY, 0);
+        cudaMemset(dW, 3, wb); cudaMemset(dX, 1, (size_t)3 * sh.m * sh.K); cudaDeviceSynchronize();
+        printf("%-26s %6.1f %4d |", sh.name, wb / 1e6, sh.m);
+        for (int which = 0; which < 2; which++) {
+            for (int g = 1; g <= 8; g <<= 1) {
+                const int8_t *Ws[2]; int32_t *Ys[2]; int Ns[2];
+                for (int i = 0; i < sh.nn; i++) { Ws[i] = dW + (size_t)i * sh.K * sh.N; Ys[i] = (which ? dhY : dY) + (size_t)i * sh.m * sh.N; Ns[i] = sh.N; }
+                GemmPlan pl = gemm_plan(Ws, Ys, Ns, sh.nn, sh.m);
+                /* force this G */
+                pl.g = g; { const int rpb = gemm_rows_per_block(sh.m, g); int b = 0; for (int i = 0; i < sh.nn; i++) { pl.tab.blk0[i] = b; b += (sh.N + rpb - 1) / rpb; } pl.blocks = b; }
+                for (int i = 0; i < 3; i++) gemm_launch_planned(pl, sh.K, dX, sh.K, (long long)sh.m * sh.K, s);
+                cudaStreamSynchronize(s);
+                const int iters = 30;
+                cudaEventRecord(e0, s);
+                for (int i = 0; i < iters; i++) gemm_launch_planned(pl, sh.K, dX, sh.K, (long long)sh.m * sh.K, s);
+                cudaEventRecord(e1, s); cudaEventSynchronize(e1);
+                float ms = 0; cudaEventElapsedTime(&ms, e0, e1);
+                const double us = ms * 1e3 / iters;
+                printf(" %6.1f(%3.0f)", us, wb / us / 1e3);
+            }
+            printf(" |");
+        }
+        printf("\n");
+        cudaFree(dW); cudaFree(dX); cudaFree(dY); cudaFreeHost(hY);
+    }
+    return 0;
+}
+#endif
 
 /* ---------------------------------------------------------------------------
  * A JSON reader for the install spec: objects, arrays, strings, numbers, the
@@ -414,11 +703,14 @@ struct JVal {
 };
 struct JParser {
     const char *p, *end;
+    int depth = 0;                  /* nesting; a spec is a few levels deep, a stack overflow is not a violation */
     void ws() { while (p < end && (*p == ' ' || *p == '\n' || *p == '\r' || *p == '\t')) p++; }
     bool eat(char c) { ws(); if (p < end && *p == c) { p++; return true; } return false; }
     JVal parse() {
         ws();
         if (p >= end) VIOLATE("malformed graph spec: truncated");
+        if (depth > 32) VIOLATE("malformed graph spec: nesting deeper than 32");
+        struct Depth { int &d; Depth(int &x) : d(x) { d++; } ~Depth() { d--; } } guard(depth);
         JVal v;
         if (*p == '{') {
             p++; v.kind = JVal::OBJ;
@@ -445,9 +737,9 @@ struct JParser {
             }
         }
         if (*p == '"') { v.kind = JVal::STR; v.str = parse_str(); return v; }
-        if (!strncmp(p, "true", 4) && end - p >= 4) { p += 4; v.kind = JVal::BOOL; v.b = true; return v; }
-        if (!strncmp(p, "false", 5) && end - p >= 5) { p += 5; v.kind = JVal::BOOL; return v; }
-        if (!strncmp(p, "null", 4) && end - p >= 4) { p += 4; return v; }
+        if (end - p >= 4 && !strncmp(p, "true", 4)) { p += 4; v.kind = JVal::BOOL; v.b = true; return v; }
+        if (end - p >= 5 && !strncmp(p, "false", 5)) { p += 5; v.kind = JVal::BOOL; return v; }
+        if (end - p >= 4 && !strncmp(p, "null", 4)) { p += 4; return v; }
         char *e = nullptr;
         v.num = strtod(p, &e);
         if (e == p) VIOLATE("malformed graph spec: token");
@@ -491,6 +783,19 @@ static bool write_all(int fd, const void *buf, size_t n) {
     }
     return true;
 }
+/* Header + body in one call; falls back to plain writes for whatever a short
+ * writev left behind. */
+static bool writev_all(int fd, const void *hdr, size_t hn, const void *body, size_t bn) {
+    struct iovec iov[2];
+    iov[0].iov_base = (void *)hdr; iov[0].iov_len = hn;
+    iov[1].iov_base = (void *)body; iov[1].iov_len = bn;
+    ssize_t r;
+    do { r = writev(fd, iov, 2); } while (r < 0 && errno == EINTR);
+    if (r < 0) return false;
+    if ((size_t)r >= hn + bn) return true;
+    if ((size_t)r < hn) return write_all(fd, (const uint8_t *)hdr + r, hn - r) && write_all(fd, body, bn);
+    return write_all(fd, (const uint8_t *)body + (r - hn), bn - (r - hn));
+}
 static uint64_t rd_u64(const uint8_t *p) { uint64_t v = 0; for (int i = 0; i < 8; i++) v |= (uint64_t)p[i] << (8 * i); return v; }
 static uint32_t rd_u32(const uint8_t *p) { uint32_t v = 0; for (int i = 0; i < 4; i++) v |= (uint32_t)p[i] << (8 * i); return v; }
 static void wr_u64(uint8_t *p, uint64_t v) { for (int i = 0; i < 8; i++) p[i] = (uint8_t)(v >> (8 * i)); }
@@ -530,20 +835,33 @@ struct Conn {
     std::vector<Node> nodes;
     std::set<std::tuple<uint64_t, uint64_t, uint64_t>> outputs;
     cudaStream_t stream = nullptr;
-    /* pinned staging for the one-frame exchange */
+    /* Staging for the one-frame exchange. The FIELD_GEMM frame is read straight
+     * into pinned memory (h_in), so the planes go to the card with no memcpy;
+     * the product is written by the kernel into MAPPED pinned memory (h_out),
+     * so it comes back with no D2H copy and is sent from where it landed. */
     uint8_t *h_in = nullptr;  size_t h_in_cap = 0;
     int8_t  *d_x = nullptr;   size_t d_x_cap = 0;
-    int32_t *d_y = nullptr;   size_t d_y_cap = 0;
-    uint8_t *h_out = nullptr; size_t h_out_cap = 0;
+    uint8_t *h_out = nullptr; size_t h_out_cap = 0; int32_t *d_out = nullptr;
+    /* A response that lives in h_out rather than in a std::string. */
+    const void *resp_ptr = nullptr; size_t resp_len = 0;
+    /* The exchange's card work (upload + launches), captured once per
+     * (m, node list) and replayed with one cudaGraphLaunch: 42.5 vs 45.0 us
+     * per 0.5B gate|up exchange against issuing the copy and the launch
+     * separately. The captured pointers are h_in, d_x and h_out, so the cache
+     * is dropped whenever any of them is reallocated; bounded at 256 entries
+     * (a 0.5B decode uses three). */
+    std::map<std::vector<uint32_t>, cudaGraphExec_t> graphs;
+    void drop_graphs() { for (auto &kv : graphs) cudaGraphExecDestroy(kv.second); graphs.clear(); }
     uint64_t exchanges = 0, recomputes = 0;
     double gemm_ms = 0;
+    int64_t kmax = 0;                        /* widest K installed: bounds a FIELD_GEMM frame */
 
     Conn(int f, std::string p) : fd(f), peer(std::move(p)) {}
     ~Conn() {
         for (auto &kv : buffers) if (kv.second.dev) cudaFree(kv.second.dev);
         for (auto &n : nodes) if (n.w) cudaFree(n.w);
         if (d_x) cudaFree(d_x);
-        if (d_y) cudaFree(d_y);
+        drop_graphs();
         if (h_in) cudaFreeHost(h_in);
         if (h_out) cudaFreeHost(h_out);
         if (stream) cudaStreamDestroy(stream);
@@ -563,21 +881,20 @@ struct Conn {
         if (h_in_cap >= n) return;
         if (h_in) cudaFreeHost(h_in);
         ck(cudaHostAlloc((void **)&h_in, n, cudaHostAllocDefault), "pinned alloc"); h_in_cap = n;
+        drop_graphs();
     }
     void ensure_host_out(size_t n) {
         if (h_out_cap >= n) return;
         if (h_out) cudaFreeHost(h_out);
-        ck(cudaHostAlloc((void **)&h_out, n, cudaHostAllocDefault), "pinned alloc"); h_out_cap = n;
+        ck(cudaHostAlloc((void **)&h_out, n, cudaHostAllocMapped), "pinned alloc"); h_out_cap = n;
+        ck(cudaHostGetDevicePointer((void **)&d_out, h_out, 0), "pinned map");
+        drop_graphs();
     }
     void ensure_dx(size_t n) {
         if (d_x_cap >= n) return;
         if (d_x) cudaFree(d_x);
         ck(cudaMalloc((void **)&d_x, n), "device scratch alloc"); d_x_cap = n;
-    }
-    void ensure_dy(size_t n) {
-        if (d_y_cap >= n) return;
-        if (d_y) cudaFree(d_y);
-        ck(cudaMalloc((void **)&d_y, n), "device scratch alloc"); d_y_cap = n;
+        drop_graphs();
     }
 
     std::string hello(const uint8_t *p, size_t n) {
@@ -609,7 +926,9 @@ struct Conn {
         if (12 + rl > n) VIOLATE("truncated role");
         std::string role((const char *)p + 12, rl);
         if (role != "weights" && role != "activations") VIOLATE("unknown buffer role '%s'", role.c_str());
-        if (allocated + (long long)size > g_vram_budget) VIOLATE("allocation exceeds device memory");
+        /* Both halves: a size above 2^63 wrapped the sum negative and passed. */
+        if (size > (uint64_t)g_vram_budget || allocated + (long long)size > g_vram_budget)
+            VIOLATE("allocation exceeds device memory");
         Buffer b; b.bid = next_bid++; b.size = size; b.role = role;
         if (role == "activations") {
             if (cudaMalloc((void **)&b.dev, size ? size : 1) != cudaSuccess)
@@ -639,6 +958,7 @@ struct Conn {
         if (n < 24) VIOLATE("truncated u64");
         const uint64_t bid = rd_u64(p), off = rd_u64(p + 8), nbytes = rd_u64(p + 16);
         Buffer &b = region_ok(bid, off, nbytes);
+        if (!b.dev && b.host.empty() && nbytes) VIOLATE("buffer %llu was consumed at install", (unsigned long long)bid);
         if (n - 24 != nbytes) VIOLATE("SET_TENSOR declared %llu bytes, frame carries %zu",
                                       (unsigned long long)nbytes, n - 24);
         if (b.dev) {
@@ -654,6 +974,7 @@ struct Conn {
         if (n < 24) VIOLATE("truncated u64");
         const uint64_t bid = rd_u64(p), off = rd_u64(p + 8), nbytes = rd_u64(p + 16);
         Buffer &b = region_ok(bid, off, nbytes);
+        if (!b.dev && b.host.empty() && nbytes) VIOLATE("buffer %llu was consumed at install", (unsigned long long)bid);
         if (!installed) VIOLATE("GET_TENSOR before any graph was installed");
         if (!outputs.count(std::make_tuple(bid, off, nbytes)))
             VIOLATE("GET_TENSOR region (%llu,%llu,%llu) is not a declared graph output",
@@ -674,7 +995,10 @@ struct Conn {
      * be treated as public data by declaring it a weight operand. */
     std::string graph_install(const uint8_t *p, size_t n) {
         if (installed) VIOLATE("graph already installed; reconnect to replace");
-        JParser jp{ (const char *)p, (const char *)p + n };
+        /* NUL-terminated copy: strtod reads to a non-digit, and a spec whose
+         * last byte is a digit would otherwise read past the frame. */
+        const std::string spec_s((const char *)p, n);
+        JParser jp{ spec_s.data(), spec_s.data() + n };
         JVal spec = jp.parse();
         const JVal *jn = spec.get("nodes");
         if (!jn || jn->kind != JVal::ARR || jn->arr.empty()) VIOLATE("graph spec has no nodes");
@@ -693,7 +1017,13 @@ struct Conn {
             if (ops != "FIELD_GEMM") { nn.push_back(std::move(node)); continue; }   /* metadata-only */
             node.gemm = true;
             node.K = nd.i64("K"); node.N = nd.i64("N"); node.max_m = (int)nd.i64("max_m");
+            if (node.K > kmax) kmax = node.K;
             if (node.K <= 0 || node.N <= 0 || node.max_m <= 0) VIOLATE("node %zu: non-positive shape", i);
+            /* Bounded before N*K is formed: a spec can name any int64, and an
+             * overflowed size reached std::vector as a length_error that took
+             * the whole process down (fuzzed, 2026-08-26). Refuse, do not die. */
+            if (node.K > (1 << 20) || node.N > (1 << 24) || node.K * node.N > g_vram_budget)
+                VIOLATE("node %zu: shape %lldx%lld exceeds the card", i, (long long)node.N, (long long)node.K);
             if (node.K % SH_QK) VIOLATE("node %zu: K=%lld is not a multiple of %d", i, (long long)node.K, SH_QK);
             if (node.max_m > 4096) VIOLATE("node %zu: max_m=%d exceeds 4096", i, node.max_m);
             const JVal *x = nd.get("x"), *y = nd.get("y");
@@ -749,7 +1079,10 @@ struct Conn {
         if (jo && jo->kind == JVal::ARR)
             for (auto &o : jo->arr) {
                 const uint64_t bid = (uint64_t)o.i64("bid"), off = (uint64_t)o.i64("offset"), nb = (uint64_t)o.i64("nbytes");
-                region_ok(bid, off, nb);
+                /* Outputs are products: they live in an activations buffer.
+                 * A weights buffer's host copy is freed below; declaring it
+                 * readable used to let GET_TENSOR walk a null pointer. */
+                if (region_ok(bid, off, nb).role != "activations") VIOLATE("output must bind an 'activations' buffer");
                 outs.insert(std::make_tuple(bid, off, nb));
             }
         if (outs.empty()) VIOLATE("graph declares no outputs; nothing could be read back");
@@ -773,14 +1106,14 @@ struct Conn {
         if (n < 8) VIOLATE("truncated u32");
         const uint32_t idx = rd_u32(p), m = rd_u32(p + 4);
         Node &nd = node_ok(idx);
-        if (m < 1 || (int)m > nd.max_m) VIOLATE("m=%u outside [1,%d] for node %u", m, nd.max_m, idx);
+        if (m < 1 || (uint64_t)m > (uint64_t)nd.max_m) VIOLATE("m=%u outside [1,%d] for node %u", m, nd.max_m, idx);
         Buffer &xb = buffers[nd.xbid]; Buffer &yb = buffers[nd.ybid];
         const auto t0 = std::chrono::steady_clock::now();
         {
             std::lock_guard<std::mutex> lk(g_gpu);
             field_gemm_launch(nd.w, (int)nd.K, (int)nd.N, xb.dev + nd.xoff, (int)m,
                               nd.K, (long long)nd.max_m * nd.K,
-                              (int32_t *)(yb.dev + nd.yoff), nd.N, stream);
+                              (int32_t *)(yb.dev + nd.yoff), stream);
             ck(cudaStreamSynchronize(stream), "recompute sync");
         }
         gemm_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -789,54 +1122,101 @@ struct Conn {
         return r;
     }
 
+    /* Record one exchange's card work as a graph: the planes upload, then per
+     * pass of <= 8 rows one fused launch per <= 8 nodes. A failure mid-capture
+     * ends the capture before the violation propagates, so the stream is left
+     * usable for the reply. */
+    cudaGraphExec_t capture_exchange(const uint8_t *planes, size_t xbytes, Node *const *nds, uint32_t nn,
+                                     uint32_t m, int K) {
+        ck(cudaStreamBeginCapture(stream, cudaStreamCaptureModeThreadLocal), "capture");
+        cudaGraph_t g = nullptr;
+        try {
+            ck(cudaMemcpyAsync(d_x, planes, xbytes, cudaMemcpyHostToDevice, stream), "planes upload");
+            const int8_t *Ws[GEMM_TAB_NODES]; int32_t *Ys[GEMM_TAB_NODES]; int Ns[GEMM_TAB_NODES];
+            for (uint32_t row0 = 0; row0 < m; row0 += 8) {
+                const int mr = std::min((int)(m - row0), 8);
+                size_t yoff = 0;
+                for (uint32_t i0 = 0; i0 < nn; i0 += GEMM_TAB_NODES) {
+                    const int cnt = std::min((int)(nn - i0), GEMM_TAB_NODES);
+                    for (int i = 0; i < cnt; i++) {
+                        const Node &nd = *nds[i0 + i];
+                        Ws[i] = nd.w; Ns[i] = (int)nd.N;
+                        Ys[i] = (int32_t *)((uint8_t *)d_out + yoff) + (size_t)row0 * nd.N;
+                        yoff += (size_t)m * nd.N * 4;
+                    }
+                    gemm_launch_planned(gemm_plan(Ws, Ys, Ns, cnt, mr), K, d_x + (size_t)row0 * K,
+                                        K, (long long)m * K, stream);
+                }
+            }
+        } catch (...) {
+            cudaStreamEndCapture(stream, &g);
+            if (g) cudaGraphDestroy(g);
+            throw;
+        }
+        ck(cudaStreamEndCapture(stream, &g), "end capture");
+        cudaGraphExec_t ge = nullptr;
+        const cudaError_t e = cudaGraphInstantiate(&ge, g, 0);
+        cudaGraphDestroy(g);
+        ck(e, "graph instantiate");
+        return ge;
+    }
+
     /* The one-frame exchange: | n u32 | m u32 | node u32[n] | planes int8[3][m][K] |
      * -> | y int32[m][N_0] | y int32[m][N_1] | ... |
      *
      * Every node must be an installed FIELD_GEMM with one common K; the planes
      * are the shared masked activation. The response is exactly the products of
      * the nodes named, and nothing else -- the same rule GET_TENSOR enforces
-     * through declared outputs, here enforced by construction. */
-    std::string field_gemm(const uint8_t *p, size_t n) {
+     * through declared outputs, here enforced by construction.
+     *
+     * The frame sits in h_in (pinned; serve() read it there, so there is no
+     * memcpy). The card's work is ONE upload of the planes and ONE fused kernel
+     * per pass of <= 8 rows and <= 8 nodes, writing the products into mapped
+     * host memory (no D2H copy; the reply is sent from where they landed),
+     * replayed as a captured graph. Measured on the 0.5B gate|up exchange
+     * (K=896, 2 nodes, m=1, TCP loopback): 67 us round trip before, 42.5
+     * after, of which 24 is the kernel and ~3.5 the upload and launch gaps. */
+    void field_gemm(const uint8_t *p, size_t n) {
         if (n < 8) VIOLATE("truncated u32");
         const uint32_t nn = rd_u32(p), m = rd_u32(p + 4);
         if (nn < 1 || nn > 64) VIOLATE("FIELD_GEMM names %u nodes", nn);
         if (n < 8 + 4 * (size_t)nn) VIOLATE("truncated node list");
-        std::vector<Node *> nds(nn);
+        Node *nds[64];
         int64_t K = -1; size_t ybytes = 0;
         for (uint32_t i = 0; i < nn; i++) {
             Node &nd = node_ok(rd_u32(p + 8 + 4 * i));
             if (K < 0) K = nd.K;
             if (nd.K != K) VIOLATE("FIELD_GEMM nodes disagree on K");
-            if (m < 1 || (int)m > nd.max_m) VIOLATE("m=%u outside [1,%d] for node %s", m, nd.max_m, nd.id.c_str());
+            if (m < 1 || (uint64_t)m > (uint64_t)nd.max_m) VIOLATE("m=%u outside [1,%d] for node %s", m, nd.max_m, nd.id.c_str());
             nds[i] = &nd;
             ybytes += (size_t)m * nd.N * 4;
         }
         const size_t xbytes = (size_t)3 * m * K;
         if (n != 8 + 4 * (size_t)nn + xbytes)
             VIOLATE("FIELD_GEMM payload is %zu bytes, expected %zu", n, 8 + 4 * (size_t)nn + xbytes);
-        const uint8_t *planes = p + 8 + 4 * nn;
+        if (p != h_in) VIOLATE("internal: FIELD_GEMM frame not in pinned staging");
+        const uint8_t *planes = h_in + 8 + 4 * (size_t)nn;
 
         const auto t0 = std::chrono::steady_clock::now();
-        std::string out;
         {
             std::lock_guard<std::mutex> lk(g_gpu);
-            ensure_host_in(xbytes); ensure_dx(xbytes); ensure_dy(ybytes); ensure_host_out(ybytes);
-            memcpy(h_in, planes, xbytes);
-            ck(cudaMemcpyAsync(d_x, h_in, xbytes, cudaMemcpyHostToDevice, stream), "planes upload");
-            size_t yoff = 0;
-            for (uint32_t i = 0; i < nn; i++) {
-                Node &nd = *nds[i];
-                field_gemm_launch(nd.w, (int)K, (int)nd.N, d_x, (int)m, K, (long long)m * K,
-                                  (int32_t *)((uint8_t *)d_y + yoff), nd.N, stream);
-                yoff += (size_t)m * nd.N * 4;
+            ensure_dx(xbytes); ensure_host_out(ybytes);
+            XP(0);
+            std::vector<uint32_t> key(nn + 1); key[0] = m;
+            for (uint32_t i = 0; i < nn; i++) key[i + 1] = rd_u32(p + 8 + 4 * i);
+            auto git = graphs.find(key);
+            if (git == graphs.end()) {
+                if (graphs.size() >= 256) drop_graphs();
+                git = graphs.emplace(key, capture_exchange(planes, xbytes, nds, nn, m, (int)K)).first;
             }
-            ck(cudaMemcpyAsync(h_out, d_y, ybytes, cudaMemcpyDeviceToHost, stream), "product readback");
+            ck(cudaGraphLaunch(git->second, stream), "graph launch");
+            XP(3);
             ck(cudaStreamSynchronize(stream), "exchange sync");
-            out.assign((const char *)h_out, ybytes);
+            XP(5);
         }
         gemm_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-        exchanges++;
-        return out;
+        exchanges++; XPN();
+        resp_ptr = h_out; resp_len = ybytes;
     }
 
     std::string handle(uint8_t cmd, const uint8_t *p, size_t n) {
@@ -849,7 +1229,7 @@ struct Conn {
             case CMD_GET_TENSOR:      return get_tensor(p, n);
             case CMD_GRAPH_INSTALL:   return graph_install(p, n);
             case CMD_GRAPH_RECOMPUTE: return recompute(p, n);
-            case CMD_FIELD_GEMM:      return field_gemm(p, n);
+            case CMD_FIELD_GEMM:      field_gemm(p, n); return std::string();
             case CMD_BUFFER_GET_BASE: case CMD_GET_ALIGNMENT: case CMD_GET_MAX_SIZE:
             case CMD_GET_DEVICE_MEMORY: case CMD_DEVICE_COUNT:
                 return "";
@@ -871,20 +1251,56 @@ struct Conn {
                 violation = true;
                 /* drain nothing: the peer is closed on immediately after the reply */
             } else {
-                buf.resize((size_t)size);
-                if (size && !read_exact(fd, buf.data(), (size_t)size)) break;
-                try {
-                    resp = handle(cmd, buf.data(), (size_t)size);
+                uint8_t *body = nullptr;
+                if (cmd == CMD_FIELD_GEMM) {
+                    /* Straight into pinned staging: the planes go to the card
+                     * from here. Bounded by what an installed graph can ask
+                     * for (64 nodes, 4096 rows of the widest K) so a 9-byte
+                     * header cannot pin 256 MB of host RAM. */
+                    const uint64_t cap = installed ? 8 + 4 * 64 + (uint64_t)3 * 4096 * (uint64_t)kmax : (uint64_t)16 << 20;
+                    try {
+                        if (size > cap) VIOLATE("FIELD_GEMM frame of %llu bytes exceeds %llu", (unsigned long long)size, (unsigned long long)cap);
+                        ensure_host_in((size_t)size);
+                        body = h_in;
+                    } catch (const Violation &v) {
+                        logf("VIOLATION from %s: %s", peer.c_str(), v.why.c_str());
+                        resp = v.why; violation = true;           /* replied with a reason, then closed */
+                    }
+                } else {
+                    buf.resize((size_t)size);
+                    body = buf.data();
+                }
+                resp_ptr = nullptr; resp_len = 0;
+                if (violation) { /* nothing was read; the reply below names why */ }
+                else if (size && !read_exact(fd, body, (size_t)size)) break;
+                else try {
+                    resp = handle(cmd, body, (size_t)size);
                 } catch (const Violation &v) {
                     logf("VIOLATION from %s: %s", peer.c_str(), v.why.c_str());
-                    resp = v.why; violation = true;
+                    resp = v.why; violation = true; resp_ptr = nullptr;
+                } catch (const std::exception &e) {
+                    /* bad_alloc, length_error, ...: the frame was malformed in a
+                     * way the checks above did not name. Same outcome as a
+                     * violation -- refuse and close -- never std::terminate,
+                     * which is a DoS on every other tenant of this card. */
+                    logf("VIOLATION from %s: internal %s", peer.c_str(), e.what());
+                    resp = fmt("internal: %s", e.what()); violation = true; resp_ptr = nullptr;
                 }
             }
-            uint8_t rh[SH_HDR]; rh[0] = violation ? STATUS_VIOLATION : STATUS_OK; wr_u64(rh + 1, resp.size());
-            if (!write_all(fd, rh, SH_HDR) || !write_all(fd, resp.data(), resp.size())) break;
+            const void *rp = resp_ptr ? resp_ptr : resp.data();
+            const size_t rl = resp_ptr ? resp_len : resp.size();
+            uint8_t rh[SH_HDR]; rh[0] = violation ? STATUS_VIOLATION : STATUS_OK; wr_u64(rh + 1, rl);
+            if (cmd == CMD_FIELD_GEMM) XP(0);
+            /* Header and body in one writev: one syscall, one segment on the wire. */
+            if (!writev_all(fd, rh, SH_HDR, rp, rl)) break;
+            if (cmd == CMD_FIELD_GEMM) XP(7);
             if (violation) break;
         }
         close(fd);
+#ifdef SH_XPROF
+        if (g_xpn) { fprintf(stderr, "[xprof] n=%llu memcpy %.1f h2d-call %.1f launches %.1f d2h-call %.1f sync %.1f assign %.1f send %.1f us/exchange\n",
+            (unsigned long long)g_xpn, g_xp[1]/g_xpn, g_xp[2]/g_xpn, g_xp[3]/g_xpn, g_xp[4]/g_xpn, g_xp[5]/g_xpn, g_xp[6]/g_xpn, g_xp[7]/g_xpn); memset(g_xp,0,sizeof g_xp); g_xpn=0; }
+#endif
         if (exchanges || recomputes)
             logf("%s closed: %llu exchanges, %llu recomputes, %.1f ms on the card",
                  peer.c_str(), (unsigned long long)exchanges, (unsigned long long)recomputes, gemm_ms);
@@ -928,6 +1344,9 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--vsock-port") && i + 1 < argc) vsock_port = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--vram-gb") && i + 1 < argc) vram_gb = atof(argv[++i]);
         else if (!strcmp(argv[i], "--quiet")) g_quiet = true;
+#ifdef SH_XPROF
+        else if (!strcmp(argv[i], "--kbench")) { cudaSetDevice(0); cudaSetDeviceFlags(cudaDeviceScheduleSpin | cudaDeviceMapHost); return kbench(); }
+#endif
         else { fprintf(stderr, "usage: shielded-worker [--host H] [--port P] [--vsock-port P] [--vram-gb G] [--quiet]\n"); return 2; }
     }
 
@@ -938,14 +1357,14 @@ int main(int argc, char **argv) {
     cudaSetDevice(0);
     /* Spin on synchronisation: a blocking wait costs tens of microseconds to
      * wake, which at decode is a large fraction of the whole exchange. */
-    cudaSetDeviceFlags(cudaDeviceScheduleSpin);
+    cudaSetDeviceFlags(cudaDeviceScheduleSpin | cudaDeviceMapHost);
     cudaGetDeviceProperties(&g_props, 0);
+    g_sm_count = std::max(1, g_props.multiProcessorCount);
     g_vram_budget = vram_gb > 0 ? (long long)(vram_gb * (double)(1ull << 30)) : (long long)(g_props.totalGlobalMem * 0.85);
     logf("%s, sm_%d%d, %.1f GiB total, budget %.1f GiB, %d SMs @ %.2f GHz -> %.1f TFLOPS fp16 rated",
          g_props.name, g_props.major, g_props.minor,
          g_props.totalGlobalMem / 1073741824.0, g_vram_budget / 1073741824.0,
          g_props.multiProcessorCount, g_props.clockRate / 1e6, rated_fp16_tflops(g_props));
-    kernel_init();
     try {
         if (!selftest()) return 1;
     } catch (const Violation &v) { fprintf(stderr, "selftest: %s\n", v.why.c_str()); return 1; }

@@ -230,7 +230,7 @@ sh('gcc', ['-static', '-Os', '-o', path.join(md, 'mverity'), path.join(HERE, 'gu
 // being removed.
 //
 // The overlay directory now carries DATA only: one <volume>.calib per model
-// from shielded/export-calib.py. Those are public per-site constants (activation
+// from wasm/ggml-shielded/shielded-calib. Those are public per-site constants (activation
 // exponent + outlier channel indices) derived from public weights, they are
 // text, and they are hashed into the manifest like everything else.
 const SHIELDED_SRC = path.resolve(arg('shielded', path.join(HERE, 'shielded-overlay')));

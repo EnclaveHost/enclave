@@ -22,7 +22,28 @@
 struct sh_pipe {
     int  fd;
     char err[256];
+    /* The reply buffer: grows to the largest reply ever seen, never shrinks,
+     * and is reused by every exchange. Before this each decode exchange paid a
+     * malloc and a free of the reply (608 KB for one lm_head row of the 0.5B)
+     * on the request path. */
+    uint8_t *rbuf;
+    size_t   rcap;
 };
+
+/* Frames per exchange that fit the stack-resident iovec/header arrays. Every
+ * production exchange is one frame; the pipelined batches of the older
+ * protocol were three. Beyond this the arrays are malloc'd. */
+#define SH_STACK_FRAMES 16
+
+static int reply_reserve(sh_pipe *p, size_t want) {
+    if (p->rcap >= want) return SH_OK;
+    size_t cap = p->rcap ? p->rcap : 4096;
+    while (cap < want) cap *= 2;
+    uint8_t *nb = (uint8_t *)realloc(p->rbuf, cap);
+    if (!nb) return SH_ERR_NOMEM;
+    p->rbuf = nb; p->rcap = cap;
+    return SH_OK;
+}
 
 static void put_u32(uint8_t *p, uint32_t v) {
     p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); p[2] = (uint8_t)(v >> 16); p[3] = (uint8_t)(v >> 24);
@@ -109,6 +130,7 @@ sh_pipe *sh_pipe_open(const char *host, int port, int *err) {
 void sh_pipe_close(sh_pipe *p) {
     if (!p) return;
     if (p->fd >= 0) close(p->fd);
+    free(p->rbuf);
     free(p);
 }
 
@@ -142,18 +164,27 @@ static int read_all(int fd, void *buf, size_t n) {
 }
 
 void sh_reply_free(sh_reply *r) {
+    /* The bytes live in the pipe's buffer; only the view is cleared. */
     if (!r) return;
-    free(r->data); r->data = NULL; r->len = 0;
+    r->data = NULL; r->len = 0;
 }
 
 int sh_pipe_exchange(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply *out) {
     if (!p || p->fd < 0) return SH_ERR_IO;
     memset(out, 0, n * sizeof *out);
 
-    /* One writev for every frame: 3 iovecs per frame (header, payload, payload2). */
-    struct iovec *iov = (struct iovec *)malloc(3 * n * sizeof *iov);
-    uint8_t *hdrs = (uint8_t *)malloc(n * SH_HDR);
-    if (!iov || !hdrs) { free(iov); free(hdrs); return SH_ERR_NOMEM; }
+    /* One writev for every frame: 3 iovecs per frame (header, payload, payload2).
+     * On the stack: a decode exchange is one frame, and two mallocs per
+     * exchange are measurable against a ~60 us round trip. */
+    struct iovec  iov_stack[3 * SH_STACK_FRAMES];
+    uint8_t       hdr_stack[SH_HDR * SH_STACK_FRAMES];
+    struct iovec *iov  = iov_stack;
+    uint8_t      *hdrs = hdr_stack;
+    if (n > SH_STACK_FRAMES) {
+        iov  = (struct iovec *)malloc(3 * n * sizeof *iov);
+        hdrs = (uint8_t *)malloc(n * SH_HDR);
+        if (!iov || !hdrs) { free(iov); free(hdrs); return SH_ERR_NOMEM; }
+    }
     int iovcnt = 0;
     for (size_t i = 0; i < n; i++) {
         size_t total = frames[i].len + frames[i].len2;
@@ -171,9 +202,12 @@ int sh_pipe_exchange(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply *out
         }
     }
     int rc = write_all(p->fd, iov, iovcnt);
-    free(iov); free(hdrs);
+    if (n > SH_STACK_FRAMES) { free(iov); free(hdrs); }
     if (rc != SH_OK) { snprintf(p->err, sizeof p->err, "write failed: %s", strerror(errno)); return rc; }
 
+    /* Replies land back to back in the pipe's buffer. Growing it can move the
+     * earlier ones, so pointers are assigned once the whole batch is in. */
+    size_t used = 0;
     for (size_t i = 0; i < n; i++) {
         uint8_t h[SH_HDR];
         if ((rc = read_all(p->fd, h, SH_HDR)) != SH_OK) {
@@ -185,11 +219,10 @@ int sh_pipe_exchange(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply *out
             snprintf(p->err, sizeof p->err, "response frame %llu exceeds cap", (unsigned long long)size);
             rc = SH_ERR_PROTO; goto fail;
         }
+        if (size && (rc = reply_reserve(p, used + (size_t)size)) != SH_OK) goto fail;
         out[i].status = h[0];
         out[i].len = (size_t)size;
-        out[i].data = size ? (uint8_t *)malloc((size_t)size) : NULL;
-        if (size && !out[i].data) { rc = SH_ERR_NOMEM; goto fail; }
-        if (size && (rc = read_all(p->fd, out[i].data, (size_t)size)) != SH_OK) {
+        if (size && (rc = read_all(p->fd, p->rbuf + used, (size_t)size)) != SH_OK) {
             snprintf(p->err, sizeof p->err, "short response body at frame %zu", i);
             goto fail;
         }
@@ -198,10 +231,13 @@ int sh_pipe_exchange(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply *out
              * Surface the reason verbatim -- it names the node and the op, which
              * is the difference between a five-minute fix and an afternoon. */
             int m = (int)(out[i].len < sizeof p->err - 1 ? out[i].len : sizeof p->err - 1);
-            memcpy(p->err, out[i].data, (size_t)m); p->err[m] = 0;
+            memcpy(p->err, p->rbuf + used, (size_t)m); p->err[m] = 0;
             rc = SH_ERR_VIOLATION; goto fail;
         }
+        used += (size_t)size;
     }
+    used = 0;
+    for (size_t i = 0; i < n; i++) { out[i].data = out[i].len ? p->rbuf + used : NULL; used += out[i].len; }
     return SH_OK;
 fail:
     for (size_t i = 0; i < n; i++) sh_reply_free(&out[i]);

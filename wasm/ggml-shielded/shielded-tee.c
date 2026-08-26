@@ -2,6 +2,7 @@
 #include "shielded-tee.h"
 #include "shielded-field.h"
 
+#include <errno.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -27,11 +28,20 @@ double sh_prof[8];
  * ------------------------------------------------------------------------ */
 #define SIMD_TABLE(sfx, nm) { nm, sh_simd_##sfx##_pad_planes, sh_simd_##sfx##_mask_planes, \
     sh_simd_##sfx##_unmask, sh_simd_##sfx##_encode, sh_simd_##sfx##_descale, sh_simd_##sfx##_fv_dot, \
-    sh_simd_##sfx##_fv_dot_x, sh_simd_##sfx##_fv_prepare, sh_simd_##sfx##_refill, sh_simd_##sfx##_outlier_add }
+    sh_simd_##sfx##_fv_dot_x, sh_simd_##sfx##_fv_prepare, sh_simd_##sfx##_refill, sh_simd_##sfx##_outlier_add, \
+    sh_simd_##sfx##_fv_dots, sh_simd_##sfx##_fv_dots_x, sh_simd_##sfx##_unmask_fv }
 static const sh_simd simd_avx512  = SIMD_TABLE(avx512, "avx512-vnni");
 static const sh_simd simd_generic = SIMD_TABLE(generic, "generic");
 
 const sh_simd *sh_simd_generic(void) { return &simd_generic; }
+
+/* The request path keeps the Freivalds vectors as int32 rows, one per rep
+ * ([rep][n]); the reference fv_dot takes them int64 and interleaved ([n][rep]).
+ * Both forms are derived from the same values and checked against each other. */
+static void fv_rows_i32(const int64_t *inter, int reps, int64_t n, int32_t *rows) {
+    for (int64_t j = 0; j < n; j++)
+        for (int r = 0; r < reps; r++) rows[(size_t)r * n + j] = (int32_t)inter[j * reps + r];
+}
 
 static bool simd_agree(const sh_simd *a, const sh_simd *b) {
     enum { K = 96 + 32, N = 37, B = 5 };   /* K not a multiple of 64: exercises the tail */
@@ -69,6 +79,27 @@ static bool simd_agree(const sh_simd *a, const sh_simd *b) {
         if (a->fv_dot(ya, s, 2, rep, N) != b->fv_dot(ya, s, 2, rep, N)) return false;
         if (a->fv_dot_x(x, sta, 2, rep, K) != b->fv_dot_x(x, sta, 2, rep, K)) return false;
     }
+    /* The request-path forms: fused, int32 rows. Against each other AND against
+     * the reference dots, so a layout slip fails here and not as a verification
+     * failure on the first token. */
+    int32_t s32[2 * N], st32[2 * K];
+    fv_rows_i32(s, 2, N, s32); fv_rows_i32(sta, 2, K, st32);
+    int64_t da[2], db[2], dxa[2], dxb[2], fa[2], fb[2], yfa[B * N], yfb[B * N];
+    a->fv_dots(ya, s32, 2, N, da);       b->fv_dots(ya, s32, 2, N, db);
+    a->fv_dots_x(x, st32, 2, K, dxa);    b->fv_dots_x(x, st32, 2, K, dxb);
+    a->unmask_fv(ua, ub, s32, 2, N, yfa, fa); b->unmask_fv(ua, ub, s32, 2, N, yfb, fb);
+    if (memcmp(yfa, ya, N * sizeof(int64_t)) || memcmp(yfb, ya, N * sizeof(int64_t))) return false;
+    for (int rep = 0; rep < 2; rep++) {
+        if (da[rep] != db[rep] || da[rep] != a->fv_dot(ya, s, 2, rep, N)) return false;
+        if (fa[rep] != fb[rep] || fa[rep] != da[rep]) return false;
+        if (dxa[rep] != dxb[rep] || dxa[rep] != a->fv_dot_x(x, sta, 2, rep, K)) return false;
+    }
+    /* encode: the vector path rounds under MXCSR exactly as lrintf does, including
+     * ties to even, and its scalar tail must agree with itself. */
+    float fsrc[B * K]; int64_t ea[B * K], eb[B * K];
+    for (int i = 0; i < B * K; i++) fsrc[i] = ((float)(int)(RND() % 200001) - 100000.0f) / 8.0f;   /* .0/.125 steps: exact ties */
+    a->encode(fsrc, B * K, 4.0f, ea); b->encode(fsrc, B * K, 4.0f, eb);
+    if (memcmp(ea, eb, sizeof ea)) return false;
 #undef RND
     return true;
 }
@@ -189,17 +220,35 @@ typedef struct {
     int       group;
     int64_t   w_off, x_off, y_off;
     int64_t   u_off;            /* this node's columns within its group's u rows */
-    int64_t  *s, *s_tilde;      /* Freivalds: (N,REPS) and (K,REPS) mod P2 */
+    int64_t  *s, *s_tilde;      /* Freivalds, reference layout: (N,REPS) and (K,REPS) mod P2 */
+    int32_t  *s32, *st32;       /* the same values as the request path reads them: [REPS][N], [REPS][K] */
 } sh_node;
 
+/* THE RING. `depth` slots of (r, u). Around it, in ring order:
+ *
+ *     [head-held, head)                 HELD: handed to the request in flight
+ *     [head, head+count)                READY: generated, waiting
+ *     [head+count, +generating)         RESERVED: a refill thread is writing
+ *
+ * A request takes from the front by advancing head -- the pad is CONSUMED at
+ * that moment, whatever happens to the request afterwards (rule 1: a pad that
+ * left the ready run never comes back). It holds the slot by POINTER until its
+ * unmask is done and then releases it; a refill may only reserve a slot that
+ * is neither ready, held nor reserved, which is what `held` in the deficit
+ * guarantees. Refill threads reserve slot indices under the lock and write
+ * the ring OUTSIDE it, so a lm_head refill (608 KB of u) no longer holds the
+ * mutex against the request path; `ready` lets them finish out of order while
+ * `count` still advances in ring order. Before this, take_pads memcpy'd r and
+ * u out of the ring under the lock on every exchange -- 608 KB per lm_head
+ * token -- and the refill thread memcpy'd them in under the same lock. */
 typedef struct {
     int64_t   K;
     int       nodes[SH_GROUP_MAX];
     int       n_nodes;
     int64_t   u_len;            /* sum of N over the group */
     int32_t   max_m;
-    /* the ring of ready pads */
-    int       depth, count, head, generating;
+    int       depth, count, head, generating, held;
+    uint8_t  *ready;            /* per slot: written by a refill, not yet counted */
     int32_t  *r_store;          /* depth x K, each in [0,M) */
     int32_t  *u_store;          /* depth x u_len, balanced */
 } sh_group;
@@ -216,13 +265,16 @@ struct sh_link {
     const sh_simd *simd;
 
     pthread_mutex_t pool_mu;
-    pthread_cond_t  need_refill;
+    pthread_cond_t  need_refill;   /* a deficit appeared */
+    pthread_cond_t  pool_filled;   /* a pad was published (start waits on it) */
     pthread_t *threads; int n_threads; bool threads_running, stop;
-    int pool_depth, refill_batch;
+    int threads_env;               /* SHIELDED_REFILL_THREADS, or -1 = derive from the weights */
+    int pool_depth, refill_batch, target_ms, warm_ms;
     int64_t Kmax, Nmax, ulen_max;
 
     /* request-path scratch (caller thread) */
-    int32_t *r;       size_t r_cap;
+    const int32_t **rp; const int32_t **up; int *slots; size_t p_cap;   /* per-row pad pointers, m of each */
+    int32_t *r;       size_t r_cap;      /* pads generated ON the path, pool dry */
     int32_t *u;       size_t u_cap;
     int8_t  *planes;  size_t planes_cap;
     uint8_t *gplanes; size_t gplanes_cap;
@@ -249,6 +301,7 @@ void sh_link_pool_stats(const sh_link *l, uint64_t *consumed, uint64_t *missed) 
     if (consumed) *consumed = l->pads_used;
     if (missed) *missed = l->pads_missed;
 }
+int sh_link_refill_threads(const sh_link *l) { return l ? l->n_threads : 0; }
 
 static int env_int(const char *name, int dflt, int lo, int hi) {
     const char *e = getenv(name);
@@ -266,9 +319,12 @@ sh_link *sh_link_open(const char *host, int port, bool verify, int *err) {
     if (!maskbank_init(&l->bank)) { free(l); if (err) *err = SH_ERR_IO; return NULL; }
     pthread_mutex_init(&l->pool_mu, NULL);
     pthread_cond_init(&l->need_refill, NULL);
-    l->n_threads    = env_int("SHIELDED_REFILL_THREADS", 2, 0, 64);
+    pthread_cond_init(&l->pool_filled, NULL);
+    l->threads_env  = env_int("SHIELDED_REFILL_THREADS", -1, 0, 64);
     l->pool_depth   = env_int("SHIELDED_POOL_DEPTH", 16, 1, 4096);
     l->refill_batch = env_int("SHIELDED_REFILL_BATCH", 4, 1, 64);
+    l->target_ms    = env_int("SHIELDED_REFILL_TARGET_MS", 6, 1, 10000);
+    l->warm_ms      = env_int("SHIELDED_WARM_MS", 5000, 0, 600000);
     if (err) *err = SH_OK;
     return l;
 }
@@ -286,9 +342,9 @@ static void stop_threads(sh_link *l) {
 
 static void free_pools(sh_link *l) {
     for (size_t g = 0; g < l->n_groups; g++) {
-        free(l->groups[g].r_store); free(l->groups[g].u_store);
-        l->groups[g].r_store = NULL; l->groups[g].u_store = NULL;
-        l->groups[g].count = l->groups[g].head = l->groups[g].generating = 0;
+        free(l->groups[g].r_store); free(l->groups[g].u_store); free(l->groups[g].ready);
+        l->groups[g].r_store = NULL; l->groups[g].u_store = NULL; l->groups[g].ready = NULL;
+        l->groups[g].count = l->groups[g].head = l->groups[g].generating = l->groups[g].held = 0;
     }
 }
 
@@ -296,11 +352,14 @@ void sh_link_close(sh_link *l) {
     if (!l) return;
     stop_threads(l);
     free_pools(l);
-    for (size_t i = 0; i < l->n_nodes; i++) { free(l->nodes[i].s); free(l->nodes[i].s_tilde); }
+    for (size_t i = 0; i < l->n_nodes; i++) {
+        free(l->nodes[i].s); free(l->nodes[i].s_tilde); free(l->nodes[i].s32); free(l->nodes[i].st32);
+    }
     free(l->nodes); free(l->groups);
+    free(l->rp); free(l->up); free(l->slots);
     free(l->r); free(l->u); free(l->planes); free(l->gplanes); free(l->acc); free(l->hdr);
     sh_pipe_close(l->pipe);
-    pthread_mutex_destroy(&l->pool_mu); pthread_cond_destroy(&l->need_refill);
+    pthread_mutex_destroy(&l->pool_mu); pthread_cond_destroy(&l->need_refill); pthread_cond_destroy(&l->pool_filled);
     pthread_mutex_destroy(&l->bank.mu);
     free(l);
 }
@@ -309,7 +368,9 @@ static int fv_prepare(sh_link *l, sh_node *nd) {
     const int64_t K = nd->K, N = nd->N;
     nd->s       = (int64_t *)malloc((size_t)N * SH_FV_REPS * sizeof(int64_t));
     nd->s_tilde = (int64_t *)malloc((size_t)K * SH_FV_REPS * sizeof(int64_t));
-    if (!nd->s || !nd->s_tilde) return SH_ERR_NOMEM;
+    nd->s32     = (int32_t *)malloc((size_t)N * SH_FV_REPS * sizeof(int32_t));
+    nd->st32    = (int32_t *)malloc((size_t)K * SH_FV_REPS * sizeof(int32_t));
+    if (!nd->s || !nd->s_tilde || !nd->s32 || !nd->st32) return SH_ERR_NOMEM;
     /* s from the OS CSPRNG. Predictable s == forgeable results; see rule 4. */
     uint64_t *raw = (uint64_t *)malloc((size_t)N * SH_FV_REPS * sizeof(uint64_t));
     if (!raw) return SH_ERR_NOMEM;
@@ -318,6 +379,10 @@ static int fv_prepare(sh_link *l, sh_node *nd) {
         nd->s[i] = 1 + (int64_t)(raw[i] % (uint64_t)(SH_FV_S_RANGE - 1));
     free(raw);
     l->simd->fv_prepare(nd->w, K, N, nd->s, SH_FV_REPS, nd->s_tilde);
+    /* s < 2^20 and s_tilde < P2 < 2^31: both fit the int32 rows the online
+     * check streams. The int64 forms stay for sh_link_verify's reference path. */
+    fv_rows_i32(nd->s, SH_FV_REPS, N, nd->s32);
+    fv_rows_i32(nd->s_tilde, SH_FV_REPS, K, nd->st32);
     return SH_OK;
 }
 
@@ -326,6 +391,13 @@ int sh_link_add_weight(sh_link *l, const char *name, const int8_t *w_fixed,
     if (K % SH_QK != 0 || K % 16 != 0) {
         snprintf(l->err, sizeof l->err, "K=%lld not a multiple of %d", (long long)K, SH_QK); return SH_ERR_PROTO;
     }
+    /* A weight added after start (a split that first shows a weight on a
+     * later graph, a retry that registers more) changes the groups the refill
+     * threads are writing -- u_len is their row stride into u_store. Stop them
+     * and drop the rings first; the ready pads are discarded, never re-issued
+     * (the bank's counter is monotonic), and the caller restarts the link,
+     * which rebuilds the pools. ASan-confirmed heap overflow without this. */
+    if (l->threads_running) { stop_threads(l); free_pools(l); }
     if (l->n_nodes == l->cap_nodes) {
         size_t cap = l->cap_nodes ? l->cap_nodes * 2 : 16;
         sh_node *nn = (sh_node *)realloc(l->nodes, cap * sizeof *nn);
@@ -415,11 +487,16 @@ static int generate(sh_link *l, const sh_group *g, int b, int32_t *r_out, int32_
     return SH_OK;
 }
 
+/* Slots a refill may write: everything that is not ready, held or reserved. */
+static int group_deficit(const sh_group *g) { return g->depth - g->count - g->held - g->generating; }
+
 static void *refill_main(void *arg) {
     sh_link *l = (sh_link *)arg;
     gen_scratch s;
     const int B = l->refill_batch;
     if (gen_scratch_init(l, &s, B) != SH_OK) return NULL;
+    /* Private staging, used only when the reserved slots wrap around the ring
+     * end; otherwise the batch is generated straight into the ring. */
     int32_t *r = (int32_t *)malloc((size_t)B * l->Kmax * sizeof(int32_t));
     int32_t *u = (int32_t *)malloc((size_t)B * l->ulen_max * sizeof(int32_t));
     if (!r || !u) { free(r); free(u); free(s.planes); free(s.acc); return NULL; }
@@ -428,31 +505,60 @@ static void *refill_main(void *arg) {
         sh_group *g = NULL; int deficit = 0;
         for (;;) {
             if (l->stop) { pthread_mutex_unlock(&l->pool_mu); goto done; }
+            /* Which group, and whether to bother. A batch costs one stream of
+             * the group's weights whatever b is (refill_rows4 always computes
+             * four rows), so a batch of one is four times the work per pad. In
+             * steady state every group loses exactly one pad per token, and
+             * refilling each deficit-1 group as it appeared kept two cores
+             * busy at a quarter efficiency for the whole decode. So: a group
+             * that is LOW (fewer than a batch ready or coming) is refilled at
+             * once with whatever fits -- at start-up that is every group in
+             * turn, so the first token finds a pad in each -- and otherwise a
+             * group is refilled only once a whole batch fits, largest deficit
+             * first. Lowest-first among the low ones. */
+            int best_low = -1;      /* ready+coming of the lowest low group seen, or -1 */
             for (size_t i = 0; i < l->n_groups; i++) {
                 sh_group *c = &l->groups[i];
-                const int d = c->depth - c->count - c->generating;
-                if (d > deficit) { deficit = d; g = c; }
+                const int d = group_deficit(c);
+                if (d <= 0) continue;
+                const int coming = c->count + c->generating;
+                if (coming < B) {
+                    if (best_low < 0 || coming < best_low) { g = c; deficit = d; best_low = coming; }
+                } else if (best_low < 0 && d >= B && d > deficit) { g = c; deficit = d; }
             }
             if (g) break;
             pthread_cond_wait(&l->need_refill, &l->pool_mu);
         }
         const int b = deficit < B ? deficit : B;
+        const int first = (g->head + g->count + g->generating) % g->depth;
         g->generating += b;
         pthread_mutex_unlock(&l->pool_mu);
 
-        const int rc = generate(l, g, b, r, u, &s);
+        const bool direct = first + b <= g->depth;
+        int32_t *r_out = direct ? g->r_store + (size_t)first * g->K     : r;
+        int32_t *u_out = direct ? g->u_store + (size_t)first * g->u_len : u;
+        const int rc = generate(l, g, b, r_out, u_out, &s);
+        if (rc == SH_OK && !direct) {
+            for (int i = 0; i < b; i++) {
+                const int slot = (first + i) % g->depth;
+                memcpy(g->r_store + (size_t)slot * g->K,     r + (size_t)i * g->K,     (size_t)g->K * sizeof(int32_t));
+                memcpy(g->u_store + (size_t)slot * g->u_len, u + (size_t)i * g->u_len, (size_t)g->u_len * sizeof(int32_t));
+            }
+        }
 
         pthread_mutex_lock(&l->pool_mu);
-        g->generating -= b;
         if (rc == SH_OK) {
-            for (int i = 0; i < b; i++) {
-                const int slot = (g->head + g->count) % g->depth;
-                memcpy(g->r_store + (size_t)slot * g->K, r + (size_t)i * g->K, (size_t)g->K * sizeof(int32_t));
-                memcpy(g->u_store + (size_t)slot * g->u_len, u + (size_t)i * g->u_len, (size_t)g->u_len * sizeof(int32_t));
-                g->count++;
+            for (int i = 0; i < b; i++) g->ready[(first + i) % g->depth] = 1;
+            /* Count forward in ring order over whatever is finished. */
+            while (g->generating > 0 && g->ready[(g->head + g->count) % g->depth]) {
+                g->ready[(g->head + g->count) % g->depth] = 0;
+                g->count++; g->generating--;
             }
+            pthread_cond_broadcast(&l->pool_filled);
         } else {
-            /* Bank exhausted: nothing more to do until the process restarts. */
+            /* Bank exhausted: the reservation is abandoned and nothing more
+             * happens until the process restarts. */
+            g->generating -= b;
             l->stop = true;
         }
         pthread_mutex_unlock(&l->pool_mu);
@@ -460,6 +566,31 @@ static void *refill_main(void *arg) {
 done:
     free(r); free(u); free(s.planes); free(s.acc);
     return NULL;
+}
+
+/* How many refill threads the registered weights need.
+ *
+ * Each pad of a group costs three residue planes of u = r.W, i.e. 3.K.N int8
+ * MACs, and the request path consumes one pad per group per token, so refill
+ * has to sustain 3 x (the offloaded MACs of one token) per token time. Measured
+ * (2026-08-26, EPYC 9115, AVX-512 VNNI, batch 4): ~250 G-MAC/s per core, and
+ * the 0.5B decodes at ~6 ms/token on this box, which is the default target.
+ *   0.5B: 1.36 G MAC/token -> 5.4 core-ms/token -> 1 thread, clamped up to 2
+ *   4B:   12  G MAC/token -> 48 core-ms/token   -> 10 threads
+ * The 1.25 is headroom for sharing the cores with the engine's own threads.
+ * Clamped to [2, ncores/2]; SHIELDED_REFILL_THREADS overrides the whole thing. */
+#define SH_REFILL_GMACS_PER_CORE 250.0
+static int derive_threads(const sh_link *l) {
+    if (l->threads_env >= 0) return l->threads_env;
+    double macs = 0;
+    for (size_t i = 0; i < l->n_nodes; i++) macs += (double)l->nodes[i].K * (double)l->nodes[i].N;
+    const double core_ms = 3.0 * macs / (SH_REFILL_GMACS_PER_CORE * 1e9) * 1e3;
+    int want = (int)(core_ms * 1.25 / (double)l->target_ms + 0.999);
+    long ncpu = sysconf(_SC_NPROCESSORS_ONLN);
+    int hi = ncpu > 4 ? (int)(ncpu / 2) : 2;
+    if (want < 2) want = 2;
+    if (want > hi) want = hi;
+    return want;
 }
 
 static int start_pools(sh_link *l) {
@@ -470,31 +601,61 @@ static int start_pools(sh_link *l) {
         g->depth = l->pool_depth;
         g->r_store = (int32_t *)malloc((size_t)g->depth * g->K * sizeof(int32_t));
         g->u_store = (int32_t *)malloc((size_t)g->depth * g->u_len * sizeof(int32_t));
-        if (!g->r_store || !g->u_store) return SH_ERR_NOMEM;
+        g->ready   = (uint8_t *)calloc((size_t)g->depth, 1);
+        if (!g->r_store || !g->u_store || !g->ready) return SH_ERR_NOMEM;
     }
+    l->n_threads = derive_threads(l);
     if (l->n_threads > 0) {
         l->threads = (pthread_t *)calloc((size_t)l->n_threads, sizeof(pthread_t));
         if (!l->threads) return SH_ERR_NOMEM;
         l->stop = false;
-        for (int i = 0; i < l->n_threads; i++) pthread_create(&l->threads[i], NULL, refill_main, l);
+        int made = 0;
+        for (int i = 0; i < l->n_threads; i++) if (pthread_create(&l->threads[i], NULL, refill_main, l) == 0) made++; else break;
+        l->n_threads = made;                       /* join exactly what was created */
+        if (!made) { free(l->threads); l->threads = NULL; l->threads_running = false; return SH_OK; }
         l->threads_running = true;
+
+        /* Warm the pool before the first exchange. Returning with every ring
+         * empty made the first token generate 49 pads on the request path
+         * (19.6 ms of refill-on-path in a 64-token decode, all in token one).
+         * Bounded: a pathological box still starts, it just pays on the path. */
+        struct timespec dl; clock_gettime(CLOCK_REALTIME, &dl);
+        dl.tv_sec += l->warm_ms / 1000; dl.tv_nsec += (long)(l->warm_ms % 1000) * 1000000L;
+        if (dl.tv_nsec >= 1000000000L) { dl.tv_sec++; dl.tv_nsec -= 1000000000L; }
+        pthread_mutex_lock(&l->pool_mu);
+        pthread_cond_broadcast(&l->need_refill);
+        for (;;) {
+            bool warm = true;
+            for (size_t i = 0; i < l->n_groups && warm; i++) warm = l->groups[i].count > 0;
+            if (warm || l->stop) break;
+            if (pthread_cond_timedwait(&l->pool_filled, &l->pool_mu, &dl) == ETIMEDOUT) break;
+        }
+        pthread_mutex_unlock(&l->pool_mu);
     }
     return SH_OK;
 }
 
-/* Take up to m pads for group g into the caller's scratch; returns how many. */
-static int take_pads(sh_link *l, sh_group *g, int m, int32_t *r, int32_t *u) {
+/* Take up to m ready pads from the front of group g's ring, by slot index.
+ * They are consumed here and held until release_pads. */
+static int take_pads(sh_link *l, sh_group *g, int m, int *slots) {
     pthread_mutex_lock(&l->pool_mu);
     int take = g->count < m ? g->count : m;
-    for (int i = 0; i < take; i++) {
-        memcpy(r + (size_t)i * g->K, g->r_store + (size_t)g->head * g->K, (size_t)g->K * sizeof(int32_t));
-        memcpy(u + (size_t)i * g->u_len, g->u_store + (size_t)g->head * g->u_len, (size_t)g->u_len * sizeof(int32_t));
-        g->head = (g->head + 1) % g->depth;
-        g->count--;
-    }
-    pthread_cond_signal(&l->need_refill);
+    for (int i = 0; i < take; i++) slots[i] = (g->head + i) % g->depth;
+    g->head = (g->head + take) % g->depth;
+    g->count -= take;
+    g->held += take;
     pthread_mutex_unlock(&l->pool_mu);
     return take;
+}
+
+/* The slots may be overwritten from here on; the deficit they open is what
+ * wakes a refill thread. */
+static void release_pads(sh_link *l, sh_group *g, int n) {
+    if (n <= 0) return;
+    pthread_mutex_lock(&l->pool_mu);
+    g->held -= n;
+    pthread_cond_signal(&l->need_refill);
+    pthread_mutex_unlock(&l->pool_mu);
 }
 
 /* --- start: connect, upload public weights, install the vetted graph ------ */
@@ -623,13 +784,11 @@ int sh_link_start(sh_link *l) {
 /* --- Freivalds over an unrelated prime ------------------------------------ */
 static bool fv_check(const sh_link *l, const sh_node *nd, const int64_t *x, const int64_t *y, int32_t m) {
     for (int32_t row = 0; row < m; row++) {
-        const int64_t *xr = x + (int64_t)row * nd->K;
-        const int64_t *yr = y + (int64_t)row * nd->N;
-        for (int rep = 0; rep < SH_FV_REPS; rep++) {
-            const int64_t lhs = l->simd->fv_dot(yr, nd->s, SH_FV_REPS, rep, nd->N);
-            const int64_t rhs = l->simd->fv_dot_x(xr, nd->s_tilde, SH_FV_REPS, rep, nd->K);
-            if (lhs != rhs) return false;
-        }
+        int64_t lhs[SH_FV_REPS], rhs[SH_FV_REPS];
+        l->simd->fv_dots(y + (int64_t)row * nd->N, nd->s32, SH_FV_REPS, nd->N, lhs);
+        l->simd->fv_dots_x(x + (int64_t)row * nd->K, nd->st32, SH_FV_REPS, nd->K, rhs);
+        for (int rep = 0; rep < SH_FV_REPS; rep++)
+            if (lhs[rep] != rhs[rep]) return false;
     }
     return true;
 }
@@ -689,71 +848,127 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
     }
     const int64_t K = g->K;
     int rc;
-    if ((rc = ensure((void **)&l->r,      &l->r_cap,      (size_t)m * K * sizeof(int32_t))) != SH_OK) return rc;
-    if ((rc = ensure((void **)&l->u,      &l->u_cap,      (size_t)m * g->u_len * sizeof(int32_t))) != SH_OK) return rc;
+    /* Steady state allocates nothing: every buffer here has grown to its
+     * largest use by the second token. */
     if ((rc = ensure((void **)&l->planes, &l->planes_cap, (size_t)3 * m * K)) != SH_OK) return rc;
     if ((rc = ensure((void **)&l->hdr,    &l->hdr_cap,    8 + 4 * n_nodes)) != SH_OK) return rc;
+    if (l->p_cap < (size_t)m) {
+        const int32_t **rp = (const int32_t **)realloc(l->rp, (size_t)m * sizeof *rp);
+        if (rp) l->rp = rp;
+        const int32_t **up = (const int32_t **)realloc(l->up, (size_t)m * sizeof *up);
+        if (up) l->up = up;
+        int *slots = (int *)realloc(l->slots, (size_t)m * sizeof *slots);
+        if (slots) l->slots = slots;
+        if (!rp || !up || !slots) return SH_ERR_NOMEM;
+        l->p_cap = (size_t)m;
+    }
 
     /* ONE pad per plaintext row -- rule 2 -- from the pool, or made here if the
      * pool is dry. Shared-x nodes see the same pad by construction: they are
-     * in the same group and read the same masked planes. */
+     * in the same group and read the same masked planes. Pool pads are used IN
+     * PLACE and held until the unmask below; the rows made here live in the
+     * link's private scratch. Either way each row's pad is one pointer. */
     double t0 = now_ms();
-    const int took = l->threads_running ? take_pads(l, g, m, l->r, l->u) : 0;
+    const int took = l->threads_running ? take_pads(l, g, m, l->slots) : 0;
+    for (int i = 0; i < took; i++) {
+        l->rp[i] = g->r_store + (size_t)l->slots[i] * K;
+        l->up[i] = g->u_store + (size_t)l->slots[i] * g->u_len;
+    }
     if (took < m) {
-        if ((rc = ensure((void **)&l->gplanes, &l->gplanes_cap, (size_t)3 * (m - took) * K)) != SH_OK) return rc;
-        if ((rc = ensure((void **)&l->acc,     &l->acc_cap,     (size_t)12 * l->Nmax * sizeof(int32_t))) != SH_OK) return rc;
+        const int miss = m - took;
+        if ((rc = ensure((void **)&l->r,       &l->r_cap,       (size_t)miss * K * sizeof(int32_t))) != SH_OK) goto fail;
+        if ((rc = ensure((void **)&l->u,       &l->u_cap,       (size_t)miss * g->u_len * sizeof(int32_t))) != SH_OK) goto fail;
+        if ((rc = ensure((void **)&l->gplanes, &l->gplanes_cap, (size_t)3 * miss * K)) != SH_OK) goto fail;
+        if ((rc = ensure((void **)&l->acc,     &l->acc_cap,     (size_t)12 * l->Nmax * sizeof(int32_t))) != SH_OK) goto fail;
         gen_scratch s = { l->gplanes, l->acc };
         double tg = now_ms();
-        rc = generate(l, g, m - took, l->r + (size_t)took * K, l->u + (size_t)took * g->u_len, &s);
+        rc = generate(l, g, miss, l->r, l->u, &s);
         sh_prof[2] += now_ms() - tg;
-        if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "pad bank exhausted; stall the request"); return rc; }
-        l->pads_missed += (uint64_t)(m - took);
-        sh_prof[6] += m - took;
+        if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "pad bank exhausted; stall the request"); goto fail; }
+        for (int i = 0; i < miss; i++) {
+            l->rp[took + i] = l->r + (size_t)i * K;
+            l->up[took + i] = l->u + (size_t)i * g->u_len;
+        }
+        l->pads_missed += (uint64_t)miss;
+        sh_prof[6] += miss;
     }
     l->pads_used += (uint64_t)m; sh_prof[7] += m;
 
-    l->simd->mask_planes(x_field, l->r, (size_t)m * K, l->planes, l->planes + (size_t)m * K, l->planes + (size_t)2 * m * K);
+    for (int32_t row = 0; row < m; row++)
+        l->simd->mask_planes(x_field + (size_t)row * K, l->rp[row], (size_t)K,
+                             l->planes + (size_t)row * K, l->planes + ((size_t)m + row) * K, l->planes + ((size_t)2 * m + row) * K);
     const size_t hn = sh_pack_field_gemm(l->hdr, (uint32_t)n_nodes, (uint32_t)m, nodes);
     double t1 = now_ms(); sh_prof[0] += t1 - t0;
 
-    sh_frame f = { SH_CMD_FIELD_GEMM, l->hdr, hn, l->planes, (size_t)3 * m * K };
-    sh_reply rep;
-    rc = sh_pipe_exchange(l->pipe, &f, 1, &rep);
-    double t2 = now_ms(); sh_prof[1] += t2 - t1;
-    if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "exchange: %s", sh_pipe_last_error(l->pipe)); return rc; }
-    l->exchanges++;
-
-    size_t want = 0;
-    for (size_t i = 0; i < n_nodes; i++) want += (size_t)m * l->nodes[nodes[i]].N * 4;
-    if (rep.len != want) {
-        snprintf(l->err, sizeof l->err, "worker returned %zu bytes, expected %zu", rep.len, want);
-        sh_reply_free(&rep); return SH_ERR_PROTO;
-    }
-
-    /* Unmask, then verify, then hand back -- never the other way round. */
-    int result = SH_OK;
-    size_t off = 0;
-    for (size_t i = 0; i < n_nodes; i++) {
-        const sh_node *nd = &l->nodes[nodes[i]];
-        const int32_t *ym = (const int32_t *)(rep.data + off);
-        off += (size_t)m * nd->N * 4;
-        int64_t *y = y_out[i];
-        double t3 = now_ms();
-        for (int32_t row = 0; row < m; row++)
-            l->simd->unmask(ym + (size_t)row * nd->N, l->u + (size_t)row * g->u_len + nd->u_off, (size_t)nd->N, y + (size_t)row * nd->N);
-        l->macs += (uint64_t)m * (uint64_t)nd->K * (uint64_t)nd->N;
-        double t4 = now_ms(); sh_prof[3] += t4 - t3;
-        const bool ok = !l->verify || fv_check(l, nd, x_field, y, m);
-        sh_prof[4] += now_ms() - t4;
-        if (!ok) {
-            l->verify_fail++;
-            snprintf(l->err, sizeof l->err,
-                     "%s: verification FAILED -- the worker lied or the field wrapped. "
-                     "Abort the request; do not sample, stream, or cache this.", nd->name);
-            result = SH_ERR_VERIFY; break;
+    {
+        sh_frame f = { SH_CMD_FIELD_GEMM, l->hdr, hn, l->planes, (size_t)3 * m * K };
+        sh_reply rep;
+        rc = sh_pipe_exchange(l->pipe, &f, 1, &rep);
+        double t2 = now_ms(); sh_prof[1] += t2 - t1;
+        if (rc != SH_OK) {
+            snprintf(l->err, sizeof l->err, "exchange: %s", sh_pipe_last_error(l->pipe));
+            /* SH_ERR_PROTO is reserved for THIS link's pre-flight refusals
+             * above (a property of the node). Anything wrong that came back
+             * over the wire -- an oversize frame, a bad status -- is the
+             * worker misbehaving, and the caller must treat it like a
+             * refusal: take the link down and reconnect, not keep shipping
+             * pads to a peer that answers nonsense. */
+            if (rc == SH_ERR_PROTO) rc = SH_ERR_VIOLATION;
+            goto fail;
         }
+        l->exchanges++;
+
+        size_t want = 0;
+        for (size_t i = 0; i < n_nodes; i++) want += (size_t)m * l->nodes[nodes[i]].N * 4;
+        if (rep.len != want) {
+            snprintf(l->err, sizeof l->err, "worker returned %zu bytes, expected %zu", rep.len, want);
+            rc = SH_ERR_VIOLATION; goto fail;           /* the worker's fault: reconnect, see above */
+        }
+
+        /* Unmask, then verify, then hand back -- never the other way round.
+         * With verification on, the unmask and the lhs dot are one pass. */
+        size_t off = 0;
+        for (size_t i = 0; i < n_nodes; i++) {
+            const sh_node *nd = &l->nodes[nodes[i]];
+            const int32_t *ym = (const int32_t *)(rep.data + off);
+            off += (size_t)m * nd->N * 4;
+            int64_t *y = y_out[i];
+            bool ok = true;
+            if (l->verify) {
+                /* Profile split: [3] is the fused unmask + lhs pass over y,
+                 * [4] the rhs pass over x. */
+                for (int32_t row = 0; row < m; row++) {
+                    int64_t lhs[SH_FV_REPS], rhs[SH_FV_REPS];
+                    double t3 = now_ms();
+                    l->simd->unmask_fv(ym + (size_t)row * nd->N, l->up[row] + nd->u_off, nd->s32, SH_FV_REPS, nd->N,
+                                       y + (size_t)row * nd->N, lhs);
+                    double t4 = now_ms(); sh_prof[3] += t4 - t3;
+                    l->simd->fv_dots_x(x_field + (size_t)row * K, nd->st32, SH_FV_REPS, K, rhs);
+                    sh_prof[4] += now_ms() - t4;
+                    for (int rep_i = 0; rep_i < SH_FV_REPS; rep_i++) ok = ok && lhs[rep_i] == rhs[rep_i];
+                }
+            } else {
+                double t3 = now_ms();
+                for (int32_t row = 0; row < m; row++)
+                    l->simd->unmask(ym + (size_t)row * nd->N, l->up[row] + nd->u_off, (size_t)nd->N, y + (size_t)row * nd->N);
+                sh_prof[3] += now_ms() - t3;
+            }
+            l->macs += (uint64_t)m * (uint64_t)nd->K * (uint64_t)nd->N;
+            if (!ok) {
+                l->verify_fail++;
+                snprintf(l->err, sizeof l->err,
+                         "%s: verification FAILED -- the worker lied or the field wrapped. "
+                         "Abort the request; do not sample, stream, or cache this.", nd->name);
+                rc = SH_ERR_VERIFY; goto fail;
+            }
+        }
+        sh_prof[5] += 1;
     }
-    sh_prof[5] += 1;
-    sh_reply_free(&rep);
-    return result;
+    release_pads(l, g, took);
+    return SH_OK;
+fail:
+    /* Whatever failed, the pads were consumed the moment they were taken:
+     * releasing the slots lets a refill overwrite them, never re-issues them. */
+    release_pads(l, g, took);
+    return rc;
 }

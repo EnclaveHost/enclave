@@ -26,8 +26,11 @@ tee.py                        the trusted half: weights, mask bank, refill, Frei
 model.py                      TEE-side executor: a real transformer, linears offloaded
 tokenizer.py                  byte-level BPE, TEE-side (it consumes the prompt)
 pack.py                       GGUF -> shielded pack (host-side, offline, public)
-calibrate.py                  per-site activation exponent + outlier set (public, offline)
+calibrate.py                  per-site activation exponent + outlier set (public, offline), qwen2 only
 export-calib.py               that .npz -> the flat text the engine backend reads
+../wasm/ggml-shielded/shielded-calib.cpp
+                              THE CALIBRATOR for the engine backend: any q8_0 GGUF libllama runs,
+                              observed through the real graph, weights encoded exactly as the runtime does
 e2e.py                        the end-to-end run, and the equivalence test
 kernels/fused_field_gemm.py   GPU field-GEMM kernel (fused CRT, in-kernel dequant)
 bench/field_gemm_bench.py     GPU field-GEMM kernel ladder (needs a CUDA torch)
@@ -85,6 +88,15 @@ for plain llama.cpp on 8 CPU threads. Four changes, in order of size:
    TEE three. Offload is a decode accelerator; it removes the weight-bandwidth term
    from the latency chain and nothing else.
 
+A second round (REPORT.md section 13) took the same model from 6.3 to 4.6 ms/token on
+the host loopback: the worker replays each exchange as one captured CUDA graph into
+mapped host memory (the fixed per-exchange GPU cost fell from ~40 us to ~4), the kernel
+streams four weight rows per warp so batched rows (m up to 8) no longer collapse its
+bandwidth, the TEE uses pool pads in place and verifies in the same pass that unmasks,
+an exchange for part of a shared-activation group fetches the whole group's products
+so a ggml split boundary costs no extra round trip or pad, and the backend reconnects
+after a worker restart instead of falling to the int64 path for the rest of its life.
+
 Inside the CVM the link prefers AF_VSOCK to the host (CID 2, same port) when the
 guest has `/dev/vsock`, and falls back to slirp TCP. On metal0's deployed eyesoff.ai
 instance that measures **99-105 tok/s decode, 2.2 s to first token**, from 1.7 tok/s
@@ -106,11 +118,40 @@ python3 bench/field_gemm_bench.py --quick        # GPU ladder (CUDA required)
 python3 bench/refill_bench.py --verbose          # CPU refill ceiling
 node --test ../test/shielded-*.test.mjs          # assertions we must not regress
 
-python3 export-calib.py model.calib.npz > model.calib   # for the engine backend
 make -C ../wasm/ggml-shielded                            # field/wire/tee + the C probe
 make -C ../wasm/ggml-shielded ggml                       # + the backend (needs a ggml checkout)
+make -C ../wasm/ggml-shielded calib GGML_LIB=... LLAMA_INC=... GGML_INC=...   # the calibrator (needs libllama)
+../wasm/ggml-shielded/shielded-calib --lib-dir $LIB model.gguf model.calib      # (or --backend $LIB/libggml-cpu.so)
 SHIELDED_CALIB=model.calib ../wasm/ggml-shielded/ggml-test
 ```
+
+### Which calibrator
+
+`shielded-calib` (C, `wasm/ggml-shielded/`) is the one that produces the files in
+`metal/shielded-overlay/calib/`. It has no model of the model: it runs the real engine over
+the calibration texts with `llama_context_params.cb_eval` (the hook llama-imatrix uses),
+captures the activation of every matmul the backend could claim, encodes each weight with the
+backend's own `sh_prepare_weight_rows` (per output column, `-ffp-contract=off`, the same
+object file), and chooses `(act_frac, outliers)` exactly as `calibrate.py` does. So it
+calibrates whatever libllama can prefill -- qwen2, qwen3, qwen35's hybrid deltanet with its
+fused `attn_qkv` and `ssm_*` linears -- and its exponents are for the product the runtime
+actually forms, which is why the backend's `SHIELDED_AF_DELTA` now defaults to 0. It also
+reports, from the graph rather than from names, which sites share one activation, and a
+site that cannot reach the headroom target even at the smallest exponent is LEFT OUT (it
+stays in the enclave; `--keep-tight` includes it, and then a wider input than the
+calibration text wraps the field there and the request dies). ~7 s for a 0.5B model,
+~1 min for a 4B, on 16 threads.
+
+The file's first line carries a format version, and the backend reads it: `# shielded-calib 2`
+is this tool's output (exponents against the per-column encoding, applied as written);
+`# shielded-calib 1` is `export-calib.py`'s (exponents against the per-tensor encoding), to
+which the backend applies the historical -5 itself. Either file works; only the correction
+differs, and it is no longer something an operator has to remember to set.
+
+`calibrate.py` + `export-calib.py` are the reference-stack path: they calibrate a `pack.py`
+pack for `model.py`/`e2e.py`, and their numbers are against `tee.py`'s per-TENSOR weight
+encoding. Use them for the Python oracle only; a file they produce is 1-6 bits too generous
+per site for the engine backend, which is what the format-1 correction above pays for.
 
 ## Running it end to end
 
