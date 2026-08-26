@@ -12,7 +12,7 @@ import { hrevConfigured, hrevTallies, hrevMine, encCall, HREV_SEL, waitReceipt, 
 import { HOST_REVIEWS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
-import { serverSpec, enclavePriceOf } from "../../js/core/pricing.js";
+import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedPoolOf } from "../../js/core/pricing.js";
 import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
 
@@ -93,7 +93,21 @@ class FleetList extends EnclaveElement {
           // deliberately NOT folded into `gpu`: that flag means the card is
           // inside the measured enclave, which is a different thing to buy.
           const sh = a.shielded && a.shielded.vramGb > 0 ? a.shielded : null;
-          const shFree = sh ? Math.max(0, Math.min(1, sh.vramFreeGb / sh.vramGb)) : 0;
+          // A shielded box now reports `gpu: true` -- its card IS its card, and is
+          // sold as one. So `gpu` alone no longer means "inside the enclave", and
+          // reading it that way is how this row briefly badged a card on an
+          // untrusted host as TEE GPU. The distinction a buyer needs is where the
+          // silicon is, and that is exactly `sh`.
+          const cls = enclaveClassOf(e);
+          const inTee = cls.inTee;
+          // What is SELLABLE is the worker's budget, not the physical card: the
+          // untrusted host keeps the rest (on a desktop, an X server). Showing the
+          // physical total here while the GPU pool showed the budget is what put
+          // two differently-sized GPU rows on one single-card box.
+          const shPool = shieldedPoolOf(e);
+          const shTotal = shPool ? shPool.total : 0;
+          const shFreeGb = shPool ? shPool.freeGb : 0;
+          const shFree = shPool ? shPool.frac : 0;
           const shPct = Math.floor(shFree * 100);
           const s = serverSpec();   // adopted fleet hardware; display fallback for rows that omit their own
           const vramGb = a.cardVramGb || s.cardVramGb, tflops = a.cardTflops || s.cardTflops;
@@ -108,21 +122,24 @@ class FleetList extends EnclaveElement {
             // have one, and badging it both ways buries the thing a buyer came
             // to look for. Every row still shows its CPU POOL underneath; the
             // badge answers what the box is, the pools answer what it has.
-            + (gpu
+            + (inTee
                 ? '<span class="ap-badge ok" title="This card is INSIDE the confidential'
                   + ' enclave and covered by its attestation.">tee gpu</span>'
                 : sh
                 ? '<span class="ap-badge info" title="' + esc(sh.card || "gpu")
                   + ' on this box\u2019s untrusted host, used by masked offload: it receives '
                   + 'public weights and one-time-padded activations, and every result is '
-                  + 'verified. The card is outside the enclave and outside its measurement.">'
-                  + 'gpu</span>'
+                  + 'verified. The card is outside the enclave and outside its measurement, '
+                  + 'so this is NOT a TEE GPU \u2014 your activations are protected by the '
+                  + 'masking, not by the card.">shielded gpu</span>'
+                : gpu
+                ? '<span class="ap-badge ok">gpu</span>'
                 : '<span class="ap-badge">cpu</span>')
             + '<span class="fleet-name">' + esc(name) + '</span>'
             + this._ratingHtml(e)
             + '</span>'
             + (sh ? pool("GPU", shPct,
-                stat(fmtNum(sh.vramFreeGb), fmtNum(sh.vramGb), "GB", "vram available")
+                stat(fmtNum(shFreeGb), fmtNum(shTotal), "GB", "vram available")
                 // The box reports what it measured -- G-MAC/s of the masked field
                 // GEMM -- and the cell shows tflops, because that is the unit the
                 // pool above it uses and a customer should not have to convert
@@ -144,7 +161,10 @@ class FleetList extends EnclaveElement {
                            + "the card's vendor peak, so the two are not directly comparable.")
                     : stat(esc(sh.card || "gpu"), "", "", "card")),
                 price.shielded) : "")
-            + (gpu ? pool("GPU", gPct,
+            // ONLY when the card is in the enclave. A shielded card already drew its
+            // pool above, from the numbers the probe actually measured; drawing
+            // this one too would advertise one piece of silicon twice.
+            + (inTee ? pool("GPU", gPct,
                 stat(fmtNum(a.vramFreeGb != null ? a.vramFreeGb : gFree * vramGb), fmtNum(vramGb), "GB", "vram available")
                 + stat(Math.round(gFree * tflops), Math.round(tflops), "", "tflops available"), price.full) : "")
             + pool("CPU", cPct,

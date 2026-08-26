@@ -202,6 +202,45 @@ sh('gcc', ['-static', '-Os', '-o', path.join(md, 'netup'), path.join(HERE, 'gues
 sh('gcc', ['-static', '-Os', '-o', path.join(md, 'minsmod'), path.join(HERE, 'guest', 'minsmod.c')]);
 sh('gcc', ['-static', '-Os', '-o', path.join(md, 'mverity'), path.join(HERE, 'guest', 'mverity.c')]);
 
+// --- 4b. the shielded engine backend, if this box has one --------------------
+// The ggml backend that offloads masked linear ops to an untrusted GPU is
+// TEE-SIDE code: it holds the one-time pads, the Freivalds secret, and every
+// plaintext activation. So it belongs INSIDE the measurement, exactly like
+// /opt/metal above -- bind-mounting it in at run time would put the trusted half
+// of the tier outside the thing that attests to it, which is the whole point of
+// the tier. The WORKER stays outside and unmeasured, because it is assumed
+// hostile and its honesty is enforced by verification rather than attestation.
+//
+// The overlay is a plain directory the operator prepares (build it with
+// `make -C wasm/ggml-shielded` against the engine's pinned ggml, plus one
+// <volume>.calib per model from shielded/export-calib.py). Its contents are
+// hashed into the manifest, so "what shielded code is in this image" is a
+// question the image answers about itself rather than one you have to trust the
+// builder on.
+const SHIELDED_SRC = path.resolve(arg('shielded', path.join(HERE, 'shielded-overlay')));
+const shieldedFiles = [];
+if (fs.existsSync(SHIELDED_SRC)) {
+  console.log('[build] installing the shielded engine backend…');
+  const dstRoot = path.join(ROOT, 'opt/enclave/shielded');
+  const walk = (src, rel = '') => {
+    for (const ent of fs.readdirSync(src, { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) {
+      const from = path.join(src, ent.name), r = rel ? `${rel}/${ent.name}` : ent.name;
+      if (ent.isDirectory()) { walk(from, r); continue; }
+      if (!ent.isFile()) continue;
+      const to = path.join(dstRoot, r);
+      fs.mkdirSync(path.dirname(to), { recursive: true });
+      fs.copyFileSync(from, to);
+      if (/\.so$/.test(r)) fs.chmodSync(to, 0o755);
+      shieldedFiles.push({ path: `/opt/enclave/shielded/${r}`, bytes: fs.statSync(to).size, sha256: sha256File(to) });
+    }
+  };
+  walk(SHIELDED_SRC);
+  for (const f of shieldedFiles)
+    console.log(`[build]   ${f.path}  ${(f.bytes / 1e6).toFixed(2)} MB  sha256:${f.sha256.slice(0, 16)}…`);
+} else {
+  console.log('[build] (no shielded overlay at ' + SHIELDED_SRC + '; this image serves no shielded GPU)');
+}
+
 // --- 5. kernel modules (decompress the exact set we insmod, keep the tree) ---
 console.log('[build] collecting kernel modules…');
 const wantModules = [
@@ -263,6 +302,10 @@ const manifest = {
   reproducible: isPinned(SUPERVISOR_REF) && isPinned(WASM_REF),
   kernel: { path: KERNEL, kver: KVER, sha256: kernelSha },
   modules: modList,
+  // Every shielded file baked in, by hash. Empty on a box with no shielded card.
+  // In the manifest rather than only in the build log because these bytes are
+  // inside the launch measurement and a reader should be able to enumerate them.
+  shielded: shieldedFiles,
   cmdlineTemplate,
   // How attached model volumes are bound to the hardware. The launcher puts the
   // digest of the volume table in HOST_DATA (SEV-SNP) / MRCONFIGID (TDX), which

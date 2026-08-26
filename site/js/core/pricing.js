@@ -228,6 +228,37 @@ export function enclavePriceOf(row){
            shielded: per(a.askShieldedPricePerSec6, undefined) };
 }
 
+// WHAT KIND OF BOX THIS IS, for the badge. Pure, and in this module rather than
+// in the fleet row, because the answer is a trust claim and a trust claim needs a
+// test more than a renderer needs a helper.
+//
+// The subtlety that actually bit: a shielded box reports `gpu: true`, because its
+// card is real and is sold as one. So `gpu` alone does NOT mean "inside the
+// enclave" any more, and reading it that way badges a card sitting on an
+// untrusted host as TEE GPU -- the single most misleading thing this UI could
+// say, since it tells a buyer their activations are covered by an attestation
+// that does not cover them. `shielded` is the discriminator; `gpu` is not.
+export function enclaveClassOf(row){
+  const a = (row && row.availability) || {};
+  const shielded = !!(a.shielded && a.shielded.vramGb > 0);
+  const gpu = a.gpu === true;
+  if (shielded) return { kind: "shielded-gpu", inTee: false, shielded: true, hasCard: true };
+  if (gpu)      return { kind: "tee-gpu",      inTee: true,  shielded: false, hasCard: true };
+  return { kind: "cpu", inTee: false, shielded: false, hasCard: false };
+}
+
+// The VRAM a shielded card actually sells: the worker's budget, not the physical
+// total. The untrusted host keeps the rest (on a desktop, an X server), and
+// quoting the physical number would advertise capacity no tenant can have.
+export function shieldedPoolOf(row){
+  const a = (row && row.availability) || {};
+  const sh = a.shielded;
+  if (!sh || !(sh.vramGb > 0)) return null;
+  const total = sh.vramBudgetGb > 0 ? sh.vramBudgetGb : sh.vramGb;
+  const freeGb = Math.min(sh.vramFreeGb, total);
+  return { total, freeGb, frac: total > 0 ? Math.max(0, Math.min(1, freeGb / total)) : 0 };
+}
+
 // One enclave row's sizing hardware: its own advertised numbers per axis, the
 // fallback constants for anything it omits (old builds).
 export function enclaveSpecOf(row){
