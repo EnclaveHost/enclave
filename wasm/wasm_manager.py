@@ -2285,8 +2285,8 @@ def _shielded_tenant_env(spec: dict, model_volume: str = "") -> dict:
         if os.path.exists(cal):
             env["SHIELDED_CALIB"] = cal
         else:
-            log(f"[shielded] no calibration for {model_volume} at {cal}; "
-                f"the tenant will run its matmuls in the enclave")
+            print(f"[shielded] no calibration for {model_volume} at {cal}; "
+                  f"the tenant will run its matmuls in the enclave", flush=True)
     env.setdefault("WASMTIME_LOG", "wasmtime_wasi_nn=debug")
     return env
 
@@ -4969,9 +4969,10 @@ def _spawn_and_wait(rec, ctx):
         vol = (vol_mounts[0]["name"] if vol_mounts else "")
         env = _shielded_tenant_env(shielded_spec, vol)
         rec["shieldedEndpoint"] = shielded_spec.get("endpoint")
-        log(f"[shielded] {rec['id']}: gpuShare={gpu_share} served by the shielded card at "
-            f"{shielded_spec.get('endpoint')}"
-            + (f", calibration for {vol}" if env.get("SHIELDED_CALIB") else ", NO calibration"))
+        print(f"[shielded] {rec['id']}: gpuShare={gpu_share} served by the shielded card at "
+              f"{shielded_spec.get('endpoint')}"
+              + (f", calibration for {vol}" if env.get("SHIELDED_CALIB") else ", NO calibration"),
+              flush=True)
     elif nn and NODE_HAS_GPU and gpu_share > 0:
         # MPS caps belong to tenants that BOUGHT a card slice. A 0-GPU nn
         # tenant gets none - on a CPU box there is no card at all, and on a GPU
