@@ -3928,7 +3928,8 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
                nn=False, enclave_config=None, vol_mounts=None, egress=None, egress_transparent=None,
                enc=None, gpu_share: float = 0.0, nn_report=None, secrets=None,
                cpu_share: float = 0.0, nn_resident_other: int = 0, hosts="", wasi_contract=None,
-               threads=False, set_threads=False, cfgdir=None, mem64=False):
+               threads=False, set_threads=False, cfgdir=None, mem64=False,
+               shielded_vram_gb: float = 0.0):
     """The wasmtime invocation for a ports spec. Returns (cmd, host_port, wait_ports).
     `nn_report`, when a dict, is filled with the wasi-nn preload plan:
     {"emitted": [vol...], "skipped": {vol: why}, "stages": {vol: "kind::dir"},
@@ -4086,7 +4087,15 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
         # purpose: contexts/compute come and go per request - the budget
         # gate only refuses CERTAIN failures, borderline models still get
         # the honest probe.
-        vram_bytes = int(gpu_share * GPU_VRAM_GB * (1 << 30)) if gpu_share > 0 else 0
+        # A SHIELDED share is a slice of the worker's card, not of this node's --
+        # and this node has no card at all, so GPU_VRAM_GB is a fleet default
+        # (141 GiB, an H200) describing hardware that is not here. Sizing a
+        # tenant's budget from it told eyesoff it had 0.85 x 141 = 119.85 GiB of
+        # VRAM on a box whose shielded card offers 5.5, and the engine sized its
+        # allocation against the fiction and died in llama_decode. The supervisor
+        # already sends the real number with the share; use it.
+        vram_gb = shielded_vram_gb if shielded_vram_gb > 0 else gpu_share * GPU_VRAM_GB
+        vram_bytes = int(vram_gb * (1 << 30)) if gpu_share > 0 else 0
         if vram_bytes:
             vol_args += ["--env", f"ENCLAVE_VRAM_BYTES={vram_bytes}"]
         # CPU-ONLY NODE: the same question, but the resource behaves nothing
@@ -4942,6 +4951,7 @@ def _spawn_and_wait(rec, ctx):
                                                 secrets=ctx.get("secrets"), cpu_share=cpu_share,
                                                 nn_resident_other=_nn_resident_bytes(exclude=rec["id"]),
                                                 hosts=ctx.get("hosts", ""), wasi_contract=ctx.get("wasi"),
+                                                shielded_vram_gb=float((rec.get("shielded") or {}).get("vramGb") or 0),
                                                 threads=ctx.get("threads", False),
                                                 set_threads=ctx.get("set", False),
                                                 cfgdir=rec.get("_cfgdir"),
