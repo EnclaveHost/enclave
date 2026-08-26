@@ -6202,6 +6202,18 @@ function acmeReconcileSoon() {                                // the status->run
   _acmeSoonTimer = setTimeout(() => { _acmeSoonTimer = null; acmeReconcile(); }, 1000);
   if (_acmeSoonTimer.unref) _acmeSoonTimer.unref();
 }
+// A reconcile at a KNOWN time -- when a failed name's retry falls due -- so
+// the retry does not also wait for the 10-minute interval to come round. One
+// timer, kept at the earliest pending due time.
+let _acmeAtTimer = null, _acmeAtWhen = 0;
+function acmeReconcileAt(when) {
+  if (!ACME_ENABLED) return;
+  if (_acmeAtTimer && _acmeAtWhen <= when) return;
+  if (_acmeAtTimer) clearTimeout(_acmeAtTimer);
+  _acmeAtWhen = when;
+  _acmeAtTimer = setTimeout(() => { _acmeAtTimer = null; _acmeAtWhen = 0; acmeReconcile(); }, Math.max(0, when - Date.now()));
+  if (_acmeAtTimer.unref) _acmeAtTimer.unref();
+}
 async function acmePump() {
   if (_acmePumping) return;
   _acmePumping = true;
@@ -6219,12 +6231,26 @@ async function acmePump() {
         console.log(`[acme] issued ${name} via ${issued.caHost} (expires ${new Date(issued.expiresAt).toISOString()})`);
       } catch (e) {
         const failures = (acmeRetry.get(name)?.failures || 0) + 1;
-        const backoff  = Math.min(3600_000, 300_000 * 2 ** (failures - 1));
-        acmeRetry.set(name, { failures, nextAt: Date.now() + backoff });
+        // Two kinds of failure, two kinds of wait. When a CA is cooling off
+        // (it timed out, 5xx'd, never validated) the NAME did nothing wrong,
+        // and the round may have failed only because the other CA refused the
+        // name (a rate limit, say): the right retry is the moment a cooling CA
+        // is back, not a per-name backoff on top of the next 10-minute tick.
+        // 2026-08-26: ZeroSSL timed out, Let's Encrypt was at its weekly limit
+        // for the name, and a running app served no certificate for 17
+        // minutes -- 10 of them waiting on the name's own backoff after both
+        // CAs were already usable again. Name-level rejection by every CA
+        // keeps the doubling backoff: that one is the name's fault.
+        const cooling = ACME_CAS.map((ca) => ca.downUntil).filter((t) => t > Date.now());
+        const backoff = cooling.length ? Math.max(1000, Math.min(...cooling) - Date.now() + 1000)
+                                       : Math.min(3600_000, 300_000 * 2 ** (failures - 1));
+        const nextAt  = Date.now() + backoff;
+        acmeRetry.set(name, { failures, nextAt });
+        acmeReconcileAt(nextAt);
         // …and the same on failure. "Your domain has no certificate and here is
         // the CA's reason" is the single most useful thing this feature can say.
         if (customDomainOwner(name)) _certReports.set(name, { ok: false, error: `${e.message} (attempt ${failures})` });
-        console.error(`[acme] failed ${name}: ${e.message} (retry #${failures} in ${Math.round(backoff / 60_000)}m)`);
+        console.error(`[acme] failed ${name}: ${e.message} (retry #${failures} in ${Math.round(backoff / 1000)}s${cooling.length ? ", when a cooling CA is back" : ""})`);
       }
       await sleepMs(2000);
     }
