@@ -7576,8 +7576,19 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     // claim -> 503 warming up -> failed release -> lease stranded 30 min).
     const h = await vmHealth().catch(() => null);
     if (!h) return "app manager unreachable";
-    if (h.nnProbe && h.nnProbe.state && h.nnProbe.state !== "ok")
+    // A SHIELDED card has no CUDA readiness probe to pass and never will: there
+    // is no local device for the manager to warm up, and nnProbe sits at "off"
+    // forever on this box. Its readiness signal is the boot probe's verdict --
+    // one real masked GEMM, exact, verified, with a lie rejected and the op
+    // denylist enforced on the wire -- and the supervisor already refuses to
+    // advertise the card at all without it (shieldedCapacity). Gating a shielded
+    // claim on the CUDA probe instead would mean a box that advertises a card,
+    // prices it, and then declines every deployment that tries to buy one.
+    const shReady = shieldedCapacity();
+    if (!shReady && h.nnProbe && h.nnProbe.state && h.nnProbe.state !== "ok")
       return "GPU interface not ready (CUDA readiness probe: " + h.nnProbe.state + ")";
+    if (shReady && !shReady.endpoint)
+      return "shielded GPU has no worker endpoint";
     slice = normalizeGpuReq(gpuShare, cpuShare);
     if (slice.vramGb > maxFreeVram() + 1e-9 || slice.cpuShare > maxFreeCpu() + 1e-9)
       return "no free capacity for those shares here right now";
