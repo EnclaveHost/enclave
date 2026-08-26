@@ -2,14 +2,96 @@
 #include "shielded-tee.h"
 #include "shielded-field.h"
 
+#include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/random.h>
+#include <time.h>
+#include <unistd.h>
 
 #define SH_ALIGN 64
 static int64_t align_up(int64_t x) { return (x + SH_ALIGN - 1) & ~(int64_t)(SH_ALIGN - 1); }
+
+static double now_ms(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec * 1e3 + ts.tv_nsec / 1e6; }
+/* Profile counters, read by the backend under SHIELDED_PROFILE:
+ * 0 mask  1 wire  2 refill-on-path  3 unmask  4 verify  5 calls  6 pads missed  7 pads used */
+double sh_prof[8];
+
+/* ---------------------------------------------------------------------------
+ * SIMD dispatch. The two builds of shielded-simd.c are checked against each
+ * other once, on this CPU, before the fast one is trusted: a vectorised loop
+ * that disagrees with its scalar twin is a bug that would otherwise surface as
+ * verification failures on every request.
+ * ------------------------------------------------------------------------ */
+#define SIMD_TABLE(sfx, nm) { nm, sh_simd_##sfx##_pad_planes, sh_simd_##sfx##_mask_planes, \
+    sh_simd_##sfx##_unmask, sh_simd_##sfx##_encode, sh_simd_##sfx##_descale, sh_simd_##sfx##_fv_dot, \
+    sh_simd_##sfx##_fv_dot_x, sh_simd_##sfx##_fv_prepare, sh_simd_##sfx##_refill, sh_simd_##sfx##_outlier_add }
+static const sh_simd simd_avx512  = SIMD_TABLE(avx512, "avx512-vnni");
+static const sh_simd simd_generic = SIMD_TABLE(generic, "generic");
+
+const sh_simd *sh_simd_generic(void) { return &simd_generic; }
+
+static bool simd_agree(const sh_simd *a, const sh_simd *b) {
+    enum { K = 96 + 32, N = 37, B = 5 };   /* K not a multiple of 64: exercises the tail */
+    uint64_t seed = 0x243f6a8885a308d3ull;
+#define RND() (seed ^= seed << 13, seed ^= seed >> 7, seed ^= seed << 17, seed)
+    int32_t r[B * K]; int64_t x[B * K]; int8_t W[N * K];
+    for (int i = 0; i < B * K; i++) { r[i] = (int32_t)(RND() % (uint64_t)SH_M_MOD); x[i] = (int64_t)(RND() % (1u << 26)) - (1 << 25); }
+    for (int i = 0; i < N * K; i++) W[i] = (int8_t)((int)(RND() % 239) - 119);
+    uint8_t pa[3 * B * K], pb[3 * B * K]; int8_t ma[3 * B * K], mb[3 * B * K];
+    a->pad_planes(r, B * K, pa, pa + B * K, pa + 2 * B * K);
+    b->pad_planes(r, B * K, pb, pb + B * K, pb + 2 * B * K);
+    if (memcmp(pa, pb, sizeof pa)) return false;
+    a->mask_planes(x, r, B * K, ma, ma + B * K, ma + 2 * B * K);
+    b->mask_planes(x, r, B * K, mb, mb + B * K, mb + 2 * B * K);
+    if (memcmp(ma, mb, sizeof ma)) return false;
+    int32_t ua[B * N], ub[B * N], acc[12 * N];
+    a->refill(pa, B, W, K, N, ua, N, acc);
+    b->refill(pb, B, W, K, N, ub, N, acc);
+    if (memcmp(ua, ub, sizeof ua)) return false;
+    /* and both against the int64 truth */
+    for (int bb = 0; bb < B; bb++)
+        for (int j = 0; j < N; j++) {
+            int64_t s = 0;
+            for (int k = 0; k < K; k++) s += (int64_t)r[bb * K + k] * W[j * K + k];
+            if (ua[bb * N + j] != (int32_t)sh_balanced(s)) return false;
+        }
+    int64_t ya[B * N], yb[B * N];
+    a->unmask(ua, ub, B * N, ya); b->unmask(ua, ub, B * N, yb);
+    if (memcmp(ya, yb, sizeof ya)) return false;
+    int64_t s[N * 2], sta[K * 2], stb[K * 2];
+    for (int i = 0; i < N * 2; i++) s[i] = 1 + (int64_t)(RND() % (SH_FV_S_RANGE - 1));
+    a->fv_prepare(W, K, N, s, 2, sta); b->fv_prepare(W, K, N, s, 2, stb);
+    if (memcmp(sta, stb, sizeof sta)) return false;
+    for (int rep = 0; rep < 2; rep++) {
+        if (a->fv_dot(ya, s, 2, rep, N) != b->fv_dot(ya, s, 2, rep, N)) return false;
+        if (a->fv_dot_x(x, sta, 2, rep, K) != b->fv_dot_x(x, sta, 2, rep, K)) return false;
+    }
+#undef RND
+    return true;
+}
+
+const sh_simd *sh_simd_get(void) {
+    static const sh_simd *chosen = NULL;
+    if (chosen) return chosen;
+    const char *off = getenv("SHIELDED_NO_SIMD");
+    bool want_avx512 = !(off && *off && strcmp(off, "0"));
+    if (want_avx512) {
+        __builtin_cpu_init();
+        want_avx512 = __builtin_cpu_supports("avx512f") && __builtin_cpu_supports("avx512bw") &&
+                      __builtin_cpu_supports("avx512dq") && __builtin_cpu_supports("avx512vl") &&
+                      __builtin_cpu_supports("avx512vnni");
+    }
+    if (want_avx512 && !simd_agree(&simd_avx512, &simd_generic)) {
+        fprintf(stderr, "[shielded] the AVX-512 kernels disagree with the generic ones on this CPU; using generic\n");
+        want_avx512 = false;
+    }
+    chosen = want_avx512 ? &simd_avx512 : &simd_generic;
+    return chosen;
+}
+const sh_simd *sh_link_simd(void) { return sh_simd_get(); }
 
 /* ---------------------------------------------------------------------------
  * OS entropy. Both the pad seed and the Freivalds secret come from here and
@@ -28,11 +110,11 @@ static bool os_random(void *buf, size_t n) {
 /* ---------------------------------------------------------------------------
  * ChaCha20 keystream, for the pad bank.
  *
- * The Python side uses SHAKE-256 and the guest uses it too, but pads are the one
- * value that never has to agree across languages: only the TEE generates them and
- * only the TEE consumes them, so the requirement here is cryptographic strength
- * and speed, not reproducibility. ChaCha20 keeps this file dependency-free, which
- * matters for something linked into the engine inside the measurement.
+ * Pads are the one value that never has to agree across languages: only the
+ * TEE generates them and only the TEE consumes them, so the requirement is
+ * cryptographic strength and speed, not reproducibility. ChaCha20 keeps this
+ * file dependency-free, which matters for something linked into the engine
+ * inside the measurement.
  * ------------------------------------------------------------------------ */
 #define ROTL32(v, c) (((v) << (c)) | ((v) >> (32 - (c))))
 #define QR(a, b, c, d) ( \
@@ -59,6 +141,7 @@ static void chacha20_block(const uint32_t key[8], uint64_t counter, uint32_t out
 }
 
 typedef struct {
+    pthread_mutex_t mu;
     uint32_t key[8];
     uint64_t counter;      /* strictly monotonic; the machine-checkable form of "never reused" */
     uint64_t issued_hi;
@@ -66,62 +149,92 @@ typedef struct {
 } sh_maskbank;
 
 static bool maskbank_init(sh_maskbank *b) {
+    pthread_mutex_init(&b->mu, NULL);
     b->counter = 0; b->issued_hi = 0; b->capacity = UINT64_C(1) << 40;
     return os_random(b->key, sizeof b->key);
 }
 
-/* Fill `n` pad values uniform over Z_M. Drawn as uint64 and reduced, so the
- * modulo bias is ~2^-40 rather than the ~2^-8 a uint32 draw would carry. */
-static int maskbank_issue(sh_maskbank *b, int64_t *dst, size_t n) {
-    if (b->counter >= b->capacity) return SH_ERR_EXHAUST;
-    uint64_t index = b->counter++;
-    if (b->counter <= b->issued_hi) return SH_ERR_EXHAUST;   /* counter went backwards */
+/* Fill `n` pad values uniform over [0, M). Drawn as uint64 and reduced, so the
+ * modulo bias is ~2^-40 rather than the ~2^-8 a uint32 draw would carry. One
+ * issuance index covers one call, however many values it produces; the index
+ * never repeats, so no two calls share keystream. */
+static int maskbank_issue(sh_maskbank *b, int32_t *dst, size_t n) {
+    pthread_mutex_lock(&b->mu);
+    if (b->counter >= b->capacity) { pthread_mutex_unlock(&b->mu); return SH_ERR_EXHAUST; }
+    const uint64_t index = b->counter++;
+    if (b->counter <= b->issued_hi) { pthread_mutex_unlock(&b->mu); return SH_ERR_EXHAUST; }
     b->issued_hi = b->counter;
+    pthread_mutex_unlock(&b->mu);
     uint32_t blk[16];
-    uint64_t ctr = index << 20;      /* room for the whole pad under one index */
+    uint64_t ctr = index << 24;      /* room for 2^24 blocks under one index */
     size_t produced = 0;
     while (produced < n) {
         chacha20_block(b->key, ctr++, blk);
         for (int i = 0; i + 1 < 16 && produced < n; i += 2) {
-            uint64_t v = ((uint64_t)blk[i + 1] << 32) | blk[i];
-            dst[produced++] = (int64_t)(v % (uint64_t)SH_M_MOD);
+            const uint64_t v = ((uint64_t)blk[i + 1] << 32) | blk[i];
+            dst[produced++] = (int32_t)(v % (uint64_t)SH_M_MOD);
         }
     }
     return SH_OK;
 }
 
 /* ---------------------------------------------------------------------------
- * Nodes
+ * Nodes and groups
  * ------------------------------------------------------------------------ */
 typedef struct {
     char     name[64];
-    const int8_t   *wq;         /* (K,N) borrowed */
-    const uint16_t *wd;         /* (K/QK,N) borrowed */
-    int8_t   *w_fixed;          /* (K,N) the shared encoding, int8 lane */
+    const int8_t *w;            /* (N,K) borrowed */
     int64_t   K, N;
     int32_t   max_m;
-    int64_t   wq_off, wd_off, x_off, y_off;
-    bool      shared_x;
-    /* Freivalds preprocessing: s (N,REPS) and s_tilde (K,REPS) mod P2. */
-    int64_t  *s, *s_tilde;
+    int       group;
+    int64_t   w_off, x_off, y_off;
+    int64_t   u_off;            /* this node's columns within its group's u rows */
+    int64_t  *s, *s_tilde;      /* Freivalds: (N,REPS) and (K,REPS) mod P2 */
 } sh_node;
+
+typedef struct {
+    int64_t   K;
+    int       nodes[SH_GROUP_MAX];
+    int       n_nodes;
+    int64_t   u_len;            /* sum of N over the group */
+    int32_t   max_m;
+    /* the ring of ready pads */
+    int       depth, count, head, generating;
+    int32_t  *r_store;          /* depth x K, each in [0,M) */
+    int32_t  *u_store;          /* depth x u_len, balanced */
+} sh_group;
 
 struct sh_link {
     sh_pipe   *pipe;
     char       host[128];
     int        port;
     bool       verify;
-    sh_node   *nodes;
-    size_t     n_nodes, cap_nodes;
+    sh_node   *nodes;   size_t n_nodes,  cap_nodes;
+    sh_group  *groups;  size_t n_groups, cap_groups;
     int64_t    wbytes, abytes;
     sh_maskbank bank;
-    int64_t   *pad;      size_t pad_cap;
-    int8_t    *planes;   size_t planes_cap;
-    int64_t   *u;        size_t u_cap;
-    int32_t   *acc;      size_t acc_cap;
-    uint64_t   exchanges, macs, verify_fail;
+    const sh_simd *simd;
+
+    pthread_mutex_t pool_mu;
+    pthread_cond_t  need_refill;
+    pthread_t *threads; int n_threads; bool threads_running, stop;
+    int pool_depth, refill_batch;
+    int64_t Kmax, Nmax, ulen_max;
+
+    /* request-path scratch (caller thread) */
+    int32_t *r;       size_t r_cap;
+    int32_t *u;       size_t u_cap;
+    int8_t  *planes;  size_t planes_cap;
+    uint8_t *gplanes; size_t gplanes_cap;
+    int32_t *acc;     size_t acc_cap;
+    uint8_t *hdr;     size_t hdr_cap;
+
+    uint64_t   exchanges, macs, verify_fail, pads_used, pads_missed;
+    char       transport[192];
     char       err[256];
 };
+
+const char *sh_link_transport(const sh_link *l) { return l && l->transport[0] ? l->transport : "not connected"; }
 
 const char *sh_link_last_error(const sh_link *l) { return l ? l->err : ""; }
 
@@ -131,28 +244,68 @@ void sh_link_stats(const sh_link *l, uint64_t *e, uint64_t *m, uint64_t *v) {
     if (m) *m = l->macs;
     if (v) *v = l->verify_fail;
 }
+void sh_link_pool_stats(const sh_link *l, uint64_t *consumed, uint64_t *missed) {
+    if (!l) return;
+    if (consumed) *consumed = l->pads_used;
+    if (missed) *missed = l->pads_missed;
+}
+
+static int env_int(const char *name, int dflt, int lo, int hi) {
+    const char *e = getenv(name);
+    if (!e || !*e) return dflt;
+    int v = atoi(e);
+    return v < lo ? lo : v > hi ? hi : v;
+}
 
 sh_link *sh_link_open(const char *host, int port, bool verify, int *err) {
     sh_link *l = (sh_link *)calloc(1, sizeof *l);
     if (!l) { if (err) *err = SH_ERR_NOMEM; return NULL; }
     snprintf(l->host, sizeof l->host, "%s", host);
     l->port = port; l->verify = verify;
+    l->simd = sh_simd_get();
     if (!maskbank_init(&l->bank)) { free(l); if (err) *err = SH_ERR_IO; return NULL; }
+    pthread_mutex_init(&l->pool_mu, NULL);
+    pthread_cond_init(&l->need_refill, NULL);
+    l->n_threads    = env_int("SHIELDED_REFILL_THREADS", 2, 0, 64);
+    l->pool_depth   = env_int("SHIELDED_POOL_DEPTH", 16, 1, 4096);
+    l->refill_batch = env_int("SHIELDED_REFILL_BATCH", 4, 1, 64);
     if (err) *err = SH_OK;
     return l;
 }
 
+static void stop_threads(sh_link *l) {
+    if (!l->threads_running) return;
+    pthread_mutex_lock(&l->pool_mu);
+    l->stop = true;
+    pthread_cond_broadcast(&l->need_refill);
+    pthread_mutex_unlock(&l->pool_mu);
+    for (int i = 0; i < l->n_threads; i++) pthread_join(l->threads[i], NULL);
+    free(l->threads); l->threads = NULL;
+    l->threads_running = false; l->stop = false;
+}
+
+static void free_pools(sh_link *l) {
+    for (size_t g = 0; g < l->n_groups; g++) {
+        free(l->groups[g].r_store); free(l->groups[g].u_store);
+        l->groups[g].r_store = NULL; l->groups[g].u_store = NULL;
+        l->groups[g].count = l->groups[g].head = l->groups[g].generating = 0;
+    }
+}
+
 void sh_link_close(sh_link *l) {
     if (!l) return;
-    for (size_t i = 0; i < l->n_nodes; i++) {
-        free(l->nodes[i].w_fixed); free(l->nodes[i].s); free(l->nodes[i].s_tilde);
-    }
-    free(l->nodes); free(l->pad); free(l->planes); free(l->u); free(l->acc);
+    stop_threads(l);
+    free_pools(l);
+    for (size_t i = 0; i < l->n_nodes; i++) { free(l->nodes[i].s); free(l->nodes[i].s_tilde); }
+    free(l->nodes); free(l->groups);
+    free(l->r); free(l->u); free(l->planes); free(l->gplanes); free(l->acc); free(l->hdr);
     sh_pipe_close(l->pipe);
+    pthread_mutex_destroy(&l->pool_mu); pthread_cond_destroy(&l->need_refill);
+    pthread_mutex_destroy(&l->bank.mu);
     free(l);
 }
 
-static int fv_prepare(sh_node *nd) {
+static int fv_prepare(sh_link *l, sh_node *nd) {
     const int64_t K = nd->K, N = nd->N;
     nd->s       = (int64_t *)malloc((size_t)N * SH_FV_REPS * sizeof(int64_t));
     nd->s_tilde = (int64_t *)malloc((size_t)K * SH_FV_REPS * sizeof(int64_t));
@@ -164,25 +317,15 @@ static int fv_prepare(sh_node *nd) {
     for (int64_t i = 0; i < N * SH_FV_REPS; i++)
         nd->s[i] = 1 + (int64_t)(raw[i] % (uint64_t)(SH_FV_S_RANGE - 1));
     free(raw);
-    /* s_tilde = W.s mod P2. |w| <= 119, |s| < 2^20, so a K-term sum stays under
-     * 2^39 for any K we will ever see -- no chunking needed here. */
-    for (int64_t k = 0; k < K; k++) {
-        for (int rep = 0; rep < SH_FV_REPS; rep++) {
-            int64_t acc = 0;
-            const int8_t *wrow = nd->w_fixed + k * N;
-            for (int64_t j = 0; j < N; j++) acc += (int64_t)wrow[j] * nd->s[j * SH_FV_REPS + rep];
-            acc %= SH_FV_P2; if (acc < 0) acc += SH_FV_P2;
-            nd->s_tilde[k * SH_FV_REPS + rep] = acc;
-        }
-    }
+    l->simd->fv_prepare(nd->w, K, N, nd->s, SH_FV_REPS, nd->s_tilde);
     return SH_OK;
 }
 
-int sh_link_add_weight(sh_link *l, const char *name,
-                       const int8_t *wq, const uint16_t *wd,
+int sh_link_add_weight(sh_link *l, const char *name, const int8_t *w_fixed,
                        int64_t K, int64_t N, int32_t max_m, int share_x_with) {
-    if (K % SH_QK != 0) { snprintf(l->err, sizeof l->err, "K=%lld not a multiple of %d",
-                                   (long long)K, SH_QK); return SH_ERR_PROTO; }
+    if (K % SH_QK != 0 || K % 16 != 0) {
+        snprintf(l->err, sizeof l->err, "K=%lld not a multiple of %d", (long long)K, SH_QK); return SH_ERR_PROTO;
+    }
     if (l->n_nodes == l->cap_nodes) {
         size_t cap = l->cap_nodes ? l->cap_nodes * 2 : 16;
         sh_node *nn = (sh_node *)realloc(l->nodes, cap * sizeof *nn);
@@ -192,55 +335,166 @@ int sh_link_add_weight(sh_link *l, const char *name,
     sh_node *nd = &l->nodes[l->n_nodes];
     memset(nd, 0, sizeof *nd);
     snprintf(nd->name, sizeof nd->name, "%s", name);
-    nd->wq = wq; nd->wd = wd; nd->K = K; nd->N = N; nd->max_m = max_m;
+    nd->w = w_fixed; nd->K = K; nd->N = N; nd->max_m = max_m;
 
-    /* THE shared encoding, applied once per weight. Both halves must derive the
-     * same int8 from the same q8_0 bytes or unmasking returns noise. */
-    nd->w_fixed = (int8_t *)malloc((size_t)K * N);
-    if (!nd->w_fixed) return SH_ERR_NOMEM;
-    for (int64_t k = 0; k < K; k++) {
-        const uint16_t *drow = wd + (k / SH_QK) * N;
-        const int8_t   *qrow = wq + k * N;
-        int8_t         *frow = nd->w_fixed + k * N;
-        for (int64_t j = 0; j < N; j++) {
-            int64_t v = sh_encode_weight_fixed(drow[j], qrow[j]);
-            if (v > SH_WEIGHT_BYTE_LIMIT || v < -SH_WEIGHT_BYTE_LIMIT) {
-                snprintf(l->err, sizeof l->err,
-                         "%s: fixed weight %lld exceeds the int8 lane (+-%d); it would wrap silently",
-                         name, (long long)v, SH_WEIGHT_BYTE_LIMIT);
-                free(nd->w_fixed); nd->w_fixed = NULL;
-                return SH_ERR_RANGE;
-            }
-            frow[j] = (int8_t)v;
+    /* Rejecting here is what keeps the residue identity honest: a weight above
+     * the byte lane would wrap in every plane on the worker and unmask to noise. */
+    for (int64_t i = 0; i < K * N; i++)
+        if (w_fixed[i] > SH_WEIGHT_BYTE_LIMIT || w_fixed[i] < -SH_WEIGHT_BYTE_LIMIT) {
+            snprintf(l->err, sizeof l->err, "%s: fixed weight %d exceeds the int8 lane (+-%d)",
+                     name, (int)w_fixed[i], SH_WEIGHT_BYTE_LIMIT);
+            return SH_ERR_RANGE;
         }
-    }
 
-    nd->wq_off = align_up(l->wbytes);
-    nd->wd_off = align_up(nd->wq_off + K * N);
-    l->wbytes  = nd->wd_off + (K / SH_QK) * N * 2;
+    nd->w_off = align_up(l->wbytes);
+    l->wbytes = nd->w_off + K * N;
+    nd->x_off = align_up(l->abytes);
+    nd->y_off = align_up(nd->x_off + 3 * (int64_t)max_m * K);
+    l->abytes = nd->y_off + (int64_t)max_m * N * 4;
 
     if (share_x_with >= 0) {
-        sh_node *donor = &l->nodes[share_x_with];
-        if (donor->K != K || donor->max_m < max_m) {
-            snprintf(l->err, sizeof l->err, "node %zu cannot share x with %d",
-                     l->n_nodes, share_x_with);
-            free(nd->w_fixed); return SH_ERR_PROTO;
+        if ((size_t)share_x_with >= l->n_nodes) { snprintf(l->err, sizeof l->err, "share_x_with out of range"); return SH_ERR_PROTO; }
+        sh_group *g = &l->groups[l->nodes[share_x_with].group];
+        if (g->K != K || g->n_nodes >= SH_GROUP_MAX) {
+            snprintf(l->err, sizeof l->err, "node %zu cannot share x with %d", l->n_nodes, share_x_with);
+            return SH_ERR_PROTO;
         }
-        nd->x_off = donor->x_off;
-        nd->y_off = align_up(l->abytes);
-        l->abytes = nd->y_off + (int64_t)max_m * N * 4;
-        nd->shared_x = true;
+        nd->group = l->nodes[share_x_with].group;
+        nd->u_off = g->u_len;
+        g->nodes[g->n_nodes++] = (int)l->n_nodes;
+        g->u_len += N;
+        if (max_m < g->max_m) g->max_m = max_m;
     } else {
-        nd->x_off = align_up(l->abytes);
-        nd->y_off = align_up(nd->x_off + 3 * (int64_t)max_m * K);
-        l->abytes = nd->y_off + (int64_t)max_m * N * 4;
+        if (l->n_groups == l->cap_groups) {
+            size_t cap = l->cap_groups ? l->cap_groups * 2 : 16;
+            sh_group *ng = (sh_group *)realloc(l->groups, cap * sizeof *ng);
+            if (!ng) return SH_ERR_NOMEM;
+            l->groups = ng; l->cap_groups = cap;
+        }
+        sh_group *g = &l->groups[l->n_groups];
+        memset(g, 0, sizeof *g);
+        g->K = K; g->nodes[0] = (int)l->n_nodes; g->n_nodes = 1; g->u_len = N; g->max_m = max_m;
+        nd->group = (int)l->n_groups++;
+        nd->u_off = 0;
     }
+    if (K > l->Kmax) l->Kmax = K;
+    if (N > l->Nmax) l->Nmax = N;
+    if (l->groups[nd->group].u_len > l->ulen_max) l->ulen_max = l->groups[nd->group].u_len;
 
     if (l->verify) {
-        int rc = fv_prepare(nd);
-        if (rc != SH_OK) { free(nd->w_fixed); return rc; }
+        int rc = fv_prepare(l, nd);
+        if (rc != SH_OK) return rc;
     }
     return (int)l->n_nodes++;
+}
+
+/* ---------------------------------------------------------------------------
+ * Pad generation: r from the bank, u = r.W for every node of the group.
+ * Runs on the refill threads, and on the request path only when the pool is
+ * dry (counted, because that number should be ~0 in steady state).
+ * ------------------------------------------------------------------------ */
+typedef struct {
+    uint8_t *planes; int32_t *acc;
+} gen_scratch;
+
+static int gen_scratch_init(const sh_link *l, gen_scratch *s, int b) {
+    s->planes = (uint8_t *)malloc((size_t)3 * b * l->Kmax);
+    s->acc    = (int32_t *)malloc((size_t)12 * l->Nmax * sizeof(int32_t));
+    return s->planes && s->acc ? SH_OK : SH_ERR_NOMEM;
+}
+
+static int generate(sh_link *l, const sh_group *g, int b, int32_t *r_out, int32_t *u_out, gen_scratch *s) {
+    const int64_t K = g->K;
+    int rc = maskbank_issue(&l->bank, r_out, (size_t)b * K);
+    if (rc != SH_OK) return rc;
+    l->simd->pad_planes(r_out, (size_t)b * K, s->planes, s->planes + (size_t)b * K, s->planes + (size_t)2 * b * K);
+    for (int i = 0; i < g->n_nodes; i++) {
+        const sh_node *nd = &l->nodes[g->nodes[i]];
+        l->simd->refill(s->planes, b, nd->w, K, nd->N, u_out + nd->u_off, g->u_len, s->acc);
+    }
+    return SH_OK;
+}
+
+static void *refill_main(void *arg) {
+    sh_link *l = (sh_link *)arg;
+    gen_scratch s;
+    const int B = l->refill_batch;
+    if (gen_scratch_init(l, &s, B) != SH_OK) return NULL;
+    int32_t *r = (int32_t *)malloc((size_t)B * l->Kmax * sizeof(int32_t));
+    int32_t *u = (int32_t *)malloc((size_t)B * l->ulen_max * sizeof(int32_t));
+    if (!r || !u) { free(r); free(u); free(s.planes); free(s.acc); return NULL; }
+    for (;;) {
+        pthread_mutex_lock(&l->pool_mu);
+        sh_group *g = NULL; int deficit = 0;
+        for (;;) {
+            if (l->stop) { pthread_mutex_unlock(&l->pool_mu); goto done; }
+            for (size_t i = 0; i < l->n_groups; i++) {
+                sh_group *c = &l->groups[i];
+                const int d = c->depth - c->count - c->generating;
+                if (d > deficit) { deficit = d; g = c; }
+            }
+            if (g) break;
+            pthread_cond_wait(&l->need_refill, &l->pool_mu);
+        }
+        const int b = deficit < B ? deficit : B;
+        g->generating += b;
+        pthread_mutex_unlock(&l->pool_mu);
+
+        const int rc = generate(l, g, b, r, u, &s);
+
+        pthread_mutex_lock(&l->pool_mu);
+        g->generating -= b;
+        if (rc == SH_OK) {
+            for (int i = 0; i < b; i++) {
+                const int slot = (g->head + g->count) % g->depth;
+                memcpy(g->r_store + (size_t)slot * g->K, r + (size_t)i * g->K, (size_t)g->K * sizeof(int32_t));
+                memcpy(g->u_store + (size_t)slot * g->u_len, u + (size_t)i * g->u_len, (size_t)g->u_len * sizeof(int32_t));
+                g->count++;
+            }
+        } else {
+            /* Bank exhausted: nothing more to do until the process restarts. */
+            l->stop = true;
+        }
+        pthread_mutex_unlock(&l->pool_mu);
+    }
+done:
+    free(r); free(u); free(s.planes); free(s.acc);
+    return NULL;
+}
+
+static int start_pools(sh_link *l) {
+    stop_threads(l);
+    free_pools(l);
+    for (size_t i = 0; i < l->n_groups; i++) {
+        sh_group *g = &l->groups[i];
+        g->depth = l->pool_depth;
+        g->r_store = (int32_t *)malloc((size_t)g->depth * g->K * sizeof(int32_t));
+        g->u_store = (int32_t *)malloc((size_t)g->depth * g->u_len * sizeof(int32_t));
+        if (!g->r_store || !g->u_store) return SH_ERR_NOMEM;
+    }
+    if (l->n_threads > 0) {
+        l->threads = (pthread_t *)calloc((size_t)l->n_threads, sizeof(pthread_t));
+        if (!l->threads) return SH_ERR_NOMEM;
+        l->stop = false;
+        for (int i = 0; i < l->n_threads; i++) pthread_create(&l->threads[i], NULL, refill_main, l);
+        l->threads_running = true;
+    }
+    return SH_OK;
+}
+
+/* Take up to m pads for group g into the caller's scratch; returns how many. */
+static int take_pads(sh_link *l, sh_group *g, int m, int32_t *r, int32_t *u) {
+    pthread_mutex_lock(&l->pool_mu);
+    int take = g->count < m ? g->count : m;
+    for (int i = 0; i < take; i++) {
+        memcpy(r + (size_t)i * g->K, g->r_store + (size_t)g->head * g->K, (size_t)g->K * sizeof(int32_t));
+        memcpy(u + (size_t)i * g->u_len, g->u_store + (size_t)g->head * g->u_len, (size_t)g->u_len * sizeof(int32_t));
+        g->head = (g->head + 1) % g->depth;
+        g->count--;
+    }
+    pthread_cond_signal(&l->need_refill);
+    pthread_mutex_unlock(&l->pool_mu);
+    return take;
 }
 
 /* --- start: connect, upload public weights, install the vetted graph ------ */
@@ -263,19 +517,54 @@ static int json_append(char **buf, size_t *len, size_t *cap, const char *fmt, ..
 
 int sh_link_start(sh_link *l) {
     int err = SH_OK;
-    /* Restartable on purpose. The worker sizes its buffers once and installs its
-     * graph once, but the engine only learns which weights exist as graphs run, so
-     * a newly seen tensor means a fresh connection carrying the whole set. In
-     * practice this settles after the first graph or two and then never fires
-     * again -- and until it does, the local path returns the same numbers. */
     if (l->pipe) { sh_pipe_close(l->pipe); l->pipe = NULL; }
-    l->pipe = sh_pipe_open(l->host, l->port, &err);
+    /* vsock first when the guest was told the worker listens on one, TCP as the
+     * fallback: a guest without the vsock driver, or a host without the
+     * device, still reaches the card over slirp -- more slowly, not not at all. */
+    int vport = env_int("SHIELDED_VSOCK_PORT", -1, -1, 1 << 30);
+    /* Unset means "if this guest has a vsock device, the worker listens on the
+     * same port number there" -- which is what the launcher does -- so a guest
+     * with the driver gets the fast path with no configuration at all. 0
+     * disables it explicitly. A port nothing answers on fails the connect at
+     * once and the link takes TCP. */
+    if (vport < 0) vport = access("/dev/vsock", F_OK) == 0 ? l->port : 0;
+    if (vport > 0) {
+        l->pipe = sh_pipe_open("vsock", vport, &err);
+        if (l->pipe) snprintf(l->transport, sizeof l->transport, "vsock:%d", vport);
+        else snprintf(l->transport, sizeof l->transport, "tcp %s:%d (vsock port %d unreachable)", l->host, l->port, vport);
+    } else {
+        snprintf(l->transport, sizeof l->transport, "tcp %s:%d", l->host, l->port);
+    }
+    if (!l->pipe) l->pipe = sh_pipe_open(l->host, l->port, &err);
     if (!l->pipe) { snprintf(l->err, sizeof l->err, "connect %s:%d failed", l->host, l->port); return err; }
 
     uint8_t pay[256]; sh_reply rep;
     size_t n = sh_pack_hello(pay, 1);
     int rc = sh_pipe_call(l->pipe, SH_CMD_HELLO, pay, n, &rep);
     if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "HELLO: %s", sh_pipe_last_error(l->pipe)); return rc; }
+    /* The one-frame exchange is protocol 1.1; an older worker would refuse it
+     * as an unknown command, so say what is wrong here rather than there. */
+    {
+        /* HELLO is JSON from either worker; only the version array matters here,
+         * and the two serialisers space it differently. */
+        int major = -1, minor = -1;
+        char hello[512] = { 0 };
+        if (rep.data) snprintf(hello, sizeof hello, "%.*s", (int)(rep.len < sizeof hello - 1 ? rep.len : sizeof hello - 1), (const char *)rep.data);
+        const char *p = strstr(hello, "\"version\"");
+        if (p) {
+            p += 9;
+            while (*p && (*p < '0' || *p > '9')) p++;
+            major = atoi(p);
+            while (*p >= '0' && *p <= '9') p++;
+            while (*p && (*p < '0' || *p > '9')) p++;
+            minor = atoi(p);
+        }
+        if (major != 1 || minor < 1) {
+            sh_reply_free(&rep);
+            snprintf(l->err, sizeof l->err, "worker speaks protocol %d.%d; this link needs 1.1 (FIELD_GEMM)", major, minor);
+            return SH_ERR_PROTO;
+        }
+    }
     sh_reply_free(&rep);
 
     const struct { int64_t size; const char *role; } bufs[2] = {
@@ -291,118 +580,54 @@ int sh_link_start(sh_link *l) {
     /* Weights are PUBLIC: they cross in the clear, by design. */
     for (size_t i = 0; i < l->n_nodes; i++) {
         sh_node *nd = &l->nodes[i];
-        const struct { int64_t off; const void *p; size_t bytes; } parts[2] = {
-            { nd->wq_off, nd->wq, (size_t)(nd->K * nd->N) },
-            { nd->wd_off, nd->wd, (size_t)((nd->K / SH_QK) * nd->N * 2) } };
-        for (int k = 0; k < 2; k++) {
-            const size_t CHUNK = 32u << 20;
-            for (size_t off = 0; off < parts[k].bytes; off += CHUNK) {
-                size_t part = parts[k].bytes - off < CHUNK ? parts[k].bytes - off : CHUNK;
-                uint8_t hdr[24];
-                sh_pack_set_tensor_header(hdr, 1, (uint64_t)(parts[k].off + (int64_t)off), part);
-                sh_frame f = { SH_CMD_SET_TENSOR, hdr, 24,
-                               (const uint8_t *)parts[k].p + off, part };
-                rc = sh_pipe_exchange(l->pipe, &f, 1, &rep);
-                if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "upload %s: %s",
-                                            nd->name, sh_pipe_last_error(l->pipe)); return rc; }
-                sh_reply_free(&rep);
-            }
+        const size_t bytes = (size_t)(nd->K * nd->N);
+        const size_t CHUNK = 32u << 20;
+        for (size_t off = 0; off < bytes; off += CHUNK) {
+            size_t part = bytes - off < CHUNK ? bytes - off : CHUNK;
+            uint8_t hdr[24];
+            sh_pack_set_tensor_header(hdr, 1, (uint64_t)(nd->w_off + (int64_t)off), part);
+            sh_frame f = { SH_CMD_SET_TENSOR, hdr, 24, (const uint8_t *)nd->w + off, part };
+            rc = sh_pipe_exchange(l->pipe, &f, 1, &rep);
+            if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "upload %s: %s", nd->name, sh_pipe_last_error(l->pipe)); return rc; }
+            sh_reply_free(&rep);
         }
     }
 
-    /* The graph spec: FIELD_GEMM nodes and the regions GET_TENSOR may read. */
     char *js = NULL; size_t jl = 0, jc = 0;
     json_append(&js, &jl, &jc, "{\"nodes\":[");
     for (size_t i = 0; i < l->n_nodes; i++) {
         sh_node *nd = &l->nodes[i];
         json_append(&js, &jl, &jc,
-            "%s{\"op\":\"FIELD_GEMM\",\"id\":\"%s\","
-            "\"wq\":{\"bid\":1,\"offset\":%lld},\"wd\":{\"bid\":1,\"offset\":%lld},"
+            "%s{\"op\":\"FIELD_GEMM\",\"id\":\"%s\",\"w\":{\"bid\":1,\"offset\":%lld},"
             "\"x\":{\"bid\":2,\"offset\":%lld},\"y\":{\"bid\":2,\"offset\":%lld},"
             "\"K\":%lld,\"N\":%lld,\"max_m\":%d}",
-            i ? "," : "", nd->name,
-            (long long)nd->wq_off, (long long)nd->wd_off,
+            i ? "," : "", nd->name, (long long)nd->w_off,
             (long long)nd->x_off, (long long)nd->y_off,
             (long long)nd->K, (long long)nd->N, nd->max_m);
     }
-    /* One output region PER BUCKET, not one for max_m. GET_TENSOR matches the
-     * (bid, offset, nbytes) triple exactly -- deliberately, since a worker that
-     * accepted any sub-range of a declared output would be back to arbitrary
-     * activation read-out -- so a read of m*N*4 against a declaration of
-     * max_m*N*4 is refused, correctly, and the tier silently falls back to
-     * computing everything in the enclave. */
+    /* The exchange this link uses returns its products in-band, so declared
+     * outputs exist only to satisfy install's rule that something be readable. */
     json_append(&js, &jl, &jc, "],\"outputs\":[");
-    bool first_out = true;
-    for (size_t i = 0; i < l->n_nodes; i++) {
-        sh_node *nd = &l->nodes[i];
-        for (int32_t b = 1; ; b = b * 2) {
-            const int32_t mb = b > nd->max_m ? nd->max_m : b;
-            json_append(&js, &jl, &jc, "%s{\"bid\":2,\"offset\":%lld,\"nbytes\":%lld}",
-                        first_out ? "" : ",", (long long)nd->y_off,
-                        (long long)((int64_t)mb * nd->N * 4));
-            first_out = false;
-            if (mb >= nd->max_m) break;
-        }
-    }
+    for (size_t i = 0; i < l->n_nodes; i++)
+        json_append(&js, &jl, &jc, "%s{\"bid\":2,\"offset\":%lld,\"nbytes\":%lld}",
+                    i ? "," : "", (long long)l->nodes[i].y_off, (long long)(l->nodes[i].N * 4));
     json_append(&js, &jl, &jc, "]}");
     rc = sh_pipe_call(l->pipe, SH_CMD_GRAPH_INSTALL, js, jl, &rep);
     free(js);
     if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "GRAPH_INSTALL: %s", sh_pipe_last_error(l->pipe)); return rc; }
     sh_reply_free(&rep);
-    return SH_OK;
-}
 
-/* --- the refill: u = r.W, the one term that can never be offloaded -------- */
-static void refill(const int64_t *r, int32_t m, const sh_node *nd,
-                   int8_t *planes_scratch, int32_t *acc, int64_t *u) {
-    const int64_t K = nd->K, N = nd->N;
-    for (int64_t i = 0; i < (int64_t)m * N; i++) u[i] = 0;
-    for (int p = 0; p < 3; p++) {
-        const int q = sh_primes[p];
-        for (int64_t i = 0; i < (int64_t)m * K; i++) planes_scratch[i] = sh_residue(r[i], q);
-        memset(acc, 0, (size_t)m * N * sizeof(int32_t));
-        for (int32_t row = 0; row < m; row++) {
-            const int8_t *rr = planes_scratch + (int64_t)row * K;
-            int32_t *out = acc + (int64_t)row * N;
-            for (int64_t k = 0; k < K; k++) {
-                const int32_t rv = rr[k];
-                if (!rv) continue;
-                const int8_t *wrow = nd->w_fixed + k * N;
-                for (int64_t j = 0; j < N; j++) out[j] += rv * wrow[j];
-            }
-        }
-        for (int64_t i = 0; i < (int64_t)m * N; i++) {
-            int64_t v = acc[i] % q; if (v < 0) v += q;
-            /* Stash residue p in the low bits of u; combined by CRT below. */
-            u[i] |= v << (p * 21);
-        }
-    }
-    for (int64_t i = 0; i < (int64_t)m * N; i++) {
-        int32_t r0 = (int32_t)( u[i]        & 0x1fffff);
-        int32_t r1 = (int32_t)((u[i] >> 21) & 0x1fffff);
-        int32_t r2 = (int32_t)((u[i] >> 42) & 0x1fffff);
-        u[i] = sh_crt(r0, r1, r2);
-    }
+    return start_pools(l);
 }
 
 /* --- Freivalds over an unrelated prime ------------------------------------ */
-static bool fv_check(const sh_node *nd, const int64_t *x, const int64_t *y, int32_t m) {
-    const int64_t K = nd->K, N = nd->N;
-    const int64_t CHUNK_K = 128;                 /* keeps the rhs accumulator under 2^61 */
+static bool fv_check(const sh_link *l, const sh_node *nd, const int64_t *x, const int64_t *y, int32_t m) {
     for (int32_t row = 0; row < m; row++) {
-        const int64_t *xr = x + (int64_t)row * K;
-        const int64_t *yr = y + (int64_t)row * N;
+        const int64_t *xr = x + (int64_t)row * nd->K;
+        const int64_t *yr = y + (int64_t)row * nd->N;
         for (int rep = 0; rep < SH_FV_REPS; rep++) {
-            int64_t lhs = 0;
-            for (int64_t j = 0; j < N; j++) lhs += yr[j] * nd->s[j * SH_FV_REPS + rep];
-            lhs %= SH_FV_P2; if (lhs < 0) lhs += SH_FV_P2;
-            int64_t rhs = 0;
-            for (int64_t k0 = 0; k0 < K; k0 += CHUNK_K) {
-                int64_t k1 = k0 + CHUNK_K < K ? k0 + CHUNK_K : K, blk = 0;
-                for (int64_t k = k0; k < k1; k++) blk += xr[k] * nd->s_tilde[k * SH_FV_REPS + rep];
-                blk %= SH_FV_P2; if (blk < 0) blk += SH_FV_P2;
-                rhs = (rhs + blk) % SH_FV_P2;
-            }
+            const int64_t lhs = l->simd->fv_dot(yr, nd->s, SH_FV_REPS, rep, nd->N);
+            const int64_t rhs = l->simd->fv_dot_x(xr, nd->s_tilde, SH_FV_REPS, rep, nd->K);
             if (lhs != rhs) return false;
         }
     }
@@ -418,14 +643,12 @@ int sh_link_gemm_local(sh_link *l, const int *nodes, size_t n_nodes,
         for (int32_t row = 0; row < m; row++) {
             const int64_t *xr = x_field + (int64_t)row * K;
             int64_t *yr = y + (int64_t)row * N;
-            for (int64_t j = 0; j < N; j++) yr[j] = 0;
-            for (int64_t k = 0; k < K; k++) {
-                const int64_t xv = xr[k];
-                if (!xv) continue;
-                const int8_t *wrow = nd->w_fixed + k * N;
-                for (int64_t j = 0; j < N; j++) yr[j] += xv * wrow[j];
+            for (int64_t j = 0; j < N; j++) {
+                const int8_t *w = nd->w + j * K;
+                int64_t acc = 0;
+                for (int64_t k = 0; k < K; k++) acc += xr[k] * w[k];
+                yr[j] = sh_balanced(acc);
             }
-            for (int64_t j = 0; j < N; j++) yr[j] = sh_balanced(yr[j]);
         }
         l->macs += (uint64_t)m * (uint64_t)K * (uint64_t)N;
     }
@@ -434,14 +657,14 @@ int sh_link_gemm_local(sh_link *l, const int *nodes, size_t n_nodes,
 
 bool sh_link_is_live(const sh_link *l) { return l && l->pipe; }
 
-const int8_t *sh_link_weight_rows(const sh_link *l, int node) {
+const int8_t *sh_link_weight(const sh_link *l, int node) {
     if (!l || node < 0 || (size_t)node >= l->n_nodes) return NULL;
-    return l->nodes[node].w_fixed;
+    return l->nodes[node].w;
 }
 
 bool sh_link_verify(const sh_link *l, int node, const int64_t *x, const int64_t *y, int32_t m) {
     if (!l || node < 0 || (size_t)node >= l->n_nodes) return false;
-    return fv_check(&l->nodes[node], x, y, m);
+    return fv_check(l, &l->nodes[node], x, y, m);
 }
 
 static int ensure(void **p, size_t *cap, size_t want) {
@@ -455,115 +678,74 @@ static int ensure(void **p, size_t *cap, size_t want) {
 int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
                  const int64_t *x_field, int32_t m, int64_t **y_out) {
     if (!n_nodes) return SH_OK;
-    const int64_t K = l->nodes[nodes[0]].K;
+    if (n_nodes > SH_GROUP_MAX) { snprintf(l->err, sizeof l->err, "too many nodes in one exchange"); return SH_ERR_PROTO; }
+    sh_group *g = &l->groups[l->nodes[nodes[0]].group];
     for (size_t i = 0; i < n_nodes; i++)
-        if (l->nodes[nodes[i]].K != K) {
-            snprintf(l->err, sizeof l->err, "grouped nodes disagree on K"); return SH_ERR_PROTO;
+        if (l->nodes[nodes[i]].group != l->nodes[nodes[0]].group) {
+            snprintf(l->err, sizeof l->err, "exchanged nodes do not share an activation"); return SH_ERR_PROTO;
         }
-
-    /* Shapes are PUBLIC and bucketed: the worker's readable regions are declared
-     * at install time, so a batch size is rounded up to the next power of two and
-     * the extra rows are zero. Zero rows produce zero outputs and are discarded,
-     * and bucketing is what keeps the declaration finite -- one entry per m from
-     * 1..512 per node would be tens of thousands of regions in the install. */
-    int32_t mb = 1;
-    while (mb < m) mb *= 2;
-    if (mb > l->nodes[nodes[0]].max_m) {
-        snprintf(l->err, sizeof l->err, "m=%d exceeds this node's max_m=%d", m, l->nodes[nodes[0]].max_m);
-        return SH_ERR_PROTO;
+    if (m < 1 || m > g->max_m) {
+        snprintf(l->err, sizeof l->err, "m=%d outside this group's [1,%d]", m, g->max_m); return SH_ERR_PROTO;
     }
-
-    int64_t maxN = 0;
-    for (size_t i = 0; i < n_nodes; i++) if (l->nodes[nodes[i]].N > maxN) maxN = l->nodes[nodes[i]].N;
+    const int64_t K = g->K;
     int rc;
-    if ((rc = ensure((void **)&l->pad,    &l->pad_cap,    (size_t)mb * K * sizeof(int64_t))) != SH_OK) return rc;
-    if ((rc = ensure((void **)&l->planes, &l->planes_cap, (size_t)mb * K * 3)) != SH_OK) return rc;
-    if ((rc = ensure((void **)&l->u,      &l->u_cap,      (size_t)mb * maxN * sizeof(int64_t))) != SH_OK) return rc;
-    if ((rc = ensure((void **)&l->acc,    &l->acc_cap,    (size_t)mb * maxN * sizeof(int32_t))) != SH_OK) return rc;
+    if ((rc = ensure((void **)&l->r,      &l->r_cap,      (size_t)m * K * sizeof(int32_t))) != SH_OK) return rc;
+    if ((rc = ensure((void **)&l->u,      &l->u_cap,      (size_t)m * g->u_len * sizeof(int32_t))) != SH_OK) return rc;
+    if ((rc = ensure((void **)&l->planes, &l->planes_cap, (size_t)3 * m * K)) != SH_OK) return rc;
+    if ((rc = ensure((void **)&l->hdr,    &l->hdr_cap,    8 + 4 * n_nodes)) != SH_OK) return rc;
 
-    /* ONE pad for ONE plaintext -- rule 2. Shared-x nodes reuse this pad by
-     * construction, because they read the same uploaded x region. */
-    if ((rc = maskbank_issue(&l->bank, l->pad, (size_t)mb * K)) != SH_OK) {
-        snprintf(l->err, sizeof l->err, "pad bank exhausted; stall the request"); return rc;
+    /* ONE pad per plaintext row -- rule 2 -- from the pool, or made here if the
+     * pool is dry. Shared-x nodes see the same pad by construction: they are
+     * in the same group and read the same masked planes. */
+    double t0 = now_ms();
+    const int took = l->threads_running ? take_pads(l, g, m, l->r, l->u) : 0;
+    if (took < m) {
+        if ((rc = ensure((void **)&l->gplanes, &l->gplanes_cap, (size_t)3 * (m - took) * K)) != SH_OK) return rc;
+        if ((rc = ensure((void **)&l->acc,     &l->acc_cap,     (size_t)12 * l->Nmax * sizeof(int32_t))) != SH_OK) return rc;
+        gen_scratch s = { l->gplanes, l->acc };
+        double tg = now_ms();
+        rc = generate(l, g, m - took, l->r + (size_t)took * K, l->u + (size_t)took * g->u_len, &s);
+        sh_prof[2] += now_ms() - tg;
+        if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "pad bank exhausted; stall the request"); return rc; }
+        l->pads_missed += (uint64_t)(m - took);
+        sh_prof[6] += m - took;
     }
-    for (int p = 0; p < 3; p++) {
-        const int q = sh_primes[p];
-        int8_t *pl = l->planes + (size_t)p * mb * K;
-        for (int64_t i = 0; i < (int64_t)mb * K; i++) {
-            /* Padding rows are masked too, not left as plaintext zeros: an
-             * unmasked block would tell the worker exactly where the real batch
-             * ends, which is public here but is a habit worth not forming. */
-            const int64_t xv = i < (int64_t)m * K ? x_field[i] : 0;
-            int64_t v = (xv + l->pad[i]) % SH_M_MOD;
-            if (v < 0) v += SH_M_MOD;
-            pl[i] = sh_residue(v, q);
-        }
-    }
+    l->pads_used += (uint64_t)m; sh_prof[7] += m;
 
-    /* One write: upload each distinct masked x once, ring one doorbell per node,
-     * then read every output. */
-    size_t nf = 0;
-    sh_frame *frames = (sh_frame *)malloc((3 + 2) * n_nodes * sizeof *frames);
-    uint8_t  *hdrs   = (uint8_t *)malloc((3 + 2) * n_nodes * 24);
-    sh_reply *reps   = (sh_reply *)malloc((3 + 2) * n_nodes * sizeof *reps);
-    if (!frames || !hdrs || !reps) { free(frames); free(hdrs); free(reps); return SH_ERR_NOMEM; }
+    l->simd->mask_planes(x_field, l->r, (size_t)m * K, l->planes, l->planes + (size_t)m * K, l->planes + (size_t)2 * m * K);
+    const size_t hn = sh_pack_field_gemm(l->hdr, (uint32_t)n_nodes, (uint32_t)m, nodes);
+    double t1 = now_ms(); sh_prof[0] += t1 - t0;
 
-    int64_t seen[64]; size_t n_seen = 0;
-    for (size_t i = 0; i < n_nodes; i++) {
-        sh_node *nd = &l->nodes[nodes[i]];
-        bool dup = false;
-        for (size_t t = 0; t < n_seen; t++) if (seen[t] == nd->x_off) { dup = true; break; }
-        if (dup) continue;
-        if (n_seen < 64) seen[n_seen++] = nd->x_off;
-        const int64_t stride = (int64_t)nd->max_m * K;
-        for (int p = 0; p < 3; p++) {
-            uint8_t *h = hdrs + nf * 24;
-            sh_pack_set_tensor_header(h, 2, (uint64_t)(nd->x_off + p * stride), (uint64_t)mb * K);
-            frames[nf].cmd = SH_CMD_SET_TENSOR; frames[nf].payload = h; frames[nf].len = 24;
-            frames[nf].payload2 = l->planes + (size_t)p * mb * K; frames[nf].len2 = (size_t)mb * K;
-            nf++;
-        }
-    }
-    for (size_t i = 0; i < n_nodes; i++) {
-        uint8_t *h = hdrs + nf * 24;
-        sh_pack_recompute(h, (uint32_t)nodes[i], (uint32_t)mb);
-        frames[nf].cmd = SH_CMD_GRAPH_RECOMPUTE; frames[nf].payload = h; frames[nf].len = 8;
-        frames[nf].payload2 = NULL; frames[nf].len2 = 0; nf++;
-    }
-    for (size_t i = 0; i < n_nodes; i++) {
-        sh_node *nd = &l->nodes[nodes[i]];
-        uint8_t *h = hdrs + nf * 24;
-        sh_pack_region(h, 2, (uint64_t)nd->y_off, (uint64_t)mb * nd->N * 4);
-        frames[nf].cmd = SH_CMD_GET_TENSOR; frames[nf].payload = h; frames[nf].len = 24;
-        frames[nf].payload2 = NULL; frames[nf].len2 = 0; nf++;
-    }
-
-    rc = sh_pipe_exchange(l->pipe, frames, nf, reps);
-    free(frames); free(hdrs);
-    if (rc != SH_OK) {
-        snprintf(l->err, sizeof l->err, "exchange: %s", sh_pipe_last_error(l->pipe));
-        free(reps); return rc;
-    }
+    sh_frame f = { SH_CMD_FIELD_GEMM, l->hdr, hn, l->planes, (size_t)3 * m * K };
+    sh_reply rep;
+    rc = sh_pipe_exchange(l->pipe, &f, 1, &rep);
+    double t2 = now_ms(); sh_prof[1] += t2 - t1;
+    if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "exchange: %s", sh_pipe_last_error(l->pipe)); return rc; }
     l->exchanges++;
+
+    size_t want = 0;
+    for (size_t i = 0; i < n_nodes; i++) want += (size_t)m * l->nodes[nodes[i]].N * 4;
+    if (rep.len != want) {
+        snprintf(l->err, sizeof l->err, "worker returned %zu bytes, expected %zu", rep.len, want);
+        sh_reply_free(&rep); return SH_ERR_PROTO;
+    }
 
     /* Unmask, then verify, then hand back -- never the other way round. */
     int result = SH_OK;
+    size_t off = 0;
     for (size_t i = 0; i < n_nodes; i++) {
-        sh_node *nd = &l->nodes[nodes[i]];
-        sh_reply *r = &reps[nf - n_nodes + i];
-        if (r->len != (size_t)mb * nd->N * 4) {
-            snprintf(l->err, sizeof l->err, "%s: worker returned %zu bytes, expected %lld",
-                     nd->name, r->len, (long long)((int64_t)mb * nd->N * 4));
-            result = SH_ERR_PROTO; break;
-        }
-        const int32_t *ym = (const int32_t *)r->data;
-        refill(l->pad, mb, nd, l->planes, l->acc, l->u);
+        const sh_node *nd = &l->nodes[nodes[i]];
+        const int32_t *ym = (const int32_t *)(rep.data + off);
+        off += (size_t)m * nd->N * 4;
         int64_t *y = y_out[i];
-        for (int64_t t = 0; t < (int64_t)m * nd->N; t++)
-            y[t] = sh_balanced((int64_t)ym[t] - l->u[t]);
+        double t3 = now_ms();
+        for (int32_t row = 0; row < m; row++)
+            l->simd->unmask(ym + (size_t)row * nd->N, l->u + (size_t)row * g->u_len + nd->u_off, (size_t)nd->N, y + (size_t)row * nd->N);
         l->macs += (uint64_t)m * (uint64_t)nd->K * (uint64_t)nd->N;
-
-        if (l->verify && !fv_check(nd, x_field, y, m)) {
+        double t4 = now_ms(); sh_prof[3] += t4 - t3;
+        const bool ok = !l->verify || fv_check(l, nd, x_field, y, m);
+        sh_prof[4] += now_ms() - t4;
+        if (!ok) {
             l->verify_fail++;
             snprintf(l->err, sizeof l->err,
                      "%s: verification FAILED -- the worker lied or the field wrapped. "
@@ -571,7 +753,7 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
             result = SH_ERR_VERIFY; break;
         }
     }
-    for (size_t i = 0; i < nf; i++) sh_reply_free(&reps[i]);
-    free(reps);
+    sh_prof[5] += 1;
+    sh_reply_free(&rep);
     return result;
 }

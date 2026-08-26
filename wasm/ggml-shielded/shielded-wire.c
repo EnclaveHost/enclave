@@ -2,6 +2,7 @@
 #include "shielded-wire.h"
 
 #include <errno.h>
+#include <linux/vm_sockets.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -54,11 +55,32 @@ size_t sh_pack_set_tensor_header(void *dst, uint64_t bid, uint64_t offset, uint6
 size_t sh_pack_recompute(void *dst, uint32_t node, uint32_t m) {
     uint8_t *p = (uint8_t *)dst; put_u32(p, node); put_u32(p + 4, m); return 8;
 }
+size_t sh_pack_field_gemm(void *dst, uint32_t n_nodes, uint32_t m, const int *nodes) {
+    uint8_t *p = (uint8_t *)dst; put_u32(p, n_nodes); put_u32(p + 4, m);
+    for (uint32_t i = 0; i < n_nodes; i++) put_u32(p + 8 + 4 * i, (uint32_t)nodes[i]);
+    return 8 + 4 * (size_t)n_nodes;
+}
 
 const char *sh_pipe_last_error(const sh_pipe *p) { return p ? p->err : ""; }
 
 sh_pipe *sh_pipe_open(const char *host, int port, int *err) {
     if (err) *err = SH_OK;
+    /* "vsock" or "vsock:<cid>": AF_VSOCK to the host (CID 2 unless told
+     * otherwise). A vsock round trip is a small fraction of slirp's, and at
+     * ~50 exchanges per token that fraction is most of the decode budget. */
+    if (!strncmp(host, "vsock", 5)) {
+        int fd = socket(AF_VSOCK, SOCK_STREAM, 0);
+        if (fd < 0) { if (err) *err = SH_ERR_IO; return NULL; }
+        struct sockaddr_vm vm; memset(&vm, 0, sizeof vm);
+        vm.svm_family = AF_VSOCK;
+        vm.svm_cid = host[5] == ':' ? (unsigned)atoi(host + 6) : VMADDR_CID_HOST;
+        vm.svm_port = (unsigned)port;
+        if (connect(fd, (struct sockaddr *)&vm, sizeof vm) != 0) { close(fd); if (err) *err = SH_ERR_IO; return NULL; }
+        sh_pipe *p = (sh_pipe *)calloc(1, sizeof *p);
+        if (!p) { close(fd); if (err) *err = SH_ERR_NOMEM; return NULL; }
+        p->fd = fd;
+        return p;
+    }
     char portstr[16]; snprintf(portstr, sizeof portstr, "%d", port);
     struct addrinfo hints, *res = NULL;
     memset(&hints, 0, sizeof hints);

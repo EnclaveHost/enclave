@@ -2275,6 +2275,13 @@ def _shielded_tenant_env(spec: dict, model_volume: str = "") -> dict:
     host, _, port = endpoint.rpartition(":")
     env["SHIELDED_HOST"] = host or "10.0.2.2"
     env["SHIELDED_PORT"] = port or "9500"
+    # The worker also listens on AF_VSOCK when the host runs it that way; the
+    # backend tries it first and falls back to TCP. The guest's boot probe only
+    # posts the port when the guest itself has a vsock device, so a tenant is
+    # never told about a transport it cannot open.
+    vport = int((spec or {}).get("vsockPort") or 0)
+    if vport > 0:
+        env["SHIELDED_VSOCK_PORT"] = str(vport)
     env["GGML_BACKEND_PATH"] = SHIELDED_BACKEND_SO
 
     # Calibration is per MODEL, so it is named after the volume the tenant serves.

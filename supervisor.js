@@ -2424,7 +2424,9 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort
     const r = await vmReq("POST", "/vms",
       { image: ref, cpuShare: c, gpuShare: g,
         ...(shieldedCard ? { shielded: { endpoint: shieldedCard.endpoint,
-                                         vramGb: round1(g * CARD_VRAM_GB) } } : {}),
+                                         vramGb: round1(g * CARD_VRAM_GB),
+                                         // vsock to the worker, when the guest probe found the device
+                                         ...(shieldedCard.vsockPort ? { vsockPort: shieldedCard.vsockPort } : {}) } } : {}),
         gpuTflops: round1(g * CARD_TFLOPS), cpuGflops: Math.round(c * NODE_GFLOPS),
         // cpuTflops: legacy field for managers pinned before the GFLOPS switch
         cpuTflops: round3(c * NODE_GFLOPS / 1000),
@@ -3874,6 +3876,7 @@ function shieldedCapacity() {
         roundTripMs: Number(v.round_trip_ms) || 0,
         verifiedAt: String(v.at || ""),
         endpoint: String(v.endpoint || ""),
+        vsockPort: Number(v.vsockPort) || 0,
         pricePerSec6: Number(v.pricePerSec6) || 0,
       };
     }

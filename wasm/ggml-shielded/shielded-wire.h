@@ -30,6 +30,12 @@ extern "C" {
 #define SH_CMD_GET_TENSOR       9
 #define SH_CMD_GRAPH_INSTALL   10
 #define SH_CMD_GRAPH_RECOMPUTE 11
+/* The one-frame exchange: | n u32 | m u32 | node u32[n] | planes int8[3][m][K] |
+ * answered by the products of exactly those nodes, | y int32[m][N_i] |...
+ * A decode exchange is one write and one read instead of five of each, and
+ * the batch is whatever m is -- no power-of-two bucketing, because the reply
+ * is defined by the request rather than matched against a declared region. */
+#define SH_CMD_FIELD_GEMM      12
 
 #define SH_OK             0
 #define SH_ERR_IO        -1
@@ -85,6 +91,8 @@ size_t sh_pack_alloc(void *dst, uint64_t size, const char *role);
 size_t sh_pack_region(void *dst, uint64_t bid, uint64_t offset, uint64_t nbytes);
 size_t sh_pack_set_tensor_header(void *dst, uint64_t bid, uint64_t offset, uint64_t nbytes);
 size_t sh_pack_recompute(void *dst, uint32_t node, uint32_t m);
+/* Header of a FIELD_GEMM frame; the planes follow as payload2. Returns 8 + 4n. */
+size_t sh_pack_field_gemm(void *dst, uint32_t n_nodes, uint32_t m, const int *nodes);
 
 #ifdef __cplusplus
 }

@@ -274,6 +274,13 @@ const wantModules = [
   'kernel/drivers/md/dm-bufio.ko',
   'kernel/lib/reed_solomon/reed_solomon.ko',
   'kernel/drivers/md/dm-verity.ko',
+  // AF_VSOCK to the host, for the shielded worker: vsock core, then the virtio
+  // transport's common half, then the transport itself. Harmless on a box that
+  // attaches no vhost-vsock device -- the socket family exists and nothing
+  // listens; the guest probe checks /dev/vsock before telling tenants.
+  'kernel/net/vmw_vsock/vsock.ko',
+  'kernel/net/vmw_vsock/vmw_vsock_virtio_transport_common.ko',
+  'kernel/net/vmw_vsock/vmw_vsock_virtio_transport.ko',
 ];
 const modList = [];
 for (const rel of wantModules) {

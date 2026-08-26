@@ -149,3 +149,53 @@ int sh_prepare_weight(const uint16_t *wd_raw, const int8_t *wq,
     }
     return 0;
 }
+
+int sh_prepare_weight_rows(const void *blocks, int64_t K, int64_t N,
+                           int8_t *w_fixed_out, int *f_w_out) {
+    if (K % SH_QK != 0) return -1;
+    const int64_t nb = K / SH_QK;
+    const uint8_t *base = (const uint8_t *)blocks;
+    uint16_t sc[4096];
+    if (nb > 4096) return -1;                    /* K up to 131072 */
+    for (int64_t j = 0; j < N; j++) {
+        const uint8_t *row = base + (size_t)j * nb * 34;
+        double peak = 0.0;
+        for (int64_t b = 0; b < nb; b++) {
+            uint16_t dh; memcpy(&dh, row + b * 34, 2);
+            const double d = fabs((double)sh_half_to_float(dh));
+            if (d == 0.0) continue;
+            const int8_t *q = (const int8_t *)(row + b * 34 + 2);
+            int amax = 0;
+            for (int t = 0; t < SH_QK; t++) { const int a = q[t] < 0 ? -q[t] : q[t]; if (a > amax) amax = a; }
+            const double a = d * amax;
+            if (a > peak) peak = a;
+        }
+        int f_w = SH_FRAC;
+        if (peak > 0.0) f_w = (int)floor(log2((double)SH_WEIGHT_BYTE_LIMIT / peak));
+        int chosen = -1;
+        for (int cand = f_w; cand > f_w - 8 && chosen < 0; cand--) {
+            const float mul = ldexpf(1.0f, cand - SH_FRAC);
+            bool fits = true;
+            for (int64_t b = 0; b < nb && fits; b++) {
+                uint16_t dh; memcpy(&dh, row + b * 34, 2);
+                const float v = sh_half_to_float(dh) * mul;
+                if (!isfinite(v)) { fits = false; break; }
+                sc[b] = sh_float_to_half(v);
+            }
+            if (!fits) continue;
+            int8_t *out = w_fixed_out + (size_t)j * K;
+            for (int64_t b = 0; b < nb && fits; b++) {
+                const int8_t *q = (const int8_t *)(row + b * 34 + 2);
+                for (int t = 0; t < SH_QK; t++) {
+                    const int64_t v = sh_encode_weight_fixed(sc[b], q[t]);
+                    if (v > SH_WEIGHT_BYTE_LIMIT || v < -SH_WEIGHT_BYTE_LIMIT) { fits = false; break; }
+                    out[b * SH_QK + t] = (int8_t)v;
+                }
+            }
+            if (fits) chosen = cand;
+        }
+        if (chosen < 0) return -1;
+        f_w_out[j] = chosen;
+    }
+    return 0;
+}

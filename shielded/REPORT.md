@@ -704,3 +704,76 @@ anchor -- which is precisely why the GPU can sit outside the enclave at all.**
 5. **A larger model.** 0.5B at K<=4864 exercises the field comfortably. The report's own
    ~18.7-bit accumulator estimate was flat in width, so the risk at 8B is outlier magnitude
    rather than K, and that is now instrumented -- but not measured.
+
+---
+
+# 11. Making it fast (revision 2026-08-26)
+
+Section 10 established that the engine backend is exact. It was also, measured on the
+host loopback with the whole model, **612 ms per decoded token** -- 1.6 tok/s against
+144 tok/s for plain llama.cpp on 8 threads of the same CPU. Profiling the first token
+(`SHIELDED_PROFILE`) rather than reasoning about it gave, per exchange: refill 4.0 ms,
+wire 0.35 ms, everything else microseconds. 169 exchanges per token.
+
+## 11.1 What changed
+
+| term | before | after | how |
+|---|---|---|---|
+| refill `u = r.W` | 4.0 ms/exchange, on the critical path, scalar | off the path; ~0 | pad pool per activation group, background threads, AVX-512 VNNI `vpdpbusd` |
+| wire + worker | 0.35 ms (5 frames, Python/torch/Triton) | ~0.08 ms (1 frame, C++/CUDA, dp4a + fused CRT) | `worker-cuda/`, `FIELD_GEMM` |
+| exchanges/token | 169 | 49 | gate+up share one exchange; attention projections (0.1-0.8 MMAC) stay on the CPU |
+| prefill | offloaded, refill 3x the work | in the enclave, in the clear | `SHIELDED_MAX_M` |
+| encode/mask/unmask/verify | scalar `%` | vectorised, generic twin checked at load | `shielded-simd.c` |
+
+## 11.2 Measured, host loopback, RTX 3070 + EPYC 9115, Qwen2.5-0.5B q8_0
+
+| | ms/token | tok/s |
+|---|---|---|
+| shielded, before | 612 | 1.6 |
+| **shielded, after** | **6.5** | **154** |
+| plain llama.cpp CPU, 8 threads | 7.0 | 144 |
+| shielded, generic (non-AVX-512) kernels | 25.3 | 39 |
+
+Same completion text in every row that generates it; 0 verification failures across
+7012 offloaded nodes in the long run (96 tokens at 140 tok/s with a 36-token prompt
+prefilled on the CPU). The shielded path is now faster than the in-enclave CPU because
+the GPU removes the weight-bandwidth term: the CPU reads 500 MB of weights per token,
+the enclave now reads none.
+
+Per-token budget after the change, from the profile: wire 3.9 ms (49 x 80 us), mask
+0.9, verify 0.5, unmask/encode/descale 0.5, everything else is the CPU half of the
+graph (attention, norms, the small projections). The remaining term is the round trip.
+
+## 11.3 The transport, again
+
+Section 2 modelled transport at 1.54 ms/token from a 7 us loopback ping and 4
+exchanges per layer over 32 layers. On the host that is now roughly what it is. Inside
+the CVM the path is slirp, whose warm exchange the boot probe measures at ~0.5 ms, and
+at 49 exchanges that alone is 25 ms/token -- so the guest now opens AF_VSOCK to the
+host (CID 2, same port) whenever it has `/dev/vsock`, with slirp TCP as the fallback.
+The worker listens on both.
+
+## 11.4 Inside the CVM, on the deployed app
+
+metal0, SEV-SNP guest, 16 vCPUs, the eyesoff.ai deployment at 85% of the shielded
+card, the tenant's engine on llama.cpp's default 4 threads, measured from outside
+through the relay with a streaming chat completion (`scratchpad/tps.py`: tokens
+between the first and last content chunk over the time between them):
+
+| | decode tok/s | time to first token |
+|---|---|---|
+| before (Python worker, slirp, refill on the path) | 1.7 | 28 s |
+| **after (CUDA worker, vsock, pool)** | **99 and 105** on two prompts | **2.2 s** |
+
+The host's vsock table shows the guest's single established connection to CID 2
+port 9500 and nothing on TCP 9500; the worker holds 736 MiB (the encoded weights and
+scratch); GPU utilisation during a request reads 1-3%, because a decode step is a
+chain of round trips and the card is idle between them. QEMU accepted
+`vhost-vsock-pci` under `confidential-guest-support` without any special flag, and
+the guest's boot probe (still over slirp, by design: it measures the fallback) came
+back at 0.22 ms warm against the CUDA worker, from 0.56 ms against the Python one.
+
+Two things are still on the table if the number needs to move again: the tenant's
+engine runs the CPU half of the graph on 4 threads (an engine-side knob, not a
+backend one), and prefill is in the clear on those same 4 threads, which is most of
+the 2.2 s. Neither is a shielded-path cost.

@@ -92,6 +92,15 @@ int64_t sh_crt(int32_t r0, int32_t r1, int32_t r2);
 int sh_prepare_weight(const uint16_t *wd_raw, const int8_t *wq,
                       int64_t K, int64_t N, uint16_t *wd_scaled_out, int *f_w_out);
 
+/* The same choice of exponent and the same encoding, straight from ggml's own
+ * q8_0 layout: `blocks` is N rows of K/32 blocks, each { fp16 d; int8 qs[32] },
+ * i.e. one row per OUTPUT, which is also the layout the worker wants (a decode
+ * GEMV is N contiguous dot products). No transpose on either side.
+ * w_fixed_out is (N,K) int8; f_w_out is one exponent per row. Returns 0, or
+ * negative if some row fits no exponent. */
+int sh_prepare_weight_rows(const void *blocks, int64_t K, int64_t N,
+                           int8_t *w_fixed_out, int *f_w_out);
+
 /* fp32 -> fp16 bits, round-to-nearest, subnormals handled. */
 uint16_t sh_float_to_half(float v);
 

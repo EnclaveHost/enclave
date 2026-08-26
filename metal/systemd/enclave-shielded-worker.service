@@ -22,7 +22,9 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=%h/Projects/enclave
-ExecStart=/usr/bin/python3 shielded/worker.py --host 127.0.0.1 --port 9500
+# The C++/CUDA worker (make -C shielded/worker-cuda); shielded/worker.py is the
+# Python reference and speaks the same protocol if this box has no CUDA toolchain.
+ExecStart=%h/Projects/enclave/shielded/worker-cuda/shielded-worker --host 127.0.0.1 --port 9500 --vsock-port 9500
 Restart=always
 RestartSec=5
 # Bound to loopback: a slirp guest reaches it at 10.0.2.2, and nothing off-box

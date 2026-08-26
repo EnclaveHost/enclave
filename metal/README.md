@@ -163,10 +163,20 @@ passthrough, so it works with a consumer card — the reference measurements are
 "shieldedWorker": { "port": 9500, "vramGb": 6.5 }
 ```
 
-With that set, `enclave-metal.mjs` starts `shielded/worker.py` on `127.0.0.1:<port>` and
-supervises it, and hands the guest the address over fw_cfg. The guest reaches it at
-`10.0.2.2:<port>` — the same slirp path the egress helper uses. Requires `python3` with torch
-and triton **on the host**; the guest needs nothing but the measured image.
+With that set, `enclave-metal.mjs` starts the worker on `127.0.0.1:<port>` and supervises
+it, and hands the guest the address over fw_cfg. It prefers the C++/CUDA worker when it
+has been built (`make -C shielded/worker-cuda`; needs a CUDA toolkit and clang++ on the
+host, and is what makes decode fast) and falls back to `shielded/worker.py` (needs
+`python3` with torch and triton). The guest needs nothing but the measured image.
+
+The guest reaches the worker two ways. Over slirp at `10.0.2.2:<port>`, which is what the
+boot probe uses and what a guest without a vsock driver keeps using; and over
+**AF_VSOCK** (host CID 2, same port), which the launcher enables by attaching
+`vhost-vsock-pci` whenever `/dev/vhost-vsock` exists and the CUDA worker is in use. The
+image carries the vsock modules and the engine backend tries vsock first, then TCP, so
+there is nothing to configure; `"shieldedWorker": { "vsock": false }` turns it off. A
+vsock round trip is a fraction of slirp's, and at ~50 masked exchanges per decoded token
+that is the difference between ~100 tok/s and a few tens.
 
 **A dead worker never takes the box down.** It is restarted with backoff, and the enclave
 keeps serving CPU work meanwhile. What tells you the path is healthy is the boot probe:
