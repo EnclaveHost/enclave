@@ -1117,15 +1117,36 @@ running worker keeps its inode; and the backend in this revision reconnects, so 
 event would cost a tenant a few seconds. The guest half of that fix reaches the fleet only
 through a release and `metal/update.mjs`, which builds from the tag.
 
-Measured from outside after the restart, with the new worker under the old guest backend:
-100.8 tok/s decode on the live app, from 99-105 before; the in-CVM figure for the new
-backend is the next measurement, and needs the release.
+Measured from outside after that restart, with the new worker under the old guest backend:
+100.8 tok/s decode on the live app (one sample), from 99-105 before.
+
+The release carrying this revision (v0.5.509) was then deployed to metal0 through
+`metal/update.mjs` -- the image build compiles the backend from source, the box came back
+healthy, the tenant re-attached to the shielded card over vsock -- and measured from
+outside on three prompts (96 tokens each, host idle): **88.6, 91.8 and 95.9 tok/s**. That
+is BELOW the old backend's in-CVM figure, while on the host loopback this revision is 26%
+faster. It is recorded as measured and not explained: the tenant's engine runs the CPU
+half on 4 SNP vCPUs, where the new calibration's 32 held-back lm_head channels and the
+fused verify cost more than on the host's 8 idle cores, and the vsock exchange may not
+shrink the way the loopback one did; the in-guest `SHIELDED_PROFILE` that would settle it
+is not reachable from outside. Until it is, the honest in-CVM claim is "within noise of
+before", not "faster".
+
+That deploy also produced an outage of its own: nothing persists in the initramfs-only
+guest, so every restart re-issues the app hostname's certificate, this was the box's
+eighth restart of the day, and it was the one that ran into Let's Encrypt's five-per-week
+limit for the name while ZeroSSL was timing out. The running app served no certificate
+for 19 minutes -- ten of them the supervisor's own per-name backoff after both CAs were
+usable again. The retry policy is changed in the same push (a CA-level failure retries
+the moment the cooling CA is back, on a precise timer); the count-your-restarts rule is in
+the memory notes, and a persistent, sealed certificate cache across restarts is the real
+fix and is not built.
 
 ## 13.9 Open
 
-- **In the CVM.** Everything here is host loopback. The vsock exchange is dearer than
-  loopback TCP and the tenant's CPU half runs on 4 vCPUs; the deployed number for this
-  revision is unmeasured until the image carries it.
+- **In the CVM.** The deployed number (13.8) did not follow the host loopback: 89-96
+  tok/s against ~100 before. An in-guest profile is the missing measurement; the
+  candidates are the outlier term and fused verify on SNP-throttled vCPUs, and vsock.
 - **The remaining 46 us.** ~9-15 us is the socket, ~24 us the fused kernel at K=896, the
   rest launch and sync. Short K at m>=4 (0.5B shapes) still runs at ~215 GB/s against 400+
   for the 4B shapes: a different block shape for short K is the next kernel lever.
