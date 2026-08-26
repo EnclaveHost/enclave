@@ -649,3 +649,34 @@ test("a shielded card is one pool, sized by what it can actually sell", () => {
   assert.equal(shieldedPoolOf({ availability: { shielded: { vramGb: 8, vramFreeGb: 4 } } }).total, 8);
   assert.equal(shieldedPoolOf({ availability: {} }), null);
 });
+
+test("a shielded pool advertises what can be LEASED, not what is resident", () => {
+  // The case that was wrong on metal0: an 85% share is leased, so nothing is
+  // buyable, but the worker holds only a 0.5B model's encoded weights and the
+  // card reads 6.28 of 6.5 GB physically free. The old reading published "96%
+  // available" for a card the allocator would refuse to sell.
+  const row = { availability: {
+    gpuShareFree: 0,
+    shielded: { vramGb: 7.65, vramFreeGb: 6.28, vramBudgetGb: 6.5 } } };
+  const p = shieldedPoolOf(row);
+  assert.equal(p.frac, 0, "a fully leased card must advertise nothing available");
+  assert.equal(p.leasableGb, 0);
+  // the physical truth is kept, it is just not the headline
+  assert.equal(p.freeGb, 6.28);
+  assert.ok(p.vramFrac > 0.96, "the physical reading stays available for display");
+
+  // a partly leased card quotes the remainder, not the VRAM
+  const half = shieldedPoolOf({ availability: {
+    gpuShareFree: 0.4, shielded: { vramGb: 7.65, vramFreeGb: 6.4, vramBudgetGb: 6.5 } } });
+  assert.equal(half.frac, 0.4);
+  assert.ok(Math.abs(half.leasableGb - 2.6) < 1e-9);
+
+  // 0 is a REAL value here: a truthiness check would swap a fully-leased card
+  // back to its ~96% physical reading, which is the bug this test exists for.
+  assert.notEqual(shieldedPoolOf(row).frac, shieldedPoolOf(row).vramFrac);
+
+  // a row too old to report gpuShareFree keeps the previous behaviour
+  const legacy = shieldedPoolOf({ availability: {
+    shielded: { vramGb: 7.65, vramFreeGb: 3.25, vramBudgetGb: 6.5 } } });
+  assert.equal(legacy.frac, 0.5, "no gpuShareFree -> fall back to the physical ratio");
+});
