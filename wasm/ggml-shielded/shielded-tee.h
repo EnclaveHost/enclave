@@ -54,9 +54,15 @@ typedef struct sh_link sh_link;
 #define SH_ERR_RANGE    -12   /* weights do not fit the int8 lane */
 
 /* Tunables read from the environment at open:
- *   SHIELDED_REFILL_THREADS  background refill threads (default 2)
+ *   SHIELDED_REFILL_THREADS  background refill threads; unset = derived from the
+ *                            registered weights at start (see derive_threads in
+ *                            shielded-tee.c), clamped to [2, ncores/2]
+ *   SHIELDED_REFILL_TARGET_MS the token time the derived count must keep up
+ *                            with (default 6, the measured 0.5B decode)
  *   SHIELDED_POOL_DEPTH      ready pads kept per group (default 16)
  *   SHIELDED_REFILL_BATCH    pads generated per batch (default 4)
+ *   SHIELDED_WARM_MS         longest sh_link_start waits for one ready pad per
+ *                            group before the first exchange (default 5000)
  * and at start:
  *   SHIELDED_VSOCK_PORT      try AF_VSOCK to the host on this port before TCP;
  *                            unset = the TCP port number when /dev/vsock exists, 0 = never */
@@ -79,7 +85,9 @@ int sh_link_start(sh_link *l);
 /* One masked exchange: every node in `nodes` must belong to one group (share
  * the activation). `x_field` is the PLAINTEXT field-encoded activation, (m,K)
  * int64, balanced. `y_out[i]` receives (m,N_i) int64, exact and verified.
- * Nothing is returned until every check in the group passes. */
+ * On any failure the result is SH_ERR_VERIFY and y_out must be DISCARDED by
+ * the caller: rows of already-checked nodes, and the unmasked rows of the
+ * failing one, may have been written before the check fired. */
 int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
                  const int64_t *x_field, int32_t m, int64_t **y_out);
 
@@ -104,6 +112,8 @@ void sh_link_stats(const sh_link *l, uint64_t *exchanges, uint64_t *macs, uint64
 /* Pool health: pads consumed, and how many had to be generated on the
  * request path because the pool was dry (the number that should be ~0). */
 void sh_link_pool_stats(const sh_link *l, uint64_t *consumed, uint64_t *missed);
+/* Refill threads actually running (derived or from the environment), for logs. */
+int  sh_link_refill_threads(const sh_link *l);
 
 /* How the worker is reached ("vsock:9500", "tcp 10.0.2.2:9500 ..."), for logs. */
 const char *sh_link_transport(const sh_link *l);

@@ -30,7 +30,8 @@
 #define Q2 SH_Q2
 #define M_MOD SH_M_MOD
 /* Garner constants: inv(Q0) mod Q1 and inv(Q0*Q1) mod Q2. Asserted against
- * sh_crt by sh_simd_selftest, so a typo here fails loudly rather than quietly. */
+ * sh_crt's int64 truth in simd_agree (shielded-tee.c), so a typo here fails loudly
+ * at load rather than as verification failures on the first token. */
 #define INV01  217
 #define INV012 10
 
@@ -97,9 +98,35 @@ void FN(unmask)(const int32_t *ym, const int32_t *u, size_t n, int64_t *y) {
 }
 
 /* x_field = round(src * scale). */
+#ifdef SH_SIMD_AVX512
+/* lrintf is a libm call the vectoriser will not touch (errno, FP exceptions),
+ * and 896 of them cost 4.4 us per exchange -- 14 ms of a 64-token decode.
+ * vcvtps2dq rounds under the same MXCSR mode lrintf does, so the two agree
+ * bit for bit wherever the int32 conversion is exact; lanes at or beyond 2^30
+ * (never seen from a sane model, but the outlier channels ARE encoded here
+ * before they are pulled out) take the scalar path so nothing saturates. */
+void FN(encode)(const float *src, size_t n, float scale, int64_t *x) {
+    const __m512 sc  = _mm512_set1_ps(scale);
+    const __m512 lim = _mm512_set1_ps(1073741824.0f);           /* 2^30 */
+    size_t i = 0;
+    for (; i + 16 <= n; i += 16) {
+        const __m512 v = _mm512_mul_ps(_mm512_loadu_ps(src + i), sc);
+        const __mmask16 big = _mm512_cmp_ps_mask(_mm512_abs_ps(v), lim, _CMP_NLT_UQ);   /* |v| >= 2^30, or NaN */
+        if (__builtin_expect(big != 0, 0)) {
+            for (int t = 0; t < 16; t++) x[i + t] = (int64_t)lrintf(src[i + t] * scale);
+            continue;
+        }
+        const __m512i q = _mm512_cvtps_epi32(v);
+        _mm512_storeu_si512((void *)(x + i),     _mm512_cvtepi32_epi64(_mm512_castsi512_si256(q)));
+        _mm512_storeu_si512((void *)(x + i + 8), _mm512_cvtepi32_epi64(_mm512_extracti64x4_epi64(q, 1)));
+    }
+    for (; i < n; i++) x[i] = (int64_t)lrintf(src[i] * scale);
+}
+#else
 void FN(encode)(const float *src, size_t n, float scale, int64_t *x) {
     for (size_t i = 0; i < n; i++) x[i] = (int64_t)lrintf(src[i] * scale);
 }
+#endif
 
 /* dst[j] = y[j] * inv[j], the per-column descale. */
 void FN(descale)(const int64_t *y, const float *inv, size_t n, float *dst) {
@@ -122,13 +149,15 @@ int64_t FN(fv_dot)(const int64_t *y, const int64_t *s, int stride, int rep, int6
 }
 
 /* sum_k x[k] * st[k*stride + rep] mod P2 for the rhs, where st < 2^31 and x is
- * the plaintext activation (any int64 in practice below 2^31): chunks of 128
+ * the plaintext activation: chunks of 32 keep the int64 accumulator exact for
+ * |x| < 2^26 (a legal activation is below M/2 < 2^23; one beyond that has
+ * already wrapped and fails the check whatever this sums); chunks of 128
  * keep the accumulator under 2^62. */
 int64_t FN(fv_dot_x)(const int64_t *x, const int64_t *st, int stride, int rep, int64_t n) {
     const int64_t P2 = SH_FV_P2;
     int64_t total = 0;
-    for (int64_t k0 = 0; k0 < n; k0 += 128) {
-        const int64_t k1 = k0 + 128 < n ? k0 + 128 : n;
+    for (int64_t k0 = 0; k0 < n; k0 += 32) {
+        const int64_t k1 = k0 + 32 < n ? k0 + 32 : n;
         int64_t acc = 0;
         for (int64_t k = k0; k < k1; k++) acc += x[k] * st[k * stride + rep];
         acc %= P2; if (acc < 0) acc += P2;
@@ -249,12 +278,142 @@ void FN(refill)(const uint8_t *planes, int b, const int8_t *W, int64_t K, int64_
     }
 }
 
-/* The outlier term: y[row][j] += x_tee[row][c] * Wc[c][j], in the TEE. */
+/* ---------------------------------------------------------------------------
+ * The request-path Freivalds dots.
+ *
+ * fv_dot/fv_dot_x above are the reference forms and stay as written; these
+ * are what the online check runs. Two things changed, both measured on the
+ * 0.5B's lm_head (N=151936, two reps):
+ *  - s is int32 in [rep][n] rows rather than int64 interleaved [n][rep]. The
+ *    old layout made each rep's pass read every other 8-byte word of a 2.4 MB
+ *    array (so all of it, twice); the new one streams 0.6 MB per rep with a
+ *    unit stride that vectorises to vpmovsxdq + vpmullq.
+ *  - all reps come out of ONE pass over y, and unmask_fv writes y and dots it
+ *    in the same pass, so the 1.2 MB int64 y is written once and never
+ *    re-read on the request path.
+ * Bounds are the same as the reference: |y| < 2^24 and s < 2^20 keep 2^18
+ * terms under 2^62: |x| < 2^26 and st < 2^31 with chunks of 32 (see fv_dot_x).
+ * ------------------------------------------------------------------------ */
+static inline int64_t fv_fold(int64_t total, int64_t acc) {
+    acc %= SH_FV_P2; if (acc < 0) acc += SH_FV_P2;
+    return (total + acc) % SH_FV_P2;
+}
+
+void FN(fv_dots)(const int64_t *y, const int32_t *s, int reps, int64_t n, int64_t *out) {
+    for (int r = 0; r < reps; r++) out[r] = 0;
+    for (int64_t k0 = 0; k0 < n; k0 += 262144) {
+        const int64_t k1 = k0 + 262144 < n ? k0 + 262144 : n;
+        if (reps == 2) {
+            const int32_t *s0 = s, *s1 = s + n;
+            int64_t a0 = 0, a1 = 0;
+            for (int64_t j = k0; j < k1; j++) {
+                const int64_t v = y[j];
+                a0 += v * (int64_t)s0[j];
+                a1 += v * (int64_t)s1[j];
+            }
+            out[0] = fv_fold(out[0], a0); out[1] = fv_fold(out[1], a1);
+        } else {
+            for (int r = 0; r < reps; r++) {
+                const int32_t *sr = s + (size_t)r * n;
+                int64_t a = 0;
+                for (int64_t j = k0; j < k1; j++) a += y[j] * (int64_t)sr[j];
+                out[r] = fv_fold(out[r], a);
+            }
+        }
+    }
+}
+
+void FN(fv_dots_x)(const int64_t *x, const int32_t *st, int reps, int64_t n, int64_t *out) {
+    for (int r = 0; r < reps; r++) out[r] = 0;
+    for (int64_t k0 = 0; k0 < n; k0 += 32) {
+        const int64_t k1 = k0 + 32 < n ? k0 + 32 : n;
+        if (reps == 2) {
+            const int32_t *t0 = st, *t1 = st + n;
+            int64_t a0 = 0, a1 = 0;
+            for (int64_t k = k0; k < k1; k++) {
+                const int64_t v = x[k];
+                a0 += v * (int64_t)t0[k];
+                a1 += v * (int64_t)t1[k];
+            }
+            out[0] = fv_fold(out[0], a0); out[1] = fv_fold(out[1], a1);
+        } else {
+            for (int r = 0; r < reps; r++) {
+                const int32_t *tr = st + (size_t)r * n;
+                int64_t a = 0;
+                for (int64_t k = k0; k < k1; k++) a += x[k] * (int64_t)tr[k];
+                out[r] = fv_fold(out[r], a);
+            }
+        }
+    }
+}
+
+/* unmask and the lhs dot in one pass: y[j] = balanced(ym[j] - u[j]) is stored
+ * AND accumulated against every rep of s from the register it was just
+ * computed in. Arithmetic identical to unmask followed by fv_dots. */
+void FN(unmask_fv)(const int32_t *ym, const int32_t *u, const int32_t *s, int reps, int64_t n,
+                   int64_t *y, int64_t *out) {
+    for (int r = 0; r < reps; r++) out[r] = 0;
+    for (int64_t k0 = 0; k0 < n; k0 += 262144) {
+        const int64_t k1 = k0 + 262144 < n ? k0 + 262144 : n;
+        if (reps == 2) {
+            const int32_t *s0 = s, *s1 = s + n;
+            int64_t a0 = 0, a1 = 0;
+            for (int64_t j = k0; j < k1; j++) {
+                int32_t v = ym[j] - u[j];
+                v += (v <= -(int32_t)(M_MOD / 2)) ? (int32_t)M_MOD : 0;
+                v -= (v > (int32_t)(M_MOD / 2)) ? (int32_t)M_MOD : 0;
+                y[j] = v;
+                a0 += (int64_t)v * (int64_t)s0[j];
+                a1 += (int64_t)v * (int64_t)s1[j];
+            }
+            out[0] = fv_fold(out[0], a0); out[1] = fv_fold(out[1], a1);
+        } else {
+            FN(unmask)(ym + k0, u + k0, (size_t)(k1 - k0), y + k0);
+            for (int r = 0; r < reps; r++) {
+                const int32_t *sr = s + (size_t)r * n;
+                int64_t a = 0;
+                for (int64_t j = k0; j < k1; j++) a += y[j] * (int64_t)sr[j];
+                out[r] = fv_fold(out[r], a);
+            }
+        }
+    }
+}
+
+/* The outlier term: y[row][j] += x_tee[row][c] * Wc[c][j], in the TEE.
+ * Blocked over j so a stretch of y stays in L1 while every channel is added
+ * to it: channel-major, a site with 8 outliers read and wrote its 39 KB
+ * int64 y eight times per exchange. */
 void FN(outlier_add)(const int64_t *x_tee, const int8_t *wc, int nout, int64_t N, int64_t *y) {
-    for (int c = 0; c < nout; c++) {
-        const int64_t xv = x_tee[c];
-        if (!xv) continue;
-        const int8_t *w = wc + (size_t)c * N;
-        for (int64_t j = 0; j < N; j++) y[j] += xv * w[j];
+    /* Accumulated in DOUBLE, which is exact here and vectorises where the int64
+     * multiply does not: every product |x_tee * w| is an integer below 2^47
+     * (|x| < 2^40 checked below, |w| <= 119) and at most 64 of them are
+     * summed, so nothing rounds. The int64 form (`y[j] += xv * w[j]`) compiled
+     * to vpmullq at best and cost 0.6 ms per token on Qwen2.5-0.5B once the
+     * per-column calibration held back 32 channels of lm_head (4.9 M MACs per
+     * token); this is ~4x cheaper and bit-identical. */
+    enum { BLK = 256 };
+    int64_t xmax = 0;
+    for (int c = 0; c < nout; c++) { const int64_t a = x_tee[c] < 0 ? -x_tee[c] : x_tee[c]; if (a > xmax) xmax = a; }
+    if (xmax >= ((int64_t)1 << 40) || nout > 64) {           /* out of the exact range: the plain form */
+        for (int c = 0; c < nout; c++) {
+            const int64_t xv = x_tee[c];
+            if (!xv) continue;
+            const int8_t *w = wc + (size_t)c * N;
+            for (int64_t j = 0; j < N; j++) y[j] += xv * w[j];
+        }
+        return;
+    }
+    double acc[BLK];
+    for (int64_t j0 = 0; j0 < N; j0 += BLK) {
+        const int64_t n = j0 + BLK < N ? BLK : N - j0;
+        for (int64_t i = 0; i < n; i++) acc[i] = 0.0;
+        for (int c = 0; c < nout; c++) {
+            const double xv = (double)x_tee[c];
+            if (xv == 0.0) continue;
+            const int8_t *w = wc + (size_t)c * N + j0;
+            for (int64_t i = 0; i < n; i++) acc[i] += xv * (double)w[i];
+        }
+        int64_t *o = y + j0;
+        for (int64_t i = 0; i < n; i++) o[i] += (int64_t)acc[i];
     }
 }

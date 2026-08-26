@@ -30,6 +30,17 @@ typedef struct {
     void    (*refill)(const uint8_t *planes, int b, const int8_t *W, int64_t K, int64_t N,
                       int32_t *u, int64_t u_stride, int32_t *acc);
     void    (*outlier_add)(const int64_t *x_tee, const int8_t *wc, int nout, int64_t N, int64_t *y);
+    /* The request-path forms of the Freivalds dots. `s` and `st` are int32,
+     * one contiguous row per rep ([reps][n]) rather than interleaved int64:
+     * half the bytes and a unit stride, so the loop vectorises and streams.
+     * All reps are produced in ONE pass over y / x, into out[reps].
+     * unmask_fv is unmask fused with the lhs dot: y is written once and dotted
+     * from registers instead of being re-read from memory. Measured on lm_head
+     * (N=151936): verify 117 us + unmask 41 us -> see shielded-tee.c. */
+    void    (*fv_dots)(const int64_t *y, const int32_t *s, int reps, int64_t n, int64_t *out);
+    void    (*fv_dots_x)(const int64_t *x, const int32_t *st, int reps, int64_t n, int64_t *out);
+    void    (*unmask_fv)(const int32_t *ym, const int32_t *u, const int32_t *s, int reps, int64_t n,
+                         int64_t *y, int64_t *out);
 } sh_simd;
 
 const sh_simd *sh_simd_get(void);
@@ -45,7 +56,10 @@ const sh_simd *sh_simd_generic(void);
     int64_t sh_simd_##sfx##_fv_dot_x(const int64_t *, const int64_t *, int, int, int64_t); \
     void    sh_simd_##sfx##_fv_prepare(const int8_t *, int64_t, int64_t, const int64_t *, int, int64_t *); \
     void    sh_simd_##sfx##_refill(const uint8_t *, int, const int8_t *, int64_t, int64_t, int32_t *, int64_t, int32_t *); \
-    void    sh_simd_##sfx##_outlier_add(const int64_t *, const int8_t *, int, int64_t, int64_t *);
+    void    sh_simd_##sfx##_outlier_add(const int64_t *, const int8_t *, int, int64_t, int64_t *); \
+    void    sh_simd_##sfx##_fv_dots(const int64_t *, const int32_t *, int, int64_t, int64_t *); \
+    void    sh_simd_##sfx##_fv_dots_x(const int64_t *, const int32_t *, int, int64_t, int64_t *); \
+    void    sh_simd_##sfx##_unmask_fv(const int32_t *, const int32_t *, const int32_t *, int, int64_t, int64_t *, int64_t *);
 SH_SIMD_DECL(avx512)
 SH_SIMD_DECL(generic)
 

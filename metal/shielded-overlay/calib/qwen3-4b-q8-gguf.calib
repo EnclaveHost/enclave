@@ -1,0 +1,147 @@
+# shielded-calib 2
+# from /home/steven/Projects/enclave-apps.bak/image-generator/model-volume/z-image-turbo/Qwen3-4B-Instruct-2507-Q8_0.gguf: 144 sites, reference exponent 8
+# shielded-calib (C, engine-observed): 4 texts, 203 tokens, per-column weight encoding -> SHIELDED_AF_DELTA=0
+site blk.0.attn_output.weight 11 0
+site blk.0.attn_q.weight 11 0
+site blk.0.ffn_down.weight 10 8 2263 2764 4329 5596 6930 7432 8520 9397
+site blk.0.ffn_gate.weight 9 0
+site blk.1.attn_output.weight 12 8 1753 1881 3702 3830 3845 3958 3973 4086
+site blk.1.attn_q.weight 11 0
+site blk.1.ffn_down.weight 9 4 383 1809 3142 3986
+site blk.1.ffn_gate.weight 7 4 1 9 11 77
+site blk.10.attn_output.weight 10 0
+site blk.10.attn_q.weight 8 0
+site blk.10.ffn_down.weight 9 0
+site blk.10.ffn_gate.weight 8 0
+site blk.11.attn_output.weight 10 0
+site blk.11.attn_q.weight 9 4 3 4 5 107
+site blk.11.ffn_down.weight 9 0
+site blk.11.ffn_gate.weight 8 0
+site blk.12.attn_output.weight 10 0
+site blk.12.attn_q.weight 9 16 0 1 3 4 5 12 19 23 25 26 46 47 55 87 96 107
+site blk.12.ffn_down.weight 9 4 2 156 1814 6115
+site blk.12.ffn_gate.weight 8 0
+site blk.13.attn_output.weight 10 4 769 886 2403 3247
+site blk.13.attn_q.weight 7 0
+site blk.13.ffn_down.weight 9 0
+site blk.13.ffn_gate.weight 6 0
+site blk.14.attn_output.weight 10 0
+site blk.14.attn_q.weight 7 0
+site blk.14.ffn_down.weight 9 4 0 133 758 1043
+site blk.14.ffn_gate.weight 7 0
+site blk.15.attn_output.weight 10 4 1360 1364 1369 1390
+site blk.15.attn_q.weight 6 0
+site blk.15.ffn_down.weight 9 0
+site blk.15.ffn_gate.weight 7 0
+site blk.16.attn_output.weight 10 16 2161 3466 3467 3487 3493 3497 3504 3509 3513 3514 3544 3548 3557 3566 3572 3575
+site blk.16.attn_q.weight 6 16 0 1 3 4 5 19 20 23 34 46 55 66 75 366 604 1009
+site blk.16.ffn_down.weight 9 4 1 4 103 1550
+site blk.16.ffn_gate.weight 6 0
+site blk.17.attn_output.weight 9 0
+site blk.17.attn_q.weight 6 0
+site blk.17.ffn_down.weight 9 0
+site blk.17.ffn_gate.weight 6 0
+site blk.18.attn_output.weight 9 0
+site blk.18.attn_q.weight 6 16 0 1 3 4 5 12 19 20 23 34 46 55 66 75 396 604
+site blk.18.ffn_down.weight 9 4 1 24 483 2382
+site blk.18.ffn_gate.weight 6 0
+site blk.19.attn_output.weight 9 0
+site blk.19.attn_q.weight 8 32 0 1 2 3 4 5 6 7 12 13 19 20 23 25 26 29 30 31 34 37 43 46 50 51 53 55 56 64 66 87 90 396
+site blk.19.ffn_down.weight 9 0
+site blk.19.ffn_gate.weight 8 0
+site blk.2.attn_output.weight 12 0
+site blk.2.attn_q.weight 11 0
+site blk.2.ffn_down.weight 11 32 633 655 1120 1145 1216 1569 2010 2047 2068 2353 2994 3416 3661 3874 4537 4775 4787 4803 5045 5071 5702 7312 7363 7493 7743 7749 7923 8015 8166 8344 8537 8730
+site blk.2.ffn_gate.weight 6 4 1 11 77 373
+site blk.20.attn_output.weight 9 0
+site blk.20.attn_q.weight 8 4 1 3 5 66
+site blk.20.ffn_down.weight 9 0
+site blk.20.ffn_gate.weight 8 0
+site blk.21.attn_output.weight 10 16 60 76 174 188 204 206 302 332 334 441 444 448 1785 1913 1956 2041
+site blk.21.attn_q.weight 8 8 0 1 3 4 5 23 46 66
+site blk.21.ffn_down.weight 9 0
+site blk.21.ffn_gate.weight 8 0
+site blk.22.attn_output.weight 9 0
+site blk.22.attn_q.weight 6 0
+site blk.22.ffn_down.weight 8 0
+site blk.22.ffn_gate.weight 8 0
+site blk.23.attn_output.weight 9 0
+site blk.23.attn_q.weight 7 4 1 3 23 66
+site blk.23.ffn_down.weight 9 32 62 150 159 274 324 391 543 556 770 855 973 1631 1714 1837 2430 2942 2948 3608 4010 4015 4374 4788 4919 4972 5098 5901 6251 6695 6742 6914 7622 8299
+site blk.23.ffn_gate.weight 8 16 1 3 7 22 23 24 26 41 47 55 56 66 73 190 211 396
+site blk.24.attn_output.weight 8 0
+site blk.24.attn_q.weight 7 4 1 3 23 66
+site blk.24.ffn_down.weight 8 0
+site blk.24.ffn_gate.weight 7 0
+site blk.25.attn_output.weight 9 0
+site blk.25.attn_q.weight 7 4 1 3 56 66
+site blk.25.ffn_down.weight 8 0
+site blk.25.ffn_gate.weight 7 0
+site blk.26.attn_output.weight 9 0
+site blk.26.attn_q.weight 7 16 0 1 2 3 4 5 7 12 19 20 23 26 46 56 66 190
+site blk.26.ffn_down.weight 8 0
+site blk.26.ffn_gate.weight 7 0
+site blk.27.attn_output.weight 8 0
+site blk.27.attn_q.weight 7 32 0 1 2 3 4 5 7 8 9 12 13 18 19 20 22 23 24 26 29 30 32 34 41 46 49 55 56 66 73 190 284 338
+site blk.27.ffn_down.weight 8 0
+site blk.27.ffn_gate.weight 7 0
+site blk.28.attn_output.weight 8 0
+site blk.28.attn_q.weight 7 32 0 1 2 3 4 5 6 7 8 9 12 18 19 20 22 23 24 26 29 30 34 43 46 49 51 56 64 66 73 90 190 284
+site blk.28.ffn_down.weight 8 4 53 232 1398 8943
+site blk.28.ffn_gate.weight 7 0
+site blk.29.attn_output.weight 8 0
+site blk.29.attn_q.weight 6 0
+site blk.29.ffn_down.weight 7 0
+site blk.29.ffn_gate.weight 7 0
+site blk.3.attn_output.weight 12 32 402 403 792 920 1928 1970 2047 2070 2152 3284 3351 3372 3397 3472 3487 3490 3521 3527 3540 3571 3579 3630 3677 3684 3805 3812 3933 4012 4048 4061 4068 4073
+site blk.3.attn_q.weight 10 0
+site blk.3.ffn_down.weight 11 16 1017 1811 1829 2455 2978 3154 3274 3459 3652 3763 4028 4093 4228 5272 5644 6029
+site blk.3.ffn_gate.weight 7 8 1 2 9 11 58 77 373 1064
+site blk.30.attn_output.weight 8 0
+site blk.30.attn_q.weight 6 8 1 2 3 4 7 19 26 56
+site blk.30.ffn_down.weight 7 0
+site blk.30.ffn_gate.weight 7 4 7 56 66 73
+site blk.31.attn_output.weight 8 0
+site blk.31.attn_q.weight 6 16 0 1 2 3 4 7 9 12 19 20 26 29 46 56 66 190
+site blk.31.ffn_down.weight 7 0
+site blk.31.ffn_gate.weight 6 0
+site blk.32.attn_output.weight 7 0
+site blk.32.attn_q.weight 5 0
+site blk.32.ffn_down.weight 7 16 7 8 296 856 1116 1131 1251 1628 2548 2764 3728 4246 5360 6407 7261 9388
+site blk.32.ffn_gate.weight 7 4 7 56 73 396
+site blk.33.attn_output.weight 7 0
+site blk.33.attn_q.weight 5 8 0 1 2 3 12 19 26 29
+site blk.33.ffn_down.weight 6 0
+site blk.33.ffn_gate.weight 6 0
+site blk.34.attn_output.weight 7 32 1582 1653 1659 1728 1736 1794 1803 1838 1845 1856 1858 1864 1871 1903 1909 1915 1973 1978 1986 1991 1992 2037 2043 2569 2603 2616 2697 2731 2825 2859 2987 3383
+site blk.34.attn_q.weight 4 0
+site blk.34.ffn_down.weight 3 0
+site blk.34.ffn_gate.weight 6 0
+site blk.35.attn_output.weight 6 0
+site blk.35.attn_q.weight 5 4 0 8 56 396
+site blk.35.ffn_gate.weight 6 4 8 9 27 396
+site blk.4.attn_output.weight 11 0
+site blk.4.attn_q.weight 10 0
+site blk.4.ffn_down.weight 10 0
+site blk.4.ffn_gate.weight 7 0
+site blk.5.attn_output.weight 11 4 2645 2773 3029 3395
+site blk.5.attn_q.weight 10 0
+site blk.5.ffn_down.weight 10 0
+site blk.5.ffn_gate.weight 8 0
+site blk.6.attn_output.weight 7 0
+site blk.6.attn_q.weight 10 16 3 4 5 17 25 26 42 45 79 87 96 106 107 136 220 373
+site blk.6.ffn_down.weight 9 16 351 553 592 740 755 756 1226 1805 2593 3565 3908 5627 6283 6690 7026 8046
+site blk.6.ffn_gate.weight 7 4 4 17 396 564
+site blk.7.attn_output.weight 10 0
+site blk.7.attn_q.weight 9 0
+site blk.7.ffn_down.weight 9 0
+site blk.7.ffn_gate.weight 8 0
+site blk.8.attn_output.weight 10 0
+site blk.8.attn_q.weight 9 4 4 5 96 107
+site blk.8.ffn_down.weight 9 0
+site blk.8.ffn_gate.weight 8 0
+site blk.9.attn_output.weight 10 0
+site blk.9.attn_q.weight 9 8 3 4 5 19 87 96 106 107
+site blk.9.ffn_down.weight 8 0
+site blk.9.ffn_gate.weight 8 0
+site token_embd.weight 4 0

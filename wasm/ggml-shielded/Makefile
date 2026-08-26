@@ -34,6 +34,14 @@ ggml: ggml-test
 # Whole-model runner; needs libllama as well as ggml.
 run: shielded-run
 
+# The calibrator: any q8_0 GGUF libllama can prefill -> its .calib for the C
+# backend. Needs libllama too. Against an ELL engine drop (no source checkout)
+# point the include and lib variables at it:
+#   make calib GGML_LIB=$ELL/lib LLAMA_INC=-I$ELL_HDR/include GGML_INC=-I$ELL_HDR/ggml-include
+#   ./shielded-calib --backend $ELL/lib/libggml-cpu.so model.gguf model.calib
+calib: shielded-calib
+LLAMA_INC ?= -I$(GGML_SRC)/include
+
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -73,7 +81,31 @@ shielded-run: shielded-run.cpp libggml-shielded.so
 	$(CXX) $(CXXFLAGS) -I$(GGML_SRC)/include $(GGML_INC) -o $@ $< \
 	  -L$(GGML_LIB) -lllama -lggml -lggml-base -ldl -Wl,-rpath,$(GGML_LIB)
 
-clean:
-	rm -f $(CORE_OBJ) ggml-shielded-dl.o shielded-probe field-selftest prepare-selftest half-selftest ggml-shielded.o ggml-test shielded-run libggml-shielded.so
+# shielded-field.o is the SAME object the backend links, -ffp-contract=off and
+# all: the calibrator's w_fixed must be the runtime's, byte for byte, or the
+# exponent it picks is for a product the runtime never forms.
+shielded-calib: shielded-calib.cpp shielded-field.o shielded-field.h
+	$(CXX) $(CXXFLAGS) $(LLAMA_INC) $(GGML_INC) -o $@ shielded-calib.cpp shielded-field.o \
+	  -L$(GGML_LIB) -lllama -lggml -lggml-base $(LDLIBS) -Wl,-rpath,$(GGML_LIB)
 
-.PHONY: all clean ggml run
+# Exchange-count amortiser benches (`make bench`): the same link line as
+# shielded-run, backend modules loaded by path at run time (BACKENDS env), so
+# cpu / cuda / shielded rows come from identical engine code.
+#   bench-batch  ms per decode step of M rows (a verify pass of K=M-1 drafts,
+#                or M concurrent users): the batch-width cost curve.
+#   bench-spec   real MTP self-drafting speculation through libenclave_llama's
+#                own verbs (draft2 / decode_seq_full / rewind / harvest).
+bench: bench-batch bench-spec
+
+bench-batch: bench-batch.cpp
+	$(CXX) $(CXXFLAGS) -I$(GGML_SRC)/include $(GGML_INC) -o $@ $< \
+	  -L$(GGML_LIB) -lllama -lggml -lggml-base -ldl -Wl,-rpath,$(GGML_LIB)
+
+bench-spec: bench-spec.cpp ../llama-shim/enclave_llama.h
+	$(CXX) $(CXXFLAGS) -I$(GGML_SRC)/include $(GGML_INC) -I../llama-shim -o $@ $< \
+	  -L$(GGML_LIB) -lenclave_llama -lllama -lggml -lggml-base -ldl -Wl,-rpath,$(GGML_LIB)
+
+clean:
+	rm -f $(CORE_OBJ) ggml-shielded-dl.o shielded-probe field-selftest prepare-selftest half-selftest ggml-shielded.o ggml-test shielded-run shielded-calib libggml-shielded.so bench-batch bench-spec
+
+.PHONY: all clean ggml run calib bench

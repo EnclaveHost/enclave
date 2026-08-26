@@ -292,6 +292,45 @@ only (`m == 1`); prefill offload is not the throughput win and dropping it close
 at no cost. Recorded here rather than silently fixed because it is a placement policy, not a
 masking property, and the trade belongs to whoever tunes the tier.
 
+### 7c. Re-run after the throughput rewrite (2026-08-26, later the same day)
+
+The pad pool's slot lifecycle changed in the second optimisation round (pads consumed in
+place from a ring with held and reserved regions, refill threads writing outside the lock,
+pool warm-up, a cache of a group's products across ggml splits), the worker gained a graph
+cache and mapped-memory output, and the backend a reconnect path. Everything in 7b was run
+again against that stack (`evil_worker.py` capturing, `evil_active2.py` corrupting; the
+0.5B model; 10 captured runs, 63,338 masked plane-rows, ~1.2 GB of transcript), plus the
+cases the new code made possible. No plaintext recovered; no pad reused; every corruption
+aborted.
+
+| attack | result |
+|---|---|
+| same prompt twice, exchange-aligned | 0/14121 planes reproduced; mean \|corr\| 0.019 = noise |
+| marginal uniformity (13.4M values per plane) | chi2 246/248/204 vs df 250/240/238 |
+| pad reuse: ring depth 1 and 2 x refill threads 1/4/8, 4707 exchanges each; batched m=4 (9607 rows) and m=8 (16075 rows) at depth 64 / 8 threads; all 63,338 rows pooled | 0 repeated plane-rows; per-site step-to-step diff std 99.1-99.9 (theory 99.5) |
+| ThreadSanitizer build of the ring (depth 2, 8 threads, 3508 exchanges) | 0 races in the shielded code |
+| active: one element +1 -- first element; LAST element of the LAST node of a 2-node exchange; row 3 of an m=4 batched exchange | all three: verification FAILED, llama_decode -3, verify_fail=1, the reply never used |
+| known-pad-position (228 clear pad values per token, 32 of them on lm_head) | uniform (chi2 219-287); autocorrelation lags 1..64 max 0.010-0.022 (noise); R^2 0.00002-0.005 |
+| TEE-side stress (`sh_link_gemm` directly): depth 1..16, threads 0..8, m 1..8, ~76,000 rows, with injected reply corruption, injected write failures, truncated replies and 28 in-flight restarts | 0 duplicate pads (recovered from the wire as crt(planes) - x); every corrupted reply SH_ERR_VERIFY; a field wrap caught on exchange 1 |
+
+Two things the review found and this revision fixed, neither a leak: a weight registered
+AFTER the pool started changed the refill threads' row stride under them (heap overflow,
+ASan-confirmed; the pool now stops and drops its rings before any group changes), and a
+worker answering a FIELD_GEMM with an oversize or wrong-length frame was classified as
+"this node's shape" rather than a misbehaving peer, so the tenant kept shipping a pad per
+group per token to a worker whose replies it could not use (now: link down, reconnect
+with backoff). The worker itself gained bounds it lacked: a nesting limit in its JSON
+reader, shape and allocation bounds before any size arithmetic, a frame cap for
+FIELD_GEMM, and a catch-all that turns any C++ exception into a refusal -- five
+hand-written frames used to kill the process (and with it every tenant on the card).
+Availability is not something this design promises, but a crash is not the same as a
+refusal, and the launcher's 2-second restart was covering for it.
+
+Unchanged by all of this: what crosses the wire. The masked planes are the same
+bytes under the same pads drawn from the same ChaCha20 bank; the group-completion
+cache asks the worker for MORE products of the SAME masked planes (public weights times
+a ciphertext it already holds), and returns them only for a byte-identical activation.
+
 ## 8. Provenance
 
 Constructions are used as cited, not adapted: Slalom (additive OTP over `Z_p`, preprocessed

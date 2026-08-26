@@ -59,7 +59,11 @@ typedef struct {
     size_t       len2;
 } sh_frame;
 
-/* One inbound response. `data` is owned by the sh_reply and freed with it. */
+/* One inbound response. `data` points into a buffer the PIPE owns and reuses
+ * on the next exchange: read it before exchanging again, and never free it.
+ * sh_reply_free only clears the view, so existing call sites stay correct.
+ * The buffer grows monotonically to the largest reply seen and dies with the
+ * pipe -- which is what makes a decode exchange allocation-free. */
 typedef struct {
     uint8_t  status;
     uint8_t *data;
@@ -76,7 +80,8 @@ const char *sh_pipe_last_error(const sh_pipe *p);
  * makes a masked exchange (SET_TENSOR, RECOMPUTE, GET_TENSOR) cost one RTT
  * instead of three; at 32 layers that is the difference between transport being
  * a rounding error and the second-largest term in the token budget.
- * Caller frees each reply with sh_reply_free. */
+ * Replies borrow the pipe's buffer (see sh_reply); a batch of up to 16 frames
+ * allocates nothing. */
 int sh_pipe_exchange(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply *out);
 
 /* Convenience: one frame, one response. */
