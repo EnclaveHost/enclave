@@ -5,6 +5,7 @@ dist/
 # more copies of a ~220 MB initramfs. `dist/` alone did not cover them.
 dist.new/
 dist.prev/
+dist.prev.bak/
 *.cpio.gz
 # runtime configs carry the tunnel token — keep them out of git (commit only the example)
 config.json
