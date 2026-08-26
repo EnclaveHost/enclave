@@ -235,6 +235,49 @@ unusual enough to overflow, or I was caught lying".
 6. **TwinShield prefill is used only where m is genuinely large.** A short prompt is a small
    m. The threshold must be enforced in code, not assumed from typical usage.
 
+## 7b. Red-team, 2026-08-26 (against the production C stack)
+
+Section 2's transcript check is the numpy oracle. This is the same discipline applied to the
+code that actually ships -- the C link (`shielded-tee.c`), the CUDA worker
+(`shielded/worker-cuda`), and the pad POOL added for throughput -- because the pool was new
+code touching the one invariant (one-time use) whose failure is a total break. The worker was
+replaced wholesale with an adversary (a throwaway ~150-line Python worker) that returns
+correct products so the tenant run proceeds while writing every byte it receives to disk; the
+captured transcript is then attacked. Every masked activation was also dumped in plaintext from inside
+the backend (env-gated, reverted) so the attacks could be SCORED against ground truth rather
+than assumed to fail.
+
+| attack | breaks the tier if | result |
+|---|---|---|
+| same prompt run twice, compare exchange-aligned planes | pad is deterministic or reused | 0/591 planes reproduced; mean \|corr\| 0.010 < 0.019 noise floor |
+| marginal uniformity of each residue plane | pad is biased | uniform (chi2 247/272/222 vs ~302) |
+| pad reuse, pool at depth 1 with 4 refill threads, 1963 exchanges | ring/refill race reissues a pad | 0 repeats in 5889 plane-rows; slow-decode site diff std 101.9 (full noise) |
+| ground-truth likelihood: pad from the TRUE x vs from a WRONG x | transcript favours the true input | both uniform (chi2 271 vs 261) -- equal likelihood, i.e. perfect secrecy |
+| use the masked value as the estimate of x | masked value tracks x | \|corr\| 0.018 (noise) |
+| active worker returns one corrupted element | abort/no-abort becomes a read oracle | Freivalds aborts the request (`llama_decode -3`); learns about `s`, not `x`; output never reaches the worker |
+| known-pad-position: outlier channels are zeroed, so at those PUBLIC indices the worker sees `r` in the clear | keystream has cross-position structure | pad autocorrelation ~0.0007 at every lag; R^2 predicting one pad position from another = 0.00000 |
+
+The known-pad-position attack is the one that a marginal-uniformity check does not cover and a
+weak-PRNG masking scheme would fail: the operator legitimately observes real pad values (776
+of them, at the public outlier indices where `x` is held back to the TEE, confirmed to carry
+zero true activation), and still cannot extrapolate the pad by a single position. ChaCha20 is
+a CSPRNG; partial keystream does not predict the rest.
+
+No plaintext prompt or response was recovered, and the ground-truth likelihood test shows why
+it is not a matter of effort: the transcript is equally consistent with every input of the
+same shape. The throughput work (pad pool, one-frame CUDA worker, vsock, shared-x grouping,
+decode-only placement) changed WHEN the pad is drawn and HOW FAST it ships, never WHAT crosses.
+
+**The one thing the operator does learn is shape metadata**, which §1's model already treats as
+public: the count of generated tokens (each decode step is a fixed burst of `m=1` exchanges),
+and -- because a prompt of <= `SHIELDED_MAX_M` (8) tokens has its prefill offloaded at batch
+width `m = token count` -- the LENGTH of a short prompt. Content stays masked in every case
+(the short-prefill planes are uniform, chi2 228-258). Longer prompts keep prefill in the
+enclave, hiding even their length. If short-prompt length must also be hidden, offload decode
+only (`m == 1`); prefill offload is not the throughput win and dropping it closes the channel
+at no cost. Recorded here rather than silently fixed because it is a placement policy, not a
+masking property, and the trade belongs to whoever tunes the tier.
+
 ## 8. Provenance
 
 Constructions are used as cited, not adapted: Slalom (additive OTP over `Z_p`, preprocessed
