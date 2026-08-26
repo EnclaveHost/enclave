@@ -36,4 +36,12 @@ jobs:
         run: npm ci --omit=dev
         working-directory: cli
       - name: Sweep approved catalog CIDs against the pin gateway
-        run: node scripts/catalog-pin-sweep.mjs | tee "$GITHUB_STEP_SUMMARY"
+        # pipefail or this step can NEVER fail: Actions runs `bash -e` WITHOUT
+        # pipefail, so the pipeline status is tee's 0 and the sweep's exit 1 is
+        # discarded. Run 32799457126 printed "FAIL: 1 CID(s) missing" and
+        # reported success; every scheduled run after it was green for the same
+        # reason. The alarm existed for months and could not ring.
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/catalog-pin-sweep.mjs | tee "$GITHUB_STEP_SUMMARY"

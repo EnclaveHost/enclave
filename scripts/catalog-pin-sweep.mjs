@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // catalog-pin-sweep.mjs — every approved, non-yanked catalog version must be
 // SERVABLE: its wasm CID (and its config CID, when the version keeps one at a
-// CID) answers on the pin gateway. Run it and the answer is yes, or the exit
-// code is 1 with a per-CID report of what the fleet cannot launch.
+// CID) answers on the pin gateway AS A CAR CARRYING ITS ROOT BLOCK, which is
+// the only form the runner can launch from. Run it and the answer is yes, or
+// the exit code is 1 with a per-CID report of what the fleet cannot launch.
 //
 // Why this exists (2026-08-20): after the ipfs.enclave.host cutover, 27 of 29
 // approved apps' wasm silently 404'd on the gateway. Nothing alarmed — apps
@@ -31,9 +32,14 @@ import { createRequire } from "node:module";
 
 const pexec = promisify(execFile);
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-// viem resolved exactly as the CLI resolves it (the workflow installs cli/
-// deps); decoding getPage's dynamic tuples by hand is not worth owning.
-const viem = createRequire(path.join(REPO, "cli", "package.json"))("viem");
+// viem resolved exactly as the CLI resolves it (the pin-check workflow installs
+// cli/ deps); decoding getPage's dynamic tuples by hand is not worth owning.
+// LAZY on purpose: test/catalog-pin-sweep.test.mjs imports this module only for
+// the CAR reader, and that reader has no business needing a chain library to
+// load. viem currently resolves up to the root node_modules, so an eager
+// require happens to work — this keeps it working if that ever stops being true.
+let _viem = null;
+const viem = () => (_viem ??= createRequire(path.join(REPO, "cli", "package.json"))("viem"));
 
 const GATEWAY = (process.env.GATEWAY || "https://ipfs.enclave.host").replace(/\/+$/, "");
 const SKIP = new Set((process.env.SKIP_CIDS || "").split(",").map((s) => s.trim()).filter(Boolean));
@@ -111,9 +117,9 @@ async function deploymentEnvelopeCids() {
   const ledger = await bookAddress("deployments");
   const out = [];
   for (let start = 0; ; start += 100) {
-    const data = viem.encodeFunctionData({ abi: DEP_PAGE_ABI, functionName: "getPage",
+    const data = viem().encodeFunctionData({ abi: DEP_PAGE_ABI, functionName: "getPage",
       args: [BigInt(start), 100n] });
-    const page = viem.decodeFunctionResult({ abi: DEP_PAGE_ABI, functionName: "getPage",
+    const page = viem().decodeFunctionResult({ abi: DEP_PAGE_ABI, functionName: "getPage",
       data: await ethCall(ledger, data) });
     for (const d of page) {
       if (!d.active && d.balance6 === 0n) continue;
@@ -129,23 +135,164 @@ async function deploymentEnvelopeCids() {
   return out;
 }
 
-// One ranged read per CID. 200/206 = served; 404/410 (or the adapter's
-// index-miss JSON) = MISSING; anything else retries as weather (the gateway
-// rate-limits per IP, so the sweep is SERIAL with a gap on purpose — a
-// parallel sweep reads as one big connect-failure and proves nothing).
+// ---- CARv1, just enough of it to answer "can the runner actually launch this?"
+//
+// The plain path is NOT the check. The runner prefetches a CAR
+// (wasm/ipfs_fetch.py fetch_verified -> ?format=car&dag-scope=all) and refuses
+// with "CAR does not contain the requested CID" unless the root arrives as a
+// BLOCK. nan's local kubo answers a CID it does not have with HTTP 200 and a
+// 59-byte header-only CAR — a valid CARv1 naming the root in its `roots` array
+// and carrying no blocks at all. Nothing in that exchange looks like an error.
+// A plain-path sweep therefore green-lights a gateway the fleet cannot launch
+// from, which is exactly what happened on 2026-08-26: this script reported
+// "1 CID missing" while the runner was failing to prefetch one of the 140 it
+// had just passed. So skip the header exactly as parse_car does and look for
+// the root among the block entries.
+const CAR_SCAN_CAP = 16 * 1024 * 1024;   // the root block comes first; this is slack, not a budget
+
+const B32 = "abcdefghijklmnopqrstuvwxyz234567";
+const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+function cidStrToBytes(str) {
+  if (str.startsWith("b")) {                       // CIDv1, base32 lower, rfc4648, no pad
+    let bits = 0, acc = 0;
+    const out = [];
+    for (const ch of str.slice(1)) {
+      const v = B32.indexOf(ch);
+      if (v < 0) throw new Error(`bad base32 char ${ch} in ${str}`);
+      acc = (acc << 5) | v; bits += 5;
+      if (bits >= 8) { bits -= 8; out.push((acc >> bits) & 0xff); }
+    }
+    return Buffer.from(out);
+  }
+  if (str.startsWith("Qm")) {                      // CIDv0, base58btc
+    const n = [0];
+    for (const ch of str) {
+      const v = B58.indexOf(ch);
+      if (v < 0) throw new Error(`bad base58 char ${ch} in ${str}`);
+      let carry = v;
+      for (let i = 0; i < n.length; i++) { carry += n[i] * 58; n[i] = carry & 0xff; carry >>= 8; }
+      while (carry) { n.push(carry & 0xff); carry >>= 8; }
+    }
+    for (let i = 0; i < str.length && str[i] === "1"; i++) n.push(0);
+    return Buffer.from(n.reverse());
+  }
+  throw new Error(`unsupported CID encoding: ${str}`);
+}
+
+// [value, nextPos] — or null when the buffer stops mid-varint (need more bytes)
+function uvarint(buf, pos) {
+  let x = 0, shift = 0;
+  for (let i = pos; i < buf.length; i++) {
+    const b = buf[i];
+    x += (b & 0x7f) * 2 ** shift;
+    if ((b & 0x80) === 0) return [x, i + 1];
+    shift += 7;
+    if (shift > 63) throw new Error("varint too long");
+  }
+  return null;
+}
+
+// byte length of the CID sitting at `pos` — or null when the buffer is short
+function cidLen(buf, pos) {
+  if (pos + 2 > buf.length) return null;
+  if (buf[pos] === 0x12 && buf[pos + 1] === 0x20)  // CIDv0: sha2-256, 32 bytes
+    return pos + 34 <= buf.length ? 34 : null;
+  let r = uvarint(buf, pos); if (!r) return null;          // version
+  r = uvarint(buf, r[1]);    if (!r) return null;          // codec
+  r = uvarint(buf, r[1]);    if (!r) return null;          // multihash code
+  r = uvarint(buf, r[1]);    if (!r) return null;          // digest length
+  const end = r[1] + r[0];
+  return end <= buf.length ? end - pos : null;
+}
+
+// Stream the CAR only until the root block shows up, then hang up: the root is
+// emitted first, so this reads a few KB off a 55 MB app rather than the lot.
+async function fetchCarRoot(cid) {
+  const want = cidStrToBytes(cid);
+  const r = await fetch(`${GATEWAY}/ipfs/${cid}?format=car&dag-scope=all`,
+    { headers: { accept: "application/vnd.ipld.car" }, signal: AbortSignal.timeout(60_000) });
+  if (r.status !== 200 && r.status !== 206) {
+    const body = (await r.text().catch(() => "")).slice(0, 200);
+    return { status: r.status, body, found: false, total: 0 };
+  }
+  const { found, total, truncated } = await carHasRoot(r.body, want);
+  return { status: r.status, found, total, truncated, body: "" };
+}
+
+// Scan a CARv1 byte stream for `want` among the BLOCK entries, stopping the
+// moment it appears. Chunk boundaries fall anywhere, so every read is
+// resumable: a frame that runs past what we hold is skipped forward through
+// `pending` rather than buffered whole.
+async function carHasRoot(stream, want) {
+  const reader = stream.getReader();
+  let buf = Buffer.alloc(0), pending = 0, total = 0;
+  let headerDone = false, found = false, truncated = false;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.length;
+      let chunk = Buffer.from(value);
+      if (pending) {                                  // discarding a block we already judged
+        const n = Math.min(pending, chunk.length);
+        pending -= n; chunk = chunk.subarray(n);
+      }
+      if (chunk.length) {
+        buf = buf.length ? Buffer.concat([buf, chunk]) : chunk;
+        let pos = 0;
+        for (;;) {
+          const v = uvarint(buf, pos); if (!v) break;
+          const [len, afterLen] = v;
+          const end = afterLen + len;
+          if (!headerDone) {                          // header names the roots; blocks are the proof
+            if (end > buf.length) break;
+            pos = end; headerDone = true; continue;
+          }
+          const cl = cidLen(buf, afterLen);
+          if (cl === null) break;
+          if (buf.subarray(afterLen, afterLen + cl).equals(want)) { found = true; break; }
+          if (end <= buf.length) { pos = end; continue; }
+          pending = end - buf.length; buf = Buffer.alloc(0); pos = 0; break;
+        }
+        if (found) break;
+        if (pos) buf = buf.subarray(pos);
+      }
+      if (total > CAR_SCAN_CAP) { truncated = true; break; }
+    }
+  } finally { try { await reader.cancel(); } catch {} }
+  return { found, total, truncated };
+}
+
+// Diagnostic only, and only when the CAR check has already failed: "plain 200,
+// CAR 59 B" is the kubo-fallback signature and worth naming in the report.
+async function plainStatus(cid) {
+  try {
+    const r = await fetch(`${GATEWAY}/ipfs/${cid}`, { headers: { range: "bytes=0-99" },
+      signal: AbortSignal.timeout(20_000) });
+    try { await r.body?.cancel(); } catch {}
+    return `HTTP ${r.status}`;
+  } catch { return "no response"; }
+}
+
+// One CAR probe per CID. Root block present = launchable; 404/410 (or the
+// adapter's index-miss JSON) or a rootless CAR = MISSING; anything else retries
+// as weather (the gateway rate-limits per IP, so the sweep is SERIAL with a gap
+// on purpose — a parallel sweep reads as one big connect-failure and proves
+// nothing).
 async function probe(cid) {
   for (let attempt = 0; ; attempt++) {
-    let status = 0, bodyStart = "";
-    try {
-      const r = await fetch(`${GATEWAY}/ipfs/${cid}`, { headers: { range: "bytes=0-99" },
-        signal: AbortSignal.timeout(20_000) });
-      status = r.status;
-      if (status !== 200 && status !== 206) bodyStart = (await r.text().catch(() => "")).slice(0, 200);
-      else try { await r.body?.cancel(); } catch {}
-    } catch { /* connect/timeout: transient */ }
-    if (status === 200 || status === 206) return { ok: true };
-    if (status === 404 || status === 410 || /not in this gateway's index/i.test(bodyStart))
+    let res = null;
+    try { res = await fetchCarRoot(cid); } catch { /* connect/timeout: transient */ }
+    if (res?.found) return { ok: true };
+    const status = res?.status ?? 0;
+    if (status === 404 || status === 410 || /not in this gateway's index/i.test(res?.body || ""))
       return { ok: false, kind: "MISSING", detail: `HTTP ${status}` };
+    if (res && (status === 200 || status === 206) && !res.truncated)
+      return { ok: false, kind: "MISSING",
+               detail: `CAR of ${res.total} B carries no root block (plain path: ${await plainStatus(cid)})` };
+    if (res?.truncated)
+      return { ok: false, kind: "UNREACHABLE",
+               detail: `no root block in the first ${CAR_SCAN_CAP} B of the CAR` };
     if (attempt >= 2) return { ok: false, kind: "UNREACHABLE", detail: status ? `HTTP ${status}` : "no response" };
     await sleep(status === 429 ? 5000 : 2000 * (attempt + 1));
   }
@@ -213,4 +360,10 @@ async function main() {
   process.exit(1);
 }
 
-main().catch((e) => { console.error(e.stack || String(e)); process.exit(1); });
+// Importable so test/catalog-pin-sweep.test.mjs can exercise the CAR reader
+// against hand-built CARs — a parser that says "root present" when it is not is
+// the exact failure this whole script exists to catch.
+export { cidStrToBytes, uvarint, cidLen, carHasRoot };
+
+if (path.resolve(process.argv[1] || "") === fileURLToPath(import.meta.url))
+  main().catch((e) => { console.error(e.stack || String(e)); process.exit(1); });
