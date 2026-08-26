@@ -777,3 +777,97 @@ Two things are still on the table if the number needs to move again: the tenant'
 engine runs the CPU half of the graph on 4 threads (an engine-side knob, not a
 backend one), and prefill is in the clear on those same 4 threads, which is most of
 the 2.2 s. Neither is a shielded-path cost.
+
+---
+
+# 12. What shielding costs (revision 2026-08-26)
+
+Section 11 made the tier fast. This measures what it still costs, against the same
+card running the same model unmasked -- the comparison the tier has never had,
+because until now there was no engine to run both through.
+
+## 12.1 Method
+
+One engine (the ELL build's own libllama/libggml 0.18), one model
+(Qwen2.5-0.5B-Instruct q8_0), one card (RTX 3070), one prompt, medians of three
+runs on an idle box (load 0.18). Only the BACKEND MODULE changes between rows, so
+the difference is the backend and nothing else. Every row produced the same
+completion text, which is the check that a fast row is not a broken one.
+
+A false start worth recording: the first "unmasked GPU" row measured 167 tok/s,
+suspiciously equal to the CPU row. It was CPU -- `libggml-cuda.so` had failed to
+load for want of `libcudart.so.12` and the run silently fell back. A baseline
+that matches the thing it is supposed to beat is a bug, not a result. Checking
+the device list rather than the number is what caught it.
+
+## 12.2 The numbers
+
+| backend | decode tok/s | ms/token | vs unmasked |
+|---|---|---|---|
+| unmasked GPU (CUDA, full offload) | 381.2 | 2.62 | 1.00x |
+| CPU in the enclave, 8 threads | 166.2 | 6.02 | 2.30x |
+| **shielded (masked offload)** | **159.5** | **6.27** | **2.39x** |
+| shielded with no worker (int64 fallback) | 6.2 | 162.50 | 62x |
+
+**Shielding costs 2.4x against the same card unmasked.** That is the number the
+kill criterion cares about, and it is inside the 5x line at batch 1 -- where the
+criterion is stated at batch >= 4, and batching amortises the term that dominates.
+
+## 12.3 Where the 2.4x goes, and it is not the cryptography
+
+Per shielded token (measured, `SHIELDED_PROFILE`, 6.77 ms):
+
+| term | ms/token | share |
+|---|---|---|
+| **transport / round trips** | **3.79** | **56%** |
+| CPU half of the graph (attention, norms, small projections) | 1.24 | 18% |
+| mask (pad issue + residue split) | 0.54 | 8% |
+| verify (Freivalds) | 0.43 | 6% |
+| refill landing on the request path | 0.31 | 5% |
+| encode / descale / unmask | 0.45 | 7% |
+
+Everything cryptographic -- masking, verification, unmasking, the field encoding
+-- totals **1.42 ms/token, 21%**. The round trips alone are 3.79 ms, which is
+MORE than an entire unmasked token (2.62 ms). So the tier's overhead is a
+STRUCTURAL property of splitting a sequential graph across a boundary, not a
+price paid for the one-time pads. Halving the exchange count would buy more than
+making the cryptography free.
+
+## 12.4 The finding that decides where this tier is worth deploying
+
+At 8 threads the shielded path (159.5) is slightly SLOWER than simply running the
+model on the enclave's own CPU (166.2). On this box, at this model size, the card
+does not pay for itself.
+
+It reverses as the CPU gets scarcer, which is the situation a real tenant is in --
+a tenant buys a FRACTION of a node, not all of it:
+
+| CPU threads | CPU tok/s | shielded tok/s | shielded wins? |
+|---|---|---|---|
+| 4 (llama.cpp's in-CVM default) | 135.2 | **140.6** | yes |
+| 8 | 167.7 | 152.8 | no |
+| 16 | 164.1 | 142.8 | no |
+
+The shielded path moves the matmuls off the CPU, so it is far less thread-hungry:
+it loses only 8% going from 8 threads to 4, where the CPU path loses 19%.
+
+The other axis is model size, and it is NOT measured here because only one model
+has calibration. The reasoning is one-directional and worth stating as a
+prediction rather than a result: CPU decode is bandwidth-bound over the weights,
+so it falls roughly linearly with model size (this report's own 8B q8_0 CPU
+baseline is 13.8 tok/s, against 0.5B's ~166), while the shielded path's dominant
+term -- ~49 round trips per token -- is FIXED and its GPU term grows with the
+card's bandwidth rather than the CPU's. If that holds, the crossover is well below
+8B and the tier's value is concentrated in models too big for a CVM's CPU. **The
+next measurement worth taking is a calibrated larger q8_0 model**; until then, the
+honest claim is that shielding is a wash at 0.5B and unproven above it.
+
+## 12.5 In the CVM, end to end
+
+The deployed eyesoff.ai instance on metal0 (85% of the shielded card, over vsock,
+through the relay, measured from outside) decodes at **99-136 tok/s**. That is the
+same order as the host-loopback figure above and lands between the 4- and 8-thread
+rows, which is what a tenant holding 20% of a 16-vCPU node should see.
+
+Not measured: the same app deployed WITHOUT shielding on the same box. That needs
+a second funded lease, and would close the last cell of this table.
