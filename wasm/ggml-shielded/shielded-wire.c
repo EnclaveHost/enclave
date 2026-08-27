@@ -12,6 +12,7 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <limits.h>
+#include <time.h>
 #include <unistd.h>
 
 /* A single frame is capped well below the point where a bad length header could
@@ -152,8 +153,45 @@ static int write_all(int fd, struct iovec *iov, int iovcnt) {
     return SH_OK;
 }
 
+/* How long a reply read spins before it blocks, in microseconds.
+ *
+ * Inside a CVM a blocking read is a vCPU halt, and getting the thread back is
+ * an interrupt injected into an SEV-SNP guest plus the VM exits around it --
+ * tens of microseconds each way, paid 49 times per token, and the term that
+ * the host-loopback measurements never see. The reply to a decode exchange
+ * arrives ~50-150 us after the request went out, so a bounded spin on a
+ * non-blocking receive catches almost every reply with the vCPU still
+ * running; a long one (lm_head, a cold worker) falls through to the blocking
+ * read after the budget. Costs one core for the spin, which this thread was
+ * spending in the halt anyway.
+ *
+ * OFF by default: it is an in-guest experiment, not a measured win. On the
+ * host it is a wash over TCP (-2 us) and a LOSS over vsock loopback (+10 to
+ * +24 us: the spinner starves the loopback transport's kernel worker on its
+ * own CPU), and the guest, where it should pay, is exactly where it has not
+ * been measured. Set SHIELDED_SPIN_US in the tenant's environment to try it. */
+static int spin_us(void) {
+    static int v = -1;
+    if (v < 0) { const char *e = getenv("SHIELDED_SPIN_US"); v = (e && *e) ? atoi(e) : 0; if (v < 0) v = 0; }
+    return v;
+}
+
 static int read_all(int fd, void *buf, size_t n) {
     uint8_t *p = (uint8_t *)buf;
+    const int budget = spin_us();
+    if (budget > 0) {
+        struct timespec t0, t1; clock_gettime(CLOCK_MONOTONIC, &t0);
+        for (int spins = 0; n; spins++) {
+            ssize_t r = recv(fd, p, n, MSG_DONTWAIT);
+            if (r > 0) { p += r; n -= (size_t)r; continue; }
+            if (r == 0) return SH_ERR_IO;
+            if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) return SH_ERR_IO;
+            if ((spins & 63) == 63) {
+                clock_gettime(CLOCK_MONOTONIC, &t1);
+                if ((t1.tv_sec - t0.tv_sec) * 1000000L + (t1.tv_nsec - t0.tv_nsec) / 1000L > budget) break;
+            }
+        }
+    }
     while (n) {
         ssize_t r = read(fd, p, n);
         if (r < 0) { if (errno == EINTR) continue; return SH_ERR_IO; }

@@ -764,8 +764,27 @@ struct JParser {
  * Socket helpers. Frames: | cmd u8 | size u64 LE | payload |, responses
  * | status u8 | size u64 LE | payload |. A violation is the last frame.
  * ------------------------------------------------------------------------ */
+/* The next frame usually follows the reply by the TEE's share of a token
+ * (~50-100 us): spin on a non-blocking receive for that long before blocking,
+ * so the wake-up on the host is not on the round trip. This thread serves one
+ * connection and nothing else. SHIELDED_WORKER_SPIN_US, default 0 = off:
+ * measured -1.6 us on TCP loopback and +2.7 us on vsock loopback, i.e. not
+ * worth a spinning core until a guest measurement says otherwise. */
+static int g_spin_us = -1;
 static bool read_exact(int fd, void *buf, size_t n) {
     uint8_t *p = (uint8_t *)buf;
+    if (g_spin_us < 0) { const char *e = getenv("SHIELDED_WORKER_SPIN_US"); g_spin_us = (e && *e) ? std::max(0, atoi(e)) : 0; }
+    if (g_spin_us > 0) {
+        const auto t0 = std::chrono::steady_clock::now();
+        for (int spins = 0; n; spins++) {
+            ssize_t r = recv(fd, p, n, MSG_DONTWAIT);
+            if (r > 0) { p += r; n -= (size_t)r; continue; }
+            if (r == 0) return false;
+            if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) return false;
+            if ((spins & 63) == 63 &&
+                std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count() > g_spin_us) break;
+        }
+    }
     while (n) {
         ssize_t r = read(fd, p, n);
         if (r < 0) { if (errno == EINTR) continue; return false; }
