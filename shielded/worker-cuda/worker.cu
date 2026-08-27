@@ -123,6 +123,10 @@ static std::string fmt(const char *f, ...) {
 }
 #define VIOLATE(...) throw Violation(fmt(__VA_ARGS__))
 
+/* Device memory comes from the reserved budget pool (defined with it below). */
+static cudaError_t dmalloc(void **p, size_t n);
+static void dfree(void *p);
+
 static bool g_quiet = false;
 #ifdef SH_XPROF
 static double g_xp[16]; static uint64_t g_xpn; static std::chrono::steady_clock::time_point g_xpt;
@@ -547,9 +551,9 @@ static bool selftest_one(int K, int N, int m, int nn, cudaStream_t s, uint64_t &
                 ref[((size_t)q * m + r) * N + j] = (int32_t)sh_balanced(acc);
             }
     int8_t *dW = nullptr, *dX = nullptr; int32_t *dY = nullptr;
-    ck(cudaMalloc(&dW, W.size()), "selftest malloc");
-    ck(cudaMalloc(&dX, X.size()), "selftest malloc");
-    ck(cudaMalloc(&dY, ref.size() * 4), "selftest malloc");
+    ck(dmalloc((void **)&dW, W.size()), "selftest malloc");
+    ck(dmalloc((void **)&dX, X.size()), "selftest malloc");
+    ck(dmalloc((void **)&dY, ref.size() * 4), "selftest malloc");
     ck(cudaMemcpy(dW, W.data(), W.size(), cudaMemcpyHostToDevice), "selftest copy");
     ck(cudaMemcpy(dX, X.data(), X.size(), cudaMemcpyHostToDevice), "selftest copy");
     ck(cudaMemset(dY, 0x7f, ref.size() * 4), "selftest clear");
@@ -566,7 +570,7 @@ static bool selftest_one(int K, int N, int m, int nn, cudaStream_t s, uint64_t &
     ck(cudaStreamSynchronize(s), "selftest sync");
     std::vector<int32_t> got(ref.size());
     ck(cudaMemcpy(got.data(), dY, got.size() * 4, cudaMemcpyDeviceToHost), "selftest readback");
-    cudaFree(dW); cudaFree(dX); cudaFree(dY);
+    dfree(dW); dfree(dX); dfree(dY);
     /* The int64 product is far outside Z_M here; balanced() folds it, which is
      * exactly what the GPU's residue arithmetic does implicitly. */
     for (size_t i = 0; i < ref.size(); i++)
@@ -613,9 +617,9 @@ static bool selftest() {
 static double measure_gmacs() {
     const int K = 4096, N = 4096, m = 8, iters = 20;
     int8_t *dW = nullptr, *dX = nullptr; int32_t *dY = nullptr;
-    if (cudaMalloc(&dW, (size_t)N * K) != cudaSuccess) return 0.0;
-    if (cudaMalloc(&dX, (size_t)3 * m * K) != cudaSuccess) { cudaFree(dW); return 0.0; }
-    if (cudaMalloc(&dY, (size_t)m * N * 4) != cudaSuccess) { cudaFree(dW); cudaFree(dX); return 0.0; }
+    if (dmalloc((void **)&dW, (size_t)N * K) != cudaSuccess) return 0.0;
+    if (dmalloc((void **)&dX, (size_t)3 * m * K) != cudaSuccess) { dfree(dW); return 0.0; }
+    if (dmalloc((void **)&dY, (size_t)m * N * 4) != cudaSuccess) { dfree(dW); dfree(dX); return 0.0; }
     cudaMemset(dW, 1, (size_t)N * K); cudaMemset(dX, 1, (size_t)3 * m * K);
     cudaDeviceSynchronize();
     cudaStream_t s; cudaStreamCreateWithFlags(&s, cudaStreamNonBlocking);
@@ -626,7 +630,7 @@ static double measure_gmacs() {
     cudaStreamSynchronize(s);
     const double dt = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
     cudaStreamDestroy(s);
-    cudaFree(dW); cudaFree(dX); cudaFree(dY);
+    dfree(dW); dfree(dX); dfree(dY);
     return dt > 0 ? (double)m * K * N * iters / dt / 1e9 : 0.0;
 }
 
@@ -650,8 +654,8 @@ static int kbench() {
     for (auto &sh : shapes) {
         const size_t wb = (size_t)sh.K * sh.N * sh.nn;
         int8_t *dW, *dX; int32_t *dY; int32_t *hY, *dhY;
-        if (cudaMalloc(&dW, wb) != cudaSuccess) { printf("%-26s alloc fail\n", sh.name); continue; }
-        cudaMalloc(&dX, (size_t)3 * sh.m * sh.K); cudaMalloc(&dY, (size_t)sh.m * sh.N * sh.nn * 4);
+        if (dmalloc((void **)&dW, wb) != cudaSuccess) { printf("%-26s alloc fail\n", sh.name); continue; }
+        dmalloc((void **)&dX, (size_t)3 * sh.m * sh.K); dmalloc((void **)&dY, (size_t)sh.m * sh.N * sh.nn * 4);
         cudaHostAlloc((void **)&hY, (size_t)sh.m * sh.N * sh.nn * 4, cudaHostAllocMapped);
         cudaHostGetDevicePointer((void **)&dhY, hY, 0);
         cudaMemset(dW, 3, wb); cudaMemset(dX, 1, (size_t)3 * sh.m * sh.K); cudaDeviceSynchronize();
@@ -676,7 +680,7 @@ static int kbench() {
             printf(" |");
         }
         printf("\n");
-        cudaFree(dW); cudaFree(dX); cudaFree(dY); cudaFreeHost(hY);
+        dfree(dW); dfree(dX); dfree(dY); cudaFreeHost(hY);
     }
     return 0;
 }
@@ -831,6 +835,41 @@ static double g_gmacs = 0.0;
 static std::chrono::steady_clock::time_point g_gmacs_at;
 static cudaDeviceProp g_props;
 
+/* THE BUDGET IS RESERVED, NOT CAPPED.
+ *
+ * --vram-gb used to bound what tenants could allocate, while the worker itself
+ * took device memory from the driver lazily -- so anything else on the card
+ * that started later (a game holding 6.3 GB of the production 3070,
+ * 2026-08-26) took the memory first and the tenant's next allocation failed.
+ * A tenant bought that memory. Now every device allocation goes through the
+ * stream-ordered allocator's default pool, the pool's release threshold is
+ * pinned so freed memory stays reserved to this process, and start-up claims
+ * the whole budget from the driver once: a later neighbour gets only what is
+ * left, and a card that cannot give the budget at start-up is refused --
+ * exit 75, the launcher retries with backoff, the guest withdraws the card
+ * after its refresh strikes and the tenant runs in the enclave until the
+ * budget is there. No budget, no card. */
+static cudaError_t dmalloc(void **p, size_t n) {
+    cudaError_t e = cudaMallocAsync(p, n ? n : 1, 0);
+    if (e == cudaSuccess) e = cudaStreamSynchronize(0);
+    return e;
+}
+static void dfree(void *p) { if (p) { cudaFreeAsync(p, 0); cudaStreamSynchronize(0); } }
+static bool reserve_budget(long long budget) {
+    cudaMemPool_t pool;
+    if (cudaDeviceGetDefaultMemPool(&pool, 0) != cudaSuccess) return false;
+    cuuint64_t keep = UINT64_MAX;                              /* never hand freed memory back to the driver */
+    if (cudaMemPoolSetAttribute(pool, cudaMemPoolAttrReleaseThreshold, &keep) != cudaSuccess) return false;
+    const size_t want = (size_t)budget;
+    void *p = nullptr;
+    if (cudaMallocAsync(&p, want, 0) != cudaSuccess) { cudaGetLastError(); return false; }
+    cudaFreeAsync(p, 0);
+    if (cudaStreamSynchronize(0) != cudaSuccess) return false;
+    cuuint64_t reserved = 0;
+    cudaMemPoolGetAttribute(pool, cudaMemPoolAttrReservedMemCurrent, &reserved);
+    return reserved >= want;
+}
+
 struct Buffer {
     uint64_t bid = 0, size = 0;
     std::string role;
@@ -878,9 +917,10 @@ struct Conn {
 
     Conn(int f, std::string p) : fd(f), peer(std::move(p)) {}
     ~Conn() {
-        for (auto &kv : buffers) if (kv.second.dev) cudaFree(kv.second.dev);
-        for (auto &n : nodes) if (n.w) cudaFree(n.w);
-        if (d_x) cudaFree(d_x);
+        if (stream) cudaStreamSynchronize(stream);          /* nothing in flight before the pool takes the memory back */
+        for (auto &kv : buffers) if (kv.second.dev) dfree(kv.second.dev);
+        for (auto &n : nodes) if (n.w) dfree(n.w);
+        if (d_x) dfree(d_x);
         drop_graphs();
         if (h_in) cudaFreeHost(h_in);
         if (h_out) cudaFreeHost(h_out);
@@ -912,8 +952,8 @@ struct Conn {
     }
     void ensure_dx(size_t n) {
         if (d_x_cap >= n) return;
-        if (d_x) cudaFree(d_x);
-        ck(cudaMalloc((void **)&d_x, n), "device scratch alloc"); d_x_cap = n;
+        if (d_x) dfree(d_x);
+        ck(dmalloc((void **)&d_x, n), "device scratch alloc"); d_x_cap = n;
         drop_graphs();
     }
 
@@ -964,7 +1004,7 @@ struct Conn {
             VIOLATE("allocation exceeds device memory");
         Buffer b; b.bid = next_bid++; b.size = size; b.role = role;
         if (role == "activations") {
-            if (cudaMalloc((void **)&b.dev, size ? size : 1) != cudaSuccess)
+            if (dmalloc((void **)&b.dev, size ? size : 1) != cudaSuccess)
                 VIOLATE("device allocation of %llu failed", (unsigned long long)size);
         } else {
             b.host.assign(size, 0);
@@ -982,7 +1022,7 @@ struct Conn {
         auto it = buffers.find(bid);
         if (it == buffers.end()) VIOLATE("free of unknown buffer %llu", (unsigned long long)bid);
         allocated -= (long long)it->second.size;
-        if (it->second.dev) cudaFree(it->second.dev);
+        if (it->second.dev) dfree(it->second.dev);
         buffers.erase(it);
         return "";
     }
@@ -1098,7 +1138,7 @@ struct Conn {
             }
             {
                 std::lock_guard<std::mutex> lk(g_gpu);
-                if (cudaMalloc((void **)&node.w, wfix.size()) != cudaSuccess)
+                if (dmalloc((void **)&node.w, wfix.size()) != cudaSuccess)
                     VIOLATE("node %zu: device allocation of %zu weight bytes failed", i, wfix.size());
                 ck(cudaMemcpy(node.w, wfix.data(), wfix.size(), cudaMemcpyHostToDevice), "weight upload");
             }
@@ -1434,6 +1474,14 @@ int main(int argc, char **argv) {
          g_props.name, g_props.major, g_props.minor,
          g_props.totalGlobalMem / 1073741824.0, g_vram_budget / 1073741824.0,
          g_props.multiProcessorCount, g_props.clockRate / 1e6, rated_fp16_tflops(g_props));
+    if (!reserve_budget(g_vram_budget)) {
+        size_t freeb = 0, totalb = 0; cudaMemGetInfo(&freeb, &totalb);
+        fprintf(stderr, "[shielded-worker] cannot reserve the %.1f GiB budget: the card has %.1f GiB free (something else holds the rest). "
+                        "No budget, no card: exiting 75 so the launcher retries.\n",
+                g_vram_budget / 1073741824.0, freeb / 1073741824.0);
+        return 75;
+    }
+    logf("reserved %.1f GiB of device memory for the budget", g_vram_budget / 1073741824.0);
     try {
         if (!selftest()) return 1;
     } catch (const Violation &v) { fprintf(stderr, "selftest: %s\n", v.why.c_str()); return 1; }

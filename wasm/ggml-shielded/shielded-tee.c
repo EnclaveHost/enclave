@@ -282,11 +282,13 @@ struct sh_link {
     uint8_t *hdr;     size_t hdr_cap;
 
     uint64_t   exchanges, macs, verify_fail, pads_used, pads_missed;
+    double     last_wire_us;
     char       transport[192];
     char       err[256];
 };
 
 const char *sh_link_transport(const sh_link *l) { return l && l->transport[0] ? l->transport : "not connected"; }
+double sh_link_last_wire_us(const sh_link *l) { return l ? l->last_wire_us : 0.0; }
 
 const char *sh_link_last_error(const sh_link *l) { return l ? l->err : ""; }
 
@@ -950,7 +952,7 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
         sh_frame f = { SH_CMD_FIELD_GEMM, l->hdr, hn, l->planes, (size_t)3 * m * K };
         sh_reply rep;
         rc = sh_pipe_exchange(l->pipe, &f, 1, &rep);
-        double t2 = now_ms(); sh_prof[1] += t2 - t1;
+        double t2 = now_ms(); sh_prof[1] += t2 - t1; l->last_wire_us = (t2 - t1) * 1000.0;
         if (rc != SH_OK) {
             snprintf(l->err, sizeof l->err, "exchange: %s", sh_pipe_last_error(l->pipe));
             /* SH_ERR_PROTO is reserved for THIS link's pre-flight refusals

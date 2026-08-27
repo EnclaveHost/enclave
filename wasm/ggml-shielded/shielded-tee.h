@@ -115,6 +115,11 @@ void sh_link_pool_stats(const sh_link *l, uint64_t *consumed, uint64_t *missed);
 /* Refill threads actually running (derived or from the environment), for logs. */
 int  sh_link_refill_threads(const sh_link *l);
 
+/* The wall time of the last exchange's wire phase (send, wait, receive), in
+ * microseconds: what the backend watches to notice a card that is being
+ * shared with something else. */
+double sh_link_last_wire_us(const sh_link *l);
+
 /* How the worker is reached ("vsock:9500", "tcp 10.0.2.2:9500 ..."), for logs. */
 const char *sh_link_transport(const sh_link *l);
 
