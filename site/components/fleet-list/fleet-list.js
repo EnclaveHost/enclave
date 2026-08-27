@@ -113,13 +113,15 @@ class FleetList extends EnclaveElement {
           // still true and still worth saying, so it moves into the tooltip.
           const shLeasableGb = shPool ? shPool.leasableGb : 0;
           const shPhysFreeGb = shPool ? shPool.freeGb : 0;
+          const shReservedGb = shPool ? shPool.reservedGb : 0;
           const shFree = shPool ? shPool.frac : 0;
           const shPct = Math.floor(shFree * 100);
           const shVramTitle = shPool
-            ? fmtNum(shPhysFreeGb) + ' GB of the ' + fmtNum(shTotal) + ' GB budget is physically free on the card'
-              + ', but ' + shPct + '% is available to lease. A shielded worker holds only the'
-              + ' model\u2019s encoded weights and the masked activations are transient, so a'
-              + ' leased card still reads nearly empty.'
+            ? fmtNum(shPhysFreeGb) + ' GB of the ' + fmtNum(shTotal) + ' GB budget is free on the card'
+              + (shReservedGb > 0 ? ' (' + fmtNum(shReservedGb) + ' GB is held by tenants)' : '')
+              + ', and ' + shPct + '% is available to lease. A tenant reserves its share of the'
+              + ' card when it connects and the worker holds exactly that, so the two figures'
+              + ' differ only by what the host is doing with the card outside Enclave.'
             : '';
           const s = serverSpec();   // adopted fleet hardware; display fallback for rows that omit their own
           const vramGb = a.cardVramGb || s.cardVramGb, tflops = a.cardTflops || s.cardTflops;

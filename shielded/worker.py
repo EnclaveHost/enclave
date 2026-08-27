@@ -59,7 +59,7 @@ import torch
 from protocol import (CMD_ALLOC_BUFFER, CMD_FIELD_GEMM, CMD_FIELD_GEMM24, CMD_FREE_BUFFER,
                       CMD_GET_TENSOR, CMD_GRAPH_INSTALL, CMD_GRAPH_RECOMPUTE,
                       CMD_HELLO, CMD_SET_TENSOR, PROTO_VERSION, ProtocolViolation,
-                      ShieldedWorkerState)
+                      ReservationLedger, ShieldedWorkerState)
 from field import M_MOD, Q0, Q1, Q2, crt_host
 import wire
 from fused_field_gemm import QK, field_gemm
@@ -168,11 +168,14 @@ def crt_torch(r0, r1, r2):
 
 
 class Connection:
-    def __init__(self, sock, addr, vram_bytes, log):
+    def __init__(self, sock, addr, vram_bytes, log, ledger=None):
         self.sock = sock
         self.addr = addr
         self.log = log
-        self.state = ShieldedWorkerState(vram_bytes=vram_bytes)
+        # 1.3 reservations are accounted here (one ledger per process) but not
+        # claimed from the driver: this fixture leaves the claim to the CUDA
+        # worker, which is what runs on the fleet.
+        self.state = ShieldedWorkerState(vram_bytes=vram_bytes, ledger=ledger)
         self.storage = {}      # bid -> uint8 cuda tensor
         self.nodes = []
         self.recomputes = 0
@@ -229,6 +232,8 @@ class Connection:
                 "vram_total": props.total_memory,
                 "vram_free": int(free_b),
                 "vram_budget": self.state.vram_bytes,
+                "vram_reserved": self.state.ledger.reserved,
+                "vram_reserve": self.state.reserve,
                 "sm_count": props.multi_processor_count,
                 "capability": f"{props.major}.{props.minor}",
                 "field_gmac_per_s": round(FIELD_GMACS, 1),
@@ -414,6 +419,7 @@ class Connection:
             # ever in it, but a leaked buffer is a denial-of-service on the card.
             self.storage.clear()
             torch.cuda.empty_cache()
+            self.state.release()
             try:
                 self.sock.close()
             except OSError:
@@ -445,10 +451,11 @@ def serve(host, port, vram_gb, quiet=False):
     log(f"listening on {host}:{port}"
         + (f" (guest reaches it at 10.0.2.2:{port})" if host in ("127.0.0.1", "0.0.0.0") else ""))
 
+    ledger = ReservationLedger(budget)
     while True:
         sock, addr = srv.accept()
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        conn = Connection(sock, addr, budget, log)
+        conn = Connection(sock, addr, budget, log, ledger)
         t = threading.Thread(target=conn.serve, daemon=True, name=f"conn-{addr[1]}")
         t.start()
 

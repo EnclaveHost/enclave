@@ -4176,8 +4176,15 @@ function shieldedCapacity() {
       val = {
         card: String(v.name || "gpu").slice(0, 64),
         vramGb: Number(v.vram_total_gb) || 0,
+        // vram_free_gb is what the card can still be SOLD for: the budget minus
+        // what live tenants have reserved at HELLO, capped by the driver's own
+        // free figure (gsup computes it; protocol 1.3). Before 1.3 the worker
+        // held its whole budget at start-up and this read 0.43 GB of 6.5 with
+        // one tenant on an otherwise idle card -- the hold hid itself from
+        // every free figure (shielded/REPORT.md 13.14.2).
         vramFreeGb: Number(v.vram_free_gb) || 0,
         vramBudgetGb: Number(v.vram_budget_gb) || 0,
+        vramReservedGb: Number(v.vram_reserved_gb) || 0,   // held by live tenants, per their HELLOs
         gmacPerSec: Number(v.field_gmac_per_s) || 0,
         cardTflops: Number(v.card_tflops) || 0,
         smCount: Number(v.sm_count) || 0,
@@ -4198,6 +4205,19 @@ function shieldedCapacity() {
   if (val) adoptShieldedCard(val);
   _shieldedCache = { at: now, val };
   return val;
+}
+
+// SHIELDED_SELFTEST=1 with SHIELDED_VERDICT pointing at a verdict file: parse
+// it exactly as /availability would, print one JSON line with the parsed block
+// and the gpu-pool figure it yields, and exit -- same contract as the seams
+// above (test/shielded-capacity.test.mjs drives it).
+if (process.env.SHIELDED_SELFTEST) {
+  const sh = shieldedCapacity();
+  const gpuFree = !sh ? 0
+    : Math.min(maxFreeGpuShare(), CARD_VRAM_GB > 0 ? sh.vramFreeGb / CARD_VRAM_GB : 0);
+  console.log(JSON.stringify({ shielded: sh, cardVramGb: _shieldedAdopted ? CARD_VRAM_GB : 0, gpuShareFree: round3(gpuFree),
+                               vramFreeGb: _shieldedAdopted ? round1(gpuFree * CARD_VRAM_GB) : 0 }));
+  process.exit(0);
 }
 
 app.get("/availability", async (_req, res) => {
@@ -4289,8 +4309,10 @@ app.get("/availability", async (_req, res) => {
     // A SHIELDED card is not in the manager's VRAM ledger -- the manager owns no
     // CUDA device here, so its gpuShareFree is 0 and folding it in would
     // advertise nothing. The honest source is the probe's own reading of the
-    // card, taken from the driver on the untrusted host, so it already accounts
-    // for whatever else that host is doing with it (on a desktop, an X server).
+    // card: the budget minus what live tenants reserved at HELLO, capped by the
+    // driver's free figure on the untrusted host -- so it accounts for the
+    // tenants this box placed AND for whatever else that host is doing with the
+    // card (on a desktop, an X server; a game, 2026-08-26).
     // A verdict that has gone away means the path is not provable right now:
     // advertise no free capacity, without retracting the card itself.
     const shNow = shieldedCapacity();

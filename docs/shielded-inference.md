@@ -453,7 +453,7 @@ Command surface vs stock ggml-rpc (proto 5.0.0):
 
 | Command | Fate | Note |
 |---|---|---|
-| HELLO | keep | version + capability pinning (op count static_assert stays) |
+| HELLO | keep | version + capability pinning (op count static_assert stays); 1.3: `u32 major [u64 reserve_bytes]`, the tenant's VRAM reservation, refused if the budget or the driver cannot give it; the reply names `vram_budget`, `vram_reserved`, `vram_reserve`, `vram_free` |
 | ALLOC_BUFFER / FREE_BUFFER / GET_ALIGNMENT / GET_MAX_SIZE / BUFFER_GET_BASE / GET_DEVICE_MEMORY / DEVICE_COUNT | keep | allocation plane |
 | SET_TENSOR | keep | the only inbound data path: field-form weights at load; masked activations at run |
 | GET_TENSOR | restrict | readable only from declared output tensors of installed graphs; stock allows arbitrary region reads of any live buffer |
@@ -609,7 +609,13 @@ end-to-end run: no engine exists yet, so no phase is closed in the shipping sens
    127.0.0.1, the guest reaches it at 10.0.2.2, and `metal/guest/shielded-probe.mjs` runs one
    real masked GEMM at boot and asserts exactness, verification, lie rejection and denylist
    enforcement before the box advertises the path. Proven on a live SEV-SNP guest
-   (REPORT.md §10.5).
+   (REPORT.md §10.5). Capacity (protocol 1.3, REPORT.md §13.14.2): `shieldedWorker.vramGb`
+   is the part of the card dedicated to Enclave and is the card the fleet sees; the worker
+   holds none of it at start-up, a tenant reserves its share at HELLO (the manager exports
+   `SHIELDED_RESERVE_BYTES`, the same bytes the share was sized from) and gets it back to the
+   driver at disconnect, and the box advertises `min(budget - reserved, driver free)` plus
+   `vramReservedGb`. A HELLO the card cannot honour is refused and the tenant computes in
+   its enclave until it can.
 
 Kill criteria (from the brief, unchanged): chat/vision >5× at batch ≥4 after optimization;
 image gen >3× per-image wall clock at batch ≥4; STT/TTS failing realtime on both CPU-in-TEE

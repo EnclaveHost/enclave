@@ -49,6 +49,27 @@ print(json.dumps({k: e.get(k) for k in
   assert.equal(env.CUDA_MPS_ACTIVE_THREAD_PERCENTAGE, null);
 });
 
+test("the tenant's share of the card becomes its HELLO reservation, and 0 sends none", () => {
+  // protocol 1.3: the backend packs SHIELDED_RESERVE_BYTES into the HELLO and
+  // the worker holds that much for the connection. It must be the SAME bytes
+  // the supervisor sized the share from (rec.shielded.vramGb, GiB), and a share
+  // that carries no vramGb (0, or an older supervisor) must send the 4-byte
+  // HELLO that reserves nothing rather than a reservation of "0".
+  const r = py(`
+os.environ["SHIELDED_RESERVE_BYTES"] = "12345"   # inherited junk must not leak into a 0-share tenant
+a = wm._shielded_tenant_env({"endpoint": "10.0.2.2:9500", "vramGb": 5.5}, "")
+b = wm._shielded_tenant_env({"endpoint": "10.0.2.2:9500", "vramGb": 0}, "")
+c = wm._shielded_tenant_env({"endpoint": "10.0.2.2:9500"}, "")
+d = wm._shielded_tenant_env({"endpoint": "10.0.2.2:9500", "vramGb": "0.3"}, "")
+print(json.dumps({"a": a.get("SHIELDED_RESERVE_BYTES"), "b": b.get("SHIELDED_RESERVE_BYTES"),
+                  "c": c.get("SHIELDED_RESERVE_BYTES"), "d": d.get("SHIELDED_RESERVE_BYTES")}))
+`);
+  assert.equal(r.a, String(Math.floor(5.5 * (1 << 30))), "GiB, integer bytes, the engine's ENCLAVE_VRAM_BYTES figure");
+  assert.equal(r.b, null, "a 0 share reserves nothing");
+  assert.equal(r.c, null, "no vramGb (older supervisor) reserves nothing");
+  assert.equal(r.d, String(Math.floor(0.3 * (1 << 30))), "a string figure is still a figure");
+});
+
 test("calibration is looked up by the attached volume's NAME", () => {
   // vol_mounts is {name: host_path}. Indexing it by [0] is a KeyError, which is
   // exactly how this failed in production.

@@ -104,7 +104,8 @@ and 28 s before (REPORT.md section 11).
 
 ```
 make -C shielded/worker-cuda                      # the CUDA worker (clang++ as the CUDA compiler)
-shielded/worker-cuda/shielded-worker --port 9500 --vsock-port 9500
+shielded/worker-cuda/shielded-worker --port 9500 --vsock-port 9500 --vram-gb 6.5
+python3 shielded/worker-cuda/test_reservation.py --port 9612 --worker-bin shielded/worker-cuda/shielded-worker   # HELLO 1.3 against a scratch worker
 SHIELDED_PROFILE=1 wasm/ggml-shielded/shielded-run model.gguf "prompt" 32   # per-phase ms
 ```
 
@@ -177,9 +178,27 @@ every prompt. Peak |y| reached 2.1e6 against M/2 = 7.2e6.
 - **The production worker** exists (`worker-cuda/`); what it still lacks is a
   digest-pinned fleet image, following `worker/Dockerfile`, registered in
   `scripts/release.sh` and the `deploy.yml` detect case. `worker.py` stays as the
-  reference and the test fixture; both speak protocol 1.2 (1.1 plus FIELD_GEMM24,
+  reference and the test fixture; both speak protocol 1.3 (1.1 plus FIELD_GEMM24,
   the same exchange with 3-byte reply values -- every product is below 2^24 -- which
-  the TEE takes when the worker's HELLO offers minor >= 2; SHIELDED_REPLY32=1 keeps int32).
+  the TEE takes when the worker's HELLO offers minor >= 2; SHIELDED_REPLY32=1 keeps int32;
+  1.3 adds the reservation to HELLO, below).
+- **`--vram-gb` is the budget, and a tenant reserves its share at HELLO (1.3).**
+  The budget is the part of the card dedicated to Enclave: the fleet sees a card of
+  exactly that size, 100% free until an app has reserved a share. The worker holds
+  nothing for it at start (a card smaller than the budget is a misconfiguration and
+  exits 75; less free than the budget is a warning). HELLO is `u32 major [u64
+  reserve_bytes]`: the 4-byte form reserves nothing and is capped by the budget (the
+  supervisor's probe, every pre-1.3 link); with a reservation the worker refuses if the
+  live reservations plus this one exceed the budget, or if the driver cannot hand the
+  bytes over now (something else holds the card -- the guest treats the refusal as a
+  dead link, computes in the enclave and reconnects with backoff), else takes them
+  from the driver and keeps them for the link until it closes, when they are visibly
+  back in the driver. The link's device bytes (activations buffers AND the installed
+  graph's node weights) are capped by its reservation. The reply carries
+  `vram_budget`, `vram_reserved` (sum of live reservations after this HELLO),
+  `vram_reserve` (this link's) and `vram_free` (the driver's); the fleet's free figure
+  is `min(vram_budget - vram_reserved, vram_free)`. `worker-cuda/test_reservation.py`
+  drives a scratch worker through all of it and reads nvidia-smi.
 - **The TEE-side executor for the real engine** does NOT land here -- it lives in
   `wasm/ggml-shielded/`, because that is where the ggml graph lives. `model.py` is
   its specification and its equivalence reference: it is a working implementation

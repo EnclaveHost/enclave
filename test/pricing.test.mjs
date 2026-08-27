@@ -644,6 +644,16 @@ test("a shielded card is one pool, sized by what it can actually sell", () => {
   assert.equal(p.total, 6.5, "the pool must be the sellable budget, not the physical card");
   assert.equal(p.freeGb, 6.5, "free is clamped to the budget, never the card's free VRAM");
   assert.ok(p.frac > 0 && p.frac <= 1);
+  assert.equal(p.reservedGb, 0, "an older box reports no reservations: none, not NaN");
+
+  // protocol 1.3: the box already nets vramFreeGb of what tenants reserved at
+  // HELLO and says how much that was, clamped to the budget like everything else
+  const r = shieldedPoolOf({ availability: { shielded: {
+    vramGb: 7.7, vramFreeGb: 5.5, vramBudgetGb: 6.5, vramReservedGb: 1.0 } } });
+  assert.equal(r.reservedGb, 1.0);
+  assert.equal(r.freeGb, 5.5);
+  assert.equal(shieldedPoolOf({ availability: { shielded: {
+    vramGb: 7.7, vramFreeGb: 0, vramBudgetGb: 6.5, vramReservedGb: 99 } } }).reservedGb, 6.5);
 
   // no budget reported (older probe) -> fall back to the physical total
   assert.equal(shieldedPoolOf({ availability: { shielded: { vramGb: 8, vramFreeGb: 4 } } }).total, 8);
