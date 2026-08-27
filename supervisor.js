@@ -6117,11 +6117,18 @@ async function acmeIssueVia(ca, name) {
 // to the next CA - a second CA may validate what the first refused - but
 // indict only the name. Every slot cooling off = try them all anyway: a stale
 // latch must never be the reason issuance stops entirely.
-const ACME_CA_COOLDOWN_MS = 600_000;
+// Two minutes, not ten. The cool-off bounds how long a dead CA can hold the
+// serial pump's timeouts; two minutes bounds it well enough, and ten was the
+// dark window on 2026-08-26: ZeroSSL's first call after boot hung (egress was
+// still coming up), Let's Encrypt was at its weekly limit for the name, and a
+// running app served no certificate until ZeroSSL's cool-off ended.
+const ACME_CA_COOLDOWN_MS = parseInt(process.env.ACME_CA_COOLDOWN_MS || "120000", 10);
 async function acmeIssue(name) {
   const now = Date.now();
   const live = ACME_CAS.filter((ca) => !(ca.downUntil > now));
   let lastErr = null;
+  const cooledNow = [];                      // CAs this round put on cool-off
+  let networkProven = false;                 // a later CA got far enough to refuse the NAME
   for (const ca of (live.length ? live : ACME_CAS)) {
     try {
       const issued = await acmeIssueVia(ca, name);
@@ -6131,7 +6138,28 @@ async function acmeIssue(name) {
       lastErr = e;
       if (e.caLevel) {
         ca.downUntil = Date.now() + ACME_CA_COOLDOWN_MS;
+        cooledNow.push(ca);
         console.warn(`[acme] ${ca.host}: ${e.message} - cooling this CA off ${Math.round(ACME_CA_COOLDOWN_MS / 60_000)}m`);
+      } else {
+        networkProven = true;
+      }
+    }
+  }
+  // Second chance. A CA that timed out THIS round while a later CA reached its
+  // account and order endpoints fine (and then refused only the name -- a
+  // rate limit, say) most likely hit a transient: egress not yet up at boot,
+  // a slow nonce. One immediate retry of that CA is cheap and is the
+  // difference between a certificate now and one after the cool-off.
+  if (networkProven && cooledNow.length) {
+    for (const ca of cooledNow) {
+      try {
+        const issued = await acmeIssueVia(ca, name);
+        ca.downUntil = 0;
+        console.log(`[acme] ${ca.host}: second chance succeeded for ${name}`);
+        return { ...issued, caHost: ca.host };
+      } catch (e) {
+        lastErr = e;
+        if (e.caLevel) ca.downUntil = Date.now() + ACME_CA_COOLDOWN_MS;
       }
     }
   }
