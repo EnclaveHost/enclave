@@ -49,4 +49,30 @@ echo "  node metal/build-image.mjs           # build the measured guest image"
 echo "  node metal/enclave-metal.mjs --config metal/config.json   # launch"
 echo "  # or install the service:"
 echo "  sudo cp metal/systemd/enclave-metal.service /etc/systemd/system/"
+# --- GPU time-slice policy (shielded worker boxes) --------------------------
+# A consumer card has no partition to reserve for the worker: the driver
+# time-slices contexts, and anything else running on the card (a game, a
+# desktop) takes most of the slices, so the worker's 20-400 us kernels each
+# wait a whole slice (~1 ms) -- 2026-08-26: the masked path went 152 -> 1240 us
+# per exchange and the tenant from ~95 to 15 tok/s. The SHORT policy makes that
+# wait a fraction of a millisecond. Needs root and does not persist across a
+# driver reload, hence a oneshot unit after the driver is up.
+if command -v nvidia-smi >/dev/null 2>&1; then
+cat > /etc/systemd/system/nvidia-timeslice.service <<'EOF'
+[Unit]
+Description=Short GPU time-slice policy for the shielded worker
+After=nvidia-persistenced.service systemd-modules-load.service
+Wants=nvidia-persistenced.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/nvidia-smi compute-policy --set-timeslice=1
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload && systemctl enable --now nvidia-timeslice.service || true
+fi
+
 echo "  sudo systemctl daemon-reload && sudo systemctl enable --now enclave-metal"
