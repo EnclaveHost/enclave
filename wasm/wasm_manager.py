@@ -2319,6 +2319,21 @@ def _shielded_tenant_env(spec: dict, model_volume: str = "") -> dict:
     if vport > 0:
         env["SHIELDED_VSOCK_PORT"] = str(vport)
     env["GGML_BACKEND_PATH"] = SHIELDED_BACKEND_SO
+    # The tenant's slice of the card, RESERVED at HELLO (protocol 1.3): the
+    # backend packs it into the handshake and the worker holds that much device
+    # memory for the connection until it closes, refusing the HELLO when the
+    # card cannot give it (the backend then computes in the enclave and
+    # reconnects with backoff). This is the same number the supervisor sized the
+    # share from (rec.shielded.vramGb = share x the card's budget) and the same
+    # bytes ENCLAVE_VRAM_BYTES tells the engine it may use, so what the fleet
+    # sold, what the engine allocates and what the worker holds are one figure.
+    # A share of 0 (or an old supervisor sending no vramGb) reserves nothing:
+    # the 4-byte HELLO every worker accepts, capped at the budget as before.
+    reserve_bytes = int(float((spec or {}).get("vramGb") or 0) * (1 << 30))
+    if reserve_bytes > 0:
+        env["SHIELDED_RESERVE_BYTES"] = str(reserve_bytes)
+    else:
+        env.pop("SHIELDED_RESERVE_BYTES", None)
 
     # Calibration is per MODEL, so it is named after the volume the tenant serves.
     # Without it the backend claims nothing and every matmul stays in the enclave:

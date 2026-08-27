@@ -456,7 +456,8 @@ if (fw.shieldedWorker && fw.shieldedWorker.port) {
         + `corr=${v.transcript_correlation} chi2=${v.transcript_chi2} `
         + `rt=${v.round_trip_ms}ms warm (${v.cold_round_trip_ms}ms cold, kernel compile)`
         + (v.waited_ms > 1000 ? ` after waiting ${(v.waited_ms / 1000).toFixed(1)}s for the worker` : '')
-        + (v.card ? ` — advertising ${v.card.vram_free_gb}/${v.card.vram_total_gb} GB, `
+        + (v.card ? ` — advertising ${v.card.vram_free_gb}/${v.card.vram_budget_gb || v.card.vram_total_gb} GB free `
+                    + `(${v.card.vram_reserved_gb ?? 0} GB reserved by tenants, card ${v.card.vram_total_gb} GB), `
                     + `${Math.round(v.card.field_gmac_per_s)} G-MAC/s` : ''));
     } else {
       log(`shielded GPU UNAVAILABLE (probe exit ${code}); the box keeps serving CPU work`);
@@ -489,18 +490,18 @@ function startShieldedRefresh(host, port, VERDICT, clearVerdict) {
   const tick = async () => {
     let link = null;
     try {
-      const { ShieldedLink, CMD } = await import('/opt/metal/shielded.mjs');
+      const { ShieldedLink, CMD, shieldedCardGb } = await import('/opt/metal/shielded.mjs');
       link = new ShieldedLink(host, port, { timeoutMs: 10_000 });
       await link.connect();
       const hello = JSON.parse((await link.call(CMD.HELLO, (() => {
-        const b = Buffer.alloc(4); b.writeUInt32LE(1, 0); return b;   // protocol major
+        const b = Buffer.alloc(4); b.writeUInt32LE(1, 0); return b;   // protocol major; the 4-byte form reserves nothing
       })())).toString());
       const cur = JSON.parse(fs.readFileSync(VERDICT, 'utf8'));
-      const GB = 1 << 30;
       const next = { ...cur, at: new Date().toISOString() };
-      if (Number.isFinite(hello.vram_free))  next.vram_free_gb  = +(hello.vram_free / GB).toFixed(2);
-      if (Number.isFinite(hello.vram_total)) next.vram_total_gb = +(hello.vram_total / GB).toFixed(2);
-      if (Number.isFinite(hello.vram_budget)) next.vram_budget_gb = +(hello.vram_budget / GB).toFixed(2);
+      // vram_free_gb = min(budget - reserved by live tenants, driver free):
+      // what this box can still sell, see shieldedCardGb. A budget the host can
+      // no longer honour is not capacity either way.
+      for (const [k, v] of Object.entries(shieldedCardGb(hello))) if (v != null) next[k] = v;
       if (Number.isFinite(hello.field_gmac_per_s)) {
         next.field_gmac_per_s = hello.field_gmac_per_s;
         // The worker re-measures on every HELLO. A consumer card cannot reserve
@@ -513,10 +514,6 @@ function startShieldedRefresh(host, port, VERDICT, clearVerdict) {
         next.contended = next.field_gmac_best > 0 && hello.field_gmac_per_s < 0.5 * next.field_gmac_best;
       }
       if (Number.isFinite(hello.card_tflops)) next.card_tflops = hello.card_tflops;
-      // A budget the host can no longer honour is not capacity: cap what we
-      // advertise at what the driver says is actually there.
-      if (next.vram_budget_gb > 0 && next.vram_free_gb >= 0)
-        next.vram_free_gb = Math.min(next.vram_free_gb, next.vram_budget_gb);
       fs.writeFileSync(VERDICT, JSON.stringify(next));
       strikes = 0;
     } catch (e) {

@@ -103,8 +103,10 @@ enum : uint8_t {
     CMD_SHM_ATTACH = 14,     /* 1.2: bind a shared-memory ring to this connection */
     CMD_COUNT = 15,
 };
-/* 1.2: SHM_ATTACH -- the shared-memory ring. A 1.1 link never sends it. */
-static const int PROTO_MAJOR = 1, PROTO_MINOR = 2, PROTO_PATCH = 0;
+/* 1.2: SHM_ATTACH -- the shared-memory ring. A 1.1 link never sends it.
+ * 1.3: HELLO carries an optional u64 reservation and the reply names the
+ *      card's reservations. A 4-byte HELLO is a 1.2 link: reserves nothing. */
+static const int PROTO_MAJOR = 1, PROTO_MINOR = 3, PROTO_PATCH = 0;
 static const uint8_t STATUS_OK = 0, STATUS_VIOLATION = 1;
 static const size_t MAX_FRAME = (size_t)256 << 20;
 static const size_t SH_HDR = 9;
@@ -1036,44 +1038,124 @@ static double g_gmacs = 0.0;
 static std::chrono::steady_clock::time_point g_gmacs_at;
 static cudaDeviceProp g_props;
 
-/* THE BUDGET IS RESERVED, NOT CAPPED.
+/* THE BUDGET IS THE CARD THE FLEET SEES; A TENANT RESERVES ITS SHARE AT HELLO.
  *
- * --vram-gb used to bound what tenants could allocate, while the worker itself
- * took device memory from the driver lazily -- so anything else on the card
- * that started later (a game holding 6.3 GB of the production 3070,
- * 2026-08-26) took the memory first and the tenant's next allocation failed.
- * A tenant bought that memory. Now every device allocation goes through the
- * stream-ordered allocator's default pool, the pool's release threshold is
- * pinned so freed memory stays reserved to this process, and start-up claims
- * the whole budget from the driver once: a later neighbour gets only what is
- * left, and a card that cannot give the budget at start-up is refused --
- * exit 75, the launcher retries with backoff, the guest withdraws the card
- * after its refresh strikes and the tenant runs in the enclave until the
- * budget is there. No budget, no card. */
+ * --vram-gb is the part of the card dedicated to Enclave. The fleet sees a
+ * card of exactly that size and nothing else (the supervisor adopts it as
+ * CARD_VRAM_GB); the rest of the card is the host's, and the budget is 100%
+ * free until an app has reserved a share of it. The worker holds NO device
+ * memory for the budget at start-up: the only start-up requirement is that
+ * the card is at least the budget (a smaller card is a misconfiguration and
+ * exits 75, naming both figures); a card with less than the budget free at
+ * start is a warning, because whatever holds it may leave.
+ *
+ * Why memory is reserved at all: a game started on the production 3070 on
+ * 2026-08-26 and took 6.3 GB while the worker was taking device memory from
+ * the driver lazily, so the tenant's next allocation failed -- a tenant that
+ * had bought that memory lost it to a neighbour that started later. The first
+ * fix claimed the whole budget at start (one process holding 6.5 GiB at idle
+ * whether or not anyone was running), which made the fleet's "free" figure a
+ * lie in the other direction. Now the claim happens at PLACEMENT: a 1.3 HELLO
+ * carries the tenant's reservation (the guest sends its VRAM share), and the
+ * worker, under the GPU mutex, refuses it if the sum of live reservations
+ * would exceed the budget, else takes it from the driver through the
+ * stream-ordered allocator's default pool -- the pool then keeps what it
+ * holds (release threshold up; explicit trims down to the sum of
+ * reservations plus whatever unreserved links hold), so memory a tenant
+ * frees stays with this process for that tenant, and a claim
+ * the driver cannot honour (something else holds the card) is refused with
+ * the free figure. A refused HELLO is a dead link to the guest: it computes
+ * in the enclave and reconnects with backoff, so the tenant runs until the
+ * memory is there. At disconnect the reservation is released and the pool is
+ * trimmed to what the remaining tenants reserved: the memory is visibly back
+ * in the driver (nvidia-smi, cudaMemGetInfo) the moment the link closes.
+ *
+ * The per-connection cap is the reservation when there is one, else the
+ * budget (a 4-byte HELLO: exactly the pre-1.3 behaviour). The cap counts the
+ * DEVICE bytes a link holds -- activations buffers and the installed graph's
+ * node weights -- and a separate host-RAM ledger bounds the 'weights' buffers
+ * (host-resident until install) by the budget, as before. The largest
+ * consumer used to be the one thing uncounted: node weights.
+ *
+ * The fleet's free figure is min(budget - vram_reserved, vram_free): the
+ * supervisor sends a 4-byte HELLO and reads both from the reply. */
+static long long g_reserved = 0;         /* sum of live reservations; under g_gpu */
+static long long g_floating = 0;         /* device bytes held by links WITHOUT a reservation; under g_gpu */
 static cudaError_t dmalloc(void **p, size_t n) {
     cudaError_t e = cudaMallocAsync(p, n ? n : 1, 0);
     if (e == cudaSuccess) e = cudaStreamSynchronize(0);
     return e;
 }
 static void dfree(void *p) { if (p) { cudaFreeAsync(p, 0); cudaStreamSynchronize(0); } }
-static bool reserve_budget(long long budget) {
-    cudaMemPool_t pool;
-    if (cudaDeviceGetDefaultMemPool(&pool, 0) != cudaSuccess) return false;
-    cuuint64_t keep = UINT64_MAX;                              /* never hand freed memory back to the driver */
-    if (cudaMemPoolSetAttribute(pool, cudaMemPoolAttrReleaseThreshold, &keep) != cudaSuccess) return false;
-    const size_t want = (size_t)budget;
-    void *p = nullptr;
-    if (cudaMallocAsync(&p, want, 0) != cudaSuccess) { cudaGetLastError(); return false; }
-    cudaFreeAsync(p, 0);
-    if (cudaStreamSynchronize(0) != cudaSuccess) return false;
-    cuuint64_t reserved = 0;
-    cudaMemPoolGetAttribute(pool, cudaMemPoolAttrReservedMemCurrent, &reserved);
-    return reserved >= want;
+static cudaMemPool_t default_pool() {
+    cudaMemPool_t pool = nullptr;
+    cudaDeviceGetDefaultMemPool(&pool, 0);
+    return pool;
+}
+static long long pool_reserved_now() {
+    cuuint64_t r = 0;
+    cudaMemPoolGetAttribute(default_pool(), cudaMemPoolAttrReservedMemCurrent, &r);
+    return (long long)r;
+}
+/* What the pool keeps for us: everything, while anything is reserved or an
+ * unreserved link holds device memory; nothing when idle. The pool releases
+ * in whole chunks (32 MiB on this driver) and a threshold below the chunk
+ * drops the chunk -- measured 2026-08-27: a 16 MiB reservation over a 16 MiB
+ * threshold left the pool holding 0 -- so the threshold is not the ledger.
+ * The ledger is g_reserved + g_floating, and it is enforced by explicit trims
+ * (pool_trim) whenever something is given back; the threshold only decides
+ * whether a synchronisation may hand memory to the driver on its own.
+ * Called under g_gpu. */
+static void pool_retune() {
+    cuuint64_t keep = (g_reserved + g_floating > 0) ? UINT64_MAX : 0;
+    cudaMemPoolSetAttribute(default_pool(), cudaMemPoolAttrReleaseThreshold, &keep);
+}
+/* Give the driver everything above the ledger: what the remaining tenants
+ * reserved, plus what unreserved links hold, stays (at least; whole chunks). */
+static void pool_trim() {
+    pool_retune();
+    cudaMemPoolTrimTo(default_pool(), (size_t)(g_reserved + g_floating));
+}
+/* Take R more bytes from the driver for the pool, or leave the pool as it
+ * was. The pool serves a new allocation from its cache first, so one malloc
+ * of R need not grow it: hold what is handed out until the pool's reserved
+ * figure reaches the new threshold, then free the holds -- the threshold now
+ * keeps them. Called under g_gpu; on failure *freeb is the driver's figure. */
+static bool claim_reservation(long long R, size_t *freeb, long long *held) {
+    const long long target = g_reserved + R + g_floating;
+    g_reserved += R;
+    pool_retune();
+    std::vector<void *> holds;
+    bool ok = true;
+    for (int i = 0; i < 16 && ok; i++) {
+        const long long have = pool_reserved_now();
+        if (have >= target) break;
+        void *p = nullptr;
+        if (cudaMallocAsync(&p, (size_t)(target - have), 0) != cudaSuccess) { cudaGetLastError(); ok = false; break; }
+        holds.push_back(p);
+    }
+    for (void *p : holds) cudaFreeAsync(p, 0);
+    if (cudaStreamSynchronize(0) != cudaSuccess) ok = false;
+    *held = pool_reserved_now();
+    if (ok && *held < target) ok = false;          /* the pool let the holds go: not a reservation */
+    if (!ok) {
+        g_reserved -= R;
+        pool_trim();
+        size_t totalb = 0; cudaMemGetInfo(freeb, &totalb);
+    }
+    return ok;
+}
+/* The link is gone and its memory freed: hand the reservation back to the
+ * driver now, not at some later synchronisation. Called under g_gpu. */
+static void release_reservation(long long R) {
+    g_reserved -= R;
+    pool_trim();
 }
 
 struct Buffer {
     uint64_t bid = 0, size = 0;
     std::string role;
+    bool consumed = false;               /* weights: host copy released at install */
     int8_t *dev = nullptr;               /* activations: device-resident */
     std::vector<uint8_t> host;           /* weights: host-resident until install */
 };
@@ -1081,6 +1163,7 @@ struct Node {
     std::string id;
     bool gemm = false;
     int8_t *w = nullptr;                 /* (N,K) int8 on the device */
+    size_t wbytes = 0;                   /* counted against the link's device cap */
     int64_t K = 0, N = 0; int max_m = 0;
     uint64_t xbid = 0, xoff = 0, ybid = 0, yoff = 0;
 };
@@ -1091,7 +1174,9 @@ struct Conn {
     bool hello_done = false, installed = false;
     std::map<uint64_t, Buffer> buffers;
     uint64_t next_bid = 1;
-    long long allocated = 0;
+    long long allocated = 0;                 /* DEVICE bytes: activations buffers + node weights */
+    long long host_allocated = 0;            /* host bytes: 'weights' buffers until install */
+    long long reserve = 0;                   /* this link's reservation from HELLO, 0 = none */
     std::vector<Node> nodes;
     std::set<std::tuple<uint64_t, uint64_t, uint64_t>> outputs;
     cudaStream_t stream = nullptr;
@@ -1135,6 +1220,30 @@ struct Conn {
         if (h_in) cudaFreeHost(h_in);
         if (h_out) cudaFreeHost(h_out);
         if (stream) cudaStreamDestroy(stream);
+        {
+            std::lock_guard<std::mutex> lk(g_gpu);
+            if (!reserve) g_floating -= allocated;
+            release_reservation(reserve);            /* also trims what an unreserved link freed */
+        }
+    }
+
+    /* The device bytes this link may hold: its reservation, else the budget. */
+    long long cap() const { return reserve > 0 ? reserve : g_vram_budget; }
+    /* Account device bytes against the cap, or refuse. A link without a
+     * reservation also moves the pool's threshold: its usage is not reserved
+     * memory, and must not push a reserver's cache back to the driver. */
+    void charge_device(long long nbytes, const char *what) {
+        if (nbytes > cap() || allocated + nbytes > cap())
+            VIOLATE("%s of %lld bytes exceeds the link's %s (%lld of %lld held)", what, nbytes,
+                    reserve > 0 ? "reservation" : "budget", allocated, cap());
+        allocated += nbytes;
+        if (!reserve) { std::lock_guard<std::mutex> lk(g_gpu); g_floating += nbytes; pool_retune(); }
+    }
+    /* An unreserved link's freed bytes go back to the driver at once (the
+     * caller frees, then uncharges); a reserver's stay in the pool for it. */
+    void uncharge_device(long long nbytes) {
+        allocated -= nbytes;
+        if (!reserve) { std::lock_guard<std::mutex> lk(g_gpu); g_floating -= nbytes; pool_trim(); }
     }
 
     Buffer &region_ok(uint64_t bid, uint64_t off, uint64_t nbytes) {
@@ -1178,10 +1287,28 @@ struct Conn {
         if (n < 4) VIOLATE("truncated u32");
         const uint32_t major = rd_u32(p);
         if (major != (uint32_t)PROTO_MAJOR) VIOLATE("protocol major %u != %d", major, PROTO_MAJOR);
+        /* 1.3: an optional u64 reservation. Checked against the budget before
+         * any arithmetic on it: a u64 above the budget is refused as-is, so
+         * the sum below cannot wrap. */
+        uint64_t want = 0;
+        if (n >= 12) want = rd_u64(p + 4);
+        if (want > (uint64_t)g_vram_budget)
+            VIOLATE("reservation %llu exceeds the budget: %lld reserved of %lld",
+                    (unsigned long long)want, g_reserved, g_vram_budget);
         hello_done = true;
         size_t freeb = 0, totalb = 0;
         {
             std::lock_guard<std::mutex> lk(g_gpu);
+            if (want > 0) {
+                if (g_reserved + (long long)want > g_vram_budget)
+                    VIOLATE("reservation %llu exceeds the budget: %lld reserved of %lld",
+                            (unsigned long long)want, g_reserved, g_vram_budget);
+                long long held = 0;
+                if (!claim_reservation((long long)want, &freeb, &held))
+                    VIOLATE("cannot reserve %llu: the card has %zu free (the pool holds %lld against %lld reserved)",
+                            (unsigned long long)want, freeb, held, g_reserved);
+                reserve = (long long)want;
+            }
             cudaMemGetInfo(&freeb, &totalb);
             /* Re-measured on HELLO when the last figure is older than 20 s: the
              * guest asks every 30 s and advertises the answer, and a card that
@@ -1198,13 +1325,17 @@ struct Conn {
          * masked throughput. Both cross, because they answer different
          * questions, and the inputs to the derived one cross too so a reader can
          * recompute it instead of trusting an untrusted worker's arithmetic. */
+        /* 1.3: vram_reserved is the sum of live reservations AFTER this one,
+         * vram_reserve this link's own. The fleet's free figure is
+         * min(vram_budget - vram_reserved, vram_free). */
         return fmt("{\"version\":[%d,%d,%d],\"device\":\"%s\",\"vram_total\":%llu,\"vram_free\":%llu,"
-                   "\"vram_budget\":%lld,\"sm_count\":%d,\"capability\":\"%d.%d\","
+                   "\"vram_budget\":%lld,\"vram_reserved\":%lld,\"vram_reserve\":%lld,"
+                   "\"sm_count\":%d,\"capability\":\"%d.%d\","
                    "\"clock_khz\":%d,\"card_tflops\":%.1f,"
                    "\"field_gmac_per_s\":%.1f,\"worker\":\"shielded/worker-cuda\"}",
                    PROTO_MAJOR, PROTO_MINOR, PROTO_PATCH, g_props.name,
                    (unsigned long long)g_props.totalGlobalMem, (unsigned long long)freeb,
-                   g_vram_budget, g_props.multiProcessorCount, g_props.major, g_props.minor,
+                   g_vram_budget, g_reserved, reserve, g_props.multiProcessorCount, g_props.major, g_props.minor,
                    g_props.clockRate, rated_fp16_tflops(g_props), g_gmacs);
     }
 
@@ -1216,16 +1347,21 @@ struct Conn {
         std::string role((const char *)p + 12, rl);
         if (role != "weights" && role != "activations") VIOLATE("unknown buffer role '%s'", role.c_str());
         /* Both halves: a size above 2^63 wrapped the sum negative and passed. */
-        if (size > (uint64_t)g_vram_budget || allocated + (long long)size > g_vram_budget)
-            VIOLATE("allocation exceeds device memory");
+        if (size > (uint64_t)g_vram_budget) VIOLATE("allocation exceeds device memory");
         Buffer b; b.bid = next_bid++; b.size = size; b.role = role;
         if (role == "activations") {
-            if (dmalloc((void **)&b.dev, size ? size : 1) != cudaSuccess)
+            charge_device((long long)size, "allocation");
+            if (dmalloc((void **)&b.dev, size ? size : 1) != cudaSuccess) {
+                uncharge_device((long long)size);
                 VIOLATE("device allocation of %llu failed", (unsigned long long)size);
+            }
         } else {
+            /* Host-resident until install; bounded by the budget as it always
+             * was, so a link cannot pin the host's RAM either. */
+            if (host_allocated + (long long)size > g_vram_budget) VIOLATE("allocation exceeds device memory");
             b.host.assign(size, 0);
+            host_allocated += (long long)size;
         }
-        allocated += (long long)size;
         const uint64_t bid = b.bid;
         buffers[bid] = std::move(b);
         std::string r(8, '\0'); wr_u64((uint8_t *)&r[0], bid);
@@ -1237,8 +1373,8 @@ struct Conn {
         const uint64_t bid = rd_u64(p);
         auto it = buffers.find(bid);
         if (it == buffers.end()) VIOLATE("free of unknown buffer %llu", (unsigned long long)bid);
-        allocated -= (long long)it->second.size;
-        if (it->second.dev) dfree(it->second.dev);
+        if (it->second.dev) { dfree(it->second.dev); uncharge_device((long long)it->second.size); }
+        else if (!it->second.consumed) host_allocated -= (long long)it->second.size;
         buffers.erase(it);
         return "";
     }
@@ -1284,6 +1420,19 @@ struct Conn {
      * be treated as public data by declaring it a weight operand. */
     std::string graph_install(const uint8_t *p, size_t n) {
         if (installed) VIOLATE("graph already installed; reconnect to replace");
+        std::vector<Node> nn;
+        try {
+            return graph_install_nodes(p, n, nn);
+        } catch (...) {
+            /* Whatever this install put on the card comes off again and out
+             * of the ledger: the violation closes the link, and the destructor
+             * must not find these bytes charged twice or held at all. */
+            for (auto &x : nn) if (x.w) { dfree(x.w); x.w = nullptr; }
+            for (auto &x : nn) if (x.wbytes) { uncharge_device((long long)x.wbytes); x.wbytes = 0; }
+            throw;
+        }
+    }
+    std::string graph_install_nodes(const uint8_t *p, size_t n, std::vector<Node> &nn) {
         /* NUL-terminated copy: strtod reads to a non-digit, and a spec whose
          * last byte is a digit would otherwise read past the frame. */
         const std::string spec_s((const char *)p, n);
@@ -1291,7 +1440,6 @@ struct Conn {
         JVal spec = jp.parse();
         const JVal *jn = spec.get("nodes");
         if (!jn || jn->kind != JVal::ARR || jn->arr.empty()) VIOLATE("graph spec has no nodes");
-        std::vector<Node> nn;
         for (size_t i = 0; i < jn->arr.size(); i++) {
             const JVal &nd = jn->arr[i];
             const JVal *op = nd.get("op");
@@ -1311,7 +1459,7 @@ struct Conn {
             /* Bounded before N*K is formed: a spec can name any int64, and an
              * overflowed size reached std::vector as a length_error that took
              * the whole process down (fuzzed, 2026-08-26). Refuse, do not die. */
-            if (node.K > (1 << 20) || node.N > (1 << 24) || node.K * node.N > g_vram_budget)
+            if (node.K > (1 << 20) || node.N > (1 << 24) || node.K * node.N > cap())
                 VIOLATE("node %zu: shape %lldx%lld exceeds the card", i, (long long)node.N, (long long)node.K);
             if (node.K % SH_QK) VIOLATE("node %zu: K=%lld is not a multiple of %d", i, (long long)node.K, SH_QK);
             if (node.max_m > 4096) VIOLATE("node %zu: max_m=%d exceeds 4096", i, node.max_m);
@@ -1352,13 +1500,21 @@ struct Conn {
                         wfix[(size_t)j * node.K + k] = (int8_t)v;
                     }
             }
+            /* The node's device weights count against the link's cap like any
+             * activations buffer. The charge lands in nn before the upload, so
+             * a refusal further down this install frees and uncharges it. */
+            charge_device((long long)wfix.size(), fmt("node %zu weights", i).c_str());
+            node.wbytes = wfix.size();
+            nn.push_back(std::move(node));
+            Node &nw = nn.back();
             {
                 std::lock_guard<std::mutex> lk(g_gpu);
-                if (dmalloc((void **)&node.w, wfix.size()) != cudaSuccess)
+                if (dmalloc((void **)&nw.w, wfix.size()) != cudaSuccess) {
+                    nw.w = nullptr;
                     VIOLATE("node %zu: device allocation of %zu weight bytes failed", i, wfix.size());
-                ck(cudaMemcpy(node.w, wfix.data(), wfix.size(), cudaMemcpyHostToDevice), "weight upload");
+                }
+                ck(cudaMemcpy(nw.w, wfix.data(), wfix.size(), cudaMemcpyHostToDevice), "weight upload");
             }
-            nn.push_back(std::move(node));
         }
         bool any = false;
         for (auto &x : nn) any |= x.gemm;
@@ -1377,7 +1533,10 @@ struct Conn {
         if (outs.empty()) VIOLATE("graph declares no outputs; nothing could be read back");
         /* The weights buffers' host copies are no longer needed once every node
          * has its device-resident encoding. */
-        for (auto &kv : buffers) if (!kv.second.dev) { std::vector<uint8_t>().swap(kv.second.host); }
+        for (auto &kv : buffers) if (!kv.second.dev && !kv.second.consumed) {
+            std::vector<uint8_t>().swap(kv.second.host);
+            kv.second.consumed = true; host_allocated -= (long long)kv.second.size;
+        }
         nodes = std::move(nn); outputs = std::move(outs); installed = true;
         return fmt("{\"nodes\":%zu}", nodes.size());
     }
@@ -1829,14 +1988,23 @@ int main(int argc, char **argv) {
          g_props.name, g_props.major, g_props.minor,
          g_props.totalGlobalMem / 1073741824.0, g_vram_budget / 1073741824.0,
          g_props.multiProcessorCount, g_props.clockRate / 1e6, rated_fp16_tflops(g_props));
-    if (!reserve_budget(g_vram_budget)) {
-        size_t freeb = 0, totalb = 0; cudaMemGetInfo(&freeb, &totalb);
-        fprintf(stderr, "[shielded-worker] cannot reserve the %.1f GiB budget: the card has %.1f GiB free (something else holds the rest). "
-                        "No budget, no card: exiting 75 so the launcher retries.\n",
-                g_vram_budget / 1073741824.0, freeb / 1073741824.0);
+    /* Nothing is claimed here: tenants reserve at HELLO (see g_reserved). A
+     * card smaller than the budget can never honour it -- misconfiguration,
+     * exit 75 so the launcher's retry surfaces it -- while a card with less
+     * free than the budget right now may be held by something that leaves. */
+    if ((long long)g_props.totalGlobalMem < g_vram_budget) {
+        fprintf(stderr, "[shielded-worker] the budget of %.1f GiB exceeds the card: %s has %.1f GiB in total. "
+                        "Lower --vram-gb (metal/config.json shieldedWorker.vramGb); exiting 75.\n",
+                g_vram_budget / 1073741824.0, g_props.name, g_props.totalGlobalMem / 1073741824.0);
         return 75;
     }
-    logf("reserved %.1f GiB of device memory for the budget", g_vram_budget / 1073741824.0);
+    {
+        size_t freeb = 0, totalb = 0; cudaMemGetInfo(&freeb, &totalb);
+        if ((long long)freeb < g_vram_budget)
+            logf("warning: the card has %.1f GiB free against a %.1f GiB budget; reservations beyond what is free will be refused until it is",
+                 freeb / 1073741824.0, g_vram_budget / 1073741824.0);
+    }
+    pool_retune();                       /* threshold 0: the selftest's scratch goes back to the driver */
     try {
         if (!selftest()) return 1;
     } catch (const Violation &v) { fprintf(stderr, "selftest: %s\n", v.why.c_str()); return 1; }

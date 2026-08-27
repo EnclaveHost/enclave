@@ -45,7 +45,29 @@ because the failure mode of guessing is running an attacker's graph.
 import json
 import struct
 
-PROTO_VERSION = (1, 2, 0)   # 1.1: FIELD_GEMM, the one-frame exchange; 1.2: FIELD_GEMM24 (packed reply) and SHM_ATTACH (the ring)
+PROTO_VERSION = (1, 3, 0)   # 1.1: FIELD_GEMM, the one-frame exchange; 1.2: FIELD_GEMM24 (packed reply) and SHM_ATTACH (the ring); 1.3: HELLO reserves
+
+# HELLO (1.3): | major u32 | [reserve_bytes u64] |
+#
+# The worker's --vram-gb is the BUDGET: the part of the card dedicated to
+# Enclave, the card the fleet sees. It is 100% free until an app reserves a
+# share of it, and the reservation happens HERE, at placement: a tenant's HELLO
+# names the bytes it will hold, the worker refuses it if the live reservations
+# plus this one would exceed the budget, or if the driver cannot hand the
+# bytes over right now (something else on the card holds them), and otherwise
+# takes them from the driver and keeps them for this connection until it
+# closes. A 4-byte HELLO is the 1.2 form: it reserves nothing, holds nothing,
+# and is capped by the whole budget -- the supervisor's probe sends that one.
+#
+# The reply (JSON) carries vram_budget, vram_reserved (the sum of live
+# reservations AFTER this HELLO), vram_reserve (this connection's own) and
+# vram_free (the driver's figure after the claim); the fleet's free figure for
+# the card is min(vram_budget - vram_reserved, vram_free).
+#
+# Bounds: reserve_bytes is a u64 and is compared with the budget BEFORE any
+# arithmetic, so a huge value is refused as-is and no sum can wrap. None of
+# this is a confidentiality boundary (the guest trusts nothing in the reply
+# beyond the version); it is host-side accounting of the untrusted half.
 
 # Commands kept from ggml-rpc's allocation plane, plus our two compute verbs.
 CMD_HELLO = 0
@@ -168,12 +190,13 @@ def build_frame(cmd, payload=b""):
 
 
 class Buffer:
-    __slots__ = ("bid", "size", "role")
+    __slots__ = ("bid", "size", "role", "consumed")
 
     def __init__(self, bid, size, role):
         self.bid = bid
         self.size = size
         self.role = role  # "weights" | "activations"
+        self.consumed = False  # weights: host copy released at install
 
 
 class InstalledGraph:
@@ -182,6 +205,33 @@ class InstalledGraph:
     def __init__(self, nodes, outputs):
         self.nodes = nodes
         self.outputs = outputs  # set of (bid, offset, nbytes) readable by GET_TENSOR
+
+
+class ReservationLedger:
+    """The process-wide half of HELLO 1.3: the budget, the sum of live
+    reservations, and what the (simulated) driver has free. The CUDA worker
+    keeps the same three numbers under its GPU mutex; `card_free` there is
+    cudaMemGetInfo, here whatever the test says the rest of the card holds."""
+
+    def __init__(self, budget, card_free=None):
+        self.budget = int(budget)
+        self.reserved = 0
+        self.card_free = self.budget if card_free is None else int(card_free)
+
+    def claim(self, want):
+        # want is a u64 from the wire: the budget check comes first so the sum
+        # below is on two numbers that are each at most the budget
+        if want > self.budget or self.reserved + want > self.budget:
+            raise ProtocolViolation(
+                f"reservation {want} exceeds the budget: {self.reserved} reserved of {self.budget}")
+        if want > self.card_free:
+            raise ProtocolViolation(f"cannot reserve {want}: the card has {self.card_free} free")
+        self.reserved += want
+        self.card_free -= want
+
+    def release(self, held):
+        self.reserved -= held
+        self.card_free += held
 
 
 class ShieldedWorkerState:
@@ -193,13 +243,23 @@ class ShieldedWorkerState:
     special handling beyond re-uploading weights.
     """
 
-    def __init__(self, vram_bytes=8 << 30, shm_rings=0, ring_owners=None):
+    def __init__(self, vram_bytes=8 << 30, shm_rings=0, ring_owners=None, ledger=None):
         self.hello_done = False
         self.buffers = {}
         self.next_bid = 1
         self.graph = None
-        self.vram_bytes = vram_bytes
+        self.vram_bytes = vram_bytes            # the budget
+        # 1.3: the process-wide reservations (shared by every connection) and
+        # this connection's own. `allocated` is DEVICE bytes -- activations
+        # buffers plus an installed graph's node weights, which are the largest
+        # thing a link holds and used to be the one thing uncounted -- capped by
+        # the reservation when there is one, else by the budget. 'weights'
+        # buffers are host-resident until install and have their own ledger,
+        # bounded by the budget as before.
+        self.ledger = ledger if ledger is not None else ReservationLedger(vram_bytes)
+        self.reserve = 0
         self.allocated = 0
+        self.host_allocated = 0
         self.violations = []
         # the ring this connection owns (index) or None; ring_owners is the
         # process-wide set of taken indices, shared by every connection
@@ -242,8 +302,27 @@ class ShieldedWorkerState:
         major, off = _u32(payload, 0)
         if major != PROTO_VERSION[0]:
             raise ProtocolViolation(f"protocol major {major} != {PROTO_VERSION[0]}")
+        want = 0
+        if len(payload) >= off + 8:
+            want, off = _u64(payload, off)
+        if want:
+            self.ledger.claim(want)
+            self.reserve = want
         self.hello_done = True
-        return {"ok": True, "version": PROTO_VERSION}
+        return {"ok": True, "version": PROTO_VERSION,
+                "vram_budget": self.ledger.budget, "vram_reserved": self.ledger.reserved,
+                "vram_reserve": self.reserve, "vram_free": self.ledger.card_free}
+
+    def cap(self):
+        """Device bytes this connection may hold: its reservation, else the budget."""
+        return self.reserve if self.reserve else self.vram_bytes
+
+    def _charge_device(self, nbytes, what):
+        if nbytes > self.cap() or self.allocated + nbytes > self.cap():
+            raise ProtocolViolation(
+                f"{what} of {nbytes} bytes exceeds the link's "
+                f"{'reservation' if self.reserve else 'budget'} ({self.allocated} of {self.cap()} held)")
+        self.allocated += nbytes
 
     def _alloc(self, payload):
         size, off = _u64(payload, 0)
@@ -251,12 +330,17 @@ class ShieldedWorkerState:
         role = payload[off : off + role_len].decode("ascii", "replace")
         if role not in ("weights", "activations"):
             raise ProtocolViolation(f"unknown buffer role {role!r}")
-        if self.allocated + size > self.vram_bytes:
+        if size > self.vram_bytes:
             raise ProtocolViolation("allocation exceeds device memory")
+        if role == "activations":
+            self._charge_device(size, "allocation")
+        else:
+            if self.host_allocated + size > self.vram_bytes:
+                raise ProtocolViolation("allocation exceeds device memory")
+            self.host_allocated += size
         bid = self.next_bid
         self.next_bid += 1
         self.buffers[bid] = Buffer(bid, size, role)
-        self.allocated += size
         return {"ok": True, "bid": bid}
 
     def _free(self, payload):
@@ -264,7 +348,10 @@ class ShieldedWorkerState:
         buf = self.buffers.pop(bid, None)
         if buf is None:
             raise ProtocolViolation(f"free of unknown buffer {bid}")
-        self.allocated -= buf.size
+        if buf.role == "activations":
+            self.allocated -= buf.size
+        elif not buf.consumed:
+            self.host_allocated -= buf.size
         return {"ok": True}
 
     def _region_ok(self, bid, offset, nbytes):
@@ -317,6 +404,18 @@ class ShieldedWorkerState:
                     f"node {i}: op {op} refused ({OP_DENYLIST_REASONS[op]})")
             if op not in OP_ALLOWLIST:
                 raise ProtocolViolation(f"node {i}: op {op!r} not in allowlist")
+        # The installed nodes' device weights (N*K int8 each) count against the
+        # cap; a refused install holds nothing.
+        charged = 0
+        try:
+            for i, n in enumerate(nodes):
+                if n.get("op") == "FIELD_GEMM" and "K" in n and "N" in n:
+                    wbytes = int(n["K"]) * int(n["N"])
+                    self._charge_device(wbytes, f"node {i} weights")
+                    charged += wbytes
+        except ProtocolViolation:
+            self.allocated -= charged
+            raise
         outputs = set()
         for o in spec.get("outputs", []):
             bid, offset, nbytes = o["bid"], o["offset"], o["nbytes"]
@@ -324,6 +423,12 @@ class ShieldedWorkerState:
             outputs.add((bid, offset, nbytes))
         if not outputs:
             raise ProtocolViolation("graph declares no outputs; nothing could be read back")
+        # the weights buffers' host copies are done with once every node has
+        # its device-resident encoding
+        for buf in self.buffers.values():
+            if buf.role == "weights" and not buf.consumed:
+                buf.consumed = True
+                self.host_allocated -= buf.size
         self.graph = InstalledGraph(nodes, outputs)
         return {"ok": True, "nodes": len(nodes), "outputs": len(outputs)}
 
@@ -395,10 +500,14 @@ class ShieldedWorkerState:
                 "req_cap": SHM_RING_REQ_CAP, "rep_cap": SHM_RING_REP_CAP}
 
     def release(self):
-        """Connection closed: the ring (if any) is free for the next link."""
+        """Connection closed: the ring (if any) is free for the next link, and
+        the reservation (if any) is back with the driver."""
         if self.ring is not None:
             self.ring_owners.discard(self.ring)
             self.ring = None
+        if self.reserve:
+            self.ledger.release(self.reserve)
+            self.reserve = 0
 
 
 def pack_int24(values):
@@ -590,6 +699,71 @@ def selftest():
         out["shm_duplicate_attach_refused"] = False
     except ProtocolViolation:
         out["shm_duplicate_attach_refused"] = True
+
+    # 1.3 HELLO reservations: one ledger for the card, a 4-byte HELLO reserves
+    # nothing and is capped by the budget; a reservation is capped by itself;
+    # the sum may not exceed the budget; a claim the driver cannot honour is
+    # refused with the free figure; a closed link gives its reservation back.
+    MiB = 1 << 20
+    ledger = ReservationLedger(300 * MiB, card_free=200 * MiB)
+    def hello(state, reserve=None):
+        pay = struct.pack("<I", 1) if reserve is None else struct.pack("<IQ", 1, reserve)
+        return state.handle(*parse_frame(build_frame(CMD_HELLO, pay)))
+    def alloc_act(state, size):
+        return state.handle(*parse_frame(build_frame(CMD_ALLOC_BUFFER, struct.pack("<QI", size, 11) + b"activations")))
+    r0 = ShieldedWorkerState(vram_bytes=300 * MiB, ledger=ledger)
+    r = hello(r0)
+    out["hello_old_form_reserves_nothing"] = (r["vram_reserved"] == 0 and r["vram_reserve"] == 0
+                                             and r["vram_budget"] == 300 * MiB)
+    alloc_act(r0, 300 * MiB)
+    out["old_form_capped_by_budget"] = r0.allocated == 300 * MiB
+    r1 = ShieldedWorkerState(vram_bytes=300 * MiB, ledger=ledger)
+    r = hello(r1, 64 * MiB)
+    out["hello_reserve_ok"] = (r["vram_reserve"] == 64 * MiB and r["vram_reserved"] == 64 * MiB
+                              and r["vram_free"] == 136 * MiB)
+    try:
+        hello(ShieldedWorkerState(vram_bytes=300 * MiB, ledger=ledger), 300 * MiB)
+        out["reserve_over_budget_refused"] = False
+    except ProtocolViolation as e:
+        out["reserve_over_budget_refused"] = "exceeds the budget" in str(e)
+    try:
+        hello(ShieldedWorkerState(vram_bytes=300 * MiB, ledger=ledger), (1 << 64) - 1)
+        out["reserve_u64_max_refused"] = False
+    except ProtocolViolation as e:
+        out["reserve_u64_max_refused"] = "exceeds the budget" in str(e) and ledger.reserved == 64 * MiB
+    try:
+        hello(ShieldedWorkerState(vram_bytes=300 * MiB, ledger=ledger), 200 * MiB)
+        out["reserve_beyond_card_free_refused"] = False
+    except ProtocolViolation as e:
+        out["reserve_beyond_card_free_refused"] = "the card has" in str(e) and ledger.reserved == 64 * MiB
+    r2 = ShieldedWorkerState(vram_bytes=300 * MiB, ledger=ledger)
+    out["second_reserve_ok"] = hello(r2, 64 * MiB)["vram_reserved"] == 128 * MiB
+    try:
+        alloc_act(r1, 65 * MiB)
+        out["alloc_over_reserve_refused"] = False
+    except ProtocolViolation as e:
+        out["alloc_over_reserve_refused"] = "reservation" in str(e)
+    alloc_act(r1, 32 * MiB)
+    # node weights count against the cap: 32 MiB of activations + 33 MiB of
+    # weights is over a 64 MiB reservation, and the refused install holds nothing
+    wb = r1.handle(*parse_frame(build_frame(CMD_ALLOC_BUFFER, struct.pack("<QI", 33 * MiB, 7) + b"weights")))["bid"]
+    ab = r1.handle(*parse_frame(build_frame(CMD_ALLOC_BUFFER, struct.pack("<QI", 4096, 11) + b"activations")))["bid"]
+    heavy = json.dumps({"nodes": [{"op": "FIELD_GEMM", "w": {"bid": wb, "offset": 0}, "x": {"bid": ab, "offset": 0},
+                                   "y": {"bid": ab, "offset": 1024}, "K": 1024, "N": 33 * 1024, "max_m": 1}],
+                        "outputs": [{"bid": ab, "offset": 1024, "nbytes": 16}]}).encode()
+    try:
+        r1.handle(*parse_frame(build_frame(CMD_GRAPH_INSTALL, heavy)))
+        out["node_weights_over_reserve_refused"] = False
+    except ProtocolViolation as e:
+        out["node_weights_over_reserve_refused"] = "weights" in str(e) and r1.allocated == 32 * MiB + 4096
+    light = json.dumps({"nodes": [{"op": "FIELD_GEMM", "w": {"bid": wb, "offset": 0}, "x": {"bid": ab, "offset": 0},
+                                   "y": {"bid": ab, "offset": 1024}, "K": 1024, "N": 16 * 1024, "max_m": 1}],
+                        "outputs": [{"bid": ab, "offset": 1024, "nbytes": 16}]}).encode()
+    r1.handle(*parse_frame(build_frame(CMD_GRAPH_INSTALL, light)))
+    out["node_weights_counted"] = r1.allocated == 48 * MiB + 4096 and r1.host_allocated == 0
+    r1.release()
+    out["reserve_released_on_close"] = (ledger.reserved == 64 * MiB and ledger.card_free == 136 * MiB
+                                        and hello(ShieldedWorkerState(vram_bytes=300 * MiB, ledger=ledger))["vram_reserved"] == 64 * MiB)
 
     out["removed_commands"] = sorted(REMOVED_COMMANDS)
     out["op_allowlist"] = sorted(OP_ALLOWLIST)

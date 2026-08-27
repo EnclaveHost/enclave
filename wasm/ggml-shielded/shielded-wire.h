@@ -146,7 +146,12 @@ int  sh_pipe_ring_exchange(sh_pipe *p, const sh_frame *f, size_t want, sh_reply 
 
 /* Payload builders. Each writes little-endian into `dst` and returns the length.
  * Buffers are caller-provided so the hot path allocates nothing. */
-size_t sh_pack_hello(void *dst, uint32_t major);
+/* HELLO: u32 major, then (protocol 1.3) an optional u64 reserve_bytes -- the
+ * device memory this connection asks the worker to hold for it, out of the
+ * worker's budget, until it disconnects. 0 packs the old 4-byte form, which
+ * every worker accepts and which reserves nothing (the per-connection cap is
+ * then the whole budget, as before 1.3). Returns 4 or 12. */
+size_t sh_pack_hello(void *dst, uint32_t major, uint64_t reserve_bytes);
 size_t sh_pack_alloc(void *dst, uint64_t size, const char *role);
 size_t sh_pack_region(void *dst, uint64_t bid, uint64_t offset, uint64_t nbytes);
 size_t sh_pack_set_tensor_header(void *dst, uint64_t bid, uint64_t offset, uint64_t nbytes);

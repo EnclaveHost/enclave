@@ -163,6 +163,14 @@ passthrough, so it works with a consumer card — the reference measurements are
 "shieldedWorker": { "port": 9500, "vramGb": 6.5 }
 ```
 
+`vramGb` is the part of the card dedicated to Enclave: the fleet sees a card of exactly
+that size, and the worker refuses to start if the card is smaller. It is held only as
+tenants reserve it: the worker takes no device memory for it at start-up, each tenant
+reserves its share when it connects (protocol 1.3, refused if the card cannot give it, in
+which case the tenant computes in its enclave and retries), and what a tenant reserved goes
+back to the driver when it disconnects. The box advertises `budget - reserved`, capped by
+what the driver says is free, so the number the fleet sees is what can still be sold.
+
 With that set, `enclave-metal.mjs` starts the worker on `127.0.0.1:<port>` and supervises
 it, and hands the guest the address over fw_cfg. It prefers the C++/CUDA worker when it
 has been built (`make -C shielded/worker-cuda`; needs a CUDA toolkit and clang++ on the

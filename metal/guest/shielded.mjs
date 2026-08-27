@@ -60,6 +60,31 @@ function frame(cmd, payload = Buffer.alloc(0)) {
 }
 
 /** One connection to a shielded worker. */
+// The card as the fleet should see it, from one HELLO reply (protocol 1.3).
+// The worker holds NOTHING for its budget at start-up; a tenant reserves its
+// slice at HELLO and the worker holds exactly the live reservations. So the
+// free figure is the budget minus those reservations -- what can still be
+// SOLD -- capped by the driver's own free figure, which is what the untrusted
+// host can still GIVE (a game on the same card, 2026-08-26, takes it first).
+// Before 1.3 the start-up hold sat inside the driver's figure and one tenant
+// on an idle card read as 0.43 GB free of 6.5 (shielded/REPORT.md 13.14.2).
+// A 1.2 worker sends no vram_reserved: treat it as 0 and the cap alone applies,
+// which is exactly what it advertised before. Everything here is the untrusted
+// host's own accounting: it decides what the fleet advertises, never what a
+// tenant trusts.
+export function shieldedCardGb(hello) {
+  const GB = 1 << 30;
+  const gb = (v) => (Number.isFinite(v) && v >= 0 ? +(v / GB).toFixed(2) : null);
+  const total = gb(Number(hello?.vram_total)), driverFree = gb(Number(hello?.vram_free));
+  const budget = gb(Number(hello?.vram_budget)), reserved = gb(Number(hello?.vram_reserved)) ?? 0;
+  let free = driverFree;
+  if (budget != null && budget > 0) {
+    const unsold = +Math.max(0, budget - reserved).toFixed(2);
+    free = free == null ? unsold : Math.min(free, unsold);
+  }
+  return { vram_total_gb: total, vram_free_gb: free, vram_budget_gb: budget, vram_reserved_gb: reserved };
+}
+
 export class ShieldedLink {
   constructor(host, port, { timeoutMs = 60000 } = {}) {
     this.host = host; this.port = port; this.timeoutMs = timeoutMs;

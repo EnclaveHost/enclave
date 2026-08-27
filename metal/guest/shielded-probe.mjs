@@ -24,7 +24,7 @@
 import {
   CMD, Freivalds, HALF_M, M_MOD, MaskBank, QK, ShieldedLink, crt,
   encodeWeightFixed, floatToHalf, packAlloc, packRecompute, packRegion, packSet,
-  refill, toResidues,
+  refill, shieldedCardGb, toResidues,
 } from './shielded.mjs';
 
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i > 0 ? process.argv[i + 1] : d; };
@@ -83,16 +83,19 @@ async function main() {
   }
   out.waited_ms = Date.now() - t_wait0;
   const hello = JSON.parse((await link.call(CMD.HELLO, Buffer.from([1, 0, 0, 0]))).toString());
-  const GB = 1 << 30;
   out.worker = { device: hello.device, version: hello.version };
-  // The card, as the box will advertise it. vram_free comes from the driver
-  // rather than from the worker's own ledger, so it already accounts for whatever
-  // else the untrusted host is doing with the card -- on a desktop, an X server.
+  // The card, as the box will advertise it: the budget net of what live tenants
+  // have reserved, capped by the driver's free figure (shieldedCardGb), so it
+  // accounts for what this box sold AND whatever else the untrusted host is
+  // doing with the card -- on a desktop, an X server. gsup's 30-second refresh
+  // rewrites the same fields with the same formula.
+  const card = shieldedCardGb(hello);
   out.card = {
     name: hello.device,
-    vram_total_gb: hello.vram_total ? +(hello.vram_total / GB).toFixed(1) : 0,
-    vram_free_gb: hello.vram_free != null ? +(hello.vram_free / GB).toFixed(1) : 0,
-    vram_budget_gb: hello.vram_budget ? +(hello.vram_budget / GB).toFixed(1) : 0,
+    vram_total_gb: card.vram_total_gb ?? 0,
+    vram_free_gb: card.vram_free_gb ?? 0,
+    vram_budget_gb: card.vram_budget_gb ?? 0,
+    vram_reserved_gb: card.vram_reserved_gb,
     sm_count: hello.sm_count || 0,
     capability: hello.capability || "",
     // The RATED fp16 figure (SMs x arch constant x clock) is the SIZING unit and

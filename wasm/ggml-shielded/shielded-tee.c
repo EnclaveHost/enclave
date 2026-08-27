@@ -758,6 +758,16 @@ static int json_append(char **buf, size_t *len, size_t *cap, const char *fmt, ..
     }
 }
 
+/* One integer field of the HELLO reply, for a LOG LINE only (-1 when absent);
+ * the two workers space their JSON differently, so walk past the colon. */
+static double hello_num(const char *hello, const char *key) {
+    const char *p = strstr(hello, key);
+    if (!p) return -1.0;
+    p += strlen(key);
+    while (*p == ' ' || *p == ':') p++;
+    return strtod(p, NULL);
+}
+
 int sh_link_start(sh_link *l) {
     int err = SH_OK;
     if (l->pipe) { sh_pipe_close(l->pipe); l->pipe = NULL; }
@@ -782,9 +792,24 @@ int sh_link_start(sh_link *l) {
     if (!l->pipe) { snprintf(l->err, sizeof l->err, "connect %s:%d failed", l->host, l->port); return err; }
 
     uint8_t pay[256]; sh_reply rep;
-    size_t n = sh_pack_hello(pay, 1);
+    /* The tenant's slice of the card, reserved at HELLO (protocol 1.3). The
+     * manager sets SHIELDED_RESERVE_BYTES from the share the deployment bought;
+     * the worker holds that much device memory for this connection until it
+     * closes, and refuses the HELLO when the card cannot give it -- which this
+     * link treats like any other failed start: the backend computes in the
+     * enclave and reconnects with backoff, so the tenant runs until the memory
+     * is there. Unset or 0 sends the 4-byte HELLO every worker accepts and
+     * reserves nothing. Nothing in the reply is trusted beyond the version:
+     * the reservation is the untrusted host's own bookkeeping, and the
+     * tenant's privacy does not depend on it. */
+    uint64_t reserve = 0;
+    {
+        const char *r = getenv("SHIELDED_RESERVE_BYTES");
+        if (r && *r) { char *end = NULL; unsigned long long v = strtoull(r, &end, 10); if (end && *end == 0) reserve = (uint64_t)v; }
+    }
+    size_t n = sh_pack_hello(pay, 1, reserve);
     int rc = sh_pipe_call(l->pipe, SH_CMD_HELLO, pay, n, &rep);
-    if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "HELLO: %s", sh_pipe_last_error(l->pipe)); return rc; }
+    if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "HELLO%s: %s", reserve ? " (with reservation)" : "", sh_pipe_last_error(l->pipe)); return rc; }
     /* The one-frame exchange is protocol 1.1; an older worker would refuse it
      * as an unknown command, so say what is wrong here rather than there. */
     int hello_minor = -1;
@@ -792,7 +817,7 @@ int sh_link_start(sh_link *l) {
         /* HELLO is JSON from either worker; only the version array matters here,
          * and the two serialisers space it differently. */
         int major = -1, minor = -1;
-        char hello[512] = { 0 };
+        char hello[1024] = { 0 };   /* the 1.3 reply carries a few more integers; only the version is acted on */
         if (rep.data) snprintf(hello, sizeof hello, "%.*s", (int)(rep.len < sizeof hello - 1 ? rep.len : sizeof hello - 1), (const char *)rep.data);
         const char *p = strstr(hello, "\"version\"");
         if (p) {
@@ -822,6 +847,18 @@ int sh_link_start(sh_link *l) {
             snprintf(l->transport + tl, sizeof l->transport - tl, " proto 1.%d reply int%d", minor, l->ywidth * 8);
         }
         hello_minor = minor;
+        /* What the worker says it holds: this connection's reservation and the
+         * sum over every live tenant, under SHIELDED_VERBOSE. Logged, never
+         * acted on (see the reserve comment above). A 1.2 worker sends neither. */
+        const char *vb = getenv("SHIELDED_VERBOSE");
+        if (vb && *vb && strcmp(vb, "0")) {
+            const double MB = 1024.0 * 1024.0;
+            fprintf(stderr, "[shielded] link: proto 1.%d, asked to reserve %.0f MiB; worker holds %.0f MiB for this link, "
+                            "%.0f MiB for all tenants, driver free %.0f MiB of a %.0f MiB budget\n",
+                    minor, (double)reserve / MB,
+                    hello_num(hello, "\"vram_reserve\"") / MB, hello_num(hello, "\"vram_reserved\"") / MB,
+                    hello_num(hello, "\"vram_free\"") / MB, hello_num(hello, "\"vram_budget\"") / MB);
+        }
     }
     sh_reply_free(&rep);
 

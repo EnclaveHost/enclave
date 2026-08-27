@@ -352,7 +352,37 @@ length, oversize) refused before a byte was used.
 
 **Memory reservation** changes only when the worker takes VRAM from the driver; VRAM
 holds ciphertext and public weights either way (section 2). It is an availability
-property: a tenant's budget is the tenant's.
+property: a tenant's budget is the tenant's. Since protocol 1.3 the tenant asks for it in
+the HELLO (a u64 the worker checks against its budget before any arithmetic and either
+holds or refuses) instead of the worker holding its whole budget at start-up, and the
+reply reports what the worker holds. That is host-side accounting of the untrusted half:
+the guest trusts nothing in the reply beyond the version, logs the figures, and acts on
+none of them; a refused HELLO is a dead link, which the backend already survives by
+computing in the enclave. Nothing about the tenant's privacy depends on any of it.
+
+#### 7d.1 Reservation per tenant (protocol 1.3)
+
+The reservation moved from the worker's start-up to the tenant's HELLO: `--vram-gb` is
+the budget the fleet sees, held by nobody until a link's HELLO names the bytes it will
+use, at which point the worker claims exactly those from the driver and releases them
+when the link closes. This is host-side accounting of the untrusted half, and nothing
+in the TEE depends on it:
+
+- The guest trusts nothing in the HELLO reply beyond the protocol version. The
+  `vram_*` figures are advertised to the fleet as the worker's claim about the worker's
+  card; a worker that lies about them misplaces tenants, which Freivalds does not catch
+  and does not need to -- a misplaced tenant computes in the enclave (section 7d, the
+  CPU fallback) and its privacy is untouched.
+- A refused reservation is a dead link, and a dead link is the same fallback. The host
+  can refuse every tenant; that is denial of service by the party that owns the card
+  and could unplug it, not a new capability.
+- Bounds: `reserve_bytes` is a u64 compared with the budget BEFORE any arithmetic, so
+  a huge value is refused as-is and the sum of reservations cannot wrap; the reply's
+  figures are formatted integers. The per-link cap now counts the installed graph's
+  node weights, which were the largest device consumer and the one the old ledger
+  missed, so a link cannot hold more than it reserved through an install either.
+- What crosses the link is unchanged: the same masked planes, the same public weights.
+  The reservation is one more integer in a frame the host already wrote.
 
 **The CPU fallback** computes claimed matmuls in the enclave, on ggml's CPU backend,
 when the card is contended or the link is down: fewer exchanges, the same masking on

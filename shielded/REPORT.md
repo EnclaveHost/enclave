@@ -1405,3 +1405,38 @@ not in the CVM, where every byte crosses vhost-vsock), plus the worker no longer
 competing with a game for the card. The transport is still 84% of the link and the shm
 ring remains the next 2x; the fallback never tripped (`contended=0 events=0`), so the
 detector's absolute expectation is calibrated correctly for the idle card.
+### 13.14.2 Reservation follows placement
+
+The start-up hold in 13.14 fixed the game and broke the fleet's arithmetic. The worker
+took its whole 6.5 GiB budget from the driver at start, and every free figure the box
+publishes came from that same driver: with ONE tenant on an otherwise idle card the box
+advertised **0.43 of 6.5 GB free**, because the hold hid itself from `cudaMemGetInfo`,
+from nvidia-smi and from `/availability`, and the supervisor's own ledger (which knew the
+card was 85% unsold) lost to the lower of the two. The operator's rule for the key is
+the right one: `vramGb` is the part of the card dedicated to Enclave, the fleet sees a
+card of that size, and it is 100% free until apps reserve shares.
+
+So the reservation moved from the worker's start to the tenant's placement, protocol
+1.3. The worker holds nothing for its budget at start-up (it only refuses to start on a
+card smaller than the budget). A tenant reserves its share in the HELLO (`u32 major` +
+`u64 reserve_bytes`; the old 4-byte HELLO reserves nothing and is what the guest's probe
+and refresh send); the worker claims exactly that from the driver under its budget and
+refuses the HELLO when the sum of reservations would exceed the budget or the card
+cannot give it -- a refused HELLO is a dead link, and the backend already computes in
+the enclave and reconnects with backoff, so the tenant runs until the memory is there.
+At disconnect the reservation goes back to the driver, visibly. The guest side sends
+the same number the supervisor sized the share from (`rec.shielded.vramGb`, exported to
+the tenant as `SHIELDED_RESERVE_BYTES`), so what the fleet sold, what the engine may
+allocate and what the worker holds are one figure. The HELLO reply carries
+`vram_reserve` (this connection) and `vram_reserved` (all live tenants); the box
+advertises `min(budget - vram_reserved, driver free)` and a new `vramReservedGb` beside
+it -- the card as sold, capped by the card as the untrusted host can still give it,
+which is the same cap that catches the game.
+
+Deployed 2026-08-27 08:17 UTC by swapping the worker binary alone (the launcher
+respawns it; the tenant reconnects on its backoff): the worker went from holding
+6814 MiB to 154 MiB idle and 606 MiB once the 0.5B tenant re-registered; the
+fleet's row went from `vramFreeGb 0.43` to `6.5` on the shielded block and
+`gpuShareFree 0.538` on availability -- the one tenant's 46% share booked, the
+rest free. The guest half (the reservation in HELLO, `vram_reserved_gb` in the
+verdict) rides the next CVM restart.

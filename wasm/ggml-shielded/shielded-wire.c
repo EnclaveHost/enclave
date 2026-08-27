@@ -72,8 +72,12 @@ static uint64_t get_u64(const uint8_t *p) {
     return v;
 }
 
-size_t sh_pack_hello(void *dst, uint32_t major) {
-    put_u32((uint8_t *)dst, major); return 4;
+size_t sh_pack_hello(void *dst, uint32_t major, uint64_t reserve_bytes) {
+    uint8_t *p = (uint8_t *)dst;
+    put_u32(p, major);
+    if (reserve_bytes == 0) return 4;      /* the pre-1.3 frame, byte for byte */
+    put_u64(p + 4, reserve_bytes);
+    return 12;
 }
 size_t sh_pack_alloc(void *dst, uint64_t size, const char *role) {
     uint8_t *p = (uint8_t *)dst; size_t n = strlen(role);

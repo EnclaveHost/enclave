@@ -159,7 +159,7 @@ int main(int argc, char **argv) {
     sh_pipe *p = sh_pipe_open(host, port, &err);
     if (p) {
         uint8_t pay[64]; sh_reply rep;
-        size_t n = sh_pack_hello(pay, 1);
+        size_t n = sh_pack_hello(pay, 1, 0);
         if (sh_pipe_call(p, SH_CMD_HELLO, pay, n, &rep) == SH_OK) {
             sh_reply_free(&rep);
             n = sh_pack_alloc(pay, 4096, "activations");

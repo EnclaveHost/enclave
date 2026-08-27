@@ -271,13 +271,17 @@ export function shieldedPoolOf(row){
   if (!sh || !(sh.vramGb > 0)) return null;
   const total = sh.vramBudgetGb > 0 ? sh.vramBudgetGb : sh.vramGb;
   const freeGb = Math.min(sh.vramFreeGb, total);
+  // Held by live tenants (protocol 1.3: each reserves its share at HELLO and
+  // the worker holds exactly that). The box's vramFreeGb is already net of it;
+  // it rides along so a row can say WHY the card is not all free.
+  const reservedGb = Number.isFinite(Number(sh.vramReservedGb)) ? Math.max(0, Math.min(total, Number(sh.vramReservedGb))) : 0;
   const clamp = (v) => Math.max(0, Math.min(1, v));
   const vramFrac = total > 0 ? clamp(freeGb / total) : 0;
   // Number.isFinite, not truthiness: 0 is the value this whole change exists to
   // report, and `||` would silently swap a fully-leased card back to 96%.
   const lease = Number(a.gpuShareFree);
   const frac = Number.isFinite(lease) ? clamp(lease) : vramFrac;
-  return { total, freeGb, vramFrac, frac, leasableGb: total * frac };
+  return { total, freeGb, reservedGb, vramFrac, frac, leasableGb: total * frac };
 }
 
 // One enclave row's sizing hardware: its own advertised numbers per axis, the
