@@ -1300,3 +1300,43 @@ The TLS finding of 13.11, split: a handshake to a NONEXISTENT app-zone label -- 
 relay alone -- takes 0.8-0.9 s, and to the live app 1.6-1.7 s, with a 41 ms ping to the
 relay. Both legs are ~0.8 s where a handshake over that RTT should be ~0.15; each is
 somebody's per-connection setup, and neither is this backend's.
+
+## 13.13 The in-guest profile, finally
+
+Everything above (13.10-13.12) plus the wasm-manager change that sets `SHIELDED_PROFILE`
+for a shielded tenant and echoes the backend's profile lines to the guest console was
+deployed to metal0 as v0.5.513 (forced through `metal/update.mjs`; the app hostname's
+certificate took 14 minutes, of which 10 were ZeroSSL's cool-off after a first-call
+timeout while egress was still coming up -- Let's Encrypt is at its weekly limit for the
+name until 2026-08-27 13:04 UTC -- and the two-minute cool-off with a second chance is in
+the next release). Measured from outside on three prompts: **97.7, 87.9 and 103.2 tok/s**,
+i.e. the same band as before, and now the guest says why. From the tenant's own
+counters, between exchanges 8192 and 12288 (83.6 tokens of the 0.5B, 4 vCPUs, vsock):
+
+| term | in the CVM (ms/token) | host loopback, 13.3 (ms/token) |
+|---|---|---|
+| **wire, 49 round trips** | **7.47 (152 us each)** | 2.24 (46 us each) |
+| CPU half of the graph | ~1.9 | ~1.5 |
+| unmask + Freivalds lhs / rhs | 0.26 / 0.12 | 0.20 / 0.10 |
+| post (outlier term + descale) | 0.20 | 0.20 |
+| mask | 0.14 | 0.13 |
+| encode | 0.02 | 0.02 |
+| refill on the request path | 0 | 0 |
+| token | ~10.3 | 4.63 |
+
+**Seventy-three percent of a deployed token is the vhost-vsock round trip**: 152 us per
+exchange where the host loopback pays 46 and the socket itself is ~10. The worker's GPU
+path is inside that 152 (it shrank by ~25 us in 13.2, which is why the deployed number
+did not fall when the host's rose), the TEE's crypto is 0.7 ms and every TEE-side
+saving of 13.10 landed in full (post 0.55 -> 0.20 ms) -- and none of it matters against
+7.5 ms of transport. In the CVM the tier is transport-bound, full stop.
+
+So the levers for the deployed number are, in order: a transport that does not pay a
+VM exit and an interrupt per direction per exchange (a shared-memory ring polled by
+both sides -- the pages carry ciphertext, so sharing them with the host costs nothing
+the design does not already give away -- which is launcher, QEMU and attestation-review
+work, not backend work); failing that, a bounded busy-poll in the guest
+(`SHIELDED_SPIN_US`, built, unmeasured in the guest, negative on the host's loopback);
+and fewer exchanges per token, which at 49 for this model is already the minimum the
+graph allows. The batched regime (13.12) amortises the 152 us over m rows and is where
+the deployed tier's throughput is.
