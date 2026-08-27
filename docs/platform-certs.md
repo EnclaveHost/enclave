@@ -43,9 +43,9 @@ every order in the zone and can pace them.
    ──────────────                                ─────────────────────
    generate P-256 key                            certs.js
    build CSR  CN=name, SAN=[name]   ── POST /v1/certs/issue ──▶  authorize name (our zones only)
-   sign the tuple: opSig (+ fleet HMAC if first-party)           verify opSig (sig if sent), ts, replay
+   sign the tuple over sha256(SPKI): opSig (+ fleet HMAC)        parse CSR from DER, refuse anything else
+                                                                  verify opSig (sig if sent) over THAT key, ts, replay
                                                                   ledger: endpoint holds the lease
-                                                                  parse CSR from DER, refuse anything else
                                                                   ACME: ZeroSSL (EAB) → Let's Encrypt
                                                                   dns-01 TXT ──▶ dns-relay /v1/txt
    install cert + key            ◀── 200 {certPem, notAfter, ca} ─  cache (name, SPKI) until 2/3 lifetime
@@ -55,10 +55,11 @@ every order in the zone and can pace them.
 
 | Thing | Where | Protection |
 |---|---|---|
-| CA account keys (one per CA) | `AUTH_DATA_DIR/certs.json` `accounts` | AES-256-GCM under a subkey of `CERTS_KEY`, AAD = the CA directory URL |
+| CA account keys (one per CA) | `AUTH_DATA_DIR/certs.json` `accounts` | AES-256-GCM under a subkey of the sealing root (`CERTS_KEY`, else `SECRETS_KEY`), AAD = the CA directory URL |
+| In-flight orders | `certs.json` `orders` | public data (order URL, finalize URL, the CSR); a finalized order the CA is still processing, kept ≤ 1 h so the next ask resumes it |
 | The platform EAB pair | `api-relay.env` `ACME_EAB_KID` / `ACME_EAB_HMAC` | host file permissions; no longer on any enclave |
 | Issued certificates | `certs.json` `certs` | public data; cache keyed by `(name, sha256(SPKI))` |
-| `CERTS_KEY` | `api-relay.env` | a **derived** key, `HMAC(SECRET, "enclave certs v1")`; the relay never holds the fleet `SECRET` |
+| `CERTS_KEY` | `api-relay.env` | a **derived** key, `HMAC(SECRET, "enclave certs v1")`; the relay never holds the fleet `SECRET`. Optional: without it the relay cannot verify a fleet HMAC and refuses requests that carry one |
 | `DNS_TXT_KEY` | `api-relay.env` | the derived TXT-push key the DNS daemon already checks |
 
 Never: a certificate's private key, or the fleet `SECRET`.
@@ -75,23 +76,38 @@ refusal never costs an issuance:
    second-level label, or a label like `box` is `403` (`not_platform_zone` /
    `bad_label`). `domains.js`'s `isReservedHostname` is the first cut: a name
    it does *not* reserve is somebody else's by definition.
-2. **Fleet key (optional)** — `sig = HMAC-SHA256(CERTS_KEY, "<name>:<endpoint>:<ts>")`; a seller box registered with only its operator key has no fleet SECRET and sends none — the operator signature and the lease are the authorization; a sig that is sent must verify;
-   `ts` within ±10 min; each signature is single-use (`401` / `422` / `409`).
-3. **Operator key** — `opSig` must be a personal_sign of
-   `enclave-certs-issue:<name>:<endpoint>:<ts>` by the operator that registered
-   `endpoint` in EnclaveRegistry. The fleet key proves only "a holder of the
-   fleet key"; naming another box's endpoint needs that box's key (the
-   `secrets.js` rule). An unregistered endpoint has nobody to authorize it
-   (`403`).
-4. **Lease** — the ledger row the label names must have `runner ==
-   keccak256(endpoint)` with `leaseUntil` in the future; a fresh re-read covers
-   a claim newer than the 10 s ledger cache. An ambiguous prefix is no row
-   (`403 not_found` / `not_lease_holder`).
-5. **CSR** — parsed from the DER, not trusted from the caller: version 0; a
+2. **CSR** — parsed from the DER, not trusted from the caller: version 0; a
    subject that is exactly `CN=<name>`; a key that is EC P-256 or RSA ≥ 2048;
    exactly one attribute (`extensionRequest`) holding exactly one extension
    (`subjectAltName`) holding exactly one `dNSName == name`; a verifying
-   self-signature. Anything else is `400 bad_csr`.
+   self-signature. Anything else is `400 bad_csr`. The parser assumes hostile
+   bytes: lengths are computed without shifts and checked against the bytes
+   that remain before anything is sliced, minimal DER encoding is required,
+   children must advance and fan-out/depth are capped, and nothing it hits can
+   escape as anything but a 400. It runs before the signatures because both
+   signed tuples name the key: `spkiHash = sha256(DER SubjectPublicKeyInfo)`,
+   computed here, never taken from the caller.
+3. **Fleet key (optional)** — `sig = HMAC-SHA256(hex-decode(CERTS_KEY),
+   "<name>:<endpoint>:<spkiHash>:<ts>")`. Only a box whose `SECRET` is the real
+   fleet secret sends one (`FLEET_SECRET_PRESENT` on the supervisor side); a
+   seller box registered with only its operator key sends none — the operator
+   signature and the lease are the authorization. A sig that is sent must
+   verify (`401 bad_sig`), and a relay without `CERTS_KEY` refuses sig-bearing
+   requests outright (`401 sig_unverifiable`, logged once per endpoint) rather
+   than ignoring a factor it cannot check. `ts` within ±10 min (`422`).
+   **Every** signature present is single-use — `opSig` always, `sig` when sent
+   — so a captured request replays with neither factor dropped (`409`).
+4. **Operator key** — `opSig` must be a personal_sign of
+   `enclave-certs-issue:<name>:<endpoint>:<spkiHash>:<ts>` by the operator that
+   registered `endpoint` in EnclaveRegistry. The fleet key proves only "a
+   holder of the fleet key"; naming another box's endpoint needs that box's key
+   (the `secrets.js` rule). Because the tuple names the key, a signature over
+   one CSR does not open another CSR for the same name (`403 wrong_operator`).
+   An unregistered endpoint has nobody to authorize it (`403`).
+5. **Lease** — the ledger row the label names must have `runner ==
+   keccak256(endpoint)` with `leaseUntil` in the future; a fresh re-read covers
+   a claim newer than the 10 s ledger cache. An ambiguous prefix is no row
+   (`403 not_found` / `not_lease_holder`).
 
 Only then does an order start.
 
@@ -106,16 +122,39 @@ Only then does an order start.
   an authz that became invalid) moves to the next CA without cooling; a CA that
   timed out this round gets one immediate second chance if a later CA reached
   its endpoints and refused only the name. Every HTTP call is bounded (20 s).
+  One deliberate departure from the supervisor: a **finalized order the CA
+  still reports `processing`** at the 90 s poll deadline is *not* a CA failure.
+  The relay persists it (`orders`, keyed by `(name, spkiHash)`: CA, order URL,
+  finalize URL, the CSR) and answers `202`; the next ask for the same key
+  resumes polling that order (honouring `Retry-After`) instead of starting
+  another one at the next CA — abandoning it orphaned a ZeroSSL certificate
+  *and* spent a Let's Encrypt token from the zone's shared budget. Only
+  `invalid` or a CA-level error falls over; a record older than 1 h is dropped.
+* **Accounts** are registered once per CA (serialized behind one promise, so
+  a burst of first asks cannot register twice and persist a mismatched
+  kid/key) and kept. If the CA answers `accountDoesNotExist` — or
+  `unauthorized`/`malformed` on `newOrder`, the first kid-bearing call — the
+  persisted account is dropped, logged, re-registered once and the order
+  retried; before that a dead account failed every name on its slot, silently.
 * **dns-01** goes through the DNS daemon's authenticated `/v1/txt` with
   `DNS_TXT_KEY`, at `_acme-challenge.<name>`, and is deleted win or lose.
 * **Cache**: `(name, sha256(SPKI))` → certificate, served with `cached: true`
   until two thirds of its lifetime; a re-ask with the same key costs no
   issuance. A new key for the same name replaces the record.
 * **202**: a duplicate ask joins the running order; if the order outlives the
-  request's wait (2 min) the reply is `202 {retryAfterSec}` and the enclave's
-  retry finds the cache. `202` is also the answer while every CA is cooling off,
-  while a name is in failure backoff (1 min doubling to 1 h), and when the
-  caller's own bucket is empty.
+  request's wait (`CERTS_SYNC_WAIT_MS`, **8 s**) the reply is `202
+  {retryAfterSec}` and the enclave's retry finds the cache, the running order,
+  or a persisted one to resume. That wait is **coupled to the supervisor's
+  `CERTS_HTTP_MS` (30 s)**: the relay must answer well inside the enclave's
+  timeout, or the enclave aborts the POST, counts it as a CA failure and walks
+  its in-enclave slots while the relay's order keeps running. The supervisor
+  for its part stores the minted key in `pending` *before* the POST, so a
+  timeout re-presents the same key and hits the cache / the in-flight order.
+  `202` is also the answer while every CA is cooling off, while a name is in
+  failure backoff (1 min doubling to 1 h), and when the caller's own bucket is
+  empty. Outcomes are recorded inside the order's own promise, so a failure
+  that lands *after* the `202` went out still counts: the next ask is answered
+  from the backoff record, not with a fresh order.
 * **Pacing**: per endpoint, a burst of 20 and 20/hour; per CA, ZeroSSL 60/hour
   and Let's Encrypt a burst of 25 refilling 40/week — under the 50/week the whole
   zone shares, so one renewal wave cannot spend the allowance.
@@ -125,13 +164,17 @@ Only then does an order start.
 ## Configuring the API relay (nan)
 
 Everything lives in `/etc/nan-relay/api-relay.env` (host state; `deploy.sh`
-never writes it). The route answers `503 certs_disabled` until all of
-`CERTS_KEY`, `DNS_API`, `DNS_TXT_KEY`, `APP_ZONE` and the `AUTH_DATA_DIR`
-activation switch are present.
+never writes it). The route answers `503 certs_disabled` until `DNS_API`,
+`DNS_TXT_KEY`, `APP_ZONE`, one of `CERTS_KEY` / `SECRETS_KEY` (the at-rest
+sealing root for the account blobs; `SECRETS_KEY` is already there for
+`secrets.js`) and the `AUTH_DATA_DIR` activation switch are present. Without
+`CERTS_KEY` the route runs for opSig-only (seller) requests and refuses any
+request that carries a fleet HMAC — place `CERTS_KEY` before the first-party
+fleet is repointed.
 
 ```
 AUTH_DATA_DIR=/var/lib/enclave-relay        # already set for accounts/billing/secrets/domains
-CERTS_KEY=<64 hex>                          # HMAC-SHA256(fleet SECRET, "enclave certs v1")
+CERTS_KEY=<64 hex>                          # HMAC-SHA256(fleet SECRET, "enclave certs v1"); optional until first-party boxes send sig
 DNS_API=http://127.0.0.1:8153               # the dns-relay push API (DNS_API_PORT, default 8153; same value the enclaves use)
 DNS_TXT_KEY=<64 hex>                        # HMAC-SHA256(fleet SECRET, "enclave dns-txt v1") — the dns.env value
 APP_ZONE=app.enclave.host
@@ -149,7 +192,9 @@ node -e 'console.log(require("node:crypto").createHmac("sha256", process.argv[1]
 ```
 
 Then `systemctl restart enclave-api-relay` and look for
-`[certs] enabled — zones ... ; CAs zerossl -> letsencrypt` in the journal. The
+`[certs] enabled — zones ... ; CAs zerossl -> letsencrypt ... fleet factor
+verified` in the journal (`fleet factor REFUSED (CERTS_KEY unset)` means the
+sealing root is `SECRETS_KEY` and first-party requests will be 401). The
 first issuance registers each CA account (`[certs] zerossl: account registered
 at ...`); after that the accounts are read from `certs.json`.
 
@@ -181,6 +226,12 @@ hostname is `403` here, a platform hostname is `400`/`403` there.
 
 `node --test test/certs.test.mjs` — two mock ACME servers (EAB-checking,
 JWS-verifying, signing the caller's CSR with openssl) and a mock `DNS_API`;
-never a real CA. Covers every refusal above, the DER checks, the failover rules
-(5xx cool-off + fallback, rateLimited → next CA, nonce timeout → second chance),
-the encrypted account record, the cache, and the 202 paths.
+never a real CA. Covers every refusal above, the DER checks (including the
+crafted-length patterns that used to loop the parser), the key binding of both
+tuples, replay with either factor dropped, the failover rules (5xx cool-off +
+fallback, rateLimited → next CA, nonce timeout → second chance), a `processing`
+order resumed on the next ask, a purged account re-registered once, serialized
+first registration, a failure recorded after the `202`, a relay without
+`CERTS_KEY`, the encrypted account record, the cache, and the 202 paths.
+`test/acme.test.mjs` imports `issueSig` / `issueMessage` from `relay/certs.js`
+so the supervisor's wire format is pinned against the relay's, byte for byte.

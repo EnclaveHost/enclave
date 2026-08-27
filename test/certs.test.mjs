@@ -4,7 +4,9 @@
 // These tests pin
 //   (1) the gates: name authorization (our zones, one canonical label, never a
 //       customer domain / apex / reserved name), the derived-key HMAC, ts skew,
-//       single-use signatures, the operator signature, the on-chain lease;
+//       single-use signatures (EVERY factor present is spent), the operator
+//       signature, the on-chain lease — and that both signed tuples BIND THE
+//       KEY: a tuple signed over one CSR's SPKI does not open another CSR;
 //   (2) CSR validation from DER: exactly {CN==name, SAN==[name]}, P-256 or
 //       RSA>=2048, a verifying self-signature (openssl builds the inputs);
 //   (3) the ACME flow against TWO MOCK CAs (never a real one): EAB-checked
@@ -13,7 +15,15 @@
 //       CSR, and the failover rules — 5xx cools a CA off and falls over,
 //       rateLimited moves to the next CA without cooling, a nonce timeout gets
 //       a second chance once another CA proved the network;
-//   (4) the cache (same key = cached:true, no order) and the 202 paths.
+//   (4) the cache (same key = cached:true, no order) and the 202 paths;
+//   (5) hostile DER (the negative-length loop, indefinite/non-minimal lengths,
+//       lengths past the end) is a 400, never a hang or an escape;
+//   (6) persistence across the reply: a finalized order still `processing` at
+//       the poll deadline is kept and RESUMED on the next ask (no fallover), a
+//       dead persisted account is re-registered once, a failure that lands
+//       after the 202 went out is still recorded and backs the next ask off;
+//   (7) a relay without CERTS_KEY (SECRETS_KEY as the sealing root) takes
+//       opSig-only requests and refuses sig-bearing ones.
 //
 //   run: node --test test/certs.test.mjs
 import test from "node:test";
@@ -85,9 +95,11 @@ const DNS_API = `http://127.0.0.1:${dnsServer.address().port}`;
 // Verifies every JWS (ES256, single-use nonces, url binding), checks EAB when
 // required, validates dns-01 by looking in the mock DNS store, and signs the
 // finalize CSR with openssl. `mode` steers failure injection at newOrder /
-// newNonce: "ok" | "5xx" | "rateLimited" | "nonceHangOnce".
+// newNonce: "ok" | "5xx" | "rateLimited" | "nonceHangOnce"; `slowFinalizeMs`
+// keeps a finalized order `processing` (with Retry-After: 1) for that long;
+// `slowInvalidMs` delays the challenge answer and then fails validation.
 function mockCa({ eab = null } = {}) {
-  const ca = { mode: "ok", calls: {}, accounts: new Map(), orders: new Map(), nonces: new Set(), hung: [], url: "", close: null };
+  const ca = { mode: "ok", slowFinalizeMs: 0, slowInvalidMs: 0, calls: {}, accounts: new Map(), orders: new Map(), nonces: new Set(), hung: [], url: "", close: null };
   const count = (k) => { ca.calls[k] = (ca.calls[k] || 0) + 1; };
   const nonce = () => { const n = b64u(createHash("sha256").update(String(Math.random())).digest()).slice(0, 22); ca.nonces.add(n); return n; };
   const server = http.createServer((req, res) => {
@@ -159,6 +171,7 @@ function mockCa({ eab = null } = {}) {
       if (m[1] === "authz") { count("authz"); return send(200, authzBody()); }
       if (m[1] === "chal") {
         count("challenge");
+        if (ca.slowInvalidMs) { await new Promise((r) => setTimeout(r, ca.slowInvalidMs)); o.authz = "invalid"; return send(200, authzBody().challenges[0]); }
         const want = b64u(createHash("sha256").update(`${o.token}.${o.thumbprint}`).digest());
         o.authz = dns.records.get(`_acme-challenge.${o.name}`)?.has(want) ? "valid" : "invalid";
         if (o.authz === "valid") o.status = "ready";
@@ -170,9 +183,17 @@ function mockCa({ eab = null } = {}) {
         const csrDer = Buffer.from(payload.csr, "base64url");
         try { o.cert = await signLeaf(csrDer); o.status = "valid"; }
         catch (e) { o.status = "invalid"; o.error = e.message; }
+        if (ca.slowFinalizeMs) { o.releaseAt = Date.now() + ca.slowFinalizeMs; o.status = "processing"; }
         return send(200, { status: o.status });
       }
-      if (m[1] === "order") return send(200, { status: o.status, ...(o.cert ? { certificate: `${ca.url}/cert/${o.id}` } : {}), ...(o.error ? { error: { detail: o.error } } : {}) });
+      if (m[1] === "order") {
+        count("orderPoll");
+        if (o.status === "processing" && o.releaseAt) {
+          if (Date.now() < o.releaseAt) return send(200, { status: "processing" }, { "retry-after": "1" });
+          o.status = "valid"; o.releaseAt = 0;
+        }
+        return send(200, { status: o.status, ...(o.cert && o.status === "valid" ? { certificate: `${ca.url}/cert/${o.id}` } : {}), ...(o.error ? { error: { detail: o.error } } : {}) });
+      }
       if (m[1] === "cert") { count("cert"); res.writeHead(200, { "content-type": "application/pem-certificate-chain", "replay-nonce": nonce() }); return res.end(o.cert); }
     });
   });
@@ -190,6 +211,7 @@ const ca2 = await mockCa();                    // "letsencrypt" slot: no EAB
 const KEY = "ab".repeat(32);
 Object.assign(process.env, {
   CERTS_KEY: KEY, DNS_API, DNS_TXT_KEY, APP_ZONE: "app.enclave.host", TCP_ZONE: "tcp.enclave.host", AUTH_DATA_DIR: DIR,
+  CERTS_ENDPOINT_BURST: "500", CERTS_CA_BURST: "500",       // the suite asks far more often than a real box may
   ACME_EAB_KID: EAB.kid, ACME_EAB_HMAC: EAB.hmac, ACME_CONTACT: "certs@example.test",
   ACME_DIRECTORY: ca1.url + "/directory", ACME_DIRECTORY_2: ca2.url + "/directory",
   CERTS_HTTP_TIMEOUT_MS: "400", CERTS_CA_COOLDOWN_MS: "1500", CERTS_DNS_SETTLE_MS: "0",
@@ -214,7 +236,8 @@ const ctx = {
   clientIp: () => "203.0.113.7",
   ledgerRows: async () => rows,
   ledgerExpire: () => {},
-  endpointIdOf: async (ep) => (ep === ENDPOINT ? RUNNER : "0x" + "ee".repeat(32)),
+  // every https://enclaveN.example is "this box" (later tests take a fresh N to sidestep the per-endpoint pacing bucket)
+  endpointIdOf: async (ep) => (/^https:\/\/enclave\d+\.example$/.test(ep) ? RUNNER : "0x" + "ee".repeat(32)),
   operatorOfEndpoint: async () => epOwner,
 };
 const leaseRow = (over = {}) => ({ id: ID, owner: OTHER.address, runner: RUNNER, leaseUntil: BigInt(Math.floor(Date.now() / 1000) + 1800), ...over });
@@ -223,11 +246,23 @@ const now = () => Math.floor(Date.now() / 1000);
 // two asks with one ts are the SAME signed tuple, i.e. a replay by design
 let _seq = 0;
 const nextTs = () => now() + (_seq++ % 500);
-async function body({ name = NAME, csr, endpoint = ENDPOINT, ts = nextTs(), account = OP, sig, opSig } = {}) {
+// sha256(SPKI) of a CSR's key, computed by openssl — independent of the
+// parser under test, so the tuple the tests sign is the one a real box signs
+async function spkiHashOf(csrPem) {
+  const f = path.join(DIR, `s${++_n}.csr`);
+  fs.writeFileSync(f, csrPem);
+  const { stdout } = await pexec("openssl", ["req", "-in", f, "-pubkey", "-noout"]);
+  return createHash("sha256").update(createPublicKey(stdout).export({ type: "spki", format: "der" })).digest("hex");
+}
+// `signedCsr`: sign the tuple over THAT CSR's key while sending `csr` (the
+// key-binding tests); default = the CSR being sent
+let EP = ENDPOINT;   // the requesting box; later tests move to a sibling to get a fresh per-endpoint bucket
+async function body({ name = NAME, csr, signedCsr, endpoint = EP, ts = nextTs(), account = OP, sig, opSig, key = KEY } = {}) {
   csr ||= await csrFor(name);
+  const spkiHash = await spkiHashOf(signedCsr || csr);
   return { name, csr, endpoint, ts,
-           sig: sig ?? issueSig(KEY, name, endpoint, ts),
-           opSig: opSig ?? await account.signMessage({ message: issueMessage(name, endpoint, ts) }) };
+           sig: sig ?? issueSig(key, name, endpoint, spkiHash, ts),
+           opSig: opSig ?? await account.signMessage({ message: issueMessage(name, endpoint, spkiHash, ts) }) };
 }
 const call = async (b, pathname = "/v1/certs/issue", method = "POST") => {
   const res = {};
@@ -304,13 +339,22 @@ test("refusals never reach a CA: customer domain, apex, reserved, bad sig, stale
   rows = [leaseRow(), leaseRow({ id: "0x" + "cd".repeat(4) + "ee".repeat(28) })];
   r = await call(await body());
   assert.equal(r.code, 403); assert.equal(r.body.error, "not_found");
-  // replay: the same signed tuple twice (after the first one passed the gate)
+  // a CSR that does not parse is refused BEFORE any signature is spent (the
+  // tuples bind the key, so there is nothing to verify them against)
   rows = [leaseRow()];
-  const b = await body({ csr: await csrFor("other.app.enclave.host") });   // wrong-CN CSR: passes auth, fails at the CSR
-  r = await call(b);
+  const bc = await body({ csr: await csrFor("other.app.enclave.host") });   // wrong-CN CSR
+  r = await call(bc);
   assert.equal(r.code, 400); assert.equal(r.body.error, "bad_csr");
+  r = await call(bc);
+  assert.equal(r.code, 400, "an unparsed CSR spends no signature");
+  // replay: the same signed tuple twice (after the first one passed the signature gate)
+  rows = [leaseRow({ runner: "0x" + "bb".repeat(32) })];
+  const b = await body();
+  r = await call(b);
+  assert.equal(r.code, 403); assert.equal(r.body.error, "not_lease_holder");
   r = await call(b);
   assert.equal(r.code, 409); assert.equal(r.body.error, "sig_replayed");
+  rows = [leaseRow()];
   assert.equal(orders(), before, "no refusal reached a CA");
 });
 
@@ -474,6 +518,244 @@ test("a duplicate ask while the order is in flight rides the same order", async 
   assert.equal(a.code, 200); assert.equal(b.code, 200);
   assert.equal(a.body.certPem, b.body.certPem);
   assert.equal(a.body.cached !== b.body.cached, true, "one issued, one joined");
+});
+
+// ---- regressions from the 2026-08-27 review ------------------------------------
+
+EP = "https://enclave2.example";
+const pemOf = (der) => `-----BEGIN CERTIFICATE REQUEST-----\n${Buffer.from(der).toString("base64")}\n-----END CERTIFICATE REQUEST-----`;
+test("hostile DER is a fast 400, never a hang: negative 4-byte length, indefinite, non-minimal, past-the-end, zero-length nesting", async () => {
+  const cases = {
+    // the reviewer's pattern: 30 10 | 30 08 00*8 | 02 84 ff ff ff f0 -> len -16 through int32 shifts, kids() walked 2 -> 12 -> 2 forever
+    negative4: [0x30, 0x10, 0x30, 0x08, 0,0,0,0,0,0,0,0, 0x02, 0x84, 0xff, 0xff, 0xff, 0xf0],
+    topBit4:   [0x30, 0x10, 0x30, 0x08, 0,0,0,0,0,0,0,0, 0x02, 0x84, 0x80, 0x00, 0x00, 0x02],
+    fiveBytes: [0x30, 0x11, 0x30, 0x08, 0,0,0,0,0,0,0,0, 0x02, 0x85, 0x00, 0x00, 0x00, 0x00, 0x01],
+    pastEnd:   [0x30, 0x06, 0x30, 0x04, 0x02, 0x81, 0xff, 0x00],
+    indefinite:[0x30, 0x80, 0x30, 0x00, 0x00, 0x00],
+    nonMinimal:[0x30, 0x04, 0x02, 0x81, 0x01, 0x00],            // long form for a length < 128
+    leadingZero:[0x30, 0x05, 0x02, 0x82, 0x00, 0x01, 0x00],      // 0x82 00 01: a leading zero length byte
+    zeroSeqs:  [0x30, 0x06, 0x30, 0x00, 0x30, 0x00, 0x30, 0x00],
+    topShort:  [0x30, 0x84, 0xff, 0xff, 0xff, 0xff],
+    deep:      (() => { let b = [0x02, 0x01, 0x00]; for (let i = 0; i < 40; i++) b = [0x30, b.length, ...b]; return b; })(),
+  };
+  for (const [what, bytes] of Object.entries(cases)) {
+    const t0 = Date.now();
+    let err = null;
+    try { parseCsr(pemOf(Uint8Array.from(bytes)), NAME); } catch (e) { err = e; }
+    assert.ok(err instanceof Error && err.message, `${what}: must throw an Error`);
+    assert.ok(Date.now() - t0 < 500, `${what}: parser must fail fast, took ${Date.now() - t0}ms`);
+  }
+  // the whole thing through the route: 400 bad_csr, no signature spent, no CA touched
+  rows = [leaseRow()];
+  const before = (ca1.calls.newOrder || 0) + (ca2.calls.newOrder || 0);
+  const r = await call(await body({ csr: pemOf(Uint8Array.from(cases.negative4)), signedCsr: await csrFor(NAME) }));
+  assert.equal(r.code, 400); assert.equal(r.body.error, "bad_csr");
+  assert.equal((ca1.calls.newOrder || 0) + (ca2.calls.newOrder || 0), before);
+});
+
+test("replay: dropping `sig` from a captured first-party request does not reopen it (opSig is spent too)", async () => {
+  rows = [leaseRow()];
+  const key = await genKey();
+  const b = await body({ csr: await csrFor(NAME, { key }) });
+  const r = await call(b);
+  assert.equal(r.code, 200, JSON.stringify(r.body));
+  // verbatim replay
+  let x = await call(b);
+  assert.equal(x.code, 409); assert.equal(x.body.error, "sig_replayed");
+  // the same tuple with the fleet factor dropped: opSig was marked on the first pass
+  x = await call({ ...b, sig: "" });
+  assert.equal(x.code, 409); assert.equal(x.body.error, "sig_replayed");
+  // the same tuple with the fleet factor dropped AND another CSR for the same name:
+  // the tuple names the first key, so it cannot even verify — and it is spent anyway
+  const attacker = await csrFor(NAME);
+  x = await call({ ...b, sig: "", csr: attacker });
+  assert.equal(x.code, 409);
+  assert.equal(Object.values(_internals.store().data.certs).filter((c) => c.name === NAME).length, 1);
+  assert.equal(Object.values(_internals.store().data.certs).find((c) => c.name === NAME).spkiHash, await spkiHashOf(b.csr), "the legit record was not evicted");
+});
+
+test("the signed tuples bind the key: a CSR for another key than the one signed over is refused", async () => {
+  rows = [leaseRow()];
+  const signedOver = await csrFor(NAME), sent = await csrFor(NAME);
+  const before = (ca1.calls.newOrder || 0) + (ca2.calls.newOrder || 0);
+  // first-party: the fleet HMAC is over the other key -> 401
+  let r = await call(await body({ csr: sent, signedCsr: signedOver }));
+  assert.equal(r.code, 401); assert.equal(r.body.error, "bad_sig");
+  // seller (opSig only): the operator signed the other key -> recovers to a different address
+  r = await call(await body({ csr: sent, signedCsr: signedOver, sig: "" }));
+  assert.equal(r.code, 403); assert.equal(r.body.error, "wrong_operator");
+  assert.equal((ca1.calls.newOrder || 0) + (ca2.calls.newOrder || 0), before, "nothing reached a CA");
+  // and the exact same tuple over the right CSR is fine
+  r = await call(await body({ csr: sent, sig: "" }));
+  assert.equal(r.code, 200, JSON.stringify(r.body));
+});
+
+test("the wire format is pinned: HMAC over hex-decoded CERTS_KEY of <name>:<endpoint>:<spkiHash>:<ts>; opSig text enclave-certs-issue:<...same>", async () => {
+  const csr = await csrFor(NAME);
+  const h = await spkiHashOf(csr), ts = 1700000000;
+  assert.equal(issueSig(KEY, NAME, ENDPOINT, h, ts),
+               createHmac("sha256", Buffer.from(KEY, "hex")).update(`${NAME}:${ENDPOINT}:${h}:${ts}`).digest("hex"));
+  assert.notEqual(issueSig(KEY, NAME, ENDPOINT, h, ts), createHmac("sha256", KEY).update(`${NAME}:${ENDPOINT}:${h}:${ts}`).digest("hex"), "the key is the 32 decoded bytes, not the hex string");
+  assert.equal(issueMessage(NAME, ENDPOINT, h, ts), `enclave-certs-issue:${NAME}:${ENDPOINT}:${h}:${ts}`);
+  assert.equal(parseCsr(csr, NAME).spkiHash, h, "the relay's spkiHash is sha256 of the DER SubjectPublicKeyInfo");
+});
+
+test("a finalized order still `processing` at the poll deadline is kept (202) and RESUMED on the next ask — no fallover, one order", async () => {
+  rows = [leaseRow()];
+  const key = await genKey();
+  ca1.slowFinalizeMs = 4000;                                // > CERTS_POLL_TIMEOUT_MS (3 s): the deadline passes while processing
+  const o1 = ca1.calls.newOrder, o2 = ca2.calls.newOrder || 0, polls = ca1.calls.orderPoll || 0;
+  let r = await call(await body({ csr: await csrFor(NAME, { key }) }));
+  assert.equal(r.code, 202, JSON.stringify(r.body));
+  assert.ok(r.body.retryAfterSec >= 1 && r.body.retryAfterSec <= 300, JSON.stringify(r.body));
+  assert.equal(ca1.calls.newOrder, o1 + 1); assert.equal(ca2.calls.newOrder || 0, o2, "no fallover to the next CA");
+  assert.equal(_internals.CAS[0].downUntil, 0, "processing is not a CA failure");
+  assert.ok((ca1.calls.orderPoll || 0) - polls <= 6, `Retry-After honoured (${(ca1.calls.orderPoll || 0) - polls} polls in 3 s)`);
+  const keyOf = (h) => `${NAME}|${h}`;
+  const h = await spkiHashOf(await csrFor(NAME, { key }));
+  const held = _internals.store().data.orders[keyOf(h)];
+  assert.ok(held && held.ca === "zerossl" && held.orderUrl && held.finalizeUrl && held.csrDer, "the order is persisted");
+  assert.equal(_internals.store().data.failures[NAME], undefined, "not a failure");
+  await new Promise((s) => setTimeout(s, 1700));           // the CA finishes
+  r = await call(await body({ csr: await csrFor(NAME, { key }) }));
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.ca, "zerossl"); assert.equal(r.body.cached, false);
+  assert.equal(ca1.calls.newOrder, o1 + 1, "resumed, not re-ordered");
+  assert.equal(_internals.store().data.orders[keyOf(h)], undefined, "the order record is dropped when done");
+  ca1.slowFinalizeMs = 0;
+  await settle();
+  assert.equal(dns.records.get(`_acme-challenge.${NAME}`)?.size || 0, 0, "TXT cleaned up after the resume");
+});
+
+test("a persisted order survives a relay restart: the slot starts with no account and resumes from the store", async () => {
+  rows = [leaseRow()];
+  const key = await genKey();
+  ca1.slowFinalizeMs = 4000;
+  const o1 = ca1.calls.newOrder, o2 = ca2.calls.newOrder || 0, regs = ca1.calls.newAccount;
+  let r = await call(await body({ csr: await csrFor(NAME, { key }) }));
+  assert.equal(r.code, 202, JSON.stringify(r.body));
+  // "restart": the in-memory slot forgets its account; the sealed blob and the order are on disk
+  _internals.CAS[0].account = null; _internals.CAS[0].dir = null;
+  await new Promise((s) => setTimeout(s, 1700));
+  r = await call(await body({ csr: await csrFor(NAME, { key }) }));
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.ca, "zerossl");
+  assert.equal(ca1.calls.newOrder, o1 + 1, "resumed, not re-ordered"); assert.equal(ca2.calls.newOrder || 0, o2, "no fallover");
+  assert.equal(ca1.calls.newAccount, regs, "the persisted account was reloaded, not re-registered");
+  ca1.slowFinalizeMs = 0; await settle();
+});
+
+test("a persisted order is resumed FIRST on its own CA even when an earlier slot is healthy again", async () => {
+  rows = [leaseRow()];
+  const key = await genKey();
+  ca1.mode = "rateLimited"; ca2.slowFinalizeMs = 4000;      // the order lands on Let's Encrypt and is still processing
+  const o2 = ca2.calls.newOrder || 0;
+  let r = await call(await body({ csr: await csrFor(NAME, { key }) }));
+  assert.equal(r.code, 202, JSON.stringify(r.body));
+  assert.equal(ca2.calls.newOrder, o2 + 1);
+  const o1 = ca1.calls.newOrder;                            // after the refused first attempt
+  const h = await spkiHashOf(await csrFor(NAME, { key }));
+  assert.equal(_internals.store().data.orders[`${NAME}|${h}`]?.ca, "letsencrypt");
+  ca1.mode = "ok";                                          // ZeroSSL is back: the walk would try it first
+  await new Promise((s) => setTimeout(s, 1700));
+  r = await call(await body({ csr: await csrFor(NAME, { key }) }));
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.ca, "letsencrypt");
+  assert.equal(ca1.calls.newOrder, o1, "ZeroSSL was not asked for a fresh order");
+  assert.equal(ca2.calls.newOrder, o2 + 1, "the Let's Encrypt order was collected, not re-placed");
+  assert.equal(_internals.store().data.orders[`${NAME}|${h}`], undefined);
+  ca2.slowFinalizeMs = 0; await settle();
+});
+
+test("a purged account during a renewal wave: concurrent names re-register ONE account and all issue on the same CA", async () => {
+  rows = [leaseRow()];
+  const dirKey = ca1.url + "/directory";
+  const regs = ca1.calls.newAccount, o2 = ca2.calls.newOrder || 0;
+  ca1.accounts.clear();
+  const names = ["cdcdcdcdcdcdcdcdcdcd.app.enclave.host", "cdcdcdcdcdcdcdcdcdcdcd.app.enclave.host", "cdcdcdcdcdcdcdcdcdcdcdcd.app.enclave.host"];   // labels no other test touches
+  const bodies = await Promise.all(names.map((name) => body({ name })));
+  const rs = await Promise.all(bodies.map((b) => call(b)));
+  for (const r of rs) { assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.ca, "zerossl"); }
+  assert.equal(ca1.calls.newAccount, regs + 1, "exactly one re-registration");
+  assert.equal(ca2.calls.newOrder || 0, o2, "nothing fell over to Let's Encrypt");
+  assert.ok(_internals.CAS[0].account?.kid, "the slot holds the fresh account");
+  assert.equal(_internals.open(dirKey, _internals.store().data.accounts[dirKey]).kid, _internals.CAS[0].account.kid);
+});
+
+test("accountDoesNotExist on the persisted account drops it, re-registers once and retries", async () => {
+  rows = [leaseRow()];
+  const dirKey = ca1.url + "/directory";
+  const blobBefore = _internals.store().data.accounts[dirKey];
+  const regs = ca1.calls.newAccount;
+  ca1.accounts.clear();                                     // the CA purged every account
+  const r = await call(await body());
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.ca, "zerossl");
+  assert.equal(ca1.calls.newAccount, regs + 1, "registered exactly once more");
+  assert.notEqual(_internals.store().data.accounts[dirKey], blobBefore, "a new account blob is persisted");
+  assert.equal(_internals.open(dirKey, _internals.store().data.accounts[dirKey]).kid, _internals.CAS[0].account.kid);
+});
+
+test("two names on a fresh slot register ONE account (registration is serialized)", async () => {
+  EP = "https://enclave3.example";
+  rows = [leaseRow()];
+  const dirKey = ca2.url + "/directory";
+  delete _internals.store().data.accounts[dirKey];
+  _internals.CAS[1].account = null;
+  ca1.mode = "rateLimited";                                 // both names go to the second slot
+  const regs = ca2.calls.newAccount || 0;
+  const [a, b] = await Promise.all([call(await body({ name: "cdcdcdcdcdcdcd.app.enclave.host" })), call(await body({ name: "cdcdcdcdcdcdcdcd.app.enclave.host" }))]);
+  ca1.mode = "ok";
+  assert.equal(a.code, 200, JSON.stringify(a.body)); assert.equal(b.code, 200, JSON.stringify(b.body));
+  assert.equal(ca2.calls.newAccount, regs + 1);
+});
+
+test("a failure that lands after the 202 went out is still recorded: the next ask is a backoff 202, not a fresh order", async () => {
+  // a module instance whose sync window (200 ms) is shorter than the CA's slow refusal
+  const saved = { ...process.env };
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "enclave-certs-late-"));
+  Object.assign(process.env, { CERTS_SYNC_WAIT_MS: "200", AUTH_DATA_DIR: dir });
+  const m = await import("../relay/certs.js?late=1");
+  await m.initCerts();
+  Object.assign(process.env, saved);
+  assert.equal(m.certsEnabled(), true);
+  rows = [leaseRow()];
+  ca1.slowInvalidMs = 300; ca2.slowInvalidMs = 300;         // validation "fails" 300 ms after the challenge is answered (inside the 400 ms HTTP timeout)
+  const name = "cdcdcdcdcdcdcdcdcd.app.enclave.host";
+  const key = await genKey();
+  const o1 = ca1.calls.newOrder;
+  const res = {};
+  await m.handleCerts({ method: "POST", body: await body({ name, csr: await csrFor(name, { key }) }) }, res, new URL("http://x/v1/certs/issue"), ctx);
+  assert.equal(res.code, 202, JSON.stringify(res.body)); assert.equal(res.body.retryAfterSec, 30);
+  await new Promise((s) => setTimeout(s, 1500));           // both CAs refuse, after the reply
+  const f = m._internals.store().data.failures[name];
+  assert.ok(f && f.n === 1 && /invalid/.test(f.error), `failure recorded after the reply: ${JSON.stringify(f)}`);
+  const res2 = {};
+  await m.handleCerts({ method: "POST", body: await body({ name, csr: await csrFor(name, { key }) }) }, res2, new URL("http://x/v1/certs/issue"), ctx);
+  assert.equal(res2.code, 202); assert.ok(res2.body.retryAfterSec >= 1 && res2.body.retryAfterSec <= 60, JSON.stringify(res2.body));
+  assert.equal(ca1.calls.newOrder, o1 + 1, "the backoff answered first: no new order");
+  ca1.slowInvalidMs = 0; ca2.slowInvalidMs = 0;
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("a relay without CERTS_KEY (SECRETS_KEY seals the store) issues for opSig-only requests and refuses sig-bearing ones", async () => {
+  const saved = { ...process.env };
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "enclave-certs-nokey-"));
+  delete process.env.CERTS_KEY;
+  Object.assign(process.env, { SECRETS_KEY: "ef".repeat(32), AUTH_DATA_DIR: dir });
+  const m = await import("../relay/certs.js?nokey=1");
+  await m.initCerts();
+  Object.assign(process.env, saved); delete process.env.SECRETS_KEY;
+  assert.equal(m.certsEnabled(), true);
+  rows = [leaseRow()];
+  const go = async (b) => { const res = {}; await m.handleCerts({ method: "POST", body: b }, res, new URL("http://x/v1/certs/issue"), ctx); return res; };
+  let r = await go(await body({ sig: "" }));
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(sanOf(r.body.certPem), `DNS:${NAME}`);
+  r = await go(await body());                                // a correct fleet HMAC this relay cannot check
+  assert.equal(r.code, 401); assert.equal(r.body.error, "sig_unverifiable");
+  // the account blob is sealed under SECRETS_KEY and opens there, not under the main instance's CERTS_KEY
+  const onDisk = JSON.parse(fs.readFileSync(path.join(dir, "certs.json"), "utf8"));
+  const blob = onDisk.accounts[ca1.url + "/directory"];
+  assert.ok(blob && !blob.includes("PRIVATE KEY"));
+  assert.match(m._internals.open(ca1.url + "/directory", blob).pkcs8, /BEGIN PRIVATE KEY/);
+  assert.throws(() => _internals.open(ca1.url + "/directory", blob));
+  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test("disabled module answers 503 certs_disabled", async () => {

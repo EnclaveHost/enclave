@@ -36,7 +36,12 @@ export async function recoverOp(message, sig) {
 
 // Single-use signatures: a captured signature must not replay within its
 // validity window. Bounded map, pruned as it's touched. `expiry` is the unix
-// second past which the mark can be forgotten.
+// second past which the mark can be forgotten. A route that accepts more than
+// one factor must mark EVERY factor present (certs.js: opSig always, the
+// fleet HMAC when sent) — marking only the strongest one let a captured
+// request replay once with that factor dropped. Per process: a restart
+// reopens the window for the ±skew, which the signed tuples' key binding
+// (certs.js spkiHash) keeps harmless.
 export function makeReplayCache() {
   const seen = new Map();                                     // sha256(sig) -> expiry(sec)
   return (signature, expiry) => {
