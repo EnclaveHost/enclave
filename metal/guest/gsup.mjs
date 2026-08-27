@@ -465,7 +465,17 @@ function startShieldedRefresh(host, port, VERDICT, clearVerdict) {
       if (Number.isFinite(hello.vram_free))  next.vram_free_gb  = +(hello.vram_free / GB).toFixed(2);
       if (Number.isFinite(hello.vram_total)) next.vram_total_gb = +(hello.vram_total / GB).toFixed(2);
       if (Number.isFinite(hello.vram_budget)) next.vram_budget_gb = +(hello.vram_budget / GB).toFixed(2);
-      if (Number.isFinite(hello.field_gmac_per_s)) next.field_gmac_per_s = hello.field_gmac_per_s;
+      if (Number.isFinite(hello.field_gmac_per_s)) {
+        next.field_gmac_per_s = hello.field_gmac_per_s;
+        // The worker re-measures on every HELLO. A consumer card cannot reserve
+        // a share: anything else on it (a game, 2026-08-26) takes the slices
+        // and the masked path runs at a fraction of its idle figure. Keep the
+        // best this card has shown and flag the card when it answers below
+        // half of it -- the tenant's backend already falls back to the
+        // enclave's CPU on its own; this is the fleet's view of the same fact.
+        next.field_gmac_best = Math.max(Number(cur.field_gmac_best) || 0, hello.field_gmac_per_s);
+        next.contended = next.field_gmac_best > 0 && hello.field_gmac_per_s < 0.5 * next.field_gmac_best;
+      }
       if (Number.isFinite(hello.card_tflops)) next.card_tflops = hello.card_tflops;
       // A budget the host can no longer honour is not capacity: cap what we
       // advertise at what the driver says is actually there.

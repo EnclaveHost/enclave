@@ -828,6 +828,7 @@ static void wr_u32(uint8_t *p, uint32_t v) { for (int i = 0; i < 4; i++) p[i] = 
 static std::mutex g_gpu;                 /* one kernel stream at a time */
 static long long g_vram_budget = 0;
 static double g_gmacs = 0.0;
+static std::chrono::steady_clock::time_point g_gmacs_at;
 static cudaDeviceProp g_props;
 
 struct Buffer {
@@ -923,7 +924,20 @@ struct Conn {
         if (major != (uint32_t)PROTO_MAJOR) VIOLATE("protocol major %u != %d", major, PROTO_MAJOR);
         hello_done = true;
         size_t freeb = 0, totalb = 0;
-        cudaMemGetInfo(&freeb, &totalb);
+        {
+            std::lock_guard<std::mutex> lk(g_gpu);
+            cudaMemGetInfo(&freeb, &totalb);
+            /* Re-measured on HELLO when the last figure is older than 20 s: the
+             * guest asks every 30 s and advertises the answer, and a card that
+             * is being time-sliced with a game answers ~40% of its idle figure
+             * (904 against 2150 G-MAC/s on 2026-08-26). A few ms of card time
+             * per half minute; a contended card is not capacity. */
+            const auto now = std::chrono::steady_clock::now();
+            if (std::chrono::duration<double>(now - g_gmacs_at).count() > 20.0) {
+                const double g = measure_gmacs();
+                if (g > 0) { g_gmacs = g; g_gmacs_at = now; }
+            }
+        }
         /* card_tflops is the RATED sizing figure; field_gmac_per_s is the MEASURED
          * masked throughput. Both cross, because they answer different
          * questions, and the inputs to the derived one cross too so a reader can
@@ -1423,7 +1437,7 @@ int main(int argc, char **argv) {
     try {
         if (!selftest()) return 1;
     } catch (const Violation &v) { fprintf(stderr, "selftest: %s\n", v.why.c_str()); return 1; }
-    g_gmacs = measure_gmacs();
+    g_gmacs = measure_gmacs(); g_gmacs_at = std::chrono::steady_clock::now();
     if (g_gmacs > 0) logf("field GEMM throughput %.0f G-MAC/s (measured, masked path)", g_gmacs);
 
     int srv = socket(AF_INET, SOCK_STREAM, 0);
