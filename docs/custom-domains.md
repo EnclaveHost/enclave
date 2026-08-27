@@ -56,13 +56,15 @@ challenge terminator in the CVM, and the customer would need one record fewer.
 
 It is still the wrong choice here, for one reason:
 
-**CVMs have no disk.** Every release re-mints every key and re-issues every
-certificate — deliberately; a key that never touches storage is a key nobody can
-exfiltrate. Only Let's Encrypt and Google Trust Services offer tls-alpn-01, and
+**CVMs have no disk.** A key never touches host-backed storage — a key nobody
+can exfiltrate. Issued certificates survive a *container* restart in the
+memory-backed store (`ACME_STORE_DIR`, see `docs/platform-certs.md`
+"Restarts"), but a CVM relaunch still re-mints every key and re-issues every
+certificate. Only Let's Encrypt and Google Trust Services offer tls-alpn-01, and
 both cap *duplicate* certificates (same exact name set) at **5 per week**. That
 is why the platform runs on ZeroSSL, whose ACME has no such ceiling. A custom
-domain on tls-alpn-01 would go dark partway through any normal release week, and
-the customer would be looking at a refused handshake on *their* brand.
+domain on tls-alpn-01 would go dark partway through a bad week of relaunches,
+and the customer would be looking at a refused handshake on *their* brand.
 
 So custom domains ride the existing dns-01 path and inherit its CA failover list
 unchanged. The customer publishes:
@@ -173,10 +175,13 @@ a hard refusal, not a warning page.
 * **Wildcards.** They need dns-01 in the customer's own zone (or a second
   delegation), and the blast radius of a mis-attached wildcard is a whole zone
   rather than one name. Attach each hostname.
-* **Certificates that outlive a boot.** Persisting them would need sealing to
-  something stable across releases, and the platform's answer to "where do we
-  keep the key" is *nowhere* — re-issuance on boot is the cost of that, and
-  ZeroSSL's lack of a duplicate ceiling is what makes it affordable.
+* **Certificates that outlive a CVM boot.** They outlive a *container* restart
+  now (the tmpfs store, `ACME_STORE_DIR`; a custom domain's record is dropped
+  the moment the domain is detached), but persisting across a relaunch would
+  need sealing to something stable across releases, and the platform's answer
+  to "where do we keep the key" is still *in memory* — re-issuance on relaunch
+  is the cost of that, and ZeroSSL's lack of a duplicate ceiling is what makes
+  it affordable.
 * **Serving a name before its certificate exists.** See `sniDecide`: the bridge
   pair is a wildcard for our zone, so on a customer's hostname it is not merely
   unauthenticatable but plainly invalid.
