@@ -15,7 +15,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { createHash, createHmac } from "node:crypto";
+import { createHash, createHmac, createPublicKey } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -24,6 +24,7 @@ import { calculateJwkThumbprint } from "jose";
 import http from "node:http";
 import { privateKeyToAccount } from "viem/accounts";
 import { verifyMessage } from "viem";
+import { issueSig, issueMessage } from "../relay/certs.js";
 
 const pexec = promisify(execFile);
 const SUPERVISOR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "supervisor.js");
@@ -233,6 +234,30 @@ const OP_KEY  = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b786
 const OP_ADDR = privateKeyToAccount(OP_KEY).address;
 const ENDPOINT = "https://box7.enclave.containers.tinfoil.dev";
 const CERTS_KEY = createHmac("sha256", "test-secret").update("enclave certs v1").digest("hex");   // the harness's SECRET
+// The wire format, spelled out here INDEPENDENTLY of both files, and then
+// cross-checked against the relay's own issueSig / issueMessage so the two
+// halves can never drift apart under a green run again (2026-08-27: the
+// supervisor keyed its HMAC with the hex string, the relay with the decoded
+// bytes, and each side's test pinned its own convention).
+//   sig   = HMAC-SHA256(hex-decode(CERTS_KEY), "<name>:<endpoint>:<spkiHash>:<ts>") hex
+//   opSig = personal_sign("enclave-certs-issue:<name>:<endpoint>:<spkiHash>:<ts>")
+//   spkiHash = sha256 hex of the CSR key's DER SubjectPublicKeyInfo
+const wireTuple  = (name, endpoint, spkiHash, ts) => `${name}:${endpoint}:${spkiHash}:${ts}`;
+const wireSig    = (keyHex, name, endpoint, spkiHash, ts) =>
+  createHmac("sha256", Buffer.from(keyHex, "hex")).update(wireTuple(name, endpoint, spkiHash, ts)).digest("hex");
+const wireOpText = (name, endpoint, spkiHash, ts) => `enclave-certs-issue:${wireTuple(name, endpoint, spkiHash, ts)}`;
+const spkiHashOfPem = (pubPem) =>
+  createHash("sha256").update(createPublicKey(pubPem).export({ type: "spki", format: "der" })).digest("hex");
+// relay/certs.js under the amended contract takes (keyHex, name, endpoint,
+// spkiHash, ts) / (name, endpoint, spkiHash, ts). Until the relay half lands
+// the imports still have the old arity; the cross-file pin then reports
+// itself as pending rather than asserting against the wrong signature.
+const RELAY_BINDS_KEY = issueSig.length === 5 && issueMessage.length === 4;
+function assertRelayPins(t, keyHex, name, endpoint, spkiHash, ts, sig, opText) {
+  if (!RELAY_BINDS_KEY) { t.diagnostic("relay/certs.js issueSig/issueMessage do not take spkiHash yet: cross-file pin PENDING the relay track"); return; }
+  assert.equal(sig, issueSig(keyHex, name, endpoint, spkiHash, ts), "sig must be byte-for-byte what relay/certs.js expects");
+  assert.equal(opText, issueMessage(name, endpoint, spkiHash, ts), "opSig text must be byte-for-byte what relay/certs.js recovers over");
+}
 
 // A throwaway CA, made once; the mock signs CSRs with it.
 let _ca = null;
@@ -310,7 +335,7 @@ test("platform: an app-zone name goes to the service first; the returned chain i
   assert.equal(svc.seen.length, 1);
   const { url, body } = svc.seen[0];
   assert.equal(url, "/v1/certs/issue");
-  assert.deepEqual(Object.keys(body).sort(), ["csr", "endpoint", "name", "opSig", "sig", "ts"]);
+  assert.deepEqual(Object.keys(body).sort(), ["csr", "endpoint", "name", "opSig", "sig", "ts"], "the harness SECRET counts as the fleet secret (flag unset = Tinfoil), so sig rides along");
   assert.equal(body.name, APP);
   assert.equal(body.endpoint, ENDPOINT);
   assert.ok(Math.abs(body.ts - Date.now() / 1000) < 60, "ts is unix seconds, now");
@@ -324,30 +349,106 @@ test("platform: an app-zone name goes to the service first; the returned chain i
   assert.equal(await leafPubkey(r.certPem), info.pubkey);
 });
 
-test("platform: sig = HMAC-SHA256(CERTS_KEY, '<name>:<endpoint>:<ts>') hex, CERTS_KEY = HMAC-SHA256(SECRET, 'enclave certs v1') hex used as the key verbatim", async (t) => {
+test("platform: sig = HMAC-SHA256(hex-decode(CERTS_KEY), '<name>:<endpoint>:<spkiHash>:<ts>') hex; CERTS_KEY = HMAC-SHA256(SECRET, 'enclave certs v1') hex; pinned against relay/certs.js issueSig", async (t) => {
   const svc = await mockService([ok200]);
   t.after(svc.close);
   const v = await platformOf(svc.url, { name: APP, endpoint: ENDPOINT, cas: [] });
+  assert.equal(v.fleetSecretPresent, true, "FLEET_SECRET_PRESENT unset + SECRET set = the fleet secret (the Tinfoil image sets no flag)");
   assert.equal(v.certsKey, CERTS_KEY);
-  assert.equal(v.tuple, `${APP}:${ENDPOINT}:1700000000`);
-  assert.equal(v.sig, createHmac("sha256", CERTS_KEY).update(v.tuple).digest("hex"));
-  // and the live request's sig recomputes from ITS ts the same way
+  // the printed vector: spkiHash recomputed here from the printed key's SPKI
+  assert.equal(v.spkiHash, spkiHashOfPem(v.vecKeyPem));   // createPublicKey accepts a private PEM and yields its public half
+  assert.equal(v.tuple, wireTuple(APP, ENDPOINT, v.spkiHash, 1700000000));
+  assert.equal(v.sig, wireSig(CERTS_KEY, APP, ENDPOINT, v.spkiHash, 1700000000));
+  assert.notEqual(v.sig, createHmac("sha256", CERTS_KEY).update(v.tuple).digest("hex"), "NOT the hex string's own bytes as the key");
+  assertRelayPins(t, CERTS_KEY, APP, ENDPOINT, v.spkiHash, 1700000000, v.sig, v.opSigText);
+  // and the live request's sig recomputes from ITS ts and ITS CSR's key the same way
   const { body } = svc.seen[0];
-  assert.equal(body.sig, createHmac("sha256", CERTS_KEY).update(`${body.name}:${body.endpoint}:${body.ts}`).digest("hex"));
+  const info = await csrInfo(body.csr);
+  const spki = spkiHashOfPem(info.pubkey);
+  assert.equal(body.sig, wireSig(CERTS_KEY, body.name, body.endpoint, spki, body.ts));
+  assert.equal(body.spkiHash, undefined, "spkiHash is not a body field: the relay derives it from the CSR it parsed");
+  assertRelayPins(t, CERTS_KEY, body.name, body.endpoint, spki, body.ts, body.sig, wireOpText(body.name, body.endpoint, spki, body.ts));
   assert.equal(body.opSig, undefined, "no operator key on this box -> no opSig field (the relay decides)");
 });
 
-test("platform: opSig = EIP-191 personal_sign by the registry operator of 'enclave-certs-issue:<name>:<endpoint>:<ts>'", async (t) => {
+test("platform: opSig = EIP-191 personal_sign by the registry operator of 'enclave-certs-issue:<name>:<endpoint>:<spkiHash>:<ts>'; pinned against relay/certs.js issueMessage", async (t) => {
   const svc = await mockService([ok200]);
   t.after(svc.close);
   const v = await platformOf(svc.url, { name: APP, endpoint: ENDPOINT, opKey: OP_KEY, cas: [] });
-  assert.equal(v.opSigText, `enclave-certs-issue:${APP}:${ENDPOINT}:1700000000`);
+  assert.equal(v.opSigText, wireOpText(APP, ENDPOINT, v.spkiHash, 1700000000));
   assert.equal(await verifyMessage({ address: OP_ADDR, message: v.opSigText, signature: v.opSig }), true);
   const { body } = svc.seen[0];
-  assert.equal(await verifyMessage({ address: OP_ADDR,
-    message: `enclave-certs-issue:${body.name}:${body.endpoint}:${body.ts}`, signature: body.opSig }), true);
-  // the two tuples differ only by their prefix: the relay checks both over the same (name, endpoint, ts)
+  const spki = spkiHashOfPem((await csrInfo(body.csr)).pubkey);
+  const opText = wireOpText(body.name, body.endpoint, spki, body.ts);
+  assert.equal(await verifyMessage({ address: OP_ADDR, message: opText, signature: body.opSig }), true,
+    "the operator signature recovers over the text the relay rebuilds from (name, endpoint, the CSR's SPKI hash, ts)");
+  if (RELAY_BINDS_KEY)
+    assert.equal(await verifyMessage({ address: OP_ADDR, message: issueMessage(body.name, body.endpoint, spki, body.ts), signature: body.opSig }), true);
+  else t.diagnostic("relay/certs.js issueMessage does not take spkiHash yet: cross-file pin PENDING the relay track");
+  // a CSR for another key would not verify: the signature binds THIS key
+  const other = await selftest("csr", { ACME_SELFTEST_NAME: body.name });
+  const otherSpki = spkiHashOfPem((await csrInfo(other.csrPem)).pubkey);
+  assert.equal(await verifyMessage({ address: OP_ADDR, message: wireOpText(body.name, body.endpoint, otherSpki, body.ts), signature: body.opSig }), false);
+  // the two tuples differ only by their prefix: the relay checks both over the same (name, endpoint, spkiHash, ts)
   assert.equal(v.opSigText, `enclave-certs-issue:${v.tuple}`);
+});
+
+// A3: only a box whose SECRET is the fleet secret sends the fleet HMAC. gsup
+// says which with FLEET_SECRET_PRESENT=0 (SECRET = randomBytes(32) there); a
+// present-but-wrong sig would be 401 bad_sig at the relay, fail closed, and
+// the box would never reach the service. So: no CERTS_KEY, no sig, opSig only.
+test("platform: a seller box (FLEET_SECRET_PRESENT=0, a minted SECRET) sends NO sig - opSig alone authorizes it", async (t) => {
+  const svc = await mockService([ok200]);
+  t.after(svc.close);
+  const v = await platformOf(svc.url, { name: APP, endpoint: ENDPOINT, opKey: OP_KEY, cas: [ZS] }, { FLEET_SECRET_PRESENT: "0" });
+  assert.equal(v.fleetSecretPresent, false);
+  assert.equal(v.certsKey, "", "no fleet secret -> no CERTS_KEY derived from the random one");
+  assert.equal(v.sig, "");
+  assert.equal(v.rounds[0].outcome, "issued");
+  assert.equal(v.rounds[0].issuer, "platform (zerossl)");
+  const { body } = svc.seen[0];
+  assert.deepEqual(Object.keys(body).sort(), ["csr", "endpoint", "name", "opSig", "ts"], "sig is absent, not empty");
+  const spki = spkiHashOfPem((await csrInfo(body.csr)).pubkey);
+  assert.equal(await verifyMessage({ address: OP_ADDR, message: wireOpText(body.name, body.endpoint, spki, body.ts), signature: body.opSig }), true);
+  // ...and the explicit values the launcher may pass
+  for (const flag of ["false", "off"]) {
+    const w = await platformOf(svc.url, { name: APP, endpoint: ENDPOINT, opKey: OP_KEY, cas: [] }, { FLEET_SECRET_PRESENT: flag });
+    assert.equal(w.certsKey, "", `FLEET_SECRET_PRESENT=${flag}`);
+  }
+  const on = await platformOf(svc.url, { name: APP, endpoint: ENDPOINT, opKey: OP_KEY, cas: [] }, { FLEET_SECRET_PRESENT: "1" });
+  assert.equal(on.certsKey, CERTS_KEY);
+});
+
+test("platform: a box with neither the fleet secret nor an operator key fails the name BEFORE the round trip; the in-enclave CAs still run", async (t) => {
+  const svc = await mockService([ok200]);
+  t.after(svc.close);
+  const v = await platformOf(svc.url, { name: APP, endpoint: ENDPOINT, cas: [ZS] }, { FLEET_SECRET_PRESENT: "0" });
+  assert.deepEqual(v.rounds[0].tried, ["platform", "acme.zerossl.com"]);
+  assert.equal(v.rounds[0].issuer, "acme.zerossl.com");
+  assert.deepEqual(v.rounds[0].cooled, [], "not the service's fault: nothing cools");
+  assert.equal(v.rounds[0].pendingHeld, false, "no key is minted for a request that cannot be signed");
+  assert.equal(svc.seen.length, 0, "the service saw nothing");
+  const none = await platformOf(svc.url, { name: APP, endpoint: ENDPOINT, cas: [] }, { FLEET_SECRET_PRESENT: "0" });
+  assert.match(none.rounds[0].error, /neither an operator key nor the fleet secret/);
+});
+
+// A8: at boot the endpoint is "" until the register tx confirms (Tinfoil has
+// no PUBLIC_URL). That is a deferral (15-30 s), never a name-level failure
+// that walks the in-enclave CAs for every held name on every restart.
+test("platform: not registered yet (endpoint '') DEFERS 15-30 s - no in-enclave CA is walked, nothing cools, no key is minted", async (t) => {
+  const svc = await mockService([ok200]);
+  t.after(svc.close);
+  const v = await platformOf(svc.url, { name: APP, endpoint: "", opKey: OP_KEY, cas: [ZS, LE] });
+  const [r] = v.rounds;
+  assert.equal(r.outcome, "deferred");
+  assert.match(r.error, /not registered its endpoint yet/);
+  assert.ok(r.deferMs >= 15_000 && r.deferMs <= 30_000, `deferMs ${r.deferMs}`);
+  assert.deepEqual(r.tried, ["platform"], "the deferral ends the round before Let's Encrypt is spent");
+  assert.deepEqual(r.cooled, []);
+  assert.equal(r.pendingHeld, false);
+  assert.equal(r.plan.why, "deferred");
+  assert.equal(r.plan.failures, 0, "the pump counts no failure against the name");
+  assert.equal(svc.seen.length, 0);
 });
 
 test("platform: a custom domain, a deeper name, and a foreign zone never touch the service; TCP_CERT_DOMAIN opts a second zone in", async (t) => {
@@ -368,12 +469,19 @@ test("platform: a custom domain, a deeper name, and a foreign zone never touch t
   assert.equal(noTcp.inZone, false, "the tcp zone is not a platform zone unless configured");
 });
 
-test("platform: 202 { retryAfterSec } defers the name - no in-enclave CA is spent, the retry lands at retryAfterSec with the SAME key", async (t) => {
-  const svc = await mockService([async () => ({ status: 202, json: { name: APP, retryAfterSec: 45 } }), ok200]);
+// A4: the relay holds the POST up to CERTS_SYNC_WAIT_MS (8 s) before it says
+// 202; the supervisor's own bound for this call (CERTS_HTTP_MS, 30 s) must
+// clear that with margin, or every real order aborts client-side. The mock
+// relay here is "slow" for longer than a CA call's default 20 s would be
+// worth simulating: it sleeps past the point where a 1 s bound would abort.
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+test("platform: 202 { retryAfterSec } after a SLOW relay defers the name - no in-enclave CA is spent, the retry lands at retryAfterSec with the SAME key", async (t) => {
+  const svc = await mockService([async () => { await sleep(1500); return { status: 202, json: { name: APP, retryAfterSec: 45 } }; }, ok200]);
   t.after(svc.close);
-  const v = await platformOf(svc.url, { name: APP, endpoint: ENDPOINT, cas: [ZS, LE], rounds: 2 });
+  const v = await platformOf(svc.url, { name: APP, endpoint: ENDPOINT, cas: [ZS, LE], rounds: 2 }, { ACME_HTTP_TIMEOUT_MS: "1000" });
+  assert.equal(v.certsHttpMs, 30_000, "the platform POST's own bound: > the relay's 8 s sync wait, independent of ACME_HTTP_TIMEOUT_MS");
   const [a, b] = v.rounds;
-  assert.equal(a.outcome, "deferred");
+  assert.equal(a.outcome, "deferred", "1.5 s of relay is within CERTS_HTTP_MS even with the CA bound at 1 s");
   assert.equal(a.deferMs, 45_000);
   assert.deepEqual(a.tried, ["platform"], "a deferral ends the round: the in-enclave slots are NOT walked");
   assert.deepEqual(a.cooled, [], "a deferral cools nothing off");
@@ -384,8 +492,43 @@ test("platform: 202 { retryAfterSec } defers the name - no in-enclave CA is spen
   assert.equal(svc.seen.length, 2);
   const [k1, k2] = await Promise.all(svc.seen.map((s) => csrInfo(s.body.csr)));
   assert.equal(k1.pubkey, k2.pubkey, "the retry re-presents the same SPKI, so the service's (name, SPKI) cache hits");
+  assert.equal(a.pendingSpki, spkiHashOfPem(k1.pubkey), "what is held IS that SPKI");
   assert.equal(v.plans.deferred.failures, 3, "a deferral does not count as a failure");
   assert.equal(v.plans.deferred.nextAt, 1_000_000 + 45_000);
+});
+
+test("platform: a POST that times out cools the slot but KEEPS the minted key - the next ask re-presents the same SPKI", async (t) => {
+  let release;
+  const gate = new Promise((r) => (release = r));
+  const svc = await mockService([async () => { await gate; return { status: 202, json: { name: APP, retryAfterSec: 45 } }; }, ok200]);
+  t.after(async () => { release(); await svc.close(); });
+  const v = await platformOf(svc.url, { name: APP, endpoint: ENDPOINT, cas: [], rounds: 2 }, { CERTS_HTTP_TIMEOUT_MS: "700" });
+  assert.equal(v.certsHttpMs, 700);
+  const [a, b] = v.rounds;
+  assert.equal(a.outcome, "failed");
+  assert.equal(a.caLevel, true, "a timeout indicts the slot, like a CA");
+  assert.match(a.error, /platform: /);
+  assert.deepEqual(a.cooled, ["platform"]);
+  assert.equal(a.pendingHeld, true, "pending was stored BEFORE the fetch, so the timeout does not lose the key");
+  assert.equal(b.outcome, "issued", "every slot cooling = try anyway; the relay (which may have finished the order meanwhile) answers");
+  assert.equal(svc.seen.length, 2);
+  const [k1, k2] = await Promise.all(svc.seen.map((s) => csrInfo(s.body.csr)));
+  assert.equal(k1.pubkey, k2.pubkey, "same SPKI after the timeout: the relay's cache / in-flight order for (name, SPKI) matches");
+  assert.equal(a.pendingSpki, spkiHashOfPem(k1.pubkey));
+  assert.equal(b.pendingHeld, false, "installed -> dropped");
+});
+
+test("platform: a 5xx keeps the minted key too (the relay may still be working the order); a 4xx drops it", async (t) => {
+  const svc = await mockService([async () => ({ status: 503, json: { error: "certs_disabled" } }), ok200]);
+  t.after(svc.close);
+  const v = await platformOf(svc.url, { name: APP, endpoint: ENDPOINT, cas: [], rounds: 2 });
+  assert.equal(v.rounds[0].pendingHeld, true);
+  const [k1, k2] = await Promise.all(svc.seen.map((s) => csrInfo(s.body.csr)));
+  assert.equal(k1.pubkey, k2.pubkey);
+  const refuse = await mockService([async () => ({ status: 403, json: { error: "not_lease_holder" } })]);
+  t.after(refuse.close);
+  const r = await platformOf(refuse.url, { name: APP, endpoint: ENDPOINT, cas: [] });
+  assert.equal(r.rounds[0].pendingHeld, false);
 });
 
 test("platform: 4xx is name-level - the in-enclave slots run unchanged and nothing cools off", async (t) => {

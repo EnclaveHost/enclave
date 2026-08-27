@@ -338,6 +338,13 @@ const supEnv = {
   // any deployment hostname on the platform, and on metal it lives in an
   // operator-readable file outside the CVM. So: registry key is enough.
   SECRETS_CAPABLE: (FLEET_SECRET || REGISTRY_KEY) ? '1' : '0',
+  // Whether SECRET below IS the fleet secret (1) or this box's per-boot random
+  // one (0). The platform certificate service's fleet HMAC (supervisor
+  // CERTS_KEY) derives from the fleet secret and the relay refuses a sig that
+  // does not verify, so a box with a minted SECRET must send none and let its
+  // registry key authorize the request. Distinct from SECRETS_CAPABLE, which
+  // the registry key alone satisfies.
+  FLEET_SECRET_PRESENT: FLEET_SECRET ? '1' : '0',
   SECRET,
   ADMIN_TOKEN,
   NODE_EXTRA_CA_CERTS: '/etc/ssl/certs/ca-certificates.crt',

@@ -123,28 +123,39 @@ no single enclave can see. Full design: [`docs/platform-certs.md`](../docs/platf
   an apex, `api.`/`www.`/`mcp.`, a second-level label, a label that is not a
   deployment id prefix — before any key or ledger work. Customer domains keep
   the in-enclave ACME path and `/internal/tls-ask` (see `domains.js`).
-- **Auth** = the endpoint's registered operator signature (`opSig`, required, checked against the on-chain lease); the derived fleet key (`sig = HMAC(CERTS_KEY, "<name>:<endpoint>:<ts>")`) is an optional extra factor only first-party boxes can add, verified whenever sent
-  **and** the endpoint's own registry-operator signature (`opSig` over
-  `enclave-certs-issue:<name>:<endpoint>:<ts>`), single-use, ±10 min, then the
-  ledger must show `endpoint` holding the deployment's **live lease**
+- **Auth** = `opSig` (required: a personal_sign of
+  `enclave-certs-issue:<name>:<endpoint>:<spkiHash>:<ts>` by the endpoint's
+  registered EnclaveRegistry operator) + optional `sig` =
+  `HMAC-SHA256(hex-decode(CERTS_KEY), "<name>:<endpoint>:<spkiHash>:<ts>")`,
+  sent only by a box whose SECRET is the real fleet secret and verified
+  whenever sent (a wrong one is 401, never ignored; a relay without
+  `CERTS_KEY` refuses sig-bearing requests and takes opSig-only ones).
+  `spkiHash` = sha256 of the CSR key's DER SubjectPublicKeyInfo, computed by
+  the relay from the CSR it parsed: the tuples authorize a name **for a key**.
+  Every signature present is single-use (409 on replay), `ts` ±10 min, then
+  the ledger must show `endpoint` holding the deployment's **live lease**
   (`secrets.js` rule, shared via `fleet-auth.js`).
 - **CSR** is validated from the DER: exactly `CN == name` and one SAN
   `dNSName == name`, EC P-256 or RSA ≥ 2048, no other attribute or extension,
   verifying self-signature. A CSR for any other name is a 400.
 - **Replies**: `200 {name, certPem, notBefore, notAfter, ca, cached}`;
-  `202 {name, retryAfterSec}` while the order runs, the CAs are cooling off, or
-  the caller is paced; `4xx {error, message}`; `503 certs_disabled`.
+  `202 {name, retryAfterSec}` while the order runs (the request waits
+  `CERTS_SYNC_WAIT_MS`, 8 s — under the supervisor's 30 s `CERTS_HTTP_MS`),
+  while a CA is still processing a finalized order (persisted and resumed on
+  the next ask, never abandoned for the next CA), while the CAs are cooling
+  off, or while the caller is paced; `4xx {error, message}`; `503 certs_disabled`.
 - **CAs**: ZeroSSL (`ACME_EAB_KID`/`ACME_EAB_HMAC`, the platform pair) first,
   Let's Encrypt as the fallback — the supervisor's failover rules (CA-level
   failure cools a slot 2 min, name-level refusal moves on, second chance for
   a CA that timed out while the other proved the network). dns-01 is answered
   through the DNS daemon's `/v1/txt` with `DNS_TXT_KEY`.
-- **Env** (`/etc/nan-relay/api-relay.env`; all four of the first row required,
-  else the route answers 503):
+- **Env** (`/etc/nan-relay/api-relay.env`; `DNS_API`, `DNS_TXT_KEY`,
+  `APP_ZONE` and one of `CERTS_KEY` / `SECRETS_KEY` required, else the route
+  answers 503):
 
   | variable | |
   |---|---|
-  | `CERTS_KEY` | 64-hex, `HMAC-SHA256(fleet SECRET, "enclave certs v1")` — derived on a box that has `SECRET`; the relay never holds `SECRET` |
+  | `CERTS_KEY` | 64-hex, `HMAC-SHA256(fleet SECRET, "enclave certs v1")` — derived on a box that has `SECRET`; the relay never holds `SECRET`. OPTIONAL: without it sig-bearing (first-party) requests are refused and only opSig-only requests issue; the account store is then sealed under `SECRETS_KEY` |
   | `DNS_API`, `DNS_TXT_KEY` | the DNS daemon's push API and its derived key (same values the enclaves use) |
   | `APP_ZONE` | `app.enclave.host`; `TCP_ZONE` optional |
   | `ACME_EAB_KID`, `ACME_EAB_HMAC` | the platform ZeroSSL pair (one-time placement here; without it the ZeroSSL slot is skipped) |

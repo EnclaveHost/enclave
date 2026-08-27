@@ -764,16 +764,41 @@ function need(n){ const v = process.env[n]; if(!v){ console.error("FATAL: missin
 // network error / non-JSON reply cools the service slot off like a CA. A 202
 // (order in flight, or the CAs are cooling off behind the service) is
 // neither: the name waits retryAfterSec and asks again with the SAME key, and
-// no in-enclave CA is spent on it meanwhile.
+// no in-enclave CA is spent on it meanwhile. "Not registered yet" (boot, the
+// registry tx still unconfirmed) is a DEFERRAL too, not a refusal: the pump
+// waits 15-30 s and the in-enclave CAs are not walked on every held name at
+// every restart. The key minted for a name stays in _platformPending across
+// a timeout / 5xx as well as a 202, so whatever the service is still doing
+// for that (name, SPKI) is what the retry finds.
+//
+// Who signs what (relay/certs.js is the other half; both bind the KEY):
+//   opSig = personal_sign("enclave-certs-issue:<name>:<endpoint>:<spkiHash>:<ts>")
+//           by this box's registry operator -- REQUIRED, the authorization
+//   sig   = HMAC-SHA256(hex-decode(CERTS_KEY), "<name>:<endpoint>:<spkiHash>:<ts>")
+//           -- sent ONLY by a box holding the real fleet SECRET (below); a sig
+//           that is sent must verify, so a box that can't must send none.
 const APP_CERT_DOMAIN = (process.env.APP_CERT_DOMAIN || "").trim().replace(/^\*?\./, "").replace(/\.$/, "").toLowerCase(); // e.g. "app.enclave.host"
 const TCP_CERT_DOMAIN = (process.env.TCP_CERT_DOMAIN || "").trim().replace(/^\*?\./, "").replace(/\.$/, "").toLowerCase(); // optional second platform zone
 const DNS_API         = (process.env.DNS_API || "").trim().replace(/\/+$/, "");  // platform DNS daemon's TXT push API
 const CERTS_API       = (process.env.CERTS_API || "").trim().replace(/\/+$/, ""); // platform certificate service (relay); "" = slot absent
 // The service's fleet factor: HMAC(SECRET, "enclave certs v1"), the same
 // derived-key pattern as DNS_TXT_KEY and SECRETS_FETCH_KEY - the relay env
-// holds only this hex (CERTS_KEY=), never the fleet SECRET. Used as the HMAC
-// key VERBATIM (the hex string's bytes), exactly as dnsTxt uses DNS_TXT_KEY.
-const CERTS_KEY       = SECRET.length ? createHmac("sha256", SECRET).update("enclave certs v1").digest("hex") : "";
+// holds only this hex (CERTS_KEY=), never the fleet SECRET. The relay keys
+// its HMAC with the DECODED 32 bytes (relay/certs.js issueSig: Buffer.from(
+// keyHex, "hex"), the secrets.js fetchSig convention), and so does certsSig
+// below; the hex string's own bytes would sign a different tuple and every
+// request would be 401 bad_sig.
+// Only a box whose SECRET IS the fleet secret can derive a CERTS_KEY the
+// relay knows. On metal, gsup.mjs mints SECRET = FLEET_SECRET || random and
+// says which with FLEET_SECRET_PRESENT (0 = a per-boot random secret: a
+// seller box, or a first-party metal box without cfg.fleetSecret); the Tinfoil
+// image passes the fleet SECRET straight through and sets no flag, so unset
+// means present. The relay refuses a sig that fails (fail closed, never
+// silently ignored), so a box without the fleet secret must SEND NONE and
+// let its operator signature + the lease authorize it: CERTS_KEY is "" here
+// and the request goes out opSig-only.
+const FLEET_SECRET_PRESENT = SECRET.length > 0 && !/^(0|false|off)$/i.test(process.env.FLEET_SECRET_PRESENT || "1");
+const CERTS_KEY       = FLEET_SECRET_PRESENT ? createHmac("sha256", SECRET).update("enclave certs v1").digest("hex") : "";
 // Slot 0 itself: shaped like a CA slot (host + downUntil) so the walker treats
 // it as one; .platform routes issuance to the service client.
 const ACME_PLATFORM   = CERTS_API ? { host: "platform", api: CERTS_API, platform: true, downUntil: 0 } : null;
@@ -946,6 +971,15 @@ const deferErr = (msg, deferMs) => Object.assign(new Error(msg), { deferMs });
 const ACME_HTTP_MS = parseInt(process.env.ACME_HTTP_TIMEOUT_MS || "20000", 10);
 const acmeFetch = (url, init = {}, ms = ACME_HTTP_MS) =>
   fetch(url, { ...init, signal: AbortSignal.timeout(ms) });
+// The platform service's POST gets its OWN bound, longer than a CA call's: the
+// relay holds the request open for up to CERTS_SYNC_WAIT_MS (relay/certs.js,
+// default 8000 ms) while the order runs, then answers 202 retryAfterSec if it
+// is still going. COUPLING: CERTS_HTTP_MS must exceed the relay's sync wait
+// by a comfortable margin (30 s vs 8 s), or every real order is aborted here
+// as a caErr, the slot cools, and the in-enclave CAs double-issue the name
+// while the relay's order completes for a key nobody keeps. Change one, look
+// at the other.
+const CERTS_HTTP_MS = parseInt(process.env.CERTS_HTTP_TIMEOUT_MS || "30000", 10);
 
 // The platform service's request signature, two factors (the secrets-fetch
 // rule, relay/secrets.js says why): the fleet HMAC proves "a holder of the
@@ -953,17 +987,32 @@ const acmeFetch = (url, init = {}, ms = ACME_HTTP_MS) =>
 // fleet member could name another box's endpoint and be issued a certificate
 // for a deployment that box holds the lease on. personal_sign (EIP-191), so
 // the operator key's signature can never be replayed as a transaction.
-//   sig   = HMAC-SHA256(CERTS_KEY, "<name>:<endpoint>:<ts>") hex
-//   opSig = personal_sign("enclave-certs-issue:<name>:<endpoint>:<ts>")
-const certsSigTuple  = (name, endpoint, ts) => `${name}:${endpoint}:${ts}`;
-const certsOpSigText = (name, endpoint, ts) => `enclave-certs-issue:${name}:${endpoint}:${ts}`;
-const certsSig = (name, endpoint, ts, key = CERTS_KEY) =>
-  createHmac("sha256", key).update(certsSigTuple(name, endpoint, ts)).digest("hex");
-// A key minted for a deferred (202) order is KEPT and re-presented on the
-// retry: the service caches by (name, SPKI) and finalizes the in-flight order
-// with the CSR it holds, so a fresh key per attempt would miss the cache and
-// spend a second issuance on the same name. Bounded: an hour, then re-mint.
+// BOTH bind the KEY: spkiHash = sha256 hex of the CSR key's DER
+// SubjectPublicKeyInfo. The relay recomputes it from the CSR it parsed, so a
+// captured request cannot be replayed with somebody else's CSR (the
+// signatures are single-use on the relay as well; this closes the other half).
+//   sig   = HMAC-SHA256(hex-decode(CERTS_KEY), "<name>:<endpoint>:<spkiHash>:<ts>") hex
+//   opSig = personal_sign("enclave-certs-issue:<name>:<endpoint>:<spkiHash>:<ts>")
+// Pinned byte-for-byte against relay/certs.js issueSig / issueMessage by
+// test/acme.test.mjs.
+const certsSigTuple  = (name, endpoint, spkiHash, ts) => `${name}:${endpoint}:${spkiHash}:${ts}`;
+const certsOpSigText = (name, endpoint, spkiHash, ts) => `enclave-certs-issue:${name}:${endpoint}:${spkiHash}:${ts}`;
+const certsSig = (name, endpoint, spkiHash, ts, key = CERTS_KEY) =>
+  createHmac("sha256", Buffer.from(key, "hex")).update(certsSigTuple(name, endpoint, spkiHash, ts)).digest("hex");
+const spkiHashOf = (keyPem) =>
+  createHash("sha256").update(createPublicKey(keyPem).export({ type: "spki", format: "der" })).digest("hex");
+// A key minted for an order is KEPT and re-presented on the retry -- after a
+// 202, and equally after a timeout or a 5xx, since the relay may well be
+// finishing that order regardless of how our side of the connection ended:
+// the service caches by (name, SPKI) and resumes the in-flight order for the
+// CSR it holds, so a fresh key per attempt would miss the cache and spend a
+// second issuance on the same name. Stored BEFORE the POST for that reason.
+// Bounded: an hour, then re-mint. A refusal (4xx) or an install drops it.
 const PLATFORM_PENDING_MS = 3600_000;
+// How long a box waits when it is asked for a certificate before its registry
+// entry (and so its endpoint) exists: a deferral, not a failure, and short --
+// registration lands 10-60 s after boot.
+const PLATFORM_UNREGISTERED_DEFER_MS = () => 15_000 + Math.floor(Math.random() * 15_000);
 // Ask the platform service for a certificate for `name`: mint the key + CSR
 // in-CVM, POST the CSR with both signatures, install the returned chain.
 //   200 -> the issued record (keyPem ours, certPem theirs)
@@ -974,31 +1023,42 @@ const PLATFORM_PENDING_MS = 3600_000;
 // text -> EIP-191 signature, or null when this box has no operator key),
 // pending (Map name -> { csrPem, keyPem, at }).
 async function acmeIssueViaPlatform(slot, name, { endpoint, keyHex = CERTS_KEY, signOp = null, pending = new Map() }) {
-  if (!endpoint) throw new Error(`platform: this enclave has not registered its endpoint yet`);
+  // Not registered yet (boot: the register tx is in the operator queue, the
+  // endpoint is adopted when it confirms) is nobody's fault and over in
+  // seconds: defer, so the in-enclave CAs are not walked for every held name
+  // on every restart. No key is minted for it either.
+  if (!endpoint) throw deferErr(`platform: this enclave has not registered its endpoint yet`, PLATFORM_UNREGISTERED_DEFER_MS());
   // The operator signature is the authorization (the relay checks it against
   // the registry entry and the live lease); the fleet HMAC is an extra factor
-  // only first-party boxes can add. A box with neither an operator key nor a
-  // fleet SECRET has nothing the service would accept.
-  if (!signOp && !keyHex) throw new Error(`platform: this box has no operator key to sign with`);
+  // only a box holding the fleet SECRET can add (CERTS_KEY is "" otherwise).
+  // A box with neither has nothing the service would accept: say so before
+  // the round trip.
+  if (!signOp && !keyHex) throw new Error(`platform: this box has neither an operator key nor the fleet secret to sign with`);
   let held = pending.get(name);
-  if (!held || Date.now() - held.at > PLATFORM_PENDING_MS) { const { csrPem, keyPem } = buildCsr(name); held = { csrPem, keyPem, at: Date.now() }; }
+  if (!held || Date.now() - held.at > PLATFORM_PENDING_MS) {
+    const { csrPem, keyPem } = buildCsr(name);
+    held = { csrPem, keyPem, spkiHash: spkiHashOf(keyPem), at: Date.now() };
+  }
   const ts  = Math.floor(Date.now() / 1000);
-  const sig = keyHex ? certsSig(name, endpoint, ts, keyHex) : "";
+  const sig = keyHex ? certsSig(name, endpoint, held.spkiHash, ts, keyHex) : "";
   let opSig = "";
   if (signOp) {
-    try { opSig = await signOp(certsOpSigText(name, endpoint, ts)); }
+    try { opSig = await signOp(certsOpSigText(name, endpoint, held.spkiHash, ts)); }
     catch (e) { console.warn(`[acme] platform: operator co-sign failed (${e.message})${sig ? "; HMAC only" : ""}`); }
   }
   if (!opSig && !sig) throw new Error(`platform: could not sign the request for ${name}`);
+  // The key is on record BEFORE the POST: a timeout or a 5xx on our side says
+  // nothing about whether the relay's order is running, and the next ask has
+  // to present the same SPKI to find it (see PLATFORM_PENDING_MS).
+  pending.set(name, held);
   let r;
   try {
     r = await acmeFetch(`${slot.api}/v1/certs/issue`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, csr: held.csrPem, endpoint, ts, ...(sig ? { sig } : {}), ...(opSig ? { opSig } : {}) }) });
-  } catch (e) { throw caErr(`platform: ${e.message}`); }
+      body: JSON.stringify({ name, csr: held.csrPem, endpoint, ts, ...(sig ? { sig } : {}), ...(opSig ? { opSig } : {}) }) }, CERTS_HTTP_MS);
+  } catch (e) { throw caErr(`platform: ${e.message}`); }                     // pending kept: same key next time
   const isJson = /json/.test(r.headers.get("content-type") || "");
   const data = isJson ? await r.json().catch(() => null) : await r.text();
   if (r.status === 202) {
-    pending.set(name, held);
     const sec = Math.max(5, Math.min(3600, Number(data?.retryAfterSec) || 60));
     throw deferErr(`platform: order for ${name} in flight, retry in ${sec}s`, sec * 1000);
   }
@@ -1128,6 +1188,9 @@ if (process.env.ACME_SELFTEST) {
     const name = c.name, endpoint = c.endpoint, ts = 1_700_000_000;
     const signOp = c.opKey ? (text) => privateKeyToAccount(c.opKey).signMessage({ message: text }) : null;
     const pending = new Map();
+    // the fixed-vector key: its SPKI hash goes into the printed tuple, its PEM
+    // is printed so the test can recompute the hash independently
+    const vecKey = buildCsr(name).keyPem, spkiHash = spkiHashOf(vecKey);
     const cas = (c.cas || []).map((x) => ({ host: x.host, outcome: x.outcome, downUntil: 0 }));
     const rounds = [];
     for (let i = 0; i < (c.rounds || 1); i++) {
@@ -1151,13 +1214,15 @@ if (process.env.ACME_SELFTEST) {
         out = { outcome: e.deferMs ? "deferred" : "failed", error: e.message, deferMs: e.deferMs || 0, caLevel: !!e.caLevel, plan };
       }
       rounds.push({ ...out, tried, cooled: slots.filter((s) => s.downUntil > Date.now()).map((s) => s.host),
-                    pendingHeld: pending.has(name) });
+                    pendingHeld: pending.has(name), pendingSpki: pending.get(name)?.spkiHash || "" });
     }
     console.log(JSON.stringify({
       inZone: platformCertName(name), zones: CERT_ZONES,
-      tuple: certsSigTuple(name, endpoint, ts), opSigText: certsOpSigText(name, endpoint, ts),
-      certsKey: CERTS_KEY, sig: certsSig(name, endpoint, ts),
-      opSig: signOp ? await signOp(certsOpSigText(name, endpoint, ts)) : "",
+      fleetSecretPresent: FLEET_SECRET_PRESENT, certsHttpMs: CERTS_HTTP_MS,
+      vecKeyPem: vecKey, spkiHash,
+      tuple: certsSigTuple(name, endpoint, spkiHash, ts), opSigText: certsOpSigText(name, endpoint, spkiHash, ts),
+      certsKey: CERTS_KEY, sig: CERTS_KEY ? certsSig(name, endpoint, spkiHash, ts) : "",
+      opSig: signOp ? await signOp(certsOpSigText(name, endpoint, spkiHash, ts)) : "",
       // the pump's policy for the three failure shapes, at a fixed clock
       plans: { deferred: acmeRetryPlan(deferErr("x", 45_000), 3, [], 1_000_000),
                cooling:  acmeRetryPlan(new Error("x"), 3, [1_000_000 + 30_000], 1_000_000),
