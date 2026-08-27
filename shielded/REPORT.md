@@ -1340,3 +1340,45 @@ work, not backend work); failing that, a bounded busy-poll in the guest
 and fewer exchanges per token, which at 49 for this model is already the minimum the
 graph allows. The batched regime (13.12) amortises the 152 us over m rows and is where
 the deployed tier's throughput is.
+
+## 13.14 A card that is not ours: reservation, fallback, and the transport tracks
+
+The evening's live app told a story the host never could. A game started on the
+production 3070 (6.3 GB, ~95% of the time-slices) and the deployed 0.5B fell from ~95 to
+**15 tok/s** -- six times SLOWER than the enclave's own CPU -- because every one of the
+49 exchanges waited a full slice (~1 ms) behind it: 152 -> 1240 us. A consumer card has
+no partition to reserve, no MPS for a graphics client, no MIG; what the driver exposes
+is the time-slice policy (`compute-policy --set-timeslice`, root; now a oneshot unit in
+`metal/host-setup.sh`). So the protection is in our code, on both axes:
+
+- **Memory is reserved, not capped.** The worker's `--vram-gb` bounded what tenants could
+  allocate while the worker took device memory lazily; a later neighbour got it first
+  and the tenant's next allocation failed. Every device allocation now comes from the
+  stream-ordered allocator's pool with its release threshold pinned, and start-up
+  claims the whole budget once: a 1 GiB worker holds 1.2 GiB at idle; one asking for
+  20 GiB exits 75 naming what is free, the launcher retries, the guest withdraws the
+  card, the tenant runs in the enclave until the budget is there. The production worker
+  now holds its 6.5 GiB at start.
+- **Compute falls back.** The backend tracks each group's exchange latency against the
+  best it has seen AND against the exchange's idle expectation from its weight bytes (a
+  card contended from the first token has no best); when four in five recent exchanges
+  are slow it computes the claimed matmuls in the enclave through ggml's CPU backend
+  (`ggml_backend_sched` keeps its split plan across tokens, so declining ops is not
+  enough; the backend has to compute them itself), keeping one probe group per token on
+  the card to notice recovery. Measured on the host under a synthetic hog (a game
+  stand-in): **10.3 tok/s without the fallback, 57.6 with it**, quiet runs untouched
+  (4.85 ms/token, text identical). The same CPU path replaces the int64 fallback on
+  every other failure (a dead link now decodes at 92.6 tok/s while it reconnects, from
+  6.2). The fleet sees it too: the worker re-measures its throughput on HELLO and the
+  guest's 30-second tick flags the card `contended` below half its best.
+
+The transport tracks, all built, measured where the host can measure:
+
+| | result |
+|---|---|
+| worker-side busy-poll (`SHIELDED_WORKER_SPIN_US`, `worker.conf`) | A/B/A on the live app: 109 / 116 / 121 us per exchange on/off/on -- a wash; shipped off |
+| guest-side busy-poll + `cpuidle-haltpoll` | plumbed from `metal/config.json` (`shieldedWorker.tenantEnv`, filtered to `SHIELDED_*` at every hop; `guest.haltpoll`, module forced under KVM, parameters via a validated fw_cfg string, no cmdline change); needs the CVM to boot the new image; unmeasured until then |
+| int24 replies (protocol 1.2, `FIELD_GEMM24`) | 25% fewer reply bytes per token, lossless; a wash on loopback (47.1 vs 48.0 us gate\|up; 476 vs 481 lm_head); text identical; awaits the guest |
+| **shared-memory ring** (`SHM_ATTACH`, `SHIELDED_SHM`) | **viable under SEV-SNP**: a throwaway SNP guest mapping an `ivshmem` BAR did a gate\|up-sized handoff in **0.97 us** (write-back decrypted mapping) or 7.35 us (plain sysfs `resource2_wc`), against 152 on vsock; host-to-host against a GPU worker it removes the socket's share (tiny 15.5 -> 9.7 us; GPU-bound shapes unchanged). Prototype behind flags on both sides plus a launcher option, default off; the CVM image still needs the guest mapping and the manager's env. |
+
+The ring is the deployed tier's next 2x; everything else on this list is a few percent.

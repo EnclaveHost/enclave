@@ -331,6 +331,34 @@ bytes under the same pads drawn from the same ChaCha20 bank; the group-completio
 cache asks the worker for MORE products of the SAME masked planes (public weights times
 a ciphertext it already holds), and returns them only for a byte-identical activation.
 
+### 7d. The shared-memory ring, memory reservation, and the CPU fallback (2026-08-26)
+
+Three changes to WHERE bytes go, none to WHAT they are.
+
+**The ring** (`SHM_ATTACH`, protocol 1.2, default off) moves the FIELD_GEMM exchange from
+a vsock frame to a host-shared page: the TEE writes the same header fields and the same
+masked residue planes it would have written to the socket, and reads the reply only
+after checking sequence, status and the length IT computed from its own request --
+never a length the host wrote -- into a private buffer, where unmask and Freivalds run
+as before. A miss resends the same frame on the socket (the same ciphertext under the
+same pad, which tells the host nothing a retransmit would not); a violation takes the
+link down. The host sees the same ciphertext bytes, now also their arrival at cache-line
+granularity, which adds nothing to the length, layout and timing it already had. No
+plaintext, pad, Freivalds secret or per-request shape is ever in or near the page: only
+`shielded-wire.c` touches it. The `ivshmem` device is host configuration outside the
+launch measurement, like the vsock device; the guest ignores it unless `SHIELDED_SHM`
+is set. Adversarial test: 19/19 hostile-host cases (bad sequence, bad status, wrong
+length, oversize) refused before a byte was used.
+
+**Memory reservation** changes only when the worker takes VRAM from the driver; VRAM
+holds ciphertext and public weights either way (section 2). It is an availability
+property: a tenant's budget is the tenant's.
+
+**The CPU fallback** computes claimed matmuls in the enclave, on ggml's CPU backend,
+when the card is contended or the link is down: fewer exchanges, the same masking on
+each that still goes out. The probe exchange that keeps measuring the card is an
+ordinary masked exchange.
+
 ## 8. Provenance
 
 Constructions are used as cited, not adapted: Slalom (additive OTP over `Z_p`, preprocessed
