@@ -41,7 +41,13 @@
   "qemu": "qemu-system-x86_64",
   "dist": "metal/dist",
 
-    "_shieldedWorker_optional": { "port": 9500, "vramGb": 6.5, "priceUsdHr": 0.20 },
+    "_shieldedWorker_optional": { "port": 9500, "vramGb": 6.5, "priceUsdHr": 0.20,
+      "_tenantEnv_optional": { "SHIELDED_SPIN_US": "150" },
+      "_workerEnv_optional": { "SHIELDED_WORKER_SPIN_US": "100" } },
+  "_comment_shielded_tuning": "tenantEnv: SHIELDED_* environment for the GUEST tenant's engine (only SHIELDED_* names survive; anything else is dropped by the guest and again by the wasm-manager). SHIELDED_SPIN_US = microseconds the tenant polls the socket for the worker's reply before it blocks and its vCPU halts; 0 (default) = block at once. workerEnv: environment for the HOST-side worker process; SHIELDED_WORKER_SPIN_US = the same poll on the worker's side for the next request. Both cost a spinning core while they poll. Either can be changed with a launcher restart and no release; the guest one needs a release that carries this launcher's fw_cfg plumbing.",
+
+  "_guest_optional": { "haltpoll": true },
+  "_comment_guest_haltpoll": "cpuidle-haltpoll in the guest kernel. ON by default: an idle vCPU polls for a bounded, self-tuning window (guest_halt_poll_ns, 200 us) before it halts, so the shielded worker's reply lands on a running vCPU instead of paying a VM exit + injected interrupt per exchange (~49 per decoded token; 152 us each in the CVM vs 46 on the host loopback). COST: every idle vCPU may burn its host core for up to that window after each piece of work before halting; the window shrinks to zero when wakeups stop landing in it. false = plain HLT. An object tunes the governor without a release: { \"ns\": 200000, \"growStart\": 50000, \"grow\": 2, \"shrink\": 2, \"allowShrink\": true } (nanoseconds; kernel defaults shown). Rides fw_cfg, never the measured cmdline; the image only has to carry the driver (metal >= the release with metal/guest/init's haltpoll block).",
   "_comment_shielded": "Sell GPU work WITHOUT putting the GPU in the enclave. priceUsdHr is this box's ask for a WHOLE shielded card per hour, and it is only advertised once the boot probe passes: no pass, no capacity, no price. The card stays on the host, outside the measurement; the guest reaches the worker at 10.0.2.2:<port> and sends it public weights and one-time-padded activations only. See docs/shielded-inference.md and shielded/README.md. Requires python3 + torch + triton on the HOST, not in the guest. Omit unless the box has a CUDA card.",
 "_egressHelper_optional": { "port": 9443 },
 

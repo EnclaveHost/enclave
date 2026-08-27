@@ -34,6 +34,55 @@ if [ -f /opt/metal/modules.list ]; then
   while read -r m; do [ -n "$m" ] && ins "/lib/modules/$KVER/$m"; done < /opt/metal/modules.list
 fi
 
+# --- idle policy: cpuidle-haltpoll, before anything that waits on the host --
+# An idle vCPU halts, and every wakeup is a VM exit plus an injected interrupt.
+# The shielded tier pays that on each of the ~49 worker round trips a decoded
+# token makes (152 us each in the CVM against 46 on the host's loopback,
+# shielded/REPORT.md 13.13). cpuidle-haltpoll polls for a bounded, self-tuning
+# window before halting, so a reply that lands inside it finds the vCPU
+# running. force=1 because the host does not advertise KVM_HINTS_REALTIME
+# (that would also turn paravirt spinlocks off, which we do not want); the
+# driver still needs the KVM CPUID signature to load, which -cpu host exposes
+# under SEV-SNP as well as plain KVM.
+#
+# The policy is a plain string from fw_cfg, UNMEASURED and host-written:
+#   off | on [guest_halt_poll_ns=N guest_halt_poll_grow_start=N ...]
+# Missing = on with the kernel's defaults. Every parameter is checked to be a
+# known name with a decimal value before it reaches sysfs; anything else in
+# the string is ignored with a log line. The worst a hostile host can do here
+# is choose how long our idle vCPUs spin before they halt, which it could
+# already do by simply not scheduling them.
+HP_RAW=$(cat /sys/firmware/qemu_fw_cfg/by_name/opt/org.enclave.metal/haltpoll/raw 2>/dev/null | tr -d '\0' | head -c 512)
+set -- $HP_RAW
+if [ "$1" = "off" ]; then
+  log "haltpoll off by host config; idle vCPUs halt"
+else
+  HP_KO="$MODDIR/drivers/cpuidle/cpuidle-haltpoll.ko"
+  if [ -f "$HP_KO" ]; then
+    if /opt/metal/minsmod "$HP_KO" "force=1" 2>/tmp/ins.err; then
+      [ "$1" = "on" ] && shift
+      for kv in "$@"; do
+        k="${kv%%=*}"; v="${kv#*=}"
+        case "$k" in
+          guest_halt_poll_ns|guest_halt_poll_grow_start|guest_halt_poll_grow|guest_halt_poll_shrink|guest_halt_poll_allow_shrink) ;;
+          *) log "haltpoll: ignoring unknown parameter '$kv'"; continue ;;
+        esac
+        case "$v" in
+          ''|*[!0-9]*) log "haltpoll: ignoring non-numeric '$kv'"; continue ;;
+        esac
+        [ ${#v} -le 9 ] || { log "haltpoll: ignoring out-of-range '$kv'"; continue; }
+        if printf '%s' "$v" > "/sys/module/haltpoll/parameters/$k" 2>/dev/null; then :; else log "haltpoll: could not set $kv"; fi
+      done
+      log "haltpoll on: driver=$(cat /sys/devices/system/cpu/cpuidle/current_driver 2>/dev/null) governor=$(cat /sys/devices/system/cpu/cpuidle/current_governor 2>/dev/null) ns=$(cat /sys/module/haltpoll/parameters/guest_halt_poll_ns 2>/dev/null) grow_start=$(cat /sys/module/haltpoll/parameters/guest_halt_poll_grow_start 2>/dev/null)"
+    else
+      log "haltpoll: driver did not load ($(cat /tmp/ins.err)); idle vCPUs halt"
+    fi
+  else
+    log "haltpoll: no cpuidle-haltpoll.ko in this image; idle vCPUs halt"
+  fi
+fi
+set --
+
 # give udev-less devtmpfs a moment to settle the virtio nic
 for i in 1 2 3 4 5 6 7 8 9 10; do
   [ -e /sys/class/net/eth0 ] && break

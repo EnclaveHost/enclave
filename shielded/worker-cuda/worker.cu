@@ -54,6 +54,7 @@
  * fresh one -- see the note in worker.py about the MPS server going away.
  */
 #include <cuda_runtime.h>
+#include <immintrin.h>
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -63,8 +64,14 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <immintrin.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdarg>
 #include <cstdint>
@@ -92,9 +99,12 @@ enum : uint8_t {
     CMD_GET_ALIGNMENT = 4, CMD_GET_MAX_SIZE = 5, CMD_GET_DEVICE_MEMORY = 6, CMD_DEVICE_COUNT = 7,
     CMD_SET_TENSOR = 8, CMD_GET_TENSOR = 9, CMD_GRAPH_INSTALL = 10, CMD_GRAPH_RECOMPUTE = 11,
     CMD_FIELD_GEMM = 12,
-    CMD_COUNT = 13,
+    CMD_FIELD_GEMM24 = 13,   /* 1.2: the same request, 3-byte reply values */
+    CMD_SHM_ATTACH = 14,     /* 1.2: bind a shared-memory ring to this connection */
+    CMD_COUNT = 15,
 };
-static const int PROTO_MAJOR = 1, PROTO_MINOR = 1, PROTO_PATCH = 0;
+/* 1.2: SHM_ATTACH -- the shared-memory ring. A 1.1 link never sends it. */
+static const int PROTO_MAJOR = 1, PROTO_MINOR = 2, PROTO_PATCH = 0;
 static const uint8_t STATUS_OK = 0, STATUS_VIOLATION = 1;
 static const size_t MAX_FRAME = (size_t)256 << 20;
 static const size_t SH_HDR = 9;
@@ -279,10 +289,11 @@ __device__ __forceinline__ int32_t crt3(int32_t a0, int32_t a1, int32_t a2) {
 static const int GEMM_TAB_NODES = 8;
 struct GemmTab {
     const int8_t *W[GEMM_TAB_NODES];   /* (N,K) int8 */
-    int32_t *Y[GEMM_TAB_NODES];        /* [m][N] destination */
+    uint8_t *Y[GEMM_TAB_NODES];        /* [m][N] destination: int32, or 3-byte values when pack */
     int N[GEMM_TAB_NODES];
     int blk0[GEMM_TAB_NODES];
     int n;
+    int pack;                          /* FIELD_GEMM24: the epilogue writes int24 (see pack24 below) */
 };
 
 /* Row-blocking per activation-row count: WR = 4 weight rows per warp at once
@@ -348,7 +359,7 @@ field_gemm_kernel(const GemmTab tab, int K,
     int ni = 0;
 #pragma unroll
     for (int i = 1; i < GEMM_TAB_NODES; i++) if (i < tab.n && (int)blockIdx.x >= tab.blk0[i]) ni = i;
-    const int8_t *W = tab.W[0]; int32_t *Y = tab.Y[0]; int N = tab.N[0]; int blk0 = 0;
+    const int8_t *W = tab.W[0]; uint8_t *Y = tab.Y[0]; int N = tab.N[0]; int blk0 = 0;
 #pragma unroll
     for (int i = 1; i < GEMM_TAB_NODES; i++)
         if (ni == i) { W = tab.W[i]; Y = tab.Y[i]; N = tab.N[i]; blk0 = tab.blk0[i]; }
@@ -442,12 +453,15 @@ field_gemm_kernel(const GemmTab tab, int K,
 
     /* Epilogue: thread t -> (activation row r, block row jj); consecutive
      * threads write consecutive outputs, so each (r, block) is one contiguous
-     * RB x 4-byte write. */
-    for (int t = threadIdx.x; t < MR * RB; t += 256) {
-        const int r = t / RB, jj = t - r * RB;
+     * RB x 4-byte write. MR * RB <= 256: one output per thread. */
+    static_assert(MR * RB <= 256, "one epilogue output per thread");
+    __shared__ uint8_t pk[3 * MR * RB];          /* the packed form, staged (see below) */
+    const int t = threadIdx.x;
+    const int r = t / RB, jj = t - r * RB;
+    const int j = jbase + jj;
+    int32_t v = 0;
+    if (t < MR * RB && j < N) {
         const int g = jj / WR, w = jj - g * WR;
-        const int j = jbase + jj;
-        if (j >= N) continue;
         int s0 = 0, s1 = 0, s2 = 0;
 #pragma unroll
         for (int k = 0; k < KS; k++) {
@@ -455,8 +469,126 @@ field_gemm_kernel(const GemmTab tab, int K,
             s1 += red[g * KS + k][(1 * MR + r) * WR + w];
             s2 += red[g * KS + k][(2 * MR + r) * WR + w];
         }
-        Y[(long long)r * N + j] = crt3(s0, s1, s2);
+        v = crt3(s0, s1, s2);
+        if (!tab.pack) reinterpret_cast<int32_t *>(Y)[(long long)r * N + j] = v;
     }
+    if (!tab.pack) return;
+    /* The packed reply, from the epilogue. NOT as three byte stores per
+     * thread: to mapped host memory those leave the card as partial-sector
+     * writes, and the 0.5B gate|up exchange at m = 4 measured 490 us against
+     * 82 for the int32 form (m = 1 was a wash; the pattern is transport-
+     * dependent, not a property of the shape). So the block's 3-byte values
+     * are staged in shared memory and each row's run leaves as whole,
+     * aligned 4-byte words -- fewer of them than the int32 form writes. A
+     * row whose destination is not word-aligned (an odd N, m > 1) or whose
+     * run is cut by N (the last block) takes the byte stores; those rows are
+     * a rounding error of the reply. */
+    if (t < MR * RB) { uint8_t *o = pk + 3 * t; o[0] = (uint8_t)v; o[1] = (uint8_t)(v >> 8); o[2] = (uint8_t)(v >> 16); }
+    __syncthreads();
+    constexpr int WPR = 3 * RB / 4;                /* words per row: RB is a multiple of 4 */
+    const bool full = jbase + RB <= N;
+    for (int q = t; q < MR * WPR; q += 256) {
+        const int rr = q / WPR, ww = q - rr * WPR;
+        uint8_t *row = Y + 3 * ((long long)rr * N + jbase);
+        const uint8_t *src = pk + 3 * rr * RB + 4 * ww;
+        if (full && (((size_t)row) & 3) == 0) {
+            *reinterpret_cast<uint32_t *>(row + 4 * ww) =
+                (uint32_t)src[0] | ((uint32_t)src[1] << 8) | ((uint32_t)src[2] << 16) | ((uint32_t)src[3] << 24);
+        } else {
+#pragma unroll
+            for (int b = 0; b < 4; b++)
+                if ((4 * ww + b) / 3 + jbase < N) row[4 * ww + b] = src[b];
+        }
+    }
+}
+
+/* FIELD_GEMM24's other card form: the products stay int32 in device memory
+ * and this packs them into the mapped reply as whole 4-byte words. Word k
+ * holds bytes 4k..4k+3 of the packed stream, which come from at most two
+ * values: a = 4k/3 and b = (4k+3)/3. The destination is 3E rounded up to a
+ * word, so the last word may carry up to three bytes past the reply; the
+ * reply length sent is exactly 3E. */
+__global__ void pack24_kernel(const int32_t *__restrict__ y, uint32_t *__restrict__ o, long long E) {
+    const long long k = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    const long long nw = (3 * E + 3) / 4;
+    if (k >= nw) return;
+    const long long a = (4 * k) / 3, b = (4 * k + 3) / 3;
+    const uint32_t va = (uint32_t)y[a], vb = b < E ? (uint32_t)y[b] : 0u;
+    uint32_t w;
+    switch (k % 3) {
+        case 0:  w = (va & 0xffffffu) | (vb << 24); break;
+        case 1:  w = ((va >> 8) & 0xffffu) | (vb << 16); break;
+        default: w = ((va >> 16) & 0xffu) | (vb << 8); break;
+    }
+    o[k] = w;
+}
+static void pack24_launch(const int32_t *y, uint8_t *o, long long E, cudaStream_t s) {
+    const long long nw = (3 * E + 3) / 4;
+    const int blocks = (int)((nw + 255) / 256);
+    pack24_kernel<<<blocks, 256, 0, s>>>(y, (uint32_t *)o, E);
+    ck(cudaGetLastError(), "pack launch");
+}
+
+/* The host-side pack, for the CPU form and the self-test's reference:
+ * E int32 values -> 3E bytes, little-endian two's complement. Four values
+ * per 16-byte shuffle where SSSE3 is there; the last groups and a machine
+ * without it take the byte loop. */
+__attribute__((target("ssse3")))
+static void pack24_host_ssse3(const int32_t *y, uint8_t *o, long long E) {
+    const __m128i shuf = _mm_setr_epi8(0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14, -1, -1, -1, -1);
+    long long i = 0;
+    /* Each 16-byte store spills 4 bytes past its 12; the next store covers
+     * them, and the loop stops where a spill would pass 3E. */
+    for (; i + 8 <= E; i += 4)
+        _mm_storeu_si128((__m128i *)(o + 3 * i), _mm_shuffle_epi8(_mm_loadu_si128((const __m128i *)(y + i)), shuf));
+    for (; i < E; i++) { const int32_t v = y[i]; o[3 * i] = (uint8_t)v; o[3 * i + 1] = (uint8_t)(v >> 8); o[3 * i + 2] = (uint8_t)(v >> 16); }
+}
+static void pack24_host(const int32_t *y, uint8_t *o, long long E) {
+    static int ssse3 = -1;
+#if defined(__CUDA_ARCH__)
+    ssse3 = 0;                         /* host-only code; the device pass still parses it */
+#else
+    if (ssse3 < 0) { __builtin_cpu_init(); ssse3 = __builtin_cpu_supports("ssse3") ? 1 : 0; }
+#endif
+    if (ssse3) { pack24_host_ssse3(y, o, E); return; }
+    for (long long i = 0; i < E; i++) { const int32_t v = y[i]; o[3 * i] = (uint8_t)v; o[3 * i + 1] = (uint8_t)(v >> 8); o[3 * i + 2] = (uint8_t)(v >> 16); }
+}
+static inline int32_t unpack24(const uint8_t *p) {
+    const uint32_t v = (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16);
+    return (int32_t)(v << 8) >> 8;
+}
+
+/* How a FIELD_GEMM24 reply is produced. All three send identical bytes.
+ *   epilogue  the GEMM kernel writes the 3-byte values into the mapped reply
+ *   kernel    int32 into device memory, then pack24_kernel into the reply
+ *   cpu       int32 into the mapped reply as for FIELD_GEMM, packed on the
+ *             host after the sync (pack24_host, ~20 us for lm_head's 152k)
+ * Measured 2026-08-26 (RTX 3070, idle box, xtimer medians of 3, wire term
+ * of the exchange, int24 minus int32):
+ *              0.5B gate|up m=1   gate|up m=4   down m=1   lm_head m=1
+ *   epilogue    -0.9 / +0.8 us    -8.3 / -0.2   +0.1/+2.6  -21.0 / +7.2   (tcp / vsock loopback)
+ *   kernel      +4.4 / +5.7       +13.5 / +12.9 +4.2/-1.4  +61.1 / +46.6
+ *   cpu         -1.2 / -0.9       -5.9 / +1.5   +0.5/-0.2  -20.4 / -26.8
+ * The appended pack kernel loses everywhere: one more launch in the graph
+ * plus a second pass over the products. The epilogue and the CPU pack are
+ * within noise of each other and of the int32 form on the host loopback --
+ * there the 152 KB saved on lm_head is worth ~15 us at most -- so the
+ * epilogue is the default: no host pass, nothing to schedule, and the
+ * byte saving lands where it is paid for, on the guest's vhost-vsock,
+ * which this box cannot measure from outside the CVM.
+ * SHIELDED_WORKER_PACK=epilogue|kernel|cpu overrides it for an A/B run. */
+enum PackMode { PACK_EPILOGUE = 0, PACK_KERNEL = 1, PACK_CPU = 2 };
+static const PackMode PACK_DEFAULT = PACK_EPILOGUE;
+static PackMode pack_mode() {
+    static int v = -1;
+    if (v < 0) {
+        const char *e = getenv("SHIELDED_WORKER_PACK");
+        v = PACK_DEFAULT;
+        if (e && !strcmp(e, "epilogue")) v = PACK_EPILOGUE;
+        else if (e && !strcmp(e, "kernel")) v = PACK_KERNEL;
+        else if (e && !strcmp(e, "cpu")) v = PACK_CPU;
+    }
+    return (PackMode)v;
 }
 
 template <int MR, int G>
@@ -473,8 +605,9 @@ struct GemmPlan { int mr, g, blocks; GemmTab tab; };
  * (N=896): G=4 (56 blocks) beat G=1 (224 blocks) 8.4 vs 9.7 us at m=1 and 21.7
  * vs 28 us at m=8; the wider block writes wider output rows and splits K less. */
 static int g_sm_count = 46;
-static GemmPlan gemm_plan(const int8_t *const *W, int32_t *const *Y, const int *N, int nn, int mr) {
+static GemmPlan gemm_plan(const int8_t *const *W, uint8_t *const *Y, const int *N, int nn, int mr, int pack = 0) {
     GemmPlan pl; pl.mr = mr; pl.g = 1; pl.blocks = 0;
+    pl.tab.pack = pack;
     for (int g = 8; g >= 1; g >>= 1) {
         const int rpb = gemm_rows_per_block(mr, g);
         int blocks = 0;
@@ -515,7 +648,7 @@ static void field_gemm_launch(const int8_t *W, int K, int N, const int8_t *X, in
                               long long xstride, long long pstride, int32_t *Y, cudaStream_t s) {
     for (int row0 = 0; row0 < m; row0 += 8) {
         const int mr = std::min(m - row0, 8);
-        int32_t *y = Y + (size_t)row0 * N;
+        uint8_t *y = (uint8_t *)(Y + (size_t)row0 * N);
         const GemmPlan pl = gemm_plan(&W, &y, &N, 1, mr);
         gemm_launch_planned(pl, K, X + row0 * xstride, xstride, pstride, s);
     }
@@ -533,7 +666,7 @@ static void field_gemm_launch(const int8_t *W, int K, int N, const int8_t *X, in
  * size, multi-node fused launches through the same table path the exchange
  * uses, and an m > 8 two-pass case.
  * ------------------------------------------------------------------------ */
-static bool selftest_one(int K, int N, int m, int nn, cudaStream_t s, uint64_t &seed) {
+static bool selftest_one(int K, int N, int m, int nn, cudaStream_t s, uint64_t &seed, int pack = 0) {
     std::vector<int8_t> W((size_t)nn * N * K), X((size_t)3 * m * K);
     std::vector<int64_t> xr((size_t)m * K);
     auto rnd = [&]() { seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17; return seed; };
@@ -550,33 +683,57 @@ static bool selftest_one(int K, int N, int m, int nn, cudaStream_t s, uint64_t &
                 for (int k = 0; k < K; k++) acc += xr[(size_t)r * K + k] * W[((size_t)q * N + j) * K + k];
                 ref[((size_t)q * m + r) * N + j] = (int32_t)sh_balanced(acc);
             }
-    int8_t *dW = nullptr, *dX = nullptr; int32_t *dY = nullptr;
+    int8_t *dW = nullptr, *dX = nullptr; int32_t *dY = nullptr; uint8_t *dP = nullptr;
+    const size_t E = ref.size(), pbytes = ((3 * E + 3) / 4) * 4;
     ck(dmalloc((void **)&dW, W.size()), "selftest malloc");
     ck(dmalloc((void **)&dX, X.size()), "selftest malloc");
-    ck(dmalloc((void **)&dY, ref.size() * 4), "selftest malloc");
+    ck(dmalloc((void **)&dY, E * 4), "selftest malloc");
+    ck(dmalloc((void **)&dP, pbytes), "selftest malloc");
     ck(cudaMemcpy(dW, W.data(), W.size(), cudaMemcpyHostToDevice), "selftest copy");
     ck(cudaMemcpy(dX, X.data(), X.size(), cudaMemcpyHostToDevice), "selftest copy");
-    ck(cudaMemset(dY, 0x7f, ref.size() * 4), "selftest clear");
+    ck(cudaMemset(dY, 0x7f, E * 4), "selftest clear");
+    ck(cudaMemset(dP, 0x7f, pbytes), "selftest clear");
     /* The memset runs on the legacy stream; the launches below do not wait for it. */
     ck(cudaDeviceSynchronize(), "selftest sync");
-    /* The exchange path's shape: fused launches per pass of <= 8 rows. */
+    /* The exchange path's shape: fused launches per pass of <= 8 rows.
+     * pack = 1: the epilogue writes 3-byte values into dP; pack = 2: int32
+     * into dY, then pack24_kernel over the whole flat output. Both are
+     * unpacked here and held to the same int64 reference as the int32 form,
+     * and the host pack of that reference must reproduce the card's bytes. */
     for (int row0 = 0; row0 < m; row0 += 8) {
         const int mr = std::min(m - row0, 8);
-        const int8_t *Ws[GEMM_TAB_NODES]; int32_t *Ys[GEMM_TAB_NODES]; int Ns[GEMM_TAB_NODES];
-        for (int q = 0; q < nn; q++) { Ws[q] = dW + (size_t)q * N * K; Ys[q] = dY + ((size_t)q * m + row0) * N; Ns[q] = N; }
-        const GemmPlan pl = gemm_plan(Ws, Ys, Ns, nn, mr);
+        const int8_t *Ws[GEMM_TAB_NODES]; uint8_t *Ys[GEMM_TAB_NODES]; int Ns[GEMM_TAB_NODES];
+        for (int q = 0; q < nn; q++) {
+            Ws[q] = dW + (size_t)q * N * K; Ns[q] = N;
+            Ys[q] = pack == 1 ? dP + 3 * (((size_t)q * m + row0) * N) : (uint8_t *)(dY + ((size_t)q * m + row0) * N);
+        }
+        const GemmPlan pl = gemm_plan(Ws, Ys, Ns, nn, mr, pack == 1);
         gemm_launch_planned(pl, K, dX + (size_t)row0 * K, K, (long long)m * K, s);
     }
+    if (pack == 2) pack24_launch(dY, dP, (long long)E, s);
     ck(cudaStreamSynchronize(s), "selftest sync");
-    std::vector<int32_t> got(ref.size());
-    ck(cudaMemcpy(got.data(), dY, got.size() * 4, cudaMemcpyDeviceToHost), "selftest readback");
-    dfree(dW); dfree(dX); dfree(dY);
+    std::vector<int32_t> got(E);
+    if (pack) {
+        std::vector<uint8_t> pk(pbytes);
+        ck(cudaMemcpy(pk.data(), dP, pbytes, cudaMemcpyDeviceToHost), "selftest readback");
+        for (size_t i = 0; i < E; i++) got[i] = unpack24(pk.data() + 3 * i);
+        std::vector<uint8_t> hp(3 * E);
+        pack24_host(ref.data(), hp.data(), (long long)E);
+        if (memcmp(hp.data(), pk.data(), 3 * E)) {
+            fprintf(stderr, "[shielded-worker] SELFTEST FAILED K=%d N=%d m=%d nodes=%d pack=%d: host pack differs from the card's\n", K, N, m, nn, pack);
+            dfree(dW); dfree(dX); dfree(dY); dfree(dP);
+            return false;
+        }
+    } else {
+        ck(cudaMemcpy(got.data(), dY, E * 4, cudaMemcpyDeviceToHost), "selftest readback");
+    }
+    dfree(dW); dfree(dX); dfree(dY); dfree(dP);
     /* The int64 product is far outside Z_M here; balanced() folds it, which is
      * exactly what the GPU's residue arithmetic does implicitly. */
     for (size_t i = 0; i < ref.size(); i++)
         if (got[i] != ref[i]) {
-            fprintf(stderr, "[shielded-worker] SELFTEST FAILED K=%d N=%d m=%d nodes=%d at %zu: gpu %d ref %d\n",
-                    K, N, m, nn, i, got[i], ref[i]);
+            fprintf(stderr, "[shielded-worker] SELFTEST FAILED K=%d N=%d m=%d nodes=%d pack=%d at %zu: gpu %d ref %d\n",
+                    K, N, m, nn, pack, i, got[i], ref[i]);
             return false;
         }
     return true;
@@ -600,6 +757,17 @@ static bool selftest() {
     if (ok) ok = selftest_one(96, 37, 11, 2, s, seed);
     if (ok) ok = selftest_one(32, 1, 7, 1, s, seed);      /* smallest K, N below a warp's rows, MR=7 */
     if (ok) ok = selftest_one(96, 3, 6, 3, s, seed);
+    /* The packed reply, both card forms: 3E not a multiple of 4 (the tail
+     * word), multi-node fused tables, m > 8 two-pass, a single value. */
+    for (int pack = 1; pack <= 2 && ok; pack++) {
+        ok = ok && selftest_one(896, 37, 1, 1, s, seed, pack);
+        ok = ok && selftest_one(96, 1234, 3, 2, s, seed, pack);
+        ok = ok && selftest_one(96, 4103, 8, 3, s, seed, pack);
+        ok = ok && selftest_one(96, 301, 2, 8, s, seed, pack);
+        ok = ok && selftest_one(96, 37, 11, 2, s, seed, pack);
+        ok = ok && selftest_one(32, 1, 1, 1, s, seed, pack);
+        ok = ok && selftest_one(32, 5, 1, 1, s, seed, pack);
+    }
     cudaStreamDestroy(s);
     if (!ok) return false;
     /* CRT constants vs the host's Garner. */
@@ -662,8 +830,8 @@ static int kbench() {
         printf("%-26s %6.1f %4d |", sh.name, wb / 1e6, sh.m);
         for (int which = 0; which < 2; which++) {
             for (int g = 1; g <= 8; g <<= 1) {
-                const int8_t *Ws[2]; int32_t *Ys[2]; int Ns[2];
-                for (int i = 0; i < sh.nn; i++) { Ws[i] = dW + (size_t)i * sh.K * sh.N; Ys[i] = (which ? dhY : dY) + (size_t)i * sh.m * sh.N; Ns[i] = sh.N; }
+                const int8_t *Ws[2]; uint8_t *Ys[2]; int Ns[2];
+                for (int i = 0; i < sh.nn; i++) { Ws[i] = dW + (size_t)i * sh.K * sh.N; Ys[i] = (uint8_t *)((which ? dhY : dY) + (size_t)i * sh.m * sh.N); Ns[i] = sh.N; }
                 GemmPlan pl = gemm_plan(Ws, Ys, Ns, sh.nn, sh.m);
                 /* force this G */
                 pl.g = g; { const int rpb = gemm_rows_per_block(sh.m, g); int b = 0; for (int i = 0; i < sh.nn; i++) { pl.tab.blk0[i] = b; b += (sh.N + rpb - 1) / rpb; } pl.blocks = b; }
@@ -825,6 +993,39 @@ static void wr_u64(uint8_t *p, uint64_t v) { for (int i = 0; i < 8; i++) p[i] = 
 static void wr_u32(uint8_t *p, uint32_t v) { for (int i = 0; i < 4; i++) p[i] = (uint8_t)(v >> (8 * i)); }
 
 /* ---------------------------------------------------------------------------
+ * The shared-memory ring (--shm <file>). Mirrors wasm/ggml-shielded/
+ * shielded-wire.h: the file holds size / 8 MiB rings; ring i at i * 8 MiB;
+ * per ring a request sequence line, a reply sequence line, the two socket
+ * headers byte for byte, a 2 MiB request slot and a 6 MiB reply slot.
+ *
+ * Why it exists: in the SEV-SNP guest a vhost-vsock exchange costs 152 us,
+ * of which this worker's card path is ~28 and the socket ~10 -- the rest is
+ * VM exits and interrupts. On the host the file is a plain shared mapping;
+ * in the guest it is the BAR of an ivshmem-plain device backed by the same
+ * file. Both sides poll; nobody sleeps on the exchange.
+ *
+ * Trust: the ring is written by the guest and this worker only ever COPIES
+ * a request out of it into its pinned staging (a snapshot) before any
+ * admission check reads a field, so the guest editing the slot mid-flight
+ * cannot move a bound after it was checked. The reply is written last, then
+ * the sequence line (release). Everything else -- allowlist, K, max_m, the
+ * exact-length rule -- is the unchanged field_gemm().
+ * ------------------------------------------------------------------------ */
+static const size_t RING_BYTES = (size_t)8 << 20, RING_OFF_REQ = 0, RING_OFF_REP = 64,
+                    RING_OFF_RQH = 128, RING_OFF_RPH = 192, RING_OFF_RQP = 4096,
+                    RING_OFF_RPP = (size_t)2 << 20;
+static const size_t RING_REQ_CAP = RING_OFF_RPP - RING_OFF_RQP, RING_REP_CAP = RING_BYTES - RING_OFF_RPP;
+static const size_t RING_MAX_FILE = (size_t)64 << 20;
+static uint8_t *g_shm = nullptr; static size_t g_shm_len = 0; static int g_nrings = 0;
+static std::atomic<int> g_ring_owner[RING_MAX_FILE / RING_BYTES];
+/* How long a ring-serving thread spins with no traffic before it backs off
+ * to a 1 ms poll: a decode token is ~5-10 ms of continuous exchanges, so a
+ * live link never sees the back-off and an idle one costs no core. */
+static int g_shm_idle_ms = 200;
+static inline uint64_t ring_ld(const uint8_t *at) { return __atomic_load_n((const uint64_t *)at, __ATOMIC_ACQUIRE); }
+static inline void ring_st(uint8_t *at, uint64_t v) { _mm_sfence(); __atomic_store_n((uint64_t *)at, v, __ATOMIC_RELEASE); }
+
+/* ---------------------------------------------------------------------------
  * Per-connection state: the admission rules of protocol.py, plus the storage
  * they gate. Buffers, graph and scratch die with the connection; only the
  * process-wide card survives.
@@ -901,6 +1102,10 @@ struct Conn {
     uint8_t *h_in = nullptr;  size_t h_in_cap = 0;
     int8_t  *d_x = nullptr;   size_t d_x_cap = 0;
     uint8_t *h_out = nullptr; size_t h_out_cap = 0; int32_t *d_out = nullptr;
+    /* FIELD_GEMM24 staging: the int32 products on the device (PACK_KERNEL)
+     * and the host-packed reply (PACK_CPU). Unused by the default form. */
+    int32_t *d_y32 = nullptr; size_t d_y32_cap = 0;
+    std::vector<uint8_t> h_pack;
     /* A response that lives in h_out rather than in a std::string. */
     const void *resp_ptr = nullptr; size_t resp_len = 0;
     /* The exchange's card work (upload + launches), captured once per
@@ -914,13 +1119,18 @@ struct Conn {
     uint64_t exchanges = 0, recomputes = 0;
     double gemm_ms = 0;
     int64_t kmax = 0;                        /* widest K installed: bounds a FIELD_GEMM frame */
+    /* The ring this connection owns after SHM_ATTACH, or none. */
+    uint8_t *ring = nullptr; int ring_index = -1; uint64_t ring_seen = 0;
+    uint64_t ring_exchanges = 0;
 
     Conn(int f, std::string p) : fd(f), peer(std::move(p)) {}
     ~Conn() {
+        if (ring_index >= 0) g_ring_owner[ring_index].store(0);
         if (stream) cudaStreamSynchronize(stream);          /* nothing in flight before the pool takes the memory back */
         for (auto &kv : buffers) if (kv.second.dev) dfree(kv.second.dev);
         for (auto &n : nodes) if (n.w) dfree(n.w);
         if (d_x) dfree(d_x);
+        if (d_y32) dfree(d_y32);
         drop_graphs();
         if (h_in) cudaFreeHost(h_in);
         if (h_out) cudaFreeHost(h_out);
@@ -954,6 +1164,12 @@ struct Conn {
         if (d_x_cap >= n) return;
         if (d_x) dfree(d_x);
         ck(dmalloc((void **)&d_x, n), "device scratch alloc"); d_x_cap = n;
+        drop_graphs();
+    }
+    void ensure_dy32(size_t n) {
+        if (d_y32_cap >= n) return;
+        if (d_y32) dfree(d_y32);
+        ck(dmalloc((void **)&d_y32, n), "device product alloc"); d_y32_cap = n;
         drop_graphs();
     }
 
@@ -1200,12 +1416,20 @@ struct Conn {
      * ends the capture before the violation propagates, so the stream is left
      * usable for the reply. */
     cudaGraphExec_t capture_exchange(const uint8_t *planes, size_t xbytes, Node *const *nds, uint32_t nn,
-                                     uint32_t m, int K) {
+                                     uint32_t m, int K, bool packed, PackMode pm) {
         ck(cudaStreamBeginCapture(stream, cudaStreamCaptureModeThreadLocal), "capture");
         cudaGraph_t g = nullptr;
         try {
             ck(cudaMemcpyAsync(d_x, planes, xbytes, cudaMemcpyHostToDevice, stream), "planes upload");
-            const int8_t *Ws[GEMM_TAB_NODES]; int32_t *Ys[GEMM_TAB_NODES]; int Ns[GEMM_TAB_NODES];
+            /* Where the GEMM writes and how wide. The packed reply's default
+             * form has the epilogue write 3-byte values straight into the
+             * mapped reply; PACK_KERNEL has it write int32 to device memory
+             * and appends the pack; PACK_CPU is the FIELD_GEMM capture. */
+            const bool epi = packed && pm == PACK_EPILOGUE;
+            uint8_t *ybase = (packed && pm == PACK_KERNEL) ? (uint8_t *)d_y32 : (uint8_t *)d_out;
+            const size_t yw = epi ? 3 : 4;
+            const int8_t *Ws[GEMM_TAB_NODES]; uint8_t *Ys[GEMM_TAB_NODES]; int Ns[GEMM_TAB_NODES];
+            size_t E = 0;
             for (uint32_t row0 = 0; row0 < m; row0 += 8) {
                 const int mr = std::min((int)(m - row0), 8);
                 size_t yoff = 0;
@@ -1214,13 +1438,15 @@ struct Conn {
                     for (int i = 0; i < cnt; i++) {
                         const Node &nd = *nds[i0 + i];
                         Ws[i] = nd.w; Ns[i] = (int)nd.N;
-                        Ys[i] = (int32_t *)((uint8_t *)d_out + yoff) + (size_t)row0 * nd.N;
-                        yoff += (size_t)m * nd.N * 4;
+                        Ys[i] = ybase + yoff + (size_t)row0 * nd.N * yw;
+                        yoff += (size_t)m * nd.N * yw;
                     }
-                    gemm_launch_planned(gemm_plan(Ws, Ys, Ns, cnt, mr), K, d_x + (size_t)row0 * K,
+                    gemm_launch_planned(gemm_plan(Ws, Ys, Ns, cnt, mr, epi), K, d_x + (size_t)row0 * K,
                                         K, (long long)m * K, stream);
                 }
+                E = yoff / yw;
             }
+            if (packed && pm == PACK_KERNEL) pack24_launch(d_y32, (uint8_t *)d_out, (long long)E, stream);
         } catch (...) {
             cudaStreamEndCapture(stream, &g);
             if (g) cudaGraphDestroy(g);
@@ -1249,7 +1475,7 @@ struct Conn {
      * replayed as a captured graph. Measured on the 0.5B gate|up exchange
      * (K=896, 2 nodes, m=1, TCP loopback): 67 us round trip before, 42.5
      * after, of which 24 is the kernel and ~3.5 the upload and launch gaps. */
-    void field_gemm(const uint8_t *p, size_t n) {
+    void field_gemm(const uint8_t *p, size_t n, bool packed) {
         if (n < 8) VIOLATE("truncated u32");
         const uint32_t nn = rd_u32(p), m = rd_u32(p + 4);
         if (nn < 1 || nn > 64) VIOLATE("FIELD_GEMM names %u nodes", nn);
@@ -1262,7 +1488,7 @@ struct Conn {
             if (nd.K != K) VIOLATE("FIELD_GEMM nodes disagree on K");
             if (m < 1 || (uint64_t)m > (uint64_t)nd.max_m) VIOLATE("m=%u outside [1,%d] for node %s", m, nd.max_m, nd.id.c_str());
             nds[i] = &nd;
-            ybytes += (size_t)m * nd.N * 4;
+            ybytes += (size_t)m * nd.N * (packed ? 3 : 4);
         }
         const size_t xbytes = (size_t)3 * m * K;
         if (n != 8 + 4 * (size_t)nn + xbytes)
@@ -1270,26 +1496,135 @@ struct Conn {
         if (p != h_in) VIOLATE("internal: FIELD_GEMM frame not in pinned staging");
         const uint8_t *planes = h_in + 8 + 4 * (size_t)nn;
 
+        /* FIELD_GEMM24 (protocol 1.2): 3 bytes per product. The values are
+         * the same balanced (-M/2, M/2] integers, M < 2^24, so nothing is
+         * lost and nothing new crosses; the reply is 25% smaller -- 152 KB on
+         * the 0.5B's lm_head, where every byte is paid for on the guest's
+         * vhost-vsock. */
+        const PackMode pm = pack_mode();
+        const size_t E = packed ? ybytes / 3 : 0;
         const auto t0 = std::chrono::steady_clock::now();
         {
             std::lock_guard<std::mutex> lk(g_gpu);
-            ensure_dx(xbytes); ensure_host_out(ybytes);
+            ensure_dx(xbytes);
+            /* The reply staging is rounded up to a word so pack24_kernel's
+             * last word fits, and holds the int32 form for the CPU pack. */
+            ensure_host_out(packed ? std::max((ybytes + 3) & ~(size_t)3, E * 4) : ybytes);
+            if (packed && pm == PACK_KERNEL) ensure_dy32(E * 4);
             XP(0);
-            std::vector<uint32_t> key(nn + 1); key[0] = m;
-            for (uint32_t i = 0; i < nn; i++) key[i + 1] = rd_u32(p + 8 + 4 * i);
+            std::vector<uint32_t> key(nn + 2); key[0] = packed ? (uint32_t)pm + 1 : 0; key[1] = m;
+            for (uint32_t i = 0; i < nn; i++) key[i + 2] = rd_u32(p + 8 + 4 * i);
             auto git = graphs.find(key);
             if (git == graphs.end()) {
                 if (graphs.size() >= 256) drop_graphs();
-                git = graphs.emplace(key, capture_exchange(planes, xbytes, nds, nn, m, (int)K)).first;
+                git = graphs.emplace(key, capture_exchange(planes, xbytes, nds, nn, m, (int)K, packed, pm)).first;
             }
             ck(cudaGraphLaunch(git->second, stream), "graph launch");
             XP(3);
             ck(cudaStreamSynchronize(stream), "exchange sync");
             XP(5);
+            if (packed && pm == PACK_CPU) {
+                if (h_pack.size() < ybytes) h_pack.resize(ybytes);
+                pack24_host((const int32_t *)h_out, h_pack.data(), (long long)E);
+            }
+            XP(6);
         }
         gemm_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
         exchanges++; XPN();
-        resp_ptr = h_out; resp_len = ybytes;
+        resp_ptr = (packed && pm == PACK_CPU) ? (const void *)h_pack.data() : (const void *)h_out;
+        resp_len = ybytes;
+    }
+
+    /* SHM_ATTACH: | ring u32 | -> | granted u8 | ring_bytes u64 | req_cap u64 | rep_cap u64 |.
+     * Needs an installed graph (the ring carries FIELD_GEMM and nothing else),
+     * one ring per connection, one connection per ring. A refusal is an
+     * answer with granted = 0, not a violation: the link keeps the socket. */
+    std::string shm_attach(const uint8_t *p, size_t n) {
+        if (n < 4) VIOLATE("truncated u32");
+        if (!installed) VIOLATE("SHM_ATTACH before GRAPH_INSTALL");
+        if (ring) VIOLATE("duplicate SHM_ATTACH");
+        const uint32_t index = rd_u32(p);
+        bool granted = false;
+        if (g_shm && index < (uint32_t)g_nrings) {
+            int expect = 0;
+            granted = g_ring_owner[index].compare_exchange_strong(expect, 1);
+        }
+        if (granted) {
+            ring = g_shm + (size_t)index * RING_BYTES; ring_index = (int)index;
+            ring_seen = ring_ld(ring + RING_OFF_REQ);      /* whatever is there is stale */
+            logf("%s attached shm ring %u", peer.c_str(), index);
+        }
+        std::string r(25, '\0');
+        r[0] = granted ? 1 : 0;
+        wr_u64((uint8_t *)&r[1], RING_BYTES); wr_u64((uint8_t *)&r[9], RING_REQ_CAP); wr_u64((uint8_t *)&r[17], RING_REP_CAP);
+        return r;
+    }
+
+    /* One ring request: snapshot the header, bound it, copy the frame into
+     * the pinned staging, run the unchanged handler, publish the reply.
+     * Returns false when the connection must close (a violation, as on the
+     * socket: the reason is left in the reply slot with status 1). */
+    bool service_ring(uint64_t seq) {
+        uint8_t *r = ring;
+        const uint8_t cmd = r[RING_OFF_RQH];
+        const uint64_t size = rd_u64(r + RING_OFF_RQH + 1);
+        std::string resp; bool violation = false;
+        resp_ptr = nullptr; resp_len = 0;
+        try {
+            if (cmd != CMD_FIELD_GEMM) VIOLATE("ring carries command %u; only FIELD_GEMM rides the ring", cmd);
+            const uint64_t cap = 8 + 4 * 64 + (uint64_t)3 * 4096 * (uint64_t)kmax;
+            if (size > RING_REQ_CAP || size > cap)
+                VIOLATE("ring frame of %llu bytes exceeds %llu", (unsigned long long)size, (unsigned long long)std::min<uint64_t>(cap, RING_REQ_CAP));
+            ensure_host_in((size_t)size);
+            memcpy(h_in, r + RING_OFF_RQP, (size_t)size);        /* the snapshot */
+            resp = handle(cmd, h_in, (size_t)size);
+            if (resp_len > RING_REP_CAP) VIOLATE("ring reply of %zu bytes exceeds %zu", resp_len, RING_REP_CAP);
+        } catch (const Violation &v) {
+            logf("VIOLATION from %s (ring): %s", peer.c_str(), v.why.c_str());
+            resp = v.why; violation = true; resp_ptr = nullptr;
+        } catch (const std::exception &e) {
+            logf("VIOLATION from %s (ring): internal %s", peer.c_str(), e.what());
+            resp = fmt("internal: %s", e.what()); violation = true; resp_ptr = nullptr;
+        }
+        const void *rp = resp_ptr ? resp_ptr : resp.data();
+        size_t rl = resp_ptr ? resp_len : resp.size();
+        if (rl > RING_REP_CAP) rl = RING_REP_CAP;
+        if (rl) memcpy(r + RING_OFF_RPP, rp, rl);
+        r[RING_OFF_RPH] = violation ? STATUS_VIOLATION : STATUS_OK;
+        wr_u64(r + RING_OFF_RPH + 1, rl);
+        ring_st(r + RING_OFF_REP, seq);
+        ring_exchanges++;
+        return !violation;
+    }
+
+    /* With a ring attached this thread serves BOTH: it spins on the ring's
+     * request line and polls the socket (control frames, the fallback path)
+     * every few spins; after g_shm_idle_ms without traffic it sleeps in 1 ms
+     * polls. Returns with a socket header in h, or false to close. */
+    bool next_header(uint8_t *h) {
+        size_t got = 0;
+        auto last = std::chrono::steady_clock::now();
+        for (unsigned spins = 0;; spins++) {
+            const uint64_t seq = ring_ld(ring + RING_OFF_REQ);
+            if (seq != ring_seen) {
+                ring_seen = seq;
+                if (!service_ring(seq)) return false;
+                last = std::chrono::steady_clock::now();
+                continue;
+            }
+            if ((spins & 31) == 0) {
+                ssize_t r = recv(fd, h + got, SH_HDR - got, MSG_DONTWAIT);
+                if (r > 0) { got += (size_t)r; if (got == SH_HDR) return true; last = std::chrono::steady_clock::now(); continue; }
+                if (r == 0) return false;
+                if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) return false;
+            }
+            _mm_pause();
+            if ((spins & 4095) == 4095 &&
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - last).count() > g_shm_idle_ms) {
+                struct pollfd pfd = { fd, POLLIN, 0 };
+                poll(&pfd, 1, 1);
+            }
+        }
     }
 
     std::string handle(uint8_t cmd, const uint8_t *p, size_t n) {
@@ -1302,7 +1637,9 @@ struct Conn {
             case CMD_GET_TENSOR:      return get_tensor(p, n);
             case CMD_GRAPH_INSTALL:   return graph_install(p, n);
             case CMD_GRAPH_RECOMPUTE: return recompute(p, n);
-            case CMD_FIELD_GEMM:      field_gemm(p, n); return std::string();
+            case CMD_FIELD_GEMM:      field_gemm(p, n, false); return std::string();
+            case CMD_FIELD_GEMM24:    field_gemm(p, n, true);  return std::string();
+            case CMD_SHM_ATTACH:      return shm_attach(p, n);
             case CMD_BUFFER_GET_BASE: case CMD_GET_ALIGNMENT: case CMD_GET_MAX_SIZE:
             case CMD_GET_DEVICE_MEMORY: case CMD_DEVICE_COUNT:
                 return "";
@@ -1315,7 +1652,7 @@ struct Conn {
         std::vector<uint8_t> buf;
         for (;;) {
             uint8_t h[SH_HDR];
-            if (!read_exact(fd, h, SH_HDR)) break;
+            if (ring ? !next_header(h) : !read_exact(fd, h, SH_HDR)) break;
             const uint8_t cmd = h[0];
             const uint64_t size = rd_u64(h + 1);
             std::string resp; bool violation = false;
@@ -1325,7 +1662,7 @@ struct Conn {
                 /* drain nothing: the peer is closed on immediately after the reply */
             } else {
                 uint8_t *body = nullptr;
-                if (cmd == CMD_FIELD_GEMM) {
+                if (cmd == CMD_FIELD_GEMM || cmd == CMD_FIELD_GEMM24) {
                     /* Straight into pinned staging: the planes go to the card
                      * from here. Bounded by what an installed graph can ask
                      * for (64 nodes, 4096 rows of the widest K) so a 9-byte
@@ -1363,20 +1700,20 @@ struct Conn {
             const void *rp = resp_ptr ? resp_ptr : resp.data();
             const size_t rl = resp_ptr ? resp_len : resp.size();
             uint8_t rh[SH_HDR]; rh[0] = violation ? STATUS_VIOLATION : STATUS_OK; wr_u64(rh + 1, rl);
-            if (cmd == CMD_FIELD_GEMM) XP(0);
+            if (cmd == CMD_FIELD_GEMM || cmd == CMD_FIELD_GEMM24) XP(0);
             /* Header and body in one writev: one syscall, one segment on the wire. */
             if (!writev_all(fd, rh, SH_HDR, rp, rl)) break;
-            if (cmd == CMD_FIELD_GEMM) XP(7);
+            if (cmd == CMD_FIELD_GEMM || cmd == CMD_FIELD_GEMM24) XP(7);
             if (violation) break;
         }
         close(fd);
 #ifdef SH_XPROF
-        if (g_xpn) { fprintf(stderr, "[xprof] n=%llu memcpy %.1f h2d-call %.1f launches %.1f d2h-call %.1f sync %.1f assign %.1f send %.1f us/exchange\n",
+        if (g_xpn) { fprintf(stderr, "[xprof] n=%llu memcpy %.1f h2d-call %.1f launches %.1f d2h-call %.1f sync %.1f pack %.1f send %.1f us/exchange\n",
             (unsigned long long)g_xpn, g_xp[1]/g_xpn, g_xp[2]/g_xpn, g_xp[3]/g_xpn, g_xp[4]/g_xpn, g_xp[5]/g_xpn, g_xp[6]/g_xpn, g_xp[7]/g_xpn); memset(g_xp,0,sizeof g_xp); g_xpn=0; }
 #endif
         if (exchanges || recomputes)
-            logf("%s closed: %llu exchanges, %llu recomputes, %.1f ms on the card",
-                 peer.c_str(), (unsigned long long)exchanges, (unsigned long long)recomputes, gemm_ms);
+            logf("%s closed: %llu exchanges (%llu over the ring), %llu recomputes, %.1f ms on the card",
+                 peer.c_str(), (unsigned long long)exchanges, (unsigned long long)ring_exchanges, (unsigned long long)recomputes, gemm_ms);
     }
 };
 
@@ -1447,16 +1784,34 @@ int main(int argc, char **argv) {
     int port = getenv("SHIELDED_PORT") ? atoi(getenv("SHIELDED_PORT")) : 9500;
     int vsock_port = 0;
     double vram_gb = 0.0;
+    const char *shm_path = nullptr;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--host") && i + 1 < argc) host = argv[++i];
         else if (!strcmp(argv[i], "--port") && i + 1 < argc) port = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--vsock-port") && i + 1 < argc) vsock_port = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--vram-gb") && i + 1 < argc) vram_gb = atof(argv[++i]);
+        else if (!strcmp(argv[i], "--shm") && i + 1 < argc) shm_path = argv[++i];
         else if (!strcmp(argv[i], "--quiet")) g_quiet = true;
 #ifdef SH_XPROF
         else if (!strcmp(argv[i], "--kbench")) { cudaSetDevice(0); cudaSetDeviceFlags(cudaDeviceScheduleSpin | cudaDeviceMapHost); return kbench(); }
 #endif
-        else { fprintf(stderr, "usage: shielded-worker [--host H] [--port P] [--vsock-port P] [--vram-gb G] [--quiet]\n"); return 2; }
+        else { fprintf(stderr, "usage: shielded-worker [--host H] [--port P] [--vsock-port P] [--vram-gb G] [--shm FILE] [--quiet]\n"); return 2; }
+    }
+    if (shm_path) {
+        /* The launcher creates and sizes the file (it is also the ivshmem
+         * backing store of the CVM); this side only maps what exists. */
+        if (const char *e = getenv("SHIELDED_SHM_IDLE_MS")) g_shm_idle_ms = std::max(1, atoi(e));
+        int sfd = open(shm_path, O_RDWR | O_CLOEXEC);
+        struct stat st{};
+        if (sfd < 0 || fstat(sfd, &st) != 0) { fprintf(stderr, "--shm %s: %s\n", shm_path, strerror(errno)); return 2; }
+        size_t len = std::min<size_t>((size_t)st.st_size, RING_MAX_FILE) / RING_BYTES * RING_BYTES;
+        if (len < RING_BYTES) { fprintf(stderr, "--shm %s: %lld bytes, needs at least %zu\n", shm_path, (long long)st.st_size, RING_BYTES); return 2; }
+        void *m = mmap(nullptr, len, PROT_READ | PROT_WRITE, MAP_SHARED, sfd, 0);
+        close(sfd);
+        if (m == MAP_FAILED) { fprintf(stderr, "--shm mmap %s: %s\n", shm_path, strerror(errno)); return 2; }
+        g_shm = (uint8_t *)m; g_shm_len = len; g_nrings = (int)(len / RING_BYTES);
+        logf("shm ring file %s: %d ring(s) of %zu MiB (request slot %zu KiB, reply slot %zu MiB)",
+             shm_path, g_nrings, RING_BYTES >> 20, RING_REQ_CAP >> 10, RING_REP_CAP >> 20);
     }
 
     int ndev = 0;

@@ -56,7 +56,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "ker
 import numpy as np
 import torch
 
-from protocol import (CMD_ALLOC_BUFFER, CMD_FIELD_GEMM, CMD_FREE_BUFFER,
+from protocol import (CMD_ALLOC_BUFFER, CMD_FIELD_GEMM, CMD_FIELD_GEMM24, CMD_FREE_BUFFER,
                       CMD_GET_TENSOR, CMD_GRAPH_INSTALL, CMD_GRAPH_RECOMPUTE,
                       CMD_HELLO, CMD_SET_TENSOR, PROTO_VERSION, ProtocolViolation,
                       ShieldedWorkerState)
@@ -278,7 +278,7 @@ class Connection:
             node_idx, m = wire.unpack_recompute(payload)
             return self._recompute(node_idx, m)
 
-        if cmd == CMD_FIELD_GEMM:
+        if cmd in (CMD_FIELD_GEMM, CMD_FIELD_GEMM24):
             ids, m, K, at = res["nodes"], res["m"], res["K"], res["planes_at"]
             planes = torch.frombuffer(bytearray(payload[at:]), dtype=torch.int8).view(3, m, K).cuda()
             xr = [planes[p] for p in range(3)]
@@ -291,6 +291,16 @@ class Connection:
                 torch.cuda.synchronize()
             self.gemm_ms += (time.perf_counter() - t0) * 1e3
             self.recomputes += len(ids)
+            if cmd == CMD_FIELD_GEMM24:
+                # 1.2: the same products as 3-byte little-endian two's
+                # complement. Balanced in (-M/2, M/2], M < 2^24, so the low
+                # three bytes of the int32 form ARE the value: drop the
+                # top byte of each little-endian int32.
+                reply = b"".join(o.cpu().numpy().astype("<i4").view(np.uint8).reshape(-1, 4)[:, :3].tobytes()
+                                 for o in outs)
+                if len(reply) != res["reply_bytes"]:
+                    raise ProtocolViolation("internal: packed reply size disagrees with the rule")
+                return reply
             return b"".join(o.cpu().numpy().tobytes() for o in outs)
 
         return b""

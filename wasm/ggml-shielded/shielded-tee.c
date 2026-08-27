@@ -29,7 +29,8 @@ double sh_prof[8];
 #define SIMD_TABLE(sfx, nm) { nm, sh_simd_##sfx##_pad_planes, sh_simd_##sfx##_mask_planes, \
     sh_simd_##sfx##_unmask, sh_simd_##sfx##_encode, sh_simd_##sfx##_descale, sh_simd_##sfx##_fv_dot, \
     sh_simd_##sfx##_fv_dot_x, sh_simd_##sfx##_fv_prepare, sh_simd_##sfx##_refill, sh_simd_##sfx##_outlier_add, \
-    sh_simd_##sfx##_fv_dots, sh_simd_##sfx##_fv_dots_x, sh_simd_##sfx##_unmask_fv }
+    sh_simd_##sfx##_fv_dots, sh_simd_##sfx##_fv_dots_x, sh_simd_##sfx##_unmask_fv, \
+    sh_simd_##sfx##_unmask24, sh_simd_##sfx##_unmask24_fv }
 static const sh_simd simd_avx512  = SIMD_TABLE(avx512, "avx512-vnni");
 static const sh_simd simd_generic = SIMD_TABLE(generic, "generic");
 
@@ -93,6 +94,34 @@ static bool simd_agree(const sh_simd *a, const sh_simd *b) {
         if (da[rep] != db[rep] || da[rep] != a->fv_dot(ya, s, 2, rep, N)) return false;
         if (fa[rep] != fb[rep] || fa[rep] != da[rep]) return false;
         if (dxa[rep] != dxb[rep] || dxa[rep] != a->fv_dot_x(x, sta, 2, rep, K)) return false;
+    }
+    /* The packed reply: the same balanced values as 3-byte little-endian
+     * two's complement (what a 1.2 worker sends) must unmask to exactly what
+     * the int32 form did, in both the plain and the fused form, from both
+     * builds. B*N = 185 values: the vector loop, its two-short stop and the
+     * scalar tail are all exercised. Values near +-M/2 are included so the
+     * balancing corrections fire. */
+    {
+        uint8_t packed[3 * B * N];
+        for (int i = 0; i < B * N; i++) {
+            int32_t v = ua[i];
+            if (i % 7 == 0) v = (int32_t)(SH_M_MOD / 2) - (i % 3);
+            if (i % 11 == 0) v = -(int32_t)(SH_M_MOD / 2) + 1 + (i % 3);
+            ua[i] = v;
+            packed[3 * i] = (uint8_t)v; packed[3 * i + 1] = (uint8_t)(v >> 8); packed[3 * i + 2] = (uint8_t)(v >> 16);
+        }
+        int64_t y32[B * N], y24a[B * N], y24b[B * N], f32[2], f24a[2], f24b[2];
+        a->unmask(ua, ub, B * N, y32);
+        a->unmask24(packed, ub, B * N, y24a); b->unmask24(packed, ub, B * N, y24b);
+        if (memcmp(y32, y24a, sizeof y32) || memcmp(y32, y24b, sizeof y32)) return false;
+        a->unmask_fv(ua, ub, s32, 2, N, y32, f32);
+        a->unmask24_fv(packed, ub, s32, 2, N, y24a, f24a); b->unmask24_fv(packed, ub, s32, 2, N, y24b, f24b);
+        if (memcmp(y32, y24a, N * sizeof(int64_t)) || memcmp(y32, y24b, N * sizeof(int64_t))) return false;
+        if (f32[0] != f24a[0] || f32[1] != f24a[1] || f32[0] != f24b[0] || f32[1] != f24b[1]) return false;
+        /* and the whole B*N run through the fused form as one long row */
+        a->unmask24_fv(packed, ub, s32, 1, B * N, y24a, f24a); b->unmask24_fv(packed, ub, s32, 1, B * N, y24b, f24b);
+        a->unmask(ua, ub, B * N, y32);
+        if (memcmp(y32, y24a, sizeof y32) || memcmp(y32, y24b, sizeof y32) || f24a[0] != f24b[0]) return false;
     }
     /* encode: the vector path rounds under MXCSR exactly as lrintf does, including
      * ties to even, and its scalar tail must agree with itself. */
@@ -258,6 +287,10 @@ struct sh_link {
     char       host[128];
     int        port;
     bool       verify;
+    /* Bytes per reply value: 4 (FIELD_GEMM, protocol 1.1) or 3 (FIELD_GEMM24,
+     * 1.2). Decided at start from the worker's HELLO; SHIELDED_REPLY32=1
+     * forces the wide form against a worker that offers both. */
+    int        ywidth;
     sh_node   *nodes;   size_t n_nodes,  cap_nodes;
     sh_group  *groups;  size_t n_groups, cap_groups;
     int64_t    wbytes, abytes;
@@ -304,6 +337,7 @@ void sh_link_pool_stats(const sh_link *l, uint64_t *consumed, uint64_t *missed) 
     if (missed) *missed = l->pads_missed;
 }
 int sh_link_refill_threads(const sh_link *l) { return l ? l->n_threads : 0; }
+int sh_link_reply_width(const sh_link *l) { return l && l->pipe ? l->ywidth : 0; }
 
 static int env_int(const char *name, int dflt, int lo, int hi) {
     const char *e = getenv(name);
@@ -316,7 +350,7 @@ sh_link *sh_link_open(const char *host, int port, bool verify, int *err) {
     sh_link *l = (sh_link *)calloc(1, sizeof *l);
     if (!l) { if (err) *err = SH_ERR_NOMEM; return NULL; }
     snprintf(l->host, sizeof l->host, "%s", host);
-    l->port = port; l->verify = verify;
+    l->port = port; l->verify = verify; l->ywidth = 4;
     l->simd = sh_simd_get();
     if (!maskbank_init(&l->bank)) { free(l); if (err) *err = SH_ERR_IO; return NULL; }
     pthread_mutex_init(&l->pool_mu, NULL);
@@ -753,6 +787,7 @@ int sh_link_start(sh_link *l) {
     if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "HELLO: %s", sh_pipe_last_error(l->pipe)); return rc; }
     /* The one-frame exchange is protocol 1.1; an older worker would refuse it
      * as an unknown command, so say what is wrong here rather than there. */
+    int hello_minor = -1;
     {
         /* HELLO is JSON from either worker; only the version array matters here,
          * and the two serialisers space it differently. */
@@ -773,6 +808,20 @@ int sh_link_start(sh_link *l) {
             snprintf(l->err, sizeof l->err, "worker speaks protocol %d.%d; this link needs 1.1 (FIELD_GEMM)", major, minor);
             return SH_ERR_PROTO;
         }
+        /* 1.2 adds FIELD_GEMM24: the same request, the products as 3-byte
+         * values. Every product is balanced below 2^23.8, so nothing is lost
+         * and 25% of every reply's bytes are -- 152 KB of the 0.5B's lm_head
+         * exchange, the largest of its 49. A 1.1 worker never sees command
+         * 13; SHIELDED_REPLY32=1 keeps the int32 form against a 1.2 worker
+         * (the A/B, and the escape hatch). What crosses is unchanged either
+         * way: the same masked products, narrower. */
+        const char *w32 = getenv("SHIELDED_REPLY32");
+        l->ywidth = (minor >= 2 && !(w32 && *w32 && strcmp(w32, "0"))) ? 3 : 4;
+        {
+            size_t tl = strlen(l->transport);
+            snprintf(l->transport + tl, sizeof l->transport - tl, " proto 1.%d reply int%d", minor, l->ywidth * 8);
+        }
+        hello_minor = minor;
     }
     sh_reply_free(&rep);
 
@@ -825,6 +874,35 @@ int sh_link_start(sh_link *l) {
     free(js);
     if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "GRAPH_INSTALL: %s", sh_pipe_last_error(l->pipe)); return rc; }
     sh_reply_free(&rep);
+
+    /* The shared-memory ring (shielded-wire.h): opened only when the tenant's
+     * environment names one AND the worker speaks 1.2. Anything short of a
+     * granted ring leaves the link on the socket exactly as before; the
+     * transport string says which, so the profile line can be read. */
+    {
+        const char *shm = getenv("SHIELDED_SHM");
+        if (shm && *shm) {
+            if (hello_minor < 2) {
+                snprintf(l->transport + strlen(l->transport), sizeof l->transport - strlen(l->transport),
+                         " (shm ring: worker speaks 1.%d, needs 1.2)", hello_minor);
+            } else {
+                const int index = env_int("SHIELDED_SHM_RING", 0, 0, 7);
+                const char *nb = getenv("SHIELDED_SHM_BYTES");
+                size_t bytes = nb && *nb ? (size_t)strtoull(nb, NULL, 10) : 0;
+                int arc = sh_pipe_shm_attach(l->pipe, shm, index, bytes);
+                if (arc == SH_OK)
+                    snprintf(l->transport + strlen(l->transport), sizeof l->transport - strlen(l->transport), " + shm ring %d (%s)", index, shm);
+                else if (arc == SH_ERR_IO)
+                    snprintf(l->transport + strlen(l->transport), sizeof l->transport - strlen(l->transport), " (shm ring unavailable: %s)", sh_pipe_last_error(l->pipe));
+                else {
+                    /* The worker answered SHM_ATTACH with nonsense: the same
+                     * peer serves the socket, so do not trust it either. */
+                    snprintf(l->err, sizeof l->err, "SHM_ATTACH: %s", sh_pipe_last_error(l->pipe));
+                    return arc;
+                }
+            }
+        }
+    }
 
     return start_pools(l);
 }
@@ -949,9 +1027,21 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
     double t1 = now_ms(); sh_prof[0] += t1 - t0;
 
     {
-        sh_frame f = { SH_CMD_FIELD_GEMM, l->hdr, hn, l->planes, (size_t)3 * m * K };
+        sh_frame f = { l->ywidth == 3 ? SH_CMD_FIELD_GEMM24 : SH_CMD_FIELD_GEMM, l->hdr, hn, l->planes, (size_t)3 * m * K };
         sh_reply rep;
-        rc = sh_pipe_exchange(l->pipe, &f, 1, &rep);
+        /* The reply length is OURS to know, from the request and the width
+         * this exchange uses -- never anything the worker says. The ring
+         * carries the int32 form only; the socket the negotiated one. A ring
+         * miss (no reply in the spin budget, a length that is not `want`)
+         * sends the SAME frame on the socket -- the same ciphertext under the
+         * same pad, which tells the host nothing a retransmit would not. */
+        const bool via_ring = sh_pipe_ring_live(l->pipe);
+        const size_t yw = via_ring ? 4 : (size_t)l->ywidth;
+        f.cmd = yw == 3 ? SH_CMD_FIELD_GEMM24 : SH_CMD_FIELD_GEMM;
+        size_t want = 0;
+        for (size_t i = 0; i < n_nodes; i++) want += (size_t)m * l->nodes[nodes[i]].N * yw;
+        rc = via_ring ? sh_pipe_ring_exchange(l->pipe, &f, want, &rep) : SH_ERR_IO;
+        if (rc == SH_ERR_IO) rc = sh_pipe_exchange(l->pipe, &f, 1, &rep);
         double t2 = now_ms(); sh_prof[1] += t2 - t1; l->last_wire_us = (t2 - t1) * 1000.0;
         if (rc != SH_OK) {
             snprintf(l->err, sizeof l->err, "exchange: %s", sh_pipe_last_error(l->pipe));
@@ -966,8 +1056,8 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
         }
         l->exchanges++;
 
-        size_t want = 0;
-        for (size_t i = 0; i < n_nodes; i++) want += (size_t)m * l->nodes[nodes[i]].N * 4;
+        /* `want` was computed before the exchange from the request and the
+         * width; a mismatch is a lying peer, not a shorter read. */
         if (rep.len != want) {
             snprintf(l->err, sizeof l->err, "worker returned %zu bytes, expected %zu", rep.len, want);
             rc = SH_ERR_VIOLATION; goto fail;           /* the worker's fault: reconnect, see above */
@@ -978,8 +1068,8 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
         size_t off = 0;
         for (size_t i = 0; i < n_nodes; i++) {
             const sh_node *nd = &l->nodes[nodes[i]];
-            const int32_t *ym = (const int32_t *)(rep.data + off);
-            off += (size_t)m * nd->N * 4;
+            const uint8_t *ym = rep.data + off;         /* int32 or packed int24 rows, yw bytes each */
+            off += (size_t)m * nd->N * yw;
             int64_t *y = y_out[i];
             bool ok = true;
             if (l->verify) {
@@ -988,8 +1078,12 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
                 for (int32_t row = 0; row < m; row++) {
                     int64_t lhs[SH_FV_REPS], rhs[SH_FV_REPS];
                     double t3 = now_ms();
-                    l->simd->unmask_fv(ym + (size_t)row * nd->N, l->up[row] + nd->u_off, nd->s32, SH_FV_REPS, nd->N,
-                                       y + (size_t)row * nd->N, lhs);
+                    if (yw == 3)
+                        l->simd->unmask24_fv(ym + (size_t)row * nd->N * 3, l->up[row] + nd->u_off, nd->s32, SH_FV_REPS, nd->N,
+                                             y + (size_t)row * nd->N, lhs);
+                    else
+                        l->simd->unmask_fv((const int32_t *)ym + (size_t)row * nd->N, l->up[row] + nd->u_off, nd->s32, SH_FV_REPS, nd->N,
+                                           y + (size_t)row * nd->N, lhs);
                     double t4 = now_ms(); sh_prof[3] += t4 - t3;
                     l->simd->fv_dots_x(x_field + (size_t)row * K, nd->st32, SH_FV_REPS, K, rhs);
                     sh_prof[4] += now_ms() - t4;
@@ -997,8 +1091,12 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
                 }
             } else {
                 double t3 = now_ms();
-                for (int32_t row = 0; row < m; row++)
-                    l->simd->unmask(ym + (size_t)row * nd->N, l->up[row] + nd->u_off, (size_t)nd->N, y + (size_t)row * nd->N);
+                for (int32_t row = 0; row < m; row++) {
+                    if (yw == 3)
+                        l->simd->unmask24(ym + (size_t)row * nd->N * 3, l->up[row] + nd->u_off, (size_t)nd->N, y + (size_t)row * nd->N);
+                    else
+                        l->simd->unmask((const int32_t *)ym + (size_t)row * nd->N, l->up[row] + nd->u_off, (size_t)nd->N, y + (size_t)row * nd->N);
+                }
                 sh_prof[3] += now_ms() - t3;
             }
             l->macs += (uint64_t)m * (uint64_t)nd->K * (uint64_t)nd->N;

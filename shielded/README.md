@@ -177,7 +177,9 @@ every prompt. Peak |y| reached 2.1e6 against M/2 = 7.2e6.
 - **The production worker** exists (`worker-cuda/`); what it still lacks is a
   digest-pinned fleet image, following `worker/Dockerfile`, registered in
   `scripts/release.sh` and the `deploy.yml` detect case. `worker.py` stays as the
-  reference and the test fixture; both speak protocol 1.1.
+  reference and the test fixture; both speak protocol 1.2 (1.1 plus FIELD_GEMM24,
+  the same exchange with 3-byte reply values -- every product is below 2^24 -- which
+  the TEE takes when the worker's HELLO offers minor >= 2; SHIELDED_REPLY32=1 keeps int32).
 - **The TEE-side executor for the real engine** does NOT land here -- it lives in
   `wasm/ggml-shielded/`, because that is where the ggml graph lives. `model.py` is
   its specification and its equivalence reference: it is a working implementation

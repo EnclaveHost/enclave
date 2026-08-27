@@ -364,6 +364,18 @@ start('metal-agent', ['/usr/local/bin/node', '/opt/metal/agent.mjs'], {
 // you want to find before a tenant's request depends on it.
 if (fw.shieldedWorker && fw.shieldedWorker.port) {
   const { host = '10.0.2.2', port } = fw.shieldedWorker;
+  // What this guest's idle vCPUs do while they wait for the worker: init
+  // loaded cpuidle-haltpoll (or said why not) before anything ran; say it
+  // again here, next to the card it exists for, so one console tells the
+  // whole transport story.
+  try {
+    const rd = (p) => fs.readFileSync(p, 'utf8').trim();
+    log(`shielded transport idle policy: cpuidle driver=${rd('/sys/devices/system/cpu/cpuidle/current_driver')} `
+      + `governor=${rd('/sys/devices/system/cpu/cpuidle/current_governor')}`
+      + (fs.existsSync('/sys/module/haltpoll/parameters/guest_halt_poll_ns')
+        ? ` haltpoll ns=${rd('/sys/module/haltpoll/parameters/guest_halt_poll_ns')}` : '')
+      + (fw.shieldedWorker.tenantEnv ? ` tenantEnv=${JSON.stringify(fw.shieldedWorker.tenantEnv).slice(0, 200)}` : ''));
+  } catch {}
   const probe = spawn('/usr/local/bin/node',
     ['/opt/metal/shielded-probe.mjs', '--host', String(host), '--port', String(port)],
     { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -402,9 +414,26 @@ if (fw.shieldedWorker && fw.shieldedWorker.port) {
           ? Number(fw.shieldedWorker.vsockPort) : 0;
         if (Number(fw.shieldedWorker.vsockPort) > 0 && !vsockPort)
           log('shielded worker offers vsock but this guest has no /dev/vsock; tenants stay on TCP');
+        // Tenant knobs from host config (SHIELDED_SPIN_US and friends). Only
+        // SHIELDED_* names, only printable strings: the host tunes the
+        // backend it already serves, it does not get an env injector into a
+        // tenant. The manager filters again; this end keeps the verdict
+        // file honest on its own.
+        const tenantEnv = {};
+        const te = fw.shieldedWorker.tenantEnv;
+        if (te && typeof te === 'object' && !Array.isArray(te)) {
+          for (const [k, val] of Object.entries(te)) {
+            if (!/^SHIELDED_[A-Z0-9_]{0,63}$/.test(k)) { log(`shielded tenantEnv: dropping ${String(k).slice(0, 40)} (only SHIELDED_* names)`); continue; }
+            if ((typeof val !== 'string' && typeof val !== 'number') || String(val).length > 256 || /[^\x20-\x7e]/.test(String(val))) {
+              log(`shielded tenantEnv: dropping ${k} (value must be printable ASCII, at most 256 bytes)`); continue;
+            }
+            tenantEnv[k] = String(val);
+          }
+        }
         fs.writeFileSync(VERDICT, JSON.stringify({
           ...v.card, endpoint: `${host}:${port}`,
           ...(vsockPort ? { vsockPort } : {}),
+          ...(Object.keys(tenantEnv).length ? { tenantEnv } : {}),
           ...(priceSec6 ? { pricePerSec6: priceSec6 } : {}),
           exact: v.exact, verified: v.verified, lie_rejected: v.lie_rejected,
           denylist_refused: v.denylist_refused,

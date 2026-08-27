@@ -396,6 +396,115 @@ void FN(unmask_fv)(const int32_t *ym, const int32_t *u, const int32_t *s, int re
     }
 }
 
+/* ---------------------------------------------------------------------------
+ * The packed reply (protocol 1.2, FIELD_GEMM24): one 3-byte little-endian
+ * two's-complement value per output instead of an int32. The worker's every
+ * product is balanced in (-M/2, M/2] and M = 14457349 < 2^24, so 24 bits
+ * carry it exactly; the reply of the 0.5B's lm_head drops from 608 KB to
+ * 456 KB, and in the CVM every byte of it crosses vhost-vsock. These read
+ * the narrow values straight out of the reply buffer -- no widening pass,
+ * which would write and re-read the 608 KB the format just saved.
+ * ------------------------------------------------------------------------ */
+static inline int32_t ld24(const uint8_t *p) {
+    /* Assemble into the top 24 bits and arithmetic-shift down: the sign
+     * extension is the shift, not a branch. */
+    const uint32_t v = (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16);
+    return (int32_t)(v << 8) >> 8;
+}
+
+#ifdef SH_SIMD_AVX512
+/* 16 packed values (48 bytes) -> 16 sign-extended int32 lanes. Reads 52
+ * bytes: the last 16-byte load starts at byte 36. Callers stop the vector
+ * loop two values short of the end so the over-read stays inside the
+ * caller's buffer (see the i + 18 <= n bound below). */
+static inline __m512i ld24x16(const uint8_t *p) {
+    const __m128i shuf = _mm_setr_epi8(0, 1, 2, -1, 3, 4, 5, -1, 6, 7, 8, -1, 9, 10, 11, -1);
+    __m512i v = _mm512_castsi128_si512(_mm_shuffle_epi8(_mm_loadu_si128((const __m128i *)(p)), shuf));
+    v = _mm512_inserti32x4(v, _mm_shuffle_epi8(_mm_loadu_si128((const __m128i *)(p + 12)), shuf), 1);
+    v = _mm512_inserti32x4(v, _mm_shuffle_epi8(_mm_loadu_si128((const __m128i *)(p + 24)), shuf), 2);
+    v = _mm512_inserti32x4(v, _mm_shuffle_epi8(_mm_loadu_si128((const __m128i *)(p + 36)), shuf), 3);
+    return _mm512_srai_epi32(_mm512_slli_epi32(v, 8), 8);
+}
+/* balanced(ym - u) on 16 lanes: the same two corrections unmask applies. */
+static inline __m512i unmask16(__m512i ym, __m512i u) {
+    const __m512i half = _mm512_set1_epi32((int32_t)(M_MOD / 2)), nhalf = _mm512_set1_epi32(-(int32_t)(M_MOD / 2));
+    const __m512i mm = _mm512_set1_epi32((int32_t)M_MOD);
+    __m512i v = _mm512_sub_epi32(ym, u);
+    v = _mm512_mask_add_epi32(v, _mm512_cmple_epi32_mask(v, nhalf), v, mm);
+    v = _mm512_mask_sub_epi32(v, _mm512_cmpgt_epi32_mask(v, half), v, mm);
+    return v;
+}
+#endif
+
+void FN(unmask24)(const uint8_t *ym, const int32_t *u, size_t n, int64_t *y) {
+    size_t i = 0;
+#ifdef SH_SIMD_AVX512
+    for (; i + 18 <= n; i += 16) {
+        const __m512i v = unmask16(ld24x16(ym + 3 * i), _mm512_loadu_si512((const void *)(u + i)));
+        _mm512_storeu_si512((void *)(y + i),     _mm512_cvtepi32_epi64(_mm512_castsi512_si256(v)));
+        _mm512_storeu_si512((void *)(y + i + 8), _mm512_cvtepi32_epi64(_mm512_extracti64x4_epi64(v, 1)));
+    }
+#endif
+    for (; i < n; i++) {
+        int32_t v = ld24(ym + 3 * i) - u[i];
+        v += (v <= -(int32_t)(M_MOD / 2)) ? (int32_t)M_MOD : 0;
+        v -= (v > (int32_t)(M_MOD / 2)) ? (int32_t)M_MOD : 0;
+        y[i] = v;
+    }
+}
+
+/* unmask24 fused with the lhs dot, arithmetic identical to unmask24 followed
+ * by fv_dots. Same chunking and bounds as unmask_fv. */
+void FN(unmask24_fv)(const uint8_t *ym, const int32_t *u, const int32_t *s, int reps, int64_t n,
+                     int64_t *y, int64_t *out) {
+    for (int r = 0; r < reps; r++) out[r] = 0;
+    for (int64_t k0 = 0; k0 < n; k0 += 262144) {
+        const int64_t k1 = k0 + 262144 < n ? k0 + 262144 : n;
+        if (reps == 2) {
+            const int32_t *s0 = s, *s1 = s + n;
+            int64_t a0 = 0, a1 = 0;
+            int64_t j = k0;
+#ifdef SH_SIMD_AVX512
+            /* The products are |v| < 2^24 times s < 2^20: 2^44 each, and a
+             * lane sees at most 2^18 / 8 of them per chunk. Multiplied as
+             * signed 32x32 -> 64 (vpmuldq) on the sign-extended halves. */
+            __m512i c0l = _mm512_setzero_si512(), c0h = c0l, c1l = c0l, c1h = c0l;
+            for (; j + 18 <= k1; j += 16) {
+                const __m512i v = unmask16(ld24x16(ym + 3 * j), _mm512_loadu_si512((const void *)(u + j)));
+                const __m512i vl = _mm512_cvtepi32_epi64(_mm512_castsi512_si256(v));
+                const __m512i vh = _mm512_cvtepi32_epi64(_mm512_extracti64x4_epi64(v, 1));
+                _mm512_storeu_si512((void *)(y + j), vl);
+                _mm512_storeu_si512((void *)(y + j + 8), vh);
+                const __m512i t0 = _mm512_loadu_si512((const void *)(s0 + j)), t1 = _mm512_loadu_si512((const void *)(s1 + j));
+                c0l = _mm512_add_epi64(c0l, _mm512_mul_epi32(vl, _mm512_cvtepi32_epi64(_mm512_castsi512_si256(t0))));
+                c0h = _mm512_add_epi64(c0h, _mm512_mul_epi32(vh, _mm512_cvtepi32_epi64(_mm512_extracti64x4_epi64(t0, 1))));
+                c1l = _mm512_add_epi64(c1l, _mm512_mul_epi32(vl, _mm512_cvtepi32_epi64(_mm512_castsi512_si256(t1))));
+                c1h = _mm512_add_epi64(c1h, _mm512_mul_epi32(vh, _mm512_cvtepi32_epi64(_mm512_extracti64x4_epi64(t1, 1))));
+            }
+            a0 = _mm512_reduce_add_epi64(_mm512_add_epi64(c0l, c0h));
+            a1 = _mm512_reduce_add_epi64(_mm512_add_epi64(c1l, c1h));
+#endif
+            for (; j < k1; j++) {
+                int32_t v = ld24(ym + 3 * j) - u[j];
+                v += (v <= -(int32_t)(M_MOD / 2)) ? (int32_t)M_MOD : 0;
+                v -= (v > (int32_t)(M_MOD / 2)) ? (int32_t)M_MOD : 0;
+                y[j] = v;
+                a0 += (int64_t)v * (int64_t)s0[j];
+                a1 += (int64_t)v * (int64_t)s1[j];
+            }
+            out[0] = fv_fold(out[0], a0); out[1] = fv_fold(out[1], a1);
+        } else {
+            FN(unmask24)(ym + 3 * k0, u + k0, (size_t)(k1 - k0), y + k0);
+            for (int r = 0; r < reps; r++) {
+                const int32_t *sr = s + (size_t)r * n;
+                int64_t a = 0;
+                for (int64_t j = k0; j < k1; j++) a += y[j] * (int64_t)sr[j];
+                out[r] = fv_fold(out[r], a);
+            }
+        }
+    }
+}
+
 /* The outlier term: y[row][j] += x_tee[row][c] * Wc[c][j], in the TEE.
  * Blocked over j so a stretch of y stays in L1 while every channel is added
  * to it: channel-major, a site with 8 outliers read and wrote its 39 KB

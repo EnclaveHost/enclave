@@ -114,6 +114,8 @@ void sh_link_stats(const sh_link *l, uint64_t *exchanges, uint64_t *macs, uint64
 void sh_link_pool_stats(const sh_link *l, uint64_t *consumed, uint64_t *missed);
 /* Refill threads actually running (derived or from the environment), for logs. */
 int  sh_link_refill_threads(const sh_link *l);
+/* Bytes per reply value after start: 4 (FIELD_GEMM) or 3 (FIELD_GEMM24); 0 before. */
+int  sh_link_reply_width(const sh_link *l);
 
 /* The wall time of the last exchange's wire phase (send, wait, receive), in
  * microseconds: what the backend watches to notice a card that is being

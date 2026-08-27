@@ -178,6 +178,41 @@ there is nothing to configure; `"shieldedWorker": { "vsock": false }` turns it o
 vsock round trip is a fraction of slirp's, and at ~50 masked exchanges per decoded token
 that is the difference between ~100 tok/s and a few tens.
 
+**Transport tuning, from config.** In the CVM the tier is transport-bound: a vhost-vsock
+exchange costs ~152 us against 46 on the host loopback and ~10 for the socket itself, and a
+decoded token makes ~49 of them (`shielded/REPORT.md` 13.13). Most of the difference is two
+VM exits and two wakeups per exchange, the guest's from HLT via an injected interrupt. Two
+knobs address the guest half, both host config, neither measured:
+
+```json
+"shieldedWorker": { "port": 9500, "vramGb": 6.5,
+                    "tenantEnv": { "SHIELDED_SPIN_US": "150" },
+                    "workerEnv": { "SHIELDED_WORKER_SPIN_US": "100" } },
+"guest": { "haltpoll": true }
+```
+
+- `guest.haltpoll` (default **on**) loads `cpuidle-haltpoll` in the guest at boot: an idle
+  vCPU polls for a bounded, self-tuning window (200 us ceiling, kernel defaults) before it
+  halts, so a reply that lands inside the window finds the vCPU running and costs no
+  interrupt injection. The cost is that window: every idle vCPU may burn its host core for
+  up to 200 us after each piece of work before halting, and the window shrinks back to zero
+  when wakeups stop landing in it. `false` restores plain HLT; an object
+  `{ "ns", "growStart", "grow", "shrink", "allowShrink" }` sets the governor's parameters
+  (nanoseconds). The whole policy rides fw_cfg as one string that PID 1 validates
+  name-by-name before writing sysfs; the measured image carries only the driver.
+- `shieldedWorker.tenantEnv` is `SHIELDED_*` environment for the tenant's engine, applied
+  after the manager's own defaults so config wins. Only `SHIELDED_*` names survive: the guest
+  drops everything else when it writes the verdict file, the supervisor drops it again, and
+  the wasm-manager drops it a third time, because an operator may tune the backend the tenant
+  already talks to but must not be able to put arbitrary environment into a tenant.
+  `SHIELDED_SPIN_US` is the wire layer's bounded non-blocking poll before it blocks on a reply.
+- `shieldedWorker.workerEnv` is plain environment for the host-side worker process.
+  `SHIELDED_WORKER_SPIN_US` is the same poll on the worker's side, for the next request.
+
+None of this changes what crosses the boundary: masked residue planes, public weights and
+their field products, as before. It changes only whether a vCPU that is waiting for those
+bytes halts or spins, and the host could always see when the guest went idle.
+
 **A dead worker never takes the box down.** It is restarted with backoff, and the enclave
 keeps serving CPU work meanwhile. What tells you the path is healthy is the boot probe:
 

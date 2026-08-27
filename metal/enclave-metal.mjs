@@ -191,10 +191,42 @@ if (cfg.shieldedWorker) {
                          : [script, '--host', '127.0.0.1', '--port', String(port)];
   if (sw.vramGb) swArgs.push('--vram-gb', String(sw.vramGb));
   if (useCuda && vsockPort) swArgs.push('--vsock-port', String(vsockPort));
+  // The shared-memory ring, OFF unless configured:
+  //   "shm": { "path": "/dev/shm/enclave-shielded-ring", "mib": 32 }
+  // A file this launcher creates and sizes, mapped by the worker (--shm) and
+  // attached to the CVM as the BAR of an ivshmem-plain device (baseArgs), so
+  // the guest and the worker poll the same cache lines instead of paying a VM
+  // exit and an interrupt per direction per exchange: in the CVM that is 152
+  // us of the 10 ms token on vhost-vsock, against ~1 us on the ring
+  // (shielded/REPORT.md 13.13, scratchpad/shm-ring/DESIGN.md). The pages
+  // carry what the socket carries -- one-time-padded planes and public
+  // headers -- so sharing them with the host gives it nothing new; the guest
+  // treats the ring as a hostile peer exactly like the socket. The device is
+  // not in the launch measurement (device topology never is); the guest
+  // learns the ring exists from fw_cfg and ignores it when absent. 8 MiB per
+  // ring, one ring per tenant link; 32 MiB = 4 links.
+  const shm = useCuda && sw.shm && sw.shm.path ? { path: String(sw.shm.path), mib: Math.max(8, Number(sw.shm.mib) || 32) } : null;
+  if (shm) {
+    // sized here, never by the worker or the guest; power of two for the BAR
+    shm.mib = 2 ** Math.ceil(Math.log2(shm.mib));
+    const fd = fs.openSync(shm.path, 'w'); fs.ftruncateSync(fd, shm.mib * 1048576); fs.closeSync(fd);
+    swArgs.push('--shm', shm.path);
+  }
   const swExe = useCuda ? cudaWorker : python;
+  // Host-side worker knobs as config, so a tuning pass never needs a code
+  // change or a hand-edited unit file. Every entry lands verbatim in the
+  // spawned worker's environment; the one that exists today is
+  // SHIELDED_WORKER_SPIN_US (worker.cu: bounded MSG_DONTWAIT poll before the
+  // blocking read of the next frame, default 0 = off). Names are checked to be
+  // environment-variable-shaped so a typo fails at launch, not as a silently
+  // unset knob.
+  const workerEnv = envMap(sw.workerEnv, 'shieldedWorker.workerEnv');
+  const swEnv = { ...process.env, ...workerEnv };
+  if (Object.keys(workerEnv).length)
+    console.log(`[enclave-metal] shielded worker env: ${Object.entries(workerEnv).map(([k, v]) => `${k}=${v}`).join(' ')}`);
   let swRestarts = 0;
   const startWorker = () => {
-    shieldedChild = spawn(swExe, swArgs, { stdio: ['ignore', 'inherit', 'inherit'] });
+    shieldedChild = spawn(swExe, swArgs, { stdio: ['ignore', 'inherit', 'inherit'], env: swEnv });
     shieldedChild.on('exit', (code, sig) => {
       if (stopping) return;
       swRestarts++;
@@ -210,12 +242,87 @@ if (cfg.shieldedWorker) {
   startWorker();
   console.log(`[enclave-metal] shielded worker (${useCuda ? 'cuda' : 'python'}) on 127.0.0.1:${port} `
     + `(guest reaches it at 10.0.2.2:${port}${useCuda && vsockPort ? `, vsock CID 2 port ${vsockPort}` : ''})`);
+  // Guest-side knobs for the TENANT, carried to the guest over fw_cfg and from
+  // there into the verdict file, the supervisor's provision request and the
+  // wasm-manager's tenant environment. Only SHIELDED_* names survive that trip
+  // (the manager drops everything else, and so does this end): the host may
+  // tune the backend it already talks to, not inject arbitrary environment
+  // into a tenant. Today's knob is SHIELDED_SPIN_US (shielded-wire.c: bounded
+  // MSG_DONTWAIT poll before the blocking read of a reply, default 0). None of
+  // this touches what crosses the boundary -- it decides whether the tenant's
+  // vCPU halts or spins while it waits for bytes the host was always going to
+  // send it.
+  const tenantEnv = envMap(sw.tenantEnv, 'shieldedWorker.tenantEnv', /^SHIELDED_/);
   runtimeCfg.shieldedWorker = { host: '10.0.2.2', port,
     ...(useCuda && vsockPort ? { vsockPort, guestCid } : {}),
+    ...(Object.keys(tenantEnv).length ? { tenantEnv } : {}),
+    // the ring's size in MiB, so the guest can bound its mapping of the BAR
+    // (it maps the ivshmem device 1af4:1110 it finds, never a host address)
+    ...(shm ? { shmMib: shm.mib } : {}),
     // the box's ask for a WHOLE shielded card, USD/hour. Config, not a probe
     // result, but it rides with the endpoint so the guest sees one object.
     ...(Number(sw.priceUsdHr) > 0 ? { priceUsdHr: Number(sw.priceUsdHr) } : {}) };
 }
+
+// A string->string map from config, validated to be environment-shaped
+// (NAME=value, printable values, bounded) and optionally filtered to a name
+// prefix. Anything else is a config error at launch rather than a surprise
+// inside a tenant.
+function envMap(src, where, prefix = null) {
+  const out = {};
+  if (src == null) return out;
+  if (typeof src !== 'object' || Array.isArray(src)) throw new Error(`${where} must be an object of NAME: "value"`);
+  for (const [k, v] of Object.entries(src)) {
+    if (!/^[A-Z_][A-Z0-9_]{0,63}$/.test(k)) throw new Error(`${where}: "${k}" is not an environment variable name`);
+    if (prefix && !prefix.test(k)) throw new Error(`${where}: "${k}" is not allowed here (only ${prefix.source.replace(/^\^/, '')}* names)`);
+    if (typeof v !== 'string' && typeof v !== 'number') throw new Error(`${where}: ${k} must be a string`);
+    const val = String(v);
+    if (val.length > 256 || /[^\x20-\x7e]/.test(val)) throw new Error(`${where}: ${k} must be printable ASCII, at most 256 bytes`);
+    out[k] = val;
+  }
+  return out;
+}
+
+// Guest idle policy: cpuidle-haltpoll. An idle SNP vCPU halts, and waking it
+// for the shielded worker's reply costs a VM exit plus an injected interrupt
+// on every one of the ~49 exchanges a decoded token makes -- in the CVM that
+// exchange is 152 us against 46 us on the host's own loopback and ~10 us for
+// the socket itself (shielded/REPORT.md 13.13). haltpoll makes an idle vCPU
+// poll for a bounded, self-tuning window before it halts, so a reply that
+// lands inside the window finds the vCPU running. The COST is that window:
+// an idle vCPU burns its host core for up to guest_halt_poll_ns (200 us by
+// default) after every piece of work before it halts, so a box with many
+// tenants and few cores pays for it in host CPU time. The window only ever
+// grows while wakeups keep landing inside it and shrinks back to zero when
+// they stop, which is why the default is on.
+//
+// The whole decision rides fw_cfg as one string, NOT the kernel cmdline: the
+// cmdline is measured, and a poll window is a tuning parameter, not part of
+// the enclave's identity. The guest (metal/guest/init) loads the driver, which
+// is in the image whether or not it is used, and applies the parameters only
+// after checking each one is a known name with a numeric value -- the host
+// wrote this string and the guest trusts none of it by default.
+//
+//   "guest": { "haltpoll": true | false | { "ns": 200000, "growStart": 50000,
+//                                          "grow": 2, "shrink": 2, "allowShrink": true } }
+const haltpollFwCfg = (() => {
+  const g = cfg.guest && cfg.guest.haltpoll;
+  if (g === false) return 'off';
+  const o = (g && typeof g === 'object') ? g : {};
+  const num = (k, dflt, max) => {
+    if (o[k] == null) return dflt;
+    const n = Number(o[k]);
+    if (!Number.isInteger(n) || n < 0 || n > max) throw new Error(`guest.haltpoll.${k} must be an integer in [0, ${max}]`);
+    return n;
+  };
+  return ['on',
+    `guest_halt_poll_ns=${num('ns', 200000, 10_000_000)}`,             // ceiling of the window, ns
+    `guest_halt_poll_grow_start=${num('growStart', 50000, 10_000_000)}`, // first window after a hit
+    `guest_halt_poll_grow=${num('grow', 2, 1000)}`,                     // window *= grow on a hit
+    `guest_halt_poll_shrink=${num('shrink', 2, 1000)}`,                 // window /= shrink on a miss (0 = to zero)
+    `guest_halt_poll_allow_shrink=${o.allowShrink === false ? 0 : 1}`,
+  ].join(' ');
+})();
 
 const fwCfgPath = path.join(os.tmpdir(), `metal-fwcfg-${process.pid}.json`);
 fs.writeFileSync(fwCfgPath, JSON.stringify(runtimeCfg));
@@ -229,6 +336,9 @@ function baseArgs() {
     // deployment config, out-of-band (not measured): the guest reads it from
     // /sys/firmware/qemu_fw_cfg/by_name/opt/org.enclave.metal/raw
     '-fw_cfg', `name=opt/org.enclave.metal,file=${fwCfgPath}`,
+    // the guest's idle policy (see haltpoll above): read by PID 1 before any
+    // service starts, hence its own plain-string item rather than a JSON field
+    '-fw_cfg', `name=opt/org.enclave.metal/haltpoll,string=${haltpollFwCfg}`,
     // outbound-only user networking (slirp NAT); the enclave dials OUT to the
     // relay, so no inbound is needed. hostfwd exposes loopback ports for testing.
     // Offloads are DISABLED: in a confidential guest, memory is encrypted and
@@ -245,6 +355,13 @@ function baseArgs() {
   // whatever the config says (3 by default) and is never used for anything.
   if (runtimeCfg.shieldedWorker && runtimeCfg.shieldedWorker.vsockPort)
     a.push('-device', `vhost-vsock-pci,guest-cid=${runtimeCfg.shieldedWorker.guestCid || 3}`);
+  // The shielded worker's shared-memory ring: the worker's --shm file becomes
+  // BAR2 of an ivshmem-plain device. Verified to boot and poll exit-free
+  // under SEV-SNP with this OVMF and kernel (2026-08-26, throwaway VM).
+  if (runtimeCfg.shieldedWorker && runtimeCfg.shieldedWorker.shmMib && cfg.shieldedWorker.shm && cfg.shieldedWorker.shm.path) {
+    a.push('-object', `memory-backend-file,id=shring,share=on,mem-path=${cfg.shieldedWorker.shm.path},size=${runtimeCfg.shieldedWorker.shmMib}M`);
+    a.push('-device', 'ivshmem-plain,memdev=shring');
+  }
   // model volumes: one read-only virtio-blk disk each. cache=none keeps the
   // host page cache out of it — the guest caches what it reads (verified), and
   // a second copy of a 60 GB model in host RAM only steals memory from the CVM.
@@ -302,6 +419,7 @@ function launch() {
       console.log(`[enclave-metal]   ${v.name.padEnd(26)} ${(v.bytes / 1e9).toFixed(2).padStart(7)} GB  verity ${v.root.slice(0, 24)}…`);
   }
   console.log(`[enclave-metal] cmdline: ${cmdline}`);
+  console.log(`[enclave-metal] guest haltpoll: ${haltpollFwCfg}`);
   child = spawn(QEMU, args, { stdio: ['ignore', 'inherit', 'inherit'] });
   child.on('exit', (code, sig) => {
     if (stopping) return;

@@ -168,6 +168,10 @@ test("one real masked GEMM through the C stack, asserted four ways", async (t) =
   assert.equal(v.lie_rejected, true, "Freivalds ACCEPTED a single-element lie");
   assert.equal(v.denylist_refused, true, "the worker ran a denylisted op");
   assert.equal(v.verify_fail, 0);
+  // Protocol 1.2: against a worker that offers it, the packed (int24) reply
+  // must unmask to the int32 form's y exactly; against a 1.1 worker the
+  // probe reports width 4 and this is vacuously true.
+  assert.equal(v.packed_identical, true, `reply width ${v.reply_width}: packed and int32 replies disagree`);
   assert.ok(v.field_headroom > 1, `field wrapped: peak |y| ${v.peak_abs_y}`);
 });
 

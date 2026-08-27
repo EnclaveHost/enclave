@@ -210,11 +210,13 @@ struct sh_state {
      * card contended from the first token, which has no "best" to compare
      * against; that is the fleet health probe's job (the worker's HELLO
      * already carries a measured field_gmac_per_s). */
-    struct lat { double ewma = 0, best = 0; uint64_t n = 0; };
+    struct lat { double ewma = 0, best = 0, expect = 0; uint64_t n = 0; };   /* expect: the exchange's cost on an idle card, from its bytes */
     std::map<std::string, lat> latency;
     std::string probe_group;
     bool contended = false;
-    int cont_streak = 0, ok_streak = 0;
+    double slow_frac = 0;                     /* EWMA of "this exchange was slow", time constant ~33 exchanges */
+    uint64_t lat_seen = 0;
+    int ok_streak = 0;
     uint64_t contended_graphs = 0, contention_events = 0;
     std::set<std::string> refused;            /* names that failed registration, said once */
     bool dirty = false;                       /* new weights since the last start() */
@@ -468,6 +470,57 @@ static bool sh_claimable(const ggml_tensor *op, bool batch_ok) {
     return true;
 }
 
+/* --------------------------------------------------------------------------
+ * The enclave's own CPU, reached through ggml's CPU backend.
+ *
+ * Every path that computes a claimed matmul in the enclave used to go through
+ * the int64 field product (exact, and 6 tok/s on the 0.5B) or a scalar double
+ * loop. ggml_backend_sched keeps its split plan across tokens (the engine
+ * reuses its graph), so a node the backend claimed once stays ours whether or
+ * not it should still go to the card; what the backend can do is compute it
+ * HERE, with the CPU backend the engine already loaded, at the CPU's speed --
+ * a one-node graph, the node's own sources (they live in host memory, this
+ * backend's buffer type is the CPU's), the CPU backend's threads. That is what
+ * a contended card falls back to (a game on the 3070 made the offloaded path
+ * six times slower than this), and what a dead link falls back to while it
+ * reconnects. It rounds like the CPU backend (fp32 accumulate) rather than
+ * like the field, so the text may differ from the offloaded path's; both are
+ * the model's own arithmetic. SHIELDED_LOCAL_EXACT=1 keeps the int64 field
+ * path instead, for the exactness check (its output IS the worker's).
+ * ----------------------------------------------------------------------- */
+static ggml_backend_t sh_cpu_backend() {
+    static ggml_backend_t be = nullptr;
+    static bool tried = false;
+    if (tried) return be;
+    tried = true;
+    ggml_backend_dev_t dev = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_CPU);
+    if (!dev) return nullptr;
+    be = ggml_backend_dev_init(dev, nullptr);
+    if (!be) return nullptr;
+    ggml_backend_reg_t reg = ggml_backend_dev_backend_reg(dev);
+    auto set_threads = reg ? (ggml_backend_set_n_threads_t)ggml_backend_reg_get_proc_address(reg, "ggml_backend_cpu_set_n_threads") : nullptr;
+    int nt = sh_env_int("SHIELDED_LOCAL_THREADS", 0);
+    if (nt <= 0) { unsigned hw = std::thread::hardware_concurrency(); nt = hw > 2 ? (int)(hw / 2) : 2; if (nt > 8) nt = 8; }
+    if (set_threads) set_threads(be, nt);
+    return be;
+}
+static bool sh_cpu_compute(ggml_tensor *node) {
+    ggml_backend_t be = sh_cpu_backend();
+    if (!be) return false;
+    static ggml_context *ctx = nullptr;
+    if (!ctx) {
+        ggml_init_params ip = { ggml_graph_overhead_custom(8, false) + 1024, nullptr, true };
+        ctx = ggml_init(ip);
+        if (!ctx) return false;
+    }
+    ggml_cgraph *gf = ggml_new_graph_custom(ctx, 8, false);
+    ggml_graph_add_node(gf, node);
+    const enum ggml_status st = ggml_backend_graph_compute(be, gf);
+    ggml_reset(ctx);
+    return st == GGML_STATUS_SUCCESS;
+}
+static bool sh_local_exact() { static int v = -1; if (v < 0) v = sh_env_int("SHIELDED_LOCAL_EXACT", 0); return v != 0; }
+
 /* The escape hatch: q8_0 x f32 in the clear, in the enclave.
  *
  * A backend that claims an op and then returns GGML_STATUS_FAILED does not
@@ -509,26 +562,46 @@ static bool sh_is_meta(const ggml_tensor *t) {
     }
 }
 
-static void sh_note_latency(sh_state &s, const std::string &group, double us) {
+static void sh_note_latency(sh_state &s, const std::string &group, double us, double weight_bytes) {
     static const double X  = [] { const char *e = getenv("SHIELDED_CONTENTION_X");  return (e && *e) ? atof(e) : 3.0; }();
     static const double US = [] { const char *e = getenv("SHIELDED_CONTENTION_US"); return (e && *e) ? atof(e) : 200.0; }();
+    /* An idle card streams a group's weights at roughly its memory bandwidth
+     * and the round trip adds a floor; 400 GB/s and 60 us are the host
+     * loopback's figures, and the guest's vsock adds ~100 us on top, so the
+     * absolute threshold below sits far above any idle path (8x) and far
+     * below a time-sliced one (a 4 MB group took 1240 us behind a game). It
+     * is what catches a card that is contended from the FIRST token, which
+     * has no "best" to be compared against. */
+    static const double ABS_X = [] { const char *e = getenv("SHIELDED_CONTENTION_ABS_X"); return (e && *e) ? atof(e) : 8.0; }();
     if (us <= 0 || X <= 0) return;
     sh_state::lat &l = s.latency[group];
     l.ewma = l.n ? 0.9 * l.ewma + 0.1 * us : us;
     l.n++;
+    if (l.expect <= 0) l.expect = 60.0 + weight_bytes / 400e3;
     if (l.n >= 20 && (l.best == 0 || l.ewma < l.best)) l.best = l.ewma;
-    if (l.best <= 0) return;
-    const bool slow = l.ewma > X * l.best && l.ewma > l.best + US;
+    if (l.n < 20) return;
+    const bool slow = (l.best > 0 && l.ewma > X * l.best && l.ewma > l.best + US) || l.ewma > ABS_X * l.expect;
     if (!s.contended) {
-        s.cont_streak = slow ? s.cont_streak + 1 : 0;
-        if (s.cont_streak >= 98) {              /* two tokens of the 0.5B; longer for a model with more groups, which is fine */
-            s.contended = true; s.contention_events++; s.cont_streak = 0; s.ok_streak = 0;
+        /* A fraction, not a run: one group per token (lm_head, whose absolute
+         * threshold is the highest) can pass while every other exchange waits
+         * behind a game, and a consecutive-run counter never reached its
+         * target because of it. Trip when four in five recent exchanges are
+         * slow, after at least two tokens' worth have been seen. */
+        s.slow_frac = 0.97 * s.slow_frac + 0.03 * (slow ? 1.0 : 0.0);
+        s.lat_seen++;
+        if (s.lat_seen >= 98 && s.slow_frac > 0.8) {
+            s.contended = true; s.contention_events++; s.slow_frac = 0; s.ok_streak = 0;
             fprintf(stderr, "[shielded] the card is contended: %s exchanges take %.0f us against a best of %.0f; "
                             "computing in the enclave until it recovers (probing with %s)\n",
                     group.c_str(), l.ewma, l.best, s.probe_group.c_str());
         }
     } else if (group == s.probe_group) {
-        s.ok_streak = (l.ewma < 1.5 * l.best) ? s.ok_streak + 1 : 0;
+        /* "Recovered" is judged against the idle expectation, or against a
+         * best that is itself credible (below the contended line): a card that
+         * was contended from the first token has a contended best, and 1.5x
+         * of that is still contended. */
+        const bool fine = l.ewma < 3.0 * l.expect || (l.best > 0 && l.best < ABS_X * l.expect && l.ewma < 1.5 * l.best);
+        s.ok_streak = fine ? s.ok_streak + 1 : 0;
         if (s.ok_streak >= 50) {
             s.contended = false; s.ok_streak = 0;
             fprintf(stderr, "[shielded] the card recovered (%s exchanges back to %.0f us); offloading again\n", group.c_str(), l.ewma);
@@ -655,6 +728,15 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
          * crossed (outliers already held back): a match means the worker would
          * return the identical product, so it is not asked again. */
         const bool live = s.link && !s.link_failed && sh_link_is_live(s.link);
+        /* In the enclave, on the CPU backend: a contended card (all but the
+         * probe group, which keeps measuring it) or a link that is down,
+         * unless the exact int64 path was asked for. */
+        if ((s.contended && e0.group != s.probe_group) || (!live && !sh_local_exact())) {
+            bool ok = true;
+            for (size_t t = 0; t < members.size() && ok; t++) ok = sh_cpu_compute(members[t]);
+            if (ok) { s.local_nodes += members.size(); continue; }
+            /* no CPU backend to be had: fall through to the paths below */
+        }
         std::vector<sh_state::entry *> &xents = s.xents;
         xents.clear();
         const std::vector<std::string> &gm = s.group_members[e0.group];
@@ -728,7 +810,10 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
                 s.local_nodes += members.size();
             } else {
                 s.offloaded_nodes += members.size(); s.exchanges++;
-                sh_note_latency(s, e0.group, sh_link_last_wire_us(s.link));
+                {
+                    double wb = 0; for (auto *xe : xents) wb += (double)xe->K * (double)xe->N;
+                    sh_note_latency(s, e0.group, sh_link_last_wire_us(s.link), wb);
+                }
                 if (xents.size() > members.size()) {
                     /* Keep the invisible members' products for the split that
                      * asks for them, with the x they belong to. */
