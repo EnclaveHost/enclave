@@ -1,3 +1,4 @@
 shielded-worker
 *.o
 libcudart.so.12
+worker.conf
