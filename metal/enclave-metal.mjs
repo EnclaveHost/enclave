@@ -115,7 +115,7 @@ function certsCfg(cfg, log = (...a) => console.log(...a)) {
   const kid = String(cfg.acmeEabKid || ''), hmac = String(cfg.acmeEabHmac || '');
   const byo = cfg.acmeBringYourOwn === true;
   if (byo && kid && hmac) {
-    log('[enclave-metal] certificates: bring-your-own ZeroSSL EAB (acmeBringYourOwn); the in-guest ACME client mints directly, the platform certificate service is the fallback');
+    log('[enclave-metal] certificates: bring-your-own ZeroSSL EAB forwarded (acmeBringYourOwn); the guest still asks the platform certificate service first for its own-zone names and falls back to this pair, then Let\'s Encrypt, in the guest');
     return { acmeEabKid: kid, acmeEabHmac: hmac, certsApi: certsApiOf(cfg) };
   }
   if (byo) log('[enclave-metal] certificates: acmeBringYourOwn is set but acmeEabKid/acmeEabHmac are not BOTH set; ignoring it');
