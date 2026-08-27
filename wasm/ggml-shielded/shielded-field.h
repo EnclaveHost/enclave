@@ -100,6 +100,13 @@ int sh_prepare_weight(const uint16_t *wd_raw, const int8_t *wq,
  * negative if some row fits no exponent. */
 int sh_prepare_weight_rows(const void *blocks, int64_t K, int64_t N,
                            int8_t *w_fixed_out, int *f_w_out);
+/* Rows [j0, j1) only, for callers that spread a weight over threads. */
+int sh_prepare_weight_rows_range(const void *blocks, int64_t K, int64_t N, int64_t j0, int64_t j1,
+                                 int8_t *w_fixed_out, int *f_w_out);
+/* The element-by-element reference form of the same routine; must agree byte
+ * for byte, and prepare-selftest checks that it does. */
+int sh_prepare_weight_rows_ref(const void *blocks, int64_t K, int64_t N,
+                               int8_t *w_fixed_out, int *f_w_out);
 
 /* fp32 -> fp16 bits, round-to-nearest, subnormals handled. */
 uint16_t sh_float_to_half(float v);

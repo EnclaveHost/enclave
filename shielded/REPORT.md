@@ -1206,3 +1206,49 @@ verification failures. The 0.8B-MTP does not move (98.6 vs 98.4): the channels i
 removed were not on a wide site. This is a TEE-side saving, so it should carry into the CVM in
 full, unlike the worker's; the in-guest profile that would confirm it is still the
 missing measurement, and it needs the tenant's log channel, not another restart.
+
+## 13.11 Start-up, batching defaults, and where the 2.2 s TTFT really goes
+
+Three things found while looking for the in-CVM term, none of them the in-CVM term.
+
+**Context creation was the backend's.** The engine's `sched_reserve` -- run once per
+context, which the wasm host creates once per model -- took 2 ms on the CPU backend and
+**3.6 s with the shielded backend on the 0.5B, 32 s on the 4B**. All of it was weight
+registration, which `ggml_backend_sched` triggers through `supports_op` once the data is
+loaded: the row encoder re-derived every block's scale per element through
+`sh_encode_weight_fixed` (8 ns per weight), the Freivalds `W^T s` was a strided scalar
+int64 loop, and both ran serially per weight. The encoder now forms each block's `d256`
+once and encodes its 32 quants in the reference's exact float op order (bit-identical,
+checked against the element-by-element form kept as `sh_prepare_weight_rows_ref`), rows
+are spread over threads, and `fv_prepare` accumulates per rep in a contiguous double row
+(exact below 2^53) on threads too:
+
+| | section 13.3 | now |
+|---|---|---|
+| 0.5B context creation | 3.37 s | 0.30 s |
+| 4B context creation | 29.4 s | 2.1 s |
+
+Same completion text, 0 verification failures. This is a tenant's launch-to-ready time,
+so it is worth more than its absence from every tok/s table suggests.
+
+**Batched decode needed no knobs.** The pool depth now defaults to four times the widest
+batch the graph may present (32 for the default `SHIELDED_MAX_M`) and the refill thread
+count is derived for half that width, so a multi-user step at m=8 runs with 19 of 16,075
+pads generated on the request path (0.1%) where the fixed depth of 16 starved it; the
+0.5B step at m=8 is 16.4 ms, 489 tok/s in aggregate, and at m=1 nothing changes (idle
+threads cost nothing).
+
+**The live app's 2.2 s time-to-first-token is not inference.** A ~400-token prompt adds
+0.6 s to it (prefill runs at ~650 tok/s in the clear on the tenant's 4 vCPUs) and a
+1-token request with a 2-word prompt still takes 2.2 s; a plain `GET /v1/models` through
+the app hostname takes 2.0-2.3 s, of which the TLS handshake alone is 1.3-1.7 s, and a
+second request does not reuse the connection. That is the relay-to-enclave path
+re-handshaking per request, in front of ~0.3-0.5 s of engine work, and it belongs to the
+relay and the in-enclave TLS bridge, not to this backend. It is also the single largest
+latency a user of the tier sees.
+
+**A profile line the guest can emit.** Under `SHIELDED_PROFILE` the backend now prints its
+per-term totals every 4096 exchanges as well as on the stats call the engine never makes;
+the tenant's stderr reaches the owner through `/v1/deployments/:id/logs`, which is the
+channel the in-CVM question of 13.8 needs -- set in the tenant's environment for one
+deploy, read back, done, without another certificate.
