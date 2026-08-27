@@ -1252,3 +1252,51 @@ per-term totals every 4096 exchanges as well as on the stats call the engine nev
 the tenant's stderr reaches the owner through `/v1/deployments/:id/logs`, which is the
 channel the in-CVM question of 13.8 needs -- set in the tenant's environment for one
 deploy, read back, done, without another certificate.
+
+## 13.12 Where the batched regime is bound, and speculation closed
+
+The kill criterion is stated at batch >= 4, so the m=8 step deserves its own breakdown
+(`bench-batch`, 0.5B, 8 threads, `SHIELDED_PROFILE`, per step):
+
+| term | m=1 | m=8 | ratio |
+|---|---|---|---|
+| step | 4.8 ms | 20.5 ms | 4.3x |
+| backend graph_compute | 6.4 | 11.2 | 1.7x |
+|   of which wire (49 exchanges) | 3.0 | 5.4 | 1.8x |
+|   of which mask / unmask+lhs / rhs / post | 0.13 / 0.20 / 0.10 / 0.15 | 0.53 / 1.00 / 0.31 / 0.89 | 4-6x |
+|   of which int64 result traffic and copies (the rest) | ~0.3 | ~2.8 | |
+| CPU half of the graph (step minus backend) | ~1.2 | ~9.3 | 8x |
+| card time (worker's own timer) | 2.3 | 3.6 | 1.5x |
+
+The card and the round trips amortise well (1.5-1.8x for 8 rows); what does not is the
+enclave's CPU half, which scales linearly with m because it is per-row work: the
+attention, the norms, and above all the projections the placement policy keeps on the
+CPU. `SHIELDED_MIN_MACS` is applied to the WEIGHT's size, so Qwen2.5-0.5B's q/k/v/o
+(1.8 M MACs per row per layer) stay in the enclave at every m, and at m=8 that is
+350 M MACs per step through ggml-cpu -- several milliseconds -- with no offload
+involved. Claiming them at m >= 4 would trade that for +48 round trips and their refill,
+which at this size is close to a wash; on a 4B they are offloaded anyway. So the batched
+regime is bound by the enclave's CPU, and the tenant's CPU share is what sets its
+throughput ceiling, not the card: 489 tok/s in aggregate at m=8 on 8 host threads,
+against 2134 unmasked -- 4.4x, inside the 5x line, and it will be worse on 4 SNP vCPUs.
+The backend's own next lever there is small and known: carry the product as int32 rather
+than int64 through unmask, the outlier term and descale (every value is below 2^24),
+which halves the ~2.8 ms of result traffic at m=8, and spread that work over rows.
+
+Speculation is closed for this tier at this model size. A `P_MIN` sweep on the
+0.8B-MTP (k=2, shielded, 64 tokens), plain decode at 97-99 tok/s:
+
+| P_MIN | tokens/round | acceptance | spec tok/s |
+|---|---|---|---|
+| 0 | 1.97 | 48% | 76.8 |
+| 0.5 | 1.70 | 81% | 78.2 |
+| 0.7 | 1.43 | 91% | 75.8 |
+| 0.85 | 1.26 | 100% | 71.9 |
+
+Confidence gating buys acceptance and loses tokens per round in equal measure; every
+setting loses to plain decode. The draft head itself is the limit, not the verify pass.
+
+The TLS finding of 13.11, split: a handshake to a NONEXISTENT app-zone label -- the
+relay alone -- takes 0.8-0.9 s, and to the live app 1.6-1.7 s, with a 41 ms ping to the
+relay. Both legs are ~0.8 s where a handshake over that RTT should be ~0.15; each is
+somebody's per-connection setup, and neither is this backend's.
