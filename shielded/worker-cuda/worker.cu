@@ -1352,7 +1352,43 @@ static void accept_loop(int srv, const char *kind) {
     }
 }
 
+/* Knobs from a file beside the binary, applied as environment defaults.
+ *
+ * The launcher spawns the worker with its own fixed environment, and changing
+ * that means restarting the launcher, which means restarting the CVM and its
+ * tenants (and, on a metal box, re-issuing every certificate). A worker
+ * restart alone costs a tenant one reconnect. So the tunables that only the
+ * host side needs -- the read spin, for one -- live in worker.conf next to the
+ * binary: KEY=VALUE per line, '#' comments, environment wins over the file.
+ * Nothing here reaches the TEE; the file is host configuration of the host's
+ * own untrusted half. */
+static void load_conf_beside_binary(void) {
+    char exe[4096]; ssize_t n = readlink("/proc/self/exe", exe, sizeof exe - 1);
+    if (n <= 0) return;
+    exe[n] = 0;
+    char *slash = strrchr(exe, '/');
+    if (!slash) return;
+    std::string path(exe, (size_t)(slash - exe));
+    path += "/worker.conf";
+    FILE *f = fopen(path.c_str(), "r");
+    if (!f) return;
+    char line[512];
+    while (fgets(line, sizeof line, f)) {
+        char *p = line;
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p == '#' || *p == '\n' || !*p) continue;
+        char *eq = strchr(p, '=');
+        if (!eq) continue;
+        *eq = 0;
+        char *v = eq + 1; char *e = v + strlen(v);
+        while (e > v && (e[-1] == '\n' || e[-1] == '\r' || e[-1] == ' ')) *--e = 0;
+        if (setenv(p, v, 0) == 0 && !getenv("SHIELDED_WORKER_QUIET_CONF")) logf("worker.conf: %s=%s", p, v);
+    }
+    fclose(f);
+}
+
 int main(int argc, char **argv) {
+    load_conf_beside_binary();
     const char *host = "127.0.0.1";
     int port = getenv("SHIELDED_PORT") ? atoi(getenv("SHIELDED_PORT")) : 9500;
     int vsock_port = 0;
