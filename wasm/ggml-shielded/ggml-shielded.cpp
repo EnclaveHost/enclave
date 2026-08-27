@@ -192,6 +192,30 @@ struct sh_state {
     std::map<std::string, gcache> completion;
     std::vector<entry *> xents;               /* the exchange set of the current node */
     uint64_t completed = 0, served = 0;       /* group completions issued / members served from one */
+
+    /* CONTENTION. A consumer card has no partition to reserve: the driver
+     * time-slices contexts, and a game (2026-08-26: one holding 6.3 GB of the
+     * production 3070) takes ~95% of the slices, so every one of our 49
+     * exchanges waits ~1 ms behind it -- 152 us became 1240 us and the
+     * tenant fell from ~95 to 15 tok/s, six times SLOWER than the enclave's
+     * own CPU. So the backend watches the wire time of every group's
+     * exchanges against the best that group has seen; when they run at
+     * SHIELDED_CONTENTION_X (3) times the best, and at least
+     * SHIELDED_CONTENTION_US (200) above it, for two tokens' worth, it stops
+     * claiming matmuls -- ggml_backend_sched then runs them in the enclave --
+     * except the PROBE group (the first registered), which keeps going out
+     * once per token so the card's recovery is noticed; back under 1.5x for
+     * fifty probes and everything is claimed again. Nothing about this touches
+     * what crosses: fewer exchanges, the same masking on each. Not detected: a
+     * card contended from the first token, which has no "best" to compare
+     * against; that is the fleet health probe's job (the worker's HELLO
+     * already carries a measured field_gmac_per_s). */
+    struct lat { double ewma = 0, best = 0; uint64_t n = 0; };
+    std::map<std::string, lat> latency;
+    std::string probe_group;
+    bool contended = false;
+    int cont_streak = 0, ok_streak = 0;
+    uint64_t contended_graphs = 0, contention_events = 0;
     std::set<std::string> refused;            /* names that failed registration, said once */
     bool dirty = false;                       /* new weights since the last start() */
 
@@ -243,11 +267,12 @@ void ggml_backend_shielded_stats(uint64_t *off, uint64_t *loc, uint64_t *macs, u
         if (s.link) sh_link_pool_stats(s.link, &used, &missed);
         fprintf(stderr, "[shielded] profile: exchanges=%llu nodes=%llu (completions=%llu served=%llu) | link: mask=%.1fms wire=%.1fms "
                         "refill-on-path=%.1fms unmask+lhs=%.1fms rhs=%.1fms total=%.1fms | backend: encode=%.1fms "
-                        "post=%.1fms graph_compute=%.1fms | pads used=%llu missed=%llu | simd=%s refill_threads=%d\n",
+                        "post=%.1fms graph_compute=%.1fms | pads used=%llu missed=%llu | contended=%d events=%llu | simd=%s refill_threads=%d\n",
                 (unsigned long long)s.exchanges, (unsigned long long)s.offloaded_nodes,
                 (unsigned long long)s.completed, (unsigned long long)s.served,
                 sh_prof[0], sh_prof[1], sh_prof[2], sh_prof[3], sh_prof[4], s.t_link,
                 s.t_encode, s.t_post, s.t_graph, (unsigned long long)used, (unsigned long long)missed,
+                (int)s.contended, (unsigned long long)s.contention_events,
                 sh_link_simd()->name, s.link ? sh_link_refill_threads(s.link) : 0);
     }
     if (off)  *off  = s.offloaded_nodes;
@@ -396,6 +421,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     stored.node = node;
     if (share < 0) s.group_first[stored.group] = node;
     s.group_members[stored.group].push_back(name);
+    if (s.probe_group.empty()) s.probe_group = stored.group;
     s.dirty = true;
     SH_LOG("registered %s K=%lld N=%lld f_w=%d..%d act_frac=%d outliers=%zu group=%s (%.0f ms)\n",
            name.c_str(), (long long)K, (long long)N, lo, hi, site->act_frac, nout, stored.group.c_str(), sh_now_ms() - t0);
@@ -438,6 +464,7 @@ static bool sh_claimable(const ggml_tensor *op, bool batch_ok) {
      * must not be refused either. */
     if (src0->data && !s.link_failed && !sh_register(s, src0)) return false;
     if (batch_ok && src1->ne[1] > sh_max_m()) return false;
+    if (s.contended && sh_group_key(nm) != s.probe_group) return false;   /* the enclave's CPU is faster than a starved card */
     return true;
 }
 
@@ -479,6 +506,33 @@ static bool sh_is_meta(const ggml_tensor *t) {
         case GGML_OP_NONE: case GGML_OP_RESHAPE: case GGML_OP_VIEW:
         case GGML_OP_PERMUTE: case GGML_OP_TRANSPOSE: return true;
         default: return false;
+    }
+}
+
+static void sh_note_latency(sh_state &s, const std::string &group, double us) {
+    static const double X  = [] { const char *e = getenv("SHIELDED_CONTENTION_X");  return (e && *e) ? atof(e) : 3.0; }();
+    static const double US = [] { const char *e = getenv("SHIELDED_CONTENTION_US"); return (e && *e) ? atof(e) : 200.0; }();
+    if (us <= 0 || X <= 0) return;
+    sh_state::lat &l = s.latency[group];
+    l.ewma = l.n ? 0.9 * l.ewma + 0.1 * us : us;
+    l.n++;
+    if (l.n >= 20 && (l.best == 0 || l.ewma < l.best)) l.best = l.ewma;
+    if (l.best <= 0) return;
+    const bool slow = l.ewma > X * l.best && l.ewma > l.best + US;
+    if (!s.contended) {
+        s.cont_streak = slow ? s.cont_streak + 1 : 0;
+        if (s.cont_streak >= 98) {              /* two tokens of the 0.5B; longer for a model with more groups, which is fine */
+            s.contended = true; s.contention_events++; s.cont_streak = 0; s.ok_streak = 0;
+            fprintf(stderr, "[shielded] the card is contended: %s exchanges take %.0f us against a best of %.0f; "
+                            "computing in the enclave until it recovers (probing with %s)\n",
+                    group.c_str(), l.ewma, l.best, s.probe_group.c_str());
+        }
+    } else if (group == s.probe_group) {
+        s.ok_streak = (l.ewma < 1.5 * l.best) ? s.ok_streak + 1 : 0;
+        if (s.ok_streak >= 50) {
+            s.contended = false; s.ok_streak = 0;
+            fprintf(stderr, "[shielded] the card recovered (%s exchanges back to %.0f us); offloading again\n", group.c_str(), l.ewma);
+        }
     }
 }
 
@@ -674,6 +728,7 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
                 s.local_nodes += members.size();
             } else {
                 s.offloaded_nodes += members.size(); s.exchanges++;
+                sh_note_latency(s, e0.group, sh_link_last_wire_us(s.link));
                 if (xents.size() > members.size()) {
                     /* Keep the invisible members' products for the split that
                      * asks for them, with the x they belong to. */
@@ -728,6 +783,7 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
      * at the end: the engine inside a CVM never calls the stats entry point,
      * and the tenant's stderr (the owner's /logs) is the only channel out of
      * the guest. Counters only -- never a value that crossed or was masked. */
+    if (s.contended) s.contended_graphs++;
     if (getenv("SHIELDED_PROFILE")) {
         static uint64_t last = 0;
         if (s.exchanges - last >= 4096) { last = s.exchanges; s.mu.unlock(); ggml_backend_shielded_stats(nullptr, nullptr, nullptr, nullptr); s.mu.lock(); }
