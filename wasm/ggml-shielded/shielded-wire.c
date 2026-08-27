@@ -14,6 +14,10 @@
 #include <limits.h>
 #include <time.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <immintrin.h>
 
 /* A single frame is capped well below the point where a bad length header could
  * make us allocate the machine. Mirrors wire.py's MAX_FRAME. */
@@ -29,6 +33,16 @@ struct sh_pipe {
      * on the request path. */
     uint8_t *rbuf;
     size_t   rcap;
+    /* The shared-memory ring, when SHIELDED_SHM named one and the worker
+     * granted it (see shielded-wire.h). `map` is the whole file/BAR; `ring`
+     * the one ring this connection owns. `seq` is ours: monotonic, never
+     * reused, so a stale reply from a worker restarted onto the same file can
+     * never match. `misses` counts consecutive ring failures; at 3 the ring is
+     * abandoned for the socket. */
+    uint8_t *map;    size_t map_len;
+    uint8_t *ring;
+    uint64_t seq;
+    int      misses;
 };
 
 /* Frames per exchange that fit the stack-resident iovec/header arrays. Every
@@ -130,6 +144,7 @@ sh_pipe *sh_pipe_open(const char *host, int port, int *err) {
 
 void sh_pipe_close(sh_pipe *p) {
     if (!p) return;
+    if (p->map) munmap(p->map, p->map_len);
     if (p->fd >= 0) close(p->fd);
     free(p->rbuf);
     free(p);
@@ -285,4 +300,145 @@ fail:
 int sh_pipe_call(sh_pipe *p, uint8_t cmd, const void *payload, size_t len, sh_reply *out) {
     sh_frame f = { cmd, payload, len, NULL, 0 };
     return sh_pipe_exchange(p, &f, 1, out);
+}
+
+/* --- the shared-memory ring ------------------------------------------------
+ * Why: in the CVM the vhost-vsock exchange costs 152 us, the socket itself
+ * ~10 and the card ~28 (REPORT.md 13.13); the rest is VM exits and interrupts
+ * that a polled ring never raises. Measured in an SEV-SNP guest on an ivshmem
+ * BAR mapped write-back: 0.97 us of transport for the 0.5B gate|up exchange
+ * (scratchpad/shm-ring/DESIGN.md). Every byte read from the ring is bounded
+ * by OUR constants and compared against OUR expectation before use. */
+static inline uint64_t ld_acq(const uint8_t *at) { return __atomic_load_n((const uint64_t *)at, __ATOMIC_ACQUIRE); }
+static inline void st_rel(uint8_t *at, uint64_t v) {
+    /* The guest's mapping of the BAR may be write-combining (sysfs
+     * resource2_wc): WC stores are weakly ordered, so the payload is fenced
+     * before the sequence number is published. Free on a write-back mapping. */
+    _mm_sfence();
+    __atomic_store_n((uint64_t *)at, v, __ATOMIC_RELEASE);
+}
+
+int sh_pipe_ring_live(const sh_pipe *p) { return p && p->ring != NULL; }
+
+static void ring_drop(sh_pipe *p) {
+    if (p->map) munmap(p->map, p->map_len);
+    p->map = NULL; p->ring = NULL;
+}
+
+int sh_pipe_shm_attach(sh_pipe *p, const char *path, int index, size_t bytes) {
+    if (!p || p->fd < 0 || !path || !*path) return SH_ERR_IO;
+    if (index < 0 || (size_t)index >= SH_RING_MAX_FILE / SH_RING_BYTES) {
+        snprintf(p->err, sizeof p->err, "shm ring index %d out of range", index); return SH_ERR_IO;
+    }
+    int fd = open(path, O_RDWR | O_CLOEXEC);
+    if (fd < 0) { snprintf(p->err, sizeof p->err, "shm open %s: %s", path, strerror(errno)); return SH_ERR_IO; }
+    struct stat st;
+    if (fstat(fd, &st) != 0) { close(fd); snprintf(p->err, sizeof p->err, "shm fstat: %s", strerror(errno)); return SH_ERR_IO; }
+    size_t len = st.st_size > 0 ? (size_t)st.st_size : bytes;
+    if (len > SH_RING_MAX_FILE) len = SH_RING_MAX_FILE;
+    len = (len / SH_RING_BYTES) * SH_RING_BYTES;
+    /* The mapping is THE bound: every ring address is derived from the index
+     * and the compiled constants, never from anything the peer writes. */
+    if (len < (size_t)(index + 1) * SH_RING_BYTES) {
+        close(fd);
+        snprintf(p->err, sizeof p->err, "shm %s holds %zu ring(s); ring %d asked", path, len / SH_RING_BYTES, index);
+        return SH_ERR_IO;
+    }
+    void *m = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    close(fd);
+    if (m == MAP_FAILED) { snprintf(p->err, sizeof p->err, "shm mmap %s: %s", path, strerror(errno)); return SH_ERR_IO; }
+
+    uint8_t pay[4]; put_u32(pay, (uint32_t)index);
+    sh_reply rep;
+    int rc = sh_pipe_call(p, SH_CMD_SHM_ATTACH, pay, 4, &rep);
+    if (rc != SH_OK) { munmap(m, len); return rc; }
+    if (rep.len != 25) {
+        munmap(m, len); sh_reply_free(&rep);
+        snprintf(p->err, sizeof p->err, "SHM_ATTACH reply is %zu bytes, expected 25", rep.len);
+        return SH_ERR_PROTO;
+    }
+    const int granted = rep.data[0];
+    const uint64_t rb = get_u64(rep.data + 1), rq = get_u64(rep.data + 9), rp = get_u64(rep.data + 17);
+    sh_reply_free(&rep);
+    if (!granted) { munmap(m, len); snprintf(p->err, sizeof p->err, "worker did not grant shm ring %d", index); return SH_ERR_IO; }
+    /* The geometry is CHECKED against our constants, never adopted. */
+    if (rb != SH_RING_BYTES || rq != SH_RING_REQ_CAP || rp != SH_RING_REP_CAP) {
+        munmap(m, len);
+        snprintf(p->err, sizeof p->err, "worker ring geometry %llu/%llu/%llu differs from %zu/%zu/%zu",
+                 (unsigned long long)rb, (unsigned long long)rq, (unsigned long long)rp,
+                 SH_RING_BYTES, SH_RING_REQ_CAP, SH_RING_REP_CAP);
+        return SH_ERR_PROTO;
+    }
+    p->map = (uint8_t *)m; p->map_len = len;
+    p->ring = p->map + (size_t)index * SH_RING_BYTES;
+    /* Sequence base from the clock: a worker restarted onto the same file
+     * with an old reply still in the slot cannot match a fresh link's seq. */
+    struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
+    p->seq = (((uint64_t)ts.tv_sec << 24) | ((uint64_t)ts.tv_nsec >> 6)) & 0x3fffffffffffffffULL;
+    p->misses = 0;
+    return SH_OK;
+}
+
+/* Longest the TEE spins for a ring reply before it sends the same frame on
+ * the socket. The 4B lm_head at m=8 is ~1 ms on the card; 3 ms leaves room
+ * for a card shared with another tenant without stalling the token forever. */
+static int ring_spin_us(void) {
+    static int v = -1;
+    if (v < 0) { const char *e = getenv("SHIELDED_SHM_SPIN_US"); v = (e && *e) ? atoi(e) : 3000; if (v < 1) v = 1; }
+    return v;
+}
+
+int sh_pipe_ring_exchange(sh_pipe *p, const sh_frame *f, size_t want, sh_reply *out) {
+    if (!p || !p->ring) return SH_ERR_IO;
+    memset(out, 0, sizeof *out);
+    const size_t total = f->len + f->len2;
+    /* Both directions must fit by OUR arithmetic before a byte moves. */
+    if (f->cmd != SH_CMD_FIELD_GEMM || total > SH_RING_REQ_CAP || want > SH_RING_REP_CAP || want == 0) return SH_ERR_IO;
+    int rc = reply_reserve(p, want);
+    if (rc != SH_OK) return rc;
+    uint8_t *r = p->ring;
+    /* What is written here is exactly the socket frame: header and payload. */
+    if (f->len)  memcpy(r + SH_RING_OFF_RQP, f->payload, f->len);
+    if (f->len2) memcpy(r + SH_RING_OFF_RQP + f->len, f->payload2, f->len2);
+    r[SH_RING_OFF_RQH] = f->cmd;
+    put_u64(r + SH_RING_OFF_RQH + 1, total);
+    const uint64_t seq = ++p->seq;
+    st_rel(r + SH_RING_OFF_REQ, seq);
+
+    const int budget = ring_spin_us();
+    struct timespec t0, t1; clock_gettime(CLOCK_MONOTONIC, &t0);
+    for (int spins = 0;; spins++) {
+        if (ld_acq(r + SH_RING_OFF_REP) == seq) break;
+        _mm_pause();
+        if ((spins & 255) == 255) {
+            clock_gettime(CLOCK_MONOTONIC, &t1);
+            if ((t1.tv_sec - t0.tv_sec) * 1000000L + (t1.tv_nsec - t0.tv_nsec) / 1000L > budget) {
+                if (++p->misses >= 3) ring_drop(p);
+                snprintf(p->err, sizeof p->err, "shm ring: no reply within %d us", budget);
+                return SH_ERR_IO;     /* the caller sends the same frame on the socket */
+            }
+        }
+    }
+    /* The header is validated against what WE expect before the payload is
+     * read. A wrong length is a refusal, never "use the peer's length". */
+    const uint8_t status = r[SH_RING_OFF_RPH];
+    const uint64_t len = get_u64(r + SH_RING_OFF_RPH + 1);
+    if (status != 0) {
+        /* A violation on the ring is a violation: surface the (bounded)
+         * reason and let the link take the connection down, as on the socket. */
+        size_t m = len < sizeof p->err - 1 ? (size_t)len : sizeof p->err - 1;
+        memcpy(p->err, r + SH_RING_OFF_RPP, m); p->err[m] = 0;
+        return SH_ERR_VIOLATION;
+    }
+    if (len != want) {
+        if (++p->misses >= 3) ring_drop(p);
+        snprintf(p->err, sizeof p->err, "shm ring: reply of %llu bytes, expected %zu", (unsigned long long)len, want);
+        return SH_ERR_IO;
+    }
+    /* Out of the shared page and into OUR buffer: unmask and Freivalds run on
+     * this copy, so nothing the host does to the ring afterwards matters. */
+    memcpy(p->rbuf, r + SH_RING_OFF_RPP, want);
+    p->misses = 0;
+    out->status = 0; out->data = p->rbuf; out->len = want;
+    return SH_OK;
 }

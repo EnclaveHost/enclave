@@ -2449,7 +2449,9 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, image, appPort
         ...(shieldedCard ? { shielded: { endpoint: shieldedCard.endpoint,
                                          vramGb: round1(g * CARD_VRAM_GB),
                                          // vsock to the worker, when the guest probe found the device
-                                         ...(shieldedCard.vsockPort ? { vsockPort: shieldedCard.vsockPort } : {}) } } : {}),
+                                         ...(shieldedCard.vsockPort ? { vsockPort: shieldedCard.vsockPort } : {}),
+                                         // SHIELDED_* tuning from the host's config (e.g. SHIELDED_SPIN_US)
+                                         ...(Object.keys(shieldedCard.tenantEnv || {}).length ? { tenantEnv: shieldedCard.tenantEnv } : {}) } } : {}),
         gpuTflops: round1(g * CARD_TFLOPS), cpuGflops: Math.round(c * NODE_GFLOPS),
         // cpuTflops: legacy field for managers pinned before the GFLOPS switch
         cpuTflops: round3(c * NODE_GFLOPS / 1000),
@@ -3913,6 +3915,11 @@ function shieldedCapacity() {
         endpoint: String(v.endpoint || ""),
         vsockPort: Number(v.vsockPort) || 0,
         pricePerSec6: Number(v.pricePerSec6) || 0,
+        // host-configured tenant knobs (SHIELDED_* only; the guest wrote the
+        // file and the manager filters again, this is the middle of three)
+        tenantEnv: Object.fromEntries(Object.entries((v.tenantEnv && typeof v.tenantEnv === "object") ? v.tenantEnv : {})
+          .filter(([k, val]) => /^SHIELDED_[A-Z0-9_]{0,63}$/.test(k) && typeof val === "string" && val.length <= 256)
+          .slice(0, 32)),
       };
     }
   } catch { val = null; }        // absent on every box that has no shielded card

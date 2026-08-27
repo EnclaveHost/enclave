@@ -66,3 +66,50 @@ print(json.dumps({"first": first, "calib": e.get("SHIELDED_CALIB"),
   assert.ok(r.calib === null || String(r.calib).endsWith("qwen2.5-0.5b-q8-gguf.calib"));
   assert.ok(String(r.dir).length > 0);
 });
+
+test("host tenantEnv is applied LAST and only for SHIELDED_* names", () => {
+  // metal/config.json's shieldedWorker.tenantEnv reaches the manager as
+  // spec.tenantEnv after two host-influenced hops (fw_cfg, the guest verdict
+  // file). It exists to tune the backend -- SHIELDED_SPIN_US, the wire layer's
+  // bounded poll before it blocks on a reply -- and must win over the defaults
+  // this function sets. It must NOT be a way for an operator to put arbitrary
+  // environment into a tenant: LD_PRELOAD here would be code injection, a
+  // WASMTIME_* or GGML_* name would redirect what the engine loads.
+  const r = py(`
+e = wm._shielded_tenant_env({"endpoint": "10.0.2.2:9500", "vsockPort": 9500, "tenantEnv": {
+  "SHIELDED_SPIN_US": "120",
+  "SHIELDED_PROFILE": "0",
+  "LD_PRELOAD": "/tmp/evil.so",
+  "GGML_BACKEND_PATH": "/tmp/evil",
+  "WASMTIME_LOG": "trace",
+  "SHIELDED_lower": "x",
+  "SHIELDED_BAD_VALUE": "a\\nb",
+  "SHIELDED_LONG": "x" * 300,
+  "SHIELDED_NUM": 7,
+}}, "")
+print(json.dumps({k: e.get(k) for k in
+  ["SHIELDED_SPIN_US","SHIELDED_PROFILE","LD_PRELOAD","GGML_BACKEND_PATH","WASMTIME_LOG",
+   "SHIELDED_lower","SHIELDED_BAD_VALUE","SHIELDED_LONG","SHIELDED_NUM","SHIELDED_VSOCK_PORT"]}))
+`);
+  assert.equal(r.SHIELDED_SPIN_US, "120", "the knob this exists for");
+  assert.equal(r.SHIELDED_PROFILE, "0", "host config wins over the defaults set above it");
+  assert.equal(r.SHIELDED_NUM, "7", "numbers are stringified");
+  assert.equal(r.SHIELDED_VSOCK_PORT, "9500", "the rest of the spec still applies");
+  assert.equal(r.LD_PRELOAD, null, "a non-SHIELDED name is dropped, not applied");
+  assert.ok(/libggml-shielded\.so$/.test(r.GGML_BACKEND_PATH || ""), "the backend path cannot be redirected");
+  assert.equal(r.WASMTIME_LOG, "wasmtime_wasi_nn=debug", "the default stays");
+  assert.equal(r.SHIELDED_lower, null, "names are upper-case env names");
+  assert.equal(r.SHIELDED_BAD_VALUE, null, "values are printable ASCII");
+  assert.equal(r.SHIELDED_LONG, null, "values are bounded");
+});
+
+test("a tenantEnv that is not a map is ignored", () => {
+  const r = py(`
+out = {}
+for te in (["SHIELDED_SPIN_US=5"], "SHIELDED_SPIN_US=5", 5, None):
+    e = wm._shielded_tenant_env({"endpoint": "10.0.2.2:9500", "tenantEnv": te}, "")
+    out[str(type(te).__name__)] = e.get("SHIELDED_SPIN_US")
+print(json.dumps(out))
+`);
+  for (const [k, v] of Object.entries(r)) assert.equal(v, null, `tenantEnv as ${k}`);
+});

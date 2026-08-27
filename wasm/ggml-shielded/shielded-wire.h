@@ -36,6 +36,17 @@ extern "C" {
  * the batch is whatever m is -- no power-of-two bucketing, because the reply
  * is defined by the request rather than matched against a declared region. */
 #define SH_CMD_FIELD_GEMM      12
+/* Protocol 1.2: the SAME request as FIELD_GEMM, answered with 3-byte little-
+ * endian two's-complement values, | y int24[m][N_i] |... -- 3*m*N_i bytes per
+ * node. Every product is balanced in (-M/2, M/2] with M < 2^24, so the value
+ * is the same; only the reply shrinks (25%, 152 KB on the 0.5B's lm_head).
+ * Sent only to a worker whose HELLO says minor >= 2. */
+#define SH_CMD_FIELD_GEMM24    13
+/* Protocol 1.2: bind a shared-memory ring (SHIELDED_SHM) to this connection.
+ * | ring u32 | -> | granted u8 | ring_bytes u64 | req_cap u64 | rep_cap u64 |.
+ * granted == 0 is an answer, not a violation: the link keeps the socket. See
+ * sh_pipe_shm_attach below and shielded/PROTOCOL.md "shm ring". */
+#define SH_CMD_SHM_ATTACH      14
 
 #define SH_OK             0
 #define SH_ERR_IO        -1
@@ -88,6 +99,50 @@ int sh_pipe_exchange(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply *out
 int sh_pipe_call(sh_pipe *p, uint8_t cmd, const void *payload, size_t len, sh_reply *out);
 
 void sh_reply_free(sh_reply *r);
+
+/* --- the shared-memory ring (SHIELDED_SHM) -----------------------------------
+ * In the CVM an exchange over vhost-vsock costs 152 us, of which the socket is
+ * ~10 and the card ~28: the rest is two virtqueue kicks (VM exits) and two
+ * wakeups, the guest's from HLT via an injected interrupt (REPORT.md 13.13).
+ * A ring in memory both sides map and POLL pays none of that: measured in an
+ * SEV-SNP guest on an ivshmem BAR mapped write-back + decrypted, the 0.5B
+ * gate|up exchange's transport is 0.97 us (scratchpad/shm-ring/DESIGN.md).
+ *
+ * Layout of one ring (SH_RING_BYTES, ring i of a file at i * SH_RING_BYTES):
+ *   0     u64 req_seq   TEE -> worker, its own cache line, written LAST (release)
+ *   64    u64 rep_seq   worker -> TEE, own cache line, written LAST (release)
+ *   128   | cmd u8 | len u64 |      the socket request header, byte for byte
+ *   192   | status u8 | len u64 |   the socket response header, byte for byte
+ *   4096  request payload (SH_RING_REQ_CAP)
+ *   2 MiB reply payload   (SH_RING_REP_CAP)
+ * The TEE writes ONLY what the socket frame carries (the masked planes and the
+ * FIELD_GEMM header), and reads a reply only after rep_seq matches the sequence
+ * IT chose and the peer's len equals the length IT expects. The host may write
+ * anything: every such failure is handled as a hostile socket peer would be
+ * (refuse; fall back to the socket; a bad status takes the link down). */
+#define SH_RING_BYTES     ((size_t)8 << 20)
+#define SH_RING_OFF_REQ   0
+#define SH_RING_OFF_REP   64
+#define SH_RING_OFF_RQH   128
+#define SH_RING_OFF_RPH   192
+#define SH_RING_OFF_RQP   4096
+#define SH_RING_OFF_RPP   ((size_t)2 << 20)
+#define SH_RING_REQ_CAP   (SH_RING_OFF_RPP - SH_RING_OFF_RQP)
+#define SH_RING_REP_CAP   (SH_RING_BYTES - SH_RING_OFF_RPP)
+#define SH_RING_MAX_FILE  ((size_t)64 << 20)
+
+/* Map `path` (a file, /dev/shmring, or a PCI resource2_wc) and bind ring
+ * `index` of it to this connection with SHM_ATTACH. `bytes` is used when the
+ * node reports no size (a char device); 0 = fstat. Returns SH_OK with the ring
+ * live, SH_ERR_IO when the ring cannot be used (the pipe stays valid on the
+ * socket), SH_ERR_VIOLATION/PROTO when the worker answered nonsense. */
+int  sh_pipe_shm_attach(sh_pipe *p, const char *path, int index, size_t bytes);
+int  sh_pipe_ring_live(const sh_pipe *p);
+/* One FIELD_GEMM frame over the ring. `want` is the reply length the CALLER
+ * expects; a reply of any other length is refused before a byte of it is read.
+ * SH_ERR_IO = the ring did not carry it (busy, timed out, not live): send the
+ * same frame on the socket. After 3 consecutive misses the ring is disabled. */
+int  sh_pipe_ring_exchange(sh_pipe *p, const sh_frame *f, size_t want, sh_reply *out);
 
 /* Payload builders. Each writes little-endian into `dst` and returns the length.
  * Buffers are caller-provided so the hot path allocates nothing. */

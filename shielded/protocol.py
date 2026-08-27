@@ -45,7 +45,7 @@ because the failure mode of guessing is running an attacker's graph.
 import json
 import struct
 
-PROTO_VERSION = (1, 1, 0)   # 1.1: FIELD_GEMM, the one-frame exchange
+PROTO_VERSION = (1, 2, 0)   # 1.1: FIELD_GEMM, the one-frame exchange; 1.2: FIELD_GEMM24 (packed reply) and SHM_ATTACH (the ring)
 
 # Commands kept from ggml-rpc's allocation plane, plus our two compute verbs.
 CMD_HELLO = 0
@@ -61,15 +61,34 @@ CMD_GET_TENSOR = 9       # declared outputs ONLY
 CMD_GRAPH_INSTALL = 10   # replaces GRAPH_COMPUTE; allowlisted, install-once
 CMD_GRAPH_RECOMPUTE = 11 # the per-step doorbell; no topology
 CMD_FIELD_GEMM = 12      # one frame in, one frame out: masked planes -> products
-CMD_COUNT = 13
+CMD_FIELD_GEMM24 = 13    # the SAME request; the products as 3-byte values (1.2)
+
+# Bytes per product value in a reply. Every product is balanced in
+# (-M/2, M/2] with M = 251*241*239 = 14457349 < 2^24, so the 3-byte form
+# carries exactly the int32 form's value. It carries nothing else: the
+# reply is the same masked products, narrower. A 1.1 peer never sends 13.
+REPLY_WIDTH = {CMD_FIELD_GEMM: 4, CMD_FIELD_GEMM24: 3}
+CMD_SHM_ATTACH = 14      # 1.2: bind a shared-memory ring to this connection (FIELD_GEMM only)
+CMD_COUNT = 15
+
+# The shared-memory ring (wasm/ggml-shielded/shielded-wire.h): a file (the
+# ivshmem backing store of the CVM) of SHM_RING_BYTES rings. The ring carries
+# FIELD_GEMM frames with the SAME headers as the socket; admission of what
+# rides it is _field_gemm, unchanged. The geometry is a protocol constant
+# that the TEE checks against its own copy, never adopts.
+SHM_RING_BYTES = 8 << 20
+SHM_RING_REQ_CAP = (2 << 20) - 4096
+SHM_RING_REP_CAP = (8 << 20) - (2 << 20)
+SHM_MAX_RINGS = 8
 
 COMMAND_NAMES = {
     CMD_HELLO: "HELLO", CMD_ALLOC_BUFFER: "ALLOC_BUFFER", CMD_FREE_BUFFER: "FREE_BUFFER",
     CMD_BUFFER_GET_BASE: "BUFFER_GET_BASE", CMD_GET_ALIGNMENT: "GET_ALIGNMENT",
     CMD_GET_MAX_SIZE: "GET_MAX_SIZE", CMD_GET_DEVICE_MEMORY: "GET_DEVICE_MEMORY",
-    CMD_DEVICE_COUNT: "DEVICE_COUNT", CMD_SET_TENSOR: "SET_TENSOR",
+    CMD_DEVICE_COUNT: "DEVICE_COUNT", CMD_SET_TENSOR: "SET_TENSOR", CMD_SHM_ATTACH: "SHM_ATTACH",
     CMD_GET_TENSOR: "GET_TENSOR", CMD_GRAPH_INSTALL: "GRAPH_INSTALL",
     CMD_GRAPH_RECOMPUTE: "GRAPH_RECOMPUTE", CMD_FIELD_GEMM: "FIELD_GEMM",
+    CMD_FIELD_GEMM24: "FIELD_GEMM24",
 }
 
 # Commands that exist in stock ggml-rpc and are deliberately absent here. Named
@@ -174,7 +193,7 @@ class ShieldedWorkerState:
     special handling beyond re-uploading weights.
     """
 
-    def __init__(self, vram_bytes=8 << 30):
+    def __init__(self, vram_bytes=8 << 30, shm_rings=0, ring_owners=None):
         self.hello_done = False
         self.buffers = {}
         self.next_bid = 1
@@ -182,6 +201,11 @@ class ShieldedWorkerState:
         self.vram_bytes = vram_bytes
         self.allocated = 0
         self.violations = []
+        # the ring this connection owns (index) or None; ring_owners is the
+        # process-wide set of taken indices, shared by every connection
+        self.shm_rings = shm_rings
+        self.ring_owners = ring_owners if ring_owners is not None else set()
+        self.ring = None
 
     # -- admission ---------------------------------------------------------
     def handle(self, cmd, payload):
@@ -202,7 +226,11 @@ class ShieldedWorkerState:
         if cmd == CMD_GRAPH_RECOMPUTE:
             return self._graph_recompute(payload)
         if cmd == CMD_FIELD_GEMM:
-            return self._field_gemm(payload)
+            return self._field_gemm(payload, CMD_FIELD_GEMM)
+        if cmd == CMD_FIELD_GEMM24:
+            return self._field_gemm(payload, CMD_FIELD_GEMM24)
+        if cmd == CMD_SHM_ATTACH:
+            return self._shm_attach(payload)
         if cmd in (CMD_BUFFER_GET_BASE, CMD_GET_ALIGNMENT, CMD_GET_MAX_SIZE,
                    CMD_GET_DEVICE_MEMORY, CMD_DEVICE_COUNT):
             return {"ok": True}
@@ -304,13 +332,19 @@ class ShieldedWorkerState:
             raise ProtocolViolation("RECOMPUTE with no installed graph")
         return {"ok": True, "nodes": len(self.graph.nodes)}
 
-    def _field_gemm(self, payload):
+    def _field_gemm(self, payload, cmd=CMD_FIELD_GEMM):
         """| n u32 | m u32 | node u32[n] | planes int8[3][m][K] | -> the products of
         exactly those nodes, in order. Every node must be an installed
         FIELD_GEMM sharing one K (they share the activation), and the payload
         must be exactly the size the header implies. The reply is defined by
         the request, so there is nothing for GET_TENSOR's declared-output rule
-        to gate: a worker cannot be asked for any region it did not compute."""
+        to gate: a worker cannot be asked for any region it did not compute.
+
+        The reply's SIZE is defined by the request too: REPLY_WIDTH[cmd] * m * N
+        bytes per node, in request order -- int32 for FIELD_GEMM, 3-byte
+        little-endian two's complement for FIELD_GEMM24. The TEE checks the
+        length it receives against this rule and treats any other length as a
+        lying peer; `reply_bytes` below is that rule."""
         if self.graph is None:
             raise ProtocolViolation("FIELD_GEMM with no installed graph")
         n, off = _u32(payload, 0)
@@ -338,8 +372,53 @@ class ShieldedWorkerState:
         want = off + 3 * m * K
         if len(payload) != want:
             raise ProtocolViolation(f"FIELD_GEMM payload is {len(payload)} bytes, expected {want}")
-        return {"ok": True, "nodes": ids, "m": m, "K": K, "planes_at": off}
+        reply_bytes = sum(REPLY_WIDTH[cmd] * m * int(self.graph.nodes[i]["N"]) for i in ids)
+        return {"ok": True, "nodes": ids, "m": m, "K": K, "planes_at": off,
+                "width": REPLY_WIDTH[cmd], "reply_bytes": reply_bytes}
 
+
+    def _shm_attach(self, payload):
+        """| ring u32 | -> granted + the ring geometry. Needs an installed graph
+        (only FIELD_GEMM rides the ring), one ring per connection, one
+        connection per ring. NOT granted is an answer, not a violation: the
+        link keeps the socket. The reply's geometry is the protocol constant."""
+        if self.graph is None:
+            raise ProtocolViolation("SHM_ATTACH before GRAPH_INSTALL")
+        if self.ring is not None:
+            raise ProtocolViolation("duplicate SHM_ATTACH")
+        index, _ = _u32(payload, 0)
+        granted = index < self.shm_rings and index < SHM_MAX_RINGS and index not in self.ring_owners
+        if granted:
+            self.ring_owners.add(index)
+            self.ring = index
+        return {"ok": True, "granted": granted, "ring_bytes": SHM_RING_BYTES,
+                "req_cap": SHM_RING_REQ_CAP, "rep_cap": SHM_RING_REP_CAP}
+
+    def release(self):
+        """Connection closed: the ring (if any) is free for the next link."""
+        if self.ring is not None:
+            self.ring_owners.discard(self.ring)
+            self.ring = None
+
+
+def pack_int24(values):
+    """The FIELD_GEMM24 reply encoding of a sequence of balanced products:
+    3 bytes each, little-endian two's complement. Refuses a value the field
+    cannot have produced rather than truncating it."""
+    out = bytearray(3 * len(values))
+    for i, v in enumerate(values):
+        v = int(v)
+        if v < -(1 << 23) or v >= (1 << 23):
+            raise ProtocolViolation(f"product {v} does not fit int24")
+        b = v.to_bytes(4, "little", signed=True)
+        out[3 * i : 3 * i + 3] = b[:3]
+    return bytes(out)
+
+
+def unpack_int24(buf):
+    if len(buf) % 3:
+        raise ProtocolViolation(f"packed reply of {len(buf)} bytes is not a whole number of values")
+    return [int.from_bytes(buf[i : i + 3], "little", signed=True) for i in range(0, len(buf), 3)]
 
 def selftest():
     """Exercised by test/shielded-protocol.test.mjs."""
@@ -429,7 +508,25 @@ def selftest():
     }).encode()
     st2.handle(*parse_frame(build_frame(CMD_GRAPH_INSTALL, spec)))
     r = st2.handle(*parse_frame(build_frame(CMD_FIELD_GEMM, struct.pack("<II", 1, 2) + struct.pack("<I", 0) + bytes(3 * 2 * 32))))
-    out["gemm_ok"] = r["ok"] and r["m"] == 2 and r["K"] == 32
+    out["gemm_ok"] = r["ok"] and r["m"] == 2 and r["K"] == 32 and r["reply_bytes"] == 4 * 2 * 4
+    # 1.2: the packed form takes the identical request and defines a reply of
+    # 3 bytes per product; a value outside int24 is refused, never truncated;
+    # pack/unpack round-trip the field's whole balanced range.
+    r = st2.handle(*parse_frame(build_frame(CMD_FIELD_GEMM24, struct.pack("<II", 1, 2) + struct.pack("<I", 0) + bytes(3 * 2 * 32))))
+    out["gemm24_ok"] = r["ok"] and r["m"] == 2 and r["K"] == 32 and r["width"] == 3 and r["reply_bytes"] == 3 * 2 * 4
+    try:
+        st2.handle(*parse_frame(build_frame(CMD_FIELD_GEMM24, struct.pack("<II", 1, 2) + struct.pack("<I", 0) + bytes(3 * 2 * 32 - 1))))
+        out["gemm24_short_refused"] = False
+    except ProtocolViolation:
+        out["gemm24_short_refused"] = True
+    M = 251 * 241 * 239
+    probe = [0, 1, -1, M // 2, -(M // 2), 12345, -8388608, 8388607]
+    out["int24_roundtrip"] = unpack_int24(pack_int24(probe)) == probe and pack_int24([1, -2]) == b"\x01\x00\x00\xfe\xff\xff"
+    try:
+        pack_int24([1 << 23])
+        out["int24_overflow_refused"] = False
+    except ProtocolViolation:
+        out["int24_overflow_refused"] = True
     try:
         st2.handle(*parse_frame(build_frame(CMD_FIELD_GEMM, struct.pack("<II", 1, 2) + struct.pack("<I", 0) + bytes(3 * 2 * 32 - 1))))
         out["gemm_short_refused"] = False
@@ -460,6 +557,39 @@ def selftest():
         out["unknown_cmd_refused"] = False
     except ProtocolViolation:
         out["unknown_cmd_refused"] = True
+
+    # shm ring: refused before a graph is installed, granted once per ring,
+    # and a second connection asking for the same ring is told no (not killed)
+    owners = set()
+    s3 = ShieldedWorkerState(shm_rings=2, ring_owners=owners)
+    s3.handle(*parse_frame(build_frame(CMD_HELLO, struct.pack("<I", 1))))
+    try:
+        s3.handle(*parse_frame(build_frame(CMD_SHM_ATTACH, struct.pack("<I", 0))))
+        out["shm_attach_before_install_refused"] = False
+    except ProtocolViolation:
+        out["shm_attach_before_install_refused"] = True
+    r = st.handle(*parse_frame(build_frame(CMD_SHM_ATTACH, struct.pack("<I", 0))))
+    out["shm_attach_without_rings_not_granted"] = (r["granted"] is False
+                                                   and r["ring_bytes"] == SHM_RING_BYTES)
+    s4 = ShieldedWorkerState(shm_rings=2, ring_owners=owners)
+    s4.handle(*parse_frame(build_frame(CMD_HELLO, struct.pack("<I", 1))))
+    for bid_size, role in ((4096, "weights"), (4096, "activations")):
+        s4.handle(*parse_frame(build_frame(CMD_ALLOC_BUFFER, struct.pack("<QI", bid_size, len(role)) + role.encode())))
+    s4.handle(*parse_frame(build_frame(CMD_GRAPH_INSTALL, good)))
+    out["shm_attach_granted"] = s4.handle(*parse_frame(build_frame(CMD_SHM_ATTACH, struct.pack("<I", 1))))["granted"] is True
+    s5 = ShieldedWorkerState(shm_rings=2, ring_owners=owners)
+    s5.handle(*parse_frame(build_frame(CMD_HELLO, struct.pack("<I", 1))))
+    for bid_size, role in ((4096, "weights"), (4096, "activations")):
+        s5.handle(*parse_frame(build_frame(CMD_ALLOC_BUFFER, struct.pack("<QI", bid_size, len(role)) + role.encode())))
+    s5.handle(*parse_frame(build_frame(CMD_GRAPH_INSTALL, good)))
+    out["shm_taken_ring_not_granted"] = s5.handle(*parse_frame(build_frame(CMD_SHM_ATTACH, struct.pack("<I", 1))))["granted"] is False
+    s4.release()
+    out["shm_ring_released"] = s5.handle(*parse_frame(build_frame(CMD_SHM_ATTACH, struct.pack("<I", 1))))["granted"] is True
+    try:
+        s5.handle(*parse_frame(build_frame(CMD_SHM_ATTACH, struct.pack("<I", 0))))
+        out["shm_duplicate_attach_refused"] = False
+    except ProtocolViolation:
+        out["shm_duplicate_attach_refused"] = True
 
     out["removed_commands"] = sorted(REMOVED_COMMANDS)
     out["op_allowlist"] = sorted(OP_ALLOWLIST)

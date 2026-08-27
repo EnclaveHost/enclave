@@ -41,6 +41,14 @@ typedef struct {
     void    (*fv_dots_x)(const int64_t *x, const int32_t *st, int reps, int64_t n, int64_t *out);
     void    (*unmask_fv)(const int32_t *ym, const int32_t *u, const int32_t *s, int reps, int64_t n,
                          int64_t *y, int64_t *out);
+    /* The same two unmasks from a FIELD_GEMM24 reply: ym is 3-byte little-
+     * endian two's-complement per value (protocol 1.2). Every reply value is
+     * balanced in (-M/2, M/2] with M < 2^24, so the narrow form carries the
+     * identical value; these read it straight from the reply buffer, no
+     * widening pass. Arithmetic after the load is unmask / unmask_fv's. */
+    void    (*unmask24)(const uint8_t *ym, const int32_t *u, size_t n, int64_t *y);
+    void    (*unmask24_fv)(const uint8_t *ym, const int32_t *u, const int32_t *s, int reps, int64_t n,
+                           int64_t *y, int64_t *out);
 } sh_simd;
 
 const sh_simd *sh_simd_get(void);
@@ -59,7 +67,9 @@ const sh_simd *sh_simd_generic(void);
     void    sh_simd_##sfx##_outlier_add(const int64_t *, const int8_t *, int, int64_t, int64_t *); \
     void    sh_simd_##sfx##_fv_dots(const int64_t *, const int32_t *, int, int64_t, int64_t *); \
     void    sh_simd_##sfx##_fv_dots_x(const int64_t *, const int32_t *, int, int64_t, int64_t *); \
-    void    sh_simd_##sfx##_unmask_fv(const int32_t *, const int32_t *, const int32_t *, int, int64_t, int64_t *, int64_t *);
+    void    sh_simd_##sfx##_unmask_fv(const int32_t *, const int32_t *, const int32_t *, int, int64_t, int64_t *, int64_t *); \
+    void    sh_simd_##sfx##_unmask24(const uint8_t *, const int32_t *, size_t, int64_t *); \
+    void    sh_simd_##sfx##_unmask24_fv(const uint8_t *, const int32_t *, const int32_t *, int, int64_t, int64_t *, int64_t *);
 SH_SIMD_DECL(avx512)
 SH_SIMD_DECL(generic)
 

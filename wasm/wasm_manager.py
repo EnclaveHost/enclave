@@ -2344,6 +2344,34 @@ def _shielded_tenant_env(spec: dict, model_volume: str = "") -> dict:
     # that silently claims NOTHING is indistinguishable from one that is working:
     # both serve tokens, one just quietly ignores the card it is billing for.
     env.setdefault("SHIELDED_VERBOSE", "1")
+    # Host-configured tuning, applied LAST so metal/config.json's shieldedWorker.
+    # tenantEnv wins over every default above (that is what a knob is for). The
+    # one that exists today is SHIELDED_SPIN_US: the wire layer's bounded
+    # MSG_DONTWAIT poll before it blocks on a reply, the guest-side answer to a
+    # vhost-vsock exchange that costs 152 us in the CVM against 46 on the host.
+    #
+    # ONLY names starting with SHIELDED_ get through, and only printable string
+    # values of bounded length. This spec travels host config -> fw_cfg -> the
+    # guest's verdict file -> the supervisor -> here, and every hop is host-
+    # influenced; an operator may tune the backend the tenant already talks to,
+    # not inject arbitrary environment (LD_PRELOAD, WASMTIME_*, a model path)
+    # into a tenant through a tuning knob. Anything else is dropped and named
+    # in the log, never applied.
+    te = (spec or {}).get("tenantEnv")
+    if isinstance(te, dict):
+        for k, v in te.items():
+            k = str(k)
+            if not re.fullmatch(r"SHIELDED_[A-Z0-9_]{0,63}", k):
+                print(f"[shielded] tenantEnv: dropping {k[:40]!r} (only SHIELDED_* names may be set from host config)", flush=True)
+                continue
+            if not isinstance(v, (str, int, float)) or isinstance(v, bool):
+                print(f"[shielded] tenantEnv: dropping {k} (value must be a string)", flush=True)
+                continue
+            v = str(v)
+            if len(v) > 256 or not all(0x20 <= ord(c) <= 0x7E for c in v):
+                print(f"[shielded] tenantEnv: dropping {k} (value must be printable ASCII, at most 256 bytes)", flush=True)
+                continue
+            env[k] = v
     return env
 
 

@@ -386,8 +386,19 @@ const wantModules = [
   'kernel/net/vmw_vsock/vmw_vsock_virtio_transport_common.ko',
   'kernel/net/vmw_vsock/vmw_vsock_virtio_transport.ko',
 ];
+// Shipped in the image but NOT in modules.list: init loads these itself, with
+// parameters and behind host config. cpuidle-haltpoll (CONFIG_HALTPOLL_CPUIDLE=m
+// in the pinned Arch kernel; its governor is built in, CONFIG_CPU_IDLE_GOV_
+// HALTPOLL=y; no module dependencies) lets an idle vCPU poll for a bounded
+// window before it halts, so the shielded worker's reply lands on a running
+// vCPU instead of costing a VM exit and an injected interrupt per exchange.
+// The window is a tuning parameter, so it rides fw_cfg (unmeasured), not the
+// cmdline; only the driver's presence is measured. See metal/guest/init.
+const optionalModules = [
+  'kernel/drivers/cpuidle/cpuidle-haltpoll.ko',
+];
 const modList = [];
-for (const rel of wantModules) {
+for (const rel of [...wantModules, ...optionalModules]) {
   const src = path.join(MODROOT, rel + '.zst');
   const plain = path.join(MODROOT, rel);
   const dstRel = rel;                                       // keep same layout in the initramfs
@@ -397,7 +408,8 @@ for (const rel of wantModules) {
   else if (fs.existsSync(plain)) { fs.copyFileSync(plain, dst); modList.push(dstRel); }
   else console.log(`[build]   (skip missing ${rel})`);
 }
-fs.writeFileSync(path.join(md, 'modules.list'), modList.join('\n') + '\n');
+fs.writeFileSync(path.join(md, 'modules.list'),
+  modList.filter((m) => !optionalModules.includes(m)).join('\n') + '\n');
 console.log(`[build] modules: ${modList.map((m) => path.basename(m)).join(', ')}`);
 
 // --- 6. copy the kernel + record hashes --------------------------------------

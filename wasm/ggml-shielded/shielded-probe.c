@@ -8,6 +8,10 @@
  *   verified      Freivalds accepts the honest result
  *   lie_rejected  Freivalds rejects a single-element corruption
  *   denylist      the worker refuses a denylisted op ON THE WIRE
+ *   packed        against a 1.2 worker the link takes FIELD_GEMM24 (3-byte
+ *                 reply values) and gets the SAME y as a second link forced
+ *                 to the int32 form; against a 1.1 worker the int32 form is
+ *                 what the link speaks and this reports width 4
  *
  * The FIXTURE is a seeded LCG so a failure reproduces from the log. The Freivalds
  * secret is NOT part of the fixture -- it comes from the OS CSPRNG inside
@@ -123,7 +127,32 @@ int main(int argc, char **argv) {
 
     uint64_t ex = 0, macs = 0, vf = 0;
     sh_link_stats(l, &ex, &macs, &vf);
+    const int width = sh_link_reply_width(l);
     sh_link_close(l);
+
+    /* The packed reply, when the worker offers it: a second link, forced to
+     * the int32 form through the same switch a tenant would use, must
+     * produce y byte for byte. Nothing but the width differs between the
+     * two links: same weights, same x, fresh pads and a fresh Freivalds
+     * secret on each. */
+    int packed_same = 1;
+    if (width == 3) {
+        packed_same = 0;
+        setenv("SHIELDED_REPLY32", "1", 1);
+        sh_link *l2 = sh_link_open(host, port, true, &err);
+        int64_t *y2 = malloc((size_t)m * N * sizeof(int64_t));
+        if (l2 && y2) {
+            int node2 = sh_link_add_weight(l2, "probe32", wr, K, N, m, -1);
+            int64_t *o2[1] = { y2 }; int n2[1] = { node2 };
+            if (node2 >= 0 && sh_link_start(l2) == SH_OK && sh_link_reply_width(l2) == 4 &&
+                sh_link_gemm(l2, n2, 1, x, m, o2) == SH_OK) {
+                packed_same = 1;
+                for (int i = 0; i < m * N; i++) if (y2[i] != y[i]) { packed_same = 0; break; }
+            } else fprintf(stderr, "int32 link: %s\n", l2 ? sh_link_last_error(l2) : "open failed");
+        }
+        free(y2); sh_link_close(l2);
+        unsetenv("SHIELDED_REPLY32");
+    }
 
     /* The denylist, on the wire, on its own connection (install is once-only). */
     int denylist = 0;
@@ -146,11 +175,13 @@ int main(int argc, char **argv) {
     }
 
     printf("{\"exact\":%s,\"verified\":%s,\"lie_rejected\":%s,\"denylist_refused\":%s,"
-           "\"local_identical\":%s,\"peak_abs_y\":%lld,\"field_headroom\":%.2f,\"K\":%d,\"N\":%d,"
+           "\"local_identical\":%s,\"reply_width\":%d,\"packed_identical\":%s,"
+           "\"peak_abs_y\":%lld,\"field_headroom\":%.2f,\"K\":%d,\"N\":%d,"
            "\"exchanges\":%llu,\"macs\":%llu,\"verify_fail\":%llu}\n",
            exact ? "true" : "false", verified ? "true" : "false",
            lie_rejected ? "true" : "false", denylist ? "true" : "false",
-           local_same ? "true" : "false", (long long)peak, (double)SH_HALF_M / (double)(peak ? peak : 1), K, N,
+           local_same ? "true" : "false", width, packed_same ? "true" : "false",
+           (long long)peak, (double)SH_HALF_M / (double)(peak ? peak : 1), K, N,
            (unsigned long long)ex, (unsigned long long)macs, (unsigned long long)vf);
-    return (exact && verified && lie_rejected && denylist && local_same && vf == 0) ? 0 : 1;
+    return (exact && verified && lie_rejected && denylist && local_same && packed_same && vf == 0) ? 0 : 1;
 }
