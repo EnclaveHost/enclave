@@ -91,6 +91,7 @@ import { handleSso, initSso } from "./sso.js";
 import { handleBilling, initBilling } from "./billing.js";
 import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep } from "./secrets.js";
 import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDeployment, tlsAskAllowed } from "./domains.js";
+import { handleCerts, initCerts } from "./certs.js";
 import { createTunnelHub } from "./tunnel.js";
 import { boxOrigin, boxLabelOfHost } from "./boxhost.js";
 installProcessGuards("api-relay");
@@ -2037,6 +2038,13 @@ function handleRequest(req, res) {
   if (u.pathname === "/v1/domains" || u.pathname.startsWith("/v1/domains/"))
     return handleDomains(req, res, u, relayCtx).catch((e) =>
       json(res, 500, { error: "domains_error", message: e.message }, req));
+  // Platform certificates (certs.js): a lease-holding enclave trades a CSR
+  // for a CA cert on <label>.APP_ZONE — the CA account and EAB pair live
+  // here, the private key stays in the CVM. Relay-owned, answers with zero
+  // live enclaves like the two above.
+  if (u.pathname === "/v1/certs" || u.pathname.startsWith("/v1/certs/"))
+    return handleCerts(req, res, u, relayCtx).catch((e) =>
+      json(res, 500, { error: "certs_error", message: e.message }, req));
 
   // A box reached by its OWN name: e<hex>.<BOX_ZONE> is a whole host, so the
   // request arrives with that Host and an ordinary path. Forward the path
@@ -2169,6 +2177,7 @@ await initSecrets();           // needs SECRETS_KEY + the same data dir; degrade
 startSecretsSweep(relayCtx);   // hourly off-ledger purge (no-op while disabled)
 await initDomains();           // custom domains: same data dir, CUSTOM_DOMAINS=0 opts out
 startDomainSweep(relayCtx);    // DNS re-check + demotion sweep (no-op while disabled)
+await initCerts();             // platform certs: CERTS_KEY + DNS_API + DNS_TXT_KEY + APP_ZONE + the data dir
 setInterval(pollRegistry, REGISTRY_POLL_SEC * 1000);
 setInterval(resolveDeployments, REGISTRY_POLL_SEC * 1000);
 setInterval(pollAvailability, AVAIL_POLL_SEC * 1000);

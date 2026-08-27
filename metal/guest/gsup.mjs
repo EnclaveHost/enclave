@@ -305,10 +305,17 @@ const supEnv = {
     REGISTRY_PRIVATE_KEY: REGISTRY_KEY,
     ENCLAVE_REPO: flavorEnv.ENCLAVE_REPO || 'EnclaveHost/enclave',
   } : {}),
-  // Bring-your-own ZeroSSL EAB (config acmeEabKid/acmeEabHmac): activates the
-  // supervisor's default slot-1 ZeroSSL directory ahead of the Let's Encrypt
-  // fallback. Only ever set as a pair — half a pair is a config error the
-  // supervisor would warn about and skip anyway.
+  // App-zone certificates, DEFAULT path: the platform certificate service
+  // (POST {CERTS_API}/v1/certs/issue). The supervisor keeps the private key in
+  // this CVM and sends only a CSR; the relay holds the CA account. The
+  // launcher derives certsApi from relayUrl unless config names one.
+  ...(fw.certsApi ? { CERTS_API: String(fw.certsApi) } : {}),
+  // Bring-your-own ZeroSSL EAB (config acmeEabKid/acmeEabHmac AND
+  // acmeBringYourOwn: true — the launcher forwards nothing otherwise):
+  // activates the supervisor's in-guest slot-1 ZeroSSL directory ahead of the
+  // Let's Encrypt fallback and the certificate service. Only ever set as a
+  // pair — half a pair is a config error the supervisor would warn about and
+  // skip anyway.
   ...(fw.acmeEabKid && fw.acmeEabHmac ? {
     ACME_EAB_KID: fw.acmeEabKid, ACME_EAB_HMAC: fw.acmeEabHmac,
   } : {}),

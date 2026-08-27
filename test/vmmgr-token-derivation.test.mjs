@@ -104,7 +104,13 @@ test("supervisor.js derives with the same label, and never sends the raw SECRET"
   //              the tunnel attach challenge, over a message this process
   //              builds (see /v1/internal/tunnel-attach-sig and
   //              test/opsign.test.mjs). It is not a signing oracle.
+  //   certs    - the optional fleet factor on a platform certificate request
+  //              (relay/certs.js). It authorizes NOTHING on its own: the
+  //              operator signature + the on-chain lease do, and the relay
+  //              only ever sees a CSR; holding this key lets a box add the
+  //              first-party factor, never obtain a certificate for a name
+  //              it does not run.
   assert.deepEqual(new Set(labels),
-    new Set(["enclave vmmgr v1", "enclave secrets v1", "enclave dns-txt v1", "enclave opsign v1"]),
+    new Set(["enclave vmmgr v1", "enclave secrets v1", "enclave dns-txt v1", "enclave opsign v1", "enclave certs v1"]),
     "a new derivation label needs a look at what else that key can reach");
 });

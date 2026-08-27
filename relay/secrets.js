@@ -63,6 +63,8 @@
 
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { JsonStore, dataDir, dataFile, makeRateLimiter } from "./store.js";
+// the fleet-route primitives shared with certs.js (one spelling per rule)
+import { endpointOperator, recoverOp, makeReplayCache, rowOf, holdsLease } from "./fleet-auth.js";
 
 // One env key, two derived subkeys: labels keep the fetch-auth MAC and the
 // at-rest cipher cryptographically independent even though they share a root.
@@ -87,30 +89,6 @@ export const getMessage = (id, expiry) => `enclave-secrets:get:${id}:${expiry}`;
 export const fetchSig = (keyHex, id, endpoint, ts) =>
   createHmac("sha256", createHmac("sha256", Buffer.from(keyHex, "hex")).update("fetch-auth v1").digest())
     .update(`${id}:${endpoint}:${ts}`).digest("hex");
-
-// WHO OWNS an endpoint on chain, cached like the tunnel hub's owner cache: a
-// registry read that FAILS must not open an endpoint we have already seen
-// registered, and an endpoint never seen registered stays as it was.
-const _epOwner = new Map();
-async function endpointOperator(ctx, endpoint) {
-  if (!ctx.operatorOfEndpoint) return null;                 // older relay wiring: unchanged behaviour
-  try {
-    const a = await ctx.operatorOfEndpoint(endpoint);
-    if (a) _epOwner.set(endpoint, String(a).toLowerCase());
-    else _epOwner.delete(endpoint);
-    return a ? String(a).toLowerCase() : null;
-  } catch {
-    return _epOwner.get(endpoint) || null;                  // fail closed against a known owner
-  }
-}
-// Recover the signer of a personal_sign over `message`, or null.
-async function recoverOp(message, sig) {
-  if (typeof sig !== "string" || !/^0x[0-9a-fA-F]{130}$/.test(sig)) return null;
-  try {
-    const { recoverMessageAddress } = await import("viem");
-    return (await recoverMessageAddress({ message, signature: sig })).toLowerCase();
-  } catch { return null; }
-}
 
 let store = null;         // JsonStore { byId: { <id>: { rev, updatedAt, blob, missingSince? } } }
 let enabled = false;
@@ -152,17 +130,9 @@ export function checkEnvMap(env) {
   if (total > SECRETS_LIMITS.maxTotalBytes) throw new Error(`secrets total ${total} bytes (max ${SECRETS_LIMITS.maxTotalBytes} per deployment)`);
 }
 
-// single-use signatures: a captured owner signature must not replay within its
-// expiry window. Bounded map, pruned as it's touched.
-const seenSigs = new Map();                                   // sha256(sig) -> expiry(sec)
-function sigFresh(signature, expiry) {
-  const now = Math.floor(Date.now() / 1000);
-  if (seenSigs.size > 10_000) for (const [k, e] of seenSigs) if (e < now) seenSigs.delete(k);
-  const mark = createHash("sha256").update(signature).digest("base64");
-  if (seenSigs.has(mark)) return false;
-  seenSigs.set(mark, expiry);
-  return true;
-}
+// single-use signatures: a captured owner signature must not replay within
+// its expiry window (fleet-auth.js makeReplayCache).
+const sigFresh = makeReplayCache();
 
 const rlOwner = makeRateLimiter({ capacity: 30, refillPerSec: 30 / 60 });   // per recovered wallet
 const rlFetch = makeRateLimiter({ capacity: 120, refillPerSec: 10 });       // per source ip (fleet-only traffic)
@@ -181,15 +151,6 @@ export async function initSecrets() {
   enabled = true;
   const n = Object.keys(store.data.byId).length;
   console.log(`[secrets] enabled (${n} deployment${n === 1 ? "" : "s"} with stored secrets)`);
-}
-
-// resolve one ledger row by exact id (lowercased bytes32); a force-refreshed
-// second read covers the seconds right after a claim/create when the relay's
-// 10s ledger cache predates the tx.
-async function rowOf(ctx, id, { fresh = false } = {}) {
-  if (fresh) ctx.ledgerExpire();
-  let rows; try { rows = await ctx.ledgerRows(); } catch { return null; }
-  return rows.find((d) => String(d.id).toLowerCase() === id) || null;
 }
 
 const bad = (ctx, res, req, code, error, message) => ctx.json(res, code, { error, message }, req);
@@ -351,8 +312,7 @@ export async function handleSecrets(req, res, u, ctx) {
     // newer than the 10s ledger cache (the supervisor fetches right after it)
     const epId = String(await ctx.endpointIdOf(endpoint)).toLowerCase();
     let d = await rowOf(ctx, id);
-    const holds = (row) => row && !/^0x0+$/.test(String(row.runner)) && Number(row.leaseUntil) * 1000 > Date.now()
-      && String(row.runner).toLowerCase() === epId;
+    const holds = (row) => holdsLease(row, epId);
     if (!holds(d)) d = await rowOf(ctx, id, { fresh: true });
     if (!d) return bad(ctx, res, req, 404, "not_found", `No deployment ${id} on the ledger.`);
     if (!holds(d)) {

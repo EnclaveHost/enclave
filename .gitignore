@@ -70,3 +70,4 @@ e2e/playwright-report/
 # (metal/build-image.mjs); a committed binary is exactly what that replaced.
 metal/shielded-overlay/*.so
 wasm/ggml-shielded/*.so
+metal/.update-state.json
