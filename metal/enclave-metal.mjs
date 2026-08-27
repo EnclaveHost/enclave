@@ -92,6 +92,46 @@ const volLine = (v) => [v.name, v.alg, v.root, v.salt, v.dataBlockSize, v.hashBl
 const VOL_DIGEST = VOLUMES.length
   ? createHash('sha256').update(VOLUMES.map(volLine).sort().join('\n') + '\n').digest('hex') : '';
 
+// --- app-zone certificates: who holds what -----------------------------------
+// The platform certificate service (relay/certs.js, docs/custom-domains.md
+// "Certificate issuance: who holds what") is the DEFAULT. The guest keeps the
+// private key and builds the CSR inside the CVM; the relay holds the CA
+// account (ZeroSSL EAB, Let's Encrypt fallback) and paces issuance for the
+// whole fleet. So a first-party box no longer needs -- and should not carry --
+// the ZeroSSL EAB pair in config.json: before this, every box held the fleet's
+// CA credentials in an operator-readable file (eed7f2fd made that file 0600,
+// which is a bandage, not a fix).
+//
+// The per-box EAB pair is the EXCEPTION, for a seller who runs their own free
+// ZeroSSL account and wants the in-guest ACME client to mint directly: BOTH
+// keys set AND acmeBringYourOwn: true. Keys without the flag are dropped with
+// a warning rather than forwarded, so a config.json that predates this change
+// stops shipping the credential the moment the launcher is updated.
+//
+// certsApi = the service origin; default = the API relay the box already
+// dials for its tunnel (wss://api.enclave.host/... -> https://api.enclave.host),
+// so a config that names one relay cannot silently ask another for certs.
+function certsCfg(cfg, log = (...a) => console.log(...a)) {
+  const kid = String(cfg.acmeEabKid || ''), hmac = String(cfg.acmeEabHmac || '');
+  const byo = cfg.acmeBringYourOwn === true;
+  if (byo && kid && hmac) {
+    log('[enclave-metal] certificates: bring-your-own ZeroSSL EAB (acmeBringYourOwn); the in-guest ACME client mints directly, the platform certificate service is the fallback');
+    return { acmeEabKid: kid, acmeEabHmac: hmac, certsApi: certsApiOf(cfg) };
+  }
+  if (byo) log('[enclave-metal] certificates: acmeBringYourOwn is set but acmeEabKid/acmeEabHmac are not BOTH set; ignoring it');
+  else if (kid || hmac) log('[enclave-metal] certificates: acmeEabKid/acmeEabHmac in config.json are NOT forwarded (acmeBringYourOwn is not true) - remove them; first-party boxes use the platform certificate service');
+  const certsApi = certsApiOf(cfg);
+  if (certsApi) log(`[enclave-metal] certificates: platform certificate service at ${certsApi} (the key stays in the CVM; the relay holds the CA account)`);
+  else log('[enclave-metal] certificates: no certsApi and no relayUrl to derive one from; app-zone TLS stays off');
+  return { certsApi };
+}
+function certsApiOf(cfg) {
+  if (cfg.certsApi) return String(cfg.certsApi).replace(/\/+$/, '');
+  if (!cfg.relayUrl) return '';
+  try { const u = new URL(cfg.relayUrl); return `https://${u.host}`; } catch { return ''; }
+}
+const CERTS = certsCfg(cfg);
+
 // The kernel cmdline is MEASURED (kernel-hashes=on), so it carries only what is
 // part of the enclave's identity: the mode. Deployment-specific runtime config
 // (name, public URL, relay, tunnel token) is delivered out-of-band via QEMU
@@ -109,11 +149,9 @@ const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', rel
   // nor earns. Delivered via fw_cfg like the tunnel token — out-of-band, never
   // in the launch measurement or the quote.
   registryKey: cfg.registryKey || '', payoutAddress: cfg.payoutAddress || '',
-  // optional ZeroSSL External Account Binding pair (bring-your-own, free
-  // account): with it the guest's ACME slot 1 (ZeroSSL) activates ahead of
-  // the EAB-less Let's Encrypt fallback — sellers escape LE's per-registered-
-  // domain weekly cap. Rides fw_cfg like the keys: out-of-band, unmeasured.
-  acmeEabKid: cfg.acmeEabKid || '', acmeEabHmac: cfg.acmeEabHmac || '',
+  // how app-zone certificates get minted: see certsCfg() above. Rides fw_cfg
+  // like the keys: out-of-band, unmeasured.
+  ...CERTS,
   // NOMINAL node RAM (fleet parity): the Tinfoil flavors advertise their baked
   // size (64/512 GB), not the guest kernel's MemTotal, so metal advertises the
   // size the host gives the VM the same way. gsup caps it at the measured
@@ -324,8 +362,8 @@ const haltpollFwCfg = (() => {
   ].join(' ');
 })();
 
-// The fw_cfg file carries the fleet secret, the registry key and the ACME EAB
-// pair. It is OURS, not the world's: mode 0600, and the files of launchers
+// The fw_cfg file carries the fleet secret, the registry key and (bring-your-
+// own boxes only) the ACME EAB pair. It is OURS, not the world's: mode 0600, and the files of launchers
 // that are gone (a crash, a SIGKILL) are swept here rather than left in /tmp
 // forever -- 2026-08-27: three of them from earlier in the week, readable by
 // any local user. QEMU reads the file once at start-up.

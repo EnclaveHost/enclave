@@ -287,10 +287,70 @@ A metal enclave with a public IP (a colo box) skips the tunnel: set
 `PUBLIC_URL`, the agent fronts 443 directly, the relay dials in as it does for
 the hosted fleet.
 
+## Certificate issuance: who holds what
+
+Every app-zone certificate (`<label>.app.enclave.host`) is minted for a private
+key that is generated **inside the CVM** and never leaves it. What moved is the
+CA account: until now each box carried the fleet's ZeroSSL EAB pair (Tinfoil
+secrets on the hosted fleet, `metal/config.json` -> fw_cfg on metal) and ran
+its own ACME client. That put the platform's CA credential in an
+operator-readable file on every seller box, and left nobody in a position to
+pace the fleet against the CA rate limits (Let's Encrypt's 50 certificates per
+registered domain per week is shared by every seller).
+
+| holds | where | what it can do |
+|---|---|---|
+| the private key | the CVM (tmpfs) | nothing leaves; the CSR is built in-guest |
+| the CA account (ZeroSSL EAB, Let's Encrypt account) | the API relay, `/etc/nan-relay/api-relay.env` (`ACME_EAB_KID`/`ACME_EAB_HMAC`), accounts persisted encrypted in the relay data dir | order a certificate for a CSR it was handed; it signs nothing and terminates no app TLS |
+| `CERTS_KEY` = HMAC-SHA256(fleet `SECRET`, `"enclave certs v1"`) | the relay env (derived key only, never the raw `SECRET`) | verify that a request came from a fleet box |
+| the operator key (`registryKey`) | the CVM | sign `enclave-certs-issue:<name>:<endpoint>:<ts>`; the relay checks it against the on-chain lease holder for the name's deployment |
+| `DNS_TXT_KEY` | the relay (it already has it for the dns-01 push) | answer `_acme-challenge` for names in the platform zones only |
+
+The service issues **only** for `<label>.app.enclave.host` (and the TCP zone if
+configured), only when the requesting enclave holds that deployment's live
+lease, and caches by `(name, SPKI)` so a restart with the same key costs no
+issuance. Customer domains keep the existing in-enclave path.
+
+**Config on a metal box.** `certsApi` (default: the API relay origin derived
+from `relayUrl`, i.e. `https://api.enclave.host`) is all a first-party box
+needs. Remove `acmeEabKid`/`acmeEabHmac` from `config.json`: the launcher no
+longer forwards them unless `acmeBringYourOwn: true` is also set (a seller
+minting from their own free ZeroSSL account), and logs a warning when it drops
+them. The fw_cfg file is 0600 since eed7f2fd because it carried them; with
+them gone it carries the registry key and the fleet secret only.
+
+**Rollout order** (each step is safe with the previous ones in place; do not
+reorder, the per-box EAB pair is the fallback until the last step):
+
+1. **Deploy the relay** with the service configured, on nan
+   (`/etc/nan-relay/api-relay.env`):
+   - `CERTS_KEY` derived from the fleet `SECRET` (the raw secret stays off the
+     relay; this is the same derived-key pattern as the dns-relay TXT key):
+     ```sh
+     node -e 'console.log(require("node:crypto").createHmac("sha256", process.env.SECRET).update("enclave certs v1").digest("hex"))'
+     ```
+     run wherever the fleet `SECRET` is in the environment (the Tinfoil secret
+     value / `fleetSecret` in `metal/config.json`; they are the same string).
+   - `ACME_EAB_KID` / `ACME_EAB_HMAC`: the platform ZeroSSL pair, moved here
+     from `metal/config.json` / the Tinfoil secrets.
+   - `DNS_API` / `DNS_TXT_KEY`: already present (the dns-01 push).
+   Until this is done the route answers `503 certs_disabled` and every box
+   falls back to its in-guest client, so nothing changes yet.
+2. **Release the supervisor** (push to main): boxes that pick it up try
+   `CERTS_API` first and fall back to their own ACME slots on 503/unreachable.
+3. **Boxes restart on their schedule** (the metal auto-update timer waits for
+   idle; the hosted fleet repoints on release). Watch the relay log for
+   `certs: issued` lines per flavor.
+4. **Remove the per-box EAB pair**: delete `acmeEabKid`/`acmeEabHmac` from every
+   first-party `metal/config.json`, and drop `ACME_EAB_KID`/`ACME_EAB_HMAC` from
+   `enclaves/*/tinfoil-config.yml` (Tinfoil binds secrets at container
+   creation, so that is a rebind + relaunch, not a hot change). From here the
+   only copy of the CA credential is on the relay.
+
 ## What degrades without the fleet secrets (and stays off by default)
 
 - fleet deployment-secrets fetch (`SECRET`-HMAC with the relay): off
-- in-enclave ACME DNS-01 push (`SECRET`-HMAC with dns-relay): off; TLS-ALPN-01 via the tunnel replaces it
+- in-enclave ACME DNS-01 push (`SECRET`-HMAC with dns-relay): off; the platform certificate service (`certsApi`, authorized by the operator key's proof-of-lease, no fleet secret needed) or TLS-ALPN-01 via the tunnel replaces it
 - dedicated-IP egress/ingress (`EGRESS_RELAY_TOKEN`): off
 - on-chain registry + claim loop + earning: off until the seller sets
   `registryKey` (a funded operator EOA; a few dollars of Base ETH for gas) and

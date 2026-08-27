@@ -740,8 +740,43 @@ function need(n){ const v = process.env[n]; if(!v){ console.error("FATAL: missin
 // optional AS A PAIR (Let's Encrypt needs none), but half a pair is a config
 // error and skips the slot. acmeIssue walks the list in order, cooling off
 // slots that fail at the infrastructure level.
+//
+// SLOT 0, ahead of every in-enclave CA, is the PLATFORM CERTIFICATE SERVICE
+// (CERTS_API, e.g. https://api.enclave.host - the relay-owned
+// POST /v1/certs/issue). It serves ONLY names in our own zones:
+// <label>.APP_CERT_DOMAIN, and <label>.TCP_CERT_DOMAIN when that zone is
+// configured. For those the enclave mints the key and the PKCS#10 CSR exactly
+// as it does for a CA (buildCsr below), but POSTs the CSR to the relay instead
+// of running the ACME dance itself: the relay holds the CA accounts (ZeroSSL
+// with the platform EAB pair first, Let's Encrypt behind it), answers dns-01,
+// paces the rate limits that every seller shares, and hands back the chain.
+// The private key never leaves this CVM - the service sees a CSR and returns
+// a certificate, nothing else (relay/certs.js is the other half). Why: until
+// now the ZeroSSL EAB pair reached EVERY box as a fleet secret; the service
+// takes it off the boxes, and a single place that sees every order is the
+// only place that can pace Let's Encrypt's 50-per-registered-domain week.
+//
+// Slot order: platform service (own zones only) -> ACME_DIRECTORY (ZeroSSL,
+// EAB) -> ACME_DIRECTORY_2 -> ACME_DIRECTORY_3. A customer's domain is not in
+// our zones, so it never touches slot 0 and runs the in-enclave CAs unchanged.
+// A service REFUSAL (4xx) is name-level: the in-enclave slots run as if the
+// service did not exist, so nothing regresses while it rolls out. A 5xx /
+// network error / non-JSON reply cools the service slot off like a CA. A 202
+// (order in flight, or the CAs are cooling off behind the service) is
+// neither: the name waits retryAfterSec and asks again with the SAME key, and
+// no in-enclave CA is spent on it meanwhile.
 const APP_CERT_DOMAIN = (process.env.APP_CERT_DOMAIN || "").trim().replace(/^\*?\./, "").replace(/\.$/, "").toLowerCase(); // e.g. "app.enclave.host"
+const TCP_CERT_DOMAIN = (process.env.TCP_CERT_DOMAIN || "").trim().replace(/^\*?\./, "").replace(/\.$/, "").toLowerCase(); // optional second platform zone
 const DNS_API         = (process.env.DNS_API || "").trim().replace(/\/+$/, "");  // platform DNS daemon's TXT push API
+const CERTS_API       = (process.env.CERTS_API || "").trim().replace(/\/+$/, ""); // platform certificate service (relay); "" = slot absent
+// The service's fleet factor: HMAC(SECRET, "enclave certs v1"), the same
+// derived-key pattern as DNS_TXT_KEY and SECRETS_FETCH_KEY - the relay env
+// holds only this hex (CERTS_KEY=), never the fleet SECRET. Used as the HMAC
+// key VERBATIM (the hex string's bytes), exactly as dnsTxt uses DNS_TXT_KEY.
+const CERTS_KEY       = SECRET.length ? createHmac("sha256", SECRET).update("enclave certs v1").digest("hex") : "";
+// Slot 0 itself: shaped like a CA slot (host + downUntil) so the walker treats
+// it as one; .platform routes issuance to the service client.
+const ACME_PLATFORM   = CERTS_API ? { host: "platform", api: CERTS_API, platform: true, downUntil: 0 } : null;
 // Account contact, sent on every newAccount when set. Google Trust Services
 // REJECTS contactless registrations ("Accounts must have at least one
 // contact", found 2026-07-19 by scripts/acme-eab-check.mjs); ZeroSSL and
@@ -762,7 +797,19 @@ for (const suf of ["", "_2", "_3"]) {
   let host; try { host = new URL(directory).host; } catch { console.warn(`[acme] ACME_DIRECTORY${suf}: bad URL - slot skipped`); continue; }
   ACME_CAS.push({ directory, host, eabKid, eabHmac, dir: null, account: null, nonce: null, downUntil: 0 });
 }
-const ACME_ENABLED = !!(ACME_CAS.length && APP_CERT_DOMAIN && DNS_API);
+// On with the in-enclave CAs (a slot + the DNS daemon) OR the platform service
+// alone: a box that holds no EAB pair and no DNS_TXT_KEY - the end state once
+// the service is everywhere - still certifies its app-zone names through it.
+const ACME_ENABLED = !!(APP_CERT_DOMAIN && ((ACME_CAS.length && DNS_API) || ACME_PLATFORM));
+// Is this a name the platform service may issue for? Exactly one label under
+// one of OUR zones - the relay refuses anything else (a customer domain, an
+// apex, a deeper name) with a 403 that never reaches a CA, so asking would
+// only spend a round trip.
+const CERT_ZONES = [APP_CERT_DOMAIN, TCP_CERT_DOMAIN].filter(Boolean);
+function platformCertName(name) {
+  const n = String(name || "").toLowerCase();
+  return CERT_ZONES.some((z) => n.endsWith(`.${z}`) && /^[a-z0-9-]+$/.test(n.slice(0, -(z.length + 1))));
+}
 
 // Which context an in-enclave TLS termination point serves for a client's SNI
 // (pure - the runtime sniSelect below the TLS bridge feeds it live contexts;
@@ -877,6 +924,182 @@ function buildCsr(name) {
            keyPem: privateKey.export({ type: "pkcs8", format: "pem" }) };
 }
 
+// ---- issuance slot walking + the platform service client (pure: every
+//      network and signing dependency is injected, so ACME_SELFTEST=platform
+//      can drive the real client against a mock service and stub CAs) --------
+// Errors that indict the SLOT rather than the name carry .caLevel: the walker
+// cools that slot off and fails over. A .deferMs error is the platform's 202:
+// neither the slot nor the name is at fault, the answer is "ask again later".
+const caErr    = (msg) => Object.assign(new Error(msg), { caLevel: true });
+const deferErr = (msg, deferMs) => Object.assign(new Error(msg), { deferMs });
+// EVERY issuance network call is bounded. node's fetch has no default timeout,
+// and the whole failover design reads an ERROR to cool a slot off and try the
+// next one — so a CA that accepts the connection and never answers (an
+// overloaded LB, a black-holing middlebox: the shape the 2026-07-18 outage
+// took hours before the endpoint died outright) would hang the issuance
+// forever and the failover would never fire. acmePoll's own 90s deadline
+// can't save it either: that deadline is only checked between posts. An
+// AbortError arrives at the existing catch sites, which already mark it
+// caLevel — a timeout indicts the CA, exactly like a refused connection.
+// (dohQuery in this same file has always been bounded; ACME was the sibling
+// that wasn't.)
+const ACME_HTTP_MS = parseInt(process.env.ACME_HTTP_TIMEOUT_MS || "20000", 10);
+const acmeFetch = (url, init = {}, ms = ACME_HTTP_MS) =>
+  fetch(url, { ...init, signal: AbortSignal.timeout(ms) });
+
+// The platform service's request signature, two factors (the secrets-fetch
+// rule, relay/secrets.js says why): the fleet HMAC proves "a holder of the
+// fleet key", the operator signature proves "THIS endpoint" - without it any
+// fleet member could name another box's endpoint and be issued a certificate
+// for a deployment that box holds the lease on. personal_sign (EIP-191), so
+// the operator key's signature can never be replayed as a transaction.
+//   sig   = HMAC-SHA256(CERTS_KEY, "<name>:<endpoint>:<ts>") hex
+//   opSig = personal_sign("enclave-certs-issue:<name>:<endpoint>:<ts>")
+const certsSigTuple  = (name, endpoint, ts) => `${name}:${endpoint}:${ts}`;
+const certsOpSigText = (name, endpoint, ts) => `enclave-certs-issue:${name}:${endpoint}:${ts}`;
+const certsSig = (name, endpoint, ts, key = CERTS_KEY) =>
+  createHmac("sha256", key).update(certsSigTuple(name, endpoint, ts)).digest("hex");
+// A key minted for a deferred (202) order is KEPT and re-presented on the
+// retry: the service caches by (name, SPKI) and finalizes the in-flight order
+// with the CSR it holds, so a fresh key per attempt would miss the cache and
+// spend a second issuance on the same name. Bounded: an hour, then re-mint.
+const PLATFORM_PENDING_MS = 3600_000;
+// Ask the platform service for a certificate for `name`: mint the key + CSR
+// in-CVM, POST the CSR with both signatures, install the returned chain.
+//   200 -> the issued record (keyPem ours, certPem theirs)
+//   202 -> .deferMs error (retry at retryAfterSec, same key)
+//   4xx -> plain error: name-level, the in-enclave slots take over
+//   5xx / network / non-JSON -> .caLevel error: the slot cools off
+// deps: endpoint (our registered origin), keyHex (CERTS_KEY), signOp (async
+// text -> EIP-191 signature, or null when this box has no operator key),
+// pending (Map name -> { csrPem, keyPem, at }).
+async function acmeIssueViaPlatform(slot, name, { endpoint, keyHex = CERTS_KEY, signOp = null, pending = new Map() }) {
+  if (!endpoint) throw new Error(`platform: this enclave has not registered its endpoint yet`);
+  // The operator signature is the authorization (the relay checks it against
+  // the registry entry and the live lease); the fleet HMAC is an extra factor
+  // only first-party boxes can add. A box with neither an operator key nor a
+  // fleet SECRET has nothing the service would accept.
+  if (!signOp && !keyHex) throw new Error(`platform: this box has no operator key to sign with`);
+  let held = pending.get(name);
+  if (!held || Date.now() - held.at > PLATFORM_PENDING_MS) { const { csrPem, keyPem } = buildCsr(name); held = { csrPem, keyPem, at: Date.now() }; }
+  const ts  = Math.floor(Date.now() / 1000);
+  const sig = keyHex ? certsSig(name, endpoint, ts, keyHex) : "";
+  let opSig = "";
+  if (signOp) {
+    try { opSig = await signOp(certsOpSigText(name, endpoint, ts)); }
+    catch (e) { console.warn(`[acme] platform: operator co-sign failed (${e.message})${sig ? "; HMAC only" : ""}`); }
+  }
+  if (!opSig && !sig) throw new Error(`platform: could not sign the request for ${name}`);
+  let r;
+  try {
+    r = await acmeFetch(`${slot.api}/v1/certs/issue`, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, csr: held.csrPem, endpoint, ts, ...(sig ? { sig } : {}), ...(opSig ? { opSig } : {}) }) });
+  } catch (e) { throw caErr(`platform: ${e.message}`); }
+  const isJson = /json/.test(r.headers.get("content-type") || "");
+  const data = isJson ? await r.json().catch(() => null) : await r.text();
+  if (r.status === 202) {
+    pending.set(name, held);
+    const sec = Math.max(5, Math.min(3600, Number(data?.retryAfterSec) || 60));
+    throw deferErr(`platform: order for ${name} in flight, retry in ${sec}s`, sec * 1000);
+  }
+  if (r.status >= 500 || !isJson || !data)
+    throw caErr(`platform: HTTP ${r.status} ${isJson ? String(data?.error || "") : String(data).slice(0, 120)}`.trim());
+  if (r.status >= 400) {
+    pending.delete(name);                                     // a refusal ends this order; a retry starts fresh
+    throw new Error(`platform refused ${name}: ${r.status} ${data.error || "?"} ${data.message || ""}`.trim());
+  }
+  // The reply is trusted only as far as it checks out: the leaf must be for
+  // OUR key and OUR name, or the service (or whatever answered as it) is
+  // broken and cools off; the in-enclave CAs then issue instead.
+  const certPem = String(data.certPem || "");
+  let leaf;
+  try { leaf = new X509Certificate(certPem); } catch (e) { throw caErr(`platform: reply carries no certificate (${e.message})`); }
+  if (!leaf.checkPrivateKey(createPrivateKey(held.keyPem))) throw caErr(`platform: certificate for ${name} is not for our key`);
+  if (!leaf.checkHost(name)) throw caErr(`platform: certificate is not for ${name} (${leaf.subject.replace(/\n/g, " ")})`);
+  pending.delete(name);
+  const nb = new Date(leaf.validFrom).getTime(), na = new Date(leaf.validTo).getTime();
+  return { keyPem: held.keyPem, certPem, expiresAt: na,
+           renewAt: nb + Math.round((na - nb) * 2 / 3),         // renew past 2/3 of lifetime (same rule as acmeIssueVia)
+           ctx: tls.createSecureContext({ key: held.keyPem, cert: certPem }),
+           issuer: `platform (${String(data.ca || "?")})`, cached: !!data.cached };
+}
+// Issue via the first slot that can: walk `slots` in order. A slot that fails
+// at the infrastructure level (.caLevel: directory/nonce/account trouble,
+// 5xx, network errors, HTML where problem+json belongs, validation that never
+// completes) cools off for cooldownMs so the strictly-serial pump doesn't
+// burn its 90s timeouts on that slot for every queued name; any success
+// clears the latch. Name-level rejections (authz became invalid, the platform
+// refused) also move on to the next slot - a second CA may validate what the
+// first refused - but indict only the name. Every slot cooling off = try them
+// all anyway: a stale latch must never be the reason issuance stops entirely.
+// A deferral (.deferMs, the platform's 202) ends the round at once: the order
+// is in flight behind the service, and spending an in-enclave CA on the same
+// name meanwhile would double-issue it.
+async function acmeWalkSlots(name, { slots, issueVia, cooldownMs }) {
+  if (!slots.length) throw new Error(`no issuance slot can serve ${name} (the platform service covers our own zones only)`);
+  const now = Date.now();
+  const live = slots.filter((ca) => !(ca.downUntil > now));
+  let lastErr = null;
+  const cooledNow = [];                      // slots this round put on cool-off
+  let networkProven = false;                 // a later slot got far enough to refuse the NAME
+  for (const ca of (live.length ? live : slots)) {
+    try {
+      const issued = await issueVia(ca, name);
+      ca.downUntil = 0;
+      return { ...issued, caHost: ca.host, issuer: issued.issuer || ca.host };
+    } catch (e) {
+      lastErr = e;
+      if (e.deferMs) throw e;
+      if (e.caLevel) {
+        ca.downUntil = Date.now() + cooldownMs;
+        cooledNow.push(ca);
+        console.warn(`[acme] ${ca.host}: ${e.message} - cooling this ${ca.platform ? "slot" : "CA"} off ${Math.round(cooldownMs / 60_000)}m`);
+      } else {
+        networkProven = true;
+      }
+    }
+  }
+  // Second chance. A slot that timed out THIS round while a later slot reached
+  // its account and order endpoints fine (and then refused only the name -- a
+  // rate limit, say) most likely hit a transient: egress not yet up at boot,
+  // a slow nonce. One immediate retry of that slot is cheap and is the
+  // difference between a certificate now and one after the cool-off.
+  if (networkProven && cooledNow.length) {
+    for (const ca of cooledNow) {
+      try {
+        const issued = await issueVia(ca, name);
+        ca.downUntil = 0;
+        console.log(`[acme] ${ca.host}: second chance succeeded for ${name}`);
+        return { ...issued, caHost: ca.host, issuer: issued.issuer || ca.host };
+      } catch (e) {
+        lastErr = e;
+        if (e.deferMs) throw e;
+        if (e.caLevel) ca.downUntil = Date.now() + cooldownMs;
+      }
+    }
+  }
+  throw lastErr;
+}
+// What a failed round means for the NAME's next attempt (the pump's policy,
+// pure so the seam can pin it). Three cases:
+//  - deferred (platform 202): retry exactly when the service said, and the
+//    failure count does NOT move - nobody refused the name;
+//  - a slot is cooling off: retry the moment it is back, not a per-name
+//    backoff on top of the next 10-minute tick (2026-08-26: ZeroSSL timed
+//    out, Let's Encrypt was at its weekly limit for the name, and a running
+//    app served no certificate for 17 minutes -- 10 of them waiting on the
+//    name's own backoff after both CAs were already usable again);
+//  - name-level rejection by every slot: the doubling backoff (5 min, capped
+//    at 1h) - that one is the name's fault.
+function acmeRetryPlan(e, prevFailures, coolingUntil, now = Date.now()) {
+  if (e?.deferMs) return { failures: prevFailures, nextAt: now + e.deferMs, why: "deferred" };
+  const failures = prevFailures + 1;
+  const cooling = coolingUntil.filter((t) => t > now);
+  const backoff = cooling.length ? Math.max(1000, Math.min(...cooling) - now + 1000)
+                                 : Math.min(3600_000, 300_000 * 2 ** (failures - 1));
+  return { failures, nextAt: now + backoff, why: cooling.length ? "cooling" : "backoff" };
+}
+
 // ---- self-test seam ---------------------------------------------------------
 // ACME_SELFTEST=csr|cas|sni|vectors prints the helpers' outputs as one JSON line
 // and exits BEFORE any boot side effect (nothing above this point opens a
@@ -889,8 +1112,57 @@ if (process.env.ACME_SELFTEST) {
     console.log(JSON.stringify({ name, csrPem, keyPem }));
   } else if (process.env.ACME_SELFTEST === "cas") {
     // the parsed CA slot list, secrets reduced to presence bits
-    console.log(JSON.stringify({ enabled: ACME_ENABLED,
+    console.log(JSON.stringify({ enabled: ACME_ENABLED, platform: !!ACME_PLATFORM,
       cas: ACME_CAS.map(({ directory, host, eabKid }) => ({ directory, host, eab: !!eabKid })) }));
+  } else if (process.env.ACME_SELFTEST === "platform") {
+    // The platform certificate service client, end to end against a MOCK
+    // service (CERTS_API points at the test's server) with stub in-enclave CA
+    // slots: ACME_SELFTEST_PLATFORM = { name, endpoint, opKey?, cooldownMs?,
+    // rounds?, cas: [{ host, outcome: "ok"|"caErr"|"nameErr" }] }. Each round
+    // walks the slots once (the platform slot first when the name is in our
+    // zones) and reports what happened; the pending-key map is shared across
+    // rounds so a 202-then-200 sequence proves the key is re-presented. Also
+    // prints the signed tuple / opSig text and the retry plan for a deferral,
+    // so the relay side's expectations can be checked against these strings.
+    const c = JSON.parse(process.env.ACME_SELFTEST_PLATFORM || "{}");
+    const name = c.name, endpoint = c.endpoint, ts = 1_700_000_000;
+    const signOp = c.opKey ? (text) => privateKeyToAccount(c.opKey).signMessage({ message: text }) : null;
+    const pending = new Map();
+    const cas = (c.cas || []).map((x) => ({ host: x.host, outcome: x.outcome, downUntil: 0 }));
+    const rounds = [];
+    for (let i = 0; i < (c.rounds || 1); i++) {
+      const tried = [];
+      const slots = [...(ACME_PLATFORM && platformCertName(name) ? [ACME_PLATFORM] : []), ...cas];
+      const issueVia = async (slot, n) => {
+        tried.push(slot.host);
+        if (slot.platform) return acmeIssueViaPlatform(slot, n, { endpoint, signOp, pending });
+        if (slot.outcome === "caErr")   throw caErr(`${slot.host} stub: down`);
+        if (slot.outcome === "nameErr") throw new Error(`${slot.host} stub: refused ${n}`);
+        const { keyPem } = buildCsr(n);
+        return { keyPem, certPem: "stub", expiresAt: 0, renewAt: 0, ctx: null };
+      };
+      let out;
+      try {
+        const r = await acmeWalkSlots(name, { slots, issueVia, cooldownMs: c.cooldownMs || 120_000 });
+        out = { outcome: "issued", issuer: r.issuer, caHost: r.caHost, cached: !!r.cached, expiresAt: r.expiresAt, renewAt: r.renewAt,
+                certPem: r.certPem, ctxOk: !!r.ctx, keyHeld: !!r.keyPem };
+      } catch (e) {
+        const plan = acmeRetryPlan(e, 0, slots.map((s) => s.downUntil), 1_000_000);
+        out = { outcome: e.deferMs ? "deferred" : "failed", error: e.message, deferMs: e.deferMs || 0, caLevel: !!e.caLevel, plan };
+      }
+      rounds.push({ ...out, tried, cooled: slots.filter((s) => s.downUntil > Date.now()).map((s) => s.host),
+                    pendingHeld: pending.has(name) });
+    }
+    console.log(JSON.stringify({
+      inZone: platformCertName(name), zones: CERT_ZONES,
+      tuple: certsSigTuple(name, endpoint, ts), opSigText: certsOpSigText(name, endpoint, ts),
+      certsKey: CERTS_KEY, sig: certsSig(name, endpoint, ts),
+      opSig: signOp ? await signOp(certsOpSigText(name, endpoint, ts)) : "",
+      // the pump's policy for the three failure shapes, at a fixed clock
+      plans: { deferred: acmeRetryPlan(deferErr("x", 45_000), 3, [], 1_000_000),
+               cooling:  acmeRetryPlan(new Error("x"), 3, [1_000_000 + 30_000], 1_000_000),
+               backoff:  acmeRetryPlan(new Error("x"), 1, [], 1_000_000) },
+      rounds }));
   } else if (process.env.ACME_SELFTEST === "sni") {
     // the SNI decision table (APP_CERT_DOMAIN from env): "acme" = the held CA
     // cert, "bridge" = the self-signed pair, "refuse" = fail closed.
@@ -5874,7 +6146,7 @@ if (TLS_BRIDGE_CTX) console.log(`[tls-bridge] in-enclave TLS termination enabled
 // self-signed pair, so a browser hitting /x/:id/https (or a validating client
 // on /tls/) gets a CA-signed cert whose key never left this CVM.
 // ============================================================================
-const acmeCerts = new Map();   // name -> { keyPem, certPem, ctx, expiresAt, renewAt }
+const acmeCerts = new Map();   // name -> { keyPem, certPem, ctx, expiresAt, renewAt, issuer, cached }
 const acmeRetry = new Map();   // name -> { failures, nextAt } (per-name backoff)
 const acmeQueue = [];          // names awaiting issuance, FIFO, deduped
 let _acmePumping = false;
@@ -5911,21 +6183,9 @@ const desiredCertNames = (rec) => {
 //     Every helper takes ONE slot from ACME_CAS and keeps its state - cached
 //     directory, account, nonce - ON that slot; accounts and nonces never mix
 //     across CAs. Errors that indict the CA rather than the name carry
-//     .caLevel: acmeIssue reads it to cool the slot off and fail over. -------
-const caErr = (msg) => Object.assign(new Error(msg), { caLevel: true });
-// EVERY ACME network call is bounded. node's fetch has no default timeout, and
-// the whole failover design reads an ERROR to cool a CA off and try the next
-// one — so a CA that accepts the connection and never answers (an overloaded
-// LB, a black-holing middlebox: the shape the 2026-07-18 outage took hours
-// before the endpoint died outright) would hang the issuance forever and the
-// failover would never fire. acmePoll's own 90s deadline can't save it either:
-// that deadline is only checked between posts. An AbortError arrives at the
-// existing catch sites, which already mark it caLevel — a timeout indicts the
-// CA, exactly like a refused connection. (dohQuery in this same file has always
-// been bounded; ACME was the sibling that wasn't.)
-const ACME_HTTP_MS = parseInt(process.env.ACME_HTTP_TIMEOUT_MS || "20000", 10);
-const acmeFetch = (url, init = {}, ms = ACME_HTTP_MS) =>
-  fetch(url, { ...init, signal: AbortSignal.timeout(ms) });
+//     .caLevel: acmeIssue reads it to cool the slot off and fail over.
+//     caErr, the bounded acmeFetch and the slot walker live up in the pure
+//     half (next to buildCsr) so the platform-service client shares them. ---
 async function acmeDir(ca) {
   if (!ca.dir) {
     let r; try { r = await acmeFetch(ca.directory); } catch (e) { throw caErr(`directory: ${e.message}`); }
@@ -6115,62 +6375,27 @@ async function acmeIssueVia(ca, name) {
     if (txtName) dnsTxt("DELETE", txtName, txtValue).catch((e) => console.warn(`[acme] TXT cleanup failed for ${txtName}: ${e.message}`));
   }
 }
-// Issue via the first CA that can: walk ACME_CAS in order. A slot that fails
-// at the infrastructure level (.caLevel: directory/nonce/account trouble,
-// 5xx, network errors, HTML where problem+json belongs, validation that never
-// completes) cools off for ACME_CA_COOLDOWN_MS so the strictly-serial pump
-// doesn't burn its 90s timeouts on that CA for every queued name; any success
-// clears the latch. Name-level rejections (authz became invalid) also move on
-// to the next CA - a second CA may validate what the first refused - but
-// indict only the name. Every slot cooling off = try them all anyway: a stale
-// latch must never be the reason issuance stops entirely.
-// Two minutes, not ten. The cool-off bounds how long a dead CA can hold the
-// serial pump's timeouts; two minutes bounds it well enough, and ten was the
-// dark window on 2026-08-26: ZeroSSL's first call after boot hung (egress was
-// still coming up), Let's Encrypt was at its weekly limit for the name, and a
-// running app served no certificate until ZeroSSL's cool-off ended.
+// Issue via the first slot that can (acmeWalkSlots, up in the pure half, is
+// the walk itself): the platform service first for a name in our own zones,
+// then ACME_CAS in order. Two minutes of cool-off, not ten. The cool-off
+// bounds how long a dead slot can hold the serial pump's timeouts; two
+// minutes bounds it well enough, and ten was the dark window on 2026-08-26:
+// ZeroSSL's first call after boot hung (egress was still coming up), Let's
+// Encrypt was at its weekly limit for the name, and a running app served no
+// certificate until ZeroSSL's cool-off ended.
 const ACME_CA_COOLDOWN_MS = parseInt(process.env.ACME_CA_COOLDOWN_MS || "120000", 10);
+const _platformPending = new Map();        // name -> { csrPem, keyPem, at }: the key behind a deferred (202) order
+const acmeSlotsFor = (name) => [...(ACME_PLATFORM && platformCertName(name) ? [ACME_PLATFORM] : []), ...ACME_CAS];
 async function acmeIssue(name) {
-  const now = Date.now();
-  const live = ACME_CAS.filter((ca) => !(ca.downUntil > now));
-  let lastErr = null;
-  const cooledNow = [];                      // CAs this round put on cool-off
-  let networkProven = false;                 // a later CA got far enough to refuse the NAME
-  for (const ca of (live.length ? live : ACME_CAS)) {
-    try {
-      const issued = await acmeIssueVia(ca, name);
-      ca.downUntil = 0;
-      return { ...issued, caHost: ca.host };
-    } catch (e) {
-      lastErr = e;
-      if (e.caLevel) {
-        ca.downUntil = Date.now() + ACME_CA_COOLDOWN_MS;
-        cooledNow.push(ca);
-        console.warn(`[acme] ${ca.host}: ${e.message} - cooling this CA off ${Math.round(ACME_CA_COOLDOWN_MS / 60_000)}m`);
-      } else {
-        networkProven = true;
-      }
-    }
-  }
-  // Second chance. A CA that timed out THIS round while a later CA reached its
-  // account and order endpoints fine (and then refused only the name -- a
-  // rate limit, say) most likely hit a transient: egress not yet up at boot,
-  // a slow nonce. One immediate retry of that CA is cheap and is the
-  // difference between a certificate now and one after the cool-off.
-  if (networkProven && cooledNow.length) {
-    for (const ca of cooledNow) {
-      try {
-        const issued = await acmeIssueVia(ca, name);
-        ca.downUntil = 0;
-        console.log(`[acme] ${ca.host}: second chance succeeded for ${name}`);
-        return { ...issued, caHost: ca.host };
-      } catch (e) {
-        lastErr = e;
-        if (e.caLevel) ca.downUntil = Date.now() + ACME_CA_COOLDOWN_MS;
-      }
-    }
-  }
-  throw lastErr;
+  return acmeWalkSlots(name, {
+    slots: acmeSlotsFor(name), cooldownMs: ACME_CA_COOLDOWN_MS,
+    issueVia: (slot, n) => slot.platform
+      // endpoint = the origin we registered under (PUBLIC_URL before the
+      // registry answers): the service checks the lease's runner against it,
+      // and the operator key that registered it co-signs, as for a secrets fetch
+      ? acmeIssueViaPlatform(slot, n, { endpoint: _advertisedEndpoint || PUBLIC_URL, pending: _platformPending,
+          signOp: REGISTRY_PK ? (text) => claimSigner().account.signMessage({ message: text }) : null })
+      : acmeIssueVia(slot, n) });
 }
 
 // --- coverage + lifecycle ----------------------------------------------------
@@ -6262,30 +6487,23 @@ async function acmePump() {
         acmeRetry.delete(name);
         // A customer's domain: tell the relay, which is the only path by which
         // the person who owns that name learns their certificate exists.
-        if (customDomainOwner(name)) _certReports.set(name, { ok: true, ca: issued.caHost });
-        console.log(`[acme] issued ${name} via ${issued.caHost} (expires ${new Date(issued.expiresAt).toISOString()})`);
+        if (customDomainOwner(name)) _certReports.set(name, { ok: true, ca: issued.issuer });
+        console.log(`[acme] issued ${name} via ${issued.issuer}${issued.cached ? " [cached]" : ""} (expires ${new Date(issued.expiresAt).toISOString()})`);
       } catch (e) {
-        const failures = (acmeRetry.get(name)?.failures || 0) + 1;
-        // Two kinds of failure, two kinds of wait. When a CA is cooling off
-        // (it timed out, 5xx'd, never validated) the NAME did nothing wrong,
-        // and the round may have failed only because the other CA refused the
-        // name (a rate limit, say): the right retry is the moment a cooling CA
-        // is back, not a per-name backoff on top of the next 10-minute tick.
-        // 2026-08-26: ZeroSSL timed out, Let's Encrypt was at its weekly limit
-        // for the name, and a running app served no certificate for 17
-        // minutes -- 10 of them waiting on the name's own backoff after both
-        // CAs were already usable again. Name-level rejection by every CA
-        // keeps the doubling backoff: that one is the name's fault.
-        const cooling = ACME_CAS.map((ca) => ca.downUntil).filter((t) => t > Date.now());
-        const backoff = cooling.length ? Math.max(1000, Math.min(...cooling) - Date.now() + 1000)
-                                       : Math.min(3600_000, 300_000 * 2 ** (failures - 1));
-        const nextAt  = Date.now() + backoff;
+        // Three kinds of failure, three kinds of wait (acmeRetryPlan says
+        // which and why): a platform deferral retries when the service said
+        // and counts no failure; a cooling slot retries the moment it is back;
+        // name-level rejection everywhere gets the doubling backoff.
+        const prev = acmeRetry.get(name)?.failures || 0;
+        const { failures, nextAt, why } = acmeRetryPlan(e, prev, acmeSlotsFor(name).map((ca) => ca.downUntil));
         acmeRetry.set(name, { failures, nextAt });
         acmeReconcileAt(nextAt);
+        const inSec = Math.round((nextAt - Date.now()) / 1000);
+        if (why === "deferred") { console.log(`[acme] deferred ${name}: ${e.message} (asking again in ${inSec}s)`); await sleepMs(2000); continue; }
         // …and the same on failure. "Your domain has no certificate and here is
         // the CA's reason" is the single most useful thing this feature can say.
         if (customDomainOwner(name)) _certReports.set(name, { ok: false, error: `${e.message} (attempt ${failures})` });
-        console.error(`[acme] failed ${name}: ${e.message} (retry #${failures} in ${Math.round(backoff / 1000)}s${cooling.length ? ", when a cooling CA is back" : ""})`);
+        console.error(`[acme] failed ${name}: ${e.message} (retry #${failures} in ${inSec}s${why === "cooling" ? ", when a cooling slot is back" : ""})`);
       }
       await sleepMs(2000);
     }
@@ -6300,7 +6518,8 @@ function startAcme() {                                        // called at the b
   acmeReconcile();                                            // boot coverage (loadState already ran)
   const t = setInterval(acmeReconcile, 600_000);              // renewals + anything the running-hook missed
   if (t.unref) t.unref();
-  console.log(`[acme] in-enclave issuance on: <label>.${APP_CERT_DOMAIN} via ${ACME_CAS.map((c) => c.host).join(" -> ")} (dns-01 through ${DNS_API})`);
+  const order = [...(ACME_PLATFORM ? [`platform service ${CERTS_API} (own zones)`] : []), ...ACME_CAS.map((c) => c.host)];
+  console.log(`[acme] in-enclave issuance on: <label>.${APP_CERT_DOMAIN} via ${order.join(" -> ")}${ACME_CAS.length ? ` (dns-01 through ${DNS_API})` : ""}`);
 }
 
 // --- SNI selection -----------------------------------------------------------

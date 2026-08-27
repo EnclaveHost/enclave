@@ -107,6 +107,56 @@ Notes:
     with per-source rate limits it bounds `/v1/claim-hint` and `/x`-miss
     amplification. `/x` owner misses are also negatively cached briefly.
 
+### Platform certificates (`certs.js`)
+
+`POST /v1/certs/issue` — a lease-holding enclave trades a **CSR** for a CA
+certificate on its deployment's own hostname (`<label>.app.enclave.host`, and
+`<label>.tcp.enclave.host` when `TCP_ZONE` is set). The private key is
+generated in the CVM and never leaves it; the relay sees the CSR and the
+certificate only, and signs nothing itself. What moves to the relay is the
+**CA account**: the ZeroSSL EAB pair stops being a fleet-wide secret on every
+box, one account per CA is registered once and kept encrypted in
+`AUTH_DATA_DIR/certs.json`, and the relay paces the shared CA rate limits that
+no single enclave can see. Full design: [`docs/platform-certs.md`](../docs/platform-certs.md).
+
+- **Refuses everything outside the platform's own zones** — a customer domain,
+  an apex, `api.`/`www.`/`mcp.`, a second-level label, a label that is not a
+  deployment id prefix — before any key or ledger work. Customer domains keep
+  the in-enclave ACME path and `/internal/tls-ask` (see `domains.js`).
+- **Auth** = the endpoint's registered operator signature (`opSig`, required, checked against the on-chain lease); the derived fleet key (`sig = HMAC(CERTS_KEY, "<name>:<endpoint>:<ts>")`) is an optional extra factor only first-party boxes can add, verified whenever sent
+  **and** the endpoint's own registry-operator signature (`opSig` over
+  `enclave-certs-issue:<name>:<endpoint>:<ts>`), single-use, ±10 min, then the
+  ledger must show `endpoint` holding the deployment's **live lease**
+  (`secrets.js` rule, shared via `fleet-auth.js`).
+- **CSR** is validated from the DER: exactly `CN == name` and one SAN
+  `dNSName == name`, EC P-256 or RSA ≥ 2048, no other attribute or extension,
+  verifying self-signature. A CSR for any other name is a 400.
+- **Replies**: `200 {name, certPem, notBefore, notAfter, ca, cached}`;
+  `202 {name, retryAfterSec}` while the order runs, the CAs are cooling off, or
+  the caller is paced; `4xx {error, message}`; `503 certs_disabled`.
+- **CAs**: ZeroSSL (`ACME_EAB_KID`/`ACME_EAB_HMAC`, the platform pair) first,
+  Let's Encrypt as the fallback — the supervisor's failover rules (CA-level
+  failure cools a slot 2 min, name-level refusal moves on, second chance for
+  a CA that timed out while the other proved the network). dns-01 is answered
+  through the DNS daemon's `/v1/txt` with `DNS_TXT_KEY`.
+- **Env** (`/etc/nan-relay/api-relay.env`; all four of the first row required,
+  else the route answers 503):
+
+  | variable | |
+  |---|---|
+  | `CERTS_KEY` | 64-hex, `HMAC-SHA256(fleet SECRET, "enclave certs v1")` — derived on a box that has `SECRET`; the relay never holds `SECRET` |
+  | `DNS_API`, `DNS_TXT_KEY` | the DNS daemon's push API and its derived key (same values the enclaves use) |
+  | `APP_ZONE` | `app.enclave.host`; `TCP_ZONE` optional |
+  | `ACME_EAB_KID`, `ACME_EAB_HMAC` | the platform ZeroSSL pair (one-time placement here; without it the ZeroSSL slot is skipped) |
+  | `ACME_CONTACT` | account contact (bare address gets `mailto:`) |
+  | `ACME_DIRECTORY`, `ACME_DIRECTORY_2` | directory overrides for the two slots (tests point them at mocks) |
+  | `AUTH_DATA_DIR` | the shared activation switch: accounts + cert cache live in `certs.json` there |
+
+  Deriving the key on a box that holds `SECRET`:
+  `node -e 'console.log(require("node:crypto").createHmac("sha256", process.argv[1]).update("enclave certs v1").digest("hex"))' "$SECRET"`.
+  `deploy.sh` never touches the env file (host state); add the keys and restart
+  `enclave-api-relay`.
+
 ### MCP server (`mcp.js`)
 
 The coding-agent front door, served from the same process: MCP over Streamable
