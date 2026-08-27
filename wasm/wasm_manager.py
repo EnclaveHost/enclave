@@ -2247,6 +2247,42 @@ SHIELDED_BACKEND_SO = os.environ.get("SHIELDED_BACKEND_SO", "/opt/enclave/shield
 SHIELDED_CALIB_DIR  = os.environ.get("SHIELDED_CALIB_DIR", "/opt/enclave/shielded/calib")
 
 
+def _shielded_profile_tail(rec: dict) -> None:
+    """Echo the backend's profile lines from a shielded tenant's log to our own
+    stdout, i.e. the guest console, i.e. the host's journal. The tenant's log is
+    a file the owner reads through /logs; the operator tuning the tier needs the
+    same few lines without a wallet. Counters and timings only -- the backend
+    prints nothing else under that prefix -- polled every 2 s, until the tenant
+    exits."""
+    path = rec.get("_log")
+    if not path:
+        return
+    def run():
+        pos = 0
+        buf = b""
+        while True:
+            time.sleep(2.0)
+            try:
+                with open(path, "rb") as f:
+                    f.seek(pos)
+                    chunk = f.read()
+                    pos = f.tell()
+            except OSError:
+                chunk = b""
+            if chunk:
+                buf += chunk
+                *lines, buf = buf.split(b"\n")
+                for ln in lines:
+                    if ln.startswith(b"[shielded] profile:"):
+                        print(f"[shielded] {rec['id']} {ln.decode('utf-8', 'replace')}", flush=True)
+            proc = rec.get("_proc")
+            if proc is not None and proc.poll() is not None:
+                return
+            if rec.get("status") in ("stopped", "failed", "removed"):
+                return
+    threading.Thread(target=run, daemon=True, name=f"shielded-profile-{rec.get('id')}").start()
+
+
 def _shielded_tenant_env(spec: dict, model_volume: str = "") -> dict:
     """The env a tenant runs with when its GPU share is a SHIELDED card.
 
@@ -2295,6 +2331,14 @@ def _shielded_tenant_env(spec: dict, model_volume: str = "") -> dict:
             print(f"[shielded] no calibration for {model_volume} at {cal}; "
                   f"the tenant will run its matmuls in the enclave", flush=True)
     env.setdefault("WASMTIME_LOG", "wasmtime_wasi_nn=debug")
+    # The backend's per-term profile (counters and milliseconds only, never a
+    # value that crossed or was masked), printed every 4096 exchanges to the
+    # tenant's stderr and echoed to the console by _shielded_profile_tail. It
+    # is the only way to learn where a token's time goes INSIDE the CVM: the
+    # host-loopback figure and the deployed one have disagreed, and the host
+    # cannot see the guest's split of wire, mask, verify and CPU half any
+    # other way.
+    env.setdefault("SHIELDED_PROFILE", "1")
     # The backend says what it registered and what it claimed. Cheap -- a line per
     # weight at graph build, nothing per token -- and without it a shielded tenant
     # that silently claims NOTHING is indistinguishable from one that is working:
@@ -4998,6 +5042,7 @@ def _spawn_and_wait(rec, ctx):
               f"{shielded_spec.get('endpoint')}"
               + (f", calibration for {vol}" if env.get("SHIELDED_CALIB") else ", NO calibration"),
               flush=True)
+        _shielded_profile_tail(rec)
     elif nn and NODE_HAS_GPU and gpu_share > 0:
         # MPS caps belong to tenants that BOUGHT a card slice. A 0-GPU nn
         # tenant gets none - on a CPU box there is no card at all, and on a GPU
