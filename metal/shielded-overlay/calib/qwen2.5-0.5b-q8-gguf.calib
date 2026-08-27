@@ -5,14 +5,14 @@ site blk.0.attn_output.weight 14 0
 site blk.0.attn_q.weight 10 0
 site blk.0.ffn_down.weight 9 0
 site blk.0.ffn_gate.weight 7 0
-site blk.1.attn_output.weight 11 32 2 24 130 136 244 291 328 471 493 504 535 557 559 568 599 621 623 625 628 632 663 685 696 727 749 760 791 813 824 855 877 888
-site blk.1.attn_q.weight 8 16 62 67 144 208 263 275 276 285 363 386 459 591 636 757 773 777
+site blk.1.attn_output.weight 10 0
+site blk.1.attn_q.weight 7 0
 site blk.1.ffn_down.weight 10 32 23 24 500 671 1344 1387 1445 1510 1570 1769 1883 1905 1970 2163 2340 2426 3081 3082 3144 3485 3691 3709 3727 3755 3915 4025 4176 4368 4540 4590 4662 4690
 site blk.1.ffn_gate.weight 7 0
 site blk.10.attn_output.weight 10 0
 site blk.10.attn_q.weight 8 0
 site blk.10.ffn_down.weight 10 16 139 882 1056 2030 2645 2884 3093 3181 3230 3897 4000 4052 4642 4656 4673 4786
-site blk.10.ffn_gate.weight 8 32 9 39 46 53 56 62 86 153 208 232 233 276 386 389 450 483 545 570 585 591 592 644 646 681 728 777 788 828 830 844 870 873
+site blk.10.ffn_gate.weight 7 0
 site blk.11.attn_output.weight 10 4 630 686 694 822
 site blk.11.attn_q.weight 7 4 56 62 208 483
 site blk.11.ffn_down.weight 9 0
@@ -57,20 +57,20 @@ site blk.20.attn_output.weight 9 0
 site blk.20.attn_q.weight 7 0
 site blk.20.ffn_down.weight 8 16 120 614 1356 1739 2133 2354 2793 2960 3462 3728 3853 3909 4247 4288 4315 4510
 site blk.20.ffn_gate.weight 6 0
-site blk.21.attn_output.weight 9 32 51 115 173 179 202 243 307 330 371 435 576 577 581 597 602 603 604 606 607 612 613 615 618 621 624 629 630 631 634 637 639 743
-site blk.21.attn_q.weight 8 32 31 42 56 62 106 133 144 173 208 238 276 285 289 337 386 449 483 494 502 559 591 629 646 693 694 709 712 757 762 777 822 830
+site blk.21.attn_output.weight 8 0
+site blk.21.attn_q.weight 7 0
 site blk.21.ffn_down.weight 7 4 556 567 3435 3486
 site blk.21.ffn_gate.weight 7 4 53 62 309 881
 site blk.22.attn_output.weight 9 0
 site blk.22.attn_q.weight 7 0
 site blk.22.ffn_down.weight 5 0
 site blk.22.ffn_gate.weight 7 0
-site blk.23.attn_output.weight 9 16 68 70 84 86 89 94 102 109 120 121 237 262 301 388 429 652
+site blk.23.attn_output.weight 8 0
 site blk.23.attn_q.weight 7 0
 site blk.23.ffn_down.weight 6 0
 site blk.23.ffn_gate.weight 6 4 53 62 570 800
 site blk.3.attn_output.weight 10 0
-site blk.3.attn_q.weight 8 32 31 53 56 62 67 70 100 144 173 208 263 276 285 350 363 386 459 483 494 502 559 570 591 646 675 694 709 757 773 777 801 844
+site blk.3.attn_q.weight 7 0
 site blk.3.ffn_down.weight 8 16 39 399 522 960 1163 1510 1820 2247 2401 2454 2465 3016 3773 4279 4387 4747
 site blk.3.ffn_gate.weight 7 4 62 208 570 801
 site blk.4.attn_output.weight 10 0
@@ -97,4 +97,4 @@ site blk.9.attn_output.weight 10 0
 site blk.9.attn_q.weight 7 4 56 62 208 483
 site blk.9.ffn_down.weight 9 0
 site blk.9.ffn_gate.weight 8 0
-site output.weight 5 32 53 58 62 75 85 190 221 241 315 333 363 410 439 485 493 531 578 601 646 662 674 690 728 741 773 783 827 842 861 876 877 895
+site output.weight 4 0

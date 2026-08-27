@@ -1159,3 +1159,50 @@ fix and is not built.
 - **Two contexts, one link.** The backend assumes one caller (graph_compute holds
   `sh_state::mu`, so it is serialised, not concurrent); an engine that ever ran two
   contexts' graphs on two threads would queue on that mutex.
+
+## 13.10 Follow-up the same evening: vsock, spinning, and a cost-aware calibrator
+
+The in-CVM shortfall of 13.8 needed a term that the host loopback does not have. The host
+has a vsock LOOPBACK (the launcher's own probes reach the worker as CID 1), so the
+section-12 backend and this one were run over it, at the tenant's 4 threads, against the
+same worker:
+
+| backend | TCP loopback | vsock loopback | wire term per 64 tokens (vsock) |
+|---|---|---|---|
+| section 12 | 179.9 tok/s | 165.1 | 204.1 ms |
+| this revision | 190.5 | 171.9 | 204.9 ms |
+
+Over vsock the two wire terms are IDENTICAL, though over TCP this revision's is 50 ms
+shorter: the worker-side savings are hidden under the transport. And the loopback is the
+cheap case -- 5-10 us per exchange over TCP (`xtimer`: tiny op 26 vs 20 us) -- while the
+guest's vhost-vsock path, from 13.8's numbers, costs on the order of 100 us per exchange:
+each blocking read there is a vCPU halt, an interrupt injected into an SEV-SNP guest, and
+the VM exits around it. That is the term, and it is not one the worker or the kernel can
+touch.
+
+The obvious answer, a bounded busy-poll before the blocking read (`SHIELDED_SPIN_US`,
+and `SHIELDED_WORKER_SPIN_US` on the host side), was built and measured on what is
+measurable here: a wash over TCP (-2 us) and a LOSS over vsock loopback (+10 to +24 us,
+the spinner starving the loopback transport's kernel worker on its own CPU). It ships OFF
+by default, as an in-guest experiment for the next deploy, not as a claim.
+
+What did move: the one new cost that survives any transport is the outlier term, and
+the calibrator's rule for it was cost-blind -- on lm_head, 32 held-back channels bought
+exactly one bit of exponent (peak 16.0M -> 14.1M at the reference exponent) for 4.9M
+TEE-side MACs per token. `shielded-calib` now bounds outliers at K/64 per site
+(`--max-k-div`; a site that cannot reach the headroom target within the budget gets the
+whole candidate list back, so wrap safety still outranks TEE time). On the 0.5B that
+takes the held-back channels from 432 to 208 across the model, lm_head to none, and
+eight small sites lose one bit; on the 0.8B-MTP 376 -> 248; the 4B is unchanged (its
+K is wide enough that the budget never binds).
+
+| calibration | decode tok/s (0.5B, 8 threads, same run) |
+|---|---|
+| unbounded outliers (13.3's) | 189.7 |
+| **K/64 budget** | **208.0** |
+
+Same completion text as the unbounded file and as the int64 in-enclave computation, 0
+verification failures. The 0.8B-MTP does not move (98.6 vs 98.4): the channels its budget
+removed were not on a wide site. This is a TEE-side saving, so it should carry into the CVM in
+full, unlike the worker's; the in-guest profile that would confirm it is still the
+missing measurement, and it needs the tenant's log channel, not another restart.

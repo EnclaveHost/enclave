@@ -255,6 +255,9 @@ static void peak_for_weight(const std::vector<int32_t> &xq, int64_t m, int64_t K
 static void usage() {
     fprintf(stderr,
         "usage: shielded-calib [--threads N] [--verbose] [--omit-tight] [--backend path.so ...] [--lib-dir DIR] <model.gguf> <out.calib>\n"
+        "  --max-k-div D allow at most K/D outlier channels per site (default 64): every held-back channel is\n"
+        "                a TEE-side multiply per output per row, so on a K=896 x N=151936 lm_head 32 channels\n"
+        "                cost 4.9 M MACs per token for one bit of exponent; 0 = no bound\n"
         "  --keep-tight  include sites that cannot reach the headroom target even at the smallest exponent\n"
         "                (default: such a site is left out and stays in the enclave; a wider input would\n"
         "                otherwise wrap the field there and abort the request)\n"
@@ -269,13 +272,15 @@ int main(int argc, char **argv) {
     capture cap;
     std::vector<std::string> backends;
     std::string lib_dir, model_path, out_path;
-    bool omit_tight = true;                        /* a site below TARGET stays in the enclave unless --keep-tight */
+    bool omit_tight = true;
+    int  max_k_div = 64;                            /* outliers per site <= K / max_k_div; see --max-k-div */                        /* a site below TARGET stays in the enclave unless --keep-tight */
     for (int i = 1; i < argc; i++) {
         const std::string a = argv[i];
         if (a == "--threads" && i + 1 < argc) threads = atoi(argv[++i]);
         else if (a == "--verbose") cap.verbose = true;
         else if (a == "--omit-tight") omit_tight = true;
         else if (a == "--keep-tight") omit_tight = false;
+        else if (a == "--max-k-div" && i + 1 < argc) max_k_div = std::max(1, atoi(argv[++i]));
         else if (a == "--backend" && i + 1 < argc) backends.push_back(argv[++i]);
         else if (a == "--lib-dir" && i + 1 < argc) lib_dir = argv[++i];
         else if (a[0] == '-') usage();
@@ -396,10 +401,24 @@ int main(int argc, char **argv) {
         }
         if (!ok) continue;
 
+        /* The outlier budget: at most K / max_k_div channels, because every
+         * held-back channel is a TEE-side multiply per output per row -- on the
+         * 0.5B's lm_head (K=896, N=151936) the unbounded rule took 32 channels
+         * for ONE bit of exponent (peak 16.0M -> 14.1M) at 4.9M MACs per token,
+         * 0.4 ms of a 4.6 ms token. A site that cannot reach the target within
+         * the budget gets the whole candidate list back (the second pass): wrap
+         * safety outranks TEE time. */
+        const int kbound = max_k_div > 0 ? (int)std::min<int64_t>(kmax, K / max_k_div) : kmax;
         result best; best.af = -1; best.k = 0; best.peak = 0;
+        for (int pass = 0; pass < 2; pass++) {
+        if (pass == 1) {
+            const bool tight0 = best.af == AF_MIN && (double)best.peak * ldexp(1.0, AF_MIN - REF_AF) > limit;
+            if (!tight0 || kbound >= kmax) break;
+        }
         for (int ki = 0; ki < N_K; ki++) {
             const int kk = K_CANDIDATES[ki];
             if (kk > kmax) break;
+            if (pass == 0 && kk > kbound) break;
             const int64_t p = peaks[ki];
             int af;
             if (p <= 0) af = AF_MAX;
@@ -415,6 +434,7 @@ int main(int argc, char **argv) {
              * ffn_down needs it. */
             const bool tight = af == AF_MIN && (double)p * ldexp(1.0, AF_MIN - REF_AF) > limit;
             if (best.af < 0 || af > best.af || (tight && af == best.af && p < best.peak)) { best.af = af; best.k = kk; best.peak = p; }
+        }
         }
         best.headroom = (double)SH_HALF_M / std::max(1.0, (double)best.peak * ldexp(1.0, best.af - REF_AF));
         if (best.headroom < 1.0 / TARGET) {
