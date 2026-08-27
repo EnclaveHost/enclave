@@ -734,7 +734,7 @@ test("a failure that lands after the 202 went out is still recorded: the next as
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test("a relay without CERTS_KEY (SECRETS_KEY seals the store) issues for opSig-only requests and refuses sig-bearing ones", async () => {
+test("a relay without CERTS_KEY (SECRETS_KEY seals the store) issues for opSig-only requests and for sig-bearing ones it cannot check (operator signature + lease authorize)", async () => {
   const saved = { ...process.env };
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "enclave-certs-nokey-"));
   delete process.env.CERTS_KEY;
@@ -747,8 +747,11 @@ test("a relay without CERTS_KEY (SECRETS_KEY seals the store) issues for opSig-o
   const go = async (b) => { const res = {}; await m.handleCerts({ method: "POST", body: b }, res, new URL("http://x/v1/certs/issue"), ctx); return res; };
   let r = await go(await body({ sig: "" }));
   assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(sanOf(r.body.certPem), `DNS:${NAME}`);
-  r = await go(await body());                                // a correct fleet HMAC this relay cannot check
-  assert.equal(r.code, 401); assert.equal(r.body.error, "sig_unverifiable");
+  r = await go(await body({ csr: await csrFor(NAME) }));    // a fleet HMAC this relay cannot check: not a refusal, opSig + lease carry it
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(sanOf(r.body.certPem), `DNS:${NAME}`);
+  // a WRONG opSig is still refused even though the sig is present: nothing checks sig here
+  r = await go(await body({ account: OTHER }));
+  assert.equal(r.code, 403); assert.equal(r.body.error, "wrong_operator");
   // the account blob is sealed under SECRETS_KEY and opens there, not under the main instance's CERTS_KEY
   const onDisk = JSON.parse(fs.readFileSync(path.join(dir, "certs.json"), "utf8"));
   const blob = onDisk.accounts[ca1.url + "/directory"];

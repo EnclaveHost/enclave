@@ -128,8 +128,9 @@ no single enclave can see. Full design: [`docs/platform-certs.md`](../docs/platf
   registered EnclaveRegistry operator) + optional `sig` =
   `HMAC-SHA256(hex-decode(CERTS_KEY), "<name>:<endpoint>:<spkiHash>:<ts>")`,
   sent only by a box whose SECRET is the real fleet secret and verified
-  whenever sent (a wrong one is 401, never ignored; a relay without
-  `CERTS_KEY` refuses sig-bearing requests and takes opSig-only ones).
+  whenever the relay holds `CERTS_KEY` (a wrong one is 401, never ignored);
+  a relay without `CERTS_KEY` cannot check it and authorizes by `opSig` +
+  lease alone, saying so once per endpoint in its journal.
   `spkiHash` = sha256 of the CSR key's DER SubjectPublicKeyInfo, computed by
   the relay from the CSR it parsed: the tuples authorize a name **for a key**.
   Every signature present is single-use (409 on replay), `ts` ±10 min, then

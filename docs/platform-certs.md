@@ -92,9 +92,11 @@ refusal never costs an issuance:
    fleet secret sends one (`FLEET_SECRET_PRESENT` on the supervisor side); a
    seller box registered with only its operator key sends none — the operator
    signature and the lease are the authorization. A sig that is sent must
-   verify (`401 bad_sig`), and a relay without `CERTS_KEY` refuses sig-bearing
-   requests outright (`401 sig_unverifiable`, logged once per endpoint) rather
-   than ignoring a factor it cannot check. `ts` within ±10 min (`422`).
+   verify (`401 bad_sig`). A relay without `CERTS_KEY` cannot check the factor
+   at all: it does NOT refuse such requests (that would lock first-party boxes
+   out of the platform account while their own CA path is the one failing);
+   the operator signature and the lease authorize them alone, and the relay
+   says so once per endpoint in its journal. `ts` within ±10 min (`422`).
    **Every** signature present is single-use — `opSig` always, `sig` when sent
    — so a captured request replays with neither factor dropped (`409`).
 4. **Operator key** — `opSig` must be a personal_sign of
@@ -193,8 +195,9 @@ node -e 'console.log(require("node:crypto").createHmac("sha256", process.argv[1]
 
 Then `systemctl restart enclave-api-relay` and look for
 `[certs] enabled — zones ... ; CAs zerossl -> letsencrypt ... fleet factor
-verified` in the journal (`fleet factor REFUSED (CERTS_KEY unset)` means the
-sealing root is `SECRETS_KEY` and first-party requests will be 401). The
+verified` in the journal (`fleet factor NOT CHECKED (CERTS_KEY unset …)` means
+the sealing root is `SECRETS_KEY` and first-party boxes are authorized by
+operator signature + lease only, without the fleet factor). The
 first issuance registers each CA account (`[certs] zerossl: account registered
 at ...`); after that the accounts are read from `certs.json`.
 

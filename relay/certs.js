@@ -745,7 +745,7 @@ export async function initCerts() {
   setInterval(sweep, 3600_000).unref?.();
   console.log(`[certs] enabled — zones ${zonesOf().join(", ")}; CAs ${CAS.map((c) => c.name).join(" -> ")}; `
     + `${Object.keys(store.data.certs).length} cached cert(s), ${Object.keys(store.data.accounts).length} account(s), `
-    + `${Object.keys(store.data.orders).length} order(s) in flight; fleet factor ${CERTS_KEY ? "verified" : "REFUSED (CERTS_KEY unset)"}`);
+    + `${Object.keys(store.data.orders).length} order(s) in flight; fleet factor ${CERTS_KEY ? "verified" : "NOT CHECKED (CERTS_KEY unset: operator signature + lease authorize)"}`);
 }
 // expired certificates, stale failure marks and abandoned orders leave the store
 function sweep() {
@@ -813,13 +813,16 @@ export async function handleCerts(req, res, u, ctx) {
   //    a permissionless seller's box (a metal box registered with only its
   //    operator key, no fleet SECRET) does not send one, and the authorization
   //    below rests on the operator signature + the on-chain lease anyway. A
-  //    sig that IS sent must verify; a wrong one is refused, never ignored —
-  //    and one this relay cannot verify (no CERTS_KEY placed) is refused too.
-  if (sig) {
-    if (!CERTS_KEY) {
-      if (!warnedNoKey.has(endpoint)) { warnedNoKey.add(endpoint); console.error(`[certs] ${endpoint} sends a fleet HMAC but this relay has no CERTS_KEY — refusing its sig-bearing requests`); }
-      return bad(ctx, res, req, 401, "sig_unverifiable", "This relay has no CERTS_KEY; send opSig only, or place CERTS_KEY on the relay.");
-    }
+  //    sig that IS sent must verify against a CERTS_KEY this relay holds; a
+  //    wrong one is refused, never ignored. A relay with NO CERTS_KEY cannot
+  //    check the factor at all, and refusing would only lock first-party
+  //    boxes out of the platform account while their own CA path is the one
+  //    that is failing (kryptos, 2026-08-27) — so, exactly as secrets.js
+  //    does, the factor is NOT CHECKED there: the request is authorized by
+  //    opSig + the lease alone, and the relay says so once per endpoint.
+  if (sig && !CERTS_KEY) {
+    if (!warnedNoKey.has(endpoint)) { warnedNoKey.add(endpoint); console.error(`[certs] ${endpoint} sends a fleet HMAC but this relay has no CERTS_KEY — factor not checked; authorized by operator signature + lease`); }
+  } else if (sig) {
     const want = Buffer.from(issueSig(CERTS_KEY, name, endpoint, spkiHash, ts), "hex");
     const got = HEX64.test(sig) ? Buffer.from(sig, "hex") : Buffer.alloc(32);
     if (!timingSafeEqual(want, got)) return bad(ctx, res, req, 401, "bad_sig", "The request HMAC does not verify.");
