@@ -324,8 +324,20 @@ const haltpollFwCfg = (() => {
   ].join(' ');
 })();
 
+// The fw_cfg file carries the fleet secret, the registry key and the ACME EAB
+// pair. It is OURS, not the world's: mode 0600, and the files of launchers
+// that are gone (a crash, a SIGKILL) are swept here rather than left in /tmp
+// forever -- 2026-08-27: three of them from earlier in the week, readable by
+// any local user. QEMU reads the file once at start-up.
 const fwCfgPath = path.join(os.tmpdir(), `metal-fwcfg-${process.pid}.json`);
-fs.writeFileSync(fwCfgPath, JSON.stringify(runtimeCfg));
+for (const f of fs.readdirSync(os.tmpdir()).filter((n) => /^metal-fwcfg-\d+\.json$/.test(n))) {
+  const pid = Number(n(f));
+  if (pid === process.pid) continue;
+  try { process.kill(pid, 0); continue; } catch {}   // still alive: leave it
+  try { fs.unlinkSync(path.join(os.tmpdir(), f)); } catch {}
+}
+function n(f) { return f.replace(/^metal-fwcfg-/, '').replace(/\.json$/, ''); }
+fs.writeFileSync(fwCfgPath, JSON.stringify(runtimeCfg), { mode: 0o600 });
 
 function baseArgs() {
   const a = [
