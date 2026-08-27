@@ -1382,3 +1382,26 @@ The transport tracks, all built, measured where the host can measure:
 | **shared-memory ring** (`SHM_ATTACH`, `SHIELDED_SHM`) | **viable under SEV-SNP**: a throwaway SNP guest mapping an `ivshmem` BAR did a gate\|up-sized handoff in **0.97 us** (write-back decrypted mapping) or 7.35 us (plain sysfs `resource2_wc`), against 152 on vsock; host-to-host against a GPU worker it removes the socket's share (tiny 15.5 -> 9.7 us; GPU-bound shapes unchanged). Prototype behind flags on both sides plus a launcher option, default off; the CVM image still needs the guest mapping and the manager's env. |
 
 The ring is the deployed tier's next 2x; everything else on this list is a few percent.
+
+### 13.14.1 v0.5.515 in the guest: int24 negotiated, fallback dormant, 112 us per exchange
+
+The merged release (int24 replies, the shm-ring code inert, contention fallback armed,
+the worker holding its 6.5 GiB budget) reached the app once ZeroSSL's ACME came back at
+07:25 UTC 2026-08-27 (the hostname was dark for two hours: ZeroSSL's endpoint was
+returning 502s/hanging and Let's Encrypt had the name at its weekly duplicate limit).
+Measured from outside on the same three prompts: **104.8, 106.2 and 114.3 tok/s**
+(v0.5.513: 87.9-103.2). The tenant's own counters, exchanges 8192 -> 12288 (83.6 tokens):
+
+| term | v0.5.515 (ms/token) | v0.5.513 (ms/token) |
+|---|---|---|
+| **wire, 49 round trips** | **5.50 (112 us each)** | 7.47 (152 us each) |
+| link total (mask + wire + unmask + rhs) | 6.23 | 7.99 |
+| graph_compute (link + CPU half) | 6.54 | ~9.9 |
+| pads missed / contention events | 0 / 0 | 0 / - |
+
+The 40 us per exchange came from the reply side: `FIELD_GEMM24` was negotiated by the
+guest (25% fewer reply bytes per exchange -- a wash on the host's loopback in 13.14,
+not in the CVM, where every byte crosses vhost-vsock), plus the worker no longer
+competing with a game for the card. The transport is still 84% of the link and the shm
+ring remains the next 2x; the fallback never tripped (`contended=0 events=0`), so the
+detector's absolute expectation is calibrated correctly for the idle card.
