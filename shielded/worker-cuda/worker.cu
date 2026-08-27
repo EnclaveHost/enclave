@@ -1319,6 +1319,7 @@ struct Conn {
             if (std::chrono::duration<double>(now - g_gmacs_at).count() > 20.0) {
                 const double g = measure_gmacs();
                 if (g > 0) { g_gmacs = g; g_gmacs_at = now; }
+                pool_trim();                          /* the benchmark's scratch, back to the driver (under g_gpu) */
             }
         }
         /* card_tflops is the RATED sizing figure; field_gmac_per_s is the MEASURED
@@ -2009,6 +2010,10 @@ int main(int argc, char **argv) {
         if (!selftest()) return 1;
     } catch (const Violation &v) { fprintf(stderr, "selftest: %s\n", v.why.c_str()); return 1; }
     g_gmacs = measure_gmacs(); g_gmacs_at = std::chrono::steady_clock::now();
+    /* The self-test and the benchmark leave their scratch cached in the pool;
+     * with nothing reserved that cache is memory the fleet counts as free and
+     * a neighbour cannot get (201 MB observed idle, 2026-08-27). Hand it back. */
+    { std::lock_guard<std::mutex> lk(g_gpu); pool_trim(); }
     if (g_gmacs > 0) logf("field GEMM throughput %.0f G-MAC/s (measured, masked path)", g_gmacs);
 
     int srv = socket(AF_INET, SOCK_STREAM, 0);
