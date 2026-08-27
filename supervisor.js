@@ -30,7 +30,7 @@ import { gunzipSync } from "node:zlib";
 import { execFileSync, execFile } from "node:child_process";
 import { promisify } from "node:util";
 const pexec = promisify(execFile);
-import { mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, renameSync, existsSync, chmodSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, renameSync, existsSync, chmodSync, statfsSync, readdirSync, unlinkSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { WebSocketServer, createWebSocketStream } from "ws";
@@ -719,9 +719,15 @@ function need(n){ const v = process.env[n]; if(!v){ console.error("FATAL: missin
 // (Node can mint keys but not CSRs; the ~90 lines of DER below are the whole
 // gap, same spirit as the hand-rolled ABI/DER encodings elsewhere).
 //
-// CVMs have no disk, so certs live in memory and re-issue on every boot -
-// that is deliberate (ZeroSSL has no rate ceilings that bite at our scale,
-// and a key that never touches storage is a key nobody can exfiltrate).
+// CVMs have no disk. Certs live in memory and, when ACME_STORE_DIR names a
+// MEMORY-BACKED tmpfs (the Tinfoil ramdisk that survives container restarts
+// within one CVM boot), in that tmpfs too - so a release repoint, which
+// restarts every container on the fleet, does not re-issue every name from
+// scratch (2026-08-27: ZeroSSL hung for hours, Let's Encrypt's 5-per-name
+// weekly duplicate limit was spent by the day's restarts, and kryptos served
+// NO certificate for any of its names). A key never touches host-backed disk:
+// the store refuses any directory that is not tmpfs (acmeStoreGuard). A full
+// CVM relaunch still starts empty, as before.
 //
 // The runtime half (account, orders, issuance queue, SNI contexts) lives next
 // to the TLS bridge below. These helpers sit up here, before ANY boot side
@@ -861,6 +867,7 @@ function sniDecide(servername, heldCtx, bridgeCtx, managed = false) {
   return { use: "bridge", ctx: bridgeCtx || undefined };
 }
 
+const statSyncMode = (p) => { try { return (statSync(p).mode & 0o777).toString(8); } catch { return null; } };   // self-test seam only
 // base64url without padding - the encoding EVERYTHING in JOSE/ACME speaks.
 const b64u     = (b) => Buffer.from(b).toString("base64url");
 const b64uJson = (o) => b64u(JSON.stringify(o));
@@ -968,7 +975,10 @@ const deferErr = (msg, deferMs) => Object.assign(new Error(msg), { deferMs });
 // caLevel — a timeout indicts the CA, exactly like a refused connection.
 // (dohQuery in this same file has always been bounded; ACME was the sibling
 // that wasn't.)
-const ACME_HTTP_MS = parseInt(process.env.ACME_HTTP_TIMEOUT_MS || "20000", 10);
+// 45 s, not 20: ZeroSSL answers in 0.2 s or in 25 s (2026-08-27, hours at
+// a time); at 20 s every call timed out, the slot cooled off and the walk
+// fell to Let's Encrypt, whose duplicate limit the day's restarts had spent.
+const ACME_HTTP_MS = parseInt(process.env.ACME_HTTP_TIMEOUT_MS || "45000", 10);
 const acmeFetch = (url, init = {}, ms = ACME_HTTP_MS) =>
   fetch(url, { ...init, signal: AbortSignal.timeout(ms) });
 // The platform service's POST gets its OWN bound, longer than a CA call's: the
@@ -1008,11 +1018,22 @@ const spkiHashOf = (keyPem) =>
 // CSR it holds, so a fresh key per attempt would miss the cache and spend a
 // second issuance on the same name. Stored BEFORE the POST for that reason.
 // Bounded: an hour, then re-mint. A refusal (4xx) or an install drops it.
+// Across a container RESTART the same cache does the work: an installed cert
+// is persisted with its key (ACME_STORE_DIR), so the restored name is never
+// re-asked at all - and if it is (past renewAt), the relay's (name, SPKI)
+// cache still cannot hit, since a renewal mints a fresh key; that is
+// intended, a renewal is a new issuance. Nothing else changes here.
 const PLATFORM_PENDING_MS = 3600_000;
 // How long a box waits when it is asked for a certificate before its registry
 // entry (and so its endpoint) exists: a deferral, not a failure, and short --
 // registration lands 10-60 s after boot.
 const PLATFORM_UNREGISTERED_DEFER_MS = () => 15_000 + Math.floor(Math.random() * 15_000);
+// ...but BOUNDED: a box whose registration never lands (operator key out of
+// gas, registry unreachable) must still get certificates from its own CAs,
+// so after this many deferrals per name the platform slot fails name-level
+// and the walk continues. Reset once the endpoint is known.
+const PLATFORM_UNREGISTERED_MAX_DEFERS = 4;
+const _unregisteredDefers = new Map();             // name -> deferrals so far
 // Ask the platform service for a certificate for `name`: mint the key + CSR
 // in-CVM, POST the CSR with both signatures, install the returned chain.
 //   200 -> the issued record (keyPem ours, certPem theirs)
@@ -1027,7 +1048,13 @@ async function acmeIssueViaPlatform(slot, name, { endpoint, keyHex = CERTS_KEY, 
   // endpoint is adopted when it confirms) is nobody's fault and over in
   // seconds: defer, so the in-enclave CAs are not walked for every held name
   // on every restart. No key is minted for it either.
-  if (!endpoint) throw deferErr(`platform: this enclave has not registered its endpoint yet`, PLATFORM_UNREGISTERED_DEFER_MS());
+  if (!endpoint) {
+    const n = (_unregisteredDefers.get(name) || 0) + 1;
+    _unregisteredDefers.set(name, n);
+    if (n <= PLATFORM_UNREGISTERED_MAX_DEFERS) throw deferErr(`platform: this enclave has not registered its endpoint yet`, PLATFORM_UNREGISTERED_DEFER_MS());
+    throw new Error(`platform: endpoint still unregistered after ${n - 1} deferrals; the in-enclave CAs take this round`);
+  }
+  _unregisteredDefers.delete(name);
   // The operator signature is the authorization (the relay checks it against
   // the registry entry and the live lease); the fleet HMAC is an extra factor
   // only a box holding the fleet SECRET can add (CERTS_KEY is "" otherwise).
@@ -1095,14 +1122,23 @@ async function acmeIssueViaPlatform(slot, name, { endpoint, keyHex = CERTS_KEY, 
 // A deferral (.deferMs, the platform's 202) ends the round at once: the order
 // is in flight behind the service, and spending an in-enclave CA on the same
 // name meanwhile would double-issue it.
-async function acmeWalkSlots(name, { slots, issueVia, cooldownMs }) {
+// A slot the CA has RATE-LIMITED for this name (rateLimitedUntil(ca) > now,
+// the per-name per-CA memory above) is not walked at all - unlike a cool-off,
+// a rate limit is a stated date, and asking earlier only spends the CA's
+// goodwill; every slot rate-limited = fail the round with the earliest date
+// (.allRateLimited), which the retry plan honours as the name's next attempt.
+async function acmeWalkSlots(name, { slots, issueVia, cooldownMs, rateLimitedUntil = () => 0, onRateLimited = null }) {
   if (!slots.length) throw new Error(`no issuance slot can serve ${name} (the platform service covers our own zones only)`);
   const now = Date.now();
-  const live = slots.filter((ca) => !(ca.downUntil > now));
+  const allLimited = (t) => { const untils = slots.map((ca) => rateLimitedUntil(ca)).filter((u) => u > t); return untils.length === slots.length ? Math.min(...untils) : 0; };
+  const limitedUntil = allLimited(now);
+  if (limitedUntil) throw Object.assign(rateLimitErr(`every slot is rate-limited for ${name} until ${new Date(limitedUntil).toISOString()}`, limitedUntil), { allRateLimited: true });
+  const usable = slots.filter((ca) => !(rateLimitedUntil(ca) > now));
+  const live = usable.filter((ca) => !(ca.downUntil > now));
   let lastErr = null;
   const cooledNow = [];                      // slots this round put on cool-off
   let networkProven = false;                 // a later slot got far enough to refuse the NAME
-  for (const ca of (live.length ? live : slots)) {
+  for (const ca of (live.length ? live : usable)) {
     try {
       const issued = await issueVia(ca, name);
       ca.downUntil = 0;
@@ -1110,6 +1146,7 @@ async function acmeWalkSlots(name, { slots, issueVia, cooldownMs }) {
     } catch (e) {
       lastErr = e;
       if (e.deferMs) throw e;
+      if (e.rateLimitedUntil && onRateLimited) onRateLimited(ca, e.rateLimitedUntil);
       if (e.caLevel) {
         ca.downUntil = Date.now() + cooldownMs;
         cooledNow.push(ca);
@@ -1138,6 +1175,10 @@ async function acmeWalkSlots(name, { slots, issueVia, cooldownMs }) {
       }
     }
   }
+  // the round ended on a rate limit and every slot now carries one: the
+  // name's next attempt is the EARLIEST of them, not the last CA's
+  const nowLimited = lastErr?.rateLimitedUntil ? allLimited(Date.now()) : 0;
+  if (nowLimited) { lastErr.rateLimitedUntil = nowLimited; lastErr.allRateLimited = true; }
   throw lastErr;
 }
 // What a failed round means for the NAME's next attempt (the pump's policy,
@@ -1151,14 +1192,148 @@ async function acmeWalkSlots(name, { slots, issueVia, cooldownMs }) {
 //    name's own backoff after both CAs were already usable again);
 //  - name-level rejection by every slot: the doubling backoff (5 min, capped
 //    at 1h) - that one is the name's fault.
+//  - rate-limited by EVERY slot that could serve the name (.allRateLimited):
+//    retry when the earliest CA said to, and the failure count does not move
+//    either - the CA named the date, a doubling backoff on top is just wrong.
+//    (One CA rate-limited and another refusing the name is the ordinary
+//    backoff: the limited CA is simply not walked until its date.)
 function acmeRetryPlan(e, prevFailures, coolingUntil, now = Date.now()) {
   if (e?.deferMs) return { failures: prevFailures, nextAt: now + e.deferMs, why: "deferred" };
+  if (e?.allRateLimited && e.rateLimitedUntil > now)
+    return { failures: prevFailures, nextAt: Math.min(e.rateLimitedUntil, now + ACME_RATE_LIMIT_CAP_MS), why: "ratelimited" };
   const failures = prevFailures + 1;
   const cooling = coolingUntil.filter((t) => t > now);
   const backoff = cooling.length ? Math.max(1000, Math.min(...cooling) - now + 1000)
                                  : Math.min(3600_000, 300_000 * 2 ** (failures - 1));
   return { failures, nextAt: now + backoff, why: cooling.length ? "cooling" : "backoff" };
 }
+
+// ---- the certificate store (ACME_STORE_DIR) --------------------------------
+// What survives a container restart: every issued { key, cert } as
+// <sha256(name)>.json, the ACME account per CA (accounts.json: a restart that
+// registers afresh each time also runs into Let's Encrypt's 10 new
+// registrations per IP per 3 h), and the per-name per-CA rate-limit
+// timestamps (ratelimits.json: a CA that said "retry after <date>" must not
+// be asked again before then just because we forgot). The rule is the
+// session key's (SESSION_KEY_DIR) and the TLS bridge's (TLS_BRIDGE_DIR):
+// MEMORY-BACKED ONLY, never host disk. Enforced, not assumed: acmeStoreGuard
+// accepts only a directory whose filesystem statfs reports as tmpfs (f_type
+// 0x01021994) -- a PATH tells nothing: inside the Tinfoil supervisor
+// container /mnt/ramdisk is the container's own overlay, not the CVM's
+// ramdisk; the ramdisk reaches the container only as the /var/lib/enclave
+// bind (enclaves/*/tinfoil-config.yml `volumes:`), and a bind of a tmpfs
+// statfs's as tmpfs. Anything else is refused - logged once, certs stay
+// memory-only - unless
+// ACME_STORE_ALLOW_DISK=1 says so explicitly (metal/dev: the metal guest is
+// initramfs-only, so "disk" there is RAM anyway). Empty ACME_STORE_DIR
+// disables the store. Files are 0600 in a 0700 dir, written tmp+rename.
+const ACME_STORE_DIR = process.env.ACME_STORE_DIR === undefined ? "/var/lib/enclave/acme" : process.env.ACME_STORE_DIR.trim();
+const ACME_STORE_ALLOW_DISK = /^(1|true|yes)$/i.test(process.env.ACME_STORE_ALLOW_DISK || "");
+const TMPFS_MAGIC = 0x01021994;                     // linux/magic.h TMPFS_MAGIC
+const ACME_RATE_LIMIT_CAP_MS = 7 * 86400e3;         // no CA limit we meet lasts longer than a week
+function acmeStoreGuard(dir, { allowDisk = false, statfs = (d) => statfsSync(d).type } = {}) {
+  if (!dir) return { ok: false, why: "disabled" };
+  const norm = String(dir).replace(/\/+$/, "") || "/";
+  if (allowDisk) return { ok: true, why: "ACME_STORE_ALLOW_DISK=1" };
+  let type;
+  try { type = statfs(norm); }
+  catch { try { type = statfs(dirname(norm)); } catch (e) { return { ok: false, why: `cannot statfs ${norm}: ${e.message}` }; } }
+  if (Number(type) === TMPFS_MAGIC) return { ok: true, why: "tmpfs" };
+  return { ok: false, why: `filesystem type 0x${Number(type).toString(16)} is not tmpfs (0x${TMPFS_MAGIC.toString(16)})` };
+}
+// Open the store, or null (refused / disabled / unusable), logging why once.
+// Every method swallows its own I/O errors: the store is a cache, and a
+// failure to persist must never fail an issuance.
+function acmeStoreOpen(dir, { allowDisk = ACME_STORE_ALLOW_DISK, statfs, log = console } = {}) {
+  const g = acmeStoreGuard(dir, { allowDisk, ...(statfs ? { statfs } : {}) });
+  if (!g.ok) {
+    if (g.why === "disabled") log.log("[acme] ACME_STORE_DIR is empty - certificates live in memory only, re-issued on every restart");
+    else log.warn(`[acme] REFUSING ACME_STORE_DIR=${dir}: ${g.why}. Private keys never touch host-backed disk; point it at a tmpfs (the Tinfoil ramdisk) or set ACME_STORE_ALLOW_DISK=1 if this is a metal/dev box whose "disk" is RAM. Certificates stay memory-only this boot.`);
+    return null;
+  }
+  try { mkdirSync(dir, { recursive: true, mode: 0o700 }); chmodSync(dir, 0o700); }
+  catch (e) { log.warn(`[acme] ACME_STORE_DIR=${dir} unusable (${e.message}) - certificates stay memory-only this boot`); return null; }
+  const certFile   = (name) => join(dir, `${createHash("sha256").update(String(name).toLowerCase()).digest("hex")}.json`);
+  const isCertFile = (f) => /^[0-9a-f]{64}\.json$/.test(f);
+  const ACCOUNTS = join(dir, "accounts.json"), RATELIMITS = join(dir, "ratelimits.json");
+  const readJson = (file) => { try { return JSON.parse(readFileSync(file, "utf8")); } catch { return null; } };
+  const writeAtomic = (file, obj) => {
+    const tmp = `${file}.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
+    try { writeFileSync(tmp, JSON.stringify(obj), { mode: 0o600 }); renameSync(tmp, file); }
+    catch (e) { log.warn(`[acme] store write ${file}: ${e.message}`); try { unlinkSync(tmp); } catch {} }
+  };
+  const rm = (file) => { try { unlinkSync(file); } catch {} };
+  const eachCert = (fn) => { let files = []; try { files = readdirSync(dir).filter(isCertFile); } catch {} for (const f of files) fn(join(dir, f), readJson(join(dir, f))); };
+  return {
+    dir,
+    putCert(name, rec) {
+      const { keyPem, certPem, expiresAt, renewAt, issuer = "", cached = false } = rec;
+      writeAtomic(certFile(name), { v: 1, name: String(name).toLowerCase(), keyPem, certPem, expiresAt, renewAt, issuer, cached, storedAt: Date.now() });
+    },
+    delCert(name) { rm(certFile(name)); },
+    // every usable record, ctx rebuilt; expired, corrupt and un-parseable ones
+    // are deleted on the way (a restored cert has to complete a handshake, so
+    // createSecureContext is the parse that counts)
+    loadCerts(now = Date.now()) {
+      const out = [];
+      eachCert((file, rec) => {
+        if (!rec || rec.v !== 1 || !rec.name || !rec.keyPem || !rec.certPem || !(rec.expiresAt > now)) return rm(file);
+        let ctx; try { ctx = tls.createSecureContext({ key: rec.keyPem, cert: rec.certPem }); } catch { return rm(file); }
+        out.push({ name: rec.name, keyPem: rec.keyPem, certPem: rec.certPem, expiresAt: rec.expiresAt, renewAt: rec.renewAt || 0,
+                   issuer: rec.issuer || "?", cached: !!rec.cached, ctx, restored: true });
+      });
+      return out;
+    },
+    certNames() { const n = []; eachCert((_, rec) => { if (rec?.name) n.push(rec.name); }); return n; },
+    prune(keep) { let n = 0; eachCert((file, rec) => { if (!rec?.name || !keep.has(rec.name)) { rm(file); n++; } }); return n; },
+    // one account per CA directory URL: { kid, keyPem (pkcs8) }
+    loadAccount(directory) { const a = readJson(ACCOUNTS)?.[directory]; return a?.kid && a?.keyPem ? a : null; },
+    saveAccount(directory, acct) { writeAtomic(ACCOUNTS, { ...(readJson(ACCOUNTS) || {}), [directory]: { kid: acct.kid, keyPem: acct.keyPem, savedAt: Date.now() } }); },
+    forgetAccount(directory) { const all = readJson(ACCOUNTS) || {}; delete all[directory]; writeAtomic(ACCOUNTS, all); },
+    // "<name>|<ca host>" -> ms timestamp; past entries fall away on load and save
+    loadRateLimits(now = Date.now()) {
+      const m = new Map();
+      for (const [k, v] of Object.entries(readJson(RATELIMITS) || {})) if (Number(v) > now) m.set(k, Number(v));
+      return m;
+    },
+    saveRateLimits(map, now = Date.now()) {
+      const o = {}; for (const [k, v] of map) if (v > now) o[k] = v;
+      writeAtomic(RATELIMITS, o);
+    },
+  };
+}
+// The one store handle, opened lazily (so the refusal is logged once, at the
+// first use) - a `let` up here, not a const in the runtime half, because the
+// hoisted account/issuance functions reach it from the self-test seam too.
+let _acmeStore;
+function acmeStore() { if (_acmeStore === undefined) _acmeStore = acmeStoreOpen(ACME_STORE_DIR); return _acmeStore; }
+
+// ---- rate-limit honesty ----------------------------------------------------
+// urn:ietf:params:acme:error:rateLimited says WHEN to come back: Let's Encrypt
+// puts "retry after 2026-09-03T10:04:00Z" in the detail and/or a Retry-After
+// header (seconds or an HTTP-date). Take the later of what was said, an hour
+// when nothing was, never more than a week - and remember it per (name, CA),
+// so that name skips that CA until then while the other CAs are still tried,
+// and a restart (the store) does not forget it. The pump's 5-minute doubling
+// stays for every other failure.
+const acmeRateLimits = new Map();                   // "<name>|<ca host>" -> nextAt ms
+const rateLimitKey = (name, host) => `${String(name).toLowerCase()}|${host}`;
+function acmeRetryAfterAt(detail, header, now = Date.now()) {
+  let at = 0;
+  const m = /retry after (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2}))/i.exec(String(detail || ""));
+  if (m) { const t = Date.parse(m[1]); if (t > at) at = t; }
+  const h = String(header || "").trim();
+  if (h) { const t = /^\d+$/.test(h) ? now + Number(h) * 1000 : Date.parse(h); if (Number.isFinite(t) && t > at) at = t; }
+  if (!(at > now)) at = now + 3600_000;
+  return Math.min(at, now + ACME_RATE_LIMIT_CAP_MS);
+}
+const rateLimitErr = (msg, until) => Object.assign(new Error(msg), { rateLimitedUntil: until });
+function acmeRateLimitSet(name, host, until, store = acmeStore()) {
+  acmeRateLimits.set(rateLimitKey(name, host), until);
+  store?.saveRateLimits(acmeRateLimits);
+  console.warn(`[acme] ${host}: rate-limited for ${name} until ${new Date(until).toISOString()} - that CA is skipped for this name till then`);
+}
+const acmeRateLimitedUntil = (name, host, now = Date.now()) => { const t = acmeRateLimits.get(rateLimitKey(name, host)) || 0; return t > now ? t : 0; };
 
 // ---- self-test seam ---------------------------------------------------------
 // ACME_SELFTEST=csr|cas|sni|vectors prints the helpers' outputs as one JSON line
@@ -1184,8 +1359,17 @@ if (process.env.ACME_SELFTEST) {
     // rounds so a 202-then-200 sequence proves the key is re-presented. Also
     // prints the signed tuple / opSig text and the retry plan for a deferral,
     // so the relay side's expectations can be checked against these strings.
+    // A stub CA may also answer "rateLimited" (with retryAfterDetail /
+    // retryAfterHeader, parsed by the real acmeRetryAfterAt) - the walker's
+    // per-(name, CA) memory is exercised through the real acmeRateLimitSet /
+    // acmeRateLimitedUntil pair, persisted to ACME_STORE_DIR when that is set
+    // (acmeRestore loads it first, exactly as boot does). With
+    // `restoreFirst`, the restored certs decide (as acmeReconcile does, by
+    // renewAt) whether a round is walked at all.
     const c = JSON.parse(process.env.ACME_SELFTEST_PLATFORM || "{}");
-    const name = c.name, endpoint = c.endpoint, ts = 1_700_000_000;
+    const name = c.name, endpoint = c.endpoint, ts = 1_700_000_000, RA_NOW = Date.parse("2026-08-28T00:00:00Z");
+    const heldCerts = new Map();
+    const restoredCount = c.restoreFirst ? acmeRestore(heldCerts) : 0;
     const signOp = c.opKey ? (text) => privateKeyToAccount(c.opKey).signMessage({ message: text }) : null;
     const pending = new Map();
     // the fixed-vector key: its SPKI hash goes into the printed tuple, its PEM
@@ -1201,19 +1385,33 @@ if (process.env.ACME_SELFTEST) {
         if (slot.platform) return acmeIssueViaPlatform(slot, n, { endpoint, signOp, pending });
         if (slot.outcome === "caErr")   throw caErr(`${slot.host} stub: down`);
         if (slot.outcome === "nameErr") throw new Error(`${slot.host} stub: refused ${n}`);
+        if (slot.outcome === "rateLimited") {
+          const x = (c.cas || []).find((y) => y.host === slot.host) || {};
+          throw rateLimitErr(`ACME 429 at ${slot.host}: urn:ietf:params:acme:error:rateLimited ${x.retryAfterDetail || ""}`,
+                             acmeRetryAfterAt(x.retryAfterDetail, x.retryAfterHeader));
+        }
         const { keyPem } = buildCsr(n);
         return { keyPem, certPem: "stub", expiresAt: 0, renewAt: 0, ctx: null };
       };
       let out;
+      if (c.restoreFirst && heldCerts.get(name)?.renewAt > Date.now()) {          // acmeReconcile's "held and still fresh"
+        rounds.push({ outcome: "held", issuer: heldCerts.get(name).issuer, tried, cooled: [], pendingHeld: pending.has(name), pendingSpki: "" });
+        continue;
+      }
       try {
-        const r = await acmeWalkSlots(name, { slots, issueVia, cooldownMs: c.cooldownMs || 120_000 });
+        const r = await acmeWalkSlots(name, { slots, issueVia, cooldownMs: c.cooldownMs || 120_000,
+          rateLimitedUntil: (ca) => acmeRateLimitedUntil(name, ca.host),
+          onRateLimited: (ca, until) => acmeRateLimitSet(name, ca.host, until) });
         out = { outcome: "issued", issuer: r.issuer, caHost: r.caHost, cached: !!r.cached, expiresAt: r.expiresAt, renewAt: r.renewAt,
                 certPem: r.certPem, ctxOk: !!r.ctx, keyHeld: !!r.keyPem };
       } catch (e) {
         const plan = acmeRetryPlan(e, 0, slots.map((s) => s.downUntil), 1_000_000);
-        out = { outcome: e.deferMs ? "deferred" : "failed", error: e.message, deferMs: e.deferMs || 0, caLevel: !!e.caLevel, plan };
+        const livePlan = acmeRetryPlan(e, 0, slots.map((s) => s.downUntil));          // the same at the real clock (rate-limit dates are absolute)
+        out = { outcome: e.deferMs ? "deferred" : "failed", error: e.message, deferMs: e.deferMs || 0, caLevel: !!e.caLevel, plan, livePlan,
+                rateLimitedUntil: e.rateLimitedUntil || 0, allRateLimited: !!e.allRateLimited };
       }
       rounds.push({ ...out, tried, cooled: slots.filter((s) => s.downUntil > Date.now()).map((s) => s.host),
+                    rateLimited: Object.fromEntries(slots.map((s) => [s.host, acmeRateLimitedUntil(name, s.host)]).filter(([, t]) => t)),
                     pendingHeld: pending.has(name), pendingSpki: pending.get(name)?.spkiHash || "" });
     }
     console.log(JSON.stringify({
@@ -1226,8 +1424,75 @@ if (process.env.ACME_SELFTEST) {
       // the pump's policy for the three failure shapes, at a fixed clock
       plans: { deferred: acmeRetryPlan(deferErr("x", 45_000), 3, [], 1_000_000),
                cooling:  acmeRetryPlan(new Error("x"), 3, [1_000_000 + 30_000], 1_000_000),
-               backoff:  acmeRetryPlan(new Error("x"), 1, [], 1_000_000) },
+               backoff:  acmeRetryPlan(new Error("x"), 1, [], 1_000_000),
+               ratelimited: acmeRetryPlan(Object.assign(rateLimitErr("x", 1_000_000 + 86400e3), { allRateLimited: true }), 3, [], 1_000_000),
+               ratelimitedCapped: acmeRetryPlan(Object.assign(rateLimitErr("x", 1_000_000 + 30 * 86400e3), { allRateLimited: true }), 3, [], 1_000_000) },
+      // retry-after parsing at a fixed clock: detail alone, header (seconds /
+      // HTTP-date) alone, both (the later wins), neither (an hour), a cap -
+      // the clock is 2026-08-28T00:00Z so the fixture's date is inside the week
+      retryAfter: { detail: acmeRetryAfterAt("too many certificates (5) already issued for this exact set of identifiers in the last 168h0m0s, retry after 2026-09-03T10:04:00Z: see https://letsencrypt.org/docs/rate-limits/", null, RA_NOW),
+                    headerSec: acmeRetryAfterAt("", "3600", RA_NOW),
+                    headerDate: acmeRetryAfterAt("", "Thu, 03 Sep 2026 10:04:00 GMT", RA_NOW),
+                    both: acmeRetryAfterAt("retry after 2026-09-03T10:04:00Z", "60", RA_NOW),
+                    neither: acmeRetryAfterAt("too many requests", "", RA_NOW),
+                    capped: acmeRetryAfterAt("retry after 2099-01-01T00:00:00Z", null, RA_NOW) },
+      restoredCount, held: [...heldCerts.keys()],
       rounds }));
+  } else if (process.env.ACME_SELFTEST === "store") {
+    // The tmpfs store, driven on a directory the test owns:
+    // ACME_SELFTEST_STORE = { dir, allowDisk?, fsType? (fakes statfs; absent =
+    // the real one), now?, certs: [{ name, keyPem, certPem, expiresAt,
+    // renewAt, issuer }], keep?: [names], account?: { directory, kid },
+    // rateLimits?: { "<name>|<host>": at } }. Reports the guard's verdict, what
+    // a fresh load restores (expired ones dropped), what a prune keeps, and the
+    // account / rate-limit round trips - plus every log line the store wrote.
+    const c = JSON.parse(process.env.ACME_SELFTEST_STORE || "{}");
+    const logs = [];
+    const log = { log: (m) => logs.push(m), warn: (m) => logs.push(m) };
+    const statfs = c.fsType !== undefined ? () => c.fsType : undefined;
+    const guard = acmeStoreGuard(c.dir, { allowDisk: !!c.allowDisk, ...(statfs ? { statfs } : {}) });
+    const store = c.guardOnly ? null : acmeStoreOpen(c.dir, { allowDisk: !!c.allowDisk, statfs, log });
+    const now = c.now || Date.now();
+    const out = { guard, opened: !!store, logs };
+    if (store) {
+      for (const rec of c.certs || []) store.putCert(rec.name, rec);
+      out.filesWritten = readdirSync(store.dir).sort();
+      out.modes = Object.fromEntries(readdirSync(store.dir).map((f) => [f, (statSyncMode(join(store.dir, f)))]));
+      out.dirMode = statSyncMode(store.dir);
+      const restored = store.loadCerts(now);
+      out.restored = restored.map((r) => ({ name: r.name, expiresAt: r.expiresAt, renewAt: r.renewAt, issuer: r.issuer, ctxOk: !!r.ctx, keyHeld: !!r.keyPem, restoredFlag: !!r.restored }));
+      out.filesAfterLoad = readdirSync(store.dir).filter((f) => /^[0-9a-f]{64}\.json$/.test(f)).length;
+      // the boot path proper: acmeRestore fills a certs map from the store
+      const certs = new Map();
+      out.restoreCount = acmeRestore(certs, now, store);
+      out.restoredNames = [...certs.keys()].sort();
+      if (c.keep) { out.pruned = store.prune(new Set(c.keep)); out.namesAfterPrune = store.certNames().sort(); }
+      if (c.account) {
+        const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
+        store.saveAccount(c.account.directory, { kid: c.account.kid, keyPem: privateKey.export({ type: "pkcs8", format: "pem" }) });
+        const back = store.loadAccount(c.account.directory);
+        out.account = { kid: back?.kid, keyMatches: !!back && createPublicKey(createPrivateKey(back.keyPem)).export({ format: "jwk" }).x === publicKey.export({ format: "jwk" }).x,
+                        other: store.loadAccount("https://nowhere.invalid/directory") };
+        store.forgetAccount(c.account.directory);
+        out.account.afterForget = store.loadAccount(c.account.directory);
+      }
+      if (c.rateLimits) {
+        store.saveRateLimits(new Map(Object.entries(c.rateLimits)), now);
+        out.rateLimits = Object.fromEntries(store.loadRateLimits(now));
+      }
+    }
+    console.log(JSON.stringify(out));
+  } else if (process.env.ACME_SELFTEST === "account") {
+    // The account half against a MOCK ACME directory (ACME_DIRECTORY_2 = the
+    // test's server; slot 2 needs no EAB) with the store at ACME_STORE_DIR:
+    // reports the kid and whether it was restored from the store or
+    // registered this run - the test's mock counts newAccount POSTs.
+    const ca = ACME_CAS[0];
+    let out;
+    try { const a = await acmeAccount(ca); out = { kid: a.kid, restored: !!a.restored, thumbprint: a.thumbprint }; }
+    catch (e) { out = { error: e.message, caLevel: !!e.caLevel }; }
+    out.stored = acmeStore()?.loadAccount(ca.directory)?.kid || null;
+    console.log(JSON.stringify(out));
   } else if (process.env.ACME_SELFTEST === "sni") {
     // the SNI decision table (APP_CERT_DOMAIN from env): "acme" = the held CA
     // cert, "bridge" = the self-signed pair, "refuse" = fail closed.
@@ -5333,6 +5598,12 @@ async function fetchDepSecrets(id) {
 const DOMAINS_API = (process.env.DOMAINS_API ?? SECRETS_API).trim().replace(/\/+$/, "");
 const _depDomains  = new Map();      // dep id -> string[] hostnames we may serve
 const _domainOwner = new Map();      // hostname -> dep id (reverse index: ACME + SNI + the Host check)
+// Until the first refresh has answered, "no deployment claims this custom
+// name" is not yet a fact - it is a gap in local state. A RESTORED custom
+// cert (ACME_STORE_DIR) is present at the very first reconcile, before the
+// relay has been asked, and must not be dropped for that. No DOMAINS_API =
+// there are no custom names to learn, so the answer is known at once.
+let _domainsKnown = !DOMAINS_API;
 const _certReports = new Map();      // hostname -> { ok, ca, error } queued for the next fetch
 
 function reindexDomains() {
@@ -5401,6 +5672,7 @@ async function refreshCustomDomains() {
   for (const rec of live) await fetchDepDomains(rec.id);
   for (const id of [...(_depDomains.keys())]) if (!live.some((r) => r.id.toLowerCase() === id)) _depDomains.delete(id);
   reindexDomains();
+  _domainsKnown = true;
   acmeReconcileSoon();
 }
 
@@ -6227,8 +6499,10 @@ if (TLS_BRIDGE_CTX) console.log(`[tls-bridge] in-enclave TLS termination enabled
 
 // ============================================================================
 // in-enclave ACME - RUNTIME HALF (the pure helpers live up top, next to the
-// self-test seam). One account per CA per boot, one cert per public HTTP app at
-// <label>.APP_CERT_DOMAIN, all held in memory: { keyPem, certPem, ctx }. The
+// self-test seam). One account per CA, one cert per public HTTP app at
+// <label>.APP_CERT_DOMAIN, held in memory: { keyPem, certPem, ctx } - and
+// mirrored into the tmpfs store (ACME_STORE_DIR, pure half) so a container
+// restart restores them before any issuance runs (acmeRestore). The
 // SNI hook below slots these contexts into the SAME TLS bridge that serves the
 // self-signed pair, so a browser hitting /x/:id/https (or a validating client
 // on /tls/) gets a CA-signed cert whose key never left this CVM.
@@ -6310,19 +6584,43 @@ async function acmePost(ca, url, payload, { useJwk = false } = {}) {
       if (attempt === 0 && data && /badNonce/.test(data.type || "")) continue;
       const e = new Error(`ACME ${r.status} at ${url}: ${isJson ? `${data?.type || "?"} ${data?.detail || ""}`.trim() : String(data).slice(0, 200)}`);
       if (r.status >= 500 || !isJson) e.caLevel = true;
+      const type = String(data?.type || "");
+      // the CA named a date: carry it, the walker remembers it per (name, CA)
+      if (/:rateLimited$/.test(type)) e.rateLimitedUntil = acmeRetryAfterAt(data?.detail, r.headers.get("retry-after"));
+      // a RESTORED account the CA no longer knows (deactivated, or the CA
+      // reset): forget it everywhere and cool the slot; the next round
+      // registers afresh instead of failing every name on this slot forever
+      if (/:accountDoesNotExist$/.test(type) && ca.account?.kid) {
+        console.warn(`[acme] ${ca.host}: account ${ca.account.kid} is gone (${type}) - forgetting it, re-registering next round`);
+        ca.account = null; if (!ca.platform) acmeStore()?.forgetAccount(ca.directory);
+        e.caLevel = true;
+      }
       throw e;
     }
     return { status: r.status, headers: r.headers, data };
   }
 }
-// One account per CA per boot (in-memory key; CVMs have no disk and EAB makes
-// re-registration free). The EAB inner JWS binds our fresh key to the
-// CA-issued credential; CAs that need no EAB (an eab-less fallback slot) just
-// skip the binding. The Location header is the kid all later JWS use. Failing
-// to establish an account is always CA-level: nothing issues without one.
+// One account per CA, kept in memory and in the tmpfs store (accounts.json,
+// keyed by directory URL) so a container restart reuses it: EAB makes ZeroSSL
+// re-registration free, but Let's Encrypt counts new registrations per IP (10
+// per 3 h) and a fleet restart is a burst of them. The EAB inner JWS binds our
+// key to the CA-issued credential; CAs that need no EAB (an eab-less fallback
+// slot) just skip the binding. The Location header is the kid all later JWS
+// use. Failing to establish an account is always CA-level: nothing issues
+// without one.
 async function acmeAccount(ca) {
   if (ca.account?.kid) return ca.account;
   const dir = await acmeDir(ca);
+  const saved = ca.platform ? null : acmeStore()?.loadAccount(ca.directory);
+  if (saved) {
+    try {
+      const key = createPrivateKey(saved.keyPem);
+      const j = createPublicKey(key).export({ format: "jwk" });
+      ca.account = { key, jwk: { crv: j.crv, kty: j.kty, x: j.x, y: j.y }, thumbprint: jwkThumbprint(j), kid: saved.kid, restored: true };
+      console.log(`[acme] ${ca.host}: account restored from ACME_STORE_DIR (${saved.kid})`);
+      return ca.account;
+    } catch (e) { console.warn(`[acme] ${ca.host}: stored account unusable (${e.message}) - registering afresh`); acmeStore()?.forgetAccount(ca.directory); }
+  }
   // a slot whose CA demands EAB but that carries none (secrets not set yet)
   // can never register - say so precisely instead of POSTing a doomed request
   if (dir.meta?.externalAccountRequired && !ca.eabKid)
@@ -6339,6 +6637,7 @@ async function acmeAccount(ca) {
     ca.account.kid = r.headers.get("location");
     if (!ca.account.kid) throw new Error("newAccount returned no Location (account kid)");
     console.log(`[acme] account registered at ${ca.account.kid}`);
+    if (!ca.platform) acmeStore()?.saveAccount(ca.directory, { kid: ca.account.kid, keyPem: privateKey.export({ type: "pkcs8", format: "pem" }) });
   } catch (e) { ca.account = null; e.caLevel = true; throw e; }
   return ca.account;
 }
@@ -6476,6 +6775,8 @@ const acmeSlotsFor = (name) => [...(ACME_PLATFORM && platformCertName(name) ? [A
 async function acmeIssue(name) {
   return acmeWalkSlots(name, {
     slots: acmeSlotsFor(name), cooldownMs: ACME_CA_COOLDOWN_MS,
+    rateLimitedUntil: (ca) => acmeRateLimitedUntil(name, ca.host),
+    onRateLimited: (ca, until) => acmeRateLimitSet(name, ca.host, until),
     issueVia: (slot, n) => slot.platform
       // endpoint = the origin we registered under (PUBLIC_URL before the
       // registry answers): the service checks the lease's runner against it,
@@ -6533,13 +6834,32 @@ function acmeReconcile() {
   // an issuance re-minting it. A custom name has a positive statement behind it
   // — the relay listed it — so its absence is information; an app-zone name's
   // absence is just a gap in local state.
+  const isAppZone = (name) => APP_CERT_DOMAIN && name.endsWith(`.${APP_CERT_DOMAIN}`);
   for (const name of [...acmeCerts.keys()]) {
     if (desired.has(name)) continue;
-    if (APP_CERT_DOMAIN && name.endsWith(`.${APP_CERT_DOMAIN}`)) continue;
+    if (isAppZone(name)) continue;
     if (_domainOwner.has(name)) continue;                     // still attached, just not running right now
+    if (!_domainsKnown) continue;                             // restored before the relay answered: not yet a verdict
     acmeCerts.delete(name);
     acmeRetry.delete(name);
+    acmeStore()?.delCert(name);
     console.log(`[acme] dropped ${name} — no deployment here claims it`);
+  }
+  // The STORE is pruned harder than memory: a file is kept only for a name
+  // some deployment on this box still owns (desired, or an app-zone name
+  // whose deployment is at least on the books, or an attached custom domain).
+  // The memory copy of an app-zone cert for a briefly-absent deployment stays
+  // (above); its file does not survive that absence into the next restart -
+  // the cost is one re-issuance in a rare case, against never holding a key
+  // for a name that left this box.
+  const store = acmeStore();
+  if (store) {
+    const keep = new Set(desired);
+    for (const r of deployments.values()) for (const n of desiredCertNames(r)) keep.add(n);
+    for (const n of _domainOwner.keys()) keep.add(n);
+    if (!_domainsKnown) for (const n of store.certNames()) if (!isAppZone(n)) keep.add(n);
+    const pruned = store.prune(keep);
+    if (pruned) console.log(`[acme] pruned ${pruned} stored certificate(s) no deployment here claims`);
   }
   if (acmeQueue.length) acmePump();
 }
@@ -6572,6 +6892,7 @@ async function acmePump() {
         const issued = await acmeIssue(name);
         acmeCerts.set(name, issued);
         acmeRetry.delete(name);
+        acmeStore()?.putCert(name, issued);                   // replaces the previous record for the name
         // A customer's domain: tell the relay, which is the only path by which
         // the person who owns that name learns their certificate exists.
         if (customDomainOwner(name)) _certReports.set(name, { ok: true, ca: issued.issuer });
@@ -6596,12 +6917,25 @@ async function acmePump() {
     }
   } finally { _acmePumping = false; }
 }
+// Boot restore from the tmpfs store: every unexpired cert (ctx rebuilt) goes
+// into acmeCerts, and the per-name per-CA rate-limit dates come back, so the
+// first reconcile sees the names as held and asks no CA for them. Pure
+// enough to share with the self-test seam (certs = the map to fill).
+function acmeRestore(certs = acmeCerts, now = Date.now(), store = acmeStore()) {
+  if (!store) return 0;
+  let n = 0;
+  for (const rec of store.loadCerts(now)) { if (!(certs.get(rec.name)?.expiresAt > rec.expiresAt)) { certs.set(rec.name, rec); n++; } }
+  for (const [k, v] of store.loadRateLimits(now)) if (!(acmeRateLimits.get(k) > v)) acmeRateLimits.set(k, v);
+  console.log(`[acme] restored ${n} certificate(s) from ACME_STORE_DIR (${store.dir})${acmeRateLimits.size ? `, ${acmeRateLimits.size} rate-limit date(s)` : ""}`);
+  return n;
+}
 function startAcme() {                                        // called at the bottom, with the other boot starters
   if (!ACME_ENABLED) {
     if (ACME_CAS.length || APP_CERT_DOMAIN || DNS_API || process.env.ACME_EAB_KID || process.env.ACME_EAB_HMAC)
       console.warn("[acme] partially configured - needs a complete CA slot (ACME_EAB_KID+ACME_EAB_HMAC, and/or ACME_DIRECTORY_2 with an optional EAB_2 pair) plus APP_CERT_DOMAIN and DNS_API; app-subdomain TLS stays off");
     return;
   }
+  acmeRestore();                                              // what the last container life held, BEFORE any issuance
   acmeReconcile();                                            // boot coverage (loadState already ran)
   const t = setInterval(acmeReconcile, 600_000);              // renewals + anything the running-hook missed
   if (t.unref) t.unref();

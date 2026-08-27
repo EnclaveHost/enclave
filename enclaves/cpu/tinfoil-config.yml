@@ -151,17 +151,32 @@ containers:
       # ZeroSSL) is failing, as in the 2026-07-18 blackout when the whole
       # ZeroSSL/Sectigo ACME plane became a maintenance page. Deliberately the
       # FALLBACK, not the primary: LE's 5-duplicate-certs/week per exact name
-      # vs our re-mint-per-restart model makes it an outage stopgap, not a
-      # daily driver. (Google Trust Services was evaluated as slot 2 and
+      # makes it an outage stopgap, not a daily driver (less so since
+      # ACME_STORE_DIR below stopped every restart from being a re-mint, but a
+      # CVM relaunch still is one). (Google Trust Services was evaluated as slot 2 and
       # stripped 2026-07-19: its EAB secrets are single-use per ACME account
       # while we register per boot, so durable arming needed GCP
       # service-account plumbing that wasn't worth carrying.)
       - ACME_DIRECTORY_2: "https://acme-v02.api.letsencrypt.org/directory"
+      # CERTIFICATE STORE: issued certs WITH their private keys, the ACME
+      # account per CA, and per-name rate-limit dates, persisted so a container
+      # restart (every release repoints the fleet = every box restarts) does
+      # not re-issue every name from scratch. 2026-08-27: ZeroSSL hung for
+      # hours, LE's 5-per-name weekly limit was spent by the day's restarts,
+      # and kryptos served NO certificate on any name. SAME RULE as
+      # SESSION_KEY_DIR / TLS_BRIDGE_DIR: memory-backed (the /mnt/ramdisk
+      # tmpfs), NEVER host disk - the supervisor refuses any other path unless
+      # ACME_STORE_ALLOW_DISK=1 (metal/dev only). Survives container restarts
+      # within one CVM boot, not a CVM relaunch.
+      - ACME_STORE_DIR: "/var/lib/enclave/acme"   # on the /var/lib/enclave bind = the CVM ramdisk (statfs tmpfs); /mnt/ramdisk INSIDE the container is its overlay
     # STATE_FILE (/var/lib/enclave/state.json) MAY be pointed at host-backed
     # storage for billing persistence. The in-enclave TLS-bridge PRIVATE KEY must
     # never touch host-backed disk, so it is minted on its OWN tmpfs path
     # (TLS_BRIDGE_DIR, default /mnt/ramdisk/enclave-tls), independent of STATE_FILE.
     # Keep that TLS key dir memory-backed even if STATE_FILE moves to a host volume.
+    # The session key (SESSION_KEY_DIR, /mnt/ramdisk/enclave-session) and the
+    # certificate store (ACME_STORE_DIR, /var/lib/enclave/acme: every app
+    # cert's PRIVATE KEY + the ACME account keys) follow the SAME rule.
     volumes:
       - /mnt/ramdisk/enclave-state:/var/lib/enclave
     secrets:

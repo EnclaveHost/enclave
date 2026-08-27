@@ -163,6 +163,33 @@ Only then does an order start.
 * A name that no CA will issue is `502 issue_failed` with the CA's reason, then
   backoff.
 
+## Restarts
+
+The enclave keeps what it was issued. Every installed certificate is written,
+**with its private key**, to `ACME_STORE_DIR` (`/var/lib/enclave/acme`, the
+Tinfoil ramdisk: memory-backed, survives a container restart within one CVM
+boot, gone on a CVM relaunch) as `<sha256(name)>.json`, alongside the ACME
+account per CA (`accounts.json`) and the per-name per-CA rate-limit dates
+(`ratelimits.json`). At boot `acmeRestore` reloads every unexpired record and
+rebuilds its TLS context *before* the first reconcile, which then sees the name
+as held and asks nobody for it (`[acme] restored N certificate(s) from
+ACME_STORE_DIR`); the account is reused rather than re-registered (Let's
+Encrypt also limits new registrations to 10 per IP per 3 h); and a CA that
+answered `rateLimited` with "retry after <date>" is not asked for that name
+before that date, though the other CAs still are. The store is a cache: a
+persist failure never fails an issuance, and a record for a name no deployment
+here claims is pruned at the next reconcile. The rule is the session key's and
+the TLS bridge's — **memory-backed only, never host disk**: the supervisor
+refuses any directory that is not under `/mnt/ramdisk` or `/dev/shm` or a
+`tmpfs` per `statfs`, unless `ACME_STORE_ALLOW_DISK=1` says so explicitly
+(metal/dev). This is what stopped 2026-08-27 from recurring: a release repoints
+the fleet, every container restarts, and before the store every name was
+re-issued from scratch — ZeroSSL hung for hours, Let's Encrypt's five
+duplicates per name per week had gone on the day's restarts, and a box served
+no certificate on any of its names. The platform slot benefits too: a
+restored name is never re-asked, and the relay's `(name, SPKI)` cache is only
+for the in-flight order the enclave's `pending` map re-presents.
+
 ## Configuring the API relay (nan)
 
 Everything lives in `/etc/nan-relay/api-relay.env` (host state; `deploy.sh`

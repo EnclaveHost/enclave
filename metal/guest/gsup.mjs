@@ -338,6 +338,11 @@ const supEnv = {
   // any deployment hostname on the platform, and on metal it lives in an
   // operator-readable file outside the CVM. So: registry key is enough.
   SECRETS_CAPABLE: (FLEET_SECRET || REGISTRY_KEY) ? '1' : '0',
+  // Certificates + keys survive a supervisor restart within one guest boot on
+  // the guest's own tmpfs (init mounts /mnt/ramdisk); the supervisor's default
+  // (/var/lib/enclave/acme) sits on the initramfs rootfs here, which its
+  // statfs guard rightly refuses. Nothing survives a CVM restart on metal.
+  ACME_STORE_DIR: '/mnt/ramdisk/enclave-acme',
   // Whether SECRET below IS the fleet secret (1) or this box's per-boot random
   // one (0). The platform certificate service's fleet HMAC (supervisor
   // CERTS_KEY) derives from the fleet secret and the relay refuses a sig that
