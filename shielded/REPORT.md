@@ -1440,3 +1440,13 @@ fleet's row went from `vramFreeGb 0.43` to `6.5` on the shielded block and
 `gpuShareFree 0.538` on availability -- the one tenant's 46% share booked, the
 rest free. The guest half (the reservation in HELLO, `vram_reserved_gb` in the
 verdict) rides the next CVM restart.
+
+The guest half went live at 08:44 UTC (v0.5.518-cpu). The first HELLO with a
+reservation (2.3 GiB for the 0.5B tenant's share) was **refused** -- a game held
+6.6 GB of the card at the time ("cannot reserve 2469606195: the card has
+276103168 free") -- and the tenant ran in the enclave until the game closed;
+its next request reconnected and the worker then held **2524 MiB** for the two
+placed tenants, at 75-93 tok/s from outside. The same restart carried the
+platform certificate service: both app names on the box were issued through
+it (ZeroSSL under the platform account, keys minted in the CVM) at 08:58 UTC,
+after ZeroSSL's own slowness cost a cool-off round.
