@@ -223,8 +223,21 @@ containers:
       # <label>.APP_CERT_DOMAIN minted INSIDE the CVM, served through the SNI
       # relay's /x/:id/https passthrough. DNS-01 TXT records publish to the
       # platform DNS daemon (nan-relay box), HMAC'd with SECRET. The feature
-      # activates only when the ACME_EAB_* secrets below are ALSO set.
+      # activates with CERTS_API (the platform certificate service) OR the
+      # ACME_EAB_* secrets below (the in-enclave client, now the fallback).
       - APP_CERT_DOMAIN: "app.enclave.host"
+      # PLATFORM CERTIFICATE SERVICE (relay/certs.js): the supervisor keeps
+      # the private key in the CVM, builds the CSR here, and POSTs it to
+      # {CERTS_API}/v1/certs/issue authenticated with the SECRET-derived certs
+      # key + the operator key (proof-of-lease checked on-chain by the relay).
+      # The relay holds the ONE platform CA account and paces the whole fleet
+      # against ZeroSSL/Let's Encrypt limits; it never sees a private key.
+      # Plain (measured) config, like SECRETS_API. NOTE: Tinfoil carries an
+      # instance's variables over on update, so a running box picks this up
+      # only on a re-create (stop -> start) or when added in the dashboard
+      # (kryptos, 2026-08-27: updated to a release with this line, still
+      # without CERTS_API, in-enclave issuance stuck behind a slow ZeroSSL).
+      - CERTS_API: "https://api.enclave.host"
       - DNS_API: "http://46.62.128.36:8153"              # dns-relay TXT push API (nan-relay box)
       # ACME account contact: some EAB CAs reject contactless registrations;
       # ZeroSSL/LE accept and ignore it. Never email-verified by any CA. Kept
@@ -264,8 +277,12 @@ containers:
       - WORKER_TOKEN             # shared bearer with the worker container (SAME Tinfoil secret); the supervisor sends it on worker-manager calls. Unset = not sent.
       - REGISTRY_PRIVATE_KEY     # EnclaveRegistry operator EOA (owns this enclave's entry, pays heartbeat gas on Base)
       - EGRESS_RELAY_TOKEN       # shared secret with the egress-relay box; same value fleet-wide (like SECRET). Unset = egress off.
+      # FALLBACK PATH ONLY (since the platform certificate service, CERTS_API
+      # above): with these the supervisor can still mint in-enclave via ZeroSSL
+      # when the service answers 503 certs_disabled or is unreachable. Drop
+      # them once the platform path is proven for this flavor.
       - ACME_EAB_KID             # ZeroSSL External Account Binding pair (ZeroSSL Developer page).
-      - ACME_EAB_HMAC            # Fleet-wide like SECRET; unset = in-enclave app TLS stays off.
+      - ACME_EAB_HMAC            # Fleet-wide like SECRET; unset = in-enclave ZeroSSL fallback off.
       # NOTE: the TLS-bridge key/cert are NOT secrets — they are minted
       # in-enclave at boot (see TLS_BRIDGE_DOMAIN above), so nothing outside
       # the CVM ever holds the private key. The ACME certs work the same way -
