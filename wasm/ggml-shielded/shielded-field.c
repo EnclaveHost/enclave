@@ -150,7 +150,73 @@ int sh_prepare_weight(const uint16_t *wd_raw, const int8_t *wq,
     return 0;
 }
 
+/* One row at exponent `cand`: the block scales carry the exponent (the SAME
+ * fp16 rounding as the reference form), then each block's d256 is formed ONCE
+ * and its 32 quants encoded with the reference's own float op order --
+ * d256 * q, + 0.5f, floorf -- which is what makes this bit-identical to
+ * sh_encode_weight_fixed while running ~20x faster: the reference re-derived
+ * the block scale for every element and could not vectorise. Returns 1 if
+ * every element fits the byte lane, 0 otherwise (the row is then retried one
+ * exponent lower). No FMA anywhere: this file is built -ffp-contract=off. */
+static int encode_row(const uint8_t *row, int64_t nb, int cand, int8_t *out) {
+    const float mul = ldexpf(1.0f, cand - SH_FRAC);
+    for (int64_t b = 0; b < nb; b++) {
+        uint16_t dh; memcpy(&dh, row + b * 34, 2);
+        const float v = sh_half_to_float(dh) * mul;
+        if (!isfinite(v)) return 0;
+        const float d256 = sh_half_to_float(sh_float_to_half(v)) * 256.0f;
+        const int8_t *q = (const int8_t *)(row + b * 34 + 2);
+        int8_t *o = out + b * SH_QK;
+        int bad = 0;
+        for (int t = 0; t < SH_QK; t++) {
+            const float prod = d256 * (float)q[t];
+            const float w = floorf(prod + 0.5f);
+            bad |= (w > (float)SH_WEIGHT_BYTE_LIMIT) | (w < -(float)SH_WEIGHT_BYTE_LIMIT);
+            o[t] = (int8_t)w;
+        }
+        if (bad) return 0;
+    }
+    return 1;
+}
+
+int sh_prepare_weight_rows_range(const void *blocks, int64_t K, int64_t N, int64_t j0, int64_t j1,
+                                 int8_t *w_fixed_out, int *f_w_out) {
+    if (K % SH_QK != 0) return -1;
+    const int64_t nb = K / SH_QK;
+    if (nb > 4096) return -1;                    /* K up to 131072 */
+    const uint8_t *base = (const uint8_t *)blocks;
+    for (int64_t j = j0; j < j1 && j < N; j++) {
+        const uint8_t *row = base + (size_t)j * nb * 34;
+        double peak = 0.0;
+        for (int64_t b = 0; b < nb; b++) {
+            uint16_t dh; memcpy(&dh, row + b * 34, 2);
+            const double d = fabs((double)sh_half_to_float(dh));
+            if (d == 0.0) continue;
+            const int8_t *q = (const int8_t *)(row + b * 34 + 2);
+            int amax = 0;
+            for (int t = 0; t < SH_QK; t++) { const int a = q[t] < 0 ? -q[t] : q[t]; if (a > amax) amax = a; }
+            const double a = d * amax;
+            if (a > peak) peak = a;
+        }
+        int f_w = SH_FRAC;
+        if (peak > 0.0) f_w = (int)floor(log2((double)SH_WEIGHT_BYTE_LIMIT / peak));
+        int chosen = -1;
+        for (int cand = f_w; cand > f_w - 8 && chosen < 0; cand--)
+            if (encode_row(row, nb, cand, w_fixed_out + (size_t)j * K)) chosen = cand;
+        if (chosen < 0) return -1;
+        f_w_out[j] = chosen;
+    }
+    return 0;
+}
+
 int sh_prepare_weight_rows(const void *blocks, int64_t K, int64_t N,
+                           int8_t *w_fixed_out, int *f_w_out) {
+    return sh_prepare_weight_rows_range(blocks, K, N, 0, N, w_fixed_out, f_w_out);
+}
+
+/* The reference form, element by element through sh_encode_weight_fixed: kept
+ * for the cross-check (prepare-selftest compares the two on random blocks). */
+int sh_prepare_weight_rows_ref(const void *blocks, int64_t K, int64_t N,
                            int8_t *w_fixed_out, int *f_w_out) {
     if (K % SH_QK != 0) return -1;
     const int64_t nb = K / SH_QK;

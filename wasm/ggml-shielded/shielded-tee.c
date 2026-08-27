@@ -321,7 +321,7 @@ sh_link *sh_link_open(const char *host, int port, bool verify, int *err) {
     pthread_cond_init(&l->need_refill, NULL);
     pthread_cond_init(&l->pool_filled, NULL);
     l->threads_env  = env_int("SHIELDED_REFILL_THREADS", -1, 0, 64);
-    l->pool_depth   = env_int("SHIELDED_POOL_DEPTH", 16, 1, 4096);
+    l->pool_depth   = env_int("SHIELDED_POOL_DEPTH", -1, -1, 4096);   /* -1: 4 x the widest max_m, at least 16 */
     l->refill_batch = env_int("SHIELDED_REFILL_BATCH", 4, 1, 64);
     l->target_ms    = env_int("SHIELDED_REFILL_TARGET_MS", 6, 1, 10000);
     l->warm_ms      = env_int("SHIELDED_WARM_MS", 5000, 0, 600000);
@@ -364,6 +364,36 @@ void sh_link_close(sh_link *l) {
     free(l);
 }
 
+/* fv_prepare over row ranges on several threads: the products of the ranges
+ * are independent and sum mod P2. Registration is serial in the engine's
+ * context creation, so this is the one place the link spends threads before
+ * the pool exists; the count follows the machine, not the pool policy. */
+typedef struct { const sh_simd *simd; const int8_t *W; int64_t K, N; const int64_t *s; int reps; int64_t *st; } fv_job;
+static void *fv_job_main(void *arg) { fv_job *j = (fv_job *)arg; j->simd->fv_prepare(j->W, j->K, j->N, j->s, j->reps, j->st); return NULL; }
+static void fv_prepare_parallel(sh_link *l, const int8_t *W, int64_t K, int64_t N, const int64_t *s, int reps, int64_t *st) {
+    long ncpu = sysconf(_SC_NPROCESSORS_ONLN);
+    int nt = ncpu > 1 ? (int)(ncpu > 16 ? 16 : ncpu) : 1;
+    if (N < 64 || (int64_t)nt * 8 > N) nt = 1;
+    if (nt == 1) { l->simd->fv_prepare(W, K, N, s, reps, st); return; }
+    fv_job *jobs = (fv_job *)calloc((size_t)nt, sizeof *jobs);
+    pthread_t *th = (pthread_t *)calloc((size_t)nt, sizeof *th);
+    int64_t *part = (int64_t *)malloc((size_t)nt * K * reps * sizeof(int64_t));
+    if (!jobs || !th || !part) { free(jobs); free(th); free(part); l->simd->fv_prepare(W, K, N, s, reps, st); return; }
+    int made = 0;
+    for (int t = 0; t < nt; t++) {
+        const int64_t j0 = N * t / nt, j1 = N * (t + 1) / nt;
+        jobs[t] = (fv_job){ l->simd, W + j0 * K, K, j1 - j0, s + j0 * reps, reps, part + (size_t)t * K * reps };
+        if (pthread_create(&th[t], NULL, fv_job_main, &jobs[t]) == 0) made++; else fv_job_main(&jobs[t]);
+    }
+    for (int t = 0; t < made; t++) pthread_join(th[t], NULL);
+    for (int64_t i = 0; i < K * reps; i++) {
+        int64_t v = 0;
+        for (int t = 0; t < nt; t++) v = (v + part[(size_t)t * K * reps + i]) % SH_FV_P2;
+        st[i] = v;
+    }
+    free(jobs); free(th); free(part);
+}
+
 static int fv_prepare(sh_link *l, sh_node *nd) {
     const int64_t K = nd->K, N = nd->N;
     nd->s       = (int64_t *)malloc((size_t)N * SH_FV_REPS * sizeof(int64_t));
@@ -378,7 +408,7 @@ static int fv_prepare(sh_link *l, sh_node *nd) {
     for (int64_t i = 0; i < N * SH_FV_REPS; i++)
         nd->s[i] = 1 + (int64_t)(raw[i] % (uint64_t)(SH_FV_S_RANGE - 1));
     free(raw);
-    l->simd->fv_prepare(nd->w, K, N, nd->s, SH_FV_REPS, nd->s_tilde);
+    fv_prepare_parallel(l, nd->w, K, N, nd->s, SH_FV_REPS, nd->s_tilde);
     /* s < 2^20 and s_tilde < P2 < 2^31: both fit the int32 rows the online
      * check streams. The int64 forms stay for sh_link_verify's reference path. */
     fv_rows_i32(nd->s, SH_FV_REPS, N, nd->s32);
@@ -411,12 +441,15 @@ int sh_link_add_weight(sh_link *l, const char *name, const int8_t *w_fixed,
 
     /* Rejecting here is what keeps the residue identity honest: a weight above
      * the byte lane would wrap in every plane on the worker and unmask to noise. */
-    for (int64_t i = 0; i < K * N; i++)
-        if (w_fixed[i] > SH_WEIGHT_BYTE_LIMIT || w_fixed[i] < -SH_WEIGHT_BYTE_LIMIT) {
+    {   /* a min/max scan (vectorises) rather than an early-exit compare loop */
+        int lo = 0, hi = 0;
+        for (int64_t i = 0; i < K * N; i++) { const int v = w_fixed[i]; lo = v < lo ? v : lo; hi = v > hi ? v : hi; }
+        if (hi > SH_WEIGHT_BYTE_LIMIT || lo < -SH_WEIGHT_BYTE_LIMIT) {
             snprintf(l->err, sizeof l->err, "%s: fixed weight %d exceeds the int8 lane (+-%d)",
-                     name, (int)w_fixed[i], SH_WEIGHT_BYTE_LIMIT);
+                     name, hi > SH_WEIGHT_BYTE_LIMIT ? hi : lo, SH_WEIGHT_BYTE_LIMIT);
             return SH_ERR_RANGE;
         }
+    }
 
     nd->w_off = align_up(l->wbytes);
     l->wbytes = nd->w_off + K * N;
@@ -585,7 +618,16 @@ static int derive_threads(const sh_link *l) {
     double macs = 0;
     for (size_t i = 0; i < l->n_nodes; i++) macs += (double)l->nodes[i].K * (double)l->nodes[i].N;
     const double core_ms = 3.0 * macs / (SH_REFILL_GMACS_PER_CORE * 1e9) * 1e3;
-    int want = (int)(core_ms * 1.25 / (double)l->target_ms + 0.999);
+    /* Pads per token is the batch width, not 1: a tenant serving several users
+     * (or verifying a speculative draft) takes m per group per step, and a
+     * step is only ~2-4x longer than a single token at m=8. Sized for half
+     * the widest batch the graph may present, which over-provisions a
+     * single-user decode by idle threads that cost nothing, and stops a
+     * batched one from generating pads on the request path. */
+    int32_t mmax = 1;
+    for (size_t i = 0; i < l->n_groups; i++) if (l->groups[i].max_m > mmax) mmax = l->groups[i].max_m;
+    const double m_eff = mmax > 2 ? mmax / 2.0 : 1.0;
+    int want = (int)(core_ms * m_eff * 1.25 / (double)l->target_ms + 0.999);
     long ncpu = sysconf(_SC_NPROCESSORS_ONLN);
     int hi = ncpu > 4 ? (int)(ncpu / 2) : 2;
     if (want < 2) want = 2;
@@ -598,7 +640,11 @@ static int start_pools(sh_link *l) {
     free_pools(l);
     for (size_t i = 0; i < l->n_groups; i++) {
         sh_group *g = &l->groups[i];
-        g->depth = l->pool_depth;
+        /* A batched step takes m pads from a group at once, and the pool is
+         * refilled between steps: a depth below ~4m starves it (bench-batch at
+         * m=8 with the old fixed 16: hundreds of on-path refills). Sized from
+         * what the graph may ask for; SHIELDED_POOL_DEPTH overrides. */
+        g->depth = l->pool_depth > 0 ? l->pool_depth : (g->max_m * 4 > 16 ? g->max_m * 4 : 16);
         g->r_store = (int32_t *)malloc((size_t)g->depth * g->K * sizeof(int32_t));
         g->u_store = (int32_t *)malloc((size_t)g->depth * g->u_len * sizeof(int32_t));
         g->ready   = (uint8_t *)calloc((size_t)g->depth, 1);

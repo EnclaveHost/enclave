@@ -17,6 +17,7 @@ extern "C" {
 #include <mutex>
 #include <set>
 #include <string>
+#include <thread>
 #include <vector>
 
 #define SH_LOG(...) do { if (sh_verbose()) fprintf(stderr, "[shielded] " __VA_ARGS__); } while (0)
@@ -319,6 +320,20 @@ static const sh_calib_site *sh_site_for(sh_state &s, const char *name) {
  * Weight registration: straight from ggml's q8_0 rows into THE encoding, one
  * row per output, which is also what the worker wants. No transpose anywhere.
  * ----------------------------------------------------------------------- */
+static int sh_prepare_rows_threaded(const void *blocks, int64_t K, int64_t N, int8_t *w_out, int *f_out) {
+    unsigned hw = std::thread::hardware_concurrency();
+    int nt = (int)std::min<unsigned>(hw ? hw : 1, 16);
+    if (N < 256 || (int64_t)nt * 16 > N) nt = 1;
+    if (nt == 1) return sh_prepare_weight_rows(blocks, K, N, w_out, f_out);
+    std::vector<int> rc((size_t)nt, 0);
+    std::vector<std::thread> th;
+    for (int t = 0; t < nt; t++)
+        th.emplace_back([&, t]() { rc[t] = sh_prepare_weight_rows_range(blocks, K, N, N * t / nt, N * (t + 1) / nt, w_out, f_out); });
+    for (auto &x : th) x.join();
+    for (int r : rc) if (r < 0) return r;
+    return 0;
+}
+
 static bool sh_register(sh_state &s, const ggml_tensor *w) {
     const std::string name = ggml_get_name(w);
     if (s.weights.count(name)) return true;
@@ -334,7 +349,11 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     e.K = K; e.N = N; e.site = site; e.group = sh_group_key(name);
     e.w.resize((size_t)K * N);
     e.f_w.resize((size_t)N);
-    if (sh_prepare_weight_rows(w->data, K, N, e.w.data(), e.f_w.data()) < 0) {
+    /* Rows are independent: spread the encoding over threads. Registration
+     * runs inside the engine's context creation (ggml_backend_sched reserve
+     * asks supports_op with the data present), serially per weight, and was
+     * 3.4 s of the 0.5B's and 32 s of the 4B's start-up before this. */
+    if (sh_prepare_rows_threaded(w->data, K, N, e.w.data(), e.f_w.data()) < 0) {
         SH_LOG("%s: no weight exponent fits the int8 lane; staying on CPU\n", name.c_str());
         s.refused.insert(name);
         return false;
@@ -705,6 +724,14 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
         s.t_post += sh_now_ms() - tp0;
     }
     s.t_graph += sh_now_ms() - tg0;
+    /* Under SHIELDED_PROFILE, say the per-term totals periodically as well as
+     * at the end: the engine inside a CVM never calls the stats entry point,
+     * and the tenant's stderr (the owner's /logs) is the only channel out of
+     * the guest. Counters only -- never a value that crossed or was masked. */
+    if (getenv("SHIELDED_PROFILE")) {
+        static uint64_t last = 0;
+        if (s.exchanges - last >= 4096) { last = s.exchanges; s.mu.unlock(); ggml_backend_shielded_stats(nullptr, nullptr, nullptr, nullptr); s.mu.lock(); }
+    }
     return GGML_STATUS_SUCCESS;
 }
 

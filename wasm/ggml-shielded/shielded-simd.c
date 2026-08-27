@@ -169,16 +169,33 @@ int64_t FN(fv_dot_x)(const int64_t *x, const int64_t *st, int stride, int rep, i
 /* st[k*REPS+rep] = sum_j W[j][k] * s[j*REPS+rep] mod P2, W in (N,K). Row-wise
  * axpy so the weight streams once; the int64 accumulator holds 2^44 at N=2^17. */
 void FN(fv_prepare)(const int8_t *W, int64_t K, int64_t N, const int64_t *s, int reps, int64_t *st) {
+    /* st[k*reps+rep] = sum_j W[j][k] * s[j*reps+rep] mod P2, W in (N,K).
+     *
+     * Accumulated per rep in a CONTIGUOUS double row and folded once at the
+     * end: exact, since |s| < 2^20, |w| <= 119 and N <= 2^17 keep every partial
+     * below 2^44 < 2^53, and it vectorises (int8 -> double, FMA), where the
+     * original int64 axpy into a stride-`reps` output did not. This runs at
+     * weight registration for every node, i.e. inside the engine's context
+     * creation: it was 3.6 s of the 0.5B's `sched_reserve` and 32 s of the
+     * 4B's, serial, and most of a tenant's launch-to-ready time. */
+    enum { BLK = 2048 };
     for (int64_t i = 0; i < K * reps; i++) st[i] = 0;
-    for (int64_t j = 0; j < N; j++) {
-        const int8_t *w = W + j * K;
-        for (int rep = 0; rep < reps; rep++) {
-            const int64_t sj = s[j * reps + rep];
-            int64_t *o = st + rep;
-            for (int64_t k = 0; k < K; k++) o[k * reps] += sj * (int64_t)w[k];
+    double acc[BLK];
+    for (int rep = 0; rep < reps; rep++) {
+        for (int64_t k0 = 0; k0 < K; k0 += BLK) {
+            const int64_t n = k0 + BLK < K ? BLK : K - k0;
+            for (int64_t i = 0; i < n; i++) acc[i] = 0.0;
+            for (int64_t j = 0; j < N; j++) {
+                const double sj = (double)s[j * reps + rep];
+                const int8_t *w = W + j * K + k0;
+                for (int64_t i = 0; i < n; i++) acc[i] += sj * (double)w[i];
+            }
+            for (int64_t i = 0; i < n; i++) {
+                int64_t v = (int64_t)acc[i] % SH_FV_P2; if (v < 0) v += SH_FV_P2;
+                st[(k0 + i) * reps + rep] = v;
+            }
         }
     }
-    for (int64_t i = 0; i < K * reps; i++) { int64_t v = st[i] % SH_FV_P2; if (v < 0) v += SH_FV_P2; st[i] = v; }
 }
 
 /* THE REFILL: u[b][j] = sum_k r[b][k] * W[j][k] over Z_M, from the unsigned
