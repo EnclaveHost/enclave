@@ -143,6 +143,54 @@ transport that backs `AF_VSOCK` over Hyper-V's VMBus. The Windows host side is
 `AF_HYPERV`. So the guest half of the shielded link may need close to no change;
 the worker's socket layer is what gets ported.
 
+## Which Windows, exactly
+
+Two independent cutoffs, and they bite for different reasons.
+
+| OS | Hyper-V role | OpenHCL / SNP isolation | verdict |
+|---|---|---|---|
+| **Windows 11 Pro / Enterprise / Education, 24H2 (26100.1586+)** | yes | yes | **the target** |
+| Windows 11 Pro, pre-24H2 | yes | no | free in-place update fixes it |
+| Windows 11 **Home** | **no** -- see below | -- | blocked on edition, maybe |
+| Windows 10, any edition | Pro: yes | **no** | **out** |
+
+**Windows 10 is out, and not marginally.** Its final build is 19045 (22H2),
+against an OpenHCL floor of 26100.1586 -- not a gap an update closes, because
+22H2 was the last version of Windows 10 there will ever be. It also reached end
+of support on 14 October 2025, so it has been receiving no security updates for
+nearly a year. Shipping a money-handling, tenant-data-adjacent seller node onto
+an unpatched OS would be indefensible independent of whether the feature existed.
+
+**Windows 11 Home nominally has no Hyper-V.** Microsoft restricts the Hyper-V
+role to Pro, Enterprise and Education; it "can't be installed on Windows 10 Home
+or Windows 11 Home." Community DISM recipes exist to force the packages in, and
+they should be refused: this architecture already rests on a
+development-support-only foundation, and stacking a second unsupported hack
+under a seller's earnings and a tenant's data is how you get a failure nobody
+can diagnose. A Pro upgrade is in-place and inexpensive, and is the honest
+answer to give a Home user.
+
+### But Home may not actually be blocked, and our design is the reason
+
+The edition restriction applies to the **Hyper-V role and its management
+surface** -- `New-VM` and the rest of the PowerShell module. It is a licensing
+gate on the management tools, not obviously on the hypervisor: Windows 11 Home
+runs the same hypervisor underneath for VBS, WSL2 and Docker Desktop, all of
+which create VMs.
+
+And this design was already going to **drive HCS directly** (hcsshim, or
+P/Invoke to `vmcompute.dll`) rather than through the cmdlets, because
+`Set-VMFirmware` cannot express what we need and hcsshim is where the SNP
+document builder lives. If the gate is on the PowerShell module rather than on
+`vmcompute.dll`, the Home restriction may simply not bind on the path we are
+taking anyway.
+
+**Stated as a hypothesis, not a finding.** It is cheap to test -- create an
+isolated compute system through HCS on a Home machine and see whether it is
+refused -- and the payoff is the difference between "Windows 11 Pro only" and
+"any Windows 11." Worth an experiment before writing Home off in the
+requirements.
+
 ## Two paths, and the trade between them
 
 Research surfaced two distinct ways to get an SNP boundary on a Windows host.

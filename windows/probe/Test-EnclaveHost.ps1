@@ -96,13 +96,55 @@ Write-Host ''
 try {
     $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
     $build = [int]($os.BuildNumber)
+    $ubr = 0
+    try { $ubr = [int](Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name UBR -ErrorAction Stop).UBR } catch { }
     $caption = $os.Caption
-    $detail = "$caption (build $build)"
-    if ($build -ge 26100) { Add-Finding 'Windows build' 'pass' $detail }
-    elseif ($build -ge 22000) { Add-Finding 'Windows build' 'warn' "$detail - pre-26100; the SNP isolation type is not expected here" }
-    else { Add-Finding 'Windows build' 'fail' "$detail - far too old for confidential VMs" }
+    $detail = "$caption (build $build.$ubr)"
+
+    # OpenHCL floor is 26100.1586 (Windows 11 24H2 / Server 2025). Windows 10's
+    # final build is 19045 and it left support on 2025-10-14, so it is not a
+    # version gap an update closes -- there are no more Windows 10 versions.
+    if ($build -ge 26100 -and ($build -gt 26100 -or $ubr -ge 1586)) {
+        Add-Finding 'Windows build' 'pass' "$detail - at or above the 26100.1586 OpenHCL floor"
+    } elseif ($build -ge 26100) {
+        Add-Finding 'Windows build' 'warn' "$detail - 26100 but below .1586; update before testing OpenHCL"
+    } elseif ($build -ge 22000) {
+        Add-Finding 'Windows build' 'fail' "$detail - Windows 11 below 24H2; a free in-place update to 24H2 fixes this"
+    } else {
+        Add-Finding 'Windows build' 'fail' "$detail - Windows 10 or older. Final Win10 build is 19045, well below the 26100 floor, and it left support on 2025-10-14. Not fixable by updating."
+    }
+
+    # Edition matters independently: the Hyper-V ROLE is Pro/Enterprise/Education
+    # only. See the note below about why that may not bind on the HCS path.
+    $sku = "$caption"
+    if ($sku -match 'Home') {
+        Add-Finding 'Windows edition' 'warn' ('Home edition - the Hyper-V role and its PowerShell module are Pro/Enterprise/Education only. ' +
+            'This may still work if HCS is driven directly (see ARCHITECTURE.md); do NOT use DISM hacks to force the role in.')
+    } elseif ($sku -match 'Pro|Enterprise|Education|Server') {
+        Add-Finding 'Windows edition' 'pass' 'edition supports the Hyper-V role'
+    } else {
+        Add-Finding 'Windows edition' 'info' "edition not recognised: $sku"
+    }
 } catch {
     Add-Finding 'Windows build' 'fail' "could not read OS info: $($_.Exception.Message)"
+}
+
+# The Host Compute System library. The daemon drives HCS directly rather than
+# through the Hyper-V cmdlets (Set-VMFirmware cannot express a custom IGVM, and
+# hcsshim's SNP document builder is what we are mirroring). If vmcompute.dll is
+# present on an edition whose Hyper-V *role* is unavailable, that is the
+# interesting case: the licensing gate may sit on the management module rather
+# than on the platform, which would put Windows 11 Home back in scope.
+try {
+    $vmcompute = Join-Path $env:SystemRoot 'System32\vmcompute.dll'
+    if (Test-Path $vmcompute) {
+        $v = (Get-Item $vmcompute).VersionInfo.FileVersion
+        Add-Finding 'HCS (vmcompute.dll)' 'pass' "present ($v) - the direct HCS path has a library to call"
+    } else {
+        Add-Finding 'HCS (vmcompute.dll)' 'fail' 'vmcompute.dll absent - no Host Compute System on this machine'
+    }
+} catch {
+    Add-Finding 'HCS (vmcompute.dll)' 'warn' "could not inspect vmcompute.dll: $($_.Exception.Message)"
 }
 
 # ---------------------------------------------------------------------------
