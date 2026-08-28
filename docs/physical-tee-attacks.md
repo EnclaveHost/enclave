@@ -199,6 +199,86 @@ interposition point disappears entirely.
 That is a real answer to "what should we buy", even though it is not a drop-in
 replacement for SEV-SNP and does not make an anonymous home seller trustworthy.
 
+## The alternative: IBM Secure Execution on LinuxONE / IBM Z
+
+Searching for a replacement architecture rather than a mitigation turned up
+exactly one candidate that meets the bar, and it is the only one found that
+**explicitly claims resistance to physical attacks** rather than declaring them
+out of scope.
+
+### It meets every requirement
+
+| requirement | IBM Secure Execution |
+|---|---|
+| encrypts memory | **two independent layers** (below) |
+| protects from the hypervisor | Ultravisor; "will only allow the hypervisor to see the SVM memory encrypted" |
+| secure root of trust | IBM-signed **host key document**, per machine |
+| third-party verifiable attestation | `pvattest`, open source in `s390-tools` |
+| runs our guest | Linux SVMs -- needs an s390x port |
+| **resists physical attack** | **claimed explicitly** |
+
+**The two layers matter.** Since **IBM z16 and LinuxONE 4, all memory is
+encrypted**, and IBM states this is "transparent to all firmware and software"
+and "**intended to protect the IBM Z and IBM LinuxONE memory against physical
+attacks**." That is *independent of* Secure Execution's own per-SVM encryption.
+So there is a whole-memory layer aimed at the physical adversary and a per-guest
+layer aimed at the hypervisor -- against Intel's and AMD's single layer that
+addresses only the second and disclaims the first.
+
+**The trust chain is the same shape as AMD's.** A per-machine host key document,
+verified against the IBM Z host-key-signing-key certificate, an intermediate CA,
+and a root CA, with a CRL of revoked host keys -- structurally VCEK -> ASK ->
+ARK. The tooling (`genprotimg` to build the image, `pvattest` to attest,
+`pvsecret` to inject secrets) is open source in `s390-tools`.
+
+### The GPU objection dissolves, which is the whole point
+
+IBM Z has no GPU support -- CUDA has never targeted s390x. That looks fatal for
+a "shielded GPU" product until you remember the tier's defining property:
+**the GPU is untrusted by design and belongs outside the boundary.** It does not
+need to be in the confidential machine, or even attached to it. It needs a fast
+link.
+
+```
+LinuxONE / IBM Z                          commodity GPU host
+  SVM: the trusted half                     shielded-worker + the card
+  weights, activations, KV cache,           sees only one-time-padded
+  mask pool, Freivalds secrets              residues over a prime field
+        |                                          |
+        `------------- RDMA, ~2-5 us RTT ----------'
+```
+
+That transport is not a compromise -- it is **faster than the tier already runs
+at**. metal0's numbers are 46 us per exchange on host loopback and ~152 us over
+vhost-vsock in the CVM, yielding ~100-154 tok/s. RDMA over 100GbE lands around
+2-5 us round trip, so at ~49 exchanges per token the transport term would be
+~0.25 ms -- a rounding error against a 4.6 ms token, and better than the
+in-CVM path metal0 uses today.
+
+### What it costs
+
+- **An s390x port of the trusted half.** `wasm/ggml-shielded` and especially the
+  mask-refill kernel, which leans on AVX-512 VNNI today and would need s390x
+  vector (VXE) equivalents. That is the same class of work as the ARM64 port,
+  and refill is the TEE half's dominant cost so it has to be done properly.
+- **Enterprise pricing.** LinuxONE now ships single-frame and rack-mount options
+  rather than only full frames, but this is not consumer hardware and never will
+  be.
+- **A new RAD format and verifier path** alongside `sev-snp-guest-metal-v1`:
+  host key document chain verification instead of VCEK from AMD KDS.
+
+### Where it fits
+
+Not the gaming-rig product -- nothing is. This is the answer to a different and
+sharper question: **what should carry work whose confidentiality actually has to
+survive an adversary with physical access?**
+
+Given that a $50 board defeats SEV-SNP and a ~$1,000 one defeats TDX and SGX,
+and that both vendors have declined to fix it, a tier backed by hardware whose
+vendor *does* claim physical-attack resistance is worth having -- for
+first-party capacity, for the deployments that need the strong claim, and as the
+honest top of a trust ladder whose lower rungs we now know the limits of.
+
 ## The bottom line for the alternative search
 
 There is no alternative to find. SGX, TDX, SEV-SNP and NVIDIA GPU CC are all
@@ -215,5 +295,13 @@ configuration available today and has a vendor-stated mitigation for the
 Battering RAM class; AMD has none. And any machine without DIMM sockets removes
 the attachment point the whole attack family depends on.
 
-For the anonymous-seller model specifically, hardware choice only narrows the
-gap. Closing it still requires changing what we promise, or who we accept.
+There IS one alternative architecture that clears the bar -- IBM Secure
+Execution on z16/LinuxONE 4, whose transparent full-memory encryption is stated
+by IBM to protect "against physical attacks", with an IBM-signed host key
+document as the root of trust and open-source attestation tooling. Its lack of
+GPU support is not the obstacle it appears, because the shielded tier puts the
+GPU outside the boundary on purpose and RDMA closes the gap faster than the
+loopback the tier runs on today. See the section above.
+
+For the anonymous home-seller model specifically, hardware choice only narrows
+the gap. Closing that still requires changing what we promise, or who we accept.
