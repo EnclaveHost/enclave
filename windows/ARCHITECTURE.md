@@ -1,0 +1,393 @@
+# Enclave on Windows: the confidential half via Hyper-V
+
+Research conclusion, 2026-08-28. This documents a path that appears viable on
+Windows **today**, the evidence for it, and the two things that remain unproven.
+
+## The shape
+
+```
+Windows 11 / Server 2025, BARE METAL, on EPYC Milan+ (or TDX Xeon)
+  |
+  |-- the game                              the user's desktop, untouched
+  |-- shielded-worker.exe                   native CUDA, holds the card,
+  |                                         shares it with the game via the
+  |                                         ordinary NVIDIA driver time-slice
+  |-- tray icon + VRAM slider + wallet
+  |
+  `-- Hyper-V VM, IsolationType = SNP, HclEnabled = false
+        `-- the metal Linux guest: supervisor + wasm-manager + agent
+              ^
+              |  AF_VSOCK (hv_sock transport) <-> AF_HYPERV
+```
+
+No dual boot. Windows is never virtualised. The GPU is never passed through.
+The card stays on the host **on purpose**: it is outside the trust boundary by
+design, so the gamer, the game, and Windows itself are all already the declared
+adversary. Only the trusted half needs the hardware root of trust, and that is
+what the SNP VM provides.
+
+## Why this is the only door on Windows
+
+Windows cannot launch an SNP guest the way `metal/` does on Linux: QEMU's
+Windows accelerator (WHPX) exposes no confidential-guest launch, and a driver
+cannot outrank the hypervisor that already owns SVM. Hyper-V's own isolation
+type is the only mechanism. Everything below is about whether that mechanism is
+reachable and whether it preserves the trust story.
+
+## The HCS document maps onto metal's QEMU argv
+
+Both halves live in the same Host Compute System schema
+(`github.com/Microsoft/hcsshim/internal/hcs/schema2`, open source). This is what
+hcsshim actually emits for an SNP-isolated Linux utility VM
+(`internal/uvm/create_lcow.go`, `makeLCOWSecurityDoc`):
+
+```go
+doc.VirtualMachine.SecuritySettings = &hcsschema.SecuritySettings{
+    EnableTpm: false,
+    Isolation: &hcsschema.IsolationSettings{
+        IsolationType: "SecureNestedPaging",
+        LaunchData:    hostData,      // base64(digest) -> SNP_LAUNCH_FINISH
+        HclEnabled:    opts.HclEnabled,
+    },
+}
+```
+
+Against `metal/enclave-metal.mjs`:
+
+| metal (QEMU + KVM) | Hyper-V (HCS) |
+|---|---|
+| `-object sev-snp-guest,...` | `IsolationSettings.IsolationType = "SecureNestedPaging"` |
+| `host-data=<sha256(volume table)>` | `IsolationSettings.LaunchData` (base64; lands in `SNP_LAUNCH_FINISH`, same 32 bytes, same purpose) |
+| direct-boot measured OVMF, `kernel-hashes=on` | `HclEnabled = false` -- fully enlightened, guest at VMPL 0, no paravisor |
+| `-kernel vmlinuz -initrd initramfs.cpio.gz -append <cmdline>` | a **VMGS file** carrying kernel + initrd, via `GuestState.GuestStateFilePath` |
+
+**Correction worth recording:** the obvious guess -- reuse
+`Chipset.LinuxKernelDirect{KernelFilePath, InitRdPath, KernelCmdLine}`, the
+mechanism Linux Containers on Windows already direct-boot with -- is wrong under
+isolation. hcsshim gates on `opts.GuestStateFilePath != ""`, and the SNP document
+builder sets `GuestState.GuestStateFilePath` and configures **no**
+`LinuxKernelDirect` at all. Under SNP the kernel and initrd travel inside the
+VMGS. `LinuxKernelDirect` is the non-isolated path only.
+
+That is a packaging difference, not an architectural one, and the packaging
+tools are open source.
+
+## The toolchain, end to end
+
+Every step has a public, open-source tool:
+
+| step | tool | notes |
+|---|---|---|
+| bundle kernel + initrd + cmdline into an IGVM | `buildigvm`, `microsoft/igvm-tooling`, or OpenVMM's tooling | IGVM is an open Microsoft format; one file can declare SEV-SNP, TDX and non-confidential platforms |
+| write that IGVM into a VMGS | **`VmgsTool`** (in `microsoft/openvmm`) | writes FileId 8 (`GUEST_FIRMWARE`); resource codes include `NONCONFIDENTIAL`, `SNP`, `TDX`, **`SNP_NO_HCL`**, `TDX_NO_HCL` |
+| launch it | hcsshim, or P/Invoke to `vmcompute.dll` | `SecureNestedPaging` + `HclEnabled: false` + `GuestStateFilePath` |
+| compute the expected measurement independently | **`sev-snp-measure`** (virtee) or `igvmmeasure` | `sev-snp-measure` is the same tool `metal/PROTOCOL.md` already names, and takes ovmf + kernel + initrd + append |
+| read the quote in-guest | configfs-tsm / `/dev/sev-guest` | what `metal/guest/agent.mjs` already does |
+
+`SNP_NO_HCL` is the detail that matters most. It is an explicitly named resource
+code in Microsoft's own tooling, which means paravisor-free SNP is a supported
+configuration rather than an inference from a kernel doc.
+
+## Why `HclEnabled = false` is the load-bearing field
+
+Hyper-V runs SNP guests two ways, per the Linux kernel's own documentation
+(`Documentation/virt/hyperv/coco.rst`):
+
+> Hyper-V provides two modes for running SEV-SNP VMs: 1) In vTOM mode with a
+> paravisor, and 2) In "fully enlightened" mode with normal "C" bit control over
+> page encryption, and no paravisor.
+
+> With AMD SEV-SNP processors, in fully-enlightened mode the guest OS runs in
+> VMPL 0 and has full control of the guest context.
+
+This matters enormously for **this** platform, because `metal/PROTOCOL.md`'s
+measurement allowlist is only worth something if anyone can independently
+recompute a release's launch digest. In **vTOM/paravisor mode** the measurement
+covers Microsoft's Hardware Compatibility Layer and guest firmware; the SoK on
+CVM trust relationships (arXiv 2503.08256) puts it plainly: *"The measurement
+cannot be attested, as the HCL and guest firmware are closed source and
+therefore not reproducible."* That would reduce the allowlist to "trust
+Microsoft's binaries" and break the auditability property.
+
+In **fully enlightened mode** there is no paravisor in the picture, the guest
+owns VMPL 0, and Hyper-V direct-boots the kernel — the kernel documentation
+notes it "uses Linux direct boot mode to boot up Linux kernel and so it needs to
+pvalidate system memory by itself." That is the same measurement shape metal
+already relies on.
+
+Cost of fully-enlightened mode: the guest must implement SEV-SNP **Restricted
+Interrupt Injection**, and the Hyper-V-specific enlightenments must be built
+into the kernel. That is a `metal/build-image.mjs` kernel-config change, not a
+design change.
+
+## IGVM: the packaging format that makes the measurement reproducible
+
+[IGVM](https://github.com/microsoft/igvm) (Independent Guest Virtual Machine) is
+a Microsoft-originated **open** format bundling firmware, kernel and initrd into
+one file whose launch measurement is computable **when the file is built**. The
+`igvmmeasure` tool computes SEV-SNP measurements from an IGVM file — the direct
+analogue of the `sev-snp-measure` that metal's allowlist depends on. QEMU
+consumes IGVM for SEV/SEV-ES/SEV-SNP; Cloud Hypervisor consumes it via MSHV;
+edk2 gained IGVM output in January 2026. One IGVM file can declare support for
+SEV-SNP, TDX **and** non-confidential hosts.
+
+That is the packaging answer: build the metal guest once as an IGVM, compute its
+measurement at build time, run it on QEMU/KVM on Linux *and* Hyper-V on Windows,
+and keep one auditable allowlist across both.
+
+## Transport
+
+The metal guest already speaks `AF_VSOCK`
+(`wasm/ggml-shielded/shielded-wire.c`), and Linux carries an `hv_sock`
+transport that backs `AF_VSOCK` over Hyper-V's VMBus. The Windows host side is
+`AF_HYPERV`. So the guest half of the shielded link may need close to no change;
+the worker's socket layer is what gets ported.
+
+## Two paths, and the trade between them
+
+Research surfaced two distinct ways to get an SNP boundary on a Windows host.
+They differ in exactly one property -- and it is the property this platform
+sells.
+
+### Path A -- our own VMGS, fully enlightened (`SNP_NO_HCL`)
+
+Package metal's kernel + initrd into an IGVM, write it to a VMGS with
+`VmgsTool` using resource code `SNP_NO_HCL`, launch through HCS with
+`SecureNestedPaging` + `HclEnabled: false`. No paravisor, guest at VMPL 0,
+measurement computable up front with `sev-snp-measure` -- the same tool
+`PROTOCOL.md` already names.
+
+**Keeps the whole trust story.** The allowlist stays auditable: anyone rebuilds
+the release, recomputes the digest, and compares. No unmeasured byte we did not
+build.
+
+**RESOLVED -- Hyper-V will load a custom, unsigned firmware image.** Microsoft's
+own OpenVMM guide documents the procedure, on Windows 11 **client**:
+
+```powershell
+# once per system, elevated -- permits unsigned firmware images
+Set-ItemProperty "HKLM:/Software/Microsoft/Windows NT/CurrentVersion/Virtualization" `
+  -Name "AllowFirmwareLoadFromFile" -Value 1 -Type DWORD
+
+$vm = New-VM $VmName -generation 2 -GuestStateIsolationType OpenHCL -VHDPath $vmOsDisk -BootDevice VHD
+Set-VM -VM $vm -AutomaticCheckpointsEnabled $false
+Set-VMFirmware -VM $vm -EnableSecureBoot Off
+
+# point the VM at OUR IGVM
+Set-OpenHCLFirmware -Vm $vm -IgvmFile $firmwareFile
+```
+
+Three things this establishes:
+
+- **`Set-OpenHCLFirmware -IgvmFile`** is the cmdlet that hands Hyper-V a custom
+  IGVM. `Set-VMFirmware` has no such parameter, which is why the earlier search
+  came up empty -- it is a separate cmdlet.
+- **`OpenHCL` is a sixth `-GuestStateIsolationType` value**, absent from the
+  `New-VM` reference page, which lists only TrustedLaunch/VBS/SNP/TDX/Disabled.
+  The documented values are not the complete set.
+- **Windows 11 24H2 (build 26100.1586) or later, client SKU** is the floor. A
+  gaming rig on Windows 11 qualifies; Server is not required.
+
+**The caveat, stated by Microsoft and worth taking seriously:** "Windows Client
+and Server offer only **development support -- not production support** -- for
+OpenHCL workloads." It works and it is documented, but it is not a supported
+production configuration, so it can change across Windows updates. For a seller
+node that ships to other people's machines, that is a real operational risk to
+plan for (pin the build, detect breakage, fail closed), not a reason the
+architecture is wrong.
+
+### Path B -- Confidential-ACI style: Microsoft's UVM, our workload
+
+The shipping alternative. Microsoft's signed UVM provides the SNP boundary; our
+code runs inside it; a **security policy** (Rego) pins exactly what may run, and
+`SHA256(policy)` goes into `LaunchData` -> `HOST_DATA` in every attestation
+report. A verifier checks the SNP report against AMD's certificates, matches the
+launch measurement against Microsoft's COSE_Sign1 UVM endorsement
+(`feed: "ContainerPlat-AMD-UVM"`), and checks HOST_DATA against the expected
+policy hash.
+
+**This demonstrably works on a standalone on-premises Windows host.** The
+Confidential Container Groups paper (ACM Queue / CACM, by the team that built
+Confidential ACI) describes a lab environment of a **Dell PowerEdge R7515 with an
+AMD EPYC 7543P, running Windows Server 2022 Datacenter (22H2)** and an *offline*
+copy of the ACI platform (containerd, cri, hcsshim), with the UVM running a
+patched 5.15 Linux carrying the AMD and Microsoft SEV-SNP enlightenment patches.
+Not Azure. Not Azure Local. A server in a lab.
+
+**What it costs us**, stated plainly by Microsoft's own scheme documentation:
+the UVM measurement *cannot be independently reproduced by third parties* -- it
+must match Microsoft's signed reference-info, making that link **trust-based
+rather than reproducible**.
+
+### The trade
+
+Both paths give a genuine hardware root of trust: AMD SNP memory encryption, so
+the Windows host cannot read guest RAM. That is the seller-facing requirement and
+both satisfy it.
+
+They differ on the **tenant-facing** claim. metal's pitch, and this repo's
+README, is that the chain verifies "from the CPU's attestation quote down to the
+exact commit of this repo that built the running image." Path A preserves that.
+Path B replaces one link with "and Microsoft says this UVM measurement is
+theirs" -- still hardware-rooted, still far better than nothing, but no longer
+end-to-end reproducible. Whether that is acceptable is a positioning decision,
+not an engineering one, and it should be made deliberately rather than
+discovered later by a verifier.
+
+## What is proven, and what is not
+
+**Proven from primary sources:**
+
+- `New-VM -GuestStateIsolationType` accepts `SNP` and `TDX` in the shipping
+  Windows Server 2025 Hyper-V module (Microsoft Learn, `New-VM` reference).
+- Azure Local 2607 (July 2026, build 12.2607.1003.73) ships Confidential VMs in
+  public preview "powered by AMD SEV-SNP technology" on OS build 26100 — the
+  same branch as Windows Server 2025 and Windows 11 24H2.
+- Fully-enlightened, paravisor-free SNP guests on Hyper-V are documented in the
+  mainline Linux kernel, with direct kernel boot.
+- hcsshim ALREADY builds SNP-isolated Linux utility VMs: `IsolationType:
+  "SecureNestedPaging"` with `LaunchData` and `HclEnabled` is shipping,
+  open-source, exercised code -- it is the mechanism behind Azure Confidential
+  Containers on ACI.
+- `VmgsTool` in `microsoft/openvmm` writes an IGVM into a VMGS with resource
+  code **`SNP_NO_HCL`**, so paravisor-free SNP is a named, supported
+  configuration in Microsoft's own tooling, not an inference.
+- `sev-snp-measure` -- the exact tool `metal/PROTOCOL.md` relies on -- computes
+  the measurement from ovmf + kernel + initrd + append, so the independent
+  verification step carries over unchanged.
+- GPU partitioning (GPU-PV) shares a physical GPU between host and guests with
+  **no GPU generation restriction** — so a consumer GeForce qualifies. This
+  design does not require it, but it removes the "passthrough is exclusive"
+  objection permanently.
+- SNP attestation from Hyper-V guests is an established path (Google's
+  `go-sev-guest` carries a platform flag for it).
+
+**NOT proven, and decisive:**
+
+1. **Does retail Windows actually honour it?** No public first-hand report of
+   `IsolationType: SNP` launching on a non-Azure-Local Hyper-V host was found.
+   Microsoft has historically gated this. `probe/Test-EnclaveHost.ps1 -Attempt`
+   is written to answer exactly this on real hardware.
+2. **Is `HclEnabled = false` reachable from a retail host?** The field is in the
+   schema; whether the platform permits a fully-enlightened SNP guest outside
+   Azure is unknown. If only vTOM mode is available, confidentiality still holds
+   (the Windows host genuinely cannot read guest RAM) but reproducible
+   measurement does not, and the allowlist model needs rethinking.
+3. **Will a retail host accept OUR VMGS?** hcsshim's SNP path takes a VMGS via
+   `GuestStateFilePath`, and `VmgsTool` builds one, but every shipped example
+   carries a Microsoft-built UVM. Whether the platform validates the guest
+   firmware against a Microsoft signature (ACI ships a COSE_Sign1
+   `reference-info` signed by Microsoft carrying the expected UVM measurement)
+   or will launch an arbitrary VMGS is the question that decides whether this is
+   a product or a dead end. `Set-VMFirmware` exposes no IGVM path, so the
+   launcher drives HCS directly (hcsshim, or P/Invoke to `vmcompute.dll`)
+   regardless.
+
+## The build pipeline, concretely
+
+Every step is a public tool. Nothing here needs a Microsoft signature or an
+Azure subscription.
+
+```sh
+# 1. Build the guest image exactly as metal does today (unchanged).
+node metal/build-image.mjs --supervisor ghcr.io/...@sha256:... --wasm ghcr.io/...@sha256:...
+#    -> metal/dist/{vmlinuz, initramfs.cpio.gz, cmdline, manifest.json}
+
+# 2. Package it as an IGVM. OpenVMM ships a confidential recipe (x64-cvm) and a
+#    Linux-direct recipe; --custom-kernel and --override-manifest carry our
+#    kernel and our cmdline / VTL0 boot configuration.
+cargo xflowey build-igvm x64-cvm \
+    --custom-kernel metal/dist/vmlinuz \
+    --override-manifest enclave-vtl0.json
+#    -> flowey-out/artifacts/build-igvm/release/x64-cvm/openhcl-x64-cvm.bin
+
+# 3. Compute the launch measurement OFFLINE, so the allowlist stays auditable.
+igvmmeasure openhcl-x64-cvm.bin          # or sev-snp-measure, as PROTOCOL.md already uses
+```
+
+Then on the Windows host, once per system:
+
+```powershell
+Set-ItemProperty "HKLM:/Software/Microsoft/Windows NT/CurrentVersion/Virtualization" `
+  -Name "AllowFirmwareLoadFromFile" -Value 1 -Type DWORD
+```
+
+and per launch:
+
+```powershell
+$vm = New-VM $Name -Generation 2 -GuestStateIsolationType OpenHCL -NoVHD
+Set-VM -VM $vm -AutomaticCheckpointsEnabled $false
+Set-VMFirmware -VM $vm -EnableSecureBoot Off
+Set-OpenHCLFirmware -Vm $vm -IgvmFile openhcl-x64-cvm.bin
+Start-VM $vm
+```
+
+Notes that matter:
+
+- **metal's existing `vmlinuz` is fine.** x86_64 Linux Direct accepts both an
+  uncompressed ELF `vmlinux` and a compressed `bzImage`/`vmlinuz`; the loader
+  places the protected-mode code and lets the kernel's own decompressor run.
+- **`x64-cvm` is the confidential recipe.** `cargo xflowey build-igvm --help`
+  enumerates the full recipe list, including the Linux-direct variants.
+- **OpenHCL is open source**, so if the paravisor ends up inside the
+  measurement, that measurement is still reproducible -- which is precisely the
+  gap the CVM trust SoK complained about when the HCL was closed. Being able to
+  rebuild OpenHCL is what makes the paravisor-mode option acceptable at all, and
+  it is why `SNP_NO_HCL` is a preference rather than a hard requirement.
+
+## Implementation plan
+
+Staged so each step produces a decision, not just code.
+
+1. **Probe.** `probe/Test-EnclaveHost.ps1 -Attempt`, elevated, on the EPYC 9115
+   + RTX 3070. Confirms build, isolation values, `Set-OpenHCLFirmware`, the
+   registry gate, and whether an isolated VM actually creates. Cheap, and it
+   grounds everything else.
+2. **Boot the existing guest.** Package `metal/dist` into an IGVM, load it with
+   `Set-OpenHCLFirmware`, and get a serial console. Success criterion: PID 1
+   reaches the point where `metal/guest/init` starts the three services.
+3. **Attestation.** Confirm the guest can pull an SNP report through
+   configfs-tsm the way `metal/guest/agent.mjs` already does, that
+   `report_data` still binds the in-guest TLS key, and that the launch
+   measurement matches the one computed offline in step 2. **This is the go/no-go
+   for the whole trust story** -- if the measurement is not reproducible here,
+   fall back to Path B knowingly, or stop.
+4. **Transport.** Host `AF_HYPERV` <-> guest `AF_VSOCK` over `hv_sock`.
+   Benchmark at the shielded exchange sizes and compare against the 152 us
+   vhost-vsock figure that yields ~100 tok/s on metal0. This sets the tok/s
+   ceiling and is worth knowing before the worker port.
+5. **Worker port.** `shielded/worker-cuda` to Windows: Winsock2, `WSAPoll` for
+   `poll`, `CreateFileMapping` for the `--shm` ring, vsock dropped (the host
+   side is `AF_HYPERV`). **The op allowlist and denylist refusals port
+   unchanged**, with a test asserting the Windows binary refuses a denylisted op
+   on the wire -- that is one of the four boot-probe assertions and the reason
+   the tier is safe to run on a machine nobody attested.
+6. **Live VRAM budget.** Make `g_vram_budget` adjustable at runtime so the
+   slider acts without restarting the worker, clamping a decrease at current
+   reservations rather than evicting a paying tenant.
+7. **The product.** Daemon, tray, popup with the slider, first-run setup for
+   RAM/CPU, wallet (WalletConnect or generated, with the hardware-wallet
+   warnings), installer.
+
+Steps 1-3 are research that happens to produce code. Only after step 3 is it
+worth building step 7.
+
+## Test order
+
+1. `probe/Test-EnclaveHost.ps1 -Attempt` on the EPYC 9115 + RTX 3070 box.
+   Creation succeeding or failing, and the exact error text, decides everything.
+2. If creation succeeds: package metal's existing `dist/vmlinuz` +
+   `dist/initramfs.cpio.gz` into an IGVM, write it to a VMGS with `VmgsTool`
+   (`SNP_NO_HCL`), and drive HCS with `SecureNestedPaging` + `HclEnabled: false`
+   + `GuestStateFilePath`. A signature refusal here is the end of the road; an
+   ordinary boot failure is just work.
+3. If it boots: check whether the guest can read an SNP report through
+   configfs-tsm the way `metal/guest/agent.mjs` already does, and compare the
+   launch measurement against an independently computed one.
+4. Only then: the worker port, the tray, the slider, the wallet.
+
+Note one pre-existing caveat that carries over unchanged: metal0's workstation
+EPYC "reports a masked/unprovisioned chip id, so AMD KDS has no VCEK for it and
+`verify.mjs` reports the signature chain **inconclusive** (measurement + key
+binding still verify)" (`metal/HANDOFF.md`). A datacenter EPYC provisions its
+VCEK; a workstation part may not, on Windows or Linux alike.
