@@ -211,9 +211,18 @@ Reasons to expect it composes, none of them conclusive:
 - Hyper-V CoCo VMs pick fully-enlightened or paravisor mode "when the VM is
   created", which is the same place the isolation type is chosen.
 
-Reasons for caution: OpenHCL also runs non-confidentially (hence the
-`NONCONFIDENTIAL` resource code), so `OpenHCL` isolation may mean "use the
-paravisor" and say nothing about hardware isolation at all.
+Reasons for caution, now stronger than they were. OpenHCL's architecture page
+says VTL isolation "can be backed by" either **hardware TEEs like Intel TDX and
+AMD SEV-SNP** *or* **software-based constructs such as Hyper-V VSM**. So
+`-GuestStateIsolationType OpenHCL` on its own selects *the paravisor*, not
+necessarily *hardware isolation* -- a VSM-backed VTL2 gives the same software
+shape with none of the memory encryption. That is exactly the configuration that
+would look identical at runtime and be worth nothing to a tenant, which is why
+the probe has to test the combination rather than infer it.
+
+Useful development affordance found alongside: `OPENHCL_CONFIDENTIAL=1`
+simulates CVM behaviour on non-CVM systems, so the guest-side work can proceed
+before any of this is settled on real SNP hardware.
 
 **This is the single question the probe should be extended to answer**: create
 with `-GuestStateIsolationType SNP`, then attempt `Set-OpenHCLFirmware` against
