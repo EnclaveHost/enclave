@@ -127,6 +127,78 @@ published code.
    smartcards resist physical attack -- but not at anything that holds a KV cache
    today.
 
+## What actually defends against this, available today
+
+Two things, and the first is Intel's own answer.
+
+### 1. TME-MK cryptographic integrity mode (Intel, shipping)
+
+Intel states it directly:
+
+> Use of cryptographic integrity protection mode of Intel Total Memory
+> Encryption - Multi-Key (Intel TME-MK) can provide additional protection
+> against alias-based attacks, **such as those outlined in the Battering RAM
+> paper**.
+
+Mechanism: once a cache line is initialised with a given keyID it is covered by
+a MAC, so any access with an incorrect keyID fails MAC verification. That is
+precisely the aliasing Battering RAM relies on.
+
+**Available on 5th Gen Xeon (Emerald Rapids) and Xeon 6 with P-cores.** TDX is
+built on TME-MK, so it composes -- enable TME, TME-MT, TDX and the TDX Loader in
+firmware.
+
+Scope, honestly: this addresses the **alias** class. It does not obviously
+address WireTap's ciphertext-dictionary approach against deterministic
+encryption, nor TEE.fail's key extraction. It raises the bar; it does not close
+the category.
+
+### 2. Remove the DIMM, remove the attack surface
+
+All three attacks physically interpose **between the CPU and a removable DIMM** --
+the interposer is literally an adapter the module plugs into. TEE.fail's authors
+built theirs by soldering onto existing risers because that was easier than
+fabricating a PCB.
+
+Memory with no socket has no such attachment point:
+
+| memory | interposer difficulty |
+|---|---|
+| DIMM (every standard server and desktop) | **$50 board, plugs in** |
+| soldered LPDDR | BGA trace tapping -- orders of magnitude harder |
+| **on-package HBM / co-packaged LPDDR** | requires **decapsulation** |
+
+**Intel Xeon Max** (Sapphire Rapids HBM) is the concrete example: four HBM2e
+stacks, **64 GB on package**, and "to obtain the HBM-only mode, **no DIMM must be
+installed**" -- in that mode HBM is the only memory the OS sees. It is Sapphire
+Rapids silicon, so TDX-capable. NVIDIA Grace is the same shape (co-packaged
+LPDDR5X, up to 480 GB, no serviceable modules).
+
+Cost is the catch: Xeon Max 9468 is ~$9,900 and the 9480 ~$12,980. Datacenter
+pricing, not a seller-box budget.
+
+**Caveat, stated plainly:** this is an inference from the attack mechanism, not
+an explicit recommendation by the authors or vendors -- searching found no such
+statement from either. The residual physical attack is decapsulation to probe
+on-package interconnect, which NVIDIA's own confidential-computing threat model
+calls "out of scope... technically challenging and risky" given multi-layer
+packaging.
+
+### The procurement conclusion, which is the actionable part
+
+**AMD currently has no stated mitigation.** SEV-SNP *with Ciphertext Hiding* was
+still broken by TEE.fail, and Ciphertext Hiding "neither addresses issues with
+deterministic encryption nor prevents physical bus interposition."
+
+So for **new first-party hardware**, the better-defended choice today is
+**Intel Xeon 6 (P-core) or 5th Gen Emerald Rapids, running TDX with TME-MK
+cryptographic integrity enabled** -- rather than another EPYC/SEV-SNP box like
+metal0. Add on-package memory if the budget ever justifies it and the
+interposition point disappears entirely.
+
+That is a real answer to "what should we buy", even though it is not a drop-in
+replacement for SEV-SNP and does not make an anonymous home seller trustworthy.
+
 ## The bottom line for the alternative search
 
 There is no alternative to find. SGX, TDX, SEV-SNP and NVIDIA GPU CC are all
@@ -137,5 +209,11 @@ keyed by physical address, with no integrity or freshness**, because the Merkle
 tree that would provide freshness does not scale (which is exactly why Intel
 removed it from SGX after Ice Lake).
 
-Picking different silicon does not solve this. Only changing what we promise, or
-who we accept, does.
+Picking different silicon does not *solve* this -- but it is not nothing either.
+Intel TDX with TME-MK cryptographic integrity is the best-defended standard
+configuration available today and has a vendor-stated mitigation for the
+Battering RAM class; AMD has none. And any machine without DIMM sockets removes
+the attachment point the whole attack family depends on.
+
+For the anonymous-seller model specifically, hardware choice only narrows the
+gap. Closing it still requires changing what we promise, or who we accept.
