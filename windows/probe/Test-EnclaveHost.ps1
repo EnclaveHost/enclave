@@ -328,8 +328,45 @@ if ($Attempt) {
                 Add-Finding 'SNP VM state' 'info' "version $($v.Version), state $($v.State)"
             } catch { }
 
-            # Starting it would need a bootable IGVM/VMGS pair, which this probe
-            # does not ship. Creation succeeding is already the answer we came for.
+            # THE question this probe exists to answer.
+            #
+            # Loading a custom IGVM is documented, but ONLY for -GuestStateIsolationType
+            # OpenHCL and TrustedLaunch. Whether Set-OpenHCLFirmware will accept a VM
+            # created with SNP isolation is undocumented, and it decides everything:
+            #
+            #   accepts -> we ship our own IGVM as a confidential guest, compute its
+            #              launch measurement offline, and PROTOCOL.md's allowlist stays
+            #              auditable (anyone rebuilds and recomputes).
+            #   refuses -> the only remaining route is a Microsoft-built UVM, whose
+            #              measurement "cannot be independently reproduced by third
+            #              parties" -- a real downgrade to the tenant-facing claim.
+            #
+            # A dummy path is used deliberately: we are testing whether the cmdlet
+            # REJECTS THE VM, not whether it likes the file. "file not found" is a
+            # PASS for our purposes; "not supported on an isolated VM" is the failure.
+            if (Get-Command Set-OpenHCLFirmware -ErrorAction SilentlyContinue) {
+                $probeIgvm = Join-Path $env:TEMP 'enclave-probe-nonexistent.bin'
+                try {
+                    Set-OpenHCLFirmware -Vm $vm -IgvmFile $probeIgvm -ErrorAction Stop
+                    Add-Finding 'Custom IGVM + SNP' 'pass' 'Set-OpenHCLFirmware accepted an SNP-isolated VM'
+                } catch {
+                    $m = $_.Exception.Message
+                    if ($m -match 'not found|does not exist|cannot find|No such') {
+                        Add-Finding 'Custom IGVM + SNP' 'pass' ("cmdlet reached file handling on an SNP-isolated VM " +
+                            "(rejected the dummy path, not the VM) - custom IGVM appears to compose with SNP")
+                    } elseif ($m -match 'isolation|isolated|not supported|unsupported|invalid') {
+                        Add-Finding 'Custom IGVM + SNP' 'fail' ("REFUSED for an isolated VM: $m")
+                        Add-Finding 'Custom IGVM + SNP' 'info' 'this is the Path A blocker - reproducible measurement may not be reachable; see ARCHITECTURE.md'
+                    } else {
+                        Add-Finding 'Custom IGVM + SNP' 'warn' "inconclusive: $m"
+                    }
+                }
+            } else {
+                Add-Finding 'Custom IGVM + SNP' 'warn' 'Set-OpenHCLFirmware absent; cannot test the combination'
+            }
+
+            # Actually STARTING it would need a real bootable IGVM/VMGS pair, which
+            # this probe does not ship.
         } catch {
             $msg = $_.Exception.Message
             Add-Finding 'SNP launch test' 'fail' $msg
