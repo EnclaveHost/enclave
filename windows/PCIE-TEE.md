@@ -4,9 +4,10 @@ Asked because if one existed, a consumer gaming rig with no SEV-SNP silicon
 could still host the trusted half, and the EPYC/TDX board requirement would
 disappear.
 
-**Short answer: yes, one exists -- the NVIDIA BlueField DPU in zero-trust mode.
-It would technically work. It costs 1-6x the GPU it would monetize, which
-inverts the product's economics.**
+**Short answer: no, not today. The closest thing -- an NVIDIA BlueField DPU in
+zero-trust mode -- solves a different problem than the one we have, and DPU
+confidential computing proper is described by NVIDIA's own ecosystem as "under
+construction."**
 
 ## The structural constraint, first
 
@@ -28,29 +29,51 @@ would not fit a design that needed to protect the host's RAM.
 
 ## What actually qualifies
 
-### NVIDIA BlueField DPU (the real candidate)
+### NVIDIA BlueField DPU -- close, but for a different threat model
 
-NVIDIA describes it as "a server embedded within the server itself... It runs its
-own Linux kernel, its own management plane, and its own attestation root of
-trust -- completely isolated from the host." **Zero-trust mode** is the relevant
-configuration: it "implements an additional layer of security where the host
-system administrator is prevented from accessing BlueField from the host."
+A BlueField is genuinely "a server embedded within the server": its own ARM
+cores, its own DDR, its own Linux, its own BMC, its own secure boot and eRoT,
+and a DICE/SPDM attestation chain (L1-L6, rooted in an NVIDIA certificate, L4
+provisioned in production into write-protected memory). PCIe latency is
+microseconds, so the transport arithmetic that killed remote offload does not
+apply. All of that is real.
 
-That is the property we need. The declared adversary is the machine's owner, and
-zero-trust mode is explicitly designed to exclude them.
+**But zero-trust mode does not lock out the machine's owner, and that is the
+whole requirement.** NVIDIA's own documentation is precise about what it does:
 
-The attestation is genuine and structurally analogous to AMD's:
+> Zero Trust, also known as **Restricted Mode**, is a specialized variation of
+> DPU Mode that enhances security by preventing the host system administrator
+> from accessing BlueField **from the host side**. Once Zero Trust mode is
+> enabled, the BlueField must be fully controlled by the **data center
+> administrator** via the Arm cores or the BMC connection, rather than through
+> the host.
 
-| AMD SEV-SNP | BlueField-3 |
-|---|---|
-| VCEK -> ASK -> ARK, rooted at AMD | DICE cert chain L1-L6, rooted in an **NVIDIA root certificate** |
-| VCEK provisioned per-part | L4 provisioned in production, in write-protected memory |
-| report signed by the PSP | SPDM measurements signed by the L6 leaf key |
-| launch measurement | DICE measurements + CoRIM reference values |
+Read the roles. It separates **the tenant on the host** from **the operator on
+the DPU**. In a cloud that is exactly right: the tenant rents the host CPU and
+must not be able to reach the operator's infrastructure on the card.
 
-Latency is a non-issue: PCIe round trips are microseconds, comparable to the
-loopback figures the tier already runs at, so none of the WAN arithmetic that
-killed remote offload applies here.
+In our scenario those two roles are **the same person**. The seller owns the
+machine, installs the card, and holds the BMC. Zero-trust mode closes the
+host-side door and hands them the key to the front one -- because handing the
+legitimate administrator ARM/BMC control is the mode's *intended behaviour*, not
+a gap in it.
+
+Two further gaps, both material:
+
+- **No evidence of DPU DRAM encryption against physical attack.** SEV-SNP's
+  guarantee rests on a memory encryption engine with a key the host never sees.
+  Nothing found indicates BlueField encrypts its own DDR that way, and its DRAM
+  is as physically accessible as any other DRAM to someone holding the card.
+- **DPU confidential computing is not shipping.** The description in the
+  literature is that "confidential computing environments for DPUs are **under
+  construction**, based on PCIe **TDISP** features, such as NVIDIA BlueField."
+  TDISP is the standard for attaching a device *into* a CVM's trust boundary --
+  which presupposes a CVM on the CPU side. So even the future version of this
+  does not remove the CPU TEE requirement; it extends one.
+
+Zero-trust mode is a real and useful security control. It is an **administrative
+separation between two roles**, not a hardware boundary that resists the party
+holding the hardware.
 
 ### What does not qualify
 
@@ -128,8 +151,20 @@ Not free, if it were ever pursued:
 
 ## Verdict
 
-The question was worth asking and the answer is genuinely "yes, that exists."
-It fails on price rather than on architecture, which is a better failure than
-the ones before it -- those were physics. If DPU prices fall, or if the target
-shifts from "monetise a gaming rig" to "a purpose-built seller box that does not
-need server silicon," this comes back.
+**There is no commodity "CVM on a PCIe card" today.** I initially read
+BlueField's zero-trust mode as one; it is not. It defends the operator's card
+from the host's tenant, and our seller is both parties at once.
+
+What would actually be needed is a card that (a) encrypts its own memory against
+someone holding it, and (b) attests a measurement of *our* workload to a third
+party, with no path for the card's physical owner to extract the keys. BlueField
+has (b) for its own firmware and does not demonstrably have (a).
+
+The TDISP direction is worth tracking, but note what it is: a way to pull a
+device *inside* an existing CVM boundary. It makes CPU TEEs more useful; it does
+not substitute for one. So it does not rescue a consumer box either.
+
+The economics section below is retained because it would have been decisive even
+if the security argument had held -- a $550-3,300 card to monetise a $600 GPU
+does not work at metal0's posted $0.05/card-hour. Two independent reasons to say
+no is worth recording, since only one of them changes if prices fall.
