@@ -161,8 +161,9 @@ measurement computable up front with `sev-snp-measure` -- the same tool
 the release, recomputes the digest, and compares. No unmeasured byte we did not
 build.
 
-**RESOLVED -- Hyper-V will load a custom, unsigned firmware image.** Microsoft's
-own OpenVMM guide documents the procedure, on Windows 11 **client**:
+**PARTLY RESOLVED -- Hyper-V will load a custom, unsigned firmware image**, but
+the documented procedure does not say whether that composes with SNP isolation.
+Microsoft's own OpenVMM guide gives this, on Windows 11 **client**:
 
 ```powershell
 # once per system, elevated -- permits unsigned firmware images
@@ -188,13 +189,44 @@ Three things this establishes:
 - **Windows 11 24H2 (build 26100.1586) or later, client SKU** is the floor. A
   gaming rig on Windows 11 qualifies; Server is not required.
 
-**The caveat, stated by Microsoft and worth taking seriously:** "Windows Client
-and Server offer only **development support -- not production support** -- for
-OpenHCL workloads." It works and it is documented, but it is not a supported
-production configuration, so it can change across Windows updates. For a seller
-node that ships to other people's machines, that is a real operational risk to
-plan for (pin the build, detect breakage, fail closed), not a reason the
-architecture is wrong.
+**Two caveats, and the first is the one that still gates Path A.**
+
+**(a) The custom-IGVM procedure is documented only for `OpenHCL` and
+`TrustedLaunch` isolation.** That guide covers no other isolation type -- it says
+nothing about `SNP` or `TDX`. So "Hyper-V loads unsigned firmware" is
+established; "Hyper-V loads OUR firmware *as an SEV-SNP confidential guest*" is
+**not**, and must not be assumed.
+
+Reasons to expect it composes, none of them conclusive:
+
+- `VmgsTool`'s resource codes include `SNP`, `SNP_NO_HCL`, `TDX` and
+  `TDX_NO_HCL` alongside `NONCONFIDENTIAL`. Writing an IGVM into a VMGS *for
+  SNP* would be a strange thing to build if no SNP VM could consume a
+  caller-supplied one.
+- OpenHCL is itself delivered as an IGVM and, on SEV-SNP, "operates at the
+  VMPL0 level of an SEV-SNP confidential VM." So an OpenHCL-isolated VM on SNP
+  hardware plausibly *is* the confidential paravisor mode, and
+  `-GuestStateIsolationType OpenHCL` may already be conferring SNP isolation on
+  capable hardware.
+- Hyper-V CoCo VMs pick fully-enlightened or paravisor mode "when the VM is
+  created", which is the same place the isolation type is chosen.
+
+Reasons for caution: OpenHCL also runs non-confidentially (hence the
+`NONCONFIDENTIAL` resource code), so `OpenHCL` isolation may mean "use the
+paravisor" and say nothing about hardware isolation at all.
+
+**This is the single question the probe should be extended to answer**: create
+with `-GuestStateIsolationType SNP`, then attempt `Set-OpenHCLFirmware` against
+it, and record whether the cmdlet accepts an isolated VM. Falling back to Path B
+is knowingly accepting a non-reproducible UVM measurement, so it is worth
+spending real effort here before conceding it.
+
+**(b) Development support only.** "Windows Client and Server offer only
+**development support -- not production support** -- for OpenHCL workloads." It
+works and it is documented, but it is not a supported production configuration
+and can move across Windows updates. For software shipping to other people's
+machines that is a real operational risk to plan for -- pin the build, detect
+breakage, fail closed -- not a reason the architecture is wrong.
 
 ### Path B -- Confidential-ACI style: Microsoft's UVM, our workload
 
