@@ -452,6 +452,91 @@ So: assert it only while tenants are actually connected, release it when idle,
 and make it a visible setting rather than a silent one -- a seller who finds
 their PC never sleeps again, and never learns why, uninstalls.
 
+## What the guest kernel needs (a `build-image.mjs` change)
+
+Fully-enlightened mode is not free on the guest side. Per the kernel
+documentation and the Hyper-V SNP enlightenment series (Tianyu Lan, Microsoft,
+merged 2023), the guest must:
+
+- **Implement SEV-SNP Restricted Interrupt Injection.** Hyper-V requires it, and
+  the reason is the threat model, not tidiness: *"in fully enlightened mode, a
+  malicious hypervisor could inject interrupts into the guest OS at times that
+  violate x86/x64 architectural rules"* -- e.g. injecting while the guest has
+  interrupts disabled. Without it the guest is attackable by the host it is
+  supposed to be protected from.
+- **Do its own early-boot memory setup.** The kernel docs note that under a
+  paravisor "Linux does not perform the early boot memory setup steps that are
+  particularly tricky with AMD SEV-SNP" -- which is precisely the work
+  fully-enlightened mode hands back to the guest. It pvalidates system memory
+  itself.
+- **Use `vmmcall` for Hyper-V hypercalls** in SNP-enlightened mode, rather than
+  the usual hypercall page.
+
+Concretely that means `CONFIG_AMD_MEM_ENCRYPT` plus the Hyper-V guest
+enlightenments, on a kernel new enough to carry the SNP-on-Hyper-V series.
+
+`metal/build-image.mjs` currently builds from a pinned Arch kernel package.
+Stock distro kernels generally enable `CONFIG_HYPERV` and
+`CONFIG_AMD_MEM_ENCRYPT`, so this may need no more than a version floor -- but
+it must be **verified rather than assumed**, because the failure mode is a guest
+that boots and looks fine while missing the interrupt-injection hardening that
+makes the isolation meaningful. That is exactly the class of silent failure this
+whole tier is built to avoid.
+
+Check before building: the pinned kernel's version against the SNP-on-Hyper-V
+series, and that `CONFIG_AMD_MEM_ENCRYPT` and the Hyper-V enlightenments are
+actually set in the config the reproducible build pins.
+
+## The guest's QEMU dependencies, and what replaces each
+
+`build-image.mjs` bakes a specific module set and a specific config channel,
+both of which are QEMU-shaped. Enumerated here because each needs a named
+replacement and one of them is a small design decision rather than a swap.
+
+| metal today (QEMU) | on Hyper-V |
+|---|---|
+| `qemu_fw_cfg.ko` -- out-of-band config | **no equivalent; see below** |
+| `virtio_net.ko` + `net_failover.ko` | `hv_netvsc.ko` (VMBus networking) |
+| `vmw_vsock_virtio_transport.ko` | `hv_sock.ko` -- backs the same `AF_VSOCK` API over VMBus |
+| `tsm_report.ko`, `sev-guest.ko` | unchanged -- this is why attestation carries over |
+| `dm-verity` + `dm-mod` (model volumes) | unchanged, but the disk arrives as VMBus storage rather than virtio-blk |
+| (VMBus core) | `hv_vmbus.ko` must be added |
+
+The attestation modules being unchanged is the load-bearing row: the guest reads
+its SNP report through configfs-tsm either way, so
+[`metal/guest/agent.mjs`](../metal/guest/agent.mjs) needs no change to produce
+the RAD.
+
+### Replacing fw_cfg is the one real decision
+
+Today the launcher hands the guest its deployment config -- `name`, `relayUrl`,
+`tunnelToken`, `registryKey`, `payoutAddress`, the shielded worker's address --
+over QEMU **fw_cfg**, deliberately *outside* the measurement. That is what lets
+one image have one stable launch measurement no matter which relay or token it
+uses, and it is why the measurement allowlist works at all.
+
+Hyper-V has no fw_cfg. Three candidates, and the third is the right one:
+
+1. **`LaunchData`/HOST_DATA** -- wrong tool. It is measured into every report
+   and it is 32 bytes. It is the correct home for the model-volume digest (which
+   is exactly what metal uses `host-data=` for) and nothing else.
+2. **Hyper-V KVP exchange** (`hv_utils`) -- workable, but it is a
+   general-purpose host/guest key-value channel with its own daemon, and it
+   would mean carrying another service in a deliberately minimal measured image.
+3. **Ask the host daemon over `hv_sock` at boot.** The guest already needs
+   `hv_sock` for the shielded link. PID 1 opens a second connection to the
+   daemon on the host and requests its config.
+
+Option 3 preserves the trust properties **exactly**, which is the point: fw_cfg
+is host-controlled and unmeasured, and so is this. The host could lie about the
+relay URL or withhold the token in either design, and neither can reach the
+launch measurement. Nothing is weakened by the substitution; the channel changes
+and the trust boundary does not move.
+
+It also collapses two host-guest channels into one transport, so the Windows
+daemon has a single `AF_HYPERV` listener serving both the config request at boot
+and the masked exchanges afterwards.
+
 ## Implementation plan
 
 Staged so each step produces a decision, not just code.
