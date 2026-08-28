@@ -222,6 +222,55 @@ published code.
    smartcards resist physical attack -- but not at anything that holds a KV cache
    today.
 
+## This does not make SEV-SNP or TDX useless
+
+Stated explicitly, because the rest of this document dwells on a break and could
+easily be read as "TEEs are worthless." They are not, and reaching that
+conclusion would be a more expensive mistake than the one this document
+describes.
+
+**Still fully defended, unchanged by any of this:**
+
+- a **compromised hypervisor** -- the headline use case, untouched;
+- a **remote attacker with root on the host**;
+- a **malicious insider with admin but not physical access** -- an employee with
+  a console rather than a screwdriver;
+- **co-tenant attacks** from another VM on the same machine;
+- a **backdoored host software stack**.
+
+Every interposer attack requires opening the chassis, installing hardware
+between a DIMM and its slot, and running the machine in that state. That is the
+whole scope of the break.
+
+So the threat model **shrank**; it did not vanish. What is no longer true is
+"the operator cannot see in, full stop." What remains true is "the operator
+cannot see in **without physical tampering**." For most deployments those are
+the same sentence, because physical access is controlled.
+
+**What actually changed is price, not category.** Physical attacks were always
+partly out of scope for every TEE vendor, but a DRAM interposer used to cost
+north of $100,000 -- nation-state territory, and nobody had to plan around it.
+At $50-1,000 it becomes a motivated individual with a soldering iron. Same
+attack class, new affordability.
+
+**A TEE's value is inversely proportional to the adversary's physical access:**
+
+| deployment | adversary | TEE value |
+|---|---|---|
+| public cloud | remote attacker, or an employee under camera | high |
+| Tinfoil fleet, metal0 in a controlled space | same | high |
+| **anonymous home seller** | **owns the building, unlimited time, unsupervised, financially motivated** | **gap fully open** |
+
+The permissionless model is the single configuration where every mitigating
+factor is absent at once. That is an argument about *our deployment*, not
+against SEV-SNP.
+
+**And this design carries protection that does not depend on the TEE at all:**
+Freivalds catches tampered products before any dependent token is sampled,
+whatever the TEE's state; and the shielded masking means the GPU never holds
+plaintext regardless of what the host does to its own memory. Those hold on
+their own.
+
 ## What actually defends against this, available today
 
 Two things, and the first is Intel's own answer.
