@@ -210,10 +210,39 @@ try {
         }
     }
     if (-not (Get-Command Get-VMHost -ErrorAction SilentlyContinue)) {
-        Add-Finding 'Hyper-V module' 'fail' 'the Hyper-V PowerShell module is absent - install the management tools'
+        Add-Finding 'Hyper-V module' 'warn' ('Hyper-V PowerShell module absent. Expected on Home, and NOT necessarily fatal: ' +
+            'the daemon drives HCS directly, not the cmdlets. Check the Virtual Machine Platform line below.')
     } else {
         Add-Finding 'Hyper-V module' 'pass' 'Hyper-V PowerShell module present'
     }
+
+    # Virtual Machine Platform is the feature that exposes HCS WITHOUT the
+    # Hyper-V role. It is how WSL2 and Docker Desktop run on Home editions, and
+    # it is the feature the installer should enable on a Home machine. Its
+    # presence with the role absent is the configuration worth knowing about.
+    try {
+        $vmp = Get-WindowsOptionalFeature -Online -FeatureName 'VirtualMachinePlatform' -ErrorAction SilentlyContinue
+        if ($null -ne $vmp) {
+            if ($vmp.State -eq 'Enabled') {
+                Add-Finding 'Virtual Machine Platform' 'pass' 'enabled - HCS is exposed even without the Hyper-V role'
+            } else {
+                Add-Finding 'Virtual Machine Platform' 'warn' ("$($vmp.State) - enable with: " +
+                    'Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -All')
+            }
+        }
+        $whp = Get-WindowsOptionalFeature -Online -FeatureName 'HypervisorPlatform' -ErrorAction SilentlyContinue
+        if ($null -ne $whp) { Add-Finding 'Windows Hypervisor Platform' 'info' "$($whp.State)" }
+    } catch {
+        Add-Finding 'Virtual Machine Platform' 'warn' "could not query: $($_.Exception.Message)"
+    }
+
+    # Is a hypervisor actually running? On Home with VMP enabled this should be
+    # true even though the Hyper-V role is unavailable.
+    try {
+        $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction Stop
+        if ($cs.HypervisorPresent) { Add-Finding 'Hypervisor running' 'pass' 'a hypervisor is present and running' }
+        else { Add-Finding 'Hypervisor running' 'fail' 'no hypervisor detected - enable virtualization in firmware and Virtual Machine Platform' }
+    } catch { }
 } catch {
     Add-Finding 'Hyper-V' 'warn' "feature query failed: $($_.Exception.Message)"
 }
