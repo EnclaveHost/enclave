@@ -91,6 +91,65 @@ holding the hardware.
 - **Graphcore IPU with ITX.** Research-stage hardware extensions on a product
   line that is effectively dead.
 
+### RISC-V (specs yes, silicon no)
+
+The obvious place to hope for a cheap answer, since RISC-V is where open
+security IP lives. The specs are real and the hardware is not.
+
+**What exists as specification or IP:**
+
+- **CoVE** (Confidential VM Extension, formerly AP-TEE) -- the RISC-V analogue
+  of SEV-SNP/TDX, with a companion **CoVE-IO** for device attachment. Active
+  spec work under `riscv-non-isa/riscv-ap-tee`, plus implementations from Rivos
+  and IBM's formally-verified ACE-RISCV. No confirmation of ratification, and no
+  shipping silicon found.
+- **Keystone** -- open-source TEE framework built on **PMP** (Physical Memory
+  Protection), from UC Berkeley. Runs on HiFive Unleashed and QEMU.
+- **SiFive WorldGuard** -- donated to RISC-V International in 2023. Multi-domain
+  isolation that tags transactions with World IDs, covering "core, cache,
+  interconnect, peripheral, and memory."
+
+**What exists as buyable hardware:** the **Tenstorrent Blackhole** PCIe cards --
+p100a at $999, p150a at $1,399 -- carrying **16 SiFive X280 RISC-V cores**,
+32 GB GDDR6, and enough Linux support to boot the RISC-V cores directly
+(`tenstorrent/tt-bh-linux`). Cheaper than a BlueField, with vector-capable cores
+that would suit mask refill, and enough memory for the weights.
+
+It has **no attestation and no confidential computing features whatsoever**. It
+is an AI accelerator whose control processors happen to be RISC-V. Nothing found
+suggests Tenstorrent is heading that way.
+
+So: right shape, no security properties. If that card ever grew an attestable
+root of trust and memory encryption it would be genuinely interesting, but that
+is a wish, not a roadmap.
+
+## The pattern, and the filter it gives you
+
+Four candidates have now failed, and three failed the *same* way:
+
+| candidate | isolation mechanism | encrypts DRAM against the owner? |
+|---|---|---|
+| Windows VBS / VTL1 | hypervisor privilege levels | **no** |
+| BlueField zero-trust | administrative role separation | **no** |
+| RISC-V PMP / WorldGuard | physical memory partitioning, transaction tagging | **no** |
+| SEV-SNP / TDX | **memory encryption engine, key in the memory controller** | **yes** |
+
+Every one of the first three is *software isolation enforced by hardware
+privilege*. That stops software -- another process, the host kernel, a
+co-tenant. It does not stop someone holding the machine, because the DRAM still
+contains plaintext and they own the DRAM.
+
+SEV-SNP and TDX are categorically different for one reason: the memory
+encryption engine sits between the cores and DRAM with a key the host, the
+hypervisor, and the owner never see. That is what makes them the only things
+that survive an adversary defined as *the person who owns the box*.
+
+**The filter, for any future candidate:** does it encrypt memory with a key its
+physical owner cannot extract, and attest a measurement of *our* workload to a
+third party? If either answer is no, it does not meet this threat model,
+whatever it is called in marketing. Applying that test up front would have
+disposed of VBS, BlueField and RISC-V PMP in a sentence each.
+
 ## Why it still fails for a gaming rig
 
 Prices, mid-2026:
