@@ -392,6 +392,66 @@ card can give causes a refused HELLO, which the guest handles (it computes in
 the enclave and retries) but which wastes a placement; advertising less silently
 costs the seller money.
 
+## The daemon cannot be a plain Windows service (session 0 kills CUDA)
+
+The obvious design -- worker supervised by a Windows Service so it runs without
+anyone logged in -- **does not work on a consumer card**, and this is a hard
+platform rule rather than a tuning problem:
+
+> Session 0 isolation prevents GPU applications via CUDA, OpenCL or other
+> compute frameworks from running as a Windows service. CUDA applications
+> cannot run as a service in session 0 if CUDA devices use WDDM.
+
+Services live in session 0, which has no access to display devices, and a
+GeForce is WDDM. TCC mode (which would allow it) is not available on GeForce.
+
+### The shape that does work
+
+Split it, which is the documented workaround -- "a service can run in session 0
+and launch a provider process in session 1 with access to CUDA devices":
+
+```
+Windows Service (session 0)          lifecycle, autostart, updates, config,
+  |                                  on-chain identity, the local HTTP API
+  |                                  -- NO CUDA in this process
+  `-- CreateProcessAsUser(...) -->   shielded-worker.exe in the ACTIVE session
+                                     -- holds the card, CUDA works here
+```
+
+The service resolves the active console session
+(`WTSGetActiveConsoleSessionId` -> `WTSQueryUserToken` -> `DuplicateTokenEx`)
+and launches the worker into it. The tray app is per-user and lives in that
+session too, so this is consistent rather than contorted.
+
+### What that costs, and it is a real product constraint
+
+**The worker only runs while a user session exists.**
+
+| state | session? | sells? |
+|---|---|---|
+| logged in, using the PC | yes | yes |
+| **screen locked** | yes -- a locked session is still a session | **yes** |
+| logged out / no user signed in | no | **no** |
+| asleep | no | no |
+
+"Sell compute while I sleep" therefore means *screen locked, machine awake*, not
+*signed out*. That is the normal state for a desktop left running overnight, so
+the product is fine -- but the onboarding copy must not promise earnings from a
+machine the owner signs out of, because it will not deliver them and the seller
+will conclude the software is broken.
+
+### Sleep has to be held off deliberately
+
+A sleeping machine sells nothing, so the daemon must call
+`SetThreadExecutionState(ES_SYSTEM_REQUIRED | ES_CONTINUOUS)` while it is
+actively serving, and **clear it with `SetThreadExecutionState(ES_CONTINUOUS)`
+the moment it stops**. Holding it indefinitely is the documented anti-pattern:
+on a Modern Standby machine it drains the battery flat with the lid closed.
+
+So: assert it only while tenants are actually connected, release it when idle,
+and make it a visible setting rather than a silent one -- a seller who finds
+their PC never sleeps again, and never learns why, uninstalls.
+
 ## Implementation plan
 
 Staged so each step produces a decision, not just code.
