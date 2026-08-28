@@ -185,11 +185,30 @@ document builder lives. If the gate is on the PowerShell module rather than on
 `vmcompute.dll`, the Home restriction may simply not bind on the path we are
 taking anyway.
 
-**Stated as a hypothesis, not a finding.** It is cheap to test -- create an
-isolated compute system through HCS on a Home machine and see whether it is
-refused -- and the payoff is the difference between "Windows 11 Pro only" and
-"any Windows 11." Worth an experiment before writing Home off in the
-requirements.
+**The platform is demonstrably present on Home.** WSL2 runs on Home editions and
+is built on exactly this: *"WSL 2 uses the Windows Host Compute Service, an API
+built on Hyper-V and exposed by enabling the Virtual Machine Platform."* Home
+users enable **Virtual Machine Platform** (and Windows Hypervisor Platform) as
+optional features, "and enabling these results in a hypervisor being detected...
+though features required for full Hyper-V management will not be displayed."
+When WSL2 breaks on Home the error is `HCS_E_HYPERV_NOT_INSTALLED` -- an **HCS**
+error code, from the very service we intend to call.
+
+So on Windows 11 Home: the hypervisor runs, `vmcompute` runs, and HCS serves
+requests. What is absent is the *management* surface -- Hyper-V Manager and the
+PowerShell module. That is precisely the layer this design does not use.
+
+**What is still unknown** is narrower than "does Home work": it is whether
+`vmcompute` applies a policy check on the *kind* of compute system requested,
+allowing WSL2/container utility VMs while refusing a full VM with SNP isolation.
+That is a plausible gate and it is the residual risk.
+
+Concretely, the installer's Home path enables **Virtual Machine Platform**
+rather than the Hyper-V role, and the probe should check for that feature
+independently of the role.
+
+The payoff for settling this is the difference between "Windows 11 Pro only" and
+"any Windows 11," which is most of the consumer install base.
 
 ## Two paths, and the trade between them
 
