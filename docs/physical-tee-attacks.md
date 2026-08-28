@@ -74,6 +74,101 @@ mitigations are planned. Per the Battering RAM authors, a fix "would require a
 fundamental redesign of memory encryption itself." Both vendors recommend
 physical security as the defence.
 
+## How the attacks actually work
+
+Worth understanding the mechanism rather than the headline, because it explains
+why the vendors say they cannot fix it, and why on-package memory helps.
+
+### The root cause: encryption without integrity or freshness
+
+Every scalable TEE encrypts DRAM with **AES-XTS keyed by the physical address**.
+Three properties follow, and all three are load-bearing for the attacks:
+
+1. **Deterministic.** The same plaintext, at the same physical address, always
+   produces the same ciphertext. No nonce, no per-write counter.
+2. **No integrity.** Nothing authenticates that a cache line is the one the CPU
+   wrote (TME-MK's integrity mode is the exception, and is new).
+3. **No freshness.** Nothing stops old ciphertext being written back later.
+
+This was a deliberate trade. Client SGX originally had a **Merkle tree** over
+enclave memory, giving integrity and anti-replay -- but tree update cost grows
+with memory size, so it does not scale to hundreds of gigabytes. Intel removed
+it after Ice Lake to make large enclaves possible. SEV-SNP and TDX never had it.
+Scalability was bought with exactly the properties that would have stopped this.
+
+### What an interposer is, physically
+
+A small PCB that sits **between the DIMM and its slot**. The memory module plugs
+into the interposer, the interposer plugs into the motherboard. Every signal
+between CPU and DRAM now passes through attacker-controlled hardware.
+
+Battering RAM's entire bill of materials: a custom PCB ($18.49), a DDR4
+connector ($16.00), a Raspberry Pi Pico ($4.00), and two analog switches plus
+passives (~$9). Around **$50**.
+
+The critical trick is that it is **passive during boot**. It passes signals
+straight through while the platform runs its integrity and alias checks, so
+everything passes and the machine reports a fully trusted state. Only afterwards
+does it start interfering. That is what defeats boot-time alias detection.
+
+### WireTap: read the bus, build a dictionary (~$1,000)
+
+Purely passive -- it only *watches*. The $1,000 is mostly a logic analyser fast
+enough to capture DDR4.
+
+Because encryption is deterministic and keyed by address, a given plaintext at a
+given address always yields the same ciphertext. So you build a
+**ciphertext-to-plaintext dictionary**: induce known values at observable
+addresses, record what the ciphertext looks like, and afterwards you can
+recognise that value whenever it reappears. It is the ECB "encrypted penguin"
+problem, at cache-line granularity across physical addresses.
+
+Low-entropy, structured data is the ideal target. The authors used it to recover
+an **SGX attestation key** from a machine reporting fully trusted status. With
+that key you can sign quotes for anything, so remote attestation stops meaning
+anything on that platform.
+
+### Battering RAM: alias addresses at runtime ($50)
+
+Cheaper and more direct. The analog switches sit on **address lines**, so at
+runtime the interposer can redirect an access intended for one physical address
+to different DRAM storage.
+
+That breaks the binding the whole design rests on: the CPU believes a given
+physical address is protected memory belonging to an enclave or a guest, while
+the actual storage behind it is somewhere the attacker controls. The result is
+arbitrary plaintext read/write into SGX-protected memory, and on **SEV-SNP,
+attestation bypass plus plaintext access** -- on fully patched systems.
+
+Aliasing is a known threat; platforms check for it at boot. Battering RAM's
+contribution is *dynamic* aliasing -- invisible during those checks, enabled
+afterwards.
+
+### TEE.fail: the same idea on DDR5 (~$1,000)
+
+Battering RAM only worked on DDR4, because DDR5 reorganised the command/address
+bus and simple switches no longer suffice. That was the last remaining excuse.
+
+TEE.fail built a proper DDR5 interposer from off-the-shelf parts for under
+$1,000 -- and notes DDR5 interposers are **easier** to build, "only 50% of the
+soldering work." It fits in a briefcase. It extracts **provisioning
+certification keys** from Intel SGX and TDX, and ECDSA private keys from AMD
+SEV-SNP *including with Ciphertext Hiding*. The forged quotes it produces are
+"verifiable by official libraries" -- a correct verifier cannot tell. And since
+NVIDIA GPU CC roots its attestation in the CPU TEE, compromising the CPU keys
+compromises GPU attestation as well.
+
+### Why it will not be fixed
+
+The fix is memory encryption with integrity and freshness -- the Merkle tree
+that was removed because it does not scale. Per the Battering RAM authors,
+defending against it "would require a fundamental redesign of memory encryption
+itself." Intel and AMD both classify physical DRAM attacks as out of scope and
+name physical security as the mitigation.
+
+Which is exactly why removing the DIMM socket helps: every one of these attacks
+needs a mechanical interface to interpose on. No socket, no interposer.
+
 ## Why this hits us harder than it hits Azure
 
 This is not an Enclave bug; it is the state of the art, and every cloud CVM
