@@ -335,6 +335,63 @@ Notes that matter:
   rebuild OpenHCL is what makes the paravisor-mode option acceptable at all, and
   it is why `SNP_NO_HCL` is a preference rather than a hard requirement.
 
+## Windows-specific risks on the GPU half
+
+Two things behave differently on Windows than on the Linux box the tier was
+measured on, and both hit the headline feature ("sell part of the card while I
+play").
+
+### 1. Coarse-grained preemption means the GAME may stutter
+
+On Linux the known failure was the worker being starved: a game on metal0's 3070
+took most of the time slices and the masked path went 152 -> 1240 us per
+exchange, dropping the tenant from ~95 to 15 tok/s. `host-setup.sh` addresses it
+with `nvidia-smi compute-policy --set-timeslice=1` (SHORT).
+
+Windows adds the *reverse* risk. Under WDDM, preemption is coarse: executing
+blocks are preempted at a granularity where the whole GPU yields to the
+preempting task. Background compute competing with a fullscreen game can
+therefore show up as **frame hitching in the game**, which the seller
+experiences directly and will not tolerate. And `nvidia-smi compute-policy` is
+a compute-mode control whose availability under WDDM is unconfirmed -- the
+Linux mitigation may simply not exist here.
+
+Implications for the product, not just the port:
+
+- The slider needs a companion control, something like **"pause selling while a
+  game is running."** The daemon can detect fullscreen-exclusive presentation
+  and stop accepting new tenant reservations, letting existing links drain.
+  Without that, the first stutter makes the seller uninstall.
+- Lower-priority CUDA streams (`cudaStreamCreateWithPriority`) are worth
+  measuring but are not a substitute: priority influences scheduling, it does
+  not bound the preemption granularity.
+- The fleet-facing half already copes. The worker re-measures
+  `field_gmac_per_s` on every HELLO, and `gsup` marks the card `contended` when
+  it answers under half its best figure, at which point tenants fall back to the
+  enclave's CPU. So the network already degrades honestly while someone games;
+  what is missing is the *seller-facing* half of the same fact.
+
+### 2. VRAM accounting is not the driver's to report under WDDM
+
+In WDDM mode the **Windows kernel-mode display driver manages GPU memory, not
+the NVIDIA driver**, and some `nvidia-smi` memory statistics are unavailable as
+a result.
+
+That matters because `vram_free_gb` -- the figure the fleet uses to decide what
+this card can still be sold for -- is computed as
+`min(budget - reserved, driver free)` (`shieldedCardGb`, protocol 1.3). The
+`reserved` half is the worker's own bookkeeping and is unaffected. The
+`driver free` half comes from `cudaMemGetInfo`, and under WDDM that number
+reflects Windows' allocator rather than the card's true free memory.
+
+Before trusting the slider on Windows, confirm what `cudaMemGetInfo` actually
+returns there with a game running, and decide whether the Windows build should
+advertise `budget - reserved` alone rather than taking a `min` with a figure
+that may be systematically wrong in either direction. Advertising more than the
+card can give causes a refused HELLO, which the guest handles (it computes in
+the enclave and retries) but which wastes a placement; advertising less silently
+costs the seller money.
+
 ## Implementation plan
 
 Staged so each step produces a decision, not just code.
