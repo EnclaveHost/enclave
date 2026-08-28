@@ -1,0 +1,72 @@
+# Makefile.win -- the shielded worker for Windows.  nmake /f Makefile.win
+#
+# Builds shielded/worker-cuda/worker.cu UNMODIFIED, against nvcc + MSVC.
+# worker.cu holds the admission rules that make it safe to sell a card from an
+# unattested machine, so the Windows artifact must be the same program. What
+# makes that possible is win-compat.h (POSIX socket names over Winsock, force
+# included with /FI) plus posix-stubs\ (so the unconditional POSIX includes
+# resolve). See win-compat.h for the full mapping.
+#
+# ---------------------------------------------------------------------------
+# THE FLAG THAT MUST NOT BE LOST: --fmad=false
+#
+# The Linux Makefile says it plainly -- "fp contraction is OFF on purpose: an
+# FMA would round differently from the TEE and unmasking would return noise."
+# The masked protocol recovers x*W exactly in a prime field; the TEE and the
+# worker must compute bit-identical products or the unmask yields noise and
+# Freivalds rejects every reply. clang's -ffp-contract=off becomes nvcc's
+# --fmad=false. Do not "optimise" it away, and do not add /fp:fast to the host
+# compiler. If tenants see refused verifications on Windows only, check this
+# flag first.
+# ---------------------------------------------------------------------------
+#
+# Prerequisites:
+#   * CUDA Toolkit (nvcc) and Visual Studio 2022 Build Tools (cl.exe) on PATH --
+#     easiest from an "x64 Native Tools Command Prompt for VS 2022".
+#   * Paths below are relative to windows\worker-win.
+
+WORKER_DIR = ..\..\shielded\worker-cuda
+FIELD_DIR  = ..\..\wasm\ggml-shielded
+STUBS      = posix-stubs
+
+NVCC = nvcc
+CL   = cl
+
+# Same architectures as the Linux build: Ampere, Ada, Hopper.
+ARCHS = -gencode arch=compute_80,code=sm_80 \
+        -gencode arch=compute_86,code=sm_86 \
+        -gencode arch=compute_89,code=sm_89 \
+        -gencode arch=compute_90,code=sm_90
+
+# /FI force-includes win-compat.h ahead of worker.cu's own includes, so the
+# POSIX names are already macros by the time they are used.
+# -Xcompiler passes host-compiler flags through nvcc.
+NVCCFLAGS = -O3 -std=c++17 --fmad=false $(ARCHS) \
+            -I"$(FIELD_DIR)" -I"$(STUBS)" -I. \
+            -Xcompiler "/FI win-compat.h /EHsc /O2 /fp:precise /D_CRT_SECURE_NO_WARNINGS"
+
+# /fp:precise on the C side too: shielded-field.c is the SAME encoding routine
+# the TEE links, and it must not contract either.
+CFLAGS = /O2 /fp:precise /I"$(FIELD_DIR)" /D_CRT_SECURE_NO_WARNINGS /c
+
+all: shielded-worker.exe
+
+shielded-field.obj: "$(FIELD_DIR)\shielded-field.c" "$(FIELD_DIR)\shielded-field.h"
+	$(CL) $(CFLAGS) /Fo$@ "$(FIELD_DIR)\shielded-field.c"
+
+worker.obj: "$(WORKER_DIR)\worker.cu" win-compat.h
+	$(NVCC) $(NVCCFLAGS) -c "$(WORKER_DIR)\worker.cu" -o $@
+
+# Linked to a temporary name and moved into place, for the same reason the Linux
+# Makefile does it: overwriting a running worker's image rewrites pages a live
+# process is executing (2026-08-26: SIGSEGV mid-exchange, tenant dropped to the
+# int64 path until relaunch). A rename keeps the old file alive for the old
+# process, and the supervisor picks up the new one on its next restart.
+shielded-worker.exe: worker.obj shielded-field.obj
+	$(NVCC) -o $@.tmp worker.obj shielded-field.obj -lcudart -Xlinker "ws2_32.lib"
+	move /Y $@.tmp $@
+
+clean:
+	-del /Q shielded-worker.exe worker.obj shielded-field.obj 2>nul
+
+.PHONY: all clean
