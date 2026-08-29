@@ -222,6 +222,53 @@ published code.
    smartcards resist physical attack -- but not at anything that holds a KV cache
    today.
 
+## Why there is no alternative: the search, and where it ended
+
+Recorded so this is not re-run. Two avenues were swept exhaustively in August
+2026.
+
+### Hardware: nothing meets the filter
+
+The filter: does it encrypt memory with a key the physical owner cannot extract,
+**and** attest a measurement of *our* workload to a third party?
+
+| candidate | verdict |
+|---|---|
+| **IBM Secure Execution** (z16/LinuxONE 4+) | meets the bar; needs an s390x port and a $135-165k machine |
+| Arm CCA (shipped 2026, Neoverse V3) | listed by Battering RAM as theoretically vulnerable, untested only for want of hardware; datacenter silicon |
+| Intel SGX | broken by WireTap and TEE.fail; server-only |
+| **Hygon CSV** (SM4, per-VM keys in the memory controller, Chinese SEV analogue) | a real technology, but export/sourcing and vendor-trust problems are disqualifying for a privacy product, and the USENIX Security 25 tweak-repetition work suggests it shares the deterministic-encryption weakness |
+| BlueField DPU zero-trust | administrative role separation, no DRAM encryption; the "adversary" it excludes is the tenant, not the owner |
+| RISC-V CoVE / Keystone / WorldGuard | specs and IP, no shipping silicon; PMP is partitioning, not encryption |
+| VBS / VTL1 | plaintext DRAM |
+| Custom FPGA + OpenTitan | buildable, and a small confidential set makes the integrity tree affordable -- but multi-year, and the attestation roots in us rather than a silicon vendor |
+| On-die SRAM accelerators (Groq, Cerebras, Tenstorrent) | the memory property, none of the trust machinery |
+
+### Cryptography: orders of magnitude too slow
+
+The other way to remove the requirement is to stop needing a trusted party at
+all. Measured, against the shielded tier's **~10 ms/token** on metal0:
+
+| approach | cost per token | vs shielded |
+|---|---|---|
+| **Shielded (SNP + masked GPU)** | **~10 ms** | 1x |
+| PermLLM (secret sharing, ChatGLM-6B) | ~3 s | ~300x |
+| SIGMA (function secret sharing, LLaMA2-13B) | ~38 s for one inference | -- |
+| FHE on 8x RTX PRO 6000, 128 encrypted tokens | 18-22 s | ~2000x |
+| BumbleBee (LLaMA-7B) | ~8 min | ~48000x |
+
+The literature's own summary: *"TEEs are currently the only approach that
+supports full-scale LLMs with acceptable latency."* MPC additionally needs
+**non-colluding** parties, which is a weaker assumption than a hardware root of
+trust when the parties are anonymous sellers -- two of them can be one person.
+
+### Conclusion
+
+There is no alternative to SEV-SNP/TDX for this workload today. The productive
+moves are the ones already recorded above: TME-MK cryptographic integrity where
+available, memory with no DIMM socket, tiering the trust claim honestly, and
+routing high-value work to boxes whose physical access is controlled.
+
 ## This does not make SEV-SNP or TDX useless
 
 Stated explicitly, because the rest of this document dwells on a break and could
