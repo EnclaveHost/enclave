@@ -62,7 +62,19 @@ Bypass at the refusal screen:
 Do not turn Secure Boot on in firmware to satisfy the check -- GRUB here is
 unsigned and would stop booting.
 
+## Getting a local account
+
+Windows 11 25H2 OOBE demands a Microsoft account and a network.  To get a
+local account instead, at the OOBE screen press `Shift+F10` and run:
+
+    start ms-cxh:localonly
+
+(`OOBE\BYPASSNRO` was removed in 24H2 and does not work here.)
+
 ## Before the SNP test
+
+Re-enable this in the *same* trip to firmware as the install reboot -- it
+costs nothing to have on while Windows installs, and it saves a reboot later.
 
 RMP Table Coverage is currently **disabled** in firmware (that is why metal0
 is crash-looping with `vm-type SEV-SNP not supported by KVM`).  Re-enable it
