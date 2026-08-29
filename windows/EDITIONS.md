@@ -381,11 +381,26 @@ What a pass proves: the custom-IGVM mechanism composes with an isolated VM, and
 the probe script itself runs (it has never been executed anywhere). That is
 open question (a) answered, and the script debugged, before touching anything.
 
-What it does **not** prove: that the hypervisor will grant **SNP** on
-confidential silicon. Only `Get-VMHost SnpStatus` on real hardware answers that.
+**VBS is a TEST HARNESS, not a security configuration.** It provides no
+confidentiality against the host at all -- VTL1 is privilege isolation with DRAM
+in plaintext, ruled out for this product in the table above and in PCIE-TEE.md.
+A VBS-isolated VM's memory is readable by the Windows host that launched it. It
+is useful here for exactly one reason: it reaches the same `ModifySystemSettings`
+acceptance logic without needing confidential silicon.
 
-**Do this first.** It costs nothing and it is the only step that de-risks the
-script itself.
+What it does **not** prove:
+
+- **nothing about security.** No memory encryption, no root of trust, no
+  attestation. The production requirement is unchanged: EPYC Milan+ or Xeon
+  SPR+, `EnableHardwareIsolation=1`, RMP coverage off, `SnpStatus=1`.
+- **not even that SNP will be accepted.** `vmms` could gate `FirmwareFile` per
+  isolation type -- VBS accepting it while SNP refuses is a coherent outcome.
+  The dry run *reduces* risk (it catches a refusal common to all isolation
+  types, and it debugs the script) rather than eliminating it.
+
+**Do this first anyway.** It costs nothing, it is the only step that de-risks the
+script itself, and a refusal here is a refusal everywhere -- which would be worth
+knowing before scheduling a production outage to discover it.
 
 ### 2. A separate physical disk -- not a partition
 
