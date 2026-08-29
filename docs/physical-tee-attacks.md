@@ -222,7 +222,38 @@ published code.
    smartcards resist physical attack -- but not at anything that holds a KV cache
    today.
 
-## Why there is no alternative: the search, and where it ended
+## Alternatives to SEV-SNP/TDX: what the search actually found
+
+**Correction to an earlier framing in this file.** The sweep below originally
+judged every candidate against "must resist a physically present owner" and
+concluded nothing qualified. That is an unfair test: **SEV-SNP and TDX fail it
+too**, which is the entire point of this document. Rejecting an alternative for
+sharing a weakness with the thing it would replace conflates two questions.
+
+Answered separately:
+
+**Is there an alternative to SEV-SNP/TDX in the same class?** Yes, two.
+
+- **Arm CCA**, shipping. Realms are hardware-isolated and **memory-encrypted**
+  (CCA requires the Realm, Secure and Root PASes to be encrypted; MEC extends
+  this to multiple contexts), with attestation of the Realm's initial state.
+  Silicon: Arm's AGI CPU on Neoverse V3 is orderable, volume by end of 2026,
+  with NVIDIA Vera and Fujitsu following. A genuine third vendor, equivalent in
+  guarantees -- including the shared interposer exposure.
+- **IBM Secure Execution**, shipping, and **stronger**: since z16/LinuxONE 4 all
+  memory is encrypted, and it is the only architecture here that claims physical
+  attack resistance rather than excluding it from scope. See the IBM section
+  above.
+
+**Does any of them solve the permissionless home-seller problem?** No -- and
+neither do SEV-SNP or TDX. Both alternatives are datacenter silicon; IBM
+additionally needs an s390x port and a $135-165k machine. Nothing examined puts
+a trust anchor in a consumer gaming PC.
+
+Keep those two answers apart. The first is about procurement; the second is
+about what the protocol can honestly promise an anonymous seller's tenants.
+
+## The rest of the sweep, and where it ended
 
 Recorded so this is not re-run. Two avenues were swept exhaustively in August
 2026.
@@ -264,8 +295,10 @@ trust when the parties are anonymous sellers -- two of them can be one person.
 
 ### Conclusion
 
-There is no alternative to SEV-SNP/TDX for this workload today. The productive
-moves are the ones already recorded above: TME-MK cryptographic integrity where
+Arm CCA and IBM Secure Execution are real alternatives in the same class, and
+IBM is better against a physical adversary. What none of them do -- including
+the incumbents -- is make an anonymous seller's own machine trustworthy. The
+productive moves for that are the ones already recorded above: TME-MK cryptographic integrity where
 available, memory with no DIMM socket, tiering the trust claim honestly, and
 routing high-value work to boxes whose physical access is controlled.
 
