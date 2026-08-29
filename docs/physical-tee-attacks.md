@@ -240,10 +240,30 @@ Answered separately:
   Silicon: Arm's AGI CPU on Neoverse V3 is orderable, volume by end of 2026,
   with NVIDIA Vera and Fujitsu following. A genuine third vendor, equivalent in
   guarantees -- including the shared interposer exposure.
-- **IBM Secure Execution**, shipping, and **stronger**: since z16/LinuxONE 4 all
-  memory is encrypted, and it is the only architecture here that claims physical
-  attack resistance rather than excluding it from scope. See the IBM section
-  above.
+- **IBM Secure Execution**, shipping, and **stronger** -- the one candidate that
+  meets the bar. Its protection is **two mechanisms, not one**, and the
+  distinction matters:
+
+  1. **Guest isolation is by hardware access control, not encryption.** IBM's
+     own wording: "the memory of a running guest is *not encrypted* but
+     protected by hardware access controls, which may only be manipulated by
+     trusted system firmware, called ultravisor." So a host root cannot reach
+     guest memory because the Ultravisor mediates every access -- a different
+     mechanism from SEV-SNP's per-VM AES-XTS, and notably not the mechanism the
+     interposer attacks defeat.
+  2. **Physical protection is separate and platform-wide.** "Since IBM Z 16 and
+     LinuxONE 4, all memory is encrypted. This memory encryption is transparent
+     to all firmware and software and is **intended to protect... against
+     physical attacks**."
+
+  Two independent layers covering the two threats, where SEV-SNP has one
+  covering both -- and that one is what broke.
+
+  The threat model is explicit that it includes "**a malicious hardware operator
+  who inspects the memory of an LPAR**", which is precisely the anonymous seller.
+  Root of trust: the Ultravisor is loaded and verified as part of Z firmware, the
+  private host key is "specific to an IBM Z server and is hardware protected",
+  and `pvattest` produces and verifies the attestation.
 
 **Does any of them solve the permissionless home-seller problem?** No -- and
 neither do SEV-SNP or TDX. Both alternatives are datacenter silicon; IBM
