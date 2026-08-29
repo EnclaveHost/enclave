@@ -56,6 +56,7 @@ die() { echo "error: $*" >&2; exit 1; }
 [ -e /dev/kvm ] || die "/dev/kvm missing"
 command -v qemu-system-x86_64 >/dev/null || die "qemu-system-x86_64 not found"
 command -v xorriso >/dev/null || die "xorriso not found (needed to build the answer ISO)"
+command -v 7z >/dev/null || die "7z not found (needed to repack the installer ISO without the boot prompt)"
 
 # Nested virtualisation must be on, or Hyper-V will not start in the guest.
 NESTED="$(cat /sys/module/kvm_amd/parameters/nested 2>/dev/null || cat /sys/module/kvm_intel/parameters/nested 2>/dev/null || echo 0)"
@@ -76,10 +77,43 @@ done
 [ -n "$OVMF_VARS" ] || die "no OVMF_VARS template found"
 
 mkdir -p "$OUT"
+
 DISK="$OUT/win11.qcow2"
 VARS="$OUT/OVMF_VARS.fd"
 ANSWER="$OUT/answer.iso"
 SERIAL="$OUT/serial.log"
+
+# ---------------------------------------------------------------------------
+# Windows install media stops at "Press any key to boot from CD or DVD" and
+# times out headless -- BdsDxe then reports
+#   failed to start Boot0002 "UEFI QEMU DVD-ROM": Time out
+# and gives up. The prompt lives in cdboot.efi, which is what efisys.bin (the
+# El Torito UEFI boot image) embeds. Microsoft ships efisys_noprompt.bin beside
+# it for exactly this case, so repack the ISO with that as the boot image.
+#
+# Cached: this costs one extract + one repack per source ISO, then never again.
+# ---------------------------------------------------------------------------
+NOPROMPT="$OUT/$(basename "${ISO%.iso}")-noprompt.iso"
+if [ ! -f "$NOPROMPT" ]; then
+  echo "== repacking installer ISO without the press-any-key prompt =="
+  SRC="$OUT/.isosrc"
+  rm -rf "$SRC"; mkdir -p "$SRC"
+  echo "   extracting $(basename "$ISO") ..."
+  7z x -y -o"$SRC" "$ISO" >/dev/null || die "7z extraction failed"
+  [ -f "$SRC/efi/microsoft/boot/efisys_noprompt.bin" ] \
+    || die "efisys_noprompt.bin not in this ISO; cannot build a headless-bootable image"
+  echo "   repacking ..."
+  xorriso -as mkisofs \
+    -iso-level 4 -J -joliet-long -D -N -relaxed-filenames \
+    -V ENCWIN \
+    -e efi/microsoft/boot/efisys_noprompt.bin -no-emul-boot \
+    -o "$NOPROMPT" "$SRC" >/dev/null 2>&1 || die "xorriso repack failed"
+  rm -rf "$SRC"
+  echo "   $NOPROMPT ($(du -h "$NOPROMPT" | cut -f1))"
+else
+  echo "== reusing repacked ISO $NOPROMPT =="
+fi
+ISO="$NOPROMPT"
 
 echo "== building answer ISO =="
 STAGE="$(mktemp -d)"
@@ -106,12 +140,15 @@ echo "   this takes a while: Windows install, a reboot, then the probe."
 echo "   watch with:  tail -f $SERIAL"
 echo
 
-# -cpu host exposes SVM/VMX to the guest so Hyper-V can start. The hv_* flags
-# are the standard enlightenments; without them Windows runs but is slow.
+# -cpu host exposes SVM/VMX to the guest so Hyper-V can start -- that is the
+# part that matters. The hv_* set is deliberately the classic four, which have
+# no unmet dependencies: hv_tlbflush requires hv_vpindex and QEMU refuses the
+# pair outright, and richer enlightenments risk confusing a guest that is about
+# to run its OWN Hyper-V. These are a performance nicety, not a requirement.
 qemu-system-x86_64 \
   -name enclave-vbs-dryrun \
   -machine q35,accel=kvm,smm=on \
-  -cpu host,+topoext,hv_relaxed,hv_spinlocks=0x1fff,hv_vapic,hv_time,hv_frequencies,hv_tlbflush \
+  -cpu host,+topoext,hv_relaxed,hv_spinlocks=0x1fff,hv_vapic,hv_time \
   -smp "$CPUS" \
   -m "${RAM_GB}G" \
   -drive if=pflash,format=raw,readonly=on,file="$OVMF_CODE" \
