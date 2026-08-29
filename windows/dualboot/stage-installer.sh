@@ -8,6 +8,15 @@
 # free space on nvme0n1, unpacks the ISO into it (install.wim split into
 # .swm parts so it fits FAT32's 4 GiB file limit), and adds a UEFI boot entry.
 # Windows then installs into the free space in front of it.
+#
+# Every step is resumable: re-running picks up whatever is not done yet and
+# never re-creates a partition that already exists.
+#
+# Note on style: this runs under 'set -o pipefail', so no pipeline here may
+# close early.  'cmd | head -n', 'awk {...; exit}' and 'cmd | grep -q' all
+# send SIGPIPE upstream, which pipefail turns into a failing pipeline -- that
+# either kills the script under 'set -e' or silently inverts an 'if'.  Output
+# is captured into a variable first and filtered afterwards instead.
 set -euo pipefail
 
 DISK=/dev/nvme0n1
@@ -15,6 +24,7 @@ ISO="${ISO:-/home/steven/Downloads/Win11_25H2_English_x64_v2.iso}"
 SIZE_GIB=12
 LABEL=WINSETUP
 BASIC_DATA=EBD0A0A2-B9E5-4433-87C0-68B6B72699C7
+ENTRY="Windows Setup"
 APPLY=0
 WORK=/var/tmp/winstage
 
@@ -23,33 +33,45 @@ WORK=/var/tmp/winstage
 die() { echo "error: $*" >&2; exit 1; }
 [ "$(id -u)" = 0 ] || die "must run as root"
 [ -f "$ISO" ] || die "ISO not found: $ISO"
-for t in mkfs.vfat wimlib-imagex 7z sfdisk efibootmgr; do
+for t in mkfs.vfat wimlib-imagex 7z sfdisk efibootmgr blkid; do
   command -v "$t" >/dev/null || die "missing tool: $t  (pacman -S wimlib dosfstools p7zip)"
 done
 
 SECT=512
 ALIGN=2048
-DISK_SECTORS=$(cat /sys/class/block/$(basename $DISK)/size)
+DISK_SECTORS=$(cat "/sys/class/block/$(basename $DISK)/size")
 LAST_USABLE=$((DISK_SECTORS - 34))
+h() { numfmt --to=iec "$(($1 * SECT))"; }
 
-# Largest free region on the disk.
-read -r FREE_START FREE_SECTORS < <(sfdisk -F "$DISK" | awk '/^ *[0-9]/{print $1, $3}' | sort -k2 -n | tail -1)
-[ -n "${FREE_START:-}" ] || die "no free space on $DISK -- run shrink-vm.sh first"
+free_region() {   # -> "start end sectors" for the largest gap, empty if none
+  local t
+  t=$(sfdisk -F "$DISK" 2>/dev/null || true)
+  printf '%s\n' "$t" | awk '/^ *[0-9]/{print $1, $2, $3}' | sort -k3 -n | tail -1
+}
 
-WANT=$((SIZE_GIB * 1024 * 1024 * 1024 / SECT))
-[ "$FREE_SECTORS" -gt $((WANT + 64 * 1024 * 1024 * 1024 / SECT)) ] \
-  || die "free region is only $((FREE_SECTORS*SECT/1024/1024/1024)) GiB; need the installer plus room for Windows"
+# ---- is the partition already there from an earlier run? ------------------
+PARTDEV=$(blkid -t LABEL="$LABEL" -o device 2>/dev/null | grep "^$DISK" || true)
+NEED_CREATE=1
 
-# Sit at the far end so Windows gets a contiguous block in front of it.
-STAGE_START=$(( (LAST_USABLE - WANT + 1) / ALIGN * ALIGN ))
-STAGE_SECTORS=$((LAST_USABLE - STAGE_START + 1))
-WIN_SECTORS=$((STAGE_START - FREE_START))
+if [ -n "$PARTDEV" ]; then
+  PARTNUM="${PARTDEV##*p}"
+  NEED_CREATE=0
+  echo "installer part   $PARTDEV exists already (label $LABEL) -- resuming"
+else
+  read -r FREE_START FREE_END FREE_SECTORS <<<"$(free_region)" || true
+  [ -n "${FREE_START:-}" ] || die "no free space on $DISK -- run shrink-vm.sh first"
+  WANT=$((SIZE_GIB * 1024 * 1024 * 1024 / SECT))
+  [ "$FREE_SECTORS" -gt $((WANT + 64 * 1024 * 1024 * 1024 / SECT)) ] \
+    || die "free region is only $(h "$FREE_SECTORS"); need the installer plus room for Windows"
+  # Sit at the far end so Windows gets a contiguous block in front of it.
+  STAGE_START=$(( (LAST_USABLE - WANT + 1) / ALIGN * ALIGN ))
+  STAGE_SECTORS=$((LAST_USABLE - STAGE_START + 1))
+  echo "free region      sectors $FREE_START .. $FREE_END   $(h "$FREE_SECTORS")"
+  echo "installer part   sectors $STAGE_START .. $LAST_USABLE   $(h "$STAGE_SECTORS")   FAT32 '$LABEL'"
+fi
 
-h() { numfmt --to=iec --suffix=B "$(($1 * SECT))"; }
-
-echo "free region      sectors $FREE_START .. $((FREE_START+FREE_SECTORS-1))   $(h $FREE_SECTORS)"
-echo "installer part   sectors $STAGE_START .. $LAST_USABLE   $(h $STAGE_SECTORS)   FAT32 '$LABEL'"
-echo "left for Windows sectors $FREE_START .. $((STAGE_START-1))   $(h $WIN_SECTORS)"
+read -r WS WE WN <<<"$(free_region)" || true
+[ -n "${WS:-}" ] && echo "left for Windows sectors $WS .. $WE   $(h "$WN")"
 echo "iso              $ISO"
 echo
 
@@ -58,45 +80,72 @@ if [ "$APPLY" != 1 ]; then
   exit 0
 fi
 
-echo "==> creating partition"
-echo "start=$STAGE_START, size=$STAGE_SECTORS, type=$BASIC_DATA, name=\"$LABEL\"" \
-  | sfdisk --append --no-reread --no-tell-kernel "$DISK"
+if [ "$NEED_CREATE" = 1 ]; then
+  echo "==> creating partition"
+  echo "start=$STAGE_START, size=$STAGE_SECTORS, type=$BASIC_DATA, name=\"$LABEL\"" \
+    | sfdisk --append --no-reread --no-tell-kernel "$DISK"
 
-# Read the number back out of the on-disk table.  p1 is held by dm-crypt, so
-# the kernel will not re-read the whole table -- add only the new partition.
-PARTNUM=$(sfdisk -l -o Device,Start "$DISK" | awk -v s="$STAGE_START" '$2==s{print $1}' | grep -o '[0-9]*$')
-[ -n "$PARTNUM" ] || die "could not find the partition just written to the table"
-PARTDEV="${DISK}p${PARTNUM}"
-partx -a --nr "$PARTNUM" "$DISK" 2>/dev/null || true
-udevadm settle 2>/dev/null || true
-for _ in $(seq 20); do [ -b "$PARTDEV" ] && break; sleep 0.5; done
-[ -b "$PARTDEV" ] || die "$PARTDEV did not appear"
-echo "    created $PARTDEV"
+  # Read the number back out of the on-disk table.  p1 is held by dm-crypt, so
+  # the kernel will not re-read the whole table -- add only the new partition.
+  TABLE=$(sfdisk -l -o Device,Start "$DISK")
+  PARTNUM=$(printf '%s\n' "$TABLE" | awk -v s="$STAGE_START" '$2==s{print $1}' | grep -o '[0-9]*$')
+  [ -n "$PARTNUM" ] || die "could not find the partition just written to the table"
+  PARTDEV="${DISK}p${PARTNUM}"
+  partx -a --nr "$PARTNUM" "$DISK" 2>/dev/null || true
+  udevadm settle 2>/dev/null || true
+  for _ in $(seq 20); do [ -b "$PARTDEV" ] && break; sleep 0.5; done
+  [ -b "$PARTDEV" ] || die "$PARTDEV did not appear"
+  echo "    created $PARTDEV"
 
-echo "==> formatting FAT32"
-mkfs.vfat -F 32 -n "$LABEL" "$PARTDEV"
+  echo "==> formatting FAT32"
+  mkfs.vfat -F 32 -n "$LABEL" "$PARTDEV"
+fi
 
 MNT=$(mktemp -d)
 mount "$PARTDEV" "$MNT"
 trap 'umount "$MNT" 2>/dev/null || true; rmdir "$MNT" 2>/dev/null || true' EXIT
 
-echo "==> unpacking ISO (everything except sources/install.wim)"
-7z x -y -o"$MNT" "$ISO" -x'!sources/install.wim' >/dev/null
-echo "==> extracting install.wim to $WORK"
-mkdir -p "$WORK"
-7z e -y -o"$WORK" "$ISO" sources/install.wim >/dev/null
-echo "==> images in install.wim:"
-wimlib-imagex info "$WORK/install.wim" | sed -n 's/^/    /p' | head -40
-echo "==> splitting into 3800 MiB .swm parts"
-wimlib-imagex split "$WORK/install.wim" "$MNT/sources/install.swm" 3800
-rm -f "$WORK/install.wim"
-sync
-ls -la "$MNT/sources/" | grep -i swm
+if [ -f "$MNT/setup.exe" ] && [ -f "$MNT/sources/boot.wim" ] && [ -f "$MNT/efi/boot/bootx64.efi" ]; then
+  echo "==> ISO already unpacked, skipping"
+else
+  echo "==> unpacking ISO (everything except sources/install.wim)"
+  7z x -y -o"$MNT" "$ISO" -x'!sources/install.wim' >/dev/null
+fi
+
+LISTING=$(7z l "$ISO" 2>/dev/null || true)
+ISO_WIM_BYTES=$(printf '%s\n' "$LISTING" | awk '/sources\/install\.wim/{print $4}')
+if [ -s "$WORK/install.wim" ] && [ "$(stat -c %s "$WORK/install.wim")" = "$ISO_WIM_BYTES" ]; then
+  echo "==> install.wim already extracted to $WORK, skipping"
+else
+  echo "==> extracting install.wim to $WORK"
+  mkdir -p "$WORK"
+  7z e -y -o"$WORK" "$ISO" sources/install.wim >/dev/null
+fi
+
+echo "==> editions in install.wim:"
+WIMINFO=$(wimlib-imagex info "$WORK/install.wim")
+printf '%s\n' "$WIMINFO" \
+  | awk '/^Index:/{i=$2} /^Name:/{sub(/^Name:[ \t]+/,""); printf "      %2s  %s\n", i, $0}'
+
+if [ -f "$MNT/sources/install.swm" ]; then
+  echo "==> already split, skipping"
+else
+  echo "==> splitting into 3800 MiB .swm parts (a few minutes)"
+  wimlib-imagex split "$WORK/install.wim" "$MNT/sources/install.swm" 3800
+  sync
+fi
+ls -la "$MNT/sources/" | grep -i swm || true
 df -h "$MNT" | tail -1
 umount "$MNT"; rmdir "$MNT"; trap - EXIT
+rm -f "$WORK/install.wim"; rmdir "$WORK" 2>/dev/null || true
 
-echo "==> adding a UEFI boot entry (temporarily first in BootOrder)"
-efibootmgr -c -d "$DISK" -p "$PARTNUM" -L "Windows Setup" -l '\EFI\BOOT\BOOTX64.EFI'
+BOOTENTRIES=$(efibootmgr || true)
+if [[ "$BOOTENTRIES" == *"$ENTRY"* ]]; then
+  echo "==> UEFI entry '$ENTRY' exists already"
+else
+  echo "==> adding a UEFI boot entry (temporarily first in BootOrder)"
+  efibootmgr -c -d "$DISK" -p "$PARTNUM" -L "$ENTRY" -l '\EFI\BOOT\BOOTX64.EFI' >/dev/null
+fi
 echo
 efibootmgr
 echo
