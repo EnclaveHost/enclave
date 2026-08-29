@@ -145,6 +145,14 @@ the worker's socket layer is what gets ported.
 
 ## Which Windows, exactly
 
+> **Superseded 2026-08-29 by [EDITIONS.md](EDITIONS.md).** The matrix below was
+> written before the binaries were read and before Microsoft's own CI recipe
+> was found. The short version now: Windows 11 Pro *and* Home (24H2+) both
+> work, through the same files; Windows 10 is out at the binary level; the
+> host gate is `HKLM\System\CurrentControlSet\Control\Hypervisor\EnableHardwareIsolation=1`;
+> `Set-OpenHCLFirmware` is a petri psm1 function, not a cmdlet. The text below
+> is kept for the reasoning, not the conclusions.
+
 Two independent cutoffs, and they bite for different reasons.
 
 | OS | Hyper-V role | OpenHCL / SNP isolation | verdict |
@@ -257,6 +265,15 @@ Three things this establishes:
   gaming rig on Windows 11 qualifies; Server is not required.
 
 **Two caveats, and the first is the one that still gates Path A.**
+
+> **Resolved 2026-08-29 (see [EDITIONS.md](EDITIONS.md)):** OpenVMM's petri
+> harness creates Hyper-V VMs with `GuestStateIsolationType` 2 (SNP) / 3 (TDX)
+> and hands them a custom, unsigned IGVM through the WMI `FirmwareFile`
+> property, and Microsoft's CI runs those tests on bare-metal Windows SNP and
+> TDX hosts. Custom IGVM + hardware isolation composes. What remains open is
+> narrower: whether a *retail* 26100 host honours `EnableHardwareIsolation`
+> (probe: `Get-VMHost | Select SnpStatus, TdxStatus`), and paravisor vs
+> `SNP_NO_HCL` -- see "Our guest image, on this path" there.
 
 **(a) The custom-IGVM procedure is documented only for `OpenHCL` and
 `TrustedLaunch` isolation.** That guide covers no other isolation type -- it says

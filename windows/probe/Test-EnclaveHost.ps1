@@ -7,32 +7,48 @@
   hardware-attested confidential VM (the trusted half) while Windows keeps the
   GPU on bare metal (the untrusted half, and the game)?
 
-  Nothing here is destructive. The only mutation is an SNP virtual machine that
-  is created and immediately deleted, and only if -Attempt is passed. That
-  single step is the point of the script: Microsoft DOCUMENTS
-  `New-VM -GuestStateIsolationType SNP` in the shipping Windows Server 2025
-  Hyper-V module, but a documented parameter value is not a working feature, and
-  no public first-hand report of it launching on retail Windows could be found.
-  The parameter existing tells you the cmdlet accepts the word. Creating the VM
-  tells you the platform means it.
+  Nothing here is destructive. The only mutations are (a) a throwaway isolated
+  VM that is created and immediately deleted, and only if -Attempt is passed,
+  and (b) an empty temp file used as a placeholder firmware image.
+
+  What this probe knows that the first version did not (see ../EDITIONS.md):
+
+    * The SNP/TDX guest loader is in the SAME vmwp.exe / winhvr.sys on Home,
+      Pro and Server 2025 (one cumulative update serves every edition). The
+      edition difference is which packages are STAGED, not what the platform
+      can do. So on Home the probe lists the staged Hyper-V packages instead
+      of giving up.
+    * The host gate Microsoft's own OpenVMM CI flips before running SNP/TDX
+      Hyper-V tests is HKLM\System\CurrentControlSet\Control\Hypervisor
+      \EnableHardwareIsolation = 1 (plus AllowFirmwareLoadFromFile = 1 and a
+      reboot). After the reboot, Get-VMHost reports SnpStatus / TdxStatus.
+      That is a no-side-effect readiness answer, so it is asked first.
+    * `Set-OpenHCLFirmware` is NOT a Windows cmdlet. It is a function in
+      OpenVMM's petri hyperv.psm1 that writes two WMI properties on
+      Msvm_VirtualSystemSettingData: GuestFeatureSet = 0x201 and FirmwareFile.
+      The -Attempt path now does exactly that, directly, so the "does a custom
+      IGVM compose with SNP isolation?" question is asked the way petri asks it.
+    * Windows 10's vmwp.exe (19041) has no IGVM loader at all, so the Windows
+      10 verdict is a binary fact, not just a support-lifecycle one.
 
   Why this architecture and not another (the short version):
 
     * Windows cannot be the thing that launches an SNP guest via QEMU/KVM the
-      way metal/ does on Linux -- WHPX exposes no confidential-guest launch, and
-      a driver cannot outrank the hypervisor. Hyper-V's own isolation type is
-      the only door.
+      way metal/ does on Linux -- the Windows Hypervisor Platform API exposes no
+      isolation capability at all, and a driver cannot outrank the hypervisor.
+      Hyper-V's own isolation type is the only door.
     * The GPU does NOT go in the enclave. It stays on the Windows host, held by
       the shielded worker, which only ever sees one-time-padded residues over a
-      prime field. A hostile GPU host is the declared threat model, so the
-      gamer, the game, and Windows itself are all already assumed adversarial.
+      prime field. A hostile GPU host is the declared threat model.
     * Therefore no GPU passthrough is needed, Windows is never virtualised, and
-      the card is shared with the game by the ordinary NVIDIA driver, exactly as
-      it already is on metal0 (an EPYC 9115 with an RTX 3070).
+      the card is shared with the game by the ordinary NVIDIA driver.
 
 .PARAMETER Attempt
-  Actually create and delete a throwaway SNP VM. This is the decisive test.
-  Without it the script reports only what can be learned by inspection.
+  Actually create and delete a throwaway isolated VM, and try to attach a
+  custom firmware image to it through WMI. This is the decisive test.
+
+.PARAMETER IsolationType
+  SNP or TDX. Defaults to SNP on AMD and TDX on Intel.
 
 .PARAMETER KeepVm
   Leave the probe VM behind for inspection instead of deleting it.
@@ -44,11 +60,13 @@
 [CmdletBinding()]
 param(
     [switch]$Attempt,
+    [ValidateSet('SNP', 'TDX')][string]$IsolationType,
     [switch]$KeepVm
 )
 
 $ErrorActionPreference = 'Continue'
 $script:Findings = [System.Collections.Generic.List[object]]::new()
+$HvNs = 'root\virtualization\v2'
 
 function Add-Finding {
     param(
@@ -69,7 +87,7 @@ function Add-Finding {
         'warn' { ' WARN ' }
         default { ' ---- ' }
     }
-    Write-Host ('[{0}] {1,-22} {2}' -f $tag, $Area, $Detail) -ForegroundColor $color
+    Write-Host ('[{0}] {1,-24} {2}' -f $tag, $Area, $Detail) -ForegroundColor $color
 }
 
 function Test-Elevated {
@@ -80,19 +98,23 @@ function Test-Elevated {
     } catch { return $false }
 }
 
+# Numeric GuestStateIsolationType values as petri and vmms use them.
+$IsoNames = @{ 0 = 'TrustedLaunch'; 1 = 'VBS'; 2 = 'SNP'; 3 = 'TDX'; 4 = 'RME'; 16 = 'OpenHCL'; 18 = 'reserved18'; 19 = 'reserved19' }
+
 Write-Host ''
 Write-Host 'Enclave host capability probe' -ForegroundColor Cyan
 Write-Host '=============================' -ForegroundColor Cyan
 Write-Host ''
 
 # ---------------------------------------------------------------------------
-# 1. Windows build.
+# 1. Windows build and edition.
 #
-# Confidential VM support landed in the 26100 branch (Windows Server 2025 /
-# Windows 11 24H2), which is also the OS build Azure Local 2607 carries when it
-# ships confidential VMs in public preview. Older branches do not have the
-# isolation type at all, so there is no point continuing on one.
+# The isolated-VM loader (IGVM, SNP contexts, ID block, CVM policy) is in
+# vmwp.exe from 22621 (23H2) onward; custom-IGVM loading (AllowFirmwareLoadFromFile,
+# LoadClientHclFirmware) arrived in 26100 (24H2), which is why the OpenVMM guide
+# names 26100.1586 as the floor. Windows 10's 19041 vmwp.exe has none of it.
 # ---------------------------------------------------------------------------
+$isHome = $false
 try {
     $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
     $build = [int]($os.BuildNumber)
@@ -101,27 +123,27 @@ try {
     $caption = $os.Caption
     $detail = "$caption (build $build.$ubr)"
 
-    # OpenHCL floor is 26100.1586 (Windows 11 24H2 / Server 2025). Windows 10's
-    # final build is 19045 and it left support on 2025-10-14, so it is not a
-    # version gap an update closes -- there are no more Windows 10 versions.
     if ($build -ge 26100 -and ($build -gt 26100 -or $ubr -ge 1586)) {
-        Add-Finding 'Windows build' 'pass' "$detail - at or above the 26100.1586 OpenHCL floor"
+        Add-Finding 'Windows build' 'pass' "$detail - at or above the 26100.1586 floor (custom IGVM loading present in vmwp.exe)"
     } elseif ($build -ge 26100) {
-        Add-Finding 'Windows build' 'warn' "$detail - 26100 but below .1586; update before testing OpenHCL"
+        Add-Finding 'Windows build' 'warn' "$detail - 26100 but below .1586; install the current cumulative update first"
+    } elseif ($build -ge 22621) {
+        Add-Finding 'Windows build' 'fail' "$detail - Windows 11 23H2: vmwp.exe has the SNP loader but NOT custom-IGVM loading; the free in-place update to 24H2 fixes this"
     } elseif ($build -ge 22000) {
-        Add-Finding 'Windows build' 'fail' "$detail - Windows 11 below 24H2; a free in-place update to 24H2 fixes this"
+        Add-Finding 'Windows build' 'fail' "$detail - Windows 11 21H2; a free in-place update to 24H2 fixes this"
     } else {
-        Add-Finding 'Windows build' 'fail' "$detail - Windows 10 or older. Final Win10 build is 19045, well below the 26100 floor, and it left support on 2025-10-14. Not fixable by updating."
+        Add-Finding 'Windows build' 'fail' ("$detail - Windows 10 or older. Its vmwp.exe (19041) carries no IGVM loader, no SNP " +
+            'contexts and no measurement code, and the OS left support on 2025-10-14. Not fixable by updating Windows 10; ' +
+            'the equivalent is the free in-place upgrade to Windows 11.')
     }
 
-    # Edition matters independently: the Hyper-V ROLE is Pro/Enterprise/Education
-    # only. See the note below about why that may not bind on the HCS path.
     $sku = "$caption"
     if ($sku -match 'Home') {
-        Add-Finding 'Windows edition' 'warn' ('Home edition - the Hyper-V role and its PowerShell module are Pro/Enterprise/Education only. ' +
-            'This may still work if HCS is driven directly (see ARCHITECTURE.md); do NOT use DISM hacks to force the role in.')
+        $isHome = $true
+        Add-Finding 'Windows edition' 'warn' ('Home edition - the Hyper-V ROLE is not offered, but the platform files are identical to Pro. ' +
+            'See the "Home: staged packages" and "Virtual Machine Platform" lines below for the two routes (EDITIONS.md).')
     } elseif ($sku -match 'Pro|Enterprise|Education|Server') {
-        Add-Finding 'Windows edition' 'pass' 'edition supports the Hyper-V role'
+        Add-Finding 'Windows edition' 'pass' 'edition offers the Hyper-V role'
     } else {
         Add-Finding 'Windows edition' 'info' "edition not recognised: $sku"
     }
@@ -129,33 +151,31 @@ try {
     Add-Finding 'Windows build' 'fail' "could not read OS info: $($_.Exception.Message)"
 }
 
-# The Host Compute System library. The daemon drives HCS directly rather than
-# through the Hyper-V cmdlets (Set-VMFirmware cannot express a custom IGVM, and
-# hcsshim's SNP document builder is what we are mirroring). If vmcompute.dll is
-# present on an edition whose Hyper-V *role* is unavailable, that is the
-# interesting case: the licensing gate may sit on the management module rather
-# than on the platform, which would put Windows 11 Home back in scope.
-try {
-    $vmcompute = Join-Path $env:SystemRoot 'System32\vmcompute.dll'
-    if (Test-Path $vmcompute) {
-        $v = (Get-Item $vmcompute).VersionInfo.FileVersion
-        Add-Finding 'HCS (vmcompute.dll)' 'pass' "present ($v) - the direct HCS path has a library to call"
-    } else {
-        Add-Finding 'HCS (vmcompute.dll)' 'fail' 'vmcompute.dll absent - no Host Compute System on this machine'
-    }
-} catch {
-    Add-Finding 'HCS (vmcompute.dll)' 'warn' "could not inspect vmcompute.dll: $($_.Exception.Message)"
+# The platform files. vmwp.exe is the VM worker that parses the isolation
+# document and loads the IGVM; winhvr.sys is the hypervisor interface driver
+# that carries WinHvImportIsolatedPages / WinHvIssueSnpPspGuestRequest. Both
+# ship in every edition's cumulative update.
+foreach ($f in @('System32\vmwp.exe', 'System32\vmcompute.dll', 'System32\drivers\winhvr.sys')) {
+    try {
+        $p = Join-Path $env:SystemRoot $f
+        if (Test-Path $p) {
+            $v = (Get-Item $p).VersionInfo.FileVersion
+            Add-Finding "file $(Split-Path $f -Leaf)" 'pass' "present ($v)"
+        } else {
+            $why = if ($f -like '*vmwp*' -or $f -like '*vmcompute*') { 'enable Virtual Machine Platform or the Hyper-V role' } else { 'no hypervisor interface driver on this machine' }
+            Add-Finding "file $(Split-Path $f -Leaf)" 'warn' "absent - $why"
+        }
+    } catch { }
 }
 
 # ---------------------------------------------------------------------------
 # 2. CPU: is there SEV-SNP or TDX silicon underneath at all?
 #
-# This is the check that no amount of software fixes. SEV-SNP is EPYC 7003
-# (Milan) and newer; TDX is Xeon Scalable (4th gen / Sapphire Rapids and newer).
-# Consumer Ryzen and Core parts implement NEITHER -- not a firmware toggle, the
-# silicon is absent. We match on the brand string because CPUID is not reachable
-# from PowerShell without native code; a machine that passes this check should
-# still confirm in firmware (SMEE / SEV Control / SNP Memory (RMP)).
+# No amount of software fixes this. SEV-SNP is EPYC 7003 (Milan) and newer;
+# AMD states SEV is "not available on 4004 and 4005 series AMD EPYC Server CPUs
+# or AMD Ryzen CPUs", so the AM5-socket EPYCs do not count. TDX is Xeon
+# Scalable 4th gen (Sapphire Rapids) and newer. Consumer Ryzen and Core parts
+# implement neither.
 # ---------------------------------------------------------------------------
 $cpuFamily = 'unknown'
 try {
@@ -163,12 +183,15 @@ try {
     $name = ($cpu.Name).Trim()
     Add-Finding 'CPU' 'info' $name
 
-    if ($name -match 'EPYC') {
+    if ($name -match 'EPYC\s*4\d{3}') {
+        $cpuFamily = 'epyc-am5'
+        Add-Finding 'CPU: SEV-SNP class' 'fail' 'EPYC 4004/4005 (AM5) - AMD: SEV is not available on these parts. No firmware toggle adds it.'
+    } elseif ($name -match 'EPYC') {
         $cpuFamily = 'epyc'
-        Add-Finding 'CPU: SEV-SNP class' 'pass' 'AMD EPYC - SEV-SNP capable from 7003 (Milan) onward; verify SMEE + SEV Control + SNP Memory (RMP) are enabled in firmware'
+        Add-Finding 'CPU: SEV-SNP class' 'pass' 'AMD EPYC - SEV-SNP capable from 7003 (Milan) onward; see the firmware checklist in EDITIONS.md (RMP coverage OFF for Hyper-V)'
     } elseif ($name -match 'Xeon') {
         $cpuFamily = 'xeon'
-        Add-Finding 'CPU: TDX class' 'warn' 'Intel Xeon - TDX exists on Xeon Scalable 4th gen and newer only; Xeon W and E do not carry it'
+        Add-Finding 'CPU: TDX class' 'warn' 'Intel Xeon - TDX exists on Xeon Scalable 4th gen and newer only; Xeon W and Xeon E do not carry it'
     } elseif ($name -match 'Ryzen|Threadripper') {
         Add-Finding 'CPU: SEV-SNP class' 'fail' 'consumer/HEDT Ryzen - SEV-SNP is not implemented in this silicon. No driver or OS update adds it.'
     } elseif ($name -match 'Core|Ultra') {
@@ -185,161 +208,211 @@ try {
     Add-Finding 'CPU' 'warn' "could not read processor info: $($_.Exception.Message)"
 }
 
+if (-not $IsolationType) { $IsolationType = if ($cpuFamily -eq 'xeon') { 'TDX' } else { 'SNP' } }
+
 # ---------------------------------------------------------------------------
-# 3. Hyper-V present?
+# 3. Hyper-V present, and on Home: is it stageable?
 #
-# Hyper-V is the only path to an SNP guest on Windows, so it has to be on. Note
-# the client and server feature names differ.
+# Microsoft's OpenVMM CI enables exactly three features before its SNP/TDX
+# Hyper-V tests: Microsoft-Hyper-V, Microsoft-Hyper-V-Management-PowerShell,
+# Microsoft-Hyper-V-Management-Clients. On Home those packages are on disk in
+# %SystemRoot%\servicing\Packages but not owned by the edition manifest, so the
+# feature is "unknown" to DISM until they are staged with /add-package.
 # ---------------------------------------------------------------------------
 $hyperVOn = $false
 try {
     if (Get-Command Get-WindowsOptionalFeature -ErrorAction SilentlyContinue) {
-        $f = Get-WindowsOptionalFeature -Online -FeatureName 'Microsoft-Hyper-V-All' -ErrorAction SilentlyContinue
-        if ($null -ne $f) {
-            $hyperVOn = ($f.State -eq 'Enabled')
-            if ($hyperVOn) { Add-Finding 'Hyper-V' 'pass' 'Microsoft-Hyper-V-All enabled' }
-            else { Add-Finding 'Hyper-V' 'fail' "Microsoft-Hyper-V-All is $($f.State) - enable it and reboot" }
+        foreach ($feat in @('Microsoft-Hyper-V', 'Microsoft-Hyper-V-Management-PowerShell', 'Microsoft-Hyper-V-Management-Clients')) {
+            $f = Get-WindowsOptionalFeature -Online -FeatureName $feat -ErrorAction SilentlyContinue
+            if ($null -eq $f) {
+                Add-Finding "feature $feat" 'warn' 'unknown to DISM on this edition'
+            } elseif ($f.State -eq 'Enabled') {
+                if ($feat -eq 'Microsoft-Hyper-V') { $hyperVOn = $true }
+                Add-Finding "feature $feat" 'pass' 'enabled'
+            } else {
+                Add-Finding "feature $feat" 'fail' "$($f.State) - enable it: DISM /Online /Enable-Feature /All /FeatureName:$feat"
+            }
         }
     }
     if (-not $hyperVOn -and (Get-Command Get-WindowsFeature -ErrorAction SilentlyContinue)) {
         $f = Get-WindowsFeature -Name 'Hyper-V' -ErrorAction SilentlyContinue
-        if ($null -ne $f) {
-            $hyperVOn = $f.Installed
-            if ($hyperVOn) { Add-Finding 'Hyper-V' 'pass' 'Hyper-V role installed' }
-            else { Add-Finding 'Hyper-V' 'fail' 'Hyper-V role not installed' }
+        if ($null -ne $f -and $f.Installed) { $hyperVOn = $true; Add-Finding 'Hyper-V' 'pass' 'Hyper-V role installed' }
+    }
+
+    if ($isHome) {
+        # Route A: stage the in-box packages. Use the wide *Hyper*.mum glob; the
+        # narrow *Hyper-V*.mum pattern produced a partial stack on 24H2.
+        try {
+            $pk = Join-Path $env:SystemRoot 'servicing\Packages'
+            $mums = @(Get-ChildItem -Path $pk -Filter '*Hyper*.mum' -ErrorAction SilentlyContinue)
+            if ($mums.Count -gt 0) {
+                Add-Finding 'Home: staged packages' 'pass' ("$($mums.Count) *Hyper*.mum packages present - Route A (DISM /add-package each, then " +
+                    '/enable-feature Microsoft-Hyper-V -All) gives this machine the same vmms.exe and PowerShell module as Pro')
+            } else {
+                Add-Finding 'Home: staged packages' 'warn' 'no *Hyper*.mum packages found in servicing\Packages - Route A unavailable; Route B (HCS via Virtual Machine Platform) only'
+            }
+        } catch {
+            Add-Finding 'Home: staged packages' 'warn' "could not list servicing packages: $($_.Exception.Message)"
         }
     }
+
     if (-not (Get-Command Get-VMHost -ErrorAction SilentlyContinue)) {
-        Add-Finding 'Hyper-V module' 'warn' ('Hyper-V PowerShell module absent. Expected on Home, and NOT necessarily fatal: ' +
-            'the daemon drives HCS directly, not the cmdlets. Check the Virtual Machine Platform line below.')
+        Add-Finding 'Hyper-V module' 'warn' 'Hyper-V PowerShell module absent - the Get-VMHost / New-VM checks below are skipped'
     } else {
         Add-Finding 'Hyper-V module' 'pass' 'Hyper-V PowerShell module present'
     }
 
-    # Virtual Machine Platform is the feature that exposes HCS WITHOUT the
-    # Hyper-V role. It is how WSL2 and Docker Desktop run on Home editions, and
-    # it is the feature the installer should enable on a Home machine. Its
-    # presence with the role absent is the configuration worth knowing about.
+    # Virtual Machine Platform exposes HCS (vmcompute + vmwp) WITHOUT the role;
+    # it is how WSL2 runs on Home and how shipping products create full VMs
+    # there. Route B for Home.
     try {
         $vmp = Get-WindowsOptionalFeature -Online -FeatureName 'VirtualMachinePlatform' -ErrorAction SilentlyContinue
         if ($null -ne $vmp) {
             if ($vmp.State -eq 'Enabled') {
-                Add-Finding 'Virtual Machine Platform' 'pass' 'enabled - HCS is exposed even without the Hyper-V role'
+                Add-Finding 'Virtual Machine Platform' 'pass' 'enabled - HCS is exposed even without the Hyper-V role (Route B on Home)'
             } else {
                 Add-Finding 'Virtual Machine Platform' 'warn' ("$($vmp.State) - enable with: " +
                     'Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -All')
             }
         }
-        $whp = Get-WindowsOptionalFeature -Online -FeatureName 'HypervisorPlatform' -ErrorAction SilentlyContinue
-        if ($null -ne $whp) { Add-Finding 'Windows Hypervisor Platform' 'info' "$($whp.State)" }
-    } catch {
-        Add-Finding 'Virtual Machine Platform' 'warn' "could not query: $($_.Exception.Message)"
-    }
+    } catch { }
 
-    # Is a hypervisor actually running? On Home with VMP enabled this should be
-    # true even though the Hyper-V role is unavailable.
     try {
         $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction Stop
         if ($cs.HypervisorPresent) { Add-Finding 'Hypervisor running' 'pass' 'a hypervisor is present and running' }
-        else { Add-Finding 'Hypervisor running' 'fail' 'no hypervisor detected - enable virtualization in firmware and Virtual Machine Platform' }
+        else { Add-Finding 'Hypervisor running' 'fail' 'no hypervisor detected - enable virtualization in firmware and a virtualization feature, then reboot' }
     } catch { }
 } catch {
     Add-Finding 'Hyper-V' 'warn' "feature query failed: $($_.Exception.Message)"
 }
 
 # ---------------------------------------------------------------------------
-# 4. THE parameter.
+# 4. The two registry values Microsoft's CI sets, and what the hypervisor
+#    says after the reboot.
 #
-# Does this host's New-VM actually carry -GuestStateIsolationType, and does its
-# type admit SNP / TDX? Microsoft's Windows Server 2025 reference lists
-# TrustedLaunch, VBS, SNP, TDX, Disabled. Reading it off the live cmdlet proves
-# what THIS machine's module offers rather than what the docs say.
+#   HKLM\System\CurrentControlSet\Control\Hypervisor\EnableHardwareIsolation = 1
+#     "Enable hardware-isolation CPU features (Intel TDX / AMD SEV-SNP)";
+#     read by the hypervisor loader at boot -> reboot required.
+#   HKLM\Software\Microsoft\Windows NT\CurrentVersion\Virtualization\AllowFirmwareLoadFromFile = 1
+#     permits an UNSIGNED IGVM to be loaded (ours).
 # ---------------------------------------------------------------------------
-$isoValues = @()
+$hwIso = $null
 try {
-    $cmd = Get-Command New-VM -ErrorAction Stop
-    if ($cmd.Parameters.ContainsKey('GuestStateIsolationType')) {
-        $p = $cmd.Parameters['GuestStateIsolationType']
-        Add-Finding 'Isolation parameter' 'pass' "New-VM exposes -GuestStateIsolationType ($($p.ParameterType.Name))"
-
-        if ($p.ParameterType.IsEnum) {
-            $isoValues = [Enum]::GetNames($p.ParameterType)
-        } else {
-            $vs = $p.Attributes | Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] } | Select-Object -First 1
-            if ($vs) { $isoValues = $vs.ValidValues }
-        }
-
-        if ($isoValues.Count -gt 0) {
-            Add-Finding 'Isolation values' 'info' ($isoValues -join ', ')
-            if ($isoValues -contains 'SNP') { Add-Finding 'Isolation: SNP' 'pass' 'SNP is an accepted value on this host' }
-            else { Add-Finding 'Isolation: SNP' 'fail' 'SNP is NOT among the accepted values on this host' }
-            if ($isoValues -contains 'TDX') { Add-Finding 'Isolation: TDX' 'pass' 'TDX is an accepted value on this host' }
-        } else {
-            Add-Finding 'Isolation values' 'warn' 'could not enumerate the accepted values'
-        }
+    $hvKey = 'HKLM:\System\CurrentControlSet\Control\Hypervisor'
+    try { $hwIso = (Get-ItemProperty -Path $hvKey -Name 'EnableHardwareIsolation' -ErrorAction Stop).EnableHardwareIsolation } catch { }
+    if ($hwIso -ge 1) {
+        Add-Finding 'EnableHardwareIsolation' 'pass' "= $hwIso (1 = enable, 2 = force)"
     } else {
-        Add-Finding 'Isolation parameter' 'fail' 'New-VM has no -GuestStateIsolationType on this host - the build is too old or the module is downlevel'
+        Add-Finding 'EnableHardwareIsolation' 'fail' ('not set. Elevated: reg add "HKLM\System\CurrentControlSet\Control\Hypervisor" /v EnableHardwareIsolation /t REG_DWORD /d 1 /f ; then REBOOT. ' +
+            'This is the host gate Microsoft flips before its own SNP/TDX Hyper-V tests.')
     }
-} catch {
-    Add-Finding 'Isolation parameter' 'fail' "could not inspect New-VM: $($_.Exception.Message)"
-}
-
-# ---------------------------------------------------------------------------
-# 4b. Custom firmware: can this host be handed OUR IGVM?
-#
-# This is what makes a reproducible measurement possible. Microsoft's OpenVMM
-# guide documents Set-OpenHCLFirmware -IgvmFile for pointing a VM at a custom
-# IGVM, gated on the AllowFirmwareLoadFromFile registry value, which permits
-# UNSIGNED firmware images. Without it we would be stuck with a Microsoft-built
-# UVM whose measurement nobody outside Microsoft can reproduce.
-#
-# Note that `OpenHCL` is itself a valid -GuestStateIsolationType even though the
-# published New-VM reference does not list it, so an absent value above is not
-# proof of absence here.
-# ---------------------------------------------------------------------------
-try {
-    if (Get-Command Set-OpenHCLFirmware -ErrorAction SilentlyContinue) {
-        Add-Finding 'Custom IGVM' 'pass' 'Set-OpenHCLFirmware present - this host can be pointed at a custom IGVM'
-    } else {
-        Add-Finding 'Custom IGVM' 'fail' 'Set-OpenHCLFirmware not found - needs Windows 11 24H2 (26100.1586+) or Server 2025 with OpenHCL support'
-    }
+    $sevSnp = $null
+    try { $sevSnp = (Get-ItemProperty -Path $hvKey -Name 'EnableSevSnp' -ErrorAction Stop).EnableSevSnp } catch { }
+    if ($null -ne $sevSnp) { Add-Finding 'EnableSevSnp' 'info' "= $sevSnp (optional; AMD only)" }
 
     $virtKey = 'HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Virtualization'
     $allow = $null
     try { $allow = (Get-ItemProperty -Path $virtKey -Name 'AllowFirmwareLoadFromFile' -ErrorAction Stop).AllowFirmwareLoadFromFile } catch { }
     if ($allow -eq 1) {
-        Add-Finding 'Unsigned firmware' 'pass' 'AllowFirmwareLoadFromFile=1 - custom IGVM images may be loaded'
+        Add-Finding 'AllowFirmwareLoadFromFile' 'pass' '= 1 - custom (unsigned) IGVM images may be loaded'
     } else {
-        Add-Finding 'Unsigned firmware' 'warn' ('AllowFirmwareLoadFromFile is not set. Enable it elevated with: ' +
-            'Set-ItemProperty "HKLM:/Software/Microsoft/Windows NT/CurrentVersion/Virtualization" -Name AllowFirmwareLoadFromFile -Value 1 -Type DWORD')
-    }
-
-    if ($isoValues -contains 'OpenHCL') {
-        Add-Finding 'Isolation: OpenHCL' 'pass' 'OpenHCL isolation available'
+        Add-Finding 'AllowFirmwareLoadFromFile' 'warn' ('not set. Elevated: reg add "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Virtualization" ' +
+            '/v AllowFirmwareLoadFromFile /t REG_DWORD /d 1 /f')
     }
 } catch {
-    Add-Finding 'Custom IGVM' 'warn' "custom-firmware probe failed: $($_.Exception.Message)"
+    Add-Finding 'registry' 'warn' "registry probe failed: $($_.Exception.Message)"
+}
+
+# Get-VMHost: SnpStatus / TdxStatus / GuestIsolationTypes. petri's comment:
+# "there are other factors that determine SNP/TDX support than just hardware
+# compatibility, hence we rely on SnpStatus and TdxStatus". 1 means yes.
+$snpStatus = $null; $tdxStatus = $null
+if (Get-Command Get-VMHost -ErrorAction SilentlyContinue) {
+    try {
+        $h = Get-VMHost -ErrorAction Stop
+        $props = $h.PSObject.Properties
+        if ($props['SnpStatus']) {
+            $snpStatus = $h.SnpStatus
+            if ($snpStatus -eq 1) { Add-Finding 'Get-VMHost SnpStatus' 'pass' '1 - the hypervisor reports SEV-SNP guests are possible on this host' }
+            else { Add-Finding 'Get-VMHost SnpStatus' 'fail' "$snpStatus - SNP not available (firmware settings, EnableHardwareIsolation without a reboot, or the platform refusing)" }
+        } else {
+            Add-Finding 'Get-VMHost SnpStatus' 'warn' 'property absent - Hyper-V module older than the 26100 branch'
+        }
+        if ($props['TdxStatus']) {
+            $tdxStatus = $h.TdxStatus
+            if ($tdxStatus -eq 1) { Add-Finding 'Get-VMHost TdxStatus' 'pass' '1 - the hypervisor reports TDX guests are possible on this host' }
+            else { Add-Finding 'Get-VMHost TdxStatus' 'info' "$tdxStatus" }
+        }
+        if ($props['GuestIsolationTypes']) {
+            Add-Finding 'Get-VMHost isolation types' 'info' (@($h.GuestIsolationTypes) -join ', ')
+        }
+    } catch {
+        Add-Finding 'Get-VMHost' 'warn' "failed: $($_.Exception.Message)"
+    }
+}
+
+# The host's advertised isolation types straight from WMI, independent of the
+# PowerShell module's enum: Msvm_VirtualSystemSettingData definitions under
+# Microsoft:Definition\VirtualSystem\GuestStateIsolationType\<n>. This is what
+# ExHyperV and petri read; it works wherever vmms runs.
+$wmiIsoTypes = @()
+try {
+    $caps = Get-CimInstance -Namespace $HvNs -ClassName Msvm_VirtualSystemManagementCapabilities -ErrorAction Stop | Select-Object -First 1
+    if ($caps) {
+        $defs = Get-CimAssociatedInstance -InputObject $caps -ResultClassName Msvm_VirtualSystemSettingData -ErrorAction Stop
+        foreach ($d in $defs) {
+            if ($d.InstanceID -like 'Microsoft:Definition\VirtualSystem\GuestStateIsolationType\*' -and $d.GuestStateIsolationEnabled) {
+                $n = [int]$d.GuestStateIsolationType
+                $wmiIsoTypes += $(if ($IsoNames.ContainsKey($n)) { $IsoNames[$n] } else { "type$n" })
+            }
+        }
+        if ($wmiIsoTypes.Count -gt 0) {
+            Add-Finding 'WMI isolation definitions' 'info' ($wmiIsoTypes -join ', ')
+            foreach ($t in @('SNP', 'TDX')) {
+                if ($wmiIsoTypes -contains $t) { Add-Finding "WMI advertises $t" 'pass' "$t is an advertised guest-state isolation type on this host" }
+            }
+        } else {
+            Add-Finding 'WMI isolation definitions' 'warn' 'no GuestStateIsolationType definitions advertised - vmms predates isolation, or the role is not enabled'
+        }
+    }
+} catch {
+    Add-Finding 'WMI isolation definitions' 'info' "unavailable: $($_.Exception.Message)"
 }
 
 # ---------------------------------------------------------------------------
-# 5. GPU: the card that gets sold.
-#
-# The card is NOT passed through and NOT put in the enclave. It stays here on
-# the host with the game. What matters is only that CUDA is present and how much
-# VRAM there is, because the seller's slider sets a VRAM BUDGET the fleet is
-# told about -- the worker takes no device memory at start-up, tenants reserve
-# their share when they connect, and what they reserved goes back when they
-# disconnect.
+# 5. THE parameter on the live New-VM.
+# ---------------------------------------------------------------------------
+$isoValues = @()
+if (Get-Command New-VM -ErrorAction SilentlyContinue) {
+    try {
+        $cmd = Get-Command New-VM -ErrorAction Stop
+        if ($cmd.Parameters.ContainsKey('GuestStateIsolationType')) {
+            $p = $cmd.Parameters['GuestStateIsolationType']
+            if ($p.ParameterType.IsEnum) { $isoValues = [Enum]::GetNames($p.ParameterType) }
+            else {
+                $vs = $p.Attributes | Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] } | Select-Object -First 1
+                if ($vs) { $isoValues = $vs.ValidValues }
+            }
+            Add-Finding 'New-VM isolation param' 'pass' "present; values: $($isoValues -join ', ')"
+            if ($isoValues -contains $IsolationType) { Add-Finding "New-VM accepts $IsolationType" 'pass' "$IsolationType is an accepted value" }
+            else { Add-Finding "New-VM accepts $IsolationType" 'fail' "$IsolationType is NOT among the accepted values on this module" }
+        } else {
+            Add-Finding 'New-VM isolation param' 'fail' 'New-VM has no -GuestStateIsolationType - the module is older than the 26100 branch'
+        }
+    } catch {
+        Add-Finding 'New-VM isolation param' 'fail' "could not inspect New-VM: $($_.Exception.Message)"
+    }
+}
+
+# ---------------------------------------------------------------------------
+# 6. GPU: the card that gets sold. Stays on the host with the game.
 # ---------------------------------------------------------------------------
 try {
     $smi = Get-Command nvidia-smi -ErrorAction SilentlyContinue
     if ($smi) {
         $q = & nvidia-smi --query-gpu=name,memory.total,compute_cap,driver_version --format=csv,noheader 2>$null
-        if ($LASTEXITCODE -eq 0 -and $q) {
-            foreach ($line in @($q)) { Add-Finding 'GPU' 'pass' $line.Trim() }
-        } else {
-            Add-Finding 'GPU' 'warn' 'nvidia-smi present but returned nothing'
-        }
+        if ($LASTEXITCODE -eq 0 -and $q) { foreach ($line in @($q)) { Add-Finding 'GPU' 'pass' $line.Trim() } }
+        else { Add-Finding 'GPU' 'warn' 'nvidia-smi present but returned nothing' }
     } else {
         $gpus = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue
         foreach ($g in $gpus) { Add-Finding 'GPU' 'info' "$($g.Name) (no nvidia-smi; CUDA required for the shielded worker)" }
@@ -350,100 +423,85 @@ try {
 }
 
 # ---------------------------------------------------------------------------
-# 6. GPU partitioning (informational).
+# 7. The decisive test: create an isolated VM, then hand it a firmware file
+#    through WMI exactly as petri's Set-OpenHCLFirmware does.
 #
-# Recorded because it is genuinely available on Windows and is the reason the
-# card never has to be passed through: a Hyper-V guest can SHARE a physical GPU
-# with the host, with no generation restriction. This architecture does not
-# depend on it -- the worker runs on the host -- but it is the escape hatch if
-# a future design wants GPU inside a guest.
+# A zero-byte placeholder file is used. Content validation of the IGVM happens
+# at Start-VM, not at ModifySystemSettings, so what is being tested here is
+# whether the management service ACCEPTS FirmwareFile + GuestFeatureSet on an
+# SNP/TDX-isolated VM. Acceptance -> custom IGVM composes with hardware
+# isolation on this host. Refusal text is the most valuable output.
 # ---------------------------------------------------------------------------
-try {
-    $pgpu = $null
-    if (Get-Command Get-VMHostPartitionableGpu -ErrorAction SilentlyContinue) {
-        $pgpu = Get-VMHostPartitionableGpu -ErrorAction SilentlyContinue
-    } elseif (Get-Command Get-VMPartitionableGpu -ErrorAction SilentlyContinue) {
-        $pgpu = Get-VMPartitionableGpu -ErrorAction SilentlyContinue
+function Set-ProbeFirmware {
+    param([Parameter(Mandatory)]$Vm, [Parameter(Mandatory)][string]$FirmwarePath)
+    $vmms = Get-CimInstance -Namespace $HvNs -ClassName Msvm_VirtualSystemManagementService -ErrorAction Stop | Select-Object -First 1
+    $id = $Vm.Id.ToString()
+    $vssd = Get-CimInstance -Namespace $HvNs -Query "SELECT * FROM Msvm_VirtualSystemSettingData WHERE ConfigurationID='$id' AND VirtualSystemType='Microsoft:Hyper-V:System:Realized'" -ErrorAction Stop | Select-Object -First 1
+    if (-not $vssd) { throw 'realized Msvm_VirtualSystemSettingData not found for the probe VM' }
+    if (-not $vssd.PSObject.Properties['FirmwareFile']) { throw 'Msvm_VirtualSystemSettingData has no FirmwareFile property on this host (vmms predates custom IGVM)' }
+    $vssd.GuestFeatureSet = [uint32]0x201
+    $vssd.FirmwareFile = $FirmwarePath
+    $ser = [Microsoft.Management.Infrastructure.Serialization.CimSerializer]::Create()
+    $bytes = $ser.Serialize($vssd, [Microsoft.Management.Infrastructure.Serialization.InstanceSerializationOptions]::None)
+    $xml = [System.Text.Encoding]::Unicode.GetString($bytes)
+    $r = Invoke-CimMethod -InputObject $vmms -MethodName ModifySystemSettings -Arguments @{ SystemSettings = $xml } -ErrorAction Stop
+    if ($r.ReturnValue -eq 4096 -and $r.Job) {
+        $job = $r.Job
+        $deadline = (Get-Date).AddSeconds(60)
+        while ($job.JobState -in 2, 3, 4 -and (Get-Date) -lt $deadline) {
+            Start-Sleep -Milliseconds 250
+            $job = Get-CimInstance -InputObject $job
+        }
+        if ($job.JobState -ne 7) { throw "ModifySystemSettings job ended in state $($job.JobState): $($job.ErrorDescription)" }
+    } elseif ($r.ReturnValue -ne 0) {
+        throw "ModifySystemSettings returned $($r.ReturnValue)"
     }
-    if ($pgpu) { Add-Finding 'GPU-PV' 'info' "$(@($pgpu).Count) partitionable GPU(s) reported by Hyper-V" }
-    else { Add-Finding 'GPU-PV' 'info' 'no partitionable GPUs reported (not required by this design)' }
-} catch {
-    Add-Finding 'GPU-PV' 'info' 'partitionable GPU query unavailable'
 }
 
-# ---------------------------------------------------------------------------
-# 7. The decisive test.
-#
-# Create an SNP-isolated VM. No disk, minimum memory, deleted immediately. The
-# error text on failure is the most valuable output this script produces: it is
-# the difference between "the platform refuses this feature outside Azure Local"
-# and "firmware is not configured", and those lead to completely different
-# decisions.
-# ---------------------------------------------------------------------------
 if ($Attempt) {
     if (-not (Test-Elevated)) {
-        Add-Finding 'SNP launch test' 'warn' 'skipped - run this script elevated to attempt VM creation'
+        Add-Finding 'isolated VM test' 'warn' 'skipped - run this script elevated to attempt VM creation'
+    } elseif (-not (Get-Command New-VM -ErrorAction SilentlyContinue)) {
+        Add-Finding 'isolated VM test' 'warn' 'skipped - no Hyper-V PowerShell module (on Home: stage the packages first, Route A)'
     } else {
-        $vmName = "enclave-snp-probe-$([guid]::NewGuid().ToString('N').Substring(0,8))"
+        $vmName = "enclave-$($IsolationType.ToLower())-probe-$([guid]::NewGuid().ToString('N').Substring(0,8))"
         $created = $false
+        $vm = $null
         try {
             Write-Host ''
-            Write-Host "  creating $vmName with -GuestStateIsolationType SNP ..." -ForegroundColor Cyan
+            Write-Host "  creating $vmName with -GuestStateIsolationType $IsolationType ..." -ForegroundColor Cyan
             $vm = New-VM -Name $vmName -MemoryStartupBytes 1GB -Generation 2 -NoVHD `
-                         -GuestStateIsolationType SNP -ErrorAction Stop
+                         -GuestStateIsolationType $IsolationType -ErrorAction Stop
             $created = $true
-            Add-Finding 'SNP launch test' 'pass' 'Hyper-V ACCEPTED an SNP-isolated VM on this host'
+            Add-Finding 'isolated VM test' 'pass' "Hyper-V ACCEPTED a $IsolationType-isolated VM on this host"
 
             try {
                 $v = Get-VM -Name $vmName -ErrorAction Stop
-                Add-Finding 'SNP VM state' 'info' "version $($v.Version), state $($v.State)"
+                Add-Finding 'isolated VM state' 'info' "version $($v.Version), state $($v.State), GuestStateIsolationType $($v.GuestStateIsolationType)"
             } catch { }
 
-            # THE question this probe exists to answer.
-            #
-            # Loading a custom IGVM is documented, but ONLY for -GuestStateIsolationType
-            # OpenHCL and TrustedLaunch. Whether Set-OpenHCLFirmware will accept a VM
-            # created with SNP isolation is undocumented, and it decides everything:
-            #
-            #   accepts -> we ship our own IGVM as a confidential guest, compute its
-            #              launch measurement offline, and PROTOCOL.md's allowlist stays
-            #              auditable (anyone rebuilds and recomputes).
-            #   refuses -> the only remaining route is a Microsoft-built UVM, whose
-            #              measurement "cannot be independently reproduced by third
-            #              parties" -- a real downgrade to the tenant-facing claim.
-            #
-            # A dummy path is used deliberately: we are testing whether the cmdlet
-            # REJECTS THE VM, not whether it likes the file. "file not found" is a
-            # PASS for our purposes; "not supported on an isolated VM" is the failure.
-            if (Get-Command Set-OpenHCLFirmware -ErrorAction SilentlyContinue) {
-                $probeIgvm = Join-Path $env:TEMP 'enclave-probe-nonexistent.bin'
-                try {
-                    Set-OpenHCLFirmware -Vm $vm -IgvmFile $probeIgvm -ErrorAction Stop
-                    Add-Finding 'Custom IGVM + SNP' 'pass' 'Set-OpenHCLFirmware accepted an SNP-isolated VM'
-                } catch {
-                    $m = $_.Exception.Message
-                    if ($m -match 'not found|does not exist|cannot find|No such') {
-                        Add-Finding 'Custom IGVM + SNP' 'pass' ("cmdlet reached file handling on an SNP-isolated VM " +
-                            "(rejected the dummy path, not the VM) - custom IGVM appears to compose with SNP")
-                    } elseif ($m -match 'isolation|isolated|not supported|unsupported|invalid') {
-                        Add-Finding 'Custom IGVM + SNP' 'fail' ("REFUSED for an isolated VM: $m")
-                        Add-Finding 'Custom IGVM + SNP' 'info' 'this is the Path A blocker - reproducible measurement may not be reachable; see ARCHITECTURE.md'
-                    } else {
-                        Add-Finding 'Custom IGVM + SNP' 'warn' "inconclusive: $m"
-                    }
+            $probeIgvm = Join-Path $env:TEMP 'enclave-probe-placeholder.igvm'
+            try { Set-Content -Path $probeIgvm -Value '' -NoNewline -ErrorAction Stop } catch { }
+            try {
+                Set-ProbeFirmware -Vm $vm -FirmwarePath $probeIgvm
+                Add-Finding "custom IGVM + $IsolationType" 'pass' ('ModifySystemSettings accepted GuestFeatureSet=0x201 + FirmwareFile on the isolated VM - ' +
+                    'custom IGVM composes with hardware isolation here; next step is a real IGVM and Start-VM')
+            } catch {
+                $m = $_.Exception.Message
+                if ($m -match 'isolation|isolated|not supported|unsupported|invalid|denied') {
+                    Add-Finding "custom IGVM + $IsolationType" 'fail' "REFUSED: $m"
+                    Add-Finding "custom IGVM + $IsolationType" 'info' 'this is the Path A blocker - see ARCHITECTURE.md / EDITIONS.md'
+                } else {
+                    Add-Finding "custom IGVM + $IsolationType" 'warn' "inconclusive: $m"
                 }
-            } else {
-                Add-Finding 'Custom IGVM + SNP' 'warn' 'Set-OpenHCLFirmware absent; cannot test the combination'
+            } finally {
+                try { Remove-Item -Path $probeIgvm -Force -ErrorAction SilentlyContinue } catch { }
             }
-
-            # Actually STARTING it would need a real bootable IGVM/VMGS pair, which
-            # this probe does not ship.
         } catch {
             $msg = $_.Exception.Message
-            Add-Finding 'SNP launch test' 'fail' $msg
-            if ($msg -match 'not supported|unsupported|invalid|cannot') {
-                Add-Finding 'SNP launch test' 'info' 'read the message above carefully: platform refusal, firmware not configured, and unsupported-CPU all look different'
-            }
+            Add-Finding 'isolated VM test' 'fail' $msg
+            Add-Finding 'isolated VM test' 'info' ('read the message carefully: "not supported on this host" after EnableHardwareIsolation + reboot with SnpStatus=1 ' +
+                'is a platform refusal; before the reboot or with SnpStatus<>1 it is just the gate')
         } finally {
             if ($created -and -not $KeepVm) {
                 try { Remove-VM -Name $vmName -Force -ErrorAction Stop; Write-Host "  removed $vmName" -ForegroundColor DarkGray }
@@ -452,7 +510,7 @@ if ($Attempt) {
         }
     }
 } else {
-    Add-Finding 'SNP launch test' 'info' 'not attempted - re-run elevated with -Attempt for the decisive answer'
+    Add-Finding 'isolated VM test' 'info' 'not attempted - re-run elevated with -Attempt for the decisive answer'
 }
 
 # ---------------------------------------------------------------------------
@@ -463,15 +521,19 @@ Write-Host 'Verdict' -ForegroundColor Cyan
 Write-Host '-------' -ForegroundColor Cyan
 
 $fails = @($script:Findings | Where-Object { $_.Status -eq 'fail' })
-$snpAccepted = @($script:Findings | Where-Object { $_.Area -eq 'SNP launch test' -and $_.Status -eq 'pass' }).Count -gt 0
-$snpValue = $isoValues -contains 'SNP'
+$vmAccepted = @($script:Findings | Where-Object { $_.Area -eq 'isolated VM test' -and $_.Status -eq 'pass' }).Count -gt 0
+$fwAccepted = @($script:Findings | Where-Object { $_.Area -like 'custom IGVM*' -and $_.Status -eq 'pass' }).Count -gt 0
+$hostSaysYes = ($IsolationType -eq 'SNP' -and $snpStatus -eq 1) -or ($IsolationType -eq 'TDX' -and $tdxStatus -eq 1)
 
-if ($snpAccepted) {
-    Write-Host 'This host CREATED an SNP-isolated VM. The confidential half is viable here.' -ForegroundColor Green
-    Write-Host 'Next: build a bootable IGVM + VMGS pair for the metal guest and start it.' -ForegroundColor Green
-} elseif ($snpValue -and -not $Attempt) {
-    Write-Host 'SNP is an accepted isolation value here. Re-run elevated with -Attempt to find out' -ForegroundColor Yellow
-    Write-Host 'whether the platform actually honours it - that is the open question.' -ForegroundColor Yellow
+if ($vmAccepted -and $fwAccepted) {
+    Write-Host "This host CREATED a $IsolationType-isolated VM and accepted a custom firmware file on it." -ForegroundColor Green
+    Write-Host 'Next: build the metal guest as an IGVM (x64-cvm), point FirmwareFile at it, Start-VM, pull a report.' -ForegroundColor Green
+} elseif ($vmAccepted) {
+    Write-Host "This host CREATED a $IsolationType-isolated VM but the custom-firmware write was refused or inconclusive - see above." -ForegroundColor Yellow
+} elseif ($hostSaysYes -and -not $Attempt) {
+    Write-Host "Get-VMHost says $IsolationType is available here. Re-run elevated with -Attempt for the decisive answer." -ForegroundColor Green
+} elseif ($null -eq $hwIso -or $hwIso -lt 1) {
+    Write-Host 'EnableHardwareIsolation is not set. Set it (see above), reboot, and re-run - nothing else is meaningful until then.' -ForegroundColor Yellow
 } elseif ($fails.Count -gt 0) {
     Write-Host "$($fails.Count) blocking finding(s):" -ForegroundColor Red
     foreach ($f in $fails) { Write-Host "  - $($f.Area): $($f.Detail)" -ForegroundColor Red }
