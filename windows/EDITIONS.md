@@ -282,6 +282,18 @@ That last row is the one that will bite anyone who configured the board for
 Linux/KVM first (metal0's `host-setup.sh` wants RMP coverage *on*). Same board,
 opposite setting.
 
+**On a board that already runs a KVM SEV-SNP guest, it is the ONLY row that
+changes.** A working metal0 is proof that SVM Mode, SMEE, SEV Control, SEV-SNP
+Support, the ASID space limit and IOMMU are all already correct -- an SNP guest
+cannot launch otherwise. So the firmware trip is one toggle, not a
+reconfiguration:
+
+| | for metal0 (KVM) | for Hyper-V |
+|---|---|---|
+| SNP Memory (RMP Table Coverage) | **Enabled** | **Disabled** |
+
+and back again afterwards. Everything else is left alone.
+
 Then, **in Windows** (elevated PowerShell). Nothing below is a BIOS setting --
 these are Windows features and registry values. The naming is a trap:
 `AllowFirmwareLoadFromFile` lives in the registry and refers to the **guest**
