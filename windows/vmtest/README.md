@@ -9,6 +9,50 @@ out the serial port, and powers off.
 tail -f run/serial.log        # from another shell
 ```
 
+## Result: PASSED, 2026-08-29
+
+Run on `warden-host` (EPYC 9115) against `Win11_25H2_English_x64_v2.iso`, guest
+**Windows 11 Pro build 26200.8037**, nested under KVM.
+
+```
+[  OK  ] New-VM isolation param   present; values: TrustedLaunch, VBS, OpenHCL, SNP, TDX, Disabled
+[  OK  ] isolated VM test         Hyper-V ACCEPTED a VBS-isolated VM on this host
+[ ---- ] isolated VM state        version 12.0, state Off, GuestStateIsolationType VBS
+[  OK  ] custom IGVM + VBS        ModifySystemSettings accepted GuestFeatureSet=0x201 + FirmwareFile
+                                  on the isolated VM
+```
+
+**The custom-IGVM mechanism works.** `ModifySystemSettings` accepts
+`FirmwareFile` + `GuestFeatureSet` on a VM created with an isolation type. That
+was the open question, and it is answered by execution rather than by reading
+`vmwp.exe` strings.
+
+Also learned from the same run:
+
+- `New-VM -GuestStateIsolationType` really does offer **SNP and TDX** as values
+  on a retail 26200 host, alongside TrustedLaunch/VBS/OpenHCL/Disabled.
+- The **host** advertised only `Disabled, TrustedLaunch, VBS, OpenHCL` in
+  `Get-VMHost GuestIsolationTypes`, and `SnpStatus` returned
+  **`IncompatibleHardware`**. That is the expected and correct answer *in this
+  environment*: the guest is nested under KVM, which does not expose
+  SNP-host features to an L1. **It says nothing about bare metal.**
+- `vmwp.exe` on this 26200 image reports version **10.0.26100.4768** -- 25H2
+  ships the 26100-branch binaries, consistent with it being an enablement
+  package over 24H2.
+- `EnableSevSnp` does not exist as a value under the Hypervisor key on a host
+  where it was never set, so its absence is not evidence either way.
+
+### What is still unproven
+
+The SNP-specific half, unchanged: whether a **bare-metal** EPYC host with
+`EnableHardwareIsolation=1`, RMP Table Coverage **off**, and a reboot reports
+`SnpStatus = 1` and then accepts the same `FirmwareFile` write on an
+SNP-isolated VM. Nesting cannot answer that; only the real thing can.
+
+What the dry run did buy: the mechanism is not refused across the board, and the
+probe itself has now been executed end to end, so the expensive test will not be
+the first time the script runs.
+
 ## What this answers, and what it does not
 
 **Answers:** does `vmms` accept a custom IGVM -- `FirmwareFile` +
