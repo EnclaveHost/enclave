@@ -104,6 +104,20 @@ function Add-Finding {
     Write-Host ('[{0}] {1,-24} {2}' -f $tag, $Area, $Detail) -ForegroundColor $color
 }
 
+# Read one registry value without throwing. A missing value is an expected
+# answer here ("the gate is not set"), not an error, and -ErrorAction Stop in a
+# try/catch still writes a TerminatingError into Start-Transcript output, which
+# makes a clean run look broken.
+function Get-RegValue {
+    param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$Name)
+    try {
+        $k = Get-Item -LiteralPath $Path -ErrorAction SilentlyContinue
+        if (-not $k) { return $null }
+        if ($k.GetValueNames() -notcontains $Name) { return $null }
+        return $k.GetValue($Name)
+    } catch { return $null }
+}
+
 function Test-Elevated {
     try {
         $id = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -133,7 +147,8 @@ try {
     $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
     $build = [int]($os.BuildNumber)
     $ubr = 0
-    try { $ubr = [int](Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name UBR -ErrorAction Stop).UBR } catch { }
+    $ubrRaw = Get-RegValue -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name UBR
+    if ($null -ne $ubrRaw) { $ubr = [int]$ubrRaw }
     $caption = $os.Caption
     $detail = "$caption (build $build.$ubr)"
 
@@ -317,7 +332,7 @@ try {
 $hwIso = $null
 try {
     $hvKey = 'HKLM:\System\CurrentControlSet\Control\Hypervisor'
-    try { $hwIso = (Get-ItemProperty -Path $hvKey -Name 'EnableHardwareIsolation' -ErrorAction Stop).EnableHardwareIsolation } catch { }
+    $hwIso = Get-RegValue -Path $hvKey -Name 'EnableHardwareIsolation'
     if ($hwIso -ge 1) {
         Add-Finding 'EnableHardwareIsolation' 'pass' "= $hwIso (1 = enable, 2 = force)"
     } else {
@@ -325,12 +340,12 @@ try {
             'This is the host gate Microsoft flips before its own SNP/TDX Hyper-V tests.')
     }
     $sevSnp = $null
-    try { $sevSnp = (Get-ItemProperty -Path $hvKey -Name 'EnableSevSnp' -ErrorAction Stop).EnableSevSnp } catch { }
+    $sevSnp = Get-RegValue -Path $hvKey -Name 'EnableSevSnp'
     if ($null -ne $sevSnp) { Add-Finding 'EnableSevSnp' 'info' "= $sevSnp (optional; AMD only)" }
 
     $virtKey = 'HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Virtualization'
     $allow = $null
-    try { $allow = (Get-ItemProperty -Path $virtKey -Name 'AllowFirmwareLoadFromFile' -ErrorAction Stop).AllowFirmwareLoadFromFile } catch { }
+    $allow = Get-RegValue -Path $virtKey -Name 'AllowFirmwareLoadFromFile'
     if ($allow -eq 1) {
         Add-Finding 'AllowFirmwareLoadFromFile' 'pass' '= 1 - custom (unsigned) IGVM images may be loaded'
     } else {

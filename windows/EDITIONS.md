@@ -356,6 +356,20 @@ Two things still to prove on hardware, in this order:
    still reproducible -- it just includes OpenHCL -- so this is a preference,
    not a blocker, exactly as ARCHITECTURE.md concluded.
 
+## Dry run executed 2026-08-29: the mechanism works
+
+`vmtest/` ran the probe unattended in a nested Windows 11 Pro 26200.8037 guest.
+`New-VM -GuestStateIsolationType VBS` was accepted, and `ModifySystemSettings`
+accepted `GuestFeatureSet = 0x201` + `FirmwareFile` on the resulting isolated
+VM. So the custom-IGVM path is not refused at the `vmms` acceptance layer, and
+that is now established by execution rather than by reading `vmwp.exe` strings.
+
+The same run confirmed `New-VM` offers **SNP and TDX** as isolation values on a
+retail 26200 host. It could not test SNP itself: nested under KVM, `SnpStatus`
+returns `IncompatibleHardware` and the host advertises only
+`Disabled, TrustedLaunch, VBS, OpenHCL` -- correct for that environment, and
+uninformative about bare metal. See `vmtest/README.md`.
+
 ## Testing without a second Windows partition
 
 Four routes, in increasing cost. The first needs no confidential silicon at all
