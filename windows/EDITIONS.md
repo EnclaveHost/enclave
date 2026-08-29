@@ -282,7 +282,12 @@ That last row is the one that will bite anyone who configured the board for
 Linux/KVM first (metal0's `host-setup.sh` wants RMP coverage *on*). Same board,
 opposite setting.
 
-Then, elevated:
+Then, **in Windows** (elevated PowerShell). Nothing below is a BIOS setting --
+these are Windows features and registry values. The naming is a trap:
+`AllowFirmwareLoadFromFile` lives in the registry and refers to the **guest**
+firmware (our IGVM), not to host firmware, and `EnableHardwareIsolation` needs a
+reboot only because the hypervisor reads it during early boot, not because it is
+a firmware setting.
 
 ```powershell
 # 1. features (Pro; on Home run the DISM staging first)
@@ -290,7 +295,7 @@ DISM /Online /NoRestart /Enable-Feature /All /FeatureName:Microsoft-Hyper-V
 DISM /Online /NoRestart /Enable-Feature /All /FeatureName:Microsoft-Hyper-V-Management-PowerShell
 DISM /Online /NoRestart /Enable-Feature /All /FeatureName:Microsoft-Hyper-V-Management-Clients
 
-# 2. the two values Microsoft's own CI sets
+# 2. the two REGISTRY values Microsoft's own CI sets (not BIOS)
 reg add "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Virtualization" /v AllowFirmwareLoadFromFile /t REG_DWORD /d 1 /f
 reg add "HKLM\System\CurrentControlSet\Control\Hypervisor" /v EnableHardwareIsolation /t REG_DWORD /d 1 /f
 Restart-Computer
