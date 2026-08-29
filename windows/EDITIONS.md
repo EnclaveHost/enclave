@@ -294,6 +294,34 @@ reconfiguration:
 
 and back again afterwards. Everything else is left alone.
 
+**Confirm the current state from Linux before touching firmware** rather than
+trusting the documentation. If platform firmware allocated an RMP, the kernel
+says so at boot:
+
+```sh
+journalctl -k | grep -iE "sev|rmp"
+```
+
+On warden-host, 2026-08-29:
+
+```
+SEV-SNP: RMP table physical range [0x0000000053900000 - 0x00000000740fffff]
+ccp 0000:a5:00.5: SEV-SNP API:1.58 build:3
+kvm_amd: SEV enabled (ASIDs 100 - 1006)
+kvm_amd: SEV-ES enabled (ASIDs 1 - 99)
+kvm_amd: SEV-SNP enabled (ASIDs 1 - 99)
+```
+
+That range is ~520 MiB, which is exactly an RMP covering 124 GB of RAM at one
+16-byte entry per 4 KiB page -- so firmware allocated it and it spans all of
+memory. The kernel reads its bounds from the `RMP_BASE`/`RMP_END` MSRs that BIOS
+populates, so **its presence is direct evidence the setting is Enabled**. The
+ASID split in the same log is the "SEV-ES ASID Space Limit" row confirmed too.
+
+An absent RMP line on a machine you expected to be configured means the toggle
+is already off (or SNP was never enabled), which is worth knowing before a
+reboot rather than after.
+
 Then, **in Windows** (elevated PowerShell). Nothing below is a BIOS setting --
 these are Windows features and registry values. The naming is a trap:
 `AllowFirmwareLoadFromFile` lives in the registry and refers to the **guest**
