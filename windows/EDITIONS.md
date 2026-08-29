@@ -356,6 +356,81 @@ Two things still to prove on hardware, in this order:
    still reproducible -- it just includes OpenHCL -- so this is a preference,
    not a blocker, exactly as ARCHITECTURE.md concluded.
 
+## Testing without a second Windows partition
+
+Four routes, in increasing cost. The first needs no confidential silicon at all
+and no involvement from metal0.
+
+### 1. VBS dry run -- any Windows 11 24H2 machine, zero risk
+
+`vmwp.exe` routes **VBS** isolated VMs through the *same* IGVM loader as SNP
+ones: `VbsVpContext` and `_IGVM_VHS_VBS_MEASUREMENT` sit beside `SnpVpContext`
+in the same binary, and the guard string is "Isolation settings are a required
+parameter for SNP **or VBS** isolated VMs".
+
+So `New-VM -GuestStateIsolationType VBS` followed by `ModifySystemSettings`
+writing `GuestFeatureSet` + `FirmwareFile` exercises the **identical code path**
+as the SNP case -- on a laptop, with no EPYC, no `EnableHardwareIsolation`, no
+firmware change, and nothing near a production box:
+
+```powershell
+.\probe\Test-EnclaveHost.ps1 -Attempt -IsolationType VBS   # elevated
+```
+
+What a pass proves: the custom-IGVM mechanism composes with an isolated VM, and
+the probe script itself runs (it has never been executed anywhere). That is
+open question (a) answered, and the script debugged, before touching anything.
+
+What it does **not** prove: that the hypervisor will grant **SNP** on
+confidential silicon. Only `Get-VMHost SnpStatus` on real hardware answers that.
+
+**Do this first.** It costs nothing and it is the only step that de-risks the
+script itself.
+
+### 2. A separate physical disk -- not a partition
+
+For the real SNP test, add a cheap NVMe or SATA SSD and install Windows to it.
+The Linux install is never touched: no repartitioning, no shared bootloader, no
+GRUB edit. Pick the boot device from the firmware boot menu. Removing the disk
+restores the machine exactly.
+
+This is strictly safer than a second partition and costs ~$30-50.
+
+### 3. Windows To Go / USB boot -- nothing installed at all
+
+Windows can be run from external USB media (the in-box Windows To Go feature was
+removed after 1903, but Rufus and WinToUSB still produce bootable installs).
+Internal storage is untouched entirely.
+
+Caveats: Hyper-V on a USB-booted Windows is a combination worth verifying rather
+than assuming, and USB-attached storage is slow -- fine for a capability test,
+not for anything timed.
+
+### 4. What does NOT work: Windows as a VM on metal0
+
+Running Windows as a KVM guest and letting *its* Hyper-V launch the SNP VM would
+need **nested SNP-host** virtualisation: KVM would have to expose SNP host
+features (`RMPUPDATE`/`PSMASH`, the PSP interface) to the Windows L1. KVM cannot
+-- that series is an unmerged 2023 RFC (see the ruled-out table above). The same
+applies to VMware and VirtualBox.
+
+Nesting works in the other direction only, and only on Azure hosts.
+
+### The BIOS caveat none of these avoid
+
+Routes 2 and 3 avoid touching the Linux **install**. They do not avoid the
+**firmware** change: `SNP Memory (RMP Table Coverage)` must be **Disabled** for
+Hyper-V and **Enabled** for metal0's KVM path. That is one setting on one board,
+and it cannot hold both values at once.
+
+So on metal0 specifically, testing SNP means a BIOS round trip and metal0's SNP
+mode is down until it is reverted -- leases lapse across that window. Only route
+1 avoids this entirely.
+
+If the EPYC 9115 is the only SNP-capable box available, the options are to
+schedule that outage deliberately, or to source a second Milan-or-later EPYC
+(cheap on the used market) and keep metal0 on the reviewed KVM path untouched.
+
 ## Windows 10, and what to tell a Windows 10 user
 
 Not fixable. The 19041 worker has no IGVM loader, no SNP contexts, no
