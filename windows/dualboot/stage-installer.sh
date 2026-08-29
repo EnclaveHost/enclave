@@ -61,12 +61,15 @@ fi
 echo "==> creating partition"
 echo "start=$STAGE_START, size=$STAGE_SECTORS, type=$BASIC_DATA, name=\"$LABEL\"" \
   | sfdisk --append --no-reread --no-tell-kernel "$DISK"
-partx -a "$DISK" 2>/dev/null || partprobe "$DISK" || true
-sleep 2
 
+# Read the number back out of the on-disk table.  p1 is held by dm-crypt, so
+# the kernel will not re-read the whole table -- add only the new partition.
 PARTNUM=$(sfdisk -l -o Device,Start "$DISK" | awk -v s="$STAGE_START" '$2==s{print $1}' | grep -o '[0-9]*$')
-[ -n "$PARTNUM" ] || die "could not find the partition just created"
+[ -n "$PARTNUM" ] || die "could not find the partition just written to the table"
 PARTDEV="${DISK}p${PARTNUM}"
+partx -a --nr "$PARTNUM" "$DISK" 2>/dev/null || true
+udevadm settle 2>/dev/null || true
+for _ in $(seq 20); do [ -b "$PARTDEV" ] && break; sleep 0.5; done
 [ -b "$PARTDEV" ] || die "$PARTDEV did not appear"
 echo "    created $PARTDEV"
 
